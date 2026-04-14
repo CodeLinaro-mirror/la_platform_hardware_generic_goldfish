@@ -31,7 +31,7 @@ namespace android::goldfish {
 
 // Represents an emulator that can launch qemu with the proper parameters based
 // on an avd.
-class Emulator : public EmulatorConfig {
+class LaunchQemu {
   public:
     /**
      * @brief Constructs an emulator with the given avd and optional additional
@@ -40,10 +40,7 @@ class Emulator : public EmulatorConfig {
      * @param avd The AVD configuration to use for the emulator.
      * @param opts The android options to use for the emulator.
      */
-    explicit Emulator(const EmulatorPorts& ports, const ChardevEndpoints& chardev_endpoints,
-                      const MetricsConfig& metrics_config, const ResolvedInputPaths& resolved_paths,
-                      const Avd& avd, const AndroidOptions& opts)
-            : EmulatorConfig(ports, chardev_endpoints, metrics_config, resolved_paths, avd, opts) {}
+    explicit LaunchQemu(EmulatorConfig config) : config_(std::move(config)) {}
 
     /**
      * @brief Clears the device's persistent state and prepares it for
@@ -80,7 +77,7 @@ class Emulator : public EmulatorConfig {
      * found.
      */
     template <typename T>
-    T* get(const std::string& id) const {
+    const T* get(const std::string& id) const {
         static_assert(std::is_base_of_v<Device, T>, "T must be a subclass of Device");
         auto res = mDeviceMap.find(id);
         if (res == mDeviceMap.end()) {
@@ -124,6 +121,8 @@ class Emulator : public EmulatorConfig {
     // Constructs the qemu command line.
     std::string qemu_exe_path() const;
     std::vector<std::string> getCmdline() const;
+
+    const EmulatorConfig config_;
 
     std::vector<std::unique_ptr<Device>> mDevices;
     std::unordered_map<std::string, Device*> mDeviceMap;

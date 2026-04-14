@@ -440,6 +440,7 @@ cc_test(
     visibility = ["//visibility:public"],
     deps = [
         ":configure_drives",
+        ":fake_emulator",
         ":mock_avd",
         "//emulator/libs/system:test-headers",
         "//emulator/libs/test:googletest_main",

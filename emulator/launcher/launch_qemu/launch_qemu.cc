@@ -55,12 +55,12 @@ namespace android::goldfish {
 
 using android::base::System;
 
-absl::Status Emulator::addDevices() {
+absl::Status LaunchQemu::addDevices() {
     // Device are initialized in order of appearance
     // So if device B depends on device A, you should register them as:
     // -device A -device B ...
-    const auto& o = opts();
-    const auto& a = avd();
+    const auto& o = config_.opts();
+    const auto& a = config_.avd();
     int pluginLogLevel = static_cast<int>(o.verbose ? absl::LogSeverityAtLeast::kInfo
                                                     : absl::LogSeverityAtLeast::kWarning);
 
@@ -93,7 +93,7 @@ absl::Status Emulator::addDevices() {
     addDevice<KernelDevice>();
     addDevice<InitrdDevice>();
 
-    RETURN_IF_ERROR(addDrives(*this));
+    RETURN_IF_ERROR(addDrives(config_, *this));
 
     addDevice<AudioDevice>("09.0");
 
@@ -142,7 +142,8 @@ absl::Status Emulator::addDevices() {
     if (!o.no_netsim) {
         addDevice<ParameterList>(std::initializer_list<std::string>{
             "-device",
-            absl::StrCat("netsim-connection,id=netsim,grpc_endpoint=", chardev_endpoints().netsim),
+            absl::StrCat("netsim-connection,id=netsim,grpc_endpoint=",
+                         config_.chardev_endpoints().netsim),
         });
 
         if (!o.no_wifi) {
@@ -166,11 +167,11 @@ absl::Status Emulator::addDevices() {
         });
     }
 
-    if (!chardev_endpoints().modem_simulator.empty()) {
+    if (!config_.chardev_endpoints().modem_simulator.empty()) {
         addDevice<ParameterList>(std::initializer_list<std::string>{
             "-chardev",
             absl::StrCat("socket,id=modem,nodelay=on,reconnect-ms=100,",
-                         chardev_endpoints().modem_simulator),
+                         config_.chardev_endpoints().modem_simulator),
             "-device",
             "virtserialport,chardev=modem,name=modem",
         });
@@ -201,7 +202,7 @@ absl::Status Emulator::addDevices() {
     addDevice<ParameterList>(std::initializer_list<std::string>{"-device", "avdend"});
 
     addDevice<ParameterList>(
-            std::initializer_list<std::string>{"-L", paths().bios_directory.string()});
+            std::initializer_list<std::string>{"-L", config_.paths().bios_directory.string()});
 
     if (o.qemu_telnet) {
         // Debug monitor
@@ -212,11 +213,11 @@ absl::Status Emulator::addDevices() {
     }
 
     const bool snapshot_save_needed = o.snapshot && o.snapshot[0] != '\0' && !o.no_snapshot_save;
-    const bool qmp_needed = snapshot_save_needed && qmp_port() != 0;
+    const bool qmp_needed = snapshot_save_needed && config_.qmp_port() != 0;
     if (qmp_needed) {
         addDevice<ParameterList>(std::initializer_list<std::string>{
             "-qmp",
-            absl::StrFormat("tcp:127.0.0.1:%d,server,nowait", qmp_port()),
+            absl::StrFormat("tcp:127.0.0.1:%d,server,nowait", config_.qmp_port()),
         });
     }
 
@@ -238,25 +239,25 @@ absl::Status Emulator::addDevices() {
     return absl::OkStatus();
 }
 
-bool Emulator::snapshotExists(const std::string& name) const {
-    const auto& a = avd();
+bool LaunchQemu::snapshotExists(const std::string& name) const {
+    const auto& a = config_.avd();
     fs::path bootstatus_ini = a.GetContentPath() / "snapshots" / name / "bootstatus.ini";
     return fs::exists(bootstatus_ini);
 }
 
-void Emulator::clear() {
+void LaunchQemu::clear() {
     for (auto& device : mDevices) {
         ABSL_LOG(INFO) << "Reset: " << device->id();
         device->clear();
     }
 }
 
-absl::Status Emulator::initialize() {
+absl::Status LaunchQemu::initialize() {
     RETURN_IF_ERROR(addDevices());
 
     for (auto& device : mDevices) {
         ABSL_LOG(INFO) << "Preparing: " << device->id();
-        auto status = device->initialize(*this);
+        auto status = device->initialize(config_);
         if (!status.ok()) {
             return status;
         }
@@ -264,10 +265,10 @@ absl::Status Emulator::initialize() {
     return absl::OkStatus();
 }
 
-std::string Emulator::qemu_exe_path() const {
-    const auto& p = paths();
+std::string LaunchQemu::qemu_exe_path() const {
+    const auto& p = config_.paths();
     std::string base;
-    switch (avd().DetectArchitecture()) {
+    switch (config_.avd().DetectArchitecture()) {
     case Avd::CpuArchitecture::kX86:
         return p.qemu_system_x86_binary.string();
     case Avd::CpuArchitecture::kArm:
@@ -281,20 +282,20 @@ std::string Emulator::qemu_exe_path() const {
     return base;
 }
 
-std::vector<std::string> Emulator::getCmdline() const {
+std::vector<std::string> LaunchQemu::getCmdline() const {
     std::vector<std::string> params;
 
     for (const auto& device : mDevices) {
-        auto component = device->getQemuParameters(*this);
+        auto component = device->getQemuParameters(config_);
         params.insert(params.end(), component.begin(), component.end());
     }
 
     return params;
 }
 
-absl::StatusOr<::goldfish::async::LaunchConfig> Emulator::launch_config() {
-    const auto& o = opts();
-    const auto& a = avd();
+absl::StatusOr<::goldfish::async::LaunchConfig> LaunchQemu::launch_config() {
+    const auto& o = config_.opts();
+    const auto& a = config_.avd();
     ABSL_LOG(INFO) << "Preparing " << a.Details(true);
     auto status = initialize();
     if (!status.ok()) {

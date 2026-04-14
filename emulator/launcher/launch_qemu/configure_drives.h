@@ -21,6 +21,7 @@
 #include "android/goldfish/avd.h"
 #include "android/status/status_macros.h"
 #include "disk_drive.h"
+#include "emulator_config.h"
 #include "goldfish/file/file.h"
 
 namespace android::goldfish {
@@ -44,8 +45,8 @@ absl::StatusOr<std::vector<DiskConfig>> getDiskConfigs(const Avd& avd, const And
 
 // Templated for simplified testing.
 template <typename T>
-absl::Status addDrives(T& emulator) {
-    ASSIGN_OR_RETURN(auto disk_configs, internal::getDiskConfigs(emulator.avd(), emulator.opts()));
+absl::Status addDrives(const EmulatorConfig& config, T& emulator) {
+    ASSIGN_OR_RETURN(auto disk_configs, internal::getDiskConfigs(config.avd(), config.opts()));
 
     for (const auto& dc : disk_configs) {
         // TODO(whollins): why don't we use qcow2 without backing file for sdcard and cache?

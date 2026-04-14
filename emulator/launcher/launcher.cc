@@ -52,6 +52,7 @@
 #include "host_info.h"
 #include "launch_fishtank.h"
 #include "launch_netsimd.h"
+#include "launch_qemu/emulator_config.h"
 #include "launch_qemu/launch_qemu.h"
 #include "logging.h"
 #include "snapshot_util.h"
@@ -61,7 +62,6 @@ namespace fs = std::filesystem;
 using android::base::Bazel;
 using android::base::System;
 using android::goldfish::Avd;
-using android::goldfish::Emulator;
 using ::goldfish::metrics::MetricsReporter;
 
 namespace android::goldfish {
@@ -505,7 +505,8 @@ class Launcher : ::goldfish::async::UvProcessLauncher {
     }
 
     void launch_emulator(ChardevEndpoints chardev_endpoints) {
-        Emulator emulator{mPorts, chardev_endpoints, mMetricsConfig, mResolvedPaths, *mAvd, mOpts};
+        LaunchQemu emulator{EmulatorConfig{mPorts, chardev_endpoints, mMetricsConfig,
+                                           mResolvedPaths, *mAvd, mOpts}};
 
         // Release reservations just before launch so QEMU can bind to the ports.
         if (mQmpPortReservation) {

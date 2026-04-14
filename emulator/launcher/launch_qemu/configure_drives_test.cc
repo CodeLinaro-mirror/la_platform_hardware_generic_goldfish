@@ -9,6 +9,7 @@
 #include "android/base/system.h"
 #include "android/goldfish/hardware_config.h"
 #include "disk_drive.h"
+#include "fake_emulator.h"
 #include "goldfish/file/file.h"
 #include "mock_avd.h"
 
@@ -64,14 +65,10 @@ TEST(ConfigureDrivesTest, AddDrives) {
 
     android::base::System::Get()->EnvSet("ANDROID_EMULATOR_HOME", launcher_path.string());
 
-    MockDeviceContainer mock_container;
-    MockAvd mock_avd;
-    AndroidOptions opts{};
-    HardwareConfig Hw;
-
-    EXPECT_CALL(mock_container, avd()).WillRepeatedly(ReturnRef(mock_avd));
-    EXPECT_CALL(mock_container, opts()).WillRepeatedly(ReturnRef(opts));
-    EXPECT_CALL(mock_avd, Hw()).WillRepeatedly(ReturnRef(Hw));
+    FakeEmulator emu;
+    MockAvd& mock_avd = emu.mock_avd();
+    HardwareConfig hw;
+    EXPECT_CALL(mock_avd, Hw()).WillRepeatedly(testing::ReturnRef(hw));
     EXPECT_CALL(mock_avd, GetSystemImageFilePath(Avd::ImageType::INITSYSTEM))
             .WillRepeatedly(Return(system_dir / "system.img"));
     EXPECT_CALL(mock_avd, GetSystemImageFilePath(Avd::ImageType::INITVENDOR))
@@ -84,6 +81,7 @@ TEST(ConfigureDrivesTest, AddDrives) {
     //             .WillRepeatedly(Return(absl::NotFoundError("")));
     EXPECT_CALL(mock_avd, GetContentPath()).WillRepeatedly(Return(user_dir));
 
+    MockDeviceContainer mock_container;
     EXPECT_CALL(mock_container, addRoDrive("system", "03.0", system_dir / "system.img")).Times(1);
     EXPECT_CALL(mock_container, addRwDrive("encrypt", "06.0", _, _, _, _)).Times(1);
     EXPECT_CALL(mock_container, addRoDrive("vendor", "07.0", system_dir / "vendor.img")).Times(1);
@@ -92,7 +90,7 @@ TEST(ConfigureDrivesTest, AddDrives) {
 #ifdef __x86_64__
     EXPECT_CALL(mock_container, addRwDrive("sdcard", "08.0", _, _, _, _)).Times(1);
 #endif
-    ASSERT_THAT(addDrives(mock_container), IsOk());
+    ASSERT_THAT(addDrives(emu.config(), mock_container), IsOk());
 }
 
 }  // namespace android::goldfish
