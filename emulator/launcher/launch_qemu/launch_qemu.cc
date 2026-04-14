@@ -30,19 +30,19 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
+#include "grpc_device.h"
 
-#include "android/process/command.h"
-#include "android/status/status_macros.h"
+#include "adb_device.h"
 #include "android/base/system.h"
 #include "android/goldfish/avd.h"
-#include "configure_drives.h"
-#include "adb_device.h"
+#include "android/process/command.h"
+#include "android/status/status_macros.h"
 #include "audio_device.h"
 #include "avd_info_device.h"
+#include "configure_drives.h"
 #include "cpu_device.h"
 #include "display_device.h"
 #include "gpu_device.h"
-#include "grpc_device.h"
 #include "initrd_device.h"
 #include "kernel_device.h"
 #include "machine.h"
@@ -154,11 +154,15 @@ absl::Status Emulator::addDevices() {
         // "vendor.qemu.vport.<name>" to "/dev/vport8p<N>"
         // e.g. /dev/vport8p3 for bt (4th port)
         addDevice<ParameterList>(std::initializer_list<std::string>{
-            "-chardev", "netsim-uwb,id=uwb",
-            "-device", "virtconsole,chardev=uwb,name=uwb",
+            "-chardev",
+            "netsim-uwb,id=uwb",
+            "-device",
+            "virtconsole,chardev=uwb,name=uwb",
 
-            "-chardev", "netsim-bt,id=bluetooth",
-            "-device", "virtserialport,chardev=bluetooth,name=bluetooth",
+            "-chardev",
+            "netsim-bt,id=bluetooth",
+            "-device",
+            "virtserialport,chardev=bluetooth,name=bluetooth",
         });
     }
 

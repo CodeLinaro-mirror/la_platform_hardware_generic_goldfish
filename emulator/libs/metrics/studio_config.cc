@@ -45,7 +45,7 @@ absl::StatusOr<json> ParseAnalyticsSettingsJson(const fs::path& user_directory) 
     return j;
 }
 
-} // namespace
+}  // namespace
 
 OptInState GetUserMetricsOptIn(const fs::path& user_directory) {
     auto json = ParseAnalyticsSettingsJson(user_directory);

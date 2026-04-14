@@ -34,8 +34,8 @@ extern "C" {
 
 #undef send
 
-#include "netsim_transport.h"
 #include "goldfish/network/generic_netlink_message.h"
+#include "netsim_transport.h"
 
 #define __packed
 typedef int8_t s8;
@@ -166,8 +166,8 @@ void netsim_netdev_realize(DeviceState* dev, Error** errp) {
     NetsimNicState* s = (NetsimNicState*)nc;
 
     s->netsim = new NetsimState;
-    s->netsim->transport = std::make_unique<NetsimTransport>(
-            [nc](::netsim::packet::PacketResponse* packet) {
+    s->netsim->transport =
+            std::make_unique<NetsimTransport>([nc](::netsim::packet::PacketResponse* packet) {
                 if (packet->has_packet()) {
                     return netsim_netdev_send(nc, ToUniqueVec(packet->mutable_packet()));
                 } else {

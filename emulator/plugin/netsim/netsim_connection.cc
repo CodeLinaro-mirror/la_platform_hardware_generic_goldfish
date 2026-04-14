@@ -13,7 +13,6 @@
 // limitations under the License.
 
 #include "goldfish/netsim/netsim_connection.h"
-#include "netsim_connection_internal.h"
 
 #include <memory>
 #include <string>
@@ -24,6 +23,7 @@
 
 #include "android/emulation/control/emulator_grpc_client.h"
 #include "android/status/status_macros.h"
+#include "netsim_connection_internal.h"
 
 extern "C" {
 // clang-format off
@@ -53,17 +53,19 @@ struct NetsimConnectionDev {
     NetsimConnectionData* data;
 };
 
-absl::StatusOr<std::unique_ptr<android::emulation::control::BlockingEmulatorGrpcClient>> connect(const std::string &endpoint) {
+absl::StatusOr<std::unique_ptr<android::emulation::control::BlockingEmulatorGrpcClient>> connect(
+        const std::string& endpoint) {
     VLOG(1) << "netsim-connection: creating channel to netsimd endpoint - " << endpoint;
 
     android::emulation::control::Endpoint endpoint_config;
     endpoint_config.set_target(endpoint);
 
-    ASSIGN_OR_RETURN(auto grpc_client, android::emulation::control::EmulatorGrpcClientBuilder()
-                                .WithEndpoint(endpoint_config)
-                            // TODO(whollins): re-add interceptiors e.g.
-                            //.WithInterceptor(std::make_unique<MetricsInterceptorFactory>());
-                                .BuildBlocking());
+    ASSIGN_OR_RETURN(auto grpc_client,
+                     android::emulation::control::EmulatorGrpcClientBuilder()
+                             .WithEndpoint(endpoint_config)
+                             // TODO(whollins): re-add interceptiors e.g.
+                             //.WithInterceptor(std::make_unique<MetricsInterceptorFactory>());
+                             .BuildBlocking());
 
     RETURN_IF_ERROR(grpc_client->Connect(kConnectionDeadline));
 
@@ -73,7 +75,8 @@ absl::StatusOr<std::unique_ptr<android::emulation::control::BlockingEmulatorGrpc
 
 #define TYPE_NETSIM_CONNECTION "netsim-connection"
 #define NETSIM_CONNECTION_DEV(obj) OBJECT_CHECK(NetsimConnectionDev, (obj), TYPE_NETSIM_CONNECTION)
-#define NETSIM_CONNECTION_DEVICE_GET_CLASS(obj) OBJECT_GET_CLASS(NetsimConnectionDev, obj, TYPE_NETSIM_CONNECTION)
+#define NETSIM_CONNECTION_DEVICE_GET_CLASS(obj) \
+    OBJECT_GET_CLASS(NetsimConnectionDev, obj, TYPE_NETSIM_CONNECTION)
 
 void netsim_connection_realize(DeviceState* dev, Error** errp) {
     VLOG(1) << "netsim_connection_realize: " << object_get_canonical_path(OBJECT(dev));
@@ -112,8 +115,8 @@ void netsim_connection_set_grpc_endpoint(Object* obj, Visitor* v, const char* na
 }
 
 void netsim_connection_class_init(ObjectClass* oc, void* data) {
-    object_class_property_add(oc, "grpc_endpoint", "str", nullptr, netsim_connection_set_grpc_endpoint,
-                              nullptr, nullptr);
+    object_class_property_add(oc, "grpc_endpoint", "str", nullptr,
+                              netsim_connection_set_grpc_endpoint, nullptr, nullptr);
 
     DeviceClass* dc = DEVICE_CLASS(oc);
     dc->realize = netsim_connection_realize;
@@ -145,8 +148,9 @@ void netsim_connection_register_types(void) {
     type_register_static(&goldfish::netsim::netsim_connection_type_info);
 }
 
-absl::StatusOr<std::shared_ptr<android::emulation::control::EmulatorGrpcClientBase>> get_connected_netsim_grpc_client() {
-    Object *obj = object_resolve_type_unambiguous(TYPE_NETSIM_CONNECTION, nullptr);
+absl::StatusOr<std::shared_ptr<android::emulation::control::EmulatorGrpcClientBase>>
+get_connected_netsim_grpc_client() {
+    Object* obj = object_resolve_type_unambiguous(TYPE_NETSIM_CONNECTION, nullptr);
     if (obj == nullptr) {
         return absl::NotFoundError("no netsim-connection found");
     }
@@ -154,7 +158,8 @@ absl::StatusOr<std::shared_ptr<android::emulation::control::EmulatorGrpcClientBa
     if (!nc->data->grpc_client) {
         return absl::NotFoundError("netsim-connection does not have a grpc client");
     }
-    if(nc->data->grpc_client->GetConnectionState() != android::emulation::control::ConnectionState::kConnected) {
+    if (nc->data->grpc_client->GetConnectionState() !=
+        android::emulation::control::ConnectionState::kConnected) {
         return absl::NotFoundError("netsim-connection grpc client is not connected");
     }
     return nc->data->grpc_client;

@@ -9,14 +9,15 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
+#include "android/sockets/socket_utils.h"
+
 #include <errno.h>
 #include <gtest/gtest.h>
 #include <signal.h>
 #include <string.h>
 
-#include "android/sockets/scoped_socket.h"
-#include "android/sockets/socket_utils.h"
 #include "android/base/testing/needs_winsock.h"
+#include "android/sockets/scoped_socket.h"
 
 namespace android {
 namespace base {

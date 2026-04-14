@@ -20,9 +20,9 @@
 #include "gtest/gtest.h"
 
 #include "android/base/testing/TestSystem.h"
-#include "goldfish/devices/test_connector_registry.h"
 #include "goldfish/async/testing/test_event_loop.h"
 #include "goldfish/avd_universe/grpc/grpc_notification_channel.h"
+#include "goldfish/devices/test_connector_registry.h"
 
 namespace goldfish::devices::guest_status {
 
@@ -166,9 +166,12 @@ TEST_F(GuestStatusDeviceTest, sendsNotificationOnBootComplete) {
         .wall_clock_ms = 5000,
     });
 
-    EXPECT_CALL(mNotificationSource, FireEvent(::testing::Property(
-                                             &avd_universe::grpc::GrpcNotification::booted,
-                                             ::testing::Property(&android::emulation::control::BootCompletedNotification::time, Eq(4000)))))
+    EXPECT_CALL(mNotificationSource,
+                FireEvent(::testing::Property(
+                        &avd_universe::grpc::GrpcNotification::booted,
+                        ::testing::Property(
+                                &android::emulation::control::BootCompletedNotification::time,
+                                Eq(4000)))))
             .Times(1);
 
     receive("bootcomplete\0"sv);

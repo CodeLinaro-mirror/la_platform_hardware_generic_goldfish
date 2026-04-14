@@ -42,7 +42,7 @@ class MetricsReporter final {
     void SetWriter(std::unique_ptr<MetricsWriter> writer);
 
     using Callback = std::function<void(android_studio::AndroidStudioEvent&)>;
-    void Report(const Callback &callback);
+    void Report(const Callback& callback);
 
     const std::string& session_id() const { return session_id_; }
 

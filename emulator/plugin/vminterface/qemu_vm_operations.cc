@@ -32,8 +32,8 @@ extern "C" {
 // Remove leaked shutdown redefinition from external/qemu/include/sysemu/os-win32.h
 #undef shutdown
 
-#include "vm_lock.h"
 #include "qemu_machine_info.h"
+#include "vm_lock.h"
 
 namespace android {
 namespace goldfish {

@@ -42,8 +42,9 @@ struct MetricsConfig {
 
 class EmulatorConfig {
   public:
-    EmulatorConfig(const EmulatorPorts &ports, const ChardevEndpoints &chardev_endpoints, const MetricsConfig &metrics_config,
-                   const ResolvedInputPaths &resolved_paths, const Avd &avd, const AndroidOptions &opts)
+    EmulatorConfig(const EmulatorPorts& ports, const ChardevEndpoints& chardev_endpoints,
+                   const MetricsConfig& metrics_config, const ResolvedInputPaths& resolved_paths,
+                   const Avd& avd, const AndroidOptions& opts)
             : mPorts(ports)
             , mChardevEndpoints(chardev_endpoints)
             , mMetricsConfig(metrics_config)
@@ -69,13 +70,13 @@ class EmulatorConfig {
     int qmp_port() const { return mPorts.qmp_port; }
 
   private:
-    const EmulatorPorts &mPorts;
-    const ChardevEndpoints &mChardevEndpoints;
-    const MetricsConfig &mMetricsConfig;
+    const EmulatorPorts& mPorts;
+    const ChardevEndpoints& mChardevEndpoints;
+    const MetricsConfig& mMetricsConfig;
 
-    const ResolvedInputPaths &mResolvedPaths;
-    const Avd &mAvd;
-    const AndroidOptions &mOpts;
+    const ResolvedInputPaths& mResolvedPaths;
+    const Avd& mAvd;
+    const AndroidOptions& mOpts;
 };
 
 }  // namespace android::goldfish

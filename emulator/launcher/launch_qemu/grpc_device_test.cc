@@ -21,9 +21,9 @@
 #include "absl/strings/str_replace.h"
 #include "gmock/gmock.h"
 
-#include "android/status/status_matcher_macros.h"
 #include "android/base/testing/TestTempDir.h"
 #include "android/cmdline_definitions.h"
+#include "android/status/status_matcher_macros.h"
 #include "fake_emulator.h"
 
 namespace android::goldfish::test {
@@ -56,10 +56,18 @@ TEST(Grpc, DefaultAllowlist) {
 
     GrpcDevice dev;
     EXPECT_OK(dev.initialize(emu.config()));
-    EXPECT_THAT(
-            dev.getQemuParameters(emu.config()),
-            testing::ElementsAre(testing::Eq("-device"),
-                                 testing::MatchesRegex(absl::StrCat(".*allowlist=.*goldfish\\+", absl::StrReplaceAll(std::filesystem::path("/emulator/launcher/lib/emulator_access.json").make_preferred().string(), {{"\\", "\\\\"}}), ".*"))));
+    EXPECT_THAT(dev.getQemuParameters(emu.config()),
+                testing::ElementsAre(
+                        testing::Eq("-device"),
+                        testing::MatchesRegex(absl::StrCat(
+                                ".*allowlist=.*goldfish\\+",
+                                absl::StrReplaceAll(
+                                        std::filesystem::path(
+                                                "/emulator/launcher/lib/emulator_access.json")
+                                                .make_preferred()
+                                                .string(),
+                                        {{"\\", "\\\\"}}),
+                                ".*"))));
 }
 
 TEST(Grpc, CustomAllowlist) {
@@ -75,9 +83,10 @@ TEST(Grpc, CustomAllowlist) {
 
     GrpcDevice dev;
     EXPECT_OK(dev.initialize(emu.config()));
-    EXPECT_THAT(dev.getQemuParameters(emu.config()),
-                testing::ElementsAre(testing::Eq("-device"),
-                                     testing::HasSubstr(std::string("allowlist=") + allowlist_path)));
+    EXPECT_THAT(
+            dev.getQemuParameters(emu.config()),
+            testing::ElementsAre(testing::Eq("-device"),
+                                 testing::HasSubstr(std::string("allowlist=") + allowlist_path)));
 }
 
 }  // namespace android::goldfish::test

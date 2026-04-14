@@ -32,7 +32,7 @@ bool AndroidPubkeyDecode(const uint8_t* key_buffer, size_t size, RSA** key);
 bool AndroidPubkeyEncode(const RSA* key, uint8_t* key_buffer, size_t size);
 
 bool TestOnlyAdbAuthKeygen(const fs::path& file);
-} // namespace internal
+}  // namespace internal
 
 // Tries to find the "adbkey" file, returning "" if not found
 std::filesystem::path GetPrivateAdbKeyPath(const fs::path& android_user_dir);

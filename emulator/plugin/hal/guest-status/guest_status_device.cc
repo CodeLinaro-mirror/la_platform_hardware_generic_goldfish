@@ -149,10 +149,12 @@ class GuestStatusDevice : public IGuestStatusDevice,
         if (mQuitAfterBootTimeoutSeconds > 0) {
             LOG(WARNING) << "Shutting down guest due to boot complete";
             // onReceive is not called on Qemu thread - schedule shutdown from there to be safe.
-            mQemuLoop->Post([]() {
-                android::goldfish::VmOperations::qemuVmOperations()->systemShutdownRequest(
-                        android::goldfish::QemuShutdownCause::GuestShutdown);
-            }).IgnoreError();
+            mQemuLoop
+                    ->Post([]() {
+                        android::goldfish::VmOperations::qemuVmOperations()->systemShutdownRequest(
+                                android::goldfish::QemuShutdownCause::GuestShutdown);
+                    })
+                    .IgnoreError();
         }
     }
 
@@ -179,19 +181,20 @@ class GuestStatusDevice : public IGuestStatusDevice,
     const int mQuitAfterBootTimeoutSeconds;
 };
 
-void IGuestStatusDevice::RegisterDevice(GuestStatus* guestStatus, GrpcNotificationEventSource* notificationSource,
+void IGuestStatusDevice::RegisterDevice(GuestStatus* guestStatus,
+                                        GrpcNotificationEventSource* notificationSource,
                                         IConnectorRegistry* registry,
                                         EmulatorResetCallbacks resetCallbacks,
                                         EventLoop* client_loop, EventLoop* qemu_loop,
                                         int quitAfterBootTimeoutSeconds) {
-    registry->RegisterHalDevice(
-            std::string(IGuestStatusDevice::kServiceName), client_loop, qemu_loop,
-            [guestStatus, notificationSource, resetCallbacks, qemu_loop,
-             quitAfterBootTimeoutSeconds](std::string_view /*args*/) {
-                return std::make_shared<GuestStatusDevice>(*guestStatus, notificationSource,
-                                                           resetCallbacks, qemu_loop,
-                                                           quitAfterBootTimeoutSeconds);
-            });
+    registry->RegisterHalDevice(std::string(IGuestStatusDevice::kServiceName), client_loop,
+                                qemu_loop,
+                                [guestStatus, notificationSource, resetCallbacks, qemu_loop,
+                                 quitAfterBootTimeoutSeconds](std::string_view /*args*/) {
+                                    return std::make_shared<GuestStatusDevice>(
+                                            *guestStatus, notificationSource, resetCallbacks,
+                                            qemu_loop, quitAfterBootTimeoutSeconds);
+                                });
 }
 
 }  // namespace goldfish::devices::guest_status

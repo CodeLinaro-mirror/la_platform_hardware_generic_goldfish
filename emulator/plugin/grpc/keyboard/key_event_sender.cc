@@ -254,16 +254,20 @@ class KeyEventSenderImpl : public IKeyEventSender {
             LOG(FATAL) << "Invalid QKeyCode - too big: " << qcode;
         }
         if (eventType == KeyboardEvent::keydown || eventType == KeyboardEvent::keypress) {
-            mQemuLoop->Post([qcode, kbd = mKbd] {
-                QemuKeyEvent keyEvent{qcode, true};
-                keyEvent.send(kbd);
-            }).IgnoreError();
+            mQemuLoop
+                    ->Post([qcode, kbd = mKbd] {
+                        QemuKeyEvent keyEvent{qcode, true};
+                        keyEvent.send(kbd);
+                    })
+                    .IgnoreError();
         }
         if (eventType == KeyboardEvent::keyup || eventType == KeyboardEvent::keypress) {
-            mQemuLoop->Post([qcode, kbd = mKbd] {
-                QemuKeyEvent keyEvent{qcode, false};
-                keyEvent.send(kbd);
-            }).IgnoreError();
+            mQemuLoop
+                    ->Post([qcode, kbd = mKbd] {
+                        QemuKeyEvent keyEvent{qcode, false};
+                        keyEvent.send(kbd);
+                    })
+                    .IgnoreError();
         }
     }
 
@@ -287,12 +291,14 @@ class KeyEventSenderImpl : public IKeyEventSender {
                     if (eventType == KeyboardEvent::keydown ||
                         eventType == KeyboardEvent::keypress) {
                         for (auto keycode : ascii_to_qcode(character, true)) {
-                            mQemuLoop->Post([key = keycode, kbd = mKbd] { key.send(kbd); }).IgnoreError();
+                            mQemuLoop->Post([key = keycode, kbd = mKbd] { key.send(kbd); })
+                                    .IgnoreError();
                         }
                     }
                     if (eventType == KeyboardEvent::keyup || eventType == KeyboardEvent::keypress) {
                         for (auto keycode : ascii_to_qcode(character, false)) {
-                            mQemuLoop->Post([key = keycode, kbd = mKbd] { key.send(kbd); }).IgnoreError();
+                            mQemuLoop->Post([key = keycode, kbd = mKbd] { key.send(kbd); })
+                                    .IgnoreError();
                         }
                     }
                 } else {

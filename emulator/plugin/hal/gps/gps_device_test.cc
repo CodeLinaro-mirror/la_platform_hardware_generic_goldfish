@@ -10,16 +10,16 @@
 // GNU General Public License for more details.
 #include "goldfish/devices/gps/gps_device.h"
 
-#include <thread>
-
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
+
+#include <thread>
 
 #include "gmock/gmock.h"
 
 #include "android/base/testing/TestSystem.h"
-#include "goldfish/devices/test_connector_registry.h"
 #include "goldfish//async/testing/test_event_loop.h"
+#include "goldfish/devices/test_connector_registry.h"
 
 namespace goldfish::devices::gps {
 

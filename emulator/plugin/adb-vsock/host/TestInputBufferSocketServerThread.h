@@ -12,16 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "android/sockets/scoped_socket.h"
-#include "android/sockets/socket_utils.h"
-
-#include "absl/log/log.h"
+#include <stddef.h>
 
 #include <string>
 #include <string_view>
 #include <thread>
 
-#include <stddef.h>
+#include "absl/log/log.h"
+
+#include "android/sockets/scoped_socket.h"
+#include "android/sockets/socket_utils.h"
 
 #ifdef _WIN32
 #undef ERROR
@@ -48,17 +48,15 @@ namespace base {
 // 4) Use view() to retrieve a view of the content.
 //
 class TestInputBufferSocketServerThread {
-public:
+  public:
     // Create new thread instance, try to bound to specific TCP |port|,
     // a value of 0 let the system choose a free IPv4 port, which can
     // later be retrieved with port().
     TestInputBufferSocketServerThread(int port = 0)
-        : mSocket(android::base::socketTcp4LoopbackServer(port)) {}
+            : mSocket(android::base::socketTcp4LoopbackServer(port)) {}
 
     void start() {
-        mThread = std::thread([this]() {
-            mResult = run();
-        });
+        mThread = std::thread([this]() { mResult = run(); });
     }
 
     intptr_t wait() {
@@ -105,7 +103,7 @@ public:
         return static_cast<intptr_t>(size);
     }
 
-private:
+  private:
     ScopedSocket mSocket;
     std::string mString;
     std::thread mThread;

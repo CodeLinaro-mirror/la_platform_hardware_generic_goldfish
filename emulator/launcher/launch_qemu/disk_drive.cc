@@ -25,12 +25,12 @@
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 
-#include "android/process/command.h"
-#include "android/status/status_macros.h"
-#include "goldfish/file/file.h"
 #include "android/filesystems/ext4_utils.h"
 #include "android/goldfish/avd.h"
 #include "android/goldfish/hardware_config.h"
+#include "android/process/command.h"
+#include "android/status/status_macros.h"
+#include "goldfish/file/file.h"
 
 namespace android::goldfish {
 

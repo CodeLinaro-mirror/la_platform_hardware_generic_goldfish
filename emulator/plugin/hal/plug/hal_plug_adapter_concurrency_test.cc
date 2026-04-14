@@ -18,13 +18,13 @@
 
 #include <deque>
 
-#include "goldfish/devices/test/hal_plug_testing_friend.h"
 #include "goldfish/async/event_loop.h"
 #include "goldfish/async/testing/test_event_loop.h"
 #include "goldfish/devices/connector_registry_impl.h"
 #include "goldfish/devices/hal_plug_factory.h"
 #include "goldfish/devices/hal_plug_to_i_plug_adapter.h"
 #include "goldfish/devices/marshalling_hal_socket.h"
+#include "goldfish/devices/test/hal_plug_testing_friend.h"
 
 using namespace goldfish::devices;
 using namespace goldfish::async;

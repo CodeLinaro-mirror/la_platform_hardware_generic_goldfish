@@ -50,7 +50,8 @@ ResolvedInputPaths setupPaths(TestTempDir* tmp) {
     };
 }
 
-fs::path createTestAvd(const ResolvedInputPaths& paths, const std::string& targetString, int api_level) {
+fs::path createTestAvd(const ResolvedInputPaths& paths, const std::string& targetString,
+                       int api_level) {
     fs::path avd_dir = paths.avd_directory / "test_avd.avd";
     base::file::mkdir_recursive(avd_dir, 0755).IgnoreError();
 
@@ -58,8 +59,10 @@ fs::path createTestAvd(const ResolvedInputPaths& paths, const std::string& targe
     writeToFile(paths.avd_directory / "test_avd.ini", absl::StrCat("path=", avd_dir.string()));
 
     // Set the 'target' property in the config.ini file
-    writeToFile(avd_dir / "config.ini", absl::StrCat("target=", targetString, "\nimage.sysdir.1=sysimg"));
-    writeToFile(paths.sdk_directory / "sysimg" / "build.prop", absl::StrCat("ro.system.build.version.sdk=", api_level));
+    writeToFile(avd_dir / "config.ini",
+                absl::StrCat("target=", targetString, "\nimage.sysdir.1=sysimg"));
+    writeToFile(paths.sdk_directory / "sysimg" / "build.prop",
+                absl::StrCat("ro.system.build.version.sdk=", api_level));
 
     return avd_dir;
 }
@@ -105,7 +108,8 @@ TEST(Avd, invalidTargetFormat) {
 
     createTestAvd(paths, "invalid-target-format", 30);
     // overwrite build.prop
-    writeToFile(paths.sdk_directory / "sysimg" / "build.prop", absl::StrCat("ro.system.build.version.sdk=foo"));
+    writeToFile(paths.sdk_directory / "sysimg" / "build.prop",
+                absl::StrCat("ro.system.build.version.sdk=foo"));
 
     ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(paths, "test_avd"));
     EXPECT_EQ(avd->ApiLevel(), Avd::kUnknownApiLevel);  // Should return the unknown API level
@@ -185,7 +189,7 @@ TEST(Avd, wipe_data) {
         EXPECT_TRUE(base::file::exists(some_subdir));
         EXPECT_TRUE(base::file::exists(some_subdir_file));
 
-        EXPECT_TRUE(base::file::exists(avd_dir/"config.ini"));
+        EXPECT_TRUE(base::file::exists(avd_dir / "config.ini"));
     }
 
     {
@@ -194,7 +198,7 @@ TEST(Avd, wipe_data) {
         EXPECT_FALSE(base::file::exists(some_subdir));
         EXPECT_FALSE(base::file::exists(some_subdir_file));
 
-        EXPECT_TRUE(base::file::exists(avd_dir/"config.ini"));
+        EXPECT_TRUE(base::file::exists(avd_dir / "config.ini"));
     }
 }
 

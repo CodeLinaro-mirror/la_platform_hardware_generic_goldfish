@@ -12,13 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "gzip_ostream.h"
+
 #include <zlib.h>
 
 #include <algorithm>
 #include <streambuf>
 #include <vector>
-
-#include "gzip_ostream.h"
 
 namespace goldfish::metrics {
 

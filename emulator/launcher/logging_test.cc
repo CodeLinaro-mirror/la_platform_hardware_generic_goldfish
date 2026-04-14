@@ -38,7 +38,7 @@ void ResetAbslLogState() {
 
 class ConfigureLoggingRealTest : public ::testing::Test {
   protected:
-    void SetUp() override { 
+    void SetUp() override {
         android::base::System::Get()->SetEnvironmentVariable("AEMU_NO_LOG_SINK", "TRUE");
         ResetAbslLogState();
     }

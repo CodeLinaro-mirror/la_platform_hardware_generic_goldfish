@@ -30,13 +30,13 @@
 #include "absl/container/flat_hash_map.h"
 
 #include "android/goldfish/fake_hardware_config.h"
-#include "test/GrpcServiceTest.h"
-#include "goldfish/display/test/fake_multi_display.h"
-#include "goldfish/display/test/fake_pixman_display.h"
 #include "emulator_controller.grpc.pb.h"
 #include "goldfish/async/libuv_event_loop.h"
 #include "goldfish/async/threaded_event_loop.h"
+#include "goldfish/display/test/fake_multi_display.h"
+#include "goldfish/display/test/fake_pixman_display.h"
 #include "goldfish/memory/shared_memory.h"
+#include "test/GrpcServiceTest.h"
 
 namespace android::emulation::control {
 
@@ -93,10 +93,11 @@ class DisplayServiceTest : public GrcpServiceTest {
 #endif
         std::error_code ec;
         auto path = (std::filesystem::temp_directory_path(ec) /
-                absl::StrFormat("%s_%d_%s_%ld", prefix, pid, ss.str(), ts))
-                .string();
+                     absl::StrFormat("%s_%d_%s_%ld", prefix, pid, ss.str(), ts))
+                            .string();
         if (ec) {
-            LOG(ERROR) << "Failed to get temp directory path: " << ec.message() << " expect mayhem and failures.";
+            LOG(ERROR) << "Failed to get temp directory path: " << ec.message()
+                       << " expect mayhem and failures.";
         }
         return path;
     }

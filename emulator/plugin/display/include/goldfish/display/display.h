@@ -44,7 +44,7 @@ using ::goldfish::async::LoopBoundCallbackSource;
  */
 struct FrameInfo {
     uint64_t sequence_number;  ///< Monotonically increasing frame sequence number.
-    absl::Time timestamp;     ///< Timestamp when the frame was updated.
+    absl::Time timestamp;      ///< Timestamp when the frame was updated.
 
     explicit FrameInfo(uint64_t seq) : sequence_number(seq), timestamp(absl::Now()) {}
 };

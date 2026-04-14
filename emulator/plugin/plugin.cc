@@ -62,17 +62,19 @@ namespace {
 
 using android::base::System;
 
-void qemu_absl_logger(int severity, const char *file, int line, const char *fmt, va_list ap) {
+void qemu_absl_logger(int severity, const char* file, int line, const char* fmt, va_list ap) {
     std::string message(4096, '\0');
     int size = vsnprintf(message.data(), message.size(), fmt, ap);
     if (size >= message.size()) {
         // Indicate truncation.
         strncpy(message.data() + message.size() - 3, "...", 3);
-        VLOG(1) << "Following log message truncated, size needed: " << size << " truncated to: " << (message.size() - 3);
+        VLOG(1) << "Following log message truncated, size needed: " << size
+                << " truncated to: " << (message.size() - 3);
         size = message.size();
     }
 
-    LOG(LEVEL(severity)).AtLocation(file ? file : "QEMU", line) << absl::LogAsLiteral(std::string_view(message.data(), size));
+    LOG(LEVEL(severity)).AtLocation(file ? file : "QEMU", line)
+            << absl::LogAsLiteral(std::string_view(message.data(), size));
 }
 
 void setup_debug_logging() {
@@ -166,7 +168,8 @@ extern "C" void GF_STARTUP_FUNC(int argc, char** argv) {
     setup_logging();
 
     VLOG(1) << "Goldfish plugin version: " VERSION << "-" << BUILD_ID;
-    // The plugin crash system should never try to upload - that should only be done by the launcher.
+    // The plugin crash system should never try to upload - that should only be done by the
+    // launcher.
     if (!android::crashreport::CrashSystem::get().initialize()) {
         LOG(WARNING) << "Failed to initialize crashreporting.";
     }

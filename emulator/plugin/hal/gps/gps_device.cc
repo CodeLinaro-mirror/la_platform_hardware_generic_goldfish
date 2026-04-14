@@ -92,18 +92,19 @@ std::string FormatGPRMC(const Location& loc, absl::Time now) {
 
     const double speed_knots = loc.speed * 1.94384;
 
-    const std::string body = absl::StrFormat("GPRMC,%s,A,%s,%c,%s,%c,%.2f,%.2f,%s,0.0,W", time_str, lat_str,
-                                       lat_dir, lon_str, lon_dir, speed_knots, loc.bearing, date_str);
+    const std::string body =
+            absl::StrFormat("GPRMC,%s,A,%s,%c,%s,%c,%.2f,%.2f,%s,0.0,W", time_str, lat_str, lat_dir,
+                            lon_str, lon_dir, speed_knots, loc.bearing, date_str);
 
     return absl::StrFormat("$%s*%s\r\n", body, CalculateChecksum(body));
 }
 
 constexpr Location kGoogleHqLocation{.latitude = 37.4220186,
-                                    .longitude = -122.0839727,
-                                    .speed = 0.0,
-                                    .bearing = 0.0,
-                                    .altitude = 10.0,
-                                    .satellites = 8};
+                                     .longitude = -122.0839727,
+                                     .speed = 0.0,
+                                     .bearing = 0.0,
+                                     .altitude = 10.0,
+                                     .satellites = 8};
 }  // namespace
 
 class GpsDevice : public IGpsDevice {
@@ -116,7 +117,7 @@ class GpsDevice : public IGpsDevice {
         self_ = shared_from_this();
         one_second_timer_ = loop_->CreateTimer([this] { OneSecondTick(); });
         one_second_timer_->Schedule(absl::ToChronoMilliseconds(absl::Milliseconds(1000)),
-                                  absl::ToChronoMilliseconds(absl::Milliseconds(1000)));
+                                    absl::ToChronoMilliseconds(absl::Milliseconds(1000)));
     }
 
     void OnClose() override {

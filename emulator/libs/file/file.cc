@@ -41,7 +41,8 @@ absl::StatusOr<fs::path> make_absolute(const fs::path& path) noexcept {
     if (fs::path abs = fs::absolute(path, ec); !ec) {
         return abs;
     }
-    return absl::InternalError(absl::StrCat("Failed to make path absolute: ", path.string(), " - ", ec.message()));
+    return absl::InternalError(
+            absl::StrCat("Failed to make path absolute: ", path.string(), " - ", ec.message()));
 }
 
 absl::StatusOr<fs::path> make_relative(const fs::path& path, const fs::path& base_path) noexcept {
@@ -49,7 +50,8 @@ absl::StatusOr<fs::path> make_relative(const fs::path& path, const fs::path& bas
     if (fs::path rel = fs::relative(path, base_path, ec); !ec) {
         return rel;
     }
-    return absl::InternalError(absl::StrCat("Failed to make path relative: ", path.string(), " - ", ec.message()));
+    return absl::InternalError(
+            absl::StrCat("Failed to make path relative: ", path.string(), " - ", ec.message()));
 }
 
 absl::StatusOr<fs::path> make_canonical(const fs::path& path) noexcept {
@@ -57,7 +59,8 @@ absl::StatusOr<fs::path> make_canonical(const fs::path& path) noexcept {
     if (fs::path canon = fs::canonical(path, ec); !ec) {
         return canon;
     }
-    return absl::InternalError(absl::StrCat("Failed to make path canonical: ", path.string(), " - ", ec.message()));
+    return absl::InternalError(
+            absl::StrCat("Failed to make path canonical: ", path.string(), " - ", ec.message()));
 }
 
 bool exists(const fs::path& path) noexcept {
@@ -280,7 +283,8 @@ absl::Status cp_file(const fs::path& from, const fs::path& to, bool overwrite) n
 absl::Status cp_recursive(const fs::path& from, const fs::path& to, bool overwrite) noexcept {
     fs::copy_options opt =
             overwrite ? fs::copy_options::overwrite_existing : fs::copy_options::none;
-    if (std::error_code ec; fs::copy(from, to, opt | std::filesystem::copy_options::recursive, ec), ec) {
+    if (std::error_code ec;
+        fs::copy(from, to, opt | std::filesystem::copy_options::recursive, ec), ec) {
         return absl::InternalError(absl::StrCat("Failed to copy recursively: ", from.string(), "->",
                                                 to.string(), " - ", ec.message()));
     }
@@ -293,11 +297,12 @@ absl::Status mv_file(const fs::path& from, const fs::path& to, bool fallback_to_
         return absl::OkStatus();
     }
     if (!fallback_to_copy_rm) {
-        return absl::InternalError(absl::StrCat("Failed to atomically rename file: ", from.string(), "->", to.string(), " - ", ec.message()));
+        return absl::InternalError(absl::StrCat("Failed to atomically rename file: ", from.string(),
+                                                "->", to.string(), " - ", ec.message()));
     }
     // fs::rename can fail if files are on different disks so fallback to copy then rm.
     VLOG(1) << "fs::rename failed for " << from.string() << " -> " << to.string()
-              << " - reverting to slower copy-then-delete: " << ec.message();
+            << " - reverting to slower copy-then-delete: " << ec.message();
     RETURN_IF_ERROR(cp_file(from, to));
     return rm(from);
 }
@@ -317,7 +322,8 @@ absl::StatusOr<std::string> read_whole_file(const fs::path& path, bool binary) n
     }
     std::string data{std::istreambuf_iterator<char>(ifs), std::istreambuf_iterator<char>()};
     if (ifs.fail()) {
-        return absl::UnavailableError(absl::StrCat("failed while reading from file: ", path.string()));
+        return absl::UnavailableError(
+                absl::StrCat("failed while reading from file: ", path.string()));
     }
 
     return data;

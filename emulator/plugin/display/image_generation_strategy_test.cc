@@ -16,8 +16,8 @@
 
 #include <gtest/gtest.h>
 
-#include "goldfish/display/test/pixman_image_generator.h"
 #include "goldfish/display/pixman_image_ptr.h"
+#include "goldfish/display/test/pixman_image_generator.h"
 
 using goldfish::display::PixmanImagePtr;
 using goldfish::display::test::ChessboardStrategy;

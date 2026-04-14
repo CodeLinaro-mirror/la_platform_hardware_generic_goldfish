@@ -14,11 +14,13 @@
 
 #pragma once
 
-#include "android/emulation/control/emulator_grpc_client.h"
 #include "absl/status/status.h"
+
+#include "android/emulation/control/emulator_grpc_client.h"
 
 namespace goldfish::netsim {
 
-absl::StatusOr<std::shared_ptr<android::emulation::control::EmulatorGrpcClientBase>> get_connected_netsim_grpc_client();
+absl::StatusOr<std::shared_ptr<android::emulation::control::EmulatorGrpcClientBase>>
+get_connected_netsim_grpc_client();
 
 }  // namespace goldfish::netsim

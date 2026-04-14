@@ -22,8 +22,8 @@
 #include "absl/strings/str_cat.h"
 #include "gmock/gmock.h"
 
-#include "android/status/status_matcher_macros.h"
 #include "android/base/testing/TestSystem.h"
+#include "android/status/status_matcher_macros.h"
 #include "fake_emulator.h"
 
 using ::absl_testing::IsOk;

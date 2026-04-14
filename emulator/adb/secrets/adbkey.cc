@@ -18,12 +18,11 @@
 #include <openssl/nid.h>
 #include <openssl/pem.h>
 #include <openssl/rsa.h>
-
 #include <sys/types.h>
 
-#include <cstring>
 #include <cstdint>
 #include <cstdio>
+#include <cstring>
 #include <filesystem>
 #include <memory>
 #include <string>
@@ -31,8 +30,8 @@
 
 #include "absl/log/log.h"
 
-#include "goldfish/file/file.h"
 #include "android/base/system.h"
+#include "goldfish/file/file.h"
 
 namespace goldfish::adb {
 
@@ -154,7 +153,7 @@ fs::path GetAdbKeyPath(const fs::path& android_user_dir, const fs::path& adb_key
     return "";
 }
 
-} // namespace
+}  // namespace
 
 bool AndroidPubkeyDecode(const uint8_t* key_buffer, size_t size, RSA** key) {
     // Check |size| is large enough and the modulus size is correct.
@@ -276,7 +275,7 @@ bool TestOnlyAdbAuthKeygen(const fs::path& file) {
     return true;
 }
 
-} // namespace internal
+}  // namespace internal
 
 bool PubkeyFromPrivkey(const fs::path& path, std::string* out) {
     const std::shared_ptr<RSA> privkey = internal::ReadKeyFile(path);

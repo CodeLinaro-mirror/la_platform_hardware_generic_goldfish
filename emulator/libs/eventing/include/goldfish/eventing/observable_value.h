@@ -38,8 +38,8 @@ template <class T, class TRIGGER>
 struct ObservableValue : public android::base::eventing::CallbackEventSource<T> {
     using EventType = T;
     using CallbackId = typename android::base::eventing::CallbackEventSource<EventType>::CallbackId;
-    using ScopedCallbackHandle =
-            std::unique_ptr<android::base::eventing::ScopedEventCallback<ObservableValue<T, TRIGGER>, T>>;
+    using ScopedCallbackHandle = std::unique_ptr<
+            android::base::eventing::ScopedEventCallback<ObservableValue<T, TRIGGER>, T>>;
 
     explicit ObservableValue(T val) : value_(std::move(val)) {}
 

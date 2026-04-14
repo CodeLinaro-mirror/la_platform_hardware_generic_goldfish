@@ -21,10 +21,10 @@
 #include <thread>
 #include <vector>
 
-#include "goldfish/display/test/mock_display.h"
-#include "goldfish/display/test/pixman_image_generator.h"
 #include "goldfish/async/libuv_event_loop.h"
 #include "goldfish/async/threaded_event_loop.h"
+#include "goldfish/display/test/mock_display.h"
+#include "goldfish/display/test/pixman_image_generator.h"
 
 using android::base::eventing::EventListener;
 using goldfish::async::EventLoop;

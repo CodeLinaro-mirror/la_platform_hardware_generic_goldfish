@@ -16,8 +16,8 @@
 #include "gmock/gmock.h"
 
 #include "android/base/testing/TestSystem.h"
-#include "goldfish/devices/test_connector_registry.h"
 #include "goldfish//async/testing/test_event_loop.h"
+#include "goldfish/devices/test_connector_registry.h"
 
 namespace goldfish::devices::fingerprint {
 

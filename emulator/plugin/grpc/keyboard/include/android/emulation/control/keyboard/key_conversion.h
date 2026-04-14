@@ -14,11 +14,12 @@
 // limitations under the License.
 #pragma once
 
+#include "qemu/osdep.h"
+
 extern "C" {
 // clang-format off
 // IWYU pragma: begin_keep
 
-#include "qemu/osdep.h"
 #include "ui/input.h"
 
 typedef struct QKbdState QKbdState;
@@ -26,7 +27,6 @@ typedef struct QKbdState QKbdState;
 // clang-format on
 }
 
-#include <cstdint>
 #include <vector>
 
 // Necessary on Windows.

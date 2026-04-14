@@ -17,11 +17,11 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 
-#include "android/status/status_macros.h"
-#include "goldfish/file/file.h"
 #include "android/cmdline_option.h"
 #include "android/goldfish/avd.h"
+#include "android/status/status_macros.h"
 #include "disk_drive.h"
+#include "goldfish/file/file.h"
 
 namespace android::goldfish {
 

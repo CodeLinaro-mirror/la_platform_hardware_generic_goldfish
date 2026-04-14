@@ -13,12 +13,10 @@
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 
-#include "android/base/eintr_wrapper.h"
-
-#include "android/sockets/scoped_socket.h"
-#include "android/base/no_sigalarm.h"
-
 #include "SocketErrors.h"
+#include "android/base/eintr_wrapper.h"
+#include "android/base/no_sigalarm.h"
+#include "android/sockets/scoped_socket.h"
 #ifdef _WIN32
 #include "Winsock.h"
 #else
@@ -540,7 +538,7 @@ enum {
     SOCK_CLOEXEC = 0,
 };
 #endif
-} // namespace
+}  // namespace
 
 static int socketCreateTcpFor(int domain) {
     errno = 0;

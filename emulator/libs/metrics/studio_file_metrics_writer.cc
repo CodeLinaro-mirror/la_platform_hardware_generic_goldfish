@@ -33,7 +33,7 @@ using namespace std::chrono_literals;
 namespace {
 // Note "emulator-metrics2-" to operate independently of qemu2 files.
 constexpr std::string_view kFileNameFormat = "emulator-metrics2-%s-%d-%d.open";
-constexpr re2::LazyRE2 kOpenFileRegex = {.pattern_=R"(emulator-metrics2-(.*)-(\d+)-\d+.open)"};
+constexpr re2::LazyRE2 kOpenFileRegex = {.pattern_ = R"(emulator-metrics2-(.*)-(\d+)-\d+.open)"};
 
 constexpr std::string_view kFinalExtension = "trk";
 constexpr std::string_view kLockSuffix = ".lock";
@@ -167,7 +167,8 @@ namespace {
 bool FinalizeFile(const fs::path& path) {
     fs::path new_path = path;
     new_path.replace_extension(kFinalExtension);
-    if (auto s = android::base::file::mv_file(path, new_path, /*fallback_to_copy_rm=*/false); !s.ok()) {
+    if (auto s = android::base::file::mv_file(path, new_path, /*fallback_to_copy_rm=*/false);
+        !s.ok()) {
         LOG(ERROR) << "Failed to finalize metrics file: " << path << " - " << s;
         return false;
     }

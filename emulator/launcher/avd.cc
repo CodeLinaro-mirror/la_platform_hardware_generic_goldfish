@@ -192,7 +192,8 @@ Avd::CpuArchitecture FileBackedAvd::DetectArchitecture() const {
 }
 
 int FileBackedAvd::ApiLevel() const {
-    // TODO Maybe check config_->GetString("target") e.g. android-36.1 against build_ini_ ro.system.build.version.sdk_full.
+    // TODO Maybe check config_->GetString("target") e.g. android-36.1 against build_ini_
+    // ro.system.build.version.sdk_full.
     return build_ini_.GetInt("ro.system.build.version.sdk", kUnknownApiLevel);
 }
 

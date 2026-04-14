@@ -36,43 +36,43 @@ class HalPlugToIPlugAdapter;
  * guest and manage the connection lifetime from its own event loop.
  */
 class HalSocket {
- public:
-  virtual ~HalSocket() = default;
+  public:
+    virtual ~HalSocket() = default;
 
-  /**
-   * @brief Asynchronously sends a message to the guest.
-   *
-   * The implementation is responsible for marshalling this call to the
-   * correct (QEMU) thread.
-   * @note There are no guarantees that the data arrives in the guest.
-   * @param data The message to send.
-   */
-  virtual void Send(std::string data) = 0;
+    /**
+     * @brief Asynchronously sends a message to the guest.
+     *
+     * The implementation is responsible for marshalling this call to the
+     * correct (QEMU) thread.
+     * @note There are no guarantees that the data arrives in the guest.
+     * @param data The message to send.
+     */
+    virtual void Send(std::string data) = 0;
 
-  /**
-   * @brief Asynchronously closes the connection.
-   *
-   * The implementation is responsible for marshalling this call to the
-   * correct (QEMU) thread.
-   */
-  virtual void Close() = 0;
+    /**
+     * @brief Asynchronously closes the connection.
+     *
+     * The implementation is responsible for marshalling this call to the
+     * correct (QEMU) thread.
+     */
+    virtual void Close() = 0;
 
-protected:
-  /**
-   * @brief Provides a string representation for logging and debugging.
-   *
-   * This is the implementation hook for `absl::StrFormat`. Concrete HalSocket
-   * implementations should override this method to provide meaningful
-   * diagnostic information (e.g., type, state etc).
-   *
-   * @param s The `absl::FormatSink` to write the formatted string to.
-   */
-  virtual void AbslStringifyImpl(absl::FormatSink& s) const {
-    absl::Format(&s, "<DefaultHalSocket>");
-  }
+  protected:
+    /**
+     * @brief Provides a string representation for logging and debugging.
+     *
+     * This is the implementation hook for `absl::StrFormat`. Concrete HalSocket
+     * implementations should override this method to provide meaningful
+     * diagnostic information (e.g., type, state etc).
+     *
+     * @param s The `absl::FormatSink` to write the formatted string to.
+     */
+    virtual void AbslStringifyImpl(absl::FormatSink& s) const {
+        absl::Format(&s, "<DefaultHalSocket>");
+    }
 
- private:
-  friend void AbslStringify(absl::FormatSink& s, const HalSocket& socket);
+  private:
+    friend void AbslStringify(absl::FormatSink& s, const HalSocket& socket);
 };
 
 /**
@@ -87,7 +87,7 @@ protected:
  * @param socket The `AsyncSocket` to format.
  */
 inline void AbslStringify(absl::FormatSink& s, const HalSocket& socket) {
-  socket.AbslStringifyImpl(s);
+    socket.AbslStringifyImpl(s);
 }
 
 /**
@@ -157,98 +157,98 @@ class NullHalSocket : public HalSocket {
  * errors and makes the connection lifecycle easy to reason about.
  */
 class HalPlug {
- public:
-  HalPlug() {
-    // Start with a safe, non-functional socket. This prevents crashes if
-    // the user incorrectly calls socket() before onConnect().
-    static const absl::NoDestructor<std::shared_ptr<HalSocket>> null_socket(
-            std::make_shared<internal::NullHalSocket>());
-    socket_ = *null_socket;
-  }
+  public:
+    HalPlug() {
+        // Start with a safe, non-functional socket. This prevents crashes if
+        // the user incorrectly calls socket() before onConnect().
+        static const absl::NoDestructor<std::shared_ptr<HalSocket>> null_socket(
+                std::make_shared<internal::NullHalSocket>());
+        socket_ = *null_socket;
+    }
 
-  virtual ~HalPlug() = default;
+    virtual ~HalPlug() = default;
 
-  /**
-   * @brief Callback invoked when the connection is fully established.
-   *
-   * This method is called on the HAL's dedicated event loop and signals that
-   * two-way communication with the guest is now possible. It is the point
-   * at which the `socket()` becomes valid for sending data.
-   *
-   * @note An `onReceive` callback with initial connection parameters may
-   * have been called *before* this method. Any such data should be buffered
-   * and processed here.
-   */
-  virtual void OnConnect() = 0;
+    /**
+     * @brief Callback invoked when the connection is fully established.
+     *
+     * This method is called on the HAL's dedicated event loop and signals that
+     * two-way communication with the guest is now possible. It is the point
+     * at which the `socket()` becomes valid for sending data.
+     *
+     * @note An `onReceive` callback with initial connection parameters may
+     * have been called *before* this method. Any such data should be buffered
+     * and processed here.
+     */
+    virtual void OnConnect() = 0;
 
-  /**
-   * @brief Callback invoked when data is received from the guest.
-   *
-   * This method is called on the HAL's dedicated event loop for each
-   * incoming data packet.
-   *
-   * @param data A view of the received data buffer.
-   * @warning The `data` parameter is a `std::string_view` and is only valid
-   * for the duration of this function call. If the data needs to be
-   * stored or used later, it must be copied.
-   */
-  virtual void OnReceive(std::string_view data) = 0;
+    /**
+     * @brief Callback invoked when data is received from the guest.
+     *
+     * This method is called on the HAL's dedicated event loop for each
+     * incoming data packet.
+     *
+     * @param data A view of the received data buffer.
+     * @warning The `data` parameter is a `std::string_view` and is only valid
+     * for the duration of this function call. If the data needs to be
+     * stored or used later, it must be copied.
+     */
+    virtual void OnReceive(std::string_view data) = 0;
 
-  /**
-   * @brief Callback invoked when the connection has been terminated by the guest.
-   *
-   * This method is called on the HAL's dedicated event loop when the remote
-   * guest actively closes the connection. After this call begins, the
-   * `socket()` will no longer be valid. Implementations should perform any
-   * necessary resource cleanup within this method.
-   *
-   * @note This callback is only triggered by **guest-initiated** disconnects.
-   * It will **not** be called as a result of the host calling
-   * `socket()->close()`.
-   * @note Due to nature of concurrency it is possible that you wrote some bytes to a NullSocket
-   * before you received the onClose callback.
-   */
-  virtual void OnClose() = 0;
+    /**
+     * @brief Callback invoked when the connection has been terminated by the guest.
+     *
+     * This method is called on the HAL's dedicated event loop when the remote
+     * guest actively closes the connection. After this call begins, the
+     * `socket()` will no longer be valid. Implementations should perform any
+     * necessary resource cleanup within this method.
+     *
+     * @note This callback is only triggered by **guest-initiated** disconnects.
+     * It will **not** be called as a result of the host calling
+     * `socket()->close()`.
+     * @note Due to nature of concurrency it is possible that you wrote some bytes to a NullSocket
+     * before you received the onClose callback.
+     */
+    virtual void OnClose() = 0;
 
-protected:
-  /**
-   * @brief Provides access to the underlying `HalSocket`.
-   *
-   * @return A pointer to the `HalSocket` instance for this connection.
-   * @warning This method adheres to the class invariant: the returned
-   * pointer is only functional between the `onConnect()` and `OnClose()`
-   * calls. At all other times, it will return a safe, non-functional
-   * "null" socket.
-   */
-  std::shared_ptr<HalSocket> Socket() const {
-      CHECK(socket_) << "socket_ is nullptr";
-      return socket_;
-  }
+  protected:
+    /**
+     * @brief Provides access to the underlying `HalSocket`.
+     *
+     * @return A pointer to the `HalSocket` instance for this connection.
+     * @warning This method adheres to the class invariant: the returned
+     * pointer is only functional between the `onConnect()` and `OnClose()`
+     * calls. At all other times, it will return a safe, non-functional
+     * "null" socket.
+     */
+    std::shared_ptr<HalSocket> Socket() const {
+        CHECK(socket_) << "socket_ is nullptr";
+        return socket_;
+    }
 
-  /**
-   * @brief Provides a string representation for logging and debugging.
-   *
-   * This is the implementation hook for `absl::StrFormat`. Concrete HalPlug
-   * implementations should override this method to provide meaningful
-   * diagnostic information (e.g., type, state etc).
-   *
-   * @param s The `absl::FormatSink` to write the formatted string to.
-   */
-  virtual void AbslStringifyImpl(absl::FormatSink& s) const {
-      absl::Format(&s, "[HalPlug socket=%v]", *Socket());
-  }
+    /**
+     * @brief Provides a string representation for logging and debugging.
+     *
+     * This is the implementation hook for `absl::StrFormat`. Concrete HalPlug
+     * implementations should override this method to provide meaningful
+     * diagnostic information (e.g., type, state etc).
+     *
+     * @param s The `absl::FormatSink` to write the formatted string to.
+     */
+    virtual void AbslStringifyImpl(absl::FormatSink& s) const {
+        absl::Format(&s, "[HalPlug socket=%v]", *Socket());
+    }
 
- private:
-  friend class HalPlugFactory;
-  friend class HalPlugToIPlugAdapter;
-  friend class HalPlugTesting;
-  friend void AbslStringify(absl::FormatSink& s, const HalPlug& plug);
+  private:
+    friend class HalPlugFactory;
+    friend class HalPlugToIPlugAdapter;
+    friend class HalPlugTesting;
+    friend void AbslStringify(absl::FormatSink& s, const HalPlug& plug);
 
-  void EstablishConnection(std::shared_ptr<HalSocket> socket) {
-      CHECK(socket) << "socket is nullptr";
-      socket_ = std::move(socket);
-  }
-  std::shared_ptr<HalSocket> socket_;
+    void EstablishConnection(std::shared_ptr<HalSocket> socket) {
+        CHECK(socket) << "socket is nullptr";
+        socket_ = std::move(socket);
+    }
+    std::shared_ptr<HalSocket> socket_;
 };
 
 /**
@@ -262,7 +262,9 @@ protected:
  * @param s The `absl::FormatSink` to write to.
  * @param socket The `AsyncSocket` to format.
  */
-inline void AbslStringify(absl::FormatSink& s, const HalPlug& plug) { plug.AbslStringifyImpl(s); }
+inline void AbslStringify(absl::FormatSink& s, const HalPlug& plug) {
+    plug.AbslStringifyImpl(s);
+}
 
 /**
  * @brief Enables `std::ostream` support for `AsyncSocket`.

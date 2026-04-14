@@ -14,15 +14,15 @@
 
 #pragma once
 
-#include "android/sockets/socket_utils.h"
-
 #include <utility>
+
+#include "android/sockets/socket_utils.h"
 
 namespace android {
 namespace base {
 
 class ScopedSocket {
-public:
+  public:
     constexpr ScopedSocket() = default;
     constexpr ScopedSocket(int socket) : mSocket(socket) {}
     ScopedSocket(ScopedSocket&& other) : mSocket(other.release()) {}
@@ -54,11 +54,9 @@ public:
         mSocket = socket;
     }
 
-    void swap(ScopedSocket* other) {
-        std::swap(mSocket, other->mSocket);
-    }
+    void swap(ScopedSocket* other) { std::swap(mSocket, other->mSocket); }
 
-private:
+  private:
     int mSocket = -1;
 };
 

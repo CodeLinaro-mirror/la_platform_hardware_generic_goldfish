@@ -22,8 +22,8 @@
 #include "gtest/gtest.h"
 
 #include "android/goldfish/vm_interface.h"
-#include "test/GrpcServiceTest.h"
 #include "emulator_controller.grpc.pb.h"
+#include "test/GrpcServiceTest.h"
 
 namespace android {
 namespace emulation {

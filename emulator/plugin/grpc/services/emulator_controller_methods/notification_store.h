@@ -37,9 +37,7 @@ class NotificationStore {
   public:
     NotificationStore(GrpcNotificationEventSource* source) : source_(source) {
         callback_id_ = source_->AddCallback(
-                [this](const GrpcNotification& notification) {
-                    OnNotification(notification);
-                });
+                [this](const GrpcNotification& notification) { OnNotification(notification); });
     }
 
     ~NotificationStore() { source_->RemoveCallback(callback_id_); }
@@ -76,21 +74,21 @@ class NotificationStore {
   private:
     static bool isSticky(const GrpcNotification& notification) {
         switch (notification.type_case()) {
-            case GrpcNotification::TypeCase::kBooted:
-            case GrpcNotification::TypeCase::kXrOptions:
-            case GrpcNotification::TypeCase::kCameraNotification:
-            case GrpcNotification::TypeCase::kPosture:
-                return true;
-            default:
-                return false;
+        case GrpcNotification::TypeCase::kBooted:
+        case GrpcNotification::TypeCase::kXrOptions:
+        case GrpcNotification::TypeCase::kCameraNotification:
+        case GrpcNotification::TypeCase::kPosture:
+            return true;
+        default:
+            return false;
         }
     }
 
     GrpcNotificationEventSource* source_;
     GrpcNotificationEventSource::CallbackId callback_id_;
     mutable std::mutex mutex_;
-    absl::flat_hash_map<GrpcNotification::TypeCase, GrpcNotification>
-        latest_notifications_ ABSL_GUARDED_BY(mutex_);
+    absl::flat_hash_map<GrpcNotification::TypeCase, GrpcNotification> latest_notifications_
+            ABSL_GUARDED_BY(mutex_);
 };
 
 }  // namespace android::emulation::control

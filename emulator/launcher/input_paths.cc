@@ -19,12 +19,12 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 
-#include "android/status/status_macros.h"
 #include "android/base/bazel_info.h"
-#include "goldfish/file/file.h"
 #include "android/base/system.h"
 #include "android/goldfish/config_dirs.h"
+#include "android/status/status_macros.h"
 #include "goldfish/async/uv_to_absl.h"
+#include "goldfish/file/file.h"
 #include "uv.h"
 
 #ifdef _WIN32
@@ -146,10 +146,9 @@ absl::StatusOr<ResolvedInputPaths> ResolvePaths(bool verbose, bool include_fisht
                      CheckExists(paths.binary_directory / AddBinarySuffix("qemu-system-x86_64"),
                                  "qemu-system-x86_64"));
 #ifndef _WIN32
-    ASSIGN_OR_RETURN(
-            paths.qemu_system_arm_binary,
-            CheckExists(paths.binary_directory / AddBinarySuffix("qemu-system-aarch64"),
-                        "qemu-system-aarch64"));
+    ASSIGN_OR_RETURN(paths.qemu_system_arm_binary,
+                     CheckExists(paths.binary_directory / AddBinarySuffix("qemu-system-aarch64"),
+                                 "qemu-system-aarch64"));
     // ASSIGN_OR_RETURN(paths.qemu_system_riscv_binary, check_exists(paths.binary_directory /
     // add_qemu_binary_suffix("qemu-system-riscv64"), "qemu-system-riscv64"));
 #endif

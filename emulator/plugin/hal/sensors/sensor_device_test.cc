@@ -21,9 +21,9 @@
 #include "android/base/testing/TestClock.h"
 #include "android/base/testing/TestSystem.h"
 #include "android/goldfish/fake_hardware_config.h"
-#include "goldfish/devices/test_connector_registry.h"
 #include "goldfish/async/testing/test_event_loop.h"
 #include "goldfish/devices/qemud/qemud.h"
+#include "goldfish/devices/test_connector_registry.h"
 
 namespace goldfish::devices::sensor {
 

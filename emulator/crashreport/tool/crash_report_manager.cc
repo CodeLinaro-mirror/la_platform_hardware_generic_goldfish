@@ -19,8 +19,8 @@
 
 #include "absl/log/log.h"
 
-#include "client/settings.h"
 #include "android/crashreport/crash_system.h"
+#include "client/settings.h"
 
 namespace android {
 namespace crashreport {

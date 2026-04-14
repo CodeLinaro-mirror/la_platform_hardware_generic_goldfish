@@ -18,8 +18,8 @@
 #include "absl/log/log.h"
 #include "absl/time/time.h"
 
-#include "android/process/process.h"
 #include "android/base/clock.h"
+#include "android/process/process.h"
 #include "goldfish/async/event_loop.h"
 
 namespace android::control::interceptor {

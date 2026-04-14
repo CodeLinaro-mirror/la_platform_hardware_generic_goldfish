@@ -16,9 +16,9 @@
 #include <iostream>
 #include <thread>
 
+#include "android/crashreport/breadcrumb.h"
 #include "annotation_circular_streambuf.h"
 #include "annotation_streambuf.h"
-#include "android/crashreport/breadcrumb.h"
 
 using android::crashreport::AnnotationCircularStreambuf;
 using android::crashreport::AnnotationStreambuf;

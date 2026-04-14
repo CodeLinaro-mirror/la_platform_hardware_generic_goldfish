@@ -23,9 +23,9 @@
 #include "goldfish/avd_universe/gps/location.h"
 #include "goldfish/avd_universe/grpc/grpc_notification_channel.h"
 #include "goldfish/avd_universe/guest_status/guest_status.h"
-#include "goldfish/sensors/physical_model.h"
 #include "goldfish/metrics/configure_metrics_writer.h"
 #include "goldfish/metrics/uuid.h"
+#include "goldfish/sensors/physical_model.h"
 
 namespace goldfish::devices::multidisplay {
 class MultiDisplayDevice;

@@ -41,9 +41,9 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_split.h"
 
-#include "goldfish/file/file.h"
 #include "android/base/system.h"
 #include "goldfish/base/unique_handle.h"
+#include "goldfish/file/file.h"
 #include "x86_cpuid.h"
 
 #ifdef _WIN32
@@ -295,9 +295,7 @@ AndroidCpuAcceleration ProbeKVM(std::string* status) {
     }
 
     struct FdDeleter {
-        void operator()(int fd) const {
-            ::close(fd);
-        }
+        void operator()(int fd) const { ::close(fd); }
     };
     using ScopedFd = goldfish::base::UniqueHandle<int, -1, FdDeleter>;
 

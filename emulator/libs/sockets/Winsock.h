@@ -34,8 +34,8 @@
 
 // Order of inclusion of winsock2.h and windows.h depends on the version
 // of Mingw32 being used.
-#include <winsock2.h>
 #include <windows.h>
+#include <winsock2.h>
 #include <ws2tcpip.h>
 
 #undef ERROR  // necessary to compile LOG(ERROR) statements.

@@ -17,8 +17,8 @@
 
 #include "absl/synchronization/mutex.h"
 
-#include "goldfish/display/test/pixman_image_generator.h"
 #include "goldfish/display/pixman_display.h"
+#include "goldfish/display/test/pixman_image_generator.h"
 #include "goldfish/eventing/event_sources.h"
 
 extern "C" {

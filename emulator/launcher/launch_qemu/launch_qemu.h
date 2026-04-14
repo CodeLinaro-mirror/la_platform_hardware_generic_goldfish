@@ -23,8 +23,8 @@
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 
-#include "emulator_config.h"
 #include "device.h"
+#include "emulator_config.h"
 #include "goldfish/async/launch_config.h"
 
 namespace android::goldfish {
@@ -40,9 +40,9 @@ class Emulator : public EmulatorConfig {
      * @param avd The AVD configuration to use for the emulator.
      * @param opts The android options to use for the emulator.
      */
-    explicit Emulator(const EmulatorPorts &ports, const ChardevEndpoints &chardev_endpoints, const MetricsConfig &metrics_config,
-                      const ResolvedInputPaths &resolved_paths, const Avd &avd,
-                      const AndroidOptions &opts)
+    explicit Emulator(const EmulatorPorts& ports, const ChardevEndpoints& chardev_endpoints,
+                      const MetricsConfig& metrics_config, const ResolvedInputPaths& resolved_paths,
+                      const Avd& avd, const AndroidOptions& opts)
             : EmulatorConfig(ports, chardev_endpoints, metrics_config, resolved_paths, avd, opts) {}
 
     /**
@@ -116,7 +116,7 @@ class Emulator : public EmulatorConfig {
         mDevices.push_back(std::move(newDevice));
     }
 
-    private:
+  private:
     absl::Status addDevices();
 
     bool snapshotExists(const std::string& name) const;

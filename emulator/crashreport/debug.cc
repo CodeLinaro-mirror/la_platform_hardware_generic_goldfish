@@ -47,7 +47,7 @@ std::string ReadFile(const std::filesystem::path& path) {
     return ss.str();
 }
 #endif
-} // namespace
+}  // namespace
 
 bool IsDebuggerAttached() {
 #ifdef _WIN32
@@ -63,7 +63,7 @@ bool IsDebuggerAttached() {
 
     // If the tracer PID is parseable and not 0, there's a debugger attached.
     const bool debugger_attached =
-        atoi(proc_status.c_str() + tracer_pid + kTracerPidPrefix.size()) != 0;
+            atoi(proc_status.c_str() + tracer_pid + kTracerPidPrefix.size()) != 0;
     return debugger_attached;
 #elif defined(__APPLE__)
     int mib[] = {CTL_KERN, KERN_PROC, KERN_PROC_PID, getpid()};
@@ -102,4 +102,4 @@ void DebugBreak() {
 #endif
 }
 
-} // namespace android::base
+}  // namespace android::base
