@@ -50,8 +50,7 @@ class ThreadedEventLoopImpl : public ThreadedEventLoop {
      * @param loop A unique_ptr to the underlying EventLoop implementation that
      * this class will manage and run.
      */
-    explicit ThreadedEventLoopImpl(std::unique_ptr<LibuvEventLoop> loop,
-                                   std::string name = "AEMU Event Thread");
+    explicit ThreadedEventLoopImpl(std::unique_ptr<LibuvEventLoop> loop);
     ~ThreadedEventLoopImpl() override;
 
     // --- Prevent Copying ---
@@ -95,13 +94,12 @@ class ThreadedEventLoopImpl : public ThreadedEventLoop {
 
     std::thread runner_;
     std::unique_ptr<LibuvEventLoop> loop_;
-    std::string looper_name_;
     std::unique_ptr<android::base::eventing::ScopedEventCallback<LibuvEventLoop, LooperStatusEvent>>
             subscription_;
 };
 
-ThreadedEventLoopImpl::ThreadedEventLoopImpl(std::unique_ptr<LibuvEventLoop> loop, std::string name)
-        : loop_(std::move(loop)), looper_name_(std::move(name)) {
+ThreadedEventLoopImpl::ThreadedEventLoopImpl(std::unique_ptr<LibuvEventLoop> loop)
+        : ThreadedEventLoop(loop->GetName()), loop_(std::move(loop)) {
     subscription_ = android::base::eventing::MakeScopedCallback(
             *loop_, [this](const LooperStatusEvent& event) { this->FireEvent(event); });
 }
@@ -133,14 +131,6 @@ absl::Status ThreadedEventLoopImpl::Start() {
                 "The event loop is automatically run, and has already started.");
     }
     runner_ = std::thread([this] {
-#if defined(_WIN32)
-        SetThreadDescription(GetCurrentThread(),
-                             android::base::Win32UnicodeString(looper_name_).c_str());
-#elif defined(__linux__)
-        pthread_setname_np(pthread_self(), looper_name_.c_str());
-#else
-        pthread_setname_np(looper_name_.c_str());
-#endif
         auto status = loop_->Run();
         if (!status.ok()) {
             LOG(WARNING) << "Event loop exited with: " << status;

@@ -190,7 +190,8 @@ class QemuEventLoopImpl : public goldfish::async::QemuEventLoop {
         uint64_t interval_ms_ = 0;
     };
 
-    QemuEventLoopImpl() : drainer_bh_(MakeQemuBh([&] { DrainQueue(); })) {
+    QemuEventLoopImpl(std::string name)
+            : QemuEventLoop(std::move(name)), drainer_bh_(MakeQemuBh([&] { DrainQueue(); })) {
         SetState(LooperStatusEvent::State::kRunning);
     }
 
@@ -339,8 +340,8 @@ std::shared_ptr<EventLoop::Timer> QemuEventLoopImpl::CreateTimer(Task task) {
 }  // namespace
 
 // --- Factory Function ---
-std::unique_ptr<QemuEventLoop> QemuEventLoop::Create() {
-    auto loop = std::make_unique<QemuEventLoopImpl>();
+std::unique_ptr<QemuEventLoop> QemuEventLoop::Create(std::string name) {
+    auto loop = std::make_unique<QemuEventLoopImpl>(std::move(name));
     loop->Post([loop_ptr = loop.get()] { loop_ptr->SetState(LooperStatusEvent::State::kRunning); }).IgnoreError();
 
     return loop;

@@ -733,7 +733,7 @@ int main(int argc, char** argv) {
     options.call_previous_handler = true;
     absl::InstallFailureSignalHandler(options);
 
-    auto event_loop = goldfish::async::LibuvEventLoop::Create();
+    auto event_loop = goldfish::async::LibuvEventLoop::Create("LauncherLoop");
 
     auto reporter = std::make_unique<MetricsReporter>();
     auto metrics_writer_config = android::goldfish::get_metrics_writer_config(opts, *resolved_paths);

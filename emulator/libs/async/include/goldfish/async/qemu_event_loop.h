@@ -24,6 +24,7 @@ namespace goldfish::async {
  */
 class QemuEventLoop : public EventLoop {
   public:
+    using EventLoop::EventLoop;
     /**
      * @brief Creates an instance of the QEMU-based event loop.
      *
@@ -37,7 +38,7 @@ class QemuEventLoop : public EventLoop {
      *
      * @return A std::unique_ptr to a new QemuEventLoop instance.
      */
-    static std::unique_ptr<QemuEventLoop> Create();
+    static std::unique_ptr<QemuEventLoop> Create(std::string name = "QemuMainLoop");
 };
 
 }  // namespace goldfish::async

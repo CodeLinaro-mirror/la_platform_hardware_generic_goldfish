@@ -30,6 +30,7 @@
 #include "absl/status/status.h"
 #include "absl/synchronization/mutex.h"
 
+#include "android/base/threads/thread_utils.h"
 #include "goldfish/async/event_loop.h"
 #include "goldfish/async/scoped_async_timer.h"
 #include "goldfish/async/uv_to_absl.h"
@@ -85,7 +86,7 @@ class LibuvTimer;
  */
 class LibuvEventLoopImpl : public LibuvEventLoop {
   public:
-    LibuvEventLoopImpl();
+    explicit LibuvEventLoopImpl(std::string name);
     ~LibuvEventLoopImpl() override;
 
     // --- Prevent Copying ---
@@ -300,7 +301,7 @@ class LibuvTimer : public EventLoop::Timer, public std::enable_shared_from_this<
 
 // --- LibuvEventLoopImpl Implementation ---
 
-LibuvEventLoopImpl::LibuvEventLoopImpl() {
+LibuvEventLoopImpl::LibuvEventLoopImpl(std::string name) : LibuvEventLoop(std::move(name)) {
     if (const int err = uv_loop_init(&uv_loop_handle_)) {
         LOG(DFATAL) << "Failed to initialize uv_loop: " << uv_strerror(err);
     }
@@ -398,6 +399,7 @@ void LibuvEventLoopImpl::ProcessTasks() {
 
 absl::Status LibuvEventLoopImpl::Run() {
     thread_id_ = std::this_thread::get_id();
+    android::base::ThreadUtils::SetCurrentThreadName(GetName());
 
     SetState(LooperStatusEvent::State::kRunning);
     const int err = uv_run(&uv_loop_handle_, UV_RUN_DEFAULT);
@@ -449,8 +451,8 @@ std::future<absl::Status> LibuvEventLoopImpl::Shutdown() {
     return shutdown_complete_promise_.get_future();
 }
 
-std::unique_ptr<LibuvEventLoop> LibuvEventLoop::Create() {
-    return std::make_unique<LibuvEventLoopImpl>();
+std::unique_ptr<LibuvEventLoop> LibuvEventLoop::Create(std::string name) {
+    return std::make_unique<LibuvEventLoopImpl>(std::move(name));
 }
 
 }  // namespace goldfish::async

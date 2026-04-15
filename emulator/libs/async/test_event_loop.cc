@@ -26,6 +26,8 @@
 
 #include "absl/status/status.h"
 
+#include "android/base/threads/thread_utils.h"
+
 namespace goldfish::async::testing {
 
 // The concrete implementation class, hidden entirely within this .cpp file.
@@ -33,7 +35,7 @@ class TestEventLoopImpl : public TestEventLoop {
     class TestTimer;
 
   public:
-    TestEventLoopImpl();
+    explicit TestEventLoopImpl(std::string name);
     ~TestEventLoopImpl() override;
 
     // EventLoop Interface
@@ -113,12 +115,13 @@ class TestEventLoopImpl : public TestEventLoop {
 };
 
 // --- Factory Function ---
-std::unique_ptr<TestEventLoop> TestEventLoop::Create() {
-    return std::make_unique<TestEventLoopImpl>();
+std::unique_ptr<TestEventLoop> TestEventLoop::Create(std::string name) {
+    return std::make_unique<TestEventLoopImpl>(std::move(name));
 }
 
 // --- TestEventLoopImpl Implementation ---
-TestEventLoopImpl::TestEventLoopImpl() : now_(std::chrono::steady_clock::now()) {
+TestEventLoopImpl::TestEventLoopImpl(std::string name)
+        : TestEventLoop(std::move(name)), now_(std::chrono::steady_clock::now()) {
     std::promise<void> thread_started_promise;
     auto thread_started_future = thread_started_promise.get_future();
     thread_ = std::thread([this, &thread_started_promise]() {
@@ -237,6 +240,7 @@ void TestEventLoopImpl::AdvanceClock(std::chrono::milliseconds duration) {
 }
 
 void TestEventLoopImpl::Loop() {
+    android::base::ThreadUtils::SetCurrentThreadName(GetName());
     std::unique_lock<std::mutex> lock(mutex_);
     while (!stop_) {
         cv_.wait(lock, [this] { return command_ != Command::kNone || stop_; });

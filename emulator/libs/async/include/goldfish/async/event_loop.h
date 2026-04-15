@@ -125,7 +125,19 @@ class EventLoop : public CallbackEventSource<LooperStatusEvent> {
         }
     };
 
+    /**
+     * @brief Construct a new EventLoop object with a name.
+     * @param name The name of the event loop.
+     */
+    explicit EventLoop(std::string name) : name_(std::move(name)) {}
+
     virtual ~EventLoop() = default;
+
+    /**
+     * @brief Gets the name of the event loop.
+     * @return The name of the event loop.
+     */
+    const std::string& GetName() const { return name_; }
 
     absl::Status ShutdownAndWait(
             std::chrono::milliseconds timeout = std::chrono::milliseconds::zero()) {
@@ -277,6 +289,7 @@ class EventLoop : public CallbackEventSource<LooperStatusEvent> {
     }
 
   private:
+    std::string name_;
     std::atomic<LooperStatusEvent::State> state_{LooperStatusEvent::State::kNotStarted};
 };
 
