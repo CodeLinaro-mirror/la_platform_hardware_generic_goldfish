@@ -37,6 +37,7 @@ constexpr const char* CrumbToStr(Breadcrumb value) {
         CRUMBSTR(kInit);
         CRUMBSTR(kGrpc);
         CRUMBSTR(kEvents);
+        CRUMBSTR(kQemu);
         CRUMBSTR(kCrumbMax);
     }
 }

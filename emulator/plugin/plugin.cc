@@ -28,6 +28,7 @@
 
 #include "android/base/color_log_sink.h"
 #include "android/base/system.h"
+#include "android/crashreport/breadcrumb.h"
 #include "android/crashreport/crash_reporter.h"
 #include "android/crashreport/crash_system.h"
 #include "android/crashreport/debug.h"
@@ -71,6 +72,11 @@ void qemu_absl_logger(int severity, const char* file, int line, const char* fmt,
         VLOG(1) << "Following log message truncated, size needed: " << size
                 << " truncated to: " << (message.size() - 3);
         size = message.size();
+    }
+
+    // Log error messages as breadcrumbs so they show up in crash reports
+    if (severity >= static_cast<int>(absl::LogSeverity::kError)) {
+        CRUMB(kQemu) << absl::StrFormat("%s:%d %s\n", file ? file : "QEMU", line, message);
     }
 
     LOG(LEVEL(severity)).AtLocation(file ? file : "QEMU", line)
@@ -117,7 +123,8 @@ int get_log_level() {
     }
 
     if (log_level < 0 || log_level > 4) {
-        LOG(ERROR) << "AEMU_LOG_LEVEL should be in the range [0, 3] (info, warning, error, fatal), "
+        LOG(ERROR) << "AEMU_LOG_LEVEL should be in the range [0, 3] (info, "
+                      "warning, error, fatal), "
                       "not: "
                    << log_level;
         return default_log_level;
@@ -168,8 +175,8 @@ extern "C" void GF_STARTUP_FUNC(int argc, char** argv) {
     setup_logging();
 
     VLOG(1) << "Goldfish plugin version: " VERSION << "-" << BUILD_ID;
-    // The plugin crash system should never try to upload - that should only be done by the
-    // launcher.
+    // The plugin crash system should never try to upload - that should only be
+    // done by the launcher.
     if (!android::crashreport::CrashSystem::get().initialize()) {
         LOG(WARNING) << "Failed to initialize crashreporting.";
     }

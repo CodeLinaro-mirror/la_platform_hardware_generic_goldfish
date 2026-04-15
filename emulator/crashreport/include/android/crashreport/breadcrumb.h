@@ -26,6 +26,7 @@ enum class Breadcrumb : std::uint8_t {
     kInit,     ///< Initialization breadcrumb.
     kGrpc,     ///< gRPC breadcrumb.
     kEvents,   ///< Events breadcrumb.
+    kQemu,     ///< QEMU breadcrumb.
     kCrumbMax  ///< Maximum breadcrumb value.
 };
 

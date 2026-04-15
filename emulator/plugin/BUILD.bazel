@@ -46,8 +46,11 @@ load("@rules_cc//cc:defs.bzl", "cc_binary")
         ] + select({
             "@platforms//os:windows": [
                 "@qemu//:qemu-system-" + arch + ".if",
+                "//emulator/crashreport:breadcrumb",
             ],
-            "//conditions:default": [],
+            "//conditions:default": [
+                "//emulator/crashreport:breadcrumb",
+            ],
         }) + [
             # crashreport dep must go after the windows compat dep.
             # buildifier: leave-alone
