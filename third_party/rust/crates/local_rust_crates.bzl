@@ -139,6 +139,7 @@ def _lrc_impl(module_ctx):
         "hashbrown",
         "heck",
         "hex",
+        "home",
         "http",
         "httparse",
         "indexmap",
