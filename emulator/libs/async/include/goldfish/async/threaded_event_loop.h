@@ -34,6 +34,7 @@ namespace goldfish::async {
  */
 class ThreadedEventLoop : public EventLoop {
   public:
+    using EventLoop::EventLoop;
     /**
      * @brief Virtual destructor.
      */

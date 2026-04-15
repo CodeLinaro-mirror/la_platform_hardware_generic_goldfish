@@ -57,6 +57,20 @@ cc_library(
 )
 
 cc_library(
+    name = "threads",
+    srcs = ["thread_utils.cc"],
+    hdrs = ["include/android/base/threads/thread_utils.h"],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "@abseil-cpp//absl/strings",
+    ] + select({
+        "@platforms//os:windows": ["//emulator/libs/windows:win32_utils"],
+        "//conditions:default": [],
+    }),
+)
+
+cc_library(
     name = "system",
     srcs = ["system.cc"],
     hdrs = [
@@ -138,6 +152,16 @@ cc_library(
         "@abseil-cpp//absl/log:absl_log",
         "@abseil-cpp//absl/strings",
         "@bazel_tools//tools/cpp/runfiles",
+    ],
+)
+
+cc_test(
+    name = "threads_test",
+    srcs = ["thread_utils_test.cc"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":threads",
+        "//emulator/libs/test:googletest_main",
     ],
 )
 

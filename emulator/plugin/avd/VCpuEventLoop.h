@@ -14,6 +14,11 @@
 
 #pragma once
 
+#include <future>
+#include <string>
+
+#include "absl/strings/str_cat.h"
+
 #include "emulator/plugin/avd/qemu_cpu_wrapper.h"
 #include "goldfish/async/event_loop.h"
 
@@ -64,10 +69,13 @@ class VCpuEventLoop : public ::goldfish::async::EventLoop {
         cpus_callback mCallback{};
     };
 
-    VCpuEventLoop(int cpuIndex) : mCpuIndex(cpuIndex) {}
+    VCpuEventLoop(int cpuIndex)
+            : ::goldfish::async::EventLoop(absl::StrCat("VCpuLoop:", cpuIndex))
+            , mCpuIndex(cpuIndex) {}
 
     ~VCpuEventLoop() = default;
-    VCpuEventLoop(VCpuEventLoop&& other) : mCpuIndex(other.mCpuIndex) {}
+    VCpuEventLoop(VCpuEventLoop&& other)
+            : ::goldfish::async::EventLoop(other.GetName()), mCpuIndex(other.mCpuIndex) {}
 
     int getCpuIndex() const { return mCpuIndex; }
 

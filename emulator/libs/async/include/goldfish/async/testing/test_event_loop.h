@@ -30,13 +30,14 @@ namespace goldfish::async::testing {
  */
 class TestEventLoop : public EventLoop {
   public:
+    using EventLoop::EventLoop;
     ~TestEventLoop() override = default;
     /**
      * @brief Factory function to create a concrete instance of the
      * TestEventLoop.
      * @return A unique_ptr to a new TestEventLoop instance.
      */
-    static std::unique_ptr<TestEventLoop> Create();
+    static std::unique_ptr<TestEventLoop> Create(std::string name = "TestLoop");
 
     /**
      * @brief Runs all immediately pending tasks until the queue is empty.

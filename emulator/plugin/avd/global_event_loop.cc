@@ -27,7 +27,7 @@ EventLoop* globalEventLoop() {
     absl::call_once(sInitOnce, [] {
         // Create the default ThreadedEventLoop and store it in the unique_ptr.
         sGlobalEventLoop = ::goldfish::async::ThreadedEventLoop::Create(
-                ::goldfish::async::LibuvEventLoop::Create());
+                ::goldfish::async::LibuvEventLoop::Create("GlobalLoop"));
     });
 
     return sGlobalEventLoop.get();

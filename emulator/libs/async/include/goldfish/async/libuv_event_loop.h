@@ -30,6 +30,7 @@ namespace goldfish::async {
  */
 class LibuvEventLoop : public EventLoop {
   public:
+    using EventLoop::EventLoop;
     ~LibuvEventLoop() override = default;
 
     /**
@@ -40,7 +41,7 @@ class LibuvEventLoop : public EventLoop {
     absl::Status PostDelayed(Task task, std::chrono::milliseconds delay) override = 0;
     absl::Status PostImmediately(Task task) override = 0;
 
-    static std::unique_ptr<LibuvEventLoop> Create();
+    static std::unique_ptr<LibuvEventLoop> Create(std::string name = "LibuvLoop");
 };
 
 }  // namespace goldfish::async

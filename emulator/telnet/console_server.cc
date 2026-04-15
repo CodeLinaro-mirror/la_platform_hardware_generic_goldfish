@@ -236,7 +236,7 @@ absl::Status ConsoleServer::Stop(absl::Duration timeout) {
 EventLoop* ConsoleServer::ProvideLoopForConnection(Endpoint remote) {
     VLOG(2) << "Allocating new thread loop for incoming connection from "
             << goldfish::network::ToString(remote);
-    auto libuv_loop = goldfish::async::LibuvEventLoop::Create();
+    auto libuv_loop = goldfish::async::LibuvEventLoop::Create("ConsoleServerLoop");
     auto thread_loop = ThreadedEventLoop::Create(std::move(libuv_loop));
     auto* loop_ptr = thread_loop.get();
 
