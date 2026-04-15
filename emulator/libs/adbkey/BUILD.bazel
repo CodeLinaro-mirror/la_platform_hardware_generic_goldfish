@@ -2,7 +2,7 @@ load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_test")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 
 cc_library(
-    name = "secrets",
+    name = "adbkey",
     srcs = ["adbkey.cc"],
     hdrs = ["include/goldfish/adb/adbkey.h"],
     includes = ["include"],
@@ -15,11 +15,11 @@ cc_library(
 )
 
 cc_test(
-    name = "secrets_unittests",
+    name = "adbkey_test",
     srcs = ["adbkey_test.cc"],
     visibility = ["//visibility:public"],
     deps = [
-        ":secrets",
+        ":adbkey",
         "//emulator/libs/system:test-headers",
         "//emulator/libs/test:googletest_main",
     ],
@@ -28,8 +28,8 @@ cc_test(
 clang_tidy_test(
     name = "tidy",
     targets = [
-        "secrets_unittests",
-        "secrets",
+        "adbkey_test",
+        "adbkey",
     ],
     tidy_config_file = "//:clang_tidy_config",
 )

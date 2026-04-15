@@ -396,7 +396,6 @@ cc_binary(
         ":launch_netsimd",
         ":logging",
         ":snapshot_util",
-        "//emulator/adb/secrets",
         "//emulator/crashreport:crash_system",
         "//emulator/launcher/cmdline",
         "//emulator/launcher/launch_qemu",
