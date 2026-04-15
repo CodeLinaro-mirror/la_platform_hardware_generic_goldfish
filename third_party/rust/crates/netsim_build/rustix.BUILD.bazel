@@ -19,13 +19,6 @@ rust_library(
         "@errno": "libc_errno",
     },
     crate_features = [
-        "fs",
-    ],
-    crate_name = "rustix",
-    crate_root = "src/lib.rs",
-    edition = "2021",
-    features = [
-        "all-apis",
         "alloc",
         "event",
         "fs",
@@ -39,6 +32,9 @@ rust_library(
         "use-libc",
         "use-libc-auxv",
     ],
+    crate_name = "rustix",
+    crate_root = "src/lib.rs",
+    edition = "2021",
     rustc_flags = [
         "--cfg=libc",
         "--cfg=static_assertions",

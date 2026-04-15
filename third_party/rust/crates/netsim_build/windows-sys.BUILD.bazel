@@ -45,6 +45,8 @@ rust_library(
         "Win32_System_SystemServices",
         "Win32_System_Threading",
         "Win32_System_WindowsProgramming",
+        "Win32_UI_Shell",
+        "Win32_System_Com",
     ],
     crate_name = "windows_sys",
     crate_root = "src/lib.rs",
