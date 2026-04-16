@@ -390,7 +390,7 @@ absl::StatusOr<Call> ModemSimulatorClient::UpdateCall(const Call& call) {
     }
 
     i->second->UpdateState(mcs);
-    return absl::OkStatus();
+    return call;
 }
 
 absl::Status ModemSimulatorClient::DeleteCall(const Call& call) {
