@@ -24,6 +24,9 @@ rust_proc_macro(
     crate_name = "thiserror_impl",
     crate_root = "src/lib.rs",
     edition = "2021",
+    rustc_env = {
+        "CARGO_PKG_VERSION_PATCH": "18",
+    },
     deps = [
         "@proc-macro2",
         "@quote",
