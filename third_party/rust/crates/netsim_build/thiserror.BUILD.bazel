@@ -31,4 +31,7 @@ rust_library(
     proc_macro_deps = [
         "@thiserror-impl",
     ],
+    rustc_env = {
+        "OUT_DIR": "../out",
+    },
 )
