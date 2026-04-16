@@ -122,6 +122,7 @@ cc_test(
         "//emulator/libs/async:async_testing",
         "//emulator/libs/system:test-headers",
         "//emulator/libs/test:googletest_main",
+        "//emulator/plugin/vminterface:vminterface-test",
         "@aemu//protos/services/diagnostic:grpc_diagnostic_cc_proto",
         "@aemu//protos/services/emulator-controller:emulator_controller_cc_proto",
         "@googletest//:gtest",
