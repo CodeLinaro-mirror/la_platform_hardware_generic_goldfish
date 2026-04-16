@@ -42,8 +42,8 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 
-#include "goldfish/file/file.h"
 #include "android/goldfish/avd.h"
+#include "goldfish/file/file.h"
 
 #ifdef _WIN32
 void intrusive_ptr_add_ref(IUnknown* x) {

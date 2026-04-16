@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-
 #include "goldfish/metrics/uuid.h"
 
 #include <string_view>
@@ -34,12 +33,16 @@ constexpr std::string_view kNullUuidStr = "00000000-0000-0000-0000-000000000000"
 absl::StatusOr<Uuid> Uuid::FromString(std::string_view uuid_str) {
     Uuid uuid;
 #ifdef _WIN32
-     if (::UuidFromStringA(reinterpret_cast<RPC_CSTR>(const_cast<char*>(uuid_str.data())), &uuid.data_) != RPC_S_OK) {
-        return absl::InvalidArgumentError(absl::StrCat("couldn't parse string as uuid: ", uuid_str));
+    if (::UuidFromStringA(reinterpret_cast<RPC_CSTR>(const_cast<char*>(uuid_str.data())),
+                          &uuid.data_) != RPC_S_OK) {
+        return absl::InvalidArgumentError(
+                absl::StrCat("couldn't parse string as uuid: ", uuid_str));
     }
 #else
-    if (uuid_parse_range(uuid_str.data(), uuid_str.data() + uuid_str.size(), uuid.data_.data()) < 0) {
-        return absl::InvalidArgumentError(absl::StrCat("couldn't parse string as uuid: ", uuid_str));
+    if (uuid_parse_range(uuid_str.data(), uuid_str.data() + uuid_str.size(), uuid.data_.data()) <
+        0) {
+        return absl::InvalidArgumentError(
+                absl::StrCat("couldn't parse string as uuid: ", uuid_str));
     }
 #endif
     return uuid;

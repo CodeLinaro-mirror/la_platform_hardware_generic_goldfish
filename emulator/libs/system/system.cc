@@ -37,8 +37,8 @@
 #include "absl/strings/strip.h"
 
 #include "android/base/c_str_wrapper.h"
-#include "goldfish/file/storage_capacity.h"
 #include "android/process/command.h"
+#include "goldfish/file/storage_capacity.h"
 
 #ifdef _WIN32
 
@@ -88,14 +88,16 @@ CF_EXPORT const CFStringRef _kCFSystemVersionProductVersionKey;
 #include <sys/statvfs.h>
 #include <sys/times.h>
 #include <sys/wait.h>
+
 #include <ctime>
 #endif
+
+#include <sys/stat.h>
 
 #include <cassert>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <sys/stat.h>
 
 #ifdef _MSC_VER
 #include "dirent.h"
@@ -603,8 +605,7 @@ class HostSystem : public System {
         if (host_statistics64(host, HOST_VM_INFO64, (host_info64_t)&vm_stat, &count) ==
             KERN_SUCCESS) {
             res.avail_phys_memory =
-                    ((vm_stat.free_count + vm_stat.inactive_count) -
-                     vm_stat.speculative_count) *
+                    ((vm_stat.free_count + vm_stat.inactive_count) - vm_stat.speculative_count) *
                     pageSize;
         }
 #endif

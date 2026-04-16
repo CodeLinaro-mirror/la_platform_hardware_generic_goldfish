@@ -6,10 +6,10 @@
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 
-#include "goldfish/file/file.h"
 #include "android/base/system.h"
 #include "android/goldfish/hardware_config.h"
 #include "disk_drive.h"
+#include "goldfish/file/file.h"
 #include "mock_avd.h"
 
 namespace android::goldfish {

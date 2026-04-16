@@ -41,7 +41,8 @@ TEST(UuidTest, ParseValid) {
 }
 
 TEST(UuidTest, ParseInvalid) {
-    EXPECT_THAT(Uuid::FromString("not-a-uuid"), ::absl_testing::StatusIs(absl::StatusCode::kInvalidArgument));
+    EXPECT_THAT(Uuid::FromString("not-a-uuid"),
+                ::absl_testing::StatusIs(absl::StatusCode::kInvalidArgument));
 }
 
 TEST(UuidTest, Equality) {
@@ -50,4 +51,4 @@ TEST(UuidTest, Equality) {
     EXPECT_EQ(uuid1, uuid2);
 }
 
-} // namespace goldfish::metrics
+}  // namespace goldfish::metrics

@@ -22,8 +22,8 @@
 #include <winioctl.h>
 // IWYU pragma: end_keep
 // clang-format on
-#include <comutil.h>
 #include <Wbemidl.h>
+#include <comutil.h>
 
 #else
 #include <fcntl.h>
@@ -77,8 +77,8 @@ int getCpuBrandNameAndCoreCountWMI(char* name, uint32_t* core_count, uint32_t* l
     ULONG uReturn = 0;
     HRESULT hr;
     VARIANT vtProp;
-    //uint32_t numCores = 0;
-    //uint32_t numLogicalProcessors = 0;
+    // uint32_t numCores = 0;
+    // uint32_t numLogicalProcessors = 0;
     char* cpuName;
 
     hres = CoInitialize(NULL);

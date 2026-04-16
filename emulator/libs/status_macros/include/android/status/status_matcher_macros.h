@@ -28,7 +28,8 @@
 #define ASSERT_OK(expression) ASSERT_THAT(expression, ::absl_testing::IsOk())
 
 template <typename T>
-void AemuFailIfNotOk(const absl::StatusOr<T>& status_or, const char* file, int line, const char* expr) {
+void AemuFailIfNotOk(const absl::StatusOr<T>& status_or, const char* file, int line,
+                     const char* expr) {
     if (!status_or.ok()) {
         GTEST_MESSAGE_AT_(file, line,
                           ::absl::StrCat(expr, " returned error: ",

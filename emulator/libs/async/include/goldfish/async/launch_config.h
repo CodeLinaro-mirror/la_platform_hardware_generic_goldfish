@@ -29,18 +29,18 @@ struct LaunchConfig {
     bool daemon;
 
     // If true, the child process is placed in a new process group.
-    // This provides signal isolation, preventing terminal-generated signals (like SIGINT from Ctrl+C)
-    // from being sent directly to the child process. It allows the parent process to intercept
-    // the signal and manage the child's graceful shutdown (e.g., saving a snapshot before exiting).
-    // In libuv, this translates to the UV_PROCESS_DETACHED flag.
+    // This provides signal isolation, preventing terminal-generated signals (like SIGINT from
+    // Ctrl+C) from being sent directly to the child process. It allows the parent process to
+    // intercept the signal and manage the child's graceful shutdown (e.g., saving a snapshot before
+    // exiting). In libuv, this translates to the UV_PROCESS_DETACHED flag.
     bool new_process_group = false;
 
     // Note that kInherit doesn't work on Windows with new_process_group=true.
     // kPipe defaults to std::cout and std::cerr.
     enum class StdioMode {
-        kNone, // stdio redirected to /dev/null.
-        kInherit, // Inherit stdio from the parent.
-        kPipe, // Pipe stdout+stderr back to the parent and write to ostream.
+        kNone,     // stdio redirected to /dev/null.
+        kInherit,  // Inherit stdio from the parent.
+        kPipe,     // Pipe stdout+stderr back to the parent and write to ostream.
     };
     StdioMode stdio_mode = StdioMode::kNone;
 

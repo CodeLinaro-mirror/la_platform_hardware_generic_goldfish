@@ -18,9 +18,9 @@
 #include <thread>
 #include <vector>
 
-#include "goldfish/display/test/fake_pixman_display.h"
 #include "goldfish/async/libuv_event_loop.h"
 #include "goldfish/async/threaded_event_loop.h"
+#include "goldfish/display/test/fake_pixman_display.h"
 
 using goldfish::display::ImageRotation;
 using goldfish::display::PixelFormat;

@@ -18,8 +18,8 @@
 #include <vector>
 
 #include "android/goldfish/fake_hardware_config.h"
-#include "test/GrpcServiceTest.h"
 #include "emulator_controller.grpc.pb.h"
+#include "test/GrpcServiceTest.h"
 
 namespace android::emulation::control {
 

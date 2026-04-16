@@ -190,7 +190,7 @@ class HostToGuestConnection : public goldfish::devices::HalPlug,
 class VSockProxyImpl : public VSockProxy {
   public:
     VSockProxyImpl(const Endpoint& hostEndpoint, VSockFwdDev* device,
-        goldfish::avd_info::AvdUniverse &universe)
+                   goldfish::avd_info::AvdUniverse& universe)
             : mHostEndpoint(hostEndpoint)
             , mDevice(device)
             , mQemuLoop(universe.GetQemuEventLoop())

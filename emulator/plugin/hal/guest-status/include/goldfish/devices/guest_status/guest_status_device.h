@@ -33,7 +33,8 @@ class IGuestStatusDevice : public HalPlug {
   public:
     static constexpr std::string_view kServiceName = "QemuMiscPipe"sv;
 
-    static void RegisterDevice(GuestStatus* guestStatus, GrpcNotificationEventSource* notificationSource,
+    static void RegisterDevice(GuestStatus* guestStatus,
+                               GrpcNotificationEventSource* notificationSource,
                                IConnectorRegistry* registry, EmulatorResetCallbacks resetCallbacks,
                                EventLoop* client_loop, EventLoop* qemu_loop,
                                int quitAfterBootTimeoutSeconds);

@@ -86,7 +86,8 @@ DisplayServiceImpl::DisplayServiceImpl(::goldfish::display::IMultiDisplay* displ
         }
     }
 
-    mPostureSubscription = MakeScopedCallback(mPhysicalModel.GetPostureListener(), [this](const FoldablePostures &posture) {
+    mPostureSubscription = MakeScopedCallback(
+            mPhysicalModel.GetPostureListener(), [this](const FoldablePostures& posture) {
                 bool isClosed = (posture == FoldablePostures::kClosed);
                 {
                     absl::MutexLock lock(&mIsClosedMutex);
@@ -116,7 +117,7 @@ DisplayServiceImpl::DisplayServiceImpl(::goldfish::display::IMultiDisplay* displ
                 Notification event;
                 event.mutable_posture()->set_value(ToProtoPosture(posture));
                 ::goldfish::avd_info::GetAvd().GetGrpcNotificationChannel().FireEvent(event);
-    });
+            });
 }
 
 Posture::PostureValue DisplayServiceImpl::ToProtoPosture(FoldablePostures posture) {
@@ -205,7 +206,8 @@ Status DisplayServiceImpl::streamScreenshot(ServerContext* context, const ImageF
             display = *res;
             break;
         }
-        VLOG(1) << "streamScreenshot: Waiting for active display " << request->display() << ": " << res.status();
+        VLOG(1) << "streamScreenshot: Waiting for active display " << request->display() << ": "
+                << res.status();
         absl::SleepFor(absl::Milliseconds(100));
     }
 

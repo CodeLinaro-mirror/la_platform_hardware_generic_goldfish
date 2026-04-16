@@ -50,9 +50,11 @@ bool HalPlugToIPlugAdapter::OnReceive(const void* data, size_t size) {
     //
     // This means that vsock will never close out this socket from this call.
     VLOG(2) << "Scheduling onReceive for mHalPlug " << *hal_plug_ << " with: " << size << " bytes.";
-    client_loop_->Post([plug = hal_plug_, s = std::string(static_cast<const char*>(data), size)]() {
-        plug->OnReceive(s);
-    }).IgnoreError();
+    client_loop_
+            ->Post([plug = hal_plug_, s = std::string(static_cast<const char*>(data), size)]() {
+                plug->OnReceive(s);
+            })
+            .IgnoreError();
 
     return true;
 }
@@ -73,10 +75,12 @@ cable::SocketPtr HalPlugToIPlugAdapter::OnUnplug() {
 
     // Now notify the client that we are no longer alive.
     VLOG(1) << "Scheduling onClose for mHalPlug:" << *hal_plug_;
-    client_loop_->Post([plug = hal_plug_]() {
-        VLOG(1) << "Calling OnClose from client thread on " << *plug;
-        plug->OnClose();
-    }).IgnoreError();
+    client_loop_
+            ->Post([plug = hal_plug_]() {
+                VLOG(1) << "Calling OnClose from client thread on " << *plug;
+                plug->OnClose();
+            })
+            .IgnoreError();
 
     return released_socket;
 }

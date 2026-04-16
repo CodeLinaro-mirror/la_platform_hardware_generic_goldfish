@@ -152,8 +152,11 @@ CreateInterceptors(bool enable_logging, int idle_timeout) {
                 std::make_unique<android::control::interceptor::StdOutLoggingInterceptorFactory>());
     }
 
-    // TODO(jansene): Add breadcrumb interceptor: creators.emplace_back(std::make_unique<BreadcrumbInterceptorFactory>());
-    creators.emplace_back(std::make_unique<android::control::interceptor::MetricsInterceptorFactory>(::goldfish::avd_info::GetAvd().GetMetricsReporter()));
+    // TODO(jansene): Add breadcrumb interceptor:
+    // creators.emplace_back(std::make_unique<BreadcrumbInterceptorFactory>());
+    creators.emplace_back(
+            std::make_unique<android::control::interceptor::MetricsInterceptorFactory>(
+                    ::goldfish::avd_info::GetAvd().GetMetricsReporter()));
 
     if (idle_timeout > 0) {
         LOG(INFO) << "Terminating emulator if no activity after " << idle_timeout << " seconds.";
@@ -236,16 +239,16 @@ struct CredConf {
 absl::StatusOr<CredConf> GetCredConf(const GrpcConfig& config) {
     CredConf cred_conf;
     if (!config.tls_key_path.empty()) {
-        ASSIGN_OR_RETURN(cred_conf.tls_key,
-                         android::base::file::read_whole_file(config.tls_key_path, /*binary=*/false));
+        ASSIGN_OR_RETURN(cred_conf.tls_key, android::base::file::read_whole_file(
+                                                    config.tls_key_path, /*binary=*/false));
     }
     if (!config.tls_cert_path.empty()) {
-        ASSIGN_OR_RETURN(cred_conf.tls_cert,
-                         android::base::file::read_whole_file(config.tls_cert_path, /*binary=*/false));
+        ASSIGN_OR_RETURN(cred_conf.tls_cert, android::base::file::read_whole_file(
+                                                     config.tls_cert_path, /*binary=*/false));
     }
     if (!config.tls_ca_path.empty()) {
-        ASSIGN_OR_RETURN(cred_conf.tls_ca,
-                         android::base::file::read_whole_file(config.tls_ca_path, /*binary=*/false));
+        ASSIGN_OR_RETURN(cred_conf.tls_ca, android::base::file::read_whole_file(config.tls_ca_path,
+                                                                                /*binary=*/false));
     }
 
     cred_conf.allow_list = config.allow_list.get();

@@ -39,4 +39,4 @@ struct CpuTime {
     }
 };
 
-} // namespace android::base
+}  // namespace android::base

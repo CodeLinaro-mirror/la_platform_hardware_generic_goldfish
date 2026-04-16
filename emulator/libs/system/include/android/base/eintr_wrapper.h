@@ -72,18 +72,18 @@ namespace base {
     })
 #else  // !_WIN32 && EINTR_WRAPPER_DEBUG
 
-#define HANDLE_EINTR(x)                                                 \
-    __extension__({                                                     \
-        __typeof__(x) eintr_wrapper_result;                             \
-        int eintr_wrapper_loop_count = 0;                               \
-        for (;;) {                                                      \
-            eintr_wrapper_result = (x);                                 \
-            if (eintr_wrapper_result != -1 || errno != EINTR) break;    \
-            ++eintr_wrapper_loop_count;                                 \
-            if (eintr_wrapper_loop_count >= MAX_EINTR_LOOP_COUNT)       \
-                LOG(DFATAL) << "Looping around EINTR too many times";   \
-        };                                                              \
-        eintr_wrapper_result;                                           \
+#define HANDLE_EINTR(x)                                               \
+    __extension__({                                                   \
+        __typeof__(x) eintr_wrapper_result;                           \
+        int eintr_wrapper_loop_count = 0;                             \
+        for (;;) {                                                    \
+            eintr_wrapper_result = (x);                               \
+            if (eintr_wrapper_result != -1 || errno != EINTR) break;  \
+            ++eintr_wrapper_loop_count;                               \
+            if (eintr_wrapper_loop_count >= MAX_EINTR_LOOP_COUNT)     \
+                LOG(DFATAL) << "Looping around EINTR too many times"; \
+        };                                                            \
+        eintr_wrapper_result;                                         \
     })
 #endif  // !_WIN32 && EINTR_WRAPPER_DEBUG
 

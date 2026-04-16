@@ -58,16 +58,17 @@ absl::Status rm(const fs::path& path) noexcept;
 absl::Status rm_recursive(const fs::path& path) noexcept;
 
 absl::Status cp_file(const fs::path& from, const fs::path& to, bool overwrite = false) noexcept;
-absl::Status cp_recursive(const fs::path& from, const fs::path& to, bool overwrite = false) noexcept;
+absl::Status cp_recursive(const fs::path& from, const fs::path& to,
+                          bool overwrite = false) noexcept;
 
-absl::Status mv_file(const fs::path& from, const fs::path& to, bool fallback_to_copy_rm = true) noexcept;
+absl::Status mv_file(const fs::path& from, const fs::path& to,
+                     bool fallback_to_copy_rm = true) noexcept;
 
 absl::Status touch(const fs::path& path) noexcept;
 
 absl::StatusOr<std::string> read_whole_file(const fs::path& path, bool binary) noexcept;
 
-absl::Status copy_if_missing(const std::filesystem::path& dst,
-                             const std::filesystem::path& src);
+absl::Status copy_if_missing(const std::filesystem::path& dst, const std::filesystem::path& src);
 
 // NOLINTEND
 }  // namespace android::base::file

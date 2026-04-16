@@ -19,10 +19,10 @@
 #include <string>
 #include <vector>
 
-#include "grpcpp/grpcpp.h"
-
 #include "absl/base/thread_annotations.h"
 #include "absl/synchronization/mutex.h"
+#include "grpcpp/grpcpp.h"
+
 #include "goldfish/display/QemuMultidisplay/multi_display.h"
 #include "goldfish/display/video_recorder.h"
 #include "screen_recording_service.grpc.pb.h"

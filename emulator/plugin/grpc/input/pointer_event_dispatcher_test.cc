@@ -23,8 +23,8 @@
 #include "absl/time/time.h"
 
 #include "android/emulation/control/slot_registry.h"
-#include "goldfish/display/test/mock_display.h"
 #include "goldfish/async/testing/test_event_loop.h"
+#include "goldfish/display/test/mock_display.h"
 #include "standard-headers/linux/input-event-codes.h"
 #include "standard-headers/linux/input.h"
 

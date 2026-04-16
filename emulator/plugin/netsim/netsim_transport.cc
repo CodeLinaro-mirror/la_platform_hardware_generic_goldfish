@@ -25,8 +25,8 @@
 #include "absl/status/status.h"
 #include "absl/time/time.h"
 
-#include "android/status/status_macros.h"
 #include "android/emulation/control/emulator_grpc_client.h"
+#include "android/status/status_macros.h"
 #include "goldfish/avd_info/avd_info.h"
 #include "goldfish/tools/aemu_version.h"
 #include "netsim/packet_streamer.grpc.pb.h"
@@ -73,7 +73,9 @@ absl::Status NetsimTransport::initialize(::netsim::startup::Chip chip) {
     device_info->set_arch(avdprops.avd_abi);
 
     // Hold the ptr until we're done initialising, after that the stub has access to the channel.
-    ASSIGN_OR_RETURN(std::shared_ptr<android::emulation::control::EmulatorGrpcClientBase> grpc_client, get_connected_netsim_grpc_client());
+    ASSIGN_OR_RETURN(
+            std::shared_ptr<android::emulation::control::EmulatorGrpcClientBase> grpc_client,
+            get_connected_netsim_grpc_client());
 
     ASSIGN_OR_RETURN(mPacketStreamerStub, grpc_client->Stub<::netsim::packet::PacketStreamer>());
 

@@ -87,7 +87,6 @@ absl::Status AvdInfoDevice::initialize(const EmulatorConfig& emulator) {
 
     AppendMetricsConfigString(&mAvdParams, emulator.metrics_config());
 
-
     return absl::OkStatus();
 }
 

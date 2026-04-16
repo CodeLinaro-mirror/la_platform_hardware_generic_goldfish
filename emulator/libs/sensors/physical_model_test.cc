@@ -11,17 +11,17 @@
 
 #include "goldfish/sensors/physical_model.h"
 
-#include <cassert>
 #include <glm/gtx/euler_angles.hpp>
 #include <glm/gtx/quaternion.hpp>
 #include <glm/vec3.hpp>
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
+#include <cassert>
 #include <memory>
 
-#include "android/goldfish/hardware_config.h"
 #include "android/goldfish/fake_hardware_config.h"
+#include "android/goldfish/hardware_config.h"
 #include "goldfish/eventing/event_sources.h"
 
 namespace goldfish::sensors {
@@ -39,7 +39,10 @@ static constexpr vec3 kDefaultAccelerometer = {0.f, 9.81f, 0.f};
 
 class PhysicalModelTest : public ::testing::Test {
   protected:
-    void SetUp() override { model = std::make_unique<PhysicalModel>(android::goldfish::FakeHardwareConfig::GetHwConfig()); }
+    void SetUp() override {
+        model = std::make_unique<PhysicalModel>(
+                android::goldfish::FakeHardwareConfig::GetHwConfig());
+    }
 
     std::unique_ptr<PhysicalModel> model;
 };
@@ -625,7 +628,8 @@ TEST_F(PhysicalModelTest, DISABLED_FoldableInitialize) {
     hw.hw_sensor_hinge_defaults = (char*)"180,90";
     hw.hw_sensor_hinge_areas = (char*)"25-10, 50-10";
     hw.hw_sensor_posture_list = (char*)"1, 2,3 ,  4";
-    hw.hw_sensor_hinge_angles_posture_definitions = (char*)"0-30&0-15,  30-150 & 15-75,150-330&75-165, 330-360&165-180";
+    hw.hw_sensor_hinge_angles_posture_definitions =
+            (char*)"0-30&0-15,  30-150 & 15-75,150-330&75-165, 330-360&165-180";
 
     model = std::make_unique<PhysicalModel>(hw);
 

@@ -20,15 +20,16 @@
 #include <vector>
 
 #include "android/goldfish/hardware_config.h"
+#include "goldfish/eventing/observable_value.h"
 #include "goldfish/physics/physics.h"
 #include "goldfish/sensors/foldable.h"
-#include "goldfish/eventing/observable_value.h"
 
 namespace goldfish::sensors {
 
 class FoldableModel {
   public:
-    using ObservablePosture = eventing::ObservableValue<FoldablePostures, eventing::ObservableValueTriggerAlways>;
+    using ObservablePosture =
+            eventing::ObservableValue<FoldablePostures, eventing::ObservableValueTriggerAlways>;
 
     struct ResizableConfig {
         std::string name;

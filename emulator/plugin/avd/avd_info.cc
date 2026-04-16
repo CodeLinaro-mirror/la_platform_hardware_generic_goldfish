@@ -512,7 +512,8 @@ void avd_info_class_init(ObjectClass* oc, void* data) {
                               nullptr, nullptr);
     object_class_property_add_str(oc, "metrics_file_path", nullptr, avd_info_set_metrics_file_path);
     object_class_property_add_str(oc, "metrics_spool_dir", nullptr, avd_info_set_metrics_spool_dir);
-    object_class_property_add_str(oc, "metrics_playstore_url", nullptr, avd_info_set_metrics_playstore_url);
+    object_class_property_add_str(oc, "metrics_playstore_url", nullptr,
+                                  avd_info_set_metrics_playstore_url);
     object_class_property_add_str(oc, "metrics_user_id", nullptr, avd_info_set_metrics_user_id);
     object_class_property_add_str(oc, "dump_perf_stat_path", nullptr,
                                   avd_info_set_dump_perf_stat_path);

@@ -26,7 +26,7 @@ namespace base {
 // Expected string format is "major.minor.micro[.build]", where all
 // components are unsigned numbers (and, hopefully, reasonably small)
 class Version {
-public:
+  public:
     enum Component { kMajor, kMinor, kMicro, kBuild };
 
     using ComponentType = unsigned int;
@@ -39,9 +39,7 @@ public:
 
     constexpr Version();
 
-    constexpr Version(ComponentType major,
-                      ComponentType minor,
-                      ComponentType micro,
+    constexpr Version(ComponentType major, ComponentType minor, ComponentType micro,
                       ComponentType build = 0);
 
     constexpr bool isValid() const;
@@ -60,25 +58,22 @@ public:
         return std::get<static_cast<size_t>(C)>(mData);
     }
 
-private:
+  private:
     ComponentType& component(Component c);
 
-private:
+  private:
     static const int kComponentCount = kBuild + 1;
 
-    std::tuple<ComponentType, ComponentType, ComponentType, ComponentType>
-            mData;
+    std::tuple<ComponentType, ComponentType, ComponentType, ComponentType> mData;
 };
 
 // all constexpr functions have to be defined in the header, just like templates
 
 constexpr Version::Version() : Version(kNone, kNone, kNone) {}
 
-constexpr Version::Version(ComponentType major,
-                           ComponentType minor,
-                           ComponentType micro,
+constexpr Version::Version(ComponentType major, ComponentType minor, ComponentType micro,
                            ComponentType build)
-    : mData(major, minor, micro, build) {}
+        : mData(major, minor, micro, build) {}
 
 constexpr bool Version::isValid() const {
     return *this != invalid();
@@ -104,5 +99,5 @@ constexpr Version Version::invalid() {
     return Version(kNone, kNone, kNone);
 }
 
-}  // namespace android
 }  // namespace base
+}  // namespace android

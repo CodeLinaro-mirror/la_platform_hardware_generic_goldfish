@@ -18,14 +18,14 @@
 namespace goldfish::metrics {
 
 class GzipOutputStream : public std::ostream {
-public:
+  public:
     GzipOutputStream(std::ostream& os);
     ~GzipOutputStream() override;
 
-    GzipOutputStream(const GzipOutputStream &) = delete;
-    GzipOutputStream(GzipOutputStream &&) = delete;
-    GzipOutputStream &operator=(const GzipOutputStream &) = delete;
-    GzipOutputStream &operator=(GzipOutputStream &&) = delete;
+    GzipOutputStream(const GzipOutputStream&) = delete;
+    GzipOutputStream(GzipOutputStream&&) = delete;
+    GzipOutputStream& operator=(const GzipOutputStream&) = delete;
+    GzipOutputStream& operator=(GzipOutputStream&&) = delete;
 };
 
-} // namespace goldfish::metrics
+}  // namespace goldfish::metrics

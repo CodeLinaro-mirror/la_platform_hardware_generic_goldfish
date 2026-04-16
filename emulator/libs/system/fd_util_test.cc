@@ -59,8 +59,7 @@ TEST(FdUtil, set_all_fds_cloexec) {
 
     // Disable test handler as the function can trigger SEH.
     _invalid_parameter_handler oldHandler = _set_thread_local_invalid_parameter_handler(
-        [](const wchar_t*, const wchar_t*, const wchar_t*, unsigned int, uintptr_t) {}
-    );
+            [](const wchar_t*, const wchar_t*, const wchar_t*, unsigned int, uintptr_t) {});
     SetAllFdsCloexec();
     _set_thread_local_invalid_parameter_handler(oldHandler);
 

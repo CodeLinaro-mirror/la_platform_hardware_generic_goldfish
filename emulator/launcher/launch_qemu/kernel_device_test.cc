@@ -16,8 +16,8 @@
 #include "absl/status/status.h"
 #include "gmock/gmock.h"
 
-#include "android/status/status_matcher_macros.h"
 #include "android/cmdline_definitions.h"
+#include "android/status/status_matcher_macros.h"
 #include "fake_emulator.h"
 
 namespace android::goldfish::test {

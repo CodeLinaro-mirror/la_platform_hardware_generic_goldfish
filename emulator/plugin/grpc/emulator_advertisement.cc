@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "emulator_advertisement.h"
+
 #include <stdint.h>
 #include <stdio.h>
 #include <sys/stat.h>
@@ -26,12 +28,11 @@
 #include "absl/log/log.h"
 #include "absl/strings/str_format.h"
 
+#include "android/goldfish/ini_file.h"
 #include "android/process/process.h"
 #include "android/sockets/scoped_socket.h"
 #include "android/sockets/socket_utils.h"
 #include "goldfish/file/file.h"
-#include "android/goldfish/ini_file.h"
-#include "emulator_advertisement.h"
 
 namespace android {
 namespace goldfish {

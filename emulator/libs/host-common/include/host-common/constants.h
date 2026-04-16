@@ -22,7 +22,7 @@
  * You can route around this by using the -port or -ports options
  * to specify the ports manually.
  */
-#define MAX_ANDROID_EMULATORS  16
+#define MAX_ANDROID_EMULATORS 16
 
 #define ANDROID_CONSOLE_BASEPORT 5554
 

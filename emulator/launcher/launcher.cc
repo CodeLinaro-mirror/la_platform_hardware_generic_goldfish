@@ -36,8 +36,6 @@
 #include "android/goldfish/input_paths.h"
 #include "android/main_help.h"
 #include "android/status/status_macros.h"
-#include "launch_qemu/launch_qemu.h"
-#include "launch_fishtank.h"
 #include "goldfish/async/async_socket_server.h"
 #include "goldfish/async/libuv_event_loop.h"
 #include "goldfish/async/libuv_process_launcher.h"
@@ -52,8 +50,10 @@
 #include "goldfish/network/endpoint.h"
 #include "goldfish/tools/aemu_version.h"
 #include "host_info.h"
-#include "logging.h"
+#include "launch_fishtank.h"
 #include "launch_netsimd.h"
+#include "launch_qemu/launch_qemu.h"
+#include "logging.h"
 #include "snapshot_util.h"
 
 namespace fs = std::filesystem;
@@ -115,7 +115,7 @@ void warnAboutNoMetricsConsentInput() {
     printf("##############################################################################\n");
 }
 
-std::string EmulatorMetricsUserId(const fs::path &user_directory) {
+std::string EmulatorMetricsUserId(const fs::path& user_directory) {
     auto path = user_directory / "userid";
     if (android::base::file::exists(path)) {
         auto id = android::base::file::read_whole_file(path, /*binary=*/false);
@@ -131,7 +131,8 @@ std::string EmulatorMetricsUserId(const fs::path &user_directory) {
     return uuid;
 }
 
-::goldfish::metrics::MetricsWriterConfig get_metrics_writer_config(const AndroidOptions& opts, const ResolvedInputPaths &resolved_paths) {
+::goldfish::metrics::MetricsWriterConfig get_metrics_writer_config(
+        const AndroidOptions& opts, const ResolvedInputPaths& resolved_paths) {
     using enum ::goldfish::metrics::MetricsWriterType;
     if (opts.no_metrics) {
         // do nothing
@@ -148,7 +149,10 @@ std::string EmulatorMetricsUserId(const fs::path &user_directory) {
             user_id = EmulatorMetricsUserId(resolved_paths.user_directory);
         }
         // TODO(476380758): Switch from staging to prod clearcut after verification.
-        return {.type = kPlaystore, .playstore_url="https://play.googleapis.com/staging/log?format=raw", .user_id = user_id, .user_upload_consent = true};
+        return {.type = kPlaystore,
+                .playstore_url = "https://play.googleapis.com/staging/log?format=raw",
+                .user_id = user_id,
+                .user_upload_consent = true};
     } else if (opts.metrics_to_file) {
         LOG(INFO) << "Metrics will be written to: " << opts.metrics_to_file;
         return {.type = kFile, .file_path = opts.metrics_to_file};
@@ -158,7 +162,10 @@ std::string EmulatorMetricsUserId(const fs::path &user_directory) {
             using enum ::goldfish::metrics::studio::OptInState;
         case kOptedIn:
             LOG(INFO) << "Metrics will be written to file and uploaded by Studio";
-            return {.type = kStudio, .studio_spool_dir = ::goldfish::metrics::studio::GetSpoolDirectory(resolved_paths.user_directory), .user_upload_consent = true};
+            return {.type = kStudio,
+                    .studio_spool_dir = ::goldfish::metrics::studio::GetSpoolDirectory(
+                            resolved_paths.user_directory),
+                    .user_upload_consent = true};
         case kOptedOut:
             LOG(INFO) << "Studio user opted out of metrics";
             return {.type = kNone};
@@ -172,14 +179,17 @@ std::string EmulatorMetricsUserId(const fs::path &user_directory) {
 class Launcher : ::goldfish::async::UvProcessLauncher {
   public:
     Launcher(::goldfish::async::LibuvEventLoop& event_loop, ResolvedInputPaths resolved_paths,
-             std::unique_ptr<Avd> avd, AndroidOptions opts, std::unique_ptr<MetricsReporter> reporter, ::goldfish::metrics::MetricsWriterConfig metrics_writer_config)
+             std::unique_ptr<Avd> avd, AndroidOptions opts,
+             std::unique_ptr<MetricsReporter> reporter,
+             ::goldfish::metrics::MetricsWriterConfig metrics_writer_config)
             : UvProcessLauncher(static_cast<uv_loop_t*>(event_loop.GetRawLoop()))
             , mEventLoop(event_loop)
             , mResolvedPaths(std::move(resolved_paths))
             , mAvd(std::move(avd))
             , mOpts(std::move(opts))
             , mReporter(std::move(reporter))
-            , mMetricsConfig{.session_id = mReporter->session_id(), .writer_config = std::move(metrics_writer_config)}
+            , mMetricsConfig{.session_id = mReporter->session_id(),
+                             .writer_config = std::move(metrics_writer_config)}
             , mSignalHandlers(event_loop,
                               [this](int signal) { forwarding_signal_handler(signal); }) {
         mEventLoop
@@ -486,7 +496,9 @@ class Launcher : ::goldfish::async::UvProcessLauncher {
 
         // Send a final ping with the crash status.
         l.mReporter->Report([exit_status, term_signal](android_studio::AndroidStudioEvent& event) {
-            event.mutable_emulator_details()->set_crashes(exit_status == 0 && term_signal == 0 ? kMetricsCrashesNone : kMetricsCrashesUncleanExit);
+            event.mutable_emulator_details()->set_crashes(exit_status == 0 && term_signal == 0
+                                                                  ? kMetricsCrashesNone
+                                                                  : kMetricsCrashesUncleanExit);
         });
 
         l.shutdown();
@@ -516,7 +528,9 @@ class Launcher : ::goldfish::async::UvProcessLauncher {
 
     void report_host_info_metrics() {
         mReporter->Report([this](android_studio::AndroidStudioEvent& event) {
-            android::goldfish::FillEmulatorHostEvent(event, *mAvd, /*launcher_pid=*/android::base::System::GetCurrentProcessPid(), /*qemu_pid=*/GetPid(mEmulatorProcess), mOpts.metrics_collection, mOpts.fuchsia);
+            android::goldfish::FillEmulatorHostEvent(
+                    event, *mAvd, /*launcher_pid=*/android::base::System::GetCurrentProcessPid(),
+                    /*qemu_pid=*/GetPid(mEmulatorProcess), mOpts.metrics_collection, mOpts.fuchsia);
         });
     }
 
@@ -714,7 +728,8 @@ int main(int argc, char** argv) {
     }
 
     // Check that things exist so that we can error out early if necessary.
-    auto resolved_paths = android::goldfish::ResolvePaths(opts.verbose, android::goldfish::should_launch_fishtank(opts));
+    auto resolved_paths = android::goldfish::ResolvePaths(
+            opts.verbose, android::goldfish::should_launch_fishtank(opts));
     if (!resolved_paths.ok()) {
         LOG(ERROR) << "Failed to resolve paths: " << resolved_paths.status();
         return 1;
@@ -737,30 +752,41 @@ int main(int argc, char** argv) {
     auto event_loop = goldfish::async::LibuvEventLoop::Create("LauncherLoop");
 
     auto reporter = std::make_unique<MetricsReporter>();
-    auto metrics_writer_config = android::goldfish::get_metrics_writer_config(opts, *resolved_paths);
+    auto metrics_writer_config =
+            android::goldfish::get_metrics_writer_config(opts, *resolved_paths);
     std::vector<std::string> crashed_metrics_sessions;
     if (metrics_writer_config.type == goldfish::metrics::MetricsWriterType::kStudio) {
         if (!::android::base::file::exists(metrics_writer_config.studio_spool_dir)) {
-            if (auto s = ::android::base::file::mkdir_recursive(metrics_writer_config.studio_spool_dir, 0755); !s.ok()) {
-                LOG(ERROR) << "Failed to create metrics spool directory, reporting will be disabled: " << metrics_writer_config.studio_spool_dir << " - " << s;
+            if (auto s = ::android::base::file::mkdir_recursive(
+                        metrics_writer_config.studio_spool_dir, 0755);
+                !s.ok()) {
+                LOG(ERROR)
+                        << "Failed to create metrics spool directory, reporting will be disabled: "
+                        << metrics_writer_config.studio_spool_dir << " - " << s;
                 metrics_writer_config.type = goldfish::metrics::MetricsWriterType::kNone;
             }
         } else if (!::android::base::file::is_dir(metrics_writer_config.studio_spool_dir)) {
-            LOG(ERROR) << "Metrics spool path is not a directory, reporting will be disabled: " << metrics_writer_config.studio_spool_dir;
+            LOG(ERROR) << "Metrics spool path is not a directory, reporting will be disabled: "
+                       << metrics_writer_config.studio_spool_dir;
             metrics_writer_config.type = goldfish::metrics::MetricsWriterType::kNone;
         }
-        crashed_metrics_sessions = ::goldfish::metrics::StudioFileMetricsWriter::FinalizeAbandonedSessionFiles(metrics_writer_config.studio_spool_dir);
+        crashed_metrics_sessions =
+                ::goldfish::metrics::StudioFileMetricsWriter::FinalizeAbandonedSessionFiles(
+                        metrics_writer_config.studio_spool_dir);
     }
     ::goldfish::metrics::ConfigureMetricsWriter(*reporter, metrics_writer_config, *event_loop);
-    for (const auto &session_id : crashed_metrics_sessions) {
+    for (const auto& session_id : crashed_metrics_sessions) {
         LOG(WARNING) << "Reporting crashed metrics session: " << session_id;
-        reporter->Report([&session_id] (android_studio::AndroidStudioEvent& event) {
+        reporter->Report([&session_id](android_studio::AndroidStudioEvent& event) {
             event.set_studio_session_id(session_id);
-            event.mutable_emulator_details()->set_crashes(::android::goldfish::kMetricsCrashesAbandoned);
+            event.mutable_emulator_details()->set_crashes(
+                    ::android::goldfish::kMetricsCrashesAbandoned);
         });
     }
 
-    auto crash_consent = metrics_writer_config.user_upload_consent ? android::crashreport::Consent::ALWAYS : android::crashreport::Consent::NEVER;
+    auto crash_consent = metrics_writer_config.user_upload_consent
+                                 ? android::crashreport::Consent::ALWAYS
+                                 : android::crashreport::Consent::NEVER;
     android::crashreport::CrashSystem::get().uploadEntries(crash_consent);
 
     // This is needed for gfxstream to be able to load GL libs.
@@ -799,7 +825,8 @@ int main(int argc, char** argv) {
         VLOG(1) << "Content path overridden to: " << writable_content_override;
     }
 
-    auto avd = Avd::FromName(*resolved_paths, name, opts.wipe_data, sysdir_override, writable_content_override);
+    auto avd = Avd::FromName(*resolved_paths, name, opts.wipe_data, sysdir_override,
+                             writable_content_override);
     if (!avd.ok()) {
         LOG(ERROR) << "Failed to load " << name << " due to " << avd.status().message();
         return 1;
@@ -814,8 +841,8 @@ int main(int argc, char** argv) {
         if (version.value() != android::goldfish::EMULATOR_COMPATIBLE_QEMU_VERSION) {
             LOG(ERROR) << "AVD " << name
                        << "is not compatible with this emulator. Last run QEMU version: "
-                       << version.value()
-                       << ", compatible QEMU version: " << android::goldfish::EMULATOR_COMPATIBLE_QEMU_VERSION
+                       << version.value() << ", compatible QEMU version: "
+                       << android::goldfish::EMULATOR_COMPATIBLE_QEMU_VERSION
                        << ". Use -wipe-data option to reset the AVD data and use this emulator.";
             return 1;
         } else {
@@ -833,7 +860,8 @@ int main(int argc, char** argv) {
         }
     }
 
-    android::goldfish::Launcher l(*event_loop, *std::move(resolved_paths), *std::move(avd), opts, std::move(reporter), std::move(metrics_writer_config));
+    android::goldfish::Launcher l(*event_loop, *std::move(resolved_paths), *std::move(avd), opts,
+                                  std::move(reporter), std::move(metrics_writer_config));
 
     if (auto s = event_loop->Run(); !s.ok()) {
         LOG(ERROR) << "Event loop run failed with error: " << s;

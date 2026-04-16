@@ -36,4 +36,4 @@ enum class DiskKind : std::uint8_t {
     kSsd,
 };
 
-} // namespace android::base
+}  // namespace android::base

@@ -19,9 +19,9 @@
 #include "absl/status/statusor.h"
 
 #include "android/status/status_macros.h"
+#include "goldfish/devices/boot/boot_property_string.h"
 #include "goldfish/devices/connector_registry.h"
 #include "goldfish/devices/internal/hal_plug.h"
-#include "goldfish/devices/boot/boot_property_string.h"
 
 namespace goldfish::devices::boot {
 

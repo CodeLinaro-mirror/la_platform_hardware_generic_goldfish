@@ -10,10 +10,10 @@
 #include "absl/synchronization/notification.h"
 #include "absl/time/time.h"
 
-#include "goldfish/display/test/fake_pixman_display.h"
-#include "goldfish/display/test/image_generation_strategy.h"
 #include "goldfish/async/libuv_event_loop.h"
 #include "goldfish/async/threaded_event_loop.h"
+#include "goldfish/display/test/fake_pixman_display.h"
+#include "goldfish/display/test/image_generation_strategy.h"
 
 using android::base::eventing::EventListener;
 

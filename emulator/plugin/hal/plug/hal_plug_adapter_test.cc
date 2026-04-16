@@ -24,12 +24,12 @@
 #include "absl/status/status_matchers.h"
 #include "absl/synchronization/notification.h"
 
-#include "goldfish/devices/test/hal_plug_testing_friend.h"
 #include "goldfish/async/libuv_event_loop.h"
 #include "goldfish/async/threaded_event_loop.h"
 #include "goldfish/devices/hal_plug_factory.h"
 #include "goldfish/devices/hal_plug_to_i_plug_adapter.h"
 #include "goldfish/devices/marshalling_hal_socket.h"
+#include "goldfish/devices/test/hal_plug_testing_friend.h"
 
 using namespace goldfish::devices;
 using namespace goldfish::async;

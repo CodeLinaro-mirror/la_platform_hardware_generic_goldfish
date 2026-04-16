@@ -26,9 +26,9 @@
 #include "absl/status/statusor.h"
 #include "gtest/gtest_pred_impl.h"
 
-#include "goldfish/file/file.h"
 #include "android/base/testing/TestTempDir.h"
 #include "android/base/testing/test_event.h"
+#include "goldfish/file/file.h"
 #include "tink/config/tink_config.h"
 #include "tink/jwt/jwk_set_converter.h"
 #include "tink/jwt/jwt_key_templates.h"

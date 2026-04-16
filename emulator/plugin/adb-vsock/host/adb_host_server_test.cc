@@ -15,9 +15,9 @@
 
 #include <string_view>
 
+#include "TestInputBufferSocketServerThread.h"
 #include "android/base/testing/TestSystem.h"
 #include "android/base/testing/needs_winsock.h"
-#include "TestInputBufferSocketServerThread.h"
 
 namespace goldfish::adb {
 

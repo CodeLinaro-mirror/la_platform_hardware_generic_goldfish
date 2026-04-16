@@ -96,7 +96,8 @@ class DisplayServiceImpl : public EmulatorController::Service {
     ::goldfish::display::IMultiDisplay& mMultiDisplay;
     ::goldfish::sensors::PhysicalModel& mPhysicalModel;
 
-    ::goldfish::sensors::FoldableModel::ObservablePosture::ScopedCallbackHandle mPostureSubscription;
+    ::goldfish::sensors::FoldableModel::ObservablePosture::ScopedCallbackHandle
+            mPostureSubscription;
     DisplayModeValue mCurrentDisplayMode{PHONE};
     mutable absl::Mutex mIsClosedMutex;
     bool mIsClosed ABSL_GUARDED_BY(mIsClosedMutex){false};

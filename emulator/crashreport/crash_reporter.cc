@@ -76,9 +76,9 @@ class CrashReporterImpl : public CrashReporter {
         volatile int* volatile ptr = nullptr;
         *ptr = 1313;  // die
 
-    #ifndef _WIN32
+#ifndef _WIN32
         raise(SIGABRT);
-    #endif
+#endif
         abort();  // make compiler believe it doesn't return
     }
 
@@ -108,8 +108,8 @@ class CrashReporterImpl : public CrashReporter {
             annotation = std::make_unique<SimpleStringAnnotation<2 << 13>>(name, data);
             if (data.size() > 2 << 13) {
                 LOG(WARNING) << "Crash annotation is very large (" << data.size()
-                            << "), only 16384 bytes will be recorded, " << data.size() - (2 << 13)
-                            << " bytes are lost.";
+                             << "), only 16384 bytes will be recorded, " << data.size() - (2 << 13)
+                             << " bytes are lost.";
             }
         }
 

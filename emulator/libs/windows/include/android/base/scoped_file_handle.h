@@ -45,14 +45,14 @@ struct WinHandleDeleter {
  * providing move semantics and consistent 'if (handle)' checks.
  */
 class ScopedFileHandle
-    : public goldfish::base::UniqueHandle<HANDLE, nullptr, internal::WinHandleDeleter> {
+        : public goldfish::base::UniqueHandle<HANDLE, nullptr, internal::WinHandleDeleter> {
     using Super = goldfish::base::UniqueHandle<HANDLE, nullptr, internal::WinHandleDeleter>;
 
-public:
+  public:
     ScopedFileHandle() : Super() {}
 
     explicit ScopedFileHandle(HANDLE handle)
-        : Super(handle == INVALID_HANDLE_VALUE ? nullptr : handle) {}
+            : Super(handle == INVALID_HANDLE_VALUE ? nullptr : handle) {}
 
     // Maintain backward compatibility for any old .ok() or .close() calls
     bool ok() const { return Super::ok(); }

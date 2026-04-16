@@ -29,11 +29,11 @@
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/synchronization/mutex.h"
+#include "grpc_connection_monitor.h"
 
 #include "android/emulation/control/basic_token_auth.h"
-#include "android/goldfish/ini_file.h"
 #include "android/emulation/control/grpc_channel_factory.h"
-#include "grpc_connection_monitor.h"
+#include "android/goldfish/ini_file.h"
 #include "goldfish/eventing/event_sources.h"
 
 namespace android::emulation::control {

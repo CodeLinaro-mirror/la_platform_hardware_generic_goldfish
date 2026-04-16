@@ -19,10 +19,10 @@
 
 #include <memory>
 
-#include "notification_stream_writer.h"
-#include "test/GrpcServiceTest.h"
 #include "emulator_controller.grpc.pb.h"
 #include "goldfish/avd_universe/grpc/grpc_notification_channel.h"
+#include "notification_stream_writer.h"
+#include "test/GrpcServiceTest.h"
 
 namespace android {
 namespace emulation {
@@ -35,9 +35,7 @@ using ::testing::UnorderedElementsAre;
 
 class NotificationStoreTest : public ::testing::Test {
   protected:
-    void SetUp() override {
-        mNotificationStore = std::make_unique<NotificationStore>(&mSource);
-    }
+    void SetUp() override { mNotificationStore = std::make_unique<NotificationStore>(&mSource); }
 
     GrpcNotificationEventSource mSource;
     std::unique_ptr<NotificationStore> mNotificationStore;
@@ -84,7 +82,7 @@ class MockEmulatorControllerService
                   EmulatorController::Service> {
   public:
     MockEmulatorControllerService(GrpcNotificationEventSource* source, NotificationStore* store)
-        : mSource(source), mStore(store) {}
+            : mSource(source), mStore(store) {}
 
     ::grpc::ServerWriteReactor<Notification>* streamNotification(
             ::grpc::CallbackServerContext* /*context*/, const Empty* /*request*/) override {
@@ -100,8 +98,8 @@ class NotificationReplayTest : public GrcpServiceTest {
   protected:
     void SetUp() override {
         mNotificationStore = std::make_unique<NotificationStore>(&mSource);
-        mService = std::make_unique<MockEmulatorControllerService>(&mSource,
-                                                                   mNotificationStore.get());
+        mService =
+                std::make_unique<MockEmulatorControllerService>(&mSource, mNotificationStore.get());
         GrcpServiceTest::SetUp();
     }
 

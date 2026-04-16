@@ -17,12 +17,12 @@
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 
-#include "goldfish/devices/test/hal_plug_testing_friend.h"
 #include "goldfish/devices/cable/cable.h"
 #include "goldfish/devices/connector.h"
 #include "goldfish/devices/connector_registry_impl.h"
 #include "goldfish/devices/internal/hal_plug.h"
 #include "goldfish/devices/ping_topic.h"
+#include "goldfish/devices/test/hal_plug_testing_friend.h"
 
 namespace goldfish::devices {
 

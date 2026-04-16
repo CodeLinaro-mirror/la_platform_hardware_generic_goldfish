@@ -18,10 +18,10 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
-#include "goldfish/devices/test/fake_vsock.h"
 #include "goldfish/async/testing/test_event_loop.h"
 #include "goldfish/devices/cable/cable.h"
 #include "goldfish/devices/internal/hal_plug.h"
+#include "goldfish/devices/test/fake_vsock.h"
 
 namespace goldfish {
 namespace devices {

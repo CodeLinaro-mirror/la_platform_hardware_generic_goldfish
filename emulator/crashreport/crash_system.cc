@@ -122,8 +122,8 @@ class CrashSystemImpl : public CrashSystem {
         database_->GetPendingReports(&pending_reports);
         reports.insert(reports.end(), pending_reports.begin(), pending_reports.end());
 
-        auto status = consent == Consent::ALWAYS ? ReportAction::UPLOAD_REMOVE
-                                                  : ReportAction::REMOVE;
+        auto status =
+                consent == Consent::ALWAYS ? ReportAction::UPLOAD_REMOVE : ReportAction::REMOVE;
         for (const auto& report : reports) {
             if (!report.uploaded) {
                 switch (status) {

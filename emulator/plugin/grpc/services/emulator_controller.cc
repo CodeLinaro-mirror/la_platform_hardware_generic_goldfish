@@ -25,6 +25,7 @@
 #include "android/emulation/control/keyboard/key_event_sender.h"
 #include "android/goldfish/hardware_config.h"
 #include "android/goldfish/vm_interface.h"
+#include "emulator_controller.grpc.pb.h"
 #include "emulator_controller_methods/battery_service.h"
 #include "emulator_controller_methods/clipboard_service.h"
 #include "emulator_controller_methods/display_service.h"
@@ -34,7 +35,6 @@
 #include "emulator_controller_methods/sensor_service.h"
 #include "emulator_controller_methods/status_service.h"
 #include "emulator_controller_methods/vm_service.h"
-#include "emulator_controller.grpc.pb.h"
 
 namespace android {
 namespace emulation {
@@ -60,7 +60,8 @@ class EmulatorControllerImpl final
             : mVmService(vm)
             , mGrpcNotificationChannel(avdUniverse->GetGrpcNotificationChannel())
             , mNotificationStore(&mGrpcNotificationChannel)
-            , mKeyEventSender(keyboard::createKeyEventSender(keyboardConsole, &avdUniverse->GetQemuEventLoop()))
+            , mKeyEventSender(keyboard::createKeyEventSender(keyboardConsole,
+                                                             &avdUniverse->GetQemuEventLoop()))
             , mStatusService(avdUniverse->GetGuestStatus(), avdUniverse->Props().avd_api,
                              avdUniverse->Props().hw_config)
             , mBatteryService(avdUniverse->GetBattery())

@@ -22,11 +22,11 @@
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
 
-#include "android/status/status_macros.h"
 #include "android/base/system.h"
 #include "android/cpu/cpu_accelerator.h"
 #include "android/goldfish/avd.h"
 #include "android/goldfish/hardware_config.h"
+#include "android/status/status_macros.h"
 
 namespace android::goldfish {
 
@@ -96,8 +96,7 @@ absl::StatusOr<std::string> getCpuString(Avd::CpuArchitecture target_arch) {
     case Avd::CpuArchitecture::kX86:
         // TODO(hshan): switch to better cpu model for linux/windows
         // Maybe "host"?
-        if (!aehd_enable.empty() && !aehd_enable.compare("1"))
-            return "SandyBridge,-rdtscp";
+        if (!aehd_enable.empty() && !aehd_enable.compare("1")) return "SandyBridge,-rdtscp";
         return "SandyBridge";
     case Avd::CpuArchitecture::kRiscV:
     case Avd::CpuArchitecture::kUnknown:

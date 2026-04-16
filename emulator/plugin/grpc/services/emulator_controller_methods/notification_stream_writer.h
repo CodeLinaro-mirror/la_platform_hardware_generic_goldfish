@@ -15,6 +15,7 @@
 #pragma once
 
 #include "absl/log/log.h"
+
 #include "android/emulation/control/grpc_event_stream_support.h"
 #include "goldfish/avd_universe/grpc/grpc_notification_channel.h"
 #include "notification_store.h"
@@ -39,7 +40,7 @@ class NotificationStreamWriter : public UniqueEventStreamWriter<GrpcNotification
     }
 
     // Dispatch an event if it is actually there.
-    void EventArrived(const GrpcNotification &event) override {
+    void EventArrived(const GrpcNotification& event) override {
         VLOG(2) << "EVENT BEING SENT: " << event.ShortDebugString();
         UniqueEventStreamWriter<GrpcNotification>::EventArrived(std::move(event));
     }

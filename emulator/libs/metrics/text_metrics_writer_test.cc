@@ -17,11 +17,10 @@
 
 #include <sstream>
 
+#include "absl/base/log_severity.h"
+#include "absl/log/globals.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-
-#include "absl/log/globals.h"
-#include "absl/base/log_severity.h"
 
 namespace goldfish::metrics {
 

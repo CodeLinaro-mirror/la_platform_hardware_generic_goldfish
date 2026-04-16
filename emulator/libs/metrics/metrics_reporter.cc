@@ -68,7 +68,7 @@ void MetricsReporter::SetBaseFields(android_studio::AndroidStudioEvent& event) {
     details.set_wall_time(times.wall_clock_ms);
 }
 
-void MetricsReporter::Report(const Callback &callback) {
+void MetricsReporter::Report(const Callback& callback) {
     absl::MutexLock lock(mutex_);
     if (!running_) {
         LOG(WARNING) << "Metric being skipped because reporter isn't running";

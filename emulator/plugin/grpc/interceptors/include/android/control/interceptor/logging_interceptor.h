@@ -55,7 +55,7 @@ using InvocationRecord = struct InvocationRecord {
     uint64_t snd_bytes = 0;     // Size of all send protobuf messages.
     uint64_t snd_time = 0;      // Time spend sending bytes out over the wire.
 
-    uint64_t duration = 0;                      // Total lifetime of the request.
+    uint64_t duration = 0;                       // Total lifetime of the request.
     Direction direction = Direction::kIncoming;  // Incoming (server) or outgoing (client)
     CallType type = CallType::kUnary;
     std::string peer;  // The peer (the other side of this request)

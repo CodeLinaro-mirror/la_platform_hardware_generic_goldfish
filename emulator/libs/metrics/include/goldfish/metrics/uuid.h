@@ -28,7 +28,7 @@ namespace goldfish::metrics {
 class Uuid {
     Uuid() {}
 
-public:
+  public:
     static absl::StatusOr<Uuid> FromString(std::string_view uuid_str);
 
     static Uuid Generate();
@@ -41,7 +41,7 @@ public:
 
     auto operator<=>(const Uuid&) const = default;
 
-private:
+  private:
 #ifdef _WIN32
     UUID data_;
 #else

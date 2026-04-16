@@ -19,8 +19,9 @@
 #endif
 
 #ifdef _WIN32
-#include "android/base/win32_unicode_string.h"
 #include <windows.h>
+
+#include "android/base/win32_unicode_string.h"
 
 namespace android::base {
 

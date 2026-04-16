@@ -26,9 +26,7 @@
 namespace android::base {
 
 struct HkeyDeleter {
-    void operator()(HKEY hkey) const {
-        ::RegCloseKey(hkey);
-    }
+    void operator()(HKEY hkey) const { ::RegCloseKey(hkey); }
 };
 using ScopedRegKey = goldfish::base::UniqueHandle<HKEY, static_cast<HKEY>(0), HkeyDeleter>;
 
