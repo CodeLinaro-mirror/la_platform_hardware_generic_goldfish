@@ -24,6 +24,7 @@
 
 #include "android/base/clock.h"
 #include "android/crashreport/debug.h"
+#include "android/goldfish/vm_interface.h"
 #include "goldfish/async/event_loop.h"
 
 namespace android::crashreport {
@@ -82,10 +83,14 @@ class LoopWatcher {
                 ++hang_count_;
 
                 LOG(ERROR) << message
-                           << (android::base::IsDebuggerAttached() ? ", ignored (debugger attached)"
-                                                                   : "");
+                           << (android::base::IsDebuggerAttached() ||
+                                               !android::goldfish::VmOperations::qemuVmOperations()
+                                                        ->isRunning()
+                                       ? ", ignored (debugger attached or vm stopped)"
+                                       : "");
                 if (hang_count_ >= kMaxHangCount && hang_callback &&
-                    !android::base::IsDebuggerAttached()) {
+                    !android::base::IsDebuggerAttached() &&
+                    android::goldfish::VmOperations::qemuVmOperations()->isRunning()) {
                     l.Release();
                     hang_callback(message);
                     return;
@@ -200,12 +205,16 @@ class HangDetectorImpl : public HangDetector {
                     const auto message = absl::StrFormat("Failed hang detection predicate: '%s'",
                                                          predicate.second);
 
-                    LOG(ERROR) << message
-                               << (android::base::IsDebuggerAttached()
-                                           ? ", ignored (debugger attached)"
-                                           : "");
+                    LOG(ERROR)
+                            << message
+                            << (android::base::IsDebuggerAttached() ||
+                                                !android::goldfish::VmOperations::qemuVmOperations()
+                                                         ->isRunning()
+                                        ? ", ignored (debugger attached or vm stopped)"
+                                        : "");
 
-                    if (hang_callback_ && !android::base::IsDebuggerAttached()) {
+                    if (hang_callback_ && !android::base::IsDebuggerAttached() &&
+                        android::goldfish::VmOperations::qemuVmOperations()->isRunning()) {
                         hang_callback_(message);
                     }
                 }

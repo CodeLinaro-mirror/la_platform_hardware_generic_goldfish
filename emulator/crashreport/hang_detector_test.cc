@@ -23,6 +23,7 @@
 
 #include "android/base/abseil_clock.h"
 #include "android/crashreport/debug.h"
+#include "emulator/plugin/vminterface/test/vm_mock.h"
 #include "goldfish/async/libuv_event_loop.h"
 #include "goldfish/async/threaded_event_loop.h"
 
@@ -41,7 +42,9 @@ class HangDetectorTest : public ::testing::Test {
                           .hang_loop_iteration_timeout = absl::Milliseconds(100),
                           .hang_check_timeout = absl::Milliseconds(1000),
                       },
-                      std::make_unique<android::base::AbseilClock>())) {}
+                      std::make_unique<android::base::AbseilClock>())) {
+        mock_runstate_set(RUN_STATE_RUNNING);
+    }
 
     void TearDown() override { mHangDetector->Stop(); }
 
