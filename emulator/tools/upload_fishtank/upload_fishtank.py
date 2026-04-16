@@ -38,6 +38,10 @@ def get_target_and_artifact(platform_name, version):
             "emulator-linux_x64_gfxstream",
             f"FISHTANK-sdk-repo-linux-emu-{version}.zip",
         ),
+        "linux_internal": (
+            "emulator-linux_x64_gfxstream_internal",
+            f"FISHTANK-sdk-repo-linux-emu-{version}.zip",
+        ),
         "mac": (
             "emulator-mac_aarch64_gfxstream",
             f"FISHTANK-sdk-repo-darwin_aarch64-emu-{version}.zip",
@@ -60,9 +64,13 @@ def calculate_sha256(file_path):
     return hasher.hexdigest()
 
 
-def upload_to_gcs(local_path, version):
+def upload_to_gcs(local_path, version, platform):
     """Uploads a file to GCS using gcloud storage cp."""
-    dest = GCS_BUCKET_TEMPLATE.format(version=version, zipfile=local_path.name)
+    zipfile = local_path.name
+    if platform == "linux_internal":
+        zipfile = f"internal/{zipfile}"
+
+    dest = GCS_BUCKET_TEMPLATE.format(version=version, zipfile=zipfile)
     logging.info("Uploading %s to %s...", local_path.name, dest)
     subprocess.run(["gcloud", "storage", "cp", str(local_path), dest], check=True)
     return dest
@@ -100,7 +108,7 @@ def main():
         logging.error("Failed to initialize Android Build Client: %s", e)
         sys.exit(1)
 
-    platforms = ["linux", "mac", "windows"]
+    platforms = ["linux", "linux_internal", "mac", "windows"]
     snippets = []
 
     with tempfile.TemporaryDirectory(prefix="fishtank_download_") as tmp_dir:
@@ -116,7 +124,7 @@ def main():
                     ab_client, tmp_path, target, artifact, args.version
                 )
                 sha256 = calculate_sha256(local_file)
-                gcs_url = upload_to_gcs(local_file, args.version)
+                gcs_url = upload_to_gcs(local_file, args.version, platform)
                 snippets.append(generate_bazel_snippet(platform, sha256, gcs_url))
             except Exception as e:
                 logging.error("Failed to process %s: %s", platform, e)

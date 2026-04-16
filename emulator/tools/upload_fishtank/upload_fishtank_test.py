@@ -21,6 +21,10 @@ class TestFishtankUploader(unittest.TestCase):
                 "emulator-linux_x64_gfxstream",
                 f"FISHTANK-sdk-repo-linux-emu-{version}.zip",
             ),
+            "linux_internal": (
+                "emulator-linux_x64_gfxstream_internal",
+                f"FISHTANK-sdk-repo-linux-emu-{version}.zip",
+            ),
             "mac": (
                 "emulator-mac_aarch64_gfxstream",
                 f"FISHTANK-sdk-repo-darwin_aarch64-emu-{version}.zip",
@@ -40,11 +44,19 @@ class TestFishtankUploader(unittest.TestCase):
         """Verify the gcloud storage cp command is constructed correctly."""
         local_path = Path("/tmp/file.zip")
         version = "12345"
-        upload_fishtank.upload_to_gcs(local_path, version)
 
+        # Test standard upload
+        upload_fishtank.upload_to_gcs(local_path, version, "linux")
         expected_dest = f"gs://emu-next-bazel/fishtank/{version}/file.zip"
-        mock_run.assert_called_once_with(
+        mock_run.assert_called_with(
             ["gcloud", "storage", "cp", str(local_path), expected_dest], check=True
+        )
+
+        # Test internal upload
+        upload_fishtank.upload_to_gcs(local_path, version, "linux_internal")
+        expected_internal_dest = f"gs://emu-next-bazel/fishtank/{version}/internal/file.zip"
+        mock_run.assert_called_with(
+            ["gcloud", "storage", "cp", str(local_path), expected_internal_dest], check=True
         )
 
     def test_generate_bazel_snippet(self):
