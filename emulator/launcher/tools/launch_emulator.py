@@ -65,6 +65,10 @@ if __name__ == "__main__":
         action="store_true",
         help="Use the goldfish from the release zip",
     )
+    parser.add_argument(
+        "--system_image_dir",
+        help="Use the this system image directory instead of the default.",
+    )
 
     args, extra_args = parser.parse_known_args()
 
@@ -93,6 +97,7 @@ if __name__ == "__main__":
                     target_log_line=args.target_log_line,
                     extra_qemu_args=extra_args,
                     disable_crash_reporting=args.disable_crash_reporting,
+                    system_image_dir=args.system_image_dir,
                 )
             )
 
