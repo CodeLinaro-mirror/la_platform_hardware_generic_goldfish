@@ -730,6 +730,9 @@ TEST_P(EventLoopTest, ScheduleRepeatingIsCancelledMidway) {
     // However, once we cancel, we should not see any more invocations.
     int count_before_cancel = counter.load();
     handle->Cancel();
+
+    // Note: we can be in the middle of executing the task! (which may increase the counter, and yes
+    // this does happen!)
     int count_after_cancel = counter.load();
 
     if (mLoopType == "qemu") {
@@ -738,7 +741,12 @@ TEST_P(EventLoopTest, ScheduleRepeatingIsCancelledMidway) {
         std::this_thread::sleep_for(100ms);
     }
 
-    EXPECT_EQ(counter.load(), count_after_cancel);
+    int final_count = counter.load();
+    EXPECT_TRUE(final_count == count_after_cancel || final_count == count_after_cancel + 1)
+            << "Counter increased by more than 1 after cancellation. "
+            << "count before cancel: " << count_before_cancel
+            << ", count after cancel: " << count_after_cancel << ", final count: " << final_count;
+
     EXPECT_LE(count_after_cancel - count_before_cancel, 2)
             << "Too many invocations after cancellation, indicating the timer was not properly "
                "cancelled, count before cancel: "
