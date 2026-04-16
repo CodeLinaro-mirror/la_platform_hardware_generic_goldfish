@@ -180,9 +180,10 @@ TEST_F(JwkTokenAuthTest, discovery_file_contains_our_key) {
     auto discover_file = mTempDir->Path() / "loaded.jwk";
     JwtTokenAuth jwt(mTempDir->Path(), discover_file, &mAllYellow);
     EXPECT_TRUE(base::file::exists(discover_file));
-    auto discoverd_json = readFile(discover_file);
-    auto discovered_handle = crypto::tink::JwkSetToPublicKeysetHandle(discoverd_json);
-    ASSERT_THAT(discovered_handle, absl_testing::IsOk());
+    auto discovered_json = readFile(discover_file);
+    auto discovered_handle = crypto::tink::JwkSetToPublicKeysetHandle(discovered_json);
+    ASSERT_THAT(discovered_handle, absl_testing::IsOk())
+            << "The discovered json file contained: " << discovered_json;
     auto loaded = crypto::tink::JwkSetFromPublicKeysetHandle(*discovered_handle->get());
     ASSERT_THAT(loaded, absl_testing::IsOk());
     auto loaded_json = json::parse(*loaded, nullptr, /*allow_exceptions=*/false);
@@ -197,7 +198,7 @@ TEST_F(JwkTokenAuthTest, discovery_file_contains_our_key) {
                 break;
             }
         }
-        EXPECT_TRUE(found) << "Key " << key << " not found in loaded keys.";
+        EXPECT_TRUE(found) << "Key " << key << " not found in loaded keys: " << discovered_json;
     }
 }
 
