@@ -198,15 +198,7 @@ int main(int argc, char** argv) {
 
     configureLogging(opts);
 
-    android::base::Bazel::StoreCommandLineArgs(argc, argv);
     ShowBanner();
-
-    // we will use bazel to run emulator in normal mode,
-    // this -not-in-bazel option is used to force inBazel
-    // to return false;
-    if (opts.not_in_bazel) {
-        android::base::Bazel::SetNotInBazel();
-    }
 
 #if defined(__linux__) || defined(__APPLE__)
     const char* kXDG_RUNTIME_DIR_NAME = "XDG_RUNTIME_DIR";
@@ -236,7 +228,8 @@ int main(int argc, char** argv) {
     }
 #endif
 
-    if (android::base::Bazel::InBazel()) {
+    if (!opts.not_in_bazel && android::base::Bazel::InBazel()) {
+        android::base::Bazel::StoreCommandLineArgs(argc, argv);
         // We are running in the bazel environment, make sure the plugins and binaries can be found.
         auto launcher_dir =
                 fs::path(android::base::Bazel::RunfilesPath("goldfish+/emulator/launcher"));
