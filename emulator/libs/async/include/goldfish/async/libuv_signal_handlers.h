@@ -41,10 +41,12 @@ class UvSignalHandlers : public SignalHandlers {
     ~UvSignalHandlers() override { close(); }
 
     void SetCallback(Callback signal_cb) override {
+        absl::MutexLock lock(mLock);
         mSignalCallback = std::move(signal_cb);
     }
 
     Callback GetCallback() const {
+        absl::MutexLock lock(mLock);
         // copy
         return mSignalCallback;
     }
@@ -125,7 +127,8 @@ class UvSignalHandlers : public SignalHandlers {
     };
 
     LibuvEventLoop& mUvLoop;
-    Callback mSignalCallback;
+    mutable absl::Mutex mLock;
+    Callback mSignalCallback ABSL_GUARDED_BY(mLock);
 
 #ifdef _WIN32
     UvSignalHandler mSignalHandlerBreak;
