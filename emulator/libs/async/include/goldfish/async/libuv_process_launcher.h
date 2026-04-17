@@ -20,11 +20,13 @@
 #include "absl/status/statusor.h"
 
 #include "goldfish/async/launch_config.h"
+#include "goldfish/async/libuv_event_loop.h"
+#include "goldfish/async/process_launcher.h"
 #include "uv.h"
 
 namespace goldfish::async {
 
-class UvProcessLauncher {
+class UvProcessLauncher : public ProcessLauncher {
   private:
     struct ProcessHandleDeleter {
         void operator()(uv_process_t* handle) const {
@@ -34,28 +36,18 @@ class UvProcessLauncher {
     };
 
   public:
-    class UvPipe;
-
-  protected:
     using ProcessHandle = std::unique_ptr<uv_process_t, ProcessHandleDeleter>;
 
-    static UvProcessLauncher& GetLauncher(const uv_process_t& handle) {
-        return *static_cast<UvProcessLauncher*>(handle.data);
-    }
+    explicit UvProcessLauncher(LibuvEventLoop& event_loop);
+    ~UvProcessLauncher() override;
 
-    static int GetPid(const ProcessHandle& handle) { return handle->pid; }
+    absl::StatusOr<std::unique_ptr<ManagedProcess>> Launch(const LaunchConfig& config,
+                                                           ExitCallback exit_cb) override;
 
-    explicit UvProcessLauncher(uv_loop_t* uv_loop);
-    ~UvProcessLauncher();
-
-    absl::StatusOr<ProcessHandle> Launch(const LaunchConfig& config, uv_exit_cb exit_cb);
-
-    // This prevents the parent loop from waiting for this process at shutdown.
-    // Use on detached processes that should be able to keep running after the launcher
-    // exits.
-    static void ForgetUvProcess(const ProcessHandle& handle);
+    void ForgetProcess(const ManagedProcess& process) override;
 
   private:
+    class UvPipe;
     friend class UvPipe;
     void RemovePipedOutput(UvPipe* pipe);
 

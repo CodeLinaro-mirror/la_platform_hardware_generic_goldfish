@@ -402,6 +402,19 @@ cc_library(
     ],
 )
 
+cc_test(
+    name = "launcher_lib_test",
+    size = "medium",
+    srcs = ["launcher_test.cc"],
+    deps = [
+        ":launcher_lib",
+        "//emulator/launcher/launch_qemu:mock_avd",
+        "//emulator/libs/test:googletest_main",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+    ],
+)
+
 cc_binary(
     name = "launcher",
     srcs = ["main.cc"],
@@ -440,7 +453,6 @@ cc_binary(
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",
-        "@nlohmann_json//:singleheader-json",
         "@qemu//:qemu-headers",
     ],
 )

@@ -37,6 +37,9 @@
 #include "android/main_help.h"
 #include "android/status/status_macros.h"
 #include "goldfish/async/libuv_event_loop.h"
+#include "goldfish/async/libuv_process_launcher.h"
+#include "goldfish/async/libuv_signal_handlers.h"
+#include "goldfish/async/libuv_socket_factory.h"
 #include "goldfish/metrics/configure_metrics_writer.h"
 #include "goldfish/metrics/metrics_reporter.h"
 #include "goldfish/metrics/studio_config.h"
@@ -49,6 +52,8 @@ namespace {
 namespace fs = std::filesystem;
 
 constexpr int EMULATOR_COMPATIBLE_QEMU_VERSION = 10;
+
+constexpr int kMetricsCrashesAbandoned = 1;
 
 // clang-format off
 void ShowBanner() {
@@ -377,7 +382,15 @@ int main(int argc, char** argv) {
         }
     }
 
-    return android::goldfish::RunLauncher(*event_loop, *std::move(resolved_paths), *std::move(avd),
-                                          opts, std::move(reporter),
-                                          std::move(metrics_writer_config));
+    return android::goldfish::RunLauncher({
+        .event_loop = *event_loop,
+        .process_launcher = std::make_unique<::goldfish::async::UvProcessLauncher>(*event_loop),
+        .signal_handlers = std::make_unique<::goldfish::async::UvSignalHandlers>(*event_loop),
+        .metrics_reporter = std::move(reporter),
+        .socket_factory = std::make_unique<::goldfish::async::LibuvAsyncSocketFactory>(),
+        .resolved_paths = *std::move(resolved_paths),
+        .avd = *std::move(avd),
+        .opts = std::move(opts),
+        .metrics_writer_config = std::move(metrics_writer_config),
+    });
 }

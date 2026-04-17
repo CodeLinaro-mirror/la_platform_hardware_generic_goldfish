@@ -15,8 +15,10 @@ cc_library(
         "include/goldfish/async/async_socket_utils.h",
         "include/goldfish/async/event_loop.h",
         "include/goldfish/async/event_loop_dispatcher.h",
+        "include/goldfish/async/process_launcher.h",
         "include/goldfish/async/scoped_async_resource.h",
         "include/goldfish/async/scoped_async_timer.h",
+        "include/goldfish/async/signal_handlers.h",
         "include/goldfish/async/when_all.h",
     ],
     includes = ["include"],
@@ -278,7 +280,9 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
+        ":async_api",
         ":launch_config",
+        ":libuv_event_loop",
         ":uv_to_absl",
         "//emulator/libs/system:fd_util",
         "@abseil-cpp//absl/log",
@@ -293,6 +297,7 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
+        ":async_api",
         ":libuv_event_loop",
         ":threaded_event_loop",
         ":uv_to_absl",

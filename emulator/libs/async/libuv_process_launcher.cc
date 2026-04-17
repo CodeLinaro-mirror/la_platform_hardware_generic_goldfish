@@ -30,9 +30,41 @@
 
 #include "android/base/fd_util.h"
 #include "goldfish/async/launch_config.h"
+#include "goldfish/async/process_launcher.h"
 #include "goldfish/async/uv_to_absl.h"
 
 namespace goldfish::async {
+
+namespace {
+class UvManagedProcess : public ManagedProcess {
+  public:
+    UvManagedProcess(ProcessLauncher::ExitCallback exit_cb)
+            : mHandle(new uv_process_t{}), mExitCb(std::move(exit_cb)) {
+        mHandle->data = this;
+    }
+
+    int GetPid() const override { return mHandle->pid; }
+
+    void Kill(int signum) override { uv_process_kill(mHandle.get(), signum); }
+
+    void OnExit(int64_t exit_status, int term_signal) {
+        if (mExitCb) {
+            mExitCb(exit_status, term_signal);
+        }
+    }
+
+    uv_process_t* handle() const { return mHandle.get(); }
+
+  private:
+    UvProcessLauncher::ProcessHandle mHandle;
+    ProcessLauncher::ExitCallback mExitCb;
+};
+
+void uv_internal_exit_cb(uv_process_t* req, int64_t exit_status, int term_signal) {
+    auto* process = static_cast<UvManagedProcess*>(req->data);
+    process->OnExit(exit_status, term_signal);
+}
+}  // namespace
 
 #ifdef __APPLE__
 namespace {
@@ -137,15 +169,16 @@ class UvProcessLauncher::UvPipe {
     uv_pipe_t pipe_;
 };
 
-UvProcessLauncher::UvProcessLauncher(uv_loop_t* uv_loop) : uv_loop_(uv_loop) {}
+UvProcessLauncher::UvProcessLauncher(LibuvEventLoop& event_loop)
+        : uv_loop_(static_cast<uv_loop_t*>(event_loop.GetRawLoop())) {}
 UvProcessLauncher::~UvProcessLauncher() {}
 
 void UvProcessLauncher::RemovePipedOutput(UvPipe* pipe) {
     std::erase_if(pipes_, [pipe](const auto& p) { return p.get() == pipe; });
 }
 
-absl::StatusOr<UvProcessLauncher::ProcessHandle> UvProcessLauncher::Launch(
-        const LaunchConfig& config, uv_exit_cb exit_cb) {
+absl::StatusOr<std::unique_ptr<ManagedProcess>> UvProcessLauncher::Launch(
+        const LaunchConfig& config, ExitCallback exit_cb) {
     // Try not to pass any FDs to children.
     // Note that this can race with other threads creating FDs (without CLOEXEC).
     android::base::SetAllFdsCloexec();
@@ -210,12 +243,15 @@ absl::StatusOr<UvProcessLauncher::ProcessHandle> UvProcessLauncher::Launch(
     const uv_process_options_t options{
         // const char* cwd;
         // TODO char** env;
-        .exit_cb = exit_cb, .file = exe.c_str(), .args = args.data(),
-        .flags = flags,     .stdio_count = 3,    .stdio = stdio,
+        .exit_cb = uv_internal_exit_cb,
+        .file = exe.c_str(),
+        .args = args.data(),
+        .flags = flags,
+        .stdio_count = 3,
+        .stdio = stdio,
     };
 
-    auto handle = ProcessHandle(new uv_process_t{});
-    handle->data = this;
+    auto managed_process = std::make_unique<UvManagedProcess>(std::move(exit_cb));
 
 #ifdef __APPLE__
     // uv_spawn will automatically inherit our exception ports, which means that crashpad
@@ -224,7 +260,7 @@ absl::StatusOr<UvProcessLauncher::ProcessHandle> UvProcessLauncher::Launch(
     // Note: we will not detect crashes until disable_ports leaves the scope.
     const ScopedDisableExceptionPorts disable_ports;
 #endif
-    if (const int res = uv_spawn(uv_loop_, handle.get(), &options); res < 0) {
+    if (const int res = uv_spawn(uv_loop_, managed_process->handle(), &options); res < 0) {
         return goldfish::async::UvErrToAbslStatus(res);
     }
 
@@ -235,13 +271,13 @@ absl::StatusOr<UvProcessLauncher::ProcessHandle> UvProcessLauncher::Launch(
         }
     }
 
-    return handle;
+    return managed_process;
 }
 
-// static
-void UvProcessLauncher::ForgetUvProcess(const ProcessHandle& handle) {
+void UvProcessLauncher::ForgetProcess(const ManagedProcess& process) {
     // Let launcher exit and leave daemon processes running.
-    uv_unref(reinterpret_cast<uv_handle_t*>(handle.get()));
+    const auto& uv_process = static_cast<const UvManagedProcess&>(process);
+    uv_unref(reinterpret_cast<uv_handle_t*>(uv_process.handle()));
 }
 
 }  // namespace goldfish::async

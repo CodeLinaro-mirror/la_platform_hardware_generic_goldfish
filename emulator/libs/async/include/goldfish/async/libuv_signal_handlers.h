@@ -7,7 +7,7 @@
 // http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS);
+// distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
@@ -18,16 +18,15 @@
 #include "absl/time/time.h"
 
 #include "goldfish/async/libuv_event_loop.h"
+#include "goldfish/async/signal_handlers.h"
 #include "goldfish/async/uv_to_absl.h"
 #include "uv.h"
 
 namespace goldfish::async {
 
-class UvSignalHandlers {
+class UvSignalHandlers : public SignalHandlers {
   public:
-    using Callback = std::function<void(int signal)>;
-
-    UvSignalHandlers(LibuvEventLoop& uv_loop, Callback signal_cb)
+    UvSignalHandlers(LibuvEventLoop& uv_loop, Callback signal_cb = nullptr)
             : mUvLoop(uv_loop)
             , mSignalCallback(std::move(signal_cb))
 #ifdef _WIN32
@@ -39,9 +38,18 @@ class UvSignalHandlers {
             , mSignalHandlerTerm(uv_loop, SIGTERM, this, signal_handler) {
     }
 
-    ~UvSignalHandlers() { close(); }
+    ~UvSignalHandlers() override { close(); }
 
-    void close() {
+    void SetCallback(Callback signal_cb) override {
+        mSignalCallback = std::move(signal_cb);
+    }
+
+    Callback GetCallback() const {
+        // copy
+        return mSignalCallback;
+    }
+
+    void close() override {
         if (mClosed) {
             return;
         }
@@ -70,8 +78,11 @@ class UvSignalHandlers {
 
   private:
     static void signal_handler(uv_signal_t* handle, int signum) {
-        UvSignalHandlers* self = static_cast<UvSignalHandlers*>(handle->data);
-        self->mSignalCallback(signum);
+        auto* self = static_cast<UvSignalHandlers*>(handle->data);
+
+        if (auto callback = self->GetCallback(); callback) {
+            callback(signum);
+        }
     }
 
     class UvSignalHandler {
@@ -105,7 +116,7 @@ class UvSignalHandlers {
 
       private:
         static void close_cb(uv_handle_t* handle) {
-            UvSignalHandler* self = static_cast<UvSignalHandler*>(handle->data);
+            auto* self = static_cast<UvSignalHandler*>(handle->data);
             self->mClosedNotification.Notify();
         }
 
@@ -115,6 +126,7 @@ class UvSignalHandlers {
 
     LibuvEventLoop& mUvLoop;
     Callback mSignalCallback;
+
 #ifdef _WIN32
     UvSignalHandler mSignalHandlerBreak;
 #endif
