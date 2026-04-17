@@ -34,7 +34,7 @@ logging.basicConfig(stream=sys.stderr, encoding="utf-8", level=logging.DEBUG)
 class EmulatorLocator:
     """Locates all necessary emulator files and artifacts."""
 
-    def __init__(self, abi, use_zip, tmp_dir):
+    def __init__(self, abi, use_zip, tmp_dir, system_image_dir):
         self.abi_selection = abi
         self.use_zip = use_zip
         self.tmp_dir = Path(tmp_dir)
@@ -45,7 +45,7 @@ class EmulatorLocator:
             )
 
         self.goldfish_exec = None
-        self.system_image_dir = None
+        self.system_image_dir = system_image_dir
         self.phone_ini_path = None
         self.config_ini_path = None
         self.marker_files_path = None
@@ -95,6 +95,11 @@ class EmulatorLocator:
             )
 
     def _locate_system_image(self):
+        if self.system_image_dir:
+            self.abi = Path(self.system_image_dir).name
+            logging.info("--- Using local image: %s ---", self.system_image_dir)
+            return
+
         abis = (
             ["x86_64", "arm64-v8a"]
             if self.abi_selection == "auto"
@@ -334,6 +339,7 @@ async def launch_and_monitor_emulator(
     target_log_line,
     extra_qemu_args=None,
     disable_crash_reporting=False,
+    system_image_dir=None,
 ):
     """Launches and monitors an emulator instance.
 
@@ -344,12 +350,13 @@ async def launch_and_monitor_emulator(
         timeout_seconds: Timeout for the operation.
         target_log_line: The log line to watch for.
         extra_qemu_args: Additional arguments for the QEMU command.
+        system_image_dir: Optional path to a system image to use.
 
     Returns:
         0 on success, 1 on failure.
     """
     try:
-        locator = EmulatorLocator(abi, use_zip, tmp_dir_for_images)
+        locator = EmulatorLocator(abi, use_zip, tmp_dir_for_images, system_image_dir)
         await locator.find_resources()
 
         with EmulatorAvd(
