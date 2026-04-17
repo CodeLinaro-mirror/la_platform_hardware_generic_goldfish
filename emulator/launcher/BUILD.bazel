@@ -12,7 +12,8 @@ unzip(
     zipfile = select({
         "@platforms//os:windows": "@fishtank-windows//file",
         "@platforms//os:macos": "@fishtank-mac//file",
-        "@platforms//os:linux": "@fishtank-linux//file",
+        "//emulator:use_linux_internal_fishtank": "@fishtank-linux_internal//file",
+        "//emulator:use_linux_fishtank": "@fishtank-linux//file",
     }),
 )
 
