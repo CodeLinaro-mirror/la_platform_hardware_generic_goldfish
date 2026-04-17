@@ -32,8 +32,6 @@ namespace {
 std::vector<std::string> g_argv;
 }  // namespace
 
-bool Bazel::s_not_in_bazel{false};
-
 std::string Bazel::RunfilesPath(const std::string& path) {
     std::string error;
     const char* workspace_dir = getenv("TEST_WORKSPACE");
@@ -61,14 +59,7 @@ std::string Bazel::RunfilesPath(const std::string& path) {
     return runfiles->Rlocation(absl::StrCat(workspace_dir, "/", path));
 }
 
-void Bazel::SetNotInBazel() {
-    s_not_in_bazel = true;
-}
-
 bool Bazel::InBazel() {
-    if (s_not_in_bazel) {
-        return false;
-    }
     std::array<std::string, 3> markers = {
         "BUILD_WORKING_DIRECTORY",
         "TEST_BINARY",
