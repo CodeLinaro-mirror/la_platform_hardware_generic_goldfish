@@ -160,7 +160,6 @@ absl::Status ConsoleServer::Start() {
             [this](Endpoint remote) { return ProvideLoopForConnection(std::move(remote)); });
 
     if (!server) {
-        LOG(ERROR) << "Failed to bind console server to " << goldfish::network::ToString(endpoint_);
         return absl::InternalError("Failed to bind server");
     }
 
