@@ -1,6 +1,8 @@
 load("@bazel_lib//lib:copy_file.bzl", "copy_file")
 load("@bazel_lib//lib:directory_path.bzl", "make_directory_path")
+load("@bazel_skylib//lib:selects.bzl", "selects")
 load("@bazel_skylib//rules:build_test.bzl", "build_test")
+load("@bazel_skylib//rules:common_settings.bzl", "bool_flag")
 load("@bazel_skylib//rules:select_file.bzl", "select_file")
 load("@goldfish_build//rules/native:native_binaries.bzl", "stripped_binaries")
 load("@rules_license//rules:license.bzl", "license")
@@ -19,10 +21,45 @@ load(
     "remapped_pkg_files",
     "source_properties",
 )
+load(
+    "//emulator/tools:transitions.bzl",
+    "internal_release",
+)
 
 package(
     default_applicable_licenses = [":license"],
     default_visibility = ["//visibility:public"],
+)
+
+bool_flag(
+    name = "internal_fishtank",
+    build_setting_default = False,
+)
+
+config_setting(
+    name = "internal_fishtank_enabled",
+    flag_values = {":internal_fishtank": "True"},
+)
+
+config_setting(
+    name = "internal_fishtank_disabled",
+    flag_values = {":internal_fishtank": "False"},
+)
+
+selects.config_setting_group(
+    name = "use_linux_internal_fishtank",
+    match_all = [
+        ":internal_fishtank_enabled",
+        "@platforms//os:linux",
+    ],
+)
+
+selects.config_setting_group(
+    name = "use_linux_fishtank",
+    match_all = [
+        ":internal_fishtank_disabled",
+        "@platforms//os:linux",
+    ],
 )
 
 exports_files(["LICENSE"])
@@ -361,6 +398,9 @@ filter_directory(
             "fishtank/fishtank.exe",
             "fishtank/lib64/qt/bin/QtWebEngineProcess.exe",
         ],
+        ":use_linux_internal_fishtank": [
+            "fishtank/fishtank",
+        ],
         "//conditions:default": [
             "fishtank/fishtank",
             "fishtank/lib64/qt/libexec/QtWebEngineProcess",
@@ -455,10 +495,12 @@ pkg_filegroup(
         ":qemu-keymaps",
         ":qemu-roms",
         ":qemu_stripped",
-        ":qtwebengine_binary",
         ":source_properties_pkg",
         ":vulkan_stripped",
     ] + select({
+        ":use_linux_internal_fishtank": [],
+        "//conditions:default": [":qtwebengine_binary"],
+    }) + select({
         "@platforms//os:windows": [":win-dlls"],
         "//conditions:default": [],
     }),
@@ -492,8 +534,17 @@ pkg_zip(
         "emulator-dir",
         ":security",
     ],
-    package_file_name = "sdk-repo-{platform}-{product_name}-{build_id}.zip",
+    package_file_name = select({
+        ":internal_fishtank_enabled": "G3-sdk-repo-{platform}-{product_name}-{build_id}.zip",
+        "//conditions:default": "sdk-repo-{platform}-{product_name}-{build_id}.zip",
+    }),
     package_variables = "//emulator/tools:aemu_version_info",
+    tags = ["manual"],
+)
+
+internal_release(
+    name = "release_internal",
+    actual = ":release",
     tags = ["manual"],
 )
 

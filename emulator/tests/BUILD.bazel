@@ -15,6 +15,16 @@ filegroup(
     }),
 )
 
+filegroup(
+    name = "expected_contents_internal",
+    srcs = select({
+        "@platforms//os:linux": [
+            "testdata/release_zip_emulator_linux_internal_x64.txt",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
 py_test(
     name = "release_zip_test",
     size = "small",
@@ -29,5 +39,24 @@ py_test(
         ":expected_contents",
         "//emulator:release",
     ],
+    deps = ["@rules_python//python/runfiles"],
+)
+
+py_test(
+    name = "release_zip_internal_test",
+    size = "small",
+    srcs = ["release_zip_test.py"],
+    args = [
+        "--release_zip_path",
+        "$(rlocationpath //emulator:release_internal)",
+        "--expected_path",
+        "$(rlocationpath :expected_contents_internal)",
+    ],
+    data = [
+        ":expected_contents_internal",
+        "//emulator:release_internal",
+    ],
+    main = "release_zip_test.py",
+    target_compatible_with = ["@platforms//os:linux"],
     deps = ["@rules_python//python/runfiles"],
 )
