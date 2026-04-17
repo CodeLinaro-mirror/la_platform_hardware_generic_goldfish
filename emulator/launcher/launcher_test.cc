@@ -512,7 +512,8 @@ TEST_F(LauncherTest, HandlesPortOption) {
     opts.port = "5562";
 
     EXPECT_CALL(*mock_socket_factory, CreateServer(_, IsPort(5562), _, _))
-            .WillOnce(Return(std::make_shared<MockAsyncSocketServer>()));
+            .Times(2)
+            .WillRepeatedly(Return(std::make_shared<MockAsyncSocketServer>()));
 
     absl::Notification launched;
     ::goldfish::async::ProcessLauncher::ExitCallback emulator_exit_cb;
@@ -529,7 +530,8 @@ TEST_F(LauncherTest, HandlesValidPortsOption) {
     opts.ports = "5560,5561";
 
     EXPECT_CALL(*mock_socket_factory, CreateServer(_, IsPort(5560), _, _))
-            .WillOnce(Return(std::make_shared<MockAsyncSocketServer>()));
+            .Times(2)
+            .WillRepeatedly(Return(std::make_shared<MockAsyncSocketServer>()));
 
     absl::Notification launched;
     ::goldfish::async::ProcessLauncher::ExitCallback emulator_exit_cb;
@@ -560,7 +562,8 @@ TEST_F(LauncherTest, HuntsForFreePort) {
     EXPECT_CALL(*mock_socket_factory, CreateServer(_, IsPort(5556), _, _))
             .WillOnce(Return(nullptr));
     EXPECT_CALL(*mock_socket_factory, CreateServer(_, IsPort(5558), _, _))
-            .WillOnce(Return(std::make_shared<MockAsyncSocketServer>()));
+            .Times(2)
+            .WillRepeatedly(Return(std::make_shared<MockAsyncSocketServer>()));
 
     absl::Notification launched;
     ::goldfish::async::ProcessLauncher::ExitCallback emulator_exit_cb;
@@ -604,7 +607,8 @@ TEST_F(LauncherTest, ShutsDownDirectlyWhenNoEmulatorProcess) {
                 port_hunt_blocked.Notify();
                 port_hunt_can_continue.WaitForNotification();
                 return std::make_shared<MockAsyncSocketServer>();
-            });
+            })
+            .WillOnce(Return(std::make_shared<MockAsyncSocketServer>()));
 
     std::thread trigger = TriggerEmulatorScript(callback_set, [&]() {
         port_hunt_blocked.WaitForNotification();
@@ -640,7 +644,8 @@ TEST_F(LauncherTest, InterceptsSignalForSnapshot) {
 
     // Console port reservation
     EXPECT_CALL(*mock_socket_factory, CreateServer(_, IsPort(5554), _, _))
-            .WillOnce(Return(std::make_shared<MockAsyncSocketServer>()));
+            .Times(2)
+            .WillRepeatedly(Return(std::make_shared<MockAsyncSocketServer>()));
 
     auto fake_qmp_socket = std::make_shared<::goldfish::async::testing::FakeAsyncSocket>();
     fake_qmp_socket->setEventLoop(event_loop.get());

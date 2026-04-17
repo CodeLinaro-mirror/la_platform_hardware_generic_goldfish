@@ -47,6 +47,7 @@
 #include "launch_netsimd.h"
 #include "launch_qemu/emulator_config.h"
 #include "launch_qemu/launch_qemu.h"
+#include "legacy_console_controller.h"
 #include "logging.h"
 #include "snapshot_util.h"
 
@@ -150,19 +151,16 @@ class Launcher {
         return absl::UnavailableError("unable to open server socket");
     }
 
-    absl::Status hunt_for_free_port(::goldfish::async::EventLoop& event_loop,
-                                    ::goldfish::async::AsyncSocketFactory& factory) {
+    absl::Status hunt_for_free_port(
+            ::goldfish::telnet::LegacyConsoleController& console_controller) {
         constexpr int kStartingPort = 5554;
-        std::shared_ptr<::goldfish::async::AsyncSocketServer> sock;
         for (int port = kStartingPort; port < 5585; port += 2) {
-            if (auto sock = open_tcp_server_port(event_loop, factory, port); sock.ok()) {
+            if (auto s = console_controller.Start(port); s.ok()) {
                 ports_.serial_number = port;
                 ports_.adb_port = port + 1;
-                serial_port_reservation_ = *std::move(sock);
                 return absl::OkStatus();
             }
         }
-
         return absl::UnavailableError("No available emulator serial console port (5554-5584)");
     }
 
@@ -182,6 +180,8 @@ class Launcher {
 
     absl::Status setup_emulator_ports(const AndroidOptions& opts,
                                       ::goldfish::async::EventLoop& event_loop) {
+        auto console_controller = std::make_unique<::goldfish::telnet::LegacyConsoleController>(
+                *config_.socket_factory, &event_loop);
         if (opts.ports) {
             // Format should be console_port,adb_port
             std::vector<std::string_view> parts = absl::StrSplit(opts.ports, ',');
@@ -197,9 +197,10 @@ class Launcher {
                 return absl::InvalidArgumentError(
                         absl::StrCat("Failed to parse ADB port number from -ports: ", opts.ports));
             }
-            ASSIGN_OR_RETURN(serial_port_reservation_,
-                             open_tcp_server_port(event_loop, *config_.socket_factory,
-                                                  ports_.serial_number));
+            if (auto s = console_controller->Start(ports_.serial_number); !s.ok()) {
+                LOG(FATAL) << "Unable to start the telnet console on port: " << ports_.serial_number
+                           << ", reason: " << s;
+            }
         } else if (opts.port) {
             // opts.port specifies the telnet console port and by default ADB port is that +1
             int port;
@@ -209,10 +210,12 @@ class Launcher {
             }
             ports_.serial_number = port;
             ports_.adb_port = port + 1;
-            ASSIGN_OR_RETURN(serial_port_reservation_,
-                             open_tcp_server_port(event_loop, *config_.socket_factory, port));
+            if (auto s = console_controller->Start(port); !s.ok()) {
+                LOG(FATAL) << "Unable to start the telnet console on port: " << ports_.serial_number
+                           << ", reason: " << s;
+            }
         } else {
-            RETURN_IF_ERROR(hunt_for_free_port(event_loop, *config_.socket_factory));
+            RETURN_IF_ERROR(hunt_for_free_port(*console_controller));
         }
 
         if (opts.snapshot && !opts.no_snapshot_save) {
@@ -229,6 +232,7 @@ class Launcher {
                          << ports_.adb_port;
         }
 
+        console_controller_ = std::move(console_controller);
         return absl::OkStatus();
     }
 
@@ -492,6 +496,7 @@ class Launcher {
     EmulatorPorts ports_;
     std::shared_ptr<::goldfish::async::AsyncSocketServer> serial_port_reservation_;
     std::shared_ptr<::goldfish::async::AsyncSocketServer> qmp_port_reservation_;
+    std::unique_ptr<::goldfish::telnet::LegacyConsoleController> console_controller_;
 
     // Keep a handle open from the launcher to keep netsimd alive.
     // This should avoid any races between discovery and qemu device connection.
