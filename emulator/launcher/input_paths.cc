@@ -19,7 +19,6 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 
-#include "android/base/bazel_info.h"
 #include "android/base/system.h"
 #include "android/goldfish/config_dirs.h"
 #include "android/status/status_macros.h"
@@ -53,6 +52,10 @@ absl::StatusOr<fs::path> CheckExists(fs::path path, std::string_view description
         return absl::NotFoundError(
                 absl::StrCat("Path for \"", description, "\" does not exist: ", path.string()));
     }
+    if (!android::base::file::can_read(path)) {
+        return absl::PermissionDeniedError(
+                absl::StrCat("No read permissions for \"", description, "\": ", path.string()));
+    }
     VLOG(1) << "Path for \"" << description << "\" exists: " << path.string();
     return path;
 }
@@ -77,8 +80,8 @@ constexpr std::string_view kEmulatorBinaryName = "emulator";
 
 }  // namespace
 
-absl::StatusOr<ResolvedInputPaths> ResolvePaths(bool verbose, bool include_fishtank) {
-    ResolvedInputPaths paths;
+absl::StatusOr<EmulatorPaths> ResolveEmulatorPaths(bool verbose, bool include_fishtank) {
+    EmulatorPaths paths;
     ASSIGN_OR_RETURN(const fs::path program_path, GetProgramPath());
     ASSIGN_OR_RETURN(paths.launcher_binary, CheckExists(program_path, "launcher binary"));
 
@@ -128,20 +131,6 @@ absl::StatusOr<ResolvedInputPaths> ResolvePaths(bool verbose, bool include_fisht
     ASSIGN_OR_RETURN(paths.bios_directory,
                      CheckExists(paths.launcher_directory / "share" / "qemu", "bios directory"));
 
-    ASSIGN_OR_RETURN(
-            paths.user_directory,
-            CheckExists(android::goldfish::ConfigDirs::GetUserDirectory(), "user directory"));
-    ASSIGN_OR_RETURN(
-            paths.avd_directory,
-            CheckExists(android::goldfish::ConfigDirs::GetAvdRootDirectory(), "avd directory"));
-    ASSIGN_OR_RETURN(paths.sdk_directory,
-                     CheckExists(android::goldfish::ConfigDirs::GetSdkRootDirectory(
-                                         paths.launcher_directory, verbose),
-                                 "sdk directory"));
-    ASSIGN_OR_RETURN(paths.discovery_directory,
-                     CheckExists(android::goldfish::ConfigDirs::GetDiscoveryDirectory(),
-                                 "discovery directory"));
-
     ASSIGN_OR_RETURN(paths.qemu_system_x86_binary,
                      CheckExists(paths.binary_directory / AddBinarySuffix("qemu-system-x86_64"),
                                  "qemu-system-x86_64"));
@@ -180,6 +169,93 @@ absl::StatusOr<ResolvedInputPaths> ResolvePaths(bool verbose, bool include_fisht
     // Make sure the child process is using the same crashpad handler as we are using.
     // Child uses: android::crashreport::CrashReporter::handlerExe() to retrieve this.
     System::SetEnvironmentVariable("AEMU_CRASHPAD_HANDLER", paths.crashpad_handler_binary.string());
+
+    return paths;
+}
+
+absl::StatusOr<UserPaths> ResolveUserPaths(const fs::path& launcher_dir, bool verbose) {
+    UserPaths paths;
+    ASSIGN_OR_RETURN(
+            paths.user_directory,
+            CheckExists(android::goldfish::ConfigDirs::GetUserDirectory(), "user directory"));
+    ASSIGN_OR_RETURN(
+            paths.avd_directory,
+            CheckExists(android::goldfish::ConfigDirs::GetAvdRootDirectory(), "avd directory"));
+    ASSIGN_OR_RETURN(
+            paths.sdk_directory,
+            CheckExists(android::goldfish::ConfigDirs::GetSdkRootDirectory(launcher_dir, verbose),
+                        "sdk directory"));
+    ASSIGN_OR_RETURN(paths.discovery_directory,
+                     CheckExists(android::goldfish::ConfigDirs::GetDiscoveryDirectory(),
+                                 "discovery directory"));
+
+    return paths;
+}
+
+namespace {
+absl::StatusOr<fs::path> Search(const std::vector<fs::path>& search_paths,
+                                std::string_view filename, std::string_view description) {
+    VLOG(1) << "Searching for system image file: " << filename;
+    for (const auto& sys_path : search_paths) {
+        if (auto path = CheckExists(sys_path / filename, description); path.ok()) {
+            return path;
+        } else {
+            VLOG(1) << "Not found in system dir: " << path.status();
+        }
+    }
+    return absl::NotFoundError(absl::StrCat("System image file not found: ", filename));
+}
+}  // namespace
+
+absl::StatusOr<SystemImagePaths> ResolveSystemImagePaths(const std::vector<fs::path>& search_paths,
+                                                         const AndroidOptions& opts) {
+    SystemImagePaths paths;
+    ASSIGN_OR_RETURN(paths.build_properties,
+                     Search(search_paths, "build.prop", "build properties"));
+    ASSIGN_OR_RETURN(paths.advanced_features,
+                     Search(search_paths, "advancedFeatures.ini", "advanced features"));
+    ASSIGN_OR_RETURN(
+            paths.verified_boot_params,
+            Search(search_paths, "VerifiedBootParams.textproto", "verified boot parameters"));
+
+    ASSIGN_OR_RETURN(paths.data_dir, Search(search_paths, "data", "data directory"));
+    if (!base::file::is_dir(paths.data_dir)) {
+        return absl::InvalidArgumentError(
+                absl::StrCat("data directory is not a directory: ", paths.data_dir.string()));
+    }
+
+    ASSIGN_OR_RETURN(paths.kernel_cmdline,
+                     Search(search_paths, "kernel_cmdline.txt", "kernel cmdline"));
+
+    if (opts.kernel) {
+        ASSIGN_OR_RETURN(paths.kernel_image, CheckExists(opts.kernel, "override kernel image"));
+    } else {
+        ASSIGN_OR_RETURN(paths.kernel_image, Search(search_paths, "kernel-ranchu", "kernel image"));
+    }
+
+    if (opts.ramdisk) {
+        ASSIGN_OR_RETURN(paths.ramdisk_image, CheckExists(opts.ramdisk, "override ramdisk image"));
+    } else {
+        ASSIGN_OR_RETURN(paths.ramdisk_image, Search(search_paths, "ramdisk.img", "ramdisk image"));
+    }
+
+    if (opts.system) {
+        ASSIGN_OR_RETURN(paths.system_image, CheckExists(opts.system, "override system image"));
+    } else {
+        ASSIGN_OR_RETURN(paths.system_image, Search(search_paths, "system.img", "system image"));
+    }
+    if (opts.vendor) {
+        ASSIGN_OR_RETURN(paths.vendor_image, CheckExists(opts.vendor, "override vendor image"));
+    } else {
+        ASSIGN_OR_RETURN(paths.vendor_image, Search(search_paths, "vendor.img", "vendor image"));
+    }
+    if (opts.encryption_key) {
+        ASSIGN_OR_RETURN(paths.encryption_key_image,
+                         CheckExists(opts.encryption_key, "override encryption key image"));
+    } else {
+        ASSIGN_OR_RETURN(paths.encryption_key_image,
+                         Search(search_paths, "encryptionkey.img", "encryption key image"));
+    }
 
     return paths;
 }

@@ -112,10 +112,6 @@ absl::Status minimizePartition(fs::path image, uint64_t desired_size_bytes) {
 
 }  // namespace
 
-std::optional<fs::path> getUserSrcDirectoryForce(const Avd& avd) {
-    return avd.GetContentPath() / "datatemp";
-}
-
 std::optional<fs::path> getUserSrcDirectory(const Avd& avd) {
     if (avd.Hw().hw_sensor_hinge) {
         return avd.GetContentPath() / "data";

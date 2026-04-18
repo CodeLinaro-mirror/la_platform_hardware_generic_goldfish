@@ -52,7 +52,7 @@ absl::Status GrpcDevice::initialize(const EmulatorConfig& emulator) {
 std::vector<std::string> GrpcDevice::getQemuParameters(const EmulatorConfig& emulator) const {
     fs::path allowlist = mAllowlist;
     if (allowlist.empty()) {
-        allowlist = emulator.paths().launcher_directory / "lib" / "emulator_access.json";
+        allowlist = emulator.emulator_paths().launcher_directory / "lib" / "emulator_access.json";
         if (!base::file::exists(allowlist)) {
             LOG(WARNING) << "GRPC default allowlist doesn't exist, this may cause problems";
         }
@@ -62,8 +62,8 @@ std::vector<std::string> GrpcDevice::getQemuParameters(const EmulatorConfig& emu
         {"port", absl::StrCat(mPort)},
         {"token", "true"},
         {"allowlist", allowlist.string()},
-        {"discovery_dir", emulator.paths().discovery_directory.string()},
-        {"launcher_dir", emulator.paths().launcher_directory.string()}};
+        {"discovery_dir", emulator.user_paths().discovery_directory.string()},
+        {"launcher_dir", emulator.emulator_paths().launcher_directory.string()}};
     params.emplace_back(std::pair{"logging", emulator.opts().verbose_grpc ? "true" : "false"});
     params.emplace_back(std::pair{"embedded", emulator.opts().qt_hide_window ? "true" : "false"});
 

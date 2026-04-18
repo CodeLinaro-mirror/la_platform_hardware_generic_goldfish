@@ -99,9 +99,11 @@ TEST(Initrd, Basic) {
     auto hw = HardwareConfig();
     EXPECT_CALL(emu.mock_avd(), Hw()).WillRepeatedly(testing::ReturnRef(hw));
     EXPECT_CALL(emu.mock_avd(), Name()).Times(1).WillRepeatedly(testing::Return("mock_avd"));
-    EXPECT_CALL(emu.mock_avd(), GetSystemImageFilePath(Avd::ImageType::RAMDISK))
-            .Times(1)
-            .WillRepeatedly(testing::Return(system_initrd.string()));
+
+    SystemImagePaths paths;
+    paths.ramdisk_image = system_initrd;
+    EXPECT_CALL(emu.mock_avd(), GetSystemImagePaths()).WillRepeatedly(testing::ReturnRef(paths));
+
     EXPECT_CALL(emu.mock_avd(), GetContentPath())
             .Times(1)
             .WillRepeatedly(testing::Return((launcher_path / "content").string()));
@@ -138,9 +140,11 @@ TEST(Initrd, RamdiskFlag) {
     auto hw = HardwareConfig();
     EXPECT_CALL(emu.mock_avd(), Hw()).WillRepeatedly(testing::ReturnRef(hw));
     EXPECT_CALL(emu.mock_avd(), Name()).Times(1).WillRepeatedly(testing::Return("mock_avd"));
-    EXPECT_CALL(emu.mock_avd(), GetSystemImageFilePath(Avd::ImageType::RAMDISK))
-            .Times(0)
-            .WillRepeatedly(testing::Return(system_initrd.string()));
+
+    SystemImagePaths paths;
+    paths.ramdisk_image = override_initrd;
+    EXPECT_CALL(emu.mock_avd(), GetSystemImagePaths()).WillRepeatedly(testing::ReturnRef(paths));
+
     EXPECT_CALL(emu.mock_avd(), GetContentPath())
             .Times(1)
             .WillRepeatedly(testing::Return((launcher_path / "content").string()));

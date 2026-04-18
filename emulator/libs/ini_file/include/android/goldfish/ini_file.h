@@ -24,11 +24,8 @@
 
 namespace android::goldfish {
 
-class IniFile {
+class IniFile final {
   public:
-    IniFile(const IniFile&) = delete;
-    const IniFile& operator=(const IniFile&) = delete;
-
     using DiskSize = uint64_t;
 
     // linked_hash_map tracks insertion order so that iteration order matches.
@@ -45,6 +42,14 @@ class IniFile {
 
     // This constructor reads the data from memory at |data| of |size| bytes.
     IniFile(const char* data, int size);
+
+    ~IniFile() = default;
+
+    IniFile(IniFile&&) = default;
+    IniFile& operator=(IniFile&&) = default;
+
+    IniFile(const IniFile&) = delete;
+    const IniFile& operator=(const IniFile&) = delete;
 
     // Set a new backing file. This does not read data from the file. Call
     // |read| to refresh data from the new backing file.

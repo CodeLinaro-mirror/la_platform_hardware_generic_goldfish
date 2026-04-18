@@ -239,7 +239,7 @@ class Launcher {
 
     void launch_fishtank() {
         if (auto fishtank_config = ::goldfish::launcher::fishtank::launch_config(
-                    config_.resolved_paths.fishtank_binary, config_.avd->Name(),
+                    config_.emulator_paths.fishtank_binary, config_.avd->Name(),
                     ports_.serial_number, config_.opts);
             fishtank_config.ok()) {
             if (auto s = config_.process_launcher->Launch(
@@ -270,7 +270,7 @@ class Launcher {
         }
 
         if (auto netsim_config =
-                    netsimd_launch_config(config_.resolved_paths.netsim_binary, config_.opts);
+                    netsimd_launch_config(config_.emulator_paths.netsim_binary, config_.opts);
             netsim_config.ok()) {
             if (auto s = config_.process_launcher->Launch(
                         *std::move(netsim_config),
@@ -386,9 +386,12 @@ class Launcher {
     void launch_emulator(ChardevEndpoints chardev_endpoints) {
         LaunchQemu emulator{EmulatorConfig{ports_,
                                            chardev_endpoints,
-                                           {.session_id = config_.metrics_reporter->session_id(),
-                                            .writer_config = config_.metrics_writer_config},
-                                           config_.resolved_paths,
+                                           {
+                                               .session_id = config_.metrics_reporter->session_id(),
+                                               .writer_config = config_.metrics_writer_config,
+                                           },
+                                           config_.user_paths,
+                                           config_.emulator_paths,
                                            *config_.avd,
                                            config_.opts}};
 

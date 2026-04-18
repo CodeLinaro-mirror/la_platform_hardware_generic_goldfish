@@ -69,16 +69,16 @@ TEST(ConfigureDrivesTest, AddDrives) {
     MockAvd& mock_avd = emu.mock_avd();
     HardwareConfig hw;
     EXPECT_CALL(mock_avd, Hw()).WillRepeatedly(testing::ReturnRef(hw));
-    EXPECT_CALL(mock_avd, GetSystemImageFilePath(Avd::ImageType::INITSYSTEM))
-            .WillRepeatedly(Return(system_dir / "system.img"));
-    EXPECT_CALL(mock_avd, GetSystemImageFilePath(Avd::ImageType::INITVENDOR))
-            .WillRepeatedly(Return(system_dir / "vendor.img"));
-    EXPECT_CALL(mock_avd, GetSystemImageFilePath(Avd::ImageType::ENCRYPTIONKEY))
-            .WillRepeatedly(Return(system_dir / "encryption_key.img"));
-    EXPECT_CALL(mock_avd, GetSystemImageFilePath(Avd::ImageType::INITZIP))
-            .WillRepeatedly(Return(system_dir / "data"));
-    //     EXPECT_CALL(mock_avd, getSystemImageFilePath(Avd::ImageType::INITZIP))
-    //             .WillRepeatedly(Return(absl::NotFoundError("")));
+
+    SystemImagePaths system_image_paths;
+    system_image_paths.system_image = system_dir / "system.img";
+    system_image_paths.vendor_image = system_dir / "vendor.img";
+    system_image_paths.encryption_key_image = system_dir / "encryption_key.img";
+    system_image_paths.data_dir = system_dir / "data";
+
+    EXPECT_CALL(mock_avd, GetSystemImagePaths())
+            .WillRepeatedly(testing::ReturnRef(system_image_paths));
+
     EXPECT_CALL(mock_avd, GetContentPath()).WillRepeatedly(Return(user_dir));
 
     MockDeviceContainer mock_container;

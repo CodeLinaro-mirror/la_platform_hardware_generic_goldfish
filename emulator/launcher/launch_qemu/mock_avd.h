@@ -31,23 +31,16 @@ class MockAvd : public Avd {
     MOCK_METHOD(std::string, Name, (), (const override));
     MOCK_METHOD(DeviceType, GetDeviceType, (), (const override));
     MOCK_METHOD(fs::path, GetContentPath, (), (const override));
-    MOCK_METHOD(absl::StatusOr<fs::path>, GetSystemImageFilePath, (Avd::ImageType img_type),
-                (const override));
-    MOCK_METHOD(bool, hasEncryptionKey, (), (const override));
+    MOCK_METHOD(const SystemImagePaths&, GetSystemImagePaths, (), (const override));
     MOCK_METHOD(CpuArchitecture, DetectArchitecture, (), (const override));
-
-    MOCK_METHOD(fs::path, GetSdkPath, (), (const override));
-    MOCK_METHOD(fs::path, GetAvdPath, (), (const override));
 
     MOCK_METHOD(const HardwareConfig&, Hw, (), (const override));
     MOCK_METHOD(bool, Playstore, (), (const override));
     MOCK_METHOD(int, ApiLevel, (), (const override));
     MOCK_METHOD(std::string, Dessert, (), (const override));
     MOCK_METHOD(std::string, ApiDescription, (), (const override));
-    MOCK_METHOD(fs::path, GetConfigIniPath, (), (const override));
     MOCK_METHOD(std::string, DisplayName, (), (const override));
     MOCK_METHOD(std::string, SkinName, (), (const override));
-    MOCK_METHOD(absl::Status, Finalize, (), (override));
     MOCK_METHOD(std::string, Id, (), (const override));
     MOCK_METHOD(std::string, Abi, (), (const override));
     MOCK_METHOD(std::string, BuildSdk, (), (const override));

@@ -41,7 +41,8 @@ struct LauncherConfig {
     std::unique_ptr<::goldfish::metrics::MetricsReporter> metrics_reporter;
     std::unique_ptr<::goldfish::async::AsyncSocketFactory> socket_factory;
 
-    ResolvedInputPaths resolved_paths;
+    UserPaths user_paths;
+    EmulatorPaths emulator_paths;
     std::unique_ptr<Avd> avd;
     AndroidOptions opts;
     ::goldfish::metrics::MetricsWriterConfig metrics_writer_config;

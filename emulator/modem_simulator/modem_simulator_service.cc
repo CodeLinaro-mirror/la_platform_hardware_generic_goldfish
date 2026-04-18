@@ -157,21 +157,12 @@ void CopyIfMissing(const fs::path& modem_avd_dir, const char* dst_filename,
     }
 }
 
-absl::StatusOr<fs::path> GetSystemImageDir(const Avd& avd) {
-    auto build_prop_path = avd.GetSystemImageFilePath(Avd::ImageType::BUILDPROP);
-    if (!build_prop_path.ok()) {
-        return build_prop_path.status();
-    }
-
-    return build_prop_path.value().parent_path();
-}
-
 /**
  * Make sure the important files exist in `modem_simulator_dir`,
  * otherwise copy them from the system image.
  */
-void CheckModemSimulatorAvdDir(const fs::path& modem_avd_dir, const fs::path& si_dir) {
-    const fs::path modem_simulator_si_dir = si_dir / "data" / "misc" / "modem_simulator";
+void CheckModemSimulatorAvdDir(const fs::path& modem_avd_dir, const fs::path& si_data_dir) {
+    const fs::path modem_simulator_si_dir = si_data_dir / "misc" / "modem_simulator";
 
     CopyIfMissing(modem_avd_dir, "iccprofile_for_sim0.xml",
                   modem_simulator_si_dir / "iccprofile_for_sim0.xml");
@@ -198,12 +189,7 @@ absl::StatusOr<std::shared_ptr<ModemSimulatorService>> CreateImpl(const Avd& avd
         }
     }
 
-    const auto si_dir = GetSystemImageDir(avd);
-    if (!si_dir.ok()) {
-        return si_dir.status();
-    }
-
-    CheckModemSimulatorAvdDir(modem_simulator_avd_dir, *si_dir);
+    CheckModemSimulatorAvdDir(modem_simulator_avd_dir, avd.GetSystemImagePaths().data_dir);
 
     SharedFD host_fd = SharedFD::SocketLocalServer();
     SharedFD guest_fd = SharedFD::SocketLocalServer();

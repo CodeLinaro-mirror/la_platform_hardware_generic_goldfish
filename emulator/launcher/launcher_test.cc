@@ -113,7 +113,8 @@ class LauncherTest : public testing::Test {
                       << "for %%a in (%*) do (\n"
                       << "  set \"arg=%%~a\"\n"
                       << "  if \"%%~xa\"==\".qcow2\" (\n"
-                      << "    powershell -Command \"[IO.File]::WriteAllBytes('%%~a', [byte[]](0x51, 0x46, 0x49, 0xFB))\"\n"
+                      << "    powershell -Command \"[IO.File]::WriteAllBytes('%%~a', "
+                         "[byte[]](0x51, 0x46, 0x49, 0xFB))\"\n"
                       << "  )\n"
                       << ")\n"
                       << "exit /b 0\n";
@@ -131,30 +132,24 @@ class LauncherTest : public testing::Test {
         qemu_img_file.close();
         fs::permissions(qemu_img, fs::perms::owner_exec | fs::perms::owner_all);
 
-        // Create dummy images
-        std::ofstream(temp_dir / "encryptionkey.img").close();
-        std::ofstream(temp_dir / "userdata.img").close();
-        std::ofstream(temp_dir / "cache.img").close();
-        std::ofstream(temp_dir / "vendor.img").close();
-        std::ofstream(temp_dir / "system.img").close();
-
-        resolved_paths.launcher_binary = temp_dir / "emulator";
-        resolved_paths.launcher_directory = temp_dir;
-        resolved_paths.binary_directory = temp_dir / "bin";
-        resolved_paths.library_directory = temp_dir / "lib";
-        resolved_paths.lib64_directory = temp_dir / "lib64";
-        resolved_paths.bios_directory = temp_dir / "share" / "qemu";
-        resolved_paths.user_directory = temp_dir / "user";
-        resolved_paths.avd_directory = temp_dir / "avd";
-        resolved_paths.sdk_directory = temp_dir / "sdk";
-        resolved_paths.discovery_directory = temp_dir / "discovery";
-        resolved_paths.qemu_img_binary = qemu_img;
+        emulator_paths.launcher_binary = temp_dir / "emulator";
+        emulator_paths.launcher_directory = temp_dir;
+        emulator_paths.binary_directory = temp_dir / "bin";
+        emulator_paths.library_directory = temp_dir / "lib";
+        emulator_paths.lib64_directory = temp_dir / "lib64";
+        emulator_paths.bios_directory = temp_dir / "share" / "qemu";
+        emulator_paths.qemu_img_binary = qemu_img;
         // No need to have .exe for Windows on these binaries as they aren't executed.
-        resolved_paths.qemu_system_x86_binary = temp_dir / "bin" / "qemu-system-x86_64";
-        resolved_paths.qemu_system_arm_binary = temp_dir / "bin" / "qemu-system-aarch64";
-        resolved_paths.netsim_binary = temp_dir / "bin" / "netsimd";
-        resolved_paths.crashpad_handler_binary = temp_dir / "bin" / "crashpad_handler";
-        resolved_paths.fishtank_binary = temp_dir / "fishtank" / "fishtank";
+        emulator_paths.qemu_system_x86_binary = temp_dir / "bin" / "qemu-system-x86_64";
+        emulator_paths.qemu_system_arm_binary = temp_dir / "bin" / "qemu-system-aarch64";
+        emulator_paths.netsim_binary = temp_dir / "bin" / "netsimd";
+        emulator_paths.crashpad_handler_binary = temp_dir / "bin" / "crashpad_handler";
+        emulator_paths.fishtank_binary = temp_dir / "fishtank" / "fishtank";
+
+        user_paths.user_directory = temp_dir / "user";
+        user_paths.avd_directory = temp_dir / "avd";
+        user_paths.sdk_directory = temp_dir / "sdk";
+        user_paths.discovery_directory = temp_dir / "discovery";
 
         std::memset(&opts, 0, sizeof(opts));
         opts.no_window = true;
@@ -200,7 +195,8 @@ class LauncherTest : public testing::Test {
             .signal_handlers = std::move(owned_signal_handlers),
             .metrics_reporter = std::move(reporter),
             .socket_factory = std::move(owned_socket_factory),
-            .resolved_paths = std::move(resolved_paths),
+            .user_paths = std::move(user_paths),
+            .emulator_paths = std::move(emulator_paths),
             .avd = std::move(avd),
             .opts = std::move(opts),
         });
@@ -242,10 +238,7 @@ class LauncherTest : public testing::Test {
         fs::path avd_dir = temp_dir / "avd_content";
         fs::create_directories(avd_dir);
         EXPECT_CALL(*avd, Name()).WillRepeatedly(Return("test_avd"));
-        EXPECT_CALL(*avd, Finalize()).WillRepeatedly(Return(absl::OkStatus()));
         EXPECT_CALL(*avd, GetContentPath()).WillRepeatedly(Return(avd_dir));
-        EXPECT_CALL(*avd, GetAvdPath()).WillRepeatedly(Return(avd_dir));
-        EXPECT_CALL(*avd, GetConfigIniPath()).WillRepeatedly(Return(avd_dir / "config.ini"));
         EXPECT_CALL(*avd, Details(_)).WillRepeatedly(Return("test_details"));
 #if defined(__arm64__)
         EXPECT_CALL(*avd, DetectArchitecture()).WillRepeatedly(Return(Avd::CpuArchitecture::kArm));
@@ -258,24 +251,40 @@ class LauncherTest : public testing::Test {
         EXPECT_CALL(*avd, GetLastRunQemuVersion()).WillRepeatedly(Return(std::optional<int>(10)));
         EXPECT_CALL(*avd, Hw()).WillRepeatedly(testing::ReturnRef(hw));
 
-        EXPECT_CALL(*avd, GetSystemImageFilePath(_))
-                .WillRepeatedly([&](Avd::ImageType type) -> absl::StatusOr<fs::path> {
-                    if (type == Avd::ImageType::INITZIP) {
-                        fs::path data_dir = temp_dir / "data_dir";
-                        fs::create_directories(data_dir);
-                        std::ofstream(data_dir / "empty_data_disk").close();
-                        return data_dir;
-                    }
-                    return temp_dir / "system.img";
-                });
+        system_image_paths.system_image = temp_dir / "system.img";
+        system_image_paths.vendor_image = temp_dir / "vendor.img";
+        system_image_paths.ramdisk_image = temp_dir / "ramdisk.img";
+        system_image_paths.data_dir = temp_dir / "data";
+        system_image_paths.kernel_image = temp_dir / "kernel-ranchu";
+        system_image_paths.kernel_cmdline = temp_dir / "kernel_cmdline.txt";
+        system_image_paths.build_properties = temp_dir / "build.prop";
+        system_image_paths.advanced_features = temp_dir / "advancedFeatures.ini";
+        system_image_paths.verified_boot_params = temp_dir / "VerifiedBootParams.textproto";
+        system_image_paths.encryption_key_image = temp_dir / "encryptionkey.img";
+
+        // Create dummy images
+        std::ofstream(system_image_paths.build_properties).close();
+        std::ofstream(system_image_paths.advanced_features).close();
+        std::ofstream(system_image_paths.verified_boot_params).close();
+        std::ofstream(system_image_paths.kernel_cmdline).close();
+        std::ofstream(system_image_paths.kernel_image).close();
+        std::ofstream(system_image_paths.ramdisk_image).close();
+        std::ofstream(system_image_paths.encryption_key_image).close();
+        std::ofstream(system_image_paths.system_image).close();
+        std::ofstream(system_image_paths.vendor_image).close();
+        fs::create_directories(system_image_paths.data_dir);
+        std::ofstream(system_image_paths.data_dir / "empty_data_disk").close();
+
+        EXPECT_CALL(*avd, GetSystemImagePaths())
+                .WillRepeatedly(testing::ReturnRef(system_image_paths));
         return avd;
     }
 
     fs::path ExpectedQemuBinary() {
 #if defined(__arm64__)
-      return resolved_paths.qemu_system_arm_binary;
+        return emulator_paths.qemu_system_arm_binary;
 #else
-      return resolved_paths.qemu_system_x86_binary;
+        return emulator_paths.qemu_system_x86_binary;
 #endif
     }
 
@@ -306,7 +315,9 @@ class LauncherTest : public testing::Test {
     }
 
     fs::path temp_dir;
-    ResolvedInputPaths resolved_paths;
+    UserPaths user_paths;
+    EmulatorPaths emulator_paths;
+    SystemImagePaths system_image_paths;
     AndroidOptions opts;
     HardwareConfig hw;
     std::unique_ptr<::goldfish::async::LibuvEventLoop> event_loop;
@@ -390,15 +401,16 @@ TEST_F(LauncherTest, LaunchesFishtankWhenWindowIsEnabled) {
     ::goldfish::async::ProcessLauncher::ExitCallback emulator_exit_cb;
 
     EXPECT_CALL(*mock_launcher, Launch(testing::Field(&::goldfish::async::LaunchConfig::exe_path,
-                                                      resolved_paths.fishtank_binary),
+                                                      emulator_paths.fishtank_binary),
                                        _))
             .WillOnce([&](const ::goldfish::async::LaunchConfig&,
                           ::goldfish::async::ProcessLauncher::ExitCallback exit_cb) {
                 fishtank_exit_cb = std::move(exit_cb);
                 fishtank_launched.Notify();
                 auto process = std::make_unique<MockManagedProcess>();
-                EXPECT_CALL(*process, GetPid()).WillRepeatedly(Return(5678));
-                EXPECT_CALL(*process, Kill(SIGTERM)).Times(testing::AtMost(1));
+                MockManagedProcess* process_ptr = process.get();
+                EXPECT_CALL(*process_ptr, GetPid()).WillRepeatedly(Return(5678));
+                EXPECT_CALL(*process_ptr, Kill(SIGTERM)).Times(testing::AtMost(1));
                 return absl::StatusOr<std::unique_ptr<::goldfish::async::ManagedProcess>>(
                         std::move(process));
             });
@@ -428,7 +440,7 @@ TEST_F(LauncherTest, DoesNotLaunchFishtankWhenWindowIsDisabled) {
 
     // Verify fishtank is NOT launched.
     EXPECT_CALL(*mock_launcher, Launch(testing::Field(&::goldfish::async::LaunchConfig::exe_path,
-                                                      resolved_paths.fishtank_binary),
+                                                      emulator_paths.fishtank_binary),
                                        _))
             .Times(0);
 
@@ -522,8 +534,7 @@ TEST_F(LauncherTest, HandlesValidPortsOption) {
     ::goldfish::async::ProcessLauncher::ExitCallback emulator_exit_cb;
 
     auto config_matcher = testing::AllOf(
-            testing::Field(&::goldfish::async::LaunchConfig::exe_path,
-                           ExpectedQemuBinary()),
+            testing::Field(&::goldfish::async::LaunchConfig::exe_path, ExpectedQemuBinary()),
             testing::Field(
                     &::goldfish::async::LaunchConfig::args,
                     testing::AllOf(testing::Contains(testing::HasSubstr("avdstart")),
@@ -554,8 +565,7 @@ TEST_F(LauncherTest, HuntsForFreePort) {
     ::goldfish::async::ProcessLauncher::ExitCallback emulator_exit_cb;
 
     auto config_matcher = testing::AllOf(
-            testing::Field(&::goldfish::async::LaunchConfig::exe_path,
-                           ExpectedQemuBinary()),
+            testing::Field(&::goldfish::async::LaunchConfig::exe_path, ExpectedQemuBinary()),
             testing::Field(
                     &::goldfish::async::LaunchConfig::args,
                     testing::AllOf(testing::Contains(testing::HasSubstr("avdstart")),

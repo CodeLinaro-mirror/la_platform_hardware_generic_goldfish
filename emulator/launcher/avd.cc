@@ -176,228 +176,191 @@ std::string GetIconForDeviceType(DeviceType flavor) {
     }
 }
 
-}  // namespace
+struct BuildProp {
+    std::string Abi() const { return build_ini_.GetString("ro.product.cpu.abi", "unknown"); }
 
-Avd::CpuArchitecture FileBackedAvd::DetectArchitecture() const {
-    auto abi = config_->GetString("abi.type", "unknown");
-    if (absl::StrContains(abi, "x86")) {
-        return CpuArchitecture::kX86;
+    int ApiLevel() const {
+        return build_ini_.GetInt("ro.system.build.version.sdk", Avd::kUnknownApiLevel);
     }
 
-    if (absl::StrContains(abi, "arm")) {
-        return CpuArchitecture::kArm;
-    }
+    std::string Sdk() const { return build_ini_.GetString("ro.build.version.sdk", "unknown"); }
 
-    return CpuArchitecture::kUnknown;
-}
+    std::string Id() const { return build_ini_.GetString("ro.build.id", "unknown"); }
+    std::string Fingerprint() const {
+        using namespace std::literals;
+        constexpr auto props = std::array{"ro.build.fingerprint"sv, "ro.system.build.fingerprint"sv,
+                                          "ro.build.display.id"sv};
 
-int FileBackedAvd::ApiLevel() const {
-    // TODO Maybe check config_->GetString("target") e.g. android-36.1 against build_ini_
-    // ro.system.build.version.sdk_full.
-    return build_ini_.GetInt("ro.system.build.version.sdk", kUnknownApiLevel);
-}
-
-std::string FileBackedAvd::Dessert() const {
-    return std::string(GetApiDessertName(ApiLevel()));
-}
-
-std::string FileBackedAvd::ApiDescription() const {
-    return GetFullApiName(ApiLevel());
-}
-
-absl::Status FileBackedAvd::Finalize() {
-    RETURN_IF_ERROR(MemoryConfig::FinalizeRamAndHeapSize(hw_cfg_, ApiLevel()));
-
-    // save to CORE_HARDWARE_INI as well, embedded ui needs it
-    auto hw_path = GetContentPath() / CORE_HARDWARE_INI;
-    auto hw_config = std::make_unique<IniFile>(hw_path);
-    hw_cfg_.Write(hw_config.get());
-    hw_config->WriteDiscardingEmpty();
-    return absl::OkStatus();
-}
-
-bool FileBackedAvd::LoadBuildProps() {
-    auto buildprop = GetSystemImageFilePath(Avd::ImageType::BUILDPROP);
-    if (!buildprop.ok()) {
-        LOG(WARNING) << "Unable to retrieve image path: " << buildprop.status().message()
-                     << ", using unknown avd device type.";
-        return false;
-    }
-
-    if (!base::file::exists(*buildprop) || !base::file::can_read(*buildprop)) {
-        LOG(WARNING) << "Unable to read build properties: " << buildprop->string()
-                     << ", using unknown device type.";
-        return false;
-    }
-    build_ini_.SetBackingFile(*buildprop);
-    return build_ini_.Read();
-}
-
-absl::StatusOr<std::optional<int>> FileBackedAvd::GetLastRunQemuVersion() const {
-    auto qemu_version_path = GetContentPath() / AVD_QEMU_VERSION_FILENAME;
-    if (!base::file::exists(qemu_version_path)) {
-        // File does not exist, not an error
-        return std::nullopt;
-    }
-
-    std::ifstream ifs(qemu_version_path);
-    if (!ifs.is_open()) {
-        return absl::PermissionDeniedError(
-                absl::StrCat("Could not open file for reading: ", qemu_version_path.string()));
-    }
-
-    std::string file_content;
-    ifs >> file_content;
-
-    int value = 0;
-    if (file_content.empty() || !absl::SimpleAtoi(file_content, &value)) {
-        // File is empty, or invalid
-        return absl::InvalidArgumentError(
-                absl::StrCat("File content '", file_content, "' is not a valid integer."));
-    }
-
-    return value;
-}
-
-absl::Status FileBackedAvd::SetLastRunQemuVersion(int version) {
-    auto qemu_version_path = GetContentPath() / AVD_QEMU_VERSION_FILENAME;
-    std::ofstream ofs(qemu_version_path, std::ios::out | std::ios::trunc);
-    if (!ofs.is_open()) {
-        return absl::InternalError(
-                absl::StrCat("Failed to open file for writing: ", qemu_version_path.string()));
-    }
-
-    ofs << version;
-    if (!ofs.good()) {
-        return absl::InternalError(
-                absl::StrCat("Failed to write into file: ", qemu_version_path.string()));
-    }
-
-    return absl::OkStatus();
-}
-
-std::string FileBackedAvd::BuildProductName() const {
-    using namespace std::literals;
-    constexpr auto props =
-            std::array{"ro.product.name"sv, "ro.product.system.name"sv, "ro.build.flavor"sv};
-
-    for (const auto& prop : props) {
-        if (auto build = build_ini_.GetString(prop); !build.empty()) {
-            return build;
-        }
-    }
-    return {};
-}
-
-DeviceType FileBackedAvd::GetDeviceType() const {
-    using namespace std::literals;
-    constexpr auto label_map = std::array{
-        std::pair{"phone"sv, DeviceType::kPhone},     std::pair{"atv"sv, DeviceType::kTv},
-        std::pair{"wear"sv, DeviceType::kWear},       std::pair{"aw"sv, DeviceType::kWear},
-        std::pair{"car"sv, DeviceType::kAndroidAuto}, std::pair{"pc"sv, DeviceType::kDesktop},
-        std::pair{"desktop"sv, DeviceType::kDesktop}, std::pair{"xr"sv, DeviceType::kXr},
-        std::pair{"glasses"sv, DeviceType::kGlasses}};
-
-    auto product_name = BuildProductName();
-    for (const auto& [key, val] : label_map) {
-        if (product_name.contains(key)) {
-            return val;
-        }
-    }
-    return DeviceType::kUnknown;
-}
-
-absl::StatusOr<fs::path> FileBackedAvd::GetSystemImageFilePath(Avd::ImageType img_type) const {
-    auto image_file_name = GetImageFilename(img_type);
-
-    auto check_path = [](const fs::path& p) {
-        return base::file::exists(p) && base::file::can_read(p);
-    };
-
-    VLOG(1) << "Searching for sys image: " << image_file_name;
-    fs::path path = "no-sysimg";
-    for (const auto& sys_path : sys_image_paths_) {
-        if (path = sys_path / image_file_name; check_path(path)) {
-            VLOG(1) << "Found image in system dir: " << path;
-            return path;
-        }
-        VLOG(1) << "Not found in system dir: " << path;
-    }
-    return absl::NotFoundError(absl::StrCat("System image not found: ", image_file_name.string(),
-                                            " (last checked ", path.string(), ")"));
-}
-
-std::string FileBackedAvd::Details(const bool verbose) const {
-    if (verbose) {
-        auto icon = GetIconForDeviceType(GetDeviceType());
-        return absl::StrFormat("%-45s  - (%4dx%4d) %s", name_, hw_cfg_.hw_lcd_width,
-                               hw_cfg_.hw_lcd_height, icon);
-    }
-    return name_;
-}
-
-FileBackedAvd::FileBackedAvd(std::string name, std::unique_ptr<IniFile> config, fs::path sdk_path,
-                             fs::path avd_path, fs::path content_path,
-                             std::vector<fs::path> sys_image_paths)
-        : name_(std::move(name))
-        , config_(std::move(config))
-        , sdk_path_(std::move(sdk_path))
-        , avd_path_(std::move(avd_path))
-        , content_path_(std::move(content_path))
-        , sys_image_paths_(std::move(sys_image_paths)) {
-    if (!LoadBuildProps()) {
-        LOG(ERROR) << "Failed to load build properties from file";
-    }
-    // check abi
-
-    hw_cfg_.Load(*config_);
-
-    // TODO also load skin hardware.ini if present?
-
-    // TODO this probably needs to be updated when snapshots are supported.
-    auto hw_path = GetContentPath() / CORE_HARDWARE_INI;
-    if (base::file::exists(hw_path) && base::file::can_read(hw_path)) {
-        auto hw_config = std::make_unique<IniFile>(hw_path);
-        if (hw_config->Read()) {
-            // TODO load without defaults.
-            hw_cfg_.Load(*hw_config);
-        }
-    }
-
-    hw_cfg_.ApplyDefaults(GetSdkPath(), GetAvdPath());
-}
-
-// static
-absl::StatusOr<std::unique_ptr<FileBackedAvd>> FileBackedAvd::Parse(
-        std::string name, const fs::path& config_ini_path, fs::path sdk_path, fs::path avd_path,
-        fs::path content_path, const fs::path& sysdir_override) {
-    if (!base::file::exists(config_ini_path) || !base::file::can_read(config_ini_path)) {
-        return absl::NotFoundError(absl::StrCat(
-                "Unable to parse ", name, ", no access to config: ", config_ini_path.string()));
-    }
-
-    auto config = std::make_unique<IniFile>(config_ini_path);
-    if (!config->Read()) {
-        return absl::InternalError(
-                absl::StrCat("Unable to parse ini file: ", config_ini_path.string()));
-    }
-
-    std::vector<fs::path> sys_image_paths;
-    if (!sysdir_override.empty()) {
-        sys_image_paths.push_back(sysdir_override);
-    } else {
-        for (int n = 0; n < kMaxSearchPaths; n++) {
-            if (const std::string s = config->GetString(absl::StrCat(kSearchPrefix, n), "");
-                !s.empty()) {
-                sys_image_paths.push_back(sdk_path / s);
+        for (const auto& prop : props) {
+            if (auto v = build_ini_.GetString(prop, ""sv); !v.empty()) {
+                return v;
             }
         }
+        return ""s;
+    }
+    int64_t Timestamp() const { return build_ini_.GetInt64("ro.build.date.utc", 0); }
+
+    std::string Flavour() const { return build_ini_.GetString("ro.build.flavor", "unknown"); }
+
+    std::string ProductName() const {
+        using namespace std::literals;
+        constexpr auto props =
+                std::array{"ro.product.name"sv, "ro.product.system.name"sv, "ro.build.flavor"sv};
+
+        for (const auto& prop : props) {
+            if (auto build = build_ini_.GetString(prop); !build.empty()) {
+                return build;
+            }
+        }
+        return {};
     }
 
-    return std::unique_ptr<FileBackedAvd>(new FileBackedAvd(
-            std::move(name), std::move(config), std::move(sdk_path), std::move(avd_path),
-            std::move(content_path), std::move(sys_image_paths)));
-}
+    IniFile build_ini_;
+};
+
+}  // namespace
+
+class FileBackedAvd : public Avd {
+  public:
+    FileBackedAvd(std::string name, SystemImagePaths system_image_paths, IniFile config_ini,
+                  BuildProp build, HardwareConfig hw_cfg, fs::path content_path)
+            : name_(std::move(name))
+            , system_image_paths_(std::move(system_image_paths))
+            , config_ini_(std::move(config_ini))
+            , build_ini_(std::move(build))
+            , hw_cfg_(std::move(hw_cfg))
+            , content_path_(std::move(content_path)) {}
+
+    std::string Name() const override { return name_; }
+    const SystemImagePaths& GetSystemImagePaths() const override { return system_image_paths_; }
+    fs::path GetContentPath() const override { return content_path_; };
+    const HardwareConfig& Hw() const override { return hw_cfg_; }
+
+    bool Playstore() const override { return false; }
+    std::string DisplayName() const override {
+        return config_ini_.GetString("avd.ini.displayname", Name());
+    }
+    std::string SkinName() const override { return config_ini_.GetString("skin.name", ""); }
+    std::string Id() const override {
+        // TODO allow override with opts.id
+        return Name();
+    }
+
+    std::string Abi() const override {
+        // TODO check against detected arch.
+        return build_ini_.Abi();
+    }
+
+    int ApiLevel() const override {
+        // TODO Maybe check config_ini_.GetString("target") e.g. android-36.1 against build_ini_
+        // ro.system.build.version.sdk_full.
+        return build_ini_.ApiLevel();
+    }
+
+    std::string BuildSdk() const override { return build_ini_.Sdk(); }
+    std::string BuildId() const override { return build_ini_.Id(); }
+    std::string BuildFingerprint() const override { return build_ini_.Fingerprint(); }
+    int64_t BuildTimestamp() const override { return build_ini_.Timestamp(); }
+    std::string BuildFlavour() const override { return build_ini_.Flavour(); }
+    std::string BuildProductName() const override { return build_ini_.ProductName(); }
+
+    Avd::CpuArchitecture DetectArchitecture() const override {
+        auto abi = config_ini_.GetString("abi.type", "unknown");
+        if (absl::StrContains(abi, "x86")) {
+            return CpuArchitecture::kX86;
+        }
+
+        if (absl::StrContains(abi, "arm")) {
+            return CpuArchitecture::kArm;
+        }
+
+        return CpuArchitecture::kUnknown;
+    }
+
+    std::string Dessert() const override { return std::string(GetApiDessertName(ApiLevel())); }
+
+    std::string ApiDescription() const override { return GetFullApiName(ApiLevel()); }
+
+    absl::StatusOr<std::optional<int>> GetLastRunQemuVersion() const override {
+        auto qemu_version_path = GetContentPath() / AVD_QEMU_VERSION_FILENAME;
+        if (!base::file::exists(qemu_version_path)) {
+            // File does not exist, not an error
+            return std::nullopt;
+        }
+
+        std::ifstream ifs(qemu_version_path);
+        if (!ifs.is_open()) {
+            return absl::PermissionDeniedError(
+                    absl::StrCat("Could not open file for reading: ", qemu_version_path.string()));
+        }
+
+        std::string file_content;
+        ifs >> file_content;
+
+        int value = 0;
+        if (file_content.empty() || !absl::SimpleAtoi(file_content, &value)) {
+            // File is empty, or invalid
+            return absl::InvalidArgumentError(
+                    absl::StrCat("File content '", file_content, "' is not a valid integer."));
+        }
+
+        return value;
+    }
+
+    absl::Status SetLastRunQemuVersion(int version) override {
+        auto qemu_version_path = GetContentPath() / AVD_QEMU_VERSION_FILENAME;
+        std::ofstream ofs(qemu_version_path, std::ios::trunc);
+        if (!ofs.is_open()) {
+            return absl::InternalError(
+                    absl::StrCat("Failed to open file for writing: ", qemu_version_path.string()));
+        }
+
+        ofs << version;
+        if (!ofs.good()) {
+            return absl::InternalError(
+                    absl::StrCat("Failed to write into file: ", qemu_version_path.string()));
+        }
+
+        return absl::OkStatus();
+    }
+
+    DeviceType GetDeviceType() const override {
+        using namespace std::literals;
+        constexpr auto label_map = std::array{
+            std::pair{"phone"sv, DeviceType::kPhone},     std::pair{"atv"sv, DeviceType::kTv},
+            std::pair{"wear"sv, DeviceType::kWear},       std::pair{"aw"sv, DeviceType::kWear},
+            std::pair{"car"sv, DeviceType::kAndroidAuto}, std::pair{"pc"sv, DeviceType::kDesktop},
+            std::pair{"desktop"sv, DeviceType::kDesktop}, std::pair{"xr"sv, DeviceType::kXr},
+            std::pair{"glasses"sv, DeviceType::kGlasses}};
+
+        auto product_name = BuildProductName();
+        for (const auto& [key, val] : label_map) {
+            if (product_name.contains(key)) {
+                return val;
+            }
+        }
+        return DeviceType::kUnknown;
+    }
+
+    std::string Details(const bool verbose) const override {
+        if (verbose) {
+            auto icon = GetIconForDeviceType(GetDeviceType());
+            return absl::StrFormat("%-45s  - (%4dx%4d) %s", name_, hw_cfg_.hw_lcd_width,
+                                   hw_cfg_.hw_lcd_height, icon);
+        }
+        return name_;
+    }
+
+  private:
+    std::string name_;
+
+    SystemImagePaths system_image_paths_;
+    IniFile config_ini_;
+    BuildProp build_ini_;
+    HardwareConfig hw_cfg_;
+
+    fs::path content_path_;  // Usually ~/.android/avd/<name>.avd/
+};
 
 namespace {
 // Check that an AVD name is valid.
@@ -413,7 +376,7 @@ bool CheckAvdName(const std::string& name) {
 // static
 std::vector<std::string> Avd::List(const fs::path& avd_directory) {
     std::vector<std::string> avds;
-    auto pattern = std::regex(".*.ini");
+    auto pattern = std::regex(".*\\.ini");
 
     for (const auto& entry : base::file::scan_dir(avd_directory)) {
         const auto& filename = entry.filename().string();
@@ -431,10 +394,11 @@ std::vector<std::string> Avd::List(const fs::path& avd_directory) {
 }
 
 // static
-absl::StatusOr<std::unique_ptr<Avd>> Avd::FromName(
-        const android::goldfish::ResolvedInputPaths& paths, const std::string& name, bool wipe_data,
-        const fs::path& sysdir_override, fs::path writable_content_override) {
-    auto ini_path = paths.avd_directory / (name + ".ini");
+absl::StatusOr<std::unique_ptr<Avd>> Avd::FromName(const AndroidOptions& opts,
+                                                   const android::goldfish::UserPaths& user_paths,
+                                                   const std::string& name, bool wipe_data,
+                                                   fs::path content_override) {
+    auto ini_path = user_paths.avd_directory / (name + ".ini");
 
     if (!base::file::exists(ini_path) || !base::file::can_read(ini_path)) {
         return absl::NotFoundError(absl::StrCat("No access to: ", ini_path.string()));
@@ -445,21 +409,38 @@ absl::StatusOr<std::unique_ptr<Avd>> Avd::FromName(
         return absl::InternalError(absl::StrCat("Unable to parse ini file: ", ini_path.string()));
     }
 
-    fs::path content_path = fs::path(ini->Get<std::string>("path", ""));
-    if (!base::file::exists(content_path) || !base::file::can_read(content_path)) {
-        auto rel_path = ini->Get<std::string>("path.rel", "");
-        content_path = paths.user_directory / rel_path;
-    }
     constexpr std::string_view kConfigIni = "config.ini";
     constexpr std::string_view kSdCardImg = "sdcard.img";
 
-    const fs::path config_ini_path = content_path / kConfigIni;
+    fs::path original_content_path;
+    if (auto abs_content_path = fs::path(ini->Get<std::string>("path", ""));
+        base::file::exists(abs_content_path)) {
+        original_content_path = abs_content_path;
+    } else if (auto rel_content_path =
+                       user_paths.user_directory / ini->Get<std::string>("path.rel", "");
+               base::file::exists(rel_content_path)) {
+        original_content_path = rel_content_path;
+    } else {
+        return absl::NotFoundError(absl::StrCat("AVD content directory not found: abs - ",
+                                                abs_content_path.string(), " rel - ",
+                                                rel_content_path.string()));
+    }
 
-    if (!writable_content_override.empty()) {
-        content_path = std::move(writable_content_override);
-    } else if (wipe_data) {
+    if (!base::file::can_read(original_content_path)) {
+        return absl::PermissionDeniedError(
+                absl::StrCat("AVD content directory exists but is not readable: ",
+                             original_content_path.string()));
+    }
+
+    if (!base::file::is_dir(original_content_path)) {
+        return absl::InvalidArgumentError(
+                absl::StrCat("AVD content directory exists but is not a directory: ",
+                             original_content_path.string()));
+    }
+
+    if (content_override.empty() && wipe_data) {
         LOG(WARNING) << "Performing factory reset: clearing AVD for an initial cold boot";
-        for (auto& path : android::base::file::scan_dir(content_path, /*fullPath=*/true)) {
+        for (auto& path : android::base::file::scan_dir(original_content_path, /*fullPath=*/true)) {
             if (path.filename() == kConfigIni) {
                 continue;
             }
@@ -474,15 +455,92 @@ absl::StatusOr<std::unique_ptr<Avd>> Avd::FromName(
         }
     }
 
-    auto avd_res =
-            FileBackedAvd::Parse(name, config_ini_path, paths.sdk_directory, paths.avd_directory,
-                                 std::move(content_path), sysdir_override);
-    if (!avd_res.ok()) {
-        return avd_res.status();
+    auto config_ini_path = original_content_path / kConfigIni;
+    if (!base::file::exists(config_ini_path) || !base::file::can_read(config_ini_path)) {
+        return absl::NotFoundError(absl::StrCat(
+                "Unable to parse ", name, ", no access to config: ", config_ini_path.string()));
     }
-    auto avd = std::move(*avd_res);
-    RETURN_IF_ERROR(avd->Finalize());
-    return avd;
+
+    IniFile config_ini(config_ini_path);
+    if (!config_ini.Read()) {
+        return absl::InternalError(
+                absl::StrCat("Unable to parse config ini file: ", config_ini_path.string()));
+    }
+
+    std::vector<fs::path> sys_image_search_paths;
+    if (opts.sysdir) {
+        sys_image_search_paths.push_back(fs::path(opts.sysdir));
+    } else {
+        for (int n = 0; n < kMaxSearchPaths; n++) {
+            if (const std::string s = config_ini.GetString(absl::StrCat(kSearchPrefix, n), "");
+                !s.empty()) {
+                sys_image_search_paths.push_back(user_paths.sdk_directory / s);
+            }
+        }
+    }
+
+    ASSIGN_OR_RETURN(auto system_image_paths,
+                     ResolveSystemImagePaths(sys_image_search_paths, opts));
+
+    IniFile build_ini(system_image_paths.build_properties);
+    if (!build_ini.Read()) {
+        return absl::InternalError(absl::StrCat("Unable to parse build properties file: ",
+                                                system_image_paths.build_properties.string()));
+    }
+    BuildProp build_wrapper{
+        .build_ini_ = std::move(build_ini),
+    };
+
+    // check abi
+
+    fs::path content_path = original_content_path;
+    if (!content_override.empty()) {
+        content_path = content_override;
+        if (!base::file::can_read(content_path)) {
+            return absl::PermissionDeniedError(
+                    absl::StrCat("AVD override content directory exists but is not readable: ",
+                                 content_path.string()));
+        }
+
+        if (!base::file::is_dir(content_path)) {
+            return absl::InvalidArgumentError(
+                    absl::StrCat("AVD override content directory exists but is not a directory: ",
+                                 content_path.string()));
+        }
+    }
+
+    if (!base::file::can_write(content_path)) {
+        return absl::PermissionDeniedError(absl::StrCat(
+                "AVD content directory exists but is not writable: ", content_path.string()));
+    }
+
+    HardwareConfig hw_cfg;
+    hw_cfg.Load(config_ini);
+
+    // TODO also load skin hardware.ini if present?
+
+    // TODO this probably needs to be updated when snapshots are supported.
+    // #define CORE_HARDWARE_INI "hardware-qemu.ini"
+    auto hw_path = content_path / CORE_HARDWARE_INI;
+    if (base::file::exists(hw_path) && base::file::can_read(hw_path)) {
+        auto hw_config = std::make_unique<IniFile>(hw_path);
+        if (hw_config->Read()) {
+            // TODO load without defaults.
+            hw_cfg.Load(*hw_config);
+        }
+    }
+
+    hw_cfg.ApplyDefaults(user_paths.sdk_directory, user_paths.avd_directory);
+    RETURN_IF_ERROR(MemoryConfig::FinalizeRamAndHeapSize(hw_cfg, build_wrapper.ApiLevel()));
+
+    // save to CORE_HARDWARE_INI as well, embedded ui needs it
+    auto hw_config = std::make_unique<IniFile>(hw_path);
+    hw_cfg.Write(hw_config.get());
+    hw_config->WriteDiscardingEmpty();
+
+    return std::make_unique<FileBackedAvd>(name, std::move(system_image_paths),
+                                           std::move(config_ini), std::move(build_wrapper),
+                                           std::move(hw_cfg), std::move(content_path));
 }
 
 // static

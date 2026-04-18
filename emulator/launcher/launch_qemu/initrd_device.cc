@@ -60,7 +60,7 @@ std::vector<std::pair<std::string, std::string>> getUserspaceBootProperties(
         std::string targetArch, std::string serialno, const int bootPropOpenglesVersion,
         const int api_level, std::string kernelSerialPrefix,
         const std::vector<std::string>& verifiedBootParameters, const Avd& avd,
-        const AndroidOptions& opts, const ResolvedInputPaths& paths) {
+        const AndroidOptions& opts, const UserPaths& paths) {
     const bool isX86ish = targetArch == "x86" || targetArch == "x86_64";
     const bool hasShellConsole = false;
     std::string androidbootVerityMode = "androidboot.veritymode";
@@ -366,7 +366,7 @@ std::vector<std::pair<std::string, std::string>> getBootProperties(const Emulato
     auto verifiedBootParameters = getVerifiedBootparams(emulator);
     return getUserspaceBootProperties(hw.hw_cpu_arch, avd.Name(), bootPropOpenglesVersion,
                                       api_level, real_console_tty_prefix, verifiedBootParameters,
-                                      avd, emulator.opts(), emulator.paths());
+                                      avd, emulator.opts(), emulator.user_paths());
 }
 
 absl::Status InitrdDevice::initialize(const EmulatorConfig& emulator) {
@@ -374,16 +374,7 @@ absl::Status InitrdDevice::initialize(const EmulatorConfig& emulator) {
 
     const Avd& avd = emulator.avd();
 
-    fs::path system_ramdisk;
-    if (auto* ramdisk = emulator.opts().ramdisk; ramdisk != nullptr) {
-        system_ramdisk = fs::path(ramdisk);
-        if (!base::file::exists(system_ramdisk)) {
-            return absl::NotFoundError(
-                    absl::StrCat("system ramdisk specified by -ramdisk flag not found: ", ramdisk));
-        }
-    } else {
-        ASSIGN_OR_RETURN(system_ramdisk, avd.GetSystemImageFilePath(Avd::ImageType::RAMDISK));
-    }
+    fs::path system_ramdisk = avd.GetSystemImagePaths().ramdisk_image;
 
     // Why doesn't it use Avd::getImageFilename(Avd::ImageType::USERRAMDISK) ?
     mUserRamdisk = avd.GetContentPath() / "initrd";
