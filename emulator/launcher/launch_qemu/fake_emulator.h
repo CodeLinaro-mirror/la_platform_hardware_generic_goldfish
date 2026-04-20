@@ -12,12 +12,14 @@ class FakeEmulator {
     FakeEmulator(EmulatorPorts ports, AndroidOptions opts)
             : mPorts(std::move(ports))
             , mOpts(std::move(opts))
-            , mResolvedPaths{.launcher_directory = fs::path(android::base::Bazel::RunfilesPath(
+            , mEmulatorPaths{.launcher_directory = fs::path(android::base::Bazel::RunfilesPath(
                                                                     "goldfish+/emulator/launcher"))
-                                                           .make_preferred()}
+                                                           .make_preferred(),
+                                                          }
             , mMockAvd(std::make_unique<MockAvd>()) {
-        mEmulatorConfig = std::make_unique<EmulatorConfig>(
-                mPorts, mChardevEndpoints, mMetricsConfig, mResolvedPaths, *mMockAvd, mOpts);
+        mEmulatorConfig =
+                std::make_unique<EmulatorConfig>(mPorts, mChardevEndpoints, mMetricsConfig,
+                                                 mUserPaths, mEmulatorPaths, *mMockAvd, mOpts);
     }
 
     explicit FakeEmulator(AndroidOptions opts) : FakeEmulator(EmulatorPorts{}, std::move(opts)) {}
@@ -34,7 +36,8 @@ class FakeEmulator {
     ChardevEndpoints mChardevEndpoints;
     MetricsConfig mMetricsConfig;
 
-    ResolvedInputPaths mResolvedPaths;
+    EmulatorPaths mEmulatorPaths;
+    UserPaths mUserPaths;
     std::unique_ptr<MockAvd> mMockAvd;
 
     std::unique_ptr<EmulatorConfig> mEmulatorConfig;

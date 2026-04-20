@@ -104,8 +104,8 @@ std::string EmulatorMetricsUserId(const fs::path& user_directory) {
     return uuid;
 }
 
-::goldfish::metrics::MetricsWriterConfig GetMetricsWriterConfig(
-        const AndroidOptions& opts, const android::goldfish::ResolvedInputPaths& resolved_paths) {
+::goldfish::metrics::MetricsWriterConfig GetMetricsWriterConfig(const AndroidOptions& opts,
+                                                                const fs::path& user_dir) {
     using enum ::goldfish::metrics::MetricsWriterType;
     if (opts.no_metrics) {
         // do nothing
@@ -116,10 +116,10 @@ std::string EmulatorMetricsUserId(const fs::path& user_directory) {
         return {.type = kConsole};
     } else if (opts.metrics_collection) {
         LOG(INFO) << "Metrics will be uploaded directly by the emulator";
-        auto user_id = ::goldfish::metrics::studio::GetMetricsUserId(resolved_paths.user_directory);
+        auto user_id = ::goldfish::metrics::studio::GetMetricsUserId(user_dir);
         if (user_id.empty()) {
             // create our own one if there's no studio config
-            user_id = EmulatorMetricsUserId(resolved_paths.user_directory);
+            user_id = EmulatorMetricsUserId(user_dir);
         }
         // TODO(476380758): Switch from staging to prod clearcut after verification.
         return {.type = kPlaystore,
@@ -131,13 +131,12 @@ std::string EmulatorMetricsUserId(const fs::path& user_directory) {
         return {.type = kFile, .file_path = opts.metrics_to_file};
     } else {
         // No CLI overrides, use studio settings.
-        switch (::goldfish::metrics::studio::GetUserMetricsOptIn(resolved_paths.user_directory)) {
+        switch (::goldfish::metrics::studio::GetUserMetricsOptIn(user_dir)) {
             using enum ::goldfish::metrics::studio::OptInState;
         case kOptedIn:
             LOG(INFO) << "Metrics will be written to file and uploaded by Studio";
             return {.type = kStudio,
-                    .studio_spool_dir = ::goldfish::metrics::studio::GetSpoolDirectory(
-                            resolved_paths.user_directory),
+                    .studio_spool_dir = ::goldfish::metrics::studio::GetSpoolDirectory(user_dir),
                     .user_upload_consent = true};
         case kOptedOut:
             LOG(INFO) << "Studio user opted out of metrics";
@@ -149,16 +148,16 @@ std::string EmulatorMetricsUserId(const fs::path& user_directory) {
     }
 }
 
-void ListAvds(const android::goldfish::ResolvedInputPaths& resolved_paths, bool verbose,
-              char* sysdir_override) {
-    auto avds = android::goldfish::Avd::List(resolved_paths.avd_directory);
+void ListAvds(const AndroidOptions& opts, const android::goldfish::UserPaths& user_paths,
+              bool verbose) {
+    auto avds = android::goldfish::Avd::List(user_paths.avd_directory);
     for (const auto& name : avds) {
-        auto a = android::goldfish::Avd::FromName(resolved_paths, name, false,
-                                                  sysdir_override ? sysdir_override : "");
-        if (!a.status().ok()) {
-            std::cout << name << "is not valid: " << a.status().message();
-        } else {
+        auto a = android::goldfish::Avd::FromName(opts, user_paths, name, /*wipe_data=*/false,
+                                                  /*content_override=*/{});
+        if (a.ok()) {
             std::cout << (*a)->Details(verbose) << '\n';
+        } else {
+            std::cout << name << " is not valid: " << a.status();
         }
     }
 }
@@ -251,15 +250,21 @@ int main(int argc, char** argv) {
     }
 
     // Check that things exist so that we can error out early if necessary.
-    auto resolved_paths = android::goldfish::ResolvePaths(
+    auto emulator_paths = android::goldfish::ResolveEmulatorPaths(
             opts.verbose, android::goldfish::ShouldLaunchFishtank(opts));
-    if (!resolved_paths.ok()) {
-        LOG(ERROR) << "Failed to resolve paths: " << resolved_paths.status();
+    if (!emulator_paths.ok()) {
+        LOG(ERROR) << "Failed to resolve emulator paths: " << emulator_paths.status();
+        return 1;
+    }
+    auto user_paths =
+            android::goldfish::ResolveUserPaths(emulator_paths->launcher_directory, opts.verbose);
+    if (!user_paths.ok()) {
+        LOG(ERROR) << "Failed to resolve user paths: " << user_paths.status();
         return 1;
     }
 
     if (opts.list_avds) {
-        ListAvds(*resolved_paths, opts.verbose, opts.sysdir);
+        ListAvds(opts, *user_paths, opts.verbose);
         return 0;
     }
 
@@ -275,7 +280,7 @@ int main(int argc, char** argv) {
     auto event_loop = goldfish::async::LibuvEventLoop::Create("LauncherLoop");
 
     auto reporter = std::make_unique<::goldfish::metrics::MetricsReporter>();
-    auto metrics_writer_config = GetMetricsWriterConfig(opts, *resolved_paths);
+    auto metrics_writer_config = GetMetricsWriterConfig(opts, user_paths->user_directory);
     std::vector<std::string> crashed_metrics_sessions;
     if (metrics_writer_config.type == goldfish::metrics::MetricsWriterType::kStudio) {
         if (!::android::base::file::exists(metrics_writer_config.studio_spool_dir)) {
@@ -313,8 +318,8 @@ int main(int argc, char** argv) {
 
     // This is needed for gfxstream to be able to load GL libs.
     // TODO: consider moving this to gfxstream itself via the ANDROID_EMULATOR_LIBRARY_DIR env var.
-    android::base::System::Get()->AddLibrarySearchDir(resolved_paths->library_directory.string());
-    android::base::System::Get()->AddLibrarySearchDir(resolved_paths->lib64_directory.string());
+    android::base::System::Get()->AddLibrarySearchDir(emulator_paths->library_directory.string());
+    android::base::System::Get()->AddLibrarySearchDir(emulator_paths->lib64_directory.string());
 
     if (!opts.avd) {
         LOG(ERROR) << "No AVD specified. Use '@foo' or '-avd foo' to launch a virtual device named "
@@ -323,11 +328,6 @@ int main(int argc, char** argv) {
     }
 
     auto name = opts.avd;
-
-    fs::path sysdir_override;
-    if (opts.sysdir) {
-        sysdir_override = fs::path(opts.sysdir);
-    }
 
     fs::path writable_content_override;
     if (opts.read_only) {
@@ -347,8 +347,8 @@ int main(int argc, char** argv) {
         VLOG(1) << "Content path overridden to: " << writable_content_override;
     }
 
-    auto avd = android::goldfish::Avd::FromName(*resolved_paths, name, opts.wipe_data,
-                                                sysdir_override, writable_content_override);
+    auto avd = android::goldfish::Avd::FromName(opts, *user_paths, name, opts.wipe_data,
+                                                writable_content_override);
     if (!avd.ok()) {
         LOG(ERROR) << "Failed to load " << name << " due to " << avd.status().message();
         return 1;
@@ -388,7 +388,8 @@ int main(int argc, char** argv) {
         .signal_handlers = std::make_unique<::goldfish::async::UvSignalHandlers>(*event_loop),
         .metrics_reporter = std::move(reporter),
         .socket_factory = std::make_unique<::goldfish::async::LibuvAsyncSocketFactory>(),
-        .resolved_paths = *std::move(resolved_paths),
+        .user_paths = *std::move(user_paths),
+        .emulator_paths = *std::move(emulator_paths),
         .avd = *std::move(avd),
         .opts = std::move(opts),
         .metrics_writer_config = std::move(metrics_writer_config),

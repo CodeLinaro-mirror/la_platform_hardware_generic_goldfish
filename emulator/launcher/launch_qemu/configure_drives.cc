@@ -53,21 +53,6 @@ DiskConfig diskConfig(const Avd& avd, std::string_view id, std::string_view pci_
     };
 }
 
-absl::StatusOr<fs::path> getSystemImage(const Avd& avd, Avd::ImageType sys_image_type,
-                                        char* flag_override) {
-    fs::path p;
-    if (flag_override != nullptr) {
-        p = fs::path(flag_override);
-        if (!base::file::exists(p)) {
-            return absl::NotFoundError(absl::StrCat(
-                    "System image specified by flag override not found: ", flag_override));
-        }
-    } else {
-        ASSIGN_OR_RETURN(p, avd.GetSystemImageFilePath(sys_image_type));
-    }
-    return p;
-}
-
 fs::path getUserImage(const Avd& avd, Avd::ImageType user_image_type, char* flag_override) {
     if (flag_override != nullptr) {
         return fs::path(flag_override);
@@ -112,14 +97,6 @@ uint64_t getSdcardSize(const Avd& avd, const AndroidOptions& opts) {
 }  // namespace
 
 absl::StatusOr<std::vector<DiskConfig>> getDiskConfigs(const Avd& avd, const AndroidOptions& opts) {
-    ASSIGN_OR_RETURN(fs::path system, getSystemImage(avd, Avd::ImageType::INITSYSTEM, opts.system));
-    ASSIGN_OR_RETURN(fs::path encrypt,
-                     getSystemImage(avd, Avd::ImageType::ENCRYPTIONKEY, opts.encryption_key));
-    ASSIGN_OR_RETURN(fs::path vendor, getSystemImage(avd, Avd::ImageType::INITVENDOR, opts.vendor));
-
-    ASSIGN_OR_RETURN(fs::path init_data, getSystemImage(avd, Avd::ImageType::INITZIP, nullptr));
-    // TODO check for system INITDATA file if INITZIP dir doesn't exist?
-
     auto user_system = getUserImage(avd, Avd::ImageType::USERSYSTEM, nullptr);
     auto user_encrypt = getUserImage(avd, Avd::ImageType::ENCRYPTIONKEY, nullptr);
     auto user_vendor = getUserImage(avd, Avd::ImageType::USERVENDOR, nullptr);
@@ -137,23 +114,26 @@ absl::StatusOr<std::vector<DiskConfig>> getDiskConfigs(const Avd& avd, const And
         LOG(WARNING) << "System image is writable";
     }
 
+    const auto& sys_img_paths = avd.GetSystemImagePaths();
+
     // Data partition can have special case initialisation. If it can be created normally then this
     // function won't create it. This function might remove the qcow2 file so that it can be
     // recreated.
-    RETURN_IF_ERROR(
-            prepareUserDataBaseImage(avd, init_data, user_data, data_size, !avd.Hw().hw_arc));
+    RETURN_IF_ERROR(prepareUserDataBaseImage(avd, sys_img_paths.data_dir, user_data, data_size,
+                                             !avd.Hw().hw_arc));
 
     return std::vector<DiskConfig>{
         // Currently this must be the first drive on ARM to match the androidboot.boot_devices
         // parameter
         // set in initrd_device.cpp.
-        diskConfig(avd, "system", "03.0", rw_sys, system, user_system, 0),
+        diskConfig(avd, "system", "03.0", rw_sys, sys_img_paths.system_image, user_system, 0),
         // Encryption must be second for ARM - to have path
         // "/dev/block/platform/a003c00.virtio_mmio/by-name/metadata".
-        diskConfig(avd, "encrypt", "06.0", true, encrypt, user_encrypt, 0),
+        diskConfig(avd, "encrypt", "06.0", true, sys_img_paths.encryption_key_image, user_encrypt,
+                   0),
         diskConfig(avd, "userdata", "05.0", true, std::nullopt, getUserSrcDirectory(avd), user_data,
                    data_size),
-        diskConfig(avd, "vendor", "07.0", rw_sys, vendor, user_vendor, 0),
+        diskConfig(avd, "vendor", "07.0", rw_sys, sys_img_paths.vendor_image, user_vendor, 0),
         diskConfig(avd, "cache", "04.0", true, std::nullopt, user_cache, cache_size),
 #ifdef __x86_64__
         diskConfig(avd, "sdcard", "08.0", true, std::nullopt, user_sdcard, sdcard_size),

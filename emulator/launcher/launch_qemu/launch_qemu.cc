@@ -201,8 +201,8 @@ absl::Status LaunchQemu::addDevices() {
     // This should always be the last device, as it will finalize android emulator initialization.
     addDevice<ParameterList>(std::initializer_list<std::string>{"-device", "avdend"});
 
-    addDevice<ParameterList>(
-            std::initializer_list<std::string>{"-L", config_.paths().bios_directory.string()});
+    addDevice<ParameterList>(std::initializer_list<std::string>{
+        "-L", config_.emulator_paths().bios_directory.string()});
 
     if (o.qemu_telnet) {
         // Debug monitor
@@ -266,7 +266,7 @@ absl::Status LaunchQemu::initialize() {
 }
 
 std::string LaunchQemu::qemu_exe_path() const {
-    const auto& p = config_.paths();
+    const auto& p = config_.emulator_paths();
     std::string base;
     switch (config_.avd().DetectArchitecture()) {
     case Avd::CpuArchitecture::kX86:

@@ -18,13 +18,15 @@
 
 #include "absl/status/statusor.h"
 
+#include "android/cmdline_option.h"
+
 namespace android::goldfish {
 
 namespace fs = std::filesystem;
 
 // These paths represent read-only inputs providing configuration and data to the emulator
 // All paths should be canonicalised so as not to use
-struct ResolvedInputPaths {
+struct EmulatorPaths {
     fs::path launcher_binary;
 
     fs::path launcher_directory;
@@ -32,11 +34,6 @@ struct ResolvedInputPaths {
     fs::path library_directory;
     fs::path lib64_directory;
     fs::path bios_directory;
-
-    fs::path user_directory;
-    fs::path avd_directory;
-    fs::path sdk_directory;
-    fs::path discovery_directory;
 
     fs::path qemu_system_x86_binary;
     fs::path qemu_system_arm_binary;
@@ -47,10 +44,31 @@ struct ResolvedInputPaths {
     fs::path fishtank_binary;
 };
 
-// TODO
-/*struct ResolvedAvdPaths {
-    fs::path avd_config_ini;
+struct UserPaths {
+    fs::path user_directory;
+    fs::path avd_directory;
+    fs::path sdk_directory;
+    fs::path discovery_directory;
+    fs::path tmp_directory;
+};
 
+struct SystemImagePaths {
+    fs::path build_properties;
+    fs::path advanced_features;
+    fs::path verified_boot_params;
+
+    fs::path data_dir;
+
+    fs::path kernel_cmdline;
+    fs::path kernel_image;
+    fs::path ramdisk_image;
+    fs::path system_image;
+    fs::path vendor_image;
+    fs::path encryption_key_image;
+};
+
+// TODO
+/*struct AvdContentPaths {
     fs::path kernel_image;
     fs::path ramdisk_image;
 
@@ -62,6 +80,9 @@ struct ResolvedInputPaths {
     fs::path sdcard_image;
 };*/
 
-absl::StatusOr<ResolvedInputPaths> ResolvePaths(bool verbose, bool include_fishtank);
+absl::StatusOr<EmulatorPaths> ResolveEmulatorPaths(bool verbose, bool include_fishtank);
+absl::StatusOr<UserPaths> ResolveUserPaths(const fs::path& launcher_dir, bool verbose);
+absl::StatusOr<SystemImagePaths> ResolveSystemImagePaths(const std::vector<fs::path>& search_paths,
+                                                         const AndroidOptions& opts);
 
 }  // namespace android::goldfish

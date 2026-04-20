@@ -38,6 +38,7 @@ cc_library(
     deps = [
         ":emulator_config",
         ":mock_avd",
+        "//emulator/libs/system:bazel_info",
     ],
 )
 

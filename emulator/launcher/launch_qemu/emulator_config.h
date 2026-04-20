@@ -43,17 +43,20 @@ struct MetricsConfig {
 class EmulatorConfig {
   public:
     EmulatorConfig(const EmulatorPorts& ports, const ChardevEndpoints& chardev_endpoints,
-                   MetricsConfig metrics_config, const ResolvedInputPaths& resolved_paths,
-                   const Avd& avd, const AndroidOptions& opts)
+                   MetricsConfig metrics_config, const UserPaths& user_paths,
+                   const EmulatorPaths& emulator_paths, const Avd& avd, const AndroidOptions& opts)
             : mPorts(ports)
             , mChardevEndpoints(chardev_endpoints)
             , mMetricsConfig(std::move(metrics_config))
-            , mResolvedPaths(resolved_paths)
+            , mUserPaths(user_paths)
+            , mEmulatorPaths(emulator_paths)
             , mAvd(avd)
             , mOpts(opts) {}
 
+    const UserPaths& user_paths() const { return mUserPaths; }
+
     // The resolved paths to input binaries and data
-    const ResolvedInputPaths& paths() const { return mResolvedPaths; }
+    const EmulatorPaths& emulator_paths() const { return mEmulatorPaths; }
 
     // The avd description used to configure this emulator
     const Avd& avd() const { return mAvd; }
@@ -74,7 +77,8 @@ class EmulatorConfig {
     const ChardevEndpoints& mChardevEndpoints;
     const MetricsConfig mMetricsConfig;
 
-    const ResolvedInputPaths& mResolvedPaths;
+    const UserPaths& mUserPaths;
+    const EmulatorPaths& mEmulatorPaths;
     const Avd& mAvd;
     const AndroidOptions& mOpts;
 };

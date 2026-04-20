@@ -182,7 +182,8 @@ absl::Status RwDrive::initialize(const EmulatorConfig& emulator) {
     }
 
     if (!base::file::exists(mQcow2Image)) {
-        return convertImgToQcow2(emulator.paths().qemu_img_binary, mDestinationImage, mQcow2Image);
+        return convertImgToQcow2(emulator.emulator_paths().qemu_img_binary, mDestinationImage,
+                                 mQcow2Image);
     }
 
     return absl::OkStatus();

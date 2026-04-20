@@ -27,39 +27,12 @@
 
 #include "android/cmdline_definitions.h"
 #include "android/goldfish/avd.h"
-#include "android/goldfish/hardware_config.h"
 #include "android/status/status_macros.h"
 #include "goldfish/file/file.h"
 
 namespace android::goldfish {
 
 namespace {
-absl::StatusOr<fs::path> kernel_image(const Avd& avd, const AndroidOptions& opts) {
-    // Use the one provided by flag if present.
-    if (opts.kernel != nullptr) {
-        return opts.kernel;
-    }
-
-    // Use the one provided by hardware config if available
-    if (const auto& hw = avd.Hw(); !hw.kernel_path.empty()) {
-        return hw.kernel_path;
-    }
-
-    // Get the one defined in the avd.
-    auto options = {Avd::ImageType::KERNELRANCHU, Avd::ImageType::KERNELRANCHU64,
-                    Avd::ImageType::KERNEL};
-    for (const auto& option : options) {
-        auto kernel_image = avd.GetSystemImageFilePath(option);
-        if (kernel_image.ok()) {
-            // TODO Also update hw.kernel_path with the found image?
-            return *kernel_image;
-        }
-        LOG(INFO) << kernel_image.status().message();
-    }
-
-    return absl::NotFoundError("No kernel image found");
-}
-
 absl::StatusOr<std::string> command_line(const Avd& avd, const AndroidOptions& opts) {
     // btree to provide deterministic (sorted) order.
     absl::btree_set<std::string> cl = {"bootconfig", "no_timer_check", "8250.nr_uarts=1",
@@ -86,16 +59,12 @@ absl::StatusOr<std::string> command_line(const Avd& avd, const AndroidOptions& o
     // Note that this is currently duplicating: 8250.nr_uarts=1 (arm and x86) clocksource=pit (x86
     // only) but the set takes care of that. for 16k image, there is extra kernel_cmdline.txt
     {
-        auto kernel_cmdline_txt = avd.GetSystemImageFilePath(Avd::ImageType::KERNELCOMMANDLINE);
-        if (kernel_cmdline_txt.ok() && base::file::exists(*kernel_cmdline_txt) &&
-            base::file::can_read(*kernel_cmdline_txt)) {
-            std::ifstream cmdline_file(*kernel_cmdline_txt);
-            std::string first_line;
-            if (cmdline_file.is_open()) {
-                if (std::getline(cmdline_file, first_line)) {
-                    cl.merge(absl::btree_set<std::string>(
-                            absl::StrSplit(first_line, ' ', absl::SkipEmpty())));
-                }
+        std::ifstream cmdline_file(avd.GetSystemImagePaths().kernel_cmdline);
+        std::string first_line;
+        if (cmdline_file.is_open()) {
+            if (std::getline(cmdline_file, first_line)) {
+                cl.merge(absl::btree_set<std::string>(
+                        absl::StrSplit(first_line, ' ', absl::SkipEmpty())));
             }
         }
     }
@@ -111,8 +80,7 @@ absl::StatusOr<std::string> command_line(const Avd& avd, const AndroidOptions& o
 absl::Status KernelDevice::initialize(const EmulatorConfig& emulator) {
     const Avd& avd = emulator.avd();
     const AndroidOptions& opts = emulator.opts();
-    ASSIGN_OR_RETURN(auto k, kernel_image(avd, opts));
-    mDiskImage = k.string();
+    mDiskImage = avd.GetSystemImagePaths().kernel_image.string();
     ASSIGN_OR_RETURN(auto cl, command_line(avd, opts));
     mCommandLine = std::move(cl);
     return absl::OkStatus();

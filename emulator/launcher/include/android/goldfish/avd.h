@@ -96,9 +96,6 @@ class Avd {
     // file associated with the system image used by this avd.
     virtual DeviceType GetDeviceType() const = 0;
 
-    virtual fs::path GetSdkPath() const = 0;
-    virtual fs::path GetAvdPath() const = 0;
-
     /**
      * @brief Returns the path to the AVD's content directory. This is typically
      * ~/.android/avd/<name()>.
@@ -121,7 +118,7 @@ class Avd {
      * @see Avd::ImageType
      * @see ConfigDirs::getSdkRootDirectory
      */
-    virtual absl::StatusOr<fs::path> GetSystemImageFilePath(Avd::ImageType img_type) const = 0;
+    virtual const SystemImagePaths& GetSystemImagePaths() const = 0;
 
     /**
      * @brief Detects the CPU architecture of the AVD based on the 'abi.type'
@@ -180,16 +177,6 @@ class Avd {
     virtual std::string ApiDescription() const = 0;
 
     /**
-     * @brief Returns the path to the AVD's configuration file.
-     *
-     * This method returns the path to the AVD's configuration file, which is
-     * typically ~/.android/avd/<name>.avd/config.ini
-     *
-     * @return Path to the avd configuration file
-     */
-    virtual fs::path GetConfigIniPath() const = 0;
-
-    /**
      * @brief Returns the AVD's display name if set, otherwise the name.
      *
      * @return The displayname if set, otherwise the name.
@@ -199,15 +186,6 @@ class Avd {
 
     virtual std::string SkinName() const = 0;
 
-    /**
-     * @brief Finalizes the AVD configuration before emulator launch.
-     *
-     * This method applies any last-minute configuration changes, such as
-     * enforcing minimum RAM requirements or applying command-line overrides.
-     *
-     * @return absl::Status indicating success or failure.
-     */
-    virtual absl::Status Finalize() = 0;
     /**
      * @brief Retrieves the filename associated with the given AVD image type.
      *
@@ -238,10 +216,10 @@ class Avd {
      * @return An absl::StatusOr<Avd> object. On success, contains the
      *         constructed AVD. On failure, contains an error status.
      */
-    static absl::StatusOr<std::unique_ptr<Avd>> FromName(
-            const android::goldfish::ResolvedInputPaths& paths, const std::string& name,
-            bool wipe_data = false, const fs::path& sysdir_override = {},
-            fs::path writable_content_override = {});
+    static absl::StatusOr<std::unique_ptr<Avd>> FromName(const AndroidOptions& opts,
+                                                         const android::goldfish::UserPaths& paths,
+                                                         const std::string& name, bool wipe_data,
+                                                         fs::path writable_content_override);
 
     /**
      * @brief Returns the qemu version of the emulator that ran this AVD.
@@ -258,90 +236,6 @@ class Avd {
     virtual absl::Status SetLastRunQemuVersion(int version) = 0;
 
     static constexpr int kUnknownApiLevel = 1000;
-
-  protected:
-    Avd() = default;
-};
-
-class FileBackedAvd : public Avd {
-  public:
-    std::string Details(bool verbose) const override;
-
-    fs::path GetSdkPath() const override { return sdk_path_; }
-    fs::path GetAvdPath() const override { return avd_path_; }
-
-    std::string Name() const override { return name_; }
-    DeviceType GetDeviceType() const override;
-    fs::path GetContentPath() const override { return content_path_; };
-    absl::StatusOr<fs::path> GetSystemImageFilePath(Avd::ImageType img_type) const override;
-    CpuArchitecture DetectArchitecture() const override;
-    const HardwareConfig& Hw() const override { return hw_cfg_; }
-    bool Playstore() const override { return false; }
-    int ApiLevel() const override;
-    std::string Dessert() const override;
-    std::string ApiDescription() const override;
-    absl::Status Finalize() override;
-    fs::path GetConfigIniPath() const override { return config_->GetBackingFile(); }
-    std::string DisplayName() const override {
-        return config_->GetString("avd.ini.displayname", Name());
-    }
-    std::string SkinName() const override { return config_->GetString("skin.name", ""); }
-    std::string Id() const override {
-        // TODO allow override with opts.id
-        return Name();
-    }
-
-    std::string Abi() const override {
-        // TODO check against detected arch.
-        return build_ini_.GetString("ro.product.cpu.abi", "unknown");
-    }
-
-    std::string BuildSdk() const override {
-        return build_ini_.GetString("ro.build.version.sdk", "unknown");
-    }
-
-    std::string BuildId() const override { return build_ini_.GetString("ro.build.id", "unknown"); }
-    std::string BuildFingerprint() const override {
-        using namespace std::literals;
-        constexpr auto props = std::array{"ro.build.fingerprint"sv, "ro.system.build.fingerprint"sv,
-                                          "ro.build.display.id"sv};
-
-        for (const auto& prop : props) {
-            if (auto v = build_ini_.GetString(prop, ""sv); !v.empty()) {
-                return v;
-            }
-        }
-        return ""s;
-    }
-    int64_t BuildTimestamp() const override { return build_ini_.GetInt64("ro.build.date.utc", 0); }
-
-    std::string BuildFlavour() const override {
-        return build_ini_.GetString("ro.build.flavor", "unknown");
-    }
-
-    absl::StatusOr<std::optional<int>> GetLastRunQemuVersion() const override;
-    absl::Status SetLastRunQemuVersion(int version) override;
-
-    std::string BuildProductName() const override;
-
-    static absl::StatusOr<std::unique_ptr<FileBackedAvd>> Parse(
-            std::string name, const fs::path& config_ini_path, fs::path sdk_path, fs::path avd_path,
-            fs::path content_path, const fs::path& sysdir_override = {});
-
-  private:
-    FileBackedAvd(std::string name, std::unique_ptr<IniFile> config, fs::path sdk_path,
-                  fs::path avd_path, fs::path content_path, std::vector<fs::path> sys_image_paths);
-
-    bool LoadBuildProps();
-
-    std::string name_;
-    std::unique_ptr<IniFile> config_;
-    fs::path sdk_path_;
-    fs::path avd_path_;
-    fs::path content_path_;  // Usually ~/.android/avd/<name>.avd/
-    std::vector<fs::path> sys_image_paths_;
-    HardwareConfig hw_cfg_;
-    IniFile build_ini_;
 };
 
 }  // namespace android::goldfish
