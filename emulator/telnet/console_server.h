@@ -107,6 +107,8 @@ class ConsoleServer : public std::enable_shared_from_this<ConsoleServer> {
      */
     absl::Status Stop(absl::Duration timeout = absl::InfiniteDuration());
 
+    const Endpoint& GetEndpoint() const { return endpoint_; }
+
   private:
     class Connection;
 

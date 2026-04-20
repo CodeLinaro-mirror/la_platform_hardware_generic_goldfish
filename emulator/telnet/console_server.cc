@@ -169,6 +169,10 @@ absl::Status ConsoleServer::Start() {
             return absl::AlreadyExistsError("Server already started concurrently");
         }
         server_ = std::move(server);
+        // Update the port to the actual port the server is listening on. This is
+        // necessary because the endpoint is set to port 0, which means the
+        // operating system will assign an ephemeral port.
+        endpoint_ = server_->GetEndpoint();
     }
     return absl::OkStatus();
 }
