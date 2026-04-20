@@ -113,6 +113,7 @@ def _lrc_impl(module_ctx):
         "data-encoding",
         "downcast",
         "either",
+        "env_filter",
         "env_logger",
         "equivalent",
         "errno",

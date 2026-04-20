@@ -25,6 +25,7 @@ rust_library(
     crate_root = "src/lib.rs",
     edition = "2021",
     deps = [
+        "@env_filter",
         "@log",
     ],
 )
