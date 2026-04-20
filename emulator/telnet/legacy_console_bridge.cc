@@ -19,6 +19,9 @@
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
+
+#include "telnet_auth.h"
 
 namespace goldfish::telnet {
 
@@ -36,8 +39,20 @@ LegacyConsoleBridge::LegacyConsoleBridge(
 
     builder.On("auth" /* do_auth */, "user authentication for the emulator console",
                "use 'auth <auth_token>' to get extended console functionality\r\n",
-               [](ConsoleContext& /*ctx*/, const std::string& /*token*/) {
-                   return absl::UnimplementedError("not implemented");
+               [token_path = token_path_](ConsoleContext& ctx,
+                                          const std::string& token) -> absl::StatusOr<std::string> {
+                   auto expected_token = TelnetAuth::ReadToken(token_path);
+                   if (!expected_token.ok()) {
+                       return expected_token.status();
+                   }
+
+                   if ((*expected_token).SecureEquals(token)) {
+                       ctx.authenticated = true;
+                       return "Android Console: type 'help' for a list of commands";
+                   } else {
+                       return absl::InvalidArgumentError("authentication token does not match " +
+                                                         token_path.string());
+                   }
                });
     builder.Command("auth", "").Safe();
 

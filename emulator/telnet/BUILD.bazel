@@ -93,6 +93,7 @@ cc_library(
     deps = [
         ":command_registry",
         ":line_command_handler",
+        ":telnet_auth",
         "//emulator/libs/grpc_client",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
@@ -145,6 +146,18 @@ cc_test(
         "//emulator/libs/async:async_testing",
         "//emulator/libs/async:libuv_event_loop",
         "//emulator/libs/network",
+        "//emulator/libs/test:googletest_main",
+    ],
+)
+
+cc_test(
+    name = "legacy_console_bridge_test",
+    srcs = ["legacy_console_bridge_test.cc"],
+    deps = [
+        ":legacy_console_bridge",
+        ":telnet_auth",
+        "//emulator/libs/system",
+        "//emulator/libs/system:test-headers",
         "//emulator/libs/test:googletest_main",
     ],
 )
