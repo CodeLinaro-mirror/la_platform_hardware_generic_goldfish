@@ -173,6 +173,10 @@ absl::StatusOr<uint32_t> RawCircularLog::Reserve(uint32_t payload_size) {
 
     uint32_t t = t_old;
     while (is_in_danger_zone(t)) {
+        if (t + sizeof(ObjectHeader) > data_capacity_) {
+            t = 0;
+            continue;
+        }
         ObjectHeader header;
         std::memcpy(&header, buffer_ + kHeaderSize + t, sizeof(header));
 
