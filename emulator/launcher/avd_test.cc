@@ -321,17 +321,19 @@ TEST_F(AvdTest, Details) {
     WriteToFile(avd_dir / "config.ini",
                 "hw.lcd.width=1080\nhw.lcd.height=1920\ntarget=android-30\nimage.sysdir.1=sysimg");
     WriteToFile(paths_.sdk_directory / "sysimg" / "build.prop",
-                "ro.product.name=sdk_gphone_x86_64\nro.system.build.version.sdk=30");
+                "ro.product.name=sdk_gphone_x86_64\nro.system.build.version.sdk=30\nro.product.cpu."
+                "abi=x86_64");
 
     ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(opts_, paths_, "phone_avd", false, ""));
 
     EXPECT_EQ(avd->Details(false), "phone_avd");
 
-    // Verbose details include dimensions and icon.
-    // %-45s  - (%4dx%4d) %s
-    std::string expected_verbose =
-            absl::StrFormat("%-45s  - (%4dx%4d) %s", "phone_avd", 1080, 1920, "📱");
-    EXPECT_EQ(avd->Details(true), expected_verbose);
+    auto verbose = avd->Details(true);
+    EXPECT_THAT(verbose, ::testing::HasSubstr("phone_avd"));
+    EXPECT_THAT(verbose, ::testing::HasSubstr("📱"));
+    EXPECT_THAT(verbose, ::testing::HasSubstr("api: 30"));
+    EXPECT_THAT(verbose, ::testing::HasSubstr("arch: x86_64"));
+    EXPECT_THAT(verbose, ::testing::HasSubstr("res: 1080x1920"));
 }
 
 TEST_F(AvdTest, ContentOverride) {

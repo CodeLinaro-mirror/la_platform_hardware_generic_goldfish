@@ -353,6 +353,7 @@ int main(int argc, char** argv) {
         LOG(ERROR) << "Failed to load " << name << " due to " << avd.status().message();
         return 1;
     }
+    LOG(INFO) << "Launching AVD: " << (*avd)->Details(opts.verbose);
 
     bool set_qemu_version = true;
     auto last_run_qemu_version = (*avd)->GetLastRunQemuVersion();

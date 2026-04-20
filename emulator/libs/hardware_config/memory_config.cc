@@ -342,7 +342,7 @@ absl::Status MemoryConfig::FinalizeRamAndHeapSize(HardwareConfig& hw, int api_le
     }
 
     hw.hw_ramSize = static_cast<int>(memory_size_mi_b);
-    LOG(INFO) << "Physical RAM size: " << memory_size_mi_b;
+    VLOG(1) << "Physical RAM size: " << memory_size_mi_b;
 
     const int min_api_level_vm_heap_size = AndroidHwConfigGetMinVmHeapSize(hw, api_level);
     const int min_ram_vm_heap_size = hw.hw_ramSize / 4;

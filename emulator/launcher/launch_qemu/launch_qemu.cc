@@ -256,7 +256,7 @@ absl::Status LaunchQemu::initialize() {
     RETURN_IF_ERROR(addDevices());
 
     for (auto& device : mDevices) {
-        ABSL_LOG(INFO) << "Preparing: " << device->id();
+        VLOG(1) << "Preparing Qemu device args: " << device->id();
         auto status = device->initialize(config_);
         if (!status.ok()) {
             return status;
@@ -296,10 +296,9 @@ std::vector<std::string> LaunchQemu::getCmdline() const {
 absl::StatusOr<::goldfish::async::LaunchConfig> LaunchQemu::launch_config() {
     const auto& o = config_.opts();
     const auto& a = config_.avd();
-    ABSL_LOG(INFO) << "Preparing " << a.Details(true);
     auto status = initialize();
     if (!status.ok()) {
-        ABSL_LOG(INFO) << "Failed to prepare emulator: " << status.message();
+        VLOG(1) << "Failed to prepare emulator: " << status.message();
         return status;
     }
 
