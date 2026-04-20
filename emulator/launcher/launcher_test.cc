@@ -34,6 +34,7 @@
 #include "goldfish/async/libuv_socket_factory.h"
 #include "goldfish/async/process_launcher.h"
 #include "goldfish/async/signal_handlers.h"
+#include "goldfish/async/testing/fake_async_socket.h"
 #include "goldfish/metrics/metrics_reporter.h"
 #include "goldfish/metrics/metrics_writer.h"
 #include "goldfish/network/endpoint.h"
@@ -641,11 +642,69 @@ TEST_F(LauncherTest, InterceptsSignalForSnapshot) {
     EXPECT_CALL(*mock_socket_factory, CreateServer(_, IsPort(5554), _, _))
             .WillOnce(Return(std::make_shared<MockAsyncSocketServer>()));
 
+    auto fake_qmp_socket = std::make_shared<::goldfish::async::testing::FakeAsyncSocket>();
+    fake_qmp_socket->setEventLoop(event_loop.get());
+
     // We also need to mock the QMP port reservation for snapshotting to work.
     EXPECT_CALL(
             *mock_socket_factory,
             CreateServer(_, IsPort(testing::AllOf(testing::Ge(15455), testing::Le(15555))), _, _))
-            .WillRepeatedly(Return(std::make_shared<MockAsyncSocketServer>()));
+            .WillRepeatedly([](::goldfish::async::EventLoop* loop,
+                               const ::goldfish::network::Endpoint& endpoint,
+                               ::goldfish::async::AsyncSocketServer::ConnectCallback,
+                               ::goldfish::async::AsyncSocketServer::LoopProvider) {
+                auto server = std::make_shared<MockAsyncSocketServer>();
+                ON_CALL(*server, GetEndpoint()).WillByDefault(Return(endpoint));
+                return server;
+            });
+
+    // Mock CreateSocket to return our fake QMP socket.
+    EXPECT_CALL(*mock_socket_factory, CreateSocket(_, _)).WillRepeatedly(Return(fake_qmp_socket));
+
+    absl::Notification connected_callback_set;
+    EXPECT_CALL(*fake_qmp_socket, SetOnConnectedCallback(_))
+            .WillOnce([&](::goldfish::async::AsyncSocket::OnConnectCallback cb) {
+                fake_qmp_socket->connected_cb_ = std::move(cb);
+                connected_callback_set.Notify();
+            });
+
+    absl::Notification read_callback_set;
+    EXPECT_CALL(*fake_qmp_socket, SetOnReadCallbackNoFlowControl(_))
+            .WillOnce([&](::goldfish::async::AsyncSocket::OnReadCallback cb) {
+                fake_qmp_socket->read_cb_ = std::move(cb);
+                read_callback_set.Notify();
+            });
+
+    // We can use Notifications to signal when the socket has received specific commands.
+    absl::Notification capabilities_sent;
+    EXPECT_CALL(*fake_qmp_socket, Send(testing::HasSubstr("qmp_capabilities"), _, _))
+            .WillOnce([&](const char*, size_t, ::goldfish::async::AsyncSocket::OnSendCallback cb) {
+                if (cb)
+                    event_loop->Post([cb = std::move(cb)]() { cb(absl::OkStatus()); })
+                            .IgnoreError();
+                capabilities_sent.Notify();
+                return absl::OkStatus();
+            });
+
+    absl::Notification savevm_sent;
+    EXPECT_CALL(*fake_qmp_socket, Send(testing::HasSubstr("savevm"), _, _))
+            .WillOnce([&](const char*, size_t, ::goldfish::async::AsyncSocket::OnSendCallback cb) {
+                if (cb)
+                    event_loop->Post([cb = std::move(cb)]() { cb(absl::OkStatus()); })
+                            .IgnoreError();
+                savevm_sent.Notify();
+                return absl::OkStatus();
+            });
+
+    absl::Notification quit_sent;
+    EXPECT_CALL(*fake_qmp_socket, Send(testing::HasSubstr("quit"), _, _))
+            .WillOnce([&](const char*, size_t, ::goldfish::async::AsyncSocket::OnSendCallback cb) {
+                if (cb)
+                    event_loop->Post([cb = std::move(cb)]() { cb(absl::OkStatus()); })
+                            .IgnoreError();
+                quit_sent.Notify();
+                return absl::OkStatus();
+            });
 
     std::thread trigger = TriggerEmulatorScript(
             launched,
@@ -655,8 +714,27 @@ TEST_F(LauncherTest, InterceptsSignalForSnapshot) {
                 // It should eventually call SIGTERM when save_snapshot_and_quit finishes.
                 EXPECT_CALL(*mock_process_ptr, Kill(SIGTERM)).Times(1);
 
+                callback_set.WaitForNotification();
                 event_loop->Post([&]() { launcher_signal_cb(SIGINT); }).IgnoreError();
-                std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+                connected_callback_set.WaitForNotification();
+                fake_qmp_socket->SimulateConnected(absl::OkStatus());
+
+                read_callback_set.WaitForNotification();
+                fake_qmp_socket->SimulateRead(
+                        "{\"QMP\": {\"version\": {\"qemu\": {\"micro\": 0, \"minor\": 0, "
+                        "\"major\": 9}, \"package\": \"\"}, \"capabilities\": []}}\n");
+
+                capabilities_sent.WaitForNotification();
+                fake_qmp_socket->SimulateRead("{\"return\": {}}\n");
+
+                savevm_sent.WaitForNotification();
+                fake_qmp_socket->SimulateRead("{\"return\": \"OK\"}\n");
+
+                quit_sent.WaitForNotification();
+                // QEMU closes the socket after 'quit'
+                fake_qmp_socket->SimulateError(absl::CancelledError("closed"));
+
                 event_loop->Post([&]() { emulator_exit_cb(0, 0); }).IgnoreError();
             },
             &callback_set);

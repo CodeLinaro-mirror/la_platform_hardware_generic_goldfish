@@ -15,154 +15,230 @@
 #include "snapshot_util.h"
 
 #include <chrono>
+#include <string_view>
 
 #include "absl/log/log.h"
 #include "absl/strings/str_format.h"
 
-#include "goldfish/async/libuv_socket_factory.h"
 #include "goldfish/network/endpoint.h"
 
 namespace android::goldfish {
+
 namespace {
 
-// Helper to remove the incomplete snapshot directory in case of a failure or timeout.
-void delete_snapshot_dir(const std::string& snapshot_name, Avd* avd) {
-    std::error_code ec;
-    std::filesystem::remove_all(avd->GetContentPath() / "snapshots" / snapshot_name, ec);
-}
+/**
+ * @brief Manages the multi-step asynchronous process of saving a snapshot and quitting.
+ *
+ * This class implements a state machine to handle the QMP protocol exchange:
+ * 1. Connect to the QMP port.
+ * 2. Wait for the QMP greeting.
+ * 3. Send and wait for 'qmp_capabilities'.
+ * 4. Send 'savevm' command via 'human-monitor-command'.
+ * 5. Wait for the result and then send 'quit'.
+ * 6. Finally, kill the emulator process (via kill_emulator callback).
+ *
+ * It inherits from std::enable_shared_from_this to ensure its lifetime persists
+ * while asynchronous callbacks are pending. Circular shared_ptr references in
+ * callbacks are avoided by explicitly resetting members in Finish().
+ */
+class SnapshotSaveOperation : public std::enable_shared_from_this<SnapshotSaveOperation> {
+  public:
+    SnapshotSaveOperation(::goldfish::async::EventLoop& event_loop,
+                          ::goldfish::async::AsyncSocketFactory& factory, int qmp_port,
+                          std::string snapshot_name, Avd* avd, std::function<void()> kill_emulator)
+            : event_loop_(event_loop)
+            , factory_(factory)
+            , qmp_port_(qmp_port)
+            , snapshot_name_(std::move(snapshot_name))
+            , avd_(avd)
+            , kill_emulator_(std::move(kill_emulator)) {}
 
-// Helper to safely cancel the timeout timer, mark the quit state, and send the quit command.
-void send_quit_command(std::shared_ptr<SnapshotState> state,
-                       std::shared_ptr<::goldfish::async::AsyncSocket> shared_socket) {
-    if (state->timer) {
-        state->timer->Cancel();
+    void Start() {
+        socket_ = factory_.CreateSocket(
+                &event_loop_, ::goldfish::network::ToEndpoint(
+                                      ::goldfish::network::ToIpv4Address(127, 0, 0, 1), qmp_port_));
+
+        if (!socket_) {
+            LOG(ERROR) << "Failed to create QMP socket, killing emulator";
+            Finish();
+            return;
+        }
+
+        socket_->SetOnConnectedCallback(
+                [self = shared_from_this()](::goldfish::async::AsyncSocket& s, absl::Status err) {
+                    self->OnConnected(s, err);
+                });
+
+        if (auto status = socket_->Connect(); !status.ok()) {
+            LOG(ERROR) << "Failed to initiate QMP connection: " << status << ", killing emulator";
+            Finish();
+        }
     }
-    state->quit_sent = true;
-    std::string cmd = "{\"execute\": \"quit\"}\n";
-    (void)shared_socket->Send(cmd.c_str(), cmd.size());
-}
+
+  private:
+    enum class State {
+        kConnecting,
+        kWaitingForGreeting,
+        kWaitingForCapabilitiesReturn,
+        kWaitingForSnapshotReturn,
+        kWaitingForQuitReturn,
+        kFinished
+    };
+
+    void OnConnected(::goldfish::async::AsyncSocket& s, absl::Status err) {
+        if (!err.ok()) {
+            LOG(ERROR) << "Failed to connect to QMP: " << err << ", killing emulator";
+            Finish();
+            return;
+        }
+        VLOG(1) << "Connected to QMP for snapshot save";
+        state_ = State::kWaitingForGreeting;
+
+        socket_->SetOnReadCallbackNoFlowControl(
+                [self = shared_from_this()](std::string_view data, absl::Status err) {
+                    self->OnRead(data, err);
+                });
+    }
+
+    void OnRead(std::string_view data, absl::Status err) {
+        if (!err.ok()) {
+            if (state_ != State::kFinished) {
+                LOG(ERROR) << "QMP connection closed unexpectedly in state "
+                           << static_cast<int>(state_) << ": " << err;
+                DeleteSnapshotDir();
+            }
+            Finish();
+            return;
+        }
+
+        buffer_.append(data);
+
+        size_t pos;
+        while ((pos = buffer_.find('\n')) != std::string::npos) {
+            std::string line = buffer_.substr(0, pos);
+            buffer_.erase(0, pos + 1);
+            VLOG(2) << "QMP << " << line;
+            ProcessLine(line);
+        }
+    }
+
+    void ProcessLine(std::string_view line) {
+        switch (state_) {
+        case State::kWaitingForGreeting:
+            if (line.find("\"QMP\"") != std::string::npos) {
+                SendCommand(R"({"execute": "qmp_capabilities"})");
+                state_ = State::kWaitingForCapabilitiesReturn;
+            }
+            break;
+
+        case State::kWaitingForCapabilitiesReturn:
+            if (line.find("\"return\": {}") != std::string::npos) {
+                TriggerSnapshot();
+            }
+            break;
+
+        case State::kWaitingForSnapshotReturn:
+            if (line.find("\"return\":") != std::string::npos) {
+                LOG(INFO) << "Snapshot save complete, quitting QEMU";
+                SendQuit();
+            } else if (line.find("\"error\":") != std::string::npos) {
+                LOG(ERROR) << "Snapshot save failed: " << line;
+                DeleteSnapshotDir();
+                SendQuit();
+            }
+            break;
+
+        case State::kWaitingForQuitReturn:
+            // We don't usually get a return from 'quit' as QEMU exits,
+            // but if we do, we can finish.
+            Finish();
+            break;
+
+        default:
+            break;
+        }
+    }
+
+    void TriggerSnapshot() {
+        LOG(INFO) << "Triggering snapshot save: " << snapshot_name_;
+        SendCommand(
+                absl::StrFormat("{\"execute\": \"human-monitor-command\", "
+                                "\"arguments\": {\"command-line\": \"savevm %s\"}}",
+                                snapshot_name_));
+        state_ = State::kWaitingForSnapshotReturn;
+
+        // Set a timeout of 5 minutes for the snapshot save.
+        timer_ = event_loop_.ScheduleDelayed(
+                [self = shared_from_this()]() {
+                    LOG(ERROR) << "Snapshot save timed out after 5 minutes, quitting anyway";
+                    self->DeleteSnapshotDir();
+                    self->SendQuit();
+                },
+                std::chrono::minutes(5));
+    }
+
+    void SendQuit() {
+        if (timer_) {
+            timer_->Cancel();
+        }
+        state_ = State::kWaitingForQuitReturn;
+        SendCommand(R"({"execute": "quit"})");
+    }
+
+    void SendCommand(const std::string& cmd) {
+        if (socket_) {
+            std::string raw = cmd + "\n";
+            (void)socket_->Send(raw.c_str(), raw.size());
+        }
+    }
+
+    void DeleteSnapshotDir() {
+        std::error_code ec;
+        std::filesystem::remove_all(avd_->GetContentPath() / "snapshots" / snapshot_name_, ec);
+    }
+
+    void Finish() {
+        state_ = State::kFinished;
+        if (timer_) {
+            timer_->Cancel();
+            timer_.reset();
+        }
+        if (socket_) {
+            socket_->Close();
+            socket_.reset();
+        }
+        kill_emulator_();
+    }
+
+    ::goldfish::async::EventLoop& event_loop_;
+    ::goldfish::async::AsyncSocketFactory& factory_;
+    int qmp_port_;
+    std::string snapshot_name_;
+    Avd* avd_;
+    std::function<void()> kill_emulator_;
+
+    std::shared_ptr<::goldfish::async::AsyncSocket> socket_;
+    std::shared_ptr<::goldfish::async::EventLoop::Timer> timer_;
+
+    State state_ = State::kConnecting;
+    std::string buffer_;
+};
 
 }  // namespace
 
-void SnapshotUtil::save_snapshot_and_quit(::goldfish::async::EventLoop& event_loop, int qmp_port,
-                                          const std::string& snapshot_name, Avd* avd,
+void SnapshotUtil::save_snapshot_and_quit(::goldfish::async::EventLoop& event_loop,
+                                          ::goldfish::async::AsyncSocketFactory& factory,
+                                          int qmp_port, const std::string& snapshot_name, Avd* avd,
                                           std::function<void()> kill_emulator) {
     event_loop
-            .Post([&event_loop, qmp_port, snapshot_name, avd, kill_emulator]() {
-                auto factory = std::make_unique<::goldfish::async::LibuvAsyncSocketFactory>();
-                auto socket = factory->CreateSocket(
-                        &event_loop,
-                        ::goldfish::network::ToEndpoint(
-                                ::goldfish::network::ToIpv4Address(127, 0, 0, 1), qmp_port));
-
-                if (!socket) {
-                    LOG(ERROR) << "Failed to create QMP socket, killing emulator";
-                    kill_emulator();
-                    return;
-                }
-
-                auto state = std::make_shared<SnapshotState>();
-                auto shared_socket =
-                        std::shared_ptr<::goldfish::async::AsyncSocket>(std::move(socket));
-
-                shared_socket->SetOnConnectedCallback(
-                        [shared_socket, state, snapshot_name, avd, kill_emulator](
-                                ::goldfish::async::AsyncSocket& s, absl::Status err) {
-                            on_qmp_connected(s, err, state, shared_socket, snapshot_name, avd,
-                                             kill_emulator);
-                        });
-
-                if (auto status = shared_socket->Connect(); !status.ok()) {
-                    LOG(ERROR) << "Failed to initiate QMP connection: " << status
-                               << ", killing emulator";
-                    kill_emulator();
-                }
+            .Post([&event_loop, &factory, qmp_port, snapshot_name, avd,
+                   kill_emulator = std::move(kill_emulator)]() mutable {
+                auto op = std::make_shared<SnapshotSaveOperation>(event_loop, factory, qmp_port,
+                                                                  snapshot_name, avd,
+                                                                  std::move(kill_emulator));
+                op->Start();
             })
             .IgnoreError();
-}
-
-void SnapshotUtil::on_qmp_connected(::goldfish::async::AsyncSocket& s, absl::Status err,
-                                    std::shared_ptr<SnapshotState> state,
-                                    std::shared_ptr<::goldfish::async::AsyncSocket> shared_socket,
-                                    const std::string& snapshot_name, Avd* avd,
-                                    std::function<void()> kill_emulator) {
-    if (!err.ok()) {
-        LOG(ERROR) << "Failed to connect to QMP: " << err << ", killing emulator";
-        kill_emulator();
-        return;
-    }
-    LOG(INFO) << "Connected to QMP for snapshot save";
-
-    s.SetOnReadCallbackNoFlowControl([shared_socket, state, snapshot_name, avd](
-                                             std::string_view data, absl::Status err) {
-        handle_qmp_read_for_snapshot_save(data, err, state, shared_socket, snapshot_name, avd);
-    });
-}
-
-void SnapshotUtil::process_qmp_line_for_snapshot_save(
-        std::string_view line, std::shared_ptr<SnapshotState> state,
-        std::shared_ptr<::goldfish::async::AsyncSocket> shared_socket,
-        const std::string& snapshot_name, Avd* avd) {
-    if (line.find("\"QMP\"") != std::string::npos) {
-        // Greeting received, send qmp_capabilities to enter command mode.
-        std::string cmd = "{\"execute\": \"qmp_capabilities\"}\n";
-        (void)shared_socket->Send(cmd.c_str(), cmd.size());
-    } else if (!state->capabilities_sent && line.find("\"return\": {}") != std::string::npos) {
-        state->capabilities_sent = true;
-
-        // Capabilities accepted, start the actual snapshot save command.
-        std::string cmd = absl::StrFormat(
-                "{\"execute\": \"human-monitor-command\", "
-                "\"arguments\": {\"command-line\": \"savevm %s\"}}\n",
-                snapshot_name);
-        LOG(INFO) << "Triggering snapshot save: " << snapshot_name;
-        (void)shared_socket->Send(cmd.c_str(), cmd.size());
-
-        // Set a timeout of 5 minutes for the snapshot save.
-        state->timer =
-                shared_socket->GetLoop()->CreateTimer([shared_socket, state, snapshot_name, avd]() {
-                    LOG(ERROR) << "Snapshot save timed out after 5 minutes, quitting anyway";
-                    delete_snapshot_dir(snapshot_name, avd);
-                    send_quit_command(state, shared_socket);
-                });
-        state->timer->Schedule(std::chrono::minutes(5));
-    } else if (state->capabilities_sent && !state->quit_sent) {
-        if (line.find("\"return\":") != std::string::npos) {
-            // human-monitor-command returned successfully
-            LOG(INFO) << "Snapshot save complete, quitting QEMU";
-            send_quit_command(state, shared_socket);
-        } else if (line.find("\"error\":") != std::string::npos) {
-            // human-monitor-command returned an error
-            LOG(ERROR) << "Snapshot save failed: " << line;
-            delete_snapshot_dir(snapshot_name, avd);
-            send_quit_command(state, shared_socket);
-        }
-    }
-}
-
-void SnapshotUtil::handle_qmp_read_for_snapshot_save(
-        std::string_view data, absl::Status err, std::shared_ptr<SnapshotState> state,
-        std::shared_ptr<::goldfish::async::AsyncSocket> shared_socket,
-        const std::string& snapshot_name, Avd* avd) {
-    if (!err.ok()) {
-        if (state->quit_sent) {
-            VLOG(1) << "QMP connection closed as expected after quit";
-        } else {
-            LOG(ERROR) << "QMP connection closed unexpectedly: " << err;
-            delete_snapshot_dir(snapshot_name, avd);
-        }
-        return;
-    }
-    state->buffer.append(data);
-
-    // Simple line-based JSON processing. Each line contains a complete QMP JSON response.
-    size_t pos;
-    while ((pos = state->buffer.find('\n')) != std::string::npos) {
-        std::string line = state->buffer.substr(0, pos);
-        state->buffer.erase(0, pos + 1);
-        VLOG(2) << "QMP << " << line;
-        process_qmp_line_for_snapshot_save(line, state, shared_socket, snapshot_name, avd);
-    }
 }
 
 }  // namespace android::goldfish

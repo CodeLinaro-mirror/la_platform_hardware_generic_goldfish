@@ -94,6 +94,7 @@ class Launcher {
     }
 
     void forwarding_signal_handler(int signum) {
+        VLOG(1) << "forwarding_signal_handler called with signum: " << signum;
         if (auto* p = emulator_process_.get()) {
             if (config_.opts.snapshot && (signum == SIGINT || signum == SIGTERM)) {
                 LOG(INFO) << "Not forwarding signal " << signum
@@ -447,9 +448,9 @@ class Launcher {
             return;
         }
 
-        SnapshotUtil::save_snapshot_and_quit(config_.event_loop, ports_.qmp_port,
-                                             config_.opts.snapshot, config_.avd.get(),
-                                             kill_emulator);
+        SnapshotUtil::save_snapshot_and_quit(config_.event_loop, *config_.socket_factory,
+                                             ports_.qmp_port, config_.opts.snapshot,
+                                             config_.avd.get(), kill_emulator);
     }
 
     void shutdown() {
