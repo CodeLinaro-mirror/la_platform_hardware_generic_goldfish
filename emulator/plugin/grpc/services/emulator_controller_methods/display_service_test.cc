@@ -70,6 +70,18 @@ class DisplayServiceTest : public GrcpServiceTest {
         GrcpServiceTest::SetUp();
     }
 
+    void TearDown() override {
+        using ::goldfish::display::test::ActiveFakePixmanDisplay;
+        if (mMultiDisplay) {
+            for (auto display_weak : mMultiDisplay->Displays()) {
+                if (auto display = display_weak.lock()) {
+                    static_cast<ActiveFakePixmanDisplay*>(display.get())->Stop();
+                }
+            }
+        }
+        GrcpServiceTest::TearDown();
+    }
+
     // This starts the generation of fake display images on the given display id.
     void startFrames(int display_id) {
         using ::goldfish::display::test::ActiveFakePixmanDisplay;
@@ -351,7 +363,8 @@ TEST_F(DisplayServiceTest, DISABLED_StreamScreenshotSequenceIncreases) {
     request.set_format(ImageFormat::RGBA8888);
     startFrames(1);
 
-    // Create a context with a timeout, so we don't hang forever if there are issues.
+    // Create a context with a timeout, so we don't hang forever if there are
+    // issues.
     auto context = getContextWithTimeout(2s);
     std::unique_ptr<grpc::ClientReader<Image>> reader(
             mStub->streamScreenshot(context.get(), request));
@@ -379,13 +392,15 @@ TEST_F(DisplayServiceTest, DISABLED_StreamScreenshotImmediatelyGetsAFrame) {
     request.set_display(1);
     request.set_format(ImageFormat::RGBA8888);
 
-    // Create a context with a timeout, so we don't hang forever if there are issues.
+    // Create a context with a timeout, so we don't hang forever if there are
+    // issues.
     auto context = getContextWithTimeout(2s);
     std::unique_ptr<grpc::ClientReader<Image>> reader(
             mStub->streamScreenshot(context.get(), request));
     Image image;
 
-    // We are not producing frames, but still should read one that is immediately available
+    // We are not producing frames, but still should read one that is immediately
+    // available
     EXPECT_TRUE(reader->Read(&image));
     EXPECT_GE(image.seq(), 0);
     EXPECT_GE(image.timestampus(), 1);
@@ -396,55 +411,59 @@ TEST_F(DisplayServiceTest, DISABLED_StreamScreenshotImmediatelyGetsAFrame) {
 }
 
 TEST_F(DisplayServiceTest, DISABLED_StreamScreenshotSimulateEmbeddedInteraction) {
-    // This simulates a resize operation as performed by the Android Studio embedded emulator.
-    // When the user resizes the emulator window in Android Studio, a sequence of `streamScreenshot`
-    // requests, each with potentially different dimensions, is initiated in rapid succession.
+    // This simulates a resize operation as performed by the Android Studio
+    // embedded emulator. When the user resizes the emulator window in Android
+    // Studio, a sequence of `streamScreenshot` requests, each with potentially
+    // different dimensions, is initiated in rapid succession.
 
     // The sequence of events typically unfolds as follows:
 
-    // 1. **Initial Request (call1):** Android Studio makes a `streamScreenshot` request (let's call
-    // it `call1`) to the emulator.
-    //    This request specifies the desired width (w) and height (h) for the screenshot stream,
-    //    based on the current emulator window size. `call1` establishes a continuous stream of
-    //    screenshot data.
+    // 1. **Initial Request (call1):** Android Studio makes a `streamScreenshot`
+    // request (let's call it `call1`) to the emulator.
+    //    This request specifies the desired width (w) and height (h) for the
+    //    screenshot stream, based on the current emulator window size. `call1`
+    //    establishes a continuous stream of screenshot data.
 
     // 2. **Resize Initiated:** The user begins resizing the emulator window.
 
-    // 3. **New Request (call2):** As the window resize is in progress, Android Studio immediately
-    // makes a second `streamScreenshot` request
-    //    (let's call it `call2`). This new request often specifies new width (w1) and height (h2)
-    //    values that differ from the original (w and h), reflecting the changed window dimensions.
-    //    For example `w1 > w` or `h2 < h`.  This is because the resize is immediate and there is
-    //    no delay.
+    // 3. **New Request (call2):** As the window resize is in progress, Android
+    // Studio immediately makes a second `streamScreenshot` request
+    //    (let's call it `call2`). This new request often specifies new width (w1)
+    //    and height (h2) values that differ from the original (w and h),
+    //    reflecting the changed window dimensions. For example `w1 > w` or `h2 <
+    //    h`.  This is because the resize is immediate and there is no delay.
 
-    // 4. **Overlapping Requests:**  Crucially, at this point, both `call1` and `call2` are active
-    // concurrently for a short duration.
-    //    This overlap is because Android Studio doesn't wait for the first stream (`call1`) to
-    //    finish before starting the second
-    //    (`call2`).  This results in overlapping calls, each with a different desired window size.
+    // 4. **Overlapping Requests:**  Crucially, at this point, both `call1` and
+    // `call2` are active concurrently for a short duration.
+    //    This overlap is because Android Studio doesn't wait for the first stream
+    //    (`call1`) to finish before starting the second
+    //    (`call2`).  This results in overlapping calls, each with a different
+    //    desired window size.
 
-    // 5. **Cancellation of Old Request (call1):** Very soon after initiating `call2`, Android
-    // Studio will cancel the initial
-    //    `streamScreenshot` request (`call1`). This is done because the data from `call1` is no
-    //    longer needed, as the user has initiated a resize. Only the data from `call2` (the new
-    //    window dimensions) is relevant.
+    // 5. **Cancellation of Old Request (call1):** Very soon after initiating
+    // `call2`, Android Studio will cancel the initial
+    //    `streamScreenshot` request (`call1`). This is done because the data from
+    //    `call1` is no longer needed, as the user has initiated a resize. Only
+    //    the data from `call2` (the new window dimensions) is relevant.
     //
-    // 6. **New Resize (call3, call4, ...):** If the user continues to resize the window, this
-    // pattern repeats.
+    // 6. **New Resize (call3, call4, ...):** If the user continues to resize the
+    // window, this pattern repeats.
     //   `call3` is started with a new width/height, `call2` is cancelled, etc...
 
     // **Purpose of this test**
 
-    // This test aims to simulate this real-world scenario. It verifies that the emulator's
-    // `streamScreenshot` implementation can gracefully handle these concurrent requests,
-    // overlapping streams, and cancellations without deadlocks or data corruption. It also verifies
-    // that the client(android studio) gets the correct frame.
+    // This test aims to simulate this real-world scenario. It verifies that the
+    // emulator's `streamScreenshot` implementation can gracefully handle these
+    // concurrent requests, overlapping streams, and cancellations without
+    // deadlocks or data corruption. It also verifies that the client(android
+    // studio) gets the correct frame.
 
     // It tests this by:
     // 1. Launching many threads, each creating a stream
     // 2. The threads simulate the cancellation of an old stream.
     // 3. The test will complete when all of the threads are completed.
-    // 4. Asserts that the streams where working correctly, even when being cancelled.
+    // 4. Asserts that the streams where working correctly, even when being
+    // cancelled.
 
     using namespace std::chrono_literals;
     const int numThreads = 100;
@@ -503,7 +522,8 @@ TEST_F(DisplayServiceTest, StreamScreenshotRotationProducesAFrame) {
     request.set_display(1);
     request.set_format(ImageFormat::RGBA8888);
 
-    // Create a context with a timeout, so we don't hang forever if there are issues.
+    // Create a context with a timeout, so we don't hang forever if there are
+    // issues.
     auto context = getContextWithTimeout(2s);
     std::unique_ptr<grpc::ClientReader<Image>> reader(
             mStub->streamScreenshot(context.get(), request));
@@ -526,8 +546,9 @@ TEST_F(DisplayServiceTest, StreamScreenshotRotationProducesAFrame) {
     seq = image.seq();
     timestampus = image.timestampus();
 
-    // We are now going to trigger a rotation event, which should result in a new frame.
-    // Note that if this doesn't work we will timeout with our context deadline and fail the test.
+    // We are now going to trigger a rotation event, which should result in a new
+    // frame. Note that if this doesn't work we will timeout with our context
+    // deadline and fail the test.
     auto [x, y, z] = mRotationMap[Rotation::LANDSCAPE];
     mPhysicalModel->SetGravity(x, y, z);
 
@@ -551,7 +572,8 @@ TEST_F(DisplayServiceTest, StreamScreenshotHasCorrectRotation) {
     request.set_display(1);
     request.set_format(ImageFormat::RGBA8888);
 
-    // Create a context with a timeout, so we don't hang forever if there are issues.
+    // Create a context with a timeout, so we don't hang forever if there are
+    // issues.
     auto context = getContextWithTimeout(2s);
     std::unique_ptr<grpc::ClientReader<Image>> reader(
             mStub->streamScreenshot(context.get(), request));
@@ -677,8 +699,8 @@ TEST_F(DisplayServiceTest, StreamScreenshotMmap) {
 }
 
 TEST_F(DisplayServiceTest, StreamScreenshotMmapResourceExhausted) {
-    // Create a shared memory region that is too small for the screenshot but large enough to map
-    // (e.g. 4KB).
+    // Create a shared memory region that is too small for the screenshot but
+    // large enough to map (e.g. 4KB).
     std::string name = getTempSharedMemoryName("test_stream_mmap_small");
     size_t size = 4096;  // One page, but too small for 100*50*4 = 20000 bytes
     SharedMemory mem(name, size);
