@@ -34,7 +34,8 @@ namespace goldfish::devices {
  * It wraps a HalPlug and is responsible for marshalling calls from the QEMU
  * event loop to the client event loop where the real HalPlug lives.
  */
-class HalPlugToIPlugAdapter : public cable::IPlug {
+class HalPlugToIPlugAdapter : public cable::IPlug,
+                              public std::enable_shared_from_this<HalPlugToIPlugAdapter> {
   public:
     /**
      * @brief Constructs a new HalPlugToIPlugAdapter.

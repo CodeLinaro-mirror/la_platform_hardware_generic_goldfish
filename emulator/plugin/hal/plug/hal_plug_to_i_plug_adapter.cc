@@ -68,6 +68,10 @@ cable::SocketPtr HalPlugToIPlugAdapter::OnUnplug() {
     //
     // Note: the marshalling socket can be a NullSocket if someone else was just
     // ahead of us when closing.
+
+    // We must keep ourselves alive during the unplugging process,
+    // as the close() call can trigger our own destruction on another thread.
+    auto self = shared_from_this();
     auto marshalling_socket = std::static_pointer_cast<MarshallingHalSocket>(hal_plug_->Socket());
     VLOG(1) << "Closing and releasing " << *marshalling_socket;
     marshalling_socket->Close();
