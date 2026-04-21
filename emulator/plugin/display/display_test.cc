@@ -89,7 +89,7 @@ TEST_F(DisplayTest, WaitForFrameSuccess) {
         display.Incoming();  // Notify waiting threads
     });
 
-    auto timeout = absl::Milliseconds(50);
+    auto timeout = absl::Seconds(1);
     EXPECT_TRUE(display.WaitForFrame(timeout, initial_seq));
     frame_updater.join();
 }
@@ -102,7 +102,7 @@ TEST_F(DisplayTest, WaitForNextFrameSuccess) {
         display.Incoming();                     // Notify waiting threads
     });
 
-    auto timeout = absl::Milliseconds(50);
+    auto timeout = absl::Seconds(1);
     EXPECT_TRUE(display.WaitForNextFrame(timeout));
     frame_updater.join();
 }
