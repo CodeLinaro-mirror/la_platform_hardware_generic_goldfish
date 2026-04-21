@@ -13,28 +13,60 @@
 // limitations under the License.
 #include "legacy_console_bridge.h"
 
+#include <cstdlib>
 #include <memory>
 #include <optional>
 #include <string>
 
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 
+#include "android/base/system.h"
 #include "telnet_auth.h"
 
 namespace goldfish::telnet {
 
-LegacyConsoleBridge::LegacyConsoleBridge(
-        std::shared_ptr<android::emulation::control::BlockingEmulatorGrpcClient> client,
-        std::filesystem::path token_path)
-        : client_(std::move(client)), token_path_(std::move(token_path)) {
+absl::StatusOr<std::shared_ptr<android::emulation::control::BlockingEmulatorGrpcClient>>
+LegacyConsoleBridge::ConsoleContext::Client() {
+    absl::MutexLock lock(mutex_);
+    if (client_) {
+        return client_;
+    }
+
+    auto client = android::emulation::control::EmulatorGrpcClientBuilder()
+                          .ForDiscoveredEmulator({{"port.serial", std::to_string(port_)}})
+                          .BuildBlocking();
+    if (!client.ok()) {
+        LOG(ERROR) << "Failed to build gRPC client: " << client.status();
+        return client.status();
+    }
+
+    VLOG(1) << "Connecting to gRPC server...";
+    if (auto s = (*client)->Connect(absl::Seconds(2)); !s.ok()) {
+        LOG(ERROR) << "Failed to connect to gRPC server: " << s;
+        return s;
+    }
+
+    VLOG(1) << "Successfully connected to gRPC server.";
+    client_ = std::move(*client);
+    return client_;
+}
+
+LegacyConsoleBridge::LegacyConsoleBridge(int port, std::filesystem::path token_path)
+        : port_(port), token_path_(std::move(token_path)) {
     CommandRegistryBuilder builder(token_path_);
 
     // --- Safe Root Commands ---
 
     builder.On("ping" /* do_ping */, "check if the emulator is alive",
-               [](ConsoleContext& /*ctx*/) { return absl::UnimplementedError("not implemented"); });
+               [](ConsoleContext& ctx) -> absl::StatusOr<std::string> {
+                   if (auto s = ctx.Client(); !s.ok()) {
+                       return s.status();
+                   }
+                   return "";
+               });
     builder.Command("ping", "").Safe();
 
     builder.On("auth" /* do_auth */, "user authentication for the emulator console",

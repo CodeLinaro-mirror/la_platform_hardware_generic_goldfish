@@ -36,14 +36,15 @@ class LegacyConsoleBridgeTest : public ::testing::Test {
   protected:
     void SetUp() override {
         test_home_ = tmpdir_.Path() / "test_home_auth";
-        auto status = android::base::file::mkdir_recursive(test_home_, 0700);
+        auto discovery_dir = test_home_ / "Library/Caches/TemporaryItems/avd/running";
+        auto status = android::base::file::mkdir_recursive(discovery_dir, 0700);
         ASSERT_TRUE(status.ok()) << "Failed to create test home directory: " << status.message();
         test_system_.SetHomeDirectory(test_home_);
         token_path_ = (test_home_ / ".emulator_console_auth_token").string();
 
         WriteToken("valid_token_123");
 
-        bridge_ = std::make_unique<LegacyConsoleBridge>(nullptr, token_path_);
+        bridge_ = std::make_unique<LegacyConsoleBridge>(5554, token_path_);
     }
 
     void WriteToken(const std::string& token) {
@@ -59,7 +60,7 @@ class LegacyConsoleBridgeTest : public ::testing::Test {
 };
 
 TEST_F(LegacyConsoleBridgeTest, AuthSucceedsWithValidToken) {
-    LegacyConsoleBridge::ConsoleContext ctx(nullptr);
+    LegacyConsoleBridge::ConsoleContext ctx(5554);
     EXPECT_FALSE(ctx.authenticated);
 
     auto result = (*bridge_)("auth valid_token_123", ctx);
@@ -70,7 +71,7 @@ TEST_F(LegacyConsoleBridgeTest, AuthSucceedsWithValidToken) {
 }
 
 TEST_F(LegacyConsoleBridgeTest, AuthFailsWithInvalidToken) {
-    LegacyConsoleBridge::ConsoleContext ctx(nullptr);
+    LegacyConsoleBridge::ConsoleContext ctx(5554);
     EXPECT_FALSE(ctx.authenticated);
 
     auto result = (*bridge_)("auth wrong_token", ctx);
@@ -83,7 +84,7 @@ TEST_F(LegacyConsoleBridgeTest, AuthFailsWithInvalidToken) {
 }
 
 TEST_F(LegacyConsoleBridgeTest, HelpReturnsDifferentListAfterAuth) {
-    LegacyConsoleBridge::ConsoleContext ctx(nullptr);
+    LegacyConsoleBridge::ConsoleContext ctx(5554);
 
     auto result_before = (*bridge_)("help", ctx);
     ASSERT_TRUE(result_before.ok());
@@ -95,6 +96,16 @@ TEST_F(LegacyConsoleBridgeTest, HelpReturnsDifferentListAfterAuth) {
     ASSERT_TRUE(result_after.ok());
 
     EXPECT_NE(*result_before, *result_after);
+}
+
+TEST_F(LegacyConsoleBridgeTest, PingFailsWhenNoEmulatorFound) {
+    LegacyConsoleBridge::ConsoleContext ctx(5554);
+    ctx.authenticated = true;  // Safe to call commands
+
+    auto result = (*bridge_)("ping", ctx);
+
+    EXPECT_FALSE(result.ok());
+    EXPECT_EQ(result.status().code(), absl::StatusCode::kNotFound);
 }
 
 }  // namespace

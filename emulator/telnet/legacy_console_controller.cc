@@ -27,17 +27,13 @@ namespace goldfish::telnet {
 
 LegacyConsoleController::LegacyConsoleController(goldfish::async::AsyncSocketFactory& factory,
                                                  goldfish::async::EventLoop* main_loop)
-        : factory_(factory), main_loop_(main_loop) {
-    // TODO(jansene): Rewrite initialization of legacy console bridge to handle gRPC client.
-    handler_ = std::make_shared<LegacyConsoleBridge>(nullptr, TelnetAuth::GetTokenPath());
-}
+        : factory_(factory), main_loop_(main_loop) {}
 
 absl::Status LegacyConsoleController::Start(int port) {
+    using ::goldfish::network::Endpoint;
     using ::goldfish::network::kIPv4LoopbackAddress;
     using ::goldfish::network::kIPv6LoopbackAddress;
     using ::goldfish::network::ToEndpoint;
-
-    using ::goldfish::network::Endpoint;
 
     struct ServerConfig {
         std::string name;
@@ -49,12 +45,13 @@ absl::Status LegacyConsoleController::Start(int port) {
 
     servers_.clear();
     bool any_success = false;
+    auto handler = std::make_shared<LegacyConsoleBridge>(port, TelnetAuth::GetTokenPath());
 
     for (const auto& config : configs) {
         ServerInstance inst;
         inst.name = config.name;
         inst.server =
-                std::make_shared<ConsoleServer>(factory_, main_loop_, config.endpoint, handler_);
+                std::make_shared<ConsoleServer>(factory_, main_loop_, config.endpoint, handler);
         auto status = inst.server->Start();
 
         if (status.ok()) {
@@ -74,6 +71,7 @@ absl::Status LegacyConsoleController::Start(int port) {
         return absl::InternalError("Failed to start both IPv4 and IPv6 console servers.");
     }
 
+    handler_ = std::move(handler);
     return absl::OkStatus();
 }
 

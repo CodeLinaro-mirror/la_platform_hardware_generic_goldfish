@@ -17,7 +17,9 @@
 #include <memory>
 #include <string>
 
+#include "absl/log/log.h"
 #include "absl/status/statusor.h"
+#include "absl/synchronization/mutex.h"
 
 #include "android/emulation/control/emulator_grpc_client.h"
 #include "command_registry.h"
@@ -26,7 +28,8 @@
 namespace goldfish::telnet {
 
 /**
- * @brief A bridge that maps legacy Telnet console commands to modern gRPC service calls.
+ * @brief A bridge that maps legacy Telnet console commands to modern gRPC
+ * service calls.
  *
  * This class reimplements the legacy Telnet console functionality by using
  * gRPC to communicate with the emulator backend. It uses a `CommandRegistry`
@@ -38,29 +41,39 @@ class LegacyConsoleBridge : public LineCommandHandler {
      * @brief Context for legacy console command handlers.
      */
     struct ConsoleContext : public LineCommandHandler::Context {
-        explicit ConsoleContext(
-                std::shared_ptr<android::emulation::control::BlockingEmulatorGrpcClient> client)
-                : client(std::move(client)) {}
+        explicit ConsoleContext(int port) : port_(port) {}
 
-        std::shared_ptr<android::emulation::control::BlockingEmulatorGrpcClient> client;
+        absl::StatusOr<std::shared_ptr<android::emulation::control::BlockingEmulatorGrpcClient>>
+        Client();
+
+      private:
+        int port_;
+
+        std::shared_ptr<android::emulation::control::BlockingEmulatorGrpcClient> client_
+                ABSL_GUARDED_BY(mutex_);
+        absl::Mutex mutex_;
     };
 
     /**
-     * @brief Constructs the bridge with a gRPC client and the path to the auth token.
+     * @brief Constructs the bridge with a gRPC client and the path to the auth
+     * token.
      *
      * @param client The gRPC client used to make calls to the emulator services.
-     * @param token_path Path to the file containing the console authentication token.
+     * @param token_path Path to the file containing the console authentication
+     * token.
      */
-    LegacyConsoleBridge(
-            std::shared_ptr<android::emulation::control::BlockingEmulatorGrpcClient> client,
-            std::filesystem::path token_path);
+    LegacyConsoleBridge(int port, std::filesystem::path token_path);
 
     // LineCommandHandler implementation
     absl::StatusOr<std::string> operator()(std::string line, Context& ctx) override;
     std::string WelcomeMessage(const Context& ctx) const override;
 
+    std::unique_ptr<Context> CreateContext() const override {
+        return std::make_unique<ConsoleContext>(port_);
+    };
+
   private:
-    std::shared_ptr<android::emulation::control::BlockingEmulatorGrpcClient> client_;
+    int port_;
     std::filesystem::path token_path_;
     std::unique_ptr<CommandRegistry> registry_;
 };
