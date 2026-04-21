@@ -34,7 +34,7 @@ cc_library(
         "//emulator/libs/shared_memory",
         "//emulator/libs/sockets",
         "//emulator/plugin/avd:info",
-        "//emulator/plugin/grpc/input",
+        "//emulator/plugin/display",
         "//emulator/plugin/grpc/keyboard",
         "//emulator/plugin/vminterface",
         "@abseil-cpp//absl/container:flat_hash_map",

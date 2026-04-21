@@ -17,6 +17,7 @@
 
 #include "android/status/status_macros.h"
 #include "goldfish/avd_info/avd_info.h"
+#include "pointer_event_dispatcher.h"
 
 namespace android::emulation::control {
 
@@ -51,16 +52,20 @@ absl::Status InputEventSender::Send(const WheelEvent& event) {
 
 absl::Status InputEventSender::Send(const PenEvent& event) {
     ASSIGN_OR_RETURN(auto display, TryLockDisplay(*multi_display_, event));
-    pointer_dispatcher_.SendEvents(*display, internal::PenTouchEvent::FromProto(event));
+    pointer_dispatcher_->SendEvents(*display, internal::PenTouchEvent::FromProto(event));
     return absl::OkStatus();
 }
 
 absl::Status InputEventSender::Send(const TouchEvent& event) {
     ASSIGN_OR_RETURN(auto display, TryLockDisplay(*multi_display_, event));
-    pointer_dispatcher_.SendEvents(*display, internal::MultiTouchEvent::FromProto(event));
+    pointer_dispatcher_->SendEvents(*display, internal::MultiTouchEvent::FromProto(event));
     return absl::OkStatus();
 }
 
-InputEventSender::InputEventSender(IMultiDisplay* multidisplay) : multi_display_(multidisplay) {}
+InputEventSender::InputEventSender(IMultiDisplay* multidisplay)
+        : pointer_dispatcher_(std::make_unique<PointerEventDispatcher>())
+        , multi_display_(multidisplay) {}
+
+InputEventSender::~InputEventSender() = default;
 
 }  // namespace android::emulation::control

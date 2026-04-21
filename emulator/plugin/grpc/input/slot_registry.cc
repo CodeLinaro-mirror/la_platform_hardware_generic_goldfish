@@ -11,7 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-#include "android/emulation/control/slot_registry.h"
+#include "slot_registry.h"
 
 #include <cassert>
 #include <utility>
@@ -35,11 +35,12 @@ int SlotRegistry::AcquireSlot(uint32_t identifier) {
         slot = static_cast<uint32_t>(next_slot);
         id_map_[identifier] = slot;
         used_slots_.set(slot);
-        auto now = absl::Now();
-        id_last_used_epoch_[identifier] = now + slot_expiration_;
     } else {
         slot = id_map_[identifier];
     }
+
+    auto now = clock_->Now(base::ClockType::kHost);
+    id_last_used_epoch_[identifier] = now + slot_expiration_;
 
     return static_cast<int>(slot);
 }
@@ -54,7 +55,7 @@ bool SlotRegistry::IsSlotRegistered(uint32_t slot) {
 
 void SlotRegistry::UpdateSlotExpiration(uint32_t identifier) {
     assert(id_last_used_epoch_.count(identifier) > 0);
-    auto now = absl::Now();
+    auto now = clock_->Now(base::ClockType::kHost);
     id_last_used_epoch_[identifier] = now + slot_expiration_;
 }
 
@@ -72,7 +73,7 @@ void SlotRegistry::ReleaseSlot(uint32_t identifier) {
 std::vector<EvDevEvent> SlotRegistry::ExpireOldSlots() {
     std::vector<EvDevEvent> events;
 
-    const absl::Time now = absl::Now();
+    const absl::Time now = clock_->Now(base::ClockType::kHost);
     for (auto it = id_last_used_epoch_.begin(); it != id_last_used_epoch_.end();) {
         if (it->second < now) {
             assert(id_map_.count(it->first) > 0);

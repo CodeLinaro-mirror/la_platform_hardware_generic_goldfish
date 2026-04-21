@@ -18,11 +18,12 @@
 #include "absl/status/status.h"
 
 #include "android/emulation/control/ev_dev_event.h"
-#include "android/emulation/control/internal/pointer_event_dispatcher.h"
 #include "emulator_controller.grpc.pb.h"
 #include "goldfish/display/QemuMultidisplay/multi_display.h"
 
 namespace android::emulation::control {
+
+class PointerEventDispatcher;
 
 using ::goldfish::display::IDisplay;
 using ::goldfish::display::IMultiDisplay;
@@ -35,7 +36,7 @@ using ::goldfish::display::IMultiDisplay;
  * display within the emulator. It handles display locking and error
  * checking to ensure that events are sent correctly.
  */
-class InputEventSender {
+class InputEventSender final {
   public:
     /**
      * @brief Constructs an InputEventSender.
@@ -43,6 +44,7 @@ class InputEventSender {
      * @param multidisplay The IMultiDisplay instance used to manage multiple displays.
      */
     explicit InputEventSender(IMultiDisplay* multidisplay);
+    ~InputEventSender();
 
     /**
      * @brief Sends a mouse event to the emulator.
@@ -88,7 +90,7 @@ class InputEventSender {
     absl::Status Send(const PenEvent& event);
 
   private:
-    PointerEventDispatcher
+    std::unique_ptr<PointerEventDispatcher>
             pointer_dispatcher_;    ///< The dispatcher for pointer events (touch, pen).
     IMultiDisplay* multi_display_;  ///< The multi-display manager.
 };

@@ -11,7 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-#include "android/emulation/control/internal/pointer_event_dispatcher.h"
+#include "pointer_event_dispatcher.h"
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
@@ -22,12 +22,14 @@
 
 #include "absl/time/time.h"
 
-#include "android/emulation/control/slot_registry.h"
+#include "android/base/testing/TestClock.h"
 #include "goldfish/async/testing/test_event_loop.h"
 #include "goldfish/display/test/mock_display.h"
+#include "slot_registry.h"
 #include "standard-headers/linux/input-event-codes.h"
 #include "standard-headers/linux/input.h"
 
+using android::base::TestClock;
 using android::emulation::control::EvDevEvent;
 using ::goldfish::async::testing::TestEventLoop;
 using ::testing::_;
@@ -127,6 +129,7 @@ TEST(PenTouchEventTest, SendEvents) {
 }
 
 struct PointerEventDispatcherUnderTest : public PointerEventDispatcher {
+    using PointerEventDispatcher::PointerEventDispatcher;
     SlotRegistry* registry() { return &registry_; }
 };
 
@@ -138,8 +141,9 @@ TEST(PenTouchEventTest, SendEventsWithOldSlots) {
     ::testing::NiceMock<MockDisplay> display(evloop.get(), 0, 1024, 768);
 
     // Create a PointerEventDispatcher.
-    PointerEventDispatcherUnderTest dispatcher;
-    dispatcher.registry()->SetSlotExpiration(absl::Milliseconds(1));
+    TestClock clock;
+    PointerEventDispatcherUnderTest dispatcher(&clock);
+    dispatcher.registry()->SetSlotExpiration(absl::Milliseconds(100));
 
     // Create a PenTouchEvent.
     PenTouchEvent pen_event;
@@ -157,7 +161,8 @@ TEST(PenTouchEventTest, SendEventsWithOldSlots) {
 
     // Call SendEvents.
     dispatcher.SendEvents(display, pen_event);
-    std::this_thread::sleep_for(10ms);
+    clock.Advance(absl::Milliseconds(500));
+
     // Expect calls to SendEvDevEvent on the mock display.
     {
         InSequence seq;
@@ -315,8 +320,9 @@ TEST(MultiTouchEventTest, SendEventsWithOldSlots) {
     ::testing::NiceMock<MockDisplay> display(evloop.get(), 0, 1024, 768);
 
     // Create a PointerEventDispatcher.
-    PointerEventDispatcherUnderTest dispatcher;
-    dispatcher.registry()->SetSlotExpiration(absl::Milliseconds(1));
+    TestClock clock;
+    PointerEventDispatcherUnderTest dispatcher(&clock);
+    dispatcher.registry()->SetSlotExpiration(absl::Milliseconds(100));
 
     // Create a MultiTouchEvent.
     MultiTouchEvent touch_event;
@@ -332,7 +338,7 @@ TEST(MultiTouchEventTest, SendEventsWithOldSlots) {
 
     // Call SendEvents.
     dispatcher.SendEvents(display, touch_event);
-    std::this_thread::sleep_for(10ms);
+    clock.Advance(absl::Milliseconds(500));
 
     // Expect calls to SendEvDevEvent on the mock display.
     {

@@ -20,6 +20,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/time/time.h"
 
+#include "android/base/clock.h"
 #include "android/emulation/control/ev_dev_event.h"
 
 namespace android::emulation::control {
@@ -44,13 +45,22 @@ constexpr uint32_t kMtsPointerUp = -1;
 class SlotRegistry {
   public:
     /**
+     * @brief Default expiration time for touch events (120 seconds).
+     * This means that if a given id has not received any updates in 120 seconds it will
+     * be closed out upon receipt of the next event.
+     */
+    static constexpr absl::Duration kTouchExpireAfter120S = absl::Seconds(120);
+
+    /**
      * @brief Constructs a SlotRegistry with a specified slot expiration duration.
      *
      * @param slot_expiration The duration after which a slot is considered expired.
      *                       Defaults to kTouchExpireAfter120S (120 seconds).
+     * @param clock The clock to use for timing. Defaults to the global IClock instance.
      */
-    explicit SlotRegistry(absl::Duration slot_expiration = kTouchExpireAfter120S)
-            : slot_expiration_(slot_expiration) {}
+    explicit SlotRegistry(absl::Duration slot_expiration = kTouchExpireAfter120S,
+                          base::IClock* clock = &base::IClock::Get())
+            : slot_expiration_(slot_expiration), clock_(clock) {}
 
     /**
      * @brief Acquires a free slot for a given touch identifier.
@@ -146,10 +156,8 @@ class SlotRegistry {
     absl::Duration slot_expiration_;
 
     /**
-     * @brief Default expiration time for touch events (120 seconds).
-     * This means that if a given id has not received any updates in 120 seconds it will
-     * be closed out upon receipt of the next event.
+     * @brief The clock used for timing.
      */
-    static constexpr absl::Duration kTouchExpireAfter120S = absl::Seconds(120);
+    base::IClock* clock_;
 };
 }  // namespace android::emulation::control

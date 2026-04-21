@@ -2,41 +2,76 @@ load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_test")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 
 cc_library(
-    name = "input",
-    srcs = [
-        "event_sender.cc",
-        "pointer_event_dispatcher.cc",
-        "slot_registry.cc",
-    ],
-    hdrs = [
-        "include/android/emulation/control/ev_dev_event.h",
-        "include/android/emulation/control/event_sender.h",
-        "include/android/emulation/control/internal/pointer_event_dispatcher.h",
-        "include/android/emulation/control/slot_registry.h",
-    ],
-    includes = [
-        "include",
-    ],
-    visibility = ["//visibility:public"],
+    name = "ev_dev_event",
+    hdrs = ["include/android/emulation/control/ev_dev_event.h"],
+    includes = ["include"],
+)
+
+cc_library(
+    name = "slot_registry",
+    srcs = ["slot_registry.cc"],
+    hdrs = ["slot_registry.h"],
     deps = [
+        ":ev_dev_event",
+        "//emulator/libs/system:clock",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/time",
+        "@qemu//:qemu-headers",
+    ],
+)
+
+cc_library(
+    name = "pointer_event_dispatcher",
+    srcs = ["pointer_event_dispatcher.cc"],
+    hdrs = ["pointer_event_dispatcher.h"],
+    deps = [
+        ":ev_dev_event",
+        ":slot_registry",
         "//emulator/plugin/display",
         "@abseil-cpp//absl/log",
-        "@abseil-cpp//absl/status:statusor",
-        "@abseil-cpp//absl/strings",
+        "@aemu//protos/services/emulator-controller:emulator_controller_cc_grpc",
+        "@qemu//:qemu-headers",
+    ],
+)
+
+cc_library(
+    name = "event_sender",
+    srcs = ["event_sender.cc"],
+    hdrs = ["include/android/emulation/control/event_sender.h"],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":ev_dev_event",
+        ":pointer_event_dispatcher",
+        "//emulator/libs/status_macros",
+        "//emulator/plugin/avd:info",
+        "//emulator/plugin/display",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/status",
         "@aemu//protos/services/emulator-controller:emulator_controller_cc_grpc",
         "@qemu//:qemu-headers",
     ],
 )
 
 cc_test(
-    name = "input_unittests",
-    srcs = [
-        "pointer_event_dispatcher_test.cc",
-        "slot_registry_test.cc",
-    ],
+    name = "slot_registry_test",
+    srcs = ["slot_registry_test.cc"],
     visibility = ["//visibility:public"],
     deps = [
-        ":input",
+        ":slot_registry",
+        "//emulator/libs/system:test-headers",
+        "//emulator/libs/test:googletest_main",
+        "@abseil-cpp//absl/time",
+    ],
+)
+
+cc_test(
+    name = "pointer_event_dispatcher_test",
+    srcs = ["pointer_event_dispatcher_test.cc"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":pointer_event_dispatcher",
         "//emulator/libs/async:async_testing",
         "//emulator/libs/grpc_utils:event-stream",
         "//emulator/libs/system:test-headers",
@@ -49,10 +84,24 @@ cc_test(
     ],
 )
 
+cc_test(
+    name = "event_sender_test",
+    srcs = ["event_sender_test.cc"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":event_sender",
+        "//emulator/libs/async:async_testing",
+        "//emulator/libs/test:googletest_main",
+        "//emulator/plugin/avd:info-fake",
+        "//emulator/plugin/display:test-display",
+        "@grpc",
+    ],
+)
+
 clang_tidy_test(
     name = "tidy",
     targets = [
-        "input",
+        "event_sender",
     ],
     tidy_config_file = "//:clang_tidy_config",
 )

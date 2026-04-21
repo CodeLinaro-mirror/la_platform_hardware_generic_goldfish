@@ -17,9 +17,9 @@
 #include <vector>
 
 #include "android/emulation/control/ev_dev_event.h"
-#include "android/emulation/control/slot_registry.h"
 #include "emulator_controller.grpc.pb.h"
 #include "goldfish/display/display.h"
+#include "slot_registry.h"
 
 namespace android::emulation::control {
 namespace internal {
@@ -122,6 +122,14 @@ using ::goldfish::display::IDisplay;
  */
 class PointerEventDispatcher {
   public:
+    /**
+     * @brief Constructs a PointerEventDispatcher.
+     *
+     * @param clock The clock to use for timing. Defaults to the global IClock instance.
+     */
+    explicit PointerEventDispatcher(base::IClock* clock = &base::IClock::Get())
+            : registry_(SlotRegistry::kTouchExpireAfter120S, clock) {}
+
     /**
      * @brief Sends a MultiTouchEvent to the emulator.
      *
