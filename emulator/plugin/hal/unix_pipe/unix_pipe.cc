@@ -69,29 +69,35 @@ class UnixPipe : public IUnixPipe, public std::enable_shared_from_this<UnixPipe>
         std::shared_ptr<async::AsyncSocket> un_socket =
                 socket_factory_.CreateSocket(client_loop_, un_addr);
 
+        std::weak_ptr<UnixPipe> weak_self = shared_from_this();
         un_socket->SetOnConnectedCallback(
-                [this](async::AsyncSocket&, const absl::Status& connect_status) {
-                    DCHECK(un_socket_);
-                    if (connect_status.ok()) {
-                        OnReceiveImpl(queued_);
-                        queued_.clear();
-                        connected_ = true;
-                    } else {
-                        LOG(WARNING) << "`Connect` failed: " << connect_status;
-                        un_socket_.reset();
+                [weak_self](async::AsyncSocket&, const absl::Status& connect_status) {
+                    if (auto self = weak_self.lock()) {
+                        if (connect_status.ok()) {
+                            self->OnReceiveImpl(self->queued_);
+                            self->queued_.clear();
+                            self->connected_ = true;
+                        } else {
+                            LOG(WARNING) << "`Connect` failed: " << connect_status;
+                            self->CloseImpl();
+                        }
                     }
                 });
 
         un_socket->SetOnReadCallbackNoFlowControl(
-                [this](std::string_view data, const absl::Status& err) {
-                    if (err.ok()) {
-                        Socket()->Send(std::string(data));
+                [weak_self](std::string_view data, const absl::Status& err) {
+                    if (auto self = weak_self.lock()) {
+                        if (err.ok()) {
+                            self->Socket()->Send(std::string(data));
+                        }
                     }
                 });
 
-        un_socket->SetOnCloseCallback([this]() {
-            Socket()->Send({});
-            Close();
+        un_socket->SetOnCloseCallback([weak_self]() {
+            if (auto self = weak_self.lock()) {
+                self->Socket()->Send({});
+                self->CloseImpl();
+            }
         });
 
         const absl::Status connect_status = un_socket->Connect();
@@ -109,19 +115,15 @@ class UnixPipe : public IUnixPipe, public std::enable_shared_from_this<UnixPipe>
             } else {
                 queued_.append(data);
             }
-        } else {
-            LOG(WARNING) << "The host side is disconnected, " << data.size() << " bytes are lost";
         }
     }
 
-    void CloseOnEventLoop() {
-        if (un_socket_) {
-            CloseImpl();
-        }
-    }
+    void CloseOnEventLoop() { CloseImpl(); }
 
     void OnReceiveImpl(const std::string_view data) {
-        DCHECK(un_socket_);
+        if (!un_socket_) {
+            return;
+        }
         const absl::Status s = un_socket_->Send(data.data(), data.size());
         if (!s.ok()) {
             CloseImpl();
@@ -130,8 +132,10 @@ class UnixPipe : public IUnixPipe, public std::enable_shared_from_this<UnixPipe>
     }
 
     void CloseImpl() {
-        un_socket_->Close();
-        un_socket_.reset();
+        if (un_socket_) {
+            un_socket_->Close();
+            un_socket_.reset();
+        }
     }
 
     EventLoop* const client_loop_;
