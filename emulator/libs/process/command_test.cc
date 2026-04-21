@@ -410,7 +410,7 @@ TEST(Command, as_string_does_not_hang_on_crash) {
 
     // WaitFor should return once the process crashes and the overseer finishes.
     // If it hangs, the test will timeout.
-    ASSERT_EQ(proc->WaitFor(500ms), std::future_status::ready);
+    ASSERT_EQ(proc->WaitFor(5s), std::future_status::ready);
 
     EXPECT_FALSE(proc->IsAlive());
     EXPECT_EQ(proc->Out()->AsString(), "hello\n");

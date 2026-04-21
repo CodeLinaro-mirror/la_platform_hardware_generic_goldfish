@@ -244,24 +244,26 @@ class PosixProcess : public ObservableProcess {
     }
 
     bool IsAlive() const override {
-        // Acknowledge process in case it is a zombie..
-        GetExitCode();
+        // If we already have an exit code then it's not alive.
+        if (GetExitCode()) {
+            return false;
+        }
         return kill(pid_, 0) == 0;
     }
 
     std::future_status WaitForKernel(
             const std::chrono::milliseconds timeout_duration) const override {
         using namespace std::chrono_literals;
-        if (pid_ == -1) return std::future_status::ready;
-
         auto wait_until = std::chrono::system_clock::now() + timeout_duration;
-        while (std::chrono::system_clock::now() < wait_until && IsAlive()) {
+        while (std::chrono::system_clock::now() < wait_until) {
+            if (!IsAlive()) {
+                return std::future_status::ready;
+            }
             std::this_thread::sleep_for(10ms);
             DD("Awakened, ready to check again.");
         }
 
-        return std::chrono::system_clock::now() < wait_until ? std::future_status::ready
-                                                             : std::future_status::timeout;
+        return std::future_status::timeout;
     }
 
     std::string Exe() const override {

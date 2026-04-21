@@ -74,15 +74,27 @@ void ObservableProcess::RunOverseer() {
 
 std::future_status ObservableProcess::WaitFor(
         const std::chrono::milliseconds timeout_duration) const {
+    auto wait_until = std::chrono::system_clock::now() + timeout_duration;
+    // First wait for the actual process to terminate.
+    if (WaitForKernel(timeout_duration) == std::future_status::timeout) {
+        return std::future_status::timeout;
+    }
+
+    // Then wait for overseer to finish.
     const absl::MutexLock lk(overseer_mutex_);
     if (!overseer_active_) {
-        return WaitForKernel(timeout_duration);
+        return std::future_status::ready;
+    }
+
+    auto remaining_duration = wait_until - std::chrono::system_clock::now();
+    if (remaining_duration <= std::chrono::milliseconds(0)) {
+        return std::future_status::timeout;
     }
 
     // We have the lock when this lambda is called.
     auto inactive = [this]() ABSL_NO_THREAD_SAFETY_ANALYSIS { return !overseer_active_; };
     if (!overseer_mutex_.AwaitWithTimeout(absl::Condition(&inactive),
-                                          absl::FromChrono(timeout_duration))) {
+                                          absl::FromChrono(remaining_duration))) {
         return std::future_status::timeout;
     }
     return std::future_status::ready;
