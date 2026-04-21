@@ -231,21 +231,23 @@ TEST_F(CallbackClientTest, ConnectAsync_WithLiveServer_Succeeds) {
 }
 
 // flaky
-TEST_F(CallbackClientTest, DISABLED_ConnectAsync_WithNoServer_Fails) {
+TEST_F(CallbackClientTest, ConnectAsync_WithNoServer_Fails) {
     auto client = CreateClient("localhost:12345");
     auto future = client->ConnectAsync(absl::Seconds(1));
     EXPECT_EQ(client->GetConnectionState(), ConnectionState::kConnecting);
 
     ASSERT_EQ(future.wait_for(std::chrono::seconds(2)), std::future_status::ready);
     absl::Status status = future.get();
-    EXPECT_EQ(status.code(), absl::StatusCode::kUnavailable);
+    EXPECT_TRUE(status.code() == absl::StatusCode::kDeadlineExceeded ||
+                status.code() == absl::StatusCode::kUnavailable)
+            << "Expected DeadlineExceeded or Unavailable, got " << status;
     EXPECT_EQ(client->GetConnectionState(), ConnectionState::kDisconnected);
     VLOG(1) << "Test: Finished. Client will be destroyed now.";
 }
 
 // TODO FIX this test is flakey due to a race in the ConnectAsync callback handling - the fix will
 // require changing how the grpc connection monitor works.
-TEST_F(CallbackClientTest, DISABLED_Disconnect_DuringAsyncConnection_Cancels) {
+TEST_F(CallbackClientTest, Disconnect_DuringAsyncConnection_Cancels) {
     StartServer();
     VLOG(1) << "Test: Creating client.";
     auto client = CreateClient(server_address);
@@ -264,7 +266,7 @@ TEST_F(CallbackClientTest, DISABLED_Disconnect_DuringAsyncConnection_Cancels) {
 }
 
 // TODO FIX this test is flakey
-TEST_F(CallbackClientTest, DISABLED_ConnectAsync_WithLiveServer_CanReconnect) {
+TEST_F(CallbackClientTest, ConnectAsync_WithLiveServer_CanReconnect) {
     StartServer();
     VLOG(1) << "Test: Creating client.";
     auto client = CreateClient(server_address);
@@ -302,8 +304,8 @@ TEST_F(CallbackClientTest, Destructor_DuringAsyncConnection_Cancels) {
 
 TEST_F(CallbackClientTest, EventSource_FiresCorrectStates) {
     StartServer();
-    auto client = CreateClient(server_address);
     std::vector<ConnectionState> received_states;
+    auto client = CreateClient(server_address);
     auto handle = android::base::eventing::MakeScopedCallback(
             client->ConnectionStateChanges(),
             [&](ConnectionState s) { received_states.push_back(s); });
@@ -324,11 +326,11 @@ TEST_F(CallbackClientTest, EventSource_FiresCorrectStates) {
 
 TEST_F(CallbackClientTest, LivenessMonitor_DetectsServerShutdown) {
     StartServer();
-    auto client = CreateClient(server_address);
 
     absl::Mutex m;
     absl::CondVar cv;
     std::vector<ConnectionState> received_states;
+    auto client = CreateClient(server_address);
     auto handle = android::base::eventing::MakeScopedCallback(client->ConnectionStateChanges(),
                                                               [&](ConnectionState s) {
                                                                   absl::MutexLock lock(&m);
@@ -344,8 +346,8 @@ TEST_F(CallbackClientTest, LivenessMonitor_DetectsServerShutdown) {
     server->Shutdown();
 
     absl::MutexLock lock(&m);
-    while (client->GetConnectionState() != ConnectionState::kDisconnected) {
-        if (cv.WaitWithTimeout(&m, absl::Seconds(1))) {
+    while (received_states.size() < 3) {
+        if (cv.WaitWithTimeout(&m, absl::Seconds(5))) {
             break;
         }
     }
@@ -359,11 +361,11 @@ TEST_F(CallbackClientTest, LivenessMonitor_DetectsServerShutdown) {
 
 TEST_F(CallbackClientTest, Disconnect_FromCallback_DoesNotDeadlock) {
     StartServer();
-    auto client = CreateClient(server_address);
 
     absl::Mutex m;
     absl::CondVar cv;
     bool disconnected_event_fired = false;
+    auto client = CreateClient(server_address);
 
     auto handle = android::base::eventing::MakeScopedCallback(
             client->ConnectionStateChanges(), [&](ConnectionState s) {

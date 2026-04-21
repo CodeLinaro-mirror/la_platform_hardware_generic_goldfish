@@ -19,10 +19,8 @@
 #include <atomic>
 #include <fstream>
 #include <memory>
-#include <string>
 #include <thread>
 #include <unordered_set>
-#include <vector>
 
 #include "absl/base/thread_annotations.h"
 #include "absl/log/log.h"
@@ -34,6 +32,7 @@
 #include "android/emulation/control/basic_token_auth.h"
 #include "android/emulation/control/grpc_channel_factory.h"
 #include "android/goldfish/ini_file.h"
+#include "android/status/status_macros.h"
 #include "goldfish/eventing/event_sources.h"
 
 namespace android::emulation::control {
@@ -72,6 +71,7 @@ class EmulatorGrpcClientImpl : public std::enable_shared_from_this<EmulatorGrpcC
 
   private:
     void CreateChannelIfNeeded();
+    absl::Status PrepareForConnection();
 
     Endpoint endpoint_;
     InterceptorFactories interceptors_;
@@ -81,19 +81,18 @@ class EmulatorGrpcClientImpl : public std::enable_shared_from_this<EmulatorGrpcC
     absl::Mutex channel_mutex_;
     std::shared_ptr<::grpc::Channel> channel_ ABSL_GUARDED_BY(channel_mutex_);
     std::unique_ptr<GrpcConnectionMonitor> monitor_;
-    decltype(android::base::eventing::MakeScopedCallback(
-            std::declval<android::base::eventing::CallbackEventSource<ConnectionState>&>(),
-            std::function<void(ConnectionState)>())) monitor_callback_handle_;
+    GrpcConnectionMonitor::ScopedCallbackHandle monitor_callback_handle_;
 
     std::atomic<bool> shutting_down_{false};
     android::base::eventing::CallbackEventSource<ConnectionState> connection_state_source_;
 };
 
-absl::Status EmulatorGrpcClientImpl::Connect(absl::Duration timeout) {
+absl::Status EmulatorGrpcClientImpl::PrepareForConnection() {
     ConnectionState expected = ConnectionState::kDisconnected;
     if (!state_.compare_exchange_strong(expected, ConnectionState::kConnecting)) {
         return absl::AlreadyExistsError("Connection is already active or connecting.");
     }
+    shutting_down_.store(false, std::memory_order_release);
     connection_state_source_.FireEvent(ConnectionState::kConnecting);
 
     CreateChannelIfNeeded();
@@ -104,39 +103,32 @@ absl::Status EmulatorGrpcClientImpl::Connect(absl::Duration timeout) {
                 "Failed to create gRPC channel. Check TLS configuration for "
                 "non-local addresses.");
     }
+    return absl::OkStatus();
+}
+
+absl::Status EmulatorGrpcClientImpl::Connect(absl::Duration timeout) {
+    RETURN_IF_ERROR(PrepareForConnection());
 
     const auto deadline = std::chrono::system_clock::now() + absl::ToChronoMilliseconds(timeout);
-    const bool connected = GetChannel()->WaitForConnected(deadline);
-
-    if (connected) {
+    if (GetChannel()->WaitForConnected(deadline)) {
         state_.store(ConnectionState::kConnected, std::memory_order_release);
         connection_state_source_.FireEvent(ConnectionState::kConnected);
         return absl::OkStatus();
     }
+
     state_.store(ConnectionState::kDisconnected, std::memory_order_release);
     connection_state_source_.FireEvent(ConnectionState::kDisconnected);
     return absl::DeadlineExceededError("Failed to connect within timeout.");
 }
 
 std::future<absl::Status> EmulatorGrpcClientImpl::ConnectAsync(absl::Duration timeout) {
-    ConnectionState expected = ConnectionState::kDisconnected;
-    if (!state_.compare_exchange_strong(expected, ConnectionState::kConnecting)) {
-        return MakeReadyStatusFuture(
-                absl::AlreadyExistsError("Connection is already active or connecting."));
-    }
-    shutting_down_.store(false, std::memory_order_release);
-    connection_state_source_.FireEvent(ConnectionState::kConnecting);
-
-    CreateChannelIfNeeded();
-    if (!GetChannel()) {
-        state_.store(ConnectionState::kDisconnected, std::memory_order_release);
-        connection_state_source_.FireEvent(ConnectionState::kDisconnected);
-        return MakeReadyStatusFuture(absl::InternalError("Failed to create gRPC channel."));
+    if (auto status = PrepareForConnection(); !status.ok()) {
+        return MakeReadyStatusFuture(status);
     }
 
     monitor_ = std::make_unique<GrpcConnectionMonitor>(GetChannel());
     monitor_callback_handle_ = android::base::eventing::MakeScopedCallback(
-            monitor_->state_changes, [weak_self = weak_from_this()](ConnectionState state) {
+            monitor_->state_changes(), [weak_self = weak_from_this()](ConnectionState state) {
                 // Forward channel state event, (if we are still alive.)
                 if (auto self = weak_self.lock()) {
                     self->state_.store(state, std::memory_order_release);
