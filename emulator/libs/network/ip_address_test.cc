@@ -45,6 +45,10 @@ TEST(IpAddressTest, ToIpv4Address) {
     EXPECT_THAT(ToIpv4Address(k_ipv4_str), IsOkAndHolds(expected_addr));
 }
 
+TEST(IpAddressTest, IPv4LoopbackAddress) {
+    EXPECT_EQ(kIPv4LoopbackAddress, ToIpv4Address(127, 0, 0, 1));
+}
+
 TEST(IpAddressTest, ToIpv4Address_str_long) {
     std::string ipv4_str("192.168.1.42");
 
@@ -78,6 +82,10 @@ TEST(IpAddressTest, ToIpv6Address) {
     EXPECT_EQ(ToIpv6Address(0x2001, 0xdb8, 0x85a3, 0, 0, 0x8a2e, 0x370, 0x7334), expected_addr);
     EXPECT_THAT(ToIpv6Address(k_ipv6_str.c_str()), IsOkAndHolds(expected_addr));
     EXPECT_THAT(ToIpv6Address(k_ipv6_str), IsOkAndHolds(expected_addr));
+}
+
+TEST(IpAddressTest, IPv6LoopbackAddress) {
+    EXPECT_EQ(kIPv6LoopbackAddress, ToIpv6Address(0, 0, 0, 0, 0, 0, 0, 1));
 }
 
 TEST(IpAddressTest, ToString_Canonicalization) {
