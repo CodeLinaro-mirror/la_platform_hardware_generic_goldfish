@@ -30,7 +30,12 @@ def create_launch_emulator_test(name, target_log_line = None, timeout_seconds = 
     # We don't want to launch the fishtank UI process for these tests.
     params.append("-no-window")
     if timeout_seconds:
-        args.extend(["--timeout_seconds", str(timeout_seconds)])
+        args = args + select({
+            "@goldfish//emulator/tools:asan": ["--timeout_seconds", str(timeout_seconds * 3)],
+            "@goldfish//emulator/tools:tsan": ["--timeout_seconds", str(timeout_seconds * 10)],
+            "@goldfish//emulator/tools:dbg": ["--timeout_seconds", str(timeout_seconds * 2)],
+            "//conditions:default": ["--timeout_seconds", str(timeout_seconds)],
+        })
     _create_launch_emulator_test(name, args, "@goldfish//emulator/launcher")
     _create_launch_emulator_test(
         name + "_zip",
