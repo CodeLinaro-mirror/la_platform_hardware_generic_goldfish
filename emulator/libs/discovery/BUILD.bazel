@@ -1,5 +1,4 @@
-load("@rules_cc//cc:cc_test.bzl", "cc_test")
-load("@rules_cc//cc:defs.bzl", "cc_library")
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 
 cc_library(
     name = "emulator_advertisement",
@@ -11,6 +10,9 @@ cc_library(
         "//emulator/libs/ini_file",
         "//emulator/libs/sockets",
         "//emulator/libs/system",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
     ],
 )

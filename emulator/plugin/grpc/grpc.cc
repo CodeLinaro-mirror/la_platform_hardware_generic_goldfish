@@ -37,8 +37,6 @@
 #include "android/emulation/control/service_forwarder_impl.h"
 #include "android/emulation/control/snapshot_service_impl.h"
 #include "android/emulation/control/ui_controller_forwarder.h"
-#include "android/goldfish/vm_interface.h"
-#include "android/process/process.h"
 #include "android/sockets/scoped_socket.h"
 #include "android/sockets/socket_utils.h"
 #include "android/status/status_macros.h"
@@ -70,11 +68,11 @@ extern "C" {
 namespace fs = std::filesystem;
 namespace file = ::android::base::file;
 using namespace ::android::emulation::control;
-using ::android::goldfish::EmulatorAdvertisement;
-using ::android::goldfish::EmulatorProperties;
 using ::android::goldfish::VmOperations;
 using ::goldfish::async::EventLoop;
 using ::goldfish::async::QemuEventLoop;
+using ::goldfish::discovery::EmulatorAdvertisement;
+using ::goldfish::discovery::EmulatorProperties;
 using ::goldfish::display::IMultiDisplay;
 using ::goldfish::modem_simulator::ModemSimulatorClient;
 
@@ -239,12 +237,14 @@ struct CredConf {
 absl::StatusOr<CredConf> GetCredConf(const GrpcConfig& config) {
     CredConf cred_conf;
     if (!config.tls_key_path.empty()) {
-        ASSIGN_OR_RETURN(cred_conf.tls_key, android::base::file::read_whole_file(
-                                                    config.tls_key_path, /*binary=*/false));
+        ASSIGN_OR_RETURN(cred_conf.tls_key,
+                         android::base::file::read_whole_file(config.tls_key_path,
+                                                              /*binary=*/false));
     }
     if (!config.tls_cert_path.empty()) {
-        ASSIGN_OR_RETURN(cred_conf.tls_cert, android::base::file::read_whole_file(
-                                                     config.tls_cert_path, /*binary=*/false));
+        ASSIGN_OR_RETURN(cred_conf.tls_cert,
+                         android::base::file::read_whole_file(config.tls_cert_path,
+                                                              /*binary=*/false));
     }
     if (!config.tls_ca_path.empty()) {
         ASSIGN_OR_RETURN(cred_conf.tls_ca, android::base::file::read_whole_file(config.tls_ca_path,
@@ -258,13 +258,7 @@ absl::StatusOr<CredConf> GetCredConf(const GrpcConfig& config) {
         cred_conf.auth_token = generateToken(of64Bytes);
     }
 
-    fs::path jwk_dir = config.discovery_path /
-                       std::to_string(::android::base::Process::Me()->pid()) / "jwks" /
-                       generateToken(16);
-    if (auto s = file::mkdir_recursive(jwk_dir, 0700); !s.ok()) {
-        return absl::UnavailableError(
-                absl::StrCat("Failed to create jwk directory ", jwk_dir.string(), " error: ", s));
-    }
+    ASSIGN_OR_RETURN(fs::path jwk_dir, config.advertiser->CreateJwkDirectory(generateToken(16)));
     cred_conf.jwk_file = jwk_dir / "active.jwk";
 
     return cred_conf;
@@ -370,6 +364,8 @@ void grpc_realize(DeviceState* dev, Error** errp) {
     if (!config->allow_list_path.empty()) {
         config->allow_list = loadAllowlist(config->allow_list_path);
     }
+
+    config->advertiser = std::make_unique<EmulatorAdvertisement>(config->discovery_path);
     auto cred_conf = GetCredConf(*config);
     if (!cred_conf.ok()) {
         LOG(ERROR) << "failed to load grpc credentials config: " << cred_conf.status();
@@ -382,7 +378,8 @@ void grpc_realize(DeviceState* dev, Error** errp) {
     bool is_local_address = IsLocalAddress(config->addr);
     if (!is_local_address && cred_conf->has_auth() && !cred_conf->is_tls()) {
         is_local_address = true;
-        LOG(WARNING) << "Token/JWT auth requested without tls, restricting access to localhost.";
+        LOG(WARNING) << "Token/JWT auth requested without tls, restricting access "
+                        "to localhost.";
     }
     if (is_local_address) {
         // Translate loopback Ipv4/Ipv6 preference ourselves. gRPC resolver can
@@ -411,17 +408,18 @@ void grpc_realize(DeviceState* dev, Error** errp) {
     }
 
     auto props = CreateProps(config, avd_universe.Props(), *cred_conf);
-    config->advertiser =
-            std::make_unique<EmulatorAdvertisement>(std::move(props), config->discovery_path);
-    config->advertiser->garbageCollect();
-    config->advertiser->write();
+    if (auto s = config->advertiser->Write(props); !s.ok()) {
+        LOG(WARNING) << "Failed to write the emulator discovery file. As a result, Android "
+                        "Studio and other user interfaces will not be able to automatically "
+                        "detect or connect to this running emulator. Reason: "
+                     << s;
+    }
 }
 
 void grpc_unrealize(DeviceState* dev) {
     VLOG(1) << "Finalizing gRPC endpoint";
     GrpcDev* grpc_device = GRPC_DEV(dev);
     auto* config = grpc_device->config;
-    config->advertiser->remove();
 
     if (config->grpc_server) {
         // Explicitly cleanup resources. We do not want to do this at

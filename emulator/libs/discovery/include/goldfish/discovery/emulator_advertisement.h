@@ -15,88 +15,58 @@
 #pragma once
 
 #include <filesystem>
-#include <memory>         // for make_unique, unique_ptr
-#include <string>         // for string, hash, operator==
-#include <unordered_map>  // for unordered_map
-#include <vector>         // for vector
+#include <functional>
 
-namespace android {
-namespace goldfish {
+#include "absl/container/flat_hash_map.h"
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
+
+namespace goldfish::discovery {
 
 namespace fs = std::filesystem;
 
-// A simple emulator configuration that can be shared with external processes.
-// Properties are simple string pairs that are written to disk as ini files with
-// "key=value" entries.
-using EmulatorProperties = std::unordered_map<std::string, std::string>;
+using EmulatorProperties = absl::flat_hash_map<std::string, std::string>;
+using LivenessChecker = std::function<bool(fs::path, fs::path)>;
 
-// Strategy pattern for checking if the emulator corresponding
-// the discovery file is actually alive.
-//
-// Mainly here so you can write proper unit tests.
-class EmulatorLivenessStrategy {
-  public:
-    virtual ~EmulatorLivenessStrategy() {};
-    virtual bool isAlive(fs::path myFile, fs::path discoveryFile) const = 0;
-};
-
-// Liveness checker that tries to load the discovery file
-// and tries to see if any of the declared ports are accessible
-//
-/// NOTE: this can be very slow, so best not to use it.
-class OpenPortChecker : public EmulatorLivenessStrategy {
-  public:
-    bool isAlive(fs::path myFile, fs::path discoveryFile) const override;
-};
-
-// Liveness checker that tries to load the discovery file
-// and tries to see that the pid exists and has the proper name
-// (i.e. contains: "emulator", or "qemu-system-")
-class PidChecker : public EmulatorLivenessStrategy {
-  public:
-    bool isAlive(fs::path myFile, fs::path discoveryFile) const override;
-};
-
-// External services might need to know where to find information about
-// running emulators. An EmulatorAdvertisement can write an
-// EmulatorConfiguration dictionary to a
-// predefined location.
-//
-// The location is defined as follows:
-//
-// <user-specific_tmp_directory>/avd/running  where the
-// user-specific_tmp_directory is:
-//  - $XDG_RUNTIME_DIR on Linux,
-//  - $HOME/Library/Caches/TemporaryItems on Mac
-//  - %LOCALAPPDATA%/Temp on Windows.
-//
-// The file will be named "pid_%d_info.ini" where %d is
-// the process id of the emulator.
 class EmulatorAdvertisement {
   public:
-    EmulatorAdvertisement(EmulatorProperties config, std::filesystem::path discoveryDirectory,
-                          std::unique_ptr<EmulatorLivenessStrategy> livenessChecker =
-                                  std::make_unique<PidChecker>());
+    EmulatorAdvertisement(std::filesystem::path discovery_directory = GetDiscoveryDirectory(),
+                          LivenessChecker liveness_checker = EmulatorAdvertisement::IsPidAlive);
     ~EmulatorAdvertisement();
+    EmulatorAdvertisement(EmulatorAdvertisement&&) = default;
+    EmulatorAdvertisement& operator=(EmulatorAdvertisement&&) = default;
+    EmulatorAdvertisement(const EmulatorAdvertisement&) = delete;
+    EmulatorAdvertisement& operator=(const EmulatorAdvertisement&) = delete;
 
-    // Writes the ini file to the location.
-    bool write() const;
+    /**
+     * @brief Writes the ini file to the predefined location.
+     * @return absl::OkStatus() if the write was successful, error otherwise.
+     */
+    [[nodiscard]] absl::Status Write(const EmulatorProperties& props) const;
 
-    // Removes the file from the file system.
-    void remove() const;
+    /**
+     * @brief Creates the JWK directory in the discovery sub-folder for this process.
+     * @param token The securely generated token prefix.
+     * @return The path to the created JWK directory, or an error if creation fails.
+     */
+    absl::StatusOr<std::filesystem::path> CreateJwkDirectory(std::string_view token) const;
 
-    // Deletes all ini files in <user-specific_tmp_directory>/avd/running and
-    // directories <user-specific_tmp_directory>/avd/running/<pid> for
-    // which no corresponding process exists. returns the number of files
-    // deleted.
-    int garbageCollect() const;
+    /**
+     * @brief Discovers all the advertisement files of active emulators, excluding
+     * us.
+     * @return A vector of paths to the discovery files of running emulators, or
+     * error.
+     */
+    absl::StatusOr<std::vector<fs::path>> DiscoverRunningEmulators() const;
 
-    // Discovers all the advertisement files of active emulators, excluding us.
-    std::vector<fs::path> discoverRunningEmulators() const;
-
-    // Discovers the first advertisment file of active emulators that
-    // has the set of props available.
-    fs::path discoverEmulatorWithProperties(const EmulatorProperties& props) const;
+    /**
+     * @brief Discovers the first advertisement file that matches the given
+     * properties.
+     * @param props The properties to match.
+     * @return The path to the matching discovery file, or an error if not found
+     *         or if discovery failed.
+     */
+    absl::StatusOr<fs::path> DiscoverEmulatorWithProperties(const EmulatorProperties& props) const;
 
     /**
      * @brief Returns the path to the Android Studio emulator discovery directory.
@@ -126,19 +96,29 @@ class EmulatorAdvertisement {
      */
     static fs::path GetDiscoveryDirectory();
 
-    EmulatorAdvertisement(EmulatorAdvertisement&&) = default;
-    EmulatorAdvertisement& operator=(EmulatorAdvertisement&&) = default;
-    EmulatorAdvertisement(const EmulatorAdvertisement&) = delete;
-    EmulatorAdvertisement& operator=(const EmulatorAdvertisement&) = delete;
+  protected:
+    // To allow for testing.
+
+    /**
+     * @brief Deletes stale advertisement files for dead processes.
+     *
+     * Deletes all ini files in the discovery directory and
+     * directories for which no corresponding process exists.
+     * @return The number of files deleted.
+     */
+    int GarbageCollect() const;
+
+    static bool IsPidAlive(fs::path my_file, fs::path discovery_file);
+    /**
+     * @brief Removes the advertisement file from the file system.
+     * @return absl::OkStatus() if the removal was successful, error otherwise.
+     */
+    absl::Status Remove() const;
 
   private:
-    // The location where the .ini file will be written to.
-    fs::path location() const;
-
-    EmulatorProperties mStudioConfig;
-    fs::path mSharedDirectory;
-    std::unique_ptr<EmulatorLivenessStrategy> mLivenessChecker;
+    LivenessChecker liveness_checker_;
+    fs::path shared_directory_;
+    fs::path location_;
 };
 
-}  // namespace goldfish
-}  // namespace android
+}  // namespace goldfish::discovery
