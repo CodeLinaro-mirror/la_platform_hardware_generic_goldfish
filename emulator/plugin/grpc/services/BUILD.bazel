@@ -19,7 +19,7 @@ cc_library(
         "//emulator/libs/shared_memory",
         "//emulator/libs/sockets",
         "//emulator/plugin/avd:info",
-        "//emulator/plugin/grpc/input",
+        "//emulator/plugin/grpc/input:event_sender",
         "//emulator/plugin/grpc/keyboard",
         "//emulator/plugin/grpc/services/emulator_controller_methods",
         "//emulator/plugin/vminterface",

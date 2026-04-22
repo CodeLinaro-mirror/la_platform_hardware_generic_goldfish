@@ -74,7 +74,7 @@ absl::StatusOr<SharedDisplay> IMultiDisplay::GetActiveDisplay(DisplayId display_
         }
     }
 
-    if (!display) {
+    if (!display || !display->Active()) {
         return absl::UnavailableError("Display is no longer active.");
     }
 
