@@ -5,15 +5,13 @@ package(default_visibility = ["//visibility:public"])
 rust_library(
     name = "which",
     srcs = glob(["src/**/*.rs"]),
+    crate_features = ["real-sys"],
     crate_name = "which",
     edition = "2021",
-    deps = [
-        "@either",
-        "@home",
-    ] + select({
-        "@bazel_tools//src/conditions:windows": ["@once_cell"],
+    deps = select({
+        "@bazel_tools//src/conditions:windows": [],
         "//conditions:default": [
-            "@rustix",
+            "@libc",
         ],
     }),
 )
