@@ -358,7 +358,15 @@ static const VMStateInfo vmstate_info_virtio_vsock_impl = {
     .put = &vmstate_info_virtio_vsock_impl_save,
 };
 
-static VMStateField virtio_vsock_vmstate_fields[4];
+static VMStateField vmstate_virtio_vsock_base_fields[2];
+static const VMStateDescription vmstate_virtio_vsock_base = {
+    .name = TYPE_VIRTIO_VSOCK "-base",
+    .version_id = 0,
+    .minimum_version_id = 0,
+    .fields = vmstate_virtio_vsock_base_fields,
+};
+
+static VMStateField virtio_vsock_vmstate_fields[3];
 static VMStateDescription vmstate_virtio_vsock = {
     .name = TYPE_VIRTIO_VSOCK,
     .minimum_version_id = 0,
@@ -370,11 +378,13 @@ static void virtio_vsock_class_init(ObjectClass* klass, void* data) {
     DEBUG_MSG("klass=%p data=%p", klass, data);
 
     DeviceClass* dc = DEVICE_CLASS(klass);
-    dc->vmsd = &vmstate_virtio_vsock;
+    dc->vmsd = &vmstate_virtio_vsock_base;
     set_bit(DEVICE_CATEGORY_MISC, dc->categories);
     object_class_property_add(klass, "guest-cid", "uint64", NULL, &virtio_vsock_set_guest_cid, NULL,
                               NULL);
+
     VirtioDeviceClass* vdc = VIRTIO_DEVICE_CLASS(klass);
+    vdc->vmsd = &vmstate_virtio_vsock;
     vdc->realize = &virtio_vsock_device_realize;
     vdc->unrealize = &virtio_vsock_device_unrealize;
     vdc->get_features = &virtio_vsock_device_get_features;
@@ -450,11 +460,13 @@ void vsock_low_level_register_types(void) {
      * (through VMSTATE_xyz) to QEMU symbols (in a different binary) and on Windows
      * their addresses are runtime values.
      */
-    virtio_vsock_vmstate_fields[0] = (VMStateField)VMSTATE_VIRTIO_DEVICE;
-    virtio_vsock_vmstate_fields[1] = (VMStateField)VMSTATE_UINT64(guest_cid, VirtIOVSock);
-    virtio_vsock_vmstate_fields[2] = (VMStateField)VMSTATE_POINTER(
+    vmstate_virtio_vsock_base_fields[0] = (VMStateField)VMSTATE_VIRTIO_DEVICE;
+    vmstate_virtio_vsock_base_fields[1] = (VMStateField)VMSTATE_END_OF_LIST();
+
+    virtio_vsock_vmstate_fields[0] = (VMStateField)VMSTATE_UINT64(guest_cid, VirtIOVSock);
+    virtio_vsock_vmstate_fields[1] = (VMStateField)VMSTATE_POINTER(
             impl, VirtIOVSock, 0, vmstate_info_virtio_vsock_impl, void*);
-    virtio_vsock_vmstate_fields[3] = (VMStateField)VMSTATE_END_OF_LIST();
+    virtio_vsock_vmstate_fields[2] = (VMStateField)VMSTATE_END_OF_LIST();
 
     DEBUG_MSG("registering %s and %s", TYPE_VIRTIO_VSOCK, TYPE_VIRTIO_VSOCK_PCI_GENERIC);
     type_register_static(&virtio_vsock_typeinfo);
