@@ -17,6 +17,7 @@
 #ifdef _WIN32
 #include <io.h>
 #include <windows.h>
+#include <crtdbg.h>
 #else
 #include <fcntl.h>
 #include <unistd.h>
@@ -25,6 +26,10 @@
 namespace android::base {
 
 void SetAllFdsCloexec() {
+#if !defined(NDEBUG) && defined(_WIN32)
+    // The debug build CRT will fail an assertion (pops up dialog box).when invalid fd is passed.
+    _CrtSetReportMode(_CRT_ASSERT, 0);
+#endif
     // We could use _getmaxstdio() or getdtablesize() but for now it is sufficient to limit to 100.
     for (int fd = 3; fd < 100; ++fd) {
 #if defined(_WIN32)
