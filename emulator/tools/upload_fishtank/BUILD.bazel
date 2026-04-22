@@ -4,7 +4,11 @@ load("@rules_python//python:py_test.bzl", "py_test")
 py_binary(
     name = "upload_fishtank",
     srcs = ["upload_fishtank.py"],
-    deps = ["@aemu//tools/libs_python:ab"],
+    data = ["@goldfish_build//:registry/modules/goldfish/0.0.1/MODULE.bazel"],
+    deps = [
+        "@aemu//tools/libs_python:ab",
+        "@rules_python//python/runfiles",
+    ],
 )
 
 py_test(
