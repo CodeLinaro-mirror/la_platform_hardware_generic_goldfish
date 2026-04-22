@@ -1,0 +1,44 @@
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+
+cc_library(
+    name = "emulator_advertisement",
+    srcs = ["emulator_advertisement.cc"],
+    hdrs = ["include/goldfish/discovery/emulator_advertisement.h"],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//emulator/libs/ini_file",
+        "//emulator/libs/sockets",
+        "@abseil-cpp//absl/strings",
+    ],
+)
+
+cc_library(
+    name = "config_dirs",
+    srcs = ["config_dirs.cc"],
+    hdrs = ["include/android/goldfish/config_dirs.h"],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//emulator/libs/system",
+        "@abseil-cpp//absl/log",
+    ],
+)
+
+cc_test(
+    name = "config_dirs_test",
+    size = "small",
+    srcs = ["config_dirs_test.cc"],
+    linkopts = select({
+        "@platforms//os:macos": ["-undefined error"],
+        "//conditions:default": [],
+    }),
+    visibility = ["//visibility:public"],
+    deps = [
+        ":config_dirs",
+        "//emulator/libs/system",
+        "//emulator/libs/system:test-headers",
+        "//emulator/libs/test:googletest_main",
+        "@abseil-cpp//absl/status:status_matchers",
+    ],
+)

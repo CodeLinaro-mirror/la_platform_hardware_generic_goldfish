@@ -24,8 +24,8 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
-        "//emulator/launcher:config_dirs",
         "//emulator/libs/base:array_size",
+        "//emulator/libs/discovery:config_dirs",
         "//emulator/libs/host-common",
         "//emulator/libs/logging:absl_c_bridge",
         "//emulator/libs/system",
