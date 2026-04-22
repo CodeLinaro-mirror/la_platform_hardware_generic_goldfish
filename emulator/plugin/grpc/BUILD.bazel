@@ -1,17 +1,6 @@
 load("@rules_cc//cc:defs.bzl", "cc_library")
 
 cc_library(
-    name = "emulator_advertisement",
-    srcs = ["emulator_advertisement.cc"],
-    hdrs = ["emulator_advertisement.h"],
-    deps = [
-        "//emulator/libs/ini_file",
-        "//emulator/libs/sockets",
-        "@abseil-cpp//absl/strings",
-    ],
-)
-
-cc_library(
     name = "grpc",
     srcs = [
         "grpc.cc",
@@ -22,8 +11,8 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
-        ":emulator_advertisement",
         "//emulator/libs/async:qemu_event_loop",
+        "//emulator/libs/discovery:emulator_advertisement",
         "//emulator/libs/grpc_utils:event-stream",
         "//emulator/libs/hardware_config",
         "//emulator/modem_simulator:modem_simulator_client",
