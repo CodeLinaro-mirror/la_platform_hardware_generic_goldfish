@@ -22,6 +22,7 @@ extern "C" {
 // clang-format off
 // IWYU pragma: begin_keep
 #include "qemu/osdep.h"
+#include "qemu/main-loop.h"
 #include "hw/qdev-core.h"
 #include "net/net.h"
 #include "qapi/error.h"
@@ -124,8 +125,14 @@ void netsim_netdev_link_status_changed(NetClientState* nc) {
 
 void netsim_netdev_cleanup(NetClientState* nc) {
     NetsimNicState* s = (NetsimNicState*)nc;
-    // This calls NetsimTransport's destructor, which calls cancel and await
+    bool locked = bql_locked();
+    if (locked) {
+        bql_unlock();
+    }
     delete s->netsim;
+    if (locked) {
+        bql_lock();
+    }
 }
 
 NetClientInfo netsim_netdev_nic_info = {
