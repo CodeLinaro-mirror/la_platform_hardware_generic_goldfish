@@ -28,6 +28,7 @@
 #include "absl/log/log.h"
 #include "absl/strings/str_format.h"
 
+#include "android/base/system.h"
 #include "android/goldfish/ini_file.h"
 #include "android/process/process.h"
 #include "android/sockets/scoped_socket.h"
@@ -49,6 +50,65 @@ namespace goldfish {
 namespace fs = std::filesystem;
 using android::base::Process;
 constexpr const char* location_format = "pid_%d.ini";
+
+namespace {
+
+using android::base::System;
+
+static const std::string_view kAndroidSubDir = ".android";
+
+using discovery_dir = struct DiscoveryDir {
+    const char* root_env;
+    const char* subdir;
+};
+
+#if defined(_WIN32)
+discovery_dir discovery{"LOCALAPPDATA", "Temp"};
+#elif defined(__linux__)
+discovery_dir discovery{"XDG_RUNTIME_DIR", ""};
+#elif defined(__APPLE__)
+discovery_dir discovery{"HOME", "Library/Caches/TemporaryItems"};
+#else
+#error This platform is not supported.
+#endif
+
+fs::path GetUserDirectory() {
+    fs::path home = System::Get()->EnvGet("ANDROID_EMULATOR_HOME");
+    if (!home.empty()) {
+        return home;
+    }
+
+    home = System::Get()->EnvGet("ANDROID_PREFS_ROOT");
+    if (!home.empty()) {
+        auto home_new_way = fs::path(home) / kAndroidSubDir;
+        return base::file::is_dir(home_new_way) ? home_new_way : home;
+    }
+    home = System::Get()->EnvGet("ANDROID_SDK_HOME");
+    if (!home.empty()) {
+        auto home_old_way = fs::path(home) / kAndroidSubDir;
+        return base::file::exists(home_old_way) ? home_old_way : home;
+    }
+
+    home = android::base::System::Get()->GetHomeDirectory();
+    if (home.empty()) {
+        return fs::temp_directory_path();
+    }
+    return home / kAndroidSubDir;
+}
+
+fs::path GetAlternativeRoot() {
+#ifdef __linux__
+    auto uid = getuid();
+    auto discovery_path = fs::path("/run/user/") / std::to_string(uid);
+    if (base::file::exists(discovery_path)) {
+        return discovery_path;
+    }
+#endif
+
+    return GetUserDirectory();
+}
+
+}  // namespace
 
 static bool canConnectToPort(int64_t port) {
     if (port == 0) {
@@ -252,6 +312,28 @@ bool EmulatorAdvertisement::write() const {
     chmod(pidFile.string().c_str(), S_IRUSR | S_ISVTX | S_IWUSR);
 #endif
     return !shareFile.bad();
+}
+
+fs::path EmulatorAdvertisement::GetDiscoveryDirectory() {
+    fs::path root = System::Get()->EnvGet(discovery.root_env);
+    if (root.empty()) {
+        LOG(WARNING) << "Using fallback path for the emulator registration directory.";
+        root = GetAlternativeRoot();
+    } else {
+        root = root / discovery.subdir;
+    }
+    const std::error_code ec;
+
+    auto desired_directory = root / "avd" / "running";
+    if (!base::file::exists(desired_directory)) {
+        if (auto s = base::file::mkdir_recursive(desired_directory, 0755); !s.ok()) {
+            LOG(WARNING) << "Unable to create directories: " << desired_directory << " due to "
+                         << s;
+        }
+    } else {
+        base::file::chmod(desired_directory, 0755).IgnoreError();
+    }
+    return desired_directory;
 }
 
 }  // namespace goldfish

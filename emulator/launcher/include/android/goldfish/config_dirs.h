@@ -103,34 +103,6 @@ struct ConfigDirs {
      */
     static fs::path GetSdkRootDirectory(const fs::path& launcher_dir, bool verbose = false);
 
-    /**
-     * @brief Returns the path to the Android Studio emulator discovery directory.
-     *
-     * This function returns the path to the directory used by Android Studio to
-     * detect running emulators. If the directory does not exist, it will be
-     * created with 0700 permissions.
-     *
-     * @details The user-specific temporary directory is determined based on
-     * platform-specific conventions, following this order of preference:
-     *
-     * **Linux:**
-     *   - `$XDG_RUNTIME_DIR`
-     *   - `/run/user/$UID`
-     *   - `$HOME/.android`
-     *
-     * **MacOS:**
-     *   - `~/Library/Caches/TemporaryItems`
-     *   - `$HOME/.android`
-     *
-     * **Windows:**
-     *   - `%LOCALAPPDATA%/Temp`
-     *   - `%USERPROFILE%/.android`
-     *
-     * @return fs::path The path to the Android Studio emulator discovery
-     * directory.
-     */
-    static fs::path GetDiscoveryDirectory();
-
   private:
     // Check if the specified path is a valid AVD root path.
     // It is considered valid if it has an 'avd' subdirectory

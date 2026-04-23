@@ -23,6 +23,7 @@
 #include "android/goldfish/config_dirs.h"
 #include "android/status/status_macros.h"
 #include "goldfish/async/uv_to_absl.h"
+#include "goldfish/discovery/emulator_advertisement.h"
 #include "goldfish/file/file.h"
 #include "uv.h"
 
@@ -186,7 +187,7 @@ absl::StatusOr<UserPaths> ResolveUserPaths(const fs::path& launcher_dir, bool ve
             CheckExists(android::goldfish::ConfigDirs::GetSdkRootDirectory(launcher_dir, verbose),
                         "sdk directory"));
     ASSIGN_OR_RETURN(paths.discovery_directory,
-                     CheckExists(android::goldfish::ConfigDirs::GetDiscoveryDirectory(),
+                     CheckExists(android::goldfish::EmulatorAdvertisement::GetDiscoveryDirectory(),
                                  "discovery directory"));
 
     return paths;
