@@ -254,7 +254,6 @@ class PhysicalModel : public CallbackEventSource<PhysicalModelChangeEvent> {
     mutable size_t measurement_id_[kNumSensors] = {0};  ///< Measurement IDs
 
     bool is_physical_state_changing_{false};    ///< True if physical state is changing
-    bool is_loading_snapshot_{false};           ///< True if loading from snapshot
     bool use_override_[kNumSensors] = {false};  ///< Sensor override flags
 
 #define GOLDFISH_SENSOR_DEF(x, y, z, v, w) v m##z##Override{0.f};

@@ -108,8 +108,6 @@ class LoggingInterceptor : public grpc::experimental::Interceptor {
 
     InvocationRecord loginfo_;
     ReportingFunction reporter_;
-    grpc::experimental::ClientRpcInfo* client_info_;
-    grpc::experimental::ServerRpcInfo* server_info_;
 };
 
 // The factory class that needs to be registered with the gRPC server/client.
