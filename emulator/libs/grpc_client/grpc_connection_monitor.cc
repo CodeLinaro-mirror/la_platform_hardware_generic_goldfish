@@ -16,9 +16,9 @@
 
 #include <grpcpp/grpcpp.h>
 
-#include <cstdint>
 #include <thread>
 
+#include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 
@@ -28,184 +28,197 @@ namespace {
 std::ostream& operator<<(std::ostream& os, ConnectionState state) {
     switch (state) {
     case ConnectionState::kDisconnected:
-        os << "Disconnected";
-        break;
+        return os << "Disconnected";
     case ConnectionState::kConnecting:
-        os << "Connecting";
-        break;
+        return os << "Connecting";
     case ConnectionState::kConnected:
-        os << "Connected";
-        break;
+        return os << "Connected";
     }
     return os;
 }
 
 }  // namespace
 
+struct GrpcConnectionMonitor::State {
+    explicit State(const std::shared_ptr<grpc::Channel>& channel) : channel(channel) {}
+
+    void SetConnectionState(ConnectionState state) {
+        connection_state = state;
+        state_changes.FireEvent(state);
+    }
+
+    std::weak_ptr<grpc::Channel> channel;
+
+    std::thread worker_thread;
+    std::thread::id worker_thread_id;
+    std::atomic<bool> shutting_down{false};
+
+    absl::Mutex callback_active;
+    grpc::CompletionQueue completion_queue;
+
+    ConnectionState connection_state{ConnectionState::kDisconnected};
+    android::base::eventing::CallbackEventSource<ConnectionState> state_changes;
+};
+
+namespace {
 // A self-owning callback that monitors the gRPC channel's state.
 // It uses a state machine to transition between initial connection,
 // liveness monitoring, and shutdown.
-struct GrpcConnectionMonitor::MonitorCallback {
-    enum class State : std::uint8_t { kInitial, kMonitoring, kShutdown };
+class MonitorCallback : public std::enable_shared_from_this<MonitorCallback> {
+  public:
+    MonitorCallback(std::shared_ptr<GrpcConnectionMonitor::State> s, std::promise<absl::Status> p,
+                    gpr_timespec d)
+            : monitor_state_(std::move(s)), promise_(std::move(p)), deadline_(d) {
+        VLOG(1) << "Monitor callback created.";
+    }
 
-    State state = State::kInitial;
-    GrpcConnectionMonitor* monitor;
-    std::shared_ptr<std::promise<absl::Status>> promise;
-    absl::Duration timeout;
-
-    MonitorCallback(GrpcConnectionMonitor* m, std::shared_ptr<std::promise<absl::Status>> p,
-                    absl::Duration t)
-            : monitor(m), promise(std::move(p)), timeout(t) {
-        VLOG(1) << "Monitor callback created, with promise";
+    void Arm(const std::shared_ptr<grpc::Channel>& channel,
+             grpc_connectivity_state connectivity_state, gpr_timespec d) {
+        DCHECK(self_ == nullptr);
+        self_ = shared_from_this();
+        channel->NotifyOnStateChange(connectivity_state, d, &monitor_state_->completion_queue,
+                                     this);
     }
 
     void Run(bool ok) {
-        VLOG(1) << "Running monitor callback";
-        auto channel = monitor->channel_.lock();
-        if (!channel || monitor->shutting_down_.load(std::memory_order_acquire)) {
-            VLOG(1) << "Shutting down monitor";
-            if (promise) {
-                VLOG(1) << "Setting cancel promise";
-                promise->set_value(absl::CancelledError("Connection cancelled."));
+        DCHECK(self_ != nullptr);
+        const auto guard = std::move(self_);
+        if (!ok) {
+            // This case should be reflected by a more specific error state returned by GetState
+            // below.
+            VLOG(1) << "monitor callback completion_queue next not ok";
+        }
+        if (monitor_state_->shutting_down.load(std::memory_order_acquire)) {
+            if (!connection_established_) {
+                CompletePromise(absl::CancelledError("monitor shutting down"));
             }
-            delete this;
+            return;
+        }
+        auto channel = monitor_state_->channel.lock();
+        if (!channel) {
+            if (!connection_established_) {
+                CompletePromise(absl::CancelledError("channel destroyed"));
+            }
             return;
         }
 
-        const grpc_connectivity_state new_state = channel->GetState(state == State::kInitial);
-
-        switch (state) {
-        case State::kInitial:
-            HandleInitial(ok, new_state);
-            break;
-        case State::kMonitoring:
-            HandleMonitoring(ok, new_state);
-            break;
-        case State::kShutdown:
-            delete this;
-            break;
+        if (!connection_established_) {
+            HandleInitial(channel);
+        } else {
+            HandleMonitoring(channel);
         }
     }
 
-    void HandleInitial(bool /*ok*/, grpc_connectivity_state new_state) {
-        auto channel = monitor->channel_.lock();
-        if (!channel || monitor->shutting_down_.load(std::memory_order_acquire)) {
-            delete this;
-            return;
-        }
-        if (new_state == GRPC_CHANNEL_READY) {
-            monitor->SetConnectionState(ConnectionState::kConnected);
-            if (promise) {
-                VLOG(1) << "Setting ok promise, monitor state: "
-                        << (monitor->shutting_down_ ? "shutting down" : "active");
-                promise->set_value(absl::OkStatus());
-                promise.reset();  // Fulfill promise only once.
+  private:
+    void HandleInitial(const std::shared_ptr<grpc::Channel>& channel) {
+        auto connectivity_state = channel->GetState(/*try_to_connect=*/true);
+        if (connectivity_state == GRPC_CHANNEL_READY) {
+            monitor_state_->SetConnectionState(ConnectionState::kConnected);
+            CompletePromise(absl::OkStatus());
+
+            if (monitor_state_->shutting_down.load(std::memory_order_acquire)) {
+                return;
             }
+
             // Transition to long-term monitoring.
-            state = State::kMonitoring;
-            channel->NotifyOnStateChange(new_state, gpr_inf_future(GPR_CLOCK_REALTIME),
-                                         &monitor->completion_queue_, this);
-        } else if (new_state == GRPC_CHANNEL_TRANSIENT_FAILURE ||
-                   new_state == GRPC_CHANNEL_SHUTDOWN) {
-            monitor->SetConnectionState(ConnectionState::kDisconnected);
-            if (promise) {
-                VLOG(1) << "Setting connection failed promise";
-                promise->set_value(absl::UnavailableError("Connection failed."));
-            }
-            delete this;  // End of the line.
+            connection_established_ = true;
+            Arm(channel, connectivity_state, gpr_inf_future(GPR_CLOCK_REALTIME));
+        } else if (connectivity_state == GRPC_CHANNEL_TRANSIENT_FAILURE ||
+                   connectivity_state == GRPC_CHANNEL_SHUTDOWN ||
+                   gpr_time_cmp(gpr_now(GPR_CLOCK_REALTIME), deadline_) >= 0) {
+            monitor_state_->SetConnectionState(ConnectionState::kDisconnected);
+
+            const bool timed_out = gpr_time_cmp(gpr_now(GPR_CLOCK_REALTIME), deadline_) >= 0;
+            CompletePromise(timed_out ? absl::DeadlineExceededError("Connection timed out.")
+                                      : absl::UnavailableError("Connection failed."));
         } else {
             // Keep trying.
-            channel->NotifyOnStateChange(
-                    new_state,
-                    gpr_time_from_millis(absl::ToInt64Milliseconds(timeout), GPR_CLOCK_REALTIME),
-                    &monitor->completion_queue_, this);
+            Arm(channel, connectivity_state, deadline_);
         }
     }
 
-    void HandleMonitoring(bool ok, grpc_connectivity_state new_state) {
-        auto channel = monitor->channel_.lock();
-        if (!channel || monitor->shutting_down_.load(std::memory_order_acquire)) {
-            delete this;
-            return;
-        }
-        if (!ok || new_state != GRPC_CHANNEL_READY) {
-            monitor->SetConnectionState(ConnectionState::kDisconnected);
-            // End of the line for this monitor.
-            delete this;
+    void HandleMonitoring(const std::shared_ptr<grpc::Channel>& channel) {
+        auto connectivity_state = channel->GetState(/*try_to_connect=*/false);
+        if (connectivity_state != GRPC_CHANNEL_READY) {
+            monitor_state_->SetConnectionState(ConnectionState::kDisconnected);
         } else {
             // Spurious notification, re-arm the monitor.
-            channel->NotifyOnStateChange(GRPC_CHANNEL_READY, gpr_inf_future(GPR_CLOCK_REALTIME),
-                                         &monitor->completion_queue_, this);
+            Arm(channel, GRPC_CHANNEL_READY, gpr_inf_future(GPR_CLOCK_REALTIME));
         }
     }
+
+    void CompletePromise(absl::Status status) {
+        promise_.set_value(std::move(status));
+    }
+
+    std::shared_ptr<GrpcConnectionMonitor::State> monitor_state_;
+    std::promise<absl::Status> promise_;
+    gpr_timespec deadline_;
+
+    bool connection_established_ = false;
+    std::shared_ptr<MonitorCallback> self_;
 };
 
+}  // namespace
+
 GrpcConnectionMonitor::GrpcConnectionMonitor(const std::shared_ptr<grpc::Channel>& channel)
-        : channel_(channel) {
-    worker_thread_ = std::thread(&GrpcConnectionMonitor::AsyncWorker, this);
-    worker_thread_id_ = worker_thread_.get_id();
+        : state_(std::make_shared<State>(channel)) {
+    state_->worker_thread = std::thread([state = state_]() {
+        void* tag;
+        bool ok;
+        while (state->completion_queue.Next(&tag, &ok)) {
+            auto* callback = static_cast<MonitorCallback*>(tag);
+            const absl::MutexLock lock(state->callback_active);
+            callback->Run(ok);
+        }
+        VLOG(1) << "Monitor worker thread finished.";
+    });
+    state_->worker_thread_id = state_->worker_thread.get_id();
 }
 
 GrpcConnectionMonitor::~GrpcConnectionMonitor() {
-    assert(std::this_thread::get_id() != worker_thread_id_ &&
-           "The monitor thread should not be destroying the monitor!");
     Stop();
 }
 
 void GrpcConnectionMonitor::Stop() {
-    if (std::this_thread::get_id() == worker_thread_id_) {
-        VLOG(1) << "You cannot Stop the monitor thread from the monitor thread.";
+    if (std::this_thread::get_id() == state_->worker_thread_id) {
+        LOG(ERROR) << "You cannot Stop the monitor thread from the monitor thread.";
         return;
     }
 
-    if (shutting_down_.exchange(true)) {
+    if (state_->shutting_down.exchange(true)) {
         return;
     }
-    VLOG(1) << "shutting_down_ set to: " << shutting_down_;
-    if (worker_thread_.joinable()) {
-        VLOG(1) << "Joining worker thread, we are disconnecting";
-        {
-            // Do not yank the queue out when a callback is active, callbacks could schedule
-            // something which is not allowed after this call returns.
-            const absl::MutexLock lock(callback_active_);
-            completion_queue_.Shutdown();
-        }
-        worker_thread_.join();
+
+    {
+        const absl::MutexLock lock(state_->callback_active);
+        state_->completion_queue.Shutdown();
     }
+    state_->worker_thread.join();
 }
 
 std::future<absl::Status> GrpcConnectionMonitor::Watch(absl::Duration timeout) {
-    auto promise = std::make_shared<std::promise<absl::Status>>();
-    auto future = promise->get_future();
+    const auto deadline =
+            gpr_time_add(gpr_now(GPR_CLOCK_REALTIME),
+                         gpr_time_from_millis(absl::ToInt64Milliseconds(timeout), GPR_TIMESPAN));
 
-    auto* callback = new MonitorCallback(this, promise, timeout);
-    if (auto channel = channel_.lock()) {
-        channel->NotifyOnStateChange(
-                channel->GetState(false),
-                gpr_time_from_millis(absl::ToInt64Milliseconds(timeout), GPR_CLOCK_REALTIME),
-                &completion_queue_, callback);
+    std::promise<absl::Status> p;
+    auto future = p.get_future();
+
+    if (auto channel = state_->channel.lock()) {
+        auto callback = std::make_shared<MonitorCallback>(state_, std::move(p), deadline);
+        // Trigger the connection process with true.
+        callback->Arm(channel, channel->GetState(true), deadline);
     } else {
-        promise->set_value(absl::CancelledError("Channel is gone."));
-        delete callback;
+        p.set_value(absl::CancelledError("Channel is gone."));
     }
 
     return future;
 }
 
-void GrpcConnectionMonitor::AsyncWorker() {
-    void* tag;
-    bool ok;
-    while (completion_queue_.Next(&tag, &ok)) {
-        auto* callback = static_cast<MonitorCallback*>(tag);
-        const absl::MutexLock lock(callback_active_);
-        callback->Run(ok);
-    }
-    VLOG(1) << "Queue is finished.";
-}
-
-void GrpcConnectionMonitor::SetConnectionState(ConnectionState state) {
-    state_ = state;
-    state_changes.FireEvent(state);
+android::base::eventing::CallbackEventSource<ConnectionState>&
+GrpcConnectionMonitor::state_changes() {
+    return state_->state_changes;
 }
 
 }  // namespace android::emulation::control

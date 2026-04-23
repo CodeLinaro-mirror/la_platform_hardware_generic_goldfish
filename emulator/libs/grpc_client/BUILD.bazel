@@ -20,6 +20,7 @@ cc_library(
         "//emulator/libs/eventing",
         "//emulator/libs/grpc_security",
         "//emulator/libs/ini_file",
+        "//emulator/libs/status_macros",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/strings",
