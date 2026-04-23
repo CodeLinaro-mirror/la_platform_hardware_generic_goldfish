@@ -31,12 +31,19 @@
 // IWYU pragma: end_keep
 // clang-format on
 
+#ifndef IN6ADDR_LOOPBACK_INIT
+#define IN6ADDR_LOOPBACK_INIT                   \
+    {                                           \
+        { { 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1 } } \
+    }
+#endif
+
 #include "absl/status/statusor.h"
 
 namespace goldfish::network {
 
-inline struct in_addr ToIpv4Address(const uint8_t a, const uint8_t b, const uint8_t c,
-                                    const uint8_t d) {
+inline constexpr struct in_addr ToIpv4Address(const uint8_t a, const uint8_t b, const uint8_t c,
+                                              const uint8_t d) {
     static_assert(sizeof(struct in_addr) == 4);
     const uint8_t bits[4] = {a, b, c, d};
     return std::bit_cast<struct in_addr>(bits);
@@ -45,6 +52,12 @@ inline struct in_addr ToIpv4Address(const uint8_t a, const uint8_t b, const uint
 absl::StatusOr<struct in_addr> ToIpv4Address(const char* ip_address);
 absl::StatusOr<struct in_addr> ToIpv4Address(const std::string& ip_address);
 absl::StatusOr<struct in_addr> ToIpv4Address(std::string_view ip_address);
+#ifdef _WIN32
+inline constexpr struct in_addr kIPv4LoopbackAddress = {.S_un = {.S_addr = 0x0100007f}};
+#else
+inline constexpr struct in_addr kIPv4LoopbackAddress = ToIpv4Address(127, 0, 0, 1);
+#endif
+
 std::string ToString(struct in_addr);
 
 struct in6_addr ToIpv6Address(uint16_t a, uint16_t b, uint16_t c, uint16_t d, uint16_t e,
@@ -53,6 +66,8 @@ struct in6_addr ToIpv6Address(uint16_t a, uint16_t b, uint16_t c, uint16_t d, ui
 absl::StatusOr<struct in6_addr> ToIpv6Address(const char* ip_address);
 absl::StatusOr<struct in6_addr> ToIpv6Address(const std::string& ip_address);
 absl::StatusOr<struct in6_addr> ToIpv6Address(std::string_view ip_address);
+inline constexpr struct in6_addr kIPv6LoopbackAddress = IN6ADDR_LOOPBACK_INIT;
+
 std::string ToString(const struct in6_addr&);
 
 using IpAddress = std::variant<struct in_addr, struct in6_addr>;
