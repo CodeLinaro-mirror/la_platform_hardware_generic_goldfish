@@ -17,6 +17,16 @@ config_setting(
     values = {"compilation_mode": "opt"},
 )
 
+config_setting(
+    name = "asan",
+    values = {"features": "asan"},
+)
+
+config_setting(
+    name = "tsan",
+    values = {"features": "tsan"},
+)
+
 py_binary(
     name = "symbol_zipper",
     srcs = ["symbol_zipper.py"],
