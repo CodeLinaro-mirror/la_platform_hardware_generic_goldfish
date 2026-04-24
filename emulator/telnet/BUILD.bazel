@@ -53,6 +53,24 @@ cc_library(
 )
 
 cc_library(
+    name = "legacy_console_controller",
+    srcs = ["legacy_console_controller.cc"],
+    hdrs = ["legacy_console_controller.h"],
+    includes = ["."],
+    deps = [
+        ":console_server",
+        ":legacy_console_bridge",
+        ":line_command_handler",
+        ":telnet_auth",
+        "//emulator/libs/async:async_api",
+        "//emulator/libs/async:libuv_event_loop",
+        "//emulator/libs/network",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+    ],
+)
+
+cc_library(
     name = "command_registry",
     srcs = ["command_registry.cc"],
     hdrs = ["command_registry.h"],
@@ -112,6 +130,20 @@ cc_test(
     deps = [
         ":command_registry",
         "//emulator/libs/async:async_testing",
+        "//emulator/libs/test:googletest_main",
+    ],
+)
+
+cc_test(
+    name = "legacy_console_controller_test",
+    srcs = ["legacy_console_controller_test.cc"],
+    deps = [
+        ":legacy_console_bridge",
+        ":legacy_console_controller",
+        ":telnet_auth",
+        "//emulator/libs/async:async_testing",
+        "//emulator/libs/async:libuv_event_loop",
+        "//emulator/libs/network",
         "//emulator/libs/test:googletest_main",
     ],
 )
