@@ -345,8 +345,9 @@ class FileBackedAvd : public Avd {
     std::string Details(const bool verbose) const override {
         if (verbose) {
             auto icon = GetIconForDeviceType(GetDeviceType());
-            return absl::StrFormat("%-45s  - (%4dx%4d) %s", name_, hw_cfg_.hw_lcd_width,
-                                   hw_cfg_.hw_lcd_height, icon);
+            return absl::StrFormat("%s (%s) %s api: %d arch: %s res: %4dx%4d", Id(), DisplayName(),
+                                   icon, ApiLevel(), Abi(), hw_cfg_.hw_lcd_width,
+                                   hw_cfg_.hw_lcd_height);
         }
         return name_;
     }
