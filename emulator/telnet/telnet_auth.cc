@@ -76,14 +76,15 @@ std::string_view TelnetAuth::Token::AsStringView() const {
     return crypto::tink::util::SecretDataAsStringView(secret_);
 }
 
-absl::StatusOr<TelnetAuth::Token> TelnetAuth::LoadOrCreateToken(size_t entropy) {
+absl::StatusOr<TelnetAuth::Token> TelnetAuth::LoadOrCreateToken(size_t entropy,
+                                                                const fs::path& token_path) {
     VLOG(1) << "Loading or creating telnet auth token.";
     int max_attempts = 10;
 
     absl::BitGen bitgen;
 
     while (max_attempts-- > 0) {
-        auto token = ReadToken();
+        auto token = ReadToken(token_path);
         if (token.ok()) {
             VLOG(1) << "Telnet auth token successfully loaded.";
             return token;
@@ -91,7 +92,6 @@ absl::StatusOr<TelnetAuth::Token> TelnetAuth::LoadOrCreateToken(size_t entropy) 
 
         VLOG(1) << "Token file missing or unreadable (" << token.status()
                 << "), attempting to provision.";
-        const auto token_path = GetTokenPath();
 
         // Attempt to write.
         auto new_token_res = GenerateToken(entropy);
@@ -110,7 +110,7 @@ absl::StatusOr<TelnetAuth::Token> TelnetAuth::LoadOrCreateToken(size_t entropy) 
         absl::SleepFor(absl::Milliseconds(absl::Uniform(bitgen, 10, 50)));
     }
 
-    return ReadToken();
+    return ReadToken(token_path);
 }
 
 std::filesystem::path TelnetAuth::GetTokenPath() {
@@ -120,29 +120,29 @@ std::filesystem::path TelnetAuth::GetTokenPath() {
     return home / ".emulator_console_auth_token";
 }
 
-absl::StatusOr<TelnetAuth::Token> TelnetAuth::ReadToken() {
-    const auto path = GetTokenPath();
-    VLOG(2) << "Reading token from: " << path;
+absl::StatusOr<TelnetAuth::Token> TelnetAuth::ReadToken(const fs::path& token_path) {
+    VLOG(2) << "Reading token from: " << token_path;
 
-    if (!android::base::file::exists(path)) {
+    if (!android::base::file::exists(token_path)) {
         return absl::NotFoundError(
-                absl::StrCat("The token file:", path.string(), " does not exist."));
+                absl::StrCat("The token file:", token_path.string(), " does not exist."));
     }
 
-    if (android::base::file::file_size(path).value_or(0) > kMaxTokenFileSize) {
+    if (android::base::file::file_size(token_path).value_or(0) > kMaxTokenFileSize) {
         return absl::InternalError(absl::StrCat(
-                "The emulator console authentication token file at '", path.string(),
+                "The emulator console authentication token file at '", token_path.string(),
                 "' is too large to read. A token can contain at most ", kMaxTokenFileSize,
                 " bytes. Please check the file and ensure it contains a valid token."));
     }
 
     // Read existing file with a size limit.
-    std::ifstream ifs(path, std::ios::binary);
+    std::ifstream ifs(token_path, std::ios::binary);
     if (!ifs) {
-        VLOG(1) << "Failed to open token file at " << path;
-        return absl::InternalError(absl::StrCat(
-                "Failed to open the emulator console authentication token file at '", path.string(),
-                "'. Ensure the file is readable and has correct permissions."));
+        VLOG(1) << "Failed to open token file at " << token_path;
+        return absl::InternalError(
+                absl::StrCat("Failed to open the emulator console authentication token file at '",
+                             token_path.string(),
+                             "'. Ensure the file is readable and has correct permissions."));
     }
 
     std::string content;
@@ -160,36 +160,36 @@ absl::StatusOr<TelnetAuth::Token> TelnetAuth::ReadToken() {
     return TelnetAuth::Token(content);
 }
 
-AuthStatus TelnetAuth::GetStatus() {
-    const auto path = GetTokenPath();
-    if (!android::base::file::exists(path)) {
-        VLOG(1) << "Token file does not exist at " << path << ", returning kRequired.";
+AuthStatus TelnetAuth::GetStatus(const fs::path& token_path) {
+    if (!android::base::file::exists(token_path)) {
+        VLOG(1) << "Token file does not exist at " << token_path << ", returning kRequired.";
         return AuthStatus::kRequired;
     }
 
-    if (!android::base::file::can_read(path)) {
-        VLOG(1) << "Token file exists at " << path << " but is not readable.";
+    if (!android::base::file::can_read(token_path)) {
+        VLOG(1) << "Token file exists at " << token_path << " but is not readable.";
         return AuthStatus::kError;
     }
 
-    const auto size = android::base::file::file_size(path);
+    const auto size = android::base::file::file_size(token_path);
     if (!size.ok()) {
-        VLOG(1) << "Failed to get token file size for " << path << ": " << size.status().message();
+        VLOG(1) << "Failed to get token file size for " << token_path << ": "
+                << size.status().message();
         return AuthStatus::kError;
     }
 
     if (*size > kMaxTokenFileSize) {
-        VLOG(1) << "Token file exists at " << path << " but is too large to read." << *size << " > "
-                << kMaxTokenFileSize;
+        VLOG(1) << "Token file exists at " << token_path << " but is too large to read." << *size
+                << " > " << kMaxTokenFileSize;
         return AuthStatus::kError;
     }
 
     if (*size == 0) {
-        VLOG(1) << "Token file exists at " << path << " but is empty, disabling security.";
+        VLOG(1) << "Token file exists at " << token_path << " but is empty, disabling security.";
         return AuthStatus::kDisabled;
     }
 
-    VLOG(1) << "Token file exists and is readable at " << path << ", returning kRequired.";
+    VLOG(1) << "Token file exists and is readable at " << token_path << ", returning kRequired.";
     return AuthStatus::kRequired;
 }
 

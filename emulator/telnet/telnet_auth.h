@@ -139,7 +139,7 @@ class TelnetAuth {
      *
      * @return The current @ref AuthStatus.
      */
-    static AuthStatus GetStatus();
+    static AuthStatus GetStatus(const std::filesystem::path& token_path = GetTokenPath());
 
     /**
      * @brief Reads the authentication token from the filesystem.
@@ -152,7 +152,8 @@ class TelnetAuth {
      * @retval absl::NotFoundError if the token file does not exist.
      * @retval absl::InternalError if the file is too large (>1KB) or cannot be opened.
      */
-    static absl::StatusOr<Token> ReadToken();
+    static absl::StatusOr<Token> ReadToken(
+            const std::filesystem::path& token_path = GetTokenPath());
 
     /**
      * @brief Ensures a valid authentication token exists and returns its value.
@@ -183,7 +184,8 @@ class TelnetAuth {
      * @return The existing or newly provisioned authentication token.
      * @retval absl::Status Any error encountered during generation or disk I/O.
      */
-    static absl::StatusOr<Token> LoadOrCreateToken(size_t entropy = 16);
+    static absl::StatusOr<Token> LoadOrCreateToken(
+            size_t entropy = 16, const std::filesystem::path& token_path = GetTokenPath());
 };
 
 }  // namespace goldfish::telnet

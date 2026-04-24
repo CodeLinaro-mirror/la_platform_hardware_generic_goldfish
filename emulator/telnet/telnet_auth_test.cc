@@ -42,7 +42,7 @@ class TelnetAuthTest : public ::testing::Test {
 // --- Section 1: Read-only paths (No Side Effects) ---
 
 TEST_F(TelnetAuthTest, ReadToken_ReturnsNotFound_WhenFileMissing) {
-    auto result = TelnetAuth::ReadToken();
+    auto result = TelnetAuth::ReadToken(token_path_);
     EXPECT_FALSE(result.ok());
     EXPECT_TRUE(absl::IsNotFound(result.status()));
 
@@ -53,7 +53,7 @@ TEST_F(TelnetAuthTest, ReadToken_ReturnsNotFound_WhenFileMissing) {
 TEST_F(TelnetAuthTest, GetStatus_ReturnsRequired_WhenFileMissing) {
     // If the file is missing, we still return kRequired (meaning authentication
     // will be needed once the file is provisioned).
-    EXPECT_EQ(TelnetAuth::GetStatus(), AuthStatus::kRequired);
+    EXPECT_EQ(TelnetAuth::GetStatus(token_path_), AuthStatus::kRequired);
 
     // Side effect check: File must NOT have been created
     EXPECT_FALSE(std::filesystem::exists(token_path_));
@@ -64,7 +64,7 @@ TEST_F(TelnetAuthTest, GetStatus_ReturnsDisabled_WhenFileEmpty) {
         std::ofstream ofs(token_path_);
         // Create empty file
     }
-    EXPECT_EQ(TelnetAuth::GetStatus(), AuthStatus::kDisabled);
+    EXPECT_EQ(TelnetAuth::GetStatus(token_path_), AuthStatus::kDisabled);
 }
 
 TEST_F(TelnetAuthTest, GetStatus_ReturnsError_WhenFileTooLarge) {
@@ -74,7 +74,7 @@ TEST_F(TelnetAuthTest, GetStatus_ReturnsError_WhenFileTooLarge) {
         std::string large_content(1025, 'A');
         ofs << large_content;
     }
-    EXPECT_EQ(TelnetAuth::GetStatus(), AuthStatus::kError);
+    EXPECT_EQ(TelnetAuth::GetStatus(token_path_), AuthStatus::kError);
 }
 
 TEST_F(TelnetAuthTest, GetStatus_ReturnsRequired_WhenFileIsExactly1KB) {
@@ -84,7 +84,7 @@ TEST_F(TelnetAuthTest, GetStatus_ReturnsRequired_WhenFileIsExactly1KB) {
         std::string content(1024, 'A');
         ofs << content;
     }
-    EXPECT_EQ(TelnetAuth::GetStatus(), AuthStatus::kRequired);
+    EXPECT_EQ(TelnetAuth::GetStatus(token_path_), AuthStatus::kRequired);
 }
 
 TEST_F(TelnetAuthTest, ReadToken_ReturnsError_WhenFileTooLarge) {
@@ -93,7 +93,7 @@ TEST_F(TelnetAuthTest, ReadToken_ReturnsError_WhenFileTooLarge) {
         std::string large_content(1025, 'A');
         ofs << large_content;
     }
-    auto result = TelnetAuth::ReadToken();
+    auto result = TelnetAuth::ReadToken(token_path_);
     EXPECT_FALSE(result.ok());
     EXPECT_TRUE(absl::IsInternal(result.status()));
 }
@@ -104,7 +104,7 @@ TEST_F(TelnetAuthTest, ReadToken_Succeeds_WhenFileIsExactly1KB) {
         std::ofstream ofs(token_path_);
         ofs << content;
     }
-    auto result = TelnetAuth::ReadToken();
+    auto result = TelnetAuth::ReadToken(token_path_);
     ASSERT_TRUE(result.ok());
     EXPECT_EQ(result->AsStringView().size(), 1024);
     EXPECT_EQ(result->AsStringView(), content);
@@ -119,7 +119,7 @@ TEST_F(TelnetAuthTest, GetStatus_ReturnsError_WhenFileUnreadable) {
     // Make it unreadable
     std::filesystem::permissions(token_path_, std::filesystem::perms::none);
 
-    EXPECT_EQ(TelnetAuth::GetStatus(), AuthStatus::kError);
+    EXPECT_EQ(TelnetAuth::GetStatus(token_path_), AuthStatus::kError);
 
     // Restore permissions so TearDown can delete it cleanly
     std::filesystem::permissions(token_path_, std::filesystem::perms::owner_all);
@@ -133,7 +133,7 @@ TEST_F(TelnetAuthTest, ReadToken_ReturnsError_WhenFileUnreadable) {
     // Make it unreadable
     std::filesystem::permissions(token_path_, std::filesystem::perms::none);
 
-    auto result = TelnetAuth::ReadToken();
+    auto result = TelnetAuth::ReadToken(token_path_);
     EXPECT_FALSE(result.ok());
     EXPECT_TRUE(absl::IsInternal(result.status()));
 
@@ -151,7 +151,7 @@ TEST_F(TelnetAuthTest, LoadOrCreate_ReturnsExistingToken) {
         ofs << secret;
     }
 
-    auto result = TelnetAuth::LoadOrCreateToken();
+    auto result = TelnetAuth::LoadOrCreateToken(16, token_path_);
     ASSERT_TRUE(result.ok());
     EXPECT_EQ(result->AsStringView(), secret);
 }
@@ -163,7 +163,7 @@ TEST_F(TelnetAuthTest, ReadToken_TrimsWhitespace) {
         ofs << "  " << secret << "\n\r\n ";
     }
 
-    auto result = TelnetAuth::ReadToken();
+    auto result = TelnetAuth::ReadToken(token_path_);
     ASSERT_TRUE(result.ok());
     EXPECT_EQ(result->AsStringView(), secret);
 }
@@ -176,10 +176,38 @@ TEST_F(TelnetAuthTest, Token_SecureEquals) {
     EXPECT_FALSE(token.SecureEquals("my-secret-token-extra"));
 }
 
+TEST_F(TelnetAuthTest, LoadOrCreate_ProvisionsNewToken_AtCustomPath) {
+    auto custom_token_path = test_home_ / "custom_token";
+    ASSERT_FALSE(std::filesystem::exists(custom_token_path));
+    ASSERT_FALSE(std::filesystem::exists(token_path_));
+
+    auto result = TelnetAuth::LoadOrCreateToken(16, custom_token_path);
+    ASSERT_TRUE(result.ok());
+
+    // Verify file was created at custom path
+    EXPECT_TRUE(std::filesystem::exists(custom_token_path));
+    // Verify file was NOT created at default path
+    EXPECT_FALSE(std::filesystem::exists(token_path_));
+
+    // Verify file content matches
+    auto read_back = TelnetAuth::ReadToken(custom_token_path);
+    ASSERT_TRUE(read_back.ok());
+    EXPECT_EQ(read_back->AsStringView(), result->AsStringView());
+}
+
+TEST_F(TelnetAuthTest, GetStatus_ReturnsDisabled_WhenCustomFileEmpty) {
+    auto custom_token_path = test_home_ / "custom_token_empty";
+    {
+        std::ofstream ofs(custom_token_path);
+        // Create empty file
+    }
+    EXPECT_EQ(TelnetAuth::GetStatus(custom_token_path), AuthStatus::kDisabled);
+}
+
 TEST_F(TelnetAuthTest, LoadOrCreate_ProvisionsNewToken_WhenMissing) {
     ASSERT_FALSE(std::filesystem::exists(token_path_));
 
-    auto result = TelnetAuth::LoadOrCreateToken();
+    auto result = TelnetAuth::LoadOrCreateToken(16, token_path_);
     ASSERT_TRUE(result.ok());
     // WebSafeBase64 encoding of 16 bytes of entropy results in a 22-character string (no padding).
     EXPECT_EQ(result->AsStringView().length(), 22)
@@ -187,14 +215,14 @@ TEST_F(TelnetAuthTest, LoadOrCreate_ProvisionsNewToken_WhenMissing) {
             << "]";
 
     // Verify file was actually created and is readable
-    auto read_back = TelnetAuth::ReadToken();
+    auto read_back = TelnetAuth::ReadToken(token_path_);
     ASSERT_TRUE(read_back.ok());
     EXPECT_EQ(read_back->AsStringView(), result->AsStringView());
 }
 
 #ifndef _WIN32
 TEST_F(TelnetAuthTest, ProvisionsWithSecurePermissions) {
-    auto result = TelnetAuth::LoadOrCreateToken();
+    auto result = TelnetAuth::LoadOrCreateToken(16, token_path_);
     ASSERT_TRUE(result.ok());
 
     // Verify permissions are 0600 (owner read/write only)
@@ -210,7 +238,7 @@ TEST_F(TelnetAuthTest, ProvisionsWithSecurePermissions) {
 }
 #else
 TEST_F(TelnetAuthTest, ProvisionsWithSecurePermissionsWindows) {
-    auto result = TelnetAuth::LoadOrCreateToken();
+    auto result = TelnetAuth::LoadOrCreateToken(16, token_path_);
     ASSERT_TRUE(result.ok());
 
     PACL pDacl = nullptr;
@@ -240,8 +268,9 @@ TEST_F(TelnetAuthTest, LoadOrCreate_ConcurrentAccess) {
 
     // Let the herd take off! Create those tookens!
     for (int i = 0; i < kNumThreads; ++i) {
-        futures.push_back(
-                std::async(std::launch::async, []() { return TelnetAuth::LoadOrCreateToken(); }));
+        futures.push_back(std::async(std::launch::async, [this]() {
+            return TelnetAuth::LoadOrCreateToken(16, token_path_);
+        }));
     }
 
     std::string first_token_str;
@@ -257,7 +286,7 @@ TEST_F(TelnetAuthTest, LoadOrCreate_ConcurrentAccess) {
     }
 
     // Final verification of file content matches our consensus
-    auto read_back = TelnetAuth::ReadToken();
+    auto read_back = TelnetAuth::ReadToken(token_path_);
     ASSERT_TRUE(read_back.ok());
     EXPECT_EQ(read_back->AsStringView(), first_token_str);
 }
