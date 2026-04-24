@@ -186,9 +186,10 @@ absl::StatusOr<UserPaths> ResolveUserPaths(const fs::path& launcher_dir, bool ve
             paths.sdk_directory,
             CheckExists(android::goldfish::ConfigDirs::GetSdkRootDirectory(launcher_dir, verbose),
                         "sdk directory"));
-    ASSIGN_OR_RETURN(paths.discovery_directory,
-                     CheckExists(android::goldfish::EmulatorAdvertisement::GetDiscoveryDirectory(),
-                                 "discovery directory"));
+    ASSIGN_OR_RETURN(
+            paths.discovery_directory,
+            CheckExists(::goldfish::discovery::EmulatorAdvertisement::GetDiscoveryDirectory(),
+                        "discovery directory"));
 
     return paths;
 }
