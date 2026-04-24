@@ -241,6 +241,16 @@ EmulatorGrpcClientBuilder& EmulatorGrpcClientBuilder::WithDiscoveryFile(
     return *this;
 }
 
+EmulatorGrpcClientBuilder& EmulatorGrpcClientBuilder::ForDiscoveredEmulator(
+        EmulatorProperties properties, const EmulatorAdvertisement& advertisement) {
+    auto path = advertisement.DiscoverEmulatorWithProperties(properties);
+    if (!path.ok()) {
+        status_ = path.status();
+        return *this;
+    }
+    return WithDiscoveryFile(*path);
+}
+
 EmulatorGrpcClientBuilder& EmulatorGrpcClientBuilder::WithEndpoint(const Endpoint& endpoint) {
     if (!status_.ok()) return *this;
     destination_.Clear();

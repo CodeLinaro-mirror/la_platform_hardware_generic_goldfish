@@ -25,6 +25,7 @@
 #include "absl/time/time.h"
 #include "grpc_endpoint_description.pb.h"
 
+#include "goldfish/discovery/emulator_advertisement.h"
 #include "goldfish/eventing/event_sources.h"
 
 namespace android::emulation::control {
@@ -38,6 +39,8 @@ using ::android::emulation::remote::Endpoint;
 using grpc::experimental::ClientInterceptorFactoryInterface;
 using InterceptorFactory = std::unique_ptr<ClientInterceptorFactoryInterface>;
 using InterceptorFactories = std::vector<InterceptorFactory>;
+using ::goldfish::discovery::EmulatorAdvertisement;
+using ::goldfish::discovery::EmulatorProperties;
 
 /**
  * @brief Represents the current state of the gRPC connection.
@@ -264,6 +267,32 @@ class EmulatorGrpcClientBuilder {
      * @endcode
      */
     EmulatorGrpcClientBuilder& WithDiscoveryFile(const std::filesystem::path& discovery_file);
+
+    /**
+     * @brief Configures the client to connect to an emulator matching specific properties.
+     *
+     * This method searches the discovery directory for an active emulator that
+     * matches the provided properties. It uses the provided `EmulatorAdvertisement`
+     * instance to perform the discovery.
+     *
+     * The method will use the first discovered emulator that contains all the
+     * key-value pairs specified in @p properties. Once a matching emulator is found,
+     * its discovery file is parsed to extract the gRPC port (`grpc.port`) and
+     * optional security token (`grpc.token`) to configure the connection endpoint.
+     *
+     * If no matching emulator is found, or if the discovery file is malformed,
+     * the builder's error status is set, and subsequent calls to `BuildBlocking()`
+     * or `BuildCallback()` will fail.
+     *
+     * @param properties The key-value pairs that the emulator must match.
+     * @param advertisement The advertisement instance used to scan for running emulators.
+     *                      Defaults to a default-constructed instance targeting the
+     *                      standard discovery directory.
+     * @return A reference to the builder for chaining.
+     */
+    EmulatorGrpcClientBuilder& ForDiscoveredEmulator(
+            EmulatorProperties properties,
+            const EmulatorAdvertisement& advertisement = EmulatorAdvertisement());
 
     /**
      * @brief Configures the client using a pre-constructed `Endpoint` object.

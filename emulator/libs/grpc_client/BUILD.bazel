@@ -17,6 +17,7 @@ cc_library(
     ],
     includes = ["include"],
     deps = [
+        "//emulator/libs/discovery:emulator_advertisement",
         "//emulator/libs/eventing",
         "//emulator/libs/grpc_security",
         "//emulator/libs/ini_file",
@@ -40,6 +41,7 @@ cc_test(
         "//emulator/libs/sockets",
         "//emulator/libs/test:googletest_main",
         "@abseil-cpp//absl/random",
+        "@abseil-cpp//absl/status:status_matchers",
         "@abseil-cpp//absl/synchronization",
         "@aemu//protos/services/emulator-controller:emulator_controller_cc_grpc",
         "@grpc//:grpc++",

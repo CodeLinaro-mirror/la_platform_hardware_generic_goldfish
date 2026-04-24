@@ -16,8 +16,10 @@
 
 #include <grpcpp/grpcpp.h>
 #include <gtest/gtest.h>
+#include <unistd.h>
 
 #include <chrono>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <future>
@@ -27,6 +29,7 @@
 
 #include "absl/log/log.h"
 #include "absl/random/random.h"
+#include "absl/status/status_matchers.h"
 #include "absl/strings/str_cat.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/time/time.h"
@@ -34,7 +37,9 @@
 #include "android/sockets/scoped_socket.h"
 #include "android/sockets/socket_utils.h"
 #include "emulator_controller.grpc.pb.h"
+#include "goldfish/file/file_atomic.h"
 
+using absl_testing::IsOk;
 using android::emulation::control::BlockingEmulatorGrpcClient;
 using android::emulation::control::CallbackEmulatorGrpcClient;
 using android::emulation::control::ConnectionState;
@@ -89,14 +94,29 @@ class EmulatorGrpcClientTest : public ::testing::Test {
             std::ofstream out(mPath);
             out << content;
         }
+
+        TmpDiscoveryFile() {
+            std::string dir_name = absl::StrCat(
+                    "grpc_test_dir_",
+                    absl::Hex(absl::Uniform<uint64_t>(absl::BitGen()), absl::kSpacePad16));
+            mPath = fs::temp_directory_path() / dir_name;
+            fs::create_directories(mPath);
+            mIsDirectory = true;
+        }
+
         ~TmpDiscoveryFile() {
             std::error_code ec;
-            fs::remove(mPath, ec);
+            if (mIsDirectory) {
+                fs::remove_all(mPath, ec);
+            } else {
+                fs::remove(mPath, ec);
+            }
         }
         const fs::path& path() const { return mPath; }
 
       private:
         fs::path mPath;
+        bool mIsDirectory = false;
     };
 
     MockEmulatorController service;
@@ -132,6 +152,48 @@ TEST_F(EmulatorGrpcClientTest, Builder_NonExistentDiscoveryFile_Fails) {
     auto clientOrStatus =
             EmulatorGrpcClientBuilder().WithDiscoveryFile("/no/such/file.ini").BuildBlocking();
     ASSERT_FALSE(clientOrStatus.ok());
+}
+
+TEST_F(EmulatorGrpcClientTest, Builder_ForDiscoveredEmulator_Succeeds) {
+    TmpDiscoveryFile tmpDir;
+
+    auto checker = [](fs::path my_file, fs::path discovery_file) { return true; };
+
+    goldfish::discovery::EmulatorAdvertisement ad(tmpDir.path(), checker);
+
+    // Write fake advertisement manually with random PID to avoid self-filtering
+    fs::path fake_ad_file = tmpDir.path() / absl::StrFormat("pid_%d.ini", std::rand());
+    ASSERT_THAT(android::base::file::CreatePrivateFileExclusive(fake_ad_file,
+                                                                "name=test-emu\ngrpc.port=8554\n"),
+                IsOk());
+
+    auto clientOrStatus = EmulatorGrpcClientBuilder()
+                                  .ForDiscoveredEmulator({{"name", "test-emu"}}, ad)
+                                  .BuildBlocking();
+    ASSERT_THAT(clientOrStatus, IsOk());
+    auto client = std::move(*clientOrStatus);
+    ASSERT_NE(client, nullptr);
+    EXPECT_EQ(client->GetEndpoint().target(), "localhost:8554");
+}
+
+TEST_F(EmulatorGrpcClientTest, Builder_ForDiscoveredEmulator_NoMatch_Fails) {
+    TmpDiscoveryFile tmpDir;
+
+    auto checker = [](fs::path my_file, fs::path discovery_file) { return true; };
+
+    goldfish::discovery::EmulatorAdvertisement ad(tmpDir.path(), checker);
+
+    // Write fake advertisement manually with random PID to avoid self-filtering
+    fs::path fake_ad_file = tmpDir.path() / absl::StrFormat("pid_%d.ini", std::rand());
+    ASSERT_THAT(android::base::file::CreatePrivateFileExclusive(fake_ad_file,
+                                                                "name=test-emu\ngrpc.port=8554\n"),
+                IsOk());
+
+    auto clientOrStatus = EmulatorGrpcClientBuilder()
+                                  .ForDiscoveredEmulator({{"name", "other-emu"}}, ad)
+                                  .BuildBlocking();
+
+    EXPECT_FALSE(clientOrStatus.ok());
 }
 
 // --- Blocking Client Tests ---
