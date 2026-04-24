@@ -26,7 +26,7 @@ cc_library(
         "//emulator/libs/async:async_api",
         "//emulator/libs/eventing",
         "//emulator/plugin/avd_universe:battery",
-        "@qemu//:qemu-headers",
+        "@qemu//:qemu-headers-exported",
     ],
     alwayslink = True,
 )

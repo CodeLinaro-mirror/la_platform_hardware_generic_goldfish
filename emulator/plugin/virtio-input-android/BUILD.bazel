@@ -13,7 +13,7 @@ cc_library(
         "//emulator/libs/base:array_size",
         "//emulator/libs/logging:absl_c_bridge",
         "@pixman//:pixman-1",
-        "@qemu//:qemu-headers",
+        "@qemu//:qemu-headers-exported",
     ],
     alwayslink = True,
 )
