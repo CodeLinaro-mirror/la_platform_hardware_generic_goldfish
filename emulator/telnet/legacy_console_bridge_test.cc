@@ -108,5 +108,34 @@ TEST_F(LegacyConsoleBridgeTest, PingFailsWhenNoEmulatorFound) {
     EXPECT_EQ(result.status().code(), absl::StatusCode::kNotFound);
 }
 
+TEST_F(LegacyConsoleBridgeTest, GeoFixFailsWhenNoEmulatorFound) {
+    LegacyConsoleBridge::ConsoleContext ctx(5554);
+    ctx.authenticated = true;  // Safe to call commands
+
+    auto result = (*bridge_)("geo fix 12.3 45.6", ctx);
+
+    ASSERT_FALSE(result.ok());
+    EXPECT_EQ(result.status().code(), absl::StatusCode::kNotFound);
+}
+
+TEST_F(LegacyConsoleBridgeTest, GeoFixFailsWithInvalidCoordinates) {
+    LegacyConsoleBridge::ConsoleContext ctx(5554);
+    ctx.authenticated = true;  // Safe to call commands
+
+    auto result = (*bridge_)("geo fix 200.0 45.6", ctx);  // Invalid longitude
+
+    ASSERT_FALSE(result.ok());
+    EXPECT_EQ(result.status().code(), absl::StatusCode::kInvalidArgument);
+    EXPECT_TRUE(result.status().message().find("Longitude must be between -180 and 180") !=
+                std::string::npos);
+
+    result = (*bridge_)("geo fix 12.3 100.0", ctx);  // Invalid latitude
+
+    ASSERT_FALSE(result.ok());
+    EXPECT_EQ(result.status().code(), absl::StatusCode::kInvalidArgument);
+    EXPECT_TRUE(result.status().message().find("Latitude must be between -90 and 90") !=
+                std::string::npos);
+}
+
 }  // namespace
 }  // namespace goldfish::telnet

@@ -13,6 +13,7 @@
 // limitations under the License.
 #include "legacy_console_bridge.h"
 
+#include <chrono>
 #include <cstdlib>
 #include <memory>
 #include <optional>
@@ -24,11 +25,16 @@
 #include "absl/strings/str_cat.h"
 
 #include "android/base/system.h"
+#include "android/emulation/control/absl_status_translate.h"
 #include "android/status/status_macros.h"
+#include "emulator_controller.grpc.pb.h"
+#include "emulator_controller.pb.h"
 #include "goldfish/discovery/emulator_advertisement.h"
 #include "telnet_auth.h"
 
 namespace goldfish::telnet {
+
+using android::emulation::control::GrpcStatusToAbslStatus;
 
 absl::StatusOr<std::shared_ptr<android::emulation::control::BlockingEmulatorGrpcClient>>
 LegacyConsoleBridge::ConsoleContext::Client() {
@@ -247,7 +253,7 @@ LegacyConsoleBridge::LegacyConsoleBridge(int port, std::filesystem::path token_p
            });
     geo.On("fix" /* do_geo_fix */, "send a simple GPS fix",
            "'geo fix <longitude> <latitude> [<altitude> [<satellites> "
-           "[<velocity>]]]'\r\n"
+           "[<velocity> [<heading>]]]]'\r\n"
            " allows you to send a simple GPS fix to the emulated system.\r\n"
            " The parameters are:\r\n\r\n"
            "  <longitude>   longitude, in decimal degrees\r\n"
@@ -255,11 +261,47 @@ LegacyConsoleBridge::LegacyConsoleBridge(int port, std::filesystem::path token_p
            "  <altitude>    optional altitude in meters\r\n"
            "  <satellites>  number of satellites being tracked (1-12)\r\n"
            "  <velocity>    optional velocity in knots\r\n"
+           "  <heading>     optional heading in degrees [0.0, 360.0]\r\n"
            "\r\n",
-           [](ConsoleContext& /*ctx*/, double /*longitude*/, double /*latitude*/,
-              std::optional<double> /*altitude*/, std::optional<int> /*satellites*/,
-              std::optional<double> /*velocity*/) {
-               return absl::UnimplementedError("not implemented");
+           [](ConsoleContext& ctx, double longitude, double latitude,
+              std::optional<double> altitude, std::optional<int> satellites,
+              std::optional<double> velocity, std::optional<double> heading) {
+               // Input validation
+               if (latitude < -90.0 || latitude > 90.0) {
+                   return absl::InvalidArgumentError("Latitude must be between -90 and 90.");
+               }
+               if (longitude < -180.0 || longitude > 180.0) {
+                   return absl::InvalidArgumentError("Longitude must be between -180 and 180.");
+               }
+
+               ASSIGN_OR_RETURN(auto stub,
+                                ctx.Stub<android::emulation::control::EmulatorController>());
+
+               android::emulation::control::GpsState request;
+               request.set_longitude(longitude);
+               request.set_latitude(latitude);
+               if (altitude) {
+                   request.set_altitude(*altitude);
+               }
+               if (satellites) {
+                   if (*satellites < 0 || *satellites > 12) {
+                       return absl::InvalidArgumentError("Satellites must be between 0 and 12.");
+                   }
+                   request.set_satellites(*satellites);
+               }
+               if (velocity) {
+                   // Convert knots to m/s
+                   request.set_speed(*velocity * 0.514444);
+               }
+               if (heading) {
+                   if (*heading < 0.0 || *heading > 360.0) {
+                       return absl::InvalidArgumentError("Heading must be between 0 and 360.");
+                   }
+                   request.set_bearing(*heading);
+               }
+               ASSIGN_OR_RETURN(auto context, ctx.NewContext());
+               google::protobuf::Empty unused;
+               return GrpcStatusToAbslStatus(stub->setGps(context.get(), request, &unused));
            });
     geo.On("gnss" /* do_geo_gnss */, "send a GNSS sentence",
            "'geo gnss <sentence>' sends a GNSS sentence to the emulated "

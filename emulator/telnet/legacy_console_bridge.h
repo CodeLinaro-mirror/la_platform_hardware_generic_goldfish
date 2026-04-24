@@ -13,6 +13,7 @@
 // limitations under the License.
 #pragma once
 
+#include <chrono>
 #include <filesystem>
 #include <memory>
 #include <string>
@@ -22,6 +23,7 @@
 #include "absl/synchronization/mutex.h"
 
 #include "android/emulation/control/emulator_grpc_client.h"
+#include "android/status/status_macros.h"
 #include "command_registry.h"
 #include "line_command_handler.h"
 
@@ -47,6 +49,21 @@ class LegacyConsoleBridge : public LineCommandHandler {
         Client();
 
         int Port() const { return port_; }
+
+        template <class T>
+        absl::StatusOr<std::unique_ptr<typename T::Stub>> Stub() {
+            ASSIGN_OR_RETURN(auto client, Client());
+            return client->Stub<T>();
+        }
+
+        absl::StatusOr<std::unique_ptr<grpc::ClientContext>> NewContext(
+                std::chrono::time_point<std::chrono::system_clock> deadline =
+                        std::chrono::system_clock::now() + std::chrono::milliseconds(500)) {
+            ASSIGN_OR_RETURN(auto client, Client());
+            ASSIGN_OR_RETURN(auto context, client->NewContext());
+            context->set_deadline(deadline);
+            return context;
+        }
 
       private:
         int port_;
