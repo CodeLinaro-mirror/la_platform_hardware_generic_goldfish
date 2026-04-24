@@ -46,9 +46,10 @@ class LegacyConsoleBridge : public LineCommandHandler {
         absl::StatusOr<std::shared_ptr<android::emulation::control::BlockingEmulatorGrpcClient>>
         Client();
 
+        int Port() const { return port_; }
+
       private:
         int port_;
-
         std::shared_ptr<android::emulation::control::BlockingEmulatorGrpcClient> client_
                 ABSL_GUARDED_BY(mutex_);
         absl::Mutex mutex_;

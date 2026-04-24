@@ -24,6 +24,8 @@
 #include "absl/strings/str_cat.h"
 
 #include "android/base/system.h"
+#include "android/status/status_macros.h"
+#include "goldfish/discovery/emulator_advertisement.h"
 #include "telnet_auth.h"
 
 namespace goldfish::telnet {
@@ -122,7 +124,12 @@ LegacyConsoleBridge::LegacyConsoleBridge(int port, std::filesystem::path token_p
     avd.On("path" /* do_avd_path */, "query AVD path",
            [](ConsoleContext& /*ctx*/) { return absl::UnimplementedError("not implemented"); });
     avd.On("discoverypath" /* do_avd_discoverypath */, "query AVD discovery path",
-           [](ConsoleContext& /*ctx*/) { return absl::UnimplementedError("not implemented"); });
+           [](ConsoleContext& ctx) -> absl::StatusOr<std::string> {
+               ASSIGN_OR_RETURN(auto discovery_path,
+                                discovery::EmulatorAdvertisement().DiscoverEmulatorWithProperties(
+                                        {{"port.serial", std::to_string(ctx.Port())}}));
+               return discovery_path.string();
+           });
     avd.On("snapshotspath" /* do_avd_snapshotspath */, "query AVD snapshots path",
            [](ConsoleContext& /*ctx*/) { return absl::UnimplementedError("not implemented"); });
     avd.On("snapshotpath" /* do_avd_snapshotpath */, "query path to a particular AVD snapshot",

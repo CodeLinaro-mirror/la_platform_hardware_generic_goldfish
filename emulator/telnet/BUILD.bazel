@@ -95,6 +95,7 @@ cc_library(
         ":line_command_handler",
         ":telnet_auth",
         "//emulator/libs/grpc_client",
+        "//emulator/libs/status_macros",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
