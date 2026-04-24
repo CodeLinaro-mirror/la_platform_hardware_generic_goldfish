@@ -106,8 +106,8 @@ TEST_F(TelnetAuthTest, ReadToken_Succeeds_WhenFileIsExactly1KB) {
     }
     auto result = TelnetAuth::ReadToken();
     ASSERT_TRUE(result.ok());
-    EXPECT_EQ((result->value).size(), 1024);
-    EXPECT_EQ(result->value, content);
+    EXPECT_EQ(result->AsStringView().size(), 1024);
+    EXPECT_EQ(result->AsStringView(), content);
 }
 
 #ifndef _WIN32
@@ -153,7 +153,7 @@ TEST_F(TelnetAuthTest, LoadOrCreate_ReturnsExistingToken) {
 
     auto result = TelnetAuth::LoadOrCreateToken();
     ASSERT_TRUE(result.ok());
-    EXPECT_EQ(result->value, secret);
+    EXPECT_EQ(result->AsStringView(), secret);
 }
 
 TEST_F(TelnetAuthTest, ReadToken_TrimsWhitespace) {
@@ -165,7 +165,15 @@ TEST_F(TelnetAuthTest, ReadToken_TrimsWhitespace) {
 
     auto result = TelnetAuth::ReadToken();
     ASSERT_TRUE(result.ok());
-    EXPECT_EQ(result->value, secret);
+    EXPECT_EQ(result->AsStringView(), secret);
+}
+
+TEST_F(TelnetAuthTest, Token_SecureEquals) {
+    TelnetAuth::Token token("my-secret-token");
+    EXPECT_TRUE(token.SecureEquals("my-secret-token"));
+    EXPECT_FALSE(token.SecureEquals("wrong-token"));
+    EXPECT_FALSE(token.SecureEquals("my-secret-toke"));
+    EXPECT_FALSE(token.SecureEquals("my-secret-token-extra"));
 }
 
 TEST_F(TelnetAuthTest, LoadOrCreate_ProvisionsNewToken_WhenMissing) {
@@ -174,13 +182,14 @@ TEST_F(TelnetAuthTest, LoadOrCreate_ProvisionsNewToken_WhenMissing) {
     auto result = TelnetAuth::LoadOrCreateToken();
     ASSERT_TRUE(result.ok());
     // WebSafeBase64 encoding of 16 bytes of entropy results in a 22-character string (no padding).
-    EXPECT_EQ(result->value.length(), 22)
-            << "Token should have 16 bytes of entropy (22 chars), got: [" << result->value << "]";
+    EXPECT_EQ(result->AsStringView().length(), 22)
+            << "Token should have 16 bytes of entropy (22 chars), got: [" << result->AsStringView()
+            << "]";
 
     // Verify file was actually created and is readable
     auto read_back = TelnetAuth::ReadToken();
     ASSERT_TRUE(read_back.ok());
-    EXPECT_EQ(read_back->value, result->value);
+    EXPECT_EQ(read_back->AsStringView(), result->AsStringView());
 }
 
 #ifndef _WIN32
@@ -235,22 +244,22 @@ TEST_F(TelnetAuthTest, LoadOrCreate_ConcurrentAccess) {
                 std::async(std::launch::async, []() { return TelnetAuth::LoadOrCreateToken(); }));
     }
 
-    TelnetAuth::Token first_token;
+    std::string first_token_str;
     for (auto& f : futures) {
         auto result = f.get();
         ASSERT_TRUE(result.ok()) << "Concurrent load failed: " << result.status();
-        if (first_token.value.empty()) {
-            first_token = *result;
+        if (first_token_str.empty()) {
+            first_token_str = std::string(result->AsStringView());
         } else {
             // Everyone must eventually see the same token (the winner of the rename)
-            EXPECT_EQ(first_token.value, result->value);
+            EXPECT_EQ(first_token_str, result->AsStringView());
         }
     }
 
     // Final verification of file content matches our consensus
     auto read_back = TelnetAuth::ReadToken();
     ASSERT_TRUE(read_back.ok());
-    EXPECT_EQ(read_back->value, first_token.value);
+    EXPECT_EQ(read_back->AsStringView(), first_token_str);
 }
 
 }  // namespace goldfish::telnet

@@ -22,6 +22,7 @@ cc_library(
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
+        "@tink_cc//tink:secret_data",
         "@tink_cc//tink:tink_cc",
     ],
 )

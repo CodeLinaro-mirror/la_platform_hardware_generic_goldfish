@@ -53,16 +53,28 @@ absl::StatusOr<TelnetAuth::Token> GenerateToken(size_t entropy) {
     // This avoids characters like '/' which cause issues in filenames and URLs.
     VLOG(1) << "Generating secure random token with " << entropy << " bytes of entropy.";
     auto random_bytes_res = crypto::tink::subtle::Random::GetRandomBytes(entropy);
-    return TelnetAuth::Token{.value = absl::WebSafeBase64Escape(random_bytes_res)};
+    return TelnetAuth::Token(absl::WebSafeBase64Escape(random_bytes_res));
 }
 
 absl::Status WriteTokenPseudoSecurely(const std::filesystem::path& dest,
                                       const TelnetAuth::Token& token) {
     VLOG(1) << "Attempting to write token to file: " << dest;
-    return android::base::file::CreatePrivateFileExclusive(dest, token.value);
+    return android::base::file::CreatePrivateFileExclusive(dest, token.AsStringView());
 }
 
 }  // namespace
+
+TelnetAuth::Token::Token(std::string_view token)
+        : secret_(crypto::tink::util::SecretDataFromStringView(token)) {}
+
+bool TelnetAuth::Token::SecureEquals(std::string_view other) const {
+    return crypto::tink::util::SecretDataEquals(
+            secret_, crypto::tink::util::SecretDataFromStringView(other));
+}
+
+std::string_view TelnetAuth::Token::AsStringView() const {
+    return crypto::tink::util::SecretDataAsStringView(secret_);
+}
 
 absl::StatusOr<TelnetAuth::Token> TelnetAuth::LoadOrCreateToken(size_t entropy) {
     VLOG(1) << "Loading or creating telnet auth token.";
@@ -145,7 +157,7 @@ absl::StatusOr<TelnetAuth::Token> TelnetAuth::ReadToken() {
     content = std::string(absl::StripAsciiWhitespace(content));
 
     VLOG(2) << "Successfully read and trimmed " << content.size() << " bytes from token file.";
-    return TelnetAuth::Token{.value = content};
+    return TelnetAuth::Token(content);
 }
 
 AuthStatus TelnetAuth::GetStatus() {

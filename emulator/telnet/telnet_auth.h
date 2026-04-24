@@ -19,6 +19,8 @@
 
 #include "absl/status/statusor.h"
 
+#include "tink/util/secret_data.h"
+
 namespace goldfish::telnet {
 
 /**
@@ -78,8 +80,40 @@ enum class AuthStatus : uint8_t {
  */
 class TelnetAuth {
   public:
+    /**
+     * @brief Represents a secure authentication token.
+     *
+     * This struct wraps the sensitive token data in a secure container
+     * (crypto::tink::util::SecretData) to prevent accidental leakage and
+     * provides secure comparison methods.
+     */
     struct Token {
-        std::string value;
+        /**
+         * @brief Constructs a Token from a string view.
+         * @param token The raw token string.
+         */
+        explicit Token(std::string_view token);
+
+        /**
+         * @brief Securely compares this token with another string.
+         *
+         * Uses a constant-time comparison to prevent timing attacks.
+         *
+         * @param other The string to compare against.
+         * @return true if the tokens match, false otherwise.
+         */
+        bool SecureEquals(std::string_view other) const;
+
+        /**
+         * @brief Returns a string view representation of the token.
+         *
+         * @note The returned view points to data owned by the token.
+         * @return A string_view of the secret data.
+         */
+        std::string_view AsStringView() const;
+
+      private:
+        crypto::tink::util::SecretData secret_;
     };
 
     /**
