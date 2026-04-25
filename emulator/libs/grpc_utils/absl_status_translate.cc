@@ -79,4 +79,68 @@ grpc::Status AbslStatusToGrpcStatus(const absl::Status& absl_status) {
 
     return {grpc_code, std::string(absl_status.message())};
 }
+absl::Status GrpcStatusToAbslStatus(const grpc::Status& grpc_status) {
+    if (grpc_status.ok()) {
+        return absl::OkStatus();
+    }
+
+    absl::StatusCode absl_code = absl::StatusCode::kUnknown;  // Default
+
+    switch (grpc_status.error_code()) {
+    case grpc::StatusCode::OK:
+        absl_code = absl::StatusCode::kOk;
+        break;
+    case grpc::StatusCode::CANCELLED:
+        absl_code = absl::StatusCode::kCancelled;
+        break;
+    case grpc::StatusCode::INVALID_ARGUMENT:
+        absl_code = absl::StatusCode::kInvalidArgument;
+        break;
+    case grpc::StatusCode::DEADLINE_EXCEEDED:
+        absl_code = absl::StatusCode::kDeadlineExceeded;
+        break;
+    case grpc::StatusCode::NOT_FOUND:
+        absl_code = absl::StatusCode::kNotFound;
+        break;
+    case grpc::StatusCode::ALREADY_EXISTS:
+        absl_code = absl::StatusCode::kAlreadyExists;
+        break;
+    case grpc::StatusCode::PERMISSION_DENIED:
+        absl_code = absl::StatusCode::kPermissionDenied;
+        break;
+    case grpc::StatusCode::RESOURCE_EXHAUSTED:
+        absl_code = absl::StatusCode::kResourceExhausted;
+        break;
+    case grpc::StatusCode::FAILED_PRECONDITION:
+        absl_code = absl::StatusCode::kFailedPrecondition;
+        break;
+    case grpc::StatusCode::ABORTED:
+        absl_code = absl::StatusCode::kAborted;
+        break;
+    case grpc::StatusCode::OUT_OF_RANGE:
+        absl_code = absl::StatusCode::kOutOfRange;
+        break;
+    case grpc::StatusCode::UNIMPLEMENTED:
+        absl_code = absl::StatusCode::kUnimplemented;
+        break;
+    case grpc::StatusCode::INTERNAL:
+        absl_code = absl::StatusCode::kInternal;
+        break;
+    case grpc::StatusCode::UNAVAILABLE:
+        absl_code = absl::StatusCode::kUnavailable;
+        break;
+    case grpc::StatusCode::DATA_LOSS:
+        absl_code = absl::StatusCode::kDataLoss;
+        break;
+    case grpc::StatusCode::UNAUTHENTICATED:
+        absl_code = absl::StatusCode::kUnauthenticated;
+        break;
+    case grpc::StatusCode::UNKNOWN:
+    default:
+        absl_code = absl::StatusCode::kUnknown;
+        break;
+    }
+
+    return absl::Status(absl_code, grpc_status.error_message());
+}
 }  // namespace android::emulation::control

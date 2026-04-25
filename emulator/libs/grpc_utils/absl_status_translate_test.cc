@@ -135,4 +135,29 @@ TEST(AbslStatusTranslateTest, UnknownStatus) {
     EXPECT_EQ(grpc_status.error_code(), grpc::StatusCode::UNKNOWN);
     EXPECT_EQ(grpc_status.error_message(), "unknown");
 }
+TEST(AbslStatusTranslateTest, GrpcOkStatus) {
+    const grpc::Status grpc_status = grpc::Status::OK;
+    const absl::Status absl_status = GrpcStatusToAbslStatus(grpc_status);
+    EXPECT_TRUE(absl_status.ok());
+}
+
+TEST(AbslStatusTranslateTest, GrpcCancelledStatus) {
+    const grpc::Status grpc_status(grpc::StatusCode::CANCELLED, "");
+    const absl::Status absl_status = GrpcStatusToAbslStatus(grpc_status);
+    EXPECT_EQ(absl_status.code(), absl::StatusCode::kCancelled);
+}
+
+TEST(AbslStatusTranslateTest, GrpcInvalidArgumentStatus) {
+    const grpc::Status grpc_status(grpc::StatusCode::INVALID_ARGUMENT, "invalid argument");
+    const absl::Status absl_status = GrpcStatusToAbslStatus(grpc_status);
+    EXPECT_EQ(absl_status.code(), absl::StatusCode::kInvalidArgument);
+    EXPECT_EQ(absl_status.message(), "invalid argument");
+}
+
+TEST(AbslStatusTranslateTest, GrpcUnknownStatus) {
+    const grpc::Status grpc_status(grpc::StatusCode::UNKNOWN, "unknown");
+    const absl::Status absl_status = GrpcStatusToAbslStatus(grpc_status);
+    EXPECT_EQ(absl_status.code(), absl::StatusCode::kUnknown);
+    EXPECT_EQ(absl_status.message(), "unknown");
+}
 }  // namespace android::emulation::control
