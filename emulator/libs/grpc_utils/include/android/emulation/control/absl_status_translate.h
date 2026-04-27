@@ -33,4 +33,21 @@ namespace android::emulation::control {
  *         returns a grpc::Status::OK.
  */
 grpc::Status AbslStatusToGrpcStatus(const absl::Status& absl_status);
+
+/**
+ * @brief Translates a grpc::Status to an absl::Status.
+ *
+ * This function maps a `grpc::Status` object to its corresponding
+ * `absl::Status` representation. This allows for interoperability between
+ * code using the Abseil status library and gRPC. The function maps common
+ * `grpc::StatusCode` values to their `absl::StatusCode` equivalents. If no
+ * direct mapping exists, the function defaults to
+ * `absl::StatusCode::kUnknown`. The error message from the grpc::Status is
+ * always preserved.
+ *
+ * @param grpc_status The input `grpc::Status` object to be translated.
+ * @return The equivalent `absl::Status` object. If the input status is OK,
+ *         returns an absl::OkStatus().
+ */
+absl::Status GrpcStatusToAbslStatus(const grpc::Status& grpc_status);
 }  // namespace android::emulation::control
