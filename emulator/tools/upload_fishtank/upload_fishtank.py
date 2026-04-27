@@ -19,16 +19,21 @@
 import argparse
 import hashlib
 import logging
+import os
+import re
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
 
+from python.runfiles import Runfiles
 from ab.android_build_client import AndroidBuildClient
 from ab.fetch_artifact import fetch_artifact
 from ab.log import configure_logging
 
 GCS_BUCKET_TEMPLATE = "gs://emu-next-bazel/fishtank/{version}/{zipfile}"
+
+_MODULE_BAZEL_RUNFILE_PATH = "goldfish_build+/registry/modules/goldfish/0.0.1/MODULE.bazel"
 
 
 def get_target_and_artifact(platform_name, version):
@@ -54,8 +59,15 @@ def get_target_and_artifact(platform_name, version):
     return mapping.get(platform_name)
 
 
+def get_gcs_url(version, platform, zipfile_name):
+    """Constructs the GCS destination URL."""
+    if platform == "linux_internal":
+        zipfile_name = f"internal/{zipfile_name}"
+    return GCS_BUCKET_TEMPLATE.format(version=version, zipfile=zipfile_name)
+
+
 def calculate_sha256(file_path):
-    """Calculates the SHA256 hash of a file."""
+    """Calculates the SHA256 hash of a local file."""
     logging.info("Calculating SHA256 for %s...", file_path.name)
     hasher = hashlib.sha256()
     with open(file_path, "rb") as f:
@@ -64,13 +76,22 @@ def calculate_sha256(file_path):
     return hasher.hexdigest()
 
 
+def calculate_sha256_gcs(gcs_url):
+    """Calculates the SHA256 hash of a GCS file by streaming it."""
+    logging.info("Calculating SHA256 for existing GCS file %s...", gcs_url)
+    hasher = hashlib.sha256()
+    process = subprocess.Popen(["gcloud", "storage", "cat", gcs_url], stdout=subprocess.PIPE)
+    for chunk in iter(lambda: process.stdout.read(8192), b""):
+        hasher.update(chunk)
+    process.wait()
+    if process.returncode != 0:
+        raise Exception(f"Failed to read from GCS: {gcs_url}")
+    return hasher.hexdigest()
+
+
 def upload_to_gcs(local_path, version, platform):
     """Uploads a file to GCS using gcloud storage cp."""
-    zipfile = local_path.name
-    if platform == "linux_internal":
-        zipfile = f"internal/{zipfile}"
-
-    dest = GCS_BUCKET_TEMPLATE.format(version=version, zipfile=zipfile)
+    dest = get_gcs_url(version, platform, local_path.name)
     logging.info("Uploading %s to %s...", local_path.name, dest)
     subprocess.run(["gcloud", "storage", "cp", str(local_path), dest], check=True)
     return dest
@@ -83,6 +104,24 @@ def generate_bazel_snippet(platform_name, sha256, url):
     sha256 = "{sha256}",
     url = "{url}",
 )"""
+
+
+def update_module_bazel(snippets_text):
+    """Updates the MODULE.bazel file with the generated snippets."""
+    runfiles = Runfiles.Create()
+    module_bazel_path = Path(runfiles.Rlocation(_MODULE_BAZEL_RUNFILE_PATH))
+
+    content = module_bazel_path.read_text()
+    pattern = r'(# BEGIN upload_fishtank\n).*?(# END upload_fishtank)'
+
+    if re.search(pattern, content, re.DOTALL):
+        def repl(match):
+            return f"{match.group(1)}{snippets_text}\n{match.group(2)}"
+        new_content = re.sub(pattern, repl, content, flags=re.DOTALL)
+        module_bazel_path.write_text(new_content)
+        logging.info("Updated file: %s", module_bazel_path)
+    else:
+        logging.warning("Could not find # BEGIN upload_fishtank scope in %s to update.", module_bazel_path)
 
 
 def main():
@@ -102,14 +141,11 @@ def main():
     lvl = logging.DEBUG if args.verbose else logging.INFO
     configure_logging(lvl)
 
-    try:
-        ab_client = AndroidBuildClient(args.token)
-    except Exception as e:
-        logging.error("Failed to initialize Android Build Client: %s", e)
-        sys.exit(1)
-
     platforms = ["linux", "linux_internal", "mac", "windows"]
     snippets = []
+
+    # Initialize AB Client lazily in case all artifacts already exist in GCS
+    ab_client = None
 
     with tempfile.TemporaryDirectory(prefix="fishtank_download_") as tmp_dir:
         tmp_path = Path(tmp_dir)
@@ -120,20 +156,44 @@ def main():
             )
 
             try:
-                local_file = fetch_artifact(
-                    ab_client, tmp_path, target, artifact, args.version
+                gcs_url = get_gcs_url(args.version, platform, artifact)
+
+                # Check if the artifact already exists in GCS
+                check_cmd = subprocess.run(
+                    ["gcloud", "storage", "ls", gcs_url],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL
                 )
-                sha256 = calculate_sha256(local_file)
-                gcs_url = upload_to_gcs(local_file, args.version, platform)
+
+                if check_cmd.returncode == 0:
+                    logging.info("Artifact already exists in GCS: %s. Skipping download.", gcs_url)
+                    sha256 = calculate_sha256_gcs(gcs_url)
+                else:
+                    if not ab_client:
+                        try:
+                            ab_client = AndroidBuildClient(args.token)
+                        except Exception as e:
+                            logging.error("Failed to initialize Android Build Client: %s", e)
+                            sys.exit(1)
+
+                    local_file = fetch_artifact(
+                        ab_client, tmp_path, target, artifact, args.version
+                    )
+                    sha256 = calculate_sha256(local_file)
+                    upload_to_gcs(local_file, args.version, platform)
+
                 snippets.append(generate_bazel_snippet(platform, sha256, gcs_url))
+
             except Exception as e:
                 logging.error("Failed to process %s: %s", platform, e)
                 # We continue to other platforms even if one fails
                 continue
 
     if snippets:
+        snippets_text = "\n\n".join(snippets)
         print("\nGenerated Bazel Snippets:\n")
-        print("\n".join(snippets))
+        print(snippets_text)
+        update_module_bazel(snippets_text)
     else:
         logging.error("No snippets were generated.")
         sys.exit(1)
