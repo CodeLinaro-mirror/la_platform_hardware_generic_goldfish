@@ -51,7 +51,10 @@ class SynchronizedStreamBuf : public std::basic_streambuf<char_type> {
         this->setg(nullptr, nullptr, nullptr);
     }
 
-    bool IsValid() const { return inner_ != nullptr; }
+    bool IsValid() const {
+        absl::MutexLock lock(&mutex_);
+        return inner_ != nullptr;
+    }
 
   protected:
     // --- WRITER SIDE ---
@@ -87,7 +90,7 @@ class SynchronizedStreamBuf : public std::basic_streambuf<char_type> {
     }
 
   private:
-    absl::Mutex mutex_;
+    mutable absl::Mutex mutex_;
     std::basic_streambuf<char_type>* inner_ ABSL_GUARDED_BY(mutex_);
 };
 }  // namespace goldfish

@@ -396,6 +396,7 @@ absl::StatusOr<Call> ModemSimulatorClient::UpdateCall(const Call& call) {
 absl::Status ModemSimulatorClient::DeleteCall(const Call& call) {
     SendCallRequest(serverPort_, ModemCallState::HANGUP, call.number).IgnoreError();
 
+    const absl::MutexLock lock(mtx_);
     if (calls_.erase(call.number) > 0) {
         return absl::OkStatus();
     } else {

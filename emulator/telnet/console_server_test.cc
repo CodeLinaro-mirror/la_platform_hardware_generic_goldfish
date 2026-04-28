@@ -57,6 +57,7 @@ class ConsoleServerPeer {
         return {server.active_sessions_.begin()->second.connection};
     }
     static Endpoint GetEndpoint(const ConsoleServer& server) {
+        absl::MutexLock lock(const_cast<absl::Mutex&>(server.mutex_));
         return server.server_->GetEndpoint();
     }
     static Endpoint MakeLoopbackEndpoint() {
@@ -72,7 +73,7 @@ class ConsoleServerPeer {
                                     absl::Duration timeout) {
         absl::Mutex& mutex = const_cast<absl::Mutex&>(server.mutex_);
         WaitForSessionCountArgs args{&server, expected_count};
-        auto condition = +[](WaitForSessionCountArgs* arg) {
+        auto condition = +[](WaitForSessionCountArgs* arg) ABSL_NO_THREAD_SAFETY_ANALYSIS {
             return arg->server->active_sessions_.size() == arg->count;
         };
         absl::MutexLock lock(mutex);

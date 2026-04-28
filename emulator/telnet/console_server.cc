@@ -226,7 +226,12 @@ absl::Status ConsoleServer::Stop(absl::Duration timeout) {
     const absl::MutexLock lock(mutex_);
     VLOG(1) << "Waiting for " << active_sessions_.size()
             << " active connections to close gracefully";
-    auto condition = +[](ConsoleServer* arg) { return arg->active_sessions_.empty(); };
+    // The mutex is held while this condition is evaluated by absl::Condition.
+    // We bypass thread safety analysis because Clang cannot statically trace the lock across the
+    // lambda boundary.
+    auto condition = +[](ConsoleServer* arg) ABSL_NO_THREAD_SAFETY_ANALYSIS {
+        return arg->active_sessions_.empty();
+    };
     if (!mutex_.AwaitWithTimeout(absl::Condition(condition, this), timeout)) {
         LOG(WARNING) << "Console server timed out waiting for active connections ("
                      << active_sessions_.size() << " remaining).";

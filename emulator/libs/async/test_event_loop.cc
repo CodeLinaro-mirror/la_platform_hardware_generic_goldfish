@@ -24,6 +24,7 @@
 #include <thread>
 #include <vector>
 
+#include "absl/base/thread_annotations.h"
 #include "absl/status/status.h"
 
 #include "android/base/threads/thread_utils.h"
@@ -92,8 +93,8 @@ class TestEventLoopImpl : public TestEventLoop {
     enum class Command : uint8_t { kNone, kRunOne, kRunMany, kAdvanceTime };
 
     void Loop();
-    bool RunOneUnlocked();
-    void AdvanceClockUnlocked(std::chrono::milliseconds duration);
+    bool RunOneUnlocked() ABSL_NO_THREAD_SAFETY_ANALYSIS;
+    void AdvanceClockUnlocked(std::chrono::milliseconds duration) ABSL_NO_THREAD_SAFETY_ANALYSIS;
 
     std::thread thread_;
     std::thread::id thread_id_;
@@ -273,7 +274,7 @@ void TestEventLoopImpl::Loop() {
     SetState(LooperStatusEvent::State::kFinished);
 }
 
-bool TestEventLoopImpl::RunOneUnlocked() {
+bool TestEventLoopImpl::RunOneUnlocked() ABSL_NO_THREAD_SAFETY_ANALYSIS {
     // we have the mutex here.
     if (tasks_.empty()) {
         return false;
@@ -291,7 +292,8 @@ bool TestEventLoopImpl::RunOneUnlocked() {
     return true;
 }
 
-void TestEventLoopImpl::AdvanceClockUnlocked(std::chrono::milliseconds duration) {
+void TestEventLoopImpl::AdvanceClockUnlocked(std::chrono::milliseconds duration)
+        ABSL_NO_THREAD_SAFETY_ANALYSIS {
     now_ += duration;
     std::vector<ScheduledTask> tasks_to_run;
 

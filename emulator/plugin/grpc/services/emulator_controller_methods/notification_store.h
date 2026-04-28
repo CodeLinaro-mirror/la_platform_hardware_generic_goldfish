@@ -14,9 +14,9 @@
 
 #pragma once
 
-#include <mutex>
-#include <unordered_map>
-#include <vector>
+#include "absl/base/thread_annotations.h"
+#include "absl/container/flat_hash_map.h"
+#include "absl/synchronization/mutex.h"
 
 #include "goldfish/avd_universe/grpc/grpc_notification_channel.h"
 
@@ -52,7 +52,7 @@ class NotificationStore {
             return;
         }
 
-        std::lock_guard<std::mutex> lock(mutex_);
+        absl::MutexLock lock(mutex_);
         latest_notifications_[notification.type_case()] = notification;
     }
 
@@ -63,7 +63,7 @@ class NotificationStore {
      * notifications.
      */
     std::vector<GrpcNotification> GetLatest() const {
-        std::lock_guard<std::mutex> lock(mutex_);
+        absl::MutexLock lock(mutex_);
         std::vector<GrpcNotification> latest;
         for (const auto& [type, notification] : latest_notifications_) {
             latest.push_back(notification);
@@ -86,7 +86,7 @@ class NotificationStore {
 
     GrpcNotificationEventSource* source_;
     GrpcNotificationEventSource::CallbackId callback_id_;
-    mutable std::mutex mutex_;
+    mutable absl::Mutex mutex_;
     absl::flat_hash_map<GrpcNotification::TypeCase, GrpcNotification> latest_notifications_
             ABSL_GUARDED_BY(mutex_);
 };

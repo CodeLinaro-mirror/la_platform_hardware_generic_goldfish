@@ -18,6 +18,7 @@
 
 #include <algorithm>
 
+#include "absl/base/thread_annotations.h"
 #include "absl/log/log.h"
 #include "absl/strings/str_replace.h"
 
@@ -91,7 +92,7 @@ ChannelMonitor::ChannelMonitor(ModemSimulator& modem, SharedFD server)
   }
 }
 
-ClientId ChannelMonitor::SetRemoteClient(SharedFD client, bool is_accepted) {
+ClientId ChannelMonitor::SetRemoteClient(SharedFD client, bool is_accepted) ABSL_NO_THREAD_SAFETY_ANALYSIS {
   auto remote_client = std::make_unique<Client>(client, Client::REMOTE);
   auto id = remote_client->Id();
 
@@ -117,7 +118,7 @@ ClientId ChannelMonitor::SetRemoteClient(SharedFD client, bool is_accepted) {
   return id;
 }
 
-void ChannelMonitor::AcceptIncomingConnection() {
+void ChannelMonitor::AcceptIncomingConnection() ABSL_NO_THREAD_SAFETY_ANALYSIS {
   auto client_fd = SharedFD::Accept(*server_);
   if (!client_fd->IsOpen()) {
     LOG(ERROR) << "Error accepting connection on socket: " << client_fd->StrError();
@@ -132,7 +133,7 @@ void ChannelMonitor::AcceptIncomingConnection() {
   }
 }
 
-void ChannelMonitor::ReadCommand(Client& client) {
+void ChannelMonitor::ReadCommand(Client& client) ABSL_NO_THREAD_SAFETY_ANALYSIS {
   std::vector<char> buffer(kMaxCommandLength);
   auto bytes_read = client.client_read_fd_->Read(buffer.data(), buffer.size());
   if (bytes_read <= 0) {
@@ -189,7 +190,7 @@ void ChannelMonitor::ReadCommand(Client& client) {
   }
 }
 
-void ChannelMonitor::SendUnsolicitedCommand(std::string& response) {
+void ChannelMonitor::SendUnsolicitedCommand(std::string& response) ABSL_NO_THREAD_SAFETY_ANALYSIS {
   // The first accepted client default to be unsolicited command channel?
   auto iter = clients_.begin();
   if (iter != clients_.end()) {
@@ -199,7 +200,7 @@ void ChannelMonitor::SendUnsolicitedCommand(std::string& response) {
   }
 }
 
-void ChannelMonitor::SendRemoteCommand(ClientId client, std::string& response) {
+void ChannelMonitor::SendRemoteCommand(ClientId client, std::string& response) ABSL_NO_THREAD_SAFETY_ANALYSIS {
   auto iter = remote_clients_.begin();
   for (; iter != remote_clients_.end(); ++iter) {
     if (iter->get()->Id() == client) {
@@ -210,7 +211,7 @@ void ChannelMonitor::SendRemoteCommand(ClientId client, std::string& response) {
   VLOG(1) << "Remote client has closed.";
 }
 
-void ChannelMonitor::CloseRemoteConnection(ClientId client) {
+void ChannelMonitor::CloseRemoteConnection(ClientId client) ABSL_NO_THREAD_SAFETY_ANALYSIS {
   auto iter = remote_clients_.begin();
   for (; iter != remote_clients_.end(); ++iter) {
     if (iter->get()->Id() == client) {
@@ -243,7 +244,7 @@ ChannelMonitor::~ChannelMonitor() {
 }
 
 void ChannelMonitor::removeInvalidClients(
-    std::vector<std::unique_ptr<Client>>& clients) {
+    std::vector<std::unique_ptr<Client>>& clients) ABSL_NO_THREAD_SAFETY_ANALYSIS {
   auto iter = clients.begin();
   for (; iter != clients.end();) {
     if (iter->get()->is_valid) {
@@ -255,7 +256,7 @@ void ChannelMonitor::removeInvalidClients(
   }
 }
 
-void ChannelMonitor::MonitorLoop() {
+void ChannelMonitor::MonitorLoop() ABSL_NO_THREAD_SAFETY_ANALYSIS {
   do {
     cuttlefish::SharedFDSet read_set;
     read_set.Set(server_);
