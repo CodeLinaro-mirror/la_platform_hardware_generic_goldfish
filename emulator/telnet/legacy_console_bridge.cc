@@ -110,7 +110,16 @@ LegacyConsoleBridge::LegacyConsoleBridge(int port, std::filesystem::path token_p
            [](ConsoleContext& /*ctx*/) { return absl::UnimplementedError("not implemented"); });
     avd.On("heartbeat" /* do_avd_heartbeat */,
            "query the heart heartbeat number of the guest system",
-           [](ConsoleContext& /*ctx*/) { return absl::UnimplementedError("not implemented"); });
+           [](ConsoleContext& ctx) -> absl::StatusOr<std::string> {
+               ASSIGN_OR_RETURN(auto stub, ctx.EmulatorControllerStub());
+               ASSIGN_OR_RETURN(auto context, ctx.NewContext());
+
+               google::protobuf::Empty request;
+               android::emulation::control::EmulatorStatus response;
+               RETURN_IF_ERROR(
+                       GrpcStatusToAbslStatus(stub->getStatus(context.get(), request, &response)));
+               return absl::StrCat("heartbeat: ", response.heartbeat());
+           });
     avd.On("rewindaudio" /* do_avd_rewind_audio */, "rewind the input audio to the beginning",
            [](ConsoleContext& /*ctx*/) { return absl::UnimplementedError("not implemented"); });
     avd.On("pause" /* do_avd_pause */, "pause the virtual device",

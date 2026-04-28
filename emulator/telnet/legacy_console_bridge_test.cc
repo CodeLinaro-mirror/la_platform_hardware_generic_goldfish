@@ -189,5 +189,45 @@ TEST_F(LegacyConsoleBridgeTest, GeoFixSucceedsWithValidCoordinates) {
     EXPECT_EQ(*result, "");
 }
 
+TEST_F(LegacyConsoleBridgeTest, HeartbeatFailsWhenNotAuthenticated) {
+    LegacyConsoleBridge::ConsoleContext ctx(5554);
+    EXPECT_FALSE(ctx.authenticated);
+
+    auto result = (*bridge_)("avd heartbeat", ctx);
+
+    EXPECT_FALSE(result.ok());
+    EXPECT_EQ(result.status().code(), absl::StatusCode::kNotFound);
+    EXPECT_TRUE(result.status().message().find("unknown command") != std::string::npos);
+}
+
+TEST_F(LegacyConsoleBridgeTest, HeartbeatFailsWhenNoEmulatorFound) {
+    LegacyConsoleBridge::ConsoleContext ctx(5554);
+    ctx.authenticated = true;
+
+    auto result = (*bridge_)("avd heartbeat", ctx);
+
+    EXPECT_FALSE(result.ok());
+    EXPECT_EQ(result.status().code(), absl::StatusCode::kNotFound);
+}
+
+TEST_F(LegacyConsoleBridgeTest, HeartbeatSucceedsAndReturnsStatus) {
+    auto ctx = CreateContext();
+    ctx->authenticated = true;
+
+    auto mock_stub = std::make_unique<android::emulation::control::MockEmulatorControllerStub>();
+    EXPECT_CALL(*mock_stub, getStatus(_, _, _))
+            .WillOnce([](grpc::ClientContext* context, const google::protobuf::Empty& request,
+                         android::emulation::control::EmulatorStatus* response) {
+                response->set_heartbeat(42);
+                return grpc::Status::OK;
+            });
+    ctx->mock_stub = std::move(mock_stub);
+
+    auto result = (*bridge_)("avd heartbeat", *ctx);
+
+    ASSERT_TRUE(result.ok()) << result.status().message();
+    EXPECT_EQ(*result, "heartbeat: 42");
+}
+
 }  // namespace
 }  // namespace goldfish::telnet
