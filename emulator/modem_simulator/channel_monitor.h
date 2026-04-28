@@ -96,11 +96,11 @@ class ChannelMonitor {
   ChannelMonitor& operator=(const ChannelMonitor&) = delete;
 
   ClientId SetRemoteClient(SharedFD client, bool is_accepted);
-  void SendRemoteCommand(ClientId client, std::string& response);
+  void SendRemoteCommand(ClientId client, const std::string& response);
   void CloseRemoteConnection(ClientId client);
 
   // For modem services to send unsolicited commands
-  void SendUnsolicitedCommand(std::string& response);
+  void SendUnsolicitedCommand(const std::string& response);
 
  private:
   ModemSimulator& modem_;
