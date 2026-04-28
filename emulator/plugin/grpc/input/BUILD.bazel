@@ -17,7 +17,7 @@ cc_library(
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/time",
-        "@qemu//:qemu-headers",
+        "@qemu//:qemu-headers-exported",
     ],
 )
 
@@ -31,7 +31,7 @@ cc_library(
         "//emulator/plugin/display",
         "@abseil-cpp//absl/log",
         "@aemu//protos/services/emulator-controller:emulator_controller_cc_grpc",
-        "@qemu//:qemu-headers",
+        "@qemu//:qemu-headers-exported",
     ],
 )
 
@@ -50,7 +50,7 @@ cc_library(
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/status",
         "@aemu//protos/services/emulator-controller:emulator_controller_cc_grpc",
-        "@qemu//:qemu-headers",
+        "@qemu//:qemu-headers-exported",
     ],
 )
 

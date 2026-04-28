@@ -8,6 +8,6 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         "//emulator/libs/system:clock",
-        "@qemu//:qemu-headers",
+        "@qemu//:qemu-headers-exported",
     ],
 )

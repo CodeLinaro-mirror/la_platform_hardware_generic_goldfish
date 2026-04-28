@@ -46,7 +46,7 @@ cc_library(
         "//emulator/plugin/hal/camera:gralloc_details",
         "@crosvm//:rutabaga_c_ffi",
         "@pixman//:pixman-1",
-        "@qemu//:qemu-headers",
+        "@qemu//:qemu-headers-exported",
     ],
     alwayslink = True,
 )
@@ -88,7 +88,7 @@ cc_library(
         "qemu_cpu_wrapper.h",
     ],
     visibility = ["//visibility:public"],
-    deps = ["@qemu//:qemu-headers"],
+    deps = ["@qemu//:qemu-headers-exported"],
 )
 
 cc_library(
@@ -136,7 +136,7 @@ cc_library(
         "@abseil-cpp//absl/log:globals",
         "@abseil-cpp//absl/log:initialize",
         "@abseil-cpp//absl/log:log_sink_registry",
-        "@qemu//:qemu-headers",
+        "@qemu//:qemu-headers-exported",
     ],
     alwayslink = True,
 )

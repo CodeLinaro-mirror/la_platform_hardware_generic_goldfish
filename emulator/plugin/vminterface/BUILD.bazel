@@ -8,7 +8,7 @@ cc_library(
     ],
     deps = [
         "@abseil-cpp//absl/synchronization",
-        "@qemu//:qemu-headers",
+        "@qemu//:qemu-headers-exported",
     ],
 )
 
@@ -19,7 +19,7 @@ cc_library(
         "qemu_machine_info.h",
     ],
     visibility = ["//visibility:public"],
-    deps = ["@qemu//:qemu-headers"],
+    deps = ["@qemu//:qemu-headers-exported"],
 )
 
 cc_library(
@@ -48,7 +48,7 @@ cc_library(
         ":vm_lock",
         ":vminterface",
         "@abseil-cpp//absl/status",
-        "@qemu//:qemu-headers",
+        "@qemu//:qemu-headers-exported",
     ],
 )
 

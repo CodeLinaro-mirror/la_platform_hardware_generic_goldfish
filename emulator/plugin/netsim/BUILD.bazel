@@ -14,7 +14,7 @@ cc_library(
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/time",
-        "@qemu//:qemu-headers",
+        "@qemu//:qemu-headers-exported",
     ],
 )
 
@@ -43,7 +43,7 @@ cc_library(
         ":netsim_transport",
         "//emulator/libs/network:generic_netlink_message",
         "@abseil-cpp//absl/log",
-        "@qemu//:qemu-headers",
+        "@qemu//:qemu-headers-exported",
     ],
 )
 
@@ -60,6 +60,6 @@ cc_library(
     deps = [
         ":netsim_transport",
         "@abseil-cpp//absl/log",
-        "@qemu//:qemu-headers",
+        "@qemu//:qemu-headers-exported",
     ],
 )

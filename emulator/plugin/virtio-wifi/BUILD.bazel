@@ -29,6 +29,6 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         "//emulator/libs/logging:absl_c_bridge",
-        "@qemu//:qemu-headers",
+        "@qemu//:qemu-headers-exported",
     ],
 )

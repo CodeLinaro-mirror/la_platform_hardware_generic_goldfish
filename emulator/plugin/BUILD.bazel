@@ -41,7 +41,7 @@ load("@rules_cc//cc:defs.bzl", "cc_binary")
             "@abseil-cpp//absl/log",
             "@abseil-cpp//absl/log:structured",
             "@qemu//:aemu_func_defs",
-            "@qemu//:qemu-headers",
+            "@qemu//:qemu-headers-exported",
             "//emulator/plugin/vsock_goldfish:vsock_impl_" + arch,
         ] + select({
             "@platforms//os:windows": [

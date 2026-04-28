@@ -13,7 +13,7 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         "//emulator/libs/async:async_api",
-        "@qemu//:qemu-headers",
+        "@qemu//:qemu-headers-exported",
     ],
 )
 
@@ -30,7 +30,7 @@ cc_library(
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
         "@aemu//protos/services/emulator-controller:emulator_controller_cc_grpc",
-        "@qemu//:qemu-headers",
+        "@qemu//:qemu-headers-exported",
     ],
 )
 
@@ -39,7 +39,7 @@ cc_library(
     testonly = True,
     srcs = ["qemu_input_stub.c"],
     visibility = ["//visibility:public"],
-    deps = ["@qemu//:qemu-headers"],
+    deps = ["@qemu//:qemu-headers-exported"],
 )
 
 cc_test(
