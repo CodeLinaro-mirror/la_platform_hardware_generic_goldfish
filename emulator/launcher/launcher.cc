@@ -96,6 +96,7 @@ class Launcher {
 
     void forwarding_signal_handler(int signum) {
         VLOG(1) << "forwarding_signal_handler called with signum: " << signum;
+        shutting_down_ = true;
         if (auto* p = emulator_process_.get()) {
             if (config_.opts.snapshot && (signum == SIGINT || signum == SIGTERM)) {
                 LOG(INFO) << "Not forwarding signal " << signum
@@ -243,6 +244,9 @@ class Launcher {
     }
 
     void launch_fishtank() {
+        if (shutting_down_) {
+            return;
+        }
         if (auto fishtank_config = ::goldfish::launcher::fishtank::launch_config(
                     config_.emulator_paths.fishtank_binary, config_.avd->Name(),
                     ports_.serial_number, config_.opts);
@@ -267,6 +271,9 @@ class Launcher {
     }
 
     void launch_netsimd(const WhenAllChardevEndpoints& chardevs) {
+        if (shutting_down_) {
+            return;
+        }
         existing_netsimd_port_ = read_netsim_port();
         if (existing_netsimd_port_ != 0) {
             LOG(WARNING) << "netsim.ini already exists with a valid port - either previous netsimd "
@@ -301,7 +308,7 @@ class Launcher {
     }
 
     void find_netsimd_endpoint(const WhenAllChardevEndpoints& chardevs) {
-        if (retry_countdown_ == 0) {
+        if (shutting_down_ || retry_countdown_ == 0) {
             find_netsimd_->Cancel();
             // absl::NotFoundError("Unable to determine the correct grpc endpoint for netsimd");
             LOG(FATAL) << "Unable to determine the correct grpc endpoint for netsimd";
@@ -389,6 +396,9 @@ class Launcher {
     }
 
     void launch_emulator(ChardevEndpoints chardev_endpoints) {
+        if (shutting_down_) {
+            return;
+        }
         LaunchQemu emulator{EmulatorConfig{ports_,
                                            chardev_endpoints,
                                            {
@@ -515,6 +525,8 @@ class Launcher {
     int emulator_exit_status_ = 0;
 
     std::thread shutdown_thread_;
+
+    bool shutting_down_ = false;
 };
 
 }  // namespace
