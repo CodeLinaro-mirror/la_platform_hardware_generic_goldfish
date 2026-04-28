@@ -4,7 +4,14 @@ cc_library(
     name = "googletest_main",
     testonly = True,
     srcs = ["gtest_main.cc"],
-    implementation_deps = ["//emulator/libs/system:bazel_info"],
+    data = [
+        "leak_suppressions.txt",
+        "tsan_suppressions.txt",
+    ],
+    implementation_deps = [
+        "//emulator/libs/system",
+        "//emulator/libs/system:bazel_info",
+    ],
     visibility = ["//visibility:public"],
     deps = [
         "@abseil-cpp//absl/debugging:failure_signal_handler",
@@ -15,4 +22,5 @@ cc_library(
         "@abseil-cpp//absl/log:initialize",
         "@googletest//:gtest",
     ],
+    alwayslink = True,
 )
