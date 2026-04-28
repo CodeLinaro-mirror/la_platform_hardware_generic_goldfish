@@ -274,8 +274,7 @@ LegacyConsoleBridge::LegacyConsoleBridge(int port, std::filesystem::path token_p
                    return absl::InvalidArgumentError("Longitude must be between -180 and 180.");
                }
 
-               ASSIGN_OR_RETURN(auto stub,
-                                ctx.Stub<android::emulation::control::EmulatorController>());
+               ASSIGN_OR_RETURN(auto stub, ctx.EmulatorControllerStub());
 
                android::emulation::control::GpsState request;
                request.set_longitude(longitude);

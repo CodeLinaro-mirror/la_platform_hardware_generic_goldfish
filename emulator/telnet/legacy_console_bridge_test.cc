@@ -14,6 +14,7 @@
 
 #include "legacy_console_bridge.h"
 
+#include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
 #include <fstream>
@@ -26,11 +27,37 @@
 #include "android/base/system.h"
 #include "android/base/testing/TestSystem.h"
 #include "android/base/testing/TestTempDir.h"
+#include "emulator_controller.grpc.pb.h"
+#include "emulator_controller_mock.grpc.pb.h"
 #include "goldfish/file/file.h"
 #include "telnet_auth.h"
 
 namespace goldfish::telnet {
 namespace {
+
+using testing::_;
+
+struct MockConsoleContext : public LegacyConsoleBridge::ConsoleContext {
+    using ConsoleContext::ConsoleContext;
+
+    absl::StatusOr<std::unique_ptr<android::emulation::control::EmulatorController::StubInterface>>
+    EmulatorControllerStub() override {
+        if (mock_stub) {
+            return std::move(mock_stub);
+        }
+        return ConsoleContext::EmulatorControllerStub();
+    }
+
+    absl::StatusOr<std::unique_ptr<grpc::ClientContext>> NewContext(
+            std::chrono::time_point<std::chrono::system_clock> deadline =
+                    std::chrono::system_clock::now() + std::chrono::milliseconds(500)) override {
+        auto ctx = std::make_unique<grpc::ClientContext>();
+        ctx->set_deadline(deadline);
+        return ctx;
+    }
+
+    std::unique_ptr<android::emulation::control::EmulatorController::StubInterface> mock_stub;
+};
 
 class LegacyConsoleBridgeTest : public ::testing::Test {
   protected:
@@ -45,6 +72,10 @@ class LegacyConsoleBridgeTest : public ::testing::Test {
         WriteToken("valid_token_123");
 
         bridge_ = std::make_unique<LegacyConsoleBridge>(5554, token_path_);
+    }
+
+    std::unique_ptr<MockConsoleContext> CreateContext(int port = 5554) {
+        return std::make_unique<MockConsoleContext>(port);
     }
 
     void WriteToken(const std::string& token) {
@@ -135,6 +166,27 @@ TEST_F(LegacyConsoleBridgeTest, GeoFixFailsWithInvalidCoordinates) {
     EXPECT_EQ(result.status().code(), absl::StatusCode::kInvalidArgument);
     EXPECT_TRUE(result.status().message().find("Latitude must be between -90 and 90") !=
                 std::string::npos);
+}
+
+TEST_F(LegacyConsoleBridgeTest, GeoFixSucceedsWithValidCoordinates) {
+    auto ctx = CreateContext();
+    ctx->authenticated = true;
+
+    auto mock_stub = std::make_unique<android::emulation::control::MockEmulatorControllerStub>();
+    EXPECT_CALL(*mock_stub, setGps(_, _, _))
+            .WillOnce([](grpc::ClientContext* context,
+                         const android::emulation::control::GpsState& request,
+                         google::protobuf::Empty* response) {
+                EXPECT_DOUBLE_EQ(request.longitude(), 12.3);
+                EXPECT_DOUBLE_EQ(request.latitude(), 45.6);
+                return grpc::Status::OK;
+            });
+    ctx->mock_stub = std::move(mock_stub);
+
+    auto result = (*bridge_)("geo fix 12.3 45.6", *ctx);
+
+    ASSERT_TRUE(result.ok()) << result.status().message();
+    EXPECT_EQ(*result, "");
 }
 
 }  // namespace
