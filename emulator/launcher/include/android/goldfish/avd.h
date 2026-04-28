@@ -91,6 +91,7 @@ class Avd {
     virtual int64_t BuildTimestamp() const = 0;
     virtual std::string BuildFlavour() const = 0;
     virtual std::string BuildProductName() const = 0;
+    virtual std::string BuildNumber() const = 0;
 
     // Type of the device this will be extracted for the build.prop
     // file associated with the system image used by this avd.
