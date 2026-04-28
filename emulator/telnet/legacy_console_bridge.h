@@ -25,6 +25,7 @@
 #include "android/emulation/control/emulator_grpc_client.h"
 #include "android/status/status_macros.h"
 #include "command_registry.h"
+#include "emulator_controller.grpc.pb.h"
 #include "line_command_handler.h"
 
 namespace goldfish::telnet {
@@ -50,13 +51,14 @@ class LegacyConsoleBridge : public LineCommandHandler {
 
         int Port() const { return port_; }
 
-        template <class T>
-        absl::StatusOr<std::unique_ptr<typename T::Stub>> Stub() {
+        virtual absl::StatusOr<
+                std::unique_ptr<android::emulation::control::EmulatorController::StubInterface>>
+        EmulatorControllerStub() {
             ASSIGN_OR_RETURN(auto client, Client());
-            return client->Stub<T>();
+            return client->Stub<android::emulation::control::EmulatorController>();
         }
 
-        absl::StatusOr<std::unique_ptr<grpc::ClientContext>> NewContext(
+        virtual absl::StatusOr<std::unique_ptr<grpc::ClientContext>> NewContext(
                 std::chrono::time_point<std::chrono::system_clock> deadline =
                         std::chrono::system_clock::now() + std::chrono::milliseconds(500)) {
             ASSIGN_OR_RETURN(auto client, Client());
