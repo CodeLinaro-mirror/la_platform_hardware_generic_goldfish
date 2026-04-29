@@ -69,30 +69,20 @@ LegacyConsoleBridge::LegacyConsoleBridge(int port, std::filesystem::path token_p
     // --- Safe Root Commands ---
 
     builder.On("ping" /* do_ping */, "check if the emulator is alive",
-               [](ConsoleContext& ctx) -> absl::StatusOr<std::string> {
-                   if (auto s = ctx.Client(); !s.ok()) {
-                       return s.status();
-                   }
-                   return "";
-               });
+               [](ConsoleContext& ctx) { return ctx.Client().status(); });
     builder.Command("ping", "").Safe();
 
     builder.On("auth" /* do_auth */, "user authentication for the emulator console",
                "use 'auth <auth_token>' to get extended console functionality\r\n",
                [token_path = token_path_](ConsoleContext& ctx,
                                           const std::string& token) -> absl::StatusOr<std::string> {
-                   auto expected_token = TelnetAuth::ReadToken(token_path);
-                   if (!expected_token.ok()) {
-                       return expected_token.status();
+                   ASSIGN_OR_RETURN(auto expected_token, TelnetAuth::ReadToken(token_path));
+                   if (!expected_token.SecureEquals(token)) {
+                       return absl::InvalidArgumentError(absl::StrCat(
+                               "authentication token does not match ", token_path.string()));
                    }
-
-                   if ((*expected_token).SecureEquals(token)) {
-                       ctx.authenticated = true;
-                       return "Android Console: type 'help' for a list of commands";
-                   } else {
-                       return absl::InvalidArgumentError("authentication token does not match " +
-                                                         token_path.string());
-                   }
+                   ctx.authenticated = true;
+                   return "Android Console: type 'help' for a list of commands";
                });
     builder.Command("auth", "").Safe();
 
