@@ -62,8 +62,7 @@ class EmulatorControllerImpl final
             , mNotificationStore(&mGrpcNotificationChannel)
             , mKeyEventSender(keyboard::createKeyEventSender(keyboardConsole,
                                                              &avdUniverse->GetQemuEventLoop()))
-            , mStatusService(avdUniverse->GetGuestStatus(), avdUniverse->Props().avd_api,
-                             avdUniverse->Props().hw_config)
+            , mStatusService(avdUniverse->GetGuestStatus(), avdUniverse->Props())
             , mBatteryService(avdUniverse->GetBattery())
             , mSensorService(avdUniverse->GetSensorsPhysicalModel())
             , mGpsService(avdUniverse->GetLocation())
