@@ -121,9 +121,8 @@ std::string EmulatorMetricsUserId(const fs::path& user_directory) {
             // create our own one if there's no studio config
             user_id = EmulatorMetricsUserId(user_dir);
         }
-        // TODO(476380758): Switch from staging to prod clearcut after verification.
         return {.type = kPlaystore,
-                .playstore_url = "https://play.googleapis.com/staging/log?format=raw",
+                .playstore_url = "https://play.googleapis.com/log?format=raw",
                 .user_id = user_id,
                 .user_upload_consent = true};
     } else if (opts.metrics_to_file) {
