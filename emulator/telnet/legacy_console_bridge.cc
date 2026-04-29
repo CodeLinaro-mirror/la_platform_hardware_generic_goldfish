@@ -144,7 +144,23 @@ LegacyConsoleBridge::LegacyConsoleBridge(int port, std::filesystem::path token_p
 
     // name and grpc are safe sub-commands
     avd.On("name" /* do_avd_name */, "query virtual device name",
-           [](ConsoleContext& /*ctx*/) { return absl::UnimplementedError("not implemented"); });
+           [](ConsoleContext& ctx) -> absl::StatusOr<std::string> {
+               ASSIGN_OR_RETURN(auto stub, ctx.EmulatorControllerStub());
+               ASSIGN_OR_RETURN(auto context, ctx.NewContext());
+
+               google::protobuf::Empty request;
+               android::emulation::control::EmulatorStatus response;
+               RETURN_IF_ERROR(
+                       GrpcStatusToAbslStatus(stub->getStatus(context.get(), request, &response)));
+               auto map = response.platformconfig();
+               if (auto it = map.find("avd.name"); it != map.end()) {
+                   return it->second;
+               }
+               // This should never happen as status response always has avd.name
+               LOG(WARNING) << "avd.name not found in platform config for port " << ctx.Port()
+                            << " android studio will not be able to display the correct AVD name.";
+               return absl::InternalError("avd.name not found in platform config");
+           });
     avd.Sub("name", "").Safe();
 
     avd.On("grpc" /* do_avd_grpc_port */, "query the grpc port",

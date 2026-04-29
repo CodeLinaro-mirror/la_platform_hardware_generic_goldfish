@@ -19,6 +19,7 @@
 
 #include "android/goldfish/fake_hardware_config.h"
 #include "emulator_controller.grpc.pb.h"
+#include "goldfish/avd_info/avd_info.h"
 #include "test/GrpcServiceTest.h"
 
 namespace android::emulation::control {
@@ -46,8 +47,11 @@ class StatusServiceTest : public GrcpServiceTest {
     void SetUp() override {
         mGuestStatus.heartbeat.SetValue(0);
         mGuestStatus.bootcomplete.SetValue(absl::UnixEpoch());
-        mHw = android::goldfish::FakeHardwareConfig::GetHwConfig();
-        mStatusService = std::make_unique<StatusServiceImpl>(mGuestStatus, 35, mHw);
+        mAvdProperties.hw_config = android::goldfish::FakeHardwareConfig::GetHwConfig();
+        mAvdProperties.avd_api = 35;
+        mAvdProperties.avd_name = "fake-avd";
+        mAvdProperties.avd_id = "fake-avd-id";
+        mStatusService = std::make_unique<StatusServiceImpl>(mGuestStatus, mAvdProperties);
         mServiceWrapper = std::make_unique<StatusServiceWrapper>(*mStatusService);
 
         GrcpServiceTest::SetUp();
@@ -57,7 +61,7 @@ class StatusServiceTest : public GrcpServiceTest {
 
   protected:
     GuestStatus mGuestStatus;
-    android::goldfish::HardwareConfig mHw;
+    ::goldfish::avd_info::AvdProperties mAvdProperties;
     std::unique_ptr<StatusServiceImpl> mStatusService;
     std::unique_ptr<StatusServiceWrapper> mServiceWrapper;
 };

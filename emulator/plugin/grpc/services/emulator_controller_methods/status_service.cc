@@ -42,27 +42,33 @@ std::unordered_map<std::string, std::string> getQemuConfig(
     return cfg;
 }
 
-StatusServiceImpl::StatusServiceImpl(GuestStatus& guestStatus, const int api_level,
-                                     const android::goldfish::HardwareConfig& hw)
-        : mGuestStatus(guestStatus), mHw(hw), mApiLevel(api_level) {}
+StatusServiceImpl::StatusServiceImpl(GuestStatus& guestStatus, const AvdProperties& avd_properties)
+        : guest_status_(guestStatus), avd_properties_(avd_properties) {}
 
 grpc::Status StatusServiceImpl::getStatus(EmulatorStatus* reply) {
     // TODO(jansene): Get cpu count, hypervisor type.`
     reply->set_uptime(System::Get()->GetProcessTimes().wall_clock_ms);
 
-    reply->set_booted(mGuestStatus.bootcomplete.GetValue() != absl::UnixEpoch());
-    reply->set_heartbeat(mGuestStatus.heartbeat.GetValue());
+    reply->set_booted(guest_status_.bootcomplete.GetValue() != absl::UnixEpoch());
+    reply->set_heartbeat(guest_status_.heartbeat.GetValue());
 
-    auto cnf = getQemuConfig(mApiLevel, mHw);
+    auto cnf = getQemuConfig(avd_properties_.avd_api, avd_properties_.hw_config);
 
     auto entries = reply->mutable_hardwareconfig();
     auto platform = reply->mutable_platformconfig();
     for (const auto& entry : cnf) {
+        VLOG(1) << "Key: " << entry.first << ", Value: " << entry.second;
         platform->insert(entry);
         auto response_entry = entries->add_entry();
         response_entry->set_key(entry.first);
         response_entry->set_value(entry.second);
     };
+
+    // Override avd.id, and name from properties
+    VLOG(1) << "AVD ID: " << avd_properties_.avd_id;
+    VLOG(1) << "AVD Name: " << avd_properties_.avd_name;
+    (*platform)["avd.id"] = avd_properties_.avd_id;
+    (*platform)["avd.name"] = avd_properties_.avd_name;
 
     // TODO(jansene): Enable once multidisplay support is added.
     (*reply->mutable_guestconfig())["multidisplay"] = "unavailable";
