@@ -190,7 +190,7 @@ void ChannelMonitor::ReadCommand(Client& client) ABSL_NO_THREAD_SAFETY_ANALYSIS 
   }
 }
 
-void ChannelMonitor::SendUnsolicitedCommand(std::string& response) ABSL_NO_THREAD_SAFETY_ANALYSIS {
+void ChannelMonitor::SendUnsolicitedCommand(const std::string& response) ABSL_NO_THREAD_SAFETY_ANALYSIS {
   // The first accepted client default to be unsolicited command channel?
   auto iter = clients_.begin();
   if (iter != clients_.end()) {
@@ -200,7 +200,7 @@ void ChannelMonitor::SendUnsolicitedCommand(std::string& response) ABSL_NO_THREA
   }
 }
 
-void ChannelMonitor::SendRemoteCommand(ClientId client, std::string& response) ABSL_NO_THREAD_SAFETY_ANALYSIS {
+void ChannelMonitor::SendRemoteCommand(const ClientId client, const std::string& response) ABSL_NO_THREAD_SAFETY_ANALYSIS {
   auto iter = remote_clients_.begin();
   for (; iter != remote_clients_.end(); ++iter) {
     if (iter->get()->Id() == client) {
