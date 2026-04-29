@@ -50,6 +50,7 @@ cc_test(
         "notification_store_test.cc",
         "qemu_stubs.c",
         "sensor_service_test.cc",
+        "status_service_test.cc",
         "test/GrpcServiceTest.h",
         "vm_service_test.cc",
     ],

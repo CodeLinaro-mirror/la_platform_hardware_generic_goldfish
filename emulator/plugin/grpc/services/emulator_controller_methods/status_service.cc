@@ -56,7 +56,9 @@ grpc::Status StatusServiceImpl::getStatus(EmulatorStatus* reply) {
     auto cnf = getQemuConfig(mApiLevel, mHw);
 
     auto entries = reply->mutable_hardwareconfig();
+    auto platform = reply->mutable_platformconfig();
     for (const auto& entry : cnf) {
+        platform->insert(entry);
         auto response_entry = entries->add_entry();
         response_entry->set_key(entry.first);
         response_entry->set_value(entry.second);
