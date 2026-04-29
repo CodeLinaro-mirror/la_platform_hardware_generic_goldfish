@@ -63,7 +63,7 @@ class Client {
 
   Client& operator=(Client&& other) = delete;
 
-  bool operator==(const Client& other) const;
+  bool operator==(const Client& rhs) const { return id_ == rhs.id_; }
 
   void SendCommandResponse(std::string response) const;
   void SendCommandResponse(const std::vector<std::string>& responses) const;

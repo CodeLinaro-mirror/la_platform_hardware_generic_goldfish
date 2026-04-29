@@ -49,11 +49,6 @@ Client::Client(SharedFD read, SharedFD write, ClientType client_type)
       client_read_fd_(std::move(read)),
       client_write_fd_(std::move(write)) {}
 
-bool Client::operator==(const Client& other) const {
-  return client_read_fd_ == other.client_read_fd_ &&
-         client_write_fd_ == other.client_write_fd_;
-}
-
 void Client::SendCommandResponse(std::string response) const {
   if (response.empty()) {
     VLOG(1) << "Invalid response, ignore!";
