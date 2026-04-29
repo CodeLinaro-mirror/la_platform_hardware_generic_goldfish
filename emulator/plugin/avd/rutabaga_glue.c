@@ -23,7 +23,7 @@
 // IWYU pragma: end_keep
 // clang-format on
 
-#include <rutabaga_gfx/rutabaga_gfx_ffi_goldfish.h>
+#include "rutabaga_gfx/rutabaga_gfx_ffi_goldfish.h"
 
 struct rutabaga* rutabagaGetInstance() {
     Object* obj = object_resolve_path_type("", TYPE_VIRTIO_GPU_RUTABAGA, NULL);

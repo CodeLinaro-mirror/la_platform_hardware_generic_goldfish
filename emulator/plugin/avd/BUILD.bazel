@@ -44,9 +44,9 @@ cc_library(
     deps = [
         "//emulator/libs/parsing",
         "//emulator/plugin/hal/camera:gralloc_details",
-        "@crosvm//:rutabaga_c_ffi",
         "@pixman//:pixman-1",
         "@qemu//:qemu-headers-exported",
+        "@rutabaga_gfx//:rutabaga_c_ffi",
     ],
     alwayslink = True,
 )

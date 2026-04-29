@@ -175,7 +175,7 @@ filegroup(
     name = "plugin_binaries",
     srcs = [
         "//emulator/plugin:goldfish_x86_64",
-        "@crosvm//:rutabaga_ffi",
+        "@rutabaga_gfx//:rutabaga_ffi",
     ] + select({
         "@platforms//os:windows": [],
         "//conditions:default": [
