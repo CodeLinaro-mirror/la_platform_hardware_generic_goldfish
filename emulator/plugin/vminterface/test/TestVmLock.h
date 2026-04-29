@@ -61,9 +61,9 @@ class HostVmLock : public VmLock {
         }
     }
 
-    void lock() override { mLock.lock(); }
-    void unlock() override { mLock.unlock(); }
-    bool isLockedBySelf() const override {
+    void lock() override ABSL_NO_THREAD_SAFETY_ANALYSIS { mLock.lock(); }
+    void unlock() override ABSL_NO_THREAD_SAFETY_ANALYSIS { mLock.unlock(); }
+    bool isLockedBySelf() const override ABSL_NO_THREAD_SAFETY_ANALYSIS {
         if (mLock.TryLock()) {
             mLock.unlock();
             return false;

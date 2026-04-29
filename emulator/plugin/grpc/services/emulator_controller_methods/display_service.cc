@@ -478,6 +478,7 @@ Status DisplayServiceImpl::getScreenshot(ServerContext* context, const ImageForm
     }
 
     if (hw.hw_sensor_hinge) {
+        absl::MutexLock lock(&mIsClosedMutex);
         if (mIsClosed) {
             int fx, fy, fw, fh;
             if (mPhysicalModel.GetFoldedArea(&fx, &fy, &fw, &fh)) {
