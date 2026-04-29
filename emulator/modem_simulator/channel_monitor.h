@@ -35,12 +35,10 @@ enum ModemSimulatorExitCodes : int {
 
 class ClientId {
  public:
-  ClientId();
-
-  bool operator==(const ClientId&) const;
-
+  ClientId() : id_(GetNextId()) {}
+  bool operator==(const ClientId& rhs) const { return id_ == rhs.id_; }
  private:
-  static size_t next_id_;
+  static size_t GetNextId();
   size_t id_;
 };
 
