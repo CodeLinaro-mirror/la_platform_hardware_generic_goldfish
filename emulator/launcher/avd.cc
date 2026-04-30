@@ -184,6 +184,9 @@ struct BuildProp {
     }
 
     std::string Sdk() const { return build_ini_.GetString("ro.build.version.sdk", "unknown"); }
+    std::string Number() const {
+        return build_ini_.GetString("ro.build.version.incremental", "unknown");
+    }
 
     std::string Id() const { return build_ini_.GetString("ro.build.id", "unknown"); }
     std::string Fingerprint() const {
@@ -263,6 +266,7 @@ class FileBackedAvd : public Avd {
     int64_t BuildTimestamp() const override { return build_ini_.Timestamp(); }
     std::string BuildFlavour() const override { return build_ini_.Flavour(); }
     std::string BuildProductName() const override { return build_ini_.ProductName(); }
+    std::string BuildNumber() const override { return build_ini_.Number(); }
 
     Avd::CpuArchitecture DetectArchitecture() const override {
         auto abi = config_ini_.GetString("abi.type", "unknown");
@@ -345,9 +349,10 @@ class FileBackedAvd : public Avd {
     std::string Details(const bool verbose) const override {
         if (verbose) {
             auto icon = GetIconForDeviceType(GetDeviceType());
-            return absl::StrFormat("%s (%s) %s api: %d arch: %s res: %4dx%4d", Id(), DisplayName(),
-                                   icon, ApiLevel(), Abi(), hw_cfg_.hw_lcd_width,
-                                   hw_cfg_.hw_lcd_height);
+            return absl::StrFormat("%s (%s) %s api: %d arch: %s res: %4dx%4d build: %s flavour: %s",
+                                   Id(), DisplayName(), icon, ApiLevel(), Abi(),
+                                   hw_cfg_.hw_lcd_width, hw_cfg_.hw_lcd_height, BuildNumber(),
+                                   BuildFlavour());
         }
         return name_;
     }
@@ -405,6 +410,7 @@ absl::StatusOr<std::unique_ptr<Avd>> Avd::FromName(const AndroidOptions& opts,
         return absl::NotFoundError(absl::StrCat("No access to: ", ini_path.string()));
     }
 
+    LOG(INFO) << "Parsing AVD: " << ini_path.string();
     auto ini = std::make_unique<IniFile>(ini_path);
     if (!ini->Read()) {
         return absl::InternalError(absl::StrCat("Unable to parse ini file: ", ini_path.string()));
@@ -514,6 +520,14 @@ absl::StatusOr<std::unique_ptr<Avd>> Avd::FromName(const AndroidOptions& opts,
         return absl::PermissionDeniedError(absl::StrCat(
                 "AVD content directory exists but is not writable: ", content_path.string()));
     }
+
+    if (opts.verbose) {
+        LOG(INFO) << "Listing avd content directory (" << content_path << "):";
+        for (const auto& path : base::file::scan_dir_recursive(content_path)) {
+            LOG(INFO) << "    " << path.lexically_relative(content_path).string();
+        }
+    }
+
 
     HardwareConfig hw_cfg;
     hw_cfg.Load(config_ini);

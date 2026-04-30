@@ -211,6 +211,14 @@ absl::StatusOr<fs::path> Search(const std::vector<fs::path>& search_paths,
 
 absl::StatusOr<SystemImagePaths> ResolveSystemImagePaths(const std::vector<fs::path>& search_paths,
                                                          const AndroidOptions& opts) {
+    if (opts.verbose) {
+        for (const auto& sdk_path : search_paths) {
+            LOG(INFO) << "Listing system image search directory (" << sdk_path << "):";
+            for (const auto& path : base::file::scan_dir_recursive(sdk_path)) {
+                LOG(INFO) << "    " << path.lexically_relative(sdk_path).string();
+            }
+        }
+    }
     SystemImagePaths paths;
     ASSIGN_OR_RETURN(paths.build_properties,
                      Search(search_paths, "build.prop", "build properties"));
