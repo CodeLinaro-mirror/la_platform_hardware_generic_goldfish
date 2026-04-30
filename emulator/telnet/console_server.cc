@@ -19,6 +19,7 @@
 
 #include "absl/log/check.h"
 #include "absl/log/log.h"
+#include "absl/strings/escaping.h"
 #include "absl/strings/str_cat.h"
 
 #include "goldfish/async/libuv_event_loop.h"
@@ -87,27 +88,31 @@ class ConsoleServer::Connection : public std::enable_shared_from_this<ConsoleSer
   private:
     void SendLine(const std::string& line) {
         auto msg = absl::StrCat(line, "\r\n");
+        VLOG(1) << "Send: " << absl::CEscape(msg);
         socket_->Send(msg.data(), msg.size()).IgnoreError();
     }
 
     void HandleLine(const std::string& line) {
+        VLOG(1) << "Recv: " << absl::CEscape(line);
         auto result = (*handler_)(line, *context_);
+
+        if (absl::IsAborted(result.status())) {
+            VLOG(1) << "Console session " << session_id_ << " aborted command execution.";
+            socket_->Close();
+            return;
+        }
+
         if (!result.ok()) {
             SendLine(absl::StrCat("KO: ", result.status().message()));
-            if (absl::IsAborted(result.status())) {
-                VLOG(1) << "Console session " << session_id_ << " aborted command execution.";
-                socket_->Close();
-            }
             return;
         }
-        if (result->empty()) {
-            SendLine("OK");
-            return;
-        }
-        SendLine(absl::StrCat(*result, "\r\nOK"));
+
+        std::string response = result->empty() ? "OK" : absl::StrCat(*result, "\r\nOK");
+        SendLine(response);
     }
 
     void OnData(std::string_view data) {
+        VLOG(2) << "Raw data: " << absl::CEscape(data);
         buffer_.append(data);
         size_t start = 0;
         size_t pos;
