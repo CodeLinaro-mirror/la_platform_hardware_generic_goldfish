@@ -17,6 +17,7 @@
 #include "host/commands/modem_simulator/channel_monitor.h"
 
 #include <algorithm>
+#include <atomic>
 
 #include "absl/base/thread_annotations.h"
 #include "absl/log/log.h"
@@ -30,15 +31,9 @@ namespace cuttlefish {
 
 constexpr int32_t kMaxCommandLength = 4096;
 
-size_t ClientId::next_id_ = 0;
-
-ClientId::ClientId() {
-  id_ = next_id_;
-  next_id_++;
-}
-
-bool ClientId::operator==(const ClientId& other) const {
-  return id_ == other.id_;
+size_t ClientId::GetNextId() {
+  static std::atomic<size_t> next_id;
+  return next_id.fetch_add(1) + 1U;
 }
 
 Client::Client(SharedFD fd) : client_read_fd_(fd), client_write_fd_(fd) {}
@@ -53,11 +48,6 @@ Client::Client(SharedFD read, SharedFD write, ClientType client_type)
     : type(client_type),
       client_read_fd_(std::move(read)),
       client_write_fd_(std::move(write)) {}
-
-bool Client::operator==(const Client& other) const {
-  return client_read_fd_ == other.client_read_fd_ &&
-         client_write_fd_ == other.client_write_fd_;
-}
 
 void Client::SendCommandResponse(std::string response) const {
   if (response.empty()) {

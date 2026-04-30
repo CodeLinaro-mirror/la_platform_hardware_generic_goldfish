@@ -35,12 +35,10 @@ enum ModemSimulatorExitCodes : int {
 
 class ClientId {
  public:
-  ClientId();
-
-  bool operator==(const ClientId&) const;
-
+  ClientId() : id_(GetNextId()) {}
+  bool operator==(const ClientId& rhs) const { return id_ == rhs.id_; }
  private:
-  static size_t next_id_;
+  static size_t GetNextId();
   size_t id_;
 };
 
@@ -54,7 +52,6 @@ class Client {
  public:
   enum ClientType { RIL, REMOTE };
 
-  Client() = default;
   ~Client() = default;
   Client(SharedFD fd);
   Client(SharedFD read, SharedFD write);
@@ -65,7 +62,7 @@ class Client {
 
   Client& operator=(Client&& other) = delete;
 
-  bool operator==(const Client& other) const;
+  bool operator==(const Client& rhs) const { return id_ == rhs.id_; }
 
   void SendCommandResponse(std::string response) const;
   void SendCommandResponse(const std::vector<std::string>& responses) const;
@@ -77,10 +74,10 @@ class Client {
   friend class ChannelMonitor;
   friend class ::ModemServiceTest;
 
-  ClientId id_;
-  ClientType type = RIL;
-  SharedFD client_read_fd_;
-  SharedFD client_write_fd_;
+  const ClientId id_;
+  const ClientType type = RIL;
+  const SharedFD client_read_fd_;
+  const SharedFD client_write_fd_;
   std::string incomplete_command;
   mutable std::mutex write_mutex;
   bool first_read_command_;  // Only used when ClientType::REMOTE
