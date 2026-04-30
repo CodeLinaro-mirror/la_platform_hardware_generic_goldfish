@@ -111,7 +111,7 @@ class ChannelMonitor {
 
   void AcceptIncomingConnection();
   void OnClientSocketClosed(int sock);
-  void ReadCommand(Client& client);
+  bool ReadCommand(Client& client);
 
   void MonitorLoop();
   static void removeInvalidClients(

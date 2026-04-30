@@ -89,18 +89,15 @@ std::optional<ClientId> ChannelMonitor::SetRemoteClient(
   if (is_accepted) {
     // There may be new data from remote client before select.
     remote_client->first_read_command_ = true;
-    ReadCommand(*remote_client);
+    if (!ReadCommand(*remote_client)) {
+      return std::nullopt;
+    }
   }
 
   auto id = remote_client->Id();
-  if (remote_client->client_read_fd_->IsOpen() &&
-      remote_client->client_write_fd_->IsOpen()) {
-    remote_client->first_read_command_ = false;
-    remote_clients_.push_back(std::move(remote_client));
-    VLOG(1) << "added one remote client";
-  } else {
-    return std::nullopt;
-  }
+  remote_client->first_read_command_ = false;
+  remote_clients_.push_back(std::move(remote_client));
+  VLOG(1) << "added one remote client";
 
   // Trigger monitor loop
   if (write_pipe_->IsOpen()) {
@@ -108,6 +105,7 @@ std::optional<ClientId> ChannelMonitor::SetRemoteClient(
   } else {
     LOG(ERROR) << "Pipe created fail, can't trigger monitor loop";
   }
+
   return id;
 }
 
@@ -126,7 +124,7 @@ void ChannelMonitor::AcceptIncomingConnection() ABSL_NO_THREAD_SAFETY_ANALYSIS {
   }
 }
 
-void ChannelMonitor::ReadCommand(Client& client) ABSL_NO_THREAD_SAFETY_ANALYSIS {
+bool ChannelMonitor::ReadCommand(Client& client) ABSL_NO_THREAD_SAFETY_ANALYSIS {
   std::vector<char> buffer(kMaxCommandLength);
   auto bytes_read = client.client_read_fd_->Read(buffer.data(), buffer.size());
   if (bytes_read <= 0) {
@@ -134,21 +132,11 @@ void ChannelMonitor::ReadCommand(Client& client) ABSL_NO_THREAD_SAFETY_ANALYSIS 
         client.first_read_command_) {
       LOG(ERROR) << "After read 'REM' from remote client, and before select "
           "no new data come.";
-      return;
+      return true;
     }
-    VLOG(1) << "Error reading from client fd: "
-               << client.client_read_fd_->StrError();
-    client.client_read_fd_->Close();  // Ignore errors here
-    client.client_write_fd_->Close();
-    // Erase client from the vector clients
-    auto& clients = client.type == Client::REMOTE ? remote_clients_ : clients_;
-    auto iter = std::find_if(
-        clients.begin(), clients.end(),
-        [&](std::unique_ptr<Client>& other) { return *other == client; });
-    if (iter != clients.end()) {
-      clients.erase(iter);
-    }
-    return;
+
+    VLOG(1) << "Error reading from client fd: " << client.client_read_fd_->StrError();
+    return false;  // drop the client
   }
 
   std::string& incomplete_command = client.incomplete_command;
@@ -181,6 +169,8 @@ void ChannelMonitor::ReadCommand(Client& client) ABSL_NO_THREAD_SAFETY_ANALYSIS 
       incomplete_command = commands.substr(pos);
     }
   }
+
+  return true;
 }
 
 void ChannelMonitor::SendUnsolicitedCommand(const std::string& response) ABSL_NO_THREAD_SAFETY_ANALYSIS {
@@ -284,16 +274,22 @@ void ChannelMonitor::MonitorLoop() ABSL_NO_THREAD_SAFETY_ANALYSIS {
         removeInvalidClients(clients_);
         removeInvalidClients(remote_clients_);
       }
-      for (auto& client : clients_) {
+
+      std::erase_if(clients_, [&read_set, this](const std::unique_ptr<Client>& client) {
         if (read_set.IsSet(client->client_read_fd_)) {
-          ReadCommand(*client);
+          return !ReadCommand(*client);
+        } else {
+          return false;  // keep it
         }
-      }
-      for (auto& client : remote_clients_) {
+      });
+
+      std::erase_if(remote_clients_, [&read_set, this](const std::unique_ptr<Client>& client) {
         if (read_set.IsSet(client->client_read_fd_)) {
-          ReadCommand(*client);
+          return !ReadCommand(*client);
+        } else {
+          return false;  // keep it
         }
-      }
+      });
     } else {
       // Ignore errors here
       LOG(ERROR) << "Select call returned error : " << strerror(errno);
