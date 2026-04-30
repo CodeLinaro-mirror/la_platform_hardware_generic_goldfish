@@ -82,9 +82,9 @@ ChannelMonitor::ChannelMonitor(ModemSimulator& modem, SharedFD server)
   }
 }
 
-ClientId ChannelMonitor::SetRemoteClient(SharedFD client, bool is_accepted) ABSL_NO_THREAD_SAFETY_ANALYSIS {
+std::optional<ClientId> ChannelMonitor::SetRemoteClient(
+    SharedFD client, bool is_accepted) ABSL_NO_THREAD_SAFETY_ANALYSIS {
   auto remote_client = std::make_unique<Client>(client, Client::REMOTE);
-  auto id = remote_client->Id();
 
   if (is_accepted) {
     // There may be new data from remote client before select.
@@ -92,11 +92,14 @@ ClientId ChannelMonitor::SetRemoteClient(SharedFD client, bool is_accepted) ABSL
     ReadCommand(*remote_client);
   }
 
+  auto id = remote_client->Id();
   if (remote_client->client_read_fd_->IsOpen() &&
       remote_client->client_write_fd_->IsOpen()) {
     remote_client->first_read_command_ = false;
     remote_clients_.push_back(std::move(remote_client));
     VLOG(1) << "added one remote client";
+  } else {
+    return std::nullopt;
   }
 
   // Trigger monitor loop
