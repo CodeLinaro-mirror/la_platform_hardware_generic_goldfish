@@ -52,7 +52,6 @@ class Client {
  public:
   enum ClientType { RIL, REMOTE };
 
-  Client() = default;
   ~Client() = default;
   Client(SharedFD fd);
   Client(SharedFD read, SharedFD write);
@@ -75,10 +74,10 @@ class Client {
   friend class ChannelMonitor;
   friend class ::ModemServiceTest;
 
-  ClientId id_;
-  ClientType type = RIL;
-  SharedFD client_read_fd_;
-  SharedFD client_write_fd_;
+  const ClientId id_;
+  const ClientType type = RIL;
+  const SharedFD client_read_fd_;
+  const SharedFD client_write_fd_;
   std::string incomplete_command;
   mutable std::mutex write_mutex;
   bool first_read_command_;  // Only used when ClientType::REMOTE
