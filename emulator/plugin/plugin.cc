@@ -66,21 +66,30 @@ using android::base::System;
 void qemu_absl_logger(int severity, const char* file, int line, const char* fmt, va_list ap) {
     std::string message(4096, '\0');
     int size = vsnprintf(message.data(), message.size(), fmt, ap);
+
+    if (size <= 0) {
+        // Ignore errors and empty strings.
+        return;
+    }
+
     if (size >= message.size()) {
         // Indicate truncation.
         strncpy(message.data() + message.size() - 3, "...", 3);
         VLOG(1) << "Following log message truncated, size needed: " << size
                 << " truncated to: " << (message.size() - 3);
         size = message.size();
+    } else if (message.back() == '\n') {
+        // Strip extra \n that qemu adds, our logging framework will add the newline.
+        size--;
     }
+    std::string_view message_view(message.data(), size);
 
     // Log error messages as breadcrumbs so they show up in crash reports
     if (severity >= static_cast<int>(absl::LogSeverity::kError)) {
-        CRUMB(kQemu) << absl::StrFormat("%s:%d %s\n", file ? file : "QEMU", line, message);
+        CRUMB(kQemu) << absl::StrFormat("%s:%d %s\n", file ? file : "QEMU", line, message_view);
     }
 
-    LOG(LEVEL(severity)).AtLocation(file ? file : "QEMU", line)
-            << absl::LogAsLiteral(std::string_view(message.data(), size));
+    LOG(LEVEL(severity)).AtLocation(file ? file : "QEMU", line) << absl::LogAsLiteral(message_view);
 }
 
 void setup_debug_logging() {
