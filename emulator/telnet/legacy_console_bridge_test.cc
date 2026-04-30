@@ -139,6 +139,19 @@ TEST_F(LegacyConsoleBridgeTest, PingFailsWhenNoEmulatorFound) {
     EXPECT_EQ(result.status().code(), absl::StatusCode::kNotFound);
 }
 
+TEST_F(LegacyConsoleBridgeTest, PingSucceedsAndReturnsAlive) {
+    auto ctx = CreateContext();
+    ctx->authenticated = true;
+
+    auto mock_stub = std::make_unique<android::emulation::control::MockEmulatorControllerStub>();
+    ctx->mock_stub = std::move(mock_stub);
+
+    auto result = (*bridge_)("ping", *ctx);
+
+    ASSERT_TRUE(result.ok()) << result.status().message();
+    EXPECT_EQ(*result, "I am alive!");
+}
+
 TEST_F(LegacyConsoleBridgeTest, GeoFixFailsWhenNoEmulatorFound) {
     LegacyConsoleBridge::ConsoleContext ctx(5554);
     ctx.authenticated = true;  // Safe to call commands

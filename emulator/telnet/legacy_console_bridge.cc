@@ -69,7 +69,11 @@ LegacyConsoleBridge::LegacyConsoleBridge(int port, std::filesystem::path token_p
     // --- Safe Root Commands ---
 
     builder.On("ping" /* do_ping */, "check if the emulator is alive",
-               [](ConsoleContext& ctx) { return ctx.Client().status(); });
+               [](ConsoleContext& ctx) -> absl::StatusOr<std::string> {
+                   // We check the stub is connected and the service is ready.
+                   RETURN_IF_ERROR(ctx.EmulatorControllerStub().status());
+                   return "I am alive!";
+               });
     builder.Command("ping", "").Safe();
 
     builder.On("auth" /* do_auth */, "user authentication for the emulator console",
