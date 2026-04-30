@@ -296,7 +296,7 @@ std::string CommandRegistry::WelcomeMessage(const Context& ctx) const {
                 "Android Console: Authentication required\r\n"
                 "Android Console: type 'auth <auth_token>' to authenticate\r\n"
                 "Android Console: you can find your <auth_token> in \r\n'",
-                token_path_.string(), "'\r\n");
+                token_path_.string(), "'\r\nOK");
     }
     return "Android Console: type 'help' for a list of commands\r\n";
 }
