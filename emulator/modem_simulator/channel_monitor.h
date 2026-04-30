@@ -16,6 +16,7 @@
 #pragma once
 
 #include <mutex>
+#include <optional>
 #include <thread>
 #include <vector>
 
@@ -92,7 +93,7 @@ class ChannelMonitor {
   ChannelMonitor(const ChannelMonitor&) = delete;
   ChannelMonitor& operator=(const ChannelMonitor&) = delete;
 
-  ClientId SetRemoteClient(SharedFD client, bool is_accepted);
+  std::optional<ClientId> SetRemoteClient(SharedFD client, bool is_accepted);
   void SendRemoteCommand(ClientId client, const std::string& response);
   void CloseRemoteConnection(ClientId client);
 
@@ -110,7 +111,7 @@ class ChannelMonitor {
 
   void AcceptIncomingConnection();
   void OnClientSocketClosed(int sock);
-  void ReadCommand(Client& client);
+  bool ReadCommand(Client& client);
 
   void MonitorLoop();
   static void removeInvalidClients(

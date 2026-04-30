@@ -189,7 +189,6 @@ void CallService::HandleDial(const Client& client, const std::string& command) {
     ss << port;
     auto remote_port = ss.str();
     auto remote_client = ConnectToRemoteCvd(remote_port);
-    auto client_id = ClientId();
     if (!remote_client->IsOpen()) {
       client.SendCommandResponse(kCmeErrorNoNetworkService);
       return;
@@ -200,22 +199,28 @@ void CallService::HandleDial(const Client& client, const std::string& command) {
       return;
     }
 
+    std::optional<ClientId> client_id;
     if (channel_monitor_) {
       client_id = channel_monitor_->SetRemoteClient(remote_client, false);
+    }
+
+    if (!client_id) {
+      client.SendCommandResponse("KO");
+      return;
     }
 
     ss.clear();
     ss.str("");
     ss << "AT+REMOTECALL=4,0,0,\"" << local_host_port << "\",129";
 
-    SendCommandToRemote(client_id, "REM0");
-    SendCommandToRemote(client_id, ss.str());
+    SendCommandToRemote(*client_id, "REM0");
+    SendCommandToRemote(*client_id, ss.str());
 
     CallStatus call_status(remote_port);
     call_status.is_remote_call = true;
     call_status.is_mobile_terminated = false;
     call_status.call_state = CallStatus::CALL_STATE_DIALING;
-    call_status.remote_client = client_id;
+    call_status.remote_client = *client_id;
     auto index = FindFreeCallIndex();
 
     auto call_token = std::make_pair(index, call_status.number);
