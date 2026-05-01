@@ -14,9 +14,11 @@
 #pragma once
 
 #include <cstdint>
+#include <optional>
 
 #include "absl/status/status.h"
 
+#include "android/goldfish/device_type.h"
 #include "android/goldfish/hardware_config.h"
 
 namespace android::goldfish {
@@ -35,6 +37,17 @@ class MemoryConfig {
      * @return absl::Status indicating success or failure.
      */
     static absl::Status FinalizeRamAndHeapSize(HardwareConfig& hw, int api_level);
+
+    /**
+     * @brief Calculates the minimum RAM size based on hardware config, API level, and device type.
+     *
+     * @param hw The hardware configuration.
+     * @param api_level The API level of the AVD.
+     * @param device_type The optional device type of the AVD.
+     * @return The minimum RAM size in megabytes.
+     */
+    static int CalculateMinimumRam(const HardwareConfig& hw, int api_level,
+                                   std::optional<DeviceType> device_type = std::nullopt);
 };
 
 }  // namespace android::goldfish

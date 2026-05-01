@@ -311,6 +311,43 @@ int AndroidHwConfigGetMinVmHeapSize(const HardwareConfig& config, int api_level)
 }
 }  // namespace
 
+int MemoryConfig::CalculateMinimumRam(const HardwareConfig& hw, int api_level,
+                                      std::optional<DeviceType> device_type) {
+    if (api_level < 21) {
+        LOG(FATAL) << "We do not support api level < 21. Current API level is: " << api_level;
+    }
+
+    int min_ram = 1024;
+    if (api_level >= 37) {
+        min_ram = 4096;
+    } else if (api_level >= 34) {
+        min_ram = 2560;
+    } else if (api_level >= 29) {
+        min_ram = 2048;
+    } else if (api_level >= 26) {
+        min_ram = 1536;
+    }
+
+    const bool is_foldable = hw.hw_sensor_hinge || hw.hw_sensor_roll;
+    const bool is_large_screen =
+            (static_cast<long long>(hw.hw_lcd_width) * static_cast<long long>(hw.hw_lcd_height)) >=
+            3LL * 1000LL * 1000LL;
+
+    if (api_level >= 33 && (is_foldable || is_large_screen)) {
+        min_ram = std::max(min_ram, 4096);
+    }
+
+    if (device_type.has_value()) {
+        if (device_type.value() == DeviceType::kTv) {
+            min_ram = std::max(min_ram, 1024);
+        } else if (device_type.value() == DeviceType::kXr) {
+            min_ram = std::max(min_ram, 4096);
+        }
+    }
+
+    return min_ram;
+}
+
 absl::Status MemoryConfig::FinalizeRamAndHeapSize(HardwareConfig& hw, int api_level) {
     int ram_size = hw.hw_ramSize;
     if (ram_size <= 0) {
@@ -320,24 +357,14 @@ absl::Status MemoryConfig::FinalizeRamAndHeapSize(HardwareConfig& hw, int api_le
     auto memory_size_mi_b = static_cast<uint64_t>(ram_size);
 
     // enforce CDD minimums
-    int min_ram = 32;
-    const bool is_foldable = hw.hw_sensor_hinge;
-    const bool is_large_screen =
-            (static_cast<long long>(hw.hw_lcd_width) * static_cast<long long>(hw.hw_lcd_height)) >=
-            3LL * 1000LL * 1000LL;
-
-    if (api_level >= 34) {
-        min_ram = 2560;  // 2.5G is required for U and up, to avoid kswapd eating
-                         // cpus
-        if ((is_foldable || is_large_screen) && min_ram < 3072) {
-            min_ram = 3072;  // 3G is required for U and up, to avoid kswapd eating cpus
-            LOG(INFO) << "foldable or large screen devices with api >=34 is set to have minimum "
-                         "ram 3G";
-        }
-    }
+    int min_ram = CalculateMinimumRam(hw, api_level);
 
     if (std::cmp_less(memory_size_mi_b, min_ram)) {
-        LOG(INFO) << "Increasing RAM size to " << min_ram << "MB";
+        LOG(INFO) << "Enforcing minimum RAM requirement; "
+                  << "[reason='api_or_device_constraint', "
+                  << "original_mib=" << memory_size_mi_b << ", "
+                  << "target_mib=" << min_ram << ", "
+                  << "api_level=" << api_level << "]";
         memory_size_mi_b = min_ram;
     }
 

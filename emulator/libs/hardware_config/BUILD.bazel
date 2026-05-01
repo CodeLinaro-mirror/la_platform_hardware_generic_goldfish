@@ -28,6 +28,7 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
+        ":device_type",
         "//emulator/libs/host-common",
         "//emulator/libs/ini_file",
         "@abseil-cpp//absl/log",

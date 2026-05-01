@@ -25,6 +25,7 @@
 #include "android/base/system.h"
 #include "android/goldfish/avd.h"
 #include "android/goldfish/hardware_config.h"
+#include "android/goldfish/memory_config.h"
 #include "goldfish/file/file.h"
 #include "goldfish/file/storage_capacity.h"
 
@@ -45,22 +46,24 @@ absl::Status MemoryDevice::initialize(const EmulatorConfig& emulator) {
         }
     }
 
-    // TODO Add minram checks:
-    // if (avdInfo_getApiLevel(avd) >= 34) {
-    //     minRam = 2560;  // 2.5G is required for U and up, to avoid kswapd eating
-    // } else if (avdInfo_getApiLevel(avd) >= 33 && (isFoldable || isLargeScreen)) {
-    //     minRam = 3072; // 3G is required for U and up, to avoid kswapd eating cpus
-    // } else if (avdInfo_getApiLevel(avd) >= 29) {
-    //     minRam = 2048;
-    // }
-    // if (opts->lowram) {
-    //     D("Removing any lower bound of RAM size");
-    //     minRam = 0;
-    // }
-    // if (hw->hw_ramSize < minRam) {
-    //     dinfo("Increasing RAM size to %iMB", minRam);
-    //     hw->hw_ramSize = minRam;
-    // }
+    int minRam = MemoryConfig::CalculateMinimumRam(hw, avd.ApiLevel(), avd.GetDeviceType());
+
+    if (emulator.opts().lowram) {
+        LOG(INFO) << "Resetting min RAM to 0; [reason='lowram_flag_active', api_level="
+                  << avd.ApiLevel() << ", device_type=" << static_cast<int>(avd.GetDeviceType())
+                  << "]";
+        minRam = 0;
+    }
+
+    if (mMemorySizeMiB < minRam) {
+        LOG(INFO) << "Enforcing minimum RAM requirement; "
+                  << "[reason='api_or_device_constraint', "
+                  << "original_mib=" << mMemorySizeMiB << ", "
+                  << "target_mib=" << minRam << ", "
+                  << "api_level=" << avd.ApiLevel() << ", "
+                  << "device_type=" << static_cast<int>(avd.GetDeviceType()) << "]";
+        mMemorySizeMiB = minRam;
+    }
 
     // TODO re-enable space checking when snapshots are supported.
     /*auto ram = StorageCapacity(mMemorySizeMiB, StorageCapacity::Unit::MiB);

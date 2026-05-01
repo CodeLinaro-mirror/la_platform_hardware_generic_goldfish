@@ -109,9 +109,9 @@ TEST_F(AvdTest, Dessert) {
 }
 
 TEST_F(AvdTest, UnknownApiLevel) {
-    CreateTestAvd("test_avd", "android-1", 1);
+    CreateTestAvd("test_avd", "android-1000", 1000);
     ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(opts_, paths_, "test_avd", false, ""));
-    EXPECT_EQ(avd->ApiLevel(), 1);
+    EXPECT_EQ(avd->ApiLevel(), 1000);
     EXPECT_EQ(avd->Dessert(), "");
 }
 
@@ -357,8 +357,8 @@ TEST_F(AvdTest, ContentOverride) {
     EXPECT_TRUE(base::file::exists(override_path / "hardware-qemu.ini"));
     EXPECT_FALSE(base::file::exists(original_avd_dir / "hardware-qemu.ini"));
 
-    // Hardware config should still be loaded from the original config.ini.
-    EXPECT_EQ(avd->Hw().hw_ramSize, 1024);
+    // Hardware config should still be loaded from the original config.ini and finalized.
+    EXPECT_EQ(avd->Hw().hw_ramSize, 2048);
 }
 
 }  // namespace android::goldfish::avd

@@ -39,9 +39,9 @@ class MemoryConfigTest : public ::testing::Test {
 
 TEST_F(MemoryConfigTest, Basic) {
     hw.hw_ramSize = 512;
-    auto status = MemoryConfig::FinalizeRamAndHeapSize(hw, 30);
+    auto status = MemoryConfig::FinalizeRamAndHeapSize(hw, 21);
     EXPECT_TRUE(status.ok());
-    EXPECT_EQ(hw.hw_ramSize, 512);
+    EXPECT_EQ(hw.hw_ramSize, 1024);
 }
 
 TEST_F(MemoryConfigTest, Default) {
@@ -64,8 +64,8 @@ TEST_F(MemoryConfigTest, Api34FoldableMinimum) {
     hw.hw_sensor_hinge = true;
     auto status = MemoryConfig::FinalizeRamAndHeapSize(hw, 34);
     EXPECT_TRUE(status.ok());
-    // Minimum for API 34 Foldable is 3072
-    EXPECT_EQ(hw.hw_ramSize, 3072);
+    // Minimum for API 34 Foldable is 4096
+    EXPECT_EQ(hw.hw_ramSize, 4096);
 }
 
 TEST_F(MemoryConfigTest, Api34LargeScreenMinimum) {
@@ -74,8 +74,16 @@ TEST_F(MemoryConfigTest, Api34LargeScreenMinimum) {
     hw.hw_lcd_height = 2000;  // 4M pixels > 3M
     auto status = MemoryConfig::FinalizeRamAndHeapSize(hw, 34);
     EXPECT_TRUE(status.ok());
-    // Minimum for API 34 Large Screen is 3072
-    EXPECT_EQ(hw.hw_ramSize, 3072);
+    // Minimum for API 34 Large Screen is 4096
+    EXPECT_EQ(hw.hw_ramSize, 4096);
+}
+
+TEST_F(MemoryConfigTest, Api37Minimum) {
+    hw.hw_ramSize = 512;
+    auto status = MemoryConfig::FinalizeRamAndHeapSize(hw, 37);
+    EXPECT_TRUE(status.ok());
+    // Minimum for API 37 is 4096
+    EXPECT_EQ(hw.hw_ramSize, 4096);
 }
 
 TEST_F(MemoryConfigTest, BasicHeapSize) {
@@ -91,7 +99,7 @@ TEST_F(MemoryConfigTest, BasicHeapSize) {
 TEST_F(MemoryConfigTest, SmallRamForcesSmallHeap) {
     hw.hw_ramSize = 512;
     hw.vm_heapSize = 256;
-    auto status = MemoryConfig::FinalizeRamAndHeapSize(hw, 30);
+    auto status = MemoryConfig::FinalizeRamAndHeapSize(hw, 21);
     EXPECT_TRUE(status.ok());
     EXPECT_GE(hw.vm_heapSize, 32);
 }
@@ -137,6 +145,27 @@ TEST_F(MemoryConfigTest, HighDensityLargeHeap) {
     auto status = MemoryConfig::FinalizeRamAndHeapSize(hw, 30);
     EXPECT_TRUE(status.ok());
     EXPECT_GE(hw.vm_heapSize, 256);
+}
+
+TEST_F(MemoryConfigTest, CalculateMinimumRam_ApiLevels) {
+    EXPECT_EQ(MemoryConfig::CalculateMinimumRam(hw, 21), 1024);
+    EXPECT_EQ(MemoryConfig::CalculateMinimumRam(hw, 26), 1536);
+    EXPECT_EQ(MemoryConfig::CalculateMinimumRam(hw, 29), 2048);
+    EXPECT_EQ(MemoryConfig::CalculateMinimumRam(hw, 34), 2560);
+    EXPECT_EQ(MemoryConfig::CalculateMinimumRam(hw, 37), 4096);
+}
+
+TEST_F(MemoryConfigTest, CalculateMinimumRam_DeviceType) {
+    EXPECT_EQ(MemoryConfig::CalculateMinimumRam(hw, 30, DeviceType::kTv),
+              2048);  // API 30 requires 2048, which is > 1024
+    EXPECT_EQ(MemoryConfig::CalculateMinimumRam(hw, 21, DeviceType::kTv),
+              1024);  // API 21 requires 1024
+    EXPECT_EQ(MemoryConfig::CalculateMinimumRam(hw, 21, DeviceType::kXr),
+              4096);  // XR requires 4096
+}
+
+TEST_F(MemoryConfigTest, CalculateMinimumRam_DeathOnLowApi) {
+    EXPECT_DEATH(MemoryConfig::CalculateMinimumRam(hw, 20), "We do not support api level < 21");
 }
 
 }  // namespace android::goldfish
