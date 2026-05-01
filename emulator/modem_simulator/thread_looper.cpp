@@ -104,7 +104,7 @@ void ThreadLooper::ThreadLoop() {
         cond_.wait_for(lock, durationMs);
         continue;
       }
-      cb = queue_.front().cb; // callback at front of queue
+      cb = std::move(queue_.front().cb);
       queue_.pop_front();
     }
     cb();
