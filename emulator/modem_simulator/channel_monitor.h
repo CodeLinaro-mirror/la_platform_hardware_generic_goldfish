@@ -20,6 +20,9 @@
 #include <thread>
 #include <vector>
 
+#include "absl/base/thread_annotations.h"
+#include "absl/synchronization/mutex.h"
+
 #include "common/libs/fs/shared_fd.h"
 
 class ModemServiceTest;
@@ -70,6 +73,7 @@ class Client {
 
   ClientId Id() const { return id_; }
   ClientType Type() const { return type; }
+  void Close();
 
  private:
   friend class ChannelMonitor;
@@ -78,9 +82,9 @@ class Client {
   const ClientId id_;
   const ClientType type = RIL;
   const SharedFD client_read_fd_;
-  const SharedFD client_write_fd_;
+  const SharedFD client_write_fd_ ABSL_GUARDED_BY(write_mutex_);
   std::string incomplete_command;
-  mutable std::mutex write_mutex;
+  mutable absl::Mutex write_mutex_;
   bool first_read_command_;  // Only used when ClientType::REMOTE
   bool is_valid = true;
 };

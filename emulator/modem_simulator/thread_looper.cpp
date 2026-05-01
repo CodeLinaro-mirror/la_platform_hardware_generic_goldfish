@@ -53,14 +53,12 @@ ThreadLooper::Serial ThreadLooper::Post(
 }
 
 bool ThreadLooper::CancelSerial(Serial serial) {
-  std::lock_guard<std::mutex> autolock(lock_);
+  const absl::MutexLock autolock(lock_);
 
   bool found = false;
   for (auto iter = queue_.begin(); iter != queue_.end(); ++iter) {
     if (iter->serial == serial) {
       queue_.erase(iter);
-      cond_.notify_all();
-
       found = true;
       break;
     }
@@ -70,7 +68,7 @@ bool ThreadLooper::CancelSerial(Serial serial) {
 }
 
 void ThreadLooper::Insert(const Event &event) {
-  std::lock_guard<std::mutex> autolock(lock_);
+  const absl::MutexLock autolock(lock_);
 
   auto iter = queue_.begin();
   while (iter != queue_.end() && *iter <= event) {
@@ -78,30 +76,26 @@ void ThreadLooper::Insert(const Event &event) {
   }
 
   queue_.insert(iter, event);
-  cond_.notify_all();
 }
 
 void ThreadLooper::ThreadLoop() {
   for(;;) {
     Callback cb;
     {
-      std::unique_lock<std::mutex> lock(lock_);
-
+      const absl::MutexLock lock(lock_);
       if (stopped_) {
         break;
       }
 
-      if (queue_.empty()) {
-        cond_.wait(lock);
-        continue;
+      lock_.Await(absl::Condition(this, &ThreadLooper::HasEvents));
+      if (stopped_) {
+        break;
       }
 
       auto time_to_wait = queue_.front().when - std::chrono::steady_clock::now();
       if (time_to_wait.count() > 0) {
-        // wait with timeout
-        auto durationMs =
-            std::chrono::duration_cast<std::chrono::milliseconds>(time_to_wait);
-        cond_.wait_for(lock, durationMs);
+        lock_.AwaitWithTimeout(absl::Condition(this, &ThreadLooper::IsStopped),
+                               absl::FromChrono(time_to_wait));
         continue;
       }
       cb = std::move(queue_.front().cb);
@@ -118,10 +112,10 @@ void ThreadLooper::Stop() {
   CHECK(looper_thread_.get_id() != std::this_thread::get_id())
       << "Destructor called from looper thread";
   {
-    std::lock_guard<std::mutex> autolock(lock_);
+    const absl::MutexLock lock(lock_);
     stopped_ = true;
   }
-  cond_.notify_all();
+
   if (looper_thread_.joinable()) {
     looper_thread_.join();
   }
