@@ -12,6 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <errno.h>
+#include <string.h>
+#include <unistd.h>
+
 #include <chrono>
 #include <filesystem>
 #include <fstream>
@@ -164,6 +168,16 @@ void ListAvds(const AndroidOptions& opts, const android::goldfish::UserPaths& us
 }  // namespace
 
 int main(int argc, char** argv) {
+#ifndef _WIN32
+    if (android::base::System::GetEnvironmentVariable("ANDROID_CLI") == "1") {
+        if (setsid() == -1 && errno != EPERM) {
+            std::cerr << "emulator-launcher: Warning: setsid() failed: " << strerror(errno) << ".\n"
+                      << "emulator-launcher: Failed to detach from parent Process Group (PGID).\n"
+                      << "emulator-launcher: If running inside a CLI tool like gemini-cli, the "
+                         "emulator may be terminated unexpectedly when the launcher exits.\n";
+        }
+    }
+#endif
     absl::InitializeSymbolizer(argv[0]);
 
     // libuv recommends calling this from the parent before spawning any children.
