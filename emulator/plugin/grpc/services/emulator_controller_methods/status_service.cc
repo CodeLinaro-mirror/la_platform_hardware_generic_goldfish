@@ -67,8 +67,10 @@ grpc::Status StatusServiceImpl::getStatus(EmulatorStatus* reply) {
     // Override avd.id, and name from properties
     VLOG(1) << "AVD ID: " << avd_properties_.avd_id;
     VLOG(1) << "AVD Name: " << avd_properties_.avd_name;
+    VLOG(1) << "AVD Content Path: " << avd_properties_.avd_content_path.string();
     (*platform)["avd.id"] = avd_properties_.avd_id;
     (*platform)["avd.name"] = avd_properties_.avd_name;
+    (*platform)["avd.content_path"] = avd_properties_.avd_content_path.string();
 
     // TODO(jansene): Enable once multidisplay support is added.
     (*reply->mutable_guestconfig())["multidisplay"] = "unavailable";

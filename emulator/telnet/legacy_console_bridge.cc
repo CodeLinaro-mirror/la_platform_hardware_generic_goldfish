@@ -36,6 +36,26 @@ namespace goldfish::telnet {
 
 using android::emulation::control::GrpcStatusToAbslStatus;
 
+namespace {
+absl::StatusOr<std::string> GetPlatformConfigProperty(LegacyConsoleBridge::ConsoleContext& ctx,
+                                                      const std::string& key) {
+    ASSIGN_OR_RETURN(auto stub, ctx.EmulatorControllerStub());
+    ASSIGN_OR_RETURN(auto context, ctx.NewContext());
+
+    google::protobuf::Empty request;
+    android::emulation::control::EmulatorStatus response;
+    RETURN_IF_ERROR(GrpcStatusToAbslStatus(stub->getStatus(context.get(), request, &response)));
+
+    auto map = response.platformconfig();
+    if (auto it = map.find(key); it != map.end()) {
+        return it->second;
+    }
+
+    LOG(WARNING) << key << " not found in platform config for port " << ctx.Port();
+    return absl::InternalError(absl::StrCat(key, " not found in platform config"));
+}
+}  // namespace
+
 absl::StatusOr<std::shared_ptr<android::emulation::control::BlockingEmulatorGrpcClient>>
 LegacyConsoleBridge::ConsoleContext::Client() {
     absl::MutexLock lock(mutex_);
@@ -130,8 +150,10 @@ LegacyConsoleBridge::LegacyConsoleBridge(int port, std::filesystem::path token_p
            [](ConsoleContext& /*ctx*/) { return absl::UnimplementedError("not implemented"); });
     avd.On("windowtype" /* do_avd_windowtype */, "query virtual device headless or qtwindow",
            [](ConsoleContext& /*ctx*/) { return absl::UnimplementedError("not implemented"); });
+
     avd.On("path" /* do_avd_path */, "query AVD path",
-           [](ConsoleContext& /*ctx*/) { return absl::UnimplementedError("not implemented"); });
+           [](ConsoleContext& ctx) { return GetPlatformConfigProperty(ctx, "avd.content_path"); });
+
     avd.On("discoverypath" /* do_avd_discoverypath */, "query AVD discovery path",
            [](ConsoleContext& ctx) -> absl::StatusOr<std::string> {
                ASSIGN_OR_RETURN(auto discovery_path,
@@ -148,23 +170,7 @@ LegacyConsoleBridge::LegacyConsoleBridge(int port, std::filesystem::path token_p
 
     // name and grpc are safe sub-commands
     avd.On("name" /* do_avd_name */, "query virtual device name",
-           [](ConsoleContext& ctx) -> absl::StatusOr<std::string> {
-               ASSIGN_OR_RETURN(auto stub, ctx.EmulatorControllerStub());
-               ASSIGN_OR_RETURN(auto context, ctx.NewContext());
-
-               google::protobuf::Empty request;
-               android::emulation::control::EmulatorStatus response;
-               RETURN_IF_ERROR(
-                       GrpcStatusToAbslStatus(stub->getStatus(context.get(), request, &response)));
-               auto map = response.platformconfig();
-               if (auto it = map.find("avd.name"); it != map.end()) {
-                   return it->second;
-               }
-               // This should never happen as status response always has avd.name
-               LOG(WARNING) << "avd.name not found in platform config for port " << ctx.Port()
-                            << " android studio will not be able to display the correct AVD name.";
-               return absl::InternalError("avd.name not found in platform config");
-           });
+           [](ConsoleContext& ctx) { return GetPlatformConfigProperty(ctx, "avd.name"); });
     avd.Sub("name", "").Safe();
 
     avd.On("grpc" /* do_avd_grpc_port */, "query the grpc port",
