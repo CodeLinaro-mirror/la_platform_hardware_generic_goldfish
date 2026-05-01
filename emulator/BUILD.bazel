@@ -115,6 +115,7 @@ filegroup(
     ] + select({
         "@platforms//os:windows": [
             "@goldfish_prebuilts_common//netsim:netsim_windows_x86_64",
+            "@qemu//:qemu-system-aarch64",
             "@qemu//:qemu-system-x86_64",
         ],
         "@platforms//os:macos": [
@@ -175,15 +176,11 @@ filegroup(
     name = "plugin_binaries",
     srcs = [
         "//emulator/plugin:goldfish_x86_64",
+        "//emulator/plugin:goldfish_aarch64",
+        # We currently don't have riscv images
+        # "//emulator/plugin:goldfish_riscv64",
         "@rutabaga_gfx//:rutabaga_ffi",
     ] + select({
-        "@platforms//os:windows": [],
-        "//conditions:default": [
-            "//emulator/plugin:goldfish_aarch64",
-            # We currently don't have riscv images
-            # "//emulator/plugin:goldfish_riscv64",
-        ],
-    }) + select({
         "@platforms//os:linux": [
             # For netsimd prebuilt
             "@goldfish_prebuilts_common//vulkan:linux_libc++",
@@ -254,6 +251,7 @@ pkg_files(
     renames = select({
         "@platforms//os:windows": {
             "@qemu//:qemu-system-x86_64": "qemu-system-x86_64.exe",
+            "@qemu//:qemu-system-aarch64": "qemu-system-aarch64.exe",
             "@goldfish_prebuilts_common//netsim:netsim_windows_x86_64": "netsimd.exe",
         },
         "@platforms//os:macos": {

@@ -135,13 +135,12 @@ absl::StatusOr<EmulatorPaths> ResolveEmulatorPaths(bool verbose, bool include_fi
     ASSIGN_OR_RETURN(paths.qemu_system_x86_binary,
                      CheckExists(paths.binary_directory / AddBinarySuffix("qemu-system-x86_64"),
                                  "qemu-system-x86_64"));
-#ifndef _WIN32
     ASSIGN_OR_RETURN(paths.qemu_system_arm_binary,
                      CheckExists(paths.binary_directory / AddBinarySuffix("qemu-system-aarch64"),
                                  "qemu-system-aarch64"));
     // ASSIGN_OR_RETURN(paths.qemu_system_riscv_binary, check_exists(paths.binary_directory /
     // add_qemu_binary_suffix("qemu-system-riscv64"), "qemu-system-riscv64"));
-#endif
+
     ASSIGN_OR_RETURN(paths.qemu_img_binary,
                      CheckExists(paths.binary_directory / AddBinarySuffix("qemu-img"), "qemu-img"));
     ASSIGN_OR_RETURN(paths.netsim_binary,
@@ -159,9 +158,8 @@ absl::StatusOr<EmulatorPaths> ResolveEmulatorPaths(bool verbose, bool include_fi
     // Canonicalize binaries as Windows cannot execute a symlink.
     // Note that Forge seems to break if we do this for Linux.
     ASSIGN_OR_RETURN(paths.qemu_system_x86_binary, Canonicalize(paths.qemu_system_x86_binary));
-    // ASSIGN_OR_RETURN(paths.qemu_system_arm_binary, canonicalize(paths.qemu_system_arm_binary));
-    // ASSIGN_OR_RETURN(paths.qemu_system_riscv_binary,
-    // canonicalize(paths.qemu_system_riscv_binary));
+    ASSIGN_OR_RETURN(paths.qemu_system_arm_binary, Canonicalize(paths.qemu_system_arm_binary));
+    // ASSIGN_OR_RETURN(paths.qemu_system_riscv_binary, Canonicalize(paths.qemu_system_riscv_binary));
     ASSIGN_OR_RETURN(paths.qemu_img_binary, Canonicalize(paths.qemu_img_binary));
     ASSIGN_OR_RETURN(paths.netsim_binary, Canonicalize(paths.netsim_binary));
     ASSIGN_OR_RETURN(paths.crashpad_handler_binary, Canonicalize(paths.crashpad_handler_binary));

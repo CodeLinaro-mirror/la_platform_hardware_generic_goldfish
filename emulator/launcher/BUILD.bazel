@@ -235,20 +235,19 @@ collect_plugins(
     output_dir = "lib/qemu",
     plugins = [
         "//emulator/plugin:goldfish_x86_64",
+        "//emulator/plugin:goldfish_aarch64",
         "@rutabaga_gfx//:rutabaga_ffi",
     ] + select({
         "darwin_aarch64": [
-            "//emulator/plugin:goldfish_aarch64",
             "//emulator/plugin:goldfish_riscv64",
         ],
         "@platforms//os:linux": [
-            "//emulator/plugin:goldfish_aarch64",
             "//emulator/plugin:goldfish_riscv64",
             # For old netsimd prebuilt
             "@goldfish_prebuilts_common//vulkan:linux_libc++",
         ],
         "@platforms//os:windows": [
-            # We don't build Qemu system aarch64 or riscv64 on Windows.
+            # We don't build Qemu system riscv64 on Windows.
         ],
         "//conditions:default": [],
     }),
@@ -307,6 +306,7 @@ collect_plugins(
     ] + select({
         "@platforms//os:windows": [
             "@goldfish_prebuilts_common//netsim:netsim_windows_x86_64",
+            "@qemu//:qemu-system-aarch64",
             "@qemu//:qemu-system-x86_64",
         ],
         "@platforms//os:macos": [
