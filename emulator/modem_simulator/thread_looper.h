@@ -76,13 +76,13 @@ class ThreadLooper {
       bool operator<=(const Event &other) const;
   };
 
-  bool stopped_;
   std::thread looper_thread_;
 
   std::mutex lock_;
   std::condition_variable cond_;
   std::deque<Event> queue_;
-  std::atomic<Serial> next_serial_;
+  std::atomic<Serial> next_serial_ = 1;
+  bool stopped_ = false;
 
   void ThreadLoop();
 

@@ -20,8 +20,7 @@
 
 namespace cuttlefish {
 
-ThreadLooper::ThreadLooper()
-  :   stopped_(false), next_serial_(1) {
+ThreadLooper::ThreadLooper() {
   looper_thread_ = std::thread([this]() { ThreadLoop(); });
 }
 
