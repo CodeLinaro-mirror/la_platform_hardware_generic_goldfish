@@ -60,7 +60,7 @@ void Client::SendCommandResponse(std::string response) const {
   }
   VLOG(2) << " AT< " << response;
 
-  std::lock_guard<std::mutex> lock(write_mutex);
+  const absl::MutexLock lock(write_mutex_);
   WriteAll(client_write_fd_, response);
 }
 
@@ -69,6 +69,13 @@ void Client::SendCommandResponse(
   for (auto& response : responses) {
     SendCommandResponse(response);
   }
+}
+
+void Client::Close() {
+  const absl::MutexLock lock(write_mutex_);
+  client_read_fd_->Close();
+  client_write_fd_->Close();
+  is_valid = false;
 }
 
 ChannelMonitor::ChannelMonitor(ModemSimulator& modem, SharedFD server)
@@ -194,13 +201,13 @@ void ChannelMonitor::SendRemoteCommand(const ClientId client, const std::string&
   VLOG(1) << "Remote client has closed.";
 }
 
-void ChannelMonitor::CloseRemoteConnection(ClientId client) ABSL_NO_THREAD_SAFETY_ANALYSIS {
+void ChannelMonitor::CloseRemoteConnection(ClientId clientId) {
   auto iter = remote_clients_.begin();
   for (; iter != remote_clients_.end(); ++iter) {
-    if (iter->get()->Id() == client) {
-      iter->get()->client_read_fd_->Close();
-      iter->get()->client_write_fd_->Close();
-      iter->get()->is_valid = false;
+    Client& client = **iter;
+
+    if (client.Id() == clientId) {
+      client.Close();
 
       // Trigger monitor loop
       if (write_pipe_->IsOpen()) {

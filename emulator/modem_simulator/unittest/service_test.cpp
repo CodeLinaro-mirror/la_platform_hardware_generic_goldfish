@@ -87,8 +87,7 @@ class ModemServiceTest : public ::testing::Test {
       if (bytes_read <= 0) {
         // Close here to ensure the other side gets reset if it's still
         // connected
-        ril_side_->client_read_fd_->Close();
-        ril_side_->client_write_fd_->Close();
+        ril_side_->Close();
         LOG(WARNING) << "Detected close from the other side";
         break;
       }

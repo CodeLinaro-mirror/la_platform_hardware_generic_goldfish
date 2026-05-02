@@ -17,11 +17,12 @@
 
 #include <atomic>
 #include <chrono>
-#include <condition_variable>
 #include <deque>
 #include <functional>
-#include <mutex>
 #include <thread>
+
+#include "absl/base/thread_annotations.h"
+#include "absl/synchronization/mutex.h"
 
 namespace cuttlefish {
 
@@ -76,17 +77,19 @@ class ThreadLooper {
       bool operator<=(const Event &other) const;
   };
 
-  std::thread looper_thread_;
+  using EventQueue = std::deque<Event>;
 
-  std::mutex lock_;
-  std::condition_variable cond_;
-  std::deque<Event> queue_;
+  EventQueue queue_;
+  absl::Mutex lock_;
+  std::thread looper_thread_;
   std::atomic<Serial> next_serial_ = 1;
   bool stopped_ = false;
 
   void ThreadLoop();
-
   void Insert(const Event &event);
+
+  bool HasEvents() const ABSL_EXCLUSIVE_LOCKS_REQUIRED(lock_) { return !queue_.empty() || stopped_; }
+  bool IsStopped() const ABSL_EXCLUSIVE_LOCKS_REQUIRED(lock_) { return stopped_; }
 };
 
 };  // namespace cuttlefish
