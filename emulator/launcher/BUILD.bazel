@@ -238,18 +238,12 @@ collect_plugins(
         "//emulator/plugin:goldfish_aarch64",
         "@rutabaga_gfx//:rutabaga_ffi",
     ] + select({
-        "darwin_aarch64": [
-            "//emulator/plugin:goldfish_riscv64",
-        ],
-        "@platforms//os:linux": [
-            "//emulator/plugin:goldfish_riscv64",
-            # For old netsimd prebuilt
-            "@goldfish_prebuilts_common//vulkan:linux_libc++",
-        ],
         "@platforms//os:windows": [
             # We don't build Qemu system riscv64 on Windows.
         ],
-        "//conditions:default": [],
+        "//conditions:default": [
+            "//emulator/plugin:goldfish_riscv64",
+        ],
     }),
 )
 
