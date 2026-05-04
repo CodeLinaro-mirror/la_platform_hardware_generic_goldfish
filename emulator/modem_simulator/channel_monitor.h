@@ -68,8 +68,8 @@ class Client {
 
   bool operator==(const Client& rhs) const { return id_ == rhs.id_; }
 
-  void SendCommandResponse(std::string response) const;
-  void SendCommandResponse(const std::vector<std::string>& responses) const;
+  void SendCommandResponse(std::string response) const ABSL_LOCKS_EXCLUDED(write_mutex_);
+  void SendCommandResponse(const std::vector<std::string>& responses) const ABSL_LOCKS_EXCLUDED(write_mutex_);
 
   ClientId Id() const { return id_; }
   ClientType Type() const { return type; }
@@ -99,7 +99,7 @@ class ChannelMonitor {
 
   std::optional<ClientId> SetRemoteClient(SharedFD client, bool is_accepted);
   void SendRemoteCommand(ClientId client, const std::string& response);
-  void CloseRemoteConnection(ClientId client);
+  void CloseRemoteConnection(ClientId client) ABSL_LOCKS_EXCLUDED(remote_clients_mutex_);
 
   // For modem services to send unsolicited commands
   void SendUnsolicitedCommand(const std::string& response);
@@ -111,15 +111,14 @@ class ChannelMonitor {
   cuttlefish::SharedFD read_pipe_;
   cuttlefish::SharedFD write_pipe_;
   std::vector<std::unique_ptr<Client>> clients_;
-  std::vector<std::unique_ptr<Client>> remote_clients_;
+  std::vector<std::unique_ptr<Client>> remote_clients_ ABSL_GUARDED_BY(remote_clients_mutex_);
+  mutable absl::Mutex remote_clients_mutex_;
 
   void AcceptIncomingConnection();
   void OnClientSocketClosed(int sock);
   bool ReadCommand(Client& client);
 
   void MonitorLoop();
-  static void removeInvalidClients(
-      std::vector<std::unique_ptr<Client>>& clients);
 };
 
 }  // namespace cuttlefish
