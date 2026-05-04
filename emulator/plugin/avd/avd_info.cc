@@ -88,6 +88,9 @@ struct AvdExtendedUniverse : public AvdUniverse {
         if (perf_stat_reporter_task) {
             perf_stat_reporter_task->Cancel();
         }
+
+        // Wait for all cleanup tasks to finish before destroying `qemu_event_loop`
+        goldfish::async::globalEventLoop()->PostAndWait([]() {}).IgnoreError();
     }
 
     async::EventLoop& GetQemuEventLoop() override { return *qemu_event_loop; }
