@@ -1,0 +1,28 @@
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+
+cc_library(
+    name = "init",
+    srcs = ["perfetto_config.cc"],
+    hdrs = [
+        "include/goldfish/perfetto/perfetto.h",
+        "include/goldfish/perfetto/perfetto_categories.h",
+    ],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "@abseil-cpp//absl/strings",
+        "@perfetto//:libperfetto_client_experimental",
+    ],
+)
+
+cc_test(
+    name = "init_test",
+    size = "small",
+    srcs = ["perfetto_config_test.cc"],
+    deps = [
+        ":init",
+        "//emulator/libs/system:test-headers",
+        "//emulator/libs/test:googletest_main",
+        "@perfetto//:libperfetto_client_experimental",
+    ],
+)
