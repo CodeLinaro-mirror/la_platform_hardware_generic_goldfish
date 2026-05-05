@@ -58,7 +58,7 @@ std::string getDeviceStateString(const HardwareConfig& hw) {
 
 std::vector<std::pair<std::string, std::string>> getUserspaceBootProperties(
         std::string targetArch, std::string serialno, const int bootPropOpenglesVersion,
-        const int api_level, std::string kernelSerialPrefix,
+        const int apiLevel, std::string kernelSerialPrefix,
         const std::vector<std::string>& verifiedBootParameters, const Avd& avd,
         const AndroidOptions& opts, const UserPaths& paths) {
     const bool isX86ish = targetArch == "x86" || targetArch == "x86_64";
@@ -128,9 +128,15 @@ std::vector<std::pair<std::string, std::string>> getUserspaceBootProperties(
 
     params.push_back({"androidboot.hardware.vulkan", "ranchu"});
 
-    // Put our swiftshader version string there, which is currently
-    // Vulkan 1.1 (0x402000)
-    params.push_back({qemuCpuVulkanVersionProp, absl::StrFormat("%d", 0x402000)});
+    // Put software vulkan driver version, based on software driver version
+    // and the CTS requirements
+    int vulkanVersion = 0x00402000;  // 1.2
+    if (apiLevel >= 37) {
+        vulkanVersion = 0x00404000;  // 1.4
+    } else if (apiLevel >= 34) {
+        vulkanVersion = 0x00403000;  // 1.3
+    }
+    params.push_back({qemuCpuVulkanVersionProp, absl::StrFormat("%d", vulkanVersion)});
 
     // Always on.
     params.push_back({qemuScreenOffTimeoutProp, "2147483647"});
