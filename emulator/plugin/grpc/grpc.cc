@@ -24,6 +24,7 @@
 #include "absl/random/random.h"
 #include "absl/strings/escaping.h"
 
+#include "android/control/interceptor/breadcrumb_interceptor.h"
 #include "android/control/interceptor/idle_interceptor.h"
 #include "android/control/interceptor/logging_interceptor.h"
 #include "android/control/interceptor/metrics_interceptor.h"
@@ -150,8 +151,8 @@ CreateInterceptors(bool enable_logging, int idle_timeout) {
                 std::make_unique<android::control::interceptor::StdOutLoggingInterceptorFactory>());
     }
 
-    // TODO(jansene): Add breadcrumb interceptor:
-    // creators.emplace_back(std::make_unique<BreadcrumbInterceptorFactory>());
+    creators.emplace_back(
+            std::make_unique<android::control::interceptor::BreadcrumbInterceptorFactory>());
     creators.emplace_back(
             std::make_unique<android::control::interceptor::MetricsInterceptorFactory>(
                     ::goldfish::avd_info::GetAvd().GetMetricsReporter()));
