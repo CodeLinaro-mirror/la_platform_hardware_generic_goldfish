@@ -245,6 +245,7 @@ def _lrc_impl(module_ctx):
         "zerocopy-derive",
         "zip",
         "zlib-rs",
+        "zmij",
     ]
 
     for crate_name in _ANDROID_CRATES:

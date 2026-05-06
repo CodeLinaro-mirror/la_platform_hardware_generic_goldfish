@@ -36,6 +36,7 @@ rust_library(
         "@memchr",
         "@ryu",
         "@serde_core",
+        "@zmij",
     ],
 )
 
