@@ -163,6 +163,8 @@ filegroup(
         "@platforms//os:linux": [
             "@goldfish_prebuilts_common//vulkan:icds_linux_x86_64",
             "@goldfish_prebuilts_common//vulkan:lib_linux_x86_64",
+            "@mesa3d//:generate_lvp_icd",
+            "@mesa3d//:vulkan_lvp",
         ],
         "@platforms//os:windows": [
             "@goldfish_prebuilts_common//vulkan:icds_windows_x86_64",
