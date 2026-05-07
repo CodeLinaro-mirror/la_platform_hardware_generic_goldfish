@@ -43,6 +43,7 @@ ABSL_FLAG(std::string, d, "",
 ABSL_FLAG(bool, m, false, "Output in machine-readable format (implies -d)");
 ABSL_FLAG(bool, s, false, "Output stack contents (implies -d)");
 ABSL_FLAG(std::vector<std::string>, symbol_paths, {}, "Paths to symbol files");
+ABSL_FLAG(bool, standalone, false, "Process minidump without initializing the crash database");
 
 using android::base::System;
 using android::crashreport::AnnotationExtractor;
@@ -64,6 +65,7 @@ bool ProcessMinidump(const std::string& minidump_file, MinidumpProcessor& minidu
     std::vector<std::string> symbol_paths = absl::GetFlag(FLAGS_symbol_paths);
 
     if (!minidump_processor.Process(minidump_file, symbol_paths, &process_state, &resolver)) {
+        LOG(ERROR) << "Failed to process minidump " << minidump_file;
         return false;
     }
 
@@ -94,10 +96,26 @@ int main(int argc, char* argv[]) {
                   << System::GetEnvironmentVariable("ANDROID_EMU_CRASH_REPORTING_DATABASE");
     }
 
-    CrashReportManager db_manager;
-    if (!db_manager.Initialize()) {
-        LOG(ERROR) << "Failed to initialize CrashReportManager";
+    bool standalone = absl::GetFlag(FLAGS_standalone);
+    bool need_db = absl::GetFlag(FLAGS_l) || absl::GetFlag(FLAGS_u) || absl::GetFlag(FLAGS_e) ||
+                   absl::GetFlag(FLAGS_d) == "latest";
+
+    if (standalone && need_db) {
+        LOG(ERROR) << "--standalone cannot be used with -l, -u, -e, or -d latest";
         return 1;
+    }
+
+    if (standalone && absl::GetFlag(FLAGS_d).empty()) {
+        LOG(ERROR) << "--standalone requires -d <file>";
+        return 1;
+    }
+
+    CrashReportManager db_manager;
+    if (!standalone || need_db) {
+        if (!db_manager.Initialize()) {
+            LOG(ERROR) << "Failed to initialize CrashReportManager";
+            return 1;
+        }
     }
     MinidumpProcessor minidump_processor;
     AnnotationExtractor annotation_extractor;
@@ -106,26 +124,44 @@ int main(int argc, char* argv[]) {
     bool success = true;
 
     if (absl::GetFlag(FLAGS_l)) {
-        LOG(INFO) << "Listing reports...";
-        formatter.PrintReportList(db_manager.GetAllReports());
+        auto reports = db_manager.GetAllReports();
+        if (reports.empty()) {
+            LOG(INFO) << "No reports found in database.";
+        } else {
+            LOG(INFO) << "Listing " << reports.size() << " reports...";
+            formatter.PrintReportList(reports);
+        }
     } else if (absl::GetFlag(FLAGS_u)) {
-        LOG(INFO) << "Uploading reports...";
-        db_manager.ForEachReport([&](const crashpad::CrashReportDatabase::Report& report) {
-            if (!report.uploaded) {
-                // Re-enable uploads if needed, though it's set in Initialize
-                // db_manager.mDb->GetSettings()->SetUploadsEnabled(true);
-                db_manager.RequestUpload(report.uuid);
-                // TODO: Uploader needs to be refactored to not need the db pointer
-                // uploader.Upload(db, report);
-                LOG(INFO) << "Requested upload for report " << report.uuid.ToString();
+        auto reports = db_manager.GetAllReports();
+        if (reports.empty()) {
+            LOG(INFO) << "No reports found to upload.";
+        } else {
+            LOG(INFO) << "Checking reports for upload...";
+            int requested_count = 0;
+            for (const auto& report : reports) {
+                if (!report.uploaded) {
+                    db_manager.RequestUpload(report.uuid);
+                    LOG(INFO) << "Requested upload for report " << report.uuid.ToString();
+                    requested_count++;
+                }
             }
-        });
+            if (requested_count == 0) {
+                LOG(INFO) << "All reports are already uploaded.";
+            } else {
+                LOG(INFO) << "Requested upload for " << requested_count << " reports.";
+            }
+        }
     } else if (absl::GetFlag(FLAGS_e)) {
-        LOG(INFO) << "Erasing reports...";
-        db_manager.ForEachReport([&](const crashpad::CrashReportDatabase::Report& report) {
-            LOG(INFO) << "Erasing " << report.uuid.ToString();
-            db_manager.DeleteReport(report.uuid);
-        });
+        auto reports = db_manager.GetAllReports();
+        if (reports.empty()) {
+            LOG(INFO) << "No reports found to erase.";
+        } else {
+            LOG(INFO) << "Erasing " << reports.size() << " reports...";
+            for (const auto& report : reports) {
+                LOG(INFO) << "Erasing " << report.uuid.ToString();
+                db_manager.DeleteReport(report.uuid);
+            }
+        }
     } else if (!absl::GetFlag(FLAGS_d).empty()) {
         std::string minidump_file = absl::GetFlag(FLAGS_d);
         if (minidump_file == "latest") {
