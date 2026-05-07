@@ -20,6 +20,8 @@
 
 #include "android/base/bazel_info.h"
 #include "android/base/system.h"
+#include "android/crashreport/breadcrumbs/breadcrumb_processor.h"
+#include "android/crashreport/breadcrumbs/trace_renderer_factory.h"
 #include "android/crashreport/crash_system.h"
 #include "base/files/file_path.h"
 #include "client/settings.h"
@@ -27,6 +29,7 @@
 #include "emulator/crashreport/tool/crash_report_manager.h"
 #include "emulator/crashreport/tool/formatter.h"
 #include "emulator/crashreport/tool/minidump_processor.h"
+#include "google_breakpad/processor/call_stack.h"
 #include "tools/tool_support.h"
 
 #ifdef NDEBUG
@@ -44,6 +47,8 @@ ABSL_FLAG(bool, m, false, "Output in machine-readable format (implies -d)");
 ABSL_FLAG(bool, s, false, "Output stack contents (implies -d)");
 ABSL_FLAG(std::vector<std::string>, symbol_paths, {}, "Paths to symbol files");
 ABSL_FLAG(bool, standalone, false, "Process minidump without initializing the crash database");
+ABSL_FLAG(bool, breadcrumbs, false, "Extract and visualize gRPC breadcrumbs (implies -d)");
+ABSL_FLAG(std::string, breadcrumb_format, "text", "Breadcrumb output format: 'text' or 'mermaid'");
 
 using android::base::System;
 using android::crashreport::AnnotationExtractor;
@@ -77,6 +82,38 @@ bool ProcessMinidump(const std::string& minidump_file, MinidumpProcessor& minidu
 
     formatter.PrintMinidumpAnalysis(process_state, &resolver, modules, absl::GetFlag(FLAGS_m),
                                     absl::GetFlag(FLAGS_s));
+
+    if (absl::GetFlag(FLAGS_breadcrumbs)) {
+        if (!reader.SeekSet(0)) {
+            LOG(ERROR) << "Failed to rewind minidump file for breadcrumbs";
+            return false;
+        }
+        std::vector<uint8_t> breadcrumbs =
+                annotation_extractor.ExtractAnnotationBytes(&reader, "grpc_breadcrumbs");
+        if (breadcrumbs.empty()) {
+            std::cout << "No gRPC breadcrumbs found in minidump.\n";
+        } else {
+            uint64_t crashing_thread_id = 0;
+            if (process_state.requesting_thread() >= 0 &&
+                process_state.requesting_thread() < process_state.threads()->size()) {
+                // TODO: Get the actual OS thread ID from Breakpad ProcessState if possible.
+                crashing_thread_id = process_state.requesting_thread();
+            }
+
+            using android::crashreport::breadcrumbs::BreadcrumbProcessor;
+            using android::crashreport::breadcrumbs::TraceRendererFactory;
+
+            TraceRendererFactory::RenderFormat format = TraceRendererFactory::RenderFormat::kText;
+            if (absl::GetFlag(FLAGS_breadcrumb_format) == "mermaid") {
+                format = TraceRendererFactory::RenderFormat::kMermaid;
+            }
+
+            std::string report =
+                    BreadcrumbProcessor::Process(breadcrumbs, crashing_thread_id, format);
+            std::cout << "\n--- gRPC Breadcrumbs ---\n" << report << "\n";
+        }
+    }
+
     return true;
 }
 

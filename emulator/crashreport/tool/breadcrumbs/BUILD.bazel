@@ -38,7 +38,11 @@ filegroup(
 # Rule to generate the metadata code.
 genrule(
     name = "generate_breadcrumb_metadata",
-    srcs = [":breadcrumb_service_protos"],
+    srcs = [
+        ":breadcrumb_service_protos",
+        # Workaround for windows path issues.
+        "gen_breadcrumb_metadata.py",
+    ],
     outs = [
         "breadcrumb_metadata.h",
         "breadcrumb_metadata.cc",
@@ -47,8 +51,12 @@ genrule(
           "--descriptors $(locations :breadcrumb_service_protos) " +
           "--header $(location breadcrumb_metadata.h) " +
           "--source $(location breadcrumb_metadata.cc)",
-    # Windows version to work around MAX_PATH issues.
-    cmd_bat = "$(location :gen_breadcrumb_metadata) " +
+    # Windows version to work around MAX_PATH issues and bash-on-windows incompatibilities.
+    # We use the prebuilt python directly via its path in the workspace because:
+    # 1. The standard py_binary launcher on Windows exceeds MAX_PATH (260 chars) due to deep runfiles.
+    # 2. 'python' is not guaranteed to be in the system PATH.
+    # 3. bash-on-windows (msys) has path translation issues with deep bazel-out paths.
+    cmd_bat = "set PYTHONPATH=$(location :gen_breadcrumb_metadata).runfiles/protobuf+/python&& prebuilts\\python\\windows-x86\\python.exe $(location gen_breadcrumb_metadata.py) " +
               "--descriptors $(locations :breadcrumb_service_protos) " +
               "--header $(location breadcrumb_metadata.h) " +
               "--source $(location breadcrumb_metadata.cc)",
