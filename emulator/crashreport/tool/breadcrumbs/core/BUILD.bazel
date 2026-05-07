@@ -1,0 +1,46 @@
+# Copyright 2026 The Android Open Source Project
+load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_test")
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+
+package(default_visibility = ["//emulator/crashreport/tool/breadcrumbs:__subpackages__"])
+
+cc_library(
+    name = "core",
+    srcs = [
+        "breadcrumb_parser.cc",
+        "trace_aggregator.cc",
+    ],
+    hdrs = [
+        "include/android/crashreport/breadcrumbs/breadcrumb_parser.h",
+        "include/android/crashreport/breadcrumbs/breadcrumb_trace.h",
+        "include/android/crashreport/breadcrumbs/trace_aggregator.h",
+    ],
+    strip_include_prefix = "include",
+    deps = [
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/strings:str_format",
+        "@abseil-cpp//absl/time",
+        "@aemu//protos/services/diagnostic:grpc_diagnostic_cc_proto",
+        "@goldfish//emulator/libs/UniqueIdAllocator",
+        "@goldfish//emulator/libs/proto_data_store",
+    ],
+)
+
+cc_test(
+    name = "trace_aggregator_test",
+    srcs = ["trace_aggregator_test.cc"],
+    deps = [
+        ":core",
+        "//emulator/libs/test:googletest_main",
+        "@googletest//:gtest",
+    ],
+)
+
+clang_tidy_test(
+    name = "tidy",
+    targets = [
+        ":core",
+    ],
+    tidy_config_file = "//:clang_tidy_config",
+)
