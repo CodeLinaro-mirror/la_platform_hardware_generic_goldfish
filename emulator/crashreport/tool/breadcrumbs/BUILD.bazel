@@ -1,0 +1,24 @@
+# Copyright 2026 The Android Open Source Project
+load("@rules_python//python:defs.bzl", "py_binary", "py_test")
+
+package(default_visibility = ["//visibility:public"])
+
+py_binary(
+    name = "gen_breadcrumb_metadata",
+    srcs = ["gen_breadcrumb_metadata.py"],
+    deps = [
+        "@protobuf//:protobuf_python",
+    ],
+)
+
+py_test(
+    name = "gen_breadcrumb_metadata_test",
+    srcs = ["gen_breadcrumb_metadata_test.py"],
+    data = [
+        "@aemu//protos/services/emulator-controller:emulator_controller_proto",
+    ],
+    deps = [
+        ":gen_breadcrumb_metadata",
+        "@protobuf//:protobuf_python",
+    ],
+)
