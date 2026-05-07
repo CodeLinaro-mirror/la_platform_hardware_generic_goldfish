@@ -27,15 +27,15 @@
 #include <atomic>
 #include <chrono>
 #include <memory>
-#include <mutex>
 #include <queue>
 #include <thread>
 
+#include "absl/base/thread_annotations.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
-#include "absl/synchronization/notification.h"
+#include "absl/synchronization/mutex.h"
 
 #include "goldfish/async/event_loop.h"
 #include "goldfish/async/scoped_async_timer.h"
@@ -216,7 +216,7 @@ class QemuEventLoopImpl : public goldfish::async::QemuEventLoop {
         qemu_thread_id_ = std::this_thread::get_id();
         std::queue<Task> local_queue;
         {
-            const std::scoped_lock<std::mutex> lock(queue_mutex_);
+            const absl::MutexLock lock(queue_mutex_);
             task_queue_.swap(local_queue);
             drainer_scheduled_ = false;
         }
@@ -259,10 +259,10 @@ class QemuEventLoopImpl : public goldfish::async::QemuEventLoop {
     std::promise<absl::Status> shutdown_complete_promise_;
 
     std::atomic<std::thread::id> qemu_thread_id_;
-    std::mutex queue_mutex_;
-    std::queue<Task> task_queue_;
+    absl::Mutex queue_mutex_;
+    std::queue<Task> task_queue_ ABSL_GUARDED_BY(queue_mutex_);
     QEMUBHPtr drainer_bh_;
-    bool drainer_scheduled_ = false;
+    bool drainer_scheduled_ ABSL_GUARDED_BY(queue_mutex_) = false;
 
     // A map of raw pointers to their corresponding weak pointers for safe shutdown.
     // Must only be accessed from the Qemu thread.
@@ -297,7 +297,7 @@ bool QemuEventLoopImpl::IsOnLoopThread() const {
 }
 
 void QemuEventLoopImpl::PostImmediatelyInternal(Task task) {
-    const std::scoped_lock<std::mutex> lock(queue_mutex_);
+    const absl::MutexLock lock(queue_mutex_);
     task_queue_.push(std::move(task));
 
     if (!drainer_scheduled_) {
