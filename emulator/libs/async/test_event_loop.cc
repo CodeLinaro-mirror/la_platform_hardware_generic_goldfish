@@ -40,6 +40,8 @@ class TestEventLoopImpl : public TestEventLoop {
     ~TestEventLoopImpl() override;
 
     // EventLoop Interface
+    void ShutdownTimers() override;
+    size_t WaitUntilIdle() override;
     std::future<absl::Status> Shutdown() override;
     bool IsOnLoopThread() const override;
     absl::Status PostImmediately(Task task) override;
@@ -102,6 +104,7 @@ class TestEventLoopImpl : public TestEventLoop {
     mutable std::mutex mutex_;
     std::condition_variable cv_;
     std::condition_variable cmd_cv_;
+    std::condition_variable queue_is_idle_cv_;
 
     // post queue
     std::deque<Task> tasks_;
@@ -113,6 +116,8 @@ class TestEventLoopImpl : public TestEventLoop {
     std::chrono::milliseconds time_advance_{0};
     size_t run_count_ = 0;
     size_t tasks_actually_run_ = 0;
+    size_t tasks_processed_ = 0;
+    bool queue_is_idle_ = true;
 };
 
 // --- Factory Function ---
@@ -145,6 +150,17 @@ TestEventLoopImpl::~TestEventLoopImpl() {
     }
 }
 
+void TestEventLoopImpl::ShutdownTimers() {
+    const std::lock_guard<std::mutex> lock(mutex_);
+    scheduled_tasks_.clear();
+}
+
+size_t TestEventLoopImpl::WaitUntilIdle() {
+    std::unique_lock<std::mutex> lock(mutex_);
+    queue_is_idle_cv_.wait(lock, [this]() { return queue_is_idle_; });
+    return tasks_processed_;
+}
+
 std::future<absl::Status> TestEventLoopImpl::Shutdown() {
     SetState(LooperStatusEvent::State::kShuttingDown);
     std::promise<absl::Status> promise;
@@ -166,6 +182,7 @@ absl::Status TestEventLoopImpl::PostImmediately(Task task) {
         return absl::UnavailableError("test loop is shutting down");
     }
     const std::lock_guard<std::mutex> lock(mutex_);
+    queue_is_idle_ = false;
     tasks_.emplace_back(std::move(task));
     return absl::OkStatus();
 }
@@ -289,6 +306,11 @@ bool TestEventLoopImpl::RunOneUnlocked() ABSL_NO_THREAD_SAFETY_ANALYSIS {
         // ~Task for the original task is called here
     }
     mutex_.lock();
+    ++tasks_processed_;
+    if (tasks_.empty()) {
+        queue_is_idle_ = true;
+        queue_is_idle_cv_.notify_all();
+    }
     return true;
 }
 

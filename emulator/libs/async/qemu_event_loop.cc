@@ -201,6 +201,8 @@ class QemuEventLoopImpl : public goldfish::async::QemuEventLoop {
         DCHECK(active_timers_.empty());
     };
 
+    void ShutdownTimers() override;
+    size_t WaitUntilIdle() override;
     std::future<absl::Status> Shutdown() override;
 
     bool IsOnLoopThread() const override;
@@ -212,7 +214,7 @@ class QemuEventLoopImpl : public goldfish::async::QemuEventLoop {
     absl::Status PostImmediately(Task task) override;
     absl::Status PostDelayed(Task task, std::chrono::milliseconds delay) override;
 
-    void DrainQueue() {
+    size_t DrainQueue() {
         qemu_thread_id_ = std::this_thread::get_id();
         std::queue<Task> local_queue;
         {
@@ -221,10 +223,17 @@ class QemuEventLoopImpl : public goldfish::async::QemuEventLoop {
             drainer_scheduled_ = false;
         }
 
+        const size_t num_tasks_to_process = local_queue.size();
+
         while (!local_queue.empty()) {
             local_queue.front()();
             local_queue.pop();
         }
+
+        absl::MutexLock lock(queue_mutex_);
+        queue_is_idle_ = task_queue_.empty();
+        tasks_processed_ += num_tasks_to_process;
+        return tasks_processed_;
     }
 
     void AddActiveTimer(const std::shared_ptr<QemuTimer>& t) {
@@ -241,8 +250,9 @@ class QemuEventLoopImpl : public goldfish::async::QemuEventLoop {
         DCHECK(erased == 1) << "Tried to remove a timer that didn't exist";
     }
 
-    void ShutdownTimers() {
-        LOG_IF(DFATAL, !IsOnLoopThread()) << "shutdownTimers must be called from the loop thread";
+    void ShutdownTimersInternal() {
+        LOG_IF(DFATAL, !IsOnLoopThread())
+                << "ShutdownTimersInternal must be called from the loop thread";
         // Iterate a copy as doCancel calls back to removeActiveTimer which calls erase.
         auto copy = active_timers_;
         for (const auto& [unsafePtr, weakTimer] : copy) {
@@ -262,7 +272,9 @@ class QemuEventLoopImpl : public goldfish::async::QemuEventLoop {
     absl::Mutex queue_mutex_;
     std::queue<Task> task_queue_ ABSL_GUARDED_BY(queue_mutex_);
     QEMUBHPtr drainer_bh_;
+    size_t tasks_processed_ ABSL_GUARDED_BY(queue_mutex_) = 0;
     bool drainer_scheduled_ ABSL_GUARDED_BY(queue_mutex_) = false;
+    bool queue_is_idle_ ABSL_GUARDED_BY(queue_mutex_) = true;
 
     // A map of raw pointers to their corresponding weak pointers for safe shutdown.
     // Must only be accessed from the Qemu thread.
@@ -270,6 +282,22 @@ class QemuEventLoopImpl : public goldfish::async::QemuEventLoop {
 };
 
 // --- QemuEventLoopImpl Method Implementations ---
+
+void QemuEventLoopImpl::ShutdownTimers() {
+    PostImmediatelyInternal([this]() { ShutdownTimersInternal(); });
+}
+
+size_t QemuEventLoopImpl::WaitUntilIdle() {
+    if (IsOnLoopThread()) {
+        return DrainQueue();
+    } else {
+        const absl::MutexLock lock(queue_mutex_);
+        if (!queue_mutex_.AwaitWithTimeout(absl::Condition(&queue_is_idle_), absl::Seconds(15))) {
+            LOG(FATAL) << "Timed out waiting for queue to be idle";
+        }
+        return tasks_processed_;
+    }
+}
 
 std::future<absl::Status> QemuEventLoopImpl::Shutdown() {
     if (is_shutting_down_.exchange(true)) {
@@ -280,7 +308,7 @@ std::future<absl::Status> QemuEventLoopImpl::Shutdown() {
     SetState(LooperStatusEvent::State::kShuttingDown);
 
     auto do_shutdown = [this] {
-        ShutdownTimers();
+        ShutdownTimersInternal();
         shutdown_complete_promise_.set_value(absl::OkStatus());
     };
     if (IsOnLoopThread()) {
@@ -298,6 +326,7 @@ bool QemuEventLoopImpl::IsOnLoopThread() const {
 
 void QemuEventLoopImpl::PostImmediatelyInternal(Task task) {
     const absl::MutexLock lock(queue_mutex_);
+    queue_is_idle_ = false;
     task_queue_.push(std::move(task));
 
     if (!drainer_scheduled_) {

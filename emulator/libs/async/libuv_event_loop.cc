@@ -101,6 +101,8 @@ class LibuvEventLoopImpl : public LibuvEventLoop {
     absl::Status Run() override;
 
     // --- Base EventLoop Implementation ---
+    void ShutdownTimers() override;
+    size_t WaitUntilIdle() override;
     std::future<absl::Status> Shutdown() override;
 
     bool IsOnLoopThread() const override { return std::this_thread::get_id() == thread_id_; }
@@ -128,7 +130,7 @@ class LibuvEventLoopImpl : public LibuvEventLoop {
                 << "Tried to remove a timer that didn't exist in the active timers set.";
     }
 
-    void ShutdownTimers();
+    void ShutdownTimersInternal();
 
     absl::Status PostDelayed(Task task, std::chrono::milliseconds delay) override;
 
@@ -169,11 +171,13 @@ class LibuvEventLoopImpl : public LibuvEventLoop {
     absl::Mutex task_mutex_;
     /// Queue of tasks posted from external threads to be run on the loop.
     std::queue<Task> task_queue_ ABSL_GUARDED_BY(task_mutex_);
+    size_t tasks_processed_ ABSL_GUARDED_BY(task_mutex_){0};
 
     /// Atomic flag indicating the loop is shutting down and will not accept new tasks.
     std::atomic<bool> is_shutting_down_{false};
     std::promise<absl::Status> shutdown_complete_promise_;
     std::atomic<bool> promise_set_{false};
+    bool queue_is_idle_ ABSL_GUARDED_BY(task_mutex_){true};
 };
 
 // The timer now inherits from std::enable_shared_from_this to safely manage
@@ -340,8 +344,9 @@ LibuvEventLoopImpl::~LibuvEventLoopImpl() {
     }
 }
 
-void LibuvEventLoopImpl::ShutdownTimers() {
-    LOG_IF(DFATAL, !IsOnLoopThread()) << "shutdownTimers must be called from the loop thread";
+void LibuvEventLoopImpl::ShutdownTimersInternal() {
+    LOG_IF(DFATAL, !IsOnLoopThread())
+            << "ShutdownTimersInternal must be called from the loop thread";
     // Iterate a copy as doCancel calls back to removeActiveTimer which calls erase.
     auto copy = active_timers_;
     for (const auto& [unsafePtr, weakTimer] : copy) {
@@ -378,6 +383,7 @@ void LibuvEventLoopImpl::PostImmediatelyInternal(Task task) {
     // We allow tasks to be queued before the loop has been started.
     {
         const absl::MutexLock lock(task_mutex_);
+        queue_is_idle_ = false;
         task_queue_.push(std::move(task));
     }
     if (uv_async_t* uv_async = GetAsync()) {
@@ -391,10 +397,17 @@ void LibuvEventLoopImpl::ProcessTasks() {
         const absl::MutexLock lock(task_mutex_);
         tasks.swap(task_queue_);
     }
+
+    const size_t num_tasks_to_process = tasks.size();
+
     while (!tasks.empty()) {
         tasks.front()();
         tasks.pop();
     }
+
+    const absl::MutexLock lock(task_mutex_);
+    queue_is_idle_ = task_queue_.empty();
+    tasks_processed_ += num_tasks_to_process;
 }
 
 absl::Status LibuvEventLoopImpl::Run() {
@@ -410,6 +423,16 @@ absl::Status LibuvEventLoopImpl::Run() {
         shutdown_complete_promise_.set_value(status);
     }
     return status;
+}
+
+void LibuvEventLoopImpl::ShutdownTimers() {
+    PostAndWait([this]() { ShutdownTimersInternal(); }).IgnoreError();
+}
+
+size_t LibuvEventLoopImpl::WaitUntilIdle() {
+    const absl::MutexLock lock(task_mutex_);
+    task_mutex_.Await(absl::Condition(&queue_is_idle_));
+    return tasks_processed_;
 }
 
 std::future<absl::Status> LibuvEventLoopImpl::Shutdown() {
@@ -434,7 +457,7 @@ std::future<absl::Status> LibuvEventLoopImpl::Shutdown() {
 
     // Post the actual shutdown logic using the private postImmediately.
     PostImmediatelyInternal([this]() {
-        ShutdownTimers();
+        ShutdownTimersInternal();
 
         if (uv_async_t* uv_async = TakeOwnershipAsync()) {
             uv_close(reinterpret_cast<uv_handle_t*>(uv_async), [](uv_handle_t* handle) {
