@@ -43,6 +43,7 @@ ABSL_FLAG(std::string, d, "",
 ABSL_FLAG(bool, m, false, "Output in machine-readable format (implies -d)");
 ABSL_FLAG(bool, s, false, "Output stack contents (implies -d)");
 ABSL_FLAG(std::vector<std::string>, symbol_paths, {}, "Paths to symbol files");
+ABSL_FLAG(bool, standalone, false, "Process minidump without initializing the crash database");
 
 using android::base::System;
 using android::crashreport::AnnotationExtractor;
@@ -94,10 +95,26 @@ int main(int argc, char* argv[]) {
                   << System::GetEnvironmentVariable("ANDROID_EMU_CRASH_REPORTING_DATABASE");
     }
 
-    CrashReportManager db_manager;
-    if (!db_manager.Initialize()) {
-        LOG(ERROR) << "Failed to initialize CrashReportManager";
+    bool standalone = absl::GetFlag(FLAGS_standalone);
+    bool need_db = absl::GetFlag(FLAGS_l) || absl::GetFlag(FLAGS_u) || absl::GetFlag(FLAGS_e) ||
+                   absl::GetFlag(FLAGS_d) == "latest";
+
+    if (standalone && need_db) {
+        LOG(ERROR) << "--standalone cannot be used with -l, -u, -e, or -d latest";
         return 1;
+    }
+
+    if (standalone && absl::GetFlag(FLAGS_d).empty()) {
+        LOG(ERROR) << "--standalone requires -d <file>";
+        return 1;
+    }
+
+    CrashReportManager db_manager;
+    if (!standalone || need_db) {
+        if (!db_manager.Initialize()) {
+            LOG(ERROR) << "Failed to initialize CrashReportManager";
+            return 1;
+        }
     }
     MinidumpProcessor minidump_processor;
     AnnotationExtractor annotation_extractor;
