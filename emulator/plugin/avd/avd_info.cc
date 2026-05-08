@@ -14,6 +14,7 @@
 
 #include "goldfish/avd_info/avd_info.h"
 
+#include <algorithm>
 #include <chrono>
 #include <fstream>
 #include <memory>
@@ -72,6 +73,7 @@ extern "C" {
 
 namespace goldfish::avd_info {
 
+using goldfish::async::EventLoop;
 using goldfish::devices::ConnectorRegistry;
 using goldfish::devices::PingTopic;
 using goldfish::devices::cable::SocketPtr;
@@ -89,8 +91,44 @@ struct AvdExtendedUniverse : public AvdUniverse {
             perf_stat_reporter_task->Cancel();
         }
 
-        // Wait for all cleanup tasks to finish before destroying `qemu_event_loop`
-        goldfish::async::globalEventLoop()->PostAndWait([]() {}).IgnoreError();
+        goldfish::vsock::clear();
+        WaitUntilEventLoopsIdle();
+        ShutdownQemuLoop();
+    }
+
+    void WaitUntilEventLoopsIdle() {
+        const auto wait_event_loops_idle = [](size_t n, size_t* c, EventLoop** l) -> bool {
+            bool updated = false;
+            for (; n > 0; --n, ++c, ++l) {
+                const size_t nc = (*l)->WaitUntilIdle();
+                if (nc != *c) {
+                    *c = nc;
+                    updated = true;
+                }
+            }
+            return updated;
+        };
+
+        EventLoop* loops[] = {goldfish::async::globalEventLoop(), qemu_event_loop.get()};
+        size_t counters[std::size(loops)];
+        std::transform(std::begin(loops), std::end(loops), std::begin(counters), [](EventLoop* l) {
+            l->ShutdownTimers();
+            return l->WaitUntilIdle();
+        });
+
+        while (wait_event_loops_idle(std::size(loops), counters, loops)) {
+        }
+    }
+
+    void ShutdownQemuLoop() {
+        auto f = qemu_event_loop->Shutdown();
+        // In the current Qemu implementation, we are already running on the Qemu main thread and so
+        // shutdown will have run serially.
+        if (f.wait_for(std::chrono::seconds(15)) != std::future_status::ready) {
+            LOG(FATAL) << "Qemu loop shutdown failed to complete within 15s";
+        }
+        auto s = f.get();
+        LOG_IF(FATAL, !s.ok()) << "Qemu loop shutdown failed: " << s;
     }
 
     async::EventLoop& GetQemuEventLoop() override { return *qemu_event_loop; }
@@ -534,18 +572,7 @@ void avd_info_instance_init(Object* obj) {
 void avd_info_instance_finalize(Object* obj) {
     VLOG(1) << "avd_info_instance_finalize";
     AvdInfoDev* avd_info = AVD_INFO_DEV(obj);
-    if (avd_info->universe->qemu_event_loop) {
-        auto f = avd_info->universe->qemu_event_loop->Shutdown();
-        // In the current Qemu implementation, we are already running on the Qemu main thread and so
-        // shutdown will have run serially.
-        if (f.wait_for(std::chrono::seconds(15)) != std::future_status::ready) {
-            LOG(FATAL) << "Qemu loop shutdown failed to complete within 15s";
-        }
-        auto s = f.get();
-        LOG_IF(FATAL, !s.ok()) << "Qemu loop shutdown failed: " << s;
-        avd_info->universe->qemu_event_loop.reset();
-    }
-    goldfish::vsock::clear();
+
     delete avd_info->universe;
     delete avd_info->mutable_props;
 }

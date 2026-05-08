@@ -61,6 +61,8 @@ class ThreadedEventLoopImpl : public ThreadedEventLoop {
     ThreadedEventLoopImpl(ThreadedEventLoopImpl&& other) noexcept = delete;
     ThreadedEventLoopImpl& operator=(ThreadedEventLoopImpl&& other) noexcept = delete;
 
+    void ShutdownTimers() override { loop_->ShutdownTimers(); }
+    size_t WaitUntilIdle() override { return loop_->WaitUntilIdle(); }
     std::future<absl::Status> Shutdown() override { return loop_->Shutdown(); }
 
     /**

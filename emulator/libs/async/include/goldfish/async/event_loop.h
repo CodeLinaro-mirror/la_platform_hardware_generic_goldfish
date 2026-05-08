@@ -152,6 +152,21 @@ class EventLoop : public CallbackEventSource<LooperStatusEvent> {
     }
 
     /**
+     * @brief Cancels all outstanding timers in the event loop.
+     */
+    virtual void ShutdownTimers() = 0;
+
+    /**
+     * @brief Blocks the calling thread until the event loop is idle.
+     *
+     * This method waits until all tasks that were enqueued *before* this method
+     * was called have been processed. Tasks posted while `WaitUntilIdle` is
+     * executing will not be waited for by the current call.
+     * @return An opaque value which changes when a task is processed.
+     */
+    virtual size_t WaitUntilIdle() = 0;
+
+    /**
      * @brief Initiates a graceful shutdown of the event loop.
      *
      * This method schedules the closing of all internal handles. It returns
