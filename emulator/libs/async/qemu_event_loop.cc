@@ -266,13 +266,13 @@ class QemuEventLoopImpl : public goldfish::async::QemuEventLoop {
     }
 
     const QEMUBHPtr drainer_bh_;
-    std::atomic<bool> is_shutting_down_{false};
     std::promise<absl::Status> shutdown_complete_promise_;
 
     std::atomic<std::thread::id> qemu_thread_id_;
     absl::Mutex queue_mutex_;
     std::queue<Task> task_queue_ ABSL_GUARDED_BY(queue_mutex_);
     size_t tasks_processed_ ABSL_GUARDED_BY(queue_mutex_) = 0;
+    std::atomic<bool> is_shutting_down_{false};
     bool drainer_scheduled_ ABSL_GUARDED_BY(queue_mutex_) = false;
     bool queue_is_idle_ ABSL_GUARDED_BY(queue_mutex_) = true;
 
