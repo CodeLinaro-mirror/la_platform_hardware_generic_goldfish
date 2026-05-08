@@ -184,8 +184,6 @@ filegroup(
         "@rutabaga_gfx//:rutabaga_ffi",
     ] + select({
         "@platforms//os:linux": [
-            # For netsimd prebuilt
-            "@goldfish_prebuilts_common//vulkan:linux_libc++",
             # TODO(b/434942959,whollins): Re-add this.
             #"@gcc_lib//:libpulse",
         ],

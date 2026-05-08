@@ -228,7 +228,6 @@ emulator/lib/
 emulator/lib/advancedFeatures.ini
 emulator/lib/emulator_access.json
 emulator/lib/qemu/
-emulator/lib/qemu/libc++.so
 emulator/lib/qemu/libgoldfish_aarch64.so
 emulator/lib/qemu/libgoldfish_x86_64.so
 emulator/lib/qemu/librutabaga_ffi.so
