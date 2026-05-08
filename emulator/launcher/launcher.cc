@@ -71,7 +71,7 @@ class Launcher {
                     }
 
                     if (ShouldLaunchFishtank(config_.opts)) {
-                        launch_fishtank();
+                        config_.event_loop.Post([this] { launch_fishtank(); }).IgnoreError();
                     }
 
                     auto chardevs = std::make_shared<WhenAll<ChardevEndpoints>>(
@@ -294,11 +294,8 @@ class Launcher {
                 config_.process_launcher->ForgetProcess(*netsimd_process_);
 
                 find_netsimd_ = config_.event_loop.ScheduleRepeating(
-                        [this, chardevs] {
-                            retry_countdown_ = 10;
-                            find_netsimd_endpoint(chardevs);
-                        },
-                        std::chrono::seconds(1), std::chrono::seconds(1));
+                        [this, chardevs] { find_netsimd_endpoint(chardevs); },
+                        std::chrono::milliseconds(10), std::chrono::milliseconds(50));
             } else {
                 LOG(FATAL) << "Fatal error whilst launching netsimd: " << s.status();
             }
@@ -520,7 +517,7 @@ class Launcher {
     std::shared_ptr<ModemSimulatorService> modem_simulator_service_;
 
     int existing_netsimd_port_ = 0;
-    int retry_countdown_ = 10;
+    int retry_countdown_ = 200;
 
     int emulator_exit_status_ = 0;
 
