@@ -158,7 +158,6 @@ class LibuvEventLoopImpl : public LibuvEventLoop {
 
     /// A libuv async handle used to wake up the loop thread to process tasks.
     uv_async_t async_handle_;
-    std::atomic<bool> async_handle_valid_ = false;
 
     /// The thread ID of the thread currently running the event loop.
     std::atomic<std::thread::id> thread_id_;
@@ -174,8 +173,9 @@ class LibuvEventLoopImpl : public LibuvEventLoop {
     size_t tasks_processed_ ABSL_GUARDED_BY(task_mutex_){0};
 
     /// Atomic flag indicating the loop is shutting down and will not accept new tasks.
-    std::atomic<bool> is_shutting_down_{false};
     std::promise<absl::Status> shutdown_complete_promise_;
+    std::atomic<bool> async_handle_valid_ = false;
+    std::atomic<bool> is_shutting_down_{false};
     std::atomic<bool> promise_set_{false};
     bool queue_is_idle_ ABSL_GUARDED_BY(task_mutex_){true};
 };
