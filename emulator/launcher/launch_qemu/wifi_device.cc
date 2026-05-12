@@ -12,7 +12,7 @@ absl::Status WifiDevice::initialize(const EmulatorConfig& emulator) {
 std::vector<std::string> WifiDevice::getQemuParameters(const EmulatorConfig& emulator) const {
     return {
         "-device",
-        "netsim-netdev,id=wifi",
+        "netsim-netdev,id=wifi,mode=wifi",
         "-device",
         absl::StrCat("virtio-wifi-pci,netdev=wifi,addr=", addr(),
                      ",mac_prefix=", emulator.serial_number()),
