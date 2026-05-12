@@ -48,6 +48,17 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "perfetto_interceptor",
+    srcs = ["perfetto_interceptor.cc"],
+    hdrs = ["include/android/control/interceptor/perfetto_interceptor.h"],
+    includes = ["include"],
+    deps = [
+        "//emulator/libs/perfetto:init",
+        "@grpc//:grpc++",
+    ],
+)
+
 # collection of all interceptors for convenience
 cc_library(
     name = "interceptors",
@@ -57,6 +68,7 @@ cc_library(
         ":idle_interceptor",
         ":logging_interceptor",
         ":metrics_interceptor",
+        ":perfetto_interceptor",
     ],
 )
 
@@ -114,6 +126,7 @@ cc_test(
             "//conditions:default": [
                 "breadcrumb_interceptor_test.cc",
                 "logging_interceptor_test.cc",
+                "perfetto_interceptor_test.cc",
             ],
         }),
     visibility = ["//visibility:public"],
@@ -125,6 +138,17 @@ cc_test(
         "//emulator/plugin/vminterface:vminterface-test",
         "@aemu//protos/services/diagnostic:grpc_diagnostic_cc_proto",
         "@aemu//protos/services/emulator-controller:emulator_controller_cc_proto",
+        "@googletest//:gtest",
+    ],
+)
+
+cc_test(
+    name = "perfetto_interceptor_only_test",
+    srcs = ["perfetto_interceptor_test.cc"],
+    deps = [
+        ":perfetto_interceptor",
+        "//emulator/libs/system:test-headers",
+        "//emulator/libs/test:googletest_main",
         "@googletest//:gtest",
     ],
 )
