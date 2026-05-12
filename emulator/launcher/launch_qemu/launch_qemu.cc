@@ -130,9 +130,8 @@ absl::Status LaunchQemu::addDevices() {
             "-device", "virtconsole,chardev=forhvc1,name=logcat", "-chardev", "null,id=forhvc1"});
     }
 
-    if (o.show_kernel) {
-        addDevice<ParameterList>(std::initializer_list<std::string>{"-serial", "stdio"});
-    }
+    addDevice<ParameterList>(
+            std::initializer_list<std::string>{"-serial", o.show_kernel ? "stdio" : "null"});
 
     addDevice<AvdInfoDevice>();
 
