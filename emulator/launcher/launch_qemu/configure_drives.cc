@@ -122,7 +122,7 @@ absl::StatusOr<std::vector<DiskConfig>> getDiskConfigs(const Avd& avd, const And
     RETURN_IF_ERROR(prepareUserDataBaseImage(avd, sys_img_paths.data_dir, user_data, data_size,
                                              !avd.Hw().hw_arc));
 
-    return std::vector<DiskConfig>{
+    std::vector<DiskConfig> drives{
         // Currently this must be the first drive on ARM to match the androidboot.boot_devices
         // parameter
         // set in initrd_device.cpp.
@@ -135,10 +135,16 @@ absl::StatusOr<std::vector<DiskConfig>> getDiskConfigs(const Avd& avd, const And
                    data_size),
         diskConfig(avd, "vendor", "07.0", rw_sys, sys_img_paths.vendor_image, user_vendor, 0),
         diskConfig(avd, "cache", "04.0", true, std::nullopt, user_cache, cache_size),
-#ifdef __x86_64__
-        diskConfig(avd, "sdcard", "08.0", true, std::nullopt, user_sdcard, sdcard_size),
-#endif
     };
+
+#ifdef __x86_64__
+    if (avd.Hw().hw_sdCard) {
+        drives.push_back(
+            diskConfig(avd, "sdcard", "08.0", true, std::nullopt, user_sdcard, sdcard_size));
+    }
+#endif
+
+    return drives;
 }
 
 }  // namespace android::goldfish::internal
