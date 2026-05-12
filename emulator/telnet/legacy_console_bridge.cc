@@ -26,6 +26,7 @@
 
 #include "android/base/system.h"
 #include "android/emulation/control/absl_status_translate.h"
+#include "android/goldfish/ini_file.h"
 #include "android/status/status_macros.h"
 #include "emulator_controller.grpc.pb.h"
 #include "emulator_controller.pb.h"
@@ -35,6 +36,7 @@
 namespace goldfish::telnet {
 
 using android::emulation::control::GrpcStatusToAbslStatus;
+using android::goldfish::IniFile;
 
 namespace {
 absl::StatusOr<std::string> GetPlatformConfigProperty(LegacyConsoleBridge::ConsoleContext& ctx,
@@ -80,6 +82,42 @@ LegacyConsoleBridge::ConsoleContext::Client() {
     VLOG(1) << "Successfully connected to gRPC server.";
     client_ = std::move(*client);
     return client_;
+}
+
+absl::StatusOr<std::vector<std::filesystem::path>>
+LegacyConsoleBridge::ConsoleContext::DiscoverRunningEmulators() {
+    return discovery::EmulatorAdvertisement().DiscoverRunningEmulators();
+}
+
+absl::StatusOr<LegacyConsoleBridge::DiscoveredEmulator>
+LegacyConsoleBridge::ConsoleContext::DiscoverEmulatorWithProperties(
+        const absl::flat_hash_map<std::string, std::string>& props) {
+    auto discovered = DiscoverRunningEmulators();
+    if (!discovered.ok()) return discovered.status();
+
+    absl::StatusOr<DiscoveredEmulator> result = absl::NotFoundError("No matching emulator found");
+    for (const auto& discovery_file : *discovered) {
+        IniFile ini(discovery_file);
+        if (!ini.Read()) continue;
+
+        bool match = true;
+        for (const auto& [key, val] : props) {
+            match = match && ini.HasKey(key) && ini.GetString(key) == val;
+        }
+        if (match) {
+            // Oh, oh, another emulator with the same properties has been discovered.
+            if (result.ok()) {
+                return absl::FailedPreconditionError("Multiple matching emulators found");
+            }
+            DiscoveredEmulator candidate;
+            candidate.discovery_file = discovery_file;
+            for (const auto& entry : ini) {
+                candidate.properties[entry.first] = entry.second;
+            }
+            result = std::move(candidate);
+        }
+    }
+    return result;
 }
 
 LegacyConsoleBridge::LegacyConsoleBridge(int port, std::filesystem::path token_path)
@@ -156,10 +194,10 @@ LegacyConsoleBridge::LegacyConsoleBridge(int port, std::filesystem::path token_p
 
     avd.On("discoverypath" /* do_avd_discoverypath */, "query AVD discovery path",
            [](ConsoleContext& ctx) -> absl::StatusOr<std::string> {
-               ASSIGN_OR_RETURN(auto discovery_path,
-                                discovery::EmulatorAdvertisement().DiscoverEmulatorWithProperties(
+               ASSIGN_OR_RETURN(auto discovery,
+                                ctx.DiscoverEmulatorWithProperties(
                                         {{"port.serial", std::to_string(ctx.Port())}}));
-               return discovery_path.string();
+               return discovery.discovery_file.string();
            });
     avd.On("snapshotspath" /* do_avd_snapshotspath */, "query AVD snapshots path",
            [](ConsoleContext& /*ctx*/) { return absl::UnimplementedError("not implemented"); });
@@ -174,7 +212,16 @@ LegacyConsoleBridge::LegacyConsoleBridge(int port, std::filesystem::path token_p
     avd.Sub("name", "").Safe();
 
     avd.On("grpc" /* do_avd_grpc_port */, "query the grpc port",
-           [](ConsoleContext& /*ctx*/) { return absl::UnimplementedError("not implemented"); });
+           [](ConsoleContext& ctx) -> absl::StatusOr<std::string> {
+               ASSIGN_OR_RETURN(auto discovery,
+                                ctx.DiscoverEmulatorWithProperties(
+                                        {{"port.serial", std::to_string(ctx.Port())}}));
+               if (auto it = discovery.properties.find("grpc.port");
+                   it != discovery.properties.end()) {
+                   return it->second;
+               }
+               return absl::NotFoundError("No active gRPC service.");
+           });
     avd.Sub("grpc", "").Safe();
 
     auto snapshot = avd.Sub("snapshot", "state snapshot commands");

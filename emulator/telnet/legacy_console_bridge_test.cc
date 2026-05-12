@@ -29,6 +29,7 @@
 #include "android/base/testing/TestTempDir.h"
 #include "emulator_controller.grpc.pb.h"
 #include "emulator_controller_mock.grpc.pb.h"
+#include "goldfish/discovery/emulator_advertisement.h"
 #include "goldfish/file/file.h"
 #include "telnet_auth.h"
 
@@ -56,7 +57,24 @@ struct MockConsoleContext : public LegacyConsoleBridge::ConsoleContext {
         return ctx;
     }
 
+    absl::StatusOr<std::vector<std::filesystem::path>> DiscoverRunningEmulators() override {
+        if (mock_discovered_emulators) {
+            return *mock_discovered_emulators;
+        }
+        return ConsoleContext::DiscoverRunningEmulators();
+    }
+
+    absl::StatusOr<LegacyConsoleBridge::DiscoveredEmulator> DiscoverEmulatorWithProperties(
+            const absl::flat_hash_map<std::string, std::string>& props) override {
+        if (mock_discovery) {
+            return *mock_discovery;
+        }
+        return ConsoleContext::DiscoverEmulatorWithProperties(props);
+    }
+
     std::unique_ptr<android::emulation::control::EmulatorController::StubInterface> mock_stub;
+    std::optional<absl::StatusOr<LegacyConsoleBridge::DiscoveredEmulator>> mock_discovery;
+    std::optional<absl::StatusOr<std::vector<std::filesystem::path>>> mock_discovered_emulators;
 };
 
 class LegacyConsoleBridgeTest : public ::testing::Test {
@@ -330,6 +348,60 @@ TEST_F(LegacyConsoleBridgeTest, PathReturnsErrorIfAvdPathMissingInPlatformConfig
 
     EXPECT_FALSE(result.ok());
     EXPECT_EQ(result.status().code(), absl::StatusCode::kInternal);
+}
+
+TEST_F(LegacyConsoleBridgeTest, AvdGrpcSucceedsWhenEmulatorIsActive) {
+    auto ctx = CreateContext();
+    ctx->authenticated = true;
+
+    LegacyConsoleBridge::DiscoveredEmulator mock_res;
+    mock_res.discovery_file = "/path/to/dummy.ini";
+    mock_res.properties["port.serial"] = "5554";
+    mock_res.properties["grpc.port"] = "8554";
+    ctx->mock_discovery = mock_res;
+
+    auto result = (*bridge_)("avd grpc", *ctx);
+
+    ASSERT_TRUE(result.ok()) << result.status().message();
+    EXPECT_EQ(*result, "8554");
+}
+
+TEST_F(LegacyConsoleBridgeTest, AvdGrpcFailsWhenNoActiveGrpcService) {
+    auto ctx = CreateContext();
+    ctx->authenticated = true;
+    ctx->mock_discovery = absl::NotFoundError("No matching emulator found");
+
+    auto result = (*bridge_)("avd grpc", *ctx);
+
+    ASSERT_FALSE(result.ok());
+    EXPECT_EQ(result.status().code(), absl::StatusCode::kNotFound);
+}
+
+TEST_F(LegacyConsoleBridgeTest, AvdGrpcFailsWhenMultipleEmulatorsMatch) {
+    auto ctx = CreateContext();
+    ctx->authenticated = true;
+
+    auto file1 = tmpdir_.Path() / "pid_1.ini";
+    auto file2 = tmpdir_.Path() / "pid_2.ini";
+
+    std::ofstream ofs1(file1);
+    ofs1 << "port.serial=5554\n";
+    ofs1 << "grpc.port=8554\n";
+    ofs1.close();
+
+    std::ofstream ofs2(file2);
+    ofs2 << "port.serial=5554\n";
+    ofs2 << "grpc.port=8555\n";
+    ofs2.close();
+
+    ctx->mock_discovered_emulators = std::vector<std::filesystem::path>{file1, file2};
+
+    auto result = (*bridge_)("avd grpc", *ctx);
+
+    ASSERT_FALSE(result.ok());
+    EXPECT_EQ(result.status().code(), absl::StatusCode::kFailedPrecondition);
+    EXPECT_TRUE(result.status().message().find("Multiple matching emulators found") !=
+                std::string::npos);
 }
 
 }  // namespace
