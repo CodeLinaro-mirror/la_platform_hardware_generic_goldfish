@@ -26,13 +26,13 @@ TEST(Network, Basic_x86) {
             .Times(1)
             .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
 
-    NetworkDevice dev("0a.0");
+    NetworkDevice dev("eth0", "0a.0", /*cellular=*/false, /*netsim_backend=*/true);
     EXPECT_OK(dev.initialize(emu.config()));
-    EXPECT_THAT(
-            dev.getQemuParameters(emu.config()),
-            testing::ElementsAre(testing::Eq("-netdev"), testing::Eq("hubport,id=mynet,hubid=1234"),
-                                 testing::Eq("-device"),
-                                 testing::Eq("virtio-net-pci,addr=0a.0,netdev=mynet")));
+    EXPECT_THAT(dev.getQemuParameters(emu.config()),
+                testing::ElementsAre(testing::Eq("-device"),
+                                     testing::Eq("netsim-netdev,id=eth0,mode=ethernet"),
+                                     testing::Eq("-device"),
+                                     testing::Eq("virtio-net-pci,addr=0a.0,netdev=eth0")));
 }
 
 TEST(Network, Basic_arm64) {
@@ -41,12 +41,12 @@ TEST(Network, Basic_arm64) {
             .Times(1)
             .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kArm));
 
-    NetworkDevice dev("0a.0");
+    NetworkDevice dev("eth0", "0a.0", /*cellular=*/true, /*netsim_backend=*/true);
     EXPECT_OK(dev.initialize(emu.config()));
     EXPECT_THAT(dev.getQemuParameters(emu.config()),
                 testing::ElementsAre(
-                        testing::Eq("-netdev"), testing::Eq("hubport,id=mynet,hubid=1234"),
-                        testing::Eq("-device"), testing::Eq("virtio-net-device,netdev=mynet")));
+                        testing::Eq("-device"), testing::Eq("netsim-netdev,id=eth0,mode=cellular"),
+                        testing::Eq("-device"), testing::Eq("virtio-net-device,netdev=eth0")));
 }
 
 }  // namespace android::goldfish::test

@@ -21,10 +21,17 @@ namespace android::goldfish {
 
 class NetworkDevice : public PciDevice {
   public:
-    explicit NetworkDevice(std::string addr) : PciDevice("network", addr) {}
+    explicit NetworkDevice(std::string id, std::string addr, bool cellular, bool netsim_backend)
+            : PciDevice(std::move(id), std::move(addr))
+            , cellular_(cellular)
+            , netsim_backend_(netsim_backend) {}
 
     absl::Status initialize(const EmulatorConfig& emulator) override;
     std::vector<std::string> getQemuParameters(const EmulatorConfig& emulator) const override;
+
+  private:
+    bool cellular_;
+    bool netsim_backend_;
 };
 
 }  // namespace android::goldfish

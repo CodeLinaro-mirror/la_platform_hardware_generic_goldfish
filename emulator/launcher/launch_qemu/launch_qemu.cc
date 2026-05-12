@@ -135,9 +135,6 @@ absl::Status LaunchQemu::addDevices() {
 
     addDevice<AvdInfoDevice>();
 
-    // No ethernet device for now:
-    // addDevice<NetworkDevice>("0a.0");
-
     if (!o.no_netsim) {
         addDevice<ParameterList>(std::initializer_list<std::string>{
             "-device",
@@ -165,6 +162,12 @@ absl::Status LaunchQemu::addDevices() {
             "virtserialport,chardev=bluetooth,name=bluetooth",
         });
     }
+
+    // TODO(whollins): set netsim_backend to true when netsimd supports this (and not o.no_netsim)
+    // Note that we assume Linux calls first (virtio-net*) ethernet device eth0 etc.
+    addDevice<NetworkDevice>("eth0", "0c.0", /*cellular=*/true, /*netsim_backend=*/false);
+    // TODO TV ethernet addDevice<NetworkDevice>("eth1", "0d.0", /*cellular=*/false,
+    // /*netsim_backend=*/false);
 
     if (!config_.chardev_endpoints().modem_simulator.empty()) {
         addDevice<ParameterList>(std::initializer_list<std::string>{

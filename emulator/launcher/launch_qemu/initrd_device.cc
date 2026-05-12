@@ -217,7 +217,7 @@ std::vector<std::pair<std::string, std::string>> getUserspaceBootProperties(
     params.push_back({"androidboot.qemu.keyboard_device", "QEMU Virtio Keyboard"});
 
     // Radio config
-    params.push_back({qemuRadioDataInterfaceName, "wlan0"});
+    params.push_back({qemuRadioDataInterfaceName, "eth0"});
 
     if (isX86ish) {
         // x86 and x86_64 platforms use an alternative Android DT directory that
