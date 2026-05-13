@@ -31,6 +31,7 @@
 #include "emulator_controller.grpc.pb.h"
 #include "emulator_controller.pb.h"
 #include "goldfish/discovery/emulator_advertisement.h"
+#include "screen_record_commands.h"
 #include "telnet_auth.h"
 
 namespace goldfish::telnet {
@@ -689,52 +690,7 @@ LegacyConsoleBridge::LegacyConsoleBridge(int port, std::filesystem::path token_p
                });
 
     auto screenrecord = builder.Command("screenrecord", "Records the emulator's display");
-    screenrecord.On("start" /* do_screenrecord_start */, "start screen recording",
-                    "'screenrecord start [options] <filename>'\r\n"
-                    "\r\nRecords the emulator's display to a .webm file.\r\n"
-                    "\r\nOptions:\r\n"
-                    "  --size WIDTHxHEIGHT\r\n"
-                    "    Set the video size, e.g. \"1280x720\". Default is the device's main\r\n"
-                    "    display resolution.\r\n"
-                    "  --bit-rate RATE\r\n"
-                    "    Set the video bit rate, in bits per second. Value may be specified as\r\n"
-                    "    bits or megabits, e.g. '4000000' is equivalent to '4M'. Default 4Mbps.\r\n"
-                    "    \r\n"
-                    "  --time-limit TIME\r\n"
-                    "    Set the maximum recording time, in seconds. Default/maximum is 180.\r\n"
-                    "    \r\n"
-                    "  --fps FPS\r\n"
-                    "    Set the frames per second for the video recording. Default is 24 fps, "
-                    "maximum is 60 fps.\r\n"
-                    "    \r\n"
-                    "  --display DISPLAY\r\n"
-                    "    Set the display id for the video recording. Default is 0.\r\n"
-                    "\r\nThe recording will stop with 'screenrecord stop' or when the time "
-                    "limit\r\nis reached\r\n",
-                    [](ConsoleContext& /*ctx*/) {
-                        /* parse [options] <filename> */
-                        return absl::UnimplementedError("not implemented");
-                    });
-    screenrecord.On(
-            "stop" /* do_screenrecord_stop */, "stop screen recording",
-            [](ConsoleContext& /*ctx*/) { return absl::UnimplementedError("not implemented"); });
-    screenrecord.On("screenshot" /* do_screenrecord_screenshot */, "Take a screenshot",
-                    "'screenrecord screenshot [options] <dirname>'\r\n"
-                    "\r\nTakes a single screenshot of emulator's display "
-                    "and saves the resulting PNG in <dirname>.\r\n"
-                    "\r\nOptions:\r\n"
-                    "  --display ID\r\n"
-                    "    Set display to take screenshot. Default is the device's "
-                    "main display ID = 0\r\n",
-                    [](ConsoleContext& /*ctx*/, const std::string& /*filename*/) {
-                        /* parse [options] <filename> */
-                        return absl::UnimplementedError("not implemented");
-                    });
-    screenrecord.On(
-            "webrtc" /* do_screenrecord_webrtc */, "start/stop the webrtc module",
-            [](ConsoleContext& /*ctx*/, const std::string& /*state*/, std::optional<int> /*fps*/) {
-                return absl::UnimplementedError("not implemented");
-            });
+    RegisterScreenRecordCommands(screenrecord);
 
     // Monitor is a root group in console.cpp but it's under qemu group usually
     builder.Command("qemu", "QEMU-specific commands")
