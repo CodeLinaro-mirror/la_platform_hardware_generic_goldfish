@@ -15,7 +15,9 @@
 
 #pragma once
 
+#include <filesystem>
 #include <memory>
+#include <optional>
 #include <string>
 
 #include "android/goldfish/avd.h"
@@ -30,7 +32,8 @@ struct ModemSimulatorService {
     virtual std::string ChardevEndpoint() const = 0;
     virtual int HostId() const = 0;
 
-    static std::shared_ptr<ModemSimulatorService> Create(const Avd& avd);
+    static std::shared_ptr<ModemSimulatorService> Create(
+            const Avd& avd, const std::optional<std::filesystem::path>& icc_profile_override);
 };
 
 }  // namespace goldfish::modem_simulator

@@ -56,7 +56,7 @@ class ModemServiceTest : public ::testing::Test {
     ASSERT_TRUE(ril_shared_fd->IsOpen());
     ASSERT_TRUE(modem_shared_fd->IsOpen());
 
-    NvramConfig::InitNvramConfigService(1, 1);
+    NvramConfig::InitNvramConfigService(1, std::nullopt);
 
     ril_side_ = new Client(ril_shared_fd);
     modem_side_ = new Client(modem_shared_fd);

@@ -125,7 +125,13 @@ class Launcher {
     }
 
     void init_modem_simulator(const WhenAllChardevEndpoints& chardevs) {
-        modem_simulator_service_ = ModemSimulatorService::Create(*config_.avd);
+        std::optional<std::filesystem::path> icc_profile_override;
+        if (const char* icc_profile = config_.opts.icc_profile) {
+            icc_profile_override = std::filesystem::path(icc_profile);
+        }
+
+        modem_simulator_service_ =
+                ModemSimulatorService::Create(*config_.avd, icc_profile_override);
         if (modem_simulator_service_) {
             chardevs->MutableResults().modem_simulator =
                     modem_simulator_service_->ChardevEndpoint();

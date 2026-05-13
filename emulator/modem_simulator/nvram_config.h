@@ -25,11 +25,13 @@ namespace cuttlefish {
 class NvramConfig {
 
  public:
-  static void InitNvramConfigService(size_t num_instances, int sim_type);
+  static void InitNvramConfigService(
+      size_t num_instances,
+      const std::optional<std::filesystem::path>& icc_profile_override);
   static const NvramConfig* Get();
   static void SaveToFile();
 
-  NvramConfig(size_t num_instances, int sim_type);
+  NvramConfig(size_t num_instances, std::optional<std::filesystem::path> icc_profile_override);
   NvramConfig(NvramConfig&&);
   ~NvramConfig();
   NvramConfig& operator=(NvramConfig&&);
@@ -44,7 +46,7 @@ class NvramConfig {
 
   std::vector<InstanceSpecific> Instances() const;
 
-  int sim_type() const;
+  const std::optional<std::filesystem::path>& icc_profile_override() const;
 
   // A view into an existing modem simulator object for a particular instance.
   class InstanceSpecific {
@@ -80,12 +82,14 @@ class NvramConfig {
 
  private:
   static std::unique_ptr<NvramConfig> s_nvram_config;
+
   size_t total_instances_;
-  int sim_type_;
+  std::optional<std::filesystem::path> icc_profile_override_;
   std::unique_ptr<Json::Value> dictionary_;
 
   bool LoadFromFile(const std::filesystem::path& file);
-  static NvramConfig* BuildConfigImpl(size_t num_instances, int sim_type);
+  static NvramConfig* BuildConfigImpl(
+      size_t num_instances, const std::optional<std::filesystem::path>& icc_profile_override);
 
   void InitDefaultNvramConfig();
 
