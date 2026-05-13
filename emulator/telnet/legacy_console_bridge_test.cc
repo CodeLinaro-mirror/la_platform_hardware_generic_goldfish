@@ -424,5 +424,25 @@ TEST_F(LegacyConsoleBridgeTest, AvdGrpcFailsWhenMultipleEmulatorsMatch) {
                 std::string::npos);
 }
 
+TEST_F(LegacyConsoleBridgeTest, KillSucceedsAndCallsSetVmState) {
+    auto ctx = CreateContext();
+    ctx->authenticated = true;
+
+    auto mock_stub = std::make_unique<android::emulation::control::MockEmulatorControllerStub>();
+    EXPECT_CALL(*mock_stub, setVmState(_, _, _))
+            .WillOnce([](grpc::ClientContext* context,
+                         const android::emulation::control::VmRunState& request,
+                         google::protobuf::Empty* response) {
+                EXPECT_EQ(request.state(), android::emulation::control::VmRunState::SHUTDOWN);
+                return grpc::Status::OK;
+            });
+    ctx->mock_stub = std::move(mock_stub);
+
+    auto result = (*bridge_)("kill", *ctx);
+
+    ASSERT_TRUE(result.ok()) << result.status().message();
+    EXPECT_EQ(*result, "");
+}
+
 }  // namespace
 }  // namespace goldfish::telnet
