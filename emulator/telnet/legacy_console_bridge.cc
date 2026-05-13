@@ -177,7 +177,16 @@ LegacyConsoleBridge::LegacyConsoleBridge(int port, std::filesystem::path token_p
     avd.On("pause" /* do_avd_pause */, "pause the virtual device",
            [](ConsoleContext& /*ctx*/) { return absl::UnimplementedError("not implemented"); });
     avd.On("resume" /* do_avd_resume */, "resume the virtual device",
-           [](ConsoleContext& /*ctx*/) { return absl::UnimplementedError("not implemented"); });
+           [](ConsoleContext& ctx) -> absl::Status {
+               ASSIGN_OR_RETURN(auto stub, ctx.EmulatorControllerStub());
+               ASSIGN_OR_RETURN(auto context, ctx.NewContext());
+
+               android::emulation::control::VmRunState request;
+               request.set_state(android::emulation::control::VmRunState::RUNNING);
+               google::protobuf::Empty response;
+
+               return GrpcStatusToAbslStatus(stub->setVmState(context.get(), request, &response));
+           });
     avd.On("hostmicon" /* do_avd_hostmicon */, "activate the host audio input device",
            [](ConsoleContext& /*ctx*/) { return absl::UnimplementedError("not implemented"); });
     avd.On("hostmicoff" /* do_avd_hostmicoff */, "deactivate the host audio input device",
