@@ -185,7 +185,7 @@ LegacyConsoleBridge::LegacyConsoleBridge(int port, std::filesystem::path token_p
     avd.On("bugreport" /* do_avd_bugreport */, "generate bug report info.",
            [](ConsoleContext& /*ctx*/) { return absl::UnimplementedError("not implemented"); });
     avd.On("id" /* do_avd_id */, "query virtual device ID",
-           [](ConsoleContext& /*ctx*/) { return absl::UnimplementedError("not implemented"); });
+           [](ConsoleContext& ctx) { return GetPlatformConfigProperty(ctx, "avd.id"); });
     avd.On("windowtype" /* do_avd_windowtype */, "query virtual device headless or qtwindow",
            [](ConsoleContext& /*ctx*/) { return absl::UnimplementedError("not implemented"); });
 
@@ -607,8 +607,18 @@ LegacyConsoleBridge::LegacyConsoleBridge(int port, std::filesystem::path token_p
     builder.On("crash-on-exit" /* do_crash_on_exit */,
                "simulate crash on exit for the emulator instance",
                [](ConsoleContext& /*ctx*/) { return absl::UnimplementedError("not implemented"); });
-    builder.On("kill" /* do_kill */, "kill the emulator instance",
-               [](ConsoleContext& /*ctx*/) { return absl::UnimplementedError("not implemented"); });
+    builder.On(
+            "kill" /* do_kill */, "kill the emulator instance",
+            [](ConsoleContext& ctx) -> absl::Status {
+                ASSIGN_OR_RETURN(auto stub, ctx.EmulatorControllerStub());
+                ASSIGN_OR_RETURN(auto context, ctx.NewContext());
+
+                android::emulation::control::VmRunState request;
+                request.set_state(android::emulation::control::VmRunState::SHUTDOWN);
+                google::protobuf::Empty response;
+
+                return GrpcStatusToAbslStatus(stub->setVmState(context.get(), request, &response));
+            });
     builder.On("restart" /* do_restart */, "restart the emulator instance",
                [](ConsoleContext& /*ctx*/) { return absl::UnimplementedError("not implemented"); });
 
