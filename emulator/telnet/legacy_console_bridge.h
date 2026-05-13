@@ -18,6 +18,7 @@
 #include <memory>
 #include <string>
 
+#include "absl/container/flat_hash_map.h"
 #include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "absl/synchronization/mutex.h"
@@ -40,6 +41,11 @@ namespace goldfish::telnet {
  */
 class LegacyConsoleBridge : public LineCommandHandler {
   public:
+    struct DiscoveredEmulator {
+        std::filesystem::path discovery_file;
+        absl::flat_hash_map<std::string, std::string> properties;
+    };
+
     /**
      * @brief Context for legacy console command handlers.
      */
@@ -66,6 +72,11 @@ class LegacyConsoleBridge : public LineCommandHandler {
             context->set_deadline(deadline);
             return context;
         }
+
+        virtual absl::StatusOr<std::vector<std::filesystem::path>> DiscoverRunningEmulators();
+
+        virtual absl::StatusOr<DiscoveredEmulator> DiscoverEmulatorWithProperties(
+                const absl::flat_hash_map<std::string, std::string>& props);
 
       private:
         int port_;
