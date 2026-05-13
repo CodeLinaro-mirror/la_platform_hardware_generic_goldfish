@@ -19,6 +19,7 @@
 #include <tinyxml2.h>
 
 #include "absl/log/log.h"
+#include "absl/strings/str_cat.h"
 
 #include "common/libs/utils/files.h"
 #include "host/commands/modem_simulator/device_config.h"
@@ -370,17 +371,14 @@ void SimService::InitializeServiceState() {
 
 void SimService::InitializeSimFileSystemAndSimState() {
   auto nvram_config = NvramConfig::Get();
-  auto sim_type = nvram_config->sim_type();
-  std::stringstream ss;
-  if (sim_type == 2) {  // Special sim card for CtsCarrierApiTestCases
-    ss << "iccprofile_for_sim" << service_id_ << "_for_CtsCarrierApiTestCases.xml";
-  } else {
-    ss << "iccprofile_for_sim" << service_id_ << ".xml";
-  }
-  auto icc_profile_name = ss.str();
 
-  const auto icc_profile_path = cuttlefish::modem::DeviceConfig::GetFilePath(
-      icc_profile_name.c_str());
+  std::filesystem::path icc_profile_path;
+  if (const auto& icc_profile_override = nvram_config->icc_profile_override()) {
+    icc_profile_path = *icc_profile_override;
+  } else {
+    icc_profile_path = cuttlefish::modem::DeviceConfig::GetFilePath(
+        absl::StrCat("iccprofile_for_sim", service_id_, ".xml").c_str());
+  }
 
   if (!cuttlefish::FileExists(icc_profile_path) ||
       !cuttlefish::FileHasContent(icc_profile_path)) {

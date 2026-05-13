@@ -47,8 +47,10 @@ static constexpr bool kDefaultEmergencyMode = false;
  * or uses the default value if the config file not exists,
  * Returns nullptr if there was an error loading from file
  */
-NvramConfig* NvramConfig::BuildConfigImpl(size_t num_instances, int sim_type) {
-  auto ret = new NvramConfig(num_instances, sim_type);
+NvramConfig* NvramConfig::BuildConfigImpl(
+    const size_t num_instances,
+    const std::optional<std::filesystem::path>& icc_profile_override) {
+  auto ret = new NvramConfig(num_instances, icc_profile_override);
   if (ret) {
     const auto nvram_config_path = ConfigFileLocation();
     if (!cuttlefish::FileExists(nvram_config_path) ||
@@ -69,11 +71,14 @@ NvramConfig* NvramConfig::BuildConfigImpl(size_t num_instances, int sim_type) {
 
 std::unique_ptr<NvramConfig> NvramConfig::s_nvram_config;
 
-void NvramConfig::InitNvramConfigService(size_t num_instances, int sim_type) {
+void NvramConfig::InitNvramConfigService(
+    const size_t num_instances,
+    const std::optional<std::filesystem::path>& icc_profile_override) {
   static std::once_flag once_flag;
 
-  std::call_once(once_flag, [num_instances, sim_type]() {
-    NvramConfig::s_nvram_config.reset(BuildConfigImpl(num_instances, sim_type));
+  std::call_once(once_flag, [num_instances, &icc_profile_override]() {
+    NvramConfig::s_nvram_config.reset(
+        BuildConfigImpl(num_instances, icc_profile_override));
   });
 }
 
@@ -87,10 +92,12 @@ void NvramConfig::SaveToFile() {
   nvram_config->SaveToFile(nvram_config_file);
 }
 
-NvramConfig::NvramConfig(size_t num_instances, int sim_type)
-    : total_instances_(num_instances),
-      sim_type_(sim_type),
-      dictionary_(new Json::Value()) {}
+NvramConfig::NvramConfig(
+    const size_t num_instances,
+    std::optional<std::filesystem::path> icc_profile_override)
+  : total_instances_(num_instances),
+    icc_profile_override_(std::move(icc_profile_override)),
+    dictionary_(new Json::Value()) {}
 // Can't use '= default' on the header because the compiler complains of
 // Json::Value being an incomplete type
 NvramConfig::~NvramConfig() = default;
@@ -193,8 +200,8 @@ void NvramConfig::InstanceSpecific::set_emergency_mode(bool mode) {
   (*Dictionary())[kEmergencyMode] = mode;
 }
 
-int NvramConfig::sim_type() const {
-  return sim_type_;
+const std::optional<std::filesystem::path>& NvramConfig::icc_profile_override() const {
+  return icc_profile_override_;
 }
 
 }  // namespace cuttlefish

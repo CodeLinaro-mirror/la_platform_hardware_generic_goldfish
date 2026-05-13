@@ -174,8 +174,8 @@ void CheckModemSimulatorAvdDir(const fs::path& modem_avd_dir, const fs::path& si
                   modem_simulator_si_dir / "etc" / "modem_simulator" / "files" / "numeric_operator.xml");
 }
 
-absl::StatusOr<std::shared_ptr<ModemSimulatorService>> CreateImpl(const Avd& avd) {
-    constexpr int kSimType = 1;
+absl::StatusOr<std::shared_ptr<ModemSimulatorService>> CreateImpl(
+        const Avd& avd, const std::optional<std::filesystem::path>& icc_profile_override) {
     constexpr size_t kNumModems = 1;
     constexpr int kModemId = 0;
 
@@ -206,7 +206,7 @@ absl::StatusOr<std::shared_ptr<ModemSimulatorService>> CreateImpl(const Avd& avd
     DeviceConfig::SetHostId(host_id);
     DeviceConfig::SetTimezone("America/Los_Angeles");  // TODO: do not hardcode
 
-    NvramConfig::InitNvramConfigService(kNumModems, kSimType);
+    NvramConfig::InitNvramConfigService(kNumModems, icc_profile_override);
 
     auto modem_simulator = std::make_shared<ModemSimulator>(kModemId);
 
@@ -218,8 +218,10 @@ absl::StatusOr<std::shared_ptr<ModemSimulatorService>> CreateImpl(const Avd& avd
 }
 }  // namespace
 
-std::shared_ptr<ModemSimulatorService> ModemSimulatorService::Create(const Avd& avd) {
-    auto service = CreateImpl(avd);
+std::shared_ptr<ModemSimulatorService> ModemSimulatorService::Create(
+        const Avd& avd,
+        const std::optional<std::filesystem::path>& icc_profile_override) {
+    auto service = CreateImpl(avd, icc_profile_override);
     if (!service.ok()) {
         LOG(ERROR) << "Modem simulator: " << service.status() <<
                       ". Cellular features (e.g. text messages and phone calls) will "
