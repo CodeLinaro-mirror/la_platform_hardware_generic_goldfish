@@ -158,6 +158,7 @@ cc_library(
     hdrs = ["include/android/emulation/control/incubating/screen_recording_impl.h"],
     includes = ["include"],
     deps = [
+        "//emulator/libs/file",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/log",

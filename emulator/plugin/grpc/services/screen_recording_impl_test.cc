@@ -17,6 +17,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
+#include <fstream>
 #include <string>
 
 #include "gtest/gtest.h"
@@ -103,6 +104,28 @@ TEST_F(ScreenRecordingServiceImplTest, StartRecordingFailsForInvalidFps) {
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.error_code(), grpc::StatusCode::INVALID_ARGUMENT);
+}
+
+TEST_F(ScreenRecordingServiceImplTest, StartRecordingFailsIfFileExists) {
+    std::string test_file = (temp_dir_ / "test_exists.webm").string();
+    // Create the file first
+    std::ofstream file(test_file);
+    file << "dummy content";
+    file.close();
+
+    RecordingInfo request;
+    request.set_file_name(test_file);
+
+    RecordingInfo response;
+    grpc::ServerContext context;
+
+    auto status = service->StartRecording(&context, &request, &response);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.error_code(), grpc::StatusCode::ALREADY_EXISTS);
+
+    // Clean up
+    std::remove(test_file.c_str());
 }
 
 }  // namespace android::emulation::control::incubating

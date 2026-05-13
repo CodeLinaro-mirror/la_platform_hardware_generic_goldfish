@@ -17,7 +17,11 @@
 #include "absl/hash/hash.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
+#include "absl/strings/str_cat.h"
 #include "absl/time/time.h"
+
+#include "goldfish/file/file.h"
+#include "goldfish/file/file_atomic.h"
 
 namespace android {
 namespace emulation {
@@ -48,6 +52,13 @@ Status ScreenRecordingServiceImpl::StartRecording(ServerContext* context,
         return Status(grpc::StatusCode::INVALID_ARGUMENT, error_msg);
     }
 
+    // 2b. Resolve to absolute path to return the complete path in response.
+    auto abs_path_status = android::base::file::make_absolute(configured_request.file_name());
+    if (!abs_path_status.ok()) {
+        return Status(grpc::StatusCode::INTERNAL, "Failed to resolve absolute path.");
+    }
+    configured_request.set_file_name(abs_path_status->string());
+
     auto screen = display_.GetDisplay(configured_request.display());
     if (!screen.ok()) {
         LOG(WARNING) << "Unable to retrieve display: " << screen.status();
@@ -68,6 +79,18 @@ Status ScreenRecordingServiceImpl::StartRecording(ServerContext* context,
             return Status(grpc::StatusCode::ALREADY_EXISTS,
                           "Recording already exists for this file.");
         }
+    }
+
+    // Create the file exclusively to prevent TOCTOU race and ensure restricted permissions.
+    auto file_status =
+            android::base::file::CreatePrivateFileExclusive(configured_request.file_name(), "");
+    if (!file_status.ok()) {
+        if (file_status.code() == absl::StatusCode::kAlreadyExists) {
+            return Status(grpc::StatusCode::ALREADY_EXISTS, "File already exists on disk.");
+        }
+        LOG(ERROR) << "Failed to create file exclusively: " << file_status;
+        return Status(grpc::StatusCode::INTERNAL,
+                      absl::StrCat("Failed to create recording file: ", file_status.message()));
     }
 
     // 4. Start the Recorder
@@ -91,7 +114,7 @@ Status ScreenRecordingServiceImpl::StartRecording(ServerContext* context,
     if (!recorder_->Start(kFileName, frame_generator)) {
         recorder_.reset();
         return Status(grpc::StatusCode::INTERNAL,
-                      "Failed to start recording. Check logs for details.");
+                      "Failed to initialize video encoder. Check emulator logs for details.");
     }
 
     // 5. Update State
@@ -103,7 +126,10 @@ Status ScreenRecordingServiceImpl::StartRecording(ServerContext* context,
     // 6. Prepare Response
     *response = configured_request;
 
-    LOG(INFO) << "Started recording: " << configured_request.file_name() << std::endl;
+    LOG(INFO) << "Started screen recording. File: " << configured_request.file_name()
+              << ", Display: " << configured_request.display()
+              << ", FPS: " << configured_request.fps()
+              << ", Bitrate: " << configured_request.bit_rate();
     return Status::OK;
 }
 
@@ -116,7 +142,11 @@ Status ScreenRecordingServiceImpl::StopRecording(ServerContext* context,
         return Status(grpc::StatusCode::NOT_FOUND, "Recording not started.");
     }
 
-    auto it = recordings_.find(request->file_name());
+    auto abs_path_status = android::base::file::make_absolute(request->file_name());
+    if (!abs_path_status.ok()) {
+        return Status(grpc::StatusCode::INTERNAL, "Failed to resolve absolute path.");
+    }
+    auto it = recordings_.find(abs_path_status->string());
     if (it == recordings_.end()) {
         return Status(grpc::StatusCode::NOT_FOUND, "Recording not found.");
     }
@@ -128,7 +158,7 @@ Status ScreenRecordingServiceImpl::StopRecording(ServerContext* context,
     recorder_->Stop();
     recorder_.reset();
 
-    LOG(INFO) << "Stopped recording: " << request->file_name() << std::endl;
+    LOG(INFO) << "Stopped screen recording for file: " << request->file_name();
     return Status::OK;
 }
 
