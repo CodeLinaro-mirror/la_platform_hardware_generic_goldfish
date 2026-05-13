@@ -363,7 +363,14 @@ int main(int argc, char** argv) {
     auto avd = android::goldfish::Avd::FromName(opts, *user_paths, name, opts.wipe_data,
                                                 writable_content_override);
     if (!avd.ok()) {
-        LOG(ERROR) << "Failed to load " << name << " due to " << avd.status().message();
+        if (avd.status().code() == absl::StatusCode::kNotFound) {
+            LOG(ERROR) << "Unknown AVD name [" << name << "], use -list-avds to see valid list.";
+            for (const auto line : absl::StrSplit(avd.status().message(), '\n')) {
+                LOG(ERROR) << line;
+            }
+        } else {
+            LOG(ERROR) << "Failed to load " << name << " due to " << avd.status().message();
+        }
         return 1;
     }
     LOG(INFO) << "Launching AVD: " << (*avd)->Details(opts.verbose);

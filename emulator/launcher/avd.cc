@@ -36,6 +36,7 @@
 #include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
 
+#include "android/base/system.h"
 #include "android/goldfish/hardware_config.h"
 #include "android/goldfish/ini_file.h"
 #include "android/goldfish/input_paths.h"
@@ -407,7 +408,25 @@ absl::StatusOr<std::unique_ptr<Avd>> Avd::FromName(const AndroidOptions& opts,
     auto ini_path = user_paths.avd_directory / (name + ".ini");
 
     if (!base::file::exists(ini_path) || !base::file::can_read(ini_path)) {
-        return absl::NotFoundError(absl::StrCat("No access to: ", ini_path.string()));
+        std::string homeSearchDir =
+                (fs::path("$HOME") / ".android" / "avd").make_preferred().string();
+        std::string sdkHomeSearchDir =
+                (fs::path("$ANDROID_SDK_HOME") / "avd").make_preferred().string();
+
+        std::string envName = "HOME";
+        std::string searchDir = homeSearchDir;
+        if (!android::base::System::Get()->EnvGet("ANDROID_AVD_HOME").empty()) {
+            envName = "ANDROID_AVD_HOME";
+            searchDir = "$ANDROID_AVD_HOME";
+        } else if (!android::base::System::Get()->EnvGet("ANDROID_SDK_HOME").empty()) {
+            envName = "ANDROID_SDK_HOME";
+            searchDir = sdkHomeSearchDir;
+        }
+
+        return absl::NotFoundError(absl::StrFormat(
+                "%s is defined but there is no file %s.ini in %s\n"
+                "(Note: Directories are searched in the order $ANDROID_AVD_HOME, %s and %s)",
+                envName, name, searchDir, sdkHomeSearchDir, homeSearchDir));
     }
 
     LOG(INFO) << "Parsing AVD: " << ini_path.string();
@@ -527,7 +546,6 @@ absl::StatusOr<std::unique_ptr<Avd>> Avd::FromName(const AndroidOptions& opts,
             LOG(INFO) << "    " << path.lexically_relative(content_path).string();
         }
     }
-
 
     HardwareConfig hw_cfg;
     hw_cfg.Load(config_ini);
