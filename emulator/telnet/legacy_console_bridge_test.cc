@@ -290,6 +290,26 @@ TEST_F(LegacyConsoleBridgeTest, NameSucceedsAndReturnsAvdName) {
     EXPECT_EQ(*result, "Pixel_9_Pro");
 }
 
+TEST_F(LegacyConsoleBridgeTest, IdSucceedsAndReturnsAvdId) {
+    auto ctx = CreateContext();
+    ctx->authenticated = true;
+
+    auto mock_stub = std::make_unique<android::emulation::control::MockEmulatorControllerStub>();
+    EXPECT_CALL(*mock_stub, getStatus(_, _, _))
+            .WillOnce([](grpc::ClientContext* context, const google::protobuf::Empty& request,
+                         android::emulation::control::EmulatorStatus* response) {
+                auto* config = response->mutable_platformconfig();
+                (*config)["avd.id"] = "avd_id_123";
+                return grpc::Status::OK;
+            });
+    ctx->mock_stub = std::move(mock_stub);
+
+    auto result = (*bridge_)("avd id", *ctx);
+
+    ASSERT_TRUE(result.ok()) << result.status().message();
+    EXPECT_EQ(*result, "avd_id_123");
+}
+
 TEST_F(LegacyConsoleBridgeTest, NameReturnsUnknownIfAvdNameMissingInPlatformConfig) {
     auto ctx = CreateContext();
     ctx->authenticated = true;

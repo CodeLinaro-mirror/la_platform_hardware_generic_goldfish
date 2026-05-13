@@ -185,7 +185,7 @@ LegacyConsoleBridge::LegacyConsoleBridge(int port, std::filesystem::path token_p
     avd.On("bugreport" /* do_avd_bugreport */, "generate bug report info.",
            [](ConsoleContext& /*ctx*/) { return absl::UnimplementedError("not implemented"); });
     avd.On("id" /* do_avd_id */, "query virtual device ID",
-           [](ConsoleContext& /*ctx*/) { return absl::UnimplementedError("not implemented"); });
+           [](ConsoleContext& ctx) { return GetPlatformConfigProperty(ctx, "avd.id"); });
     avd.On("windowtype" /* do_avd_windowtype */, "query virtual device headless or qtwindow",
            [](ConsoleContext& /*ctx*/) { return absl::UnimplementedError("not implemented"); });
 
