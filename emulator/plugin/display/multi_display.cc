@@ -223,6 +223,17 @@ extern "C" void grpc_dpy_gfx_update(struct DisplayChangeListener* dcl, int x, in
     if (con == nullptr) {
         con = qemu_console_lookup_default();
     }
+    DisplaySurface* surface_of_console = qemu_console_surface(con);
+    if (!surface_of_console) {
+        LOG(ERROR) << "Unable to find a display surface";
+        return;
+    }
+
+    const bool is_placeholder = surface_is_placeholder(surface_of_console);
+    if (is_placeholder) {
+        VLOG(1) << "ignore update of place holder surface";
+        return;
+    }
     auto index = qemu_console_get_index(con);
     auto device = multi_display->GetDisplayWeak(index);
     if (!device.ok()) {
@@ -255,7 +266,13 @@ extern "C" void grpc_dpy_gfx_switch(struct DisplayChangeListener* dcl,
         // TODO(whollins): maybe use qemu_console_lookup_by_device_name("gpu0", head, err);
         con = qemu_console_lookup_default();
     }
-    auto index = qemu_console_get_index(con);
+    const auto index = qemu_console_get_index(con);
+    if (index == 0 && surface_is_placeholder(new_surface)) {
+        // do nothing on place holder surface because it does
+        // not come from android guest
+        VLOG(1) << "Ignore place holder surface";
+        return;
+    }
     auto device = multi_display->GetDisplayWeak(index);
     if (absl::IsNotFound(device.status())) {
         DisplaySurface* surface = new_surface;
