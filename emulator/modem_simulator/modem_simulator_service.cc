@@ -204,6 +204,7 @@ absl::StatusOr<std::shared_ptr<ModemSimulatorService>> CreateImpl(
 
     DeviceConfig::SetBasePath(std::move(modem_simulator_avd_dir));
     DeviceConfig::SetHostId(host_id);
+    DeviceConfig::SetUseIpv6(false);
     DeviceConfig::SetTimezone("America/Los_Angeles");  // TODO: do not hardcode
 
     NvramConfig::InitNvramConfigService(kNumModems, icc_profile_override);

@@ -29,14 +29,23 @@ std::string network_device_type(const Avd& avd, std::string_view addr) {
 }  // namespace
 
 std::vector<std::string> NetworkDevice::getQemuParameters(const EmulatorConfig& emulator) const {
-    return {
-        // First basic ethernet.
-        // TODO(whollins): The hubport backend doesn't provide any connectivity.
-        "-netdev",
-        "hubport,id=mynet,hubid=1234",
-        "-device",
-        absl::StrCat(network_device_type(emulator.avd(), addr()), ",netdev=mynet"),
-    };
+    std::vector<std::string> ret;
+    if (netsim_backend_) {
+        ret.emplace_back("-device");
+        ret.emplace_back(absl::StrCat("netsim-netdev,id=", id(),
+                                      ",mode=", cellular_ ? "cellular" : "ethernet"));
+    } else {
+        ret.emplace_back("-netdev");
+        ret.emplace_back(absl::StrCat("user,id=", id()));
+    }
+    ret.emplace_back("-device");
+    ret.emplace_back(absl::StrCat(network_device_type(emulator.avd(), addr()), ",netdev=", id()));
+
+    // TODO debug dump packets to file
+    // ret.emplace_back("-object");
+    // ret.emplace_back(absl::StrCat("filter-dump,id=f1,netdev=", id(), ",file=/tmp/netdump.dat"));
+
+    return ret;
 }
 
 }  // namespace android::goldfish
