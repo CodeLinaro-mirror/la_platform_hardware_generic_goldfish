@@ -136,4 +136,30 @@ TEST_F(ParameterBinderTest, RValueOnlyFunctor) {
     EXPECT_EQ(*result, "123");
 }
 
+TEST_F(ParameterBinderTest, ExtractArgStream) {
+    auto func = [](DummyContext&, ArgStream& args) -> absl::Status {
+        if (args.Empty()) return absl::InvalidArgumentError("Empty stream");
+        std::string token = args.Next();
+        if (token != "expected") return absl::InvalidArgumentError("Unexpected token");
+        return absl::OkStatus();
+    };
+
+    ArgStream args("expected");
+    auto result = BindAndInvoke(func, ctx_, args);
+
+    ASSERT_TRUE(result.ok());
+}
+
+TEST_F(ParameterBinderTest, ArgStreamBypassesEmptyCheck) {
+    auto func = [](DummyContext&, ArgStream& args) -> absl::Status {
+        args.Next();  // consume one token
+        return absl::OkStatus();
+    };
+
+    ArgStream args("token1 token2");
+    auto result = BindAndInvoke(func, ctx_, args);
+
+    ASSERT_TRUE(result.ok());
+}
+
 }  // namespace goldfish::parsing

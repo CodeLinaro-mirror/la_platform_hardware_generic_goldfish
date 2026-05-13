@@ -13,6 +13,7 @@
 // limitations under the License.
 #pragma once
 
+#include <functional>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -75,6 +76,14 @@ struct ArgExtractor<std::string> {
     static absl::StatusOr<std::string> Extract(ArgStream& args) {
         if (args.Empty()) return absl::InvalidArgumentError("Missing argument");
         return args.Next();
+    }
+};
+
+/** @brief Returns the ArgStream itself without consuming anything. */
+template <>
+struct ArgExtractor<ArgStream> {
+    static absl::StatusOr<std::reference_wrapper<ArgStream>> Extract(ArgStream& args) {
+        return std::ref(args);
     }
 };
 
@@ -301,10 +310,14 @@ absl::StatusOr<std::string> InvokeFromStream(F&& func, Context& ctx, ArgStream& 
     }
 
     /**
-     * Enforce strict argument counts.
+     * Enforce strict argument counts if ArgStream is not manually handled.
      */
-    if (!args.Empty()) {
-        return absl::InvalidArgumentError("Too many arguments");
+    constexpr bool has_arg_stream =
+            (std::is_same_v<std::tuple_element_t<Is, ArgsTuple>, ArgStream> || ...);
+    if constexpr (!has_arg_stream) {
+        if (!args.Empty()) {
+            return absl::InvalidArgumentError("Too many arguments");
+        }
     }
 
     /**
