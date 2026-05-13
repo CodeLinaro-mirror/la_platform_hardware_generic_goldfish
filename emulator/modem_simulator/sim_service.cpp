@@ -383,7 +383,7 @@ void SimService::InitializeSimFileSystemAndSimState() {
       icc_profile_name.c_str());
 
   if (!cuttlefish::FileExists(icc_profile_path) ||
-      !cuttlefish::FileHasContent(icc_profile_path.c_str())) {
+      !cuttlefish::FileHasContent(icc_profile_path)) {
     sim_status_ = SIM_STATUS_ABSENT;
     return;
   }
