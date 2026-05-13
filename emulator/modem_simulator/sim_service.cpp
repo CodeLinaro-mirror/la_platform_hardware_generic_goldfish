@@ -384,6 +384,8 @@ void SimService::InitializeSimFileSystemAndSimState() {
 
   if (!cuttlefish::FileExists(icc_profile_path) ||
       !cuttlefish::FileHasContent(icc_profile_path)) {
+    LOG(WARNING) << "The SIM card profile file at " << icc_profile_path
+        << " is missing or empty; the SIM card will be treated as absent.";
     sim_status_ = SIM_STATUS_ABSENT;
     return;
   }
