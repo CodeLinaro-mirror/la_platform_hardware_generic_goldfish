@@ -277,15 +277,14 @@ std::vector<std::pair<std::string, std::string>> getUserspaceBootProperties(
     //     params.push_back({autoRotateProp, "1"});
     //   }
 
-    //   for (auto i = opts->append_userspace_opt; i; i = i->next) {
-    //     std::string const val = i->param;
-    //     std::string const eq = strchr(val, '=');
-    //     if (eq) {
-    //       params.push_back({std::string(val, eq), eq + 1});
-    //     } else {
-    //       params.push_back({val, ""});
-    //     }
-    //   }
+    for (auto i = opts.append_userspace_opt; i; i = i->next) {
+        const char* const val = i->param;
+        if (const char* const eq = strchr(val, '=')) {
+            params.push_back({std::string(val, eq), eq + 1});
+        } else {
+            params.push_back({val, ""});
+        }
+    }
 
     if (hw.hw_lcd_circular) {
         params.push_back({emulatorCircularProp, "1"});
