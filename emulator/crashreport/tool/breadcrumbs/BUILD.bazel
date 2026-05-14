@@ -1,4 +1,6 @@
 # Copyright 2026 The Android Open Source Project
+load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_test")
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 load("@rules_python//python:defs.bzl", "py_binary", "py_test")
 
 package(default_visibility = ["//visibility:public"])
@@ -11,14 +13,135 @@ py_binary(
     ],
 )
 
+# Central list of all gRPC services that should be resolvable by the breadcrumb tool.
+# A developer only needs to add the :xxx_proto target here to support a new service.
+filegroup(
+    name = "breadcrumb_service_protos",
+    srcs = [
+        "@aemu//protos/services/adb:adb_service_proto",
+        "@aemu//protos/services/bluetooth:emulated_bluetooth_proto",
+        "@aemu//protos/services/diagnostic:grpc_diagnostic_proto",
+        "@aemu//protos/services/emulator-controller:emulator_controller_proto",
+        "@aemu//protos/services/emulator-stats:emulator_stats_proto",
+        "@aemu//protos/services/forwarder:service_forwarder_proto",
+        "@aemu//protos/services/incubating/car:car_service_proto",
+        "@aemu//protos/services/incubating/modem:modem_service_proto",
+        "@aemu//protos/services/incubating/recording:screen_recording_service_proto",
+        "@aemu//protos/services/incubating/sensor:sensor_service_proto",
+        "@aemu//protos/services/snapshot:snapshot_service_proto",
+        "@aemu//protos/services/test:test_echo_service_proto",
+        "@aemu//protos/services/ui-controller:ui_controller_service_proto",
+        "@aemu//protos/services/webrtc:rtc_service_proto",
+    ],
+)
+
+# Rule to generate the metadata code.
+genrule(
+    name = "generate_breadcrumb_metadata",
+    srcs = [":breadcrumb_service_protos"],
+    outs = [
+        "breadcrumb_metadata.h",
+        "breadcrumb_metadata.cc",
+    ],
+    cmd = "$(location :gen_breadcrumb_metadata) " +
+          "--descriptors $(locations :breadcrumb_service_protos) " +
+          "--header $(location breadcrumb_metadata.h) " +
+          "--source $(location breadcrumb_metadata.cc)",
+    # Windows version to work around MAX_PATH issues.
+    cmd_bat = "$(location :gen_breadcrumb_metadata) " +
+              "--descriptors $(locations :breadcrumb_service_protos) " +
+              "--header $(location breadcrumb_metadata.h) " +
+              "--source $(location breadcrumb_metadata.cc)",
+    tools = [":gen_breadcrumb_metadata"],
+)
+
+cc_library(
+    name = "breadcrumb_metadata",
+    srcs = ["breadcrumb_metadata.cc"],
+    hdrs = ["breadcrumb_metadata.h"],
+    deps = [
+        "@aemu//protos/services/adb:adb_service_cc_proto",
+        "@aemu//protos/services/bluetooth:emulated_bluetooth_cc_proto",
+        "@aemu//protos/services/diagnostic:grpc_diagnostic_cc_proto",
+        "@aemu//protos/services/emulator-controller:emulator_controller_cc_proto",
+        "@aemu//protos/services/emulator-stats:emulator_stats_cc_proto",
+        "@aemu//protos/services/forwarder:service_forwarder_cc_proto",
+        "@aemu//protos/services/incubating/car:car_service_cc_proto",
+        "@aemu//protos/services/incubating/modem:modem_service_cc_proto",
+        "@aemu//protos/services/incubating/recording:screen_recording_service_cc_proto",
+        "@aemu//protos/services/incubating/sensor:sensor_service_cc_proto",
+        "@aemu//protos/services/snapshot:snapshot_service_cc_proto",
+        "@aemu//protos/services/test:test_echo_service_cc_proto",
+        "@aemu//protos/services/ui-controller:ui_controller_service_cc_proto",
+        "@aemu//protos/services/webrtc:rtc_service_cc_proto",
+        "@protobuf",
+    ],
+)
+
+cc_library(
+    name = "breadcrumbs",
+    srcs = [
+        "breadcrumb_processor.cc",
+    ],
+    hdrs = [
+        "include/android/crashreport/breadcrumbs/breadcrumb_processor.h",
+    ],
+    strip_include_prefix = "include",
+    deps = [
+        ":breadcrumb_metadata",
+        "//emulator/crashreport/tool/breadcrumbs/core",
+        "//emulator/crashreport/tool/breadcrumbs/renderer",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/strings:str_format",
+        "@abseil-cpp//absl/time",
+    ],
+)
+
+cc_test(
+    name = "breadcrumb_processor_test",
+    srcs = ["breadcrumb_processor_test.cc"],
+    deps = [
+        ":breadcrumbs",
+        "//emulator/libs/test:googletest_main",
+        "@googletest//:gtest",
+    ],
+)
+
+cc_test(
+    name = "breadcrumbs_test",
+    srcs = ["breadcrumbs_test.cc"],
+    deps = [
+        ":breadcrumbs",
+        "//emulator/crashreport/tool/breadcrumbs/core",
+        "//emulator/libs/test:googletest_main",
+        "@googletest//:gtest",
+    ],
+)
+
 py_test(
     name = "gen_breadcrumb_metadata_test",
     srcs = ["gen_breadcrumb_metadata_test.py"],
     data = [
         "@aemu//protos/services/emulator-controller:emulator_controller_proto",
     ],
+    # Disabled on Windows because the py_test launcher exceeds MAX_PATH (260 characters)
+    # in the deep runfiles directory, causing a FileNotFoundError (WinError 206).
+    target_compatible_with = select({
+        "@platforms//os:windows": ["@platforms//:incompatible"],
+        "//conditions:default": [],
+    }),
     deps = [
         ":gen_breadcrumb_metadata",
         "@protobuf//:protobuf_python",
     ],
+)
+
+clang_tidy_test(
+    name = "tidy",
+    targets = [
+        ":breadcrumbs",
+        ":breadcrumb_metadata",
+    ],
+    tidy_config_file = "//:clang_tidy_config",
 )

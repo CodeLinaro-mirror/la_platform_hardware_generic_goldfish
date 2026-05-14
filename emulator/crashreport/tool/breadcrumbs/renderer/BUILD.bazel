@@ -1,0 +1,58 @@
+# Copyright 2026 The Android Open Source Project
+load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_test")
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+
+package(default_visibility = ["//emulator/crashreport/tool/breadcrumbs:__subpackages__"])
+
+cc_library(
+    name = "renderer",
+    srcs = [
+        "ansi_renderer.cc",
+        "mermaid_renderer.cc",
+        "trace_renderer_factory.cc",
+    ],
+    hdrs = [
+        "include/android/crashreport/breadcrumbs/ansi_renderer.h",
+        "include/android/crashreport/breadcrumbs/mermaid_renderer.h",
+        "include/android/crashreport/breadcrumbs/trace_renderer.h",
+        "include/android/crashreport/breadcrumbs/trace_renderer_factory.h",
+    ],
+    strip_include_prefix = "include",
+    deps = [
+        "//emulator/crashreport/tool/breadcrumbs/core",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/strings:str_format",
+        "@abseil-cpp//absl/time",
+    ],
+)
+
+cc_test(
+    name = "ansi_renderer_test",
+    srcs = ["ansi_renderer_test.cc"],
+    deps = [
+        ":renderer",
+        "//emulator/crashreport/tool/breadcrumbs/core",
+        "//emulator/libs/test:googletest_main",
+        "@googletest//:gtest",
+    ],
+)
+
+cc_test(
+    name = "mermaid_renderer_test",
+    srcs = ["mermaid_renderer_test.cc"],
+    deps = [
+        ":renderer",
+        "//emulator/crashreport/tool/breadcrumbs/core",
+        "//emulator/libs/test:googletest_main",
+        "@googletest//:gtest",
+    ],
+)
+
+clang_tidy_test(
+    name = "tidy",
+    targets = [
+        ":renderer",
+    ],
+    tidy_config_file = "//:clang_tidy_config",
+)
