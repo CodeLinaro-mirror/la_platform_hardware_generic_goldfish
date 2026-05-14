@@ -49,6 +49,12 @@ uint32_t qemu_console_get_head(QemuConsole* con) {
     (void)con;
     return 0;
 }
+
+DisplaySurface* qemu_console_surface(QemuConsole* con) {
+    (void)con;
+    return NULL;
+}
+
 int qemu_console_get_index(QemuConsole* con) {
     (void)con;
     return 0;
