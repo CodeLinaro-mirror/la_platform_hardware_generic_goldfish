@@ -2,7 +2,7 @@ load("@bazel_lib//lib:copy_file.bzl", "copy_file")
 load("@bazel_lib//lib:directory_path.bzl", "make_directory_path")
 load("@bazel_skylib//lib:selects.bzl", "selects")
 load("@bazel_skylib//rules:build_test.bzl", "build_test")
-load("@bazel_skylib//rules:common_settings.bzl", "bool_flag")
+load("@bazel_skylib//rules:common_settings.bzl", "bool_flag", "string_flag")
 load("@bazel_skylib//rules:select_file.bzl", "select_file")
 load("@goldfish_build//rules/native:native_binaries.bzl", "stripped_binaries")
 load("@rules_license//rules:license.bzl", "license")
@@ -34,6 +34,14 @@ package(
 bool_flag(
     name = "internal_fishtank",
     build_setting_default = False,
+)
+
+# Optional override path for the fishtank directory.
+# When specified, bypasses downloading and unzipping the prebuilt fishtank release.
+# Usage: --@goldfish//emulator:fishtank_path=/path/to/fishtank
+string_flag(
+    name = "fishtank_path",
+    build_setting_default = "",
 )
 
 config_setting(

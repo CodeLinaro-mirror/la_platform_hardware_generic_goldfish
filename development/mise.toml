@@ -24,6 +24,11 @@ bzl = "$BAZEL_ROOT/build/bazel/utils/bzl_wrapper.sh"
 description = "Builds the emulator release"
 run = "bazel build @goldfish//emulator:release"
 
+[tasks.launch_emulator_local_fishtank]
+description = "Launches emulator with a local fishtank build"
+run = "bazel run @goldfish//emulator/launcher:launch_emulator --@goldfish//emulator:fishtank_path=/path-to/emu-main-dev/external/qemu/objs/distribution-fishtank/fishtank -- -verbose -fishtank-stdout"
+
+[tasks.launcher_36_fold]
 [tasks.test]
 description = "Runs all the emulator tests"
 run = "bazel test @goldfish//..."

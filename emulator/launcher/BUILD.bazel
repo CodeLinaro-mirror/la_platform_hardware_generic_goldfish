@@ -19,6 +19,7 @@ unzip(
 
 subpath_link(
     name = "fishtank",
+    fishtank_dir = "//emulator:fishtank_path",
     parent_dir = ":fishtank_unzip",
     subpath = "fishtank",
     subpath_is_dir = True,
