@@ -58,7 +58,7 @@ bool Connector::OnReceive(const void* data, const size_t size) {
             const size_t request_size = buffer_.size() - (end8 - zero8);
 
             const std::string_view request(buffer_.data(), request_size);
-            std::tie(result, self) = ProcessRequest(request, &buffer_[request_size + 1],
+            std::tie(result, self) = ProcessRequest(request, buffer_.data() + request_size + 1,
                                                     buffer_.size() - (request_size + 1), buffer_);
         }
 
