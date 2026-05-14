@@ -59,6 +59,12 @@ std::vector<std::string> GpuDevice::getQemuParameters(const EmulatorConfig& emul
         renderer_features.append(";VulkanBatchedDescriptorSetUpdate:disabled");
     }
 
+    // Temporarily limit guest to Vulkan 1.3, unless 1.4 is explicitly enabled via an env variable.
+    const char* env_vk_enable_1_4 = getenv("ANDROID_EMU_VK_ENABLE_1_4");
+    if (!env_vk_enable_1_4 || env_vk_enable_1_4[0] == '0') {
+        renderer_features.append(";GuestVulkanMaxApiVersion:1.3.0");
+    }
+
     std::string gfxstream_backends = "gfxstream-vulkan=on";
     if (needs_gles) {
         gfxstream_backends.append(",x-gfxstream-gles=on");
