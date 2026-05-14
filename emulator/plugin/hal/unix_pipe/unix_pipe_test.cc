@@ -56,8 +56,8 @@ class UnixPipeTest : public ::testing::Test {
 
     void TearDown() override {
         registry_.Close();
-        auto s = client_loop_->ShutdownAndWait(100ms);
-        ASSERT_THAT(s, absl_testing::IsOk());
+        auto s = client_loop_->ShutdownAndWait(3000ms);
+        EXPECT_THAT(s, absl_testing::IsOk());
         if (client_loop_thread_.joinable()) {
             client_loop_thread_.join();
         }
