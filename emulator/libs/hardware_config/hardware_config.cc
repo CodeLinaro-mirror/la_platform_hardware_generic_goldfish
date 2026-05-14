@@ -41,7 +41,7 @@ void HardwareConfig::Load(const IniFile& ini) {
 
 #include "avd/hw-config-defs.h"
 
-    hw_sdCard = ini.GetDiskSize("sdcard.size", 0) > 0;
+    hw_sdCard = ini.GetBool("hw.sdCard", false);
     hw_sd_card_size = ini.GetDiskSize("sdcard.size", hw_sd_card_size.Bytes());
 }
 
