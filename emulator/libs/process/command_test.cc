@@ -459,7 +459,7 @@ TEST(Command, detach_stops_overseer_immediately) {
     std::basic_stringbuf<char> std_out;
     std::basic_stringbuf<char> std_err;
 
-    auto start = std::chrono::steady_clock::now();
+    std::chrono::steady_clock::time_point start;
     {
         // Start a crashing process that outputs a lot to stdout, so if the overseer is still
         // running after detach, it should not hang. Without the fix, this test can hang
@@ -475,12 +475,13 @@ TEST(Command, detach_stops_overseer_immediately) {
                             .RedirectStdoutToUnsafe(&std_out)
                             .Execute();
 
+        start = std::chrono::steady_clock::now();
         // Detach should stop the overseer immediately.
         proc->Detach();
     }
     auto end = std::chrono::steady_clock::now();
     // It should be instant.
-    EXPECT_LT(end - start, 2s);
+    EXPECT_LT(end - start, 500ms);
 }
 
 }  // namespace base
