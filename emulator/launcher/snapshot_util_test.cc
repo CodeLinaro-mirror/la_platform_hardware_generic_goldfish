@@ -19,7 +19,7 @@
 
 #include "absl/status/status.h"
 
-#include "emulator/launcher/launch_qemu/mock_avd.h"
+#include "mock_avd.h"
 #include "goldfish/async/testing/fake_async_socket.h"
 #include "goldfish/async/testing/test_event_loop.h"
 #include "goldfish/network/endpoint.h"
