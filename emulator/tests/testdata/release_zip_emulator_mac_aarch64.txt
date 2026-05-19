@@ -21,6 +21,8 @@ emulator/data/virtualscene/Toren1BD/poster.png
 emulator/emulator
 emulator/fishtank/
 emulator/fishtank/fishtank
+emulator/fishtank/lib/
+emulator/fishtank/lib/ca-bundle.pem
 emulator/fishtank/lib64/
 emulator/fishtank/lib64/gles_swiftshader/
 emulator/fishtank/lib64/gles_swiftshader/libEGL.dylib
