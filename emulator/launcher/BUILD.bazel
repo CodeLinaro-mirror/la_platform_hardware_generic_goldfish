@@ -355,34 +355,6 @@ collect_plugins(
 )
 
 cc_library(
-    name = "snapshot_util",
-    srcs = ["snapshot_util.cc"],
-    hdrs = ["snapshot_util.h"],
-    deps = [
-        ":avd",
-        "//emulator/libs/async:libuv_event_loop",
-        "//emulator/libs/async:libuv_sockets",
-        "@abseil-cpp//absl/log",
-        "@abseil-cpp//absl/status",
-        "@abseil-cpp//absl/strings",
-        "@abseil-cpp//absl/strings:str_format",
-    ],
-)
-
-cc_test(
-    name = "snapshot_util_test",
-    size = "small",
-    srcs = ["snapshot_util_test.cc"],
-    deps = [
-        ":mock_avd",
-        ":snapshot_util",
-        "//emulator/libs/async:async_testing",
-        "//emulator/libs/test:googletest_main",
-        "@abseil-cpp//absl/status",
-    ],
-)
-
-cc_library(
     name = "launcher_lib",
     srcs = ["launcher.cc"],
     hdrs = ["launcher.h"],
@@ -392,7 +364,6 @@ cc_library(
         ":launch_fishtank",
         ":launch_netsimd",
         ":logging",
-        ":snapshot_util",
         "//emulator/launcher/launch_qemu",
         "//emulator/libs/async:libuv_event_loop",
         "//emulator/libs/async:libuv_process_launcher",

@@ -440,12 +440,8 @@ cc_library(
 
 cc_library(
     name = "launch_qemu",
-    srcs = [
-        "launch_qemu.cc",
-    ],
-    hdrs = [
-        "launch_qemu.h",
-    ],
+    srcs = ["launch_qemu.cc"],
+    hdrs = ["launch_qemu.h"],
     # Qemu roms needed for unittests - Emulator check that it is available.
     data = ["@qemu//:qemu-roms"],
     visibility = ["//visibility:public"],

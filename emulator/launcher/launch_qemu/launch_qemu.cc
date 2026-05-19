@@ -219,13 +219,6 @@ absl::Status LaunchQemu::addDevices() {
         });
     }
 
-    if (config_.qmp_port() != 0) {
-        addDevice<ParameterList>(std::initializer_list<std::string>{
-            "-qmp",
-            absl::StrFormat("tcp:127.0.0.1:%d,server,nowait", config_.qmp_port()),
-        });
-    }
-
     addDevice<SnapshotDevice>();
 
     if (o.qemu) {

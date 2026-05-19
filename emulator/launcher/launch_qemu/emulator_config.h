@@ -26,7 +26,6 @@ namespace android::goldfish {
 struct EmulatorPorts {
     int serial_number = 0;
     int adb_port = 0;
-    int qmp_port = 0;
 };
 
 struct ChardevEndpoints {
@@ -70,7 +69,6 @@ class EmulatorConfig {
 
     int serial_number() const { return mPorts.serial_number; }
     int adb_port() const { return mPorts.adb_port; }
-    int qmp_port() const { return mPorts.qmp_port; }
 
   private:
     const EmulatorPorts& mPorts;
