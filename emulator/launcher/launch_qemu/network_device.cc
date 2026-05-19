@@ -4,6 +4,10 @@
 
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/str_join.h"
+
+#include "android/base/system.h"
+#include "goldfish/network/dns_resolver.h"
 
 namespace android::goldfish {
 
@@ -35,6 +39,22 @@ std::vector<std::string> NetworkDevice::getQemuParameters(const EmulatorConfig& 
         ret.emplace_back(absl::StrCat("netsim-netdev,id=", id(),
                                       ",mode=", cellular_ ? "cellular" : "ethernet"));
     } else {
+        const auto &opts = emulator.opts();
+        std::string host_dns = opts.dns_server ? opts.dns_server : "";
+        if (host_dns.empty()) {
+            if (auto al = ::goldfish::network::GetSystemDnsServers(); al.ok()) {
+                host_dns = absl::StrJoin(*al, ",", [](std::string* out, const auto& ip) {
+                    absl::StrAppend(out, ::goldfish::network::ToString(ip));
+                });
+            } else {
+                LOG(WARNING) << "Failed to retrieve the system DNS servers due to: " << al.status();
+                LOG(WARNING) << "slirp networking will run with reduced functionality.";
+            }
+        }
+        if (!host_dns.empty()) {
+           VLOG(1) << "Slirp DNS set to: " << host_dns;
+           android::base::System::SetEnvironmentVariable("SLIRP_DNS_SERVERS", host_dns);
+        }
         ret.emplace_back("-netdev");
         ret.emplace_back(absl::StrCat("user,id=", id()));
     }
