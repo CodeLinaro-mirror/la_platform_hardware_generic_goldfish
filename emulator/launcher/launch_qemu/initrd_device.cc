@@ -34,7 +34,7 @@
 #include "android/goldfish/avd.h"
 #include "android/goldfish/hardware_config.h"
 #include "android/status/status_macros.h"
-#include "emulator/launcher/bootconfig.h"
+#include "bootconfig.h"
 #include "goldfish/adb/adbkey.h"
 #include "goldfish/file/file.h"
 #include "goldfish/sensors/foldable_model.h"

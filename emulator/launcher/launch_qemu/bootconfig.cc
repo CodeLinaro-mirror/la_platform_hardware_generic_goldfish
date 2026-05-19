@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "emulator/launcher/bootconfig.h"
+#include "bootconfig.h"
 
 #include <sys/stat.h>
 

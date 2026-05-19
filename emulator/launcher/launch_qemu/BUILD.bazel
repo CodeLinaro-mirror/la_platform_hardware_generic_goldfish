@@ -13,40 +13,26 @@ cc_library(
 )
 
 cc_library(
-    name = "device",
-    hdrs = ["device.h"],
-    includes = ["include"],
-    visibility = ["//visibility:public"],
-    deps = [":emulator_config"],
-)
-
-cc_library(
-    name = "mock_avd",
-    testonly = True,
-    hdrs = ["mock_avd.h"],
-    include_prefix = "android/goldfish/devices/",
-    visibility = ["//visibility:public"],
-    deps = ["//emulator/launcher:avd"],
-)
-
-cc_library(
     name = "fake_emulator",
     testonly = True,
     hdrs = ["fake_emulator.h"],
-    include_prefix = "android/goldfish/devices/",
-    visibility = ["//visibility:public"],
     deps = [
         ":emulator_config",
-        ":mock_avd",
+        "//emulator/launcher:mock_avd",
         "//emulator/libs/system:bazel_info",
     ],
+)
+
+cc_library(
+    name = "device",
+    hdrs = ["device.h"],
+    deps = [":emulator_config"],
 )
 
 cc_library(
     name = "audio_device",
     srcs = ["audio_device.cc"],
     hdrs = ["audio_device.h"],
-    visibility = ["//visibility:public"],
     deps = [
         ":device",
         "//emulator/libs/base",
@@ -59,7 +45,6 @@ cc_library(
     name = "adb_device",
     srcs = ["adb_device.cc"],
     hdrs = ["adb_device.h"],
-    visibility = ["//visibility:public"],
     deps = [
         ":device",
         "@abseil-cpp//absl/log",
@@ -70,7 +55,6 @@ cc_library(
 cc_test(
     name = "adb_device_test",
     srcs = ["adb_device_test.cc"],
-    visibility = ["//visibility:public"],
     deps = [
         ":adb_device",
         ":device",
@@ -87,7 +71,6 @@ cc_library(
     name = "avd_info_device",
     srcs = ["avd_info_device.cc"],
     hdrs = ["avd_info_device.h"],
-    visibility = ["//visibility:public"],
     deps = [
         ":device",
         "@abseil-cpp//absl/log",
@@ -98,7 +81,6 @@ cc_library(
 cc_test(
     name = "avd_info_device_test",
     srcs = ["avd_info_device_test.cc"],
-    visibility = ["//visibility:public"],
     deps = [
         ":avd_info_device",
         ":device",
@@ -115,7 +97,6 @@ cc_library(
     name = "cpu_device",
     srcs = ["cpu_device.cc"],
     hdrs = ["cpu_device.h"],
-    visibility = ["//visibility:public"],
     deps = [
         ":device",
         "//emulator/libs/cpu",
@@ -127,7 +108,6 @@ cc_library(
 cc_test(
     name = "cpu_device_test",
     srcs = ["cpu_device_test.cc"],
-    visibility = ["//visibility:public"],
     deps = [
         ":cpu_device",
         ":device",
@@ -144,7 +124,6 @@ cc_library(
     name = "display_device",
     srcs = ["display_device.cc"],
     hdrs = ["display_device.h"],
-    visibility = ["//visibility:public"],
     deps = [
         ":device",
         "@abseil-cpp//absl/log",
@@ -155,7 +134,6 @@ cc_library(
 cc_test(
     name = "display_device_test",
     srcs = ["display_device_test.cc"],
-    visibility = ["//visibility:public"],
     deps = [
         ":device",
         ":display_device",
@@ -172,7 +150,6 @@ cc_library(
     name = "gpu_device",
     srcs = ["gpu_device.cc"],
     hdrs = ["gpu_device.h"],
-    visibility = ["//visibility:public"],
     deps = [
         ":device",
         "//emulator/libs/sensors:physical_model",
@@ -185,7 +162,6 @@ cc_library(
     name = "grpc_device",
     srcs = ["grpc_device.cc"],
     hdrs = ["grpc_device.h"],
-    visibility = ["//visibility:public"],
     deps = [
         ":device",
         "@abseil-cpp//absl/status:statusor",
@@ -197,7 +173,6 @@ cc_test(
     name = "grpc_device_test",
     srcs = ["grpc_device_test.cc"],
     data = ["//emulator/launcher:unsecure-emulator-access"],
-    visibility = ["//visibility:public"],
     deps = [
         ":device",
         ":fake_emulator",
@@ -211,14 +186,30 @@ cc_test(
 )
 
 cc_library(
+    name = "bootconfig",
+    srcs = ["bootconfig.cc"],
+    hdrs = ["bootconfig.h"],
+    deps = ["//emulator/libs/system"],
+)
+
+cc_test(
+    name = "bootconfig_test",
+    srcs = ["bootconfig_test.cc"],
+    deps = [
+        ":bootconfig",
+        "//emulator/libs/system:test-headers",
+        "//emulator/libs/test:googletest_main",
+    ],
+)
+
+cc_library(
     name = "initrd_device",
     srcs = ["initrd_device.cc"],
     hdrs = ["initrd_device.h"],
-    visibility = ["//visibility:public"],
     deps = [
+        ":bootconfig",
         ":device",
         ":disk_drive",
-        "//emulator/launcher:bootconfig",
         "//emulator/libs/adbkey",
         "//emulator/libs/sensors:physical_model",
         "@abseil-cpp//absl/status:statusor",
@@ -229,7 +220,6 @@ cc_library(
 cc_test(
     name = "initrd_device_test",
     srcs = ["initrd_device_test.cc"],
-    visibility = ["//visibility:public"],
     deps = [
         ":device",
         ":fake_emulator",
@@ -246,7 +236,6 @@ cc_library(
     name = "kernel_device",
     srcs = ["kernel_device.cc"],
     hdrs = ["kernel_device.h"],
-    visibility = ["//visibility:public"],
     deps = [
         ":device",
         "@abseil-cpp//absl/container:btree",
@@ -258,7 +247,6 @@ cc_library(
 cc_test(
     name = "kernel_device_test",
     srcs = ["kernel_device_test.cc"],
-    visibility = ["//visibility:public"],
     deps = [
         ":device",
         ":fake_emulator",
@@ -275,7 +263,6 @@ cc_library(
     name = "machine",
     srcs = ["machine.cc"],
     hdrs = ["machine.h"],
-    visibility = ["//visibility:public"],
     deps = [
         ":device",
         "@abseil-cpp//absl/status:statusor",
@@ -286,7 +273,6 @@ cc_library(
 cc_test(
     name = "machine_test",
     srcs = ["machine_test.cc"],
-    visibility = ["//visibility:public"],
     deps = [
         ":device",
         ":fake_emulator",
@@ -303,7 +289,6 @@ cc_library(
     name = "memory_device",
     srcs = ["memory_device.cc"],
     hdrs = ["memory_device.h"],
-    visibility = ["//visibility:public"],
     deps = [
         ":device",
         "@abseil-cpp//absl/status:statusor",
@@ -314,7 +299,6 @@ cc_library(
 cc_test(
     name = "memory_device_test",
     srcs = ["memory_device_test.cc"],
-    visibility = ["//visibility:public"],
     deps = [
         ":device",
         ":fake_emulator",
@@ -331,7 +315,6 @@ cc_library(
     name = "network_device",
     srcs = ["network_device.cc"],
     hdrs = ["network_device.h"],
-    visibility = ["//visibility:public"],
     deps = [
         ":device",
         "@abseil-cpp//absl/status:statusor",
@@ -342,7 +325,6 @@ cc_library(
 cc_test(
     name = "network_device_test",
     srcs = ["network_device_test.cc"],
-    visibility = ["//visibility:public"],
     deps = [
         ":device",
         ":fake_emulator",
@@ -359,7 +341,6 @@ cc_library(
     name = "parameter_list",
     srcs = ["parameter_list.cc"],
     hdrs = ["parameter_list.h"],
-    visibility = ["//visibility:public"],
     deps = [
         ":device",
         "@abseil-cpp//absl/status:statusor",
@@ -371,7 +352,6 @@ cc_library(
     name = "wifi_device",
     srcs = ["wifi_device.cc"],
     hdrs = ["wifi_device.h"],
-    visibility = ["//visibility:public"],
     deps = [
         ":device",
         "@abseil-cpp//absl/status:statusor",
@@ -383,7 +363,6 @@ cc_library(
     name = "user_data_drive",
     srcs = ["user_data_drive.cc"],
     hdrs = ["user_data_drive.h"],
-    visibility = ["//visibility:public"],
     deps = [
         ":device",
         "//emulator/libs/ext4",
@@ -396,7 +375,6 @@ cc_library(
     name = "disk_drive",
     srcs = ["disk_drive.cc"],
     hdrs = ["disk_drive.h"],
-    visibility = ["//visibility:public"],
     deps = [
         ":device",
         "//emulator/libs/ext4",
@@ -409,7 +387,6 @@ cc_library(
 cc_test(
     name = "disk_drive_test",
     srcs = ["disk_drive_test.cc"],
-    visibility = ["//visibility:public"],
     deps = [
         ":disk_drive",
         ":fake_emulator",
@@ -425,7 +402,6 @@ cc_library(
     name = "configure_drives",
     srcs = ["configure_drives.cc"],
     hdrs = ["configure_drives.h"],
-    visibility = ["//visibility:public"],
     deps = [
         ":device",
         ":disk_drive",
@@ -438,11 +414,10 @@ cc_library(
 cc_test(
     name = "configure_drives_test",
     srcs = ["configure_drives_test.cc"],
-    visibility = ["//visibility:public"],
     deps = [
         ":configure_drives",
         ":fake_emulator",
-        ":mock_avd",
+        "//emulator/launcher:mock_avd",
         "//emulator/libs/system:test-headers",
         "//emulator/libs/test:googletest_main",
         "@abseil-cpp//absl/status:status_matchers",

@@ -45,7 +45,6 @@ cc_test(
         "@platforms//os:macos": ["-undefined error"],
         "//conditions:default": [],
     }),
-    visibility = ["//visibility:public"],
     deps = [
         ":config_dirs",
         "//emulator/libs/system",
@@ -77,7 +76,6 @@ cc_library(
 cc_test(
     name = "input_paths_test",
     srcs = ["input_paths_test.cc"],
-    visibility = ["//visibility:public"],
     deps = [
         ":input_paths",
         "//emulator/libs/status_macros",
@@ -114,7 +112,6 @@ cc_library(
 cc_test(
     name = "avd_test",
     srcs = ["avd_test.cc"],
-    visibility = ["//visibility:public"],
     deps = [
         ":avd",
         "//emulator/libs/status_macros",
@@ -123,6 +120,15 @@ cc_test(
         "//emulator/libs/test:googletest_main",
         "@abseil-cpp//absl/status:status_matchers",
     ],
+)
+
+cc_library(
+    name = "mock_avd",
+    testonly = True,
+    hdrs = ["include/android/goldfish/mock_avd.h"],
+    includes = ["include/android/goldfish"],
+    visibility = ["//visibility:public"],
+    deps = [":avd"],
 )
 
 cc_library(
@@ -146,7 +152,6 @@ cc_library(
     name = "logging",
     srcs = ["logging.cc"],
     hdrs = ["logging.h"],
-    visibility = ["//visibility:public"],
     deps = [
         "//emulator/launcher/cmdline",
         "//emulator/libs/logging:color_log_sink",
@@ -159,31 +164,11 @@ cc_library(
 cc_test(
     name = "logging_test",
     srcs = ["logging_test.cc"],
-    visibility = ["//visibility:public"],
     deps = [
         ":logging",
         "//emulator/libs/system:test-headers",
         "//emulator/libs/test:googletest_main",
         "@abseil-cpp//absl/strings",
-    ],
-)
-
-cc_library(
-    name = "bootconfig",
-    srcs = ["bootconfig.cc"],
-    hdrs = ["bootconfig.h"],
-    visibility = ["//visibility:public"],
-    deps = ["//emulator/libs/system"],
-)
-
-cc_test(
-    name = "bootconfig_test",
-    srcs = ["bootconfig_test.cc"],
-    visibility = ["//visibility:public"],
-    deps = [
-        ":bootconfig",
-        "//emulator/libs/system:test-headers",
-        "//emulator/libs/test:googletest_main",
     ],
 )
 
@@ -373,7 +358,6 @@ cc_library(
     name = "snapshot_util",
     srcs = ["snapshot_util.cc"],
     hdrs = ["snapshot_util.h"],
-    visibility = ["//visibility:public"],
     deps = [
         ":avd",
         "//emulator/libs/async:libuv_event_loop",
@@ -390,8 +374,8 @@ cc_test(
     size = "small",
     srcs = ["snapshot_util_test.cc"],
     deps = [
+        ":mock_avd",
         ":snapshot_util",
-        "//emulator/launcher/launch_qemu:mock_avd",
         "//emulator/libs/async:async_testing",
         "//emulator/libs/test:googletest_main",
         "@abseil-cpp//absl/status",
@@ -402,7 +386,6 @@ cc_library(
     name = "launcher_lib",
     srcs = ["launcher.cc"],
     hdrs = ["launcher.h"],
-    visibility = ["//visibility:public"],
     deps = [
         ":host_info",
         ":input_paths",
@@ -436,7 +419,7 @@ cc_test(
     srcs = ["launcher_test.cc"],
     deps = [
         ":launcher_lib",
-        "//emulator/launcher/launch_qemu:mock_avd",
+        ":mock_avd",
         "//emulator/libs/async:async_testing",
         "//emulator/libs/test:googletest_main",
         "@abseil-cpp//absl/status",

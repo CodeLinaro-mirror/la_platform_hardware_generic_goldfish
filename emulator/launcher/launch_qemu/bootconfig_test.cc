@@ -9,12 +9,12 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-#include "emulator/launcher/bootconfig.h"
-
 #include <gtest/gtest.h>
 #include <string.h>
 
 #include <string_view>
+
+#include "bootconfig.h"
 
 using namespace std::literals;
 

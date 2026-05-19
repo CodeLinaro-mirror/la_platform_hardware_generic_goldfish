@@ -38,7 +38,7 @@
 #include "goldfish/metrics/metrics_reporter.h"
 #include "goldfish/metrics/metrics_writer.h"
 #include "goldfish/network/endpoint.h"
-#include "launch_qemu/mock_avd.h"
+#include "mock_avd.h"
 #include "uv.h"
 
 namespace android::goldfish {
