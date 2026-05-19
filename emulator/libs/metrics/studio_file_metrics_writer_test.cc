@@ -223,7 +223,7 @@ TEST_F(StudioFileMetricsWriterTest, FinalizeAbandonedFiles) {
 
     auto abandoned = StudioFileMetricsWriter::FinalizeAbandonedSessionFiles(temp_path());
 
-    EXPECT_EQ(abandoned.size(), 1);
+    ASSERT_EQ(abandoned.size(), 1);
     EXPECT_EQ(abandoned[0], "dead-session");
 
     // dead-session should be .trk now
@@ -255,7 +255,7 @@ TEST_F(StudioFileMetricsWriterTest, FinalizeAbandonedFilesWithDeadPid) {
 
     auto abandoned = StudioFileMetricsWriter::FinalizeAbandonedSessionFiles(temp_path());
 
-    EXPECT_EQ(abandoned.size(), 1);
+    ASSERT_EQ(abandoned.size(), 1);
     EXPECT_EQ(abandoned[0], "dead-pid-session");
 
     EXPECT_FALSE(fs::exists(dead_pid_file));
@@ -282,7 +282,7 @@ TEST_F(StudioFileMetricsWriterTest, FinalizeAbandonedFilesWithExpiredLock) {
 
     auto abandoned = StudioFileMetricsWriter::FinalizeAbandonedSessionFiles(temp_path());
 
-    EXPECT_EQ(abandoned.size(), 1);
+    ASSERT_EQ(abandoned.size(), 1);
     EXPECT_EQ(abandoned[0], "expired-session");
     EXPECT_TRUE(fs::exists(temp_path() / "emulator-metrics2-expired-session-1234-0.trk"));
     EXPECT_FALSE(fs::exists(expired_lock));
