@@ -36,6 +36,8 @@ emulator/fishtank/Qt6WebSocketsAndroidEmu.dll
 emulator/fishtank/Qt6WidgetsAndroidEmu.dll
 emulator/fishtank/concrt140.dll
 emulator/fishtank/fishtank.exe
+emulator/fishtank/lib/
+emulator/fishtank/lib/ca-bundle.pem
 emulator/fishtank/lib64/
 emulator/fishtank/lib64/gles_swiftshader/
 emulator/fishtank/lib64/gles_swiftshader/libEGL.dll
