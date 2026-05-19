@@ -73,6 +73,7 @@ cc_library(
     hdrs = ["avd_info_device.h"],
     deps = [
         ":device",
+        ":snapshot_device",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/strings",
     ],
@@ -426,9 +427,25 @@ cc_test(
 )
 
 cc_library(
+    name = "snapshot_device",
+    srcs = ["snapshot_device.cc"],
+    hdrs = ["snapshot_device.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":device",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/strings",
+    ],
+)
+
+cc_library(
     name = "launch_qemu",
-    srcs = ["launch_qemu.cc"],
-    hdrs = ["launch_qemu.h"],
+    srcs = [
+        "launch_qemu.cc",
+    ],
+    hdrs = [
+        "launch_qemu.h",
+    ],
     # Qemu roms needed for unittests - Emulator check that it is available.
     data = ["@qemu//:qemu-roms"],
     visibility = ["//visibility:public"],
@@ -448,6 +465,7 @@ cc_library(
         ":memory_device",
         ":network_device",
         ":parameter_list",
+        ":snapshot_device",
         ":wifi_device",
         "//emulator/launcher:avd",
         "//emulator/launcher:input_paths",
