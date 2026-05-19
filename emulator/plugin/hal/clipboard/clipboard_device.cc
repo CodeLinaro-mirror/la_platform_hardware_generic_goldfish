@@ -15,6 +15,7 @@
 #include "goldfish/devices/clipboard/clipboard_device.h"
 
 #include <memory>
+#include <span>
 #include <string>
 #include <vector>
 
@@ -53,7 +54,12 @@ class ClipboardDevice : public IClipboardDevice {
             }
 
             ClipboardData clipboard_data;
-            clipboard_data.contents = std::string(&receive_data_[sizeof(uint32_t)], data_size);
+
+            if (data_size) {
+                const auto contents = std::span(receive_data_).subspan(sizeof(uint32_t), data_size);
+                clipboard_data.contents = std::string(contents.begin(), contents.end());
+            }
+
             receive_data_.erase(receive_data_.begin(),
                                 receive_data_.begin() + sizeof(uint32_t) + data_size);
 
