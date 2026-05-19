@@ -302,18 +302,21 @@ collect_plugins(
         #"@netsim//:netsimd",
     ] + select({
         "@platforms//os:windows": [
+            "@goldfish_prebuilts_common//netsim:netsim_cli_windows_x86_64",
             "@goldfish_prebuilts_common//netsim:netsim_windows_x86_64",
             "@qemu//:qemu-system-aarch64",
             "@qemu//:qemu-system-x86_64",
         ],
         "@platforms//os:macos": [
             "@goldfish_prebuilts_common//netsim:netsim_darwin_aarch64",
+            "@goldfish_prebuilts_common//netsim:netsim_cli_darwin_aarch64",
             "@qemu//:qemu-system-aarch64_signed",
             "@qemu//:qemu-system-riscv64_signed",
             "@qemu//:qemu-system-x86_64_signed",
         ],
         "//conditions:default": [
             "@goldfish_prebuilts_common//netsim:netsim_linux_x86_64",
+            "@goldfish_prebuilts_common//netsim:netsim_cli_linux_x86_64",
             "@qemu//:qemu-system-aarch64",
             "@qemu//:qemu-system-riscv64",
             "@qemu//:qemu-system-x86_64",
@@ -324,12 +327,15 @@ collect_plugins(
             "@qemu//:qemu-system-x86_64_signed": "qemu-system-x86_64",
             "@qemu//:qemu-system-aarch64_signed": "qemu-system-aarch64",
             "@goldfish_prebuilts_common//netsim:netsim_darwin_aarch64": "netsimd",
+            "@goldfish_prebuilts_common//netsim:netsim_cli_darwin_aarch64": "netsim",
         },
         "@platforms//os:windows": {
             "@goldfish_prebuilts_common//netsim:netsim_windows_x86_64": "netsimd.exe",
+            "@goldfish_prebuilts_common//netsim:netsim_cli_windows_x86_64": "netsim.exe",
         },
         "//conditions:default": {
             "@goldfish_prebuilts_common//netsim:netsim_linux_x86_64": "netsimd",
+            "@goldfish_prebuilts_common//netsim:netsim_cli_linux_x86_64": "netsim",
         },
     }),
 )

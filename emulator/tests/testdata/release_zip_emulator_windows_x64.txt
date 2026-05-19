@@ -3,6 +3,7 @@ emulator/bin/
 emulator/bin/crashpad_handler.exe
 emulator/bin/crashreport.exe
 emulator/bin/img2simg.exe
+emulator/bin/netsim.exe
 emulator/bin/netsimd.exe
 emulator/bin/qemu-img.exe
 emulator/bin/qemu-system-aarch64.exe

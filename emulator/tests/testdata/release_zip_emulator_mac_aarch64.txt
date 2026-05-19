@@ -5,6 +5,7 @@ emulator/bin/
 emulator/bin/crashpad_handler
 emulator/bin/crashreport
 emulator/bin/img2simg
+emulator/bin/netsim
 emulator/bin/netsimd
 emulator/bin/qemu-img
 emulator/bin/qemu-system-aarch64
