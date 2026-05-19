@@ -29,9 +29,12 @@
 
 #include "android/base/system.h"
 #include "android/cmdline_option.h"
+#include "android/emulation/control/absl_status_translate.h"
+#include "android/emulation/control/emulator_grpc_client.h"
 #include "android/goldfish/avd.h"
 #include "android/goldfish/input_paths.h"
 #include "android/status/status_macros.h"
+#include "emulator_controller.grpc.pb.h"
 #include "goldfish/async/async_socket_server.h"
 #include "goldfish/async/libuv_event_loop.h"
 #include "goldfish/async/libuv_process_launcher.h"
@@ -52,6 +55,21 @@
 
 namespace android::goldfish {
 namespace {
+
+absl::Status send_emulator_grpc_shutdown(int serial_number) {
+    // TODO it would be good to share this grpc connection with the telnet console.
+    ASSIGN_OR_RETURN(auto client, android::emulation::control::EmulatorGrpcClientBuilder() .ForDiscoveredEmulator({{"port.serial", std::to_string(serial_number)}}) .BuildBlocking());
+    RETURN_IF_ERROR(client->Connect(absl::Seconds(2)));
+
+    ASSIGN_OR_RETURN(auto stub, client->Stub<android::emulation::control::EmulatorController>());
+    ASSIGN_OR_RETURN(auto context, client->NewContext());
+    context->set_deadline(std::chrono::system_clock::now() + std::chrono::milliseconds(500));
+
+    android::emulation::control::VmRunState request;
+    request.set_state(android::emulation::control::VmRunState::SHUTDOWN);
+    google::protobuf::Empty response;
+    return android::emulation::control::GrpcStatusToAbslStatus(stub->setVmState(context.get(), request, &response));
+}
 
 using ::goldfish::async::WhenAll;
 using WhenAllChardevEndpoints = std::shared_ptr<WhenAll<ChardevEndpoints>>;
@@ -97,15 +115,12 @@ class Launcher {
         VLOG(1) << "forwarding_signal_handler called with signum: " << signum;
         shutting_down_ = true;
         if (auto* p = emulator_process_.get()) {
-#ifdef _WIN32
-            if (signum == 2 /* SIGINT */) {
-                LOG(INFO) << "Not forwarding signal " << signum
-                          << " to emulator, triggering snapshot save and quit instead.";
-                return;
+            LOG(ERROR) << "Signal received, sending shutdown command emulator: " << signum;
+            if (auto s = send_emulator_grpc_shutdown(ports_.serial_number); !s.ok()) {
+                LOG(INFO) << "shutdown command failed, signalling emulator: " << signum << " - " << s;
+                // Note that: on Windows, this does not send a signal but instead calls TerminateProcess().
+                p->Kill(signum);
             }
-#endif
-            LOG(INFO) << "Signal received, forwarding to emulator: " << signum;
-            p->Kill(signum);
         } else {
             // If there is no emulator process yet then we want to shutdown directly.
             shutdown();

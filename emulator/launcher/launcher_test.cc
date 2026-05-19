@@ -383,11 +383,7 @@ TEST_F(LauncherTest, ForwardsSignalToEmulator) {
             launched,
             [&]() {
                 // Verify Kill is called on the process
-#ifdef _WIN32
-                EXPECT_CALL(*mock_process_ptr, Kill(SIGINT)).Times(0);
-#else
                 EXPECT_CALL(*mock_process_ptr, Kill(SIGINT)).Times(1);
-#endif
                 event_loop->Post([&]() { launcher_signal_cb(SIGINT); }).IgnoreError();
                 std::this_thread::sleep_for(std::chrono::milliseconds(50));
                 event_loop->Post([&]() { emulator_exit_cb(0, 0); }).IgnoreError();
@@ -502,11 +498,7 @@ TEST_F(LauncherTest, ForwardsMultipleSignalsToEmulator) {
     std::thread trigger = TriggerEmulatorScript(
             launched,
             [&]() {
-#ifdef _WIN32
-                EXPECT_CALL(*mock_process_ptr, Kill(SIGINT)).Times(0);
-#else
                 EXPECT_CALL(*mock_process_ptr, Kill(SIGINT)).Times(1);
-#endif
                 EXPECT_CALL(*mock_process_ptr, Kill(SIGTERM)).Times(1);
                 EXPECT_CALL(*mock_process_ptr, Kill(SIGHUP)).Times(1);
 
