@@ -49,6 +49,7 @@
 #include "memory_device.h"
 #include "network_device.h"
 #include "parameter_list.h"
+#include "snapshot_device.h"
 #include "wifi_device.h"
 
 namespace android::goldfish {
@@ -61,6 +62,7 @@ absl::Status LaunchQemu::addDevices() {
     // -device A -device B ...
     const auto& o = config_.opts();
     const auto& a = config_.avd();
+
     int pluginLogLevel = static_cast<int>(o.verbose ? absl::LogSeverityAtLeast::kInfo
                                                     : absl::LogSeverityAtLeast::kWarning);
 
@@ -180,7 +182,10 @@ absl::Status LaunchQemu::addDevices() {
     }
 
     std::string gpu_name = "gpu0";
-    addDevice<GpuDevice>(gpu_name);
+    std::string dont_care_reason;
+    addDevice<GpuDevice>(gpu_name,
+                         SnapshotDevice::should_load_snapshot(config_, dont_care_reason) ||
+                                 SnapshotDevice::should_save_snapshot(config_, dont_care_reason));
 
     // Also includes input devices for the display.
     addDevice<DisplayDevice>(gpu_name);
@@ -214,37 +219,20 @@ absl::Status LaunchQemu::addDevices() {
         });
     }
 
-    const bool snapshot_save_needed = o.snapshot && o.snapshot[0] != '\0' && !o.no_snapshot_save;
-    const bool qmp_needed = snapshot_save_needed && config_.qmp_port() != 0;
-    if (qmp_needed) {
+    if (config_.qmp_port() != 0) {
         addDevice<ParameterList>(std::initializer_list<std::string>{
             "-qmp",
             absl::StrFormat("tcp:127.0.0.1:%d,server,nowait", config_.qmp_port()),
         });
     }
 
-    if (o.snapshot && o.snapshot[0] != '\0') {
-        if (o.no_snapshot_load) {
-            LOG(INFO) << "Snapshot loading disabled by -no-snapshot-load, performing cold boot.";
-        } else if (snapshotExists(o.snapshot)) {
-            LOG(INFO) << "Snapshot '" << o.snapshot << "' found, loading...";
-            addDevice<ParameterList>(std::initializer_list<std::string>{"-loadvm", o.snapshot});
-        } else {
-            LOG(INFO) << "Snapshot '" << o.snapshot << "' not found, performing cold boot.";
-        }
-    }
+    addDevice<SnapshotDevice>();
 
     if (o.qemu) {
         addDevice<ParameterList>(absl::StrSplit(o.qemu, ' '));
     }
 
     return absl::OkStatus();
-}
-
-bool LaunchQemu::snapshotExists(const std::string& name) const {
-    const auto& a = config_.avd();
-    fs::path bootstatus_ini = a.GetContentPath() / "snapshots" / name / "bootstatus.ini";
-    return fs::exists(bootstatus_ini);
 }
 
 void LaunchQemu::clear() {
@@ -360,7 +348,7 @@ absl::StatusOr<::goldfish::async::LaunchConfig> LaunchQemu::launch_config() {
     return ::goldfish::async::LaunchConfig{
         .exe_path = std::move(exe_path),
         .args = std::move(args),
-        .new_process_group = true,
+        .new_process_group = false,
         .stdio_mode = ::goldfish::async::LaunchConfig::StdioMode::kInherit,
     };
 }

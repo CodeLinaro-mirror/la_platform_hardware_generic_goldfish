@@ -98,15 +98,15 @@ class Launcher {
         VLOG(1) << "forwarding_signal_handler called with signum: " << signum;
         shutting_down_ = true;
         if (auto* p = emulator_process_.get()) {
-            if (config_.opts.snapshot && (signum == SIGINT || signum == SIGTERM)) {
+#ifdef _WIN32
+            if (signum == 2 /* SIGINT */) {
                 LOG(INFO) << "Not forwarding signal " << signum
                           << " to emulator, triggering snapshot save and quit instead.";
-                save_snapshot_and_quit();
                 return;
-            } else {
-                LOG(INFO) << "Signal received, forwarding to emulator: " << signum;
-                p->Kill(signum);
             }
+#endif
+            LOG(INFO) << "Signal received, forwarding to emulator: " << signum;
+            p->Kill(signum);
         } else {
             // If there is no emulator process yet then we want to shutdown directly.
             shutdown();
@@ -225,9 +225,7 @@ class Launcher {
             RETURN_IF_ERROR(hunt_for_free_port(*console_controller));
         }
 
-        if (opts.snapshot && !opts.no_snapshot_save) {
-            RETURN_IF_ERROR(hunt_for_qmp_port(event_loop, *config_.socket_factory));
-        }
+        RETURN_IF_ERROR(hunt_for_qmp_port(event_loop, *config_.socket_factory));
 
         if (ports_.adb_port < 5555 || ports_.adb_port > 5585) {
             LOG(WARNING)
@@ -443,31 +441,6 @@ class Launcher {
                     /*qemu_pid=*/emulator_process_->GetPid(), config_.opts.metrics_collection,
                     config_.opts.fuchsia);
         });
-    }
-
-    void save_snapshot_and_quit() {
-        auto kill_emulator = [this]() {
-            if (auto* p = emulator_process_.get()) {
-                p->Kill(SIGTERM);
-            } else {
-                shutdown();
-            }
-        };
-
-        if (!config_.opts.snapshot || config_.opts.no_snapshot_save || ports_.qmp_port == 0) {
-            if (config_.opts.no_snapshot_save) {
-                LOG(INFO) << "Snapshot saving disabled by -no-snapshot-save, quitting "
-                             "emulator directly";
-            } else {
-                LOG(INFO) << "No snapshot or QMP port configured, quitting emulator directly";
-            }
-            kill_emulator();
-            return;
-        }
-
-        SnapshotUtil::save_snapshot_and_quit(config_.event_loop, *config_.socket_factory,
-                                             ports_.qmp_port, config_.opts.snapshot,
-                                             config_.avd.get(), kill_emulator);
     }
 
     void shutdown() {

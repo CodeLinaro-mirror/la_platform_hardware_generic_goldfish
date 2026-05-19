@@ -1,4 +1,4 @@
-// Copyright 2024 The Android Open Source Project
+// Copyright 2026 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,19 +19,18 @@
 
 namespace android::goldfish {
 
-// Configures the rutabaga gfxstream based graphics card.
-// The gpu card lives in the first pci slot (01.0)
-class GpuDevice : public PciDevice {
+// Handles QEMU snapshot command line parameters
+class SnapshotDevice : public Device {
   public:
-    explicit GpuDevice(std::string_view gpu_name, bool snapshot_enabled)
-            : PciDevice("gpu", "01.0"), mGpuName(gpu_name), mSnapshotEnabled(snapshot_enabled) {}
+    explicit SnapshotDevice() : Device("snapshot") {}
 
     absl::Status initialize(const EmulatorConfig& emulator) override;
     std::vector<std::string> getQemuParameters(const EmulatorConfig& emulator) const override;
 
-  private:
-    std::string mGpuName;
-    bool mSnapshotEnabled;
+    static bool should_load_snapshot(const EmulatorConfig& emulator, std::string& reason);
+    static bool should_save_snapshot(const EmulatorConfig& emulator, std::string& reason);
+    static const char* get_snapshot_name(const EmulatorConfig& emulator);
+    static bool snapshotExists(const EmulatorConfig& emulator, const std::string& name);
 };
 
 }  // namespace android::goldfish

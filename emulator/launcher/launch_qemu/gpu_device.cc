@@ -54,7 +54,7 @@ std::vector<std::string> GpuDevice::getQemuParameters(const EmulatorConfig& emul
         renderer_features.append(";VulkanVirtualQueue:enabled");
     }
 
-    if (opts.snapshot) {
+    if (mSnapshotEnabled) {
         renderer_features.append(";VulkanSnapshots:enabled");
         renderer_features.append(";VulkanBatchedDescriptorSetUpdate:disabled");
     }
@@ -81,7 +81,7 @@ std::vector<std::string> GpuDevice::getQemuParameters(const EmulatorConfig& emul
     params.push_back(gfxstream_backends);
     params.push_back("x-gfxstream-composer=on");
     params.push_back(absl::StrCat("renderer_features=", renderer_features));
-    if (opts.snapshot) {
+    if (mSnapshotEnabled) {
         auto snapshot_directory = emulator.avd().GetContentPath() / "snapshots" / "renderer" / "";
         params.push_back(absl::StrCat("snapshot_directory=", snapshot_directory.string()));
     }

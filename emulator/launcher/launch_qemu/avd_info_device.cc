@@ -22,6 +22,7 @@
 #include "absl/strings/str_join.h"
 
 #include "goldfish/metrics/configure_metrics_writer.h"
+#include "snapshot_device.h"
 
 namespace android::goldfish {
 
@@ -68,9 +69,8 @@ absl::Status AvdInfoDevice::initialize(const EmulatorConfig& emulator) {
         params.emplace_back("dump_perf_stat_path", perf_stat_path.string());
     }
 
-    if (char* snapshot = emulator.opts().snapshot) {
-        params.emplace_back("snapshot_name", snapshot);
-    }
+    const char* snapshot_name = SnapshotDevice::get_snapshot_name(emulator);
+    params.emplace_back("snapshot_name", snapshot_name);
 
     mAvdParams = absl::StrJoin(params, ",", [](std::string* s, const auto& pair) {
         absl::StrAppend(s, pair.first, "=", pair.second);
