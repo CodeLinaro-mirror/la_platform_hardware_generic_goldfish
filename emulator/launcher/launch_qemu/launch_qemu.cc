@@ -66,15 +66,19 @@ absl::Status LaunchQemu::addDevices() {
 
     std::string vmodules = o.vmodule ? o.vmodule : "";
     if (System::Get()->GetEnvironmentVariable("AEMU_LOG_LEVEL").empty()) {
+        VLOG(1) << "Setting AEMU_LOG_LEVEL to " << pluginLogLevel;
         System::Get()->SetEnvironmentVariable("AEMU_LOG_LEVEL", absl::StrCat(pluginLogLevel));
     }
     if (System::Get()->GetEnvironmentVariable("AEMU_VLOG_LEVEL").empty()) {
+        VLOG(1) << "Setting AEMU_VLOG_LEVEL to " << o.V;
         System::Get()->SetEnvironmentVariable("AEMU_VLOG_LEVEL", absl::StrCat(o.V ? o.V : ""));
     }
     if (System::Get()->GetEnvironmentVariable("AEMU_VMODULE").empty()) {
+        VLOG(1) << "Setting AEMU_VMODULE to " << vmodules;
         System::Get()->SetEnvironmentVariable("AEMU_VMODULE", vmodules);
     }
     if (System::Get()->GetEnvironmentVariable("AEMU_LOG_DETAILED").empty()) {
+        VLOG(1) << "Setting AEMU_LOG_DETAILED to " << (o.verbose ? "true" : "false");
         System::Get()->SetEnvironmentVariable("AEMU_LOG_DETAILED", o.verbose ? "true" : "false");
     }
 
