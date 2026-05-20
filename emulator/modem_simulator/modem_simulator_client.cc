@@ -149,6 +149,7 @@ IModemSimulatorClient::CallState ToCallState(const ModemSimulatorClient::ModemCa
 }
 
 absl::Status SendModemRequest(SharedFD& socket, const std::string_view req) {
+    VLOG(2) << "Sending modem request:" << req;
     if (WriteAll(socket, req) != req.size()) {
         using namespace std::literals::string_view_literals;
         return absl::InternalError(
