@@ -345,7 +345,7 @@ absl::StatusOr<::goldfish::async::LaunchConfig> LaunchQemu::launch_config() {
     return ::goldfish::async::LaunchConfig{
         .exe_path = std::move(exe_path),
         .args = std::move(args),
-        .new_process_group = false,
+        .new_process_group = true,
         .stdio_mode = ::goldfish::async::LaunchConfig::StdioMode::kInherit,
     };
 }
