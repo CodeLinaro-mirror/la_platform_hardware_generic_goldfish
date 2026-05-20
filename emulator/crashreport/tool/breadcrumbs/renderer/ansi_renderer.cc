@@ -155,6 +155,7 @@ struct RenderState {
     // Tracking active calls per lane to draw ribbons.
     absl::flat_hash_map<uint32_t, size_t> call_to_last_lane;
     absl::flat_hash_map<uint32_t, uint64_t> call_last_ts;
+    size_t time_width = 11;
 
     std::string_view Color(std::string_view code) const { return use_color ? code : ""sv; }
 };
@@ -175,14 +176,26 @@ void RenderLegend(const RenderState& state, std::stringstream& ss) {
 
 // 2. Forensic Header
 void RenderHeader(const RenderState& state, std::stringstream& ss) {
-    ss << state.Color(kBold) << std::left << std::setw(11) << "REL. TIME" << "  ";
+    ss << state.Color(kBold) << std::left << std::setw(state.time_width) << "REL. TIME" << "  ";
     for (size_t i = 0; i < state.sorted_tids.size(); ++i) {
         const std::string label =
                 (state.sorted_tids[i] == state.trace.crashing_thread_id) ? "*" : std::to_string(i);
         ss << std::setw(3) << label;
     }
     ss << "  gRPC FORENSIC TIMELINE" << state.Color(kReset) << "\n";
-    ss << std::string(11 + 2 + (state.sorted_tids.size() * 3) + 26, '-') << "\n";
+    ss << std::string(state.time_width + 2 + (state.sorted_tids.size() * 3) + 26, '-') << "\n";
+}
+
+// Compact Forensic Header for repetition
+void RenderCompactHeader(const RenderState& state, std::stringstream& ss) {
+    ss << state.Color(kGray);
+    ss << std::string(state.time_width, ' ') << "  ";
+    for (size_t i = 0; i < state.sorted_tids.size(); ++i) {
+        const std::string label =
+                (state.sorted_tids[i] == state.trace.crashing_thread_id) ? "*" : std::to_string(i);
+        ss << std::setw(3) << label;
+    }
+    ss << state.Color(kReset) << "\n";
 }
 
 /**
@@ -271,6 +284,25 @@ void RenderForensicSpine(RenderState& state, const RenderEvent& re, std::strings
     state.call_last_ts[cid] = current_ts;
 }
 
+struct TimeFormattingResult {
+    size_t max_width;
+    std::vector<std::string> formatted_times;
+};
+
+TimeFormattingResult CalculateTimeWidths(const std::vector<RenderEvent>& events,
+                                         uint64_t global_start_ns) {
+    size_t max_time_width = 11;
+    std::vector<std::string> formatted_times;
+    formatted_times.reserve(events.size());
+    for (const auto& re : events) {
+        const uint64_t rel_ns = re.breadcrumb->proto.timestamp_ns() - global_start_ns;
+        std::string t = absl::StrFormat("+%v", absl::Nanoseconds(rel_ns));
+        max_time_width = std::max(max_time_width, t.length());
+        formatted_times.push_back(std::move(t));
+    }
+    return {max_time_width, std::move(formatted_times)};
+}
+
 }  // namespace
 
 std::string AnsiRenderer::Render(const DiagnosticTrace& trace) const {
@@ -289,26 +321,34 @@ std::string AnsiRenderer::Render(const DiagnosticTrace& trace) const {
         return a.breadcrumb->proto.timestamp_ns() < b.breadcrumb->proto.timestamp_ns();
     });
 
+    auto [max_time_width, formatted_times] = CalculateTimeWidths(all_events, trace.global_start_ns);
+    state.time_width = max_time_width;
+
     std::stringstream ss;
     RenderLegend(state, ss);
     RenderHeader(state, ss);
 
-    for (const auto& re : all_events) {
+    for (size_t i = 0; i < all_events.size(); ++i) {
+        if (i > 0 && i % 40 == 0) {
+            RenderCompactHeader(state, ss);
+        }
+        const auto& re = all_events[i];
         const auto& b = *re.breadcrumb;
         const auto& proto = b.proto;
-        const uint64_t rel_ns = proto.timestamp_ns() - trace.global_start_ns;
         const std::string_view c_color = GetCallColor(trace, proto.call_id(), use_color_);
         const std::string_view reset = state.Color(kReset);
 
-        ss << state.Color(kWhite) << std::right << std::setw(11)
-           << absl::StrFormat("+%v", absl::Nanoseconds(rel_ns)) << reset << "  ";
+        ss << state.Color(kWhite) << std::right << std::setw(state.time_width) << formatted_times[i]
+           << reset << "  ";
 
         RenderForensicSpine(state, re, ss);
 
         // Call Narrative (Right side text).
         // Format: [ID] PHASE: Method     { Payload }   [STATUS]
-        const std::string call_info = absl::StrFormat("[%d] %s: %s", proto.call_id(),
-                                                      PhaseToLabel(proto.phase()), b.method_name);
+        const size_t current_lane = state.tid_to_lane.at(re.thread_id);
+        const std::string call_info =
+                absl::StrFormat("[%d] %s: %s (T%zu)", proto.call_id(), PhaseToLabel(proto.phase()),
+                                b.method_name, current_lane);
         ss << "  " << c_color << std::left << std::setw(35) << call_info;
 
         if (!b.resolved_payload.empty()) {
@@ -332,7 +372,7 @@ std::string AnsiRenderer::Render(const DiagnosticTrace& trace) const {
     if (!all_events.empty()) {
         const auto& last = all_events.back();
         if (last.is_crashing_thread && last.breadcrumb->proto.status_code() != GrpcBreadcrumb::OK) {
-            const std::string rule(13 + (state.sorted_tids.size() * 3) + 26, '=');
+            const std::string rule(state.time_width + 2 + (state.sorted_tids.size() * 3) + 26, '=');
             ss << state.Color(kBrightRed) << state.Color(kBold) << rule << "\n";
             ss << "FATAL EXCEPTION AT "
                << absl::Nanoseconds(last.breadcrumb->proto.timestamp_ns() - trace.global_start_ns)
