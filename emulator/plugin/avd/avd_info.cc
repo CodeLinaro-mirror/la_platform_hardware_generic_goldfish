@@ -33,6 +33,8 @@
 #include "android/goldfish/device_type.h"
 #include "android/goldfish/hardware_config.h"
 #include "android/goldfish/ini_file.h"
+#include "goldfish/archive/qemu_file_reader.h"
+#include "goldfish/archive/qemu_file_writer.h"
 #include "goldfish/async/event_loop.h"
 #include "goldfish/async/qemu_event_loop.h"
 #include "goldfish/async/testing/global_event_loop.h"
@@ -60,6 +62,7 @@
 #include "qemu/osdep.h"
 extern "C" {
 #include "hw/qdev-core.h"
+#include "migration/vmstate.h"
 #include "qapi/visitor.h"
 #include "qapi/error.h"
 #include "qom/object.h"
@@ -133,6 +136,33 @@ struct AvdExtendedUniverse : public AvdUniverse {
 
     async::EventLoop& GetQemuEventLoop() override { return *qemu_event_loop; }
     goldfish::metrics::MetricsReporter& GetMetricsReporter() override { return *metrics_reporter; }
+
+    void OnPreSave() {
+        // TODO
+    }
+
+    absl::Status OnSave(archive::IWriter&) const {
+        // TODO
+        return absl::OkStatus();
+    }
+
+    void OnPostSave() {
+        // TODO
+    }
+
+    void OnPreLoad() {
+        // TODO
+    }
+
+    absl::Status OnLoad(archive::IReader&) {
+        // TODO
+        return absl::OkStatus();
+    }
+
+    absl::Status OnPostLoad() {
+        // TODO
+        return absl::OkStatus();
+    }
 
     ConnectorRegistry connector_registry;
     ConnectorRegistry test_tools_connector_registry;
@@ -245,6 +275,14 @@ absl::Status ValidateAvdProps(AvdProperties& avd_props) {
 
     avd_props.hw_config.Load(*hw_ini);
     return absl::OkStatus();
+}
+
+AvdExtendedUniverse& toAvdExtendedUniverse(void* opaque) {
+    AvdInfoDev* avd_info = AVD_INFO_DEV(opaque);
+    CHECK(avd_info);
+    AvdExtendedUniverse* u = avd_info->universe;
+    CHECK(u);
+    return *u;
 }
 
 void avd_info_realize(DeviceState* dev, Error** errp) {
@@ -525,6 +563,75 @@ void avd_info_unrealize(DeviceState* dev) {
     gGlobalAvdUniverseInstance = nullptr;
 }
 
+int avd_info_pre_load(void* opaque) {
+    toAvdExtendedUniverse(opaque).OnPreLoad();
+    return 0;
+}
+
+int avd_info_vmstate_impl_get(QEMUFile* f, void* pv, size_t size, const VMStateField* field) {
+    goldfish::archive::QEMUFileReader reader(f);
+    const absl::Status s = toAvdExtendedUniverse(pv).OnLoad(reader);
+    if (s.ok()) {
+        return 0;
+    } else {
+        LOG(ERROR) << "OnLoad failed: " << s;
+        return -1;
+    }
+}
+
+int avd_info_post_load(void* opaque, int version_id) {
+    const absl::Status s = toAvdExtendedUniverse(opaque).OnPostLoad();
+    if (s.ok()) {
+        return 0;
+    } else {
+        LOG(ERROR) << "OnPostLoad failed: " << s;
+        return -1;
+    }
+}
+
+int avd_info_pre_save(void* opaque) {
+    toAvdExtendedUniverse(opaque).OnPreSave();
+    return 0;
+}
+
+int avd_info_vmstate_impl_put(QEMUFile* f, void* pv, size_t size, const VMStateField* field,
+                              JSONWriter* vmdes) {
+    goldfish::archive::QEMUFileWriter writer(f);
+    const absl::Status s = toAvdExtendedUniverse(pv).OnSave(writer);
+    if (s.ok()) {
+        return 0;
+    } else {
+        LOG(ERROR) << "OnSave failed: " << s;
+        return -1;
+    }
+}
+
+int avd_info_post_save(void* opaque) {
+    toAvdExtendedUniverse(opaque).OnPostSave();
+    return 0;
+}
+
+const VMStateInfo avd_info_vmstate_impl = {
+    .name = "virtio_snd_device_remaining",
+    .get = avd_info_vmstate_impl_get,
+    .put = avd_info_vmstate_impl_put,
+};
+
+const VMStateDescription avd_info_vmsd = {
+    .name = "avd_info",
+    .version_id = 1,
+    .minimum_version_id = 1,
+    .pre_load = &avd_info_pre_load,
+    .post_load = &avd_info_post_load,
+    .pre_save = &avd_info_pre_save,
+    .post_save = &avd_info_post_save,
+    .fields = (const VMStateField[]){{
+                                         .name = "impl",
+                                         .info = &avd_info_vmstate_impl,
+                                         .flags = VMS_SINGLE,
+                                     },
+                                     VMSTATE_END_OF_LIST()}};
+
 void avd_info_class_init(ObjectClass* oc, void* data) {
     object_class_property_add(oc, "serial_number", "int", nullptr, avd_info_set_serial_number,
                               nullptr, nullptr);
@@ -562,6 +669,7 @@ void avd_info_class_init(ObjectClass* oc, void* data) {
     DeviceClass* dc = DEVICE_CLASS(oc);
     dc->realize = avd_info_realize;
     dc->unrealize = avd_info_unrealize;
+    dc->vmsd = &avd_info_vmsd;
 }
 
 void avd_info_instance_init(Object* obj) {

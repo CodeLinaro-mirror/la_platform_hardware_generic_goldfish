@@ -111,6 +111,7 @@ cc_library(
         ":info",
         ":vcpu_event_loop",
         "//emulator/crashreport:crash_reporter",
+        "//emulator/libs/archive:QEMUFileArchive",
         "//emulator/libs/async:async_api",
         "//emulator/libs/async:libuv_event_loop",
         "//emulator/libs/async:qemu_event_loop",
