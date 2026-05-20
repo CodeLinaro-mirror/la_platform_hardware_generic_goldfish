@@ -17,6 +17,7 @@
 
 #include <vector>
 
+#include "absl/container/flat_hash_map.h"
 #include "grpc_diagnostic.pb.h"
 
 #include "android/crashreport/breadcrumbs/breadcrumb_trace.h"
@@ -66,11 +67,9 @@ TEST_F(BreadcrumbProcessorTest, ProcessesFullPipeline) {
     std::string output = BreadcrumbProcessor::Process(
             buffer, 100, TraceRendererFactory::RenderFormat::kText, /*use_color=*/false);
 
-    std::cerr << "--- BEGIN PROCESSOR OUTPUT ---\n" << output << "--- END PROCESSOR OUTPUT ---\n";
-
     // Verify presence of essential components in output
-    EXPECT_NE(output.find("THREADS"), std::string::npos);
-    EXPECT_NE(output.find("[*] 100"), std::string::npos);
+    EXPECT_NE(output.find("*"), std::string::npos);
+    EXPECT_NE(output.find("(T100)"), std::string::npos);
     EXPECT_NE(output.find("REL. TIME"), std::string::npos);
     EXPECT_NE(output.find("[1] END"), std::string::npos);
 }
@@ -99,6 +98,25 @@ TEST_F(BreadcrumbProcessorTest, SupportsMermaidOutput) {
     EXPECT_NE(output.find("T1->>T0: +500ns | [1] SEND_MSG"), std::string::npos);  // Migration
     EXPECT_NE(output.find("Note over T0: +1us | [1] END"), std::string::npos);    // End of call
     EXPECT_NE(output.find("Note right of T0: 💥 FATAL EXCEPTION"), std::string::npos);
+}
+
+TEST_F(BreadcrumbProcessorTest, TranslatesThreadIdsWithMap) {
+    std::vector<uint8_t> buffer(4096, 0);
+
+    // Add a trace: Call 1 on TID 100.
+    AddEntry(buffer, 1, 100, 1000, 0, GrpcBreadcrumb::START);
+
+    absl::flat_hash_map<uint64_t, uint64_t> tid_map;
+    tid_map[100] = 42;  // Map OS TID 100 to Breakpad Index 42
+
+    std::string output = BreadcrumbProcessor::Process(
+            buffer, 42, TraceRendererFactory::RenderFormat::kText, /*use_color=*/false, tid_map);
+
+    // Verify that the mapped ID (42) appears instead of the original ID (100)
+    EXPECT_NE(output.find("*"), std::string::npos);
+    EXPECT_NE(output.find("(T42)"), std::string::npos);
+    EXPECT_EQ(output.find("100"),
+              std::string::npos);  // 100 should not be there anymore as a thread ID label
 }
 
 }  // namespace android::crashreport::breadcrumbs

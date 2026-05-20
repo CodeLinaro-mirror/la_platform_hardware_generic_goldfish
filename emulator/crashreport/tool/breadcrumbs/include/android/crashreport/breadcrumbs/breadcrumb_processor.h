@@ -17,6 +17,8 @@
 #include <string>
 #include <vector>
 
+#include "absl/container/flat_hash_map.h"
+
 #include "android/crashreport/breadcrumbs/breadcrumb_trace.h"
 #include "android/crashreport/breadcrumbs/trace_renderer_factory.h"
 
@@ -44,7 +46,7 @@ class BreadcrumbProcessor {
     static std::string Process(
             const std::vector<uint8_t>& buffer, uint64_t crashing_thread_id,
             TraceRendererFactory::RenderFormat format = TraceRendererFactory::RenderFormat::kText,
-            bool use_color = true);
+            bool use_color = true, const absl::flat_hash_map<uint64_t, uint64_t>& tid_map = {});
 };
 
 }  // namespace android::crashreport::breadcrumbs

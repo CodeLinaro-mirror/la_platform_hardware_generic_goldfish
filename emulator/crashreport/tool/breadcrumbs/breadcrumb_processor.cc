@@ -49,8 +49,8 @@ std::vector<EnrichedBreadcrumb> ResolveEntries(const std::vector<GrpcBreadcrumb>
 
 std::string BreadcrumbProcessor::Process(const std::vector<uint8_t>& buffer,
                                          uint64_t crashing_thread_id,
-                                         TraceRendererFactory::RenderFormat format,
-                                         bool use_color) {
+                                         TraceRendererFactory::RenderFormat format, bool use_color,
+                                         const absl::flat_hash_map<uint64_t, uint64_t>& tid_map) {
     // Extract raw breadcrumbs from the binary buffer
     auto raw_entries = BreadcrumbParser::Parse(buffer);
     if (raw_entries.empty()) {
@@ -59,6 +59,17 @@ std::string BreadcrumbProcessor::Process(const std::vector<uint8_t>& buffer,
 
     // Enrich raw entries with semantic metadata, aggregate into a trace, and render
     auto enriched_entries = ResolveEntries(raw_entries);
+
+    // Translate thread IDs if mapping is provided
+    if (!tid_map.empty()) {
+        for (auto& e : enriched_entries) {
+            auto it = tid_map.find(e.proto.thread_id());
+            if (it != tid_map.end()) {
+                e.proto.set_thread_id(it->second);
+            }
+        }
+    }
+
     auto trace = TraceAggregator::Aggregate(enriched_entries, crashing_thread_id);
     auto renderer = TraceRendererFactory::Create(format, use_color);
     return renderer->Render(trace);

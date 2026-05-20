@@ -51,8 +51,8 @@ TEST_F(AnsiRendererTest, RendersBasicTable) {
     EXPECT_NE(output.find("REL. TIME"), std::string::npos);
     EXPECT_NE(output.find("MethodA"), std::string::npos);
     EXPECT_NE(output.find("MethodB"), std::string::npos);
-    EXPECT_NE(output.find("[1] 100"), std::string::npos);  // Legend entry
-    EXPECT_NE(output.find("[*] 200"), std::string::npos);  // Legend entry for crashing thread
+    EXPECT_NE(output.find("100"), std::string::npos);  // Thread ID in header
+    EXPECT_NE(output.find("*"), std::string::npos);    // Crashing thread marker in header
 }
 
 TEST_F(AnsiRendererTest, IncludesAnsiColors) {
@@ -137,9 +137,8 @@ TEST_F(AnsiRendererTest, RendersWithoutColor) {
     // Should NOT contain ANSI escape sequences
     EXPECT_EQ(output.find("\033["), std::string::npos);
 
-    // Should still contain essential info
     EXPECT_NE(output.find("MethodA"), std::string::npos);
-    EXPECT_NE(output.find("[*] 100"), std::string::npos);  // Legend entry for crashing thread
+    EXPECT_NE(output.find("*"), std::string::npos);  // Crashing thread marker in header
 }
 
 }  // namespace android::crashreport::breadcrumbs

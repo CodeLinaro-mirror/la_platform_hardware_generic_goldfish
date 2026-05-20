@@ -20,6 +20,7 @@
 
 #include <map>
 
+#include "absl/container/flat_hash_map.h"
 #include "absl/flags/flag.h"
 #include "absl/flags/parse.h"
 #include "absl/flags/usage.h"
@@ -105,8 +106,24 @@ bool ProcessMinidump(const std::string& minidump_file, MinidumpProcessor& minidu
         uint64_t crashing_thread_id = 0;
         if (process_state.requesting_thread() >= 0 &&
             process_state.requesting_thread() < process_state.threads()->size()) {
-            // TODO: Get the actual OS thread ID from Breakpad ProcessState if possible.
             crashing_thread_id = process_state.requesting_thread();
+        }
+
+        absl::flat_hash_map<uint64_t, uint64_t> os_tid_to_index;
+        google_breakpad::Minidump dump(minidump_file);
+        if (dump.Read()) {
+            google_breakpad::MinidumpThreadList* thread_list = dump.GetThreadList();
+            if (thread_list) {
+                for (uint32_t i = 0; i < thread_list->thread_count(); ++i) {
+                    google_breakpad::MinidumpThread* thread = thread_list->GetThreadAtIndex(i);
+                    if (thread) {
+                        uint32_t os_tid;
+                        if (thread->GetThreadID(&os_tid)) {
+                            os_tid_to_index[os_tid] = i;
+                        }
+                    }
+                }
+            }
         }
 
         using android::crashreport::breadcrumbs::BreadcrumbProcessor;
@@ -124,8 +141,8 @@ bool ProcessMinidump(const std::string& minidump_file, MinidumpProcessor& minidu
             use_color = isatty(fileno(stdout));
         }
 
-        std::string report =
-                BreadcrumbProcessor::Process(breadcrumbs, crashing_thread_id, format, use_color);
+        std::string report = BreadcrumbProcessor::Process(breadcrumbs, crashing_thread_id, format,
+                                                          use_color, os_tid_to_index);
         std::cout << "\n--- gRPC Breadcrumbs ---\n" << report << "\n";
     }
 
