@@ -16,9 +16,8 @@ import sys
 from tempfile import TemporaryDirectory
 import os
 import argparse
-from hardware.generic.goldfish.emulator.tools.symbol_zipper import (
+from emulator.tools.symbol_zipper import (
     symbol_destination,
-    is_symbol_file,
 )
 from python.runfiles import Runfiles
 from pathlib import Path
@@ -50,8 +49,9 @@ def main():
         cmd.append('-m')
     if args.s:
         cmd.append('-s')
+    all_symbol_paths = []
     if args.symbol_paths:
-        cmd.extend(['--symbol_paths'] + args.symbol_paths)
+        all_symbol_paths.extend(args.symbol_paths)
 
     if args.d:
         cmd.extend(['-d', args.d])
@@ -61,9 +61,15 @@ def main():
                 fl = Path(tm) / symbol_destination(f)
                 fl.parent.mkdir(parents=True, exist_ok=True)
                 fl.symlink_to(f)
-            cmd.append(tm)
+            all_symbol_paths.append(tm)
+            
+            if all_symbol_paths:
+                cmd.append(f"--symbol_paths={','.join(all_symbol_paths)}")
+            
             execute_crashreport(cmd)
     else:
+        if all_symbol_paths:
+            cmd.append(f"--symbol_paths={','.join(all_symbol_paths)}")
         cmd.extend(unknownargs)
         execute_crashreport(cmd)
 
