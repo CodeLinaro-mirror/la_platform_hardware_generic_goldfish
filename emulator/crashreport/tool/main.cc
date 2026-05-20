@@ -11,6 +11,13 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+#ifdef _WIN32
+#include <io.h>
+#define isatty _isatty
+#else
+#include <unistd.h>
+#endif
+
 #include "absl/flags/flag.h"
 #include "absl/flags/parse.h"
 #include "absl/flags/usage.h"
@@ -49,6 +56,7 @@ ABSL_FLAG(std::vector<std::string>, symbol_paths, {}, "Paths to symbol files");
 ABSL_FLAG(bool, standalone, false, "Process minidump without initializing the crash database");
 ABSL_FLAG(bool, breadcrumbs, false, "Extract and visualize gRPC breadcrumbs (implies -d)");
 ABSL_FLAG(std::string, breadcrumb_format, "text", "Breadcrumb output format: 'text' or 'mermaid'");
+ABSL_FLAG(std::string, color, "auto", "Enable color output: 'always', 'never', or 'auto'");
 
 using android::base::System;
 using android::crashreport::AnnotationExtractor;
@@ -108,114 +116,121 @@ bool ProcessMinidump(const std::string& minidump_file, MinidumpProcessor& minidu
                 format = TraceRendererFactory::RenderFormat::kMermaid;
             }
 
-            std::string report =
-                    BreadcrumbProcessor::Process(breadcrumbs, crashing_thread_id, format);
+            bool use_color = true;
+            if (absl::GetFlag(FLAGS_color) == "never") {
+                use_color = false;
+            } else if (absl::GetFlag(FLAGS_color) == "auto") {
+                use_color = isatty(fileno(stdout));
+            }
+
+            std::string report = BreadcrumbProcessor::Process(breadcrumbs, crashing_thread_id,
+                                                              format, use_color);
             std::cout << "\n--- gRPC Breadcrumbs ---\n" << report << "\n";
         }
+
+        return true;
     }
 
-    return true;
-}
-
-int main(int argc, char* argv[]) {
-    absl::SetProgramUsageMessage(
-            absl::StrFormat("List, upload and examine emulator related crashdumps.\n"
-                            "The database can be found here: \n%v",
-                            android::crashreport::CrashSystem::databaseDirectory()));
-    absl::ParseCommandLine(argc, argv);
-    absl::InitializeLog();
-    if (android::base::Bazel::InBazel()) {
-        if (System::GetEnvironmentVariable("ANDROID_EMU_CRASH_REPORTING_DATABASE").empty()) {
-            System::SetEnvironmentVariable("ANDROID_EMU_CRASH_REPORTING_DATABASE",
-                                           "/tmp/crash-report.db");
+    int main(int argc, char* argv[]) {
+        absl::SetProgramUsageMessage(
+                absl::StrFormat("List, upload and examine emulator related crashdumps.\n"
+                                "The database can be found here: \n%v",
+                                android::crashreport::CrashSystem::databaseDirectory()));
+        absl::ParseCommandLine(argc, argv);
+        absl::InitializeLog();
+        if (android::base::Bazel::InBazel()) {
+            if (System::GetEnvironmentVariable("ANDROID_EMU_CRASH_REPORTING_DATABASE").empty()) {
+                System::SetEnvironmentVariable("ANDROID_EMU_CRASH_REPORTING_DATABASE",
+                                               "/tmp/crash-report.db");
+            }
+            LOG(INFO) << "Running in bazel environment using crash database: "
+                      << System::GetEnvironmentVariable("ANDROID_EMU_CRASH_REPORTING_DATABASE");
         }
-        LOG(INFO) << "Running in bazel environment using crash database: "
-                  << System::GetEnvironmentVariable("ANDROID_EMU_CRASH_REPORTING_DATABASE");
-    }
 
-    bool standalone = absl::GetFlag(FLAGS_standalone);
-    bool need_db = absl::GetFlag(FLAGS_l) || absl::GetFlag(FLAGS_u) || absl::GetFlag(FLAGS_e) ||
-                   absl::GetFlag(FLAGS_d) == "latest";
+        bool standalone = absl::GetFlag(FLAGS_standalone);
+        bool need_db = absl::GetFlag(FLAGS_l) || absl::GetFlag(FLAGS_u) || absl::GetFlag(FLAGS_e) ||
+                       absl::GetFlag(FLAGS_d) == "latest";
 
-    if (standalone && need_db) {
-        LOG(ERROR) << "--standalone cannot be used with -l, -u, -e, or -d latest";
-        return 1;
-    }
-
-    if (standalone && absl::GetFlag(FLAGS_d).empty()) {
-        LOG(ERROR) << "--standalone requires -d <file>";
-        return 1;
-    }
-
-    CrashReportManager db_manager;
-    if (!standalone || need_db) {
-        if (!db_manager.Initialize()) {
-            LOG(ERROR) << "Failed to initialize CrashReportManager";
+        if (standalone && need_db) {
+            LOG(ERROR) << "--standalone cannot be used with -l, -u, -e, or -d latest";
             return 1;
         }
-    }
-    MinidumpProcessor minidump_processor;
-    AnnotationExtractor annotation_extractor;
-    Formatter formatter;
 
-    bool success = true;
+        if (standalone && absl::GetFlag(FLAGS_d).empty()) {
+            LOG(ERROR) << "--standalone requires -d <file>";
+            return 1;
+        }
 
-    if (absl::GetFlag(FLAGS_l)) {
-        auto reports = db_manager.GetAllReports();
-        if (reports.empty()) {
-            LOG(INFO) << "No reports found in database.";
-        } else {
-            LOG(INFO) << "Listing " << reports.size() << " reports...";
-            formatter.PrintReportList(reports);
-        }
-    } else if (absl::GetFlag(FLAGS_u)) {
-        auto reports = db_manager.GetAllReports();
-        if (reports.empty()) {
-            LOG(INFO) << "No reports found to upload.";
-        } else {
-            LOG(INFO) << "Checking reports for upload...";
-            int requested_count = 0;
-            for (const auto& report : reports) {
-                if (!report.uploaded) {
-                    db_manager.RequestUpload(report.uuid);
-                    LOG(INFO) << "Requested upload for report " << report.uuid.ToString();
-                    requested_count++;
-                }
-            }
-            if (requested_count == 0) {
-                LOG(INFO) << "All reports are already uploaded.";
-            } else {
-                LOG(INFO) << "Requested upload for " << requested_count << " reports.";
-            }
-        }
-    } else if (absl::GetFlag(FLAGS_e)) {
-        auto reports = db_manager.GetAllReports();
-        if (reports.empty()) {
-            LOG(INFO) << "No reports found to erase.";
-        } else {
-            LOG(INFO) << "Erasing " << reports.size() << " reports...";
-            for (const auto& report : reports) {
-                LOG(INFO) << "Erasing " << report.uuid.ToString();
-                db_manager.DeleteReport(report.uuid);
-            }
-        }
-    } else if (!absl::GetFlag(FLAGS_d).empty()) {
-        std::string minidump_file = absl::GetFlag(FLAGS_d);
-        if (minidump_file == "latest") {
-            auto latest_path = db_manager.GetLatestReportPath();
-            if (!latest_path) {
-                LOG(ERROR) << "No reports found to get the latest from.";
+        CrashReportManager db_manager;
+        if (!standalone || need_db) {
+            if (!db_manager.Initialize()) {
+                LOG(ERROR) << "Failed to initialize CrashReportManager";
                 return 1;
             }
-            minidump_file = *latest_path;
         }
-        if (!ProcessMinidump(minidump_file, minidump_processor, annotation_extractor, formatter)) {
+        MinidumpProcessor minidump_processor;
+        AnnotationExtractor annotation_extractor;
+        Formatter formatter;
+
+        bool success = true;
+
+        if (absl::GetFlag(FLAGS_l)) {
+            auto reports = db_manager.GetAllReports();
+            if (reports.empty()) {
+                LOG(INFO) << "No reports found in database.";
+            } else {
+                LOG(INFO) << "Listing " << reports.size() << " reports...";
+                formatter.PrintReportList(reports);
+            }
+        } else if (absl::GetFlag(FLAGS_u)) {
+            auto reports = db_manager.GetAllReports();
+            if (reports.empty()) {
+                LOG(INFO) << "No reports found to upload.";
+            } else {
+                LOG(INFO) << "Checking reports for upload...";
+                int requested_count = 0;
+                for (const auto& report : reports) {
+                    if (!report.uploaded) {
+                        db_manager.RequestUpload(report.uuid);
+                        LOG(INFO) << "Requested upload for report " << report.uuid.ToString();
+                        requested_count++;
+                    }
+                }
+                if (requested_count == 0) {
+                    LOG(INFO) << "All reports are already uploaded.";
+                } else {
+                    LOG(INFO) << "Requested upload for " << requested_count << " reports.";
+                }
+            }
+        } else if (absl::GetFlag(FLAGS_e)) {
+            auto reports = db_manager.GetAllReports();
+            if (reports.empty()) {
+                LOG(INFO) << "No reports found to erase.";
+            } else {
+                LOG(INFO) << "Erasing " << reports.size() << " reports...";
+                for (const auto& report : reports) {
+                    LOG(INFO) << "Erasing " << report.uuid.ToString();
+                    db_manager.DeleteReport(report.uuid);
+                }
+            }
+        } else if (!absl::GetFlag(FLAGS_d).empty()) {
+            std::string minidump_file = absl::GetFlag(FLAGS_d);
+            if (minidump_file == "latest") {
+                auto latest_path = db_manager.GetLatestReportPath();
+                if (!latest_path) {
+                    LOG(ERROR) << "No reports found to get the latest from.";
+                    return 1;
+                }
+                minidump_file = *latest_path;
+            }
+            if (!ProcessMinidump(minidump_file, minidump_processor, annotation_extractor,
+                                 formatter)) {
+                return 1;
+            }
+        } else {
+            LOG(ERROR) << "No action specified. Use --help for usage.";
             return 1;
         }
-    } else {
-        LOG(ERROR) << "No action specified. Use --help for usage.";
-        return 1;
-    }
 
-    return success ? 0 : 1;
-}
+        return success ? 0 : 1;
+    }
