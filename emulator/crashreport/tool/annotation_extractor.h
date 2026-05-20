@@ -11,8 +11,10 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
 #pragma once
+#include <string>
+#include <vector>
+
 #include "nlohmann/json.hpp"
 #include "util/file/file_reader.h"
 
@@ -22,6 +24,8 @@ namespace crashreport {
 class AnnotationExtractor {
   public:
     nlohmann::json Extract(crashpad::FileReader* reader);
+    std::vector<uint8_t> ExtractAnnotationBytes(crashpad::FileReader* reader,
+                                                const std::string& name);
 };
 
 }  // namespace crashreport
