@@ -191,12 +191,12 @@ int CreateLocalServerImpl(const int port, const bool is_ipv6, const int backlog)
 }
 
 int CreateLocalServerImpl(const int port, const int backlog) {
-    int s = CreateLocalServerImpl(port, /*is_ipv6=*/true, backlog);
+    int s = CreateLocalServerImpl(port, /*is_ipv6=*/false, backlog);
     if (s >= 0) {
         return s;
     }
 
-    return CreateLocalServerImpl(port, /*is_ipv6=*/false, backlog);
+    return CreateLocalServerImpl(port, /*is_ipv6=*/true, backlog);
 }
 
 int CreateClientImpl(const struct sockaddr* addr, const socklen_t addrlen) {

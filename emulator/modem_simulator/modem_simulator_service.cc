@@ -112,6 +112,7 @@ struct ModemSimulatorServiceImpl : public ModemSimulatorService {
                 auto conn = cuttlefish::SharedFD::Accept(*host_fd_);
                 std::string buf(4, ' ');
                 auto read = cuttlefish::ReadExact(conn, &buf);
+                VLOG(2) << "Processing request: `" << buf << "`";
                 if (read <= 0) {
                     conn->Close();
                     continue;
