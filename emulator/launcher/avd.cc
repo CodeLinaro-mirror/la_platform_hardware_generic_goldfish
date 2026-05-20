@@ -21,7 +21,6 @@
 #include <optional>
 #include <regex>
 #include <string>
-#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -33,7 +32,6 @@
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
-#include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
 
 #include "android/base/system.h"
@@ -179,6 +177,16 @@ std::string GetIconForDeviceType(DeviceType flavor) {
 
 struct BuildProp {
     std::string Abi() const { return build_ini_.GetString("ro.product.cpu.abi", "unknown"); }
+    Avd::CpuArchitecture Arch() const {
+        auto abi = Abi();
+        if (abi == "x86_64") {
+            return Avd::CpuArchitecture::kX86;
+        } else if (abi == "arm64-v8a") {
+            return Avd::CpuArchitecture::kArm;
+        } else {
+            return Avd::CpuArchitecture::kUnknown;
+        }
+    }
 
     int ApiLevel() const {
         return build_ini_.GetInt("ro.system.build.version.sdk", Avd::kUnknownApiLevel);
@@ -226,9 +234,10 @@ struct BuildProp {
 
 class FileBackedAvd : public Avd {
   public:
-    FileBackedAvd(std::string name, SystemImagePaths system_image_paths, IniFile config_ini,
-                  BuildProp build, HardwareConfig hw_cfg, fs::path content_path)
+    FileBackedAvd(std::string name, CpuArchitecture arch, SystemImagePaths system_image_paths,
+                  IniFile config_ini, BuildProp build, HardwareConfig hw_cfg, fs::path content_path)
             : name_(std::move(name))
+            , arch_(arch)
             , system_image_paths_(std::move(system_image_paths))
             , config_ini_(std::move(config_ini))
             , build_ini_(std::move(build))
@@ -250,10 +259,9 @@ class FileBackedAvd : public Avd {
         return Name();
     }
 
-    std::string Abi() const override {
-        // TODO check against detected arch.
-        return build_ini_.Abi();
-    }
+    CpuArchitecture Arch() const override { return arch_; }
+
+    std::string Abi() const override { return build_ini_.Abi(); }
 
     int ApiLevel() const override {
         // TODO Maybe check config_ini_.GetString("target") e.g. android-36.1 against build_ini_
@@ -268,19 +276,6 @@ class FileBackedAvd : public Avd {
     std::string BuildFlavour() const override { return build_ini_.Flavour(); }
     std::string BuildProductName() const override { return build_ini_.ProductName(); }
     std::string BuildNumber() const override { return build_ini_.Number(); }
-
-    Avd::CpuArchitecture Arch() const override {
-        auto abi = config_ini_.GetString("abi.type", "unknown");
-        if (absl::StrContains(abi, "x86")) {
-            return CpuArchitecture::kX86;
-        }
-
-        if (absl::StrContains(abi, "arm")) {
-            return CpuArchitecture::kArm;
-        }
-
-        return CpuArchitecture::kUnknown;
-    }
 
     std::string Dessert() const override { return std::string(GetApiDessertName(ApiLevel())); }
 
@@ -360,6 +355,7 @@ class FileBackedAvd : public Avd {
 
   private:
     std::string name_;
+    CpuArchitecture arch_;
 
     SystemImagePaths system_image_paths_;
     IniFile config_ini_;
@@ -404,7 +400,8 @@ std::vector<std::string> Avd::List(const fs::path& avd_directory) {
 absl::StatusOr<std::unique_ptr<Avd>> Avd::FromName(const AndroidOptions& opts,
                                                    const android::goldfish::UserPaths& user_paths,
                                                    const std::string& name, bool wipe_data,
-                                                   fs::path content_override) {
+                                                   fs::path content_override,
+                                                   fs::path sysdir_override) {
     auto ini_path = user_paths.avd_directory / (name + ".ini");
 
     if (!base::file::exists(ini_path) || !base::file::can_read(ini_path)) {
@@ -494,8 +491,8 @@ absl::StatusOr<std::unique_ptr<Avd>> Avd::FromName(const AndroidOptions& opts,
     }
 
     std::vector<fs::path> sys_image_search_paths;
-    if (opts.sysdir) {
-        sys_image_search_paths.push_back(fs::path(opts.sysdir));
+    if (!sysdir_override.empty()) {
+        sys_image_search_paths.push_back(sysdir_override);
     } else {
         for (int n = 0; n < kMaxSearchPaths; n++) {
             if (const std::string s = config_ini.GetString(absl::StrCat(kSearchPrefix, n), "");
@@ -505,9 +502,80 @@ absl::StatusOr<std::unique_ptr<Avd>> Avd::FromName(const AndroidOptions& opts,
         }
     }
 
-    ASSIGN_OR_RETURN(auto system_image_paths,
-                     ResolveSystemImagePaths(sys_image_search_paths, opts));
+    ASSIGN_OR_RETURN(auto system_image_paths, ResolveSystemImagePaths(sys_image_search_paths, opts,
+                                                                      /*anrdoid_build=*/false));
 
+    return FromSysDirs(opts, user_paths, name, std::move(config_ini),
+                       !content_override.empty() ? std::move(content_override)
+                                                 : std::move(original_content_path),
+                       std::move(system_image_paths));
+}
+
+// static
+absl::StatusOr<std::unique_ptr<Avd>> Avd::FromAndroidBuild(
+        const AndroidOptions& opts, const android::goldfish::UserPaths& user_paths,
+        const std::string& name, fs::path android_build_out, bool wipe_data,
+        fs::path writable_content_override) {
+    if (writable_content_override.empty() && wipe_data) {
+        // Specific -wipe-data behaviour for android build.
+        using namespace std::literals;
+        constexpr auto files_to_delete = std::array{
+            "system.img.qcow2"sv,  "vendor.img.qcow2"sv,        "encryptionkey.img.qcow2"sv,
+            "userdata-qemu.img"sv, "userdata-qemu.img.qcow2"sv, "cache.img.qcow2"sv,
+            "hardware-qemu.ini"sv, "qemu-version.txt"sv};
+        for (const auto& f : files_to_delete) {
+            auto path = android_build_out / f;
+            if (auto s = android::base::file::rm(path); !s.ok()) {
+                LOG(ERROR) << "Could not remove AVD contents file for -wipe-data, you might have "
+                              "to manually remove this file. Path: "
+                           << path << ", Status: " << s;
+            }
+        }
+    }
+    std::vector<fs::path> sys_image_search_paths{
+        android_build_out,
+        // build.prop is under system dir.
+        android_build_out / "system",
+    };
+    auto config_ini_path = android_build_out / "config.ini";
+    android::goldfish::IniFile config_ini(config_ini_path);
+    if (!config_ini.Read()) {
+        // It's ok if it's missing.
+        LOG(WARNING) << "Optional config.ini not found for android build at: "
+                     << config_ini_path.string()
+                     << " this means that you now will get an inferred avd config";
+    }
+
+    ASSIGN_OR_RETURN(auto system_image_paths,
+                     ResolveSystemImagePaths(sys_image_search_paths, opts, /*anrdoid_build=*/true));
+
+    return android::goldfish::Avd::FromSysDirs(opts, user_paths, name, std::move(config_ini),
+                                               !writable_content_override.empty()
+                                                       ? std::move(writable_content_override)
+                                                       : std::move(android_build_out),
+                                               std::move(system_image_paths));
+}
+
+namespace {
+Avd::CpuArchitecture ParseArch(const IniFile& config_ini) {
+    auto abi = config_ini.GetString("abi.type", "unknown");
+    if (absl::StrContains(abi, "x86")) {
+        return Avd::CpuArchitecture::kX86;
+    }
+
+    if (absl::StrContains(abi, "arm")) {
+        return Avd::CpuArchitecture::kArm;
+    }
+
+    return Avd::CpuArchitecture::kUnknown;
+}
+}  // namespace
+
+// static
+absl::StatusOr<std::unique_ptr<Avd>> Avd::FromSysDirs(
+        const AndroidOptions& opts, const android::goldfish::UserPaths& user_paths,
+        const std::string& name, IniFile config_ini, fs::path content_path,
+        SystemImagePaths system_image_paths) {
     IniFile build_ini(system_image_paths.build_properties);
     if (!build_ini.Read()) {
         return absl::InternalError(absl::StrCat("Unable to parse build properties file: ",
@@ -517,27 +585,37 @@ absl::StatusOr<std::unique_ptr<Avd>> Avd::FromName(const AndroidOptions& opts,
         .build_ini_ = std::move(build_ini),
     };
 
-    // check abi
-
-    fs::path content_path = original_content_path;
-    if (!content_override.empty()) {
-        content_path = content_override;
-        if (!base::file::can_read(content_path)) {
-            return absl::PermissionDeniedError(
-                    absl::StrCat("AVD override content directory exists but is not readable: ",
-                                 content_path.string()));
+    // Will be unknown under android build.
+    auto arch = ParseArch(config_ini);
+    // Check arch against build.
+    if (auto build_arch = build_wrapper.Arch(); arch == CpuArchitecture::kUnknown) {
+        if (build_arch != CpuArchitecture::kUnknown) {
+            arch = build_arch;
+            VLOG(1) << "avd arch inferred from build.prop";
+        } else {
+            return absl::InvalidArgumentError("Unable to detect avd architecture");
         }
+    } else if (arch != build_arch) {
+        return absl::InvalidArgumentError(absl::StrCat(
+                "Architecture mismatch: The AVD configuration (abi.type in config.ini) is ", arch,
+                " but the system image (ro.product.cpu.abi in build.prop) is ", build_arch,
+                ". Please ensure the system image matches the AVD."));
+    }
 
-        if (!base::file::is_dir(content_path)) {
-            return absl::InvalidArgumentError(
-                    absl::StrCat("AVD override content directory exists but is not a directory: ",
-                                 content_path.string()));
-        }
+    if (!base::file::can_read(content_path)) {
+        return absl::PermissionDeniedError(absl::StrCat(
+                "The AVD content directory exists but is not readable: ", content_path.string()));
+    }
+
+    if (!base::file::is_dir(content_path)) {
+        return absl::InvalidArgumentError(
+                absl::StrCat("The AVD content directory exists but is not a directory: ",
+                             content_path.string()));
     }
 
     if (!base::file::can_write(content_path)) {
         return absl::PermissionDeniedError(absl::StrCat(
-                "AVD content directory exists but is not writable: ", content_path.string()));
+                "The AVD content directory exists but is not writable: ", content_path.string()));
     }
 
     if (opts.verbose) {
@@ -571,7 +649,7 @@ absl::StatusOr<std::unique_ptr<Avd>> Avd::FromName(const AndroidOptions& opts,
     hw_cfg.Write(hw_config.get());
     hw_config->WriteDiscardingEmpty();
 
-    return std::make_unique<FileBackedAvd>(name, std::move(system_image_paths),
+    return std::make_unique<FileBackedAvd>(name, arch, std::move(system_image_paths),
                                            std::move(config_ini), std::move(build_wrapper),
                                            std::move(hw_cfg), std::move(content_path));
 }
