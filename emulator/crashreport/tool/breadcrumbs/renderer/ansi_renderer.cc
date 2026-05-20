@@ -92,6 +92,7 @@ std::string_view PhaseToLabel(GrpcBreadcrumb::Phase phase) {
     case GrpcBreadcrumb::PRE_RECV_INITIAL_METADATA:
         return "RECV_META"sv;
     case GrpcBreadcrumb::PRE_RECV_MESSAGE:
+    case GrpcBreadcrumb::POST_RECV_MESSAGE:
         return "RECV_MSG"sv;
     case GrpcBreadcrumb::PRE_RECV_STATUS:
         return "RECV_STAT"sv;
@@ -326,7 +327,8 @@ std::string AnsiRenderer::Render(const DiagnosticTrace& trace) const {
         ss << "\n";
     }
 
-    // Explicitly demarcate the crash site if the last event was an error on the crashing thread.
+    // Explicitly demarcate the crash site if the last event was an error on the
+    // crashing thread.
     if (!all_events.empty()) {
         const auto& last = all_events.back();
         if (last.is_crashing_thread && last.breadcrumb->proto.status_code() != GrpcBreadcrumb::OK) {
