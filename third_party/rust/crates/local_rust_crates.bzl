@@ -108,6 +108,7 @@ def _lrc_impl(module_ctx):
         "clap_derive",
         "clap_lex",
         "codespan-reporting",
+        "command-fds",
         "crc32fast",
         "crossbeam-utils",
         "data-encoding",
