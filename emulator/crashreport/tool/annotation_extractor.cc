@@ -67,6 +67,9 @@ nlohmann::json AnnotationExtractor::Extract(crashpad::FileReader* reader) {
         if (!module->AnnotationObjects().empty()) {
             json_module["annotation_objects"] = std::vector<nlohmann::json>();
             for (const crashpad::AnnotationSnapshot& annotation : module->AnnotationObjects()) {
+                if (annotation.name == "grpc_breadcrumbs") {
+                    continue;
+                }
                 nlohmann::json json_annotation;
                 json_annotation["name"] = annotation.name;
                 if (annotation.type != static_cast<uint16_t>(crashpad::Annotation::Type::kString)) {
