@@ -15,7 +15,6 @@
 #pragma once
 
 #include "VCpuEventLoop.h"
-#include "android/base/goldfish/devices/sensor/sensor_device.h"
 #include "goldfish/async/event_loop.h"
 #include "goldfish/avd_info/avd_info.h"
 #include "goldfish/devices/battery/battery.h"
@@ -27,6 +26,7 @@
 #include "goldfish/devices/gps/gps_device.h"
 #include "goldfish/devices/guest_status/guest_status_device.h"
 #include "goldfish/devices/multidisplay/multidisplay_device.h"
+#include "goldfish/devices/sensor/sensor_device.h"
 #include "goldfish/devices/unix_pipe/unix_pipe.h"
 #include "goldfish/metrics/metrics_reporter.h"
 #include "goldfish/metrics/perf_stat_reporter.h"

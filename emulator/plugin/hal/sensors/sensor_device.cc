@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "android/base/goldfish/devices/sensor/sensor_device.h"
+#include "goldfish/devices/sensor/sensor_device.h"
 
 #include <algorithm>
 #include <cassert>
