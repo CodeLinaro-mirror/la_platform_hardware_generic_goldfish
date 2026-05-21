@@ -94,6 +94,8 @@ cc_library(
 cc_library(
     name = "impl",
     srcs = [
+        "avd_extended_universe.cc",
+        "avd_extended_universe.h",
         "avd_finalize.cc",
         "avd_info.cc",
     ],
