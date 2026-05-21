@@ -13,6 +13,9 @@
 // limitations under the License.
 #include "android/emulation/control/keyboard/key_conversion.h"
 
+#include <cctype>
+#include <iomanip>
+
 #include "absl/log/log.h"
 
 #include "dom_key.h"
@@ -104,6 +107,10 @@ QKeyCode evdev_to_qcode(uint32_t evdev) {
 }
 
 std::vector<QemuKeyEvent> ascii_to_qcode(unsigned short unicode, bool down) {
+    VLOG(2) << "ascii_to_qcode: code="
+            << ((unicode <= 255 && std::isprint(unicode)) ? static_cast<char>(unicode) : '.')
+            << ", " << std::hex << std::setfill('0') << std::setw(4) << unicode << std::dec
+            << " down=" << down;
     /* check base keys */
     for (int n = 0; n < sizeof(cmap); n++) {
         if (cmap[n].base == unicode) {
@@ -145,7 +152,7 @@ std::vector<QemuKeyEvent> ascii_to_qcode(unsigned short unicode, bool down) {
 }
 
 void QemuKeyEvent::send(QKbdState* kbd) const {
-    VLOG(1) << "Sending: " << code << " " << (down ? "down" : "up");
+    VLOG(1) << "Sending QKeyCode: " << code << " " << (down ? "down" : "up");
     qkbd_state_key_event(kbd, code, down);
 }
 
@@ -162,7 +169,13 @@ const std::vector<KeycodeMapEntry>& keymap() {
 }
 
 QKeyCode dom_to_qcode(DomCode key) {
-    return evdev_to_qcode(dom_to_evdev(key));
+    uint32_t evdev = dom_to_evdev(key);
+    QKeyCode qcode = evdev_to_qcode(evdev);
+    // Uppercase hex is used here to match the representation in dom_key_data.inc
+    VLOG(2) << "dom_to_qcode: key=" << std::uppercase << std::hex << static_cast<int>(key)
+            << std::nouppercase << std::dec << " -> evdev=" << std::hex << std::setfill('0')
+            << std::setw(4) << evdev << std::dec << " -> qcode=" << qcode;
+    return qcode;
 }
 
 uint32_t dom_to_evdev(DomCode key) {
@@ -202,8 +215,30 @@ uint32_t keycode_to_evdev(uint32_t from, KeyCodeType source) {
     return 0;
 }
 
+static const char* KeyCodeTypeToString(KeyCodeType source) {
+    switch (source) {
+    case KeyCodeType::usb:
+        return "usb";
+    case KeyCodeType::evdev:
+        return "evdev";
+    case KeyCodeType::xkb:
+        return "xkb";
+    case KeyCodeType::win:
+        return "win";
+    case KeyCodeType::mac:
+        return "mac";
+    default:
+        return "unknown";
+    }
+}
+
 QKeyCode keycode_to_qcode(uint32_t from, KeyCodeType source) {
-    return evdev_to_qcode(keycode_to_evdev(from, source));
+    uint32_t evdev = keycode_to_evdev(from, source);
+    QKeyCode qcode = evdev_to_qcode(evdev);
+    VLOG(2) << "keycode_to_qcode: from=" << from << " source=" << KeyCodeTypeToString(source)
+            << " -> evdev=" << std::hex << std::setfill('0') << std::setw(4) << evdev << std::dec
+            << " -> qcode=" << qcode;
+    return qcode;
 }
 }  // namespace keyboard
 }  // namespace control
