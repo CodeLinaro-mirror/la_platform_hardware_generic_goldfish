@@ -640,24 +640,40 @@ struct GoldfishVirtioVsockDevice {
             return r;
         }
 
-        for (size_t n = GetUnsigned(reader); n > 0; --n) {
+        absl::StatusOr<uint32_t> num = ReadValue<uint32_t>(reader);
+        if (!num.ok()) {
+            return 1;
+        }
+
+        for (size_t n = *num; n > 0; --n) {
             decltype(mOrphanPackets)::value_type packet;
 
-            packet.src_port = GetUnsigned(reader);
-            packet.dst_port = GetUnsigned(reader);
-            packet.op = GetUnsigned(reader);
-            packet.buf_alloc = GetUnsigned(reader);
-            packet.fwd_cnt = GetUnsigned(reader);
+            if (!ReadValue(reader, packet.src_port, packet.dst_port, packet.op, packet.buf_alloc,
+                           packet.fwd_cnt)
+                         .ok()) {
+                return 1;
+            }
+
             packet.len = 0;  // orphan packets don't carry data
             mOrphanPackets.push_back(packet);
         }
 
         bool needNotify = false;
-        for (size_t n = GetUnsigned(reader); n > 0; --n) {
-            const uint32_t guestPort = GetUnsigned(reader);
-            const uint32_t hostPort = GetUnsigned(reader);
-            const uint32_t hostFwdCnt = GetUnsigned(reader);
-            const bool supportsLoading = (GetUnsigned(reader) != 0);
+        num = ReadValue<uint32_t>(reader);
+        if (!num.ok()) {
+            return 1;
+        }
+
+        for (size_t n = *num; n > 0; --n) {
+            uint32_t guestPort;
+            uint32_t hostPort;
+            uint32_t hostFwdCnt;
+            bool supportsLoading;
+
+            if (!ReadValue(reader, guestPort, hostPort, hostFwdCnt, supportsLoading).ok()) {
+                return 1;
+            }
+
             if (supportsLoading) {
                 const auto [streamI, inserted] = mStreams.emplace(*this, guestPort, hostPort);
                 if (!inserted) {
@@ -665,16 +681,17 @@ struct GoldfishVirtioVsockDevice {
                 }
 
                 VsockStream& stream = const_cast<VsockStream&>(*streamI);
-
                 stream.hostFwdCnt = hostFwdCnt;
-                stream.guestBufAlloc = GetUnsigned(reader);
-                stream.guestFwdCnt = GetUnsigned(reader);
-                stream.hostSentCnt = GetUnsigned(reader);
-                {
-                    const uint8_t flags = GetUnsigned(reader);
-                    stream.isConnected = (flags & 1U) != 0;
-                    stream.sendOpMask = flags & ~1U;
+
+                uint8_t flags;
+                if (!ReadValue(reader, stream.guestBufAlloc, stream.guestFwdCnt, stream.hostSentCnt,
+                               flags)
+                             .ok()) {
+                    return 1;
                 }
+
+                stream.isConnected = (flags & 1U) != 0;
+                stream.sendOpMask = flags & ~1U;
                 stream.hostToGuestBuf.LoadFromSnapshot(reader);
                 stream.producerEnabled = true;
 

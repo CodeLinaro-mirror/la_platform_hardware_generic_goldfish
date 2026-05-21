@@ -57,13 +57,13 @@ using archive::IReader;
 
 // NOLINTNEXTLINE
 PlugOrSocket LoadPlugFromSnapshot(SocketPtr socket, IReader& reader) {
-    const std::string id = GetString(reader);
-    if (id.empty()) {
+    const auto id = ReadValue<std::string>(reader);
+    if (!id.ok()) {
         return socket;
     }
 
     const auto& loaders = GetLoaders();
-    const auto i = loaders.find(id);
+    const auto i = loaders.find(*id);
     if (i == loaders.end()) {
         return socket;
     }

@@ -130,8 +130,13 @@ void Parser::SaveToSnapshot(archive::IWriter& writer) const {
 }
 
 bool Parser::LoadFromSnapshot(archive::IReader& reader) {
-    buffer_.resize(GetUnsigned(reader));
-    return reader.Read(buffer_.data(), buffer_.size());
+    const auto size = ReadValue<size_t>(reader);
+    if (!size.ok()) {
+        return false;
+    }
+
+    buffer_.resize(*size);
+    return reader.Read(buffer_.data(), buffer_.size()).ok();
 }
 
 void SendAsync(const void* data, const size_t size, cable::ISocket& dst) {

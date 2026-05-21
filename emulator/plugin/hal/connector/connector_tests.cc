@@ -9,7 +9,10 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
+#include <gmock/gmock.h>
 #include <gtest/gtest.h>
+
+#include "absl/status/status_matchers.h"
 
 #include "goldfish/archive/deque_archive.h"
 #include "goldfish/devices/cable/saveload.h"
@@ -19,6 +22,8 @@ namespace goldfish {
 using archive::DequeArchive;
 
 namespace devices {
+using ::absl_testing::IsOkAndHolds;
+
 using cable::IPlug;
 using cable::PlugPtr;
 using cable::SocketPtr;
@@ -102,8 +107,8 @@ TEST(Connector, incomplete_request) {
         testSocket.plug->OnUnplug();
     }
 
-    EXPECT_EQ(GetString(archive), "Connector");
-    EXPECT_EQ(GetString(archive), "incomplete");
+    EXPECT_THAT(ReadValue<std::string>(archive), IsOkAndHolds("Connector"));
+    EXPECT_THAT(ReadValue<std::string>(archive), IsOkAndHolds("incomplete"));
 }
 
 TEST(Connector, bad_request) {
@@ -177,10 +182,10 @@ TEST(Connector, qemud_TestDevice_args_unconsumed) {
         testSocket.plug->OnUnplug();
     }
 
-    EXPECT_EQ(GetString(archive), "TestDevice");  // type
-    EXPECT_EQ(GetUnsigned(archive), 1);           // isQemud
-    EXPECT_EQ(GetString(archive), "args");        // args
-    EXPECT_EQ(GetString(archive), "unconsumed");
+    EXPECT_THAT(ReadValue<std::string>(archive), IsOkAndHolds("TestDevice"));
+    EXPECT_THAT(ReadValue<bool>(archive), IsOkAndHolds(true));
+    EXPECT_THAT(ReadValue<std::string>(archive), IsOkAndHolds("args"));
+    EXPECT_THAT(ReadValue<std::string>(archive), IsOkAndHolds("unconsumed"));
 }
 
 TEST(Connector, qemud_TestDevice_unconsumed) {
@@ -203,10 +208,10 @@ TEST(Connector, qemud_TestDevice_unconsumed) {
         testSocket.plug->OnUnplug();
     }
 
-    EXPECT_EQ(GetString(archive), "TestDevice");  // type
-    EXPECT_EQ(GetUnsigned(archive), 1);           // isQemud
-    EXPECT_EQ(GetString(archive), "");            // args
-    EXPECT_EQ(GetString(archive), "unconsumed");
+    EXPECT_THAT(ReadValue<std::string>(archive), IsOkAndHolds("TestDevice"));
+    EXPECT_THAT(ReadValue<bool>(archive), IsOkAndHolds(true));
+    EXPECT_THAT(ReadValue<std::string>(archive), IsOkAndHolds(""));
+    EXPECT_THAT(ReadValue<std::string>(archive), IsOkAndHolds("unconsumed"));
 }
 
 TEST(Connector, TestDevice_args_unconsumed) {
@@ -229,10 +234,10 @@ TEST(Connector, TestDevice_args_unconsumed) {
         testSocket.plug->OnUnplug();
     }
 
-    EXPECT_EQ(GetString(archive), "TestDevice");  // type
-    EXPECT_EQ(GetUnsigned(archive), 0);           // isQemud
-    EXPECT_EQ(GetString(archive), "args");        // args
-    EXPECT_EQ(GetString(archive), "unconsumed");
+    EXPECT_THAT(ReadValue<std::string>(archive), IsOkAndHolds("TestDevice"));
+    EXPECT_THAT(ReadValue<bool>(archive), IsOkAndHolds(false));
+    EXPECT_THAT(ReadValue<std::string>(archive), IsOkAndHolds("args"));
+    EXPECT_THAT(ReadValue<std::string>(archive), IsOkAndHolds("unconsumed"));
 }
 
 TEST(Connector, TestDevice_unconsumed) {
@@ -255,10 +260,10 @@ TEST(Connector, TestDevice_unconsumed) {
         testSocket.plug->OnUnplug();
     }
 
-    EXPECT_EQ(GetString(archive), "TestDevice");  // type
-    EXPECT_EQ(GetUnsigned(archive), 0);           // isQemud
-    EXPECT_EQ(GetString(archive), "");            // args
-    EXPECT_EQ(GetString(archive), "unconsumed");
+    EXPECT_THAT(ReadValue<std::string>(archive), IsOkAndHolds("TestDevice"));
+    EXPECT_THAT(ReadValue<bool>(archive), IsOkAndHolds(false));
+    EXPECT_THAT(ReadValue<std::string>(archive), IsOkAndHolds(""));
+    EXPECT_THAT(ReadValue<std::string>(archive), IsOkAndHolds("unconsumed"));
 }
 
 }  // namespace devices

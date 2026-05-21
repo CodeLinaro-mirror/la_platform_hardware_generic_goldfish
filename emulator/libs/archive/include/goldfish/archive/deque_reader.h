@@ -24,7 +24,7 @@ struct DequeReader : public IReader {
 
     explicit DequeReader(Storage* storage) : storage(storage) {}
 
-    size_t Read(void* dst, size_t size) override;
+    absl::Status Read(void* dst, size_t size) override;
 
     Storage* storage;
 };

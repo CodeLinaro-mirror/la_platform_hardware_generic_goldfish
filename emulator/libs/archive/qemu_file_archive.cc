@@ -25,8 +25,12 @@ extern "C" {
 
 namespace goldfish::archive {
 
-size_t QEMUFileReader::Read(void* dst, const size_t size) {
-    return qemu_get_buffer(file, static_cast<uint8_t*>(dst), size);
+absl::Status QEMUFileReader::Read(void* dst, const size_t size) {
+    if (qemu_get_buffer(file, static_cast<uint8_t*>(dst), size) == size) {
+        return absl::OkStatus();
+    } else {
+        return absl::UnavailableError("IO error");
+    }
 }
 
 void QEMUFileWriter::Write(const void* src, const size_t size) {
