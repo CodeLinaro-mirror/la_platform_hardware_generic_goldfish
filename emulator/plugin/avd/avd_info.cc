@@ -134,12 +134,20 @@ absl::Status ValidateAvdProps(AvdProperties& avd_props) {
     return absl::OkStatus();
 }
 
+AvdProperties& toMutableAvdProperties(Object* obj) {
+    DCHECK(obj);
+    AvdInfoDev* avd_info = AVD_INFO_DEV(obj);
+    DCHECK(avd_info);
+    DCHECK(avd_info->mutable_props);
+    return *avd_info->mutable_props;
+}
+
 AvdExtendedUniverse& toAvdExtendedUniverse(void* opaque) {
+    DCHECK(opaque);
     AvdInfoDev* avd_info = AVD_INFO_DEV(opaque);
-    CHECK(avd_info);
-    AvdExtendedUniverse* u = avd_info->universe;
-    CHECK(u);
-    return *u;
+    DCHECK(avd_info);
+    DCHECK(avd_info->universe);
+    return *avd_info->universe;
 }
 
 void avd_info_realize(DeviceState* dev, Error** errp) {
@@ -172,7 +180,7 @@ void avd_info_set_serial_number(Object* obj, Visitor* v, const char* name, void*
         return;
     }
 
-    AVD_INFO_DEV(obj)->mutable_props->serial_number = value;
+    toMutableAvdProperties(obj).serial_number = value;
 }
 
 void avd_info_set_adb_port(Object* obj, Visitor* v, const char* name, void* opaque, Error** errp) {
@@ -181,19 +189,19 @@ void avd_info_set_adb_port(Object* obj, Visitor* v, const char* name, void* opaq
         return;
     }
 
-    AVD_INFO_DEV(obj)->mutable_props->adb_port = value;
+    toMutableAvdProperties(obj).adb_port = value;
 }
 
 void avd_info_set_avd_name(Object* obj, const char* value, Error** errp) {
-    AVD_INFO_DEV(obj)->mutable_props->avd_name = value;
+    toMutableAvdProperties(obj).avd_name = value;
 }
 
 void avd_info_set_avd_id(Object* obj, const char* value, Error** errp) {
-    AVD_INFO_DEV(obj)->mutable_props->avd_id = value;
+    toMutableAvdProperties(obj).avd_id = value;
 }
 
 void avd_info_set_avd_abi(Object* obj, const char* value, Error** errp) {
-    AVD_INFO_DEV(obj)->mutable_props->avd_abi = value;
+    toMutableAvdProperties(obj).avd_abi = value;
 }
 
 void avd_info_set_avd_api(Object* obj, Visitor* v, const char* name, void* opaque, Error** errp) {
@@ -202,7 +210,7 @@ void avd_info_set_avd_api(Object* obj, Visitor* v, const char* name, void* opaqu
         return;
     }
 
-    AVD_INFO_DEV(obj)->mutable_props->avd_api = value;
+    toMutableAvdProperties(obj).avd_api = value;
 }
 
 void avd_info_set_avd_type(Object* obj, Visitor* v, const char* name, void* opaque, Error** errp) {
@@ -211,7 +219,7 @@ void avd_info_set_avd_type(Object* obj, Visitor* v, const char* name, void* opaq
         return;
     }
 
-    AVD_INFO_DEV(obj)->mutable_props->avd_type = static_cast<android::goldfish::DeviceType>(value);
+    toMutableAvdProperties(obj).avd_type = static_cast<android::goldfish::DeviceType>(value);
 }
 
 void avd_info_set_avd_dir(Object* obj, const char* value, Error** errp) {
@@ -221,23 +229,23 @@ void avd_info_set_avd_dir(Object* obj, const char* value, Error** errp) {
         return;
     }
 
-    AVD_INFO_DEV(obj)->mutable_props->avd_content_path = dir;
+    toMutableAvdProperties(obj).avd_content_path = dir;
 }
 
 void avd_info_set_build_sdk(Object* obj, const char* value, Error** errp) {
-    AVD_INFO_DEV(obj)->mutable_props->build_sdk = value;
+    toMutableAvdProperties(obj).build_sdk = value;
 }
 
 void avd_info_set_build_id(Object* obj, const char* value, Error** errp) {
-    AVD_INFO_DEV(obj)->mutable_props->build_id = value;
+    toMutableAvdProperties(obj).build_id = value;
 }
 
 void avd_info_set_build_flavour(Object* obj, const char* value, Error** errp) {
-    AVD_INFO_DEV(obj)->mutable_props->build_flavour = value;
+    toMutableAvdProperties(obj).build_flavour = value;
 }
 
 void avd_info_set_snapshot_name(Object* obj, const char* value, Error** errp) {
-    AVD_INFO_DEV(obj)->mutable_props->snapshot_name = value;
+    toMutableAvdProperties(obj).snapshot_name = value;
 }
 
 void avd_info_set_quit_after_boot_timeout(Object* obj, Visitor* v, const char* name, void* opaque,
@@ -247,7 +255,7 @@ void avd_info_set_quit_after_boot_timeout(Object* obj, Visitor* v, const char* n
         return;
     }
 
-    AVD_INFO_DEV(obj)->mutable_props->quit_after_boot_timeout_seconds = value;
+    toMutableAvdProperties(obj).quit_after_boot_timeout_seconds = value;
 }
 
 void avd_info_set_metrics_session(Object* obj, const char* value, Error** errp) {
@@ -256,7 +264,7 @@ void avd_info_set_metrics_session(Object* obj, const char* value, Error** errp) 
                    s.status().ToString().c_str(), value);
         return;
     } else {
-        AVD_INFO_DEV(obj)->mutable_props->metrics_session_id = *std::move(s);
+        toMutableAvdProperties(obj).metrics_session_id = *std::move(s);
     }
 }
 
@@ -267,24 +275,24 @@ void avd_info_set_metrics_writer(Object* obj, Visitor* v, const char* name, void
         return;
     }
 
-    AVD_INFO_DEV(obj)->mutable_props->metrics_writer_config.type =
+    toMutableAvdProperties(obj).metrics_writer_config.type =
             static_cast<goldfish::metrics::MetricsWriterType>(value);
 }
 
 void avd_info_set_metrics_file_path(Object* obj, const char* value, Error** errp) {
-    AVD_INFO_DEV(obj)->mutable_props->metrics_writer_config.file_path = value;
+    toMutableAvdProperties(obj).metrics_writer_config.file_path = value;
 }
 
 void avd_info_set_metrics_spool_dir(Object* obj, const char* value, Error** errp) {
-    AVD_INFO_DEV(obj)->mutable_props->metrics_writer_config.studio_spool_dir = value;
+    toMutableAvdProperties(obj).metrics_writer_config.studio_spool_dir = value;
 }
 
 void avd_info_set_metrics_playstore_url(Object* obj, const char* value, Error** errp) {
-    AVD_INFO_DEV(obj)->mutable_props->metrics_writer_config.playstore_url = value;
+    toMutableAvdProperties(obj).metrics_writer_config.playstore_url = value;
 }
 
 void avd_info_set_metrics_user_id(Object* obj, const char* value, Error** errp) {
-    AVD_INFO_DEV(obj)->mutable_props->metrics_writer_config.user_id = value;
+    toMutableAvdProperties(obj).metrics_writer_config.user_id = value;
 }
 
 void avd_info_set_dump_perf_stat_path(Object* obj, const char* value, Error** errp) {
@@ -294,7 +302,7 @@ void avd_info_set_dump_perf_stat_path(Object* obj, const char* value, Error** er
         return;
     }
 
-    AVD_INFO_DEV(obj)->mutable_props->dump_perf_stat_path = path;
+    toMutableAvdProperties(obj).dump_perf_stat_path = path;
 }
 
 void avd_info_unrealize(DeviceState* dev) {
