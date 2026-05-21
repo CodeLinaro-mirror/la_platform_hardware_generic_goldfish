@@ -74,8 +74,9 @@ class WithSimpleReader : public T {
 
     void OnReadDone(bool ok) override {
         if (ok) {
-            Read(&mIncoming);
-            T::StartRead(&mIncoming);
+            if (Read(&mIncoming)) {
+                T::StartRead(&mIncoming);
+            }
         } else {
             if constexpr (is_server::value) {
                 // Call finish if we are a server
@@ -87,7 +88,7 @@ class WithSimpleReader : public T {
     void StartRead() { T::StartRead(&mIncoming); }
 
     // Callback that will be invoked when a new object was read.
-    virtual void Read(const R* read) = 0;
+    virtual bool Read(const R* read) = 0;
 
   private:
     R mIncoming;
@@ -99,8 +100,8 @@ class WithSimpleReader : public T {
 //
 // The channel will be closed with status::ok
 // if a message cannot be read (i.e. OnReadDone is not ok)
-template <typename R>
-class SimpleServerLambdaReader : public WithSimpleReader<grpc::ServerReadReactor<R>> {
+template <typename R, typename Base = grpc::ServerReadReactor<R>>
+class SimpleServerLambdaReader : public WithSimpleReader<Base> {
     // A return other than OkStatus will Finish the stream with that status.
     using ReadCallback = std::function<grpc::Status(const R*)>;
     using OnDoneCallback = std::function<void()>;
@@ -110,11 +111,13 @@ class SimpleServerLambdaReader : public WithSimpleReader<grpc::ServerReadReactor
             ReadCallback readFn, OnDoneCallback doneFn = []() {})
             : mReadFn(readFn), mDoneFn(doneFn) {}
 
-    virtual void Read(const R* read) override {
+    virtual bool Read(const R* read) override {
         auto status = mReadFn(read);
         if (!status.ok()) {
-            grpc::ServerReadReactor<R>::Finish(status);
+            Base::Finish(status);
+            return false;
         }
+        return true;
     }
 
     virtual void OnDone() override {
@@ -148,8 +151,8 @@ class SimpleServerLambdaReader : public WithSimpleReader<grpc::ServerReadReactor
 // mService->async()->receivePhoneEvents(context, &empty, read);
 // read->StartRead();
 // read->StartCall();
-template <typename R>
-class SimpleClientLambdaReader : public WithSimpleReader<grpc::ClientReadReactor<R>> {
+template <typename R, typename Base = grpc::ClientReadReactor<R>>
+class SimpleClientLambdaReader : public WithSimpleReader<Base> {
     using ReadCallback = std::function<grpc::Status(const R*)>;
     using OnDoneCallback = std::function<void(::grpc::Status)>;
 
@@ -159,11 +162,13 @@ class SimpleClientLambdaReader : public WithSimpleReader<grpc::ClientReadReactor
             OnDoneCallback doneFn = [](auto s) {})
             : mReadFn(readFn), mContext(std::move(context)), mDoneFn(doneFn) {}
 
-    virtual void Read(const R* read) override {
+    virtual bool Read(const R* read) override {
         auto status = mReadFn(read);
         if (!status.ok()) {
-            grpc::ClientReadReactor<R>::Finish(status);
+            Base::Finish(status);
+            return false;
         }
+        return true;
     }
 
     virtual void OnDone(const grpc::Status& status) override {

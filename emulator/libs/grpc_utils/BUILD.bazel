@@ -40,7 +40,10 @@ cc_library(
 
 cc_test(
     name = "async_test",
-    srcs = ["async_test.cc"],
+    srcs = [
+        "async_test.cc",
+        "simple_async_grpc_test.cc",
+    ],
     deps = [
         ":async",
         "//emulator/libs/test:googletest_main",
