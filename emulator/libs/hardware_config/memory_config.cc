@@ -342,6 +342,8 @@ int MemoryConfig::CalculateMinimumRam(const HardwareConfig& hw, int api_level,
             min_ram = std::max(min_ram, 1024);
         } else if (device_type.value() == DeviceType::kXr) {
             min_ram = std::max(min_ram, 4096);
+        } else if (device_type.value() == DeviceType::kWear) {
+            min_ram = std::min(min_ram, 2048);
         }
     }
 

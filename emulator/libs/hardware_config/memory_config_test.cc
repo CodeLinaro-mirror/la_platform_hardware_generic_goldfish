@@ -162,6 +162,10 @@ TEST_F(MemoryConfigTest, CalculateMinimumRam_DeviceType) {
               1024);  // API 21 requires 1024
     EXPECT_EQ(MemoryConfig::CalculateMinimumRam(hw, 21, DeviceType::kXr),
               4096);  // XR requires 4096
+    EXPECT_EQ(MemoryConfig::CalculateMinimumRam(hw, 37, DeviceType::kWear),
+              2048);  // Wear capped at 2048 even for API 37
+    EXPECT_EQ(MemoryConfig::CalculateMinimumRam(hw, 26, DeviceType::kWear),
+              1536);  // Wear retains lower min_ram for older APIs
 }
 
 TEST_F(MemoryConfigTest, CalculateMinimumRam_DeathOnLowApi) {
