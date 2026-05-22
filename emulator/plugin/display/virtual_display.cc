@@ -23,18 +23,18 @@
 #include "goldfish/devices/multidisplay/multidisplay_device.h"
 #include "goldfish/display/input_handler.h"
 
-extern "C" {
 // clang-format off
 // IWYU pragma: begin_keep
+extern "C" {
 #include "qemu/osdep.h"
 #include "ui/console.h"
 #include "ui/surface.h"
 #include "qapi/error.h"
 #include "qom/object.h"
+}
 #include "virtio_bridge.h"
 // IWYU pragma: end_keep
 // clang-format on
-}
 
 namespace goldfish::display {
 

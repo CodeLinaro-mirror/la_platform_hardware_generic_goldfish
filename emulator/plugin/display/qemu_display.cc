@@ -22,20 +22,19 @@
 #include "QemuDisplay.h"
 #include "goldfish/display/input_handler.h"
 
-extern "C" {
 // clang-format off
 // IWYU pragma: begin_keep
+extern "C" {
 #include "qemu/osdep.h"
 #include "ui/console.h"
 #include "ui/surface.h"
 #include "pixman.h"
 #include "qapi/error.h"
 #include "qom/object.h"
+}
 #include "virtio_bridge.h"
 // IWYU pragma: end_keep
 // clang-format on
-}
-
 namespace goldfish::display {
 
 SharedDisplay IDisplay::GetNullDisplay() {
@@ -91,6 +90,7 @@ QemuDisplay::QemuDisplay(EventLoop* loop, EventLoop* qemu_loop, QemuConsole* con
         LOG(FATAL) << "Unable to find a virtio device for head: " << device_info.head
                    << " attached to display: " << device_info.display;
     }
+    VLOG(1) << "Connecting: " << *this << ", to: " << device_info;
     vhid_ = device_info.vhid;
 }
 
