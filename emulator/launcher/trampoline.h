@@ -22,7 +22,7 @@
 
 namespace android::goldfish {
 
-bool ShouldTrampolineToQemu2(android::goldfish::Avd& avd);
+bool ShouldTrampolineToQemu2(const android::goldfish::Avd& avd);
 
 [[noreturn]] void TrampolineToQemu2(const fs::path& launcher_directory,
                                     std::vector<std::string> args);
