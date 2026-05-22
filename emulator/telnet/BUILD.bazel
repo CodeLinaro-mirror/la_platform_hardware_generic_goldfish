@@ -88,8 +88,14 @@ cc_library(
 
 cc_library(
     name = "legacy_console_bridge",
-    srcs = ["legacy_console_bridge.cc"],
-    hdrs = ["legacy_console_bridge.h"],
+    srcs = [
+        "legacy_console_bridge.cc",
+        "screen_record_commands.cc",
+        "screen_record_commands.h",
+    ],
+    hdrs = [
+        "legacy_console_bridge.h",
+    ],
     deps = [
         ":command_registry",
         ":line_command_handler",
@@ -101,6 +107,7 @@ cc_library(
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
         "@aemu//protos/services/emulator-controller:emulator_controller_cc_grpc",
+        "@aemu//protos/services/incubating/recording:screen_recording_service_cc_grpc",
         "@aemu//protos/services/snapshot:snapshot_service_cc_grpc",
     ],
 )
@@ -158,6 +165,17 @@ cc_test(
     deps = [
         ":legacy_console_bridge",
         ":telnet_auth",
+        "//emulator/libs/system",
+        "//emulator/libs/system:test-headers",
+        "//emulator/libs/test:googletest_main",
+    ],
+)
+
+cc_test(
+    name = "screen_record_commands_test",
+    srcs = ["screen_record_commands_test.cc"],
+    deps = [
+        ":legacy_console_bridge",
         "//emulator/libs/system",
         "//emulator/libs/system:test-headers",
         "//emulator/libs/test:googletest_main",

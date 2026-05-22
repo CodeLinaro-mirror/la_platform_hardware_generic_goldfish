@@ -28,6 +28,7 @@
 #include "command_registry.h"
 #include "emulator_controller.grpc.pb.h"
 #include "line_command_handler.h"
+#include "screen_recording_service.grpc.pb.h"
 
 namespace goldfish::telnet {
 
@@ -62,6 +63,13 @@ class LegacyConsoleBridge : public LineCommandHandler {
         EmulatorControllerStub() {
             ASSIGN_OR_RETURN(auto client, Client());
             return client->Stub<android::emulation::control::EmulatorController>();
+        }
+
+        virtual absl::StatusOr<std::unique_ptr<
+                android::emulation::control::incubating::ScreenRecording::StubInterface>>
+        ScreenRecordingStub() {
+            ASSIGN_OR_RETURN(auto client, Client());
+            return client->Stub<android::emulation::control::incubating::ScreenRecording>();
         }
 
         virtual absl::StatusOr<std::unique_ptr<grpc::ClientContext>> NewContext(
