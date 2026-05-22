@@ -389,51 +389,6 @@ absl::Status AvdExtendedUniverse::OnLoad(archive::IReader& reader) {
             ok = false;
         }
     };
-    auto check_bool = [&](const char* name, bool val) {
-        auto loaded = ReadValue<bool>(reader);
-        if (loaded.ok()) {
-            if (*loaded != val) {
-                LOG(WARNING) << "Property mismatch: " << name
-                             << " (loaded: " << (*loaded ? "1" : "0") << ", expected: " << val
-                             << ")";
-                ok = false;
-            }
-        } else {
-            LOG(WARNING) << "Property mismatch: " << name << " (loaded: <failed>, expected: " << val
-                         << ")";
-            ok = false;
-        }
-    };
-    auto check_double = [&](const char* name, double val) {
-        auto loaded = ReadValue<double>(reader);
-        if (loaded.ok()) {
-            if (*loaded != val) {
-                LOG(WARNING) << "Property mismatch: " << name
-                             << " (loaded: " << std::to_string(*loaded) << ", expected: " << val
-                             << ")";
-                ok = false;
-            }
-        } else {
-            LOG(WARNING) << "Property mismatch: " << name << " (loaded: <failed>, expected: " << val
-                         << ")";
-            ok = false;
-        }
-    };
-    auto check_uint64 = [&](const char* name, uint64_t val) {
-        auto loaded = ReadValue<uint64_t>(reader);
-        if (loaded.ok()) {
-            if (*loaded != val) {
-                LOG(WARNING) << "Property mismatch: " << name
-                             << " (loaded: " << std::to_string(*loaded) << ", expected: " << val
-                             << ")";
-                ok = false;
-            }
-        } else {
-            LOG(WARNING) << "Property mismatch: " << name << " (loaded: <failed>, expected: " << val
-                         << ")";
-            ok = false;
-        }
-    };
 
     constexpr std::string_view platform = PLATFORM " (" TARGET_CPU "), " COMPILATION_MODE;
     check_str("avd_abi", p.avd_abi);
