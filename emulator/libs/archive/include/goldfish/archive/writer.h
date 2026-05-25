@@ -11,7 +11,7 @@
  */
 
 #pragma once
-#include <climits>
+#include <concepts>
 #include <cstddef>
 #include <cstdint>
 #include <string_view>
@@ -27,84 +27,32 @@ struct IWriter {
 };
 
 // 7bit per byte with MSB for more bytes to follow.
-inline IWriter& operator<<(IWriter& w, zigzag::unsigned_t x) {
-    uint8_t buf[(sizeof(x) * CHAR_BIT + 7 - 1) / 7];
-
-    unsigned len = 0;
-    while (true) {
-        const decltype(x) high7 = x >> 7;
-        const unsigned low7 = x & 0x7FU;
-        buf[len] = low7 | (static_cast<unsigned>(high7 > 0) << 7);
-        ++len;
-        if (high7) {
-            x = high7;
-        } else {
-            break;
-        }
-    }
-
-    w.Write(buf, len);
-    return w;
-}
-
-inline IWriter& operator<<(IWriter& w, const zigzag::signed_t x) {
-    return (w << zigzag::Encode(x));
-}
-
-inline IWriter& operator<<(IWriter& w, const unsigned char x) {
-    return (w << static_cast<zigzag::unsigned_t>(x));
-}
-
-inline IWriter& operator<<(IWriter& w, const unsigned short x) {
-    return (w << static_cast<zigzag::unsigned_t>(x));
-}
-
-inline IWriter& operator<<(IWriter& w, const unsigned int x) {
-    return (w << static_cast<zigzag::unsigned_t>(x));
-}
-
-inline IWriter& operator<<(IWriter& w, const unsigned long x) {
-    return (w << static_cast<zigzag::unsigned_t>(x));
-}
-
-inline IWriter& operator<<(IWriter& w, const signed char x) {
-    return (w << static_cast<zigzag::signed_t>(x));
-}
-
-inline IWriter& operator<<(IWriter& w, const signed short x) {
-    return (w << static_cast<zigzag::signed_t>(x));
-}
-
-inline IWriter& operator<<(IWriter& w, const signed int x) {
-    return (w << static_cast<zigzag::signed_t>(x));
-}
-
-inline IWriter& operator<<(IWriter& w, const signed long x) {
-    return (w << static_cast<zigzag::signed_t>(x));
-}
-
-inline IWriter& operator<<(IWriter& w, const bool x) {
-    return (w << static_cast<zigzag::unsigned_t>(x));
-}
-
-inline IWriter& operator<<(IWriter& w, const char x) {
-    return (w << static_cast<zigzag::signed_t>(x));
-}
-
-inline IWriter& operator<<(IWriter& w, const float x) {
-    w.Write(&x, sizeof(x));
-    return w;
-}
-
-inline IWriter& operator<<(IWriter& w, const double x) {
-    w.Write(&x, sizeof(x));
-    return w;
-}
+IWriter& operator<<(IWriter& w, size_t x);
 
 inline IWriter& operator<<(IWriter& w, const std::string_view x) {
     w << x.size();
     w.Write(x.data(), x.size());
     return w;
+}
+
+template <typename T>
+    requires(std::same_as<T, uint8_t> || std::same_as<T, int8_t> || std::same_as<T, bool> ||
+             std::same_as<T, char> || std::same_as<T, float> || std::same_as<T, double>)
+inline IWriter& operator<<(IWriter& w, T x) {
+    w.Write(&x, sizeof(x));
+    return w;
+}
+
+template <std::unsigned_integral T>
+    requires(!std::same_as<T, size_t> && !std::same_as<T, uint8_t> && !std::same_as<T, bool>)
+inline IWriter& operator<<(IWriter& w, T x) {
+    return (w << static_cast<size_t>(x));
+}
+
+template <std::signed_integral T>
+    requires(!std::same_as<T, int8_t> && !std::same_as<T, char>)
+inline IWriter& operator<<(IWriter& w, T x) {
+    return (w << zigzag::Encode(x));
 }
 
 }  // namespace goldfish::archive

@@ -59,10 +59,19 @@ void UniqueIdAllocator::SaveToSnapshot(archive::IWriter& writer) const {
 }
 
 int UniqueIdAllocator::LoadFromSnapshot(archive::IReader& reader) {
-    last_id_ = GetUnsigned(reader);
+    uint32_t size;
+    if (!ReadValue(reader, last_id_, size).ok()) {
+        return 1;
+    }
+
     returned_ids_.clear();
-    for (size_t n = GetUnsigned(reader); n > 0; --n) {
-        returned_ids_.insert(GetUnsigned(reader));
+    for (; size > 0; --size) {
+        const auto x = ReadValue<uint32_t>(reader);
+        if (x.ok()) {
+            returned_ids_.insert(*x);
+        } else {
+            return 1;
+        }
     }
 
     return 0;

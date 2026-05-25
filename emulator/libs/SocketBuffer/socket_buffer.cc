@@ -138,24 +138,26 @@ void SocketBuffer::SaveToSnapshot(archive::IWriter& writer) const {
 }
 
 int SocketBuffer::LoadFromSnapshot(archive::IReader& reader) {
-    const size_t new_size = GetUnsigned(reader);
-    if (new_size == 0) {
+    const auto new_size = ReadValue<uint32_t>(reader);
+    if (!new_size.ok()) {
+        return 1;
+    } else if (*new_size == 0) {
         Clear(true);
         return 0;
     }
 
-    const size_t new_capacity = GetCapacity(new_size);
-    assert(new_capacity >= new_size);
+    const size_t new_capacity = GetCapacity(*new_size);
+    assert(new_capacity >= *new_size);
     std::unique_ptr<char[]> new_data = std::make_unique<char[]>(new_capacity);
 
-    if (reader.Read(new_data.get(), new_size) != new_size) {
+    if (!reader.Read(new_data.get(), *new_size).ok()) {
         return 1;
     }
 
     data_ = std::move(new_data);
     capacity_ = new_capacity;
-    size_ = new_size;
-    produce_ = new_size;
+    size_ = *new_size;
+    produce_ = *new_size;
     consume_ = 0;
     return 0;
 }

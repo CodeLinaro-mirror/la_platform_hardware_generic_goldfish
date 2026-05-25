@@ -27,6 +27,10 @@ cc_test(
 
 cc_library(
     name = "archive",
+    srcs = [
+        "reader.cc",
+        "writer.cc",
+    ],
     hdrs = [
         "include/goldfish/archive/reader.h",
         "include/goldfish/archive/writer.h",
@@ -37,6 +41,7 @@ cc_library(
     ],
     deps = [
         ":zigzag",
+        "@abseil-cpp//absl/status:statusor",
     ],
 )
 
@@ -70,6 +75,7 @@ cc_test(
     deps = [
         ":DequeArchive",
         "//emulator/libs/test:googletest_main",
+        "@abseil-cpp//absl/status:status_matchers",
     ],
 )
 

@@ -20,7 +20,7 @@ namespace goldfish::archive {
 struct QEMUFileReader : public IReader {
     explicit QEMUFileReader(QEMUFile* file) : file(file) {}
 
-    size_t Read(void* dst, size_t size) override;
+    absl::Status Read(void* dst, size_t size) override;
 
     QEMUFile* file;
 };

@@ -23,7 +23,7 @@ namespace goldfish::archive {
 struct DequeArchive : public IReader, public IWriter {
     using Storage = std::deque<uint8_t>;
 
-    size_t Read(void* dst, size_t size) override;
+    absl::Status Read(void* dst, size_t size) override;
     void Write(const void* src, size_t size) override;
 
     bool Empty() const { return storage.empty(); }

@@ -14,21 +14,28 @@
 
 #include <algorithm>
 
+#include "absl/strings/str_cat.h"
+
 #include "goldfish/archive/deque_reader.h"
 #include "goldfish/archive/deque_writer.h"
 #include "goldfish/debug.h"
 
 namespace goldfish::archive {
 
-size_t DequeReader::Read(void* dst, const size_t requested_size) {
-    const size_t size = std::min(requested_size, storage->size());
+absl::Status DequeReader::Read(void* dst, const size_t size) {
+    auto& storageRef = *NOT_NULL(storage);
+    if (storageRef.size() < size) {
+        return absl::UnavailableError(absl::StrCat(size, " bytes were requested while only ",
+                                                   storageRef.size(), " were available"));
+    }
+
     const auto begin = storage->begin();
     const auto end = std::next(begin, static_cast<int64_t>(size));
 
     std::copy(begin, end, static_cast<uint8_t*>(NOT_NULL(dst)));
-    NOT_NULL(storage)->erase(begin, end);
+    storageRef.erase(begin, end);
 
-    return size;
+    return absl::OkStatus();
 }
 
 void DequeWriter::Write(const void* src, const size_t size) {
@@ -36,15 +43,18 @@ void DequeWriter::Write(const void* src, const size_t size) {
     NOT_NULL(storage)->insert(storage->end(), src8, src8 + size);
 }
 
-size_t DequeArchive::Read(void* dst, const size_t requested_size) {
-    const size_t size = std::min(requested_size, storage.size());
+absl::Status DequeArchive::Read(void* dst, const size_t size) {
+    if (storage.size() < size) {
+        return absl::UnavailableError("IO error 2");
+    }
+
     const auto begin = storage.cbegin();
     const auto end = std::next(begin, static_cast<int64_t>(size));
 
-    std::copy(begin, end, static_cast<uint8_t*>(dst));
+    std::copy(begin, end, static_cast<uint8_t*>(NOT_NULL(dst)));
     storage.erase(begin, end);
 
-    return size;
+    return absl::OkStatus();
 }
 
 void DequeArchive::Write(const void* src, const size_t size) {
