@@ -269,7 +269,7 @@ class FileBackedAvd : public Avd {
     std::string BuildProductName() const override { return build_ini_.ProductName(); }
     std::string BuildNumber() const override { return build_ini_.Number(); }
 
-    Avd::CpuArchitecture DetectArchitecture() const override {
+    Avd::CpuArchitecture Arch() const override {
         auto abi = config_ini_.GetString("abi.type", "unknown");
         if (absl::StrContains(abi, "x86")) {
             return CpuArchitecture::kX86;

@@ -84,6 +84,7 @@ class Avd {
     virtual std::string Name() const = 0;
 
     virtual std::string Id() const = 0;
+    virtual CpuArchitecture Arch() const = 0;
     virtual std::string Abi() const = 0;
     virtual std::string BuildSdk() const = 0;
     virtual std::string BuildId() const = 0;
@@ -120,20 +121,6 @@ class Avd {
      * @see ConfigDirs::getSdkRootDirectory
      */
     virtual const SystemImagePaths& GetSystemImagePaths() const = 0;
-
-    /**
-     * @brief Detects the CPU architecture of the AVD based on the 'abi.type'
-     * config value.
-     *
-     * This method analyzes the 'abi.type' property in the AVD's configuration
-     * file. Possible architectures are inferred based on the presence of the
-     * following substrings:
-     *   * "x86" : Indicates an x86 architecture.
-     *   * "arm" : Indicates an ARM architecture.
-     *
-     * @return The detected CpuArchitecture or kUnknown if it cannot be detected.
-     */
-    virtual CpuArchitecture DetectArchitecture() const = 0;
 
     virtual const HardwareConfig& Hw() const = 0;
 

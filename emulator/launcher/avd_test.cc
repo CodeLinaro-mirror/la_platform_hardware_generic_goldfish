@@ -243,7 +243,7 @@ TEST_F(AvdTest, CpuArchitecture) {
                 "abi.type=x86_64\ntarget=android-30\nimage.sysdir.1=sysimg");
     {
         ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(opts_, paths_, "x86_avd", false, ""));
-        EXPECT_EQ(avd->DetectArchitecture(), Avd::CpuArchitecture::kX86);
+        EXPECT_EQ(avd->Arch(), Avd::CpuArchitecture::kX86);
     }
 
     auto arm_avd_dir = CreateTestAvd("arm_avd", "android-30", 30);
@@ -251,7 +251,7 @@ TEST_F(AvdTest, CpuArchitecture) {
                 "abi.type=arm64-v8a\ntarget=android-30\nimage.sysdir.1=sysimg");
     {
         ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(opts_, paths_, "arm_avd", false, ""));
-        EXPECT_EQ(avd->DetectArchitecture(), Avd::CpuArchitecture::kArm);
+        EXPECT_EQ(avd->Arch(), Avd::CpuArchitecture::kArm);
     }
 
     auto unknown_avd_dir = CreateTestAvd("unknown_avd", "android-30", 30);
@@ -259,7 +259,7 @@ TEST_F(AvdTest, CpuArchitecture) {
                 "abi.type=mips\ntarget=android-30\nimage.sysdir.1=sysimg");
     {
         ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(opts_, paths_, "unknown_avd", false, ""));
-        EXPECT_EQ(avd->DetectArchitecture(), Avd::CpuArchitecture::kUnknown);
+        EXPECT_EQ(avd->Arch(), Avd::CpuArchitecture::kUnknown);
     }
 }
 

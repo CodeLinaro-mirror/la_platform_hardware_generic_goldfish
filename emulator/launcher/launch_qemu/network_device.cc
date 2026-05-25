@@ -18,7 +18,7 @@ absl::Status NetworkDevice::initialize(const EmulatorConfig& emulator) {
 namespace {
 std::string network_device_type(const Avd& avd, std::string_view addr) {
     // virito-net-device on aarch64 vs virtio-net-pci on X86_64
-    switch (avd.DetectArchitecture()) {
+    switch (avd.Arch()) {
     case Avd::CpuArchitecture::kArm:
         return "virtio-net-device";
     case Avd::CpuArchitecture::kX86:

@@ -309,7 +309,7 @@ std::vector<std::pair<std::string, std::string>> getUserspaceBootProperties(
 
 std::string getDynamicPartitionBootDevice(const EmulatorConfig& emulator) {
     const Avd& avd = emulator.avd();
-    auto arch = avd.DetectArchitecture();
+    auto arch = avd.Arch();
     // auto drive = emulator.get<PciDevice>("system");
 
     if (arch == Avd::CpuArchitecture::kX86) {

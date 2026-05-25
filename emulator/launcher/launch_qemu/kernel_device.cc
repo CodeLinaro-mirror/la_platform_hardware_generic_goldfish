@@ -38,7 +38,7 @@ absl::StatusOr<std::string> command_line(const Avd& avd, const AndroidOptions& o
     absl::btree_set<std::string> cl = {"bootconfig", "no_timer_check", "8250.nr_uarts=1",
                                        "loop.max_part=7", "mac80211_hwsim.radios=0"};
     // TODO add ramoops args?
-    switch (auto a = avd.DetectArchitecture(); a) {
+    switch (auto a = avd.Arch(); a) {
     case Avd::CpuArchitecture::kArm:
         cl.merge(absl::btree_set<std::string>{"console=ttyAMA0,38400", "earlyprintk=ttyAMA0",
                                               "keep_bootcon", "ndns=3"});

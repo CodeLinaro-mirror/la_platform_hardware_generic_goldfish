@@ -29,7 +29,7 @@ TEST(Kernel, Basic_x86) {
     paths.kernel_image = "some/path/kernel-ranchu";
     EXPECT_CALL(emu.mock_avd(), GetSystemImagePaths()).WillRepeatedly(testing::ReturnRef(paths));
 
-    EXPECT_CALL(emu.mock_avd(), DetectArchitecture())
+    EXPECT_CALL(emu.mock_avd(), Arch())
             .Times(1)
             .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
 
@@ -48,7 +48,7 @@ TEST(Kernel, Basic_arm64) {
     paths.kernel_image = "some/path/kernel-ranchu";
     EXPECT_CALL(emu.mock_avd(), GetSystemImagePaths()).WillRepeatedly(testing::ReturnRef(paths));
 
-    EXPECT_CALL(emu.mock_avd(), DetectArchitecture())
+    EXPECT_CALL(emu.mock_avd(), Arch())
             .Times(1)
             .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kArm));
 
@@ -75,7 +75,7 @@ TEST(Kernel, AppendExtras) {
     paths.kernel_cmdline = "some/path/kernel-ranchu-command.txt";
     EXPECT_CALL(emu.mock_avd(), GetSystemImagePaths()).WillRepeatedly(testing::ReturnRef(paths));
 
-    EXPECT_CALL(emu.mock_avd(), DetectArchitecture())
+    EXPECT_CALL(emu.mock_avd(), Arch())
             .Times(1)
             .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
 

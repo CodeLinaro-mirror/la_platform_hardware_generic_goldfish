@@ -22,7 +22,7 @@ namespace android::goldfish::test {
 
 TEST(Network, Basic_x86) {
     FakeEmulator emu;
-    EXPECT_CALL(emu.mock_avd(), DetectArchitecture())
+    EXPECT_CALL(emu.mock_avd(), Arch())
             .Times(1)
             .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
 
@@ -37,7 +37,7 @@ TEST(Network, Basic_x86) {
 
 TEST(Network, Basic_arm64) {
     FakeEmulator emu;
-    EXPECT_CALL(emu.mock_avd(), DetectArchitecture())
+    EXPECT_CALL(emu.mock_avd(), Arch())
             .Times(1)
             .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kArm));
 
