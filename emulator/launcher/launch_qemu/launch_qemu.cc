@@ -43,6 +43,7 @@
 #include "cpu_device.h"
 #include "display_device.h"
 #include "gpu_device.h"
+#include "hugepage_device.h"
 #include "initrd_device.h"
 #include "kernel_device.h"
 #include "machine.h"
@@ -96,6 +97,7 @@ absl::Status LaunchQemu::addDevices() {
     addDevice<Machine>();
     addDevice<CpuDevice>();
     addDevice<MemoryDevice>();
+    addDevice<HugePageDevice>();
     addDevice<KernelDevice>();
     addDevice<InitrdDevice>();
 

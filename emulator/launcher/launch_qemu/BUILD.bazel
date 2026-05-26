@@ -350,6 +350,21 @@ cc_library(
 )
 
 cc_library(
+    name = "hugepage_device",
+    srcs = ["hugepage_device.cc"],
+    hdrs = ["hugepage_device.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":device",
+        ":emulator_config",
+        "//emulator/launcher:avd",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/strings",
+    ],
+)
+
+cc_library(
     name = "wifi_device",
     srcs = ["wifi_device.cc"],
     hdrs = ["wifi_device.h"],
@@ -455,6 +470,7 @@ cc_library(
         ":emulator_config",
         ":gpu_device",
         ":grpc_device",
+        ":hugepage_device",
         ":initrd_device",
         ":kernel_device",
         ":machine",
