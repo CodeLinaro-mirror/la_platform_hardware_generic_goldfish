@@ -40,7 +40,7 @@ ArgStream::ParseResult ArgStream::ParseEntry() const {
     if (index_ >= line_.size()) return {.index = index_, .value = ""};
 
     // Invariant first char != whitespace.
-    CHECK(!absl::ascii_isspace(line_[index_])) << "Entry parser started on whitespace!";
+    DCHECK(!absl::ascii_isspace(line_[index_])) << "Entry parser started on whitespace!";
     constexpr char kQuote = '\'';
     constexpr char kDoubleQuote = '"';
     constexpr char kEscape = '\\';

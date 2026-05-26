@@ -13,13 +13,13 @@
 // limitations under the License.
 #include "android/process/command.h"
 
-#include <cassert>
 #include <climits>
 #include <cstdio>
 #include <future>
 #include <iterator>
 #include <streambuf>
 
+#include "absl/log/check.h"
 #include "absl/log/log.h"
 
 #include "goldfish/synchronized_stream_buf.h"
@@ -111,14 +111,14 @@ ObservableProcess::~ObservableProcess() {
 };
 
 Command& Command::RedirectStdoutToUnsafe(std::basic_streambuf<char>* stdout_buffer) {
-    assert(daemon_ == false);
+    DCHECK(daemon_ == false);
     std_out_ = stdout_buffer;
     capture_output_ = true;
     return *this;
 }
 
 Command& Command::RedirectStderrToUnsafe(std::basic_streambuf<char>* stderr_buffer) {
-    assert(daemon_ == false);
+    DCHECK(daemon_ == false);
     std_err_ = stderr_buffer;
     capture_output_ = true;
     return *this;
@@ -137,7 +137,7 @@ Command& Command::Args(const CommandArguments& args) {
 }
 
 Command& Command::Asdaemon() {
-    assert(capture_output_ == false);
+    DCHECK(capture_output_ == false);
     daemon_ = true;
     return *this;
 }

@@ -221,7 +221,7 @@ class HalPlug {
      * "null" socket.
      */
     std::shared_ptr<HalSocket> Socket() const {
-        CHECK(socket_) << "socket_ is nullptr";
+        DCHECK(socket_) << "socket_ is nullptr";
         return socket_;
     }
 
@@ -245,7 +245,7 @@ class HalPlug {
     friend void AbslStringify(absl::FormatSink& s, const HalPlug& plug);
 
     void EstablishConnection(std::shared_ptr<HalSocket> socket) {
-        CHECK(socket) << "socket is nullptr";
+        DCHECK(socket) << "socket is nullptr";
         socket_ = std::move(socket);
     }
     std::shared_ptr<HalSocket> socket_;

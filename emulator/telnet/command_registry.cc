@@ -102,7 +102,7 @@ CommandRegistryBuilder::NodeBuilder CommandRegistryBuilder::NodeBuilder::Sub(std
 
 CommandRegistryBuilder::NodeBuilder CommandRegistryBuilder::NodeBuilder::Sub(
         std::string name, std::string abstract, std::string description) {
-    CHECK(!name.empty()) << "Sub-command name cannot be empty.";
+    DCHECK(!name.empty()) << "Sub-command name cannot be empty.";
     CommandRegistry::Entry* child = CommandRegistryBuilder::GetOrCreateChild(
             entry_->children, std::move(name), std::move(abstract), std::move(description));
     if (entry_->is_safe) {

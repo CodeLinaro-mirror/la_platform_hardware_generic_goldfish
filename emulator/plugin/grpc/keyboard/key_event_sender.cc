@@ -13,11 +13,10 @@
 // limitations under the License.
 #include "android/emulation/control/keyboard/key_event_sender.h"
 
-#include <assert.h>
-
 #include <array>
 #include <cstdint>
 
+#include "absl/log/check.h"
 #include "absl/log/log.h"
 
 #include "android/emulation/control/keyboard/key_conversion.h"
@@ -339,8 +338,8 @@ class KeyEventSenderImpl : public IKeyEventSender {
             // we have found a single utf-8 char between start and end (of at most 4
             // bytes).
             if ((ch & 0xc0) != 0x80) {
-                assert(start < end);
-                assert(end - start <= 4);
+                DCHECK(start < end);
+                DCHECK(end - start <= 4);
                 auto len = end - start;
                 if (len > 1) {
                     LOG(ERROR) << "The utf-8 char: " << std::string_view(start, len)

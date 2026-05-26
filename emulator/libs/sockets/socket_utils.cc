@@ -202,7 +202,7 @@ union SockAddressStorage {
             in6.sin6_port = htons(port);
             in6.sin6_addr = IN6ADDR_LOOPBACK_INIT;
         } else {
-            CHECK(false) << "Invalid domain " << domain;
+            DCHECK(false) << "Invalid domain " << domain;
         }
     }
 

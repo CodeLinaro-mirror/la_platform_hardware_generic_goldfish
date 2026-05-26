@@ -15,7 +15,6 @@
 #include "goldfish/devices/connector_registry_impl.h"
 
 #include <algorithm>
-#include <cassert>
 #include <cstring>
 #include <mutex>
 #include <utility>

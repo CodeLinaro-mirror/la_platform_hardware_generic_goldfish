@@ -196,7 +196,7 @@ class FileSystemWatcherFS : public FileSystemWatcher {
 
         state_ = State::kStarting;
         cf_run_loop_ = nullptr;
-        CHECK(!watcher_thread_.joinable()) << "A watcher thread is active.";
+        DCHECK(!watcher_thread_.joinable()) << "A watcher thread is active.";
         watcher_thread_ = std::thread([this] { WatchForChanges(); });
 
         // Wait for the thread to move out of the starting state.
@@ -218,8 +218,8 @@ class FileSystemWatcherFS : public FileSystemWatcher {
 
             // Signal the thread to stop.
             // Note that State::kRunning -> cf_run_loop_
-            CHECK(state_ == State::kRunning) << "Start was called, yet we are not running?";
-            CHECK(watcher_thread_.joinable()) << "Watcher thread is not joinable.";
+            DCHECK(state_ == State::kRunning) << "Start was called, yet we are not running?";
+            DCHECK(watcher_thread_.joinable()) << "Watcher thread is not joinable.";
             CFRunLoopStop(cf_run_loop_);
             state_ = State::kStopping;
             thread_to_join = std::move(watcher_thread_);
@@ -240,7 +240,7 @@ class FileSystemWatcherFS : public FileSystemWatcher {
         auto* self = static_cast<FileSystemWatcherFS*>(info);
         const absl::MutexLock lock(self->mu_);
         VLOG(1) << "Filesystem watcher is active";
-        CHECK(self->state_ == State::kStarting)
+        DCHECK(self->state_ == State::kStarting)
                 << "We should be in the starting state when this callback is happening";
         self->state_ = State::kRunning;
     }

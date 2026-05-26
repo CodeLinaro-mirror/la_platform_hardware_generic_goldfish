@@ -18,6 +18,7 @@
 #include <memory>
 #include <thread>
 
+#include "absl/log/check.h"
 #include "absl/strings/str_format.h"
 #include "absl/synchronization/notification.h"
 

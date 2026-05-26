@@ -15,7 +15,7 @@ cc_library(
     ],
     deps = [
         "//emulator/libs/archive",
-        "//emulator/libs/debug",
+        "@abseil-cpp//absl/log:check",
     ],
 )
 

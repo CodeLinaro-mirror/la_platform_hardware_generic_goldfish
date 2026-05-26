@@ -30,7 +30,7 @@ PlugPtr HalPlugFactory::WrapHalPlug(SocketPtr qemu_socket, const HalDeviceFactor
     // Let's hope developers are not doing
     // *crazy* things in the factory.
     std::shared_ptr<HalPlug> real_hal_plug = hal_factory();
-    CHECK(real_hal_plug) << "real_hal_plug is nullptr";
+    DCHECK(real_hal_plug) << "real_hal_plug is nullptr";
 
     // 2. Create the marshalling socket on the QEMU thread.
     auto marshalling_socket =

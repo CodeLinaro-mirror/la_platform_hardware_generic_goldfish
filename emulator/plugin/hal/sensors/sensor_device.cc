@@ -15,7 +15,6 @@
 #include "goldfish/devices/sensor/sensor_device.h"
 
 #include <algorithm>
-#include <cassert>
 #include <chrono>
 #include <cstdbool>
 #include <cstdio>

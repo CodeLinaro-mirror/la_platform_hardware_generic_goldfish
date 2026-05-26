@@ -32,7 +32,7 @@ HalPlugToIPlugAdapter::~HalPlugToIPlugAdapter() {
 HalPlugToIPlugAdapter::HalPlugToIPlugAdapter(async::EventLoop* client_loop,
                                              std::shared_ptr<HalPlug> hal_plug)
         : client_loop_(client_loop), hal_plug_(std::move(hal_plug)) {
-    CHECK(hal_plug_) << "hal_plug_ is nullptr";
+    DCHECK(hal_plug_) << "hal_plug_ is nullptr";
     VLOG(1) << "HalPlugToIPlugAdapter created with mHalPlug: " << *hal_plug_
             << ", use_count: " << hal_plug_.use_count();
 }

@@ -238,7 +238,9 @@ absl::StatusOr<SharedFD> SendCallRequest(const int serverPort,
 
 ModemSimulatorClient::ModemCall::ModemCall(SharedFD modemConn) {
     SharedFD cancelListener;
-    CHECK(SharedFD::Pipe(&cancelListener, &cancelator_));
+    if (!SharedFD::Pipe(&cancelListener, &cancelator_)) {
+        LOG(FATAL) << "Could not create a pipe";
+    }
 
     socketThread_ = std::thread(
             [this, modemConn = std::move(modemConn), cancelListener = std::move(cancelListener)]() {

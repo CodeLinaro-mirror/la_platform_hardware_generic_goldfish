@@ -17,10 +17,10 @@
 #include "goldfish/sensors/physical_model.h"
 
 #include <array>
-#include <cassert>
 #include <cmath>
 #include <vector>
 
+#include "absl/log/check.h"
 #include "absl/log/log.h"
 
 #include "android/goldfish/hardware_config.h"
@@ -756,7 +756,7 @@ void PhysicalModel::PhysicalStateChanging() {
 void PhysicalModel::PhysicalStateStabilized() {
     {
         const std::lock_guard<std::recursive_mutex> lock(mutex_);
-        assert(is_physical_state_changing_);
+        DCHECK(is_physical_state_changing_);
 
         // Increment all of the measurement ids because the physical state has
         // stabilized.

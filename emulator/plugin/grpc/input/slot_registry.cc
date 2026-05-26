@@ -13,10 +13,10 @@
 // limitations under the License.
 #include "slot_registry.h"
 
-#include <cassert>
 #include <utility>
 #include <vector>
 
+#include "absl/log/check.h"
 #include "absl/log/log.h"
 
 #include "standard-headers/linux/input-event-codes.h"
@@ -54,7 +54,7 @@ bool SlotRegistry::IsSlotRegistered(uint32_t slot) {
 }
 
 void SlotRegistry::UpdateSlotExpiration(uint32_t identifier) {
-    assert(id_last_used_epoch_.count(identifier) > 0);
+    DCHECK(id_last_used_epoch_.count(identifier) > 0);
     auto now = clock_->Now(base::ClockType::kHost);
     id_last_used_epoch_[identifier] = now + slot_expiration_;
 }
@@ -76,7 +76,7 @@ std::vector<EvDevEvent> SlotRegistry::ExpireOldSlots() {
     const absl::Time now = clock_->Now(base::ClockType::kHost);
     for (auto it = id_last_used_epoch_.begin(); it != id_last_used_epoch_.end();) {
         if (it->second < now) {
-            assert(id_map_.count(it->first) > 0);
+            DCHECK(id_map_.count(it->first) > 0);
             const uint32_t remove_slot = id_map_[it->first];
             VLOG(1) << "Expiring outdated touch event identifier: " << it->first
                     << ", slot: " << remove_slot;

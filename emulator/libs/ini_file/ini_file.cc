@@ -11,7 +11,6 @@
 
 #include "android/goldfish/ini_file.h"
 
-#include <cassert>
 #include <cstring>
 #include <filesystem>
 #include <fstream>

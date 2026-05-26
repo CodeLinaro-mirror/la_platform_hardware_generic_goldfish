@@ -15,6 +15,7 @@ cc_library(
         "//emulator/libs/gvk",
         "//emulator/plugin/hal/camera:image_provider_api",
         "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:check",
         "@gfxstream//third_party/glm",
         "@libyuv",
         "@tinyobjloader",

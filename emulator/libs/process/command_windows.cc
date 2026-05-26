@@ -25,10 +25,10 @@
 // IWYU pragma: end_keep
 // clang-format on
 
-#include <cassert>
 #include <ios>
 #include <streambuf>
 
+#include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/strings/match.h"
 
@@ -557,7 +557,7 @@ class WinProcess : public ObservableProcess {
                                        &startup_info,    // STARTUPINFO pointer
                                        &proc_info);      // receives PROCESS_INFORMATION
         } else {
-            assert(!inherit_);
+            DCHECK(!inherit_);
             // We explicitly inherit our pipes.
             std::vector<HANDLE> handles{pipes_[0]->write.get(), pipes_[1]->write.get()};
             DVLOG(1) << "Launching (explicit handles): " << cmdline;

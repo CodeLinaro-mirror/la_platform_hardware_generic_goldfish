@@ -13,7 +13,6 @@
 #include "goldfish/devices/connector.h"
 
 #include <algorithm>
-#include <cassert>
 #include <cstring>
 
 #include "goldfish/devices/cable/error_plug.h"

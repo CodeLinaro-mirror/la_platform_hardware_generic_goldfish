@@ -15,7 +15,6 @@
 
 #include "android/camera/image_providers/imagefile.h"
 
-#include <cassert>
 #include <cstring>
 #include <string>
 
