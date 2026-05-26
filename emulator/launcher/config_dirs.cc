@@ -13,10 +13,10 @@
 // limitations under the License.
 #include "android/goldfish/config_dirs.h"
 
-#include <cassert>
 #include <filesystem>
 #include <string_view>
 
+#include "absl/log/check.h"
 #include "absl/log/log.h"
 
 #include "android/base/system.h"
@@ -127,7 +127,7 @@ auto ConfigDirs::GetSdkRootDirectoryByEnv(bool verbose) -> fs::path {
     if (static_cast<unsigned int>(!sdk_root.empty()) != 0U) {
         // Unquote a possibly "quoted" path.
         if (sdk_root[0] == '"') {
-            assert(sdk_root.back() == '"');
+            DCHECK(sdk_root.back() == '"');
             sdk_root.erase(0, 1);
             sdk_root.pop_back();
         }

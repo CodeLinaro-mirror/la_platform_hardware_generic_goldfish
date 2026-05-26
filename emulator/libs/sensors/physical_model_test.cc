@@ -17,7 +17,6 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
-#include <cassert>
 #include <memory>
 
 #include "android/goldfish/fake_hardware_config.h"

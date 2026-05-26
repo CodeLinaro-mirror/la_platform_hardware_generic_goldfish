@@ -46,7 +46,7 @@ absl::Status WriteToHandle(HANDLE hFile, std::string_view content, const fs::pat
                 absl::StrCat("Failed to write data to '", path.string(),
                              "'. Error: ", Win32Utils::getErrorString(GetLastError())));
     }
-    CHECK(written == content.size()) << "The windows API should guarantee all bytes are written.";
+    DCHECK(written == content.size()) << "The windows API should guarantee all bytes are written.";
 
     if (!FlushFileBuffers(hFile)) {
         return absl::InternalError(

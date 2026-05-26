@@ -35,7 +35,7 @@ ConnectionAwaiter::~ConnectionAwaiter() {
         connection_retry_task_->Cancel();
     }
 
-    CHECK(!socket_);
+    DCHECK(!socket_);
 }
 
 void ConnectionAwaiter::OnConnect() {
@@ -50,9 +50,9 @@ void ConnectionAwaiter::OnConnect() {
         connection_retry_task_->Cancel();
         connection_retry_task_.reset();
     }
-    CHECK(socket_);
+    DCHECK(socket_);
     on_connected_(std::move(socket_));
-    CHECK(!socket_);
+    DCHECK(!socket_);
 }
 
 bool ConnectionAwaiter::OnReceive(const void* /*data*/, size_t /*size*/) {

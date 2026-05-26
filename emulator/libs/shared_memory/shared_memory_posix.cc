@@ -16,13 +16,13 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-#include <cassert>
 #include <cerrno>
 #include <cstdint>
 #include <filesystem>
 #include <string>
 #include <string_view>
 
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 
 #include "goldfish/memory/shared_memory.h"
@@ -84,7 +84,7 @@ void SharedMemory::Close() {
         fd_ = kInvalidHandle;
     }
 
-    assert(!IsOpen());
+    DCHECK(!IsOpen());
 
     bool should_unlink = (create_ && destruction_policy_ == DestructionPolicy::kAuto) ||
                          (destruction_policy_ == DestructionPolicy::kDestroy);

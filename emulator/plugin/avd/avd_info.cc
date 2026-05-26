@@ -67,7 +67,7 @@ struct AvdInfoDev {
 AvdExtendedUniverse* gGlobalAvdUniverseInstance;  // do not read directly, use `GetAvd` instead
 
 AvdExtendedUniverse& getAvdImpl() {
-    CHECK(gGlobalAvdUniverseInstance)
+    DCHECK(gGlobalAvdUniverseInstance)
             << "The AvdUniverse instance is not yet available. "
                "This is a QEMU configuration issue which must be fixed in the launcher.";
 

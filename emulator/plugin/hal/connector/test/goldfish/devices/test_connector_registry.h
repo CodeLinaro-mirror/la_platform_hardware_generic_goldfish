@@ -106,7 +106,7 @@ class TestConnectorRegistry : public ConnectorRegistry {
   public:
     TestConnectorRegistry() = default;
 
-    ~TestConnectorRegistry() { CHECK(!hal_plug_); }
+    ~TestConnectorRegistry() { DCHECK(!hal_plug_); }
 
     void Close() {
         if (hal_plug_) {

@@ -143,7 +143,7 @@ void StudioFileMetricsWriter::Write(MetricsEvent event) {
 }
 
 void StudioFileMetricsWriter::OpenNextFile() ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_) {
-    CHECK(!current_file_.is_open());
+    DCHECK(!current_file_.is_open());
     open_file_path_ =
             spool_dir_ / absl::StrFormat(kFileNameFormat, session_id_, pid_, file_counter_++);
     RefreshLockFile(open_file_path_);
@@ -181,10 +181,10 @@ bool FinalizeFile(const fs::path& path) {
 
 void StudioFileMetricsWriter::FinalizeCurrentFile() ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_) {
     if (open_file_path_.empty()) {
-        CHECK(!current_file_.is_open());
+        DCHECK(!current_file_.is_open());
         return;
     }
-    CHECK(current_file_.is_open());
+    DCHECK(current_file_.is_open());
     current_file_.clear();
     current_file_.close();
     if (!current_file_) {

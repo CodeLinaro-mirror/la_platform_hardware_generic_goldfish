@@ -12,11 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <cassert>
 #include <deque>
 #include <set>
 #include <unordered_map>
 
+#include "absl/log/check.h"
 #include "absl/strings/str_format.h"
 #include "absl/synchronization/mutex.h"
 
@@ -96,8 +96,8 @@ struct VsockStream : public goldfish::devices::cable::ISocket {
     }
 
     void sendOp(enum virtio_vsock_op op) {
-        assert(op > VIRTIO_VSOCK_OP_INVALID);
-        assert(op <= VIRTIO_VSOCK_OP_CREDIT_REQUEST);
+        DCHECK(op > VIRTIO_VSOCK_OP_INVALID);
+        DCHECK(op <= VIRTIO_VSOCK_OP_CREDIT_REQUEST);
         sendOpMask |= (1U << op);
     }
 
@@ -149,7 +149,7 @@ struct GoldfishVirtioVsockDevice {
         const uint32_t hostPort = mSrcPortAllocator.Get() + kDynamicPortsStart;
 
         const auto [streamI, inserted] = mStreams.emplace(*this, guestPort, hostPort);
-        assert(inserted);
+        DCHECK(inserted);
 
         VsockStream& stream = const_cast<VsockStream&>(*streamI);
         stream.plug = std::move(NOT_NULL(plug));
@@ -347,7 +347,7 @@ struct GoldfishVirtioVsockDevice {
     }
 
     void setStatus(const uint8_t status) {
-        assert(!(status & VIRTIO_CONFIG_S_FAILED));
+        DCHECK(!(status & VIRTIO_CONFIG_S_FAILED));
 
         if (status & VIRTIO_CONFIG_S_NEEDS_RESET) {
             DEBUG_MSG("this=%p, status=S_NEEDS_RESET", this);
@@ -600,12 +600,12 @@ struct GoldfishVirtioVsockDevice {
         for (const VsockStream& stream : mStreams) {
             writer << stream.guestPort << stream.hostPort << stream.hostFwdCnt;
 
-            assert(stream.plug);
+            DCHECK(stream.plug);
             const IPlug& plug = *NOT_NULL(stream.plug);
             const bool supportsLoading = plug.SupportsLoadingFromSnapshot();
             writer << supportsLoading;
             if (supportsLoading) {
-                assert(!stream.dataSniffer && "dataSniffer is not snapshottable yet");
+                DCHECK(!stream.dataSniffer && "dataSniffer is not snapshottable yet");
 
                 const unsigned flags = (stream.isConnected ? 1U : 0U) | stream.sendOpMask;
 
@@ -764,7 +764,7 @@ struct GoldfishVirtioVsockDevice {
 
 ///////////////////////////////////////////////////////////////////////////////
 void VsockStream::SetOnFlowControlEvent(OnFlowControlEvent fce) {
-    assert(fce);
+    DCHECK(fce);
     onFlowControlEvent = std::move(fce);
 }
 

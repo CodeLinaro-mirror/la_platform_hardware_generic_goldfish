@@ -13,6 +13,8 @@
  * limitations under the License.
  */
 
+#include "absl/log/check.h"
+
 #include "VirtualsceneImageProvider.h"
 
 #define FAILURE_DEBUG_PREFIX "VirtualsceneImageProvider"
@@ -714,10 +716,10 @@ imaging::ImageFormat VirtualsceneImageProvider::getStagingFormat(const imaging::
 
 VirtualsceneImageProvider::CropRegion VirtualsceneImageProvider::getCropRegion(
         const CameraImageProviderRect srcSize, const CameraImageProviderRect dstSize) {
-    assert(srcSize.width);
-    assert(srcSize.height);
-    assert(dstSize.width);
-    assert(dstSize.height);
+    DCHECK(srcSize.width);
+    DCHECK(srcSize.height);
+    DCHECK(dstSize.width);
+    DCHECK(dstSize.height);
 
     using Dimension = decltype(CameraImageProviderRect::width);
 

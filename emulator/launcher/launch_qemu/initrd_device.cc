@@ -14,7 +14,6 @@
 
 #include "initrd_device.h"
 
-#include <assert.h>
 #include <stddef.h>
 
 #include <algorithm>
@@ -22,6 +21,7 @@
 #include <string>
 #include <string_view>
 
+#include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/strings/ascii.h"
@@ -316,7 +316,7 @@ std::string getDynamicPartitionBootDevice(const EmulatorConfig& emulator) {
         return "pci0000:00/0000:00:03.0";
     }
 
-    assert(arch == Avd::CpuArchitecture::kArm);
+    DCHECK(arch == Avd::CpuArchitecture::kArm);
 
     // TODO(jansene): We need should determine device id from the order they were
     // added to emulator.

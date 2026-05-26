@@ -13,6 +13,7 @@
 // limitations under the License.
 #include "goldfish/network/ip_endpoint.h"
 
+#include "absl/log/check.h"
 #include "absl/strings/str_cat.h"
 
 namespace goldfish::network {
@@ -25,7 +26,7 @@ Ipv4Endpoint ToIpEndpoint(in_addr addr, uint16_t port) {
 }
 
 Ipv4Endpoint ToIpEndpoint(const struct sockaddr_in& sin4) {
-    assert(sin4.sin_family == AF_INET);
+    DCHECK(sin4.sin_family == AF_INET);
     return ToIpEndpoint(sin4.sin_addr, ntohs(sin4.sin_port));
 }
 
@@ -49,7 +50,7 @@ Ipv6Endpoint ToIpEndpoint(const in6_addr& addr, uint16_t port) {
 }
 
 Ipv6Endpoint ToIpEndpoint(const struct sockaddr_in6& sin6) {
-    assert(sin6.sin6_family == AF_INET6);
+    DCHECK(sin6.sin6_family == AF_INET6);
     return ToIpEndpoint(sin6.sin6_addr, ntohs(sin6.sin6_port));
 }
 

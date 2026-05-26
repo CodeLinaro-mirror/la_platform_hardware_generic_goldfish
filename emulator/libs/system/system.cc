@@ -94,7 +94,6 @@ CF_EXPORT const CFStringRef _kCFSystemVersionProductVersionKey;
 
 #include <sys/stat.h>
 
-#include <cassert>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>

@@ -23,6 +23,7 @@
 #include <vector>
 
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
@@ -197,7 +198,7 @@ EmulatorAdvertisement::EmulatorAdvertisement(fs::path discovery_directory,
         : liveness_checker_(std::move(liveness_checker))
         , shared_directory_(std::move(discovery_directory))
         , location_(shared_directory_ / absl::StrFormat(kLocationFormat, Process::Me()->pid())) {
-    assert(file::exists(shared_directory_));
+    DCHECK(file::exists(shared_directory_));
 }
 
 EmulatorAdvertisement::~EmulatorAdvertisement() {

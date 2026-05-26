@@ -88,8 +88,8 @@ void UvIsClosingChecked(const uv_stream_t* stream) {
 }
 
 void CrashIfUvFailed(const int uv_result, const char* const what) {
-    CHECK(!uv_result) << "Fatal error: " << what
-                      << " failed with error: " << uv_strerror(uv_result);
+    DCHECK(!uv_result) << "Fatal error: " << what
+                       << " failed with error: " << uv_strerror(uv_result);
 }
 
 struct WriteReqT {

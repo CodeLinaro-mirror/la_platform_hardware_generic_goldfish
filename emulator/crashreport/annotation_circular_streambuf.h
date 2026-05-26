@@ -9,7 +9,6 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 #pragma once
-#include <cassert>
 #include <cstring>
 #include <mutex>
 #include <streambuf>
@@ -113,8 +112,8 @@ class AnnotationCircularStreambuf : public std::streambuf {
             }
             const std::streamsize available = epptr() - pptr();
             const std::streamsize to_copy = std::min(to_write, available);
-            assert(available > 0);
-            assert(to_copy > 0);
+            DCHECK(available > 0);
+            DCHECK(to_copy > 0);
 
             std::memcpy(pptr(), p, static_cast<std::size_t>(to_copy));
             pbump(static_cast<int>(to_copy));

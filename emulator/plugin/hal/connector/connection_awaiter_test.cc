@@ -76,7 +76,7 @@ class TestSocketManager {
 
     SocketPtr Accept(PlugPtr p) {
         const auto [where, inserted] = sockets_.emplace(++idGenerator_, std::move(p));
-        CHECK(inserted);
+        DCHECK(inserted);
         return SocketPtr(&const_cast<TestSocket&>(*where));
     }
 

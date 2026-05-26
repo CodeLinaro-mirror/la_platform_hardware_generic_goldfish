@@ -13,9 +13,10 @@
 // limitations under the License.
 #pragma once
 
-#include <cassert>
 #include <mutex>
 #include <vector>
+
+#include "absl/log/check.h"
 
 #include "goldfish/async/event_loop.h"
 #include "goldfish/eventing/event_source.h"
@@ -36,7 +37,7 @@ namespace goldfish::async {
 class EventLoopDispatcher {
   public:
     explicit EventLoopDispatcher(goldfish::async::EventLoop* loop) : loop_(loop) {
-        assert(loop_ != nullptr);
+        DCHECK(loop_ != nullptr);
     }
 
     template <class T, class StoragePolicy>

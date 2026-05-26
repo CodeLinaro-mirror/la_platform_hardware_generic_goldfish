@@ -11,11 +11,10 @@
 
 #include "android/cpu/version.h"
 
-#include <assert.h>
-
 #include <sstream>
 #include <string_view>
 
+#include "absl/log/check.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 
@@ -86,7 +85,7 @@ Version::ComponentType& Version::component(Version::Component c) {
         return std::get<kBuild>(mData);
     }
 
-    assert(false);
+    DCHECK(false);
     static ComponentType none = kNone;
     return none;
 }

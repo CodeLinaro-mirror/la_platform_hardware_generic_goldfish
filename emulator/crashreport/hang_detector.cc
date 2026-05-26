@@ -17,6 +17,7 @@
 #include <memory>
 
 #include "absl/base/thread_annotations.h"
+#include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/strings/str_cat.h"
 #include "absl/synchronization/mutex.h"
@@ -180,7 +181,7 @@ class HangDetectorImpl : public HangDetector {
             }
         }
 
-        assert(worker_thread_.joinable());
+        DCHECK(worker_thread_.joinable());
         worker_thread_.join();
     }
 

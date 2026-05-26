@@ -12,7 +12,7 @@
 
 #include "goldfish/unique_id_allocator.h"
 
-#include <cassert>
+#include "absl/log/check.h"
 
 namespace goldfish {
 
@@ -41,7 +41,7 @@ void UniqueIdAllocator::Put(const uint32_t id) {
             }
         }
     } else {
-        assert(id < last_id_);
+        DCHECK(id < last_id_);
         returned_ids_.insert(id);
     }
 }

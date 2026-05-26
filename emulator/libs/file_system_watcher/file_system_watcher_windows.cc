@@ -68,7 +68,7 @@ class ReadDirectoryChangesWin32 : public FileSystemWatcher {
         }
 
         state_ = State::kStarting;
-        CHECK(!watcher_thread_.joinable()) << "A watcher thread is active.";
+        DCHECK(!watcher_thread_.joinable()) << "A watcher thread is active.";
         watcher_thread_ = std::thread([this] { WatchForChanges(); });
 
         // Wait for the thread to move out of the starting state.
@@ -83,7 +83,7 @@ class ReadDirectoryChangesWin32 : public FileSystemWatcher {
             if (state_ == State::kIdle) {
                 return;
             }
-            CHECK(state_ == State::kRunning) << "Stop() called while not running.";
+            DCHECK(state_ == State::kRunning) << "Stop() called while not running.";
 
             state_ = State::kStopping;
             if (dir_handle_) {

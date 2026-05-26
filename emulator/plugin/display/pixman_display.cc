@@ -25,6 +25,7 @@
 #include <numbers>
 #include <numeric>
 
+#include "absl/log/check.h"
 #include "absl/log/log.h"
 
 #include "android/base/clock.h"
@@ -402,7 +403,7 @@ absl::StatusOr<FrameInfo> PixmanDisplay::GetPixels(PixelFormat format, int new_w
         }
         const size_t png_size = png_buffer_vec.size();
         memcpy(pixels, png_buffer_vec.data(), png_size);
-        assert(png_size <= *c_pixels);
+        DCHECK(png_size <= *c_pixels);
         *c_pixels = png_size;
     }
 

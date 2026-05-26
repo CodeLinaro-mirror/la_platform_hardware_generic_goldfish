@@ -31,7 +31,7 @@ bool ThreadLooper::Event::operator<=(const Event &other) const {
 }
 
 ThreadLooper::Serial ThreadLooper::Post(Callback cb) {
-  CHECK(cb != nullptr);
+  DCHECK(cb != nullptr);
 
   auto serial = next_serial_++;
   // If it's the time to process event with delay exactly when posting
@@ -44,7 +44,7 @@ ThreadLooper::Serial ThreadLooper::Post(Callback cb) {
 
 ThreadLooper::Serial ThreadLooper::Post(
     Callback cb, std::chrono::steady_clock::duration delay) {
-  CHECK(cb != nullptr);
+  DCHECK(cb != nullptr);
 
   auto serial = next_serial_++;
   Insert({ std::chrono::steady_clock::now() + delay, cb, serial });
@@ -109,7 +109,7 @@ void ThreadLooper::Stop() {
   if (stopped_) {
     return;
   }
-  CHECK(looper_thread_.get_id() != std::this_thread::get_id())
+  DCHECK(looper_thread_.get_id() != std::this_thread::get_id())
       << "Destructor called from looper thread";
   {
     const absl::MutexLock lock(lock_);

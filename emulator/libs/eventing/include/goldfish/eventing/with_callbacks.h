@@ -12,12 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 #pragma once
-#include <cassert>
 #include <functional>
 #include <memory>
 #include <mutex>
 #include <unordered_map>
 #include <vector>
+
+#include "absl/log/check.h"
 
 #include "goldfish/eventing/event_source.h"
 #include "goldfish/eventing/policies/pointer_handlers.h"
@@ -186,7 +187,7 @@ class WithCallbacks : public EventSourceType {
             const std::lock_guard<std::mutex> lock(api_lock_);
             id = next_id_++;
             const bool inserted = listener_map_.insert({id, listener}).second;
-            assert(inserted);
+            DCHECK(inserted);
             (void)inserted;
         }
 

@@ -12,9 +12,7 @@
 
 #include "goldfish/socket_buffer.h"
 
-#include <cassert>
-
-#include "goldfish/debug.h"
+#include "absl/log/check.h"
 
 namespace goldfish {
 namespace {
@@ -24,17 +22,17 @@ size_t GetCapacity(const size_t size) {
 }  // namespace
 
 size_t SocketBuffer::Append(const void* const append_data, const size_t append_size) {
-    assert(size_ <= capacity_);
+    DCHECK(size_ <= capacity_);
 
     const size_t new_size = size_ + append_size;
     if (new_size > capacity_) {
         const size_t new_capacity = GetCapacity(new_size);
-        assert(new_capacity >= new_size);
+        DCHECK(new_capacity >= new_size);
         std::unique_ptr<char[]> new_data = std::make_unique<char[]>(new_capacity);
 
         if (size_ > 0) {
-            assert(consume_ < capacity_);
-            assert(data_);
+            DCHECK(consume_ < capacity_);
+            DCHECK(data_);
 
             if ((consume_ + size_) <= capacity_) {
                 memcpy(&new_data[0], &data_[consume_], size_);
@@ -54,20 +52,20 @@ size_t SocketBuffer::Append(const void* const append_data, const size_t append_s
     } else if (new_size == 0) {
         // do nothing
     } else if ((produce_ + append_size) <= capacity_) {
-        assert(capacity_ > 0);
-        assert(produce_ < capacity_);
-        assert(data_);
+        DCHECK(capacity_ > 0);
+        DCHECK(produce_ < capacity_);
+        DCHECK(data_);
 
         memcpy(&data_[produce_], append_data, append_size);
         produce_ = (produce_ + append_size) % capacity_;
     } else {
-        assert(capacity_ > 0);
-        assert(produce_ < capacity_);
-        assert(data_);
+        DCHECK(capacity_ > 0);
+        DCHECK(produce_ < capacity_);
+        DCHECK(data_);
 
         const char* append_data8 = static_cast<const char*>(append_data);
         const size_t sz1 = capacity_ - produce_;
-        assert(append_size > sz1);
+        DCHECK(append_size > sz1);
         const size_t sz2 = append_size - sz1;
 
         memcpy(&data_[produce_], append_data8, sz1);
@@ -80,10 +78,10 @@ size_t SocketBuffer::Append(const void* const append_data, const size_t append_s
 }
 
 std::pair<const void*, size_t> SocketBuffer::Peek() const {
-    assert(size_ <= capacity_);
+    DCHECK(size_ <= capacity_);
     if (size_ > 0) {
-        assert(consume_ < capacity_);
-        assert(data_);
+        DCHECK(consume_ < capacity_);
+        DCHECK(data_);
 
         return {&data_[consume_], std::min(size_, capacity_ - consume_)};
     }
@@ -91,8 +89,8 @@ std::pair<const void*, size_t> SocketBuffer::Peek() const {
 }
 
 size_t SocketBuffer::Consume(const size_t size) {
-    assert(size_ <= capacity_);
-    assert(size <= size_);
+    DCHECK(size_ <= capacity_);
+    DCHECK(size <= size_);
 
     if (capacity_) {
         if (size_ == size) {
@@ -102,7 +100,7 @@ size_t SocketBuffer::Consume(const size_t size) {
             consume_ = (consume_ + size) % capacity_;
         }
     } else {
-        assert(size == 0);
+        DCHECK(size == 0);
     }
 
     return size_;
@@ -120,12 +118,12 @@ void SocketBuffer::Clear(const bool also_free_memory) {
 }
 
 void SocketBuffer::SaveToSnapshot(archive::IWriter& writer) const {
-    assert(size_ <= capacity_);
+    DCHECK(size_ <= capacity_);
 
     writer << size_;
     if (size_) {
-        assert(consume_ < capacity_);
-        assert(data_);
+        DCHECK(consume_ < capacity_);
+        DCHECK(data_);
 
         if ((consume_ + size_) <= capacity_) {
             writer.Write(&data_[consume_], size_);
@@ -147,7 +145,7 @@ int SocketBuffer::LoadFromSnapshot(archive::IReader& reader) {
     }
 
     const size_t new_capacity = GetCapacity(*new_size);
-    assert(new_capacity >= *new_size);
+    DCHECK(new_capacity >= *new_size);
     std::unique_ptr<char[]> new_data = std::make_unique<char[]>(new_capacity);
 
     if (!reader.Read(new_data.get(), *new_size).ok()) {

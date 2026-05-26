@@ -15,7 +15,6 @@
 
 #include "android/camera/image_providers/webcam.h"
 
-#include <cassert>
 #include <cstring>
 #include <string>
 

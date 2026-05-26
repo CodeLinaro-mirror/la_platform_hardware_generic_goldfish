@@ -15,7 +15,6 @@
 
 #include "android/camera/image_providers/videofile.h"
 
-#include <cassert>
 #include <cstring>
 #include <string>
 

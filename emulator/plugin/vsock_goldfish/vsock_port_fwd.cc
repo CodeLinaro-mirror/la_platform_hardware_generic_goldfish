@@ -21,6 +21,7 @@
 #include <mutex>
 #include <string_view>
 
+#include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
@@ -95,7 +96,7 @@ class HostToGuestConnection : public goldfish::devices::HalPlug,
   public:
     explicit HostToGuestConnection(std::shared_ptr<goldfish::async::AsyncSocket> hostSocket)
             : mHostSocket(std::move(hostSocket)) {
-        assert(mHostSocket->GetLoop()->IsOnLoopThread() &&
+        DCHECK(mHostSocket->GetLoop()->IsOnLoopThread() &&
                "The constructor should run on the event loop of the sockets.");
     }
 
@@ -149,7 +150,7 @@ class HostToGuestConnection : public goldfish::devices::HalPlug,
             VLOG(1) << "Guest (vsock) receiving initial data: (" << mHostBuffer.size()
                     << ") :" << mHostBuffer;
             Socket()->Send(std::move(mHostBuffer));
-            assert(mHostBuffer.empty());
+            DCHECK(mHostBuffer.empty());
         }
     }
 

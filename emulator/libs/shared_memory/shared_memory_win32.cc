@@ -14,7 +14,6 @@
 #include <shlwapi.h>
 #include <windows.h>
 
-#include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
@@ -41,7 +40,7 @@ SharedMemory::SharedMemory(std::string_view path_or_uri, size_t size, Destructio
         WCHAR path[MAX_PATH];
         DWORD cPath = MAX_PATH;
         HRESULT hr = PathCreateFromUrlW(srcUri.c_str(), path, &cPath, NULL);
-        CHECK(hr == S_OK) << "Failed to extract uri from: " << path_or_uri << " hr:" << hr;
+        DCHECK(hr == S_OK) << "Failed to extract uri from: " << path_or_uri << " hr:" << hr;
         backing_file_ = std::filesystem::path(path).lexically_normal().string();
     } else {
         backing_file_ = std::filesystem::path(srcUri.c_str()).lexically_normal().string();
@@ -165,7 +164,7 @@ void SharedMemory::Close() {
         }
     }
 
-    CHECK(!IsOpen()) << "Explicitly closing of " << backing_file_ << " failed.";
+    DCHECK(!IsOpen()) << "Explicitly closing of " << backing_file_ << " failed.";
 }
 
 bool SharedMemory::IsOpen() const {

@@ -13,7 +13,6 @@
 // limitations under the License.
 #include "android/emulation/control/jwk_key_loader.h"
 
-#include <cassert>
 #include <cerrno>
 #include <chrono>
 #include <cstring>
@@ -23,6 +22,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
@@ -147,11 +147,11 @@ absl::Status JwkKeyLoader::Add(const Path& to_add, const std::string& json_strin
     }
 
     json object = json::parse(*json_snippet);
-    assert(!object.is_discarded());
+    DCHECK(!object.is_discarded());
 
     // We should have a "keys" array (see:
     // https://datatracker.ietf.org/doc/html/rfc7517)
-    assert(object.find("keys") != object.end());
+    DCHECK(object.find("keys") != object.end());
 
     // Note: At least one key will be present.
     auto keys = object["keys"];

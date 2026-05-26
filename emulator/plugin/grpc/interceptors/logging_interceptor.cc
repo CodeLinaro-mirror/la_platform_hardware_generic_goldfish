@@ -14,10 +14,10 @@
 #include "android/control/interceptor/logging_interceptor.h"
 
 #include <algorithm>
-#include <cassert>
 #include <cinttypes>
 #include <utility>
 
+#include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/time/time.h"
 #include "google/protobuf/message.h"
@@ -52,7 +52,7 @@ static const std::array<std::string, 17> kStatus{
 namespace {
 uint64_t GetTimeDiffUs(const InvocationRecord& loginfo, InterceptionHookPoints from,
                        InterceptionHookPoints to) {
-    assert(loginfo.timestamps[static_cast<int>(to)] >= loginfo.timestamps[static_cast<int>(from)]);
+    DCHECK(loginfo.timestamps[static_cast<int>(to)] >= loginfo.timestamps[static_cast<int>(from)]);
 
     return loginfo.timestamps[static_cast<int>(to)] - loginfo.timestamps[static_cast<int>(from)];
 }
