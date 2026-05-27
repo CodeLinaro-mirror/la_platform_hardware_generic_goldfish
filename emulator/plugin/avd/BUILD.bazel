@@ -134,6 +134,7 @@ cc_library(
         "//emulator/plugin/hal/sensors",
         "//emulator/plugin/hal/unix_pipe",
         "//emulator/plugin/system:qemu_clock",
+        "//emulator/tools:aemu_version",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/log:globals",

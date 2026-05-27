@@ -14,11 +14,15 @@
 
 #include "avd_extended_universe.h"
 
+#include "android/base/system.h"
 #include "android/crashreport/crash_reporter.h"
+#include "goldfish/archive/reader.h"
+#include "goldfish/archive/writer.h"
 #include "goldfish/async/qemu_event_loop.h"
 #include "goldfish/async/testing/global_event_loop.h"
 #include "goldfish/avd_info/gralloc_impl.h"
 #include "goldfish/display/QemuMultidisplay/multi_display.h"
+#include "goldfish/tools/aemu_version.h"
 #include "goldfish/vsock/clear.h"
 
 // clang-format off
@@ -37,6 +41,7 @@ extern "C" {
 namespace goldfish::avd_info {
 
 using devices::boot::EventLoop;
+using namespace goldfish::archive;
 
 namespace {
 
@@ -56,6 +61,26 @@ std::vector<VCpuEventLoop> createVCpuEventLoops() {
         loops.emplace_back(i);
     }
     return loops;
+}
+
+std::string GetCurrentVkIcd() {
+    std::string vk_icd = android::base::System::Get()->GetEnvironmentVariable("ANDROID_EMU_VK_ICD");
+    return vk_icd;
+}
+
+// note: when the avd is moved to different location,
+// the path (such as disk_systemPartition_initPath, or disk_systemPartition_path)
+// will change, and that is typical use case
+// and should not invalidate snapshot; firstboot properties
+// are deprecated and not a factor to consider either.
+// in addition, the avd home or sdk root are not valid reason
+// to invalidet snapshot. we will likely add more factors to
+// ignore in the future. after the exclude, most of the properties
+// are important such as all the ones start with hw_, or size related
+bool IsExcludedProp(std::string_view name) {
+    return name.find("path") != std::string_view::npos ||
+           name.find("Path") != std::string_view::npos || name.find("firstboot") == 0 ||
+           name == "android_sdk_root" || name == "android_sdk_home" || name == "android_avd_home";
 }
 
 }  // namespace
@@ -241,8 +266,85 @@ void AvdExtendedUniverse::OnPreSave() {
     // TODO
 }
 
-absl::Status AvdExtendedUniverse::OnSave(archive::IWriter&) const {
-    // TODO
+absl::Status AvdExtendedUniverse::OnSave(archive::IWriter& writer) const {
+    const auto& p = Props();
+    constexpr std::string_view platform = PLATFORM " (" TARGET_CPU "), " COMPILATION_MODE;
+    std::string vk_icd = GetCurrentVkIcd();
+    LOG(INFO) << "Saving AvdProperties: "
+              << "avd_abi=" << p.avd_abi << ", "
+              << "avd_api=" << p.avd_api << ", "
+              << "build_sdk=" << p.build_sdk << ", "
+              << "build_id=" << p.build_id << ", "
+              << "build_flavour=" << p.build_flavour << ", "
+              << "emulator_full_version=" << EMULATOR_FULL_VERSION_STRING << ", "
+              << "emulator_version=" << VERSION << ", "
+              << "emulator_build_id=" << BUILD_ID << ", "
+              << "emulator_platform=" << platform << ", "
+              << "emulator_vk_icd=" << vk_icd;
+
+    writer << p.avd_abi;
+    writer << p.avd_api;
+    writer << p.build_sdk;
+    writer << p.build_id;
+    writer << p.build_flavour;
+    writer << std::string_view(EMULATOR_FULL_VERSION_STRING);
+    writer << std::string_view(VERSION);
+    writer << std::string_view(BUILD_ID);
+    writer << platform;
+    writer << vk_icd;
+
+    class HwCfgWriterVisitor {
+      public:
+        HwCfgWriterVisitor(archive::IWriter& writer) : mWriter(writer) {}
+
+        void operator()(const char* name, bool val) {
+            if (!IsExcludedProp(name)) {
+                mWriter << val;
+                LOG(INFO) << "Saving HWCFG: " << name << "=" << val;
+            } else {
+                LOG(INFO) << "Not saving HWCFG: " << name << " (excluded)";
+            }
+        }
+        void operator()(const char* name, int32_t val) {
+            if (!IsExcludedProp(name)) {
+                mWriter << val;
+                LOG(INFO) << "Saving HWCFG: " << name << "=" << val;
+            } else {
+                LOG(INFO) << "Not saving HWCFG: " << name << " (excluded)";
+            }
+        }
+        void operator()(const char* name, const std::string& val) {
+            if (!IsExcludedProp(name)) {
+                mWriter << val;
+                LOG(INFO) << "Saving HWCFG: " << name << "=" << val;
+            } else {
+                LOG(INFO) << "Not saving HWCFG: " << name << " (excluded)";
+            }
+        }
+        void operator()(const char* name, double val) {
+            if (!IsExcludedProp(name)) {
+                mWriter << val;
+                LOG(INFO) << "Saving HWCFG: " << name << "=" << val;
+            } else {
+                LOG(INFO) << "Not saving HWCFG: " << name << " (excluded)";
+            }
+        }
+        void operator()(const char* name, const android::goldfish::StorageCapacity& val) {
+            if (!IsExcludedProp(name)) {
+                mWriter << static_cast<uint64_t>(val.Bytes());
+                LOG(INFO) << "Saving HWCFG: " << name << "=" << val.Bytes();
+            } else {
+                LOG(INFO) << "Not saving HWCFG: " << name << " (excluded)";
+            }
+        }
+
+      private:
+        archive::IWriter& mWriter;
+    };
+
+    HwCfgWriterVisitor visitor(writer);
+    p.hw_config.Accept(visitor);
+
     return absl::OkStatus();
 }
 
@@ -254,8 +356,205 @@ void AvdExtendedUniverse::OnPreLoad() {
     // TODO
 }
 
-absl::Status AvdExtendedUniverse::OnLoad(archive::IReader&) {
-    // TODO
+absl::Status AvdExtendedUniverse::OnLoad(archive::IReader& reader) {
+    const auto& p = Props();
+    bool ok = true;
+
+    auto check_int32 = [&](const char* name, int32_t val) {
+        auto loaded = ReadValue<int32_t>(reader);
+        if (loaded.ok()) {
+            if (*loaded != val) {
+                LOG(WARNING) << "Property mismatch: " << name
+                             << " (loaded: " << std::to_string(*loaded) << ", expected: " << val
+                             << ")";
+                ok = false;
+            }
+        } else {
+            LOG(WARNING) << "Property mismatch: " << name << " (loaded: <failed>, expected: " << val
+                         << ")";
+            ok = false;
+        }
+    };
+    auto check_str = [&](const char* name, const std::string& val) {
+        auto loaded = ReadValue<std::string>(reader);
+        if (loaded.ok()) {
+            if (*loaded != val) {
+                LOG(WARNING) << "Property mismatch: " << name << " (loaded: " << *loaded
+                             << ", expected: " << val << ")";
+                ok = false;
+            }
+        } else {
+            LOG(WARNING) << "Property mismatch: " << name << " (loaded: <failed>, expected: " << val
+                         << ")";
+            ok = false;
+        }
+    };
+    auto check_bool = [&](const char* name, bool val) {
+        auto loaded = ReadValue<bool>(reader);
+        if (loaded.ok()) {
+            if (*loaded != val) {
+                LOG(WARNING) << "Property mismatch: " << name
+                             << " (loaded: " << (*loaded ? "1" : "0") << ", expected: " << val
+                             << ")";
+                ok = false;
+            }
+        } else {
+            LOG(WARNING) << "Property mismatch: " << name << " (loaded: <failed>, expected: " << val
+                         << ")";
+            ok = false;
+        }
+    };
+    auto check_double = [&](const char* name, double val) {
+        auto loaded = ReadValue<double>(reader);
+        if (loaded.ok()) {
+            if (*loaded != val) {
+                LOG(WARNING) << "Property mismatch: " << name
+                             << " (loaded: " << std::to_string(*loaded) << ", expected: " << val
+                             << ")";
+                ok = false;
+            }
+        } else {
+            LOG(WARNING) << "Property mismatch: " << name << " (loaded: <failed>, expected: " << val
+                         << ")";
+            ok = false;
+        }
+    };
+    auto check_uint64 = [&](const char* name, uint64_t val) {
+        auto loaded = ReadValue<uint64_t>(reader);
+        if (loaded.ok()) {
+            if (*loaded != val) {
+                LOG(WARNING) << "Property mismatch: " << name
+                             << " (loaded: " << std::to_string(*loaded) << ", expected: " << val
+                             << ")";
+                ok = false;
+            }
+        } else {
+            LOG(WARNING) << "Property mismatch: " << name << " (loaded: <failed>, expected: " << val
+                         << ")";
+            ok = false;
+        }
+    };
+
+    constexpr std::string_view platform = PLATFORM " (" TARGET_CPU "), " COMPILATION_MODE;
+    check_str("avd_abi", p.avd_abi);
+    check_int32("avd_api", p.avd_api);
+    check_str("build_sdk", p.build_sdk);
+    check_str("build_id", p.build_id);
+    check_str("build_flavour", p.build_flavour);
+    check_str("emulator_full_version", EMULATOR_FULL_VERSION_STRING);
+    check_str("emulator_version", VERSION);
+    check_str("emulator_build_id", BUILD_ID);
+    check_str("emulator_platform", std::string(platform));
+
+    std::string current_vk_icd = GetCurrentVkIcd();
+    auto loaded_vk_icd = ReadValue<std::string>(reader);
+    if (loaded_vk_icd.ok()) {
+        if (*loaded_vk_icd != current_vk_icd) {
+            LOG(WARNING) << "Property mismatch: emulator_vk_icd (loaded: " << *loaded_vk_icd
+                         << ", expected: " << current_vk_icd << ")";
+            ok = false;
+        }
+    } else {
+        LOG(WARNING) << "Property mismatch: emulator_vk_icd (loaded: <failed>, expected: "
+                     << current_vk_icd << ")";
+        ok = false;
+    }
+
+    class HwCfgReaderVisitor {
+      public:
+        HwCfgReaderVisitor(archive::IReader& reader, bool& ok) : mReader(reader), mOk(ok) {}
+
+        void operator()(const char* name, bool val) {
+            if (IsExcludedProp(name)) return;
+            auto loaded = ReadValue<bool>(mReader);
+            if (loaded.ok()) {
+                if (*loaded != val) {
+                    LOG(WARNING) << "Property mismatch: " << name
+                                 << " (loaded: " << (*loaded ? "1" : "0") << ", expected: " << val
+                                 << ")";
+                    mOk = false;
+                }
+            } else {
+                LOG(WARNING) << "Property mismatch: " << name
+                             << " (loaded: <failed>, expected: " << val << ")";
+                mOk = false;
+            }
+        }
+        void operator()(const char* name, int32_t val) {
+            if (IsExcludedProp(name)) return;
+            auto loaded = ReadValue<int32_t>(mReader);
+            if (loaded.ok()) {
+                if (*loaded != val) {
+                    LOG(WARNING) << "Property mismatch: " << name
+                                 << " (loaded: " << std::to_string(*loaded) << ", expected: " << val
+                                 << ")";
+                    mOk = false;
+                }
+            } else {
+                LOG(WARNING) << "Property mismatch: " << name
+                             << " (loaded: <failed>, expected: " << val << ")";
+                mOk = false;
+            }
+        }
+        void operator()(const char* name, const std::string& val) {
+            if (IsExcludedProp(name)) return;
+            auto loaded = ReadValue<std::string>(mReader);
+            if (loaded.ok()) {
+                if (*loaded != val) {
+                    LOG(WARNING) << "Property mismatch: " << name << " (loaded: " << *loaded
+                                 << ", expected: " << val << ")";
+                    mOk = false;
+                }
+            } else {
+                LOG(WARNING) << "Property mismatch: " << name
+                             << " (loaded: <failed>, expected: " << val << ")";
+                mOk = false;
+            }
+        }
+        void operator()(const char* name, double val) {
+            if (IsExcludedProp(name)) return;
+            auto loaded = ReadValue<double>(mReader);
+            if (loaded.ok()) {
+                if (*loaded != val) {
+                    LOG(WARNING) << "Property mismatch: " << name
+                                 << " (loaded: " << std::to_string(*loaded) << ", expected: " << val
+                                 << ")";
+                    mOk = false;
+                }
+            } else {
+                LOG(WARNING) << "Property mismatch: " << name
+                             << " (loaded: <failed>, expected: " << val << ")";
+                mOk = false;
+            }
+        }
+        void operator()(const char* name, const android::goldfish::StorageCapacity& val) {
+            if (IsExcludedProp(name)) return;
+            auto loaded = ReadValue<uint64_t>(mReader);
+            if (loaded.ok()) {
+                if (*loaded != val.Bytes()) {
+                    LOG(WARNING) << "Property mismatch: " << name
+                                 << " (loaded: " << std::to_string(*loaded)
+                                 << ", expected: " << val.Bytes() << ")";
+                    mOk = false;
+                }
+            } else {
+                LOG(WARNING) << "Property mismatch: " << name
+                             << " (loaded: <failed>, expected: " << val.Bytes() << ")";
+                mOk = false;
+            }
+        }
+
+      private:
+        archive::IReader& mReader;
+        bool& mOk;
+    };
+
+    HwCfgReaderVisitor visitor(reader, ok);
+    p.hw_config.Accept(visitor);
+
+    if (!ok) {
+        return absl::UnknownError("-1");
+    }
     return absl::OkStatus();
 }
 
