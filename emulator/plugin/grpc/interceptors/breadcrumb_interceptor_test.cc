@@ -33,6 +33,64 @@ namespace android::control::interceptor {
 
 using namespace testing;
 using namespace grpc::experimental;
+using ::android::control::breadcrumbs::Breadcrumb;
+
+static_assert(static_cast<int>(grpc::StatusCode::OK) ==
+                      static_cast<int>(android::control::breadcrumbs::GrpcPayload::OK),
+              "gRPC status code mismatch");
+static_assert(static_cast<int>(grpc::StatusCode::CANCELLED) ==
+                      static_cast<int>(android::control::breadcrumbs::GrpcPayload::CANCELLED),
+              "gRPC status code mismatch");
+static_assert(static_cast<int>(grpc::StatusCode::UNKNOWN) ==
+                      static_cast<int>(android::control::breadcrumbs::GrpcPayload::UNKNOWN),
+              "gRPC status code mismatch");
+static_assert(
+        static_cast<int>(grpc::StatusCode::INVALID_ARGUMENT) ==
+                static_cast<int>(android::control::breadcrumbs::GrpcPayload::INVALID_ARGUMENT),
+        "gRPC status code mismatch");
+static_assert(
+        static_cast<int>(grpc::StatusCode::DEADLINE_EXCEEDED) ==
+                static_cast<int>(android::control::breadcrumbs::GrpcPayload::DEADLINE_EXCEEDED),
+        "gRPC status code mismatch");
+static_assert(static_cast<int>(grpc::StatusCode::NOT_FOUND) ==
+                      static_cast<int>(android::control::breadcrumbs::GrpcPayload::NOT_FOUND),
+              "gRPC status code mismatch");
+static_assert(static_cast<int>(grpc::StatusCode::ALREADY_EXISTS) ==
+                      static_cast<int>(android::control::breadcrumbs::GrpcPayload::ALREADY_EXISTS),
+              "gRPC status code mismatch");
+static_assert(
+        static_cast<int>(grpc::StatusCode::PERMISSION_DENIED) ==
+                static_cast<int>(android::control::breadcrumbs::GrpcPayload::PERMISSION_DENIED),
+        "gRPC status code mismatch");
+static_assert(
+        static_cast<int>(grpc::StatusCode::RESOURCE_EXHAUSTED) ==
+                static_cast<int>(android::control::breadcrumbs::GrpcPayload::RESOURCE_EXHAUSTED),
+        "gRPC status code mismatch");
+static_assert(
+        static_cast<int>(grpc::StatusCode::FAILED_PRECONDITION) ==
+                static_cast<int>(android::control::breadcrumbs::GrpcPayload::FAILED_PRECONDITION),
+        "gRPC status code mismatch");
+static_assert(static_cast<int>(grpc::StatusCode::ABORTED) ==
+                      static_cast<int>(android::control::breadcrumbs::GrpcPayload::ABORTED),
+              "gRPC status code mismatch");
+static_assert(static_cast<int>(grpc::StatusCode::OUT_OF_RANGE) ==
+                      static_cast<int>(android::control::breadcrumbs::GrpcPayload::OUT_OF_RANGE),
+              "gRPC status code mismatch");
+static_assert(static_cast<int>(grpc::StatusCode::UNIMPLEMENTED) ==
+                      static_cast<int>(android::control::breadcrumbs::GrpcPayload::UNIMPLEMENTED),
+              "gRPC status code mismatch");
+static_assert(static_cast<int>(grpc::StatusCode::INTERNAL) ==
+                      static_cast<int>(android::control::breadcrumbs::GrpcPayload::INTERNAL),
+              "gRPC status code mismatch");
+static_assert(static_cast<int>(grpc::StatusCode::UNAVAILABLE) ==
+                      static_cast<int>(android::control::breadcrumbs::GrpcPayload::UNAVAILABLE),
+              "gRPC status code mismatch");
+static_assert(static_cast<int>(grpc::StatusCode::DATA_LOSS) ==
+                      static_cast<int>(android::control::breadcrumbs::GrpcPayload::DATA_LOSS),
+              "gRPC status code mismatch");
+static_assert(static_cast<int>(grpc::StatusCode::UNAUTHENTICATED) ==
+                      static_cast<int>(android::control::breadcrumbs::GrpcPayload::UNAUTHENTICATED),
+              "gRPC status code mismatch");
 
 class MockInterceptorBatchMethods : public grpc::experimental::InterceptorBatchMethods {
   public:
@@ -61,9 +119,9 @@ class MockInterceptorBatchMethods : public grpc::experimental::InterceptorBatchM
     MOCK_METHOD(void, FailHijackedSendMessage, (), (override));
 };
 
-std::vector<GrpcBreadcrumb> GetAllCrumbs() {
-    std::vector<GrpcBreadcrumb> result;
-    BreadcrumbInterceptor::GetLogForTesting()->ForEach([&](const GrpcBreadcrumb& msg) {
+std::vector<Breadcrumb> GetAllCrumbs() {
+    std::vector<Breadcrumb> result;
+    BreadcrumbInterceptor::GetLogForTesting()->ForEach([&](const Breadcrumb& msg) {
         result.push_back(msg);
         return true;
     });
@@ -97,9 +155,14 @@ TEST_F(BreadcrumbInterceptorTest, LogsStartOnCreation) {
     auto crumbs = GetAllCrumbs();
 
     ASSERT_GE(crumbs.size(), 2);
-    // The last two should be START and END_OF_CALL for the interceptor we just destroyed.
-    EXPECT_EQ(crumbs[crumbs.size() - 2].phase(), GrpcBreadcrumb::START);
-    EXPECT_EQ(crumbs.back().phase(), GrpcBreadcrumb::END_OF_CALL);
+    // The last two should be BEGIN and END for the interceptor we just destroyed.
+    EXPECT_EQ(crumbs[crumbs.size() - 2].phase(), Breadcrumb::FLOW_BEGIN);
+    EXPECT_EQ(crumbs.back().phase(), Breadcrumb::FLOW_END);
+
+    EXPECT_EQ(crumbs[crumbs.size() - 2].grpc().grpc_phase(),
+              android::control::breadcrumbs::GrpcPayload::START);
+    EXPECT_EQ(crumbs.back().grpc().grpc_phase(),
+              android::control::breadcrumbs::GrpcPayload::END_OF_CALL);
 }
 
 TEST_F(BreadcrumbInterceptorTest, HandlesLargePayloadsByDroppingDetail) {
@@ -127,8 +190,10 @@ TEST_F(BreadcrumbInterceptorTest, HandlesLargePayloadsByDroppingDetail) {
 
     bool found_large = false;
     for (const auto& c : crumbs) {
-        if (c.phase() == GrpcBreadcrumb::PRE_SEND_MESSAGE && c.msg_size() > 200) {
-            EXPECT_FALSE(c.has_payload());  // Payload should be dropped as it's too big
+        if (c.phase() == Breadcrumb::FLOW_STEP && c.has_grpc() &&
+            c.grpc().grpc_phase() == android::control::breadcrumbs::GrpcPayload::PRE_SEND_MESSAGE &&
+            c.grpc().msg_size() > 200) {
+            EXPECT_FALSE(c.grpc().has_payload());  // Payload should be dropped as it's too big
             found_large = true;
         }
     }
@@ -159,10 +224,12 @@ TEST_F(BreadcrumbInterceptorTest, CapturesIncomingMessages) {
 
     bool found_incoming = false;
     for (const auto& c : crumbs) {
-        if (c.phase() == GrpcBreadcrumb::POST_RECV_MESSAGE) {
-            EXPECT_TRUE(c.has_payload());
+        if (c.phase() == Breadcrumb::FLOW_STEP && c.has_grpc() &&
+            c.grpc().grpc_phase() ==
+                    android::control::breadcrumbs::GrpcPayload::POST_RECV_MESSAGE) {
+            EXPECT_TRUE(c.grpc().has_payload());
             android::emulation::control::KeyboardEvent captured;
-            captured.ParseFromString(c.payload());
+            captured.ParseFromString(c.grpc().payload());
             EXPECT_EQ(captured.key(), "A");
             found_incoming = true;
         }
@@ -183,7 +250,7 @@ TEST_F(BreadcrumbInterceptorTest, VerifiedCircularBufferWrap) {
 
     // We expect some valid messages at the end of the buffer.
     ASSERT_GT(crumbs.size(), 10);
-    EXPECT_EQ(crumbs.back().phase(), GrpcBreadcrumb::END_OF_CALL);
+    EXPECT_EQ(crumbs.back().phase(), Breadcrumb::FLOW_END);
 }
 
 TEST_F(BreadcrumbInterceptorTest, CapturesCorrectThreadId) {
@@ -201,6 +268,57 @@ TEST_F(BreadcrumbInterceptorTest, CapturesCorrectThreadId) {
     // Check that the thread_id matches our current thread for both events.
     EXPECT_EQ(crumbs[crumbs.size() - 2].thread_id(), expected_id);
     EXPECT_EQ(crumbs.back().thread_id(), expected_id);
+}
+
+TEST_F(BreadcrumbInterceptorTest, CapturesThreadSwitches) {
+    auto factory = std::make_unique<BreadcrumbInterceptorFactory>();
+
+    uint64_t main_thread_id = android::crashreport::GetOsThreadId();
+    static std::atomic<uint64_t> s_background_thread_id{0};
+
+    std::unique_ptr<grpc::experimental::Interceptor> interceptor;
+
+    interceptor = std::unique_ptr<grpc::experimental::Interceptor>(
+            factory->CreateClientInterceptor(nullptr));
+
+    MockInterceptorBatchMethods methods;
+    EXPECT_CALL(methods,
+                QueryInterceptionHookPoint(
+                        grpc::experimental::InterceptionHookPoints::PRE_SEND_INITIAL_METADATA))
+            .WillRepeatedly(::testing::Return(true));
+    EXPECT_CALL(methods,
+                QueryInterceptionHookPoint(::testing::Ne(
+                        grpc::experimental::InterceptionHookPoints::PRE_SEND_INITIAL_METADATA)))
+            .WillRepeatedly(::testing::Return(false));
+    EXPECT_CALL(methods, Proceed());
+
+    std::thread t([&]() {
+        s_background_thread_id.store(android::crashreport::GetOsThreadId(),
+                                     std::memory_order_relaxed);
+        interceptor->Intercept(&methods);
+    });
+    t.join();
+
+    auto crumbs = GetAllCrumbs();
+    ASSERT_GE(crumbs.size(), 2);
+
+    bool found_begin = false;
+    bool found_step = false;
+
+    uint64_t bg_tid = s_background_thread_id.load(std::memory_order_relaxed);
+
+    for (const auto& c : crumbs) {
+        if (c.phase() == Breadcrumb::FLOW_BEGIN) {
+            EXPECT_EQ(c.thread_id(), main_thread_id);
+            found_begin = true;
+        } else if (c.phase() == Breadcrumb::FLOW_STEP) {
+            EXPECT_EQ(c.thread_id(), bg_tid);
+            found_step = true;
+        }
+    }
+
+    EXPECT_TRUE(found_begin);
+    EXPECT_TRUE(found_step);
 }
 
 }  // namespace android::control::interceptor
