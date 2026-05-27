@@ -1,4 +1,4 @@
-// Copyright 2024 The Android Open Source Project
+// Copyright 2026 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -94,13 +94,10 @@ void adb_vsock_realize(DeviceState* dev, Error** errp) {
     }
     vsock_fwd_dev->on_connect = adb_vsock_connected;
 
-    if (adb->monitor) {
-        VLOG(1) << "ADB monitor enabled";
-        vsock_fwd_dev->data_sniffer_factory = [host = vsock_fwd_dev->host_port,
-                                               guest = vsock_fwd_dev->guest_port] {
-            return std::make_unique<AdbLogger>(host, guest);
-        };
-    }
+    VLOG(1) << "ADB monitor: " << (adb->monitor ? "enabled" : "disabled");
+    vsock_fwd_dev->data_sniffer_factory =
+            [host = vsock_fwd_dev->host_port, guest = vsock_fwd_dev->guest_port,
+             verbose = adb->monitor] { return std::make_unique<AdbLogger>(host, guest, verbose); };
 
     // Initialize the vsock port forwarder.
     adc->vsock_port_fwd_realize(dev, errp);

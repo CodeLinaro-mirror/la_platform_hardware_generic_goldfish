@@ -176,7 +176,7 @@ void RenderHeader(const RenderState& state, std::stringstream& ss) {
                                           : std::to_string(state.sorted_tids[i]);
         ss << std::setw(state.tid_width) << label;
     }
-    ss << "  gRPC FORENSIC TIMELINE" << state.Color(kReset) << "\n";
+    ss << "  FORENSIC TIMELINE" << state.Color(kReset) << "\n";
     ss << std::string(state.time_width + 2 + (state.sorted_tids.size() * state.tid_width) + 26, '-')
        << "\n";
 }
