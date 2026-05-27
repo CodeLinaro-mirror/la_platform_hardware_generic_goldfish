@@ -32,11 +32,13 @@ TEST(BreadcrumbParserTest, ParsesEmptyBuffer) {
     EXPECT_TRUE(entries.empty());
 }
 
+using android::control::breadcrumbs::Breadcrumb;
+
 TEST(BreadcrumbParserTest, ParsesContiguousBuffer) {
     std::vector<uint8_t> buffer(1024, 0);
-    GrpcBreadcrumb proto;
-    proto.set_call_id(123);
-    proto.set_method_hash(0xABCDEF);
+    Breadcrumb proto;
+    proto.set_flow_id(123);
+    proto.mutable_grpc()->set_method_hash(0xABCDEF);
 
     {
         auto log = goldfish::proto_data_store::CircularMessageLog::CreateWriter(
@@ -47,7 +49,7 @@ TEST(BreadcrumbParserTest, ParsesContiguousBuffer) {
 
     auto entries = BreadcrumbParser::Parse(buffer);
     ASSERT_EQ(entries.size(), 1);
-    EXPECT_EQ(entries[0].call_id(), 123);
+    EXPECT_EQ(entries[0].flow_id(), 123);
 }
 
 TEST(BreadcrumbMetadataTest, ResolvesMultipleServices) {

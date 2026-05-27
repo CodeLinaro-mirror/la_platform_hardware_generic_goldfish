@@ -36,7 +36,7 @@ class BreadcrumbParser {
      * @param buffer The raw memory buffer extracted from the minidump annotation.
      * @return A vector of entries ordered from oldest to newest.
      */
-    static std::vector<GrpcBreadcrumb> Parse(const std::vector<uint8_t>& buffer);
+    static std::vector<Breadcrumb> Parse(const std::vector<uint8_t>& buffer);
 };
 
 }  // namespace android::crashreport::breadcrumbs

@@ -21,24 +21,30 @@
 #include "grpc_diagnostic.pb.h"
 
 #include "android/crashreport/breadcrumbs/breadcrumb_trace.h"
+#include "breadcrumb.pb.h"
 #include "goldfish/circular_message_log.h"
 
 namespace android::crashreport::breadcrumbs {
+
+using android::control::breadcrumbs::Breadcrumb;
+using android::control::breadcrumbs::GrpcPayload;
 
 class BreadcrumbProcessorTest : public ::testing::Test {
   protected:
     std::unique_ptr<goldfish::proto_data_store::CircularMessageLog> log_writer_;
 
-    void AddEntry(std::vector<uint8_t>& buffer, uint32_t call_id, uint64_t tid, uint64_t ts,
-                  uint32_t hash, GrpcBreadcrumb::Phase phase = GrpcBreadcrumb::START,
-                  GrpcBreadcrumb::GrpcStatusCode status = GrpcBreadcrumb::OK) {
-        GrpcBreadcrumb proto;
-        proto.set_call_id(call_id);
+    void AddEntry(std::vector<uint8_t>& buffer, uint64_t flow_id, uint64_t tid, uint64_t ts,
+                  uint32_t hash, GrpcPayload::GrpcPhase phase = GrpcPayload::START,
+                  GrpcPayload::GrpcStatusCode status = GrpcPayload::OK) {
+        Breadcrumb proto;
+        proto.set_flow_id(flow_id);
         proto.set_thread_id(tid);
         proto.set_timestamp_ns(ts);
-        proto.set_method_hash(hash);
-        proto.set_phase(phase);
-        proto.set_status_code(status);
+
+        auto* grpc = proto.mutable_grpc();
+        grpc->set_method_hash(hash);
+        grpc->set_grpc_phase(phase);
+        grpc->set_status_code(status);
 
         if (!log_writer_) {
             auto log_or = goldfish::proto_data_store::CircularMessageLog::CreateWriter(
@@ -60,8 +66,8 @@ TEST_F(BreadcrumbProcessorTest, ProcessesFullPipeline) {
     std::vector<uint8_t> buffer(4096, 0);
 
     // Add a simple trace: Call 1 starts on TID 100, ends on TID 100.
-    AddEntry(buffer, 1, 100, 1000, 0, GrpcBreadcrumb::START);
-    AddEntry(buffer, 1, 100, 2000, 0, GrpcBreadcrumb::END_OF_CALL);
+    AddEntry(buffer, 1, 100, 1000, 0, GrpcPayload::START);
+    AddEntry(buffer, 1, 100, 2000, 0, GrpcPayload::END_OF_CALL);
 
     // Render without color for easier string matching in tests
     std::string output = BreadcrumbProcessor::Process(
@@ -77,15 +83,15 @@ TEST_F(BreadcrumbProcessorTest, ProcessesFullPipeline) {
 TEST_F(BreadcrumbProcessorTest, HandlesEmptyBufferGracefully) {
     std::vector<uint8_t> buffer(1024, 0);
     std::string output = BreadcrumbProcessor::Process(buffer, 123);
-    EXPECT_EQ(output, "No gRPC breadcrumbs found in buffer.");
+    EXPECT_EQ(output, "No breadcrumbs found in buffer.");
 }
 
 TEST_F(BreadcrumbProcessorTest, SupportsMermaidOutput) {
     std::vector<uint8_t> buffer(4096, 0);
     // Call 1 starts on 100, migrates to 200, ends on 200
-    AddEntry(buffer, 1, 100, 1000, 0, GrpcBreadcrumb::START);
-    AddEntry(buffer, 1, 200, 1500, 0, GrpcBreadcrumb::PRE_SEND_MESSAGE);
-    AddEntry(buffer, 1, 200, 2000, 0, GrpcBreadcrumb::END_OF_CALL, GrpcBreadcrumb::INTERNAL);
+    AddEntry(buffer, 1, 100, 1000, 0, GrpcPayload::START);
+    AddEntry(buffer, 1, 200, 1500, 0, GrpcPayload::PRE_SEND_MESSAGE);
+    AddEntry(buffer, 1, 200, 2000, 0, GrpcPayload::END_OF_CALL, GrpcPayload::INTERNAL);
 
     std::string output =
             BreadcrumbProcessor::Process(buffer, 200, TraceRendererFactory::RenderFormat::kMermaid);
@@ -104,7 +110,7 @@ TEST_F(BreadcrumbProcessorTest, TranslatesThreadIdsWithMap) {
     std::vector<uint8_t> buffer(4096, 0);
 
     // Add a trace: Call 1 on TID 100.
-    AddEntry(buffer, 1, 100, 1000, 0, GrpcBreadcrumb::START);
+    AddEntry(buffer, 1, 100, 1000, 0, GrpcPayload::START);
 
     absl::flat_hash_map<uint64_t, uint64_t> tid_map;
     tid_map[100] = 42;  // Map OS TID 100 to Breakpad Index 42

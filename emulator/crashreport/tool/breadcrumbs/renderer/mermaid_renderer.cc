@@ -34,23 +34,24 @@ std::string EscapeMermaid(std::string_view text) {
                                {{"\"", "'"}, {"\n", " "}, {"\r", ""}, {"{", "("}, {"}", ")"}});
 }
 
-std::string PhaseToLabel(GrpcBreadcrumb::Phase phase) {
+std::string PhaseToLabel(android::control::breadcrumbs::GrpcPayload::GrpcPhase phase) {
+    using android::control::breadcrumbs::GrpcPayload;
     switch (phase) {
-    case GrpcBreadcrumb::START:
+    case GrpcPayload::START:
         return "START";
-    case GrpcBreadcrumb::PRE_SEND_INITIAL_METADATA:
+    case GrpcPayload::PRE_SEND_INITIAL_METADATA:
         return "SEND_META";
-    case GrpcBreadcrumb::PRE_SEND_MESSAGE:
+    case GrpcPayload::PRE_SEND_MESSAGE:
         return "SEND_MSG";
-    case GrpcBreadcrumb::PRE_SEND_STATUS:
+    case GrpcPayload::PRE_SEND_STATUS:
         return "SEND_STAT";
-    case GrpcBreadcrumb::PRE_RECV_INITIAL_METADATA:
+    case GrpcPayload::PRE_RECV_INITIAL_METADATA:
         return "RECV_META";
-    case GrpcBreadcrumb::PRE_RECV_MESSAGE:
+    case GrpcPayload::PRE_RECV_MESSAGE:
         return "RECV_MSG";
-    case GrpcBreadcrumb::PRE_RECV_STATUS:
+    case GrpcPayload::PRE_RECV_STATUS:
         return "RECV_STAT";
-    case GrpcBreadcrumb::END_OF_CALL:
+    case GrpcPayload::END_OF_CALL:
         return "END";
     default:
         return "UNKNOWN";
@@ -110,7 +111,7 @@ std::string MermaidRenderer::Render(const DiagnosticTrace& trace) const {
     for (const auto& ge : timeline) {
         const auto& b = *ge.breadcrumb;
         const auto& proto = b.proto;
-        const uint32_t cid = proto.call_id();
+        const uint64_t cid = proto.flow_id();
         const uint64_t tid = ge.tid;
         const std::string target = tid_to_alias[tid];
 
@@ -119,9 +120,15 @@ std::string MermaidRenderer::Render(const DiagnosticTrace& trace) const {
         const std::string time_str = absl::StrFormat("+%v", absl::Nanoseconds(rel_ns));
 
         // Format base label
-        const std::string label =
-                absl::StrFormat("%s | [%d] %s: %s", time_str, cid, PhaseToLabel(proto.phase()),
-                                EscapeMermaid(b.method_name));
+        std::string label_phase = "UNKNOWN";
+        if (proto.has_grpc()) {
+            label_phase = PhaseToLabel(proto.grpc().grpc_phase());
+        } else if (proto.has_adb()) {
+            label_phase = "ADB";
+        }
+
+        const std::string label = absl::StrFormat("%s | [%v] %s: %s", time_str, cid, label_phase,
+                                                  EscapeMermaid(b.method_name));
 
         const bool is_new_call = (call_to_last_tid.find(cid) == call_to_last_tid.end());
         const std::string source = is_new_call ? target : tid_to_alias[call_to_last_tid.at(cid)];
@@ -130,7 +137,13 @@ std::string MermaidRenderer::Render(const DiagnosticTrace& trace) const {
         if (source == target) {
             ss << "    Note over " << target << ": " << label << "\n";
         } else {
-            const bool is_end = (proto.phase() == GrpcBreadcrumb::END_OF_CALL);
+            bool is_end = false;
+            if (proto.has_grpc()) {
+                is_end = (proto.grpc().grpc_phase() ==
+                          android::control::breadcrumbs::GrpcPayload::END_OF_CALL);
+            } else if (proto.has_adb()) {
+                is_end = (proto.phase() == Breadcrumb::FLOW_END);
+            }
             const std::string arrow = is_end ? "-->>" : "->>";
             ss << "    " << source << arrow << target << ": " << label << "\n";
         }
@@ -141,9 +154,10 @@ std::string MermaidRenderer::Render(const DiagnosticTrace& trace) const {
         }
 
         // Add explicit error note if a gRPC call fails
-        if (proto.status_code() != GrpcBreadcrumb::OK) {
-            ss << "    Note over " << target << ": ERROR: " << static_cast<int>(proto.status_code())
-               << "\n";
+        if (proto.has_grpc() &&
+            proto.grpc().status_code() != android::control::breadcrumbs::GrpcPayload::OK) {
+            ss << "    Note over " << target
+               << ": ERROR: " << static_cast<int>(proto.grpc().status_code()) << "\n";
         }
 
         call_to_last_tid[cid] = tid;
@@ -152,7 +166,9 @@ std::string MermaidRenderer::Render(const DiagnosticTrace& trace) const {
     // 4. Demarcate Crash Site with a highlighted bounding box
     if (!timeline.empty()) {
         const auto& last = timeline.back();
-        if (last.is_crash_thread && last.breadcrumb->proto.status_code() != GrpcBreadcrumb::OK) {
+        if (last.is_crash_thread && last.breadcrumb->proto.has_grpc() &&
+            last.breadcrumb->proto.grpc().status_code() !=
+                    android::control::breadcrumbs::GrpcPayload::OK) {
             // Draws a red-tinted rectangle behind the fatal exception note
             ss << "    rect rgb(255, 200, 200)\n";
             ss << "    Note right of " << tid_to_alias[last.tid] << ": 💥 FATAL EXCEPTION\n";

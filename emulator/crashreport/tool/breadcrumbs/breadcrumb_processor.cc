@@ -27,7 +27,7 @@ namespace {
 /**
  * @brief Internal helper to resolve raw breadcrumbs using semantic metadata.
  */
-std::vector<EnrichedBreadcrumb> ResolveEntries(const std::vector<GrpcBreadcrumb>& entries) {
+std::vector<EnrichedBreadcrumb> ResolveEntries(const std::vector<Breadcrumb>& entries) {
     std::vector<EnrichedBreadcrumb> enriched;
     enriched.reserve(entries.size());
 
@@ -35,9 +35,35 @@ std::vector<EnrichedBreadcrumb> ResolveEntries(const std::vector<GrpcBreadcrumb>
         EnrichedBreadcrumb e;
         e.proto = proto;
 
-        const uint32_t hash = proto.method_hash();
-        e.method_name = GetMethodName(hash);
-        e.resolved_payload = ResolvePayload(hash, proto.payload(), proto.phase());
+        if (proto.has_grpc()) {
+            const auto& grpc = proto.grpc();
+            const uint32_t hash = grpc.method_hash();
+            e.method_name = GetMethodName(hash);
+            if (e.method_name == "unknown_method") {
+                e.method_name = absl::StrFormat("unknown_method (0x%08x)", hash);
+            }
+            // Cast grpc_phase to GrpcBreadcrumb::Phase as expected by generated ResolvePayload
+            e.resolved_payload = ResolvePayload(
+                    hash, grpc.payload(),
+                    static_cast<android::control::interceptor::GrpcBreadcrumb::Phase>(
+                            grpc.grpc_phase()));
+        } else if (proto.has_adb()) {
+            const auto& adb = proto.adb();
+            e.method_name = "ADB";
+            // ADB commands are packed 4-character codes in a 32-bit integer (little-endian).
+            // We extract each byte and cast to char to reconstruct the string (e.g., "CNXN").
+            e.resolved_payload = absl::StrFormat(
+                    "CMD: %c%c%c%c, Dir: %s", static_cast<char>(adb.command() & 0xFF),
+                    static_cast<char>((adb.command() >> 8) & 0xFF),
+                    static_cast<char>((adb.command() >> 16) & 0xFF),
+                    static_cast<char>((adb.command() >> 24) & 0xFF),
+                    adb.direction() == android::control::breadcrumbs::AdbPayload::TO_GUEST
+                            ? "TO_GUEST"
+                            : "TO_HOST");
+        } else {
+            e.method_name = "UNKNOWN";
+            e.resolved_payload = "Unknown payload type";
+        }
 
         enriched.push_back(std::move(e));
     }
@@ -54,7 +80,7 @@ std::string BreadcrumbProcessor::Process(const std::vector<uint8_t>& buffer,
     // Extract raw breadcrumbs from the binary buffer
     auto raw_entries = BreadcrumbParser::Parse(buffer);
     if (raw_entries.empty()) {
-        return "No gRPC breadcrumbs found in buffer.";
+        return "No breadcrumbs found in buffer.";
     }
 
     // Enrich raw entries with semantic metadata, aggregate into a trace, and render
