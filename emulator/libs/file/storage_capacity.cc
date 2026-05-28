@@ -22,9 +22,58 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
-#include "absl/strings/str_format.h"
 
 namespace android::base {
+
+namespace {
+
+absl::StatusOr<uint64_t> parseFromString(const std::string_view str) {
+    size_t processed_chars = 0;
+    uint64_t result = 0;
+
+    auto [ptr, ec] = std::from_chars(str.data(), str.data() + str.size(), result, 10);
+    if (ec != std::errc{}) {
+        if (ec == std::errc::invalid_argument)
+            return absl::InvalidArgumentError(absl::StrCat("Invalid number: ", str));
+        else if (ec == std::errc::result_out_of_range)
+            return absl::InvalidArgumentError(absl::StrCat("Number out of range: ", str));
+        else
+            return absl::UnknownError(absl::StrCat("Unknown error for: ", str));
+    }
+
+    // Move the pointer past the processed characters
+    processed_chars = ptr - str.data();
+
+    if (processed_chars < str.size()) {
+        switch (*ptr) {
+        case 'b':
+        case 'B':
+            break;
+        case 'k':
+        case 'K':
+            result <<= 10;
+            break;
+        case 'm':
+        case 'M':
+            result <<= 20;
+            break;
+        case 'g':
+        case 'G':
+            result <<= 30;
+            break;
+        case 't':
+        case 'T':
+            result <<= 40;
+            break;
+        default:
+            return absl::InvalidArgumentError(absl::StrCat("Unknown label in: ", str));
+        }
+    }
+
+    return result;
+}
+
+}  // namespace
 
 StorageCapacity& StorageCapacity::operator-=(const StorageCapacity& rhs) {
     // Handle potential underflow
@@ -44,75 +93,36 @@ StorageCapacity StorageCapacity::operator-(const StorageCapacity& rhs) const {
     return StorageCapacity(differenceBytes);
 }
 
-StorageCapacity::operator int() const {
-    if (bytes_ > static_cast<unsigned long long>(std::numeric_limits<int>::max())) {
-        LOG(WARNING) << "StorageCapacity is too large to fit into an int";
-    }
-    return static_cast<int>(bytes_);
-}
+std::string StorageCapacity::String() const {
+    constexpr unsigned kShiftT = 40;
+    constexpr unsigned kShiftG = 30;
+    constexpr unsigned kShiftM = 20;
+    constexpr unsigned kShiftK = 10;
 
-StorageCapacity::operator long() const {
-    if (bytes_ > static_cast<unsigned long long>(std::numeric_limits<long>::max())) {
-        LOG(WARNING) << "StorageCapacity is too large to fit into a long";
-    }
-    return static_cast<long>(bytes_);
-}
-
-StorageCapacity::operator unsigned long() const {
-    if (bytes_ > static_cast<unsigned long long>(std::numeric_limits<unsigned long>::max())) {
-        LOG(WARNING) << "StorageCapacity is too large to fit into an unsigned long";
-    }
-    return static_cast<unsigned long>(bytes_);
-}
-
-StorageCapacity::operator long long() const {
-    if (bytes_ > static_cast<unsigned long long>(std::numeric_limits<long long>::max())) {
-        LOG(WARNING) << "StorageCapacity is too large to fit into a long long";
-    }
-    return static_cast<long long>(bytes_);
-}
-
-absl::StatusOr<uint64_t> parseFromString(const std::string_view& str) {
-    size_t processed_chars = 0;
-    uint64_t result = 0;
-
-    auto [ptr, ec] = std::from_chars(str.data(), str.data() + str.size(), result, 10);
-    if (ec != std::errc{}) {
-        if (ec == std::errc::invalid_argument)
-            return absl::InvalidArgumentError(absl::StrCat("Invalid number: ", str));
-        else if (ec == std::errc::result_out_of_range)
-            return absl::InvalidArgumentError(absl::StrCat("Number out of range: ", str));
-        else
-            return absl::UnknownError(absl::StrCat("Unknown error for: ", str));
-    }
-
-    // Move the pointer past the processed characters
-    processed_chars = ptr - str.data();
-
-    if (processed_chars < str.size()) {
-        switch (*ptr) {
-        case 'k':
-        case 'K':
-            result *= 1024ULL;
-            break;
-        case 'm':
-        case 'M':
-            result *= 1024 * 1024ULL;
-            break;
-        case 'g':
-        case 'G':
-            result *= 1024 * 1024 * 1024ULL;
-            break;
-        case 't':
-        case 'T':
-            result *= 1024 * 1024 * 1024 * 1024ULL;
-            break;
-        default:
-            return absl::InvalidArgumentError(absl::StrCat("Unknown label in: ", str));
+    const auto is_multiple_of = [](const ValueType value, const unsigned shift) -> ValueType {
+        constexpr ValueType kOne = 1;
+        const ValueType n = value >> shift;
+        if (n && !(value & ((kOne << shift) - 1U))) {
+            return n;
+        } else {
+            return 0;
         }
+    };
+
+    if (ValueType n = is_multiple_of(bytes_, kShiftT)) {
+        return absl::StrCat(n, "T");
+    }
+    if (ValueType n = is_multiple_of(bytes_, kShiftG)) {
+        return absl::StrCat(n, "G");
+    }
+    if (ValueType n = is_multiple_of(bytes_, kShiftM)) {
+        return absl::StrCat(n, "M");
+    }
+    if (ValueType n = is_multiple_of(bytes_, kShiftK)) {
+        return absl::StrCat(n, "K");
     }
 
-    return result;
+    return absl::StrCat(bytes_, "B");
 }
 
 absl::StatusOr<StorageCapacity> StorageCapacity::Parse(std::string_view str) {

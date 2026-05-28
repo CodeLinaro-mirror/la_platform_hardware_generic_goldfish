@@ -25,10 +25,10 @@ using namespace android::base;
 TEST(StorageCapacityTest, ParseValidStrings) {
     // Test parsing valid storage capacity strings
     absl::StatusOr<StorageCapacity> result = StorageCapacity::Parse("1024");
-    absl::StatusOr<StorageCapacity> result_kb = StorageCapacity::Parse("1024kb");
-    absl::StatusOr<StorageCapacity> result_mb = StorageCapacity::Parse("2mb");
-    absl::StatusOr<StorageCapacity> result_gb = StorageCapacity::Parse("4Gb");
-    absl::StatusOr<StorageCapacity> result_tb = StorageCapacity::Parse("4Tb");
+    absl::StatusOr<StorageCapacity> result_kb = StorageCapacity::Parse("1024k");
+    absl::StatusOr<StorageCapacity> result_mb = StorageCapacity::Parse("2m");
+    absl::StatusOr<StorageCapacity> result_gb = StorageCapacity::Parse("4G");
+    absl::StatusOr<StorageCapacity> result_tb = StorageCapacity::Parse("4T");
 
     ASSERT_TRUE(result.ok());
     ASSERT_TRUE(result_kb.ok());
@@ -65,11 +65,11 @@ TEST(StorageCapacityTest, ParseInvalidStrings) {
 // Test cases for the string() method
 TEST(StorageCapacityTest, StringRepresentation) {
     // Test cases with different storage capacities
-    EXPECT_EQ(StorageCapacity(1024).String(), "1.00 KiB");
-    EXPECT_EQ(StorageCapacity(1024 * 1024).String(), "1.00 MiB");
-    EXPECT_EQ(StorageCapacity(1024 * 1024 * 1024).String(), "1.00 GiB");
-    EXPECT_EQ(StorageCapacity(2048).String(), "2.00 KiB");
-    EXPECT_EQ(StorageCapacity(1, StorageCapacity::Unit::kTiB).String(), "1.00 TiB");
+    EXPECT_EQ(StorageCapacity(1024).String(), "1K");
+    EXPECT_EQ(StorageCapacity(1024 * 1024).String(), "1M");
+    EXPECT_EQ(StorageCapacity(1024 * 1024 * 1024).String(), "1G");
+    EXPECT_EQ(StorageCapacity(2048).String(), "2K");
+    EXPECT_EQ(StorageCapacity(1, StorageCapacity::Unit::kTiB).String(), "1T");
 }
 
 TEST(StorageCapacityTest, AlignMethod) {
@@ -109,9 +109,9 @@ TEST(StorageCapacityTest, ComparisonOperators) {
     StorageCapacity z = 2_MiB;
 
     // Test equality
-    EXPECT_EQ(x, 1024ULL);
-    EXPECT_EQ(y, 1024 * 1024);
-    EXPECT_EQ(z, 2 * 1024 * 1024);
+    EXPECT_EQ(x, StorageCapacity(1024ULL));
+    EXPECT_EQ(y, StorageCapacity(1024 * 1024));
+    EXPECT_EQ(z, StorageCapacity(2 * 1024 * 1024));
 
     // Test inequality
     EXPECT_NE(x, y);

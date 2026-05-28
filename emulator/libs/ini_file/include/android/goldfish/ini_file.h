@@ -26,8 +26,6 @@ namespace android::goldfish {
 
 class IniFile final {
   public:
-    using DiskSize = uint64_t;
-
     // linked_hash_map tracks insertion order so that iteration order matches.
     // This allows us to preserve the order of entries when we update the file
     // on disk.
@@ -117,8 +115,9 @@ class IniFile final {
     // The
     // suffixes correspond to KiB, MiB and GiB multipliers.
     // Note: We consider 1K = 1024, not 1000.
-    DiskSize GetDiskSize(std::string_view key, DiskSize default_value) const;
-    DiskSize GetDiskSize(std::string_view key, std::string_view default_value) const;
+    base::StorageCapacity GetDiskSize(std::string_view key,
+                                      base::StorageCapacity default_value) const;
+    base::StorageCapacity GetDiskSize(std::string_view key, std::string_view default_value) const;
 
     // ///////////////////// Value Setters
     // //////////////////////////////////////
@@ -127,7 +126,7 @@ class IniFile final {
     void SetInt64(std::string key, int64_t value);
     void SetDouble(std::string key, double value);
     void SetBool(std::string key, bool value);
-    void SetDiskSize(std::string key, DiskSize value);
+    void SetDiskSize(std::string key, base::StorageCapacity value);
 
     // //////////////////// Iterators
     // ///////////////////////////////////////////
@@ -155,7 +154,7 @@ class IniFile final {
             return GetDouble(key, def);
         } else if constexpr (std::is_same_v<T, bool>) {
             return GetBool(key, def);
-        } else if constexpr (std::is_same_v<T, DiskSize>) {
+        } else if constexpr (std::is_same_v<T, base::StorageCapacity>) {
             return GetDiskSize(key, def);
         } else {
             static_assert(
