@@ -137,6 +137,21 @@ cc_library(
 )
 
 cc_library(
+    name = "breadcrumb_proto",
+    srcs = ["breadcrumb_proto.cc"],
+    hdrs = ["include/android/crashreport/breadcrumb_proto.h"],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":breadcrumb",
+        "//emulator/libs/proto_data_store",
+        "@abseil-cpp//absl/log",
+        "@aemu//protos/services/diagnostic:breadcrumb_cc_proto",
+        "@crashpad//client",
+    ],
+)
+
+cc_library(
     name = "detectors",
     srcs = [
         "crash_detectors.cc",
@@ -218,6 +233,17 @@ cc_binary(
         "@abseil-cpp//absl/flags:parse",
         "@abseil-cpp//absl/log:initialize",
         "@abseil-cpp//absl/synchronization",
+    ],
+)
+
+cc_binary(
+    name = "breadcrumb_benchmark",
+    srcs = ["breadcrumb_benchmark.cc"],
+    deps = [
+        ":breadcrumb_proto",
+        "//emulator/plugin/adb-vsock/logger",
+        "@aemu//protos/services/diagnostic:breadcrumb_cc_proto",
+        "@google_benchmark//:benchmark",
     ],
 )
 
