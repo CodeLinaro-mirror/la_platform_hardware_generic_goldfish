@@ -58,7 +58,7 @@
 // IWYU pragma: begin_keep
 #include "qemu/osdep.h"
 extern "C" {
-#include "hw/qdev-core.h"
+#include "hw/core/qdev.h"
 #include "qapi/error.h"
 #include "qapi/visitor.h"
 #include "qom/object.h"
@@ -547,7 +547,7 @@ void grpc_instance_finalize(Object* obj) {
     delete grpc_device->config;
 }
 
-void grpc_class_init(ObjectClass* oc, void* data) {
+void grpc_class_init(ObjectClass* oc, const void* data) {
     object_class_property_add_str(oc, "tls_cer", NULL, grpc_set_tls_cer);
     object_class_property_set_description(oc, "tls_cer",
                                           "PEM file with a X.509 public key certificate.");

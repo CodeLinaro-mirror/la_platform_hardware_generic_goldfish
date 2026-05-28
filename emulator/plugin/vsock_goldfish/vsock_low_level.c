@@ -26,7 +26,7 @@
 #include "hw/virtio/virtio.h"
 #include "hw/virtio/virtio-access.h"
 #include "hw/virtio/virtio-pci.h"
-#include "hw/qdev-properties.h"
+#include "hw/core/qdev-properties.h"
 #include "standard-headers/linux/virtio_vsock.h"
 #include "migration/vmstate.h"
 #include "qapi/visitor.h"
@@ -314,9 +314,10 @@ static uint64_t virtio_vsock_device_get_features(VirtIODevice* const dev,
 }
 
 /**********************************************************************/
-static void virtio_vsock_set_status(VirtIODevice* const dev, const uint8_t status) {
+static int virtio_vsock_set_status(VirtIODevice* dev, uint8_t status) {
     DEBUG_MSG("dev=%p status=0x%02X", dev, status);
     goldfish_virtio_vsock_set_status(VIRTIO_VSOCK(dev)->impl, status);
+    return 0;
 }
 
 static void virtio_vsock_get_config(VirtIODevice* const dev, uint8_t* const raw) {
@@ -374,7 +375,7 @@ static VMStateDescription vmstate_virtio_vsock = {
     .fields = virtio_vsock_vmstate_fields,
 };
 
-static void virtio_vsock_class_init(ObjectClass* klass, void* data) {
+static void virtio_vsock_class_init(ObjectClass* klass, const void* data) {
     DEBUG_MSG("klass=%p data=%p", klass, data);
 
     DeviceClass* dc = DEVICE_CLASS(klass);
@@ -419,7 +420,7 @@ static void virtio_vsock_pci_realize(VirtIOPCIProxy* vpci_dev, Error** errp) {
     qdev_realize(vdev, BUS(&vpci_dev->bus), errp);
 }
 
-static void virtio_vsock_pci_class_init(ObjectClass* klass, void* data) {
+static void virtio_vsock_pci_class_init(ObjectClass* klass, const void* data) {
     DEBUG_MSG("klass=%p data=%p", klass, data);
 
     DeviceClass* dc = DEVICE_CLASS(klass);

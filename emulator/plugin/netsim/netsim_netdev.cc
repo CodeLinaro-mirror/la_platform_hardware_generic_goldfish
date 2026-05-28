@@ -26,7 +26,7 @@ extern "C" {
 // IWYU pragma: begin_keep
 #include "qemu/osdep.h"
 #include "qemu/main-loop.h"
-#include "hw/qdev-core.h"
+#include "hw/core/qdev.h"
 #include "net/net.h"
 #include "qapi/error.h"
 #include "qapi/visitor.h"
@@ -271,7 +271,7 @@ void netsim_netdev_set_mode(Object* obj, Visitor* v, const char* name, void* opa
     }
 }
 
-void netsim_netdev_class_init(ObjectClass* oc, void* data) {
+void netsim_netdev_class_init(ObjectClass* oc, const void* data) {
     object_class_property_add(oc, "mode", "str", nullptr, netsim_netdev_set_mode, nullptr, nullptr);
 
     DeviceClass* dc = DEVICE_CLASS(oc);

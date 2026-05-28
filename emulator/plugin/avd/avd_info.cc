@@ -38,7 +38,7 @@
 // IWYU pragma: begin_keep
 #include "qemu/osdep.h"
 extern "C" {
-#include "hw/qdev-core.h"
+#include "hw/core/qdev.h"
 #include "migration/vmstate.h"
 #include "qapi/visitor.h"
 #include "qapi/error.h"
@@ -385,7 +385,7 @@ const VMStateDescription avd_info_vmsd = {
                                      },
                                      VMSTATE_END_OF_LIST()}};
 
-void avd_info_class_init(ObjectClass* oc, void* data) {
+void avd_info_class_init(ObjectClass* oc, const void* data) {
     object_class_property_add(oc, "serial_number", "int", nullptr, avd_info_set_serial_number,
                               nullptr, nullptr);
     object_class_property_add(oc, "adb_port", "int", nullptr, avd_info_set_adb_port, nullptr,

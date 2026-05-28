@@ -297,9 +297,8 @@ emulator/share/qemu/keymaps/sv
 emulator/share/qemu/keymaps/th
 emulator/share/qemu/keymaps/tr
 emulator/share/qemu/kvmvapic.bin
-emulator/share/qemu/linuxboot.bin
 emulator/share/qemu/linuxboot_dma.bin
-emulator/share/qemu/multiboot.bin
+emulator/share/qemu/multiboot_dma.bin
 emulator/share/qemu/vgabios-cirrus.bin
 emulator/share/qemu/vgabios-stdvga.bin
 emulator/share/qemu/vgabios-virtio.bin

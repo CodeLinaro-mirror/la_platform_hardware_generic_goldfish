@@ -17,9 +17,8 @@
 // clang-format off
 // IWYU pragma: begin_keep
 #include "qemu/osdep.h"
-#include "hw/hw.h"
-#include "hw/irq.h"
-#include "hw/sysbus.h"
+#include "hw/core/irq.h"
+#include "hw/core/sysbus.h"
 #include "monitor/monitor.h"
 #include "migration/vmstate.h"
 // IWYU pragma: end_keepnext run
@@ -360,7 +359,7 @@ static VMStateDescription goldfish_battery_vmsd = {
     .fields = battery_vmsd_fields,
 };
 
-static void goldfish_battery_class_init(ObjectClass* klass, void* data) {
+static void goldfish_battery_class_init(ObjectClass* klass, const void* data) {
     DeviceClass* dc = DEVICE_CLASS(klass);
 
     dc->realize = goldfish_battery_realize;

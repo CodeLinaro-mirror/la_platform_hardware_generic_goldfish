@@ -30,7 +30,7 @@
 // IWYU pragma: begin_keep
 #include "qemu/osdep.h"
 extern "C" {
-#include "hw/qdev-core.h"
+#include "hw/core/qdev.h"
 #include "system/reset.h"
 #include "qemu/main-loop.h"
 }
