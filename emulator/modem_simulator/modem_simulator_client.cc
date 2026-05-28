@@ -281,7 +281,7 @@ bool ModemSimulatorClient::ModemCall::ProcessCallData(const cuttlefish::SharedFD
                                                       std::string& requestBuf) {
     char buf[16];
     const ssize_t nBytes = socket->Read(buf, sizeof(buf));
-    if (nBytes < 0) {
+    if (nBytes <= 0) {
         return false;
     }
 
