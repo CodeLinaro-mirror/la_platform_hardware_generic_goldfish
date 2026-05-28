@@ -34,7 +34,7 @@ TEST(Cpu, Basic_x86) {
 
     EXPECT_CALL(emu.mock_avd(), Hw()).Times(1).WillRepeatedly(testing::ReturnRef(hw));
 
-    EXPECT_CALL(emu.mock_avd(), DetectArchitecture())
+    EXPECT_CALL(emu.mock_avd(), Arch())
             .Times(1)
             .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
 
@@ -57,7 +57,7 @@ TEST(Cpu, Basic_arm64) {
     hw.hw_cpu_ncore = 3;
     EXPECT_CALL(emu.mock_avd(), Hw()).Times(1).WillRepeatedly(testing::ReturnRef(hw));
 
-    EXPECT_CALL(emu.mock_avd(), DetectArchitecture())
+    EXPECT_CALL(emu.mock_avd(), Arch())
             .Times(1)
             .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kArm));
 
@@ -81,7 +81,7 @@ TEST(Cpu, NoAccel) {
     hw.hw_cpu_ncore = 3;
     EXPECT_CALL(emu.mock_avd(), Hw()).Times(1).WillRepeatedly(testing::ReturnRef(hw));
 
-    EXPECT_CALL(emu.mock_avd(), DetectArchitecture())
+    EXPECT_CALL(emu.mock_avd(), Arch())
             .Times(1)
             .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kArm));
 
@@ -105,7 +105,7 @@ TEST(Cpu, AccelOff) {
     hw.hw_cpu_ncore = 3;
     EXPECT_CALL(emu.mock_avd(), Hw()).Times(1).WillRepeatedly(testing::ReturnRef(hw));
 
-    EXPECT_CALL(emu.mock_avd(), DetectArchitecture())
+    EXPECT_CALL(emu.mock_avd(), Arch())
             .Times(1)
             .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kArm));
 
@@ -128,7 +128,7 @@ TEST(Cpu, HostAndTargetMismatch) {
     hw.hw_cpu_ncore = 3;
     EXPECT_CALL(emu.mock_avd(), Hw()).Times(0).WillRepeatedly(testing::ReturnRef(hw));
 
-    EXPECT_CALL(emu.mock_avd(), DetectArchitecture())
+    EXPECT_CALL(emu.mock_avd(), Arch())
             .Times(1)
             .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
 
@@ -148,7 +148,7 @@ TEST(Cpu, NoHardwareAcceleratorAvailable) {
     hw.hw_cpu_ncore = 3;
     EXPECT_CALL(emu.mock_avd(), Hw()).Times(0).WillRepeatedly(testing::ReturnRef(hw));
 
-    EXPECT_CALL(emu.mock_avd(), DetectArchitecture())
+    EXPECT_CALL(emu.mock_avd(), Arch())
             .Times(1)
             .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
 
@@ -170,7 +170,7 @@ TEST(Cpu, CoresFlagOverride) {
     hw.hw_cpu_ncore = 3;
     EXPECT_CALL(emu.mock_avd(), Hw()).Times(1).WillRepeatedly(testing::ReturnRef(hw));
 
-    EXPECT_CALL(emu.mock_avd(), DetectArchitecture())
+    EXPECT_CALL(emu.mock_avd(), Arch())
             .Times(1)
             .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
 
@@ -194,7 +194,7 @@ TEST(Cpu, CoresFlagInvalid) {
     hw.hw_cpu_ncore = 3;
     EXPECT_CALL(emu.mock_avd(), Hw()).Times(1).WillRepeatedly(testing::ReturnRef(hw));
 
-    EXPECT_CALL(emu.mock_avd(), DetectArchitecture())
+    EXPECT_CALL(emu.mock_avd(), Arch())
             .Times(1)
             .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
 

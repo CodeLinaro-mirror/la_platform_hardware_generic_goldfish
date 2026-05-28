@@ -78,7 +78,7 @@ std::vector<std::string> AudioDevice::getQemuParameters(const EmulatorConfig& em
                 "in.frequency=48000,in.format=s16,in.channels=1"sv;
     }
 
-    switch (emulator.avd().DetectArchitecture()) {
+    switch (emulator.avd().Arch()) {
     case Avd::CpuArchitecture::kArm:
     case Avd::CpuArchitecture::kX86:
         return {

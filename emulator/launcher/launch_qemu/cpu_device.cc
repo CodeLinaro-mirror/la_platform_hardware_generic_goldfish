@@ -130,7 +130,7 @@ absl::Status CpuDevice::initialize(const EmulatorConfig& emulator) {
     // TODO(invoking qemu --cpu help will give supported cpus)
 
     const Avd& avd = emulator.avd();
-    auto target_arch = avd.DetectArchitecture();
+    auto target_arch = avd.Arch();
     auto aehd_enable = System::Get()->GetEnvironmentVariable("ENABLE_AEHD_IN_QEMU");
 
     if (aehd_enable.empty() || aehd_enable.compare("1")) {

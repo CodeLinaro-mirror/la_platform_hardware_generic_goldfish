@@ -32,7 +32,7 @@ class MockAvd : public Avd {
     MOCK_METHOD(DeviceType, GetDeviceType, (), (const, override));
     MOCK_METHOD(fs::path, GetContentPath, (), (const, override));
     MOCK_METHOD(const SystemImagePaths&, GetSystemImagePaths, (), (const, override));
-    MOCK_METHOD(CpuArchitecture, DetectArchitecture, (), (const, override));
+    MOCK_METHOD(CpuArchitecture, Arch, (), (const, override));
 
     MOCK_METHOD(const HardwareConfig&, Hw, (), (const, override));
     MOCK_METHOD(bool, Playstore, (), (const, override));

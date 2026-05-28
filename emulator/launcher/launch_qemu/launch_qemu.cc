@@ -257,7 +257,7 @@ absl::Status LaunchQemu::initialize() {
 std::string LaunchQemu::qemu_exe_path() const {
     const auto& p = config_.emulator_paths();
     std::string base;
-    switch (config_.avd().DetectArchitecture()) {
+    switch (config_.avd().Arch()) {
     case Avd::CpuArchitecture::kX86:
         return p.qemu_system_x86_binary.string();
     case Avd::CpuArchitecture::kArm:

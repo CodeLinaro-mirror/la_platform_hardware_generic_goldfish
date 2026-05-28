@@ -25,7 +25,7 @@ namespace android::goldfish {
 
 namespace {
 absl::StatusOr<std::string> machine(const Avd& avd) {
-    switch (auto a = avd.DetectArchitecture(); a) {
+    switch (auto a = avd.Arch(); a) {
     case Avd::CpuArchitecture::kArm: {
         return "goldfish-arm";
     }
