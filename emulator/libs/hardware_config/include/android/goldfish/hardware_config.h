@@ -14,6 +14,7 @@
 
 #pragma once
 
+#include <filesystem>
 #include <string>
 
 #include "android/goldfish/ini_file.h"
@@ -26,7 +27,6 @@ namespace fs = std::filesystem;
 using base::StorageCapacity;
 using base::operator""_MiB;
 
-// describes the properties of a given virtual device configuration file.
 class HardwareConfig {
   public:
     HardwareConfig();
@@ -39,8 +39,19 @@ class HardwareConfig {
     // that is similar to config.ini but has more finalized values, such as sdk root
     void Write(IniFile* ini) const;
 
+    template <typename Visitor>
+    void Accept(Visitor& visitor) const {
+#define HWCFG_BOOL(n, s, d, a, t) visitor(#n, n);
+#define HWCFG_INT(n, s, d, a, t) visitor(#n, n);
+#define HWCFG_STRING(n, s, d, a, t) visitor(#n, n);
+#define HWCFG_DOUBLE(n, s, d, a, t) visitor(#n, n);
+#define HWCFG_DISKSIZE(n, s, d, a, t) visitor(#n, n);
+#include "avd/hw-config-defs.h"
+        visitor("hw_sd_card_size", hw_sd_card_size);
+    }
+
 #define HWCFG_BOOL(n, s, d, a, t) bool n;
-#define HWCFG_INT(n, s, d, a, t) int n;
+#define HWCFG_INT(n, s, d, a, t) int32_t n;
 #define HWCFG_STRING(n, s, d, a, t) std::string n;
 #define HWCFG_DOUBLE(n, s, d, a, t) double n;
 #define HWCFG_DISKSIZE(n, s, d, a, t) StorageCapacity n;
