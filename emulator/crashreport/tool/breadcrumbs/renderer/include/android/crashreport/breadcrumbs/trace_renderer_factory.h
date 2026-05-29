@@ -29,8 +29,8 @@ class TraceRendererFactory {
      * @brief Supported rendering formats for the forensic report.
      */
     enum class RenderFormat : uint8_t {
-        kText,    ///< High-density ANSI colored timeline for CLI.
-        kMermaid  ///< Markdown-compatible Mermaid.js sequence diagram.
+        kText,     ///< High-density ANSI colored timeline for CLI.
+        kMermaid,  ///< Markdown-compatible Mermaid.js sequence diagram.
     };
 
     /**

@@ -19,17 +19,23 @@
 
 namespace android::crashreport::breadcrumbs {
 
+using android::control::breadcrumbs::Breadcrumb;
+using android::control::breadcrumbs::GrpcPayload;
+
 class TraceAggregatorTest : public ::testing::Test {
   protected:
-    EnrichedBreadcrumb CreateEvent(uint32_t call_id, uint64_t tid, uint64_t ts,
-                                   GrpcBreadcrumb::Phase phase = GrpcBreadcrumb::PRE_SEND_MESSAGE,
-                                   GrpcBreadcrumb::GrpcStatusCode status = GrpcBreadcrumb::OK) {
+    EnrichedBreadcrumb CreateEvent(uint64_t flow_id, uint64_t tid, uint64_t ts,
+                                   GrpcPayload::GrpcPhase phase = GrpcPayload::PRE_SEND_MESSAGE,
+                                   GrpcPayload::GrpcStatusCode status = GrpcPayload::OK) {
         EnrichedBreadcrumb e;
-        e.proto.set_call_id(call_id);
+        e.proto.set_flow_id(flow_id);
         e.proto.set_thread_id(tid);
         e.proto.set_timestamp_ns(ts);
-        e.proto.set_phase(phase);
-        e.proto.set_status_code(status);
+
+        auto* grpc = e.proto.mutable_grpc();
+        grpc->set_method_hash(0);
+        grpc->set_grpc_phase(phase);
+        grpc->set_status_code(status);
         return e;
     }
 };
@@ -73,7 +79,7 @@ TEST_F(TraceAggregatorTest, ReconstructsCallLifecycle) {
 
     ASSERT_EQ(trace.calls.size(), 1);
     auto& call = trace.calls[1];
-    EXPECT_EQ(call.call_id, 1);
+    EXPECT_EQ(call.flow_id, 1);
     EXPECT_EQ(call.events.size(), 3);
     EXPECT_EQ(call.start_ns, 1000);
     EXPECT_EQ(call.end_ns, 2000);
@@ -81,8 +87,8 @@ TEST_F(TraceAggregatorTest, ReconstructsCallLifecycle) {
 
 TEST_F(TraceAggregatorTest, DetectsErrorsInLifecycle) {
     std::vector<EnrichedBreadcrumb> events = {
-        CreateEvent(1, 10, 1000, GrpcBreadcrumb::PRE_SEND_MESSAGE, GrpcBreadcrumb::OK),
-        CreateEvent(1, 10, 2000, GrpcBreadcrumb::END_OF_CALL, GrpcBreadcrumb::UNAVAILABLE),
+        CreateEvent(1, 10, 1000, GrpcPayload::PRE_SEND_MESSAGE, GrpcPayload::OK),
+        CreateEvent(1, 10, 2000, GrpcPayload::END_OF_CALL, GrpcPayload::UNAVAILABLE),
     };
 
     auto trace = TraceAggregator::Aggregate(events, 0);

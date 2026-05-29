@@ -21,6 +21,7 @@ cc_library(
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/time",
+        "@aemu//protos/services/diagnostic:breadcrumb_cc_proto",
         "@aemu//protos/services/diagnostic:grpc_diagnostic_cc_proto",
         "@goldfish//emulator/libs/UniqueIdAllocator",
         "@goldfish//emulator/libs/proto_data_store",

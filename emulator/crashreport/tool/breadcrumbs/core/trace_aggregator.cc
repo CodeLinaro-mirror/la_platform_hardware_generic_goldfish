@@ -35,7 +35,7 @@ namespace android::crashreport::breadcrumbs {
  */
 struct Boundary {
     uint64_t ts;       ///< Nanosecond timestamp of the boundary.
-    uint32_t call_id;  ///< The call this boundary belongs to.
+    uint64_t call_id;  ///< The call this boundary belongs to.
     bool is_start;     ///< True if this is the start of the call, false if end.
 
     /**
@@ -87,8 +87,8 @@ DiagnosticTrace TraceAggregator::Aggregate(const std::vector<EnrichedBreadcrumb>
     for (const auto& e : events) {
         thread_ids.insert(e.proto.thread_id());
 
-        auto& call = trace.calls[e.proto.call_id()];
-        call.call_id = e.proto.call_id();
+        auto& call = trace.calls[e.proto.flow_id()];
+        call.flow_id = e.proto.flow_id();
         call.events.push_back(e);
 
         if (call.start_ns == 0 || e.proto.timestamp_ns() < call.start_ns) {
@@ -96,11 +96,14 @@ DiagnosticTrace TraceAggregator::Aggregate(const std::vector<EnrichedBreadcrumb>
         }
         call.end_ns = std::max(e.proto.timestamp_ns(), call.end_ns);
 
-        if (e.proto.status_code() != GrpcBreadcrumb::OK &&
-            (e.proto.phase() == GrpcBreadcrumb::PRE_RECV_STATUS ||
-             e.proto.phase() == GrpcBreadcrumb::PRE_SEND_STATUS ||
-             e.proto.phase() == GrpcBreadcrumb::END_OF_CALL)) {
-            call.has_error = true;
+        if (e.proto.has_grpc()) {
+            const auto& grpc = e.proto.grpc();
+            if (grpc.status_code() != android::control::breadcrumbs::GrpcPayload::OK &&
+                (grpc.grpc_phase() == android::control::breadcrumbs::GrpcPayload::PRE_RECV_STATUS ||
+                 grpc.grpc_phase() == android::control::breadcrumbs::GrpcPayload::PRE_SEND_STATUS ||
+                 grpc.grpc_phase() == android::control::breadcrumbs::GrpcPayload::END_OF_CALL)) {
+                call.has_error = true;
+            }
         }
     }
     VLOG(1) << "TraceAggregator: Found " << thread_ids.size() << " unique threads and "

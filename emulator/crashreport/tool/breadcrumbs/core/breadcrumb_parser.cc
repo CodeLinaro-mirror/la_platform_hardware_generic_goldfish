@@ -19,10 +19,10 @@ namespace android::crashreport::breadcrumbs {
 
 using goldfish::proto_data_store::CircularMessageLog;
 
-std::vector<GrpcBreadcrumb> BreadcrumbParser::Parse(const std::vector<uint8_t>& buffer) {
+std::vector<Breadcrumb> BreadcrumbParser::Parse(const std::vector<uint8_t>& buffer) {
     if (buffer.size() <= CircularMessageLog::kHeaderSize) return {};
 
-    static const GrpcBreadcrumb kPrototype;
+    static const Breadcrumb kPrototype;
 
     // Create a reader to handle the wrap-around logic and committed-only filtering.
     auto log = CircularMessageLog::CreateReader(const_cast<uint8_t*>(buffer.data()), buffer.size(),
@@ -31,11 +31,11 @@ std::vector<GrpcBreadcrumb> BreadcrumbParser::Parse(const std::vector<uint8_t>& 
         return {};
     }
 
-    std::vector<GrpcBreadcrumb> entries;
+    std::vector<Breadcrumb> entries;
     entries.reserve((*log)->MessageCount());
 
     (*log)->ForEach([&](const google::protobuf::Message& msg) {
-        entries.push_back(static_cast<const GrpcBreadcrumb&>(msg));
+        entries.push_back(static_cast<const Breadcrumb&>(msg));
         return true;
     });
 

@@ -20,18 +20,24 @@
 
 namespace android::crashreport::breadcrumbs {
 
+using android::control::breadcrumbs::GrpcPayload;
+
 class AnsiRendererTest : public ::testing::Test {
   protected:
-    EnrichedBreadcrumb CreateEvent(uint32_t call_id, uint64_t tid, uint64_t ts,
+    EnrichedBreadcrumb CreateEvent(uint64_t flow_id, uint64_t tid, uint64_t ts,
                                    std::string_view method = "TestMethod",
-                                   GrpcBreadcrumb::Phase phase = GrpcBreadcrumb::PRE_SEND_MESSAGE,
-                                   GrpcBreadcrumb::GrpcStatusCode status = GrpcBreadcrumb::OK) {
+                                   GrpcPayload::GrpcPhase phase = GrpcPayload::PRE_SEND_MESSAGE,
+                                   GrpcPayload::GrpcStatusCode status = GrpcPayload::OK) {
         EnrichedBreadcrumb e;
-        e.proto.set_call_id(call_id);
+        e.proto.set_flow_id(flow_id);
         e.proto.set_thread_id(tid);
         e.proto.set_timestamp_ns(ts);
-        e.proto.set_phase(phase);
-        e.proto.set_status_code(status);
+
+        auto* grpc = e.proto.mutable_grpc();
+        grpc->set_method_hash(0);
+        grpc->set_grpc_phase(phase);
+        grpc->set_status_code(status);
+
         e.method_name = method;
         return e;
     }
@@ -39,9 +45,9 @@ class AnsiRendererTest : public ::testing::Test {
 
 TEST_F(AnsiRendererTest, RendersBasicTable) {
     std::vector<EnrichedBreadcrumb> events = {
-        CreateEvent(1, 100, 1000000, "MethodA", GrpcBreadcrumb::START),
-        CreateEvent(2, 200, 2000000, "MethodB", GrpcBreadcrumb::START),
-        CreateEvent(1, 100, 3000000, "MethodA", GrpcBreadcrumb::END_OF_CALL),
+        CreateEvent(1, 100, 1000000, "MethodA", GrpcPayload::START),
+        CreateEvent(2, 200, 2000000, "MethodB", GrpcPayload::START),
+        CreateEvent(1, 100, 3000000, "MethodA", GrpcPayload::END_OF_CALL),
     };
 
     auto trace = TraceAggregator::Aggregate(events, 200);
@@ -57,7 +63,7 @@ TEST_F(AnsiRendererTest, RendersBasicTable) {
 
 TEST_F(AnsiRendererTest, IncludesAnsiColors) {
     std::vector<EnrichedBreadcrumb> events = {
-        CreateEvent(1, 100, 1000000, "MethodA", GrpcBreadcrumb::START),
+        CreateEvent(1, 100, 1000000, "MethodA", GrpcPayload::START),
     };
 
     auto trace = TraceAggregator::Aggregate(events, 0);
@@ -69,8 +75,7 @@ TEST_F(AnsiRendererTest, IncludesAnsiColors) {
 
 TEST_F(AnsiRendererTest, HighlightsErrorsInRed) {
     std::vector<EnrichedBreadcrumb> events = {
-        CreateEvent(1, 100, 1000000, "MethodA", GrpcBreadcrumb::END_OF_CALL,
-                    GrpcBreadcrumb::INTERNAL),
+        CreateEvent(1, 100, 1000000, "MethodA", GrpcPayload::END_OF_CALL, GrpcPayload::INTERNAL),
     };
 
     auto trace = TraceAggregator::Aggregate(events, 0);
@@ -87,25 +92,24 @@ TEST_F(AnsiRendererTest, ForensicVisualInspection) {
 
     std::vector<EnrichedBreadcrumb> events = {
         // Call 101: sendKey(Shift Down) - Starts on 1000, ends on 2000
-        CreateEvent(101, 1000, 1000000, "sendKey", GrpcBreadcrumb::START),
-        CreateEvent(101, 1000, 1100000, "sendKey", GrpcBreadcrumb::PRE_SEND_MESSAGE),
-        CreateEvent(101, 2000, 1300000, "sendKey", GrpcBreadcrumb::END_OF_CALL),  // Handover to IO
+        CreateEvent(101, 1000, 1000000, "sendKey", GrpcPayload::START),
+        CreateEvent(101, 1000, 1100000, "sendKey", GrpcPayload::PRE_SEND_MESSAGE),
+        CreateEvent(101, 2000, 1300000, "sendKey", GrpcPayload::END_OF_CALL),  // Handover to IO
 
         // Call 102: getStatus - Parallel on 2000
-        CreateEvent(102, 2000, 1200000, "getStatus", GrpcBreadcrumb::START),
-        CreateEvent(102, 2000, 1600000, "getStatus", GrpcBreadcrumb::END_OF_CALL),
+        CreateEvent(102, 2000, 1200000, "getStatus", GrpcPayload::START),
+        CreateEvent(102, 2000, 1600000, "getStatus", GrpcPayload::END_OF_CALL),
 
         // Call 103: sendKey(G Up) - Local to 1000
-        CreateEvent(103, 1000, 1500000, "sendKey", GrpcBreadcrumb::START),
-        CreateEvent(103, 1000, 1550000, "sendKey", GrpcBreadcrumb::PRE_SEND_MESSAGE),
-        CreateEvent(103, 1000, 1900000, "sendKey", GrpcBreadcrumb::END_OF_CALL),
+        CreateEvent(103, 1000, 1500000, "sendKey", GrpcPayload::START),
+        CreateEvent(103, 1000, 1550000, "sendKey", GrpcPayload::PRE_SEND_MESSAGE),
+        CreateEvent(103, 1000, 1900000, "sendKey", GrpcPayload::END_OF_CALL),
 
         // Call 104: sendKey(o Down) - Starts on 2000, lands on 3000 (Crash Site)
-        CreateEvent(104, 2000, 1700000, "sendKey", GrpcBreadcrumb::START),
+        CreateEvent(104, 2000, 1700000, "sendKey", GrpcPayload::START),
         CreateEvent(104, 3000, 1800000, "sendKey",
-                    GrpcBreadcrumb::PRE_SEND_MESSAGE),  // Handover to Crash Site
-        CreateEvent(104, 3000, 2000000, "sendKey", GrpcBreadcrumb::END_OF_CALL,
-                    GrpcBreadcrumb::INTERNAL),
+                    GrpcPayload::PRE_SEND_MESSAGE),  // Handover to Crash Site
+        CreateEvent(104, 3000, 2000000, "sendKey", GrpcPayload::END_OF_CALL, GrpcPayload::INTERNAL),
     };
 
     // Add payloads to PRE_SEND_MESSAGE events
@@ -126,9 +130,8 @@ TEST_F(AnsiRendererTest, ForensicVisualInspection) {
 
 TEST_F(AnsiRendererTest, RendersWithoutColor) {
     std::vector<EnrichedBreadcrumb> events = {
-        CreateEvent(1, 100, 1000000, "MethodA", GrpcBreadcrumb::START),
-        CreateEvent(1, 100, 2000000, "MethodA", GrpcBreadcrumb::END_OF_CALL,
-                    GrpcBreadcrumb::INTERNAL),
+        CreateEvent(1, 100, 1000000, "MethodA", GrpcPayload::START),
+        CreateEvent(1, 100, 2000000, "MethodA", GrpcPayload::END_OF_CALL, GrpcPayload::INTERNAL),
     };
 
     auto trace = TraceAggregator::Aggregate(events, 100);
