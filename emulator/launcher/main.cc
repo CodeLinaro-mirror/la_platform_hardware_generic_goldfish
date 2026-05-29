@@ -265,10 +265,15 @@ int main(int argc, char** argv) {
     }
 
     // Check that things exist so that we can error out early if necessary.
-    auto emulator_paths = android::goldfish::ResolveEmulatorPaths(
-            opts.verbose, android::goldfish::ShouldLaunchFishtank(opts));
+    auto emulator_paths = android::goldfish::ResolveEmulatorPaths(opts.verbose);
     if (!emulator_paths.ok()) {
         LOG(ERROR) << "Failed to resolve emulator paths: " << emulator_paths.status();
+        return 1;
+    }
+
+    if (android::goldfish::ShouldLaunchFishtank(opts) && !emulator_paths->HasFishtank()) {
+        LOG(ERROR) << "Fishtank (UI) is not available in the AOSP build. "
+                      "Please use the '-no-window' flag to run in headless mode.";
         return 1;
     }
     auto user_paths =

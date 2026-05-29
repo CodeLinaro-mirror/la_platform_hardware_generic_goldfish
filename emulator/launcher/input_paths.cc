@@ -81,7 +81,7 @@ constexpr std::string_view kEmulatorBinaryName = "emulator";
 
 }  // namespace
 
-absl::StatusOr<EmulatorPaths> ResolveEmulatorPaths(bool verbose, bool include_fishtank) {
+absl::StatusOr<EmulatorPaths> ResolveEmulatorPaths(bool verbose) {
     EmulatorPaths paths;
     ASSIGN_OR_RETURN(const fs::path program_path, GetProgramPath());
     ASSIGN_OR_RETURN(paths.launcher_binary, CheckExists(program_path, "launcher binary"));
@@ -148,10 +148,10 @@ absl::StatusOr<EmulatorPaths> ResolveEmulatorPaths(bool verbose, bool include_fi
     ASSIGN_OR_RETURN(paths.crashpad_handler_binary,
                      CheckExists(paths.binary_directory / AddBinarySuffix("crashpad_handler"),
                                  "crashpad handler"));
-    if (include_fishtank) {
-        ASSIGN_OR_RETURN(paths.fishtank_binary, CheckExists(paths.launcher_directory / "fishtank" /
-                                                                    AddBinarySuffix("fishtank"),
-                                                            "fishtank"));
+    if (auto fishtank = CheckExists(
+                paths.launcher_directory / "fishtank" / AddBinarySuffix("fishtank"), "fishtank");
+        fishtank.ok()) {
+        paths.fishtank_binary = *fishtank;
     }
 
 #ifdef _WIN32

@@ -42,6 +42,8 @@ struct EmulatorPaths {
     fs::path netsim_binary;
     fs::path crashpad_handler_binary;
     fs::path fishtank_binary;
+
+    bool HasFishtank() const { return !fishtank_binary.empty(); }
 };
 
 struct UserPaths {
@@ -80,7 +82,7 @@ struct SystemImagePaths {
     fs::path sdcard_image;
 };*/
 
-absl::StatusOr<EmulatorPaths> ResolveEmulatorPaths(bool verbose, bool include_fishtank);
+absl::StatusOr<EmulatorPaths> ResolveEmulatorPaths(bool verbose);
 absl::StatusOr<UserPaths> ResolveUserPaths(const fs::path& launcher_dir, bool verbose);
 absl::StatusOr<SystemImagePaths> ResolveSystemImagePaths(const std::vector<fs::path>& search_paths,
                                                          const AndroidOptions& opts);
