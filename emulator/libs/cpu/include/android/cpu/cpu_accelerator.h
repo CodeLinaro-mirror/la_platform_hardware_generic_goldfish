@@ -152,7 +152,7 @@ AndroidCpuAcceleration GetCurrentCpuAcceleratorStatusCode();
 // For unit testing/debugging purpose only, must be called before
 // GetCurrentCpuAccelerator().
 void SetCurrentCpuAcceleratorForTesting(CpuAccelerator accel, AndroidCpuAcceleration status_code,
-                                        const char* status);
+                                        const char* status, const char* version = nullptr);
 
 // Returns the Hyper-V configuration of the current system
 // and a short message describing it.
