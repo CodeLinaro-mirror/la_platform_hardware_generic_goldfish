@@ -637,13 +637,14 @@ AndroidCpuAcceleration GetCurrentCpuAcceleratorStatusCode() {
 }
 
 void SetCurrentCpuAcceleratorForTesting(CpuAccelerator accel, AndroidCpuAcceleration status_code,
-                                        const char* status) {
+                                        const char* status, const char* version) {
     GlobalState* g = &gGlobals;
 
     g->testing = true;
     g->accel = accel;
     g->status_code = status_code;
     ::snprintf(g->status, sizeof(g->status), "%s", status);
+    ::snprintf(g->version, sizeof(g->version), "%s", version ? version : "Unknown version");
 }
 
 std::pair<AndroidHyperVStatus, std::string> GetHyperVStatus() {
