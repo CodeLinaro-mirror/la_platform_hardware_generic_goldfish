@@ -123,6 +123,45 @@ cc_test(
 )
 
 cc_library(
+    name = "trampoline",
+    srcs = ["trampoline.cc"],
+    hdrs = ["trampoline.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":avd",
+        "//emulator/libs/file",
+        "//emulator/libs/process",
+        "//emulator/libs/system",
+        "@abseil-cpp//absl/log",
+    ],
+)
+
+cc_test(
+    name = "trampoline_test",
+    size = "small",
+    srcs = ["trampoline_test.cc"],
+    data = [":fake_launcher_main"],
+    linkopts = select({
+        "@platforms//os:macos": ["-undefined error"],
+        "//conditions:default": [],
+    }),
+    deps = [
+        ":mock_avd",
+        ":trampoline",
+        "//emulator/libs/system",
+        "//emulator/libs/system:bazel_info",
+        "//emulator/libs/system:test-headers",
+        "//emulator/libs/test:googletest_main",
+    ],
+)
+
+cc_binary(
+    name = "fake_launcher_main",
+    testonly = True,
+    srcs = ["fake_launcher_main.cc"],
+)
+
+cc_library(
     name = "mock_avd",
     testonly = True,
     hdrs = ["include/android/goldfish/mock_avd.h"],
@@ -425,6 +464,7 @@ cc_binary(
     visibility = ["//visibility:public"],
     deps = [
         ":launcher_lib",
+        ":trampoline",
         "//emulator/crashreport:crash_system",
         "//emulator/launcher/cmdline",
         "//emulator/libs/async:libuv_event_loop",

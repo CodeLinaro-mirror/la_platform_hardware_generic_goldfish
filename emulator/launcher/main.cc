@@ -22,6 +22,7 @@
 #include <iostream>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "absl/debugging/failure_signal_handler.h"
@@ -50,6 +51,7 @@
 #include "goldfish/tools/aemu_version.h"
 #include "launcher.h"
 #include "logging.h"
+#include "trampoline.h"
 #include "uv.h"
 
 namespace {
@@ -373,7 +375,12 @@ int main(int argc, char** argv) {
         }
         return 1;
     }
-    LOG(INFO) << "Launching AVD: " << (*avd)->Details(opts.verbose);
+
+    if (android::goldfish::ShouldTrampolineToQemu2(**avd)) {
+        std::vector<std::string> args(argv + 1, argv + argc);
+        android::goldfish::TrampolineToQemu2(emulator_paths->launcher_directory, std::move(args));
+        std::unreachable();
+    }
 
     bool set_qemu_version = true;
     auto last_run_qemu_version = (*avd)->GetLastRunQemuVersion();
@@ -403,6 +410,7 @@ int main(int argc, char** argv) {
         }
     }
 
+    LOG(INFO) << "Launching AVD: " << (*avd)->Details(opts.verbose);
     return android::goldfish::RunLauncher({
         .event_loop = *event_loop,
         .process_launcher = std::make_unique<::goldfish::async::UvProcessLauncher>(*event_loop),
