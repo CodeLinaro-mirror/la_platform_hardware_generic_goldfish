@@ -13,13 +13,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "goldfish/adb/adb_message_logger.h"
+
 #include <algorithm>
 #include <string_view>
 
 #include "absl/log/log.h"
 #include "absl/strings/str_format.h"
-
-#include "goldfish/adb/adb_message_logger.h"
 
 namespace goldfish::adb {
 

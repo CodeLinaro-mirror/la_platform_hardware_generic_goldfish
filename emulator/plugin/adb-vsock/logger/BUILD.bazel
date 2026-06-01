@@ -3,7 +3,7 @@ load("@rules_cc//cc:cc_test.bzl", "cc_test")
 
 cc_library(
     name = "logger",
-    srcs = ["adb_mesage_logger.cc"],
+    srcs = ["adb_message_logger.cc"],
     hdrs = ["include/goldfish/adb/adb_message_logger.h"],
     includes = ["include"],
     visibility = ["//visibility:public"],
