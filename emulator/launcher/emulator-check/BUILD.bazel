@@ -1,0 +1,53 @@
+load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_test")
+
+cc_library(
+    name = "platform_info",
+    srcs = ["PlatformInfo.cc"],
+    hdrs = ["PlatformInfo.h"],
+    deps = ["//emulator/libs/system"] + select({
+        "@platforms//os:linux": ["@libx11"],
+        "//conditions:default": [],
+    }),
+)
+
+cc_binary(
+    name = "emulator-check",
+    srcs = ["main.cc"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":platform_info",
+        "//emulator/libs/cpu",
+        "//emulator/libs/system",
+    ],
+)
+
+cc_test(
+    name = "platform_info_test",
+    size = "small",
+    srcs = ["platform_info_test.cc"],
+    linkopts = select({
+        "@platforms//os:macos": ["-undefined error"],
+        "//conditions:default": [],
+    }),
+    deps = [
+        ":platform_info",
+        "//emulator/libs/test:googletest_main",
+    ],
+)
+
+cc_test(
+    name = "emulator_check_test",
+    size = "small",
+    srcs = ["emulator_check_test.cc"],
+    data = [":emulator-check"],
+    linkopts = select({
+        "@platforms//os:macos": ["-undefined error"],
+        "//conditions:default": [],
+    }),
+    deps = [
+        "//emulator/libs/process",
+        "//emulator/libs/system:bazel_info",
+        "//emulator/libs/test:googletest_main",
+        "@abseil-cpp//absl/strings",
+    ],
+)

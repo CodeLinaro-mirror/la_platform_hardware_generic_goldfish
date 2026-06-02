@@ -783,8 +783,9 @@ std::pair<AndroidCpuInfoFlags, std::string> GetCpuInfo() {
         status += "Bare metal\n";
     }
 
-    flags |= ANDROID_CPU_INFO_64_BIT_32_BIT_OS;
-    status += "64-bit CPU, 32-bit OS\n";
+    flags |= ANDROID_CPU_INFO_64_BIT;
+    status += "64-bit CPU\n";
+
 
     return std::make_pair(static_cast<AndroidCpuInfoFlags>(flags), status);
 }
