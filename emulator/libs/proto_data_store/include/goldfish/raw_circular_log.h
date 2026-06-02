@@ -53,9 +53,12 @@ class RawCircularLog {
     /**
      * @brief Prefix for every object in the data region.
      */
-    struct ObjectHeader {
-        uint16_t commit : 1;  ///< 1 if successfully written, 0 otherwise.
-        uint16_t size : 15;   ///< Size of the payload in bytes.
+    union ObjectHeader {
+        struct {
+            uint16_t commit : 1;  ///< 1 if successfully written, 0 otherwise.
+            uint16_t size : 15;   ///< Size of the payload in bytes.
+        } fields;
+        uint16_t raw;
     } __attribute__((packed));
 
     /**
@@ -143,6 +146,21 @@ class RawCircularLog {
     absl::StatusOr<uint32_t> Reserve(uint32_t payload_size) ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
 
     void* GetPointer(uint32_t offset) { return buffer_ + kHeaderSize + offset; }
+
+    static constexpr size_t kAlignment = sizeof(void*);
+
+    // Round down size to the previous multiple of kAlignment by masking out the lower bits.
+    static constexpr size_t RoundDown(size_t size) { return size & ~(kAlignment - 1); }
+
+    // Round up size to the next multiple of kAlignment
+    static constexpr size_t Align(size_t size) { return RoundDown(size + kAlignment - 1); }
+
+    // Align pointer to the next multiple of kAlignment
+    static void* AlignPointer(void* ptr) {
+        static_assert(sizeof(size_t) >= sizeof(uintptr_t),
+                      "size_t must be large enough to hold a uintptr_t");
+        return reinterpret_cast<void*>(Align(reinterpret_cast<uintptr_t>(ptr)));
+    }
 
     static void SafeAtomicWrite(void* buffer, ObjectHeader header);
 
