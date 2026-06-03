@@ -77,6 +77,10 @@ class FakeMultiDisplay : public IMultiDisplay {
      * @return A vector of DisplayPtr to the active displays.
      */
     std::vector<DisplayPtr> Displays() const override;
+
+    absl::Status Save(archive::IWriter& writer) const override { return absl::OkStatus(); }
+    absl::Status Load(archive::IReader& reader) override { return absl::OkStatus(); }
+    void Reset() override {}
     bool IsActive(DisplayId display_id) const override { return true; }
     absl::Status SetActive(DisplayId display_id, bool active) override { return absl::OkStatus(); }
     void SetFolded(bool folded) override {}
