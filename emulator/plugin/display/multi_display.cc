@@ -70,14 +70,15 @@ absl::StatusOr<SharedDisplay> IMultiDisplay::GetActiveDisplay(DisplayId display_
         return absl::UnavailableError("Display is no longer active.");
     }
 
-    if (!display->Active() && display_id == 0 && has_hinge) {
+    if (!IsActive(display_id) && display_id == 0 && has_hinge) {
         screen = GetDisplay(1);
         if (screen.ok()) {
             display = screen->lock();
+            display_id = 1;
         }
     }
 
-    if (!display || !display->Active()) {
+    if (!display || !IsActive(display_id)) {
         return absl::UnavailableError("Display is no longer active.");
     }
 
@@ -101,6 +102,8 @@ class MultiDisplayImpl : public IMultiDisplay {
                     absl::StrFormat("Display with id %d already exists.", display_id));
         }
 
+        active_states_[display_id] = true;
+
         VLOG(1) << "Created display: " << display_id;
         FireEvent(DisplayEvent{DisplayEvent::AddedEvent{display}});
         return display;
@@ -120,8 +123,13 @@ class MultiDisplayImpl : public IMultiDisplay {
         auto dims = display->GetDimensions();
 
         VLOG(1) << "Created display: " << *display;
-        if (id != 0) {
-            display->SetActive(false);
+
+        if (active_states_.find(id) == active_states_.end()) {
+            if (id != 0) {
+                active_states_[id] = false;
+            } else {
+                active_states_[id] = true;
+            }
         }
 
         FireEvent(DisplayEvent{DisplayEvent::AddedEvent{display}});
@@ -134,6 +142,25 @@ class MultiDisplayImpl : public IMultiDisplay {
             return display;
         }
         return GetVirtualDisplayWeak(display_id);
+    }
+
+    bool IsActive(DisplayId display_id) const override {
+        const absl::MutexLock lock(display_access_);
+        auto it = active_states_.find(display_id);
+        if (it != active_states_.end()) {
+            return it->second;
+        }
+        return false;
+    }
+
+    absl::Status SetActive(DisplayId display_id, bool active) override {
+        const absl::MutexLock lock(display_access_);
+        if (qemu_displays_.find(display_id) == qemu_displays_.end() &&
+            virtual_displays_.find(display_id) == virtual_displays_.end()) {
+            return absl::NotFoundError(absl::StrFormat("Display: %d does not exist.", display_id));
+        }
+        active_states_[display_id] = active;
+        return absl::OkStatus();
     }
 
     absl::StatusOr<WeakVirtualDisplayImpl> GetVirtualDisplayWeak(DisplayId display_id) const {
@@ -170,6 +197,7 @@ class MultiDisplayImpl : public IMultiDisplay {
                     absl::StrFormat("Display: %d does not exist (already removed?).", display_id));
         }
         qemu_displays_.erase(it);
+        active_states_.erase(display_id);
         FireEvent({DisplayEvent{DisplayEvent::DeletedEvent{display_id}}});
         return absl::OkStatus();
     }
@@ -182,6 +210,7 @@ class MultiDisplayImpl : public IMultiDisplay {
                     absl::StrFormat("Display: %d does not exist (already removed?).", display_id));
         }
         virtual_displays_.erase(it);
+        active_states_.erase(display_id);
         FireEvent({DisplayEvent{DisplayEvent::DeletedEvent{display_id}}});
         return absl::OkStatus();
     }
@@ -192,23 +221,116 @@ class MultiDisplayImpl : public IMultiDisplay {
         const absl::MutexLock lock(display_access_);
         std::vector<DisplayPtr> displays;
         for (const auto& pair : qemu_displays_) {
-            if (pair.second->Active()) {
+            if (active_states_.at(pair.first)) {
                 displays.push_back(pair.second);
             }
         }
         for (const auto& pair : virtual_displays_) {
-            if (pair.second->Active()) {
+            if (active_states_.at(pair.first)) {
                 displays.push_back(pair.second);
             }
         }
 
         return displays;
     }
+    void SetFolded(bool folded) override {
+        const auto& hw = ::goldfish::avd_info::GetAvd().Props().hw_config;
+        if (hw.hw_sensor_hinge) {
+            const absl::MutexLock lock(display_access_);
+            is_folded_ = folded;
+
+            // Display 0: active when NOT closed
+            active_states_[0] = !folded;
+
+            // Other displays: active when closed
+            for (const auto& pair : qemu_displays_) {
+                if (pair.first != 0) {
+                    active_states_[pair.first] = folded;
+                }
+            }
+        }
+    }
+
+    bool IsFolded() const override {
+        const absl::MutexLock lock(display_access_);
+        return is_folded_;
+    }
+
+    void SetDisplayMode(uint32_t mode, uint32_t width, uint32_t height, uint32_t dpi,
+                        uint32_t guest_mode_id) override {
+        if (mode != IMultiDisplay::kDisplayModeFoldable) {
+            if (IsFolded()) {
+                uint64_t start_sequence = 0;
+                auto s0 = GetDisplay(0);
+                if (s0.ok()) {
+                    if (auto d0 = s0->lock()) {
+                        start_sequence = d0->Seq().sequence_number;
+                    }
+                }
+
+                ::goldfish::avd_info::GetAvd().GetSensorsPhysicalModel().SetTargetPosture(
+                        static_cast<float>(::goldfish::sensors::FoldablePostures::kOpened),
+                        PhysicalInterpolation::kStep);
+
+                // Wait for display 0 to receive a frame after setting target posture
+                absl::Time start = absl::Now();
+                bool received_frame = false;
+                while (absl::Now() - start < absl::Milliseconds(2000)) {
+                    auto s0_check = GetDisplay(0);
+                    if (s0_check.ok()) {
+                        if (auto d0_check = s0_check->lock()) {
+                            if (d0_check->Seq().sequence_number > start_sequence) {
+                                received_frame = true;
+                                break;
+                            }
+                        }
+                    }
+                    absl::SleepFor(absl::Milliseconds(5));
+                }
+
+                if (!received_frame) {
+                    // TODO: maybe trigger a power down and power up to force a
+                    // update, but go ahead any way, as it is usually harmless
+                    LOG(INFO) << "Timeout while waiting for display 0 to receive a frame after "
+                                 "setting target posture to kOpened.";
+                }
+            }
+        }
+
+        {
+            const absl::MutexLock lock(display_access_);
+            display_mode_ = mode;
+        }
+
+        auto screen = GetDisplay(0);
+        if (screen.ok()) {
+            if (auto display = screen->lock()) {
+                if (dpi == 0) {
+                    dpi = display->Dpi();
+                }
+                display->SetDimensions(width, height);
+                if (auto con = display->GetConsole()) {
+                    grpc_dpy_gfx_update_ui_info(con, width, height);
+                }
+
+                ::goldfish::devices::multidisplay::SendSetDisplay(guest_mode_id, width, height, dpi,
+                                                                  display->Flags());
+            }
+        }
+    }
+
+    uint32_t GetDisplayMode() const override {
+        const absl::MutexLock lock(display_access_);
+        return display_mode_;
+    }
 
   private:
     mutable absl::Mutex display_access_;
     QemuDisplayMap qemu_displays_ ABSL_GUARDED_BY(display_access_);
     VirtualDisplayMap virtual_displays_ ABSL_GUARDED_BY(display_access_);
+    std::unordered_map<DisplayId, bool> active_states_ ABSL_GUARDED_BY(display_access_);
+    bool is_folded_ ABSL_GUARDED_BY(display_access_) = false;
+    uint32_t display_mode_ ABSL_GUARDED_BY(display_access_) = 0;
     EventLoop* qemu_loop_;
 };
 

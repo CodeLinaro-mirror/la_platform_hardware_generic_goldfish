@@ -41,6 +41,14 @@ class MockMultiDisplay : public IMultiDisplay {
     MOCK_METHOD(absl::StatusOr<DisplayPtr>, GetDisplay, (DisplayId), (const, override));
     MOCK_METHOD(absl::Status, EraseDisplay, (DisplayId), (override));
     MOCK_METHOD(std::vector<DisplayPtr>, Displays, (), (const, override));
+
+    MOCK_METHOD(bool, IsActive, (DisplayId), (const, override));
+    MOCK_METHOD(absl::Status, SetActive, (DisplayId, bool), (override));
+    MOCK_METHOD(void, SetFolded, (bool), (override));
+    MOCK_METHOD(bool, IsFolded, (), (const, override));
+    MOCK_METHOD(void, SetDisplayMode, (uint32_t, uint32_t, uint32_t, uint32_t, uint32_t),
+                (override));
+    MOCK_METHOD(uint32_t, GetDisplayMode, (), (const, override));
 };
 
 class InputEventSenderTest : public ::testing::Test {
@@ -50,7 +58,7 @@ class InputEventSenderTest : public ::testing::Test {
         mock_multidisplay_ = std::make_unique<MockMultiDisplay>(ev_loop_.get());
         sender_ = std::make_unique<InputEventSender>(mock_multidisplay_.get());
         mock_display_ = std::make_shared<MockDisplay>(ev_loop_.get(), 0, 1024, 768);
-        mock_display_->SetActive(true);
+        ON_CALL(*mock_multidisplay_, IsActive(_)).WillByDefault(Return(true));
     }
 
     std::unique_ptr<TestEventLoop> ev_loop_;
@@ -100,7 +108,7 @@ TEST_F(InputEventSenderTest, InactiveDisplay) {
     // If display 0 is inactive, GetActiveDisplay will try display 1 if there's a hinge.
     // For this test, let's just make it return an inactive display and no hinge.
     EXPECT_CALL(*mock_multidisplay_, GetDisplay(0)).WillOnce(Return(mock_display_));
-    mock_display_->SetActive(false);
+    EXPECT_CALL(*mock_multidisplay_, IsActive(0)).WillRepeatedly(Return(false));
 
     // InputEventSender::Send calls TryLockDisplay which calls GetActiveDisplay.
     // GetActiveDisplay returns UnavailableError if the display is inactive and no redirect happens.

@@ -98,7 +98,6 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":base",
-        "//emulator/libs/archive",
         "//emulator/libs/base",
         "//emulator/libs/logging:absl_c_bridge",
         "@abseil-cpp//absl/status",
