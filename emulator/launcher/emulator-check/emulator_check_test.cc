@@ -106,3 +106,24 @@ TEST(EmulatorCheckTest, accelRunsAndOutputsCorrectFormat) {
             << "Exit code: " << code << ", Stderr: " << err;
     EXPECT_THAT(out, ::testing::HasSubstr(LINE_END "accel" LINE_END));
 }
+
+#ifndef _WIN32
+TEST(EmulatorCheckTest, whpxArgsAreUnknownOnNonWindows) {
+    fs::path binary = FindEmulatorCheckBinary();
+    ASSERT_FALSE(binary.empty()) << "Could not find emulator-check binary in runfiles!";
+
+    std::vector<std::string> whpx_args = {"whpx", "enable-whpx", "disable-whpx"};
+    for (const auto& arg : whpx_args) {
+        std::stringbuf stdout_buf;
+        std::stringbuf stderr_buf;
+        auto p = android::base::Command::Create({binary.string(), arg})
+                         .RedirectStdoutToUnsafe(&stdout_buf)
+                         .RedirectStderrToUnsafe(&stderr_buf)
+                         .Execute();
+        EXPECT_EQ(p->ExitCode(), 100);
+        std::string out = p->Out()->AsString();
+        EXPECT_THAT(out, ::testing::HasSubstr(
+                                 absl::StrCat(arg, ":\n100\nUnknown argument\n", arg, "\n")));
+    }
+}
+#endif

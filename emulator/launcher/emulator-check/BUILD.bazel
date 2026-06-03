@@ -10,6 +10,14 @@ cc_library(
     }),
 )
 
+cc_library(
+    name = "whpx",
+    srcs = ["whpx.cc"],
+    hdrs = ["whpx.h"],
+    target_compatible_with = ["@platforms//os:windows"],
+    deps = ["@dism_adk"],
+)
+
 cc_binary(
     name = "emulator-check",
     srcs = ["main.cc"],
@@ -18,7 +26,10 @@ cc_binary(
         ":platform_info",
         "//emulator/libs/cpu",
         "//emulator/libs/system",
-    ],
+    ] + select({
+        "@platforms//os:windows": [":whpx"],
+        "//conditions:default": [],
+    }),
 )
 
 cc_test(
@@ -49,5 +60,16 @@ cc_test(
         "//emulator/libs/system:bazel_info",
         "//emulator/libs/test:googletest_main",
         "@abseil-cpp//absl/strings",
+    ],
+)
+
+cc_test(
+    name = "whpx_test",
+    size = "small",
+    srcs = ["whpx_test.cc"],
+    target_compatible_with = ["@platforms//os:windows"],
+    deps = [
+        ":whpx",
+        "//emulator/libs/test:googletest_main",
     ],
 )

@@ -99,6 +99,8 @@
 
 #ifdef _WIN32
 #include <windows.h>
+
+#include "whpx.h"
 #endif
 
 #include "platform_info.h"
@@ -159,11 +161,11 @@ constexpr struct Option {
     {"window-mgr", "Return the current window manager name", &getWindowManager},
     {"desktop-env", "Return the current desktop environment name", &getDesktopEnv},
 #ifdef _WIN32
-    {"whpx", "Check if WHPX is installed and running (Windows)", &unimplemented},
+    {"whpx", "Check if WHPX is installed and running (Windows)", &android::checkWHPX},
     {"enable-whpx", "Enable Windows Hypervisor Platform in Windows Features (Windows)",
-     &unimplemented},
+     &android::enableWHPX},
     {"disable-whpx", "Disable Windows Hypervisor Platform in Windows Features (Windows)",
-     &unimplemented},
+     &android::disableWHPX},
 #endif
 };
 
