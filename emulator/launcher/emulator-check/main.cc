@@ -101,7 +101,7 @@
 #include <windows.h>
 #endif
 
-#include "PlatformInfo.h"
+#include "platform_info.h"
 #include "android/cpu/cpu_accelerator.h"
 
 using CommandReturn = std::pair<int, std::string>;

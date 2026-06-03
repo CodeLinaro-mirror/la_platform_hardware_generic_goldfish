@@ -2,8 +2,8 @@ load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_test")
 
 cc_library(
     name = "platform_info",
-    srcs = ["PlatformInfo.cc"],
-    hdrs = ["PlatformInfo.h"],
+    srcs = ["platform_info.cc"],
+    hdrs = ["platform_info.h"],
     deps = ["//emulator/libs/system"] + select({
         "@platforms//os:linux": ["@libx11"],
         "//conditions:default": [],

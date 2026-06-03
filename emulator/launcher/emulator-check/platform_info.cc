@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "PlatformInfo.h"
+#include "platform_info.h"
 
 #ifdef __linux__
 #include <X11/Xatom.h>

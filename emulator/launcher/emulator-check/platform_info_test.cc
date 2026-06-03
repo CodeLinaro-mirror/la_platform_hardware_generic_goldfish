@@ -14,7 +14,7 @@
 
 #include <gtest/gtest.h>
 
-#include "PlatformInfo.h"
+#include "platform_info.h"
 
 TEST(PlatformInfoTest, getWindowManagerName) {
     std::string wm = android::getWindowManagerName();
