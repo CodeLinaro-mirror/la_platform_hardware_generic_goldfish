@@ -364,7 +364,7 @@ std::vector<std::pair<std::string, std::string>> getBootProperties(const Emulato
     auto hw = avd.Hw();
 
     int gles_major_version = 3;
-    int gles_minor_version = 0;
+    int gles_minor_version = 2;
     int bootPropOpenglesVersion = gles_major_version << 16 | gles_minor_version;
     std::string real_console_tty_prefix = "hvc";
     int api_level = 202504;
