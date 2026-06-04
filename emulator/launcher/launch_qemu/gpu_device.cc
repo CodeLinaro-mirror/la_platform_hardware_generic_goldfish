@@ -56,8 +56,9 @@ std::vector<std::string> GpuDevice::getQemuParameters(const EmulatorConfig& emul
 
     if (mSnapshotEnabled) {
         renderer_features.append(";VulkanSnapshots:enabled");
-        renderer_features.append(";VulkanBatchedDescriptorSetUpdate:disabled");
     }
+
+    renderer_features.append(";VulkanBatchedDescriptorSetUpdate:disabled");
 
     // Temporarily limit guest to Vulkan 1.3, unless 1.4 is explicitly enabled via an env variable.
     const char* env_vk_enable_1_4 = getenv("ANDROID_EMU_VK_ENABLE_1_4");
