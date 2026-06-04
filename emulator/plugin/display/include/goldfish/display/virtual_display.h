@@ -63,6 +63,9 @@ class VirtualDisplay : public IDisplay {
     // A helper method to simulate the guest OS finishing a rendered frame
     void SimulateGuestFrameUpdate();
 
+    uint32_t GetDpi() const { return dpi_; }
+    uint32_t GetFlags() const { return flags_; }
+
   private:
     std::vector<uint8_t> frame_buffer_;
     std::shared_ptr<EventLoop::Timer> one_second_timer_;
@@ -70,6 +73,8 @@ class VirtualDisplay : public IDisplay {
 
     EventLoop* qemu_loop_;
     ::VirtIOInputHID* vhid_;
+    uint32_t dpi_;
+    uint32_t flags_;
     int last_bmask_ ABSL_GUARDED_BY(send_lock_) = 0;
     absl::Mutex send_lock_;
 };

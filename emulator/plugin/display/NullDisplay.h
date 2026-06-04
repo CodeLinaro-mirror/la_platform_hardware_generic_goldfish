@@ -18,7 +18,7 @@ namespace goldfish::display {
 
 class NullDisplay : public IDisplay {
   public:
-    NullDisplay() : IDisplay(nullptr, -1, -1, -1) { active_ = false; }
+    NullDisplay() : IDisplay(nullptr, -1, -1, -1) {}
 
     absl::StatusOr<FrameInfo> GetPixels(PixelFormat /*fmt*/, int /*width*/, int /*height*/,
                                         ImageRotation /*rotation*/, uint8_t* /*pixel*/,

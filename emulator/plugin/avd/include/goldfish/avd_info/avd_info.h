@@ -27,6 +27,10 @@
 #include "goldfish/metrics/uuid.h"
 #include "goldfish/sensors/physical_model.h"
 
+namespace goldfish::display {
+class IMultiDisplay;
+}
+
 namespace goldfish::devices::multidisplay {
 class MultiDisplayDevice;
 }
@@ -89,6 +93,8 @@ struct AvdUniverse {
     void SetActiveMultiDisplayDevice(
             std::shared_ptr<devices::multidisplay::MultiDisplayDevice> device);
     std::shared_ptr<devices::multidisplay::MultiDisplayDevice> GetActiveMultiDisplayDevice();
+
+    virtual display::IMultiDisplay& GetMultiDisplay() const = 0;
 
     explicit AvdUniverse(std::unique_ptr<AvdProperties> props);
     AvdUniverse(const AvdUniverse&) = delete;

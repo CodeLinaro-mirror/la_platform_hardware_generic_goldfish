@@ -31,6 +31,7 @@
 #include "goldfish/archive/qemu_file_reader.h"
 #include "goldfish/archive/qemu_file_writer.h"
 #include "goldfish/avd_info/avd_private.h"
+#include "goldfish/display/QemuMultidisplay/multi_display.h"
 #include "host-common/constants.h"
 
 // clang-format off

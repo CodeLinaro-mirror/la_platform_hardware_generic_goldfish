@@ -40,7 +40,7 @@ namespace goldfish::display {
 
 VirtualDisplay::VirtualDisplay(EventLoop* loop, EventLoop* qloop, uint8_t id, uint32_t width,
                                uint32_t height, uint32_t dpi, uint32_t flags)
-        : IDisplay(loop, id, width, height), qemu_loop_(qloop) {
+        : IDisplay(loop, id, width, height), qemu_loop_(qloop), dpi_(dpi), flags_(flags) {
     // Initialize our dummy framebuffer with a solid color (e.g., White RGBA)
     // In reality, this memory would be mapped to a virtio-gpu guest buffer.
     const size_t buffer_size = static_cast<size_t>(width) * height * 4;
