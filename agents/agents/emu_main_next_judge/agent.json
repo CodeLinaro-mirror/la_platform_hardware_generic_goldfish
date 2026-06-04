@@ -1,0 +1,6 @@
+{
+  "name": "emu_main_next_judge",
+  "configPath": {
+    "relativePathToConfig": "config.yaml"
+  }
+}
