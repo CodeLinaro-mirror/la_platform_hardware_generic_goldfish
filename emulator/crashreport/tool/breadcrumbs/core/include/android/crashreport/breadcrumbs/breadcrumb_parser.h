@@ -19,19 +19,19 @@
 namespace android::crashreport::breadcrumbs {
 
 /**
- * @brief Logic for extracting gRPC breadcrumbs from minidumps.
+ * @brief Logic for extracting structured breadcrumbs from raw circular buffers.
  *
- * The BreadcrumbParser interface with the CircularMessageLog library to correctly
- * handle the wrap-around logic and binary reconstruction of the in-memory flight
- * recorder buffer.
+ * The BreadcrumbParser interfaces with the RawCircularLog library to correctly
+ * handle wrap-around logic and binary reconstruction of the in-memory flight
+ * recorder buffers.
  */
 class BreadcrumbParser {
   public:
     /**
-     * @brief Parses a raw memory buffer into a sequence of GrpcBreadcrumb protos.
+     * @brief Parses a raw memory buffer into a sequence of Breadcrumb protos.
      *
-     * Validates the buffer header (magic, head, tail) and iterates through the
-     * circular buffer to produce a chronologically sorted sequence of events.
+     * Validates the buffer header and iterates through the circular log
+     * to produce a chronologically sorted sequence of events.
      *
      * @param buffer The raw memory buffer extracted from the minidump annotation.
      * @return A vector of entries ordered from oldest to newest.

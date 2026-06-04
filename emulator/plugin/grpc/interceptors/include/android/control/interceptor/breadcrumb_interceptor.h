@@ -17,10 +17,7 @@
 
 #include <cstdint>
 
-#include "grpc_diagnostic.pb.h"
-
-#include "breadcrumb.pb.h"
-#include "goldfish/circular_message_log.h"
+#include "goldfish/raw_circular_log.h"
 
 namespace android::control::interceptor {
 
@@ -45,10 +42,7 @@ class BreadcrumbInterceptor : public grpc::experimental::Interceptor {
 
     void Intercept(InterceptorBatchMethods* methods) override;
 
-    /** @brief Returns the log instance for testing purposes. */
-    static goldfish::proto_data_store::ProtoCircularLog<
-            ::android::control::breadcrumbs::Breadcrumb>*
-    GetLogForTesting();
+    static goldfish::proto_data_store::RawCircularLog* GetLogForTesting();
 
   private:
     uint64_t call_id_;

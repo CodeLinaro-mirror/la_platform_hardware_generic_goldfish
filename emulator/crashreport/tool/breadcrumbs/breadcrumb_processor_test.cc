@@ -22,7 +22,7 @@
 
 #include "android/crashreport/breadcrumbs/breadcrumb_trace.h"
 #include "breadcrumb.pb.h"
-#include "goldfish/circular_message_log.h"
+#include "emulator/crashreport/include/android/crashreport/breadcrumb_proto.h"
 
 namespace android::crashreport::breadcrumbs {
 
@@ -31,31 +31,51 @@ using android::control::breadcrumbs::GrpcPayload;
 
 class BreadcrumbProcessorTest : public ::testing::Test {
   protected:
-    std::unique_ptr<goldfish::proto_data_store::CircularMessageLog> log_writer_;
+    std::unique_ptr<goldfish::proto_data_store::RawCircularLog> log_writer_;
 
     void AddEntry(std::vector<uint8_t>& buffer, uint64_t flow_id, uint64_t tid, uint64_t ts,
                   uint32_t hash, GrpcPayload::GrpcPhase phase = GrpcPayload::START,
                   GrpcPayload::GrpcStatusCode status = GrpcPayload::OK) {
-        Breadcrumb proto;
-        proto.set_flow_id(flow_id);
-        proto.set_thread_id(tid);
-        proto.set_timestamp_ns(ts);
+        GrpcPayload grpc;
+        grpc.set_method_hash(hash);
+        grpc.set_grpc_phase(phase);
+        grpc.set_status_code(status);
 
-        auto* grpc = proto.mutable_grpc();
-        grpc->set_method_hash(hash);
-        grpc->set_grpc_phase(phase);
-        grpc->set_status_code(status);
+        uint16_t payload_len = grpc.ByteSizeLong();
+
+        BreadcrumbEnvelope envelope;
+        envelope.timestamp_ns = ts;
+        envelope.thread_id = tid;
+        envelope.flow_id = flow_id;
+
+        if (phase == GrpcPayload::START) {
+            envelope.phase = static_cast<uint8_t>(BreadcrumbPhase::kFlowBegin);
+        } else if (phase == GrpcPayload::END_OF_CALL) {
+            envelope.phase = static_cast<uint8_t>(BreadcrumbPhase::kFlowEnd);
+        } else {
+            envelope.phase = static_cast<uint8_t>(BreadcrumbPhase::kFlowStep);
+        }
+
+        envelope.payload_type = static_cast<uint8_t>(PayloadType::kGrpcProto);
+        envelope.payload_len = payload_len;
+
+        uint32_t total_size = sizeof(BreadcrumbEnvelope) + payload_len;
 
         if (!log_writer_) {
-            auto log_or = goldfish::proto_data_store::CircularMessageLog::CreateWriter(
-                    buffer.data(), buffer.size(), proto);
+            auto log_or = goldfish::proto_data_store::RawCircularLog::CreateWriter(buffer.data(),
+                                                                                   buffer.size());
             if (log_or.ok()) {
                 log_writer_ = std::move(*log_or);
             }
         }
 
         if (log_writer_) {
-            (void)log_writer_->Push(proto);
+            (void)log_writer_->Push(total_size, [&](void* dest) {
+                char* p = static_cast<char*>(dest);
+                std::memcpy(p, &envelope, sizeof(BreadcrumbEnvelope));
+                p += sizeof(BreadcrumbEnvelope);
+                grpc.SerializeToArray(p, payload_len);
+            });
         }
     }
 

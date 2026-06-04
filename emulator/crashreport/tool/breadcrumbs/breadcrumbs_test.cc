@@ -19,9 +19,9 @@
 
 #include "android/crashreport/breadcrumbs/breadcrumb_parser.h"
 #include "car_service.pb.h"
+#include "emulator/crashreport/include/android/crashreport/breadcrumb_proto.h"
 #include "emulator/crashreport/tool/breadcrumbs/breadcrumb_metadata.h"
 #include "emulator_controller.pb.h"
-#include "goldfish/circular_message_log.h"
 #include "sensor_service.pb.h"
 
 namespace android::crashreport::breadcrumbs {
@@ -35,21 +35,52 @@ TEST(BreadcrumbParserTest, ParsesEmptyBuffer) {
 using android::control::breadcrumbs::Breadcrumb;
 
 TEST(BreadcrumbParserTest, ParsesContiguousBuffer) {
+    using android::control::breadcrumbs::Breadcrumb;
+    using android::control::breadcrumbs::GrpcPayload;
+    using android::crashreport::BreadcrumbEnvelope;
+    using android::crashreport::BreadcrumbPhase;
+    using android::crashreport::PayloadType;
+    using goldfish::proto_data_store::RawCircularLog;
+
     std::vector<uint8_t> buffer(1024, 0);
-    Breadcrumb proto;
-    proto.set_flow_id(123);
-    proto.mutable_grpc()->set_method_hash(0xABCDEF);
+
+    GrpcPayload grpc;
+    grpc.set_method_hash(0xABCDEF);
+    grpc.set_grpc_phase(GrpcPayload::START);
+    grpc.set_status_code(GrpcPayload::OK);
+
+    uint16_t payload_len = grpc.ByteSizeLong();
+
+    BreadcrumbEnvelope envelope;
+    envelope.timestamp_ns = 1000;
+    envelope.thread_id = 123;
+    envelope.flow_id = 456;
+    envelope.phase = static_cast<uint8_t>(BreadcrumbPhase::kFlowBegin);
+    envelope.payload_type = static_cast<uint8_t>(PayloadType::kGrpcProto);
+    envelope.payload_len = payload_len;
+
+    uint32_t total_size = sizeof(BreadcrumbEnvelope) + payload_len;
 
     {
-        auto log = goldfish::proto_data_store::CircularMessageLog::CreateWriter(
-                buffer.data(), buffer.size(), proto);
-        ASSERT_TRUE(log.ok());
-        (void)(*log)->Push(proto);
+        auto log_or = RawCircularLog::CreateWriter(buffer.data(), buffer.size());
+        ASSERT_TRUE(log_or.ok());
+        auto log = std::move(*log_or);
+        auto status = log->Push(total_size, [&](void* dest) {
+            char* p = static_cast<char*>(dest);
+            std::memcpy(p, &envelope, sizeof(BreadcrumbEnvelope));
+            p += sizeof(BreadcrumbEnvelope);
+            grpc.SerializeToArray(p, payload_len);
+        });
+        ASSERT_TRUE(status.ok());
     }
 
     auto entries = BreadcrumbParser::Parse(buffer);
     ASSERT_EQ(entries.size(), 1);
-    EXPECT_EQ(entries[0].flow_id(), 123);
+    EXPECT_EQ(entries[0].flow_id(), 456);
+    EXPECT_EQ(entries[0].thread_id(), 123);
+    EXPECT_EQ(entries[0].timestamp_ns(), 1000);
+    ASSERT_TRUE(entries[0].has_grpc());
+    EXPECT_EQ(entries[0].grpc().method_hash(), 0xABCDEF);
 }
 
 TEST(BreadcrumbMetadataTest, ResolvesMultipleServices) {
