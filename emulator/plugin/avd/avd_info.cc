@@ -311,6 +311,11 @@ void avd_info_unrealize(DeviceState* dev) {
     gGlobalAvdUniverseInstance = nullptr;
 }
 
+void avd_info_reset(DeviceState* dev) {
+    VLOG(1) << "avd_info_reset";
+    GetAvd().GetMultiDisplay().Reset();
+}
+
 int avd_info_pre_load(void* opaque) {
     toAvdExtendedUniverse(opaque).OnPreLoad();
     return 0;
@@ -417,6 +422,7 @@ void avd_info_class_init(ObjectClass* oc, void* data) {
     DeviceClass* dc = DEVICE_CLASS(oc);
     dc->realize = avd_info_realize;
     dc->unrealize = avd_info_unrealize;
+    dc->legacy_reset = avd_info_reset;
     dc->vmsd = &avd_info_vmsd;
 }
 

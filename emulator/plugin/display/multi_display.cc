@@ -233,6 +233,110 @@ class MultiDisplayImpl : public IMultiDisplay {
 
         return displays;
     }
+
+    absl::Status Save(archive::IWriter& writer) const override {
+        const absl::MutexLock lock(display_access_);
+
+        writer << static_cast<uint32_t>(virtual_displays_.size());
+        for (const auto& [id, display] : virtual_displays_) {
+            writer << static_cast<uint32_t>(id);
+            writer << static_cast<uint32_t>(display->GetDimensions().width);
+            writer << static_cast<uint32_t>(display->GetDimensions().height);
+            writer << static_cast<uint32_t>(display->GetDpi());
+            writer << static_cast<uint32_t>(display->GetFlags());
+        }
+
+        writer << static_cast<uint32_t>(active_states_.size());
+        for (const auto& [id, active] : active_states_) {
+            writer << static_cast<uint32_t>(id);
+            writer << static_cast<bool>(active);
+        }
+
+        writer << static_cast<bool>(is_folded_);
+        writer << static_cast<uint32_t>(display_mode_);
+
+        return absl::OkStatus();
+    }
+
+    absl::Status Load(archive::IReader& reader) override {
+        auto res_v = archive::ReadValue<uint32_t>(reader);
+        if (!res_v.ok()) return res_v.status();
+        uint32_t num_virtual = *res_v;
+
+        for (uint32_t i = 0; i < num_virtual; ++i) {
+            uint32_t id, width, height, dpi, flags;
+
+            if (auto status = archive::ReadValue(reader, id, width, height, dpi, flags);
+                !status.ok()) {
+                return status;
+            }
+
+            auto disp = CreateDisplay(id, width, height, dpi, flags);
+            if (!disp.ok()) {
+                LOG(WARNING) << "Failed to recreate virtual display " << id
+                             << " on load: " << disp.status();
+            }
+        }
+
+        auto res_a = archive::ReadValue<uint32_t>(reader);
+        if (!res_a.ok()) return res_a.status();
+        uint32_t num_active_states = *res_a;
+
+        for (uint32_t i = 0; i < num_active_states; ++i) {
+            uint32_t id;
+            bool active;
+
+            if (auto status = archive::ReadValue(reader, id, active); !status.ok()) {
+                return status;
+            }
+
+            const absl::MutexLock lock(display_access_);
+            active_states_[id] = active;
+        }
+
+        auto res_f = archive::ReadValue<bool>(reader);
+        if (!res_f.ok()) return res_f.status();
+
+        auto res_m = archive::ReadValue<uint32_t>(reader);
+        if (!res_m.ok()) return res_m.status();
+
+        {
+            const absl::MutexLock lock(display_access_);
+            display_mode_ = *res_m;
+        }
+
+        SetFolded(*res_f);
+        auto posture = *res_f ? ::goldfish::sensors::FoldablePostures::kClosed
+                              : ::goldfish::sensors::FoldablePostures::kOpened;
+        ::goldfish::avd_info::GetAvd().GetSensorsPhysicalModel().SetTargetPosture(
+                static_cast<float>(posture), PhysicalInterpolation::kStep);
+
+        return absl::OkStatus();
+    }
+
+    void Reset() override {
+        const absl::MutexLock lock(display_access_);
+
+        // When the AVD resets, we must clean up all virtual displays
+        // as the guest OS will forget about them.
+        for (const auto& [id, display] : virtual_displays_) {
+            FireEvent({DisplayEvent{DisplayEvent::DeletedEvent{id}}});
+        }
+        virtual_displays_.clear();
+
+        // Clear active states for virtual displays, and default QEMU displays to false (except
+        // main)
+        for (auto it = active_states_.begin(); it != active_states_.end();) {
+            if (qemu_displays_.find(it->first) == qemu_displays_.end()) {
+                it = active_states_.erase(it);
+            } else {
+                it->second = (it->first == 0);  // Display 0 active, others inactive
+                ++it;
+            }
+        }
+        display_mode_ = 0;
+    }
+
     void SetFolded(bool folded) override {
         const auto& hw = ::goldfish::avd_info::GetAvd().Props().hw_config;
         if (hw.hw_sensor_hinge) {

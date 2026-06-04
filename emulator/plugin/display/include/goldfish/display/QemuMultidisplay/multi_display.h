@@ -17,6 +17,8 @@
 #include <variant>
 #include <vector>
 
+#include "goldfish/archive/reader.h"
+#include "goldfish/archive/writer.h"
 #include "goldfish/async/event_loop.h"
 #include "goldfish/async/event_loop_dispatcher.h"
 #include "goldfish/display/display.h"
@@ -70,6 +72,10 @@ class IMultiDisplay : public LoopBoundCallbackSource<DisplayEvent> {
     explicit IMultiDisplay(EventLoop* loop)
             : LoopBoundCallbackSource<DisplayEvent>(loop), loop_(loop) {}
     virtual ~IMultiDisplay() = default;
+
+    virtual absl::Status Save(archive::IWriter& writer) const = 0;
+    virtual absl::Status Load(archive::IReader& reader) = 0;
+    virtual void Reset() = 0;
 
     /**
      * @brief Creates a new IDisplay object and adds it to the managed collection.

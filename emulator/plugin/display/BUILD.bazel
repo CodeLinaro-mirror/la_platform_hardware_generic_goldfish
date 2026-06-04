@@ -68,6 +68,7 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":base",
+        "//emulator/libs/archive",
         "//emulator/libs/base",
         "//emulator/libs/fps_calculator",
         "//emulator/libs/logging:absl_c_bridge",

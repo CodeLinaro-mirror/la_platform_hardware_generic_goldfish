@@ -349,6 +349,11 @@ absl::Status AvdExtendedUniverse::OnSave(archive::IWriter& writer) const {
     HwCfgWriterVisitor visitor(writer);
     p.hw_config.Accept(visitor);
 
+    if (auto s = GetMultiDisplay().Save(writer); !s.ok()) {
+        LOG(WARNING) << "Failed to save multidisplay state: " << s;
+        return absl::UnknownError("-1");
+    }
+
     return absl::OkStatus();
 }
 
@@ -510,6 +515,11 @@ absl::Status AvdExtendedUniverse::OnLoad(archive::IReader& reader) {
 
     HwCfgReaderVisitor visitor(reader, ok);
     p.hw_config.Accept(visitor);
+
+    if (auto s = GetMultiDisplay().Load(reader); !s.ok()) {
+        LOG(WARNING) << "Failed to load multidisplay state: " << s;
+        ok = false;
+    }
 
     if (!ok) {
         return absl::UnknownError("-1");

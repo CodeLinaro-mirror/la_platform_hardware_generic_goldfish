@@ -49,6 +49,9 @@ class MockMultiDisplay : public IMultiDisplay {
     MOCK_METHOD(void, SetDisplayMode, (uint32_t, uint32_t, uint32_t, uint32_t, uint32_t),
                 (override));
     MOCK_METHOD(uint32_t, GetDisplayMode, (), (const, override));
+    MOCK_METHOD(absl::Status, Save, (goldfish::archive::IWriter&), (const, override));
+    MOCK_METHOD(absl::Status, Load, (goldfish::archive::IReader&), (override));
+    MOCK_METHOD(void, Reset, (), (override));
 };
 
 class InputEventSenderTest : public ::testing::Test {
