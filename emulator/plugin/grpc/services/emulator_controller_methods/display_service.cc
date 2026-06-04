@@ -66,10 +66,7 @@ using DeviceSkinRotationCallbackSource =
 
 DisplayServiceImpl::DisplayServiceImpl(::goldfish::display::IMultiDisplay* display,
                                        ::goldfish::sensors::PhysicalModel* pm)
-        : mMultiDisplay(*display)
-        , mPhysicalModel(*pm)
-        , mIsClosed(mPhysicalModel.GetFoldableState().current_posture ==
-                    FoldablePostures::kClosed) {
+        : mMultiDisplay(*display), mPhysicalModel(*pm) {
     const auto& resizable_configs = mPhysicalModel.GetResizableConfigs();
     if (!resizable_configs.empty()) {
         auto screen = mMultiDisplay.GetDisplay(0);
@@ -78,7 +75,10 @@ DisplayServiceImpl::DisplayServiceImpl(::goldfish::display::IMultiDisplay* displ
                 auto dims = d0->GetDimensions();
                 for (const auto& rc : resizable_configs) {
                     if (rc.width == dims.width && rc.height == dims.height) {
-                        mCurrentDisplayMode = static_cast<DisplayModeValue>(rc.id);
+                        uint32_t total_modes = static_cast<uint32_t>(resizable_configs.size());
+                        uint32_t guest_mode_id = total_modes - 1 - rc.id;
+                        mMultiDisplay.SetDisplayMode(rc.id, rc.width, rc.height, rc.dpi,
+                                                     guest_mode_id);
                         break;
                     }
                 }
@@ -89,28 +89,7 @@ DisplayServiceImpl::DisplayServiceImpl(::goldfish::display::IMultiDisplay* displ
     mPostureSubscription = MakeScopedCallback(
             mPhysicalModel.GetPostureListener(), [this](const FoldablePostures& posture) {
                 bool isClosed = (posture == FoldablePostures::kClosed);
-                {
-                    absl::MutexLock lock(&mIsClosedMutex);
-                    mIsClosed = isClosed;
-                }
-
-                // Display 0: active when NOT closed
-                auto res0 = mMultiDisplay.GetDisplay(0);
-                if (res0.ok()) {
-                    if (auto d0 = res0->lock()) {
-                        d0->SetActive(!isClosed);
-                    }
-                }
-
-                // Other displays: active when closed
-                for (uint32_t i = 1; i < ::goldfish::display::IMultiDisplay::kMaxDisplays; ++i) {
-                    auto res = mMultiDisplay.GetDisplay(i);
-                    if (res.ok()) {
-                        if (auto di = res->lock()) {
-                            di->SetActive(isClosed);
-                        }
-                    }
-                }
+                mMultiDisplay.SetFolded(isClosed);
 
                 fireDisplayConfigurationsChanged();
 
@@ -474,12 +453,12 @@ Status DisplayServiceImpl::getScreenshot(ServerContext* context, const ImageForm
     reply->set_seq(seq->sequence_number);
 
     if (!hw.hw_resizable_configs.empty()) {
-        reply->mutable_format()->set_displaymode(mCurrentDisplayMode);
+        reply->mutable_format()->set_displaymode(
+                static_cast<DisplayModeValue>(mMultiDisplay.GetDisplayMode()));
     }
 
     if (hw.hw_sensor_hinge) {
-        absl::MutexLock lock(&mIsClosedMutex);
-        if (mIsClosed) {
+        if (mMultiDisplay.IsFolded()) {
             int fx, fy, fw, fh;
             if (mPhysicalModel.GetFoldedArea(&fx, &fy, &fw, &fh)) {
                 auto foldedDisplay = outFormat->mutable_foldeddisplay();
@@ -503,7 +482,7 @@ Status DisplayServiceImpl::getDisplayConfigurations(const IMultiDisplay& multiDi
         auto screen = multiDisplay.GetDisplay(i);
         if (screen.ok()) {
             if (auto display = screen->lock()) {
-                if (!display->Active()) continue;
+                if (!multiDisplay.IsActive(i)) continue;
                 auto cfg = reply->add_displays();
                 auto dims = display->GetDimensions();
                 cfg->set_width(dims.width);
@@ -597,7 +576,7 @@ Status DisplayServiceImpl::getDisplayMode(ServerContext* context, const Empty* r
         return Status(grpc::StatusCode::FAILED_PRECONDITION, "AVD is not resizable.");
     }
 
-    reply->set_value(mCurrentDisplayMode);
+    reply->set_value(static_cast<DisplayModeValue>(mMultiDisplay.GetDisplayMode()));
     return Status::OK;
 }
 
@@ -626,45 +605,7 @@ Status DisplayServiceImpl::setDisplayMode(ServerContext* context, const DisplayM
         return Status(grpc::StatusCode::INVALID_ARGUMENT, "Invalid display mode.");
     }
 
-    if (request->value() != FOLDABLE) {
-        bool isClosed = false;
-        {
-            absl::MutexLock lock(&mIsClosedMutex);
-            isClosed = mIsClosed;
-        }
-        if (isClosed) {
-            uint64_t start_sequence = 0;
-            auto s0 = mMultiDisplay.GetDisplay(0);
-            if (s0.ok()) {
-                if (auto d0 = s0->lock()) {
-                    start_sequence = d0->Seq().sequence_number;
-                }
-            }
-
-            mPhysicalModel.SetTargetPosture(static_cast<float>(FoldablePostures::kOpened),
-                                            PhysicalInterpolation::kStep);
-
-            struct WaitArgs {
-                DisplayServiceImpl* self;
-                uint64_t start_seq;
-            };
-            WaitArgs args = {this, start_sequence};
-            absl::MutexLock lock(&mIsClosedMutex);
-            absl::Time start = absl::Now();
-            while (!mIsClosedMutex.AwaitWithTimeout(
-                    absl::Condition(
-                            +[](WaitArgs* a) {
-                                auto s0 = a->self->mMultiDisplay.GetDisplay(0);
-                                if (!s0.ok()) return false;
-                                auto d0 = s0->lock();
-                                if (!d0) return false;
-                                return d0->Seq().sequence_number > a->start_seq;
-                            },
-                            &args),
-                    absl::Milliseconds(100))) {
-            }
-        }
-    } else {
+    if (request->value() == FOLDABLE) {
         const auto posture = mPhysicalModel.GetFoldableState().current_posture;
 
         Notification event;
@@ -672,28 +613,11 @@ Status DisplayServiceImpl::setDisplayMode(ServerContext* context, const DisplayM
         ::goldfish::avd_info::GetAvd().GetGrpcNotificationChannel().FireEvent(event);
     }
 
-    auto screen = mMultiDisplay.GetDisplay(0);
-    if (!screen.ok()) {
-        return AbslStatusToGrpcStatus(screen.status());
-    }
+    uint32_t total_modes = static_cast<uint32_t>(resizable_configs.size());
+    uint32_t requested_mode_id = static_cast<uint32_t>(request->value());
+    uint32_t guest_mode_id = total_modes - 1 - requested_mode_id;
 
-    if (auto display = screen->lock()) {
-        if (target_dpi == 0) {
-            target_dpi = display->Dpi();
-        }
-        display->SetDimensions(target_w, target_h);
-        if (auto con = display->GetConsole()) {
-            grpc_dpy_gfx_update_ui_info(con, target_w, target_h);
-        }
-
-        uint32_t total_modes = static_cast<uint32_t>(resizable_configs.size());
-        uint32_t requested_mode_id = static_cast<uint32_t>(request->value());
-        uint32_t guest_mode_id = total_modes - 1 - requested_mode_id;
-        ::goldfish::devices::multidisplay::SendSetDisplay(guest_mode_id, target_w, target_h,
-                                                          target_dpi, display->Flags());
-    }
-
-    mCurrentDisplayMode = request->value();
+    mMultiDisplay.SetDisplayMode(request->value(), target_w, target_h, target_dpi, guest_mode_id);
     fireDisplayConfigurationsChanged();
 
     return Status::OK;

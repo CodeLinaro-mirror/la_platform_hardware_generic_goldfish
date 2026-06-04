@@ -159,16 +159,6 @@ class IDisplay : public FrameInfoCallbackSource,
 
     uint32_t Flags() const { return flags_; }
 
-    virtual bool Active() const {
-        const absl::MutexLock lock(dimension_mutex_);
-        return active_;
-    }
-
-    virtual void SetActive(bool active) {
-        const absl::MutexLock lock(dimension_mutex_);
-        active_ = active;
-    }
-
     /**
      * Calculates new dimensions to fit a box while preserving aspect ratio.
      * The box dimensions (desired_width, desired_height) are logical dimensions,
@@ -323,7 +313,6 @@ class IDisplay : public FrameInfoCallbackSource,
 
   private:
     Dimensions dimensions_ ABSL_GUARDED_BY(dimension_mutex_);
-    bool active_ ABSL_GUARDED_BY(dimension_mutex_) = true;
     mutable absl::Mutex dimension_mutex_;
 };
 
