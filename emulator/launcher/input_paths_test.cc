@@ -186,7 +186,7 @@ TEST_F(InputPathsTest, ResolveEmulatorPaths) {
 
     // ResolveEmulatorPaths will use the current binary path as launcher_binary,
     // but should use ANDROID_EMULATOR_LAUNCHER_DIR for other paths.
-    ASSERT_OK_AND_ASSIGN(auto paths, ResolveEmulatorPaths(false, false));
+    ASSERT_OK_AND_ASSIGN(auto paths, ResolveEmulatorPaths(false));
 
     EXPECT_EQ(paths.launcher_directory, launcher_dir);
     EXPECT_EQ(paths.binary_directory, launcher_dir / "bin");
