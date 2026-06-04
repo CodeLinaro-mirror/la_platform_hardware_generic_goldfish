@@ -26,33 +26,32 @@ namespace goldfish::proto_data_store {
 void RawCircularLog::SafeAtomicWrite(void* buffer, ObjectHeader header) {
     static_assert(sizeof(header) == 2,
                   "The circular_message_log is expecting 2 byte header lengths.");
-    if (reinterpret_cast<uintptr_t>(buffer) % sizeof(header) == 0) {
-        // Safe path: Aligned 2-byte write can be atomic.
-        auto value = *reinterpret_cast<uint16_t*>(&header);
-        auto* ptr = reinterpret_cast<uint16_t*>(buffer);
-        __atomic_store_n(ptr, value, __ATOMIC_RELAXED);
-    } else {
-        // Unaligned write: Use memcpy to avoid potential tearing.
-        // if you are unlucky to crash when this happens you could end up
-        // with a broken header.
-        std::memcpy(buffer, &header, sizeof(header));
-    }
+    // Guaranteed to be 8-byte aligned by buffer and offset constraints.
+    __atomic_store_n(static_cast<uint16_t*>(buffer), header.raw, __ATOMIC_RELAXED);
 }
 
 absl::Status RawCircularLog::ValidateWriter(void* buffer, size_t size) {
     if (!buffer) return absl::InvalidArgumentError("Buffer pointer is null.");
-    if (size <= kHeaderSize) {
-        return absl::InvalidArgumentError("Buffer size is too small for header.");
+
+    void* aligned_buffer = AlignPointer(buffer);
+    size_t padding = static_cast<char*>(aligned_buffer) - static_cast<char*>(buffer);
+
+    if (size <= padding + kHeaderSize) {
+        return absl::InvalidArgumentError("Buffer size is too small for header after alignment.");
     }
     return absl::OkStatus();
 }
 
 absl::Status RawCircularLog::ValidateReader(void* buffer, size_t size) {
     if (!buffer) return absl::InvalidArgumentError("Buffer pointer is null.");
-    if (size <= kHeaderSize) {
-        return absl::InvalidArgumentError("Buffer size is too small for header.");
+
+    void* aligned_buffer = AlignPointer(buffer);
+    size_t padding = static_cast<char*>(aligned_buffer) - static_cast<char*>(buffer);
+
+    if (size <= padding + kHeaderSize) {
+        return absl::InvalidArgumentError("Buffer size is too small for header after alignment.");
     }
-    auto* h = static_cast<RawHeader*>(buffer);
+    auto* h = reinterpret_cast<RawHeader*>(aligned_buffer);
     if (h->magic != kMagic) {
         return absl::NotFoundError(
                 absl::StrFormat("Cannot find magic header, %d != %d", h->magic, kMagic));
@@ -76,11 +75,15 @@ absl::StatusOr<std::unique_ptr<RawCircularLog>> RawCircularLog::CreateReader(voi
     return std::make_unique<RawCircularLog>(Private{}, buffer, size, false);
 }
 
-RawCircularLog::RawCircularLog(Private, void* buffer, size_t size, bool should_initialize)
-        : buffer_(static_cast<char*>(buffer))
-        , total_size_(size)
-        , data_capacity_(size > kHeaderSize ? size - kHeaderSize : 0) {
-    auto* h = static_cast<RawHeader*>(buffer);
+RawCircularLog::RawCircularLog(Private, void* buffer, size_t size, bool should_initialize) {
+    void* aligned_buffer = AlignPointer(buffer);
+    size_t padding = static_cast<char*>(aligned_buffer) - static_cast<char*>(buffer);
+
+    buffer_ = static_cast<char*>(aligned_buffer);
+    total_size_ = RoundDown(size - padding);
+    data_capacity_ = total_size_ > kHeaderSize ? total_size_ - kHeaderSize : 0;
+
+    auto* h = reinterpret_cast<RawHeader*>(buffer_);
     head_ptr_ = &h->head;
     tail_ptr_ = &h->tail;
     count_ptr_ = &h->count;
@@ -114,23 +117,25 @@ absl::Status RawCircularLog::Push(uint32_t payload_size, const Serializer& seria
     void* data_ptr = GetPointer(offset_status.value());
 
     // Write uncommitted header
-    SafeAtomicWrite(data_ptr, {.commit = 0, .size = 0});
+    SafeAtomicWrite(data_ptr, {.fields = {.commit = 0, .size = 0}});
 
     // Invoke serializer
     serializer(static_cast<char*>(data_ptr) + sizeof(ObjectHeader));
 
     // Atomically commit
-    const ObjectHeader header_val = {.commit = 1, .size = static_cast<uint16_t>(payload_size)};
+    const ObjectHeader header_val = {
+        .fields = {.commit = 1, .size = static_cast<uint16_t>(payload_size)}};
     SafeAtomicWrite(data_ptr, header_val);
 
     return absl::OkStatus();
 }
 
 absl::StatusOr<uint32_t> RawCircularLog::Reserve(uint32_t payload_size) {
-    const uint32_t required = payload_size + sizeof(ObjectHeader);
+    const uint32_t required = Align(payload_size + sizeof(ObjectHeader));
     if (required > data_capacity_) {
-        return absl::ResourceExhaustedError(absl::StrFormat(
-                "Payload size %d exceeds data capacity %d", payload_size, data_capacity_));
+        return absl::ResourceExhaustedError(
+                absl::StrFormat("Aligned record size %d (payload: %d) exceeds data capacity %d",
+                                required, payload_size, data_capacity_));
     }
 
     const uint32_t h_old = *head_ptr_;
@@ -180,10 +185,10 @@ absl::StatusOr<uint32_t> RawCircularLog::Reserve(uint32_t payload_size) {
         ObjectHeader header;
         std::memcpy(&header, buffer_ + kHeaderSize + t, sizeof(header));
 
-        if (header.commit && header.size > 0) {
-            // ADVANCEMENT: If pointing to a valid message, move to the next header.
-            const uint32_t msg_end = t + sizeof(ObjectHeader) + header.size;
-            t = msg_end;
+        if (header.fields.commit && header.fields.size > 0) {
+            // ADVANCEMENT: If pointing to a valid message, move to the next aligned header.
+            const uint32_t record_size = sizeof(ObjectHeader) + header.fields.size;
+            t += Align(record_size);
             if (t >= data_capacity_) t = 0;
             (*count_ptr_)--;
         } else {
@@ -218,14 +223,15 @@ void RawCircularLog::ForEach(const RawVisitor& visitor) const {
         while (pos + sizeof(ObjectHeader) <= end) {
             ObjectHeader header;
             std::memcpy(&header, buffer_ + kHeaderSize + pos, sizeof(header));
-            if (!header.commit) break;  // Bad record, stop iteration.
-            if (pos + sizeof(ObjectHeader) + header.size > end) {
+            if (!header.fields.commit) break;  // Bad record, stop iteration.
+            if (pos + sizeof(ObjectHeader) + header.fields.size > end) {
                 break;  // Incomplete record, stop iteration.
             }
-            if (!visitor(buffer_ + kHeaderSize + pos + sizeof(ObjectHeader), header.size)) {
+            if (!visitor(buffer_ + kHeaderSize + pos + sizeof(ObjectHeader), header.fields.size)) {
                 return false;
             }
-            pos += sizeof(ObjectHeader) + header.size;
+            const uint32_t record_size = sizeof(ObjectHeader) + header.fields.size;
+            pos += Align(record_size);
         }
         return true;
     };
