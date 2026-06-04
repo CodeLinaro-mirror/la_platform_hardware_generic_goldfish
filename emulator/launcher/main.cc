@@ -182,10 +182,10 @@ int main(int argc, char** argv) {
 #endif
     absl::InitializeSymbolizer(argv[0]);
 
-    // libuv recommends calling this from the parent before spawning any children.
-    uv_disable_stdio_inheritance();
-
     absl::InitializeLog();
+
+    // Take a copy of the args before the parser modifies them.
+    std::vector<std::string> args_copy(argv + 1, argv + argc);
 
     for (int nn = 1; nn < argc; nn++) {
         const char* opt = argv[nn];
@@ -382,8 +382,7 @@ int main(int argc, char** argv) {
     }
 
     if (android::goldfish::ShouldTrampolineToQemu2(**avd)) {
-        std::vector<std::string> args(argv + 1, argv + argc);
-        android::goldfish::TrampolineToQemu2(emulator_paths->launcher_directory, std::move(args));
+        android::goldfish::TrampolineToQemu2(emulator_paths->launcher_directory, std::move(args_copy));
         std::unreachable();
     }
 
