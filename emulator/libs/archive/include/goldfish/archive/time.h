@@ -18,8 +18,7 @@
 
 namespace goldfish::archive {
 
-template <>
-absl::StatusOr<absl::Time> ReadValue<absl::Time>(archive::IReader& r);
+absl::Status ReadValue(archive::IReader& r, absl::Time&);
 
 IWriter& operator<<(IWriter& w, const absl::Time x);
 

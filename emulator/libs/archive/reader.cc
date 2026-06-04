@@ -15,9 +15,7 @@
 namespace goldfish::archive {
 
 // 7bit per byte with MSB for more bytes to follow.
-
-template <>
-absl::StatusOr<size_t> ReadValue<size_t>(archive::IReader& r) {
+absl::Status ReadValue(archive::IReader& r, size_t& dst) {
     size_t result = 0;
     unsigned shift = 0;
     constexpr unsigned kResultNumBits = sizeof(result) * CHAR_BIT;
@@ -36,22 +34,22 @@ absl::StatusOr<size_t> ReadValue<size_t>(archive::IReader& r) {
         }
     }
 
-    return result;
+    dst = result;
+    return absl::OkStatus();
 }
 
-template <>
-absl::StatusOr<std::string> ReadValue<std::string>(archive::IReader& r) {
-    const auto size = ReadValue<size_t>(r);
-    if (!size.ok()) {
-        return size.status();
-    }
-
-    std::string result(*size, '?');
-    if (const absl::Status s = r.Read(result.data(), result.size()); !s.ok()) {
+absl::Status ReadValue(archive::IReader& r, std::string& dst) {
+    size_t size = 0;
+    if (const absl::Status s = ReadValue(r, size); !s.ok()) {
         return s;
     }
 
-    return result;
+    std::string result(size, '?');
+    if (const absl::Status s = r.Read(result.data(), result.size()); !s.ok()) {
+        return s;
+    }
+    dst = std::move(result);
+    return absl::OkStatus();
 }
 
 }  // namespace goldfish::archive

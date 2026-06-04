@@ -370,31 +370,28 @@ absl::Status AvdExtendedUniverse::OnLoad(archive::IReader& reader) {
     bool ok = true;
 
     auto check_int32 = [&](const char* name, int32_t val) {
-        auto loaded = ReadValue<int32_t>(reader);
-        if (loaded.ok()) {
-            if (*loaded != val) {
-                LOG(WARNING) << "Property mismatch: " << name
-                             << " (loaded: " << std::to_string(*loaded) << ", expected: " << val
-                             << ")";
-                ok = false;
-            }
-        } else {
-            LOG(WARNING) << "Property mismatch: " << name << " (loaded: <failed>, expected: " << val
-                         << ")";
-            ok = false;
-        }
-    };
-    auto check_str = [&](const char* name, const std::string& val) {
-        auto loaded = ReadValue<std::string>(reader);
-        if (loaded.ok()) {
-            if (*loaded != val) {
-                LOG(WARNING) << "Property mismatch: " << name << " (loaded: " << *loaded
+        int32_t loaded = 0;
+        if (const absl::Status s = ReadValue(reader, loaded); s.ok()) {
+            if (loaded != val) {
+                LOG(WARNING) << "Property mismatch: " << name << " (loaded: " << loaded
                              << ", expected: " << val << ")";
                 ok = false;
             }
         } else {
-            LOG(WARNING) << "Property mismatch: " << name << " (loaded: <failed>, expected: " << val
-                         << ")";
+            LOG(WARNING) << "Could not load the '" << name << "' property: " << s;
+            ok = false;
+        }
+    };
+    auto check_str = [&](const char* name, const std::string& val) {
+        std::string loaded;
+        if (const absl::Status s = ReadValue(reader, loaded); s.ok()) {
+            if (loaded != val) {
+                LOG(WARNING) << "Property mismatch: " << name << " (loaded: " << loaded
+                             << ", expected: " << val << ")";
+                ok = false;
+            }
+        } else {
+            LOG(WARNING) << "Could not load the '" << name << "' property: " << s;
             ok = false;
         }
     };
@@ -411,16 +408,15 @@ absl::Status AvdExtendedUniverse::OnLoad(archive::IReader& reader) {
     check_str("emulator_platform", std::string(platform));
 
     std::string current_vk_icd = GetCurrentVkIcd();
-    auto loaded_vk_icd = ReadValue<std::string>(reader);
-    if (loaded_vk_icd.ok()) {
-        if (*loaded_vk_icd != current_vk_icd) {
-            LOG(WARNING) << "Property mismatch: emulator_vk_icd (loaded: " << *loaded_vk_icd
+    std::string loaded_vk_icd;
+    if (const absl::Status s = ReadValue(reader, loaded_vk_icd); s.ok()) {
+        if (loaded_vk_icd != current_vk_icd) {
+            LOG(WARNING) << "Property mismatch: emulator_vk_icd (loaded: " << loaded_vk_icd
                          << ", expected: " << current_vk_icd << ")";
             ok = false;
         }
     } else {
-        LOG(WARNING) << "Property mismatch: emulator_vk_icd (loaded: <failed>, expected: "
-                     << current_vk_icd << ")";
+        LOG(WARNING) << "Could not load the 'emulator_vk_icd' property: " << s;
         ok = false;
     }
 
@@ -430,80 +426,71 @@ absl::Status AvdExtendedUniverse::OnLoad(archive::IReader& reader) {
 
         void operator()(const char* name, bool val) {
             if (IsExcludedProp(name)) return;
-            auto loaded = ReadValue<bool>(mReader);
-            if (loaded.ok()) {
-                if (*loaded != val) {
-                    LOG(WARNING) << "Property mismatch: " << name
-                                 << " (loaded: " << (*loaded ? "1" : "0") << ", expected: " << val
-                                 << ")";
+            bool loaded = false;
+            if (const absl::Status s = ReadValue(mReader, loaded); s.ok()) {
+                if (loaded != val) {
+                    LOG(WARNING) << "Property mismatch: " << name << " (loaded: " << loaded
+                                 << ", expected: " << val << ")";
                     mOk = false;
                 }
             } else {
-                LOG(WARNING) << "Property mismatch: " << name
-                             << " (loaded: <failed>, expected: " << val << ")";
+                LOG(WARNING) << "Could not load the '" << name << "' property: " << s;
                 mOk = false;
             }
         }
         void operator()(const char* name, int32_t val) {
             if (IsExcludedProp(name)) return;
-            auto loaded = ReadValue<int32_t>(mReader);
-            if (loaded.ok()) {
-                if (*loaded != val) {
-                    LOG(WARNING) << "Property mismatch: " << name
-                                 << " (loaded: " << std::to_string(*loaded) << ", expected: " << val
-                                 << ")";
+            int32_t loaded = 0;
+            if (const absl::Status s = ReadValue(mReader, loaded); s.ok()) {
+                if (loaded != val) {
+                    LOG(WARNING) << "Property mismatch: " << name << " (loaded: " << loaded
+                                 << ", expected: " << val << ")";
                     mOk = false;
                 }
             } else {
-                LOG(WARNING) << "Property mismatch: " << name
-                             << " (loaded: <failed>, expected: " << val << ")";
+                LOG(WARNING) << "Could not load the '" << name << "' property: " << s;
                 mOk = false;
             }
         }
         void operator()(const char* name, const std::string& val) {
             if (IsExcludedProp(name)) return;
-            auto loaded = ReadValue<std::string>(mReader);
-            if (loaded.ok()) {
-                if (*loaded != val) {
-                    LOG(WARNING) << "Property mismatch: " << name << " (loaded: " << *loaded
+            std::string loaded;
+            if (const absl::Status s = ReadValue(mReader, loaded); s.ok()) {
+                if (loaded != val) {
+                    LOG(WARNING) << "Property mismatch: " << name << " (loaded: " << loaded
                                  << ", expected: " << val << ")";
                     mOk = false;
                 }
             } else {
-                LOG(WARNING) << "Property mismatch: " << name
-                             << " (loaded: <failed>, expected: " << val << ")";
+                LOG(WARNING) << "Could not load the '" << name << "' property: " << s;
                 mOk = false;
             }
         }
         void operator()(const char* name, double val) {
             if (IsExcludedProp(name)) return;
-            auto loaded = ReadValue<double>(mReader);
-            if (loaded.ok()) {
-                if (*loaded != val) {
-                    LOG(WARNING) << "Property mismatch: " << name
-                                 << " (loaded: " << std::to_string(*loaded) << ", expected: " << val
-                                 << ")";
+            double loaded = 0;
+            if (const absl::Status s = ReadValue(mReader, loaded); s.ok()) {
+                if (loaded != val) {
+                    LOG(WARNING) << "Property mismatch: " << name << " (loaded: " << loaded
+                                 << ", expected: " << val << ")";
                     mOk = false;
                 }
             } else {
-                LOG(WARNING) << "Property mismatch: " << name
-                             << " (loaded: <failed>, expected: " << val << ")";
+                LOG(WARNING) << "Could not load the '" << name << "' property: " << s;
                 mOk = false;
             }
         }
         void operator()(const char* name, const android::goldfish::StorageCapacity& val) {
             if (IsExcludedProp(name)) return;
-            auto loaded = ReadValue<uint64_t>(mReader);
-            if (loaded.ok()) {
-                if (*loaded != val.Bytes()) {
-                    LOG(WARNING) << "Property mismatch: " << name
-                                 << " (loaded: " << std::to_string(*loaded)
+            uint64_t loaded = 0;
+            if (const absl::Status s = ReadValue(mReader, loaded); s.ok()) {
+                if (loaded != val.Bytes()) {
+                    LOG(WARNING) << "Property mismatch: " << name << " (loaded: " << loaded
                                  << ", expected: " << val.Bytes() << ")";
                     mOk = false;
                 }
             } else {
-                LOG(WARNING) << "Property mismatch: " << name
-                             << " (loaded: <failed>, expected: " << val.Bytes() << ")";
+                LOG(WARNING) << "Could not load the '" << name << "' property: " << s;
                 mOk = false;
             }
         }

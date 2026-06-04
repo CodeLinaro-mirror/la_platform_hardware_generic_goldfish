@@ -14,14 +14,14 @@
 
 namespace goldfish::archive {
 
-template <>
-absl::StatusOr<absl::Time> ReadValue<absl::Time>(archive::IReader& r) {
-    const auto micros = ReadValue<size_t>(r);
-    if (!micros.ok()) {
-        return micros.status();
+absl::Status ReadValue(archive::IReader& r, absl::Time& dst) {
+    size_t micros = 0;
+    if (const absl::Status s = ReadValue(r, micros); !s.ok()) {
+        return s;
     }
 
-    return absl::FromUnixMicros(*micros);
+    dst = absl::FromUnixMicros(micros);
+    return absl::OkStatus();
 }
 
 IWriter& operator<<(IWriter& w, const absl::Time x) {
