@@ -1,11 +1,11 @@
 """Bazel rules and macros for packaging."""
 
 load("@bazel_skylib//lib:paths.bzl", "paths")
+load("@breakpad//:breakpad_symbols.bzl", "breakpad_symbols")
 load("@goldfish_build//rules/native:native_binaries.bzl", "TransformedFilesInfo", "native_symbols")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes")
 load("@rules_pkg//pkg:providers.bzl", "PackageFilesInfo", "PackageVariablesInfo")
 load("@rules_pkg//pkg:zip.bzl", "pkg_zip")
-load(":breakpad_symbols.bzl", "breakpad_symbols")
 
 visibility("//emulator/...")
 
