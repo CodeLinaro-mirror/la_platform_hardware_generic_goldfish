@@ -17,6 +17,8 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
+#include <fstream>
+
 #include "android/base/bazel_info.h"
 #include "android/base/testing/TestSystem.h"
 #include "android/goldfish/mock_avd.h"
@@ -25,30 +27,79 @@ using android::base::TestSystem;
 using android::goldfish::MockAvd;
 using android::goldfish::ShouldTrampolineToQemu2;
 using ::testing::Return;
+using ::testing::ReturnRef;
+
+namespace {
+
+fs::path CreateTempFeatureFile(TestSystem& sys, bool has_required_features) {
+    fs::path temp_file = sys.GetTempRoot()->Path() / "advancedFeatures.ini";
+    std::ofstream out(temp_file);
+    if (has_required_features) {
+        out << "mac80211hwsimUserspaceManaged=on\n";
+    } else {
+        out << "# Empty features\n";
+    }
+    out.close();
+    return temp_file;
+}
+
+}  // namespace
 
 TEST(TrampolineTest, shouldTrampolineIfApiLevelIsLessThan37) {
     TestSystem sys("bin", "myhome");
     sys.EnvSet("AEMU_NO_TRAMPOLINE", "");
 
+    fs::path feature_file = CreateTempFeatureFile(sys, /*has_required_features=*/true);
+    android::goldfish::SystemImagePaths paths;
+    paths.advanced_features = feature_file;
+
     MockAvd avd;
     EXPECT_CALL(avd, ApiLevel()).WillRepeatedly(Return(35));
+    EXPECT_CALL(avd, GetSystemImagePaths()).WillRepeatedly(ReturnRef(paths));
 
     EXPECT_TRUE(ShouldTrampolineToQemu2(avd));
 }
 
-TEST(TrampolineTest, shouldNotTrampolineIfApiLevelIs37OrGreater) {
+TEST(TrampolineTest, shouldNotTrampolineIfApiLevelIs37OrGreaterAndHasRequiredFeatures) {
     TestSystem sys("bin", "myhome");
     sys.EnvSet("AEMU_NO_TRAMPOLINE", "");
 
+    fs::path feature_file = CreateTempFeatureFile(sys, /*has_required_features=*/true);
+    android::goldfish::SystemImagePaths paths;
+    paths.advanced_features = feature_file;
+
     MockAvd avd;
     EXPECT_CALL(avd, ApiLevel()).WillRepeatedly(Return(37));
+    EXPECT_CALL(avd, GetSystemImagePaths()).WillRepeatedly(ReturnRef(paths));
 
     EXPECT_FALSE(ShouldTrampolineToQemu2(avd));
 
     MockAvd avd_high;
     EXPECT_CALL(avd_high, ApiLevel()).WillRepeatedly(Return(38));
+    EXPECT_CALL(avd_high, GetSystemImagePaths()).WillRepeatedly(ReturnRef(paths));
 
     EXPECT_FALSE(ShouldTrampolineToQemu2(avd_high));
+}
+
+TEST(TrampolineTest, shouldTrampolineIfRequiredFeatureIsMissing) {
+    TestSystem sys("bin", "myhome");
+    sys.EnvSet("AEMU_NO_TRAMPOLINE", "");
+
+    fs::path feature_file = CreateTempFeatureFile(sys, /*has_required_features=*/false);
+    android::goldfish::SystemImagePaths paths;
+    paths.advanced_features = feature_file;
+
+    MockAvd avd;
+    EXPECT_CALL(avd, ApiLevel()).WillRepeatedly(Return(37));
+    EXPECT_CALL(avd, GetSystemImagePaths()).WillRepeatedly(ReturnRef(paths));
+
+    EXPECT_TRUE(ShouldTrampolineToQemu2(avd));
+
+    MockAvd avd_high;
+    EXPECT_CALL(avd_high, ApiLevel()).WillRepeatedly(Return(38));
+    EXPECT_CALL(avd_high, GetSystemImagePaths()).WillRepeatedly(ReturnRef(paths));
+
+    EXPECT_TRUE(ShouldTrampolineToQemu2(avd_high));
 }
 
 TEST(TrampolineTest, shouldNotTrampolineIfEnvVarIsSet) {
@@ -113,8 +164,9 @@ TEST(TrampolineDeathTest, trampolineToQemu2BinaryNotExists) {
     fs::path temp_dir = sys.GetTempRoot()->Path();
     fs::path launcher_dir = temp_dir / "nested" / "bin";
 
-    EXPECT_DEATH(android::goldfish::TrampolineToQemu2(launcher_dir, {}),
-                ::testing::HasSubstr("Trying to trampoline but legacy emulator binary does not exist"));
+    EXPECT_DEATH(
+            android::goldfish::TrampolineToQemu2(launcher_dir, {}),
+            ::testing::HasSubstr("Trying to trampoline but legacy emulator binary does not exist"));
 }
 
 TEST(TrampolineDeathTest, trampolineToQemu2BinaryNotExecutable) {
@@ -133,8 +185,9 @@ TEST(TrampolineDeathTest, trampolineToQemu2BinaryNotExecutable) {
     // TODO(whollins): Work out why this fails to match on Windows.
     EXPECT_DEATH(android::goldfish::TrampolineToQemu2(launcher_dir, {}),
 #ifdef _WIN32
-		"");
+                 "");
 #else
-                ::testing::HasSubstr("Trying to trampoline but cannot execute legacy emulator binary"));
+                 ::testing::HasSubstr(
+                         "Trying to trampoline but cannot execute legacy emulator binary"));
 #endif
 }

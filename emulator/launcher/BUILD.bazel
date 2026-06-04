@@ -55,6 +55,35 @@ cc_test(
 )
 
 cc_library(
+    name = "feature_flags",
+    srcs = ["feature_flags.cc"],
+    hdrs = ["include/android/goldfish/feature_flags.h"],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//emulator/libs/metrics:studio_stats_wrapper",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+    ],
+)
+
+cc_test(
+    name = "feature_flags_test",
+    size = "small",
+    srcs = ["feature_flags_test.cc"],
+    deps = [
+        ":feature_flags",
+        "//emulator/libs/status_macros:status_matcher_macros",
+        "//emulator/libs/system",
+        "//emulator/libs/system:test-headers",
+        "//emulator/libs/test:googletest_main",
+        "@abseil-cpp//absl/status:status_matchers",
+    ],
+)
+
+cc_library(
     name = "input_paths",
     srcs = ["input_paths.cc"],
     hdrs = ["include/android/goldfish/input_paths.h"],
@@ -129,6 +158,7 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":avd",
+        ":feature_flags",
         "//emulator/libs/file",
         "//emulator/libs/process",
         "//emulator/libs/system",

@@ -14,25 +14,62 @@
 
 #include "trampoline.h"
 
+#include "absl/container/flat_hash_set.h"
 #include "absl/log/log.h"
 
 #include "android/base/system.h"
+#include "android/goldfish/feature_flags.h"
 #include "android/process/command.h"
 #include "goldfish/file/file.h"
 
 namespace android::goldfish {
+namespace {
 
 constexpr std::string_view kNoTrampolineEnvVar = "AEMU_NO_TRAMPOLINE";
 
-bool ShouldTrampolineToQemu2(android::goldfish::Avd& avd) {
+bool HasMustHaveGuestFeatures(const android::goldfish::Avd& avd) {
+    // Emu Next does't support system images that don't have these features available.
+    constexpr std::array kMustHaveFeatures{
+        android_studio::EmulatorFeatureFlagState::MAC80211HWSIM_USERSPACE_MANAGED,
+    };
+
+    auto sys_img_features =
+            android::goldfish::ParseFeatureFile(avd.GetSystemImagePaths().advanced_features);
+    if (!sys_img_features.ok()) {
+        LOG(ERROR) << "Failed to parse system image features file: " << sys_img_features.status();
+        return false;
+    }
+
+    for (auto must_have : kMustHaveFeatures) {
+        if (sys_img_features->find(must_have) == sys_img_features->end()) {
+            VLOG(1) << "Sysimg is missing must have feature: "
+                    << android_studio::EmulatorFeatureFlagState::EmulatorFeatureFlag_Name(
+                               must_have);
+            return false;
+        }
+    }
+
+    return true;
+}
+
+}  // namespace
+
+bool ShouldTrampolineToQemu2(const android::goldfish::Avd& avd) {
     if (!android::base::System::Get()->EnvGet(kNoTrampolineEnvVar).empty()) {
         VLOG(1) << "Not trampolining as AEMU_NO_TRAMPOLINE is set";
         return false;
     }
+
+    if (!HasMustHaveGuestFeatures(avd)) {
+        VLOG(1) << "Trampolining as sysimg is missing required feature";
+        return true;
+    }
+
     return avd.ApiLevel() < 37;
 }
 
-void TrampolineToQemu2(const fs::path& launcher_directory, std::vector<std::string> args) {
+[[noreturn]] void TrampolineToQemu2(const fs::path& launcher_directory,
+                                    std::vector<std::string> args) {
 #ifdef _WIN32
     constexpr std::string_view emulator_binary = "emulator.exe";
 #else
