@@ -130,7 +130,7 @@ struct VmConfiguration {
 template <typename Sink>
 void AbslStringify(Sink& sink, const VmConfiguration& config) {
     absl::Format(&sink,
-                 "VmConfiguration { hypervisorType: %s, numberOfCpuCores: %d, cpu_type: %s }",
+                 "VmConfiguration { hypervisorType: %v, numberOfCpuCores: %d, cpu_type: %s }",
                  config.hypervisorType, config.numberOfCpuCores, config.cpu_type);
 }
 
