@@ -41,6 +41,7 @@ struct AvdExtendedUniverse : public AvdUniverse {
     void ShutdownQemuLoop();
     async::EventLoop& GetQemuEventLoop() override;
     metrics::MetricsReporter& GetMetricsReporter() override;
+    display::IMultiDisplay& GetMultiDisplay() const override;
 
     void OnPreSave();
     absl::Status OnSave(archive::IWriter&) const;
@@ -48,6 +49,8 @@ struct AvdExtendedUniverse : public AvdUniverse {
     void OnPreLoad();
     absl::Status OnLoad(archive::IReader&);
     absl::Status OnPostLoad();
+
+    std::unique_ptr<display::IMultiDisplay> multi_display;
 
     devices::ConnectorRegistry connector_registry;
     devices::ConnectorRegistry test_tools_connector_registry;

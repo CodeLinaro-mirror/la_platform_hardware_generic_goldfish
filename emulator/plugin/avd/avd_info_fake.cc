@@ -15,6 +15,7 @@
 #include <memory>
 
 #include "goldfish/avd_info/avd_info.h"
+#include "goldfish/display/QemuMultidisplay/multi_display.h"
 
 namespace goldfish::avd_info {
 
@@ -31,6 +32,9 @@ struct FakeAvdUniverse : public AvdUniverse {
     metrics::MetricsReporter& GetMetricsReporter() override {
         LOG(FATAL) << "GetMetricsReporter not implemented";
     }
+    display::IMultiDisplay& GetMultiDisplay() const override { return *multi_display; }
+
+    std::unique_ptr<display::IMultiDisplay> multi_display;
 };
 
 AvdUniverse& GetAvd() {

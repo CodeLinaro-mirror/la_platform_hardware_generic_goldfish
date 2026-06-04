@@ -22,6 +22,7 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":info",
+        "//emulator/plugin/display",
         "//emulator/plugin/hal/multidisplay",
     ],
 )
