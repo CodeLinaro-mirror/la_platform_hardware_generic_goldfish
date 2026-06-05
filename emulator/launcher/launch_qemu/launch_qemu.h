@@ -120,6 +120,8 @@ class LaunchQemu {
     std::string qemu_exe_path() const;
     std::vector<std::string> getCmdline() const;
 
+    void setupGpuVariables();
+
     const EmulatorConfig config_;
 
     std::vector<std::unique_ptr<Device>> mDevices;
