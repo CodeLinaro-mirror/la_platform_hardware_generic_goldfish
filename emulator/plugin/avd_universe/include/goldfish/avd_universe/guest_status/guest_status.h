@@ -15,8 +15,7 @@
 
 #include <cstdint>
 
-#include "absl/time/time.h"
-
+#include "goldfish/archive/time.h"
 #include "goldfish/eventing/observable_value.h"
 
 namespace goldfish::avd_universe::guest_status {
@@ -31,6 +30,11 @@ struct GuestStatus {
     ObservableTimestamp reset;
     ObservableTimestamp bootcomplete;
     ObservableCounter heartbeat;
+
+    void OnPostLoad();
 };
+
+archive::IWriter& operator<<(archive::IWriter&, const GuestStatus&);
+absl::Status ReadValue(archive::IReader&, GuestStatus&);
 
 }  // namespace goldfish::avd_universe::guest_status

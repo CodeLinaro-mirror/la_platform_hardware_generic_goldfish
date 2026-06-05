@@ -26,6 +26,7 @@
 #include "goldfish/metrics/configure_metrics_writer.h"
 #include "goldfish/metrics/uuid.h"
 #include "goldfish/sensors/physical_model.h"
+#include "goldfish/snapshottable/snapshottable.h"
 
 namespace goldfish::display {
 class IMultiDisplay;
@@ -70,7 +71,7 @@ struct AvdProperties {
  * The instance of this type is available between
  * the `avd_info_realize` and `avd_info_unrealize` events.
  */
-struct AvdUniverse {
+struct AvdUniverse : public snapshottable::Snapshottable {
     virtual ~AvdUniverse() = default;
 
     const AvdProperties& Props() const { return *props_; }
@@ -102,7 +103,7 @@ struct AvdUniverse {
     AvdUniverse& operator=(const AvdUniverse&) = delete;
     AvdUniverse& operator=(AvdUniverse&&) = delete;
 
-  private:
+  protected:
     const std::unique_ptr<const AvdProperties> props_;
 
     mutable absl::Mutex device_mutex_;

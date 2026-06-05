@@ -11,6 +11,7 @@ cc_library(
         "//emulator/libs/hardware_config:device_type",
         "//emulator/libs/metrics:configure_metrics_writer",
         "//emulator/libs/sensors:physical_model",
+        "//emulator/libs/snapshottable",
         "//emulator/plugin/avd_universe",
     ],
 )

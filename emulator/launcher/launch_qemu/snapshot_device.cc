@@ -29,13 +29,9 @@ std::vector<std::string> SnapshotDevice::getQemuParameters(const EmulatorConfig&
     std::string skip_load_reason;
     if (should_load_snapshot(emulator, skip_load_reason)) {
         const char* snapshot_name = get_snapshot_name(emulator);
-        if (snapshotExists(emulator, snapshot_name)) {
-            LOG(INFO) << "Snapshot '" << snapshot_name << "' found, loading...";
-            params.push_back("-loadvm");
-            params.push_back(snapshot_name);
-        } else {
-            LOG(WARNING) << "Snapshot '" << snapshot_name << "' not found, performing cold boot.";
-        }
+        LOG(INFO) << "Loading '" << snapshot_name << "' ...";
+        params.push_back("-loadvm");
+        params.push_back(snapshot_name);
     } else {
         LOG(WARNING) << "Snapshot load is disabled: " << skip_load_reason
                      << ", performing cold boot.";
@@ -50,12 +46,6 @@ std::vector<std::string> SnapshotDevice::getQemuParameters(const EmulatorConfig&
     }
 
     return params;
-}
-
-bool SnapshotDevice::snapshotExists(const EmulatorConfig& emulator, const std::string& name) {
-    const auto& a = emulator.avd();
-    fs::path bootstatus_ini = a.GetContentPath() / "snapshots" / name / "bootstatus.ini";
-    return fs::exists(bootstatus_ini);
 }
 
 bool SnapshotDevice::should_load_snapshot(const EmulatorConfig& emulator, std::string& reason) {

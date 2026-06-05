@@ -17,6 +17,8 @@
 
 #include "absl/strings/str_format.h"
 
+#include "goldfish/archive/reader.h"
+#include "goldfish/archive/writer.h"
 #include "goldfish/eventing/observable_value.h"
 
 namespace goldfish::avd_universe::gps {
@@ -44,6 +46,9 @@ struct Location {
                      l.latitude, l.longitude, l.speed, l.bearing, l.altitude, l.satellites);
     }
 };
+
+archive::IWriter& operator<<(archive::IWriter&, const Location&);
+absl::Status ReadValue(archive::IReader&, Location&);
 
 using ObservableLocation =
         eventing::ObservableValue<Location, eventing::ObservableValueTriggerAlways>;
