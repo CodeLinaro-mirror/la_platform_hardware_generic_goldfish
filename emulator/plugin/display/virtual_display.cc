@@ -40,7 +40,7 @@ namespace goldfish::display {
 
 VirtualDisplay::VirtualDisplay(EventLoop* loop, EventLoop* qloop, uint8_t id, uint32_t width,
                                uint32_t height, uint32_t dpi, uint32_t flags)
-        : IDisplay(loop, id, width, height), qemu_loop_(qloop), dpi_(dpi), flags_(flags) {
+        : IDisplay(loop, id, width, height, dpi, flags), qemu_loop_(qloop) {
     // Initialize our dummy framebuffer with a solid color (e.g., White RGBA)
     // In reality, this memory would be mapped to a virtio-gpu guest buffer.
     const size_t buffer_size = static_cast<size_t>(width) * height * 4;
@@ -65,8 +65,19 @@ VirtualDisplay::VirtualDisplay(EventLoop* loop, EventLoop* qloop, uint8_t id, ui
     vhid_ = device_info.vhid;
 }
 
+void VirtualDisplay::Disconnect() {
+    if (!disconnected_) {
+        ::goldfish::devices::multidisplay::SendDelDisplay(display_id_);
+        disconnected_ = true;
+    }
+}
+
 VirtualDisplay::~VirtualDisplay() {
-    ::goldfish::devices::multidisplay::SendDelDisplay(display_id_);
+    // WARNING: Do NOT trigger active network operations (like SendDelDisplay)
+    // from this C++ destructor. Lingering std::shared_ptr references held by UI
+    // windows or background queues can cause this destructor to run asynchronously
+    // on non-network threads or post-unrealize when the AVD universe is offline.
+    // Intentional network teardown must execute explicitly via Disconnect() instead.
     if (one_second_timer_) {
         one_second_timer_->Cancel();
     }

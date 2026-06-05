@@ -160,6 +160,11 @@ class IDisplay : public FrameInfoCallbackSource,
     uint32_t Flags() const { return flags_; }
 
     /**
+     * @brief Actively disconnects the display from underlying network/looper endpoints.
+     */
+    virtual void Disconnect() {}
+
+    /**
      * Calculates new dimensions to fit a box while preserving aspect ratio.
      * The box dimensions (desired_width, desired_height) are logical dimensions,
      * which means they can be rotated relative to the physical display dimensions.
@@ -298,9 +303,12 @@ class IDisplay : public FrameInfoCallbackSource,
 
     virtual std::string String() const;
 
-    IDisplay(EventLoop* loop, uint8_t id, uint32_t width, uint32_t height)
+    IDisplay(EventLoop* loop, uint8_t id, uint32_t width, uint32_t height, uint32_t dpi = 0,
+             uint32_t flags = 0)
             : FrameInfoCallbackSource(loop)
             , ResizeEventCallbackSource(loop)
+            , dpi_(dpi)
+            , flags_(flags)
             , display_id_(id)
             , dimensions_({.width = width, .height = height}) {}
 

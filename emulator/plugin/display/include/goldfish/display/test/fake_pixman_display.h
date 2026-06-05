@@ -119,8 +119,10 @@ struct FakePixmanDisplay : public PixmanDisplay {
      * @param id The ID of the display.
      * @param image The initial pixman image to display.
      */
-    FakePixmanDisplay(EventLoop* loop, int id, ::pixman_image_t* image);
-    FakePixmanDisplay(EventLoop* loop, int id, const PixmanImagePtr& image);
+    FakePixmanDisplay(EventLoop* loop, int id, ::pixman_image_t* image, uint32_t dpi = 0,
+                      uint32_t flags = 0);
+    FakePixmanDisplay(EventLoop* loop, int id, const PixmanImagePtr& image, uint32_t dpi = 0,
+                      uint32_t flags = 0);
 
     /**
      * @brief Destroys the FakePixmanDisplay.
@@ -232,7 +234,8 @@ class ActiveFakePixmanDisplay : public FakePixmanDisplay,
      * @return An ActiveFakePixmanDisplay object.
      */
     static std::shared_ptr<ActiveFakePixmanDisplay> CreateShared(EventLoop* loop, int id, int fps,
-                                                                 int w, int h);
+                                                                 int w, int h, uint32_t dpi = 0,
+                                                                 uint32_t flags = 0);
 
   private:
     /**
@@ -242,7 +245,8 @@ class ActiveFakePixmanDisplay : public FakePixmanDisplay,
      * @param generator A unique pointer to the PixmanImageGenerator.
      */
     ActiveFakePixmanDisplay(EventLoop* loop, int id,
-                            std::unique_ptr<PixmanImageGenerator> generator);
+                            std::unique_ptr<PixmanImageGenerator> generator, uint32_t dpi = 0,
+                            uint32_t flags = 0);
 
     std::unique_ptr<PixmanImageGenerator> generator_;
 };

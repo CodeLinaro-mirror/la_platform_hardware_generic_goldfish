@@ -181,14 +181,17 @@ bool IsScalingSafe(int source, int target) {
 
 }  // namespace
 
-PixmanDisplay::PixmanDisplay(EventLoop* loop, int id, ::pixman_image_t* image)
-        : IDisplay(loop, id, pixman_image_get_width(image), pixman_image_get_height(image))
+PixmanDisplay::PixmanDisplay(EventLoop* loop, int id, ::pixman_image_t* image, uint32_t dpi,
+                             uint32_t flags)
+        : IDisplay(loop, id, pixman_image_get_width(image), pixman_image_get_height(image), dpi,
+                   flags)
         , frame_manager_(std::make_unique<PixmanFrameManager>()) {
     UpdateSourceImage(image);
 }
 
-PixmanDisplay::PixmanDisplay(EventLoop* loop, int id, const PixmanImagePtr& image)
-        : PixmanDisplay(loop, id, image.get()) {}
+PixmanDisplay::PixmanDisplay(EventLoop* loop, int id, const PixmanImagePtr& image, uint32_t dpi,
+                             uint32_t flags)
+        : PixmanDisplay(loop, id, image.get(), dpi, flags) {}
 
 void PixmanDisplay::UpdateSourceImage(::pixman_image_t* image) {
     DLOG_FIRST_N(WARNING, 2) << "--- WARNING! Reduced performance in debug builds ---";

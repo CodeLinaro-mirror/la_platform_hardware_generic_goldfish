@@ -822,6 +822,61 @@ TEST_F(DisplayServiceTest, GetScreenshotMmapTooSmall) {
     EXPECT_EQ(status.error_code(), grpc::StatusCode::OUT_OF_RANGE);
 }
 
+TEST_F(DisplayServiceTest, SetDisplayConfigurationsAddsAndUpdates) {
+    // 1. ADD a new display (ID 2)
+    DisplayConfigurations request;
+    auto* disp = request.add_displays();
+    disp->set_display(2);
+    disp->set_width(1280);
+    disp->set_height(720);
+    disp->set_dpi(320);
+    disp->set_flags(1);
+
+    DisplayConfigurations reply;
+    auto context1 = getContextWithTimeout();
+    ASSERT_GRPC_STATUS(mStub->setDisplayConfigurations(context1.get(), request, &reply));
+
+    // Verify it was added with exact width, height, dpi, flags
+    bool found2 = false;
+    for (const auto& d : reply.displays()) {
+        if (d.display() == 2) {
+            found2 = true;
+            EXPECT_EQ(d.width(), 1280);
+            EXPECT_EQ(d.height(), 720);
+            EXPECT_EQ(d.dpi(), 320);
+            EXPECT_EQ(d.flags(), 1);
+        }
+    }
+    EXPECT_TRUE(found2);
+
+    // 2. UPDATE the existing display (ID 2) with new resolution and DPI
+    DisplayConfigurations request_update;
+    auto* disp_update = request_update.add_displays();
+    disp_update->set_display(2);
+    disp_update->set_width(1920);
+    disp_update->set_height(1080);
+    disp_update->set_dpi(480);
+    disp_update->set_flags(2);
+
+    DisplayConfigurations reply_update;
+    auto context2 = getContextWithTimeout();
+    ASSERT_GRPC_STATUS(
+            mStub->setDisplayConfigurations(context2.get(), request_update, &reply_update));
+
+    // Verify it was successfully updated
+    bool found2_updated = false;
+    for (const auto& d : reply_update.displays()) {
+        if (d.display() == 2) {
+            found2_updated = true;
+            EXPECT_EQ(d.width(), 1920);
+            EXPECT_EQ(d.height(), 1080);
+            EXPECT_EQ(d.dpi(), 480);
+            EXPECT_EQ(d.flags(), 2);
+        }
+    }
+    EXPECT_TRUE(found2_updated);
+}
+
 TEST(DisplayServiceTest_ToProtoPosture, ConvertsPostures) {
     using ::goldfish::sensors::FoldablePostures;
     EXPECT_EQ(DisplayServiceImpl::ToProtoPosture(FoldablePostures::kClosed),
