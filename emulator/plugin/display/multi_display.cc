@@ -209,6 +209,7 @@ class MultiDisplayImpl : public IMultiDisplay {
             return absl::NotFoundError(
                     absl::StrFormat("Display: %d does not exist (already removed?).", display_id));
         }
+        it->second->Disconnect();
         virtual_displays_.erase(it);
         active_states_.erase(display_id);
         FireEvent({DisplayEvent{DisplayEvent::DeletedEvent{display_id}}});
@@ -242,8 +243,8 @@ class MultiDisplayImpl : public IMultiDisplay {
             writer << static_cast<uint32_t>(id);
             writer << static_cast<uint32_t>(display->GetDimensions().width);
             writer << static_cast<uint32_t>(display->GetDimensions().height);
-            writer << static_cast<uint32_t>(display->GetDpi());
-            writer << static_cast<uint32_t>(display->GetFlags());
+            writer << static_cast<uint32_t>(display->Dpi());
+            writer << static_cast<uint32_t>(display->Flags());
         }
 
         writer << static_cast<uint32_t>(active_states_.size());
@@ -320,6 +321,7 @@ class MultiDisplayImpl : public IMultiDisplay {
         // When the AVD resets, we must clean up all virtual displays
         // as the guest OS will forget about them.
         for (const auto& [id, display] : virtual_displays_) {
+            display->Disconnect();
             FireEvent({DisplayEvent{DisplayEvent::DeletedEvent{id}}});
         }
         virtual_displays_.clear();

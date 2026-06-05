@@ -547,17 +547,33 @@ Status DisplayServiceImpl::setDisplayConfigurations(ServerContext* context,
         }
     }
 
-    // Apply changes: ADD new displays
+    // Apply changes: ADD new or UPDATE changed displays
     for (int i = 0; i < request->displays_size(); ++i) {
         const auto& disp = request->displays(i);
         uint32_t id = disp.display();
 
+        bool need_create = false;
         if (current_ids.find(id) == current_ids.end()) {
-            // Display ID is new -> add it
+            need_create = true;
+        } else {
+            // Display ID already exists -> check if it has changed
+            auto screen = mMultiDisplay.GetDisplay(id);
+            if (screen.ok()) {
+                if (auto display = screen->lock()) {
+                    auto dims = display->GetDimensions();
+                    if (dims.width != disp.width() || dims.height != disp.height() ||
+                        display->Dpi() != disp.dpi() || display->Flags() != disp.flags()) {
+                        // Configuration changed -> erase the display first so it can be recreated
+                        mMultiDisplay.EraseDisplay(id).IgnoreError();
+                        need_create = true;
+                    }
+                }
+            }
+        }
+
+        if (need_create) {
             mMultiDisplay.CreateDisplay(id, disp.width(), disp.height(), disp.dpi(), disp.flags())
                     .IgnoreError();
-        } else {
-            // Display ID already exists -> do nothing
         }
     }
 

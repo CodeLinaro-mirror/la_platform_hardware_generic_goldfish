@@ -27,8 +27,10 @@ namespace goldfish::display {
 
 class PixmanDisplay : public IDisplay {
   public:
-    PixmanDisplay(EventLoop* loop, int id, ::pixman_image_t* image);
-    PixmanDisplay(EventLoop* loop, int id, const PixmanImagePtr& image);
+    PixmanDisplay(EventLoop* loop, int id, ::pixman_image_t* image, uint32_t dpi = 0,
+                  uint32_t flags = 0);
+    PixmanDisplay(EventLoop* loop, int id, const PixmanImagePtr& image, uint32_t dpi = 0,
+                  uint32_t flags = 0);
 
     virtual void UpdateSourceImage(::pixman_image_t* image) ABSL_LOCKS_EXCLUDED(pixman_mutex_);
     absl::StatusOr<FrameInfo> GetPixels(PixelFormat format, int new_width, int new_height,
