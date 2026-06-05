@@ -19,6 +19,7 @@ emulator/data/virtualscene/Toren1BD/Toren1BD_Main.png
 emulator/data/virtualscene/Toren1BD/poster.png
 emulator/emulator.exe
 emulator/emulator-check.exe
+emulator/mksdcard.exe
 emulator/fishtank/
 emulator/fishtank/Qt6CoreAndroidEmu.dll
 emulator/fishtank/Qt6GuiAndroidEmu.dll

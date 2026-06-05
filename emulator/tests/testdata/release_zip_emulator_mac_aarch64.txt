@@ -21,6 +21,7 @@ emulator/data/virtualscene/Toren1BD/Toren1BD_Main.png
 emulator/data/virtualscene/Toren1BD/poster.png
 emulator/emulator
 emulator/emulator-check
+emulator/mksdcard
 emulator/fishtank/
 emulator/fishtank/fishtank
 emulator/fishtank/lib/
