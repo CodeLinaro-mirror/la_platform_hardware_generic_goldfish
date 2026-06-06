@@ -15,6 +15,8 @@
 
 #include <vector>
 
+#include "absl/strings/escaping.h"
+
 #include "android/crashreport/breadcrumbs/breadcrumb_parser.h"
 #include "android/crashreport/breadcrumbs/trace_aggregator.h"
 #include "android/crashreport/breadcrumbs/trace_renderer_factory.h"
@@ -49,17 +51,23 @@ std::vector<EnrichedBreadcrumb> ResolveEntries(const std::vector<Breadcrumb>& en
                             grpc.grpc_phase()));
         } else if (proto.has_adb()) {
             const auto& adb = proto.adb();
-            e.method_name = "ADB";
-            // ADB commands are packed 4-character codes in a 32-bit integer (little-endian).
-            // We extract each byte and cast to char to reconstruct the string (e.g., "CNXN").
+            e.method_name = absl::StrFormat("%c%c%c%c", static_cast<char>(adb.command() & 0xFF),
+                                            static_cast<char>((adb.command() >> 8) & 0xFF),
+                                            static_cast<char>((adb.command() >> 16) & 0xFF),
+                                            static_cast<char>((adb.command() >> 24) & 0xFF));
+
+            const uint64_t flow_id = proto.flow_id();
+            const uint32_t arg0 = static_cast<uint32_t>(flow_id >> 32);
+            const uint32_t arg1 = static_cast<uint32_t>(flow_id & 0xFFFFFFFF);
+
             e.resolved_payload = absl::StrFormat(
-                    "CMD: %c%c%c%c, Dir: %s", static_cast<char>(adb.command() & 0xFF),
-                    static_cast<char>((adb.command() >> 8) & 0xFF),
-                    static_cast<char>((adb.command() >> 16) & 0xFF),
-                    static_cast<char>((adb.command() >> 24) & 0xFF),
+                    "(%u, %u), ->%s", arg0, arg1,
                     adb.direction() == android::control::breadcrumbs::AdbPayload::TO_GUEST
-                            ? "TO_GUEST"
-                            : "TO_HOST");
+                            ? "Guest"
+                            : "Host");
+            if (!adb.data_snippet().empty()) {
+                e.resolved_payload += ", \"" + absl::CEscape(adb.data_snippet()) + "\"";
+            }
         } else {
             e.method_name = "UNKNOWN";
             e.resolved_payload = "Unknown payload type";

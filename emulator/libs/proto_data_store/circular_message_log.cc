@@ -44,9 +44,16 @@ CircularMessageLog::CircularMessageLog(Private, void* buffer, size_t size, bool 
 
 absl::Status CircularMessageLog::Push(const google::protobuf::Message& message) {
     const size_t payload_len = message.ByteSizeLong();
-    return engine_.Push(static_cast<uint32_t>(payload_len), [&](void* data_ptr) {
-        message.SerializeToArray(data_ptr, static_cast<int>(payload_len));
-    });
+    if (payload_len <= kStackSerializationThreshold) {
+        char stack_buf[kStackSerializationThreshold];
+        message.SerializeToArray(stack_buf, static_cast<int>(payload_len));
+        return engine_.Push(static_cast<uint32_t>(payload_len),
+                            [&](void* data_ptr) { std::memcpy(data_ptr, stack_buf, payload_len); });
+    } else {
+        return engine_.Push(static_cast<uint32_t>(payload_len), [&](void* data_ptr) {
+            message.SerializeToArray(data_ptr, static_cast<int>(payload_len));
+        });
+    }
 }
 
 void CircularMessageLog::ForEach(const Visitor& visitor) const {

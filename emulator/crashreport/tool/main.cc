@@ -1,4 +1,4 @@
-// Copyright 2025 The Android Open Source Project
+// Copyright 2026 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -95,13 +95,21 @@ bool ProcessMinidump(const std::string& minidump_file, MinidumpProcessor& minidu
                                     absl::GetFlag(FLAGS_s));
 
     if (!reader.SeekSet(0)) {
-        LOG(ERROR) << "Failed to rewind minidump file for breadcrumbs";
+        LOG(ERROR) << "Failed to rewind minidump file for gRPC breadcrumbs";
         return false;
     }
-    std::vector<uint8_t> breadcrumbs =
+    std::vector<uint8_t> grpc_breadcrumbs =
             annotation_extractor.ExtractAnnotationBytes(&reader, "grpc_breadcrumbs");
-    if (breadcrumbs.empty()) {
-        std::cout << "No gRPC breadcrumbs found in minidump.\n";
+
+    if (!reader.SeekSet(0)) {
+        LOG(ERROR) << "Failed to rewind minidump file for ADB breadcrumbs";
+        return false;
+    }
+    std::vector<uint8_t> adb_breadcrumbs =
+            annotation_extractor.ExtractAnnotationBytes(&reader, "adb_breadcrumbs");
+
+    if (grpc_breadcrumbs.empty() && adb_breadcrumbs.empty()) {
+        std::cout << "No breadcrumbs found in minidump.\n";
     } else {
         uint64_t crashing_thread_id = 0;
         if (process_state.requesting_thread() >= 0 &&
@@ -141,9 +149,17 @@ bool ProcessMinidump(const std::string& minidump_file, MinidumpProcessor& minidu
             use_color = isatty(fileno(stdout));
         }
 
-        std::string report = BreadcrumbProcessor::Process(breadcrumbs, crashing_thread_id, format,
-                                                          use_color, os_tid_to_index);
-        std::cout << "\n--- gRPC Breadcrumbs ---\n" << report << "\n";
+        if (!grpc_breadcrumbs.empty()) {
+            std::string report = BreadcrumbProcessor::Process(grpc_breadcrumbs, crashing_thread_id,
+                                                              format, use_color, os_tid_to_index);
+            std::cout << "\n--- gRPC Breadcrumbs ---\n" << report << "\n";
+        }
+
+        if (!adb_breadcrumbs.empty()) {
+            std::string report = BreadcrumbProcessor::Process(adb_breadcrumbs, crashing_thread_id,
+                                                              format, use_color, os_tid_to_index);
+            std::cout << "\n--- ADB Breadcrumbs ---\n" << report << "\n";
+        }
     }
 
     return true;

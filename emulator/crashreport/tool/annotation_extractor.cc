@@ -67,7 +67,7 @@ nlohmann::json AnnotationExtractor::Extract(crashpad::FileReader* reader) {
         if (!module->AnnotationObjects().empty()) {
             json_module["annotation_objects"] = std::vector<nlohmann::json>();
             for (const crashpad::AnnotationSnapshot& annotation : module->AnnotationObjects()) {
-                if (annotation.name == "grpc_breadcrumbs") {
+                if (annotation.name == "grpc_breadcrumbs" || annotation.name == "adb_breadcrumbs") {
                     continue;
                 }
                 nlohmann::json json_annotation;
