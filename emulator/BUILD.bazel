@@ -110,6 +110,7 @@ filegroup(
     srcs = [
         "//emulator/launcher",
         "//emulator/launcher/emulator-check",
+        "//emulator/launcher/mksdcard",
     ],
 )
 
