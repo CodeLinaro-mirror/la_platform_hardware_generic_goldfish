@@ -91,27 +91,6 @@ AvdExtendedUniverse::AvdExtendedUniverse(std::unique_ptr<AvdProperties> props)
     const AvdProperties& avd_props = avd_universe.Props();
 
     LOG(INFO) << "Loaded avd directory: " << avd_props.avd_content_path;
-
-    if (!avd_props.snapshot_name.empty()) {
-        auto bootstatus_ini = avd_props.avd_content_path / "snapshots" / avd_props.snapshot_name /
-                              "bootstatus.ini";
-        if (std::filesystem::exists(bootstatus_ini)) {
-            avd_universe.GetGuestStatus().bootcomplete.SetValue(absl::Now());
-        }
-
-        avd_universe.bootcomplete_subscription = android::base::eventing::MakeScopedCallback(
-                avd_universe.GetGuestStatus().bootcomplete, [bootstatus_ini](absl::Time time) {
-                    if (time != absl::UnixEpoch()) {
-                        std::error_code ec;
-                        std::filesystem::create_directories(bootstatus_ini.parent_path(), ec);
-                        std::ofstream ofs(bootstatus_ini);
-                        if (ofs) {
-                            ofs << "bootcomplete=1\n";
-                        }
-                    }
-                });
-    }
-
     auto* client_loop = goldfish::async::globalEventLoop();
 
     avd_universe.metrics_reporter =
@@ -266,11 +245,19 @@ display::IMultiDisplay& AvdExtendedUniverse::GetMultiDisplay() const {
     return *multi_display;
 }
 
-void AvdExtendedUniverse::OnPreSave() {
-    // TODO
+absl::Status AvdExtendedUniverse::OnSave(archive::IWriter& writer) const {
+    OnSaveProps(writer);
+    OnSavePhysicalState(writer);
+
+    if (auto s = GetMultiDisplay().Save(writer); !s.ok()) {
+        LOG(WARNING) << "Failed to save multidisplay state: " << s;
+        return absl::UnknownError("-1");
+    }
+
+    return absl::OkStatus();
 }
 
-absl::Status AvdExtendedUniverse::OnSave(archive::IWriter& writer) const {
+void AvdExtendedUniverse::OnSaveProps(archive::IWriter& writer) const {
     const auto& p = Props();
     constexpr std::string_view platform = PLATFORM " (" TARGET_CPU "), " COMPILATION_MODE;
     std::string vk_icd = GetCurrentVkIcd();
@@ -348,24 +335,25 @@ absl::Status AvdExtendedUniverse::OnSave(archive::IWriter& writer) const {
 
     HwCfgWriterVisitor visitor(writer);
     p.hw_config.Accept(visitor);
-
-    if (auto s = GetMultiDisplay().Save(writer); !s.ok()) {
-        LOG(WARNING) << "Failed to save multidisplay state: " << s;
-        return absl::UnknownError("-1");
-    }
-
-    return absl::OkStatus();
 }
 
-void AvdExtendedUniverse::OnPostSave() {
-    // TODO
-}
-
-void AvdExtendedUniverse::OnPreLoad() {
-    // TODO
+void AvdExtendedUniverse::OnSavePhysicalState(archive::IWriter& writer) const {
+    // TODO: sensors_physical_model_
+    writer << battery_ << guest_status_ << location_;
 }
 
 absl::Status AvdExtendedUniverse::OnLoad(archive::IReader& reader) {
+    RETURN_IF_ERROR(OnLoadProps(reader));
+    RETURN_IF_ERROR(OnLoadPhysicalState(reader));
+
+    if (absl::Status s = GetMultiDisplay().Load(reader); !s.ok()) {
+        LOG(WARNING) << "Failed to load multidisplay state: " << s;
+        return s;
+    }
+    return absl::OkStatus();
+}
+
+absl::Status AvdExtendedUniverse::OnLoadProps(archive::IReader& reader) {
     const auto& p = Props();
     bool ok = true;
 
@@ -503,19 +491,19 @@ absl::Status AvdExtendedUniverse::OnLoad(archive::IReader& reader) {
     HwCfgReaderVisitor visitor(reader, ok);
     p.hw_config.Accept(visitor);
 
-    if (auto s = GetMultiDisplay().Load(reader); !s.ok()) {
-        LOG(WARNING) << "Failed to load multidisplay state: " << s;
-        ok = false;
-    }
-
     if (!ok) {
         return absl::UnknownError("-1");
     }
     return absl::OkStatus();
 }
 
+absl::Status AvdExtendedUniverse::OnLoadPhysicalState(archive::IReader& reader) {
+    // TODO: sensors_physical_model_
+    return ReadValue(reader, battery_, guest_status_, location_);
+}
+
 absl::Status AvdExtendedUniverse::OnPostLoad() {
-    // TODO
+    guest_status_.OnPostLoad();
     return absl::OkStatus();
 }
 

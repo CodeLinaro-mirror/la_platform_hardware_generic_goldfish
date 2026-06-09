@@ -34,6 +34,12 @@ struct FakeAvdUniverse : public AvdUniverse {
     }
     display::IMultiDisplay& GetMultiDisplay() const override { return *multi_display; }
 
+    absl::Status OnSave(archive::IWriter&) const override {
+        return absl::UnimplementedError(__func__);
+    }
+
+    absl::Status OnLoad(archive::IReader&) override { return absl::UnimplementedError(__func__); }
+
     std::unique_ptr<display::IMultiDisplay> multi_display;
 };
 
