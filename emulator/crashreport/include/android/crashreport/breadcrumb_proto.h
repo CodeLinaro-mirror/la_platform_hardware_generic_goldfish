@@ -132,4 +132,14 @@ absl::Status LogBreadcrumb(BreadcrumbType type, uint64_t flow_id, BreadcrumbPhas
                            PayloadType payload_type, const void* payload_data,
                            uint16_t payload_len);
 
+/**
+ * @brief Generates a thread-safe, globally unique flow identifier for cross-thread correlation.
+ *
+ * This flow ID is used to connect asynchronous operations, requests, or events
+ * across thread and subsystem boundaries.
+ *
+ * @return A non-zero globally unique 64-bit flow identifier.
+ */
+uint64_t AllocateGlobalFlowId();
+
 }  // namespace android::crashreport

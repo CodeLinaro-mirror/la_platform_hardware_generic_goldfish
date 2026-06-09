@@ -30,6 +30,7 @@
 
 #include "android/base/clock.h"
 #include "android/crashreport/binary_annotation.h"
+#include "android/crashreport/breadcrumb_proto.h"
 #include "android/crashreport/thread.h"
 #include "breadcrumb.pb.h"
 #include "goldfish/circular_message_log.h"
@@ -87,13 +88,6 @@ uint32_t GetMethodCrc(const char* method) {
             crc32(0, reinterpret_cast<const Bytef*>(method), static_cast<uInt>(strlen(method))));
 }
 
-uint32_t NextCallId() {
-    // Atomically incrementing call ID to ensure uniqueness across threads, note we don't need
-    // strict ordering no need to synchronize all the memory, just this one.
-    static std::atomic<uint32_t> s_call_id{1};
-    return s_call_id.fetch_add(1, std::memory_order_relaxed);
-}
-
 uint64_t GetTimestampNs() {
     return static_cast<uint64_t>(absl::ToUnixNanos(absl::Now()));
 }
@@ -126,7 +120,8 @@ ProtoCircularLog<Breadcrumb>* BreadcrumbInterceptor::GetLogForTesting() {
 }
 
 BreadcrumbInterceptor::BreadcrumbInterceptor(const ClientRpcInfo* info)
-        : call_id_(NextCallId()), method_hash_(info ? GetMethodCrc(info->method()) : 0) {
+        : call_id_(android::crashreport::AllocateGlobalFlowId())
+        , method_hash_(info ? GetMethodCrc(info->method()) : 0) {
     Breadcrumb event;
     event.set_flow_id(call_id_);
     event.set_timestamp_ns(GetTimestampNs());
@@ -140,7 +135,8 @@ BreadcrumbInterceptor::BreadcrumbInterceptor(const ClientRpcInfo* info)
 }
 
 BreadcrumbInterceptor::BreadcrumbInterceptor(const ServerRpcInfo* info)
-        : call_id_(NextCallId()), method_hash_(info ? GetMethodCrc(info->method()) : 0) {
+        : call_id_(android::crashreport::AllocateGlobalFlowId())
+        , method_hash_(info ? GetMethodCrc(info->method()) : 0) {
     Breadcrumb event;
     event.set_flow_id(call_id_);
     event.set_timestamp_ns(GetTimestampNs());

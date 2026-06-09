@@ -23,7 +23,7 @@ cc_library(
     hdrs = ["include/android/control/interceptor/breadcrumb_interceptor.h"],
     includes = ["include"],
     deps = [
-        "//emulator/crashreport:breadcrumb",
+        "//emulator/crashreport:breadcrumb_proto",
         "//emulator/libs/proto_data_store",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/time",
