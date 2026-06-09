@@ -58,12 +58,13 @@ RawCircularLog* GetBreadcrumbLog(BreadcrumbType type) {
 }
 
 absl::Status LogBreadcrumb(BreadcrumbType type, uint64_t flow_id, BreadcrumbPhase phase,
-                           PayloadType payload_type, const void* payload_data,
-                           uint16_t payload_len) {
+                           PayloadType payload_type, std::string_view payload) {
     RawCircularLog* log = GetBreadcrumbLog(type);
     if (!log) {
         return absl::InternalError("Failed to get breadcrumb log");
     }
+
+    uint16_t payload_len = static_cast<uint16_t>(payload.size());
 
     BreadcrumbEnvelope envelope;
     envelope.timestamp_ns = absl::GetCurrentTimeNanos();
@@ -79,8 +80,8 @@ absl::Status LogBreadcrumb(BreadcrumbType type, uint64_t flow_id, BreadcrumbPhas
         char* p = static_cast<char*>(dest);
         std::memcpy(p, &envelope, sizeof(BreadcrumbEnvelope));
         p += sizeof(BreadcrumbEnvelope);
-        if (payload_len > 0 && payload_data != nullptr) {
-            std::memcpy(p, payload_data, payload_len);
+        if (payload_len > 0) {
+            std::memcpy(p, payload.data(), payload_len);
         }
     });
 }

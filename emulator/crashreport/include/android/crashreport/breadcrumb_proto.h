@@ -47,6 +47,7 @@
 
 #pragma once
 #include <cstdint>
+#include <string_view>
 
 #include "absl/status/status.h"
 
@@ -129,8 +130,7 @@ RawCircularLog* GetBreadcrumbLog(BreadcrumbType type);
 
 // Helper to log a breadcrumb with a binary envelope.
 absl::Status LogBreadcrumb(BreadcrumbType type, uint64_t flow_id, BreadcrumbPhase phase,
-                           PayloadType payload_type, const void* payload_data,
-                           uint16_t payload_len);
+                           PayloadType payload_type, std::string_view payload);
 
 /**
  * @brief Generates a thread-safe, globally unique flow identifier for cross-thread correlation.
