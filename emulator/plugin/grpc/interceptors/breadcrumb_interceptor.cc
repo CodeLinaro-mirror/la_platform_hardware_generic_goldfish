@@ -87,10 +87,10 @@ uint32_t GetMethodCrc(const char* method) {
             crc32(0, reinterpret_cast<const Bytef*>(method), static_cast<uInt>(strlen(method))));
 }
 
-uint32_t NextCallId() {
+uint64_t NextCallId() {
     // Atomically incrementing call ID to ensure uniqueness across threads, note we don't need
     // strict ordering no need to synchronize all the memory, just this one.
-    static std::atomic<uint32_t> s_call_id{1};
+    static std::atomic<uint64_t> s_call_id{1};
     return s_call_id.fetch_add(1, std::memory_order_relaxed);
 }
 

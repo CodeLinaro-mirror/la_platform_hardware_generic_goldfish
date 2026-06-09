@@ -51,7 +51,7 @@ class BreadcrumbInterceptor : public grpc::experimental::Interceptor {
     GetLogForTesting();
 
   private:
-    uint32_t call_id_;
+    uint64_t call_id_;
     uint32_t method_hash_;
 };
 
