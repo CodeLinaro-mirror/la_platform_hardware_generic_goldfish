@@ -120,6 +120,8 @@ cc_library(
     hdrs = ["include/android/emulation/control/snapshot_service_impl.h"],
     includes = ["include"],
     deps = [
+        "//emulator/libs/grpc_utils:absl_translate",
+        "//emulator/plugin/vminterface",
         "@aemu//protos/services/snapshot:snapshot_service_cc_grpc",
         "@grpc//:grpc++",
     ],
