@@ -16,6 +16,7 @@
 #include <algorithm>
 #include <cstring>
 
+#include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/strings/match.h"
 #include "absl/time/clock.h"
@@ -134,15 +135,28 @@ void AdbBreadcrumbTracker::HandleOpen(const AMessage& message, const char* data,
     const bool is_sync = absl::StartsWith(
             std::string_view(data, std::min<size_t>(message.data_length, 64)), "sync:");
     const uint64_t key = CombineU32(to_guest, message.arg0);
-    if (pending_opens_.size() >= kMaxPendingOpens) {
-        if (!pending_opens_order_.empty()) {
-            const uint64_t oldest_key = pending_opens_order_.front();
-            pending_opens_.erase(oldest_key);
-            pending_opens_order_.erase(pending_opens_order_.begin());
+    auto [map_it, inserted] = pending_opens_.try_emplace(key, is_sync);
+    if (!inserted) [[unlikely]] {
+        // The adb protocol does not allow for re-use of OPEN ids, however all bets are of
+        // if the adbd server crashes and we start recycling ids.
+        map_it->second = is_sync;
+        auto order_it = std::find(pending_opens_order_.begin(), pending_opens_order_.end(), key);
+        DCHECK(order_it != pending_opens_order_.end())
+                << "Invariant violation: Key " << key
+                << " exists in pending_opens_ but is missing from pending_opens_order_";
+        pending_opens_order_.erase(order_it);
+    } else {
+        if (pending_opens_.size() > kMaxPendingOpens) {
+            if (!pending_opens_order_.empty()) {
+                const uint64_t oldest_key = pending_opens_order_.front();
+                pending_opens_.erase(oldest_key);
+                pending_opens_order_.erase(pending_opens_order_.begin());
+            }
         }
     }
-    pending_opens_[key] = is_sync;
     pending_opens_order_.push_back(key);
+    DCHECK_EQ(pending_opens_.size(), pending_opens_order_.size())
+            << "Invariant violation: pending_opens_ and pending_opens_order_ size mismatch";
 }
 
 void AdbBreadcrumbTracker::HandleOkay(const AMessage& message, bool to_guest) {
@@ -151,12 +165,7 @@ void AdbBreadcrumbTracker::HandleOkay(const AMessage& message, bool to_guest) {
     if (it == pending_opens_.end()) return;
 
     const bool is_sync = it->second;
-    pending_opens_.erase(it);
-
-    auto it_order = std::find(pending_opens_order_.begin(), pending_opens_order_.end(), key);
-    if (it_order != pending_opens_order_.end()) {
-        pending_opens_order_.erase(it_order);
-    }
+    ErasePendingOpen(key);
 
     const uint64_t flow = GetLookupFlowId(message, to_guest);
 
@@ -176,19 +185,22 @@ void AdbBreadcrumbTracker::HandleClose(const AMessage& message, bool to_guest) {
     }
 
     // Remove from pending opens
-    const uint64_t key_self = CombineU32(to_guest, message.arg0);
-    const uint64_t key_other = CombineU32(!to_guest, message.arg1);
+    ErasePendingOpen(CombineU32(to_guest, message.arg0));
+    ErasePendingOpen(CombineU32(!to_guest, message.arg1));
+}
 
-    pending_opens_.erase(key_self);
-    auto it_order = std::find(pending_opens_order_.begin(), pending_opens_order_.end(), key_self);
-    if (it_order != pending_opens_order_.end()) {
-        pending_opens_order_.erase(it_order);
-    }
-
-    pending_opens_.erase(key_other);
-    it_order = std::find(pending_opens_order_.begin(), pending_opens_order_.end(), key_other);
-    if (it_order != pending_opens_order_.end()) {
-        pending_opens_order_.erase(it_order);
+void AdbBreadcrumbTracker::ErasePendingOpen(uint64_t key) {
+    const size_t erased = pending_opens_.erase(key);
+    auto it = std::find(pending_opens_order_.begin(), pending_opens_order_.end(), key);
+    if (erased > 0) {
+        DCHECK(it != pending_opens_order_.end())
+                << "Invariant violation: Key " << key
+                << " was erased from pending_opens_ but was missing from pending_opens_order_";
+        pending_opens_order_.erase(it);
+    } else {
+        DCHECK(it == pending_opens_order_.end())
+                << "Invariant violation: Key " << key
+                << " was not in pending_opens_ but was present in pending_opens_order_";
     }
 }
 
