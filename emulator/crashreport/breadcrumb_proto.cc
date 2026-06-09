@@ -13,6 +13,7 @@
 // limitations under the License.
 #include "android/crashreport/breadcrumb_proto.h"
 
+#include <atomic>
 #include <cstring>
 
 #include "absl/log/log.h"
@@ -82,6 +83,14 @@ absl::Status LogBreadcrumb(BreadcrumbType type, uint64_t flow_id, BreadcrumbPhas
             std::memcpy(p, payload_data, payload_len);
         }
     });
+}
+
+uint64_t AllocateGlobalFlowId() {
+    static std::atomic<uint64_t> sNextFlowId{1};
+    // Relaxed increment is sufficient for uniqueness. We ignore overflow because at 10 billion
+    // allocations per second, it would take approximately 58 years of continuous execution to
+    // wrap around back to 0.
+    return sNextFlowId.fetch_add(1, std::memory_order_relaxed);
 }
 
 }  // namespace android::crashreport
