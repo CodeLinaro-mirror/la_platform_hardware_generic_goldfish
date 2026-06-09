@@ -14,46 +14,61 @@
 
 #include "android/emulation/control/snapshot_service_impl.h"
 
+#include "absl/status/status.h"
+
+#include "android/emulation/control/absl_status_translate.h"
+
 namespace android::emulation::control {
 
 grpc::Status SnapshotServiceImpl::ListSnapshots(grpc::ServerContext* context,
                                                 const SnapshotFilter* request,
                                                 SnapshotList* reply) {
-    return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "Not implemented yet");
-}
+    using SnapshotEntry = goldfish::VmOperations::SnapshotEntry;
 
-grpc::ServerWriteReactor<SnapshotPackage>* SnapshotServiceImpl::PullSnapshot(
-        grpc::CallbackServerContext* context, const SnapshotPackage* request) {
-    return nullptr;
-}
+    return AbslStatusToGrpcStatus(vm_operations_.ListSnapshots([reply](SnapshotEntry se) {
+        SnapshotDetails* details = reply->mutable_snapshots()->Add();
 
-grpc::ServerReadReactor<SnapshotPackage>* SnapshotServiceImpl::PushSnapshot(
-        grpc::CallbackServerContext* context, SnapshotPackage* response) {
-    return nullptr;
+        details->set_snapshot_id(std::move(se.id));
+
+        emulator_snapshot::Snapshot* details2 = details->mutable_details();
+        details2->set_logical_name(std::move(se.name));
+        details2->set_creation_time(absl::ToUnixSeconds(se.timestamp));
+    }));
 }
 
 grpc::Status SnapshotServiceImpl::LoadSnapshot(grpc::ServerContext* context,
                                                const SnapshotPackage* request,
                                                SnapshotPackage* reply) {
-    return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "Not implemented yet");
+    const absl::Status s = vm_operations_.LoadSnapshot(request->snapshot_id().c_str(),
+                                                       /*andResume=*/true);
+    reply->set_success(s.ok());
+    reply->set_snapshot_id(request->snapshot_id());
+    return AbslStatusToGrpcStatus(s);
 }
 
 grpc::Status SnapshotServiceImpl::SaveSnapshot(grpc::ServerContext* context,
                                                const SnapshotPackage* request,
                                                SnapshotPackage* reply) {
-    return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "Not implemented yet");
+    const absl::Status s = vm_operations_.SaveSnapshot(request->snapshot_id().c_str(),
+                                                       /*overwrite=*/true);
+    reply->set_success(s.ok());
+    reply->set_snapshot_id(request->snapshot_id());
+    return AbslStatusToGrpcStatus(s);
 }
 
 grpc::Status SnapshotServiceImpl::DeleteSnapshot(grpc::ServerContext* context,
                                                  const SnapshotPackage* request,
                                                  SnapshotPackage* reply) {
-    return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "Not implemented yet");
+    const absl::Status s = vm_operations_.DeleteSnapshot(request->snapshot_id().c_str());
+    reply->set_success(s.ok());
+    reply->set_snapshot_id(request->snapshot_id());
+    return AbslStatusToGrpcStatus(s);
 }
 
 grpc::Status SnapshotServiceImpl::UpdateSnapshot(grpc::ServerContext* context,
                                                  const SnapshotUpdateDescription* request,
                                                  SnapshotDetails* reply) {
-    return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "Not implemented yet");
+    return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "infeasible");
 }
 
 grpc::Status SnapshotServiceImpl::GetScreenshot(grpc::ServerContext* context,
