@@ -24,31 +24,38 @@
 
 namespace android::crashreport {
 
+namespace {
+
+// Annotation buffer is capped at 20KB by the crash reporter. We use 16KB.
+constexpr size_t kBreadcrumbBufferSize = 16384;
+
+template <size_t Size>
+struct BreadcrumbLogState {
+    BinaryAnnotation<Size> annotation;
+    std::unique_ptr<RawCircularLog> log;
+
+    explicit BreadcrumbLogState(const char* name) : annotation(name) {
+        auto log_res = RawCircularLog::CreateWriter(annotation.Data(), annotation.size());
+        if (!log_res.ok()) {
+            LOG(ERROR) << "Failed to initialize " << name
+                       << " breadcrumb log: " << log_res.status();
+        } else {
+            log = std::move(*log_res);
+        }
+    }
+};
+
+}  // namespace
+
 RawCircularLog* GetBreadcrumbLog(BreadcrumbType type) {
     switch (type) {
     case BreadcrumbType::kGrpc: {
-        static BinaryAnnotation<16384> s_annotation("grpc_breadcrumbs");
-        static const std::unique_ptr<RawCircularLog> kSLog = []() {
-            auto log = RawCircularLog::CreateWriter(s_annotation.Data(), s_annotation.size());
-            if (!log.ok()) {
-                LOG(ERROR) << "Failed to initialize gRPC breadcrumb log: " << log.status();
-                return std::unique_ptr<RawCircularLog>(nullptr);
-            }
-            return std::move(*log);
-        }();
-        return kSLog.get();
+        static BreadcrumbLogState<kBreadcrumbBufferSize> s_state("grpc_breadcrumbs");
+        return s_state.log.get();
     }
     case BreadcrumbType::kAdb: {
-        static BinaryAnnotation<16384> s_annotation("adb_breadcrumbs");
-        static const std::unique_ptr<RawCircularLog> kSLog = []() {
-            auto log = RawCircularLog::CreateWriter(s_annotation.Data(), s_annotation.size());
-            if (!log.ok()) {
-                LOG(ERROR) << "Failed to initialize ADB breadcrumb log: " << log.status();
-                return std::unique_ptr<RawCircularLog>(nullptr);
-            }
-            return std::move(*log);
-        }();
-        return kSLog.get();
+        static BreadcrumbLogState<kBreadcrumbBufferSize> s_state("adb_breadcrumbs");
+        return s_state.log.get();
     }
 
     default:
