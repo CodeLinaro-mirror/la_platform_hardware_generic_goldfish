@@ -37,6 +37,15 @@ constexpr size_t kMaxPendingOpens = 16;
 constexpr size_t kMaxOpenStreams = 31;
 constexpr size_t kMaxPayloadSnippetSize = 32;
 
+uint64_t CombineU32(uint32_t high, uint32_t low) {
+    return (static_cast<uint64_t>(high) << 32) | low;
+}
+
+uint64_t GetLookupFlowId(const AMessage& message, bool to_guest) {
+    return to_guest ? CombineU32(message.arg0, message.arg1)
+                    : CombineU32(message.arg1, message.arg0);
+}
+
 ProtoCircularLog<Breadcrumb>* GetLog() {
     // 20479 is the maximum value size allowed by Crashpad for an annotation.
     static BinaryAnnotation<20479> s_adb_annotation("adb_breadcrumbs");
@@ -59,7 +68,7 @@ void AdbBreadcrumbTracker::OnPacket(const AMessage& message, const char* data, b
     if (!log) return;
 
     Breadcrumb event;
-    const uint64_t flow_id = (static_cast<uint64_t>(message.arg0) << 32) | message.arg1;
+    const uint64_t flow_id = CombineU32(message.arg0, message.arg1);
     event.set_flow_id(flow_id);
     event.set_timestamp_ns(static_cast<uint64_t>(absl::ToUnixNanos(absl::Now())));
     const uint64_t t_tid = GetOsThreadId();
@@ -104,9 +113,7 @@ void AdbBreadcrumbTracker::OnPacket(const AMessage& message, const char* data, b
             break;
         }
 
-        const uint64_t lookup_flow_id =
-                to_guest ? ((static_cast<uint64_t>(message.arg0) << 32) | message.arg1)
-                         : ((static_cast<uint64_t>(message.arg1) << 32) | message.arg0);
+        const uint64_t lookup_flow_id = GetLookupFlowId(message, to_guest);
         is_sync_stream = IsSyncStream(lookup_flow_id);
     }
 
@@ -126,7 +133,7 @@ void AdbBreadcrumbTracker::HandleOpen(const AMessage& message, const char* data,
     if (data == nullptr) return;
     const bool is_sync = absl::StartsWith(
             std::string_view(data, std::min<size_t>(message.data_length, 64)), "sync:");
-    const uint64_t key = (static_cast<uint64_t>(to_guest) << 32) | message.arg0;
+    const uint64_t key = CombineU32(to_guest, message.arg0);
     if (pending_opens_.size() >= kMaxPendingOpens) {
         if (!pending_opens_order_.empty()) {
             const uint64_t oldest_key = pending_opens_order_.front();
@@ -139,7 +146,7 @@ void AdbBreadcrumbTracker::HandleOpen(const AMessage& message, const char* data,
 }
 
 void AdbBreadcrumbTracker::HandleOkay(const AMessage& message, bool to_guest) {
-    const uint64_t key = (static_cast<uint64_t>(!to_guest) << 32) | message.arg1;
+    const uint64_t key = CombineU32(!to_guest, message.arg1);
     auto it = pending_opens_.find(key);
     if (it == pending_opens_.end()) return;
 
@@ -151,8 +158,7 @@ void AdbBreadcrumbTracker::HandleOkay(const AMessage& message, bool to_guest) {
         pending_opens_order_.erase(it_order);
     }
 
-    const uint64_t flow = to_guest ? ((static_cast<uint64_t>(message.arg0) << 32) | message.arg1)
-                                   : ((static_cast<uint64_t>(message.arg1) << 32) | message.arg0);
+    const uint64_t flow = GetLookupFlowId(message, to_guest);
 
     while (open_streams_.size() >= kMaxOpenStreams) {
         open_streams_.erase(open_streams_.begin());
@@ -161,8 +167,7 @@ void AdbBreadcrumbTracker::HandleOkay(const AMessage& message, bool to_guest) {
 }
 
 void AdbBreadcrumbTracker::HandleClose(const AMessage& message, bool to_guest) {
-    const uint64_t flow = to_guest ? ((static_cast<uint64_t>(message.arg0) << 32) | message.arg1)
-                                   : ((static_cast<uint64_t>(message.arg1) << 32) | message.arg0);
+    const uint64_t flow = GetLookupFlowId(message, to_guest);
 
     auto it = std::find_if(open_streams_.begin(), open_streams_.end(),
                            [&](const auto& p) { return p.first == flow; });
@@ -171,8 +176,8 @@ void AdbBreadcrumbTracker::HandleClose(const AMessage& message, bool to_guest) {
     }
 
     // Remove from pending opens
-    const uint64_t key_self = (static_cast<uint64_t>(to_guest) << 32) | message.arg0;
-    const uint64_t key_other = (static_cast<uint64_t>(!to_guest) << 32) | message.arg1;
+    const uint64_t key_self = CombineU32(to_guest, message.arg0);
+    const uint64_t key_other = CombineU32(!to_guest, message.arg1);
 
     pending_opens_.erase(key_self);
     auto it_order = std::find(pending_opens_order_.begin(), pending_opens_order_.end(), key_self);
