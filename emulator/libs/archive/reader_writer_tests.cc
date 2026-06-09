@@ -38,7 +38,7 @@ TEST(archive, example) {
 
     writer << str;
     EXPECT_FALSE(storage.empty());
-    EXPECT_THAT(ReadValue<std::string>(reader), IsOkAndHolds(str));
+    EXPECT_THAT(ReadOneValue<std::string>(reader), IsOkAndHolds(str));
     EXPECT_TRUE(storage.empty());
 }
 
@@ -54,11 +54,11 @@ TEST(archive, positive) {
     archive << kUnsignedNumber << string1 << kSignedNumber << string2 << -kSignedNumber;
     EXPECT_FALSE(archive.Empty());
 
-    EXPECT_THAT(ReadValue<uint32_t>(archive), IsOkAndHolds(kUnsignedNumber));
-    EXPECT_THAT(ReadValue<std::string>(archive), IsOkAndHolds(string1));
-    EXPECT_THAT(ReadValue<int32_t>(archive), IsOkAndHolds(kSignedNumber));
-    EXPECT_THAT(ReadValue<std::string>(archive), IsOkAndHolds(string2));
-    EXPECT_THAT(ReadValue<int32_t>(archive), IsOkAndHolds(-kSignedNumber));
+    EXPECT_THAT(ReadOneValue<uint32_t>(archive), IsOkAndHolds(kUnsignedNumber));
+    EXPECT_THAT(ReadOneValue<std::string>(archive), IsOkAndHolds(string1));
+    EXPECT_THAT(ReadOneValue<int32_t>(archive), IsOkAndHolds(kSignedNumber));
+    EXPECT_THAT(ReadOneValue<std::string>(archive), IsOkAndHolds(string2));
+    EXPECT_THAT(ReadOneValue<int32_t>(archive), IsOkAndHolds(-kSignedNumber));
     EXPECT_TRUE(archive.Empty());
 }
 
@@ -70,7 +70,7 @@ TEST(archive, negative) {
     archive << string1;
     EXPECT_FALSE(archive.Empty());
     archive.storage.pop_back();
-    EXPECT_THAT(ReadValue<std::string>(archive), Not(IsOk()));
+    EXPECT_THAT(ReadOneValue<std::string>(archive), Not(IsOk()));
 }
 
 TEST(archive, compact_U8) {
@@ -80,7 +80,7 @@ TEST(archive, compact_U8) {
         DequeArchive archive;
         archive << x;
         EXPECT_EQ(archive.storage.size(), 1);
-        EXPECT_THAT(ReadValue<uint8_t>(archive), IsOkAndHolds(x));
+        EXPECT_THAT(ReadOneValue<uint8_t>(archive), IsOkAndHolds(x));
     }
 }
 
@@ -91,7 +91,7 @@ TEST(archive, compact_S8) {
         DequeArchive archive;
         archive << x;
         EXPECT_EQ(archive.storage.size(), 1);
-        EXPECT_THAT(ReadValue<int8_t>(archive), IsOkAndHolds(x));
+        EXPECT_THAT(ReadOneValue<int8_t>(archive), IsOkAndHolds(x));
     }
 }
 
@@ -102,7 +102,7 @@ TEST(archive, compact_BOOL) {
         DequeArchive archive;
         archive << x;
         EXPECT_EQ(archive.storage.size(), 1);
-        EXPECT_THAT(ReadValue<bool>(archive), IsOkAndHolds(x));
+        EXPECT_THAT(ReadOneValue<bool>(archive), IsOkAndHolds(x));
     }
 }
 
@@ -113,7 +113,7 @@ TEST(archive, compact_CHAR) {
         DequeArchive archive;
         archive << x;
         EXPECT_EQ(archive.storage.size(), 1);
-        EXPECT_THAT(ReadValue<char>(archive), IsOkAndHolds(x));
+        EXPECT_THAT(ReadOneValue<char>(archive), IsOkAndHolds(x));
     }
 }
 

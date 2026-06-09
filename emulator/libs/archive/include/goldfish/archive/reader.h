@@ -28,65 +28,69 @@ struct IReader {
     virtual absl::Status Read(void* dst, size_t size) = 0;
 };
 
-template <typename T>
-absl::StatusOr<T> ReadValue(archive::IReader& r) = delete;
-
-template <>
-absl::StatusOr<size_t> ReadValue<size_t>(archive::IReader& r);
-template <>
-absl::StatusOr<std::string> ReadValue<std::string>(archive::IReader& r);
+absl::Status ReadValue(IReader& r, size_t&);
+absl::Status ReadValue(IReader& r, std::string&);
 
 template <typename T>
     requires(std::same_as<T, uint8_t> || std::same_as<T, int8_t> || std::same_as<T, bool> ||
              std::same_as<T, char> || std::same_as<T, float> || std::same_as<T, double>)
-absl::StatusOr<T> ReadValue(archive::IReader& r) {
-    T result;
-    if (const absl::Status s = r.Read(&result, sizeof(result)); !s.ok()) {
-        return s;
-    }
-    return result;
+absl::Status ReadValue(IReader& r, T& dst) {
+    return r.Read(&dst, sizeof(dst));
 }
 
 template <std::unsigned_integral T>
     requires(!std::same_as<T, size_t> && !std::same_as<T, uint8_t> && !std::same_as<T, bool>)
-absl::StatusOr<T> ReadValue(archive::IReader& r) {
-    const absl::StatusOr<size_t> raw = ReadValue<size_t>(r);
-    if (!raw.ok()) return raw.status();
+absl::Status ReadValue(IReader& r, T& dst) {
+    size_t val;
+    if (const absl::Status s = ReadValue(r, val); !s.ok()) {
+        return s;
+    }
 
-    if (!std::in_range<T>(*raw)) {
+    if (!std::in_range<T>(val)) {
         return absl::OutOfRangeError("Unsigned value out of bounds for target type");
     }
 
-    return static_cast<T>(*raw);
+    dst = static_cast<T>(val);
+    return absl::OkStatus();
 }
 
 template <std::signed_integral T>
     requires(!std::same_as<T, int8_t> && !std::same_as<T, char>)
-absl::StatusOr<T> ReadValue(archive::IReader& r) {
-    const absl::StatusOr<size_t> raw = ReadValue<size_t>(r);
-    if (!raw.ok()) return raw.status();
+absl::Status ReadValue(IReader& r, T& dst) {
+    size_t val;
+    if (const absl::Status s = ReadValue(r, val); !s.ok()) {
+        return s;
+    }
 
-    const auto decoded = zigzag::Decode(*raw);
+    const auto decoded = zigzag::Decode(val);
     if (!std::in_range<T>(decoded)) {
         return absl::OutOfRangeError("Signed value out of bounds for target type");
     }
 
-    return static_cast<T>(decoded);
+    dst = static_cast<T>(decoded);
+    return absl::OkStatus();
 }
 
-inline absl::Status ReadValue(archive::IReader&) {
+inline absl::Status ReadValue(IReader&) {
     return absl::OkStatus();
 }
 
 template <typename T, typename... Args>
-absl::Status ReadValue(archive::IReader& r, T& first, Args&... rest) {
-    // Call your original single-value template
-    absl::StatusOr<T> result = ReadValue<T>(r);
-    if (result.ok()) {
-        first = *std::move(result);
+absl::Status ReadValue(IReader& r, T& first, Args&... rest) {
+    if (const absl::Status s = ReadValue(r, first); s.ok()) {
         return ReadValue(r, rest...);
     } else {
-        return result.status();
+        return s;
+    }
+}
+
+template <class T>
+absl::StatusOr<T> ReadOneValue(IReader& r) {
+    T loaded = {};
+    if (const absl::Status s = ReadValue(r, loaded); s.ok()) {
+        return loaded;
+    } else {
+        return s;
     }
 }
 

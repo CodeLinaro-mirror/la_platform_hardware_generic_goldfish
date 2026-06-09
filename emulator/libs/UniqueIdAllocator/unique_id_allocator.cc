@@ -66,9 +66,9 @@ int UniqueIdAllocator::LoadFromSnapshot(archive::IReader& reader) {
 
     returned_ids_.clear();
     for (; size > 0; --size) {
-        const auto x = ReadValue<uint32_t>(reader);
-        if (x.ok()) {
-            returned_ids_.insert(*x);
+        uint32_t id = 0;
+        if (ReadValue(reader, id).ok()) {
+            returned_ids_.insert(id);
         } else {
             return 1;
         }

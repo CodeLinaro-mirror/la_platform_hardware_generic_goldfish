@@ -20,7 +20,6 @@
 #include "goldfish/archive/time.h"
 
 using ::absl_testing::IsOk;
-using ::absl_testing::IsOkAndHolds;
 using ::testing::Not;
 
 using goldfish::archive::DequeArchive;
@@ -31,11 +30,14 @@ TEST(time, positive) {
     DequeArchive archive;
 
     archive << t;
-    EXPECT_THAT(ReadValue<absl::Time>(archive), IsOkAndHolds(t));
+    absl::Time loaded;
+    ASSERT_THAT(ReadValue(archive, loaded), IsOk());
+    EXPECT_EQ(loaded, t);
 }
 
 TEST(time, negative) {
     DequeArchive archive;
 
-    EXPECT_THAT(ReadValue<absl::Time>(archive), Not(IsOk()));
+    absl::Time loaded;
+    EXPECT_THAT(ReadValue(archive, loaded), Not(IsOk()));
 }

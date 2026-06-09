@@ -29,6 +29,7 @@
 #include "absl/time/time.h"
 
 #include "QemuDisplay.h"
+#include "android/status/status_macros.h"
 #include "goldfish/avd_info/avd_info.h"
 #include "goldfish/devices/multidisplay/multidisplay_device.h"
 #include "goldfish/display/display.h"
@@ -260,17 +261,12 @@ class MultiDisplayImpl : public IMultiDisplay {
     }
 
     absl::Status Load(archive::IReader& reader) override {
-        auto res_v = archive::ReadValue<uint32_t>(reader);
-        if (!res_v.ok()) return res_v.status();
-        uint32_t num_virtual = *res_v;
+        uint32_t num_virtual = 0;
+        RETURN_IF_ERROR(ReadValue(reader, num_virtual));
 
         for (uint32_t i = 0; i < num_virtual; ++i) {
             uint32_t id, width, height, dpi, flags;
-
-            if (auto status = archive::ReadValue(reader, id, width, height, dpi, flags);
-                !status.ok()) {
-                return status;
-            }
+            RETURN_IF_ERROR(ReadValue(reader, id, width, height, dpi, flags));
 
             auto disp = CreateDisplay(id, width, height, dpi, flags);
             if (!disp.ok()) {
@@ -279,36 +275,30 @@ class MultiDisplayImpl : public IMultiDisplay {
             }
         }
 
-        auto res_a = archive::ReadValue<uint32_t>(reader);
-        if (!res_a.ok()) return res_a.status();
-        uint32_t num_active_states = *res_a;
+        uint32_t num_active_states = 0;
+        RETURN_IF_ERROR(ReadValue(reader, num_active_states));
 
         for (uint32_t i = 0; i < num_active_states; ++i) {
             uint32_t id;
             bool active;
-
-            if (auto status = archive::ReadValue(reader, id, active); !status.ok()) {
-                return status;
-            }
+            RETURN_IF_ERROR(ReadValue(reader, id, active));
 
             const absl::MutexLock lock(display_access_);
             active_states_[id] = active;
         }
 
-        auto res_f = archive::ReadValue<bool>(reader);
-        if (!res_f.ok()) return res_f.status();
-
-        auto res_m = archive::ReadValue<uint32_t>(reader);
-        if (!res_m.ok()) return res_m.status();
+        bool res_f = false;
+        uint32_t res_m = 0;
+        RETURN_IF_ERROR(ReadValue(reader, res_f, res_m));
 
         {
             const absl::MutexLock lock(display_access_);
-            display_mode_ = *res_m;
+            display_mode_ = res_m;
         }
 
-        SetFolded(*res_f);
-        auto posture = *res_f ? ::goldfish::sensors::FoldablePostures::kClosed
-                              : ::goldfish::sensors::FoldablePostures::kOpened;
+        SetFolded(res_f);
+        auto posture = res_f ? ::goldfish::sensors::FoldablePostures::kClosed
+                             : ::goldfish::sensors::FoldablePostures::kOpened;
         ::goldfish::avd_info::GetAvd().GetSensorsPhysicalModel().SetTargetPosture(
                 static_cast<float>(posture), PhysicalInterpolation::kStep);
 
