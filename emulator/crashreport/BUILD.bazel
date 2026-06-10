@@ -146,6 +146,7 @@ cc_library(
         ":breadcrumb",
         "//emulator/libs/proto_data_store",
         "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/strings",
         "@aemu//protos/services/diagnostic:breadcrumb_cc_proto",
         "@crashpad//client",
     ],
@@ -182,6 +183,7 @@ cc_test(
     srcs = [
         "annotation_buffer_test.cc",
         "binary_annotation_test.cc",
+        "breadcrumb_proto_test.cc",
         "crash_detectors_test.cc",
         "crash_dump_test.cc",
         "timeout_monitor_test.cc",
@@ -197,6 +199,7 @@ cc_test(
     visibility = ["//visibility:public"],
     deps = [
         ":breadcrumb",
+        ":breadcrumb_proto",
         ":crash_system",
         ":detectors",
         "//emulator/libs/process",
