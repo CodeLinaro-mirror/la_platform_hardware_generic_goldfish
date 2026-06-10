@@ -94,7 +94,7 @@ class AdbPacketCallback {
      *
      * @param reason A string describing the reason for the desynchronization.
      */
-    virtual void OnOutOfSync(const std::string& reason) = 0;
+    virtual void OnOutOfSync(const std::string& reason, bool to_guest) = 0;
 };
 
 /**

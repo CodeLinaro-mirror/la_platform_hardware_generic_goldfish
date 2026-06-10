@@ -60,7 +60,7 @@ class AdbBreadcrumbTracker : public AdbPacketCallback {
     ~AdbBreadcrumbTracker() = default;
 
     void OnPacket(const AMessage& message, const char* data, bool to_guest) override;
-    void OnOutOfSync(const std::string& reason) override;
+    void OnOutOfSync(const std::string& reason, bool to_guest) override;
 
     static goldfish::proto_data_store::ProtoCircularLog<android::control::breadcrumbs::Breadcrumb>*
     GetLogForTesting();
@@ -73,6 +73,7 @@ class AdbBreadcrumbTracker : public AdbPacketCallback {
     void HandleClose(const AMessage& message, bool to_guest)
             ABSL_EXCLUSIVE_LOCKS_REQUIRED(open_streams_mutex_);
     bool IsSyncStream(uint64_t flow_id) ABSL_EXCLUSIVE_LOCKS_REQUIRED(open_streams_mutex_);
+    void ErasePendingOpen(uint64_t key) ABSL_EXCLUSIVE_LOCKS_REQUIRED(open_streams_mutex_);
 
     const bool capture_snippets_;
     absl::Mutex open_streams_mutex_;

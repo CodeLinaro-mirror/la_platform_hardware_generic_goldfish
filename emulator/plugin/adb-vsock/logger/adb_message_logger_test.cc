@@ -36,7 +36,7 @@ class MockAdbPacketCallback : public AdbPacketCallback {
     MOCK_METHOD(void, OnPacket,
                 (const goldfish::adb::AMessage& message, const char* data, bool to_guest),
                 (override));
-    MOCK_METHOD(void, OnOutOfSync, (const std::string& reason), (override));
+    MOCK_METHOD(void, OnOutOfSync, (const std::string& reason, bool to_guest), (override));
 };
 using goldfish::adb::AMessage;
 using goldfish::adb::APacket;
@@ -215,7 +215,7 @@ TEST_F(AdbMessageLoggerTest, large_garbage_triggers_invalid_header) {
     MockAdbPacketCallback mock_cb;
     logger_->SetCallback(&mock_cb);
 
-    EXPECT_CALL(mock_cb, OnOutOfSync(StartsWith("Invalid header"))).Times(1);
+    EXPECT_CALL(mock_cb, OnOutOfSync(StartsWith("Invalid header"), true)).Times(1);
 
     std::string large_data(1024 * 1024 + 1, 'a');
     logger_->Observe(large_data.data(), large_data.size());
@@ -225,7 +225,7 @@ TEST_F(AdbMessageLoggerTest, packet_too_large_triggers_out_of_sync) {
     MockAdbPacketCallback mock_cb;
     logger_->SetCallback(&mock_cb);
 
-    EXPECT_CALL(mock_cb, OnOutOfSync(StartsWith("Packet too large"))).Times(1);
+    EXPECT_CALL(mock_cb, OnOutOfSync(StartsWith("Packet too large"), true)).Times(1);
 
     goldfish::adb::AMessage message;
     message.command = (uint32_t)AdbWireMessage::A_CNXN;
@@ -242,7 +242,7 @@ TEST_F(AdbMessageLoggerTest, invalid_header_triggers_out_of_sync) {
     MockAdbPacketCallback mock_cb;
     logger_->SetCallback(&mock_cb);
 
-    EXPECT_CALL(mock_cb, OnOutOfSync(StartsWith("Invalid header"))).Times(1);
+    EXPECT_CALL(mock_cb, OnOutOfSync(StartsWith("Invalid header"), true)).Times(1);
 
     goldfish::adb::AMessage message;
     message.command = (uint32_t)AdbWireMessage::A_CNXN;
@@ -253,6 +253,17 @@ TEST_F(AdbMessageLoggerTest, invalid_header_triggers_out_of_sync) {
 
     std::string wire((char*)&message, sizeof(message));
     logger_->Observe(wire.data(), wire.size());
+}
+
+TEST(AdbMessageLoggerDirectionTest, passes_false_to_outofsync_when_tracking_to_host) {
+    auto logger = std::make_unique<AdbMessageLogger>("test> ", false, true);
+    MockAdbPacketCallback mock_cb;
+    logger->SetCallback(&mock_cb);
+
+    EXPECT_CALL(mock_cb, OnOutOfSync(StartsWith("Invalid header"), false)).Times(1);
+
+    std::string large_data(1024 * 1024 + 1, 'a');
+    logger->Observe(large_data.data(), large_data.size());
 }
 
 }  // namespace

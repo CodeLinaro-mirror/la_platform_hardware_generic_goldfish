@@ -435,17 +435,109 @@ TEST(AdbBreadcrumbTrackerTest, ClseRejectionCleansUpPending) {
 TEST(AdbBreadcrumbTrackerTest, LogsOutOfSyncEvents) {
     AdbBreadcrumbTracker tracker(true);
 
-    tracker.OnOutOfSync("Test reason");
+    tracker.OnOutOfSync("Test reason guest", true);
+    tracker.OnOutOfSync("Test reason host", false);
 
     auto* log = AdbBreadcrumbTracker::GetLogForTesting();
     ASSERT_NE(log, nullptr);
 
-    bool found = false;
+    bool found_guest = false;
+    bool found_host = false;
     log->ForEach([&](const google::protobuf::Message& msg) {
         const auto& event = static_cast<const Breadcrumb&>(msg);
-        if (event.has_adb() && event.adb().command() == 0 &&
-            event.adb().data_snippet() == "Test reason") {
-            EXPECT_EQ(event.phase(), Breadcrumb::INSTANT);
+        if (event.has_adb() && event.adb().command() == 0) {
+            if (event.adb().data_snippet() == "Test reason guest") {
+                EXPECT_EQ(event.phase(), Breadcrumb::INSTANT);
+                EXPECT_EQ(event.adb().direction(),
+                          android::control::breadcrumbs::AdbPayload::TO_GUEST);
+                found_guest = true;
+            } else if (event.adb().data_snippet() == "Test reason host") {
+                EXPECT_EQ(event.phase(), Breadcrumb::INSTANT);
+                EXPECT_EQ(event.adb().direction(),
+                          android::control::breadcrumbs::AdbPayload::TO_HOST);
+                found_host = true;
+            }
+        }
+        return true;
+    });
+
+    EXPECT_TRUE(found_guest);
+    EXPECT_TRUE(found_host);
+}
+
+TEST(AdbBreadcrumbTrackerTest, InvariantMismatchedEvictionTest) {
+    AdbBreadcrumbTracker tracker(true);
+
+    // 1. Open a sync stream with ID 1 twice (duplicate)
+    AMessage open_msg_1;
+    open_msg_1.command = kAdbOpen;
+    open_msg_1.arg0 = 1;
+    open_msg_1.arg1 = 0;
+    open_msg_1.data_length = 5;
+    tracker.OnPacket(open_msg_1, "sync:", true);
+    tracker.OnPacket(open_msg_1, "sync:", true);
+
+    // 2. Close stream 1 (erases it from pending_opens_ but leaves one in pending_opens_order_ if
+    // bug is present)
+    AMessage clse_msg_1;
+    clse_msg_1.command = kAdbClse;
+    clse_msg_1.arg0 = 1;
+    clse_msg_1.arg1 = 0;
+    clse_msg_1.data_length = 0;
+    tracker.OnPacket(clse_msg_1, nullptr, true);
+
+    // 3. Open 16 other unique sync streams (IDs 101 to 116)
+    for (int i = 101; i <= 116; ++i) {
+        AMessage open_msg;
+        open_msg.command = kAdbOpen;
+        open_msg.arg0 = i;
+        open_msg.arg1 = 0;
+        open_msg.data_length = 5;
+        tracker.OnPacket(open_msg, "sync:", true);
+    }
+
+    // 4. Open 17th stream (ID 117).
+    // If the bug is fixed, the queue had 16 items (101..116). Opening 117 evicts the oldest (101).
+    // If the bug is present, the queue had 17 items (stale 1, 101..116). Opening 117 evicts
+    // stale 1. 101 is NOT evicted.
+    AMessage open_msg_117;
+    open_msg_117.command = kAdbOpen;
+    open_msg_117.arg0 = 117;
+    open_msg_117.arg1 = 0;
+    open_msg_117.data_length = 5;
+    tracker.OnPacket(open_msg_117, "sync:", true);
+
+    // 5. Send OKAY for stream 101.
+    AMessage okay_msg_101;
+    okay_msg_101.command = kAdbOkay;
+    okay_msg_101.arg0 = 9101;  // responder ID
+    okay_msg_101.arg1 = 101;   // initiator ID
+    okay_msg_101.data_length = 0;
+    tracker.OnPacket(okay_msg_101, nullptr, false);
+
+    // 6. Write to stream 101.
+    AMessage wrte_msg_101;
+    wrte_msg_101.command = kAdbWrte;
+    wrte_msg_101.arg0 = 101;
+    wrte_msg_101.arg1 = 9101;
+    wrte_msg_101.data_length = 8;
+    tracker.OnPacket(wrte_msg_101, "STAT1234", true);
+
+    // 7. Verify. If the bug is fixed, 101 was evicted, so it is NOT treated as a sync stream.
+    // Thus, it will capture the full snippet (8 bytes).
+    // If the bug is present, 101 was NOT evicted, so it is treated as a sync stream and truncated
+    // to 4 bytes.
+    auto* log = AdbBreadcrumbTracker::GetLogForTesting();
+    ASSERT_NE(log, nullptr);
+
+    bool found = false;
+    uint64_t expected_flow_id = (static_cast<uint64_t>(101) << 32) | 9101;
+    log->ForEach([&](const google::protobuf::Message& msg) {
+        const auto& event = static_cast<const Breadcrumb&>(msg);
+        if (event.has_adb() && event.adb().command() == kAdbWrte &&
+            event.flow_id() == expected_flow_id) {
+            EXPECT_EQ(event.adb().data_snippet().size(), 8);
+            EXPECT_EQ(event.adb().data_snippet(), "STAT1234");
             found = true;
         }
         return true;
