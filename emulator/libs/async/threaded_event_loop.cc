@@ -86,12 +86,12 @@ class ThreadedEventLoopImpl : public ThreadedEventLoop {
     absl::Status Start() override;
 
   private:
-    absl::Status PostImmediately(Task task) override {
-        return loop_->PostImmediately(std::move(task));
+    absl::Status PostImmediately(Task task, FlowId flow_id) override {
+        return loop_->PostImmediately(std::move(task), flow_id);
     }
 
-    absl::Status PostDelayed(Task task, std::chrono::milliseconds delay) override {
-        return loop_->PostDelayed(std::move(task), delay);
+    absl::Status PostDelayed(Task task, std::chrono::milliseconds delay, FlowId flow_id) override {
+        return loop_->PostDelayed(std::move(task), delay, flow_id);
     }
 
     std::thread runner_;

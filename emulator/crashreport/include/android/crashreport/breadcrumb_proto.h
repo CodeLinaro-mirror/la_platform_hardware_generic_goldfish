@@ -63,6 +63,35 @@ using ThreadId = uint64_t;
 using FlowId = uint64_t;
 
 /**
+ * @brief Fixed-size (64-bit) storage for stack return addresses.
+ *
+ * Guarantees a stable 8-byte layout for out-of-process crash dump parsing across
+ * 32-bit and 64-bit architectures, while allowing direct implicit assignment from
+ * void* compiler builtins like __builtin_return_address without explicit casting.
+ */
+struct StackAddress {
+    uint64_t address{0};
+
+    constexpr StackAddress() = default;
+    StackAddress(decltype(__builtin_return_address(0)) ptr)
+            : address(reinterpret_cast<uint64_t>(ptr)) {}
+    constexpr StackAddress(uint64_t addr) : address(addr) {}
+    constexpr StackAddress(int addr) : address(static_cast<uint64_t>(addr)) {}
+
+    StackAddress& operator=(decltype(__builtin_return_address(0)) ptr) {
+        address = reinterpret_cast<uint64_t>(ptr);
+        return *this;
+    }
+
+    constexpr operator uint64_t() const { return address; }
+} __attribute__((packed));
+
+static_assert(sizeof(StackAddress) == sizeof(uint64_t),
+              "StackAddress must be exactly 8 bytes packed.");
+static_assert(sizeof(decltype(__builtin_return_address(0))) <= sizeof(StackAddress),
+              "Return address pointer from __builtin_return_address must fit inside StackAddress");
+
+/**
  * @brief Identifies the subsystem that generated the breadcrumb.
  */
 enum class BreadcrumbType {
@@ -85,12 +114,14 @@ enum class BreadcrumbPhase : uint8_t {
  * @brief Identifies the serialization format of the payload following the envelope.
  */
 enum class PayloadType : uint8_t {
-    kGrpcProto = 1,      ///< Protobuf serialized GrpcPayload.
-    kAdbProto = 2,       ///< Protobuf serialized AdbPayload (deprecated).
-    kRaw = 3,            ///< Generic raw binary payload.
-    kString = 4,         ///< Free-form string payload.
-    kAdbRawToGuest = 5,  ///< Raw binary ADB message payload sent from host to guest.
-    kAdbRawToHost = 6,   ///< Raw binary ADB message payload sent from guest to host.
+    kGrpcProto = 1,             ///< Protobuf serialized GrpcPayload.
+    kAdbProto = 2,              ///< Protobuf serialized AdbPayload (deprecated).
+    kRaw = 3,                   ///< Generic raw binary payload.
+    kString = 4,                ///< Free-form string payload.
+    kAdbRawToGuest = 5,         ///< Raw binary ADB message payload sent from host to guest.
+    kAdbRawToHost = 6,          ///< Raw binary ADB message payload sent from guest to host.
+    kLooperExecRaw = 7,         ///< RawLooperExecPayload.
+    kLooperPostContextRaw = 8,  ///< RawLooperPostWithContextPayload.
 };
 
 /**
@@ -152,6 +183,52 @@ struct RawAdbPayloadT {
 } __attribute__((packed));
 
 using RawAdbPayload = RawAdbPayloadT<0>;
+
+/**
+ * @brief Raw binary payload for looper task posting with context.
+ *
+ * This struct defines the fixed-size header for a looper task post event.
+ * To minimize overhead in hot paths, it does not use Protobuf serialization.
+ * Instead, it uses a flat binary layout.
+ *
+ * @section serialization Serialization Format
+ * The true serialization format in memory is:
+ * [RawLooperPostWithContextPayload (10 bytes)] [context_data (context_len bytes)]
+ *
+ * This template-based layout allows trackers to allocate variable-sized payloads
+ * directly on the stack without heap allocation, ensuring zero-allocation logging:
+ *
+ * @code
+ * RawLooperPostWithContextPayloadT<32> stack_payload;
+ * stack_payload.caller_pc = caller_pc;
+ * stack_payload.loop_id = loop_id;
+ * stack_payload.context_len = context_len;
+ * std::memcpy(stack_payload.context_data, context_ptr, context_len);
+ *
+ * LogBreadcrumb(..., std::string_view(
+ *     reinterpret_cast<const char*>(&stack_payload),
+ *     sizeof(RawLooperPostWithContextPayload) + context_len));
+ * @endcode
+ *
+ * Consumers of the `RawLooperPostWithContextPayload` alias can access the trailing payload bytes
+ * via pointer arithmetic starting from the address of `raw_looper.context_data`.
+ */
+template <size_t N>
+struct RawLooperPostWithContextPayloadT {
+    StackAddress caller_pc;  ///< Return address of the Post caller.
+    uint8_t loop_id;         ///< Unique identifier of the target event loop.
+    uint8_t context_len;     ///< Length of the context string.
+    char context_data[N];    ///< Variable length context data, copied inline.
+} __attribute__((packed));
+
+using RawLooperPostWithContextPayload = RawLooperPostWithContextPayloadT<0>;
+
+/**
+ * @brief Raw binary payload for looper task execution.
+ */
+struct RawLooperExecPayload {
+    uint8_t loop_id;  ///< Unique identifier of the executing event loop.
+} __attribute__((packed));
 
 /**
  * @brief Retrieves the raw circular log writer instance associated with a specific breadcrumb type.

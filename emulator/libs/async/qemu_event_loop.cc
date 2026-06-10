@@ -83,14 +83,19 @@ class QemuEventLoopImpl : public goldfish::async::QemuEventLoop {
 
       public:
         static std::shared_ptr<QemuTimer> Create(QemuEventLoopImpl* loop, Task task,
-                                                 bool auto_cancel) {
-            auto timer = std::make_shared<QemuTimer>(loop, std::move(task), auto_cancel, Private());
+                                                 bool auto_cancel, FlowId flow_id = 0) {
+            auto timer = std::make_shared<QemuTimer>(loop, std::move(task), auto_cancel, flow_id,
+                                                     Private());
             timer->AddItselfToActiveTimers();
             return timer;
         }
 
-        QemuTimer(QemuEventLoopImpl* loop, EventLoop::Task task, bool auto_cancel, Private)
-                : event_loop_(loop), task_(std::move(task)), auto_cancel_(auto_cancel) {}
+        QemuTimer(QemuEventLoopImpl* loop, EventLoop::Task task, bool auto_cancel, FlowId flow_id,
+                  Private)
+                : event_loop_(loop)
+                , task_(std::move(task))
+                , auto_cancel_(auto_cancel)
+                , flow_id_(flow_id) {}
 
         ~QemuTimer() override = default;
 
@@ -154,6 +159,10 @@ class QemuEventLoopImpl : public goldfish::async::QemuEventLoop {
             DCHECK(self->event_loop_.load()->IsOnLoopThread())
                     << "onTimer callback is not called from the event loop";
 
+            if (self->flow_id_ != 0 && self->event_loop_.load()->tracker()) {
+                self->event_loop_.load()->tracker()->LogExecute(self->flow_id_);
+            }
+
             self->task_();
 
             // For one-shot timers, close the handle after execution.
@@ -182,6 +191,7 @@ class QemuEventLoopImpl : public goldfish::async::QemuEventLoop {
         std::atomic<QemuEventLoopImpl*> event_loop_;
         Task task_;
         bool auto_cancel_ = false;
+        FlowId flow_id_ = 0;
 
         QEMUTimer qemu_timer_handle_;
         std::atomic<bool> qemu_timer_handle_valid_ = false;
@@ -210,13 +220,18 @@ class QemuEventLoopImpl : public goldfish::async::QemuEventLoop {
     std::shared_ptr<EventLoop::Timer> CreateTimer(Task task) override;
 
   private:
-    void PostImmediatelyInternal(Task task);
-    absl::Status PostImmediately(Task task) override;
-    absl::Status PostDelayed(Task task, std::chrono::milliseconds delay) override;
+    struct QueuedTask {
+        Task task;
+        FlowId flow_id;
+    };
+
+    void PostImmediatelyInternal(Task task, FlowId flow_id = 0);
+    absl::Status PostImmediately(Task task, FlowId flow_id) override;
+    absl::Status PostDelayed(Task task, std::chrono::milliseconds delay, FlowId flow_id) override;
 
     size_t DrainQueue() {
         qemu_thread_id_ = std::this_thread::get_id();
-        std::queue<Task> local_queue;
+        std::queue<QueuedTask> local_queue;
         {
             const absl::MutexLock lock(queue_mutex_);
             task_queue_.swap(local_queue);
@@ -226,7 +241,11 @@ class QemuEventLoopImpl : public goldfish::async::QemuEventLoop {
         const size_t num_tasks_to_process = local_queue.size();
 
         while (!local_queue.empty()) {
-            local_queue.front()();
+            FlowId flow_id = local_queue.front().flow_id;
+            if (flow_id != 0 && tracker()) {
+                tracker()->LogExecute(flow_id);
+            }
+            local_queue.front().task();
             local_queue.pop();
         }
 
@@ -270,7 +289,7 @@ class QemuEventLoopImpl : public goldfish::async::QemuEventLoop {
 
     std::atomic<std::thread::id> qemu_thread_id_;
     absl::Mutex queue_mutex_;
-    std::queue<Task> task_queue_ ABSL_GUARDED_BY(queue_mutex_);
+    std::queue<QueuedTask> task_queue_ ABSL_GUARDED_BY(queue_mutex_);
     size_t tasks_processed_ ABSL_GUARDED_BY(queue_mutex_) = 0;
     std::atomic<bool> is_shutting_down_{false};
     bool drainer_scheduled_ ABSL_GUARDED_BY(queue_mutex_) = false;
@@ -324,10 +343,10 @@ bool QemuEventLoopImpl::IsOnLoopThread() const {
     return qemu_thread_id_ == std::this_thread::get_id();
 }
 
-void QemuEventLoopImpl::PostImmediatelyInternal(Task task) {
+void QemuEventLoopImpl::PostImmediatelyInternal(Task task, FlowId flow_id) {
     const absl::MutexLock lock(queue_mutex_);
     queue_is_idle_ = false;
-    task_queue_.push(std::move(task));
+    task_queue_.push(QueuedTask{std::move(task), flow_id});
 
     if (!drainer_scheduled_) {
         qemu_bh_schedule(drainer_bh_.get());
@@ -335,17 +354,18 @@ void QemuEventLoopImpl::PostImmediatelyInternal(Task task) {
     }
 }
 
-absl::Status QemuEventLoopImpl::PostImmediately(Task task) {
+absl::Status QemuEventLoopImpl::PostImmediately(Task task, FlowId flow_id) {
     if (is_shutting_down_) {
         LOG(ERROR) << "Event loop is shutting down, not scheduling task";
         return absl::UnavailableError("QemuEventLoopImpl is shutting down");
     }
 
-    PostImmediatelyInternal(std::move(task));
+    PostImmediatelyInternal(std::move(task), flow_id);
     return absl::OkStatus();
 }
 
-absl::Status QemuEventLoopImpl::PostDelayed(Task task, std::chrono::milliseconds delay) {
+absl::Status QemuEventLoopImpl::PostDelayed(Task task, std::chrono::milliseconds delay,
+                                            FlowId flow_id) {
     if (is_shutting_down_) {
         LOG(ERROR) << "Event loop is shutting down, not scheduling task";
         return absl::UnavailableError("QemuEventLoopImpl is shutting down");
@@ -353,7 +373,7 @@ absl::Status QemuEventLoopImpl::PostDelayed(Task task, std::chrono::milliseconds
 
     // The timer will manage its own lifetime via a shared_ptr cycle that is
     // broken when the timer fires.
-    auto timer = QemuTimer::Create(this, std::move(task), /*auto_cancel=*/true);
+    auto timer = QemuTimer::Create(this, std::move(task), /*auto_cancel=*/true, flow_id);
     timer->Schedule(delay, std::chrono::milliseconds::zero());
     return absl::OkStatus();
 }

@@ -6,6 +6,7 @@ cc_library(
     name = "async_api",
     srcs = [
         "logging.cc",
+        "looper_breadcrumb_tracker.cc",
         "socket_factory.cc",
     ],
     hdrs = [
@@ -15,6 +16,7 @@ cc_library(
         "include/goldfish/async/async_socket_utils.h",
         "include/goldfish/async/event_loop.h",
         "include/goldfish/async/event_loop_dispatcher.h",
+        "include/goldfish/async/looper_breadcrumb_tracker.h",
         "include/goldfish/async/process_launcher.h",
         "include/goldfish/async/scoped_async_resource.h",
         "include/goldfish/async/scoped_async_timer.h",
@@ -23,7 +25,14 @@ cc_library(
     ],
     includes = ["include"],
     visibility = ["//visibility:public"],
-    deps = [
+    # AEMU compat headers must come before crashreport (which pulls in crashpad)
+    # to ensure AEMU's getopt.h and sys/types.h are preferred over Crashpad's.
+    # buildifier: leave-alone
+    deps = select({
+        "@platforms//os:windows": ["@aemu//windows:compat-hdrs"],
+        "//conditions:default": [],
+    }) + [
+        "//emulator/crashreport:breadcrumb_proto",
         "//emulator/libs/eventing",
         "//emulator/libs/network",
         "@abseil-cpp//absl/log",
@@ -360,5 +369,22 @@ cc_test(
         "//emulator/libs/network",
         "//emulator/libs/test:googletest_main",
         "@abseil-cpp//absl/status:status_matchers",
+    ],
+)
+
+cc_binary(
+    name = "event_loop_perf",
+    srcs = ["bm_event_loop.cc"],
+    copts = [
+        "-Wno-deprecated-declarations",
+        "-Wno-unused-result",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":libuv_event_loop",
+        ":threaded_event_loop",
+        "//emulator/crashreport:breadcrumb_proto",
+        "//emulator/libs/proto_data_store",
+        "@google_benchmark//:benchmark",
     ],
 )
