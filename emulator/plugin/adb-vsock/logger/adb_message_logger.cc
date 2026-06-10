@@ -147,7 +147,7 @@ void AdbMessageLogger::Observe(const void* data, size_t size) {
                                 "should work normally. "
                              << "Details: " << reason;
                 if (callback_) {
-                    callback_->OnOutOfSync(reason);
+                    callback_->OnOutOfSync(reason, to_guest_);
                 }
                 return;
             }
@@ -163,7 +163,7 @@ void AdbMessageLogger::Observe(const void* data, size_t size) {
                                 "should work normally. "
                              << "Details: " << reason;
                 if (callback_) {
-                    callback_->OnOutOfSync(reason);
+                    callback_->OnOutOfSync(reason, to_guest_);
                 }
                 return;
             }

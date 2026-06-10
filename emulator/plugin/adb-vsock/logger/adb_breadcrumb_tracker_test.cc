@@ -435,23 +435,34 @@ TEST(AdbBreadcrumbTrackerTest, ClseRejectionCleansUpPending) {
 TEST(AdbBreadcrumbTrackerTest, LogsOutOfSyncEvents) {
     AdbBreadcrumbTracker tracker(true);
 
-    tracker.OnOutOfSync("Test reason");
+    tracker.OnOutOfSync("Test reason guest", true);
+    tracker.OnOutOfSync("Test reason host", false);
 
     auto* log = AdbBreadcrumbTracker::GetLogForTesting();
     ASSERT_NE(log, nullptr);
 
-    bool found = false;
+    bool found_guest = false;
+    bool found_host = false;
     log->ForEach([&](const google::protobuf::Message& msg) {
         const auto& event = static_cast<const Breadcrumb&>(msg);
-        if (event.has_adb() && event.adb().command() == 0 &&
-            event.adb().data_snippet() == "Test reason") {
-            EXPECT_EQ(event.phase(), Breadcrumb::INSTANT);
-            found = true;
+        if (event.has_adb() && event.adb().command() == 0) {
+            if (event.adb().data_snippet() == "Test reason guest") {
+                EXPECT_EQ(event.phase(), Breadcrumb::INSTANT);
+                EXPECT_EQ(event.adb().direction(),
+                          android::control::breadcrumbs::AdbPayload::TO_GUEST);
+                found_guest = true;
+            } else if (event.adb().data_snippet() == "Test reason host") {
+                EXPECT_EQ(event.phase(), Breadcrumb::INSTANT);
+                EXPECT_EQ(event.adb().direction(),
+                          android::control::breadcrumbs::AdbPayload::TO_HOST);
+                found_host = true;
+            }
         }
         return true;
     });
 
-    EXPECT_TRUE(found);
+    EXPECT_TRUE(found_guest);
+    EXPECT_TRUE(found_host);
 }
 
 TEST(AdbBreadcrumbTrackerTest, InvariantMismatchedEvictionTest) {

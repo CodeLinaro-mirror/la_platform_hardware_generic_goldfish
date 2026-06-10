@@ -60,7 +60,7 @@ class AdbBreadcrumbTracker : public AdbPacketCallback {
     ~AdbBreadcrumbTracker() = default;
 
     void OnPacket(const AMessage& message, const char* data, bool to_guest) override;
-    void OnOutOfSync(const std::string& reason) override;
+    void OnOutOfSync(const std::string& reason, bool to_guest) override;
 
     static goldfish::proto_data_store::ProtoCircularLog<android::control::breadcrumbs::Breadcrumb>*
     GetLogForTesting();

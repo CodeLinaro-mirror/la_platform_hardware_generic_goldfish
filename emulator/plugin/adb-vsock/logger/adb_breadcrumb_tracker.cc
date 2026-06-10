@@ -216,7 +216,7 @@ AdbBreadcrumbTracker::GetLogForTesting() {
     return GetLog();
 }
 
-void AdbBreadcrumbTracker::OnOutOfSync(const std::string& reason) {
+void AdbBreadcrumbTracker::OnOutOfSync(const std::string& reason, bool to_guest) {
     Breadcrumb event;
     event.set_timestamp_ns(static_cast<uint64_t>(absl::ToUnixNanos(absl::Now())));
     uint64_t t_tid = GetOsThreadId();
@@ -225,6 +225,8 @@ void AdbBreadcrumbTracker::OnOutOfSync(const std::string& reason) {
 
     auto* adb_payload = event.mutable_adb();
     adb_payload->set_command(0);
+    adb_payload->set_direction(to_guest ? android::control::breadcrumbs::AdbPayload::TO_GUEST
+                                        : android::control::breadcrumbs::AdbPayload::TO_HOST);
     adb_payload->set_data_snippet(reason);
 
     if (auto* log = GetLog()) {
