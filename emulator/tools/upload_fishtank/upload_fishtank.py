@@ -14,12 +14,11 @@
 # limitations under the License.
 
 # IMPORTANT: You may need to run "gpkg setup" before running the following bazel command.
-# Run with: bazel run @goldfish//fishtank_uploader:upload_fishtank
+# Run with: bazel run @goldfish//emulator/tools/upload_fishtank:upload_fishtank
 
 import argparse
 import hashlib
 import logging
-import os
 import re
 import subprocess
 import sys
@@ -98,11 +97,16 @@ def upload_to_gcs(local_path, version, platform):
 
 
 def generate_bazel_snippet(platform_name, sha256, url):
-    """Generates a gcs_file Bazel snippet."""
-    return f"""gcs_file(
+    """Generates a multisource_repo.file Bazel snippet."""
+    return f"""multisource_repo.file(
     name = "fishtank-{platform_name}",
-    sha256 = "{sha256}",
-    url = "{url}",
+    aosp = {{
+        "local_file": "@goldfish_build//utils:empty.zip",
+    }},
+    goog = {{
+        "sha256": "{sha256}",
+        "url": "{url}",
+    }},
 )"""
 
 
@@ -190,7 +194,7 @@ def main():
                 continue
 
     if snippets:
-        snippets_text = "\n\n".join(snippets)
+        snippets_text = "\n".join(snippets)
         print("\nGenerated Bazel Snippets:\n")
         print(snippets_text)
         update_module_bazel(snippets_text)
