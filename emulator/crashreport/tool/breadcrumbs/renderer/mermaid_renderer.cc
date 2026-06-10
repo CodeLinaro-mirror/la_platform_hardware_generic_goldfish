@@ -125,6 +125,18 @@ std::string MermaidRenderer::Render(const DiagnosticTrace& trace) const {
             label_phase = PhaseToLabel(proto.grpc().grpc_phase());
         } else if (proto.has_adb()) {
             label_phase = "ADB";
+        } else if (proto.has_looper()) {
+            switch (proto.looper().event()) {
+            case android::control::breadcrumbs::LooperPayload::POST:
+                label_phase = "POST";
+                break;
+            case android::control::breadcrumbs::LooperPayload::EXECUTE:
+                label_phase = "EXEC";
+                break;
+            default:
+                label_phase = "LOOPER";
+                break;
+            }
         }
 
         const std::string label = absl::StrFormat("%s | [%v] %s: %s", time_str, cid, label_phase,
@@ -141,7 +153,7 @@ std::string MermaidRenderer::Render(const DiagnosticTrace& trace) const {
             if (proto.has_grpc()) {
                 is_end = (proto.grpc().grpc_phase() ==
                           android::control::breadcrumbs::GrpcPayload::END_OF_CALL);
-            } else if (proto.has_adb()) {
+            } else if (proto.has_adb() || proto.has_looper()) {
                 is_end = (proto.phase() == Breadcrumb::FLOW_END);
             }
             const std::string arrow = is_end ? "-->>" : "->>";

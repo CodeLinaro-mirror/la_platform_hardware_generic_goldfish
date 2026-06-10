@@ -105,5 +105,24 @@ std::vector<uint8_t> AnnotationExtractor::ExtractAnnotationBytes(crashpad::FileR
     return {};
 }
 
+std::vector<ExtractedAnnotation> AnnotationExtractor::ExtractAnnotationsWithPrefix(
+        crashpad::FileReader* reader, const std::string& prefix) {
+    crashpad::ProcessSnapshotMinidump snapshot;
+    if (!snapshot.Initialize(reader)) {
+        LOG(ERROR) << "Failed to initialize annotation parser";
+        return {};
+    }
+
+    std::vector<ExtractedAnnotation> result;
+    for (const crashpad::ModuleSnapshot* module : snapshot.Modules()) {
+        for (const crashpad::AnnotationSnapshot& annotation : module->AnnotationObjects()) {
+            if (annotation.name.starts_with(prefix)) {
+                result.push_back({annotation.name, annotation.value});
+            }
+        }
+    }
+    return result;
+}
+
 }  // namespace crashreport
 }  // namespace android

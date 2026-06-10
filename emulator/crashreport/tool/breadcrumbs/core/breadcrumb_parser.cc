@@ -27,10 +27,13 @@ static_assert(std::endian::native == std::endian::little,
 using android::control::breadcrumbs::AdbPayload;
 using android::control::breadcrumbs::Breadcrumb;
 using android::control::breadcrumbs::GrpcPayload;
+using android::control::breadcrumbs::LooperPayload;
 using android::crashreport::BreadcrumbEnvelope;
 using android::crashreport::BreadcrumbPhase;
 using android::crashreport::PayloadType;
 using android::crashreport::RawAdbPayload;
+using android::crashreport::RawLooperExecPayload;
+using android::crashreport::RawLooperPostWithContextPayload;
 using goldfish::proto_data_store::RawCircularLog;
 
 namespace {
@@ -77,6 +80,37 @@ void ParsePayload(const BreadcrumbEnvelope& envelope, std::string_view payload, 
                 adb.set_data_snippet(payload.data() + sizeof(RawAdbPayload), snippet_len);
             }
             *event.mutable_adb() = adb;
+        }
+        break;
+    }
+    case PayloadType::kLooperPostContextRaw: {
+        if (payload.size() >= sizeof(RawLooperPostWithContextPayload)) {
+            RawLooperPostWithContextPayload raw_post;
+            std::memcpy(&raw_post, payload.data(), sizeof(RawLooperPostWithContextPayload));
+            LooperPayload looper;
+            looper.set_event(LooperPayload::POST);
+            looper.set_caller_pc(raw_post.caller_pc);
+            looper.set_loop_id(raw_post.loop_id);
+
+            size_t string_len = std::min(
+                    static_cast<size_t>(raw_post.context_len),
+                    static_cast<size_t>(payload.size() - sizeof(RawLooperPostWithContextPayload)));
+            if (string_len > 0) {
+                looper.set_context(std::string(
+                        payload.data() + sizeof(RawLooperPostWithContextPayload), string_len));
+            }
+            *event.mutable_looper() = looper;
+        }
+        break;
+    }
+    case PayloadType::kLooperExecRaw: {
+        if (payload.size() >= sizeof(RawLooperExecPayload)) {
+            RawLooperExecPayload raw_exec;
+            std::memcpy(&raw_exec, payload.data(), sizeof(RawLooperExecPayload));
+            LooperPayload looper;
+            looper.set_event(LooperPayload::EXECUTE);
+            looper.set_loop_id(raw_exec.loop_id);
+            *event.mutable_looper() = looper;
         }
         break;
     }

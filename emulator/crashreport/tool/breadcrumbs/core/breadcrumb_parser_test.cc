@@ -208,4 +208,97 @@ TEST(BreadcrumbParserTest, ParsesWrappedCircularBuffer) {
     }
 }
 
+TEST(BreadcrumbParserTest, ParsesLooperPostContextRawPayload) {
+    using android::control::breadcrumbs::LooperPayload;
+    using android::crashreport::RawLooperPostWithContextPayload;
+
+    std::vector<uint8_t> buffer(1024);
+    auto log_status = RawCircularLog::CreateWriter(buffer.data(), buffer.size());
+    ASSERT_TRUE(log_status.ok());
+    auto log = std::move(*log_status);
+
+    BreadcrumbEnvelope envelope;
+    envelope.timestamp_ns = 33333;
+    envelope.thread_id = 4444;
+    envelope.flow_id = 5555;
+    envelope.phase = BreadcrumbPhase::kFlowBegin;
+    envelope.payload_type = PayloadType::kLooperPostContextRaw;
+
+    uint64_t fake_pc = 0xabcdef01;
+    RawLooperPostWithContextPayload looper_payload;
+    looper_payload.caller_pc = StackAddress(fake_pc);
+    looper_payload.loop_id = 99;
+    looper_payload.context_len = 5;
+
+    uint16_t payload_len = sizeof(RawLooperPostWithContextPayload) + 5;
+    envelope.payload_len = payload_len;
+
+    uint32_t total_size = sizeof(BreadcrumbEnvelope) + payload_len;
+
+    auto status = log->Push(total_size, [&](void* dest) {
+        char* p = static_cast<char*>(dest);
+        std::memcpy(p, &envelope, sizeof(BreadcrumbEnvelope));
+        p += sizeof(BreadcrumbEnvelope);
+        std::memcpy(p, &looper_payload, sizeof(RawLooperPostWithContextPayload));
+        p += sizeof(RawLooperPostWithContextPayload);
+        std::memcpy(p, "hello", 5);
+    });
+    ASSERT_TRUE(status.ok());
+
+    auto entries = BreadcrumbParser::Parse(buffer);
+    ASSERT_EQ(entries.size(), 1);
+    const auto& event = entries[0];
+    EXPECT_EQ(event.timestamp_ns(), 33333);
+    EXPECT_EQ(event.phase(), Breadcrumb::FLOW_BEGIN);
+
+    ASSERT_TRUE(event.has_looper());
+    EXPECT_EQ(event.looper().event(), LooperPayload::POST);
+    EXPECT_EQ(event.looper().caller_pc(), StackAddress(fake_pc));
+    EXPECT_EQ(event.looper().loop_id(), 99);
+    EXPECT_EQ(event.looper().context(), "hello");
+}
+
+TEST(BreadcrumbParserTest, ParsesLooperExecRawPayload) {
+    using android::control::breadcrumbs::LooperPayload;
+    using android::crashreport::RawLooperExecPayload;
+
+    std::vector<uint8_t> buffer(1024);
+    auto log_status = RawCircularLog::CreateWriter(buffer.data(), buffer.size());
+    ASSERT_TRUE(log_status.ok());
+    auto log = std::move(*log_status);
+
+    BreadcrumbEnvelope envelope;
+    envelope.timestamp_ns = 44444;
+    envelope.thread_id = 5555;
+    envelope.flow_id = 6666;
+    envelope.phase = BreadcrumbPhase::kFlowEnd;
+    envelope.payload_type = PayloadType::kLooperExecRaw;
+
+    RawLooperExecPayload looper_payload;
+    looper_payload.loop_id = 88;
+
+    uint16_t payload_len = sizeof(RawLooperExecPayload);
+    envelope.payload_len = payload_len;
+
+    uint32_t total_size = sizeof(BreadcrumbEnvelope) + payload_len;
+
+    auto status = log->Push(total_size, [&](void* dest) {
+        char* p = static_cast<char*>(dest);
+        std::memcpy(p, &envelope, sizeof(BreadcrumbEnvelope));
+        p += sizeof(BreadcrumbEnvelope);
+        std::memcpy(p, &looper_payload, sizeof(RawLooperExecPayload));
+    });
+    ASSERT_TRUE(status.ok());
+
+    auto entries = BreadcrumbParser::Parse(buffer);
+    ASSERT_EQ(entries.size(), 1);
+    const auto& event = entries[0];
+    EXPECT_EQ(event.timestamp_ns(), 44444);
+    EXPECT_EQ(event.phase(), Breadcrumb::FLOW_END);
+
+    ASSERT_TRUE(event.has_looper());
+    EXPECT_EQ(event.looper().event(), LooperPayload::EXECUTE);
+    EXPECT_EQ(event.looper().loop_id(), 88);
+}
+
 }  // namespace android::crashreport::breadcrumbs
