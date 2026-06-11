@@ -41,27 +41,42 @@ This command will:
 
 ### Step 3: Update `MODULE.bazel`
 
-Copy the generated `gcs_file` snippets from the output of the previous step and use them to update the `fishtank` rules in:
+Copy the generated `multisource_repo.file` snippets from the output of the previous step and use them to update the `fishtank` rules in:
 
 `build/bazel/registry/modules/goldfish/0.0.1/MODULE.bazel`
 
 Example snippets:
 
 ```starlark
-gcs_file(
+multisource_repo.file(
     name = "fishtank-linux",
-    sha256 = "...",
-    url = "gs://emu-next-bazel/fishtank/<BUILD_ID>/FISHTANK-sdk-repo-linux-emu-<BUILD_ID>.zip",
+    aosp = {
+        "local_file": "@goldfish_build//utils:empty.zip",
+    },
+    goog = {
+        "sha256": "...",
+        "url": "gs://emu-next-bazel/fishtank/<BUILD_ID>/FISHTANK-sdk-repo-linux-emu-<BUILD_ID>.zip",
+    },
 )
-gcs_file(
+multisource_repo.file(
     name = "fishtank-mac",
-    sha256 = "...",
-    url = "gs://emu-next-bazel/fishtank/<BUILD_ID>/FISHTANK-sdk-repo-darwin_aarch64-emu-<BUILD_ID>.zip",
+    aosp = {
+        "local_file": "@goldfish_build//utils:empty.zip",
+    },
+    goog = {
+        "sha256": "...",
+        "url": "gs://emu-next-bazel/fishtank/<BUILD_ID>/FISHTANK-sdk-repo-darwin_aarch64-emu-<BUILD_ID>.zip",
+    },
 )
-gcs_file(
+multisource_repo.file(
     name = "fishtank-windows",
-    sha256 = "...",
-    url = "gs://emu-next-bazel/fishtank/<BUILD_ID>/FISHTANK-sdk-repo-windows-emu-<BUILD_ID>.zip",
+    aosp = {
+        "local_file": "@goldfish_build//utils:empty.zip",
+    },
+    goog = {
+        "sha256": "...",
+        "url": "gs://emu-next-bazel/fishtank/<BUILD_ID>/FISHTANK-sdk-repo-windows-emu-<BUILD_ID>.zip",
+    },
 )
 ```
 
