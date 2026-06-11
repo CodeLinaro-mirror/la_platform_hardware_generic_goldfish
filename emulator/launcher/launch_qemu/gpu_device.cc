@@ -83,7 +83,7 @@ std::vector<std::string> GpuDevice::getQemuParameters(const EmulatorConfig& emul
     params.push_back("x-gfxstream-composer=on");
     params.push_back(absl::StrCat("renderer_features=", renderer_features));
     if (mSnapshotEnabled) {
-        auto snapshot_directory = emulator.avd().GetContentPath() / "snapshots" / "renderer" / "";
+        auto snapshot_directory = emulator.avd().GetContentPath() / "renderersave" / "";
         params.push_back(absl::StrCat("snapshot_directory=", snapshot_directory.string()));
     }
     auto resizable_configs =
