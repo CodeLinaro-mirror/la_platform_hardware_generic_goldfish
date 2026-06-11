@@ -1,0 +1,87 @@
+load("@breakpad//:breakpad_symbols.bzl", "breakpad_symbols")
+load("@goldfish_build//rules/native:native_binaries.bzl", "stripped_binaries")
+load("@rules_cc//cc:defs.bzl", "cc_binary")
+load("@rules_python//python:defs.bzl", "py_test")
+load("//emulator/tools:packaging.bzl", "breakpad_symbols_pkg")
+
+cc_binary(
+    name = "symbol_verification",
+    srcs = ["symbol_verification.cc"],
+    copts = select({
+        "@platforms//os:windows": ["/Z7"],
+        "//conditions:default": ["-g"],
+    }),
+)
+
+breakpad_symbols(
+    name = "symbol_verification_symbols_extract",
+    binaries = [":symbol_verification"],
+)
+
+stripped_binaries(
+    name = "symbol_verification_stripped",
+    srcs = [":symbol_verification"],
+)
+
+breakpad_symbols_pkg(
+    name = "symbol_verification_symbols_zip",
+    binaries = [":symbol_verification"],
+    package_file_name = "symbol_verification-symbols.zip",
+    package_variables = "//emulator/tools:aemu_version_info",
+)
+
+py_test(
+    name = "symbol_verification_test",
+    srcs = ["symbol_verification_test.py"],
+    data = [
+        ":symbol_verification",
+        ":symbol_verification_stripped",
+        ":symbol_verification_symbols_zip",
+    ],
+    target_compatible_with = select({
+        "@platforms//os:windows": ["@platforms//:incompatible"],
+        "//conditions:default": [],
+    }),
+    deps = [
+        "@bazel_tools//tools/python/runfiles",
+    ],
+)
+
+cc_binary(
+    name = "crash_generator",
+    srcs = ["crash_generator.cc"],
+    copts = select({
+        "@platforms//os:windows": ["/Z7"],
+        "//conditions:default": ["-g"],
+    }),
+    deps = [
+        "@crashpad//client",
+        "@crashpad//third_party/mini_chromium:base",
+    ],
+)
+
+breakpad_symbols_pkg(
+    name = "crash_generator_symbols_zip",
+    binaries = [":crash_generator"],
+    package_file_name = "crash_generator-symbols.zip",
+    package_variables = "//emulator/tools:aemu_version_info",
+)
+
+py_test(
+    name = "crash_generator_test",
+    srcs = ["crash_generator_test.py"],
+    data = [
+        ":crash_generator",
+        ":crash_generator_symbols_zip",
+        "@breakpad//src/processor:minidump_stackwalk",
+        "@crashpad//handler:crashpad_handler",
+    ],
+    # Disabled on Windows because minidump_stackwalk is currently unavailable.
+    target_compatible_with = select({
+        "@platforms//os:windows": ["@platforms//:incompatible"],
+        "//conditions:default": [],
+    }),
+    deps = [
+        "@bazel_tools//tools/python/runfiles",
+    ],
+)
