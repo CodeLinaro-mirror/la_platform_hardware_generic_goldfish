@@ -29,7 +29,13 @@ void Formatter::PrintReportList(const std::vector<crashpad::CrashReportDatabase:
         absl::Time now_absl = absl::FromTimeT(report.creation_time);
         std::string formatted_time =
                 absl::FormatTime("%Y-%m-%d %H:%M:%S %Z", now_absl, absl::LocalTimeZone());
-        std::cout << formatted_time << " | " << report.file_path << std::endl;
+        std::cout << formatted_time << " | " << report.file_path;
+        if (report.uploaded) {
+            std::cout << " (Uploaded: " << report.id << ")";
+        } else {
+            std::cout << " (Local)";
+        }
+        std::cout << std::endl;
     }
 }
 

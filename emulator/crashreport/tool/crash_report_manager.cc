@@ -14,12 +14,14 @@
 #include "emulator/crashreport/tool/crash_report_manager.h"
 
 #include <chrono>
+#include <iostream>
 #include <sstream>
 #include <thread>
 
 #include "absl/log/log.h"
 
 #include "android/crashreport/crash_system.h"
+#include "android/crashreport/crash_uploader.h"
 #include "client/settings.h"
 
 namespace android {
@@ -40,7 +42,6 @@ bool CrashReportManager::Initialize() {
         LOG(ERROR) << "Failed to initialize crash database after multiple retries.";
         return false;
     }
-    mDb->GetSettings()->SetUploadsEnabled(false);
     return true;
 }
 
@@ -90,6 +91,67 @@ void CrashReportManager::ForEachReport(
     for (const auto& report : reports) {
         action(report);
     }
+}
+
+bool CrashReportManager::UploadCrashReports() {
+    if (!mDb) return false;
+
+    auto reports = GetAllReports();
+    if (reports.empty()) {
+        std::cout << "No reports found to upload." << std::endl;
+        return true;
+    }
+
+    bool original_enabled = false;
+    mDb->GetSettings()->GetUploadsEnabled(&original_enabled);
+    mDb->GetSettings()->SetUploadsEnabled(true);
+
+    std::cout << "Checking reports for upload..." << std::endl;
+    int requested_count = 0;
+    std::vector<crashpad::UUID> attempted_uploads;
+    for (const auto& report : reports) {
+        if (!report.uploaded) {
+            attempted_uploads.push_back(report.uuid);
+            mDb->RequestUpload(report.uuid);
+            std::cout << "Attempting to upload report " << report.uuid.ToString() << "..."
+                      << std::endl;
+            auto result = android::crashreport::ProcessPendingReport(mDb.get(), report);
+            if (result == android::crashreport::UploadResult::kSuccess) {
+                std::cout << "Successfully uploaded report " << report.uuid.ToString() << std::endl;
+                requested_count++;
+            } else {
+                std::cerr << "Failed to upload report " << report.uuid.ToString()
+                          << " (Error: " << static_cast<int>(result) << ")" << std::endl;
+            }
+        }
+    }
+
+    if (requested_count == 0) {
+        std::cout << "No reports were uploaded." << std::endl;
+    } else {
+        std::cout << "Uploaded " << requested_count << " reports." << std::endl;
+    }
+
+    // Now print status of completed reports that we attempted
+    for (const auto& uuid : attempted_uploads) {
+        crashpad::CrashReportDatabase::Report report;
+        if (mDb->LookUpCrashReport(uuid, &report) == crashpad::CrashReportDatabase::kNoError) {
+            if (report.id.empty()) {
+                std::cout << "Report " << report.uuid.ToString()
+                          << " is marked as completed but not yet remotely available." << std::endl;
+                std::cout << "Please preserve the minidump found here: " << report.file_path
+                          << std::endl;
+            } else {
+                std::cout << "Report " << report.uuid.ToString()
+                          << " is available remotely as: " << report.id
+                          << " (provide this ID when sharing with Google)" << std::endl;
+            }
+        }
+    }
+
+    mDb->GetSettings()->SetUploadsEnabled(original_enabled);
+
+    return true;
 }
 
 }  // namespace crashreport
