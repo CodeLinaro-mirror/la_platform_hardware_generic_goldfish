@@ -21,9 +21,8 @@
 #include "absl/container/inlined_vector.h"
 #include "absl/synchronization/mutex.h"
 
-#include "breadcrumb.pb.h"
 #include "goldfish/adb/adb_message_logger.h"
-#include "goldfish/circular_message_log.h"
+#include "goldfish/raw_circular_log.h"
 
 namespace goldfish::adb {
 /**
@@ -62,8 +61,7 @@ class AdbBreadcrumbTracker : public AdbPacketCallback {
     void OnPacket(const AMessage& message, const char* data, bool to_guest) override;
     void OnOutOfSync(const std::string& reason, bool to_guest) override;
 
-    static goldfish::proto_data_store::ProtoCircularLog<android::control::breadcrumbs::Breadcrumb>*
-    GetLogForTesting();
+    static goldfish::proto_data_store::RawCircularLog* GetLogForTesting();
 
   private:
     void HandleOpen(const AMessage& message, const char* data, bool to_guest)

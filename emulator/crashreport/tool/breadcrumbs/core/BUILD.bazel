@@ -17,6 +17,7 @@ cc_library(
     ],
     strip_include_prefix = "include",
     deps = [
+        "//emulator/crashreport:breadcrumb_proto",
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/strings:str_format",
@@ -31,6 +32,16 @@ cc_library(
 cc_test(
     name = "trace_aggregator_test",
     srcs = ["trace_aggregator_test.cc"],
+    deps = [
+        ":core",
+        "//emulator/libs/test:googletest_main",
+        "@googletest//:gtest",
+    ],
+)
+
+cc_test(
+    name = "breadcrumb_parser_test",
+    srcs = ["breadcrumb_parser_test.cc"],
     deps = [
         ":core",
         "//emulator/libs/test:googletest_main",

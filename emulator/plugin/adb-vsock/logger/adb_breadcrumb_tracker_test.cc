@@ -16,13 +16,50 @@
 #include <gtest/gtest.h>
 
 #include "android/crashreport/binary_annotation.h"
+#include "android/crashreport/breadcrumb_proto.h"
 #include "goldfish/circular_message_log.h"
+#include "goldfish/raw_circular_log.h"
 
 namespace goldfish::adb {
 
-using android::control::breadcrumbs::Breadcrumb;
 using android::crashreport::BinaryAnnotation;
-using goldfish::proto_data_store::ProtoCircularLog;
+using android::crashreport::BreadcrumbEnvelope;
+using android::crashreport::BreadcrumbPhase;
+using android::crashreport::BreadcrumbType;
+using android::crashreport::PayloadType;
+using android::crashreport::RawAdbPayload;
+using goldfish::proto_data_store::RawCircularLog;
+
+namespace {
+
+bool FindAdbEvent(goldfish::proto_data_store::RawCircularLog* log, uint32_t command,
+                  uint64_t flow_id,
+                  std::function<void(const BreadcrumbEnvelope&, const RawAdbPayload&, const char*)>
+                          verify_fn) {
+    bool found = false;
+    log->ForEach([&](const void* data, uint16_t size) {
+        if (size < sizeof(BreadcrumbEnvelope)) return true;
+        const auto* envelope = static_cast<const BreadcrumbEnvelope*>(data);
+        if (envelope->payload_type != static_cast<uint8_t>(PayloadType::kAdbRawToGuest) &&
+            envelope->payload_type != static_cast<uint8_t>(PayloadType::kAdbRawToHost))
+            return true;
+
+        if (size < sizeof(BreadcrumbEnvelope) + sizeof(RawAdbPayload)) return true;
+        const auto* payload = reinterpret_cast<const RawAdbPayload*>(
+                static_cast<const char*>(data) + sizeof(BreadcrumbEnvelope));
+
+        if (payload->command == command && envelope->flow_id == flow_id) {
+            const char* snippet = static_cast<const char*>(data) + sizeof(BreadcrumbEnvelope) +
+                                  sizeof(RawAdbPayload);
+            verify_fn(*envelope, *payload, snippet);
+            found = true;
+        }
+        return true;
+    });
+    return found;
+}
+
+}  // namespace
 
 TEST(AdbBreadcrumbTrackerTest, LogsPackets) {
     AdbBreadcrumbTracker tracker(true);
@@ -35,23 +72,18 @@ TEST(AdbBreadcrumbTrackerTest, LogsPackets) {
 
     tracker.OnPacket(packet.message, packet.data, true);  // toGuest = true
 
-    auto* log = AdbBreadcrumbTracker::GetLogForTesting();
-    ASSERT_NE(log, nullptr);
+    auto* raw_log = AdbBreadcrumbTracker::GetLogForTesting();
+    ASSERT_NE(raw_log, nullptr);
 
     uint32_t expected_command = packet.message.command;
     uint64_t expected_flow_id =
             (static_cast<uint64_t>(packet.message.arg0) << 32) | packet.message.arg1;
-    bool found = false;
-    log->ForEach([&](const google::protobuf::Message& msg) {
-        const auto& event = static_cast<const Breadcrumb&>(msg);
-        if (event.has_adb() && event.adb().command() == expected_command) {
-            EXPECT_EQ(event.flow_id(), expected_flow_id);
-            EXPECT_EQ(event.phase(), Breadcrumb::INSTANT);
-            EXPECT_EQ(event.adb().direction(), android::control::breadcrumbs::AdbPayload::TO_GUEST);
-            found = true;
-        }
-        return true;
-    });
+    bool found = FindAdbEvent(
+            raw_log, expected_command, expected_flow_id,
+            [&](const BreadcrumbEnvelope& env, const RawAdbPayload& payload, const char* snippet) {
+                EXPECT_EQ(env.phase, static_cast<uint8_t>(BreadcrumbPhase::kInstant));
+                EXPECT_EQ(env.payload_type, static_cast<uint8_t>(PayloadType::kAdbRawToGuest));
+            });
 
     EXPECT_TRUE(found);
 }
@@ -87,18 +119,16 @@ TEST(AdbBreadcrumbTrackerTest, SyncStreamTruncation) {
     auto* log = AdbBreadcrumbTracker::GetLogForTesting();
     ASSERT_NE(log, nullptr);
 
-    bool found = false;
+    auto* raw_log = AdbBreadcrumbTracker::GetLogForTesting();
+    ASSERT_NE(raw_log, nullptr);
+
     uint64_t expected_flow_id = (static_cast<uint64_t>(1000) << 32) | 2000;
-    log->ForEach([&](const google::protobuf::Message& msg) {
-        const auto& event = static_cast<const Breadcrumb&>(msg);
-        if (event.has_adb() && event.adb().command() == kAdbWrte &&
-            event.flow_id() == expected_flow_id) {
-            EXPECT_EQ(event.adb().data_snippet().size(), 4);
-            EXPECT_EQ(event.adb().data_snippet(), "STAT");
-            found = true;
-        }
-        return true;
-    });
+    bool found = FindAdbEvent(
+            raw_log, kAdbWrte, expected_flow_id,
+            [&](const BreadcrumbEnvelope& env, const RawAdbPayload& payload, const char* snippet) {
+                EXPECT_EQ(payload.snippet_len, 4);
+                EXPECT_EQ(std::string(snippet, 4), "STAT");
+            });
 
     EXPECT_TRUE(found);
 }
@@ -148,23 +178,15 @@ TEST(AdbBreadcrumbTrackerTest, EvictsOldestStream) {
 
     tracker.OnPacket(wrte_msg, wrte_data, true);
 
-    auto* log = AdbBreadcrumbTracker::GetLogForTesting();
-    ASSERT_NE(log, nullptr);
-
-    bool found = false;
+    auto* raw_log = AdbBreadcrumbTracker::GetLogForTesting();
+    ASSERT_NE(raw_log, nullptr);
     uint64_t expected_flow_id = 100;
-    log->ForEach([&](const google::protobuf::Message& msg) {
-        const auto& event = static_cast<const Breadcrumb&>(msg);
-        if (event.has_adb() && event.adb().command() == kAdbWrte &&
-            event.flow_id() == expected_flow_id) {
-            // Since it was evicted, it should NOT be treated as a sync stream,
-            // so it should capture the full snippet (up to 32 bytes, here 8 bytes).
-            EXPECT_EQ(event.adb().data_snippet().size(), 8);
-            EXPECT_EQ(event.adb().data_snippet(), "STAT1234");
-            found = true;
-        }
-        return true;
-    });
+    bool found = FindAdbEvent(
+            raw_log, kAdbWrte, expected_flow_id,
+            [&](const BreadcrumbEnvelope& env, const RawAdbPayload& payload, const char* snippet) {
+                EXPECT_EQ(payload.snippet_len, 8);
+                EXPECT_EQ(std::string(snippet, 8), "STAT1234");
+            });
 
     EXPECT_TRUE(found);
 }
@@ -197,20 +219,12 @@ TEST(AdbBreadcrumbTrackerTest, PayloadTruncation) {
     std::string large_data(64, 'A');
     tracker.OnPacket(wrte_msg, large_data.c_str(), true);
 
-    auto* log = AdbBreadcrumbTracker::GetLogForTesting();
-    ASSERT_NE(log, nullptr);
-
-    bool found = false;
+    auto* raw_log = AdbBreadcrumbTracker::GetLogForTesting();
+    ASSERT_NE(raw_log, nullptr);
     uint64_t expected_flow_id = (static_cast<uint64_t>(3000) << 32) | 4000;
-    log->ForEach([&](const google::protobuf::Message& msg) {
-        const auto& event = static_cast<const Breadcrumb&>(msg);
-        if (event.has_adb() && event.adb().command() == kAdbWrte &&
-            event.flow_id() == expected_flow_id) {
-            EXPECT_EQ(event.adb().data_snippet().size(), 32);  // Capped at kMaxPayloadSnippetSize
-            found = true;
-        }
-        return true;
-    });
+    bool found = FindAdbEvent(raw_log, kAdbWrte, expected_flow_id,
+                              [&](const BreadcrumbEnvelope& env, const RawAdbPayload& payload,
+                                  const char* snippet) { EXPECT_EQ(payload.snippet_len, 32); });
 
     EXPECT_TRUE(found);
 }
@@ -227,18 +241,13 @@ TEST(AdbBreadcrumbTrackerTest, Directionality) {
     // Test TO_HOST
     tracker.OnPacket(msg, nullptr, false);  // toGuest = false
 
-    auto* log = AdbBreadcrumbTracker::GetLogForTesting();
-    ASSERT_NE(log, nullptr);
-
-    bool found = false;
-    log->ForEach([&](const google::protobuf::Message& msg) {
-        const auto& event = static_cast<const Breadcrumb&>(msg);
-        if (event.has_adb() &&
-            event.adb().direction() == android::control::breadcrumbs::AdbPayload::TO_HOST) {
-            found = true;
-        }
-        return true;
-    });
+    auto* raw_log = AdbBreadcrumbTracker::GetLogForTesting();
+    ASSERT_NE(raw_log, nullptr);
+    bool found = FindAdbEvent(
+            raw_log, kAdbCnxn, 0,
+            [&](const BreadcrumbEnvelope& env, const RawAdbPayload& payload, const char* snippet) {
+                EXPECT_EQ(env.payload_type, static_cast<uint8_t>(PayloadType::kAdbRawToHost));
+            });
 
     EXPECT_TRUE(found);
 }
@@ -279,23 +288,15 @@ TEST(AdbBreadcrumbTrackerTest, StreamClosure) {
 
     tracker.OnPacket(wrte_msg, wrte_data, true);
 
-    auto* log = AdbBreadcrumbTracker::GetLogForTesting();
-    ASSERT_NE(log, nullptr);
-
-    bool found = false;
+    auto* raw_log = AdbBreadcrumbTracker::GetLogForTesting();
+    ASSERT_NE(raw_log, nullptr);
     uint64_t expected_flow_id = (static_cast<uint64_t>(5000) << 32) | 6000;
-    log->ForEach([&](const google::protobuf::Message& msg) {
-        const auto& event = static_cast<const Breadcrumb&>(msg);
-        if (event.has_adb() && event.adb().command() == kAdbWrte &&
-            event.flow_id() == expected_flow_id) {
-            // Since stream was closed, it should NOT be treated as sync stream,
-            // so it should capture full snippet (8 bytes).
-            EXPECT_EQ(event.adb().data_snippet().size(), 8);
-            EXPECT_EQ(event.adb().data_snippet(), "STAT1234");
-            found = true;
-        }
-        return true;
-    });
+    bool found = FindAdbEvent(
+            raw_log, kAdbWrte, expected_flow_id,
+            [&](const BreadcrumbEnvelope& env, const RawAdbPayload& payload, const char* snippet) {
+                EXPECT_EQ(payload.snippet_len, 8);
+                EXPECT_EQ(std::string(snippet, 8), "STAT1234");
+            });
 
     EXPECT_TRUE(found);
 }
@@ -312,20 +313,12 @@ TEST(AdbBreadcrumbTrackerTest, NullDataHandling) {
     // Pass nullptr for data
     tracker.OnPacket(msg, nullptr, true);
 
-    auto* log = AdbBreadcrumbTracker::GetLogForTesting();
-    ASSERT_NE(log, nullptr);
-
-    bool found = false;
+    auto* raw_log = AdbBreadcrumbTracker::GetLogForTesting();
+    ASSERT_NE(raw_log, nullptr);
     uint64_t expected_flow_id = (static_cast<uint64_t>(7000) << 32) | 8000;
-    log->ForEach([&](const google::protobuf::Message& msg) {
-        const auto& event = static_cast<const Breadcrumb&>(msg);
-        if (event.has_adb() && event.adb().command() == kAdbCnxn &&
-            event.flow_id() == expected_flow_id) {
-            EXPECT_TRUE(event.adb().data_snippet().empty());
-            found = true;
-        }
-        return true;
-    });
+    bool found = FindAdbEvent(raw_log, kAdbCnxn, expected_flow_id,
+                              [&](const BreadcrumbEnvelope& env, const RawAdbPayload& payload,
+                                  const char* snippet) { EXPECT_EQ(payload.snippet_len, 0); });
 
     EXPECT_TRUE(found);
 }
@@ -362,21 +355,16 @@ TEST(AdbBreadcrumbTrackerTest, DirectionalIdCollisions) {
     const char* wrte_data = "STAT1234";
     tracker.OnPacket(wrte_host, wrte_data, true);
 
-    auto* log = AdbBreadcrumbTracker::GetLogForTesting();
-    ASSERT_NE(log, nullptr);
+    auto* raw_log = AdbBreadcrumbTracker::GetLogForTesting();
+    ASSERT_NE(raw_log, nullptr);
 
-    bool found = false;
     uint64_t expected_flow_id = (static_cast<uint64_t>(5) << 32) | 100;
-    log->ForEach([&](const google::protobuf::Message& msg) {
-        const auto& event = static_cast<const Breadcrumb&>(msg);
-        if (event.has_adb() && event.adb().command() == kAdbWrte &&
-            event.flow_id() == expected_flow_id) {
-            EXPECT_EQ(event.adb().data_snippet().size(), 4);
-            EXPECT_EQ(event.adb().data_snippet(), "STAT");
-            found = true;
-        }
-        return true;
-    });
+    bool found = FindAdbEvent(
+            raw_log, kAdbWrte, expected_flow_id,
+            [&](const BreadcrumbEnvelope& env, const RawAdbPayload& payload, const char* snippet) {
+                EXPECT_EQ(payload.snippet_len, 4);
+                EXPECT_EQ(std::string(snippet, 4), "STAT");
+            });
 
     EXPECT_TRUE(found);
 }
@@ -413,21 +401,16 @@ TEST(AdbBreadcrumbTrackerTest, ClseRejectionCleansUpPending) {
     const char* wrte_data = "STAT1234";
     tracker.OnPacket(wrte_msg, wrte_data, true);
 
-    auto* log = AdbBreadcrumbTracker::GetLogForTesting();
-    ASSERT_NE(log, nullptr);
+    auto* raw_log = AdbBreadcrumbTracker::GetLogForTesting();
+    ASSERT_NE(raw_log, nullptr);
 
-    bool found = false;
     uint64_t expected_flow_id = (static_cast<uint64_t>(7) << 32) | 700;
-    log->ForEach([&](const google::protobuf::Message& msg) {
-        const auto& event = static_cast<const Breadcrumb&>(msg);
-        if (event.has_adb() && event.adb().command() == kAdbWrte &&
-            event.flow_id() == expected_flow_id) {
-            EXPECT_EQ(event.adb().data_snippet().size(), 8);
-            EXPECT_EQ(event.adb().data_snippet(), "STAT1234");
-            found = true;
-        }
-        return true;
-    });
+    bool found = FindAdbEvent(
+            raw_log, kAdbWrte, expected_flow_id,
+            [&](const BreadcrumbEnvelope& env, const RawAdbPayload& payload, const char* snippet) {
+                EXPECT_EQ(payload.snippet_len, 8);
+                EXPECT_EQ(std::string(snippet, 8), "STAT1234");
+            });
 
     EXPECT_TRUE(found);
 }
@@ -438,23 +421,35 @@ TEST(AdbBreadcrumbTrackerTest, LogsOutOfSyncEvents) {
     tracker.OnOutOfSync("Test reason guest", true);
     tracker.OnOutOfSync("Test reason host", false);
 
-    auto* log = AdbBreadcrumbTracker::GetLogForTesting();
-    ASSERT_NE(log, nullptr);
+    auto* raw_log = AdbBreadcrumbTracker::GetLogForTesting();
+    ASSERT_NE(raw_log, nullptr);
 
     bool found_guest = false;
     bool found_host = false;
-    log->ForEach([&](const google::protobuf::Message& msg) {
-        const auto& event = static_cast<const Breadcrumb&>(msg);
-        if (event.has_adb() && event.adb().command() == 0) {
-            if (event.adb().data_snippet() == "Test reason guest") {
-                EXPECT_EQ(event.phase(), Breadcrumb::INSTANT);
-                EXPECT_EQ(event.adb().direction(),
-                          android::control::breadcrumbs::AdbPayload::TO_GUEST);
+    raw_log->ForEach([&](const void* data, uint16_t size) {
+        if (size < sizeof(BreadcrumbEnvelope)) return true;
+        const auto* envelope = static_cast<const BreadcrumbEnvelope*>(data);
+        if (envelope->payload_type != static_cast<uint8_t>(PayloadType::kAdbRawToGuest) &&
+            envelope->payload_type != static_cast<uint8_t>(PayloadType::kAdbRawToHost)) {
+            return true;
+        }
+
+        if (size < sizeof(BreadcrumbEnvelope) + sizeof(RawAdbPayload)) return true;
+        const auto* payload = reinterpret_cast<const RawAdbPayload*>(
+                static_cast<const char*>(data) + sizeof(BreadcrumbEnvelope));
+
+        if (payload->command == 0 && envelope->flow_id == 0) {
+            const char* snippet_ptr = static_cast<const char*>(data) + sizeof(BreadcrumbEnvelope) +
+                                      sizeof(RawAdbPayload);
+            std::string snippet(snippet_ptr, payload->snippet_len);
+            if (snippet == "Test reason guest") {
+                EXPECT_EQ(envelope->phase, static_cast<uint8_t>(BreadcrumbPhase::kInstant));
+                EXPECT_EQ(envelope->payload_type,
+                          static_cast<uint8_t>(PayloadType::kAdbRawToGuest));
                 found_guest = true;
-            } else if (event.adb().data_snippet() == "Test reason host") {
-                EXPECT_EQ(event.phase(), Breadcrumb::INSTANT);
-                EXPECT_EQ(event.adb().direction(),
-                          android::control::breadcrumbs::AdbPayload::TO_HOST);
+            } else if (snippet == "Test reason host") {
+                EXPECT_EQ(envelope->phase, static_cast<uint8_t>(BreadcrumbPhase::kInstant));
+                EXPECT_EQ(envelope->payload_type, static_cast<uint8_t>(PayloadType::kAdbRawToHost));
                 found_host = true;
             }
         }
@@ -527,21 +522,16 @@ TEST(AdbBreadcrumbTrackerTest, InvariantMismatchedEvictionTest) {
     // Thus, it will capture the full snippet (8 bytes).
     // If the bug is present, 101 was NOT evicted, so it is treated as a sync stream and truncated
     // to 4 bytes.
-    auto* log = AdbBreadcrumbTracker::GetLogForTesting();
-    ASSERT_NE(log, nullptr);
+    auto* raw_log = AdbBreadcrumbTracker::GetLogForTesting();
+    ASSERT_NE(raw_log, nullptr);
 
-    bool found = false;
     uint64_t expected_flow_id = (static_cast<uint64_t>(101) << 32) | 9101;
-    log->ForEach([&](const google::protobuf::Message& msg) {
-        const auto& event = static_cast<const Breadcrumb&>(msg);
-        if (event.has_adb() && event.adb().command() == kAdbWrte &&
-            event.flow_id() == expected_flow_id) {
-            EXPECT_EQ(event.adb().data_snippet().size(), 8);
-            EXPECT_EQ(event.adb().data_snippet(), "STAT1234");
-            found = true;
-        }
-        return true;
-    });
+    bool found = FindAdbEvent(
+            raw_log, kAdbWrte, expected_flow_id,
+            [&](const BreadcrumbEnvelope& env, const RawAdbPayload& payload, const char* snippet) {
+                EXPECT_EQ(payload.snippet_len, 8);
+                EXPECT_EQ(std::string(snippet, 8), "STAT1234");
+            });
 
     EXPECT_TRUE(found);
 }

@@ -23,14 +23,16 @@
 
 #include "android/crashreport/binary_annotation.h"
 #include "android/crashreport/thread.h"
-#include "goldfish/circular_message_log.h"
+#include "emulator/crashreport/include/android/crashreport/breadcrumb_proto.h"
 
 namespace goldfish::adb {
 
-using android::control::breadcrumbs::Breadcrumb;
-using android::crashreport::BinaryAnnotation;
-using android::crashreport::GetOsThreadId;
-using goldfish::proto_data_store::ProtoCircularLog;
+using android::crashreport::BreadcrumbPhase;
+using android::crashreport::BreadcrumbType;
+using android::crashreport::LogBreadcrumb;
+using android::crashreport::PayloadType;
+using android::crashreport::RawAdbPayload;
+using android::crashreport::RawAdbPayloadT;
 
 namespace {
 
@@ -47,55 +49,29 @@ uint64_t GetLookupFlowId(const AMessage& message, bool to_guest) {
                     : CombineU32(message.arg1, message.arg0);
 }
 
-ProtoCircularLog<Breadcrumb>* GetLog() {
-    // 20479 is the maximum value size allowed by Crashpad for an annotation.
-    static BinaryAnnotation<20479> s_adb_annotation("adb_breadcrumbs");
-    static const std::unique_ptr<ProtoCircularLog<Breadcrumb>> kSLog = []() {
-        auto log = ProtoCircularLog<Breadcrumb>::CreateWriter(s_adb_annotation.Data(),
-                                                              s_adb_annotation.size());
-        if (!log.ok()) {
-            LOG(ERROR) << "Failed to create Breadcrumb writer: " << log.status().message();
-            return std::unique_ptr<ProtoCircularLog<Breadcrumb>>(nullptr);
-        }
-        return std::move(*log);
-    }();
-    return kSLog.get();
-}
-
 }  // namespace
 
+using AdbTrackerPayload = RawAdbPayloadT<kMaxPayloadSnippetSize>;
+
 void AdbBreadcrumbTracker::OnPacket(const AMessage& message, const char* data, bool to_guest) {
-    auto* log = GetLog();
-    if (!log) return;
-
-    Breadcrumb event;
     const uint64_t flow_id = CombineU32(message.arg0, message.arg1);
-    event.set_flow_id(flow_id);
-    event.set_timestamp_ns(static_cast<uint64_t>(absl::ToUnixNanos(absl::Now())));
-    const uint64_t t_tid = GetOsThreadId();
-    event.set_thread_id(t_tid);
 
-    // Set Phase
+    BreadcrumbPhase phase = BreadcrumbPhase::kInstant;
     switch (message.command) {
     case kAdbOpen:
-        event.set_phase(Breadcrumb::FLOW_BEGIN);
+        phase = BreadcrumbPhase::kFlowBegin;
         break;
     case kAdbClse:
-        event.set_phase(Breadcrumb::FLOW_END);
+        phase = BreadcrumbPhase::kFlowEnd;
         break;
     case kAdbWrte:
     case kAdbOkay:
-        event.set_phase(Breadcrumb::FLOW_STEP);
+        phase = BreadcrumbPhase::kFlowStep;
         break;
     default:
-        event.set_phase(Breadcrumb::INSTANT);
+        phase = BreadcrumbPhase::kInstant;
         break;
     }
-
-    auto* adb_payload = event.mutable_adb();
-    adb_payload->set_command(message.command);
-    adb_payload->set_direction(to_guest ? android::control::breadcrumbs::AdbPayload::TO_GUEST
-                                        : android::control::breadcrumbs::AdbPayload::TO_HOST);
 
     bool is_sync_stream = false;
     {
@@ -118,16 +94,26 @@ void AdbBreadcrumbTracker::OnPacket(const AMessage& message, const char* data, b
         is_sync_stream = IsSyncStream(lookup_flow_id);
     }
 
-    const size_t snippet_len = std::min<size_t>(message.data_length, kMaxPayloadSnippetSize);
+    AdbTrackerPayload payload;
+    payload.command = message.command;
 
-    if (message.command == kAdbWrte && is_sync_stream && data != nullptr &&
-        message.data_length >= 4) {
-        adb_payload->set_data_snippet(data, 4);
-    } else if (capture_snippets_ && snippet_len > 0 && data != nullptr) {
-        adb_payload->set_data_snippet(data, snippet_len);
+    size_t snippet_len = 0;
+    if (data && message.command == kAdbWrte && is_sync_stream && message.data_length >= 4) {
+        snippet_len = 4;
+    } else if (data && capture_snippets_) {
+        snippet_len = std::min<size_t>(message.data_length, kMaxPayloadSnippetSize);
+    }
+    payload.snippet_len = static_cast<uint8_t>(snippet_len);
+
+    if (snippet_len > 0) {
+        std::memcpy(payload.data, data, snippet_len);
     }
 
-    log->Push(event).IgnoreError();
+    LogBreadcrumb(BreadcrumbType::kAdb, flow_id, phase,
+                  to_guest ? PayloadType::kAdbRawToGuest : PayloadType::kAdbRawToHost,
+                  std::string_view(reinterpret_cast<const char*>(&payload),
+                                   sizeof(RawAdbPayload) + snippet_len))
+            .IgnoreError();
 }
 
 void AdbBreadcrumbTracker::HandleOpen(const AMessage& message, const char* data, bool to_guest) {
@@ -205,33 +191,34 @@ void AdbBreadcrumbTracker::ErasePendingOpen(uint64_t key) {
 }
 
 bool AdbBreadcrumbTracker::IsSyncStream(uint64_t flow_id) {
-    // Note tnis is a very short vector (32 max) so linear search is fine
+    // Note this is a very short vector (32 max) so linear search is fine
     auto it = std::find_if(open_streams_.begin(), open_streams_.end(),
                            [&](const auto& p) { return p.first == flow_id; });
     return it != open_streams_.end() && it->second;
 }
 
-ProtoCircularLog<android::control::breadcrumbs::Breadcrumb>*
-AdbBreadcrumbTracker::GetLogForTesting() {
-    return GetLog();
+goldfish::proto_data_store::RawCircularLog* AdbBreadcrumbTracker::GetLogForTesting() {
+    return android::crashreport::GetBreadcrumbLog(android::crashreport::BreadcrumbType::kAdb);
 }
 
 void AdbBreadcrumbTracker::OnOutOfSync(const std::string& reason, bool to_guest) {
-    Breadcrumb event;
-    event.set_timestamp_ns(static_cast<uint64_t>(absl::ToUnixNanos(absl::Now())));
-    uint64_t t_tid = GetOsThreadId();
-    event.set_thread_id(t_tid);
-    event.set_phase(Breadcrumb::INSTANT);
+    AdbTrackerPayload payload;
+    payload.command = 0;
 
-    auto* adb_payload = event.mutable_adb();
-    adb_payload->set_command(0);
-    adb_payload->set_direction(to_guest ? android::control::breadcrumbs::AdbPayload::TO_GUEST
-                                        : android::control::breadcrumbs::AdbPayload::TO_HOST);
-    adb_payload->set_data_snippet(reason);
+    size_t snippet_len = std::min<size_t>(reason.size(), kMaxPayloadSnippetSize);
+    payload.snippet_len = static_cast<uint8_t>(snippet_len);
 
-    if (auto* log = GetLog()) {
-        log->Push(event).IgnoreError();
+    if (snippet_len > 0) {
+        std::memcpy(payload.data, reason.data(), snippet_len);
     }
+
+    LogBreadcrumb(BreadcrumbType::kAdb,
+                  0,  // flow_id
+                  BreadcrumbPhase::kInstant,
+                  to_guest ? PayloadType::kAdbRawToGuest : PayloadType::kAdbRawToHost,
+                  std::string_view(reinterpret_cast<const char*>(&payload),
+                                   sizeof(RawAdbPayload) + snippet_len))
+            .IgnoreError();
 }
 
 }  // namespace goldfish::adb

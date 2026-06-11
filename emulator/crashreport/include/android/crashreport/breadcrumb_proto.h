@@ -27,19 +27,20 @@
  * performance degradation.
  *
  * @section format Format & Alignment
- * Every breadcrumb consists of a fixed-size 32-byte record (2-byte header +
- * 30-byte binary envelope) followed by a variable-length payload.
+ * Every breadcrumb consists of a fixed-size 30-byte record (2-byte ObjectHeader +
+ * 28-byte binary envelope) followed by a variable-length payload, aligned to 8-byte
+ * boundaries by the circular log.
  *
  * The `BreadcrumbEnvelope` struct is explicitly packed using `__attribute__((packed))`
  * to prevent compiler-inserted padding and ensure cross-architecture compatibility.
- * The envelope is exactly 30 bytes so that, when combined with the 2-byte
- * RawCircularLog::ObjectHeader, the total entry size is exactly 32 bytes.
- * This ensures that every entry and its internal 64-bit fields are perfectly
- * 8-byte aligned, preventing cache-line splits and atomic faults.
+ * The envelope is 28 bytes. When combined with the 2-byte RawCircularLog::ObjectHeader,
+ * the total header size is 30 bytes.
  *
- * Downstream consumers (like the `crashreport` tool) must use unaligned-safe
- * access methods (like `std::memcpy`) when reading these fields if they cannot
- * guarantee the alignment of the source buffer.
+ * Because of the 2-byte ObjectHeader, the envelope itself is stored at a 2-byte aligned
+ * offset (8k + 2) relative to the start of the aligned log entry. Consequently, its
+ * internal 64-bit fields are 2-byte aligned, not 8-byte aligned. Downstream consumers
+ * must use unaligned-safe access methods (such as `std::memcpy`) when reading these fields
+ * to prevent alignment faults or undefined behavior on strict-alignment architectures.
  *
  * Payloads can be either serialized Protobuf messages (for flexibility) or
  * raw binary structs (for maximum speed), identified by the `payload_type` field.
@@ -61,8 +62,9 @@ using goldfish::proto_data_store::RawCircularLog;
  * @brief Identifies the subsystem that generated the breadcrumb.
  */
 enum class BreadcrumbType {
-    kGrpc,  ///< gRPC subsystem events.
-    kAdb,   ///< ADB subsystem events.
+    kGrpc,    ///< gRPC subsystem events.
+    kAdb,     ///< ADB subsystem events.
+    kEvents,  ///< General emulator events (looper flows, lifecycle, etc.).
 };
 
 /**
@@ -102,33 +104,68 @@ struct BreadcrumbEnvelope {
  * The true serialization format in memory is:
  * [RawAdbPayload (5 bytes)] [data (snippet_len bytes)]
  *
- * The `data` field is not explicitly declared in the struct to remain strictly
- * compliant with standard C++ (avoiding flexible array members). Consumers
- * must use pointer arithmetic based on `sizeof(RawAdbPayload)` and `snippet_len`
- * to access the data payload.
+ * This template-based layout allows trackers to allocate variable-sized payloads
+ * directly on the stack without heap allocation, ensuring zero-allocation logging:
+ *
+ * @code
+ * RawAdbPayloadT<32> stack_payload;
+ * stack_payload.command = command;
+ * stack_payload.snippet_len = snippet_len;
+ * std::memcpy(stack_payload.data, snippet_ptr, snippet_len);
+ *
+ * LogBreadcrumb(..., std::string_view(
+ *     reinterpret_cast<const char*>(&stack_payload),
+ *     sizeof(RawAdbPayload) + snippet_len));
+ * @endcode
+ *
+ * Consumers of the `RawAdbPayload` alias can access the trailing payload bytes via
+ * pointer arithmetic starting from the address of `raw_adb.data`.
  */
-struct RawAdbPayload {
+/**
+ * @brief Raw binary payload template for ADB events.
+ */
+template <size_t N>
+struct RawAdbPayloadT {
     uint32_t command;     ///< 4-character command packed as uint32 (e.g., 'CNXN').
     uint8_t snippet_len;  ///< Length of the following snippet data in bytes.
-    // Followed by: char data[snippet_len];
+    char data[N];         ///< Variable length snippet data, copied inline.
 } __attribute__((packed));
+
+using RawAdbPayload = RawAdbPayloadT<0>;
 
 /**
  * @brief Identifies the serialization format of the payload following the envelope.
  */
 enum class PayloadType : uint8_t {
-    kGrpcProto = 1,  ///< Protobuf serialized GrpcPayload.
-    kAdbProto = 2,   ///< Protobuf serialized AdbPayload (deprecated).
-    kRaw = 3,        ///< Generic raw binary payload.
-    kString = 4,     ///< Free-form string payload.
-    kAdbRawToGuest = 5,
-    kAdbRawToHost = 6,
+    kGrpcProto = 1,      ///< Protobuf serialized GrpcPayload.
+    kAdbProto = 2,       ///< Protobuf serialized AdbPayload (deprecated).
+    kRaw = 3,            ///< Generic raw binary payload.
+    kString = 4,         ///< Free-form string payload.
+    kAdbRawToGuest = 5,  ///< Raw binary ADB message payload sent from host to guest.
+    kAdbRawToHost = 6,   ///< Raw binary ADB message payload sent from guest to host.
 };
 
-// Returns the log instance for a specific breadcrumb type.
+/**
+ * @brief Retrieves the raw circular log writer instance associated with a specific breadcrumb type.
+ *
+ * @param type The category of subsystem generating the breadcrumbs.
+ * @return A pointer to the RawCircularLog instance, or nullptr if initialization failed.
+ */
 RawCircularLog* GetBreadcrumbLog(BreadcrumbType type);
 
-// Helper to log a breadcrumb with a binary envelope.
+/**
+ * @brief Logs a diagnostic breadcrumb event using a standard binary envelope.
+ *
+ * Appends the event metadata (envelope) followed by the custom payload to the appropriate
+ * circular buffer based on the breadcrumb type.
+ *
+ * @param type The subsystem generating the breadcrumb.
+ * @param flow_id The unique identifier connecting steps in this cross-thread flow.
+ * @param phase The execution phase of the flow step (Begin, Step, End, or Instant).
+ * @param payload_type The serialization format identifier of the payload.
+ * @param payload The serialized payload data.
+ * @return absl::Status OkStatus on success, or an error status on failure.
+ */
 absl::Status LogBreadcrumb(BreadcrumbType type, uint64_t flow_id, BreadcrumbPhase phase,
                            PayloadType payload_type, std::string_view payload);
 

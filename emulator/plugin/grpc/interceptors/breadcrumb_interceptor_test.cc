@@ -25,8 +25,9 @@
 
 #include "android/base/abseil_clock.h"
 #include "android/base/testing/TestClock.h"
-#include "android/crashreport/binary_annotation.h"
 #include "android/crashreport/thread.h"
+#include "breadcrumb.pb.h"
+#include "emulator/crashreport/include/android/crashreport/breadcrumb_proto.h"
 #include "emulator_controller.pb.h"
 
 namespace android::control::interceptor {
@@ -120,9 +121,48 @@ class MockInterceptorBatchMethods : public grpc::experimental::InterceptorBatchM
 };
 
 std::vector<Breadcrumb> GetAllCrumbs() {
+    using android::control::breadcrumbs::GrpcPayload;
+    using android::crashreport::BreadcrumbEnvelope;
+    using android::crashreport::BreadcrumbPhase;
+    using android::crashreport::PayloadType;
+
     std::vector<Breadcrumb> result;
-    BreadcrumbInterceptor::GetLogForTesting()->ForEach([&](const Breadcrumb& msg) {
-        result.push_back(msg);
+    BreadcrumbInterceptor::GetLogForTesting()->ForEach([&](const void* data, uint16_t size) {
+        if (size < sizeof(BreadcrumbEnvelope)) return true;
+
+        const auto* envelope = static_cast<const BreadcrumbEnvelope*>(data);
+        Breadcrumb event;
+        event.set_flow_id(envelope->flow_id);
+        event.set_timestamp_ns(envelope->timestamp_ns);
+        event.set_thread_id(envelope->thread_id);
+
+        switch (envelope->phase) {
+        case static_cast<uint8_t>(BreadcrumbPhase::kFlowBegin):
+            event.set_phase(Breadcrumb::FLOW_BEGIN);
+            break;
+        case static_cast<uint8_t>(BreadcrumbPhase::kFlowStep):
+            event.set_phase(Breadcrumb::FLOW_STEP);
+            break;
+        case static_cast<uint8_t>(BreadcrumbPhase::kFlowEnd):
+            event.set_phase(Breadcrumb::FLOW_END);
+            break;
+        default:
+            event.set_phase(Breadcrumb::INSTANT);
+            break;
+        }
+
+        const char* payload_ptr = static_cast<const char*>(data) + sizeof(BreadcrumbEnvelope);
+        uint16_t payload_len = envelope->payload_len;
+
+        if (payload_len > 0 &&
+            envelope->payload_type == static_cast<uint8_t>(PayloadType::kGrpcProto)) {
+            GrpcPayload grpc;
+            if (grpc.ParseFromArray(payload_ptr, payload_len)) {
+                *event.mutable_grpc() = grpc;
+            }
+        }
+
+        result.push_back(event);
         return true;
     });
     return result;

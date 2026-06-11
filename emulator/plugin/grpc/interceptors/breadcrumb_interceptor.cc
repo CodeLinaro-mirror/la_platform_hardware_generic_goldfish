@@ -22,25 +22,25 @@
 #include <thread>
 #include <vector>
 
+#include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "google/protobuf/message.h"
 #include "grpc_diagnostic.pb.h"
 
-#include "android/base/clock.h"
-#include "android/crashreport/binary_annotation.h"
 #include "android/crashreport/breadcrumb_proto.h"
 #include "android/crashreport/thread.h"
 #include "breadcrumb.pb.h"
-#include "goldfish/circular_message_log.h"
 
 namespace android::control::interceptor {
 
 using ::android::control::breadcrumbs::Breadcrumb;
-using android::crashreport::BinaryAnnotation;
+using android::crashreport::BreadcrumbPhase;
+using android::crashreport::BreadcrumbType;
 using android::crashreport::GetOsThreadId;
-using goldfish::proto_data_store::ProtoCircularLog;
+using android::crashreport::LogBreadcrumb;
+using android::crashreport::PayloadType;
 using grpc::experimental::ClientRpcInfo;
 using grpc::experimental::InterceptionHookPoints;
 using grpc::experimental::InterceptorBatchMethods;
@@ -64,24 +64,6 @@ namespace {
  */
 constexpr uint32_t kMaxCapturedPayloadSize = 256;
 
-ProtoCircularLog<Breadcrumb>* GetLog() {
-    // 16KB Crashpad Annotation that will be captured in minidumps.
-    // Note: Crashpad has an internal limit (kValueMaxSize) of ~20KB per annotation.
-    // 16KB is a safe power-of-2 that ensures sufficient forensic depth (~3-5 seconds)
-    // even during high-frequency interaction bursts.
-    static BinaryAnnotation<16384> s_grpc_annotation("grpc_breadcrumbs");
-    static const std::unique_ptr<ProtoCircularLog<Breadcrumb>> kSLog = []() {
-        auto log = ProtoCircularLog<Breadcrumb>::CreateWriter(s_grpc_annotation.Data(),
-                                                              s_grpc_annotation.size());
-        if (!log.ok()) {
-            LOG(ERROR) << "Failed to initialize gRPC breadcrumb log: " << log.status();
-            return std::unique_ptr<ProtoCircularLog<Breadcrumb>>(nullptr);
-        }
-        return std::move(*log);
-    }();
-    return kSLog.get();
-}
-
 uint32_t GetMethodCrc(const char* method) {
     if (!method) return 0;
     return static_cast<uint32_t>(
@@ -94,11 +76,39 @@ uint64_t GetTimestampNs() {
 
 static std::atomic<uint64_t> s_failed_pushes{0};
 
+bool LogToCrashReport(const Breadcrumb& event, std::string_view data) {
+    BreadcrumbPhase phase = BreadcrumbPhase::kInstant;
+    switch (event.phase()) {
+    case Breadcrumb::FLOW_BEGIN:
+        phase = BreadcrumbPhase::kFlowBegin;
+        break;
+    case Breadcrumb::FLOW_STEP:
+        phase = BreadcrumbPhase::kFlowStep;
+        break;
+    case Breadcrumb::FLOW_END:
+        phase = BreadcrumbPhase::kFlowEnd;
+        break;
+    default:
+        break;
+    }
+
+    return LogBreadcrumb(BreadcrumbType::kGrpc, event.flow_id(), phase, PayloadType::kGrpcProto,
+                         data)
+            .ok();
+}
+
 void LogEvent(const Breadcrumb& event) {
-    if (auto* log = GetLog()) {
-        if (!log->Push(event).ok()) {
-            s_failed_pushes.fetch_add(1, std::memory_order_relaxed);
-        }
+    if (!event.has_grpc()) return;
+
+    size_t proto_size = event.grpc().ByteSizeLong();
+    char buffer[512];
+    const bool can_fit = proto_size <= sizeof(buffer);
+    const bool logged = can_fit &&
+                        event.grpc().SerializeToArray(buffer, static_cast<int>(proto_size)) &&
+                        LogToCrashReport(event, std::string_view(buffer, proto_size));
+
+    if (!logged) {
+        s_failed_pushes.fetch_add(1, std::memory_order_relaxed);
     }
 }
 
@@ -107,7 +117,9 @@ void SetMessageDetail(Breadcrumb& event, const ::google::protobuf::Message* msg)
     auto size = static_cast<uint32_t>(msg->ByteSizeLong());
     auto* grpc_payload = event.mutable_grpc();
     if (size <= kMaxCapturedPayloadSize) {
-        grpc_payload->set_payload(msg->SerializeAsString());
+        if (!msg->SerializeToString(grpc_payload->mutable_payload())) {
+            grpc_payload->clear_payload();
+        }
     } else {
         grpc_payload->set_msg_size(size);
     }
@@ -115,8 +127,8 @@ void SetMessageDetail(Breadcrumb& event, const ::google::protobuf::Message* msg)
 
 }  // namespace
 
-ProtoCircularLog<Breadcrumb>* BreadcrumbInterceptor::GetLogForTesting() {
-    return GetLog();
+goldfish::proto_data_store::RawCircularLog* BreadcrumbInterceptor::GetLogForTesting() {
+    return android::crashreport::GetBreadcrumbLog(android::crashreport::BreadcrumbType::kGrpc);
 }
 
 BreadcrumbInterceptor::BreadcrumbInterceptor(const ClientRpcInfo* info)

@@ -16,6 +16,7 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         "//emulator/crashreport:breadcrumb",
+        "//emulator/crashreport:breadcrumb_proto",
         "//emulator/libs/proto_data_store",
         "//emulator/plugin/hal/connector:cable",
         "@abseil-cpp//absl/log",
