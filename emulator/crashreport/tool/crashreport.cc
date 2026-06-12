@@ -142,10 +142,13 @@ bool ProcessMinidump(const std::string& minidump_file, MinidumpProcessor& minidu
                 annotation_extractor.ExtractAnnotationBytes(&reader, "events_breadcrumbs");
         if (!events_breadcrumbs.empty()) all_breadcrumbs.push_back(std::move(events_breadcrumbs));
 
-        std::string looper_registrations;
-        if (modules.contains("looper_registrations")) {
-            looper_registrations = modules["looper_registrations"].get<std::string>();
+        if (!reader.SeekSet(0)) {
+            LOG(ERROR) << "Failed to rewind minidump file for looper registrations";
+            return false;
         }
+        std::vector<uint8_t> looper_regs_bytes =
+                annotation_extractor.ExtractAnnotationBytes(&reader, "looper_registrations");
+        std::string looper_registrations(looper_regs_bytes.begin(), looper_regs_bytes.end());
 
         if (!reader.SeekSet(0)) {
             LOG(ERROR) << "Failed to rewind minidump file for partitioned event loops";

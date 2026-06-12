@@ -22,6 +22,8 @@
 #include "absl/strings/str_replace.h"
 #include "absl/time/time.h"
 
+#include "android/crashreport/breadcrumbs/util.h"
+
 namespace android::crashreport::breadcrumbs {
 
 namespace {
@@ -115,9 +117,9 @@ std::string MermaidRenderer::Render(const DiagnosticTrace& trace) const {
         const uint64_t tid = ge.tid;
         const std::string target = tid_to_alias[tid];
 
-        // Format relative time (e.g., +1.2ms, +500us)
-        const uint64_t rel_ns = proto.timestamp_ns() - start_time_ns;
-        const std::string time_str = absl::StrFormat("+%v", absl::Nanoseconds(rel_ns));
+        // Format relative and absolute time (e.g., 16:57:18.123456 (+1.2ms))
+        const uint64_t ts_ns = proto.timestamp_ns();
+        const std::string time_str = FormatEventTime(ts_ns, start_time_ns);
 
         // Format base label
         std::string label_phase = "UNKNOWN";

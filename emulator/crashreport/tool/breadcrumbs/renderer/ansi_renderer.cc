@@ -24,6 +24,8 @@
 #include "absl/strings/str_format.h"
 #include "absl/time/time.h"
 
+#include "android/crashreport/breadcrumbs/util.h"
+
 namespace android::crashreport::breadcrumbs {
 
 namespace {
@@ -321,12 +323,12 @@ struct TimeFormattingResult {
 
 TimeFormattingResult CalculateTimeWidths(const std::vector<RenderEvent>& events,
                                          uint64_t global_start_ns) {
-    size_t max_time_width = 11;
+    size_t max_time_width = 45;
     std::vector<std::string> formatted_times;
     formatted_times.reserve(events.size());
     for (const auto& re : events) {
-        const uint64_t rel_ns = re.breadcrumb->proto.timestamp_ns() - global_start_ns;
-        std::string t = absl::StrFormat("+%v", absl::Nanoseconds(rel_ns));
+        const uint64_t ts_ns = re.breadcrumb->proto.timestamp_ns();
+        std::string t = FormatEventTime(ts_ns, global_start_ns);
         max_time_width = std::max(max_time_width, t.length());
         formatted_times.push_back(std::move(t));
     }

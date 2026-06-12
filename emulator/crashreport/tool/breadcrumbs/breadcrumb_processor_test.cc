@@ -121,8 +121,10 @@ TEST_F(BreadcrumbProcessorTest, SupportsMermaidOutput) {
     EXPECT_NE(output.find("sequenceDiagram"), std::string::npos);
     EXPECT_NE(output.find("participant T0 as Thread 200 [*]"), std::string::npos);
     EXPECT_NE(output.find("participant T1 as Thread 100"), std::string::npos);
-    EXPECT_NE(output.find("T1->>T0: +500ns | [1] SEND_MSG"), std::string::npos);  // Migration
-    EXPECT_NE(output.find("Note over T0: +1us | [1] END"), std::string::npos);    // End of call
+    EXPECT_NE(output.find("T1->>T0: 00:00:00.000001 (+500ns) | [1] SEND_MSG"),
+              std::string::npos);  // Migration
+    EXPECT_NE(output.find("Note over T0: 00:00:00.000002 (+1us) | [1] END"),
+              std::string::npos);  // End of call
     EXPECT_NE(output.find("Note right of T0: 💥 FATAL EXCEPTION"), std::string::npos);
 }
 

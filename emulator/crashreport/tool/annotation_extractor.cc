@@ -13,9 +13,11 @@
 // limitations under the License.
 #include "emulator/crashreport/tool/annotation_extractor.h"
 
+#include <algorithm>
 #include <iomanip>
 #include <iostream>
 #include <sstream>
+#include <string_view>
 #include <vector>
 
 #include "client/annotation.h"
@@ -36,6 +38,33 @@ std::string vectorToHexString(const std::vector<uint8_t>& data) {
     ss << "]";
     return ss.str();
 }
+
+// A list of Crashpad annotation names that contain binary breadcrumb logs or structured data.
+// These are excluded from the generic JSON dump to prevent cluttering the output with raw
+// hex strings, as they are decoded and presented separately by specialized tool decoders.
+constexpr std::string_view kSkippedAnnotations[] = {
+    "grpc_breadcrumbs",
+    "adb_breadcrumbs",
+    "events_breadcrumbs",
+    "looper_registrations",
+};
+
+// Prefixes of dynamic binary annotations (e.g., partitioned looper circular buffers)
+// that should likewise be filtered out from the raw JSON dump.
+constexpr std::string_view kSkippedPrefixes[] = {
+    "event_",
+};
+
+bool ShouldSkipAnnotation(std::string_view name) {
+    for (std::string_view skip : kSkippedAnnotations) {
+        if (name == skip) return true;
+    }
+    for (std::string_view prefix : kSkippedPrefixes) {
+        if (name.starts_with(prefix)) return true;
+    }
+    return false;
+}
+
 }  // namespace
 
 nlohmann::json AnnotationExtractor::Extract(crashpad::FileReader* reader) {
@@ -67,7 +96,7 @@ nlohmann::json AnnotationExtractor::Extract(crashpad::FileReader* reader) {
         if (!module->AnnotationObjects().empty()) {
             json_module["annotation_objects"] = std::vector<nlohmann::json>();
             for (const crashpad::AnnotationSnapshot& annotation : module->AnnotationObjects()) {
-                if (annotation.name == "grpc_breadcrumbs" || annotation.name == "adb_breadcrumbs") {
+                if (ShouldSkipAnnotation(annotation.name)) {
                     continue;
                 }
                 nlohmann::json json_annotation;
