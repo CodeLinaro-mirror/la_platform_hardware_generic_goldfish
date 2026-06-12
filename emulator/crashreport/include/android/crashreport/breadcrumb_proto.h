@@ -56,7 +56,7 @@
 
 namespace android::crashreport {
 
-using goldfish::proto_data_store::RawCircularLog;
+using ::goldfish::proto_data_store::RawCircularLog;
 
 /**
  * @brief Identifies the subsystem that generated the breadcrumb.
@@ -154,6 +154,24 @@ enum class PayloadType : uint8_t {
 RawCircularLog* GetBreadcrumbLog(BreadcrumbType type);
 
 /**
+ * @brief Logs a diagnostic breadcrumb event using a standard binary envelope directly to a circular
+ * log.
+ *
+ * Appends the event metadata (envelope) followed by the custom payload to the provided
+ * circular buffer.
+ *
+ * @param log The destination raw circular log. Must not be null.
+ * @param flow_id The unique identifier connecting steps in this cross-thread flow.
+ * @param phase The execution phase of the flow step (Begin, Step, End, or Instant).
+ * @param payload_type The serialization format identifier of the payload.
+ * @param payload The serialized payload data.
+ * @return absl::Status OkStatus on success, InvalidArgumentError if log is null, or an error status
+ * on failure.
+ */
+absl::Status LogBreadcrumbTo(RawCircularLog* log, uint64_t flow_id, BreadcrumbPhase phase,
+                             PayloadType payload_type, std::string_view payload);
+
+/**
  * @brief Logs a diagnostic breadcrumb event using a standard binary envelope.
  *
  * Appends the event metadata (envelope) followed by the custom payload to the appropriate
@@ -164,7 +182,8 @@ RawCircularLog* GetBreadcrumbLog(BreadcrumbType type);
  * @param phase The execution phase of the flow step (Begin, Step, End, or Instant).
  * @param payload_type The serialization format identifier of the payload.
  * @param payload The serialized payload data.
- * @return absl::Status OkStatus on success, or an error status on failure.
+ * @return absl::Status OkStatus on success, InternalError if the log for type is not initialized,
+ *                 InvalidArgumentError if type is invalid, or an error status on failure.
  */
 absl::Status LogBreadcrumb(BreadcrumbType type, uint64_t flow_id, BreadcrumbPhase phase,
                            PayloadType payload_type, std::string_view payload);

@@ -17,6 +17,7 @@
 #include <cstring>
 
 #include "absl/log/log.h"
+#include "absl/strings/str_cat.h"
 #include "absl/time/clock.h"
 
 #include "android/crashreport/binary_annotation.h"
@@ -45,6 +46,19 @@ struct BreadcrumbLogState {
     }
 };
 
+std::string_view BreadcrumbTypeToString(BreadcrumbType type) {
+    switch (type) {
+    case BreadcrumbType::kGrpc:
+        return "Grpc";
+    case BreadcrumbType::kAdb:
+        return "Adb";
+    case BreadcrumbType::kEvents:
+        return "Events";
+    default:
+        return "Unknown";
+    }
+}
+
 }  // namespace
 
 RawCircularLog* GetBreadcrumbLog(BreadcrumbType type) {
@@ -64,11 +78,10 @@ RawCircularLog* GetBreadcrumbLog(BreadcrumbType type) {
     }
 }
 
-absl::Status LogBreadcrumb(BreadcrumbType type, uint64_t flow_id, BreadcrumbPhase phase,
-                           PayloadType payload_type, std::string_view payload) {
-    RawCircularLog* log = GetBreadcrumbLog(type);
+absl::Status LogBreadcrumbTo(RawCircularLog* log, uint64_t flow_id, BreadcrumbPhase phase,
+                             PayloadType payload_type, std::string_view payload) {
     if (!log) {
-        return absl::InternalError("Failed to get breadcrumb log");
+        return absl::InvalidArgumentError("Log writer is null");
     }
 
     uint16_t payload_len = static_cast<uint16_t>(payload.size());
@@ -91,6 +104,25 @@ absl::Status LogBreadcrumb(BreadcrumbType type, uint64_t flow_id, BreadcrumbPhas
             std::memcpy(p, payload.data(), payload_len);
         }
     });
+}
+
+absl::Status LogBreadcrumb(BreadcrumbType type, uint64_t flow_id, BreadcrumbPhase phase,
+                           PayloadType payload_type, std::string_view payload) {
+    RawCircularLog* log = GetBreadcrumbLog(type);
+    if (!log) {
+        switch (type) {
+        case BreadcrumbType::kGrpc:
+        case BreadcrumbType::kAdb:
+        case BreadcrumbType::kEvents:
+            return absl::InternalError(absl::StrCat("Breadcrumb log for type ",
+                                                    BreadcrumbTypeToString(type),
+                                                    " is not initialized"));
+        default:
+            return absl::InvalidArgumentError(
+                    absl::StrCat("Invalid breadcrumb type: ", static_cast<int>(type)));
+        }
+    }
+    return LogBreadcrumbTo(log, flow_id, phase, payload_type, payload);
 }
 
 uint64_t AllocateGlobalFlowId() {
