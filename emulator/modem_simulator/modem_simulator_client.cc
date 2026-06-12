@@ -15,6 +15,8 @@
 
 #include "goldfish/modem_simulator/modem_simulator_client.h"
 
+#include <sys/types.h>
+
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/strings/str_cat.h"

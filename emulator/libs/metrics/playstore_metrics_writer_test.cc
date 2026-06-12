@@ -16,6 +16,7 @@
 #include "goldfish/metrics/playstore_metrics_writer.h"
 
 #include <gtest/gtest.h>
+#include <sys/types.h>
 #include <zlib.h>
 
 #include <atomic>

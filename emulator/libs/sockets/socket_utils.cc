@@ -10,6 +10,8 @@
 // GNU General Public License for more details.
 #include "android/sockets/socket_utils.h"
 
+#include <sys/types.h>
+
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 

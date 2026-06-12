@@ -14,6 +14,8 @@
 
 #include "goldfish/netsim/netsim_netdev.h"
 
+#include <sys/types.h>
+
 #include <memory>
 
 #include "absl/log/log.h"
@@ -113,7 +115,8 @@ ssize_t netsim_netdev_receive(NetClientState* nc, const uint8_t* buf, size_t siz
         }
 
         ::netsim::packet::PacketRequest toSend;
-        toSend.set_packet(std::string_view(reinterpret_cast<const char*>(msg.data()), msg.dataLen()));
+        toSend.set_packet(
+                std::string_view(reinterpret_cast<const char*>(msg.data()), msg.dataLen()));
         s->netsim->transport->send(std::move(toSend));
     } else {
         ::netsim::packet::PacketRequest toSend;
@@ -219,8 +222,7 @@ void netsim_netdev_unrealize(DeviceState* dev) {
     qemu_del_net_client(nc);
 }
 
-void netsim_netdev_set_mode(Object* obj, Visitor* v, const char* name, void* opaque,
-                                         Error** errp) {
+void netsim_netdev_set_mode(Object* obj, Visitor* v, const char* name, void* opaque, Error** errp) {
     auto* netdev = NETSIM_NETDEV(obj);
     char* mode;
     if (!visit_type_str(v, name, &mode, errp)) {

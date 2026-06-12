@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <stddef.h>
+#include <sys/types.h>
 
 #include <string>
 #include <string_view>

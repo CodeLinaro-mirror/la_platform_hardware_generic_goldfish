@@ -14,6 +14,8 @@
 
 #include "common/libs/fs/shared_fd.h"
 
+#include <sys/types.h>
+
 #include <chrono>
 #include <cstring>
 #include <thread>
