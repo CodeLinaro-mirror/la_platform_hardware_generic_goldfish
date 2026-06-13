@@ -173,6 +173,20 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "vehicle_service",
+    srcs = ["vehicle_service.cc"],
+    hdrs = ["include/android/emulation/control/incubating/vehicle_service.h"],
+    includes = ["include"],
+    deps = [
+        "//emulator/libs/async:async_api",
+        "//emulator/libs/grpc_utils:event-stream",
+        "//emulator/plugin/avd:info",
+        "//emulator/plugin/avd_universe:vehicle",
+        "@aemu//protos/services/incubating/car:vehicle_service_cc_grpc",
+    ],
+)
+
 cc_test(
     name = "screen_recording_impl_test",
     srcs = ["screen_recording_impl_test.cc"],

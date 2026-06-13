@@ -21,6 +21,7 @@
 #include "goldfish/async/qemu_event_loop.h"
 #include "goldfish/async/testing/global_event_loop.h"
 #include "goldfish/avd_info/gralloc_impl.h"
+#include "goldfish/devices/vehicle/vehicle_device.h"
 #include "goldfish/display/QemuMultidisplay/multi_display.h"
 #include "goldfish/tools/aemu_version.h"
 #include "goldfish/vsock/clear.h"
@@ -142,6 +143,8 @@ AvdExtendedUniverse::AvdExtendedUniverse(std::unique_ptr<AvdProperties> props)
                                                 avd_props.hw_config, client_loop, qemu_loop.get());
     DEVS::clipboard::IClipboardDevice::RegisterDevice(&avd_universe.GetClipboardChannel(), registry,
                                                       client_loop, qemu_loop.get());
+    DEVS::vehicle::IVehicleDevice::RegisterDevice(&avd_universe.GetVehicleChannel(), registry,
+                                                  client_loop, qemu_loop.get());
     DEVS::guest_status::IGuestStatusDevice::RegisterDevice(
             &avd_universe.GetGuestStatus(), &avd_universe.GetGrpcNotificationChannel(), registry,
             {qemu_register_reset, BqlSafeUnregisterEmulatorReset}, client_loop, qemu_loop.get(),

@@ -23,6 +23,7 @@
 #include "goldfish/avd_universe/gps/location.h"
 #include "goldfish/avd_universe/grpc/grpc_notification_channel.h"
 #include "goldfish/avd_universe/guest_status/guest_status.h"
+#include "goldfish/avd_universe/vehicle/vehicle_data.h"
 #include "goldfish/metrics/configure_metrics_writer.h"
 #include "goldfish/metrics/uuid.h"
 #include "goldfish/sensors/physical_model.h"
@@ -78,6 +79,7 @@ struct AvdUniverse : public snapshottable::Snapshottable {
 
     avd_universe::battery::ObservableBattery& GetBattery() { return battery_; }
     avd_universe::clipboard::ClipboardChannel& GetClipboardChannel() { return clipboard_channel_; }
+    avd_universe::vehicle::VehicleChannel& GetVehicleChannel() { return vehicle_channel_; }
     avd_universe::fingerprint::ObservableFingerprintSensor& GetFingerprintSensor() {
         return fingerprint_sensor_;
     }
@@ -112,6 +114,7 @@ struct AvdUniverse : public snapshottable::Snapshottable {
 
     avd_universe::battery::ObservableBattery battery_;
     avd_universe::clipboard::ClipboardChannel clipboard_channel_;
+    avd_universe::vehicle::VehicleChannel vehicle_channel_;
     avd_universe::fingerprint::ObservableFingerprintSensor fingerprint_sensor_;
     avd_universe::grpc::GrpcNotificationEventSource grpc_notification_event_source_;
     avd_universe::guest_status::GuestStatus guest_status_;
