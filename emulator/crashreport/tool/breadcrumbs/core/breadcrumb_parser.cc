@@ -46,7 +46,7 @@ namespace {
  * @param event Output parameter populated with the parsed payload.
  */
 void ParsePayload(const BreadcrumbEnvelope& envelope, std::string_view payload, Breadcrumb& event) {
-    switch (static_cast<PayloadType>(envelope.payload_type)) {
+    switch (envelope.payload_type) {
     case PayloadType::kGrpcProto: {
         GrpcPayload grpc;
         if (grpc.ParseFromArray(payload.data(), payload.size())) {
@@ -68,8 +68,7 @@ void ParsePayload(const BreadcrumbEnvelope& envelope, std::string_view payload, 
             std::memcpy(&raw_adb, payload.data(), sizeof(RawAdbPayload));
             AdbPayload adb;
             adb.set_command(raw_adb.command);
-            adb.set_direction(static_cast<PayloadType>(envelope.payload_type) ==
-                                              PayloadType::kAdbRawToGuest
+            adb.set_direction(envelope.payload_type == PayloadType::kAdbRawToGuest
                                       ? AdbPayload::TO_GUEST
                                       : AdbPayload::TO_HOST);
 
@@ -113,7 +112,7 @@ std::vector<android::control::breadcrumbs::Breadcrumb> BreadcrumbParser::Parse(
         event.set_thread_id(envelope.thread_id);
         event.set_flow_id(envelope.flow_id);
 
-        switch (static_cast<BreadcrumbPhase>(envelope.phase)) {
+        switch (envelope.phase) {
         case BreadcrumbPhase::kFlowBegin:
             event.set_phase(Breadcrumb::FLOW_BEGIN);
             break;

@@ -58,6 +58,10 @@ namespace android::crashreport {
 
 using ::goldfish::proto_data_store::RawCircularLog;
 
+using TimestampNs = uint64_t;
+using ThreadId = uint64_t;
+using FlowId = uint64_t;
+
 /**
  * @brief Identifies the subsystem that generated the breadcrumb.
  */
@@ -78,6 +82,18 @@ enum class BreadcrumbPhase : uint8_t {
 };
 
 /**
+ * @brief Identifies the serialization format of the payload following the envelope.
+ */
+enum class PayloadType : uint8_t {
+    kGrpcProto = 1,      ///< Protobuf serialized GrpcPayload.
+    kAdbProto = 2,       ///< Protobuf serialized AdbPayload (deprecated).
+    kRaw = 3,            ///< Generic raw binary payload.
+    kString = 4,         ///< Free-form string payload.
+    kAdbRawToGuest = 5,  ///< Raw binary ADB message payload sent from host to guest.
+    kAdbRawToHost = 6,   ///< Raw binary ADB message payload sent from guest to host.
+};
+
+/**
  * @brief Common envelope header for all breadcrumbs.
  *
  * Every breadcrumb record in the circular buffer starts with this header.
@@ -85,13 +101,17 @@ enum class BreadcrumbPhase : uint8_t {
  * when including the 2-byte object header).
  */
 struct BreadcrumbEnvelope {
-    uint64_t timestamp_ns;  ///< Monotonic timestamp in nanoseconds.
-    uint64_t thread_id;     ///< OS Thread ID.
-    uint64_t flow_id;       ///< For cross-thread correlation.
-    uint8_t phase;          ///< BreadcrumbPhase enum value.
-    uint8_t payload_type;   ///< PayloadType enum value.
-    uint16_t payload_len;   ///< Length of the following payload.
+    TimestampNs timestamp_ns;  ///< Monotonic timestamp in nanoseconds.
+    ThreadId thread_id;        ///< OS Thread ID.
+    FlowId flow_id;            ///< For cross-thread correlation.
+    BreadcrumbPhase phase;     ///< BreadcrumbPhase enum value.
+    PayloadType payload_type;  ///< PayloadType enum value.
+    uint16_t payload_len;      ///< Length of the following payload.
 } __attribute__((packed));
+
+static_assert(sizeof(BreadcrumbEnvelope) == 28,
+              "BreadcrumbEnvelope must be exactly 28 bytes packed. Changing this will break "
+              "crash dump parsing between emulator versions.");
 
 /**
  * @brief Raw binary payload for ADB events.
@@ -134,18 +154,6 @@ struct RawAdbPayloadT {
 using RawAdbPayload = RawAdbPayloadT<0>;
 
 /**
- * @brief Identifies the serialization format of the payload following the envelope.
- */
-enum class PayloadType : uint8_t {
-    kGrpcProto = 1,      ///< Protobuf serialized GrpcPayload.
-    kAdbProto = 2,       ///< Protobuf serialized AdbPayload (deprecated).
-    kRaw = 3,            ///< Generic raw binary payload.
-    kString = 4,         ///< Free-form string payload.
-    kAdbRawToGuest = 5,  ///< Raw binary ADB message payload sent from host to guest.
-    kAdbRawToHost = 6,   ///< Raw binary ADB message payload sent from guest to host.
-};
-
-/**
  * @brief Retrieves the raw circular log writer instance associated with a specific breadcrumb type.
  *
  * @param type The category of subsystem generating the breadcrumbs.
@@ -168,7 +176,7 @@ RawCircularLog* GetBreadcrumbLog(BreadcrumbType type);
  * @return absl::Status OkStatus on success, InvalidArgumentError if log is null, or an error status
  * on failure.
  */
-absl::Status LogBreadcrumbTo(RawCircularLog* log, uint64_t flow_id, BreadcrumbPhase phase,
+absl::Status LogBreadcrumbTo(RawCircularLog* log, FlowId flow_id, BreadcrumbPhase phase,
                              PayloadType payload_type, std::string_view payload);
 
 /**
@@ -185,7 +193,7 @@ absl::Status LogBreadcrumbTo(RawCircularLog* log, uint64_t flow_id, BreadcrumbPh
  * @return absl::Status OkStatus on success, InternalError if the log for type is not initialized,
  *                 InvalidArgumentError if type is invalid, or an error status on failure.
  */
-absl::Status LogBreadcrumb(BreadcrumbType type, uint64_t flow_id, BreadcrumbPhase phase,
+absl::Status LogBreadcrumb(BreadcrumbType type, FlowId flow_id, BreadcrumbPhase phase,
                            PayloadType payload_type, std::string_view payload);
 
 /**
@@ -196,6 +204,6 @@ absl::Status LogBreadcrumb(BreadcrumbType type, uint64_t flow_id, BreadcrumbPhas
  *
  * @return A non-zero globally unique 64-bit flow identifier.
  */
-uint64_t AllocateGlobalFlowId();
+FlowId AllocateGlobalFlowId();
 
 }  // namespace android::crashreport

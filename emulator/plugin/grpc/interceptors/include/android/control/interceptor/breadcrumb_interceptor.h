@@ -17,6 +17,7 @@
 
 #include <cstdint>
 
+#include "android/crashreport/breadcrumb_proto.h"
 #include "goldfish/raw_circular_log.h"
 
 namespace android::control::interceptor {
@@ -45,7 +46,7 @@ class BreadcrumbInterceptor : public grpc::experimental::Interceptor {
     static goldfish::proto_data_store::RawCircularLog* GetLogForTesting();
 
   private:
-    uint64_t call_id_;
+    android::crashreport::FlowId call_id_;
     uint32_t method_hash_;
 };
 

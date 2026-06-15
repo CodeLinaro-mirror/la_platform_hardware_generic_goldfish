@@ -113,9 +113,9 @@ namespace android::crashreport {
 
 // Define a raw struct for comparison
 struct RawAdbBreadcrumb {
-    uint64_t timestamp_ns;
+    TimestampNs timestamp_ns;
     uint32_t thread_id;
-    uint64_t flow_id;
+    FlowId flow_id;
     uint32_t command;
     uint8_t direction;
     char snippet[32];
@@ -163,8 +163,8 @@ static void BM_CustomBinarySerialization(benchmark::State& state) {
     envelope.flow_id = 123;
     envelope.timestamp_ns = 456;
     envelope.thread_id = 789;
-    envelope.phase = static_cast<uint8_t>(BreadcrumbPhase::kInstant);
-    envelope.payload_type = static_cast<uint8_t>(PayloadType::kAdbRawToGuest);
+    envelope.phase = BreadcrumbPhase::kInstant;
+    envelope.payload_type = PayloadType::kAdbRawToGuest;
 
     RawAdbPayload adb;
     adb.command = 0x4e584e43;
@@ -194,8 +194,8 @@ static void BM_BinaryEnvelopeProtoPayload(benchmark::State& state) {
     envelope.flow_id = 123;
     envelope.timestamp_ns = 456;
     envelope.thread_id = 789;
-    envelope.phase = static_cast<uint8_t>(BreadcrumbPhase::kInstant);
-    envelope.payload_type = static_cast<uint8_t>(PayloadType::kAdbProto);
+    envelope.phase = BreadcrumbPhase::kInstant;
+    envelope.payload_type = PayloadType::kAdbProto;
 
     control::breadcrumbs::AdbPayload adb;
     adb.set_command(0x4e584e43);

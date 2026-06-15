@@ -78,7 +78,7 @@ RawCircularLog* GetBreadcrumbLog(BreadcrumbType type) {
     }
 }
 
-absl::Status LogBreadcrumbTo(RawCircularLog* log, uint64_t flow_id, BreadcrumbPhase phase,
+absl::Status LogBreadcrumbTo(RawCircularLog* log, FlowId flow_id, BreadcrumbPhase phase,
                              PayloadType payload_type, std::string_view payload) {
     if (!log) {
         return absl::InvalidArgumentError("Log writer is null");
@@ -90,8 +90,8 @@ absl::Status LogBreadcrumbTo(RawCircularLog* log, uint64_t flow_id, BreadcrumbPh
     envelope.timestamp_ns = absl::GetCurrentTimeNanos();
     envelope.thread_id = GetOsThreadId();
     envelope.flow_id = flow_id;
-    envelope.phase = static_cast<uint8_t>(phase);
-    envelope.payload_type = static_cast<uint8_t>(payload_type);
+    envelope.phase = phase;
+    envelope.payload_type = payload_type;
     envelope.payload_len = payload_len;
 
     uint32_t total_size = sizeof(BreadcrumbEnvelope) + payload_len;
@@ -106,7 +106,7 @@ absl::Status LogBreadcrumbTo(RawCircularLog* log, uint64_t flow_id, BreadcrumbPh
     });
 }
 
-absl::Status LogBreadcrumb(BreadcrumbType type, uint64_t flow_id, BreadcrumbPhase phase,
+absl::Status LogBreadcrumb(BreadcrumbType type, FlowId flow_id, BreadcrumbPhase phase,
                            PayloadType payload_type, std::string_view payload) {
     RawCircularLog* log = GetBreadcrumbLog(type);
     if (!log) {
@@ -125,7 +125,7 @@ absl::Status LogBreadcrumb(BreadcrumbType type, uint64_t flow_id, BreadcrumbPhas
     return LogBreadcrumbTo(log, flow_id, phase, payload_type, payload);
 }
 
-uint64_t AllocateGlobalFlowId() {
+FlowId AllocateGlobalFlowId() {
     static std::atomic<uint64_t> sNextFlowId{1};
     // Relaxed increment is sufficient for uniqueness. We ignore overflow because at 10 billion
     // allocations per second, it would take approximately 58 years of continuous execution to

@@ -137,13 +137,13 @@ std::vector<Breadcrumb> GetAllCrumbs() {
         event.set_thread_id(envelope->thread_id);
 
         switch (envelope->phase) {
-        case static_cast<uint8_t>(BreadcrumbPhase::kFlowBegin):
+        case BreadcrumbPhase::kFlowBegin:
             event.set_phase(Breadcrumb::FLOW_BEGIN);
             break;
-        case static_cast<uint8_t>(BreadcrumbPhase::kFlowStep):
+        case BreadcrumbPhase::kFlowStep:
             event.set_phase(Breadcrumb::FLOW_STEP);
             break;
-        case static_cast<uint8_t>(BreadcrumbPhase::kFlowEnd):
+        case BreadcrumbPhase::kFlowEnd:
             event.set_phase(Breadcrumb::FLOW_END);
             break;
         default:
@@ -154,8 +154,7 @@ std::vector<Breadcrumb> GetAllCrumbs() {
         const char* payload_ptr = static_cast<const char*>(data) + sizeof(BreadcrumbEnvelope);
         uint16_t payload_len = envelope->payload_len;
 
-        if (payload_len > 0 &&
-            envelope->payload_type == static_cast<uint8_t>(PayloadType::kGrpcProto)) {
+        if (payload_len > 0 && envelope->payload_type == PayloadType::kGrpcProto) {
             GrpcPayload grpc;
             if (grpc.ParseFromArray(payload_ptr, payload_len)) {
                 *event.mutable_grpc() = grpc;

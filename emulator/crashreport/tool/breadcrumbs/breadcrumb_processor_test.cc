@@ -33,7 +33,7 @@ class BreadcrumbProcessorTest : public ::testing::Test {
   protected:
     std::unique_ptr<goldfish::proto_data_store::RawCircularLog> log_writer_;
 
-    void AddEntry(std::vector<uint8_t>& buffer, uint64_t flow_id, uint64_t tid, uint64_t ts,
+    void AddEntry(std::vector<uint8_t>& buffer, FlowId flow_id, ThreadId tid, TimestampNs ts,
                   uint32_t hash, GrpcPayload::GrpcPhase phase = GrpcPayload::START,
                   GrpcPayload::GrpcStatusCode status = GrpcPayload::OK) {
         GrpcPayload grpc;
@@ -49,14 +49,14 @@ class BreadcrumbProcessorTest : public ::testing::Test {
         envelope.flow_id = flow_id;
 
         if (phase == GrpcPayload::START) {
-            envelope.phase = static_cast<uint8_t>(BreadcrumbPhase::kFlowBegin);
+            envelope.phase = BreadcrumbPhase::kFlowBegin;
         } else if (phase == GrpcPayload::END_OF_CALL) {
-            envelope.phase = static_cast<uint8_t>(BreadcrumbPhase::kFlowEnd);
+            envelope.phase = BreadcrumbPhase::kFlowEnd;
         } else {
-            envelope.phase = static_cast<uint8_t>(BreadcrumbPhase::kFlowStep);
+            envelope.phase = BreadcrumbPhase::kFlowStep;
         }
 
-        envelope.payload_type = static_cast<uint8_t>(PayloadType::kGrpcProto);
+        envelope.payload_type = PayloadType::kGrpcProto;
         envelope.payload_len = payload_len;
 
         uint32_t total_size = sizeof(BreadcrumbEnvelope) + payload_len;

@@ -55,8 +55,8 @@ TEST(BreadcrumbParserTest, ParsesAdbRawPayload) {
     envelope.timestamp_ns = 12345;
     envelope.thread_id = 6789;
     envelope.flow_id = 42;
-    envelope.phase = static_cast<uint8_t>(BreadcrumbPhase::kInstant);
-    envelope.payload_type = static_cast<uint8_t>(PayloadType::kAdbRawToGuest);
+    envelope.phase = BreadcrumbPhase::kInstant;
+    envelope.payload_type = PayloadType::kAdbRawToGuest;
 
     RawAdbPayload adb_payload;
     adb_payload.command = 0x4e584e43;  // 'CNXN'
@@ -111,8 +111,8 @@ TEST(BreadcrumbParserTest, ParsesGrpcProtoPayload) {
     envelope.timestamp_ns = 99999;
     envelope.thread_id = 1111;
     envelope.flow_id = 2222;
-    envelope.phase = static_cast<uint8_t>(BreadcrumbPhase::kFlowStep);
-    envelope.payload_type = static_cast<uint8_t>(PayloadType::kGrpcProto);
+    envelope.phase = BreadcrumbPhase::kFlowStep;
+    envelope.payload_type = PayloadType::kGrpcProto;
     envelope.payload_len = static_cast<uint16_t>(serialized.size());
 
     uint32_t total_size = sizeof(BreadcrumbEnvelope) + serialized.size();
@@ -156,7 +156,7 @@ TEST(BreadcrumbParserTest, SkipsRecordWithTooLargePayloadSize) {
 
     BreadcrumbEnvelope envelope;
     envelope.timestamp_ns = 5555;
-    envelope.payload_type = static_cast<uint8_t>(PayloadType::kRaw);
+    envelope.payload_type = PayloadType::kRaw;
     // Claim a huge payload size that exceeds the pushed object size
     envelope.payload_len = 500;
 
@@ -187,8 +187,8 @@ TEST(BreadcrumbParserTest, ParsesWrappedCircularBuffer) {
         envelope.timestamp_ns = 1000 + i;
         envelope.thread_id = 100 + i;
         envelope.flow_id = i;
-        envelope.phase = static_cast<uint8_t>(BreadcrumbPhase::kInstant);
-        envelope.payload_type = static_cast<uint8_t>(PayloadType::kRaw);
+        envelope.phase = BreadcrumbPhase::kInstant;
+        envelope.payload_type = PayloadType::kRaw;
         envelope.payload_len = 0;
 
         uint32_t total_size = sizeof(BreadcrumbEnvelope);

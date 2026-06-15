@@ -26,22 +26,22 @@ using android::crashreport::BinaryAnnotation;
 using android::crashreport::BreadcrumbEnvelope;
 using android::crashreport::BreadcrumbPhase;
 using android::crashreport::BreadcrumbType;
+using android::crashreport::FlowId;
 using android::crashreport::PayloadType;
 using android::crashreport::RawAdbPayload;
 using goldfish::proto_data_store::RawCircularLog;
 
 namespace {
 
-bool FindAdbEvent(goldfish::proto_data_store::RawCircularLog* log, uint32_t command,
-                  uint64_t flow_id,
+bool FindAdbEvent(goldfish::proto_data_store::RawCircularLog* log, uint32_t command, FlowId flow_id,
                   std::function<void(const BreadcrumbEnvelope&, const RawAdbPayload&, const char*)>
                           verify_fn) {
     bool found = false;
     log->ForEach([&](const void* data, uint16_t size) {
         if (size < sizeof(BreadcrumbEnvelope)) return true;
         const auto* envelope = static_cast<const BreadcrumbEnvelope*>(data);
-        if (envelope->payload_type != static_cast<uint8_t>(PayloadType::kAdbRawToGuest) &&
-            envelope->payload_type != static_cast<uint8_t>(PayloadType::kAdbRawToHost))
+        if (envelope->payload_type != PayloadType::kAdbRawToGuest &&
+            envelope->payload_type != PayloadType::kAdbRawToHost)
             return true;
 
         if (size < sizeof(BreadcrumbEnvelope) + sizeof(RawAdbPayload)) return true;
@@ -76,13 +76,13 @@ TEST(AdbBreadcrumbTrackerTest, LogsPackets) {
     ASSERT_NE(raw_log, nullptr);
 
     uint32_t expected_command = packet.message.command;
-    uint64_t expected_flow_id =
+    FlowId expected_flow_id =
             (static_cast<uint64_t>(packet.message.arg0) << 32) | packet.message.arg1;
     bool found = FindAdbEvent(
             raw_log, expected_command, expected_flow_id,
             [&](const BreadcrumbEnvelope& env, const RawAdbPayload& payload, const char* snippet) {
-                EXPECT_EQ(env.phase, static_cast<uint8_t>(BreadcrumbPhase::kInstant));
-                EXPECT_EQ(env.payload_type, static_cast<uint8_t>(PayloadType::kAdbRawToGuest));
+                EXPECT_EQ(env.phase, BreadcrumbPhase::kInstant);
+                EXPECT_EQ(env.payload_type, PayloadType::kAdbRawToGuest);
             });
 
     EXPECT_TRUE(found);
@@ -246,7 +246,7 @@ TEST(AdbBreadcrumbTrackerTest, Directionality) {
     bool found = FindAdbEvent(
             raw_log, kAdbCnxn, 0,
             [&](const BreadcrumbEnvelope& env, const RawAdbPayload& payload, const char* snippet) {
-                EXPECT_EQ(env.payload_type, static_cast<uint8_t>(PayloadType::kAdbRawToHost));
+                EXPECT_EQ(env.payload_type, PayloadType::kAdbRawToHost);
             });
 
     EXPECT_TRUE(found);
@@ -429,8 +429,8 @@ TEST(AdbBreadcrumbTrackerTest, LogsOutOfSyncEvents) {
     raw_log->ForEach([&](const void* data, uint16_t size) {
         if (size < sizeof(BreadcrumbEnvelope)) return true;
         const auto* envelope = static_cast<const BreadcrumbEnvelope*>(data);
-        if (envelope->payload_type != static_cast<uint8_t>(PayloadType::kAdbRawToGuest) &&
-            envelope->payload_type != static_cast<uint8_t>(PayloadType::kAdbRawToHost)) {
+        if (envelope->payload_type != PayloadType::kAdbRawToGuest &&
+            envelope->payload_type != PayloadType::kAdbRawToHost) {
             return true;
         }
 
@@ -443,13 +443,12 @@ TEST(AdbBreadcrumbTrackerTest, LogsOutOfSyncEvents) {
                                       sizeof(RawAdbPayload);
             std::string snippet(snippet_ptr, payload->snippet_len);
             if (snippet == "Test reason guest") {
-                EXPECT_EQ(envelope->phase, static_cast<uint8_t>(BreadcrumbPhase::kInstant));
-                EXPECT_EQ(envelope->payload_type,
-                          static_cast<uint8_t>(PayloadType::kAdbRawToGuest));
+                EXPECT_EQ(envelope->phase, BreadcrumbPhase::kInstant);
+                EXPECT_EQ(envelope->payload_type, PayloadType::kAdbRawToGuest);
                 found_guest = true;
             } else if (snippet == "Test reason host") {
-                EXPECT_EQ(envelope->phase, static_cast<uint8_t>(BreadcrumbPhase::kInstant));
-                EXPECT_EQ(envelope->payload_type, static_cast<uint8_t>(PayloadType::kAdbRawToHost));
+                EXPECT_EQ(envelope->phase, BreadcrumbPhase::kInstant);
+                EXPECT_EQ(envelope->payload_type, PayloadType::kAdbRawToHost);
                 found_host = true;
             }
         }

@@ -55,8 +55,8 @@ TEST(BreadcrumbParserTest, ParsesContiguousBuffer) {
     envelope.timestamp_ns = 1000;
     envelope.thread_id = 123;
     envelope.flow_id = 456;
-    envelope.phase = static_cast<uint8_t>(BreadcrumbPhase::kFlowBegin);
-    envelope.payload_type = static_cast<uint8_t>(PayloadType::kGrpcProto);
+    envelope.phase = BreadcrumbPhase::kFlowBegin;
+    envelope.payload_type = PayloadType::kGrpcProto;
     envelope.payload_len = payload_len;
 
     uint32_t total_size = sizeof(BreadcrumbEnvelope) + payload_len;

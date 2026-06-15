@@ -70,8 +70,8 @@ uint32_t GetMethodCrc(const char* method) {
             crc32(0, reinterpret_cast<const Bytef*>(method), static_cast<uInt>(strlen(method))));
 }
 
-uint64_t GetTimestampNs() {
-    return static_cast<uint64_t>(absl::ToUnixNanos(absl::Now()));
+android::crashreport::TimestampNs GetTimestampNs(absl::Time timestamp = absl::Now()) {
+    return static_cast<android::crashreport::TimestampNs>(absl::ToUnixNanos(timestamp));
 }
 
 static std::atomic<uint64_t> s_failed_pushes{0};
