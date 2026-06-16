@@ -86,8 +86,8 @@ cc_library(
     name = "vcpu_event_loop",
     srcs = ["qemu_cpu_wrapper.c"],
     hdrs = [
-        "VCpuEventLoop.h",
         "qemu_cpu_wrapper.h",
+        "vcpu_event_loop.h",
     ],
     visibility = ["//visibility:public"],
     deps = ["@qemu//:qemu-headers-exported"],

@@ -14,7 +14,6 @@
 
 #pragma once
 
-#include "VCpuEventLoop.h"
 #include "goldfish/async/event_loop.h"
 #include "goldfish/avd_info/avd_info.h"
 #include "goldfish/devices/battery/battery.h"
@@ -30,6 +29,7 @@
 #include "goldfish/devices/unix_pipe/unix_pipe.h"
 #include "goldfish/metrics/metrics_reporter.h"
 #include "goldfish/metrics/perf_stat_reporter.h"
+#include "vcpu_event_loop.h"
 
 namespace goldfish::avd_info {
 
