@@ -36,7 +36,7 @@
 #include "goldfish/display/test/fake_multi_display.h"
 #include "goldfish/display/test/fake_pixman_display.h"
 #include "goldfish/memory/shared_memory.h"
-#include "test/GrpcServiceTest.h"
+#include "test/grpc_service_test.h"
 
 namespace android::emulation::control {
 

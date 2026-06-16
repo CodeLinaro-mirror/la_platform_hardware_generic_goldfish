@@ -53,7 +53,7 @@ cc_test(
         "qemu_stubs.c",
         "sensor_service_test.cc",
         "status_service_test.cc",
-        "test/GrpcServiceTest.h",
+        "test/grpc_service_test.h",
         "vm_service_test.cc",
     ],
     visibility = ["//visibility:public"],
