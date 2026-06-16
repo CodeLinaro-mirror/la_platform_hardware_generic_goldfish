@@ -19,7 +19,7 @@
 #include <errno.h>
 
 #ifdef _WIN32
-#include "Winsock.h"
+#include "winsock.h"
 
 #ifndef EINTR
 #define EINTR 10004
