@@ -93,7 +93,7 @@ cc_test(
 cc_library(
     name = "test_camera",
     hdrs = [
-        "test/FakeCameraDevice.h",
+        "test/fake_camera_device.h",
     ],
     includes = ["test"],
     visibility = ["//visibility:public"],

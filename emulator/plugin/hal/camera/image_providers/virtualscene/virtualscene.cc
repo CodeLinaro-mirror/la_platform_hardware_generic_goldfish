@@ -15,8 +15,8 @@
 
 #include "goldfish/camera_image_providers/virtualscene/virtualscene.h"
 
-#include "VirtualsceneImageProvider.h"
 #include "goldfish/devices/camera/image_provider_cpp_adapter.h"
+#include "virtualscene_image_provider.h"
 
 using goldfish::devices::camera::ImageProviderCppAdapter;
 

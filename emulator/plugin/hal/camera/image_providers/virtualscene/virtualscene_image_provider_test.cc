@@ -13,9 +13,9 @@
  * limitations under the License.
  */
 
-#include <gtest/gtest.h>
+#include "virtualscene_image_provider.h"
 
-#include "VirtualsceneImageProvider.h"
+#include <gtest/gtest.h>
 
 namespace goldfish::camera_image_providers::virtualscene {
 

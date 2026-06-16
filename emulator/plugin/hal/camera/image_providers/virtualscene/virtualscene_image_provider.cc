@@ -13,9 +13,9 @@
  * limitations under the License.
  */
 
-#include "absl/log/check.h"
+#include "virtualscene_image_provider.h"
 
-#include "VirtualsceneImageProvider.h"
+#include "absl/log/check.h"
 
 #define FAILURE_DEBUG_PREFIX "VirtualsceneImageProvider"
 
