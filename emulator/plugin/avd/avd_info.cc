@@ -79,7 +79,7 @@ AvdExtendedUniverse& getAvdImpl() {
 
 AvdUniverse::AvdUniverse(std::unique_ptr<AvdProperties> props)
         : props_(std::move(props)), sensors_physical_model_(props_->hw_config) {
-    guest_status_.reset.SetValue(
+    guest_status_.Reset(
             absl::UnixEpoch() +
             absl::Milliseconds(android::base::System::Get()->GetProcessTimes().wall_clock_ms));
 }

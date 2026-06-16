@@ -45,8 +45,8 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
+        ":grpc_notification",
         "//emulator/libs/archive:time",
-        "//emulator/libs/eventing",
         "@abseil-cpp//absl/time",
     ],
 )

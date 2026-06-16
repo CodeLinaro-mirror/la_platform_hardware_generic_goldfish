@@ -138,6 +138,9 @@ AvdExtendedUniverse::AvdExtendedUniverse(std::unique_ptr<AvdProperties> props)
 
     namespace DEVS = ::goldfish::devices;
 
+    avd_universe.GetGuestStatus().SetGrpcNotificationChannel(
+            &avd_universe.GetGrpcNotificationChannel());
+
     DEVS::sensor::ISensorDevice::RegisterDevice(&avd_universe.GetSensorsPhysicalModel(), registry,
                                                 avd_props.avd_type, avd_props.avd_api,
                                                 avd_props.hw_config, client_loop, qemu_loop.get());
@@ -146,7 +149,7 @@ AvdExtendedUniverse::AvdExtendedUniverse(std::unique_ptr<AvdProperties> props)
     DEVS::vehicle::IVehicleDevice::RegisterDevice(&avd_universe.GetVehicleChannel(), registry,
                                                   client_loop, qemu_loop.get());
     DEVS::guest_status::IGuestStatusDevice::RegisterDevice(
-            &avd_universe.GetGuestStatus(), &avd_universe.GetGrpcNotificationChannel(), registry,
+            &avd_universe.GetGuestStatus(), registry,
             {qemu_register_reset, BqlSafeUnregisterEmulatorReset}, client_loop, qemu_loop.get(),
             avd_props.quit_after_boot_timeout_seconds);
     DEVS::fingerprint::IFingerprintDevice::RegisterDevice(&avd_universe.GetFingerprintSensor(),
