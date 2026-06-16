@@ -12,15 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "qemu_display.h"
+
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
 
 #include "absl/log/log.h"
 
-#include "NullDisplay.h"
-#include "QemuDisplay.h"
 #include "goldfish/display/input_handler.h"
+#include "null_display.h"
 
 // clang-format off
 // IWYU pragma: begin_keep

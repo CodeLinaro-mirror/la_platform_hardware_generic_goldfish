@@ -28,7 +28,6 @@
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 
-#include "QemuDisplay.h"
 #include "android/status/status_macros.h"
 #include "goldfish/avd_info/avd_info.h"
 #include "goldfish/devices/multidisplay/multidisplay_device.h"
@@ -37,6 +36,7 @@
 #include "goldfish/display/virtual_display.h"
 #include "goldfish/physics/rotation.h"
 #include "goldfish/physics/skin_rotation.h"
+#include "qemu_display.h"
 
 extern "C" {
 // clang-format off

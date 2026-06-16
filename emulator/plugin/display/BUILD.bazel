@@ -43,13 +43,13 @@ cc_library(
 cc_library(
     name = "primary_display",
     srcs = [
-        "NullDisplay.h",
-        "QemuDisplay.h",
         "imaging.cc",
         "input_handler.cc",
+        "null_display.h",
         "pixman_display.cc",
         "pixman_frame_manager.cc",
         "qemu_display.cc",
+        "qemu_display.h",
         "virtio_bridge.c",
         "virtio_bridge.h",
         "write_png.cc",
