@@ -29,7 +29,8 @@ def main():
         print("Failed to initialize runfiles", file=sys.stderr)
         sys.exit(1)
 
-    crashreport_path = r.Rlocation("goldfish+/emulator/crashreport/tool/crashreport")
+    exe_suffix = ".exe" if sys.platform == "win32" else ""
+    crashreport_path = r.Rlocation(f"goldfish+/emulator/crashreport/tool/crashreport{exe_suffix}")
     if not crashreport_path:
         print("Failed to locate crashreport binary", file=sys.stderr)
         sys.exit(1)
