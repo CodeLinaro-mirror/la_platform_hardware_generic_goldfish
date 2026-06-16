@@ -1,0 +1,30 @@
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+
+package(features = ["-warnings_as_errors"])
+
+cc_library(
+    name = "vehicle",
+    srcs = ["vehicle_device.cc"],
+    hdrs = ["include/goldfish/devices/vehicle/vehicle_device.h"],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//emulator/plugin/avd_universe:vehicle",
+        "//emulator/plugin/hal/connector:connector_registry",
+        "@abseil-cpp//absl/log",
+        "@aemu//protos/services/incubating/car:vehicle_service_cc_proto",
+    ],
+)
+
+cc_test(
+    name = "vehicle_device_test",
+    srcs = ["vehicle_device_test.cc"],
+    deps = [
+        ":vehicle",
+        "//emulator/libs/async:async_testing",
+        "//emulator/libs/test:googletest_main",
+        "//emulator/plugin/hal/connector:test-helpers",
+        "//emulator/plugin/hal/plug:fake_vsock",
+        "@abseil-cpp//absl/log",
+    ],
+)
