@@ -23,7 +23,7 @@
 #include "android/goldfish/fake_hardware_config.h"
 #include "emulator_controller.grpc.pb.h"
 #include "goldfish/avd_info/avd_info.h"
-#include "test/GrpcServiceTest.h"
+#include "test/grpc_service_test.h"
 
 namespace android::emulation::control {
 
