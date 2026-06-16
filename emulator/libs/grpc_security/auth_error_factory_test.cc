@@ -23,7 +23,7 @@
 
 #include "absl/strings/string_view.h"
 
-#include "android/base/testing/TestTempDir.h"
+#include "android/base/testing/test_temp_dir.h"
 #include "android/emulation/control/basic_token_auth.h"
 #include "android/emulation/control/jwk_key_loader.h"
 #include "android/emulation/control/jwt_token_auth.h"

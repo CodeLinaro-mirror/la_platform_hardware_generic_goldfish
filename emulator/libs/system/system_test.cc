@@ -26,8 +26,8 @@
 #include "absl/log/log.h"
 
 #include "android/base/eintr_wrapper.h"
-#include "android/base/testing/TestSystem.h"
-#include "android/base/testing/TestTempDir.h"
+#include "android/base/testing/test_system.h"
+#include "android/base/testing/test_temp_dir.h"
 #ifndef _MSC_VER
 #include <unistd.h>
 #endif

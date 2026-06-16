@@ -18,8 +18,8 @@
 
 #include "absl/strings/str_format.h"
 
-#include "android/base/testing/TestClock.h"
-#include "android/base/testing/TestSystem.h"
+#include "android/base/testing/test_clock.h"
+#include "android/base/testing/test_system.h"
 #include "android/goldfish/fake_hardware_config.h"
 #include "goldfish/async/testing/test_event_loop.h"
 #include "goldfish/devices/qemud/qemud.h"

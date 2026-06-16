@@ -14,8 +14,8 @@
 #endif
 
 #include "android/base/system.h"
-#include "android/base/testing/TestSystem.h"
-#include "android/base/testing/TestTempDir.h"
+#include "android/base/testing/test_system.h"
+#include "android/base/testing/test_temp_dir.h"
 #include "goldfish/file/file.h"
 
 namespace goldfish::telnet {

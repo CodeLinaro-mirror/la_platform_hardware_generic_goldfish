@@ -21,7 +21,7 @@
 #include "absl/strings/str_replace.h"
 #include "gmock/gmock.h"
 
-#include "android/base/testing/TestTempDir.h"
+#include "android/base/testing/test_temp_dir.h"
 #include "android/cmdline_definitions.h"
 #include "android/status/status_matcher_macros.h"
 #include "fake_emulator.h"

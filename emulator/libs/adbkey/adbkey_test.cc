@@ -23,8 +23,8 @@
 #include <string>
 #include <vector>
 
-#include "android/base/testing/TestSystem.h"
-#include "android/base/testing/TestTempDir.h"
+#include "android/base/testing/test_system.h"
+#include "android/base/testing/test_temp_dir.h"
 
 namespace goldfish::adb {
 

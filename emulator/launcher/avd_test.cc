@@ -20,8 +20,8 @@
 #include "absl/status/status_matchers.h"
 #include "absl/strings/str_cat.h"
 
-#include "android/base/testing/TestSystem.h"
-#include "android/base/testing/TestTempDir.h"
+#include "android/base/testing/test_system.h"
+#include "android/base/testing/test_temp_dir.h"
 #include "android/goldfish/input_paths.h"
 #include "android/status/status_matcher_macros.h"
 

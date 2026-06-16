@@ -17,7 +17,7 @@
 #include "absl/strings/str_replace.h"
 
 #include "android/base/bazel_info.h"
-#include "android/base/testing/TestTempDir.h"
+#include "android/base/testing/test_temp_dir.h"
 
 #include "goldfish/file/file.h"
 

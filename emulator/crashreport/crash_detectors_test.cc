@@ -14,8 +14,8 @@
 
 #include "android/crashreport/crash_detectors.h"
 
-#include "android/base/testing/TestSystem.h"
-#include "android/base/testing/TestTempDir.h"
+#include "android/base/testing/test_system.h"
+#include "android/base/testing/test_temp_dir.h"
 // #include "android/console.h"
 
 #include <gtest/gtest.h>
