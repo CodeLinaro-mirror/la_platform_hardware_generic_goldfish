@@ -20,7 +20,7 @@
 #include <fstream>
 
 #include "android/base/bazel_info.h"
-#include "android/base/testing/TestSystem.h"
+#include "android/base/testing/test_system.h"
 #include "android/goldfish/mock_avd.h"
 
 using android::base::TestSystem;

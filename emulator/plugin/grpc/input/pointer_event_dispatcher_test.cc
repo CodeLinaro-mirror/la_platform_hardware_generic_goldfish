@@ -22,7 +22,7 @@
 
 #include "absl/time/time.h"
 
-#include "android/base/testing/TestClock.h"
+#include "android/base/testing/test_clock.h"
 #include "goldfish/async/testing/test_event_loop.h"
 #include "goldfish/display/test/mock_display.h"
 #include "slot_registry.h"

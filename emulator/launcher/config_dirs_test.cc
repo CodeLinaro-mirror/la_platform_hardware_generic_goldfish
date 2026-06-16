@@ -19,7 +19,7 @@
 #include "absl/status/status_matchers.h"
 #include "absl/strings/str_cat.h"
 
-#include "android/base/testing/TestSystem.h"
+#include "android/base/testing/test_system.h"
 
 using android::base::TestSystem;
 using android::goldfish::ConfigDirs;

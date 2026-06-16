@@ -22,7 +22,7 @@
 
 #include "absl/status/status_matchers.h"
 
-#include "android/base/testing/TestSystem.h"
+#include "android/base/testing/test_system.h"
 #include "android/status/status_matcher_macros.h"
 
 namespace android::goldfish {

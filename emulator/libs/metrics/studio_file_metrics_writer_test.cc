@@ -23,7 +23,7 @@
 #include <fstream>
 
 #include "android/base/system.h"
-#include "android/base/testing/TestTempDir.h"
+#include "android/base/testing/test_temp_dir.h"
 #include "goldfish/async/testing/test_event_loop.h"
 #include "google_logs_publishing.pb.h"
 

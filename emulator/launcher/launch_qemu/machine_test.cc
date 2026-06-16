@@ -19,7 +19,7 @@
 #include "absl/status/status_matchers.h"
 #include "gmock/gmock.h"
 
-#include "android/base/testing/TestSystem.h"
+#include "android/base/testing/test_system.h"
 #include "android/status/status_matcher_macros.h"
 #include "fake_emulator.h"
 

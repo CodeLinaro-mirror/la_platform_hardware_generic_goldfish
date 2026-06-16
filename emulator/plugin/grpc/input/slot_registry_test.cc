@@ -22,7 +22,7 @@
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 
-#include "android/base/testing/TestClock.h"
+#include "android/base/testing/test_clock.h"
 #include "standard-headers/linux/input-event-codes.h"
 
 namespace android {

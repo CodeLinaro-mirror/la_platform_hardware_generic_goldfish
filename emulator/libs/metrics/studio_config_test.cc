@@ -20,7 +20,7 @@
 #include <filesystem>
 #include <fstream>
 
-#include "android/base/testing/TestTempDir.h"
+#include "android/base/testing/test_temp_dir.h"
 
 namespace goldfish::metrics::studio {
 

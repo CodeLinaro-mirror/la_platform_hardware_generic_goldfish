@@ -24,7 +24,7 @@
 #include "grpc_diagnostic.pb.h"
 
 #include "android/base/abseil_clock.h"
-#include "android/base/testing/TestClock.h"
+#include "android/base/testing/test_clock.h"
 #include "android/crashreport/thread.h"
 #include "breadcrumb.pb.h"
 #include "emulator/crashreport/include/android/crashreport/breadcrumb_proto.h"
