@@ -44,8 +44,8 @@ class TestEventLoopImpl : public TestEventLoop {
     size_t WaitUntilIdle() override;
     std::future<absl::Status> Shutdown() override;
     bool IsOnLoopThread() const override;
-    absl::Status PostImmediately(Task task) override;
-    absl::Status PostDelayed(Task task, std::chrono::milliseconds delay) override;
+    absl::Status PostImmediately(Task task, FlowId flow_id) override;
+    absl::Status PostDelayed(Task task, std::chrono::milliseconds delay, FlowId flow_id) override;
     std::shared_ptr<Timer> CreateTimer(Task task) override;
 
     // TestEventLoop Interface
@@ -59,6 +59,11 @@ class TestEventLoopImpl : public TestEventLoop {
                     std::chrono::milliseconds new_delay, std::chrono::milliseconds new_interval);
 
   private:
+    struct QueuedTask {
+        Task task;
+        FlowId flow_id;
+    };
+
     struct ScheduledTask {
         std::chrono::steady_clock::time_point execution_time;
         std::chrono::milliseconds interval;
@@ -67,6 +72,7 @@ class TestEventLoopImpl : public TestEventLoop {
         // handle to the timer that is handed to the developer
         // we track the liveness and cancellation state here.
         std::weak_ptr<TestTimer> handle;
+        FlowId flow_id = 0;
 
         bool operator>(const ScheduledTask& other) const {
             return execution_time > other.execution_time;
@@ -75,12 +81,15 @@ class TestEventLoopImpl : public TestEventLoop {
 
     class TestTimer : public Timer, public std::enable_shared_from_this<TestTimer> {
       public:
-        TestTimer(TestEventLoopImpl* loop, Task task)
-                : loop_(loop), pending_task_(std::make_shared<Task>(std::move(task))) {}
+        TestTimer(TestEventLoopImpl* loop, Task task, FlowId flow_id = 0)
+                : loop_(loop)
+                , pending_task_(std::make_shared<Task>(std::move(task)))
+                , flow_id_(flow_id) {}
         ~TestTimer() override { Cancel(); }
         void Cancel() override { cancelled_ = true; }
         bool IsCancelled() const { return cancelled_; }
         std::shared_ptr<Task> task() { return pending_task_; }  // NOLINT
+        FlowId flow_id() const { return flow_id_; }
         void Schedule(std::chrono::milliseconds new_delay,
                       std::chrono::milliseconds new_interval) override {
             loop_->Reschedule(shared_from_this(), new_delay, new_interval);
@@ -90,6 +99,7 @@ class TestEventLoopImpl : public TestEventLoop {
         std::atomic_bool cancelled_{false};
         TestEventLoopImpl* loop_;
         std::shared_ptr<Task> pending_task_;
+        FlowId flow_id_;
     };
 
     enum class Command : uint8_t { kNone, kRunOne, kRunMany, kAdvanceTime };
@@ -107,7 +117,7 @@ class TestEventLoopImpl : public TestEventLoop {
     std::condition_variable queue_is_idle_cv_;
 
     // post queue
-    std::deque<Task> tasks_;
+    std::deque<QueuedTask> tasks_;
 
     // scheduled things
     std::vector<ScheduledTask> scheduled_tasks_;
@@ -176,23 +186,24 @@ bool TestEventLoopImpl::IsOnLoopThread() const {
     return std::this_thread::get_id() == thread_id_;
 }
 
-absl::Status TestEventLoopImpl::PostImmediately(Task task) {
+absl::Status TestEventLoopImpl::PostImmediately(Task task, FlowId flow_id) {
     if (GetState() == LooperStatusEvent::State::kShuttingDown) {
         LOG(ERROR) << "Loop is shutting down.";
         return absl::UnavailableError("test loop is shutting down");
     }
     const std::lock_guard<std::mutex> lock(mutex_);
     queue_is_idle_ = false;
-    tasks_.emplace_back(std::move(task));
+    tasks_.push_back(QueuedTask{std::move(task), flow_id});
     return absl::OkStatus();
 }
 
-absl::Status TestEventLoopImpl::PostDelayed(Task task, std::chrono::milliseconds delay) {
+absl::Status TestEventLoopImpl::PostDelayed(Task task, std::chrono::milliseconds delay,
+                                            FlowId flow_id) {
     if (GetState() == LooperStatusEvent::State::kShuttingDown) {
         LOG(ERROR) << "Loop is shutting down.";
         return absl::UnavailableError("test loop is shutting down");
     }
-    auto timer = CreateTimer(std::move(task));
+    auto timer = std::make_shared<TestTimer>(this, std::move(task), flow_id);
     timer->Schedule(delay, std::chrono::milliseconds::zero());
     return absl::OkStatus();
 }
@@ -203,7 +214,7 @@ size_t TestEventLoopImpl::TaskCount() const {
 }
 
 std::shared_ptr<EventLoop::Timer> TestEventLoopImpl::CreateTimer(Task task) {
-    return std::make_shared<TestTimer>(this, std::move(task));
+    return std::make_shared<TestTimer>(this, std::move(task), 0);
 }
 
 void TestEventLoopImpl::Reschedule(std::shared_ptr<TestTimer> timer,
@@ -220,7 +231,8 @@ void TestEventLoopImpl::Reschedule(std::shared_ptr<TestTimer> timer,
         it->interval = new_interval;
         std::ranges::make_heap(scheduled_tasks_, std::greater<>{});
     } else {
-        scheduled_tasks_.push_back({now_ + new_delay, new_interval, timer->task(), timer});
+        scheduled_tasks_.push_back(
+                {now_ + new_delay, new_interval, timer->task(), timer, timer->flow_id()});
         std::ranges::push_heap(scheduled_tasks_, std::greater<>{});
     }
 }
@@ -296,14 +308,16 @@ bool TestEventLoopImpl::RunOneUnlocked() ABSL_NO_THREAD_SAFETY_ANALYSIS {
     if (tasks_.empty()) {
         return false;
     }
-    Task task_to_run = std::move(tasks_.front());
+    QueuedTask queued = std::move(tasks_.front());
     tasks_.pop_front();
     mutex_.unlock();
     {
         // without lock so tasks can schedule more tasks etc..
-        Task task_to_run_scoped(std::move(task_to_run));
-        task_to_run_scoped();
-        // ~Task for the original task is called here
+        QueuedTask queued_scoped = std::move(queued);
+        if (queued_scoped.flow_id != 0 && tracker()) {
+            tracker()->LogExecute(queued_scoped.flow_id);
+        }
+        queued_scoped.task();
     }
     mutex_.lock();
     ++tasks_processed_;
@@ -334,6 +348,9 @@ void TestEventLoopImpl::AdvanceClockUnlocked(std::chrono::milliseconds duration)
 
         // Run the task without a lock.
         mutex_.unlock();
+        if (task.flow_id != 0 && tracker()) {
+            tracker()->LogExecute(task.flow_id);
+        }
         (*task.task)();
         mutex_.lock();
 

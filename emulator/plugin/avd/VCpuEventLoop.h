@@ -24,6 +24,8 @@
 
 namespace goldfish::avd_info {
 
+using ::android::crashreport::FlowId;
+
 class VCpuEventLoop : public ::goldfish::async::EventLoop {
   public:
     static int cpus_count() { return aemu_cpus_count(); }
@@ -87,8 +89,10 @@ class VCpuEventLoop : public ::goldfish::async::EventLoop {
         return p.get_future();
     }
     bool IsOnLoopThread() const override { return false; }
-    absl::Status PostImmediately(Task task) override { return absl::UnimplementedError(""); }
-    absl::Status PostDelayed(Task task, std::chrono::milliseconds delay) override {
+    absl::Status PostImmediately(Task task, FlowId) override {
+        return absl::UnimplementedError("");
+    }
+    absl::Status PostDelayed(Task task, std::chrono::milliseconds delay, FlowId) override {
         return absl::UnimplementedError("");
     }
 

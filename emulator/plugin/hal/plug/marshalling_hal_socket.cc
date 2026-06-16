@@ -63,14 +63,19 @@ void MarshallingHalSocket::Send(std::string data) {
     }
 
     VLOG(2) << "Sheduling send for " << data.size() << " bytes";
+
+    // We are going to store the PC of the method that called us.
+    goldfish::async::StackAddress calling_pc = __builtin_return_address(0);
     // Post the send operation to the QEMU loop asynchronously.
     qemu_loop_
-            ->Post([this, data = std::move(data), self = shared_from_this()]() {
-                const absl::MutexLock lock(&socket_mutex_);
-                VLOG(2) << "Sending " << data.size() << " bytes";
-                // Bytes go either to the *real* or NullSocket..
-                socket_->SendAsync(data.data(), data.size());
-            })
+            ->Post(
+                    [this, data = std::move(data), self = shared_from_this()]() {
+                        const absl::MutexLock lock(&socket_mutex_);
+                        VLOG(2) << "Sending " << data.size() << " bytes";
+                        // Bytes go either to the *real* or NullSocket..
+                        socket_->SendAsync(data.data(), data.size());
+                    },
+                    std::chrono::milliseconds::zero(), {.caller_pc = calling_pc})
             .IgnoreError();
 }
 

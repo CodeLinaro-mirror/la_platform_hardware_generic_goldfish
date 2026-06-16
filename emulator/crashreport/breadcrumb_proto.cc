@@ -21,6 +21,7 @@
 #include "absl/time/clock.h"
 
 #include "android/crashreport/binary_annotation.h"
+#include "android/crashreport/looper_registrations.h"
 #include "android/crashreport/thread.h"
 
 namespace android::crashreport {
@@ -71,7 +72,10 @@ RawCircularLog* GetBreadcrumbLog(BreadcrumbType type) {
         static BreadcrumbLogState<kBreadcrumbBufferSize> s_state("adb_breadcrumbs");
         return s_state.log.get();
     }
-
+    case BreadcrumbType::kEvents: {
+        static BreadcrumbLogState<kBreadcrumbBufferSize> s_state("events_breadcrumbs");
+        return s_state.log.get();
+    }
     default:
         LOG(ERROR) << "Unknown breadcrumb type";
         return nullptr;
@@ -131,6 +135,11 @@ FlowId AllocateGlobalFlowId() {
     // allocations per second, it would take approximately 58 years of continuous execution to
     // wrap around back to 0.
     return sNextFlowId.fetch_add(1, std::memory_order_relaxed);
+}
+
+void RegisterLooper(uint8_t loop_id, std::string_view name) {
+    static LooperRegistrationsAnnotation<4096> s_regs("looper_registrations");
+    s_regs.Append(loop_id, name);
 }
 
 }  // namespace android::crashreport
