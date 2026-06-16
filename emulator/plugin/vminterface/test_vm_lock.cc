@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "emulator/plugin/vminterface/test/TestVmLock.h"
+#include "emulator/plugin/vminterface/test/test_vm_lock.h"
 
 namespace android::goldfish {
 
