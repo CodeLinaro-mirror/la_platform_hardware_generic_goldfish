@@ -68,7 +68,7 @@ cc_library(
     name = "vminterface-test",
     testonly = True,
     srcs = [
-        "test/TestVmLock.h",
+        "test/test_vm_lock.h",
         "test/vm_mock.h",
         "test_vm_lock.cc",
         "vm_mock.c",
@@ -99,7 +99,7 @@ cc_test(
 cc_library(
     name = "test_vminterface",
     testonly = True,
-    hdrs = ["test/FakeVmOperations.h"],
+    hdrs = ["test/fake_vm_operations.h"],
     includes = ["test"],
     visibility = ["//visibility:public"],
     deps = [":vminterface"],
