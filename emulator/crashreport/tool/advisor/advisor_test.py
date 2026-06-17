@@ -77,10 +77,12 @@ class TestCrashAdvisor(unittest.TestCase):
     def test_context_sandbox_preparation(self) -> None:
         """Test CrashReportContext crash ID parsing and sandbox directory creation."""
         context = CrashReportContext(
-            f"http://go/crash/{self.crash_id}", base_dir=str(self.temp_path), aosp_root="/qemu2/root"
+            f"http://go/crash/{self.crash_id}", base_dir=str(self.temp_path), aosp_root="/qemu2/root", branch="emu-main-dev", build_id="12345678"
         )
         self.assertEqual(context.crash_id, self.crash_id)
         self.assertEqual(context.aosp_root, "/qemu2/root")
+        self.assertEqual(context.branch, "emu-main-dev")
+        self.assertEqual(context.build_id, "12345678")
         context.prepare_sandbox()
         self.assertTrue(context.work_dir.exists())
         self.assertEqual(context.metadata_path, context.work_dir / "metadata.json")
@@ -161,11 +163,44 @@ class TestCrashAdvisor(unittest.TestCase):
         self.assertEqual(metadata.custom_keys, {"internal-msg": "hanging thread"})
         self.assertEqual(metadata.modules, [("qemu", "1234")])
 
+    def test_crash_metadata_explicit_build_id_override(self) -> None:
+        """Test CrashMetadata prioritizes explicit build ID override over product version."""
+        meta_path = self.temp_path / "metadata_override.json"
+        meta_path.write_text(json.dumps({"report_proto": {"product": {"Version": "36.3.10"}}}))
+        
+        # Without override
+        metadata_normal = CrashMetadata(meta_path)
+        self.assertEqual(metadata_normal.build_id, "36.3.10")
+
+        # With override
+        metadata_override = CrashMetadata(meta_path, build_id="15630821")
+        self.assertEqual(metadata_override.build_id, "15630821")
+
+    def test_crash_metadata_emu_main_dev_gfxstream(self) -> None:
+        """Test CrashMetadata maps OS/CPU to gfxstream targets for emu-main-dev branch."""
+        meta_path = self.temp_path / "metadata_dev.json"
+
+        # Test Linux x64 gfxstream
+        meta_path.write_text(json.dumps({"report_proto": {"os": {"Name": "Linux"}, "cpu": {"Architecture": "x86_64"}}}))
+        metadata_linux = CrashMetadata(meta_path, branch="emu-main-dev")
+        self.assertEqual(metadata_linux.build_target, "emulator-linux_x64_gfxstream")
+
+        # Test macOS aarch64 gfxstream
+        meta_path.write_text(json.dumps({"report_proto": {"os": {"Name": "Darwin"}, "cpu": {"Architecture": "aarch64"}}}))
+        metadata_mac = CrashMetadata(meta_path, branch="emu-main-dev")
+        self.assertEqual(metadata_mac.build_target, "emulator-mac_aarch64_gfxstream")
+
+        # Test Windows x64 gfxstream
+        meta_path.write_text(json.dumps({"report_proto": {"os": {"Name": "Windows"}, "cpu": {"Architecture": "x86_64"}}}))
+        metadata_win = CrashMetadata(meta_path, branch="emu-main-dev")
+        self.assertEqual(metadata_win.build_target, "emulator-windows_x64_gfxstream")
+
     @patch("symbols.AndroidBuildClient")
     def test_symbol_fetcher(self, mock_ab_class: MagicMock) -> None:
         """Test SymbolFetcher pipeline and global caching."""
         mock_api = MagicMock()
         mock_ab_client = MagicMock()
+        mock_ab_client.list_artifacts.return_value = ["sdk-repo-linux-emulator-breakpad-symbols-15630821.zip"]
         mock_ab_class.return_value = mock_ab_client
 
         cache_dir = self.temp_path / "cache"
@@ -203,6 +238,35 @@ class TestCrashAdvisor(unittest.TestCase):
                 / "15630821"
                 / "sdk-repo-linux-emulator-breakpad-symbols-15630821.zip"
             )
+            self.assertTrue(cached_zip.exists())
+
+    @patch("symbols.AndroidBuildClient")
+    def test_symbol_fetcher_emulator_symbols_dynamic_resolution(self, mock_ab_class: MagicMock) -> None:
+        """Test SymbolFetcher dynamically resolves emulator-symbols zip for gfxstream targets."""
+        mock_api = MagicMock()
+        mock_ab_client = MagicMock()
+        mock_ab_client.list_artifacts.return_value = ["sdk-repo-linux-emulator-symbols-15659437.zip"]
+        mock_ab_class.return_value = mock_ab_client
+
+        cache_dir = self.temp_path / "cache_dyn"
+        symbols_dir = self.temp_path / "symbols_dyn"
+
+        meta_path = self.temp_path / "metadata_dyn.json"
+        meta_path.write_text(json.dumps({"report_proto": {"product": {"Version": "15659437"}, "os": {"Name": "Linux"}}}))
+        metadata = CrashMetadata(meta_path, branch="emu-main-dev")
+
+        fetcher = SymbolFetcher(mock_api, global_cache_dir=str(cache_dir))
+
+        with patch("symbols.shutil.unpack_archive") as mock_unpack:
+            def mock_fetch_bits(dst, bid, target, artifact):
+                Path(dst).write_text("PK...")
+
+            mock_ab_client.fetch_bits.side_effect = mock_fetch_bits
+
+            fetcher.fetch_symbols(metadata, symbols_dir, custom_token="dummy_token")
+            mock_unpack.assert_called_once()
+
+            cached_zip = cache_dir / "15659437" / "sdk-repo-linux-emulator-symbols-15659437.zip"
             self.assertTrue(cached_zip.exists())
 
     @patch("dump.Runfiles")
@@ -244,7 +308,7 @@ class TestCrashAdvisor(unittest.TestCase):
         content = script_path.read_text()
         self.assertIn("jetski", content)
         self.assertIn("--prompt-interactive", content)
-        self.assertIn("--add-file", content)
+        self.assertIn(f"--add-dir={context.work_dir}", content)
 
     def test_crash_report_analyzer_custom_aosp_root(self) -> None:
         """Test CrashReportAnalyzer respects custom aosp_root for qemu2 branch support."""

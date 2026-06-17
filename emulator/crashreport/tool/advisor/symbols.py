@@ -120,16 +120,40 @@ class SymbolFetcher:
             try:
                 ab_client = AndroidBuildClient(token)
                 logging.info(
-                    "Downloading artifact %s from go/ab to global cache...",
-                    artifact_name,
+                    "Querying available artifacts in go/ab for build %s (target: %s)...",
+                    build_id,
+                    build_target,
                 )
-                ab_client.fetch_bits(
-                    str(global_zip_path), build_id, build_target, artifact_name
-                )
-                logging.info(
-                    "Successfully downloaded symbols zip to global cache: %s",
-                    global_zip_path,
-                )
+                artifacts = list(ab_client.list_artifacts(build_id, build_target))
+                matching = [
+                    a
+                    for a in artifacts
+                    if ("breakpad-symbols" in a or "emulator-symbols" in a)
+                    and a.endswith(".zip")
+                ]
+                if not matching:
+                    raise FileNotFoundError(
+                        f"No breakpad or emulator symbols zip artifact found in go/ab for build {build_id} (target: {build_target}). Available artifacts: {artifacts}"
+                    )
+                actual_artifact = matching[0]
+                global_zip_path = build_cache_dir / actual_artifact
+
+                if not global_zip_path.exists():
+                    logging.info(
+                        "Downloading artifact %s from go/ab to global cache...",
+                        actual_artifact,
+                    )
+                    ab_client.fetch_bits(
+                        str(global_zip_path), build_id, build_target, actual_artifact
+                    )
+                    logging.info(
+                        "Successfully downloaded symbols zip to global cache: %s",
+                        global_zip_path,
+                    )
+                else:
+                    logging.info(
+                        "Actual symbols zip already cached globally at: %s", global_zip_path
+                    )
             except Exception as e:
                 err_msg = (
                     f"Android Build symbol retrieval failed: {e}\n"

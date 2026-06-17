@@ -43,7 +43,7 @@ Utilize your read and search tools (`grep_search`, `read_file`) within the attac
 ## Execution Workflow
 1. **Scrutinize:** Read the provided crash dump trace, disassembly, and custom keys.
 2. **Explore:** Search the codebase to verify function signatures and concurrency contracts.
-3. **Synthesize:** Produce a highly structured markdown Root Cause Analysis containing:
+3. **Synthesize:** Upon completion of your investigation, produce a comprehensive, highly structured markdown Root Cause Analysis report enclosed in a fenced code block (` ```markdown ... ``` `) ready for copying, containing:
    * **1. Crash Summary**: High-level mechanics of the failure.
    * **2. Event Timeline**: Chrono-sequence of breadcrumb events leading to the crash.
    * **3. Core Blame & File Locations**: Exact source files, functions, and line numbers implicated.

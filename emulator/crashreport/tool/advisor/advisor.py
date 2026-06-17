@@ -61,6 +61,15 @@ class CrashAdvisorApp:
             help="Explicit path to an alternate AOSP workspace root (e.g., for qemu2 branch analysis)",
         )
         parser.add_argument(
+            "-b",
+            "--branch",
+            help="Target Android Build branch (e.g., emu-main-dev) to determine correct go/ab targets",
+        )
+        parser.add_argument(
+            "--build-id",
+            help="Explicit Android Build ID (e.g., 15630821) to override the version parsed from metadata",
+        )
+        parser.add_argument(
             "-v",
             "--verbose",
             action="store_true",
@@ -82,7 +91,12 @@ class CrashAdvisorApp:
             "Starting CrashAdvisor pipeline for input: %s", self.args.crash_id
         )
         try:
-            self.context = CrashReportContext(self.args.crash_id, aosp_root=self.args.aosp_root)
+            self.context = CrashReportContext(
+                self.args.crash_id,
+                aosp_root=self.args.aosp_root,
+                branch=self.args.branch,
+                build_id=self.args.build_id,
+            )
             self.context.prepare_sandbox()
             self.gosso = GossoClient()
             self.api = CrashApi(self.gosso, verbose=self.args.verbose)
@@ -96,7 +110,11 @@ class CrashAdvisorApp:
             )
 
             # Step 2: Parse & Verify Metadata
-            metadata = CrashMetadata(self.context.metadata_path)
+            metadata = CrashMetadata(
+                self.context.metadata_path,
+                branch=self.context.branch,
+                build_id=self.context.build_id,
+            )
             metadata.print_summary()
 
             # Step 3: Fetch Symbols

@@ -67,16 +67,17 @@ Your mission is to perform a rigorous Root Cause Analysis (RCA) on the attached 
 1. Use your read tools to examine the crashing thread stack frames and register states in `{dump_path.name}`. Identify the immediate failure instruction (e.g., null dereference, assertion failure, segmentation fault).
 2. Evaluate the Mermaid sequence diagram and decoded looper breadcrumb timeline in `{dump_path.name}`. Determine which thread initiated the fatal asynchronous flow or where lock ordering inverted.
 3. Ground all statements strictly in the visible stack frames and breadcrumb timelines. Do not make unverified claims.
-4. Use your search and read tools to inspect the active AOSP codebase and present your initial findings.
+4. Use your search and read tools to inspect the active AOSP codebase.
+5. Upon completion of your investigation, produce a comprehensive, highly structured markdown report enclosed in a fenced code block (` ```markdown ... ``` `) so that it can be easily copied.
 """
 
-        # Construct the interactive command using --prompt-interactive (-i) and --add-file
+        # Construct the interactive command using --prompt-interactive (-i) and --add-dir
         cmd_args = [
             "jetski",
             "--model=pro",
             f"--agent={agent_md}",
             f"--add-dir={aosp_root}",
-            f"--add-file={dump_path}",
+            f"--add-dir={dump_path.parent}",
             "--prompt-interactive",
             prompt,
         ]

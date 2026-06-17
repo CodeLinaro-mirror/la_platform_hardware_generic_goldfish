@@ -23,8 +23,10 @@ from typing import Any, Dict, List, Optional, Tuple
 class CrashMetadata:
     """Parses and exposes structural data from the report_proto JSON object."""
 
-    def __init__(self, metadata_path: Path) -> None:
+    def __init__(self, metadata_path: Path, branch: Optional[str] = None, build_id: Optional[str] = None) -> None:
         self.metadata_path = metadata_path
+        self.branch = branch
+        self.explicit_build_id = build_id
         self.data: Dict[str, Any] = {}
         self.report_proto: Dict[str, Any] = {}
         self._load()
@@ -48,7 +50,9 @@ class CrashMetadata:
 
     @property
     def build_id(self) -> Optional[str]:
-        """Extract the Android Build ID from the product version string (e.g., 0.0.1-15630821)."""
+        """Extract the Android Build ID from the product version string or explicit override."""
+        if self.explicit_build_id:
+            return self.explicit_build_id
         prod = self.report_proto.get("product", {})
         version_str = prod.get("Version", "")
         if version_str and "-" in version_str:
@@ -66,23 +70,25 @@ class CrashMetadata:
 
     @property
     def build_target(self) -> str:
-        """Map OS and CPU architecture to the corresponding Android Build target."""
+        """Map OS, CPU architecture, and branch to the corresponding Android Build target."""
         os_info = self.report_proto.get("os", {})
         cpu_info = self.report_proto.get("cpu", {})
         os_name = str(os_info.get("Name", "")).lower()
         arch = str(cpu_info.get("Architecture", "")).lower()
 
+        is_gfxstream = self.branch and "emu-main-dev" in self.branch
+
         if "linux" in os_name:
             if "arm" in arch or "aarch64" in arch:
-                return "emulator_linux_aarch64"
-            return "emulator_linux_x64"
+                return "emulator-linux_aarch64_gfxstream" if is_gfxstream else "emulator_linux_aarch64"
+            return "emulator-linux_x64_gfxstream" if is_gfxstream else "emulator_linux_x64"
         if "mac" in os_name or "darwin" in os_name:
             if "arm" in arch or "aarch64" in arch:
-                return "emulator_mac_aarch64"
-            return "emulator_mac_x64"
+                return "emulator-mac_aarch64_gfxstream" if is_gfxstream else "emulator_mac_aarch64"
+            return "emulator-mac_x64_gfxstream" if is_gfxstream else "emulator_mac_x64"
         if "win" in os_name:
-            return "emulator_windows_x64"
-        return "emulator_linux_x64"
+            return "emulator-windows_x64_gfxstream" if is_gfxstream else "emulator_windows_x64"
+        return "emulator-linux_x64_gfxstream" if is_gfxstream else "emulator_linux_x64"
 
     @property
     def custom_keys(self) -> Dict[str, str]:
