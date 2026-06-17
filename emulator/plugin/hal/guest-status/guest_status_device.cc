@@ -28,27 +28,16 @@
 
 namespace goldfish::devices::guest_status {
 
-using avd_universe::guest_status::ObservableCounter;
-using avd_universe::guest_status::ObservableTimestamp;
-
 using android::base::eventing::ScopedEventCallback;
-
-using HeartbeatSubscription =
-        std::unique_ptr<ScopedEventCallback<ObservableCounter, ObservableCounter::EventType>>;
-
-using TimestampSubscription =
-        std::unique_ptr<ScopedEventCallback<ObservableTimestamp, ObservableTimestamp::EventType>>;
 
 void emptyUnregisterEmulatorReset(EmulatorResetCallbacks::QEMUResetHandler*, void*) {}
 
 class GuestStatusDevice : public IGuestStatusDevice,
                           public std::enable_shared_from_this<GuestStatusDevice> {
   public:
-    GuestStatusDevice(GuestStatus& guestStatus, GrpcNotificationEventSource* notificationSource,
-                      const EmulatorResetCallbacks resetCallbacks, async::EventLoop* qemu_loop,
-                      const int quitAfterBootTimeoutSeconds)
+    GuestStatusDevice(GuestStatus& guestStatus, const EmulatorResetCallbacks resetCallbacks,
+                      async::EventLoop* qemu_loop, const int quitAfterBootTimeoutSeconds)
             : mGuestStatus(guestStatus)
-            , mNotificationSource(notificationSource)
             , mQemuLoop(qemu_loop)
             , mQuitAfterBootTimeoutSeconds(quitAfterBootTimeoutSeconds) {
         VLOG(1) << "GuestStatus device has been created";
@@ -94,17 +83,6 @@ class GuestStatusDevice : public IGuestStatusDevice,
     }
 
   private:
-    /*
-     * This magic string MUST be printed: this is how the tools detect
-     * that the system image booted.
-     *
-     * Use `WARNING`, otherwise, logger does no flush and we
-     * don't know it boot completes in timely manner.
-     */
-    static void notifyToolsBootcomplete(const size_t durationMs) {
-        LOG(WARNING) << "Boot completed in " << durationMs << " ms";
-    }
-
     void send(std::string msg) {
         char sizeBuf[sizeof(uint32_t)];
         absl::little_endian::Store32(sizeBuf, msg.size());
@@ -132,19 +110,10 @@ class GuestStatusDevice : public IGuestStatusDevice,
         send(ok ? "OK"s : "KO"s);
     }
 
-    void onReceiveHeartbeat() { mGuestStatus.heartbeat.SetValue(++mHeartbeatCounter); }
+    void onReceiveHeartbeat() { mGuestStatus.Heartbeat(); }
 
     void onReceiveBootcomplete() {
-        absl::Time now = wallClock();
-        mGuestStatus.bootcomplete.SetValue(now);
-        auto durationMs = size_t(absl::ToInt64Milliseconds(now - mGuestStatus.reset.GetValue()));
-        notifyToolsBootcomplete(durationMs);
-
-        if (mNotificationSource) {
-            goldfish::avd_universe::grpc::GrpcNotification notification;
-            notification.mutable_booted()->set_time(static_cast<int32_t>(durationMs));
-            mNotificationSource->FireEvent(notification);
-        }
+        mGuestStatus.SetBootComplete(wallClock());
 
         if (mQuitAfterBootTimeoutSeconds > 0) {
             LOG(WARNING) << "Shutting down guest due to boot complete";
@@ -158,10 +127,7 @@ class GuestStatusDevice : public IGuestStatusDevice,
         }
     }
 
-    void handleResetEvent() {
-        mGuestStatus.bootcomplete.SetValue(absl::UnixEpoch());
-        mGuestStatus.reset.SetValue(wallClock());
-    }
+    void handleResetEvent() { mGuestStatus.Reset(wallClock()); }
 
     static absl::Time wallClock() {
         return absl::UnixEpoch() +
@@ -173,28 +139,23 @@ class GuestStatusDevice : public IGuestStatusDevice,
     }
 
     GuestStatus& mGuestStatus;
-    GrpcNotificationEventSource* const mNotificationSource;
     async::EventLoop* const mQemuLoop;
     EmulatorResetCallbacks::UnregisterEmulatorReset mUnregisterEmulatorReset;
     std::vector<char> mReceiveData;
-    ObservableCounter::EventType mHeartbeatCounter = 0;
     const int mQuitAfterBootTimeoutSeconds;
 };
 
-void IGuestStatusDevice::RegisterDevice(GuestStatus* guestStatus,
-                                        GrpcNotificationEventSource* notificationSource,
-                                        IConnectorRegistry* registry,
+void IGuestStatusDevice::RegisterDevice(GuestStatus* guestStatus, IConnectorRegistry* registry,
                                         EmulatorResetCallbacks resetCallbacks,
                                         EventLoop* client_loop, EventLoop* qemu_loop,
                                         int quitAfterBootTimeoutSeconds) {
-    registry->RegisterHalDevice(std::string(IGuestStatusDevice::kServiceName), client_loop,
-                                qemu_loop,
-                                [guestStatus, notificationSource, resetCallbacks, qemu_loop,
-                                 quitAfterBootTimeoutSeconds](std::string_view /*args*/) {
-                                    return std::make_shared<GuestStatusDevice>(
-                                            *guestStatus, notificationSource, resetCallbacks,
-                                            qemu_loop, quitAfterBootTimeoutSeconds);
-                                });
+    registry->RegisterHalDevice(
+            std::string(IGuestStatusDevice::kServiceName), client_loop, qemu_loop,
+            [guestStatus, resetCallbacks, qemu_loop,
+             quitAfterBootTimeoutSeconds](std::string_view /*args*/) {
+                return std::make_shared<GuestStatusDevice>(*guestStatus, resetCallbacks, qemu_loop,
+                                                           quitAfterBootTimeoutSeconds);
+            });
 }
 
 }  // namespace goldfish::devices::guest_status

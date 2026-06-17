@@ -52,7 +52,6 @@ struct AvdExtendedUniverse : public AvdUniverse {
     devices::ConnectorRegistry connector_registry;
     devices::ConnectorRegistry test_tools_connector_registry;
     avd_universe::battery::ObservableBattery::ScopedCallbackHandle battery_subscription;
-    avd_universe::guest_status::ObservableTimestamp::ScopedCallbackHandle bootcomplete_subscription;
     std::unique_ptr<metrics::MetricsReporter> metrics_reporter;
     std::shared_ptr<async::EventLoop::Timer> metrics_ping_timer;
 

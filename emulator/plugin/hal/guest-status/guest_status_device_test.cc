@@ -58,7 +58,8 @@ class GuestStatusDeviceTest : public ::testing::Test {
         mClientLoop = TestEventLoop::Create();
         mQemuLoop = TestEventLoop::Create();
 
-        IGuestStatusDevice::RegisterDevice(&mGuestStatus, &mNotificationSource, &registry,
+        mGuestStatus.SetGrpcNotificationChannel(&mNotificationSource);
+        IGuestStatusDevice::RegisterDevice(&mGuestStatus, &registry,
                                            {qemu_register_reset, qemu_unregister_reset},
                                            mClientLoop.get(), mQemuLoop.get(), 0);
         device = registry.ConstructHalDevice<IGuestStatusDevice>();
@@ -67,6 +68,7 @@ class GuestStatusDeviceTest : public ::testing::Test {
     }
 
     void TearDown() override {
+        mGuestStatus.SetGrpcNotificationChannel(nullptr);
         registry.Close();
         mClientLoop->RunAll();
     }
@@ -81,8 +83,8 @@ class GuestStatusDeviceTest : public ::testing::Test {
     void clear() { test_socket->storage.clear(); }
 
   protected:
-    GuestStatus mGuestStatus;
     MockNotificationSource mNotificationSource;
+    GuestStatus mGuestStatus;
     std::unique_ptr<TestEventLoop> mClientLoop;
     std::unique_ptr<TestEventLoop> mQemuLoop;
     TestConnectorRegistry registry;
@@ -97,7 +99,7 @@ TEST_F(GuestStatusDeviceTest, canCreateDevice) {
 TEST_F(GuestStatusDeviceTest, heartbeatIncrements) {
     for (unsigned i = 1; i <= 10; i++) {
         receive("heartbeat\0"sv);
-        EXPECT_THAT(mGuestStatus.heartbeat.GetValue(), i);
+        EXPECT_THAT(mGuestStatus.GetHeartbeatCounter(), i);
     }
 }
 
@@ -110,19 +112,11 @@ TEST_F(GuestStatusDeviceTest, receivesBootCompletedEvent) {
     TestSystem test("/");
 
     test.SetProcessTimes({
-        .user_ms = 1,
-        .system_ms = 10,
-        .wall_clock_ms = 100,
+        .user_ms = 0,
+        .system_ms = 0,
+        .wall_clock_ms = 0,
     });
-
-    receive("bootcomplete\0"sv);
-
-    EXPECT_THAT(ToInt64Milliseconds(mGuestStatus.bootcomplete.GetValue() - absl::UnixEpoch()),
-                Eq(100));
-}
-
-TEST_F(GuestStatusDeviceTest, resetHandlerResetsBootCompleted) {
-    TestSystem test("/");
+    sResetHandler(sOpaque);
 
     test.SetProcessTimes({
         .user_ms = 1,
@@ -132,8 +126,29 @@ TEST_F(GuestStatusDeviceTest, resetHandlerResetsBootCompleted) {
 
     receive("bootcomplete\0"sv);
 
-    EXPECT_THAT(ToInt64Milliseconds(mGuestStatus.bootcomplete.GetValue() - absl::UnixEpoch()),
-                Eq(100));
+    EXPECT_TRUE(mGuestStatus.IsBootCompleted());
+    EXPECT_THAT(ToInt64Milliseconds(mGuestStatus.GetBootCompleteDuration()), Eq(100));
+}
+
+TEST_F(GuestStatusDeviceTest, resetHandlerResetsBootCompleted) {
+    TestSystem test("/");
+
+    test.SetProcessTimes({
+        .user_ms = 0,
+        .system_ms = 0,
+        .wall_clock_ms = 0,
+    });
+    sResetHandler(sOpaque);
+
+    test.SetProcessTimes({
+        .user_ms = 1,
+        .system_ms = 10,
+        .wall_clock_ms = 100,
+    });
+
+    receive("bootcomplete\0"sv);
+
+    EXPECT_THAT(ToInt64Milliseconds(mGuestStatus.GetBootCompleteDuration()), Eq(100));
 
     test.SetProcessTimes({
         .user_ms = 2,
@@ -143,9 +158,8 @@ TEST_F(GuestStatusDeviceTest, resetHandlerResetsBootCompleted) {
 
     sResetHandler(sOpaque);
 
-    EXPECT_THAT(mGuestStatus.bootcomplete.GetValue(), Eq(absl::UnixEpoch()));
-
-    EXPECT_THAT(ToInt64Milliseconds(mGuestStatus.reset.GetValue() - absl::UnixEpoch()), Eq(200));
+    EXPECT_FALSE(mGuestStatus.IsBootCompleted());
+    EXPECT_THAT(ToInt64Milliseconds(mGuestStatus.GetResetT() - absl::UnixEpoch()), Eq(200));
 }
 
 TEST_F(GuestStatusDeviceTest, sendsNotificationOnBootComplete) {

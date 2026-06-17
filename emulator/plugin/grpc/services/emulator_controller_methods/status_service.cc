@@ -53,8 +53,8 @@ grpc::Status StatusServiceImpl::getStatus(EmulatorStatus* reply) {
     // TODO(jansene): Get cpu count, hypervisor type.`
     reply->set_uptime(System::Get()->GetProcessTimes().wall_clock_ms);
 
-    reply->set_booted(guest_status_.bootcomplete.GetValue() != absl::UnixEpoch());
-    reply->set_heartbeat(guest_status_.heartbeat.GetValue());
+    reply->set_booted(guest_status_.IsBootCompleted());
+    reply->set_heartbeat(guest_status_.GetHeartbeatCounter());
 
     auto cnf = getQemuConfig(avd_properties_.avd_api, avd_properties_.hw_config);
 

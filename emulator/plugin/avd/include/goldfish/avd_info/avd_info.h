@@ -112,11 +112,11 @@ struct AvdUniverse : public snapshottable::Snapshottable {
     std::shared_ptr<devices::multidisplay::MultiDisplayDevice> active_multi_display_device_
             ABSL_GUARDED_BY(device_mutex_);
 
+    avd_universe::grpc::GrpcNotificationEventSource grpc_notification_event_source_;
     avd_universe::battery::ObservableBattery battery_;
     avd_universe::clipboard::ClipboardChannel clipboard_channel_;
     avd_universe::vehicle::VehicleChannel vehicle_channel_;
     avd_universe::fingerprint::ObservableFingerprintSensor fingerprint_sensor_;
-    avd_universe::grpc::GrpcNotificationEventSource grpc_notification_event_source_;
     avd_universe::guest_status::GuestStatus guest_status_;
     avd_universe::gps::ObservableLocation location_;
     sensors::PhysicalModel sensors_physical_model_;

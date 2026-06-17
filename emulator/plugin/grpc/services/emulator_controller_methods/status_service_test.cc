@@ -53,8 +53,7 @@ class StatusServiceTest : public GrcpServiceTest {
                 android::CPU_ACCELERATOR_NONE, android::ANDROID_CPU_ACCELERATION_NO_CPU_SUPPORT,
                 "No CPU acceleration");
 
-        mGuestStatus.heartbeat.SetValue(0);
-        mGuestStatus.bootcomplete.SetValue(absl::UnixEpoch());
+        mGuestStatus.Reset(absl::UnixEpoch());
         mAvdProperties.hw_config = android::goldfish::FakeHardwareConfig::GetHwConfig();
         mAvdProperties.avd_api = 35;
         mAvdProperties.avd_name = "fake-avd";
@@ -120,8 +119,10 @@ TEST_F(StatusServiceTest, GetStatusInitialState) {
 }
 
 TEST_F(StatusServiceTest, GetStatusBootedState) {
-    mGuestStatus.bootcomplete.SetValue(absl::Now());
-    mGuestStatus.heartbeat.SetValue(42);
+    mGuestStatus.SetBootComplete(absl::Now());
+    for (unsigned n = 42; n; --n) {
+        mGuestStatus.Heartbeat();
+    }
 
     Empty request;
     EmulatorStatus reply;
