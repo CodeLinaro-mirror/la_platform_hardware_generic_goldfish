@@ -16,53 +16,77 @@ limitations under the License.
 
 # CrashAdvisor (`emulator/crashreport/tool/advisor`)
 
-## Overview
+**CrashAdvisor** is an automated, AI-powered minidump diagnostic pipeline and Root Cause Analysis (RCA) assistant built for the Android Emulator (`aemu`).
 
-This directory houses **CrashAdvisor**, the automated AI diagnostic pipeline for the Android Emulator (`aemu`).
-CrashAdvisor accepts a `go/crash` URL or raw crash ID, retrieves minidump artifacts and symbols, invokes the standalone C++ `crashreport` CLI binary to render thread stack traces and looper breadcrumb Mermaid timelines, and instantly generates an interactive `jetski` AI investigation script for collaborative Root Cause Analysis (RCA).
+Given a crash ID or `go/crash` URL, CrashAdvisor automatically fetches symbols, generates local crash dumps (including looper timelines), and provisions an AI agent to investigate the root cause. It can optionally manage Buganizer tickets and dispatch autonomous agents to write fixes.
 
-______________________________________________________________________
+---
 
-## Actionable Usage Workflow
+## Quick Start
 
-### Step 1: Obtain Your Android Build OAuth2 Token (macOS)
+### Step 1: Fetch an OAuth2 Token
+*Required for `go/ab` and Buganizer API access.*
 
-CrashAdvisor exclusively utilizes the Android Build (`go/ab`) API to stream pre-bundled Breakpad symbol archives (`sdk-repo-<platform>-emulator-breakpad-symbols-<build_id>.zip`). This strictly requires an OAuth2 token with `API_ANDROID_BUILD_INTERNAL` scope.
-
-- **On GLinux**: Tokens are retrieved automatically via `oauth2l fetch --sso`.
-- **On macOS**: Generate an SSO token on a GLinux workstation:
-  ```bash
-  ~/go/bin/oauth2l fetch --sso $USER@google.com androidbuild.internal
-  ```
-
-### Step 2: Build the Environment & Scrape Assets
-
-Run CrashAdvisor via Bazel, passing the crash ID (or `go/crash` URL) and your token string:
+Run `oauth2l` on your GLinux workstation or Cloudtop. (The `reset` command clears stale caches first):
 
 ```bash
-bazel run @goldfish//emulator/crashreport/tool/advisor -- 6998451fea502b78 --token "ya29.a0AT3oNZ..."
+oauth2l reset && oauth2l fetch --sso $USER@google.com https://www.googleapis.com/auth/buganizer https://www.googleapis.com/auth/androidbuild.internal
 ```
 
-**What Happens Automatically:**
+### Step 2: Run CrashAdvisor
+Execute the tool via Bazel from your workspace root. Replace `<CRASH_ID>` with your target ID and `<TOKEN>` with the output from Step 1.
 
-1. **Asset Fetching**: Downloads `metadata.json` (pretty-printed in-place) and `minidump.dmp` via `gosso`.
-2. **Global Symbol Caching**: Downloads and extracts Breakpad symbols to `/tmp/crashadvisor_symbols_cache_$USER/<build_id>/` (instantly reused across different crash IDs from the same build).
-3. **Local Dump Generation**: Executes the C++ `crashreport` binary to render both `crashreport.txt` (human-readable stack trace & looper timelines) and `crashreport.json` (`--format=machine`).
-4. **Script Preparation**: Generates `/tmp/crashadvisor_$USER/<crash_id>/investigation_cmd.sh`.
-
-### Step 3: Launch the Interactive AI Investigation
-
-Upon completion, CrashAdvisor outputs the path to your interactive investigation script. Execute it directly in your terminal:
-
+#### Interactive Mode (Default)
+Downloads assets and generates an interactive `jetski` script for collaborative debugging.
 ```bash
-/tmp/crashadvisor_$USER/6998451fea502b78/investigation_cmd.sh
+bazel run @goldfish//emulator/crashreport/tool/advisor -- <CRASH_ID> --token "<TOKEN>"
+```
+*Next step:* Run the generated script (e.g., `/tmp/crashadvisor_$USER/<CRASH_ID>/investigation_cmd.sh`) to open the AI REPL (`jetski> `).
+
+#### Automated Batch Mode (`--auto-run`)
+Runs the investigation in the background and writes the RCA directly to `rca_summary.md`, skipping the interactive prompt.
+```bash
+bazel run @goldfish//emulator/crashreport/tool/advisor -- <CRASH_ID> --token "<TOKEN>" --auto-run
 ```
 
-**What Happens in the REPL:**
+#### Custom Execution Timeout (`--timeout`)
+Sets the maximum execution time for the underlying AI investigation CLI (default: `30m`). Useful for intensive batch mode investigations across large workspaces.
+```bash
+bazel run @goldfish//emulator/crashreport/tool/advisor -- <CRASH_ID> --token "<TOKEN>" --auto-run --timeout 45m
+```
 
-1. **The `Crash Advisor` Persona**: Jetski loads the co-located [crash_advisor.md](crash_advisor.md) specialized agent persona.
-2. **Initial Codebase Research**: Jetski immediately ingests `crashreport.txt`, explores the attached AOSP workspace using search tools (`grep_search`), evaluates the looper timeline, and prints its initial Root Cause Analysis.
-3. **Interactive Collaboration**: The REPL (`jetski> `) remains open so you can ask follow-up questions, inspect specific memory addresses, or collaborate on remediation strategies.
+#### Closed-Loop Buganizer Mode (`--enable-buganizer`)
+*Must be used with `--auto-run`.* Creates or updates the relevant Buganizer issue and hands off fixable bugs to an autonomous engineering agent (`emu_main_next_engineer`). 
+```bash
+bazel run @goldfish//emulator/crashreport/tool/advisor -- <CRASH_ID> --token "<TOKEN>" --auto-run --enable-buganizer
+```
 
+---
 
+## Architecture & Pipeline
 
+CrashAdvisor is built on a modular, test-driven pipeline that handles ingestion, symbolication, and AI handoff.
+
+```mermaid
+flowchart TD
+    A["advisor.py (CLI Entry)"] --> B["1. CrashApi: Download Dump & Metadata"]
+    B --> C["2. CrashMetadata: Parse stableSignature & Build ID"]
+    C --> D["3. SymbolFetcher: Fetch & Globally Cache Symbols"]
+    D --> E["4. CrashReportDumper: Render Text & JSON Dumps"]
+    E --> F["5. CrashReportAnalyzer: Execute AI Agent"]
+    F --> G["6. Synthesize rca_summary.md"]
+    G --> H["7. BuganizerClient: Search/Create Issue"]
+    H --> I{"8. Parse YAML actionability"}
+    I -->|Fixable: True| J["agentapi: Dispatch emu_main_next_engineer"]
+    I -->|Fixable: False| K["Halt for Human Review"]
+```
+
+### Pipeline Stages
+
+*   **Context & Ingestion:** Parses the URL/ID, creates an isolated sandbox (`/tmp/crashadvisor_$USER/<crash_id>/`), and downloads `metadata.json` and `minidump.dmp`.
+*   **Metadata Decoding:** Extracts the `stableSignature`, `build_id`, and target platform triples (e.g., `emulator-linux_x64_gfxstream`).
+*   **Global Symbol Caching:** Streams Breakpad archives from `go/ab` and caches them globally by `build_id` to eliminate redundant network fetches across different crashes from the same build.
+*   **Local Dump Generation:** Uses Bazel runfiles to execute the C++ `crashreport` binary, outputting human-readable text (with Mermaid looper timelines) and machine-readable JSON.
+*   **AI Investigation Scripting:** Configures `jetski` or `gemini` with the `crash_advisor.md` persona, `pro` model tier, and AOSP workspace bindings.
+*   **Buganizer Management:** Uses the `stableSignature` to deduplicate issues in Component `29601`. Automatically creates bugs, reopens regressions, or appends the RCA summary. Includes exponential backoff for HTTP 429/503 errors.
+*   **Autonomous Multi-Agent Handoff:** Checks `rca_summary.md` for a standardized YAML `actionability` block. If `fixable: true`, it applies an `AI-Engineer-Dispatched` tag (preventing recursive loops) and triggers `emu_main_next_engineer` to draft and verify a Gerrit CL via `repo upload`.

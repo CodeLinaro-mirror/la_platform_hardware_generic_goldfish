@@ -30,6 +30,7 @@ from dump import CrashReportDumper
 from metadata import CrashMetadata
 from rca import CrashReportAnalyzer
 from symbols import SymbolFetcher
+from advisor import CrashAdvisorApp
 
 
 class TestCrashAdvisor(unittest.TestCase):
@@ -42,6 +43,13 @@ class TestCrashAdvisor(unittest.TestCase):
 
     def tearDown(self) -> None:
         self.temp_dir.cleanup()
+
+    @patch("advisor.argparse.ArgumentParser.parse_args")
+    def test_advisor_app_init(self, mock_parse: MagicMock) -> None:
+        """Test CrashAdvisorApp parses arguments successfully."""
+        mock_parse.return_value = MagicMock(crash_id=self.crash_id, verbose=False)
+        app = CrashAdvisorApp([self.crash_id])
+        self.assertEqual(app.args.crash_id, self.crash_id)
 
     @patch("client.shutil.which")
     def test_gosso_client_init(self, mock_which: MagicMock) -> None:
@@ -392,6 +400,20 @@ class TestCrashAdvisor(unittest.TestCase):
         self.assertIn("jetski", content)
         self.assertIn("--prompt", content)
         self.assertNotIn("--prompt-interactive", content)
+
+    def test_crash_report_analyzer_custom_timeout(self) -> None:
+        """Test CrashReportAnalyzer respects custom timeout flag."""
+        context = CrashReportContext(self.crash_id, base_dir=str(self.temp_path))
+        context.prepare_sandbox()
+        dump_path = context.work_dir / "crashreport.txt"
+        dump_path.write_text("Crashing stack trace dummy")
+
+        analyzer = CrashReportAnalyzer()
+        script_path = analyzer.generate_explanation(context, dump_path, timeout="15m")
+
+        self.assertTrue(script_path.exists())
+        content = script_path.read_text()
+        self.assertIn("--timeout=15m", content)
 
     def test_crash_report_analyzer_raises_file_not_found(self) -> None:
         """Test CrashReportAnalyzer raises FileNotFoundError when dump file is missing."""
