@@ -17,6 +17,7 @@
 #include <mutex>
 #include <unordered_set>
 
+#include "absl/synchronization/mutex.h"
 #include "google/protobuf/util/message_differencer.h"
 
 #include "android/emulation/control/simple_async_grpc.h"
@@ -39,11 +40,16 @@ using android::base::eventing::EventListener;
 using android::base::eventing::EventParam;
 
 /**
- * BaseEventStreamWriter is a class for writing events of type T to a gRPC
- * stream while also acting as an event listener for event notifications. It
- * uses EventWriterPolicy to define the behavior of writing events.
+ * @class BaseEventStreamWriter
+ * @brief A base server writer reactor that subscribes to an event source and streams incoming
+ * events to a gRPC client.
  *
- * @tparam T The type of events to be written to the gRPC stream.
+ * @details This class bridges internal emulator event sources (`CallbackEventSource`) with gRPC
+ * asynchronous writer streams (`SimpleServerWriter`). It automatically registers a callback upon
+ * construction and unregisters it upon destruction or stream cancellation.
+ *
+ * @tparam T The type of gRPC messages to be written to the stream.
+ * @tparam Event The underlying event type produced by the event source.
  */
 template <class T, class Event>
 class BaseEventStreamWriter : public SimpleServerWriter<T>, EventListener<Event> {
@@ -51,63 +57,67 @@ class BaseEventStreamWriter : public SimpleServerWriter<T>, EventListener<Event>
     using ChangeSupport = CallbackEventSource<Event>;
 
     /**
-     * Constructs a new GenericEventWriter with the specified listener.
-     * The listener is used to subscribe to and receive events of type T.
+     * @brief Constructs a `BaseEventStreamWriter` and subscribes to the specified event source.
      *
-     * Events that are received will be forwarded and written to the gRPC
-     * stream.
-     *
-     * @param listener A pointer to the ChangeSupport instance that will handle
-     *        event subscriptions and event notifications.
+     * @param listener Pointer to the `CallbackEventSource` instance managing event subscriptions.
      */
-    BaseEventStreamWriter(ChangeSupport* listener) : mListener(listener) {
-        mCallbackId =
-                mListener->AddCallback([this](const Event event) { this->EventArrived(event); });
+    BaseEventStreamWriter(ChangeSupport* listener) : listener_(listener) {
+        callback_id_ =
+                listener_->AddCallback([this](const Event event) { this->EventArrived(event); });
     }
 
-    virtual ~BaseEventStreamWriter() { mListener->RemoveCallback(mCallbackId); }
+    virtual ~BaseEventStreamWriter() { listener_->RemoveCallback(callback_id_); }
 
     /**
-     * Overrides the SimpleServerWriter<T, EventWriterPolicy>::OnDone() method
-     * to delete the GenericEventWriter instance when the client is done reading
-     * the event stream.
+     * @brief Overrides `SimpleServerWriter::OnDone()` to delete the writer instance when the client
+     * finishes reading the stream.
      */
     void OnDone() override { delete this; }
 
     /**
-     * Overrides the SimpleServerWriter<T, EventWriterPolicy>::OnCancel()
-     * method to inform the parent we want to Cancel this connection. This
-     * should result in a callback to OnDone, which will do the final cleanup.
+     * @brief Overrides `SimpleServerWriter::OnCancel()` to handle client stream cancellations.
+     *
+     * @details Unregisters the event callback and synchronizes stream termination with the unified
+     * `reactor_lock_`.
      */
     void OnCancel() override {
         DD_EVT("Cancelled %p", this);
-        mListener->RemoveCallback(mCallbackId);
+        listener_->RemoveCallback(callback_id_);
+        absl::MutexLock lock(&this->reactor_lock_);
         grpc::ServerWriteReactor<T>::Finish(grpc::Status::CANCELLED);
     }
 
   private:
-    CallbackEventSource<Event>::CallbackId mCallbackId;
-    ChangeSupport* mListener;
+    CallbackEventSource<Event>::CallbackId callback_id_;
+    ChangeSupport* listener_;
 };
 
-// template<class T>
-// using GenericEventStreamWriter = BaseEventStreamWriter<T, T>
-
+/**
+ * @class GenericEventStreamWriter
+ * @brief A generic gRPC server event stream writer where the gRPC message type and event type are
+ * identical.
+ *
+ * @tparam T The type of events and gRPC messages to be written to the stream.
+ */
 template <class T>
 class GenericEventStreamWriter : public BaseEventStreamWriter<T, T> {
     using ChangeSupport = CallbackEventSource<T>;
 
   public:
+    /**
+     * @brief Constructs a `GenericEventStreamWriter` subscribed to the specified event source.
+     *
+     * @param listener Pointer to the `CallbackEventSource` instance.
+     */
     GenericEventStreamWriter(ChangeSupport* listener) : BaseEventStreamWriter<T, T>(listener) {}
 
     virtual ~GenericEventStreamWriter() = default;
 
     /**
-     * Overrides the EventListener<T>::eventArrived() method to handle an
-     * event of type T using the EventPolicy class.
+     * @brief Invoked when an event arrives from the underlying event source. Enqueues the event for
+     * gRPC writing.
      *
-     * @param event The event of type T that has arrived and needs to be
-     * handled.
+     * @param event The event of type `T` that has arrived.
      */
     void EventArrived(typename EventParam<T>::type event) override {
         DD_EVT("Handling %p, %s", this, event.ShortDebugString().c_str());
@@ -116,44 +126,44 @@ class GenericEventStreamWriter : public BaseEventStreamWriter<T, T> {
 };
 
 /**
- * A template class that provides an implementation of a gRPC server event
- * stream writer for events of type T. It inherits from
- * GenericEventStreamWriter<T> and is designed to be used as an event stream
- * writer in a gRPC server. You would mainly use this one if your underlying
- * event mechanism produces spurious events. I.e. your event stream looks
- * something like this:
+ * @class UniqueEventStreamWriter
+ * @brief A gRPC server event stream writer that filters out duplicate consecutive events.
  *
- * A, A, B, B, B, C, C, ...
+ * @details This class inherits from `GenericEventStreamWriter` and is designed for event sources
+ * that produce spurious duplicate notifications. For example, if the raw event source emits `A, A,
+ * B, B, B, C, C`, this writer ensures only `A, B, C` are delivered to the gRPC client.
  *
- * But you would like to deliver only A, B, C to your clients.
- *
- * @tparam T The type of events that this event stream writer can write to the
- * client.
+ * @tparam T The type of events and gRPC messages to be written to the stream.
  */
 template <class T>
 class UniqueEventStreamWriter : public GenericEventStreamWriter<T> {
     using ChangeSupport = CallbackEventSource<T>;
 
   public:
+    /**
+     * @brief Constructs a `UniqueEventStreamWriter` subscribed to the specified event source.
+     *
+     * @param listener Pointer to the `CallbackEventSource` instance.
+     */
     UniqueEventStreamWriter(ChangeSupport* listener) : GenericEventStreamWriter<T>(listener) {}
     virtual ~UniqueEventStreamWriter() = default;
 
     /**
-     * An EventStreamWriter that will filter out duplicate events.
+     * @brief Invoked when an event arrives. Compares the new event against the last forwarded event
+     * using `MessageDifferencer`.
      *
-     * @param event The event of type T that has arrived and needs to be written
-     *        to the client.
+     * @param event The event of type `T` that has arrived.
      */
     void EventArrived(typename EventParam<T>::type event) override {
-        const std::lock_guard<std::mutex> lock(mEventLock);
-        if (!google::protobuf::util::MessageDifferencer::Equals(event, mLastEvent)) {
-            mLastEvent = event;
+        const std::lock_guard<std::mutex> lock(event_lock_);
+        if (!google::protobuf::util::MessageDifferencer::Equals(event, last_event_)) {
+            last_event_ = event;
             GenericEventStreamWriter<T>::Write(event);
         }
     };
 
-    T mLastEvent;
-    std::mutex mEventLock;
+    T last_event_;
+    std::mutex event_lock_;
 };
 
 }  // namespace control

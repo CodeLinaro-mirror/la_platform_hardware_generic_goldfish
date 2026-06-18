@@ -59,6 +59,7 @@ cc_library(
     deps = [
         ":async",
         "//emulator/libs/eventing",
+        "@abseil-cpp//absl/synchronization",
         "@grpc//:grpc++",
     ],
 )
