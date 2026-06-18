@@ -152,7 +152,8 @@ class SymbolFetcher:
                     )
                 else:
                     logging.info(
-                        "Actual symbols zip already cached globally at: %s", global_zip_path
+                        "Actual symbols zip already cached globally at: %s",
+                        global_zip_path,
                     )
             except Exception as e:
                 err_msg = (

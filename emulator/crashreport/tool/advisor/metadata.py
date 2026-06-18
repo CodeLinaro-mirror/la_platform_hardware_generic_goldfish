@@ -23,7 +23,12 @@ from typing import Any, Dict, List, Optional, Tuple
 class CrashMetadata:
     """Parses and exposes structural data from the report_proto JSON object."""
 
-    def __init__(self, metadata_path: Path, branch: Optional[str] = None, build_id: Optional[str] = None) -> None:
+    def __init__(
+        self,
+        metadata_path: Path,
+        branch: Optional[str] = None,
+        build_id: Optional[str] = None,
+    ) -> None:
         self.metadata_path = metadata_path
         self.branch = branch
         self.explicit_build_id = build_id
@@ -80,14 +85,28 @@ class CrashMetadata:
 
         if "linux" in os_name:
             if "arm" in arch or "aarch64" in arch:
-                return "emulator-linux_aarch64_gfxstream" if is_gfxstream else "emulator_linux_aarch64"
-            return "emulator-linux_x64_gfxstream" if is_gfxstream else "emulator_linux_x64"
+                return (
+                    "emulator-linux_aarch64_gfxstream"
+                    if is_gfxstream
+                    else "emulator_linux_aarch64"
+                )
+            return (
+                "emulator-linux_x64_gfxstream" if is_gfxstream else "emulator_linux_x64"
+            )
         if "mac" in os_name or "darwin" in os_name:
             if "arm" in arch or "aarch64" in arch:
-                return "emulator-mac_aarch64_gfxstream" if is_gfxstream else "emulator_mac_aarch64"
+                return (
+                    "emulator-mac_aarch64_gfxstream"
+                    if is_gfxstream
+                    else "emulator_mac_aarch64"
+                )
             return "emulator-mac_x64_gfxstream" if is_gfxstream else "emulator_mac_x64"
         if "win" in os_name:
-            return "emulator-windows_x64_gfxstream" if is_gfxstream else "emulator_windows_x64"
+            return (
+                "emulator-windows_x64_gfxstream"
+                if is_gfxstream
+                else "emulator_windows_x64"
+            )
         return "emulator-linux_x64_gfxstream" if is_gfxstream else "emulator_linux_x64"
 
     @property

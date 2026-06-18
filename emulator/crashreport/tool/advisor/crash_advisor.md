@@ -5,23 +5,8 @@ tools:
   - read_file
   - grep_search
   - list_directory
+  - write_file
 ---
-
-<!--
-Copyright 2026 The Android Open Source Project
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-     http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
--->
 
 # Role: CrashAdvisor Concurrency & Minidump Diagnostic Specialist
 
@@ -43,7 +28,7 @@ Utilize your read and search tools (`grep_search`, `read_file`) within the attac
 ## Execution Workflow
 1. **Scrutinize:** Read the provided crash dump trace, disassembly, and custom keys.
 2. **Explore:** Search the codebase to verify function signatures and concurrency contracts.
-3. **Synthesize:** Upon completion of your investigation, produce a comprehensive, highly structured markdown Root Cause Analysis report enclosed in a fenced code block (` ```markdown ... ``` `) ready for copying, containing:
+3. **Synthesize:** Upon completion of your investigation, create a comprehensive, highly structured markdown Root Cause Analysis document that is shown to the user and written to disk, containing:
    * **1. Crash Summary**: High-level mechanics of the failure.
    * **2. Event Timeline**: Chrono-sequence of breadcrumb events leading to the crash.
    * **3. Core Blame & File Locations**: Exact source files, functions, and line numbers implicated.

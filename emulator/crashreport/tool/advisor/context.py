@@ -25,7 +25,14 @@ from typing import Optional
 class CrashReportContext:
     """Manages the crash identifier and working directory sandbox."""
 
-    def __init__(self, input_str: str, base_dir: Optional[str] = None, aosp_root: Optional[str] = None, branch: Optional[str] = None, build_id: Optional[str] = None) -> None:
+    def __init__(
+        self,
+        input_str: str,
+        base_dir: Optional[str] = None,
+        aosp_root: Optional[str] = None,
+        branch: Optional[str] = None,
+        build_id: Optional[str] = None,
+    ) -> None:
         self.raw_input = input_str
         self.aosp_root = aosp_root
         self.branch = branch

@@ -68,12 +68,11 @@ Your mission is to perform a rigorous Root Cause Analysis (RCA) on the attached 
 2. Evaluate the Mermaid sequence diagram and decoded looper breadcrumb timeline in `{dump_path.name}`. Determine which thread initiated the fatal asynchronous flow or where lock ordering inverted.
 3. Ground all statements strictly in the visible stack frames and breadcrumb timelines. Do not make unverified claims.
 4. Use your search and read tools to inspect the active AOSP codebase.
-5. Upon completion of your investigation, produce a comprehensive, highly structured markdown report enclosed in a fenced code block (` ```markdown ... ``` `) so that it can be easily copied.
+5. Upon completion of your investigation, create a comprehensive, highly structured markdown document that is shown to the user and written to disk.
 """
 
-        # Construct the interactive command using --prompt-interactive (-i) and --add-dir
+        # Construct the interactive command arguments using --prompt-interactive (-i) and --add-dir
         cmd_args = [
-            "jetski",
             "--model=pro",
             f"--agent={agent_md}",
             f"--add-dir={aosp_root}",
@@ -89,7 +88,21 @@ Your mission is to perform a rigorous Root Cause Analysis (RCA) on the attached 
             f.write(
                 f"# Interactive Jetski AI investigation for Crash ID {context.crash_id}\n\n"
             )
-            f.write(f"{cmd_str}\n")
+            f.write("if command -v jetski >/dev/null 2>&1; then\n")
+            f.write('    CLI_BIN="jetski"\n')
+            f.write("elif [ -x /google/bin/releases/jetski-devs/tools/cli ]; then\n")
+            f.write('    CLI_BIN="/google/bin/releases/jetski-devs/tools/cli"\n')
+            f.write("elif [ -x /google/bin/releases/gemini-cli/tools/gemini ]; then\n")
+            f.write('    CLI_BIN="/google/bin/releases/gemini-cli/tools/gemini"\n')
+            f.write("elif command -v gemini >/dev/null 2>&1; then\n")
+            f.write('    CLI_BIN="gemini"\n')
+            f.write("else\n")
+            f.write(
+                '    echo "Error: No jetski or gemini CLI installation found." >&2\n'
+            )
+            f.write("    exit 1\n")
+            f.write("fi\n\n")
+            f.write(f'exec "$CLI_BIN" {cmd_str}\n')
         investigation_script.chmod(0o755)
 
         logging.info("=== CrashAdvisor Environment Ready ===")
