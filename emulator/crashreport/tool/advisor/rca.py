@@ -42,9 +42,9 @@ class CrashReportAnalyzer:
         return str(start_path.parents[4])
 
     def generate_explanation(
-        self, context: CrashReportContext, dump_path: Path
+        self, context: CrashReportContext, dump_path: Path, auto_run: bool = False
     ) -> Path:
-        """Construct the interactive Jetski CLI command and save it to investigation_cmd.sh."""
+        """Construct the Jetski CLI command and save it to investigation_cmd.sh."""
         investigation_script = context.work_dir / "investigation_cmd.sh"
 
         if not dump_path.exists() or dump_path.stat().st_size == 0:
@@ -71,13 +71,14 @@ Your mission is to perform a rigorous Root Cause Analysis (RCA) on the attached 
 5. Upon completion of your investigation, create a comprehensive, highly structured markdown document that is shown to the user and written to disk.
 """
 
-        # Construct the interactive command arguments using --prompt-interactive (-i) and --add-dir
+        # Construct the command arguments using --prompt / --prompt-interactive and --add-dir
+        prompt_flag = "--prompt" if auto_run else "--prompt-interactive"
         cmd_args = [
             "--model=pro",
             f"--agent={agent_md}",
             f"--add-dir={aosp_root}",
             f"--add-dir={dump_path.parent}",
-            "--prompt-interactive",
+            prompt_flag,
             prompt,
         ]
 
@@ -111,10 +112,15 @@ Your mission is to perform a rigorous Root Cause Analysis (RCA) on the attached 
         )
         logging.info("  %s", context.work_dir)
         logging.info("")
-        logging.info(
-            "To launch Jetski interactively and begin the AI investigation, run:"
-        )
-        logging.info("  %s", investigation_script)
+        if auto_run:
+            logging.info(
+                "Launching Jetski automatically in non-interactive batch mode..."
+            )
+        else:
+            logging.info(
+                "To launch Jetski interactively and begin the AI investigation, run:"
+            )
+            logging.info("  %s", investigation_script)
         logging.info("======================================")
 
         return investigation_script

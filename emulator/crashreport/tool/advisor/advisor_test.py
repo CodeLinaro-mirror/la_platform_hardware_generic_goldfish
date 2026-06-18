@@ -377,6 +377,22 @@ class TestCrashAdvisor(unittest.TestCase):
         content = script_path.read_text()
         self.assertIn("--add-dir=/qemu2/custom/root", content)
 
+    def test_crash_report_analyzer_auto_run(self) -> None:
+        """Test CrashReportAnalyzer generating investigation_cmd.sh for non-interactive batch mode."""
+        context = CrashReportContext(self.crash_id, base_dir=str(self.temp_path))
+        context.prepare_sandbox()
+        dump_path = context.work_dir / "crashreport.txt"
+        dump_path.write_text("Crashing stack trace dummy")
+
+        analyzer = CrashReportAnalyzer()
+        script_path = analyzer.generate_explanation(context, dump_path, auto_run=True)
+
+        self.assertTrue(script_path.exists())
+        content = script_path.read_text()
+        self.assertIn("jetski", content)
+        self.assertIn("--prompt", content)
+        self.assertNotIn("--prompt-interactive", content)
+
     def test_crash_report_analyzer_raises_file_not_found(self) -> None:
         """Test CrashReportAnalyzer raises FileNotFoundError when dump file is missing."""
         context = CrashReportContext(self.crash_id, base_dir=str(self.temp_path))
