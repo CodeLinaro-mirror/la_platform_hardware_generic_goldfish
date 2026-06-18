@@ -42,9 +42,9 @@ class CrashReportAnalyzer:
         return str(start_path.parents[4])
 
     def generate_explanation(
-        self, context: CrashReportContext, dump_path: Path
+        self, context: CrashReportContext, dump_path: Path, auto_run: bool = False
     ) -> Path:
-        """Construct the interactive Jetski CLI command and save it to investigation_cmd.sh."""
+        """Construct the Jetski CLI command and save it to investigation_cmd.sh."""
         investigation_script = context.work_dir / "investigation_cmd.sh"
 
         if not dump_path.exists() or dump_path.stat().st_size == 0:
@@ -68,17 +68,17 @@ Your mission is to perform a rigorous Root Cause Analysis (RCA) on the attached 
 2. Evaluate the Mermaid sequence diagram and decoded looper breadcrumb timeline in `{dump_path.name}`. Determine which thread initiated the fatal asynchronous flow or where lock ordering inverted.
 3. Ground all statements strictly in the visible stack frames and breadcrumb timelines. Do not make unverified claims.
 4. Use your search and read tools to inspect the active AOSP codebase.
-5. Upon completion of your investigation, produce a comprehensive, highly structured markdown report enclosed in a fenced code block (` ```markdown ... ``` `) so that it can be easily copied.
+5. Upon completion of your investigation, create a comprehensive, highly structured markdown document that is shown to the user and written to disk.
 """
 
-        # Construct the interactive command using --prompt-interactive (-i) and --add-dir
+        # Construct the command arguments using --prompt / --prompt-interactive and --add-dir
+        prompt_flag = "--prompt" if auto_run else "--prompt-interactive"
         cmd_args = [
-            "jetski",
             "--model=pro",
             f"--agent={agent_md}",
             f"--add-dir={aosp_root}",
             f"--add-dir={dump_path.parent}",
-            "--prompt-interactive",
+            prompt_flag,
             prompt,
         ]
 
@@ -89,7 +89,21 @@ Your mission is to perform a rigorous Root Cause Analysis (RCA) on the attached 
             f.write(
                 f"# Interactive Jetski AI investigation for Crash ID {context.crash_id}\n\n"
             )
-            f.write(f"{cmd_str}\n")
+            f.write("if command -v jetski >/dev/null 2>&1; then\n")
+            f.write('    CLI_BIN="jetski"\n')
+            f.write("elif [ -x /google/bin/releases/jetski-devs/tools/cli ]; then\n")
+            f.write('    CLI_BIN="/google/bin/releases/jetski-devs/tools/cli"\n')
+            f.write("elif [ -x /google/bin/releases/gemini-cli/tools/gemini ]; then\n")
+            f.write('    CLI_BIN="/google/bin/releases/gemini-cli/tools/gemini"\n')
+            f.write("elif command -v gemini >/dev/null 2>&1; then\n")
+            f.write('    CLI_BIN="gemini"\n')
+            f.write("else\n")
+            f.write(
+                '    echo "Error: No jetski or gemini CLI installation found." >&2\n'
+            )
+            f.write("    exit 1\n")
+            f.write("fi\n\n")
+            f.write(f'exec "$CLI_BIN" {cmd_str}\n')
         investigation_script.chmod(0o755)
 
         logging.info("=== CrashAdvisor Environment Ready ===")
@@ -98,10 +112,15 @@ Your mission is to perform a rigorous Root Cause Analysis (RCA) on the attached 
         )
         logging.info("  %s", context.work_dir)
         logging.info("")
-        logging.info(
-            "To launch Jetski interactively and begin the AI investigation, run:"
-        )
-        logging.info("  %s", investigation_script)
+        if auto_run:
+            logging.info(
+                "Launching Jetski automatically in non-interactive batch mode..."
+            )
+        else:
+            logging.info(
+                "To launch Jetski interactively and begin the AI investigation, run:"
+            )
+            logging.info("  %s", investigation_script)
         logging.info("======================================")
 
         return investigation_script

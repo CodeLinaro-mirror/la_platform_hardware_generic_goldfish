@@ -21,6 +21,7 @@ crash reports from crash.corp.google.com.
 
 import argparse
 import logging
+import subprocess
 import sys
 from typing import List, Optional
 
@@ -75,6 +76,11 @@ class CrashAdvisorApp:
             action="store_true",
             help="Enable verbose debug logging",
         )
+        parser.add_argument(
+            "--auto-run",
+            action="store_true",
+            help="Automatically execute the AI investigation script immediately in non-interactive batch mode",
+        )
         return parser.parse_args(args_list)
 
     def _configure_logging(self) -> None:
@@ -126,15 +132,21 @@ class CrashAdvisorApp:
             dumper = CrashReportDumper()
             dump_path = dumper.generate_dump(self.context, symbols_dir)
 
-            # Step 5: Prepare Interactive Jetski AI Investigation Script
+            # Step 5: Prepare Jetski AI Investigation Script
             analyzer = CrashReportAnalyzer()
             investigation_script = analyzer.generate_explanation(
-                self.context, dump_path
+                self.context, dump_path, auto_run=self.args.auto_run
             )
-            logging.info(
-                "CrashAdvisor pipeline complete. Launch investigation script: %s",
-                investigation_script,
-            )
+            if self.args.auto_run:
+                logging.info(
+                    "Launching AI investigation automatically: %s", investigation_script
+                )
+                subprocess.run([str(investigation_script)], check=True)
+            else:
+                logging.info(
+                    "CrashAdvisor pipeline complete. Launch investigation script: %s",
+                    investigation_script,
+                )
         except Exception as e:
             logging.error("%s", e, exc_info=self.args.verbose)
             sys.exit(1)

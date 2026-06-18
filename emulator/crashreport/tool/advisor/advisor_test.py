@@ -77,7 +77,11 @@ class TestCrashAdvisor(unittest.TestCase):
     def test_context_sandbox_preparation(self) -> None:
         """Test CrashReportContext crash ID parsing and sandbox directory creation."""
         context = CrashReportContext(
-            f"http://go/crash/{self.crash_id}", base_dir=str(self.temp_path), aosp_root="/qemu2/root", branch="emu-main-dev", build_id="12345678"
+            f"http://go/crash/{self.crash_id}",
+            base_dir=str(self.temp_path),
+            aosp_root="/qemu2/root",
+            branch="emu-main-dev",
+            build_id="12345678",
         )
         self.assertEqual(context.crash_id, self.crash_id)
         self.assertEqual(context.aosp_root, "/qemu2/root")
@@ -166,8 +170,10 @@ class TestCrashAdvisor(unittest.TestCase):
     def test_crash_metadata_explicit_build_id_override(self) -> None:
         """Test CrashMetadata prioritizes explicit build ID override over product version."""
         meta_path = self.temp_path / "metadata_override.json"
-        meta_path.write_text(json.dumps({"report_proto": {"product": {"Version": "36.3.10"}}}))
-        
+        meta_path.write_text(
+            json.dumps({"report_proto": {"product": {"Version": "36.3.10"}}})
+        )
+
         # Without override
         metadata_normal = CrashMetadata(meta_path)
         self.assertEqual(metadata_normal.build_id, "36.3.10")
@@ -181,17 +187,44 @@ class TestCrashAdvisor(unittest.TestCase):
         meta_path = self.temp_path / "metadata_dev.json"
 
         # Test Linux x64 gfxstream
-        meta_path.write_text(json.dumps({"report_proto": {"os": {"Name": "Linux"}, "cpu": {"Architecture": "x86_64"}}}))
+        meta_path.write_text(
+            json.dumps(
+                {
+                    "report_proto": {
+                        "os": {"Name": "Linux"},
+                        "cpu": {"Architecture": "x86_64"},
+                    }
+                }
+            )
+        )
         metadata_linux = CrashMetadata(meta_path, branch="emu-main-dev")
         self.assertEqual(metadata_linux.build_target, "emulator-linux_x64_gfxstream")
 
         # Test macOS aarch64 gfxstream
-        meta_path.write_text(json.dumps({"report_proto": {"os": {"Name": "Darwin"}, "cpu": {"Architecture": "aarch64"}}}))
+        meta_path.write_text(
+            json.dumps(
+                {
+                    "report_proto": {
+                        "os": {"Name": "Darwin"},
+                        "cpu": {"Architecture": "aarch64"},
+                    }
+                }
+            )
+        )
         metadata_mac = CrashMetadata(meta_path, branch="emu-main-dev")
         self.assertEqual(metadata_mac.build_target, "emulator-mac_aarch64_gfxstream")
 
         # Test Windows x64 gfxstream
-        meta_path.write_text(json.dumps({"report_proto": {"os": {"Name": "Windows"}, "cpu": {"Architecture": "x86_64"}}}))
+        meta_path.write_text(
+            json.dumps(
+                {
+                    "report_proto": {
+                        "os": {"Name": "Windows"},
+                        "cpu": {"Architecture": "x86_64"},
+                    }
+                }
+            )
+        )
         metadata_win = CrashMetadata(meta_path, branch="emu-main-dev")
         self.assertEqual(metadata_win.build_target, "emulator-windows_x64_gfxstream")
 
@@ -200,7 +233,9 @@ class TestCrashAdvisor(unittest.TestCase):
         """Test SymbolFetcher pipeline and global caching."""
         mock_api = MagicMock()
         mock_ab_client = MagicMock()
-        mock_ab_client.list_artifacts.return_value = ["sdk-repo-linux-emulator-breakpad-symbols-15630821.zip"]
+        mock_ab_client.list_artifacts.return_value = [
+            "sdk-repo-linux-emulator-breakpad-symbols-15630821.zip"
+        ]
         mock_ab_class.return_value = mock_ab_client
 
         cache_dir = self.temp_path / "cache"
@@ -241,23 +276,37 @@ class TestCrashAdvisor(unittest.TestCase):
             self.assertTrue(cached_zip.exists())
 
     @patch("symbols.AndroidBuildClient")
-    def test_symbol_fetcher_emulator_symbols_dynamic_resolution(self, mock_ab_class: MagicMock) -> None:
+    def test_symbol_fetcher_emulator_symbols_dynamic_resolution(
+        self, mock_ab_class: MagicMock
+    ) -> None:
         """Test SymbolFetcher dynamically resolves emulator-symbols zip for gfxstream targets."""
         mock_api = MagicMock()
         mock_ab_client = MagicMock()
-        mock_ab_client.list_artifacts.return_value = ["sdk-repo-linux-emulator-symbols-15659437.zip"]
+        mock_ab_client.list_artifacts.return_value = [
+            "sdk-repo-linux-emulator-symbols-15659437.zip"
+        ]
         mock_ab_class.return_value = mock_ab_client
 
         cache_dir = self.temp_path / "cache_dyn"
         symbols_dir = self.temp_path / "symbols_dyn"
 
         meta_path = self.temp_path / "metadata_dyn.json"
-        meta_path.write_text(json.dumps({"report_proto": {"product": {"Version": "15659437"}, "os": {"Name": "Linux"}}}))
+        meta_path.write_text(
+            json.dumps(
+                {
+                    "report_proto": {
+                        "product": {"Version": "15659437"},
+                        "os": {"Name": "Linux"},
+                    }
+                }
+            )
+        )
         metadata = CrashMetadata(meta_path, branch="emu-main-dev")
 
         fetcher = SymbolFetcher(mock_api, global_cache_dir=str(cache_dir))
 
         with patch("symbols.shutil.unpack_archive") as mock_unpack:
+
             def mock_fetch_bits(dst, bid, target, artifact):
                 Path(dst).write_text("PK...")
 
@@ -266,7 +315,9 @@ class TestCrashAdvisor(unittest.TestCase):
             fetcher.fetch_symbols(metadata, symbols_dir, custom_token="dummy_token")
             mock_unpack.assert_called_once()
 
-            cached_zip = cache_dir / "15659437" / "sdk-repo-linux-emulator-symbols-15659437.zip"
+            cached_zip = (
+                cache_dir / "15659437" / "sdk-repo-linux-emulator-symbols-15659437.zip"
+            )
             self.assertTrue(cached_zip.exists())
 
     @patch("dump.Runfiles")
@@ -325,6 +376,22 @@ class TestCrashAdvisor(unittest.TestCase):
         self.assertTrue(script_path.exists())
         content = script_path.read_text()
         self.assertIn("--add-dir=/qemu2/custom/root", content)
+
+    def test_crash_report_analyzer_auto_run(self) -> None:
+        """Test CrashReportAnalyzer generating investigation_cmd.sh for non-interactive batch mode."""
+        context = CrashReportContext(self.crash_id, base_dir=str(self.temp_path))
+        context.prepare_sandbox()
+        dump_path = context.work_dir / "crashreport.txt"
+        dump_path.write_text("Crashing stack trace dummy")
+
+        analyzer = CrashReportAnalyzer()
+        script_path = analyzer.generate_explanation(context, dump_path, auto_run=True)
+
+        self.assertTrue(script_path.exists())
+        content = script_path.read_text()
+        self.assertIn("jetski", content)
+        self.assertIn("--prompt", content)
+        self.assertNotIn("--prompt-interactive", content)
 
     def test_crash_report_analyzer_raises_file_not_found(self) -> None:
         """Test CrashReportAnalyzer raises FileNotFoundError when dump file is missing."""
