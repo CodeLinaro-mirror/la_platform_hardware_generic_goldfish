@@ -42,7 +42,7 @@ class CrashReportAnalyzer:
         return str(start_path.parents[4])
 
     def generate_explanation(
-        self, context: CrashReportContext, dump_path: Path, auto_run: bool = False
+        self, context: CrashReportContext, dump_path: Path, auto_run: bool = False, timeout: str = "30m"
     ) -> Path:
         """Construct the Jetski CLI command and save it to investigation_cmd.sh."""
         investigation_script = context.work_dir / "investigation_cmd.sh"
@@ -76,6 +76,7 @@ Your mission is to perform a rigorous Root Cause Analysis (RCA) on the attached 
         cmd_args = [
             "--model=pro",
             f"--agent={agent_md}",
+            f"--timeout={timeout}",
             f"--add-dir={aosp_root}",
             f"--add-dir={dump_path.parent}",
             prompt_flag,

@@ -20,6 +20,7 @@ py_binary(
     srcs = [
         "advisor.py",
         "api.py",
+        "buganizer.py",
         "client.py",
         "context.py",
         "dump.py",
@@ -49,6 +50,26 @@ py_test(
         ":advisor",
         "@aemu//tools/libs_python:ab",
         "@bazel_tools//tools/python/runfiles",
+    ],
+)
+
+py_test(
+    name = "buganizer_test",
+    srcs = ["buganizer_test.py"],
+    deps = [
+        ":advisor",
+    ],
+)
+
+py_test(
+    name = "buganizer_e2e_test",
+    srcs = ["buganizer_e2e_test.py"],
+    tags = [
+        "local",
+        "manual",
+    ],
+    deps = [
+        ":advisor",
     ],
 )
 

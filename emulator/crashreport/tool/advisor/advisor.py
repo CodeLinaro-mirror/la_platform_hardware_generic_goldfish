@@ -26,6 +26,12 @@ import sys
 from typing import List, Optional
 
 from api import CrashApi
+from buganizer import (
+    BuganizerClient,
+    BuganizerError,
+    EMULATOR_COMPONENT_ID,
+    TAG_DISPATCHED,
+)
 from client import GossoClient
 from context import CrashReportContext
 from dump import CrashReportDumper
@@ -45,8 +51,34 @@ class CrashAdvisorApp:
         self.api: Optional[CrashApi] = None
 
     def _parse_args(self, args_list: Optional[List[str]]) -> argparse.Namespace:
+        desc = """Automated Minidump AI Diagnostic Pipeline.
+
+This tool retrieves minidumps and symbols, generates stack traces and looper timelines,
+and provisions an AI assistant (jetski/gemini) to investigate the root cause.
+
+Common Workflows:
+  1. Interactive AI Investigation (Default):
+     $ bazel run @goldfish//emulator/crashreport/tool/advisor -- 6998451fea502b78 --token "<TOKEN>"
+     Then run the generated script in your terminal to open the AI REPL:
+       /tmp/crashadvisor_$USER/6998451fea502b78/investigation_cmd.sh
+
+  2. Automated Batch Mode (--auto-run):
+     $ bazel run @goldfish//emulator/crashreport/tool/advisor -- 6998451fea502b78 --token "<TOKEN>" --auto-run
+     Executes the AI investigation in the background and saves the Root Cause Analysis
+     directly to rca_summary.md without waiting for user prompts.
+
+  3. Closed-Loop Buganizer Mode (--auto-run --enable-buganizer):
+     $ bazel run @goldfish//emulator/crashreport/tool/advisor -- 6998451fea502b78 --token "<TOKEN>" --auto-run --enable-buganizer
+     Automatically searches for or creates the relevant Buganizer issue in Component 29601,
+     attaches the RCA summary, and dispatches an autonomous engineer to draft a fix.
+
+Prerequisite: OAuth2 Token
+  CrashAdvisor requires an OAuth2 token to fetch symbols from Android Build (go/ab)
+  and manage Buganizer tickets. Generate one on GLinux/Cloudtop via:
+    oauth2l reset && oauth2l fetch --sso $USER@google.com https://www.googleapis.com/auth/buganizer https://www.googleapis.com/auth/androidbuild.internal"""
         parser = argparse.ArgumentParser(
-            description="CrashAdvisor (advisor): Automated Minidump AI Diagnostic Pipeline."
+            description=desc,
+            formatter_class=argparse.RawDescriptionHelpFormatter,
         )
         parser.add_argument(
             "crash_id",
@@ -68,7 +100,7 @@ class CrashAdvisorApp:
         )
         parser.add_argument(
             "--build-id",
-            help="Explicit Android Build ID (e.g., 15630821) to override the version parsed from metadata",
+            help="Explicit Android Build ID (e.g., 15630821) to override the version parsed from metadata (typically only needed for older emulator builds)",
         )
         parser.add_argument(
             "-v",
@@ -80,6 +112,21 @@ class CrashAdvisorApp:
             "--auto-run",
             action="store_true",
             help="Automatically execute the AI investigation script immediately in non-interactive batch mode",
+        )
+        parser.add_argument(
+            "--enable-buganizer",
+            action="store_true",
+            help="Explicitly enable Buganizer issue creation, search, and comment updates (disabled by default)",
+        )
+        parser.add_argument(
+            "--bug-id",
+            type=int,
+            help="Explicit Buganizer issue ID (e.g., 12345678) to attach findings to",
+        )
+        parser.add_argument(
+            "--timeout",
+            default="30m",
+            help="Execution timeout for the underlying AI investigation CLI (default: 30m)",
         )
         return parser.parse_args(args_list)
 
@@ -135,13 +182,21 @@ class CrashAdvisorApp:
             # Step 5: Prepare Jetski AI Investigation Script
             analyzer = CrashReportAnalyzer()
             investigation_script = analyzer.generate_explanation(
-                self.context, dump_path, auto_run=self.args.auto_run
+                self.context, dump_path, auto_run=self.args.auto_run, timeout=self.args.timeout
             )
             if self.args.auto_run:
                 logging.info(
                     "Launching AI investigation automatically: %s", investigation_script
                 )
                 subprocess.run([str(investigation_script)], check=True)
+
+                # Step 6: Closed-Loop Buganizer Integration & Agent Handoff (Disabled by default)
+                if self.args.enable_buganizer:
+                    self._process_closed_loop(metadata)
+                else:
+                    logging.info(
+                        "Buganizer integration is disabled by default. Pass --enable-buganizer to enable closed-loop issue updates."
+                    )
             else:
                 logging.info(
                     "CrashAdvisor pipeline complete. Launch investigation script: %s",
@@ -150,6 +205,149 @@ class CrashAdvisorApp:
         except Exception as e:
             logging.error("%s", e, exc_info=self.args.verbose)
             sys.exit(1)
+
+    def _process_closed_loop(self, metadata: CrashMetadata) -> None:
+        """Execute Buganizer lifecycle updates and autonomous agent handoff."""
+        logging.info("=== Executing Closed-Loop Buganizer & Agent Handoff ===")
+        rca_summary_path = self.context.work_dir / "rca_summary.md"
+        if not rca_summary_path.exists():
+            md_files = list(self.context.work_dir.glob("*.md"))
+            if md_files:
+                rca_summary_path = md_files[0]
+            else:
+                logging.warning(
+                    "No markdown RCA summary found in %s. Skipping Buganizer update.",
+                    self.context.work_dir,
+                )
+                return
+
+        rca_content = rca_summary_path.read_text(encoding="utf-8")
+        stable_sig = getattr(
+            metadata, "stable_signature", f"Crash-{self.context.crash_id}"
+        )
+
+        try:
+            buganizer = BuganizerClient(
+                token=self.args.token, verbose=self.args.verbose
+            )
+            bug_id = self.args.bug_id
+
+            if not bug_id:
+                logging.info(
+                    "Searching Buganizer for existing issue matching stableSignature: %s",
+                    stable_sig,
+                )
+                existing_issue = buganizer.search_issue_by_signature(stable_sig)
+                if existing_issue:
+                    bug_id = int(
+                        existing_issue.get("id", existing_issue.get("issueId", 0))
+                    )
+                    status = existing_issue.get(
+                        "status",
+                        existing_issue.get("issueState", {}).get("status", "NEW"),
+                    )
+                    logging.info(
+                        "Found existing issue b/%d (status: %s)", bug_id, status
+                    )
+                    if status in ("FIXED", "VERIFIED", "OBSOLETE"):
+                        logging.info("Issue is closed. Reopening as regression.")
+                        buganizer.reopen_issue_as_regression(bug_id, rca_content)
+                    else:
+                        logging.info("Issue is open. Adding RCA comment.")
+                        buganizer.update_issue_comment(bug_id, rca_content)
+                else:
+                    logging.info(
+                        "No existing issue found. Creating new issue in Component %d",
+                        EMULATOR_COMPONENT_ID,
+                    )
+                    bug_id = buganizer.create_issue(stable_sig, rca_content)
+                    logging.info("Created new issue b/%d", bug_id)
+
+            # Step 7: Parse YAML actionability block for autonomous agent handoff
+            self._execute_agent_handoff(buganizer, bug_id, rca_content)
+
+        except BuganizerError as e:
+            logging.error(
+                "Buganizer integration failed: %s", e, exc_info=self.args.verbose
+            )
+
+    def _execute_agent_handoff(
+        self, buganizer: BuganizerClient, bug_id: int, rca_content: str
+    ) -> None:
+        """Parse YAML actionability and dispatch emu_main_next_engineer via agentapi."""
+        if "actionability:" not in rca_content:
+            logging.info(
+                "No structured actionability block found in RCA summary. Halting for human review."
+            )
+            return
+
+        lines = (
+            rca_content.split("actionability:")[1].split("```")[0].strip().split("\n")
+        )
+        action_data = {}
+        for line in lines:
+            if ":" in line:
+                key, val = line.split(":", 1)
+                action_data[key.strip()] = (
+                    val.strip().strip('"').strip("'").split("#")[0].strip()
+                )
+
+        if action_data.get("fixable", "false").lower() != "true":
+            logging.info(
+                "Actionability indicates root cause is not autonomously fixable. Halting for human review."
+            )
+            return
+
+        logging.info(
+            "Structured actionability asserts fixable: true. Verifying Buganizer tags to prevent runaway loops."
+        )
+        try:
+            buganizer.update_issue_comment(
+                bug_id,
+                "Dispatching emu_main_next_engineer for autonomous fix.",
+                tags=[TAG_DISPATCHED],
+            )
+        except BuganizerError as e:
+            logging.warning("Failed to update Buganizer tags: %s", e)
+
+        target_file = action_data.get("target_file", "unknown")
+        target_function = action_data.get("target_function", "unknown")
+        remediation = action_data.get("remediation_summary", "Refer to rca_summary.md")
+
+        existing_comments = (
+            "\n".join(buganizer.get_issue_comments(bug_id)[-5:]) if bug_id else "None"
+        )
+
+        engineer_prompt = f"""Implement the remediation plan detailed in rca_summary.md for Bug: {bug_id}.
+Target File: {target_file}
+Target Function: {target_function}
+Remediation Summary: {remediation}
+
+=== EXISTING BUGANIZER COMMENTS ===
+{existing_comments}
+===================================
+
+Follow the TDD loop (Red/Green/Refactor) coordinating with test_enforcer.
+Upon successful verification, hand off to reviewer.md for audit and committer.md to execute repo upload.
+"""
+
+        logging.info("Spawning emu_main_next_engineer via agentapi...")
+        try:
+            subprocess.run(
+                [
+                    "agentapi",
+                    "new-conversation",
+                    "--model=pro",
+                    "--agent=.gemini/agents/emu_main_next_engineer.md",
+                    engineer_prompt,
+                ],
+                check=True,
+            )
+            logging.info("Autonomous engineer successfully dispatched.")
+        except (subprocess.CalledProcessError, FileNotFoundError) as e:
+            logging.warning(
+                "agentapi invocation failed or not found in environment: %s", e
+            )
 
 
 def main() -> None:

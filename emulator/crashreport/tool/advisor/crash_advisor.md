@@ -33,3 +33,11 @@ Utilize your read and search tools (`grep_search`, `read_file`) within the attac
    * **2. Event Timeline**: Chrono-sequence of breadcrumb events leading to the crash.
    * **3. Core Blame & File Locations**: Exact source files, functions, and line numbers implicated.
    * **4. Remediation Recommendations**: Defensive improvements, lock cycle elimination, or queue bounds.
+4. **Structured Actionability:** Conclude your report with a strictly formatted YAML block indicating whether the root cause is deterministically fixable by an autonomous agent (e.g., missing mutex lock, explicit null dereference, uninitialized variable, or out-of-bounds queue access):
+```yaml
+actionability:
+  fixable: true # or false
+  target_file: "emulator/crashreport/tool/breadcrumbs/breadcrumb_processor.cc"
+  target_function: "BreadcrumbProcessor::Process"
+  remediation_summary: "Acquire std::lock_guard<std::mutex> before accessing breadcrumb queue."
+```
