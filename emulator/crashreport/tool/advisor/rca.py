@@ -76,7 +76,7 @@ Your mission is to perform a rigorous Root Cause Analysis (RCA) on the attached 
         cmd_args = [
             "--model=pro",
             f"--agent={agent_md}",
-            f"--timeout={timeout}",
+            f"--print-timeout={timeout}",
             f"--add-dir={aosp_root}",
             f"--add-dir={dump_path.parent}",
             prompt_flag,

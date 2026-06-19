@@ -413,7 +413,7 @@ class TestCrashAdvisor(unittest.TestCase):
 
         self.assertTrue(script_path.exists())
         content = script_path.read_text()
-        self.assertIn("--timeout=15m", content)
+        self.assertIn("--print-timeout=15m", content)
 
     def test_crash_report_analyzer_raises_file_not_found(self) -> None:
         """Test CrashReportAnalyzer raises FileNotFoundError when dump file is missing."""
