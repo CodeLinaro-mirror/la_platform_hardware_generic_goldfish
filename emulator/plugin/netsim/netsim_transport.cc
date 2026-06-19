@@ -121,15 +121,20 @@ void NetsimTransport::NextWrite_locked() {
 
 void NetsimTransport::next_recv() {
     std::lock_guard<std::mutex> lock(mReadlock);
-    if (mReadDone) {
-        // Can't read anymore
+    if (mReadDone || mReading) {
+        // Can't read anymore or read already in progress
         return;
     }
+    mReading = true;
     StartRead(&mReadBuffer);
 }
 
 void NetsimTransport::OnReadDone(bool ok) {
     if (ok) {
+        {
+            std::lock_guard<std::mutex> lock(mReadlock);
+            mReading = false;
+        }
         if (mRecvCb(&mReadBuffer)) {
             next_recv();
         }
@@ -138,6 +143,7 @@ void NetsimTransport::OnReadDone(bool ok) {
         VLOG(1) << "Netsim Transport: " << mKindName << " - reading terminated";
         std::lock_guard<std::mutex> lock(mReadlock);
         mReadDone = true;
+        mReading = false;
     }
 }
 
