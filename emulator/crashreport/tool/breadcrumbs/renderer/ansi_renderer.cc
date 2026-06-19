@@ -248,6 +248,23 @@ void RenderForensicSpine(RenderState& state, const RenderEvent& re, std::strings
                 } else {
                     ss << Symbols::kStart;
                 }
+            } else if (proto.has_looper()) {
+                const auto& looper = proto.looper();
+                if (looper.event() == android::control::breadcrumbs::LooperPayload::EXECUTE) {
+                    if (has_migration) {
+                        ss << (prev_lane < current_lane ? Symbols::kSend : Symbols::kRecv);
+                    } else {
+                        ss << Symbols::kEndOk;
+                    }
+                } else {
+                    if (has_migration) {
+                        ss << (prev_lane < current_lane ? Symbols::kSend : Symbols::kRecv);
+                    } else {
+                        ss << Symbols::kStart;
+                    }
+                }
+            } else {
+                ss << " "sv;
             }
             ss << reset;
         } else if (has_migration && i == prev_lane) {
@@ -366,6 +383,18 @@ std::string AnsiRenderer::Render(const DiagnosticTrace& trace) const {
             label = PhaseToLabel(proto.grpc().grpc_phase());
         } else if (proto.has_adb()) {
             label = "ADB";
+        } else if (proto.has_looper()) {
+            switch (proto.looper().event()) {
+            case android::control::breadcrumbs::LooperPayload::POST:
+                label = "POST";
+                break;
+            case android::control::breadcrumbs::LooperPayload::EXECUTE:
+                label = "EXEC";
+                break;
+            default:
+                label = "LOOPER";
+                break;
+            }
         }
 
         const std::string call_info =

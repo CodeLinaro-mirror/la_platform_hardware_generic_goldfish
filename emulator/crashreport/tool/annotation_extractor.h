@@ -21,11 +21,18 @@
 namespace android {
 namespace crashreport {
 
+struct ExtractedAnnotation {
+    std::string name;
+    std::vector<uint8_t> value;
+};
+
 class AnnotationExtractor {
   public:
     nlohmann::json Extract(crashpad::FileReader* reader);
     std::vector<uint8_t> ExtractAnnotationBytes(crashpad::FileReader* reader,
                                                 const std::string& name);
+    std::vector<ExtractedAnnotation> ExtractAnnotationsWithPrefix(crashpad::FileReader* reader,
+                                                                  const std::string& prefix);
 };
 
 }  // namespace crashreport

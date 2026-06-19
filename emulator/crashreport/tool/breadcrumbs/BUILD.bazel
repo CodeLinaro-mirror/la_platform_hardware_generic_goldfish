@@ -103,6 +103,7 @@ cc_library(
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/time",
+        "@breakpad//src/processor",
     ],
 )
 

@@ -35,6 +35,7 @@
 
 #include "android/base/bazel_info.h"
 #include "android/base/system.h"
+#include "android/crashreport/breadcrumbs/breadcrumb_parser.h"
 #include "android/crashreport/breadcrumbs/breadcrumb_processor.h"
 #include "android/crashreport/breadcrumbs/trace_renderer_factory.h"
 #include "android/crashreport/crash_system.h"
@@ -91,46 +92,87 @@ bool ProcessMinidump(const std::string& minidump_file, MinidumpProcessor& minidu
     std::string content = absl::GetFlag(FLAGS_content);
     std::string format = absl::GetFlag(FLAGS_format);
 
-    nlohmann::json modules = nullptr;
     bool show_stack = (content == "all" || content == "stack");
     bool show_breadcrumbs = (content == "all" || content == "breadcrumbs");
 
+    google_breakpad::ProcessState process_state;
+    google_breakpad::BasicSourceLineResolver resolver;
+    std::vector<std::string> symbol_paths = absl::GetFlag(FLAGS_symbol_paths);
+    if (!minidump_processor.Process(minidump_file, symbol_paths, &process_state, &resolver)) {
+        return false;
+    }
+
+    crashpad::FileReader reader;
+    if (!reader.Open(base::FilePath(
+                crashpad::ToolSupport::CommandLineArgumentToFilePathStringType(minidump_file)))) {
+        LOG(ERROR) << "Minidump " << minidump_file << " could not be opened";
+        return false;
+    }
+    nlohmann::json modules = annotation_extractor.Extract(&reader);
+
     if (show_stack) {
-        crashpad::FileReader reader;
-        if (!reader.Open(
-                    base::FilePath(crashpad::ToolSupport::CommandLineArgumentToFilePathStringType(
-                            minidump_file)))) {
-            LOG(ERROR) << "Minidump " << minidump_file << " could not be opened";
-            return false;
-        }
-        modules = annotation_extractor.Extract(&reader);
-
-        google_breakpad::ProcessState process_state;
-        google_breakpad::BasicSourceLineResolver resolver;
-        std::vector<std::string> symbol_paths = absl::GetFlag(FLAGS_symbol_paths);
-        if (!minidump_processor.Process(minidump_file, symbol_paths, &process_state, &resolver)) {
-            return false;
-        }
-
         formatter.PrintMinidumpAnalysis(process_state, &resolver, modules, format == "machine",
                                         format == "stack");
     }
 
     if (show_breadcrumbs) {
-        crashpad::FileReader reader;
-        if (!reader.Open(
-                    base::FilePath(crashpad::ToolSupport::CommandLineArgumentToFilePathStringType(
-                            minidump_file)))) {
-            LOG(ERROR) << "Minidump " << minidump_file << " could not be opened for breadcrumbs";
+        if (!reader.SeekSet(0)) {
+            LOG(ERROR) << "Failed to rewind minidump file for gRPC breadcrumbs";
             return false;
         }
-
         std::vector<uint8_t> grpc_breadcrumbs =
                 annotation_extractor.ExtractAnnotationBytes(&reader, "grpc_breadcrumbs");
+
+        if (!reader.SeekSet(0)) {
+            LOG(ERROR) << "Failed to rewind minidump file for ADB breadcrumbs";
+            return false;
+        }
         std::vector<uint8_t> adb_breadcrumbs =
                 annotation_extractor.ExtractAnnotationBytes(&reader, "adb_breadcrumbs");
 
-        if (grpc_breadcrumbs.empty() && adb_breadcrumbs.empty()) {
+        std::vector<std::vector<uint8_t>> all_breadcrumbs;
+        if (!grpc_breadcrumbs.empty()) all_breadcrumbs.push_back(std::move(grpc_breadcrumbs));
+        if (!adb_breadcrumbs.empty()) all_breadcrumbs.push_back(std::move(adb_breadcrumbs));
+
+        if (!reader.SeekSet(0)) {
+            LOG(ERROR) << "Failed to rewind minidump file for events breadcrumbs";
+            return false;
+        }
+        std::vector<uint8_t> events_breadcrumbs =
+                annotation_extractor.ExtractAnnotationBytes(&reader, "events_breadcrumbs");
+        if (!events_breadcrumbs.empty()) all_breadcrumbs.push_back(std::move(events_breadcrumbs));
+
+        std::string looper_registrations;
+        if (modules.contains("looper_registrations")) {
+            looper_registrations = modules["looper_registrations"].get<std::string>();
+        }
+
+        if (!reader.SeekSet(0)) {
+            LOG(ERROR) << "Failed to rewind minidump file for partitioned event loops";
+            return false;
+        }
+        auto looper_annotations =
+                annotation_extractor.ExtractAnnotationsWithPrefix(&reader, "event_");
+        for (auto& annotation : looper_annotations) {
+            if (!annotation.value.empty()) {
+                std::string loop_name = annotation.name.substr(6);  // Remove "event_"
+                auto entries = android::crashreport::breadcrumbs::BreadcrumbParser::Parse(
+                        annotation.value);
+                for (const auto& entry : entries) {
+                    if (entry.has_looper()) {
+                        if (!looper_registrations.empty()) {
+                            looper_registrations += ";";
+                        }
+                        absl::StrAppend(&looper_registrations, entry.looper().loop_id(), "=",
+                                        loop_name);
+                        break;
+                    }
+                }
+                all_breadcrumbs.push_back(std::move(annotation.value));
+            }
+        }
+
+        if (all_breadcrumbs.empty()) {
             std::cout << "No breadcrumbs found in minidump.\n";
         } else {
             uint64_t crashing_thread_id = 0;
@@ -187,19 +229,10 @@ bool ProcessMinidump(const std::string& minidump_file, MinidumpProcessor& minidu
             bool skip_stdout = (content == "all" && format == "machine");
 
             if (!skip_stdout) {
-                if (!grpc_breadcrumbs.empty()) {
-                    std::string report =
-                            BreadcrumbProcessor::Process(grpc_breadcrumbs, crashing_thread_id,
-                                                         render_format, use_color, os_tid_to_index);
-                    std::cout << "\n--- gRPC Breadcrumbs ---\n" << report << "\n";
-                }
-
-                if (!adb_breadcrumbs.empty()) {
-                    std::string report =
-                            BreadcrumbProcessor::Process(adb_breadcrumbs, crashing_thread_id,
-                                                         render_format, use_color, os_tid_to_index);
-                    std::cout << "\n--- ADB Breadcrumbs ---\n" << report << "\n";
-                }
+                std::string report = BreadcrumbProcessor::Process(
+                        all_breadcrumbs, crashing_thread_id, render_format, use_color,
+                        os_tid_to_index, &resolver, process_state.modules(), looper_registrations);
+                std::cout << "\n--- Breadcrumbs ---\n" << report << "\n";
             }
         }
     }
