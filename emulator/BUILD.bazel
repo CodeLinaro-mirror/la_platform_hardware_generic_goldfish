@@ -94,6 +94,29 @@ build_id_from_command_line(
     build_setting_default = "developer",
 )
 
+config_setting(
+    name = "is_developer_build_id",
+    flag_values = {":build_id": "developer"},
+)
+
+bool_flag(
+    name = "is_presubmit",
+    build_setting_default = False,
+)
+
+config_setting(
+    name = "is_presubmit_build",
+    flag_values = {":is_presubmit": "True"},
+)
+
+selects.config_setting_group(
+    name = "is_developer_build",
+    match_any = [
+        ":is_developer_build_id",
+        ":is_presubmit_build",
+    ],
+)
+
 source_properties(
     name = "source_properties",
     out = "source.properties",
@@ -548,6 +571,10 @@ pkg_zip(
         "emulator-dir",
         ":security",
     ],
+    compression_level = select({
+        ":is_developer_build": 1,
+        "//conditions:default": 9,
+    }),
     package_file_name = select({
         ":internal_fishtank_enabled": "G3-sdk-repo-{platform}-{product_name}-{build_id}.zip",
         "//conditions:default": "sdk-repo-{platform}-{product_name}-{build_id}.zip",
