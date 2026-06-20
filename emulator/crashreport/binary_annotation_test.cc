@@ -16,15 +16,14 @@
 
 #include <gtest/gtest.h>
 
-#include "grpc_diagnostic.pb.h"
-
 #include "android/crashreport/thread.h"
 #include "android/status/status_matcher_macros.h"
+#include "breadcrumb.pb.h"
 #include "goldfish/circular_message_log.h"
 
 namespace android::crashreport {
 
-using android::control::interceptor::GrpcBreadcrumb;
+using android::control::breadcrumbs::Breadcrumb;
 using goldfish::proto_data_store::ProtoCircularLog;
 
 TEST(BinaryAnnotationTest, Basic) {
@@ -39,18 +38,18 @@ TEST(BinaryAnnotationTest, IntegrationWithProtoLog) {
     BinaryAnnotation<2048> annotation("grpc_log");
 
     // 2. Initialize a ProtoCircularLog over the annotation's buffer.
-    ASSERT_OK_AND_ASSIGN(auto log, ProtoCircularLog<GrpcBreadcrumb>::CreateWriter(
-                                           annotation.Data(), annotation.size()));
+    ASSERT_OK_AND_ASSIGN(auto log, ProtoCircularLog<Breadcrumb>::CreateWriter(annotation.Data(),
+                                                                              annotation.size()));
 
     // 3. Push data.
-    GrpcBreadcrumb crumb;
-    crumb.set_call_id(999);
+    Breadcrumb crumb;
+    crumb.set_flow_id(999);
     ASSERT_OK(log->Push(crumb));
 
     // 4. Verify data can be read back from the same memory.
     int seen = 0;
-    log->ForEach([&](const GrpcBreadcrumb& msg) {
-        if (msg.call_id() == 999) seen++;
+    log->ForEach([&](const Breadcrumb& msg) {
+        if (msg.flow_id() == 999) seen++;
         return true;
     });
 
