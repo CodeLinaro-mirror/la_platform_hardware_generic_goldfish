@@ -325,9 +325,12 @@ collect_plugins(
 )
 
 collect_plugins(
-    name = "lib64gl",
+    name = "shared_libraries",
     output_dir = "lib64",
-    plugins = select({
+    plugins = [
+        "@glib//glib:glib_shared",
+        "@glib//gmodule:gmodule_shared",
+    ] + select({
         "darwin_aarch64": [
             "@goldfish_prebuilts_common//ANGLE:lib_darwin_aarch64",
             "@goldfish_prebuilts_common//vulkan:lib_darwin_aarch64",
@@ -481,9 +484,9 @@ cc_binary(
         ":binaries",
         ":fishtank",
         ":keymaps",
-        ":lib64gl",
         ":plugins",
         ":roms",
+        ":shared_libraries",
         ":unsecure-emulator-access",
         ":vulkan_icds",
     ],
