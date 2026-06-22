@@ -70,6 +70,7 @@ class NetsimTransport : public grpc::ClientBidiReactor<::netsim::packet::PacketR
     ::netsim::packet::PacketResponse mReadBuffer;
     std::mutex mReadlock;
     bool mReadDone{false};
+    bool mReading{false};
 
     absl::Notification mDone;
 };
