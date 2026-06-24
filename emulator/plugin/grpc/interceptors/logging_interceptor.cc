@@ -133,7 +133,9 @@ std::string LoggingInterceptor::FormatProtobufMessage(  // NOLINT
     printer.SetSingleLineMode(true);
     printer.SetExpandAny(true);
     printer.SetTruncateStringFieldLongerThan(kMaxProtobufStrLen);
-    printer.PrintToString(*msg, &debug_string);
+    if (!printer.PrintToString(*msg, &debug_string)) {
+        return "<failed to format message>";
+    }
 
     // Single line mode currently might have an extra space at the end.
     if (!debug_string.empty() && debug_string[debug_string.size() - 1] == ' ') {

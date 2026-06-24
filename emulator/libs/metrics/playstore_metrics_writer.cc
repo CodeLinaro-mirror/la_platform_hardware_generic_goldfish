@@ -199,7 +199,10 @@ PlaystoreMetricsWriter::~PlaystoreMetricsWriter() {
 void PlaystoreMetricsWriter::Write(MetricsEvent event) {
     wireless_android_play_playlog::LogEvent log_event;
     log_event.set_event_time_ms(event.time_ms);
-    event.as_event.SerializeToString(log_event.mutable_source_extension());
+    if (!event.as_event.SerializeToString(log_event.mutable_source_extension())) {
+        LOG(ERROR) << "Failed to serialize metrics event.";
+        return;
+    }
 
     size_t message_length = log_event.ByteSizeLong();
     if (message_length > kMaxStorage) {
