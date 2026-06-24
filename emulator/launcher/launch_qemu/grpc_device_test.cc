@@ -36,11 +36,22 @@ TEST(Grpc, DefaultPort) {
     EXPECT_OK(dev.initialize(emu.config()));
     EXPECT_THAT(dev.getQemuParameters(emu.config()),
                 testing::ElementsAre(testing::Eq("-device"),
-                                     testing::StartsWith("grpc,port=8560,token=true,allowlist=")));
+                                     testing::StartsWith("grpc,port=8560,token=false,allowlist=")));
 }
 
 TEST(Grpc, CustomPort) {
     AndroidOptions opts{.grpc = "1000"};
+    FakeEmulator emu(std::move(opts));
+
+    GrpcDevice dev;
+    EXPECT_OK(dev.initialize(emu.config()));
+    EXPECT_THAT(dev.getQemuParameters(emu.config()),
+                testing::ElementsAre(testing::Eq("-device"),
+                                     testing::StartsWith("grpc,port=1000,token=false,allowlist=")));
+}
+
+TEST(Grpc, CustomPortWithToken) {
+    AndroidOptions opts{.grpc = "1000", .grpc_use_token = true};
     FakeEmulator emu(std::move(opts));
 
     GrpcDevice dev;
