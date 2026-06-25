@@ -268,7 +268,7 @@ TEST_F(BreadcrumbInterceptorTest, CapturesIncomingMessages) {
                     android::control::breadcrumbs::GrpcPayload::POST_RECV_MESSAGE) {
             EXPECT_TRUE(c.grpc().has_payload());
             android::emulation::control::KeyboardEvent captured;
-            captured.ParseFromString(c.grpc().payload());
+            EXPECT_TRUE(captured.ParseFromString(c.grpc().payload()));
             EXPECT_EQ(captured.key(), "A");
             found_incoming = true;
         }

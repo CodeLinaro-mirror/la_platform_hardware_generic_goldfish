@@ -53,7 +53,9 @@ Status VehicleServiceImpl::getVehicleProperty(::grpc::ServerContext* /*context*/
         // Map internal value to response
         std::string serialized;
         if (it->second.SerializeToString(&serialized)) {
-            response->ParseFromString(serialized);
+            if (!response->ParseFromString(serialized)) {
+                return Status(::grpc::StatusCode::INTERNAL, "Failed to parse VHAL value");
+            }
         } else {
             return Status(::grpc::StatusCode::INTERNAL, "Failed to serialize VHAL value");
         }

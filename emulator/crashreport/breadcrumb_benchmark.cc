@@ -99,6 +99,7 @@
 #include <benchmark/benchmark.h>
 
 #include <atomic>
+#include <cassert>
 #include <cstring>
 #include <vector>
 
@@ -135,7 +136,9 @@ static void BM_ProtobufSerialization(benchmark::State& state) {
     std::string buffer;
     for (auto _ : state) {
         buffer.clear();
-        event.SerializeToString(&buffer);
+        bool success = event.SerializeToString(&buffer);
+        assert(success);
+        (void)success;
         benchmark::DoNotOptimize(buffer);
     }
 }
@@ -207,7 +210,9 @@ static void BM_BinaryEnvelopeProtoPayload(benchmark::State& state) {
 
     for (auto _ : state) {
         proto_buffer.clear();
-        adb.SerializeToString(&proto_buffer);
+        bool success = adb.SerializeToString(&proto_buffer);
+        assert(success);
+        (void)success;
 
         envelope.payload_len = proto_buffer.size();
 
