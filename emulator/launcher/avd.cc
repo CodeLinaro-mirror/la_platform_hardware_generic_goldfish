@@ -628,6 +628,28 @@ absl::StatusOr<std::unique_ptr<Avd>> Avd::FromSysDirs(
     HardwareConfig hw_cfg;
     hw_cfg.Load(config_ini);
 
+    // Resolution fallback: If dimensions are missing from config.ini,
+    // try to resolve them from a "magic" skin name (e.g., "1080x1920").
+    if (!config_ini.HasKey("hw.lcd.width") || !config_ini.HasKey("hw.lcd.height")) {
+        std::string skin_name = config_ini.GetString("skin.name", "");
+        if (!skin_name.empty() && std::isdigit(skin_name[0])) {
+            int width = 0;
+            int height = 0;
+            if (std::sscanf(skin_name.c_str(), "%dx%d", &width, &height) == 2) {
+                if (width > 0 && height > 0) {
+                    if (!config_ini.HasKey("hw.lcd.width")) {
+                        hw_cfg.hw_lcd_width = width;
+                    }
+                    if (!config_ini.HasKey("hw.lcd.height")) {
+                        hw_cfg.hw_lcd_height = height;
+                    }
+                    LOG(INFO) << "Launcher: Resolved missing hw.lcd.width/height from skin.name: "
+                              << width << "x" << height;
+                }
+            }
+        }
+    }
+
     // TODO also load skin hardware.ini if present?
 
     // TODO this probably needs to be updated when snapshots are supported.
