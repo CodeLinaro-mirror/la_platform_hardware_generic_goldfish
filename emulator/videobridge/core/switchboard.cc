@@ -1,0 +1,221 @@
+// Copyright (C) 2026 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#include "goldfish/videobridge/switchboard.h"
+
+#include <utility>
+
+#include "absl/log/log.h"
+#include "grpc_input_sender.h"
+
+#include "participant.h"
+
+namespace goldfish::videobridge {
+
+Switchboard::Switchboard(std::shared_ptr<EmulatorClient> client,
+                         std::shared_ptr<MediaProvider> media_provider)
+        : emulator_client_(std::move(client)), media_provider_(std::move(media_provider)) {}
+
+Switchboard::~Switchboard() {
+    std::vector<std::shared_ptr<Participant>> active_connections;
+    {
+        const absl::MutexLock lock(&connections_mutex_);
+        for (auto& [_, participant] : connections_) {
+            active_connections.push_back(participant);
+        }
+    }
+    for (auto& participant : active_connections) {
+        participant->Close();
+        participant->WaitForClose();
+    }
+    const absl::MutexLock lock(&connections_mutex_);
+    connections_.clear();
+}
+
+bool Switchboard::Connect(const std::string& identity, const std::string& turn_config) {
+    const absl::MutexLock lock(&connections_mutex_);
+    if (connections_.count(identity) > 0) {
+        VLOG(1) << "Connect called for already connected WebRTC participant: " << identity;
+        return true;
+    }
+
+    auto participant = std::make_shared<Participant>(*this, identity, turn_config, media_provider_);
+    auto status = participant->Initialize();
+    if (!status.ok()) {
+        LOG(ERROR) << "Failed to initialize WebRTC participant session for '" << identity
+                   << "': " << status;
+        return false;
+    }
+
+    connections_[identity] = participant;
+    GetOrCreateQueue(identity);
+    LOG(INFO) << "Successfully created WebRTC participant session for: " << identity;
+    return true;
+}
+
+void Switchboard::Disconnect(const std::string& identity) {
+    std::shared_ptr<Participant> participant;
+    {
+        const absl::MutexLock lock(&connections_mutex_);
+        auto it = connections_.find(identity);
+        if (it == connections_.end()) {
+            VLOG(1) << "Disconnect called for inactive/unknown participant: " << identity;
+            return;
+        }
+        participant = std::move(it->second);
+        connections_.erase(it);
+    }
+
+    if (participant) {
+        participant->Close();
+    }
+    RemoveQueue(identity);
+    LOG(INFO) << "Successfully disconnected and cleaned up WebRTC session for participant: "
+              << identity;
+}
+
+absl::Status Switchboard::AcceptJsepMessage(const std::string& identity, const std::string& msg) {
+    std::shared_ptr<Participant> participant;
+    {
+        const absl::MutexLock lock(&connections_mutex_);
+        auto it = connections_.find(identity);
+        if (it == connections_.end()) {
+            return absl::NotFoundError(absl::StrCat(
+                    "JSEP message received for unknown/inactive participant: ", identity));
+        }
+        participant = it->second;
+    }
+
+    auto json_msg = nlohmann::json::parse(msg, nullptr, false);
+    if (json_msg.is_discarded()) {
+        return absl::InvalidArgumentError(
+                absl::StrCat("Failed to parse JSEP signal message from participant ", identity,
+                             " (Invalid JSON payload): ", msg));
+    }
+
+    VLOG(1) << "Routing incoming JSEP message to participant " << identity;
+    participant->IncomingMessage(json_msg);
+    return absl::OkStatus();
+}
+
+absl::StatusOr<std::string> Switchboard::NextMessage(const std::string& identity,
+                                                     absl::Duration timeout) {
+    auto queue = GetQueue(identity);
+    if (!queue) {
+        return absl::NotFoundError(absl::StrCat("Participant queue not found for: ", identity));
+    }
+    const absl::MutexLock lock(&queue->mutex);
+    auto has_items = [&queue]() { return !queue->queue.empty(); };
+    if (queue->mutex.AwaitWithTimeout(absl::Condition(&has_items), timeout)) {
+        std::string next_message = std::move(queue->queue.front());
+        queue->queue.pop();
+        return next_message;
+    }
+    return absl::DeadlineExceededError(
+            absl::StrCat("Timeout waiting for next JSEP message from participant: ", identity));
+}
+
+void Switchboard::RtcConnectionClosed(std::string participant) {
+    LOG(INFO) << "WebRTC connection closed notification received for participant: " << participant;
+}
+
+std::unique_ptr<InputSender> Switchboard::CreateInputSender(DataChannelLabel /*label*/) {
+    return std::make_unique<GrpcInputSender>(emulator_client_);
+}
+
+void Switchboard::NextMessage(const std::string& identity, MessageCallback callback) {
+    auto queue = GetQueue(identity);
+    if (!queue) {
+        if (callback) {
+            callback(absl::NotFoundError(
+                    absl::StrCat("Participant queue not found for: ", identity)));
+        }
+        return;
+    }
+    std::string msg;
+    {
+        const absl::MutexLock lock(&queue->mutex);
+        if (!queue->queue.empty()) {
+            msg = std::move(queue->queue.front());
+            queue->queue.pop();
+        } else {
+            VLOG(1) << "NextMessage: No messages queued for participant " << identity
+                    << ". Registering pending callback.";
+            queue->callback = std::move(callback);
+            return;
+        }
+    }
+    if (callback) {
+        VLOG(1) << "NextMessage: Immediately dispatching queued signaling message to participant: "
+                << identity;
+        callback(std::move(msg));
+    }
+}
+
+void Switchboard::Send(std::string to, const nlohmann::json& msg) {
+    auto queue = GetQueue(to);
+    if (!queue) {
+        VLOG(1) << "Send: Dropping message to already disconnected participant: " << to;
+        return;
+    }
+    MessageCallback cb;
+    std::string msg_str = msg.dump();
+    {
+        const absl::MutexLock lock(&queue->mutex);
+        if (queue->callback) {
+            cb = std::move(queue->callback);
+            queue->callback = nullptr;
+        } else {
+            VLOG(1) << "Send: No pending callback. Storing signaling message in FIFO queue for "
+                       "participant: "
+                    << to;
+            queue->queue.push(std::move(msg_str));
+            return;
+        }
+    }
+    if (cb) {
+        VLOG(1) << "Send: Dispatching signaling message directly to pending callback for "
+                   "participant: "
+                << to;
+        cb(std::move(msg_str));
+    }
+}
+
+std::shared_ptr<Switchboard::ParticipantQueue> Switchboard::GetOrCreateQueue(
+        const std::string& identity) {
+    const absl::MutexLock lock(&queues_mutex_);
+    auto it = message_queues_.find(identity);
+    if (it != message_queues_.end()) {
+        return it->second;
+    }
+    auto queue = std::make_shared<ParticipantQueue>();
+    message_queues_[identity] = queue;
+    return queue;
+}
+
+std::shared_ptr<Switchboard::ParticipantQueue> Switchboard::GetQueue(const std::string& identity) {
+    const absl::MutexLock lock(&queues_mutex_);
+    auto it = message_queues_.find(identity);
+    if (it != message_queues_.end()) {
+        return it->second;
+    }
+    return nullptr;
+}
+
+void Switchboard::RemoveQueue(const std::string& identity) {
+    const absl::MutexLock lock(&queues_mutex_);
+    message_queues_.erase(identity);
+}
+
+}  // namespace goldfish::videobridge
