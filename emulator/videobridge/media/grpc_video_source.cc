@@ -51,18 +51,27 @@ std::optional<::webrtc::VideoFrame> RgbaToI420Pipeline::Convert(const uint8_t* r
                                                                 size_t raw_size, uint32_t width,
                                                                 uint32_t height,
                                                                 int64_t timestamp_us) {
-    if (!buffer_ || buffer_->width() != static_cast<int>(width) ||
-        buffer_->height() != static_cast<int>(height)) {
-        buffer_ = ::webrtc::I420Buffer::Create(static_cast<int>(width), static_cast<int>(height));
+    // VideoToolbox (and H.264/YUV420 in general) requires even dimensions.
+    const uint32_t even_width = width & ~1u;
+    const uint32_t even_height = height & ~1u;
+
+    if (even_width == 0 || even_height == 0) {
+        return std::nullopt;
     }
 
-    const int status =
-            libyuv::ConvertToI420(raw_data, raw_size, buffer_->MutableDataY(), buffer_->StrideY(),
-                                  buffer_->MutableDataU(), buffer_->StrideU(),
-                                  buffer_->MutableDataV(), buffer_->StrideV(),
-                                  /*crop_x=*/0, /*crop_y=*/0, static_cast<int>(width),
-                                  static_cast<int>(height), static_cast<int>(width),
-                                  static_cast<int>(height), libyuv::kRotate0, libyuv::FOURCC_ABGR);
+    if (!buffer_ || buffer_->width() != static_cast<int>(even_width) ||
+        buffer_->height() != static_cast<int>(even_height)) {
+        buffer_ = ::webrtc::I420Buffer::Create(static_cast<int>(even_width),
+                                               static_cast<int>(even_height));
+    }
+
+    const int status = libyuv::ConvertToI420(
+            raw_data, raw_size, buffer_->MutableDataY(), buffer_->StrideY(),
+            buffer_->MutableDataU(), buffer_->StrideU(), buffer_->MutableDataV(),
+            buffer_->StrideV(),
+            /*crop_x=*/0, /*crop_y=*/0, static_cast<int>(width), static_cast<int>(height),
+            static_cast<int>(even_width), static_cast<int>(even_height), libyuv::kRotate0,
+            libyuv::FOURCC_ABGR);
 
     if (status != 0) {
         return std::nullopt;
