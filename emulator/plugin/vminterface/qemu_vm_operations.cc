@@ -215,6 +215,7 @@ class QemuVmOperations : public VmOperations {
     }
 
     absl::Status ListSnapshots(const SnapshotEntrySink sink) override {
+        ScopedVmLock lock;
         ::Error* errp = nullptr;
         ::BlockDriverState* bs = ::bdrv_all_find_vmstate_bs(
                 /*vmstate_bs=*/nullptr, /*has_devices=*/false, /*devices=*/nullptr, &errp);
