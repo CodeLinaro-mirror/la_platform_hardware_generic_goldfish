@@ -178,6 +178,7 @@ class QemuVmOperations : public VmOperations {
     }
 
     absl::Status SaveSnapshot(const char* name, const bool overwrite) override {
+        ScopedVmLock lock;
         ::Error* errp = nullptr;
         if (!::save_snapshot(name, overwrite, /*vmstate=*/nullptr, /*has_devices=*/false,
                              /*devices=*/nullptr, &errp)) {
@@ -188,6 +189,7 @@ class QemuVmOperations : public VmOperations {
     }
 
     absl::Status LoadSnapshot(const char* idOrName, const bool andResume) override {
+        ScopedVmLock lock;
         ::Error* errp = nullptr;
         if (!::load_snapshot(idOrName, /*vmstate=*/nullptr, /*has_devices=*/false,
                              /*devices=*/nullptr, &errp)) {
