@@ -200,9 +200,27 @@ hardware-accelerated H.264 Encoder MFT (Media Foundation Transform).
 
 #### macOS (VideoToolbox)
 
-_(Planned)_ Future versions will integrate Apple's VideoToolbox framework
-(`RTCVideoEncoderFactoryH264`) via the native WebRTC Objective-C wrapper to
-support GPU-accelerated video encoding on macOS hosts.
+On macOS, the bridge uses `RTCVideoEncoderFactoryH264` and
+`RTCVideoDecoderFactoryH264` from Apple's VideoToolbox framework. These are
+wrapped into a native `webrtc::VideoEncoderFactory` via the
+`webrtc::ObjCToNativeVideoEncoderFactory` bridge.
+
+- **Lifetime Management:** Because Objective-C++ uses Automatic Reference
+  Counting (ARC), the native C++ wrapper classes hold strong references
+  (`objc_factory_`) to the underlying Objective-C factory objects to prevent
+  them from being prematurely deallocated.
+- **Level Elevation for High Resolutions:** By default, WebRTC's H.264 factory
+  advertises **Level 3.1** (`profile-level-id=42e01f`), which caps the video
+  resolution at `1280x720` at 30 FPS. High-resolution streams like `1080x2400`
+  exceed the macroblock limits of Level 3.1, causing Apple's VideoToolbox to
+  fail with `kVTParameterErr` (`-12902`) on macOS.
+
+  To solve this, the composite factories intercept the advertised formats and
+  elevate the H.264 `profile-level-id` to **Level 5.2** (`34` in hex), which
+  supports up to 4K resolutions at 60 FPS (e.g. Constrained Baseline Profile is
+  elevated to `42e034` and High Profile to `640c34`). This allows the browser to
+  negotiate high-resolution streams that can be processed directly by the macOS
+  GPU.
 
 #### Linux (NVIDIA / VA-API)
 
