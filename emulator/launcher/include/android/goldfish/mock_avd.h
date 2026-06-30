@@ -52,6 +52,7 @@ class MockAvd : public Avd {
     MOCK_METHOD(absl::StatusOr<std::optional<int>>, GetLastRunQemuVersion, (), (const, override));
     MOCK_METHOD(absl::Status, SetLastRunQemuVersion, (int version), (override));
     MOCK_METHOD(std::string, BuildProductName, (), (const, override));
+    MOCK_METHOD(int, ForcedTrampolineVersion, (), (const, override));
 };
 
 }  // namespace android::goldfish
