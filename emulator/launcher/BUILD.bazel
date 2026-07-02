@@ -476,8 +476,14 @@ cc_test(
     ],
 )
 
-cc_binary(
+alias(
     name = "launcher",
+    actual = ":emulator",
+)
+
+cc_binary(
+    # This is the launcher binary but we want the name of the executable created to be "emulator" to match the legacy emulator release.
+    name = "emulator",
     srcs = ["main.cc"],
     data = [
         ":advanced_features",

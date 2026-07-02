@@ -131,7 +131,7 @@ pkg_files(
 filegroup(
     name = "launcher_binaries",
     srcs = [
-        "//emulator/launcher",
+        "//emulator/launcher:emulator",
         "//emulator/launcher/emulator-check",
         "//emulator/launcher/mksdcard",
     ],
@@ -269,14 +269,6 @@ pkg_files(
     attributes = pkg_attributes(
         mode = "0755",
     ),
-    renames = select({
-        "@platforms//os:windows": {
-            "//emulator/launcher": "emulator.exe",
-        },
-        "//conditions:default": {
-            "//emulator/launcher": "emulator",
-        },
-    }),
 )
 
 remapped_pkg_files(
