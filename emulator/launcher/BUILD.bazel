@@ -224,8 +224,10 @@ cc_test(
     srcs = ["host_info_test.cc"],
     deps = [
         ":host_info",
+        ":mock_avd",
         "//emulator/libs/system:test-headers",
         "//emulator/libs/test:googletest_main",
+        "@studio_stats//:studio_stats_cc_proto",
     ],
 )
 
