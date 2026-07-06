@@ -350,12 +350,12 @@ void LaunchQemu::setupGpuVariables() {
     if (useHostGpu) {
         chosenEmuRenderer = "host";
 #if defined(__APPLE__)
-        // Use MoltenVK by default, allow changing to KosmicKrisp with an env var
-        // TODO(b/434041683): Use KosmicKrisp as the default Vulkan ICD on macOS.
-        if (System::Get()->GetEnvironmentVariable("ANDROID_EMU_VK_SELECT_ICD") == "kosmickrisp") {
-            chosenVulkanICD = "kosmickrisp";
-        } else {
+        // Use KosmicKrisp as the default Vulkan ICD on macOS, allow changing to MoltenVK with an
+        // environment variable
+        if (System::Get()->GetEnvironmentVariable("ANDROID_EMU_VK_SELECT_ICD") == "moltenvk") {
             chosenVulkanICD = "moltenvk";
+        } else {
+            chosenVulkanICD = "kosmickrisp";
         }
 #else
         // Use system defaults
