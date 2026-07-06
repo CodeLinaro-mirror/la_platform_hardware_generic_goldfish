@@ -216,6 +216,7 @@ struct BuildProp {
 
     std::string ProductName() const {
         using namespace std::literals;
+        // TODO(whollins): Should we check flavor first?
         constexpr auto props =
                 std::array{"ro.product.name"sv, "ro.product.system.name"sv, "ro.build.flavor"sv};
 
@@ -254,6 +255,9 @@ class FileBackedAvd : public Avd {
         return config_ini_.GetString("avd.ini.displayname", Name());
     }
     std::string SkinName() const override { return config_ini_.GetString("skin.name", ""); }
+    int ForcedTrampolineVersion() const override {
+        return config_ini_.GetInt("trampoline.force_version", 0);
+    }
     std::string Id() const override {
         // TODO allow override with opts.id
         return Name();

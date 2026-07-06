@@ -176,6 +176,8 @@ class Avd {
 
     virtual std::string SkinName() const = 0;
 
+    virtual int ForcedTrampolineVersion() const = 0;
+
     /**
      * @brief Returns the qemu version of the emulator that ran this AVD.
      * @return An absl::StatusOr<std::optional<int>> object. On success,
