@@ -97,8 +97,6 @@ class QemuEventLoopImpl : public goldfish::async::QemuEventLoop {
                 , flow_id_(flow_id)
                 , auto_cancel_(auto_cancel) {}
 
-        ~QemuTimer() override = default;
-
         void DoCancel() {
             if (QEMUTimer* qemu_timer = TakeOwnershipQemuTimer()) {
                 // This should stop and un-register the timer.

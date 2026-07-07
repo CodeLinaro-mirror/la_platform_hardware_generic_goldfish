@@ -226,8 +226,6 @@ class LibuvTimer : public EventLoop::Timer, public std::enable_shared_from_this<
             , flow_id_(flow_id)
             , auto_cancel_(auto_cancel) {}
 
-    ~LibuvTimer() override = default;
-
     void DoCancel() {
         if (uv_timer_t* uv_timer = TakeOwnershipUvTimer()) {
             uv_timer_stop(uv_timer);
