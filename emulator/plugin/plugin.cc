@@ -243,6 +243,8 @@ extern "C" void GF_STARTUP_FUNC(int argc, char** argv) {
 
 extern "C" void GF_SHUTDOWN_FUNC(void) {
     auto* client_loop = goldfish::async::globalEventLoop();
+    android::crashreport::CrashReporter::GetCrashingHangDetector().RemoveWatchedLooper(
+            *client_loop);
     LOG_IF(FATAL, !client_loop->ShutdownAndWait(std::chrono::seconds(10)).ok())
             << "global event loop shutdown failed within 10s";
     LOG(INFO) << "goldfish plugin shutdown completed";
