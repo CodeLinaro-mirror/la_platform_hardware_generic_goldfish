@@ -200,6 +200,17 @@ AvdExtendedUniverse::~AvdExtendedUniverse() {
     }
 
     goldfish::vsock::clear();
+
+    {
+        auto& hd = android::crashreport::CrashReporter::GetCrashingHangDetector();
+
+        for (auto& loop : qemu_cpu_loops) {
+            hd.RemoveWatchedLooper(loop);
+        }
+
+        hd.RemoveWatchedLooper(*qemu_event_loop);
+    }
+
     WaitUntilEventLoopsIdle();
     ShutdownQemuLoop();
 }
