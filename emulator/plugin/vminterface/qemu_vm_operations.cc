@@ -204,10 +204,12 @@ class QemuVmOperations : public VmOperations {
     }
 
     void LoadSnapshotResume(const EmuRunState ers) override {
+        ScopedVmLock lock;
         ::load_snapshot_resume(static_cast<::RunState>(ers));
     }
 
     absl::Status DeleteSnapshot(const char* idOrName) override {
+        ScopedVmLock lock;
         ::Error* errp = nullptr;
         if (!::delete_snapshot(idOrName, /*has_devices=*/false, /*devices=*/nullptr, &errp)) {
             return ToStatus(absl::StatusCode::kInternal, &errp);
