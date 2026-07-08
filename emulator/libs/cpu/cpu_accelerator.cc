@@ -130,7 +130,6 @@ GlobalState gGlobals = {
 
 // IWYU pragma: end_keep
 // clang-format on
-#include <WinHvEmulation.h>
 #include <WinHvPlatform.h>
 #include <windows.h>
 // IWYU pragma: end_keep
