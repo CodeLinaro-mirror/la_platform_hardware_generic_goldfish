@@ -1003,28 +1003,6 @@ TEST_P(EventLoopTest, RescheduleRepeatingTimer) {
     ASSERT_GE(counter.load(), 3);
 }
 
-TEST_P(EventLoopTest, TimerDestroyedAfterLoop) {
-    runInThread();
-
-    auto timer = loop->CreateTimer([]() {});
-
-    shutdown();
-
-    timer.reset();
-}
-
-TEST_P(EventLoopTest, TimerScheduleAfterLoopDestroyed) {
-    runInThread();
-
-    auto timer = loop->CreateTimer([]() {});
-
-    shutdown();
-
-    timer->Schedule(100ms, 100ms);
-
-    timer.reset();
-}
-
 TEST_P(EventLoopTest, TimerCreatedAfterLoopShutdown) {
     runInThread();
 

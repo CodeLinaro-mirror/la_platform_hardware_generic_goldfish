@@ -210,12 +210,9 @@ class LibuvTimer : public EventLoop::Timer, public std::enable_shared_from_this<
         auto* uv_timer = reinterpret_cast<uv_timer_t*>(handle);
         DCHECK(uv_timer->data) << "UV timer handle must have a pointer to the LibuvTimer instance.";
         auto* that = static_cast<LibuvTimer*>(uv_timer->data);
+        DCHECK(!that->timer_handle_valid_);
+        DCHECK(that->pinned_);
 
-        // We get here from `uv_close`, see `takeOwnershipUvTimer`
-        DCHECK(!that->uv_timer_handle_valid_.load())
-                << "Timer handle should have been invalidated before closing.";
-        that->event_loop_.load()->RemoveActiveTimer(that);
-        that->event_loop_.store(nullptr);
         that->pinned_.reset();  // potentially calls ~LibuvTimer
     }
 
@@ -224,56 +221,64 @@ class LibuvTimer : public EventLoop::Timer, public std::enable_shared_from_this<
             : event_loop_(loop)
             , task_(std::move(task))
             , flow_id_(flow_id)
-            , auto_cancel_(auto_cancel) {}
-
-    void DoCancel() {
-        if (uv_timer_t* uv_timer = TakeOwnershipUvTimer()) {
-            uv_timer_stop(uv_timer);
-            uv_close(reinterpret_cast<uv_handle_t*>(uv_timer), UnpinItselfOnClose);
-        }
+            , auto_cancel_(auto_cancel) {
+        DCHECK(event_loop_);
     }
 
     void Cancel() override {
-        if (auto* loop = event_loop_.load()) {
-            // Stop and delete the timer from the event loop.
-            loop->PostImmediatelyInternal([self = shared_from_this()]() { self->DoCancel(); });
-        } else {
-            LOG(WARNING) << "Trying to cancel a timer that's already been cancelled";
-        }
+        event_loop_->PostImmediatelyInternal(
+                [self = shared_from_this()]() { self->DoCancel(false); });
     }
 
     void Schedule(std::chrono::milliseconds new_delay,
                   std::chrono::milliseconds new_interval) override {
-        if (auto* loop = event_loop_.load()) {
-            loop->PostImmediatelyInternal([self = shared_from_this(),
-                                           new_delay_ms = new_delay.count(),
-                                           new_interval_ms = new_interval.count()] {
-                if (uv_timer_t* uv_timer = self->GetUvTimer()) {
-                    uv_timer_stop(uv_timer);
-                    uv_timer_start(uv_timer, OnTimer, new_delay_ms, new_interval_ms);
-                }
-            });
-        } else {
-            LOG(WARNING) << "Trying to schedule a timer that's been cancelled";
-        }
+        event_loop_->PostImmediatelyInternal([self = shared_from_this(),
+                                              new_delay_ms = new_delay.count(),
+                                              new_interval_ms = new_interval.count()] {
+            if (self->timer_handle_valid_) {
+                DCHECK(self->pinned_);
+
+                uv_timer_stop(&self->uv_timer_handle_);
+                uv_timer_start(&self->uv_timer_handle_, OnTimer, new_delay_ms, new_interval_ms);
+            } else {
+                LOG(ERROR) << "Can't schedule a timer after it has been cancelled";
+            }
+        });
     }
 
   private:
+    void DoCancel(const bool shutting_down) {
+        DCHECK(event_loop_->IsOnLoopThread())
+                << "DoCancel callback must be executed on the event loop thread.";
+
+        if (std::exchange(timer_handle_valid_, false)) {
+            DCHECK(pinned_);
+
+            uv_timer_stop(&uv_timer_handle_);
+            if (!shutting_down) {
+                event_loop_->RemoveActiveTimer(this);
+            }
+
+            uv_close(reinterpret_cast<uv_handle_t*>(&uv_timer_handle_), UnpinItselfOnClose);
+        } else {
+            LOG(ERROR) << "Can't cancel a timer after it has been cancelled";
+        }
+    }
+
     void AddItselfToActiveTimers() {
         // shared_from_this() is not available in the ctor
-        auto* loop = event_loop_.load();
-        loop->PostImmediatelyInternal([loop, self = shared_from_this()]() {
+        event_loop_->PostImmediatelyInternal([self = shared_from_this()]() {
             DCHECK(!self->pinned_) << "Timer should not be pinned before initialization.";
-            self->pinned_ = self;
-            if (const int err = uv_timer_init(&loop->uv_loop_handle_, &self->uv_timer_handle_)) {
+
+            if (const int err = uv_timer_init(&self->event_loop_->uv_loop_handle_,
+                                              &self->uv_timer_handle_)) {
                 LOG(DFATAL) << "uv_timer_init failed with: " << uv_strerror(err);
             }
             self->uv_timer_handle_.data = self.get();
-            DCHECK(!self->uv_timer_handle_valid_.load())
-                    << "Timer handle should be invalid before initialization.";
-            self->uv_timer_handle_valid_.store(true);
+            self->timer_handle_valid_ = true;
 
-            loop->AddActiveTimer(self);
+            self->pinned_ = self;
+            self->event_loop_->AddActiveTimer(self);
         });
     }
 
@@ -281,10 +286,10 @@ class LibuvTimer : public EventLoop::Timer, public std::enable_shared_from_this<
         DCHECK(handle->data) << "UV timer handle must have a pointer to the LibuvTimer instance.";
         const auto self = static_cast<LibuvTimer*>(handle->data)->pinned_;
         DCHECK(self) << "OnTimer callback called without a valid LibuvTimer instance.";
-        DCHECK(self->event_loop_.load()->IsOnLoopThread())
+        DCHECK(self->event_loop_->IsOnLoopThread())
                 << "OnTimer callback must be executed on the event loop thread.";
 
-        auto* tracker = self->event_loop_.load()->tracker();
+        auto* tracker = self->event_loop_->tracker();
         if (self->flow_id_ != 0 && tracker) {
             tracker->LogExecute(self->flow_id_);
         }
@@ -295,23 +300,19 @@ class LibuvTimer : public EventLoop::Timer, public std::enable_shared_from_this<
         // This will lead to the object being deleted if the user has
         // also released their shared_ptr.
         if (self->auto_cancel_) {
-            self->DoCancel();
+            self->DoCancel(false);
         }
     }
 
-    uv_timer_t* GetUvTimer() { return uv_timer_handle_valid_.load() ? &uv_timer_handle_ : nullptr; }
-
-    uv_timer_t* TakeOwnershipUvTimer() {
-        return uv_timer_handle_valid_.exchange(false) ? &uv_timer_handle_ : nullptr;
-    }
-
-    std::atomic<LibuvEventLoopImpl*> event_loop_;
+    LibuvEventLoopImpl* const event_loop_;
     std::shared_ptr<LibuvTimer> pinned_;  ///< prevents calling the dctor
     EventLoop::Task task_;
     uv_timer_t uv_timer_handle_;
     const FlowId flow_id_;
     const bool auto_cancel_;
-    std::atomic<bool> uv_timer_handle_valid_ = false;
+    bool timer_handle_valid_ = false;
+
+    friend LibuvEventLoopImpl;
 };
 
 // --- LibuvEventLoopImpl Implementation ---
@@ -358,16 +359,15 @@ LibuvEventLoopImpl::~LibuvEventLoopImpl() {
 void LibuvEventLoopImpl::ShutdownTimersInternal() {
     LOG_IF(DFATAL, !IsOnLoopThread())
             << "ShutdownTimersInternal must be called from the loop thread";
-    // Iterate a copy as doCancel calls back to removeActiveTimer which calls erase.
-    auto copy = active_timers_;
-    for (const auto& [unsafePtr, weakTimer] : copy) {
+    for (const auto& [unsafePtr, weakTimer] : active_timers_) {
         if (const std::shared_ptr<LibuvTimer> timer = weakTimer.lock()) {
-            timer->DoCancel();
+            timer->DoCancel(true);
         } else {
             // Note that we don't expect a timer to have been deleted without first calling
             // removeActiveTimer so "this should never happen"
         }
     }
+    active_timers_.clear();
 }
 
 std::shared_ptr<EventLoop::Timer> LibuvEventLoopImpl::CreateTimer(Task task) {
