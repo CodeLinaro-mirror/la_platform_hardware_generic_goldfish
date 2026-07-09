@@ -94,8 +94,8 @@ class QemuEventLoopImpl : public goldfish::async::QemuEventLoop {
                   Private)
                 : event_loop_(loop)
                 , task_(std::move(task))
-                , auto_cancel_(auto_cancel)
-                , flow_id_(flow_id) {}
+                , flow_id_(flow_id)
+                , auto_cancel_(auto_cancel) {}
 
         ~QemuTimer() override = default;
 
@@ -189,15 +189,13 @@ class QemuEventLoopImpl : public goldfish::async::QemuEventLoop {
         }
 
         std::atomic<QemuEventLoopImpl*> event_loop_;
-        Task task_;
-        bool auto_cancel_ = false;
-        FlowId flow_id_ = 0;
-
-        QEMUTimer qemu_timer_handle_;
-        std::atomic<bool> qemu_timer_handle_valid_ = false;
-
         std::shared_ptr<QemuTimer> pinned_;  ///< prevents calling the dctor
+        Task task_;
+        QEMUTimer qemu_timer_handle_;
+        const FlowId flow_id_;
         uint64_t interval_ms_ = 0;
+        const bool auto_cancel_;
+        std::atomic<bool> qemu_timer_handle_valid_ = false;
     };
 
     QemuEventLoopImpl(std::string name)

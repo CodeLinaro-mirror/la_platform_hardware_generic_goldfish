@@ -216,15 +216,15 @@ class LibuvTimer : public EventLoop::Timer, public std::enable_shared_from_this<
                 << "Timer handle should have been invalidated before closing.";
         that->event_loop_.load()->RemoveActiveTimer(that);
         that->event_loop_.store(nullptr);
-        that->pinned_by_uv_timer_.reset();  // potentially calls ~LibuvTimer
+        that->pinned_.reset();  // potentially calls ~LibuvTimer
     }
 
     LibuvTimer(LibuvEventLoopImpl* loop, EventLoop::Task task, bool auto_cancel, FlowId flow_id,
                Private)
             : event_loop_(loop)
             , task_(std::move(task))
-            , auto_cancel_(auto_cancel)
-            , flow_id_(flow_id) {}
+            , flow_id_(flow_id)
+            , auto_cancel_(auto_cancel) {}
 
     ~LibuvTimer() override = default;
 
@@ -265,9 +265,8 @@ class LibuvTimer : public EventLoop::Timer, public std::enable_shared_from_this<
         // shared_from_this() is not available in the ctor
         auto* loop = event_loop_.load();
         loop->PostImmediatelyInternal([loop, self = shared_from_this()]() {
-            DCHECK(!self->pinned_by_uv_timer_)
-                    << "Timer should not be pinned before initialization.";
-            self->pinned_by_uv_timer_ = self;
+            DCHECK(!self->pinned_) << "Timer should not be pinned before initialization.";
+            self->pinned_ = self;
             if (const int err = uv_timer_init(&loop->uv_loop_handle_, &self->uv_timer_handle_)) {
                 LOG(DFATAL) << "uv_timer_init failed with: " << uv_strerror(err);
             }
@@ -282,7 +281,7 @@ class LibuvTimer : public EventLoop::Timer, public std::enable_shared_from_this<
 
     static void OnTimer(uv_timer_t* handle) {
         DCHECK(handle->data) << "UV timer handle must have a pointer to the LibuvTimer instance.";
-        const auto self = static_cast<LibuvTimer*>(handle->data)->pinned_by_uv_timer_;
+        const auto self = static_cast<LibuvTimer*>(handle->data)->pinned_;
         DCHECK(self) << "onTimer callback called without a valid LibuvTimer instance.";
         DCHECK(self->event_loop_.load()->IsOnLoopThread())
                 << "onTimer callback must be executed on the event loop thread.";
@@ -309,14 +308,12 @@ class LibuvTimer : public EventLoop::Timer, public std::enable_shared_from_this<
     }
 
     std::atomic<LibuvEventLoopImpl*> event_loop_;
+    std::shared_ptr<LibuvTimer> pinned_;  ///< prevents calling the dctor
     EventLoop::Task task_;
-    bool auto_cancel_ = false;
-    FlowId flow_id_ = 0;
-
     uv_timer_t uv_timer_handle_;
+    const FlowId flow_id_;
+    const bool auto_cancel_;
     std::atomic<bool> uv_timer_handle_valid_ = false;
-
-    std::shared_ptr<LibuvTimer> pinned_by_uv_timer_;  ///< prevents calling the dctor
 };
 
 // --- LibuvEventLoopImpl Implementation ---
