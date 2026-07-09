@@ -280,9 +280,9 @@ class LibuvTimer : public EventLoop::Timer, public std::enable_shared_from_this<
     static void OnTimer(uv_timer_t* handle) {
         DCHECK(handle->data) << "UV timer handle must have a pointer to the LibuvTimer instance.";
         const auto self = static_cast<LibuvTimer*>(handle->data)->pinned_;
-        DCHECK(self) << "onTimer callback called without a valid LibuvTimer instance.";
+        DCHECK(self) << "OnTimer callback called without a valid LibuvTimer instance.";
         DCHECK(self->event_loop_.load()->IsOnLoopThread())
-                << "onTimer callback must be executed on the event loop thread.";
+                << "OnTimer callback must be executed on the event loop thread.";
 
         auto* tracker = self->event_loop_.load()->tracker();
         if (self->flow_id_ != 0 && tracker) {

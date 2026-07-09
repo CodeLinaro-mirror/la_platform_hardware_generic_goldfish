@@ -153,9 +153,9 @@ class QemuEventLoopImpl : public goldfish::async::QemuEventLoop {
         // C-style callback passed to QEMU.
         static void OnTimer(void* opaque) {
             const auto self = static_cast<QemuTimer*>(opaque)->pinned_;
-            DCHECK(self) << "onTimer callback is called without a shared_from_this pointer";
+            DCHECK(self) << "OnTimer callback is called without a shared_from_this pointer";
             DCHECK(self->event_loop_.load()->IsOnLoopThread())
-                    << "onTimer callback is not called from the event loop";
+                    << "OnTimer callback is not called from the event loop";
 
             if (self->flow_id_ != 0 && self->event_loop_.load()->tracker()) {
                 self->event_loop_.load()->tracker()->LogExecute(self->flow_id_);
