@@ -489,6 +489,7 @@ TEST_P(EventLoopTest, ScheduleDelayedExecutesSuccessfully) {
                         delay.count(), tolerance.count());
         }
         task_completed.set_value();
+        return true;
     });
     handle->Schedule(delay);
 
@@ -502,7 +503,10 @@ TEST_P(EventLoopTest, ScheduleDelayedIsReschedulableAfterFiring) {
     runInThread();
 
     std::atomic<bool> task_executed = false;
-    auto handle = loop->CreateTimer([&]() { task_executed = true; });
+    auto handle = loop->CreateTimer([&]() {
+        task_executed = true;
+        return true;
+    });
     handle->Schedule(100ms);
 
     // Advance time past the timer's expiration.
@@ -530,7 +534,10 @@ TEST_P(EventLoopTest, ScheduleDelayedIsCancelledByHandle) {
     runInThread();
 
     std::atomic<bool> task_executed = false;
-    auto handle = loop->CreateTimer([&]() { task_executed = true; });
+    auto handle = loop->CreateTimer([&]() {
+        task_executed = true;
+        return true;
+    });
     handle->Schedule(100ms, 0ms);
 
     handle->Cancel();
@@ -550,7 +557,10 @@ TEST_P(EventLoopTest, ScheduleDelayedIsCancelledByRAII) {
     std::atomic<bool> task_executed = false;
 
     {
-        auto handle = loop->CreateTimer([&]() { task_executed = true; });
+        auto handle = loop->CreateTimer([&]() {
+            task_executed = true;
+            return true;
+        });
         handle->Schedule(100ms, 0ms);
         VLOG(1) << "Use count: " << handle.use_count();
     }  // handle is destroyed here, cancelling the timer.
@@ -575,6 +585,7 @@ TEST_P(EventLoopTest, ScheduleRepeatingHelperExecutesMultipleTimes) {
                 if (++counter == target_count) {
                     promise.set_value();
                 }
+                return true;
             },
             10ms,   // Initial delay
             50ms);  // Interval
@@ -595,6 +606,7 @@ TEST_P(EventLoopTest, ScheduleRepeatingExecutesMultipleTimes) {
         if (++counter == target_count) {
             promise.set_value();
         }
+        return true;
     });
     handle->Schedule(10ms,   // Initial delay
                      50ms);  // Interval
@@ -634,8 +646,9 @@ TEST_P(EventLoopTest, MultiThreadedCreationAndCancellation) {
     auto creator_thread_func = [&, loop_ptr = loop](int creator_id) {
         for (int i = 0; i < num_tasks_per_creator; ++i) {
             // Schedule a repeating timer.
-            auto handle =
-                    loop_ptr->CreateTimer([&]() { /* Task body not critical for this test */ });
+            auto handle = loop_ptr->CreateTimer([&]() { /* Task body not critical for this test */
+                                                        return true;
+            });
             handle->Schedule(std::chrono::milliseconds(10),  // Initial delay
                              std::chrono::seconds(10)  // Long interval to avoid accidental ticks
             );
@@ -717,7 +730,10 @@ TEST_P(EventLoopTest, ScheduleRepeatingIsCancelledMidway) {
     runInThread();
     std::atomic<int> counter = 0;
 
-    auto handle = loop->CreateTimer([&]() { counter++; });
+    auto handle = loop->CreateTimer([&]() {
+        counter++;
+        return true;
+    });
     handle->Schedule(10ms, 40ms);
 
     if (mLoopType == "qemu") {
@@ -793,7 +809,7 @@ TEST_P(EventLoopTest, ShutdownRaceConditionStressTest) {
         creators.emplace_back([&]() {
             for (int j = 0; j < kTimersPerThread; ++j) {
                 // Create long-running timers so they don't fire during the test.
-                auto handle = loop->CreateTimer([]() { /* no-op */ });
+                auto handle = loop->CreateTimer([]() { /* no-op */ return true; });
                 handle->Schedule(1h, 1h);
 
                 absl::MutexLock lock(&vec_mutex);
@@ -861,54 +877,33 @@ TEST_P(EventLoopTest, ShutdownRaceConditionStressTest) {
 TEST_P(EventLoopTest, CancelTimerFromTaskCallback) {
     runInThread();
 
-    std::promise<void> task_completed_promise;
-    auto future = task_completed_promise.get_future();
-    std::promise<bool> timer_callback_promise;
-    auto timer_executed = timer_callback_promise.get_future();
+    int count = 0;
 
-    // Timer callback, declared here so it will not go out of scope
-    // and get cancelled.
-    std::shared_ptr<EventLoop::Timer> handle;
+    {
+        std::promise<void> reached_limit;
+        auto reached_limit_future = reached_limit.get_future();
 
-    // Post a task to the event loop.
+        auto timer = loop->ScheduleRepeating(
+                [&]() {
+                    ++count;
+                    if (count == 3) {
+                        reached_limit.set_value();
+                    }
+                    return count < 3;
+                },
+                0ms, 10ms);
 
-    (void)loop->Post([&]() {
-        // Inside the task, create a timer.
-        std::weak_ptr<EventLoop::Timer> weak_handle;
+        runUntil(reached_limit_future);
 
-        // Create the timer. The `shared_ptr` (`handle`) will keep it alive
-        // for this scope. The EventLoop also holds a reference.
-        handle = loop->CreateTimer(
-                // Note we capture a pointer to handle, as we are just initializing it!
-                [h = &handle, &timer_callback_promise]() {
-                    (*h)->Cancel();
-                    timer_callback_promise.set_value(true);
-                });
-        handle->Schedule(10ms, 0ms);
-
-        // After the `handle` is created, point the `weak_handle` to it.
-        // The lambda now holds a reference to this `weak_handle`.
-        weak_handle = handle;
-
-        // Signal that the inner task has been cancelled
-        task_completed_promise.set_value();
-    });
-
-    // Wait for the posted task to finish.
-    runUntil(future);
-
-    // Now, wait a bit longer to ensure the timer *would* have fired if not
-    // cancelled.
-    if (mLoopType == "qemu") {
-        fake_qemu_advance_ms(20);
-    } else {
-        std::this_thread::sleep_for(20ms);
+        // Wait a bit longer to ensure the timer *would* have fired if not stopped.
+        if (mLoopType == "qemu") {
+            fake_qemu_advance_ms(50);
+        } else {
+            std::this_thread::sleep_for(50ms);
+        }
     }
 
-    runUntil(timer_executed);
-    // The main assertion: the timer's callback should have run,
-    // no deadlocks.
-    ASSERT_TRUE(timer_executed.get());
+    EXPECT_EQ(count, 3);
 }
 
 TEST_P(EventLoopTest, NoTsanFailuresOnLaunch) {
@@ -980,6 +975,8 @@ TEST_P(EventLoopTest, RescheduleRepeatingTimer) {
         if (c == 1) fired1_promise.set_value();
         if (c == 2) fired2_promise.set_value();
         if (c == 3) fired3_promise.set_value();
+
+        return true;
     });
 
     // Set interval to 1h  to prevent race condition
@@ -1013,7 +1010,7 @@ TEST_P(EventLoopTest, TimerCreatedAfterLoopShutdown) {
     }
     f.wait();
 
-    auto timer = loop->CreateTimer([]() {});
+    auto timer = loop->CreateTimer([]() { return true; });
 
     timer->Schedule(100ms, 100ms);
 
@@ -1026,7 +1023,7 @@ TEST_P(EventLoopTest, TimerCreatedDuringLoopShutdown) {
     runInThread();
 
     auto f = loop->Shutdown();
-    auto timer = loop->CreateTimer([]() {});
+    auto timer = loop->CreateTimer([]() { return true; });
     if (mLoopType == "qemu") {
         // Need to run Qemu "thread" for shutdown to complete
         fake_qemu_advance_ms(150);

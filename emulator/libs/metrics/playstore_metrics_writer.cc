@@ -184,9 +184,13 @@ PlaystoreMetricsWriter::PlaystoreMetricsWriter(const std::string& playstore_url,
                                                goldfish::async::EventLoop& event_loop)
         : playstore_url_(playstore_url)
         , user_id_(user_id)
-        , commit_timer_(event_loop.ScheduleRepeating([this] { Commit(); },
-                                                     absl::ToChronoMilliseconds(kCommitInterval),
-                                                     absl::ToChronoMilliseconds(kCommitInterval))) {
+        , commit_timer_(event_loop.ScheduleRepeating(
+                  [this] {
+                      Commit();
+                      return true;
+                  },
+                  absl::ToChronoMilliseconds(kCommitInterval),
+                  absl::ToChronoMilliseconds(kCommitInterval))) {
     curl_global_init(CURL_GLOBAL_ALL);
 }
 

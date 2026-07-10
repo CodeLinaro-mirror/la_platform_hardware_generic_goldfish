@@ -115,7 +115,10 @@ class GpsDevice : public IGpsDevice {
         VLOG(1) << "Gps device has been connected";
 
         self_ = shared_from_this();
-        one_second_timer_ = loop_->CreateTimer([this] { OneSecondTick(); });
+        one_second_timer_ = loop_->CreateTimer([this] {
+            OneSecondTick();
+            return true;
+        });
         one_second_timer_->Schedule(absl::ToChronoMilliseconds(absl::Milliseconds(1000)),
                                     absl::ToChronoMilliseconds(absl::Milliseconds(1000)));
     }

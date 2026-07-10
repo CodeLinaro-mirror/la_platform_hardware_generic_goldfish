@@ -103,6 +103,7 @@ AvdExtendedUniverse::AvdExtendedUniverse(std::unique_ptr<AvdProperties> props)
     avd_universe.metrics_ping_timer = client_loop->ScheduleRepeating(
             [metrics_reporter = avd_universe.metrics_reporter.get()] {
                 metrics_reporter->Report([](android_studio::AndroidStudioEvent& event) {});
+                return true;
             },
             0s, 300s);
 

@@ -41,7 +41,10 @@ class LoopWatcher {
             , hang_check_timeout_(hang_check_timeout)
             , clock_(clock)
             , event_loop_(event_loop)
-            , timer_(event_loop.CreateTimer([this]() { TaskComplete(); })) {}
+            , timer_(event_loop.CreateTimer([this]() {
+                TaskComplete();
+                return true;
+            })) {}
 
     ~LoopWatcher() { CancelHangCheck(); }
 

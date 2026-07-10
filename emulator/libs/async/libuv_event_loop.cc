@@ -110,7 +110,7 @@ class LibuvEventLoopImpl : public LibuvEventLoop {
     void* GetRawLoop() override { return &uv_loop_handle_; }
 
     // --- Task Posting and Scheduling ---
-    std::shared_ptr<EventLoop::Timer> CreateTimer(Task task) override;
+    std::shared_ptr<EventLoop::Timer> CreateTimer(RepeatingTask task) override;
 
   private:
     friend class LibuvTimer;
@@ -197,10 +197,9 @@ class LibuvTimer : public EventLoop::Timer, public std::enable_shared_from_this<
     // Factory function to ensure proper std::shared_ptr creation.
     // this sets up the mUvTimer with a self reference so it can be
     // placed in a queue.
-    static std::shared_ptr<LibuvTimer> Create(LibuvEventLoopImpl* loop, EventLoop::Task task,
-                                              bool auto_cancel, FlowId flow_id = 0) {
-        auto timer = std::make_shared<LibuvTimer>(loop, std::move(task), auto_cancel, flow_id,
-                                                  Private());
+    static std::shared_ptr<LibuvTimer> Create(LibuvEventLoopImpl* loop,
+                                              EventLoop::RepeatingTask task, FlowId flow_id = 0) {
+        auto timer = std::make_shared<LibuvTimer>(loop, std::move(task), flow_id, Private());
         timer->AddItselfToActiveTimers();
         return timer;
     }
@@ -216,12 +215,8 @@ class LibuvTimer : public EventLoop::Timer, public std::enable_shared_from_this<
         that->pinned_.reset();  // potentially calls ~LibuvTimer
     }
 
-    LibuvTimer(LibuvEventLoopImpl* loop, EventLoop::Task task, bool auto_cancel, FlowId flow_id,
-               Private)
-            : event_loop_(loop)
-            , task_(std::move(task))
-            , flow_id_(flow_id)
-            , auto_cancel_(auto_cancel) {
+    LibuvTimer(LibuvEventLoopImpl* loop, EventLoop::RepeatingTask task, FlowId flow_id, Private)
+            : event_loop_(loop), task_(std::move(task)), flow_id_(flow_id) {
         DCHECK(event_loop_);
     }
 
@@ -239,7 +234,8 @@ class LibuvTimer : public EventLoop::Timer, public std::enable_shared_from_this<
                 DCHECK(self->pinned_);
 
                 uv_timer_stop(&self->uv_timer_handle_);
-                uv_timer_start(&self->uv_timer_handle_, OnTimer, new_delay_ms, new_interval_ms);
+                uv_timer_start(&self->uv_timer_handle_, OnTimerStatic, new_delay_ms,
+                               new_interval_ms);
             } else {
                 LOG(ERROR) << "Can't schedule a timer after it has been cancelled";
             }
@@ -282,34 +278,32 @@ class LibuvTimer : public EventLoop::Timer, public std::enable_shared_from_this<
         });
     }
 
-    static void OnTimer(uv_timer_t* handle) {
+    static void OnTimerStatic(uv_timer_t* handle) {
         DCHECK(handle->data) << "UV timer handle must have a pointer to the LibuvTimer instance.";
         const auto self = static_cast<LibuvTimer*>(handle->data)->pinned_;
-        DCHECK(self) << "OnTimer callback called without a valid LibuvTimer instance.";
+        DCHECK(self) << "OnTimerStatic callback called without a valid LibuvTimer instance.";
         DCHECK(self->event_loop_->IsOnLoopThread())
-                << "OnTimer callback must be executed on the event loop thread.";
+                << "OnTimerStatic callback must be executed on the event loop thread.";
 
-        auto* tracker = self->event_loop_->tracker();
-        if (self->flow_id_ != 0 && tracker) {
-            tracker->LogExecute(self->flow_id_);
+        self->OnTimer();
+    }
+
+    void OnTimer() {
+        auto* tracker = event_loop_->tracker();
+        if (flow_id_ != 0 && tracker) {
+            tracker->LogExecute(flow_id_);
         }
 
-        self->task_();
-
-        // For one-shot timers, close the handle after execution.
-        // This will lead to the object being deleted if the user has
-        // also released their shared_ptr.
-        if (self->auto_cancel_) {
-            self->DoCancel(false);
+        if (!task_()) {
+            DoCancel(false);
         }
     }
 
     LibuvEventLoopImpl* const event_loop_;
     std::shared_ptr<LibuvTimer> pinned_;  ///< prevents calling the dctor
-    EventLoop::Task task_;
+    EventLoop::RepeatingTask task_;
     uv_timer_t uv_timer_handle_;
     const FlowId flow_id_;
-    const bool auto_cancel_;
     bool timer_handle_valid_ = false;
 
     friend LibuvEventLoopImpl;
@@ -370,7 +364,7 @@ void LibuvEventLoopImpl::ShutdownTimersInternal() {
     active_timers_.clear();
 }
 
-std::shared_ptr<EventLoop::Timer> LibuvEventLoopImpl::CreateTimer(Task task) {
+std::shared_ptr<EventLoop::Timer> LibuvEventLoopImpl::CreateTimer(RepeatingTask task) {
     if (is_shutting_down_) {
         return std::make_shared<ScopedTimer>(nullptr);
     }
@@ -386,7 +380,13 @@ absl::Status LibuvEventLoopImpl::PostDelayed(Task task, std::chrono::millisecond
     }
     // For fire-and-forget, the timer's lifetime is managed by its own async
     // operations. We create it and immediately let go of the handle.
-    auto timer = LibuvTimer::Create(this, std::move(task), /*auto_cancel=*/true, flow_id);
+    auto timer = LibuvTimer::Create(
+            this,
+            [task = std::move(task)]() mutable {
+                task();
+                return false;
+            },
+            flow_id);
     timer->Schedule(delay, std::chrono::milliseconds::zero());
     return absl::OkStatus();
 }

@@ -294,7 +294,7 @@ class Launcher {
                 config_.process_launcher->ForgetProcess(*netsimd_process_);
 
                 find_netsimd_ = config_.event_loop.ScheduleRepeating(
-                        [this, chardevs] { find_netsimd_endpoint(chardevs); },
+                        [this, chardevs] { return find_netsimd_endpoint(chardevs); },
                         std::chrono::milliseconds(10), std::chrono::milliseconds(50));
             } else {
                 LOG(FATAL) << "Fatal error whilst launching netsimd: " << s.status();
@@ -304,16 +304,16 @@ class Launcher {
         }
     }
 
-    void find_netsimd_endpoint(const WhenAllChardevEndpoints& chardevs) {
+    bool find_netsimd_endpoint(const WhenAllChardevEndpoints& chardevs) {
         if (shutting_down_) {
-            find_netsimd_->Cancel();
-            return;
+            find_netsimd_.reset();
+            return false;
         }
         if (retry_countdown_ == 0) {
-            find_netsimd_->Cancel();
+            find_netsimd_.reset();
             // absl::NotFoundError("Unable to determine the correct grpc endpoint for netsimd");
             LOG(FATAL) << "Unable to determine the correct grpc endpoint for netsimd";
-            return;
+            return false;
         }
         --retry_countdown_;
 
@@ -321,17 +321,16 @@ class Launcher {
             // netsimd itself will check whether it's already running and exit if so.
             VLOG(1) << "netsimd died, perhaps another was already running";
             if (existing_netsimd_port_ != 0) {
-                find_netsimd_->Cancel();
-                find_netsimd_.reset();
                 LOG(WARNING) << "Connecting to already running netsimd, this likely means it was "
                                 "started by another emulator instance";
+                find_netsimd_.reset();
                 config_.event_loop
                         .Post([this, chardevs] {
                             try_connect_netsimd(absl::StrCat("localhost:", existing_netsimd_port_),
                                                 chardevs);
                         })
                         .IgnoreError();
-                return;
+                return false;
             } else {
                 LOG(FATAL) << "netsimd died and there was no existing port to connect to";
             }
@@ -340,22 +339,22 @@ class Launcher {
         int port = read_netsim_port();
         if (port == 0) {
             VLOG(1) << "netsimd: Port not yet available";
-            return;
+            return true;
         }
         // We expect the port to change, if it doesn't then something strange has happened.
         if (port == existing_netsimd_port_) {
             VLOG(1) << "netsimd: Port in ini file has not yet changed: " << port;
-            return;
+            return true;
         }
 
         VLOG(1) << "netsim.ini parsed successfully, grpc.port set to: " << port;
-        find_netsimd_->Cancel();
         find_netsimd_.reset();
         config_.event_loop
                 .Post([this, port, chardevs] {
                     try_connect_netsimd(absl::StrCat("localhost:", port), chardevs);
                 })
                 .IgnoreError();
+        return false;
     }
 
     void try_connect_netsimd(const std::string& netsimd_endpoint,
