@@ -111,9 +111,8 @@ class QemuEventLoopImpl : public goldfish::async::QemuEventLoop {
                                                   new_interval_ms = new_interval.count()] {
                 if (self->pinned_) {
                     self->interval_ms_ = new_interval_ms;
-
-                    timer_mod(&self->qemu_timer_handle_,
-                              qemu_clock_get_ms(QEMU_CLOCK_VIRTUAL) + new_delay_ms);
+                    self->next_t_ = qemu_clock_get_ms(QEMU_CLOCK_VIRTUAL) + new_delay_ms;
+                    timer_mod(&self->qemu_timer_handle_, self->next_t_);
                 } else {
                     LOG(ERROR) << "Can't schedule a timer after it has been cancelled";
                 }
@@ -168,12 +167,24 @@ class QemuEventLoopImpl : public goldfish::async::QemuEventLoop {
             if (self->auto_cancel_) {
                 self->DoCancel(false);
             } else if (self->interval_ms_ != 0) {
+                constexpr int kStarvingWarning = 3;
+
                 // The Qemu Timer API doesn't natively support repeating timers so we have to kick
                 // it off again.
                 if (self->pinned_) {
-                    timer_mod(&self->qemu_timer_handle_,
-                              qemu_clock_get_ms(QEMU_CLOCK_VIRTUAL) +
-                                      static_cast<int64_t>(self->interval_ms_));
+                    self->next_t_ += self->interval_ms_;
+
+                    const int64_t now = qemu_clock_get_ms(QEMU_CLOCK_VIRTUAL);
+                    if ((now - self->next_t_) > (self->interval_ms_ * kStarvingWarning)) {
+                        LOG(WARNING) << "A timer (" << self << ") is more than " << kStarvingWarning
+                                     << " intervals (" << self->interval_ms_
+                                     << "ms) behind. "
+                                        "This is a sign of insufficient performance.";
+
+                        self->next_t_ = now + self->interval_ms_;
+                    }
+
+                    timer_mod(&self->qemu_timer_handle_, self->next_t_);
                 }
             }
         }
@@ -183,7 +194,8 @@ class QemuEventLoopImpl : public goldfish::async::QemuEventLoop {
         Task task_;
         QEMUTimer qemu_timer_handle_;
         const FlowId flow_id_;
-        uint64_t interval_ms_ = 0;
+        int64_t next_t_ = 0;
+        int64_t interval_ms_ = 0;
         const bool auto_cancel_;
 
         friend QemuEventLoopImpl;
