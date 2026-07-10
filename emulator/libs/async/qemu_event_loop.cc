@@ -113,7 +113,7 @@ class QemuEventLoopImpl : public goldfish::async::QemuEventLoop {
                     self->interval_ms_ = new_interval_ms;
 
                     timer_mod(&self->qemu_timer_handle_,
-                              qemu_clock_get_ms(QEMU_CLOCK_REALTIME) + new_delay_ms);
+                              qemu_clock_get_ms(QEMU_CLOCK_VIRTUAL) + new_delay_ms);
                 } else {
                     LOG(ERROR) << "Can't schedule a timer after it has been cancelled";
                 }
@@ -141,7 +141,7 @@ class QemuEventLoopImpl : public goldfish::async::QemuEventLoop {
             event_loop_->PostImmediatelyInternal([self = shared_from_this()]() {
                 DCHECK(!self->pinned_);
 
-                timer_init_ms(&self->qemu_timer_handle_, QEMU_CLOCK_REALTIME, &QemuTimer::OnTimer,
+                timer_init_ms(&self->qemu_timer_handle_, QEMU_CLOCK_VIRTUAL, &QemuTimer::OnTimer,
                               self.get());
 
                 self->pinned_ = self;
@@ -172,7 +172,7 @@ class QemuEventLoopImpl : public goldfish::async::QemuEventLoop {
                 // it off again.
                 if (self->pinned_) {
                     timer_mod(&self->qemu_timer_handle_,
-                              qemu_clock_get_ms(QEMU_CLOCK_REALTIME) +
+                              qemu_clock_get_ms(QEMU_CLOCK_VIRTUAL) +
                                       static_cast<int64_t>(self->interval_ms_));
                 }
             }
