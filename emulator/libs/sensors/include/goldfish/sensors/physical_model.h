@@ -19,6 +19,7 @@
 #include <glm/vec4.hpp>
 
 #include <cstdint>
+#include <memory>
 #include <mutex>
 #include <vector>
 
@@ -118,7 +119,10 @@ class PhysicalModel : public CallbackEventSource<PhysicalModelChangeEvent> {
     void SetGravity(float x, float y, float z);
 
     /*
-     * Target state setters and parameter getters
+     * Target state setters.
+     * @note Foldable/Rollable target setters (HingeAngle*, Posture, Rollable*)
+     *       require that HasFoldableModel() is true. Calling them on a non-foldable
+     *       target will trigger a DCHECK assertion failure.
      */
 #define GOLDFISH_PHYSICAL_PARAMETER_DEF(x, y, z, w) \
     void SetTarget##z(w value, PhysicalInterpolation mode);
@@ -128,6 +132,9 @@ class PhysicalModel : public CallbackEventSource<PhysicalModelChangeEvent> {
 
     /*
      * Gets current target state of the modeled object.
+     * @note Foldable/Rollable parameter getters (HingeAngle*, Posture, Rollable*)
+     *       require that HasFoldableModel() is true. Calling them on a non-foldable
+     *       target will trigger a DCHECK assertion failure.
      */
 #define GOLDFISH_PHYSICAL_PARAMETER_DEF(x, y, z, w) \
     w GetParameter##z(ParameterValueType parameter_value_type) const;
@@ -136,7 +143,10 @@ class PhysicalModel : public CallbackEventSource<PhysicalModelChangeEvent> {
 #undef GOLDFISH_PHYSICAL_PARAMETER_DEF
 
     /*
-     * Sensor override methods
+     * Sensor override methods.
+     * @note Foldable/Rollable override methods (HingeAngle*, Posture, Rollable*)
+     *       require that HasFoldableModel() is true. Calling them on a non-foldable
+     *       target will trigger a DCHECK assertion failure.
      */
 #define GOLDFISH_SENSOR_DEF(x, y, z, v, w) void Override##z(v override_value);
     GOLDFISH_SENSORS_LIST
@@ -145,6 +155,9 @@ class PhysicalModel : public CallbackEventSource<PhysicalModelChangeEvent> {
     /*
      * Getters for all sensor values.
      * Can be called from any thread.
+     * @note Foldable/Rollable sensor getters (HingeAngle*, Posture, Rollable*)
+     *       require that HasFoldableModel() is true. Calling them on a non-foldable
+     *       target will trigger a DCHECK assertion failure.
      */
 #define GOLDFISH_SENSOR_DEF(x, y, z, v, w) v Get##z(size_t* measurement_id) const;
     GOLDFISH_SENSORS_LIST
@@ -168,22 +181,38 @@ class PhysicalModel : public CallbackEventSource<PhysicalModelChangeEvent> {
 
     /**
      * @brief Gets the current foldable device state.
+     * @note Caller must ensure HasFoldableModel() is true before calling this API.
+     *       Calling it on a non-foldable target will trigger a DCHECK assertion failure.
      * @return Current foldable state
      */
     FoldableState GetFoldableState() const;
 
-    FoldableModel::ObservablePosture& GetPostureListener() {
-        return foldable_model_.GetPostureListener();
-    }
+    /**
+     * @brief Checks if the physical model supports foldable capabilities.
+     * @return true if foldable capabilities are enabled, false otherwise
+     */
+    bool HasFoldableModel() const;
+
+    /**
+     * @brief Gets the posture change listener.
+     * @note Caller must ensure HasFoldableModel() is true before calling this API.
+     *       Calling it on a non-foldable target will trigger a DCHECK assertion failure.
+     * @return Reference to the posture listener
+     */
+    FoldableModel::ObservablePosture& GetPostureListener();
 
     /**
      * @brief Checks if the foldable device is currently folded.
+     * @note Caller must ensure HasFoldableModel() is true before calling this API.
+     *       Calling it on a non-foldable target will trigger a DCHECK assertion failure.
      * @return true if device is folded, false otherwise
      */
     bool FoldableIsFolded() const;
 
     /**
      * @brief Gets the folded area dimensions.
+     * @note Caller must ensure HasFoldableModel() is true before calling this API.
+     *       Calling it on a non-foldable target will trigger a DCHECK assertion failure.
      * @param[out] x X coordinate of folded area
      * @param[out] y Y coordinate of folded area
      * @param[out] w Width of folded area
@@ -192,6 +221,12 @@ class PhysicalModel : public CallbackEventSource<PhysicalModelChangeEvent> {
      */
     bool GetFoldedArea(int* x, int* y, int* w, int* h) const;
 
+    /**
+     * @brief Gets the list of resizable configurations.
+     * @note Caller must ensure HasFoldableModel() is true before calling this API.
+     *       Calling it on a non-foldable target will trigger a DCHECK assertion failure.
+     * @return List of resizable configs
+     */
     const std::vector<FoldableModel::ResizableConfig>& GetResizableConfigs() const;
 
   private:
@@ -248,7 +283,7 @@ class PhysicalModel : public CallbackEventSource<PhysicalModelChangeEvent> {
 
     InertialModel inertial_model_;            ///< Models inertial motion
     AmbientEnvironment ambient_environment_;  ///< Models ambient conditions
-    FoldableModel foldable_model_;            ///< Models foldable device state
+    std::unique_ptr<FoldableModel> foldable_model_;  ///< Models foldable device state
     BodyModel body_model_;                    ///< Models body-related sensors
 
     mutable size_t measurement_id_[kNumSensors] = {0};  ///< Measurement IDs

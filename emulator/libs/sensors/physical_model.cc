@@ -69,25 +69,40 @@ float GetfloatValue(const float* val, const size_t count) {
 
 FoldableState PhysicalModel::GetFoldableState() const {
     const std::lock_guard<std::recursive_mutex> lock(mutex_);
-    return foldable_model_.GetFoldableState();
+    DCHECK(foldable_model_);
+    return foldable_model_->GetFoldableState();
 }
 
 bool PhysicalModel::FoldableIsFolded() const {
     const std::lock_guard<std::recursive_mutex> lock(mutex_);
-    return foldable_model_.IsFolded();
+    DCHECK(foldable_model_);
+    return foldable_model_->IsFolded();
 }
 
 bool PhysicalModel::GetFoldedArea(int* x, int* y, int* w, int* h) const {
     const std::lock_guard<std::recursive_mutex> lock(mutex_);
-    return foldable_model_.GetFoldedArea(x, y, w, h);
+    DCHECK(foldable_model_);
+    return foldable_model_->GetFoldedArea(x, y, w, h);
 }
 
 const std::vector<FoldableModel::ResizableConfig>& PhysicalModel::GetResizableConfigs() const {
     const std::lock_guard<std::recursive_mutex> lock(mutex_);
-    return foldable_model_.GetResizableConfigs();
+    DCHECK(foldable_model_);
+    return foldable_model_->GetResizableConfigs();
 }
 
-PhysicalModel::PhysicalModel(const android::goldfish::HardwareConfig& hw) : foldable_model_(hw) {}
+PhysicalModel::PhysicalModel(const android::goldfish::HardwareConfig& hw)
+        : foldable_model_(FoldableModel::Create(hw)) {}
+
+bool PhysicalModel::HasFoldableModel() const {
+    const std::lock_guard<std::recursive_mutex> lock(mutex_);
+    return foldable_model_ != nullptr;
+}
+
+FoldableModel::ObservablePosture& PhysicalModel::GetPostureListener() {
+    DCHECK(foldable_model_);
+    return foldable_model_->GetPostureListener();
+}
 
 SensorData PhysicalModel::GetSensorData(const AndroidSensor sensor_id) const {
     const size_t sz = GetSensorValueSize(sensor_id);
@@ -343,7 +358,8 @@ void PhysicalModel::SetTargetInternalHingeAngle0(float degrees, PhysicalInterpol
     PhysicalStateChanging();
     {
         const std::lock_guard<std::recursive_mutex> lock(mutex_);
-        foldable_model_.SetHingeAngle(0, degrees, mode);
+        DCHECK(foldable_model_);
+        foldable_model_->SetHingeAngle(0, degrees, mode);
     }
     TargetStateChanged();
 }
@@ -352,7 +368,8 @@ void PhysicalModel::SetTargetInternalHingeAngle1(float degrees, PhysicalInterpol
     PhysicalStateChanging();
     {
         const std::lock_guard<std::recursive_mutex> lock(mutex_);
-        foldable_model_.SetHingeAngle(1, degrees, mode);
+        DCHECK(foldable_model_);
+        foldable_model_->SetHingeAngle(1, degrees, mode);
     }
     TargetStateChanged();
 }
@@ -361,7 +378,8 @@ void PhysicalModel::SetTargetInternalHingeAngle2(float degrees, PhysicalInterpol
     PhysicalStateChanging();
     {
         const std::lock_guard<std::recursive_mutex> lock(mutex_);
-        foldable_model_.SetHingeAngle(2, degrees, mode);
+        DCHECK(foldable_model_);
+        foldable_model_->SetHingeAngle(2, degrees, mode);
     }
     TargetStateChanged();
 }
@@ -370,7 +388,8 @@ void PhysicalModel::SetTargetInternalPosture(float posture, PhysicalInterpolatio
     PhysicalStateChanging();
     {
         const std::lock_guard<std::recursive_mutex> lock(mutex_);
-        foldable_model_.SetPosture(posture, mode);
+        DCHECK(foldable_model_);
+        foldable_model_->SetPosture(posture, mode);
     }
     TargetStateChanged();
 }
@@ -496,37 +515,44 @@ float PhysicalModel::GetParameterHumidity(ParameterValueType parameter_value_typ
 
 float PhysicalModel::GetParameterHingeAngle0(ParameterValueType parameter_value_type) const {
     const std::lock_guard<std::recursive_mutex> lock(mutex_);
-    return foldable_model_.GetHingeAngle(0, parameter_value_type);
+    DCHECK(foldable_model_);
+    return foldable_model_->GetHingeAngle(0, parameter_value_type);
 }
 
 float PhysicalModel::GetParameterHingeAngle1(ParameterValueType parameter_value_type) const {
     const std::lock_guard<std::recursive_mutex> lock(mutex_);
-    return foldable_model_.GetHingeAngle(1, parameter_value_type);
+    DCHECK(foldable_model_);
+    return foldable_model_->GetHingeAngle(1, parameter_value_type);
 }
 
 float PhysicalModel::GetParameterHingeAngle2(ParameterValueType parameter_value_type) const {
     const std::lock_guard<std::recursive_mutex> lock(mutex_);
-    return foldable_model_.GetHingeAngle(2, parameter_value_type);
+    DCHECK(foldable_model_);
+    return foldable_model_->GetHingeAngle(2, parameter_value_type);
 }
 
 float PhysicalModel::GetParameterPosture(ParameterValueType parameter_value_type) const {
     const std::lock_guard<std::recursive_mutex> lock(mutex_);
-    return foldable_model_.GetPosture(parameter_value_type);
+    DCHECK(foldable_model_);
+    return foldable_model_->GetPosture(parameter_value_type);
 }
 
 float PhysicalModel::GetParameterRollable0(ParameterValueType parameter_value_type) const {
     const std::lock_guard<std::recursive_mutex> lock(mutex_);
-    return foldable_model_.GetRollable(0, parameter_value_type);
+    DCHECK(foldable_model_);
+    return foldable_model_->GetRollable(0, parameter_value_type);
 }
 
 float PhysicalModel::GetParameterRollable1(ParameterValueType parameter_value_type) const {
     const std::lock_guard<std::recursive_mutex> lock(mutex_);
-    return foldable_model_.GetRollable(1, parameter_value_type);
+    DCHECK(foldable_model_);
+    return foldable_model_->GetRollable(1, parameter_value_type);
 }
 
 float PhysicalModel::GetParameterRollable2(ParameterValueType parameter_value_type) const {
     const std::lock_guard<std::recursive_mutex> lock(mutex_);
-    return foldable_model_.GetRollable(2, parameter_value_type);
+    DCHECK(foldable_model_);
+    return foldable_model_->GetRollable(2, parameter_value_type);
 }
 
 float PhysicalModel::GetParameterHeartRate(ParameterValueType parameter_value_type) const {
@@ -701,15 +727,18 @@ Rotation PhysicalModel::GetDeviceRotation() const {
 }
 
 float PhysicalModel::GetPhysicalHingeAngle0() const {
-    return foldable_model_.GetHingeAngle(0);
+    DCHECK(foldable_model_);
+    return foldable_model_->GetHingeAngle(0);
 }
 
 float PhysicalModel::GetPhysicalHingeAngle1() const {
-    return foldable_model_.GetHingeAngle(1);
+    DCHECK(foldable_model_);
+    return foldable_model_->GetHingeAngle(1);
 }
 
 float PhysicalModel::GetPhysicalHingeAngle2() const {
-    return foldable_model_.GetHingeAngle(2);
+    DCHECK(foldable_model_);
+    return foldable_model_->GetHingeAngle(2);
 }
 
 float PhysicalModel::GetPhysicalHeartRate() const {

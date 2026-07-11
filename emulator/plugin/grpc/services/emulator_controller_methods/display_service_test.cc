@@ -33,6 +33,7 @@
 #include "emulator_controller.grpc.pb.h"
 #include "goldfish/async/libuv_event_loop.h"
 #include "goldfish/async/threaded_event_loop.h"
+#include "goldfish/avd_info/avd_info.h"
 #include "goldfish/display/test/fake_multi_display.h"
 #include "goldfish/display/test/fake_pixman_display.h"
 #include "goldfish/memory/shared_memory.h"
@@ -875,6 +876,46 @@ TEST_F(DisplayServiceTest, SetDisplayConfigurationsAddsAndUpdates) {
         }
     }
     EXPECT_TRUE(found2_updated);
+}
+
+TEST_F(DisplayServiceTest, FiresInitialPostureOnConstruction) {
+    // Reconfigure hardware for a foldable device
+    mHw.hw_sensor_hinge = true;
+    mHw.hw_sensor_hinge_count = 2;
+    mHw.hw_sensor_hinge_type = 0;
+    mHw.hw_sensor_hinge_sub_type = 1;
+    mHw.hw_sensor_hinge_ranges = (char*)"0- 360, 0-180";
+    mHw.hw_sensor_hinge_defaults = (char*)"180,90";
+    mHw.hw_sensor_hinge_areas = (char*)"25-10, 50-10";
+    mHw.hw_sensor_posture_list = (char*)"1, 2, 3, 4";
+    mHw.hw_sensor_hinge_angles_posture_definitions =
+            (char*)"0-30&0-15, 30-150 & 15-75, 150-330&75-165, 330-360&165-180";
+
+    // Reset the old service first to prevent it from holding a dangling pointer to the old model
+    mDisplayService.reset();
+
+    mPhysicalModel = std::make_unique<PhysicalModel>(mHw);
+    mPhysicalModel->SetCurrentTime(1000000000L);  // Initialize physical model state
+
+    bool received_posture = false;
+    Posture::PostureValue received_value = Posture::POSTURE_UNKNOWN;
+
+    auto callback_id = ::goldfish::avd_info::GetAvd().GetGrpcNotificationChannel().AddCallback(
+            [&](const ::android::emulation::control::Notification& notification) {
+                if (notification.has_posture()) {
+                    received_posture = true;
+                    received_value = notification.posture().value();
+                }
+            });
+
+    auto test_service =
+            std::make_unique<DisplayServiceImpl>(mMultiDisplay.get(), mPhysicalModel.get());
+
+    EXPECT_TRUE(received_posture);
+    EXPECT_EQ(received_value, DisplayServiceImpl::ToProtoPosture(
+                                      mPhysicalModel->GetFoldableState().current_posture));
+
+    ::goldfish::avd_info::GetAvd().GetGrpcNotificationChannel().RemoveCallback(callback_id);
 }
 
 TEST(DisplayServiceTest_ToProtoPosture, ConvertsPostures) {
