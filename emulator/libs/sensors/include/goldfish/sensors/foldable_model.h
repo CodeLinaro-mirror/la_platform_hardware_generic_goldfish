@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -27,7 +28,19 @@
 namespace goldfish::sensors {
 
 class FoldableModel {
+  private:
+    explicit FoldableModel(const android::goldfish::HardwareConfig& hw);
+
   public:
+    /**
+     * @brief Factory method to create a FoldableModel instance.
+     * @param hw The hardware configuration of the current AVD.
+     * @return A std::unique_ptr containing the FoldableModel if the AVD config
+     *         supports foldable/rollable sensor capabilities or resizable configs,
+     *         otherwise nullptr.
+     */
+    static std::unique_ptr<FoldableModel> Create(const android::goldfish::HardwareConfig& hw);
+
     using ObservablePosture =
             eventing::ObservableValue<FoldablePostures, eventing::ObservableValueTriggerAlways>;
 
@@ -38,8 +51,6 @@ class FoldableModel {
         uint32_t height;
         uint32_t dpi;
     };
-
-    explicit FoldableModel(const android::goldfish::HardwareConfig& hw);
 
     // called by physical model to set hinge angle.
     void SetHingeAngle(uint32_t hinge_index, float degrees, PhysicalInterpolation mode);

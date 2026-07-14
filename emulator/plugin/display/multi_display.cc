@@ -297,10 +297,12 @@ class MultiDisplayImpl : public IMultiDisplay {
         }
 
         SetFolded(res_f);
-        auto posture = res_f ? ::goldfish::sensors::FoldablePostures::kClosed
-                             : ::goldfish::sensors::FoldablePostures::kOpened;
-        ::goldfish::avd_info::GetAvd().GetSensorsPhysicalModel().SetTargetPosture(
-                static_cast<float>(posture), PhysicalInterpolation::kStep);
+        if (::goldfish::avd_info::GetAvd().GetSensorsPhysicalModel().HasFoldableModel()) {
+            auto posture = res_f ? ::goldfish::sensors::FoldablePostures::kClosed
+                                 : ::goldfish::sensors::FoldablePostures::kOpened;
+            ::goldfish::avd_info::GetAvd().GetSensorsPhysicalModel().SetTargetPosture(
+                    static_cast<float>(posture), PhysicalInterpolation::kStep);
+        }
 
         return absl::OkStatus();
     }
@@ -364,9 +366,11 @@ class MultiDisplayImpl : public IMultiDisplay {
                     }
                 }
 
-                ::goldfish::avd_info::GetAvd().GetSensorsPhysicalModel().SetTargetPosture(
-                        static_cast<float>(::goldfish::sensors::FoldablePostures::kOpened),
-                        PhysicalInterpolation::kStep);
+                if (::goldfish::avd_info::GetAvd().GetSensorsPhysicalModel().HasFoldableModel()) {
+                    ::goldfish::avd_info::GetAvd().GetSensorsPhysicalModel().SetTargetPosture(
+                            static_cast<float>(::goldfish::sensors::FoldablePostures::kOpened),
+                            PhysicalInterpolation::kStep);
+                }
 
                 // Wait for display 0 to receive a frame after setting target posture
                 absl::Time start = absl::Now();
