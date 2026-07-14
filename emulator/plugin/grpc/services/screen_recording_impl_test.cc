@@ -24,6 +24,12 @@
 
 #include "goldfish/async/libuv_event_loop.h"
 #include "goldfish/display/test/fake_multi_display.h"
+#include "goldfish/display/test/fake_pixman_display.h"
+
+// Undefine close macro on Windows to avoid conflict with std::ofstream::close()
+#ifdef _WIN32
+#undef close
+#endif
 
 namespace android::emulation::control::incubating {
 
@@ -66,12 +72,81 @@ TEST_F(ScreenRecordingServiceImplTest, StartRecordingAppliesDefaults) {
     auto status = service->StartRecording(&context, &request, &response);
 
     EXPECT_TRUE(status.ok()) << status.error_message();
-    EXPECT_EQ(response.fps(), 24);
-    EXPECT_EQ(response.bit_rate(), 2000000);
-    EXPECT_EQ(response.time_limit(), 180);
+    EXPECT_EQ(response.fps(), kFPS);
+    EXPECT_EQ(response.bit_rate(), kDefaultVideoBitrate);
+    EXPECT_EQ(response.time_limit(), kDefaultTimeLimit);
     EXPECT_EQ(response.state(), RecordingInfo::RECORDER_STATE_RECORDING);
 
     service->StopRecording(&context, &request, &response);
+    std::remove(test_file.c_str());
+}
+
+TEST_F(ScreenRecordingServiceImplTest, StartRecordingWithFoldableResolution) {
+    // Create display 1 with resolution 1260x2400 (where 1260 / 2 = 630, which is odd)
+    fake_display->CreateDisplay(1, 1260, 2400, 440, 0).IgnoreError();
+
+    std::string test_file = (temp_dir_ / "test_foldable.webm").string();
+
+    RecordingInfo request;
+    request.set_file_name(test_file);
+    request.set_display(1);
+    request.set_fps(24);
+    request.set_bit_rate(2000000);
+
+    RecordingInfo response;
+    grpc::ServerContext context;
+
+    auto status = service->StartRecording(&context, &request, &response);
+
+    EXPECT_TRUE(status.ok()) << status.error_message();
+
+    // Allow recorder thread to generate and encode several frames
+    std::this_thread::sleep_for(std::chrono::milliseconds(150));
+
+    service->StopRecording(&context, &request, &response);
+    EXPECT_GT(std::filesystem::file_size(test_file), 1000)
+            << "Recording output should contain valid WebM video frames and header";
+    std::remove(test_file.c_str());
+}
+
+TEST_F(ScreenRecordingServiceImplTest, DISABLED_StartRecording5Seconds) {
+    std::string test_file = (temp_dir_ / "test_5s.webm").string();
+
+    // Start the fake display generator so it produces varying frames (changing colors)
+    auto display_ptr = fake_display->GetDisplay(0).value().lock();
+    auto active_display =
+            std::static_pointer_cast<::goldfish::display::test::ActiveFakePixmanDisplay>(
+                    display_ptr);
+    ASSERT_TRUE(active_display != nullptr);
+    active_display->Start();
+
+    RecordingInfo request;
+    request.set_file_name(test_file);
+    request.set_fps(24);
+    request.set_bit_rate(4000000);  // 4Mbps
+
+    RecordingInfo response;
+    grpc::ServerContext context;
+
+    auto status = service->StartRecording(&context, &request, &response);
+    EXPECT_TRUE(status.ok()) << status.error_message();
+
+    // Record for 5 seconds
+    std::this_thread::sleep_for(std::chrono::seconds(5));
+
+    status = service->StopRecording(&context, &request, &response);
+    EXPECT_TRUE(status.ok()) << status.error_message();
+
+    active_display->Stop();
+
+    EXPECT_TRUE(std::filesystem::exists(test_file));
+    uint64_t size = std::filesystem::file_size(test_file);
+    EXPECT_GT(size, 10000) << "File size is too small: " << size << " bytes";
+
+    // We can also print the size for verification
+    std::cout << "[Test] 5s Recording file size with dynamic content: " << size << " bytes"
+              << std::endl;
+
     std::remove(test_file.c_str());
 }
 

@@ -249,5 +249,28 @@ TEST(ScreenRecordCommandsTest, ParseScreenshotCommand) {
     EXPECT_TRUE(std::filesystem::exists(screenshot_path));
 }
 
+TEST(ScreenRecordCommandsTest, ParseStartCommandExtendedTimeLimit) {
+    CommandRegistryBuilder builder("/dummy/token");
+    auto screenrecord = builder.Command("screenrecord", "desc");
+    RegisterScreenRecordCommands(screenrecord);
+    auto registry = builder.Build();
+
+    MockConsoleContext ctx(5554);
+    ctx.authenticated = true;
+    auto mock_stub = std::make_unique<MockScreenRecordingStub>();
+
+    EXPECT_CALL(*mock_stub, StartRecording(_, _, _))
+            .WillOnce([](grpc::ClientContext*, const RecordingInfo& request, RecordingInfo*) {
+                EXPECT_EQ(request.time_limit(), 1800);
+                return grpc::Status::OK;
+            });
+
+    ctx.mock_stub = std::move(mock_stub);
+
+    auto result = (*registry)("screenrecord start --time-limit 1800 test.webm", ctx);
+    ASSERT_TRUE(result.ok()) << result.status().message();
+    EXPECT_EQ(*result, "");
+}
+
 }  // namespace
 }  // namespace goldfish::telnet

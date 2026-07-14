@@ -162,6 +162,7 @@ cc_library(
     deps = [
         "//emulator/libs/archive",
         "//emulator/libs/file",
+        "//emulator/libs/grpc_utils:absl_translate",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/log",
