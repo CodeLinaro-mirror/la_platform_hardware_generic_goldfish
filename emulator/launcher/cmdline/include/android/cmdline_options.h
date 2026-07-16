@@ -318,7 +318,9 @@ OPT_FLAG(no_mouse_reposition,
 OPT_FLAG(no_guest_angle, "Disable ANGLE as the guest system GLES driver.")
 OPT_FLAG(no_vulkan_composition, "Disable Vulkan host compositon.")
 
-OPT_FLAG(skiavk, "Enable skia vk as hwui renderer.")
+OPT_PARAM(systemui_renderer, "<option list>",
+          "Set guest side renderer backend. Available options: skiagl, skiavk, skiavkthreaded")
+
 OPT_FLAG(not_in_bazel, "Run as if not in bazel build environment.")
 
 OPT_PARAM(renderer_features, "FeatureName:disabled|enabled;...",

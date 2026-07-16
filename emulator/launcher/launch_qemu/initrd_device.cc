@@ -219,13 +219,12 @@ std::vector<std::pair<std::string, std::string>> getUserspaceBootProperties(
     // GLESDynamicVersion = on (i.e., is a reasonably good driver)
     params.push_back({qemuOpenglesVersionProp, absl::StrFormat("%d", bootPropOpenglesVersion)});
 
-    if (opts.skiavk) {
-        params.push_back({qemuUirendererProp, "skiavk"});
-        params.push_back({qemuRenderengineProp, "skiavk"});
-    } else {
-        params.push_back({qemuUirendererProp, "skiagl"});
-        params.push_back({qemuRenderengineProp, "skiagl"});
-    }
+    // Use skiavkthreaded by default, unless user specifies otherwise
+    std::string systemui_renderer =
+            opts.systemui_renderer ? opts.systemui_renderer : "skiavkthreaded";
+
+    params.push_back({qemuUirendererProp, systemui_renderer});
+    params.push_back({qemuRenderengineProp, systemui_renderer});
 
     params.push_back({androidbootLogcatProp,
                       opts.logcat ? absl::StrReplaceAll(opts.logcat, {{" ", ","}}) : "*:V"});
