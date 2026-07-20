@@ -46,7 +46,11 @@ class HangDetectorTest : public ::testing::Test {
         mock_runstate_set(RUN_STATE_RUNNING);
     }
 
-    void TearDown() override { mHangDetector->Stop(); }
+    void TearDown() override {
+        if (mHangDetector) {
+            mHangDetector->Stop();
+        }
+    }
 
     bool wait_for_hang() { return mNotify.WaitForNotificationWithTimeout(kMaxBlockingTime); }
 
@@ -72,6 +76,20 @@ TEST_F(HangDetectorTest, NormalLoopNoHang) {
     mHangDetector->AddWatchedLooper("test loop", *event_loop, absl::Seconds(1));
 
     EXPECT_FALSE(wait_for_hang());
+
+    mHangDetector->RemoveWatchedLooper(*event_loop);
+}
+
+TEST_F(HangDetectorTest, HangDetectorDestroyedFirst) {
+    auto event_loop =
+            goldfish::async::ThreadedEventLoop::Create(goldfish::async::LibuvEventLoop::Create());
+
+    mHangDetector->AddWatchedLooper("test loop", *event_loop, absl::Seconds(1));
+
+    EXPECT_FALSE(wait_for_hang());
+
+    mHangDetector->Stop();
+    mHangDetector.reset();
 }
 
 TEST_F(HangDetectorTest, BlockedLoopTriggersHang) {
@@ -87,6 +105,8 @@ TEST_F(HangDetectorTest, BlockedLoopTriggersHang) {
 
     // Unblock the loop so that it actually terminates!
     hang.Notify();
+
+    mHangDetector->RemoveWatchedLooper(*event_loop);
 
     // Wait for loop to shutdown as the hang task is referencing the hang notification which gets
     // destroyed before the loop.

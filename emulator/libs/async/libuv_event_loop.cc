@@ -221,8 +221,11 @@ class LibuvTimer : public EventLoop::Timer, public std::enable_shared_from_this<
     }
 
     void Cancel() override {
-        event_loop_->PostImmediatelyInternal(
-                [self = shared_from_this()]() { self->DoCancel(false); });
+        if (event_loop_->IsOnLoopThread()) {
+            DoCancel(false);
+        } else {
+            event_loop_->PostAndWait([this]() { DoCancel(false); }).IgnoreError();
+        }
     }
 
     void Schedule(std::chrono::milliseconds new_delay,
