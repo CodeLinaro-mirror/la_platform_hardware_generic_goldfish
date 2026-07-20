@@ -1,5 +1,5 @@
 load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_test")
-load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_test")
 
 package(
     default_visibility = ["//visibility:public"],
@@ -106,6 +106,17 @@ cc_test(
         "//emulator/plugin/hal/connector:connector_registry_impl",
         "@abseil-cpp//absl/status:status_matchers",
         "@abseil-cpp//absl/synchronization",
+    ],
+)
+
+cc_binary(
+    name = "marshalling_hal_socket_benchmark",
+    srcs = ["marshalling_hal_socket_benchmark.cc"],
+    deps = [
+        "//emulator/libs/async:libuv_event_loop",
+        "//emulator/libs/async:threaded_event_loop",
+        "@abseil-cpp//absl/synchronization",
+        "@google_benchmark//:benchmark",
     ],
 )
 

@@ -77,10 +77,14 @@ class MarshallingHalSocket : public HalSocket,
     friend class HalPlugToIPlugAdapter;
     cable::SocketPtr Release();
 
+    static constexpr size_t kInitialBufferSize = 4096;
+
     cable::SocketPtr socket_ ABSL_GUARDED_BY(socket_mutex_);
     absl::Mutex socket_mutex_;
     async::EventLoop* qemu_loop_;
     std::atomic<bool> is_closed_{false};
+
+    std::string send_buffer_ ABSL_GUARDED_BY(socket_mutex_);
 };
 
 }  // namespace goldfish::devices

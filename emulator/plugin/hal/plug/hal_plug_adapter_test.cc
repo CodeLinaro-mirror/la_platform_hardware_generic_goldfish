@@ -220,3 +220,75 @@ TEST_F(HalPlugAdapterTest, DISABLED_CloseIsMarshalledToUnplugImplOnQemuThread) {
     unplugCalled.WaitForNotificationWithTimeout(absl::Milliseconds(100));
     ASSERT_TRUE(callClose);
 }
+
+TEST_F(HalPlugAdapterTest, CoalescesMultipleSendsIntoSingleQemuTask) {
+    Connect();
+
+    absl::Notification qemuGate;
+    absl::Notification sendAsyncCalled;
+
+    // Block mQemuLoop so it pauses processing queued looper closures
+    mQemuLoop->Post([&] { qemuGate.WaitForNotification(); }).IgnoreError();
+
+    // Expect exactly ONE SendAsync call containing the concatenated payload "msg1:msg2:msg3:" (15
+    // bytes)
+    EXPECT_CALL(*mMockSocket, SendAsync(_, 15)).WillOnce(Invoke([&](const void* data, size_t size) {
+        EXPECT_EQ(std::this_thread::get_id(), mQemuLoop->GetId());
+        EXPECT_EQ(std::string_view(static_cast<const char*>(data), size), "msg1:msg2:msg3:");
+        sendAsyncCalled.Notify();
+    }));
+
+    // Issue multiple Send calls while mQemuLoop is gated
+    auto socket = mMockHalPlug->getSocket();
+    socket->Send("msg1:");
+    socket->Send("msg2:");
+    socket->Send("msg3:");
+
+    // Release the gate so mQemuLoop processes the single posted flush task
+    qemuGate.Notify();
+
+    // Assert SendAsync was called once with the coalesced buffer
+    sendAsyncCalled.WaitForNotificationWithTimeout(absl::Milliseconds(100));
+}
+
+TEST_F(HalPlugAdapterTest, CoalescesInitialSendsAndDispatchesSubsequentSendSeparately) {
+    Connect();
+
+    absl::Notification gate1;
+    absl::Notification turn1Done;
+    absl::Notification turn2Done;
+
+    // Block mQemuLoop for Turn 1
+    mQemuLoop->Post([&] { gate1.WaitForNotification(); }).IgnoreError();
+
+    // Call 1: Coalesced payload "part1:part2:" (12 bytes)
+    // Call 2: Subsequent payload "part3:" (6 bytes)
+    ::testing::Sequence seq;
+    EXPECT_CALL(*mMockSocket, SendAsync(_, 12))
+            .InSequence(seq)
+            .WillOnce(Invoke([&](const void* data, size_t size) {
+                EXPECT_EQ(std::string_view(static_cast<const char*>(data), size), "part1:part2:");
+                turn1Done.Notify();
+            }));
+
+    EXPECT_CALL(*mMockSocket, SendAsync(_, 6))
+            .InSequence(seq)
+            .WillOnce(Invoke([&](const void* data, size_t size) {
+                EXPECT_EQ(std::string_view(static_cast<const char*>(data), size), "part3:");
+                turn2Done.Notify();
+            }));
+
+    auto socket = mMockHalPlug->getSocket();
+
+    // Issue Turn 1 sends (coalesced)
+    socket->Send("part1:");
+    socket->Send("part2:");
+
+    // Release gate 1 to execute Turn 1 flush
+    gate1.Notify();
+    turn1Done.WaitForNotificationWithTimeout(absl::Milliseconds(100));
+
+    // Issue Turn 2 send after Turn 1 completed (sent as a separate payload)
+    socket->Send("part3:");
+    turn2Done.WaitForNotificationWithTimeout(absl::Milliseconds(100));
+}
