@@ -368,7 +368,7 @@ std::shared_ptr<EventLoop::Timer> LibuvEventLoopImpl::CreateTimer(RepeatingTask 
     if (is_shutting_down_) {
         return std::make_shared<ScopedTimer>(nullptr);
     }
-    auto timer = LibuvTimer::Create(this, std::move(task), /*auto_cancel=*/false);
+    auto timer = LibuvTimer::Create(this, std::move(task));
     return std::make_shared<ScopedTimer>(timer);
 }
 
