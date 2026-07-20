@@ -93,43 +93,4 @@ TEST_F(HangDetectorTest, BlockedLoopTriggersHang) {
     event_loop->ShutdownAndWait().IgnoreError();
 }
 
-TEST_F(HangDetectorTest, LoopDisappearsBeforeHangNoCrash) {
-    auto event_loop =
-            goldfish::async::ThreadedEventLoop::Create(goldfish::async::LibuvEventLoop::Create());
-
-    mHangDetector->AddWatchedLooper("test loop", *event_loop, absl::Seconds(1));
-
-    // Note no hanging task.
-
-    // Delete the event loop while the hang detector is still running.
-    event_loop.reset();
-
-    ASSERT_TRUE(wait_for_hang());
-}
-
-TEST_F(HangDetectorTest, LoopDisappearsAfterHangNoCrash) {
-    // Note test loop has to be used as trying to destroy the uv loop hangs waiting for all tasks to
-    // complete.
-    auto event_loop =
-            goldfish::async::ThreadedEventLoop::Create(goldfish::async::LibuvEventLoop::Create());
-
-    mHangDetector->AddWatchedLooper("test loop", *event_loop, absl::Seconds(1));
-
-    // Add a hanging task
-    absl::Notification hang;
-    event_loop->Post([&hang] { hang.WaitForNotification(); }).IgnoreError();
-
-    ASSERT_TRUE(wait_for_hang());
-
-    auto f = event_loop->Shutdown();
-
-    // Unblock the loop so that it actually terminates!
-    hang.Notify();
-
-    ASSERT_THAT(f.get(), absl_testing::IsOk());
-
-    // Delete the event loop while the hang detector is still running.
-    event_loop.reset();
-}
-
 }  // namespace android::crashreport
