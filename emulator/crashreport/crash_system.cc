@@ -81,7 +81,6 @@ class CrashSystemImpl : public CrashSystem {
 #ifdef __APPLE__
         args.emplace_back(absl::StrCat("--monitor-pid=", System::Get()->GetCurrentProcessPid()));
 #endif
-#ifdef _WIN32
         // Disable indirectly referenced memory capture on Windows to prevent minidump bloat.
         // This avoids scanning thread stacks for pointers and capturing arbitrary memory pages,
         // significantly reducing disk I/O and upload payload sizes.
@@ -90,7 +89,6 @@ class CrashSystemImpl : public CrashSystem {
             crashpad_info->set_gather_indirectly_referenced_memory(crashpad::TriState::kDisabled,
                                                                    0);
         }
-#endif
         const bool active = client_->StartHandler(::base::FilePath(handler_path.native()),
                                                   file_path, metrics_path, kCrashUrl, annotations,
                                                   std::move(args), true, false);
