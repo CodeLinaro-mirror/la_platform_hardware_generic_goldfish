@@ -8,6 +8,7 @@ cc_library(
         "battery_service.cc",
         "clipboard_service.cc",
         "display_service.cc",
+        "fingerprint_service.cc",
         "gps_service.cc",
         "sensor_service.cc",
         "status_service.cc",
@@ -17,6 +18,7 @@ cc_library(
         "battery_service.h",
         "clipboard_service.h",
         "display_service.h",
+        "fingerprint_service.h",
         "gps_service.h",
         "notification_store.h",
         "notification_stream_writer.h",
@@ -49,6 +51,7 @@ cc_test(
     name = "emulator_controller_methods_test",
     srcs = [
         "display_service_test.cc",
+        "fingerprint_service_test.cc",
         "notification_store_test.cc",
         "qemu_stubs.c",
         "sensor_service_test.cc",

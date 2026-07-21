@@ -29,6 +29,7 @@
 #include "emulator_controller_methods/battery_service.h"
 #include "emulator_controller_methods/clipboard_service.h"
 #include "emulator_controller_methods/display_service.h"
+#include "emulator_controller_methods/fingerprint_service.h"
 #include "emulator_controller_methods/gps_service.h"
 #include "emulator_controller_methods/notification_store.h"
 #include "emulator_controller_methods/notification_stream_writer.h"
@@ -66,6 +67,7 @@ class EmulatorControllerImpl final
             , mBatteryService(avdUniverse->GetBattery())
             , mSensorService(avdUniverse->GetSensorsPhysicalModel())
             , mGpsService(avdUniverse->GetLocation())
+            , mFingerprintService(avdUniverse->GetFingerprintSensor())
             , mClipboardService(avdUniverse->GetClipboardChannel())
             , mInputEventSender(multidisplay)
             , mDisplayService(multidisplay, &avdUniverse->GetSensorsPhysicalModel()) {}
@@ -126,6 +128,11 @@ class EmulatorControllerImpl final
     ::grpc::ServerWriteReactor<ClipData>* streamClipboard(::grpc::CallbackServerContext* context,
                                                           const Empty* /*request*/) override {
         return mClipboardService.streamClipboard(ClipboardServiceImpl::getPeerId(*context));
+    }
+
+    Status sendFingerprint(ServerContext* /*context*/, const Fingerprint* request,
+                           Empty* /*reply*/) override {
+        return mFingerprintService.sendFingerprint(*request);
     }
 
     Status sendKey(ServerContext* context, const KeyboardEvent* request,
@@ -234,6 +241,7 @@ class EmulatorControllerImpl final
     BatteryServiceImpl mBatteryService;
     SensorServiceImpl mSensorService;
     GpsServiceImpl mGpsService;
+    FingerprintServiceImpl mFingerprintService;
     ClipboardServiceImpl mClipboardService;
     InputEventSender mInputEventSender;
     DisplayServiceImpl mDisplayService;
