@@ -62,8 +62,7 @@ class HangDetectorTest : public ::testing::Test {
 
 TEST_F(HangDetectorTest, PredicateTriggersHang) {
     if (android::base::IsDebuggerAttached()) {
-        printf("This test cannot be run under a debugger.");
-        return;
+        GTEST_SKIP() << "This test cannot be run under a debugger";
     }
     mHangDetector->AddPredicateCheck([] { return true; }, "Always dead");
     ASSERT_TRUE(wait_for_hang());
@@ -110,6 +109,63 @@ TEST_F(HangDetectorTest, BlockedLoopTriggersHang) {
 
     // Wait for loop to shutdown as the hang task is referencing the hang notification which gets
     // destroyed before the loop.
+    event_loop->ShutdownAndWait().IgnoreError();
+}
+
+TEST_F(HangDetectorTest, NoHangCallbackDeadlockWhenRemovingLooper) {
+    if (android::base::IsDebuggerAttached()) {
+        GTEST_SKIP() << "This test cannot be run under a debugger";
+    }
+
+    auto event_loop =
+            goldfish::async::ThreadedEventLoop::Create(goldfish::async::LibuvEventLoop::Create());
+
+    absl::Notification hang_cb_called;
+    absl::Notification remove_completed;
+
+    // Create a HangDetector where the hang callback attempts to call RemoveWatchedLooper
+    // asynchronously from a separate thread, simulating concurrent teardown.
+    auto hang_detector = HangDetector::Create(
+            [&](std::string_view msg) {
+                std::thread remove_thread([&]() {
+                    event_loop->ShutdownAndWait().IgnoreError();
+                    remove_completed.Notify();
+                });
+                remove_thread.detach();
+                hang_cb_called.Notify();
+            },
+            {
+                .hang_loop_iteration_timeout = absl::Milliseconds(100),
+                .hang_check_timeout = absl::Milliseconds(100),
+            },
+            std::make_unique<android::base::AbseilClock>());
+
+    hang_detector->AddWatchedLooper("test loop", *event_loop, absl::Milliseconds(100));
+
+    // Block the event loop to trigger hang detection
+    absl::Notification hang;
+    event_loop->Post([&hang] { hang.WaitForNotification(); }).IgnoreError();
+
+    // Verify hang callback fires and async thread can run without deadlocking on HangDetector mutex
+    ASSERT_TRUE(hang_cb_called.WaitForNotificationWithTimeout(kMaxBlockingTime));
+
+    hang.Notify();
+    ASSERT_TRUE(remove_completed.WaitForNotificationWithTimeout(kMaxBlockingTime));
+    hang_detector->Stop();
+}
+
+TEST_F(HangDetectorTest, RemoveWatchedLooperAfterStopNoCrash) {
+    auto event_loop =
+            goldfish::async::ThreadedEventLoop::Create(goldfish::async::LibuvEventLoop::Create());
+
+    mHangDetector->AddWatchedLooper("test loop", *event_loop, absl::Seconds(1));
+
+    // Stop the detector first (simulating early teardown)
+    mHangDetector->Stop();
+
+    // Verify calling RemoveWatchedLooper after Stop() is safe and does not crash or assert
+    EXPECT_NO_FATAL_FAILURE(mHangDetector->RemoveWatchedLooper(*event_loop));
+
     event_loop->ShutdownAndWait().IgnoreError();
 }
 
