@@ -61,13 +61,16 @@ class LoopWatcher {
     }
 
     void CancelHangCheck() {
-        const absl::MutexLock l(&mutex_);
-
-        if (timer_) {
-            timer_->Cancel();
-            timer_.reset();
+        std::shared_ptr<::goldfish::async::EventLoop::Timer> timer;
+        {
+            const absl::MutexLock l(&mutex_);
+            timer = std::move(timer_);
+            is_task_running_ = false;
         }
-        is_task_running_ = false;
+
+        if (timer) {
+            timer->Cancel();
+        }
     }
 
     void Process(const HangDetector::HangCallback& hang_callback) {
@@ -116,7 +119,9 @@ class LoopWatcher {
         is_task_running_ = true;
         last_check_time_ = clock_->Now(base::ClockType::kRealtime);
         // 0 means run as soon as possible.
-        timer_->Schedule(std::chrono::milliseconds(0));
+        if (timer_) {
+            timer_->Schedule(std::chrono::milliseconds(0));
+        }
     }
 
     void TaskComplete() {
@@ -163,12 +168,20 @@ class HangDetectorImpl : public HangDetector {
     }
 
     void RemoveWatchedLooper(::goldfish::async::EventLoop& event_loop) override {
-        const absl::MutexLock l(&mutex_);
-        DCHECK(!stopping_);
+        std::vector<std::unique_ptr<LoopWatcher>> to_remove;
+        {
+            const absl::MutexLock l(&mutex_);
+            DCHECK(!stopping_);
 
-        std::erase_if(loop_watchers_, [&event_loop](const std::unique_ptr<LoopWatcher>& watcher) {
-            return watcher->IsOnTheLoop(event_loop);
-        });
+            for (auto it = loop_watchers_.begin(); it != loop_watchers_.end();) {
+                if ((*it)->IsOnTheLoop(event_loop)) {
+                    to_remove.push_back(std::move(*it));
+                    it = loop_watchers_.erase(it);
+                } else {
+                    ++it;
+                }
+            }
+        }
     }
 
     void AddPredicateCheck(HangPredicate predicate, std::string msg) override {
@@ -186,15 +199,18 @@ class HangDetectorImpl : public HangDetector {
     }
 
     void Stop() override {
+        std::vector<std::unique_ptr<LoopWatcher>> loop_watchers;
         {
             const absl::MutexLock l(&mutex_);
             if (stopping_) {
                 return;
             }
             stopping_ = true;
-            for (auto& lw : loop_watchers_) {
-                lw->CancelHangCheck();
-            }
+            loop_watchers = std::move(loop_watchers_);
+        }
+
+        for (auto& lw : loop_watchers) {
+            lw->CancelHangCheck();
         }
 
         DCHECK(worker_thread_.joinable());

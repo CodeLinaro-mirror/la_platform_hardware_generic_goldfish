@@ -289,4 +289,12 @@ void qemu_bh_delete(QEMUBH* bh) {
     delete bh;
 }
 
+bool bql_locked() {
+    return false;
+}
+
+void bql_lock_impl(const char* file, int line) {}
+
+void bql_unlock() {}
+
 }  // extern "C"
