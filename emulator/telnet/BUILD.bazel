@@ -54,6 +54,43 @@ cc_library(
 )
 
 cc_library(
+    name = "console_context",
+    srcs = ["console_context.cc"],
+    hdrs = ["console_context.h"],
+    deps = [
+        ":line_command_handler",
+        "//emulator/libs/discovery:emulator_advertisement",
+        "//emulator/libs/grpc_client",
+        "//emulator/libs/status_macros",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/synchronization",
+        "@aemu//protos/services/emulator-controller:emulator_controller_cc_grpc",
+        "@aemu//protos/services/incubating/modem:modem_service_cc_grpc",
+        "@aemu//protos/services/incubating/recording:screen_recording_service_cc_grpc",
+    ],
+)
+
+cc_library(
+    name = "gsm_commands",
+    srcs = ["gsm_commands.cc"],
+    hdrs = ["gsm_commands.h"],
+    deps = [
+        ":command_registry",
+        ":console_context",
+        "//emulator/libs/grpc_utils:absl_translate",
+        "//emulator/libs/status_macros",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/strings:str_format",
+        "@aemu//protos/services/incubating/modem:modem_service_cc_grpc",
+    ],
+)
+
+cc_library(
     name = "legacy_console_controller",
     srcs = ["legacy_console_controller.cc"],
     hdrs = ["legacy_console_controller.h"],
@@ -98,15 +135,19 @@ cc_library(
     ],
     deps = [
         ":command_registry",
+        ":console_context",
+        ":gsm_commands",
         ":line_command_handler",
         ":telnet_auth",
         "//emulator/libs/grpc_client",
         "//emulator/libs/grpc_utils:absl_translate",
         "//emulator/libs/status_macros",
+        "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
         "@aemu//protos/services/emulator-controller:emulator_controller_cc_grpc",
+        "@aemu//protos/services/incubating/modem:modem_service_cc_grpc",
         "@aemu//protos/services/incubating/recording:screen_recording_service_cc_grpc",
         "@aemu//protos/services/snapshot:snapshot_service_cc_grpc",
     ],
@@ -168,6 +209,20 @@ cc_test(
         "//emulator/libs/system",
         "//emulator/libs/system:test-headers",
         "//emulator/libs/test:googletest_main",
+        "@aemu//protos/services/emulator-controller:emulator_controller_cc_grpc",
+        "@aemu//protos/services/incubating/modem:modem_service_cc_grpc",
+    ],
+)
+
+cc_test(
+    name = "gsm_commands_test",
+    srcs = ["gsm_commands_test.cc"],
+    deps = [
+        ":command_registry",
+        ":console_context",
+        ":gsm_commands",
+        "//emulator/libs/test:googletest_main",
+        "@aemu//protos/services/incubating/modem:modem_service_cc_grpc",
     ],
 )
 
@@ -179,6 +234,8 @@ cc_test(
         "//emulator/libs/system",
         "//emulator/libs/system:test-headers",
         "//emulator/libs/test:googletest_main",
+        "@aemu//protos/services/emulator-controller:emulator_controller_cc_grpc",
+        "@aemu//protos/services/incubating/recording:screen_recording_service_cc_grpc",
     ],
 )
 
@@ -188,6 +245,8 @@ clang_tidy_test(
         ":telnet_auth",
         ":line_command_handler",
         ":command_registry",
+        ":console_context",
+        ":gsm_commands",
         ":legacy_console_bridge",
         ":console_server",
     ],

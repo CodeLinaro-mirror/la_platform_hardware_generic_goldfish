@@ -31,6 +31,7 @@
 #include "emulator_controller_mock.grpc.pb.h"
 #include "goldfish/discovery/emulator_advertisement.h"
 #include "goldfish/file/file.h"
+#include "modem_service_mock.grpc.pb.h"
 #include "telnet_auth.h"
 
 namespace goldfish::telnet {
@@ -47,6 +48,14 @@ struct MockConsoleContext : public LegacyConsoleBridge::ConsoleContext {
             return std::move(mock_stub);
         }
         return ConsoleContext::EmulatorControllerStub();
+    }
+
+    absl::StatusOr<std::unique_ptr<android::emulation::control::incubating::Modem::StubInterface>>
+    ModemStub() override {
+        if (mock_modem_stub) {
+            return std::move(mock_modem_stub);
+        }
+        return ConsoleContext::ModemStub();
     }
 
     absl::StatusOr<std::unique_ptr<grpc::ClientContext>> NewContext(
@@ -73,6 +82,7 @@ struct MockConsoleContext : public LegacyConsoleBridge::ConsoleContext {
     }
 
     std::unique_ptr<android::emulation::control::EmulatorController::StubInterface> mock_stub;
+    std::unique_ptr<android::emulation::control::incubating::Modem::StubInterface> mock_modem_stub;
     std::optional<absl::StatusOr<LegacyConsoleBridge::DiscoveredEmulator>> mock_discovery;
     std::optional<absl::StatusOr<std::vector<std::filesystem::path>>> mock_discovered_emulators;
 };
