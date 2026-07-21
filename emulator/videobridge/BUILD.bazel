@@ -29,6 +29,7 @@ cc_binary(
         ":emulator_client",
         ":grpc_media_providers",
         ":rtc_service",
+        ":videobridge_codecs",
         "//emulator/libs/grpc_security",
         "@abseil-cpp//absl/flags:flag",
         "@abseil-cpp//absl/flags:parse",
@@ -38,6 +39,58 @@ cc_binary(
         "@abseil-cpp//absl/time",
         "@grpc//:grpc++",
     ],
+)
+
+cc_library(
+    name = "videobridge_codecs_win",
+    srcs = ["core/win/mf_video_encoder_h264.cc"],
+    hdrs = [
+        "core/win/mf_video_encoder_h264.h",
+        "include/goldfish/videobridge/codec_factories.h",
+    ],
+    copts = select({
+        "@platforms//os:windows": ["/GR-"],
+        "//conditions:default": ["-fno-rtti"],
+    }),
+    includes = [
+        ".",
+        "include",
+    ],
+    linkopts = [
+        "-DEFAULTLIB:mfplat.lib",
+        "-DEFAULTLIB:mfuuid.lib",
+        "-DEFAULTLIB:ole32.lib",
+    ],
+    target_compatible_with = select({
+        "@platforms//os:windows": [],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
+    deps = [
+        "@abseil-cpp//absl/synchronization",
+        "@libyuv",
+        "@webrtc//api/video_codecs:video_codecs_api",
+        "@webrtc//rtc_base:checks",
+        "@webrtc//rtc_base:logging",
+        "@webrtc//sdk:native_api",
+    ],
+)
+
+cc_library(
+    name = "videobridge_codecs",
+    srcs = ["core/codec_factories.cc"],
+    hdrs = ["include/goldfish/videobridge/codec_factories.h"],
+    strip_include_prefix = "include",
+    deps = select({
+        "@platforms//os:windows": [
+            ":videobridge_codecs_win",
+            "@webrtc//api/video_codecs:builtin_video_decoder_factory",
+            "@webrtc//api/video_codecs:builtin_video_encoder_factory",
+        ],
+        "//conditions:default": [
+            "@webrtc//api/video_codecs:builtin_video_decoder_factory",
+            "@webrtc//api/video_codecs:builtin_video_encoder_factory",
+        ],
+    }),
 )
 
 cc_test(
@@ -71,6 +124,7 @@ cc_library(
         "core/switchboard.cc",
     ],
     hdrs = [
+        "include/goldfish/videobridge/codec_factories.h",
         "include/goldfish/videobridge/input_sender.h",
         "include/goldfish/videobridge/media_provider.h",
         "include/goldfish/videobridge/rtc_connection.h",
@@ -79,6 +133,7 @@ cc_library(
     strip_include_prefix = "include",
     deps = [
         ":emulator_client",
+        ":videobridge_codecs",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/synchronization",
         "@abseil-cpp//absl/time",
@@ -88,8 +143,6 @@ cc_library(
         "@webrtc//api/audio_codecs:builtin_audio_decoder_factory",
         "@webrtc//api/audio_codecs:builtin_audio_encoder_factory",
         "@webrtc//api/task_queue:default_task_queue_factory",
-        "@webrtc//api/video_codecs:builtin_video_decoder_factory",
-        "@webrtc//api/video_codecs:builtin_video_encoder_factory",
         "@webrtc//modules/audio_device:audio_device_impl",
         "@webrtc//p2p:rtc_p2p",
         "@webrtc//rtc_base:network",
@@ -114,6 +167,20 @@ cc_test(
         "//emulator/libs/test:googletest_main",
         "@abseil-cpp//absl/time",
         "@nlohmann_json//:singleheader-json",
+    ],
+)
+
+cc_test(
+    name = "mf_video_encoder_h264_test",
+    srcs = ["core/win/mf_video_encoder_h264_test.cc"],
+    target_compatible_with = select({
+        "@platforms//os:windows": [],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
+    deps = [
+        ":videobridge_codecs_win",
+        "//emulator/libs/test:googletest_main",
+        "@webrtc//api/video_codecs:video_codecs_api",
     ],
 )
 
