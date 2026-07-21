@@ -583,13 +583,24 @@ LegacyConsoleBridge::LegacyConsoleBridge(int port, std::filesystem::path token_p
                [](ConsoleContext& /*ctx*/) { return absl::UnimplementedError("not implemented"); });
 
     // --- Finger Commands ---
+    auto send_fingerprint = [](ConsoleContext& ctx, bool is_touching,
+                               int touch_id = 0) -> absl::Status {
+        ASSIGN_OR_RETURN(auto stub, ctx.EmulatorControllerStub());
+        ASSIGN_OR_RETURN(auto context, ctx.NewContext());
+        android::emulation::control::Fingerprint request;
+        request.set_istouching(is_touching);
+        request.set_touchid(touch_id);
+        google::protobuf::Empty unused;
+        return GrpcStatusToAbslStatus(stub->sendFingerprint(context.get(), request, &unused));
+    };
+
     auto finger = builder.Command("finger", "manage emulator finger print");
     finger.On("touch" /* do_fingerprint_touch */, "touch finger print sensor with <fingerid>",
-              [](ConsoleContext& /*ctx*/, int /*fingerid*/) {
-                  return absl::UnimplementedError("not implemented");
+              [send_fingerprint](ConsoleContext& ctx, int fingerid) {
+                  return send_fingerprint(ctx, true, fingerid);
               });
     finger.On("remove" /* do_fingerprint_remove */, "remove finger from the fingerprint sensor",
-              [](ConsoleContext& /*ctx*/) { return absl::UnimplementedError("not implemented"); });
+              [send_fingerprint](ConsoleContext& ctx) { return send_fingerprint(ctx, false); });
 
     // --- Multi-display Commands ---
     auto multidisplay = builder.Command("multidisplay", "configure the multi-display");
