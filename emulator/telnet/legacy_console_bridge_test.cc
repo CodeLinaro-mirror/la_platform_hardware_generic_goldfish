@@ -220,6 +220,47 @@ TEST_F(LegacyConsoleBridgeTest, GeoFixSucceedsWithValidCoordinates) {
     EXPECT_EQ(*result, "");
 }
 
+TEST_F(LegacyConsoleBridgeTest, FingerTouchSendsGrpcRequest) {
+    auto ctx = CreateContext();
+    ctx->authenticated = true;
+
+    auto mock_stub = std::make_unique<android::emulation::control::MockEmulatorControllerStub>();
+    EXPECT_CALL(*mock_stub, sendFingerprint(_, _, _))
+            .WillOnce([](grpc::ClientContext* context,
+                         const android::emulation::control::Fingerprint& request,
+                         google::protobuf::Empty* response) {
+                EXPECT_TRUE(request.istouching());
+                EXPECT_EQ(request.touchid(), 1);
+                return grpc::Status::OK;
+            });
+    ctx->mock_stub = std::move(mock_stub);
+
+    auto result = (*bridge_)("finger touch 1", *ctx);
+
+    ASSERT_TRUE(result.ok()) << result.status().message();
+    EXPECT_EQ(*result, "");
+}
+
+TEST_F(LegacyConsoleBridgeTest, FingerRemoveSendsGrpcRequest) {
+    auto ctx = CreateContext();
+    ctx->authenticated = true;
+
+    auto mock_stub = std::make_unique<android::emulation::control::MockEmulatorControllerStub>();
+    EXPECT_CALL(*mock_stub, sendFingerprint(_, _, _))
+            .WillOnce([](grpc::ClientContext* context,
+                         const android::emulation::control::Fingerprint& request,
+                         google::protobuf::Empty* response) {
+                EXPECT_FALSE(request.istouching());
+                return grpc::Status::OK;
+            });
+    ctx->mock_stub = std::move(mock_stub);
+
+    auto result = (*bridge_)("finger remove", *ctx);
+
+    ASSERT_TRUE(result.ok()) << result.status().message();
+    EXPECT_EQ(*result, "");
+}
+
 TEST_F(LegacyConsoleBridgeTest, HeartbeatFailsWhenNotAuthenticated) {
     LegacyConsoleBridge::ConsoleContext ctx(5554);
     EXPECT_FALSE(ctx.authenticated);
