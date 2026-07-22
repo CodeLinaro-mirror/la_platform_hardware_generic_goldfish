@@ -1,0 +1,226 @@
+// Copyright (C) 2026 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+#include "grpc_video_source.h"
+
+#include <utility>
+
+// Disable compiler warnings for external third-party headers. We wrap these in localized
+// pragma blocks rather than using target 'copts' so that thread-safety analysis remains
+// active on our own local source files.
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wthread-safety-reference-return"
+#pragma clang diagnostic ignored "-Wnullability-completeness"
+#include "api/video/video_frame.h"
+#include "libyuv/convert.h"       // NOLINT(misc-header-include-cycle)
+#include "libyuv/video_common.h"  // NOLINT(misc-header-include-cycle)
+#include "rtc_base/time_utils.h"
+#pragma clang diagnostic pop
+
+#include "absl/log/log.h"
+
+#include "goldfish/memory/shared_memory.h"
+
+namespace goldfish::videobridge {
+
+using ::android::emulation::control::Image;
+using ::android::emulation::control::ImageFormat;
+using ::android::emulation::control::ImageTransport;
+
+android::emulation::control::ImageFormat_ImgFormat RgbaToI420Pipeline::GetGrpcFormat() const {
+    return android::emulation::control::ImageFormat::RGBA8888;
+}
+
+size_t RgbaToI420Pipeline::GetRequiredSharedMemorySize(uint32_t width, uint32_t height) const {
+    const size_t w = (width > 0) ? width : 3840;
+    const size_t h = (height > 0) ? height : 2160;
+    return w * h * 4;
+}
+
+std::optional<::webrtc::VideoFrame> RgbaToI420Pipeline::Convert(const uint8_t* raw_data,
+                                                                size_t raw_size, uint32_t width,
+                                                                uint32_t height,
+                                                                int64_t timestamp_us) {
+    if (!buffer_ || buffer_->width() != static_cast<int>(width) ||
+        buffer_->height() != static_cast<int>(height)) {
+        buffer_ = ::webrtc::I420Buffer::Create(static_cast<int>(width), static_cast<int>(height));
+    }
+
+    const int status =
+            libyuv::ConvertToI420(raw_data, raw_size, buffer_->MutableDataY(), buffer_->StrideY(),
+                                  buffer_->MutableDataU(), buffer_->StrideU(),
+                                  buffer_->MutableDataV(), buffer_->StrideV(),
+                                  /*crop_x=*/0, /*crop_y=*/0, static_cast<int>(width),
+                                  static_cast<int>(height), static_cast<int>(width),
+                                  static_cast<int>(height), libyuv::kRotate0, libyuv::FOURCC_ABGR);
+
+    if (status != 0) {
+        return std::nullopt;
+    }
+
+    return ::webrtc::VideoFrame::Builder()
+            .set_video_frame_buffer(buffer_)
+            .set_timestamp_rtp(0)
+            .set_timestamp_us(timestamp_us)
+            .set_rotation(::webrtc::kVideoRotation_0)
+            .build();
+}
+
+GrpcVideoSource::GrpcVideoSource(std::shared_ptr<EmulatorClient> client,
+                                 GrpcVideoSourceOptions options,
+                                 std::unique_ptr<VideoFormatPipeline> pipeline)
+        : client_(std::move(client))
+        , options_(std::move(options))
+        , pipeline_(std::move(pipeline)) {}
+
+GrpcVideoSource::~GrpcVideoSource() {
+    Stop();
+}
+
+void GrpcVideoSource::Start() {
+    bool expected = false;
+    if (running_.compare_exchange_strong(expected, true)) {
+        LOG(INFO) << "Starting GrpcVideoSource capture loop for display " << options_.display_id
+                  << " (" << options_.width << "x" << options_.height
+                  << ") connected to emulator at " << client_->TargetAddress();
+        capture_thread_ = std::thread([this]() { CaptureLoop(); });
+    }
+}
+
+void GrpcVideoSource::Stop() {
+    bool expected = true;
+    if (running_.compare_exchange_strong(expected, false)) {
+        VLOG(1) << "Stopping GrpcVideoSource capture loop for display " << options_.display_id
+                << " connected to emulator at " << client_->TargetAddress();
+        context_.TryCancel();
+    }
+    if (capture_thread_.joinable()) {
+        capture_thread_.join();
+    }
+}
+
+bool GrpcVideoSource::SetupSharedMemory(ImageFormat* format) {
+    if (!options_.shared_memory_path.has_value()) {
+        LOG(ERROR) << "Failed to start screenshot capture: transport is kSharedMemory "
+                   << "but shared_memory_path is not specified.";
+        return false;
+    }
+
+    auto* transport = format->mutable_transport();
+    transport->set_channel(ImageTransport::MMAP);
+
+    std::string uri = options_.shared_memory_path->string();
+    if (!uri.starts_with("file://")) {
+        uri = "file://" + uri;
+    }
+    transport->set_handle(uri);
+
+    const size_t shm_size = pipeline_->GetRequiredSharedMemorySize(options_.width, options_.height);
+
+    shared_memory_ = std::make_unique<::goldfish::memory::SharedMemory>(uri, shm_size);
+    const auto backing_path = shared_memory_->BackingFile();
+    if (std::filesystem::exists(backing_path)) {
+        VLOG(1) << "Shared memory backing file already exists. Cleaning up before creation: "
+                << backing_path;
+        std::error_code ec;
+        std::filesystem::remove(backing_path, ec);
+        if (ec) {
+            LOG(WARNING) << "Failed to remove existing shared memory file: " << ec.message();
+        }
+    }
+    const auto status = shared_memory_->Create(std::filesystem::perms::owner_read |
+                                               std::filesystem::perms::owner_write);
+    if (!status.ok()) {
+        LOG(WARNING) << "Failed to create shared memory region: " << status
+                     << ". Falling back to socket transport.";
+        shared_memory_.reset();
+        format->clear_transport();
+    } else {
+        LOG(INFO) << "Configured shared memory transport at: " << uri;
+    }
+    return true;
+}
+
+void GrpcVideoSource::ProcessIncomingImage(const Image& img) {
+    const uint32_t width = img.format().width();
+    const uint32_t height = img.format().height();
+
+    VLOG(2) << "Received screenshot frame: " << width << "x" << height
+            << ", sequence=" << img.seq();
+
+    const uint8_t* raw_data = nullptr;
+    size_t raw_size = 0;
+
+    if (shared_memory_ && shared_memory_->IsMapped()) {
+        raw_data = reinterpret_cast<const uint8_t*>(shared_memory_->Get());
+        raw_size = pipeline_->GetRequiredSharedMemorySize(width, height);
+        VLOG(3) << "Loaded frame from shared memory (address=" << static_cast<const void*>(raw_data)
+                << ", size=" << raw_size << " bytes)";
+    } else {
+        const std::string& buffer_data = img.image();
+        if (buffer_data.empty()) {
+            VLOG(2) << "Received empty screenshot image buffer.";
+            return;
+        }
+        raw_data = reinterpret_cast<const uint8_t*>(buffer_data.data());
+        raw_size = buffer_data.size();
+        VLOG(3) << "Loaded frame from gRPC payload (size=" << raw_size << " bytes)";
+    }
+
+    auto frame = pipeline_->Convert(raw_data, raw_size, width, height, ::webrtc::TimeMicros());
+    if (!frame.has_value()) {
+        LOG(WARNING) << "Format conversion failed on display " << options_.display_id
+                     << ". Frame dropped.";
+        return;
+    }
+
+    VLOG(2) << "Delivered video frame to adapted WebRTC sink (timestamp_us="
+            << frame->timestamp_us() << " us)";
+    OnFrame(*frame);
+}
+
+void GrpcVideoSource::CaptureLoop() {
+    if (!client_ || !client_->IsConnected()) {
+        LOG(ERROR) << "Failed to start screenshot capture: Emulator client is disconnected. "
+                   << "Ensure the emulator is running and reachable.";
+        running_ = false;
+        return;
+    }
+
+    ImageFormat format;
+    format.set_format(pipeline_->GetGrpcFormat());
+    format.set_display(options_.display_id);
+    format.set_width(options_.width);
+    format.set_height(options_.height);
+
+    if (options_.transport == GrpcVideoSourceOptions::Transport::kSharedMemory) {
+        if (!SetupSharedMemory(&format)) {
+            running_ = false;
+            return;
+        }
+    }
+
+    auto reader = client_->StreamScreenshot(&context_, format);
+
+    Image img;
+    while (running_ && reader->Read(&img)) {
+        ProcessIncomingImage(img);
+    }
+    // TODO(jansene): We could signal the source state to webrtc for this video track
+
+    LOG(INFO) << "GrpcVideoSource capture loop exited for display " << options_.display_id
+              << " connected to emulator at " << client_->TargetAddress();
+    running_ = false;
+}
+
+}  // namespace goldfish::videobridge

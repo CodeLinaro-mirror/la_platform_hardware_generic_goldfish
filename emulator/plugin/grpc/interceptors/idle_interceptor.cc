@@ -52,9 +52,12 @@ IdleInterceptorFactory::IdleInterceptorFactory(std::chrono::seconds timeout, Eve
         : timeout_(timeout)
         , termination_unix_time_(static_cast<uint64_t>(
                   absl::ToUnixSeconds(IClock::HostNow() + absl::Seconds(timeout.count())))) {
-    timeout_checker_ = event_loop->ScheduleRepeating([this]() { CheckIdleTimeout(); },
-                                                     std::chrono::milliseconds(timeout_),
-                                                     std::chrono::milliseconds(timeout_));
+    timeout_checker_ = event_loop->ScheduleRepeating(
+            [this]() {
+                CheckIdleTimeout();
+                return true;
+            },
+            std::chrono::milliseconds(timeout_), std::chrono::milliseconds(timeout_));
 }
 
 Interceptor* IdleInterceptorFactory::CreateServerInterceptor(ServerRpcInfo* /* info */) {

@@ -1,4 +1,5 @@
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+load("//emulator/tools:plugins.bzl", "collect_plugins")
 
 cc_library(
     name = "guest-status",
@@ -25,9 +26,23 @@ cc_library(
     alwayslink = True,
 )
 
+collect_plugins(
+    name = "binplace",
+    output_dir = ".",
+    plugins = [
+        "@glib//glib:glib_shared",
+        "@glib//gmodule:gmodule_shared",
+    ],
+)
+
 cc_test(
     name = "guest-status_unittests",
     srcs = ["guest_status_device_test.cc"],
+    data = [":binplace"],
+    dynamic_deps = [
+        "@glib//glib:glib_shared",
+        "@glib//gmodule:gmodule_shared",
+    ],
     includes = ["test"],
     visibility = ["//visibility:public"],
     deps = [
@@ -38,6 +53,8 @@ cc_test(
         "//emulator/plugin/hal/connector:test-helpers",
         "//emulator/plugin/hal/plug:fake_vsock",
         "//emulator/plugin/vminterface:vminterface-test",
+        "@glib//glib:glib_import",
+        "@glib//gmodule:gmodule_import",
         "@grpc//:grpc++",
     ],
 )

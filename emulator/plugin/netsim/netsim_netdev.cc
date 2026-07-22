@@ -18,6 +18,7 @@
 
 #include <memory>
 
+#include "absl/log/check.h"
 #include "absl/log/log.h"
 
 extern "C" {
@@ -62,6 +63,9 @@ struct NetsimNetdev {
 struct NetsimState {
     std::unique_ptr<NetsimTransport> transport;
     std::unique_ptr<std::vector<uint8_t>> async_tx;
+    QEMUBH* bh = nullptr;  ///< Schedules incoming packets onto QEMU's main loop thread.
+    std::unique_ptr<std::vector<uint8_t>>
+            incoming_packet;  ///< Holds incoming packet for zero-copy BH execution.
 };
 
 struct NetsimNicState {
@@ -73,7 +77,7 @@ struct NetsimNicState {
 
 void netsim_netdev_send_completed(NetClientState* nc, ssize_t len) {
     VLOG(2) << "NETSIM: async completed";
-    NetsimNicState* s = (NetsimNicState*)nc;
+    auto* s = reinterpret_cast<NetsimNicState*>(nc);
     // Clean-up the saved buffer.
     s->netsim->async_tx.reset();
 
@@ -84,7 +88,7 @@ bool netsim_netdev_send(NetClientState* nc, std::unique_ptr<std::vector<uint8_t>
     // From netsim to guest.
     VLOG(2) << "NETSIM: send (netsim -> guest)";
 
-    NetsimNicState* s = (NetsimNicState*)nc;
+    auto* s = reinterpret_cast<NetsimNicState*>(nc);
     if (s->netsim->async_tx) {
         LOG(DFATAL) << "Netsim recv: async_tx not empty, dropping packet - this is a bug and "
                        "network performance may be affected";
@@ -101,10 +105,24 @@ bool netsim_netdev_send(NetClientState* nc, std::unique_ptr<std::vector<uint8_t>
     }
 }
 
+void netsim_netdev_bh(void* opaque) {
+    auto* nc = static_cast<NetClientState*>(opaque);
+    auto* s = reinterpret_cast<NetsimNicState*>(nc);
+    if (!s->netsim->incoming_packet) {
+        DCHECK(false) << "Netsim bottom half execution was scheduled on QEMU's main loop, but no "
+                         "incoming packet buffer was found. Skipping packet transmission.";
+        return;
+    }
+    if (netsim_netdev_send(nc, std::move(s->netsim->incoming_packet))) {
+        s->netsim->incoming_packet = nullptr;
+        s->netsim->transport->next_recv();
+    }
+}
+
 ssize_t netsim_netdev_receive(NetClientState* nc, const uint8_t* buf, size_t size) {
     // From guest to netsim.
     VLOG(2) << "NETSIM: receive (netsim <- guest)";
-    NetsimNicState* s = (NetsimNicState*)nc;
+    auto* s = reinterpret_cast<NetsimNicState*>(nc);
 
     if (s->is_wifi) {
         // Filter out spurious garbage data from the guest.
@@ -135,7 +153,11 @@ void netsim_netdev_link_status_changed(NetClientState* nc) {
 }
 
 void netsim_netdev_cleanup(NetClientState* nc) {
-    NetsimNicState* s = (NetsimNicState*)nc;
+    auto* s = reinterpret_cast<NetsimNicState*>(nc);
+    if (s->netsim->bh) {
+        qemu_bh_delete(s->netsim->bh);
+        s->netsim->bh = nullptr;
+    }
     bool locked = bql_locked();
     if (locked) {
         bql_unlock();
@@ -186,13 +208,23 @@ void netsim_netdev_realize(DeviceState* dev, Error** errp) {
     nc = qemu_new_net_client(&netsim_netdev_nic_info, peer, "netsim", dev->id);
     nc->is_netdev = true;
 
-    NetsimNicState* s = (NetsimNicState*)nc;
+    auto* s = reinterpret_cast<NetsimNicState*>(nc);
 
     s->netsim = new NetsimState;
+    s->netsim->bh = qemu_bh_new(netsim_netdev_bh, nc);
     s->netsim->transport =
             std::make_unique<NetsimTransport>([nc](::netsim::packet::PacketResponse* packet) {
+                auto* s = reinterpret_cast<NetsimNicState*>(nc);
                 if (packet->has_packet()) {
-                    return netsim_netdev_send(nc, ToUniqueVec(packet->mutable_packet()));
+                    if (s->netsim->incoming_packet) {
+                        DCHECK(false) << "A new packet arrived from Netsim while the previous "
+                                         "packet is still pending delivery on QEMU's main loop. "
+                                         "Dropping the new packet to preserve flow control.";
+                        return false;
+                    }
+                    s->netsim->incoming_packet = ToUniqueVec(packet->mutable_packet());
+                    qemu_bh_schedule(s->netsim->bh);
+                    return false;
                 } else {
                     LOG(WARNING) << "Unexpected packet " << packet->DebugString();
                     // Try to receive next packet immediately.

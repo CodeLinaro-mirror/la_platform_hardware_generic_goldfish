@@ -82,7 +82,7 @@ class EmulatorLocator:
         else:
             self.goldfish_exec = Path(
                 self.r.Rlocation(
-                    "goldfish+/emulator/launcher/launcher"
+                    "goldfish+/emulator/launcher/emulator"
                 )
             )
 

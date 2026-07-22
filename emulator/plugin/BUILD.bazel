@@ -4,6 +4,10 @@ load("@rules_cc//cc:defs.bzl", "cc_binary")
     cc_binary(
         name = "goldfish_" + arch,
         srcs = ["plugin.cc"],
+        dynamic_deps = [
+            "@glib//glib:glib_shared",
+            "@glib//gmodule:gmodule_shared",
+        ],
         linkopts = select({
             "@platforms//os:macos": ["-undefined dynamic_lookup"],
             "//conditions:default": [],
@@ -44,6 +48,8 @@ load("@rules_cc//cc:defs.bzl", "cc_binary")
             "@qemu//:aemu_func_defs",
             "@qemu//:qemu-headers-exported",
             "//emulator/plugin/vsock_goldfish:vsock_impl_" + arch,
+            "@glib//glib:glib_import",
+            "@glib//gmodule:gmodule_import",
         ] + select({
             "@platforms//os:windows": [
                 "@qemu//:qemu-system-" + arch + ".if",

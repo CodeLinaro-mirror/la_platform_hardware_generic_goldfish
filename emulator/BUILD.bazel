@@ -131,7 +131,7 @@ pkg_files(
 filegroup(
     name = "launcher_binaries",
     srcs = [
-        "//emulator/launcher",
+        "//emulator/launcher:emulator",
         "//emulator/launcher/emulator-check",
         "//emulator/launcher/mksdcard",
     ],
@@ -228,12 +228,21 @@ filegroup(
     }),
 )
 
+filegroup(
+    name = "glib_binaries",
+    srcs = [
+        "@glib//glib:glib_shared",
+        "@glib//gmodule:gmodule_shared",
+    ],
+)
+
 all_binaries = [
     ":launcher_binaries",
     ":qemu_binaries",
     ":plugin_binaries",
     ":egl_binaries",
     ":vulkan_binaries",
+    ":glib_binaries",
 ]
 
 generate_notice_file(
@@ -260,14 +269,6 @@ pkg_files(
     attributes = pkg_attributes(
         mode = "0755",
     ),
-    renames = select({
-        "@platforms//os:windows": {
-            "//emulator/launcher": "emulator.exe",
-        },
-        "//conditions:default": {
-            "//emulator/launcher": "emulator",
-        },
-    }),
 )
 
 remapped_pkg_files(
@@ -415,6 +416,18 @@ pkg_files(
 )
 
 pkg_files(
+    name = "glib_dlls",
+    srcs = [":glib_binaries"],
+    prefix = "lib64",
+)
+
+remapped_pkg_files(
+    name = "glib_dlls_stripped",
+    src = ":glib_dlls",
+    transform = ":goldfish_binaries_stripped",
+)
+
+pkg_files(
     name = "qemu-keymaps",
     srcs = ["@qemu//:qemu-keymaps"],
     prefix = "share/qemu/keymaps",
@@ -527,6 +540,7 @@ pkg_filegroup(
         ":emulator_notice_md",
         ":fishtank_binary",
         ":fishtank_dir",
+        ":glib_dlls_stripped",
         ":launcher_stripped",
         ":plugins_stripped",
         ":qemu-keymaps",
@@ -538,7 +552,9 @@ pkg_filegroup(
         ":use_linux_internal_fishtank": [],
         "//conditions:default": [":qtwebengine_binary"],
     }) + select({
-        "@platforms//os:windows": [":win-dlls"],
+        "@platforms//os:windows": [
+            ":win-dlls",
+        ],
         "//conditions:default": [],
     }),
     prefix = "emulator",
@@ -551,6 +567,7 @@ pkg_filegroup(
         ":egl",
         ":emulator-access",
         ":emulator_notice_md",
+        ":glib_dlls",
         ":launcher",
         ":plugins",
         ":qemu",
@@ -559,7 +576,9 @@ pkg_filegroup(
         ":source_properties_pkg",
         ":vulkan",
     ] + select({
-        "@platforms//os:windows": [":win-dlls"],
+        "@platforms//os:windows": [
+            ":win-dlls",
+        ],
         "//conditions:default": [],
     }),
     prefix = "emulator",
@@ -621,6 +640,7 @@ native_symbols_pkg(
         "plugins": ":plugins",
         "egl": ":egl",
         "vulkan": ":vulkan",
+        "glib": ":glib_dlls",
     },
     package_file_name = "sdk-repo-{platform}-{product_name}-native-symbols-{build_id}.zip",
     package_variables = "//emulator/tools:aemu_version_info",
@@ -646,6 +666,5 @@ test_suite(
         "@crashpad//:crashpad_tests",
         "@ffmpeg//:tests",
         "@libsrtp2//:test_srtp",
-        "@libyuv//:libyuv_unittest",
     ],
 )

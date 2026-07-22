@@ -1,4 +1,5 @@
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+load("//emulator/tools:plugins.bzl", "collect_plugins")
 
 cc_library(
     name = "vm_lock",
@@ -83,16 +84,32 @@ cc_library(
     ],
 )
 
+collect_plugins(
+    name = "binplace",
+    output_dir = ".",
+    plugins = [
+        "@glib//glib:glib_shared",
+        "@glib//gmodule:gmodule_shared",
+    ],
+)
+
 cc_test(
     name = "vminterface_unittests",
     testonly = True,
     srcs = ["vm_test.cc"],
+    data = [":binplace"],
+    dynamic_deps = [
+        "@glib//glib:glib_shared",
+        "@glib//gmodule:gmodule_shared",
+    ],
     includes = ["test"],
     visibility = ["//visibility:public"],
     deps = [
         ":vminterface-test",
         "//emulator/libs/system:test-headers",
         "//emulator/libs/test:googletest_main",
+        "@glib//glib:glib_import",
+        "@glib//gmodule:gmodule_import",
     ],
 )
 

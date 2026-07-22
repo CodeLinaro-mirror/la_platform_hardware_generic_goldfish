@@ -158,7 +158,7 @@ void ListAvds(const AndroidOptions& opts, const android::goldfish::UserPaths& us
     auto avds = android::goldfish::Avd::List(user_paths.avd_directory);
     for (const auto& name : avds) {
         auto a = android::goldfish::Avd::FromName(opts, user_paths, name, /*wipe_data=*/false,
-                                                  /*content_override=*/{});
+                                                  /*content_override=*/{}, /*sysdir_override=*/{});
         if (a.ok()) {
             std::cout << (*a)->Details(verbose) << '\n';
         } else {
@@ -341,13 +341,35 @@ int main(int argc, char** argv) {
     android::base::System::Get()->AddLibrarySearchDir(emulator_paths->library_directory.string());
     android::base::System::Get()->AddLibrarySearchDir(emulator_paths->lib64_directory.string());
 
-    if (!opts.avd) {
+    std::string avd_name;
+    fs::path android_build_out;
+    if (opts.avd) {
+        avd_name = opts.avd;
+    } else {
+        // Root not used: auto android_build_root =
+        // android::base::System::GetEnvironmentVariable("ANDROID_BUILD_TOP"); e.g.
+        // <root>/out/target/product/emu64xa
+        auto out = android::base::System::GetEnvironmentVariable("ANDROID_PRODUCT_OUT");
+        if (!out.empty()) {
+            avd_name = "<build>";
+            android_build_out = out;
+            if (!android::base::file::exists(android_build_out)) {
+                LOG(ERROR) << "ANDROID_PRODUCT_OUT specified but does not exist: "
+                           << android_build_out;
+                return 1;
+            }
+            if (!android::base::file::is_dir(android_build_out)) {
+                LOG(ERROR) << "ANDROID_PRODUCT_OUT is not a directory: " << android_build_out;
+                return 1;
+            }
+        }
+        // TODO also support -sysdir without -avd
+    }
+    if (avd_name.empty()) {
         LOG(ERROR) << "No AVD specified. Use '@foo' or '-avd foo' to launch a virtual device named "
                       "'foo'";
         return 1;
     }
-
-    auto name = opts.avd;
 
     fs::path writable_content_override;
     if (opts.read_only) {
@@ -367,16 +389,25 @@ int main(int argc, char** argv) {
         VLOG(1) << "Content path overridden to: " << writable_content_override;
     }
 
-    auto avd = android::goldfish::Avd::FromName(opts, *user_paths, name, opts.wipe_data,
-                                                writable_content_override);
+    absl::StatusOr<std::unique_ptr<android::goldfish::Avd>> avd;
+    if (!android_build_out.empty()) {
+        avd = android::goldfish::Avd::FromAndroidBuild(opts, *user_paths, avd_name,
+                                                       android_build_out, opts.wipe_data,
+                                                       writable_content_override);
+    } else {
+        avd = android::goldfish::Avd::FromName(opts, *user_paths, avd_name, opts.wipe_data,
+                                               writable_content_override, opts.sysdir ? opts.sysdir : fs::path());
+    }
+
     if (!avd.ok()) {
         if (avd.status().code() == absl::StatusCode::kNotFound) {
-            LOG(ERROR) << "Unknown AVD name [" << name << "], use -list-avds to see valid list.";
+            LOG(ERROR) << "Unknown AVD name [" << avd_name
+                       << "], use -list-avds to see valid list.";
             for (const auto line : absl::StrSplit(avd.status().message(), '\n')) {
                 LOG(ERROR) << line;
             }
         } else {
-            LOG(ERROR) << "Failed to load " << name << " due to " << avd.status().message();
+            LOG(ERROR) << "Failed to load " << avd_name << " due to " << avd.status().message();
         }
         return 1;
     }
@@ -389,12 +420,12 @@ int main(int argc, char** argv) {
     bool set_qemu_version = true;
     auto last_run_qemu_version = (*avd)->GetLastRunQemuVersion();
     if (!last_run_qemu_version.ok()) {
-        LOG(ERROR) << "Error reading last used QEMU version for AVD " << name << " due to "
+        LOG(ERROR) << "Error reading last used QEMU version for AVD " << avd_name << " due to "
                    << last_run_qemu_version.status().message();
     } else if (std::optional<int> version = last_run_qemu_version.value()) {
         if (version.value() != EMULATOR_COMPATIBLE_QEMU_VERSION) {
-            LOG(ERROR) << "AVD " << name
-                       << "is not compatible with this emulator. Last run QEMU version: "
+            LOG(ERROR) << "AVD " << avd_name
+                       << " is not compatible with this emulator. Last run QEMU version: "
                        << version.value()
                        << ", compatible QEMU version: " << EMULATOR_COMPATIBLE_QEMU_VERSION
                        << ". Use -wipe-data option to reset the AVD data and use this emulator.";

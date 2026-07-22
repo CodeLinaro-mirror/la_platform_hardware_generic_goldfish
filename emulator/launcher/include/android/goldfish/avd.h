@@ -53,6 +53,8 @@ namespace fs = std::filesystem;
  */
 class Avd {
   public:
+    static constexpr int kUnknownApiLevel = 1000;
+
     // NOLINTBEGIN
 /* define the enumared values corresponding to each AVD image type
  * examples are: KERNEL, SYSTEM, etc..
@@ -174,6 +176,22 @@ class Avd {
 
     virtual std::string SkinName() const = 0;
 
+    virtual int ForcedTrampolineVersion() const = 0;
+
+    /**
+     * @brief Returns the qemu version of the emulator that ran this AVD.
+     * @return An absl::StatusOr<std::optional<int>> object. On success,
+     *         contains the version value for the last run. It'll be nullopt
+     *.        if the AVD has not been run before or if it's data is wiped.
+     */
+    virtual absl::StatusOr<std::optional<int>> GetLastRunQemuVersion() const = 0;
+
+    /**
+     * @brief Sets the qemu version of the emulator that ran this AVD.
+     * @return absl::Status indicating success or failure.
+     */
+    virtual absl::Status SetLastRunQemuVersion(int version) = 0;
+
     /**
      * @brief Retrieves the filename associated with the given AVD image type.
      *
@@ -207,23 +225,19 @@ class Avd {
     static absl::StatusOr<std::unique_ptr<Avd>> FromName(const AndroidOptions& opts,
                                                          const android::goldfish::UserPaths& paths,
                                                          const std::string& name, bool wipe_data,
-                                                         fs::path writable_content_override);
+                                                         fs::path writable_content_override,
+                                                         fs::path sysdir_override = {});
 
-    /**
-     * @brief Returns the qemu version of the emulator that ran this AVD.
-     * @return An absl::StatusOr<std::optional<int>> object. On success,
-     *         contains the version value for the last run. It'll be nullopt
-     *.        if the AVD has not been run before or if it's data is wiped.
-     */
-    virtual absl::StatusOr<std::optional<int>> GetLastRunQemuVersion() const = 0;
+    static absl::StatusOr<std::unique_ptr<Avd>> FromAndroidBuild(
+            const AndroidOptions& opts, const android::goldfish::UserPaths& user_paths,
+            const std::string& name, fs::path android_build_out, bool wipe_data,
+            fs::path writable_content_override);
 
-    /**
-     * @brief Sets the qemu version of the emulator that ran this AVD.
-     * @return absl::Status indicating success or failure.
-     */
-    virtual absl::Status SetLastRunQemuVersion(int version) = 0;
-
-    static constexpr int kUnknownApiLevel = 1000;
+  private:
+    static absl::StatusOr<std::unique_ptr<Avd>> FromSysDirs(
+            const AndroidOptions& opts, const android::goldfish::UserPaths& user_paths,
+            const std::string& name, IniFile config_ini, fs::path content_dir,
+            SystemImagePaths system_image_paths);
 };
 
 }  // namespace android::goldfish

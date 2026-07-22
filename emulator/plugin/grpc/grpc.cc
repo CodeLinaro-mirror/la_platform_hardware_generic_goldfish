@@ -93,6 +93,7 @@ struct GrpcConfig {
     bool enable_logging{false};
     bool enable_embedded{false};
     bool use_token{false};
+    bool use_jwt{false};
     int idle_timeout{0};
     int port{0};
     int modem_simulator_port{0};
@@ -262,8 +263,11 @@ absl::StatusOr<CredConf> GetCredConf(const GrpcConfig& config) {
         cred_conf.auth_token = generateToken(of64Bytes);
     }
 
-    ASSIGN_OR_RETURN(fs::path jwk_dir, config.advertiser->CreateJwkDirectory(generateToken(16)));
-    cred_conf.jwk_file = jwk_dir / "active.jwk";
+    if (config.use_jwt) {
+        ASSIGN_OR_RETURN(fs::path jwk_dir,
+                         config.advertiser->CreateJwkDirectory(generateToken(16)));
+        cred_conf.jwk_file = jwk_dir / "active.jwk";
+    }
 
     return cred_conf;
 }
@@ -325,9 +329,12 @@ EmulatorProperties CreateProps(const GrpcConfig* config, const avd_info::AvdProp
                                   " ")},
         {"grpc.port", std::to_string(config->port)},
         {"grpc.allowlist", config->allow_list_path.string()},
-        {"grpc.jwks", cred_conf.jwk_file.parent_path().string()},
-        {"grpc.jwk_active", cred_conf.jwk_file.string()},
     };
+
+    if (!cred_conf.jwk_file.empty()) {
+        props["grpc.jwks"] = cred_conf.jwk_file.parent_path().string();
+        props["grpc.jwk_active"] = cred_conf.jwk_file.string();
+    }
 
     if (!config->tls_cert_path.empty()) {
         props["grpc.server_cert"] = config->tls_cert_path.string();
@@ -524,6 +531,11 @@ void grpc_set_enable_embedded(Object* obj, bool v, Error** errp) {
     grpc_device->config->enable_embedded = v;
 }
 
+void grpc_set_enable_jwt(Object* obj, bool v, Error** errp) {
+    GrpcDev* grpc_device = GRPC_DEV(obj);
+    grpc_device->config->use_jwt = v;
+}
+
 void grpc_instance_init(Object* obj) {
     GrpcDev* grpc_device = GRPC_DEV(obj);
     grpc_device->config = new GrpcConfig{};
@@ -577,6 +589,11 @@ void grpc_class_init(ObjectClass* oc, void* data) {
     object_class_property_set_description(oc, "token",
                                           "Require an authorization header with "
                                           "a valid token for every grpc call.");
+
+    object_class_property_add_bool(oc, "jwt", NULL, grpc_set_enable_jwt);
+    object_class_property_set_description(oc, "jwt",
+                                          "Require an authorization header with "
+                                          "a valid signed JWT token for every grpc call.");
 
     object_class_property_add_str(oc, "discovery_dir", NULL, grpc_set_discovery_dir);
     object_class_property_add_str(oc, "launcher_dir", NULL, grpc_set_launcher_dir);

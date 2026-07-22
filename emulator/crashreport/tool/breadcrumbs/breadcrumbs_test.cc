@@ -69,7 +69,7 @@ TEST(BreadcrumbParserTest, ParsesContiguousBuffer) {
             char* p = static_cast<char*>(dest);
             std::memcpy(p, &envelope, sizeof(BreadcrumbEnvelope));
             p += sizeof(BreadcrumbEnvelope);
-            grpc.SerializeToArray(p, payload_len);
+            EXPECT_TRUE(grpc.SerializeToArray(p, payload_len));
         });
         ASSERT_TRUE(status.ok());
     }

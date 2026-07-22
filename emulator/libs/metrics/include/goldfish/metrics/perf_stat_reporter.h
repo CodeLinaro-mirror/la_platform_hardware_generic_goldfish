@@ -48,6 +48,7 @@ class PerfStatReporter {
                     }
 
                     cpu_usage_.ScheduleUpdateNow();
+                    return true;
                 },
                 /*initial_delay=*/5s, /*interval=*/5s);
 

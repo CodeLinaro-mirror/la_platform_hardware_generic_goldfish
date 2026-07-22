@@ -84,6 +84,7 @@ class EventLoop : public CallbackEventSource<LooperStatusEvent> {
      * without the overhead or copy restrictions of std::function.
      */
     using Task = absl::AnyInvocable<void()>;
+    using RepeatingTask = absl::AnyInvocable<bool()>;
 
     /**
      * @brief An opaque handle to a scheduled task.
@@ -298,7 +299,7 @@ class EventLoop : public CallbackEventSource<LooperStatusEvent> {
      * @param task The task to execute.
      * @return A shared pointer to a Timer handle for scheduling and cancellation.
      */
-    virtual std::shared_ptr<Timer> CreateTimer(Task task) = 0;
+    virtual std::shared_ptr<Timer> CreateTimer(RepeatingTask task) = 0;
 
     /**
      * @brief Schedules a cancellable task to be executed once after a delay.
@@ -307,7 +308,12 @@ class EventLoop : public CallbackEventSource<LooperStatusEvent> {
      * @return A shared pointer to a Timer handle for cancellation.
      */
     std::shared_ptr<Timer> ScheduleDelayed(Task task, std::chrono::milliseconds delay) {
-        return ScheduleRepeating(std::move(task), delay, std::chrono::milliseconds::zero());
+        return ScheduleRepeating(
+                [task = std::move(task)]() mutable {
+                    task();
+                    return true;
+                },
+                delay, std::chrono::milliseconds::zero());
     }
 
     /**
@@ -317,7 +323,8 @@ class EventLoop : public CallbackEventSource<LooperStatusEvent> {
      * @param interval The time between subsequent executions.
      * @return A shared pointer to a Timer handle for cancellation.
      */
-    std::shared_ptr<Timer> ScheduleRepeating(Task task, std::chrono::milliseconds initial_delay,
+    std::shared_ptr<Timer> ScheduleRepeating(RepeatingTask task,
+                                             std::chrono::milliseconds initial_delay,
                                              std::chrono::milliseconds interval) {
         auto timer = CreateTimer(std::move(task));
         timer->Schedule(initial_delay, interval);

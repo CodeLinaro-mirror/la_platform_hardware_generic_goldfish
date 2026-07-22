@@ -42,9 +42,9 @@ Status ScreenRecordingServiceImpl::StartRecording(ServerContext* context,
 
     // 1. Prepare and apply defaults
     RecordingInfo configured_request = *request;
-    if (configured_request.fps() == 0) configured_request.set_fps(24);
-    if (configured_request.bit_rate() == 0) configured_request.set_bit_rate(2000000);  // 2Mbps
-    if (configured_request.time_limit() == 0) configured_request.set_time_limit(180);
+    if (configured_request.fps() == 0) configured_request.set_fps(kFPS);
+    if (configured_request.bit_rate() == 0) configured_request.set_bit_rate(kDefaultVideoBitrate);
+    if (configured_request.time_limit() == 0) configured_request.set_time_limit(kDefaultTimeLimit);
 
     // 2. Validate Input
     std::string error_msg;
@@ -205,14 +205,21 @@ bool ScreenRecordingServiceImpl::ValidateRecordingParams(const RecordingInfo* in
     }
 
     // Check FPS range
-    if (info->fps() < 1 || info->fps() > 60) {
-        error_msg = "FPS must be between 1 and 60";
+    if (info->fps() < 1 || info->fps() > kMaxFPS) {
+        error_msg = absl::StrCat("FPS must be between 1 and ", kMaxFPS);
         return false;
     }
 
     // Check Bitrate (100k - 25M)
-    if (info->bit_rate() < 100000 || info->bit_rate() > 25000000) {
-        error_msg = "Bitrate must be between 100,000 and 25,000,000";
+    if (info->bit_rate() < kMinVideoBitrate || info->bit_rate() > kMaxVideoBitrate) {
+        error_msg = absl::StrCat("Bitrate must be between ", kMinVideoBitrate, " and ",
+                                 kMaxVideoBitrate);
+        return false;
+    }
+
+    // Check Time Limit range
+    if (info->time_limit() < 1 || info->time_limit() > kMaxTimeLimit) {
+        error_msg = absl::StrCat("Time limit must be between 1 and ", kMaxTimeLimit);
         return false;
     }
 

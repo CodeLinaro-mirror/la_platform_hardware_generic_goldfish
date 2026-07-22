@@ -64,6 +64,7 @@ class CpuUsage final {
                     auto old = last_measurement_;
                     last_measurement_ = android::base::System::Get()->GetCpuTime();
                     last_diff_ = last_measurement_ - old;
+                    return true;
                 })) {}
 
         android::base::CpuTime GetLastDiff() const {

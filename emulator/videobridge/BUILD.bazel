@@ -1,0 +1,236 @@
+load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_test")
+load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_test")
+
+package(default_visibility = ["//visibility:public"])
+
+cc_library(
+    name = "emulator_client",
+    srcs = ["client/emulator_client.cc"],
+    hdrs = ["include/goldfish/videobridge/emulator_client.h"],
+    strip_include_prefix = "include",
+    deps = [
+        "//emulator/libs/grpc_client",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/time",
+        "@aemu//protos/services/emulator-controller:emulator_controller_cc_grpc",
+        "@grpc//:grpc++",
+    ],
+)
+
+cc_binary(
+    name = "videobridge",
+    srcs = ["videobridge.cpp"],
+    copts = select({
+        "@platforms//os:windows": ["/GR-"],
+        "//conditions:default": ["-fno-rtti"],
+    }),
+    deps = [
+        ":emulator_client",
+        ":grpc_media_providers",
+        ":rtc_service",
+        "//emulator/libs/grpc_security",
+        "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/flags:parse",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:flags",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/time",
+        "@grpc//:grpc++",
+    ],
+)
+
+cc_test(
+    name = "emulator_client_test",
+    srcs = ["client/emulator_client_test.cc"],
+    deps = [
+        ":emulator_client",
+        "//emulator/libs/sockets",
+        "//emulator/libs/test:googletest_main",
+        "@abseil-cpp//absl/random",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/time",
+        "@aemu//protos/services/emulator-controller:emulator_controller_cc_grpc",
+        "@grpc//:grpc++",
+    ],
+)
+
+cc_library(
+    name = "videobridge_core",
+    srcs = [
+        "core/event_forwarder.cc",
+        "core/event_forwarder.h",
+        "core/goldfish_audio_device_module.h",
+        "core/grpc_input_sender.cc",
+        "core/grpc_input_sender.h",
+        "core/participant.cc",
+        "core/participant.h",
+        "core/rtc_config.cc",
+        "core/rtc_config.h",
+        "core/rtc_connection.cc",
+        "core/switchboard.cc",
+    ],
+    hdrs = [
+        "include/goldfish/videobridge/input_sender.h",
+        "include/goldfish/videobridge/media_provider.h",
+        "include/goldfish/videobridge/rtc_connection.h",
+        "include/goldfish/videobridge/switchboard.h",
+    ],
+    strip_include_prefix = "include",
+    deps = [
+        ":emulator_client",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/synchronization",
+        "@abseil-cpp//absl/time",
+        "@nlohmann_json//:singleheader-json",
+        "@webrtc//api:create_peerconnection_factory",
+        "@webrtc//api:peer_connection_interface",
+        "@webrtc//api/audio_codecs:builtin_audio_decoder_factory",
+        "@webrtc//api/audio_codecs:builtin_audio_encoder_factory",
+        "@webrtc//api/task_queue:default_task_queue_factory",
+        "@webrtc//api/video_codecs:builtin_video_decoder_factory",
+        "@webrtc//api/video_codecs:builtin_video_encoder_factory",
+        "@webrtc//modules/audio_device:audio_device_impl",
+        "@webrtc//p2p:rtc_p2p",
+        "@webrtc//rtc_base:network",
+    ],
+)
+
+cc_test(
+    name = "rtc_config_test",
+    srcs = ["core/rtc_config_test.cc"],
+    deps = [
+        ":videobridge_core",
+        "//emulator/libs/test:googletest_main",
+        "@nlohmann_json//:singleheader-json",
+    ],
+)
+
+cc_test(
+    name = "switchboard_test",
+    srcs = ["core/switchboard_test.cc"],
+    deps = [
+        ":videobridge_core",
+        "//emulator/libs/test:googletest_main",
+        "@abseil-cpp//absl/time",
+        "@nlohmann_json//:singleheader-json",
+    ],
+)
+
+cc_library(
+    name = "rtc_service",
+    srcs = ["signaling/rtc_service.cc"],
+    hdrs = ["include/goldfish/videobridge/rtc_service.h"],
+    copts = select({
+        "@platforms//os:windows": ["/GR-"],
+        "//conditions:default": ["-fno-rtti"],
+    }),
+    strip_include_prefix = "include",
+    deps = [
+        ":videobridge_core",
+        "//emulator/libs/grpc_utils:absl_translate",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/random",
+        "@abseil-cpp//absl/strings",
+        "@aemu//protos/services/webrtc:rtc_service_v2_cc_grpc",
+        "@grpc//:grpc++",
+        "@nlohmann_json//:singleheader-json",
+    ],
+)
+
+cc_test(
+    name = "rtc_service_test",
+    size = "small",
+    srcs = ["signaling/rtc_service_test.cc"],
+    copts = select({
+        "@platforms//os:windows": ["/GR-"],
+        "//conditions:default": ["-fno-rtti"],
+    }),
+    deps = [
+        ":rtc_service",
+        "//emulator/libs/test:googletest_main",
+        "@grpc//:grpc++",
+        "@nlohmann_json//:singleheader-json",
+    ],
+)
+
+cc_library(
+    name = "grpc_media_providers",
+    srcs = [
+        "media/grpc_audio_source.cc",
+        "media/grpc_media_provider.cc",
+        "media/grpc_video_source.cc",
+    ],
+    hdrs = [
+        "media/grpc_audio_source.h",
+        "media/grpc_media_provider.h",
+        "media/grpc_video_source.h",
+    ],
+    copts = select({
+        "@platforms//os:windows": ["/GR-"],
+        "//conditions:default": ["-fno-rtti"],
+    }),
+    deps = [
+        ":emulator_client",
+        ":videobridge_core",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/synchronization",
+        "@goldfish//emulator/libs/shared_memory",
+        "@libyuv",
+        "@webrtc//api:audio_options_api",
+        "@webrtc//api:peer_connection_interface",
+        "@webrtc//media:adapted_video_track_source",
+        "@webrtc//rtc_base:timeutils",
+    ],
+)
+
+cc_test(
+    name = "grpc_video_source_test",
+    srcs = ["media/grpc_video_source_test.cc"],
+    copts = select({
+        "@platforms//os:windows": ["/GR-"],
+        "//conditions:default": ["-fno-rtti"],
+    }),
+    deps = [
+        ":emulator_client",
+        ":grpc_media_providers",
+        "//emulator/libs/test:googletest_main",
+        "@abseil-cpp//absl/random",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/synchronization",
+        "@abseil-cpp//absl/time",
+        "@webrtc//api:peer_connection_interface",
+    ],
+)
+
+cc_test(
+    name = "grpc_audio_source_test",
+    srcs = ["media/grpc_audio_source_test.cc"],
+    copts = select({
+        "@platforms//os:windows": ["/GR-"],
+        "//conditions:default": ["-fno-rtti"],
+    }),
+    deps = [
+        ":emulator_client",
+        ":grpc_media_providers",
+        "//emulator/libs/test:googletest_main",
+        "@abseil-cpp//absl/random",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/synchronization",
+        "@abseil-cpp//absl/time",
+        "@webrtc//api:peer_connection_interface",
+    ],
+)
+
+clang_tidy_test(
+    name = "videobridge_tidy",
+    targets = [
+        ":emulator_client",
+        ":videobridge",
+        ":videobridge_core",
+        ":grpc_media_providers",
+        ":grpc_video_source_test",
+        ":grpc_audio_source_test",
+    ],
+    tidy_config_file = "//:clang_tidy_config",
+)

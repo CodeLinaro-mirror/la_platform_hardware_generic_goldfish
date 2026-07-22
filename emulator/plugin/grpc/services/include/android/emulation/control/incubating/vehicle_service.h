@@ -48,8 +48,11 @@ class VehicleEventStreamWriter
         VehicleEvent grpc_event;
         std::string serialized;
         if (event.SerializeToString(&serialized)) {
-            grpc_event.mutable_property_change_event()->ParseFromString(serialized);
-            Write(grpc_event);
+            if (grpc_event.mutable_property_change_event()->ParseFromString(serialized)) {
+                Write(grpc_event);
+            } else {
+                LOG(ERROR) << "Failed to parse serialized VehiclePropValue for gRPC stream";
+            }
         } else {
             LOG(ERROR) << "Failed to serialize VehiclePropValue for gRPC stream";
         }

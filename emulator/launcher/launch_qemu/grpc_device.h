@@ -31,6 +31,8 @@ class GrpcDevice : public Device {
   private:
     std::string mAllowlist;
     uint16_t mPort;
+    bool mEnableToken{false};
+    bool mEnableJwt{false};
 };
 
 }  // namespace android::goldfish

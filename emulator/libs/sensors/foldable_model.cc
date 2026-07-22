@@ -275,10 +275,17 @@ void FoldableModel::InitFoldableHinge(const android::goldfish::HardwareConfig& h
     }
 }
 
-FoldableModel::FoldableModel(const android::goldfish::HardwareConfig& hw) {
+FoldableModel::FoldableModel(const android::goldfish::HardwareConfig& hw) : state_{} {
     InitFoldableRoll(hw);
     InitFoldableHinge(hw);
     InitResizableConfigs(hw);
+}
+
+std::unique_ptr<FoldableModel> FoldableModel::Create(const android::goldfish::HardwareConfig& hw) {
+    if (!hw.hw_sensor_hinge && !hw.hw_sensor_roll && hw.hw_resizable_configs.empty()) {
+        return nullptr;
+    }
+    return std::unique_ptr<FoldableModel>(new FoldableModel(hw));
 }
 
 void FoldableModel::InitResizableConfigs(const android::goldfish::HardwareConfig& hw) {

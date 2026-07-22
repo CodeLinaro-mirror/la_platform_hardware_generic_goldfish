@@ -1,5 +1,6 @@
 load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_test")
 load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_test")
+load("//emulator/tools:plugins.bzl", "collect_plugins")
 
 config_setting(
     name = "opt",
@@ -41,10 +42,24 @@ cc_library(
     ],
 )
 
+collect_plugins(
+    name = "binplace",
+    output_dir = ".",
+    plugins = [
+        "@glib//glib:glib_shared",
+        "@glib//gmodule:gmodule_shared",
+    ],
+)
+
 cc_test(
     name = "hang_detector_test",
     size = "small",
     srcs = ["hang_detector_test.cc"],
+    data = [":binplace"],
+    dynamic_deps = [
+        "@glib//glib:glib_shared",
+        "@glib//gmodule:gmodule_shared",
+    ],
     deps = [
         ":debug",
         ":hang_detector",
@@ -56,6 +71,8 @@ cc_test(
         "//emulator/plugin/vminterface:vminterface-test",
         "@abseil-cpp//absl/status:status_matchers",
         "@abseil-cpp//absl/strings",
+        "@glib//glib:glib_import",
+        "@glib//gmodule:gmodule_import",
     ],
 )
 

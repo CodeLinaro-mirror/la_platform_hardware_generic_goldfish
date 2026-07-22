@@ -112,6 +112,97 @@ TEST(TrampolineTest, shouldNotTrampolineIfEnvVarIsSet) {
     EXPECT_FALSE(ShouldTrampolineToQemu2(avd));
 }
 
+TEST(TrampolineTest, shouldTrampolineIfForcedVersionIs2) {
+    TestSystem sys("bin", "myhome");
+    sys.EnvSet("AEMU_NO_TRAMPOLINE", "");
+
+    MockAvd avd;
+    EXPECT_CALL(avd, ForcedTrampolineVersion()).WillRepeatedly(Return(2));
+
+    EXPECT_TRUE(ShouldTrampolineToQemu2(avd));
+}
+
+TEST(TrampolineTest, shouldNotTrampolineIfForcedVersionIs10OrGreater) {
+    TestSystem sys("bin", "myhome");
+    sys.EnvSet("AEMU_NO_TRAMPOLINE", "");
+
+    MockAvd avd;
+    EXPECT_CALL(avd, ForcedTrampolineVersion()).WillRepeatedly(Return(10));
+
+    EXPECT_FALSE(ShouldTrampolineToQemu2(avd));
+}
+
+TEST(TrampolineTest, shouldTrampolineIfLastRunVersionIs2) {
+    TestSystem sys("bin", "myhome");
+    sys.EnvSet("AEMU_NO_TRAMPOLINE", "");
+
+    fs::path feature_file = CreateTempFeatureFile(sys, /*has_required_features=*/true);
+    android::goldfish::SystemImagePaths paths;
+    paths.advanced_features = feature_file;
+
+    MockAvd avd;
+    EXPECT_CALL(avd, ForcedTrampolineVersion()).WillRepeatedly(Return(0));
+    EXPECT_CALL(avd, GetSystemImagePaths()).WillRepeatedly(ReturnRef(paths));
+    EXPECT_CALL(avd, GetDeviceType()).WillRepeatedly(Return(android::goldfish::DeviceType::kPhone));
+    EXPECT_CALL(avd, ApiLevel()).WillRepeatedly(Return(37));
+    EXPECT_CALL(avd, GetLastRunQemuVersion()).WillRepeatedly(Return(std::optional<int>(2)));
+
+    EXPECT_TRUE(ShouldTrampolineToQemu2(avd));
+}
+
+TEST(TrampolineTest, shouldTrampolineIfDeviceIsNotPhone) {
+    TestSystem sys("bin", "myhome");
+    sys.EnvSet("AEMU_NO_TRAMPOLINE", "");
+
+    fs::path feature_file = CreateTempFeatureFile(sys, /*has_required_features=*/true);
+    android::goldfish::SystemImagePaths paths;
+    paths.advanced_features = feature_file;
+
+    MockAvd avd;
+    EXPECT_CALL(avd, ForcedTrampolineVersion()).WillRepeatedly(Return(0));
+    EXPECT_CALL(avd, GetLastRunQemuVersion()).WillRepeatedly(Return(std::optional<int>(1)));
+    EXPECT_CALL(avd, GetSystemImagePaths()).WillRepeatedly(ReturnRef(paths));
+    EXPECT_CALL(avd, GetDeviceType()).WillRepeatedly(Return(android::goldfish::DeviceType::kTv));
+
+    EXPECT_TRUE(ShouldTrampolineToQemu2(avd));
+}
+
+TEST(TrampolineTest, shouldNotTrampolineIfDeviceIsPhoneAndApi37OrGreater) {
+    TestSystem sys("bin", "myhome");
+    sys.EnvSet("AEMU_NO_TRAMPOLINE", "");
+
+    fs::path feature_file = CreateTempFeatureFile(sys, /*has_required_features=*/true);
+    android::goldfish::SystemImagePaths paths;
+    paths.advanced_features = feature_file;
+
+    MockAvd avd;
+    EXPECT_CALL(avd, ForcedTrampolineVersion()).WillRepeatedly(Return(0));
+    EXPECT_CALL(avd, GetLastRunQemuVersion()).WillRepeatedly(Return(std::optional<int>(1)));
+    EXPECT_CALL(avd, GetSystemImagePaths()).WillRepeatedly(ReturnRef(paths));
+    EXPECT_CALL(avd, GetDeviceType()).WillRepeatedly(Return(android::goldfish::DeviceType::kPhone));
+    EXPECT_CALL(avd, ApiLevel()).WillRepeatedly(Return(37));
+
+    EXPECT_FALSE(ShouldTrampolineToQemu2(avd));
+}
+
+TEST(TrampolineTest, shouldNotTrampolineIfDeviceIsUnknownAndApi37OrGreater) {
+    TestSystem sys("bin", "myhome");
+    sys.EnvSet("AEMU_NO_TRAMPOLINE", "");
+
+    fs::path feature_file = CreateTempFeatureFile(sys, /*has_required_features=*/true);
+    android::goldfish::SystemImagePaths paths;
+    paths.advanced_features = feature_file;
+
+    MockAvd avd;
+    EXPECT_CALL(avd, ForcedTrampolineVersion()).WillRepeatedly(Return(0));
+    EXPECT_CALL(avd, GetLastRunQemuVersion()).WillRepeatedly(Return(std::optional<int>(1)));
+    EXPECT_CALL(avd, GetSystemImagePaths()).WillRepeatedly(ReturnRef(paths));
+    EXPECT_CALL(avd, GetDeviceType()).WillRepeatedly(Return(android::goldfish::DeviceType::kUnknown));
+    EXPECT_CALL(avd, ApiLevel()).WillRepeatedly(Return(37));
+
+    EXPECT_FALSE(ShouldTrampolineToQemu2(avd));
+}
+
 #ifdef _WIN32
 #define EXE ".exe"
 #define EMULATOR "emulator.exe"

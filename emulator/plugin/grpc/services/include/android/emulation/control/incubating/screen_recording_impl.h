@@ -23,6 +23,7 @@
 #include "absl/synchronization/mutex.h"
 #include "grpcpp/grpcpp.h"
 
+#include "android/emulation/control/screen_recording_constants.h"
 #include "goldfish/display/QemuMultidisplay/multi_display.h"
 #include "goldfish/display/video_recorder.h"
 #include "screen_recording_service.grpc.pb.h"
@@ -35,6 +36,14 @@ namespace android {
 namespace emulation {
 namespace control {
 namespace incubating {
+
+using android::emulation::control::kDefaultTimeLimit;
+using android::emulation::control::kDefaultVideoBitrate;
+using android::emulation::control::kFPS;
+using android::emulation::control::kMaxFPS;
+using android::emulation::control::kMaxTimeLimit;
+using android::emulation::control::kMaxVideoBitrate;
+using android::emulation::control::kMinVideoBitrate;
 
 class ScreenRecordingServiceImpl final : public ScreenRecording::Service {
   public:

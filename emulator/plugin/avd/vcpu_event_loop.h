@@ -32,7 +32,7 @@ class VCpuEventLoop : public ::goldfish::async::EventLoop {
 
     class VCpuTimer : public Timer {
       public:
-        VCpuTimer(int cpuIndex, Task task) : mCpuIndex(cpuIndex), mTask(std::move(task)) {
+        VCpuTimer(int cpuIndex, RepeatingTask task) : mCpuIndex(cpuIndex), mTask(std::move(task)) {
             mCallback.f = onTimer;
             mCallback.opaque = this;
         }
@@ -66,7 +66,7 @@ class VCpuEventLoop : public ::goldfish::async::EventLoop {
         }
 
         int mCpuIndex;
-        Task mTask;
+        RepeatingTask mTask;
 
         cpus_callback mCallback{};
     };
@@ -96,7 +96,7 @@ class VCpuEventLoop : public ::goldfish::async::EventLoop {
         return absl::UnimplementedError("");
     }
 
-    std::shared_ptr<Timer> CreateTimer(Task task) override {
+    std::shared_ptr<Timer> CreateTimer(RepeatingTask task) override {
         return std::make_shared<VCpuTimer>(mCpuIndex, std::move(task));
     }
 

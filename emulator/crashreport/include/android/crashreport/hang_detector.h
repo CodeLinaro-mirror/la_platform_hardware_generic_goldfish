@@ -71,6 +71,8 @@ class HangDetector {
     virtual void AddWatchedLooper(std::string loop_name, ::goldfish::async::EventLoop& event_loop,
                                   absl::Duration task_timeout) = 0;
 
+    virtual void RemoveWatchedLooper(::goldfish::async::EventLoop& event_loop) = 0;
+
     // We implicitly assume:
     //    predicate() -> []predicate() (if a predicate becomes true, it will
     //    always return true, we only need to infer a system hangs once)

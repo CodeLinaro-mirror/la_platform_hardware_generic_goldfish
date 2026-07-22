@@ -77,8 +77,12 @@ ConnectionAwaiter::ConnectionAwaiter(async::EventLoop* event_loop,
                                      std::chrono::milliseconds interval, Private)
         : create_connection_(std::move(create_connection)), on_connected_(std::move(on_connected)) {
     VLOG(1) << "Scheduling retry task with interval: " << interval;
-    connection_retry_task_ =
-            event_loop->ScheduleRepeating([this]() { AttemptConnection(); }, interval, interval);
+    connection_retry_task_ = event_loop->ScheduleRepeating(
+            [this]() {
+                AttemptConnection();
+                return true;
+            },
+            interval, interval);
 }
 
 bool ConnectionAwaiter::AttemptConnection() {

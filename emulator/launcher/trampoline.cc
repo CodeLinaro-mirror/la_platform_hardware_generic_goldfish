@@ -27,6 +27,10 @@ namespace {
 
 constexpr std::string_view kNoTrampolineEnvVar = "AEMU_NO_TRAMPOLINE";
 
+bool LastRunQemuVersion2(const android::goldfish::Avd& avd) {
+    return avd.GetLastRunQemuVersion().value_or(0) == 2;
+}
+
 bool HasMustHaveGuestFeatures(const android::goldfish::Avd& avd) {
     // Emu Next does't support system images that don't have these features available.
     constexpr std::array kMustHaveFeatures{
@@ -52,6 +56,12 @@ bool HasMustHaveGuestFeatures(const android::goldfish::Avd& avd) {
     return true;
 }
 
+bool DefinitelyNotPhone(const android::goldfish::Avd& avd) {
+    auto device_type = avd.GetDeviceType();
+    return device_type != android::goldfish::DeviceType::kPhone &&
+           device_type != android::goldfish::DeviceType::kUnknown;
+}
+
 }  // namespace
 
 bool ShouldTrampolineToQemu2(const android::goldfish::Avd& avd) {
@@ -60,12 +70,39 @@ bool ShouldTrampolineToQemu2(const android::goldfish::Avd& avd) {
         return false;
     }
 
+    if (auto forced_version = avd.ForcedTrampolineVersion(); forced_version == 2) {
+        VLOG(1) << "Trampolining as force trampoline qemu version is 2";
+        return true;
+    } else if (forced_version >= 10) {
+        VLOG(1) << "Not trampolining as force trampoline qemu version is 10 or greater";
+        return false;
+    }
+
     if (!HasMustHaveGuestFeatures(avd)) {
         VLOG(1) << "Trampolining as sysimg is missing required feature";
         return true;
     }
 
-    return avd.ApiLevel() < 37;
+    if (DefinitelyNotPhone(avd)) {
+        VLOG(1) << "Trampolining as device type is not phone";
+        return true;
+    }
+
+    if (avd.ApiLevel() < 37) {
+        VLOG(1) << "Trampolining as api level is less than 37";
+        return true;
+    }
+
+    if (LastRunQemuVersion2(avd)) {
+        LOG(WARNING)
+                << "This AVD was last used with the legacy emulator so will now try to switch. Use "
+                   "-wipe-data option to reset the AVD data and use this emulator.";
+        VLOG(1) << "Trampolining as last run qemu version is 2";
+        return true;
+    }
+
+    VLOG(1) << "Not trampolining as no other conditions are met";
+    return false;
 }
 
 [[noreturn]] void TrampolineToQemu2(const fs::path& launcher_directory,
@@ -77,7 +114,7 @@ bool ShouldTrampolineToQemu2(const android::goldfish::Avd& avd) {
 #endif
     const fs::path qemu2_binary_path =
             launcher_directory.parent_path().parent_path() / "emulator" / emulator_binary;
-    LOG(INFO) << "Trampolining to legacy emulator: " << qemu2_binary_path.string();
+    LOG(WARNING) << "Trampolining to legacy emulator: " << qemu2_binary_path.string();
     if (!android::base::file::exists(qemu2_binary_path)) {
         LOG(FATAL) << "Trying to trampoline but legacy emulator binary does not exist: "
                    << qemu2_binary_path.string();

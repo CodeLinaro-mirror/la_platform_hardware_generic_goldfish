@@ -7,7 +7,10 @@ package(default_visibility = ["//visibility:public"])
 cc_library(
     name = "absl_translate",
     srcs = ["absl_status_translate.cc"],
-    hdrs = ["include/android/emulation/control/absl_status_translate.h"],
+    hdrs = [
+        "include/android/emulation/control/absl_status_translate.h",
+        "include/android/emulation/control/screen_recording_constants.h",
+    ],
     includes = ["include"],
     deps = [
         "@abseil-cpp//absl/status",

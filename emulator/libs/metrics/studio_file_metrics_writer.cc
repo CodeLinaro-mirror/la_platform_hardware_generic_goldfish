@@ -87,7 +87,7 @@ StudioFileMetricsWriter::StudioFileMetricsWriter(const fs::path& spool_dir,
                   [this] {
                       absl::MutexLock lock(mutex_);
                       if (open_file_path_.empty()) {
-                          return;
+                          return true;
                       }
                       // Check if we should close the current file every 10s.
                       if (absl::Now() > current_file_latest_close_time_) {
@@ -95,6 +95,7 @@ StudioFileMetricsWriter::StudioFileMetricsWriter(const fs::path& spool_dir,
                       } else {
                           RefreshLockFile(open_file_path_);
                       }
+                      return true;
                   },
                   10s, 10s)) {}
 

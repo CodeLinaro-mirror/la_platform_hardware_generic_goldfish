@@ -47,7 +47,10 @@ VirtualDisplay::VirtualDisplay(EventLoop* loop, EventLoop* qloop, uint8_t id, ui
     frame_buffer_.resize(buffer_size, 0xFF);
     goldfish::devices::multidisplay::SendAddDisplay(id, width, height, dpi, flags);
     SimulateGuestFrameUpdate();
-    one_second_timer_ = loop->CreateTimer([this] { OneFrameTick(); });
+    one_second_timer_ = loop->CreateTimer([this] {
+        OneFrameTick();
+        return true;
+    });
     one_second_timer_->Schedule(absl::ToChronoMilliseconds(absl::Milliseconds(50)),
                                 absl::ToChronoMilliseconds(absl::Milliseconds(50)));
 
