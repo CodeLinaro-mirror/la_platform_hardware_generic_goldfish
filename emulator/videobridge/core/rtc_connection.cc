@@ -61,9 +61,7 @@ RtcConnection::RtcConnection()
 
     connection_factory_ = ::webrtc::CreatePeerConnectionFactory(
             network_thread_.get(), worker_thread_.get(), signaling_thread_.get(),
-            webrtc::scoped_refptr<GoldfishAudioDeviceModule>(
-                    new webrtc::RefCountedObject<GoldfishAudioDeviceModule>()),
-            ::webrtc::CreateBuiltinAudioEncoderFactory(),
+            GoldfishAudioDeviceModule::Create(), ::webrtc::CreateBuiltinAudioEncoderFactory(),
             ::webrtc::CreateBuiltinAudioDecoderFactory(), CreatePlatformVideoEncoderFactory(),
             CreatePlatformVideoDecoderFactory(), nullptr /* audio_mixer */,
             nullptr /* audio_processing */);
