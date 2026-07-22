@@ -1,7 +1,20 @@
 load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_test")
 load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_test")
+load("@rules_cc//cc:objc_library.bzl", "objc_library")
 
 package(default_visibility = ["//visibility:public"])
+
+WEBRTC_LINKOPTS = select({
+    "@platforms//os:macos": [
+        "-Wl,-ObjC",
+        "-framework VideoToolbox",
+        "-framework CoreMedia",
+        "-framework AVFoundation",
+        "-framework CoreVideo",
+        "-framework Foundation",
+    ],
+    "//conditions:default": [],
+})
 
 cc_library(
     name = "emulator_client",
@@ -25,6 +38,7 @@ cc_binary(
         "@platforms//os:windows": ["/GR-"],
         "//conditions:default": ["-fno-rtti"],
     }),
+    linkopts = WEBRTC_LINKOPTS,
     deps = [
         ":emulator_client",
         ":grpc_media_providers",
@@ -38,6 +52,24 @@ cc_binary(
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/time",
         "@grpc//:grpc++",
+    ],
+)
+
+objc_library(
+    name = "videobridge_codecs_objc",
+    srcs = ["core/mac/codec_factories_mac.mm"],
+    hdrs = ["include/goldfish/videobridge/codec_factories.h"],
+    copts = [
+        "-fno-rtti",
+        "-ObjC++",
+        "-fobjc-arc",
+    ],
+    includes = ["include"],
+    deps = [
+        "@webrtc//api/video_codecs:builtin_video_decoder_factory",
+        "@webrtc//api/video_codecs:builtin_video_encoder_factory",
+        "@webrtc//sdk:native_api",
+        "@webrtc//sdk:videotoolbox_objc",
     ],
 )
 
@@ -77,10 +109,14 @@ cc_library(
 
 cc_library(
     name = "videobridge_codecs",
-    srcs = ["core/codec_factories.cc"],
+    srcs = select({
+        "@platforms//os:macos": [],
+        "//conditions:default": ["core/codec_factories.cc"],
+    }),
     hdrs = ["include/goldfish/videobridge/codec_factories.h"],
     strip_include_prefix = "include",
     deps = select({
+        "@platforms//os:macos": [":videobridge_codecs_objc"],
         "@platforms//os:windows": [
             ":videobridge_codecs_win",
             "@webrtc//api/video_codecs:builtin_video_decoder_factory",
@@ -162,6 +198,7 @@ cc_test(
 cc_test(
     name = "switchboard_test",
     srcs = ["core/switchboard_test.cc"],
+    linkopts = WEBRTC_LINKOPTS,
     deps = [
         ":videobridge_core",
         "//emulator/libs/test:googletest_main",
@@ -180,6 +217,22 @@ cc_test(
     deps = [
         ":videobridge_codecs_win",
         "//emulator/libs/test:googletest_main",
+        "@webrtc//api/video_codecs:video_codecs_api",
+    ],
+)
+
+cc_test(
+    name = "codec_factories_mac_test",
+    srcs = ["core/mac/codec_factories_mac_test.cc"],
+    linkopts = WEBRTC_LINKOPTS,
+    target_compatible_with = select({
+        "@platforms//os:macos": [],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
+    deps = [
+        ":videobridge_codecs",
+        "//emulator/libs/test:googletest_main",
+        "@webrtc//api:create_peerconnection_factory",
         "@webrtc//api/video_codecs:video_codecs_api",
     ],
 )
@@ -213,6 +266,7 @@ cc_test(
         "@platforms//os:windows": ["/GR-"],
         "//conditions:default": ["-fno-rtti"],
     }),
+    linkopts = WEBRTC_LINKOPTS,
     deps = [
         ":rtc_service",
         "//emulator/libs/test:googletest_main",

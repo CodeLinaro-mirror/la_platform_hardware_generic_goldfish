@@ -3,6 +3,7 @@
 #include <memory>
 
 #pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wthread-safety-reference-return"
 #pragma clang diagnostic ignored "-Wnullability-completeness"
 #include "api/video_codecs/video_decoder_factory.h"
 #include "api/video_codecs/video_encoder_factory.h"
