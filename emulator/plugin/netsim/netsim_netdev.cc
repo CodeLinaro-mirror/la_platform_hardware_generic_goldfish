@@ -148,24 +148,37 @@ ssize_t netsim_netdev_receive(NetClientState* nc, const uint8_t* buf, size_t siz
     return size;
 }
 
+void reset_transport(NetsimState* netsim) {
+    bool locked = bql_locked();
+    if (locked) {
+        bql_unlock();
+    }
+    // Reset transport first to cancel gRPC call and wait for OnDone notification.
+    // This ensures no gRPC callbacks are executing concurrently during teardown.
+    netsim->transport.reset();
+    if (locked) {
+        bql_lock();
+    }
+}
+
 void netsim_netdev_link_status_changed(NetClientState* nc) {
     VLOG(1) << "NETSIM: link status changed: " << !nc->link_down;
 }
 
 void netsim_netdev_cleanup(NetClientState* nc) {
     auto* s = reinterpret_cast<NetsimNicState*>(nc);
+    if (!s || !s->netsim) {
+        return;
+    }
+
+    reset_transport(s->netsim);
+
     if (s->netsim->bh) {
         qemu_bh_delete(s->netsim->bh);
         s->netsim->bh = nullptr;
     }
-    bool locked = bql_locked();
-    if (locked) {
-        bql_unlock();
-    }
     delete s->netsim;
-    if (locked) {
-        bql_lock();
-    }
+    s->netsim = nullptr;
 }
 
 NetClientInfo netsim_netdev_nic_info = {
@@ -223,7 +236,9 @@ void netsim_netdev_realize(DeviceState* dev, Error** errp) {
                         return false;
                     }
                     s->netsim->incoming_packet = ToUniqueVec(packet->mutable_packet());
-                    qemu_bh_schedule(s->netsim->bh);
+                    if (s->netsim->bh) {
+                        qemu_bh_schedule(s->netsim->bh);
+                    }
                     return false;
                 } else {
                     LOG(WARNING) << "Unexpected packet " << packet->DebugString();
