@@ -188,25 +188,25 @@ static bool virtio_wifi_nic_can_rx(NetClientState* nc) {
     return true;
 }
 
-static int virtio_wifi_has_rx_buffers(VirtIOWifiQueue* q, int bufsize) {
-    int opaque;
-    unsigned int in_bytes;
+static int virtio_wifi_has_rx_buffers(VirtIOWifiQueue* q, int size_needed) {
+    // Alternative to virtio_queue_enable_notification_and_check that only calls functions that
+    // already hold the RCU lock.
+    unsigned int size_available;
 
-    while (virtio_queue_empty(q->rx)) {
-        opaque = virtqueue_get_avail_bytes(q->rx, &in_bytes, NULL, bufsize, 0);
-        // Buffer is enough, disable notification
-        if (bufsize <= in_bytes) {
-            break;
-        }
+    // virtqueue_get_avail_bytes safely acquires the RCU lock internally.
+    virtqueue_get_avail_bytes(q->rx, &size_available, NULL, size_needed, 0);
 
-        if (virtio_queue_enable_notification_and_check(q->rx, opaque)) {
-            // Guest has added some buffers, try again
-            continue;
-        } else {
-            return 0;
+    if (size_available < size_needed) {
+        // Enable notification to wake us up when the guest adds buffers
+        virtio_queue_set_notification(q->rx, 1);
+
+        virtqueue_get_avail_bytes(q->rx, &size_available, NULL, size_needed, 0);
+        if (size_available < size_needed) {
+            return 0;  // Still not enough, expect to be notified.
         }
     }
 
+    // We have buffers, disable notification while processing
     virtio_queue_set_notification(q->rx, 0);
 
     return 1;
@@ -214,8 +214,9 @@ static int virtio_wifi_has_rx_buffers(VirtIOWifiQueue* q, int bufsize) {
 
 // Receive packets from the nic and push them onto the virtio rx queue
 static ssize_t virtio_wifi_nic_rx(NetClientState* nc, const uint8_t* buf, size_t size) {
+    // Note that we should only call virtqueue functions that lock/unlock rcu themselves and
+    // don't assume it is held by the caller.
     ALOGV(2, "NIC RX (-> guest)");
-    RCU_READ_LOCK_GUARD();
 
     if (!virtio_wifi_nic_can_rx(nc)) {
         return -1;
