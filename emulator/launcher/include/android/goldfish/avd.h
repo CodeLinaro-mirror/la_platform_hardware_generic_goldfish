@@ -14,6 +14,7 @@
 #pragma once
 #include <cstdint>
 #include <filesystem>
+#include <functional>
 #include <initializer_list>
 #include <memory>
 #include <string>
@@ -194,6 +195,27 @@ class Avd {
      * @return absl::Status indicating success or failure.
      */
     virtual absl::Status SetLastRunQemuVersion(int version) = 0;
+
+    struct SnapshotInfo {
+        std::string name;
+        fs::path path;
+        int64_t size_bytes{0};
+        std::string last_modified;
+        bool has_snapshot_pb{false};
+        bool has_ram_file{false};
+        std::string image_info;
+    };
+
+    using ImageInspector = std::function<std::string(const fs::path&)>;
+
+    /**
+     * @brief Discovers and inspects snapshots offline in the AVD's content directory.
+     *
+     * Scans the snapshots directory and inspects qcow2/image files (e.g. via qemu-img).
+     *
+     * @param inspector Optional function to inspect image files (e.g. via qemu-img info).
+     */
+    virtual std::vector<SnapshotInfo> ListSnapshots(ImageInspector inspector = nullptr) const = 0;
 
     /**
      * @brief Retrieves the filename associated with the given AVD image type.

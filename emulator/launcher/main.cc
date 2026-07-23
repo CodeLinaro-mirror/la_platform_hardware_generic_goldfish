@@ -52,6 +52,7 @@
 #include "goldfish/metrics/studio_config.h"
 #include "goldfish/tools/aemu_version.h"
 #include "host_info.h"
+#include "launch_qemu/disk_drive.h"
 #include "launcher.h"
 #include "logging.h"
 #include "trampoline.h"
@@ -188,6 +189,71 @@ void ListAvds(const AndroidOptions& opts, const android::goldfish::UserPaths& us
     }
 }
 
+void ListSnapshots(const AndroidOptions& opts, const android::goldfish::UserPaths& user_paths,
+                   const fs::path& qemu_img_binary, bool verbose) {
+    std::vector<std::string> avd_names;
+    if (opts.avd) {
+        avd_names.push_back(opts.avd);
+    } else {
+        avd_names = android::goldfish::Avd::List(user_paths.avd_directory);
+    }
+
+    if (avd_names.empty()) {
+        std::cout << "No AVDs found.\n";
+        return;
+    }
+
+    android::goldfish::Avd::ImageInspector inspector = nullptr;
+    if (verbose) {
+        inspector = [&qemu_img_binary](const fs::path& p) -> std::string {
+            auto res = android::goldfish::exec_qemu_img(qemu_img_binary, {"info", p.string()});
+            return res.ok() ? *res : "";
+        };
+    }
+
+    for (const auto& name : avd_names) {
+        auto a = android::goldfish::Avd::FromName(opts, user_paths, name, /*wipe_data=*/false,
+                                                  /*content_override=*/{}, /*sysdir_override=*/{});
+        if (!a.ok()) {
+            std::cout << "AVD " << name << " is not valid: " << a.status() << "\n";
+            continue;
+        }
+        auto snapshots = (*a)->ListSnapshots(inspector);
+        if (verbose) {
+            std::cout << "AVD: " << (*a)->Name() << "\n";
+            if (snapshots.empty()) {
+                std::cout << "  (no snapshots found)\n";
+            } else {
+                for (const auto& snap : snapshots) {
+                    std::cout << "  Snapshot: " << snap.name << "\n";
+                    std::cout << "    Path: " << snap.path.string() << "\n";
+                    std::cout << "    Size: " << (snap.size_bytes / (1024 * 1024)) << " MB ("
+                              << snap.size_bytes << " bytes)\n";
+                    if (!snap.last_modified.empty()) {
+                        std::cout << "    Last Modified: " << snap.last_modified << "\n";
+                    }
+                    std::cout << "    Has snapshot.pb: " << (snap.has_snapshot_pb ? "yes" : "no")
+                              << "\n";
+                    std::cout << "    Has RAM file: " << (snap.has_ram_file ? "yes" : "no") << "\n";
+                    if (!snap.image_info.empty()) {
+                        std::cout << "    Image Info:\n" << snap.image_info;
+                    }
+                }
+            }
+            std::cout << "\n";
+        } else {
+            std::cout << (*a)->Name();
+            if (!snapshots.empty()) {
+                std::cout << "\t: ";
+                for (const auto& snap : snapshots) {
+                    std::cout << snap.name << ", ";
+                }
+            }
+            std::cout << "\n";
+        }
+    }
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -304,6 +370,11 @@ int main(int argc, char** argv) {
 
     if (opts.list_avds) {
         ListAvds(opts, *user_paths, opts.verbose);
+        return 0;
+    }
+
+    if (opts.snapshot_list) {
+        ListSnapshots(opts, *user_paths, emulator_paths->qemu_img_binary, opts.verbose);
         return 0;
     }
 

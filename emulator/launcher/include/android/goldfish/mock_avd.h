@@ -54,6 +54,7 @@ class MockAvd : public Avd {
     MOCK_METHOD(absl::Status, SetLastRunQemuVersion, (int version), (override));
     MOCK_METHOD(android_studio::EmulatorAvdInfo::EmulatorAvdImageKind, ImageKind, (),
                 (const, override));
+    MOCK_METHOD(std::vector<SnapshotInfo>, ListSnapshots, (ImageInspector), (const, override));
     MOCK_METHOD(std::string, BuildProductName, (), (const, override));
     MOCK_METHOD(int, ForcedTrampolineVersion, (), (const, override));
 };

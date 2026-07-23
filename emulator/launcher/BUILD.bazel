@@ -129,6 +129,7 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":input_paths",
+        "//emulator/libs/file",
         "//emulator/libs/hardware_config",
         "//emulator/libs/hardware_config:device_type",
         "//emulator/libs/host-common",
@@ -545,6 +546,7 @@ cc_binary(
         ":trampoline",
         "//emulator/crashreport:crash_system",
         "//emulator/launcher/cmdline",
+        "//emulator/launcher/launch_qemu:disk_drive",
         "//emulator/libs/async:libuv_event_loop",
         "//emulator/libs/metrics:configure_metrics_writer",
         "//emulator/libs/metrics:studio_config",

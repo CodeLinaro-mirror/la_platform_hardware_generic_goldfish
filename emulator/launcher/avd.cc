@@ -32,7 +32,10 @@
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
+#include "absl/time/clock.h"
+#include "absl/time/time.h"
 
 #include "android/base/system.h"
 #include "android/goldfish/hardware_config.h"
@@ -412,6 +415,119 @@ class FileBackedAvd : public Avd {
             }
         }
         return DeviceType::kUnknown;
+    }
+
+    std::vector<Avd::SnapshotInfo> ListSnapshots(
+            ImageInspector inspector = nullptr) const override {
+        std::vector<Avd::SnapshotInfo> result;
+        fs::path snapshots_dir = GetContentPath() / "snapshots";
+        if (!android::base::file::is_dir(snapshots_dir)) {
+            return result;
+        }
+
+        auto entries = android::base::file::scan_dir(snapshots_dir, /*fullPath=*/true);
+        for (const auto& snap_path : entries) {
+            if (!android::base::file::is_dir(snap_path)) {
+                continue;
+            }
+            Avd::SnapshotInfo info;
+            info.name = snap_path.filename().string();
+            info.path = snap_path;
+
+            fs::path pb_path = snap_path / "snapshot.pb";
+            if (android::base::file::exists(pb_path)) {
+                info.has_snapshot_pb = true;
+            }
+
+            fs::path ram_path = snap_path / "ram.bin";
+            if (!android::base::file::exists(ram_path)) {
+                ram_path = snap_path / "ram.qcow2";
+            }
+            if (android::base::file::exists(ram_path)) {
+                info.has_ram_file = true;
+            }
+
+            int64_t total_bytes = 0;
+            absl::Time latest_time = absl::InfinitePast();
+            auto snap_files = android::base::file::scan_dir_recursive(snap_path);
+            for (const auto& f : snap_files) {
+                if (android::base::file::is_file(f)) {
+                    auto sz = android::base::file::file_size(f);
+                    if (sz.ok()) {
+                        total_bytes += sz->Bytes();
+                    }
+                    auto mtime = android::base::file::last_write_time(f);
+                    if (mtime.ok() && *mtime > latest_time) {
+                        latest_time = *mtime;
+                    }
+                }
+            }
+            info.size_bytes = total_bytes;
+            if (latest_time != absl::InfinitePast()) {
+                info.last_modified =
+                        absl::FormatTime("%Y-%m-%d %H:%M:%S", latest_time, absl::LocalTimeZone());
+            }
+
+            if (inspector) {
+                std::string img_info_accum;
+                auto files_in_snap = android::base::file::scan_dir(snap_path, /*fullPath=*/true);
+                for (const auto& f : files_in_snap) {
+                    std::string ext = f.extension().string();
+                    if (ext == ".qcow2" || ext == ".img") {
+                        std::string img_info = inspector(f);
+                        if (!img_info.empty()) {
+                            absl::StrAppend(&img_info_accum, "   Image [", f.filename().string(),
+                                            "]:\n");
+                            for (const auto line : absl::StrSplit(img_info, '\n')) {
+                                if (!line.empty()) {
+                                    absl::StrAppend(&img_info_accum, "     ", line, "\n");
+                                }
+                            }
+                        }
+                    }
+                }
+                info.image_info = std::move(img_info_accum);
+            }
+            result.push_back(std::move(info));
+        }
+
+        // Inspect root AVD content directory for .qcow2 disk images (e.g., cache.img.qcow2,
+        // userdata-qemu.img.qcow2)
+        if (inspector) {
+            fs::path content_dir = GetContentPath();
+            if (android::base::file::is_dir(content_dir)) {
+                auto root_files = android::base::file::scan_dir(content_dir, /*fullPath=*/true);
+                for (const auto& f : root_files) {
+                    if (f.extension().string() == ".qcow2") {
+                        std::string img_info = inspector(f);
+                        if (!img_info.empty()) {
+                            Avd::SnapshotInfo info;
+                            info.name = absl::StrCat("Disk Image: ", f.filename().string());
+                            info.path = f;
+                            auto sz = android::base::file::file_size(f);
+                            if (sz.ok()) {
+                                info.size_bytes = sz->Bytes();
+                            }
+                            auto mtime = android::base::file::last_write_time(f);
+                            if (mtime.ok()) {
+                                info.last_modified = absl::FormatTime("%Y-%m-%d %H:%M:%S", *mtime,
+                                                                      absl::LocalTimeZone());
+                            }
+                            std::string formatted_info;
+                            for (const auto line : absl::StrSplit(img_info, '\n')) {
+                                if (!line.empty()) {
+                                    absl::StrAppend(&formatted_info, "     ", line, "\n");
+                                }
+                            }
+                            info.image_info = std::move(formatted_info);
+                            result.push_back(std::move(info));
+                        }
+                    }
+                }
+            }
+        }
+
+        return result;
     }
 
     std::string Details(const bool verbose) const override {
