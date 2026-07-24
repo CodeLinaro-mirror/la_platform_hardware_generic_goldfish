@@ -145,12 +145,7 @@ void FillAvdInfo(android_studio::EmulatorAvdInfo& avd_info, const Avd& avd) {
     // AVD name is a user-generated data, so won't report it.
     avd_info.set_api_level(avd.ApiLevel());
 
-    // TODO avd_info.set_image_kind()
-    // android_studio::EmulatorAvdInfo::PLAY_STORE_KIND
-    // android_studio::EmulatorAvdInfo::GOOGLE_ATD
-    // android_studio::EmulatorAvdInfo::GOOGLE
-    // android_studio::EmulatorAvdInfo::AOSP_ATD
-    // android_studio::EmulatorAvdInfo::AOSP
+    avd_info.set_image_kind(avd.ImageKind());
 
     avd_info.set_arch(toClearcutLogGuestArch(hw.hw_cpu_arch));
 

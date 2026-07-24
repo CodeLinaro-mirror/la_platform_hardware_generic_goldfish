@@ -250,7 +250,32 @@ class FileBackedAvd : public Avd {
     fs::path GetContentPath() const override { return content_path_; };
     const HardwareConfig& Hw() const override { return hw_cfg_; }
 
-    bool Playstore() const override { return false; }
+    android_studio::EmulatorAvdInfo::EmulatorAvdImageKind ImageKind() const override {
+        const std::string flavour = BuildFlavour();
+        std::string tag_id = config_ini_.GetString("tag.id", "");
+        if (tag_id.empty()) {
+            tag_id = config_ini_.GetString("tag.ids", "");
+        }
+
+        bool is_playstore = config_ini_.GetBool("PlayStore.enabled", false) ||
+                            (tag_id.find("playstore") != std::string::npos) ||
+                            (flavour.find("playstore") != std::string::npos);
+        if (is_playstore) {
+            return android_studio::EmulatorAvdInfo::PLAY_STORE_KIND;
+        }
+
+        bool is_atd = (tag_id.find("atd") != std::string::npos ||
+                       flavour.find("atd") != std::string::npos);
+        bool is_google = (tag_id.find("google_apis") != std::string::npos) ||
+                         (flavour.find("google_apis") != std::string::npos);
+        if (is_google) {
+            return is_atd ? android_studio::EmulatorAvdInfo::GOOGLE_ATD
+                          : android_studio::EmulatorAvdInfo::GOOGLE;
+        }
+        return is_atd ? android_studio::EmulatorAvdInfo::AOSP_ATD
+                      : android_studio::EmulatorAvdInfo::AOSP;
+    }
+
     std::string DisplayName() const override {
         return config_ini_.GetString("avd.ini.displayname", Name());
     }
