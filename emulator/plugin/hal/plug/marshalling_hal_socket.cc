@@ -90,7 +90,9 @@ void MarshallingHalSocket::Send(std::string data) {
                         std::string payload_to_send;
                         {
                             const absl::MutexLock lock(&socket_mutex_);
-                            DCHECK(!send_buffer_.empty());
+                            if (send_buffer_.empty()) {
+                                return;
+                            }
                             payload_to_send = std::move(send_buffer_);
                             send_buffer_.reserve(kInitialBufferSize);
 
