@@ -17,6 +17,7 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
+#include <filesystem>
 #include <fstream>
 #include <memory>
 #include <string>
@@ -513,6 +514,36 @@ TEST_F(LegacyConsoleBridgeTest, ResumeSucceedsAndCallsSetVmState) {
 
     ASSERT_TRUE(result.ok()) << result.status().message();
     EXPECT_EQ(*result, "");
+}
+
+TEST_F(LegacyConsoleBridgeTest, CreatesTokenFileIfMissingOnConstruction) {
+    std::filesystem::remove(token_path_);
+    EXPECT_FALSE(std::filesystem::exists(token_path_));
+
+    auto new_bridge = std::make_unique<LegacyConsoleBridge>(5554, token_path_);
+
+    EXPECT_TRUE(std::filesystem::exists(token_path_));
+    EXPECT_EQ(TelnetAuth::GetStatus(token_path_), AuthStatus::kRequired);
+
+    auto read_result = TelnetAuth::ReadToken(token_path_);
+    ASSERT_TRUE(read_result.ok()) << read_result.status();
+    EXPECT_FALSE(read_result->AsStringView().empty());
+}
+
+TEST_F(LegacyConsoleBridgeTest, CreateContextRespectsDisabledAuth) {
+    WriteToken("");
+    EXPECT_EQ(TelnetAuth::GetStatus(token_path_), AuthStatus::kDisabled);
+
+    auto ctx = bridge_->CreateContext();
+    EXPECT_TRUE(ctx->authenticated);
+}
+
+TEST_F(LegacyConsoleBridgeTest, WelcomeMessageDoesNotRequireAuthWhenDisabled) {
+    WriteToken("");
+    auto ctx = bridge_->CreateContext();
+    auto welcome = bridge_->WelcomeMessage(*ctx);
+
+    EXPECT_EQ(welcome, "Android Console: type 'help' for a list of commands\r\n");
 }
 
 }  // namespace

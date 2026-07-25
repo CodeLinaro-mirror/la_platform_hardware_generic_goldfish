@@ -62,6 +62,10 @@ absl::StatusOr<std::string> GetPlatformConfigProperty(LegacyConsoleBridge::Conso
 
 LegacyConsoleBridge::LegacyConsoleBridge(int port, std::filesystem::path token_path)
         : port_(port), token_path_(std::move(token_path)) {
+    if (auto status = TelnetAuth::LoadOrCreateToken(16, token_path_); !status.ok()) {
+        LOG(WARNING) << "Failed to load or create telnet auth token at " << token_path_ << ": "
+                     << status.status();
+    }
     CommandRegistryBuilder builder(token_path_);
 
     // --- Safe Root Commands ---
@@ -614,6 +618,14 @@ absl::StatusOr<std::string> LegacyConsoleBridge::operator()(std::string line, Co
 
 std::string LegacyConsoleBridge::WelcomeMessage(const Context& ctx) const {
     return registry_->WelcomeMessage(ctx);
+}
+
+std::unique_ptr<LineCommandHandler::Context> LegacyConsoleBridge::CreateContext() const {
+    auto ctx = std::make_unique<ConsoleContext>(port_);
+    if (TelnetAuth::GetStatus(token_path_) == AuthStatus::kDisabled) {
+        ctx->authenticated = true;
+    }
+    return ctx;
 }
 
 }  // namespace goldfish::telnet

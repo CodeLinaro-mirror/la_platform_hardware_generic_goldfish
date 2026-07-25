@@ -52,9 +52,7 @@ class LegacyConsoleBridge : public LineCommandHandler {
     absl::StatusOr<std::string> operator()(std::string line, Context& ctx) override;
     std::string WelcomeMessage(const Context& ctx) const override;
 
-    std::unique_ptr<Context> CreateContext() const override {
-        return std::make_unique<ConsoleContext>(port_);
-    };
+    std::unique_ptr<Context> CreateContext() const override;
 
   private:
     int port_;
