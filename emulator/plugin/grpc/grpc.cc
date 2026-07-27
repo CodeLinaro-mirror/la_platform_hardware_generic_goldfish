@@ -51,6 +51,7 @@
 #include "goldfish/discovery/emulator_advertisement.h"
 #include "goldfish/display/QemuMultidisplay/multi_display.h"
 #include "goldfish/file/file.h"
+#include "goldfish/grpc/grpc_key_utils.h"
 #include "goldfish/modem_simulator/modem_simulator_client.h"
 #include "goldfish/tools/aemu_version.h"
 
@@ -90,6 +91,7 @@ struct GrpcConfig {
     fs::path allow_list_path;
     fs::path discovery_path;
     fs::path launcher_dir;
+    std::vector<std::string> custom_jwt_public_keys;
     bool enable_logging{false};
     bool enable_embedded{false};
     bool use_token{false};
@@ -263,10 +265,20 @@ absl::StatusOr<CredConf> GetCredConf(const GrpcConfig& config) {
         cred_conf.auth_token = generateToken(of64Bytes);
     }
 
-    if (config.use_jwt) {
+    if (config.use_jwt || !config.custom_jwt_public_keys.empty()) {
         ASSIGN_OR_RETURN(fs::path jwk_dir,
                          config.advertiser->CreateJwkDirectory(generateToken(16)));
-        cred_conf.jwk_file = jwk_dir / "active.jwk";
+
+        if (config.use_jwt) {
+            cred_conf.jwk_file = jwk_dir / "active.jwk";
+        }
+
+        if (!config.custom_jwt_public_keys.empty()) {
+            RETURN_IF_ERROR(ProcessCustomJwtKeys(config.custom_jwt_public_keys, jwk_dir));
+            if (cred_conf.jwk_file.empty()) {
+                cred_conf.jwk_file = jwk_dir / "custom_key_0.jwk";
+            }
+        }
     }
 
     return cred_conf;
@@ -536,6 +548,13 @@ void grpc_set_enable_jwt(Object* obj, bool v, Error** errp) {
     grpc_device->config->use_jwt = v;
 }
 
+void grpc_set_jwt_public_key(Object* obj, const char* value, Error** errp) {
+    GrpcDev* grpc_device = GRPC_DEV(obj);
+    if (value && *value) {
+        grpc_device->config->custom_jwt_public_keys.emplace_back(value);
+    }
+}
+
 void grpc_instance_init(Object* obj) {
     GrpcDev* grpc_device = GRPC_DEV(obj);
     grpc_device->config = new GrpcConfig{};
@@ -594,6 +613,12 @@ void grpc_class_init(ObjectClass* oc, void* data) {
     object_class_property_set_description(oc, "jwt",
                                           "Require an authorization header with "
                                           "a valid signed JWT token for every grpc call.");
+
+    object_class_property_add_str(oc, "jwt_public_key", NULL, grpc_set_jwt_public_key);
+    object_class_property_set_description(
+            oc, "jwt_public_key",
+            "Pass a custom JWT public key as a file path or raw JWK JSON string. "
+            "Can be specified multiple times.");
 
     object_class_property_add_str(oc, "discovery_dir", NULL, grpc_set_discovery_dir);
     object_class_property_add_str(oc, "launcher_dir", NULL, grpc_set_launcher_dir);
