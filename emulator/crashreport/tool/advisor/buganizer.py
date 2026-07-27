@@ -175,22 +175,29 @@ class BuganizerClient:
         """Search Buganizer for an existing issue matching the stableSignature in the component."""
 
         def _search() -> Optional[Dict[str, Any]]:
-            query = f'componentid:{self.component_id} title:"{stable_signature}"'
-            if self.cli_binary and not self.token:
-                # Use CLI backend
-                cmd = [self.cli_binary, "search", query, "--format=json"]
-                if self.qa_mode:
-                    cmd.append("--api=blade:corp-issuetracker-test-api")
-                res = subprocess.run(cmd, capture_output=True, text=True, check=True)
-                issues = json.loads(res.stdout) if res.stdout.strip() else []
-                return issues[0] if issues else None
-            else:
-                # Use REST API backend
-                params = urllib.parse.urlencode({"query": query})
-                url = f"{self.base_url}?{params}"
-                data = self._call_rest_api(url, method="GET")
-                issues = data.get("issues", [])
-                return issues[0] if issues else None
+            queries = [
+                f'componentid:{self.component_id} status:open title:"{stable_signature}"',
+                f'componentid:{self.component_id} status:open "{stable_signature}"',
+            ]
+            for query in queries:
+                if self.cli_binary and not self.token:
+                    # Use CLI backend
+                    cmd = [self.cli_binary, "search", query, "--format=json"]
+                    if self.qa_mode:
+                        cmd.append("--api=blade:corp-issuetracker-test-api")
+                    res = subprocess.run(cmd, capture_output=True, text=True, check=True)
+                    issues = json.loads(res.stdout) if res.stdout.strip() else []
+                    if issues:
+                        return issues[0]
+                else:
+                    # Use REST API backend
+                    params = urllib.parse.urlencode({"query": query})
+                    url = f"{self.base_url}?{params}"
+                    data = self._call_rest_api(url, method="GET")
+                    issues = data.get("issues", [])
+                    if issues:
+                        return issues[0]
+            return None
 
         return self._execute_with_retry(_search)
 
