@@ -15,6 +15,7 @@
 #include "goldfish/avd_info/avd_info.h"
 
 #include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <fstream>
 #include <memory>
@@ -65,14 +66,16 @@ struct AvdInfoDev {
 #define AVD_INFO_DEV(obj) OBJECT_CHECK(AvdInfoDev, (obj), TYPE_AVD)
 #define AVD_INFO_DEVICE_GET_CLASS(obj) OBJECT_GET_CLASS(AvdInfoDev, obj, TYPE_AVD)
 
-AvdExtendedUniverse* gGlobalAvdUniverseInstance;  // do not read directly, use `GetAvd` instead
+/*
+ * NOTE: Do not read directly, use `GetNullableAvdImpl` instead.
+ * This variable IS nullptr:
+ *  * before `avd_info_realize`.
+ *  * after `avd_info_unrealize`, e.g. if a snapshot failed to load.
+ */
+std::atomic<AvdExtendedUniverse*> gGlobalAvdUniverseInstance;
 
-AvdExtendedUniverse& getAvdImpl() {
-    DCHECK(gGlobalAvdUniverseInstance)
-            << "The AvdUniverse instance is not yet available. "
-               "This is a QEMU configuration issue which must be fixed in the launcher.";
-
-    return *gGlobalAvdUniverseInstance;
+AvdExtendedUniverse* GetNullableAvdImpl() {
+    return gGlobalAvdUniverseInstance;
 }
 
 }  // namespace
@@ -96,14 +99,15 @@ AvdUniverse::GetActiveMultiDisplayDevice() {
     return active_multi_display_device_;
 }
 
-AvdUniverse& GetAvd() {
-    return getAvdImpl();
+AvdUniverse* GetNullableAvd() {
+    return GetNullableAvdImpl();
 }
 
 void UniverseBuildComplete() {
-    AvdExtendedUniverse& u = getAvdImpl();
-    u.connector_registry.Listen(5000);
-    u.test_tools_connector_registry.Listen(5002);
+    AvdExtendedUniverse* u = GetNullableAvdImpl();
+    DCHECK(u);
+    u->connector_registry.Listen(5000);
+    u->test_tools_connector_registry.Listen(5002);
 }
 
 namespace {
@@ -434,6 +438,8 @@ void avd_info_instance_init(Object* obj) {
 void avd_info_instance_finalize(Object* obj) {
     VLOG(1) << "avd_info_instance_finalize";
     AvdInfoDev* avd_info = AVD_INFO_DEV(obj);
+
+    DCHECK(!gGlobalAvdUniverseInstance);
 
     delete avd_info->universe;
     delete avd_info->mutable_props;

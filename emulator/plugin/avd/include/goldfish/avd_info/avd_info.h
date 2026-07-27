@@ -14,6 +14,8 @@
 #include <filesystem>
 #include <string>
 
+#include "absl/log/check.h"
+
 #include "android/goldfish/device_type.h"
 #include "android/goldfish/hardware_config.h"
 #include "goldfish/async/event_loop.h"
@@ -122,6 +124,16 @@ struct AvdUniverse : public snapshottable::Snapshottable {
     sensors::PhysicalModel sensors_physical_model_;
 };
 
-AvdUniverse& GetAvd();
+AvdUniverse* GetNullableAvd();
+
+namespace {
+
+AvdUniverse& GetAvd() {
+    AvdUniverse* avd = GetNullableAvd();
+    CHECK(avd);  // TODO(b/539388746): handle the nullptr cases
+    return *avd;
+}
+
+}  // namespace
 
 }  // namespace goldfish::avd_info
