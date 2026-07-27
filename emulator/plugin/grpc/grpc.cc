@@ -120,7 +120,7 @@ std::vector<std::shared_ptr<::grpc::Service>> CreateServices(avd_info::AvdUniver
 
     services.emplace_back(::android::emulation::control::getEmulatorController(
             VmOperations::qemuVmOperations(), qemu_console_lookup_by_index(0), &avd_universe,
-            &::goldfish::avd_info::GetAvd().GetMultiDisplay()));
+            &avd_universe.GetMultiDisplay()));
     services.emplace_back(std::make_shared<SnapshotServiceImpl>(*VmOperations::qemuVmOperations()));
     services.emplace_back(std::make_shared<::android::emulation::control::VehicleServiceImpl>(
             avd_universe.GetVehicleChannel()));
@@ -131,7 +131,7 @@ std::vector<std::shared_ptr<::grpc::Service>> CreateServices(avd_info::AvdUniver
             service_forwarder));
     services.emplace_back(
             std::make_shared<::android::emulation::control::incubating::ScreenRecordingServiceImpl>(
-                    &::goldfish::avd_info::GetAvd().GetMultiDisplay()));
+                    &avd_universe.GetMultiDisplay()));
     services.emplace_back(std::make_shared<
                           ::android::emulation::control::incubating::SensorServiceIncubatingImpl>(
             avd_universe.GetSensorsPhysicalModel()));

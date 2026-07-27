@@ -60,6 +60,8 @@ using SharedVirtualDisplayImpl = std::shared_ptr<VirtualDisplay>;
 using WeakVirtualDisplayImpl = std::weak_ptr<VirtualDisplay>;
 using VirtualDisplayMap = std::unordered_map<unsigned, SharedVirtualDisplayImpl>;
 
+using sensors::PhysicalModel;
+
 absl::StatusOr<SharedDisplay> IMultiDisplay::GetActiveDisplay(DisplayId display_id,
                                                               bool has_hinge) const {
     auto screen = GetDisplay(display_id);
@@ -297,11 +299,11 @@ class MultiDisplayImpl : public IMultiDisplay {
         }
 
         SetFolded(res_f);
-        if (::goldfish::avd_info::GetAvd().GetSensorsPhysicalModel().HasFoldableModel()) {
+        PhysicalModel& pm = ::goldfish::avd_info::GetAvd().GetSensorsPhysicalModel();
+        if (pm.HasFoldableModel()) {
             auto posture = res_f ? ::goldfish::sensors::FoldablePostures::kClosed
                                  : ::goldfish::sensors::FoldablePostures::kOpened;
-            ::goldfish::avd_info::GetAvd().GetSensorsPhysicalModel().SetTargetPosture(
-                    static_cast<float>(posture), PhysicalInterpolation::kStep);
+            pm.SetTargetPosture(static_cast<float>(posture), PhysicalInterpolation::kStep);
         }
 
         return absl::OkStatus();
@@ -366,8 +368,9 @@ class MultiDisplayImpl : public IMultiDisplay {
                     }
                 }
 
-                if (::goldfish::avd_info::GetAvd().GetSensorsPhysicalModel().HasFoldableModel()) {
-                    ::goldfish::avd_info::GetAvd().GetSensorsPhysicalModel().SetTargetPosture(
+                PhysicalModel& pm = ::goldfish::avd_info::GetAvd().GetSensorsPhysicalModel();
+                if (pm.HasFoldableModel()) {
+                    pm.SetTargetPosture(
                             static_cast<float>(::goldfish::sensors::FoldablePostures::kOpened),
                             PhysicalInterpolation::kStep);
                 }
@@ -441,8 +444,8 @@ std::unique_ptr<IMultiDisplay> IMultiDisplay::Create(EventLoop* loop, EventLoop*
 extern "C" void grpc_dpy_gfx_update(struct DisplayChangeListener* dcl, int x, int y, int w, int h) {
     // TODO(jansene): True multidisplay support should go over the qemu consoles, that are tied
     // to gpu0, head:%d
-    auto* multi_display =
-            static_cast<MultiDisplayImpl*>(&::goldfish::avd_info::GetAvd().GetMultiDisplay());
+    auto& multi_display =
+            static_cast<MultiDisplayImpl&>(::goldfish::avd_info::GetAvd().GetMultiDisplay());
     QemuConsole* con = dcl->con;
     if (con == nullptr) {
         con = qemu_console_lookup_default();
@@ -459,7 +462,7 @@ extern "C" void grpc_dpy_gfx_update(struct DisplayChangeListener* dcl, int x, in
         return;
     }
     auto index = qemu_console_get_index(con);
-    auto device = multi_display->GetDisplayWeak(index);
+    auto device = multi_display.GetDisplayWeak(index);
     if (!device.ok()) {
         LOG(ERROR) << "Unable to find a display to handle gfx changes: " << device.status();
         return;
@@ -484,8 +487,8 @@ extern "C" void grpc_dpy_gfx_refresh(DisplayChangeListener* dcl) {
 
 extern "C" void grpc_dpy_gfx_switch(struct DisplayChangeListener* dcl,
                                     struct DisplaySurface* new_surface) {
-    auto* multi_display =
-            static_cast<MultiDisplayImpl*>(&::goldfish::avd_info::GetAvd().GetMultiDisplay());
+    avd_info::AvdUniverse& avd = ::goldfish::avd_info::GetAvd();
+    auto& multi_display = static_cast<MultiDisplayImpl&>(avd.GetMultiDisplay());
     QemuConsole* con = dcl->con;
     if (con == nullptr) {
         // TODO(whollins): maybe use qemu_console_lookup_by_device_name("gpu0", head, err);
@@ -498,19 +501,19 @@ extern "C" void grpc_dpy_gfx_switch(struct DisplayChangeListener* dcl,
         VLOG(1) << "Ignore place holder surface";
         return;
     }
-    auto device = multi_display->GetDisplayWeak(index);
+    auto device = multi_display.GetDisplayWeak(index);
     if (absl::IsNotFound(device.status())) {
         DisplaySurface* surface = new_surface;
         bool created_surface = false;
         if (index == 1) {
-            const auto& hw = ::goldfish::avd_info::GetAvd().Props().hw_config;
+            const auto& hw = avd.Props().hw_config;
             if (hw.hw_sensor_hinge) {
                 surface = qemu_create_displaysurface(hw.hw_displayRegion_0_1_width,
                                                      hw.hw_displayRegion_0_1_height);
                 created_surface = true;
             }
         }
-        auto status = multi_display->CreateDisplayFromQemu(con, surface, index);
+        auto status = multi_display.CreateDisplayFromQemu(con, surface, index);
         if (status.ok() && created_surface) {
             static_cast<QemuDisplay*>(status.value().lock().get())->SetOwnedSurface(surface);
         }
