@@ -180,14 +180,14 @@ void Participant::IncomingMessage(const nlohmann::json& msg) {
 void Participant::DoIncomingMessage(const nlohmann::json& msg) {
     DCHECK(connection_.SignalingThread()->IsCurrent());
     if (msg.contains("candidate")) {
-        if (msg["candidate"].contains("candidate")) {
+        if (msg["candidate"].is_object() && msg["candidate"].contains("candidate")) {
             HandleCandidate(msg["candidate"]);
         } else {
             HandleCandidate(msg);
         }
     }
     if (msg.contains("sdp")) {
-        if (msg["sdp"].contains("sdp")) {
+        if (msg["sdp"].is_object() && msg["sdp"].contains("sdp")) {
             HandleOffer(msg["sdp"]);
         } else {
             HandleOffer(msg);
@@ -204,9 +204,10 @@ void Participant::OnIceCandidate(const ::webrtc::IceCandidateInterface* candidat
         return;
     }
 
-    SendMessage({{"sdpMid", candidate->sdp_mid()},
-                 {"sdpMLineIndex", candidate->sdp_mline_index()},
-                 {"candidate", sdp}});
+    SendMessage({{"candidate",
+                  {{"sdpMid", candidate->sdp_mid()},
+                   {"sdpMLineIndex", candidate->sdp_mline_index()},
+                   {"candidate", sdp}}}});
 }
 
 void Participant::OnConnectionChange(
@@ -341,13 +342,13 @@ void Participant::HandleOffer(const nlohmann::json& msg) {
 
     auto session_description = std::move(*parsed_sdp);
 
-    auto sdp_type = session_description->type();
+    auto sdp_type = session_description->GetType();
     std::weak_ptr<Participant> weak_self = shared_from_this();
     peer_connection_->SetRemoteDescription(
             std::move(session_description),
             webrtc::scoped_refptr<::webrtc::SetRemoteDescriptionObserverInterface>(
                     new webrtc::RefCountedObject<SetRemoteDescriptionCallback>(weak_self)));
-    if (sdp_type == "offer") {
+    if (sdp_type == webrtc::SdpType::kOffer) {
         peer_connection_->CreateAnswer(
                 new webrtc::RefCountedObject<DefaultSessionDescriptionObserver>(
                         peer_id_,
