@@ -68,6 +68,7 @@ objc_library(
     deps = [
         "@webrtc//api/video_codecs:builtin_video_decoder_factory",
         "@webrtc//api/video_codecs:builtin_video_encoder_factory",
+        "@webrtc//pc:video_track_source_proxy",
         "@webrtc//sdk:native_api",
         "@webrtc//sdk:videotoolbox_objc",
     ],
