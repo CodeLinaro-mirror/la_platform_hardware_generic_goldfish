@@ -220,6 +220,11 @@ void GrpcVideoSource::CaptureLoop() {
     }
 
     auto reader = client_->StreamScreenshot(&context_, format);
+    if (!reader) {
+        LOG(ERROR) << "Failed to open gRPC screenshot stream. Verify network or emulator state.";
+        running_ = false;
+        return;
+    }
 
     Image img;
     while (running_ && reader->Read(&img)) {
