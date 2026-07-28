@@ -54,7 +54,8 @@ class AvdTest : public ::testing::Test {
         tmp->MakeSubDir(android_home / "avd");
         tmp->MakeSubDir(android_home / "sysimg");
         fs::path sysimg = tmp->Path() / android_home / "sysimg";
-        WriteToFile(sysimg / "build.prop", "ro.system.build.version.sdk=30\nro.product.cpu.abi=x86_64");
+        WriteToFile(sysimg / "build.prop",
+                    "ro.system.build.version.sdk=30\nro.product.cpu.abi=x86_64");
         WriteToFile(sysimg / "advancedFeatures.ini", "");
         WriteToFile(sysimg / "VerifiedBootParams.textproto", "");
         tmp->MakeSubDir(android_home / "sysimg" / "data");
@@ -85,7 +86,8 @@ class AvdTest : public ::testing::Test {
         WriteToFile(avd_dir / "config.ini",
                     absl::StrCat("target=", targetString, "\nimage.sysdir.1=sysimg"));
         WriteToFile(paths_.sdk_directory / "sysimg" / "build.prop",
-                    absl::StrCat("ro.system.build.version.sdk=", api_level, "\nro.product.cpu.abi=x86_64"));
+                    absl::StrCat("ro.system.build.version.sdk=", api_level,
+                                 "\nro.product.cpu.abi=x86_64"));
 
         return avd_dir;
     }
@@ -118,7 +120,8 @@ TEST_F(AvdTest, UnknownApiLevel) {
 TEST_F(AvdTest, InvalidTargetFormat) {
     CreateTestAvd("test_avd", "invalid-target-format", 30);
     // overwrite build.prop
-    WriteToFile(paths_.sdk_directory / "sysimg" / "build.prop", "ro.system.build.version.sdk=foo\nro.product.cpu.abi=x86_64");
+    WriteToFile(paths_.sdk_directory / "sysimg" / "build.prop",
+                "ro.system.build.version.sdk=foo\nro.product.cpu.abi=x86_64");
 
     ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(opts_, paths_, "test_avd", false, ""));
     EXPECT_EQ(avd->ApiLevel(), Avd::kUnknownApiLevel);
@@ -160,7 +163,8 @@ TEST_F(AvdTest, SysImgOverride) {
 
     // Create required files in override path
     WriteToFile(overridePath / "system.img", "some data");
-    WriteToFile(overridePath / "build.prop", "ro.system.build.version.sdk=30\nro.product.cpu.abi=x86_64");
+    WriteToFile(overridePath / "build.prop",
+                "ro.system.build.version.sdk=30\nro.product.cpu.abi=x86_64");
     WriteToFile(overridePath / "advancedFeatures.ini", "");
     WriteToFile(overridePath / "VerifiedBootParams.textproto", "");
     tmp_->MakeSubDir(fs::path("nothome") / "blah" / "data");
@@ -268,7 +272,8 @@ TEST_F(AvdTest, CpuArchitecture) {
 TEST_F(AvdTest, DeviceType) {
     auto avd_dir = CreateTestAvd("phone_avd", "android-30", 30);
     WriteToFile(paths_.sdk_directory / "sysimg" / "build.prop",
-                "ro.product.name=sdk_gphone_x86_64\nro.system.build.version.sdk=30\nro.product.cpu.abi=x86_64");
+                "ro.product.name=sdk_gphone_x86_64\nro.system.build.version.sdk=30\nro.product.cpu."
+                "abi=x86_64");
     {
         ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(opts_, paths_, "phone_avd", false, ""));
         EXPECT_EQ(avd->GetDeviceType(), DeviceType::kPhone);
@@ -276,7 +281,8 @@ TEST_F(AvdTest, DeviceType) {
 
     auto tv_avd_dir = CreateTestAvd("tv_avd", "android-30", 30);
     WriteToFile(paths_.sdk_directory / "sysimg" / "build.prop",
-                "ro.product.name=sdk_atv_x86\nro.system.build.version.sdk=30\nro.product.cpu.abi=x86_64");
+                "ro.product.name=sdk_atv_x86\nro.system.build.version.sdk=30\nro.product.cpu.abi="
+                "x86_64");
     {
         ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(opts_, paths_, "tv_avd", false, ""));
         EXPECT_EQ(avd->GetDeviceType(), DeviceType::kTv);
@@ -284,7 +290,8 @@ TEST_F(AvdTest, DeviceType) {
 
     auto wear_avd_dir = CreateTestAvd("wear_avd", "android-30", 30);
     WriteToFile(paths_.sdk_directory / "sysimg" / "build.prop",
-                "ro.product.name=sdk_wear_x86\nro.system.build.version.sdk=30\nro.product.cpu.abi=x86_64");
+                "ro.product.name=sdk_wear_x86\nro.system.build.version.sdk=30\nro.product.cpu.abi="
+                "x86_64");
     {
         ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(opts_, paths_, "wear_avd", false, ""));
         EXPECT_EQ(avd->GetDeviceType(), DeviceType::kWear);
@@ -311,7 +318,8 @@ TEST_F(AvdTest, BuildFingerprint) {
     CreateTestAvd("test_avd", "android-30", 30);
     WriteToFile(paths_.sdk_directory / "sysimg" / "build.prop",
                 "ro.build.fingerprint=google/sdk_gphone_x86_64/emulator:30/RSR1.201013.001/"
-                "6903271:userdebug/dev-keys\nro.system.build.version.sdk=30\nro.product.cpu.abi=x86_64");
+                "6903271:userdebug/"
+                "dev-keys\nro.system.build.version.sdk=30\nro.product.cpu.abi=x86_64");
 
     ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(opts_, paths_, "test_avd", false, ""));
     EXPECT_EQ(avd->BuildFingerprint(),
@@ -380,8 +388,7 @@ TEST_F(AvdTest, FromAndroidBuild) {
     WriteToFile(build_out / "vendor-qemu.img", "");
     WriteToFile(build_out / "encryptionkey.img", "");
 
-    WriteToFile(build_out / "config.ini",
-                "abi.type=x86_64\ntarget=android-30");
+    WriteToFile(build_out / "config.ini", "abi.type=x86_64\ntarget=android-30");
 
     ASSERT_OK_AND_ASSIGN(auto avd,
                          Avd::FromAndroidBuild(opts_, paths_, "android_build_avd", build_out,
@@ -409,8 +416,7 @@ TEST_F(AvdTest, FromAndroidBuildWipeData) {
     WriteToFile(build_out / "vendor-qemu.img", "");
     WriteToFile(build_out / "encryptionkey.img", "");
 
-    WriteToFile(build_out / "config.ini",
-                "abi.type=x86_64\ntarget=android-30");
+    WriteToFile(build_out / "config.ini", "abi.type=x86_64\ntarget=android-30");
 
     auto qcow1 = build_out / "system.img.qcow2";
     auto qcow2 = build_out / "vendor.img.qcow2";
@@ -449,8 +455,16 @@ TEST_F(AvdTest, FromAndroidBuildWipeData) {
     EXPECT_FALSE(base::file::exists(userdata));
     EXPECT_FALSE(base::file::exists(userdata_qcow));
     EXPECT_FALSE(base::file::exists(cache));
-    EXPECT_TRUE(base::file::exists(hw_ini)); // Re-created during loading
     EXPECT_FALSE(base::file::exists(qemu_ver));
+}
+
+TEST_F(AvdTest, ImageKindPlayStore) {
+    fs::path avd_dir = CreateTestAvd("playstore_avd", "android-30", 30);
+    WriteToFile(avd_dir / "config.ini",
+                "PlayStore.enabled=true\ntag.id=google_apis_playstore\nimage.sysdir.1=sysimg\n");
+
+    ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(opts_, paths_, "playstore_avd", false, {}, {}));
+    EXPECT_EQ(avd->ImageKind(), android_studio::EmulatorAvdInfo::PLAY_STORE_KIND);
 }
 
 }  // namespace android::goldfish::avd

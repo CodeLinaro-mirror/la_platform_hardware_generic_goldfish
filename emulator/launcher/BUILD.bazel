@@ -133,6 +133,7 @@ cc_library(
         "//emulator/libs/hardware_config:device_type",
         "//emulator/libs/host-common",
         "//emulator/libs/ini_file",
+        "//emulator/libs/metrics:studio_stats_wrapper",
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/log",
     ],

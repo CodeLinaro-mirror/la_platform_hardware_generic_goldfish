@@ -35,7 +35,6 @@ class MockAvd : public Avd {
     MOCK_METHOD(CpuArchitecture, Arch, (), (const, override));
 
     MOCK_METHOD(const HardwareConfig&, Hw, (), (const, override));
-    MOCK_METHOD(bool, Playstore, (), (const, override));
     MOCK_METHOD(int, ApiLevel, (), (const, override));
     MOCK_METHOD(std::string, Dessert, (), (const, override));
     MOCK_METHOD(std::string, ApiDescription, (), (const, override));
@@ -51,6 +50,8 @@ class MockAvd : public Avd {
     MOCK_METHOD(std::string, BuildNumber, (), (const, override));
     MOCK_METHOD(absl::StatusOr<std::optional<int>>, GetLastRunQemuVersion, (), (const, override));
     MOCK_METHOD(absl::Status, SetLastRunQemuVersion, (int version), (override));
+    MOCK_METHOD(android_studio::EmulatorAvdInfo::EmulatorAvdImageKind, ImageKind, (),
+                (const, override));
     MOCK_METHOD(std::string, BuildProductName, (), (const, override));
     MOCK_METHOD(int, ForcedTrampolineVersion, (), (const, override));
 };
