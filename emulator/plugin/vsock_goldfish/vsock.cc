@@ -55,6 +55,8 @@ using goldfish::synchronization::MutexUnlock;
 using goldfish::vsock::HostPortListener;
 
 constexpr uint32_t kDynamicPortsStart = 1U << 31;
+constexpr uint32_t kMaxReturnedHostPortsSize = 1024;
+constexpr uint32_t kTicksPerHostPort = 1024;
 
 struct GoldfishVirtioVsockDevice;
 
@@ -159,6 +161,14 @@ struct GoldfishVirtioVsockDevice {
         return SocketPtr(&stream);
     }
 
+    void RecycleOneHostPort() ABSL_EXCLUSIVE_LOCKS_REQUIRED(mStateMutex) {
+        DCHECK(!mReturnedHostPorts.empty());
+        const uint32_t returnedPort = mReturnedHostPorts.front();
+        mReturnedHostPorts.pop_front();
+        DCHECK(returnedPort >= kDynamicPortsStart);
+        mSrcPortAllocator.Put(returnedPort - kDynamicPortsStart);
+    }
+
     bool Listen(const uint32_t hostPort, HostPortListener hostPortListener) {
         DEBUG_MSG("this=%p, hostPort=%u", this, hostPort);
 
@@ -223,7 +233,21 @@ struct GoldfishVirtioVsockDevice {
 
         const uint32_t hostPort = stream.hostPort;
         if (hostPort >= kDynamicPortsStart) {
-            mSrcPortAllocator.Put(hostPort - kDynamicPortsStart);
+            if (mReturnedHostPorts.size() >= kMaxReturnedHostPortsSize) {
+                RecycleOneHostPort();
+                DCHECK(mReturnedHostPorts.size() < kMaxReturnedHostPortsSize);
+            }
+
+            mReturnedHostPorts.push_back(hostPort);
+        }
+    }
+
+    void onTick() ABSL_EXCLUSIVE_LOCKS_REQUIRED(mStateMutex) {
+        if (++mTickCounter >= kTicksPerHostPort) {
+            mTickCounter = 0;
+            if (!mReturnedHostPorts.empty()) {
+                RecycleOneHostPort();
+            }
         }
     }
 
@@ -324,6 +348,8 @@ struct GoldfishVirtioVsockDevice {
         mHostEvents.clear();
         mOrphanPackets.clear();
         mSrcPortAllocator.Reset();
+        mReturnedHostPorts.clear();
+        mTickCounter = 0;
     }
 
     void clear() {
@@ -467,6 +493,7 @@ struct GoldfishVirtioVsockDevice {
             recycleStreamLocked(stream, true, VIRTIO_VSOCK_OP_SHUTDOWN);
             mStreams.erase(stream);
         }
+        onTick();
         mStateMutex.unlock();  // see onPacketReceiveRwStart
     }
 
@@ -588,6 +615,10 @@ struct GoldfishVirtioVsockDevice {
         }
 
         const absl::MutexLock lock(mStateMutex);
+        writer << mTickCounter << mReturnedHostPorts.size();
+        for (const uint32_t rhp : mReturnedHostPorts) {
+            writer << rhp;
+        }
         mSrcPortAllocator.SaveToSnapshot(writer);
 
         writer << mOrphanPackets.size();
@@ -635,12 +666,25 @@ struct GoldfishVirtioVsockDevice {
         const absl::MutexLock lock(mStateMutex);
         clearLocked();
 
+        size_t n = 0;
+        if (!ReadValue(reader, mTickCounter, n).ok()) {
+            return 1;
+        }
+
+        for (; n > 0; --n) {
+            uint32_t rhp;
+            if (!ReadValue(reader, rhp).ok()) {
+                return 1;
+            }
+
+            mReturnedHostPorts.push_back(rhp);
+        }
+
         r = mSrcPortAllocator.LoadFromSnapshot(reader);
         if (r) {
             return r;
         }
 
-        size_t n = 0;
         if (!ReadValue(reader, n).ok()) {
             return 1;
         }
@@ -753,10 +797,12 @@ struct GoldfishVirtioVsockDevice {
     std::unordered_map<uint32_t, HostPortListener> mHostPortListeners ABSL_GUARDED_BY(mStateMutex);
 
     // Everything below is snapshotted
+    std::deque<uint32_t> mReturnedHostPorts ABSL_GUARDED_BY(mStateMutex);
     goldfish::UniqueIdAllocator mSrcPortAllocator ABSL_GUARDED_BY(mStateMutex);
     std::deque<struct virtio_vsock_hdr> mOrphanPackets ABSL_GUARDED_BY(mStateMutex);
     std::deque<struct virtio_vsock_event> mHostEvents ABSL_GUARDED_BY(mStateMutex);
     Streams mStreams ABSL_GUARDED_BY(mStateMutex);
+    uint16_t mTickCounter ABSL_GUARDED_BY(mStateMutex) = 0;
 
     mutable absl::Mutex mStateMutex;
 };
