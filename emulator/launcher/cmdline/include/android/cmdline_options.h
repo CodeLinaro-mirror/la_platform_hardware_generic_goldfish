@@ -418,6 +418,7 @@ OPT_FLAG(no_netsim,
 OPT_FLAG(netsim_stdout, "send netsim output to stdout")
 OPT_FLAG(fishtank_stdout, "send fishtank output to stdout")
 OPT_FLAG(verbose_grpc, "verbose grpc logging")
+OPT_FLAG(strict_snapshot_load, "fail if snapshot loading fails")
 
 OPT_PARAM(V, "<v log level>", "Set the global vlog level to this integer value")
 
