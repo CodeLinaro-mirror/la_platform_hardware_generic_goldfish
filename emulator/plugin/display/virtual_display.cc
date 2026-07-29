@@ -123,24 +123,25 @@ absl::StatusOr<FrameInfo> VirtualDisplay::GetPixels(PixelFormat fmt, int width, 
     // 1. Check if the guest has bound a color buffer yet
     const uint32_t cb_handle = goldfish::devices::multidisplay::GetDisplayColorBuffer(this->Id());
 
-    if (cb_handle > 0) {
-        goldfish::devices::multidisplay::ReadDisplayColorBuffer(
-                cb_handle, const_cast<uint8_t*>(frame_buffer_.data()));
-        auto fast_abgr_to_rgb_le = [](const uint8_t* byte_src, uint8_t* dst, int num_pixels) {
-            for (int i = 0; i < num_pixels; i++) {
-                // Source index: jumps 4 bytes at a time (skip Alpha)
-                // Dest index: jumps 3 bytes at a time
-                dst[(i * 3) + 0] = byte_src[(i * 4) + 0];  // R
-                dst[(i * 3) + 1] = byte_src[(i * 4) + 1];  // G
-                dst[(i * 3) + 2] = byte_src[(i * 4) + 2];  // B
-                // Skip byte_src[i*4 + 3] (Alpha)
-            }
-        };
+    if (pixel != nullptr) {
+        if (cb_handle > 0) {
+            goldfish::devices::multidisplay::ReadDisplayColorBuffer(
+                    cb_handle, const_cast<uint8_t*>(frame_buffer_.data()));
+            auto fast_abgr_to_rgb_le = [](const uint8_t* byte_src, uint8_t* dst, int num_pixels) {
+                for (int i = 0; i < num_pixels; i++) {
+                    // Source index: jumps 4 bytes at a time (skip Alpha)
+                    // Dest index: jumps 3 bytes at a time
+                    dst[(i * 3) + 0] = byte_src[(i * 4) + 0];  // R
+                    dst[(i * 3) + 1] = byte_src[(i * 4) + 1];  // G
+                    dst[(i * 3) + 2] = byte_src[(i * 4) + 2];  // B
+                    // Skip byte_src[i*4 + 3] (Alpha)
+                }
+            };
 
-        fast_abgr_to_rgb_le(frame_buffer_.data(), pixel, width * height);
-    } else {
-        // guest hasn't bound yet
-        std::memcpy(pixel, frame_buffer_.data(), required_size);
+            fast_abgr_to_rgb_le(frame_buffer_.data(), pixel, width * height);
+        } else {
+            std::memcpy(pixel, frame_buffer_.data(), required_size);
+        }
     }
     // 2. Perform the copy (and theoretically, rotation/color conversion)
 
