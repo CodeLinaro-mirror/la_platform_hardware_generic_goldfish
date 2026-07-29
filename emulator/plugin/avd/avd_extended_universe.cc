@@ -526,4 +526,8 @@ absl::Status AvdExtendedUniverse::OnPostLoad() {
     return absl::OkStatus();
 }
 
+void AvdExtendedUniverse::Reset() {
+    GetMultiDisplay().Reset();
+}
+
 }  // namespace goldfish::avd_info

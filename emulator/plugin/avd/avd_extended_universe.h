@@ -47,6 +47,8 @@ struct AvdExtendedUniverse : public AvdUniverse {
     absl::Status OnLoad(archive::IReader&) override;
     absl::Status OnPostLoad() override;
 
+    void Reset();
+
     std::unique_ptr<display::IMultiDisplay> multi_display;
 
     devices::ConnectorRegistry connector_registry;
