@@ -10,17 +10,20 @@ cc_library(
         "ansi_renderer.cc",
         "mermaid_renderer.cc",
         "trace_renderer_factory.cc",
+        "util.cc",
     ],
     hdrs = [
         "include/android/crashreport/breadcrumbs/ansi_renderer.h",
         "include/android/crashreport/breadcrumbs/mermaid_renderer.h",
         "include/android/crashreport/breadcrumbs/trace_renderer.h",
         "include/android/crashreport/breadcrumbs/trace_renderer_factory.h",
+        "include/android/crashreport/breadcrumbs/util.h",
     ],
     strip_include_prefix = "include",
     deps = [
         "//emulator/crashreport/tool/breadcrumbs/core",
         "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/time",
@@ -45,6 +48,18 @@ cc_test(
         ":renderer",
         "//emulator/crashreport/tool/breadcrumbs/core",
         "//emulator/libs/test:googletest_main",
+        "@googletest//:gtest",
+    ],
+)
+
+cc_test(
+    name = "util_test",
+    srcs = ["util_test.cc"],
+    deps = [
+        ":renderer",
+        "//emulator/libs/test:googletest_main",
+        "@abseil-cpp//absl/strings:str_format",
+        "@abseil-cpp//absl/time",
         "@googletest//:gtest",
     ],
 )

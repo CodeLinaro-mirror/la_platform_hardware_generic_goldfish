@@ -56,11 +56,22 @@ genrule(
     # 1. The standard py_binary launcher on Windows exceeds MAX_PATH (260 chars) due to deep runfiles.
     # 2. 'python' is not guaranteed to be in the system PATH.
     # 3. bash-on-windows (msys) has path translation issues with deep bazel-out paths.
-    cmd_bat = "set PYTHONPATH=$(location :gen_breadcrumb_metadata).runfiles/protobuf+/python&& prebuilts\\python\\windows-x86\\python.exe $(location gen_breadcrumb_metadata.py) " +
-              "--descriptors $(locations :breadcrumb_service_protos) " +
-              "--header $(location breadcrumb_metadata.h) " +
-              "--source $(location breadcrumb_metadata.cc)",
-    tools = [":gen_breadcrumb_metadata"],
+    cmd_bat = select({
+        "@platforms//os:windows": "set PYTHONPATH=$(location :gen_breadcrumb_metadata).runfiles/protobuf+/python&& $(location @prebuilt_python_windows//:python.exe) $(location gen_breadcrumb_metadata.py) " +
+                                  "--descriptors $(locations :breadcrumb_service_protos) " +
+                                  "--header $(location breadcrumb_metadata.h) " +
+                                  "--source $(location breadcrumb_metadata.cc)",
+        "//conditions:default": "",
+    }),
+    tools = [
+        ":gen_breadcrumb_metadata",
+    ] + select({
+        "@platforms//os:windows": [
+            "@prebuilt_python_windows//:python.exe",
+            "@prebuilt_python_windows//:python_bin",
+        ],
+        "//conditions:default": [],
+    }),
 )
 
 cc_library(
@@ -103,6 +114,7 @@ cc_library(
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/time",
+        "@breakpad//src/processor",
     ],
 )
 

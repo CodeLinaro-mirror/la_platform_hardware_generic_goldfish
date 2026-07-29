@@ -22,7 +22,17 @@
 // IWYU pragma: end_keep
 // clang-format on
 
+#include <stdio.h>
+
 #include "android/base/logging/abseil_log_bridge.h"
+
+int dump_virtio_input_hid(const VirtIOInputHID* vhid, char* buf, size_t len) {
+    if (!vhid) {
+        return snprintf(buf, len, "null");
+    }
+    return snprintf(buf, len, "{evt_queue: %p, active: %d}", vhid->parent_obj.evt,
+                    vhid->parent_obj.active);
+}
 
 int find_virtio_device(Object* obj, void* opaque) {
     VirtioDeviceInfo* device = (VirtioDeviceInfo*)opaque;

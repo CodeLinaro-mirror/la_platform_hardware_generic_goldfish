@@ -16,20 +16,17 @@
 
 #include "grpcpp/grpcpp.h"
 
+#include "android/goldfish/vm_interface.h"
 #include "snapshot_service.grpc.pb.h"
 
 namespace android::emulation::control {
 
-class SnapshotServiceImpl final
-        : public SnapshotService::WithCallbackMethod_PullSnapshot<
-                  SnapshotService::WithCallbackMethod_PushSnapshot<SnapshotService::Service>> {
+class SnapshotServiceImpl final : public SnapshotService::Service {
   public:
+    SnapshotServiceImpl(goldfish::VmOperations& vm_operations) : vm_operations_(vm_operations) {}
+
     grpc::Status ListSnapshots(grpc::ServerContext* context, const SnapshotFilter* request,
                                SnapshotList* reply) override;
-    grpc::ServerWriteReactor<SnapshotPackage>* PullSnapshot(
-            grpc::CallbackServerContext* context, const SnapshotPackage* request) override;
-    grpc::ServerReadReactor<SnapshotPackage>* PushSnapshot(grpc::CallbackServerContext* context,
-                                                           SnapshotPackage* response) override;
     grpc::Status LoadSnapshot(grpc::ServerContext* context, const SnapshotPackage* request,
                               SnapshotPackage* reply) override;
     grpc::Status SaveSnapshot(grpc::ServerContext* context, const SnapshotPackage* request,
@@ -42,6 +39,9 @@ class SnapshotServiceImpl final
                                 SnapshotDetails* reply) override;
     grpc::Status GetScreenshot(grpc::ServerContext* context, const SnapshotId* request,
                                SnapshotScreenshotFile* reply) override;
+
+  private:
+    goldfish::VmOperations& vm_operations_;
 };
 
 }  // namespace android::emulation::control

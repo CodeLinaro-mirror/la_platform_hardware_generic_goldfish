@@ -60,10 +60,13 @@ class VirtualDisplay : public IDisplay {
 
     // --- Concrete class specific methods ---
 
+    void Disconnect() override;
+
     // A helper method to simulate the guest OS finishing a rendered frame
     void SimulateGuestFrameUpdate();
 
   private:
+    bool disconnected_ = false;
     std::vector<uint8_t> frame_buffer_;
     std::shared_ptr<EventLoop::Timer> one_second_timer_;
     void OneFrameTick();

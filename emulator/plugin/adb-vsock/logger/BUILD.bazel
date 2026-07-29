@@ -1,26 +1,52 @@
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
 
 cc_library(
     name = "logger",
-    srcs = ["adb_mesage_logger.cc"],
-    hdrs = ["include/goldfish/adb/adb_message_logger.h"],
+    srcs = [
+        "adb_breadcrumb_tracker.cc",
+        "adb_message_logger.cc",
+    ],
+    hdrs = [
+        "include/goldfish/adb/adb_breadcrumb_tracker.h",
+        "include/goldfish/adb/adb_message_logger.h",
+    ],
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
+        "//emulator/crashreport:breadcrumb",
+        "//emulator/crashreport:breadcrumb_proto",
+        "//emulator/libs/proto_data_store",
         "//emulator/plugin/hal/connector:cable",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/strings",
+        "@aemu//protos/services/diagnostic:breadcrumb_cc_proto",
     ],
 )
 
 cc_test(
     name = "logger_unittests",
-    srcs = ["adb_message_logger_test.cc"],
+    srcs = [
+        "adb_breadcrumb_tracker_test.cc",
+        "adb_message_logger_test.cc",
+    ],
     visibility = ["//visibility:public"],
     deps = [
         ":logger",
         "//emulator/libs/system:test-headers",
         "//emulator/libs/test:googletest_main",
+    ],
+)
+
+cc_binary(
+    name = "adb_breadcrumb_tracker_perf",
+    srcs = [
+        "adb_breadcrumb_tracker_perf.cc",
+    ],
+    tags = ["benchmark"],
+    deps = [
+        ":logger",
+        "@google_benchmark//:benchmark",
     ],
 )

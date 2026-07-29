@@ -76,7 +76,7 @@ using goldfish::async::LibuvAsyncSocketFactory;
 using goldfish::async::LibuvEventLoop;
 using goldfish::async::QemuEventLoop;
 using goldfish::async::ThreadedEventLoop;
-using goldfish::avd_universe::guest_status::ObservableTimestamp;
+using goldfish::avd_universe::guest_status::GuestStatus;
 using goldfish::devices::ConnectionAwaiter;
 using goldfish::devices::HalPlugFactory;
 using goldfish::devices::cable::IPlug;
@@ -196,12 +196,12 @@ class VSockProxyImpl : public VSockProxy {
             , mDevice(device)
             , mQemuLoop(universe.GetQemuEventLoop())
             , mClientLoop(goldfish::async::globalEventLoop())
-            , mBootcompleteTime(universe.GetGuestStatus().bootcomplete) {
+            , mGuestStatus(universe.GetGuestStatus()) {
         using namespace std::chrono_literals;
         mConnectionAwaiter = ConnectionAwaiter::RetryUntilConnected(
                 &mQemuLoop,
                 [&](auto plug) {
-                    if (isBootCompleted()) {
+                    if (mGuestStatus.IsBootCompleted()) {
                         return goldfish::vsock::Connect(mDevice->guest_port, plug);
                     } else {
                         return SocketPtr{};
@@ -276,14 +276,12 @@ class VSockProxyImpl : public VSockProxy {
         return true;
     }
 
-    bool isBootCompleted() const { return mBootcompleteTime.GetValue() != absl::UnixEpoch(); }
-
     /// The vsock device definition
     const Endpoint mHostEndpoint;
     VSockFwdDev* mDevice;
     EventLoop& mQemuLoop;    // The main QEMU event loop
     EventLoop* mClientLoop;  // Client-side event loop for sockets
-    const ObservableTimestamp& mBootcompleteTime;
+    const GuestStatus& mGuestStatus;
     LibuvAsyncSocketFactory mSocketFactory;
 
     /// The AsyncSocketServer used to listen for incoming connections.

@@ -18,6 +18,8 @@
 
 #include "absl/strings/str_format.h"
 
+#include "goldfish/archive/reader.h"
+#include "goldfish/archive/writer.h"
 #include "goldfish/eventing/observable_value.h"
 
 namespace goldfish::avd_universe::battery {
@@ -140,6 +142,16 @@ struct Battery {
                      b.charge_level, b.health, b.status);
     }
 };
+
+archive::IWriter& operator<<(archive::IWriter&, Battery::Status);
+archive::IWriter& operator<<(archive::IWriter&, Battery::Charger);
+archive::IWriter& operator<<(archive::IWriter&, Battery::Health);
+archive::IWriter& operator<<(archive::IWriter&, const Battery&);
+
+absl::Status ReadValue(archive::IReader&, Battery::Status&);
+absl::Status ReadValue(archive::IReader&, Battery::Charger&);
+absl::Status ReadValue(archive::IReader&, Battery::Health&);
+absl::Status ReadValue(archive::IReader&, Battery&);
 
 using ObservableBattery =
         eventing::ObservableValue<Battery, eventing::ObservableValueTriggerAlways>;

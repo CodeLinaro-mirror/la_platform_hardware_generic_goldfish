@@ -21,11 +21,12 @@
 #include <unordered_map>
 #include <vector>
 
-#include "android/base/testing/TestSystem.h"
-#include "android/base/testing/TestTempDir.h"
+#include "android/base/testing/test_system.h"
+#include "android/base/testing/test_temp_dir.h"
 
 namespace android::goldfish {
 
+using base::StorageCapacity;
 using std::endl;
 using std::numeric_limits;
 using std::string;
@@ -129,7 +130,7 @@ TEST_F(IniFileTest, readWrite) {
     // This doesn't actually test the format in which values are persisted.
     // But it does test that serialize-deserialize are consistent.
     static const unordered_map<string, bool> boolData = {{"trueKey", true}, {"falseKey", false}};
-    static const unordered_map<string, IniFile::DiskSize> diskSizeData = {
+    static const unordered_map<string, StorageCapacity> diskSizeData = {
         {"ds0", 0ULL},         {"ds1000B", 1000ULL},     {"ds1K", 1024ULL},
         {"ds5k", 5 * 1024ULL}, {"ds1M", 1024 * 1024ULL}, {"ds3G", 3 * 1024 * 1024 * 1024ULL}};
 
@@ -190,8 +191,8 @@ TEST_F(IniFileTest, duplicateAndMissingKeys) {
     mIni->SetDouble("double", 1.1);
     mIni->SetBool("bool", false);
     mIni->SetBool("bool", true);
-    mIni->SetDiskSize("ds", 0ULL);
-    mIni->SetDiskSize("ds", 1ULL);
+    mIni->SetDiskSize("ds", StorageCapacity(0ULL));
+    mIni->SetDiskSize("ds", StorageCapacity(1ULL));
 
     ASSERT_TRUE(mIni->Write());
     mIni = absl::make_unique<IniFile>(mIniFilePath);
@@ -203,13 +204,13 @@ TEST_F(IniFileTest, duplicateAndMissingKeys) {
     EXPECT_EQ(1LL, mIni->GetInt64("int64", 99));
     EXPECT_EQ(1.1, mIni->GetDouble("double", 99));
     EXPECT_EQ(true, mIni->GetBool("bool", false));
-    EXPECT_EQ(1ULL, mIni->GetDiskSize("ds", 99ULL));
+    EXPECT_EQ(StorageCapacity(1ULL), mIni->GetDiskSize("ds", StorageCapacity(99ULL)));
 
     EXPECT_EQ(-11, mIni->GetInt("missing", -11));
     EXPECT_EQ(22LL, mIni->GetInt64("missing", 22LL));
     EXPECT_EQ(3.3, mIni->GetDouble("missing", 3.3));
     EXPECT_EQ(true, mIni->GetBool("missing", true));
-    EXPECT_EQ(44ULL, mIni->GetDiskSize("missing", 44ULL));
+    EXPECT_EQ(StorageCapacity(44ULL), mIni->GetDiskSize("missing", StorageCapacity(44ULL)));
 }
 
 TEST_F(IniFileTest, valueFormat) {
@@ -394,18 +395,18 @@ TEST_F(IniFileTest, diskSizeFormat) {
 
     ASSERT_TRUE(mIni->Read());
     EXPECT_EQ(lines.size(), static_cast<size_t>(mIni->Size()));
-    EXPECT_EQ(30ULL, mIni->GetDiskSize("ThirtyB", 99));
-    EXPECT_EQ(1024ULL, mIni->GetDiskSize("OneKilo", 99));
-    EXPECT_EQ(1024 * 1024ULL, mIni->GetDiskSize("OneMega", 99));
-    EXPECT_EQ(1024 * 1024 * 1024ULL, mIni->GetDiskSize("OneGiga", 99));
-    EXPECT_EQ(5 * 1024ULL, mIni->GetDiskSize("FiveKilo", 99));
-    EXPECT_EQ(5 * 1024 * 1024ULL, mIni->GetDiskSize("FiveMega", 99));
-    EXPECT_EQ(5 * 1024 * 1024 * 1024ULL, mIni->GetDiskSize("FiveGiga", 99));
+    EXPECT_EQ(StorageCapacity(30ULL), mIni->GetDiskSize("ThirtyB", StorageCapacity(99)));
+    EXPECT_EQ(StorageCapacity(1024ULL), mIni->GetDiskSize("OneKilo", 99));
+    EXPECT_EQ(StorageCapacity(1024 * 1024ULL), mIni->GetDiskSize("OneMega", 99));
+    EXPECT_EQ(StorageCapacity(1024 * 1024 * 1024ULL), mIni->GetDiskSize("OneGiga", 99));
+    EXPECT_EQ(StorageCapacity(5 * 1024ULL), mIni->GetDiskSize("FiveKilo", 99));
+    EXPECT_EQ(StorageCapacity(5 * 1024 * 1024ULL), mIni->GetDiskSize("FiveMega", 99));
+    EXPECT_EQ(StorageCapacity(5 * 1024 * 1024 * 1024ULL), mIni->GetDiskSize("FiveGiga", 99));
 
-    EXPECT_EQ(99ULL, mIni->GetDiskSize("WrongUnit", 99));
-    EXPECT_EQ(99ULL, mIni->GetDiskSize("FractionalNumber", 99));
-    EXPECT_EQ(99ULL, mIni->GetDiskSize("FractionalKilo", 99));
-    EXPECT_EQ(99ULL, mIni->GetDiskSize("smiley_really", 99));
+    EXPECT_EQ(StorageCapacity(99ULL), mIni->GetDiskSize("WrongUnit", StorageCapacity(99)));
+    EXPECT_EQ(StorageCapacity(99ULL), mIni->GetDiskSize("FractionalNumber", StorageCapacity(99)));
+    EXPECT_EQ(StorageCapacity(99ULL), mIni->GetDiskSize("FractionalKilo", StorageCapacity(99)));
+    EXPECT_EQ(StorageCapacity(99ULL), mIni->GetDiskSize("smiley_really", StorageCapacity(99)));
 }
 
 TEST_F(IniFileTest, discardEmpty) {
@@ -525,7 +526,7 @@ TEST_F(IniFileTest, strDefaultValues) {
     ASSERT_EQ(0, mIni->Size());
     EXPECT_TRUE(mIni->GetBool("missingKey", "yes"));
     EXPECT_FALSE(mIni->GetBool("missingKey", "no"));
-    EXPECT_EQ(1024ULL, mIni->GetDiskSize("missingKey", "1k"));
+    EXPECT_EQ(StorageCapacity(1024ULL), mIni->GetDiskSize("missingKey", "1k"));
 }
 
 TEST_F(IniFileTest, makeValidKey) {

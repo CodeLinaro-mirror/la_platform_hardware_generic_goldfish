@@ -19,7 +19,7 @@
 #include <string_view>
 
 #include "android/goldfish/vm_interface.h"
-#include "emulator/plugin/vminterface/test/TestVmLock.h"
+#include "emulator/plugin/vminterface/test/test_vm_lock.h"
 
 extern "C" {
 #include "emulator/plugin/vminterface/test/vm_mock.h"

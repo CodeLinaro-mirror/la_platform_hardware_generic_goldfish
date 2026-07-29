@@ -16,6 +16,7 @@
 #include "goldfish/metrics/playstore_metrics_writer.h"
 
 #include <gtest/gtest.h>
+#include <sys/types.h>
 #include <zlib.h>
 
 #include <atomic>
@@ -35,7 +36,7 @@
 
 #include "absl/strings/str_format.h"
 
-#include "android/base/testing/TestSystem.h"
+#include "android/base/testing/test_system.h"
 #include "goldfish/async/testing/test_event_loop.h"
 #include "goldfish/tools/aemu_version.h"
 #include "google_logs_publishing.pb.h"

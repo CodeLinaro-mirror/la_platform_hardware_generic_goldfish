@@ -18,7 +18,7 @@
 #include "absl/synchronization/notification.h"
 #include "absl/time/time.h"
 
-#include "android/base/testing/TestTempDir.h"
+#include "android/base/testing/test_temp_dir.h"
 #include "goldfish/async/async_socket_factory.h"
 #include "goldfish/async/async_socket_server.h"
 #include "goldfish/async/event_loop.h"

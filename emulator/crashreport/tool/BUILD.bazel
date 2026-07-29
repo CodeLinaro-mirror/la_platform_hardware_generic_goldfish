@@ -31,7 +31,7 @@ cc_library(
 
 cc_binary(
     name = "crashreport",
-    srcs = ["main.cc"],
+    srcs = ["crashreport.cc"],
     visibility = ["//visibility:public"],
     deps = [
         ":tool_lib",

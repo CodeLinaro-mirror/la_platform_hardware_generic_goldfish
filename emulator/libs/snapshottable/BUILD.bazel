@@ -1,0 +1,16 @@
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+
+cc_library(
+    name = "snapshottable",
+    hdrs = [
+        "include/goldfish/snapshottable/snapshottable.h",
+    ],
+    includes = ["include"],
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        "//emulator/libs/archive",
+        "@abseil-cpp//absl/status",
+    ],
+)

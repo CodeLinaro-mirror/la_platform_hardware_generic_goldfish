@@ -318,6 +318,7 @@ cc_library(
     hdrs = ["network_device.h"],
     deps = [
         ":device",
+        "@abseil-cpp//absl/random",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
     ],

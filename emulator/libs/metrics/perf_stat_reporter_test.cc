@@ -17,7 +17,7 @@
 
 #include <gtest/gtest.h>
 
-#include "android/base/testing/TestSystem.h"
+#include "android/base/testing/test_system.h"
 #include "android/goldfish/fake_hardware_config.h"
 #include "android/goldfish/hardware_config.h"
 #include "goldfish/async/testing/test_event_loop.h"

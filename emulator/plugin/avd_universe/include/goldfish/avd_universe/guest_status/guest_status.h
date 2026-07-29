@@ -15,22 +15,40 @@
 
 #include <cstdint>
 
-#include "absl/time/time.h"
-
-#include "goldfish/eventing/observable_value.h"
+#include "goldfish/archive/time.h"
+#include "goldfish/avd_universe/grpc/grpc_notification_channel.h"
 
 namespace goldfish::avd_universe::guest_status {
 
-using ObservableTimestamp =
-        eventing::ObservableValue<absl::Time, eventing::ObservableValueTriggerAlways>;
-
-using ObservableCounter =
-        eventing::ObservableValue<uint64_t, eventing::ObservableValueTriggerAlways>;
-
 struct GuestStatus {
-    ObservableTimestamp reset;
-    ObservableTimestamp bootcomplete;
-    ObservableCounter heartbeat;
+    GuestStatus();
+
+    bool IsBootCompleted() const;
+    absl::Time GetResetT() const { return resetT_; }
+    absl::Time GetBootCompleteT() const { return bootcompleteT_; }
+    absl::Duration GetBootCompleteDuration() const;
+    uint64_t GetHeartbeatCounter() const { return heartbeatCounter_; }
+
+    void Reset(absl::Time);
+    void SetBootComplete(absl::Time);
+    void Heartbeat() { ++heartbeatCounter_; }
+
+    void OnPostLoad() const;
+
+    void SetGrpcNotificationChannel(avd_universe::grpc::GrpcNotificationEventSource* src) {
+        grpcNotificationSource_ = src;
+    }
+
+    friend archive::IWriter& operator<<(archive::IWriter&, const GuestStatus&);
+    friend absl::Status ReadValue(archive::IReader&, GuestStatus&);
+
+  private:
+    void NotifyBootcomplete(absl::Duration) const;
+
+    absl::Time resetT_;
+    absl::Time bootcompleteT_;
+    uint64_t heartbeatCounter_ = 0;
+    avd_universe::grpc::GrpcNotificationEventSource* grpcNotificationSource_ = nullptr;
 };
 
 }  // namespace goldfish::avd_universe::guest_status

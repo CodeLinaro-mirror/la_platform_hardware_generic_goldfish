@@ -9,6 +9,17 @@ cc_library(
 )
 
 cc_library(
+    name = "vehicle",
+    hdrs = ["include/goldfish/avd_universe/vehicle/vehicle_data.h"],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//emulator/libs/eventing",
+        "@aemu//protos/services/incubating/car:vehicle_service_cc_proto",
+    ],
+)
+
+cc_library(
     name = "fingerprint",
     hdrs = ["include/goldfish/avd_universe/fingerprint/fingerprint_sensor.h"],
     includes = ["include"],
@@ -29,17 +40,20 @@ cc_library(
 
 cc_library(
     name = "guest_status",
+    srcs = ["guest_status.cc"],
     hdrs = ["include/goldfish/avd_universe/guest_status/guest_status.h"],
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
-        "//emulator/libs/eventing",
+        ":grpc_notification",
+        "//emulator/libs/archive:time",
         "@abseil-cpp//absl/time",
     ],
 )
 
 cc_library(
     name = "location",
+    srcs = ["location.cc"],
     hdrs = ["include/goldfish/avd_universe/gps/location.h"],
     includes = ["include"],
     visibility = ["//visibility:public"],
@@ -48,11 +62,16 @@ cc_library(
 
 cc_library(
     name = "battery",
-    hdrs = ["include/goldfish/avd_universe/battery/battery_state.h"],
+    srcs = ["battery_state.cc"],
+    hdrs = [
+        "include/goldfish/avd_universe/battery/battery_state.h",
+    ],
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
+        "//emulator/libs/archive",
         "//emulator/libs/eventing",
+        "//emulator/libs/status_macros",
         "@abseil-cpp//absl/strings:str_format",
     ],
 )
@@ -68,5 +87,6 @@ cc_library(
         ":grpc_notification",
         ":guest_status",
         ":location",
+        ":vehicle",
     ],
 )

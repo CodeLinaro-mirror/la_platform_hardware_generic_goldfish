@@ -17,6 +17,8 @@
 #include <variant>
 #include <vector>
 
+#include "goldfish/archive/reader.h"
+#include "goldfish/archive/writer.h"
 #include "goldfish/async/event_loop.h"
 #include "goldfish/async/event_loop_dispatcher.h"
 #include "goldfish/display/display.h"
@@ -71,6 +73,10 @@ class IMultiDisplay : public LoopBoundCallbackSource<DisplayEvent> {
             : LoopBoundCallbackSource<DisplayEvent>(loop), loop_(loop) {}
     virtual ~IMultiDisplay() = default;
 
+    virtual absl::Status Save(archive::IWriter& writer) const = 0;
+    virtual absl::Status Load(archive::IReader& reader) = 0;
+    virtual void Reset() = 0;
+
     /**
      * @brief Creates a new IDisplay object and adds it to the managed collection.
      *
@@ -102,6 +108,16 @@ class IMultiDisplay : public LoopBoundCallbackSource<DisplayEvent> {
     virtual absl::StatusOr<DisplayPtr> GetDisplay(DisplayId display_id) const = 0;
 
     /**
+     * @brief Returns whether a display is active.
+     */
+    virtual bool IsActive(DisplayId display_id) const = 0;
+
+    /**
+     * @brief Sets whether a display is active.
+     */
+    virtual absl::Status SetActive(DisplayId display_id, bool active) = 0;
+
+    /**
      * @brief Gets an active IDisplay object, potentially redirecting from display 0 to 1
      *        if the device is a foldable and display 0 is inactive.
      *
@@ -110,6 +126,32 @@ class IMultiDisplay : public LoopBoundCallbackSource<DisplayEvent> {
      * @return absl::StatusOr<SharedDisplay> containing the display if found and active.
      */
     absl::StatusOr<SharedDisplay> GetActiveDisplay(DisplayId display_id, bool has_hinge) const;
+
+    /**
+     * @brief Sets the global foldable state for the emulator.
+     */
+    virtual void SetFolded(bool folded) = 0;
+
+    /**
+     * @brief Returns whether the emulator is in a folded state.
+     */
+    virtual bool IsFolded() const = 0;
+
+    /**
+     * @brief Sets the current display mode (e.g. PHONE, FOLDABLE, TABLET).
+     *        This can block as it sometimes will need to transit folded state
+     *        to unfolded state first and then to other display mode afterwards;
+     *        so it should not be run in qemu main thread, vcpu thread or event looper
+     */
+    virtual void SetDisplayMode(uint32_t mode, uint32_t width, uint32_t height, uint32_t dpi,
+                                uint32_t guest_mode_id) = 0;
+
+    /**
+     * @brief Gets the current display mode.
+     */
+    virtual uint32_t GetDisplayMode() const = 0;
+
+    static constexpr uint32_t kDisplayModeFoldable = 1;
 
     /**
      * @brief Erases an IDisplay object from the managed collection and destroys it.
@@ -151,15 +193,10 @@ class IMultiDisplay : public LoopBoundCallbackSource<DisplayEvent> {
 
     static constexpr size_t kMaxDisplays = 11;  ///< Maximum number of supported Android displays.
 
+    static std::unique_ptr<IMultiDisplay> Create(EventLoop* loop, EventLoop* qemu_loop);
+
   protected:
     EventLoop* loop_;
-
-  private:
-    static std::atomic<IMultiDisplay*> g_singleton;
 };
-
-namespace qemu_multidisplay {
-void ConfigureMultiDisplay(EventLoop* loop, EventLoop* qemu_loop);
-}
 
 }  // namespace goldfish::display

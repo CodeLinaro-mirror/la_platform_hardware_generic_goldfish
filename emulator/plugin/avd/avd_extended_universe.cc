@@ -14,11 +14,16 @@
 
 #include "avd_extended_universe.h"
 
+#include "android/base/system.h"
 #include "android/crashreport/crash_reporter.h"
+#include "goldfish/archive/reader.h"
+#include "goldfish/archive/writer.h"
 #include "goldfish/async/qemu_event_loop.h"
 #include "goldfish/async/testing/global_event_loop.h"
 #include "goldfish/avd_info/gralloc_impl.h"
+#include "goldfish/devices/vehicle/vehicle_device.h"
 #include "goldfish/display/QemuMultidisplay/multi_display.h"
+#include "goldfish/tools/aemu_version.h"
 #include "goldfish/vsock/clear.h"
 
 // clang-format off
@@ -37,6 +42,7 @@ extern "C" {
 namespace goldfish::avd_info {
 
 using devices::boot::EventLoop;
+using namespace goldfish::archive;
 
 namespace {
 
@@ -58,6 +64,26 @@ std::vector<VCpuEventLoop> createVCpuEventLoops() {
     return loops;
 }
 
+std::string GetCurrentVkIcd() {
+    std::string vk_icd = android::base::System::Get()->GetEnvironmentVariable("ANDROID_EMU_VK_ICD");
+    return vk_icd;
+}
+
+// note: when the avd is moved to different location,
+// the path (such as disk_systemPartition_initPath, or disk_systemPartition_path)
+// will change, and that is typical use case
+// and should not invalidate snapshot; firstboot properties
+// are deprecated and not a factor to consider either.
+// in addition, the avd home or sdk root are not valid reason
+// to invalidet snapshot. we will likely add more factors to
+// ignore in the future. after the exclude, most of the properties
+// are important such as all the ones start with hw_, or size related
+bool IsExcludedProp(std::string_view name) {
+    return name.find("path") != std::string_view::npos ||
+           name.find("Path") != std::string_view::npos || name.find("firstboot") == 0 ||
+           name == "android_sdk_root" || name == "android_sdk_home" || name == "android_avd_home";
+}
+
 }  // namespace
 
 AvdExtendedUniverse::AvdExtendedUniverse(std::unique_ptr<AvdProperties> props)
@@ -66,27 +92,6 @@ AvdExtendedUniverse::AvdExtendedUniverse(std::unique_ptr<AvdProperties> props)
     const AvdProperties& avd_props = avd_universe.Props();
 
     LOG(INFO) << "Loaded avd directory: " << avd_props.avd_content_path;
-
-    if (!avd_props.snapshot_name.empty()) {
-        auto bootstatus_ini = avd_props.avd_content_path / "snapshots" / avd_props.snapshot_name /
-                              "bootstatus.ini";
-        if (std::filesystem::exists(bootstatus_ini)) {
-            avd_universe.GetGuestStatus().bootcomplete.SetValue(absl::Now());
-        }
-
-        avd_universe.bootcomplete_subscription = android::base::eventing::MakeScopedCallback(
-                avd_universe.GetGuestStatus().bootcomplete, [bootstatus_ini](absl::Time time) {
-                    if (time != absl::UnixEpoch()) {
-                        std::error_code ec;
-                        std::filesystem::create_directories(bootstatus_ini.parent_path(), ec);
-                        std::ofstream ofs(bootstatus_ini);
-                        if (ofs) {
-                            ofs << "bootcomplete=1\n";
-                        }
-                    }
-                });
-    }
-
     auto* client_loop = goldfish::async::globalEventLoop();
 
     avd_universe.metrics_reporter =
@@ -98,6 +103,7 @@ AvdExtendedUniverse::AvdExtendedUniverse(std::unique_ptr<AvdProperties> props)
     avd_universe.metrics_ping_timer = client_loop->ScheduleRepeating(
             [metrics_reporter = avd_universe.metrics_reporter.get()] {
                 metrics_reporter->Report([](android_studio::AndroidStudioEvent& event) {});
+                return true;
             },
             0s, 300s);
 
@@ -133,13 +139,18 @@ AvdExtendedUniverse::AvdExtendedUniverse(std::unique_ptr<AvdProperties> props)
 
     namespace DEVS = ::goldfish::devices;
 
+    avd_universe.GetGuestStatus().SetGrpcNotificationChannel(
+            &avd_universe.GetGrpcNotificationChannel());
+
     DEVS::sensor::ISensorDevice::RegisterDevice(&avd_universe.GetSensorsPhysicalModel(), registry,
                                                 avd_props.avd_type, avd_props.avd_api,
                                                 avd_props.hw_config, client_loop, qemu_loop.get());
     DEVS::clipboard::IClipboardDevice::RegisterDevice(&avd_universe.GetClipboardChannel(), registry,
                                                       client_loop, qemu_loop.get());
+    DEVS::vehicle::IVehicleDevice::RegisterDevice(&avd_universe.GetVehicleChannel(), registry,
+                                                  client_loop, qemu_loop.get());
     DEVS::guest_status::IGuestStatusDevice::RegisterDevice(
-            &avd_universe.GetGuestStatus(), &avd_universe.GetGrpcNotificationChannel(), registry,
+            &avd_universe.GetGuestStatus(), registry,
             {qemu_register_reset, BqlSafeUnregisterEmulatorReset}, client_loop, qemu_loop.get(),
             avd_props.quit_after_boot_timeout_seconds);
     DEVS::fingerprint::IFingerprintDevice::RegisterDevice(&avd_universe.GetFingerprintSensor(),
@@ -174,7 +185,7 @@ AvdExtendedUniverse::AvdExtendedUniverse(std::unique_ptr<AvdProperties> props)
     DEVS::unix_pipe::IUnixPipe::RegisterDevice(&avd_universe.test_tools_connector_registry,
                                                client_loop, qemu_loop.get());
 
-    display::qemu_multidisplay::ConfigureMultiDisplay(client_loop, qemu_loop.get());
+    avd_universe.multi_display = display::IMultiDisplay::Create(client_loop, qemu_loop.get());
 
     // Initialize the battery to a default state and register it.
     avd_universe.battery_subscription = DEVS::battery::RegisterBattery(
@@ -190,6 +201,17 @@ AvdExtendedUniverse::~AvdExtendedUniverse() {
     }
 
     goldfish::vsock::clear();
+
+    {
+        auto& hd = android::crashreport::CrashReporter::GetCrashingHangDetector();
+
+        for (auto& loop : qemu_cpu_loops) {
+            hd.RemoveWatchedLooper(loop);
+        }
+
+        hd.RemoveWatchedLooper(*qemu_event_loop);
+    }
+
     WaitUntilEventLoopsIdle();
     ShutdownQemuLoop();
 }
@@ -237,30 +259,269 @@ goldfish::metrics::MetricsReporter& AvdExtendedUniverse::GetMetricsReporter() {
     return *metrics_reporter;
 }
 
-void AvdExtendedUniverse::OnPreSave() {
-    // TODO
+display::IMultiDisplay& AvdExtendedUniverse::GetMultiDisplay() const {
+    return *multi_display;
 }
 
-absl::Status AvdExtendedUniverse::OnSave(archive::IWriter&) const {
-    // TODO
+absl::Status AvdExtendedUniverse::OnSave(archive::IWriter& writer) const {
+    OnSaveProps(writer);
+    OnSavePhysicalState(writer);
+
+    if (auto s = GetMultiDisplay().Save(writer); !s.ok()) {
+        LOG(WARNING) << "Failed to save multidisplay state: " << s;
+        return absl::UnknownError("-1");
+    }
+
     return absl::OkStatus();
 }
 
-void AvdExtendedUniverse::OnPostSave() {
-    // TODO
+void AvdExtendedUniverse::OnSaveProps(archive::IWriter& writer) const {
+    const auto& p = Props();
+    constexpr std::string_view platform = PLATFORM " (" TARGET_CPU "), " COMPILATION_MODE;
+    std::string vk_icd = GetCurrentVkIcd();
+    LOG(INFO) << "Saving AvdProperties: "
+              << "avd_abi=" << p.avd_abi << ", "
+              << "avd_api=" << p.avd_api << ", "
+              << "build_sdk=" << p.build_sdk << ", "
+              << "build_id=" << p.build_id << ", "
+              << "build_flavour=" << p.build_flavour << ", "
+              << "emulator_full_version=" << EMULATOR_FULL_VERSION_STRING << ", "
+              << "emulator_version=" << VERSION << ", "
+              << "emulator_build_id=" << BUILD_ID << ", "
+              << "emulator_platform=" << platform << ", "
+              << "emulator_vk_icd=" << vk_icd;
+
+    writer << p.avd_abi;
+    writer << p.avd_api;
+    writer << p.build_sdk;
+    writer << p.build_id;
+    writer << p.build_flavour;
+    writer << std::string_view(EMULATOR_FULL_VERSION_STRING);
+    writer << std::string_view(VERSION);
+    writer << std::string_view(BUILD_ID);
+    writer << platform;
+    writer << vk_icd;
+
+    class HwCfgWriterVisitor {
+      public:
+        HwCfgWriterVisitor(archive::IWriter& writer) : mWriter(writer) {}
+
+        void operator()(const char* name, bool val) {
+            if (!IsExcludedProp(name)) {
+                mWriter << val;
+                LOG(INFO) << "Saving HWCFG: " << name << "=" << val;
+            } else {
+                LOG(INFO) << "Not saving HWCFG: " << name << " (excluded)";
+            }
+        }
+        void operator()(const char* name, int32_t val) {
+            if (!IsExcludedProp(name)) {
+                mWriter << val;
+                LOG(INFO) << "Saving HWCFG: " << name << "=" << val;
+            } else {
+                LOG(INFO) << "Not saving HWCFG: " << name << " (excluded)";
+            }
+        }
+        void operator()(const char* name, const std::string& val) {
+            if (!IsExcludedProp(name)) {
+                mWriter << val;
+                LOG(INFO) << "Saving HWCFG: " << name << "=" << val;
+            } else {
+                LOG(INFO) << "Not saving HWCFG: " << name << " (excluded)";
+            }
+        }
+        void operator()(const char* name, double val) {
+            if (!IsExcludedProp(name)) {
+                mWriter << val;
+                LOG(INFO) << "Saving HWCFG: " << name << "=" << val;
+            } else {
+                LOG(INFO) << "Not saving HWCFG: " << name << " (excluded)";
+            }
+        }
+        void operator()(const char* name, const android::goldfish::StorageCapacity& val) {
+            if (!IsExcludedProp(name)) {
+                mWriter << static_cast<uint64_t>(val.Bytes());
+                LOG(INFO) << "Saving HWCFG: " << name << "=" << val.Bytes();
+            } else {
+                LOG(INFO) << "Not saving HWCFG: " << name << " (excluded)";
+            }
+        }
+
+      private:
+        archive::IWriter& mWriter;
+    };
+
+    HwCfgWriterVisitor visitor(writer);
+    p.hw_config.Accept(visitor);
 }
 
-void AvdExtendedUniverse::OnPreLoad() {
-    // TODO
+void AvdExtendedUniverse::OnSavePhysicalState(archive::IWriter& writer) const {
+    // TODO: sensors_physical_model_
+    writer << battery_ << guest_status_ << location_;
 }
 
-absl::Status AvdExtendedUniverse::OnLoad(archive::IReader&) {
-    // TODO
+absl::Status AvdExtendedUniverse::OnLoad(archive::IReader& reader) {
+    RETURN_IF_ERROR(OnLoadProps(reader));
+    RETURN_IF_ERROR(OnLoadPhysicalState(reader));
+
+    if (absl::Status s = GetMultiDisplay().Load(reader); !s.ok()) {
+        LOG(WARNING) << "Failed to load multidisplay state: " << s;
+        return s;
+    }
     return absl::OkStatus();
+}
+
+absl::Status AvdExtendedUniverse::OnLoadProps(archive::IReader& reader) {
+    const auto& p = Props();
+    bool ok = true;
+
+    auto check_int32 = [&](const char* name, int32_t val) {
+        int32_t loaded = 0;
+        if (const absl::Status s = ReadValue(reader, loaded); s.ok()) {
+            if (loaded != val) {
+                LOG(WARNING) << "Property mismatch: " << name << " (loaded: " << loaded
+                             << ", expected: " << val << ")";
+                ok = false;
+            }
+        } else {
+            LOG(WARNING) << "Could not load the '" << name << "' property: " << s;
+            ok = false;
+        }
+    };
+    auto check_str = [&](const char* name, const std::string& val) {
+        std::string loaded;
+        if (const absl::Status s = ReadValue(reader, loaded); s.ok()) {
+            if (loaded != val) {
+                LOG(WARNING) << "Property mismatch: " << name << " (loaded: " << loaded
+                             << ", expected: " << val << ")";
+                ok = false;
+            }
+        } else {
+            LOG(WARNING) << "Could not load the '" << name << "' property: " << s;
+            ok = false;
+        }
+    };
+
+    constexpr std::string_view platform = PLATFORM " (" TARGET_CPU "), " COMPILATION_MODE;
+    check_str("avd_abi", p.avd_abi);
+    check_int32("avd_api", p.avd_api);
+    check_str("build_sdk", p.build_sdk);
+    check_str("build_id", p.build_id);
+    check_str("build_flavour", p.build_flavour);
+    check_str("emulator_full_version", EMULATOR_FULL_VERSION_STRING);
+    check_str("emulator_version", VERSION);
+    check_str("emulator_build_id", BUILD_ID);
+    check_str("emulator_platform", std::string(platform));
+
+    std::string current_vk_icd = GetCurrentVkIcd();
+    std::string loaded_vk_icd;
+    if (const absl::Status s = ReadValue(reader, loaded_vk_icd); s.ok()) {
+        if (loaded_vk_icd != current_vk_icd) {
+            LOG(WARNING) << "Property mismatch: emulator_vk_icd (loaded: " << loaded_vk_icd
+                         << ", expected: " << current_vk_icd << ")";
+            ok = false;
+        }
+    } else {
+        LOG(WARNING) << "Could not load the 'emulator_vk_icd' property: " << s;
+        ok = false;
+    }
+
+    class HwCfgReaderVisitor {
+      public:
+        HwCfgReaderVisitor(archive::IReader& reader, bool& ok) : mReader(reader), mOk(ok) {}
+
+        void operator()(const char* name, bool val) {
+            if (IsExcludedProp(name)) return;
+            bool loaded = false;
+            if (const absl::Status s = ReadValue(mReader, loaded); s.ok()) {
+                if (loaded != val) {
+                    LOG(WARNING) << "Property mismatch: " << name << " (loaded: " << loaded
+                                 << ", expected: " << val << ")";
+                    mOk = false;
+                }
+            } else {
+                LOG(WARNING) << "Could not load the '" << name << "' property: " << s;
+                mOk = false;
+            }
+        }
+        void operator()(const char* name, int32_t val) {
+            if (IsExcludedProp(name)) return;
+            int32_t loaded = 0;
+            if (const absl::Status s = ReadValue(mReader, loaded); s.ok()) {
+                if (loaded != val) {
+                    LOG(WARNING) << "Property mismatch: " << name << " (loaded: " << loaded
+                                 << ", expected: " << val << ")";
+                    mOk = false;
+                }
+            } else {
+                LOG(WARNING) << "Could not load the '" << name << "' property: " << s;
+                mOk = false;
+            }
+        }
+        void operator()(const char* name, const std::string& val) {
+            if (IsExcludedProp(name)) return;
+            std::string loaded;
+            if (const absl::Status s = ReadValue(mReader, loaded); s.ok()) {
+                if (loaded != val) {
+                    LOG(WARNING) << "Property mismatch: " << name << " (loaded: " << loaded
+                                 << ", expected: " << val << ")";
+                    mOk = false;
+                }
+            } else {
+                LOG(WARNING) << "Could not load the '" << name << "' property: " << s;
+                mOk = false;
+            }
+        }
+        void operator()(const char* name, double val) {
+            if (IsExcludedProp(name)) return;
+            double loaded = 0;
+            if (const absl::Status s = ReadValue(mReader, loaded); s.ok()) {
+                if (loaded != val) {
+                    LOG(WARNING) << "Property mismatch: " << name << " (loaded: " << loaded
+                                 << ", expected: " << val << ")";
+                    mOk = false;
+                }
+            } else {
+                LOG(WARNING) << "Could not load the '" << name << "' property: " << s;
+                mOk = false;
+            }
+        }
+        void operator()(const char* name, const android::goldfish::StorageCapacity& val) {
+            if (IsExcludedProp(name)) return;
+            uint64_t loaded = 0;
+            if (const absl::Status s = ReadValue(mReader, loaded); s.ok()) {
+                if (loaded != val.Bytes()) {
+                    LOG(WARNING) << "Property mismatch: " << name << " (loaded: " << loaded
+                                 << ", expected: " << val.Bytes() << ")";
+                    mOk = false;
+                }
+            } else {
+                LOG(WARNING) << "Could not load the '" << name << "' property: " << s;
+                mOk = false;
+            }
+        }
+
+      private:
+        archive::IReader& mReader;
+        bool& mOk;
+    };
+
+    HwCfgReaderVisitor visitor(reader, ok);
+    p.hw_config.Accept(visitor);
+
+    if (!ok) {
+        return absl::UnknownError("-1");
+    }
+    return absl::OkStatus();
+}
+
+absl::Status AvdExtendedUniverse::OnLoadPhysicalState(archive::IReader& reader) {
+    // TODO: sensors_physical_model_
+    return ReadValue(reader, battery_, guest_status_, location_);
 }
 
 absl::Status AvdExtendedUniverse::OnPostLoad() {
-    // TODO
+    guest_status_.OnPostLoad();
     return absl::OkStatus();
 }
 

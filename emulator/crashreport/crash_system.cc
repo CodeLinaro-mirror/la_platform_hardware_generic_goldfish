@@ -20,15 +20,16 @@
 #include <thread>
 #include <vector>
 
-#include "absl/log/log.h"
 #include "absl/strings/str_cat.h"
 
 #include "android/base/system.h"
 #include "android/crashreport/crash_uploader.h"
 #include "android/process/process.h"
 #include "base/files/file_path.h"
+#include "base/logging.h"
 #include "client/crash_report_database.h"
 #include "client/crashpad_client.h"
+#include "client/crashpad_info.h"
 #include "client/settings.h"
 #include "goldfish/tools/aemu_version.h"
 #include "util/misc/uuid.h"
@@ -79,6 +80,16 @@ class CrashSystemImpl : public CrashSystem {
         std::vector<std::string> args = {"--no-rate-limit"};
 #ifdef __APPLE__
         args.emplace_back(absl::StrCat("--monitor-pid=", System::Get()->GetCurrentProcessPid()));
+#endif
+#ifdef _WIN32
+        // Disable indirectly referenced memory capture on Windows to prevent minidump bloat.
+        // This avoids scanning thread stacks for pointers and capturing arbitrary memory pages,
+        // significantly reducing disk I/O and upload payload sizes.
+        crashpad::CrashpadInfo* crashpad_info = crashpad::CrashpadInfo::GetCrashpadInfo();
+        if (crashpad_info) {
+            crashpad_info->set_gather_indirectly_referenced_memory(crashpad::TriState::kDisabled,
+                                                                   0);
+        }
 #endif
         const bool active = client_->StartHandler(::base::FilePath(handler_path.native()),
                                                   file_path, metrics_path, kCrashUrl, annotations,

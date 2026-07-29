@@ -160,6 +160,11 @@ class IDisplay : public FrameInfoCallbackSource,
     uint32_t Flags() const { return flags_; }
 
     /**
+     * @brief Actively disconnects the display from underlying network/looper endpoints.
+     */
+    virtual void Disconnect() {}
+
+    /**
      * Calculates new dimensions to fit a box while preserving aspect ratio.
      * The box dimensions (desired_width, desired_height) are logical dimensions,
      * which means they can be rotated relative to the physical display dimensions.
@@ -253,15 +258,6 @@ class IDisplay : public FrameInfoCallbackSource,
      */
     virtual void SendEvDevEvent(uint16_t type, uint16_t code, uint32_t value) = 0;
 
-    // True if it is active (i.e. connected)
-    virtual bool Active() const { return active_; }
-
-    /**
-     * @brief Sets the active status of the display.
-     * @param active True to activate, false to deactivate.
-     */
-    virtual void SetActive(bool active) { active_ = active; }
-
     virtual QemuConsole* GetConsole() const { return nullptr; }
 
     void SetDimensions(Dimensions dim) {
@@ -307,9 +303,12 @@ class IDisplay : public FrameInfoCallbackSource,
 
     virtual std::string String() const;
 
-    IDisplay(EventLoop* loop, uint8_t id, uint32_t width, uint32_t height)
+    IDisplay(EventLoop* loop, uint8_t id, uint32_t width, uint32_t height, uint32_t dpi = 0,
+             uint32_t flags = 0)
             : FrameInfoCallbackSource(loop)
             , ResizeEventCallbackSource(loop)
+            , dpi_(dpi)
+            , flags_(flags)
             , display_id_(id)
             , dimensions_({.width = width, .height = height}) {}
 
@@ -319,7 +318,6 @@ class IDisplay : public FrameInfoCallbackSource,
     uint32_t dpi_{0};
     uint32_t flags_{0};
     const uint8_t display_id_;
-    bool active_{true};
 
   private:
     Dimensions dimensions_ ABSL_GUARDED_BY(dimension_mutex_);

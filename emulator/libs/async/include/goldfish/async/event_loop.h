@@ -26,6 +26,8 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 
+#include "android/crashreport/thread.h"
+#include "goldfish/async/looper_breadcrumb_tracker.h"
 #include "goldfish/eventing/event_sources.h"
 
 namespace goldfish::async {
@@ -82,6 +84,7 @@ class EventLoop : public CallbackEventSource<LooperStatusEvent> {
      * without the overhead or copy restrictions of std::function.
      */
     using Task = absl::AnyInvocable<void()>;
+    using RepeatingTask = absl::AnyInvocable<bool()>;
 
     /**
      * @brief An opaque handle to a scheduled task.
@@ -129,7 +132,8 @@ class EventLoop : public CallbackEventSource<LooperStatusEvent> {
      * @brief Construct a new EventLoop object with a name.
      * @param name The name of the event loop.
      */
-    explicit EventLoop(std::string name) : name_(std::move(name)) {}
+    explicit EventLoop(std::string name)
+            : name_(std::move(name)), tracker_(std::make_unique<LooperBreadcrumbTracker>(name_)) {}
 
     virtual ~EventLoop() = default;
 
@@ -191,14 +195,50 @@ class EventLoop : public CallbackEventSource<LooperStatusEvent> {
      * @param f The callable object to execute.
      * @param delay The duration to wait before executing the task. A delay of
      * zero executes the task as soon as possible.
+     * @param options Configuration options specifying task metadata for diagnostics.
      * @return A std::future that will be fulfilled with the return value of the task.
      */
     template <typename F>
-    auto Post(F&& f, std::chrono::milliseconds delay = std::chrono::milliseconds::zero())
+    auto Post(F&& f, std::chrono::milliseconds delay = std::chrono::milliseconds::zero(),
+              PostOptions options = {})
+            -> absl::StatusOr<std::future<decltype(std::forward<F>(f)())>> {
+        if (options.caller_pc == 0) {
+            options.caller_pc = __builtin_return_address(0);
+        }
+        return PostWithOptions<F>(std::forward<F>(f), delay, options);
+    }
+
+    /**
+     * @brief Posts a callable object with a custom context label.
+     *
+     * This is a convenience overload of Post() that automatically sets the PostOptions
+     * context label and retrieves the caller's program counter.
+     *
+     * @tparam F The type of the callable object.
+     * @param f The callable object to execute.
+     * @param delay The duration to wait before execution.
+     * @param context A label describing the source or purpose of the task.
+     * @return A std::future that will be fulfilled with the return value of the task.
+     */
+    template <typename F>
+    auto Post(F&& f, std::chrono::milliseconds delay, std::string_view context)
+            -> absl::StatusOr<std::future<decltype(std::forward<F>(f)())>> {
+        return Post(std::forward<F>(f), delay,
+                    PostOptions{.caller_pc = __builtin_return_address(0), .context = context});
+    }
+
+  private:
+    template <typename F>
+    auto PostWithOptions(F&& f, std::chrono::milliseconds delay, const PostOptions& options)
             -> absl::StatusOr<std::future<decltype(std::forward<F>(f)())>> {
         using ReturnType = decltype(std::forward<F>(f)());
         std::promise<ReturnType> promise;
         auto future = promise.get_future();
+
+        FlowId flow_id = 0;
+        if (tracker_) {
+            flow_id = tracker_->LogPost(options);
+        }
 
         // This lambda will be executed on the event loop thread.
         auto task_runner = [promise = std::move(promise), f = std::forward<F>(f)]() mutable {
@@ -212,9 +252,9 @@ class EventLoop : public CallbackEventSource<LooperStatusEvent> {
 
         absl::Status s;
         if (delay == std::chrono::milliseconds::zero()) {
-            s = PostImmediately(std::move(task_runner));
+            s = PostImmediately(std::move(task_runner), flow_id);
         } else {
-            s = PostDelayed(std::move(task_runner), delay);
+            s = PostDelayed(std::move(task_runner), delay, flow_id);
         }
         if (!s.ok()) {
             return s;
@@ -223,6 +263,7 @@ class EventLoop : public CallbackEventSource<LooperStatusEvent> {
         return future;
     }
 
+  public:
     /**
      * @brief Posts a task to the event loop and blocks the calling thread
      * until the task is complete.
@@ -238,7 +279,10 @@ class EventLoop : public CallbackEventSource<LooperStatusEvent> {
             LOG(FATAL) << "postAndWait cannot be called from the event loop.";
         }
 
-        if (auto future = Post<F>(std::forward<F>(task)); future.ok()) {
+        StackAddress pc = __builtin_return_address(0);
+        if (auto future = Post<F>(std::forward<F>(task), std::chrono::milliseconds::zero(),
+                                  PostOptions{.caller_pc = pc});
+            future.ok()) {
             if constexpr (std::is_void_v<decltype(task())>) {
                 future->get();
                 return absl::OkStatus();
@@ -255,7 +299,7 @@ class EventLoop : public CallbackEventSource<LooperStatusEvent> {
      * @param task The task to execute.
      * @return A shared pointer to a Timer handle for scheduling and cancellation.
      */
-    virtual std::shared_ptr<Timer> CreateTimer(Task task) = 0;
+    virtual std::shared_ptr<Timer> CreateTimer(RepeatingTask task) = 0;
 
     /**
      * @brief Schedules a cancellable task to be executed once after a delay.
@@ -264,7 +308,12 @@ class EventLoop : public CallbackEventSource<LooperStatusEvent> {
      * @return A shared pointer to a Timer handle for cancellation.
      */
     std::shared_ptr<Timer> ScheduleDelayed(Task task, std::chrono::milliseconds delay) {
-        return ScheduleRepeating(std::move(task), delay, std::chrono::milliseconds::zero());
+        return ScheduleRepeating(
+                [task = std::move(task)]() mutable {
+                    task();
+                    return true;
+                },
+                delay, std::chrono::milliseconds::zero());
     }
 
     /**
@@ -274,7 +323,8 @@ class EventLoop : public CallbackEventSource<LooperStatusEvent> {
      * @param interval The time between subsequent executions.
      * @return A shared pointer to a Timer handle for cancellation.
      */
-    std::shared_ptr<Timer> ScheduleRepeating(Task task, std::chrono::milliseconds initial_delay,
+    std::shared_ptr<Timer> ScheduleRepeating(RepeatingTask task,
+                                             std::chrono::milliseconds initial_delay,
                                              std::chrono::milliseconds interval) {
         auto timer = CreateTimer(std::move(task));
         timer->Schedule(initial_delay, interval);
@@ -292,9 +342,17 @@ class EventLoop : public CallbackEventSource<LooperStatusEvent> {
      */
     virtual LooperStatusEvent::State GetState() const { return state_; }
 
+    /**
+     * @brief Accesses the associated looper breadcrumb tracker.
+     *
+     * @return A pointer to the LooperBreadcrumbTracker instance, or nullptr if disabled.
+     */
+    LooperBreadcrumbTracker* tracker() const { return tracker_.get(); }
+
   protected:
-    virtual absl::Status PostImmediately(Task task) = 0;
-    virtual absl::Status PostDelayed(Task task, std::chrono::milliseconds delay) = 0;
+    virtual absl::Status PostImmediately(Task task, FlowId flow_id) = 0;
+    virtual absl::Status PostDelayed(Task task, std::chrono::milliseconds delay,
+                                     FlowId flow_id) = 0;
 
     void SetState(LooperStatusEvent::State new_state) {
         const LooperStatusEvent::State old_state = state_.exchange(new_state);
@@ -306,6 +364,7 @@ class EventLoop : public CallbackEventSource<LooperStatusEvent> {
   private:
     std::string name_;
     std::atomic<LooperStatusEvent::State> state_{LooperStatusEvent::State::kNotStarted};
+    std::unique_ptr<LooperBreadcrumbTracker> tracker_;
 };
 
 }  // namespace goldfish::async

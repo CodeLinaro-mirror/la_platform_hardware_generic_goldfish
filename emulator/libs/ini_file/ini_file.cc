@@ -33,6 +33,8 @@ namespace android::goldfish {
 
 namespace fs = std::filesystem;
 
+using base::StorageCapacity;
+
 IniFile::IniFile(const char* data, int size) {
     ReadFromMemory(std::string_view(data, size));
 }
@@ -400,45 +402,22 @@ bool IsBoolFalse(std::string_view value) {
 }
 
 // If not nullptr, |*out_malformed| is set to true if |value_str| is malformed.
-IniFile::DiskSize ParseDiskSize(std::string_view value_str, IniFile::DiskSize default_value,
-                                bool* out_malformed) {
-    if (out_malformed) {
-        *out_malformed = false;
-    }
-
-    char* end;
-    errno = 0;
-    const std::string safe_str = std::string(value_str);
-    IniFile::DiskSize result = strtoll(safe_str.c_str(), &end, 10);
-    bool malformed = (errno != 0);
-    if (!malformed) {
-        switch (*end) {
-        case 0:
-            break;
-        case 'k':
-        case 'K':
-            result *= 1024ULL;
-            break;
-        case 'm':
-        case 'M':
-            result *= 1024 * 1024ULL;
-            break;
-        case 'g':
-        case 'G':
-            result *= 1024ULL * 1024 * 1024;
-            break;
-        default:
-            malformed = true;
+StorageCapacity ParseDiskSize(std::string_view value_str, StorageCapacity default_value,
+                              bool* out_malformed) {
+    const auto parsed = StorageCapacity::Parse(value_str);
+    if (parsed.ok()) {
+        if (out_malformed) {
+            *out_malformed = false;
         }
-    }
 
-    if (malformed) {
+        return *parsed;
+    } else {
         if (out_malformed) {
             *out_malformed = true;
         }
+
         return default_value;
     }
-    return result;
 }
 
 }  // namespace
@@ -515,20 +494,19 @@ bool IniFile::GetBool(std::string_view key, bool default_value) const {
 bool IniFile::GetBool(std::string_view key, std::string_view default_value) const {
     return GetBool(key, IsBoolTrue(default_value));
 }
-IniFile::DiskSize IniFile::GetDiskSize(std::string_view key,
-                                       IniFile::DiskSize default_value) const {
+StorageCapacity IniFile::GetDiskSize(std::string_view key, StorageCapacity default_value) const {
     auto value = GetString(key);
     if (value.empty()) {
         return default_value;
     }
     bool malformed = false;
-    const IniFile::DiskSize result = ParseDiskSize(value, default_value, &malformed);
+    StorageCapacity result = ParseDiskSize(value, default_value, &malformed);
 
     LOG_IF(INFO, malformed) << "Malformed DiskSize value " << value << " for key " << key;
     return result;
 }
 
-IniFile::DiskSize IniFile::GetDiskSize(std::string_view key, std::string_view default_value) const {
+StorageCapacity IniFile::GetDiskSize(std::string_view key, std::string_view default_value) const {
     return GetDiskSize(key, ParseDiskSize(default_value, 0, nullptr));
 }
 
@@ -560,28 +538,8 @@ void IniFile::SetBool(std::string key, bool value) {
     UpdateData(std::move(key), value ? "true" : "false");
 }
 
-void IniFile::SetDiskSize(std::string key, DiskSize value) {
-    static const DiskSize kKilo = 1024;
-    static const DiskSize kMega = 1024 * kKilo;
-    static const DiskSize kGiga = 1024 * kMega;
-
-    char suffix = 0;
-    if (value >= kGiga && !(value % kGiga)) {
-        value /= kGiga;
-        suffix = 'g';
-    } else if (value >= kMega && !(value % kMega)) {
-        value /= kMega;
-        suffix = 'm';
-    } else if (value >= kKilo && !(value % kKilo)) {
-        value /= kKilo;
-        suffix = 'k';
-    }
-
-    auto value_str = std::to_string(value);
-    if (suffix) {
-        value_str += suffix;
-    }
-    UpdateData(std::move(key), std::move(value_str));
+void IniFile::SetDiskSize(std::string key, StorageCapacity value) {
+    UpdateData(std::move(key), value.String());
 }
 
 }  // namespace android::goldfish

@@ -21,6 +21,8 @@
 
 #include "android/crashreport/breadcrumbs/breadcrumb_trace.h"
 #include "android/crashreport/breadcrumbs/trace_renderer_factory.h"
+#include "google_breakpad/processor/code_modules.h"
+#include "google_breakpad/processor/source_line_resolver_interface.h"
 
 namespace android::crashreport::breadcrumbs {
 
@@ -44,9 +46,23 @@ class BreadcrumbProcessor {
      * @return A formatted string containing the forensic report.
      */
     static std::string Process(
+            const std::vector<std::vector<uint8_t>>& buffers, uint64_t crashing_thread_id,
+            TraceRendererFactory::RenderFormat format = TraceRendererFactory::RenderFormat::kText,
+            bool use_color = true, const absl::flat_hash_map<uint64_t, uint64_t>& tid_map = {},
+            google_breakpad::SourceLineResolverInterface* resolver = nullptr,
+            const google_breakpad::CodeModules* modules = nullptr,
+            std::string_view looper_registrations = {});
+
+    static std::string Process(
             const std::vector<uint8_t>& buffer, uint64_t crashing_thread_id,
             TraceRendererFactory::RenderFormat format = TraceRendererFactory::RenderFormat::kText,
-            bool use_color = true, const absl::flat_hash_map<uint64_t, uint64_t>& tid_map = {});
+            bool use_color = true, const absl::flat_hash_map<uint64_t, uint64_t>& tid_map = {},
+            google_breakpad::SourceLineResolverInterface* resolver = nullptr,
+            const google_breakpad::CodeModules* modules = nullptr,
+            std::string_view looper_registrations = {}) {
+        return Process(std::vector<std::vector<uint8_t>>{buffer}, crashing_thread_id, format,
+                       use_color, tid_map, resolver, modules, looper_registrations);
+    }
 };
 
 }  // namespace android::crashreport::breadcrumbs

@@ -1,0 +1,39 @@
+load("@rules_cc//cc:defs.bzl", "cc_test")
+load("//emulator/tools:plugins.bzl", "collect_plugins")
+
+collect_plugins(
+    name = "binplace",
+    output_dir = ".",
+    plugins = [
+        "@glib//glib:glib_shared",
+        "@glib//gmodule:gmodule_shared",
+    ],
+)
+
+cc_test(
+    name = "glib_static_test",
+    srcs = ["glib_test.cc"],
+    data = [":binplace"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//emulator/libs/test:googletest_main",
+        "@glib//glib",
+        "@glib//gmodule",
+    ],
+)
+
+cc_test(
+    name = "glib_dll_test",
+    srcs = ["glib_test.cc"],
+    data = [":binplace"],
+    dynamic_deps = [
+        "@glib//glib:glib_shared",
+        "@glib//gmodule:gmodule_shared",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//emulator/libs/test:googletest_main",
+        "@glib//glib:glib_import",
+        "@glib//gmodule:gmodule_import",
+    ],
+)

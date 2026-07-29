@@ -20,17 +20,16 @@ FakeMultiDisplay::FakeMultiDisplay(EventLoop* loop) : IMultiDisplay(loop) {
 }
 
 absl::StatusOr<DisplayPtr> FakeMultiDisplay::CreateDisplay(DisplayId display_id, uint32_t width,
-                                                           uint32_t height,
-                                                           [[maybe_unused]] uint32_t dpi,
-                                                           [[maybe_unused]] uint32_t flags) {
+                                                           uint32_t height, uint32_t dpi,
+                                                           uint32_t flags) {
     if (displays_.count(display_id)) {
         return absl::InvalidArgumentError(
                 absl::StrFormat("Display with id %d already exists", display_id));
     }
 
-    auto shared_display = ActiveFakePixmanDisplay::CreateShared(loop_, static_cast<int>(display_id),
-                                                                30, static_cast<int>(width),
-                                                                static_cast<int>(height));
+    auto shared_display = ActiveFakePixmanDisplay::CreateShared(
+            loop_, static_cast<int>(display_id), 30, static_cast<int>(width),
+            static_cast<int>(height), dpi, flags);
     displays_[display_id] = shared_display;
 
     FireEvent(DisplayEvent{DisplayEvent::AddedEvent{shared_display}});

@@ -22,7 +22,7 @@
 #include "absl/strings/str_cat.h"
 #include "gmock/gmock.h"
 
-#include "android/base/testing/TestSystem.h"
+#include "android/base/testing/test_system.h"
 #include "android/status/status_matcher_macros.h"
 #include "fake_emulator.h"
 
@@ -39,7 +39,7 @@ TEST(RoDrive, Basic_x86) {
     std::ofstream{image_file};
 
     FakeEmulator emu;
-    EXPECT_CALL(emu.mock_avd(), DetectArchitecture())
+    EXPECT_CALL(emu.mock_avd(), Arch())
             .Times(1)
             .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
 
@@ -64,7 +64,7 @@ TEST(RoDrive, Basic_arm64) {
     std::ofstream{image_file};
 
     FakeEmulator emu;
-    EXPECT_CALL(emu.mock_avd(), DetectArchitecture())
+    EXPECT_CALL(emu.mock_avd(), Arch())
             .Times(1)
             .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kArm));
 
@@ -99,8 +99,7 @@ TEST(RwDrive, Basic_x86) {
     std::ofstream(qcow2Image).close();
 
     FakeEmulator emu;
-    EXPECT_CALL(emu.mock_avd(), DetectArchitecture())
-            .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
+    EXPECT_CALL(emu.mock_avd(), Arch()).WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
 
     RwDrive dev("userdata", "04.0", std::nullopt, userData, qcow2Image, 1024);
     EXPECT_OK(dev.initialize(emu.config()));
@@ -124,8 +123,7 @@ TEST(RwDrive, Basic_arm) {
     std::ofstream(qcow2Image).close();
 
     FakeEmulator emu;
-    EXPECT_CALL(emu.mock_avd(), DetectArchitecture())
-            .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kArm));
+    EXPECT_CALL(emu.mock_avd(), Arch()).WillRepeatedly(testing::Return(Avd::CpuArchitecture::kArm));
 
     RwDrive dev("userdata", "04.0", std::nullopt, userData, qcow2Image, 1024);
     EXPECT_OK(dev.initialize(emu.config()));

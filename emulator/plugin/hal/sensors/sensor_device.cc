@@ -248,7 +248,10 @@ class SensorDevice : public ISensorDevice {
         VLOG(1) << "Starting sensor ticks" << *this;
         this->self_ = shared_from_this();
         // Note, the timer will be scheduled after the guest requests it.
-        timer_ = loop_->CreateTimer([this] { Tick(); });
+        timer_ = loop_->CreateTimer([this] {
+            Tick();
+            return true;
+        });
     };
 
     void Send(std::string_view msg) {

@@ -81,7 +81,7 @@ constexpr std::string_view kEmulatorBinaryName = "emulator";
 
 }  // namespace
 
-absl::StatusOr<EmulatorPaths> ResolveEmulatorPaths(bool verbose, bool include_fishtank) {
+absl::StatusOr<EmulatorPaths> ResolveEmulatorPaths(bool verbose) {
     EmulatorPaths paths;
     ASSIGN_OR_RETURN(const fs::path program_path, GetProgramPath());
     ASSIGN_OR_RETURN(paths.launcher_binary, CheckExists(program_path, "launcher binary"));
@@ -148,10 +148,10 @@ absl::StatusOr<EmulatorPaths> ResolveEmulatorPaths(bool verbose, bool include_fi
     ASSIGN_OR_RETURN(paths.crashpad_handler_binary,
                      CheckExists(paths.binary_directory / AddBinarySuffix("crashpad_handler"),
                                  "crashpad handler"));
-    if (include_fishtank) {
-        ASSIGN_OR_RETURN(paths.fishtank_binary, CheckExists(paths.launcher_directory / "fishtank" /
-                                                                    AddBinarySuffix("fishtank"),
-                                                            "fishtank"));
+    if (auto fishtank = CheckExists(
+                paths.launcher_directory / "fishtank" / AddBinarySuffix("fishtank"), "fishtank");
+        fishtank.ok()) {
+        paths.fishtank_binary = *fishtank;
     }
 
 #ifdef _WIN32
@@ -208,7 +208,7 @@ absl::StatusOr<fs::path> Search(const std::vector<fs::path>& search_paths,
 }  // namespace
 
 absl::StatusOr<SystemImagePaths> ResolveSystemImagePaths(const std::vector<fs::path>& search_paths,
-                                                         const AndroidOptions& opts) {
+                                                         const AndroidOptions& opts, bool android_build) {
     if (opts.verbose) {
         for (const auto& sdk_path : search_paths) {
             LOG(INFO) << "Listing system image search directory (" << sdk_path << "):";
@@ -244,18 +244,18 @@ absl::StatusOr<SystemImagePaths> ResolveSystemImagePaths(const std::vector<fs::p
     if (opts.ramdisk) {
         ASSIGN_OR_RETURN(paths.ramdisk_image, CheckExists(opts.ramdisk, "override ramdisk image"));
     } else {
-        ASSIGN_OR_RETURN(paths.ramdisk_image, Search(search_paths, "ramdisk.img", "ramdisk image"));
+        ASSIGN_OR_RETURN(paths.ramdisk_image, Search(search_paths, android_build ? "ramdisk-qemu.img" : "ramdisk.img", "ramdisk image"));
     }
 
     if (opts.system) {
         ASSIGN_OR_RETURN(paths.system_image, CheckExists(opts.system, "override system image"));
     } else {
-        ASSIGN_OR_RETURN(paths.system_image, Search(search_paths, "system.img", "system image"));
+        ASSIGN_OR_RETURN(paths.system_image, Search(search_paths, android_build ? "system-qemu.img" : "system.img", "system image"));
     }
     if (opts.vendor) {
         ASSIGN_OR_RETURN(paths.vendor_image, CheckExists(opts.vendor, "override vendor image"));
     } else {
-        ASSIGN_OR_RETURN(paths.vendor_image, Search(search_paths, "vendor.img", "vendor image"));
+        ASSIGN_OR_RETURN(paths.vendor_image, Search(search_paths, android_build ? "vendor-qemu.img" : "vendor.img", "vendor image"));
     }
     if (opts.encryption_key) {
         ASSIGN_OR_RETURN(paths.encryption_key_image,

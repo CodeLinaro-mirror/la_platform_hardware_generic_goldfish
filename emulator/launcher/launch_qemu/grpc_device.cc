@@ -37,6 +37,8 @@ absl::Status GrpcDevice::initialize(const EmulatorConfig& emulator) {
                          << "'. Using default port: " << mPort;
         }
     }
+    mEnableToken = emulator.opts().grpc_use_token;
+    mEnableJwt = emulator.opts().grpc_use_jwt;
     if (char* allowlist_str = emulator.opts().grpc_allowlist) {
         if (base::file::exists(allowlist_str)) {
             mAllowlist.assign(allowlist_str);
@@ -60,7 +62,8 @@ std::vector<std::string> GrpcDevice::getQemuParameters(const EmulatorConfig& emu
 
     std::vector<std::pair<std::string, std::string>> params{
         {"port", absl::StrCat(mPort)},
-        {"token", "true"},
+        {"token", mEnableToken ? "true" : "false"},
+        {"jwt", mEnableJwt ? "true" : "false"},
         {"allowlist", allowlist.string()},
         {"discovery_dir", emulator.user_paths().discovery_directory.string()},
         {"launcher_dir", emulator.emulator_paths().launcher_directory.string()}};

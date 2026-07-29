@@ -55,6 +55,35 @@ cc_test(
 )
 
 cc_library(
+    name = "feature_flags",
+    srcs = ["feature_flags.cc"],
+    hdrs = ["include/android/goldfish/feature_flags.h"],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//emulator/libs/metrics:studio_stats_wrapper",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+    ],
+)
+
+cc_test(
+    name = "feature_flags_test",
+    size = "small",
+    srcs = ["feature_flags_test.cc"],
+    deps = [
+        ":feature_flags",
+        "//emulator/libs/status_macros:status_matcher_macros",
+        "//emulator/libs/system",
+        "//emulator/libs/system:test-headers",
+        "//emulator/libs/test:googletest_main",
+        "@abseil-cpp//absl/status:status_matchers",
+    ],
+)
+
+cc_library(
     name = "input_paths",
     srcs = ["input_paths.cc"],
     hdrs = ["include/android/goldfish/input_paths.h"],
@@ -120,6 +149,46 @@ cc_test(
         "//emulator/libs/test:googletest_main",
         "@abseil-cpp//absl/status:status_matchers",
     ],
+)
+
+cc_library(
+    name = "trampoline",
+    srcs = ["trampoline.cc"],
+    hdrs = ["trampoline.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":avd",
+        ":feature_flags",
+        "//emulator/libs/file",
+        "//emulator/libs/process",
+        "//emulator/libs/system",
+        "@abseil-cpp//absl/log",
+    ],
+)
+
+cc_test(
+    name = "trampoline_test",
+    size = "small",
+    srcs = ["trampoline_test.cc"],
+    data = [":fake_launcher_main"],
+    linkopts = select({
+        "@platforms//os:macos": ["-undefined error"],
+        "//conditions:default": [],
+    }),
+    deps = [
+        ":mock_avd",
+        ":trampoline",
+        "//emulator/libs/system",
+        "//emulator/libs/system:bazel_info",
+        "//emulator/libs/system:test-headers",
+        "//emulator/libs/test:googletest_main",
+    ],
+)
+
+cc_binary(
+    name = "fake_launcher_main",
+    testonly = True,
+    srcs = ["fake_launcher_main.cc"],
 )
 
 cc_library(
@@ -256,9 +325,12 @@ collect_plugins(
 )
 
 collect_plugins(
-    name = "lib64gl",
+    name = "shared_libraries",
     output_dir = "lib64",
-    plugins = select({
+    plugins = [
+        "@glib//glib:glib_shared",
+        "@glib//gmodule:gmodule_shared",
+    ] + select({
         "darwin_aarch64": [
             "@goldfish_prebuilts_common//ANGLE:lib_darwin_aarch64",
             "@goldfish_prebuilts_common//vulkan:lib_darwin_aarch64",
@@ -404,17 +476,23 @@ cc_test(
     ],
 )
 
-cc_binary(
+alias(
     name = "launcher",
+    actual = ":emulator",
+)
+
+cc_binary(
+    # This is the launcher binary but we want the name of the executable created to be "emulator" to match the legacy emulator release.
+    name = "emulator",
     srcs = ["main.cc"],
     data = [
         ":advanced_features",
         ":binaries",
         ":fishtank",
         ":keymaps",
-        ":lib64gl",
         ":plugins",
         ":roms",
+        ":shared_libraries",
         ":unsecure-emulator-access",
         ":vulkan_icds",
     ],
@@ -425,6 +503,7 @@ cc_binary(
     visibility = ["//visibility:public"],
     deps = [
         ":launcher_lib",
+        ":trampoline",
         "//emulator/crashreport:crash_system",
         "//emulator/launcher/cmdline",
         "//emulator/libs/async:libuv_event_loop",

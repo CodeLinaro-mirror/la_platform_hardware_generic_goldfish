@@ -36,7 +36,7 @@ ArgStream::ArgStream(std::string line) : line_(std::move(line)) {
 }
 
 ArgStream::ParseResult ArgStream::ParseEntry() const {
-    VLOG(1) << "ParseEntry: " << index_ << ", line_:[" << line_.substr(index_) << "]";
+    VLOG(2) << "ParseEntry: " << index_ << ", line_:[" << line_.substr(index_) << "]";
     if (index_ >= line_.size()) return {.index = index_, .value = ""};
 
     // Invariant first char != whitespace.
@@ -126,7 +126,7 @@ std::string ArgStream::Next() {
 std::string ArgStream::Peek() const {
     if (index_ == peeked_.index) return peeked_.value;
     peeked_ = ParseEntry();
-    VLOG(1) << "Peek: peeked_.index: " << peeked_.index << ", peeked_.value: " << peeked_.value;
+    VLOG(2) << "Peek: peeked_.index: " << peeked_.index << ", peeked_.value: " << peeked_.value;
     return peeked_.value;
 }
 

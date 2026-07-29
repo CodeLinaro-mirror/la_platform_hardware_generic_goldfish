@@ -26,6 +26,7 @@
 #include "absl/time/time.h"
 
 #include "android/emulation/control/absl_status_translate.h"
+#include "android/emulation/control/screen_recording_constants.h"
 #include "legacy_console_bridge.h"
 #include "screen_recording_service.grpc.pb.h"
 #include "screen_recording_service.pb.h"
@@ -36,11 +37,12 @@ using android::emulation::control::GrpcStatusToAbslStatus;
 using android::emulation::control::incubating::RecordingInfo;
 using android::emulation::control::incubating::ScreenRecording;
 
+using android::emulation::control::kMaxFPS;
+using android::emulation::control::kMaxTimeLimit;
+using android::emulation::control::kMaxVideoBitrate;
+using android::emulation::control::kMinVideoBitrate;
+
 namespace {
-constexpr uint32_t kMinVideoBitrate = 100000;
-constexpr uint32_t kMaxVideoBitrate = 25000000;
-constexpr uint32_t kMaxTimeLimit = 180;
-constexpr uint32_t kMaxFPS = 60;
 
 absl::Status ParseRecordingInfo(ArgStream& args, RecordingInfo* request) {
     std::string filename;
@@ -173,7 +175,9 @@ void RegisterScreenRecordCommands(CommandRegistryBuilder::NodeBuilder& screenrec
                         RETURN_IF_ERROR(ParseRecordingInfo(args, &request));
 
                         ASSIGN_OR_RETURN(auto stub, ctx.ScreenRecordingStub());
-                        ASSIGN_OR_RETURN(auto context, ctx.NewContext());
+                        ASSIGN_OR_RETURN(auto context,
+                                         ctx.NewContext(std::chrono::system_clock::now() +
+                                                        std::chrono::seconds(10)));
 
                         RecordingInfo response;
                         auto status = stub->StartRecording(context.get(), request, &response);
@@ -190,7 +194,9 @@ void RegisterScreenRecordCommands(CommandRegistryBuilder::NodeBuilder& screenrec
                 ASSIGN_OR_RETURN(auto stub, ctx.ScreenRecordingStub());
 
                 // List recordings
-                ASSIGN_OR_RETURN(auto context_list, ctx.NewContext());
+                ASSIGN_OR_RETURN(auto context_list,
+                                 ctx.NewContext(std::chrono::system_clock::now() +
+                                                std::chrono::seconds(10)));
                 RecordingInfo list_request;
                 android::emulation::control::incubating::RecordingInfoList list_response;
                 auto status =
@@ -203,7 +209,9 @@ void RegisterScreenRecordCommands(CommandRegistryBuilder::NodeBuilder& screenrec
                 for (const auto& info : list_response.recordings()) {
                     if (info.state() == android::emulation::control::incubating::RecordingInfo::
                                                 RECORDER_STATE_RECORDING) {
-                        ASSIGN_OR_RETURN(auto context_stop, ctx.NewContext());
+                        ASSIGN_OR_RETURN(auto context_stop,
+                                         ctx.NewContext(std::chrono::system_clock::now() +
+                                                        std::chrono::seconds(10)));
                         RecordingInfo stop_response;
                         auto status_stop =
                                 stub->StopRecording(context_stop.get(), info, &stop_response);

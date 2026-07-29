@@ -28,6 +28,8 @@ namespace android::base {
  */
 class StorageCapacity {
   public:
+    using ValueType = uint64_t;
+
     template <typename Sink>
     friend void AbslStringify(Sink& sink, const StorageCapacity& sc) {
         absl::Format(&sink, "%s", sc.String());
@@ -44,13 +46,13 @@ class StorageCapacity {
         kTiB   ///< Terabytes
     };
 
-    constexpr StorageCapacity() : bytes_(0) {}
+    constexpr StorageCapacity() = default;
 
     /**
      * @brief Constructor taking bytes as input.
      * @param bytes The storage capacity in bytes.
      */
-    constexpr StorageCapacity(unsigned long long bytes) : bytes_(bytes) {}  // NOLINT
+    constexpr StorageCapacity(ValueType bytes) : bytes_(bytes) {}  // NOLINT
 
     /**
      * @brief Constructor taking a raw value and unit for storage capacity.
@@ -62,7 +64,7 @@ class StorageCapacity {
      * @param value The raw numeric value representing the storage capacity.
      * @param unit The unit of the provided `value` (B, KiB, MiB, GiB).
      */
-    constexpr StorageCapacity(unsigned long long bytes, Unit unit) {
+    constexpr StorageCapacity(ValueType bytes, Unit unit) {
         switch (unit) {
         case Unit::kB:
             bytes_ = bytes;
@@ -81,13 +83,12 @@ class StorageCapacity {
             break;
         }
     }
-    ~StorageCapacity() = default;
 
     /**
      * @brief Get the storage capacity in bytes.
      * @return The storage capacity in bytes.
      */
-    unsigned long long Bytes() const { return bytes_; }
+    ValueType Bytes() const { return bytes_; }
 
     /**
      * @brief Aligns the current storage capacity to a multiple of the provided
@@ -121,39 +122,12 @@ class StorageCapacity {
      * @brief Returns a human-readable string representation of the storage
      * capacity.
      *
-     * Automatically selects the most appropriate unit (B, KiB, MiB, GiB) for
+     * Automatically selects the most appropriate unit (B, K, M, G, T) for
      * display.
      *
      * @return A string representing the capacity.
      */
-    std::string String() const {
-        const unsigned long long kilo_byte = 1024;
-        const unsigned long long mega_byte = 1024 * kilo_byte;
-        const unsigned long long giga_byte = 1024 * mega_byte;
-        const unsigned long long tera_byte = 1024 * giga_byte;
-
-        auto value = static_cast<double>(bytes_);
-
-        // Determine the largest appropriate unit
-
-        if (value >= tera_byte) {
-            value /= tera_byte;
-            return absl::StrFormat("%.2f TiB", value);
-        }
-        if (value >= giga_byte) {
-            value /= giga_byte;
-            return absl::StrFormat("%.2f GiB", value);
-        }
-        if (value >= mega_byte) {
-            value /= mega_byte;
-            return absl::StrFormat("%.2f MiB", value);
-        }
-        if (value >= kilo_byte) {
-            value /= kilo_byte;
-            return absl::StrFormat("%.2f KiB", value);
-        }
-        return absl::StrFormat("%d B", static_cast<int>(value));
-    }
+    std::string String() const;
 
     /**
      * @brief Parses a string representation of storage capacity.
@@ -223,23 +197,8 @@ class StorageCapacity {
      */
     StorageCapacity operator-(const StorageCapacity& rhs) const;
 
-    // Conversion to int
-    explicit operator int() const;
-
-    // Conversion to long
-    explicit operator long() const;
-
-    // Conversion to unsigned long
-    explicit operator unsigned long() const;
-
-    // Conversion to long long
-    explicit operator long long() const;
-
-    // Conversion to unsigned long long
-    explicit operator unsigned long long() const { return bytes_; }
-
   private:
-    uint64_t bytes_;  ///< The storage capacity in bytes.
+    ValueType bytes_ = 0;  ///< The storage capacity in bytes.
 };
 
 // User-defined literals

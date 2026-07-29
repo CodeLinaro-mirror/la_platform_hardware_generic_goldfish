@@ -1,5 +1,6 @@
 load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_test")
 load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_test")
+load("//emulator/tools:plugins.bzl", "collect_plugins")
 
 config_setting(
     name = "opt",
@@ -41,10 +42,24 @@ cc_library(
     ],
 )
 
+collect_plugins(
+    name = "binplace",
+    output_dir = ".",
+    plugins = [
+        "@glib//glib:glib_shared",
+        "@glib//gmodule:gmodule_shared",
+    ],
+)
+
 cc_test(
     name = "hang_detector_test",
     size = "small",
     srcs = ["hang_detector_test.cc"],
+    data = [":binplace"],
+    dynamic_deps = [
+        "@glib//glib:glib_shared",
+        "@glib//gmodule:gmodule_shared",
+    ],
     deps = [
         ":debug",
         ":hang_detector",
@@ -56,6 +71,8 @@ cc_test(
         "//emulator/plugin/vminterface:vminterface-test",
         "@abseil-cpp//absl/status:status_matchers",
         "@abseil-cpp//absl/strings",
+        "@glib//glib:glib_import",
+        "@glib//gmodule:gmodule_import",
     ],
 )
 
@@ -137,6 +154,25 @@ cc_library(
 )
 
 cc_library(
+    name = "breadcrumb_proto",
+    srcs = ["breadcrumb_proto.cc"],
+    hdrs = [
+        "include/android/crashreport/breadcrumb_proto.h",
+        "include/android/crashreport/looper_registrations.h",
+    ],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":breadcrumb",
+        "//emulator/libs/proto_data_store",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/strings",
+        "@aemu//protos/services/diagnostic:breadcrumb_cc_proto",
+        "@crashpad//client",
+    ],
+)
+
+cc_library(
     name = "detectors",
     srcs = [
         "crash_detectors.cc",
@@ -167,6 +203,7 @@ cc_test(
     srcs = [
         "annotation_buffer_test.cc",
         "binary_annotation_test.cc",
+        "breadcrumb_proto_test.cc",
         "crash_detectors_test.cc",
         "crash_dump_test.cc",
         "timeout_monitor_test.cc",
@@ -182,6 +219,7 @@ cc_test(
     visibility = ["//visibility:public"],
     deps = [
         ":breadcrumb",
+        ":breadcrumb_proto",
         ":crash_system",
         ":detectors",
         "//emulator/libs/process",
@@ -193,7 +231,6 @@ cc_test(
         "//emulator/plugin/vminterface:vminterface-test",
         "@abseil-cpp//absl/status:status_matchers",
         "@abseil-cpp//absl/strings",
-        "@aemu//protos/services/diagnostic:grpc_diagnostic_cc_proto",
         "@breakpad//src/processor",
         "@crashpad//client",
         "@goldfish//emulator/libs/proto_data_store",
@@ -218,6 +255,17 @@ cc_binary(
         "@abseil-cpp//absl/flags:parse",
         "@abseil-cpp//absl/log:initialize",
         "@abseil-cpp//absl/synchronization",
+    ],
+)
+
+cc_binary(
+    name = "breadcrumb_benchmark",
+    srcs = ["breadcrumb_benchmark.cc"],
+    deps = [
+        ":breadcrumb_proto",
+        "//emulator/plugin/adb-vsock/logger",
+        "@aemu//protos/services/diagnostic:breadcrumb_cc_proto",
+        "@google_benchmark//:benchmark",
     ],
 )
 

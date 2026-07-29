@@ -24,6 +24,8 @@
 #include "absl/strings/str_format.h"
 #include "absl/time/time.h"
 
+#include "android/crashreport/breadcrumbs/util.h"
+
 namespace android::crashreport::breadcrumbs {
 
 namespace {
@@ -79,64 +81,68 @@ struct RenderEvent {
     bool is_crashing_thread;
 };
 
-std::string_view PhaseToLabel(GrpcBreadcrumb::Phase phase) {
+std::string_view PhaseToLabel(android::control::breadcrumbs::GrpcPayload::GrpcPhase phase) {
+    using android::control::breadcrumbs::GrpcPayload;
     switch (phase) {
-    case GrpcBreadcrumb::START:
+    case GrpcPayload::START:
         return "START"sv;
-    case GrpcBreadcrumb::PRE_SEND_INITIAL_METADATA:
+    case GrpcPayload::PRE_SEND_INITIAL_METADATA:
         return "SEND_META"sv;
-    case GrpcBreadcrumb::PRE_SEND_MESSAGE:
+    case GrpcPayload::PRE_SEND_MESSAGE:
         return "SEND_MSG"sv;
-    case GrpcBreadcrumb::PRE_SEND_STATUS:
+    case GrpcPayload::PRE_SEND_STATUS:
         return "SEND_STAT"sv;
-    case GrpcBreadcrumb::PRE_RECV_INITIAL_METADATA:
+    case GrpcPayload::PRE_RECV_INITIAL_METADATA:
         return "RECV_META"sv;
-    case GrpcBreadcrumb::PRE_RECV_MESSAGE:
-    case GrpcBreadcrumb::POST_RECV_MESSAGE:
+    case GrpcPayload::PRE_RECV_MESSAGE:
+    case GrpcPayload::POST_RECV_MESSAGE:
         return "RECV_MSG"sv;
-    case GrpcBreadcrumb::PRE_RECV_STATUS:
+    case GrpcPayload::PRE_RECV_STATUS:
         return "RECV_STAT"sv;
-    case GrpcBreadcrumb::END_OF_CALL:
+    case GrpcPayload::END_OF_CALL:
         return "END"sv;
     default:
         return "UNKNOWN"sv;
     }
 }
 
-std::string_view GetCallColor(const DiagnosticTrace& trace, uint32_t call_id, bool use_color) {
+std::string_view GetCallColor(const DiagnosticTrace& trace, uint64_t call_id, bool use_color) {
     if (!use_color) return ""sv;
     auto it = trace.calls.find(call_id);
     if (it == trace.calls.end()) return kReset;
     return kCallColors[it->second.color_slot % kCallColors.size()];
 }
 
-std::string_view GetStatusSymbol(GrpcBreadcrumb::GrpcStatusCode status) {
+std::string_view GetStatusSymbol(
+        android::control::breadcrumbs::GrpcPayload::GrpcStatusCode status) {
+    using android::control::breadcrumbs::GrpcPayload;
     switch (status) {
-    case GrpcBreadcrumb::OK:
+    case GrpcPayload::OK:
         return Symbols::kEndOk;
-    case GrpcBreadcrumb::CANCELLED:
+    case GrpcPayload::CANCELLED:
         return Symbols::kEndCancelled;
-    case GrpcBreadcrumb::DEADLINE_EXCEEDED:
+    case GrpcPayload::DEADLINE_EXCEEDED:
         return Symbols::kEndDeadline;
-    case GrpcBreadcrumb::INTERNAL:
-    case GrpcBreadcrumb::DATA_LOSS:
+    case GrpcPayload::INTERNAL:
+    case GrpcPayload::DATA_LOSS:
         return Symbols::kEndBroken;
-    case GrpcBreadcrumb::UNAVAILABLE:
+    case GrpcPayload::UNAVAILABLE:
         return Symbols::kEndDisconnected;
     default:
         return Symbols::kEndUnknown;
     }
 }
 
-std::string_view GetMessageSymbol(GrpcBreadcrumb::Phase phase) {
+std::string_view GetMessageSymbol(android::control::breadcrumbs::GrpcPayload::GrpcPhase phase) {
+    using android::control::breadcrumbs::GrpcPayload;
     switch (phase) {
-    case GrpcBreadcrumb::PRE_SEND_INITIAL_METADATA:
-    case GrpcBreadcrumb::PRE_SEND_MESSAGE:
-    case GrpcBreadcrumb::PRE_SEND_STATUS:
+    case GrpcPayload::PRE_SEND_INITIAL_METADATA:
+    case GrpcPayload::PRE_SEND_MESSAGE:
+    case GrpcPayload::PRE_SEND_STATUS:
         return Symbols::kMsgSend;
-    case GrpcBreadcrumb::PRE_RECV_INITIAL_METADATA:
-    case GrpcBreadcrumb::PRE_RECV_MESSAGE:
-    case GrpcBreadcrumb::PRE_RECV_STATUS:
+    case GrpcPayload::PRE_RECV_INITIAL_METADATA:
+    case GrpcPayload::PRE_RECV_MESSAGE:
+    case GrpcPayload::PRE_RECV_STATUS:
         return Symbols::kMsgRecv;
     default:
         return "●"sv;
@@ -172,7 +178,7 @@ void RenderHeader(const RenderState& state, std::stringstream& ss) {
                                           : std::to_string(state.sorted_tids[i]);
         ss << std::setw(state.tid_width) << label;
     }
-    ss << "  gRPC FORENSIC TIMELINE" << state.Color(kReset) << "\n";
+    ss << "  FORENSIC TIMELINE" << state.Color(kReset) << "\n";
     ss << std::string(state.time_width + 2 + (state.sorted_tids.size() * state.tid_width) + 26, '-')
        << "\n";
 }
@@ -199,7 +205,7 @@ void RenderCompactHeader(const RenderState& state, std::stringstream& ss) {
  */
 void RenderForensicSpine(RenderState& state, const RenderEvent& re, std::stringstream& ss) {
     const auto& proto = re.breadcrumb->proto;
-    const uint32_t cid = proto.call_id();
+    const uint64_t cid = proto.flow_id();
     const uint64_t current_ts = proto.timestamp_ns();
     const size_t current_lane = state.tid_to_lane[re.thread_id];
     const std::string_view c_color = GetCallColor(state.trace, cid, state.use_color);
@@ -221,16 +227,46 @@ void RenderForensicSpine(RenderState& state, const RenderEvent& re, std::strings
         // Character 0: The Symbol
         if (i == current_lane) {
             ss << c_color;
-            if (proto.phase() == GrpcBreadcrumb::END_OF_CALL) {
-                ss << GetStatusSymbol(proto.status_code());
-            } else if (has_migration) {
-                // Use arrowhead for arrival
-                ss << (prev_lane < current_lane ? Symbols::kSend : Symbols::kRecv);
-            } else if (proto.phase() != GrpcBreadcrumb::PHASE_UNKNOWN &&
-                       proto.phase() != GrpcBreadcrumb::START) {
-                ss << GetMessageSymbol(proto.phase());
+            if (proto.has_grpc()) {
+                const auto& grpc = proto.grpc();
+                if (grpc.grpc_phase() == android::control::breadcrumbs::GrpcPayload::END_OF_CALL) {
+                    ss << GetStatusSymbol(grpc.status_code());
+                } else if (has_migration) {
+                    ss << (prev_lane < current_lane ? Symbols::kSend : Symbols::kRecv);
+                } else if (grpc.grpc_phase() !=
+                                   android::control::breadcrumbs::GrpcPayload::PHASE_UNKNOWN &&
+                           grpc.grpc_phase() != android::control::breadcrumbs::GrpcPayload::START) {
+                    ss << GetMessageSymbol(grpc.grpc_phase());
+                } else {
+                    ss << Symbols::kStart;
+                }
+            } else if (proto.has_adb()) {
+                if (proto.phase() == Breadcrumb::FLOW_END) {
+                    ss << Symbols::kEndOk;
+                } else if (has_migration) {
+                    ss << (prev_lane < current_lane ? Symbols::kSend : Symbols::kRecv);
+                } else if (proto.phase() == Breadcrumb::FLOW_STEP) {
+                    ss << "●"sv;
+                } else {
+                    ss << Symbols::kStart;
+                }
+            } else if (proto.has_looper()) {
+                const auto& looper = proto.looper();
+                if (looper.event() == android::control::breadcrumbs::LooperPayload::EXECUTE) {
+                    if (has_migration) {
+                        ss << (prev_lane < current_lane ? Symbols::kSend : Symbols::kRecv);
+                    } else {
+                        ss << Symbols::kEndOk;
+                    }
+                } else {
+                    if (has_migration) {
+                        ss << (prev_lane < current_lane ? Symbols::kSend : Symbols::kRecv);
+                    } else {
+                        ss << Symbols::kStart;
+                    }
+                }
             } else {
-                ss << Symbols::kStart;
+                ss << " "sv;
             }
             ss << reset;
         } else if (has_migration && i == prev_lane) {
@@ -287,12 +323,12 @@ struct TimeFormattingResult {
 
 TimeFormattingResult CalculateTimeWidths(const std::vector<RenderEvent>& events,
                                          uint64_t global_start_ns) {
-    size_t max_time_width = 11;
+    size_t max_time_width = 45;
     std::vector<std::string> formatted_times;
     formatted_times.reserve(events.size());
     for (const auto& re : events) {
-        const uint64_t rel_ns = re.breadcrumb->proto.timestamp_ns() - global_start_ns;
-        std::string t = absl::StrFormat("+%v", absl::Nanoseconds(rel_ns));
+        const uint64_t ts_ns = re.breadcrumb->proto.timestamp_ns();
+        std::string t = FormatEventTime(ts_ns, global_start_ns);
         max_time_width = std::max(max_time_width, t.length());
         formatted_times.push_back(std::move(t));
     }
@@ -333,7 +369,7 @@ std::string AnsiRenderer::Render(const DiagnosticTrace& trace) const {
         const auto& re = all_events[i];
         const auto& b = *re.breadcrumb;
         const auto& proto = b.proto;
-        const std::string_view c_color = GetCallColor(trace, proto.call_id(), use_color_);
+        const std::string_view c_color = GetCallColor(trace, proto.flow_id(), use_color_);
         const std::string_view reset = state.Color(kReset);
 
         ss << state.Color(kWhite) << std::right << std::setw(state.time_width) << formatted_times[i]
@@ -343,9 +379,28 @@ std::string AnsiRenderer::Render(const DiagnosticTrace& trace) const {
 
         // Call Narrative (Right side text).
         // Format: [ID] PHASE: Method     { Payload }   [STATUS]
+        std::string_view label = "UNKNOWN";
+        uint64_t call_id = proto.flow_id();
+        if (proto.has_grpc()) {
+            label = PhaseToLabel(proto.grpc().grpc_phase());
+        } else if (proto.has_adb()) {
+            label = "ADB";
+        } else if (proto.has_looper()) {
+            switch (proto.looper().event()) {
+            case android::control::breadcrumbs::LooperPayload::POST:
+                label = "POST";
+                break;
+            case android::control::breadcrumbs::LooperPayload::EXECUTE:
+                label = "EXEC";
+                break;
+            default:
+                label = "LOOPER";
+                break;
+            }
+        }
+
         const std::string call_info =
-                absl::StrFormat("[%d] %s: %s (T%v)", proto.call_id(), PhaseToLabel(proto.phase()),
-                                b.method_name, re.thread_id);
+                absl::StrFormat("[%v] %s: %s (T%v)", call_id, label, b.method_name, re.thread_id);
         ss << "  " << c_color << std::left << std::setw(35) << call_info;
 
         if (!b.resolved_payload.empty()) {
@@ -354,10 +409,11 @@ std::string AnsiRenderer::Render(const DiagnosticTrace& trace) const {
             ss << "   ";  // Maintain spacing if no payload
         }
 
-        if (proto.status_code() != GrpcBreadcrumb::OK &&
-            proto.phase() == GrpcBreadcrumb::END_OF_CALL) {
+        if (proto.has_grpc() &&
+            proto.grpc().status_code() != android::control::breadcrumbs::GrpcPayload::OK &&
+            proto.grpc().grpc_phase() == android::control::breadcrumbs::GrpcPayload::END_OF_CALL) {
             ss << "   " << state.Color(kRed) << state.Color(kBold)
-               << "[ERR: " << static_cast<int>(proto.status_code()) << "]" << reset;
+               << "[ERR: " << static_cast<int>(proto.grpc().status_code()) << "]" << reset;
         } else {
             ss << reset;
         }
@@ -368,7 +424,9 @@ std::string AnsiRenderer::Render(const DiagnosticTrace& trace) const {
     // crashing thread.
     if (!all_events.empty()) {
         const auto& last = all_events.back();
-        if (last.is_crashing_thread && last.breadcrumb->proto.status_code() != GrpcBreadcrumb::OK) {
+        if (last.is_crashing_thread && last.breadcrumb->proto.has_grpc() &&
+            last.breadcrumb->proto.grpc().status_code() !=
+                    android::control::breadcrumbs::GrpcPayload::OK) {
             const std::string rule(state.time_width + 2 + (state.sorted_tids.size() * 3) + 26, '=');
             ss << state.Color(kBrightRed) << state.Color(kBold) << rule << "\n";
             ss << "FATAL EXCEPTION AT "

@@ -1,0 +1,77 @@
+load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_test")
+
+cc_library(
+    name = "platform_info",
+    srcs = ["platform_info.cc"],
+    hdrs = ["platform_info.h"],
+    deps = ["//emulator/libs/system"] + select({
+        "@platforms//os:linux": ["@libx11"],
+        "//conditions:default": [],
+    }),
+)
+
+cc_library(
+    name = "whpx",
+    srcs = ["whpx.cc"],
+    hdrs = ["whpx.h"],
+    target_compatible_with = ["@platforms//os:windows"],
+    deps = ["@dism_adk"],
+)
+
+cc_test(
+    name = "whpx_test",
+    size = "small",
+    srcs = ["whpx_test.cc"],
+    # Don't run CI as requires admin rights.
+    tags = ["manual"],
+    target_compatible_with = ["@platforms//os:windows"],
+    deps = [
+        ":whpx",
+        "//emulator/libs/test:googletest_main",
+    ],
+)
+
+cc_binary(
+    name = "emulator-check",
+    srcs = ["main.cc"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":platform_info",
+        "//emulator/libs/cpu",
+        "//emulator/libs/system",
+    ] + select({
+        "@platforms//os:windows": [":whpx"],
+        "//conditions:default": [],
+    }),
+)
+
+cc_test(
+    name = "platform_info_test",
+    size = "small",
+    srcs = ["platform_info_test.cc"],
+    linkopts = select({
+        "@platforms//os:macos": ["-undefined error"],
+        "//conditions:default": [],
+    }),
+    deps = [
+        ":platform_info",
+        "//emulator/libs/test:googletest_main",
+    ],
+)
+
+cc_test(
+    name = "emulator_check_test",
+    size = "small",
+    srcs = ["emulator_check_test.cc"],
+    data = [":emulator-check"],
+    linkopts = select({
+        "@platforms//os:macos": ["-undefined error"],
+        "//conditions:default": [],
+    }),
+    deps = [
+        "//emulator/libs/process",
+        "//emulator/libs/system:bazel_info",
+        "//emulator/libs/test:googletest_main",
+        "@abseil-cpp//absl/strings",
+    ],
+)

@@ -130,7 +130,6 @@ GlobalState gGlobals = {
 
 // IWYU pragma: end_keep
 // clang-format on
-#include <WinHvEmulation.h>
 #include <WinHvPlatform.h>
 #include <windows.h>
 // IWYU pragma: end_keep
@@ -637,13 +636,14 @@ AndroidCpuAcceleration GetCurrentCpuAcceleratorStatusCode() {
 }
 
 void SetCurrentCpuAcceleratorForTesting(CpuAccelerator accel, AndroidCpuAcceleration status_code,
-                                        const char* status) {
+                                        const char* status, const char* version) {
     GlobalState* g = &gGlobals;
 
     g->testing = true;
     g->accel = accel;
     g->status_code = status_code;
     ::snprintf(g->status, sizeof(g->status), "%s", status);
+    ::snprintf(g->version, sizeof(g->version), "%s", version ? version : "Unknown version");
 }
 
 std::pair<AndroidHyperVStatus, std::string> GetHyperVStatus() {
@@ -782,8 +782,9 @@ std::pair<AndroidCpuInfoFlags, std::string> GetCpuInfo() {
         status += "Bare metal\n";
     }
 
-    flags |= ANDROID_CPU_INFO_64_BIT_32_BIT_OS;
-    status += "64-bit CPU, 32-bit OS\n";
+    flags |= ANDROID_CPU_INFO_64_BIT;
+    status += "64-bit CPU\n";
+
 
     return std::make_pair(static_cast<AndroidCpuInfoFlags>(flags), status);
 }

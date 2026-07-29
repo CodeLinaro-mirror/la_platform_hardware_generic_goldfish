@@ -18,6 +18,8 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cstdlib>
+#include <cstring>
 #include <string>
 #include <string_view>
 
@@ -74,6 +76,12 @@ std::vector<std::pair<std::string, std::string>> getUserspaceBootProperties(
     std::string qemuGltransportNameProp = "androidboot.qemu.gltransport.name";
     std::string hwGltransportNameProp = "androidboot.hardware.gltransport";
     std::string hwEglProp = "androidboot.hardwareegl";
+    std::string aemuAngleOverridesDisabledProp =
+            "androidboot.hardware.aemu_feature_overrides_disabled";
+    std::string angleFeatureOverridesDisabledProp =
+            "androidboot.hardware.angle_feature_overrides_disabled";
+    std::string angleFeatureOverridesEnabledProp =
+            "androidboot.hardware.angle_feature_overrides_enabled";
     std::string qemuDrawFlushIntervalProp = "androidboot.qemu.gltransport.drawFlushInterval";
     std::string qemuOpenglesVersionProp = "androidboot.opengles.version";
     std::string qemuUirendererProp = "androidboot.debug.hwui.renderer";
@@ -124,6 +132,49 @@ std::vector<std::pair<std::string, std::string>> getUserspaceBootProperties(
     if (!opts.no_guest_angle) {
         // Enable GuestAngle (ro.hardware.egl = angle).
         params.push_back({hwEglProp, "angle"});
+
+        const char* env_aemu_angle_overrides_disabled =
+                std::getenv("AEMU_ANGLE_OVERRIDES_DISABLED");
+        std::string aemu_angle_overrides_disabled =
+                env_aemu_angle_overrides_disabled ? env_aemu_angle_overrides_disabled : "";
+
+        const char* env_angle_overrides_enabled = std::getenv("ANGLE_FEATURE_OVERRIDES_ENABLED");
+        std::string angle_overrides_enabled =
+                env_angle_overrides_enabled ? env_angle_overrides_enabled : "";
+
+        const char* env_angle_overrides_disabled = std::getenv("ANGLE_FEATURE_OVERRIDES_DISABLED");
+        std::string angle_overrides_disabled =
+                env_angle_overrides_disabled ? env_angle_overrides_disabled : "";
+
+        if (angle_overrides_disabled.empty()) {
+            // TODO(b/515372950): disable supportsBlendOperationAdvanced
+            // which is added due to dEQP failures with lavapipe
+            angle_overrides_disabled = "supportsBlend*";
+
+            // TODO(b/515372950): detect host gpu before this point to automatically enable
+            // appropriate angle overrides.
+            const char* env_vk_nvidia = std::getenv("AEMU_VK_NVIDIA");
+            bool isVkNVIDIA = env_vk_nvidia && env_vk_nvidia[0] == '1';
+            if (isVkNVIDIA) {
+                // enablePrecisionQualifiers
+                angle_overrides_disabled += ":enablePrec*";
+            }
+
+            const int MAX_PARAM_LENGTH = 92;
+            if (angle_overrides_disabled.length() > MAX_PARAM_LENGTH) {
+                LOG(ERROR) << "Cannot add angle boot parameters!";
+            }
+        }
+
+        if (aemu_angle_overrides_disabled != "0" && !aemu_angle_overrides_disabled.empty()) {
+            params.push_back({aemuAngleOverridesDisabledProp, aemu_angle_overrides_disabled});
+        }
+        if (angle_overrides_disabled != "0" && !angle_overrides_disabled.empty()) {
+            params.push_back({angleFeatureOverridesDisabledProp, angle_overrides_disabled});
+        }
+        if (angle_overrides_enabled != "0" && !angle_overrides_enabled.empty()) {
+            params.push_back({angleFeatureOverridesEnabledProp, angle_overrides_enabled});
+        }
     }
 
     params.push_back({"androidboot.hardware.vulkan", "ranchu"});
@@ -309,7 +360,7 @@ std::vector<std::pair<std::string, std::string>> getUserspaceBootProperties(
 
 std::string getDynamicPartitionBootDevice(const EmulatorConfig& emulator) {
     const Avd& avd = emulator.avd();
-    auto arch = avd.DetectArchitecture();
+    auto arch = avd.Arch();
     // auto drive = emulator.get<PciDevice>("system");
 
     if (arch == Avd::CpuArchitecture::kX86) {
@@ -364,7 +415,7 @@ std::vector<std::pair<std::string, std::string>> getBootProperties(const Emulato
     auto hw = avd.Hw();
 
     int gles_major_version = 3;
-    int gles_minor_version = 0;
+    int gles_minor_version = 2;
     int bootPropOpenglesVersion = gles_major_version << 16 | gles_minor_version;
     std::string real_console_tty_prefix = "hvc";
     int api_level = 202504;

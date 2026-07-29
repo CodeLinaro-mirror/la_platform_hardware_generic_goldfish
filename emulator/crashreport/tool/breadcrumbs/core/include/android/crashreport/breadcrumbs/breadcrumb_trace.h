@@ -20,11 +20,12 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/strings/str_format.h"
-#include "grpc_diagnostic.pb.h"
+
+#include "breadcrumb.pb.h"
 
 namespace android::crashreport::breadcrumbs {
 
-using android::control::interceptor::GrpcBreadcrumb;
+using android::control::breadcrumbs::Breadcrumb;
 
 /**
  * @brief Represents a breadcrumb enriched with semantic metadata.
@@ -33,8 +34,8 @@ using android::control::interceptor::GrpcBreadcrumb;
  * EnrichedBreadcrumb contains resolved names and human-readable strings.
  */
 struct EnrichedBreadcrumb {
-    GrpcBreadcrumb proto;          ///< The original raw breadcrumb proto.
-    std::string_view method_name;  ///< Resolved gRPC method name (e.g., "sendKey").
+    Breadcrumb proto;              ///< The original raw breadcrumb proto.
+    std::string method_name;       ///< Resolved gRPC method name (e.g., "sendKey").
     std::string resolved_payload;  ///< Deserialized and formatted payload content.
 };
 
@@ -46,7 +47,7 @@ struct EnrichedBreadcrumb {
  * Data is stored by value to ensure memory safety across the rendering pipeline.
  */
 struct CallLifecycle {
-    uint32_t call_id = 0;                    ///< The unique gRPC call identifier.
+    uint64_t flow_id = 0;                    ///< The unique flow identifier.
     uint32_t color_slot = 0;                 ///< Assigned color index for visual differentiation.
     std::vector<EnrichedBreadcrumb> events;  ///< All breadcrumbs associated with this call.
     uint64_t start_ns = 0;   ///< Timestamp of the first event in the call (nanoseconds).
@@ -59,7 +60,7 @@ struct CallLifecycle {
     template <typename Sink>
     friend void AbslStringify(Sink& sink, const CallLifecycle& call) {
         absl::Format(&sink, "Call(id=%v, slot=%v, events=%zu, start=%v, end=%v, error=%v)",
-                     call.call_id, call.color_slot, call.events.size(), call.start_ns, call.end_ns,
+                     call.flow_id, call.color_slot, call.events.size(), call.start_ns, call.end_ns,
                      call.has_error);
     }
 };
@@ -105,7 +106,7 @@ struct DiagnosticTrace {
     /**
      * @brief Call lifecycles grouped by ID for easy lookup and relation mapping.
      */
-    absl::flat_hash_map<uint32_t, CallLifecycle> calls;
+    absl::flat_hash_map<uint64_t, CallLifecycle> calls;
 
     /**
      * @brief Custom stringifier for Abseil logging and formatting.

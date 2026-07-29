@@ -115,4 +115,36 @@ TEST_F(RawCircularLogTest, PushExceedsCapacity) {
     EXPECT_TRUE(absl::IsResourceExhausted(status));
 }
 
+TEST_F(RawCircularLogTest, AlignmentAndTraversalTest) {
+    // Initialize a log.
+    ASSERT_OK_AND_ASSIGN(auto log, RawCircularLog::CreateWriter(buffer_.data(), buffer_.size()));
+
+    // Push a 1-byte payload. Record size = 1 + 2 = 3 bytes.
+    // Rounded up to 8 bytes inside the log.
+    ASSERT_OK(log->Push(1, [&](void* data_ptr) { *static_cast<char*>(data_ptr) = 'A'; }));
+
+    // Push a 2-byte payload.
+    // Since RawCircularLog enforces 8-byte alignment:
+    // - The second record must start at offset 8 (which is perfectly 8-byte aligned).
+    // - The second payload starts at offset 8 + 2 = 10.
+    uintptr_t payload2_addr = 0;
+    ASSERT_OK(log->Push(2, [&](void* data_ptr) {
+        payload2_addr = reinterpret_cast<uintptr_t>(data_ptr);
+        std::memcpy(data_ptr, "BC", 2);
+    }));
+
+    // Verify that the record start address (ObjectHeader) is perfectly 8-byte aligned.
+    uintptr_t record2_start = payload2_addr - sizeof(RawCircularLog::ObjectHeader);
+    EXPECT_EQ(record2_start % 8, 0);
+
+    // Verify that traversal works correctly and we can read back both payloads.
+    std::vector<std::string> payloads;
+    log->ForEach([&](void* data, uint16_t size) {
+        payloads.push_back(std::string(static_cast<char*>(data), size));
+        return true;
+    });
+
+    EXPECT_THAT(payloads, testing::ElementsAre("A", "BC"));
+}
+
 }  // namespace goldfish::proto_data_store

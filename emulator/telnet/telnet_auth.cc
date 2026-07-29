@@ -128,7 +128,7 @@ absl::StatusOr<TelnetAuth::Token> TelnetAuth::ReadToken(const fs::path& token_pa
                 absl::StrCat("The token file:", token_path.string(), " does not exist."));
     }
 
-    if (android::base::file::file_size(token_path).value_or(0) > kMaxTokenFileSize) {
+    if (android::base::file::file_size(token_path).value_or(0).Bytes() > kMaxTokenFileSize) {
         return absl::InternalError(absl::StrCat(
                 "The emulator console authentication token file at '", token_path.string(),
                 "' is too large to read. A token can contain at most ", kMaxTokenFileSize,
@@ -178,13 +178,15 @@ AuthStatus TelnetAuth::GetStatus(const fs::path& token_path) {
         return AuthStatus::kError;
     }
 
-    if (*size > kMaxTokenFileSize) {
+    const auto size_bytes = size->Bytes();
+
+    if (size_bytes > kMaxTokenFileSize) {
         VLOG(1) << "Token file exists at " << token_path << " but is too large to read." << *size
                 << " > " << kMaxTokenFileSize;
         return AuthStatus::kError;
     }
 
-    if (*size == 0) {
+    if (size_bytes == 0) {
         VLOG(1) << "Token file exists at " << token_path << " but is empty, disabling security.";
         return AuthStatus::kDisabled;
     }

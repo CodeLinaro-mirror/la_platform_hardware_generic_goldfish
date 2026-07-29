@@ -18,11 +18,13 @@
 
 namespace goldfish::display::test {
 
-FakePixmanDisplay::FakePixmanDisplay(EventLoop* loop, int id, ::pixman_image_t* image)
-        : PixmanDisplay(loop, id, image) {}
+FakePixmanDisplay::FakePixmanDisplay(EventLoop* loop, int id, ::pixman_image_t* image, uint32_t dpi,
+                                     uint32_t flags)
+        : PixmanDisplay(loop, id, image, dpi, flags) {}
 
-FakePixmanDisplay::FakePixmanDisplay(EventLoop* loop, int id, const PixmanImagePtr& image)
-        : PixmanDisplay(loop, id, image) {}
+FakePixmanDisplay::FakePixmanDisplay(EventLoop* loop, int id, const PixmanImagePtr& image,
+                                     uint32_t dpi, uint32_t flags)
+        : PixmanDisplay(loop, id, image, dpi, flags) {}
 
 void FakePixmanDisplay::SendMultiTouchEvent(uint8_t slot, int x, int y, MultiTouchType type) {
     multi_touch_events.push_back({slot, x, y, type});
@@ -66,19 +68,19 @@ bool ActiveFakePixmanDisplay::WaitForFramesWithTimeout(int n, absl::Duration tim
     return generator_->WaitForFramesWithTimeout(n, timeout);
 }
 
-std::shared_ptr<ActiveFakePixmanDisplay> ActiveFakePixmanDisplay::CreateShared(EventLoop* loop,
-                                                                               int id, int fps,
-                                                                               int w, int h) {
+std::shared_ptr<ActiveFakePixmanDisplay> ActiveFakePixmanDisplay::CreateShared(
+        EventLoop* loop, int id, int fps, int w, int h, uint32_t dpi, uint32_t flags) {
     auto generator = std::make_unique<PixmanImageGenerator>(fps, w, h);
     auto fake = std::shared_ptr<ActiveFakePixmanDisplay>(
-            new ActiveFakePixmanDisplay(loop, id, std::move(generator)));
+            new ActiveFakePixmanDisplay(loop, id, std::move(generator), dpi, flags));
     fake->generator_->AddListener(fake);
     return fake;
 }
 
 ActiveFakePixmanDisplay::ActiveFakePixmanDisplay(EventLoop* loop, int id,
-                                                 std::unique_ptr<PixmanImageGenerator> generator)
-        : FakePixmanDisplay(loop, id, generator->GenerateImage(Color::kBlue))
+                                                 std::unique_ptr<PixmanImageGenerator> generator,
+                                                 uint32_t dpi, uint32_t flags)
+        : FakePixmanDisplay(loop, id, generator->GenerateImage(Color::kBlue), dpi, flags)
         , generator_(std::move(generator)) {}
 
 }  // namespace goldfish::display::test

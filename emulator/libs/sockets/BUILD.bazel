@@ -3,9 +3,9 @@ load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 cc_library(
     name = "sockets",
     srcs = [
-        "SocketErrors.h",
-        "Winsock.h",
+        "socket_errors.h",
         "socket_utils.cc",
+        "winsock.h",
     ],
     hdrs = [
         "include/android/sockets/scoped_socket.h",

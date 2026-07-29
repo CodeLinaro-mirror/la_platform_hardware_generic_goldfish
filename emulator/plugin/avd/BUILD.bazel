@@ -11,6 +11,7 @@ cc_library(
         "//emulator/libs/hardware_config:device_type",
         "//emulator/libs/metrics:configure_metrics_writer",
         "//emulator/libs/sensors:physical_model",
+        "//emulator/libs/snapshottable",
         "//emulator/plugin/avd_universe",
     ],
 )
@@ -22,6 +23,7 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":info",
+        "//emulator/plugin/display",
         "//emulator/plugin/hal/multidisplay",
     ],
 )
@@ -84,8 +86,8 @@ cc_library(
     name = "vcpu_event_loop",
     srcs = ["qemu_cpu_wrapper.c"],
     hdrs = [
-        "VCpuEventLoop.h",
         "qemu_cpu_wrapper.h",
+        "vcpu_event_loop.h",
     ],
     visibility = ["//visibility:public"],
     deps = ["@qemu//:qemu-headers-exported"],
@@ -133,7 +135,9 @@ cc_library(
         "//emulator/plugin/hal/multidisplay",
         "//emulator/plugin/hal/sensors",
         "//emulator/plugin/hal/unix_pipe",
+        "//emulator/plugin/hal/vehicle",
         "//emulator/plugin/system:qemu_clock",
+        "//emulator/tools:aemu_version",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/log:globals",

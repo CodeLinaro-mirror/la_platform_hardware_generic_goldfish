@@ -15,6 +15,8 @@
 
 #include "goldfish/modem_simulator/modem_simulator_client.h"
 
+#include <sys/types.h>
+
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/strings/str_cat.h"
@@ -281,7 +283,7 @@ bool ModemSimulatorClient::ModemCall::ProcessCallData(const cuttlefish::SharedFD
                                                       std::string& requestBuf) {
     char buf[16];
     const ssize_t nBytes = socket->Read(buf, sizeof(buf));
-    if (nBytes < 0) {
+    if (nBytes <= 0) {
         return false;
     }
 

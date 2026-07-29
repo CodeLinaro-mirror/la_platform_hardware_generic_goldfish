@@ -56,8 +56,12 @@ std::vector<std::string> GpuDevice::getQemuParameters(const EmulatorConfig& emul
 
     if (mSnapshotEnabled) {
         renderer_features.append(";VulkanSnapshots:enabled");
-        renderer_features.append(";VulkanBatchedDescriptorSetUpdate:disabled");
     }
+
+    renderer_features.append(";VulkanBatchedDescriptorSetUpdate:disabled");
+
+    // Limit available GPU memory and hostmem to 4GB
+    renderer_features.append(";VulkanMaxSafeHeapSize:4294967296");
 
     // Temporarily limit guest to Vulkan 1.3, unless 1.4 is explicitly enabled via an env variable.
     const char* env_vk_enable_1_4 = getenv("ANDROID_EMU_VK_ENABLE_1_4");
@@ -77,12 +81,12 @@ std::vector<std::string> GpuDevice::getQemuParameters(const EmulatorConfig& emul
     }
 
     params.push_back(absl::StrCat("id=", mGpuName));
-    params.push_back("hostmem=256M");
+    params.push_back("hostmem=4096M");
     params.push_back(gfxstream_backends);
     params.push_back("x-gfxstream-composer=on");
     params.push_back(absl::StrCat("renderer_features=", renderer_features));
     if (mSnapshotEnabled) {
-        auto snapshot_directory = emulator.avd().GetContentPath() / "snapshots" / "renderer" / "";
+        auto snapshot_directory = emulator.avd().GetContentPath() / "renderersave" / "";
         params.push_back(absl::StrCat("snapshot_directory=", snapshot_directory.string()));
     }
     auto resizable_configs =

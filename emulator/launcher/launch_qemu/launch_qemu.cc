@@ -257,7 +257,7 @@ absl::Status LaunchQemu::initialize() {
 std::string LaunchQemu::qemu_exe_path() const {
     const auto& p = config_.emulator_paths();
     std::string base;
-    switch (config_.avd().DetectArchitecture()) {
+    switch (config_.avd().Arch()) {
     case Avd::CpuArchitecture::kX86:
         return p.qemu_system_x86_binary.string();
     case Avd::CpuArchitecture::kArm:
@@ -284,40 +284,13 @@ std::vector<std::string> LaunchQemu::getCmdline() const {
 
 absl::StatusOr<::goldfish::async::LaunchConfig> LaunchQemu::launch_config() {
     const auto& o = config_.opts();
-    const auto& a = config_.avd();
     auto status = initialize();
     if (!status.ok()) {
         VLOG(1) << "Failed to prepare emulator: " << status.message();
         return status;
     }
 
-    // TODO(b/418838762): Move these to the gpu device once devices can supply env vars to set.
-    // Graphics default to software rendering (with swangle) for now.
-    // Always indirect EGL.
-    System::Get()->SetEnvironmentVariable("ANDROID_EGL_ON_EGL", "1");
-
-#if defined(__linux__)
-    // on linux, default to use swiftshader_indirect for gl,
-    // later gl will be removed once vulkan composition is on
-    System::Get()->SetEnvironmentVariable("ANDROID_EMU_RENDERER", "swiftshader");
-#else
-    // ANGLE works fine on mac/windows on top of lavapipe, no need to change it
-    // in addition, swiftshader does not work on mac anyway
-    System::Get()->SetEnvironmentVariable("ANDROID_EMU_RENDERER", "swangle");
-    System::Get()->SetEnvironmentVariable("ANGLE_DEFAULT_PLATFORM", "vulkan");
-#endif
-
-    // now all default to lavapipe
-    System::Get()->SetEnvironmentVariable("ANDROID_EMU_VK_ICD", "lavapipe");
-
-    if (bool gpu_host = o.gpu && std::string(o.gpu) == "host"; gpu_host) {
-        System::Get()->SetEnvironmentVariable("ANGLE_DEFAULT_PLATFORM", "vulkan");
-#if defined(__APPLE__)
-        System::Get()->SetEnvironmentVariable("ANDROID_EMU_VK_ICD", "moltenvk");
-#else
-        System::Get()->SetEnvironmentVariable("ANDROID_EMU_VK_ICD", "");
-#endif
-    }
+    setupGpuVariables();
 
     fs::path exe_path = qemu_exe_path();
     std::vector<std::string> args = getCmdline();
@@ -326,13 +299,13 @@ absl::StatusOr<::goldfish::async::LaunchConfig> LaunchQemu::launch_config() {
         printableArgs.reserve(args.size() + 1);
         printableArgs.push_back(exe_path.string());
         std::transform(args.begin(), args.end(), std::back_inserter(printableArgs),
-                       [](const std::string& a) -> std::string {
-                           if (std::any_of(a.begin(), a.end(),
+                       [](const std::string& str) -> std::string {
+                           if (std::any_of(str.begin(), str.end(),
                                            [](const char c) { return std::isspace(c); })) {
                                using namespace std::literals::string_literals;
-                               return "\""s + a + "\""s;
+                               return "\""s + str + "\""s;
                            } else {
-                               return a;
+                               return str;
                            }
                        });
 
@@ -350,6 +323,58 @@ absl::StatusOr<::goldfish::async::LaunchConfig> LaunchQemu::launch_config() {
         .new_process_group = true,
         .stdio_mode = ::goldfish::async::LaunchConfig::StdioMode::kInherit,
     };
+}
+
+static bool isHostGpuDenyListed() {
+    // TODO(b/520445586) Check server side gpu list and determine if host is denylisted for GPU
+    // Using software rendering by default for now.
+    return true;
+}
+
+void LaunchQemu::setupGpuVariables() {
+    const auto& o = config_.opts();
+    const auto& a = config_.avd();
+
+    // Check command line and AVD options, use host by default
+    const std::string userGpuMode = o.gpu ? std::string(o.gpu) : "";
+    const std::string avdGpuMode = a.Hw().hw_gpu_mode;
+    const std::string chosenGpuMode =
+            (!userGpuMode.empty() ? userGpuMode : (!avdGpuMode.empty() ? avdGpuMode : "auto"));
+    ABSL_LOG(INFO) << "Selected GPU mode: " << chosenGpuMode;
+
+    const bool useHostGpu =
+            (chosenGpuMode == "host") || (chosenGpuMode == "auto" && !isHostGpuDenyListed());
+
+    std::string chosenEmuRenderer;
+    std::string chosenVulkanICD;
+    if (useHostGpu) {
+        chosenEmuRenderer = "host";
+#if defined(__APPLE__)
+        // Use KosmicKrisp as the default Vulkan ICD on macOS, allow changing to MoltenVK with an
+        // environment variable
+        if (System::Get()->GetEnvironmentVariable("ANDROID_EMU_VK_SELECT_ICD") == "moltenvk") {
+            chosenVulkanICD = "moltenvk";
+        } else {
+            chosenVulkanICD = "kosmickrisp";
+        }
+#else
+        // Use system defaults
+        chosenVulkanICD = "";
+#endif
+    } else {
+        // Use lavapipe for software or invalid modes
+        chosenEmuRenderer = "lavapipe";
+        chosenVulkanICD = "lavapipe";
+    }
+
+    ABSL_LOG(INFO) << "Using Vulkan ICD: "
+                   << (chosenVulkanICD.empty() ? "System Default" : chosenVulkanICD);
+
+    // TODO(b/418838762): Move these to the gpu device once devices can supply env vars to set.
+    System::Get()->SetEnvironmentVariable("ANDROID_EMU_RENDERER", chosenEmuRenderer);
+    System::Get()->SetEnvironmentVariable("ANDROID_EMU_VK_ICD", chosenVulkanICD);
+    System::Get()->SetEnvironmentVariable("ANDROID_EGL_ON_EGL", "1");
+    System::Get()->SetEnvironmentVariable("ANGLE_DEFAULT_PLATFORM", "vulkan");
 }
 
 }  // namespace android::goldfish

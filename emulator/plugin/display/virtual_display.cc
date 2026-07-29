@@ -23,31 +23,34 @@
 #include "goldfish/devices/multidisplay/multidisplay_device.h"
 #include "goldfish/display/input_handler.h"
 
-extern "C" {
 // clang-format off
 // IWYU pragma: begin_keep
+extern "C" {
 #include "qemu/osdep.h"
 #include "ui/console.h"
 #include "ui/surface.h"
 #include "qapi/error.h"
 #include "qom/object.h"
+}
 #include "virtio_bridge.h"
 // IWYU pragma: end_keep
 // clang-format on
-}
 
 namespace goldfish::display {
 
 VirtualDisplay::VirtualDisplay(EventLoop* loop, EventLoop* qloop, uint8_t id, uint32_t width,
                                uint32_t height, uint32_t dpi, uint32_t flags)
-        : IDisplay(loop, id, width, height), qemu_loop_(qloop) {
+        : IDisplay(loop, id, width, height, dpi, flags), qemu_loop_(qloop) {
     // Initialize our dummy framebuffer with a solid color (e.g., White RGBA)
     // In reality, this memory would be mapped to a virtio-gpu guest buffer.
     const size_t buffer_size = static_cast<size_t>(width) * height * 4;
     frame_buffer_.resize(buffer_size, 0xFF);
     goldfish::devices::multidisplay::SendAddDisplay(id, width, height, dpi, flags);
     SimulateGuestFrameUpdate();
-    one_second_timer_ = loop->CreateTimer([this] { OneFrameTick(); });
+    one_second_timer_ = loop->CreateTimer([this] {
+        OneFrameTick();
+        return true;
+    });
     one_second_timer_->Schedule(absl::ToChronoMilliseconds(absl::Milliseconds(50)),
                                 absl::ToChronoMilliseconds(absl::Milliseconds(50)));
 
@@ -65,8 +68,19 @@ VirtualDisplay::VirtualDisplay(EventLoop* loop, EventLoop* qloop, uint8_t id, ui
     vhid_ = device_info.vhid;
 }
 
+void VirtualDisplay::Disconnect() {
+    if (!disconnected_) {
+        ::goldfish::devices::multidisplay::SendDelDisplay(display_id_);
+        disconnected_ = true;
+    }
+}
+
 VirtualDisplay::~VirtualDisplay() {
-    ::goldfish::devices::multidisplay::SendDelDisplay(display_id_);
+    // WARNING: Do NOT trigger active network operations (like SendDelDisplay)
+    // from this C++ destructor. Lingering std::shared_ptr references held by UI
+    // windows or background queues can cause this destructor to run asynchronously
+    // on non-network threads or post-unrealize when the AVD universe is offline.
+    // Intentional network teardown must execute explicitly via Disconnect() instead.
     if (one_second_timer_) {
         one_second_timer_->Cancel();
     }

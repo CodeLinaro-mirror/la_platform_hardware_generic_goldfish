@@ -22,7 +22,7 @@
 #include "emulator_controller.grpc.pb.h"
 #include "goldfish/avd_universe/grpc/grpc_notification_channel.h"
 #include "notification_stream_writer.h"
-#include "test/GrpcServiceTest.h"
+#include "test/grpc_service_test.h"
 
 namespace android {
 namespace emulation {

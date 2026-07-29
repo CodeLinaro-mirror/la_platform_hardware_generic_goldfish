@@ -74,7 +74,7 @@ void HardwareConfig::Write(IniFile* ini) const {
 #define HWCFG_INT(n, s, d, a, t) ini->SetInt(s, n);
 #define HWCFG_STRING(n, s, d, a, t) ini->SetString(s, n);
 #define HWCFG_DOUBLE(n, s, d, a, t) ini->SetDouble(s, n);
-#define HWCFG_DISKSIZE(n, s, d, a, t) ini->SetDiskSize(s, static_cast<IniFile::DiskSize>(n));
+#define HWCFG_DISKSIZE(n, s, d, a, t) ini->SetDiskSize(s, n);
 
 #include "avd/hw-config-defs.h"
 

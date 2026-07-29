@@ -13,6 +13,8 @@
 // limitations under the License.
 #include "common/libs/fs/shared_buf.h"
 
+#include <sys/types.h>
+
 namespace cuttlefish {
 namespace {
 constexpr size_t kBuffSize = 4096;

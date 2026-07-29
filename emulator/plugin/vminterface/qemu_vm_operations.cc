@@ -178,6 +178,7 @@ class QemuVmOperations : public VmOperations {
     }
 
     absl::Status SaveSnapshot(const char* name, const bool overwrite) override {
+        ScopedVmLock lock;
         ::Error* errp = nullptr;
         if (!::save_snapshot(name, overwrite, /*vmstate=*/nullptr, /*has_devices=*/false,
                              /*devices=*/nullptr, &errp)) {
@@ -188,7 +189,11 @@ class QemuVmOperations : public VmOperations {
     }
 
     absl::Status LoadSnapshot(const char* idOrName, const bool andResume) override {
+        ScopedVmLock lock;
         ::Error* errp = nullptr;
+
+        ::vm_stop(RUN_STATE_RESTORE_VM);
+
         if (!::load_snapshot(idOrName, /*vmstate=*/nullptr, /*has_devices=*/false,
                              /*devices=*/nullptr, &errp)) {
             return ToStatus(absl::StatusCode::kInternal, &errp);
@@ -202,10 +207,12 @@ class QemuVmOperations : public VmOperations {
     }
 
     void LoadSnapshotResume(const EmuRunState ers) override {
+        ScopedVmLock lock;
         ::load_snapshot_resume(static_cast<::RunState>(ers));
     }
 
     absl::Status DeleteSnapshot(const char* idOrName) override {
+        ScopedVmLock lock;
         ::Error* errp = nullptr;
         if (!::delete_snapshot(idOrName, /*has_devices=*/false, /*devices=*/nullptr, &errp)) {
             return ToStatus(absl::StatusCode::kInternal, &errp);
@@ -215,6 +222,7 @@ class QemuVmOperations : public VmOperations {
     }
 
     absl::Status ListSnapshots(const SnapshotEntrySink sink) override {
+        ScopedVmLock lock;
         ::Error* errp = nullptr;
         ::BlockDriverState* bs = ::bdrv_all_find_vmstate_bs(
                 /*vmstate_bs=*/nullptr, /*has_devices=*/false, /*devices=*/nullptr, &errp);

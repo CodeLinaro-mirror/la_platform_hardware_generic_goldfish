@@ -640,12 +640,12 @@ struct GoldfishVirtioVsockDevice {
             return r;
         }
 
-        absl::StatusOr<uint32_t> num = ReadValue<uint32_t>(reader);
-        if (!num.ok()) {
+        size_t n = 0;
+        if (!ReadValue(reader, n).ok()) {
             return 1;
         }
 
-        for (size_t n = *num; n > 0; --n) {
+        for (; n > 0; --n) {
             decltype(mOrphanPackets)::value_type packet;
 
             if (!ReadValue(reader, packet.src_port, packet.dst_port, packet.op, packet.buf_alloc,
@@ -658,13 +658,12 @@ struct GoldfishVirtioVsockDevice {
             mOrphanPackets.push_back(packet);
         }
 
-        bool needNotify = false;
-        num = ReadValue<uint32_t>(reader);
-        if (!num.ok()) {
+        if (!ReadValue(reader, n).ok()) {
             return 1;
         }
 
-        for (size_t n = *num; n > 0; --n) {
+        bool needNotify = false;
+        for (; n > 0; --n) {
             uint32_t guestPort;
             uint32_t hostPort;
             uint32_t hostFwdCnt;

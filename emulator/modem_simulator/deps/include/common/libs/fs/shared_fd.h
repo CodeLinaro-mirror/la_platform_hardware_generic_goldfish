@@ -13,6 +13,8 @@
 // limitations under the License.
 #pragma once
 
+#include <sys/types.h>
+
 #include <cstdint>
 #include <memory>
 #include <string>

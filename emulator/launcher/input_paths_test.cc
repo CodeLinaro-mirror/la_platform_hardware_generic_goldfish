@@ -22,8 +22,8 @@
 #include "absl/log/log.h"
 #include "absl/status/status_matchers.h"
 
-#include "android/base/testing/TestSystem.h"
-#include "android/base/testing/TestTempDir.h"
+#include "android/base/testing/test_system.h"
+#include "android/base/testing/test_temp_dir.h"
 #include "android/status/status_matcher_macros.h"
 
 using android::base::TestSystem;
@@ -101,10 +101,35 @@ TEST_F(InputPathsTest, ResolveSystemImagePaths) {
     WriteToFile(sysimg_dir / "encryptionkey.img", "");
 
     AndroidOptions opts = {};
-    ASSERT_OK_AND_ASSIGN(auto paths, ResolveSystemImagePaths({sysimg_dir}, opts));
+    ASSERT_OK_AND_ASSIGN(auto paths, ResolveSystemImagePaths({sysimg_dir}, opts, /*android_build=*/false));
 
     EXPECT_EQ(paths.build_properties, sysimg_dir / "build.prop");
     EXPECT_EQ(paths.system_image, sysimg_dir / "system.img");
+    EXPECT_EQ(paths.data_dir, sysimg_dir / "data");
+}
+
+TEST_F(InputPathsTest, ResolveSystemImagePathsAndroidBuild) {
+    fs::path sysimg_dir = tmp_->Path() / "sysimg";
+    tmp_->MakeSubDir("sysimg");
+    tmp_->MakeSubDir("sysimg/data");
+
+    WriteToFile(sysimg_dir / "build.prop", "");
+    WriteToFile(sysimg_dir / "advancedFeatures.ini", "");
+    WriteToFile(sysimg_dir / "VerifiedBootParams.textproto", "");
+    WriteToFile(sysimg_dir / "kernel_cmdline.txt", "");
+    WriteToFile(sysimg_dir / "kernel-ranchu", "");
+    WriteToFile(sysimg_dir / "ramdisk-qemu.img", "");
+    WriteToFile(sysimg_dir / "system-qemu.img", "");
+    WriteToFile(sysimg_dir / "vendor-qemu.img", "");
+    WriteToFile(sysimg_dir / "encryptionkey.img", "");
+
+    AndroidOptions opts = {};
+    ASSERT_OK_AND_ASSIGN(auto paths, ResolveSystemImagePaths({sysimg_dir}, opts, /*android_build=*/true));
+
+    EXPECT_EQ(paths.build_properties, sysimg_dir / "build.prop");
+    EXPECT_EQ(paths.ramdisk_image, sysimg_dir / "ramdisk-qemu.img");
+    EXPECT_EQ(paths.system_image, sysimg_dir / "system-qemu.img");
+    EXPECT_EQ(paths.vendor_image, sysimg_dir / "vendor-qemu.img");
     EXPECT_EQ(paths.data_dir, sysimg_dir / "data");
 }
 
@@ -150,7 +175,7 @@ TEST_F(InputPathsTest, ResolveSystemImagePathsWithOverrides) {
     opts.vendor = const_cast<char*>(override_vendor_str.c_str());
     opts.encryption_key = const_cast<char*>(override_encryption_key_str.c_str());
 
-    ASSERT_OK_AND_ASSIGN(auto paths, ResolveSystemImagePaths({sysimg_dir}, opts));
+    ASSERT_OK_AND_ASSIGN(auto paths, ResolveSystemImagePaths({sysimg_dir}, opts, /*android_build=*/false));
 
     EXPECT_EQ(paths.kernel_image, override_kernel);
     EXPECT_EQ(paths.ramdisk_image, override_ramdisk);
@@ -186,7 +211,7 @@ TEST_F(InputPathsTest, ResolveEmulatorPaths) {
 
     // ResolveEmulatorPaths will use the current binary path as launcher_binary,
     // but should use ANDROID_EMULATOR_LAUNCHER_DIR for other paths.
-    ASSERT_OK_AND_ASSIGN(auto paths, ResolveEmulatorPaths(false, false));
+    ASSERT_OK_AND_ASSIGN(auto paths, ResolveEmulatorPaths(false));
 
     EXPECT_EQ(paths.launcher_directory, launcher_dir);
     EXPECT_EQ(paths.binary_directory, launcher_dir / "bin");

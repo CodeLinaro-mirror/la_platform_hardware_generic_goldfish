@@ -22,22 +22,23 @@ namespace android::goldfish::test {
 
 TEST(Network, Basic_x86) {
     FakeEmulator emu;
-    EXPECT_CALL(emu.mock_avd(), DetectArchitecture())
+    EXPECT_CALL(emu.mock_avd(), Arch())
             .Times(1)
             .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
 
     NetworkDevice dev("eth0", "0a.0", /*cellular=*/false, /*netsim_backend=*/true);
     EXPECT_OK(dev.initialize(emu.config()));
     EXPECT_THAT(dev.getQemuParameters(emu.config()),
-                testing::ElementsAre(testing::Eq("-device"),
-                                     testing::Eq("netsim-netdev,id=eth0,mode=ethernet"),
-                                     testing::Eq("-device"),
-                                     testing::Eq("virtio-net-pci,addr=0a.0,netdev=eth0")));
+                testing::ElementsAre(
+                        testing::Eq("-device"), testing::Eq("netsim-netdev,id=eth0,mode=ethernet"),
+                        testing::Eq("-device"),
+                        testing::MatchesRegex("virtio-net-pci,addr=0a.0,netdev=eth0,mac=52:54:00:["
+                                              "0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}")));
 }
 
 TEST(Network, Basic_arm64) {
     FakeEmulator emu;
-    EXPECT_CALL(emu.mock_avd(), DetectArchitecture())
+    EXPECT_CALL(emu.mock_avd(), Arch())
             .Times(1)
             .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kArm));
 
@@ -46,7 +47,9 @@ TEST(Network, Basic_arm64) {
     EXPECT_THAT(dev.getQemuParameters(emu.config()),
                 testing::ElementsAre(
                         testing::Eq("-device"), testing::Eq("netsim-netdev,id=eth0,mode=cellular"),
-                        testing::Eq("-device"), testing::Eq("virtio-net-device,netdev=eth0")));
+                        testing::Eq("-device"),
+                        testing::MatchesRegex("virtio-net-device,netdev=eth0,mac=52:54:00:[0-9a-fA-"
+                                              "F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}")));
 }
 
 }  // namespace android::goldfish::test

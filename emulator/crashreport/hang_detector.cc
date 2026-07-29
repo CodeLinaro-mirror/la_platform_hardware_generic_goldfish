@@ -40,7 +40,11 @@ class LoopWatcher {
             , timeout_(hang_timeout)
             , hang_check_timeout_(hang_check_timeout)
             , clock_(clock)
-            , timer_(event_loop.CreateTimer([this]() { TaskComplete(); })) {}
+            , event_loop_(event_loop)
+            , timer_(event_loop.CreateTimer([this]() {
+                TaskComplete();
+                return true;
+            })) {}
 
     ~LoopWatcher() { CancelHangCheck(); }
 
@@ -48,6 +52,8 @@ class LoopWatcher {
     LoopWatcher& operator=(LoopWatcher&&) = delete;
     LoopWatcher(const LoopWatcher&) = delete;
     LoopWatcher& operator=(const LoopWatcher&) = delete;
+
+    bool IsOnTheLoop(::goldfish::async::EventLoop& rhs) const { return &event_loop_ == &rhs; }
 
     void StartHangCheck() {
         const absl::MutexLock l(&mutex_);
@@ -124,6 +130,7 @@ class LoopWatcher {
     const android::base::IClock* const clock_;
 
     absl::Mutex mutex_;
+    ::goldfish::async::EventLoop& event_loop_;
     std::shared_ptr<::goldfish::async::EventLoop::Timer> timer_ ABSL_GUARDED_BY(mutex_);
     bool is_task_running_ ABSL_GUARDED_BY(mutex_) = false;
     absl::Time last_check_time_ ABSL_GUARDED_BY(mutex_);
@@ -153,6 +160,15 @@ class HangDetectorImpl : public HangDetector {
                 std::make_unique<LoopWatcher>(std::move(loop_name), event_loop, task_timeout,
                                               timing_.hang_check_timeout, clock_.get()));
         loop_watchers_.back()->StartHangCheck();
+    }
+
+    void RemoveWatchedLooper(::goldfish::async::EventLoop& event_loop) override {
+        const absl::MutexLock l(&mutex_);
+        DCHECK(!stopping_);
+
+        std::erase_if(loop_watchers_, [&event_loop](const std::unique_ptr<LoopWatcher>& watcher) {
+            return watcher->IsOnTheLoop(event_loop);
+        });
     }
 
     void AddPredicateCheck(HangPredicate predicate, std::string msg) override {

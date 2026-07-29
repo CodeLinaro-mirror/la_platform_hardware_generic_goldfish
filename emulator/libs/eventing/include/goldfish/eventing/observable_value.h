@@ -16,6 +16,8 @@
 
 #include <mutex>
 
+#include "goldfish/archive/reader.h"
+#include "goldfish/archive/writer.h"
 #include "goldfish/eventing/event_sources.h"
 
 namespace goldfish::eventing {
@@ -60,6 +62,22 @@ struct ObservableValue : public android::base::eventing::CallbackEventSource<T> 
     T GetValue() const {
         std::lock_guard<std::mutex> lock(mutex_);
         return value_;
+    }
+
+    friend archive::IWriter& operator<<(archive::IWriter& w, const ObservableValue& val) {
+        std::lock_guard<std::mutex> lock(val.mutex_);
+        w << val.value_;
+        return w;
+    }
+
+    friend absl::Status ReadValue(archive::IReader& r, ObservableValue& val) {
+        std::lock_guard<std::mutex> lock(val.mutex_);
+        return ReadValue(r, val.value_);
+    }
+
+    void OnPostLoad() {
+        std::lock_guard<std::mutex> lock(mutex_);
+        this->FireEvent(value_);
     }
 
   private:

@@ -98,7 +98,7 @@ bool pathIsExt4(fs::path path) {
 absl::Status minimizePartition(fs::path image, uint64_t desired_size_bytes) {
     if (pathIsExt4(image)) {
         ASSIGN_OR_RETURN(auto current_data_size, base::file::file_size(image));
-        if (desired_size_bytes > 0 && current_data_size < desired_size_bytes) {
+        if (desired_size_bytes > 0 && current_data_size.Bytes() < desired_size_bytes) {
             // Log resize intent
             LOG(WARNING) << "Resizing userdata partition " << image << " from "
                          << current_data_size.String() << " to " << desired_size_bytes;

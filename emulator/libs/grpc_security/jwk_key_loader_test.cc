@@ -26,7 +26,7 @@
 
 #include "absl/strings/string_view.h"
 
-#include "android/base/testing/TestTempDir.h"
+#include "android/base/testing/test_temp_dir.h"
 #include "goldfish/file/file.h"
 #include "nlohmann/json.hpp"
 #include "tink/config/tink_config.h"

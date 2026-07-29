@@ -613,7 +613,7 @@ TEST_F(PhysicalModelTest, SetVelocityAndPositionWhileRotating) {
     EXPECT_FALSE(targetStateChanged);
 }
 
-TEST_F(PhysicalModelTest, DISABLED_FoldableInitialize) {
+TEST_F(PhysicalModelTest, FoldableInitialize) {
     // Foldable is not yet supported.
     auto hw = android::goldfish::FakeHardwareConfig::GetHwConfig();
 

@@ -14,10 +14,15 @@
 
 #include "snapshot_device.h"
 
+#include <filesystem>
+#include <fstream>
+
 #include "absl/log/log.h"
 #include "absl/strings/str_cat.h"
 
 namespace android::goldfish {
+
+constexpr int kSnapshotVersion = 1;
 
 absl::Status SnapshotDevice::initialize(const EmulatorConfig& emulator) {
     return absl::OkStatus();
@@ -26,15 +31,28 @@ absl::Status SnapshotDevice::initialize(const EmulatorConfig& emulator) {
 std::vector<std::string> SnapshotDevice::getQemuParameters(const EmulatorConfig& emulator) const {
     std::vector<std::string> params;
 
+    const char* snapshot_name = get_snapshot_name(emulator);
+    const std::filesystem::path snapshot_dir =
+            emulator.avd().GetContentPath() / "snapshots" / snapshot_name;
+    const std::filesystem::path version_file = snapshot_dir / "version.txt";
+
     std::string skip_load_reason;
     if (should_load_snapshot(emulator, skip_load_reason)) {
-        const char* snapshot_name = get_snapshot_name(emulator);
-        if (snapshotExists(emulator, snapshot_name)) {
-            LOG(INFO) << "Snapshot '" << snapshot_name << "' found, loading...";
+        bool version_matches = false;
+        if (std::filesystem::exists(version_file)) {
+            std::ifstream ifs(version_file);
+            int version = 0;
+            if (ifs >> version && version == kSnapshotVersion) {
+                version_matches = true;
+            }
+        }
+
+        if (version_matches) {
+            LOG(INFO) << "Loading '" << snapshot_name << "' ...";
             params.push_back("-loadvm");
             params.push_back(snapshot_name);
         } else {
-            LOG(WARNING) << "Snapshot '" << snapshot_name << "' not found, performing cold boot.";
+            LOG(WARNING) << "Snapshot version missing or mismatch, performing cold boot.";
         }
     } else {
         LOG(WARNING) << "Snapshot load is disabled: " << skip_load_reason
@@ -43,19 +61,22 @@ std::vector<std::string> SnapshotDevice::getQemuParameters(const EmulatorConfig&
 
     std::string skip_save_reason;
     if (should_save_snapshot(emulator, skip_save_reason)) {
-        params.push_back("-savevm");
-        params.push_back(get_snapshot_name(emulator));
+        std::error_code ec;
+        std::filesystem::create_directories(snapshot_dir, ec);
+        if (!ec) {
+            std::ofstream ofs(version_file);
+            ofs << kSnapshotVersion;
+            params.push_back("-savevm");
+            params.push_back(snapshot_name);
+        } else {
+            LOG(WARNING) << "Failed to create snapshot directory: " << ec.message()
+                         << ", and snapshot save is disabled.";
+        }
     } else {
         LOG(WARNING) << "Snapshot save is disabled: " << skip_save_reason << ".";
     }
 
     return params;
-}
-
-bool SnapshotDevice::snapshotExists(const EmulatorConfig& emulator, const std::string& name) {
-    const auto& a = emulator.avd();
-    fs::path bootstatus_ini = a.GetContentPath() / "snapshots" / name / "bootstatus.ini";
-    return fs::exists(bootstatus_ini);
 }
 
 bool SnapshotDevice::should_load_snapshot(const EmulatorConfig& emulator, std::string& reason) {

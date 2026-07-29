@@ -33,10 +33,11 @@
 #include "emulator_controller.grpc.pb.h"
 #include "goldfish/async/libuv_event_loop.h"
 #include "goldfish/async/threaded_event_loop.h"
+#include "goldfish/avd_info/avd_info.h"
 #include "goldfish/display/test/fake_multi_display.h"
 #include "goldfish/display/test/fake_pixman_display.h"
 #include "goldfish/memory/shared_memory.h"
-#include "test/GrpcServiceTest.h"
+#include "test/grpc_service_test.h"
 
 namespace android::emulation::control {
 
@@ -820,6 +821,101 @@ TEST_F(DisplayServiceTest, GetScreenshotMmapTooSmall) {
     auto context = getContextWithTimeout();
     Status status = mStub->getScreenshot(context.get(), request, &reply);
     EXPECT_EQ(status.error_code(), grpc::StatusCode::OUT_OF_RANGE);
+}
+
+TEST_F(DisplayServiceTest, SetDisplayConfigurationsAddsAndUpdates) {
+    // 1. ADD a new display (ID 2)
+    DisplayConfigurations request;
+    auto* disp = request.add_displays();
+    disp->set_display(2);
+    disp->set_width(1280);
+    disp->set_height(720);
+    disp->set_dpi(320);
+    disp->set_flags(1);
+
+    DisplayConfigurations reply;
+    auto context1 = getContextWithTimeout();
+    ASSERT_GRPC_STATUS(mStub->setDisplayConfigurations(context1.get(), request, &reply));
+
+    // Verify it was added with exact width, height, dpi, flags
+    bool found2 = false;
+    for (const auto& d : reply.displays()) {
+        if (d.display() == 2) {
+            found2 = true;
+            EXPECT_EQ(d.width(), 1280);
+            EXPECT_EQ(d.height(), 720);
+            EXPECT_EQ(d.dpi(), 320);
+            EXPECT_EQ(d.flags(), 1);
+        }
+    }
+    EXPECT_TRUE(found2);
+
+    // 2. UPDATE the existing display (ID 2) with new resolution and DPI
+    DisplayConfigurations request_update;
+    auto* disp_update = request_update.add_displays();
+    disp_update->set_display(2);
+    disp_update->set_width(1920);
+    disp_update->set_height(1080);
+    disp_update->set_dpi(480);
+    disp_update->set_flags(2);
+
+    DisplayConfigurations reply_update;
+    auto context2 = getContextWithTimeout();
+    ASSERT_GRPC_STATUS(
+            mStub->setDisplayConfigurations(context2.get(), request_update, &reply_update));
+
+    // Verify it was successfully updated
+    bool found2_updated = false;
+    for (const auto& d : reply_update.displays()) {
+        if (d.display() == 2) {
+            found2_updated = true;
+            EXPECT_EQ(d.width(), 1920);
+            EXPECT_EQ(d.height(), 1080);
+            EXPECT_EQ(d.dpi(), 480);
+            EXPECT_EQ(d.flags(), 2);
+        }
+    }
+    EXPECT_TRUE(found2_updated);
+}
+
+TEST_F(DisplayServiceTest, FiresInitialPostureOnConstruction) {
+    // Reconfigure hardware for a foldable device
+    mHw.hw_sensor_hinge = true;
+    mHw.hw_sensor_hinge_count = 2;
+    mHw.hw_sensor_hinge_type = 0;
+    mHw.hw_sensor_hinge_sub_type = 1;
+    mHw.hw_sensor_hinge_ranges = (char*)"0- 360, 0-180";
+    mHw.hw_sensor_hinge_defaults = (char*)"180,90";
+    mHw.hw_sensor_hinge_areas = (char*)"25-10, 50-10";
+    mHw.hw_sensor_posture_list = (char*)"1, 2, 3, 4";
+    mHw.hw_sensor_hinge_angles_posture_definitions =
+            (char*)"0-30&0-15, 30-150 & 15-75, 150-330&75-165, 330-360&165-180";
+
+    // Reset the old service first to prevent it from holding a dangling pointer to the old model
+    mDisplayService.reset();
+
+    mPhysicalModel = std::make_unique<PhysicalModel>(mHw);
+    mPhysicalModel->SetCurrentTime(1000000000L);  // Initialize physical model state
+
+    bool received_posture = false;
+    Posture::PostureValue received_value = Posture::POSTURE_UNKNOWN;
+
+    auto callback_id = ::goldfish::avd_info::GetAvd().GetGrpcNotificationChannel().AddCallback(
+            [&](const ::android::emulation::control::Notification& notification) {
+                if (notification.has_posture()) {
+                    received_posture = true;
+                    received_value = notification.posture().value();
+                }
+            });
+
+    auto test_service =
+            std::make_unique<DisplayServiceImpl>(mMultiDisplay.get(), mPhysicalModel.get());
+
+    EXPECT_TRUE(received_posture);
+    EXPECT_EQ(received_value, DisplayServiceImpl::ToProtoPosture(
+                                      mPhysicalModel->GetFoldableState().current_posture));
+
+    ::goldfish::avd_info::GetAvd().GetGrpcNotificationChannel().RemoveCallback(callback_id);
 }
 
 TEST(DisplayServiceTest_ToProtoPosture, ConvertsPostures) {

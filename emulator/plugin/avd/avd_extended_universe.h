@@ -14,7 +14,6 @@
 
 #pragma once
 
-#include "VCpuEventLoop.h"
 #include "goldfish/async/event_loop.h"
 #include "goldfish/avd_info/avd_info.h"
 #include "goldfish/devices/battery/battery.h"
@@ -30,6 +29,7 @@
 #include "goldfish/devices/unix_pipe/unix_pipe.h"
 #include "goldfish/metrics/metrics_reporter.h"
 #include "goldfish/metrics/perf_stat_reporter.h"
+#include "vcpu_event_loop.h"
 
 namespace goldfish::avd_info {
 
@@ -41,18 +41,17 @@ struct AvdExtendedUniverse : public AvdUniverse {
     void ShutdownQemuLoop();
     async::EventLoop& GetQemuEventLoop() override;
     metrics::MetricsReporter& GetMetricsReporter() override;
+    display::IMultiDisplay& GetMultiDisplay() const override;
 
-    void OnPreSave();
-    absl::Status OnSave(archive::IWriter&) const;
-    void OnPostSave();
-    void OnPreLoad();
-    absl::Status OnLoad(archive::IReader&);
-    absl::Status OnPostLoad();
+    absl::Status OnSave(archive::IWriter&) const override;
+    absl::Status OnLoad(archive::IReader&) override;
+    absl::Status OnPostLoad() override;
+
+    std::unique_ptr<display::IMultiDisplay> multi_display;
 
     devices::ConnectorRegistry connector_registry;
     devices::ConnectorRegistry test_tools_connector_registry;
     avd_universe::battery::ObservableBattery::ScopedCallbackHandle battery_subscription;
-    avd_universe::guest_status::ObservableTimestamp::ScopedCallbackHandle bootcomplete_subscription;
     std::unique_ptr<metrics::MetricsReporter> metrics_reporter;
     std::shared_ptr<async::EventLoop::Timer> metrics_ping_timer;
 
@@ -60,6 +59,15 @@ struct AvdExtendedUniverse : public AvdUniverse {
     std::vector<VCpuEventLoop> qemu_cpu_loops;
     std::unique_ptr<metrics::PerfStatReporter> perf_stat_reporter;
     std::shared_ptr<async::EventLoop::Timer> perf_stat_reporter_task;
+
+  private:
+    void OnSaveProps(archive::IWriter&) const;
+    void OnSavePhysicalState(archive::IWriter&) const;
+    absl::Status OnSaveDisplayState(archive::IWriter&) const;
+
+    absl::Status OnLoadProps(archive::IReader&);
+    absl::Status OnLoadPhysicalState(archive::IReader&);
+    absl::Status OnLoadDisplayState(archive::IReader&);
 };
 
 }  // namespace goldfish::avd_info

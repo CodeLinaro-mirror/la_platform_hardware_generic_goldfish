@@ -249,10 +249,10 @@ class LauncherTest : public testing::Test {
         EXPECT_CALL(*avd, GetContentPath()).WillRepeatedly(Return(avd_dir));
         EXPECT_CALL(*avd, Details(_)).WillRepeatedly(Return("test_details"));
 #if defined(__arm64__)
-        EXPECT_CALL(*avd, DetectArchitecture()).WillRepeatedly(Return(Avd::CpuArchitecture::kArm));
+        EXPECT_CALL(*avd, Arch()).WillRepeatedly(Return(Avd::CpuArchitecture::kArm));
         EXPECT_CALL(*avd, Abi()).WillRepeatedly(Return("arm64-v8a"));
 #else
-        EXPECT_CALL(*avd, DetectArchitecture()).WillRepeatedly(Return(Avd::CpuArchitecture::kX86));
+        EXPECT_CALL(*avd, Arch()).WillRepeatedly(Return(Avd::CpuArchitecture::kX86));
         EXPECT_CALL(*avd, Abi()).WillRepeatedly(Return("x86_64"));
 #endif
         EXPECT_CALL(*avd, GetDeviceType()).WillRepeatedly(Return(DeviceType::kPhone));

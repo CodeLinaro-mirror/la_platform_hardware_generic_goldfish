@@ -14,8 +14,10 @@
 
 #pragma once
 
+#include <cstring>
 #include <memory>
 
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 
@@ -26,6 +28,15 @@ class Message;
 }
 
 namespace goldfish::proto_data_store {
+
+/**
+ * @brief Threshold size (in bytes) below which Protobuf messages are serialized
+ * into a temporary stack buffer before writing to the circular log.
+ *
+ * Doing so avoids potential performance penalties from direct serialization when the message size
+ * is small.
+ */
+constexpr size_t kStackSerializationThreshold = 512;
 
 /**
  * @brief A high-performance, type-safe circular log for Protobuf messages.
@@ -109,9 +120,20 @@ class ProtoCircularLog {
      */
     absl::Status Push(const T& message) {
         const size_t payload_len = message.ByteSizeLong();
-        return engine_.Push(static_cast<uint32_t>(payload_len), [&](void* data_ptr) {
-            message.SerializeToArray(data_ptr, static_cast<int>(payload_len));
-        });
+        if (payload_len <= kStackSerializationThreshold) {
+            char stack_buf[kStackSerializationThreshold];
+            bool success = message.SerializeToArray(stack_buf, static_cast<int>(payload_len));
+            ABSL_CHECK(success) << "Failed to serialize message of type " << message.GetTypeName();
+            return engine_.Push(static_cast<uint32_t>(payload_len), [&](void* data_ptr) {
+                std::memcpy(data_ptr, stack_buf, payload_len);
+            });
+        } else {
+            return engine_.Push(static_cast<uint32_t>(payload_len), [&](void* data_ptr) {
+                bool success = message.SerializeToArray(data_ptr, static_cast<int>(payload_len));
+                ABSL_CHECK(success)
+                        << "Failed to serialize message of type " << message.GetTypeName();
+            });
+        }
     }
 
     /**

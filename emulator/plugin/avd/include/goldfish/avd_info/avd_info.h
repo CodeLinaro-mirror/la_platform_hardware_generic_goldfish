@@ -23,9 +23,15 @@
 #include "goldfish/avd_universe/gps/location.h"
 #include "goldfish/avd_universe/grpc/grpc_notification_channel.h"
 #include "goldfish/avd_universe/guest_status/guest_status.h"
+#include "goldfish/avd_universe/vehicle/vehicle_data.h"
 #include "goldfish/metrics/configure_metrics_writer.h"
 #include "goldfish/metrics/uuid.h"
 #include "goldfish/sensors/physical_model.h"
+#include "goldfish/snapshottable/snapshottable.h"
+
+namespace goldfish::display {
+class IMultiDisplay;
+}
 
 namespace goldfish::devices::multidisplay {
 class MultiDisplayDevice;
@@ -66,13 +72,14 @@ struct AvdProperties {
  * The instance of this type is available between
  * the `avd_info_realize` and `avd_info_unrealize` events.
  */
-struct AvdUniverse {
+struct AvdUniverse : public snapshottable::Snapshottable {
     virtual ~AvdUniverse() = default;
 
     const AvdProperties& Props() const { return *props_; }
 
     avd_universe::battery::ObservableBattery& GetBattery() { return battery_; }
     avd_universe::clipboard::ClipboardChannel& GetClipboardChannel() { return clipboard_channel_; }
+    avd_universe::vehicle::VehicleChannel& GetVehicleChannel() { return vehicle_channel_; }
     avd_universe::fingerprint::ObservableFingerprintSensor& GetFingerprintSensor() {
         return fingerprint_sensor_;
     }
@@ -90,23 +97,26 @@ struct AvdUniverse {
             std::shared_ptr<devices::multidisplay::MultiDisplayDevice> device);
     std::shared_ptr<devices::multidisplay::MultiDisplayDevice> GetActiveMultiDisplayDevice();
 
+    virtual display::IMultiDisplay& GetMultiDisplay() const = 0;
+
     explicit AvdUniverse(std::unique_ptr<AvdProperties> props);
     AvdUniverse(const AvdUniverse&) = delete;
     AvdUniverse(AvdUniverse&&) = delete;
     AvdUniverse& operator=(const AvdUniverse&) = delete;
     AvdUniverse& operator=(AvdUniverse&&) = delete;
 
-  private:
+  protected:
     const std::unique_ptr<const AvdProperties> props_;
 
     mutable absl::Mutex device_mutex_;
     std::shared_ptr<devices::multidisplay::MultiDisplayDevice> active_multi_display_device_
             ABSL_GUARDED_BY(device_mutex_);
 
+    avd_universe::grpc::GrpcNotificationEventSource grpc_notification_event_source_;
     avd_universe::battery::ObservableBattery battery_;
     avd_universe::clipboard::ClipboardChannel clipboard_channel_;
+    avd_universe::vehicle::VehicleChannel vehicle_channel_;
     avd_universe::fingerprint::ObservableFingerprintSensor fingerprint_sensor_;
-    avd_universe::grpc::GrpcNotificationEventSource grpc_notification_event_source_;
     avd_universe::guest_status::GuestStatus guest_status_;
     avd_universe::gps::ObservableLocation location_;
     sensors::PhysicalModel sensors_physical_model_;

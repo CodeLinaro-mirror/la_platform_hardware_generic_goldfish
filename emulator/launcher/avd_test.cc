@@ -20,8 +20,8 @@
 #include "absl/status/status_matchers.h"
 #include "absl/strings/str_cat.h"
 
-#include "android/base/testing/TestSystem.h"
-#include "android/base/testing/TestTempDir.h"
+#include "android/base/testing/test_system.h"
+#include "android/base/testing/test_temp_dir.h"
 #include "android/goldfish/input_paths.h"
 #include "android/status/status_matcher_macros.h"
 
@@ -54,7 +54,7 @@ class AvdTest : public ::testing::Test {
         tmp->MakeSubDir(android_home / "avd");
         tmp->MakeSubDir(android_home / "sysimg");
         fs::path sysimg = tmp->Path() / android_home / "sysimg";
-        WriteToFile(sysimg / "build.prop", "ro.system.build.version.sdk=30");
+        WriteToFile(sysimg / "build.prop", "ro.system.build.version.sdk=30\nro.product.cpu.abi=x86_64");
         WriteToFile(sysimg / "advancedFeatures.ini", "");
         WriteToFile(sysimg / "VerifiedBootParams.textproto", "");
         tmp->MakeSubDir(android_home / "sysimg" / "data");
@@ -85,7 +85,7 @@ class AvdTest : public ::testing::Test {
         WriteToFile(avd_dir / "config.ini",
                     absl::StrCat("target=", targetString, "\nimage.sysdir.1=sysimg"));
         WriteToFile(paths_.sdk_directory / "sysimg" / "build.prop",
-                    absl::StrCat("ro.system.build.version.sdk=", api_level));
+                    absl::StrCat("ro.system.build.version.sdk=", api_level, "\nro.product.cpu.abi=x86_64"));
 
         return avd_dir;
     }
@@ -118,7 +118,7 @@ TEST_F(AvdTest, UnknownApiLevel) {
 TEST_F(AvdTest, InvalidTargetFormat) {
     CreateTestAvd("test_avd", "invalid-target-format", 30);
     // overwrite build.prop
-    WriteToFile(paths_.sdk_directory / "sysimg" / "build.prop", "ro.system.build.version.sdk=foo");
+    WriteToFile(paths_.sdk_directory / "sysimg" / "build.prop", "ro.system.build.version.sdk=foo\nro.product.cpu.abi=x86_64");
 
     ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(opts_, paths_, "test_avd", false, ""));
     EXPECT_EQ(avd->ApiLevel(), Avd::kUnknownApiLevel);
@@ -160,7 +160,7 @@ TEST_F(AvdTest, SysImgOverride) {
 
     // Create required files in override path
     WriteToFile(overridePath / "system.img", "some data");
-    WriteToFile(overridePath / "build.prop", "ro.system.build.version.sdk=30");
+    WriteToFile(overridePath / "build.prop", "ro.system.build.version.sdk=30\nro.product.cpu.abi=x86_64");
     WriteToFile(overridePath / "advancedFeatures.ini", "");
     WriteToFile(overridePath / "VerifiedBootParams.textproto", "");
     tmp_->MakeSubDir(fs::path("nothome") / "blah" / "data");
@@ -173,7 +173,7 @@ TEST_F(AvdTest, SysImgOverride) {
     auto p = overridePath.string();
     opts_.sysdir = const_cast<char*>(p.c_str());
 
-    ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(opts_, paths_, "q", false, ""));
+    ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(opts_, paths_, "q", false, "", p));
     EXPECT_EQ(avd->GetSystemImagePaths().system_image, overridePath / "system.img");
 }
 
@@ -243,30 +243,32 @@ TEST_F(AvdTest, CpuArchitecture) {
                 "abi.type=x86_64\ntarget=android-30\nimage.sysdir.1=sysimg");
     {
         ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(opts_, paths_, "x86_avd", false, ""));
-        EXPECT_EQ(avd->DetectArchitecture(), Avd::CpuArchitecture::kX86);
+        EXPECT_EQ(avd->Arch(), Avd::CpuArchitecture::kX86);
     }
 
     auto arm_avd_dir = CreateTestAvd("arm_avd", "android-30", 30);
     WriteToFile(arm_avd_dir / "config.ini",
                 "abi.type=arm64-v8a\ntarget=android-30\nimage.sysdir.1=sysimg");
+    WriteToFile(paths_.sdk_directory / "sysimg" / "build.prop",
+                "ro.system.build.version.sdk=30\nro.product.cpu.abi=arm64-v8a");
     {
         ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(opts_, paths_, "arm_avd", false, ""));
-        EXPECT_EQ(avd->DetectArchitecture(), Avd::CpuArchitecture::kArm);
+        EXPECT_EQ(avd->Arch(), Avd::CpuArchitecture::kArm);
     }
 
     auto unknown_avd_dir = CreateTestAvd("unknown_avd", "android-30", 30);
     WriteToFile(unknown_avd_dir / "config.ini",
                 "abi.type=mips\ntarget=android-30\nimage.sysdir.1=sysimg");
-    {
-        ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(opts_, paths_, "unknown_avd", false, ""));
-        EXPECT_EQ(avd->DetectArchitecture(), Avd::CpuArchitecture::kUnknown);
-    }
+    WriteToFile(paths_.sdk_directory / "sysimg" / "build.prop",
+                "ro.system.build.version.sdk=30\nro.product.cpu.abi=mips");
+    EXPECT_THAT(Avd::FromName(opts_, paths_, "unknown_avd", false, ""),
+                StatusIs(absl::StatusCode::kInvalidArgument, "Unable to detect avd architecture"));
 }
 
 TEST_F(AvdTest, DeviceType) {
     auto avd_dir = CreateTestAvd("phone_avd", "android-30", 30);
     WriteToFile(paths_.sdk_directory / "sysimg" / "build.prop",
-                "ro.product.name=sdk_gphone_x86_64\nro.system.build.version.sdk=30");
+                "ro.product.name=sdk_gphone_x86_64\nro.system.build.version.sdk=30\nro.product.cpu.abi=x86_64");
     {
         ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(opts_, paths_, "phone_avd", false, ""));
         EXPECT_EQ(avd->GetDeviceType(), DeviceType::kPhone);
@@ -274,7 +276,7 @@ TEST_F(AvdTest, DeviceType) {
 
     auto tv_avd_dir = CreateTestAvd("tv_avd", "android-30", 30);
     WriteToFile(paths_.sdk_directory / "sysimg" / "build.prop",
-                "ro.product.name=sdk_atv_x86\nro.system.build.version.sdk=30");
+                "ro.product.name=sdk_atv_x86\nro.system.build.version.sdk=30\nro.product.cpu.abi=x86_64");
     {
         ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(opts_, paths_, "tv_avd", false, ""));
         EXPECT_EQ(avd->GetDeviceType(), DeviceType::kTv);
@@ -282,7 +284,7 @@ TEST_F(AvdTest, DeviceType) {
 
     auto wear_avd_dir = CreateTestAvd("wear_avd", "android-30", 30);
     WriteToFile(paths_.sdk_directory / "sysimg" / "build.prop",
-                "ro.product.name=sdk_wear_x86\nro.system.build.version.sdk=30");
+                "ro.product.name=sdk_wear_x86\nro.system.build.version.sdk=30\nro.product.cpu.abi=x86_64");
     {
         ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(opts_, paths_, "wear_avd", false, ""));
         EXPECT_EQ(avd->GetDeviceType(), DeviceType::kWear);
@@ -309,7 +311,7 @@ TEST_F(AvdTest, BuildFingerprint) {
     CreateTestAvd("test_avd", "android-30", 30);
     WriteToFile(paths_.sdk_directory / "sysimg" / "build.prop",
                 "ro.build.fingerprint=google/sdk_gphone_x86_64/emulator:30/RSR1.201013.001/"
-                "6903271:userdebug/dev-keys\nro.system.build.version.sdk=30");
+                "6903271:userdebug/dev-keys\nro.system.build.version.sdk=30\nro.product.cpu.abi=x86_64");
 
     ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(opts_, paths_, "test_avd", false, ""));
     EXPECT_EQ(avd->BuildFingerprint(),
@@ -359,6 +361,96 @@ TEST_F(AvdTest, ContentOverride) {
 
     // Hardware config should still be loaded from the original config.ini and finalized.
     EXPECT_EQ(avd->Hw().hw_ramSize, 2048);
+}
+
+TEST_F(AvdTest, FromAndroidBuild) {
+    fs::path build_out = tmp_->Path() / "android_build_out";
+    tmp_->MakeSubDir("android_build_out");
+    tmp_->MakeSubDir("android_build_out/system");
+    tmp_->MakeSubDir("android_build_out/data");
+
+    WriteToFile(build_out / "system" / "build.prop",
+                "ro.system.build.version.sdk=30\nro.product.cpu.abi=x86_64");
+    WriteToFile(build_out / "advancedFeatures.ini", "");
+    WriteToFile(build_out / "VerifiedBootParams.textproto", "");
+    WriteToFile(build_out / "kernel_cmdline.txt", "");
+    WriteToFile(build_out / "kernel-ranchu", "");
+    WriteToFile(build_out / "ramdisk-qemu.img", "");
+    WriteToFile(build_out / "system-qemu.img", "");
+    WriteToFile(build_out / "vendor-qemu.img", "");
+    WriteToFile(build_out / "encryptionkey.img", "");
+
+    WriteToFile(build_out / "config.ini",
+                "abi.type=x86_64\ntarget=android-30");
+
+    ASSERT_OK_AND_ASSIGN(auto avd,
+                         Avd::FromAndroidBuild(opts_, paths_, "android_build_avd", build_out,
+                                               /*wipe_data=*/false, ""));
+
+    EXPECT_EQ(avd->Name(), "android_build_avd");
+    EXPECT_EQ(avd->Arch(), Avd::CpuArchitecture::kX86);
+    EXPECT_EQ(avd->GetContentPath(), build_out);
+}
+
+TEST_F(AvdTest, FromAndroidBuildWipeData) {
+    fs::path build_out = tmp_->Path() / "android_build_out_wipe";
+    tmp_->MakeSubDir("android_build_out_wipe");
+    tmp_->MakeSubDir("android_build_out_wipe/system");
+    tmp_->MakeSubDir("android_build_out_wipe/data");
+
+    WriteToFile(build_out / "system" / "build.prop",
+                "ro.system.build.version.sdk=30\nro.product.cpu.abi=x86_64");
+    WriteToFile(build_out / "advancedFeatures.ini", "");
+    WriteToFile(build_out / "VerifiedBootParams.textproto", "");
+    WriteToFile(build_out / "kernel_cmdline.txt", "");
+    WriteToFile(build_out / "kernel-ranchu", "");
+    WriteToFile(build_out / "ramdisk-qemu.img", "");
+    WriteToFile(build_out / "system-qemu.img", "");
+    WriteToFile(build_out / "vendor-qemu.img", "");
+    WriteToFile(build_out / "encryptionkey.img", "");
+
+    WriteToFile(build_out / "config.ini",
+                "abi.type=x86_64\ntarget=android-30");
+
+    auto qcow1 = build_out / "system.img.qcow2";
+    auto qcow2 = build_out / "vendor.img.qcow2";
+    auto qcow3 = build_out / "encryptionkey.img.qcow2";
+    auto userdata = build_out / "userdata-qemu.img";
+    auto userdata_qcow = build_out / "userdata-qemu.img.qcow2";
+    auto cache = build_out / "cache.img.qcow2";
+    auto hw_ini = build_out / "hardware-qemu.ini";
+    auto qemu_ver = build_out / "qemu-version.txt";
+
+    WriteToFile(qcow1, "dummy");
+    WriteToFile(qcow2, "dummy");
+    WriteToFile(qcow3, "dummy");
+    WriteToFile(userdata, "dummy");
+    WriteToFile(userdata_qcow, "dummy");
+    WriteToFile(cache, "dummy");
+    WriteToFile(hw_ini, "dummy");
+    WriteToFile(qemu_ver, "dummy");
+
+    EXPECT_TRUE(base::file::exists(qcow1));
+    EXPECT_TRUE(base::file::exists(qcow2));
+    EXPECT_TRUE(base::file::exists(qcow3));
+    EXPECT_TRUE(base::file::exists(userdata));
+    EXPECT_TRUE(base::file::exists(userdata_qcow));
+    EXPECT_TRUE(base::file::exists(cache));
+    EXPECT_TRUE(base::file::exists(hw_ini));
+    EXPECT_TRUE(base::file::exists(qemu_ver));
+
+    ASSERT_OK_AND_ASSIGN(auto avd,
+                         Avd::FromAndroidBuild(opts_, paths_, "android_build_avd", build_out,
+                                               /*wipe_data=*/true, ""));
+
+    EXPECT_FALSE(base::file::exists(qcow1));
+    EXPECT_FALSE(base::file::exists(qcow2));
+    EXPECT_FALSE(base::file::exists(qcow3));
+    EXPECT_FALSE(base::file::exists(userdata));
+    EXPECT_FALSE(base::file::exists(userdata_qcow));
+    EXPECT_FALSE(base::file::exists(cache));
+    EXPECT_TRUE(base::file::exists(hw_ini)); // Re-created during loading
+    EXPECT_FALSE(base::file::exists(qemu_ver));
 }
 
 }  // namespace android::goldfish::avd

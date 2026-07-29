@@ -19,7 +19,7 @@
 #include "absl/status/status_matchers.h"
 #include "gmock/gmock.h"
 
-#include "android/base/testing/TestSystem.h"
+#include "android/base/testing/test_system.h"
 #include "android/status/status_matcher_macros.h"
 #include "fake_emulator.h"
 
@@ -47,7 +47,7 @@ TEST(Machine, Basic_x86) {
     base::TestSystem sys(launcher_path);
 
     FakeEmulator emu;
-    EXPECT_CALL(emu.mock_avd(), DetectArchitecture())
+    EXPECT_CALL(emu.mock_avd(), Arch())
             .Times(1)
             .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
 
@@ -64,7 +64,7 @@ TEST(Machine, Basic_arm64) {
     base::TestSystem sys(launcher_path);
 
     FakeEmulator emu;
-    EXPECT_CALL(emu.mock_avd(), DetectArchitecture())
+    EXPECT_CALL(emu.mock_avd(), Arch())
             .Times(1)
             .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kArm));
 

@@ -39,7 +39,6 @@ class FakeMultiDisplayTest : public ::testing::Test {
 
         // Clear all displays except the default one before each test
         fake_multi_display_ = std::make_unique<FakeMultiDisplay>(loop_.get());
-        IMultiDisplay::InjectSingleton(fake_multi_display_.get());
     }
     void TearDown() override { loop_.reset(); }
 
@@ -71,7 +70,7 @@ class DisplayEventListener : public EventListener<DisplayEvent> {
 
 TEST_F(FakeMultiDisplayTest, CreateAndGetDisplay) {
     // Get the singleton Instance
-    IMultiDisplay* multi_display = IMultiDisplay::Instance();
+    IMultiDisplay* multi_display = fake_multi_display_.get();
 
     // Create a new display
     auto result = multi_display->CreateDisplay(1, 800, 600, 320, 1);
@@ -89,7 +88,7 @@ TEST_F(FakeMultiDisplayTest, CreateAndGetDisplay) {
 
 TEST_F(FakeMultiDisplayTest, CreateDisplayAlreadyExists) {
     // Get the singleton Instance
-    IMultiDisplay* multi_display = IMultiDisplay::Instance();
+    IMultiDisplay* multi_display = fake_multi_display_.get();
 
     // Create a new display
     auto result = multi_display->CreateDisplay(2, 800, 600, 320, 1);
@@ -103,7 +102,7 @@ TEST_F(FakeMultiDisplayTest, CreateDisplayAlreadyExists) {
 
 TEST_F(FakeMultiDisplayTest, GetDisplayNotFound) {
     // Get the singleton Instance
-    IMultiDisplay* multi_display = IMultiDisplay::Instance();
+    IMultiDisplay* multi_display = fake_multi_display_.get();
 
     // Try to get a non-existent display
     auto result = multi_display->GetDisplay(99);
@@ -113,7 +112,7 @@ TEST_F(FakeMultiDisplayTest, GetDisplayNotFound) {
 
 TEST_F(FakeMultiDisplayTest, EraseDisplay) {
     // Get the singleton Instance
-    IMultiDisplay* multi_display = IMultiDisplay::Instance();
+    IMultiDisplay* multi_display = fake_multi_display_.get();
 
     // Create a new display
     auto result = multi_display->CreateDisplay(3, 800, 600, 320, 1);
@@ -131,7 +130,7 @@ TEST_F(FakeMultiDisplayTest, EraseDisplay) {
 
 TEST_F(FakeMultiDisplayTest, EraseDefaultDisplay) {
     // Get the singleton Instance
-    IMultiDisplay* multi_display = IMultiDisplay::Instance();
+    IMultiDisplay* multi_display = fake_multi_display_.get();
 
     // Try to erase the default display
     auto result = multi_display->EraseDisplay(0);
@@ -141,7 +140,7 @@ TEST_F(FakeMultiDisplayTest, EraseDefaultDisplay) {
 
 TEST_F(FakeMultiDisplayTest, Displays) {
     // Get the singleton Instance
-    IMultiDisplay* multi_display = IMultiDisplay::Instance();
+    IMultiDisplay* multi_display = fake_multi_display_.get();
 
     // Create a few displays
     auto result1 = multi_display->CreateDisplay(4, 800, 600, 320, 1);
@@ -168,7 +167,7 @@ TEST_F(FakeMultiDisplayTest, Displays) {
 
 TEST_F(FakeMultiDisplayTest, DefaultDisplay) {
     // Get the singleton Instance
-    IMultiDisplay* multi_display = IMultiDisplay::Instance();
+    IMultiDisplay* multi_display = fake_multi_display_.get();
 
     // Get the default display
     const DisplayPtr default_display = multi_display->DefaultDisplay().value();
@@ -179,7 +178,7 @@ TEST_F(FakeMultiDisplayTest, DefaultDisplay) {
 
 TEST_F(FakeMultiDisplayTest, IsEnabled) {
     // Get the singleton Instance
-    IMultiDisplay* multi_display = IMultiDisplay::Instance();
+    IMultiDisplay* multi_display = fake_multi_display_.get();
 
     // Check if the display is enabled
     ASSERT_TRUE(multi_display->IsEnabled());
@@ -188,7 +187,7 @@ TEST_F(FakeMultiDisplayTest, IsEnabled) {
 TEST_F(FakeMultiDisplayTest, DisplayEvents) {
     using namespace std::chrono_literals;
     // Get the singleton Instance
-    IMultiDisplay* multi_display = IMultiDisplay::Instance();
+    IMultiDisplay* multi_display = fake_multi_display_.get();
     auto listener = std::make_shared<DisplayEventListener>();
     reinterpret_cast<android::base::eventing::CallbackEventSource<DisplayEvent>*>(multi_display)
             ->AddListener(listener);
@@ -214,7 +213,7 @@ TEST_F(FakeMultiDisplayTest, DisplayEvents) {
 
 TEST_F(FakeMultiDisplayTest, DisplayEventsAreOnTheEventLoop) {
     // Get the singleton Instance
-    IMultiDisplay* multi_display = IMultiDisplay::Instance();
+    IMultiDisplay* multi_display = fake_multi_display_.get();
     absl::Notification event;
     auto callback = android::base::eventing::MakeScopedCallback(
             *multi_display, [&](const DisplayEvent& /*_*/) {

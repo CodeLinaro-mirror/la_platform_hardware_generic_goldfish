@@ -27,6 +27,7 @@ class CrashReportManager {
     std::vector<crashpad::CrashReportDatabase::Report> GetAllReports();
     bool DeleteReport(const crashpad::UUID& uuid);
     bool RequestUpload(const crashpad::UUID& uuid);
+    bool UploadCrashReports();
     std::optional<std::string> GetLatestReportPath();
     void ForEachReport(
             std::function<void(const crashpad::CrashReportDatabase::Report& report)> action);

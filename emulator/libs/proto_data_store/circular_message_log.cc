@@ -17,6 +17,7 @@
 #include <cstdint>
 #include <cstring>
 
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "google/protobuf/message.h"
 
@@ -44,9 +45,18 @@ CircularMessageLog::CircularMessageLog(Private, void* buffer, size_t size, bool 
 
 absl::Status CircularMessageLog::Push(const google::protobuf::Message& message) {
     const size_t payload_len = message.ByteSizeLong();
-    return engine_.Push(static_cast<uint32_t>(payload_len), [&](void* data_ptr) {
-        message.SerializeToArray(data_ptr, static_cast<int>(payload_len));
-    });
+    if (payload_len <= kStackSerializationThreshold) {
+        char stack_buf[kStackSerializationThreshold];
+        bool success = message.SerializeToArray(stack_buf, static_cast<int>(payload_len));
+        ABSL_CHECK(success) << "Failed to serialize message of type " << message.GetTypeName();
+        return engine_.Push(static_cast<uint32_t>(payload_len),
+                            [&](void* data_ptr) { std::memcpy(data_ptr, stack_buf, payload_len); });
+    } else {
+        return engine_.Push(static_cast<uint32_t>(payload_len), [&](void* data_ptr) {
+            bool success = message.SerializeToArray(data_ptr, static_cast<int>(payload_len));
+            ABSL_CHECK(success) << "Failed to serialize message of type " << message.GetTypeName();
+        });
+    }
 }
 
 void CircularMessageLog::ForEach(const Visitor& visitor) const {

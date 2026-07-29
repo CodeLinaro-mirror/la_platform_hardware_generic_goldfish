@@ -1,0 +1,6 @@
+{
+  "name": "test_enforcer",
+  "configPath": {
+    "relativePathToConfig": "config.yaml"
+  }
+}

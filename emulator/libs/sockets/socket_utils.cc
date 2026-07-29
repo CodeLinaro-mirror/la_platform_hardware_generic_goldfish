@@ -10,15 +10,17 @@
 // GNU General Public License for more details.
 #include "android/sockets/socket_utils.h"
 
+#include <sys/types.h>
+
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 
-#include "SocketErrors.h"
 #include "android/base/eintr_wrapper.h"
 #include "android/base/no_sigalarm.h"
 #include "android/sockets/scoped_socket.h"
+#include "socket_errors.h"
 #ifdef _WIN32
-#include "Winsock.h"
+#include "winsock.h"
 #else
 #include <fcntl.h>
 #include <netdb.h>

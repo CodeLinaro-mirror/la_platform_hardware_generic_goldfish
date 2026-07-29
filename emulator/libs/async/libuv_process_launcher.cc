@@ -14,6 +14,8 @@
 
 #include "goldfish/async/libuv_process_launcher.h"
 
+#include <sys/types.h>
+
 #include <fstream>
 #include <iostream>
 #include <memory>

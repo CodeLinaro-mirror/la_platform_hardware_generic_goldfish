@@ -107,8 +107,8 @@ TEST(Connector, incomplete_request) {
         testSocket.plug->OnUnplug();
     }
 
-    EXPECT_THAT(ReadValue<std::string>(archive), IsOkAndHolds("Connector"));
-    EXPECT_THAT(ReadValue<std::string>(archive), IsOkAndHolds("incomplete"));
+    EXPECT_THAT(ReadOneValue<std::string>(archive), IsOkAndHolds("Connector"));
+    EXPECT_THAT(ReadOneValue<std::string>(archive), IsOkAndHolds("incomplete"));
 }
 
 TEST(Connector, bad_request) {
@@ -182,10 +182,10 @@ TEST(Connector, qemud_TestDevice_args_unconsumed) {
         testSocket.plug->OnUnplug();
     }
 
-    EXPECT_THAT(ReadValue<std::string>(archive), IsOkAndHolds("TestDevice"));
-    EXPECT_THAT(ReadValue<bool>(archive), IsOkAndHolds(true));
-    EXPECT_THAT(ReadValue<std::string>(archive), IsOkAndHolds("args"));
-    EXPECT_THAT(ReadValue<std::string>(archive), IsOkAndHolds("unconsumed"));
+    EXPECT_THAT(ReadOneValue<std::string>(archive), IsOkAndHolds("TestDevice"));
+    EXPECT_THAT(ReadOneValue<bool>(archive), IsOkAndHolds(true));
+    EXPECT_THAT(ReadOneValue<std::string>(archive), IsOkAndHolds("args"));
+    EXPECT_THAT(ReadOneValue<std::string>(archive), IsOkAndHolds("unconsumed"));
 }
 
 TEST(Connector, qemud_TestDevice_unconsumed) {
@@ -208,10 +208,10 @@ TEST(Connector, qemud_TestDevice_unconsumed) {
         testSocket.plug->OnUnplug();
     }
 
-    EXPECT_THAT(ReadValue<std::string>(archive), IsOkAndHolds("TestDevice"));
-    EXPECT_THAT(ReadValue<bool>(archive), IsOkAndHolds(true));
-    EXPECT_THAT(ReadValue<std::string>(archive), IsOkAndHolds(""));
-    EXPECT_THAT(ReadValue<std::string>(archive), IsOkAndHolds("unconsumed"));
+    EXPECT_THAT(ReadOneValue<std::string>(archive), IsOkAndHolds("TestDevice"));
+    EXPECT_THAT(ReadOneValue<bool>(archive), IsOkAndHolds(true));
+    EXPECT_THAT(ReadOneValue<std::string>(archive), IsOkAndHolds(""));
+    EXPECT_THAT(ReadOneValue<std::string>(archive), IsOkAndHolds("unconsumed"));
 }
 
 TEST(Connector, TestDevice_args_unconsumed) {
@@ -234,10 +234,10 @@ TEST(Connector, TestDevice_args_unconsumed) {
         testSocket.plug->OnUnplug();
     }
 
-    EXPECT_THAT(ReadValue<std::string>(archive), IsOkAndHolds("TestDevice"));
-    EXPECT_THAT(ReadValue<bool>(archive), IsOkAndHolds(false));
-    EXPECT_THAT(ReadValue<std::string>(archive), IsOkAndHolds("args"));
-    EXPECT_THAT(ReadValue<std::string>(archive), IsOkAndHolds("unconsumed"));
+    EXPECT_THAT(ReadOneValue<std::string>(archive), IsOkAndHolds("TestDevice"));
+    EXPECT_THAT(ReadOneValue<bool>(archive), IsOkAndHolds(false));
+    EXPECT_THAT(ReadOneValue<std::string>(archive), IsOkAndHolds("args"));
+    EXPECT_THAT(ReadOneValue<std::string>(archive), IsOkAndHolds("unconsumed"));
 }
 
 TEST(Connector, TestDevice_unconsumed) {
@@ -260,10 +260,10 @@ TEST(Connector, TestDevice_unconsumed) {
         testSocket.plug->OnUnplug();
     }
 
-    EXPECT_THAT(ReadValue<std::string>(archive), IsOkAndHolds("TestDevice"));
-    EXPECT_THAT(ReadValue<bool>(archive), IsOkAndHolds(false));
-    EXPECT_THAT(ReadValue<std::string>(archive), IsOkAndHolds(""));
-    EXPECT_THAT(ReadValue<std::string>(archive), IsOkAndHolds("unconsumed"));
+    EXPECT_THAT(ReadOneValue<std::string>(archive), IsOkAndHolds("TestDevice"));
+    EXPECT_THAT(ReadOneValue<bool>(archive), IsOkAndHolds(false));
+    EXPECT_THAT(ReadOneValue<std::string>(archive), IsOkAndHolds(""));
+    EXPECT_THAT(ReadOneValue<std::string>(archive), IsOkAndHolds("unconsumed"));
 }
 
 }  // namespace devices

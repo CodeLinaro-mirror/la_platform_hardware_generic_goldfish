@@ -31,6 +31,7 @@
 #include "goldfish/archive/qemu_file_reader.h"
 #include "goldfish/archive/qemu_file_writer.h"
 #include "goldfish/avd_info/avd_private.h"
+#include "goldfish/display/QemuMultidisplay/multi_display.h"
 #include "host-common/constants.h"
 
 // clang-format off
@@ -78,7 +79,7 @@ AvdExtendedUniverse& getAvdImpl() {
 
 AvdUniverse::AvdUniverse(std::unique_ptr<AvdProperties> props)
         : props_(std::move(props)), sensors_physical_model_(props_->hw_config) {
-    guest_status_.reset.SetValue(
+    guest_status_.Reset(
             absl::UnixEpoch() +
             absl::Milliseconds(android::base::System::Get()->GetProcessTimes().wall_clock_ms));
 }
@@ -310,6 +311,11 @@ void avd_info_unrealize(DeviceState* dev) {
     gGlobalAvdUniverseInstance = nullptr;
 }
 
+void avd_info_reset(DeviceState* dev) {
+    VLOG(1) << "avd_info_reset";
+    GetAvd().GetMultiDisplay().Reset();
+}
+
 int avd_info_pre_load(void* opaque) {
     toAvdExtendedUniverse(opaque).OnPreLoad();
     return 0;
@@ -416,6 +422,7 @@ void avd_info_class_init(ObjectClass* oc, void* data) {
     DeviceClass* dc = DEVICE_CLASS(oc);
     dc->realize = avd_info_realize;
     dc->unrealize = avd_info_unrealize;
+    dc->legacy_reset = avd_info_reset;
     dc->vmsd = &avd_info_vmsd;
 }
 

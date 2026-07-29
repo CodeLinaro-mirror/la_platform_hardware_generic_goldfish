@@ -161,6 +161,15 @@ int get_log_level() {
     return log_level;
 }
 
+class CrashBreadcrumbSink : public absl::LogSink {
+  public:
+    void Send(const absl::LogEntry& entry) override {
+        if (entry.log_severity() == absl::LogSeverity::kFatal) {
+            CRUMB(kQemu) << "FATAL: " << entry.text_message();
+        }
+    }
+};
+
 void setup_logging() {
     absl::InitializeLog();
     absl::SetStderrThreshold(absl::LogSeverityAtLeast::kInfo);
@@ -174,6 +183,9 @@ void setup_logging() {
         absl::AddLogSink(&logSink);
         absl::SetStderrThreshold(absl::LogSeverityAtLeast::kInfinity);
     }
+
+    static CrashBreadcrumbSink crashBreadcrumbSink;
+    absl::AddLogSink(&crashBreadcrumbSink);
 
     // Switch QEMU logging to ABSL.
     set_logger(&qemu_absl_logger);
@@ -231,6 +243,8 @@ extern "C" void GF_STARTUP_FUNC(int argc, char** argv) {
 
 extern "C" void GF_SHUTDOWN_FUNC(void) {
     auto* client_loop = goldfish::async::globalEventLoop();
+    android::crashreport::CrashReporter::GetCrashingHangDetector().RemoveWatchedLooper(
+            *client_loop);
     LOG_IF(FATAL, !client_loop->ShutdownAndWait(std::chrono::seconds(10)).ok())
             << "global event loop shutdown failed within 10s";
     LOG(INFO) << "goldfish plugin shutdown completed";

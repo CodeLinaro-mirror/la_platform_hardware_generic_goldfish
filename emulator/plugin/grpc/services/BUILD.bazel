@@ -120,6 +120,8 @@ cc_library(
     hdrs = ["include/android/emulation/control/snapshot_service_impl.h"],
     includes = ["include"],
     deps = [
+        "//emulator/libs/grpc_utils:absl_translate",
+        "//emulator/plugin/vminterface",
         "@aemu//protos/services/snapshot:snapshot_service_cc_grpc",
         "@grpc//:grpc++",
     ],
@@ -158,7 +160,9 @@ cc_library(
     hdrs = ["include/android/emulation/control/incubating/screen_recording_impl.h"],
     includes = ["include"],
     deps = [
+        "//emulator/libs/archive",
         "//emulator/libs/file",
+        "//emulator/libs/grpc_utils:absl_translate",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/log",
@@ -167,6 +171,20 @@ cc_library(
         "@aemu//protos/services/incubating/recording:screen_recording_service_cc_grpc",
         "@goldfish//emulator/plugin/display:video_recorder",
         "@grpc//:grpc++",
+    ],
+)
+
+cc_library(
+    name = "vehicle_service",
+    srcs = ["vehicle_service.cc"],
+    hdrs = ["include/android/emulation/control/incubating/vehicle_service.h"],
+    includes = ["include"],
+    deps = [
+        "//emulator/libs/async:async_api",
+        "//emulator/libs/grpc_utils:event-stream",
+        "//emulator/plugin/avd:info",
+        "//emulator/plugin/avd_universe:vehicle",
+        "@aemu//protos/services/incubating/car:vehicle_service_cc_grpc",
     ],
 )
 

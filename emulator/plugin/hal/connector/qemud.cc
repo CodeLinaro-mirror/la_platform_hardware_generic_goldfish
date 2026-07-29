@@ -130,12 +130,12 @@ void Parser::SaveToSnapshot(archive::IWriter& writer) const {
 }
 
 bool Parser::LoadFromSnapshot(archive::IReader& reader) {
-    const auto size = ReadValue<size_t>(reader);
-    if (!size.ok()) {
+    size_t size = 0;
+    if (!ReadValue(reader, size).ok()) {
         return false;
     }
 
-    buffer_.resize(*size);
+    buffer_.resize(size);
     return reader.Read(buffer_.data(), buffer_.size()).ok();
 }
 

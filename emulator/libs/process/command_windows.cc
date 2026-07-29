@@ -478,6 +478,7 @@ class WinProcess : public ObservableProcess {
             DVLOG(1) << "Replacing current process with: " << cmdline[0];
             // The exec() functions only return if an error has occurred.
             SafeExecv(cmdline[0], cmdline.data());
+            LOG(ERROR) << "Failed to replace current process with: " << cmdline[0];
             return std::nullopt;
         }
 

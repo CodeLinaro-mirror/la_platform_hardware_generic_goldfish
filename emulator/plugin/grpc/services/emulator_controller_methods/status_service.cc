@@ -14,9 +14,13 @@
 #include "status_service.h"
 
 #include "absl/log/log.h"
+#include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
 
 #include "android/base/system.h"
+#include "android/cpu/cpu_accelerator.h"
 #include "android/goldfish/hardware_config.h"
+#include "android/goldfish/ini_file.h"
 
 namespace android {
 namespace emulation {
@@ -49,8 +53,8 @@ grpc::Status StatusServiceImpl::getStatus(EmulatorStatus* reply) {
     // TODO(jansene): Get cpu count, hypervisor type.`
     reply->set_uptime(System::Get()->GetProcessTimes().wall_clock_ms);
 
-    reply->set_booted(guest_status_.bootcomplete.GetValue() != absl::UnixEpoch());
-    reply->set_heartbeat(guest_status_.heartbeat.GetValue());
+    reply->set_booted(guest_status_.IsBootCompleted());
+    reply->set_heartbeat(guest_status_.GetHeartbeatCounter());
 
     auto cnf = getQemuConfig(avd_properties_.avd_api, avd_properties_.hw_config);
 
@@ -72,8 +76,49 @@ grpc::Status StatusServiceImpl::getStatus(EmulatorStatus* reply) {
     (*platform)["avd.name"] = avd_properties_.avd_name;
     (*platform)["avd.content_path"] = avd_properties_.avd_content_path.string();
 
+    auto& guestConfig = *reply->mutable_guestconfig();
+
     // TODO(jansene): Enable once multidisplay support is added.
-    (*reply->mutable_guestconfig())["multidisplay"] = "unavailable";
+    guestConfig["multidisplay"] = "unavailable";
+
+    // 1. Map Android API Version
+    guestConfig["androidVersion"] = absl::StrCat("API ", avd_properties_.avd_api);
+
+    // 2. Map Host CPU Hypervisor Version
+    android::CpuAccelerator accel = android::GetCurrentCpuAccelerator();
+    android::base::Version accelVersion = android::GetCurrentCpuAcceleratorVersion();
+    std::string hypervisorVer = "None";
+    if (accelVersion.isValid()) {
+        hypervisorVer =
+                absl::StrCat(android::CpuAcceleratorToString(accel), " ", accelVersion.toString());
+    }
+    guestConfig["hypervisorVersion"] = hypervisorVer;
+
+    // 3. Construct and Map complete AVD Details Configuration
+    std::string avdDetails;
+    absl::StrAppendFormat(&avdDetails, "Name: %s\n", avd_properties_.avd_name);
+    absl::StrAppendFormat(&avdDetails, "CPU/ABI: %s\n", avd_properties_.avd_abi);
+    absl::StrAppendFormat(&avdDetails, "Path: %s\n", avd_properties_.avd_content_path.string());
+    absl::StrAppendFormat(&avdDetails, "Target: API level %d\n", avd_properties_.avd_api);
+    absl::StrAppendFormat(&avdDetails, "Build SDK: %s\n", avd_properties_.build_sdk);
+    absl::StrAppendFormat(&avdDetails, "Build ID: %s\n", avd_properties_.build_id);
+    absl::StrAppendFormat(&avdDetails, "Build Flavour: %s\n", avd_properties_.build_flavour);
+
+    // Parse and append all keys from the local AVD config.ini file
+    std::filesystem::path configIniPath = avd_properties_.avd_content_path / "config.ini";
+    android::goldfish::IniFile configIni(configIniPath);
+    if (configIni.Read()) {
+        for (const auto& entry : configIni) {
+            // Ignore AVD name and ID properties to prevent redundant
+            // duplication in client UI views, since these parameters are
+            // already printed as explicit headers above or mapped as
+            // first-class structured fields in platformconfig.
+            if (entry.first != "AvdId" && entry.first != "avd.id" && entry.first != "avd.name") {
+                absl::StrAppendFormat(&avdDetails, "%s: %s\n", entry.first, entry.second);
+            }
+        }
+    }
+    guestConfig["avdDetails"] = avdDetails;
 
     return grpc::Status::OK;
 }
