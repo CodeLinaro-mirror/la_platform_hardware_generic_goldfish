@@ -299,13 +299,6 @@ class MultiDisplayImpl : public IMultiDisplay {
         }
 
         SetFolded(res_f);
-        PhysicalModel& pm = ::goldfish::avd_info::GetAvd().GetSensorsPhysicalModel();
-        if (pm.HasFoldableModel()) {
-            auto posture = res_f ? ::goldfish::sensors::FoldablePostures::kClosed
-                                 : ::goldfish::sensors::FoldablePostures::kOpened;
-            pm.SetTargetPosture(static_cast<float>(posture), PhysicalInterpolation::kStep);
-        }
-
         return absl::OkStatus();
     }
 
