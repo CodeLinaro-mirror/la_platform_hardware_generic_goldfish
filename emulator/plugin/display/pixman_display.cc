@@ -421,7 +421,21 @@ void PixmanDisplay::UpdateSurface(int x, int y, int width, int height) {
             << height << ")";
 
     frame_manager_->UpdateSurface();
-    FrameReceived();
+    FrameInfo info;
+    {
+        const absl::MutexLock lock(&pixman_mutex_);
+        frame_manager_->WithRenderableImage([&](::pixman_image_t* src_img) {
+            if (src_img) {
+                info.pixels = reinterpret_cast<const uint8_t*>(pixman_image_get_data(src_img));
+                info.stride = static_cast<size_t>(pixman_image_get_stride(src_img));
+                info.dimensions = {
+                    .width = static_cast<uint32_t>(pixman_image_get_width(src_img)),
+                    .height = static_cast<uint32_t>(pixman_image_get_height(src_img))};
+                info.format = PixelFormat::kRgba8888;
+            }
+        });
+    }
+    FrameReceived(info);
     if (ABSL_VLOG_IS_ON(2)) {
         fps_calculator_.AddFrame();
         VLOG_EVERY_N_SEC(2, 1) << "Qemu framerate: " << fps_calculator_.GetFps() << " fps";
