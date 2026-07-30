@@ -161,6 +161,7 @@ cc_library(
         "core/rtc_config.h",
         "core/rtc_connection.cc",
         "core/switchboard.cc",
+        "core/webrtc_logging.cc",
     ],
     hdrs = [
         "include/goldfish/videobridge/codec_factories.h",
@@ -168,6 +169,7 @@ cc_library(
         "include/goldfish/videobridge/media_provider.h",
         "include/goldfish/videobridge/rtc_connection.h",
         "include/goldfish/videobridge/switchboard.h",
+        "include/goldfish/videobridge/webrtc_logging.h",
     ],
     includes = ["include"],
     strip_include_prefix = "include",
