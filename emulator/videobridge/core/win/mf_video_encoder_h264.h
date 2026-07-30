@@ -28,9 +28,56 @@
 #include <mfapi.h>
 #include <mftransform.h>
 #include <windows.h>
-#include <wrl/client.h>
 
 namespace goldfish::videobridge {
+
+template <typename T>
+class ComPtr {
+  public:
+    ComPtr() : ptr_(nullptr) {}
+    ComPtr(T* p) : ptr_(p) {
+        if (ptr_) ptr_->AddRef();
+    }
+    ~ComPtr() { Reset(); }
+
+    ComPtr(const ComPtr& other) : ptr_(other.ptr_) {
+        if (ptr_) ptr_->AddRef();
+    }
+    ComPtr& operator=(const ComPtr& other) {
+        if (this != &other) {
+            Reset();
+            ptr_ = other.ptr_;
+            if (ptr_) ptr_->AddRef();
+        }
+        return *this;
+    }
+
+    ComPtr(ComPtr&& other) noexcept : ptr_(other.ptr_) { other.ptr_ = nullptr; }
+    ComPtr& operator=(ComPtr&& other) noexcept {
+        if (this != &other) {
+            Reset();
+            ptr_ = other.ptr_;
+            other.ptr_ = nullptr;
+        }
+        return *this;
+    }
+
+    T* Get() const { return ptr_; }
+    T** GetAddressOf() { Reset(); return &ptr_; }
+    T** operator&() { Reset(); return &ptr_; }
+    T* operator->() const { return ptr_; }
+    explicit operator bool() const { return ptr_ != nullptr; }
+
+    void Reset() {
+        if (ptr_) {
+            ptr_->Release();
+            ptr_ = nullptr;
+        }
+    }
+
+  private:
+    T* ptr_ = nullptr;
+};
 
 /**
  * @class MFVideoEncoderH264
@@ -94,9 +141,9 @@ class MFVideoEncoderH264 : public webrtc::VideoEncoder {
     webrtc::VideoCodec codec_settings_ ABSL_GUARDED_BY(mutex_);
 
     // Media Foundation COM Objects
-    Microsoft::WRL::ComPtr<IMFTransform> encoder_mft_;
-    Microsoft::WRL::ComPtr<IMFMediaType> input_type_;
-    Microsoft::WRL::ComPtr<IMFMediaType> output_type_;
+    ComPtr<IMFTransform> encoder_mft_;
+    ComPtr<IMFMediaType> input_type_;
+    ComPtr<IMFMediaType> output_type_;
 
     // MFT Stream IDs and info
     DWORD input_stream_id_ = 0;
@@ -104,12 +151,12 @@ class MFVideoEncoderH264 : public webrtc::VideoEncoder {
     MFT_OUTPUT_STREAM_INFO output_stream_info_ = {};
 
     // Allocator for input buffers
-    Microsoft::WRL::ComPtr<IMFMediaBuffer> input_buffer_;
-    Microsoft::WRL::ComPtr<IMFSample> input_sample_;
+    ComPtr<IMFMediaBuffer> input_buffer_;
+    ComPtr<IMFSample> input_sample_;
 
     // Pre-allocated output buffers
-    Microsoft::WRL::ComPtr<IMFMediaBuffer> output_buffer_;
-    Microsoft::WRL::ComPtr<IMFSample> output_sample_;
+    ComPtr<IMFMediaBuffer> output_buffer_;
+    ComPtr<IMFSample> output_sample_;
 
     bool com_initialized_ = false;
 

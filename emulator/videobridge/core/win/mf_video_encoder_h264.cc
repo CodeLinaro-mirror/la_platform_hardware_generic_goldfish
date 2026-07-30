@@ -17,12 +17,15 @@
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wthread-safety-reference-return"
 #pragma clang diagnostic ignored "-Wnullability-completeness"
+#include "api/scoped_refptr.h"
+#include "modules/video_coding/include/video_codec_interface.h"
 #include "modules/video_coding/include/video_error_codes.h"
 #include "rtc_base/checks.h"
 #include "rtc_base/logging.h"
 #include "third_party/libyuv/include/libyuv.h"
 #pragma clang diagnostic pop
 
+#include <strmif.h>
 #include <codecapi.h>
 #include <mfapi.h>
 #include <mferror.h>
@@ -45,8 +48,8 @@ namespace goldfish::videobridge {
 
 MFVideoEncoderH264::MFVideoEncoderH264()
         : initialized_(false)
-        , com_initialized_(false)
         , callback_(nullptr)
+        , com_initialized_(false)
         , target_bitrate_bps_(kDefaultTargetBitrateBps)
         , target_fps_(kDefaultTargetFps) {
     HRESULT hr = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
@@ -200,7 +203,7 @@ HRESULT MFVideoEncoderH264::InitializeMFT() {
     if (FAILED(hr) || count == 0) {
         RTC_LOG(LS_WARNING) << "No hardware H.264 MFT found. Falling back to software MFT.";
         RETURN_IF_FAILED(MFTEnumEx(MFT_CATEGORY_VIDEO_ENCODER,
-                                   MFT_ENUM_FLAG_SYNCHRONOUS_MFT | MFT_ENUM_FLAG_ASYNCHRONOUS_MFT,
+                                   MFT_ENUM_FLAG_SYNCMFT | MFT_ENUM_FLAG_ASYNCMFT,
                                    &input_info, &output_info, &ppActivate, &count));
     }
 
@@ -282,8 +285,8 @@ HRESULT MFVideoEncoderH264::ConfigureInputOutputTypes(int width, int height, int
 }
 
 HRESULT MFVideoEncoderH264::SetBitrateAndRateControl(uint32_t bitrate_bps) {
-    Microsoft::WRL::ComPtr<ICodecAPI> codec_api;
-    RETURN_IF_FAILED(encoder_mft_.As(&codec_api));
+    ComPtr<ICodecAPI> codec_api;
+    RETURN_IF_FAILED(encoder_mft_->QueryInterface(IID_PPV_ARGS(&codec_api)));
 
     // Set Rate Control Mode to RETURN_IF_FAILED (Constant Bitrate)
     VARIANT var = {};
@@ -323,7 +326,7 @@ HRESULT MFVideoEncoderH264::ProcessInputFrame(const webrtc::VideoFrame& frame) {
 
     RETURN_IF_FAILED(input_buffer_->Lock(&buffer_data, &max_length, &current_length));
 
-    rtc::scoped_refptr<webrtc::I420BufferInterface> i420_buffer =
+    webrtc::scoped_refptr<webrtc::I420BufferInterface> i420_buffer =
             frame.video_frame_buffer()->ToI420();
 
     int width = i420_buffer->width();

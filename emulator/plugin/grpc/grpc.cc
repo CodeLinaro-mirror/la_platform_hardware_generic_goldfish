@@ -68,6 +68,10 @@ extern "C" {
 // IWYU pragma: end_keep
 // clang-format on
 
+#ifdef send
+#undef send
+#endif
+
 namespace fs = std::filesystem;
 namespace file = ::android::base::file;
 using namespace ::android::emulation::control;
