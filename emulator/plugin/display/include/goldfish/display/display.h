@@ -34,21 +34,6 @@ namespace goldfish::display {
 using ::goldfish::async::EventLoop;
 using ::goldfish::async::LoopBoundCallbackSource;
 
-/**
- * @struct FrameInfo
- * @brief  Represents information about a display frame update.
- *
- *  This struct contains the frame sequence number and a timestamp
- *  indicating when the frame was updated. This allows clients
- *  to not only track frame updates but also have temporal context.
- */
-struct FrameInfo {
-    uint64_t sequence_number;  ///< Monotonically increasing frame sequence number.
-    absl::Time timestamp;      ///< Timestamp when the frame was updated.
-
-    explicit FrameInfo(uint64_t seq) : sequence_number(seq), timestamp(absl::Now()) {}
-};
-
 struct Dimensions {
     uint32_t width;
     uint32_t height;
@@ -105,6 +90,23 @@ enum class ImageRotation : std::uint16_t {
     kRotation90 = 90,
     kRotation180 = 180,
     kRotation270 = 270,
+};
+
+/**
+ * @struct FrameInfo
+ * @brief  Represents information about a display frame update, including optional
+ *         zero-copy raw frame buffer view data when available.
+ */
+struct FrameInfo {
+    const uint8_t* pixels = nullptr;
+    size_t stride = 0;
+    Dimensions dimensions{0, 0};
+    PixelFormat format = PixelFormat::kRgba8888;
+    ImageRotation rotation = ImageRotation::kRotation0;
+    uint64_t sequence_number = 0;  ///< Monotonically increasing frame sequence number.
+    absl::Time timestamp;          ///< Timestamp when the frame was updated.
+
+    explicit FrameInfo(uint64_t seq = 0) : sequence_number(seq), timestamp(absl::Now()) {}
 };
 
 class IDisplay;
@@ -295,9 +297,11 @@ class IDisplay : public FrameInfoCallbackSource,
      */
     LogicalFit CalculateLogicalFit(int desired_width, int desired_height) const;
 
-    void FrameReceived() {
+    void FrameReceived(FrameInfo info = FrameInfo()) {
         const absl::MutexLock lock(seq_access_);
-        seq_ = FrameInfo(seq_.sequence_number + 1);
+        info.sequence_number = seq_.sequence_number + 1;
+        info.timestamp = absl::Now();
+        seq_ = info;
         FrameInfoCallbackSource::FireEvent(seq_);
     }
 
