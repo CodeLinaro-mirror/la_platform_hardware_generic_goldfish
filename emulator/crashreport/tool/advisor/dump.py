@@ -34,33 +34,57 @@ class CrashReportDumper:
         self.crashreport_path = self._locate_binary()
 
     def _locate_binary(self) -> Optional[str]:
-        """Locate the crashreport binary in Bazel runfiles."""
-        # Note on candidate list:
-        # 'goldfish+' is the Bzlmod mangled repository name for the goldfish repository in modern Bazel.
-        # 'goldfish' is the legacy WORKSPACE repository name or non-mangled apparent name.
-        # 'emulator/...' covers cases where crashreport is run within the root workspace.
+        """Locate the emu-main-next crashreport binary in Bazel runfiles, installed release dir, or workspace bazel-bin."""
         exe_suffix = ".exe" if sys.platform == "win32" else ""
+
+        # 1. Search Bazel runfiles (when executed inside Bazel or compiled advisor binary with .runfiles)
         candidates = [
             f"goldfish+/emulator/crashreport/tool/crashreport{exe_suffix}",
             f"goldfish/emulator/crashreport/tool/crashreport{exe_suffix}",
             f"emulator/crashreport/tool/crashreport{exe_suffix}",
         ]
-        for candidate in candidates:
-            path = self.runfiles.Rlocation(candidate)
-            if path and Path(path).exists():
-                logging.debug("Found crashreport binary at: %s", path)
-                return path
-        logging.error("Failed to locate crashreport binary in Bazel runfiles.")
+        if self.runfiles:
+            for candidate in candidates:
+                path = self.runfiles.Rlocation(candidate)
+                if path and Path(path).exists():
+                    logging.debug("Found crashreport binary via Bazel runfiles at: %s", path)
+                    return path
+
+        # 2. Search adjacent installed release binary directory (~/.android/emu-dev-cli/lib/bin/crashreport)
+        try:
+            exe_dir = Path(sys.executable).parent
+            adjacent_installed = exe_dir / f"crashreport{exe_suffix}"
+            if adjacent_installed.exists() and os.access(adjacent_installed, os.X_OK):
+                logging.debug("Found crashreport binary adjacent to executable at: %s", adjacent_installed)
+                return str(adjacent_installed)
+
+            home_installed = Path.home() / ".android" / "emu-dev-cli" / "lib" / "bin" / f"crashreport{exe_suffix}"
+            if home_installed.exists() and os.access(home_installed, os.X_OK):
+                logging.debug("Found crashreport binary at installed release location: %s", home_installed)
+                return str(home_installed)
+        except Exception:
+            pass
+
+        # 3. Search Bazel workspace build output
+        try:
+            cwd_path = Path.cwd()
+            for p in [cwd_path] + list(cwd_path.parents):
+                bbin = p / "bazel-bin" / "external" / "goldfish+" / "emulator" / "crashreport" / "tool" / f"crashreport{exe_suffix}"
+                if bbin.exists() and os.access(bbin, os.X_OK):
+                    logging.debug("Found crashreport binary at workspace build output: %s", bbin)
+                    return str(bbin.resolve())
+        except Exception:
+            pass
+
+        logging.error("Failed to locate emu-main-next built crashreport binary.")
         return None
 
     def generate_dump(self, context: CrashReportContext, symbols_dir: Path) -> Path:
-        """Invoke crashreport binary to generate both text (stack) and JSON (machine) local dumps."""
+        """Invoke crashreport binary to generate text (stack + breadcrumbs) local dump."""
         txt_path = context.work_dir / "crashreport.txt"
-        json_path = context.work_dir / "crashreport.json"
         if not self.crashreport_path:
             raise FileNotFoundError("crashreport binary not available.")
 
-        # 1. Generate Human-Readable Text Dump (Summary/Stack + Breadcrumbs)
         txt_cmd = [
             self.crashreport_path,
             f"--minidump={context.minidump_path}",
@@ -74,53 +98,22 @@ class CrashReportDumper:
         txt_path.parent.mkdir(parents=True, exist_ok=True)
         try:
             with open(txt_path, "w", encoding="utf-8") as out_f:
-                process1 = subprocess.run(
+                process = subprocess.run(
                     txt_cmd,
                     stdout=out_f,
                     stderr=subprocess.PIPE,
                     text=True,
                     check=False,
                 )
-            if process1.returncode != 0:
+            if process.returncode != 0:
                 logging.warning(
                     "crashreport binary (text) returned non-zero exit code %d: %s",
-                    process1.returncode,
-                    process1.stderr,
+                    process.returncode,
+                    process.stderr,
                 )
             logging.info(
                 "Successfully generated human-readable local dump at: %s", txt_path
             )
-
-            # 2. Generate Machine-Readable JSON Dump (--format=machine)
-            json_cmd = [
-                self.crashreport_path,
-                f"--minidump={context.minidump_path}",
-                f"--symbol_paths={symbols_dir}",
-                "--format=machine",
-            ]
-            logging.info(
-                "Executing crashreport binary to generate machine-readable JSON dump..."
-            )
-            logging.debug("Command: %s", " ".join(json_cmd))
-
-            with open(json_path, "w", encoding="utf-8") as out_f:
-                process2 = subprocess.run(
-                    json_cmd,
-                    stdout=out_f,
-                    stderr=subprocess.PIPE,
-                    text=True,
-                    check=False,
-                )
-            if process2.returncode != 0:
-                logging.warning(
-                    "crashreport binary (json) returned non-zero exit code %d: %s",
-                    process2.returncode,
-                    process2.stderr,
-                )
-            logging.info(
-                "Successfully generated machine-readable JSON dump at: %s", json_path
-            )
-
             return txt_path
         except Exception as e:
             logging.error("Failed to execute crashreport binary: %s", e)
