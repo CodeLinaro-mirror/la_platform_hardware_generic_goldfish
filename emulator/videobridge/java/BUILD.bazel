@@ -1,0 +1,131 @@
+load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_test")
+load("@rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library", "kt_jvm_test")
+
+package(default_visibility = ["//visibility:public"])
+
+JNI_LINKOPTS = select({
+    "@platforms//os:macos": [
+        "-framework VideoToolbox",
+        "-framework CoreMedia",
+        "-framework AVFoundation",
+        "-framework CoreVideo",
+        "-framework Foundation",
+        "-framework CoreFoundation",
+    ],
+    "@platforms//os:windows": [
+        "-DEFAULTLIB:ole32.lib",
+        "-DEFAULTLIB:shell32.lib",
+    ],
+    "//conditions:default": [
+        "-ldl",
+        "-lpthread",
+    ],
+})
+
+cc_library(
+    name = "frame_buffer_pool",
+    srcs = ["native/frame_buffer_pool.cc"],
+    hdrs = ["native/frame_buffer_pool.h"],
+    strip_include_prefix = "native",
+    deps = [
+        "@abseil-cpp//absl/synchronization",
+    ],
+)
+
+cc_test(
+    name = "frame_buffer_pool_test",
+    srcs = ["native/frame_buffer_pool_test.cc"],
+    deps = [
+        ":frame_buffer_pool",
+        "//emulator/libs/test:googletest_main",
+    ],
+)
+
+cc_binary(
+    name = "libwebrtc_java_receiver",
+    srcs = [
+        "native/jni_rtc_receiver.cc",
+        "native/jni_rtc_receiver.h",
+        "native/jni_video_sink.cc",
+        "native/jni_video_sink.h",
+    ],
+    copts = select({
+        "@platforms//os:windows": ["/GR-"],
+        "//conditions:default": ["-fno-rtti"],
+    }),
+    linkopts = JNI_LINKOPTS,
+    linkshared = True,
+    win_def_file = select({
+        "@platforms//os:windows": "libwebrtc_java_receiver.def",
+        "//conditions:default": None,
+    }),
+    deps = [
+        # buildifier: keep - JNI headers must precede videobridge_codecs to avoid collision with ffmpeg/jni.h
+        "@bazel_tools//tools/jdk:jni",
+        ":frame_buffer_pool",
+        "//emulator/videobridge:videobridge_codecs",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/synchronization",
+        "@aemu//protos/services/emulator-controller:emulator_controller_cc_proto",
+        "@libyuv",
+        "@nlohmann_json//:json",
+        "@webrtc//api:create_peerconnection_factory",
+        "@webrtc//api:peer_connection_interface",
+        "@webrtc//api/audio_codecs:builtin_audio_decoder_factory",
+        "@webrtc//api/audio_codecs:builtin_audio_encoder_factory",
+        "@webrtc//api/task_queue:default_task_queue_factory",
+        "@webrtc//api/video_codecs:builtin_video_decoder_factory",
+        "@webrtc//api/video_codecs:builtin_video_encoder_factory",
+        "@webrtc//modules/audio_device",
+        "@webrtc//pc:peer_connection_factory",
+        "@webrtc//pc:video_track_source_proxy",
+        "@webrtc//p2p:rtc_p2p",
+        "@webrtc//rtc_base:network",
+    ],
+)
+
+kt_jvm_library(
+    name = "webrtc_client_java",
+    srcs = [
+        "src/main/kotlin/com/android/emulator/webrtc/ConnectionState.kt",
+        "src/main/kotlin/com/android/emulator/webrtc/ConnectionStateListener.kt",
+        "src/main/kotlin/com/android/emulator/webrtc/JsepMessageListener.kt",
+        "src/main/kotlin/com/android/emulator/webrtc/LoggingListener.kt",
+        "src/main/kotlin/com/android/emulator/webrtc/LoggingSeverity.kt",
+        "src/main/kotlin/com/android/emulator/webrtc/MouseButton.kt",
+        "src/main/kotlin/com/android/emulator/webrtc/NativeLibraryLoader.kt",
+        "src/main/kotlin/com/android/emulator/webrtc/PixelFormat.kt",
+        "src/main/kotlin/com/android/emulator/webrtc/TouchAction.kt",
+        "src/main/kotlin/com/android/emulator/webrtc/VideoFrame.kt",
+        "src/main/kotlin/com/android/emulator/webrtc/VideoFrameListener.kt",
+        "src/main/kotlin/com/android/emulator/webrtc/WebRtcClient.kt",
+        "src/main/kotlin/com/android/emulator/webrtc/session/EmulatorStreamSession.kt",
+        "src/main/kotlin/com/android/emulator/webrtc/signaling/VideoBridgeSignalingClient.kt",
+    ],
+    data = [":libwebrtc_java_receiver"],
+    resources = [":libwebrtc_java_receiver"],
+    deps = [
+        "@aemu//protos/services/emulator-controller:emulator_controller_java_grpc",
+        "@aemu//protos/services/emulator-controller:emulator_controller_java_proto",
+        "@aemu//protos/services/webrtc:rtc_service_v2_java_grpc",
+        "@aemu//protos/services/webrtc:rtc_service_v2_java_proto",
+        "@grpc-java//api",
+        "@grpc-java//stub",
+        "@protobuf//java/core",
+    ],
+)
+
+kt_jvm_test(
+    name = "webrtc_client_java_test",
+    srcs = [
+        "src/test/kotlin/com/android/emulator/webrtc/NativeLibraryLoaderTest.kt",
+        "src/test/kotlin/com/android/emulator/webrtc/VideoFrameTest.kt",
+        "src/test/kotlin/com/android/emulator/webrtc/session/EmulatorStreamSessionTest.kt",
+        "src/test/kotlin/com/android/emulator/webrtc/signaling/VideoBridgeSignalingClientTest.kt",
+    ],
+    test_class = "com.android.emulator.webrtc.VideoFrameTest",
+    deps = [
+        ":webrtc_client_java",
+        "@grpc-java//testing",
+    ],
+)
