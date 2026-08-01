@@ -288,7 +288,7 @@ void netsim_chardev_set_fe_open(Chardev* chr, int fe_open) {
     state->protocol->reset_guest(chr);
 }
 
-void netsim_chardev_open(Chardev* chr, ChardevBackend* backend, bool* be_opened, Error** errp) {
+bool netsim_chardev_open(Chardev* chr, ChardevBackend* backend, Error** errp) {
     VLOG(1) << "Realizing netsim chardev: " << chr->label;
 
     NetsimChardev* nc = NETSIM_CHARDEV(chr);
@@ -303,6 +303,7 @@ void netsim_chardev_open(Chardev* chr, ChardevBackend* backend, bool* be_opened,
     // This is because chardevs are opened way before "device"s and so no AVD information is yet
     // available. However, the frontend is also a device and ordered after the device. So we connect
     // to Netsimd at that point (netsim_chardev_set_fe_open).
+    return true;
 }
 
 void netsim_chardev_bt_instance_init(Object* obj) {
@@ -327,9 +328,9 @@ void netsim_chardev_instance_finalize(Object* obj) {
     delete nc->state;
 }
 
-void netsim_chardev_class_init(ObjectClass* oc, void* data) {
+void netsim_chardev_class_init(ObjectClass* oc, const void* data) {
     ChardevClass* cc = CHARDEV_CLASS(oc);
-    cc->open = netsim_chardev_open;
+    cc->chr_open = netsim_chardev_open;
     cc->chr_write = netsim_chardev_write;
     cc->chr_set_fe_open = netsim_chardev_set_fe_open;
 }

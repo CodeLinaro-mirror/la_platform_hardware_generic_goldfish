@@ -20,7 +20,7 @@
 // IWYU pragma: begin_keep
 #include "qemu/osdep.h"
 extern "C" {
-#include "hw/qdev-core.h"
+#include "hw/core/qdev.h"
 }
 #undef listen
 // IWYU pragma: end_keep
@@ -41,7 +41,7 @@ void avd_finalize_realize(DeviceState* dev, Error** errp) {
     goldfish::avd_info::UniverseBuildComplete();
 }
 
-void avd_finalize_class_init(ObjectClass* oc, void* data) {
+void avd_finalize_class_init(ObjectClass* oc, const void* data) {
     DeviceClass* dc = DEVICE_CLASS(oc);
     dc->realize = avd_finalize_realize;
 }

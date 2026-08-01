@@ -23,7 +23,7 @@
 #include "qemu/module.h"
 
 #include "hw/virtio/virtio-pci.h"
-#include "hw/qdev-properties.h"
+#include "hw/core/qdev-properties.h"
 #include "hw/virtio/virtio-input.h"
 
 #include "ui/console.h"
@@ -481,8 +481,7 @@ static void virtio_input_handle_event(DeviceState* dev, QemuConsole* src, InputE
         btn = evt->u.btn.data;
         // This android device only understands touch events, so we will be translating this
         // button event into a touch "event"
-        if (vhid->wheel_axis &&
-            (btn->button == INPUT_BUTTON_WHEEL_UP || btn->button == INPUT_BUTTON_WHEEL_DOWN) &&
+        if ((btn->button == INPUT_BUTTON_WHEEL_UP || btn->button == INPUT_BUTTON_WHEEL_DOWN) &&
             btn->down) {
             ALOGW("We do not yet translate wheel events to touch events, ignoring.");
         } else if (keymap_button[btn->button]) {
@@ -662,7 +661,7 @@ static const TypeInfo virtio_android_info = {
 
 /* ----------------------------------------------------------------- */
 
-static void virtio_input_android_pci_class_init(ObjectClass* klass, void* data) {
+static void virtio_input_android_pci_class_init(ObjectClass* klass, const void* data) {
     PCIDeviceClass* pcidev_k = PCI_DEVICE_CLASS(klass);
     pcidev_k->class_id = PCI_CLASS_INPUT_OTHER;
 }

@@ -115,7 +115,7 @@ void adb_vsock_set_monitor(Object* obj, Visitor* v, const char* name, void* opaq
     adb->monitor = monitor;
 }
 
-void adb_vsock_class_init(ObjectClass* oc, void* data) {
+void adb_vsock_class_init(ObjectClass* oc, const void* data) {
     object_class_property_add(oc, "monitor", "bool", nullptr, adb_vsock_set_monitor, nullptr,
                               nullptr);
 
