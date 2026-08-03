@@ -223,8 +223,6 @@ int main(int argc, char** argv) {
 
     configureLogging(opts);
 
-    ShowBanner();
-
 #if defined(__linux__) || defined(__APPLE__)
     const char* kXDG_RUNTIME_DIR_NAME = "XDG_RUNTIME_DIR";
     const char* xdg_runtime_dir_val = getenv(kXDG_RUNTIME_DIR_NAME);
@@ -277,11 +275,6 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    if (android::goldfish::ShouldLaunchFishtank(opts) && !emulator_paths->HasFishtank()) {
-        LOG(ERROR) << "Fishtank (UI) is not available in the AOSP build. "
-                      "Please use the '-no-window' flag to run in headless mode.";
-        return 1;
-    }
     auto user_paths =
             android::goldfish::ResolveUserPaths(emulator_paths->launcher_directory, opts.verbose);
     if (!user_paths.ok()) {
@@ -292,6 +285,14 @@ int main(int argc, char** argv) {
     if (opts.list_avds) {
         ListAvds(opts, *user_paths, opts.verbose);
         return 0;
+    }
+
+    ShowBanner();
+
+    if (android::goldfish::ShouldLaunchFishtank(opts) && !emulator_paths->HasFishtank()) {
+        LOG(ERROR) << "Fishtank (UI) is not available in the AOSP build. "
+                      "Please use the '-no-window' flag to run in headless mode.";
+        return 1;
     }
 
     if (!android::crashreport::CrashSystem::get().initialize()) {
