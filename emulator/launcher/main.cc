@@ -157,12 +157,18 @@ void ListAvds(const AndroidOptions& opts, const android::goldfish::UserPaths& us
               bool verbose) {
     auto avds = android::goldfish::Avd::List(user_paths.avd_directory);
     for (const auto& name : avds) {
-        auto a = android::goldfish::Avd::FromName(opts, user_paths, name, /*wipe_data=*/false,
-                                                  /*content_override=*/{}, /*sysdir_override=*/{});
-        if (a.ok()) {
-            std::cout << (*a)->Details(verbose) << '\n';
+        if (verbose) {
+            // Only parse the AVD when -verbose is specified.
+            auto a = android::goldfish::Avd::FromName(opts, user_paths, name, /*wipe_data=*/false,
+                                                      /*content_override=*/{},
+                                                      /*sysdir_override=*/{});
+            if (a.ok()) {
+                std::cout << (*a)->Details(/*verbose=*/true) << '\n';
+            } else {
+                std::cout << name << " is not valid: " << a.status();
+            }
         } else {
-            std::cout << name << " is not valid: " << a.status();
+            std::cout << name << "\n";
         }
     }
 }
