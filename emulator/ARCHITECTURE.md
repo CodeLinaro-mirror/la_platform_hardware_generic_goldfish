@@ -25,7 +25,6 @@ The Goldfish emulator is a modular system built on top of QEMU. It extends QEMU 
 | **[Config](config/ARCHITECTURE.md)** | Hardware configuration parsing (`config.ini`) and environment discovery (SDK/AVD paths). | [Architecture](config/ARCHITECTURE.md) |
 | **[Cmdline](cmdline/ARCHITECTURE.md)** | Command-line argument parsing and validation. | [Architecture](cmdline/ARCHITECTURE.md) |
 | **[Crashreport](crashreport/ARCHITECTURE.md)** | Crashpad integration and hang detection. | [Architecture](crashreport/ARCHITECTURE.md) |
-| **[Modem Simulator](modem_simulator/ARCHITECTURE.md)** | Emulates cellular network behavior (RIL). | [Architecture](modem_simulator/ARCHITECTURE.md) |
 | **[SDK](sdk/ARCHITECTURE.md)** | Local mock SDK environment for testing. | [Architecture](sdk/ARCHITECTURE.md) |
 | **[Tests](tests/ARCHITECTURE.md)** | Integration tests (Boot, CTS, dEQP). | [Architecture](tests/ARCHITECTURE.md) |
 | **[Tools](tools/ARCHITECTURE.md)** | Build-time utilities (Versioning, Packaging). | [Architecture](tools/ARCHITECTURE.md), [Fishtank Update Guide](tools/upload_fishtank/README.md) |

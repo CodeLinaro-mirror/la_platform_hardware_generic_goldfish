@@ -70,12 +70,6 @@ std::vector<std::string> GrpcDevice::getQemuParameters(const EmulatorConfig& emu
     params.emplace_back(std::pair{"logging", emulator.opts().verbose_grpc ? "true" : "false"});
     params.emplace_back(std::pair{"embedded", emulator.opts().qt_hide_window ? "true" : "false"});
 
-    if (emulator.chardev_endpoints().modem_simulator_host_id > 0) {
-        params.emplace_back(
-                std::pair{"modem_simulator_port",
-                          absl::StrCat(emulator.chardev_endpoints().modem_simulator_host_id)});
-    }
-
     auto grpc_params = absl::StrJoin(params, ",", [](std::string* s, const auto& pair) {
         absl::StrAppend(s, pair.first, "=", pair.second);
     });
