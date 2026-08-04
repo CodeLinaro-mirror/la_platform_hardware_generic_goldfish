@@ -12,7 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <algorithm>
 #include <cstdint>
+#include <fstream>
+#include <string>
 
 #include "absl/log/check.h"
 #include "absl/log/log.h"
@@ -34,6 +37,8 @@ extern "C" {
 
 #undef send
 #include "android/emulation/control/enum_translate.h"
+#include "goldfish/avd_info/avd_info.h"
+#include "goldfish/file/file.h"
 #include "goldfish/qemu/qemubh.h"
 #include "h4_parser.h"
 #include "netsim_transport.h"
@@ -314,11 +319,90 @@ class BtProtocol : public Protocol {
     std::unique_ptr<rootcanal::H4Parser> h4_parser_;
 };
 
+class CellularProtocol : public Protocol {
+  public:
+    CellularProtocol(std::vector<::netsim::packet::PacketRequest>& output_queue)
+            : packet_queue_(output_queue) {}
+
+    void reset() override { buffer_.clear(); }
+    void reset_guest(Chardev* c) override {
+        // N/A
+    }
+
+    void netsim_to_guest_packet(Chardev* c,
+                                std::unique_ptr<::netsim::packet::PacketResponse> packet) override {
+        if (packet->has_packet()) {
+            // From netsim -> guest
+            VLOG(2) << "NETSIM CELL: send (netsim -> guest): " << packet->packet();
+            qemu_chr_be_write(c, (const uint8_t*)packet->packet().data(), packet->packet().size());
+        } else {
+            LOG(WARNING) << "Unexpected packet " << packet->DebugString();
+        }
+    }
+
+    uint64_t guest_to_netsim_parser_bytes_requested() override {
+        // AT commands are stream-based and do not encode a packet length in a header.
+        return 1024;
+    }
+
+    void guest_to_netsim_parser_consume(const uint8_t* buf, uint64_t len) override {
+        for (uint64_t i = 0; i < len; ++i) {
+            uint8_t c = buf[i];
+            buffer_.push_back(c);
+            if (c == '\r') {
+                // Peek next byte to see if it is \n to keep \r\n together
+                if (i + 1 < len && buf[i + 1] == '\n') {
+                    buffer_.push_back('\n');
+                    i++;  // Consume \n
+                }
+            }
+            if (c == '\r' || c == '\n' || c == 0x1A || c == 0x1B) {
+                if (!buffer_.empty()) {
+                    ::netsim::packet::PacketRequest request;
+                    request.set_allocated_packet(new std::string(buffer_.begin(), buffer_.end()));
+                    VLOG(2) << "NETSIM CELL: recv (guest -> netsim): " << request.packet();
+                    packet_queue_.push_back(std::move(request));
+                    buffer_.clear();
+                }
+            }
+        }
+    }
+
+    ::netsim::startup::Chip chip_info() override {
+        ::netsim::startup::Chip chip;
+        chip.set_kind(::netsim::common::ChipKind::CELLULAR);
+
+        auto& props = goldfish::avd_info::GetAvd().Props();
+        if (!props.icc_profile.empty()) {
+            auto content_or = android::base::file::read_whole_file(props.icc_profile, false);
+            if (content_or.ok()) {
+                chip.set_sim_profile(*content_or);
+                VLOG(1) << "NETSIM CELL: Loaded custom SIM profile from " << props.icc_profile;
+            } else {
+                LOG(ERROR) << "NETSIM CELL: Failed to read custom SIM profile at "
+                           << props.icc_profile << ": " << content_or.status();
+            }
+        }
+        return chip;
+    }
+
+  private:
+    std::vector<uint8_t> buffer_;
+    std::vector<::netsim::packet::PacketRequest>& packet_queue_;
+};
+
+void netsim_chardev_bh(void* obj);
+
 struct NetsimChardevState {
-    std::unique_ptr<NetsimTransport> transport;
-    std::unique_ptr<Protocol> protocol;
+    template <typename ProtocolFactory>
+    NetsimChardevState(Object* obj, ProtocolFactory&& make_protocol)
+            : incoming_bh(goldfish::qemu::MakeQemuBh(&netsim_chardev_bh, obj))
+            , protocol(make_protocol(parser_packet_queue)) {}
+
+    const goldfish::qemu::QEMUBHPtr incoming_bh;
     std::vector<::netsim::packet::PacketRequest> parser_packet_queue;
-    goldfish::qemu::QEMUBHPtr incoming_bh;
+    const std::unique_ptr<Protocol> protocol;
+    std::unique_ptr<NetsimTransport> transport;
     std::unique_ptr<::netsim::packet::PacketResponse> incoming_packet;
 };
 
@@ -334,6 +418,7 @@ struct NetsimChardev {
 #define TYPE_NETSIM_CHARDEV_BT "chardev-netsim-bt"
 #define TYPE_NETSIM_CHARDEV_UWB "chardev-netsim-uwb"
 #define TYPE_NETSIM_CHARDEV_NFC "chardev-netsim-nfc"
+#define TYPE_NETSIM_CHARDEV_CELLULAR "chardev-netsim-cellular"
 
 int netsim_chardev_write(Chardev* chr, const uint8_t* buf, int len) {
     // From guest -> netsim
@@ -359,13 +444,41 @@ int netsim_chardev_write(Chardev* chr, const uint8_t* buf, int len) {
 }
 
 void netsim_chardev_set_fe_open(Chardev* chr, int fe_open) {
+    auto* nc = NETSIM_CHARDEV(chr);
+    auto* state = nc->state;
+    if (state->transport) {
+        if (fe_open) {
+            VLOG(1) << "NETSIM chardev: transport already exists, destroying old one first: "
+                    << chr->label;
+        } else {
+            VLOG(1) << "NETSIM chardev: frontend disconnected: " << chr->label;
+        }
+        state->transport.reset();
+    }
+
     if (!fe_open) {
         qemu_chr_be_event(chr, CHR_EVENT_CLOSED);
         return;
     }
 
     VLOG(1) << "NETSIM chardev: frontend connected, sending reset: " << chr->label;
-    auto* state = NETSIM_CHARDEV(chr)->state;
+    state->transport =
+            std::make_unique<NetsimTransport>([nc](::netsim::packet::PacketResponse* packet) {
+                if (nc->state->incoming_packet) {
+                    // This shouldn't happen because we always return false from this lambda and
+                    // only call next_recv() once the last incoming_packet has been cleared.
+                    DCHECK(false) << "A new packet arrived from Netsim while the previous "
+                                     "packet is still pending delivery on QEMU's main loop. "
+                                     "Dropping the new packet to preserve flow control.";
+                    return false;
+                }
+                nc->state->incoming_packet =
+                        std::make_unique<::netsim::packet::PacketResponse>(std::move(*packet));
+                if (nc->state->incoming_bh) {
+                    qemu_bh_schedule(nc->state->incoming_bh.get());
+                }
+                return false;
+            });
 
     // TODO maybe connect in background
     // TODO maybe reconnect - ondone callback and then call initialize again (also send reset to
@@ -400,26 +513,6 @@ void netsim_chardev_bh(void* obj) {
 bool netsim_chardev_open(Chardev* chr, ChardevBackend* backend, Error** errp) {
     VLOG(1) << "Realizing netsim chardev: " << chr->label;
 
-    NetsimChardev* nc = NETSIM_CHARDEV(chr);
-    nc->state->transport =
-            std::make_unique<NetsimTransport>([chr](::netsim::packet::PacketResponse* packet) {
-                auto* nc = NETSIM_CHARDEV(chr);
-                if (nc->state->incoming_packet) {
-                    // This shouldn't happen because we always return false from this lambda and
-                    // only call next_recv() once the last incoming_packet has been cleared.
-                    DCHECK(false) << "A new packet arrived from Netsim while the previous "
-                                     "packet is still pending delivery on QEMU's main loop. "
-                                     "Dropping the new packet to preserve flow control.";
-                    return false;
-                }
-                nc->state->incoming_packet =
-                        std::make_unique<::netsim::packet::PacketResponse>(std::move(*packet));
-                if (nc->state->incoming_bh) {
-                    qemu_bh_schedule(nc->state->incoming_bh.get());
-                }
-                return false;
-            });
-
     // Note that we don't initialize the connection to Netsimd here.
     // This is because chardevs are opened way before "device"s and so no AVD information is yet
     // available. However, the frontend is also a device and ordered after the device. So we connect
@@ -430,33 +523,32 @@ bool netsim_chardev_open(Chardev* chr, ChardevBackend* backend, Error** errp) {
 void netsim_chardev_bt_instance_init(Object* obj) {
     VLOG(1) << "NETSIM BT init";
     NetsimChardev* nc = NETSIM_CHARDEV(obj);
-    nc->state = new NetsimChardevState;
-    nc->state->incoming_bh = goldfish::qemu::MakeQemuBh(&netsim_chardev_bh, obj);
-    nc->state->protocol = std::make_unique<BtProtocol>(&nc->state->parser_packet_queue);
+    nc->state = new NetsimChardevState(
+            obj, [](auto& queue) { return std::make_unique<BtProtocol>(&queue); });
 }
 
 void netsim_chardev_uwb_instance_init(Object* obj) {
     VLOG(1) << "NETSIM UWB init";
     NetsimChardev* nc = NETSIM_CHARDEV(obj);
-    nc->state = new NetsimChardevState;
-    nc->state->incoming_bh = goldfish::qemu::MakeQemuBh(&netsim_chardev_bh, obj);
-    nc->state->protocol = std::make_unique<UwbProtocol>(&nc->state->parser_packet_queue);
+    nc->state = new NetsimChardevState(
+            obj, [](auto& queue) { return std::make_unique<UwbProtocol>(&queue); });
 }
 
 void netsim_chardev_nfc_instance_init(Object* obj) {
     VLOG(1) << "NETSIM NFC init";
     NetsimChardev* nc = NETSIM_CHARDEV(obj);
-    nc->state = new NetsimChardevState;
-    nc->state->incoming_bh = goldfish::qemu::MakeQemuBh(&netsim_chardev_bh, obj);
-    nc->state->protocol = std::make_unique<NfcProtocol>(&nc->state->parser_packet_queue);
+    nc->state = new NetsimChardevState(
+            obj, [](auto& queue) { return std::make_unique<NfcProtocol>(&queue); });
 }
 
+void netsim_chardev_cellular_instance_init(Object* obj) {
+    VLOG(1) << "NETSIM CELLULAR init";
+    NetsimChardev* nc = NETSIM_CHARDEV(obj);
+    nc->state = new NetsimChardevState(
+            obj, [](auto& queue) { return std::make_unique<CellularProtocol>(queue); });
+}
 void netsim_chardev_instance_finalize(Object* obj) {
     NetsimChardev* nc = NETSIM_CHARDEV(obj);
-
-    // This calls NetsimTransport's destructor, which calls cancel and await
-    nc->state->transport.reset();
-    nc->state->incoming_bh.reset();
     delete nc->state;
 }
 
@@ -496,6 +588,13 @@ const TypeInfo netsim_chardev_nfc_type_info = {
     .instance_init = netsim_chardev_nfc_instance_init,
 };
 
+const TypeInfo netsim_chardev_cellular_type_info = {
+    .name = TYPE_NETSIM_CHARDEV_CELLULAR,
+    .parent = TYPE_NETSIM_CHARDEV,
+    .instance_size = sizeof(NetsimChardev),
+    .instance_init = netsim_chardev_cellular_instance_init,
+};
+
 }  // namespace
 
 void netsim_chardev_register_types(void) {
@@ -503,6 +602,7 @@ void netsim_chardev_register_types(void) {
     type_register_static(&netsim_chardev_bt_type_info);
     type_register_static(&netsim_chardev_uwb_type_info);
     type_register_static(&netsim_chardev_nfc_type_info);
+    type_register_static(&netsim_chardev_cellular_type_info);
 }
 
 }  // namespace goldfish::netsim
