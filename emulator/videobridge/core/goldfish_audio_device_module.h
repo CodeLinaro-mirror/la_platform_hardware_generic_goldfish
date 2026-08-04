@@ -19,7 +19,9 @@
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wthread-safety-reference-return"
 #pragma clang diagnostic ignored "-Wnullability-completeness"
+#include "api/scoped_refptr.h"
 #include "modules/audio_device/include/fake_audio_device.h"
+#include "rtc_base/ref_counted_object.h"
 #pragma clang diagnostic pop
 
 namespace goldfish::videobridge {
@@ -34,6 +36,21 @@ namespace goldfish::videobridge {
  */
 class GoldfishAudioDeviceModule : public ::webrtc::FakeAudioDeviceModule {
   public:
+    /**
+     * @brief Factory method creating a properly reference-counted GoldfishAudioDeviceModule.
+     *
+     * WebRTC AudioDeviceModule instances must be wrapped in a reference counter (such as
+     * webrtc::RefCountedObject) to ensure safe reference counting and deallocation via
+     * scoped_refptr. Direct construction via new or stack allocation is prevented by
+     * protected constructors to avoid memory leaks and lifetime errors.
+     *
+     * @return A scoped_refptr owning a reference-counted GoldfishAudioDeviceModule instance.
+     */
+    static ::webrtc::scoped_refptr<GoldfishAudioDeviceModule> Create() {
+        return ::webrtc::scoped_refptr<GoldfishAudioDeviceModule>(
+                new ::webrtc::RefCountedObject<GoldfishAudioDeviceModule>());
+    }
+
     /**
      * @brief Reports the number of recording devices.
      * @return Always returns 1 to indicate a single recording channel is available.
@@ -61,6 +78,13 @@ class GoldfishAudioDeviceModule : public ::webrtc::FakeAudioDeviceModule {
         *enabled = true;
         return 0;
     }
+
+  protected:
+    GoldfishAudioDeviceModule() = default;
+    ~GoldfishAudioDeviceModule() override = default;
+
+  private:
+    friend class ::webrtc::RefCountedObject<GoldfishAudioDeviceModule>;
 };
 
 }  // namespace goldfish::videobridge

@@ -10,6 +10,12 @@ load("@rules_cc//cc:defs.bzl", "cc_binary")
         ],
         linkopts = select({
             "@platforms//os:macos": ["-undefined dynamic_lookup"],
+            "@platforms//os:windows": [
+                "strmiids.lib",
+                "uuid.lib",
+                "ole32.lib",
+                "oleaut32.lib",
+            ],
             "//conditions:default": [],
         }),
         linkshared = True,

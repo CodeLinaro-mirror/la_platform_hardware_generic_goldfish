@@ -1,4 +1,23 @@
-load("@rules_cc//cc:defs.bzl", "cc_library")
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+
+cc_library(
+    name = "grpc_key_utils",
+    srcs = ["grpc_key_utils.cc"],
+    hdrs = ["include/goldfish/grpc/grpc_key_utils.h"],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//emulator/libs/file",
+        "//emulator/libs/status_macros",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/strings:str_format",
+        "@nlohmann_json//:singleheader-json",
+        "@tink_cc//tink/jwt:jwk_set_converter",
+    ],
+)
 
 cc_library(
     name = "grpc",
@@ -11,8 +30,10 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
+        ":grpc_key_utils",
         "//emulator/libs/async:qemu_event_loop",
         "//emulator/libs/discovery:emulator_advertisement",
+        "//emulator/libs/grpc_security",
         "//emulator/libs/grpc_utils:event-stream",
         "//emulator/libs/hardware_config",
         "//emulator/modem_simulator:modem_simulator_client",
@@ -37,4 +58,22 @@ cc_library(
         "@qemu//:qemu-headers-exported",
     ],
     alwayslink = True,
+)
+
+cc_test(
+    name = "grpc_key_utils_test",
+    srcs = ["grpc_key_utils_test.cc"],
+    deps = [
+        ":grpc_key_utils",
+        "//emulator/libs/file",
+        "//emulator/libs/status_macros:status_matcher_macros",
+        "//emulator/libs/system",
+        "//emulator/libs/system:test-headers",
+        "@googletest//:gtest_main",
+        "@nlohmann_json//:singleheader-json",
+        "@tink_cc//tink/jwt:jwk_set_converter",
+        "@tink_cc//tink/jwt:jwt_key_templates",
+        "@tink_cc//tink/jwt:jwt_public_key_sign",
+        "@tink_cc//tink/jwt:jwt_signature_config",
+    ],
 )

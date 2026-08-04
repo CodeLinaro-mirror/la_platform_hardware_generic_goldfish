@@ -1,0 +1,53 @@
+load("@rules_kotlin//kotlin:jvm.bzl", "kt_jvm_binary")
+
+package(default_visibility = ["//visibility:public"])
+
+kt_jvm_binary(
+    name = "webrtc_demo",
+    srcs = [
+        "src/main/kotlin/com/android/emulator/webrtc/demo/EmulatorDemoKt.kt",
+        "src/main/kotlin/com/android/emulator/webrtc/demo/ui/EmulatorDemoFrame.kt",
+        "src/main/kotlin/com/android/emulator/webrtc/demo/ui/EmulatorVideoPanel.kt",
+    ],
+    data = [
+        "//emulator/videobridge/java:libwebrtc_java_receiver",
+    ],
+    main_class = "com.android.emulator.webrtc.demo.EmulatorDemoKt",
+    runtime_deps = [
+        "@grpc-java//netty",
+        "@grpc-java//okhttp",
+    ],
+    deps = [
+        "//emulator/videobridge/java:webrtc_client_java",
+        "@aemu//protos/services/webrtc:rtc_service_v2_java_grpc",
+        "@aemu//protos/services/webrtc:rtc_service_v2_java_proto",
+        "@grpc-java//api",
+        "@grpc-java//stub",
+        "@protobuf//java/core",
+    ],
+)
+
+kt_jvm_binary(
+    name = "webrtc_compose_demo",
+    srcs = [
+        "src/main/kotlin/com/android/emulator/webrtc/demo/EmulatorComposeDemoKt.kt",
+        "src/main/kotlin/com/android/emulator/webrtc/demo/ui/EmulatorComposeFrame.kt",
+        "src/main/kotlin/com/android/emulator/webrtc/demo/ui/EmulatorVideoPanel.kt",
+    ],
+    data = [
+        "//emulator/videobridge/java:libwebrtc_java_receiver",
+    ],
+    main_class = "com.android.emulator.webrtc.demo.EmulatorComposeDemoKt",
+    runtime_deps = [
+        "@grpc-java//netty",
+        "@grpc-java//okhttp",
+    ],
+    deps = [
+        "//emulator/videobridge/java:webrtc_client_java",
+        "@aemu//protos/services/webrtc:rtc_service_v2_java_grpc",
+        "@aemu//protos/services/webrtc:rtc_service_v2_java_proto",
+        "@grpc-java//api",
+        "@grpc-java//stub",
+        "@protobuf//java/core",
+    ],
+)

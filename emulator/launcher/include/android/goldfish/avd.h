@@ -26,6 +26,7 @@
 #include "android/goldfish/image_list.h"
 #include "android/goldfish/ini_file.h"
 #include "android/goldfish/input_paths.h"
+#include "goldfish/metrics/studio_stats_wrapper.h"
 
 namespace android::goldfish {
 namespace fs = std::filesystem;
@@ -126,7 +127,7 @@ class Avd {
 
     virtual const HardwareConfig& Hw() const = 0;
 
-    virtual bool Playstore() const = 0;
+    virtual android_studio::EmulatorAvdInfo::EmulatorAvdImageKind ImageKind() const = 0;
 
     /**
      * @brief Retrieves the API level of the AVD.

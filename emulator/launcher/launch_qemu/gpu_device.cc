@@ -50,7 +50,12 @@ std::vector<std::string> GpuDevice::getQemuParameters(const EmulatorConfig& emul
         }
     }
 
-    if (opts.skiavk) {
+    // Use skiavkthreaded by default, unless user specifies otherwise
+    std::string systemui_renderer =
+            opts.systemui_renderer ? opts.systemui_renderer : "skiavkthreaded";
+
+    // Enable virtual queue with skiavk variants
+    if (systemui_renderer.starts_with("skiavk")) {
         renderer_features.append(";VulkanVirtualQueue:enabled");
     }
 

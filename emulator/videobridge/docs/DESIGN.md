@@ -169,3 +169,64 @@ An observer registered on WebRTC **Data Channels**:
 - `EventForwarder` intercepts these, deserializes them, and writes them directly
   to the emulator's `StreamInputEvent` gRPC channel to inject input into the
   guest OS with sub-millisecond latency.
+
+### 3.5 Platform Codec Factories & Hardware Acceleration
+
+To deliver low-latency high-resolution video streams (such as `1080x2400` @ 60
+FPS) without overloading the host CPU, the `videobridge` leverages
+platform-specific hardware acceleration for video encoding and decoding.
+
+The bridge instantiates `CompositeVideoEncoderFactory` and
+`CompositeVideoDecoderFactory`. These custom wrappers prioritize the platform's
+hardware-accelerated H.264 codecs and gracefully fall back to WebRTC's built-in
+software codecs (VP8, VP9, AV1) if the hardware encoder fails or is not
+supported.
+
+#### Windows (Media Foundation)
+
+On Windows, the bridge implements a custom `MFVideoEncoderH264` using the
+Windows Media Foundation API. It enumerates and instantiates a
+hardware-accelerated H.264 Encoder MFT (Media Foundation Transform).
+
+- **Format Conversion:** The encoder converts incoming YUV frames to NV12 using
+  `libyuv` and feeds them into the MFT.
+- **Performance Optimizations:** To minimize heap allocations in the video
+  pipeline's hot path, input and output samples/buffers are pre-allocated during
+  initialization and reused for subsequent frames.
+- **Threading and Lifecycle:** The Media Foundation MFT operates synchronously.
+  To prevent race conditions where resources could be released while encoding is
+  active, the `Encode` method holds an exclusive mutex lock for its entire
+  duration.
+
+#### macOS (VideoToolbox)
+
+On macOS, the bridge uses `RTCVideoEncoderFactoryH264` and
+`RTCVideoDecoderFactoryH264` from Apple's VideoToolbox framework. These are
+wrapped into a native `webrtc::VideoEncoderFactory` via the
+`webrtc::ObjCToNativeVideoEncoderFactory` bridge.
+
+- **Lifetime Management:** Because Objective-C++ uses Automatic Reference
+  Counting (ARC), the native C++ wrapper classes hold strong references
+  (`objc_factory_`) to the underlying Objective-C factory objects to prevent
+  them from being prematurely deallocated.
+- **Level Elevation for High Resolutions:** By default, WebRTC's H.264 factory
+  advertises **Level 3.1** (`profile-level-id=42e01f`), which caps the video
+  resolution at `1280x720` at 30 FPS. High-resolution streams like `1080x2400`
+  exceed the macroblock limits of Level 3.1, causing Apple's VideoToolbox to
+  fail with `kVTParameterErr` (`-12902`) on macOS.
+
+  To solve this, the composite factories intercept the advertised formats and
+  elevate the H.264 `profile-level-id` to **Level 5.2** (`34` in hex), which
+  supports up to 4K resolutions at 60 FPS (e.g. Constrained Baseline Profile is
+  elevated to `42e034` and High Profile to `640c34`). This allows the browser to
+  negotiate high-resolution streams that can be processed directly by the macOS
+  GPU.
+
+#### Linux (NVIDIA / VA-API)
+
+_(Planned)_ Future versions will implement hardware-accelerated H.264 encoding
+on Linux using NVIDIA's NVENC or Intel/AMD's VA-API to support GPU-accelerated
+video encoding in Linux cloud environments. Currently, Linux hosts fall back to
+WebRTC's built-in software codecs.
+
+---

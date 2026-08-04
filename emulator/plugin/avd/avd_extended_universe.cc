@@ -106,6 +106,7 @@ AvdExtendedUniverse::AvdExtendedUniverse(std::unique_ptr<AvdProperties> props)
                 return true;
             },
             0s, 300s);
+    avd_universe.GetGuestStatus().SetMetricsReporter(avd_universe.metrics_reporter.get());
 
     avd_universe.qemu_event_loop = goldfish::async::QemuEventLoop::Create();
     auto& qemu_loop = avd_universe.qemu_event_loop;
@@ -523,6 +524,10 @@ absl::Status AvdExtendedUniverse::OnLoadPhysicalState(archive::IReader& reader) 
 absl::Status AvdExtendedUniverse::OnPostLoad() {
     guest_status_.OnPostLoad();
     return absl::OkStatus();
+}
+
+void AvdExtendedUniverse::Reset() {
+    GetMultiDisplay().Reset();
 }
 
 }  // namespace goldfish::avd_info

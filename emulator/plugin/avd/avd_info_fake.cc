@@ -43,9 +43,9 @@ struct FakeAvdUniverse : public AvdUniverse {
     std::unique_ptr<display::IMultiDisplay> multi_display;
 };
 
-AvdUniverse& GetAvd() {
+AvdUniverse* GetNullableAvd() {
     static FakeAvdUniverse universe;
-    return universe;
+    return &universe;
 }
 
 // These methods were merged into avd_info.cc, so we need fake impls here.

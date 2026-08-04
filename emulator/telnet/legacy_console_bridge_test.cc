@@ -17,6 +17,7 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
+#include <filesystem>
 #include <fstream>
 #include <memory>
 #include <string>
@@ -31,6 +32,7 @@
 #include "emulator_controller_mock.grpc.pb.h"
 #include "goldfish/discovery/emulator_advertisement.h"
 #include "goldfish/file/file.h"
+#include "modem_service_mock.grpc.pb.h"
 #include "telnet_auth.h"
 
 namespace goldfish::telnet {
@@ -47,6 +49,14 @@ struct MockConsoleContext : public LegacyConsoleBridge::ConsoleContext {
             return std::move(mock_stub);
         }
         return ConsoleContext::EmulatorControllerStub();
+    }
+
+    absl::StatusOr<std::unique_ptr<android::emulation::control::incubating::Modem::StubInterface>>
+    ModemStub() override {
+        if (mock_modem_stub) {
+            return std::move(mock_modem_stub);
+        }
+        return ConsoleContext::ModemStub();
     }
 
     absl::StatusOr<std::unique_ptr<grpc::ClientContext>> NewContext(
@@ -73,6 +83,7 @@ struct MockConsoleContext : public LegacyConsoleBridge::ConsoleContext {
     }
 
     std::unique_ptr<android::emulation::control::EmulatorController::StubInterface> mock_stub;
+    std::unique_ptr<android::emulation::control::incubating::Modem::StubInterface> mock_modem_stub;
     std::optional<absl::StatusOr<LegacyConsoleBridge::DiscoveredEmulator>> mock_discovery;
     std::optional<absl::StatusOr<std::vector<std::filesystem::path>>> mock_discovered_emulators;
 };
@@ -215,6 +226,47 @@ TEST_F(LegacyConsoleBridgeTest, GeoFixSucceedsWithValidCoordinates) {
     ctx->mock_stub = std::move(mock_stub);
 
     auto result = (*bridge_)("geo fix 12.3 45.6", *ctx);
+
+    ASSERT_TRUE(result.ok()) << result.status().message();
+    EXPECT_EQ(*result, "");
+}
+
+TEST_F(LegacyConsoleBridgeTest, FingerTouchSendsGrpcRequest) {
+    auto ctx = CreateContext();
+    ctx->authenticated = true;
+
+    auto mock_stub = std::make_unique<android::emulation::control::MockEmulatorControllerStub>();
+    EXPECT_CALL(*mock_stub, sendFingerprint(_, _, _))
+            .WillOnce([](grpc::ClientContext* context,
+                         const android::emulation::control::Fingerprint& request,
+                         google::protobuf::Empty* response) {
+                EXPECT_TRUE(request.istouching());
+                EXPECT_EQ(request.touchid(), 1);
+                return grpc::Status::OK;
+            });
+    ctx->mock_stub = std::move(mock_stub);
+
+    auto result = (*bridge_)("finger touch 1", *ctx);
+
+    ASSERT_TRUE(result.ok()) << result.status().message();
+    EXPECT_EQ(*result, "");
+}
+
+TEST_F(LegacyConsoleBridgeTest, FingerRemoveSendsGrpcRequest) {
+    auto ctx = CreateContext();
+    ctx->authenticated = true;
+
+    auto mock_stub = std::make_unique<android::emulation::control::MockEmulatorControllerStub>();
+    EXPECT_CALL(*mock_stub, sendFingerprint(_, _, _))
+            .WillOnce([](grpc::ClientContext* context,
+                         const android::emulation::control::Fingerprint& request,
+                         google::protobuf::Empty* response) {
+                EXPECT_FALSE(request.istouching());
+                return grpc::Status::OK;
+            });
+    ctx->mock_stub = std::move(mock_stub);
+
+    auto result = (*bridge_)("finger remove", *ctx);
 
     ASSERT_TRUE(result.ok()) << result.status().message();
     EXPECT_EQ(*result, "");
@@ -462,6 +514,36 @@ TEST_F(LegacyConsoleBridgeTest, ResumeSucceedsAndCallsSetVmState) {
 
     ASSERT_TRUE(result.ok()) << result.status().message();
     EXPECT_EQ(*result, "");
+}
+
+TEST_F(LegacyConsoleBridgeTest, CreatesTokenFileIfMissingOnConstruction) {
+    std::filesystem::remove(token_path_);
+    EXPECT_FALSE(std::filesystem::exists(token_path_));
+
+    auto new_bridge = std::make_unique<LegacyConsoleBridge>(5554, token_path_);
+
+    EXPECT_TRUE(std::filesystem::exists(token_path_));
+    EXPECT_EQ(TelnetAuth::GetStatus(token_path_), AuthStatus::kRequired);
+
+    auto read_result = TelnetAuth::ReadToken(token_path_);
+    ASSERT_TRUE(read_result.ok()) << read_result.status();
+    EXPECT_FALSE(read_result->AsStringView().empty());
+}
+
+TEST_F(LegacyConsoleBridgeTest, CreateContextRespectsDisabledAuth) {
+    WriteToken("");
+    EXPECT_EQ(TelnetAuth::GetStatus(token_path_), AuthStatus::kDisabled);
+
+    auto ctx = bridge_->CreateContext();
+    EXPECT_TRUE(ctx->authenticated);
+}
+
+TEST_F(LegacyConsoleBridgeTest, WelcomeMessageDoesNotRequireAuthWhenDisabled) {
+    WriteToken("");
+    auto ctx = bridge_->CreateContext();
+    auto welcome = bridge_->WelcomeMessage(*ctx);
+
+    EXPECT_EQ(welcome, "Android Console: type 'help' for a list of commands\r\n");
 }
 
 }  // namespace

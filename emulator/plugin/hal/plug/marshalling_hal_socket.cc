@@ -46,6 +46,7 @@ NullSocket g_null_socket;
 MarshallingHalSocket::MarshallingHalSocket(cable::SocketPtr socket, async::EventLoop* qemu_loop)
         : socket_(std::move(socket)), qemu_loop_(qemu_loop) {
     DCHECK(socket_) << "socket_ is nullptr";
+    send_buffer_.reserve(kInitialBufferSize);
     VLOG(1) << "MarshallingHalSocket: " << socket_ << " created";
 }
 
@@ -62,18 +63,44 @@ void MarshallingHalSocket::Send(std::string data) {
         return;
     }
 
-    VLOG(2) << "Sheduling send for " << data.size() << " bytes";
+    bool schedule_flush = false;
+    goldfish::async::StackAddress calling_pc = 0;
 
-    // We are going to store the PC of the method that called us.
-    goldfish::async::StackAddress calling_pc = __builtin_return_address(0);
-    // Post the send operation to the QEMU loop asynchronously.
+    {
+        const absl::MutexLock lock(&socket_mutex_);
+        schedule_flush = send_buffer_.empty();
+        send_buffer_.append(data);
+
+        if (schedule_flush) {
+            // Note: During write-buffer coalescing, we record the instruction pointer
+            // (calling_pc) of the first Send() call that initiates the batch flush task.
+            calling_pc = __builtin_return_address(0);
+        } else {
+            VLOG(2) << "Appended " << data.size()
+                    << " bytes to pending coalesced buffer (total: " << send_buffer_.size()
+                    << " bytes)";
+            return;
+        }
+    }
+
+    // Post the coalesced send operation to the QEMU loop asynchronously.
     qemu_loop_
             ->Post(
-                    [this, data = std::move(data), self = shared_from_this()]() {
-                        const absl::MutexLock lock(&socket_mutex_);
-                        VLOG(2) << "Sending " << data.size() << " bytes";
-                        // Bytes go either to the *real* or NullSocket..
-                        socket_->SendAsync(data.data(), data.size());
+                    [this, self = shared_from_this()]() {
+                        std::string payload_to_send;
+                        {
+                            const absl::MutexLock lock(&socket_mutex_);
+                            if (send_buffer_.empty()) {
+                                return;
+                            }
+                            payload_to_send = std::move(send_buffer_);
+                            send_buffer_.reserve(kInitialBufferSize);
+
+                            VLOG(2) << "Sending coalesced payload of " << payload_to_send.size()
+                                    << " bytes";
+                            // Bytes go either to the *real* or NullSocket..
+                            socket_->SendAsync(payload_to_send.data(), payload_to_send.size());
+                        }
                     },
                     std::chrono::milliseconds::zero(), {.caller_pc = calling_pc})
             .IgnoreError();

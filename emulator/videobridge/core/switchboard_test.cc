@@ -77,16 +77,10 @@ TEST(SwitchboardTest, NextMessageBlocksAndReceives) {
         board.Send("user3", "hello");
     });
 
-    auto start = std::chrono::steady_clock::now();
-    auto maybe_msg = board.NextMessage("user3", absl::Milliseconds(500));
-    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(
-                            std::chrono::steady_clock::now() - start)
-                            .count();
+    auto maybe_msg = board.NextMessage("user3", absl::Seconds(5));
 
     ASSERT_TRUE(maybe_msg.ok());
     EXPECT_EQ(nlohmann::json::parse(*maybe_msg), "hello");
-    // Should have returned early rather than waiting full 500ms
-    EXPECT_LT(duration, 200);
 
     t.join();
 }

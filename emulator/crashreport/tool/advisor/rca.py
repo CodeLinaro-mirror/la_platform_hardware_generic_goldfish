@@ -69,6 +69,7 @@ Your mission is to perform a rigorous Root Cause Analysis (RCA) on the attached 
 3. Ground all statements strictly in the visible stack frames and breadcrumb timelines. Do not make unverified claims.
 4. Use your search and read tools to inspect the active AOSP codebase.
 5. Upon completion of your investigation, create a comprehensive, highly structured markdown document that is shown to the user and written to disk.
+6. When filing or updating a Buganizer issue for this crash, search for existing bugs using symbolic signatures (e.g., faulting function, panic string) or crash report ID in Component 29601 using `/google/bin/releases/issues-cli/issues`. If an existing issue is found, append a new occurrence comment using the Standardized Occurrence Comment Schema in crash_advisor.md. If no issue exists, file a new bug conforming strictly to the Standardized Buganizer Description Schema.
 """
 
         # Construct the command arguments using --prompt / --prompt-interactive and --add-dir

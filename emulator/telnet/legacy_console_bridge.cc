@@ -31,6 +31,7 @@
 #include "emulator_controller.grpc.pb.h"
 #include "emulator_controller.pb.h"
 #include "goldfish/discovery/emulator_advertisement.h"
+#include "gsm_commands.h"
 #include "screen_record_commands.h"
 #include "telnet_auth.h"
 
@@ -59,70 +60,12 @@ absl::StatusOr<std::string> GetPlatformConfigProperty(LegacyConsoleBridge::Conso
 }
 }  // namespace
 
-absl::StatusOr<std::shared_ptr<android::emulation::control::BlockingEmulatorGrpcClient>>
-LegacyConsoleBridge::ConsoleContext::Client() {
-    absl::MutexLock lock(mutex_);
-    if (client_) {
-        return client_;
-    }
-
-    auto client = android::emulation::control::EmulatorGrpcClientBuilder()
-                          .ForDiscoveredEmulator({{"port.serial", std::to_string(port_)}})
-                          .BuildBlocking();
-    if (!client.ok()) {
-        LOG(ERROR) << "Failed to build gRPC client: " << client.status();
-        return client.status();
-    }
-
-    VLOG(1) << "Connecting to gRPC server...";
-    if (auto s = (*client)->Connect(absl::Seconds(2)); !s.ok()) {
-        LOG(ERROR) << "Failed to connect to gRPC server: " << s;
-        return s;
-    }
-
-    VLOG(1) << "Successfully connected to gRPC server.";
-    client_ = std::move(*client);
-    return client_;
-}
-
-absl::StatusOr<std::vector<std::filesystem::path>>
-LegacyConsoleBridge::ConsoleContext::DiscoverRunningEmulators() {
-    return discovery::EmulatorAdvertisement().DiscoverRunningEmulators();
-}
-
-absl::StatusOr<LegacyConsoleBridge::DiscoveredEmulator>
-LegacyConsoleBridge::ConsoleContext::DiscoverEmulatorWithProperties(
-        const absl::flat_hash_map<std::string, std::string>& props) {
-    auto discovered = DiscoverRunningEmulators();
-    if (!discovered.ok()) return discovered.status();
-
-    absl::StatusOr<DiscoveredEmulator> result = absl::NotFoundError("No matching emulator found");
-    for (const auto& discovery_file : *discovered) {
-        IniFile ini(discovery_file);
-        if (!ini.Read()) continue;
-
-        bool match = true;
-        for (const auto& [key, val] : props) {
-            match = match && ini.HasKey(key) && ini.GetString(key) == val;
-        }
-        if (match) {
-            // Oh, oh, another emulator with the same properties has been discovered.
-            if (result.ok()) {
-                return absl::FailedPreconditionError("Multiple matching emulators found");
-            }
-            DiscoveredEmulator candidate;
-            candidate.discovery_file = discovery_file;
-            for (const auto& entry : ini) {
-                candidate.properties[entry.first] = entry.second;
-            }
-            result = std::move(candidate);
-        }
-    }
-    return result;
-}
-
 LegacyConsoleBridge::LegacyConsoleBridge(int port, std::filesystem::path token_path)
         : port_(port), token_path_(std::move(token_path)) {
+    if (auto status = TelnetAuth::LoadOrCreateToken(16, token_path_); !status.ok()) {
+        LOG(WARNING) << "Failed to load or create telnet auth token at " << token_path_ << ": "
+                     << status.status();
+    }
     CommandRegistryBuilder builder(token_path_);
 
     // --- Safe Root Commands ---
@@ -402,50 +345,7 @@ LegacyConsoleBridge::LegacyConsoleBridge(int port, std::filesystem::path token_p
 
     // --- GSM Commands ---
     auto gsm = builder.Command("gsm", "GSM related commands");
-    gsm.On("list" /* do_gsm_list */, "list current phone calls",
-           [](ConsoleContext& /*ctx*/) { return absl::UnimplementedError("not implemented"); });
-    gsm.On("call" /* do_gsm_call */, "create inbound phone call",
-           [](ConsoleContext& /*ctx*/, const std::string& /*phonenumber*/) {
-               return absl::UnimplementedError("not implemented");
-           });
-    gsm.On("busy" /* do_gsm_busy */, "close waiting outbound call as busy",
-           [](ConsoleContext& /*ctx*/, const std::string& /*remoteNumber*/) {
-               return absl::UnimplementedError("not implemented");
-           });
-    gsm.On("hold" /* do_gsm_hold */, "change the state of an outbound call to 'held'",
-           [](ConsoleContext& /*ctx*/, const std::string& /*remoteNumber*/) {
-               return absl::UnimplementedError("not implemented");
-           });
-    gsm.On("accept" /* do_gsm_accept */, "change the state of an outbound call to 'active'",
-           [](ConsoleContext& /*ctx*/, const std::string& /*remoteNumber*/) {
-               return absl::UnimplementedError("not implemented");
-           });
-    gsm.On("cancel" /* do_gsm_cancel */, "disconnect an inbound or outbound phone call",
-           [](ConsoleContext& /*ctx*/, const std::string& /*remoteNumber*/) {
-               return absl::UnimplementedError("not implemented");
-           });
-    gsm.On("data" /* do_gsm_data */, "modify data connection state",
-           [](ConsoleContext& /*ctx*/, const std::string& /*state*/) {
-               return absl::UnimplementedError("not implemented");
-           });
-    gsm.On("meter" /* do_gsm_meter */, "modify mobile data meterness",
-           [](ConsoleContext& /*ctx*/, const std::string& /*state*/) {
-               return absl::UnimplementedError("not implemented");
-           });
-    gsm.On("voice" /* do_gsm_voice */, "modify voice connection state",
-           [](ConsoleContext& /*ctx*/, const std::string& /*state*/) {
-               return absl::UnimplementedError("not implemented");
-           });
-    gsm.On("status" /* do_gsm_status */, "display GSM status",
-           [](ConsoleContext& /*ctx*/) { return absl::UnimplementedError("not implemented"); });
-    gsm.On("signal" /* do_gsm_signal */, "set sets the rssi and ber",
-           [](ConsoleContext& /*ctx*/, int /*rssi*/, std::optional<int> /*ber*/) {
-               return absl::UnimplementedError("not implemented");
-           });
-    gsm.On("signal-profile" /* do_gsm_signal_profile */, "set the signal strength profile",
-           [](ConsoleContext& /*ctx*/, int /*strength*/) {
-               return absl::UnimplementedError("not implemented");
-           });
+    RegisterGsmCommands(gsm);
 
     // --- CDMA Commands ---
     auto cdma = builder.Command("cdma", "CDMA related commands");
@@ -583,13 +483,24 @@ LegacyConsoleBridge::LegacyConsoleBridge(int port, std::filesystem::path token_p
                [](ConsoleContext& /*ctx*/) { return absl::UnimplementedError("not implemented"); });
 
     // --- Finger Commands ---
+    auto send_fingerprint = [](ConsoleContext& ctx, bool is_touching,
+                               int touch_id = 0) -> absl::Status {
+        ASSIGN_OR_RETURN(auto stub, ctx.EmulatorControllerStub());
+        ASSIGN_OR_RETURN(auto context, ctx.NewContext());
+        android::emulation::control::Fingerprint request;
+        request.set_istouching(is_touching);
+        request.set_touchid(touch_id);
+        google::protobuf::Empty unused;
+        return GrpcStatusToAbslStatus(stub->sendFingerprint(context.get(), request, &unused));
+    };
+
     auto finger = builder.Command("finger", "manage emulator finger print");
     finger.On("touch" /* do_fingerprint_touch */, "touch finger print sensor with <fingerid>",
-              [](ConsoleContext& /*ctx*/, int /*fingerid*/) {
-                  return absl::UnimplementedError("not implemented");
+              [send_fingerprint](ConsoleContext& ctx, int fingerid) {
+                  return send_fingerprint(ctx, true, fingerid);
               });
     finger.On("remove" /* do_fingerprint_remove */, "remove finger from the fingerprint sensor",
-              [](ConsoleContext& /*ctx*/) { return absl::UnimplementedError("not implemented"); });
+              [send_fingerprint](ConsoleContext& ctx) { return send_fingerprint(ctx, false); });
 
     // --- Multi-display Commands ---
     auto multidisplay = builder.Command("multidisplay", "configure the multi-display");
@@ -707,6 +618,14 @@ absl::StatusOr<std::string> LegacyConsoleBridge::operator()(std::string line, Co
 
 std::string LegacyConsoleBridge::WelcomeMessage(const Context& ctx) const {
     return registry_->WelcomeMessage(ctx);
+}
+
+std::unique_ptr<LineCommandHandler::Context> LegacyConsoleBridge::CreateContext() const {
+    auto ctx = std::make_unique<ConsoleContext>(port_);
+    if (TelnetAuth::GetStatus(token_path_) == AuthStatus::kDisabled) {
+        ctx->authenticated = true;
+    }
+    return ctx;
 }
 
 }  // namespace goldfish::telnet

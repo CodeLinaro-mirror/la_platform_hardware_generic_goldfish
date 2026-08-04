@@ -17,6 +17,7 @@
 
 #include "goldfish/archive/time.h"
 #include "goldfish/avd_universe/grpc/grpc_notification_channel.h"
+#include "goldfish/metrics/metrics_reporter.h"
 
 namespace goldfish::avd_universe::guest_status {
 
@@ -29,6 +30,9 @@ struct GuestStatus {
     absl::Duration GetBootCompleteDuration() const;
     uint64_t GetHeartbeatCounter() const { return heartbeatCounter_; }
 
+    void SetMetricsReporter(::goldfish::metrics::MetricsReporter* metrics_reporter) {
+        metrics_reporter_ = metrics_reporter;
+    }
     void Reset(absl::Time);
     void SetBootComplete(absl::Time);
     void Heartbeat() { ++heartbeatCounter_; }
@@ -45,6 +49,7 @@ struct GuestStatus {
   private:
     void NotifyBootcomplete(absl::Duration) const;
 
+    ::goldfish::metrics::MetricsReporter* metrics_reporter_ = nullptr;
     absl::Time resetT_;
     absl::Time bootcompleteT_;
     uint64_t heartbeatCounter_ = 0;
