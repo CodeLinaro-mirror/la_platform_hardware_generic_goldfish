@@ -17,15 +17,18 @@
 #include <utility>
 
 #include "absl/log/log.h"
-#include "grpc_input_sender.h"
 
+#include "goldfish/videobridge/webrtc_logging.h"
 #include "participant.h"
 
 namespace goldfish::videobridge {
 
-Switchboard::Switchboard(std::shared_ptr<EmulatorClient> client,
-                         std::shared_ptr<MediaProvider> media_provider)
-        : emulator_client_(std::move(client)), media_provider_(std::move(media_provider)) {}
+Switchboard::Switchboard(std::shared_ptr<MediaProvider> media_provider,
+                         InputSenderFactory input_sender_factory)
+        : media_provider_(std::move(media_provider))
+        , input_sender_factory_(std::move(input_sender_factory)) {
+    ConfigureWebRtcLogging();
+}
 
 Switchboard::~Switchboard() {
     std::vector<std::shared_ptr<Participant>> active_connections;
@@ -130,8 +133,11 @@ void Switchboard::RtcConnectionClosed(std::string participant) {
     LOG(INFO) << "WebRTC connection closed notification received for participant: " << participant;
 }
 
-std::unique_ptr<InputSender> Switchboard::CreateInputSender(DataChannelLabel /*label*/) {
-    return std::make_unique<GrpcInputSender>(emulator_client_);
+std::unique_ptr<InputSender> Switchboard::CreateInputSender(DataChannelLabel label) {
+    if (input_sender_factory_) {
+        return input_sender_factory_(label);
+    }
+    return nullptr;
 }
 
 void Switchboard::NextMessage(const std::string& identity, MessageCallback callback) {
