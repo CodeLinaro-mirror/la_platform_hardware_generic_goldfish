@@ -24,6 +24,7 @@
 
 #include "android/emulation/control/emulator_grpc_client.h"
 #include "android/status/status_macros.h"
+#include "emulator/telnet/netsim_connection_provider.h"
 #include "goldfish/avd_info/avd_info.h"
 #include "netsim_connection_internal.h"
 
@@ -129,6 +130,13 @@ void netsim_connection_realize(DeviceState* dev, Error** errp) {
                        "will not auto-discover this netsimd instance. Ensure the avdstart "
                        "device is instantiated before netsim-connection.";
         }
+        VLOG(1) << "netsim_connection_realize: connected to netsim successfully";
+        ::goldfish::telnet::NetsimConnectionProvider::Register(
+                []() { return get_connected_netsim_grpc_client(); },
+                []() -> std::string {
+                    auto avd = goldfish::avd_info::GetNullableAvd();
+                    return avd ? avd->Props().avd_name : "";
+                });
     }
 }
 
@@ -139,6 +147,7 @@ void netsim_connection_unrealize(DeviceState* dev) {
         nc->data->grpc_client->Disconnect();
         nc->data->grpc_client.reset();
     }
+    ::goldfish::telnet::NetsimConnectionProvider::Reset();
     if (auto* avd = goldfish::avd_info::GetNullableAvd()) {
         avd->SetNetsimEndpoint("");
     }
@@ -228,7 +237,7 @@ void netsim_connection_register_types(void) {
     type_register_static(&goldfish::netsim::netsim_connection_type_info);
 }
 
-absl::StatusOr<std::shared_ptr<android::emulation::control::EmulatorGrpcClientBase>>
+absl::StatusOr<std::shared_ptr<android::emulation::control::BlockingEmulatorGrpcClient>>
 get_connected_netsim_grpc_client() {
     Object* obj = object_resolve_type_unambiguous(TYPE_NETSIM_CONNECTION, nullptr);
     if (obj == nullptr) {

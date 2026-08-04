@@ -20,7 +20,7 @@
 
 namespace goldfish::netsim {
 
-absl::StatusOr<std::shared_ptr<android::emulation::control::EmulatorGrpcClientBase>>
+absl::StatusOr<std::shared_ptr<android::emulation::control::BlockingEmulatorGrpcClient>>
 get_connected_netsim_grpc_client();
 
 }  // namespace goldfish::netsim
