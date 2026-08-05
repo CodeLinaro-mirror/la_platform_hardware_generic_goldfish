@@ -350,7 +350,7 @@ class TestCrashAdvisor(unittest.TestCase):
         dump_path = dumper.generate_dump(context, symbols_dir)
 
         self.assertEqual(dump_path, context.work_dir / "crashreport.txt")
-        self.assertEqual(mock_run.call_count, 2)  # Called for txt and json
+        self.assertEqual(mock_run.call_count, 1)  # Called for text dump
 
     def test_crash_report_analyzer(self) -> None:
         """Test CrashReportAnalyzer generating investigation_cmd.sh interactive script."""

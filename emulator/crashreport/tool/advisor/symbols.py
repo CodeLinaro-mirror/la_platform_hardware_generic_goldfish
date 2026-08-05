@@ -167,12 +167,12 @@ class SymbolFetcher:
                         "To enable high-speed Android Build zip downloading on macOS, generate an SSO token on a GLinux workstation:\n"
                         "  oauth2l fetch --sso $USER@google.com androidbuild.internal\n\n"
                         "Then pass the generated token to this tool using the --token flag:\n"
-                        "  bazel run @goldfish//emulator/crashreport/tool/advisor -- <crash_id> --token <generated_token>\n"
+                        "  emu-dev-cli crash find-bug <crash_id> --token <generated_token>\n"
                     )
                 else:
                     err_msg += "Ensure you have active LOAS credentials (gcert) or pass a valid token via --token.\n"
                 err_msg += "==============================================="
-                raise RuntimeError(err_msg) from e
+                logging.warning("%s", err_msg)
         else:
             logging.info("Symbols zip already cached globally at: %s", global_zip_path)
 
