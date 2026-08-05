@@ -275,6 +275,7 @@ int netsim_chardev_write(Chardev* chr, const uint8_t* buf, int len) {
 
 void netsim_chardev_set_fe_open(Chardev* chr, int fe_open) {
     if (!fe_open) {
+        qemu_chr_be_event(chr, CHR_EVENT_CLOSED);
         return;
     }
 
@@ -292,6 +293,8 @@ void netsim_chardev_set_fe_open(Chardev* chr, int fe_open) {
         return;
     }
 
+    qemu_chr_be_event(chr, CHR_EVENT_OPENED);
+
     // Send reset sequence to guest.
     state->protocol->reset_guest(chr);
 }
@@ -299,8 +302,9 @@ void netsim_chardev_set_fe_open(Chardev* chr, int fe_open) {
 void netsim_chardev_bh(void* obj) {
     auto* nc = NETSIM_CHARDEV(obj);
     if (!nc->state->incoming_packet) {
-        DCHECK(false) << "Netsim chardev bottom half execution was scheduled on QEMU's main loop, but no "
-                         "incoming packet buffer was found. Skipping packet transmission.";
+        DCHECK(false)
+                << "Netsim chardev bottom half execution was scheduled on QEMU's main loop, but no "
+                   "incoming packet buffer was found. Skipping packet transmission.";
         return;
     }
     auto* chr = CHARDEV(obj);
@@ -312,8 +316,8 @@ bool netsim_chardev_open(Chardev* chr, ChardevBackend* backend, Error** errp) {
     VLOG(1) << "Realizing netsim chardev: " << chr->label;
 
     NetsimChardev* nc = NETSIM_CHARDEV(chr);
-    nc->state->transport = std::make_unique<NetsimTransport>(
-            [chr](::netsim::packet::PacketResponse* packet) {
+    nc->state->transport =
+            std::make_unique<NetsimTransport>([chr](::netsim::packet::PacketResponse* packet) {
                 auto* nc = NETSIM_CHARDEV(chr);
                 if (nc->state->incoming_packet) {
                     // This shouldn't happen because we always return false from this lambda and
@@ -330,7 +334,6 @@ bool netsim_chardev_open(Chardev* chr, ChardevBackend* backend, Error** errp) {
                 }
                 return false;
             });
-    qemu_chr_be_event(chr, CHR_EVENT_OPENED);
 
     // Note that we don't initialize the connection to Netsimd here.
     // This is because chardevs are opened way before "device"s and so no AVD information is yet
