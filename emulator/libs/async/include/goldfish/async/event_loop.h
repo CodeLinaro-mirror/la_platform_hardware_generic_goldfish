@@ -278,6 +278,11 @@ class EventLoop : public CallbackEventSource<LooperStatusEvent> {
         if (IsOnLoopThread()) {
             LOG(FATAL) << "postAndWait cannot be called from the event loop.";
         }
+        // Fail immediately if looper has finished to avoid deadlocking on future.get()
+        // when no loop thread is running to process enqueued tasks.
+        if (GetState() == LooperStatusEvent::State::kFinished) {
+            return absl::FailedPreconditionError("Event loop has finished execution");
+        }
 
         StackAddress pc = __builtin_return_address(0);
         if (auto future = Post<F>(std::forward<F>(task), std::chrono::milliseconds::zero(),
