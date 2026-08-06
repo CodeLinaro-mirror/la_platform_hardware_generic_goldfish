@@ -19,9 +19,73 @@ import os
 import subprocess
 import sys
 import tempfile
+import types
 import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
+
+# Provide fallback for `from python.runfiles import Runfiles` when executed outside Bazel
+if "python.runfiles" not in sys.modules:
+    try:
+        from python.runfiles import Runfiles
+    except ImportError:
+        py_mod = types.ModuleType("python")
+        rf_mod = types.ModuleType("python.runfiles")
+
+        class DummyRunfiles:
+            @staticmethod
+            def Create():
+                return DummyRunfiles()
+
+            def Rlocation(self, rpath: str) -> str:
+                return str(Path(rpath).resolve())
+
+        rf_mod.Runfiles = DummyRunfiles
+        py_mod.runfiles = rf_mod
+        sys.modules["python"] = py_mod
+        sys.modules["python.runfiles"] = rf_mod
+
+curr_path = Path(__file__).resolve()
+for p in [curr_path] + list(curr_path.parents):
+    libs_python_dir = p / "hardware" / "google" / "aemu" / "tools" / "libs_python"
+    if libs_python_dir.exists():
+        if str(libs_python_dir) not in sys.path:
+            sys.path.insert(0, str(libs_python_dir))
+        break
+
+for mod_name in [
+    "tqdm",
+    "googleapiclient",
+    "googleapiclient.discovery",
+    "googleapiclient.http",
+    "googleapiclient.errors",
+    "oauth2client",
+    "oauth2client.client",
+]:
+    if mod_name not in sys.modules:
+        try:
+            __import__(mod_name)
+        except ImportError:
+            stub = types.ModuleType(mod_name)
+            if mod_name == "tqdm":
+                stub.tqdm = lambda x, **kw: x
+            elif mod_name in ("googleapiclient", "oauth2client"):
+                stub.__path__ = []
+            elif mod_name == "googleapiclient.discovery":
+                stub.build = lambda *a, **kw: None
+            elif mod_name == "googleapiclient.http":
+                stub.MediaIoBaseDownload = lambda *a, **kw: None
+                stub.MediaFileUpload = lambda *a, **kw: None
+            elif mod_name == "googleapiclient.errors":
+                class HttpError(Exception):
+                    pass
+                stub.HttpError = HttpError
+            elif mod_name == "oauth2client.client":
+                class AccessTokenCredentials:
+                    def __init__(self, *a, **kw):
+                        pass
+                stub.AccessTokenCredentials = AccessTokenCredentials
+            sys.modules[mod_name] = stub
 
 from api import CrashApi
 from client import GossoClient

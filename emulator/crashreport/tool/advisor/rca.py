@@ -18,6 +18,7 @@ import logging
 import os
 import shlex
 from pathlib import Path
+from typing import Any, Optional
 
 from context import CrashReportContext
 
@@ -42,7 +43,12 @@ class CrashReportAnalyzer:
         return str(start_path.parents[4])
 
     def generate_explanation(
-        self, context: CrashReportContext, dump_path: Path, auto_run: bool = False, timeout: str = "30m"
+        self,
+        context: CrashReportContext,
+        dump_path: Path,
+        auto_run: bool = False,
+        timeout: str = "30m",
+        metadata: Any = None,
     ) -> Path:
         """Construct the Jetski CLI command and save it to investigation_cmd.sh."""
         investigation_script = context.work_dir / "investigation_cmd.sh"
@@ -60,8 +66,24 @@ class CrashReportAnalyzer:
             "Preparing interactive Jetski prompt referencing local dump: %s", dump_path
         )
 
+        build_id = getattr(metadata, "build_id", "unknown") if metadata else "unknown"
+        version_str = (
+            f"{metadata.product_name} ({metadata.build_id})"
+            if metadata and getattr(metadata, "product_name", None)
+            else build_id
+        )
+
         prompt = f"""You are an expert Android Emulator Host & Concurrency System Debugger.
 Your mission is to perform a rigorous Root Cause Analysis (RCA) on the attached emulator minidump extraction: `{dump_path.name}`.
+
+=== REPOSITORY VERSION CONTEXT & FIXED BUG VERIFICATION ===
+• Crash Build ID: {build_id} (Version: {version_str})
+• WARNING: This crash report was generated from a build compiled against an older version of the repository than the current active AOSP workspace (HEAD).
+• BEFORE PROPOSING OR FILING FIXES:
+  1. Inspect `git log` for the faulting file and check if the crash signature, faulting function, or null check has already been modified or fixed in newer commits.
+  2. Inspect the current source code at the faulting location to verify whether the issue still reproduces in HEAD or has already been resolved.
+  3. Query Buganizer Component 29601 for both open and closed issues (status:open and status:closed/fixed). If an existing issue is marked FIXED or VERIFIED, document the resolution and the fixing commit/CL.
+  4. If the bug has already been fixed in current HEAD, state clearly that it is already fixed and cite the relevant commits.
 
 === ANALYSIS INSTRUCTIONS ===
 1. Use your read tools to examine the crashing thread stack frames and register states in `{dump_path.name}`. Identify the immediate failure instruction (e.g., null dereference, assertion failure, segmentation fault).
@@ -75,7 +97,6 @@ Your mission is to perform a rigorous Root Cause Analysis (RCA) on the attached 
         # Construct the command arguments using --prompt / --prompt-interactive and --add-dir
         prompt_flag = "--prompt" if auto_run else "--prompt-interactive"
         cmd_args = [
-            "--model=pro",
             f"--agent={agent_md}",
             f"--print-timeout={timeout}",
             f"--add-dir={aosp_root}",
