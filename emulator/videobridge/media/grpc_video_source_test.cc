@@ -17,18 +17,17 @@
 #include <grpcpp/grpcpp.h>
 #include <gtest/gtest.h>
 
+#include <atomic>
 #include <chrono>
+#include <cstring>
 #include <filesystem>
-#include <fstream>
 #include <memory>
 #include <string>
 #include <thread>
-#include <vector>
 
 #include "absl/random/random.h"
 #include "absl/strings/str_cat.h"
 #include "absl/synchronization/mutex.h"
-#include "absl/time/time.h"
 
 #include "api/video/video_frame.h"
 #include "api/video/video_sink_interface.h"
@@ -45,56 +44,66 @@ namespace {
 
 namespace fs = std::filesystem;
 
-class MockEmulatorController final : public EmulatorController::Service {
+class FakeImageReader : public ::grpc::ClientReaderInterface<Image> {
   public:
-    ::grpc::Status streamScreenshot(::grpc::ServerContext* context, const ImageFormat* request,
-                                    ::grpc::ServerWriter<Image>* writer) override {
-        screenshot_requested_ = true;
-        requested_display_id_ = static_cast<int>(request->display());
-
-        Image frame;
-        frame.mutable_format()->set_width(2);
-        frame.mutable_format()->set_height(2);
-
-        // 12 bytes of BGR888 data (2x2 pixel, 3 bytes/pixel)
-        std::string raw_data(12, '\x7F');
-
-        std::unique_ptr<::goldfish::memory::SharedMemory> shm;
-        if (request->transport().channel() == ImageTransport::MMAP && !force_payload_delivery_) {
-            std::string path_or_uri = request->transport().handle();
+    FakeImageReader(const ImageFormat& format, bool force_payload_delivery = false)
+            : format_(format), force_payload_delivery_(force_payload_delivery) {
+        if (format_.transport().channel() == ImageTransport::MMAP && !force_payload_delivery_) {
+            std::string path_or_uri = format_.transport().handle();
             if (path_or_uri.starts_with("file://")) {
                 path_or_uri = path_or_uri.substr(7);
             }
-            // Open the existing shared memory segment created by client.
-            // Size is 12 bytes for 2x2 RGB888.
-            shm = std::make_unique<::goldfish::memory::SharedMemory>(path_or_uri, 12);
-            const auto status = shm->Open(::goldfish::memory::SharedMemory::AccessMode::kReadWrite);
-            if (!status.ok()) {
-                return {::grpc::StatusCode::INTERNAL,
-                        "Failed to open shared memory: " + status.ToString()};
-            }
+            shm_ = std::make_unique<::goldfish::memory::SharedMemory>(path_or_uri, 12);
+            shm_open_ok_ =
+                    shm_->Open(::goldfish::memory::SharedMemory::AccessMode::kReadWrite).ok();
+        }
+    }
+
+    bool Read(Image* frame) override {
+        if (index_ >= 3) {
+            return false;
+        }
+        frame->mutable_format()->set_width(2);
+        frame->mutable_format()->set_height(2);
+
+        if (shm_ && shm_open_ok_) {
+            const std::string frame_data(12, static_cast<char>('\x10' + index_));
+            std::memcpy(shm_->Get(), frame_data.data(), frame_data.size());
+        } else if (force_payload_delivery_) {
+            const std::string frame_data(12, static_cast<char>('\x20' + index_));
+            frame->set_image(frame_data);
         } else {
-            frame.set_image(raw_data);
+            frame->set_image(std::string(12, '\x7F'));
         }
 
-        for (int i = 0; i < 3; ++i) {
-            if (context->IsCancelled()) {
-                break;
-            }
-            if (shm) {
-                // Write directly into shared memory.
-                // We use different byte values for each frame to verify it reads fresh data!
-                const std::string frame_data(12, static_cast<char>('\x10' + i));
-                std::memcpy(shm->Get(), frame_data.data(), frame_data.size());
-            } else if (force_payload_delivery_) {
-                // If we are forcing payload delivery, we can also vary the payload data per frame
-                std::string frame_data(12, static_cast<char>('\x20' + i));
-                frame.set_image(std::move(frame_data));
-            }
-            writer->Write(frame);
-            std::this_thread::sleep_for(std::chrono::milliseconds(20));
-        }
-        return ::grpc::Status::OK;
+        index_++;
+        return true;
+    }
+
+    void WaitForInitialMetadata() override {}
+    bool NextMessageSize(uint32_t* /*sz*/) override { return false; }
+    ::grpc::Status Finish() override { return ::grpc::Status::OK; }
+
+  private:
+    ImageFormat format_;
+    bool force_payload_delivery_;
+    size_t index_ = 0;
+    std::unique_ptr<::goldfish::memory::SharedMemory> shm_;
+    bool shm_open_ok_ = false;
+};
+
+class FakeEmulatorClient : public EmulatorClient {
+  public:
+    explicit FakeEmulatorClient(bool is_connected = true) : is_connected_(is_connected) {}
+
+    bool IsConnected() const override { return is_connected_; }
+    std::string TargetAddress() const override { return "fake_target_address"; }
+
+    std::unique_ptr<::grpc::ClientReaderInterface<Image>> StreamScreenshot(
+            ::grpc::ClientContext* /*context*/, const ImageFormat& format) override {
+        screenshot_requested_ = true;
+        requested_display_id_ = static_cast<int>(format.display());
+        return std::make_unique<FakeImageReader>(format, force_payload_delivery_);
     }
 
     bool ScreenshotRequested() const { return screenshot_requested_; }
@@ -102,9 +111,10 @@ class MockEmulatorController final : public EmulatorController::Service {
     void SetForcePayloadDelivery(bool force) { force_payload_delivery_ = force; }
 
   private:
+    bool is_connected_;
     std::atomic<bool> screenshot_requested_{false};
     std::atomic<int> requested_display_id_{-1};
-    std::atomic<bool> force_payload_delivery_{false};
+    bool force_payload_delivery_ = false;
 };
 
 class TestVideoSink : public webrtc::VideoSinkInterface<webrtc::VideoFrame> {
@@ -134,61 +144,8 @@ class TestVideoSink : public webrtc::VideoSinkInterface<webrtc::VideoFrame> {
     absl::optional<webrtc::VideoFrame> last_frame_ ABSL_GUARDED_BY(mutex_);
 };
 
-class GrpcVideoSourceTest : public ::testing::Test {
-  protected:
-    void TearDown() override {
-        if (server_) {
-            server_->Shutdown();
-        }
-    }
-
-    void StartServer() {
-        server_address_ = "localhost:0";
-        ::grpc::ServerBuilder builder;
-        int selected_port = 0;
-        builder.AddListeningPort(server_address_, ::grpc::InsecureServerCredentials(),
-                                 &selected_port);
-        builder.RegisterService(&service_);
-        server_ = builder.BuildAndStart();
-        ASSERT_NE(server_, nullptr);
-        server_address_ = "localhost:" + std::to_string(selected_port);
-    }
-
-    class TmpDiscoveryFile {
-      public:
-        explicit TmpDiscoveryFile(const std::string& content) {
-            const std::string file_name = absl::StrCat(
-                    "video_source_test_",
-                    absl::Hex(absl::Uniform<uint64_t>(absl::BitGen()), absl::kSpacePad16));
-            path_ = fs::temp_directory_path() / file_name;
-            std::ofstream out(path_);
-            out << content;
-        }
-
-        ~TmpDiscoveryFile() {
-            std::error_code ec;
-            fs::remove(path_, ec);
-        }
-
-        const fs::path& Path() const { return path_; }
-
-      private:
-        fs::path path_;
-    };
-
-    MockEmulatorController service_;
-    std::unique_ptr<::grpc::Server> server_;
-    std::string server_address_;
-};
-
-TEST_F(GrpcVideoSourceTest, GrpcVideoSourceStreamsFramesFromClient) {
-    StartServer();
-    const size_t colon = server_address_.find(':');
-    const std::string port = server_address_.substr(colon + 1);
-
-    const TmpDiscoveryFile tmp_file(absl::StrCat("grpc.port = ", port));
-    auto client = std::make_shared<EmulatorClient>(tmp_file.Path().string());
-    ASSERT_TRUE(client->Connect(absl::Seconds(2)).ok());
+TEST(GrpcVideoSourceTest, GrpcVideoSourceStreamsFramesFromClient) {
+    auto client = std::make_shared<FakeEmulatorClient>(/*is_connected=*/true);
 
     GrpcVideoSourceOptions options;
     options.display_id = 1;
@@ -203,18 +160,17 @@ TEST_F(GrpcVideoSourceTest, GrpcVideoSourceStreamsFramesFromClient) {
 
     source->Start();
 
-    // Wait for frames to arrive.
-    int retries = 50;
-    while (sink.FrameCount() < 3 && retries-- > 0) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(1);
+    while (sink.FrameCount() < 3 && std::chrono::steady_clock::now() < deadline) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
     }
 
     source->Stop();
     source_interface->RemoveSink(&sink);
 
     EXPECT_GE(sink.FrameCount(), 3);
-    EXPECT_TRUE(service_.ScreenshotRequested());
-    EXPECT_EQ(service_.RequestedDisplayId(), 1);
+    EXPECT_TRUE(client->ScreenshotRequested());
+    EXPECT_EQ(client->RequestedDisplayId(), 1);
 
     // Verify properties of the converted frame
     const webrtc::VideoFrame frame = sink.LastFrame();
@@ -226,18 +182,10 @@ TEST_F(GrpcVideoSourceTest, GrpcVideoSourceStreamsFramesFromClient) {
     ASSERT_NE(i420, nullptr);
     EXPECT_EQ(i420->width(), 2);
     EXPECT_EQ(i420->height(), 2);
-
-    client->Disconnect();
 }
 
-TEST_F(GrpcVideoSourceTest, GrpcVideoSourceStreamsFramesViaSharedMemory) {
-    StartServer();
-    const size_t colon = server_address_.find(':');
-    const std::string port = server_address_.substr(colon + 1);
-
-    const TmpDiscoveryFile tmp_file(absl::StrCat("grpc.port = ", port));
-    auto client = std::make_shared<EmulatorClient>(tmp_file.Path().string());
-    ASSERT_TRUE(client->Connect(absl::Seconds(2)).ok());
+TEST(GrpcVideoSourceTest, GrpcVideoSourceStreamsFramesViaSharedMemory) {
+    auto client = std::make_shared<FakeEmulatorClient>(/*is_connected=*/true);
 
     // Setup Shared Memory option path
     const std::string shm_filename =
@@ -259,18 +207,17 @@ TEST_F(GrpcVideoSourceTest, GrpcVideoSourceStreamsFramesViaSharedMemory) {
 
     source->Start();
 
-    // Wait for frames to arrive.
-    int retries = 50;
-    while (sink.FrameCount() < 3 && retries-- > 0) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(1);
+    while (sink.FrameCount() < 3 && std::chrono::steady_clock::now() < deadline) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
     }
 
     source->Stop();
     source_interface->RemoveSink(&sink);
 
     EXPECT_GE(sink.FrameCount(), 3);
-    EXPECT_TRUE(service_.ScreenshotRequested());
-    EXPECT_EQ(service_.RequestedDisplayId(), 1);
+    EXPECT_TRUE(client->ScreenshotRequested());
+    EXPECT_EQ(client->RequestedDisplayId(), 1);
 
     // Verify properties of the last converted frame read from shared memory.
     const webrtc::VideoFrame frame = sink.LastFrame();
@@ -283,26 +230,18 @@ TEST_F(GrpcVideoSourceTest, GrpcVideoSourceStreamsFramesViaSharedMemory) {
     EXPECT_EQ(i420->width(), 2);
     EXPECT_EQ(i420->height(), 2);
 
-    // Since the mock wrote a constant value of 0x12 (18) to all channels (RGB),
+    // Since the fake wrote a constant value of 0x12 (18) to all channels (RGB),
     // the converted Y channel in limited-range YUV is: 16 + 0.859 * 18 = ~31.
     const uint8_t* y_data = i420->DataY();
     ASSERT_NE(y_data, nullptr);
     EXPECT_NEAR(y_data[0], 31, 2);
-
-    client->Disconnect();
 }
 
-TEST_F(GrpcVideoSourceTest, GrpcVideoSourceFallsBackToBytesIfSharedMemoryNotMapped) {
-    StartServer();
-    const size_t colon = server_address_.find(':');
-    const std::string port = server_address_.substr(colon + 1);
+TEST(GrpcVideoSourceTest, GrpcVideoSourceFallsBackToBytesIfSharedMemoryNotMapped) {
+    auto client = std::make_shared<FakeEmulatorClient>(/*is_connected=*/true);
 
-    const TmpDiscoveryFile tmp_file(absl::StrCat("grpc.port = ", port));
-    auto client = std::make_shared<EmulatorClient>(tmp_file.Path().string());
-    ASSERT_TRUE(client->Connect(absl::Seconds(2)).ok());
-
-    // Force the mock server to ignore MMAP request and send the image in the proto payload
-    service_.SetForcePayloadDelivery(true);
+    // Force the fake to ignore MMAP request and send the image in the proto payload
+    client->SetForcePayloadDelivery(true);
 
     // We request kSharedMemory, but we provide an invalid/uncreatable path.
     // This causes shared_memory_->Create() to fail, so shared_memory_->IsMapped() is false,
@@ -322,18 +261,17 @@ TEST_F(GrpcVideoSourceTest, GrpcVideoSourceFallsBackToBytesIfSharedMemoryNotMapp
 
     source->Start();
 
-    // Wait for frames to arrive.
-    int retries = 50;
-    while (sink.FrameCount() < 3 && retries-- > 0) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(1);
+    while (sink.FrameCount() < 3 && std::chrono::steady_clock::now() < deadline) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
     }
 
     source->Stop();
     source_interface->RemoveSink(&sink);
 
     EXPECT_GE(sink.FrameCount(), 3);
-    EXPECT_TRUE(service_.ScreenshotRequested());
-    EXPECT_EQ(service_.RequestedDisplayId(), 1);
+    EXPECT_TRUE(client->ScreenshotRequested());
+    EXPECT_EQ(client->RequestedDisplayId(), 1);
 
     // Verify properties of the last converted frame read from protobuf payload.
     const webrtc::VideoFrame frame = sink.LastFrame();
@@ -344,13 +282,11 @@ TEST_F(GrpcVideoSourceTest, GrpcVideoSourceFallsBackToBytesIfSharedMemoryNotMapp
             frame.video_frame_buffer()->ToI420();
     ASSERT_NE(i420, nullptr);
 
-    // Since the mock wrote a constant value of 0x22 (34) to all channels (RGB) for the last frame,
+    // Since the fake wrote a constant value of 0x22 (34) to all channels (RGB) for the last frame,
     // the converted Y channel in limited-range YUV is: 16 + 0.859 * 34 = ~45.
     const uint8_t* y_data = i420->DataY();
     ASSERT_NE(y_data, nullptr);
     EXPECT_NEAR(y_data[0], 45, 2);
-
-    client->Disconnect();
 }
 
 }  // namespace
