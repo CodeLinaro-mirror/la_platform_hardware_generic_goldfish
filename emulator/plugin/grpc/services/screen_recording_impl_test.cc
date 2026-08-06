@@ -101,7 +101,13 @@ TEST_F(ScreenRecordingServiceImplTest, StartRecordingWithFoldableResolution) {
     EXPECT_TRUE(status.ok()) << status.error_message();
 
     // Allow recorder thread to generate and encode several frames
-    std::this_thread::sleep_for(std::chrono::milliseconds(150));
+    auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
+    while (std::chrono::steady_clock::now() < deadline) {
+        if (std::filesystem::exists(test_file) && std::filesystem::file_size(test_file) > 1000) {
+            break;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    }
 
     service->StopRecording(&context, &request, &response);
     EXPECT_GT(std::filesystem::file_size(test_file), 1000)
