@@ -117,7 +117,26 @@ const absl::flat_hash_map<int, ApiLevelInfo> kApiLevelInfo = {
     {33, {.dessert_name = "Tiramisu", .full_name = "13.0 (T) - API 33"}},
     {34, {.dessert_name = "UpsideDownCake", .full_name = "14.0 (U) - API 34"}},
     {35, {.dessert_name = "VanillaIceCream", .full_name = "15.0 (V) - API 35"}},
+    {36, {.dessert_name = "Baklava", .full_name = "16 (B) - API 36"}},
+    {37, {.dessert_name = "CinnamonBun", .full_name = "17 (C) - API 37"}},
 };
+
+std::string ExtractApiLevelStr(std::string_view target) {
+    if (target.empty()) {
+        return "";
+    }
+    if (absl::StartsWith(target, "android-")) {
+        return std::string(target.substr(8));
+    }
+    size_t first = target.find(':');
+    if (first != std::string_view::npos) {
+        size_t second = target.find(':', first + 1);
+        if (second != std::string_view::npos) {
+            return std::string(target.substr(second + 1));
+        }
+    }
+    return std::string(target);
+}
 
 std::string_view GetApiDessertName(int api_level) {
     auto it = kApiLevelInfo.find(api_level);
@@ -127,14 +146,25 @@ std::string_view GetApiDessertName(int api_level) {
     return "";
 }
 
-std::string GetFullApiName(int api_level) {
+std::string GetFullApiName(int api_level, std::string_view api_level_str = {}) {
     if (api_level < 0 || api_level > 99) {
         return "Unknown API version";
     }
 
     auto it = kApiLevelInfo.find(api_level);
     if (it != kApiLevelInfo.end()) {
-        return std::string(it->second.full_name);
+        std::string_view full = it->second.full_name;
+        std::string search_str = absl::StrFormat("API %d", api_level);
+        size_t pos = full.find(search_str);
+        if (pos != std::string_view::npos && !api_level_str.empty()) {
+            std::string_view prefix = full.substr(0, pos);
+            return absl::StrCat(prefix, "API ", api_level_str);
+        }
+        return std::string(full);
+    }
+
+    if (!api_level_str.empty()) {
+        return absl::StrCat("API ", api_level_str);
     }
     return absl::StrFormat("API %d", api_level);
 }
@@ -308,7 +338,11 @@ class FileBackedAvd : public Avd {
 
     std::string Dessert() const override { return std::string(GetApiDessertName(ApiLevel())); }
 
-    std::string ApiDescription() const override { return GetFullApiName(ApiLevel()); }
+    std::string ApiDescription() const override {
+        std::string target = config_ini_.GetString("target", "");
+        std::string api_level_str = ExtractApiLevelStr(target);
+        return GetFullApiName(ApiLevel(), api_level_str);
+    }
 
     absl::StatusOr<std::optional<int>> GetLastRunQemuVersion() const override {
         auto qemu_version_path = GetContentPath() / AVD_QEMU_VERSION_FILENAME;

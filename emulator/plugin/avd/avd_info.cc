@@ -128,6 +128,14 @@ absl::Status ValidateAvdProps(AvdProperties& avd_props) {
                 "metrics_session_id should be non-zero when metrics_writer is set");
     }
 
+    if (avd_props.avd_content_path.empty()) {
+        return absl::InvalidArgumentError("avd_content_path is unspecified");
+    }
+
+    if (avd_props.avd_api_str.empty()) {
+        return absl::InvalidArgumentError("avd_api_str is unspecified");
+    }
+
     fs::path hw_path = avd_props.avd_content_path / CORE_HARDWARE_INI;
     auto hw_ini = std::make_unique<android::goldfish::IniFile>(hw_path);
     if (!hw_ini->Read()) {
@@ -216,6 +224,10 @@ void avd_info_set_avd_api(Object* obj, Visitor* v, const char* name, void* opaqu
     }
 
     toMutableAvdProperties(obj).avd_api = value;
+}
+
+void avd_info_set_avd_api_str(Object* obj, const char* value, Error** errp) {
+    toMutableAvdProperties(obj).avd_api_str = value;
 }
 
 void avd_info_set_avd_type(Object* obj, Visitor* v, const char* name, void* opaque, Error** errp) {
@@ -400,6 +412,7 @@ void avd_info_class_init(ObjectClass* oc, const void* data) {
     object_class_property_add_str(oc, "avd_abi", nullptr, avd_info_set_avd_abi);
     object_class_property_add(oc, "avd_api", "int", nullptr, avd_info_set_avd_api, nullptr,
                               nullptr);
+    object_class_property_add_str(oc, "avd_api_str", nullptr, avd_info_set_avd_api_str);
     object_class_property_add(oc, "avd_type", "int", nullptr, avd_info_set_avd_type, nullptr,
                               nullptr);
     object_class_property_add_str(oc, "avd_dir", nullptr, avd_info_set_avd_dir);
