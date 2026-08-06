@@ -30,6 +30,8 @@
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
+#include "absl/time/clock.h"
+#include "absl/time/time.h"
 
 #ifndef _WIN32
 #include <fcntl.h>
@@ -105,21 +107,17 @@ TEST(Process, discovered_proc_same_as_launched) {
 }
 
 TEST(Process, can_discover_launched_proc) {
-    using namespace std::chrono_literals;
     auto proc = Command::Create({sleep_exe(), "--sleep", "1s"}).Execute();
     auto pids = Process::FromName("sleep_emu");
 
-    auto now = std::chrono::system_clock::now();
+    const absl::Time start = absl::Now();
+    const absl::Time deadline = start + absl::Seconds(2);
     // On linux we scan /proc/... which is not instantenous on our gce machines.
     // Note that the scan itself can take +/- 20ms.
-    while (pids.size() == 0 && std::chrono::system_clock::now() < now + 200ms) {
+    while (pids.size() == 0 && absl::Now() < deadline) {
         pids = Process::FromName("sleep_emu");
     }
-    LOG(INFO) << "It took "
-              << std::chrono::duration_cast<std::chrono::milliseconds>(
-                         std::chrono::system_clock::now() - now)
-                         .count()
-              << " ms. to find the process";
+    LOG(INFO) << "It took " << (absl::Now() - start) << " to find the process";
     EXPECT_GT(pids.size(), 0);
 
     bool found = false;
@@ -133,10 +131,13 @@ TEST(Process, can_discover_launched_proc) {
 
 TEST(Process, can_read_process_name) {
     auto proc = Command::Create({sleep_exe(), "--sleep", "1s"}).Execute();
-    std::this_thread::sleep_for(10ms);
     auto sleep = Process::FromPid(proc->pid());
     ASSERT_NE(sleep, nullptr);
-    auto name = sleep->Exe();
+    std::string name;
+    const absl::Time deadline = absl::Now() + absl::Seconds(2);
+    while (name.empty() && absl::Now() < deadline) {
+        name = sleep->Exe();
+    }
     EXPECT_TRUE(absl::StrContains(name, "sleep_emu"))
             << "Expected sleep_emu in the process name: " << name
             << ", are your running the test in the directory where sleep_emu "
