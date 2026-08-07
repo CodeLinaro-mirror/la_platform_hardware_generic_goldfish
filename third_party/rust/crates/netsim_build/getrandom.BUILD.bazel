@@ -24,14 +24,12 @@ rust_library(
     compile_data = ["README.md"],
     crate_features = [
         "std",
-        "sys_rng",
     ],
     crate_name = "getrandom",
     crate_root = "src/lib.rs",
-    edition = "2024",
+    edition = "2021",
     deps = [
         "@cfg-if",
         "@libc",
-        "@rand_core",
     ],
 )
