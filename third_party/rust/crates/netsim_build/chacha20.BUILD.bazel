@@ -1,4 +1,4 @@
-# Copyright 2025 - The Android Open Source Project
+# Copyright 2026 - The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,24 +12,28 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""rand_chacha bazel build rule"""
+"""chacha20 bazel build rule"""
 
 load("@rules_rust//rust:defs.bzl", "rust_library")
 
 package(default_visibility = ["//visibility:public"])
 
 rust_library(
-    name = "rand_chacha",
+    name = "chacha20",
     srcs = glob(["**/*.rs"]),
+    compile_data = ["README.md"],
     crate_features = [
-        "default",
-        "std",
+        "rng",
     ],
-    crate_name = "rand_chacha",
+    crate_name = "chacha20",
     crate_root = "src/lib.rs",
-    edition = "2021",
+    edition = "2024",
     deps = [
-        "@ppv-lite86",
+        "@cfg-if",
         "@rand_core",
-    ],
+    ] + select({
+        "@platforms//cpu:x86_64": ["@cpufeatures"],
+        "@platforms//cpu:x86_32": ["@cpufeatures"],
+        "//conditions:default": [],
+    }),
 )
