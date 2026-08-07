@@ -82,7 +82,7 @@ grpc::Status StatusServiceImpl::getStatus(EmulatorStatus* reply) {
     guestConfig["multidisplay"] = "unavailable";
 
     // 1. Map Android API Version
-    guestConfig["androidVersion"] = absl::StrCat("API ", avd_properties_.avd_api);
+    guestConfig["androidVersion"] = avd_properties_.avd_api_str;
 
     // 2. Map Host CPU Hypervisor Version
     android::CpuAccelerator accel = android::GetCurrentCpuAccelerator();
@@ -99,7 +99,7 @@ grpc::Status StatusServiceImpl::getStatus(EmulatorStatus* reply) {
     absl::StrAppendFormat(&avdDetails, "Name: %s\n", avd_properties_.avd_name);
     absl::StrAppendFormat(&avdDetails, "CPU/ABI: %s\n", avd_properties_.avd_abi);
     absl::StrAppendFormat(&avdDetails, "Path: %s\n", avd_properties_.avd_content_path.string());
-    absl::StrAppendFormat(&avdDetails, "Target: API level %d\n", avd_properties_.avd_api);
+    absl::StrAppendFormat(&avdDetails, "Target: %s\n", avd_properties_.avd_api_str);
     absl::StrAppendFormat(&avdDetails, "Build SDK: %s\n", avd_properties_.build_sdk);
     absl::StrAppendFormat(&avdDetails, "Build ID: %s\n", avd_properties_.build_id);
     absl::StrAppendFormat(&avdDetails, "Build Flavour: %s\n", avd_properties_.build_flavour);
