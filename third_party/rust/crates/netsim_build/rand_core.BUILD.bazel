@@ -21,8 +21,14 @@ package(default_visibility = ["//visibility:public"])
 rust_library(
     name = "rand_core",
     srcs = glob(["**/*.rs"]),
-    compile_data = ["README.md"],
+    crate_features = [
+        "os_rng",
+        "std",
+    ],
     crate_name = "rand_core",
     crate_root = "src/lib.rs",
-    edition = "2024",
+    edition = "2021",
+    deps = [
+        "@getrandom",
+    ],
 )

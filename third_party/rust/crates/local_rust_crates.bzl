@@ -87,7 +87,7 @@ def _lrc_impl(module_ctx):
         patches = ["@goldfish_crates//netsim_build:tempfile.patch"],
     )
 
-    # 5. Standard Android Crates
+    # 4. Standard Android Crates
     _ANDROID_CRATES = [
         "aho-corasick",
         "android_log-sys",
@@ -102,7 +102,6 @@ def _lrc_impl(module_ctx):
         "byteorder",
         "bytes",
         "cfg-if",
-        "chacha20",
         "chrono",
         "clap",
         "clap_builder",
@@ -192,6 +191,7 @@ def _lrc_impl(module_ctx):
         "protobuf-support",
         "quote",
         "rand",
+        "rand_chacha",
         "rand_core",
         "regex",
         "regex-automata",
@@ -259,7 +259,7 @@ def _lrc_impl(module_ctx):
             path = crate.path,
         )
 
-    # 6. Versioned Goldfish Crates
+    # 5. Versioned Goldfish Crates
     _GOLDFISH_VERSIONED_CRATES = [
         ("aead", "0.5.2"),
         ("aes", "0.8.4"),

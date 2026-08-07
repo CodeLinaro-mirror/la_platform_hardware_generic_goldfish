@@ -24,18 +24,17 @@ rust_library(
     crate_features = [
         "alloc",
         "default",
-        "getrandom",
+        "os_rng",
+        "small_rng",
         "std",
         "std_rng",
-        "sys_rng",
         "thread_rng",
     ],
     crate_name = "rand",
     crate_root = "src/lib.rs",
-    edition = "2024",
+    edition = "2021",
     deps = [
-        "@chacha20",
-        "@getrandom",
+        "@rand_chacha",
         "@rand_core",
     ],
 )
