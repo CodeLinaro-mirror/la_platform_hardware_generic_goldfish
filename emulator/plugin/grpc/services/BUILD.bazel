@@ -202,8 +202,8 @@ cc_test(
 clang_tidy_test(
     name = "tidy",
     targets = [
-        "service_forwarder_impl_test",
-        "service_forwarder",
+        ":service_forwarder_impl_test",
+        ":service_forwarder",
     ],
     tidy_config_file = "//:clang_tidy_config",
 )
