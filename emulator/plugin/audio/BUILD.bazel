@@ -1,0 +1,54 @@
+load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_test")
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+
+package(default_visibility = ["//visibility:public"])
+
+WEBRTC_COPTS = select({
+    "@platforms//os:windows": ["/GR-"],
+    "//conditions:default": ["-fno-rtti"],
+})
+
+cc_library(
+    name = "qemu_audio_capture",
+    srcs = ["qemu_audio_capture.cc"],
+    hdrs = ["include/goldfish/audio/qemu_audio_capture.h"],
+    includes = ["include"],
+    deps = [
+        "//emulator/plugin/vminterface:vm_lock",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/status",
+        "@qemu//:aemu_func_defs",
+        "@qemu//:qemu-headers-exported",
+    ],
+)
+
+cc_library(
+    name = "test_qemu_audio_stub",
+    testonly = True,
+    srcs = ["test_qemu_audio_stub.c"],
+    hdrs = ["test_qemu_audio_stub.h"],
+)
+
+cc_test(
+    name = "qemu_audio_capture_test",
+    srcs = ["qemu_audio_capture_test.cc"],
+    copts = WEBRTC_COPTS,
+    deps = [
+        ":qemu_audio_capture",
+        ":test_qemu_audio_stub",
+        "//emulator/libs/test:googletest_main",
+        "//emulator/plugin/vminterface:vminterface-test",
+        "//emulator/videobridge:in_process_media_providers",
+        "@webrtc//api:media_stream_interface",
+    ],
+)
+
+clang_tidy_test(
+    name = "tidy",
+    targets = [
+        ":qemu_audio_capture",
+        ":qemu_audio_capture_test",
+    ],
+    tidy_config_file = "//:clang_tidy_config",
+)
