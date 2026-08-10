@@ -61,22 +61,22 @@ class EmulatorClient {
      * @param timeout The connection timeout duration. Defaults to 5 seconds.
      * @return absl::Status OK if connected, deadline_exceeded or unavailable status on failure.
      */
-    absl::Status Connect(absl::Duration timeout = absl::Seconds(5));
+    virtual absl::Status Connect(absl::Duration timeout = absl::Seconds(5));
 
     /**
      * @brief Disconnects the gRPC channel and destroys the controller stub.
      */
-    void Disconnect();
+    virtual void Disconnect();
 
     /**
      * @brief Returns whether the client is currently connected.
      */
-    bool IsConnected() const;
+    virtual bool IsConnected() const;
 
     /**
      * @brief Returns the gRPC target address of the connected emulator, or empty string.
      */
-    std::string TargetAddress() const;
+    virtual std::string TargetAddress() const;
 
     /**
      * @brief Initiates a server-streaming RPC call to stream screenshots from the emulator.
@@ -86,7 +86,7 @@ class EmulatorClient {
      * @return std::unique_ptr<::grpc::ClientReaderInterface<Image>> Reader stream, or nullptr if
      * not connected.
      */
-    std::unique_ptr<::grpc::ClientReaderInterface<Image>> StreamScreenshot(
+    virtual std::unique_ptr<::grpc::ClientReaderInterface<Image>> StreamScreenshot(
             ::grpc::ClientContext* context, const ImageFormat& format);
 
     /**
@@ -97,7 +97,7 @@ class EmulatorClient {
      * @return std::unique_ptr<::grpc::ClientReaderInterface<AudioPacket>> Reader stream, or nullptr
      * if not connected.
      */
-    std::unique_ptr<::grpc::ClientReaderInterface<AudioPacket>> StreamAudio(
+    virtual std::unique_ptr<::grpc::ClientReaderInterface<AudioPacket>> StreamAudio(
             ::grpc::ClientContext* context, const AudioFormat& format);
 
     /**
@@ -108,7 +108,7 @@ class EmulatorClient {
      * @return std::unique_ptr<::grpc::ClientWriterInterface<InputEvent>> Writer stream, or nullptr
      * if not connected.
      */
-    std::unique_ptr<::grpc::ClientWriterInterface<InputEvent>> StreamInputEvent(
+    virtual std::unique_ptr<::grpc::ClientWriterInterface<InputEvent>> StreamInputEvent(
             ::grpc::ClientContext* context, ::google::protobuf::Empty* response);
 
   private:
