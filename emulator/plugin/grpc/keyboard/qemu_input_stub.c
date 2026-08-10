@@ -6,6 +6,7 @@ QKbdState* qkbd_state_init(QemuConsole* con) {
     return NULL;
 }
 
+void qkbd_state_free(QKbdState* kbd) {}
 void qkbd_state_key_event(QKbdState *kbd, QKeyCode qcode, bool down) {}
 
 int qemu_input_linux_to_qcode(unsigned int lnx) {
