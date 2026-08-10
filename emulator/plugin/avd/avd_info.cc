@@ -227,7 +227,11 @@ void avd_info_set_avd_api(Object* obj, Visitor* v, const char* name, void* opaqu
 }
 
 void avd_info_set_avd_api_str(Object* obj, const char* value, Error** errp) {
-    toMutableAvdProperties(obj).avd_api_str = value;
+    if (value) {
+        toMutableAvdProperties(obj).avd_api_str = value;
+    } else {
+        toMutableAvdProperties(obj).avd_api_str.clear();
+    }
 }
 
 void avd_info_set_avd_type(Object* obj, Visitor* v, const char* name, void* opaque, Error** errp) {

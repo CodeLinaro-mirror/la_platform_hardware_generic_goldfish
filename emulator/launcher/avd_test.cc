@@ -146,6 +146,11 @@ TEST_F(AvdTest, ApiDescriptionDecimalVersions) {
         ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(opts_, paths_, "avd_cinnamon", false, ""));
         EXPECT_EQ(avd->ApiDescription(), "17 (C) - API CinnamonBun");
     }
+    {
+        CreateTestAvd("avd_addon_37_1", "Google Inc.:Google APIs:37.1", 37);
+        ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(opts_, paths_, "avd_addon_37_1", false, ""));
+        EXPECT_EQ(avd->ApiDescription(), "17 (C) - API 37.1");
+    }
 }
 
 TEST_F(AvdTest, UnknownApiLevel) {
