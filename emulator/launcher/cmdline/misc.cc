@@ -50,23 +50,23 @@ extern void print_tabular(const char** strings, int count, const char* prefix, i
 
 extern void string_translate_char(char* str, char from, char to) {
     char* p = str;
-    while (p != NULL && (p = strchr(p, from)) != NULL) *p++ = to;
+    while (p != nullptr && (p = strchr(p, from)) != nullptr) *p++ = to;
 }
 
-extern void buffer_translate_char(char* buff, unsigned buffLen, const char* src, char fromChar,
-                                  char toChar) {
+extern void buffer_translate_char(char* buff, unsigned buff_len, const char* src, char from_char,
+                                  char to_char) {
     int len = strlen(src);
-    buffer_translate_char_with_len(buff, buffLen, src, len, fromChar, toChar);
+    buffer_translate_char_with_len(buff, buff_len, src, len, from_char, to_char);
 }
 
-extern void buffer_translate_char_with_len(char* buff, unsigned buffLen, const char* src,
-                                           unsigned srcLen, char fromChar, char toChar) {
-    if (srcLen >= buffLen) srcLen = buffLen - 1;
+extern void buffer_translate_char_with_len(char* buff, unsigned buff_len, const char* src,
+                                           unsigned src_len, char from_char, char to_char) {
+    if (src_len >= buff_len) src_len = buff_len - 1;
 
-    memcpy(buff, src, srcLen);
-    buff[srcLen] = 0;
+    memcpy(buff, src, src_len);
+    buff[src_len] = 0;
 
-    string_translate_char(buff, fromChar, toChar);
+    string_translate_char(buff, from_char, to_char);
 }
 
 /** TEMP CHAR STRINGS
@@ -82,19 +82,19 @@ struct TempString {
 
 #define MAX_TEMP_STRINGS 16
 
-static TempString _temp_strings[MAX_TEMP_STRINGS];
-static int _temp_string_n;
+static TempString temp_strings[MAX_TEMP_STRINGS];
+static int temp_string_n;
 
 extern char* tempstr_get(int size) {
-    TempString* t = &_temp_strings[_temp_string_n];
+    TempString* t = &temp_strings[temp_string_n];
 
-    if (++_temp_string_n >= MAX_TEMP_STRINGS) _temp_string_n = 0;
+    if (++temp_string_n >= MAX_TEMP_STRINGS) temp_string_n = 0;
 
     size += 1; /* reserve 1 char for terminating zero */
 
     if (t->size < size) {
-        t->buffer = (char*)realloc(t->buffer, size);
-        if (t->buffer == NULL) {
+        t->buffer = static_cast<char*>(realloc(t->buffer, size));
+        if (t->buffer == nullptr) {
             LOG(FATAL) << "could not allocate " << size << " bytes";
         }
         t->size = size;
@@ -138,16 +138,16 @@ extern const char* quote_str(const char* str) {
 /** HEXADECIMAL CHARACTER SEQUENCES
  **/
 
-static int hexdigit(int c) {
+static int Hexdigit(int c) {
     unsigned d;
 
-    d = (unsigned)(c - '0');
+    d = static_cast<unsigned>(c - '0');
     if (d < 10) return d;
 
-    d = (unsigned)(c - 'a');
+    d = static_cast<unsigned>(c - 'a');
     if (d < 6) return d + 10;
 
-    d = (unsigned)(c - 'A');
+    d = static_cast<unsigned>(c - 'A');
     if (d < 6) return d + 10;
 
     return -1;
@@ -156,7 +156,7 @@ static int hexdigit(int c) {
 int hex2int(const uint8_t* hex, int len) {
     int result = 0;
     while (len > 0) {
-        int c = hexdigit(*hex++);
+        int c = Hexdigit(*hex++);
         if (c < 0) return -1;
 
         result = (result << 4) | c;
@@ -166,8 +166,8 @@ int hex2int(const uint8_t* hex, int len) {
 }
 
 void int2hex(uint8_t* hex, int len, int val) {
-    static const uint8_t hexchars[17] = "0123456789abcdef";
-    while (--len >= 0) *hex++ = hexchars[(val >> (len * 4)) & 15];
+    static const uint8_t kHexchars[17] = "0123456789abcdef";
+    while (--len >= 0) *hex++ = kHexchars[(val >> (len * 4)) & 15];
 }
 
 /** STRING PARAMETER PARSING
@@ -181,8 +181,8 @@ int strtoi(const char* nptr, char** endptr, int base) {
     if (errno) {
         return (val == LONG_MAX) ? INT_MAX : INT_MIN;
     } else {
-        if (val == (int)val) {
-            return (int)val;
+        if (val == static_cast<int>(val)) {
+            return static_cast<int>(val);
         } else {
             errno = ERANGE;
             return val > 0 ? INT_MAX : INT_MIN;
@@ -197,10 +197,10 @@ int get_token_value(const char* params, const char* name, char* value, int val_s
     const char* par_start = strstr(params, name);
 
     /* Search for 'name=' */
-    while (par_start != NULL) {
+    while (par_start != nullptr) {
         /* Make sure that we're within the parameters buffer. */
         if ((par_end - par_start) < len) {
-            par_start = NULL;
+            par_start = nullptr;
             break;
         }
         /* Make sure that par_start starts at the beginning of <name>, and only
@@ -211,14 +211,14 @@ int get_token_value(const char* params, const char* name, char* value, int val_s
         /* False positive. Move on... */
         par_start = strstr(par_start + 1, name);
     }
-    if (par_start == NULL) {
+    if (par_start == nullptr) {
         return -1;
     }
 
     /* Advance past 'name=', and calculate value's string length. */
     par_start += len + 1;
     val_end = strchr(par_start, ' ');
-    if (val_end == NULL) {
+    if (val_end == nullptr) {
         val_end = par_start + strlen(par_start);
     }
     len = val_end - par_start;
@@ -240,13 +240,13 @@ int get_token_value_alloc(const char* params, const char* name, char** value) {
     /* Calculate size of string buffer required for the value. */
     const int val_size = get_token_value(params, name, &tmp, 0);
     if (val_size < 0) {
-        *value = NULL;
+        *value = nullptr;
         return val_size;
     }
 
     /* Allocate string buffer, and retrieve the value. */
-    *value = (char*)malloc(val_size);
-    if (*value == NULL) {
+    *value = static_cast<char*>(malloc(val_size));
+    if (*value == nullptr) {
         LOG(ERROR) << "Unable to allocated " << val_size << " bytes for string buffer.";
 
         return -2;
@@ -255,7 +255,7 @@ int get_token_value_alloc(const char* params, const char* name, char** value) {
     if (res) {
         LOG(ERROR) << "Unable to retrieve value into allocated buffer.";
         free(*value);
-        *value = NULL;
+        *value = nullptr;
     }
 
     return res;
@@ -265,7 +265,7 @@ int get_token_value_int(const char* params, const char* name, int* value) {
     char val_str[64];  // Should be enough for all numeric values.
     if (!get_token_value(params, name, val_str, sizeof(val_str))) {
         errno = 0;
-        *value = strtoi(val_str, (char**)NULL, 10);
+        *value = strtoi(val_str, nullptr, 10);
         if (errno) {
             LOG(ERROR) << "Value '" << val_str << "' of the parameter '" << name << "' in '"
                        << params << "' is not a decimal number.";

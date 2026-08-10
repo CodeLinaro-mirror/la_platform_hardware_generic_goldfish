@@ -50,7 +50,7 @@ extern void stralloc_tabular(stralloc_t* out, const char** strings, int count, c
 
 extern void stralloc_reset(stralloc_t* s) {
     free(s->s);
-    s->s = NULL;
+    s->s = nullptr;
     s->n = 0;
     s->a = 0;
 }
@@ -65,8 +65,8 @@ extern void stralloc_ready(stralloc_t* s, unsigned int len) {
         new_max = new_max2;
     }
 
-    s->s = (char*)realloc(s->s, new_max);
-    if (s->s == NULL) {
+    s->s = static_cast<char*>(realloc(s->s, new_max));
+    if (s->s == nullptr) {
         ALOGF("Not enough memory to reallocate %u bytes", new_max);
     }
     s->a = new_max;
@@ -96,7 +96,7 @@ extern void stralloc_append(stralloc_t* s, stralloc_t* from) {
 }
 
 extern void stralloc_add_c(stralloc_t* s, int c) {
-    stralloc_add_bytes(s, (char*)&c, 1);
+    stralloc_add_bytes(s, reinterpret_cast<char*>(&c), 1);
 }
 
 extern void stralloc_add_str(stralloc_t* s, const char* str) {
@@ -181,7 +181,7 @@ extern void stralloc_format(stralloc_t* s, const char* fmt, ...) {
     va_end(args);
 }
 
-extern void stralloc_add_formatv(stralloc_t* s, const char* fmt, va_list args) {
+extern void StrallocAddFormatv(stralloc_t* s, const char* fmt, va_list args) {
     STRALLOC_DEFINE(s2);
     stralloc_formatv(s2, fmt, args);
     stralloc_append(s, s2);
@@ -191,12 +191,12 @@ extern void stralloc_add_formatv(stralloc_t* s, const char* fmt, va_list args) {
 extern void stralloc_add_format(stralloc_t* s, const char* fmt, ...) {
     va_list args;
     va_start(args, fmt);
-    stralloc_add_formatv(s, fmt, args);
+    StrallocAddFormatv(s, fmt, args);
     va_end(args);
 }
 
 extern void stralloc_add_quote_c(stralloc_t* s, int c) {
-    stralloc_add_quote_bytes(s, (char*)&c, 1);
+    stralloc_add_quote_bytes(s, reinterpret_cast<char*>(&c), 1);
 }
 
 extern void stralloc_add_quote_str(stralloc_t* s, const char* str) {
@@ -204,8 +204,8 @@ extern void stralloc_add_quote_str(stralloc_t* s, const char* str) {
 }
 
 extern void stralloc_add_quote_bytes(stralloc_t* s, const void* from, unsigned len) {
-    uint8_t* p = (uint8_t*)from;
-    uint8_t* end = p + len;
+    const uint8_t* p = static_cast<const uint8_t*>(from);
+    const uint8_t* end = p + len;
 
     for (; p < end; p++) {
         int c = p[0];
@@ -241,7 +241,7 @@ extern void stralloc_add_hex(stralloc_t* s, unsigned value, int num_digits) {
 }
 
 extern void stralloc_add_hexdump(stralloc_t* s, void* base, int size, const char* prefix) {
-    uint8_t* p = (uint8_t*)base;
+    uint8_t* p = static_cast<uint8_t*>(base);
     const int max_count = 16;
     int prefix_len = strlen(prefix);
 

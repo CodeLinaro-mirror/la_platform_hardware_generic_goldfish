@@ -46,13 +46,13 @@
 #include "goldfish/file/file.h"
 
 #ifdef _WIN32
-void intrusive_ptr_add_ref(IUnknown* x) {
+void IntrusivePtrAddRef(IUnknown* x) {
     x->AddRef();
 }
-void intrusive_ptr_release(IUnknown* x) {
+void IntrusivePtrRelease(IUnknown* x) {
     x->Release();
 }
-void intrusive_ptr_ctor(IUnknown* x) {}
+void IntrusivePtrCtor(IUnknown* x) {}
 #endif
 
 namespace android::goldfish {

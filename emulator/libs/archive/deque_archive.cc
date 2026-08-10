@@ -23,17 +23,17 @@
 namespace goldfish::archive {
 
 absl::Status DequeReader::Read(void* dst, const size_t size) {
-    auto& storageRef = *NOT_NULL(storage);
-    if (storageRef.size() < size) {
+    auto& storage_ref = *NOT_NULL(storage);
+    if (storage_ref.size() < size) {
         return absl::UnavailableError(absl::StrCat(size, " bytes were requested while only ",
-                                                   storageRef.size(), " were available"));
+                                                   storage_ref.size(), " were available"));
     }
 
     const auto begin = storage->begin();
     const auto end = std::next(begin, static_cast<int64_t>(size));
 
     std::copy(begin, end, static_cast<uint8_t*>(NOT_NULL(dst)));
-    storageRef.erase(begin, end);
+    storage_ref.erase(begin, end);
 
     return absl::OkStatus();
 }

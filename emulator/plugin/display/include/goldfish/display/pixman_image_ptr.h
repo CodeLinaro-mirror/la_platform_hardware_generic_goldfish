@@ -26,8 +26,8 @@ namespace goldfish::display::details {
 inline absl::Mutex g_pixman_mutex;
 }  // namespace goldfish::display::details
 
-inline void intrusive_ptr_add_ref(pixman_image_t* p) {  // NOLINT
-                                                        // Note:
+inline void IntrusivePtrAddRef(pixman_image_t* p) {  // NOLINT
+                                                     // Note:
     // - the pixman display interface is slated to be replaced with gfxstream,
     // so this is a temporary workaround to improve thread-safety without
     // a major refactor.
@@ -39,12 +39,12 @@ inline void intrusive_ptr_add_ref(pixman_image_t* p) {  // NOLINT
     pixman_image_ref(p);
 }
 
-inline void intrusive_ptr_release(pixman_image_t* p) {  // NOLINT
+inline void IntrusivePtrRelease(pixman_image_t* p) {  // NOLINT
     const absl::MutexLock lock(goldfish::display::details::g_pixman_mutex);
     pixman_image_unref(p);
 }
 
-inline void intrusive_ptr_ctor(pixman_image_t*) {  // NOLINT
+inline void IntrusivePtrCtor(pixman_image_t*) {  // NOLINT
     // do nothing, the counter initialized to 1
 }
 

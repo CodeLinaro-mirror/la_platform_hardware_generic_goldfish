@@ -25,8 +25,8 @@
  * found by Argument-Dependent Lookup (ADL):
  *
  * @code
- * void intrusive_ptr_add_ref(T* p);
- * void intrusive_ptr_release(T* p);
+ * void IntrusivePtrAddRef(T* p);
+ * void IntrusivePtrRelease(T* p);
  * @endcode
  *
  * These functions are responsible for incrementing and decrementing the
@@ -42,15 +42,15 @@
  * #include "goldfish/base/intrusive_ptr.h"
  *
  * // Define the required functions in the global namespace for pixman_image_t.
- * inline void intrusive_ptr_add_ref(pixman_image_t* p) {
+ * inline void IntrusivePtrAddRef(pixman_image_t* p) {
  *     pixman_image_ref(p);
  * }
  *
- * inline void intrusive_ptr_release(pixman_image_t* p) {
+ * inline void IntrusivePtrRelease(pixman_image_t* p) {
  *     pixman_image_unref(p);
  * }
  *
- * inline void intrusive_ptr_ctor(pixman_image_t*) {
+ * inline void IntrusivePtrCtor(pixman_image_t*) {
  *      // do nothing, the counter initialized to 1
  * }
  *
@@ -97,13 +97,13 @@ class IntrusivePtr {
 
     explicit IntrusivePtr(T* p) noexcept : ptr_(p) {
         if (ptr_) {
-            intrusive_ptr_ctor(ptr_);  // NOLINT
+            IntrusivePtrCtor(ptr_);  // NOLINT
         }
     }
 
     IntrusivePtr(const IntrusivePtr& other) noexcept : ptr_(other.ptr_) {
         if (ptr_) {
-            intrusive_ptr_add_ref(ptr_);  // NOLINT
+            IntrusivePtrAddRef(ptr_);  // NOLINT
         }
     }
 
@@ -111,7 +111,7 @@ class IntrusivePtr {
 
     ~IntrusivePtr() {
         if (ptr_) {
-            intrusive_ptr_release(ptr_);  // NOLINT
+            IntrusivePtrRelease(ptr_);  // NOLINT
         }
     }
 
@@ -131,7 +131,7 @@ class IntrusivePtr {
 
     void reset() noexcept {  // NOLINT
         if (ptr_) {
-            intrusive_ptr_release(ptr_);  // NOLINT
+            IntrusivePtrRelease(ptr_);  // NOLINT
             ptr_ = nullptr;
         }
     }

@@ -60,8 +60,8 @@ TEST(InProcessAudioSourceTest, SlicesStreamInto10msFrames) {
 
     EXPECT_EQ(sink.frame_count, 2);
     EXPECT_EQ(sink.last_sample_rate, 44100);
-    EXPECT_EQ(sink.last_channels, 2u);
-    EXPECT_EQ(sink.last_frames, 441u);
+    EXPECT_EQ(sink.last_channels, 2U);
+    EXPECT_EQ(sink.last_frames, 441U);
     EXPECT_EQ(sink.last_bits, 16);
 
     source->Stop();
@@ -91,7 +91,7 @@ TEST(InProcessAudioSourceTest, RingBufferWrapAroundMaintainsSampleIntegrity) {
     }
 
     EXPECT_EQ(sink.frame_count, 56);
-    EXPECT_EQ(sink.received_samples.size(), 56u * 882u);
+    EXPECT_EQ(sink.received_samples.size(), 56U * 882U);
 
     // Verify sample values match sequential expectation without offset corruption
     for (size_t i = 0; i < sink.received_samples.size(); ++i) {
@@ -182,8 +182,8 @@ TEST(InProcessAudioSourceTest, Supports48kHzStereoAnd16kHzMono) {
 
         EXPECT_EQ(sink_48k.frame_count, 2);
         EXPECT_EQ(sink_48k.last_sample_rate, 48000);
-        EXPECT_EQ(sink_48k.last_channels, 2u);
-        EXPECT_EQ(sink_48k.last_frames, 480u);
+        EXPECT_EQ(sink_48k.last_channels, 2U);
+        EXPECT_EQ(sink_48k.last_frames, 480U);
 
         source_48k->Stop();
         source_48k->RemoveSink(&sink_48k);
@@ -202,8 +202,8 @@ TEST(InProcessAudioSourceTest, Supports48kHzStereoAnd16kHzMono) {
 
         EXPECT_EQ(sink_16k.frame_count, 2);
         EXPECT_EQ(sink_16k.last_sample_rate, 16000);
-        EXPECT_EQ(sink_16k.last_channels, 1u);
-        EXPECT_EQ(sink_16k.last_frames, 160u);
+        EXPECT_EQ(sink_16k.last_channels, 1U);
+        EXPECT_EQ(sink_16k.last_frames, 160U);
 
         source_16k->Stop();
         source_16k->RemoveSink(&sink_16k);

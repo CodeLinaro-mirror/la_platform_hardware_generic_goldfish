@@ -23,11 +23,11 @@ InProcessAudioSource::InProcessAudioSource(uint32_t sample_rate, uint32_t channe
         : sample_rate_(sample_rate)
         , channels_(channels)
         , samples_per_10ms_channel_(sample_rate / 100)
-        , samples_per_10ms_total_((sample_rate / 100) * channels)
+        , samples_per_10ms_total_(static_cast<size_t>(sample_rate / 100) * channels)
         , temp_frame_buffer_(samples_per_10ms_total_) {
-    DCHECK_GT(sample_rate, 0u) << "Audio sample rate must be greater than 0.";
-    DCHECK_EQ(sample_rate % 100, 0u) << "Audio sample rate must be a multiple of 100 Hz.";
-    DCHECK_GT(channels, 0u) << "Audio channels must be greater than 0.";
+    DCHECK_GT(sample_rate, 0U) << "Audio sample rate must be greater than 0.";
+    DCHECK_EQ(sample_rate % 100, 0U) << "Audio sample rate must be a multiple of 100 Hz.";
+    DCHECK_GT(channels, 0U) << "Audio channels must be greater than 0.";
 }
 
 InProcessAudioSource::~InProcessAudioSource() {

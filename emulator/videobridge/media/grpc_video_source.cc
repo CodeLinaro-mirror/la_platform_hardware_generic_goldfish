@@ -52,8 +52,8 @@ std::optional<::webrtc::VideoFrame> RgbaToI420Pipeline::Convert(const uint8_t* r
                                                                 uint32_t height,
                                                                 int64_t timestamp_us) {
     // VideoToolbox (and H.264/YUV420 in general) requires even dimensions.
-    const uint32_t even_width = width & ~1u;
-    const uint32_t even_height = height & ~1u;
+    const uint32_t even_width = width & ~1U;
+    const uint32_t even_height = height & ~1U;
 
     if (even_width == 0 || even_height == 0) {
         return std::nullopt;

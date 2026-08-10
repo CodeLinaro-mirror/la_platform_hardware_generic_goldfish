@@ -32,7 +32,7 @@ ABSL_FLAG(bool, verbose_test, false,
 
 namespace {
 
-void setup_sanitizers() {
+void SetupSanitizers() {
 #ifdef __linux__
     System::SetEnvironmentVariable("LLVM_SYMBOLIZER", Bazel::RunfilesPath("goldfish_build++toolchain+clang_linux_x64/bin/llvm-symbolizer"));
 #elifdef __APPLE__
@@ -61,7 +61,7 @@ int main(int argc, char* argv[]) {
         Bazel::StoreCommandLineArgs(argc, argv);
     }
 
-    setup_sanitizers();
+    SetupSanitizers();
 
     // Parse abseil logging configuration.
     std::vector<char*> positional_args;

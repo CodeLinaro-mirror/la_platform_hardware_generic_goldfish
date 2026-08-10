@@ -64,8 +64,8 @@ void InProcessVideoSource::OnFrameAvailable(const ::goldfish::display::FrameInfo
         return;
     }
 
-    const uint32_t even_width = frame_info.dimensions.width & ~1u;
-    const uint32_t even_height = frame_info.dimensions.height & ~1u;
+    const uint32_t even_width = frame_info.dimensions.width & ~1U;
+    const uint32_t even_height = frame_info.dimensions.height & ~1U;
     if (even_width == 0 || even_height == 0) {
         return;
     }

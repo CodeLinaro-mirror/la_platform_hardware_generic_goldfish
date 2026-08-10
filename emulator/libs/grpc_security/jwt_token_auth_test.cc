@@ -92,27 +92,27 @@ class JwkTokenAuthTest : public ::testing::Test {
         ASSERT_TRUE(status.ok());
         status = tink::JwtSignatureRegister();
         ASSERT_TRUE(status.ok());
-        mTempDir = std::make_unique<TestTempDir>(
+        temp_dir_ = std::make_unique<TestTempDir>(
                 absl::StrCat("watcher_test", TestTempDir::GenerateRandomString()));
 
         absl::Time now = absl::Now();
-        mSampleJwt = tink::RawJwtBuilder()
-                             .SetIssuer("JwkTokenAuthTest")
-                             .SetAudiences({"a", "b", "c"})
-                             .SetExpiration(now + absl::Seconds(300))
-                             .SetIssuedAt(now)
-                             .Build();
+        sample_jwt_ = tink::RawJwtBuilder()
+                              .SetIssuer("JwkTokenAuthTest")
+                              .SetAudiences({"a", "b", "c"})
+                              .SetExpiration(now + absl::Seconds(300))
+                              .SetIssuedAt(now)
+                              .Build();
     }
 
-    void TearDown() override { mTempDir.reset(); }
+    void TearDown() override { temp_dir_.reset(); }
 
-    void write(fs::path fname, std::string snippet) {
-        std::ofstream out(mTempDir->Path() / fname);
+    void Write(fs::path fname, std::string snippet) {
+        std::ofstream out(temp_dir_->Path() / fname);
         out << snippet;
         out.close();
     }
 
-    std::unique_ptr<KeysetHandle> writeEs512(fs::path fname) {
+    std::unique_ptr<KeysetHandle> WriteEs512(fs::path fname) {
         // Let's generate a json key.
         auto status = tink::JwtSignatureRegister();
         EXPECT_TRUE(status.ok());
@@ -126,27 +126,27 @@ class JwkTokenAuthTest : public ::testing::Test {
         if (!public_handle.ok()) {
             return nullptr;
         }
-        auto jsonSnippet = tink::JwkSetFromPublicKeysetHandle(*public_handle->get());
-        EXPECT_TRUE(jsonSnippet.ok());
-        if (!jsonSnippet.ok()) {
+        auto json_snippet = tink::JwkSetFromPublicKeysetHandle(**public_handle);
+        EXPECT_TRUE(json_snippet.ok());
+        if (!json_snippet.ok()) {
             return nullptr;
         }
-        write(fname, *jsonSnippet);
+        Write(fname, *json_snippet);
         return std::move(private_handle.value());
     }
 
   protected:
-    std::unique_ptr<TestTempDir> mTempDir;
-    TestEvent mTestEv;
-    absl::StatusOr<tink::RawJwt> mSampleJwt;
-    absl::StatusOr<tink::JwtValidator> mSampleValidator;
-    AllGreen mAllGreen;
-    AllYellow mAllYellow;
-    AllRed mAllRed;
+    std::unique_ptr<TestTempDir> temp_dir_;
+    TestEvent test_ev_;
+    absl::StatusOr<tink::RawJwt> sample_jwt_;
+    absl::StatusOr<tink::JwtValidator> sample_validator_;
+    AllGreen all_green_;
+    AllYellow all_yellow_;
+    AllRed all_red_;
 };
 
 // Reads a file into a string.
-static std::string readFile(fs::path fname) {
+static std::string ReadFile(fs::path fname) {
     std::ifstream fstream(fname);
     std::string contents((std::istreambuf_iterator<char>(fstream)),
                          std::istreambuf_iterator<char>());
@@ -155,36 +155,36 @@ static std::string readFile(fs::path fname) {
 }
 
 TEST_F(JwkTokenAuthTest, writes_a_discovery_file) {
-    auto private_handle = writeEs512("valid.jwk");
+    auto private_handle = WriteEs512("valid.jwk");
     auto sign = private_handle->GetPrimitive<tink::JwtPublicKeySign>();
-    auto token = (*sign)->SignAndEncode(*mSampleJwt);
+    auto token = (*sign)->SignAndEncode(*sample_jwt_);
 
-    auto discover_file = mTempDir->Path() / "loaded.jwk";
-    JwtTokenAuth jwt(mTempDir->Path().string(), discover_file.string(), &mAllYellow);
+    auto discover_file = temp_dir_->Path() / "loaded.jwk";
+    JwtTokenAuth jwt(temp_dir_->Path().string(), discover_file.string(), &all_yellow_);
 
     EXPECT_TRUE(base::file::exists(discover_file));
 }
 
 TEST_F(JwkTokenAuthTest, discovery_file_contains_our_key) {
-    auto private_handle = writeEs512("valid.jwk");
+    auto private_handle = WriteEs512("valid.jwk");
     auto sign = private_handle->GetPrimitive<tink::JwtPublicKeySign>();
     ASSERT_THAT(sign, absl_testing::IsOk());
-    auto token = (*sign)->SignAndEncode(*mSampleJwt);
+    auto token = (*sign)->SignAndEncode(*sample_jwt_);
 
     auto public_handle = private_handle->GetPublicKeysetHandle();
     ASSERT_THAT(public_handle, absl_testing::IsOk());
-    auto ours = crypto::tink::JwkSetFromPublicKeysetHandle(*public_handle->get());
+    auto ours = crypto::tink::JwkSetFromPublicKeysetHandle(**public_handle);
     ASSERT_THAT(ours, absl_testing::IsOk());
     auto our_json = json::parse(*ours, nullptr, /*allow_exceptions=*/false);
 
-    auto discover_file = mTempDir->Path() / "loaded.jwk";
-    JwtTokenAuth jwt(mTempDir->Path(), discover_file, &mAllYellow);
+    auto discover_file = temp_dir_->Path() / "loaded.jwk";
+    JwtTokenAuth jwt(temp_dir_->Path(), discover_file, &all_yellow_);
     EXPECT_TRUE(base::file::exists(discover_file));
-    auto discovered_json = readFile(discover_file);
+    auto discovered_json = ReadFile(discover_file);
     auto discovered_handle = crypto::tink::JwkSetToPublicKeysetHandle(discovered_json);
     ASSERT_THAT(discovered_handle, absl_testing::IsOk())
             << "The discovered json file contained: " << discovered_json;
-    auto loaded = crypto::tink::JwkSetFromPublicKeysetHandle(*discovered_handle->get());
+    auto loaded = crypto::tink::JwkSetFromPublicKeysetHandle(**discovered_handle);
     ASSERT_THAT(loaded, absl_testing::IsOk());
     auto loaded_json = json::parse(*loaded, nullptr, /*allow_exceptions=*/false);
 
@@ -204,46 +204,46 @@ TEST_F(JwkTokenAuthTest, discovery_file_contains_our_key) {
 
 TEST_F(JwkTokenAuthTest, accept_yellow) {
     // AUD on the yellow list, you're ok
-    auto private_handle = writeEs512("valid.jwk");
+    auto private_handle = WriteEs512("valid.jwk");
     auto sign = private_handle->GetPrimitive<tink::JwtPublicKeySign>();
-    auto token = (*sign)->SignAndEncode(*mSampleJwt);
+    auto token = (*sign)->SignAndEncode(*sample_jwt_);
 
-    JwtTokenAuth jwt(mTempDir->Path().string(), "", &mAllYellow);
+    JwtTokenAuth jwt(temp_dir_->Path().string(), "", &all_yellow_);
     EXPECT_TRUE(jwt.IsTokenValid("c", "Bearer " + *token).ok());
 }
 
 TEST_F(JwkTokenAuthTest, accept_green) {
     // AUD on the green list, you're ok
-    auto private_handle = writeEs512("valid.jwk");
+    auto private_handle = WriteEs512("valid.jwk");
     auto sign = private_handle->GetPrimitive<tink::JwtPublicKeySign>();
-    auto token = (*sign)->SignAndEncode(*mSampleJwt);
+    auto token = (*sign)->SignAndEncode(*sample_jwt_);
 
-    JwtTokenAuth jwt(mTempDir->Path().string(), "", &mAllGreen);
+    JwtTokenAuth jwt(temp_dir_->Path().string(), "", &all_green_);
     EXPECT_TRUE(jwt.IsTokenValid("c", "Bearer " + *token).ok());
 }
 
 TEST_F(JwkTokenAuthTest, reject_red_list) {
     // AUD on the red list, means you are rejected.
-    auto private_handle = writeEs512("valid.jwk");
+    auto private_handle = WriteEs512("valid.jwk");
     auto sign = private_handle->GetPrimitive<tink::JwtPublicKeySign>();
-    auto token = (*sign)->SignAndEncode(*mSampleJwt);
+    auto token = (*sign)->SignAndEncode(*sample_jwt_);
 
-    JwtTokenAuth jwt(mTempDir->Path().string(), "", &mAllRed);
+    JwtTokenAuth jwt(temp_dir_->Path().string(), "", &all_red_);
     EXPECT_FALSE(jwt.IsTokenValid("c", "Bearer " + *token).ok());
 }
 
 TEST_F(JwkTokenAuthTest, invalid_audience) {
-    auto private_handle = writeEs512("valid.jwk");
+    auto private_handle = WriteEs512("valid.jwk");
     auto sign = private_handle->GetPrimitive<tink::JwtPublicKeySign>();
-    auto token = (*sign)->SignAndEncode(*mSampleJwt);
+    auto token = (*sign)->SignAndEncode(*sample_jwt_);
 
-    JwtTokenAuth jwt(mTempDir->Path().string(), "", &mAllYellow);
+    JwtTokenAuth jwt(temp_dir_->Path().string(), "", &all_yellow_);
     EXPECT_FALSE(jwt.IsTokenValid("not_in_aud_set", "Bearer " + *token).ok());
 }
 
 TEST_F(JwkTokenAuthTest, reject_expired) {
     absl::Time now = absl::Now();
-    auto private_handle = writeEs512("valid.jwk");
+    auto private_handle = WriteEs512("valid.jwk");
     auto sign = private_handle->GetPrimitive<tink::JwtPublicKeySign>();
     auto raw_jwt = tink::RawJwtBuilder()
                            .SetIssuer("JwkTokenAuthTest")
@@ -252,14 +252,14 @@ TEST_F(JwkTokenAuthTest, reject_expired) {
                            .SetIssuedAt(now)
                            .Build();
 
-    JwtTokenAuth jwt(mTempDir->Path().string(), "", &mAllYellow);
+    JwtTokenAuth jwt(temp_dir_->Path().string(), "", &all_yellow_);
     auto token = (*sign)->SignAndEncode(*raw_jwt);
     EXPECT_FALSE(jwt.IsTokenValid("a", "Bearer " + *token).ok());
 }
 
 TEST_F(JwkTokenAuthTest, reject_not_ready_yet) {
     absl::Time now = absl::Now();
-    auto private_handle = writeEs512("valid.jwk");
+    auto private_handle = WriteEs512("valid.jwk");
     auto sign = private_handle->GetPrimitive<tink::JwtPublicKeySign>();
     auto raw_jwt = tink::RawJwtBuilder()
                            .SetIssuer("JwkTokenAuthTest")
@@ -268,14 +268,14 @@ TEST_F(JwkTokenAuthTest, reject_not_ready_yet) {
                            .SetIssuedAt(now + absl::Seconds(30))
                            .Build();
 
-    JwtTokenAuth jwt(mTempDir->Path().string(), "", &mAllYellow);
+    JwtTokenAuth jwt(temp_dir_->Path().string(), "", &all_yellow_);
     auto token = (*sign)->SignAndEncode(*raw_jwt);
     EXPECT_FALSE(jwt.IsTokenValid("a", "Bearer " + *token).ok());
 }
 
 TEST_F(JwkTokenAuthTest, fail_with_generic_message) {
     absl::Time now = absl::Now();
-    auto private_handle = writeEs512("valid.jwk");
+    auto private_handle = WriteEs512("valid.jwk");
     auto sign = private_handle->GetPrimitive<tink::JwtPublicKeySign>();
     auto raw_jwt = tink::RawJwtBuilder()
                            .SetIssuer("JwkTokenAuthTest")
@@ -284,7 +284,7 @@ TEST_F(JwkTokenAuthTest, fail_with_generic_message) {
                            .SetIssuedAt(now)
                            .Build();
 
-    JwtTokenAuth jwt(mTempDir->Path().string(), "", &mAllYellow);
+    JwtTokenAuth jwt(temp_dir_->Path().string(), "", &all_yellow_);
     auto token = (*sign)->SignAndEncode(*raw_jwt);
     auto message = std::string(jwt.IsTokenValid("d/e/f", "Bearer " + *token).message());
     EXPECT_EQ(message,
@@ -294,7 +294,7 @@ TEST_F(JwkTokenAuthTest, fail_with_generic_message) {
 
 TEST_F(JwkTokenAuthTest, fail_with_gradle_message) {
     absl::Time now = absl::Now();
-    auto private_handle = writeEs512("valid.jwk");
+    auto private_handle = WriteEs512("valid.jwk");
     auto sign = private_handle->GetPrimitive<tink::JwtPublicKeySign>();
     auto raw_jwt = tink::RawJwtBuilder()
                            .SetIssuer(kGRADLE)
@@ -303,7 +303,7 @@ TEST_F(JwkTokenAuthTest, fail_with_gradle_message) {
                            .SetIssuedAt(now)
                            .Build();
 
-    JwtTokenAuth jwt(mTempDir->Path().string(), "", &mAllYellow);
+    JwtTokenAuth jwt(temp_dir_->Path().string(), "", &all_yellow_);
     auto token = (*sign)->SignAndEncode(*raw_jwt);
     auto message = std::string(jwt.IsTokenValid("d/e/f", "Bearer " + *token).message());
     EXPECT_EQ(message,
@@ -313,7 +313,7 @@ TEST_F(JwkTokenAuthTest, fail_with_gradle_message) {
 
 TEST_F(JwkTokenAuthTest, fail_with_generic_message_no_aud) {
     absl::Time now = absl::Now();
-    auto private_handle = writeEs512("valid.jwk");
+    auto private_handle = WriteEs512("valid.jwk");
     auto sign = private_handle->GetPrimitive<tink::JwtPublicKeySign>();
     auto raw_jwt = tink::RawJwtBuilder()
                            .SetIssuer("JwkTokenAuthTest")
@@ -321,7 +321,7 @@ TEST_F(JwkTokenAuthTest, fail_with_generic_message_no_aud) {
                            .SetIssuedAt(now)
                            .Build();
 
-    JwtTokenAuth jwt(mTempDir->Path().string(), "", &mAllYellow);
+    JwtTokenAuth jwt(temp_dir_->Path().string(), "", &all_yellow_);
     auto token = (*sign)->SignAndEncode(*raw_jwt);
     auto message = std::string(jwt.IsTokenValid("d/e/f", "Bearer " + *token).message());
     EXPECT_EQ(message,
@@ -331,7 +331,7 @@ TEST_F(JwkTokenAuthTest, fail_with_generic_message_no_aud) {
 
 TEST_F(JwkTokenAuthTest, fail_with_gradle_message_no_aud) {
     absl::Time now = absl::Now();
-    auto private_handle = writeEs512("valid.jwk");
+    auto private_handle = WriteEs512("valid.jwk");
     auto sign = private_handle->GetPrimitive<tink::JwtPublicKeySign>();
     auto raw_jwt = tink::RawJwtBuilder()
                            .SetIssuer(kGRADLE)
@@ -339,7 +339,7 @@ TEST_F(JwkTokenAuthTest, fail_with_gradle_message_no_aud) {
                            .SetIssuedAt(now)
                            .Build();
 
-    JwtTokenAuth jwt(mTempDir->Path().string(), "", &mAllYellow);
+    JwtTokenAuth jwt(temp_dir_->Path().string(), "", &all_yellow_);
     auto token = (*sign)->SignAndEncode(*raw_jwt);
     auto message = std::string(jwt.IsTokenValid("d/e/f", "Bearer " + *token).message());
     EXPECT_EQ(message,
@@ -349,7 +349,7 @@ TEST_F(JwkTokenAuthTest, fail_with_gradle_message_no_aud) {
 
 TEST_F(JwkTokenAuthTest, any_message) {
     absl::Time now = absl::Now();
-    auto private_handle = writeEs512("valid.jwk");
+    auto private_handle = WriteEs512("valid.jwk");
     auto sign = private_handle->GetPrimitive<tink::JwtPublicKeySign>();
     auto raw_jwt = tink::RawJwtBuilder()
                            .SetIssuer("JwkTokenAuthTest")
@@ -358,15 +358,15 @@ TEST_F(JwkTokenAuthTest, any_message) {
                            .SetIssuedAt(now)
                            .Build();
 
-    JwtTokenAuth jwt(mTempDir->Path().string(), "", &mAllYellow);
+    JwtTokenAuth jwt(temp_dir_->Path().string(), "", &all_yellow_);
     auto token = (*sign)->SignAndEncode(*raw_jwt);
 
     auto anyauth = std::vector<std::unique_ptr<BasicTokenAuth>>();
-    anyauth.emplace_back(std::make_unique<StaticTokenAuth>("foo", "android-studio", &mAllYellow));
+    anyauth.emplace_back(std::make_unique<StaticTokenAuth>("foo", "android-studio", &all_yellow_));
     anyauth.emplace_back(
-            std::make_unique<JwtTokenAuth>(mTempDir->Path().string(), "", &mAllYellow));
+            std::make_unique<JwtTokenAuth>(temp_dir_->Path().string(), "", &all_yellow_));
 
-    AnyTokenAuth any(std::move(anyauth), &mAllYellow);
+    AnyTokenAuth any(std::move(anyauth), &all_yellow_);
     auto message = std::string(any.IsTokenValid("d/e/f", "Bearer " + *token).message());
     EXPECT_EQ(message,
               "The JWT does not include d/e/f in the aud claim. Make sure to "
@@ -379,20 +379,20 @@ TEST_F(JwkTokenAuthTest, deleted_jwks_is_rejected) {
     // that differes by OS version.
     GTEST_SKIP();
 #endif
-    auto private_handle = writeEs512("valid.jwk");
+    auto private_handle = WriteEs512("valid.jwk");
     auto sign = private_handle->GetPrimitive<tink::JwtPublicKeySign>();
-    auto token = (*sign)->SignAndEncode(*mSampleJwt);
-    auto discover_file = mTempDir->Path() / "loaded.jwk";
+    auto token = (*sign)->SignAndEncode(*sample_jwt_);
+    auto discover_file = temp_dir_->Path() / "loaded.jwk";
 
-    JwtTokenAuth jwt(mTempDir->Path().string(), discover_file.string(), &mAllYellow);
-    EXPECT_TRUE(base::file::rm(mTempDir->Path() / "valid.jwk").ok());
+    JwtTokenAuth jwt(temp_dir_->Path().string(), discover_file.string(), &all_yellow_);
+    EXPECT_TRUE(base::file::rm(temp_dir_->Path() / "valid.jwk").ok());
 
     // We have to wait until the discovery file becomes empty, indicating that
     // the emulator activated a new keyset.
-    auto json = readFile(discover_file);
+    auto json = ReadFile(discover_file);
     for (int i = 0; json != "" && i < 10; i++) {
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        json = readFile(discover_file);
+        json = ReadFile(discover_file);
     }
 
     EXPECT_FALSE(jwt.IsTokenValid("c", "Bearer " + *token).ok());

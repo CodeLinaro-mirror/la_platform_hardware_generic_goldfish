@@ -46,7 +46,7 @@ namespace fs = std::filesystem;
 
 class FakeImageReader : public ::grpc::ClientReaderInterface<Image> {
   public:
-    FakeImageReader(const ImageFormat& format, bool force_payload_delivery = false)
+    explicit FakeImageReader(const ImageFormat& format, bool force_payload_delivery = false)
             : format_(format), force_payload_delivery_(force_payload_delivery) {
         if (format_.transport().channel() == ImageTransport::MMAP && !force_payload_delivery_) {
             std::string path_or_uri = format_.transport().handle();

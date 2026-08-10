@@ -17,17 +17,17 @@
 
 namespace android::control::interceptor {
 
-static std::atomic<uint64_t> s_cookie_counter_{1};
+static std::atomic<uint64_t> cookie_counter{1};
 
 PerfettoInterceptor::PerfettoInterceptor(grpc::experimental::ServerRpcInfo* info)
-        : cookie_(s_cookie_counter_.fetch_add(1, std::memory_order_relaxed))
+        : cookie_(cookie_counter.fetch_add(1, std::memory_order_relaxed))
         , method_name_(info ? std::string(info->method()) : "unknown") {
     TRACE_EVENT("grpc", "gRPC Call Start (Server)", perfetto::Flow::ProcessScoped(cookie_),
                 "method", method_name_);
 }
 
 PerfettoInterceptor::PerfettoInterceptor(grpc::experimental::ClientRpcInfo* info)
-        : cookie_(s_cookie_counter_.fetch_add(1, std::memory_order_relaxed))
+        : cookie_(cookie_counter.fetch_add(1, std::memory_order_relaxed))
         , method_name_(info ? std::string(info->method()) : "unknown") {
     TRACE_EVENT("grpc", "gRPC Call Start (Client)", perfetto::Flow::ProcessScoped(cookie_),
                 "method", method_name_);

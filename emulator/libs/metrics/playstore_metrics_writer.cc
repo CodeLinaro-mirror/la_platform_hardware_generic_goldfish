@@ -39,7 +39,7 @@ using wireless_android_play_playlog::LogResponse;
 
 namespace {
 
-const char* get_os_type() {
+const char* GetOsType() {
 #ifdef _WIN32
     return "windows";
 #elif defined(__APPLE__)
@@ -51,7 +51,7 @@ const char* get_os_type() {
 #endif
 }
 
-LogRequest build_base_request(const std::string& user_id) {
+LogRequest BuildBaseRequest(const std::string& user_id) {
     LogRequest request;
     request.set_request_time_ms(android::base::System::Get()->GetUnixTimeUs() / 1000);
     request.set_log_source(LogRequest::ANDROID_STUDIO);
@@ -61,14 +61,14 @@ LogRequest build_base_request(const std::string& user_id) {
 
     auto& desktop = *client.mutable_desktop_client_info();
     desktop.set_application_build(VERSION);
-    desktop.set_os(get_os_type());
+    desktop.set_os(GetOsType());
     desktop.set_os_full_version(android::base::System::Get()->GetOsName());
     desktop.set_os_major_version(android::base::System::Get()->GetMajorOsVersion());
     desktop.set_logging_id(user_id);
     return request;
 }
 
-absl::StatusOr<std::string> serialize_and_gzip(const LogRequest& request) {
+absl::StatusOr<std::string> SerializeAndGzip(const LogRequest& request) {
     std::ostringstream buff;
     {
         GzipOutputStream gos(buff);
@@ -79,7 +79,7 @@ absl::StatusOr<std::string> serialize_and_gzip(const LogRequest& request) {
     return buff.str();
 }
 
-absl::StatusOr<absl::Duration> parse_resp(std::string resp) {
+absl::StatusOr<absl::Duration> ParseResp(std::string resp) {
     LogResponse response;
     if (!response.ParseFromString(resp)) {
         return absl::InvalidArgumentError("failed to parse server response proto");
@@ -94,7 +94,7 @@ absl::StatusOr<absl::Duration> parse_resp(std::string resp) {
     return absl::Milliseconds(wait);
 }
 
-size_t curl_write_callback(char* contents, size_t size, size_t nmemb, void* userp) {
+size_t CurlWriteCallback(char* contents, size_t size, size_t nmemb, void* userp) {
     auto& buff = *static_cast<std::string*>(userp);
     const size_t total = size * nmemb;
     buff.insert(buff.end(), contents, contents + total);
@@ -121,9 +121,9 @@ absl::Status CurlSlistAppend(CurlSlistPtr& slist, const char* string) {
     }
 }
 
-absl::StatusOr<absl::Duration> send_to_playstore(const std::string& url, LogRequest req) {
+absl::StatusOr<absl::Duration> SendToPlaystore(const std::string& url, LogRequest req) {
     VLOG(1) << "Making Clearcut POST: " << url << " - " << req.ShortDebugString();
-    auto serialized = serialize_and_gzip(req);
+    auto serialized = SerializeAndGzip(req);
     if (!serialized.ok()) {
         return serialized.status();
     }
@@ -146,7 +146,7 @@ absl::StatusOr<absl::Duration> send_to_playstore(const std::string& url, LogRequ
     curl_easy_setopt(curl.get(), CURLOPT_POSTFIELDS, serialized->data());
     curl_easy_setopt(curl.get(), CURLOPT_POSTFIELDSIZE, (long)serialized->size());
     curl_easy_setopt(curl.get(), CURLOPT_HTTPHEADER, headers.get());
-    curl_easy_setopt(curl.get(), CURLOPT_WRITEFUNCTION, curl_write_callback);
+    curl_easy_setopt(curl.get(), CURLOPT_WRITEFUNCTION, CurlWriteCallback);
     curl_easy_setopt(curl.get(), CURLOPT_WRITEDATA, &resp);
     curl_easy_setopt(curl.get(), CURLOPT_FOLLOWLOCATION, 1L);
     curl_easy_setopt(curl.get(), CURLOPT_MAXREDIRS, 10L);
@@ -170,7 +170,7 @@ absl::StatusOr<absl::Duration> send_to_playstore(const std::string& url, LogRequ
         LOG(INFO) << "Metrics written to playstore.";
         VLOG(2) << "Clearcut response: " << http_response << " - '" << resp << "'";
         if (http_response == 200) {
-            return parse_resp(std::move(resp));
+            return ParseResp(std::move(resp));
         } else {
             return absl::InternalError(absl::StrCat("Clearcut post failed: ", http_response));
         }
@@ -232,7 +232,7 @@ void PlaystoreMetricsWriter::Commit() {
             return;
         }
 
-        request = build_base_request(user_id_);
+        request = BuildBaseRequest(user_id_);
         while (!events_.empty()) {
             request.add_log_event()->CopyFrom(events_.front());
             events_.pop();
@@ -240,7 +240,7 @@ void PlaystoreMetricsWriter::Commit() {
         current_bytes_ = 0;
     }
 
-    if (auto wait_response = send_to_playstore(playstore_url_, std::move(request));
+    if (auto wait_response = SendToPlaystore(playstore_url_, std::move(request));
         !wait_response.ok()) {
         LOG(ERROR) << wait_response.status();
     } else {

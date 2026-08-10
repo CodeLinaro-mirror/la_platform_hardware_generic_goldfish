@@ -21,38 +21,38 @@ using goldfish::base::UniqueHandle;
 
 struct StatelessIntDeleter {
     struct Empty {};
-    StatelessIntDeleter(Empty) {}
+    explicit StatelessIntDeleter(Empty) {}
     StatelessIntDeleter() = default;
     void operator()(int x) const {}
 };
 
 struct StatefulIntDeleter {
     struct Empty {};
-    StatefulIntDeleter(Empty) {}
-    StatefulIntDeleter(int* sumIntoRef) : mSumIntoRef(sumIntoRef) {}
+    explicit StatefulIntDeleter(Empty) {}
+    explicit StatefulIntDeleter(int* sum_into_ref) : sum_into_ref(sum_into_ref) {}
 
     StatefulIntDeleter(StatefulIntDeleter&& other) noexcept
-            : mSumIntoRef(std::exchange(other.mSumIntoRef, nullptr)) {}
+            : sum_into_ref(std::exchange(other.sum_into_ref, nullptr)) {}
 
     StatefulIntDeleter& operator=(StatefulIntDeleter&& other) noexcept {
-        mSumIntoRef = std::exchange(other.mSumIntoRef, nullptr);
+        sum_into_ref = std::exchange(other.sum_into_ref, nullptr);
         return *this;
     }
 
     void operator()(int x) const {
-        if (mSumIntoRef) {
-            *mSumIntoRef += x;
+        if (sum_into_ref) {
+            *sum_into_ref += x;
         }
     }
 
-    int* mSumIntoRef = nullptr;
+    int* sum_into_ref = nullptr;
 };
 
 struct NothrowMoveDeleter {
     struct Empty {};
     void operator()(int) const {}
     NothrowMoveDeleter() = default;
-    NothrowMoveDeleter(Empty) {}
+    explicit NothrowMoveDeleter(Empty) {}
     NothrowMoveDeleter(NothrowMoveDeleter&&) noexcept = default;
     NothrowMoveDeleter& operator=(NothrowMoveDeleter&&) noexcept = default;
 };
@@ -61,7 +61,7 @@ struct ThrowingMoveDeleter {
     struct Empty {};
     void operator()(int) const {}
     ThrowingMoveDeleter() = default;
-    ThrowingMoveDeleter(Empty) {}
+    explicit ThrowingMoveDeleter(Empty) {}
     ThrowingMoveDeleter(ThrowingMoveDeleter&&) noexcept(false) {}
     ThrowingMoveDeleter& operator=(ThrowingMoveDeleter&&) noexcept(false) { return *this; }
 };
@@ -143,11 +143,11 @@ TEST(UniqueHandle, move_assign_self) {
 }
 
 TEST(UniqueHandle, move_assign_stateful) {
-    int sumIntoFrom = 0;
-    int sumIntoTo = 0;
+    int sum_into_from = 0;
+    int sum_into_to = 0;
     {
-        UniqueHandleOfIntStatefulDeleter from(42, StatefulIntDeleter(&sumIntoFrom));
-        UniqueHandleOfIntStatefulDeleter to(10, StatefulIntDeleter(&sumIntoTo));
+        UniqueHandleOfIntStatefulDeleter from(42, StatefulIntDeleter(&sum_into_from));
+        UniqueHandleOfIntStatefulDeleter to(10, StatefulIntDeleter(&sum_into_to));
 
         // After this, `from` will hold the original contents of `to`.
         to = std::move(from);
@@ -155,9 +155,9 @@ TEST(UniqueHandle, move_assign_stateful) {
         EXPECT_EQ(to.get(), 42);
     }
     // `from` (which now holds handle 10 and deleter with `sumIntoTo`) is destructed.
-    EXPECT_EQ(sumIntoTo, 10);
+    EXPECT_EQ(sum_into_to, 10);
     // `to` (which now holds handle 42 and deleter with `sumIntoFrom`) is destructed.
-    EXPECT_EQ(sumIntoFrom, 42);
+    EXPECT_EQ(sum_into_from, 42);
 }
 
 TEST(UniqueHandle, swap) {
@@ -174,28 +174,28 @@ TEST(UniqueHandle, swap) {
 }
 
 TEST(UniqueHandle, dctor) {
-    int sumInto = 0;
+    int sum_into = 0;
     {
-        UniqueHandleOfIntStatefulDeleter q1(1, StatefulIntDeleter(&sumInto));
+        UniqueHandleOfIntStatefulDeleter q1(1, StatefulIntDeleter(&sum_into));
         {
-            UniqueHandleOfIntStatefulDeleter q2(2, StatefulIntDeleter(&sumInto));
+            UniqueHandleOfIntStatefulDeleter q2(2, StatefulIntDeleter(&sum_into));
             {
-                UniqueHandleOfIntStatefulDeleter q3(3, StatefulIntDeleter(&sumInto));
-                EXPECT_EQ(sumInto, 0);
+                UniqueHandleOfIntStatefulDeleter q3(3, StatefulIntDeleter(&sum_into));
+                EXPECT_EQ(sum_into, 0);
             }
-            EXPECT_EQ(sumInto, 3);
+            EXPECT_EQ(sum_into, 3);
         }
-        EXPECT_EQ(sumInto, 3 + 2);
+        EXPECT_EQ(sum_into, 3 + 2);
     }
-    EXPECT_EQ(sumInto, 3 + 2 + 1);
+    EXPECT_EQ(sum_into, 3 + 2 + 1);
 }
 
 TEST(UniqueHandle, swap_stateful) {
-    int sumA = 0;
-    int sumB = 0;
+    int sum_a = 0;
+    int sum_b = 0;
 
-    UniqueHandleOfIntStatefulDeleter a(10, StatefulIntDeleter(&sumA));
-    UniqueHandleOfIntStatefulDeleter b(20, StatefulIntDeleter(&sumB));
+    UniqueHandleOfIntStatefulDeleter a(10, StatefulIntDeleter(&sum_a));
+    UniqueHandleOfIntStatefulDeleter b(20, StatefulIntDeleter(&sum_b));
 
     swap(a, b);
 
@@ -203,33 +203,33 @@ TEST(UniqueHandle, swap_stateful) {
     EXPECT_EQ(b.get(), 10);
 
     a.reset();
-    EXPECT_EQ(sumA, 0);
-    EXPECT_EQ(sumB, 20);
+    EXPECT_EQ(sum_a, 0);
+    EXPECT_EQ(sum_b, 20);
 
     b.reset();
-    EXPECT_EQ(sumA, 10);
-    EXPECT_EQ(sumB, 20);
+    EXPECT_EQ(sum_a, 10);
+    EXPECT_EQ(sum_b, 20);
 }
 
 TEST(UniqueHandle, reset) {
-    int sumInto = 0;
+    int sum_into = 0;
 
-    UniqueHandleOfIntStatefulDeleter q(10, StatefulIntDeleter(&sumInto));
+    UniqueHandleOfIntStatefulDeleter q(10, StatefulIntDeleter(&sum_into));
     EXPECT_TRUE(q.ok());
 
     q.reset();
     EXPECT_FALSE(q.ok());
-    EXPECT_EQ(sumInto, 10);
+    EXPECT_EQ(sum_into, 10);
 
     q.reset(20);
     EXPECT_TRUE(q.ok());
     EXPECT_EQ(q.get(), 20);
-    EXPECT_EQ(sumInto, 10);
+    EXPECT_EQ(sum_into, 10);
 
     q.reset(30);
     EXPECT_TRUE(q.ok());
     EXPECT_EQ(q.get(), 30);
-    EXPECT_EQ(sumInto, 10 + 20);
+    EXPECT_EQ(sum_into, 10 + 20);
 }
 
 TEST(UniqueHandle, default_constructor_stateful_deleter) {

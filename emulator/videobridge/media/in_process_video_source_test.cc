@@ -17,6 +17,7 @@
 #include <gtest/gtest.h>
 
 #include <chrono>
+#include <cstddef>
 #include <memory>
 #include <thread>
 
@@ -52,10 +53,10 @@ class FakeDisplay : public goldfish::display::IDisplay {
     void SendEvDevEvent(uint16_t /*type*/, uint16_t /*code*/, uint32_t /*value*/) override {}
 
     void FireFrame() {
-        fake_pixels_.assign(640 * 480 * 4, 128);
+        fake_pixels_.assign(static_cast<size_t>(640) * 480 * 4, 128);
         goldfish::display::FrameInfo info(1);
         info.pixels = fake_pixels_.data();
-        info.stride = 640 * 4;
+        info.stride = static_cast<int>(640 * 4);
         info.dimensions = {.width = 640, .height = 480};
         info.format = goldfish::display::PixelFormat::kRgba8888;
         info.rotation = rotation_;

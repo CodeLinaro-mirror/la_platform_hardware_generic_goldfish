@@ -30,7 +30,7 @@ static void help_studio_params(stralloc_t* out) {
            "  This should be used only by Android Studio.\n\n");
 }
 
-static void help_virtual_device(stralloc_t* out) {
+static void HelpVirtualDevice(stralloc_t* out) {
     PRINTF("  An Android Virtual Device (AVD) models a single virtual\n"
            "  device running the Android platform that has, at least, its own\n"
            "  kernel, system image and data partition.\n\n"
@@ -64,7 +64,7 @@ static void help_virtual_device(stralloc_t* out) {
            "  See -help-build-images for the details.\n");
 }
 
-static void help_sdk_images(stralloc_t* out) {
+static void HelpSdkImages(stralloc_t* out) {
     PRINTF("  The Android SDK now supports multiple versions of the Android platform.\n"
            "  Each SDK 'platform' corresponds to:\n\n"
 
@@ -100,7 +100,7 @@ static void help_sdk_images(stralloc_t* out) {
            "  defaults. This will erase all user settings for the virtual device.\n\n");
 }
 
-static void help_build_images(stralloc_t* out) {
+static void HelpBuildImages(stralloc_t* out) {
     PRINTF("  The emulator detects that you are working from the Android build system\n"
            "  by looking at the ANDROID_PRODUCT_OUT variable in your environment.\n\n"
 
@@ -142,7 +142,7 @@ static void help_build_images(stralloc_t* out) {
            "  information above doesn't apply. See -help-sdk-images for more details.\n");
 }
 
-static void help_disk_images(stralloc_t* out) {
+static void HelpDiskImages(stralloc_t* out) {
     PRINTF("  The emulator needs several key image files to run appropriately.\n"
            "  Their exact location depends on whether you're using the emulator\n"
            "  from the Android SDK, or not (more details below).\n\n"
@@ -199,7 +199,7 @@ static void help_disk_images(stralloc_t* out) {
            "                       available.\n\n");
 }
 
-static void help_environment(stralloc_t* out) {
+static void HelpEnvironment(stralloc_t* out) {
     PRINTF("  The Android emulator looks at various environment variables when it starts:\n\n"
 
            "  If ANDROID_LOG_TAGS is defined, it will be used as in '-logcat <tags>'.\n\n"
@@ -225,11 +225,11 @@ static void help_environment(stralloc_t* out) {
     );
 }
 
-static void help_debug_tags(stralloc_t* out) {
+static void HelpDebugTags(stralloc_t* out) {
     PRINTF("  the '-debug <tags>' have been deprecated. Use -vmodule instead.\n\n");
 }
 
-static void help_char_devices(stralloc_t* out) {
+static void HelpCharDevices(stralloc_t* out) {
     PRINTF("  various emulation options take a <device> specification that can be used to\n"
            "  specify something to hook to an emulated device or communication channel.\n"
            "  here is the list of supported <device> specifications:\n\n"
@@ -1744,60 +1744,60 @@ static void help_vmodule(stralloc_t* out) {
            " <log level> desired log level for the matching modules.\n\n");
 }
 
-#define help_no_skin NULL
-#define help_netspeed help_shaper
-#define help_netdelay help_shaper
-#define help_netfast help_shaper
+#define help_no_skin NULL          // NOLINT(readability-identifier-naming)
+#define help_netspeed help_shaper  // NOLINT(readability-identifier-naming)
+#define help_netdelay help_shaper  // NOLINT(readability-identifier-naming)
+#define help_netfast help_shaper   // NOLINT(readability-identifier-naming)
 
-#define help_noaudio NULL
-#define help_noskin NULL
-#define help_nocache NULL
-#define help_no_jni NULL
-#define help_nojni NULL
-#define help_dalvik_vm_checkjni NULL
-#define help_initdata NULL
-#define help_no_sim NULL
-#define help_lowram NULL
-#define help_no_window NULL
-#define help_qt_hide_window NULL
-#define help_version NULL
-#define help_no_passive_gps NULL
-#define help_read_only NULL
-#define help_is_restart NULL
-#define help_memory NULL
-#define help_partition_size NULL
+#define help_noaudio NULL             // NOLINT(readability-identifier-naming)
+#define help_noskin NULL              // NOLINT(readability-identifier-naming)
+#define help_nocache NULL             // NOLINT(readability-identifier-naming)
+#define help_no_jni NULL              // NOLINT(readability-identifier-naming)
+#define help_nojni NULL               // NOLINT(readability-identifier-naming)
+#define help_dalvik_vm_checkjni NULL  // NOLINT(readability-identifier-naming)
+#define help_initdata NULL            // NOLINT(readability-identifier-naming)
+#define help_no_sim NULL              // NOLINT(readability-identifier-naming)
+#define help_lowram NULL              // NOLINT(readability-identifier-naming)
+#define help_no_window NULL           // NOLINT(readability-identifier-naming)
+#define help_qt_hide_window NULL      // NOLINT(readability-identifier-naming)
+#define help_version NULL             // NOLINT(readability-identifier-naming)
+#define help_no_passive_gps NULL      // NOLINT(readability-identifier-naming)
+#define help_read_only NULL           // NOLINT(readability-identifier-naming)
+#define help_is_restart NULL          // NOLINT(readability-identifier-naming)
+#define help_memory NULL              // NOLINT(readability-identifier-naming)
+#define help_partition_size NULL      // NOLINT(readability-identifier-naming)
 
-#define help_skip_adb_auth NULL
-#define help_quit_after_boot NULL
-#define help_delay_adb NULL
+#define help_skip_adb_auth NULL    // NOLINT(readability-identifier-naming)
+#define help_quit_after_boot NULL  // NOLINT(readability-identifier-naming)
+#define help_delay_adb NULL        // NOLINT(readability-identifier-naming)
 
-#define help_phone_number NULL
-#define help_monitor_adb NULL
-#define help_qemu_top_dir NULL
+#define help_phone_number NULL  // NOLINT(readability-identifier-naming)
+#define help_monitor_adb NULL   // NOLINT(readability-identifier-naming)
+#define help_qemu_top_dir NULL  // NOLINT(readability-identifier-naming)
 
-#define help_acpi_config NULL
-#define help_fuchsia NULL
-#define help_window_size NULL
-#define help_allow_host_audio NULL
-#define help_restart_when_stalled NULL
-#define help_perf_stat NULL
-#define help_append_userspace_opt NULL
-#define help_no_nested_warnings NULL
-#define help_dump_audio NULL
+#define help_acpi_config NULL           // NOLINT(readability-identifier-naming)
+#define help_fuchsia NULL               // NOLINT(readability-identifier-naming)
+#define help_window_size NULL           // NOLINT(readability-identifier-naming)
+#define help_allow_host_audio NULL      // NOLINT(readability-identifier-naming)
+#define help_restart_when_stalled NULL  // NOLINT(readability-identifier-naming)
+#define help_perf_stat NULL             // NOLINT(readability-identifier-naming)
+#define help_append_userspace_opt NULL  // NOLINT(readability-identifier-naming)
+#define help_no_nested_warnings NULL    // NOLINT(readability-identifier-naming)
+#define help_dump_audio NULL            // NOLINT(readability-identifier-naming)
 
-#define help_qemu_telnet NULL
-#define help_no_vnc NULL
-#define help_enable_vnc NULL
-#define help_qemu NULL
-#define help_append NULL
-#define help_no_wifi NULL
-#define help_no_grpc NULL
-#define help_no_netsim NULL
-#define help_netsim_stdout NULL
-#define help_fishtank_stdout NULL
-#define help_verbose_grpc NULL
-#define help_strict_snapshot_load NULL
-#define help_V NULL
+#define help_qemu_telnet NULL           // NOLINT(readability-identifier-naming)
+#define help_no_vnc NULL                // NOLINT(readability-identifier-naming)
+#define help_enable_vnc NULL            // NOLINT(readability-identifier-naming)
+#define help_qemu NULL                  // NOLINT(readability-identifier-naming)
+#define help_append NULL                // NOLINT(readability-identifier-naming)
+#define help_no_wifi NULL               // NOLINT(readability-identifier-naming)
+#define help_no_grpc NULL               // NOLINT(readability-identifier-naming)
+#define help_no_netsim NULL             // NOLINT(readability-identifier-naming)
+#define help_netsim_stdout NULL         // NOLINT(readability-identifier-naming)
+#define help_fishtank_stdout NULL       // NOLINT(readability-identifier-naming)
+#define help_verbose_grpc NULL          // NOLINT(readability-identifier-naming)
+#define help_strict_snapshot_load NULL  // NOLINT(readability-identifier-naming)
+#define help_V NULL                     // NOLINT(readability-identifier-naming)
 
 typedef struct {
     const char* name;
@@ -1806,7 +1806,7 @@ typedef struct {
     void (*func)(stralloc_t*);
 } OptionHelp;
 
-static const OptionHelp option_help[] = {
+static const OptionHelp kOptionHelp[] = {
 #define _STRINGIFY(x) #x
 #define STRINGIFY(x) _STRINGIFY(x)
 #define OPT_FLAG(_name, _descr) {STRINGIFY(_name), NULL, _descr, help_##_name},
@@ -1814,7 +1814,7 @@ static const OptionHelp option_help[] = {
 #define OPT_LIST OPT_PARAM
 #include "android/cmdline_options.h"
 
-    {NULL, NULL, NULL, NULL}};
+    {nullptr, nullptr, nullptr, nullptr}};
 
 typedef struct {
     const char* name;
@@ -1822,15 +1822,15 @@ typedef struct {
     void (*func)(stralloc_t*);
 } TopicHelp;
 
-static const TopicHelp topic_help[] = {
-    {"disk-images", "about disk images", help_disk_images},
-    {"debug-tags", "debug tags for -debug <tags>", help_debug_tags},
-    {"char-devices", "character <device> specification", help_char_devices},
-    {"environment", "environment variables", help_environment},
-    {"virtual-device", "virtual device management", help_virtual_device},
-    {"sdk-images", "about disk images when using the SDK", help_sdk_images},
-    {"build-images", "about disk images when building Android", help_build_images},
-    {NULL, NULL, NULL}};
+static const TopicHelp kTopicHelp[] = {
+    {"disk-images", "about disk images", HelpDiskImages},
+    {"debug-tags", "debug tags for -debug <tags>", HelpDebugTags},
+    {"char-devices", "character <device> specification", HelpCharDevices},
+    {"environment", "environment variables", HelpEnvironment},
+    {"virtual-device", "virtual device management", HelpVirtualDevice},
+    {"sdk-images", "about disk images when using the SDK", HelpSdkImages},
+    {"build-images", "about disk images when building Android", HelpBuildImages},
+    {nullptr, nullptr, nullptr}};
 
 int android_help_for_option(const char* option, stralloc_t* out) {
     const OptionHelp* oo;
@@ -1842,7 +1842,7 @@ int android_help_for_option(const char* option, stralloc_t* out) {
      */
     buffer_translate_char(temp, sizeof temp, option, '-', '_');
 
-    for (oo = option_help; oo->name != NULL; oo++) {
+    for (oo = kOptionHelp; oo->name != nullptr; oo++) {
         if (!strcmp(oo->name, temp)) {
             if (oo->func)
                 oo->func(out);
@@ -1857,7 +1857,7 @@ int android_help_for_option(const char* option, stralloc_t* out) {
 int android_help_for_topic(const char* topic, stralloc_t* out) {
     const TopicHelp* tt;
 
-    for (tt = topic_help; tt->name != NULL; tt++) {
+    for (tt = kTopicHelp; tt->name != nullptr; tt++) {
         if (!strcmp(tt->name, topic)) {
             tt->func(out);
             return 0;
@@ -1871,20 +1871,21 @@ extern void android_help_list_options(stralloc_t* out) {
     const TopicHelp* tt;
     int maxwidth = 0;
 
-    for (oo = option_help; oo->name != NULL; oo++) {
+    for (oo = kOptionHelp; oo->name != nullptr; oo++) {
         int width = strlen(oo->name);
-        if (oo->tmplate != NULL) width += strlen(oo->tmplate);
+        if (oo->tmplate != nullptr) width += strlen(oo->tmplate);
         if (width > maxwidth) maxwidth = width;
     }
 
-    for (oo = option_help; oo->name != NULL; oo++) {
+    for (oo = kOptionHelp; oo->name != nullptr; oo++) {
         char temp[32];
         /* the names in the option_help table use underscores instead
          * of dashes, so create a translated copy of the option's name
          */
         buffer_translate_char(temp, sizeof temp, oo->name, '_', '-');
 
-        stralloc_add_format(out, "    -%s %-*s %s\n", temp, (int)(maxwidth - strlen(oo->name)),
+        stralloc_add_format(out, "    -%s %-*s %s\n", temp,
+                            static_cast<int>(maxwidth - strlen(oo->name)),
                             oo->tmplate ? oo->tmplate : "", oo->descr);
     }
 
@@ -1901,7 +1902,7 @@ extern void android_help_list_options(stralloc_t* out) {
     PRINTF("     %-*s  %s\n", maxwidth, "-help-<option>", "print option-specific help");
     PRINTF("\n");
 
-    for (tt = topic_help; tt->name != NULL; tt += 1) {
+    for (tt = kTopicHelp; tt->name != nullptr; tt += 1) {
         char help[32];
         snprintf(help, sizeof(help), "-help-%s", tt->name);
         PRINTF("     %-*s  %s\n", maxwidth, help, tt->desc);
@@ -1923,12 +1924,12 @@ void android_help_all(stralloc_t* out) {
     const OptionHelp* oo;
     const TopicHelp* tt;
 
-    for (oo = option_help; oo->name != NULL; oo++) {
+    for (oo = kOptionHelp; oo->name != nullptr; oo++) {
         PRINTF("========= help for option -%s:\n\n", oo->name);
         android_help_for_option(oo->name, out);
     }
 
-    for (tt = topic_help; tt->name != NULL; tt++) {
+    for (tt = kTopicHelp; tt->name != nullptr; tt++) {
         PRINTF("========= help for -help-%s\n\n", tt->name);
         android_help_for_topic(tt->name, out);
     }
