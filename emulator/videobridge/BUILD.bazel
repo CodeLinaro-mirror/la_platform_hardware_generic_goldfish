@@ -155,6 +155,7 @@ cc_library(
         "core/goldfish_audio_device_module.h",
         "core/grpc_input_sender.cc",
         "core/grpc_input_sender.h",
+        "core/in_process_input_sender.cc",
         "core/participant.cc",
         "core/participant.h",
         "core/rtc_config.cc",
@@ -165,6 +166,7 @@ cc_library(
     ],
     hdrs = [
         "include/goldfish/videobridge/codec_factories.h",
+        "include/goldfish/videobridge/in_process_input_sender.h",
         "include/goldfish/videobridge/input_sender.h",
         "include/goldfish/videobridge/media_provider.h",
         "include/goldfish/videobridge/rtc_connection.h",
@@ -212,6 +214,20 @@ cc_test(
         ":videobridge_core",
         "//emulator/libs/test:googletest_main",
         "@nlohmann_json//:singleheader-json",
+    ],
+)
+
+cc_test(
+    name = "in_process_input_sender_test",
+    srcs = ["core/in_process_input_sender_test.cc"],
+    copts = select({
+        "@platforms//os:windows": ["/GR-"],
+        "//conditions:default": ["-fno-rtti"],
+    }),
+    deps = [
+        ":videobridge_core",
+        "//emulator/libs/test:googletest_main",
+        "@aemu//protos/services/emulator-controller:emulator_controller_cc_grpc",
     ],
 )
 
