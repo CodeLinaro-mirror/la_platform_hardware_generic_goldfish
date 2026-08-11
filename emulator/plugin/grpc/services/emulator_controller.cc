@@ -26,6 +26,7 @@
 #include "android/goldfish/hardware_config.h"
 #include "android/goldfish/vm_interface.h"
 #include "emulator_controller.grpc.pb.h"
+#include "emulator_controller_methods/audio_stream_writer.h"
 #include "emulator_controller_methods/battery_service.h"
 #include "emulator_controller_methods/clipboard_service.h"
 #include "emulator_controller_methods/display_service.h"
@@ -50,11 +51,12 @@ using grpc::Status;
 
 // Logic and data behind the server's behavior.
 class EmulatorControllerImpl final
-        : public EmulatorController::WithCallbackMethod_streamClipboard<
-                  EmulatorController::WithCallbackMethod_streamInputEvent<
-                          EmulatorController::WithCallbackMethod_injectWheel<
-                                  EmulatorController::WithCallbackMethod_streamNotification<
-                                          EmulatorController::Service>>>> {
+        : public EmulatorController::WithCallbackMethod_streamAudio<
+                  EmulatorController::WithCallbackMethod_streamClipboard<
+                          EmulatorController::WithCallbackMethod_streamInputEvent<
+                                  EmulatorController::WithCallbackMethod_injectWheel<
+                                          EmulatorController::WithCallbackMethod_streamNotification<
+                                                  EmulatorController::Service>>>>> {
   public:
     EmulatorControllerImpl(VmOperations* vm, QemuConsole* keyboardConsole, AvdUniverse* avdUniverse,
                            IMultiDisplay* multidisplay)
@@ -230,6 +232,11 @@ class EmulatorControllerImpl final
     ::grpc::ServerWriteReactor<Notification>* streamNotification(
             ::grpc::CallbackServerContext* /*context*/, const Empty* /*request*/) override {
         return new NotificationStreamWriter(&mGrpcNotificationChannel, &mNotificationStore);
+    }
+
+    ::grpc::ServerWriteReactor<AudioPacket>* streamAudio(::grpc::CallbackServerContext* /*context*/,
+                                                         const AudioFormat* request) override {
+        return new AudioStreamWriter(*request);
     }
 
   private:

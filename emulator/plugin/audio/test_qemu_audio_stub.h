@@ -19,6 +19,9 @@
 extern "C" {
 #endif
 
+typedef void (*test_capture_state_cb)(int active, void* user_data);
+void test_set_capture_state_callback(test_capture_state_cb cb, void* user_data);
+
 void test_simulate_qemu_audio_output(const void* buf, int size);
 void test_simulate_qemu_notify(int cmd);
 int test_has_active_capture(void);

@@ -33,6 +33,13 @@ struct CaptureVoiceOut {
 };
 
 static struct CaptureVoiceOut g_cap_voice;
+static test_capture_state_cb g_state_cb = NULL;
+static void* g_state_user_data = NULL;
+
+void test_set_capture_state_callback(test_capture_state_cb cb, void* user_data) {
+    g_state_cb = cb;
+    g_state_user_data = user_data;
+}
 
 bool bql_locked(void) {
     return true;
@@ -65,6 +72,9 @@ struct CaptureVoiceOut* audio_be_add_capture(struct AudioBackend* be, const void
     g_cap_voice.notify = ops->notify;
     g_cap_voice.capture = ops->capture;
     g_cap_voice.destroy = ops->destroy;
+    if (g_state_cb) {
+        g_state_cb(1, g_state_user_data);
+    }
     return &g_cap_voice;
 }
 
@@ -77,6 +87,9 @@ void audio_be_del_capture(struct AudioBackend* be, struct CaptureVoiceOut* cap, 
         cap->notify = NULL;
         cap->capture = NULL;
         cap->destroy = NULL;
+        if (g_state_cb) {
+            g_state_cb(0, g_state_user_data);
+        }
     }
 }
 // NOLINTEND(readability-identifier-naming)
@@ -103,6 +116,8 @@ void test_reset_audio_stubs(void) {
     g_cap_voice.capture = NULL;
     g_cap_voice.destroy = NULL;
     g_fail_add_capture = 0;
+    g_state_cb = NULL;
+    g_state_user_data = NULL;
 }
 
 void test_set_fail_add_capture(int fail) {
