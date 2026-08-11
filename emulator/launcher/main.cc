@@ -221,6 +221,18 @@ int main(int argc, char** argv) {
         return 1;
     }
 
+#ifdef _WIN32
+    if (!opts.no_boot_anim && !opts.boot_anim) {
+        opts.no_boot_anim = 1;
+        LOG(WARNING) << "On windows boot animation slows down boot time significantly. It has been "
+                        "disabled by default. If you really want to see boot animation, you can "
+                        "pass -boot-anim to the command line.";
+    }
+#endif
+    if (opts.boot_anim) {
+        opts.no_boot_anim = 0;
+    }
+
     configureLogging(opts);
 
 #if defined(__linux__) || defined(__APPLE__)

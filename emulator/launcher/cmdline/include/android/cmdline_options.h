@@ -174,6 +174,7 @@ OPT_PARAM(net_tap_script_up, "<script>", "script to run when the TAP interface g
 OPT_PARAM(net_tap_script_down, "<script>", "script to run when the TAP interface goes down")
 OPT_PARAM(cpu_delay, "<cpudelay>", "throttle CPU emulation")
 OPT_FLAG(no_boot_anim, "disable animation for faster boot")
+OPT_FLAG(boot_anim, "enable boot animation (default except on Windows)")
 
 OPT_FLAG(no_window, "disable graphical window display")
 OPT_FLAG(qt_hide_window, "Start QT window but hide window display")

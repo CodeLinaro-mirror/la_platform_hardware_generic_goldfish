@@ -1226,6 +1226,12 @@ static void help_no_boot_anim(stralloc_t* out) {
            "  NOTE: unfortunately, this will not work on M5 and older SDK releases\n\n");
 }
 
+static void help_boot_anim(stralloc_t* out) {
+    PRINTF("  use '-boot-anim' to enable the boot animation when starting the emulator.\n"
+           "  this is the default on Linux and Mac platforms, but disabled by default\n"
+           "  on Windows due to it slowing down boot time significantly.\n\n");
+}
+
 static void help_gps(stralloc_t* out) {
     PRINTF("  use '-gps <device>' to emulate an NMEA-compatible GPS unit connected to\n"
            "  an external character device or socket. the format of <device> is the same\n"
