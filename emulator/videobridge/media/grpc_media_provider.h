@@ -40,10 +40,10 @@ class GrpcMediaProvider : public MediaProvider {
      *
      * @param factory WebRTC PeerConnectionFactory used to build the tracks.
      * @param peer_connection Target PeerConnection.
-     * @return true if both tracks were successfully created and registered.
+     * @return absl::OkStatus() if both tracks were successfully created and registered.
      */
-    bool AddTracks(::webrtc::PeerConnectionFactoryInterface* factory,
-                   ::webrtc::PeerConnectionInterface* peer_connection) override;
+    absl::Status AddTracks(::webrtc::PeerConnectionFactoryInterface* factory,
+                           ::webrtc::PeerConnectionInterface* peer_connection) override;
 
   private:
     std::shared_ptr<EmulatorClient> client_;

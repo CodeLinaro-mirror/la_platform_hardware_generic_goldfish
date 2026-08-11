@@ -37,12 +37,11 @@ GrpcMediaProvider::GrpcMediaProvider(std::shared_ptr<EmulatorClient> client, uin
         , display_id_(display_id)
         , shared_memory_path_(std::move(shared_memory_path)) {}
 
-bool GrpcMediaProvider::AddTracks(::webrtc::PeerConnectionFactoryInterface* factory,
-                                  ::webrtc::PeerConnectionInterface* peer_connection) {
+absl::Status GrpcMediaProvider::AddTracks(::webrtc::PeerConnectionFactoryInterface* factory,
+                                          ::webrtc::PeerConnectionInterface* peer_connection) {
     if (!factory || !peer_connection) {
-        LOG(ERROR) << "Failed to add media tracks: WebRTC PeerConnectionFactory or PeerConnection "
-                      "is null.";
-        return false;
+        return absl::InvalidArgumentError(
+                "Failed to add media tracks: PeerConnectionFactory or PeerConnection is null.");
     }
 
     // 1. Create and start GrpcVideoSource.
@@ -65,18 +64,16 @@ bool GrpcMediaProvider::AddTracks(::webrtc::PeerConnectionFactoryInterface* fact
     std::string video_stream_id = absl::StrCat("emulator_stream_", display_id_);
     auto video_track = factory->CreateVideoTrack(video_source, video_track_id);
     if (!video_track) {
-        LOG(ERROR) << "Failed to create WebRTC VideoTrack from GrpcVideoSource.";
         video_source->Stop();
-        return false;
+        return absl::InternalError("Failed to create WebRTC VideoTrack from GrpcVideoSource.");
     }
 
     // 3. Add VideoTrack to PeerConnection.
     auto video_result = peer_connection->AddTrack(video_track, {video_stream_id});
     if (!video_result.ok()) {
-        LOG(ERROR) << "Failed to add VideoTrack to PeerConnection: "
-                   << video_result.error().message();
         video_source->Stop();
-        return false;
+        return absl::InternalError(absl::StrCat("Failed to add VideoTrack to PeerConnection: ",
+                                                video_result.error().message()));
     }
 
     // 4. Create and start GrpcAudioSource.
@@ -86,22 +83,20 @@ bool GrpcMediaProvider::AddTracks(::webrtc::PeerConnectionFactoryInterface* fact
     // 5. Create AudioTrack wrapper.
     auto audio_track = factory->CreateAudioTrack("audio_track", audio_source.get());
     if (!audio_track) {
-        LOG(ERROR) << "Failed to create WebRTC AudioTrack from GrpcAudioSource.";
         audio_source->Stop();
-        return false;
+        return absl::InternalError("Failed to create WebRTC AudioTrack from GrpcAudioSource.");
     }
 
     // 6. Add AudioTrack to PeerConnection.
     auto audio_result = peer_connection->AddTrack(audio_track, {"emulator_stream"});
     if (!audio_result.ok()) {
-        LOG(ERROR) << "Failed to add AudioTrack to PeerConnection: "
-                   << audio_result.error().message();
         audio_source->Stop();
-        return false;
+        return absl::InternalError(absl::StrCat("Failed to add AudioTrack to PeerConnection: ",
+                                                audio_result.error().message()));
     }
 
     LOG(INFO) << "Successfully added GrpcVideoSource and GrpcAudioSource tracks to PeerConnection.";
-    return true;
+    return absl::OkStatus();
 }
 
 }  // namespace goldfish::videobridge
