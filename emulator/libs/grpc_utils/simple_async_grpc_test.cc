@@ -83,4 +83,48 @@ TEST(SimpleAsyncGrpcTest, ReadSuccessCallsStartRead) {
     EXPECT_TRUE(reader.start_read_called);
 }
 
+template <typename W>
+class FakeWriteReactor {
+  public:
+    virtual ~FakeWriteReactor() = default;
+    virtual void OnWriteDone(bool ok) = 0;
+    virtual void OnDone() {}
+
+    void StartWrite(const W* msg) {
+        start_write_called = true;
+        last_write_msg = msg;
+    }
+
+    void Finish(grpc::Status status) {
+        finish_called = true;
+        finish_status = status;
+    }
+
+    bool start_write_called = false;
+    bool finish_called = false;
+    grpc::Status finish_status = grpc::Status::OK;
+    const W* last_write_msg = nullptr;
+};
+
+TEST(SimpleAsyncGrpcTest, QueueSizeTracksPendingWrites) {
+    struct MyMessage {
+        int value;
+    };
+
+    WithSimpleQueueWriter<FakeWriteReactor<MyMessage>> writer;
+    EXPECT_EQ(writer.QueueSize(), 0);
+
+    writer.Write(MyMessage{1});
+    EXPECT_EQ(writer.QueueSize(), 1);
+
+    writer.Write(MyMessage{2});
+    EXPECT_EQ(writer.QueueSize(), 2);
+
+    writer.OnWriteDone(true);
+    EXPECT_EQ(writer.QueueSize(), 1);
+
+    writer.OnWriteDone(true);
+    EXPECT_EQ(writer.QueueSize(), 0);
+}
+
 }  // namespace android::emulation::control
