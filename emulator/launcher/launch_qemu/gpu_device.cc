@@ -89,6 +89,9 @@ std::vector<std::string> GpuDevice::getQemuParameters(const EmulatorConfig& emul
         params.push_back("edid=off");
         params.push_back("max_outputs=2");
     }
+    if (opts.no_window) {
+        params.push_back("wsi=headless");
+    }
 
     params.push_back(absl::StrCat("id=", mGpuName));
     params.push_back("hostmem=4096M");
