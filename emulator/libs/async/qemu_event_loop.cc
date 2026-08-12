@@ -95,8 +95,21 @@ class QemuEventLoopImpl : public goldfish::async::QemuEventLoop {
         }
 
         void Cancel() override {
-            event_loop_->PostImmediatelyInternal(
-                    [self = shared_from_this()]() { self->DoCancel(false); });
+            if (event_loop_->IsOnLoopThread()) {
+                DoCancel(false);
+            } else {
+                bool under_bql = false;
+                if (bql_locked()) {
+                    under_bql = true;
+                    bql_unlock();
+                }
+
+                event_loop_->PostAndWait([this]() { DoCancel(false); }).IgnoreError();
+
+                if (under_bql) {
+                    bql_lock();
+                }
+            }
         }
 
         void Schedule(std::chrono::milliseconds new_delay,

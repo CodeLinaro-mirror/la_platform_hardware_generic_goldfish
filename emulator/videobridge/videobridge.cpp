@@ -48,6 +48,11 @@ ABSL_FLAG(std::string, tls_ca, "", "Path to the PEM-encoded CA certificate file 
 ABSL_FLAG(std::string, shared_memory_path, "",
           "Path to the shared memory file to enable MMAP transport optimization (POSIX shared "
           "memory).");
+ABSL_FLAG(bool, list_codecs, false, "List the available WebRTC codecs and exit.");
+
+#include "api/audio_codecs/builtin_audio_decoder_factory.h"
+#include "api/audio_codecs/builtin_audio_encoder_factory.h"
+#include "goldfish/videobridge/codec_factories.h"
 
 namespace goldfish::videobridge {
 
@@ -56,6 +61,81 @@ using ::android::emulation::control::BasicTokenAuth;
 using ::android::emulation::control::StaticTokenAuth;
 
 namespace {
+
+void ListCodecs() {
+    std::cout << "==========================================\n";
+    std::cout << "  WebRTC Host Capabilities                \n";
+    std::cout << "==========================================\n\n";
+
+    std::unique_ptr<webrtc::VideoEncoderFactory> video_encoder_factory =
+            CreatePlatformVideoEncoderFactory();
+    std::unique_ptr<webrtc::VideoDecoderFactory> video_decoder_factory =
+            CreatePlatformVideoDecoderFactory();
+
+    // 1. Query Video Encoders
+    std::vector<webrtc::SdpVideoFormat> video_encoders =
+            video_encoder_factory->GetSupportedFormats();
+    std::cout << "[Video Encoders (Preference Order)]\n";
+    if (video_encoders.empty()) {
+        std::cout << "  None found.\n";
+    } else {
+        for (const auto& format : video_encoders) {
+            std::cout << "  - Codec: " << format.name << "\n";
+            for (const auto& param : format.parameters) {
+                std::cout << "      " << param.first << " = " << param.second << "\n";
+            }
+        }
+    }
+    std::cout << "\n";
+
+    // 2. Query Video Decoders
+    std::vector<webrtc::SdpVideoFormat> video_decoders =
+            video_decoder_factory->GetSupportedFormats();
+    std::cout << "[Video Decoders]\n";
+    if (video_decoders.empty()) {
+        std::cout << "  None found.\n";
+    } else {
+        for (const auto& format : video_decoders) {
+            std::cout << "  - Codec: " << format.name << "\n";
+            for (const auto& param : format.parameters) {
+                std::cout << "      " << param.first << " = " << param.second << "\n";
+            }
+        }
+    }
+    std::cout << "\n";
+
+    // 3. Query Audio Encoders
+    auto audio_encoder_factory = ::webrtc::CreateBuiltinAudioEncoderFactory();
+    std::vector<webrtc::AudioCodecSpec> audio_encoders =
+            audio_encoder_factory->GetSupportedEncoders();
+    std::cout << "[Audio Encoders]\n";
+    if (audio_encoders.empty()) {
+        std::cout << "  None found.\n";
+    } else {
+        for (const auto& spec : audio_encoders) {
+            std::cout << "  - Codec: " << spec.format.name
+                      << " (Channels: " << spec.info.num_channels
+                      << ", Sample Rate: " << spec.info.sample_rate_hz << "Hz)\n";
+        }
+    }
+    std::cout << "\n";
+
+    // 4. Query Audio Decoders
+    auto audio_decoder_factory = ::webrtc::CreateBuiltinAudioDecoderFactory();
+    std::vector<webrtc::AudioCodecSpec> audio_decoders =
+            audio_decoder_factory->GetSupportedDecoders();
+    std::cout << "[Audio Decoders]\n";
+    if (audio_decoders.empty()) {
+        std::cout << "  None found.\n";
+    } else {
+        for (const auto& spec : audio_decoders) {
+            std::cout << "  - Codec: " << spec.format.name
+                      << " (Channels: " << spec.info.num_channels
+                      << ", Sample Rate: " << spec.info.sample_rate_hz << "Hz)\n";
+        }
+    }
+    std::cout << "==========================================\n";
+}
 
 std::string ReadFile(const std::string& path) {
     if (path.empty()) return "";
@@ -224,5 +304,9 @@ int main(int argc, char* argv[]) {
             "  --webrtc_log_level     WebRTC log verbosity (verbose, info, warning, error, "
             "none).\n"));
     absl::ParseCommandLine(argc, argv);
+    if (absl::GetFlag(FLAGS_list_codecs)) {
+        goldfish::videobridge::ListCodecs();
+        return 0;
+    }
     return goldfish::videobridge::RunServer();
 }

@@ -17,6 +17,8 @@
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 
+#include "goldfish/metrics/metrics_reporter.h"
+
 namespace goldfish::avd_universe::guest_status {
 
 namespace {
@@ -86,6 +88,13 @@ void GuestStatus::NotifyBootcomplete(const absl::Duration duration) const {
         notification.mutable_booted()->set_time(static_cast<int32_t>(durationMs));
 
         grpcNotificationSource_->FireEvent(notification);
+    }
+    if (metrics_reporter_) {
+        metrics_reporter_->Report([durationMs](android_studio::AndroidStudioEvent& event) {
+            auto& boot_info = *event.mutable_emulator_details()->mutable_boot_info();
+            boot_info.set_boot_status(android_studio::EmulatorBootInfo::BOOT_COMPLETED);
+            boot_info.set_duration_ms(durationMs);
+        });
     }
 }
 

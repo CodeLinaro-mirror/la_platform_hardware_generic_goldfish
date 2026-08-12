@@ -221,8 +221,11 @@ class LibuvTimer : public EventLoop::Timer, public std::enable_shared_from_this<
     }
 
     void Cancel() override {
-        event_loop_->PostImmediatelyInternal(
-                [self = shared_from_this()]() { self->DoCancel(false); });
+        if (event_loop_->IsOnLoopThread()) {
+            DoCancel(false);
+        } else {
+            event_loop_->PostAndWait([this]() { DoCancel(false); }).IgnoreError();
+        }
     }
 
     void Schedule(std::chrono::milliseconds new_delay,
@@ -368,7 +371,7 @@ std::shared_ptr<EventLoop::Timer> LibuvEventLoopImpl::CreateTimer(RepeatingTask 
     if (is_shutting_down_) {
         return std::make_shared<ScopedTimer>(nullptr);
     }
-    auto timer = LibuvTimer::Create(this, std::move(task), /*auto_cancel=*/false);
+    auto timer = LibuvTimer::Create(this, std::move(task));
     return std::make_shared<ScopedTimer>(timer);
 }
 

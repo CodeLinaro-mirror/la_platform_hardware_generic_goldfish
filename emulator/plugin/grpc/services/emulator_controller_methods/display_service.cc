@@ -197,9 +197,9 @@ Status DisplayServiceImpl::streamScreenshot(ServerContext* context, const ImageF
     int frame = 0;
 
     ::goldfish::display::SharedDisplay display;
-    const auto& hw = ::goldfish::avd_info::GetAvd().Props().hw_config;
+    const bool hw_sensor_hinge = ::goldfish::avd_info::GetAvd().Props().hw_config.hw_sensor_hinge;
     while (!context->IsCancelled()) {
-        auto res = mMultiDisplay.GetActiveDisplay(request->display(), hw.hw_sensor_hinge);
+        auto res = mMultiDisplay.GetActiveDisplay(request->display(), hw_sensor_hinge);
         if (res.ok()) {
             display = *res;
             break;
@@ -233,7 +233,7 @@ Status DisplayServiceImpl::streamScreenshot(ServerContext* context, const ImageF
     frameOrSensorEvent.Listen<FrameInfoCallbackSource>(display.get());
 
     std::shared_ptr<IDisplay> d0, d1;
-    if (hw.hw_sensor_hinge) {
+    if (hw_sensor_hinge) {
         auto s0 = mMultiDisplay.GetDisplay(0);
         auto s1 = mMultiDisplay.GetDisplay(1);
         if (s0.ok()) {
@@ -309,8 +309,8 @@ Status DisplayServiceImpl::streamScreenshot(ServerContext* context, const ImageF
 
 Status DisplayServiceImpl::getScreenshot(ServerContext* context, const ImageFormat* request,
                                          Image* reply) {
-    const auto& hw = ::goldfish::avd_info::GetAvd().Props().hw_config;
-    auto res = mMultiDisplay.GetActiveDisplay(request->display(), hw.hw_sensor_hinge);
+    const bool hw_sensor_hinge = ::goldfish::avd_info::GetAvd().Props().hw_config.hw_sensor_hinge;
+    auto res = mMultiDisplay.GetActiveDisplay(request->display(), hw_sensor_hinge);
     if (!res.ok()) {
         return AbslStatusToGrpcStatus(res.status());
     }

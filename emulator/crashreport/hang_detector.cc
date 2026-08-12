@@ -61,13 +61,16 @@ class LoopWatcher {
     }
 
     void CancelHangCheck() {
-        const absl::MutexLock l(&mutex_);
-
-        if (timer_) {
-            timer_->Cancel();
-            timer_.reset();
+        std::shared_ptr<::goldfish::async::EventLoop::Timer> timer;
+        {
+            const absl::MutexLock l(&mutex_);
+            timer = std::move(timer_);
+            is_task_running_ = false;
         }
-        is_task_running_ = false;
+
+        if (timer) {
+            timer->Cancel();
+        }
     }
 
     void Process(const HangDetector::HangCallback& hang_callback) {
@@ -116,7 +119,9 @@ class LoopWatcher {
         is_task_running_ = true;
         last_check_time_ = clock_->Now(base::ClockType::kRealtime);
         // 0 means run as soon as possible.
-        timer_->Schedule(std::chrono::milliseconds(0));
+        if (timer_) {
+            timer_->Schedule(std::chrono::milliseconds(0));
+        }
     }
 
     void TaskComplete() {
@@ -157,18 +162,32 @@ class HangDetectorImpl : public HangDetector {
             return;
         }
         loop_watchers_.emplace_back(
-                std::make_unique<LoopWatcher>(std::move(loop_name), event_loop, task_timeout,
+                std::make_shared<LoopWatcher>(std::move(loop_name), event_loop, task_timeout,
                                               timing_.hang_check_timeout, clock_.get()));
         loop_watchers_.back()->StartHangCheck();
     }
 
     void RemoveWatchedLooper(::goldfish::async::EventLoop& event_loop) override {
-        const absl::MutexLock l(&mutex_);
-        DCHECK(!stopping_);
+        std::vector<std::shared_ptr<LoopWatcher>> to_remove;
+        {
+            const absl::MutexLock l(&mutex_);
+            if (stopping_) {
+                return;
+            }
 
-        std::erase_if(loop_watchers_, [&event_loop](const std::unique_ptr<LoopWatcher>& watcher) {
-            return watcher->IsOnTheLoop(event_loop);
-        });
+            for (auto it = loop_watchers_.begin(); it != loop_watchers_.end();) {
+                if ((*it)->IsOnTheLoop(event_loop)) {
+                    to_remove.push_back(std::move(*it));
+                    it = loop_watchers_.erase(it);
+                } else {
+                    ++it;
+                }
+            }
+        }
+
+        for (auto& lw : to_remove) {
+            lw->CancelHangCheck();
+        }
     }
 
     void AddPredicateCheck(HangPredicate predicate, std::string msg) override {
@@ -186,15 +205,18 @@ class HangDetectorImpl : public HangDetector {
     }
 
     void Stop() override {
+        std::vector<std::shared_ptr<LoopWatcher>> loop_watchers;
         {
             const absl::MutexLock l(&mutex_);
             if (stopping_) {
                 return;
             }
             stopping_ = true;
-            for (auto& lw : loop_watchers_) {
-                lw->CancelHangCheck();
-            }
+            loop_watchers = std::move(loop_watchers_);
+        }
+
+        for (auto& lw : loop_watchers) {
+            lw->CancelHangCheck();
         }
 
         DCHECK(worker_thread_.joinable());
@@ -204,20 +226,27 @@ class HangDetectorImpl : public HangDetector {
   private:
     void WorkerThread() {
         auto await = [this] ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_) { return stopping_; };
-        const absl::MutexLock l(&mutex_);
         for (;;) {
-            if (mutex_.AwaitWithTimeout(absl::Condition(&await),
-                                        timing_.hang_loop_iteration_timeout)) {
-                if (stopping_) {
-                    break;
+            std::vector<std::shared_ptr<LoopWatcher>> watchers;
+            std::vector<std::pair<HangPredicate, std::string>> predicates;
+            {
+                const absl::MutexLock l(&mutex_);
+                if (mutex_.AwaitWithTimeout(absl::Condition(&await),
+                                            timing_.hang_loop_iteration_timeout)) {
+                    if (stopping_) {
+                        break;
+                    }
                 }
+                watchers = loop_watchers_;
+                predicates = predicates_;
             }
-            for (auto&& lw : loop_watchers_) {
+
+            for (auto&& lw : watchers) {
                 lw->Process(hang_callback_);
             }
 
             // Check to see if any of the predicates evaluate to true.
-            for (const auto& predicate : predicates_) {
+            for (const auto& predicate : predicates) {
                 if (predicate.first()) {
                     const auto message = absl::StrFormat("Failed hang detection predicate: '%s'",
                                                          predicate.second);
@@ -243,7 +272,7 @@ class HangDetectorImpl : public HangDetector {
     const Timing timing_;
     const std::unique_ptr<android::base::IClock> clock_;
 
-    std::vector<std::unique_ptr<LoopWatcher>> loop_watchers_ ABSL_GUARDED_BY(mutex_);
+    std::vector<std::shared_ptr<LoopWatcher>> loop_watchers_ ABSL_GUARDED_BY(mutex_);
     std::vector<std::pair<HangPredicate, std::string>> predicates_ ABSL_GUARDED_BY(mutex_);
     std::vector<std::unique_ptr<StatefulHangdetector>> registered_ ABSL_GUARDED_BY(mutex_);
 

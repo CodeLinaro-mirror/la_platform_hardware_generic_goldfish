@@ -540,12 +540,18 @@ TEST_P(EventLoopTest, ScheduleDelayedIsCancelledByHandle) {
     });
     handle->Schedule(100ms, 0ms);
 
-    handle->Cancel();
-
-    // Advance time past the timer's expiration.
     if (mLoopType == "qemu") {
-        fake_qemu_advance_ms(150);
+        const auto pin = std::async([]() {
+            std::this_thread::sleep_for(250ms);
+
+            for (unsigned n = 150; n; --n) {
+                fake_qemu_advance_ms(1);
+            }
+        });
+
+        handle->Cancel();
     } else {
+        handle->Cancel();
         std::this_thread::sleep_for(150ms);
     }
 
@@ -556,18 +562,28 @@ TEST_P(EventLoopTest, ScheduleDelayedIsCancelledByRAII) {
     runInThread();
     std::atomic<bool> task_executed = false;
 
+    std::future<void> pin;
     {
         auto handle = loop->CreateTimer([&]() {
             task_executed = true;
             return true;
         });
+
         handle->Schedule(100ms, 0ms);
         VLOG(1) << "Use count: " << handle.use_count();
+
+        if (mLoopType == "qemu") {
+            pin = std::async([]() {
+                std::this_thread::sleep_for(250ms);
+
+                for (unsigned n = 150; n; --n) {
+                    fake_qemu_advance_ms(1);
+                }
+            });
+        }
     }  // handle is destroyed here, cancelling the timer.
 
-    if (mLoopType == "qemu") {
-        fake_qemu_advance_ms(150);
-    } else {
+    if (mLoopType != "qemu") {
         std::this_thread::sleep_for(150ms);
     }
 

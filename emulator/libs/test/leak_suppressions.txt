@@ -1,1 +1,4 @@
 leak:pixman
+# b/539403339: sGlobalEventLoop intentionally uses a leaky singleton pattern to avoid Windows process exit deadlock
+leak:goldfish::async::globalEventLoop
+leak:global_event_loop.cc

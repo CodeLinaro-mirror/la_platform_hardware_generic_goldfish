@@ -461,10 +461,13 @@ def _source_properties_impl(ctx):
         revision = "{version}-internal-{build_id}".format(version = version, build_id = build_id)
 
     # See go/adrt for details on the file format
+    # Note that we currently add a dependency on a recent legacy emulator build
+    # to allow the trampoline to function correctly.
     content = """Pkg.UserSrc=false
 Pkg.Revision={revision}
 Pkg.Path=emulators;{build_id}
 Pkg.Desc={desc}
+Pkg.Dependencies=emulator#36.6.11
 """.format(desc = desc, revision = revision, build_id = build_id)
 
     ctx.actions.write(

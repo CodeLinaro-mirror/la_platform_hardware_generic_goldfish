@@ -56,13 +56,16 @@
 #endif
 
 ABSL_FLAG(bool, list, false, "List local crash reports");
+ABSL_FLAG(bool, l, false, "Alias for --list");
 ABSL_FLAG(bool, upload, false,
           "Upload local crash report(s) to " CRASHURL_STR
           ". This attempts to upload "
           "all pending reports immediately. If the upload fails, it will be retried "
           "next time the emulator starts (only if metrics sharing is enabled). Once "
           "uploaded, the remote ID will be stored in the database, visible via --list.");
+ABSL_FLAG(bool, u, false, "Alias for --upload");
 ABSL_FLAG(bool, erase, false, "Erase local crash report(s)");
+ABSL_FLAG(bool, e, false, "Alias for --erase");
 ABSL_FLAG(std::string, minidump, "",
           "Process the given minidump file. Use 'latest' to process the most recent report in the "
           "database.");
@@ -310,8 +313,11 @@ int main(int argc, char* argv[]) {
     }
 
     bool standalone = absl::GetFlag(FLAGS_standalone);
-    bool need_db = absl::GetFlag(FLAGS_list) || absl::GetFlag(FLAGS_upload) ||
-                   absl::GetFlag(FLAGS_erase) || absl::GetFlag(FLAGS_minidump) == "latest";
+    bool do_list = absl::GetFlag(FLAGS_list) || absl::GetFlag(FLAGS_l);
+    bool do_upload = absl::GetFlag(FLAGS_upload) || absl::GetFlag(FLAGS_u);
+    bool do_erase = absl::GetFlag(FLAGS_erase) || absl::GetFlag(FLAGS_e);
+
+    bool need_db = do_list || do_upload || do_erase || absl::GetFlag(FLAGS_minidump) == "latest";
 
     if (standalone && need_db) {
         LOG(ERROR) << "--standalone cannot be used with --list, --upload, --erase, or --minidump "
@@ -337,7 +343,7 @@ int main(int argc, char* argv[]) {
 
     bool success = true;
 
-    if (absl::GetFlag(FLAGS_list)) {
+    if (do_list) {
         auto reports = db_manager.GetAllReports();
         if (reports.empty()) {
             LOG(INFO) << "No reports found in database.";
@@ -345,11 +351,11 @@ int main(int argc, char* argv[]) {
             LOG(INFO) << "Listing " << reports.size() << " reports...";
             formatter.PrintReportList(reports);
         }
-    } else if (absl::GetFlag(FLAGS_upload)) {
+    } else if (do_upload) {
         if (!db_manager.UploadCrashReports()) {
             success = false;
         }
-    } else if (absl::GetFlag(FLAGS_erase)) {
+    } else if (do_erase) {
         auto reports = db_manager.GetAllReports();
         if (reports.empty()) {
             LOG(INFO) << "No reports found to erase.";

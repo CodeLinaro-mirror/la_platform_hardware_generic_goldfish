@@ -34,6 +34,7 @@
 #include "rtc_base/network.h"
 #pragma clang diagnostic pop
 
+#include "goldfish/videobridge/codec_factories.h"
 #include "goldfish_audio_device_module.h"
 
 namespace goldfish::videobridge {
@@ -60,11 +61,9 @@ RtcConnection::RtcConnection()
 
     connection_factory_ = ::webrtc::CreatePeerConnectionFactory(
             network_thread_.get(), worker_thread_.get(), signaling_thread_.get(),
-            webrtc::scoped_refptr<GoldfishAudioDeviceModule>(new GoldfishAudioDeviceModule()),
-            ::webrtc::CreateBuiltinAudioEncoderFactory(),
-            ::webrtc::CreateBuiltinAudioDecoderFactory(),
-            ::webrtc::CreateBuiltinVideoEncoderFactory(),
-            ::webrtc::CreateBuiltinVideoDecoderFactory(), nullptr /* audio_mixer */,
+            GoldfishAudioDeviceModule::Create(), ::webrtc::CreateBuiltinAudioEncoderFactory(),
+            ::webrtc::CreateBuiltinAudioDecoderFactory(), CreatePlatformVideoEncoderFactory(),
+            CreatePlatformVideoDecoderFactory(), nullptr /* audio_mixer */,
             nullptr /* audio_processing */);
 }
 

@@ -52,8 +52,8 @@ aemu_naming(
         ":dbg": "emulator-debug",
         ":opt": "emulator",
     }),
-    stage = "alpha",
-    version = "0.0.1",
+    stage = "",
+    version = "37.1.1",
 )
 
 version_info_header(

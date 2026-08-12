@@ -13,22 +13,15 @@
 // limitations under the License.
 #pragma once
 
-#include <chrono>
 #include <filesystem>
 #include <memory>
 #include <string>
 
-#include "absl/container/flat_hash_map.h"
-#include "absl/log/log.h"
 #include "absl/status/statusor.h"
-#include "absl/synchronization/mutex.h"
 
-#include "android/emulation/control/emulator_grpc_client.h"
-#include "android/status/status_macros.h"
 #include "command_registry.h"
-#include "emulator_controller.grpc.pb.h"
+#include "console_context.h"
 #include "line_command_handler.h"
-#include "screen_recording_service.grpc.pb.h"
 
 namespace goldfish::telnet {
 
@@ -42,62 +35,14 @@ namespace goldfish::telnet {
  */
 class LegacyConsoleBridge : public LineCommandHandler {
   public:
-    struct DiscoveredEmulator {
-        std::filesystem::path discovery_file;
-        absl::flat_hash_map<std::string, std::string> properties;
-    };
-
-    /**
-     * @brief Context for legacy console command handlers.
-     */
-    struct ConsoleContext : public LineCommandHandler::Context {
-        explicit ConsoleContext(int port) : port_(port) {}
-
-        absl::StatusOr<std::shared_ptr<android::emulation::control::BlockingEmulatorGrpcClient>>
-        Client();
-
-        int Port() const { return port_; }
-
-        virtual absl::StatusOr<
-                std::unique_ptr<android::emulation::control::EmulatorController::StubInterface>>
-        EmulatorControllerStub() {
-            ASSIGN_OR_RETURN(auto client, Client());
-            return client->Stub<android::emulation::control::EmulatorController>();
-        }
-
-        virtual absl::StatusOr<std::unique_ptr<
-                android::emulation::control::incubating::ScreenRecording::StubInterface>>
-        ScreenRecordingStub() {
-            ASSIGN_OR_RETURN(auto client, Client());
-            return client->Stub<android::emulation::control::incubating::ScreenRecording>();
-        }
-
-        virtual absl::StatusOr<std::unique_ptr<grpc::ClientContext>> NewContext(
-                std::chrono::time_point<std::chrono::system_clock> deadline =
-                        std::chrono::system_clock::now() + std::chrono::milliseconds(500)) {
-            ASSIGN_OR_RETURN(auto client, Client());
-            ASSIGN_OR_RETURN(auto context, client->NewContext());
-            context->set_deadline(deadline);
-            return context;
-        }
-
-        virtual absl::StatusOr<std::vector<std::filesystem::path>> DiscoverRunningEmulators();
-
-        virtual absl::StatusOr<DiscoveredEmulator> DiscoverEmulatorWithProperties(
-                const absl::flat_hash_map<std::string, std::string>& props);
-
-      private:
-        int port_;
-        std::shared_ptr<android::emulation::control::BlockingEmulatorGrpcClient> client_
-                ABSL_GUARDED_BY(mutex_);
-        absl::Mutex mutex_;
-    };
+    using DiscoveredEmulator = goldfish::telnet::DiscoveredEmulator;
+    using ConsoleContext = goldfish::telnet::ConsoleContext;
 
     /**
      * @brief Constructs the bridge with a gRPC client and the path to the auth
      * token.
      *
-     * @param client The gRPC client used to make calls to the emulator services.
+     * @param port The port number of the emulator instance.
      * @param token_path Path to the file containing the console authentication
      * token.
      */
@@ -107,9 +52,7 @@ class LegacyConsoleBridge : public LineCommandHandler {
     absl::StatusOr<std::string> operator()(std::string line, Context& ctx) override;
     std::string WelcomeMessage(const Context& ctx) const override;
 
-    std::unique_ptr<Context> CreateContext() const override {
-        return std::make_unique<ConsoleContext>(port_);
-    };
+    std::unique_ptr<Context> CreateContext() const override;
 
   private:
     int port_;
