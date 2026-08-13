@@ -23,6 +23,8 @@
 #include <string_view>
 
 #ifdef _WIN32
+#include <system_error>
+
 // clang-format off
 // IWYU pragma: begin_keep
 #include <windows.h>
@@ -137,37 +139,68 @@ std::string AudioDevice::detectHostAudioBackend() {
 #elif defined(_WIN32)
 using ::goldfish::base::IntrusivePtr;
 
+namespace {
+std::string ToString(HRESULT hr) {
+    return std::system_category().message(hr);
+}
+
 template <class T>
 IntrusivePtr<T> CoCreateInstanceT(REFCLSID rclsid, LPUNKNOWN pUnkOuter, DWORD dwClsContext,
-                                  REFIID riid) {
-    void* instance;
+                                  REFIID riid, const char *type_str) {
+    void* instance = nullptr;
     HRESULT hr = ::CoCreateInstance(rclsid, pUnkOuter, dwClsContext, riid, &instance);
     if (FAILED(hr)) {
+        LOG(WARNING) << "Could not create an instance of " << type_str << ": '" << ToString(hr) <<
+                "'";
+        return {};
+    } else if (!instance) {
+        LOG(WARNING) << "Could not create an instance of " << type_str <<
+                ": the system returned NULL with no error";
         return {};
     }
 
     return IntrusivePtr<T>(static_cast<T*>(instance));
 }
 
+struct CallCoUninitialize {
+    ~CallCoUninitialize() {
+        ::CoUninitialize();
+    }
+};
+}  // namespace
+
 // dsoundaudio.c (dsound_audio_init)
 std::string AudioDevice::detectHostAudioBackend() {
     using namespace std::literals;
 
-    ::CoInitialize(nullptr);
+    if (HRESULT hr = ::CoInitialize(nullptr); FAILED(hr)) {
+        LOG(WARNING) << "CoInitialize failed with '" << ToString(hr) << "'";
+        return {};
+    }
+    const CallCoUninitialize callCoUninitialize;
 
     const auto dsound = CoCreateInstanceT<IDirectSound>(CLSID_DirectSound, nullptr, CLSCTX_ALL,
-                                                        IID_IDirectSound);
-    if (!dsound || FAILED(dsound->Initialize(nullptr))) {
+                                                        IID_IDirectSound, "IDirectSound");
+    if (!dsound) {
+        return {};
+    } else if (HRESULT hr = dsound->Initialize(nullptr); FAILED(hr)) {
+        LOG(WARNING) << "IDirectSound::Initialize failed with '" << ToString(hr) << "'";
         return {};
     }
 
-    if (FAILED(dsound->SetCooperativeLevel(GetDesktopWindow(), DSSCL_PRIORITY))) {
+    if (HRESULT hr = dsound->SetCooperativeLevel(GetDesktopWindow(), DSSCL_PRIORITY);
+            FAILED(hr)) {
+        LOG(WARNING) << "IDirectSound::SetCooperativeLevel failed with '" << ToString(hr) << "'";
         return {};
     }
 
     const auto dsoundCapture = CoCreateInstanceT<IDirectSoundCapture>(
-            CLSID_DirectSoundCapture, nullptr, CLSCTX_ALL, IID_IDirectSoundCapture);
-    if (!dsoundCapture || FAILED(dsoundCapture->Initialize(nullptr))) {
+            CLSID_DirectSoundCapture, nullptr, CLSCTX_ALL, IID_IDirectSoundCapture,
+            "IDirectSoundCapture");
+    if (!dsoundCapture) {
+        return {};
+    } else if (HRESULT hr = dsoundCapture->Initialize(nullptr); FAILED(hr)) {
+        LOG(WARNING) << "IDirectSoundCapture::Initialize failed with '" << ToString(hr) << "'";
         return {};
     }
 
