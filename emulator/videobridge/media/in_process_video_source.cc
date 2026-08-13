@@ -19,25 +19,29 @@
 #include "absl/log/log.h"
 
 #include "api/video/video_frame.h"
+#include "goldfish/display/QemuMultidisplay/multi_display.h"
 #include "libyuv.h"
 #include "rtc_base/time_utils.h"
 
 namespace goldfish::videobridge {
 
-InProcessVideoSource::InProcessVideoSource(std::shared_ptr<::goldfish::display::IDisplay> display)
-        : display_(std::move(display)) {}
+InProcessVideoSource::InProcessVideoSource(::goldfish::display::IMultiDisplay& multidisplay,
+                                           uint32_t display_id)
+        : multidisplay_(multidisplay), display_id_(display_id) {}
 
 InProcessVideoSource::~InProcessVideoSource() {
-    Stop();
+    OnStop();
 }
 
-void InProcessVideoSource::Start() {
-    bool expected = false;
-    if (!running_.compare_exchange_strong(expected, true)) {
-        return;
+void InProcessVideoSource::OnStart() {
+    auto display_res = multidisplay_.GetDisplay(display_id_);
+    if (display_res.ok()) {
+        display_ = display_res.value().lock();
     }
+
     if (!display_) {
-        LOG(ERROR) << "InProcessVideoSource cannot start: display is null.";
+        LOG(WARNING) << "InProcessVideoSource: Display " << display_id_
+                     << " is unavailable; WebRTC video track will remain idle.";
         return;
     }
 
@@ -50,16 +54,14 @@ void InProcessVideoSource::Start() {
             });
 }
 
-void InProcessVideoSource::Stop() {
-    bool expected = true;
-    if (running_.compare_exchange_strong(expected, false)) {
-        VLOG(1) << "Stopping InProcessVideoSource.";
-        subscription_.reset();
-    }
+void InProcessVideoSource::OnStop() {
+    VLOG(1) << "Stopping InProcessVideoSource.";
+    subscription_.reset();
+    display_.reset();
 }
 
 void InProcessVideoSource::OnFrameAvailable(const ::goldfish::display::FrameInfo& frame_info) {
-    if (!running_ || !display_ || !frame_info.pixels || frame_info.dimensions.width == 0 ||
+    if (!display_ || !frame_info.pixels || frame_info.dimensions.width == 0 ||
         frame_info.dimensions.height == 0) {
         return;
     }

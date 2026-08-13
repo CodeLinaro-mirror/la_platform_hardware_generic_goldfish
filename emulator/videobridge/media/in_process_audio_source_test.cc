@@ -109,13 +109,9 @@ TEST(InProcessAudioSourceTest, StartStopLifecycleDropsSamplesWhenStoppedAndFlush
 
     source->AddSink(&sink);
 
-    // Pushing samples while stopped should be dropped
+    // After adding a sink, source is automatically running.
+    // Push 1 full frame (882 samples).
     std::vector<int16_t> pcm_data(882, 100);
-    source->OnAudioData(pcm_data.data(), pcm_data.size());
-    EXPECT_EQ(sink.frame_count, 0);
-
-    // Start source and push 1 full frame (882 samples)
-    source->Start();
     source->OnAudioData(pcm_data.data(), pcm_data.size());
     EXPECT_EQ(sink.frame_count, 1);
 
@@ -126,6 +122,10 @@ TEST(InProcessAudioSourceTest, StartStopLifecycleDropsSamplesWhenStoppedAndFlush
 
     // Stop source (flushes partial buffer)
     source->Stop();
+
+    // Pushing samples while stopped should be dropped
+    source->OnAudioData(pcm_data.data(), pcm_data.size());
+    EXPECT_EQ(sink.frame_count, 1);
 
     // Re-start source and push fresh frame (882 samples)
     std::vector<int16_t> fresh_frame(882, 300);
@@ -140,6 +140,26 @@ TEST(InProcessAudioSourceTest, StartStopLifecycleDropsSamplesWhenStoppedAndFlush
 
     source->Stop();
     source->RemoveSink(&sink);
+}
+
+TEST(InProcessAudioSourceTest, AutomaticSinkRegistrationLifecycle) {
+    auto source = ::webrtc::make_ref_counted<InProcessAudioSource>(44100, 2);
+    DummyAudioSink sink;
+
+    // Pushing before any sink is added should be dropped
+    std::vector<int16_t> pcm_data(882, 42);
+    source->OnAudioData(pcm_data.data(), pcm_data.size());
+    EXPECT_EQ(sink.frame_count, 0);
+
+    // Adding sink auto-starts capture
+    source->AddSink(&sink);
+    source->OnAudioData(pcm_data.data(), pcm_data.size());
+    EXPECT_EQ(sink.frame_count, 1);
+
+    // Removing sink auto-stops capture
+    source->RemoveSink(&sink);
+    source->OnAudioData(pcm_data.data(), pcm_data.size());
+    EXPECT_EQ(sink.frame_count, 1);
 }
 
 TEST(InProcessAudioSourceTest, MultipleSinksAndDynamicAddRemove) {

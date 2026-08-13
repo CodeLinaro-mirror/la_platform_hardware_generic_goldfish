@@ -39,7 +39,7 @@ cc_test(
         ":test_qemu_audio_stub",
         "//emulator/libs/test:googletest_main",
         "//emulator/plugin/vminterface:vminterface-test",
-        "//emulator/videobridge:in_process_media_providers",
+        "//emulator/videobridge:in_process_audio_source",
         "@webrtc//api:media_stream_interface",
     ],
 )

@@ -35,50 +35,33 @@ GrpcAudioSource::GrpcAudioSource(std::shared_ptr<EmulatorClient> client)
 }
 
 GrpcAudioSource::~GrpcAudioSource() {
-    Stop();
+    OnStop();
 }
 
-void GrpcAudioSource::AddSink(::webrtc::AudioTrackSinkInterface* sink) {
-    const absl::MutexLock lock(&sinks_mutex_);
-    sinks_.insert(sink);
-}
-
-void GrpcAudioSource::RemoveSink(::webrtc::AudioTrackSinkInterface* sink) {
-    const absl::MutexLock lock(&sinks_mutex_);
-    sinks_.erase(sink);
-}
-
-const ::webrtc::AudioOptions GrpcAudioSource::options() const {
-    ::webrtc::AudioOptions options;
-    options.echo_cancellation = false;
-    options.auto_gain_control = false;
-    options.noise_suppression = false;
-    options.highpass_filter = false;
-    return options;
-}
-
-void GrpcAudioSource::Start() {
+void GrpcAudioSource::OnStart() {
     if (!client_ || !client_->IsConnected()) {
         LOG(ERROR) << "Failed to start audio capture: Emulator client is disconnected. "
                    << "Ensure the emulator is running and reachable.";
-        running_ = false;
         return;
     }
 
     bool expected = false;
-    if (running_.compare_exchange_strong(expected, true)) {
+    if (capture_running_.compare_exchange_strong(expected, true)) {
         LOG(INFO) << "Starting GrpcAudioSource capture loop connected to emulator at "
                   << client_->TargetAddress();
+        context_ = std::make_unique<::grpc::ClientContext>();
         capture_thread_ = std::thread([this]() { CaptureLoop(); });
     }
 }
 
-void GrpcAudioSource::Stop() {
+void GrpcAudioSource::OnStop() {
     bool expected = true;
-    if (running_.compare_exchange_strong(expected, false)) {
+    if (capture_running_.compare_exchange_strong(expected, false)) {
         VLOG(1) << "Stopping GrpcAudioSource capture loop connected to emulator at "
                 << client_->TargetAddress();
-        context_.TryCancel();
+        if (context_) {
+            context_->TryCancel();
+        }
     }
     if (capture_thread_.joinable()) {
         capture_thread_.join();
@@ -91,15 +74,15 @@ void GrpcAudioSource::CaptureLoop() {
     request_format.set_channels(AudioFormat::Stereo);
     request_format.set_samplingrate(kSampleRateHz);
 
-    auto reader = client_->StreamAudio(&context_, request_format);
+    auto reader = client_->StreamAudio(context_.get(), request_format);
     if (!reader) {
         LOG(ERROR) << "Failed to open gRPC audio stream. Verify network or emulator state.";
-        running_ = false;
+        capture_running_ = false;
         return;
     }
 
     AudioPacket packet;
-    while (running_ && reader->Read(&packet)) {
+    while (capture_running_ && reader->Read(&packet)) {
         ConsumeAudioPacket(packet);
     }
 
@@ -116,7 +99,7 @@ void GrpcAudioSource::CaptureLoop() {
 
     LOG(INFO) << "GrpcAudioSource capture loop exited connected to emulator at "
               << client_->TargetAddress();
-    running_ = false;
+    capture_running_ = false;
 }
 
 void GrpcAudioSource::ConsumeAudioPacket(const AudioPacket& audio_packet) {
@@ -125,22 +108,13 @@ void GrpcAudioSource::ConsumeAudioPacket(const AudioPacket& audio_packet) {
 
     size_t bytes_consumed = 0;
     while (bytes_consumed + kBytesPerFrame <= partial_frame_.size()) {
-        DeliverFrame(partial_frame_.data() + bytes_consumed, kBytesPerSample * 8, kSampleRateHz,
-                     kChannels, kSamplesPerFrame);
+        Dispatch10msFrame(partial_frame_.data() + bytes_consumed, kBytesPerSample * 8,
+                          kSampleRateHz, kChannels, kSamplesPerFrame);
         bytes_consumed += kBytesPerFrame;
     }
 
     if (bytes_consumed > 0) {
         partial_frame_.erase(partial_frame_.begin(), partial_frame_.begin() + bytes_consumed);
-    }
-}
-
-void GrpcAudioSource::DeliverFrame(const void* audio_data, int bits_per_sample, int sample_rate,
-                                   size_t number_of_channels, size_t number_of_frames) {
-    const absl::MutexLock lock(sinks_mutex_);
-    for (auto* sink : sinks_) {
-        sink->OnData(audio_data, bits_per_sample, sample_rate, number_of_channels,
-                     number_of_frames);
     }
 }
 
