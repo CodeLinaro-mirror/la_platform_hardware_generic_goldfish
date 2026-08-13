@@ -29,9 +29,11 @@
 #include "android/emulation/control/basic_token_auth.h"
 #include "core/grpc_input_sender.h"
 #include "goldfish/videobridge/emulator_client.h"
+#include "goldfish/videobridge/media_track_provider.h"
 #include "goldfish/videobridge/rtc_service.h"
 #include "goldfish/videobridge/switchboard.h"
-#include "media/grpc_media_provider.h"
+#include "media/grpc_audio_source.h"
+#include "media/grpc_video_source.h"
 #include "rtc_base/logging.h"
 
 ABSL_FLAG(std::string, webrtc_log_level, "none",
@@ -257,9 +259,21 @@ int RunServer() {
         return 1;
     }
 
-    // 2. Initialize Media Provider & Switchboard
-    auto provider =
-            std::make_shared<GrpcMediaProvider>(client, 0, absl::GetFlag(FLAGS_shared_memory_path));
+    // 2. Initialize Media Sources & Switchboard
+    GrpcVideoSourceOptions video_options;
+    video_options.display_id = 0;
+    if (!absl::GetFlag(FLAGS_shared_memory_path).empty()) {
+        video_options.transport = GrpcVideoSourceOptions::Transport::kSharedMemory;
+        video_options.shared_memory_path =
+                std::filesystem::path(absl::GetFlag(FLAGS_shared_memory_path));
+    } else {
+        video_options.transport = GrpcVideoSourceOptions::Transport::kGrpcBytes;
+    }
+
+    auto video_source = ::webrtc::make_ref_counted<GrpcVideoSource>(client, video_options);
+    auto audio_source = ::webrtc::make_ref_counted<GrpcAudioSource>(client);
+
+    auto provider = std::make_shared<MediaTrackProvider>(video_source, audio_source);
     auto switchboard = std::make_shared<Switchboard>(
             provider, [client](DataChannelLabel /*label*/) -> std::unique_ptr<InputSender> {
                 return std::make_unique<GrpcInputSender>(client);

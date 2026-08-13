@@ -164,6 +164,7 @@ cc_library(
         "core/rtc_connection.cc",
         "core/switchboard.cc",
         "core/webrtc_logging.cc",
+        "media/media_track_provider.cc",
     ],
     hdrs = [
         "include/goldfish/videobridge/codec_factories.h",
@@ -174,6 +175,7 @@ cc_library(
         "include/goldfish/videobridge/managed_audio_track_source.h",
         "include/goldfish/videobridge/managed_video_track_source.h",
         "include/goldfish/videobridge/media_provider.h",
+        "include/goldfish/videobridge/media_track_provider.h",
         "include/goldfish/videobridge/rtc_connection.h",
         "include/goldfish/videobridge/switchboard.h",
         "include/goldfish/videobridge/webrtc_logging.h",
@@ -318,12 +320,10 @@ cc_library(
     name = "grpc_media_providers",
     srcs = [
         "media/grpc_audio_source.cc",
-        "media/grpc_media_provider.cc",
         "media/grpc_video_source.cc",
     ],
     hdrs = [
         "media/grpc_audio_source.h",
-        "media/grpc_media_provider.h",
         "media/grpc_video_source.h",
     ],
     copts = WEBRTC_COPTS,
@@ -388,6 +388,22 @@ cc_library(
         ":in_process_audio_source",
         ":in_process_video_source",
         "//emulator/plugin/avd:global-event-loop",
+    ],
+)
+
+cc_test(
+    name = "media_track_provider_test",
+    srcs = ["media/media_track_provider_test.cc"],
+    copts = WEBRTC_COPTS,
+    linkopts = WEBRTC_LINKOPTS,
+    deps = [
+        ":in_process_media_providers",
+        ":videobridge_core",
+        "//emulator/libs/test:googletest_main",
+        "//emulator/plugin/avd:global-event-loop",
+        "//emulator/plugin/display:primary_display",
+        "//emulator/plugin/display:test-display",
+        "@webrtc//api:peer_connection_interface",
     ],
 )
 
@@ -461,6 +477,7 @@ clang_tidy_test(
         ":in_process_video_source",
         "//emulator/plugin/avd:global-event-loop",
         ":in_process_media_providers",
+        ":media_track_provider_test",
         ":in_process_audio_source_test",
         ":in_process_video_source_test",
         ":grpc_video_source_test",
