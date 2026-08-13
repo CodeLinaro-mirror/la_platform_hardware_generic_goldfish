@@ -30,6 +30,34 @@ cc_library(
     hdrs = ["test_qemu_audio_stub.h"],
 )
 
+cc_library(
+    name = "qemu_audio_source",
+    srcs = ["qemu_audio_source.cc"],
+    hdrs = ["include/goldfish/audio/qemu_audio_source.h"],
+    copts = WEBRTC_COPTS,
+    includes = ["include"],
+    deps = [
+        ":qemu_audio_capture",
+        "//emulator/videobridge:in_process_audio_source",
+        "//emulator/videobridge:videobridge_core",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:check",
+    ],
+)
+
+cc_test(
+    name = "qemu_audio_source_test",
+    srcs = ["qemu_audio_source_test.cc"],
+    copts = WEBRTC_COPTS,
+    deps = [
+        ":qemu_audio_source",
+        ":test_qemu_audio_stub",
+        "//emulator/libs/test:googletest_main",
+        "//emulator/videobridge:in_process_audio_source",
+        "@webrtc//api:media_stream_interface",
+    ],
+)
+
 cc_test(
     name = "qemu_audio_capture_test",
     srcs = ["qemu_audio_capture_test.cc"],
@@ -49,6 +77,8 @@ clang_tidy_test(
     targets = [
         ":qemu_audio_capture",
         ":qemu_audio_capture_test",
+        ":qemu_audio_source",
+        ":qemu_audio_source_test",
     ],
     tidy_config_file = "//:clang_tidy_config",
 )
