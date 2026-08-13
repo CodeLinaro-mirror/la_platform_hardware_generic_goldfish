@@ -76,6 +76,7 @@ void qemu_system_shutdown_request(ShutdownCause reason) {
     mock_shutdown_cause_set(reason);
 }
 
+// NOLINTBEGIN(readability-identifier-naming)
 bool bql_locked(void) {
     return mock_iothread_locked_get();
 }
@@ -89,6 +90,7 @@ void bql_lock_impl(const char* file, int line) {
 void bql_unlock(void) {
     mock_iothread_locked_set(false);
 }
+// NOLINTEND(readability-identifier-naming)
 
 bool save_snapshot(const char* name, bool overwrite, const char* vmstate, bool has_devices,
                    strList* devices, Error** errp) {

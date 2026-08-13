@@ -46,7 +46,7 @@ absl::Status ToStatus(const absl::StatusCode code, Error** errp) {
 }
 }  // namespace
 
-static_assert((int)QemuShutdownCause::Max == (int)SHUTDOWN_CAUSE__MAX);
+static_assert(static_cast<int>(QemuShutdownCause::Max) == static_cast<int>(SHUTDOWN_CAUSE__MAX));
 
 /**
  * @brief QemuVmOperations class implementing the VmOperations interface.
@@ -140,17 +140,17 @@ class QemuVmOperations : public VmOperations {
         // ** Update this when you add a new hypervisor **
         // Make sure that ac->name matches with pair.first!
         constexpr static std::array<std::pair<std::string_view, VmHypervisorType>, 5>
-                hyperVisorData = {{
+                kHyperVisorData = {{
                     {"unknown", VmHypervisorType::Unknown},  // Unused.
                     {"tcg", VmHypervisorType::None},         // qemu/accel/tcg/tcg-all.c
                     {"KVM", VmHypervisorType::Kvm},          // qemu/accel/kvm/kvm-all.c
                     {"HVF", VmHypervisorType::Hvf},          // qemu/accel/hvf/hvf-accel-ops.c
                     {"WHPX", VmHypervisorType::Whpx},        // qemu/target/i386/whpx/whpx-all.c
                 }};
-        static_assert(std::size(hyperVisorData) == ((int)VmHypervisorType::Max));
+        static_assert(std::size(kHyperVisorData) == static_cast<size_t>(VmHypervisorType::Max));
 
         config.hypervisorType = VmHypervisorType::Unknown;
-        for (const auto& pair : hyperVisorData) {
+        for (const auto& pair : kHyperVisorData) {
             if (pair.first == accel) {
                 config.hypervisorType = pair.second;
                 break;
@@ -174,7 +174,7 @@ class QemuVmOperations : public VmOperations {
      * @param reason The reason for the shutdown request.
      */
     void systemShutdownRequest(QemuShutdownCause reason) override {
-        qemu_system_shutdown_request((ShutdownCause)reason);
+        qemu_system_shutdown_request(static_cast<ShutdownCause>(reason));
     }
 
     absl::Status SaveSnapshot(const char* name, const bool overwrite) override {
@@ -188,18 +188,18 @@ class QemuVmOperations : public VmOperations {
         return absl::OkStatus();
     }
 
-    absl::Status LoadSnapshot(const char* idOrName, const bool andResume) override {
+    absl::Status LoadSnapshot(const char* id_or_name, const bool and_resume) override {
         ScopedVmLock lock;
         ::Error* errp = nullptr;
 
         ::vm_stop(RUN_STATE_RESTORE_VM);
 
-        if (!::load_snapshot(idOrName, /*vmstate=*/nullptr, /*has_devices=*/false,
+        if (!::load_snapshot(id_or_name, /*vmstate=*/nullptr, /*has_devices=*/false,
                              /*devices=*/nullptr, &errp)) {
             return ToStatus(absl::StatusCode::kInternal, &errp);
         }
 
-        if (andResume) {
+        if (and_resume) {
             ::load_snapshot_resume(::RUN_STATE_RUNNING);
         }
 
@@ -211,10 +211,10 @@ class QemuVmOperations : public VmOperations {
         ::load_snapshot_resume(static_cast<::RunState>(ers));
     }
 
-    absl::Status DeleteSnapshot(const char* idOrName) override {
+    absl::Status DeleteSnapshot(const char* id_or_name) override {
         ScopedVmLock lock;
         ::Error* errp = nullptr;
-        if (!::delete_snapshot(idOrName, /*has_devices=*/false, /*devices=*/nullptr, &errp)) {
+        if (!::delete_snapshot(id_or_name, /*has_devices=*/false, /*devices=*/nullptr, &errp)) {
             return ToStatus(absl::StatusCode::kInternal, &errp);
         }
 
@@ -231,12 +231,12 @@ class QemuVmOperations : public VmOperations {
         }
 
         ::QEMUSnapshotInfo* qsi = nullptr;
-        const int qsiSize = ::bdrv_snapshot_list(bs, &qsi);
-        if (qsiSize < 0) {
-            return absl::InternalError(absl::StrCat("bdrv_snapshot_list failed with ", qsiSize));
+        const int qsi_size = ::bdrv_snapshot_list(bs, &qsi);
+        if (qsi_size < 0) {
+            return absl::InternalError(absl::StrCat("bdrv_snapshot_list failed with ", qsi_size));
         }
 
-        for (int i = 0; i < qsiSize; ++i) {
+        for (int i = 0; i < qsi_size; ++i) {
             SnapshotEntry se = {
                 .id = qsi[i].id_str,
                 .name = qsi[i].name,

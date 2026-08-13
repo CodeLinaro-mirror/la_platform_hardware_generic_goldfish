@@ -16,23 +16,28 @@
 
 namespace android::goldfish {
 
-static TestVmLock* sTestVmLock() {
+namespace {
+
+TestVmLock* GetTestVmLock() {
     static TestVmLock instance;
     return &instance;
 }
-static HostVmLock* sHostVmLock() {
+
+HostVmLock* GetHostVmLock() {
     static HostVmLock instance;
     return &instance;
 }
 
+}  // namespace
+
 // static
-TestVmLock* TestVmLock::getInstance() {
-    return sTestVmLock();
+TestVmLock* TestVmLock::GetInstance() {
+    return GetTestVmLock();
 }
 
 // static
-HostVmLock* HostVmLock::getInstance() {
-    return sHostVmLock();
+HostVmLock* HostVmLock::GetInstance() {
+    return GetHostVmLock();
 }
 
 }  // namespace android::goldfish
