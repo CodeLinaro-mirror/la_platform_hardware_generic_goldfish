@@ -1,7 +1,7 @@
 # End-to-End Demo Guide: Emulator WebRTC Streaming
 
 This guide explains how to set up and run a complete, end-to-end streaming demo
-using the compiled **Video Bridge**, the **Python Gateway Server**, and the
+using the **Android Emulator (with built-in WebRTC Video Bridge)**, the **Python Gateway Server**, and the
 React frontend example application from the
 [android-emulator-webrtc](https://github.com/pokowaka/android-emulator-webrtc)
 repository.
@@ -12,11 +12,10 @@ repository.
 
 ```
  +-----------------+                +-----------------+                +-----------------+
- |   React Web     |    HTTP REST   |  Python Gateway |   gRPC (TCP)   |   Video Bridge  |
- |  Frontend App   |--------------->|     Server      |--------------->|   (rtc_service) |
- | (localhost:3000)|  WS Signaling  | (localhost:8080)|  gRPC Signaling| (localhost:50051)
- |                 |===============>|                 |===============>|                 |
- |                 |                |                 |                |                 |
+ |   React Web     |    HTTP REST   |  Python Gateway |   gRPC (TCP)   | Android Emulator|
+ |  Frontend App   |--------------->|     Server      |--------------->| (with built-in  |
+ | (localhost:3000)|  WS Signaling  | (localhost:8080)|  gRPC Signaling|  WebRTC Bridge) |
+ |                 |===============>|                 |===============>| (grpc.port)     |
  |                 |                +-----------------+                +-----------------+
  |                 |                                                            |
  |                 |                     WebRTC Data & Media Streams            |
@@ -28,12 +27,13 @@ repository.
 
 ## Step 1: Launch your Android Emulator
 
-Ensure you have a running emulator with the gRPC service enabled.
+Ensure you have a running emulator with the gRPC service enabled. The WebRTC Video
+Bridge is now integrated directly into the emulator / QEMU binary.
 
 1. Locate the active emulator's **discovery configuration file** (ending in
    `.ini`).
-   - **macOS default location**: `~/Library/Android/avd/running/pid_<PID>.ini`
-   - **Linux default location**: `~/.android/avd/running/pid_<PID>.ini`
+   - **macOS default location**: `~/Library/Caches/TemporaryItems/avd/running/pid_<PID>.ini`
+   - **Linux default location**: `~/.android/avd/running/pid_<PID>.ini` or `${TMPDIR}/avd/running/pid_<PID>.ini`
    - _Note: The file contains configuration properties like `grpc.port=<port>`
      and `grpc.token=<token>`._
 
@@ -41,7 +41,7 @@ Ensure you have a running emulator with the gRPC service enabled.
 
 ## Quick Start: Launch Everything with One Script
 
-If you want to start both the C++ Video Bridge and the Python Signaling Gateway
+If you want to start the Python Signaling Gateway connected to your emulator
 with a single command, you can use the provided
 [launch_video_demo.sh](./launch_video_demo.sh) script:
 
@@ -54,51 +54,39 @@ with a single command, you can use the provided
    ```bash
    ./launch_video_demo.sh --discovery_file /path/to/pid_<PID>.ini
    ```
-   _Note: This script will automatically compile the Video Bridge via Bazel if
-   not already built, launch it in the background, set up the Python virtual
-   environment if missing, and launch the Python Gateway._
+   _Note: This script will parse the gRPC port and token from the discovery file,
+   set up the Python virtual environment if missing, wait for the emulator's gRPC
+   service, and launch the Python Gateway._
 3. Once the signaling gateway starts, open the following URL in your browser to
    view the WebRTC stream immediately:
    [https://pokowaka.github.io/android-emulator-webrtc/?url=localhost:8080](https://pokowaka.github.io/android-emulator-webrtc/?url=localhost:8080)
-4. When you are done, press **Ctrl+C** (you may need to press it multiple times
-   to ensure all background processes are terminated) to automatically stop both
-   processes.
+4. When you are done, press **Ctrl+C** to stop the process.
 
 ---
 
-## Step 2: Build and Run the Video Bridge
+## Step 2: Built-in Emulator WebRTC Video Bridge
 
-The Video Bridge handles the high-performance media transcoding (using `libyuv`
-and WebRTC engine) and forwards user input events from data channels back to the
-emulator.
+The WebRTC Video Bridge is built directly into QEMU / Android Emulator. It handles
+high-performance media encoding and forwards user input events from data channels
+back to the emulator OS. A separate standalone `videobridge` binary is no longer
+required.
 
-1. Build the bridge target using Bazel:
-   ```bash
-   bazel build @goldfish//emulator/videobridge:videobridge
-   ```
-2. Run the Video Bridge, passing the path to the emulator's active discovery
-   `.ini` file:
-   ```bash
-   ./bazel-bin/external/goldfish+/emulator/videobridge/videobridge \
-     --discovery_file=/path/to/pid_<PID>.ini \
-     --port=50051
-   ```
-   _Verify that you see logs indicating connection to the emulator and the
-   signaling server listening on port 50051._
+The emulator's built-in gRPC service listens on the `grpc.port` specified in the PID
+discovery `.ini` file.
 
 ---
 
 ## Step 3: Start the Python Gateway Server
 
 The Python Gateway translates HTTP REST and WebSocket JSEP signaling into the
-bridge's `rtc2` gRPC protocol.
+emulator's native `rtc2` gRPC signaling surface.
 
 The gateway is set up as a standard Python project using `pyproject.toml`
 containing all dependencies.
 
 ### Option A: Install and Run using setup_env.sh (Recommended)
 
-1. Open a new terminal window and navigate to the gateway directory:
+1. Open a terminal window and navigate to the gateway directory:
    ```bash
    cd hardware/generic/goldfish/emulator/videobridge/gateway
    ```
@@ -116,24 +104,24 @@ containing all dependencies.
    ```bash
    source venv/bin/activate
    ```
-5. Run the gateway server:
+5. Run the gateway server, passing `--videobridge` pointing to the emulator's gRPC port:
    ```bash
    videobridge-gateway \
      --port=8080 \
-     --videobridge=localhost:50051 \
+     --videobridge=localhost:<EMULATOR_GRPC_PORT> \
      --discovery_file=/path/to/pid_<PID>.ini
    ```
 
 ### Option B: Run Directly from Source
 
 If you already have `aiohttp`, `grpcio`, and `websockets` installed in your
-global python environment:
+python environment:
 
 1. Run the script directly from the source directory:
    ```bash
    python3 src/videobridge_gateway/gateway_server.py \
      --port=8080 \
-     --videobridge=localhost:50051 \
+     --videobridge=localhost:<EMULATOR_GRPC_PORT> \
      --discovery_file=/path/to/pid_<PID>.ini
    ```
 
@@ -168,3 +156,4 @@ Once the application connects:
    - Type on your physical keyboard to send key presses to the emulator.
    - Use the UI inputs to test geolocations (sending mock latitude/longitude
      updates).
+

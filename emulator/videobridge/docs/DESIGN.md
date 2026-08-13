@@ -1,36 +1,26 @@
 # Modern WebRTC Video Bridge Design
 
 This document details the architecture, design, and internal workings of the
-out-of-process WebRTC Video Bridge (`videobridge`) in `emu-main-next`.
+WebRTC Video Bridge in `emu-main-next`.
 
 ---
 
-## 1. High-Level Architecture & "Why"
+## 1. High-Level Architecture & Evolution
 
-The `videobridge` is a standalone executable (`cc_binary`) that acts as an
-intermediary (proxy) between Web browsers and the Android Emulator.
+The WebRTC Video Bridge components deliver real-time, high-performance audio/video
+streaming and user input data channel handling for Android instances.
 
-### The Decoupling Rationale
+### In-Process QEMU Integration
 
-Decoupling WebRTC into a separate process is highly beneficial for several
-reasons:
+While the WebRTC engine previously operated as a standalone out-of-process proxy binary (`videobridge`), the Video Bridge has been integrated directly into QEMU / Android Emulator.
 
-1. **Dependency Isolation:** The WebRTC stack brings in a massive amount of
-   third-party dependencies (SSL libraries, audio/video codecs, network socket
-   wrappers). Embedding these directly into the emulator binary increases
-   compile times and binary size. Decoupling keeps the core emulator's build
-   graph clean and lightweight.
-2. **Crash Resiliency:** If the WebRTC connection layer crashes due to network
-   stack errors, codec exceptions, or memory leaks, the emulator process itself
-   remains unaffected.
-3. **Flexible Deployment:** Decoupling allows running the WebRTC gateway on a
-   separate machine or container, scaling WebRTC signaling independently from
-   the emulator instances.
+1. **Streamlined Deployment:** Clients (WebRTC Java SDK, Python Gateway, etc.) connect directly to the emulator's native gRPC service (`RtcServiceV2` / `grpc.port`) without requiring a separate proxy process or secondary port management.
+2. **Reduced Latency:** Frames and input events are routed directly within QEMU, avoiding inter-process IPC or gRPC proxy hops.
+3. **Flexible Architecture:** The core WebRTC C++ components (`Switchboard`, `Participant`, format pipelines, platform HW codecs) remain modular so they can be built into QEMU or used as standalone components where required.
 
 ```mermaid
 graph LR
-    Browser[Web Browser] <-->|gRPC RtcServiceV2| VideoBridge[Video Bridge Binary]
-    VideoBridge <-->|gRPC EmulatorController| Emulator[Android Emulator]
+    Browser[Web Browser / Client] <-->|gRPC RtcServiceV2| Emulator[Android Emulator / QEMU]
 ```
 
 ---
