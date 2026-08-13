@@ -68,9 +68,13 @@ objc_library(
     ],
     includes = ["include"],
     deps = [
+        "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/synchronization",
         "@webrtc//api/video_codecs:builtin_video_decoder_factory",
         "@webrtc//api/video_codecs:builtin_video_encoder_factory",
+        "@webrtc//api/video_codecs:video_codecs_api",
         "@webrtc//pc:video_track_source_proxy",
+        "@webrtc//rtc_base:checks",
         "@webrtc//sdk:native_api",
         "@webrtc//sdk:videotoolbox_objc",
     ],
@@ -281,6 +285,44 @@ cc_test(
         "//emulator/libs/test:googletest_main",
         "@webrtc//api:create_peerconnection_factory",
         "@webrtc//api/video_codecs:video_codecs_api",
+    ],
+)
+
+cc_binary(
+    name = "videobridge_codecs_shared",
+    linkopts = select({
+        "@platforms//os:macos": [
+            "-undefined dynamic_lookup",
+            "-Wl,-ObjC",
+            "-framework VideoToolbox",
+            "-framework CoreMedia",
+            "-framework AVFoundation",
+            "-framework CoreVideo",
+            "-framework Foundation",
+        ],
+        "//conditions:default": [],
+    }),
+    linkshared = True,
+    target_compatible_with = select({
+        "@platforms//os:macos": [],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
+    deps = [
+        ":videobridge_codecs",
+    ],
+)
+
+cc_test(
+    name = "codec_factories_dylib_test",
+    srcs = ["core/mac/codec_factories_dylib_test.cc"],
+    data = [":videobridge_codecs_shared"],
+    target_compatible_with = select({
+        "@platforms//os:macos": [],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
+    deps = [
+        "//emulator/libs/system:bazel_info",
+        "//emulator/libs/test:googletest_main",
     ],
 )
 
