@@ -56,8 +56,8 @@ class QemuAudioCaptureTest : public ::testing::Test {
 TEST_F(QemuAudioCaptureTest, StartAndStopLifecycle) {
     QemuAudioCapture capture([](const int16_t*, size_t) {});
 
-    EXPECT_EQ(capture.sample_rate_hz(), 48000u);
-    EXPECT_EQ(capture.channels(), 2u);
+    EXPECT_EQ(capture.sample_rate_hz(), 48000U);
+    EXPECT_EQ(capture.channels(), 2U);
     EXPECT_FALSE(capture.IsRunning());
     EXPECT_TRUE(capture.Start().ok());
     EXPECT_TRUE(capture.IsRunning());
