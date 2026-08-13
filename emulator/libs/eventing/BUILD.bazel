@@ -59,6 +59,7 @@ clang_tidy_test(
     targets = [
         ":eventing_unittests",
         ":event_support_benchmark",
+        ":eventing",
     ],
     tidy_config_file = "//:clang_tidy_config",
 )
