@@ -53,9 +53,10 @@ def main():
 
     if args.workspace:
         workspace_root = args.workspace.absolute()
-        if not (workspace_root / "WORKSPACE").exists() and not (
-            workspace_root / "MODULE.bazel"
-        ).exists():
+        if (
+            not (workspace_root / "WORKSPACE").exists()
+            and not (workspace_root / "MODULE.bazel").exists()
+        ):
             print(
                 f"Error: {workspace_root} does not appear to be a Bazel workspace root.",
                 file=sys.stderr,
@@ -95,74 +96,94 @@ def main():
             file=sys.stderr,
         )
 
-    print("Merging snippets...")
-    # Find all generated JSON snippets in bazel-bin
+    # Find all generated JSON snippets.
+    # Note: Bazel may clear the 'bazel-bin' convenience symlink when targets transition
+    # to multiple configurations. Therefore, we search both 'bazel-bin' and all configuration
+    # subdirectories in 'bazel-out' (e.g. bazel-out/*/bin).
     # We focus on the ones from @goldfish, @aemu, @gfxstream, and @qemu
     allowed_repos = ["goldfish+", "aemu+", "gfxstream+", "qemu+"]
 
+    search_dirs = []
     bazel_bin = workspace_root / "bazel-bin"
-    snippets = []
+    if bazel_bin.exists():
+        search_dirs.append(bazel_bin)
 
-    # Check the main workspace (if any)
-    for p in bazel_bin.glob("bazel_compile_commands_*.json"):
-        snippets.append(p)
+    bazel_out = workspace_root / "bazel-out"
+    if bazel_out.exists():
+        for config_dir in bazel_out.iterdir():
+            if config_dir.is_dir() and not config_dir.name.startswith("."):
+                bin_dir = config_dir / "bin"
+                if bin_dir.exists():
+                    search_dirs.append(bin_dir)
 
-    # Check external repositories
-    external_dir = bazel_bin / "external"
-    if external_dir.exists():
-        for repo in allowed_repos:
-            repo_dir = external_dir / repo
-            if repo_dir.exists():
-                for p in repo_dir.rglob("bazel_compile_commands_*.json"):
-                    snippets.append(p)
+    snippets = set()
+
+    for bin_dir in search_dirs:
+        # Check the main workspace (if any)
+        for p in bin_dir.glob("bazel_compile_commands_*.json"):
+            snippets.add(p.resolve())
+
+        # Check external repositories
+        external_dir = bin_dir / "external"
+        if external_dir.exists():
+            for repo in allowed_repos:
+                repo_dir = external_dir / repo
+                if repo_dir.exists():
+                    for p in repo_dir.rglob("bazel_compile_commands_*.json"):
+                        snippets.add(p.resolve())
 
     if not snippets:
-        print("Error: No compilation snippets found in bazel-bin.", file=sys.stderr)
+        print(
+            "Error: No compilation snippets found in bazel-bin or bazel-out.",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     # Write the list of snippets to a temporary file for the combiner
     inputs_file = workspace_root / "bazel_compile_commands_inputs.txt"
+    final_json = workspace_root / "bazel_compile_commands_combined.json"
+
     with open(inputs_file, "w") as f:
-        for s in snippets:
+        for s in sorted(snippets):
             f.write(str(s) + "\n")
 
-    final_json = bazel_bin / "compile_commands_combined.json"
+    try:
+        # Use the existing combiner tool via 'bazel run' to create the final compile_commands.json.
+        # This ensures the tool is built and its dependencies are resolved.
+        subprocess.run(
+            [
+                "bazel",
+                "run",
+                "@goldfish_build//utils:gen-cc-snippet",
+                "--",
+                "combine",
+                "-o",
+                str(final_json),
+                "--inputs_file",
+                str(inputs_file),
+            ],
+            check=True,
+        )
 
-    # Use the existing combiner tool via 'bazel run' to create the final compile_commands.json.
-    # This ensures the tool is built and its dependencies are resolved.
-    subprocess.run(
-        [
-            "bazel",
-            "run",
-            "@goldfish_build//utils:gen-cc-snippet",
-            "--",
-            "combine",
-            "-o",
-            str(final_json),
-            "--inputs_file",
-            str(inputs_file),
-        ],
-        check=True,
-    )
-
-    # Finally, install it to the workspace root.
-    # Bazel automatically sets BUILD_WORKSPACE_DIRECTORY when running via 'bazel run'.
-    subprocess.run(
-        [
-            "bazel",
-            "run",
-            "@goldfish_build//utils:gen-cc-snippet",
-            "--",
-            "install",
-            "--input_file",
-            str(final_json),
-        ],
-        check=True,
-    )
-
-    # Cleanup
-    inputs_file.unlink()
-    print("\nSuccess: compile_commands.json generated and installed.")
+        # Finally, install it to the workspace root.
+        # Bazel automatically sets BUILD_WORKSPACE_DIRECTORY when running via 'bazel run'.
+        subprocess.run(
+            [
+                "bazel",
+                "run",
+                "@goldfish_build//utils:gen-cc-snippet",
+                "--",
+                "install",
+                "--input_file",
+                str(final_json),
+            ],
+            check=True,
+        )
+        print("\nSuccess: compile_commands.json generated and installed.")
+    finally:
+        # Cleanup temporary files
+        inputs_file.unlink(missing_ok=True)
+        final_json.unlink(missing_ok=True)
 
 
 if __name__ == "__main__":
