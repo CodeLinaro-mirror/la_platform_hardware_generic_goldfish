@@ -142,7 +142,7 @@ void QemuAudioCapture::OnCapture(const void* buf, int size) {
     DCHECK_GE(static_cast<size_t>(size), bytes_per_frame)
             << "Audio buffer smaller than single frame: " << size
             << " bytes (expected >= " << bytes_per_frame << ")";
-    DCHECK_EQ(static_cast<size_t>(size) % bytes_per_frame, 0u)
+    DCHECK_EQ(static_cast<size_t>(size) % bytes_per_frame, 0U)
             << "Unaligned audio buffer: " << size << " bytes for " << channels_ << " channels";
 
     const size_t num_frames = static_cast<size_t>(size) / bytes_per_frame;

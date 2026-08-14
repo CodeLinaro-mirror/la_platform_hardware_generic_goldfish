@@ -46,8 +46,8 @@ class QemuVmLock : public VmLock {
     /**
      * @brief Locks the QEMU global mutex if needed.
      */
-    void lock() override {
-        if (!isLockedBySelf()) {
+    void Lock() override {
+        if (!IsLockedBySelf()) {
             bql_lock();
         }
     }
@@ -55,8 +55,8 @@ class QemuVmLock : public VmLock {
     /**
      * @brief Unlocks the QEMU global mutex if locked.
      */
-    void unlock() override {
-        if (isLockedBySelf()) {
+    void Unlock() override {
+        if (IsLockedBySelf()) {
             bql_unlock();
         }
     }
@@ -66,34 +66,34 @@ class QemuVmLock : public VmLock {
      *
      * @return True if the mutex is locked by the current thread, false otherwise.
      */
-    bool isLockedBySelf() const override { return bql_locked(); }
+    bool IsLockedBySelf() const override { return bql_locked(); }
 };
+
+absl::Mutex g_instance_mutex;
+VmLock* g_instance ABSL_GUARDED_BY(g_instance_mutex) = nullptr;
 
 }  // namespace
 
-static absl::Mutex sInstanceMutex;  // protects sInstance
-static VmLock* sInstance ABSL_GUARDED_BY(sInstanceMutex) = nullptr;
-
-VmLock* VmLock::get() {
-    absl::MutexLock lock(&sInstanceMutex);
-    if (!sInstance) {
-        sInstance = new QemuVmLock();
+VmLock* VmLock::Get() {
+    absl::MutexLock lock(&g_instance_mutex);
+    if (!g_instance) {
+        g_instance = new QemuVmLock();
     }
-    return sInstance;
+    return g_instance;
 }
 
-bool VmLock::hasInstance() {
-    absl::MutexLock lock(&sInstanceMutex);
-    return sInstance != nullptr;
+bool VmLock::HasInstance() {
+    absl::MutexLock lock(&g_instance_mutex);
+    return g_instance != nullptr;
 }
 
 VmLock::~VmLock() {}
 
 // Mainly used for testing.
-VmLock* VmLock::set(VmLock* vmLock) {
-    absl::MutexLock lock(&sInstanceMutex);
-    VmLock* old = sInstance;
-    sInstance = vmLock;
+VmLock* VmLock::Set(VmLock* vm_lock) {
+    absl::MutexLock lock(&g_instance_mutex);
+    VmLock* old = g_instance;
+    g_instance = vm_lock;
     return old;
 }
 
