@@ -17,6 +17,7 @@
 #include <unistd.h>
 
 #include <chrono>
+#include <cstdio>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -62,20 +63,32 @@ constexpr int EMULATOR_COMPATIBLE_QEMU_VERSION = 10;
 constexpr int kMetricsCrashesAbandoned = 1;
 
 // clang-format off
+
 void ShowBanner() {
     constexpr std::string_view platform = PLATFORM " (" TARGET_CPU "), " COMPILATION_MODE;
+
+    // Check if stdout is a terminal
+    const bool use_color = isatty(fileno(stdout));
+
+    // Dynamically assign ANSI codes or empty strings based on the TTY check
+    const std::string_view c_tail  = use_color ? "\033[95m"   : ""; // Magenta
+    const std::string_view c_body  = use_color ? "\033[96m"   : ""; // Cyan
+    const std::string_view c_face  = use_color ? "\033[93m"   : ""; // Yellow
+    const std::string_view c_beta  = use_color ? "\033[1;32m" : ""; // Bold Green
+    const std::string_view c_reset = use_color ? "\033[0m"    : ""; // Reset
+
     std::cout << absl::Substitute(
 R"(                           Welcome to goldfish
-       \                   The android emulator
-       (o>   [ALPHA]       Version: $0-$1
-       /                   Platform: $2
+         $3_/\_$7              The android emulator
+    $3~><>>$4<(((($5o>$7  $6[BETA]$7   Version: $0-$1
+         $3\/\/$7              Platform: $2
                            Copyright 2026 The Android Open Source Project
                            ----------------------------------------------
-                           DISCLAIMER: This is an unstable alpha release.
-                           Features are under active development and may
-                           break, crash, or not work as expected.
+                           DISCLAIMER: This is a beta release. Features are
+                           feature-complete and stabilizing, but may still
+                           contain bugs or not work exactly as expected.
 )",
-            VERSION, BUILD_ID, platform);
+            VERSION, BUILD_ID, platform, c_tail, c_body, c_face, c_beta, c_reset);
 }
 // clang-format on
 
