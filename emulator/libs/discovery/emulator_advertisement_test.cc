@@ -36,8 +36,9 @@ using ::testing::Not;
 
 class TestEmulatorAdvertisement : public EmulatorAdvertisement {
   public:
-    TestEmulatorAdvertisement(std::filesystem::path discovery_directory,
-                              LivenessChecker liveness_checker = EmulatorAdvertisement::IsPidAlive)
+    explicit TestEmulatorAdvertisement(
+            std::filesystem::path discovery_directory,
+            LivenessChecker liveness_checker = EmulatorAdvertisement::IsPidAlive)
             : EmulatorAdvertisement(discovery_directory, liveness_checker) {}
 
     int GarbageCollect() const { return EmulatorAdvertisement::GarbageCollect(); }

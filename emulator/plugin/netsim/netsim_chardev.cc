@@ -14,12 +14,14 @@
 
 #include <cstdint>
 
+#include "absl/log/check.h"
 #include "absl/log/log.h"
 
 extern "C" {
 // clang-format off
 // IWYU pragma: begin_keep
 #include "qemu/osdep.h"
+#include "qemu/main-loop.h"
 #include "chardev/char.h"
 #include "qapi/error.h"
 #include "qapi/visitor.h"
@@ -32,6 +34,7 @@ extern "C" {
 
 #undef send
 #include "android/emulation/control/enum_translate.h"
+#include "goldfish/qemu/qemubh.h"
 #include "h4_parser.h"
 #include "netsim_transport.h"
 
@@ -46,7 +49,8 @@ class Protocol {
     virtual void reset() = 0;
     virtual void reset_guest(Chardev* c) = 0;
 
-    virtual void netsim_to_guest_packet(Chardev* c, ::netsim::packet::PacketResponse* packet) = 0;
+    virtual void netsim_to_guest_packet(
+            Chardev* c, std::unique_ptr<::netsim::packet::PacketResponse> packet) = 0;
 
     virtual uint64_t guest_to_netsim_parser_bytes_requested() = 0;
     virtual void guest_to_netsim_parser_consume(const uint8_t* buf, uint64_t len) = 0;
@@ -66,7 +70,8 @@ class UwbProtocol : public Protocol {
         // N/A
     }
 
-    void netsim_to_guest_packet(Chardev* c, ::netsim::packet::PacketResponse* packet) override {
+    void netsim_to_guest_packet(Chardev* c,
+                                std::unique_ptr<::netsim::packet::PacketResponse> packet) override {
         if (packet->has_packet()) {
             // From netsim -> guest
             VLOG(2) << "NETSIM UWB: send (netsim -> guest)";
@@ -165,7 +170,8 @@ class BtProtocol : public Protocol {
         qemu_chr_be_write(c, (uint8_t*)reset_sequence, sizeof(reset_sequence));
     }
 
-    void netsim_to_guest_packet(Chardev* c, ::netsim::packet::PacketResponse* packet) override {
+    void netsim_to_guest_packet(Chardev* c,
+                                std::unique_ptr<::netsim::packet::PacketResponse> packet) override {
         if (packet->has_hci_packet()) {
             // From netsim -> guest
             VLOG(2) << "NETSIM BT: send (netsim -> guest)";
@@ -228,6 +234,8 @@ struct NetsimChardevState {
     std::unique_ptr<NetsimTransport> transport;
     std::unique_ptr<Protocol> protocol;
     std::vector<::netsim::packet::PacketRequest> parser_packet_queue;
+    goldfish::qemu::QEMUBHPtr incoming_bh;
+    std::unique_ptr<::netsim::packet::PacketResponse> incoming_packet;
 };
 
 struct NetsimChardev {
@@ -267,6 +275,7 @@ int netsim_chardev_write(Chardev* chr, const uint8_t* buf, int len) {
 
 void netsim_chardev_set_fe_open(Chardev* chr, int fe_open) {
     if (!fe_open) {
+        qemu_chr_be_event(chr, CHR_EVENT_CLOSED);
         return;
     }
 
@@ -284,31 +293,60 @@ void netsim_chardev_set_fe_open(Chardev* chr, int fe_open) {
         return;
     }
 
+    qemu_chr_be_event(chr, CHR_EVENT_OPENED);
+
     // Send reset sequence to guest.
     state->protocol->reset_guest(chr);
 }
 
-void netsim_chardev_open(Chardev* chr, ChardevBackend* backend, bool* be_opened, Error** errp) {
+void netsim_chardev_bh(void* obj) {
+    auto* nc = NETSIM_CHARDEV(obj);
+    if (!nc->state->incoming_packet) {
+        DCHECK(false)
+                << "Netsim chardev bottom half execution was scheduled on QEMU's main loop, but no "
+                   "incoming packet buffer was found. Skipping packet transmission.";
+        return;
+    }
+    auto* chr = CHARDEV(obj);
+    nc->state->protocol->netsim_to_guest_packet(chr, std::move(nc->state->incoming_packet));
+    nc->state->transport->next_recv();
+}
+
+bool netsim_chardev_open(Chardev* chr, ChardevBackend* backend, Error** errp) {
     VLOG(1) << "Realizing netsim chardev: " << chr->label;
 
     NetsimChardev* nc = NETSIM_CHARDEV(chr);
-    nc->state->transport = std::make_unique<NetsimTransport>(
-            [chr, protocol = nc->state->protocol.get()](::netsim::packet::PacketResponse* packet) {
-                protocol->netsim_to_guest_packet(chr, packet);
-                // Try to receive next packet immediately.
-                return true;
+    nc->state->transport =
+            std::make_unique<NetsimTransport>([chr](::netsim::packet::PacketResponse* packet) {
+                auto* nc = NETSIM_CHARDEV(chr);
+                if (nc->state->incoming_packet) {
+                    // This shouldn't happen because we always return false from this lambda and
+                    // only call next_recv() once the last incoming_packet has been cleared.
+                    DCHECK(false) << "A new packet arrived from Netsim while the previous "
+                                     "packet is still pending delivery on QEMU's main loop. "
+                                     "Dropping the new packet to preserve flow control.";
+                    return false;
+                }
+                nc->state->incoming_packet =
+                        std::make_unique<::netsim::packet::PacketResponse>(std::move(*packet));
+                if (nc->state->incoming_bh) {
+                    qemu_bh_schedule(nc->state->incoming_bh.get());
+                }
+                return false;
             });
 
     // Note that we don't initialize the connection to Netsimd here.
     // This is because chardevs are opened way before "device"s and so no AVD information is yet
     // available. However, the frontend is also a device and ordered after the device. So we connect
     // to Netsimd at that point (netsim_chardev_set_fe_open).
+    return true;
 }
 
 void netsim_chardev_bt_instance_init(Object* obj) {
     VLOG(1) << "NETSIM BT init";
     NetsimChardev* nc = NETSIM_CHARDEV(obj);
     nc->state = new NetsimChardevState;
+    nc->state->incoming_bh = goldfish::qemu::MakeQemuBh(&netsim_chardev_bh, obj);
     nc->state->protocol = std::make_unique<BtProtocol>(&nc->state->parser_packet_queue);
 }
 
@@ -316,6 +354,7 @@ void netsim_chardev_uwb_instance_init(Object* obj) {
     VLOG(1) << "NETSIM UWB init";
     NetsimChardev* nc = NETSIM_CHARDEV(obj);
     nc->state = new NetsimChardevState;
+    nc->state->incoming_bh = goldfish::qemu::MakeQemuBh(&netsim_chardev_bh, obj);
     nc->state->protocol = std::make_unique<UwbProtocol>(&nc->state->parser_packet_queue);
 }
 
@@ -324,12 +363,13 @@ void netsim_chardev_instance_finalize(Object* obj) {
 
     // This calls NetsimTransport's destructor, which calls cancel and await
     nc->state->transport.reset();
+    nc->state->incoming_bh.reset();
     delete nc->state;
 }
 
-void netsim_chardev_class_init(ObjectClass* oc, void* data) {
+void netsim_chardev_class_init(ObjectClass* oc, const void* data) {
     ChardevClass* cc = CHARDEV_CLASS(oc);
-    cc->open = netsim_chardev_open;
+    cc->chr_open = netsim_chardev_open;
     cc->chr_write = netsim_chardev_write;
     cc->chr_set_fe_open = netsim_chardev_set_fe_open;
 }

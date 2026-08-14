@@ -40,29 +40,29 @@ namespace goldfish::async {
 namespace {
 class UvManagedProcess : public ManagedProcess {
   public:
-    UvManagedProcess(ProcessLauncher::ExitCallback exit_cb)
-            : mHandle(new uv_process_t{}), mExitCb(std::move(exit_cb)) {
-        mHandle->data = this;
+    explicit UvManagedProcess(ProcessLauncher::ExitCallback exit_cb)
+            : handle_(new uv_process_t{}), exit_cb_(std::move(exit_cb)) {
+        handle_->data = this;
     }
 
-    int GetPid() const override { return mHandle->pid; }
+    int GetPid() const override { return handle_->pid; }
 
-    void Kill(int signum) override { uv_process_kill(mHandle.get(), signum); }
+    void Kill(int signum) override { uv_process_kill(handle_.get(), signum); }
 
     void OnExit(int64_t exit_status, int term_signal) {
-        if (mExitCb) {
-            mExitCb(exit_status, term_signal);
+        if (exit_cb_) {
+            exit_cb_(exit_status, term_signal);
         }
     }
 
-    uv_process_t* handle() const { return mHandle.get(); }
+    uv_process_t* Handle() const { return handle_.get(); }
 
   private:
-    UvProcessLauncher::ProcessHandle mHandle;
-    ProcessLauncher::ExitCallback mExitCb;
+    UvProcessLauncher::ProcessHandle handle_;
+    ProcessLauncher::ExitCallback exit_cb_;
 };
 
-void uv_internal_exit_cb(uv_process_t* req, int64_t exit_status, int term_signal) {
+void UvInternalExitCb(uv_process_t* req, int64_t exit_status, int term_signal) {
     auto* process = static_cast<UvManagedProcess*>(req->data);
     process->OnExit(exit_status, term_signal);
 }
@@ -245,7 +245,7 @@ absl::StatusOr<std::unique_ptr<ManagedProcess>> UvProcessLauncher::Launch(
     const uv_process_options_t options{
         // const char* cwd;
         // TODO char** env;
-        .exit_cb = uv_internal_exit_cb,
+        .exit_cb = UvInternalExitCb,
         .file = exe.c_str(),
         .args = args.data(),
         .flags = flags,
@@ -262,7 +262,7 @@ absl::StatusOr<std::unique_ptr<ManagedProcess>> UvProcessLauncher::Launch(
     // Note: we will not detect crashes until disable_ports leaves the scope.
     const ScopedDisableExceptionPorts disable_ports;
 #endif
-    if (const int res = uv_spawn(uv_loop_, managed_process->handle(), &options); res < 0) {
+    if (const int res = uv_spawn(uv_loop_, managed_process->Handle(), &options); res < 0) {
         return goldfish::async::UvErrToAbslStatus(res);
     }
 
@@ -279,7 +279,7 @@ absl::StatusOr<std::unique_ptr<ManagedProcess>> UvProcessLauncher::Launch(
 void UvProcessLauncher::ForgetProcess(const ManagedProcess& process) {
     // Let launcher exit and leave daemon processes running.
     const auto& uv_process = static_cast<const UvManagedProcess&>(process);
-    uv_unref(reinterpret_cast<uv_handle_t*>(uv_process.handle()));
+    uv_unref(reinterpret_cast<uv_handle_t*>(uv_process.Handle()));
 }
 
 }  // namespace goldfish::async

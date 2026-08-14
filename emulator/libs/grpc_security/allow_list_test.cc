@@ -170,8 +170,8 @@ TEST(AllowListTest, can_parse_default_list) {
         "/android.emulation.control.SnapshotService/LoadSnapshot",
         "/android.emulation.control.SnapshotService/PushSnapshot",
         "/android.emulation.control.SnapshotService/SaveSnapshot"};
-    for (const auto& isGreen : allowed) {
-        EXPECT_TRUE(list->IsAllowed("android-studio", isGreen));
+    for (const auto& is_green : allowed) {
+        EXPECT_TRUE(list->IsAllowed("android-studio", is_green));
     }
 }
 }  // namespace control

@@ -29,8 +29,8 @@ namespace {
  * Use `WARNING`, otherwise, logger does no flush and we
  * don't know it boot completes in timely manner.
  */
-void notifyToolsBootcomplete(const int64_t durationMs) {
-    LOG(WARNING) << "Boot completed in " << durationMs << " ms";
+void NotifyToolsBootcomplete(const int64_t duration_ms) {
+    LOG(WARNING) << "Boot completed in " << duration_ms << " ms";
 }
 }  // namespace
 
@@ -79,21 +79,21 @@ void GuestStatus::OnPostLoad() const {
 }
 
 void GuestStatus::NotifyBootcomplete(const absl::Duration duration) const {
-    const int64_t durationMs = absl::ToInt64Milliseconds(duration);
-    DCHECK(durationMs >= 0);
+    const int64_t duration_ms = absl::ToInt64Milliseconds(duration);
+    DCHECK(duration_ms >= 0);
 
-    notifyToolsBootcomplete(durationMs);
+    NotifyToolsBootcomplete(duration_ms);
     if (grpcNotificationSource_) {
         goldfish::avd_universe::grpc::GrpcNotification notification;
-        notification.mutable_booted()->set_time(static_cast<int32_t>(durationMs));
+        notification.mutable_booted()->set_time(static_cast<int32_t>(duration_ms));
 
         grpcNotificationSource_->FireEvent(notification);
     }
     if (metrics_reporter_) {
-        metrics_reporter_->Report([durationMs](android_studio::AndroidStudioEvent& event) {
+        metrics_reporter_->Report([duration_ms](android_studio::AndroidStudioEvent& event) {
             auto& boot_info = *event.mutable_emulator_details()->mutable_boot_info();
             boot_info.set_boot_status(android_studio::EmulatorBootInfo::BOOT_COMPLETED);
-            boot_info.set_duration_ms(durationMs);
+            boot_info.set_duration_ms(duration_ms);
         });
     }
 }

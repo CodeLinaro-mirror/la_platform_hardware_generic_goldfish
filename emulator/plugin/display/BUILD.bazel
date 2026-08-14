@@ -158,11 +158,11 @@ cc_test(
 clang_tidy_test(
     name = "tidy",
     targets = [
-        "primary_display",
-        "video_recorder",
-        "base",
-        "display",
-        "display_unittests",
+        ":primary_display",
+        ":video_recorder",
+        ":base",
+        ":display",
+        ":display_unittests",
     ],
     tidy_config_file = "//:clang_tidy_config",
 )

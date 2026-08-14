@@ -32,16 +32,20 @@ class CrashReportContext:
         aosp_root: Optional[str] = None,
         branch: Optional[str] = None,
         build_id: Optional[str] = None,
+        work_dir: Optional[str] = None,
     ) -> None:
         self.raw_input = input_str
         self.aosp_root = aosp_root
         self.branch = branch
         self.build_id = build_id
         self.crash_id = self._parse_crash_id(input_str)
-        if not base_dir:
-            user = getpass.getuser()
-            base_dir = f"{tempfile.gettempdir()}/crashadvisor_{user}"
-        self.work_dir = Path(base_dir) / self.crash_id
+        if work_dir:
+            self.work_dir = Path(work_dir)
+        else:
+            if not base_dir:
+                user = getpass.getuser()
+                base_dir = f"{tempfile.gettempdir()}/crashadvisor_{user}"
+            self.work_dir = Path(base_dir) / self.crash_id
         self.metadata_path = self.work_dir / "metadata.json"
         self.minidump_path = self.work_dir / "minidump.dmp"
 

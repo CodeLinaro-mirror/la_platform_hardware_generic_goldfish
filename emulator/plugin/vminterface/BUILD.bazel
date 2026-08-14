@@ -1,3 +1,4 @@
+load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_test")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 load("//emulator/tools:plugins.bzl", "collect_plugins")
 
@@ -7,6 +8,7 @@ cc_library(
         "vm_lock.cc",
         "vm_lock.h",
     ],
+    visibility = ["//visibility:public"],
     deps = [
         "@abseil-cpp//absl/synchronization",
         "@qemu//:qemu-headers-exported",
@@ -120,4 +122,20 @@ cc_library(
     includes = ["test"],
     visibility = ["//visibility:public"],
     deps = [":vminterface"],
+)
+
+clang_tidy_test(
+    name = "tidy",
+    targets = [
+        ":vm_lock",
+        ":machine_info",
+        ":fake_machine_info",
+        ":vminterface",
+        ":vm_ops",
+        ":vm_ops_with_fake_machine_info",
+        ":vminterface-test",
+        ":test_vminterface",
+        ":vminterface_unittests",
+    ],
+    tidy_config_file = "//:clang_tidy_config",
 )

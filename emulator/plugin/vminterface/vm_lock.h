@@ -28,11 +28,11 @@ namespace android::goldfish {
 // This header provides a convenience interface class you can use to do
 // just that, i.e.:
 //
-// 1) To operate on the lock, call VmLock::get() to retrieve the
-//    current VmLock instance, then invoke its lock() and unlock()
+// 1) To operate on the lock, call VmLock::Get() to retrieve the
+//    current VmLock instance, then invoke its Lock() and Unlock()
 //    methods.
 //
-// 2) Glue code should call VmLock::set() to inject their own implementation
+// 2) Glue code should call VmLock::Set() to inject their own implementation
 //    into the process. The default implementation doesn't do anything.
 //
 
@@ -46,66 +46,66 @@ class VmLock {
     VmLock operator=(const VmLock&) = delete;
 
     // Lock the VM global mutex.
-    virtual void lock() {}
+    virtual void Lock() {}
 
     // Unlock the VM global mutex.
-    virtual void unlock() {}
+    virtual void Unlock() {}
 
     // Returns true iff the lock is held by the current thread, false
     // otherwise. Note that for a correct implementation, that doesn't
-    // only depend on the number of times that VmLock::lock() and
-    // VmLock::unlock() were called, but also on other QEMU threads that
+    // only depend on the number of times that VmLock::Lock() and
+    // VmLock::Unlock() were called, but also on other QEMU threads that
     // act on the global lock.
-    virtual bool isLockedBySelf() const { return true; }
+    virtual bool IsLockedBySelf() const { return true; }
 
     // Return current VmLock instance. Cannot return nullptr.
     // NOT thread-safe, but we don't expect multiple threads to call this
     // concurrently at init time, and the worst that can happen is to leak
     // a single instance.
-    static VmLock* get();
+    static VmLock* Get();
 
     // Returns whether or not there is a VmLock.
     // Does not instantiate a VmLock.
-    static bool hasInstance();
+    static bool HasInstance();
 
     // Set new VmLock instance. Return old value, which cannot be nullptr and
-    // can be deleted by the caller. If |vmLock| is nullptr, a new default
-    // instance is created. NOTE: not thread-safe with regards to get().
-    static VmLock* set(VmLock* vmLock);
+    // can be deleted by the caller. If |vm_lock| is nullptr, a new default
+    // instance is created. NOTE: not thread-safe with regards to Get().
+    static VmLock* Set(VmLock* vm_lock);
 };
 
 // Convenience class to perform scoped VM locking.
 class ScopedVmLock {
   public:
-    ScopedVmLock(VmLock* vmLock = VmLock::get()) : mVmLock(vmLock) { mVmLock->lock(); }
+    ScopedVmLock(VmLock* vm_lock = VmLock::Get()) : vm_lock_(vm_lock) { vm_lock_->Lock(); }
 
-    ~ScopedVmLock() { mVmLock->unlock(); }
+    ~ScopedVmLock() { vm_lock_->Unlock(); }
 
   private:
-    VmLock* const mVmLock;
+    VmLock* const vm_lock_;
 };
 
 // Convenience class to perform scoped VM locking (but does not try
 // to lock twice).
 class RecursiveScopedVmLock {
   public:
-    RecursiveScopedVmLock(VmLock* vmLock = VmLock::get()) {
-        if (vmLock->isLockedBySelf()) {
-            mVmLock = nullptr;
+    RecursiveScopedVmLock(VmLock* vm_lock = VmLock::Get()) {
+        if (vm_lock->IsLockedBySelf()) {
+            vm_lock_ = nullptr;
         } else {
-            mVmLock = vmLock;
-            vmLock->lock();
+            vm_lock_ = vm_lock;
+            vm_lock_->Lock();
         }
     }
 
     ~RecursiveScopedVmLock() {
-        if (mVmLock) {
-            mVmLock->unlock();
+        if (vm_lock_) {
+            vm_lock_->Unlock();
         }
     }
 
   private:
-    VmLock* mVmLock;
+    VmLock* vm_lock_;
 };
 
 // Convenience class to perform scoped VM locking (but does not try
@@ -113,50 +113,49 @@ class RecursiveScopedVmLock {
 class RecursiveScopedVmLockIfInstance {
   public:
     RecursiveScopedVmLockIfInstance() {
-        if (!VmLock::hasInstance()) return;
+        if (!VmLock::HasInstance()) return;
 
-        VmLock* vmLock = VmLock::get();
+        VmLock* vm_lock = VmLock::Get();
 
-        if (vmLock->isLockedBySelf()) {
-            mVmLock = nullptr;
+        if (vm_lock->IsLockedBySelf()) {
+            vm_lock_ = nullptr;
         } else {
-            mVmLock = vmLock;
-            vmLock->lock();
+            vm_lock_ = vm_lock;
+            vm_lock_->Lock();
         }
     }
 
     ~RecursiveScopedVmLockIfInstance() {
-        if (mVmLock) {
-            mVmLock->unlock();
+        if (vm_lock_) {
+            vm_lock_->Unlock();
         }
     }
 
   private:
-    VmLock* mVmLock = nullptr;
-    ;
+    VmLock* vm_lock_ = nullptr;
 };
 
 // Another convenience class for a code that may run either under a lock or not
 // but needs to ensure that some part of it runs without a VmLock.
 class ScopedVmUnlock {
   public:
-    ScopedVmUnlock(VmLock* vmLock = VmLock::get()) {
-        if (vmLock->isLockedBySelf()) {
-            mVmLock = vmLock;
-            vmLock->unlock();
+    ScopedVmUnlock(VmLock* vm_lock = VmLock::Get()) {
+        if (vm_lock->IsLockedBySelf()) {
+            vm_lock_ = vm_lock;
+            vm_lock_->Unlock();
         } else {
-            mVmLock = nullptr;
+            vm_lock_ = nullptr;
         }
     }
 
     ~ScopedVmUnlock() {
-        if (mVmLock) {
-            mVmLock->lock();
+        if (vm_lock_) {
+            vm_lock_->Lock();
         }
     }
 
   private:
-    VmLock* mVmLock;
+    VmLock* vm_lock_;
 };
 
 }  // namespace android::goldfish

@@ -31,7 +31,6 @@
 namespace goldfish::videobridge {
 
 class Participant;
-class EmulatorClient;
 
 /**
  * @class Switchboard
@@ -44,15 +43,18 @@ class EmulatorClient;
  */
 class Switchboard : public RtcConnection {
   public:
+    using InputSenderFactory = std::function<std::unique_ptr<InputSender>(DataChannelLabel)>;
+
     /**
      * @brief Constructs the Switchboard coordinator.
      *
-     * @param client Pointer to the EmulatorClient gRPC channel.
      * @param media_provider Optional provider injected to set up audio/video streams for
      * participants.
+     * @param input_sender_factory Optional factory callback for instantiating custom InputSender channels.
      */
-    explicit Switchboard(std::shared_ptr<EmulatorClient> client,
-                         std::shared_ptr<MediaProvider> media_provider = nullptr);
+    explicit Switchboard(std::shared_ptr<MediaProvider> media_provider = nullptr,
+                         InputSenderFactory input_sender_factory = nullptr);
+
     ~Switchboard() override;
 
     /**
@@ -140,8 +142,8 @@ class Switchboard : public RtcConnection {
     std::shared_ptr<ParticipantQueue> GetQueue(const std::string& identity);
     void RemoveQueue(const std::string& identity);
 
-    std::shared_ptr<EmulatorClient> emulator_client_;
     std::shared_ptr<MediaProvider> media_provider_;
+    InputSenderFactory input_sender_factory_;
 
     absl::Mutex connections_mutex_;
     absl::flat_hash_map<std::string, std::shared_ptr<Participant>> connections_

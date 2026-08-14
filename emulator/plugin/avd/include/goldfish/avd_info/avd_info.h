@@ -48,6 +48,7 @@ struct AvdProperties {
     std::string avd_id;
     std::string avd_abi;
     int32_t avd_api{0};
+    std::string avd_api_str;
     android::goldfish::DeviceType avd_type{android::goldfish::DeviceType::kUnknown};
     std::filesystem::path avd_content_path;
     std::string build_sdk;

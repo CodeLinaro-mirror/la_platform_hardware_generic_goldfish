@@ -17,6 +17,7 @@
 #include <unistd.h>
 
 #include <chrono>
+#include <cstdio>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -62,20 +63,32 @@ constexpr int EMULATOR_COMPATIBLE_QEMU_VERSION = 10;
 constexpr int kMetricsCrashesAbandoned = 1;
 
 // clang-format off
+
 void ShowBanner() {
     constexpr std::string_view platform = PLATFORM " (" TARGET_CPU "), " COMPILATION_MODE;
+
+    // Check if stdout is a terminal
+    const bool use_color = isatty(fileno(stdout));
+
+    // Dynamically assign ANSI codes or empty strings based on the TTY check
+    const std::string_view c_tail  = use_color ? "\033[95m"   : ""; // Magenta
+    const std::string_view c_body  = use_color ? "\033[96m"   : ""; // Cyan
+    const std::string_view c_face  = use_color ? "\033[93m"   : ""; // Yellow
+    const std::string_view c_beta  = use_color ? "\033[1;32m" : ""; // Bold Green
+    const std::string_view c_reset = use_color ? "\033[0m"    : ""; // Reset
+
     std::cout << absl::Substitute(
 R"(                           Welcome to goldfish
-       \                   The android emulator
-       (o>   [ALPHA]       Version: $0-$1
-       /                   Platform: $2
+         $3_/\_$7              The android emulator
+    $3~><>>$4<(((($5o>$7  $6[BETA]$7   Version: $0-$1
+         $3\/\/$7              Platform: $2
                            Copyright 2026 The Android Open Source Project
                            ----------------------------------------------
-                           DISCLAIMER: This is an unstable alpha release.
-                           Features are under active development and may
-                           break, crash, or not work as expected.
+                           DISCLAIMER: This is a beta release. Features are
+                           feature-complete and stabilizing, but may still
+                           contain bugs or not work exactly as expected.
 )",
-            VERSION, BUILD_ID, platform);
+            VERSION, BUILD_ID, platform, c_tail, c_body, c_face, c_beta, c_reset);
 }
 // clang-format on
 
@@ -157,12 +170,18 @@ void ListAvds(const AndroidOptions& opts, const android::goldfish::UserPaths& us
               bool verbose) {
     auto avds = android::goldfish::Avd::List(user_paths.avd_directory);
     for (const auto& name : avds) {
-        auto a = android::goldfish::Avd::FromName(opts, user_paths, name, /*wipe_data=*/false,
-                                                  /*content_override=*/{}, /*sysdir_override=*/{});
-        if (a.ok()) {
-            std::cout << (*a)->Details(verbose) << '\n';
+        if (verbose) {
+            // Only parse the AVD when -verbose is specified.
+            auto a = android::goldfish::Avd::FromName(opts, user_paths, name, /*wipe_data=*/false,
+                                                      /*content_override=*/{},
+                                                      /*sysdir_override=*/{});
+            if (a.ok()) {
+                std::cout << (*a)->Details(/*verbose=*/true) << '\n';
+            } else {
+                std::cout << name << " is not valid: " << a.status();
+            }
         } else {
-            std::cout << name << " is not valid: " << a.status();
+            std::cout << name << "\n";
         }
     }
 }
@@ -215,9 +234,19 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    configureLogging(opts);
+#ifdef _WIN32
+    if (!opts.no_boot_anim && !opts.boot_anim) {
+        opts.no_boot_anim = 1;
+        LOG(WARNING) << "On windows boot animation slows down boot time significantly. It has been "
+                        "disabled by default. If you really want to see boot animation, you can "
+                        "pass -boot-anim to the command line.";
+    }
+#endif
+    if (opts.boot_anim) {
+        opts.no_boot_anim = 0;
+    }
 
-    ShowBanner();
+    configureLogging(opts);
 
 #if defined(__linux__) || defined(__APPLE__)
     const char* kXDG_RUNTIME_DIR_NAME = "XDG_RUNTIME_DIR";
@@ -271,11 +300,6 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    if (android::goldfish::ShouldLaunchFishtank(opts) && !emulator_paths->HasFishtank()) {
-        LOG(ERROR) << "Fishtank (UI) is not available in the AOSP build. "
-                      "Please use the '-no-window' flag to run in headless mode.";
-        return 1;
-    }
     auto user_paths =
             android::goldfish::ResolveUserPaths(emulator_paths->launcher_directory, opts.verbose);
     if (!user_paths.ok()) {
@@ -286,6 +310,14 @@ int main(int argc, char** argv) {
     if (opts.list_avds) {
         ListAvds(opts, *user_paths, opts.verbose);
         return 0;
+    }
+
+    ShowBanner();
+
+    if (android::goldfish::ShouldLaunchFishtank(opts) && !emulator_paths->HasFishtank()) {
+        LOG(ERROR) << "Fishtank (UI) is not available in the AOSP build. "
+                      "Please use the '-no-window' flag to run in headless mode.";
+        return 1;
     }
 
     if (!android::crashreport::CrashSystem::get().initialize()) {

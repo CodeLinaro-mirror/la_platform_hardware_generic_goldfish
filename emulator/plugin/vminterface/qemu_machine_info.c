@@ -17,7 +17,7 @@
 // clang-format off
 // IWYU pragma: begin_keep
 #include "qemu/osdep.h"
-#include "hw/boards.h"
+#include "hw/core/boards.h"
 #include "qemu/accel.h"
 #include "system/cpus.h"
 // IWYU pragma: end_keep

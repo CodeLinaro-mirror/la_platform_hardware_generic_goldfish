@@ -204,7 +204,7 @@ class QemuEventLoopImpl : public goldfish::async::QemuEventLoop {
         friend QemuEventLoopImpl;
     };
 
-    QemuEventLoopImpl(std::string name)
+    explicit QemuEventLoopImpl(std::string name)
             : QemuEventLoop(std::move(name)), drainer_bh_(MakeQemuBh([&] { DrainQueue(); })) {
         SetState(LooperStatusEvent::State::kRunning);
     }

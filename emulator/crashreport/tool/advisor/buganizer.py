@@ -176,6 +176,8 @@ class BuganizerClient:
 
         def _search() -> Optional[Dict[str, Any]]:
             queries = [
+                f'componentid:{self.component_id} title:"{stable_signature}"',
+                f'componentid:{self.component_id} "{stable_signature}"',
                 f'componentid:{self.component_id} status:open title:"{stable_signature}"',
                 f'componentid:{self.component_id} status:open "{stable_signature}"',
             ]
@@ -200,6 +202,24 @@ class BuganizerClient:
             return None
 
         return self._execute_with_retry(_search)
+
+    def get_issue_status(self, issue_id: int) -> str:
+        """Fetch the current status of an issue."""
+
+        def _get_status() -> str:
+            if self.cli_binary and not self.token:
+                cmd = [self.cli_binary, "view", str(issue_id), "--format=json"]
+                if self.qa_mode:
+                    cmd.append("--api=blade:corp-issuetracker-test-api")
+                res = subprocess.run(cmd, capture_output=True, text=True, check=True)
+                data = json.loads(res.stdout) if res.stdout.strip() else {}
+                return data.get("issueState", {}).get("status") or data.get("status", "UNKNOWN")
+            else:
+                url = f"{self.base_url}/{issue_id}"
+                data = self._call_rest_api(url, method="GET")
+                return data.get("issueState", {}).get("status") or data.get("status", "UNKNOWN")
+
+        return self._execute_with_retry(_get_status)
 
     def create_issue(self, stable_signature: str, description: str) -> int:
         """Create a new Buganizer issue in the target component."""

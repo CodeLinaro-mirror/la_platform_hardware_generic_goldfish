@@ -293,14 +293,7 @@ collect_plugins(
         "//emulator/plugin:goldfish_x86_64",
         "//emulator/plugin:goldfish_aarch64",
         "@rutabaga_gfx//:rutabaga_ffi",
-    ] + select({
-        "@platforms//os:windows": [
-            # We don't build Qemu system riscv64 on Windows.
-        ],
-        "//conditions:default": [
-            "//emulator/plugin:goldfish_riscv64",
-        ],
-    }),
+    ],
 )
 
 collect_plugins(
@@ -369,14 +362,12 @@ collect_plugins(
             "@goldfish_prebuilts_common//netsim:netsim_darwin_aarch64",
             "@goldfish_prebuilts_common//netsim:netsim_cli_darwin_aarch64",
             "@qemu//:qemu-system-aarch64_signed",
-            "@qemu//:qemu-system-riscv64_signed",
             "@qemu//:qemu-system-x86_64_signed",
         ],
         "//conditions:default": [
             "@goldfish_prebuilts_common//netsim:netsim_linux_x86_64",
             "@goldfish_prebuilts_common//netsim:netsim_cli_linux_x86_64",
             "@qemu//:qemu-system-aarch64",
-            "@qemu//:qemu-system-riscv64",
             "@qemu//:qemu-system-x86_64",
         ],
     }),

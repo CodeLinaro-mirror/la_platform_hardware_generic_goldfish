@@ -110,6 +110,49 @@ TEST_F(AvdTest, Dessert) {
     EXPECT_EQ(avd->Dessert(), "R");
 }
 
+TEST_F(AvdTest, ApiDescriptionDecimalVersions) {
+    {
+        CreateTestAvd("avd_35", "android-35", 35);
+        ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(opts_, paths_, "avd_35", false, ""));
+        EXPECT_EQ(avd->ApiDescription(), "15.0 (V) - API 35");
+    }
+    {
+        CreateTestAvd("avd_36_1", "android-36.1", 36);
+        ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(opts_, paths_, "avd_36_1", false, ""));
+        EXPECT_EQ(avd->ApiDescription(), "16 (B) - API 36.1");
+    }
+    {
+        CreateTestAvd("avd_37_0", "android-37.0", 37);
+        ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(opts_, paths_, "avd_37_0", false, ""));
+        EXPECT_EQ(avd->ApiDescription(), "17 (C) - API 37.0");
+    }
+    {
+        CreateTestAvd("avd_37_1", "android-37.1", 37);
+        ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(opts_, paths_, "avd_37_1", false, ""));
+        EXPECT_EQ(avd->ApiDescription(), "17 (C) - API 37.1");
+    }
+    {
+        CreateTestAvd("avd_37_2_beta1", "android-37.2-beta1", 37);
+        ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(opts_, paths_, "avd_37_2_beta1", false, ""));
+        EXPECT_EQ(avd->ApiDescription(), "17 (C) - API 37.2-beta1");
+    }
+    {
+        CreateTestAvd("avd_baklava", "android-Baklava", 36);
+        ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(opts_, paths_, "avd_baklava", false, ""));
+        EXPECT_EQ(avd->ApiDescription(), "16 (B) - API Baklava");
+    }
+    {
+        CreateTestAvd("avd_cinnamon", "android-CinnamonBun", 37);
+        ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(opts_, paths_, "avd_cinnamon", false, ""));
+        EXPECT_EQ(avd->ApiDescription(), "17 (C) - API CinnamonBun");
+    }
+    {
+        CreateTestAvd("avd_addon_37_1", "Google Inc.:Google APIs:37.1", 37);
+        ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(opts_, paths_, "avd_addon_37_1", false, ""));
+        EXPECT_EQ(avd->ApiDescription(), "17 (C) - API 37.1");
+    }
+}
+
 TEST_F(AvdTest, UnknownApiLevel) {
     CreateTestAvd("test_avd", "android-1000", 1000);
     ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(opts_, paths_, "test_avd", false, ""));

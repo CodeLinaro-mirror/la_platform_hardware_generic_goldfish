@@ -17,6 +17,7 @@
 #include <gtest/gtest.h>
 
 #include <chrono>
+#include <cstddef>
 #include <cstdio>
 #include <fstream>
 #include <memory>
@@ -61,40 +62,40 @@ class JwkKeyLoaderTest : public ::testing::Test {
         status = tink::JwtSignatureRegister();
         EXPECT_TRUE(status.ok());
 
-        mTempDir = std::make_unique<TestTempDir>(
+        temp_dir_ = std::make_unique<TestTempDir>(
                 absl::StrCat("watcher_test", TestTempDir::GenerateRandomString()));
 
-        mSampleJwt = tink::RawJwtBuilder()
-                             .SetIssuer("JwkDirectoryObserverTest")
-                             .WithoutExpiration()
-                             .Build();
+        sample_jwt_ = tink::RawJwtBuilder()
+                              .SetIssuer("JwkDirectoryObserverTest")
+                              .WithoutExpiration()
+                              .Build();
 
-        mSampleValidator = tink::JwtValidatorBuilder()
-                                   .ExpectIssuer("JwkDirectoryObserverTest")
-                                   .AllowMissingExpiration()
-                                   .Build();
+        sample_validator_ = tink::JwtValidatorBuilder()
+                                    .ExpectIssuer("JwkDirectoryObserverTest")
+                                    .AllowMissingExpiration()
+                                    .Build();
     }
 
-    void TearDown() override { mTempDir.reset(); }
+    void TearDown() override { temp_dir_.reset(); }
 
     void WriteSnippet(Path fname, json snippet) { WriteSnippet(fname, snippet.dump(2)); }
 
     void WriteSnippet(Path fname, std::string snippet) {
         // We perform an atomic write by writing to a temporary file first and then renaming it.
         // This prevents the loader from reading a truncated or partial file.
-        Path tmpName = fname + ".tmp";
+        Path tmp_name = fname + ".tmp";
         {
-            std::ofstream out(mTempDir->Path() / tmpName);
+            std::ofstream out(temp_dir_->Path() / tmp_name);
             for (char c : snippet) {
                 out.put(c);
                 out.flush();
             }
         }
-        auto status = base::file::mv_file(mTempDir->Path() / tmpName, mTempDir->Path() / fname);
+        auto status = base::file::mv_file(temp_dir_->Path() / tmp_name, temp_dir_->Path() / fname);
         EXPECT_TRUE(status.ok()) << status.message();
     }
 
-    std::unique_ptr<tink::KeysetHandle> writeEs512(Path fname) {
+    std::unique_ptr<tink::KeysetHandle> WriteEs512(Path fname) {
         // Let's generate a json key.
         auto status = tink::JwtSignatureRegister();
         EXPECT_TRUE(status.ok());
@@ -102,21 +103,21 @@ class JwkKeyLoaderTest : public ::testing::Test {
         EXPECT_TRUE(private_handle.ok());
         auto sign = (*private_handle)->GetPrimitive<tink::JwtPublicKeySign>();
         auto public_handle = (*private_handle)->GetPublicKeysetHandle();
-        auto jsonSnippet = tink::JwkSetFromPublicKeysetHandle(*public_handle->get());
-        WriteSnippet(fname, *jsonSnippet);
+        auto json_snippet = tink::JwkSetFromPublicKeysetHandle(**public_handle);
+        WriteSnippet(fname, *json_snippet);
         return std::move(private_handle.value());
     }
 
   protected:
-    std::unique_ptr<TestTempDir> mTempDir;
-    absl::StatusOr<tink::RawJwt> mSampleJwt;
-    absl::StatusOr<tink::JwtValidator> mSampleValidator;
+    std::unique_ptr<TestTempDir> temp_dir_;
+    absl::StatusOr<tink::RawJwt> sample_jwt_;
+    absl::StatusOr<tink::JwtValidator> sample_validator_;
 };
 
 TEST_F(JwkKeyLoaderTest, refuses_large_files) {
     JwkKeyLoader loader;
-    WriteSnippet("foo", std::string(8196 * 2, 'x'));
-    auto status = loader.Add((mTempDir->Path() / "foo").string());
+    WriteSnippet("foo", std::string(static_cast<size_t>(8196 * 2), 'x'));
+    auto status = loader.Add((temp_dir_->Path() / "foo").string());
     EXPECT_FALSE(status.ok());
     ASSERT_THAT(status.message(), ContainsSubstr("which is over our max of"));
 }
@@ -125,10 +126,10 @@ TEST_F(JwkKeyLoaderTest, will_bail_on_retries_with_empty) {
     using namespace std::chrono_literals;
 
     JwkKeyLoader loader;
-    WriteSnippet("foo", std::string(0, 'x'));
+    WriteSnippet("foo", std::string());
     auto start = std::chrono::system_clock::now();
     // 8 retries @ 10ms = ~80ms expected wait.
-    auto status = loader.AddWithRetryForEmpty((mTempDir->Path() / "foo").string(), 8, 10ms);
+    auto status = loader.AddWithRetryForEmpty((temp_dir_->Path() / "foo").string(), 8, 10ms);
     auto end = std::chrono::system_clock::now();
     std::chrono::milliseconds waited =
             std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
@@ -161,7 +162,7 @@ TEST_F(JwkKeyLoaderTest, eventually_detects_written_file) {
         })##";
 
     JwkKeyLoader loader;
-    WriteSnippet("foo", std::string(0, 'x'));
+    WriteSnippet("foo", std::string());
 
     // Write the actual token after 100ms delay..
     auto t = std::thread([&]() {
@@ -170,7 +171,7 @@ TEST_F(JwkKeyLoaderTest, eventually_detects_written_file) {
     });
 
     // We allow for up to 500 retries of 10ms (5 seconds total) to account for slow CI runners.
-    auto status = loader.AddWithRetryForEmpty((mTempDir->Path() / "foo").string(), 500, 10ms);
+    auto status = loader.AddWithRetryForEmpty((temp_dir_->Path() / "foo").string(), 500, 10ms);
 
     EXPECT_TRUE(status.ok()) << "Failure: " << status.message();
 
@@ -275,7 +276,7 @@ TEST_F(JwkKeyLoaderTest, accepts_json_in_file) {
         })##";
 
     WriteSnippet("sample.jwk", b273331311);
-    auto status = loader.Add((mTempDir->Path() / "sample.jwk").string());
+    auto status = loader.Add((temp_dir_->Path() / "sample.jwk").string());
     EXPECT_TRUE(status.ok()) << "Failed: " << status.message();
     EXPECT_EQ(loader.Size(), 1);
 

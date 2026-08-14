@@ -29,7 +29,7 @@ extern "C" {
 // clang-format off
 // IWYU pragma: begin_keep
 #include "qemu/osdep.h"
-#include "hw/qdev-core.h"
+#include "hw/core/qdev.h"
 #include "qapi/error.h"
 #include "qapi/visitor.h"
 #include "qom/object.h"
@@ -114,7 +114,7 @@ void netsim_connection_set_grpc_endpoint(Object* obj, Visitor* v, const char* na
     nc->data->endpoint = endpoint;
 }
 
-void netsim_connection_class_init(ObjectClass* oc, void* data) {
+void netsim_connection_class_init(ObjectClass* oc, const void* data) {
     object_class_property_add(oc, "grpc_endpoint", "str", nullptr,
                               netsim_connection_set_grpc_endpoint, nullptr, nullptr);
 

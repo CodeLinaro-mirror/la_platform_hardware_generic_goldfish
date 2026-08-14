@@ -57,6 +57,7 @@ absl::Status AvdInfoDevice::initialize(const EmulatorConfig& emulator) {
         {"avd_id", emulator.avd().Id()},
         {"avd_abi", emulator.avd().Abi()},
         {"avd_api", absl::StrCat(emulator.avd().ApiLevel())},
+        {"avd_api_str", emulator.avd().ApiDescription()},
         {"avd_type", absl::StrCat(static_cast<int32_t>(emulator.avd().GetDeviceType()))},
         {"avd_dir", emulator.avd().GetContentPath().string()},
         {"build_sdk", emulator.avd().BuildSdk()},

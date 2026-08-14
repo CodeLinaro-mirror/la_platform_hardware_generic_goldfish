@@ -27,6 +27,7 @@
 #include "grpcpp/grpcpp.h"
 
 #include "android/emulation/control/basic_token_auth.h"
+#include "core/grpc_input_sender.h"
 #include "goldfish/videobridge/emulator_client.h"
 #include "goldfish/videobridge/rtc_service.h"
 #include "goldfish/videobridge/switchboard.h"
@@ -259,7 +260,10 @@ int RunServer() {
     // 2. Initialize Media Provider & Switchboard
     auto provider =
             std::make_shared<GrpcMediaProvider>(client, 0, absl::GetFlag(FLAGS_shared_memory_path));
-    auto switchboard = std::make_shared<Switchboard>(client, provider);
+    auto switchboard = std::make_shared<Switchboard>(
+            provider, [client](DataChannelLabel /*label*/) -> std::unique_ptr<InputSender> {
+                return std::make_unique<GrpcInputSender>(client);
+            });
 
     // 3. Initialize RtcService and Start gRPC Server
     RtcService rtc_service(switchboard);

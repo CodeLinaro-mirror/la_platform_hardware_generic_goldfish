@@ -25,7 +25,7 @@ absl::Status ReadValue(archive::IReader& r, absl::Time& dst) {
 }
 
 IWriter& operator<<(IWriter& w, const absl::Time x) {
-    w << size_t(absl::ToUnixMicros(x));
+    w << static_cast<size_t>(absl::ToUnixMicros(x));
     return w;
 }
 

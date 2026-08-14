@@ -128,6 +128,10 @@ Prerequisite: OAuth2 Token
             default="30m",
             help="Execution timeout for the underlying AI investigation CLI (default: 30m)",
         )
+        parser.add_argument(
+            "--work-dir",
+            help="Custom working directory sandbox path for crash artifacts",
+        )
         return parser.parse_args(args_list)
 
     def _configure_logging(self) -> None:
@@ -149,6 +153,7 @@ Prerequisite: OAuth2 Token
                 aosp_root=self.args.aosp_root,
                 branch=self.args.branch,
                 build_id=self.args.build_id,
+                work_dir=self.args.work_dir,
             )
             self.context.prepare_sandbox()
             self.gosso = GossoClient()
@@ -182,7 +187,11 @@ Prerequisite: OAuth2 Token
             # Step 5: Prepare Jetski AI Investigation Script
             analyzer = CrashReportAnalyzer()
             investigation_script = analyzer.generate_explanation(
-                self.context, dump_path, auto_run=self.args.auto_run, timeout=self.args.timeout
+                self.context,
+                dump_path,
+                auto_run=self.args.auto_run,
+                timeout=self.args.timeout,
+                metadata=metadata,
             )
             if self.args.auto_run:
                 logging.info(
@@ -250,8 +259,17 @@ Prerequisite: OAuth2 Token
                         "Found existing issue b/%d (status: %s)", bug_id, status
                     )
                     if status in ("FIXED", "VERIFIED", "OBSOLETE"):
-                        logging.info("Issue is closed. Reopening as regression.")
-                        buganizer.reopen_issue_as_regression(bug_id, rca_content)
+                        build_id_str = self.metadata.build_id if self.metadata else "unknown"
+                        logging.info(
+                            "Issue b/%d is %s. Crash originated on Build ID %s (older repository version context).",
+                            bug_id,
+                            status,
+                            build_id_str,
+                        )
+                        buganizer.update_issue_comment(
+                            bug_id,
+                            f"Crash report captured on Build ID {build_id_str} (older repository version):\n{rca_content}",
+                        )
                     else:
                         logging.info("Issue is open. Adding RCA comment.")
                         buganizer.update_issue_comment(bug_id, rca_content)
@@ -314,6 +332,13 @@ Prerequisite: OAuth2 Token
         target_function = action_data.get("target_function", "unknown")
         remediation = action_data.get("remediation_summary", "Refer to rca_summary.md")
 
+        build_id = self.metadata.build_id if self.metadata else "unknown"
+        version_str = (
+            f"{self.metadata.product_name} ({self.metadata.build_id})"
+            if self.metadata and self.metadata.product_name
+            else build_id
+        )
+
         existing_comments = (
             "\n".join(buganizer.get_issue_comments(bug_id)[-5:]) if bug_id else "None"
         )
@@ -322,6 +347,19 @@ Prerequisite: OAuth2 Token
 Target File: {target_file}
 Target Function: {target_function}
 Remediation Summary: {remediation}
+
+⚠️ CRASH BUILD & REPOSITORY VERSION CONTEXT:
+• Crash Build ID: {build_id} (Version: {version_str})
+• Warning: This crash was captured from a build compiled against an older version of the repository than the current workspace (HEAD). The bug may already have been fixed in the current codebase!
+
+BEFORE WRITING CODE OR MAKING MODIFICATIONS:
+1. Inspect git log for {target_file} and verify if {target_function} or this crash signature has already been modified or fixed in newer commits.
+2. Inspect the current source code at {target_file} to verify whether the faulting condition (e.g., null pointer dereference, bounds overflow) still exists at HEAD.
+3. If the bug is ALREADY FIXED in the current workspace:
+   - Verify existing test coverage or write a unit test to confirm the fix.
+   - Document the existing fixing commit/CL in your final response.
+   - Do NOT introduce redundant, duplicate, or conflicting code changes.
+4. If and only if the bug is confirmed to still exist in the current workspace, follow the TDD loop (Red/Green/Refactor) coordinating with test_enforcer.
 
 === EXISTING BUGANIZER COMMENTS ===
 {existing_comments}

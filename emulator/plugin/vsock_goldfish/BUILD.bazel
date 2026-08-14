@@ -54,7 +54,6 @@ cc_library(
     ],
     alwayslink = True,
 ) for arch in [
-    "riscv64",
     "aarch64",
     "x86_64",
 ]]

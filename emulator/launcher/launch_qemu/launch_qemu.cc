@@ -91,6 +91,12 @@ absl::Status LaunchQemu::addDevices() {
         "-object",
         "iothread,id=disk-iothread",
     });
+    if (o.strict_snapshot_load) {
+        // A bad snapshot load might trigger a guest shutdown that is hidden by auto-rebooting.
+        addDevice<ParameterList>(std::initializer_list<std::string>{
+            "-no-reboot",
+        });
+    }
 
     addDevice<ParameterList>(std::initializer_list<std::string>{
         "-name", absl::StrFormat("%s,debug-threads=on", a.Name())});

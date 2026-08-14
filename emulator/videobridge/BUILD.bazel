@@ -16,6 +16,11 @@ WEBRTC_LINKOPTS = select({
     "//conditions:default": [],
 })
 
+WEBRTC_COPTS = select({
+    "@platforms//os:windows": ["/GR-"],
+    "//conditions:default": ["-fno-rtti"],
+})
+
 cc_library(
     name = "emulator_client",
     srcs = ["client/emulator_client.cc"],
@@ -34,10 +39,7 @@ cc_library(
 cc_binary(
     name = "videobridge",
     srcs = ["videobridge.cpp"],
-    copts = select({
-        "@platforms//os:windows": ["/GR-"],
-        "//conditions:default": ["-fno-rtti"],
-    }),
+    copts = WEBRTC_COPTS,
     linkopts = WEBRTC_LINKOPTS,
     deps = [
         ":emulator_client",
@@ -81,10 +83,7 @@ cc_library(
         "core/win/mf_video_encoder_h264.h",
         "include/goldfish/videobridge/codec_factories.h",
     ],
-    copts = select({
-        "@platforms//os:windows": ["/GR-"],
-        "//conditions:default": ["-fno-rtti"],
-    }),
+    copts = WEBRTC_COPTS,
     includes = [
         ".",
         "include",
@@ -156,6 +155,7 @@ cc_library(
         "core/goldfish_audio_device_module.h",
         "core/grpc_input_sender.cc",
         "core/grpc_input_sender.h",
+        "core/in_process_input_sender.cc",
         "core/participant.cc",
         "core/participant.h",
         "core/rtc_config.cc",
@@ -166,12 +166,14 @@ cc_library(
     ],
     hdrs = [
         "include/goldfish/videobridge/codec_factories.h",
+        "include/goldfish/videobridge/in_process_input_sender.h",
         "include/goldfish/videobridge/input_sender.h",
         "include/goldfish/videobridge/media_provider.h",
         "include/goldfish/videobridge/rtc_connection.h",
         "include/goldfish/videobridge/switchboard.h",
         "include/goldfish/videobridge/webrtc_logging.h",
     ],
+    copts = WEBRTC_COPTS,
     includes = ["include"],
     strip_include_prefix = "include",
     deps = [
@@ -180,6 +182,8 @@ cc_library(
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/synchronization",
         "@abseil-cpp//absl/time",
+        "@aemu//protos/services/emulator-controller:emulator_controller_cc_grpc",
+        "@grpc//:grpc++",
         "@nlohmann_json//:singleheader-json",
         "@webrtc//api:create_peerconnection_factory",
         "@webrtc//api:peer_connection_interface",
@@ -195,6 +199,7 @@ cc_library(
 cc_test(
     name = "goldfish_audio_device_module_test",
     srcs = ["core/goldfish_audio_device_module_test.cc"],
+    copts = WEBRTC_COPTS,
     deps = [
         ":videobridge_core",
         "//emulator/libs/test:googletest_main",
@@ -204,6 +209,7 @@ cc_test(
 cc_test(
     name = "rtc_config_test",
     srcs = ["core/rtc_config_test.cc"],
+    copts = WEBRTC_COPTS,
     deps = [
         ":videobridge_core",
         "//emulator/libs/test:googletest_main",
@@ -212,8 +218,23 @@ cc_test(
 )
 
 cc_test(
+    name = "in_process_input_sender_test",
+    srcs = ["core/in_process_input_sender_test.cc"],
+    copts = select({
+        "@platforms//os:windows": ["/GR-"],
+        "//conditions:default": ["-fno-rtti"],
+    }),
+    deps = [
+        ":videobridge_core",
+        "//emulator/libs/test:googletest_main",
+        "@aemu//protos/services/emulator-controller:emulator_controller_cc_grpc",
+    ],
+)
+
+cc_test(
     name = "switchboard_test",
     srcs = ["core/switchboard_test.cc"],
+    copts = WEBRTC_COPTS,
     linkopts = WEBRTC_LINKOPTS,
     deps = [
         ":videobridge_core",
@@ -257,10 +278,7 @@ cc_library(
     name = "rtc_service",
     srcs = ["signaling/rtc_service.cc"],
     hdrs = ["include/goldfish/videobridge/rtc_service.h"],
-    copts = select({
-        "@platforms//os:windows": ["/GR-"],
-        "//conditions:default": ["-fno-rtti"],
-    }),
+    copts = WEBRTC_COPTS,
     strip_include_prefix = "include",
     deps = [
         ":videobridge_core",
@@ -278,10 +296,7 @@ cc_test(
     name = "rtc_service_test",
     size = "small",
     srcs = ["signaling/rtc_service_test.cc"],
-    copts = select({
-        "@platforms//os:windows": ["/GR-"],
-        "//conditions:default": ["-fno-rtti"],
-    }),
+    copts = WEBRTC_COPTS,
     linkopts = WEBRTC_LINKOPTS,
     deps = [
         ":rtc_service",
@@ -303,10 +318,7 @@ cc_library(
         "media/grpc_media_provider.h",
         "media/grpc_video_source.h",
     ],
-    copts = select({
-        "@platforms//os:windows": ["/GR-"],
-        "//conditions:default": ["-fno-rtti"],
-    }),
+    copts = WEBRTC_COPTS,
     deps = [
         ":emulator_client",
         ":videobridge_core",
@@ -321,13 +333,61 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "in_process_media_providers",
+    srcs = [
+        "media/in_process_audio_source.cc",
+        "media/in_process_video_source.cc",
+    ],
+    hdrs = [
+        "include/goldfish/videobridge/in_process_audio_source.h",
+        "include/goldfish/videobridge/in_process_video_source.h",
+    ],
+    copts = WEBRTC_COPTS,
+    strip_include_prefix = "include",
+    deps = [
+        ":videobridge_core",
+        "//emulator/libs/SocketBuffer",
+        "//emulator/plugin/display:base",
+        "@abseil-cpp//absl/container:flat_hash_set",
+        "@abseil-cpp//absl/log",
+        "@libyuv",
+        "@webrtc//api:peer_connection_interface",
+        "@webrtc//media:adapted_video_track_source",
+        "@webrtc//rtc_base:timeutils",
+    ],
+)
+
+cc_test(
+    name = "in_process_audio_source_test",
+    srcs = ["media/in_process_audio_source_test.cc"],
+    copts = WEBRTC_COPTS,
+    deps = [
+        ":in_process_media_providers",
+        ":videobridge_core",
+        "//emulator/libs/test:googletest_main",
+        "@webrtc//api:media_stream_interface",
+    ],
+)
+
+cc_test(
+    name = "in_process_video_source_test",
+    srcs = ["media/in_process_video_source_test.cc"],
+    copts = WEBRTC_COPTS,
+    deps = [
+        ":in_process_media_providers",
+        ":videobridge_core",
+        "//emulator/libs/test:googletest_main",
+        "//emulator/plugin/avd:global-event-loop",
+        "//emulator/plugin/display:base",
+        "@webrtc//api:peer_connection_interface",
+    ],
+)
+
 cc_test(
     name = "grpc_video_source_test",
     srcs = ["media/grpc_video_source_test.cc"],
-    copts = select({
-        "@platforms//os:windows": ["/GR-"],
-        "//conditions:default": ["-fno-rtti"],
-    }),
+    copts = WEBRTC_COPTS,
     deps = [
         ":emulator_client",
         ":grpc_media_providers",
@@ -343,10 +403,7 @@ cc_test(
 cc_test(
     name = "grpc_audio_source_test",
     srcs = ["media/grpc_audio_source_test.cc"],
-    copts = select({
-        "@platforms//os:windows": ["/GR-"],
-        "//conditions:default": ["-fno-rtti"],
-    }),
+    copts = WEBRTC_COPTS,
     deps = [
         ":emulator_client",
         ":grpc_media_providers",
@@ -366,6 +423,9 @@ clang_tidy_test(
         ":videobridge",
         ":videobridge_core",
         ":grpc_media_providers",
+        ":in_process_media_providers",
+        ":in_process_audio_source_test",
+        ":in_process_video_source_test",
         ":grpc_video_source_test",
         ":grpc_audio_source_test",
     ],

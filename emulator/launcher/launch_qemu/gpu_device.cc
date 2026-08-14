@@ -65,6 +65,11 @@ std::vector<std::string> GpuDevice::getQemuParameters(const EmulatorConfig& emul
 
     renderer_features.append(";VulkanBatchedDescriptorSetUpdate:disabled");
 
+    // Use a separate memory type for Ahb allocations, to avoid marking them
+    // as host visible and coherent on lavapipe, which is not very well supported
+    // in virtio-gpu path right now.
+    renderer_features.append(";VulkanUseDedicatedAhbMemoryType:enabled");
+
     // Limit available GPU memory and hostmem to 4GB
     renderer_features.append(";VulkanMaxSafeHeapSize:4294967296");
 
@@ -83,6 +88,9 @@ std::vector<std::string> GpuDevice::getQemuParameters(const EmulatorConfig& emul
     if (hw.hw_sensor_hinge) {
         params.push_back("edid=off");
         params.push_back("max_outputs=2");
+    }
+    if (opts.no_window) {
+        params.push_back("wsi=headless");
     }
 
     params.push_back(absl::StrCat("id=", mGpuName));

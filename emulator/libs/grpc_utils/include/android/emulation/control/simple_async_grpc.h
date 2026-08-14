@@ -295,6 +295,14 @@ class WithSimpleQueueWriter : public T, public virtual WithReactorLock {
         NextWrite();
     }
 
+    /**
+     * @brief Returns the number of items currently pending in the write queue.
+     */
+    size_t QueueSize() {
+        absl::MutexLock lock(&this->reactor_lock_);
+        return write_queue_.size();
+    }
+
   private:
     void NextWrite() {
         absl::MutexLock lock(&this->reactor_lock_);
