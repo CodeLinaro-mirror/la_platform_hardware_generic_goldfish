@@ -80,20 +80,6 @@ struct VirtIOWifi {
 #define TYPE_VIRTIO_WIFI "virtio-wifi-device"
 DECLARE_INSTANCE_CHECKER(VirtIOWifi, VIRTIO_WIFI, TYPE_VIRTIO_WIFI);
 
-static void virtio_wifi_state_save(QEMUFile* file, void* opaque) {
-    // TODO
-}
-
-static int virtio_wifi_state_load(QEMUFile* file, void* opaque, int version_id) {
-    // TODO
-    return 0;
-}
-
-static const SaveVMHandlers virtio_wifi_vmhandlers = {
-    .save_state = virtio_wifi_state_save,
-    .load_state = virtio_wifi_state_load,
-};
-
 static VMStateField virtio_wifi_vmstate_fields[2];
 static const VMStateDescription virtio_wifi_vmstate = {
     .name = TYPE_VIRTIO_WIFI,
@@ -439,9 +425,6 @@ static void virtio_wifi_device_realize(DeviceState* dev, Error** errp) {
 
     wifi->tx_burst = kTXBurst;
 
-    // TODO(whollins): update this?
-    int instance = 0;
-    register_savevm_live(TYPE_VIRTIO_WIFI, instance, 0, &virtio_wifi_vmhandlers, wifi);
 }
 
 static void virtio_wifi_device_unrealize(DeviceState* dev) {
