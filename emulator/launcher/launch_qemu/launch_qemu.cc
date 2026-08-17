@@ -290,13 +290,16 @@ std::vector<std::string> LaunchQemu::getCmdline() const {
 
 absl::StatusOr<::goldfish::async::LaunchConfig> LaunchQemu::launch_config() {
     const auto& o = config_.opts();
+
+    // we need the gpu variable setup early
+    // before initialize
+    setupGpuVariables();
+
     auto status = initialize();
     if (!status.ok()) {
         VLOG(1) << "Failed to prepare emulator: " << status.message();
         return status;
     }
-
-    setupGpuVariables();
 
     fs::path exe_path = qemu_exe_path();
     std::vector<std::string> args = getCmdline();
