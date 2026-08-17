@@ -38,8 +38,8 @@ description = "Generate the compilation database"
 run = "bazel run @goldfish//development/tools:generate_bcc -- --workspace $BAZEL_ROOT"
 
 [tasks.tidy]
-description = "Generate the clang tidy report"
-run = "bazel build @goldfish//:clang_tidy_report"
+description = "Run clang-tidy against modified C/C++ lines in the last commit"
+run = "hardware/generic/goldfish/development/tools/clang_tidy.py --commit HEAD"
 
 [tasks.submit]
 description = "Upload the current branch for code review"
