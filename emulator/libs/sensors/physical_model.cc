@@ -67,7 +67,13 @@ float GetfloatValue(const float* val, const size_t count) {
 }
 }  // namespace
 
-FoldableState PhysicalModel::GetFoldableState() const {
+const FoldableConfig& PhysicalModel::GetFoldableConfig() const {
+    const std::lock_guard<std::recursive_mutex> lock(mutex_);
+    DCHECK(foldable_model_);
+    return foldable_model_->GetFoldableConfig();
+}
+
+const FoldableState& PhysicalModel::GetFoldableState() const {
     const std::lock_guard<std::recursive_mutex> lock(mutex_);
     DCHECK(foldable_model_);
     return foldable_model_->GetFoldableState();

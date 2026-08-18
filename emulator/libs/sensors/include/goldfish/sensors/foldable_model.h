@@ -67,7 +67,8 @@ class FoldableModel {
 
     float GetPosture(ParameterValueType parameter_value_type = ParameterValueType::kCurrent) const;
 
-    FoldableState GetFoldableState() const { return state_; }  // structure copy
+    const FoldableConfig& GetFoldableConfig() const { return config_; }
+    const FoldableState& GetFoldableState() const { return state_; }
 
     bool IsFolded() const;
 
@@ -84,12 +85,11 @@ class FoldableModel {
     void InitFoldableHinge(const android::goldfish::HardwareConfig& hw);
     void InitResizableConfigs(const android::goldfish::HardwareConfig& hw);
 
-    FoldableState state_;
+    FoldableConfig config_ = {};
     std::vector<AnglesToPosture> angles_to_postures_;
-
-    ObservablePosture posture_listener_;
-
     std::vector<ResizableConfig> resizable_configs_;
+    FoldableState state_ = {};
+    ObservablePosture posture_listener_;
 
     int folded_x_ = 0;
     int folded_y_ = 0;

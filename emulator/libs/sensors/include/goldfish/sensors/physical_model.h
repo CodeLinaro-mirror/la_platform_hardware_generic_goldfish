@@ -180,13 +180,15 @@ class PhysicalModel : public CallbackEventSource<PhysicalModelChangeEvent> {
 
     Rotation GetDeviceRotation() const;
 
+    const FoldableConfig& GetFoldableConfig() const;
+
     /**
      * @brief Gets the current foldable device state.
      * @note Caller must ensure HasFoldableModel() is true before calling this API.
      *       Calling it on a non-foldable target will trigger a DCHECK assertion failure.
      * @return Current foldable state
      */
-    FoldableState GetFoldableState() const;
+    const FoldableState& GetFoldableState() const;
 
     /**
      * @brief Checks if the physical model supports foldable capabilities.
