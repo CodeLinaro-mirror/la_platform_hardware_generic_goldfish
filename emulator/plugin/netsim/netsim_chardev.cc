@@ -146,6 +146,7 @@ class BtProtocol : public Protocol {
             queue->push_back(request);
         };
 
+        // TODO(b/548033766): Switch to virtio-bt (requires guest change).
         h4_parser_ = std::make_unique<rootcanal::H4Parser>(
                 [enqueue](const std::vector<uint8_t>& data) {
                     enqueue(::netsim::packet::HCIPacket::COMMAND, data);
@@ -161,7 +162,8 @@ class BtProtocol : public Protocol {
                 },
                 [enqueue](const std::vector<uint8_t>& data) {
                     enqueue(::netsim::packet::HCIPacket::ISO, data);
-                });
+                },
+                /*enable_recovery_state=*/true);
     }
 
     void reset() override { h4_parser_->Reset(); }
