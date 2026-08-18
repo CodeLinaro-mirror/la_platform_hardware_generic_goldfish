@@ -481,6 +481,7 @@ cc_test(
 alias(
     name = "launcher",
     actual = ":emulator",
+    visibility = ["//visibility:public"],
 )
 
 cc_binary(
