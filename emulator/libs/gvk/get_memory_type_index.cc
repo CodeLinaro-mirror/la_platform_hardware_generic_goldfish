@@ -19,13 +19,13 @@
 
 namespace goldfish::gvk::util {
 
-int getMemoryTypeIndex(const VkPhysicalDeviceMemoryProperties& memoryProperties,
-                       const uint32_t supportedMemoryTypeBitmask,
-                       const VkMemoryPropertyFlags requiredMemoryProperties) {
-    for (uint32_t i = 0; i < memoryProperties.memoryTypeCount; ++i) {
-        if ((supportedMemoryTypeBitmask & (1U << i)) &&
-            ((memoryProperties.memoryTypes[i].propertyFlags & requiredMemoryProperties) ==
-             requiredMemoryProperties)) {
+int GetMemoryTypeIndex(const VkPhysicalDeviceMemoryProperties& memory_properties,
+                       const uint32_t supported_memory_type_bitmask,
+                       const VkMemoryPropertyFlags required_memory_properties) {
+    for (uint32_t i = 0; i < memory_properties.memoryTypeCount; ++i) {
+        if ((supported_memory_type_bitmask & (1U << i)) &&
+            ((memory_properties.memoryTypes[i].propertyFlags & required_memory_properties) ==
+             required_memory_properties)) {
             return i;
         }
     }

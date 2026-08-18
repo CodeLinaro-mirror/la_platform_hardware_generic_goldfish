@@ -19,7 +19,7 @@
 
 namespace goldfish::gvk::util {
 
-const char* vkResultToStr(const VkResult result) {
+const char* VkResultToString(const VkResult result) {
     switch (result) {
     case VK_SUCCESS:
         return "VK_SUCCESS";
@@ -76,12 +76,12 @@ const char* vkResultToStr(const VkResult result) {
     }
 }
 
-void logVkResult(const char* funcName, const VkResult result) {
-    const char* resultStr = vkResultToStr(result);
-    if (resultStr) {
-        LOG(ERROR) << funcName << " failed with " << resultStr;
+void LogVkResult(const char* func_name, const VkResult result) {
+    const char* result_str = VkResultToString(result);
+    if (result_str) {
+        LOG(ERROR) << func_name << " failed with " << result_str;
     } else {
-        LOG(ERROR) << funcName << " failed with VkResult=" << result;
+        LOG(ERROR) << func_name << " failed with VkResult=" << result;
     }
 }
 

@@ -22,156 +22,158 @@
 
 namespace goldfish::gvk {
 
-using util::logVkResult;
+using util::LogVkResult;
 
 namespace {
-void stubForDestroyInstance(VkInstance, const VkAllocationCallbacks*) {
+void StubForDestroyInstance(VkInstance, const VkAllocationCallbacks*) {
     LOG(ERROR) << "If you see this function called this means the Vulkan "
                   "implementation did not provide `vkDestroyInstance`.";
 }
 }  // namespace
 
 InstanceDispatch::InstanceDispatch(IMetaLoader::Ptr loader, const VkInstance instance,
-                                   const PFN_vkDestroyInstance destroyInstance, Private)
-        : mLoader(std::move(loader))
-        , mVkInstance(instance)
-        , mPFN_vkDestroyInstance(destroyInstance) {}
+                                   const PFN_vkDestroyInstance destroy_instance, Private)
+        : loader_(std::move(loader))
+        , instance_(instance)
+        , pfn_vkDestroyInstance(destroy_instance) {}
 
 InstanceDispatch::~InstanceDispatch() {
-    (*mPFN_vkDestroyInstance)(mVkInstance, nullptr);
+    (*pfn_vkDestroyInstance)(instance_, nullptr);
 }
 
 InstanceDispatch::Ptr InstanceDispatch::create(const IMetaLoader::Ptr& loader,
-                                               const VkInstanceCreateInfo& instanceCreateInfo) {
-    const VkInstance instance = loader->createInstance(instanceCreateInfo);
+                                               const VkInstanceCreateInfo& instance_create_info) {
+    const VkInstance instance = loader->createInstance(instance_create_info);
     if (!instance) {
         return nullptr;
     }
 
-    const auto getInstanceProcAddr = loader->getInstanceProcAddr();
-    const auto getPFN = [getInstanceProcAddr, instance](const char* name) {
-        return reinterpret_cast<void*>(getInstanceProcAddr(instance, name));
+    const auto get_instance_proc_addr = loader->getInstanceProcAddr();
+    const auto get_pfn = [get_instance_proc_addr, instance](const char* name) {
+        return reinterpret_cast<void*>(get_instance_proc_addr(instance, name));
     };
 
-    PFN_vkDestroyInstance destroyInstance;
-    if (!util::initPFN(destroyInstance, getPFN, "vkDestroyInstance", "InstanceDispatch::create")) {
-        destroyInstance = &stubForDestroyInstance;
+    PFN_vkDestroyInstance destroy_instance;
+    if (!util::initPFN(destroy_instance, get_pfn, "vkDestroyInstance",
+                       "InstanceDispatch::create")) {
+        destroy_instance = &StubForDestroyInstance;
         LOG(ERROR) << "No way to destroy `vkInstance` because `vkDestroyInstance` is missing.";
     }
 
-    auto instanceDispatch =
-            std::make_shared<InstanceDispatch>(loader, instance, destroyInstance, Private());
-    if (instanceDispatch->initPFNs(getPFN)) {
-        return instanceDispatch;
+    auto instance_dispatch =
+            std::make_shared<InstanceDispatch>(loader, instance, destroy_instance, Private());
+    if (instance_dispatch->initPFNs(get_pfn)) {
+        return instance_dispatch;
     } else {
         return nullptr;
     }
 }
 
 InstanceDispatch::Ptr InstanceDispatch::create(const IMetaLoader::Ptr& loader,
-                                               const uint32_t maxApiVersion, const char* appName,
-                                               const uint32_t enabledLayerCount,
-                                               const char* const* enabledLayerNames,
-                                               const uint32_t enabledExtensionCount,
-                                               const char* const* enabledExtensionNames) {
-    const VkApplicationInfo appInfo = {
+                                               const uint32_t max_api_version, const char* app_name,
+                                               const uint32_t enabled_layer_count,
+                                               const char* const* enabled_layer_names,
+                                               const uint32_t enabled_extension_count,
+                                               const char* const* enabled_extension_names) {
+    const VkApplicationInfo app_info = {
         .sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
         .pNext = nullptr,
-        .pApplicationName = appName,
+        .pApplicationName = app_name,
         .applicationVersion = 0,
         .pEngineName = nullptr,
         .engineVersion = 0,
-        .apiVersion = maxApiVersion,
+        .apiVersion = max_api_version,
     };
 
-    const VkInstanceCreateInfo instanceCreateInfo = {
+    const VkInstanceCreateInfo instance_create_info = {
         .sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
         .pNext = nullptr,
         .flags = 0,
-        .pApplicationInfo = &appInfo,
-        .enabledLayerCount = enabledLayerCount,
-        .ppEnabledLayerNames = enabledLayerNames,
-        .enabledExtensionCount = enabledExtensionCount,
-        .ppEnabledExtensionNames = enabledExtensionNames,
+        .pApplicationInfo = &app_info,
+        .enabledLayerCount = enabled_layer_count,
+        .ppEnabledLayerNames = enabled_layer_names,
+        .enabledExtensionCount = enabled_extension_count,
+        .ppEnabledExtensionNames = enabled_extension_names,
     };
 
-    return create(loader, instanceCreateInfo);
+    return create(loader, instance_create_info);
 }
 
 bool InstanceDispatch::initPFNs(const util::GetPFN& getPFN) {
-#define INIT_1_PFN(F) util::initPFN(mPFN_##F, getPFN, #F, "InstanceDispatch::initPFNs") &&
+#define INIT_1_PFN(F) util::initPFN(pfn_##F, getPFN, #F, "InstanceDispatch::initPFNs") &&
     return GOLDFISH_GVK_InstanceDispatch_FUNC_LIST(INIT_1_PFN) true;
 #undef INIT_1_PFN
 }
 
 /*********************************************************************************************** */
 
-VkResult InstanceDispatch::enumeratePhysicalDevices(uint32_t* pPhysicalDeviceCount,
-                                                    VkPhysicalDevice* pPhysicalDevices) const {
-    return (*mPFN_vkEnumeratePhysicalDevices)(mVkInstance, pPhysicalDeviceCount, pPhysicalDevices);
+VkResult InstanceDispatch::enumeratePhysicalDevices(uint32_t* p_physical_device_count,
+                                                    VkPhysicalDevice* p_physical_devices) const {
+    return (*pfn_vkEnumeratePhysicalDevices)(instance_, p_physical_device_count,
+                                             p_physical_devices);
 }
 
 VkPhysicalDeviceProperties InstanceDispatch::getPhysicalDeviceProperties(
         const VkPhysicalDevice dev) const {
     VkPhysicalDeviceProperties props;
-    (*mPFN_vkGetPhysicalDeviceProperties)(dev, &props);
+    (*pfn_vkGetPhysicalDeviceProperties)(dev, &props);
     return props;
 }
 
 std::vector<VkQueueFamilyProperties> InstanceDispatch::getPhysicalDeviceQueueFamilyProperties(
         const VkPhysicalDevice dev) const {
-    uint32_t queueFamilyCount = 0;
-    (*mPFN_vkGetPhysicalDeviceQueueFamilyProperties)(dev, &queueFamilyCount, nullptr);
+    uint32_t queue_family_count = 0;
+    (*pfn_vkGetPhysicalDeviceQueueFamilyProperties)(dev, &queue_family_count, nullptr);
 
-    if (queueFamilyCount == 0) {
+    if (queue_family_count == 0) {
         return {};
     }
 
-    std::vector<VkQueueFamilyProperties> queueFamilyProperties(queueFamilyCount);
-    (*mPFN_vkGetPhysicalDeviceQueueFamilyProperties)(dev, &queueFamilyCount,
-                                                     queueFamilyProperties.data());
+    std::vector<VkQueueFamilyProperties> queue_family_properties(queue_family_count);
+    (*pfn_vkGetPhysicalDeviceQueueFamilyProperties)(dev, &queue_family_count,
+                                                    queue_family_properties.data());
 
-    return queueFamilyProperties;
+    return queue_family_properties;
 }
 
 VkPhysicalDeviceMemoryProperties InstanceDispatch::getPhysicalDeviceMemoryProperties(
         const VkPhysicalDevice dev) const {
     VkPhysicalDeviceMemoryProperties props;
-    (*mPFN_vkGetPhysicalDeviceMemoryProperties)(dev, &props);
+    (*pfn_vkGetPhysicalDeviceMemoryProperties)(dev, &props);
     return props;
 }
 
 std::vector<VkExtensionProperties> InstanceDispatch::enumerateDeviceExtensionProperties(
-        const VkPhysicalDevice dev, const char* layerName) const {
-    uint32_t propertyCount = 0;
+        const VkPhysicalDevice dev, const char* layer_name) const {
+    uint32_t property_count = 0;
     VkResult result =
-            (*mPFN_vkEnumerateDeviceExtensionProperties)(dev, layerName, &propertyCount, nullptr);
+            (*pfn_vkEnumerateDeviceExtensionProperties)(dev, layer_name, &property_count, nullptr);
     if (result != VK_SUCCESS) {
-        logVkResult("vkEnumerateDeviceExtensionProperties", result);
+        LogVkResult("vkEnumerateDeviceExtensionProperties", result);
         return {};
     }
 
-    if (propertyCount == 0) {
+    if (property_count == 0) {
         return {};
     }
 
-    std::vector<VkExtensionProperties> properties(propertyCount);
-    result = (*mPFN_vkEnumerateDeviceExtensionProperties)(dev, layerName, &propertyCount,
-                                                          properties.data());
+    std::vector<VkExtensionProperties> properties(property_count);
+    result = (*pfn_vkEnumerateDeviceExtensionProperties)(dev, layer_name, &property_count,
+                                                         properties.data());
     if (result != VK_SUCCESS) {
-        logVkResult("vkEnumerateDeviceExtensionProperties", result);
+        LogVkResult("vkEnumerateDeviceExtensionProperties", result);
         return {};
     }
 
     return properties;
 }
 
-VkDevice InstanceDispatch::createDevice(const VkPhysicalDevice physicalDevice,
-                                        const VkDeviceCreateInfo& createInfo) const {
+VkDevice InstanceDispatch::createDevice(const VkPhysicalDevice physical_device,
+                                        const VkDeviceCreateInfo& create_info) const {
     VkDevice device = nullptr;
-    const VkResult result = (*mPFN_vkCreateDevice)(physicalDevice, &createInfo, nullptr, &device);
+    const VkResult result = (*pfn_vkCreateDevice)(physical_device, &create_info, nullptr, &device);
     if (result != VK_SUCCESS) {
-        logVkResult("vkCreateDevice", result);
+        LogVkResult("vkCreateDevice", result);
         return VK_NULL_HANDLE;
     }
     return device;

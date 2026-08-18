@@ -1116,7 +1116,7 @@ void* VirtualsceneImageProvider::create(const CameraImageProviderInfo& info) {
         return FAILURE_STR("instanceDispatch", nullptr);
     }
 
-    const VkPhysicalDevice physicalDevice = gvk::util::selectPhysicalDevice(
+    const VkPhysicalDevice physicalDevice = gvk::util::SelectPhysicalDevice(
             *instanceDispatch, [](const VkPhysicalDeviceProperties&) { return 1; }, true);
     if (!physicalDevice) {
         return FAILURE_STR("physicalDevice", nullptr);
