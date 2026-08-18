@@ -805,10 +805,7 @@ void PhysicalModel::PhysicalStateStabilized() {
 void PhysicalModel::TargetStateChanged() {
     {
         const std::lock_guard<std::recursive_mutex> lock(mutex_);
-        // When target state changes we reset all sensor overrides.
-        for (bool& i : use_override_) {
-            i = false;
-        }
+        use_override_.reset();  // When target state changes we reset all sensor overrides.
     }
 
     const PhysicalModelChangeEvent event{
