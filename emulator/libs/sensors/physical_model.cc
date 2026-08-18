@@ -242,12 +242,7 @@ void PhysicalModel::SetCurrentTime(int64_t time_ns) {
         model_time_ns_ = time_ns;
         const bool is_inertial_model_stable =
                 inertial_model_.SetCurrentTime(time_ns) == InertialState::kStable;
-        const bool is_ambient_model_stable = goldfish::physics::AmbientEnvironment::SetCurrentTime(
-                                                     time_ns) == AmbientState::kStable;
-        const bool is_body_model_stable =
-                goldfish::physics::BodyModel::SetCurrentTime(time_ns) == BodyState::kStable;
-        state_stabilized = (is_inertial_model_stable && is_ambient_model_stable &&
-                            is_body_model_stable && is_physical_state_changing_);
+        state_stabilized = (is_inertial_model_stable && is_physical_state_changing_);
     }
 
     if (state_stabilized) {
