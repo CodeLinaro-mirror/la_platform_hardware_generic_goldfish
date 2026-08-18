@@ -766,9 +766,7 @@ GOLDFISH_PHYSICAL_PARAMETERS_LIST
 void PhysicalModel::PhysicalStateChanging() {
     {
         const std::lock_guard<std::recursive_mutex> lock(mutex_);
-        if (!is_physical_state_changing_) {
-            is_physical_state_changing_ = true;
-        }
+        is_physical_state_changing_ = true;
     }
 
     const PhysicalModelChangeEvent event{
