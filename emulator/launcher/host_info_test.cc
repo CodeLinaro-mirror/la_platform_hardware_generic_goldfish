@@ -63,9 +63,15 @@ TEST(HostInfoTest, RunningInCiTrueWithJenkins) {
     EXPECT_TRUE(IsRunningInCi());
 }
 
-TEST(HostInfoTest, RunningInCiTrueWithBuildId) {
+TEST(HostInfoTest, RunningInCiFalseWithBuildIdAlone) {
     TestSystem test_sys("/tmp", "/home", "");
     test_sys.EnvSet("BUILD_ID", "12345");
+    EXPECT_FALSE(IsRunningInCi());
+}
+
+TEST(HostInfoTest, RunningInCiTrueWithTfBuild) {
+    TestSystem test_sys("/tmp", "/home", "");
+    test_sys.EnvSet("TF_BUILD", "1");
     EXPECT_TRUE(IsRunningInCi());
 }
 
