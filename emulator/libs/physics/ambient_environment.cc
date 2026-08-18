@@ -18,10 +18,6 @@
 
 namespace goldfish::physics {
 
-AmbientState AmbientEnvironment::SetCurrentTime(uint64_t /*time_ns*/) {
-    return AmbientState::kStable;
-}
-
 void AmbientEnvironment::SetMagneticField(float north, float east, float vertical,
                                           PhysicalInterpolation /*mode*/) {
     magnetic_field_ = glm::vec3(north, east, vertical);
