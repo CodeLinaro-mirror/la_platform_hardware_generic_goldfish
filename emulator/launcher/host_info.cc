@@ -1,5 +1,8 @@
 #include "host_info.h"
 
+#include <algorithm>
+#include <array>
+
 #include "absl/log/log.h"
 
 #include "android/base/system.h"
@@ -175,11 +178,60 @@ void FillAvdInfo(android_studio::EmulatorAvdInfo& avd_info, const Avd& avd) {
     avd_info.add_properties(toClearcutLogAvdProperty(avd.GetDeviceType()));
 }
 
+}  // namespace
+
+bool IsRunningInCi() {
+    auto sys = android::base::System::Get();
+    auto isTruthy = [](std::string_view val) {
+        if (val.empty()) return false;
+        if (val == "1") return true;
+        if (val.size() == 4) {
+            return (val[0] == 't' || val[0] == 'T') && (val[1] == 'r' || val[1] == 'R') &&
+                   (val[2] == 'u' || val[2] == 'U') && (val[3] == 'e' || val[3] == 'E');
+        }
+        return false;
+    };
+    if (isTruthy(sys->EnvGet("CI"))) return true;
+    if (isTruthy(sys->EnvGet("CONTINUOUS_INTEGRATION"))) return true;
+
+    static constexpr std::array kCiEnvVars = {
+        "GITHUB_ACTIONS", "GITLAB_CI", "JENKINS_URL", "BUILD_ID",         "TF_BUILD",
+        "CIRCLECI",       "TRAVIS",    "BUILDKITE",   "TEAMCITY_VERSION", "CODEBUILD_BUILD_ID",
+    };
+
+    return std::any_of(kCiEnvVars.begin(), kCiEnvVars.end(),
+                       [&](const char* var) { return sys->EnvTest(var); });
+}
+
+bool IsAndroidCliDefined() {
+    return android::base::System::Get()->EnvGet("ANDROID_CLI") == "1";
+}
+
+bool IsRunningInContainer() {
+#if defined(__linux__)
+    if (android::base::file::exists("/.dockerenv")) return true;
+    if (android::base::file::exists("/run/.containerenv")) return true;
+    if (android::base::file::exists("/run/systemd/container")) return true;
+    if (android::base::System::Get()->EnvTest("container")) return true;
+    if (android::base::System::Get()->EnvTest("KUBERNETES_SERVICE_HOST")) return true;
+#endif
+    // Backward compatibility with the legacy container image
+    if (android::base::file::exists("/android/sdk/launch-emulator.sh") &&
+        android::base::file::exists("/tmp/pulseverbose.log")) {
+        return true;
+    }
+    return false;
+}
+
+namespace {
+
 void FillHost(android_studio::EmulatorHost& host) {
     host.set_os_bit_count(64);
     const android::AndroidCpuInfoFlags cpuFlags = android::GetCpuInfo().first;
     host.set_virt_support(cpuFlags & ANDROID_CPU_INFO_VIRT_SUPPORTED);
     host.set_running_in_vm(cpuFlags & ANDROID_CPU_INFO_VM);
+    host.set_running_in_ci(IsRunningInCi());
+    host.set_android_cli_defined(IsAndroidCliDefined());
     host.set_cpu_manufacturer((cpuFlags & ANDROID_CPU_INFO_INTEL) ? "INTEL"
                               : (cpuFlags & ANDROID_CPU_INFO_AMD) ? "AMD"
                                                                   : "OTHER");
@@ -251,9 +303,8 @@ void FillDetails(android_studio::EmulatorDetails& details, const Avd& avd, long 
         hostGpu->set_version(gpu.version);
     }*/
 
-    // Check for a set of files that exist in the container environment
-    bool isContainer = android::base::file::exists("/android/sdk/launch-emulator.sh") &&
-                       android::base::file::exists("/tmp/pulseverbose.log");
+    // Check for container environment
+    bool isContainer = IsRunningInContainer();
 
     if (isContainer && metrics_collection_opt) {
         details.mutable_used_features()->set_launch_type(

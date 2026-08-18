@@ -218,6 +218,16 @@ cc_library(
     ],
 )
 
+cc_test(
+    name = "host_info_test",
+    srcs = ["host_info_test.cc"],
+    deps = [
+        ":host_info",
+        "//emulator/libs/system:test-headers",
+        "//emulator/libs/test:googletest_main",
+    ],
+)
+
 cc_library(
     name = "logging",
     srcs = ["logging.cc"],
@@ -494,6 +504,7 @@ cc_binary(
     }),
     visibility = ["//visibility:public"],
     deps = [
+        ":host_info",
         ":launcher_lib",
         ":trampoline",
         "//emulator/crashreport:crash_system",
