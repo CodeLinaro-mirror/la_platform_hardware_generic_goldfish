@@ -764,11 +764,7 @@ void PhysicalModel::PhysicalStateChanging() {
         is_physical_state_changing_ = true;
     }
 
-    const PhysicalModelChangeEvent event{
-        .type = PhysicalModelChangeEvent::Type::kPhysicalStateChanging,
-        .model = this,
-    };
-    FireEvent(event);
+    NotifyTargetState(PhysicalModelChangeEvent::Type::kPhysicalStateChanging);
 }
 
 void PhysicalModel::PhysicalStateStabilized() {
@@ -784,11 +780,7 @@ void PhysicalModel::PhysicalStateStabilized() {
         is_physical_state_changing_ = false;
     }
 
-    const PhysicalModelChangeEvent event{
-        .type = PhysicalModelChangeEvent::Type::kPhysicalStateStabilized,
-        .model = this,
-    };
-    FireEvent(event);
+    NotifyTargetState(PhysicalModelChangeEvent::Type::kPhysicalStateStabilized);
 }
 
 void PhysicalModel::TargetStateChanged() {
@@ -797,8 +789,12 @@ void PhysicalModel::TargetStateChanged() {
         use_override_.reset();  // When target state changes we reset all sensor overrides.
     }
 
+    NotifyTargetState(PhysicalModelChangeEvent::Type::kTargetStateChanged);
+}
+
+void PhysicalModel::NotifyTargetState(PhysicalModelChangeEvent::Type type) {
     const PhysicalModelChangeEvent event{
-        .type = PhysicalModelChangeEvent::Type::kTargetStateChanged,
+        .type = type,
         .model = this,
     };
     FireEvent(event);
