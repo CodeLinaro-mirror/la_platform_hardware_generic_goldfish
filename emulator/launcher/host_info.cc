@@ -195,8 +195,8 @@ bool IsRunningInCi() {
     if (isTruthy(sys->EnvGet("CONTINUOUS_INTEGRATION"))) return true;
 
     static constexpr std::array kCiEnvVars = {
-        "GITHUB_ACTIONS", "GITLAB_CI", "JENKINS_URL", "BUILD_ID",         "TF_BUILD",
-        "CIRCLECI",       "TRAVIS",    "BUILDKITE",   "TEAMCITY_VERSION", "CODEBUILD_BUILD_ID",
+        "GITHUB_ACTIONS", "GITLAB_CI", "JENKINS_URL",      "TF_BUILD",           "CIRCLECI",
+        "TRAVIS",         "BUILDKITE", "TEAMCITY_VERSION", "CODEBUILD_BUILD_ID",
     };
 
     return std::any_of(kCiEnvVars.begin(), kCiEnvVars.end(),
