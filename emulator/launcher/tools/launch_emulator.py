@@ -66,6 +66,18 @@ if __name__ == "__main__":
         help="Use the goldfish from the release zip",
     )
     parser.add_argument(
+        "--count_log_pattern",
+        type=str,
+        default=None,
+        help="Regular expression pattern to count in emulator logs.",
+    )
+    parser.add_argument(
+        "--expected_occurrences",
+        type=int,
+        default=None,
+        help="Exact number of times count_log_pattern must occur before target log line is reached.",
+    )
+    parser.add_argument(
         "--system_image_dir",
         help="Use the this system image directory instead of the default.",
     )
@@ -82,7 +94,7 @@ if __name__ == "__main__":
     if extra_args and extra_args[0] == "--":
         extra_args = extra_args[1:]
 
-    with tempfile.TemporaryDirectory() as tmp_dir_for_images:
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp_dir_for_images:
         for i in range(args.repeat + 1):
             if args.repeat > 0:
                 logging.info(
@@ -98,6 +110,8 @@ if __name__ == "__main__":
                     extra_qemu_args=extra_args,
                     disable_crash_reporting=args.disable_crash_reporting,
                     system_image_dir=args.system_image_dir,
+                    count_log_pattern=args.count_log_pattern,
+                    expected_occurrences=args.expected_occurrences,
                 )
             )
 
