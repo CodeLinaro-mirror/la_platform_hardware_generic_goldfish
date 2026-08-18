@@ -11,7 +11,7 @@ namespace control {
 namespace keyboard {
 
 // Function to check if a QKeyCode is valid
-bool isValidQKeyCode(QKeyCode code) {
+bool IsValidQKeyCode(QKeyCode code) {
     // This is a simple check based on the range of valid QKeyCode values.
     // You might need to adjust this based on the actual QKeyCode definition.
     return code > 0 && code <= Q_KEY_CODE__MAX;
@@ -36,10 +36,10 @@ TEST(KeyConversionTest, DISABLED_EvdevToQKeyCode) {
             QKeyCode qcode = evdev_to_qcode(entry.evdev);
 
             // Check if the QKeyCode is valid
-            EXPECT_TRUE(isValidQKeyCode(qcode))
-                    << "Invalid QKeyCode " << (int)qcode << " for usb code 0x" << std::hex
-                    << entry.usb << std::dec << " for evdev code 0x" << std::hex << entry.evdev
-                    << std::dec << " (" << entry.code << ") at index " << idx;
+            EXPECT_TRUE(IsValidQKeyCode(qcode))
+                    << "Invalid QKeyCode " << static_cast<int>(qcode) << " for usb code 0x"
+                    << std::hex << entry.usb << std::dec << " for evdev code 0x" << std::hex
+                    << entry.evdev << std::dec << " (" << entry.code << ") at index " << idx;
         }
     }
 }
@@ -50,7 +50,7 @@ TEST(KeyConversionTest, HandlesEvdevBit11) {
     uint32_t evdev_102 = keycode_to_evdev(102, KeyCodeType::evdev);
     uint32_t evdev_1126 = keycode_to_evdev(1126, KeyCodeType::evdev);
 
-    EXPECT_EQ(evdev_102, 102u);
+    EXPECT_EQ(evdev_102, 102U);
     EXPECT_EQ(evdev_102, evdev_1126);
 }
 
