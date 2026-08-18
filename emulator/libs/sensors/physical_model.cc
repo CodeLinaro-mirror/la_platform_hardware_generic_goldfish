@@ -746,7 +746,6 @@ float PhysicalModel::GetPhysicalWristTilt() const {
 
 #define SET_TARGET_FUNCTION_NAME(x) SetTarget##x
 #define SET_TARGET_INTERNAL_FUNCTION_NAME(x) SetTargetInternal##x
-#define PHYSICAL_PARAMETER_ENUM(x) PHYSICAL_PARAMETER_##x
 #define GOLDFISH_PHYSICAL_PARAMETER_DEF(x, y, z, w)                                        \
     void PhysicalModel::SET_TARGET_FUNCTION_NAME(z)(w value, PhysicalInterpolation mode) { \
         SET_TARGET_INTERNAL_FUNCTION_NAME(z)(value, mode);                                 \
@@ -754,7 +753,6 @@ float PhysicalModel::GetPhysicalWristTilt() const {
 
 GOLDFISH_PHYSICAL_PARAMETERS_LIST
 #undef GOLDFISH_PHYSICAL_PARAMETER_DEF
-#undef PHYSICAL_PARAMETER_ENUM
 #undef SET_TARGET_INTERNAL_FUNCTION_NAME
 #undef SET_TARGET_FUNCTION_NAME
 
