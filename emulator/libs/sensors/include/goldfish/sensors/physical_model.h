@@ -18,6 +18,7 @@
 #include <glm/vec3.hpp>
 #include <glm/vec4.hpp>
 
+#include <bitset>
 #include <cstdint>
 #include <memory>
 #include <mutex>
@@ -286,10 +287,10 @@ class PhysicalModel : public CallbackEventSource<PhysicalModelChangeEvent> {
     std::unique_ptr<FoldableModel> foldable_model_;  ///< Models foldable device state
     BodyModel body_model_;                    ///< Models body-related sensors
 
+    std::bitset<kNumSensors> use_override_;             ///< Sensor override flags
     mutable size_t measurement_id_[kNumSensors] = {0};  ///< Measurement IDs
 
-    bool is_physical_state_changing_{false};    ///< True if physical state is changing
-    bool use_override_[kNumSensors] = {false};  ///< Sensor override flags
+    bool is_physical_state_changing_{false};  ///< True if physical state is changing
 
 #define GOLDFISH_SENSOR_DEF(x, y, z, v, w) v m##z##Override{0.f};
     GOLDFISH_SENSORS_LIST
