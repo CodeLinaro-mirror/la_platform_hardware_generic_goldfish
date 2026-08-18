@@ -540,6 +540,8 @@ create_launch_emulator_test(
 
 create_launch_emulator_test(
     name = "can_boot_with_minigbm",
+    count_log_pattern = "'Gfxstream initialized successfully!'",
+    expected_occurrences = 1,
     params = [
         "-show-kernel",
         "-no-boot-anim",
