@@ -59,12 +59,12 @@ class InstanceDispatch {
     struct Private {};
 
     VkDevice createDevice(VkPhysicalDevice, const VkDeviceCreateInfo&) const;
-    PFN_vkGetDeviceProcAddr getDeviceProcAddr() const { return mPFN_vkGetDeviceProcAddr; }
+    PFN_vkGetDeviceProcAddr getDeviceProcAddr() const { return pfn_vkGetDeviceProcAddr; }
     bool initPFNs(const util::GetPFN&);
 
-    const IMetaLoader::Ptr mLoader;
-    const VkInstance mVkInstance;
-    const PFN_vkDestroyInstance mPFN_vkDestroyInstance;
+    const IMetaLoader::Ptr loader_;
+    const VkInstance instance_;
+    const PFN_vkDestroyInstance pfn_vkDestroyInstance;
 
     GOLDFISH_GVK_InstanceDispatch_FUNC_LIST(GOLDFISH_GVK_POPULATE_MEMBER_PFN_VISITOR);
 

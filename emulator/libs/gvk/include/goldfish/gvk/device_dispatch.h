@@ -185,7 +185,7 @@ class DeviceDispatch {
     void destroyPipelineLayout(VkPipelineLayout) const;
 
     bool createGraphicsPipelines(uint32_t createInfoCount,
-                                 const VkGraphicsPipelineCreateInfo* createInfos,
+                                 const VkGraphicsPipelineCreateInfo* create_infos,
                                  Pipeline* pipelines) const;
     void destroyPipeline(VkPipeline pipeline) const;
 
@@ -228,12 +228,12 @@ class DeviceDispatch {
     static Ptr create(const InstanceDispatch::Ptr&, VkPhysicalDevice, const VkDeviceCreateInfo&);
     bool initPFNs(const util::GetPFN&);
 
-    const InstanceDispatch::Ptr mInstanceDispatch;
-    const VkDevice mVkDevice;
-    const PFN_vkDestroyDevice mPFN_vkDestroyDevice;
+    const InstanceDispatch::Ptr instance_dispatch_;
+    const VkDevice device_;
+    const PFN_vkDestroyDevice pfn_vkDestroyDevice;
 
     bool createGraphicsPipelinesImpl(uint32_t createInfoCount,
-                                     const VkGraphicsPipelineCreateInfo* createInfos,
+                                     const VkGraphicsPipelineCreateInfo* create_infos,
                                      VkPipeline* pipelinesTmp, Pipeline* pipelines) const;
 
     GOLDFISH_GVK_DeviceDispatch_FUNC_LIST(GOLDFISH_GVK_POPULATE_MEMBER_PFN_VISITOR);

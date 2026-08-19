@@ -46,7 +46,7 @@ class SystemMetaLoader : public IMetaLoader {
     PFN_vkGetInstanceProcAddr getInstanceProcAddr() const override;
     VkInstance createInstance(const VkInstanceCreateInfo&) const override;
 
-    os::DynamicLibrary mLib;
+    os::DynamicLibrary library_;
 
     GOLDFISH_GVK_SystemMetaLoader_FUNC_LIST(GOLDFISH_GVK_POPULATE_MEMBER_PFN_VISITOR);
 

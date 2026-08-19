@@ -19,7 +19,7 @@
 
 namespace goldfish::gvk::util {
 
-int getMemoryTypeIndex(const VkPhysicalDeviceMemoryProperties&, uint32_t supportedMemoryTypeBitmask,
+int GetMemoryTypeIndex(const VkPhysicalDeviceMemoryProperties&, uint32_t supportedMemoryTypeBitmask,
                        VkMemoryPropertyFlags requiredMemoryProperties);
 
 }  // namespace goldfish::gvk::util
