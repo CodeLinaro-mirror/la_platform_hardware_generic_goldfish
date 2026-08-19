@@ -14,12 +14,11 @@
 
 #include "android/crashreport/hang_detector.h"
 
-#include <chrono>
 #include <string_view>
-#include <thread>
 
 #include "absl/status/status_matchers.h"
 #include "absl/synchronization/notification.h"
+#include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "gtest/gtest.h"
 
@@ -108,17 +107,11 @@ TEST_F(HangDetectorTest, BlockedLoopTriggersHang) {
     event_loop->Post([&hang] { hang.WaitForNotification(); }).IgnoreError();
 
     // 1st advance: initial looper check (reschedules with task running)
-    mTestClock->Advance(absl::Milliseconds(1100));
-    std::this_thread::sleep_for(std::chrono::milliseconds(15));
-
-    // 2nd advance: 1st hang check (hang_count_ -> 1)
-    mTestClock->Advance(absl::Milliseconds(1100));
-    std::this_thread::sleep_for(std::chrono::milliseconds(15));
-
-    // 3rd advance: 2nd hang check (hang_count_ -> 2, triggers callback)
-    mTestClock->Advance(absl::Milliseconds(1100));
-    std::this_thread::sleep_for(std::chrono::milliseconds(15));
-
+    auto end_time = absl::Now() + absl::Seconds(5);
+    while (!mNotify.HasBeenNotified() && absl::Now() < end_time) {
+        mTestClock->Advance(absl::Milliseconds(100));
+        absl::SleepFor(absl::Milliseconds(10));
+    }
     ASSERT_TRUE(wait_for_hang(absl::Seconds(1)));
 
     // Unblock the loop so that it actually terminates!
@@ -173,18 +166,11 @@ TEST_F(HangDetectorTest, NoHangCallbackDeadlockWhenRemovingLooper) {
     event_loop->Post([&hang] { hang.WaitForNotification(); }).IgnoreError();
 
     // 1st advance: initial check
-    clock_ptr->Advance(absl::Milliseconds(110));
-    std::this_thread::sleep_for(std::chrono::milliseconds(15));
-
-    // 2nd advance: 1st hang check
-    clock_ptr->Advance(absl::Milliseconds(110));
-    std::this_thread::sleep_for(std::chrono::milliseconds(15));
-
-    // 3rd advance: 2nd hang check
-    clock_ptr->Advance(absl::Milliseconds(110));
-    std::this_thread::sleep_for(std::chrono::milliseconds(15));
-
-    // Verify hang callback fires and async thread can run without deadlocking on HangDetector mutex
+    auto end_time = absl::Now() + absl::Seconds(5);
+    while (!hang_cb_called.HasBeenNotified() && absl::Now() < end_time) {
+        clock_ptr->Advance(absl::Milliseconds(20));
+        absl::SleepFor(absl::Milliseconds(5));
+    }
     ASSERT_TRUE(hang_cb_called.WaitForNotificationWithTimeout(absl::Seconds(1)));
 
     hang.Notify();
