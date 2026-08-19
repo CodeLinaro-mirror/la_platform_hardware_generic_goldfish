@@ -49,6 +49,9 @@ struct AvdExtendedUniverse : public AvdUniverse {
 
     void Reset();
 
+    std::unique_ptr<async::EventLoop> qemu_event_loop;
+    std::vector<VCpuEventLoop> qemu_cpu_loops;
+
     std::unique_ptr<display::IMultiDisplay> multi_display;
 
     devices::ConnectorRegistry connector_registry;
@@ -57,8 +60,6 @@ struct AvdExtendedUniverse : public AvdUniverse {
     std::unique_ptr<metrics::MetricsReporter> metrics_reporter;
     std::shared_ptr<async::EventLoop::Timer> metrics_ping_timer;
 
-    std::unique_ptr<async::EventLoop> qemu_event_loop;
-    std::vector<VCpuEventLoop> qemu_cpu_loops;
     std::unique_ptr<metrics::PerfStatReporter> perf_stat_reporter;
     std::shared_ptr<async::EventLoop::Timer> perf_stat_reporter_task;
 
