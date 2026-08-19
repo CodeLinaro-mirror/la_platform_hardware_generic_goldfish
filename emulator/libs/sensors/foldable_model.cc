@@ -16,7 +16,7 @@
 
 #include "goldfish/sensors/foldable_model.h"
 
-#include <string>
+#include <string_view>
 #include <utility>
 
 #include "absl/log/log.h"
@@ -55,14 +55,14 @@ void FoldableModel::InitFoldableRoll(const android::goldfish::HardwareConfig& hw
             hw.hw_sensor_roll_resize_to_displayRegion_0_3_at_posture);
 
     // hinge angle ranges and defaults
-    const std::string roll_ranges(hw.hw_sensor_roll_ranges);
-    const std::string roll_defaults(hw.hw_sensor_roll_defaults);
-    const std::string roll_radius(hw.hw_sensor_roll_radius);
-    const std::string roll_direction(hw.hw_sensor_roll_direction);
-    std::vector<std::string> roll_range_tokens = absl::StrSplit(roll_ranges, ',');
-    std::vector<std::string> roll_default_tokens = absl::StrSplit(roll_defaults, ',');
-    std::vector<std::string> roll_radius_tokens = absl::StrSplit(roll_radius, ',');
-    std::vector<std::string> roll_direction_tokens = absl::StrSplit(roll_direction, ',');
+    const std::string_view roll_ranges(hw.hw_sensor_roll_ranges);
+    const std::string_view roll_defaults(hw.hw_sensor_roll_defaults);
+    const std::string_view roll_radius(hw.hw_sensor_roll_radius);
+    const std::string_view roll_direction(hw.hw_sensor_roll_direction);
+    const std::vector<std::string_view> roll_range_tokens = absl::StrSplit(roll_ranges, ',');
+    const std::vector<std::string_view> roll_default_tokens = absl::StrSplit(roll_defaults, ',');
+    const std::vector<std::string_view> roll_radius_tokens = absl::StrSplit(roll_radius, ',');
+    const std::vector<std::string_view> roll_direction_tokens = absl::StrSplit(roll_direction, ',');
     if (roll_range_tokens.size() != num_rolls || roll_default_tokens.size() != num_rolls ||
         roll_radius_tokens.size() != num_rolls || roll_direction_tokens.size() != num_rolls) {
         LOG(FATAL) << "Incorrect rollable configs for ranges " << roll_ranges << ", defaults "
@@ -138,13 +138,12 @@ void FoldableModel::InitFoldableHinge(const android::goldfish::HardwareConfig& h
     }
     config_.num_hinges = num_hinges;
 
-    const std::string hinge_ranges(hw.hw_sensor_hinge_ranges);
-    const std::string hinge_defaults(hw.hw_sensor_hinge_defaults);
-    const std::string hinge_areas(hw.hw_sensor_hinge_areas);
-
-    std::vector<std::string> range_tokens = absl::StrSplit(hinge_ranges, ',');
-    std::vector<std::string> default_tokens = absl::StrSplit(hinge_defaults, ',');
-    std::vector<std::string> area_tokens = absl::StrSplit(hinge_areas, ',');
+    const std::string_view hinge_ranges(hw.hw_sensor_hinge_ranges);
+    const std::string_view hinge_defaults(hw.hw_sensor_hinge_defaults);
+    const std::string_view hinge_areas(hw.hw_sensor_hinge_areas);
+    const std::vector<std::string_view> range_tokens = absl::StrSplit(hinge_ranges, ',');
+    const std::vector<std::string_view> default_tokens = absl::StrSplit(hinge_defaults, ',');
+    const std::vector<std::string_view> area_tokens = absl::StrSplit(hinge_areas, ',');
 
     if (range_tokens.size() != static_cast<size_t>(num_hinges) ||
         default_tokens.size() != static_cast<size_t>(num_hinges) ||
@@ -153,8 +152,8 @@ void FoldableModel::InitFoldableHinge(const android::goldfish::HardwareConfig& h
                    << hinge_defaults << ", or areas " << hinge_areas;
     } else {
         for (int i = 0; i < num_hinges; i++) {
-            std::vector<std::string> angles = absl::StrSplit(range_tokens[i], '-');
-            std::vector<std::string> area = absl::StrSplit(area_tokens[i], '-');
+            std::vector<std::string_view> angles = absl::StrSplit(range_tokens[i], '-');
+            std::vector<std::string_view> area = absl::StrSplit(area_tokens[i], '-');
             if (angles.size() != 2 || (area.size() != 2 && area.size() != 4)) {
                 LOG(FATAL) << "Incorrect hinge angle range " << range_tokens[i] << " or area "
                            << area_tokens[i];
@@ -212,12 +211,12 @@ void FoldableModel::InitFoldableHinge(const android::goldfish::HardwareConfig& h
     }
 
     // Postures parsing
-    const std::string posture_list(hw.hw_sensor_posture_list);
-    const std::string posture_definitions(hw.hw_sensor_hinge_angles_posture_definitions);
+    const std::string_view posture_list(hw.hw_sensor_posture_list);
+    const std::string_view posture_definitions(hw.hw_sensor_hinge_angles_posture_definitions);
 
     if (!posture_list.empty() && !posture_definitions.empty()) {
-        std::vector<std::string> posture_tokens = absl::StrSplit(posture_list, ',');
-        std::vector<std::string> def_tokens = absl::StrSplit(posture_definitions, ',');
+        const std::vector<std::string_view> posture_tokens = absl::StrSplit(posture_list, ',');
+        const std::vector<std::string_view> def_tokens = absl::StrSplit(posture_definitions, ',');
 
         if (posture_tokens.size() == def_tokens.size()) {
             for (size_t i = 0; i < posture_tokens.size(); ++i) {
@@ -228,9 +227,9 @@ void FoldableModel::InitFoldableHinge(const android::goldfish::HardwareConfig& h
                 }
                 atp.posture = static_cast<FoldablePostures>(posture_val);
 
-                std::vector<std::string> hinge_defs = absl::StrSplit(def_tokens[i], '&');
+                std::vector<std::string_view> hinge_defs = absl::StrSplit(def_tokens[i], '&');
                 for (size_t j = 0; j < hinge_defs.size() && j < ANDROID_FOLDABLE_MAX_HINGES; ++j) {
-                    std::vector<std::string> range = absl::StrSplit(hinge_defs[j], '-');
+                    std::vector<std::string_view> range = absl::StrSplit(hinge_defs[j], '-');
                     if (range.size() >= 2) {
                         if (!absl::SimpleAtof(range[0], &atp.angles[j].left) ||
                             !absl::SimpleAtof(range[1], &atp.angles[j].right)) {
@@ -299,9 +298,10 @@ std::vector<FoldableModel::ResizableConfig> FoldableModel::ParseResizableConfigs
     // Typical hw_resizable_configs:
     // "phone-0-1080-2400-420, foldable-1-2208-1840-420, tablet-2-1920-1200-240,
     // desktop-3-1920-1080-160"
-    const std::vector<std::string> configs = absl::StrSplit(config_str, ',');
+    const std::vector<std::string_view> configs = absl::StrSplit(config_str, ',');
     for (const auto& config : configs) {
-        std::vector<std::string> parts = absl::StrSplit(absl::StripAsciiWhitespace(config), '-');
+        std::vector<std::string_view> parts =
+                absl::StrSplit(absl::StripAsciiWhitespace(config), '-');
         if (parts.size() >= 4) {
             ResizableConfig rc;
             rc.name = parts[0];
