@@ -113,6 +113,7 @@ void netsim_connection_realize(DeviceState* dev, Error** errp) {
         error_setg(errp, "failed to establish netsim connection: %s - %s", dev->id,
                    client.status().ToString().c_str());
     } else {
+        LOG(INFO) << "netsim-connection: successfully connected to " << nc->data->endpoint;
         nc->data->grpc_client = *std::move(client);
     }
 }
