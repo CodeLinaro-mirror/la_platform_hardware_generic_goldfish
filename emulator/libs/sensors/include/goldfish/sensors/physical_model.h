@@ -260,13 +260,14 @@ class PhysicalModel : public CallbackEventSource<PhysicalModelChangeEvent> {
     void SetOverride(const AndroidSensor sensor, T* override_member_pointer, T override_value) {
         const auto sensor_index = static_cast<size_t>(sensor);
 
-        PhysicalStateChanging();
+        NotifyTargetState(PhysicalModelChangeEvent::Type::kPhysicalStateChanging);
         {
             const std::lock_guard<std::recursive_mutex> lock(mutex_);
             use_override_[sensor_index] = true;
             measurement_id_[sensor_index]++;
             *override_member_pointer = override_value;
         }
+        NotifyTargetState(PhysicalModelChangeEvent::Type::kTargetStateChanged);
     }
 
     /*
@@ -279,6 +280,7 @@ class PhysicalModel : public CallbackEventSource<PhysicalModelChangeEvent> {
     void PhysicalStateChanging();    ///< Called when physical state begins changing
     void PhysicalStateStabilized();  ///< Called when physical state stabilizes
     void TargetStateChanged();       ///< Called when target state changes
+    void NotifyTargetState(PhysicalModelChangeEvent::Type);
 
     mutable std::recursive_mutex mutex_;  ///< Mutex for thread safety
 

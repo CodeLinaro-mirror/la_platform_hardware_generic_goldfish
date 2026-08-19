@@ -746,7 +746,6 @@ float PhysicalModel::GetPhysicalWristTilt() const {
 
 #define SET_TARGET_FUNCTION_NAME(x) SetTarget##x
 #define SET_TARGET_INTERNAL_FUNCTION_NAME(x) SetTargetInternal##x
-#define PHYSICAL_PARAMETER_ENUM(x) PHYSICAL_PARAMETER_##x
 #define GOLDFISH_PHYSICAL_PARAMETER_DEF(x, y, z, w)                                        \
     void PhysicalModel::SET_TARGET_FUNCTION_NAME(z)(w value, PhysicalInterpolation mode) { \
         SET_TARGET_INTERNAL_FUNCTION_NAME(z)(value, mode);                                 \
@@ -754,7 +753,6 @@ float PhysicalModel::GetPhysicalWristTilt() const {
 
 GOLDFISH_PHYSICAL_PARAMETERS_LIST
 #undef GOLDFISH_PHYSICAL_PARAMETER_DEF
-#undef PHYSICAL_PARAMETER_ENUM
 #undef SET_TARGET_INTERNAL_FUNCTION_NAME
 #undef SET_TARGET_FUNCTION_NAME
 
@@ -764,11 +762,7 @@ void PhysicalModel::PhysicalStateChanging() {
         is_physical_state_changing_ = true;
     }
 
-    const PhysicalModelChangeEvent event{
-        .type = PhysicalModelChangeEvent::Type::kPhysicalStateChanging,
-        .model = this,
-    };
-    FireEvent(event);
+    NotifyTargetState(PhysicalModelChangeEvent::Type::kPhysicalStateChanging);
 }
 
 void PhysicalModel::PhysicalStateStabilized() {
@@ -784,11 +778,7 @@ void PhysicalModel::PhysicalStateStabilized() {
         is_physical_state_changing_ = false;
     }
 
-    const PhysicalModelChangeEvent event{
-        .type = PhysicalModelChangeEvent::Type::kPhysicalStateStabilized,
-        .model = this,
-    };
-    FireEvent(event);
+    NotifyTargetState(PhysicalModelChangeEvent::Type::kPhysicalStateStabilized);
 }
 
 void PhysicalModel::TargetStateChanged() {
@@ -797,8 +787,12 @@ void PhysicalModel::TargetStateChanged() {
         use_override_.reset();  // When target state changes we reset all sensor overrides.
     }
 
+    NotifyTargetState(PhysicalModelChangeEvent::Type::kTargetStateChanged);
+}
+
+void PhysicalModel::NotifyTargetState(PhysicalModelChangeEvent::Type type) {
     const PhysicalModelChangeEvent event{
-        .type = PhysicalModelChangeEvent::Type::kTargetStateChanged,
+        .type = type,
         .model = this,
     };
     FireEvent(event);
