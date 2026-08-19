@@ -146,6 +146,16 @@ std::vector<std::pair<std::string, std::string>> getUserspaceBootProperties(
         std::string angle_overrides_disabled =
                 env_angle_overrides_disabled ? env_angle_overrides_disabled : "";
 
+        const char* env_vk_icd = std::getenv("ANDROID_EMU_VK_ICD");
+        const std::string vk_icd = env_vk_icd ? env_vk_icd : "";
+        if ((vk_icd == "lavapipe") && angle_overrides_enabled != "0" &&
+            angle_overrides_enabled.find("supportsAndroidNativeFenceSync") == std::string::npos) {
+            if (!angle_overrides_enabled.empty()) {
+                angle_overrides_enabled += ";";
+            }
+            angle_overrides_enabled += "supportsAndroidNativeFenceSync";
+        }
+
         if (angle_overrides_disabled.empty()) {
             // TODO(b/515372950): disable supportsBlendOperationAdvanced
             // which is added due to dEQP failures with lavapipe
