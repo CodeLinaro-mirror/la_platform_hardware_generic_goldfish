@@ -201,6 +201,66 @@ TEST(CallbackEventSourceTest, HandleUnsubscribesOnDestruction) {
     EXPECT_TRUE(received_events.empty());
 }
 
+TEST(CallbackEventSourceTest, CallbackIdStartsAtOneAndIncrements) {
+    CallbackEventSource<TestEvent> source;
+    EXPECT_EQ(CallbackEventSource<TestEvent>::kInvalidCallbackId, 0);
+
+    auto id1 = source.AddCallback([](const TestEvent&) {});
+    EXPECT_EQ(id1, 1);
+    EXPECT_NE(id1, CallbackEventSource<TestEvent>::kInvalidCallbackId);
+
+    auto id2 = source.AddCallback([](const TestEvent&) {});
+    EXPECT_EQ(id2, 2);
+    EXPECT_NE(id2, CallbackEventSource<TestEvent>::kInvalidCallbackId);
+
+    EXPECT_EQ(source.CallbackCount(), 2);
+    source.RemoveCallback(id1);
+    EXPECT_EQ(source.CallbackCount(), 1);
+    source.RemoveCallback(id2);
+    EXPECT_EQ(source.CallbackCount(), 0);
+}
+
+TEST(CallbackEventSourceTest, RemoveInvalidCallbackIdIsSafe) {
+    CallbackEventSource<TestEvent> source;
+    // Removing invalid ID when empty
+    source.RemoveCallback(CallbackEventSource<TestEvent>::kInvalidCallbackId);
+    EXPECT_EQ(source.CallbackCount(), 0);
+
+    auto id = source.AddCallback([](const TestEvent&) {});
+    EXPECT_EQ(source.CallbackCount(), 1);
+
+    // Removing invalid ID does not remove registered callback
+    source.RemoveCallback(CallbackEventSource<TestEvent>::kInvalidCallbackId);
+    EXPECT_EQ(source.CallbackCount(), 1);
+
+    source.RemoveCallback(id);
+    EXPECT_EQ(source.CallbackCount(), 0);
+}
+
+TEST(CallbackEventSourceTest, ScopedEventCallbackMoveInvalidatesSourceHandle) {
+    CallbackEventSource<TestEvent> source;
+    int received = 0;
+
+    {
+        auto h1 = MakeScopedCallback(source, [&](const TestEvent&) { received++; });
+        EXPECT_EQ(source.CallbackCount(), 1);
+        EXPECT_EQ(h1->GetId(), 1);
+
+        {
+            auto h2 = std::move(h1);
+            EXPECT_EQ(source.CallbackCount(), 1);
+            EXPECT_EQ(h2->GetId(), 1);
+
+            source.FireEvent({1});
+            EXPECT_EQ(received, 1);
+        }  // h2 destroyed, unregisters callback
+
+        EXPECT_EQ(source.CallbackCount(), 0);
+    }  // h1 destroyed, moved-from ID is kInvalidId, should be safe no-op
+
+    EXPECT_EQ(source.CallbackCount(), 0);
+}
+
 // --- Tests for MultiEventSourceWaiter ---
 
 TEST(MultiEventSourceWaiterTest, WaiterTimesOut) {

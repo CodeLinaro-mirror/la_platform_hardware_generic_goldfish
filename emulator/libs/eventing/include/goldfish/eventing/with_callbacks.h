@@ -53,6 +53,7 @@ template <typename EventSystem, typename T>
 class ScopedEventCallback {
   public:
     using EventCallback = std::function<void(const T&)>;
+    static constexpr size_t kInvalidId = 0;
 
     /**
      * @brief Constructs a scoped callback and registers it with the event system.
@@ -66,7 +67,11 @@ class ScopedEventCallback {
     /**
      * @brief Automatically unregisters the callback on destruction.
      */
-    ~ScopedEventCallback() { system_.RemoveCallback(id_); }
+    ~ScopedEventCallback() {
+        if (id_ != kInvalidId) {
+            system_.RemoveCallback(id_);
+        }
+    }
 
     /**
      * @brief Gets the callback ID.
@@ -82,17 +87,17 @@ class ScopedEventCallback {
     // Allow moving
     ScopedEventCallback(ScopedEventCallback&& other) noexcept
             : system_(other.system_), id_(other.id_) {
-        other.id_ = std::numeric_limits<size_t>::max();  // Invalidate other's ID
+        other.id_ = kInvalidId;  // Invalidate other's ID
     }
 
     ScopedEventCallback& operator=(ScopedEventCallback&& other) noexcept {
         if (this != &other) {
-            if (id_ != std::numeric_limits<size_t>::max()) {
+            if (id_ != kInvalidId) {
                 system_.RemoveCallback(id_);  // Clean up existing callback
             }
             system_ = other.system_;
             id_ = other.id_;
-            other.id_ = std::numeric_limits<size_t>::max();
+            other.id_ = kInvalidId;
         }
         return *this;
     }
@@ -109,12 +114,13 @@ template <typename EventSystem>
 class ScopedEventCallback<EventSystem, void> {
   public:
     using EventCallback = std::function<void()>;
+    static constexpr size_t kInvalidId = 0;
 
     ScopedEventCallback(EventSystem& system, EventCallback callback)
             : system_(system), id_(system.AddCallback(std::move(callback))) {}
 
     ~ScopedEventCallback() {
-        if (id_ != std::numeric_limits<size_t>::max()) {
+        if (id_ != kInvalidId) {
             system_.RemoveCallback(id_);
         }
     }
@@ -126,17 +132,17 @@ class ScopedEventCallback<EventSystem, void> {
 
     ScopedEventCallback(ScopedEventCallback&& other) noexcept
             : system_(other.system_), id_(other.id_) {
-        other.id_ = std::numeric_limits<size_t>::max();
+        other.id_ = kInvalidId;
     }
 
     ScopedEventCallback& operator=(ScopedEventCallback&& other) noexcept {
         if (this != &other) {
-            if (id_ != std::numeric_limits<size_t>::max()) {
+            if (id_ != kInvalidId) {
                 system_.RemoveCallback(id_);
             }
             system_ = other.system_;
             id_ = other.id_;
-            other.id_ = std::numeric_limits<size_t>::max();
+            other.id_ = kInvalidId;
         }
         return *this;
     }
@@ -163,6 +169,7 @@ class WithCallbacks : public EventSourceType {
     using T = typename event_source_traits<EventSourceType>::event_type;
     using EventCallback = std::function<void(const T&)>;
     using CallbackId = size_t;
+    static constexpr CallbackId kInvalidCallbackId = 0;
     using PtrType = typename EventSourceType::Ptr;
 
     /**
@@ -205,6 +212,9 @@ class WithCallbacks : public EventSourceType {
      * @brief Removes a callback by its ID.
      */
     void RemoveCallback(CallbackId id) {
+        if (id == kInvalidCallbackId) {
+            return;
+        }
         std::shared_ptr<InternalListener> listener;
         {
             const std::lock_guard<std::mutex> lock(api_lock_);
@@ -256,7 +266,7 @@ class WithCallbacks : public EventSourceType {
     };
 
     mutable std::mutex api_lock_;
-    CallbackId next_id_ = 0;
+    CallbackId next_id_ = 1;
     std::unordered_map<CallbackId, std::shared_ptr<InternalListener>> listener_map_;
 };
 
