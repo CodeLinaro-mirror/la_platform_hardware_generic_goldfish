@@ -43,6 +43,7 @@
 #include "android/sockets/socket_utils.h"
 #include "android/status/status_macros.h"
 #include "emulator/plugin/grpc/grpc_display.h"
+#include "emulator/plugin/webrtc/webrtc_device.h"
 #include "goldfish/async/event_loop.h"
 #include "goldfish/async/qemu_event_loop.h"
 #include "goldfish/async/testing/global_event_loop.h"
@@ -148,6 +149,10 @@ std::vector<std::shared_ptr<::grpc::Service>> CreateServices(avd_info::AvdUniver
                         std::make_unique<ModemSimulatorClient>(modem_simulator_port)));
     } else {
         LOG(WARNING) << "No valid modem_simulator_port. Not enabling gRPC ModemService.";
+    }
+
+    if (auto webrtc_service = WebrtcGetService()) {
+        services.emplace_back(webrtc_service);
     }
 
     return services;

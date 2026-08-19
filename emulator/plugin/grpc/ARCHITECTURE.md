@@ -10,7 +10,8 @@
 | `grpc_register_types` | `:grpc` | `.../grpc.h` | QEMU type registration. |
 
 ## Critical Infrastructure
-* **Service Hosting:** Launches the `EmulatorControllerService` which provides remote control over the emulator (VM ops, screenshots, input injection).
+* **Service Hosting:** Launches the `EmulatorControllerService` and WebRTC `RtcService` (`v2::Rtc`) which provide remote control over the emulator (VM ops, screenshots, input injection, and zero-copy WebRTC UI streaming).
+* **In-Process WebRTC Videobridge:** Hosts WebRTC signaling directly inside the gRPC server using `MediaTrackProvider` (`InProcessVideoSource` / `InProcessAudioSource`) and `InProcessInputSender` (direct event dispatching), eliminating IPC overhead and external process forwarding.
 * **Security:**
     *   **TLS:** Configurable via QOM properties (`tls_cer`, `tls_key`, `tls_ca`).
     *   **Auth:** Supports token-based authentication (`-grpc-use-token`) and JWTs.
@@ -19,6 +20,7 @@
 ## Dependencies
 * **Core:** `//emulator/plugin/avd` (AVD Info).
 * **Service:** `//emulator/grpc/services/emulator_controller`.
+* **Videobridge:** `//emulator/videobridge:rtc_service`, `//emulator/videobridge:in_process_media_providers`, `//emulator/videobridge:videobridge_core`.
 * **Forwarding:** `//emulator/grpc/services/forwarder` (Service/UI forwarding).
 
 ## Threading Model

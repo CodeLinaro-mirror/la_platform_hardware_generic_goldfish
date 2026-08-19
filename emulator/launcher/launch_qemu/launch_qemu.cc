@@ -214,6 +214,9 @@ absl::Status LaunchQemu::addDevices() {
     // Make sure we have our other devices available before we setup the gRPC device, the gRPC
     // device depends on the virtio devices for input event delivery.
     if (!o.no_grpc) {
+        // The webrtc device must be added before grpc, so it is realized *before* grpc
+        // and unrealized *before* audio drivers.
+        addDevice<ParameterList>(std::initializer_list<std::string>{"-device", "webrtc"});
         addDevice<GrpcDevice>();
     }
 

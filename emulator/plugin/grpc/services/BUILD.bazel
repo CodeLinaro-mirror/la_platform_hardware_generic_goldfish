@@ -199,9 +199,74 @@ cc_test(
     ],
 )
 
+cc_library(
+    name = "in_process_rtc_service",
+    srcs = ["in_process_rtc_service.cc"],
+    hdrs = ["include/android/emulation/control/in_process_rtc_service.h"],
+    copts = select({
+        "@platforms//os:windows": ["/GR-"],
+        "//conditions:default": ["-fno-rtti"],
+    }),
+    includes = ["include"],
+    deps = [
+        "//emulator/plugin/audio:qemu_audio_source",
+        "//emulator/plugin/avd:info",
+        "//emulator/plugin/display:base",
+        "//emulator/plugin/grpc/input:event_sender",
+        "//emulator/plugin/grpc/keyboard",
+        "//emulator/videobridge:in_process_media_providers",
+        "//emulator/videobridge:rtc_service",
+        "//emulator/videobridge:videobridge_core",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/status",
+        "@grpc//:grpc++",
+        "@qemu//:aemu_func_defs",
+    ],
+)
+
+cc_test(
+    name = "in_process_rtc_service_test",
+    srcs = ["in_process_rtc_service_test.cc"],
+    copts = select({
+        "@platforms//os:windows": ["/GR-"],
+        "//conditions:default": ["-fno-rtti"],
+    }),
+    linkopts = select({
+        "@platforms//os:macos": [
+            "-Wl,-ObjC",
+            "-framework VideoToolbox",
+            "-framework CoreMedia",
+            "-framework AVFoundation",
+            "-framework CoreVideo",
+            "-framework Foundation",
+        ],
+        "@platforms//os:windows": [
+            "strmiids.lib",
+            "uuid.lib",
+            "ole32.lib",
+            "oleaut32.lib",
+        ],
+        "//conditions:default": [],
+    }),
+    deps = [
+        ":in_process_rtc_service",
+        "//emulator/libs/async:libuv_event_loop",
+        "//emulator/libs/test:googletest_main",
+        "//emulator/plugin/audio:test_qemu_audio_stub",
+        "//emulator/plugin/avd:global-event-loop",
+        "//emulator/plugin/avd:info-fake",
+        "//emulator/plugin/display:test-display",
+        "//emulator/plugin/grpc/keyboard:test_qemu_input_stub",
+        "@grpc//:grpc++",
+    ],
+)
+
 clang_tidy_test(
     name = "tidy",
     targets = [
+        ":in_process_rtc_service",
+        ":in_process_rtc_service_test",
         ":service_forwarder_impl_test",
         ":service_forwarder",
     ],
