@@ -16,10 +16,12 @@
 #include <memory>
 #include <mutex>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include "absl/log/check.h"
 
+#include "goldfish//base/unique_handle.h"
 #include "goldfish/eventing/event_source.h"
 #include "goldfish/eventing/policies/pointer_handlers.h"
 
@@ -74,60 +76,43 @@ class ScopedEventCallback {
   public:
     using EventCallback = typename event_callback_traits<T>::type;
     static constexpr size_t kInvalidId = 0;
+    struct CallbackDeleter {
+        struct Empty {};
+        explicit CallbackDeleter(Empty = {}) : source(nullptr) {}
+        explicit CallbackDeleter(EventSystem* sys) : source(sys) {}
 
-    /**
-     * @brief Constructs a scoped callback and registers it with the event system.
-     *
-     * @param system Reference to the event system
-     * @param callback The callback function to register
-     */
-    ScopedEventCallback(EventSystem& system, EventCallback callback)
-            : system_(system), id_(system.AddCallback(std::move(callback))) {}
-
-    /**
-     * @brief Automatically unregisters the callback on destruction.
-     */
-    ~ScopedEventCallback() {
-        if (id_ != kInvalidId) {
-            system_.RemoveCallback(id_);
+        void operator()(size_t id) const {
+            if (id != kInvalidId) {
+                DCHECK(source) << "The invariant id != kInvalid -> source is broken";
+                source->RemoveCallback(id);
+            }
         }
-    }
 
-    /**
-     * @brief Gets the callback ID.
-     *
-     * @return The unique identifier for this callback
-     */
-    size_t GetId() const { return id_; }
+        EventSystem* source = nullptr;
+    };
 
-    // Prevent copying to maintain RAII semantics
+    using Handle = ::goldfish::base::UniqueHandle<size_t, kInvalidId, CallbackDeleter>;
+
+    ScopedEventCallback() = default;
+    ScopedEventCallback(EventSystem& system, EventCallback callback)
+            : handle_(system.AddCallback(std::move(callback)), CallbackDeleter(&system)) {}
+
+    ScopedEventCallback(ScopedEventCallback&&) noexcept = default;
+    ScopedEventCallback& operator=(ScopedEventCallback&&) noexcept = default;
     ScopedEventCallback(const ScopedEventCallback&) = delete;
     ScopedEventCallback& operator=(const ScopedEventCallback&) = delete;
+    ~ScopedEventCallback() = default;
 
-    // Allow moving
-    ScopedEventCallback(ScopedEventCallback&& other) noexcept
-            : system_(other.system_), id_(other.id_) {
-        other.id_ = kInvalidId;  // Invalidate other's ID
-    }
-
-    ScopedEventCallback& operator=(ScopedEventCallback&& other) noexcept {
-        if (this != &other) {
-            if (id_ != kInvalidId) {
-                system_.RemoveCallback(id_);  // Clean up existing callback
-            }
-            system_ = other.system_;
-            id_ = other.id_;
-            other.id_ = kInvalidId;
-        }
-        return *this;
-    }
+    size_t GetId() const { return handle_.get(); }
+    explicit operator bool() const { return handle_.ok(); }
+    void Reset() { handle_.reset(); }
+    size_t Release() { return handle_.release(); }
 
   private:
-    EventSystem& system_;
-    size_t id_;
+    Handle handle_;
 };
 
-/*
+/**
  * @brief A mixin that adds a modern, safe, and high-performance callback API
  * to any policy-based event source.
  *
