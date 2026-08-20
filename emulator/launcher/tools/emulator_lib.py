@@ -28,6 +28,7 @@ import tempfile
 from pathlib import Path
 
 from python.runfiles import Runfiles
+from process_monitor import ProcessTreeMonitor
 
 logging.basicConfig(stream=sys.stderr, encoding="utf-8", level=logging.DEBUG)
 
@@ -280,6 +281,7 @@ class EmulatorRunner:
         count_log_pattern=None,
         expected_occurrences=None,
     ):
+        monitor = None
         try:
             self.process = await asyncio.create_subprocess_exec(
                 *self.command,
@@ -288,16 +290,49 @@ class EmulatorRunner:
                 env=self.env,
             )
 
-            return await asyncio.wait_for(
-                self._stream_output_and_find_log(
-                    self.process.stdout,
-                    target_log,
-                    count_log_pattern,
-                    expected_occurrences,
-                ),
-                timeout=timeout,
-            )
+            if self.process and self.process.pid:
+                monitor = ProcessTreeMonitor(self.process.pid, sample_interval_sec=1.0)
+                await monitor.start()
+
+            try:
+                status = await asyncio.wait_for(
+                    self._stream_output_and_find_log(
+                        self.process.stdout,
+                        target_log,
+                        count_log_pattern,
+                        expected_occurrences,
+                    ),
+                    timeout=timeout,
+                )
+            except asyncio.TimeoutError:
+                if monitor:
+                    summary = await monitor.stop()
+                    logging.error(
+                        "\n%s",
+                        monitor.format_diagnostic_dump(
+                            summary, reason=f"Timeout ({timeout}s)"
+                        ),
+                    )
+                raise
+
+            if monitor:
+                summary = await monitor.stop()
+                if status:
+                    logging.info(
+                        monitor.format_summary_line(summary, tag="Boot Telemetry")
+                    )
+                else:
+                    logging.error(
+                        "\n%s",
+                        monitor.format_diagnostic_dump(
+                            summary, reason="Stream ended before target log line"
+                        ),
+                    )
+
+            return status
         finally:
+            if monitor:
+                await monitor.stop()
             await self._terminate_process()
 
     async def _terminate_process(self):
