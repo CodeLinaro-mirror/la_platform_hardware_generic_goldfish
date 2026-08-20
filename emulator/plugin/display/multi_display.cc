@@ -487,13 +487,13 @@ extern "C" void grpc_dpy_gfx_switch(struct DisplayChangeListener* dcl,
         con = qemu_console_lookup_default();
     }
     const auto index = qemu_console_get_index(con);
-    if (index == 0 && surface_is_placeholder(new_surface)) {
+    auto device = multi_display.GetDisplayWeak(index);
+    if (index == 0 && new_surface && surface_is_placeholder(new_surface) && device.ok()) {
         // do nothing on place holder surface because it does
         // not come from android guest
         VLOG(1) << "Ignore place holder surface";
         return;
     }
-    auto device = multi_display.GetDisplayWeak(index);
     if (absl::IsNotFound(device.status())) {
         DisplaySurface* surface = new_surface;
         bool created_surface = false;

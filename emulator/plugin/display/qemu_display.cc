@@ -68,6 +68,12 @@ constexpr DisplayChangeListenerOps kDclOps = {
     .dpy_gfx_switch = grpc_dpy_gfx_switch,
 };
 
+constexpr DisplayChangeListenerOps kDclSwitchOnlyOps = {
+    .dpy_name = "grpc-display",
+    .dpy_gfx_update = nullptr,
+    .dpy_gfx_switch = grpc_dpy_gfx_switch,
+};
+
 }  // namespace
 
 QemuDisplay::QemuDisplay(EventLoop* loop, EventLoop* qemu_loop, QemuConsole* con,
@@ -143,7 +149,12 @@ void QemuDisplay::OnListenerAdded() {
                 ->Post([self = std::static_pointer_cast<QemuDisplay>(shared_from_this())]() {
                     VLOG(1) << *self << " Executing register_displaychangelistener on qemu_loop_";
                     if (self->dcl_->ds == nullptr) {
+                        // Suppress dpy_gfx_update during registration so QEMU does not push
+                        // stale/blank con->surface pixels before graphic_hw_update transfers
+                        // the latest GPU scanout.
+                        self->dcl_->ops = &kDclSwitchOnlyOps;
                         register_displaychangelistener(self->dcl_.get());
+                        self->dcl_->ops = &kDclOps;
                         graphic_hw_update(self->console_);
                     }
                 })
