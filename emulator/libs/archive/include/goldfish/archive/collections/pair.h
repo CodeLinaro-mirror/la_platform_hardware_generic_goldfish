@@ -10,32 +10,25 @@
  * GNU General Public License for more details.
  */
 
+#pragma once
+
+#include <utility>
+
+#include "absl/status/status.h"
+
 #include "goldfish/archive/reader.h"
+#include "goldfish/archive/writer.h"
 
 namespace goldfish::archive {
 
-// 7bit per byte with MSB for more bytes to follow.
-absl::Status ReadValue(archive::IReader& r, size_t& dst) {
-    size_t result = 0;
-    unsigned shift = 0;
-    constexpr unsigned kResultNumBits = sizeof(result) * CHAR_BIT;
+template <class T1, class T2>
+absl::Status ReadValue(archive::IReader& r, std::pair<T1, T2>& x) {
+    return ReadValue(r, x.first, x.second);
+}
 
-    while (shift < kResultNumBits) {
-        uint8_t b;
-        if (const absl::Status s = r.Read(&b, sizeof(b)); !s.ok()) {
-            return s;
-        }
-
-        result |= (static_cast<size_t>(b & 0x7F) << shift);
-        if (b >> 7) {
-            shift += 7;
-        } else {
-            break;
-        }
-    }
-
-    dst = result;
-    return absl::OkStatus();
+template <class T1, class T2>
+IWriter& operator<<(IWriter& w, const std::pair<T1, T2>& x) {
+    return w << x.first << x.second;
 }
 
 }  // namespace goldfish::archive

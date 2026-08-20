@@ -10,31 +10,27 @@
  * GNU General Public License for more details.
  */
 
-#include "goldfish/archive/reader.h"
+#include "goldfish/archive/collections/string.h"
+
+#include "android/status/status_macros.h"
 
 namespace goldfish::archive {
 
-// 7bit per byte with MSB for more bytes to follow.
-absl::Status ReadValue(archive::IReader& r, size_t& dst) {
-    size_t result = 0;
-    unsigned shift = 0;
-    constexpr unsigned kResultNumBits = sizeof(result) * CHAR_BIT;
+IWriter& operator<<(IWriter& w, const std::string_view x) {
+    w << x.size();
+    w.Write(x.data(), x.size());
+    return w;
+}
 
-    while (shift < kResultNumBits) {
-        uint8_t b;
-        if (const absl::Status s = r.Read(&b, sizeof(b)); !s.ok()) {
-            return s;
-        }
+absl::Status ReadValue(archive::IReader& r, std::string& dst) {
+    ASSIGN_OR_RETURN(const size_t new_size, ReadOneValue<size_t>(r));
 
-        result |= (static_cast<size_t>(b & 0x7F) << shift);
-        if (b >> 7) {
-            shift += 7;
-        } else {
-            break;
-        }
+    std::string result(new_size, '?');
+    if (new_size > 0) {
+        RETURN_IF_ERROR(r.Read(result.data(), new_size));
     }
 
-    dst = result;
+    dst = std::move(result);
     return absl::OkStatus();
 }
 

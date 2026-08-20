@@ -29,7 +29,6 @@ struct IReader {
 };
 
 absl::Status ReadValue(IReader& r, size_t&);
-absl::Status ReadValue(IReader& r, std::string&);
 
 template <typename T>
     requires(std::same_as<T, uint8_t> || std::same_as<T, int8_t> || std::same_as<T, bool> ||
