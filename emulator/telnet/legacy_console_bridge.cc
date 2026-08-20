@@ -33,6 +33,7 @@
 #include "goldfish/discovery/emulator_advertisement.h"
 #include "gsm_commands.h"
 #include "screen_record_commands.h"
+#include "snapshot_commands.h"
 #include "telnet_auth.h"
 
 namespace goldfish::telnet {
@@ -178,51 +179,21 @@ LegacyConsoleBridge::LegacyConsoleBridge(int port, std::filesystem::path token_p
     avd.Sub("grpc", "").Safe();
 
     auto snapshot = avd.Sub("snapshot", "state snapshot commands");
-    snapshot.On(
-            "list" /* do_snapshot_list */, "list available state snapshots",
-            [](ConsoleContext& /*ctx*/) { return absl::UnimplementedError("not implemented"); });
-    snapshot.On("save" /* do_snapshot_save */, "save state snapshot",
-                [](ConsoleContext& /*ctx*/, const std::string& /*name*/) {
-                    return absl::UnimplementedError("not implemented");
-                });
-    snapshot.On("load" /* do_snapshot_load */, "load state snapshot",
-                [](ConsoleContext& /*ctx*/, const std::string& /*name*/) {
-                    return absl::UnimplementedError("not implemented");
-                });
-    snapshot.On("del|delete" /* do_snapshot_del */, "delete state snapshot",
-                [](ConsoleContext& /*ctx*/, const std::string& /*name*/) {
-                    return absl::UnimplementedError("not implemented");
-                });
-    snapshot.On("remap" /* do_snapshot_remap */, "remap current snapshot RAM",
-                "'avd snapshot remap <auto-save>' will activate or shut off Quickboot "
-                "auto-saving\r\n"
-                "while the emulator is running.\r\n"
-                "<auto-save> value of 0: deactivate auto-save\r\n"
-                "<auto-save> value of 1: activate auto-save\r\n"
-                "- It is required that the current loaded snapshot be the Quickboot "
-                "snapshot (default_boot).\r\n"
-                "- If auto-saving is currently active and gets deactivated, a "
-                "snapshot will be saved\r\n"
-                "  to establish the last state.\r\n"
-                "- If the emulator is not currently auto-saving and a remap command "
-                "is issued,\r\n"
-                "  the Quickboot snapshot will be reloaded with auto-saving enabled "
-                "or disabled\r\n"
-                "  according to the value of the <auto-save> argument.\r\n"
-                "- This allows the user to set a checkpoint in the middle of running "
-                "the emulator:\r\n"
-                "  by starting the emulator with auto-save enabled, then issuing 'avd "
-                "snapshot remap 0'\r\n"
-                "  to disable auto-save and thus set the checkpoint. Subsequent 'avd "
-                "snapshot remap 0'\r\n"
-                "  commands will then repeatedly rewind to that checkpoint.\r\n"
-                "  Issuing 'avd snapshot remap 1' after that will rewind again but "
-                "activate auto-saving.\r\n",
-                [](ConsoleContext& /*ctx*/, int /*auto_save*/) {
-                    return absl::UnimplementedError("not implemented");
-                });
+    RegisterSnapshotCommands(snapshot);
 
-    // avd itself must be safe to allow access to safe sub-commands (name, grpc)
+    avd.On("snapshotspath" /* do_snapshotspath */, "query AVD snapshots path",
+           [](ConsoleContext& ctx) -> absl::StatusOr<std::string> {
+               ASSIGN_OR_RETURN(auto avd_path, GetPlatformConfigProperty(ctx, "avd.content_path"));
+               return (std::filesystem::path(avd_path) / "snapshots").string();
+           });
+    avd.On("snapshotpath" /* do_snapshotpath */, "query path to a particular AVD snapshot",
+           [](ConsoleContext& ctx, const std::string& name) -> absl::StatusOr<std::string> {
+               if (name.empty()) {
+                   return absl::InvalidArgumentError("Usage: 'avd snapshotpath <name>'");
+               }
+               ASSIGN_OR_RETURN(auto avd_path, GetPlatformConfigProperty(ctx, "avd.content_path"));
+               return (std::filesystem::path(avd_path) / "snapshots" / name).string();
+           });
     avd.Safe();
 
     // --- Automation Commands ---

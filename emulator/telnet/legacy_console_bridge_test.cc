@@ -33,6 +33,8 @@
 #include "goldfish/discovery/emulator_advertisement.h"
 #include "goldfish/file/file.h"
 #include "modem_service_mock.grpc.pb.h"
+#include "snapshot_service.grpc.pb.h"
+#include "snapshot_service_mock.grpc.pb.h"
 #include "telnet_auth.h"
 
 namespace goldfish::telnet {
@@ -57,6 +59,14 @@ struct MockConsoleContext : public LegacyConsoleBridge::ConsoleContext {
             return std::move(mock_modem_stub);
         }
         return ConsoleContext::ModemStub();
+    }
+
+    absl::StatusOr<std::unique_ptr<android::emulation::control::SnapshotService::StubInterface>>
+    SnapshotStub() override {
+        if (mock_snapshot_stub) {
+            return std::move(mock_snapshot_stub);
+        }
+        return ConsoleContext::SnapshotStub();
     }
 
     absl::StatusOr<std::unique_ptr<grpc::ClientContext>> NewContext(
@@ -84,6 +94,7 @@ struct MockConsoleContext : public LegacyConsoleBridge::ConsoleContext {
 
     std::unique_ptr<android::emulation::control::EmulatorController::StubInterface> mock_stub;
     std::unique_ptr<android::emulation::control::incubating::Modem::StubInterface> mock_modem_stub;
+    std::unique_ptr<android::emulation::control::SnapshotService::StubInterface> mock_snapshot_stub;
     std::optional<absl::StatusOr<LegacyConsoleBridge::DiscoveredEmulator>> mock_discovery;
     std::optional<absl::StatusOr<std::vector<std::filesystem::path>>> mock_discovered_emulators;
 };
@@ -674,6 +685,154 @@ TEST_F(LegacyConsoleBridgeTest, PostureFailsOnInvalidPosture) {
     EXPECT_EQ(result.status().code(), absl::StatusCode::kInvalidArgument);
     EXPECT_TRUE(result.status().message().find("Usage: \"posture <posture_id>\"") !=
                 std::string::npos);
+}
+
+TEST_F(LegacyConsoleBridgeTest, AvdSnapshotsPathQueriesPath) {
+    auto ctx = CreateContext();
+    ctx->authenticated = true;
+
+    auto mock_stub = std::make_unique<android::emulation::control::MockEmulatorControllerStub>();
+    EXPECT_CALL(*mock_stub, getStatus(_, _, _))
+            .WillOnce([](grpc::ClientContext* context, const google::protobuf::Empty& request,
+                         android::emulation::control::EmulatorStatus* response) -> grpc::Status {
+                auto* config = response->mutable_platformconfig();
+                (*config)["avd.content_path"] = "/path/to/avd";
+                return grpc::Status::OK;
+            });
+    ctx->mock_stub = std::move(mock_stub);
+
+    auto result = (*bridge_)("avd snapshotspath", *ctx);
+
+    ASSERT_TRUE(result.ok()) << result.status().message();
+    EXPECT_EQ(*result, (std::filesystem::path("/path/to/avd") / "snapshots").string());
+}
+
+TEST_F(LegacyConsoleBridgeTest, AvdSnapshotPathQueriesSpecificPath) {
+    auto ctx = CreateContext();
+    ctx->authenticated = true;
+
+    auto mock_stub = std::make_unique<android::emulation::control::MockEmulatorControllerStub>();
+    EXPECT_CALL(*mock_stub, getStatus(_, _, _))
+            .WillOnce([](grpc::ClientContext* context, const google::protobuf::Empty& request,
+                         android::emulation::control::EmulatorStatus* response) -> grpc::Status {
+                auto* config = response->mutable_platformconfig();
+                (*config)["avd.content_path"] = "/path/to/avd";
+                return grpc::Status::OK;
+            });
+    ctx->mock_stub = std::move(mock_stub);
+
+    auto result = (*bridge_)("avd snapshotpath snap1", *ctx);
+
+    ASSERT_TRUE(result.ok()) << result.status().message();
+    EXPECT_EQ(*result, (std::filesystem::path("/path/to/avd") / "snapshots" / "snap1").string());
+}
+
+TEST_F(LegacyConsoleBridgeTest, AvdSnapshotListReturnsFormattedList) {
+    auto ctx = CreateContext();
+    ctx->authenticated = true;
+
+    auto mock_stub = std::make_unique<android::emulation::control::MockSnapshotServiceStub>();
+    EXPECT_CALL(*mock_stub, ListSnapshots(_, _, _))
+            .WillOnce([](grpc::ClientContext* context,
+                         const android::emulation::control::SnapshotFilter& request,
+                         android::emulation::control::SnapshotList* response) -> grpc::Status {
+                EXPECT_EQ(request.statusfilter(), android::emulation::control::SnapshotFilter::All);
+                auto* snap1 = response->add_snapshots();
+                snap1->set_snapshot_id("1");
+                snap1->mutable_details()->set_logical_name("default_boot");
+                auto* snap2 = response->add_snapshots();
+                snap2->set_snapshot_id("checkpoint1");
+                return grpc::Status::OK;
+            });
+    ctx->mock_snapshot_stub = std::move(mock_stub);
+
+    auto result = (*bridge_)("avd snapshot list", *ctx);
+
+    ASSERT_TRUE(result.ok()) << result.status().message();
+    EXPECT_EQ(*result,
+              "List of snapshots present on all disks:\r\ndefault_boot\r\ncheckpoint1\r\n");
+}
+
+TEST_F(LegacyConsoleBridgeTest, AvdSnapshotListReturnsNoSnapshotAvailableWhenEmpty) {
+    auto ctx = CreateContext();
+    ctx->authenticated = true;
+
+    auto mock_stub = std::make_unique<android::emulation::control::MockSnapshotServiceStub>();
+    EXPECT_CALL(*mock_stub, ListSnapshots(_, _, _))
+            .WillOnce([](grpc::ClientContext* context,
+                         const android::emulation::control::SnapshotFilter& request,
+                         android::emulation::control::SnapshotList* response) -> grpc::Status {
+                return grpc::Status::OK;
+            });
+    ctx->mock_snapshot_stub = std::move(mock_stub);
+
+    auto result = (*bridge_)("avd snapshot list", *ctx);
+
+    ASSERT_TRUE(result.ok()) << result.status().message();
+    EXPECT_EQ(*result, "There is no snapshot available.");
+}
+
+TEST_F(LegacyConsoleBridgeTest, AvdSnapshotSaveCallsSnapshotService) {
+    auto ctx = CreateContext();
+    ctx->authenticated = true;
+
+    auto mock_stub = std::make_unique<android::emulation::control::MockSnapshotServiceStub>();
+    EXPECT_CALL(*mock_stub, SaveSnapshot(_, _, _))
+            .WillOnce([](grpc::ClientContext* context,
+                         const android::emulation::control::SnapshotPackage& request,
+                         android::emulation::control::SnapshotPackage* response) -> grpc::Status {
+                EXPECT_EQ(request.snapshot_id(), "my_snap");
+                response->set_success(true);
+                return grpc::Status::OK;
+            });
+    ctx->mock_snapshot_stub = std::move(mock_stub);
+
+    auto result = (*bridge_)("avd snapshot save my_snap", *ctx);
+
+    ASSERT_TRUE(result.ok()) << result.status().message();
+    EXPECT_EQ(*result, "");
+}
+
+TEST_F(LegacyConsoleBridgeTest, AvdSnapshotLoadCallsSnapshotService) {
+    auto ctx = CreateContext();
+    ctx->authenticated = true;
+
+    auto mock_stub = std::make_unique<android::emulation::control::MockSnapshotServiceStub>();
+    EXPECT_CALL(*mock_stub, LoadSnapshot(_, _, _))
+            .WillOnce([](grpc::ClientContext* context,
+                         const android::emulation::control::SnapshotPackage& request,
+                         android::emulation::control::SnapshotPackage* response) -> grpc::Status {
+                EXPECT_EQ(request.snapshot_id(), "my_snap");
+                response->set_success(true);
+                return grpc::Status::OK;
+            });
+    ctx->mock_snapshot_stub = std::move(mock_stub);
+
+    auto result = (*bridge_)("avd snapshot load my_snap", *ctx);
+
+    ASSERT_TRUE(result.ok()) << result.status().message();
+    EXPECT_EQ(*result, "");
+}
+
+TEST_F(LegacyConsoleBridgeTest, AvdSnapshotDeleteCallsSnapshotService) {
+    auto ctx = CreateContext();
+    ctx->authenticated = true;
+
+    auto mock_stub = std::make_unique<android::emulation::control::MockSnapshotServiceStub>();
+    EXPECT_CALL(*mock_stub, DeleteSnapshot(_, _, _))
+            .WillOnce([](grpc::ClientContext* context,
+                         const android::emulation::control::SnapshotPackage& request,
+                         android::emulation::control::SnapshotPackage* response) -> grpc::Status {
+                EXPECT_EQ(request.snapshot_id(), "my_snap");
+                response->set_success(true);
+                return grpc::Status::OK;
+            });
+    ctx->mock_snapshot_stub = std::move(mock_stub);
+
+    auto result = (*bridge_)("avd snapshot del my_snap", *ctx);
+
+    ASSERT_TRUE(result.ok()) << result.status().message();
+    EXPECT_EQ(*result, "");
 }
 
 }  // namespace
