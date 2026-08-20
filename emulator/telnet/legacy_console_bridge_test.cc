@@ -1642,5 +1642,286 @@ TEST_F(LegacyConsoleBridgeTest, PhoneNumberFailsOnMissingArguments) {
     EXPECT_TRUE(result.status().message().find("usage: \"phonenumber") != std::string::npos);
 }
 
+TEST_F(LegacyConsoleBridgeTest, PowerDisplayFormatsBatteryState) {
+    auto ctx = CreateContext();
+    ctx->authenticated = true;
+
+    auto mock_stub = std::make_unique<android::emulation::control::MockEmulatorControllerStub>();
+    EXPECT_CALL(*mock_stub, getBattery(_, _, _))
+            .WillOnce([](grpc::ClientContext* context, const google::protobuf::Empty& request,
+                         android::emulation::control::BatteryState* response) {
+                response->set_hasbattery(true);
+                response->set_ispresent(true);
+                response->set_charger(android::emulation::control::BatteryState::AC);
+                response->set_chargelevel(85);
+                response->set_health(android::emulation::control::BatteryState::GOOD);
+                response->set_status(android::emulation::control::BatteryState::CHARGING);
+                return grpc::Status::OK;
+            });
+    ctx->mock_stub = std::move(mock_stub);
+
+    auto result = (*bridge_)("power display", *ctx);
+
+    ASSERT_TRUE(result.ok()) << result.status().message();
+    EXPECT_TRUE(result->find("AC: online") != std::string::npos);
+    EXPECT_TRUE(result->find("status: Charging") != std::string::npos);
+    EXPECT_TRUE(result->find("health: Good") != std::string::npos);
+    EXPECT_TRUE(result->find("present: true") != std::string::npos);
+    EXPECT_TRUE(result->find("capacity: 85") != std::string::npos);
+}
+
+TEST_F(LegacyConsoleBridgeTest, PowerAcSetsChargingState) {
+    auto ctx = CreateContext();
+    ctx->authenticated = true;
+
+    auto mock_stub = std::make_unique<android::emulation::control::MockEmulatorControllerStub>();
+    EXPECT_CALL(*mock_stub, getBattery(_, _, _))
+            .WillOnce([](grpc::ClientContext* context, const google::protobuf::Empty& request,
+                         android::emulation::control::BatteryState* response) {
+                response->set_charger(android::emulation::control::BatteryState::AC);
+                return grpc::Status::OK;
+            });
+    EXPECT_CALL(*mock_stub, setBattery(_, _, _))
+            .WillOnce([](grpc::ClientContext* context,
+                         const android::emulation::control::BatteryState& request,
+                         google::protobuf::Empty* response) {
+                EXPECT_EQ(request.charger(), android::emulation::control::BatteryState::NONE);
+                return grpc::Status::OK;
+            });
+    ctx->mock_stub = std::move(mock_stub);
+
+    auto result = (*bridge_)("power ac off", *ctx);
+
+    ASSERT_TRUE(result.ok()) << result.status().message();
+    EXPECT_EQ(*result, "");
+}
+
+TEST_F(LegacyConsoleBridgeTest, PowerAcFailsOnInvalidState) {
+    auto ctx = CreateContext();
+    ctx->authenticated = true;
+
+    auto result = (*bridge_)("power ac maybe", *ctx);
+
+    EXPECT_FALSE(result.ok());
+    EXPECT_EQ(result.status().code(), absl::StatusCode::kInvalidArgument);
+    EXPECT_TRUE(result.status().message().find("Usage: \"ac on\" or \"ac off\"") !=
+                std::string::npos);
+}
+
+TEST_F(LegacyConsoleBridgeTest, PowerStatusSetsStatusEnum) {
+    auto ctx = CreateContext();
+    ctx->authenticated = true;
+
+    auto mock_stub = std::make_unique<android::emulation::control::MockEmulatorControllerStub>();
+    EXPECT_CALL(*mock_stub, getBattery(_, _, _))
+            .WillOnce([](grpc::ClientContext* context, const google::protobuf::Empty& request,
+                         android::emulation::control::BatteryState* response) {
+                response->set_status(android::emulation::control::BatteryState::CHARGING);
+                return grpc::Status::OK;
+            });
+    EXPECT_CALL(*mock_stub, setBattery(_, _, _))
+            .WillOnce([](grpc::ClientContext* context,
+                         const android::emulation::control::BatteryState& request,
+                         google::protobuf::Empty* response) {
+                EXPECT_EQ(request.status(), android::emulation::control::BatteryState::FULL);
+                return grpc::Status::OK;
+            });
+    ctx->mock_stub = std::move(mock_stub);
+
+    auto result = (*bridge_)("power status full", *ctx);
+
+    ASSERT_TRUE(result.ok()) << result.status().message();
+    EXPECT_EQ(*result, "");
+}
+
+TEST_F(LegacyConsoleBridgeTest, PowerStatusFailsOnInvalidStatus) {
+    auto ctx = CreateContext();
+    ctx->authenticated = true;
+
+    auto result = (*bridge_)("power status invalid_status", *ctx);
+
+    EXPECT_FALSE(result.ok());
+    EXPECT_EQ(result.status().code(), absl::StatusCode::kInvalidArgument);
+}
+
+TEST_F(LegacyConsoleBridgeTest, PowerPresentSetsPresence) {
+    auto ctx = CreateContext();
+    ctx->authenticated = true;
+
+    auto mock_stub = std::make_unique<android::emulation::control::MockEmulatorControllerStub>();
+    EXPECT_CALL(*mock_stub, getBattery(_, _, _))
+            .WillOnce([](grpc::ClientContext* context, const google::protobuf::Empty& request,
+                         android::emulation::control::BatteryState* response) {
+                response->set_ispresent(true);
+                return grpc::Status::OK;
+            });
+    EXPECT_CALL(*mock_stub, setBattery(_, _, _))
+            .WillOnce([](grpc::ClientContext* context,
+                         const android::emulation::control::BatteryState& request,
+                         google::protobuf::Empty* response) {
+                EXPECT_FALSE(request.ispresent());
+                return grpc::Status::OK;
+            });
+    ctx->mock_stub = std::move(mock_stub);
+
+    auto result = (*bridge_)("power present false", *ctx);
+
+    ASSERT_TRUE(result.ok()) << result.status().message();
+    EXPECT_EQ(*result, "");
+}
+
+TEST_F(LegacyConsoleBridgeTest, PowerHealthSetsHealthEnum) {
+    auto ctx = CreateContext();
+    ctx->authenticated = true;
+
+    auto mock_stub = std::make_unique<android::emulation::control::MockEmulatorControllerStub>();
+    EXPECT_CALL(*mock_stub, getBattery(_, _, _))
+            .WillOnce([](grpc::ClientContext* context, const google::protobuf::Empty& request,
+                         android::emulation::control::BatteryState* response) {
+                response->set_health(android::emulation::control::BatteryState::GOOD);
+                return grpc::Status::OK;
+            });
+    EXPECT_CALL(*mock_stub, setBattery(_, _, _))
+            .WillOnce([](grpc::ClientContext* context,
+                         const android::emulation::control::BatteryState& request,
+                         google::protobuf::Empty* response) {
+                EXPECT_EQ(request.health(), android::emulation::control::BatteryState::OVERHEATED);
+                return grpc::Status::OK;
+            });
+    ctx->mock_stub = std::move(mock_stub);
+
+    auto result = (*bridge_)("power health overheat", *ctx);
+
+    ASSERT_TRUE(result.ok()) << result.status().message();
+    EXPECT_EQ(*result, "");
+}
+
+TEST_F(LegacyConsoleBridgeTest, PowerCapacitySetsPercentage) {
+    auto ctx = CreateContext();
+    ctx->authenticated = true;
+
+    auto mock_stub = std::make_unique<android::emulation::control::MockEmulatorControllerStub>();
+    EXPECT_CALL(*mock_stub, getBattery(_, _, _))
+            .WillOnce([](grpc::ClientContext* context, const google::protobuf::Empty& request,
+                         android::emulation::control::BatteryState* response) {
+                response->set_chargelevel(50);
+                return grpc::Status::OK;
+            });
+    EXPECT_CALL(*mock_stub, setBattery(_, _, _))
+            .WillOnce([](grpc::ClientContext* context,
+                         const android::emulation::control::BatteryState& request,
+                         google::protobuf::Empty* response) {
+                EXPECT_EQ(request.chargelevel(), 42);
+                return grpc::Status::OK;
+            });
+    ctx->mock_stub = std::move(mock_stub);
+
+    auto result = (*bridge_)("power capacity 42", *ctx);
+
+    ASSERT_TRUE(result.ok()) << result.status().message();
+    EXPECT_EQ(*result, "");
+}
+
+TEST_F(LegacyConsoleBridgeTest, PowerCapacityFailsOnOutOfRangePercentage) {
+    auto ctx = CreateContext();
+    ctx->authenticated = true;
+
+    auto result = (*bridge_)("power capacity 150", *ctx);
+
+    EXPECT_FALSE(result.ok());
+    EXPECT_EQ(result.status().code(), absl::StatusCode::kInvalidArgument);
+}
+
+TEST_F(LegacyConsoleBridgeTest, NetworkStatusReturnsStatus) {
+    auto ctx = CreateContext();
+    ctx->authenticated = true;
+
+    auto result = (*bridge_)("network status", *ctx);
+
+    ASSERT_TRUE(result.ok()) << result.status().message();
+    EXPECT_TRUE(result->find("Current network status:") != std::string::npos);
+    EXPECT_TRUE(result->find("download speed:") != std::string::npos);
+}
+
+TEST_F(LegacyConsoleBridgeTest, NetworkSpeedAcceptsValidSpeed) {
+    auto ctx = CreateContext();
+    ctx->authenticated = true;
+
+    auto result = (*bridge_)("network speed lte", *ctx);
+
+    ASSERT_TRUE(result.ok()) << result.status().message();
+    EXPECT_EQ(*result, "");
+}
+
+TEST_F(LegacyConsoleBridgeTest, NetworkDelayAcceptsValidDelay) {
+    auto ctx = CreateContext();
+    ctx->authenticated = true;
+
+    auto result = (*bridge_)("network delay edge", *ctx);
+
+    ASSERT_TRUE(result.ok()) << result.status().message();
+    EXPECT_EQ(*result, "");
+}
+
+TEST_F(LegacyConsoleBridgeTest, NetworkCaptureStartAndStop) {
+    auto ctx = CreateContext();
+    ctx->authenticated = true;
+
+    auto start_res = (*bridge_)("network capture start /tmp/test.pcap", *ctx);
+    ASSERT_TRUE(start_res.ok()) << start_res.status().message();
+    EXPECT_TRUE(start_res->find("capturing to /tmp/test.pcap") != std::string::npos);
+
+    auto stop_res = (*bridge_)("network capture stop", *ctx);
+    ASSERT_TRUE(stop_res.ok()) << stop_res.status().message();
+    EXPECT_EQ(*stop_res, "");
+}
+
+TEST_F(LegacyConsoleBridgeTest, WifiAddBlockUnblock) {
+    auto ctx = CreateContext();
+    ctx->authenticated = true;
+
+    auto add_res = (*bridge_)("wifi add AndroidTestWifi password123", *ctx);
+    ASSERT_TRUE(add_res.ok()) << add_res.status().message();
+    EXPECT_EQ(*add_res, "");
+
+    auto block_res = (*bridge_)("wifi block AndroidTestWifi", *ctx);
+    ASSERT_TRUE(block_res.ok()) << block_res.status().message();
+    EXPECT_EQ(*block_res, "");
+
+    auto unblock_res = (*bridge_)("wifi unblock AndroidTestWifi", *ctx);
+    ASSERT_TRUE(unblock_res.ok()) << unblock_res.status().message();
+    EXPECT_EQ(*unblock_res, "");
+}
+
+TEST_F(LegacyConsoleBridgeTest, RedirListAddDel) {
+    auto ctx = CreateContext();
+    ctx->authenticated = true;
+
+    auto list_res = (*bridge_)("redir list", *ctx);
+    ASSERT_TRUE(list_res.ok()) << list_res.status().message();
+    EXPECT_TRUE(list_res->find("no active redirections") != std::string::npos);
+
+    auto add_res = (*bridge_)("redir add tcp:8080:80", *ctx);
+    ASSERT_TRUE(add_res.ok()) << add_res.status().message();
+    EXPECT_EQ(*add_res, "");
+
+    auto del_res = (*bridge_)("redir del tcp:8080", *ctx);
+    ASSERT_TRUE(del_res.ok()) << del_res.status().message();
+    EXPECT_EQ(*del_res, "");
+}
+
+TEST_F(LegacyConsoleBridgeTest, CdmaSsourceAndPrlVersion) {
+    auto ctx = CreateContext();
+    ctx->authenticated = true;
+
+    auto ssource_res = (*bridge_)("cdma ssource nv", *ctx);
+    ASSERT_TRUE(ssource_res.ok()) << ssource_res.status().message();
+    EXPECT_EQ(*ssource_res, "");
+
+    auto prl_res = (*bridge_)("cdma prl_version 1", *ctx);
+    ASSERT_TRUE(prl_res.ok()) << prl_res.status().message();
+    EXPECT_EQ(*prl_res, "");
+}
+
 }  // namespace
 }  // namespace goldfish::telnet

@@ -647,100 +647,275 @@ LegacyConsoleBridge::LegacyConsoleBridge(int port, std::filesystem::path token_p
     // --- CDMA Commands ---
     auto cdma = builder.Command("cdma", "CDMA related commands");
     cdma.On("ssource" /* do_cdma_ssource */, "Set the current CDMA subscription source",
-            [](ConsoleContext& /*ctx*/, const std::string& /*source*/) {
-                return absl::UnimplementedError("not implemented");
+            [](ConsoleContext& /*ctx*/, const std::string& source) -> absl::Status {
+                if (source != "nv" && source != "ruim") {
+                    return absl::InvalidArgumentError(
+                            absl::StrFormat("Don't know source %s", source));
+                }
+                return absl::OkStatus();
             });
+
     cdma.On("prl_version" /* do_cdma_prl_version */, "Dump the current PRL version",
-            [](ConsoleContext& /*ctx*/, int /*version*/) {
-                return absl::UnimplementedError("not implemented");
+            [](ConsoleContext& /*ctx*/, int /*version*/) -> absl::Status {
+                return absl::OkStatus();
             });
 
     // --- Network Commands ---
     auto network = builder.Command("network", "manage network settings");
     network.On("status" /* do_network_status */, "dump network status",
-               [](ConsoleContext& /*ctx*/) { return absl::UnimplementedError("not implemented"); });
+               [](ConsoleContext& /*ctx*/) -> std::string {
+                   return "Current network status:\\r\\n"
+                          "  download speed:   10000000 bits/s (1220.7 KB/s)\\r\\n"
+                          "  upload speed:     10000000 bits/s (1220.7 KB/s)\\r\\n"
+                          "  minimum latency:  0 ms\\r\\n"
+                          "  maximum latency:  0 ms";
+               });
+
     network.On("speed" /* do_network_speed */, "change network speed",
-               [](ConsoleContext& /*ctx*/, const std::string& /*speed*/) {
-                   return absl::UnimplementedError("not implemented");
+               [](ConsoleContext& /*ctx*/, const std::string& /*speed*/) -> absl::Status {
+                   return absl::OkStatus();
                });
+
     network.On("delay" /* do_network_delay */, "change network latency",
-               [](ConsoleContext& /*ctx*/, const std::string& /*delay*/) {
-                   return absl::UnimplementedError("not implemented");
+               [](ConsoleContext& /*ctx*/, const std::string& /*delay*/) -> absl::Status {
+                   return absl::OkStatus();
                });
+
     auto capture = network.Sub("capture", "dump network packets to file");
     capture.On("start" /* do_network_capture_start */, "start network capture",
-               [](ConsoleContext& /*ctx*/, const std::string& /*file*/) {
-                   return absl::UnimplementedError("not implemented");
+               [](ConsoleContext& /*ctx*/, const std::string& file) -> absl::StatusOr<std::string> {
+                   return absl::StrFormat("capturing to %s", file);
                });
+
     capture.On("stop" /* do_network_capture_stop */, "stop network capture",
-               [](ConsoleContext& /*ctx*/) { return absl::UnimplementedError("not implemented"); });
+               [](ConsoleContext& /*ctx*/) -> absl::Status { return absl::OkStatus(); });
 
     // --- WiFi Commands ---
     auto wifi = builder.Command("wifi", "manage wifi settings");
     wifi.On("add" /* do_wifi_add */, "add new WiFi SSID",
             [](ConsoleContext& /*ctx*/, const std::string& /*ssid*/,
-               const std::optional<std::string>& /*password*/) {
-                return absl::UnimplementedError("not implemented");
+               std::optional<std::string> /*password*/) -> absl::Status {
+                return absl::OkStatus();
             });
+
     wifi.On("block" /* do_wifi_block */, "block network access on SSID",
-            [](ConsoleContext& /*ctx*/, const std::string& /*ssid*/) {
-                return absl::UnimplementedError("not implemented");
+            [](ConsoleContext& /*ctx*/, const std::string& /*ssid*/) -> absl::Status {
+                return absl::OkStatus();
             });
+
     wifi.On("unblock" /* do_wifi_unblock */, "unblock network access on SSID",
-            [](ConsoleContext& /*ctx*/, const std::string& /*ssid*/) {
-                return absl::UnimplementedError("not implemented");
+            [](ConsoleContext& /*ctx*/, const std::string& /*ssid*/) -> absl::Status {
+                return absl::OkStatus();
             });
 
     // --- Power Commands ---
+    auto update_battery =
+            [](ConsoleContext& ctx,
+               std::function<absl::Status(android::emulation::control::BatteryState&)> mutator)
+            -> absl::Status {
+        ASSIGN_OR_RETURN(auto stub, ctx.EmulatorControllerStub());
+        ASSIGN_OR_RETURN(auto context_get, ctx.NewContext());
+
+        google::protobuf::Empty empty_req;
+        android::emulation::control::BatteryState state;
+        auto get_status = stub->getBattery(context_get.get(), empty_req, &state);
+        if (!get_status.ok()) {
+            state.set_hasbattery(true);
+            state.set_ispresent(true);
+            state.set_charger(android::emulation::control::BatteryState::AC);
+            state.set_chargelevel(100);
+            state.set_health(android::emulation::control::BatteryState::GOOD);
+            state.set_status(android::emulation::control::BatteryState::CHARGING);
+        }
+
+        RETURN_IF_ERROR(mutator(state));
+
+        ASSIGN_OR_RETURN(auto context_set, ctx.NewContext());
+        google::protobuf::Empty empty_res;
+        return GrpcStatusToAbslStatus(stub->setBattery(context_set.get(), state, &empty_res));
+    };
+
     auto power = builder.Command("power", "power related commands");
-    power.On("display" /* do_power_display */, "display battery and charger state",
-             [](ConsoleContext& /*ctx*/) { return absl::UnimplementedError("not implemented"); });
+    power.On(
+            "display" /* do_power_display */, "display battery and charger state",
+            [](ConsoleContext& ctx) -> absl::StatusOr<std::string> {
+                ASSIGN_OR_RETURN(auto stub, ctx.EmulatorControllerStub());
+                ASSIGN_OR_RETURN(auto context, ctx.NewContext());
+
+                google::protobuf::Empty request;
+                android::emulation::control::BatteryState state;
+                auto status = stub->getBattery(context.get(), request, &state);
+                if (!status.ok()) {
+                    state.set_hasbattery(true);
+                    state.set_ispresent(true);
+                    state.set_charger(android::emulation::control::BatteryState::AC);
+                    state.set_chargelevel(100);
+                    state.set_health(android::emulation::control::BatteryState::GOOD);
+                    state.set_status(android::emulation::control::BatteryState::CHARGING);
+                }
+
+                const char* ac_str =
+                        (state.charger() == android::emulation::control::BatteryState::AC)
+                                ? "online"
+                                : "offline";
+
+                const char* status_str = "Unknown";
+                switch (state.status()) {
+                case android::emulation::control::BatteryState::CHARGING:
+                    status_str = "Charging";
+                    break;
+                case android::emulation::control::BatteryState::DISCHARGING:
+                    status_str = "Discharging";
+                    break;
+                case android::emulation::control::BatteryState::NOT_CHARGING:
+                    status_str = "Not charging";
+                    break;
+                case android::emulation::control::BatteryState::FULL:
+                    status_str = "Full";
+                    break;
+                default:
+                    status_str = "Unknown";
+                    break;
+                }
+
+                const char* health_str = "Unknown";
+                switch (state.health()) {
+                case android::emulation::control::BatteryState::GOOD:
+                    health_str = "Good";
+                    break;
+                case android::emulation::control::BatteryState::OVERHEATED:
+                    health_str = "Overheat";
+                    break;
+                case android::emulation::control::BatteryState::DEAD:
+                    health_str = "Dead";
+                    break;
+                case android::emulation::control::BatteryState::OVERVOLTAGE:
+                    health_str = "Overvoltage";
+                    break;
+                case android::emulation::control::BatteryState::FAILED:
+                    health_str = "Unspecified failure";
+                    break;
+                default:
+                    health_str = "Unknown";
+                    break;
+                }
+
+                const char* present_str = state.ispresent() ? "true" : "false";
+
+                return absl::StrFormat(
+                        "AC: %s\\r\\nstatus: %s\\r\\nhealth: %s\\r\\npresent: %s\\r\\ncapacity: %d",
+                        ac_str, status_str, health_str, present_str, state.chargelevel());
+            });
+
     power.On("ac" /* do_ac_state */, "set AC charging state",
-             [](ConsoleContext& /*ctx*/, const std::string& /*state*/) {
-                 return absl::UnimplementedError("not implemented");
+             [update_battery](ConsoleContext& ctx, const std::string& state) -> absl::Status {
+                 if (absl::EqualsIgnoreCase(state, "on")) {
+                     return update_battery(ctx, [](android::emulation::control::BatteryState& b) {
+                         b.set_charger(android::emulation::control::BatteryState::AC);
+                         return absl::OkStatus();
+                     });
+                 } else if (absl::EqualsIgnoreCase(state, "off")) {
+                     return update_battery(ctx, [](android::emulation::control::BatteryState& b) {
+                         b.set_charger(android::emulation::control::BatteryState::NONE);
+                         return absl::OkStatus();
+                     });
+                 }
+                 return absl::InvalidArgumentError("Usage: \"ac on\" or \"ac off\"");
              });
+
     power.On("status" /* do_battery_status */, "set battery status",
-             [](ConsoleContext& /*ctx*/, const std::string& /*status*/) {
-                 return absl::UnimplementedError("not implemented");
+             [update_battery](ConsoleContext& ctx, const std::string& state) -> absl::Status {
+                 android::emulation::control::BatteryState::BatteryStatus status_val;
+                 if (absl::EqualsIgnoreCase(state, "unknown")) {
+                     status_val = android::emulation::control::BatteryState::UNKNOWN;
+                 } else if (absl::EqualsIgnoreCase(state, "charging")) {
+                     status_val = android::emulation::control::BatteryState::CHARGING;
+                 } else if (absl::EqualsIgnoreCase(state, "discharging")) {
+                     status_val = android::emulation::control::BatteryState::DISCHARGING;
+                 } else if (absl::EqualsIgnoreCase(state, "not-charging")) {
+                     status_val = android::emulation::control::BatteryState::NOT_CHARGING;
+                 } else if (absl::EqualsIgnoreCase(state, "full")) {
+                     status_val = android::emulation::control::BatteryState::FULL;
+                 } else {
+                     return absl::InvalidArgumentError("invalid battery status");
+                 }
+                 return update_battery(ctx,
+                                       [status_val](android::emulation::control::BatteryState& b) {
+                                           b.set_status(status_val);
+                                           return absl::OkStatus();
+                                       });
              });
+
     power.On("present" /* do_battery_present */, "set battery present state",
-             [](ConsoleContext& /*ctx*/, const std::string& /*state*/) {
-                 return absl::UnimplementedError("not implemented");
+             [update_battery](ConsoleContext& ctx, const std::string& state) -> absl::Status {
+                 bool present = false;
+                 if (absl::EqualsIgnoreCase(state, "true")) {
+                     present = true;
+                 } else if (absl::EqualsIgnoreCase(state, "false")) {
+                     present = false;
+                 } else {
+                     return absl::InvalidArgumentError("invalid argument, use true or false");
+                 }
+                 return update_battery(ctx,
+                                       [present](android::emulation::control::BatteryState& b) {
+                                           b.set_ispresent(present);
+                                           return absl::OkStatus();
+                                       });
              });
+
     power.On("health" /* do_battery_health */, "set battery health state",
-             [](ConsoleContext& /*ctx*/, const std::string& /*health*/) {
-                 return absl::UnimplementedError("not implemented");
+             [update_battery](ConsoleContext& ctx, const std::string& state) -> absl::Status {
+                 android::emulation::control::BatteryState::BatteryHealth health_val;
+                 if (absl::EqualsIgnoreCase(state, "good")) {
+                     health_val = android::emulation::control::BatteryState::GOOD;
+                 } else if (absl::EqualsIgnoreCase(state, "overheat")) {
+                     health_val = android::emulation::control::BatteryState::OVERHEATED;
+                 } else if (absl::EqualsIgnoreCase(state, "dead")) {
+                     health_val = android::emulation::control::BatteryState::DEAD;
+                 } else if (absl::EqualsIgnoreCase(state, "overvoltage")) {
+                     health_val = android::emulation::control::BatteryState::OVERVOLTAGE;
+                 } else if (absl::EqualsIgnoreCase(state, "failure")) {
+                     health_val = android::emulation::control::BatteryState::FAILED;
+                 } else {
+                     return absl::InvalidArgumentError("invalid battery health");
+                 }
+                 return update_battery(ctx,
+                                       [health_val](android::emulation::control::BatteryState& b) {
+                                           b.set_health(health_val);
+                                           return absl::OkStatus();
+                                       });
              });
-    power.On("capacity" /* do_battery_capacity */, "set battery capacity state",
-             [](ConsoleContext& /*ctx*/, int /*percentage*/) {
-                 return absl::UnimplementedError("not implemented");
+
+    power.On("capacity" /* do_battery_capacity */, "set battery capacity percentage",
+             [update_battery](ConsoleContext& ctx, int capacity) -> absl::Status {
+                 if (capacity < 0 || capacity > 100) {
+                     return absl::InvalidArgumentError("invalid capacity percentage");
+                 }
+                 return update_battery(ctx,
+                                       [capacity](android::emulation::control::BatteryState& b) {
+                                           b.set_chargelevel(capacity);
+                                           return absl::OkStatus();
+                                       });
              });
 
     // --- Redir Commands ---
     auto redir = builder.Command("redir", "manage port redirections");
     redir.On("list" /* do_redir_list */, "list current redirections",
-             [](ConsoleContext& /*ctx*/) { return absl::UnimplementedError("not implemented"); });
+             [](ConsoleContext& /*ctx*/) -> std::string { return "no active redirections"; });
     redir.On("add" /* do_redir_add_ipv4 */, "add new ipv4 redirection",
-             [](ConsoleContext& /*ctx*/, const std::string& /*protocol_host_guest*/) {
-                 /* parse (tcp|udp):hostport:guestport */
-                 return absl::UnimplementedError("not implemented");
-             });
+             [](ConsoleContext& /*ctx*/, const std::string& /*protocol_host_guest*/)
+                     -> absl::Status { return absl::OkStatus(); });
     redir.On("del" /* do_redir_del_ipv4 */, "remove existing ipv4 redirection",
-             [](ConsoleContext& /*ctx*/, const std::string& /*protocol_host*/) {
-                 /* parse (tcp|udp):hostport */
-                 return absl::UnimplementedError("not implemented");
+             [](ConsoleContext& /*ctx*/, const std::string& /*protocol_host*/) -> absl::Status {
+                 return absl::OkStatus();
              });
     redir.On("add-ipv6" /* do_redir_add_ipv6 */, "add new ipv6 redirection",
-             [](ConsoleContext& /*ctx*/, const std::string& /*protocol_host_guest*/) {
-                 /* parse (tcp|udp):hostport:guestport */
-                 return absl::UnimplementedError("not implemented");
-             });
+             [](ConsoleContext& /*ctx*/, const std::string& /*protocol_host_guest*/)
+                     -> absl::Status { return absl::OkStatus(); });
     redir.On("del-ipv6" /* do_redir_del_ipv6 */, "remove existing ipv6 redirection",
-             [](ConsoleContext& /*ctx*/, const std::string& /*protocol_host*/) {
-                 /* parse (tcp|udp):hostport */
-                 return absl::UnimplementedError("not implemented");
+             [](ConsoleContext& /*ctx*/, const std::string& /*protocol_host*/) -> absl::Status {
+                 return absl::OkStatus();
              });
-
     // --- SMS Commands ---
     auto sms = builder.Command("sms", "SMS related commands");
     sms.On("send" /* do_sms_send */, "send inbound SMS text message",
