@@ -378,17 +378,12 @@ TEST_F(FakePixmanDisplayTest, FrameInfoEventsAreOnTheEventLoop) {
     std::atomic_int frames = 0;
     // Create an ActiveFakePixmanDisplay
     auto display = ActiveFakePixmanDisplay::CreateShared(loop_.get(), id, fps, width, height);
-    auto listener = std::make_shared<TestListener>();
 
-    // Cast the source so our scopedCallback doesn't get confused (display has multiple event
-    // sources)
-    auto* callback_source = static_cast<FrameInfoCallbackSource*>(display.get());
-    auto callback = android::base::eventing::MakeScopedCallback(
-            *callback_source, [&](const FrameInfo& /*event*/) {
-                frames++;
-                ASSERT_TRUE(loop_->IsOnLoopThread())
-                        << "Event should have been delivered on the event loop";
-            });
+    auto listener = display->AddFrameListener([&](const FrameInfo& /*event*/) {
+        frames++;
+        ASSERT_TRUE(loop_->IsOnLoopThread())
+                << "Event should have been delivered on the event loop";
+    });
     // Start the generator
     display->Start();
     display->WaitForFramesWithTimeout(2, absl::Milliseconds(500));
