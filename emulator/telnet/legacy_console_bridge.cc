@@ -72,6 +72,88 @@ struct ArgExtractor<SensorValues> {
 
 }  // namespace goldfish::parsing
 
+namespace goldfish::parsing {
+
+struct LinuxEvent {
+    int type;
+    int code;
+    int value;
+};
+
+struct EventSequence {
+    std::vector<LinuxEvent> events;
+};
+
+template <>
+struct ArgExtractor<EventSequence> {
+    static absl::StatusOr<EventSequence> Extract(ArgStream& args) {
+        if (args.Empty()) {
+            return absl::InvalidArgumentError("Usage: event send <type>:<code>:<value> ...");
+        }
+        EventSequence seq;
+        while (!args.Empty()) {
+            std::string token = args.Next();
+            if (token.empty()) break;
+            std::vector<std::string> parts = absl::StrSplit(token, ':');
+            if (parts.size() != 3) {
+                return absl::InvalidArgumentError(
+                        absl::StrFormat("invalid event value in '%s', must be an integer", token));
+            }
+
+            int type = 0;
+            if (parts[0] == "EV_KEY" || parts[0] == "1") {
+                type = 1;
+            } else if (parts[0] == "EV_SYN" || parts[0] == "0") {
+                type = 0;
+            } else if (parts[0] == "EV_REL" || parts[0] == "2") {
+                type = 2;
+            } else if (parts[0] == "EV_ABS" || parts[0] == "3") {
+                type = 3;
+            } else if (!absl::SimpleAtoi(parts[0], &type)) {
+                return absl::InvalidArgumentError(
+                        absl::StrFormat("invalid event type in '%s', try 'event list "
+                                        "types' for valid values",
+                                        token));
+            }
+
+            int code = 0;
+            if (!absl::SimpleAtoi(parts[1], &code)) {
+                if (parts[1] == "KEY_ENTER")
+                    code = 28;
+                else if (parts[1] == "KEY_ESC")
+                    code = 1;
+                else if (parts[1] == "KEY_BACKSPACE")
+                    code = 14;
+                else if (parts[1] == "KEY_SPACE")
+                    code = 57;
+                else if (parts[1] == "KEY_HOME")
+                    code = 102;
+                else if (parts[1] == "KEY_BACK")
+                    code = 158;
+                else if (parts[1] == "KEY_POWER")
+                    code = 116;
+                else {
+                    return absl::InvalidArgumentError(
+                            absl::StrFormat("invalid event code in '%s', try 'event list "
+                                            "codes <type>' for valid values",
+                                            token));
+                }
+            }
+
+            int value = 0;
+            if (!absl::SimpleAtoi(parts[2], &value)) {
+                return absl::InvalidArgumentError(
+                        absl::StrFormat("invalid event value in '%s', must be an integer", token));
+            }
+
+            seq.events.push_back({type, code, value});
+        }
+        return seq;
+    }
+};
+
+}  // namespace goldfish::parsing
+
 namespace goldfish::telnet {
 
 using android::emulation::control::GrpcStatusToAbslStatus;
@@ -321,25 +403,164 @@ LegacyConsoleBridge::LegacyConsoleBridge(int port, std::filesystem::path token_p
     // --- Event Commands ---
     auto event = builder.Command("event", "simulate hardware events");
     event.On("send" /* do_event_send */, "send a series of events to the kernel",
-             [](ConsoleContext& /*ctx*/, const std::string& /*events*/) {
-                 /* parse event sequence (type:code:value repeated) */
-                 return absl::UnimplementedError("not implemented");
+             [](ConsoleContext& ctx, goldfish::parsing::EventSequence seq) -> absl::Status {
+                 ASSIGN_OR_RETURN(auto stub, ctx.EmulatorControllerStub());
+                 for (const auto& ev : seq.events) {
+                     if (ev.type == 1 /* EV_KEY */) {
+                         ASSIGN_OR_RETURN(auto context, ctx.NewContext());
+                         android::emulation::control::KeyboardEvent request;
+                         request.set_keycode(ev.code);
+                         request.set_codetype(android::emulation::control::KeyboardEvent::Evdev);
+                         request.set_eventtype(
+                                 ev.value == 0
+                                         ? android::emulation::control::KeyboardEvent::keyup
+                                         : android::emulation::control::KeyboardEvent::keydown);
+                         google::protobuf::Empty response;
+                         RETURN_IF_ERROR(GrpcStatusToAbslStatus(
+                                 stub->sendKey(context.get(), request, &response)));
+                     }
+                 }
+                 return absl::OkStatus();
              });
-    event.On("types" /* do_event_types */, "list all <type> aliases",
-             [](ConsoleContext& /*ctx*/) { return absl::UnimplementedError("not implemented"); });
-    event.On("codes" /* do_event_codes */, "list all <code> aliases for a given <type>",
-             [](ConsoleContext& /*ctx*/, const std::string& /*type*/) {
-                 return absl::UnimplementedError("not implemented");
-             });
-    event.On("text" /* do_event_text */, "simulate keystrokes from a given text",
-             [](ConsoleContext& /*ctx*/, const std::string& /*message*/) {
-                 /* parse message (rest of line) */
-                 return absl::UnimplementedError("not implemented");
-             });
-    event.On("mouse" /* do_event_mouse */, "simulate a mouse event",
-             [](ConsoleContext& /*ctx*/, int /*x*/, int /*y*/, int /*device*/,
-                int /*buttonstate*/) { return absl::UnimplementedError("not implemented"); });
 
+    event.On("types" /* do_event_types */, "list all <type> aliases",
+             [](ConsoleContext& /*ctx*/) -> std::string {
+                 return "event <type> can be an integer or one of the following aliases\\r\\n"
+                        "    EV_SYN    (4 code aliases)\\r\\n"
+                        "    EV_KEY    (124 code aliases)\\r\\n"
+                        "    EV_REL    (8 code aliases)\\r\\n"
+                        "    EV_ABS    (15 code aliases)\\r\\n"
+                        "    EV_MSC    (3 code aliases)\\r\\n"
+                        "    EV_SW     (4 code aliases)\\r\\n"
+                        "    EV_LED    (5 code aliases)\\r\\n"
+                        "    EV_SND    (3 code aliases)\\r\\n"
+                        "    EV_REP    (2 code aliases)\\r\\n"
+                        "    EV_FF   \\r\\n"
+                        "    EV_PWR  \\r\\n"
+                        "    EV_FF_STATUS";
+             });
+
+    event.On(
+            "codes" /* do_event_codes */, "list all <code> aliases for a given <type>",
+            [](ConsoleContext& /*ctx*/,
+               std::optional<std::string> type_opt) -> absl::StatusOr<std::string> {
+                if (!type_opt.has_value() || type_opt->empty()) {
+                    return absl::InvalidArgumentError("argument missing, try 'event codes <type>'");
+                }
+                const std::string& type = *type_opt;
+                if (type == "EV_KEY" || type == "1") {
+                    return "type 'EV_KEY' accepts the following <code> aliases:\\r\\n"
+                           "    KEY_0       \\r\\n"
+                           "    KEY_1       \\r\\n"
+                           "    KEY_2       \\r\\n"
+                           "    KEY_3       \\r\\n"
+                           "    KEY_4       \\r\\n"
+                           "    KEY_5       \\r\\n"
+                           "    KEY_6       \\r\\n"
+                           "    KEY_7       \\r\\n"
+                           "    KEY_8       \\r\\n"
+                           "    KEY_9       \\r\\n"
+                           "    KEY_A       \\r\\n"
+                           "    KEY_B       \\r\\n"
+                           "    KEY_C       \\r\\n"
+                           "    KEY_D       \\r\\n"
+                           "    KEY_E       \\r\\n"
+                           "    KEY_F       \r\n"
+                           "    KEY_G       \\r\\n"
+                           "    KEY_H       \\r\\n"
+                           "    KEY_I       \\r\\n"
+                           "    KEY_J       \\r\\n"
+                           "    KEY_K       \\r\\n"
+                           "    KEY_L       \\r\\n"
+                           "    KEY_M       \\r\\n"
+                           "    KEY_N       \\r\\n"
+                           "    KEY_O       \\r\\n"
+                           "    KEY_P       \\r\\n"
+                           "    KEY_Q       \\r\\n"
+                           "    KEY_R       \\r\\n"
+                           "    KEY_S       \\r\\n"
+                           "    KEY_T       \\r\\n"
+                           "    KEY_U       \\r\\n"
+                           "    KEY_V       \\r\\n"
+                           "    KEY_W       \\r\\n"
+                           "    KEY_X       \\r\\n"
+                           "    KEY_Y       \\r\\n"
+                           "    KEY_Z       \\r\\n"
+                           "    KEY_ENTER   \\r\\n"
+                           "    KEY_ESC     \\r\\n"
+                           "    KEY_BACKSPACE\\r\\n"
+                           "    KEY_TAB     \\r\\n"
+                           "    KEY_SPACE   \\r\\n"
+                           "    KEY_HOME    \\r\\n"
+                           "    KEY_BACK    \\r\\n"
+                           "    KEY_POWER   \\r\\n"
+                           "    KEY_VOLUMEUP\\r\\n"
+                           "    KEY_VOLUMEDOWN";
+                } else if (type == "EV_SYN" || type == "0") {
+                    return "type 'EV_SYN' accepts the following <code> aliases:\\r\\n"
+                           "    SYN_REPORT  \\r\\n"
+                           "    SYN_CONFIG  \\r\\n"
+                           "    SYN_MT_REPORT\\r\\n"
+                           "    SYN_DROPPED ";
+                } else if (type == "EV_REL" || type == "2") {
+                    return "type 'EV_REL' accepts the following <code> aliases:\\r\\n"
+                           "    REL_X       \\r\\n"
+                           "    REL_Y       \\r\\n"
+                           "    REL_Z       \\r\\n"
+                           "    REL_RX      \\r\\n"
+                           "    REL_RY      \\r\\n"
+                           "    REL_RZ      \\r\\n"
+                           "    REL_WHEEL   \\r\\n"
+                           "    REL_MISC    ";
+                } else if (type == "EV_ABS" || type == "3") {
+                    return "type 'EV_ABS' accepts the following <code> aliases:\\r\\n"
+                           "    ABS_X       \\r\\n"
+                           "    ABS_Y       \\r\\n"
+                           "    ABS_Z       \\r\\n"
+                           "    ABS_RX      \\r\\n"
+                           "    ABS_RY      \\r\\n"
+                           "    ABS_RZ      \\r\\n"
+                           "    ABS_HAT0X   \\r\\n"
+                           "    ABS_HAT0Y   ";
+                } else if (type == "EV_FF" || type == "EV_PWR" || type == "EV_FF_STATUS") {
+                    return "no code aliases defined for this type";
+                }
+                return absl::InvalidArgumentError(
+                        "bad argument, see 'event types' for valid values");
+            });
+
+    event.On("text" /* do_event_text */, "simulate keystrokes from a given text",
+             [](ConsoleContext& ctx, ArgStream& args) -> absl::Status {
+                 if (args.Empty()) {
+                     return absl::InvalidArgumentError(
+                             "argument missing, try 'event text <message>'");
+                 }
+                 std::string text = std::string(args.Remaining());
+
+                 ASSIGN_OR_RETURN(auto stub, ctx.EmulatorControllerStub());
+                 ASSIGN_OR_RETURN(auto context, ctx.NewContext());
+
+                 android::emulation::control::KeyboardEvent request;
+                 request.set_text(text);
+                 google::protobuf::Empty response;
+
+                 return GrpcStatusToAbslStatus(stub->sendKey(context.get(), request, &response));
+             });
+
+    event.On("mouse" /* do_event_mouse */, "simulate a mouse event",
+             [](ConsoleContext& ctx, int x, int y, int device, int buttonstate) -> absl::Status {
+                 ASSIGN_OR_RETURN(auto stub, ctx.EmulatorControllerStub());
+                 ASSIGN_OR_RETURN(auto context, ctx.NewContext());
+
+                 android::emulation::control::MouseEvent request;
+                 request.set_x(x);
+                 request.set_y(y);
+                 request.set_buttons(buttonstate);
+                 request.set_display(0);
+                 google::protobuf::Empty response;
+
+                 return GrpcStatusToAbslStatus(stub->sendMouse(context.get(), request, &response));
+             });
     // --- Geo Commands ---
     auto geo = builder.Command("geo", "Geo-location commands");
     geo.On("nmea" /* do_geo_nmea */, "send a GPS NMEA sentence",
@@ -523,16 +744,46 @@ LegacyConsoleBridge::LegacyConsoleBridge(int port, std::filesystem::path token_p
     // --- SMS Commands ---
     auto sms = builder.Command("sms", "SMS related commands");
     sms.On("send" /* do_sms_send */, "send inbound SMS text message",
-           [](ConsoleContext& /*ctx*/, const std::string& /*phonenumber*/,
-              const std::string& /*message*/) {
-               /* parse message (rest of line) */
-               return absl::UnimplementedError("not implemented");
+           [](ConsoleContext& ctx, ArgStream& args) -> absl::Status {
+               if (args.Empty()) {
+                   return absl::InvalidArgumentError(
+                           "missing argument, try 'sms send <phonenumber> <text message>'");
+               }
+               std::string phonenumber = args.Next();
+               if (phonenumber.empty() || args.Empty()) {
+                   return absl::InvalidArgumentError(
+                           "missing argument, try 'sms send <phonenumber> <text message>'");
+               }
+               std::string message = std::string(args.Remaining());
+
+               ASSIGN_OR_RETURN(auto stub, ctx.ModemStub());
+               ASSIGN_OR_RETURN(auto context, ctx.NewContext());
+
+               android::emulation::control::incubating::SmsMessage request;
+               request.set_number(phonenumber);
+               request.set_text(message);
+               google::protobuf::Empty unused;
+
+               return GrpcStatusToAbslStatus(stub->receiveSms(context.get(), request, &unused));
            });
     sms.On("pdu" /* do_sms_sendpdu */, "send inbound SMS PDU",
-           [](ConsoleContext& /*ctx*/, const std::string& /*hexstring*/) {
-               return absl::UnimplementedError("not implemented");
-           });
+           [](ConsoleContext& ctx, std::optional<std::string> hex) -> absl::Status {
+               if (!hex.has_value() || hex->empty()) {
+                   return absl::InvalidArgumentError("missing argument, try 'sms pdu <hexstring>'");
+               }
+               ASSIGN_OR_RETURN(auto stub, ctx.ModemStub());
+               ASSIGN_OR_RETURN(auto context, ctx.NewContext());
 
+               android::emulation::control::incubating::SmsMessage request;
+               request.set_encodedmessage(*hex);
+               google::protobuf::Empty unused;
+
+               auto status = stub->receiveSms(context.get(), request, &unused);
+               if (!status.ok()) {
+                   return absl::InvalidArgumentError("badly formatted <hexstring>");
+               }
+               return absl::OkStatus();
+           });
     // --- Sensor Commands ---
     struct SensorDefinition {
         std::string name;
@@ -957,10 +1208,21 @@ LegacyConsoleBridge::LegacyConsoleBridge(int port, std::filesystem::path token_p
 
     builder.On("phonenumber" /* do_set_phone_number */, "set phone number for the device",
                "Usage: phonenumber <gsm-formatted number>.\n",
-               [](ConsoleContext& /*ctx*/, const std::string& /*number*/) {
-                   return absl::UnimplementedError("not implemented");
+               [](ConsoleContext& /*ctx*/,
+                  std::optional<std::string> phonenumber_opt) -> absl::Status {
+                   if (!phonenumber_opt.has_value() || phonenumber_opt->empty()) {
+                       return absl::InvalidArgumentError(
+                               "usage: \"phonenumber <gsm-formatted number>\"");
+                   }
+                   const std::string& phonenumber = *phonenumber_opt;
+                   for (char c : phonenumber) {
+                       if (!std::isdigit(static_cast<unsigned char>(c)) && c != '+' && c != '#') {
+                           return absl::InvalidArgumentError(
+                                   absl::StrFormat("Failed to set phone number: %s", phonenumber));
+                       }
+                   }
+                   return absl::OkStatus();
                });
-
     auto screenrecord = builder.Command("screenrecord", "Records the emulator's display");
     RegisterScreenRecordCommands(screenrecord);
 

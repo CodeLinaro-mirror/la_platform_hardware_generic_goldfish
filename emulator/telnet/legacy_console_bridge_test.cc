@@ -1417,5 +1417,230 @@ TEST_F(LegacyConsoleBridgeTest, ResizeDisplayFailsOnUnsupportedIndex) {
     EXPECT_TRUE(result.status().message().find("size index 3 not supported") != std::string::npos);
 }
 
+TEST_F(LegacyConsoleBridgeTest, SmsSendCallsReceiveSms) {
+    auto ctx = CreateContext();
+    ctx->authenticated = true;
+
+    auto mock_modem = std::make_unique<android::emulation::control::incubating::MockModemStub>();
+    EXPECT_CALL(*mock_modem, receiveSms(_, _, _))
+            .WillOnce([](grpc::ClientContext* context,
+                         const android::emulation::control::incubating::SmsMessage& request,
+                         google::protobuf::Empty* response) {
+                EXPECT_EQ(request.number(), "123456789");
+                EXPECT_EQ(request.text(), "Hello World!");
+                return grpc::Status::OK;
+            });
+    ctx->mock_modem_stub = std::move(mock_modem);
+
+    auto result = (*bridge_)("sms send 123456789 Hello World!", *ctx);
+
+    ASSERT_TRUE(result.ok()) << result.status().message();
+    EXPECT_EQ(*result, "");
+}
+
+TEST_F(LegacyConsoleBridgeTest, SmsSendFailsOnMissingArguments) {
+    auto ctx = CreateContext();
+    ctx->authenticated = true;
+
+    auto result = (*bridge_)("sms send", *ctx);
+
+    EXPECT_FALSE(result.ok());
+    EXPECT_EQ(result.status().code(), absl::StatusCode::kInvalidArgument);
+    EXPECT_TRUE(result.status().message().find("missing argument") != std::string::npos);
+}
+
+TEST_F(LegacyConsoleBridgeTest, SmsPduCallsReceiveSms) {
+    auto ctx = CreateContext();
+    ctx->authenticated = true;
+
+    auto mock_modem = std::make_unique<android::emulation::control::incubating::MockModemStub>();
+    EXPECT_CALL(*mock_modem, receiveSms(_, _, _))
+            .WillOnce([](grpc::ClientContext* context,
+                         const android::emulation::control::incubating::SmsMessage& request,
+                         google::protobuf::Empty* response) {
+                EXPECT_EQ(request.encodedmessage(),
+                          "07914151551512f2040b914151551512f200006021201112340205e8329bfd06");
+                return grpc::Status::OK;
+            });
+    ctx->mock_modem_stub = std::move(mock_modem);
+
+    auto result = (*bridge_)(
+            "sms pdu 07914151551512f2040b914151551512f200006021201112340205e8329bfd06", *ctx);
+
+    ASSERT_TRUE(result.ok()) << result.status().message();
+    EXPECT_EQ(*result, "");
+}
+
+TEST_F(LegacyConsoleBridgeTest, SmsPduFailsOnMissingArguments) {
+    auto ctx = CreateContext();
+    ctx->authenticated = true;
+
+    auto result = (*bridge_)("sms pdu", *ctx);
+
+    EXPECT_FALSE(result.ok());
+    EXPECT_EQ(result.status().code(), absl::StatusCode::kInvalidArgument);
+    EXPECT_TRUE(result.status().message().find("missing argument") != std::string::npos);
+}
+
+TEST_F(LegacyConsoleBridgeTest, EventTextCallsSendKey) {
+    auto ctx = CreateContext();
+    ctx->authenticated = true;
+
+    auto mock_stub = std::make_unique<android::emulation::control::MockEmulatorControllerStub>();
+    EXPECT_CALL(*mock_stub, sendKey(_, _, _))
+            .WillOnce([](grpc::ClientContext* context,
+                         const android::emulation::control::KeyboardEvent& request,
+                         google::protobuf::Empty* response) {
+                EXPECT_EQ(request.text(), "Hello emulator");
+                return grpc::Status::OK;
+            });
+    ctx->mock_stub = std::move(mock_stub);
+
+    auto result = (*bridge_)("event text Hello emulator", *ctx);
+
+    ASSERT_TRUE(result.ok()) << result.status().message();
+    EXPECT_EQ(*result, "");
+}
+
+TEST_F(LegacyConsoleBridgeTest, EventTextFailsOnMissingMessage) {
+    auto ctx = CreateContext();
+    ctx->authenticated = true;
+
+    auto result = (*bridge_)("event text", *ctx);
+
+    EXPECT_FALSE(result.ok());
+    EXPECT_EQ(result.status().code(), absl::StatusCode::kInvalidArgument);
+    EXPECT_TRUE(result.status().message().find("argument missing") != std::string::npos);
+}
+
+TEST_F(LegacyConsoleBridgeTest, EventMouseCallsSendMouse) {
+    auto ctx = CreateContext();
+    ctx->authenticated = true;
+
+    auto mock_stub = std::make_unique<android::emulation::control::MockEmulatorControllerStub>();
+    EXPECT_CALL(*mock_stub, sendMouse(_, _, _))
+            .WillOnce([](grpc::ClientContext* context,
+                         const android::emulation::control::MouseEvent& request,
+                         google::protobuf::Empty* response) {
+                EXPECT_EQ(request.x(), 100);
+                EXPECT_EQ(request.y(), 200);
+                EXPECT_EQ(request.buttons(), 1);
+                EXPECT_EQ(request.display(), 0);
+                return grpc::Status::OK;
+            });
+    ctx->mock_stub = std::move(mock_stub);
+
+    auto result = (*bridge_)("event mouse 100 200 0 1", *ctx);
+
+    ASSERT_TRUE(result.ok()) << result.status().message();
+    EXPECT_EQ(*result, "");
+}
+
+TEST_F(LegacyConsoleBridgeTest, EventMouseFailsOnInvalidArguments) {
+    auto ctx = CreateContext();
+    ctx->authenticated = true;
+
+    auto result = (*bridge_)("event mouse 100 200", *ctx);
+
+    EXPECT_FALSE(result.ok());
+    EXPECT_EQ(result.status().code(), absl::StatusCode::kInvalidArgument);
+    // Checked InvalidArgument
+}
+
+TEST_F(LegacyConsoleBridgeTest, EventTypesReturnsTypeList) {
+    auto ctx = CreateContext();
+    ctx->authenticated = true;
+
+    auto result = (*bridge_)("event types", *ctx);
+
+    ASSERT_TRUE(result.ok()) << result.status().message();
+    EXPECT_TRUE(result->find("EV_SYN") != std::string::npos);
+    EXPECT_TRUE(result->find("EV_KEY") != std::string::npos);
+    EXPECT_TRUE(result->find("EV_REL") != std::string::npos);
+    EXPECT_TRUE(result->find("EV_ABS") != std::string::npos);
+}
+
+TEST_F(LegacyConsoleBridgeTest, EventCodesReturnsCodesForType) {
+    auto ctx = CreateContext();
+    ctx->authenticated = true;
+
+    auto result = (*bridge_)("event codes EV_KEY", *ctx);
+
+    ASSERT_TRUE(result.ok()) << result.status().message();
+    EXPECT_TRUE(result->find("KEY_ENTER") != std::string::npos);
+    EXPECT_TRUE(result->find("KEY_SPACE") != std::string::npos);
+}
+
+TEST_F(LegacyConsoleBridgeTest, EventCodesFailsOnMissingType) {
+    auto ctx = CreateContext();
+    ctx->authenticated = true;
+
+    auto result = (*bridge_)("event codes", *ctx);
+
+    EXPECT_FALSE(result.ok());
+    EXPECT_EQ(result.status().code(), absl::StatusCode::kInvalidArgument);
+    EXPECT_TRUE(result.status().message().find("argument missing") != std::string::npos);
+}
+
+TEST_F(LegacyConsoleBridgeTest, EventSendCallsSendKey) {
+    auto ctx = CreateContext();
+    ctx->authenticated = true;
+
+    auto mock_stub = std::make_unique<android::emulation::control::MockEmulatorControllerStub>();
+    EXPECT_CALL(*mock_stub, sendKey(_, _, _))
+            .WillOnce([](grpc::ClientContext* context,
+                         const android::emulation::control::KeyboardEvent& request,
+                         google::protobuf::Empty* response) {
+                EXPECT_EQ(request.keycode(), 28);
+                EXPECT_EQ(request.eventtype(), android::emulation::control::KeyboardEvent::keydown);
+                return grpc::Status::OK;
+            })
+            .WillOnce([](grpc::ClientContext* context,
+                         const android::emulation::control::KeyboardEvent& request,
+                         google::protobuf::Empty* response) {
+                EXPECT_EQ(request.keycode(), 28);
+                EXPECT_EQ(request.eventtype(), android::emulation::control::KeyboardEvent::keyup);
+                return grpc::Status::OK;
+            });
+    ctx->mock_stub = std::move(mock_stub);
+
+    auto result = (*bridge_)("event send EV_KEY:KEY_ENTER:1 EV_KEY:KEY_ENTER:0", *ctx);
+
+    ASSERT_TRUE(result.ok()) << result.status().message();
+    EXPECT_EQ(*result, "");
+}
+
+TEST_F(LegacyConsoleBridgeTest, PhoneNumberAcceptsValidNumber) {
+    auto ctx = CreateContext();
+    ctx->authenticated = true;
+
+    auto result = (*bridge_)("phonenumber +15551234567", *ctx);
+
+    ASSERT_TRUE(result.ok()) << result.status().message();
+    EXPECT_EQ(*result, "");
+}
+
+TEST_F(LegacyConsoleBridgeTest, PhoneNumberFailsOnInvalidCharacters) {
+    auto ctx = CreateContext();
+    ctx->authenticated = true;
+
+    auto result = (*bridge_)("phonenumber invalid_num!", *ctx);
+
+    EXPECT_FALSE(result.ok());
+    EXPECT_EQ(result.status().code(), absl::StatusCode::kInvalidArgument);
+    EXPECT_TRUE(result.status().message().find("Failed to set phone number") != std::string::npos);
+}
+
+TEST_F(LegacyConsoleBridgeTest, PhoneNumberFailsOnMissingArguments) {
+    auto ctx = CreateContext();
+    ctx->authenticated = true;
+
+    auto result = (*bridge_)("phonenumber", *ctx);
+
+    EXPECT_FALSE(result.ok());
+    EXPECT_EQ(result.status().code(), absl::StatusCode::kInvalidArgument);
+    EXPECT_TRUE(result.status().message().find("usage: \"phonenumber") != std::string::npos);
+}
+
 }  // namespace
 }  // namespace goldfish::telnet
