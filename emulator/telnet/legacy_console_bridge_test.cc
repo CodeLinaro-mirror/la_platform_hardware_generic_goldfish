@@ -1256,5 +1256,166 @@ TEST_F(LegacyConsoleBridgeTest, RestartCallsSetVmStateReset) {
     EXPECT_EQ(*result, "restarting emulator, bye bye");
 }
 
+TEST_F(LegacyConsoleBridgeTest, MultiDisplayAddCallsSetDisplayConfigurations) {
+    auto ctx = CreateContext();
+    ctx->authenticated = true;
+
+    auto mock_stub = std::make_unique<android::emulation::control::MockEmulatorControllerStub>();
+    EXPECT_CALL(*mock_stub, getDisplayConfigurations(_, _, _))
+            .WillOnce([](grpc::ClientContext* context, const google::protobuf::Empty& request,
+                         android::emulation::control::DisplayConfigurations* response) {
+                auto* d0 = response->add_displays();
+                d0->set_display(0);
+                d0->set_width(1080);
+                d0->set_height(1920);
+                d0->set_dpi(420);
+                return grpc::Status::OK;
+            });
+    EXPECT_CALL(*mock_stub, setDisplayConfigurations(_, _, _))
+            .WillOnce([](grpc::ClientContext* context,
+                         const android::emulation::control::DisplayConfigurations& request,
+                         android::emulation::control::DisplayConfigurations* response) {
+                EXPECT_EQ(request.displays_size(), 1);
+                EXPECT_EQ(request.displays(0).display(), 1);
+                EXPECT_EQ(request.displays(0).width(), 1200);
+                EXPECT_EQ(request.displays(0).height(), 800);
+                EXPECT_EQ(request.displays(0).dpi(), 240);
+                EXPECT_EQ(request.displays(0).flags(), 0);
+                return grpc::Status::OK;
+            });
+    ctx->mock_stub = std::move(mock_stub);
+
+    auto result = (*bridge_)("multidisplay add 1 1200 800 240 0", *ctx);
+
+    ASSERT_TRUE(result.ok()) << result.status().message();
+    EXPECT_EQ(*result, "");
+}
+
+TEST_F(LegacyConsoleBridgeTest, MultiDisplayAddFailsOnNotEnoughArguments) {
+    auto ctx = CreateContext();
+    ctx->authenticated = true;
+
+    auto result = (*bridge_)("multidisplay add 1 1200 800", *ctx);
+
+    EXPECT_FALSE(result.ok());
+    EXPECT_EQ(result.status().code(), absl::StatusCode::kInvalidArgument);
+    // Checked InvalidArgument
+}
+
+TEST_F(LegacyConsoleBridgeTest, MultiDisplayAddFailsOnInvalidId) {
+    auto ctx = CreateContext();
+    ctx->authenticated = true;
+
+    auto result = (*bridge_)("multidisplay add 9 1200 800 240 0", *ctx);
+
+    EXPECT_FALSE(result.ok());
+    EXPECT_EQ(result.status().code(), absl::StatusCode::kInvalidArgument);
+    EXPECT_TRUE(result.status().message().find("invalid display id") != std::string::npos);
+}
+
+TEST_F(LegacyConsoleBridgeTest, MultiDisplayDelCallsSetDisplayConfigurations) {
+    auto ctx = CreateContext();
+    ctx->authenticated = true;
+
+    auto mock_stub = std::make_unique<android::emulation::control::MockEmulatorControllerStub>();
+    EXPECT_CALL(*mock_stub, getDisplayConfigurations(_, _, _))
+            .WillOnce([](grpc::ClientContext* context, const google::protobuf::Empty& request,
+                         android::emulation::control::DisplayConfigurations* response) {
+                auto* d0 = response->add_displays();
+                d0->set_display(0);
+                auto* d1 = response->add_displays();
+                d1->set_display(1);
+                return grpc::Status::OK;
+            });
+    EXPECT_CALL(*mock_stub, setDisplayConfigurations(_, _, _))
+            .WillOnce([](grpc::ClientContext* context,
+                         const android::emulation::control::DisplayConfigurations& request,
+                         android::emulation::control::DisplayConfigurations* response) {
+                EXPECT_EQ(request.displays_size(), 0);
+                return grpc::Status::OK;
+            });
+    ctx->mock_stub = std::move(mock_stub);
+
+    auto result = (*bridge_)("multidisplay del 1", *ctx);
+
+    ASSERT_TRUE(result.ok()) << result.status().message();
+    EXPECT_EQ(*result, "");
+}
+
+TEST_F(LegacyConsoleBridgeTest, MultiDisplayDelFailsOnEmptyArguments) {
+    auto ctx = CreateContext();
+    ctx->authenticated = true;
+
+    auto result = (*bridge_)("multidisplay del", *ctx);
+
+    EXPECT_FALSE(result.ok());
+    EXPECT_EQ(result.status().code(), absl::StatusCode::kInvalidArgument);
+    // Checked InvalidArgument
+}
+
+TEST_F(LegacyConsoleBridgeTest, MultiDisplayDelFailsOnInvalidId) {
+    auto ctx = CreateContext();
+    ctx->authenticated = true;
+
+    auto mock_stub = std::make_unique<android::emulation::control::MockEmulatorControllerStub>();
+    EXPECT_CALL(*mock_stub, getDisplayConfigurations(_, _, _))
+            .WillOnce([](grpc::ClientContext* context, const google::protobuf::Empty& request,
+                         android::emulation::control::DisplayConfigurations* response) {
+                auto* d0 = response->add_displays();
+                d0->set_display(0);
+                return grpc::Status::OK;
+            });
+    ctx->mock_stub = std::move(mock_stub);
+
+    auto result = (*bridge_)("multidisplay del 2", *ctx);
+
+    EXPECT_FALSE(result.ok());
+    EXPECT_EQ(result.status().code(), absl::StatusCode::kInvalidArgument);
+    EXPECT_TRUE(result.status().message().find("invalid display id") != std::string::npos);
+}
+
+TEST_F(LegacyConsoleBridgeTest, ResizeDisplayCallsSetDisplayMode) {
+    auto ctx = CreateContext();
+    ctx->authenticated = true;
+
+    auto mock_stub = std::make_unique<android::emulation::control::MockEmulatorControllerStub>();
+    EXPECT_CALL(*mock_stub, setDisplayMode(_, _, _))
+            .WillOnce([](grpc::ClientContext* context,
+                         const android::emulation::control::DisplayMode& request,
+                         google::protobuf::Empty* response) {
+                EXPECT_EQ(request.value(), android::emulation::control::FOLDABLE);
+                return grpc::Status::OK;
+            });
+    ctx->mock_stub = std::move(mock_stub);
+
+    auto result = (*bridge_)("resize-display 1", *ctx);
+
+    ASSERT_TRUE(result.ok()) << result.status().message();
+    EXPECT_EQ(*result, "");
+}
+
+TEST_F(LegacyConsoleBridgeTest, ResizeDisplayFailsOnMissingIndex) {
+    auto ctx = CreateContext();
+    ctx->authenticated = true;
+
+    auto result = (*bridge_)("resize-display", *ctx);
+
+    EXPECT_FALSE(result.ok());
+    EXPECT_EQ(result.status().code(), absl::StatusCode::kInvalidArgument);
+    EXPECT_TRUE(result.status().message().find("usage: \"resize-display <index>\"") !=
+                std::string::npos);
+}
+
+TEST_F(LegacyConsoleBridgeTest, ResizeDisplayFailsOnUnsupportedIndex) {
+    auto ctx = CreateContext();
+    ctx->authenticated = true;
+
+    auto result = (*bridge_)("resize-display 3", *ctx);
+
+    EXPECT_FALSE(result.ok());
+    EXPECT_EQ(result.status().code(), absl::StatusCode::kInvalidArgument);
+    EXPECT_TRUE(result.status().message().find("size index 3 not supported") != std::string::npos);
+}
+
 }  // namespace
 }  // namespace goldfish::telnet

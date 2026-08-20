@@ -702,13 +702,92 @@ LegacyConsoleBridge::LegacyConsoleBridge(int port, std::filesystem::path token_p
     auto multidisplay = builder.Command("multidisplay", "configure the multi-display");
     multidisplay.On(
             "add" /* do_multi_display_add */, "add new or modify existing display",
-            [](ConsoleContext& /*ctx*/, int /*id*/, int /*width*/, int /*height*/, int /*dpi*/,
-               int /*flag*/) { return absl::UnimplementedError("not implemented"); });
-    multidisplay.On("del" /* do_multi_display_del */, "remove existing display",
-                    [](ConsoleContext& /*ctx*/, int /*id*/) {
-                        return absl::UnimplementedError("not implemented");
-                    });
+            [](ConsoleContext& ctx, int id, int width, int height, int dpi,
+               int flag) -> absl::Status {
+                if (id < 1 || id > 8) {
+                    return absl::InvalidArgumentError(
+                            "invalid display id; valid ids are from 1 to 8 inclusive");
+                }
 
+                ASSIGN_OR_RETURN(auto stub, ctx.EmulatorControllerStub());
+                ASSIGN_OR_RETURN(auto context, ctx.NewContext());
+
+                google::protobuf::Empty empty_req;
+                android::emulation::control::DisplayConfigurations current_configs;
+                RETURN_IF_ERROR(GrpcStatusToAbslStatus(stub->getDisplayConfigurations(
+                        context.get(), empty_req, &current_configs)));
+
+                android::emulation::control::DisplayConfigurations new_configs;
+                bool updated = false;
+                for (int i = 0; i < current_configs.displays_size(); ++i) {
+                    const auto& disp = current_configs.displays(i);
+                    if (disp.display() == 0) {
+                        continue;  // Display 0 is primary and not included in secondary configs
+                    }
+                    auto* added = new_configs.add_displays();
+                    if (disp.display() == static_cast<uint32_t>(id)) {
+                        added->set_display(id);
+                        added->set_width(width);
+                        added->set_height(height);
+                        added->set_dpi(dpi);
+                        added->set_flags(flag);
+                        updated = true;
+                    } else {
+                        *added = disp;
+                    }
+                }
+                if (!updated) {
+                    auto* added = new_configs.add_displays();
+                    added->set_display(id);
+                    added->set_width(width);
+                    added->set_height(height);
+                    added->set_dpi(dpi);
+                    added->set_flags(flag);
+                }
+
+                ASSIGN_OR_RETURN(auto set_context, ctx.NewContext());
+                android::emulation::control::DisplayConfigurations reply;
+                return GrpcStatusToAbslStatus(
+                        stub->setDisplayConfigurations(set_context.get(), new_configs, &reply));
+            });
+
+    multidisplay.On("del" /* do_multi_display_del */, "remove existing display",
+                    [](ConsoleContext& ctx, int id) -> absl::Status {
+                        if (id < 1 || id > 10) {
+                            return absl::InvalidArgumentError("invalid display id");
+                        }
+
+                        ASSIGN_OR_RETURN(auto stub, ctx.EmulatorControllerStub());
+                        ASSIGN_OR_RETURN(auto context, ctx.NewContext());
+
+                        google::protobuf::Empty empty_req;
+                        android::emulation::control::DisplayConfigurations current_configs;
+                        RETURN_IF_ERROR(GrpcStatusToAbslStatus(stub->getDisplayConfigurations(
+                                context.get(), empty_req, &current_configs)));
+
+                        bool found = false;
+                        android::emulation::control::DisplayConfigurations new_configs;
+                        for (int i = 0; i < current_configs.displays_size(); ++i) {
+                            const auto& disp = current_configs.displays(i);
+                            if (disp.display() == 0) {
+                                continue;  // Display 0 is primary
+                            }
+                            if (disp.display() == static_cast<uint32_t>(id)) {
+                                found = true;
+                            } else {
+                                *new_configs.add_displays() = disp;
+                            }
+                        }
+
+                        if (!found) {
+                            return absl::InvalidArgumentError("invalid display id");
+                        }
+
+                        ASSIGN_OR_RETURN(auto set_context, ctx.NewContext());
+                        android::emulation::control::DisplayConfigurations reply;
+                        return GrpcStatusToAbslStatus(stub->setDisplayConfigurations(
+                                set_context.get(), new_configs, &reply));
+                    });
     // --- Proxy Commands ---
     auto proxy = builder.Command("proxy", "manage network proxy server settings");
     proxy.On("set" /* do_proxy_set */, "set the proxy server to use",
@@ -844,12 +923,29 @@ LegacyConsoleBridge::LegacyConsoleBridge(int port, std::filesystem::path token_p
                    return absl::UnimplementedError("not implemented");
                });
 
-    builder.On("resize-display" /* do_resize_display */,
-               "resize the display resolution to the preset size",
-               [](ConsoleContext& /*ctx*/, int /*index*/) {
-                   return absl::UnimplementedError("not implemented");
-               });
+    builder.On("resize-display" /* do_resize_display */, "resize display 0 resolution",
+               "Usage: resize-display <index>.\n"
+               "index: 0: original, 1: 720p, 2: 1080p, 3: 4k, 4: 1080x1080\n",
+               [](ConsoleContext& ctx, std::optional<int> new_size) -> absl::Status {
+                   if (!new_size.has_value()) {
+                       return absl::InvalidArgumentError("usage: \"resize-display <index>\"");
+                   }
+                   if (*new_size < 0 || *new_size > 2) {
+                       return absl::InvalidArgumentError(absl::StrFormat(
+                               "resize-display: size index %d not supported", *new_size));
+                   }
 
+                   ASSIGN_OR_RETURN(auto stub, ctx.EmulatorControllerStub());
+                   ASSIGN_OR_RETURN(auto context, ctx.NewContext());
+
+                   android::emulation::control::DisplayMode request;
+                   request.set_value(
+                           static_cast<android::emulation::control::DisplayModeValue>(*new_size));
+                   google::protobuf::Empty response;
+
+                   return GrpcStatusToAbslStatus(
+                           stub->setDisplayMode(context.get(), request, &response));
+               });
     builder.On("virtualscene-image" /* do_set_virtualscene_image */,
                "customize virtualscene image for virtulscene camera",
                "Usage: virtualscene-image <wall|table> [path-to-image].\n"
