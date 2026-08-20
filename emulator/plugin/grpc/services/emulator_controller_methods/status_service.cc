@@ -46,8 +46,11 @@ std::unordered_map<std::string, std::string> getQemuConfig(
     return cfg;
 }
 
-StatusServiceImpl::StatusServiceImpl(GuestStatus& guestStatus, const AvdProperties& avd_properties)
-        : guest_status_(guestStatus), avd_properties_(avd_properties) {}
+StatusServiceImpl::StatusServiceImpl(GuestStatus& guestStatus, const AvdProperties& avd_properties,
+                                     const ::goldfish::avd_info::AvdUniverse* avd_universe)
+        : guest_status_(guestStatus)
+        , avd_properties_(avd_properties)
+        , avd_universe_(avd_universe) {}
 
 grpc::Status StatusServiceImpl::getStatus(EmulatorStatus* reply) {
     // TODO(jansene): Get cpu count, hypervisor type.`
@@ -75,6 +78,12 @@ grpc::Status StatusServiceImpl::getStatus(EmulatorStatus* reply) {
     (*platform)["avd.id"] = avd_properties_.avd_id;
     (*platform)["avd.name"] = avd_properties_.avd_name;
     (*platform)["avd.content_path"] = avd_properties_.avd_content_path.string();
+
+    if (avd_universe_) {
+        if (auto endpoint = avd_universe_->GetNetsimEndpoint(); !endpoint.empty()) {
+            (*platform)["netsim.endpoint"] = endpoint;
+        }
+    }
 
     auto& guestConfig = *reply->mutable_guestconfig();
 
