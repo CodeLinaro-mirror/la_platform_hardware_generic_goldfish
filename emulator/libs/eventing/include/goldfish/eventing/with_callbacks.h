@@ -49,10 +49,30 @@ struct event_source_traits<Host<T, Policy>> {
  * @tparam EventSystem The type of event system (CallbackEventSupport or WithCallbacks)
  * @tparam T The event type
  */
+// Helper trait to determine callback signature based on event type T.
+template <typename T>
+struct event_callback_traits {
+    using type = std::function<void(typename EventParam<T>::type)>;
+};
+
+template <>
+struct event_callback_traits<void> {
+    using type = std::function<void()>;
+};
+
+/**
+ * @brief RAII wrapper for automatic callback management.
+ *
+ * This class automatically unregisters the callback when destroyed.
+ * It works with both CallbackEventSupport and WithCallbacks classes.
+ *
+ * @tparam EventSystem The type of event system (CallbackEventSupport or WithCallbacks)
+ * @tparam T The event type
+ */
 template <typename EventSystem, typename T>
 class ScopedEventCallback {
   public:
-    using EventCallback = std::function<void(const T&)>;
+    using EventCallback = typename event_callback_traits<T>::type;
     static constexpr size_t kInvalidId = 0;
 
     /**
@@ -107,52 +127,7 @@ class ScopedEventCallback {
     size_t id_;
 };
 
-/**
- * @brief Specialization for void events.
- */
-template <typename EventSystem>
-class ScopedEventCallback<EventSystem, void> {
-  public:
-    using EventCallback = std::function<void()>;
-    static constexpr size_t kInvalidId = 0;
-
-    ScopedEventCallback(EventSystem& system, EventCallback callback)
-            : system_(system), id_(system.AddCallback(std::move(callback))) {}
-
-    ~ScopedEventCallback() {
-        if (id_ != kInvalidId) {
-            system_.RemoveCallback(id_);
-        }
-    }
-
-    size_t GetId() const { return id_; }
-
-    ScopedEventCallback(const ScopedEventCallback&) = delete;
-    ScopedEventCallback& operator=(const ScopedEventCallback&) = delete;
-
-    ScopedEventCallback(ScopedEventCallback&& other) noexcept
-            : system_(other.system_), id_(other.id_) {
-        other.id_ = kInvalidId;
-    }
-
-    ScopedEventCallback& operator=(ScopedEventCallback&& other) noexcept {
-        if (this != &other) {
-            if (id_ != kInvalidId) {
-                system_.RemoveCallback(id_);
-            }
-            system_ = other.system_;
-            id_ = other.id_;
-            other.id_ = kInvalidId;
-        }
-        return *this;
-    }
-
-  private:
-    EventSystem& system_;
-    size_t id_;
-};
-
-/**
+/*
  * @brief A mixin that adds a modern, safe, and high-performance callback API
  * to any policy-based event source.
  *
@@ -167,7 +142,7 @@ template <typename EventSourceType>
 class WithCallbacks : public EventSourceType {
   public:
     using T = typename event_source_traits<EventSourceType>::event_type;
-    using EventCallback = std::function<void(const T&)>;
+    using EventCallback = typename event_callback_traits<T>::type;
     using CallbackId = size_t;
     static constexpr CallbackId kInvalidCallbackId = 0;
     using PtrType = typename EventSourceType::Ptr;
