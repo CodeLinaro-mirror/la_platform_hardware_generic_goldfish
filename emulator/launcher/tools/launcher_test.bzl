@@ -46,6 +46,7 @@ def create_launch_emulator_test(
         args = args + select({
             "@goldfish//emulator/tools:asan": ["--timeout_seconds", str(timeout_seconds * 3)],
             "@goldfish//emulator/tools:tsan": ["--timeout_seconds", str(timeout_seconds * 10)],
+            "@platforms//os:macos": ["--timeout_seconds", str(max(timeout_seconds, 300))],
             "//conditions:default": ["--timeout_seconds", str(timeout_seconds)],
         })
     _create_launch_emulator_test(name, args, "@goldfish//emulator/launcher")
@@ -59,11 +60,12 @@ def _create_launch_emulator_test(name, args, goldfish_dep):
     py_test(
         name = name,
         size = "medium",
-        timeout = "moderate",
+        timeout = "long",
         tags = [
             # These tests are marked as manual so that they aren't included when using //...
             # Instead they must be explicitly named (including as part of a test_suite).
             "manual",
+            "exclusive",
             # "exclusive-if-local" fails to parallelize on RBE
             # https://github.com/bazelbuild/bazel/issues/17834
             "resources:qemu_instances:1",
