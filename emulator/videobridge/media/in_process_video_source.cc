@@ -52,27 +52,24 @@ void InProcessVideoSource::OnStart() {
     }
 
     VLOG(1) << "Starting InProcessVideoSource for display " << static_cast<int>(display->Id());
-    auto* callback_source =
-            static_cast<::goldfish::display::FrameInfoCallbackSource*>(display.get());
-    auto sub = android::base::eventing::MakeScopedCallback(
-            *callback_source, [this](const ::goldfish::display::FrameInfo& frame_info) {
+    auto listener =
+            display->AddFrameListener([this](const ::goldfish::display::FrameInfo& frame_info) {
                 OnFrameAvailable(frame_info);
             });
 
     absl::MutexLock lock(&frame_mutex_);
     display_ = std::move(display);
-    subscription_ = std::move(sub);
+    listener_ = std::move(listener);
 }
 
 void InProcessVideoSource::OnStop() {
     VLOG(1) << "Stopping InProcessVideoSource.";
-    std::unique_ptr<android::base::eventing::ScopedEventCallback<
-            ::goldfish::display::FrameInfoCallbackSource, ::goldfish::display::FrameInfo>>
-            sub;
+    std::shared_ptr<::goldfish::display::IDisplay> display;
+    ::goldfish::display::IDisplay::ScopedFrameListener listener;
     {
         absl::MutexLock lock(&frame_mutex_);
-        sub = std::move(subscription_);
-        display_.reset();
+        listener = std::move(listener_);
+        display = std::move(display_);
     }
 }
 
