@@ -145,10 +145,12 @@ cc_test(
         "pixman_display_concurrency_test.cc",
         "pixman_frame_manager_test.cc",
         "pixman_image_generator_test.cc",
+        "qemu_display_test.cc",
     ],
     visibility = ["//visibility:public"],
     deps = [
         ":test-display",
+        "//emulator/libs/async:async_testing",
         "//emulator/libs/async:libuv_event_loop",
         "//emulator/libs/async:threaded_event_loop",
         "//emulator/libs/test:googletest_main",
