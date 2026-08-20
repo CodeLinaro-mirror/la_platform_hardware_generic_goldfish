@@ -28,10 +28,11 @@
 namespace goldfish::sensors {
 
 class FoldableModel {
-  private:
-    explicit FoldableModel(const android::goldfish::HardwareConfig& hw);
+    struct Private {};
 
   public:
+    FoldableModel(const android::goldfish::HardwareConfig& hw, Private);
+
     /**
      * @brief Factory method to create a FoldableModel instance.
      * @param hw The hardware configuration of the current AVD.
