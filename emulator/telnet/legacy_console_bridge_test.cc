@@ -1084,5 +1084,177 @@ TEST_F(LegacyConsoleBridgeTest, AllSensorsGetAndSetRoundTrip) {
     }
 }
 
+TEST_F(LegacyConsoleBridgeTest, AvdStatusReturnsRunning) {
+    auto ctx = CreateContext();
+    ctx->authenticated = true;
+
+    auto mock_stub = std::make_unique<android::emulation::control::MockEmulatorControllerStub>();
+    EXPECT_CALL(*mock_stub, getVmState(_, _, _))
+            .WillOnce([](grpc::ClientContext* context, const google::protobuf::Empty& request,
+                         android::emulation::control::VmRunState* response) {
+                response->set_state(android::emulation::control::VmRunState::RUNNING);
+                return grpc::Status::OK;
+            });
+    ctx->mock_stub = std::move(mock_stub);
+
+    auto result = (*bridge_)("avd status", *ctx);
+
+    ASSERT_TRUE(result.ok()) << result.status().message();
+    EXPECT_EQ(*result, "virtual device is running");
+}
+
+TEST_F(LegacyConsoleBridgeTest, AvdStatusReturnsStopped) {
+    auto ctx = CreateContext();
+    ctx->authenticated = true;
+
+    auto mock_stub = std::make_unique<android::emulation::control::MockEmulatorControllerStub>();
+    EXPECT_CALL(*mock_stub, getVmState(_, _, _))
+            .WillOnce([](grpc::ClientContext* context, const google::protobuf::Empty& request,
+                         android::emulation::control::VmRunState* response) {
+                response->set_state(android::emulation::control::VmRunState::PAUSED);
+                return grpc::Status::OK;
+            });
+    ctx->mock_stub = std::move(mock_stub);
+
+    auto result = (*bridge_)("avd status", *ctx);
+
+    ASSERT_TRUE(result.ok()) << result.status().message();
+    EXPECT_EQ(*result, "virtual device is stopped");
+}
+
+TEST_F(LegacyConsoleBridgeTest, AvdPauseCallsSetVmStatePaused) {
+    auto ctx = CreateContext();
+    ctx->authenticated = true;
+
+    auto mock_stub = std::make_unique<android::emulation::control::MockEmulatorControllerStub>();
+    EXPECT_CALL(*mock_stub, setVmState(_, _, _))
+            .WillOnce([](grpc::ClientContext* context,
+                         const android::emulation::control::VmRunState& request,
+                         google::protobuf::Empty* response) {
+                EXPECT_EQ(request.state(), android::emulation::control::VmRunState::PAUSED);
+                return grpc::Status::OK;
+            });
+    ctx->mock_stub = std::move(mock_stub);
+
+    auto result = (*bridge_)("avd pause", *ctx);
+
+    ASSERT_TRUE(result.ok()) << result.status().message();
+    EXPECT_EQ(*result, "");
+}
+
+TEST_F(LegacyConsoleBridgeTest, AvdStopCallsSetVmStateStopWhenRunning) {
+    auto ctx = CreateContext();
+    ctx->authenticated = true;
+
+    auto mock_stub = std::make_unique<android::emulation::control::MockEmulatorControllerStub>();
+    EXPECT_CALL(*mock_stub, getVmState(_, _, _))
+            .WillOnce([](grpc::ClientContext* context, const google::protobuf::Empty& request,
+                         android::emulation::control::VmRunState* response) {
+                response->set_state(android::emulation::control::VmRunState::RUNNING);
+                return grpc::Status::OK;
+            });
+    EXPECT_CALL(*mock_stub, setVmState(_, _, _))
+            .WillOnce([](grpc::ClientContext* context,
+                         const android::emulation::control::VmRunState& request,
+                         google::protobuf::Empty* response) {
+                EXPECT_EQ(request.state(), android::emulation::control::VmRunState::STOP);
+                return grpc::Status::OK;
+            });
+    ctx->mock_stub = std::move(mock_stub);
+
+    auto result = (*bridge_)("avd stop", *ctx);
+
+    ASSERT_TRUE(result.ok()) << result.status().message();
+    EXPECT_EQ(*result, "");
+}
+
+TEST_F(LegacyConsoleBridgeTest, AvdStopFailsWhenAlreadyStopped) {
+    auto ctx = CreateContext();
+    ctx->authenticated = true;
+
+    auto mock_stub = std::make_unique<android::emulation::control::MockEmulatorControllerStub>();
+    EXPECT_CALL(*mock_stub, getVmState(_, _, _))
+            .WillOnce([](grpc::ClientContext* context, const google::protobuf::Empty& request,
+                         android::emulation::control::VmRunState* response) {
+                response->set_state(android::emulation::control::VmRunState::PAUSED);
+                return grpc::Status::OK;
+            });
+    ctx->mock_stub = std::move(mock_stub);
+
+    auto result = (*bridge_)("avd stop", *ctx);
+
+    EXPECT_FALSE(result.ok());
+    EXPECT_EQ(result.status().code(), absl::StatusCode::kFailedPrecondition);
+    EXPECT_TRUE(result.status().message().find("virtual device already stopped") !=
+                std::string::npos);
+}
+
+TEST_F(LegacyConsoleBridgeTest, AvdStartCallsSetVmStateStartWhenStopped) {
+    auto ctx = CreateContext();
+    ctx->authenticated = true;
+
+    auto mock_stub = std::make_unique<android::emulation::control::MockEmulatorControllerStub>();
+    EXPECT_CALL(*mock_stub, getVmState(_, _, _))
+            .WillOnce([](grpc::ClientContext* context, const google::protobuf::Empty& request,
+                         android::emulation::control::VmRunState* response) {
+                response->set_state(android::emulation::control::VmRunState::PAUSED);
+                return grpc::Status::OK;
+            });
+    EXPECT_CALL(*mock_stub, setVmState(_, _, _))
+            .WillOnce([](grpc::ClientContext* context,
+                         const android::emulation::control::VmRunState& request,
+                         google::protobuf::Empty* response) {
+                EXPECT_EQ(request.state(), android::emulation::control::VmRunState::START);
+                return grpc::Status::OK;
+            });
+    ctx->mock_stub = std::move(mock_stub);
+
+    auto result = (*bridge_)("avd start", *ctx);
+
+    ASSERT_TRUE(result.ok()) << result.status().message();
+    EXPECT_EQ(*result, "");
+}
+
+TEST_F(LegacyConsoleBridgeTest, AvdStartFailsWhenAlreadyRunning) {
+    auto ctx = CreateContext();
+    ctx->authenticated = true;
+
+    auto mock_stub = std::make_unique<android::emulation::control::MockEmulatorControllerStub>();
+    EXPECT_CALL(*mock_stub, getVmState(_, _, _))
+            .WillOnce([](grpc::ClientContext* context, const google::protobuf::Empty& request,
+                         android::emulation::control::VmRunState* response) {
+                response->set_state(android::emulation::control::VmRunState::RUNNING);
+                return grpc::Status::OK;
+            });
+    ctx->mock_stub = std::move(mock_stub);
+
+    auto result = (*bridge_)("avd start", *ctx);
+
+    EXPECT_FALSE(result.ok());
+    EXPECT_EQ(result.status().code(), absl::StatusCode::kFailedPrecondition);
+    EXPECT_TRUE(result.status().message().find("virtual device already running") !=
+                std::string::npos);
+}
+
+TEST_F(LegacyConsoleBridgeTest, RestartCallsSetVmStateReset) {
+    auto ctx = CreateContext();
+    ctx->authenticated = true;
+
+    auto mock_stub = std::make_unique<android::emulation::control::MockEmulatorControllerStub>();
+    EXPECT_CALL(*mock_stub, setVmState(_, _, _))
+            .WillOnce([](grpc::ClientContext* context,
+                         const android::emulation::control::VmRunState& request,
+                         google::protobuf::Empty* response) {
+                EXPECT_EQ(request.state(), android::emulation::control::VmRunState::RESET);
+                return grpc::Status::OK;
+            });
+    ctx->mock_stub = std::move(mock_stub);
+
+    auto result = (*bridge_)("restart", *ctx);
+
+    ASSERT_TRUE(result.ok()) << result.status().message();
+    EXPECT_EQ(*result, "restarting emulator, bye bye");
+}
+
 }  // namespace
 }  // namespace goldfish::telnet

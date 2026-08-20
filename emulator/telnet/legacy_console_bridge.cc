@@ -136,11 +136,64 @@ LegacyConsoleBridge::LegacyConsoleBridge(int port, std::filesystem::path token_p
     // --- AVD Commands ---
     auto avd = builder.Command("avd", "control virtual device execution");
     avd.On("stop" /* do_avd_stop */, "stop the virtual device",
-           [](ConsoleContext& /*ctx*/) { return absl::UnimplementedError("not implemented"); });
+           [](ConsoleContext& ctx) -> absl::Status {
+               ASSIGN_OR_RETURN(auto stub, ctx.EmulatorControllerStub());
+               ASSIGN_OR_RETURN(auto get_context, ctx.NewContext());
+
+               google::protobuf::Empty get_req;
+               android::emulation::control::VmRunState get_res;
+               RETURN_IF_ERROR(GrpcStatusToAbslStatus(
+                       stub->getVmState(get_context.get(), get_req, &get_res)));
+
+               if (get_res.state() != android::emulation::control::VmRunState::RUNNING) {
+                   return absl::FailedPreconditionError("virtual device already stopped");
+               }
+
+               ASSIGN_OR_RETURN(auto set_context, ctx.NewContext());
+               android::emulation::control::VmRunState set_req;
+               set_req.set_state(android::emulation::control::VmRunState::STOP);
+               google::protobuf::Empty set_res;
+
+               return GrpcStatusToAbslStatus(
+                       stub->setVmState(set_context.get(), set_req, &set_res));
+           });
     avd.On("start" /* do_avd_start */, "start/restart the virtual device",
-           [](ConsoleContext& /*ctx*/) { return absl::UnimplementedError("not implemented"); });
+           [](ConsoleContext& ctx) -> absl::Status {
+               ASSIGN_OR_RETURN(auto stub, ctx.EmulatorControllerStub());
+               ASSIGN_OR_RETURN(auto get_context, ctx.NewContext());
+
+               google::protobuf::Empty get_req;
+               android::emulation::control::VmRunState get_res;
+               RETURN_IF_ERROR(GrpcStatusToAbslStatus(
+                       stub->getVmState(get_context.get(), get_req, &get_res)));
+
+               if (get_res.state() == android::emulation::control::VmRunState::RUNNING) {
+                   return absl::FailedPreconditionError("virtual device already running");
+               }
+
+               ASSIGN_OR_RETURN(auto set_context, ctx.NewContext());
+               android::emulation::control::VmRunState set_req;
+               set_req.set_state(android::emulation::control::VmRunState::START);
+               google::protobuf::Empty set_res;
+
+               return GrpcStatusToAbslStatus(
+                       stub->setVmState(set_context.get(), set_req, &set_res));
+           });
     avd.On("status" /* do_avd_status */, "query virtual device status",
-           [](ConsoleContext& /*ctx*/) { return absl::UnimplementedError("not implemented"); });
+           [](ConsoleContext& ctx) -> absl::StatusOr<std::string> {
+               ASSIGN_OR_RETURN(auto stub, ctx.EmulatorControllerStub());
+               ASSIGN_OR_RETURN(auto context, ctx.NewContext());
+
+               google::protobuf::Empty request;
+               android::emulation::control::VmRunState response;
+               RETURN_IF_ERROR(
+                       GrpcStatusToAbslStatus(stub->getVmState(context.get(), request, &response)));
+
+               if (response.state() == android::emulation::control::VmRunState::RUNNING) {
+                   return "virtual device is running";
+               }
+               return "virtual device is stopped";
+           });
     avd.On("heartbeat" /* do_avd_heartbeat */,
            "query the heart heartbeat number of the guest system",
            [](ConsoleContext& ctx) -> absl::StatusOr<std::string> {
@@ -156,7 +209,16 @@ LegacyConsoleBridge::LegacyConsoleBridge(int port, std::filesystem::path token_p
     avd.On("rewindaudio" /* do_avd_rewind_audio */, "rewind the input audio to the beginning",
            [](ConsoleContext& /*ctx*/) { return absl::UnimplementedError("not implemented"); });
     avd.On("pause" /* do_avd_pause */, "pause the virtual device",
-           [](ConsoleContext& /*ctx*/) { return absl::UnimplementedError("not implemented"); });
+           [](ConsoleContext& ctx) -> absl::Status {
+               ASSIGN_OR_RETURN(auto stub, ctx.EmulatorControllerStub());
+               ASSIGN_OR_RETURN(auto context, ctx.NewContext());
+
+               android::emulation::control::VmRunState request;
+               request.set_state(android::emulation::control::VmRunState::PAUSED);
+               google::protobuf::Empty response;
+
+               return GrpcStatusToAbslStatus(stub->setVmState(context.get(), request, &response));
+           });
     avd.On("resume" /* do_avd_resume */, "resume the virtual device",
            [](ConsoleContext& ctx) -> absl::Status {
                ASSIGN_OR_RETURN(auto stub, ctx.EmulatorControllerStub());
@@ -189,11 +251,18 @@ LegacyConsoleBridge::LegacyConsoleBridge(int port, std::filesystem::path token_p
                                         {{"port.serial", std::to_string(ctx.Port())}}));
                return discovery.discovery_file.string();
            });
-    avd.On("snapshotspath" /* do_avd_snapshotspath */, "query AVD snapshots path",
-           [](ConsoleContext& /*ctx*/) { return absl::UnimplementedError("not implemented"); });
-    avd.On("snapshotpath" /* do_avd_snapshotpath */, "query path to a particular AVD snapshot",
-           [](ConsoleContext& /*ctx*/, const std::string& /*name*/) {
-               return absl::UnimplementedError("not implemented");
+    avd.On("snapshotspath" /* do_snapshotspath */, "query AVD snapshots path",
+           [](ConsoleContext& ctx) -> absl::StatusOr<std::string> {
+               ASSIGN_OR_RETURN(auto avd_path, GetPlatformConfigProperty(ctx, "avd.content_path"));
+               return (std::filesystem::path(avd_path) / "snapshots").string();
+           });
+    avd.On("snapshotpath" /* do_snapshotpath */, "query path to a particular AVD snapshot",
+           [](ConsoleContext& ctx, const std::string& name) -> absl::StatusOr<std::string> {
+               if (name.empty()) {
+                   return absl::InvalidArgumentError("Usage: 'avd snapshotpath <name>'");
+               }
+               ASSIGN_OR_RETURN(auto avd_path, GetPlatformConfigProperty(ctx, "avd.content_path"));
+               return (std::filesystem::path(avd_path) / "snapshots" / name).string();
            });
 
     // name and grpc are safe sub-commands
@@ -667,9 +736,19 @@ LegacyConsoleBridge::LegacyConsoleBridge(int port, std::filesystem::path token_p
 
                 return GrpcStatusToAbslStatus(stub->setVmState(context.get(), request, &response));
             });
-    builder.On("restart" /* do_restart */, "restart the emulator instance",
-               [](ConsoleContext& /*ctx*/) { return absl::UnimplementedError("not implemented"); });
+    builder.On("restart" /* do_restart */, "restart the emulator",
+               [](ConsoleContext& ctx) -> absl::StatusOr<std::string> {
+                   ASSIGN_OR_RETURN(auto stub, ctx.EmulatorControllerStub());
+                   ASSIGN_OR_RETURN(auto context, ctx.NewContext());
 
+                   android::emulation::control::VmRunState request;
+                   request.set_state(android::emulation::control::VmRunState::RESET);
+                   google::protobuf::Empty response;
+
+                   RETURN_IF_ERROR(GrpcStatusToAbslStatus(
+                           stub->setVmState(context.get(), request, &response)));
+                   return "restarting emulator, bye bye";
+               });
     builder.Command("grpc", "enable the grpc endpoint")
             .On("start" /* do_start_grpc */, "start the grpc endpoint",
                 [](ConsoleContext& /*ctx*/, int /*port*/) {
