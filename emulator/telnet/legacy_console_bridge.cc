@@ -555,17 +555,76 @@ LegacyConsoleBridge::LegacyConsoleBridge(int port, std::filesystem::path token_p
                });
 
     builder.On("rotate" /* do_rotate_90_clockwise */, "rotate the screen clockwise by 90 degrees",
-               [](ConsoleContext& /*ctx*/) { return absl::UnimplementedError("not implemented"); });
-    builder.On("fold" /* do_fold */, "fold the device",
-               [](ConsoleContext& /*ctx*/) { return absl::UnimplementedError("not implemented"); });
-    builder.On("unfold" /* do_unfold */, "unfold the device",
-               [](ConsoleContext& /*ctx*/) { return absl::UnimplementedError("not implemented"); });
+               [](ConsoleContext& ctx) -> absl::Status {
+                   ASSIGN_OR_RETURN(auto stub, ctx.EmulatorControllerStub());
+                   ASSIGN_OR_RETURN(auto context_get, ctx.NewContext());
 
-    builder.On("posture" /* do_set_posture */, "set the device posture",
-               [](ConsoleContext& /*ctx*/, const std::string& /*posture*/) {
-                   return absl::UnimplementedError("not implemented");
+                   android::emulation::control::PhysicalModelValue get_req;
+                   get_req.set_target(android::emulation::control::PhysicalModelValue::ROTATION);
+                   android::emulation::control::PhysicalModelValue current_state;
+                   auto status = stub->getPhysicalModel(context_get.get(), get_req, &current_state);
+                   if (!status.ok()) {
+                       current_state.set_target(
+                               android::emulation::control::PhysicalModelValue::ROTATION);
+                       current_state.mutable_value()->add_data(0.0f);
+                       current_state.mutable_value()->add_data(0.0f);
+                       current_state.mutable_value()->add_data(0.0f);
+                   }
+
+                   float current_z = current_state.value().data_size() > 2
+                                             ? current_state.value().data(2)
+                                             : 0.0f;
+                   float new_z = std::fmod(current_z - 90.0f, 360.0f);
+
+                   ASSIGN_OR_RETURN(auto context_set, ctx.NewContext());
+                   android::emulation::control::PhysicalModelValue request;
+                   request.set_target(android::emulation::control::PhysicalModelValue::ROTATION);
+                   request.mutable_value()->add_data(0.0f);
+                   request.mutable_value()->add_data(0.0f);
+                   request.mutable_value()->add_data(new_z);
+
+                   google::protobuf::Empty response;
+                   return GrpcStatusToAbslStatus(
+                           stub->setPhysicalModel(context_set.get(), request, &response));
                });
 
+    auto set_fold = [](ConsoleContext& ctx, bool is_fold) -> absl::Status {
+        ASSIGN_OR_RETURN(auto stub, ctx.EmulatorControllerStub());
+        ASSIGN_OR_RETURN(auto context, ctx.NewContext());
+
+        android::emulation::control::PhysicalModelValue request;
+        request.set_target(android::emulation::control::PhysicalModelValue::POSTURE);
+        request.mutable_value()->add_data(is_fold ? 1.0f : 3.0f);
+        google::protobuf::Empty response;
+
+        return GrpcStatusToAbslStatus(stub->setPhysicalModel(context.get(), request, &response));
+    };
+
+    builder.On("fold" /* do_fold */, "fold the device",
+               [set_fold](ConsoleContext& ctx) { return set_fold(ctx, true); });
+    builder.On("unfold" /* do_unfold */, "unfold the device",
+               [set_fold](ConsoleContext& ctx) { return set_fold(ctx, false); });
+
+    builder.On("posture" /* do_set_posture */, "set the device posture",
+               "Usage: posture <posture_id>\r\n"
+               "  1: closed\t2: half-opened\t3: opened\t4: flipped\t5: tent\r\n",
+               [](ConsoleContext& ctx, std::optional<int> posture_val) -> absl::Status {
+                   if (!posture_val.has_value() || *posture_val < 1 || *posture_val > 5) {
+                       return absl::InvalidArgumentError(
+                               "Usage: \"posture <posture_id>\" "
+                               "1: closed\t2: half-opened\t3: opened\t4: flipped\t5: tent");
+                   }
+                   ASSIGN_OR_RETURN(auto stub, ctx.EmulatorControllerStub());
+                   ASSIGN_OR_RETURN(auto context, ctx.NewContext());
+
+                   android::emulation::control::PhysicalModelValue request;
+                   request.set_target(android::emulation::control::PhysicalModelValue::POSTURE);
+                   request.mutable_value()->add_data(static_cast<float>(*posture_val));
+                   google::protobuf::Empty response;
+
+                   return GrpcStatusToAbslStatus(
+                           stub->setPhysicalModel(context.get(), request, &response));
+               });
     builder.Command("icebox", "auto-snapshot on uncaught exceptions")
             .On("track" /* do_icebox_track */,
                 "(experimental) track exceptions in <pid> and take (up to [max_snapshots]) "

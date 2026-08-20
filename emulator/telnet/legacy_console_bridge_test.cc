@@ -546,5 +546,135 @@ TEST_F(LegacyConsoleBridgeTest, WelcomeMessageDoesNotRequireAuthWhenDisabled) {
     EXPECT_EQ(welcome, "Android Console: type 'help' for a list of commands\r\n");
 }
 
+TEST_F(LegacyConsoleBridgeTest, RotateAdvancesClockwise) {
+    auto ctx = CreateContext();
+    ctx->authenticated = true;
+
+    auto mock_stub = std::make_unique<android::emulation::control::MockEmulatorControllerStub>();
+    EXPECT_CALL(*mock_stub, getPhysicalModel(_, _, _))
+            .WillOnce(
+                    [](grpc::ClientContext* context,
+                       const android::emulation::control::PhysicalModelValue& request,
+                       android::emulation::control::PhysicalModelValue* response) -> grpc::Status {
+                        EXPECT_EQ(request.target(),
+                                  android::emulation::control::PhysicalModelValue::ROTATION);
+                        response->set_target(
+                                android::emulation::control::PhysicalModelValue::ROTATION);
+                        response->mutable_value()->add_data(0.0f);
+                        response->mutable_value()->add_data(0.0f);
+                        response->mutable_value()->add_data(0.0f);  // Current is portrait (0 deg)
+                        return grpc::Status::OK;
+                    });
+    EXPECT_CALL(*mock_stub, setPhysicalModel(_, _, _))
+            .WillOnce([](grpc::ClientContext* context,
+                         const android::emulation::control::PhysicalModelValue& request,
+                         google::protobuf::Empty* response) -> grpc::Status {
+                EXPECT_EQ(request.target(),
+                          android::emulation::control::PhysicalModelValue::ROTATION);
+                EXPECT_EQ(request.value().data_size(), 3);
+                EXPECT_FLOAT_EQ(request.value().data(2), -90.0f);  // Clockwise is -90 deg
+                return grpc::Status::OK;
+            });
+    ctx->mock_stub = std::move(mock_stub);
+
+    auto result = (*bridge_)("rotate", *ctx);
+
+    ASSERT_TRUE(result.ok()) << result.status().message();
+    EXPECT_EQ(*result, "");
+}
+
+TEST_F(LegacyConsoleBridgeTest, FoldSetsClosedPosture) {
+    auto ctx = CreateContext();
+    ctx->authenticated = true;
+
+    auto mock_stub = std::make_unique<android::emulation::control::MockEmulatorControllerStub>();
+    EXPECT_CALL(*mock_stub, setPhysicalModel(_, _, _))
+            .WillOnce([](grpc::ClientContext* context,
+                         const android::emulation::control::PhysicalModelValue& request,
+                         google::protobuf::Empty* response) -> grpc::Status {
+                EXPECT_EQ(request.target(),
+                          android::emulation::control::PhysicalModelValue::POSTURE);
+                EXPECT_EQ(request.value().data_size(), 1);
+                EXPECT_FLOAT_EQ(request.value().data(0), 1.0f);  // Closed posture
+                return grpc::Status::OK;
+            });
+    ctx->mock_stub = std::move(mock_stub);
+
+    auto result = (*bridge_)("fold", *ctx);
+
+    ASSERT_TRUE(result.ok()) << result.status().message();
+    EXPECT_EQ(*result, "");
+}
+
+TEST_F(LegacyConsoleBridgeTest, UnfoldSetsOpenedPosture) {
+    auto ctx = CreateContext();
+    ctx->authenticated = true;
+
+    auto mock_stub = std::make_unique<android::emulation::control::MockEmulatorControllerStub>();
+    EXPECT_CALL(*mock_stub, setPhysicalModel(_, _, _))
+            .WillOnce([](grpc::ClientContext* context,
+                         const android::emulation::control::PhysicalModelValue& request,
+                         google::protobuf::Empty* response) -> grpc::Status {
+                EXPECT_EQ(request.target(),
+                          android::emulation::control::PhysicalModelValue::POSTURE);
+                EXPECT_EQ(request.value().data_size(), 1);
+                EXPECT_FLOAT_EQ(request.value().data(0), 3.0f);  // Opened posture
+                return grpc::Status::OK;
+            });
+    ctx->mock_stub = std::move(mock_stub);
+
+    auto result = (*bridge_)("unfold", *ctx);
+
+    ASSERT_TRUE(result.ok()) << result.status().message();
+    EXPECT_EQ(*result, "");
+}
+
+TEST_F(LegacyConsoleBridgeTest, PostureSetsSpecificPosture) {
+    auto ctx = CreateContext();
+    ctx->authenticated = true;
+
+    auto mock_stub = std::make_unique<android::emulation::control::MockEmulatorControllerStub>();
+    EXPECT_CALL(*mock_stub, setPhysicalModel(_, _, _))
+            .WillOnce([](grpc::ClientContext* context,
+                         const android::emulation::control::PhysicalModelValue& request,
+                         google::protobuf::Empty* response) -> grpc::Status {
+                EXPECT_EQ(request.target(),
+                          android::emulation::control::PhysicalModelValue::POSTURE);
+                EXPECT_EQ(request.value().data_size(), 1);
+                EXPECT_FLOAT_EQ(request.value().data(0), 2.0f);  // Half-opened posture
+                return grpc::Status::OK;
+            });
+    ctx->mock_stub = std::move(mock_stub);
+
+    auto result = (*bridge_)("posture 2", *ctx);
+
+    ASSERT_TRUE(result.ok()) << result.status().message();
+    EXPECT_EQ(*result, "");
+}
+
+TEST_F(LegacyConsoleBridgeTest, PostureFailsOnMissingArgs) {
+    auto ctx = CreateContext();
+    ctx->authenticated = true;
+
+    auto result = (*bridge_)("posture", *ctx);
+
+    EXPECT_FALSE(result.ok());
+    EXPECT_EQ(result.status().code(), absl::StatusCode::kInvalidArgument);
+    EXPECT_TRUE(result.status().message().find("Usage: \"posture <posture_id>\"") !=
+                std::string::npos);
+}
+
+TEST_F(LegacyConsoleBridgeTest, PostureFailsOnInvalidPosture) {
+    auto ctx = CreateContext();
+    ctx->authenticated = true;
+
+    auto result = (*bridge_)("posture 99", *ctx);
+
+    EXPECT_FALSE(result.ok());
+    EXPECT_EQ(result.status().code(), absl::StatusCode::kInvalidArgument);
+    EXPECT_TRUE(result.status().message().find("Usage: \"posture <posture_id>\"") !=
+                std::string::npos);
+}
+
 }  // namespace
 }  // namespace goldfish::telnet
