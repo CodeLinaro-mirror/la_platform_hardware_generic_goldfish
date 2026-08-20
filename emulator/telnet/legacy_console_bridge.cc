@@ -36,6 +36,42 @@
 #include "snapshot_commands.h"
 #include "telnet_auth.h"
 
+namespace goldfish::parsing {
+
+struct SensorValues {
+    std::vector<float> data;
+};
+
+template <>
+struct ArgExtractor<SensorValues> {
+    static absl::StatusOr<SensorValues> Extract(ArgStream& args) {
+        auto remaining = args.Remaining();
+        while (!args.Empty()) {
+            args.Next();
+        }
+        std::vector<std::string_view> tokens =
+                absl::StrSplit(remaining, absl::ByAnyChar(" :,\t"), absl::SkipEmpty());
+
+        if (tokens.empty()) {
+            return absl::InvalidArgumentError(
+                    "Usage: \"set <sensorname> <value-a>[:<value-b>[:<value-c>]]\"");
+        }
+
+        SensorValues result;
+        for (auto token : tokens) {
+            float v;
+            if (!absl::SimpleAtof(token, &v)) {
+                return absl::InvalidArgumentError(
+                        "Usage: \"set <sensorname> <value-a>[:<value-b>[:<value-c>]]\"");
+            }
+            result.data.push_back(v);
+        }
+        return result;
+    }
+};
+
+}  // namespace goldfish::parsing
+
 namespace goldfish::telnet {
 
 using android::emulation::control::GrpcStatusToAbslStatus;
@@ -429,20 +465,140 @@ LegacyConsoleBridge::LegacyConsoleBridge(int port, std::filesystem::path token_p
            });
 
     // --- Sensor Commands ---
+    struct SensorDefinition {
+        std::string name;
+        std::vector<std::string> aliases;
+        int sensor_id;
+        size_t value_count;
+    };
+
+    static const std::vector<SensorDefinition> kSupportedSensors = {
+        {"acceleration", {"accelerometer"}, 0, 3},
+        {"gyroscope", {"gyro"}, 1, 3},
+        {"magnetic-field", {"magnetic", "magnetometer"}, 2, 3},
+        {"orientation", {}, 3, 3},
+        {"temperature", {}, 4, 1},
+        {"proximity", {}, 5, 1},
+        {"light", {"lux"}, 6, 1},
+        {"pressure", {"barometer"}, 7, 1},
+        {"humidity", {}, 8, 1},
+        {"magnetic-field-uncalibrated", {}, 9, 6},
+        {"gyroscope-uncalibrated", {}, 10, 6},
+        {"hinge-angle0", {}, 11, 1},
+        {"hinge-angle1", {}, 12, 1},
+        {"hinge-angle2", {}, 13, 1},
+        {"heart-rate", {}, 14, 1},
+        {"rgbc-light", {}, 15, 4},
+        {"wrist-tilt", {}, 16, 1},
+        {"acceleration-uncalibrated", {}, 17, 6},
+    };
+
+    auto find_sensor = [](std::string_view name) -> const SensorDefinition* {
+        for (const auto& def : kSupportedSensors) {
+            if (absl::EqualsIgnoreCase(def.name, name)) {
+                return &def;
+            }
+            for (const auto& alias : def.aliases) {
+                if (absl::EqualsIgnoreCase(alias, name)) {
+                    return &def;
+                }
+            }
+        }
+        return nullptr;
+    };
+
     auto sensor = builder.Command("sensor", "manage emulator sensors");
-    sensor.On("status" /* do_sensors_status */, "list all sensors and their status.",
-              [](ConsoleContext& /*ctx*/) { return absl::UnimplementedError("not implemented"); });
-    sensor.On("get" /* do_sensors_get */, "get sensor values",
-              [](ConsoleContext& /*ctx*/, const std::string& /*sensorname*/) {
-                  return absl::UnimplementedError("not implemented");
-              });
-    sensor.On("set" /* do_sensors_set */, "set sensor values",
-              [](ConsoleContext& /*ctx*/, const std::string& /*sensorname*/,
-                 const std::string& /*values*/) {
-                  /* parse values (rest of line) */
-                  return absl::UnimplementedError("not implemented");
+    sensor.On("status" /* do_sensors_status */, "list available sensors and their status",
+              [](ConsoleContext& ctx) -> absl::StatusOr<std::string> {
+                  ASSIGN_OR_RETURN(auto stub, ctx.EmulatorControllerStub());
+                  ASSIGN_OR_RETURN(auto context, ctx.NewContext());
+
+                  std::string out;
+                  for (const auto& def : kSupportedSensors) {
+                      android::emulation::control::SensorValue request;
+                      request.set_target(
+                              static_cast<android::emulation::control::SensorValue::SensorType>(
+                                      def.sensor_id));
+                      android::emulation::control::SensorValue reply;
+                      auto status = stub->getSensor(context.get(), request, &reply);
+                      if (status.ok()) {
+                          absl::StrAppendFormat(&out, "%s: enabled.\r\n", def.name);
+                      } else {
+                          absl::StrAppendFormat(&out, "%s: disabled.\r\n", def.name);
+                      }
+                  }
+                  return out;
               });
 
+    sensor.On("get" /* do_sensors_get */, "get sensor values",
+              "'get <sensorname>' get the values of a given sensor.\r\n",
+              [find_sensor](ConsoleContext& ctx,
+                            std::optional<std::string> sensor_name) -> absl::StatusOr<std::string> {
+                  if (!sensor_name || sensor_name->empty()) {
+                      return absl::InvalidArgumentError("Usage: \"get <sensorname>\"");
+                  }
+                  const auto* def = find_sensor(*sensor_name);
+                  if (!def) {
+                      return absl::NotFoundError(absl::StrFormat(
+                              "unknown sensor name: %s, run 'sensor status' to get available "
+                              "sensors.",
+                              *sensor_name));
+                  }
+                  ASSIGN_OR_RETURN(auto stub, ctx.EmulatorControllerStub());
+                  ASSIGN_OR_RETURN(auto context, ctx.NewContext());
+                  android::emulation::control::SensorValue request;
+                  request.set_target(
+                          static_cast<android::emulation::control::SensorValue::SensorType>(
+                                  def->sensor_id));
+                  android::emulation::control::SensorValue reply;
+                  RETURN_IF_ERROR(
+                          GrpcStatusToAbslStatus(stub->getSensor(context.get(), request, &reply)));
+
+                  std::string out = absl::StrCat(*sensor_name, " = ");
+                  const auto& data = reply.value().data();
+                  for (size_t i = 0; i < def->value_count; ++i) {
+                      float val = i < static_cast<size_t>(data.size()) ? data[i] : 0.0f;
+                      absl::StrAppendFormat(&out, "%g%s", val,
+                                            (i == def->value_count - 1) ? "" : ":");
+                  }
+                  return out;
+              });
+
+    sensor.On(
+            "set" /* do_sensors_set */, "set sensor values",
+            "'set <sensorname> <value-a>[:<value-b>[:<value-c>[...]]]' set the values of a given "
+            "sensor.\r\n",
+            [find_sensor](
+                    ConsoleContext& ctx, std::optional<std::string> sensor_name,
+                    std::optional<goldfish::parsing::SensorValues> parsed_values) -> absl::Status {
+                if (!sensor_name || sensor_name->empty() || !parsed_values ||
+                    parsed_values->data.empty()) {
+                    return absl::InvalidArgumentError(
+                            "Usage: \"set <sensorname> <value-a>[:<value-b>[:<value-c>]]\"");
+                }
+                const auto* def = find_sensor(*sensor_name);
+                if (!def) {
+                    return absl::NotFoundError(absl::StrFormat(
+                            "unknown sensor name: %s, run 'sensor status' to get available "
+                            "sensors.",
+                            *sensor_name));
+                }
+
+                ASSIGN_OR_RETURN(auto stub, ctx.EmulatorControllerStub());
+                ASSIGN_OR_RETURN(auto context, ctx.NewContext());
+
+                android::emulation::control::SensorValue request;
+                request.set_target(
+                        static_cast<android::emulation::control::SensorValue::SensorType>(
+                                def->sensor_id));
+
+                for (float v : parsed_values->data) {
+                    request.mutable_value()->add_data(v);
+                }
+
+                google::protobuf::Empty response;
+                return GrpcStatusToAbslStatus(stub->setSensor(context.get(), request, &response));
+            });
     // --- Physics Commands ---
     auto physics = builder.Command("physics", "manage physical model");
     physics.On("record-gt" /* do_physics_record_ground_truth */,

@@ -835,5 +835,254 @@ TEST_F(LegacyConsoleBridgeTest, AvdSnapshotDeleteCallsSnapshotService) {
     EXPECT_EQ(*result, "");
 }
 
+TEST_F(LegacyConsoleBridgeTest, SensorStatusReturnsFormattedList) {
+    auto ctx = CreateContext();
+    ctx->authenticated = true;
+
+    auto mock_stub = std::make_unique<android::emulation::control::MockEmulatorControllerStub>();
+    EXPECT_CALL(*mock_stub, getSensor(_, _, _))
+            .Times(testing::AtLeast(1))
+            .WillRepeatedly([](grpc::ClientContext* context,
+                               const android::emulation::control::SensorValue& request,
+                               android::emulation::control::SensorValue* response) -> grpc::Status {
+                response->set_target(request.target());
+                response->set_status(android::emulation::control::SensorValue::OK);
+                return grpc::Status::OK;
+            });
+    ctx->mock_stub = std::move(mock_stub);
+
+    auto result = (*bridge_)("sensor status", *ctx);
+
+    ASSERT_TRUE(result.ok()) << result.status().message();
+    EXPECT_TRUE(result->find("acceleration: enabled.\r\n") != std::string::npos);
+    EXPECT_TRUE(result->find("gyroscope: enabled.\r\n") != std::string::npos);
+    EXPECT_TRUE(result->find("light: enabled.\r\n") != std::string::npos);
+}
+
+TEST_F(LegacyConsoleBridgeTest, SensorGetReturnsFormattedValues) {
+    auto ctx = CreateContext();
+    ctx->authenticated = true;
+
+    auto mock_stub = std::make_unique<android::emulation::control::MockEmulatorControllerStub>();
+    EXPECT_CALL(*mock_stub, getSensor(_, _, _))
+            .WillOnce([](grpc::ClientContext* context,
+                         const android::emulation::control::SensorValue& request,
+                         android::emulation::control::SensorValue* response) -> grpc::Status {
+                EXPECT_EQ(request.target(), android::emulation::control::SensorValue::ACCELERATION);
+                response->set_target(request.target());
+                response->mutable_value()->add_data(0.0f);
+                response->mutable_value()->add_data(9.81f);
+                response->mutable_value()->add_data(0.0f);
+                return grpc::Status::OK;
+            });
+    ctx->mock_stub = std::move(mock_stub);
+
+    auto result = (*bridge_)("sensor get acceleration", *ctx);
+
+    ASSERT_TRUE(result.ok()) << result.status().message();
+    EXPECT_EQ(*result, "acceleration = 0:9.81:0");
+}
+
+TEST_F(LegacyConsoleBridgeTest, SensorGetSingleValue) {
+    auto ctx = CreateContext();
+    ctx->authenticated = true;
+
+    auto mock_stub = std::make_unique<android::emulation::control::MockEmulatorControllerStub>();
+    EXPECT_CALL(*mock_stub, getSensor(_, _, _))
+            .WillOnce([](grpc::ClientContext* context,
+                         const android::emulation::control::SensorValue& request,
+                         android::emulation::control::SensorValue* response) -> grpc::Status {
+                EXPECT_EQ(request.target(), android::emulation::control::SensorValue::LIGHT);
+                response->set_target(request.target());
+                response->mutable_value()->add_data(100.0f);
+                return grpc::Status::OK;
+            });
+    ctx->mock_stub = std::move(mock_stub);
+
+    auto result = (*bridge_)("sensor get light", *ctx);
+
+    ASSERT_TRUE(result.ok()) << result.status().message();
+    EXPECT_EQ(*result, "light = 100");
+}
+
+TEST_F(LegacyConsoleBridgeTest, SensorGetFailsOnMissingArgs) {
+    auto ctx = CreateContext();
+    ctx->authenticated = true;
+
+    auto result = (*bridge_)("sensor get", *ctx);
+
+    EXPECT_FALSE(result.ok());
+    EXPECT_EQ(result.status().code(), absl::StatusCode::kInvalidArgument);
+    EXPECT_TRUE(result.status().message().find("Usage: \"get <sensorname>\"") != std::string::npos);
+}
+
+TEST_F(LegacyConsoleBridgeTest, SensorGetFailsOnUnknownSensor) {
+    auto ctx = CreateContext();
+    ctx->authenticated = true;
+
+    auto result = (*bridge_)("sensor get nonexistent_sensor", *ctx);
+
+    EXPECT_FALSE(result.ok());
+    EXPECT_EQ(result.status().code(), absl::StatusCode::kNotFound);
+    EXPECT_TRUE(result.status().message().find("unknown sensor name: nonexistent_sensor") !=
+                std::string::npos);
+}
+
+TEST_F(LegacyConsoleBridgeTest, SensorSetSendsValues) {
+    auto ctx = CreateContext();
+    ctx->authenticated = true;
+
+    auto mock_stub = std::make_unique<android::emulation::control::MockEmulatorControllerStub>();
+    EXPECT_CALL(*mock_stub, setSensor(_, _, _))
+            .WillOnce([](grpc::ClientContext* context,
+                         const android::emulation::control::SensorValue& request,
+                         google::protobuf::Empty* response) -> grpc::Status {
+                EXPECT_EQ(request.target(), android::emulation::control::SensorValue::ACCELERATION);
+                EXPECT_EQ(request.value().data_size(), 3);
+                EXPECT_FLOAT_EQ(request.value().data(0), 0.0f);
+                EXPECT_FLOAT_EQ(request.value().data(1), 9.81f);
+                EXPECT_FLOAT_EQ(request.value().data(2), 0.0f);
+                return grpc::Status::OK;
+            });
+    ctx->mock_stub = std::move(mock_stub);
+
+    auto result = (*bridge_)("sensor set acceleration 0 9.81 0", *ctx);
+
+    ASSERT_TRUE(result.ok()) << result.status().message();
+    EXPECT_EQ(*result, "");
+}
+
+TEST_F(LegacyConsoleBridgeTest, SensorSetColonSeparatedValues) {
+    auto ctx = CreateContext();
+    ctx->authenticated = true;
+
+    auto mock_stub = std::make_unique<android::emulation::control::MockEmulatorControllerStub>();
+    EXPECT_CALL(*mock_stub, setSensor(_, _, _))
+            .WillOnce([](grpc::ClientContext* context,
+                         const android::emulation::control::SensorValue& request,
+                         google::protobuf::Empty* response) -> grpc::Status {
+                EXPECT_EQ(request.target(), android::emulation::control::SensorValue::ACCELERATION);
+                EXPECT_EQ(request.value().data_size(), 3);
+                EXPECT_FLOAT_EQ(request.value().data(0), 1.0f);
+                EXPECT_FLOAT_EQ(request.value().data(1), 2.0f);
+                EXPECT_FLOAT_EQ(request.value().data(2), 3.0f);
+                return grpc::Status::OK;
+            });
+    ctx->mock_stub = std::move(mock_stub);
+
+    auto result = (*bridge_)("sensor set acceleration 1:2:3", *ctx);
+
+    ASSERT_TRUE(result.ok()) << result.status().message();
+    EXPECT_EQ(*result, "");
+}
+
+TEST_F(LegacyConsoleBridgeTest, SensorSetFailsOnMissingArgs) {
+    auto ctx = CreateContext();
+    ctx->authenticated = true;
+
+    auto result = (*bridge_)("sensor set", *ctx);
+
+    EXPECT_FALSE(result.ok());
+    EXPECT_EQ(result.status().code(), absl::StatusCode::kInvalidArgument);
+    EXPECT_TRUE(result.status().message().find("Usage: \"set <sensorname>") != std::string::npos);
+}
+
+TEST_F(LegacyConsoleBridgeTest, SensorSetFailsOnMissingValues) {
+    auto ctx = CreateContext();
+    ctx->authenticated = true;
+
+    auto result = (*bridge_)("sensor set acceleration", *ctx);
+
+    EXPECT_FALSE(result.ok());
+    EXPECT_EQ(result.status().code(), absl::StatusCode::kInvalidArgument);
+    EXPECT_TRUE(result.status().message().find("Usage: \"set <sensorname>") != std::string::npos);
+}
+
+TEST_F(LegacyConsoleBridgeTest, SensorSetFailsOnUnknownSensor) {
+    auto ctx = CreateContext();
+    ctx->authenticated = true;
+
+    auto result = (*bridge_)("sensor set nonexistent_sensor 1 2 3", *ctx);
+
+    EXPECT_FALSE(result.ok());
+    EXPECT_EQ(result.status().code(), absl::StatusCode::kNotFound);
+    EXPECT_TRUE(result.status().message().find("unknown sensor name: nonexistent_sensor") !=
+                std::string::npos);
+}
+
+TEST_F(LegacyConsoleBridgeTest, AllSensorsGetAndSetRoundTrip) {
+    const std::vector<std::pair<std::string, std::vector<float>>> kTestSensors = {
+        {"acceleration", {1.0f, 2.0f, 3.0f}},
+        {"gyroscope", {0.1f, 0.2f, 0.3f}},
+        {"magnetic-field", {10.0f, 20.0f, 30.0f}},
+        {"orientation", {45.0f, 90.0f, 180.0f}},
+        {"temperature", {25.5f}},
+        {"proximity", {5.0f}},
+        {"light", {300.0f}},
+        {"pressure", {1013.25f}},
+        {"humidity", {55.0f}},
+        {"magnetic-field-uncalibrated", {1.0f, 2.0f, 3.0f}},
+        {"gyroscope-uncalibrated", {0.4f, 0.5f, 0.6f}},
+        {"hinge-angle0", {90.0f}},
+        {"hinge-angle1", {120.0f}},
+        {"hinge-angle2", {150.0f}},
+        {"heart-rate", {72.0f}},
+        {"rgbc-light", {100.0f, 150.0f, 200.0f, 250.0f}},
+        {"wrist-tilt", {1.0f}},
+        {"acceleration-uncalibrated", {4.0f, 5.0f, 6.0f}},
+    };
+
+    for (const auto& [name, values] : kTestSensors) {
+        // Test SET
+        {
+            auto ctx = CreateContext();
+            ctx->authenticated = true;
+            auto mock_stub =
+                    std::make_unique<android::emulation::control::MockEmulatorControllerStub>();
+            EXPECT_CALL(*mock_stub, setSensor(_, _, _))
+                    .WillOnce([&values](grpc::ClientContext* context,
+                                        const android::emulation::control::SensorValue& request,
+                                        google::protobuf::Empty* response) -> grpc::Status {
+                        EXPECT_EQ(request.value().data_size(), values.size());
+                        for (size_t i = 0; i < values.size(); ++i) {
+                            EXPECT_FLOAT_EQ(request.value().data(i), values[i]);
+                        }
+                        return grpc::Status::OK;
+                    });
+            ctx->mock_stub = std::move(mock_stub);
+
+            std::string set_cmd = absl::StrCat("sensor set ", name, " ");
+            for (size_t i = 0; i < values.size(); ++i) {
+                absl::StrAppend(&set_cmd, values[i], (i == values.size() - 1) ? "" : ":");
+            }
+            auto set_res = (*bridge_)(set_cmd, *ctx);
+            ASSERT_TRUE(set_res.ok()) << set_res.status().message();
+        }
+
+        // Test GET
+        {
+            auto ctx = CreateContext();
+            ctx->authenticated = true;
+            auto mock_stub =
+                    std::make_unique<android::emulation::control::MockEmulatorControllerStub>();
+            EXPECT_CALL(*mock_stub, getSensor(_, _, _))
+                    .WillOnce([&values](grpc::ClientContext* context,
+                                        const android::emulation::control::SensorValue& request,
+                                        android::emulation::control::SensorValue* response)
+                                      -> grpc::Status {
+                        response->set_target(request.target());
+                        for (float v : values) {
+                            response->mutable_value()->add_data(v);
+                        }
+                        return grpc::Status::OK;
+                    });
+            ctx->mock_stub = std::move(mock_stub);
+
+            auto get_res = (*bridge_)(absl::StrCat("sensor get ", name), *ctx);
+            ASSERT_TRUE(get_res.ok()) << get_res.status().message();
+        }
+    }
+}
+
 }  // namespace
 }  // namespace goldfish::telnet
