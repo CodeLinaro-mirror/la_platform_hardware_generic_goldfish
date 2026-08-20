@@ -18,8 +18,6 @@
 
 #include <glm/gtc/quaternion.hpp>
 
-// #include "android/base/system.h"
-
 namespace goldfish::physics {
 
 constexpr float kEpsilon = 0.0000000001F;
