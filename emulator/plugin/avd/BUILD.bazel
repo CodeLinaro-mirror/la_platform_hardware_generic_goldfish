@@ -13,6 +13,7 @@ cc_library(
         "//emulator/libs/sensors:physical_model",
         "//emulator/libs/snapshottable",
         "//emulator/plugin/avd_universe",
+        "@abseil-cpp//absl/synchronization",
     ],
 )
 
