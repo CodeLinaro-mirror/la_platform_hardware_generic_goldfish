@@ -114,7 +114,6 @@ struct FoldableConfig {
 };
 
 struct FoldableState {
-    FoldableConfig config;
     float current_hinge_degrees[ANDROID_FOLDABLE_MAX_HINGES];
     float current_rolled_percent[ANDROID_FOLDABLE_MAX_ROLLS];
     FoldablePostures current_posture;
