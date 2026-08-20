@@ -29,6 +29,7 @@
 #include "line_command_handler.h"
 #include "modem_service.grpc.pb.h"
 #include "screen_recording_service.grpc.pb.h"
+#include "snapshot_service.grpc.pb.h"
 
 namespace goldfish::telnet {
 
@@ -67,6 +68,13 @@ struct ConsoleContext : public LineCommandHandler::Context {
     ModemStub() {
         ASSIGN_OR_RETURN(auto client, Client());
         return client->Stub<android::emulation::control::incubating::Modem>();
+    }
+
+    virtual absl::StatusOr<
+            std::unique_ptr<android::emulation::control::SnapshotService::StubInterface>>
+    SnapshotStub() {
+        ASSIGN_OR_RETURN(auto client, Client());
+        return client->Stub<android::emulation::control::SnapshotService>();
     }
 
     virtual absl::StatusOr<std::unique_ptr<grpc::ClientContext>> NewContext(
