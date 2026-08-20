@@ -41,7 +41,7 @@ def create_launch_emulator_test(
         args += params
 
     # We don't want to launch the fishtank UI process for these tests.
-    params.append("-no-window")
+    args.append("-no-window")
     if timeout_seconds:
         args = args + select({
             "@goldfish//emulator/tools:asan": ["--timeout_seconds", str(timeout_seconds * 3)],
