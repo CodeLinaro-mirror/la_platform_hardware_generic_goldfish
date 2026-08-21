@@ -17,7 +17,9 @@
 #pragma once
 
 #include <memory>
+#include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "android/goldfish/hardware_config.h"
@@ -47,12 +49,15 @@ class FoldableModel {
 
     struct ResizableConfig {
         std::string name;
-        uint32_t id;
-        uint32_t width;
-        uint32_t height;
-        uint32_t dpi;
+        uint32_t id = 0;
+        uint32_t width = 0;
+        uint32_t height = 0;
+        uint32_t dpi = 0;
+
+        bool operator==(const ResizableConfig& rhs) const;
     };
 
+    static std::optional<std::vector<ResizableConfig>> ParseResizableConfigs(std::string_view);
     // called by physical model to set hinge angle.
     void SetHingeAngle(uint32_t hinge_index, float degrees, PhysicalInterpolation mode);
 
@@ -76,8 +81,6 @@ class FoldableModel {
     bool GetFoldedArea(int* x, int* y, int* w, int* h) const;
 
     const std::vector<ResizableConfig>& GetResizableConfigs() const { return resizable_configs_; }
-
-    static std::vector<ResizableConfig> ParseResizableConfigs(const std::string& config_str);
 
     ObservablePosture& GetPostureListener() { return posture_listener_; }
 
