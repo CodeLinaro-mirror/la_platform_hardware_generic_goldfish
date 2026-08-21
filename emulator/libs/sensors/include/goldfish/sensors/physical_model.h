@@ -234,6 +234,8 @@ class PhysicalModel : public CallbackEventSource<PhysicalModelChangeEvent> {
     static size_t GetSensorValueSize(AndroidSensor);
     size_t GetSensorDataImpl(AndroidSensor, float* out, size_t count) const;
     void SetSensorValueImpl(AndroidSensor, const float* val, size_t count);
+    void SetTargetInternalRollableImpl(unsigned index, float percentage,
+                                       PhysicalInterpolation mode);
 
     /*
      * Sets the target value for the given physical parameter that the physical

@@ -411,31 +411,31 @@ void PhysicalModel::SetTargetInternalPosture(float posture, PhysicalInterpolatio
     TargetStateChanged();
 }
 
-void PhysicalModel::SetTargetInternalRollable0(float percentage, PhysicalInterpolation mode) {
+void PhysicalModel::SetTargetInternalRollableImpl(unsigned index, float percentage,
+                                                  PhysicalInterpolation mode) {
     PhysicalStateChanging();
     {
         const std::lock_guard<std::recursive_mutex> lock(mutex_);
-        FoldableModel::SetRollable(0, percentage, mode);
+        if (foldable_model_) {
+            foldable_model_->SetRollable(index, percentage, mode);
+        } else {
+            LOG(WARNING) << "Device is not foldable, ignoring rollable" << index
+                         << " change to: " << percentage;
+        }
     }
     TargetStateChanged();
+}
+
+void PhysicalModel::SetTargetInternalRollable0(float percentage, PhysicalInterpolation mode) {
+    SetTargetInternalRollableImpl(0, percentage, mode);
 }
 
 void PhysicalModel::SetTargetInternalRollable1(float percentage, PhysicalInterpolation mode) {
-    PhysicalStateChanging();
-    {
-        const std::lock_guard<std::recursive_mutex> lock(mutex_);
-        FoldableModel::SetRollable(1, percentage, mode);
-    }
-    TargetStateChanged();
+    SetTargetInternalRollableImpl(1, percentage, mode);
 }
 
 void PhysicalModel::SetTargetInternalRollable2(float percentage, PhysicalInterpolation mode) {
-    PhysicalStateChanging();
-    {
-        const std::lock_guard<std::recursive_mutex> lock(mutex_);
-        FoldableModel::SetRollable(2, percentage, mode);
-    }
-    TargetStateChanged();
+    SetTargetInternalRollableImpl(2, percentage, mode);
 }
 
 void PhysicalModel::SetTargetInternalHeartRate(float bpm, PhysicalInterpolation mode) {
