@@ -18,6 +18,7 @@
 
 #include <chrono>
 #include <cstring>
+#include <functional>
 #include <memory>
 #include <vector>
 
@@ -36,8 +37,17 @@ class MockAudioService
   public:
     ::grpc::ServerWriteReactor<AudioPacket>* streamAudio(::grpc::CallbackServerContext* /*context*/,
                                                          const AudioFormat* request) override {
-        return new AudioStreamWriter(*request);
+        auto* writer = new AudioStreamWriter(*request);
+        if (on_stream_started_) {
+            on_stream_started_();
+        }
+        return writer;
     }
+
+    void set_on_stream_started(std::function<void()> cb) { on_stream_started_ = std::move(cb); }
+
+  private:
+    std::function<void()> on_stream_started_;
 };
 
 class AudioStreamWriterTest : public GrcpServiceTest {
@@ -49,6 +59,9 @@ class AudioStreamWriterTest : public GrcpServiceTest {
     }
 
     void TearDown() override {
+        if (mService) {
+            mService->set_on_stream_started(nullptr);
+        }
         GrcpServiceTest::TearDown();
         test_reset_audio_stubs();
     }
@@ -63,19 +76,13 @@ TEST_F(AudioStreamWriterTest, StreamsAudioPacketsToClient) {
     request.set_samplingrate(44100);
     request.set_channels(AudioFormat::Stereo);
 
-    absl::Notification capture_started;
-    test_set_capture_state_callback(
-            [](int active, void* user_data) {
-                if (active) {
-                    static_cast<absl::Notification*>(user_data)->Notify();
-                }
-            },
-            &capture_started);
+    absl::Notification stream_started;
+    mService->set_on_stream_started([&stream_started]() { stream_started.Notify(); });
 
     auto context = getContextWithTimeout(std::chrono::seconds(30));
     auto reader = mStub->streamAudio(context.get(), request);
     ASSERT_NE(reader, nullptr);
-    ASSERT_TRUE(capture_started.WaitForNotificationWithTimeout(absl::Seconds(30)));
+    ASSERT_TRUE(stream_started.WaitForNotificationWithTimeout(absl::Seconds(30)));
 
     // Simulate QEMU audio output
     int16_t sample_data[4] = {1000, -1000, 2000, -2000};
@@ -101,19 +108,13 @@ TEST_F(AudioStreamWriterTest, StreamsAudioPacketsToClient) {
 TEST_F(AudioStreamWriterTest, DefaultFormatWhenUnspecified) {
     AudioFormat request;  // Empty request, samplingRate defaults to 44100Hz, channels to Mono (0)
 
-    absl::Notification capture_started;
-    test_set_capture_state_callback(
-            [](int active, void* user_data) {
-                if (active) {
-                    static_cast<absl::Notification*>(user_data)->Notify();
-                }
-            },
-            &capture_started);
+    absl::Notification stream_started;
+    mService->set_on_stream_started([&stream_started]() { stream_started.Notify(); });
 
     auto context = getContextWithTimeout(std::chrono::seconds(30));
     auto reader = mStub->streamAudio(context.get(), request);
     ASSERT_NE(reader, nullptr);
-    ASSERT_TRUE(capture_started.WaitForNotificationWithTimeout(absl::Seconds(30)));
+    ASSERT_TRUE(stream_started.WaitForNotificationWithTimeout(absl::Seconds(30)));
 
     int16_t sample_data[2] = {500, -500};
     test_simulate_qemu_audio_output(sample_data, sizeof(sample_data));
@@ -169,19 +170,13 @@ TEST_F(AudioStreamWriterTest, ReturnsErrorForInvalidChannels) {
 TEST_F(AudioStreamWriterTest, DropsIncomingPacketsWhenQueueIsFull) {
     AudioFormat request;
 
-    absl::Notification capture_started;
-    test_set_capture_state_callback(
-            [](int active, void* user_data) {
-                if (active) {
-                    static_cast<absl::Notification*>(user_data)->Notify();
-                }
-            },
-            &capture_started);
+    absl::Notification stream_started;
+    mService->set_on_stream_started([&stream_started]() { stream_started.Notify(); });
 
     auto context = getContextWithTimeout(std::chrono::seconds(30));
     auto reader = mStub->streamAudio(context.get(), request);
     ASSERT_NE(reader, nullptr);
-    ASSERT_TRUE(capture_started.WaitForNotificationWithTimeout(absl::Seconds(30)));
+    ASSERT_TRUE(stream_started.WaitForNotificationWithTimeout(absl::Seconds(30)));
 
     int16_t sample_data[2] = {123, -123};
     // Fill the queue to capacity plus an extra 10 packets
@@ -207,19 +202,13 @@ TEST_F(AudioStreamWriterTest, DropsIncomingPacketsWhenQueueIsFull) {
 TEST_F(AudioStreamWriterTest, DropsPacketsContinuouslyWithoutDisconnecting) {
     AudioFormat request;
 
-    absl::Notification capture_started;
-    test_set_capture_state_callback(
-            [](int active, void* user_data) {
-                if (active) {
-                    static_cast<absl::Notification*>(user_data)->Notify();
-                }
-            },
-            &capture_started);
+    absl::Notification stream_started;
+    mService->set_on_stream_started([&stream_started]() { stream_started.Notify(); });
 
     auto context = getContextWithTimeout(std::chrono::seconds(30));
     auto reader = mStub->streamAudio(context.get(), request);
     ASSERT_NE(reader, nullptr);
-    ASSERT_TRUE(capture_started.WaitForNotificationWithTimeout(absl::Seconds(30)));
+    ASSERT_TRUE(stream_started.WaitForNotificationWithTimeout(absl::Seconds(30)));
 
     // Send hundreds of packets without the client reading to cause sustained packet drops
     std::vector<int16_t> sample_data(512, 123);
