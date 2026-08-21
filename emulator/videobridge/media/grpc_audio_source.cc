@@ -49,6 +49,9 @@ void GrpcAudioSource::OnStart() {
     if (capture_running_.compare_exchange_strong(expected, true)) {
         LOG(INFO) << "Starting GrpcAudioSource capture loop connected to emulator at "
                   << client_->TargetAddress();
+        if (capture_thread_.joinable()) {
+            capture_thread_.join();
+        }
         context_ = std::make_unique<::grpc::ClientContext>();
         capture_thread_ = std::thread([this]() { CaptureLoop(); });
     }
