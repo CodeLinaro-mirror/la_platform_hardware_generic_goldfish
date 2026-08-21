@@ -359,7 +359,10 @@ void PhysicalModel::SetTargetInternalHingeAngle0(float degrees, PhysicalInterpol
     PhysicalStateChanging();
     {
         const std::lock_guard<std::recursive_mutex> lock(mutex_);
-        DCHECK(foldable_model_);
+        if (!foldable_model_) {
+            LOG(INFO) << "Device is not foldable, ignoring hinge-angle0 change to: " << degrees;
+            return;
+        }
         foldable_model_->SetHingeAngle(0, degrees, mode);
     }
     TargetStateChanged();
@@ -369,7 +372,10 @@ void PhysicalModel::SetTargetInternalHingeAngle1(float degrees, PhysicalInterpol
     PhysicalStateChanging();
     {
         const std::lock_guard<std::recursive_mutex> lock(mutex_);
-        DCHECK(foldable_model_);
+        if (!foldable_model_) {
+            LOG(INFO) << "Device is not foldable, ignoring hinge-angle1 change to: " << degrees;
+            return;
+        }
         foldable_model_->SetHingeAngle(1, degrees, mode);
     }
     TargetStateChanged();
@@ -379,7 +385,10 @@ void PhysicalModel::SetTargetInternalHingeAngle2(float degrees, PhysicalInterpol
     PhysicalStateChanging();
     {
         const std::lock_guard<std::recursive_mutex> lock(mutex_);
-        DCHECK(foldable_model_);
+        if (!foldable_model_) {
+            LOG(INFO) << "Device is not foldable, ignoring hinge-angle2 change to: " << degrees;
+            return;
+        }
         foldable_model_->SetHingeAngle(2, degrees, mode);
     }
     TargetStateChanged();
@@ -389,7 +398,10 @@ void PhysicalModel::SetTargetInternalPosture(float posture, PhysicalInterpolatio
     PhysicalStateChanging();
     {
         const std::lock_guard<std::recursive_mutex> lock(mutex_);
-        DCHECK(foldable_model_);
+        if (!foldable_model_) {
+            LOG(INFO) << "Device is not foldable, ignoring posture change to: " << posture;
+            return;
+        }
         foldable_model_->SetPosture(posture, mode);
     }
     TargetStateChanged();
@@ -516,43 +528,57 @@ float PhysicalModel::GetParameterHumidity(ParameterValueType parameter_value_typ
 
 float PhysicalModel::GetParameterHingeAngle0(ParameterValueType parameter_value_type) const {
     const std::lock_guard<std::recursive_mutex> lock(mutex_);
-    DCHECK(foldable_model_);
+    if (!foldable_model_) {
+        return 0.0F;
+    }
     return foldable_model_->GetHingeAngle(0, parameter_value_type);
 }
 
 float PhysicalModel::GetParameterHingeAngle1(ParameterValueType parameter_value_type) const {
     const std::lock_guard<std::recursive_mutex> lock(mutex_);
-    DCHECK(foldable_model_);
+    if (!foldable_model_) {
+        return 0.0F;
+    }
     return foldable_model_->GetHingeAngle(1, parameter_value_type);
 }
 
 float PhysicalModel::GetParameterHingeAngle2(ParameterValueType parameter_value_type) const {
     const std::lock_guard<std::recursive_mutex> lock(mutex_);
-    DCHECK(foldable_model_);
+    if (!foldable_model_) {
+        return 0.0F;
+    }
     return foldable_model_->GetHingeAngle(2, parameter_value_type);
 }
 
 float PhysicalModel::GetParameterPosture(ParameterValueType parameter_value_type) const {
     const std::lock_guard<std::recursive_mutex> lock(mutex_);
-    DCHECK(foldable_model_);
+    if (!foldable_model_) {
+        return 0.0F;
+    }
     return foldable_model_->GetPosture(parameter_value_type);
 }
 
 float PhysicalModel::GetParameterRollable0(ParameterValueType parameter_value_type) const {
     const std::lock_guard<std::recursive_mutex> lock(mutex_);
-    DCHECK(foldable_model_);
+    if (!foldable_model_) {
+        return 0.0F;
+    }
     return foldable_model_->GetRollable(0, parameter_value_type);
 }
 
 float PhysicalModel::GetParameterRollable1(ParameterValueType parameter_value_type) const {
     const std::lock_guard<std::recursive_mutex> lock(mutex_);
-    DCHECK(foldable_model_);
+    if (!foldable_model_) {
+        return 0.0F;
+    }
     return foldable_model_->GetRollable(1, parameter_value_type);
 }
 
 float PhysicalModel::GetParameterRollable2(ParameterValueType parameter_value_type) const {
     const std::lock_guard<std::recursive_mutex> lock(mutex_);
-    DCHECK(foldable_model_);
+    if (!foldable_model_) {
+        return 0.0F;
+    }
     return foldable_model_->GetRollable(2, parameter_value_type);
 }
 
@@ -728,17 +754,26 @@ Rotation PhysicalModel::GetDeviceRotation() const {
 }
 
 float PhysicalModel::GetPhysicalHingeAngle0() const {
-    DCHECK(foldable_model_);
+    const std::lock_guard<std::recursive_mutex> lock(mutex_);
+    if (!foldable_model_) {
+        return 0.0F;
+    }
     return foldable_model_->GetHingeAngle(0);
 }
 
 float PhysicalModel::GetPhysicalHingeAngle1() const {
-    DCHECK(foldable_model_);
+    const std::lock_guard<std::recursive_mutex> lock(mutex_);
+    if (!foldable_model_) {
+        return 0.0F;
+    }
     return foldable_model_->GetHingeAngle(1);
 }
 
 float PhysicalModel::GetPhysicalHingeAngle2() const {
-    DCHECK(foldable_model_);
+    const std::lock_guard<std::recursive_mutex> lock(mutex_);
+    if (!foldable_model_) {
+        return 0.0F;
+    }
     return foldable_model_->GetHingeAngle(2);
 }
 

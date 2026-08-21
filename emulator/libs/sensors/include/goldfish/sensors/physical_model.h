@@ -123,7 +123,7 @@ class PhysicalModel : public CallbackEventSource<PhysicalModelChangeEvent> {
      * Target state setters.
      * @note Foldable/Rollable target setters (HingeAngle*, Posture, Rollable*)
      *       require that HasFoldableModel() is true. Calling them on a non-foldable
-     *       target will trigger a DCHECK assertion failure.
+     *       target will be safely ignored.
      */
 #define GOLDFISH_PHYSICAL_PARAMETER_DEF(x, y, z, w) \
     void SetTarget##z(w value, PhysicalInterpolation mode);
@@ -135,7 +135,7 @@ class PhysicalModel : public CallbackEventSource<PhysicalModelChangeEvent> {
      * Gets current target state of the modeled object.
      * @note Foldable/Rollable parameter getters (HingeAngle*, Posture, Rollable*)
      *       require that HasFoldableModel() is true. Calling them on a non-foldable
-     *       target will trigger a DCHECK assertion failure.
+     *       target will return default 0.0f.
      */
 #define GOLDFISH_PHYSICAL_PARAMETER_DEF(x, y, z, w) \
     w GetParameter##z(ParameterValueType parameter_value_type) const;
@@ -146,8 +146,7 @@ class PhysicalModel : public CallbackEventSource<PhysicalModelChangeEvent> {
     /*
      * Sensor override methods.
      * @note Foldable/Rollable override methods (HingeAngle*, Posture, Rollable*)
-     *       require that HasFoldableModel() is true. Calling them on a non-foldable
-     *       target will trigger a DCHECK assertion failure.
+     *       require that HasFoldableModel() is true.
      */
 #define GOLDFISH_SENSOR_DEF(x, y, z, v, w) void Override##z(v override_value);
     GOLDFISH_SENSORS_LIST
@@ -157,8 +156,7 @@ class PhysicalModel : public CallbackEventSource<PhysicalModelChangeEvent> {
      * Getters for all sensor values.
      * Can be called from any thread.
      * @note Foldable/Rollable sensor getters (HingeAngle*, Posture, Rollable*)
-     *       require that HasFoldableModel() is true. Calling them on a non-foldable
-     *       target will trigger a DCHECK assertion failure.
+     *       require that HasFoldableModel() is true.
      */
 #define GOLDFISH_SENSOR_DEF(x, y, z, v, w) v Get##z(size_t* measurement_id) const;
     GOLDFISH_SENSORS_LIST
