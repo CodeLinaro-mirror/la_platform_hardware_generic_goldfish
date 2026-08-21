@@ -665,4 +665,30 @@ TEST_F(PhysicalModelTest, FoldableInitialize) {
     }
 }
 
+TEST_F(PhysicalModelTest, NonFoldableDevicePostureAndHingeAnglesDoNotCrash) {
+    EXPECT_FALSE(model->HasFoldableModel());
+
+    // Calling setters on non-foldable model must not crash.
+    model->SetTargetPosture(1.0f, PhysicalInterpolation::kStep);
+    model->SetTargetHingeAngle0(90.0f, PhysicalInterpolation::kStep);
+    model->SetTargetHingeAngle1(90.0f, PhysicalInterpolation::kStep);
+    model->SetTargetHingeAngle2(90.0f, PhysicalInterpolation::kStep);
+    model->SetTargetRollable0(50.0f, PhysicalInterpolation::kStep);
+    model->SetTargetRollable1(50.0f, PhysicalInterpolation::kStep);
+    model->SetTargetRollable2(50.0f, PhysicalInterpolation::kStep);
+
+    // Calling getters on non-foldable model must safely return default 0.0f.
+    EXPECT_FLOAT_EQ(model->GetParameterPosture(ParameterValueType::kCurrent), 0.0f);
+    EXPECT_FLOAT_EQ(model->GetParameterHingeAngle0(ParameterValueType::kCurrent), 0.0f);
+    EXPECT_FLOAT_EQ(model->GetParameterHingeAngle1(ParameterValueType::kCurrent), 0.0f);
+    EXPECT_FLOAT_EQ(model->GetParameterHingeAngle2(ParameterValueType::kCurrent), 0.0f);
+    EXPECT_FLOAT_EQ(model->GetParameterRollable0(ParameterValueType::kCurrent), 0.0f);
+    EXPECT_FLOAT_EQ(model->GetParameterRollable1(ParameterValueType::kCurrent), 0.0f);
+    EXPECT_FLOAT_EQ(model->GetParameterRollable2(ParameterValueType::kCurrent), 0.0f);
+    size_t measurement_id;
+    EXPECT_FLOAT_EQ(model->GetHingeAngle0(&measurement_id), 0.0f);
+    EXPECT_FLOAT_EQ(model->GetHingeAngle1(&measurement_id), 0.0f);
+    EXPECT_FLOAT_EQ(model->GetHingeAngle2(&measurement_id), 0.0f);
+}
+
 }  // namespace goldfish::sensors
