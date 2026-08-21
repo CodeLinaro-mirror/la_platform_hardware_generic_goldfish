@@ -239,8 +239,8 @@ void WebMEncoder::EncodeLoop() {
 void WebMEncoder::ProcessFrame(const std::vector<uint8_t>& raw_data, int64_t frame_index) {
     if (av_frame_make_writable(frame_) < 0) return;
 
-    const uint8_t* src_slice[] = {raw_data.data()};
-    const int src_stride[] = {width_ * 3};
+    const uint8_t* const src_slice[AV_NUM_DATA_POINTERS] = {raw_data.data()};
+    const int src_stride[AV_NUM_DATA_POINTERS] = {width_ * 3};
 
     sws_scale(sws_ctx_, src_slice, src_stride, 0, height_, frame_->data, frame_->linesize);
 
