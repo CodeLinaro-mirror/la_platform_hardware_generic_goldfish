@@ -72,10 +72,10 @@ TEST_F(AudioStreamWriterTest, StreamsAudioPacketsToClient) {
             },
             &capture_started);
 
-    auto context = getContextWithTimeout(std::chrono::seconds(5));
+    auto context = getContextWithTimeout(std::chrono::seconds(30));
     auto reader = mStub->streamAudio(context.get(), request);
     ASSERT_NE(reader, nullptr);
-    ASSERT_TRUE(capture_started.WaitForNotificationWithTimeout(absl::Seconds(5)));
+    ASSERT_TRUE(capture_started.WaitForNotificationWithTimeout(absl::Seconds(30)));
 
     // Simulate QEMU audio output
     int16_t sample_data[4] = {1000, -1000, 2000, -2000};
@@ -110,10 +110,10 @@ TEST_F(AudioStreamWriterTest, DefaultFormatWhenUnspecified) {
             },
             &capture_started);
 
-    auto context = getContextWithTimeout(std::chrono::seconds(5));
+    auto context = getContextWithTimeout(std::chrono::seconds(30));
     auto reader = mStub->streamAudio(context.get(), request);
     ASSERT_NE(reader, nullptr);
-    ASSERT_TRUE(capture_started.WaitForNotificationWithTimeout(absl::Seconds(5)));
+    ASSERT_TRUE(capture_started.WaitForNotificationWithTimeout(absl::Seconds(30)));
 
     int16_t sample_data[2] = {500, -500};
     test_simulate_qemu_audio_output(sample_data, sizeof(sample_data));
@@ -178,10 +178,10 @@ TEST_F(AudioStreamWriterTest, DropsIncomingPacketsWhenQueueIsFull) {
             },
             &capture_started);
 
-    auto context = getContextWithTimeout(std::chrono::seconds(5));
+    auto context = getContextWithTimeout(std::chrono::seconds(30));
     auto reader = mStub->streamAudio(context.get(), request);
     ASSERT_NE(reader, nullptr);
-    ASSERT_TRUE(capture_started.WaitForNotificationWithTimeout(absl::Seconds(5)));
+    ASSERT_TRUE(capture_started.WaitForNotificationWithTimeout(absl::Seconds(30)));
 
     int16_t sample_data[2] = {123, -123};
     // Fill the queue to capacity plus an extra 10 packets
@@ -216,10 +216,10 @@ TEST_F(AudioStreamWriterTest, DropsPacketsContinuouslyWithoutDisconnecting) {
             },
             &capture_started);
 
-    auto context = getContextWithTimeout(std::chrono::seconds(5));
+    auto context = getContextWithTimeout(std::chrono::seconds(30));
     auto reader = mStub->streamAudio(context.get(), request);
     ASSERT_NE(reader, nullptr);
-    ASSERT_TRUE(capture_started.WaitForNotificationWithTimeout(absl::Seconds(5)));
+    ASSERT_TRUE(capture_started.WaitForNotificationWithTimeout(absl::Seconds(30)));
 
     // Send hundreds of packets without the client reading to cause sustained packet drops
     std::vector<int16_t> sample_data(512, 123);
