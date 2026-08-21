@@ -13,6 +13,12 @@
 // limitations under the License.
 #pragma once
 
+#ifdef __cplusplus
+#error Don't use ARRAY_SIZE in C++, use std::size() instead
+#else
+
 #ifndef ARRAY_SIZE
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
 #endif  // ARRAY_SIZE
+
+#endif  // __cplusplus

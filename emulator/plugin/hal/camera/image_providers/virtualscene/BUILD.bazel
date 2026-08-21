@@ -11,7 +11,6 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
-        "//emulator/libs/base:array_size",
         "//emulator/libs/gvk",
         "//emulator/plugin/hal/camera:image_provider_api",
         "@abseil-cpp//absl/log",
