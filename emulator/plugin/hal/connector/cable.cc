@@ -14,6 +14,7 @@
 
 #include <unordered_map>
 
+#include "goldfish/archive/collections/string.h"
 #include "goldfish/devices/cable/saveload.h"
 
 namespace goldfish::devices::cable {

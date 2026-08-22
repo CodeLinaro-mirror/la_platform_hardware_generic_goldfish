@@ -47,6 +47,28 @@ cc_library(
 )
 
 cc_library(
+    name = "collections",
+    srcs = [
+        "string.cc",
+    ],
+    hdrs = [
+        "include/goldfish/archive/collections/deque.h",
+        "include/goldfish/archive/collections/pair.h",
+        "include/goldfish/archive/collections/set.h",
+        "include/goldfish/archive/collections/string.h",
+        "include/goldfish/archive/collections/vector.h",
+    ],
+    includes = ["include"],
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        ":archive",
+        "//emulator/libs/status_macros",
+    ],
+)
+
+cc_library(
     name = "time",
     srcs = [
         "time.cc",
@@ -93,6 +115,21 @@ cc_test(
     visibility = ["//visibility:public"],
     deps = [
         ":DequeArchive",
+        "//emulator/libs/test:googletest_main",
+        "@abseil-cpp//absl/status:status_matchers",
+    ],
+)
+
+cc_test(
+    name = "collections_unittests",
+    size = "small",
+    srcs = [
+        "collections_tests.cc",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":DequeArchive",
+        ":collections",
         "//emulator/libs/test:googletest_main",
         "@abseil-cpp//absl/status:status_matchers",
     ],

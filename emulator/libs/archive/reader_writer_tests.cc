@@ -25,52 +25,27 @@ using ::absl_testing::IsOk;
 using ::absl_testing::IsOkAndHolds;
 using ::testing::Not;
 
-using goldfish::archive::DequeArchive;
-using goldfish::archive::DequeReader;
-using goldfish::archive::DequeWriter;
-
-TEST(archive, example) {
-    DequeWriter::Storage storage;
-    DequeWriter writer(&storage);
-    DequeReader reader(&storage);
-
-    const std::string str = "Hello, world!";
-
-    writer << str;
-    EXPECT_FALSE(storage.empty());
-    EXPECT_THAT(ReadOneValue<std::string>(reader), IsOkAndHolds(str));
-    EXPECT_TRUE(storage.empty());
-}
+namespace goldfish::archive {
 
 TEST(archive, positive) {
-    const std::string string1 = "Android Studio Emulator";
-    const std::string string2 = "QEMU";
-
     DequeArchive archive;
 
     constexpr uint32_t kUnsignedNumber = 3000000000U;
     constexpr int32_t kSignedNumber = 2000000000;
 
-    archive << kUnsignedNumber << string1 << kSignedNumber << string2 << -kSignedNumber;
+    archive << kUnsignedNumber << kSignedNumber << -kSignedNumber;
     EXPECT_FALSE(archive.Empty());
 
     EXPECT_THAT(ReadOneValue<uint32_t>(archive), IsOkAndHolds(kUnsignedNumber));
-    EXPECT_THAT(ReadOneValue<std::string>(archive), IsOkAndHolds(string1));
     EXPECT_THAT(ReadOneValue<int32_t>(archive), IsOkAndHolds(kSignedNumber));
-    EXPECT_THAT(ReadOneValue<std::string>(archive), IsOkAndHolds(string2));
     EXPECT_THAT(ReadOneValue<int32_t>(archive), IsOkAndHolds(-kSignedNumber));
     EXPECT_TRUE(archive.Empty());
 }
 
 TEST(archive, negative) {
-    const std::string string1 = "Android Studio Emulator";
-
     DequeArchive archive;
 
-    archive << string1;
-    EXPECT_FALSE(archive.Empty());
-    archive.storage.pop_back();
-    EXPECT_THAT(ReadOneValue<std::string>(archive), Not(IsOk()));
+    EXPECT_THAT(ReadOneValue<int>(archive), Not(IsOk()));
 }
 
 TEST(archive, compact_U8) {
@@ -183,48 +158,23 @@ TEST(archive, length_fixed) {
     EXPECT_EQ(c_m128, kCM128);
 }
 
-TEST(archive, variadic_positive) {
-    const std::string string1 = "Android Studio Emulator";
-    const std::string string2 = "QEMU";
+TEST(archive, variadic) {
     constexpr uint32_t kUnsignedNumber = 3000000000U;
     constexpr int32_t kSignedNumber = 2000000000;
 
     DequeArchive archive;
 
-    archive << kUnsignedNumber << string1 << kSignedNumber << string2 << -kSignedNumber;
+    archive << kUnsignedNumber << kSignedNumber << -kSignedNumber;
     EXPECT_FALSE(archive.Empty());
 
     uint32_t u;
-    std::string s1;
-    std::string s2;
     int32_t i1;
     int32_t i2;
 
-    EXPECT_THAT(ReadValue(archive, u, s1, i1, s2, i2), IsOk());
+    EXPECT_THAT(ReadValue(archive, u, i1, i2), IsOk());
     EXPECT_EQ(u, kUnsignedNumber);
-    EXPECT_EQ(s1, string1);
     EXPECT_EQ(i1, kSignedNumber);
-    EXPECT_EQ(s2, string2);
     EXPECT_EQ(i2, -kSignedNumber);
 }
 
-TEST(archive, variadic_negative) {
-    const std::string string1 = "Android Studio Emulator";
-    const std::string string2 = "QEMU";
-    constexpr uint32_t kUnsignedNumber = 3000000000U;
-    constexpr int32_t kSignedNumber = 2000000000;
-
-    DequeArchive archive;
-
-    archive << kUnsignedNumber << string1 << kSignedNumber << string2 << -kSignedNumber;
-    EXPECT_FALSE(archive.Empty());
-    archive.storage.pop_back();
-
-    uint32_t u;
-    std::string s1;
-    std::string s2;
-    int32_t i1;
-    int32_t i2;
-
-    EXPECT_THAT(ReadValue(archive, u, s1, i1, s2, i2), Not(IsOk()));
-}
+}  // namespace goldfish::archive

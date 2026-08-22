@@ -29,12 +29,6 @@ struct IWriter {
 // 7bit per byte with MSB for more bytes to follow.
 IWriter& operator<<(IWriter& w, size_t x);
 
-inline IWriter& operator<<(IWriter& w, const std::string_view x) {
-    w << x.size();
-    w.Write(x.data(), x.size());
-    return w;
-}
-
 template <typename T>
     requires(std::same_as<T, uint8_t> || std::same_as<T, int8_t> || std::same_as<T, bool> ||
              std::same_as<T, char> || std::same_as<T, float> || std::same_as<T, double>)

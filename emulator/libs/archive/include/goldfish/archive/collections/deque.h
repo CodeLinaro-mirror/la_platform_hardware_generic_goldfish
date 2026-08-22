@@ -10,32 +10,40 @@
  * GNU General Public License for more details.
  */
 
+#pragma once
+
+#include <deque>
+
+#include "absl/status/status.h"
+
+#include "android/status/status_macros.h"
 #include "goldfish/archive/reader.h"
+#include "goldfish/archive/writer.h"
 
 namespace goldfish::archive {
 
-// 7bit per byte with MSB for more bytes to follow.
-absl::Status ReadValue(archive::IReader& r, size_t& dst) {
-    size_t result = 0;
-    unsigned shift = 0;
-    constexpr unsigned kResultNumBits = sizeof(result) * CHAR_BIT;
+template <class T>
+absl::Status ReadValue(archive::IReader& r, std::deque<T>& x) {
+    ASSIGN_OR_RETURN(const size_t new_size, ReadOneValue<size_t>(r));
 
-    while (shift < kResultNumBits) {
-        uint8_t b;
-        if (const absl::Status s = r.Read(&b, sizeof(b)); !s.ok()) {
-            return s;
-        }
+    x.clear();
+    x.resize(new_size);
 
-        result |= (static_cast<size_t>(b & 0x7F) << shift);
-        if (b >> 7) {
-            shift += 7;
-        } else {
-            break;
-        }
+    for (T& v : x) {
+        RETURN_IF_ERROR(ReadValue(r, v));
     }
 
-    dst = result;
     return absl::OkStatus();
+}
+
+template <class T>
+IWriter& operator<<(IWriter& w, const std::deque<T>& x) {
+    w << x.size();
+    for (const T& v : x) {
+        w << v;
+    }
+
+    return w;
 }
 
 }  // namespace goldfish::archive

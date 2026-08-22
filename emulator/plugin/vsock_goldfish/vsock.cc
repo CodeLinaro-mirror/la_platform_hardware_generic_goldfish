@@ -20,6 +20,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/synchronization/mutex.h"
 
+#include "goldfish/archive/collections/deque.h"
 #include "goldfish/archive/qemu_file_reader.h"
 #include "goldfish/archive/qemu_file_writer.h"
 #include "goldfish/debug.h"
@@ -42,6 +43,17 @@ extern "C" {
 // IWYU pragma: end_keep
 // clang-format on
 #define DEBUG_MSG(FMT, ...)  // fprintf(stderr, "%s:%d: " FMT "\n", __func__, __LINE__, __VA_ARGS__)
+
+goldfish::archive::IWriter& operator<<(goldfish::archive::IWriter& w,
+                                       const struct virtio_vsock_hdr& x) {
+    return w << x.src_cid << x.dst_cid << x.src_port << x.dst_port << x.len << x.type << x.op
+             << x.flags << x.buf_alloc << x.fwd_cnt;
+}
+
+absl::Status ReadValue(goldfish::archive::IReader& r, struct virtio_vsock_hdr& x) {
+    return ReadValue(r, x.src_cid, x.dst_cid, x.src_port, x.dst_port, x.len, x.type, x.op, x.flags,
+                     x.buf_alloc, x.fwd_cnt);
+}
 
 namespace {
 using goldfish::archive::IReader;
@@ -615,17 +627,7 @@ struct GoldfishVirtioVsockDevice {
         }
 
         const absl::MutexLock lock(mStateMutex);
-        writer << mTickCounter << mReturnedHostPorts.size();
-        for (const uint32_t rhp : mReturnedHostPorts) {
-            writer << rhp;
-        }
-        mSrcPortAllocator.SaveToSnapshot(writer);
-
-        writer << mOrphanPackets.size();
-        for (const auto& packet : mOrphanPackets) {
-            writer << packet.src_port << packet.dst_port << packet.op << packet.buf_alloc
-                   << packet.fwd_cnt;
-        }
+        writer << mTickCounter << mReturnedHostPorts << mSrcPortAllocator << mOrphanPackets;
 
         writer << mStreams.size();
         for (const VsockStream& stream : mStreams) {
@@ -666,42 +668,12 @@ struct GoldfishVirtioVsockDevice {
         const absl::MutexLock lock(mStateMutex);
         clearLocked();
 
+        if (!ReadValue(reader, mTickCounter, mReturnedHostPorts, mSrcPortAllocator, mOrphanPackets)
+                     .ok()) {
+            return 1;
+        }
+
         size_t n = 0;
-        if (!ReadValue(reader, mTickCounter, n).ok()) {
-            return 1;
-        }
-
-        for (; n > 0; --n) {
-            uint32_t rhp;
-            if (!ReadValue(reader, rhp).ok()) {
-                return 1;
-            }
-
-            mReturnedHostPorts.push_back(rhp);
-        }
-
-        r = mSrcPortAllocator.LoadFromSnapshot(reader);
-        if (r) {
-            return r;
-        }
-
-        if (!ReadValue(reader, n).ok()) {
-            return 1;
-        }
-
-        for (; n > 0; --n) {
-            decltype(mOrphanPackets)::value_type packet;
-
-            if (!ReadValue(reader, packet.src_port, packet.dst_port, packet.op, packet.buf_alloc,
-                           packet.fwd_cnt)
-                         .ok()) {
-                return 1;
-            }
-
-            packet.len = 0;  // orphan packets don't carry data
-            mOrphanPackets.push_back(packet);
-        }
-
         if (!ReadValue(reader, n).ok()) {
             return 1;
         }
