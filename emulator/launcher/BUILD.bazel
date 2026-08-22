@@ -1,7 +1,7 @@
 load("@bazel_skylib//lib:selects.bzl", "selects")
 load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_test")
 load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_test")
-load("@rules_python//python:defs.bzl", "py_binary", "py_library")
+load("@rules_python//python:defs.bzl", "py_binary", "py_library", "py_test")
 load("//emulator/tools:fishtank.bzl", "subpath_link", "unzip")
 load("//emulator/tools:plugins.bzl", "collect_plugins")
 load("tools/launcher_test.bzl", "create_launch_emulator_test")
@@ -596,6 +596,26 @@ test_suite(
     tests = [
         ":can_boot_with_minigbm",
         ":can_boot_with_minigbm_zip",
+    ],
+)
+
+py_library(
+    name = "process_monitor",
+    srcs = ["tools/process_monitor.py"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "@pypi_aemu//psutil",
+    ],
+)
+
+py_test(
+    name = "process_monitor_test",
+    size = "small",
+    srcs = ["tools/process_monitor_test.py"],
+    main = "tools/process_monitor_test.py",
+    deps = [
+        ":process_monitor",
+        "@pypi_aemu//psutil",
     ],
 )
 
