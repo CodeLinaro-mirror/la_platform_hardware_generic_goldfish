@@ -623,7 +623,10 @@ py_library(
     name = "emulator_lib",
     srcs = ["tools/emulator_lib.py"],
     visibility = ["//visibility:__pkg__"],
-    deps = ["@rules_python//python/runfiles"],
+    deps = [
+        ":process_monitor",
+        "@rules_python//python/runfiles",
+    ],
 )
 
 py_binary(
