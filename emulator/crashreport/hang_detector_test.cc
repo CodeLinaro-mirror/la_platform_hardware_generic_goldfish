@@ -135,20 +135,20 @@ TEST_F(HangDetectorTest, NoHangCallbackDeadlockWhenRemovingLooper) {
     absl::Notification hang_cb_called;
     absl::Notification remove_completed;
 
+    // Start a teardown thread upfront that waits for the hang callback to fire,
+    // simulating concurrent looper removal upon hang detection.
+    std::thread remove_thread([&]() {
+        hang_cb_called.WaitForNotification();
+        event_loop->ShutdownAndWait().IgnoreError();
+        remove_completed.Notify();
+    });
+
     auto test_clock = std::make_unique<android::base::TestClock>();
     auto* clock_ptr = test_clock.get();
 
-    // Create a HangDetector where the hang callback attempts to call RemoveWatchedLooper
-    // asynchronously from a separate thread, simulating concurrent teardown.
+    // Create a HangDetector where the hang callback triggers asynchronous looper removal.
     auto hang_detector = HangDetector::Create(
             [&](std::string_view msg) {
-                std::thread remove_thread([&]() {
-                    event_loop->ShutdownAndWait().IgnoreError();
-                    if (!remove_completed.HasBeenNotified()) {
-                        remove_completed.Notify();
-                    }
-                });
-                remove_thread.detach();
                 if (!hang_cb_called.HasBeenNotified()) {
                     hang_cb_called.Notify();
                 }
@@ -175,6 +175,9 @@ TEST_F(HangDetectorTest, NoHangCallbackDeadlockWhenRemovingLooper) {
 
     hang.Notify();
     ASSERT_TRUE(remove_completed.WaitForNotificationWithTimeout(absl::Seconds(1)));
+    if (remove_thread.joinable()) {
+        remove_thread.join();
+    }
     hang_detector->Stop();
 }
 
