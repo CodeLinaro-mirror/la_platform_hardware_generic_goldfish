@@ -412,10 +412,11 @@ OPT_FLAG(enable_vnc, "enable vnc debug display")
 OPT_PARAM(qemu, "<qemu>", "flags to pass directly to Qemu")
 
 OPT_FLAG(no_wifi, "disable wifi device")
+OPT_FLAG(nfc, "enable nfc device")
 OPT_FLAG(no_grpc, "disable grpc device")
 OPT_FLAG(no_netsim,
          "disable launching netsimd and configuring any devices that depend on it e.g. wifi, bt, "
-         "uwb")
+         "uwb, nfc")
 OPT_FLAG(netsim_stdout, "send netsim output to stdout")
 OPT_FLAG(fishtank_stdout, "send fishtank output to stdout")
 OPT_FLAG(verbose_grpc, "verbose grpc logging")

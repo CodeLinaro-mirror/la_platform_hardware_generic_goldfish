@@ -134,6 +134,88 @@ class UwbProtocol : public Protocol {
     std::vector<::netsim::packet::PacketRequest>* mPacketQueue;
 };
 
+class NfcProtocol : public Protocol {
+  public:
+    explicit NfcProtocol(std::vector<::netsim::packet::PacketRequest>* output_queue)
+            : mPacketQueue(output_queue) {}
+
+    void reset() override {
+        state_ = NCI_HEADER;
+        mBytesWanted = NCI_HEADER_SIZE;
+        mPacket.clear();
+    }
+
+    void reset_guest(Chardev* /*c*/) override {
+        // N/A
+    }
+
+    void netsim_to_guest_packet(Chardev* c,
+                                std::unique_ptr<::netsim::packet::PacketResponse> packet) override {
+        if (packet->has_packet()) {
+            // From netsim -> guest
+            VLOG(2) << "NETSIM NFC: send (netsim -> guest)";
+            qemu_chr_be_write(c, reinterpret_cast<const uint8_t*>(packet->packet().data()),
+                              packet->packet().size());
+        } else {
+            LOG(WARNING) << "Unexpected packet " << packet->DebugString();
+        }
+    }
+
+    uint64_t guest_to_netsim_parser_bytes_requested() override { return mBytesWanted; }
+
+    void guest_to_netsim_parser_consume(const uint8_t* buf, uint64_t len) override {
+        if (len <= 0) {
+            LOG(INFO) << "NFC remote disconnected gracefully (received 0 bytes); NFC emulation is "
+                         "disabled.";
+            return;
+        }
+        if (len > mBytesWanted) {
+            LOG(FATAL) << "NFC: More bytes read than expected";
+        }
+
+        mPacket.insert(mPacket.end(), buf, buf + len);
+        mBytesWanted -= len;
+
+        if (mBytesWanted == 0) {
+            switch (state_) {
+            case NCI_HEADER:
+                mBytesWanted = mPacket[NCI_PAYLOAD_LENGTH_FIELD];
+                state_ = NCI_PAYLOAD;
+                if (mBytesWanted > 0) {
+                    break;
+                }
+                // Fall through if entire packet is just a header (payload length is 0)
+                [[fallthrough]];
+            case NCI_PAYLOAD: {
+                ::netsim::packet::PacketRequest request;
+                request.set_allocated_packet(new std::string(mPacket.begin(), mPacket.end()));
+                mPacketQueue->push_back(std::move(request));
+                mPacket.clear();
+                mBytesWanted = NCI_HEADER_SIZE;
+                state_ = NCI_HEADER;
+                break;
+            }
+            }
+        }
+    }
+
+    ::netsim::startup::Chip chip_info() override {
+        ::netsim::startup::Chip chip;
+        chip.set_kind(::netsim::common::ChipKind::NFC);
+        return chip;
+    }
+
+  private:
+    static constexpr size_t NCI_HEADER_SIZE = 3;
+    static constexpr size_t NCI_PAYLOAD_LENGTH_FIELD = 2;
+    enum State { NCI_HEADER, NCI_PAYLOAD };
+
+    State state_{NCI_HEADER};
+    size_t mBytesWanted{NCI_HEADER_SIZE};
+    std::vector<uint8_t> mPacket;
+    std::vector<::netsim::packet::PacketRequest>* mPacketQueue;
+};
+
 class BtProtocol : public Protocol {
   public:
     BtProtocol(std::vector<::netsim::packet::PacketRequest>* output_queue) {
@@ -251,6 +333,7 @@ struct NetsimChardev {
 
 #define TYPE_NETSIM_CHARDEV_BT "chardev-netsim-bt"
 #define TYPE_NETSIM_CHARDEV_UWB "chardev-netsim-uwb"
+#define TYPE_NETSIM_CHARDEV_NFC "chardev-netsim-nfc"
 
 int netsim_chardev_write(Chardev* chr, const uint8_t* buf, int len) {
     // From guest -> netsim
@@ -360,6 +443,14 @@ void netsim_chardev_uwb_instance_init(Object* obj) {
     nc->state->protocol = std::make_unique<UwbProtocol>(&nc->state->parser_packet_queue);
 }
 
+void netsim_chardev_nfc_instance_init(Object* obj) {
+    VLOG(1) << "NETSIM NFC init";
+    NetsimChardev* nc = NETSIM_CHARDEV(obj);
+    nc->state = new NetsimChardevState;
+    nc->state->incoming_bh = goldfish::qemu::MakeQemuBh(&netsim_chardev_bh, obj);
+    nc->state->protocol = std::make_unique<NfcProtocol>(&nc->state->parser_packet_queue);
+}
+
 void netsim_chardev_instance_finalize(Object* obj) {
     NetsimChardev* nc = NETSIM_CHARDEV(obj);
 
@@ -398,12 +489,20 @@ const TypeInfo netsim_chardev_uwb_type_info = {
     .instance_init = netsim_chardev_uwb_instance_init,
 };
 
+const TypeInfo netsim_chardev_nfc_type_info = {
+    .name = TYPE_NETSIM_CHARDEV_NFC,
+    .parent = TYPE_NETSIM_CHARDEV,
+    .instance_size = sizeof(NetsimChardev),
+    .instance_init = netsim_chardev_nfc_instance_init,
+};
+
 }  // namespace
 
 void netsim_chardev_register_types(void) {
     type_register_static(&netsim_chardev_type_info);
     type_register_static(&netsim_chardev_bt_type_info);
     type_register_static(&netsim_chardev_uwb_type_info);
+    type_register_static(&netsim_chardev_nfc_type_info);
 }
 
 }  // namespace goldfish::netsim

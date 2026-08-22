@@ -164,17 +164,24 @@ absl::Status LaunchQemu::addDevices() {
         // It should lookup the actual port number and set the property
         // "vendor.qemu.vport.<name>" to "/dev/vport8p<N>"
         // e.g. /dev/vport8p3 for bt (4th port)
-        addDevice<ParameterList>(std::initializer_list<std::string>{
-            "-chardev",
-            "netsim-uwb,id=uwb",
-            "-device",
-            "virtconsole,chardev=uwb,name=uwb",
+        std::vector<std::string> radio_params = {
+            "-chardev", "netsim-uwb,id=uwb",
+            "-device",  "virtconsole,chardev=uwb,name=uwb",
 
-            "-chardev",
-            "netsim-bt,id=bluetooth",
-            "-device",
-            "virtserialport,chardev=bluetooth,name=bluetooth",
-        });
+            "-chardev", "netsim-bt,id=bluetooth",
+            "-device",  "virtserialport,chardev=bluetooth,name=bluetooth",
+        };
+
+        if (o.nfc) {
+            radio_params.insert(radio_params.end(), {
+                                                        "-chardev",
+                                                        "netsim-nfc,id=nfc",
+                                                        "-device",
+                                                        "virtserialport,chardev=nfc,name=nfc",
+                                                    });
+        }
+
+        addDevice<ParameterList>(std::move(radio_params));
     }
 
     // TODO(whollins): set netsim_backend to true when netsimd supports this (and not o.no_netsim)
