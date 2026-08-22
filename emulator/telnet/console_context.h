@@ -14,9 +14,12 @@
 #pragma once
 
 #include <chrono>
+#include <csignal>
+#include <cstdlib>
 #include <filesystem>
 #include <memory>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
@@ -90,6 +93,21 @@ struct ConsoleContext : public LineCommandHandler::Context {
 
     virtual absl::StatusOr<DiscoveredEmulator> DiscoverEmulatorWithProperties(
             const absl::flat_hash_map<std::string, std::string>& props);
+
+    // Triggers an immediate termination of the emulator instance. Note that
+    // TERMINATE force-kills the process without generating a Crashpad minidump.
+    virtual void TriggerCrash() {
+        if (auto stub = EmulatorControllerStub(); stub.ok()) {
+            std::thread([stub = *std::move(stub)]() mutable {
+                std::this_thread::sleep_for(std::chrono::milliseconds(50));
+                auto context = std::make_unique<grpc::ClientContext>();
+                android::emulation::control::VmRunState request;
+                request.set_state(android::emulation::control::VmRunState::TERMINATE);
+                google::protobuf::Empty response;
+                (void)stub->setVmState(context.get(), request, &response);
+            }).detach();
+        }
+    }
 
   private:
     int port_;
