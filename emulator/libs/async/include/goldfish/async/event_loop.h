@@ -19,12 +19,14 @@
 #include <functional>
 #include <future>
 #include <memory>
+#include <optional>
 #include <type_traits>
 
 #include "absl/functional/any_invocable.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/synchronization/notification.h"
 
 #include "android/crashreport/thread.h"
 #include "goldfish/async/looper_breadcrumb_tracker.h"
@@ -278,24 +280,46 @@ class EventLoop : public CallbackEventSource<LooperStatusEvent> {
         if (IsOnLoopThread()) {
             LOG(FATAL) << "postAndWait cannot be called from the event loop.";
         }
-        // Fail immediately if looper has finished to avoid deadlocking on future.get()
+        // Fail immediately if looper has finished to avoid deadlocking
         // when no loop thread is running to process enqueued tasks.
         if (GetState() == LooperStatusEvent::State::kFinished) {
             return absl::FailedPreconditionError("Event loop has finished execution");
         }
 
-        StackAddress pc = __builtin_return_address(0);
-        if (auto future = Post<F>(std::forward<F>(task), std::chrono::milliseconds::zero(),
-                                  PostOptions{.caller_pc = pc});
-            future.ok()) {
-            if constexpr (std::is_void_v<decltype(task())>) {
-                future->get();
-                return absl::OkStatus();
-            } else {
-                return future->get();
+        using ReturnType = decltype(task());
+        absl::Notification done;
+        FlowId flow_id = 0;
+        if (tracker_) {
+            flow_id = tracker_->LogPost(PostOptions{.caller_pc = __builtin_return_address(0)});
+        }
+
+        if constexpr (std::is_void_v<ReturnType>) {
+            auto task_runner = [&task, &done]() {
+                task();
+                done.Notify();
+            };
+            absl::Status s = PostImmediately(std::move(task_runner), flow_id);
+            if (!s.ok()) {
+                return s;
             }
+            done.WaitForNotification();
+            return absl::OkStatus();
         } else {
-            return future.status();
+            // Use std::optional to reserve uninitialized storage on the caller's stack frame.
+            // This avoids requiring ReturnType to be default-constructible, eliminates dynamic heap
+            // allocations (unlike std::promise/future or std::unique_ptr), and avoids dummy
+            // fallback error status initializations.
+            std::optional<ReturnType> result;
+            auto task_runner = [&task, &result, &done]() {
+                result.emplace(task());
+                done.Notify();
+            };
+            absl::Status s = PostImmediately(std::move(task_runner), flow_id);
+            if (!s.ok()) {
+                return s;
+            }
+            done.WaitForNotification();
+            return std::move(result).value();
         }
     }
 

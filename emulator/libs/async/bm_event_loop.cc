@@ -53,6 +53,118 @@ BENCHMARK_F(EventLoopBenchmark, PostWithContextThroughput)(benchmark::State& sta
     }
 }
 
+// Compares std::optional stack initialization and emplace
+static void BM_Optional_Emplace(benchmark::State& state) {
+    for (auto _ : state) {
+        std::optional<int> result;
+        result.emplace(42);
+        benchmark::DoNotOptimize(result);
+    }
+}
+BENCHMARK(BM_Optional_Emplace);
+
+// Compares initializing absl::StatusOr with a dynamic absl::InternalError (heap alloc per call)
+static void BM_StatusOr_DynamicError(benchmark::State& state) {
+    for (auto _ : state) {
+        absl::StatusOr<int> result = absl::InternalError("Task was not executed on the event loop");
+        result = 42;
+        benchmark::DoNotOptimize(result);
+    }
+}
+BENCHMARK(BM_StatusOr_DynamicError);
+
+// Compares initializing absl::StatusOr with a static absl::Status (constructed once, refcount only)
+static void BM_StatusOr_StaticError(benchmark::State& state) {
+    static const absl::Status* const kDefaultTaskFailure =
+            new absl::Status(absl::InternalError("Task was not executed on the event loop"));
+    for (auto _ : state) {
+        absl::StatusOr<int> result = *kDefaultTaskFailure;
+        result = 42;
+        benchmark::DoNotOptimize(result);
+    }
+}
+BENCHMARK(BM_StatusOr_StaticError);
+
+// Compares pure absl::Notification (no StatusOr)
+static void BM_Notification_Pure(benchmark::State& state) {
+    for (auto _ : state) {
+        absl::Notification done;
+        done.Notify();
+        done.WaitForNotification();
+        benchmark::DoNotOptimize(done);
+    }
+}
+BENCHMARK(BM_Notification_Pure);
+
+// Compares absl::Notification + std::optional<int>
+static void BM_Notification_With_Optional(benchmark::State& state) {
+    for (auto _ : state) {
+        absl::Notification done;
+        std::optional<int> result;
+        result.emplace(42);
+        done.Notify();
+        done.WaitForNotification();
+        benchmark::DoNotOptimize(result);
+    }
+}
+BENCHMARK(BM_Notification_With_Optional);
+
+// Compares std::promise / std::future creation and resolution overhead (single thread)
+static void BM_PromiseFuture_Overhead(benchmark::State& state) {
+    for (auto _ : state) {
+        std::promise<int> p;
+        std::future<int> f = p.get_future();
+        p.set_value(42);
+        int val = f.get();
+        benchmark::DoNotOptimize(val);
+    }
+}
+BENCHMARK(BM_PromiseFuture_Overhead);
+
+// Compares 2-thread handoff: Thread A notifies, Thread B waits
+static void BM_Notification_2ThreadHandoff(benchmark::State& state) {
+    for (auto _ : state) {
+        absl::Notification done;
+        std::thread t([&]() { done.Notify(); });
+        done.WaitForNotification();
+        t.join();
+    }
+}
+BENCHMARK(BM_Notification_2ThreadHandoff);
+
+// Compares 2-thread handoff: Thread A sets promise, Thread B calls future.get()
+static void BM_PromiseFuture_2ThreadHandoff(benchmark::State& state) {
+    for (auto _ : state) {
+        std::promise<void> p;
+        std::future<void> f = p.get_future();
+        std::thread t([&]() { p.set_value(); });
+        f.get();
+        t.join();
+    }
+}
+BENCHMARK(BM_PromiseFuture_2ThreadHandoff);
+
+// Benchmarks end-to-end PostAndWait roundtrip throughput on a running event loop
+static void BM_EventLoop_PostAndWait(benchmark::State& state) {
+    auto loop = LibuvEventLoop::Create();
+    std::thread loop_thread([&]() { loop->Run().IgnoreError(); });
+
+    while (loop->GetState() != LooperStatusEvent::State::kRunning) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    }
+
+    for (auto _ : state) {
+        auto res = loop->PostAndWait([]() { return 42; });
+        benchmark::DoNotOptimize(res);
+    }
+
+    loop->ShutdownAndWait().IgnoreError();
+    if (loop_thread.joinable()) {
+        loop_thread.join();
+    }
+}
+BENCHMARK(BM_EventLoop_PostAndWait);
+
 // Benchmarks the concurrent pipeline throughput (Post + Execution running in parallel).
 // This is the most realistic performance test.
 static void BM_EventLoop_PipelineThroughput(benchmark::State& state) {
