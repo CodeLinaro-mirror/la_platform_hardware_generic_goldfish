@@ -149,8 +149,10 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":system",
+        "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/log:absl_log",
         "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/synchronization",
         "@bazel_tools//tools/cpp/runfiles",
     ],
 )
