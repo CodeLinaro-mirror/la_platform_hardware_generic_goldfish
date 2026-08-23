@@ -26,7 +26,6 @@
 
 #include "absl/log/log.h"
 
-#include "goldfish/base/array_size.h"
 #include "goldfish/debug.h"
 #include "goldfish/gvk/device_dispatch.h"
 #include "goldfish/gvk/goldfish/gvk/util/staging_buffers.h"
@@ -630,7 +629,7 @@ int VirtualsceneImageProvider::start(const CameraImageProviderStreamConfig* cons
         .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
         .pNext = nullptr,
         .flags = 0,
-        .stageCount = ARRAY_SIZE(vertexShaderStageCreateInfo),
+        .stageCount = std::size(vertexShaderStageCreateInfo),
         .pStages = vertexShaderStageCreateInfo,
         .pVertexInputState = &vertexInputStateCreateInfo,
         .pInputAssemblyState = &inputAssemblyStateCreateInfo,
@@ -918,7 +917,7 @@ VkCommandBuffer VirtualsceneImageProvider::recordCommandBuffer(
         mDeviceDispatch->cmdBindIndexBuffer(renderCmdBuf, mIndicesBuf.get(), 0,
                                             VK_INDEX_TYPE_UINT32);
 
-        mDeviceDispatch->cmdDrawIndexed(renderCmdBuf, ARRAY_SIZE(kTriangeIndices), 1, 0, 0, 0);
+        mDeviceDispatch->cmdDrawIndexed(renderCmdBuf, std::size(kTriangeIndices), 1, 0, 0, 0);
     }
 
     std::vector<VkImageMemoryBarrier> changeImageLayoutBarriers;

@@ -22,7 +22,6 @@
 
 #include "absl/log/log.h"
 
-#include "goldfish/base/array_size.h"
 #include "goldfish/debug.h"
 #include "goldfish/gvk/util/build_device_queue_create_info.h"
 #include "goldfish/gvk/util/init_pfn.h"
@@ -104,7 +103,7 @@ std::optional<DeviceDispatch::CreateResult> DeviceDispatch::create(
 
     std::vector<float> graphics_queue_priorities_vector;
     const float* graphics_queue_priorities;
-    if (max_queue_prio_count <= ARRAY_SIZE(kGraphicsQueuePriorities8)) {
+    if (max_queue_prio_count <= std::size(kGraphicsQueuePriorities8)) {
         graphics_queue_priorities = kGraphicsQueuePriorities8;
     } else {
         graphics_queue_priorities_vector.resize(max_queue_prio_count, kGraphicsQueuePriorities8[0]);

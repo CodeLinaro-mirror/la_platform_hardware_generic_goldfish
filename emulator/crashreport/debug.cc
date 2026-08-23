@@ -29,8 +29,6 @@
 #endif
 #endif
 
-#include "goldfish/base/array_size.h"
-
 namespace android::base {
 
 namespace {
@@ -69,7 +67,7 @@ bool IsDebuggerAttached() {
     int mib[] = {CTL_KERN, KERN_PROC, KERN_PROC_PID, getpid()};
     struct kinfo_proc proc_info = {};
     size_t info_size = sizeof(proc_info);
-    const int res = sysctl(mib, ARRAY_SIZE(mib), &proc_info, &info_size, nullptr, 0);
+    const int res = sysctl(mib, std::size(mib), &proc_info, &info_size, nullptr, 0);
     if (res) {
         return false;
     }

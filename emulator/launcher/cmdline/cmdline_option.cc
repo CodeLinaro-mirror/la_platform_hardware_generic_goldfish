@@ -13,7 +13,6 @@
 #include "absl/log/log.h"
 
 #include "android/utils/misc.h"
-#include "goldfish/base/array_size.h"
 #include "host-common/constants.h"
 
 const AndroidOptions* android_cmd_line_options = nullptr;
@@ -419,7 +418,7 @@ bool android_validate_user_mode_networking_option(const char* opt) {
             return false;
         }
         std::string config = line.substr(0, n);
-        auto end = kUserModeNetworkingOpts + ARRAY_SIZE(kUserModeNetworkingOpts);
+        auto end = kUserModeNetworkingOpts + std::size(kUserModeNetworkingOpts);
         if (!std::any_of(kUserModeNetworkingOpts, end,
                          [&config](const char* opt) { return strcmp(config.c_str(), opt) == 0; })) {
             LOG(WARNING) << "user mode networking option " << config << " is not allowed.";
