@@ -26,8 +26,12 @@ cc_library(
 cc_library(
     name = "test_qemu_audio_stub",
     testonly = True,
-    srcs = ["test_qemu_audio_stub.c"],
+    srcs = ["test_qemu_audio_stub.cc"],
     hdrs = ["test_qemu_audio_stub.h"],
+    deps = [
+        "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/synchronization",
+    ],
 )
 
 cc_library(
