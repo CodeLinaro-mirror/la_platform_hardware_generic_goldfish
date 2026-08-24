@@ -346,6 +346,23 @@ collect_plugins(
 )
 
 collect_plugins(
+    name = "vulkan_layers",
+    output_dir = "lib64/vulkan/layers",
+    plugins = select({
+        "darwin_aarch64": [
+            "@goldfish_prebuilts_common//vulkan:layers_darwin_aarch64",
+        ],
+        "@platforms//os:linux": [
+            "@goldfish_prebuilts_common//vulkan:layers_linux_x86_64",
+        ],
+        "@platforms//os:windows": [
+            "@goldfish_prebuilts_common//vulkan:layers_windows_x86_64",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+collect_plugins(
     name = "shared_libraries",
     output_dir = "lib64",
     plugins = [
@@ -514,6 +531,7 @@ cc_binary(
         ":shared_libraries",
         ":unsecure-emulator-access",
         ":vulkan_icds",
+        ":vulkan_layers",
     ],
     linkopts = select({
         "@platforms//os:macos": ["-undefined error"],

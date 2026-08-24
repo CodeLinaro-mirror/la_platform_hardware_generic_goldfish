@@ -80,6 +80,18 @@ std::vector<std::string> GpuDevice::getQemuParameters(const EmulatorConfig& emul
         renderer_features.append(";GuestVulkanMaxApiVersion:1.3.0");
     }
 
+    if (opts.vulkan_validation) {
+        renderer_features.append(absl::StrCat(";VulkanValidation:", opts.vulkan_validation));
+    }
+    if (opts.vulkan_validation_include_filter) {
+        renderer_features.append(absl::StrCat(";VulkanValidationIncludeFilter:",
+                                              opts.vulkan_validation_include_filter));
+    }
+    if (opts.vulkan_validation_exclude_filter) {
+        renderer_features.append(absl::StrCat(";VulkanValidationExcludeFilter:",
+                                              opts.vulkan_validation_exclude_filter));
+    }
+
     std::string gfxstream_backends = "gfxstream-vulkan=on";
     if (needs_gles) {
         gfxstream_backends.append(",x-gfxstream-gles=on");
