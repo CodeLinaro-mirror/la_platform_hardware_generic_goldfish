@@ -18,6 +18,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <thread>
 
 #include "absl/log/log.h"
 #include "absl/status/status.h"
@@ -1225,10 +1226,18 @@ LegacyConsoleBridge::LegacyConsoleBridge(int port, std::filesystem::path token_p
 
     // --- Other Terminal Root Commands ---
     builder.On("crash" /* do_crash */, "crash the emulator instance",
-               [](ConsoleContext& /*ctx*/) { return absl::UnimplementedError("not implemented"); });
+               [](ConsoleContext& ctx) -> absl::StatusOr<std::string> {
+                   ASSIGN_OR_RETURN(auto stub, ctx.EmulatorControllerStub());
+                   ctx.TriggerCrash();
+                   return "crashing emulator, bye bye";
+               });
     builder.On("crash-on-exit" /* do_crash_on_exit */,
                "simulate crash on exit for the emulator instance",
-               [](ConsoleContext& /*ctx*/) { return absl::UnimplementedError("not implemented"); });
+               [](ConsoleContext& ctx) -> absl::StatusOr<std::string> {
+                   ASSIGN_OR_RETURN(auto stub, ctx.EmulatorControllerStub());
+                   ctx.TriggerCrash();
+                   return "crashing emulator on exit, bye bye";
+               });
     builder.On(
             "kill" /* do_kill */, "kill the emulator instance",
             [](ConsoleContext& ctx) -> absl::Status {
@@ -1256,13 +1265,28 @@ LegacyConsoleBridge::LegacyConsoleBridge(int port, std::filesystem::path token_p
                });
     builder.Command("grpc", "enable the grpc endpoint")
             .On("start" /* do_start_grpc */, "start the grpc endpoint",
-                [](ConsoleContext& /*ctx*/, int /*port*/) {
-                    return absl::UnimplementedError("not implemented");
+                [](ConsoleContext& ctx, int port) -> absl::StatusOr<std::string> {
+                    if (port < 0 || port >= 65536) {
+                        return absl::InvalidArgumentError("Usage: \"grpc <port>\"");
+                    }
+                    int active_port = ctx.Port();
+                    if (port != 0 && active_port != 0 && active_port != port) {
+                        return absl::StrFormat("Port has already been activated at port: %d",
+                                               active_port);
+                    }
+                    return absl::StrFormat("gRPC endpoint available at port %d",
+                                           active_port != 0 ? active_port : port);
                 });
 
     builder.On("debug" /* do_debug */, "control the emulator debug output tags",
-               [](ConsoleContext& /*ctx*/, const std::string& /*tags*/) {
-                   return absl::UnimplementedError("not implemented");
+               [](ConsoleContext& /*ctx*/, const std::optional<std::string>& tags) -> absl::Status {
+                   if (tags.has_value() && !tags->empty()) {
+                       LOG(WARNING) << "Debug tags are deprecated and have no effect: " << *tags;
+                   } else {
+                       LOG(WARNING) << "Debug tags are deprecated and have no effect.";
+                   }
+                   return absl::InvalidArgumentError(
+                           "warning: debug tags are deprecated and have no effect");
                });
 
     builder.On("rotate" /* do_rotate_90_clockwise */, "rotate the screen clockwise by 90 degrees",

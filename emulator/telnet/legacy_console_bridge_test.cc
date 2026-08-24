@@ -21,6 +21,7 @@
 #include <fstream>
 #include <memory>
 #include <string>
+#include <thread>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -92,11 +93,14 @@ struct MockConsoleContext : public LegacyConsoleBridge::ConsoleContext {
         return ConsoleContext::DiscoverEmulatorWithProperties(props);
     }
 
+    void TriggerCrash() override { crash_triggered = true; }
+
     std::unique_ptr<android::emulation::control::EmulatorController::StubInterface> mock_stub;
     std::unique_ptr<android::emulation::control::incubating::Modem::StubInterface> mock_modem_stub;
     std::unique_ptr<android::emulation::control::SnapshotService::StubInterface> mock_snapshot_stub;
     std::optional<absl::StatusOr<LegacyConsoleBridge::DiscoveredEmulator>> mock_discovery;
     std::optional<absl::StatusOr<std::vector<std::filesystem::path>>> mock_discovered_emulators;
+    bool crash_triggered = false;
 };
 
 class LegacyConsoleBridgeTest : public ::testing::Test {
@@ -505,6 +509,86 @@ TEST_F(LegacyConsoleBridgeTest, KillSucceedsAndCallsSetVmState) {
 
     ASSERT_TRUE(result.ok()) << result.status().message();
     EXPECT_EQ(*result, "");
+}
+
+TEST_F(LegacyConsoleBridgeTest, CrashSucceedsAndTriggersCrash) {
+    auto ctx = CreateContext();
+    ctx->authenticated = true;
+
+    auto mock_stub = std::make_unique<android::emulation::control::MockEmulatorControllerStub>();
+    ctx->mock_stub = std::move(mock_stub);
+
+    auto result = (*bridge_)("crash", *ctx);
+
+    ASSERT_TRUE(result.ok()) << result.status().message();
+    EXPECT_EQ(*result, "crashing emulator, bye bye");
+    EXPECT_TRUE(ctx->crash_triggered);
+}
+
+TEST_F(LegacyConsoleBridgeTest, CrashOnExitSucceedsAndTriggersCrash) {
+    auto ctx = CreateContext();
+    ctx->authenticated = true;
+
+    auto mock_stub = std::make_unique<android::emulation::control::MockEmulatorControllerStub>();
+    ctx->mock_stub = std::move(mock_stub);
+
+    auto result = (*bridge_)("crash-on-exit", *ctx);
+
+    ASSERT_TRUE(result.ok()) << result.status().message();
+    EXPECT_EQ(*result, "crashing emulator on exit, bye bye");
+    EXPECT_TRUE(ctx->crash_triggered);
+}
+
+TEST_F(LegacyConsoleBridgeTest, DebugReturnsWarningForTags) {
+    auto ctx = CreateContext();
+    ctx->authenticated = true;
+
+    auto result = (*bridge_)("debug init,sensors", *ctx);
+
+    EXPECT_FALSE(result.ok());
+    EXPECT_EQ(result.status().code(), absl::StatusCode::kInvalidArgument);
+    EXPECT_EQ(result.status().message(), "warning: debug tags are deprecated and have no effect");
+}
+
+TEST_F(LegacyConsoleBridgeTest, DebugReturnsWarningWithoutArgs) {
+    auto ctx = CreateContext();
+    ctx->authenticated = true;
+
+    auto result = (*bridge_)("debug", *ctx);
+
+    EXPECT_FALSE(result.ok());
+    EXPECT_EQ(result.status().code(), absl::StatusCode::kInvalidArgument);
+    EXPECT_EQ(result.status().message(), "warning: debug tags are deprecated and have no effect");
+}
+
+TEST_F(LegacyConsoleBridgeTest, GrpcStartReturnsPort) {
+    auto ctx = CreateContext(8554);
+    ctx->authenticated = true;
+
+    auto result = (*bridge_)("grpc start 8554", *ctx);
+
+    ASSERT_TRUE(result.ok()) << result.status().message();
+    EXPECT_EQ(*result, "gRPC endpoint available at port 8554");
+}
+
+TEST_F(LegacyConsoleBridgeTest, GrpcStartReportsAlreadyActivatedPort) {
+    auto ctx = CreateContext(8554);
+    ctx->authenticated = true;
+
+    auto result = (*bridge_)("grpc start 8558", *ctx);
+
+    ASSERT_TRUE(result.ok()) << result.status().message();
+    EXPECT_EQ(*result, "Port has already been activated at port: 8554");
+}
+
+TEST_F(LegacyConsoleBridgeTest, GrpcStartFailsOnInvalidPort) {
+    auto ctx = CreateContext(8554);
+    ctx->authenticated = true;
+
+    auto result = (*bridge_)("grpc start -1", *ctx);
+
+    EXPECT_FALSE(result.ok());
+    EXPECT_EQ(result.status().code(), absl::StatusCode::kInvalidArgument);
 }
 
 TEST_F(LegacyConsoleBridgeTest, ResumeSucceedsAndCallsSetVmState) {
