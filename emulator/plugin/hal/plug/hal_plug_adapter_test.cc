@@ -39,13 +39,22 @@ using ::testing::_;
 using ::testing::Invoke;
 using ::testing::StrEq;
 
+namespace {
+
 // Mock for the real ISocket that lives on the QEMU thread.
+// Following the CABLE ISocket contract, UnplugImpl destroys the socket instance.
 class MockSocket : public cable::ISocket {
   public:
-    ~MockSocket() {}
+    ~MockSocket() override = default;
     MOCK_METHOD(void, SendAsync, (const void* data, size_t size), (override));
     MOCK_METHOD(cable::PlugPtr, SwitchPlug, (cable::PlugPtr newPlug), (override));
-    MOCK_METHOD(cable::PlugPtr, UnplugImpl, (), (override));
+    MOCK_METHOD(cable::PlugPtr, OnUnplug, ());
+
+    cable::PlugPtr UnplugImpl() override {
+        cable::PlugPtr plug = OnUnplug();
+        delete this;
+        return plug;
+    }
 };
 
 // Mock for the real HalPlug that lives on the client thread.
@@ -65,9 +74,9 @@ class HalPlugAdapterTest : public ::testing::Test {
         mQemuLoop = ThreadedEventLoop::Create(LibuvEventLoop::Create());
 
         mMockHalPlug = std::make_shared<MockHalPlug>();
-        // The SocketPtr owns the mock, but we keep a raw pointer for EXPECT_CALL
-        mMockSocket = std::make_unique<MockSocket>();
-        mMockSocketPtr = cable::SocketPtr(mMockSocket.get());
+        // The SocketPtr exclusively owns the mock via ISocket::Unplugger
+        mMockSocket = new MockSocket();
+        mMockSocketPtr = cable::SocketPtr(mMockSocket);
 
         auto f = mQemuLoop->PostAndWait([&] {
             return std::make_shared<HalPlugToIPlugAdapter>(mClientLoop.get(), mMockHalPlug);
@@ -79,18 +88,22 @@ class HalPlugAdapterTest : public ::testing::Test {
     void TearDown() override {
         // Ensure cleanup if a test hasn't already closed the socket.
         // This prevents leaks if a test fails before calling close().
-        if (mMockHalPlug->getSocket() && mSocketIsOpen) {
+        if (mMockHalPlug && mMockHalPlug->getSocket() && mSocketIsOpen) {
             absl::Notification closed;
-            EXPECT_CALL(*mMockSocket, UnplugImpl()).WillOnce(Invoke([&]() {
+            EXPECT_CALL(*mMockSocket, OnUnplug()).WillOnce(Invoke([&]() {
                 closed.Notify();
                 return nullptr;
             }));
             mClientLoop->Post([this] { mMockHalPlug->getSocket()->Close(); }).IgnoreError();
-            closed.WaitForNotificationWithTimeout(absl::Milliseconds(100));
+            closed.WaitForNotificationWithTimeout(absl::Seconds(2));
         }
 
-        mQemuLoop->ShutdownAndWait(100ms).IgnoreError();
-        mClientLoop->ShutdownAndWait(100ms).IgnoreError();
+        mAdapter.reset();
+        mMockHalPlug.reset();
+        mMockSocketPtr.reset();
+
+        mClientLoop->ShutdownAndWait(std::chrono::seconds(2)).IgnoreError();
+        mQemuLoop->ShutdownAndWait(std::chrono::seconds(2)).IgnoreError();
     }
 
     void Connect() {
@@ -115,7 +128,7 @@ class HalPlugAdapterTest : public ::testing::Test {
     std::unique_ptr<ThreadedEventLoop> mClientLoop;
     std::shared_ptr<MockHalPlug> mMockHalPlug;
     cable::SocketPtr mMockSocketPtr;
-    std::unique_ptr<MockSocket> mMockSocket;  // Non-owning
+    MockSocket* mMockSocket = nullptr;  // Non-owning
     bool mSocketIsOpen = true;
     std::shared_ptr<HalPlugToIPlugAdapter> mAdapter;
 };
@@ -183,7 +196,7 @@ TEST_F(HalPlugAdapterTest, OnUnplugIsMarshalledToOnCloseOnClientThread) {
 
     // onUnplug will trigger close(), which will post a task to call unplugImpl.
     // We need to expect that call and wait for it to ensure the async chain completes.
-    EXPECT_CALL(*mMockSocket, UnplugImpl()).WillOnce(Invoke([&]() {
+    EXPECT_CALL(*mMockSocket, OnUnplug()).WillOnce(Invoke([&]() {
         mSocketIsOpen = false;  // Signal to TearDown that we handled the close.
         unplugImplCalled.Notify();
         return nullptr;
@@ -202,7 +215,7 @@ TEST_F(HalPlugAdapterTest, DISABLED_CloseIsMarshalledToUnplugImplOnQemuThread) {
     bool callClose = false;
     absl::Notification unplugCalled;
     absl::Notification postedClose;
-    EXPECT_CALL(*mMockSocket, UnplugImpl()).WillOnce(Invoke([&]() -> cable::PlugPtr {
+    EXPECT_CALL(*mMockSocket, OnUnplug()).WillOnce(Invoke([&]() -> cable::PlugPtr {
         EXPECT_EQ(std::this_thread::get_id(), mQemuLoop->GetId());
         unplugCalled.Notify();
         mSocketIsOpen = false;
@@ -292,3 +305,5 @@ TEST_F(HalPlugAdapterTest, CoalescesInitialSendsAndDispatchesSubsequentSendSepar
     socket->Send("part3:");
     turn2Done.WaitForNotificationWithTimeout(absl::Milliseconds(100));
 }
+
+}  // namespace
