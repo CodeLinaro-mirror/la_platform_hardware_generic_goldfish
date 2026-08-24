@@ -190,24 +190,44 @@ class EventLoop : public CallbackEventSource<LooperStatusEvent> {
      */
     virtual bool IsOnLoopThread() const = 0;
 
+    // Evaluates to absl::Status for void tasks, or absl::StatusOr<std::future<T>> for tasks
+    // returning T.
+    template <typename F>
+    using PostReturnType =
+            std::conditional_t<std::is_void_v<std::invoke_result_t<std::decay_t<F>>>, absl::Status,
+                               absl::StatusOr<std::future<std::invoke_result_t<std::decay_t<F>>>>>;
+
+    // Evaluates to absl::Status for void tasks, or absl::StatusOr<T> for tasks returning T.
+    template <typename F>
+    using PostAndWaitReturnType =
+            std::conditional_t<std::is_void_v<std::invoke_result_t<std::decay_t<F>>>, absl::Status,
+                               absl::StatusOr<std::invoke_result_t<std::decay_t<F>>>>;
+
     /**
      * @brief Posts a callable object for execution on the event loop.
+     *
+     * If the callable returns void, Post() directly delegates to PostTaskWithOptions() and returns
+     * absl::Status, eliminating promise/future heap allocation and sub-state overhead.
+     * If the callable returns a non-void type T, Post() returns absl::StatusOr<std::future<T>>.
      *
      * @tparam F The type of the callable object.
      * @param f The callable object to execute.
      * @param delay The duration to wait before executing the task. A delay of
      * zero executes the task as soon as possible.
      * @param options Configuration options specifying task metadata for diagnostics.
-     * @return A std::future that will be fulfilled with the return value of the task.
+     * @return absl::Status for void tasks, or std::future<T> for value-returning tasks.
      */
     template <typename F>
     auto Post(F&& f, std::chrono::milliseconds delay = std::chrono::milliseconds::zero(),
-              PostOptions options = {})
-            -> absl::StatusOr<std::future<decltype(std::forward<F>(f)())>> {
+              PostOptions options = {}) -> PostReturnType<F> {
         if (options.caller_pc == 0) {
             options.caller_pc = __builtin_return_address(0);
         }
-        return PostWithOptions<F>(std::forward<F>(f), delay, options);
+        if constexpr (std::is_same_v<PostReturnType<F>, absl::Status>) {
+            return PostTaskWithOptions(std::forward<F>(f), delay, options);
+        } else {
+            return PostWithOptions<F>(std::forward<F>(f), delay, options);
+        }
     }
 
     /**
@@ -220,16 +240,43 @@ class EventLoop : public CallbackEventSource<LooperStatusEvent> {
      * @param f The callable object to execute.
      * @param delay The duration to wait before execution.
      * @param context A label describing the source or purpose of the task.
-     * @return A std::future that will be fulfilled with the return value of the task.
+     * @return absl::Status for void tasks, or std::future<T> for value-returning tasks.
      */
     template <typename F>
     auto Post(F&& f, std::chrono::milliseconds delay, std::string_view context)
-            -> absl::StatusOr<std::future<decltype(std::forward<F>(f)())>> {
+            -> PostReturnType<F> {
         return Post(std::forward<F>(f), delay,
                     PostOptions{.caller_pc = __builtin_return_address(0), .context = context});
     }
 
+    /**
+     * @brief Posts a callable object immediately with a custom context label.
+     *
+     * This is a convenience overload of Post() that executes the callable as soon as
+     * possible with the specified context label.
+     *
+     * @tparam F The type of the callable object.
+     * @param f The callable object to execute.
+     * @param context A label describing the source or purpose of the task.
+     * @return absl::Status for void tasks, or std::future<T> for value-returning tasks.
+     */
+    template <typename F>
+    auto Post(F&& f, std::string_view context) -> PostReturnType<F> {
+        return Post(std::forward<F>(f), std::chrono::milliseconds::zero(), context);
+    }
+
   private:
+    absl::Status PostTaskWithOptions(Task task, std::chrono::milliseconds delay,
+                                     const PostOptions& options) {
+        FlowId flow_id = 0;
+        if (tracker_) {
+            flow_id = tracker_->LogPost(options);
+        }
+        if (delay == std::chrono::milliseconds::zero()) {
+            return PostImmediately(std::move(task), flow_id);
+        }
+        return PostDelayed(std::move(task), delay, flow_id);
+    }
     template <typename F>
     auto PostWithOptions(F&& f, std::chrono::milliseconds delay, const PostOptions& options)
             -> absl::StatusOr<std::future<decltype(std::forward<F>(f)())>> {
@@ -237,27 +284,11 @@ class EventLoop : public CallbackEventSource<LooperStatusEvent> {
         std::promise<ReturnType> promise;
         auto future = promise.get_future();
 
-        FlowId flow_id = 0;
-        if (tracker_) {
-            flow_id = tracker_->LogPost(options);
-        }
-
-        // This lambda will be executed on the event loop thread.
         auto task_runner = [promise = std::move(promise), f = std::forward<F>(f)]() mutable {
-            if constexpr (std::is_void_v<ReturnType>) {
-                f();
-                promise.set_value();
-            } else {
-                promise.set_value(f());
-            }
+            promise.set_value(f());
         };
 
-        absl::Status s;
-        if (delay == std::chrono::milliseconds::zero()) {
-            s = PostImmediately(std::move(task_runner), flow_id);
-        } else {
-            s = PostDelayed(std::move(task_runner), delay, flow_id);
-        }
+        absl::Status s = PostTaskWithOptions(std::move(task_runner), delay, options);
         if (!s.ok()) {
             return s;
         }
@@ -275,8 +306,7 @@ class EventLoop : public CallbackEventSource<LooperStatusEvent> {
      * will immediately exit with a FATAL warning.
      */
     template <typename F>
-    auto PostAndWait(F&& task) -> std::conditional_t<std::is_void_v<decltype(task())>, absl::Status,
-                                                     absl::StatusOr<decltype(task())>> {
+    auto PostAndWait(F&& task) -> PostAndWaitReturnType<F> {
         if (IsOnLoopThread()) {
             LOG(FATAL) << "postAndWait cannot be called from the event loop.";
         }
@@ -286,7 +316,7 @@ class EventLoop : public CallbackEventSource<LooperStatusEvent> {
             return absl::FailedPreconditionError("Event loop has finished execution");
         }
 
-        using ReturnType = decltype(task());
+        using ReturnType = std::invoke_result_t<std::decay_t<F>>;
         absl::Notification done;
         FlowId flow_id = 0;
         if (tracker_) {

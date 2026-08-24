@@ -193,6 +193,37 @@ static void BM_EventLoop_PipelineThroughput(benchmark::State& state) {
 }
 BENCHMARK(BM_EventLoop_PipelineThroughput);
 
+// Benchmarks value-returning Post tasks requiring std::promise / std::future allocation.
+static void BM_EventLoop_ValueReturning_PipelineThroughput(benchmark::State& state) {
+    auto loop = LibuvEventLoop::Create();
+    std::thread loop_thread([&]() { loop->Run().IgnoreError(); });
+
+    // Wait for loop to start
+    while (loop->GetState() != LooperStatusEvent::State::kRunning) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    }
+
+    const int batch_size = 500;
+
+    for (auto _ : state) {
+        absl::BlockingCounter counter(batch_size);
+        for (int i = 0; i < batch_size; ++i) {
+            auto fut = loop->Post([&]() -> int {
+                counter.DecrementCount();
+                return 42;
+            });
+            benchmark::DoNotOptimize(fut);
+        }
+        counter.Wait();
+    }
+
+    loop->ShutdownAndWait().IgnoreError();
+    if (loop_thread.joinable()) {
+        loop_thread.join();
+    }
+}
+BENCHMARK(BM_EventLoop_ValueReturning_PipelineThroughput);
+
 // Benchmarks multi-threaded queue contention on the looper.
 static void BM_EventLoop_ConcurrentContention(benchmark::State& state) {
     auto loop = LibuvEventLoop::Create();

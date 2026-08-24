@@ -103,6 +103,16 @@ class EventLoopTest : public ::testing::TestWithParam<std::string> {
         }
     }
 
+    void runUntil(absl::Notification& done) {
+        if (mLoopType == "libuv") {
+            ASSERT_TRUE(done.WaitForNotificationWithTimeout(absl::Seconds(2)));
+        } else if (mLoopType == "qemu") {
+            while (!done.HasBeenNotified()) {
+                fake_qemu_advance_ms(1);
+            }
+        }
+    }
+
     // Change this if you find that the timing assertions are flaky due to machine load.
     const std::chrono::milliseconds tolerance = std::chrono::milliseconds(100);
     std::string mLoopType;
@@ -1108,6 +1118,62 @@ TEST_P(EventLoopTest, ThreadedEventStateChanges) {
 
     ASSERT_THAT(states, ::testing::ElementsAre(LooperStatusEvent::State::kShuttingDown,
                                                LooperStatusEvent::State::kFinished));
+}
+
+TEST_P(EventLoopTest, PostVoidExecutesOnLoopThread) {
+    runInThread();
+    absl::Notification done;
+    bool executed = false;
+
+    // Post with void lambda auto-derives return type as absl::Status.
+    absl::Status status = loop->Post([&]() {
+        executed = true;
+        done.Notify();
+    });
+
+    ASSERT_TRUE(status.ok());
+    runUntil(done);
+    EXPECT_TRUE(executed);
+}
+
+TEST_P(EventLoopTest, PostVoidDelayedExecutesAfterDelay) {
+    runInThread();
+    absl::Notification done;
+    auto start = std::chrono::steady_clock::now();
+    const auto delay = 50ms;
+
+    absl::Status status = loop->Post(
+            [&]() {
+                if (mLoopType == "libuv") {
+                    auto elapsed = std::chrono::steady_clock::now() - start;
+                    EXPECT_NEAR(
+                            std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count(),
+                            delay.count(), tolerance.count());
+                }
+                done.Notify();
+            },
+            delay);
+
+    ASSERT_TRUE(status.ok());
+    runUntil(done);
+}
+
+TEST_P(EventLoopTest, PostVoidWithContextAndMoveOnlyCapture) {
+    runInThread();
+    absl::Notification done;
+    auto ptr = std::make_unique<int>(42);
+    int captured_val = 0;
+
+    absl::Status status = loop->Post(
+            [p = std::move(ptr), &captured_val, &done]() {
+                captured_val = *p;
+                done.Notify();
+            },
+            "test_context");
+
+    ASSERT_TRUE(status.ok());
+    runUntil(done);
+    EXPECT_EQ(captured_val, 42);
 }
 
 }  // namespace goldfish::async
