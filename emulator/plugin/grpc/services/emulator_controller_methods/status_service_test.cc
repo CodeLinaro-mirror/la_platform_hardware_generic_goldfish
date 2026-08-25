@@ -65,6 +65,13 @@ class StatusServiceTest : public GrcpServiceTest {
         GrcpServiceTest::SetUp();
     }
 
+    void TearDown() override {
+        if (auto* avd = ::goldfish::avd_info::GetNullableAvd()) {
+            avd->SetNetsimEndpoint("");
+        }
+        GrcpServiceTest::TearDown();
+    }
+
     EmulatorController::Service* getService() override { return mServiceWrapper.get(); }
 
   protected:
@@ -205,6 +212,23 @@ TEST_F(StatusServiceTest, GetStatusWithCpuAccelerationUnknownVersion) {
 
     auto guestConfig = reply.guestconfig();
     EXPECT_EQ(guestConfig["hypervisorVersion"], "None");
+}
+
+TEST_F(StatusServiceTest, GetStatusWithNetsimEndpoint) {
+    auto* avd = ::goldfish::avd_info::GetNullableAvd();
+    ASSERT_NE(avd, nullptr);
+    avd->SetNetsimEndpoint("localhost:12345");
+
+    auto statusService = std::make_unique<StatusServiceImpl>(mGuestStatus, mAvdProperties, avd);
+    StatusServiceWrapper serviceWrapper(*statusService);
+
+    Empty request;
+    EmulatorStatus reply;
+    auto status = serviceWrapper.getStatus(nullptr, &request, &reply);
+    ASSERT_TRUE(status.ok());
+
+    auto platform = reply.platformconfig();
+    EXPECT_EQ(platform["netsim.endpoint"], "localhost:12345");
 }
 
 }  // namespace android::emulation::control

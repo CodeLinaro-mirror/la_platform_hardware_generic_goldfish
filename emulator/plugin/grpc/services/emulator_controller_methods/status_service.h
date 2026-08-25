@@ -31,13 +31,15 @@ using grpc::Status;
 
 class StatusServiceImpl {
   public:
-    StatusServiceImpl(GuestStatus& guestStatus, const AvdProperties& avd_properties);
+    StatusServiceImpl(GuestStatus& guestStatus, const AvdProperties& avd_properties,
+                      const ::goldfish::avd_info::AvdUniverse* avd_universe = nullptr);
 
     Status getStatus(EmulatorStatus* reply);
 
   private:
     GuestStatus& guest_status_;
     const AvdProperties& avd_properties_;
+    const ::goldfish::avd_info::AvdUniverse* avd_universe_{nullptr};
 };
 
 }  // namespace control
