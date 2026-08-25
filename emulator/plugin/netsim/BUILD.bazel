@@ -12,6 +12,7 @@ cc_library(
     deps = [
         "//emulator/libs/grpc_client",
         "//emulator/plugin/avd:info",
+        "//emulator/telnet:netsim_connection_provider",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/time",
@@ -60,6 +61,7 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":netsim_transport",
+        "//emulator/libs/file",
         "@abseil-cpp//absl/log",
         "@qemu//:qemu-headers-exported",
     ],

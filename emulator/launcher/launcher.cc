@@ -45,7 +45,6 @@
 #include "goldfish/async/when_all.h"
 #include "goldfish/file/file.h"
 #include "goldfish/metrics/metrics_reporter.h"
-#include "goldfish/modem_simulator/modem_simulator_service.h"
 #include "goldfish/network/endpoint.h"
 #include "host_info.h"
 #include "launch_fishtank.h"
@@ -79,8 +78,6 @@ absl::Status send_emulator_grpc_shutdown(int serial_number) {
 
 using ::goldfish::async::WhenAll;
 using WhenAllChardevEndpoints = std::shared_ptr<WhenAll<ChardevEndpoints>>;
-
-using ::goldfish::modem_simulator::ModemSimulatorService;
 
 class Launcher {
   public:
@@ -131,8 +128,6 @@ class Launcher {
                             }
                         });
                     }
-                    config_.event_loop.Post([this, chardevs]() { init_modem_simulator(chardevs); })
-                            .IgnoreError();
                 })
                 .IgnoreError();
     }
@@ -166,21 +161,7 @@ class Launcher {
         }
     }
 
-    void init_modem_simulator(const WhenAllChardevEndpoints& chardevs) {
-        std::optional<std::filesystem::path> icc_profile_override;
-        if (const char* icc_profile = config_.opts.icc_profile) {
-            icc_profile_override = std::filesystem::path(icc_profile);
-        }
-
-        modem_simulator_service_ =
-                ModemSimulatorService::Create(*config_.avd, icc_profile_override);
-        if (modem_simulator_service_) {
-            chardevs->MutableResults().modem_simulator =
-                    modem_simulator_service_->ChardevEndpoint();
-            chardevs->MutableResults().modem_simulator_host_id = modem_simulator_service_->HostId();
-        }
-    }
-
+  private:
     static absl::StatusOr<std::shared_ptr<::goldfish::async::AsyncSocketServer>>
     open_tcp_server_port(::goldfish::async::EventLoop& event_loop,
                          ::goldfish::async::AsyncSocketFactory& factory, int port) {
@@ -422,7 +403,6 @@ class Launcher {
     std::unique_ptr<::goldfish::async::ManagedProcess> fishtank_process_;
     std::unique_ptr<::goldfish::async::ManagedProcess> netsimd_process_;
     std::unique_ptr<::goldfish::async::ManagedProcess> emulator_process_;
-    std::shared_ptr<ModemSimulatorService> modem_simulator_service_;
 
     int emulator_exit_status_ = 0;
 

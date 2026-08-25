@@ -326,6 +326,10 @@ void avd_info_set_dump_perf_stat_path(Object* obj, const char* value, Error** er
     toMutableAvdProperties(obj).dump_perf_stat_path = path;
 }
 
+void avd_info_set_icc_profile(Object* obj, const char* value, Error** errp) {
+    toMutableAvdProperties(obj).icc_profile = std::filesystem::path(value);
+}
+
 void avd_info_unrealize(DeviceState* dev) {
     VLOG(1) << "avd_info_unrealize";
     gGlobalAvdUniverseInstance = nullptr;
@@ -439,6 +443,7 @@ void avd_info_class_init(ObjectClass* oc, const void* data) {
     object_class_property_add_str(oc, "metrics_user_id", nullptr, avd_info_set_metrics_user_id);
     object_class_property_add_str(oc, "dump_perf_stat_path", nullptr,
                                   avd_info_set_dump_perf_stat_path);
+    object_class_property_add_str(oc, "icc_profile", nullptr, avd_info_set_icc_profile);
 
     DeviceClass* dc = DEVICE_CLASS(oc);
     dc->realize = avd_info_realize;

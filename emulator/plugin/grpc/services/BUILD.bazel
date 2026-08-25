@@ -30,36 +30,6 @@ cc_library(
 )
 
 cc_library(
-    name = "modem_service",
-    srcs = ["modem_service.cc"],
-    hdrs = ["include/android/emulation/control/incubating/modem_service.h"],
-    includes = ["include"],
-    deps = [
-        "//emulator/libs/async:async_api",
-        "//emulator/libs/grpc_utils:absl_translate",
-        "//emulator/libs/grpc_utils:async",
-        "//emulator/libs/hardware_config",
-        "//emulator/libs/parsing:hexbin",
-        "//emulator/libs/shared_memory",
-        "//emulator/libs/sockets",
-        "//emulator/modem_simulator:i_modem_simulator_client",
-        "//emulator/plugin/avd:info",
-        "@abseil-cpp//absl/container:flat_hash_map",
-        "@abseil-cpp//absl/strings",
-        "@aemu//protos/services/incubating/modem:modem_service_cc_grpc",
-    ],
-)
-
-cc_test(
-    name = "modem_service_test",
-    srcs = ["modem_service_test.cc"],
-    deps = [
-        ":modem_service",
-        "//emulator/libs/test:googletest_main",
-    ],
-)
-
-cc_library(
     name = "sensor_service_incubating",
     srcs = ["sensor_service_incubating.cc"],
     hdrs = ["include/android/emulation/control/incubating/sensor_service_incubating.h"],
