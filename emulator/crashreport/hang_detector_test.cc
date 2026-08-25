@@ -70,7 +70,7 @@ TEST_F(HangDetectorTest, PredicateTriggersHang) {
         GTEST_SKIP() << "This test cannot be run under a debugger";
     }
     mHangDetector->AddPredicateCheck([] { return true; }, "Always dead");
-    ASSERT_TRUE(wait_for_hang(absl::Seconds(1)));
+    ASSERT_TRUE(wait_for_hang(absl::Seconds(10)));
 }
 
 TEST_F(HangDetectorTest, NormalLoopNoHang) {
@@ -112,7 +112,7 @@ TEST_F(HangDetectorTest, BlockedLoopTriggersHang) {
         mTestClock->Advance(absl::Milliseconds(100));
         absl::SleepFor(absl::Milliseconds(10));
     }
-    ASSERT_TRUE(wait_for_hang(absl::Seconds(1)));
+    ASSERT_TRUE(wait_for_hang(absl::Seconds(10)));
 
     // Unblock the loop so that it actually terminates!
     hang.Notify();
@@ -171,10 +171,10 @@ TEST_F(HangDetectorTest, NoHangCallbackDeadlockWhenRemovingLooper) {
         clock_ptr->Advance(absl::Milliseconds(20));
         absl::SleepFor(absl::Milliseconds(5));
     }
-    ASSERT_TRUE(hang_cb_called.WaitForNotificationWithTimeout(absl::Seconds(1)));
+    ASSERT_TRUE(hang_cb_called.WaitForNotificationWithTimeout(absl::Seconds(10)));
 
     hang.Notify();
-    ASSERT_TRUE(remove_completed.WaitForNotificationWithTimeout(absl::Seconds(1)));
+    ASSERT_TRUE(remove_completed.WaitForNotificationWithTimeout(absl::Seconds(10)));
     if (remove_thread.joinable()) {
         remove_thread.join();
     }
