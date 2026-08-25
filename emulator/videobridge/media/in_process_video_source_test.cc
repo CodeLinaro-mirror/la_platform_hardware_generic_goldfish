@@ -22,6 +22,7 @@
 #include <thread>
 #include <vector>
 
+#include "absl/base/thread_annotations.h"
 #include "absl/synchronization/mutex.h"
 
 #include "api/make_ref_counted.h"
@@ -35,7 +36,8 @@
 namespace goldfish::videobridge {
 namespace {
 
-struct DummyVideoSink : public webrtc::VideoSinkInterface<webrtc::VideoFrame> {
+class DummyVideoSink : public webrtc::VideoSinkInterface<webrtc::VideoFrame> {
+  public:
     void OnFrame(const webrtc::VideoFrame& frame) override {
         absl::MutexLock lock(&mutex_);
         last_width_ = frame.width();
