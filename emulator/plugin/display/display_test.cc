@@ -17,6 +17,7 @@
 #include <thread>
 
 #include "absl/synchronization/mutex.h"
+#include "absl/synchronization/notification.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "gtest/gtest.h"
@@ -150,4 +151,96 @@ TEST_F(DisplayTest, ThreadSafeDimensions) {
 
     running = false;
     writer.join();
+}
+
+// Ensure TestDisplay can track lifecycle hooks for testing.
+class LifecycleMockDisplay : public TestDisplay {
+  public:
+    LifecycleMockDisplay(EventLoop* loop, uint8_t id, uint32_t width, uint32_t height)
+            : TestDisplay(loop, id, width, height) {}
+
+    void OnListenerAdded() override { added_count++; }
+    void OnListenerRemoved() override { removed_count++; }
+
+    int added_count = 0;
+    int removed_count = 0;
+};
+
+TEST_F(DisplayTest, AddFrameListener_ReceivesFramesAsync) {
+    LifecycleMockDisplay display(loop_.get(), 0, 100, 100);
+
+    absl::Notification frame_arrived;
+    auto listener = display.AddFrameListener([&](const FrameInfo&) {
+        if (!frame_arrived.HasBeenNotified()) {
+            frame_arrived.Notify();
+        }
+    });
+
+    // Simulate QEMU pushing a frame
+    display.Incoming();
+
+    // The notification should arrive.
+    EXPECT_TRUE(frame_arrived.WaitForNotificationWithTimeout(absl::Seconds(1)));
+}
+
+TEST_F(DisplayTest, AddFrameListener_TriggersHooks) {
+    LifecycleMockDisplay display(loop_.get(), 0, 100, 100);
+
+    EXPECT_EQ(0, display.added_count);
+    EXPECT_EQ(0, display.removed_count);
+
+    {
+        auto listener = display.AddFrameListener([](const FrameInfo&) {});
+
+        EXPECT_EQ(1, display.added_count);
+        EXPECT_EQ(0, display.removed_count);
+    }
+
+    EXPECT_EQ(1, display.added_count);
+    EXPECT_EQ(1, display.removed_count);
+}
+
+TEST_F(DisplayTest, DisplayEventProxy_ForwardsEventsAndManagesLifetime) {
+    auto display = std::make_shared<LifecycleMockDisplay>(loop_.get(), 0, 100, 100);
+    EXPECT_EQ(0, display->added_count);
+
+    {
+        auto proxy = std::make_unique<goldfish::display::DisplayEventProxy>(display);
+        EXPECT_EQ(1, display->added_count);
+        EXPECT_EQ(0, display->removed_count);
+
+        absl::Notification frame_arrived;
+        auto callback = android::base::eventing::MakeScopedCallback(*proxy, [&](const FrameInfo&) {
+            if (!frame_arrived.HasBeenNotified()) {
+                frame_arrived.Notify();
+            }
+        });
+
+        display->Incoming();
+        EXPECT_TRUE(frame_arrived.WaitForNotificationWithTimeout(absl::Seconds(1)));
+    }
+
+    // After proxy destruction, the listener should be removed.
+    EXPECT_EQ(1, display->removed_count);
+}
+
+TEST_F(DisplayTest, DisplayEventProxy_HandlesDisplayDestroyedFirst) {
+    auto display = std::make_shared<LifecycleMockDisplay>(loop_.get(), 0, 100, 100);
+    std::weak_ptr<LifecycleMockDisplay> weak_display = display;
+    auto proxy = std::make_unique<goldfish::display::DisplayEventProxy>(display);
+
+    // Proxy should hold a weak reference and not extend display lifetime
+    EXPECT_EQ(1, weak_display.use_count());
+
+    // Destroy the display before the proxy
+    display.reset();
+    EXPECT_TRUE(weak_display.expired());
+
+    // Destroying proxy should not crash even if the display is gone
+    proxy.reset();
+}
+
+TEST_F(DisplayTest, DisplayEventProxy_HandlesNullDisplay) {
+    auto proxy = std::make_unique<goldfish::display::DisplayEventProxy>(std::weak_ptr<IDisplay>{});
+    EXPECT_NO_FATAL_FAILURE(proxy.reset());
 }

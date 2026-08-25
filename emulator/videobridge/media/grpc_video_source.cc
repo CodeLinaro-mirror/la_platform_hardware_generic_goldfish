@@ -108,6 +108,9 @@ void GrpcVideoSource::OnStart() {
         LOG(INFO) << "Starting GrpcVideoSource capture loop for display " << options_.display_id
                   << " (" << options_.width << "x" << options_.height
                   << ") connected to emulator at " << client_->TargetAddress();
+        if (capture_thread_.joinable()) {
+            capture_thread_.join();
+        }
         context_ = std::make_unique<::grpc::ClientContext>();
         capture_thread_ = std::thread([this]() { CaptureLoop(); });
     }
