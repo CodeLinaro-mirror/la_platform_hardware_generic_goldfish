@@ -23,31 +23,35 @@ void simulateWork(std::chrono::milliseconds duration) {
 }
 
 TEST(TimeoutMonitorTests, BasicTimeout) {
-    bool crash_handler_called = false;
+    std::atomic<bool> crash_handler_called = false;
     auto crash_handler = [&crash_handler_called]() { crash_handler_called = true; };
 
-    TimeoutMonitor monitor(std::chrono::milliseconds(1), crash_handler);
+    {
+        TimeoutMonitor monitor(std::chrono::milliseconds(1), crash_handler);
 
-    // Simulate work that exceeds the timeout
-    simulateWork(std::chrono::milliseconds(200));
+        // Simulate work that exceeds the timeout
+        simulateWork(std::chrono::milliseconds(200));
+    }
 
-    EXPECT_TRUE(crash_handler_called);
+    EXPECT_TRUE(crash_handler_called.load());
 }
 
 TEST(TimeoutMonitorTests, NoTimeout) {
-    bool crash_handler_called = false;
+    std::atomic<bool> crash_handler_called = false;
     auto crash_handler = [&crash_handler_called]() { crash_handler_called = true; };
 
-    TimeoutMonitor monitor(std::chrono::milliseconds(200), crash_handler);
+    {
+        TimeoutMonitor monitor(std::chrono::milliseconds(200), crash_handler);
 
-    // Work that finishes within the limit
-    simulateWork(std::chrono::milliseconds(1));
+        // Work that finishes within the limit
+        simulateWork(std::chrono::milliseconds(1));
+    }
 
-    EXPECT_FALSE(crash_handler_called);
+    EXPECT_FALSE(crash_handler_called.load());
 }
 
 TEST(TimeoutMonitorTests, TimeoutDoesNotBlock) {
-    bool crash_handler_called = false;
+    std::atomic<bool> crash_handler_called = false;
     auto crash_handler = [&crash_handler_called]() { crash_handler_called = true; };
 
     auto start_time = std::chrono::steady_clock::now();
@@ -63,6 +67,7 @@ TEST(TimeoutMonitorTests, TimeoutDoesNotBlock) {
 
     // The monitor should properly clean up in a timely fashion.
     EXPECT_LT(duration.count(), 500);
+    EXPECT_FALSE(crash_handler_called.load());
 }
 
 }  // namespace crashreport

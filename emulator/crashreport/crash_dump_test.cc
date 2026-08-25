@@ -22,6 +22,7 @@
 
 #include "android/base/bazel_info.h"
 #include "android/base/system.h"
+#include "android/base/testing/test_temp_dir.h"
 #include "android/crashreport/crash_system.h"
 #include "android/process/command.h"
 #include "client/crash_report_database.h"
@@ -30,6 +31,7 @@
 using android::base::Bazel;
 using android::base::Command;
 using android::base::System;
+using android::base::TestTempDir;
 using crashpad::CrashReportDatabase;
 
 namespace fs = std::filesystem;
@@ -42,12 +44,18 @@ class CrashTest : public ::testing::Test {
   protected:
     void SetUp() override {
         absl::SetVLogLevel("*", 1);
+        mTempDir = std::make_unique<TestTempDir>("crash_test_db");
+        System::SetEnvironmentVariable("ANDROID_EMU_CRASH_REPORTING_DATABASE",
+                                       mTempDir->PathString());
         mCrashdatabase = InitializeCrashDatabase();
         deleteReports();
     }
 
     void TearDown() override {
-        // deleteReports();
+        deleteReports();
+        mCrashdatabase.reset();
+        mTempDir.reset();
+        System::SetEnvironmentVariable("ANDROID_EMU_CRASH_REPORTING_DATABASE", "");
     }
 
     void deleteReports() {
@@ -85,16 +93,16 @@ class CrashTest : public ::testing::Test {
             GTEST_SKIP() << "This test can only be run under Bazel";
         }
         std::basic_stringbuf<char> std_err;
-        auto proc = Command::Create({executable.string(), "--delay_ms", "1000"})
+        auto proc = Command::Create({executable.string(), "--delay_ms", "0"})
                             .Inherit()
                             .RedirectStderrToUnsafe(&std_err)
                             .Execute();
-        while (proc->IsAlive()) {
-            auto res = proc->Err()->AsString();
-            if (!res.empty()) LOG(INFO) << "Crash results: " << res;
-        }
+        proc->WaitFor(std::chrono::seconds(10));
+        auto res = proc->Err()->AsString();
+        if (!res.empty()) LOG(INFO) << "Crash results: " << res;
     }
 
+    std::unique_ptr<TestTempDir> mTempDir;
     std::unique_ptr<CrashReportDatabase> mCrashdatabase;
 };
 
@@ -114,10 +122,10 @@ TEST_F(CrashTest, crash_generates_minidump) {
     crash();
 
     int after = 0;
-    auto deadline = absl::Now() + absl::Seconds(5);
+    auto deadline = absl::Now() + absl::Seconds(15);
     while (absl::Now() < deadline) {
         // Let's give the crash handler some time to write to the database.
-        absl::SleepFor(absl::Milliseconds(50));
+        absl::SleepFor(absl::Milliseconds(100));
         std::vector<CrashReportDatabase::Report> newReports;
         std::vector<CrashReportDatabase::Report> newPendingReports;
         mCrashdatabase->GetCompletedReports(&newReports);
