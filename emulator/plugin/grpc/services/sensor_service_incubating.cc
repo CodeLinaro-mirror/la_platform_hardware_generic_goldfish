@@ -32,7 +32,10 @@ using ::goldfish::sensors::PhysicalModelChangeEvent;
 class PhysicalStateEventStreamWriter
         : public BaseEventStreamWriter<PhysicalStateEvent, PhysicalModelChangeEvent> {
   public:
-    PhysicalStateEventStreamWriter(ChangeSupport* listener) : BaseEventStreamWriter(listener) {}
+    explicit PhysicalStateEventStreamWriter(ChangeSupport* listener)
+            : BaseEventStreamWriter(listener) {
+        Subscribe();
+    }
 
     void EventArrived(const PhysicalModelChangeEvent& event) override {
         PhysicalStateEvent reply;
@@ -65,7 +68,9 @@ class PhysicalModelEventStreamWriter
   public:
     PhysicalModelEventStreamWriter(::goldfish::sensors::PhysicalModel& pm,
                                    const PhysicalModelValue& request)
-            : BaseEventStreamWriter(&pm), mPhysicalModel(pm), mRequest(request) {}
+            : BaseEventStreamWriter(&pm), mPhysicalModel(pm), mRequest(request) {
+        Subscribe();
+    }
 
     void EventArrived(const PhysicalModelChangeEvent& event) override {
         // We only care about target state changes or stabilization for model values.

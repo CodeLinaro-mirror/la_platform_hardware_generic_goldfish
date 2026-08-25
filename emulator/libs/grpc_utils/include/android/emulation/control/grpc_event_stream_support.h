@@ -45,8 +45,36 @@ using android::base::eventing::EventParam;
  * events to a gRPC client.
  *
  * @details This class bridges internal emulator event sources (`CallbackEventSource`) with gRPC
- * asynchronous writer streams (`SimpleServerWriter`). It automatically registers a callback upon
- * construction and unregisters it upon destruction or stream cancellation.
+ * asynchronous writer streams (`SimpleServerWriter`).
+ *
+ * ### Subclassing Contract & Thread-Safety Invariant:
+ * Derived subclasses **must explicitly call `Subscribe()`** at the end of their constructor (once
+ * all subclass fields are initialized and the dynamic type is complete) to begin receiving events.
+ *
+ * Automatic subscription in `BaseEventStreamWriter`'s constructor is intentionally avoided:
+ * registering callbacks while base construction is in flight leaks `this` to concurrent event
+ * dispatch threads, resulting in `vptr` data races (ctor/dtor vs virtual call) and concurrent
+ * access to uninitialized subclass members.
+ *
+ * ### Example Usage:
+ * @code
+ * class MyStreamWriter : public BaseEventStreamWriter<MyProtoReply, MyInternalEvent> {
+ *   public:
+ *     MyStreamWriter(ChangeSupport* source, CustomConfig config)
+ *         : BaseEventStreamWriter(source), config_(std::move(config)) {
+ *         // Subclass is fully constructed; safe to activate subscription:
+ *         Subscribe();
+ *     }
+ *
+ *     void EventArrived(const MyInternalEvent& event) override {
+ *         MyProtoReply reply = FormatReply(event, config_);
+ *         Write(reply);
+ *     }
+ *
+ *   private:
+ *     CustomConfig config_;
+ * };
+ * @endcode
  *
  * @tparam T The type of gRPC messages to be written to the stream.
  * @tparam Event The underlying event type produced by the event source.
@@ -57,22 +85,22 @@ class BaseEventStreamWriter : public SimpleServerWriter<T>, EventListener<Event>
     using ChangeSupport = CallbackEventSource<Event>;
 
     /**
-     * @brief Constructs a `BaseEventStreamWriter` and subscribes to the specified event source.
+     * @brief Constructs a `BaseEventStreamWriter` for the specified event source.
      *
      * @param listener Pointer to the `CallbackEventSource` instance managing event subscriptions.
      */
-    BaseEventStreamWriter(ChangeSupport* listener) : listener_(listener) {
-        callback_id_ =
-                listener_->AddCallback([this](const Event event) { this->EventArrived(event); });
-    }
+    explicit BaseEventStreamWriter(ChangeSupport* listener) : listener_(listener) {}
 
-    virtual ~BaseEventStreamWriter() { listener_->RemoveCallback(callback_id_); }
+    virtual ~BaseEventStreamWriter() { Unsubscribe(); }
 
     /**
      * @brief Overrides `SimpleServerWriter::OnDone()` to delete the writer instance when the client
      * finishes reading the stream.
      */
-    void OnDone() override { delete this; }
+    void OnDone() override {
+        Unsubscribe();
+        delete this;
+    }
 
     /**
      * @brief Overrides `SimpleServerWriter::OnCancel()` to handle client stream cancellations.
@@ -82,13 +110,43 @@ class BaseEventStreamWriter : public SimpleServerWriter<T>, EventListener<Event>
      */
     void OnCancel() override {
         DD_EVT("Cancelled %p", this);
-        listener_->RemoveCallback(callback_id_);
+        Unsubscribe();
         absl::MutexLock lock(&this->reactor_lock_);
         grpc::ServerWriteReactor<T>::Finish(grpc::Status::CANCELLED);
     }
 
+  protected:
+    /**
+     * @brief Subscribes to the event source.
+     *
+     * @note **Subclass Contract**: This method MUST be invoked at the end of the derived class
+     * constructor once all derived fields are initialized and the vtable is finalized.
+     * It is thread-safe and idempotent.
+     */
+    void Subscribe() {
+        absl::MutexLock lock(&this->reactor_lock_);
+        if (callback_id_ == ChangeSupport::kInvalidCallbackId && listener_) {
+            callback_id_ = listener_->AddCallback(
+                    [this](const Event event) { this->EventArrived(event); });
+        }
+    }
+
+    /**
+     * @brief Unsubscribes from the event source.
+     *
+     * @note Thread-safe and idempotent. Automatically invoked on cancellation, completion, and
+     * destruction.
+     */
+    void Unsubscribe() {
+        absl::MutexLock lock(&this->reactor_lock_);
+        if (callback_id_ != ChangeSupport::kInvalidCallbackId && listener_) {
+            listener_->RemoveCallback(callback_id_);
+            callback_id_ = ChangeSupport::kInvalidCallbackId;
+        }
+    }
+
   private:
-    CallbackEventSource<Event>::CallbackId callback_id_;
+    typename ChangeSupport::CallbackId callback_id_{ChangeSupport::kInvalidCallbackId};
     ChangeSupport* listener_;
 };
 
@@ -109,7 +167,10 @@ class GenericEventStreamWriter : public BaseEventStreamWriter<T, T> {
      *
      * @param listener Pointer to the `CallbackEventSource` instance.
      */
-    GenericEventStreamWriter(ChangeSupport* listener) : BaseEventStreamWriter<T, T>(listener) {}
+    explicit GenericEventStreamWriter(ChangeSupport* listener)
+            : BaseEventStreamWriter<T, T>(listener) {
+        this->Subscribe();
+    }
 
     virtual ~GenericEventStreamWriter() = default;
 

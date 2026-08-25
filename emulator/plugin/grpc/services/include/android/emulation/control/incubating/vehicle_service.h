@@ -38,10 +38,12 @@ class VehicleEventStreamWriter
         : public BaseEventStreamWriter<VehicleEvent,
                                        ::goldfish::avd_universe::vehicle::VehiclePropValue> {
   public:
-    VehicleEventStreamWriter(android::base::eventing::CallbackEventSource<
-                             ::goldfish::avd_universe::vehicle::VehiclePropValue>* listener)
+    explicit VehicleEventStreamWriter(
+            android::base::eventing::CallbackEventSource<
+                    ::goldfish::avd_universe::vehicle::VehiclePropValue>* listener)
             : BaseEventStreamWriter<VehicleEvent,
                                     ::goldfish::avd_universe::vehicle::VehiclePropValue>(listener) {
+        Subscribe();
     }
 
     void EventArrived(const ::goldfish::avd_universe::vehicle::VehiclePropValue& event) override {
