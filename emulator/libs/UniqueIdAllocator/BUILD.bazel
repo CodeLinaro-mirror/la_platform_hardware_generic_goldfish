@@ -1,3 +1,4 @@
+load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_test")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
 
@@ -15,6 +16,7 @@ cc_library(
     ],
     deps = [
         "//emulator/libs/archive",
+        "//emulator/libs/archive:collections",
         "@abseil-cpp//absl/log:check",
     ],
 )
@@ -30,5 +32,15 @@ cc_test(
         ":UniqueIdAllocator",
         "//emulator/libs/archive:DequeArchive",
         "//emulator/libs/test:googletest_main",
+        "@abseil-cpp//absl/status:status_matchers",
     ],
+)
+
+clang_tidy_test(
+    name = "tidy",
+    targets = [
+        ":UniqueIdAllocator",
+        ":UniqueIdAllocator_unittests",
+    ],
+    tidy_config_file = "//:clang_tidy_config",
 )

@@ -18,6 +18,7 @@
 #include <cstdio>
 #include <memory>
 
+#include "goldfish/archive/collections/string.h"
 #include "goldfish/async/libuv_event_loop.h"
 #include "goldfish/async/threaded_event_loop.h"
 #include "goldfish/devices/cable/cable.h"

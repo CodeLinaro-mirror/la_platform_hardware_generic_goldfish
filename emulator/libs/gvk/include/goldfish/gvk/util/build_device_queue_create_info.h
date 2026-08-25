@@ -58,9 +58,9 @@ using BuildDeviceQueueCreateInfoResult =
  *
  * NOTE: `VkDeviceQueueCreateInfo::pQueuePriorities` is NOT initialized.
  *
- * See buildDeviceQueueCreateInfo_test.cpp for the examples.
+ * See BuildDeviceQueueCreateInfo_test.cpp for the examples.
  */
-BuildDeviceQueueCreateInfoResult buildDeviceQueueCreateInfo(size_t qfpsSize,
+BuildDeviceQueueCreateInfoResult BuildDeviceQueueCreateInfo(size_t qfpsSize,
                                                             const VkQueueFamilyProperties* qfps,
                                                             const VkQueueFlags requestedQueueFlags);
 

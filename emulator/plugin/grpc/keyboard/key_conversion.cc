@@ -43,7 +43,7 @@ typedef struct SkinKeyEntry {
     unsigned short number;
 } SkinKeyEntry;
 
-static const SkinKeyEntry cmap[] = {
+static const SkinKeyEntry kSkinKeyCharacterMap[] = {
     /* keycode                   base   caps    fn  caps+fn   number */
 
     {Q_KEY_CODE_A, 'a', 'A', 0xe1, 0xc1, 'a'},
@@ -112,40 +112,44 @@ std::vector<QemuKeyEvent> ascii_to_qcode(unsigned short unicode, bool down) {
             << ", " << std::hex << std::setfill('0') << std::setw(4) << unicode << std::dec
             << " down=" << down;
     /* check base keys */
-    for (int n = 0; n < sizeof(cmap); n++) {
-        if (cmap[n].base == unicode) {
-            return {{cmap[n].code, down}};
+    for (int n = 0; n < sizeof(kSkinKeyCharacterMap); n++) {
+        if (kSkinKeyCharacterMap[n].base == unicode) {
+            return {{kSkinKeyCharacterMap[n].code, down}};
         }
     }
 
     /* check caps + keys */
-    for (int n = 0; n < sizeof(cmap); n++) {
-        if (cmap[n].caps == unicode) {
+    for (int n = 0; n < sizeof(kSkinKeyCharacterMap); n++) {
+        if (kSkinKeyCharacterMap[n].caps == unicode) {
             if (down) {
-                return {{Q_KEY_CODE_SHIFT, down}, {cmap[n].code, down}};
+                return {{Q_KEY_CODE_SHIFT, down}, {kSkinKeyCharacterMap[n].code, down}};
             }
-            return {{cmap[n].code, down}, {Q_KEY_CODE_SHIFT, down}};
+            return {{kSkinKeyCharacterMap[n].code, down}, {Q_KEY_CODE_SHIFT, down}};
         }
     }
 
     /* check fn + keys */
-    for (int n = 0; n < sizeof(cmap); n++) {
-        if (cmap[n].fn == unicode) {
+    for (int n = 0; n < sizeof(kSkinKeyCharacterMap); n++) {
+        if (kSkinKeyCharacterMap[n].fn == unicode) {
             if (down) {
-                return {{Q_KEY_CODE_ALT, down}, {cmap[n].code, down}};
+                return {{Q_KEY_CODE_ALT, down}, {kSkinKeyCharacterMap[n].code, down}};
             }
-            return {{cmap[n].code, down}, {Q_KEY_CODE_ALT, down}};
+            return {{kSkinKeyCharacterMap[n].code, down}, {Q_KEY_CODE_ALT, down}};
         }
     }
 
     /* check caps + fn + keys */
-    for (int n = 0; n < sizeof(cmap); n++) {
-        if (cmap[n].caps_fn == unicode) {
+    for (int n = 0; n < sizeof(kSkinKeyCharacterMap); n++) {
+        if (kSkinKeyCharacterMap[n].caps_fn == unicode) {
             if (down) {
-                return {{Q_KEY_CODE_SHIFT, down}, {Q_KEY_CODE_ALT, down}, {cmap[n].code, down}};
+                return {{Q_KEY_CODE_SHIFT, down},
+                        {Q_KEY_CODE_ALT, down},
+                        {kSkinKeyCharacterMap[n].code, down}};
             }
 
-            return {{cmap[n].code, down}, {Q_KEY_CODE_ALT, down}, {Q_KEY_CODE_SHIFT, down}};
+            return {{kSkinKeyCharacterMap[n].code, down},
+                    {Q_KEY_CODE_ALT, down},
+                    {Q_KEY_CODE_SHIFT, down}};
         }
     }
     return {};

@@ -14,9 +14,11 @@
 
 #include "launcher.h"
 
+#include <atomic>
 #include <chrono>
 #include <filesystem>
 #include <memory>
+#include <optional>
 #include <string>
 #include <thread>
 
@@ -58,7 +60,10 @@ namespace {
 
 absl::Status send_emulator_grpc_shutdown(int serial_number) {
     // TODO it would be good to share this grpc connection with the telnet console.
-    ASSIGN_OR_RETURN(auto client, android::emulation::control::EmulatorGrpcClientBuilder() .ForDiscoveredEmulator({{"port.serial", std::to_string(serial_number)}}) .BuildBlocking());
+    ASSIGN_OR_RETURN(auto client, android::emulation::control::EmulatorGrpcClientBuilder()
+                                          .ForDiscoveredEmulator(
+                                                  {{"port.serial", std::to_string(serial_number)}})
+                                          .BuildBlocking());
     RETURN_IF_ERROR(client->Connect(absl::Seconds(2)));
 
     ASSIGN_OR_RETURN(auto stub, client->Stub<android::emulation::control::EmulatorController>());
@@ -68,7 +73,8 @@ absl::Status send_emulator_grpc_shutdown(int serial_number) {
     android::emulation::control::VmRunState request;
     request.set_state(android::emulation::control::VmRunState::SHUTDOWN);
     google::protobuf::Empty response;
-    return android::emulation::control::GrpcStatusToAbslStatus(stub->setVmState(context.get(), request, &response));
+    return android::emulation::control::GrpcStatusToAbslStatus(
+            stub->setVmState(context.get(), request, &response));
 }
 
 using ::goldfish::async::WhenAll;
@@ -95,8 +101,36 @@ class Launcher {
                             &config_.event_loop,
                             [this](ChardevEndpoints ce) { launch_emulator(ce); });
 
-                    config_.event_loop.Post([this, chardevs]() { discover_netsimd(chardevs); })
-                            .IgnoreError();
+                    if (!config_.opts.no_netsim) {
+                        netsimd_connector_thread_ = std::thread([this, chardevs]() {
+                            std::optional<std::string> endpoint_override;
+                            if (const char* ep = config_.opts.packet_streamer_endpoint; ep && *ep) {
+                                endpoint_override = ep;
+                            }
+                            netsim::NetsimConnector connector([this] { return launch_netsimd(); },
+                                                              shutting_down_,
+                                                              std::move(endpoint_override));
+
+                            if (auto connection = connector.Run(); connection.ok()) {
+                                config_.event_loop
+                                        .Post([this, conn = *std::move(connection),
+                                               chardevs = std::move(chardevs)]() mutable {
+                                            VLOG(1) << "Launcher connection to netsim established";
+                                            if (netsimd_connector_thread_.joinable()) {
+                                                netsimd_connector_thread_.join();
+                                            }
+                                            netsimd_connection_ = std::move(conn);
+                                            chardevs->MutableResults().netsim =
+                                                    netsimd_connection_->GetEndpoint().target();
+                                        })
+                                        .IgnoreError();
+                            } else if (!shutting_down_) {
+                                LOG(FATAL)
+                                        << "Emulator launch aborted: Failed to connect to netsimd (required for Wi-Fi, Bluetooth, and Telephony). Status: "
+                                        << connection.status();
+                            }
+                        });
+                    }
                     config_.event_loop.Post([this, chardevs]() { init_modem_simulator(chardevs); })
                             .IgnoreError();
                 })
@@ -106,35 +140,29 @@ class Launcher {
     int emulator_exit_status() const { return emulator_exit_status_; }
 
     void join_shutdown_thread() {
+        if (netsimd_connector_thread_.joinable()) {
+            netsimd_connector_thread_.join();
+        }
         if (shutdown_thread_.joinable()) {
             shutdown_thread_.join();
         }
     }
 
+  private:
     void forwarding_signal_handler(int signum) {
         VLOG(1) << "forwarding_signal_handler called with signum: " << signum;
         shutting_down_ = true;
         if (auto* p = emulator_process_.get()) {
-            LOG(ERROR) << "Signal received, sending shutdown command emulator: " << signum;
+            LOG(ERROR) << "Signal received, sending shutdown command to emulator: " << signum;
             if (auto s = send_emulator_grpc_shutdown(ports_.serial_number); !s.ok()) {
-                LOG(INFO) << "shutdown command failed, signalling emulator: " << signum << " - " << s;
-                // Note that: on Windows, this does not send a signal but instead calls TerminateProcess().
+                LOG(WARNING) << "Graceful gRPC shutdown failed; falling back to forceful kill with signal: " << signum << " - " << s;
+                // Note that: on Windows, this does not send a signal but instead calls
+                // TerminateProcess().
                 p->Kill(signum);
             }
         } else {
             // If there is no emulator process yet then we want to shutdown directly.
             shutdown();
-        }
-    }
-
-    void discover_netsimd(const WhenAllChardevEndpoints& chardevs) {
-        if (config_.opts.no_netsim) {
-            return;
-        }
-        if (auto* netsimd_endpoint = config_.opts.packet_streamer_endpoint; netsimd_endpoint) {
-            try_connect_netsimd(netsimd_endpoint, chardevs);
-        } else {
-            launch_netsimd(chardevs);
         }
     }
 
@@ -153,7 +181,6 @@ class Launcher {
         }
     }
 
-  private:
     static absl::StatusOr<std::shared_ptr<::goldfish::async::AsyncSocketServer>>
     open_tcp_server_port(::goldfish::async::EventLoop& event_loop,
                          ::goldfish::async::AsyncSocketFactory& factory, int port) {
@@ -270,108 +297,27 @@ class Launcher {
         netsimd_process_.reset();
     }
 
-    void launch_netsimd(const WhenAllChardevEndpoints& chardevs) {
-        if (shutting_down_) {
-            return;
-        }
-        existing_netsimd_port_ = read_netsim_port();
-        if (existing_netsimd_port_ != 0) {
-            LOG(WARNING) << "netsim.ini already exists with a valid port - either previous netsimd "
-                            "still running or it died without cleanup: "
-                         << existing_netsimd_port_;
-        }
+    absl::Status launch_netsimd() {
+        ASSIGN_OR_RETURN(
+                auto launch_status, config_.event_loop.PostAndWait([this]() -> absl::Status {
+                    if (shutting_down_) {
+                        return absl::CancelledError("Cancelled netsimd launch: emulator launcher is shutting down");
+                    }
 
-        if (auto netsim_config =
-                    netsimd_launch_config(config_.emulator_paths.netsim_binary, config_.opts);
-            netsim_config.ok()) {
-            if (auto s = config_.process_launcher->Launch(
-                        *std::move(netsim_config),
-                        [this](int64_t status, int signal) { netsimd_exit(status, signal); });
-                s.ok()) {
-                netsimd_process_ = *std::move(s);
-                VLOG(1) << "Running netsimd as pid: " << netsimd_process_->GetPid();
-                // Allow launcher to exit without waiting for netsimd process to be cleaned up.
-                config_.process_launcher->ForgetProcess(*netsimd_process_);
-
-                find_netsimd_ = config_.event_loop.ScheduleRepeating(
-                        [this, chardevs] { return find_netsimd_endpoint(chardevs); },
-                        std::chrono::milliseconds(10), std::chrono::milliseconds(50));
-            } else {
-                LOG(FATAL) << "Fatal error whilst launching netsimd: " << s.status();
-            }
-        } else {
-            LOG(FATAL) << "Fatal error whilst launching netsimd: " << netsim_config.status();
-        }
-    }
-
-    bool find_netsimd_endpoint(const WhenAllChardevEndpoints& chardevs) {
-        if (shutting_down_) {
-            find_netsimd_.reset();
-            return false;
-        }
-        if (retry_countdown_ == 0) {
-            find_netsimd_.reset();
-            // absl::NotFoundError("Unable to determine the correct grpc endpoint for netsimd");
-            LOG(FATAL) << "Unable to determine the correct grpc endpoint for netsimd";
-            return false;
-        }
-        --retry_countdown_;
-
-        if (!netsimd_process_) {
-            // netsimd itself will check whether it's already running and exit if so.
-            VLOG(1) << "netsimd died, perhaps another was already running";
-            if (existing_netsimd_port_ != 0) {
-                LOG(WARNING) << "Connecting to already running netsimd, this likely means it was "
-                                "started by another emulator instance";
-                find_netsimd_.reset();
-                config_.event_loop
-                        .Post([this, chardevs] {
-                            try_connect_netsimd(absl::StrCat("localhost:", existing_netsimd_port_),
-                                                chardevs);
-                        })
-                        .IgnoreError();
-                return false;
-            } else {
-                LOG(FATAL) << "netsimd died and there was no existing port to connect to";
-            }
-        }
-
-        int port = read_netsim_port();
-        if (port == 0) {
-            VLOG(1) << "netsimd: Port not yet available";
-            return true;
-        }
-        // We expect the port to change, if it doesn't then something strange has happened.
-        if (port == existing_netsimd_port_) {
-            VLOG(1) << "netsimd: Port in ini file has not yet changed: " << port;
-            return true;
-        }
-
-        VLOG(1) << "netsim.ini parsed successfully, grpc.port set to: " << port;
-        find_netsimd_.reset();
-        config_.event_loop
-                .Post([this, port, chardevs] {
-                    try_connect_netsimd(absl::StrCat("localhost:", port), chardevs);
-                })
-                .IgnoreError();
-        return false;
-    }
-
-    void try_connect_netsimd(const std::string& netsimd_endpoint,
-                             const WhenAllChardevEndpoints& chardevs) {
-        constexpr absl::Duration kConnectionDeadline = absl::Seconds(5);
-
-        // Blocking
-        VLOG(1) << "Trying to connect to netsimd at: " << netsimd_endpoint;
-        if (auto connection = connect_to_netsim(netsimd_endpoint, kConnectionDeadline);
-            connection.ok()) {
-            VLOG(1) << "Launcher connection to netsim established";
-            netsimd_connection_ = *std::move(connection);
-            chardevs->MutableResults().netsim = netsimd_connection_->GetEndpoint().target();
-        } else {
-            LOG(FATAL) << "Fatal error whilst trying to connect to netsimd: "
-                       << connection.status();
-        }
+                    ASSIGN_OR_RETURN(auto netsim_config,
+                                     netsim::netsimd_launch_config(
+                                             config_.emulator_paths.netsim_binary, config_.opts));
+                    ASSIGN_OR_RETURN(auto proc,
+                                     config_.process_launcher->Launch(
+                                             netsim_config, [this](int64_t status, int signal) {
+                                                 netsimd_exit(status, signal);
+                                             }));
+                    netsimd_process_ = std::move(proc);
+                    VLOG(1) << "Running netsimd as pid: " << netsimd_process_->GetPid();
+                    config_.process_launcher->ForgetProcess(*netsimd_process_);
+                    return absl::OkStatus();
+                }));
+        return launch_status;
     }
 
     void emulator_exit(int64_t exit_status, int term_signal) {
@@ -444,11 +390,6 @@ class Launcher {
             console_controller_.reset();
         }
 
-        if (find_netsimd_) {
-            find_netsimd_->Cancel();
-            find_netsimd_.reset();
-        }
-
         if (netsimd_connection_) {
             netsimd_connection_->Disconnect();
             netsimd_connection_.reset();
@@ -474,23 +415,20 @@ class Launcher {
 
     // Keep a handle open from the launcher to keep netsimd alive.
     // This should avoid any races between discovery and qemu device connection.
-    NetsimConnection_ptr netsimd_connection_;
+    netsim::NetsimConnection_ptr netsimd_connection_;
 
-    std::shared_ptr<::goldfish::async::EventLoop::Timer> find_netsimd_;
+    std::thread netsimd_connector_thread_;
 
     std::unique_ptr<::goldfish::async::ManagedProcess> fishtank_process_;
     std::unique_ptr<::goldfish::async::ManagedProcess> netsimd_process_;
     std::unique_ptr<::goldfish::async::ManagedProcess> emulator_process_;
     std::shared_ptr<ModemSimulatorService> modem_simulator_service_;
 
-    int existing_netsimd_port_ = 0;
-    int retry_countdown_ = 200;
-
     int emulator_exit_status_ = 0;
 
     std::thread shutdown_thread_;
 
-    bool shutting_down_ = false;
+    std::atomic<bool> shutting_down_{false};
 };
 
 }  // namespace

@@ -30,6 +30,7 @@ using android::base::eventing::HighContentionEventSource;
 using android::base::eventing::MakeScopedCallback;
 using android::base::eventing::MultiEventSourceWaiter;
 using android::base::eventing::SafeEventSource;
+using android::base::eventing::ScopedEventCallback;
 
 // A simple event type for testing.
 struct TestEvent {
@@ -199,6 +200,240 @@ TEST(CallbackEventSourceTest, HandleUnsubscribesOnDestruction) {
 
     source.FireEvent(event);
     EXPECT_TRUE(received_events.empty());
+}
+
+TEST(CallbackEventSourceTest, CallbackIdStartsAtOneAndIncrements) {
+    CallbackEventSource<TestEvent> source;
+    EXPECT_EQ(CallbackEventSource<TestEvent>::kInvalidCallbackId, 0);
+
+    auto id1 = source.AddCallback([](const TestEvent&) {});
+    EXPECT_EQ(id1, 1);
+    EXPECT_NE(id1, CallbackEventSource<TestEvent>::kInvalidCallbackId);
+
+    auto id2 = source.AddCallback([](const TestEvent&) {});
+    EXPECT_EQ(id2, 2);
+    EXPECT_NE(id2, CallbackEventSource<TestEvent>::kInvalidCallbackId);
+
+    EXPECT_EQ(source.CallbackCount(), 2);
+    source.RemoveCallback(id1);
+    EXPECT_EQ(source.CallbackCount(), 1);
+    source.RemoveCallback(id2);
+    EXPECT_EQ(source.CallbackCount(), 0);
+}
+
+TEST(CallbackEventSourceTest, RemoveInvalidCallbackIdIsSafe) {
+    CallbackEventSource<TestEvent> source;
+    // Removing invalid ID when empty
+    source.RemoveCallback(CallbackEventSource<TestEvent>::kInvalidCallbackId);
+    EXPECT_EQ(source.CallbackCount(), 0);
+
+    auto id = source.AddCallback([](const TestEvent&) {});
+    EXPECT_EQ(source.CallbackCount(), 1);
+
+    // Removing invalid ID does not remove registered callback
+    source.RemoveCallback(CallbackEventSource<TestEvent>::kInvalidCallbackId);
+    EXPECT_EQ(source.CallbackCount(), 1);
+
+    source.RemoveCallback(id);
+    EXPECT_EQ(source.CallbackCount(), 0);
+}
+
+TEST(CallbackEventSourceTest, ScopedEventCallbackMoveInvalidatesSourceHandle) {
+    CallbackEventSource<TestEvent> source;
+    int received = 0;
+
+    {
+        auto h1 = MakeScopedCallback(source, [&](const TestEvent&) { received++; });
+        EXPECT_EQ(source.CallbackCount(), 1);
+        EXPECT_EQ(h1->GetId(), 1);
+
+        {
+            auto h2 = std::move(h1);
+            EXPECT_EQ(source.CallbackCount(), 1);
+            EXPECT_EQ(h2->GetId(), 1);
+
+            source.FireEvent({1});
+            EXPECT_EQ(received, 1);
+        }  // h2 destroyed, unregisters callback
+
+        EXPECT_EQ(source.CallbackCount(), 0);
+    }  // h1 destroyed, moved-from ID is kInvalidId, should be safe no-op
+
+    EXPECT_EQ(source.CallbackCount(), 0);
+}
+
+TEST(CallbackEventSourceTest, ScopedEventCallbackDefaultConstructor) {
+    using ScopedCallback = ScopedEventCallback<CallbackEventSource<TestEvent>, TestEvent>;
+    ScopedCallback handle;
+    EXPECT_EQ(handle.GetId(), ScopedCallback::kInvalidId);
+    // Destructor of default-constructed handle is a safe no-op.
+}
+
+TEST(CallbackEventSourceTest, ScopedEventCallbackValueMoveSemantics) {
+    using ScopedCallback = ScopedEventCallback<CallbackEventSource<TestEvent>, TestEvent>;
+    CallbackEventSource<TestEvent> source;
+    int received = 0;
+
+    {
+        ScopedCallback cb1(source, [&](const TestEvent&) { received++; });
+        EXPECT_EQ(source.CallbackCount(), 1);
+        EXPECT_EQ(cb1.GetId(), 1);
+
+        {
+            auto cb2 = std::move(cb1);
+            EXPECT_EQ(cb1.GetId(), ScopedCallback::kInvalidId);
+            EXPECT_EQ(cb2.GetId(), 1);
+            EXPECT_EQ(source.CallbackCount(), 1);
+
+            source.FireEvent({42});
+            EXPECT_EQ(received, 1);
+        }  // cb2 destroyed, unregisters callback
+
+        EXPECT_EQ(source.CallbackCount(), 0);
+    }  // cb1 destroyed as moved-from, safe no-op
+
+    EXPECT_EQ(source.CallbackCount(), 0);
+}
+
+TEST(CallbackEventSourceTest, ScopedEventCallbackValueMoveAssignment) {
+    using ScopedCallback = ScopedEventCallback<CallbackEventSource<TestEvent>, TestEvent>;
+    CallbackEventSource<TestEvent> source;
+    int count1 = 0;
+    int count2 = 0;
+
+    ScopedCallback cb1(source, [&](const TestEvent&) { count1++; });
+    ScopedCallback cb2(source, [&](const TestEvent&) { count2++; });
+
+    EXPECT_EQ(source.CallbackCount(), 2);
+
+    // Move-assigning cb2 into cb1 cleans up cb1's callback and assumes cb2's callback.
+    cb1 = std::move(cb2);
+    EXPECT_EQ(source.CallbackCount(), 1);
+    EXPECT_EQ(cb2.GetId(), ScopedCallback::kInvalidId);
+
+    source.FireEvent({100});
+    EXPECT_EQ(count1, 0);
+    EXPECT_EQ(count2, 1);
+}
+
+TEST(CallbackEventSourceTest, ScopedEventCallbackVoidSpecialization) {
+    struct MockVoidSystem {
+        size_t AddCallback(std::function<void()> cb) {
+            callback = std::move(cb);
+            return ++next_id;
+        }
+        void RemoveCallback(size_t id) {
+            if (id != 0) {
+                removed_id = id;
+                callback = nullptr;
+            }
+        }
+        std::function<void()> callback;
+        size_t next_id = 0;
+        size_t removed_id = 0;
+    };
+
+    MockVoidSystem system;
+    int calls = 0;
+
+    using ScopedCallback = ScopedEventCallback<MockVoidSystem, void>;
+    ScopedCallback empty_cb;
+    EXPECT_EQ(empty_cb.GetId(), ScopedCallback::kInvalidId);
+
+    {
+        ScopedCallback cb1(system, [&]() { calls++; });
+        EXPECT_EQ(cb1.GetId(), 1);
+
+        empty_cb = std::move(cb1);
+        EXPECT_EQ(cb1.GetId(), ScopedCallback::kInvalidId);
+        EXPECT_EQ(empty_cb.GetId(), 1);
+        EXPECT_EQ(system.removed_id, 0);
+
+        system.callback();
+        EXPECT_EQ(calls, 1);
+    }
+    // cb1 destroyed (moved-from, safe no-op)
+    EXPECT_EQ(system.removed_id, 0);
+
+    empty_cb = {};  // Cleans up callback 1
+    EXPECT_EQ(system.removed_id, 1);
+    EXPECT_EQ(empty_cb.GetId(), ScopedCallback::kInvalidId);
+}
+
+TEST(CallbackEventSourceTest, ScopedEventCallbackTriggersLifecycleInterception) {
+    class InterceptingEventSystem {
+      public:
+        using CallbackId = size_t;
+
+        CallbackId AddCallback(std::function<void(const TestEvent&)> cb) {
+            auto id = source_.AddCallback(std::move(cb));
+            if (active_count++ == 0) {
+                on_subscribe_count++;
+            }
+            return id;
+        }
+
+        void RemoveCallback(CallbackId id) {
+            if (id != 0) {
+                source_.RemoveCallback(id);
+                if (--active_count == 0) {
+                    on_unsubscribe_count++;
+                }
+            }
+        }
+
+        void FireEvent(const TestEvent& event) { source_.FireEvent(event); }
+
+        int on_subscribe_count = 0;
+        int on_unsubscribe_count = 0;
+        int active_count = 0;
+
+      private:
+        CallbackEventSource<TestEvent> source_;
+    };
+
+    InterceptingEventSystem system;
+    EXPECT_EQ(system.active_count, 0);
+    EXPECT_EQ(system.on_subscribe_count, 0);
+    EXPECT_EQ(system.on_unsubscribe_count, 0);
+
+    using ScopedCallback = ScopedEventCallback<InterceptingEventSystem, TestEvent>;
+
+    int received1 = 0;
+    int received2 = 0;
+
+    {
+        ScopedCallback cb1(system, [&](const TestEvent&) { received1++; });
+        EXPECT_EQ(system.active_count, 1);
+        EXPECT_EQ(system.on_subscribe_count, 1);
+        EXPECT_EQ(system.on_unsubscribe_count, 0);
+
+        {
+            ScopedCallback cb2(system, [&](const TestEvent&) { received2++; });
+            EXPECT_EQ(system.active_count, 2);
+            EXPECT_EQ(system.on_subscribe_count, 1);  // Only triggered on 0 -> 1
+            EXPECT_EQ(system.on_unsubscribe_count, 0);
+
+            system.FireEvent({42});
+            EXPECT_EQ(received1, 1);
+            EXPECT_EQ(received2, 1);
+        }  // cb2 destroyed -> active_count 2 -> 1, no unsubscribe hook yet
+        EXPECT_EQ(system.active_count, 1);
+        EXPECT_EQ(system.on_subscribe_count, 1);
+        EXPECT_EQ(system.on_unsubscribe_count, 0);
+
+        // Reassigning cb1 to empty handle cleans up cb1 -> active_count 1 -> 0, triggers
+        // unsubscribe
+        cb1 = {};
+        EXPECT_EQ(system.active_count, 0);
+        EXPECT_EQ(system.on_subscribe_count, 1);
+        EXPECT_EQ(system.on_unsubscribe_count, 1);
+    }
+
+    // Exiting scope with already-disarmed cb1 does not double-unsubscribe
+    EXPECT_EQ(system.active_count, 0);
+    EXPECT_EQ(system.on_subscribe_count, 1);
+    EXPECT_EQ(system.on_unsubscribe_count, 1);
 }
 
 // --- Tests for MultiEventSourceWaiter ---

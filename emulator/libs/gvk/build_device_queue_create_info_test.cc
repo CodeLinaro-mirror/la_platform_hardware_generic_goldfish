@@ -22,14 +22,14 @@
 namespace goldfish::gvk::util {
 
 namespace {
-void checkCreateInfo(const std::vector<VkDeviceQueueCreateInfo>& createInfos,
-                     const uint32_t familyIndex, const uint32_t expectedQueueCount) {
-    auto it = std::find_if(createInfos.begin(), createInfos.end(),
-                           [familyIndex](const VkDeviceQueueCreateInfo& ci) {
-                               return ci.queueFamilyIndex == familyIndex;
+void CheckCreateInfo(const std::vector<VkDeviceQueueCreateInfo>& create_infos,
+                     const uint32_t family_index, const uint32_t expected_queue_count) {
+    auto it = std::find_if(create_infos.begin(), create_infos.end(),
+                           [family_index](const VkDeviceQueueCreateInfo& ci) {
+                               return ci.queueFamilyIndex == family_index;
                            });
-    ASSERT_NE(it, createInfos.end());
-    EXPECT_EQ(it->queueCount, expectedQueueCount);
+    ASSERT_NE(it, create_infos.end());
+    EXPECT_EQ(it->queueCount, expected_queue_count);
 }
 }  // namespace
 
@@ -41,11 +41,11 @@ TEST(BuildDeviceQueueCreateInfo, Empty) {
         },
     };
 
-    auto [createInfos1, locations1] = buildDeviceQueueCreateInfo(0, qfps, VK_QUEUE_GRAPHICS_BIT);
-    EXPECT_TRUE(createInfos1.empty());
+    auto [create_infos1, locations1] = BuildDeviceQueueCreateInfo(0, qfps, VK_QUEUE_GRAPHICS_BIT);
+    EXPECT_TRUE(create_infos1.empty());
 
-    auto [createInfos2, locations2] = buildDeviceQueueCreateInfo(1, qfps, 0);
-    EXPECT_TRUE(createInfos2.empty());
+    auto [create_infos2, locations2] = BuildDeviceQueueCreateInfo(1, qfps, 0);
+    EXPECT_TRUE(create_infos2.empty());
 }
 
 TEST(BuildDeviceQueueCreateInfo, NoSolution) {
@@ -58,11 +58,11 @@ TEST(BuildDeviceQueueCreateInfo, NoSolution) {
     };
 
     // Request graphics, but only compute is available.
-    const VkQueueFlags requestedFlags = VK_QUEUE_GRAPHICS_BIT;
+    const VkQueueFlags requested_flags = VK_QUEUE_GRAPHICS_BIT;
 
-    auto [createInfos, locations] = buildDeviceQueueCreateInfo(1, qfps, requestedFlags);
+    auto [create_infos, locations] = BuildDeviceQueueCreateInfo(1, qfps, requested_flags);
 
-    EXPECT_TRUE(createInfos.empty());
+    EXPECT_TRUE(create_infos.empty());
     EXPECT_FALSE(locations.graphics.ok());
 }
 
@@ -75,16 +75,16 @@ TEST(BuildDeviceQueueCreateInfo, UniversalQueue) {
         },
     };
 
-    const VkQueueFlags requestedFlags =
+    const VkQueueFlags requested_flags =
             VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT | VK_QUEUE_TRANSFER_BIT;
 
-    auto [createInfos, locations] = buildDeviceQueueCreateInfo(1, qfps, requestedFlags);
+    auto [create_infos, locations] = BuildDeviceQueueCreateInfo(1, qfps, requested_flags);
 
     // We should have one create info for the single queue family.
-    ASSERT_EQ(createInfos.size(), 1);
-    EXPECT_EQ(createInfos[0].queueFamilyIndex, 0);
+    ASSERT_EQ(create_infos.size(), 1);
+    EXPECT_EQ(create_infos[0].queueFamilyIndex, 0);
     // We requested 3 queues, and the family supports 4, so we should get 3.
-    EXPECT_EQ(createInfos[0].queueCount, 3);
+    EXPECT_EQ(create_infos[0].queueCount, 3);
 
     // Check locations
     EXPECT_TRUE(locations.graphics.ok());
@@ -112,18 +112,18 @@ TEST(BuildDeviceQueueCreateInfo, UniversalQueueRoundRobin) {
         },
     };
 
-    const VkQueueFlags requestedFlags = VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT |
-                                        VK_QUEUE_TRANSFER_BIT | GVK_QUEUE_PRESENTATION_BIT;
+    const VkQueueFlags requested_flags = VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT |
+                                         VK_QUEUE_TRANSFER_BIT | GVK_QUEUE_PRESENTATION_BIT;
 
-    auto [createInfos, locations] = buildDeviceQueueCreateInfo(1, qfps, requestedFlags);
+    auto [create_infos, locations] = BuildDeviceQueueCreateInfo(1, qfps, requested_flags);
 
     // We should have one create info for the single queue family.
-    ASSERT_EQ(createInfos.size(), 1);
-    EXPECT_EQ(createInfos[0].queueFamilyIndex, 0);
+    ASSERT_EQ(create_infos.size(), 1);
+    EXPECT_EQ(create_infos[0].queueFamilyIndex, 0);
     // We requested 4 queue types, but graphics and presentation are shared.
     // So 3 logical queues are allocated from a family that supports 2 physical queues.
     // The implementation should create 2 physical queues and reuse them.
-    EXPECT_EQ(createInfos[0].queueCount, 2);
+    EXPECT_EQ(create_infos[0].queueCount, 2);
 
     // Check locations (round-robin with presentation sharing graphics queue)
     // 1. Graphics is allocated.
@@ -169,16 +169,16 @@ TEST(BuildDeviceQueueCreateInfo, SpecializedQueues) {
         },
     };
 
-    const VkQueueFlags requestedFlags =
+    const VkQueueFlags requested_flags =
             VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT | VK_QUEUE_TRANSFER_BIT;
 
-    auto [createInfos, locations] = buildDeviceQueueCreateInfo(3, qfps, requestedFlags);
+    auto [create_infos, locations] = BuildDeviceQueueCreateInfo(3, qfps, requested_flags);
 
     // We should have three create infos, one for each family.
-    ASSERT_EQ(createInfos.size(), 3);
-    checkCreateInfo(createInfos, 0, 1);
-    checkCreateInfo(createInfos, 1, 1);
-    checkCreateInfo(createInfos, 2, 1);
+    ASSERT_EQ(create_infos.size(), 3);
+    CheckCreateInfo(create_infos, 0, 1);
+    CheckCreateInfo(create_infos, 1, 1);
+    CheckCreateInfo(create_infos, 2, 1);
 
     // Check locations. The allocation logic prefers specialized queues.
     // The sorting is by popcount(queueFlags) ascending then by queueCount (descending)
@@ -210,12 +210,12 @@ TEST(BuildDeviceQueueCreateInfo, PresentationQueue) {
             .minImageTransferGranularity = {1, 1, 1},
         },
     };
-    const VkQueueFlags requestedFlags1 = VK_QUEUE_GRAPHICS_BIT | GVK_QUEUE_PRESENTATION_BIT;
-    auto [createInfos1, locations1] = buildDeviceQueueCreateInfo(1, qfps1, requestedFlags1);
+    const VkQueueFlags requested_flags1 = VK_QUEUE_GRAPHICS_BIT | GVK_QUEUE_PRESENTATION_BIT;
+    auto [create_infos1, locations1] = BuildDeviceQueueCreateInfo(1, qfps1, requested_flags1);
 
-    ASSERT_EQ(createInfos1.size(), 1);
-    EXPECT_EQ(createInfos1[0].queueFamilyIndex, 0);
-    EXPECT_EQ(createInfos1[0].queueCount, 1);  // one queue used for both
+    ASSERT_EQ(create_infos1.size(), 1);
+    EXPECT_EQ(create_infos1[0].queueFamilyIndex, 0);
+    EXPECT_EQ(create_infos1[0].queueCount, 1);  // one queue used for both
     EXPECT_TRUE(locations1.graphics.ok());
     EXPECT_EQ(locations1.graphics.familyIndex, 0);
     EXPECT_EQ(locations1.graphics.queueIndex, 0);
@@ -241,12 +241,12 @@ TEST(BuildDeviceQueueCreateInfo, PresentationQueueSeparate) {
             .minImageTransferGranularity = {1, 1, 1},
         },
     };
-    const VkQueueFlags requestedFlags = VK_QUEUE_GRAPHICS_BIT | GVK_QUEUE_PRESENTATION_BIT;
-    auto [createInfos, locations] = buildDeviceQueueCreateInfo(2, qfps, requestedFlags);
+    const VkQueueFlags requested_flags = VK_QUEUE_GRAPHICS_BIT | GVK_QUEUE_PRESENTATION_BIT;
+    auto [create_infos, locations] = BuildDeviceQueueCreateInfo(2, qfps, requested_flags);
 
-    ASSERT_EQ(createInfos.size(), 2);
-    checkCreateInfo(createInfos, 0, 1);
-    checkCreateInfo(createInfos, 1, 1);
+    ASSERT_EQ(create_infos.size(), 2);
+    CheckCreateInfo(create_infos, 0, 1);
+    CheckCreateInfo(create_infos, 1, 1);
 
     // Preferred order: popcount 1, queuecount 1, index desc -> 1, 0
     // Graphics requested first. Iterates 1, 0. Family 1 fails. Family 0 succeeds.
@@ -275,16 +275,16 @@ TEST(BuildDeviceQueueCreateInfo, TransferGranularity) {
         },
     };
 
-    const VkQueueFlags requestedFlags = VK_QUEUE_TRANSFER_BIT;
+    const VkQueueFlags requested_flags = VK_QUEUE_TRANSFER_BIT;
 
     // The sort order will be family 0 then family 1 (popcount 1 vs 2).
     // The transfer search will check family 0 first, but reject it due to granularity.
     // Then it will check family 1 and accept it.
-    auto [createInfos, locations] = buildDeviceQueueCreateInfo(2, qfps, requestedFlags);
+    auto [create_infos, locations] = BuildDeviceQueueCreateInfo(2, qfps, requested_flags);
 
-    ASSERT_EQ(createInfos.size(), 1);
-    EXPECT_EQ(createInfos[0].queueFamilyIndex, 1);
-    EXPECT_EQ(createInfos[0].queueCount, 1);
+    ASSERT_EQ(create_infos.size(), 1);
+    EXPECT_EQ(create_infos[0].queueFamilyIndex, 1);
+    EXPECT_EQ(create_infos[0].queueCount, 1);
 
     EXPECT_TRUE(locations.transfer.ok());
     EXPECT_EQ(locations.transfer.familyIndex, 1);
@@ -307,12 +307,12 @@ TEST(BuildDeviceQueueCreateInfo, PreferSpecialized) {
         },
     };
 
-    const VkQueueFlags requestedFlags = VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT;
+    const VkQueueFlags requested_flags = VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT;
 
     // Sort order: Family 1 (popcount 1), Family 0 (popcount 3)
     // Preferred order of indices: 1, 0
 
-    auto [createInfos, locations] = buildDeviceQueueCreateInfo(2, qfps, requestedFlags);
+    auto [create_infos, locations] = BuildDeviceQueueCreateInfo(2, qfps, requested_flags);
 
     // Allocation:
     // 1. Graphics: search 1, 0. Family 1 fails. Family 0 succeeds.
@@ -320,9 +320,9 @@ TEST(BuildDeviceQueueCreateInfo, PreferSpecialized) {
     // 2. Compute: search 1, 0. Family 1 succeeds.
     //    locations.compute = {family: 1, queue: 0}. alloc_count[1] = 1.
 
-    ASSERT_EQ(createInfos.size(), 2);
-    checkCreateInfo(createInfos, 0, 1);
-    checkCreateInfo(createInfos, 1, 1);
+    ASSERT_EQ(create_infos.size(), 2);
+    CheckCreateInfo(create_infos, 0, 1);
+    CheckCreateInfo(create_infos, 1, 1);
 
     EXPECT_TRUE(locations.graphics.ok());
     EXPECT_EQ(locations.graphics.familyIndex, 0);

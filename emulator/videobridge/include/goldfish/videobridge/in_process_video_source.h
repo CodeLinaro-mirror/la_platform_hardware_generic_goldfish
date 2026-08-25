@@ -18,56 +18,67 @@
 #pragma clang diagnostic ignored "-Wnullability-completeness"
 #include "api/scoped_refptr.h"
 #include "api/video/i420_buffer.h"
-#include "media/base/adapted_video_track_source.h"
 #pragma clang diagnostic pop
 
-#include <atomic>
+#include <cstdint>
 #include <memory>
-#include <vector>
 
 #include "goldfish/display/display.h"
 #include "goldfish/eventing/with_callbacks.h"
+#include "goldfish/videobridge/managed_video_track_source.h"
+
+namespace goldfish::display {
+class IMultiDisplay;
+}
 
 namespace goldfish::videobridge {
 
 /**
- * @class InProcessVideoSource
- * @brief Custom AdaptedVideoTrackSource capturing frames directly from IDisplay in-memory.
+ * WebRTC video track source capturing guest display frames directly from IMultiDisplay in-process.
  *
- * Receives direct C++ FrameInfo callbacks from QEMU's display subsystem and converts
- * raw surface memory into WebRTC video frames zero-copy.
+ * Concept & Data Flow:
+ * - Ingests a reference to IMultiDisplay and a target logical display ID.
+ * - Reactive Activation: Lazily queries IMultiDisplay for the active IDisplay when the first
+ *   WebRTC sink attaches (OnStart) and unsubscribes when all participants disconnect (OnStop).
+ * - Subscribes to FrameInfo updates from the active display, converting raw BGRA/RGBA pixels
+ *   to I420 format and dispatching frames to attached WebRTC sinks.
+ *
+ * Thread Safety:
+ * - InProcessVideoSource methods (OnStart, OnStop) are marshalled on WebRTC signaling threads.
+ * - Frame arrival (OnFrameAvailable) occurs on QEMU display / render worker threads.
+ * - Sink registration is synchronized via ManagedVideoTrackSource.
+ *
+ * Ownership & Lifetimes:
+ * - Managed via webrtc::scoped_refptr (implements webrtc::VideoTrackSourceInterface).
+ * - Holds a non-owning reference to IMultiDisplay, which must outlive this source.
+ * - Holds a temporary shared_ptr handle to IDisplay only while actively streaming.
  */
-class InProcessVideoSource : public ::webrtc::AdaptedVideoTrackSource {
+class InProcessVideoSource : public ManagedVideoTrackSource {
   public:
-    explicit InProcessVideoSource(std::shared_ptr<::goldfish::display::IDisplay> display);
+    /**
+     * Constructs an in-process WebRTC video track source bound to a MultiDisplay coordinator.
+     *
+     * @param multidisplay Reference to the multidisplay coordinator.
+     * @param display_id Logical display index to capture (default: 0).
+     */
+    explicit InProcessVideoSource(::goldfish::display::IMultiDisplay& multidisplay,
+                                  uint32_t display_id = 0);
+
     ~InProcessVideoSource() override;
 
-    // AdaptedVideoTrackSource overrides.
-    bool is_screencast() const override { return true; }
-    absl::optional<bool> needs_denoising() const override { return false; }
-    ::webrtc::MediaSourceInterface::SourceState state() const override {
-        return ::webrtc::MediaSourceInterface::SourceState::kLive;
-    }
-    bool remote() const override { return false; }
-
-    /**
-     * @brief Registers the display frame callback and starts frame capture.
-     */
-    void Start();
-
-    /**
-     * @brief Unregisters the display frame callback and stops frame capture.
-     */
-    void Stop();
+  protected:
+    void OnStart() override;
+    void OnStop() override;
 
   private:
     void OnFrameAvailable(const ::goldfish::display::FrameInfo& frame_info);
 
+    ::goldfish::display::IMultiDisplay& multidisplay_;
+    const uint32_t display_id_;
     std::shared_ptr<::goldfish::display::IDisplay> display_;
     std::unique_ptr<android::base::eventing::ScopedEventCallback<
             ::goldfish::display::FrameInfoCallbackSource, ::goldfish::display::FrameInfo>>
             subscription_;
-    std::atomic<bool> running_{false};
     ::webrtc::scoped_refptr<::webrtc::I420Buffer> i420_buffer_;
 };
 

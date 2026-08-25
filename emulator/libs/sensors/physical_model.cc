@@ -67,7 +67,13 @@ float GetfloatValue(const float* val, const size_t count) {
 }
 }  // namespace
 
-FoldableState PhysicalModel::GetFoldableState() const {
+const FoldableConfig& PhysicalModel::GetFoldableConfig() const {
+    const std::lock_guard<std::recursive_mutex> lock(mutex_);
+    DCHECK(foldable_model_);
+    return foldable_model_->GetFoldableConfig();
+}
+
+const FoldableState& PhysicalModel::GetFoldableState() const {
     const std::lock_guard<std::recursive_mutex> lock(mutex_);
     DCHECK(foldable_model_);
     return foldable_model_->GetFoldableState();
@@ -242,12 +248,7 @@ void PhysicalModel::SetCurrentTime(int64_t time_ns) {
         model_time_ns_ = time_ns;
         const bool is_inertial_model_stable =
                 inertial_model_.SetCurrentTime(time_ns) == InertialState::kStable;
-        const bool is_ambient_model_stable = goldfish::physics::AmbientEnvironment::SetCurrentTime(
-                                                     time_ns) == AmbientState::kStable;
-        const bool is_body_model_stable =
-                goldfish::physics::BodyModel::SetCurrentTime(time_ns) == BodyState::kStable;
-        state_stabilized = (is_inertial_model_stable && is_ambient_model_stable &&
-                            is_body_model_stable && is_physical_state_changing_);
+        state_stabilized = (is_inertial_model_stable && is_physical_state_changing_);
     }
 
     if (state_stabilized) {
@@ -358,7 +359,10 @@ void PhysicalModel::SetTargetInternalHingeAngle0(float degrees, PhysicalInterpol
     PhysicalStateChanging();
     {
         const std::lock_guard<std::recursive_mutex> lock(mutex_);
-        DCHECK(foldable_model_);
+        if (!foldable_model_) {
+            LOG(INFO) << "Device is not foldable, ignoring hinge-angle0 change to: " << degrees;
+            return;
+        }
         foldable_model_->SetHingeAngle(0, degrees, mode);
     }
     TargetStateChanged();
@@ -368,7 +372,10 @@ void PhysicalModel::SetTargetInternalHingeAngle1(float degrees, PhysicalInterpol
     PhysicalStateChanging();
     {
         const std::lock_guard<std::recursive_mutex> lock(mutex_);
-        DCHECK(foldable_model_);
+        if (!foldable_model_) {
+            LOG(INFO) << "Device is not foldable, ignoring hinge-angle1 change to: " << degrees;
+            return;
+        }
         foldable_model_->SetHingeAngle(1, degrees, mode);
     }
     TargetStateChanged();
@@ -378,7 +385,10 @@ void PhysicalModel::SetTargetInternalHingeAngle2(float degrees, PhysicalInterpol
     PhysicalStateChanging();
     {
         const std::lock_guard<std::recursive_mutex> lock(mutex_);
-        DCHECK(foldable_model_);
+        if (!foldable_model_) {
+            LOG(INFO) << "Device is not foldable, ignoring hinge-angle2 change to: " << degrees;
+            return;
+        }
         foldable_model_->SetHingeAngle(2, degrees, mode);
     }
     TargetStateChanged();
@@ -388,7 +398,10 @@ void PhysicalModel::SetTargetInternalPosture(float posture, PhysicalInterpolatio
     PhysicalStateChanging();
     {
         const std::lock_guard<std::recursive_mutex> lock(mutex_);
-        DCHECK(foldable_model_);
+        if (!foldable_model_) {
+            LOG(INFO) << "Device is not foldable, ignoring posture change to: " << posture;
+            return;
+        }
         foldable_model_->SetPosture(posture, mode);
     }
     TargetStateChanged();
@@ -515,43 +528,57 @@ float PhysicalModel::GetParameterHumidity(ParameterValueType parameter_value_typ
 
 float PhysicalModel::GetParameterHingeAngle0(ParameterValueType parameter_value_type) const {
     const std::lock_guard<std::recursive_mutex> lock(mutex_);
-    DCHECK(foldable_model_);
+    if (!foldable_model_) {
+        return 0.0F;
+    }
     return foldable_model_->GetHingeAngle(0, parameter_value_type);
 }
 
 float PhysicalModel::GetParameterHingeAngle1(ParameterValueType parameter_value_type) const {
     const std::lock_guard<std::recursive_mutex> lock(mutex_);
-    DCHECK(foldable_model_);
+    if (!foldable_model_) {
+        return 0.0F;
+    }
     return foldable_model_->GetHingeAngle(1, parameter_value_type);
 }
 
 float PhysicalModel::GetParameterHingeAngle2(ParameterValueType parameter_value_type) const {
     const std::lock_guard<std::recursive_mutex> lock(mutex_);
-    DCHECK(foldable_model_);
+    if (!foldable_model_) {
+        return 0.0F;
+    }
     return foldable_model_->GetHingeAngle(2, parameter_value_type);
 }
 
 float PhysicalModel::GetParameterPosture(ParameterValueType parameter_value_type) const {
     const std::lock_guard<std::recursive_mutex> lock(mutex_);
-    DCHECK(foldable_model_);
+    if (!foldable_model_) {
+        return 0.0F;
+    }
     return foldable_model_->GetPosture(parameter_value_type);
 }
 
 float PhysicalModel::GetParameterRollable0(ParameterValueType parameter_value_type) const {
     const std::lock_guard<std::recursive_mutex> lock(mutex_);
-    DCHECK(foldable_model_);
+    if (!foldable_model_) {
+        return 0.0F;
+    }
     return foldable_model_->GetRollable(0, parameter_value_type);
 }
 
 float PhysicalModel::GetParameterRollable1(ParameterValueType parameter_value_type) const {
     const std::lock_guard<std::recursive_mutex> lock(mutex_);
-    DCHECK(foldable_model_);
+    if (!foldable_model_) {
+        return 0.0F;
+    }
     return foldable_model_->GetRollable(1, parameter_value_type);
 }
 
 float PhysicalModel::GetParameterRollable2(ParameterValueType parameter_value_type) const {
     const std::lock_guard<std::recursive_mutex> lock(mutex_);
-    DCHECK(foldable_model_);
+    if (!foldable_model_) {
+        return 0.0F;
+    }
     return foldable_model_->GetRollable(2, parameter_value_type);
 }
 
@@ -727,17 +754,26 @@ Rotation PhysicalModel::GetDeviceRotation() const {
 }
 
 float PhysicalModel::GetPhysicalHingeAngle0() const {
-    DCHECK(foldable_model_);
+    const std::lock_guard<std::recursive_mutex> lock(mutex_);
+    if (!foldable_model_) {
+        return 0.0F;
+    }
     return foldable_model_->GetHingeAngle(0);
 }
 
 float PhysicalModel::GetPhysicalHingeAngle1() const {
-    DCHECK(foldable_model_);
+    const std::lock_guard<std::recursive_mutex> lock(mutex_);
+    if (!foldable_model_) {
+        return 0.0F;
+    }
     return foldable_model_->GetHingeAngle(1);
 }
 
 float PhysicalModel::GetPhysicalHingeAngle2() const {
-    DCHECK(foldable_model_);
+    const std::lock_guard<std::recursive_mutex> lock(mutex_);
+    if (!foldable_model_) {
+        return 0.0F;
+    }
     return foldable_model_->GetHingeAngle(2);
 }
 
@@ -751,7 +787,6 @@ float PhysicalModel::GetPhysicalWristTilt() const {
 
 #define SET_TARGET_FUNCTION_NAME(x) SetTarget##x
 #define SET_TARGET_INTERNAL_FUNCTION_NAME(x) SetTargetInternal##x
-#define PHYSICAL_PARAMETER_ENUM(x) PHYSICAL_PARAMETER_##x
 #define GOLDFISH_PHYSICAL_PARAMETER_DEF(x, y, z, w)                                        \
     void PhysicalModel::SET_TARGET_FUNCTION_NAME(z)(w value, PhysicalInterpolation mode) { \
         SET_TARGET_INTERNAL_FUNCTION_NAME(z)(value, mode);                                 \
@@ -759,27 +794,16 @@ float PhysicalModel::GetPhysicalWristTilt() const {
 
 GOLDFISH_PHYSICAL_PARAMETERS_LIST
 #undef GOLDFISH_PHYSICAL_PARAMETER_DEF
-#undef PHYSICAL_PARAMETER_ENUM
 #undef SET_TARGET_INTERNAL_FUNCTION_NAME
 #undef SET_TARGET_FUNCTION_NAME
 
 void PhysicalModel::PhysicalStateChanging() {
     {
         const std::lock_guard<std::recursive_mutex> lock(mutex_);
-        // Note: We only call onPhysicalStateChanging if this is a transition
-        // from stable to changing (i.e. don't call if we get to
-        // physicalStateChanging calls in a row without a
-        // physicalStateStabilized call in between).
-        if (!is_physical_state_changing_) {
-            is_physical_state_changing_ = true;
-        }
+        is_physical_state_changing_ = true;
     }
 
-    const PhysicalModelChangeEvent event{
-        .type = PhysicalModelChangeEvent::Type::kPhysicalStateChanging,
-        .model = this,
-    };
-    FireEvent(event);
+    NotifyTargetState(PhysicalModelChangeEvent::Type::kPhysicalStateChanging);
 }
 
 void PhysicalModel::PhysicalStateStabilized() {
@@ -795,24 +819,21 @@ void PhysicalModel::PhysicalStateStabilized() {
         is_physical_state_changing_ = false;
     }
 
-    const PhysicalModelChangeEvent event{
-        .type = PhysicalModelChangeEvent::Type::kPhysicalStateStabilized,
-        .model = this,
-    };
-    FireEvent(event);
+    NotifyTargetState(PhysicalModelChangeEvent::Type::kPhysicalStateStabilized);
 }
 
 void PhysicalModel::TargetStateChanged() {
     {
         const std::lock_guard<std::recursive_mutex> lock(mutex_);
-        // When target state changes we reset all sensor overrides.
-        for (bool& i : use_override_) {
-            i = false;
-        }
+        use_override_.reset();  // When target state changes we reset all sensor overrides.
     }
 
+    NotifyTargetState(PhysicalModelChangeEvent::Type::kTargetStateChanged);
+}
+
+void PhysicalModel::NotifyTargetState(PhysicalModelChangeEvent::Type type) {
     const PhysicalModelChangeEvent event{
-        .type = PhysicalModelChangeEvent::Type::kTargetStateChanged,
+        .type = type,
         .model = this,
     };
     FireEvent(event);

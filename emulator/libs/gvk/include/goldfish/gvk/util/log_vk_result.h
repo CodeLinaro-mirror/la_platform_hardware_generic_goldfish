@@ -17,6 +17,6 @@
 
 namespace goldfish::gvk::util {
 
-void logVkResult(const char* funcName, VkResult);
+void LogVkResult(const char* funcName, VkResult);
 
 }  // namespace goldfish::gvk::util

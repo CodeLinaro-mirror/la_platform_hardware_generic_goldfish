@@ -146,6 +146,16 @@ std::vector<std::pair<std::string, std::string>> getUserspaceBootProperties(
         std::string angle_overrides_disabled =
                 env_angle_overrides_disabled ? env_angle_overrides_disabled : "";
 
+        const char* env_vk_icd = std::getenv("ANDROID_EMU_VK_ICD");
+        const std::string vk_icd = env_vk_icd ? env_vk_icd : "";
+        if ((vk_icd == "lavapipe") && angle_overrides_enabled != "0" &&
+            angle_overrides_enabled.find("supportsAndroidNativeFenceSync") == std::string::npos) {
+            if (!angle_overrides_enabled.empty()) {
+                angle_overrides_enabled += ";";
+            }
+            angle_overrides_enabled += "supportsAndroidNativeFenceSync";
+        }
+
         if (angle_overrides_disabled.empty()) {
             // TODO(b/515372950): disable supportsBlendOperationAdvanced
             // which is added due to dEQP failures with lavapipe
@@ -340,17 +350,22 @@ std::vector<std::pair<std::string, std::string>> getUserspaceBootProperties(
         params.push_back({emulatorCircularProp, "1"});
     }
 
-    auto resizable_configs =
-            ::goldfish::sensors::FoldableModel::ParseResizableConfigs(hw.hw_resizable_configs);
-    if (!resizable_configs.empty()) {
-        std::vector<std::string> display_configs;
-        for (const auto& rc : resizable_configs) {
-            display_configs.push_back(
-                    absl::StrFormat("%d:%d:%d:%d:%d", rc.id, rc.width, rc.height, rc.dpi, rc.dpi));
-        }
-        if (!display_configs.empty()) {
-            std::string value = absl::StrJoin(display_configs, ";");
-            params.push_back({qemuDisplayConfigs0, value});
+    if (!hw.hw_resizable_configs.empty()) {
+        const auto resizable_configs =
+                ::goldfish::sensors::FoldableModel::ParseResizableConfigs(hw.hw_resizable_configs);
+
+        if (!resizable_configs) {
+            LOG(ERROR) << "Failed to parse hw_resizable_configs; display configs will be skipped. "
+                          "config='"
+                       << hw.hw_resizable_configs << "'";
+        } else if (!resizable_configs->empty()) {
+            std::vector<std::string> display_configs;
+            for (const auto& rc : *resizable_configs) {
+                display_configs.push_back(absl::StrFormat("%d:%d:%d:%d:%d", rc.id, rc.width,
+                                                          rc.height, rc.dpi, rc.dpi));
+            }
+
+            params.push_back({qemuDisplayConfigs0, absl::StrJoin(display_configs, ";")});
         }
     }
 

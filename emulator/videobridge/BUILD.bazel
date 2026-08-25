@@ -68,9 +68,13 @@ objc_library(
     ],
     includes = ["include"],
     deps = [
+        "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/synchronization",
         "@webrtc//api/video_codecs:builtin_video_decoder_factory",
         "@webrtc//api/video_codecs:builtin_video_encoder_factory",
+        "@webrtc//api/video_codecs:video_codecs_api",
         "@webrtc//pc:video_track_source_proxy",
+        "@webrtc//rtc_base:checks",
         "@webrtc//sdk:native_api",
         "@webrtc//sdk:videotoolbox_objc",
     ],
@@ -84,6 +88,7 @@ cc_library(
         "include/goldfish/videobridge/codec_factories.h",
     ],
     copts = WEBRTC_COPTS,
+    features = ["-parse_headers"],
     includes = [
         ".",
         "include",
@@ -163,12 +168,18 @@ cc_library(
         "core/rtc_connection.cc",
         "core/switchboard.cc",
         "core/webrtc_logging.cc",
+        "media/media_track_provider.cc",
     ],
     hdrs = [
         "include/goldfish/videobridge/codec_factories.h",
+        "include/goldfish/videobridge/in_process_audio_source.h",
         "include/goldfish/videobridge/in_process_input_sender.h",
+        "include/goldfish/videobridge/in_process_video_source.h",
         "include/goldfish/videobridge/input_sender.h",
+        "include/goldfish/videobridge/managed_audio_track_source.h",
+        "include/goldfish/videobridge/managed_video_track_source.h",
         "include/goldfish/videobridge/media_provider.h",
+        "include/goldfish/videobridge/media_track_provider.h",
         "include/goldfish/videobridge/rtc_connection.h",
         "include/goldfish/videobridge/switchboard.h",
         "include/goldfish/videobridge/webrtc_logging.h",
@@ -179,6 +190,7 @@ cc_library(
     deps = [
         ":emulator_client",
         ":videobridge_codecs",
+        "@abseil-cpp//absl/container:flat_hash_set",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/synchronization",
         "@abseil-cpp//absl/time",
@@ -190,6 +202,8 @@ cc_library(
         "@webrtc//api/audio_codecs:builtin_audio_decoder_factory",
         "@webrtc//api/audio_codecs:builtin_audio_encoder_factory",
         "@webrtc//api/task_queue:default_task_queue_factory",
+        "@webrtc//media:adapted_video_track_source",
+        "@webrtc//media:video_broadcaster",
         "@webrtc//modules/audio_device:audio_device_impl",
         "@webrtc//p2p:rtc_p2p",
         "@webrtc//rtc_base:network",
@@ -274,6 +288,44 @@ cc_test(
     ],
 )
 
+cc_binary(
+    name = "videobridge_codecs_shared",
+    linkopts = select({
+        "@platforms//os:macos": [
+            "-undefined dynamic_lookup",
+            "-Wl,-ObjC",
+            "-framework VideoToolbox",
+            "-framework CoreMedia",
+            "-framework AVFoundation",
+            "-framework CoreVideo",
+            "-framework Foundation",
+        ],
+        "//conditions:default": [],
+    }),
+    linkshared = True,
+    target_compatible_with = select({
+        "@platforms//os:macos": [],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
+    deps = [
+        ":videobridge_codecs",
+    ],
+)
+
+cc_test(
+    name = "codec_factories_dylib_test",
+    srcs = ["core/mac/codec_factories_dylib_test.cc"],
+    data = [":videobridge_codecs_shared"],
+    target_compatible_with = select({
+        "@platforms//os:macos": [],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
+    deps = [
+        "//emulator/libs/system:bazel_info",
+        "//emulator/libs/test:googletest_main",
+    ],
+)
+
 cc_library(
     name = "rtc_service",
     srcs = ["signaling/rtc_service.cc"],
@@ -310,12 +362,10 @@ cc_library(
     name = "grpc_media_providers",
     srcs = [
         "media/grpc_audio_source.cc",
-        "media/grpc_media_provider.cc",
         "media/grpc_video_source.cc",
     ],
     hdrs = [
         "media/grpc_audio_source.h",
-        "media/grpc_media_provider.h",
         "media/grpc_video_source.h",
     ],
     copts = WEBRTC_COPTS,
@@ -329,32 +379,73 @@ cc_library(
         "@webrtc//api:audio_options_api",
         "@webrtc//api:peer_connection_interface",
         "@webrtc//media:adapted_video_track_source",
+        "@webrtc//media:video_broadcaster",
         "@webrtc//rtc_base:timeutils",
     ],
 )
 
 cc_library(
-    name = "in_process_media_providers",
-    srcs = [
-        "media/in_process_audio_source.cc",
-        "media/in_process_video_source.cc",
-    ],
+    name = "in_process_audio_source",
+    srcs = ["media/in_process_audio_source.cc"],
     hdrs = [
         "include/goldfish/videobridge/in_process_audio_source.h",
-        "include/goldfish/videobridge/in_process_video_source.h",
+        "include/goldfish/videobridge/managed_audio_track_source.h",
     ],
     copts = WEBRTC_COPTS,
     strip_include_prefix = "include",
     deps = [
         ":videobridge_core",
         "//emulator/libs/SocketBuffer",
-        "//emulator/plugin/display:base",
         "@abseil-cpp//absl/container:flat_hash_set",
+        "@abseil-cpp//absl/log",
+        "@webrtc//api:peer_connection_interface",
+        "@webrtc//rtc_base:timeutils",
+    ],
+)
+
+cc_library(
+    name = "in_process_video_source",
+    srcs = ["media/in_process_video_source.cc"],
+    hdrs = [
+        "include/goldfish/videobridge/in_process_video_source.h",
+        "include/goldfish/videobridge/managed_video_track_source.h",
+    ],
+    copts = WEBRTC_COPTS,
+    strip_include_prefix = "include",
+    deps = [
+        ":videobridge_core",
+        "//emulator/plugin/display:primary_display",
         "@abseil-cpp//absl/log",
         "@libyuv",
         "@webrtc//api:peer_connection_interface",
         "@webrtc//media:adapted_video_track_source",
+        "@webrtc//media:video_broadcaster",
         "@webrtc//rtc_base:timeutils",
+    ],
+)
+
+cc_library(
+    name = "in_process_media_providers",
+    deps = [
+        ":in_process_audio_source",
+        ":in_process_video_source",
+        "//emulator/plugin/avd:global-event-loop",
+    ],
+)
+
+cc_test(
+    name = "media_track_provider_test",
+    srcs = ["media/media_track_provider_test.cc"],
+    copts = WEBRTC_COPTS,
+    linkopts = WEBRTC_LINKOPTS,
+    deps = [
+        ":in_process_media_providers",
+        ":videobridge_core",
+        "//emulator/libs/test:googletest_main",
+        "//emulator/plugin/avd:global-event-loop",
+        "//emulator/plugin/display:primary_display",
+        "//emulator/plugin/display:test-display",
+        "@webrtc//api:peer_connection_interface",
     ],
 )
 
@@ -363,7 +454,7 @@ cc_test(
     srcs = ["media/in_process_audio_source_test.cc"],
     copts = WEBRTC_COPTS,
     deps = [
-        ":in_process_media_providers",
+        ":in_process_audio_source",
         ":videobridge_core",
         "//emulator/libs/test:googletest_main",
         "@webrtc//api:media_stream_interface",
@@ -375,11 +466,12 @@ cc_test(
     srcs = ["media/in_process_video_source_test.cc"],
     copts = WEBRTC_COPTS,
     deps = [
-        ":in_process_media_providers",
+        ":in_process_video_source",
         ":videobridge_core",
         "//emulator/libs/test:googletest_main",
         "//emulator/plugin/avd:global-event-loop",
-        "//emulator/plugin/display:base",
+        "//emulator/plugin/display:primary_display",
+        "//emulator/plugin/display:test-display",
         "@webrtc//api:peer_connection_interface",
     ],
 )
@@ -423,7 +515,11 @@ clang_tidy_test(
         ":videobridge",
         ":videobridge_core",
         ":grpc_media_providers",
+        ":in_process_audio_source",
+        ":in_process_video_source",
+        "//emulator/plugin/avd:global-event-loop",
         ":in_process_media_providers",
+        ":media_track_provider_test",
         ":in_process_audio_source_test",
         ":in_process_video_source_test",
         ":grpc_video_source_test",

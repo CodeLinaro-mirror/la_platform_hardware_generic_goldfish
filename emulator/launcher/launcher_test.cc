@@ -312,12 +312,12 @@ class LauncherTest : public testing::Test {
                                   const ::goldfish::async::LaunchConfig&,
                                   ::goldfish::async::ProcessLauncher::ExitCallback exit_cb) {
                     exit_cb_out = std::move(exit_cb);
-                    launched.Notify();
                     auto process = std::make_unique<MockManagedProcess>();
                     EXPECT_CALL(*process, GetPid()).WillRepeatedly(Return(1234));
                     if (process_out) {
                         *process_out = process.get();
                     }
+                    launched.Notify();
                     return absl::StatusOr<std::unique_ptr<::goldfish::async::ManagedProcess>>(
                             std::move(process));
                 });
@@ -415,11 +415,11 @@ TEST_F(LauncherTest, LaunchesFishtankWhenWindowIsEnabled) {
             .WillOnce([&](const ::goldfish::async::LaunchConfig&,
                           ::goldfish::async::ProcessLauncher::ExitCallback exit_cb) {
                 fishtank_exit_cb = std::move(exit_cb);
-                fishtank_launched.Notify();
                 auto process = std::make_unique<MockManagedProcess>();
                 MockManagedProcess* process_ptr = process.get();
                 EXPECT_CALL(*process_ptr, GetPid()).WillRepeatedly(Return(5678));
                 EXPECT_CALL(*process_ptr, Kill(SIGTERM)).Times(testing::AtMost(1));
+                fishtank_launched.Notify();
                 return absl::StatusOr<std::unique_ptr<::goldfish::async::ManagedProcess>>(
                         std::move(process));
             });

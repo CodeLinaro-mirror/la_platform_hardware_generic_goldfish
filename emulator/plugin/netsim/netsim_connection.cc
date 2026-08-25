@@ -19,10 +19,12 @@
 
 #include "absl/log/log.h"
 #include "absl/status/status.h"
+#include "absl/time/clock.h"
 #include "absl/time/time.h"
 
 #include "android/emulation/control/emulator_grpc_client.h"
 #include "android/status/status_macros.h"
+#include "goldfish/avd_info/avd_info.h"
 #include "netsim_connection_internal.h"
 
 extern "C" {
@@ -41,10 +43,15 @@ namespace goldfish::netsim {
 
 namespace {
 
-const absl::Duration kConnectionDeadline = absl::Seconds(15);
+constexpr absl::Duration kDefaultConnectionDeadline = absl::Seconds(15);
+constexpr uint32_t kDefaultMaxRetries = 2;
+constexpr absl::Duration kDefaultRetryInterval = absl::Seconds(1);
 
 struct NetsimConnectionData {
     std::string endpoint;
+    absl::Duration deadline = kDefaultConnectionDeadline;
+    uint32_t max_retries = kDefaultMaxRetries;
+    absl::Duration retry_interval = kDefaultRetryInterval;
     std::shared_ptr<android::emulation::control::BlockingEmulatorGrpcClient> grpc_client;
 };
 
@@ -54,7 +61,8 @@ struct NetsimConnectionDev {
 };
 
 absl::StatusOr<std::unique_ptr<android::emulation::control::BlockingEmulatorGrpcClient>> connect(
-        const std::string& endpoint) {
+        const std::string& endpoint, absl::Duration deadline, uint32_t max_retries,
+        absl::Duration retry_interval) {
     VLOG(1) << "netsim-connection: creating channel to netsimd endpoint - " << endpoint;
 
     android::emulation::control::Endpoint endpoint_config;
@@ -67,10 +75,24 @@ absl::StatusOr<std::unique_ptr<android::emulation::control::BlockingEmulatorGrpc
                              //.WithInterceptor(std::make_unique<MetricsInterceptorFactory>());
                              .BuildBlocking());
 
-    RETURN_IF_ERROR(grpc_client->Connect(kConnectionDeadline));
-
-    VLOG(1) << "netsim-connection: connected";
-    return grpc_client;
+    const uint32_t total_attempts = max_retries + 1;
+    uint32_t attempt = 1;
+    while (true) {
+        if (auto s = grpc_client->Connect(deadline); s.ok()) {
+            VLOG(1) << "netsim-connection: connected on attempt " << attempt;
+            return grpc_client;
+        } else {
+            LOG(WARNING) << "netsim-connection: connection attempt " << attempt << "/"
+                         << total_attempts << " failed: " << s;
+            if (attempt == total_attempts) {
+                return s;
+            }
+            ++attempt;
+            absl::SleepFor(retry_interval);
+            LOG(WARNING) << "netsim-connection: retrying connection to " << endpoint << " (attempt "
+                         << attempt << "/" << total_attempts << ")";
+        }
+    }
 }
 
 #define TYPE_NETSIM_CONNECTION "netsim-connection"
@@ -86,11 +108,27 @@ void netsim_connection_realize(DeviceState* dev, Error** errp) {
         error_setg(errp, "grpc_endpoint not set");
         return;
     }
-    if (auto client = connect(nc->data->endpoint); !client.ok()) {
+    if (auto client = connect(nc->data->endpoint, nc->data->deadline, nc->data->max_retries,
+                              nc->data->retry_interval);
+        !client.ok()) {
         error_setg(errp, "failed to establish netsim connection: %s - %s", dev->id,
                    client.status().ToString().c_str());
     } else {
+        LOG(INFO) << "netsim-connection: successfully connected to " << nc->data->endpoint;
         nc->data->grpc_client = *std::move(client);
+        // Note: netsim-connection is sequenced before the grpc device in launch_qemu.cc,
+        // ensuring AvdUniverse has the verified endpoint when grpc_realize writes discovery.
+        if (auto* avd = goldfish::avd_info::GetNullableAvd()) {
+            avd->SetNetsimEndpoint(nc->data->endpoint);
+        } else {
+            LOG(WARNING)
+                    << "netsim-connection: AvdUniverse is not initialized; unable to register "
+                       "netsim.endpoint ('"
+                    << nc->data->endpoint
+                    << "') for discovery. Downstream tooling (e.g., Android Studio, E2E tests) "
+                       "will not auto-discover this netsimd instance. Ensure the avdstart "
+                       "device is instantiated before netsim-connection.";
+        }
     }
 }
 
@@ -100,6 +138,9 @@ void netsim_connection_unrealize(DeviceState* dev) {
     if (nc->data->grpc_client) {
         nc->data->grpc_client->Disconnect();
         nc->data->grpc_client.reset();
+    }
+    if (auto* avd = goldfish::avd_info::GetNullableAvd()) {
+        avd->SetNetsimEndpoint("");
     }
 }
 
@@ -114,9 +155,48 @@ void netsim_connection_set_grpc_endpoint(Object* obj, Visitor* v, const char* na
     nc->data->endpoint = endpoint;
 }
 
+void netsim_connection_set_deadline(Object* obj, Visitor* v, const char* name, void* opaque,
+                                    Error** errp) {
+    auto* nc = NETSIM_CONNECTION_DEV(obj);
+    uint32_t value;
+    if (!visit_type_uint32(v, name, &value, errp)) {
+        return;
+    }
+    VLOG(1) << "netsim-connection: deadline = " << value;
+    nc->data->deadline = absl::Seconds(value);
+}
+
+void netsim_connection_set_max_retries(Object* obj, Visitor* v, const char* name, void* opaque,
+                                       Error** errp) {
+    auto* nc = NETSIM_CONNECTION_DEV(obj);
+    uint32_t value;
+    if (!visit_type_uint32(v, name, &value, errp)) {
+        return;
+    }
+    VLOG(1) << "netsim-connection: max_retries = " << value;
+    nc->data->max_retries = value;
+}
+
+void netsim_connection_set_retry_interval(Object* obj, Visitor* v, const char* name, void* opaque,
+                                          Error** errp) {
+    auto* nc = NETSIM_CONNECTION_DEV(obj);
+    uint32_t value;
+    if (!visit_type_uint32(v, name, &value, errp)) {
+        return;
+    }
+    VLOG(1) << "netsim-connection: retry_interval = " << value;
+    nc->data->retry_interval = absl::Seconds(value);
+}
+
 void netsim_connection_class_init(ObjectClass* oc, const void* data) {
     object_class_property_add(oc, "grpc_endpoint", "str", nullptr,
                               netsim_connection_set_grpc_endpoint, nullptr, nullptr);
+    object_class_property_add(oc, "deadline", "int", nullptr, netsim_connection_set_deadline,
+                              nullptr, nullptr);
+    object_class_property_add(oc, "max_retries", "int", nullptr, netsim_connection_set_max_retries,
+                              nullptr, nullptr);
+    object_class_property_add(oc, "retry_interval", "int", nullptr,
+                              netsim_connection_set_retry_interval, nullptr, nullptr);
 
     DeviceClass* dc = DEVICE_CLASS(oc);
     dc->realize = netsim_connection_realize;

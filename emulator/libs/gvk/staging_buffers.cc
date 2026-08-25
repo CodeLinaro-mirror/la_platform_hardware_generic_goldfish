@@ -23,80 +23,80 @@
 namespace goldfish::gvk::util {
 
 std::tuple<DeviceMemory, Buffer, DeviceMemory, Buffer> createStagingBuffers(
-        const gvk::DeviceDispatch& dd, const VkPhysicalDeviceMemoryProperties& memoryProperties,
-        const void* data, const size_t dataSize, const VkBufferUsageFlags dstUsage) {
-    DeviceMemory localSrcMem;  // to call ~Buffer before ~DeviceMemory
-    Buffer localSrcBuf = dd.createBuffer(dataSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
-    if (!localSrcBuf) {
+        const gvk::DeviceDispatch& dd, const VkPhysicalDeviceMemoryProperties& memory_properties,
+        const void* data, const size_t data_size, const VkBufferUsageFlags dst_usage) {
+    DeviceMemory local_src_mem;  // to call ~Buffer before ~DeviceMemory
+    Buffer local_src_buf = dd.createBuffer(data_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
+    if (!local_src_buf) {
         return {};
     }
 
-    const VkMemoryRequirements srcMemReqs = dd.getBufferMemoryRequirements(localSrcBuf.get());
-    const int srcMemoryTypeIndex = getMemoryTypeIndex(memoryProperties, srcMemReqs.memoryTypeBits,
-                                                      VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
-    if (srcMemoryTypeIndex < 0) {
+    const VkMemoryRequirements src_mem_reqs = dd.getBufferMemoryRequirements(local_src_buf.get());
+    const int src_memory_type_index = GetMemoryTypeIndex(
+            memory_properties, src_mem_reqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+    if (src_memory_type_index < 0) {
         return {};
     }
 
-    localSrcMem = dd.allocateMemory(srcMemReqs.size, srcMemoryTypeIndex);
-    if (!localSrcMem) {
+    local_src_mem = dd.allocateMemory(src_mem_reqs.size, src_memory_type_index);
+    if (!local_src_mem) {
         return {};
     }
 
-    void* mappedData = dd.mapMemory(localSrcMem.get(), dataSize);
-    if (!mappedData) {
+    void* mapped_data = dd.mapMemory(local_src_mem.get(), data_size);
+    if (!mapped_data) {
         return {};
     }
-    memcpy(mappedData, data, dataSize);
-    dd.unmapMemory(localSrcMem.get());
+    memcpy(mapped_data, data, data_size);
+    dd.unmapMemory(local_src_mem.get());
 
-    if (!dd.bindBufferMemory(localSrcBuf.get(), localSrcMem.get(), 0)) {
-        return {};
-    }
-
-    DeviceMemory localDstMem;  // to call ~Buffer before ~DeviceMemory
-    Buffer localDstBuf = dd.createBuffer(dataSize, dstUsage | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
-    if (!localDstBuf) {
+    if (!dd.bindBufferMemory(local_src_buf.get(), local_src_mem.get(), 0)) {
         return {};
     }
 
-    const VkMemoryRequirements dstMemReqs = dd.getBufferMemoryRequirements(localDstBuf.get());
-    const int dstMemoryTypeIndex = getMemoryTypeIndex(memoryProperties, dstMemReqs.memoryTypeBits,
-                                                      VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-    if (dstMemoryTypeIndex < 0) {
+    DeviceMemory local_dst_mem;  // to call ~Buffer before ~DeviceMemory
+    Buffer local_dst_buf = dd.createBuffer(data_size, dst_usage | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
+    if (!local_dst_buf) {
         return {};
     }
 
-    localDstMem = dd.allocateMemory(dstMemReqs.size, dstMemoryTypeIndex);
-    if (!localDstMem) {
+    const VkMemoryRequirements dst_mem_reqs = dd.getBufferMemoryRequirements(local_dst_buf.get());
+    const int dst_memory_type_index = GetMemoryTypeIndex(
+            memory_properties, dst_mem_reqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    if (dst_memory_type_index < 0) {
         return {};
     }
 
-    if (!dd.bindBufferMemory(localDstBuf.get(), localDstMem.get(), 0)) {
+    local_dst_mem = dd.allocateMemory(dst_mem_reqs.size, dst_memory_type_index);
+    if (!local_dst_mem) {
         return {};
     }
 
-    return {std::move(localSrcMem), std::move(localSrcBuf), std::move(localDstMem),
-            std::move(localDstBuf)};
+    if (!dd.bindBufferMemory(local_dst_buf.get(), local_dst_mem.get(), 0)) {
+        return {};
+    }
+
+    return {std::move(local_src_mem), std::move(local_src_buf), std::move(local_dst_mem),
+            std::move(local_dst_buf)};
 }
 
 std::pair<DeviceMemory, Buffer> allocateBuffer(
-        const gvk::DeviceDispatch& dd, const VkPhysicalDeviceMemoryProperties& memoryProperties,
+        const gvk::DeviceDispatch& dd, const VkPhysicalDeviceMemoryProperties& memory_properties,
         const size_t size, const VkBufferUsageFlags usage,
-        const VkMemoryPropertyFlags memoryPropertyFlags) {
+        const VkMemoryPropertyFlags memory_property_flags) {
     Buffer buffer = dd.createBuffer(size, usage);
     if (!buffer) {
         return {};
     }
 
-    const VkMemoryRequirements memReqs = dd.getBufferMemoryRequirements(buffer.get());
-    const int memoryTypeIndex =
-            getMemoryTypeIndex(memoryProperties, memReqs.memoryTypeBits, memoryPropertyFlags);
-    if (memoryTypeIndex < 0) {
+    const VkMemoryRequirements mem_reqs = dd.getBufferMemoryRequirements(buffer.get());
+    const int memory_type_index =
+            GetMemoryTypeIndex(memory_properties, mem_reqs.memoryTypeBits, memory_property_flags);
+    if (memory_type_index < 0) {
         return {};
     }
 
-    DeviceMemory memory = dd.allocateMemory(memReqs.size, memoryTypeIndex);
+    DeviceMemory memory = dd.allocateMemory(mem_reqs.size, memory_type_index);
     if (!memory) {
         return {};
     }
@@ -109,21 +109,21 @@ std::pair<DeviceMemory, Buffer> allocateBuffer(
 }
 
 std::pair<DeviceMemory, Image> allocateImage(
-        const gvk::DeviceDispatch& dd, const VkPhysicalDeviceMemoryProperties& memoryProperties,
-        const VkImageCreateInfo& createInfo, VkMemoryPropertyFlags memoryPropertyFlags) {
-    Image image = dd.createImage(createInfo);
+        const gvk::DeviceDispatch& dd, const VkPhysicalDeviceMemoryProperties& memory_properties,
+        const VkImageCreateInfo& create_info, VkMemoryPropertyFlags memory_property_flags) {
+    Image image = dd.createImage(create_info);
     if (!image) {
         return {};
     }
 
-    const VkMemoryRequirements memReqs = dd.getImageMemoryRequirements(image.get());
-    const int memoryTypeIndex =
-            getMemoryTypeIndex(memoryProperties, memReqs.memoryTypeBits, memoryPropertyFlags);
-    if (memoryTypeIndex < 0) {
+    const VkMemoryRequirements mem_reqs = dd.getImageMemoryRequirements(image.get());
+    const int memory_type_index =
+            GetMemoryTypeIndex(memory_properties, mem_reqs.memoryTypeBits, memory_property_flags);
+    if (memory_type_index < 0) {
         return {};
     }
 
-    DeviceMemory memory = dd.allocateMemory(memReqs.size, memoryTypeIndex);
+    DeviceMemory memory = dd.allocateMemory(mem_reqs.size, memory_type_index);
     if (!memory) {
         return {};
     }

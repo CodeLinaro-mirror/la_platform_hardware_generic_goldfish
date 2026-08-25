@@ -14,6 +14,8 @@
 
 #include "absl/log/check.h"
 
+#include "goldfish/archive/collections/set.h"
+
 namespace goldfish {
 
 uint32_t UniqueIdAllocator::Get() {
@@ -51,30 +53,12 @@ void UniqueIdAllocator::Reset() {
     returned_ids_.clear();
 }
 
-void UniqueIdAllocator::SaveToSnapshot(archive::IWriter& writer) const {
-    writer << last_id_ << returned_ids_.size();
-    for (const uint32_t id : returned_ids_) {
-        writer << id;
-    }
+archive::IWriter& operator<<(archive::IWriter& writer, const UniqueIdAllocator& x) {
+    return writer << x.last_id_ << x.returned_ids_;
 }
 
-int UniqueIdAllocator::LoadFromSnapshot(archive::IReader& reader) {
-    uint32_t size;
-    if (!ReadValue(reader, last_id_, size).ok()) {
-        return 1;
-    }
-
-    returned_ids_.clear();
-    for (; size > 0; --size) {
-        uint32_t id = 0;
-        if (ReadValue(reader, id).ok()) {
-            returned_ids_.insert(id);
-        } else {
-            return 1;
-        }
-    }
-
-    return 0;
+absl::Status ReadValue(archive::IReader& reader, UniqueIdAllocator& x) {
+    return ReadValue(reader, x.last_id_, x.returned_ids_);
 }
 
 }  // namespace goldfish

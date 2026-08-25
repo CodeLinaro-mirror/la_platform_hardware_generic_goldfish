@@ -26,8 +26,8 @@ class DeviceDispatch;
 struct DeviceResourceDeleter {
     struct Empty {};
 
-    explicit DeviceResourceDeleter(const DeviceDispatch* dd) : mDeviceDispatch(dd) {}
-    DeviceResourceDeleter(Empty) : mDeviceDispatch(nullptr) {}
+    explicit DeviceResourceDeleter(const DeviceDispatch* dd) : device_dispatch_(dd) {}
+    DeviceResourceDeleter(Empty) : device_dispatch_(nullptr) {}
 
     void operator()(VkBuffer) const;
     void operator()(VkCommandPool) const;
@@ -43,7 +43,7 @@ struct DeviceResourceDeleter {
     void operator()(VkShaderModule) const;
 
   private:
-    const DeviceDispatch* mDeviceDispatch;
+    const DeviceDispatch* device_dispatch_;
 };
 
 struct CommandBufferEnderImpl {
@@ -55,7 +55,7 @@ struct CommandBufferEnderImpl {
     void operator()(VkCommandBuffer) const;
 
   private:
-    PFN_vkEndCommandBuffer mEndCommandBuffer = nullptr;
+    PFN_vkEndCommandBuffer end_command_buffer_pfn_ = nullptr;
 };
 
 struct RenderPassEnderImpl {
@@ -67,7 +67,7 @@ struct RenderPassEnderImpl {
     void operator()(VkCommandBuffer) const;
 
   private:
-    PFN_vkCmdEndRenderPass mEndRenderPass = nullptr;
+    PFN_vkCmdEndRenderPass end_render_pass_pfn_ = nullptr;
 };
 
 using Buffer = goldfish::base::UniqueHandle<VkBuffer, VK_NULL_HANDLE, DeviceResourceDeleter>;

@@ -211,8 +211,8 @@ deployment models:
 
 ### 1. Local Emulator (Current Architecture)
 
-- **Signaling**: Direct gRPC connection to `VideoBridge` running alongside the
-  emulator instance on `localhost`.
+- **Signaling**: Direct gRPC connection to the Android Emulator (`grpc.port`)
+  running on `localhost`.
 - **Media/Data**: Direct local loopback WebRTC connection.
 
 ### 2. Remote Cloud Emulators (Cuttlefish / GCP / AWS)

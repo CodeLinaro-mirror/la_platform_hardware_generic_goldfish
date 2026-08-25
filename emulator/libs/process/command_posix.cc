@@ -201,7 +201,6 @@ class PosixOverseer : public ProcessOverseer {
                 char c = 's';
                 (void)write(stop_pipe_[1], &c, 1);
             }
-            ClosePipes();
         }
     };
 

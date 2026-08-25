@@ -32,6 +32,7 @@
 #include "android/crashreport/crash_reporter.h"
 #include "android/crashreport/crash_system.h"
 #include "android/crashreport/debug.h"
+#include "emulator/plugin/webrtc/webrtc_device.h"
 #include "goldfish/adb_device/adb_device.h"
 #include "goldfish/async/testing/global_event_loop.h"
 #include "goldfish/avd_finalize/avd_finalize.h"
@@ -203,6 +204,7 @@ extern "C" void GF_REGISTER_TYPES_FUNC(void) {
     goldfish::adb_device::adb_device_register_types();
     virtio_input_android_register_types();
     goldfish::grpc::grpc_register_types();
+    goldfish::grpc::webrtc_register_types();
     virtio_wifi_register_types();
     goldfish::netsim::netsim_connection_register_types();
     goldfish::netsim::netsim_netdev_register_types();

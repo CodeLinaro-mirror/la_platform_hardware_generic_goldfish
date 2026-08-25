@@ -634,28 +634,61 @@ TEST_F(PhysicalModelTest, FoldableInitialize) {
 
     model->SetCurrentTime(1000000000L);
 
-    FoldableState ret = model->GetFoldableState();
-    EXPECT_EQ(180, ret.current_hinge_degrees[0]);
-    EXPECT_EQ(90, ret.current_hinge_degrees[1]);
-    EXPECT_EQ(2, ret.config.num_hinges);
-    EXPECT_EQ(FoldableDisplayType::kHorizontalSplit, ret.config.type);
-    EXPECT_EQ(0, ret.config.hinge_params[0].display_id);
-    EXPECT_EQ(0, ret.config.hinge_params[0].x);
-    EXPECT_EQ(600, ret.config.hinge_params[0].y);
-    EXPECT_EQ(1260, ret.config.hinge_params[0].width);
-    EXPECT_EQ(10, ret.config.hinge_params[0].height);
-    EXPECT_EQ(0, ret.config.hinge_params[0].min_degrees);
-    EXPECT_EQ(360, ret.config.hinge_params[0].max_degrees);
-    EXPECT_EQ(0, ret.config.hinge_params[1].display_id);
-    EXPECT_EQ(0, ret.config.hinge_params[1].x);
-    EXPECT_EQ(1200, ret.config.hinge_params[1].y);
-    EXPECT_EQ(1260, ret.config.hinge_params[1].width);
-    EXPECT_EQ(10, ret.config.hinge_params[1].height);
-    EXPECT_EQ(0, ret.config.hinge_params[1].min_degrees);
-    EXPECT_EQ(180, ret.config.hinge_params[1].max_degrees);
-    EXPECT_EQ(180, ret.config.hinge_params[0].default_degrees);
-    EXPECT_EQ(90, ret.config.hinge_params[1].default_degrees);
-    EXPECT_EQ(FoldablePostures::kOpened, ret.current_posture);
+    {
+        const FoldableConfig& cfg = model->GetFoldableConfig();
+
+        EXPECT_EQ(2, cfg.num_hinges);
+        EXPECT_EQ(FoldableDisplayType::kHorizontalSplit, cfg.type);
+        EXPECT_EQ(0, cfg.hinge_params[0].display_id);
+        EXPECT_EQ(0, cfg.hinge_params[0].x);
+        EXPECT_EQ(600, cfg.hinge_params[0].y);
+        EXPECT_EQ(1260, cfg.hinge_params[0].width);
+        EXPECT_EQ(10, cfg.hinge_params[0].height);
+        EXPECT_EQ(0, cfg.hinge_params[0].min_degrees);
+        EXPECT_EQ(360, cfg.hinge_params[0].max_degrees);
+        EXPECT_EQ(0, cfg.hinge_params[1].display_id);
+        EXPECT_EQ(0, cfg.hinge_params[1].x);
+        EXPECT_EQ(1200, cfg.hinge_params[1].y);
+        EXPECT_EQ(1260, cfg.hinge_params[1].width);
+        EXPECT_EQ(10, cfg.hinge_params[1].height);
+        EXPECT_EQ(0, cfg.hinge_params[1].min_degrees);
+        EXPECT_EQ(180, cfg.hinge_params[1].max_degrees);
+        EXPECT_EQ(180, cfg.hinge_params[0].default_degrees);
+        EXPECT_EQ(90, cfg.hinge_params[1].default_degrees);
+    }
+
+    {
+        const FoldableState& st = model->GetFoldableState();
+        EXPECT_EQ(180, st.current_hinge_degrees[0]);
+        EXPECT_EQ(90, st.current_hinge_degrees[1]);
+        EXPECT_EQ(FoldablePostures::kOpened, st.current_posture);
+    }
+}
+
+TEST_F(PhysicalModelTest, NonFoldableDevicePostureAndHingeAnglesDoNotCrash) {
+    EXPECT_FALSE(model->HasFoldableModel());
+
+    // Calling setters on non-foldable model must not crash.
+    model->SetTargetPosture(1.0f, PhysicalInterpolation::kStep);
+    model->SetTargetHingeAngle0(90.0f, PhysicalInterpolation::kStep);
+    model->SetTargetHingeAngle1(90.0f, PhysicalInterpolation::kStep);
+    model->SetTargetHingeAngle2(90.0f, PhysicalInterpolation::kStep);
+    model->SetTargetRollable0(50.0f, PhysicalInterpolation::kStep);
+    model->SetTargetRollable1(50.0f, PhysicalInterpolation::kStep);
+    model->SetTargetRollable2(50.0f, PhysicalInterpolation::kStep);
+
+    // Calling getters on non-foldable model must safely return default 0.0f.
+    EXPECT_FLOAT_EQ(model->GetParameterPosture(ParameterValueType::kCurrent), 0.0f);
+    EXPECT_FLOAT_EQ(model->GetParameterHingeAngle0(ParameterValueType::kCurrent), 0.0f);
+    EXPECT_FLOAT_EQ(model->GetParameterHingeAngle1(ParameterValueType::kCurrent), 0.0f);
+    EXPECT_FLOAT_EQ(model->GetParameterHingeAngle2(ParameterValueType::kCurrent), 0.0f);
+    EXPECT_FLOAT_EQ(model->GetParameterRollable0(ParameterValueType::kCurrent), 0.0f);
+    EXPECT_FLOAT_EQ(model->GetParameterRollable1(ParameterValueType::kCurrent), 0.0f);
+    EXPECT_FLOAT_EQ(model->GetParameterRollable2(ParameterValueType::kCurrent), 0.0f);
+    size_t measurement_id;
+    EXPECT_FLOAT_EQ(model->GetHingeAngle0(&measurement_id), 0.0f);
+    EXPECT_FLOAT_EQ(model->GetHingeAngle1(&measurement_id), 0.0f);
+    EXPECT_FLOAT_EQ(model->GetHingeAngle2(&measurement_id), 0.0f);
 }
 
 }  // namespace goldfish::sensors

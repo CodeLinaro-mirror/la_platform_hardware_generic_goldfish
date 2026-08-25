@@ -1,7 +1,7 @@
 load("@bazel_skylib//lib:selects.bzl", "selects")
 load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_test")
 load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_test")
-load("@rules_python//python:defs.bzl", "py_binary", "py_library")
+load("@rules_python//python:defs.bzl", "py_binary", "py_library", "py_test")
 load("//emulator/tools:fishtank.bzl", "subpath_link", "unzip")
 load("//emulator/tools:plugins.bzl", "collect_plugins")
 load("tools/launcher_test.bzl", "create_launch_emulator_test")
@@ -218,6 +218,16 @@ cc_library(
     ],
 )
 
+cc_test(
+    name = "host_info_test",
+    srcs = ["host_info_test.cc"],
+    deps = [
+        ":host_info",
+        "//emulator/libs/system:test-headers",
+        "//emulator/libs/test:googletest_main",
+    ],
+)
+
 cc_library(
     name = "logging",
     srcs = ["logging.cc"],
@@ -265,8 +275,25 @@ cc_library(
         "//emulator/libs/grpc_client",
         "//emulator/libs/ini_file",
         "//emulator/libs/network",
+        "//emulator/libs/status_macros",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/time",
         "@grpc//:grpc++",
+    ],
+)
+
+cc_test(
+    name = "launch_netsimd_test",
+    size = "small",
+    srcs = ["launch_netsimd_test.cc"],
+    deps = [
+        ":launch_netsimd",
+        "//emulator/libs/test:googletest_main",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
     ],
 )
 
@@ -471,6 +498,7 @@ cc_test(
 alias(
     name = "launcher",
     actual = ":emulator",
+    visibility = ["//visibility:public"],
 )
 
 cc_binary(
@@ -494,6 +522,7 @@ cc_binary(
     }),
     visibility = ["//visibility:public"],
     deps = [
+        ":host_info",
         ":launcher_lib",
         ":trampoline",
         "//emulator/crashreport:crash_system",
@@ -529,6 +558,8 @@ create_launch_emulator_test(
 
 create_launch_emulator_test(
     name = "can_boot_with_minigbm",
+    count_log_pattern = "'Gfxstream initialized successfully!'",
+    expected_occurrences = 1,
     params = [
         "-show-kernel",
         "-no-boot-anim",
@@ -569,10 +600,33 @@ test_suite(
 )
 
 py_library(
+    name = "process_monitor",
+    srcs = ["tools/process_monitor.py"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "@pypi_aemu//psutil",
+    ],
+)
+
+py_test(
+    name = "process_monitor_test",
+    size = "small",
+    srcs = ["tools/process_monitor_test.py"],
+    main = "tools/process_monitor_test.py",
+    deps = [
+        ":process_monitor",
+        "@pypi_aemu//psutil",
+    ],
+)
+
+py_library(
     name = "emulator_lib",
     srcs = ["tools/emulator_lib.py"],
     visibility = ["//visibility:__pkg__"],
-    deps = ["@rules_python//python/runfiles"],
+    deps = [
+        ":process_monitor",
+        "@rules_python//python/runfiles",
+    ],
 )
 
 py_binary(

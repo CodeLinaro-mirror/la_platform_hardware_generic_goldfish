@@ -18,10 +18,6 @@
 
 namespace goldfish::physics {
 
-BodyState BodyModel::SetCurrentTime(uint64_t /*time_ns*/) {
-    return BodyState::kStable;
-}
-
 void BodyModel::SetHeartRate(float bpm, PhysicalInterpolation /*mode*/) {
     heart_rate_ = bpm;
 }

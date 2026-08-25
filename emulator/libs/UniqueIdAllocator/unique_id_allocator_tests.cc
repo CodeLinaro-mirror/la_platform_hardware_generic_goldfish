@@ -12,10 +12,14 @@
 
 #include <gtest/gtest.h>
 
+#include "absl/status/status_matchers.h"
+
 #include "goldfish/archive/deque_archive.h"
 #include "goldfish/archive/deque_reader.h"
 #include "goldfish/archive/deque_writer.h"
 #include "goldfish/unique_id_allocator.h"
+
+using ::absl_testing::IsOk;
 
 using goldfish::UniqueIdAllocator;
 using goldfish::archive::DequeArchive;
@@ -70,12 +74,12 @@ TEST(UniqueIdAllocator, snapshot) {
         EXPECT_EQ(allocator.Get(), 5);
         allocator.Put(2);
 
-        allocator.SaveToSnapshot(archive);
+        archive << allocator;
     }
 
     {
         UniqueIdAllocator allocator;
-        allocator.LoadFromSnapshot(archive);
+        ASSERT_THAT(ReadValue(archive, allocator), IsOk());
 
         EXPECT_EQ(allocator.Get(), 2);
         EXPECT_EQ(allocator.Get(), 6);

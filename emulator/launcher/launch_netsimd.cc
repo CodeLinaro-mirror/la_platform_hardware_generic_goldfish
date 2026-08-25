@@ -15,8 +15,10 @@
 #include "launch_netsimd.h"
 
 #include <filesystem>
+#include <thread>
 
 #include "absl/log/log.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
 
@@ -26,8 +28,9 @@
 #include "goldfish/async/launch_config.h"
 #include "goldfish/network/dns_resolver.h"
 
+namespace android::goldfish::netsim {
+
 namespace fs = std::filesystem;
-namespace android::goldfish {
 
 namespace {
 
@@ -58,7 +61,7 @@ fs::path GetNetsimDiscoveryDir() {
 
 }  // namespace
 
-int read_netsim_port() {
+int NetsimConnector::ReadNetsimPort() {
     // TODO(whollins): Resolve this path with the others in launcher.cpp.
     // IniFile netsim_ini(mResolvedPaths.discovery_directory.parent_path().parent_path() /
     // "netsim.ini");
@@ -70,8 +73,9 @@ int read_netsim_port() {
     return netsim_ini.GetInt("grpc.port", 0);
 }
 
-absl::StatusOr<NetsimConnection_ptr> connect_to_netsim(const std::string& endpoint,
-                                                       absl::Duration connection_deadline) {
+absl::StatusOr<NetsimConnection_ptr> NetsimConnector::ConnectToNetsim(
+        const std::string& endpoint, absl::Duration connection_deadline) {
+    VLOG(1) << "Trying to connect to netsimd at: " << endpoint;
     android::emulation::control::Endpoint endpoint_config;
     endpoint_config.set_target(endpoint);
 
@@ -135,4 +139,83 @@ absl::StatusOr<::goldfish::async::LaunchConfig> netsimd_launch_config(
     };
 }
 
-}  // namespace android::goldfish
+NetsimConnector::NetsimConnector(LaunchNetsimdFn launch_netsimd_on_loop,
+                                 const std::atomic<bool>& shutting_down,
+                                 std::optional<std::string> force_existing_netsimd_endpoint,
+                                 ConnectFn connect_fn, PortReaderFn port_reader_fn)
+        : launch_netsimd_fn_(std::move(launch_netsimd_on_loop))
+        , shutting_down_(shutting_down)
+        , force_existing_netsimd_endpoint_(std::move(force_existing_netsimd_endpoint))
+        , connect_fn_(std::move(connect_fn))
+        , get_netsimd_port_fn_(std::move(port_reader_fn)) {}
+
+absl::StatusOr<NetsimConnection_ptr> NetsimConnector::Run() {
+    if (shutting_down_) {
+        return absl::CancelledError("Cancelled netsimd connection sequence: emulator is shutting down");
+    }
+    if (force_existing_netsimd_endpoint_ && !force_existing_netsimd_endpoint_->empty()) {
+        VLOG(1) << "Trying to connect to existing netsimd at: "
+                << *force_existing_netsimd_endpoint_;
+        return connect_fn_(*force_existing_netsimd_endpoint_, absl::Seconds(5));
+    }
+
+    int existing_port = get_netsimd_port_fn_();
+    if (existing_port != 0) {
+        // Already running netsimd (or discovery file not cleaned up)
+        VLOG(1) << "Found existing netsim.ini with port: " << existing_port;
+        auto conn = connect_fn_(absl::StrCat("localhost:", existing_port), absl::Seconds(5));
+        if (conn.ok()) {
+            VLOG(1) << "Launcher connection to existing netsimd established at port: "
+                    << existing_port;
+            return conn;
+        }
+        LOG(WARNING) << "Existing netsimd at port " << existing_port
+                     << " is unreachable (" << conn.status()
+                     << "). Assuming stale discovery file; proceeding to launch a new instance.";
+    }
+
+    if (shutting_down_) {
+        return absl::CancelledError("Cancelled netsimd process launch: emulator is shutting down");
+    }
+
+    VLOG(1) << "No running netsimd found, launching netsimd...";
+    RETURN_IF_ERROR(launch_netsimd_fn_());
+    if (auto port = WaitForNewPort(existing_port, absl::Seconds(15)); !port.ok()) {
+        LOG(WARNING) << "Failed to detect new netsimd port within 15s: " << port.status();
+        return port.status();
+    } else {
+        if (auto conn = connect_fn_(absl::StrCat("localhost:", *port), absl::Seconds(5));
+            conn.ok()) {
+            VLOG(1) << "Launcher connection to netsim established at port: " << *port;
+            return conn;
+        } else {
+            LOG(WARNING) << "Failed to connect to newly launched netsimd at port " << *port << ": "
+                         << conn.status();
+            return conn.status();
+        }
+    }
+}
+
+absl::StatusOr<int> NetsimConnector::WaitForNewPort(int old_port, absl::Duration timeout) {
+    const auto deadline = absl::Now() + timeout;
+    constexpr auto kPollInterval = std::chrono::milliseconds(50);
+
+    while (absl::Now() < deadline && !shutting_down_) {
+        int new_port = get_netsimd_port_fn_();
+        if (new_port != 0 && new_port != old_port) {
+            VLOG(1) << "netsim.ini updated with new grpc.port: " << new_port;
+            return new_port;
+        }
+        std::this_thread::sleep_for(kPollInterval);
+    }
+
+    if (shutting_down_) {
+        return absl::CancelledError("Cancelled netsimd waiting for port: emulator is shutting down");
+    }
+    return absl::DeadlineExceededError(absl::StrCat(
+            "Timed out after ", absl::FormatDuration(timeout),
+            " waiting for the newly launched netsimd process to write its gRPC port to "
+            "netsim.ini"));
+}
+
+}  // namespace android::goldfish::netsim

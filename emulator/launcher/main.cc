@@ -50,6 +50,7 @@
 #include "goldfish/metrics/metrics_reporter.h"
 #include "goldfish/metrics/studio_config.h"
 #include "goldfish/tools/aemu_version.h"
+#include "host_info.h"
 #include "launcher.h"
 #include "logging.h"
 #include "trampoline.h"
@@ -313,6 +314,12 @@ int main(int argc, char** argv) {
     }
 
     ShowBanner();
+
+    if (opts.verbose) {
+        LOG(INFO) << std::boolalpha << "Emulator launcher environment: "
+                  << "continuous_integration=" << android::goldfish::IsRunningInCi() << " "
+                  << "launched_by_android_cli=" << android::goldfish::IsAndroidCliDefined();
+    }
 
     if (android::goldfish::ShouldLaunchFishtank(opts) && !emulator_paths->HasFishtank()) {
         LOG(ERROR) << "Fishtank (UI) is not available in the AOSP build. "

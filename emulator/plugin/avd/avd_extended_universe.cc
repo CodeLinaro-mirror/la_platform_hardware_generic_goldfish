@@ -16,6 +16,7 @@
 
 #include "android/base/system.h"
 #include "android/crashreport/crash_reporter.h"
+#include "goldfish/archive/collections/string.h"
 #include "goldfish/archive/reader.h"
 #include "goldfish/archive/writer.h"
 #include "goldfish/async/qemu_event_loop.h"

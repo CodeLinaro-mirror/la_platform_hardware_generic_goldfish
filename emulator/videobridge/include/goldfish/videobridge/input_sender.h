@@ -14,6 +14,8 @@
 #pragma once
 
 #include <cstdint>
+#include <functional>
+#include <memory>
 
 #include "absl/status/status.h"
 
@@ -72,5 +74,7 @@ class InputSender {
      */
     virtual void Stop() = 0;
 };
+
+using InputSenderFactory = std::function<std::unique_ptr<InputSender>(DataChannelLabel)>;
 
 }  // namespace goldfish::videobridge

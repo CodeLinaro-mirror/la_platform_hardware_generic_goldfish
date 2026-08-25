@@ -14,6 +14,7 @@
 
 #include "absl/status/status_matchers.h"
 
+#include "goldfish/archive/collections/string.h"
 #include "goldfish/archive/deque_archive.h"
 #include "goldfish/devices/cable/saveload.h"
 #include "goldfish/devices/connector.h"

@@ -44,7 +44,9 @@ class ClipDataEventStreamWriter : public BaseEventStreamWriter<ClipData, Clipboa
   public:
     ClipDataEventStreamWriter(CallbackEventSource<ClipboardEvent>* listener, std::string peerId)
             : BaseEventStreamWriter<ClipData, ClipboardEvent>(listener)
-            , mPeerId(std::move(peerId)) {}
+            , mPeerId(std::move(peerId)) {
+        Subscribe();
+    }
 
     /**
      * @brief Handles the arrival of a new clipboard event.

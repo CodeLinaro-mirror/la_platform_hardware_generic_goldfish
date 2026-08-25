@@ -18,6 +18,7 @@
 #include <glm/vec3.hpp>
 #include <glm/vec4.hpp>
 
+#include <bitset>
 #include <cstdint>
 #include <memory>
 #include <mutex>
@@ -122,7 +123,7 @@ class PhysicalModel : public CallbackEventSource<PhysicalModelChangeEvent> {
      * Target state setters.
      * @note Foldable/Rollable target setters (HingeAngle*, Posture, Rollable*)
      *       require that HasFoldableModel() is true. Calling them on a non-foldable
-     *       target will trigger a DCHECK assertion failure.
+     *       target will be safely ignored.
      */
 #define GOLDFISH_PHYSICAL_PARAMETER_DEF(x, y, z, w) \
     void SetTarget##z(w value, PhysicalInterpolation mode);
@@ -134,7 +135,7 @@ class PhysicalModel : public CallbackEventSource<PhysicalModelChangeEvent> {
      * Gets current target state of the modeled object.
      * @note Foldable/Rollable parameter getters (HingeAngle*, Posture, Rollable*)
      *       require that HasFoldableModel() is true. Calling them on a non-foldable
-     *       target will trigger a DCHECK assertion failure.
+     *       target will return default 0.0f.
      */
 #define GOLDFISH_PHYSICAL_PARAMETER_DEF(x, y, z, w) \
     w GetParameter##z(ParameterValueType parameter_value_type) const;
@@ -145,8 +146,7 @@ class PhysicalModel : public CallbackEventSource<PhysicalModelChangeEvent> {
     /*
      * Sensor override methods.
      * @note Foldable/Rollable override methods (HingeAngle*, Posture, Rollable*)
-     *       require that HasFoldableModel() is true. Calling them on a non-foldable
-     *       target will trigger a DCHECK assertion failure.
+     *       require that HasFoldableModel() is true.
      */
 #define GOLDFISH_SENSOR_DEF(x, y, z, v, w) void Override##z(v override_value);
     GOLDFISH_SENSORS_LIST
@@ -156,8 +156,7 @@ class PhysicalModel : public CallbackEventSource<PhysicalModelChangeEvent> {
      * Getters for all sensor values.
      * Can be called from any thread.
      * @note Foldable/Rollable sensor getters (HingeAngle*, Posture, Rollable*)
-     *       require that HasFoldableModel() is true. Calling them on a non-foldable
-     *       target will trigger a DCHECK assertion failure.
+     *       require that HasFoldableModel() is true.
      */
 #define GOLDFISH_SENSOR_DEF(x, y, z, v, w) v Get##z(size_t* measurement_id) const;
     GOLDFISH_SENSORS_LIST
@@ -179,13 +178,15 @@ class PhysicalModel : public CallbackEventSource<PhysicalModelChangeEvent> {
 
     Rotation GetDeviceRotation() const;
 
+    const FoldableConfig& GetFoldableConfig() const;
+
     /**
      * @brief Gets the current foldable device state.
      * @note Caller must ensure HasFoldableModel() is true before calling this API.
      *       Calling it on a non-foldable target will trigger a DCHECK assertion failure.
      * @return Current foldable state
      */
-    FoldableState GetFoldableState() const;
+    const FoldableState& GetFoldableState() const;
 
     /**
      * @brief Checks if the physical model supports foldable capabilities.
@@ -259,13 +260,14 @@ class PhysicalModel : public CallbackEventSource<PhysicalModelChangeEvent> {
     void SetOverride(const AndroidSensor sensor, T* override_member_pointer, T override_value) {
         const auto sensor_index = static_cast<size_t>(sensor);
 
-        PhysicalStateChanging();
+        NotifyTargetState(PhysicalModelChangeEvent::Type::kPhysicalStateChanging);
         {
             const std::lock_guard<std::recursive_mutex> lock(mutex_);
             use_override_[sensor_index] = true;
             measurement_id_[sensor_index]++;
             *override_member_pointer = override_value;
         }
+        NotifyTargetState(PhysicalModelChangeEvent::Type::kTargetStateChanged);
     }
 
     /*
@@ -278,6 +280,7 @@ class PhysicalModel : public CallbackEventSource<PhysicalModelChangeEvent> {
     void PhysicalStateChanging();    ///< Called when physical state begins changing
     void PhysicalStateStabilized();  ///< Called when physical state stabilizes
     void TargetStateChanged();       ///< Called when target state changes
+    void NotifyTargetState(PhysicalModelChangeEvent::Type);
 
     mutable std::recursive_mutex mutex_;  ///< Mutex for thread safety
 
@@ -286,10 +289,10 @@ class PhysicalModel : public CallbackEventSource<PhysicalModelChangeEvent> {
     std::unique_ptr<FoldableModel> foldable_model_;  ///< Models foldable device state
     BodyModel body_model_;                    ///< Models body-related sensors
 
+    std::bitset<kNumSensors> use_override_;             ///< Sensor override flags
     mutable size_t measurement_id_[kNumSensors] = {0};  ///< Measurement IDs
 
-    bool is_physical_state_changing_{false};    ///< True if physical state is changing
-    bool use_override_[kNumSensors] = {false};  ///< Sensor override flags
+    bool is_physical_state_changing_{false};  ///< True if physical state is changing
 
 #define GOLDFISH_SENSOR_DEF(x, y, z, v, w) v m##z##Override{0.f};
     GOLDFISH_SENSORS_LIST

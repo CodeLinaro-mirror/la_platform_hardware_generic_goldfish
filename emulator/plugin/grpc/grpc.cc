@@ -43,6 +43,7 @@
 #include "android/sockets/socket_utils.h"
 #include "android/status/status_macros.h"
 #include "emulator/plugin/grpc/grpc_display.h"
+#include "emulator/plugin/webrtc/webrtc_device.h"
 #include "goldfish/async/event_loop.h"
 #include "goldfish/async/qemu_event_loop.h"
 #include "goldfish/async/testing/global_event_loop.h"
@@ -148,6 +149,10 @@ std::vector<std::shared_ptr<::grpc::Service>> CreateServices(avd_info::AvdUniver
                         std::make_unique<ModemSimulatorClient>(modem_simulator_port)));
     } else {
         LOG(WARNING) << "No valid modem_simulator_port. Not enabling gRPC ModemService.";
+    }
+
+    if (auto webrtc_service = WebrtcGetService()) {
+        services.emplace_back(webrtc_service);
     }
 
     return services;
@@ -328,8 +333,9 @@ std::shared_ptr<::grpc::ServerCredentials> CreateCredentials(const CredConf& cre
     return creds;
 }
 
-EmulatorProperties CreateProps(const GrpcConfig* config, const avd_info::AvdProperties& avdprops,
+EmulatorProperties CreateProps(const GrpcConfig* config, const avd_info::AvdUniverse& avd_universe,
                                const CredConf& cred_conf) {
+    const auto& avdprops = avd_universe.Props();
     EmulatorProperties props{
         {"port.serial", std::to_string(avdprops.serial_number)},
         {"emulator.build", BUILD_ID},
@@ -346,6 +352,10 @@ EmulatorProperties CreateProps(const GrpcConfig* config, const avd_info::AvdProp
         {"grpc.port", std::to_string(config->port)},
         {"grpc.allowlist", config->allow_list_path.string()},
     };
+
+    if (auto endpoint = avd_universe.GetNetsimEndpoint(); !endpoint.empty()) {
+        props["netsim.endpoint"] = endpoint;
+    }
 
     if (!cred_conf.jwk_file.empty()) {
         props["grpc.jwks"] = cred_conf.jwk_file.parent_path().string();
@@ -434,7 +444,7 @@ void grpc_realize(DeviceState* dev, Error** errp) {
         return;
     }
 
-    auto props = CreateProps(config, avd_universe.Props(), *cred_conf);
+    auto props = CreateProps(config, avd_universe, *cred_conf);
     if (auto s = config->advertiser->Write(props); !s.ok()) {
         LOG(WARNING) << "Failed to write the emulator discovery file. As a result, Android "
                         "Studio and other user interfaces will not be able to automatically "

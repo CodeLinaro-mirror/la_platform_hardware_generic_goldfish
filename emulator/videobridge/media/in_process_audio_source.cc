@@ -31,40 +31,14 @@ InProcessAudioSource::InProcessAudioSource(uint32_t sample_rate, uint32_t channe
 }
 
 InProcessAudioSource::~InProcessAudioSource() {
-    absl::MutexLock lock(&sink_mutex_);
-    DCHECK(sinks_.empty())
-            << "All sinks must be unregistered before the audio source is destroyed.";
+    OnStop();
 }
 
-void InProcessAudioSource::AddSink(::webrtc::AudioTrackSinkInterface* sink) {
-    if (!sink) return;
-    absl::MutexLock lock(&sink_mutex_);
-    sinks_.insert(sink);
-}
-
-void InProcessAudioSource::RemoveSink(::webrtc::AudioTrackSinkInterface* sink) {
-    if (!sink) return;
-    absl::MutexLock lock(&sink_mutex_);
-    sinks_.erase(sink);
-}
-
-const ::webrtc::AudioOptions InProcessAudioSource::options() const {
-    // Disable voice-centric DSP (AEC, AGC, NS, HPF) because this is direct system/guest audio;
-    // processing would distort music, game effects, stereo imaging, dynamic range, and bass
-    // frequencies.
-    ::webrtc::AudioOptions options;
-    options.echo_cancellation = false;
-    options.auto_gain_control = false;
-    options.noise_suppression = false;
-    options.highpass_filter = false;
-    return options;
-}
-
-void InProcessAudioSource::Start() {
+void InProcessAudioSource::OnStart() {
     running_ = true;
 }
 
-void InProcessAudioSource::Stop() {
+void InProcessAudioSource::OnStop() {
     running_ = false;
     absl::MutexLock lock(&buffer_mutex_);
 
@@ -84,7 +58,7 @@ void InProcessAudioSource::OnAudioData(const int16_t* pcm_data, size_t num_sampl
     while (audio_buffer_.Size() >= bytes_per_10ms) {
         auto peek = audio_buffer_.Peek();
         if (peek.second >= bytes_per_10ms) {
-            Dispatch10msFrame(reinterpret_cast<const int16_t*>(peek.first),
+            Dispatch10msFrame(peek.first, /*bits_per_sample=*/16, sample_rate_, channels_,
                               samples_per_10ms_channel_);
             (void)audio_buffer_.Consume(bytes_per_10ms);
         } else {
@@ -94,21 +68,10 @@ void InProcessAudioSource::OnAudioData(const int16_t* pcm_data, size_t num_sampl
             (void)audio_buffer_.Consume(peek.second);
             auto peek2 = audio_buffer_.Peek();
             std::memcpy(dst + peek.second, peek2.first, bytes_per_10ms - peek.second);
-            Dispatch10msFrame(temp_frame_buffer_.data(), samples_per_10ms_channel_);
+            Dispatch10msFrame(temp_frame_buffer_.data(), /*bits_per_sample=*/16, sample_rate_,
+                              channels_, samples_per_10ms_channel_);
             (void)audio_buffer_.Consume(bytes_per_10ms - peek.second);
         }
-    }
-}
-
-void InProcessAudioSource::Dispatch10msFrame(const int16_t* frame_data,
-                                             size_t samples_per_channel) {
-    // WebRTC unregisters sinks on worker/signaling threads, never within OnData() callbacks.
-    // Holding sink_mutex_ during iteration ensures RemoveSink() blocks until active dispatches
-    // complete, guaranteeing safe immediate sink destruction upon RemoveSink() return.
-    absl::MutexLock lock(&sink_mutex_);
-    for (auto* sink : sinks_) {
-        sink->OnData(frame_data, /*bits_per_sample=*/16, sample_rate_, channels_,
-                     samples_per_channel);
     }
 }
 

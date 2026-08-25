@@ -38,18 +38,4 @@ absl::Status ReadValue(archive::IReader& r, size_t& dst) {
     return absl::OkStatus();
 }
 
-absl::Status ReadValue(archive::IReader& r, std::string& dst) {
-    size_t size = 0;
-    if (const absl::Status s = ReadValue(r, size); !s.ok()) {
-        return s;
-    }
-
-    std::string result(size, '?');
-    if (const absl::Status s = r.Read(result.data(), result.size()); !s.ok()) {
-        return s;
-    }
-    dst = std::move(result);
-    return absl::OkStatus();
-}
-
 }  // namespace goldfish::archive

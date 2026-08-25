@@ -36,9 +36,9 @@ enum class PhysicalDeviceRejectionReason : int32_t {
 
 using PhysicalDeviceScoringFunction = std::function<int32_t(const VkPhysicalDeviceProperties&)>;
 
-VkPhysicalDevice selectPhysicalDevice(const InstanceDispatch&, const PhysicalDeviceScoringFunction&,
+VkPhysicalDevice SelectPhysicalDevice(const InstanceDispatch&, const PhysicalDeviceScoringFunction&,
                                       bool verbose);
 
-VkPhysicalDevice selectPhysicalDeviceByIndex(const InstanceDispatch&, size_t index);
+VkPhysicalDevice SelectPhysicalDeviceByIndex(const InstanceDispatch&, size_t index);
 
 }  // namespace goldfish::gvk::util

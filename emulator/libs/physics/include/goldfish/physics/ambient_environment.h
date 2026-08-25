@@ -46,14 +46,6 @@ class AmbientEnvironment {
     AmbientEnvironment() = default;
 
     /*
-     * Sets the current time of the AmbientEnvironment simulation.  This time is
-     * used as the current time in calculating ambient environment states, along
-     * with the time when target state change requests are recorded as taking
-     * place.  Time values must be non-decreasing.
-     */
-    static AmbientState SetCurrentTime(uint64_t time_ns);
-
-    /*
      * Sets the strength of the ambient magnetic field.
      */
     void SetMagneticField(float north, float east, float vertical, PhysicalInterpolation mode);

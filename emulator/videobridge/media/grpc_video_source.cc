@@ -93,25 +93,34 @@ GrpcVideoSource::GrpcVideoSource(std::shared_ptr<EmulatorClient> client,
         , pipeline_(std::move(pipeline)) {}
 
 GrpcVideoSource::~GrpcVideoSource() {
-    Stop();
+    OnStop();
 }
 
-void GrpcVideoSource::Start() {
+void GrpcVideoSource::OnStart() {
+    if (!client_ || !client_->IsConnected()) {
+        LOG(ERROR) << "Failed to start screenshot capture: Emulator client is disconnected. "
+                   << "Ensure the emulator is running and reachable.";
+        return;
+    }
+
     bool expected = false;
-    if (running_.compare_exchange_strong(expected, true)) {
+    if (capture_running_.compare_exchange_strong(expected, true)) {
         LOG(INFO) << "Starting GrpcVideoSource capture loop for display " << options_.display_id
                   << " (" << options_.width << "x" << options_.height
                   << ") connected to emulator at " << client_->TargetAddress();
+        context_ = std::make_unique<::grpc::ClientContext>();
         capture_thread_ = std::thread([this]() { CaptureLoop(); });
     }
 }
 
-void GrpcVideoSource::Stop() {
+void GrpcVideoSource::OnStop() {
     bool expected = true;
-    if (running_.compare_exchange_strong(expected, false)) {
+    if (capture_running_.compare_exchange_strong(expected, false)) {
         VLOG(1) << "Stopping GrpcVideoSource capture loop for display " << options_.display_id
                 << " connected to emulator at " << client_->TargetAddress();
-        context_.TryCancel();
+        if (context_) {
+            context_->TryCancel();
+        }
     }
     if (capture_thread_.joinable()) {
         capture_thread_.join();
@@ -202,7 +211,7 @@ void GrpcVideoSource::CaptureLoop() {
     if (!client_ || !client_->IsConnected()) {
         LOG(ERROR) << "Failed to start screenshot capture: Emulator client is disconnected. "
                    << "Ensure the emulator is running and reachable.";
-        running_ = false;
+        capture_running_ = false;
         return;
     }
 
@@ -214,27 +223,27 @@ void GrpcVideoSource::CaptureLoop() {
 
     if (options_.transport == GrpcVideoSourceOptions::Transport::kSharedMemory) {
         if (!SetupSharedMemory(&format)) {
-            running_ = false;
+            capture_running_ = false;
             return;
         }
     }
 
-    auto reader = client_->StreamScreenshot(&context_, format);
+    auto reader = client_->StreamScreenshot(context_.get(), format);
     if (!reader) {
         LOG(ERROR) << "Failed to open gRPC screenshot stream. Verify network or emulator state.";
-        running_ = false;
+        capture_running_ = false;
         return;
     }
 
     Image img;
-    while (running_ && reader->Read(&img)) {
+    while (capture_running_ && reader->Read(&img)) {
         ProcessIncomingImage(img);
     }
     // TODO(jansene): We could signal the source state to webrtc for this video track
 
     LOG(INFO) << "GrpcVideoSource capture loop exited for display " << options_.display_id
               << " connected to emulator at " << client_->TargetAddress();
-    running_ = false;
+    capture_running_ = false;
 }
 
 }  // namespace goldfish::videobridge

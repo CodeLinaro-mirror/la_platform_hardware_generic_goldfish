@@ -16,10 +16,12 @@
 #include <memory>
 #include <mutex>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include "absl/log/check.h"
 
+#include "goldfish//base/unique_handle.h"
 #include "goldfish/eventing/event_source.h"
 #include "goldfish/eventing/policies/pointer_handlers.h"
 
@@ -49,101 +51,65 @@ struct event_source_traits<Host<T, Policy>> {
  * @tparam EventSystem The type of event system (CallbackEventSupport or WithCallbacks)
  * @tparam T The event type
  */
-template <typename EventSystem, typename T>
-class ScopedEventCallback {
-  public:
-    using EventCallback = std::function<void(const T&)>;
+// Helper trait to determine callback signature based on event type T.
+template <typename T>
+struct event_callback_traits {
+    using type = std::function<void(typename EventParam<T>::type)>;
+};
 
-    /**
-     * @brief Constructs a scoped callback and registers it with the event system.
-     *
-     * @param system Reference to the event system
-     * @param callback The callback function to register
-     */
-    ScopedEventCallback(EventSystem& system, EventCallback callback)
-            : system_(system), id_(system.AddCallback(std::move(callback))) {}
-
-    /**
-     * @brief Automatically unregisters the callback on destruction.
-     */
-    ~ScopedEventCallback() { system_.RemoveCallback(id_); }
-
-    /**
-     * @brief Gets the callback ID.
-     *
-     * @return The unique identifier for this callback
-     */
-    size_t GetId() const { return id_; }
-
-    // Prevent copying to maintain RAII semantics
-    ScopedEventCallback(const ScopedEventCallback&) = delete;
-    ScopedEventCallback& operator=(const ScopedEventCallback&) = delete;
-
-    // Allow moving
-    ScopedEventCallback(ScopedEventCallback&& other) noexcept
-            : system_(other.system_), id_(other.id_) {
-        other.id_ = std::numeric_limits<size_t>::max();  // Invalidate other's ID
-    }
-
-    ScopedEventCallback& operator=(ScopedEventCallback&& other) noexcept {
-        if (this != &other) {
-            if (id_ != std::numeric_limits<size_t>::max()) {
-                system_.RemoveCallback(id_);  // Clean up existing callback
-            }
-            system_ = other.system_;
-            id_ = other.id_;
-            other.id_ = std::numeric_limits<size_t>::max();
-        }
-        return *this;
-    }
-
-  private:
-    EventSystem& system_;
-    size_t id_;
+template <>
+struct event_callback_traits<void> {
+    using type = std::function<void()>;
 };
 
 /**
- * @brief Specialization for void events.
+ * @brief RAII wrapper for automatic callback management.
+ *
+ * This class automatically unregisters the callback when destroyed.
+ * It works with both CallbackEventSupport and WithCallbacks classes.
+ *
+ * @tparam EventSystem The type of event system (CallbackEventSupport or WithCallbacks)
+ * @tparam T The event type
  */
-template <typename EventSystem>
-class ScopedEventCallback<EventSystem, void> {
+template <typename EventSystem, typename T>
+class ScopedEventCallback {
   public:
-    using EventCallback = std::function<void()>;
+    using EventCallback = typename event_callback_traits<T>::type;
+    static constexpr size_t kInvalidId = 0;
+    struct CallbackDeleter {
+        struct Empty {};
+        explicit CallbackDeleter(Empty = {}) : source(nullptr) {}
+        explicit CallbackDeleter(EventSystem* sys) : source(sys) {}
 
-    ScopedEventCallback(EventSystem& system, EventCallback callback)
-            : system_(system), id_(system.AddCallback(std::move(callback))) {}
-
-    ~ScopedEventCallback() {
-        if (id_ != std::numeric_limits<size_t>::max()) {
-            system_.RemoveCallback(id_);
+        void operator()(size_t id) const {
+            if (id != kInvalidId) {
+                DCHECK(source) << "The invariant id != kInvalid -> source is broken";
+                source->RemoveCallback(id);
+            }
         }
-    }
 
-    size_t GetId() const { return id_; }
+        EventSystem* source = nullptr;
+    };
 
+    using Handle = ::goldfish::base::UniqueHandle<size_t, kInvalidId, CallbackDeleter>;
+
+    ScopedEventCallback() = default;
+    ScopedEventCallback(EventSystem& system, EventCallback callback)
+            : handle_(system.AddCallback(std::move(callback)), CallbackDeleter(&system)) {}
+
+    ScopedEventCallback(ScopedEventCallback&&) noexcept = default;
+    ScopedEventCallback& operator=(ScopedEventCallback&&) noexcept = default;
     ScopedEventCallback(const ScopedEventCallback&) = delete;
     ScopedEventCallback& operator=(const ScopedEventCallback&) = delete;
+    ~ScopedEventCallback() = default;
 
-    ScopedEventCallback(ScopedEventCallback&& other) noexcept
-            : system_(other.system_), id_(other.id_) {
-        other.id_ = std::numeric_limits<size_t>::max();
-    }
-
-    ScopedEventCallback& operator=(ScopedEventCallback&& other) noexcept {
-        if (this != &other) {
-            if (id_ != std::numeric_limits<size_t>::max()) {
-                system_.RemoveCallback(id_);
-            }
-            system_ = other.system_;
-            id_ = other.id_;
-            other.id_ = std::numeric_limits<size_t>::max();
-        }
-        return *this;
-    }
+    size_t GetId() const { return handle_.get(); }
+    explicit operator bool() const { return handle_.ok(); }
+    void Reset() { handle_.reset(); }
+    size_t Release() { return handle_.release(); }
 
   private:
-    EventSystem& system_;
-    size_t id_;
+    Handle handle_;
 };
 
 /**
@@ -161,8 +127,9 @@ template <typename EventSourceType>
 class WithCallbacks : public EventSourceType {
   public:
     using T = typename event_source_traits<EventSourceType>::event_type;
-    using EventCallback = std::function<void(const T&)>;
+    using EventCallback = typename event_callback_traits<T>::type;
     using CallbackId = size_t;
+    static constexpr CallbackId kInvalidCallbackId = 0;
     using PtrType = typename EventSourceType::Ptr;
 
     /**
@@ -205,6 +172,9 @@ class WithCallbacks : public EventSourceType {
      * @brief Removes a callback by its ID.
      */
     void RemoveCallback(CallbackId id) {
+        if (id == kInvalidCallbackId) {
+            return;
+        }
         std::shared_ptr<InternalListener> listener;
         {
             const std::lock_guard<std::mutex> lock(api_lock_);
@@ -256,7 +226,7 @@ class WithCallbacks : public EventSourceType {
     };
 
     mutable std::mutex api_lock_;
-    CallbackId next_id_ = 0;
+    CallbackId next_id_ = 1;
     std::unordered_map<CallbackId, std::shared_ptr<InternalListener>> listener_map_;
 };
 

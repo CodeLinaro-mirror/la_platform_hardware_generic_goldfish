@@ -33,8 +33,8 @@ extern "C" {
 
 // Forward declarations for qemu bindings.
 typedef struct QKbdState QKbdState;
-QKbdState *qkbd_state_init(QemuConsole *con);
-void qkbd_state_free(QKbdState *kbd);
+QKbdState* qkbd_state_init(QemuConsole* con);  // NOLINT(readability-identifier-naming)
+void qkbd_state_free(QKbdState* kbd);        // NOLINT(readability-identifier-naming)
 
 // IWYU pragma: end_keep
 // clang-format on
@@ -237,46 +237,46 @@ const size_t kNonPrintableCodeEntries = std::size(kNonPrintableCodeMap);
 
 class KeyEventSenderImpl : public IKeyEventSender {
   public:
-    KeyEventSenderImpl(QemuConsole* con, EventLoop* qemu_loop) : mQemuLoop(qemu_loop) {
-        mKbd = qkbd_state_init(con);
+    KeyEventSenderImpl(QemuConsole* con, EventLoop* qemu_loop) : qemu_loop_(qemu_loop) {
+        keyboard_state_ = qkbd_state_init(con);
     }
-    ~KeyEventSenderImpl() { qkbd_state_free(mKbd); }
+    ~KeyEventSenderImpl() { qkbd_state_free(keyboard_state_); }
 
-    void send(const KeyboardEvent request) override { doSend(request); }
+    void send(const KeyboardEvent request) override { DispatchKeyboardEvent(request); }
 
   private:
-    void sendKeyCode(int32_t code, const KeyboardEvent::KeyCodeType codeType,
-                     const KeyboardEvent::KeyEventType eventType) {
-        KeyCodeType type = static_cast<KeyCodeType>(codeType);
+    void SendKeyCode(int32_t code, const KeyboardEvent::KeyCodeType code_type,
+                     const KeyboardEvent::KeyEventType event_type) {
+        KeyCodeType type = static_cast<KeyCodeType>(code_type);
         QKeyCode qcode = keycode_to_qcode(code, type);
         if (qcode >= Q_KEY_CODE__MAX) {
             LOG(FATAL) << "Invalid QKeyCode - too big: " << qcode;
         }
-        if (eventType == KeyboardEvent::keydown || eventType == KeyboardEvent::keypress) {
-            mQemuLoop
-                    ->Post([qcode, kbd = mKbd] {
-                        QemuKeyEvent keyEvent{qcode, true};
-                        keyEvent.send(kbd);
+        if (event_type == KeyboardEvent::keydown || event_type == KeyboardEvent::keypress) {
+            qemu_loop_
+                    ->Post([qcode, kbd = keyboard_state_] {
+                        QemuKeyEvent press_event{qcode, true};
+                        press_event.send(kbd);
                     })
                     .IgnoreError();
         }
-        if (eventType == KeyboardEvent::keyup || eventType == KeyboardEvent::keypress) {
-            mQemuLoop
-                    ->Post([qcode, kbd = mKbd] {
-                        QemuKeyEvent keyEvent{qcode, false};
-                        keyEvent.send(kbd);
+        if (event_type == KeyboardEvent::keyup || event_type == KeyboardEvent::keypress) {
+            qemu_loop_
+                    ->Post([qcode, kbd = keyboard_state_] {
+                        QemuKeyEvent release_event{qcode, false};
+                        release_event.send(kbd);
                     })
                     .IgnoreError();
         }
     }
 
-    void doSend(const KeyboardEvent request) {
+    void DispatchKeyboardEvent(const KeyboardEvent request) {
         VLOG(1) << "Handling " << request.ShortDebugString();
         if (request.key().size() > 0) {
-            keyboard::DomKey domkey = browserKeyToDomKey(request.key());
+            keyboard::DomKey domkey = BrowserKeyToDomKey(request.key());
             if (domkey != keyboard::DomKey::NONE) {
                 // okay, check if it is a non printable char:
-                keyboard::DomCode code = domKeyAsNonPrintableDomCode(domkey);
+                keyboard::DomCode code = DomKeyAsNonPrintableDomCode(domkey);
                 if (code == keyboard::DomCode::NONE) {
                     // We are sending an individual key.
                     auto character = domkey.ToCharacter();
@@ -286,37 +286,44 @@ class KeyEventSenderImpl : public IKeyEventSender {
                                 << domkey.ToUtf8();
                         return;
                     }
-                    auto eventType = request.eventtype();
-                    if (eventType == KeyboardEvent::keydown ||
-                        eventType == KeyboardEvent::keypress) {
+                    auto event_type = request.eventtype();
+                    if (event_type == KeyboardEvent::keydown ||
+                        event_type == KeyboardEvent::keypress) {
                         for (auto keycode : ascii_to_qcode(character, true)) {
-                            mQemuLoop->Post([key = keycode, kbd = mKbd] { key.send(kbd); })
+                            qemu_loop_
+                                    ->Post([key = keycode, kbd = keyboard_state_] {
+                                        key.send(kbd);
+                                    })
                                     .IgnoreError();
                         }
                     }
-                    if (eventType == KeyboardEvent::keyup || eventType == KeyboardEvent::keypress) {
+                    if (event_type == KeyboardEvent::keyup ||
+                        event_type == KeyboardEvent::keypress) {
                         for (auto keycode : ascii_to_qcode(character, false)) {
-                            mQemuLoop->Post([key = keycode, kbd = mKbd] { key.send(kbd); })
+                            qemu_loop_
+                                    ->Post([key = keycode, kbd = keyboard_state_] {
+                                        key.send(kbd);
+                                    })
                                     .IgnoreError();
                         }
                     }
                 } else {
                     // Nope we have to send the domcode..
-                    sendKeyCode(dom_to_evdev(code), KeyboardEvent::Evdev, request.eventtype());
+                    SendKeyCode(dom_to_evdev(code), KeyboardEvent::Evdev, request.eventtype());
                 }
             }
         }
 
         if (request.text().size() > 0) {
-            sendUtf8String(request.text());
+            SendUtf8String(request.text());
         }
 
         if (request.keycode() > 0) {
-            sendKeyCode(request.keycode(), request.codetype(), request.eventtype());
+            SendKeyCode(request.keycode(), request.codetype(), request.eventtype());
         }
     }
 
-    void sendUtf8String(const std::string& utf8) {
+    void SendUtf8String(const std::string& utf8) {
         VLOG(1) << "Sending utf8 string: " << utf8;
         // We need to convert every individual character to a sequence of evdev
         // events. This is due to the fact that a single character can be
@@ -349,17 +356,19 @@ class KeyEventSenderImpl : public IKeyEventSender {
                 auto up = ascii_to_qcode(*start, false);
 
                 for (auto qcode : down) {
-                    mQemuLoop->Post([qcode, kbd = mKbd] { qcode.send(kbd); }).IgnoreError();
+                    qemu_loop_->Post([qcode, kbd = keyboard_state_] { qcode.send(kbd); })
+                            .IgnoreError();
                 }
                 for (auto qcode : up) {
-                    mQemuLoop->Post([qcode, kbd = mKbd] { qcode.send(kbd); }).IgnoreError();
+                    qemu_loop_->Post([qcode, kbd = keyboard_state_] { qcode.send(kbd); })
+                            .IgnoreError();
                 }
                 start = end;
             }
         }
     }
 
-    DomCode domKeyAsNonPrintableDomCode(DomKey key) {
+    DomCode DomKeyAsNonPrintableDomCode(DomKey key) {
         for (size_t i = 0; i < kNonPrintableCodeEntries; ++i) {
             if (kNonPrintableCodeMap[i].dom_key == key) {
                 return kNonPrintableCodeMap[i].dom_code;
@@ -368,7 +377,7 @@ class KeyEventSenderImpl : public IKeyEventSender {
         return DomCode::NONE;
     }
 
-    DomKey browserKeyToDomKey(std::string key) {
+    DomKey BrowserKeyToDomKey(std::string key) {
         if (key.empty()) {
             return DomKey::NONE;
         }
@@ -398,8 +407,8 @@ class KeyEventSenderImpl : public IKeyEventSender {
         return DomKey::NONE;
     }
 
-    EventLoop* mQemuLoop;
-    ::QKbdState* mKbd;
+    EventLoop* qemu_loop_;
+    ::QKbdState* keyboard_state_;
 };
 
 std::unique_ptr<IKeyEventSender> createKeyEventSender(QemuConsole* console, EventLoop* qemu_loop) {

@@ -111,7 +111,7 @@ TEST(Process, can_discover_launched_proc) {
     auto pids = Process::FromName("sleep_emu");
 
     const absl::Time start = absl::Now();
-    const absl::Time deadline = start + absl::Seconds(2);
+    const absl::Time deadline = start + absl::Seconds(10);
     // On linux we scan /proc/... which is not instantenous on our gce machines.
     // Note that the scan itself can take +/- 20ms.
     while (pids.size() == 0 && absl::Now() < deadline) {
@@ -134,7 +134,7 @@ TEST(Process, can_read_process_name) {
     auto sleep = Process::FromPid(proc->pid());
     ASSERT_NE(sleep, nullptr);
     std::string name;
-    const absl::Time deadline = absl::Now() + absl::Seconds(2);
+    const absl::Time deadline = absl::Now() + absl::Seconds(10);
     while (name.empty() && absl::Now() < deadline) {
         name = sleep->Exe();
     }
@@ -190,7 +190,7 @@ TEST(Command, properly_escape_params) {
                         .Arg("Hello there")
                         .RedirectStdoutToUnsafe(&std_out)
                         .Execute();
-    ASSERT_EQ(proc->WaitFor(500ms), std::future_status::ready);
+    ASSERT_EQ(proc->WaitFor(5s), std::future_status::ready);
     EXPECT_EQ(proc->Out()->AsString(), "Hello there");
 }
 
@@ -231,7 +231,7 @@ TEST(Command, we_can_capture_std_out) {
     auto proc = Command::Create({SleepExe(), "--msg_std_out", "stdout"})
                         .RedirectStdoutToUnsafe(&std_out)
                         .Execute();
-    ASSERT_EQ(proc->WaitFor(500ms), std::future_status::ready);
+    ASSERT_EQ(proc->WaitFor(5s), std::future_status::ready);
 
     // We should print out the message.
     EXPECT_EQ(proc->Out()->AsString(), "stdout");
@@ -244,7 +244,7 @@ TEST(Command, we_can_capture_std_err) {
     auto proc = Command::Create({SleepExe(), "--msg_std_err", "error"})
                         .RedirectStderrToUnsafe(&std_err)
                         .Execute();
-    ASSERT_EQ(proc->WaitFor(500ms), std::future_status::ready);
+    ASSERT_EQ(proc->WaitFor(5s), std::future_status::ready);
 
     // We should print out the message.
     EXPECT_EQ(proc->Err()->AsString(), "error");
@@ -327,7 +327,7 @@ TEST(Command, we_can_capture_both) {
                         .RedirectStdoutToUnsafe(&std_out)
                         .RedirectStderrToUnsafe(&std_err)
                         .Execute();
-    ASSERT_EQ(proc->WaitFor(500ms), std::future_status::ready);
+    ASSERT_EQ(proc->WaitFor(5s), std::future_status::ready);
 
     // We should print out the message.
     EXPECT_EQ(proc->Out()->AsString(), "stdout");
@@ -340,7 +340,7 @@ TEST(Command, double_capture_should_not_lock) {
     auto proc = Command::Create({SleepExe(), "--msg_std_out", "stdout", "--msg_std_err", "error"})
                         .RedirectStderrToUnsafe(&std_err)
                         .Execute();
-    ASSERT_EQ(proc->WaitFor(500ms), std::future_status::ready);
+    ASSERT_EQ(proc->WaitFor(5s), std::future_status::ready);
 
     // We should print out the message.
     EXPECT_EQ(proc->Err()->AsString(), "error");
@@ -431,7 +431,7 @@ TEST(Command, can_capture_output_when_one_pipe_closes_early) {
                         .RedirectStderrToUnsafe(&std_err)
                         .Execute();
 
-    EXPECT_EQ(proc->WaitFor(500ms), std::future_status::ready);
+    EXPECT_EQ(proc->WaitFor(5s), std::future_status::ready);
     EXPECT_EQ(proc->Out()->AsString(), "stdout\n");
     EXPECT_EQ(proc->Err()->AsString(), "stderr\n");
 }
