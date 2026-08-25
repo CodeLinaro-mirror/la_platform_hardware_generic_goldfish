@@ -24,6 +24,7 @@
 
 #include "android/emulation/control/emulator_grpc_client.h"
 #include "android/status/status_macros.h"
+#include "goldfish/avd_info/avd_info.h"
 #include "netsim_connection_internal.h"
 
 extern "C" {
@@ -115,6 +116,19 @@ void netsim_connection_realize(DeviceState* dev, Error** errp) {
     } else {
         LOG(INFO) << "netsim-connection: successfully connected to " << nc->data->endpoint;
         nc->data->grpc_client = *std::move(client);
+        // Note: netsim-connection is sequenced before the grpc device in launch_qemu.cc,
+        // ensuring AvdUniverse has the verified endpoint when grpc_realize writes discovery.
+        if (auto* avd = goldfish::avd_info::GetNullableAvd()) {
+            avd->SetNetsimEndpoint(nc->data->endpoint);
+        } else {
+            LOG(WARNING)
+                    << "netsim-connection: AvdUniverse is not initialized; unable to register "
+                       "netsim.endpoint ('"
+                    << nc->data->endpoint
+                    << "') for discovery. Downstream tooling (e.g., Android Studio, E2E tests) "
+                       "will not auto-discover this netsimd instance. Ensure the avdstart "
+                       "device is instantiated before netsim-connection.";
+        }
     }
 }
 
@@ -124,6 +138,9 @@ void netsim_connection_unrealize(DeviceState* dev) {
     if (nc->data->grpc_client) {
         nc->data->grpc_client->Disconnect();
         nc->data->grpc_client.reset();
+    }
+    if (auto* avd = goldfish::avd_info::GetNullableAvd()) {
+        avd->SetNetsimEndpoint("");
     }
 }
 

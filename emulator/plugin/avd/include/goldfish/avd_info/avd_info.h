@@ -13,8 +13,10 @@
 
 #include <filesystem>
 #include <string>
+#include <string_view>
 
 #include "absl/log/check.h"
+#include "absl/synchronization/mutex.h"
 
 #include "android/goldfish/device_type.h"
 #include "android/goldfish/hardware_config.h"
@@ -100,6 +102,16 @@ struct AvdUniverse : public snapshottable::Snapshottable {
             std::shared_ptr<devices::multidisplay::MultiDisplayDevice> device);
     std::shared_ptr<devices::multidisplay::MultiDisplayDevice> GetActiveMultiDisplayDevice();
 
+    void SetNetsimEndpoint(std::string_view endpoint) ABSL_LOCKS_EXCLUDED(device_mutex_) {
+        absl::MutexLock lock(&device_mutex_);
+        netsim_endpoint_ = endpoint;
+    }
+
+    std::string GetNetsimEndpoint() const ABSL_LOCKS_EXCLUDED(device_mutex_) {
+        absl::MutexLock lock(&device_mutex_);
+        return netsim_endpoint_;
+    }
+
     virtual display::IMultiDisplay& GetMultiDisplay() const = 0;
 
     explicit AvdUniverse(std::unique_ptr<AvdProperties> props);
@@ -114,6 +126,7 @@ struct AvdUniverse : public snapshottable::Snapshottable {
     mutable absl::Mutex device_mutex_;
     std::shared_ptr<devices::multidisplay::MultiDisplayDevice> active_multi_display_device_
             ABSL_GUARDED_BY(device_mutex_);
+    std::string netsim_endpoint_ ABSL_GUARDED_BY(device_mutex_);
 
     avd_universe::grpc::GrpcNotificationEventSource grpc_notification_event_source_;
     avd_universe::battery::ObservableBattery battery_;
