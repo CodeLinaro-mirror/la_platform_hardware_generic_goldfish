@@ -13,18 +13,16 @@
 // limitations under the License.
 
 #pragma once
+#include <algorithm>
+#include <cstddef>
 #include <cstdint>
 
 namespace goldfish::sensors {
 
-#define ANDROID_FOLDABLE_MAX_HINGES 3
-#define ANDROID_FOLDABLE_MAX_ROLLS 2
-#if ANDROID_FOLDABLE_MAX_HINGES > ANDROID_FOLDABLE_MAX_ROLLS
-#define ANDROID_FOLDABLE_MAX_HINGES_ROLLS ANDROID_FOLDABLE_MAX_HINGES
-#else
-#define ANDROID_FOLDABLE_MAX_HINGES_ROLLS ANDROID_FOLDABLE_MAX_ROLLS
-#endif
-#define ANDROID_FOLDABLE_MAX_DISPLAY_REGIONS 3
+constexpr size_t kMaxHinges = 3;
+constexpr size_t kMaxRolls = 2;
+constexpr size_t kMaxHingesRolls = std::max(kMaxHinges, kMaxRolls);
+constexpr size_t kMaxDisplayRegions = 3;
 
 enum class FoldablePostures : uint8_t {
     kUnknown = 0,
@@ -43,7 +41,7 @@ struct AnglesToPosture {
         float default_value;
     };
 
-    Angles angles[ANDROID_FOLDABLE_MAX_HINGES_ROLLS];
+    Angles angles[kMaxHingesRolls];
     FoldablePostures posture;
 };
 
@@ -105,17 +103,17 @@ struct FoldableConfig {
     // For hinges only
     unsigned num_hinges = 0;
     FoldablePostures fold_at_posture;
-    FoldableHingeParameters hinge_params[ANDROID_FOLDABLE_MAX_HINGES];
+    FoldableHingeParameters hinge_params[kMaxHinges];
 
     // For rollables only
     unsigned num_rolls = 0;
-    FoldablePostures resize_at_posture[ANDROID_FOLDABLE_MAX_DISPLAY_REGIONS];
-    RollableParameters rollable_params[ANDROID_FOLDABLE_MAX_ROLLS];
+    FoldablePostures resize_at_posture[kMaxDisplayRegions];
+    RollableParameters rollable_params[kMaxRolls];
 };
 
 struct FoldableState {
-    float current_hinge_degrees[ANDROID_FOLDABLE_MAX_HINGES];
-    float current_rolled_percent[ANDROID_FOLDABLE_MAX_ROLLS];
+    float current_hinge_degrees[kMaxHinges];
+    float current_rolled_percent[kMaxRolls];
     FoldablePostures current_posture;
 };
 
