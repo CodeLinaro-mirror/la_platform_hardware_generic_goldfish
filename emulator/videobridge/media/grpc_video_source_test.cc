@@ -46,6 +46,8 @@ namespace fs = std::filesystem;
 
 class FakeImageReader : public ::grpc::ClientReaderInterface<Image> {
   public:
+    static constexpr size_t kTestFrameBytes = 2ULL * 2ULL * 4ULL;  // 2x2 RGBA8888 = 16 bytes
+
     explicit FakeImageReader(const ImageFormat& format, bool force_payload_delivery = false)
             : format_(format), force_payload_delivery_(force_payload_delivery) {
         if (format_.transport().channel() == ImageTransport::MMAP && !force_payload_delivery_) {
@@ -53,7 +55,7 @@ class FakeImageReader : public ::grpc::ClientReaderInterface<Image> {
             if (path_or_uri.starts_with("file://")) {
                 path_or_uri = path_or_uri.substr(7);
             }
-            shm_ = std::make_unique<::goldfish::memory::SharedMemory>(path_or_uri, 12);
+            shm_ = std::make_unique<::goldfish::memory::SharedMemory>(path_or_uri, kTestFrameBytes);
             shm_open_ok_ =
                     shm_->Open(::goldfish::memory::SharedMemory::AccessMode::kReadWrite).ok();
         }
@@ -67,13 +69,13 @@ class FakeImageReader : public ::grpc::ClientReaderInterface<Image> {
         frame->mutable_format()->set_height(2);
 
         if (shm_ && shm_open_ok_) {
-            const std::string frame_data(12, static_cast<char>('\x10' + index_));
+            const std::string frame_data(kTestFrameBytes, static_cast<char>('\x10' + index_));
             std::memcpy(shm_->Get(), frame_data.data(), frame_data.size());
         } else if (force_payload_delivery_) {
-            const std::string frame_data(12, static_cast<char>('\x20' + index_));
+            const std::string frame_data(kTestFrameBytes, static_cast<char>('\x20' + index_));
             frame->set_image(frame_data);
         } else {
-            frame->set_image(std::string(12, '\x7F'));
+            frame->set_image(std::string(kTestFrameBytes, '\x7F'));
         }
 
         index_++;
@@ -177,6 +179,11 @@ TEST(GrpcVideoSourceTest, GrpcVideoSourceStreamsFramesFromClient) {
     EXPECT_EQ(frame.width(), 2);
     EXPECT_EQ(frame.height(), 2);
     ASSERT_NE(frame.video_frame_buffer(), nullptr);
+    EXPECT_EQ(frame.video_frame_buffer()->type(), webrtc::VideoFrameBuffer::Type::kNV12);
+    const webrtc::NV12BufferInterface* nv12 = frame.video_frame_buffer()->GetNV12();
+    ASSERT_NE(nv12, nullptr);
+    EXPECT_NE(nv12->DataY(), nullptr);
+    EXPECT_NE(nv12->DataUV(), nullptr);
     const ::webrtc::scoped_refptr<webrtc::I420BufferInterface> i420 =
             frame.video_frame_buffer()->ToI420();
     ASSERT_NE(i420, nullptr);
@@ -224,6 +231,11 @@ TEST(GrpcVideoSourceTest, GrpcVideoSourceStreamsFramesViaSharedMemory) {
     EXPECT_EQ(frame.width(), 2);
     EXPECT_EQ(frame.height(), 2);
     ASSERT_NE(frame.video_frame_buffer(), nullptr);
+    EXPECT_EQ(frame.video_frame_buffer()->type(), webrtc::VideoFrameBuffer::Type::kNV12);
+    const webrtc::NV12BufferInterface* nv12_shm = frame.video_frame_buffer()->GetNV12();
+    ASSERT_NE(nv12_shm, nullptr);
+    EXPECT_NE(nv12_shm->DataY(), nullptr);
+    EXPECT_NE(nv12_shm->DataUV(), nullptr);
     const ::webrtc::scoped_refptr<webrtc::I420BufferInterface> i420 =
             frame.video_frame_buffer()->ToI420();
     ASSERT_NE(i420, nullptr);
@@ -287,6 +299,39 @@ TEST(GrpcVideoSourceTest, GrpcVideoSourceFallsBackToBytesIfSharedMemoryNotMapped
     const uint8_t* y_data = i420->DataY();
     ASSERT_NE(y_data, nullptr);
     EXPECT_NEAR(y_data[0], 45, 2);
+}
+
+TEST(GrpcVideoSourceTest, GrpcVideoSourceStreamsFramesWithI420Pipeline) {
+    auto client = std::make_shared<FakeEmulatorClient>(/*is_connected=*/true);
+
+    GrpcVideoSourceOptions options;
+    options.display_id = 1;
+    options.width = 2;
+    options.height = 2;
+    options.transport = GrpcVideoSourceOptions::Transport::kGrpcBytes;
+
+    auto source = ::webrtc::make_ref_counted<GrpcVideoSource>(
+            client, options, std::make_unique<RgbaToI420Pipeline>());
+    TestVideoSink sink;
+    webrtc::VideoSourceInterface<webrtc::VideoFrame>* source_interface = source.get();
+    source_interface->AddOrUpdateSink(&sink, webrtc::VideoSinkWants());
+
+    source->Start();
+
+    auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(1);
+    while (sink.FrameCount() < 3 && std::chrono::steady_clock::now() < deadline) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    }
+
+    source->Stop();
+    source_interface->RemoveSink(&sink);
+
+    EXPECT_GE(sink.FrameCount(), 3);
+    const webrtc::VideoFrame frame = sink.LastFrame();
+    EXPECT_EQ(frame.width(), 2);
+    EXPECT_EQ(frame.height(), 2);
+    ASSERT_NE(frame.video_frame_buffer(), nullptr);
+    EXPECT_EQ(frame.video_frame_buffer()->type(), webrtc::VideoFrameBuffer::Type::kI420);
 }
 
 }  // namespace

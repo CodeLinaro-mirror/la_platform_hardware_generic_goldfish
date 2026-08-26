@@ -17,7 +17,7 @@
 #pragma clang diagnostic ignored "-Wthread-safety-reference-return"
 #pragma clang diagnostic ignored "-Wnullability-completeness"
 #include "api/scoped_refptr.h"
-#include "api/video/i420_buffer.h"
+#include "api/video/nv12_buffer.h"
 #pragma clang diagnostic pop
 
 #include <cstdint>
@@ -41,7 +41,7 @@ namespace goldfish::videobridge {
  * - Reactive Activation: Lazily queries IMultiDisplay for the active IDisplay when the first
  *   WebRTC sink attaches (OnStart) and unsubscribes when all participants disconnect (OnStop).
  * - Subscribes to FrameInfo updates from the active display, converting raw BGRA/RGBA pixels
- *   to I420 format and dispatching frames to attached WebRTC sinks.
+ *   to NV12 format and dispatching frames to attached WebRTC sinks.
  *
  * Thread Safety:
  * - InProcessVideoSource methods (OnStart, OnStop) are marshalled on WebRTC signaling threads.
@@ -79,7 +79,6 @@ class InProcessVideoSource : public ManagedVideoTrackSource {
     std::unique_ptr<android::base::eventing::ScopedEventCallback<
             ::goldfish::display::FrameInfoCallbackSource, ::goldfish::display::FrameInfo>>
             subscription_;
-    ::webrtc::scoped_refptr<::webrtc::I420Buffer> i420_buffer_;
 };
 
 }  // namespace goldfish::videobridge

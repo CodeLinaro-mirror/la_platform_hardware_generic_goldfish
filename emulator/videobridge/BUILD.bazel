@@ -472,6 +472,7 @@ cc_test(
         "//emulator/plugin/avd:global-event-loop",
         "//emulator/plugin/display:primary_display",
         "//emulator/plugin/display:test-display",
+        "@abseil-cpp//absl/synchronization",
         "@webrtc//api:peer_connection_interface",
     ],
 )
