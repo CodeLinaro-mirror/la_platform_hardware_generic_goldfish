@@ -340,12 +340,25 @@ cc_test(
 cc_library(
     name = "videobridge_codecs",
     srcs = select({
+        "@platforms//os:linux": ["core/linux/codec_factories_linux.cc"],
         "@platforms//os:macos": [],
+        "@platforms//os:windows": ["core/win/codec_factories_win.cc"],
         "//conditions:default": ["core/codec_factories.cc"],
     }),
     hdrs = ["include/goldfish/videobridge/codec_factories.h"],
+    copts = WEBRTC_COPTS,
+    includes = ["."],
     strip_include_prefix = "include",
     deps = select({
+        "@platforms//os:linux": [
+            ":nvenc_video_encoder",
+            ":vaapi_video_encoder",
+            "@abseil-cpp//absl/strings",
+            "@webrtc//api/video_codecs:builtin_video_decoder_factory",
+            "@webrtc//api/video_codecs:builtin_video_encoder_factory",
+            "@webrtc//api/video_codecs:video_codecs_api",
+            "@webrtc//rtc_base:logging",
+        ],
         "@platforms//os:macos": [":videobridge_codecs_objc"],
         "@platforms//os:windows": [
             ":videobridge_codecs_win",
@@ -357,6 +370,23 @@ cc_library(
             "@webrtc//api/video_codecs:builtin_video_encoder_factory",
         ],
     }),
+)
+
+cc_test(
+    name = "codec_factories_linux_test",
+    srcs = ["core/linux/test/codec_factories_linux_test.cc"],
+    copts = WEBRTC_COPTS,
+    includes = ["."],
+    target_compatible_with = select({
+        "@platforms//os:linux": [],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
+    deps = [
+        ":videobridge_codecs",
+        "//emulator/libs/test:googletest_main",
+        "@webrtc//api/environment:environment_factory",
+        "@webrtc//api/video_codecs:video_codecs_api",
+    ],
 )
 
 cc_test(
@@ -755,6 +785,8 @@ clang_tidy_test(
         ":vaapi_loader_test",
         ":vaapi_video_encoder",
         ":vaapi_video_encoder_test",
+        ":videobridge_codecs",
+        ":codec_factories_linux_test",
     ],
     tidy_config_file = "//:clang_tidy_config",
 )
