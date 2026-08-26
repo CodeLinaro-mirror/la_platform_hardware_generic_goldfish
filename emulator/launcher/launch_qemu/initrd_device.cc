@@ -39,7 +39,7 @@
 #include "bootconfig.h"
 #include "goldfish/adb/adbkey.h"
 #include "goldfish/file/file.h"
-#include "goldfish/sensors/foldable_model.h"
+#include "goldfish/parsing/resizable_display_config.h"
 
 namespace android::goldfish {
 namespace {
@@ -352,7 +352,7 @@ std::vector<std::pair<std::string, std::string>> getUserspaceBootProperties(
 
     if (!hw.hw_resizable_configs.empty()) {
         const auto resizable_configs =
-                ::goldfish::sensors::FoldableModel::ParseResizableConfigs(hw.hw_resizable_configs);
+                ::goldfish::parsing::ParseResizableDisplayConfig(hw.hw_resizable_configs);
 
         if (!resizable_configs) {
             LOG(ERROR) << "Failed to parse hw_resizable_configs; display configs will be skipped. "

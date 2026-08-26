@@ -53,18 +53,6 @@ cc_library(
 )
 
 cc_test(
-    name = "foldable_model_test",
-    srcs = ["foldable_model_test.cc"],
-    includes = ["test"],
-    visibility = ["//visibility:public"],
-    deps = [
-        ":foldable_model",
-        "//emulator/libs/hardware_config:fake_hardware_config",
-        "//emulator/libs/test:googletest_main",
-    ],
-)
-
-cc_test(
     name = "physical_model_test",
     srcs = ["physical_model_test.cc"],
     includes = ["test"],

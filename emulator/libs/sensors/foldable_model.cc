@@ -26,42 +26,6 @@
 
 namespace goldfish::sensors {
 
-std::optional<std::vector<FoldableModel::ResizableConfig>> FoldableModel::ParseResizableConfigs(
-        const std::string_view config_str) {
-    std::vector<ResizableConfig> resizable_configs;
-    if (config_str.empty()) {
-        return resizable_configs;
-    }
-
-    for (const auto& config : absl::StrSplit(config_str, ',')) {
-        const std::vector<std::string_view> parts = absl::StrSplit(config, '-');
-
-        if ((parts.size() < 4) || (parts.size() > 5)) {
-            return std::nullopt;
-        } else {
-            ResizableConfig rc;
-            rc.name = absl::StripAsciiWhitespace(parts[0]);
-            if (rc.name.empty()) {
-                return std::nullopt;
-            }
-
-            if (!absl::SimpleAtoi(parts[1], &rc.id) || !absl::SimpleAtoi(parts[2], &rc.width) ||
-                !absl::SimpleAtoi(parts[3], &rc.height)) {
-                return std::nullopt;
-            }
-            if (parts.size() == 5) {
-                if (!absl::SimpleAtoi(parts[4], &rc.dpi)) {
-                    return std::nullopt;
-                }
-            }
-
-            resizable_configs.push_back(std::move(rc));
-        }
-    }
-
-    return resizable_configs;
-}
-
 void FoldableModel::InitFoldableRoll(const android::goldfish::HardwareConfig& hw) {
     if (!hw.hw_sensor_roll) {
         config_.num_rolls = 0;
@@ -306,20 +270,13 @@ void FoldableModel::InitFoldableHinge(const android::goldfish::HardwareConfig& h
 FoldableModel::FoldableModel(const android::goldfish::HardwareConfig& hw, Private) {
     InitFoldableRoll(hw);
     InitFoldableHinge(hw);
-    InitResizableConfigs(hw);
 }
 
 std::unique_ptr<FoldableModel> FoldableModel::Create(const android::goldfish::HardwareConfig& hw) {
-    if (!hw.hw_sensor_hinge && !hw.hw_sensor_roll && hw.hw_resizable_configs.empty()) {
+    if (!hw.hw_sensor_hinge && !hw.hw_sensor_roll) {
         return {};
     }
     return std::make_unique<FoldableModel>(hw, Private());
-}
-
-void FoldableModel::InitResizableConfigs(const android::goldfish::HardwareConfig& hw) {
-    auto configs = ParseResizableConfigs(hw.hw_resizable_configs);
-    CHECK(configs) << "Could not parse hw_resizable_configs: '" << hw.hw_resizable_configs << "'";
-    resizable_configs_ = *std::move(configs);
 }
 
 void FoldableModel::SetHingeAngle(uint32_t hinge_index, float degree,

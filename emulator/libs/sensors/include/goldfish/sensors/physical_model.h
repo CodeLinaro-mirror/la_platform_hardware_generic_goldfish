@@ -222,14 +222,6 @@ class PhysicalModel : public CallbackEventSource<PhysicalModelChangeEvent> {
      */
     bool GetFoldedArea(int* x, int* y, int* w, int* h) const;
 
-    /**
-     * @brief Gets the list of resizable configurations.
-     * @note Caller must ensure HasFoldableModel() is true before calling this API.
-     *       Calling it on a non-foldable target will trigger a DCHECK assertion failure.
-     * @return List of resizable configs
-     */
-    const std::vector<FoldableModel::ResizableConfig>& GetResizableConfigs() const;
-
   private:
     static size_t GetSensorValueSize(AndroidSensor);
     size_t GetSensorDataImpl(AndroidSensor, float* out, size_t count) const;

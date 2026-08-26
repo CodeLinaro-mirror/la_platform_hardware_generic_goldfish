@@ -72,6 +72,35 @@ cc_test(
 )
 
 cc_library(
+    name = "resizable_display_config",
+    srcs = [
+        "resizable_display_config.cc",
+    ],
+    hdrs = [
+        "include/goldfish/parsing/resizable_display_config.h",
+    ],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "@abseil-cpp//absl/strings",
+    ],
+    alwayslink = True,
+)
+
+cc_test(
+    name = "resizable_display_config_unittests",
+    size = "small",
+    srcs = [
+        "resizable_display_config_test.cc",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":resizable_display_config",
+        "//emulator/libs/test:googletest_main",
+    ],
+)
+
+cc_library(
     name = "utf8_iterator",
     srcs = [
         "utf8_iterator.cc",

@@ -24,7 +24,7 @@
 
 #include "android/goldfish/avd.h"
 #include "android/goldfish/hardware_config.h"
-#include "goldfish/sensors/foldable_model.h"
+#include "goldfish/parsing/resizable_display_config.h"
 
 namespace android::goldfish {
 
@@ -123,7 +123,7 @@ std::vector<std::string> GpuDevice::getQemuParameters(const EmulatorConfig& emul
         height = hw.hw_lcd_height;
     } else {
         const auto resizable_configs =
-                ::goldfish::sensors::FoldableModel::ParseResizableConfigs(hw.hw_resizable_configs);
+                ::goldfish::parsing::ParseResizableDisplayConfig(hw.hw_resizable_configs);
 
         if (!resizable_configs || resizable_configs->empty()) {
             LOG(ERROR) << "Failed to parse hw_resizable_configs; GPU will be disabled. "
