@@ -7,11 +7,11 @@
 ## Integration Guide
 | Class / Interface | Bazel Target | Header Path | Description |
 | :--- | :--- | :--- | :--- |
-| `crashhandler_init` | `:init` | `.../crash_initializer.h` | C-entry point to initialize the system at startup. |
-| `CrashReporter` | `:crash_reporter` | `.../crash_reporter.h` | Singleton for adding annotations or triggering a crash. |
-| `BreadcrumbTracker` | `:breadcrumb` | `.../breadcrumb.h` | Tracker for leaving "breadcrumbs" in circular buffers within crash reports. |
-| `HangDetector` | `:hang_detector` | `.../hang_detector.h` | Service to monitor event loops for hangs. |
-| `upload_crashes` | `:init` | `.../crash_system.h` | Starts the background upload of pending reports. |
+| `crashhandler_init` | `:crash_system` | `include/android/crashreport/crash_system.h` | C-entry point to initialize the crash reporting system at startup. |
+| `CrashReporter` | `:crash_reporter` | `include/android/crashreport/crash_reporter.h` | Singleton for adding annotations or triggering a crash. |
+| `BreadcrumbTracker` | `:breadcrumb` | `include/android/crashreport/breadcrumb.h` | Tracker for leaving "breadcrumbs" in circular buffers within crash reports. |
+| `HangDetector` | `:hang_detector` | `include/android/crashreport/hang_detector.h` | Service to monitor event loops for hangs. |
+| `upload_crashes` | `:crash_system` | `include/android/crashreport/crash_system.h` | Starts the background upload of pending reports. |
 
 ## Critical Infrastructure
 * **Crashpad Integration:** Starts an out-of-process `crashpad_handler` to monitor the emulator. If the emulator crashes, the handler saves a minidump to a local database.

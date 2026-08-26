@@ -14,17 +14,18 @@ The Goldfish emulator is a modular system built on top of QEMU. It extends QEMU 
 | :--- | :--- | :--- |
 | **[Launcher](launcher/ARCHITECTURE.md)** | The main entry point (`emulator`). Configures QEMU arguments, handles port allocation, and spawns the QEMU process. | [Architecture](launcher/ARCHITECTURE.md) |
 | **[Plugins](plugin/ARCHITECTURE.md)** | QEMU extensions (Transport, Hardware, Control) loaded at runtime. Includes `virtio-goldfish-*` devices. | [Architecture](plugin/ARCHITECTURE.md) |
-| **[HALs](hal/ARCHITECTURE.md)** | Host-side implementations of Android Hardware Abstraction Layers (Sensors, GPS, Camera, etc.). | [Architecture](hal/ARCHITECTURE.md) |
-| **[gRPC](grpc/ARCHITECTURE.md)** | The control plane. Provides remote control, observability, and inter-process communication via gRPC. | [Architecture](grpc/ARCHITECTURE.md) |
+| **[HALs](plugin/hal/ARCHITECTURE.md)** | Host-side implementations of Android Hardware Abstraction Layers (Sensors, GPS, Camera, etc.). | [Architecture](plugin/hal/ARCHITECTURE.md) |
+| **[gRPC](plugin/grpc/ARCHITECTURE.md)** | The control plane. Provides remote control, observability, and inter-process communication via gRPC. | [Architecture](plugin/grpc/ARCHITECTURE.md) |
 | **[Libraries](libs/ARCHITECTURE.md)** | Shared C++ libraries (Async I/O, Logging, Math, Config) used across all components. | [Architecture](libs/ARCHITECTURE.md) |
 
 ### Supporting Infrastructure
 
 | Component | Description | Documentation |
 | :--- | :--- | :--- |
-| **[Config](config/ARCHITECTURE.md)** | Hardware configuration parsing (`config.ini`) and environment discovery (SDK/AVD paths). | [Architecture](config/ARCHITECTURE.md) |
-| **[Cmdline](cmdline/ARCHITECTURE.md)** | Command-line argument parsing and validation. | [Architecture](cmdline/ARCHITECTURE.md) |
+| **[Hardware Config](libs/hardware_config/ARCHITECTURE.md)** | Hardware configuration parsing (`config.ini`) and environment discovery (SDK/AVD paths). | [Architecture](libs/hardware_config/ARCHITECTURE.md) |
+| **[Cmdline](launcher/cmdline/ARCHITECTURE.md)** | Command-line argument parsing and validation. | [Architecture](launcher/cmdline/ARCHITECTURE.md) |
 | **[Crashreport](crashreport/ARCHITECTURE.md)** | Crashpad integration and hang detection. | [Architecture](crashreport/ARCHITECTURE.md) |
+| **[Telnet](telnet/ARCHITECTURE.md)** | Legacy telnet console bridge implementation. | [Architecture](telnet/ARCHITECTURE.md) |
 | **[SDK](sdk/ARCHITECTURE.md)** | Local mock SDK environment for testing. | [Architecture](sdk/ARCHITECTURE.md) |
 | **[Tests](tests/ARCHITECTURE.md)** | Integration tests (Boot, CTS, dEQP). | [Architecture](tests/ARCHITECTURE.md) |
 | **[Tools](tools/ARCHITECTURE.md)** | Build-time utilities (Versioning, Packaging). | [Architecture](tools/ARCHITECTURE.md), [Fishtank Update Guide](tools/upload_fishtank/README.md) |
