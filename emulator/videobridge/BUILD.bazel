@@ -180,6 +180,7 @@ cc_library(
         "core/linux/h264_format_utils.h",
         "core/linux/nvenc_video_encoder.h",
         "core/linux/nvenc_video_encoder_factory.h",
+        "core/linux/va_api_types.h",
     ],
     copts = WEBRTC_COPTS,
     includes = ["."],
@@ -221,6 +222,116 @@ cc_test(
         "//emulator/libs/test:googletest_main",
         "@abseil-cpp//absl/synchronization",
         "@goldfish_prebuilts_common//libnvidia:nvenc_headers",
+        "@webrtc//api/video:video_frame",
+        "@webrtc//api/video_codecs:video_codecs_api",
+    ],
+)
+
+cc_library(
+    name = "vaapi_loader",
+    srcs = ["core/linux/vaapi_loader.cc"],
+    hdrs = [
+        "core/linux/va_api_types.h",
+        "core/linux/vaapi_loader.h",
+    ],
+    copts = WEBRTC_COPTS,
+    includes = ["."],
+    target_compatible_with = select({
+        "@platforms//os:linux": [],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
+    deps = [
+        "//emulator/libs/os",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/strings:str_format",
+        "@webrtc//rtc_base:logging",
+    ],
+)
+
+cc_test(
+    name = "vaapi_loader_test",
+    srcs = ["core/linux/test/vaapi_loader_test.cc"],
+    copts = WEBRTC_COPTS,
+    includes = ["."],
+    target_compatible_with = select({
+        "@platforms//os:linux": [],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
+    deps = [
+        ":fake_vaapi_driver",
+        ":vaapi_loader",
+        "//emulator/libs/test:googletest_main",
+    ],
+)
+
+cc_library(
+    name = "fake_vaapi_driver",
+    testonly = True,
+    srcs = ["core/linux/test/fake_vaapi_driver.cc"],
+    hdrs = ["core/linux/test/fake_vaapi_driver.h"],
+    copts = WEBRTC_COPTS,
+    includes = ["."],
+    target_compatible_with = select({
+        "@platforms//os:linux": [],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
+    deps = [
+        ":vaapi_loader",
+    ],
+)
+
+cc_library(
+    name = "vaapi_video_encoder",
+    srcs = [
+        "core/linux/vaapi_video_encoder.cc",
+        "core/linux/vaapi_video_encoder_factory.cc",
+    ],
+    hdrs = [
+        "core/linux/frame_nv12_converter.h",
+        "core/linux/h264_format_utils.h",
+        "core/linux/va_api_types.h",
+        "core/linux/vaapi_video_encoder.h",
+        "core/linux/vaapi_video_encoder_factory.h",
+    ],
+    copts = WEBRTC_COPTS,
+    includes = ["."],
+    target_compatible_with = select({
+        "@platforms//os:linux": [],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
+    deps = [
+        ":vaapi_loader",
+        "@abseil-cpp//absl/cleanup",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/synchronization",
+        "@libyuv",
+        "@webrtc//api:scoped_refptr",
+        "@webrtc//api/video:video_frame",
+        "@webrtc//api/video:video_rtp_headers",
+        "@webrtc//api/video_codecs:video_codecs_api",
+        "@webrtc//common_video",
+        "@webrtc//modules/video_coding:video_codec_interface",
+        "@webrtc//rtc_base:checks",
+        "@webrtc//rtc_base:logging",
+    ],
+)
+
+cc_test(
+    name = "vaapi_video_encoder_test",
+    srcs = ["core/linux/test/vaapi_video_encoder_test.cc"],
+    copts = WEBRTC_COPTS,
+    includes = ["."],
+    target_compatible_with = select({
+        "@platforms//os:linux": [],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
+    deps = [
+        ":fake_vaapi_driver",
+        ":vaapi_video_encoder",
+        "//emulator/libs/test:googletest_main",
+        "@abseil-cpp//absl/synchronization",
         "@webrtc//api/video:video_frame",
         "@webrtc//api/video_codecs:video_codecs_api",
     ],
@@ -640,6 +751,10 @@ clang_tidy_test(
         ":nvenc_loader_test",
         ":nvenc_video_encoder",
         ":nvenc_video_encoder_test",
+        ":vaapi_loader",
+        ":vaapi_loader_test",
+        ":vaapi_video_encoder",
+        ":vaapi_video_encoder_test",
     ],
     tidy_config_file = "//:clang_tidy_config",
 )
