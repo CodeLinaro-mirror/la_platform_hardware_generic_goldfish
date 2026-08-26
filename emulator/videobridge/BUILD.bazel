@@ -18,7 +18,10 @@ WEBRTC_LINKOPTS = select({
 
 WEBRTC_COPTS = select({
     "@platforms//os:windows": ["/GR-"],
-    "//conditions:default": ["-fno-rtti"],
+    "//conditions:default": [
+        "-fno-rtti",
+        "-Wno-nullability-completeness",
+    ],
 })
 
 cc_library(
@@ -112,6 +115,114 @@ cc_library(
         "@webrtc//modules/video_coding:video_codec_interface",
         "@webrtc//rtc_base:checks",
         "@webrtc//rtc_base:logging",
+    ],
+)
+
+cc_library(
+    name = "nvenc_loader",
+    srcs = ["core/linux/nvenc_loader.cc"],
+    hdrs = ["core/linux/nvenc_loader.h"],
+    copts = WEBRTC_COPTS,
+    includes = ["."],
+    target_compatible_with = select({
+        "@platforms//os:linux": [],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
+    deps = [
+        "//emulator/libs/os",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings:str_format",
+        "@goldfish_prebuilts_common//libnvidia:nvenc_headers",
+    ],
+)
+
+cc_test(
+    name = "nvenc_loader_test",
+    srcs = ["core/linux/test/nvenc_loader_test.cc"],
+    copts = WEBRTC_COPTS,
+    includes = ["."],
+    target_compatible_with = select({
+        "@platforms//os:linux": [],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
+    deps = [
+        ":nvenc_loader",
+        "//emulator/libs/test:googletest_main",
+        "@goldfish_prebuilts_common//libnvidia:nvenc_headers",
+    ],
+)
+
+cc_library(
+    name = "fake_nvenc_driver",
+    testonly = True,
+    srcs = ["core/linux/test/fake_nvenc_driver.cc"],
+    hdrs = ["core/linux/test/fake_nvenc_driver.h"],
+    copts = WEBRTC_COPTS,
+    includes = ["."],
+    target_compatible_with = select({
+        "@platforms//os:linux": [],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
+    deps = [
+        "@goldfish_prebuilts_common//libnvidia:nvenc_headers",
+    ],
+)
+
+cc_library(
+    name = "nvenc_video_encoder",
+    srcs = [
+        "core/linux/nvenc_video_encoder.cc",
+        "core/linux/nvenc_video_encoder_factory.cc",
+    ],
+    hdrs = [
+        "core/linux/frame_nv12_converter.h",
+        "core/linux/h264_format_utils.h",
+        "core/linux/nvenc_video_encoder.h",
+        "core/linux/nvenc_video_encoder_factory.h",
+    ],
+    copts = WEBRTC_COPTS,
+    includes = ["."],
+    target_compatible_with = select({
+        "@platforms//os:linux": [],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
+    deps = [
+        ":nvenc_loader",
+        "@abseil-cpp//absl/cleanup",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/synchronization",
+        "@goldfish_prebuilts_common//libnvidia:nvenc_headers",
+        "@libyuv",
+        "@webrtc//api:scoped_refptr",
+        "@webrtc//api/video:video_frame",
+        "@webrtc//api/video:video_rtp_headers",
+        "@webrtc//api/video_codecs:video_codecs_api",
+        "@webrtc//common_video",
+        "@webrtc//modules/video_coding:video_codec_interface",
+        "@webrtc//rtc_base:checks",
+        "@webrtc//rtc_base:logging",
+    ],
+)
+
+cc_test(
+    name = "nvenc_video_encoder_test",
+    srcs = ["core/linux/test/nvenc_video_encoder_test.cc"],
+    copts = WEBRTC_COPTS,
+    includes = ["."],
+    target_compatible_with = select({
+        "@platforms//os:linux": [],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
+    deps = [
+        ":fake_nvenc_driver",
+        ":nvenc_video_encoder",
+        "//emulator/libs/test:googletest_main",
+        "@abseil-cpp//absl/synchronization",
+        "@goldfish_prebuilts_common//libnvidia:nvenc_headers",
+        "@webrtc//api/video:video_frame",
+        "@webrtc//api/video_codecs:video_codecs_api",
     ],
 )
 
@@ -525,6 +636,10 @@ clang_tidy_test(
         ":in_process_video_source_test",
         ":grpc_video_source_test",
         ":grpc_audio_source_test",
+        ":nvenc_loader",
+        ":nvenc_loader_test",
+        ":nvenc_video_encoder",
+        ":nvenc_video_encoder_test",
     ],
     tidy_config_file = "//:clang_tidy_config",
 )
