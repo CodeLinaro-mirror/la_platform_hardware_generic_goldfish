@@ -356,52 +356,56 @@ void PhysicalModel::SetTargetInternalHumidity(float percentage, PhysicalInterpol
 }
 
 void PhysicalModel::SetTargetInternalHingeAngle0(float degrees, PhysicalInterpolation mode) {
+    if (!HasFoldableModel()) {
+        LOG(INFO) << "Device is not foldable, ignoring hinge-angle0 change to: " << degrees;
+        return;
+    }
+
     PhysicalStateChanging();
     {
         const std::lock_guard<std::recursive_mutex> lock(mutex_);
-        if (!foldable_model_) {
-            LOG(INFO) << "Device is not foldable, ignoring hinge-angle0 change to: " << degrees;
-            return;
-        }
         foldable_model_->SetHingeAngle(0, degrees, mode);
     }
     TargetStateChanged();
 }
 
 void PhysicalModel::SetTargetInternalHingeAngle1(float degrees, PhysicalInterpolation mode) {
+    if (!HasFoldableModel()) {
+        LOG(INFO) << "Device is not foldable, ignoring hinge-angle1 change to: " << degrees;
+        return;
+    }
+
     PhysicalStateChanging();
     {
         const std::lock_guard<std::recursive_mutex> lock(mutex_);
-        if (!foldable_model_) {
-            LOG(INFO) << "Device is not foldable, ignoring hinge-angle1 change to: " << degrees;
-            return;
-        }
         foldable_model_->SetHingeAngle(1, degrees, mode);
     }
     TargetStateChanged();
 }
 
 void PhysicalModel::SetTargetInternalHingeAngle2(float degrees, PhysicalInterpolation mode) {
+    if (!HasFoldableModel()) {
+        LOG(INFO) << "Device is not foldable, ignoring hinge-angle2 change to: " << degrees;
+        return;
+    }
+
     PhysicalStateChanging();
     {
         const std::lock_guard<std::recursive_mutex> lock(mutex_);
-        if (!foldable_model_) {
-            LOG(INFO) << "Device is not foldable, ignoring hinge-angle2 change to: " << degrees;
-            return;
-        }
         foldable_model_->SetHingeAngle(2, degrees, mode);
     }
     TargetStateChanged();
 }
 
 void PhysicalModel::SetTargetInternalPosture(float posture, PhysicalInterpolation mode) {
+    if (!HasFoldableModel()) {
+        LOG(INFO) << "Device is not foldable, ignoring posture change to: " << posture;
+        return;
+    }
+
     PhysicalStateChanging();
     {
         const std::lock_guard<std::recursive_mutex> lock(mutex_);
-        if (!foldable_model_) {
-            LOG(INFO) << "Device is not foldable, ignoring posture change to: " << posture;
-            return;
-        }
         foldable_model_->SetPosture(posture, mode);
     }
     TargetStateChanged();
