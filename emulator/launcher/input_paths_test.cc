@@ -85,6 +85,32 @@ TEST_F(InputPathsTest, ResolveUserPaths) {
 #endif
 }
 
+TEST_F(InputPathsTest, ResolveUserPathsWithoutSdkRoot) {
+    fs::path user_dir = tmp_->Path() / "user_home";
+    fs::path avd_root = tmp_->Path() / "avd_root";
+    fs::path runtime_dir = tmp_->Path() / "runtime";
+
+    tmp_->MakeSubDir("user_home");
+    tmp_->MakeSubDir("avd_root");
+    tmp_->MakeSubDir("avd_root/avd");
+    tmp_->MakeSubDir("runtime");
+
+    sys_->EnvSet("ANDROID_EMULATOR_HOME", user_dir.string());
+    sys_->EnvSet("ANDROID_AVD_HOME", avd_root.string());
+    sys_->EnvSet("XDG_RUNTIME_DIR", runtime_dir.string());
+
+    ASSERT_OK_AND_ASSIGN(auto paths, ResolveUserPaths(tmp_->Path(), false));
+
+    EXPECT_EQ(paths.user_directory, user_dir);
+    EXPECT_EQ(paths.avd_directory, avd_root);
+    EXPECT_EQ(paths.sdk_directory, fs::path());
+#ifdef __linux__
+    EXPECT_EQ(paths.discovery_directory, runtime_dir / "avd" / "running");
+#else
+    EXPECT_EQ(paths.discovery_directory, user_dir / "avd" / "running");
+#endif
+}
+
 TEST_F(InputPathsTest, ResolveSystemImagePaths) {
     fs::path sysimg_dir = tmp_->Path() / "sysimg";
     tmp_->MakeSubDir("sysimg");

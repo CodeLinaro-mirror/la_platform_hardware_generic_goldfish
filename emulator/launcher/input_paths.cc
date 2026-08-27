@@ -180,10 +180,17 @@ absl::StatusOr<UserPaths> ResolveUserPaths(const fs::path& launcher_dir, bool ve
     ASSIGN_OR_RETURN(
             paths.avd_directory,
             CheckExists(android::goldfish::ConfigDirs::GetAvdRootDirectory(), "avd directory"));
-    ASSIGN_OR_RETURN(
-            paths.sdk_directory,
-            CheckExists(android::goldfish::ConfigDirs::GetSdkRootDirectory(launcher_dir, verbose),
-                        "sdk directory"));
+
+    // Only log a warning if the SDK directory does not exist as it is not actually required.
+    if (auto sdk_status = CheckExists(
+                android::goldfish::ConfigDirs::GetSdkRootDirectory(launcher_dir, verbose),
+                "sdk directory"); sdk_status.ok()) {
+        paths.sdk_directory = *std::move(sdk_status);
+    } else {
+        LOG(INFO) << "Optional SDK directory not found. Will continue without it. Status: "
+                << sdk_status.status();
+    }
+
     ASSIGN_OR_RETURN(
             paths.discovery_directory,
             CheckExists(::goldfish::discovery::EmulatorAdvertisement::GetDiscoveryDirectory(),
