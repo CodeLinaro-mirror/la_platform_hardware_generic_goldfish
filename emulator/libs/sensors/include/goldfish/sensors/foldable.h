@@ -81,7 +81,7 @@ enum class FoldableDisplayType : uint8_t {
 };
 
 struct FoldableHingeParameters {
-    int x, y, width, height;
+    unsigned x, y, width, height;
     int display_id;
     float min_degrees;
     float max_degrees;
@@ -103,12 +103,12 @@ struct FoldableConfig {
     FoldableDisplayType type;
 
     // For hinges only
-    int num_hinges;
+    unsigned num_hinges = 0;
     FoldablePostures fold_at_posture;
     FoldableHingeParameters hinge_params[ANDROID_FOLDABLE_MAX_HINGES];
 
     // For rollables only
-    int num_rolls;
+    unsigned num_rolls = 0;
     FoldablePostures resize_at_posture[ANDROID_FOLDABLE_MAX_DISPLAY_REGIONS];
     RollableParameters rollable_params[ANDROID_FOLDABLE_MAX_ROLLS];
 };

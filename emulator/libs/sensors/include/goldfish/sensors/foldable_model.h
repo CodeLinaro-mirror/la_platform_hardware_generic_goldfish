@@ -64,7 +64,7 @@ class FoldableModel {
     // called by physical model to set hinge posture.
     void SetPosture(float posture, PhysicalInterpolation mode);
 
-    static void SetRollable(uint32_t index, float percentage, PhysicalInterpolation mode);
+    void SetRollable(uint32_t index, float percentage, PhysicalInterpolation mode);
 
     float GetHingeAngle(uint32_t hinge_index, ParameterValueType parameter_value_type =
                                                       ParameterValueType::kCurrent) const;
