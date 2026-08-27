@@ -54,7 +54,7 @@ class FoldableModel {
         uint32_t height = 0;
         uint32_t dpi = 0;
 
-        bool operator==(const ResizableConfig& rhs) const;
+        bool operator==(const ResizableConfig& rhs) const = default;
     };
 
     static std::optional<std::vector<ResizableConfig>> ParseResizableConfigs(std::string_view);

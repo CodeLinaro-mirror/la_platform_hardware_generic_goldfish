@@ -26,11 +26,6 @@
 
 namespace goldfish::sensors {
 
-bool FoldableModel::ResizableConfig::operator==(const ResizableConfig& rhs) const {
-    return (name == rhs.name) && (id == rhs.id) && (width == rhs.width) && (height == rhs.height) &&
-           (dpi == rhs.dpi);
-}
-
 std::optional<std::vector<FoldableModel::ResizableConfig>> FoldableModel::ParseResizableConfigs(
         const std::string_view config_str) {
     std::vector<ResizableConfig> resizable_configs;
