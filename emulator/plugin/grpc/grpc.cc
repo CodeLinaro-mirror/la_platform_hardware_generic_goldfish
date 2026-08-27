@@ -364,6 +364,17 @@ EmulatorProperties CreateProps(const GrpcConfig* config, const avd_info::AvdUniv
     return props;
 }
 
+#ifdef _WIN32
+std::string ShutdownCauseToString(ShutdownCause cause) {
+    // referencing &ShutdownCause_lookup dereferences an invalid pointer at runtime (b/553508439).
+    return absl::StrCat(static_cast<int>(cause));
+}
+#else
+std::string ShutdownCauseToString(ShutdownCause cause) {
+    return ShutdownCause_str(cause);
+}
+#endif
+
 void grpc_shutdown_notify(Notifier* notifier, void* data) {
     GrpcConfig* config = container_of(notifier, GrpcConfig, shutdown_notifier);
     config->advertiser.reset();
@@ -373,7 +384,7 @@ void grpc_shutdown_notify(Notifier* notifier, void* data) {
 
     if (data) {
         auto cause = *static_cast<const ShutdownCause*>(data);
-        LOG(INFO) << "Shutdown requested (cause=" << ShutdownCause_str(cause)
+        LOG(INFO) << "Shutdown requested (cause=" << ShutdownCauseToString(cause)
                   << "), terminating gRPC service on " << config->addr << ":" << config->port
                   << ".";
     } else {
