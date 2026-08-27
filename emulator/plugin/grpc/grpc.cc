@@ -61,7 +61,9 @@ extern "C" {
 #include "hw/core/qdev.h"
 #include "qapi/error.h"
 #include "qapi/visitor.h"
+#include "qemu/notify.h"
 #include "qom/object.h"
+#include "system/runstate.h"
 #include "ui/console.h"
 }
 // IWYU pragma: end_keep
@@ -105,6 +107,7 @@ struct GrpcConfig {
     std::vector<std::shared_ptr<::grpc::Service>> grpc_services;
     std::unique_ptr<::grpc::Server> grpc_server;
     std::unique_ptr<EmulatorAdvertisement> advertiser;
+    Notifier shutdown_notifier;
 };
 
 struct GrpcDev {
@@ -361,6 +364,27 @@ EmulatorProperties CreateProps(const GrpcConfig* config, const avd_info::AvdUniv
     return props;
 }
 
+void grpc_shutdown_notify(Notifier* notifier, void* data) {
+    GrpcConfig* config = container_of(notifier, GrpcConfig, shutdown_notifier);
+    config->advertiser.reset();
+    if (!config->grpc_server) {
+        return;
+    }
+
+    if (data) {
+        auto cause = *static_cast<const ShutdownCause*>(data);
+        LOG(INFO) << "Shutdown requested (cause=" << ShutdownCause_str(cause)
+                  << "), terminating gRPC service on " << config->addr << ":" << config->port
+                  << ".";
+    } else {
+        LOG(INFO) << "Shutdown requested, terminating gRPC service on " << config->addr << ":"
+                  << config->port << ".";
+    }
+
+    auto deadline = std::chrono::system_clock::now() + std::chrono::milliseconds(100);
+    config->grpc_server->Shutdown(deadline);
+}
+
 void grpc_realize(DeviceState* dev, Error** errp) {
     GrpcDev* grpc_device = GRPC_DEV(dev);
     auto* config = grpc_device->config;
@@ -437,12 +461,17 @@ void grpc_realize(DeviceState* dev, Error** errp) {
                         "detect or connect to this running emulator. Reason: "
                      << s;
     }
+
+    config->shutdown_notifier.notify = grpc_shutdown_notify;
+    qemu_register_shutdown_notifier(&config->shutdown_notifier);
 }
 
 void grpc_unrealize(DeviceState* dev) {
     VLOG(1) << "Finalizing gRPC endpoint";
     GrpcDev* grpc_device = GRPC_DEV(dev);
     auto* config = grpc_device->config;
+
+    notifier_remove(&config->shutdown_notifier);
 
     if (config->grpc_server) {
         // Explicitly cleanup resources. We do not want to do this at
