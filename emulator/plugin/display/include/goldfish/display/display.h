@@ -234,8 +234,18 @@ class IDisplay : public FrameInfoCallbackSource,
 
     /**
      * @brief Adds a callback to the underlying frame source and notifies lifecycle hooks.
+     * If a subscription is already active and a valid frame exists, immediately yields the
+     * current frame to the new listener.
      */
     CallbackId AddCallback(std::function<void(const FrameInfo&)> callback) override {
+        if (frame_source_.CallbackCount() > 0) {
+            const FrameInfo current_frame = Seq();
+            // A sequence_number == 0 indicates the display just started and has not yet
+            // received its first frame; wait for the initial frame event from QEMU.
+            if (current_frame.sequence_number > 0) {
+                callback(current_frame);
+            }
+        }
         auto id = frame_source_.AddCallback(std::move(callback));
         OnListenerAdded();
         return id;

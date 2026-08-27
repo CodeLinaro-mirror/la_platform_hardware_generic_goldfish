@@ -183,6 +183,38 @@ TEST_F(DisplayTest, AddFrameListener_ReceivesFramesAsync) {
     EXPECT_TRUE(frame_arrived.WaitForNotificationWithTimeout(absl::Seconds(1)));
 }
 
+TEST_F(DisplayTest, AddFrameListener_FiresImmediatelyWhenAlreadyActive) {
+    LifecycleMockDisplay display(loop_.get(), 0, 100, 100);
+
+    // Initial state: No subscribers, no frames.
+    // Attach listener 1: First subscriber (0 -> 1). Should NOT fire immediately.
+    absl::Notification frame1_arrived;
+    auto listener1 = display.AddFrameListener([&](const FrameInfo&) {
+        if (!frame1_arrived.HasBeenNotified()) {
+            frame1_arrived.Notify();
+        }
+    });
+
+    // Simulate QEMU pushing a frame to the active display.
+    display.Incoming();
+
+    // Wait for the first frame to arrive on the event loop.
+    ASSERT_TRUE(frame1_arrived.WaitForNotificationWithTimeout(absl::Seconds(1)));
+
+    // Attach listener 2 while listener 1 is active and a valid frame exists.
+    // It MUST fire immediately and synchronously during AddFrameListener.
+    int listener2_frame_count = 0;
+    uint64_t listener2_received_seq = 0;
+    auto listener2 = display.AddFrameListener([&](const FrameInfo& info) {
+        listener2_frame_count++;
+        listener2_received_seq = info.sequence_number;
+    });
+
+    // Verify listener 2 received the current frame synchronously before AddFrameListener returned.
+    EXPECT_EQ(1, listener2_frame_count);
+    EXPECT_EQ(1, listener2_received_seq);
+}
+
 TEST_F(DisplayTest, AddFrameListener_TriggersHooks) {
     LifecycleMockDisplay display(loop_.get(), 0, 100, 100);
 
