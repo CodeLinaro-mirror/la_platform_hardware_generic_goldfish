@@ -379,7 +379,7 @@ void FoldableModel::SetRollable(uint32_t /*index*/, float /*percentage*/,
 
 float FoldableModel::GetHingeAngle(uint32_t hinge_index,
                                    ParameterValueType parameter_value_type) const {
-    if (hinge_index >= kMaxHinges) return 0.0F;
+    DCHECK(config_.num_hinges <= kMaxHinges);
     if (std::cmp_greater_equal(hinge_index, config_.num_hinges)) return 0.0F;
     return parameter_value_type == ParameterValueType::kDefault
                    ? config_.hinge_params[hinge_index].default_degrees
@@ -393,7 +393,7 @@ float FoldableModel::GetPosture(ParameterValueType parameter_value_type) const {
 }
 
 float FoldableModel::GetRollable(uint32_t index, ParameterValueType parameter_value_type) const {
-    if (index >= kMaxRolls) return 0.0F;
+    DCHECK(config_.num_rolls <= kMaxRolls);
     if (std::cmp_greater_equal(index, config_.num_rolls)) return 0.0F;
 
     return parameter_value_type == ParameterValueType::kDefault
