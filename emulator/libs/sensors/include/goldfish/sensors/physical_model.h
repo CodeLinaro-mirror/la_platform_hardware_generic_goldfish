@@ -286,9 +286,9 @@ class PhysicalModel : public CallbackEventSource<PhysicalModelChangeEvent> {
 
     mutable std::recursive_mutex mutex_;  ///< Mutex for thread safety
 
+    const std::unique_ptr<FoldableModel> foldable_model_;  ///< Models foldable device state
     InertialModel inertial_model_;            ///< Models inertial motion
     AmbientEnvironment ambient_environment_;  ///< Models ambient conditions
-    std::unique_ptr<FoldableModel> foldable_model_;  ///< Models foldable device state
     BodyModel body_model_;                    ///< Models body-related sensors
 
     std::bitset<kNumSensors> use_override_;             ///< Sensor override flags
