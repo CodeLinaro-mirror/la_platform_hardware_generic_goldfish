@@ -79,10 +79,8 @@ void FoldableModel::InitFoldableRoll(const android::goldfish::HardwareConfig& hw
     }
     config_.type = type;
 
-    // number
-    int num_rolls = hw.hw_sensor_roll_count;
-    if (num_rolls < 0 || num_rolls > ANDROID_FOLDABLE_MAX_ROLLS) {
-        num_rolls = 0;
+    const int num_rolls = hw.hw_sensor_roll_count;
+    if (num_rolls < 0 || num_rolls > kMaxRolls) {
         LOG(FATAL) << "Incorrect roll count " << hw.hw_sensor_roll_count;
     }
     config_.num_rolls = num_rolls;
@@ -171,10 +169,8 @@ void FoldableModel::InitFoldableHinge(const android::goldfish::HardwareConfig& h
     folded_w_ = hw.hw_displayRegion_0_1_width;
     folded_h_ = hw.hw_displayRegion_0_1_height;
 
-    // number
-    int num_hinges = hw.hw_sensor_hinge_count;
-    if (num_hinges < 0 || num_hinges > ANDROID_FOLDABLE_MAX_HINGES) {
-        num_hinges = 0;
+    const int num_hinges = hw.hw_sensor_hinge_count;
+    if (num_hinges < 0 || num_hinges > kMaxHinges) {
         LOG(FATAL) << "Incorrect hinge count " << hw.hw_sensor_hinge_count;
     }
     config_.num_hinges = num_hinges;
@@ -269,7 +265,7 @@ void FoldableModel::InitFoldableHinge(const android::goldfish::HardwareConfig& h
                 atp.posture = static_cast<FoldablePostures>(posture_val);
 
                 std::vector<std::string_view> hinge_defs = absl::StrSplit(def_tokens[i], '&');
-                for (size_t j = 0; j < hinge_defs.size() && j < ANDROID_FOLDABLE_MAX_HINGES; ++j) {
+                for (size_t j = 0; j < hinge_defs.size() && j < kMaxHinges; ++j) {
                     std::vector<std::string_view> range = absl::StrSplit(hinge_defs[j], '-');
                     if (range.size() >= 2) {
                         if (!absl::SimpleAtof(range[0], &atp.angles[j].left) ||
@@ -333,7 +329,7 @@ void FoldableModel::InitResizableConfigs(const android::goldfish::HardwareConfig
 
 void FoldableModel::SetHingeAngle(uint32_t hinge_index, float degree,
                                   PhysicalInterpolation /*mode*/) {
-    if (hinge_index < ANDROID_FOLDABLE_MAX_HINGES) {
+    if (hinge_index < kMaxHinges) {
         state_.current_hinge_degrees[hinge_index] = degree;
 
         FoldablePostures new_posture = state_.current_posture;
@@ -383,7 +379,7 @@ void FoldableModel::SetRollable(uint32_t /*index*/, float /*percentage*/,
 
 float FoldableModel::GetHingeAngle(uint32_t hinge_index,
                                    ParameterValueType parameter_value_type) const {
-    if (hinge_index >= ANDROID_FOLDABLE_MAX_HINGES) return 0.0F;
+    if (hinge_index >= kMaxHinges) return 0.0F;
     if (std::cmp_greater_equal(hinge_index, config_.num_hinges)) return 0.0F;
     return parameter_value_type == ParameterValueType::kDefault
                    ? config_.hinge_params[hinge_index].default_degrees
@@ -397,7 +393,7 @@ float FoldableModel::GetPosture(ParameterValueType parameter_value_type) const {
 }
 
 float FoldableModel::GetRollable(uint32_t index, ParameterValueType parameter_value_type) const {
-    if (index >= ANDROID_FOLDABLE_MAX_ROLLS) return 0.0F;
+    if (index >= kMaxRolls) return 0.0F;
     if (std::cmp_greater_equal(index, config_.num_rolls)) return 0.0F;
 
     return parameter_value_type == ParameterValueType::kDefault
