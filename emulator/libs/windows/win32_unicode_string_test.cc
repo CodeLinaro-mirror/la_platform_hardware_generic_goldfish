@@ -16,8 +16,6 @@
 
 #include <gtest/gtest.h>
 
-#define ARRAY_SIZE(x) (sizeof(x) / sizeof(x[0]))
-
 namespace android {
 namespace base {
 
@@ -38,7 +36,7 @@ TEST(Win32UnicodeString, Constructors) {
         {"T\xC3\xA9l\xC3\xA9vision", L"T\xE9l\xE9vision"},
         {"foo\xE1\x80\x80 bar", L"foo\x1000 bar"},
     };
-    const size_t kDataSize = ARRAY_SIZE(kData);
+    const size_t kDataSize = std::size(kData);
 
     for (size_t n = 0; n < kDataSize; ++n) {
         Win32UnicodeString str1(kData[n].utf8);
@@ -80,7 +78,7 @@ TEST(Win32UnicodeString, convertToUtf8) {
         {"T\xC3\xA9l\xC3\xA9vision", L"T\xE9l\xE9vision"},
         {"foo\xE1\x80\x80 bar", L"foo\x1000 bar"},
     };
-    const size_t kDataSize = ARRAY_SIZE(kData);
+    const size_t kDataSize = std::size(kData);
 
     for (size_t n = 0; n < kDataSize; ++n) {
         std::string str1 = Win32UnicodeString::convertToUtf8(kData[n].utf16);
@@ -132,15 +130,15 @@ TEST(Win32UnicodeString, convertFromUtf8) {
         {"T\xC3\xA9l\xC3\xA9vision", L"T\xE9l\xE9vision"},
         {"foo\xE1\x80\x80 bar", L"foo\x1000 bar"},
     };
-    const size_t kDataSize = ARRAY_SIZE(kData);
+    const size_t kDataSize = std::size(kData);
 
     for (size_t n = 0; n < kDataSize; ++n) {
         wchar_t out[256];
-        int len = Win32UnicodeString::convertFromUtf8(out, ARRAY_SIZE(out), kData[n].utf8);
+        int len = Win32UnicodeString::convertFromUtf8(out, std::size(out), kData[n].utf8);
         EXPECT_EQ((int)wcslen(kData[n].utf16) + 1, len);
         EXPECT_STREQ(kData[n].utf16, out);
 
-        len = Win32UnicodeString::convertFromUtf8(out, ARRAY_SIZE(out), kData[n].utf8,
+        len = Win32UnicodeString::convertFromUtf8(out, std::size(out), kData[n].utf8,
                                                   strlen(kData[n].utf8));
         EXPECT_EQ((int)wcslen(kData[n].utf16), len);
         out[len] = 0;

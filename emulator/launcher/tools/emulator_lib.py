@@ -28,6 +28,7 @@ import tempfile
 from pathlib import Path
 
 from python.runfiles import Runfiles
+from process_monitor import ProcessTreeMonitor
 
 logging.basicConfig(stream=sys.stderr, encoding="utf-8", level=logging.DEBUG)
 
@@ -273,7 +274,14 @@ class EmulatorRunner:
         self.env = env
         self.process = None
 
-    async def launch_and_wait(self, timeout, target_log):
+    async def launch_and_wait(
+        self,
+        timeout,
+        target_log,
+        count_log_pattern=None,
+        expected_occurrences=None,
+    ):
+        monitor = None
         try:
             self.process = await asyncio.create_subprocess_exec(
                 *self.command,
@@ -282,11 +290,49 @@ class EmulatorRunner:
                 env=self.env,
             )
 
-            return await asyncio.wait_for(
-                self._stream_output_and_find_log(self.process.stdout, target_log),
-                timeout=timeout,
-            )
+            if self.process and self.process.pid:
+                monitor = ProcessTreeMonitor(self.process.pid, sample_interval_sec=1.0)
+                await monitor.start()
+
+            try:
+                status = await asyncio.wait_for(
+                    self._stream_output_and_find_log(
+                        self.process.stdout,
+                        target_log,
+                        count_log_pattern,
+                        expected_occurrences,
+                    ),
+                    timeout=timeout,
+                )
+            except asyncio.TimeoutError:
+                if monitor:
+                    summary = await monitor.stop()
+                    logging.error(
+                        "\n%s",
+                        monitor.format_diagnostic_dump(
+                            summary, reason=f"Timeout ({timeout}s)"
+                        ),
+                    )
+                raise
+
+            if monitor:
+                summary = await monitor.stop()
+                if status:
+                    logging.info(
+                        monitor.format_summary_line(summary, tag="Boot Telemetry")
+                    )
+                else:
+                    logging.error(
+                        "\n%s",
+                        monitor.format_diagnostic_dump(
+                            summary, reason="Stream ended before target log line"
+                        ),
+                    )
+
+            return status
         finally:
+            if monitor:
+                await monitor.stop()
             await self._terminate_process()
 
     async def _terminate_process(self):
@@ -302,12 +348,21 @@ class EmulatorRunner:
                 self.process.kill()
                 await self.process.wait()
 
-    async def _stream_output_and_find_log(self, stream, target_log):
+    async def _stream_output_and_find_log(
+        self,
+        stream,
+        target_log,
+        count_log_pattern=None,
+        expected_occurrences=None,
+    ):
         if not target_log:
             await self._stream_output(stream)
             return True
 
         target_re = re.compile(target_log)
+        count_re = re.compile(count_log_pattern) if count_log_pattern else None
+        pattern_count = 0
+
         while True:
             line_bytes = await stream.readline()
             if not line_bytes:
@@ -317,8 +372,24 @@ class EmulatorRunner:
             line = line_bytes.decode("utf-8", errors="replace").strip()
             logging.info(line)
 
+            if count_re and count_re.search(line):
+                pattern_count += 1
+                logging.info(
+                    "--- Matched count_log_pattern '%s' (current count=%d) ---",
+                    count_log_pattern,
+                    pattern_count,
+                )
+
             if target_re.search(line):
                 logging.info("--- Target log line detected! ---")
+                if expected_occurrences is not None and pattern_count != expected_occurrences:
+                    logging.error(
+                        "--- Assertion failed: count_log_pattern '%s' occurred %d times, expected exactly %d ---",
+                        count_log_pattern,
+                        pattern_count,
+                        expected_occurrences,
+                    )
+                    return False
                 return True
 
     async def _stream_output(self, stream):
@@ -340,6 +411,8 @@ async def launch_and_monitor_emulator(
     extra_qemu_args=None,
     disable_crash_reporting=False,
     system_image_dir=None,
+    count_log_pattern=None,
+    expected_occurrences=None,
 ):
     """Launches and monitors an emulator instance.
 
@@ -351,6 +424,8 @@ async def launch_and_monitor_emulator(
         target_log_line: The log line to watch for.
         extra_qemu_args: Additional arguments for the QEMU command.
         system_image_dir: Optional path to a system image to use.
+        count_log_pattern: Regular expression pattern to count in emulator logs.
+        expected_occurrences: Exact number of times count_log_pattern must occur.
 
     Returns:
         0 on success, 1 on failure.
@@ -398,7 +473,12 @@ async def launch_and_monitor_emulator(
                 signal.signal(signal.SIGHUP, signal_handler)
                 signal.signal(signal.SIGQUIT, signal_handler)
 
-            status = await runner.launch_and_wait(timeout_seconds, target_log_line)
+            status = await runner.launch_and_wait(
+                timeout_seconds,
+                target_log_line,
+                count_log_pattern,
+                expected_occurrences,
+            )
 
             if not status:
                 logging.info("--- Script failed with status: %s. ---", status)

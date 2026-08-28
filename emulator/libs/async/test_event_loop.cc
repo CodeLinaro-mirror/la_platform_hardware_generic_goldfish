@@ -89,7 +89,7 @@ class TestEventLoopImpl : public TestEventLoop {
         void Cancel() override { cancelled_ = true; }
         bool IsCancelled() const { return cancelled_; }
         std::shared_ptr<RepeatingTask> task() { return pending_task_; }  // NOLINT
-        FlowId flow_id() const { return flow_id_; }
+        FlowId GetFlowId() const { return flow_id_; }
         void Schedule(std::chrono::milliseconds new_delay,
                       std::chrono::milliseconds new_interval) override {
             loop_->Reschedule(shared_from_this(), new_delay, new_interval);
@@ -99,7 +99,7 @@ class TestEventLoopImpl : public TestEventLoop {
         std::atomic_bool cancelled_{false};
         TestEventLoopImpl* loop_;
         std::shared_ptr<RepeatingTask> pending_task_;
-        FlowId flow_id_;
+        ::goldfish::async::FlowId flow_id_;
     };
 
     enum class Command : uint8_t { kNone, kRunOne, kRunMany, kAdvanceTime };
@@ -238,7 +238,7 @@ void TestEventLoopImpl::Reschedule(std::shared_ptr<TestTimer> timer,
         std::ranges::make_heap(scheduled_tasks_, std::greater<>{});
     } else {
         scheduled_tasks_.push_back(
-                {now_ + new_delay, new_interval, timer->task(), timer, timer->flow_id()});
+                {now_ + new_delay, new_interval, timer->task(), timer, timer->GetFlowId()});
         std::ranges::push_heap(scheduled_tasks_, std::greater<>{});
     }
 }

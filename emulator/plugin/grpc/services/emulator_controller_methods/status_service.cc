@@ -46,8 +46,11 @@ std::unordered_map<std::string, std::string> getQemuConfig(
     return cfg;
 }
 
-StatusServiceImpl::StatusServiceImpl(GuestStatus& guestStatus, const AvdProperties& avd_properties)
-        : guest_status_(guestStatus), avd_properties_(avd_properties) {}
+StatusServiceImpl::StatusServiceImpl(GuestStatus& guestStatus, const AvdProperties& avd_properties,
+                                     const ::goldfish::avd_info::AvdUniverse* avd_universe)
+        : guest_status_(guestStatus)
+        , avd_properties_(avd_properties)
+        , avd_universe_(avd_universe) {}
 
 grpc::Status StatusServiceImpl::getStatus(EmulatorStatus* reply) {
     // TODO(jansene): Get cpu count, hypervisor type.`
@@ -76,13 +79,19 @@ grpc::Status StatusServiceImpl::getStatus(EmulatorStatus* reply) {
     (*platform)["avd.name"] = avd_properties_.avd_name;
     (*platform)["avd.content_path"] = avd_properties_.avd_content_path.string();
 
+    if (avd_universe_) {
+        if (auto endpoint = avd_universe_->GetNetsimEndpoint(); !endpoint.empty()) {
+            (*platform)["netsim.endpoint"] = endpoint;
+        }
+    }
+
     auto& guestConfig = *reply->mutable_guestconfig();
 
     // TODO(jansene): Enable once multidisplay support is added.
     guestConfig["multidisplay"] = "unavailable";
 
     // 1. Map Android API Version
-    guestConfig["androidVersion"] = absl::StrCat("API ", avd_properties_.avd_api);
+    guestConfig["androidVersion"] = avd_properties_.avd_api_str;
 
     // 2. Map Host CPU Hypervisor Version
     android::CpuAccelerator accel = android::GetCurrentCpuAccelerator();
@@ -99,7 +108,7 @@ grpc::Status StatusServiceImpl::getStatus(EmulatorStatus* reply) {
     absl::StrAppendFormat(&avdDetails, "Name: %s\n", avd_properties_.avd_name);
     absl::StrAppendFormat(&avdDetails, "CPU/ABI: %s\n", avd_properties_.avd_abi);
     absl::StrAppendFormat(&avdDetails, "Path: %s\n", avd_properties_.avd_content_path.string());
-    absl::StrAppendFormat(&avdDetails, "Target: API level %d\n", avd_properties_.avd_api);
+    absl::StrAppendFormat(&avdDetails, "Target: %s\n", avd_properties_.avd_api_str);
     absl::StrAppendFormat(&avdDetails, "Build SDK: %s\n", avd_properties_.build_sdk);
     absl::StrAppendFormat(&avdDetails, "Build ID: %s\n", avd_properties_.build_id);
     absl::StrAppendFormat(&avdDetails, "Build Flavour: %s\n", avd_properties_.build_flavour);

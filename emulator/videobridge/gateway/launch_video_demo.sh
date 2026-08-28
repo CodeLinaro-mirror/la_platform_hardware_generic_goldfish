@@ -23,10 +23,6 @@ cd "$DIR"
 # Parse arguments
 DISCOVERY_FILE=""
 PORT_GATEWAY=8080
-PORT_BRIDGE=50051
-SHM_PATH=""
-VERBOSITY_LEVEL=""
-WEBRTC_LOG_LEVEL="warning"
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -38,25 +34,9 @@ while [[ $# -gt 0 ]]; do
             PORT_GATEWAY="$2"
             shift 2
             ;;
-        --bridge_port)
-            PORT_BRIDGE="$2"
-            shift 2
-            ;;
-        --shared_memory_path)
-            SHM_PATH="$2"
-            shift 2
-            ;;
-        --v)
-            VERBOSITY_LEVEL="$2"
-            shift 2
-            ;;
-        --webrtc_log_level)
-            WEBRTC_LOG_LEVEL="$2"
-            shift 2
-            ;;
         *)
             echo "Unknown argument: $1"
-            echo "Usage: ./launch_video_demo.sh --discovery_file <path_to_ini> [--port <gateway_port>] [--bridge_port <bridge_port>] [--shared_memory_path <shm_path>] [--v <verbose_level>] [--webrtc_log_level <webrtc_level>]"
+            echo "Usage: ./launch_video_demo.sh --discovery_file <path_to_ini> [--port <gateway_port>]"
             exit 1
             ;;
     esac
@@ -64,7 +44,7 @@ done
 
 if [ -z "$DISCOVERY_FILE" ]; then
     echo "Error: --discovery_file is required."
-    echo "Usage: ./launch_video_demo.sh --discovery_file <path_to_ini> [--port <gateway_port>] [--bridge_port <bridge_port>]"
+    echo "Usage: ./launch_video_demo.sh --discovery_file <path_to_ini> [--port <gateway_port>]"
     exit 1
 fi
 
@@ -76,36 +56,18 @@ if [ ! -f "$DISCOVERY_FILE_ABS" ]; then
     exit 1
 fi
 
-# 1. Launch Video Bridge in the background using bazel run
-WORKSPACE_ROOT="$(cd "$DIR/../../../../../.." && pwd)"
-cd "$WORKSPACE_ROOT"
+# Parse gRPC port and token from discovery file
+EMULATOR_PORT=$(grep -i '^grpc.port=' "$DISCOVERY_FILE_ABS" | cut -d'=' -f2 | tr -d '\r' | tr -d ' ')
+EMULATOR_TOKEN=$(grep -i '^grpc.token=' "$DISCOVERY_FILE_ABS" | cut -d'=' -f2 | tr -d '\r' | tr -d ' ')
 
-echo "Launching Video Bridge on port $PORT_BRIDGE via bazel run..."
-BRIDGE_ARGS=(
-  "--discovery_file=$DISCOVERY_FILE_ABS"
-  "--grpc_address=localhost:$PORT_BRIDGE"
-  "--webrtc_log_level=$WEBRTC_LOG_LEVEL"
-)
-if [ -n "$SHM_PATH" ]; then
-    BRIDGE_ARGS+=("--shared_memory_path=$SHM_PATH")
-fi
-if [ -n "$VERBOSITY_LEVEL" ]; then
-    BRIDGE_ARGS+=("--v=$VERBOSITY_LEVEL")
+if [ -z "$EMULATOR_PORT" ]; then
+    echo "Error: Unable to parse grpc.port from discovery file: $DISCOVERY_FILE_ABS"
+    exit 1
 fi
 
-bazel run @goldfish//emulator/videobridge:videobridge -- "${BRIDGE_ARGS[@]}" &
-BRIDGE_PID=$!
+echo "Found emulator gRPC service on port $EMULATOR_PORT from discovery file."
 
-# Register trap to kill background processes on exit
-cleanup() {
-    echo "Shutting down Video Bridge (PID $BRIDGE_PID)..."
-    kill "$BRIDGE_PID" 2>/dev/null || true
-    echo "Done."
-}
-trap cleanup EXIT INT TERM
-
-# 3. Setup / Activate Python environment
-cd "$DIR"
+# 1. Setup / Activate Python environment
 if [ ! -d "venv" ]; then
     echo "Python virtual environment not found. Running setup_env.sh..."
     ./setup_env.sh
@@ -114,14 +76,14 @@ fi
 echo "Activating virtual environment..."
 source venv/bin/activate
 
-# 4. Wait for Video Bridge to start listening before starting the gateway
-echo "Waiting for Video Bridge to start listening on port $PORT_BRIDGE..."
-while ! nc -z localhost "$PORT_BRIDGE" 2>/dev/null; do
+# 2. Wait for Emulator gRPC port to be active
+echo "Waiting for emulator gRPC service to start listening on port $EMULATOR_PORT..."
+while ! nc -z localhost "$EMULATOR_PORT" 2>/dev/null; do
     sleep 0.5
 done
-echo "Video Bridge is online!"
+echo "Emulator gRPC service (with built-in WebRTC videobridge) is online!"
 
-# 5. Launch Python Web Gateway
+# 3. Launch Python Web Gateway connected directly to emulator's built-in WebRTC videobridge
 echo "Launching Python Signaling Gateway on port $PORT_GATEWAY..."
 echo ""
 echo "--------------------------------------------------------"
@@ -130,7 +92,14 @@ echo "    https://pokowaka.github.io/android-emulator-webrtc/?url=localhost:$POR
 echo "--------------------------------------------------------"
 echo ""
 
-videobridge-gateway \
-  --port="$PORT_GATEWAY" \
-  --videobridge="localhost:$PORT_BRIDGE" \
-  --discovery_file="$DISCOVERY_FILE_ABS"
+GATEWAY_ARGS=(
+    "--port=$PORT_GATEWAY"
+    "--videobridge=localhost:$EMULATOR_PORT"
+    "--discovery_file=$DISCOVERY_FILE_ABS"
+)
+
+if [ -n "$EMULATOR_TOKEN" ]; then
+    GATEWAY_ARGS+=("--videobridge_token=$EMULATOR_TOKEN")
+fi
+
+videobridge-gateway "${GATEWAY_ARGS[@]}"

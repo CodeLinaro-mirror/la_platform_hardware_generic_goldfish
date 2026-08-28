@@ -22,6 +22,8 @@
 #include "api/peer_connection_interface.h"
 #pragma clang diagnostic pop
 
+#include "absl/status/status.h"
+
 namespace goldfish::videobridge {
 
 /**
@@ -42,10 +44,11 @@ class MediaProvider {
      *
      * @param factory The WebRTC PeerConnectionFactory used to build the tracks.
      * @param peer_connection The target PeerConnection to add the tracks to.
-     * @return true if all tracks were successfully created and added, false otherwise.
+     * @return absl::OkStatus() if all tracks were successfully created and added, or an error
+     * status.
      */
-    virtual bool AddTracks(::webrtc::PeerConnectionFactoryInterface* factory,
-                           ::webrtc::PeerConnectionInterface* peer_connection) = 0;
+    virtual absl::Status AddTracks(::webrtc::PeerConnectionFactoryInterface* factory,
+                                   ::webrtc::PeerConnectionInterface* peer_connection) = 0;
 };
 
 }  // namespace goldfish::videobridge

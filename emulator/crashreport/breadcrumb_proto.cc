@@ -130,11 +130,11 @@ absl::Status LogBreadcrumb(BreadcrumbType type, FlowId flow_id, BreadcrumbPhase 
 }
 
 FlowId AllocateGlobalFlowId() {
-    static std::atomic<uint64_t> sNextFlowId{1};
+    static std::atomic<uint64_t> next_flow_id{1};
     // Relaxed increment is sufficient for uniqueness. We ignore overflow because at 10 billion
     // allocations per second, it would take approximately 58 years of continuous execution to
     // wrap around back to 0.
-    return sNextFlowId.fetch_add(1, std::memory_order_relaxed);
+    return next_flow_id.fetch_add(1, std::memory_order_relaxed);
 }
 
 void RegisterLooper(uint8_t loop_id, std::string_view name) {

@@ -5,6 +5,7 @@ package(default_visibility = ["//visibility:public"])
 cc_library(
     name = "emulator_controller_methods",
     srcs = [
+        "audio_stream_writer.cc",
         "battery_service.cc",
         "clipboard_service.cc",
         "display_service.cc",
@@ -15,6 +16,7 @@ cc_library(
         "vm_service.cc",
     ],
     hdrs = [
+        "audio_stream_writer.h",
         "battery_service.h",
         "clipboard_service.h",
         "display_service.h",
@@ -37,12 +39,14 @@ cc_library(
         "//emulator/libs/ini_file",
         "//emulator/libs/shared_memory",
         "//emulator/libs/sockets",
+        "//emulator/plugin/audio:qemu_audio_capture",
         "//emulator/plugin/avd:info",
         "//emulator/plugin/display",
         "//emulator/plugin/grpc/keyboard",
         "//emulator/plugin/vminterface",
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/time",
         "@aemu//protos/services/emulator-controller:emulator_controller_cc_grpc",
     ],
 )
@@ -50,6 +54,7 @@ cc_library(
 cc_test(
     name = "emulator_controller_methods_test",
     srcs = [
+        "audio_stream_writer_test.cc",
         "display_service_test.cc",
         "fingerprint_service_test.cc",
         "notification_store_test.cc",
@@ -68,10 +73,12 @@ cc_test(
         "//emulator/libs/hardware_config:fake_hardware_config",
         "//emulator/libs/process",
         "//emulator/libs/test:googletest_main",
+        "//emulator/plugin/audio:test_qemu_audio_stub",
         "//emulator/plugin/avd:info-fake",
         "//emulator/plugin/display:test-display",
         "//emulator/plugin/grpc/keyboard:test_qemu_input_stub",
         "//emulator/plugin/vminterface:test_vminterface",
         "//emulator/plugin/vminterface:vminterface-test",
+        "@abseil-cpp//absl/synchronization",
     ],
 )

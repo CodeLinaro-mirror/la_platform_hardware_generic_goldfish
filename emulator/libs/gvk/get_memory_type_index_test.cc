@@ -20,82 +20,82 @@
 namespace goldfish::gvk::util {
 
 TEST(GetMemoryTypeIndex, Success) {
-    VkPhysicalDeviceMemoryProperties memProps = {};
-    memProps.memoryTypeCount = 2;
-    memProps.memoryTypes[0].propertyFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
-    memProps.memoryTypes[1].propertyFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+    VkPhysicalDeviceMemoryProperties mem_props = {};
+    mem_props.memoryTypeCount = 2;
+    mem_props.memoryTypes[0].propertyFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
+    mem_props.memoryTypes[1].propertyFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
 
-    const uint32_t supportedTypes = 1 << 1;  // Support type at index 1
-    const VkMemoryPropertyFlags requiredProps = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+    const uint32_t supported_types = 1 << 1;  // Support type at index 1
+    const VkMemoryPropertyFlags required_props = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
 
-    EXPECT_EQ(getMemoryTypeIndex(memProps, supportedTypes, requiredProps), 1);
+    EXPECT_EQ(GetMemoryTypeIndex(mem_props, supported_types, required_props), 1);
 }
 
 TEST(GetMemoryTypeIndex, NoSupportedType) {
-    VkPhysicalDeviceMemoryProperties memProps = {};
-    memProps.memoryTypeCount = 2;
-    memProps.memoryTypes[0].propertyFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
-    memProps.memoryTypes[1].propertyFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+    VkPhysicalDeviceMemoryProperties mem_props = {};
+    mem_props.memoryTypeCount = 2;
+    mem_props.memoryTypes[0].propertyFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
+    mem_props.memoryTypes[1].propertyFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
 
-    const uint32_t supportedTypes = 0;  // Support no types
-    const VkMemoryPropertyFlags requiredProps = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+    const uint32_t supported_types = 0;  // Support no types
+    const VkMemoryPropertyFlags required_props = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
 
-    EXPECT_EQ(getMemoryTypeIndex(memProps, supportedTypes, requiredProps), -1);
+    EXPECT_EQ(GetMemoryTypeIndex(mem_props, supported_types, required_props), -1);
 }
 
 TEST(GetMemoryTypeIndex, NoMatchingProperties) {
-    VkPhysicalDeviceMemoryProperties memProps = {};
-    memProps.memoryTypeCount = 2;
-    memProps.memoryTypes[0].propertyFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
-    memProps.memoryTypes[1].propertyFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+    VkPhysicalDeviceMemoryProperties mem_props = {};
+    mem_props.memoryTypeCount = 2;
+    mem_props.memoryTypes[0].propertyFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
+    mem_props.memoryTypes[1].propertyFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
 
-    const uint32_t supportedTypes = 1 << 0;  // Support type at index 0
-    const VkMemoryPropertyFlags requiredProps = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+    const uint32_t supported_types = 1 << 0;  // Support type at index 0
+    const VkMemoryPropertyFlags required_props = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
 
-    EXPECT_EQ(getMemoryTypeIndex(memProps, supportedTypes, requiredProps), -1);
+    EXPECT_EQ(GetMemoryTypeIndex(mem_props, supported_types, required_props), -1);
 }
 
 TEST(GetMemoryTypeIndex, MultipleMatches) {
-    VkPhysicalDeviceMemoryProperties memProps = {};
-    memProps.memoryTypeCount = 4;
-    memProps.memoryTypes[0].propertyFlags = 0;
-    memProps.memoryTypes[1].propertyFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
-    memProps.memoryTypes[2].propertyFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
-    memProps.memoryTypes[3].propertyFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+    VkPhysicalDeviceMemoryProperties mem_props = {};
+    mem_props.memoryTypeCount = 4;
+    mem_props.memoryTypes[0].propertyFlags = 0;
+    mem_props.memoryTypes[1].propertyFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
+    mem_props.memoryTypes[2].propertyFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
+    mem_props.memoryTypes[3].propertyFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
 
-    const uint32_t supportedTypes = 0b1110;  // Support types 1, 2, 3
-    const VkMemoryPropertyFlags requiredProps = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
+    const uint32_t supported_types = 0b1110;  // Support types 1, 2, 3
+    const VkMemoryPropertyFlags required_props = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
 
     // Should return the first match, which is at index 1.
-    EXPECT_EQ(getMemoryTypeIndex(memProps, supportedTypes, requiredProps), 1);
+    EXPECT_EQ(GetMemoryTypeIndex(mem_props, supported_types, required_props), 1);
 }
 
 TEST(GetMemoryTypeIndex, MultipleRequiredProperties) {
-    VkPhysicalDeviceMemoryProperties memProps = {};
-    memProps.memoryTypeCount = 4;
-    memProps.memoryTypes[0].propertyFlags = 0;
-    memProps.memoryTypes[1].propertyFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
-    memProps.memoryTypes[2].propertyFlags =
+    VkPhysicalDeviceMemoryProperties mem_props = {};
+    mem_props.memoryTypeCount = 4;
+    mem_props.memoryTypes[0].propertyFlags = 0;
+    mem_props.memoryTypes[1].propertyFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
+    mem_props.memoryTypes[2].propertyFlags =
             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
-    memProps.memoryTypes[3].propertyFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+    mem_props.memoryTypes[3].propertyFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
 
-    const uint32_t supportedTypes = 0b1110;  // Support types 1, 2, 3
-    const VkMemoryPropertyFlags requiredProps =
+    const uint32_t supported_types = 0b1110;  // Support types 1, 2, 3
+    const VkMemoryPropertyFlags required_props =
             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
 
     // Type 1 is supported but doesn't have HOST_COHERENT.
     // Type 2 is supported and has both required properties.
-    EXPECT_EQ(getMemoryTypeIndex(memProps, supportedTypes, requiredProps), 2);
+    EXPECT_EQ(GetMemoryTypeIndex(mem_props, supported_types, required_props), 2);
 }
 
 TEST(GetMemoryTypeIndex, NoMemoryTypes) {
-    VkPhysicalDeviceMemoryProperties memProps = {};
-    memProps.memoryTypeCount = 0;
+    VkPhysicalDeviceMemoryProperties mem_props = {};
+    mem_props.memoryTypeCount = 0;
 
-    const uint32_t supportedTypes = 0b1;
-    const VkMemoryPropertyFlags requiredProps = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+    const uint32_t supported_types = 0b1;
+    const VkMemoryPropertyFlags required_props = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
 
-    EXPECT_EQ(getMemoryTypeIndex(memProps, supportedTypes, requiredProps), -1);
+    EXPECT_EQ(GetMemoryTypeIndex(mem_props, supported_types, required_props), -1);
 }
 
 }  // namespace goldfish::gvk::util

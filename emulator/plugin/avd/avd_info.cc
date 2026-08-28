@@ -39,7 +39,7 @@
 // IWYU pragma: begin_keep
 #include "qemu/osdep.h"
 extern "C" {
-#include "hw/qdev-core.h"
+#include "hw/core/qdev.h"
 #include "migration/vmstate.h"
 #include "qapi/visitor.h"
 #include "qapi/error.h"
@@ -126,6 +126,14 @@ absl::Status ValidateAvdProps(AvdProperties& avd_props) {
         avd_props.metrics_writer_config.type != goldfish::metrics::MetricsWriterType::kNone) {
         return absl::InvalidArgumentError(
                 "metrics_session_id should be non-zero when metrics_writer is set");
+    }
+
+    if (avd_props.avd_content_path.empty()) {
+        return absl::InvalidArgumentError("avd_content_path is unspecified");
+    }
+
+    if (avd_props.avd_api_str.empty()) {
+        return absl::InvalidArgumentError("avd_api_str is unspecified");
     }
 
     fs::path hw_path = avd_props.avd_content_path / CORE_HARDWARE_INI;
@@ -216,6 +224,14 @@ void avd_info_set_avd_api(Object* obj, Visitor* v, const char* name, void* opaqu
     }
 
     toMutableAvdProperties(obj).avd_api = value;
+}
+
+void avd_info_set_avd_api_str(Object* obj, const char* value, Error** errp) {
+    if (value) {
+        toMutableAvdProperties(obj).avd_api_str = value;
+    } else {
+        toMutableAvdProperties(obj).avd_api_str.clear();
+    }
 }
 
 void avd_info_set_avd_type(Object* obj, Visitor* v, const char* name, void* opaque, Error** errp) {
@@ -389,7 +405,7 @@ const VMStateDescription avd_info_vmsd = {
                                      },
                                      VMSTATE_END_OF_LIST()}};
 
-void avd_info_class_init(ObjectClass* oc, void* data) {
+void avd_info_class_init(ObjectClass* oc, const void* data) {
     object_class_property_add(oc, "serial_number", "int", nullptr, avd_info_set_serial_number,
                               nullptr, nullptr);
     object_class_property_add(oc, "adb_port", "int", nullptr, avd_info_set_adb_port, nullptr,
@@ -400,6 +416,7 @@ void avd_info_class_init(ObjectClass* oc, void* data) {
     object_class_property_add_str(oc, "avd_abi", nullptr, avd_info_set_avd_abi);
     object_class_property_add(oc, "avd_api", "int", nullptr, avd_info_set_avd_api, nullptr,
                               nullptr);
+    object_class_property_add_str(oc, "avd_api_str", nullptr, avd_info_set_avd_api_str);
     object_class_property_add(oc, "avd_type", "int", nullptr, avd_info_set_avd_type, nullptr,
                               nullptr);
     object_class_property_add_str(oc, "avd_dir", nullptr, avd_info_set_avd_dir);

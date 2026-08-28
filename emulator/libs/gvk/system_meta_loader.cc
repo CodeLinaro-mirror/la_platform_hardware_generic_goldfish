@@ -25,72 +25,72 @@
 
 namespace goldfish::gvk {
 
-using util::logVkResult;
+using util::LogVkResult;
 
 uint32_t SystemMetaLoader::enumerateInstanceVersion() const {
-    uint32_t apiVersion = 0;
-    const VkResult result = (*mPFN_vkEnumerateInstanceVersion)(&apiVersion);
+    uint32_t api_version = 0;
+    const VkResult result = (*pfn_vkEnumerateInstanceVersion)(&api_version);
     if (result != VK_SUCCESS) {
-        logVkResult("vkEnumerateInstanceVersion", result);
+        LogVkResult("vkEnumerateInstanceVersion", result);
         return 0U;
     }
 
-    return apiVersion;
+    return api_version;
 }
 
 std::vector<VkLayerProperties> SystemMetaLoader::enumerateInstanceLayerProperties() const {
     VkResult result;
-    uint32_t propertyCount = 0;
-    result = (*mPFN_vkEnumerateInstanceLayerProperties)(&propertyCount, nullptr);
+    uint32_t property_count = 0;
+    result = (*pfn_vkEnumerateInstanceLayerProperties)(&property_count, nullptr);
     if (result != VK_SUCCESS) {
-        logVkResult("vkEnumerateInstanceLayerProperties", result);
+        LogVkResult("vkEnumerateInstanceLayerProperties", result);
         return {};
     }
 
-    if (propertyCount == 0) {
+    if (property_count == 0) {
         return {};
     }
 
-    std::vector<VkLayerProperties> layerProps(propertyCount);
-    result = (*mPFN_vkEnumerateInstanceLayerProperties)(&propertyCount, layerProps.data());
+    std::vector<VkLayerProperties> layer_props(property_count);
+    result = (*pfn_vkEnumerateInstanceLayerProperties)(&property_count, layer_props.data());
     if (result != VK_SUCCESS) {
-        logVkResult("vkEnumerateInstanceLayerProperties", result);
+        LogVkResult("vkEnumerateInstanceLayerProperties", result);
         return {};
     }
 
-    return layerProps;
+    return layer_props;
 }
 
 std::vector<VkExtensionProperties> SystemMetaLoader::enumerateInstanceExtensionProperties(
-        const char* layerName) const {
+        const char* layer_name) const {
     VkResult result;
-    uint32_t propertyCount = 0;
-    result = (*mPFN_vkEnumerateInstanceExtensionProperties)(layerName, &propertyCount, nullptr);
+    uint32_t property_count = 0;
+    result = (*pfn_vkEnumerateInstanceExtensionProperties)(layer_name, &property_count, nullptr);
     if (result != VK_SUCCESS) {
-        logVkResult("vkEnumerateInstanceExtensionProperties", result);
+        LogVkResult("vkEnumerateInstanceExtensionProperties", result);
         return {};
     }
 
-    if (propertyCount == 0) {
+    if (property_count == 0) {
         return {};
     }
 
-    std::vector<VkExtensionProperties> extProps(propertyCount);
-    result = (*mPFN_vkEnumerateInstanceExtensionProperties)(layerName, &propertyCount,
-                                                            extProps.data());
+    std::vector<VkExtensionProperties> ext_props(property_count);
+    result = (*pfn_vkEnumerateInstanceExtensionProperties)(layer_name, &property_count,
+                                                           ext_props.data());
     if (result != VK_SUCCESS) {
-        logVkResult("vkEnumerateInstanceExtensionProperties", result);
+        LogVkResult("vkEnumerateInstanceExtensionProperties", result);
         return {};
     }
 
-    return extProps;
+    return ext_props;
 }
 
-VkInstance SystemMetaLoader::createInstance(const VkInstanceCreateInfo& createInfo) const {
+VkInstance SystemMetaLoader::createInstance(const VkInstanceCreateInfo& create_info) const {
     VkInstance instance = nullptr;
-    const VkResult result = (*mPFN_vkCreateInstance)(&createInfo, nullptr, &instance);
+    const VkResult result = (*pfn_vkCreateInstance)(&create_info, nullptr, &instance);
     if (result != VK_SUCCESS) {
-        logVkResult("vkCreateInstance", result);
+        LogVkResult("vkCreateInstance", result);
         return VK_NULL_HANDLE;
     }
 
@@ -98,7 +98,7 @@ VkInstance SystemMetaLoader::createInstance(const VkInstanceCreateInfo& createIn
 }
 
 PFN_vkGetInstanceProcAddr SystemMetaLoader::getInstanceProcAddr() const {
-    return mPFN_vkGetInstanceProcAddr;
+    return pfn_vkGetInstanceProcAddr;
 }
 
 IMetaLoader::Ptr SystemMetaLoader::get() {
@@ -125,7 +125,7 @@ IMetaLoader::Ptr SystemMetaLoader::get() {
             }
 
             if (loader->initPFNs([&lib](const char* name) { return lib[name]; })) {
-                loader->mLib = std::move(lib);
+                loader->library_ = std::move(lib);
                 return loader;
             }
         }
@@ -136,7 +136,7 @@ IMetaLoader::Ptr SystemMetaLoader::get() {
 }
 
 bool SystemMetaLoader::initPFNs(const util::GetPFN& getPFN) {
-#define INIT_1_PFN(F) util::initPFN(mPFN_##F, getPFN, #F, "SystemMetaLoader::initPFNs") &&
+#define INIT_1_PFN(F) util::initPFN(pfn_##F, getPFN, #F, "SystemMetaLoader::initPFNs") &&
     return GOLDFISH_GVK_SystemMetaLoader_FUNC_LIST(INIT_1_PFN) true;
 #undef INIT_1_PFN
 }

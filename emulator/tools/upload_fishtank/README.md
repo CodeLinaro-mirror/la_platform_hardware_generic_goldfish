@@ -37,17 +37,14 @@ Replace `<BUILD_ID>` with the actual build ID of the fishtank artifacts you want
 This command will:
 1.  Fetch the fishtank zips for Linux, macOS, and Windows for the given build ID from the internal build server.
 2.  Upload them to `gs://emu-next-bazel/fishtank/<BUILD_ID>/`.
-3.  Print generated Bazel snippets to the console.
+3.  Automatically update the generated Bazel snippets in `build/bazel/registry/modules/goldfish/0.0.1/MODULE.bazel`.
 
-### Step 3: Update `MODULE.bazel`
+### Step 3: Verify `MODULE.bazel` Updates
 
-Copy the generated `multisource_repo.file` snippets from the output of the previous step and use them to update the `fishtank` rules in:
-
-`build/bazel/registry/modules/goldfish/0.0.1/MODULE.bazel`
-
-Example snippets:
+Check `git diff build/bazel/registry/modules/goldfish/0.0.1/MODULE.bazel` to verify that the `multisource_repo.file` snippets for `fishtank-linux`, `fishtank-mac`, and `fishtank-windows` were updated as expected:
 
 ```starlark
+# BEGIN upload_fishtank
 multisource_repo.file(
     name = "fishtank-linux",
     aosp = {
@@ -58,26 +55,8 @@ multisource_repo.file(
         "url": "gs://emu-next-bazel/fishtank/<BUILD_ID>/FISHTANK-sdk-repo-linux-emu-<BUILD_ID>.zip",
     },
 )
-multisource_repo.file(
-    name = "fishtank-mac",
-    aosp = {
-        "local_file": "@goldfish_build//utils:empty.zip",
-    },
-    goog = {
-        "sha256": "...",
-        "url": "gs://emu-next-bazel/fishtank/<BUILD_ID>/FISHTANK-sdk-repo-darwin_aarch64-emu-<BUILD_ID>.zip",
-    },
-)
-multisource_repo.file(
-    name = "fishtank-windows",
-    aosp = {
-        "local_file": "@goldfish_build//utils:empty.zip",
-    },
-    goog = {
-        "sha256": "...",
-        "url": "gs://emu-next-bazel/fishtank/<BUILD_ID>/FISHTANK-sdk-repo-windows-emu-<BUILD_ID>.zip",
-    },
-)
+...
+# END upload_fishtank
 ```
 
 ### Step 4: Update Test Data (if necessary)

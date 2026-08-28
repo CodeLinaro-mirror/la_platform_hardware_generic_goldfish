@@ -30,6 +30,8 @@
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
+#include "absl/time/clock.h"
+#include "absl/time/time.h"
 
 #ifndef _WIN32
 #include <fcntl.h>
@@ -48,12 +50,12 @@ namespace base {
 
 using namespace std::chrono_literals;
 namespace fs = std::filesystem;
-const std::string HELLO = "hello";
+const std::string kHello = "hello";
 
 class FakeOverseer : public NullOverseer {
   public:
     void Start(std::basic_streambuf<char>* out, std::basic_streambuf<char>* err) override {
-        out->sputn(HELLO.c_str(), HELLO.size());
+        out->sputn(kHello.c_str(), kHello.size());
     }
 };
 
@@ -63,7 +65,7 @@ class FakeOverseer : public NullOverseer {
 #define EXE ""
 #endif
 
-std::string sleep_exe() {
+std::string SleepExe() {
     return Bazel::RunfilesPath(absl::StrCat("goldfish+/emulator/libs/process/sleep_emu", EXE));
 }
 
@@ -97,7 +99,7 @@ TEST(Process, find_me) {
 }
 
 TEST(Process, discovered_proc_same_as_launched) {
-    auto proc = Command::Create({sleep_exe(), "--sleep", "1s"}).Execute();
+    auto proc = Command::Create({SleepExe(), "--sleep", "1s"}).Execute();
     auto sleep = Process::FromPid(proc->pid());
     ASSERT_NE(sleep, nullptr);
     EXPECT_EQ(proc->pid(), sleep->pid());
@@ -105,21 +107,17 @@ TEST(Process, discovered_proc_same_as_launched) {
 }
 
 TEST(Process, can_discover_launched_proc) {
-    using namespace std::chrono_literals;
-    auto proc = Command::Create({sleep_exe(), "--sleep", "1s"}).Execute();
+    auto proc = Command::Create({SleepExe(), "--sleep", "1s"}).Execute();
     auto pids = Process::FromName("sleep_emu");
 
-    auto now = std::chrono::system_clock::now();
+    const absl::Time start = absl::Now();
+    const absl::Time deadline = start + absl::Seconds(10);
     // On linux we scan /proc/... which is not instantenous on our gce machines.
     // Note that the scan itself can take +/- 20ms.
-    while (pids.size() == 0 && std::chrono::system_clock::now() < now + 200ms) {
+    while (pids.size() == 0 && absl::Now() < deadline) {
         pids = Process::FromName("sleep_emu");
     }
-    LOG(INFO) << "It took "
-              << std::chrono::duration_cast<std::chrono::milliseconds>(
-                         std::chrono::system_clock::now() - now)
-                         .count()
-              << " ms. to find the process";
+    LOG(INFO) << "It took " << (absl::Now() - start) << " to find the process";
     EXPECT_GT(pids.size(), 0);
 
     bool found = false;
@@ -128,15 +126,18 @@ TEST(Process, can_discover_launched_proc) {
             found = true;
         }
     }
-    EXPECT_TRUE(found) << sleep_exe() << "was not found.";
+    EXPECT_TRUE(found) << SleepExe() << "was not found.";
 }
 
 TEST(Process, can_read_process_name) {
-    auto proc = Command::Create({sleep_exe(), "--sleep", "1s"}).Execute();
-    std::this_thread::sleep_for(10ms);
+    auto proc = Command::Create({SleepExe(), "--sleep", "1s"}).Execute();
     auto sleep = Process::FromPid(proc->pid());
     ASSERT_NE(sleep, nullptr);
-    auto name = sleep->Exe();
+    std::string name;
+    const absl::Time deadline = absl::Now() + absl::Seconds(10);
+    while (name.empty() && absl::Now() < deadline) {
+        name = sleep->Exe();
+    }
     EXPECT_TRUE(absl::StrContains(name, "sleep_emu"))
             << "Expected sleep_emu in the process name: " << name
             << ", are your running the test in the directory where sleep_emu "
@@ -145,14 +146,14 @@ TEST(Process, can_read_process_name) {
 
 TEST(Process, can_get_exitcode_from_discovered_process) {
     auto proc =
-            Command::Create({sleep_exe(), "--sleep", "200ms", "--exit", "2"}).Asdaemon().Execute();
+            Command::Create({SleepExe(), "--sleep", "200ms", "--exit", "2"}).Asdaemon().Execute();
     auto sleep = Process::FromPid(proc->pid());
     ASSERT_NE(sleep, nullptr);
     EXPECT_EQ(sleep->ExitCode(), 2);
 }
 
 TEST(Process, terminate_someone_else) {
-    auto proc = Command::Create({sleep_exe(), "--sleep", "200ms"}).Asdaemon().Execute();
+    auto proc = Command::Create({SleepExe(), "--sleep", "200ms"}).Asdaemon().Execute();
     auto sleep = Process::FromPid(proc->pid());
     ASSERT_NE(sleep, nullptr);
     sleep->Terminate();
@@ -173,29 +174,29 @@ TEST(Command, can_use_test_factory) {
     EXPECT_EQ(create_called, 1);
     EXPECT_EQ(proc->ExitCode(), 0);
     EXPECT_FALSE(proc->IsAlive());
-    EXPECT_EQ(proc->Out()->AsString(), HELLO);
+    EXPECT_EQ(proc->Out()->AsString(), kHello);
     Command::SetTestProcessFactory(nullptr);
 }
 
 TEST(Command, can_read_the_exit_code) {
-    auto proc = Command::Create({sleep_exe(), "--sleep", "10ms", "--exit", "2"}).Execute();
+    auto proc = Command::Create({SleepExe(), "--sleep", "10ms", "--exit", "2"}).Execute();
     EXPECT_EQ(proc->ExitCode(), 2U);
 }
 
 TEST(Command, properly_escape_params) {
     std::basic_stringbuf<char> std_out;
-    auto proc = Command::Create({sleep_exe()})
+    auto proc = Command::Create({SleepExe()})
                         .Arg("--msg_std_out")
                         .Arg("Hello there")
                         .RedirectStdoutToUnsafe(&std_out)
                         .Execute();
-    ASSERT_EQ(proc->WaitFor(500ms), std::future_status::ready);
+    ASSERT_EQ(proc->WaitFor(5s), std::future_status::ready);
     EXPECT_EQ(proc->Out()->AsString(), "Hello there");
 }
 
 TEST(Command, a_terminated_process_is_dead) {
     using namespace std::chrono_literals;
-    auto proc = Command::Create({sleep_exe(), "--sleep", "5s"}).Execute();
+    auto proc = Command::Create({SleepExe(), "--sleep", "5s"}).Execute();
     EXPECT_TRUE(proc->IsAlive());
     EXPECT_TRUE(proc->Terminate());
     EXPECT_FALSE(proc->IsAlive());
@@ -204,7 +205,7 @@ TEST(Command, a_terminated_process_is_dead) {
 TEST(Command, out_of_scope_process_gets_terminated) {
     int pid = 0;
     {
-        auto proc = Command::Create({sleep_exe(), "--sleep", "5s"}).Execute();
+        auto proc = Command::Create({SleepExe(), "--sleep", "5s"}).Execute();
         EXPECT_TRUE(proc->IsAlive());
         pid = proc->pid();
     }
@@ -217,7 +218,7 @@ TEST(Command, out_of_scope_process_gets_terminated) {
 }
 
 TEST(Command, WaitFor_completion_times_out) {
-    auto proc = Command::Create({sleep_exe(), "--sleep", "5s"}).Execute();
+    auto proc = Command::Create({SleepExe(), "--sleep", "5s"}).Execute();
 
     // Well, we sleep for a few seconds.. so we should timeout.
     EXPECT_EQ(proc->WaitFor(10ms), std::future_status::timeout);
@@ -227,10 +228,10 @@ TEST(Command, WaitFor_completion_times_out) {
 TEST(Command, we_can_capture_std_out) {
     std::basic_stringbuf<char> std_out;
     // Let's capture std out
-    auto proc = Command::Create({sleep_exe(), "--msg_std_out", "stdout"})
+    auto proc = Command::Create({SleepExe(), "--msg_std_out", "stdout"})
                         .RedirectStdoutToUnsafe(&std_out)
                         .Execute();
-    ASSERT_EQ(proc->WaitFor(500ms), std::future_status::ready);
+    ASSERT_EQ(proc->WaitFor(5s), std::future_status::ready);
 
     // We should print out the message.
     EXPECT_EQ(proc->Out()->AsString(), "stdout");
@@ -240,18 +241,18 @@ TEST(Command, we_can_capture_std_out) {
 TEST(Command, we_can_capture_std_err) {
     std::basic_stringbuf<char> std_err;
     // Let's capture std err
-    auto proc = Command::Create({sleep_exe(), "--msg_std_err", "error"})
+    auto proc = Command::Create({SleepExe(), "--msg_std_err", "error"})
                         .RedirectStderrToUnsafe(&std_err)
                         .Execute();
-    ASSERT_EQ(proc->WaitFor(500ms), std::future_status::ready);
+    ASSERT_EQ(proc->WaitFor(5s), std::future_status::ready);
 
     // We should print out the message.
     EXPECT_EQ(proc->Err()->AsString(), "error");
 }
 
-void clearCloseOnExec(FILE* sharedFile) {
+void ClearCloseOnExec(FILE* shared_file) {
 #ifndef _WIN32
-    int fd = fileno(sharedFile);
+    int fd = fileno(shared_file);
     auto flags = fcntl(fd, F_GETFD);
     flags &= ~FD_CLOEXEC;  // Clear the close-on-exec flag.
     fcntl(fd, F_SETFD, flags);
@@ -263,31 +264,32 @@ TEST(Command, DISABLED_we_do_not_inherit_handles) {
     // Let's capture std err
     /*std::string tmp_file = std::tmpnam(nullptr);
 
-    auto shareMode = android::base::FileShare::Write;
+    auto share_mode = android::base::FileShare::Write;
     android::base::createFileForShare(tmp_file.c_str());
     const char* mode = "wb";
-    FILE* sharedFile = android::base::fsopen(tmp_file.c_str(), mode, shareMode);
-    clearCloseOnExec(sharedFile);
+    FILE* shared_file = android::base::fsopen(tmp_file.c_str(), mode, share_mode);
+    ClearCloseOnExec(shared_file);
 
-    auto proc = Command::create({sleep_exe(), "--sleep", "5s"}).execute();
+    auto proc = Command::Create({SleepExe(), "--sleep", "5s"}).Execute();
     std::this_thread::sleep_for(10ms);
 #ifndef _WIN32
-    android::base::internal::closeFileForShare(sharedFile);
+    android::base::internal::closeFileForShare(shared_file);
 #else
-    _close(fileno(sharedFile));
+    _close(fileno(shared_file));
 #endif
-    sharedFile = nullptr;
-    sharedFile = android::base::fsopen(tmp_file.c_str(), mode, shareMode);
-    EXPECT_TRUE(sharedFile != nullptr && proc->isAlive())
-            << "The file handle should not have been inherited and not be null, not: " << sharedFile
-            << (proc->isAlive() ? " proc is and should be alive!" : "should not be dead");
+    shared_file = nullptr;
+    shared_file = android::base::fsopen(tmp_file.c_str(), mode, share_mode);
+    EXPECT_TRUE(shared_file != nullptr && proc->IsAlive())
+            << "The file handle should not have been inherited and not be null, not: " <<
+shared_file
+            << (proc->IsAlive() ? " proc is and should be alive!" : "should not be dead");
 
     // Let's make sure we do not have any weird dangling file descriptors.
-    proc->terminate();
+    proc->Terminate();
 #ifndef _WIN32
-    android::base::internal::closeFileForShare(sharedFile);
+    android::base::internal::closeFileForShare(shared_file);
 #else
-    _close(fileno(sharedFile));
+    _close(fileno(shared_file));
 #endif*/
 }
 
@@ -295,37 +297,37 @@ TEST(Command, DISABLED_we_do_inherit_handles_if_we_explicitly_say_so) {
     // Let's capture std err
     /*std::string tmp_file = std::tmpnam(nullptr);
 
-    auto shareMode = android::base::FileShare::Write;
+    auto share_mode = android::base::FileShare::Write;
     android::base::createFileForShare(tmp_file.c_str());
     const char* mode = "wb";
-    FILE* sharedFile = android::base::fsopen(tmp_file.c_str(), mode, shareMode);
-    clearCloseOnExec(sharedFile);
+    FILE* shared_file = android::base::fsopen(tmp_file.c_str(), mode, share_mode);
+    ClearCloseOnExec(shared_file);
 
-    auto proc = Command::create({sleep_exe(), "--sleep", "5s"}).inherit().execute();
+    auto proc = Command::Create({SleepExe(), "--sleep", "5s"}).Inherit().Execute();
     std::this_thread::sleep_for(10ms);
 
 #ifndef _WIN32
-    android::base::internal::closeFileForShare(sharedFile);
+    android::base::internal::closeFileForShare(shared_file);
 #else
-    _close(fileno(sharedFile));
+    _close(fileno(shared_file));
 #endif
-    sharedFile = android::base::fsopen(tmp_file.c_str(), mode, shareMode);
-    EXPECT_TRUE(sharedFile == nullptr && proc->isAlive())
-            << "The file handle should have been inherited and be null, not: " << sharedFile
-            << (proc->isAlive() ? " proc is and should be alive!" : "should not be dead");
+    shared_file = android::base::fsopen(tmp_file.c_str(), mode, share_mode);
+    EXPECT_TRUE(shared_file == nullptr && proc->IsAlive())
+            << "The file handle should have been inherited and be null, not: " << shared_file
+            << (proc->IsAlive() ? " proc is and should be alive!" : "should not be dead");
 
-    proc->terminate();*/
+    proc->Terminate();*/
 }
 
 TEST(Command, we_can_capture_both) {
     std::basic_stringbuf<char> std_out;
     std::basic_stringbuf<char> std_err;
     // Let's capture std err
-    auto proc = Command::Create({sleep_exe(), "--msg_std_out", "stdout", "--msg_std_err", "error"})
+    auto proc = Command::Create({SleepExe(), "--msg_std_out", "stdout", "--msg_std_err", "error"})
                         .RedirectStdoutToUnsafe(&std_out)
                         .RedirectStderrToUnsafe(&std_err)
                         .Execute();
-    ASSERT_EQ(proc->WaitFor(500ms), std::future_status::ready);
+    ASSERT_EQ(proc->WaitFor(5s), std::future_status::ready);
 
     // We should print out the message.
     EXPECT_EQ(proc->Out()->AsString(), "stdout");
@@ -335,17 +337,17 @@ TEST(Command, we_can_capture_both) {
 TEST(Command, double_capture_should_not_lock) {
     std::basic_stringbuf<char> std_err;
     // Let's capture std err
-    auto proc = Command::Create({sleep_exe(), "--msg_std_out", "stdout", "--msg_std_err", "error"})
+    auto proc = Command::Create({SleepExe(), "--msg_std_out", "stdout", "--msg_std_err", "error"})
                         .RedirectStderrToUnsafe(&std_err)
                         .Execute();
-    ASSERT_EQ(proc->WaitFor(500ms), std::future_status::ready);
+    ASSERT_EQ(proc->WaitFor(5s), std::future_status::ready);
 
     // We should print out the message.
     EXPECT_EQ(proc->Err()->AsString(), "error");
 }
 
 TEST(Command, can_terminate_daemon) {
-    auto proc = Command::Create({sleep_exe()}).Asdaemon().Execute();
+    auto proc = Command::Create({SleepExe()}).Asdaemon().Execute();
 
     // Well, we sleep for a few seconds.. so we should timeout.
     EXPECT_TRUE(proc->IsAlive());
@@ -429,7 +431,7 @@ TEST(Command, can_capture_output_when_one_pipe_closes_early) {
                         .RedirectStderrToUnsafe(&std_err)
                         .Execute();
 
-    EXPECT_EQ(proc->WaitFor(500ms), std::future_status::ready);
+    EXPECT_EQ(proc->WaitFor(5s), std::future_status::ready);
     EXPECT_EQ(proc->Out()->AsString(), "stdout\n");
     EXPECT_EQ(proc->Err()->AsString(), "stderr\n");
 }
@@ -438,7 +440,7 @@ TEST(Command, detach_keeps_process_alive) {
     android::base::Pid pid;
     {
         // Start a long running process
-        auto proc = Command::Create({sleep_exe(), "--sleep", "10s"}).Execute();
+        auto proc = Command::Create({SleepExe(), "--sleep", "10s"}).Execute();
         // Detach should stop the overseer immediately.
         pid = proc->pid();
         proc->Detach();

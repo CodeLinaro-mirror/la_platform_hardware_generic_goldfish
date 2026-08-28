@@ -9,7 +9,15 @@ load("@rules_cc//cc:defs.bzl", "cc_binary")
             "@glib//gmodule:gmodule_shared",
         ],
         linkopts = select({
-            "@platforms//os:macos": ["-undefined dynamic_lookup"],
+            "@platforms//os:macos": [
+                "-undefined dynamic_lookup",
+                "-Wl,-ObjC",
+                "-framework VideoToolbox",
+                "-framework CoreMedia",
+                "-framework AVFoundation",
+                "-framework CoreVideo",
+                "-framework Foundation",
+            ],
             "@platforms//os:windows": [
                 "strmiids.lib",
                 "uuid.lib",
@@ -46,6 +54,7 @@ load("@rules_cc//cc:defs.bzl", "cc_binary")
             "//emulator/plugin/virtio-input-android",
             "//emulator/plugin/virtio-wifi",
             "//emulator/plugin/vminterface:vm_ops",
+            "//emulator/plugin/webrtc",
             "//emulator/tools:aemu_version",
             "@abseil-cpp//absl/debugging:failure_signal_handler",
             "@abseil-cpp//absl/debugging:symbolize",
@@ -71,7 +80,6 @@ load("@rules_cc//cc:defs.bzl", "cc_binary")
         ],
     )
     for arch in [
-        "riscv64",
         "aarch64",
         "x86_64",
     ]

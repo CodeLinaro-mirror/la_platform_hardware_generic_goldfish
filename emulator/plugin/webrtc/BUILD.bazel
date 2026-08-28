@@ -1,0 +1,14 @@
+load("@rules_cc//cc:defs.bzl", "cc_library")
+
+cc_library(
+    name = "webrtc",
+    srcs = ["webrtc_device.cc"],
+    hdrs = ["webrtc_device.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//emulator/plugin/avd:impl",
+        "//emulator/plugin/grpc/services:in_process_rtc_service",
+        "@qemu//:qemu-headers-exported",
+    ],
+    alwayslink = True,
+)

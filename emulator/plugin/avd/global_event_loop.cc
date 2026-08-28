@@ -18,25 +18,25 @@ using ::goldfish::async::EventLoop;
 // during process exit. On Windows, ntdll!LdrShutdownProcess suspends background worker threads
 // before running static destructors. Destroying a ThreadedEventLoop in a static destructor causes a
 // deadlock and STATUS_FATAL_APP_EXIT.
-static absl::NoDestructor<std::unique_ptr<EventLoop>> sGlobalEventLoop;
-static absl::once_flag sInitOnce;
+static absl::NoDestructor<std::unique_ptr<EventLoop>> global_event_loop;
+static absl::once_flag init_once;
 
 }  // namespace
 
 EventLoop* globalEventLoop() {
     // This function uses absl::call_once to ensure that the default
     // loop is only created and started once.
-    absl::call_once(sInitOnce, [] {
-        *sGlobalEventLoop = ::goldfish::async::ThreadedEventLoop::Create(
+    absl::call_once(init_once, [] {
+        *global_event_loop = ::goldfish::async::ThreadedEventLoop::Create(
                 ::goldfish::async::LibuvEventLoop::Create("GlobalLoop"));
     });
 
-    return sGlobalEventLoop->get();
+    return global_event_loop->get();
 }
 
 namespace testing {
-void setGlobalEventLoopForTesting(EventLoop* newLoop) {
-    sGlobalEventLoop->reset(newLoop);
+void setGlobalEventLoopForTesting(EventLoop* new_loop) {
+    global_event_loop->reset(new_loop);
 }
 }  // namespace testing
 

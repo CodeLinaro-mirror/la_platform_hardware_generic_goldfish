@@ -1,0 +1,50 @@
+load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_test")
+load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_test")
+
+package(default_visibility = ["//visibility:public"])
+
+cc_library(
+    name = "wav_writer",
+    srcs = ["wav_writer.cc"],
+    hdrs = ["wav_writer.h"],
+    deps = [
+        "@abseil-cpp//absl/status",
+    ],
+)
+
+cc_test(
+    name = "wav_writer_test",
+    srcs = ["wav_writer_test.cc"],
+    deps = [
+        ":wav_writer",
+        "//emulator/libs/test:googletest_main",
+    ],
+)
+
+cc_binary(
+    name = "audio_capture",
+    srcs = ["audio_capture.cc"],
+    deps = [
+        ":wav_writer",
+        "//emulator/libs/grpc_client",
+        "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/flags:parse",
+        "@abseil-cpp//absl/flags:usage",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:globals",
+        "@abseil-cpp//absl/log:initialize",
+        "@abseil-cpp//absl/time",
+        "@aemu//protos/services/emulator-controller:emulator_controller_cc_grpc",
+        "@grpc//:grpc++",
+    ],
+)
+
+clang_tidy_test(
+    name = "tidy",
+    targets = [
+        ":audio_capture",
+        ":wav_writer",
+        ":wav_writer_test",
+    ],
+    tidy_config_file = "//:clang_tidy_config",
+)

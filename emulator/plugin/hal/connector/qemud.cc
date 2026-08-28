@@ -14,6 +14,8 @@
 
 #include <cstdint>
 
+#include "goldfish/archive/collections/vector.h"
+
 namespace goldfish::devices::qemud {
 namespace {
 unsigned ParseHex1(uint8_t c) {
@@ -125,18 +127,11 @@ bool Parser::OnReceive(const void* const data, size_t size) {  // NOLINT
 }
 
 void Parser::SaveToSnapshot(archive::IWriter& writer) const {
-    writer << buffer_.size();
-    writer.Write(buffer_.data(), buffer_.size());
+    writer << buffer_;
 }
 
 bool Parser::LoadFromSnapshot(archive::IReader& reader) {
-    size_t size = 0;
-    if (!ReadValue(reader, size).ok()) {
-        return false;
-    }
-
-    buffer_.resize(size);
-    return reader.Read(buffer_.data(), buffer_.size()).ok();
+    return ReadValue(reader, buffer_).ok();
 }
 
 void SendAsync(const void* data, const size_t size, cable::ISocket& dst) {

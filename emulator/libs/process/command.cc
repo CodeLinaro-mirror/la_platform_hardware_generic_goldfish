@@ -55,21 +55,26 @@ class ProcessOutputImpl : public ProcessOutput {
 };
 
 void ObservableProcess::RunOverseer() {
+    DVLOG(1) << "Starting overseer to retrieve stderr/stdout of PID " << pid();
+    auto* out = reinterpret_cast<ProcessOutputImpl*>(std_out_.get())->Buffer();
+    auto* err = reinterpret_cast<ProcessOutputImpl*>(std_err_.get())->Buffer();
+    DVLOG(1) << "Using out:" << out << ", err:" << err;
     {
-        const absl::MutexLock lk(overseer_mutex_);
-        DVLOG(1) << "Starting overseer to retrieve stderr/stdout of PID " << pid();
-        auto* out = reinterpret_cast<ProcessOutputImpl*>(std_out_.get())->Buffer();
-        auto* err = reinterpret_cast<ProcessOutputImpl*>(std_err_.get())->Buffer();
-        DVLOG(1) << "Using out:" << out << ", err:" << err;
-        overseer_->Start(out, err);
-
-        // Make sure we are really closed, and trigger any listeners.
-        // (in case an overseer forgot)
-        // Stop the overseer (likely a nop)
-        overseer_->Stop();
-        VLOG(1) << "Stopped overseer";
-        overseer_active_ = false;
+        // Signal that the overseer thread has initialized so Command::Execute() can unblock.
+        // Note: overseer_->Start() is a blocking poll loop, so this must be set beforehand.
+        const absl::MutexLock lk(&overseer_mutex_);
+        overseer_started_ = true;
     }
+    overseer_->Start(out, err);
+
+    // Make sure we are really closed, and trigger any listeners.
+    // (in case an overseer forgot)
+    // Stop the overseer (likely a nop)
+    overseer_->Stop();
+    VLOG(1) << "Stopped overseer";
+
+    const absl::MutexLock lk(&overseer_mutex_);
+    overseer_active_ = false;
 }
 
 std::future_status ObservableProcess::WaitFor(
@@ -182,10 +187,13 @@ std::unique_ptr<ObservableProcess> Command::Execute() {
         auto* raw = proc.get();
         // TODO(jansene): Use condition_variable to assure that
         // overseer is really running after this call.
-        const absl::MutexLock lk(proc->overseer_mutex_);
+        const absl::MutexLock lk(&proc->overseer_mutex_);
         proc->overseer_active_ = true;
         proc->overseer_ = proc->CreateOverseer();
         proc->overseer_thread_ = std::make_unique<std::thread>([raw]() { raw->RunOverseer(); });
+
+        auto is_started = [raw]() ABSL_NO_THREAD_SAFETY_ANALYSIS { return raw->overseer_started_; };
+        proc->overseer_mutex_.Await(absl::Condition(&is_started));
     }
 
     return proc;

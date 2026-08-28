@@ -12,11 +12,11 @@
 
 ## Critical Infrastructure
 * **Zero Overhead:** These classes are designed to have zero runtime overhead compared to manual management (template-based).
-* **ADL Support:** `IntrusivePtr` relies on Argument-Dependent Lookup (ADL) to find `intrusive_ptr_add_ref` and `intrusive_ptr_release` for the managed type.
+* **ADL Support:** `IntrusivePtr` relies on Argument-Dependent Lookup (ADL) to find `IntrusivePtrAddRef` and `IntrusivePtrRelease` for the managed type.
 
 ## Dependencies
 * **Standard Library:** Only depends on C++ standard headers (`<functional>`, `<utility>`).
 
 ## Threading Model
 * **Thread Safety:** The smart pointer classes themselves are **not** thread-safe (like `std::shared_ptr`). Accessing the *same* smart pointer instance from multiple threads requires synchronization.
-* **Ref-Counting:** The thread-safety of the reference counting depends on the implementation of `intrusive_ptr_add_ref`/`release` provided by the user (usually atomic).
+* **Ref-Counting:** The thread-safety of the reference counting depends on the implementation of `IntrusivePtrAddRef`/`IntrusivePtrRelease` provided by the user (usually atomic).

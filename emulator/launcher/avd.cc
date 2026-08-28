@@ -117,7 +117,26 @@ const absl::flat_hash_map<int, ApiLevelInfo> kApiLevelInfo = {
     {33, {.dessert_name = "Tiramisu", .full_name = "13.0 (T) - API 33"}},
     {34, {.dessert_name = "UpsideDownCake", .full_name = "14.0 (U) - API 34"}},
     {35, {.dessert_name = "VanillaIceCream", .full_name = "15.0 (V) - API 35"}},
+    {36, {.dessert_name = "Baklava", .full_name = "16 (B) - API 36"}},
+    {37, {.dessert_name = "CinnamonBun", .full_name = "17 (C) - API 37"}},
 };
+
+std::string ExtractApiLevelStr(std::string_view target) {
+    if (target.empty()) {
+        return "";
+    }
+    if (absl::StartsWith(target, "android-")) {
+        return std::string(target.substr(8));
+    }
+    size_t first = target.find(':');
+    if (first != std::string_view::npos) {
+        size_t second = target.find(':', first + 1);
+        if (second != std::string_view::npos) {
+            return std::string(target.substr(second + 1));
+        }
+    }
+    return std::string(target);
+}
 
 std::string_view GetApiDessertName(int api_level) {
     auto it = kApiLevelInfo.find(api_level);
@@ -127,14 +146,25 @@ std::string_view GetApiDessertName(int api_level) {
     return "";
 }
 
-std::string GetFullApiName(int api_level) {
+std::string GetFullApiName(int api_level, std::string_view api_level_str = {}) {
     if (api_level < 0 || api_level > 99) {
         return "Unknown API version";
     }
 
     auto it = kApiLevelInfo.find(api_level);
     if (it != kApiLevelInfo.end()) {
-        return std::string(it->second.full_name);
+        std::string_view full = it->second.full_name;
+        std::string search_str = absl::StrFormat("API %d", api_level);
+        size_t pos = full.find(search_str);
+        if (pos != std::string_view::npos && !api_level_str.empty()) {
+            std::string_view prefix = full.substr(0, pos);
+            return absl::StrCat(prefix, "API ", api_level_str);
+        }
+        return std::string(full);
+    }
+
+    if (!api_level_str.empty()) {
+        return absl::StrCat("API ", api_level_str);
     }
     return absl::StrFormat("API %d", api_level);
 }
@@ -176,7 +206,7 @@ std::string GetIconForDeviceType(DeviceType flavor) {
 }
 
 struct BuildProp {
-    std::string Abi() const { return build_ini_.GetString("ro.product.cpu.abi", "unknown"); }
+    std::string Abi() const { return build_ini.GetString("ro.product.cpu.abi", "unknown"); }
     Avd::CpuArchitecture Arch() const {
         auto abi = Abi();
         if (abi == "x86_64") {
@@ -189,46 +219,46 @@ struct BuildProp {
     }
 
     int ApiLevel() const {
-        return build_ini_.GetInt("ro.system.build.version.sdk", Avd::kUnknownApiLevel);
+        return build_ini.GetInt("ro.system.build.version.sdk", Avd::kUnknownApiLevel);
     }
 
-    std::string Sdk() const { return build_ini_.GetString("ro.build.version.sdk", "unknown"); }
+    std::string Sdk() const { return build_ini.GetString("ro.build.version.sdk", "unknown"); }
     std::string Number() const {
-        return build_ini_.GetString("ro.build.version.incremental", "unknown");
+        return build_ini.GetString("ro.build.version.incremental", "unknown");
     }
 
-    std::string Id() const { return build_ini_.GetString("ro.build.id", "unknown"); }
+    std::string Id() const { return build_ini.GetString("ro.build.id", "unknown"); }
     std::string Fingerprint() const {
         using namespace std::literals;
-        constexpr auto props = std::array{"ro.build.fingerprint"sv, "ro.system.build.fingerprint"sv,
-                                          "ro.build.display.id"sv};
+        constexpr auto kProps = std::array{
+            "ro.build.fingerprint"sv, "ro.system.build.fingerprint"sv, "ro.build.display.id"sv};
 
-        for (const auto& prop : props) {
-            if (auto v = build_ini_.GetString(prop, ""sv); !v.empty()) {
+        for (const auto& prop : kProps) {
+            if (auto v = build_ini.GetString(prop, ""sv); !v.empty()) {
                 return v;
             }
         }
         return ""s;
     }
-    int64_t Timestamp() const { return build_ini_.GetInt64("ro.build.date.utc", 0); }
+    int64_t Timestamp() const { return build_ini.GetInt64("ro.build.date.utc", 0); }
 
-    std::string Flavour() const { return build_ini_.GetString("ro.build.flavor", "unknown"); }
+    std::string Flavour() const { return build_ini.GetString("ro.build.flavor", "unknown"); }
 
     std::string ProductName() const {
         using namespace std::literals;
         // TODO(whollins): Should we check flavor first?
-        constexpr auto props =
+        constexpr auto kProps =
                 std::array{"ro.product.name"sv, "ro.product.system.name"sv, "ro.build.flavor"sv};
 
-        for (const auto& prop : props) {
-            if (auto build = build_ini_.GetString(prop); !build.empty()) {
+        for (const auto& prop : kProps) {
+            if (auto build = build_ini.GetString(prop); !build.empty()) {
                 return build;
             }
         }
         return {};
     }
 
-    IniFile build_ini_;
+    IniFile build_ini;
 };
 
 }  // namespace
@@ -308,7 +338,11 @@ class FileBackedAvd : public Avd {
 
     std::string Dessert() const override { return std::string(GetApiDessertName(ApiLevel())); }
 
-    std::string ApiDescription() const override { return GetFullApiName(ApiLevel()); }
+    std::string ApiDescription() const override {
+        std::string target = config_ini_.GetString("target", "");
+        std::string api_level_str = ExtractApiLevelStr(target);
+        return GetFullApiName(ApiLevel(), api_level_str);
+    }
 
     absl::StatusOr<std::optional<int>> GetLastRunQemuVersion() const override {
         auto qemu_version_path = GetContentPath() / AVD_QEMU_VERSION_FILENAME;
@@ -355,7 +389,7 @@ class FileBackedAvd : public Avd {
 
     DeviceType GetDeviceType() const override {
         using namespace std::literals;
-        constexpr auto label_map = std::array{
+        constexpr auto kLabelMap = std::array{
             std::pair{"phone"sv, DeviceType::kPhone},     std::pair{"atv"sv, DeviceType::kTv},
             std::pair{"wear"sv, DeviceType::kWear},       std::pair{"aw"sv, DeviceType::kWear},
             std::pair{"car"sv, DeviceType::kAndroidAuto}, std::pair{"pc"sv, DeviceType::kDesktop},
@@ -363,7 +397,7 @@ class FileBackedAvd : public Avd {
             std::pair{"glasses"sv, DeviceType::kGlasses}};
 
         auto product_name = BuildProductName();
-        for (const auto& [key, val] : label_map) {
+        for (const auto& [key, val] : kLabelMap) {
             if (product_name.contains(key)) {
                 return val;
             }
@@ -434,25 +468,25 @@ absl::StatusOr<std::unique_ptr<Avd>> Avd::FromName(const AndroidOptions& opts,
     auto ini_path = user_paths.avd_directory / (name + ".ini");
 
     if (!base::file::exists(ini_path) || !base::file::can_read(ini_path)) {
-        std::string homeSearchDir =
+        std::string home_search_dir =
                 (fs::path("$HOME") / ".android" / "avd").make_preferred().string();
-        std::string sdkHomeSearchDir =
+        std::string sdk_home_search_dir =
                 (fs::path("$ANDROID_SDK_HOME") / "avd").make_preferred().string();
 
-        std::string envName = "HOME";
-        std::string searchDir = homeSearchDir;
+        std::string env_name = "HOME";
+        std::string search_dir = home_search_dir;
         if (!android::base::System::Get()->EnvGet("ANDROID_AVD_HOME").empty()) {
-            envName = "ANDROID_AVD_HOME";
-            searchDir = "$ANDROID_AVD_HOME";
+            env_name = "ANDROID_AVD_HOME";
+            search_dir = "$ANDROID_AVD_HOME";
         } else if (!android::base::System::Get()->EnvGet("ANDROID_SDK_HOME").empty()) {
-            envName = "ANDROID_SDK_HOME";
-            searchDir = sdkHomeSearchDir;
+            env_name = "ANDROID_SDK_HOME";
+            search_dir = sdk_home_search_dir;
         }
 
         return absl::NotFoundError(absl::StrFormat(
                 "%s is defined but there is no file %s.ini in %s\n"
                 "(Note: Directories are searched in the order $ANDROID_AVD_HOME, %s and %s)",
-                envName, name, searchDir, sdkHomeSearchDir, homeSearchDir));
+                env_name, name, search_dir, sdk_home_search_dir, home_search_dir));
     }
 
     LOG(INFO) << "Parsing AVD: " << ini_path.string();
@@ -532,7 +566,7 @@ absl::StatusOr<std::unique_ptr<Avd>> Avd::FromName(const AndroidOptions& opts,
     }
 
     ASSIGN_OR_RETURN(auto system_image_paths, ResolveSystemImagePaths(sys_image_search_paths, opts,
-                                                                      /*anrdoid_build=*/false));
+                                                                      /*android_build=*/false));
 
     return FromSysDirs(opts, user_paths, name, std::move(config_ini),
                        !content_override.empty() ? std::move(content_override)
@@ -548,11 +582,11 @@ absl::StatusOr<std::unique_ptr<Avd>> Avd::FromAndroidBuild(
     if (writable_content_override.empty() && wipe_data) {
         // Specific -wipe-data behaviour for android build.
         using namespace std::literals;
-        constexpr auto files_to_delete = std::array{
+        constexpr auto kFilesToDelete = std::array{
             "system.img.qcow2"sv,  "vendor.img.qcow2"sv,        "encryptionkey.img.qcow2"sv,
             "userdata-qemu.img"sv, "userdata-qemu.img.qcow2"sv, "cache.img.qcow2"sv,
             "hardware-qemu.ini"sv, "qemu-version.txt"sv};
-        for (const auto& f : files_to_delete) {
+        for (const auto& f : kFilesToDelete) {
             auto path = android_build_out / f;
             if (auto s = android::base::file::rm(path); !s.ok()) {
                 LOG(ERROR) << "Could not remove AVD contents file for -wipe-data, you might have "
@@ -576,7 +610,7 @@ absl::StatusOr<std::unique_ptr<Avd>> Avd::FromAndroidBuild(
     }
 
     ASSIGN_OR_RETURN(auto system_image_paths,
-                     ResolveSystemImagePaths(sys_image_search_paths, opts, /*anrdoid_build=*/true));
+                     ResolveSystemImagePaths(sys_image_search_paths, opts, /*android_build=*/true));
 
     return android::goldfish::Avd::FromSysDirs(opts, user_paths, name, std::move(config_ini),
                                                !writable_content_override.empty()
@@ -611,7 +645,7 @@ absl::StatusOr<std::unique_ptr<Avd>> Avd::FromSysDirs(
                                                 system_image_paths.build_properties.string()));
     }
     BuildProp build_wrapper{
-        .build_ini_ = std::move(build_ini),
+        .build_ini = std::move(build_ini),
     };
 
     // Will be unknown under android build.

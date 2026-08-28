@@ -36,6 +36,7 @@
 #include "absl/synchronization/mutex.h"
 
 #include "goldfish/videobridge/emulator_client.h"
+#include "goldfish/videobridge/managed_video_track_source.h"
 
 namespace goldfish::memory {
 class SharedMemory;
@@ -68,49 +69,21 @@ struct GrpcVideoSourceOptions {
 };
 
 /**
- * @class VideoFormatPipeline
- * @brief Strategy defining how to configure and convert emulator screenshots to WebRTC frames.
- *
- * This abstraction decouples the specific image format representation (e.g. RGBA8888, RGB888,
- * NV12, or Native textures) from the capture loop logic in GrpcVideoSource.
+ * Strategy defining how to configure and convert emulator screenshots to WebRTC frames.
  */
 class VideoFormatPipeline {
   public:
     virtual ~VideoFormatPipeline() = default;
 
-    /**
-     * @brief The gRPC image format enum to request from the emulator.
-     * @return The ImageFormat_ImgFormat enum value (e.g. RGBA8888).
-     */
     virtual android::emulation::control::ImageFormat_ImgFormat GetGrpcFormat() const = 0;
-
-    /**
-     * @brief Calculates the exact shared memory size required to transfer a frame of the given
-     * dimensions.
-     * @param width Frame width in pixels.
-     * @param height Frame height in pixels.
-     * @return The required memory size in bytes. For native textures, this represents the metadata
-     * structure size.
-     */
     virtual size_t GetRequiredSharedMemorySize(uint32_t width, uint32_t height) const = 0;
-
-    /**
-     * @brief Converts the raw incoming bytes/metadata to a WebRTC VideoFrame.
-     * @param raw_data Pointer to the raw pixel array or native handle metadata.
-     * @param raw_size Size of the raw data in bytes.
-     * @param width Frame width in pixels.
-     * @param height Frame height in pixels.
-     * @param timestamp_us The frame presentation timestamp in microseconds.
-     * @return A WebRTC VideoFrame if conversion succeeds, or std::nullopt.
-     */
     virtual std::optional<::webrtc::VideoFrame> Convert(const uint8_t* raw_data, size_t raw_size,
                                                         uint32_t width, uint32_t height,
                                                         int64_t timestamp_us) = 0;
 };
 
 /**
- * @class RgbaToI420Pipeline
- * @brief Default pipeline requesting RGBA8888 from the emulator and converting it to I420.
+ * Default pipeline requesting RGBA8888 from the emulator and converting it to I420.
  */
 class RgbaToI420Pipeline : public VideoFormatPipeline {
   public:
@@ -124,41 +97,21 @@ class RgbaToI420Pipeline : public VideoFormatPipeline {
     ::webrtc::scoped_refptr<::webrtc::I420Buffer> buffer_;
 };
 
-// TODO(jansene): We should see if we can use RGB888 (less data but it looks like R<->B are swapped)
-// TODO(jansene): We should have an NV12 pipeline (way less data to go around)
-// TODO(jansene): We should have a kNative pipeline where we use the vulkan buffer directly
-
 /**
- * @class GrpcVideoSource
- * @brief Custom AdaptedVideoTrackSource streaming virtual display screenshots via gRPC.
+ * WebRTC video track source streaming virtual display screenshots via gRPC.
  *
- * GrpcVideoSource establishes a screenshot subscription stream with the emulator, converts
- * incoming RGB888 buffers to I420 format via libyuv, and pushes frames to registered sinks.
+ * Automatically connects to emulator screenshot streaming when WebRTC sinks are active.
  */
-class GrpcVideoSource : public ::webrtc::AdaptedVideoTrackSource {
+class GrpcVideoSource : public ManagedVideoTrackSource {
   public:
     GrpcVideoSource(
             std::shared_ptr<EmulatorClient> client, GrpcVideoSourceOptions options,
             std::unique_ptr<VideoFormatPipeline> pipeline = std::make_unique<RgbaToI420Pipeline>());
     ~GrpcVideoSource() override;
 
-    // AdaptedVideoTrackSource overrides.
-    bool is_screencast() const override { return true; }
-    absl::optional<bool> needs_denoising() const override { return false; }
-    ::webrtc::MediaSourceInterface::SourceState state() const override {
-        return ::webrtc::MediaSourceInterface::SourceState::kLive;
-    }
-    bool remote() const override { return false; }
-
-    /**
-     * @brief Spins up the background capture thread.
-     */
-    void Start();
-
-    /**
-     * @brief Cancels the stream and joins the background capture thread.
-     */
-    void Stop();
+  protected:
+    void OnStart() override;
+    void OnStop() override;
 
   private:
     void CaptureLoop();
@@ -168,9 +121,9 @@ class GrpcVideoSource : public ::webrtc::AdaptedVideoTrackSource {
     std::shared_ptr<EmulatorClient> client_;
     GrpcVideoSourceOptions options_;
 
-    std::atomic<bool> running_{false};
+    std::atomic<bool> capture_running_{false};
     std::thread capture_thread_;
-    ::grpc::ClientContext context_;
+    std::unique_ptr<::grpc::ClientContext> context_;
 
     std::unique_ptr<::goldfish::memory::SharedMemory> shared_memory_;
     std::unique_ptr<VideoFormatPipeline> pipeline_;

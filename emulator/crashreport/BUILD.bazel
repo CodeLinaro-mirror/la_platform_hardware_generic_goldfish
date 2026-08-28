@@ -24,7 +24,6 @@ cc_library(
     hdrs = ["include/android/crashreport/debug.h"],
     includes = ["include"],
     visibility = ["//visibility:public"],
-    deps = ["//emulator/libs/base:array_size"],
 )
 
 cc_library(
@@ -272,10 +271,10 @@ cc_binary(
 clang_tidy_test(
     name = "tidy",
     targets = [
-        "hang_detector",
-        "crash_reporter",
-        "breadcrumb",
-        "crash_system",
+        ":hang_detector",
+        ":crash_reporter",
+        ":breadcrumb",
+        ":crash_system",
     ],
     tidy_config_file = "//:clang_tidy_config",
 )

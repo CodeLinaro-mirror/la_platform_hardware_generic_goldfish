@@ -35,58 +35,33 @@
 #include "absl/synchronization/mutex.h"
 
 #include "goldfish/videobridge/emulator_client.h"
+#include "goldfish/videobridge/managed_audio_track_source.h"
 
 namespace goldfish::videobridge {
 
 /**
- * @class GrpcAudioSource
- * @brief Custom AudioSourceInterface streaming emulator virtual microphone audio via gRPC.
+ * WebRTC AudioSourceInterface streaming emulator audio output via gRPC.
  *
- * GrpcAudioSource subscribes to emulator audio output, slices variable-length incoming streams
- * into exact 10ms frames required by WebRTC, and pushes them to registered sinks.
+ * Automatically connects to emulator audio streaming when WebRTC sinks are active.
  */
-class GrpcAudioSource : public ::webrtc::AudioSourceInterface {
+class GrpcAudioSource : public ManagedAudioTrackSource {
   public:
     explicit GrpcAudioSource(std::shared_ptr<EmulatorClient> client);
     ~GrpcAudioSource() override;
 
-    // AudioSourceInterface overrides.
-    void AddSink(::webrtc::AudioTrackSinkInterface* sink) override;
-    void RemoveSink(::webrtc::AudioTrackSinkInterface* sink) override;
-
-    ::webrtc::MediaSourceInterface::SourceState state() const override {
-        return ::webrtc::MediaSourceInterface::SourceState::kLive;
-    }
-    void RegisterObserver(::webrtc::ObserverInterface* observer) override {}
-    void UnregisterObserver(::webrtc::ObserverInterface* observer) override {}
-    bool remote() const override { return false; }
-
-    const ::webrtc::AudioOptions options() const override;
-
-    /**
-     * @brief Spins up the background capture thread.
-     */
-    void Start();
-
-    /**
-     * @brief Cancels the stream and joins the background capture thread.
-     */
-    void Stop();
+  protected:
+    void OnStart() override;
+    void OnStop() override;
 
   private:
     void CaptureLoop();
     void ConsumeAudioPacket(const AudioPacket& audio_packet);
-    void DeliverFrame(const void* audio_data, int bits_per_sample, int sample_rate,
-                      size_t number_of_channels, size_t number_of_frames);
 
     std::shared_ptr<EmulatorClient> client_;
 
-    std::atomic<bool> running_{false};
+    std::atomic<bool> capture_running_{false};
     std::thread capture_thread_;
-    ::grpc::ClientContext context_;
-
-    absl::Mutex sinks_mutex_;
-    std::set<::webrtc::AudioTrackSinkInterface*> sinks_ ABSL_GUARDED_BY(sinks_mutex_);
+    std::unique_ptr<::grpc::ClientContext> context_;
 
     std::vector<uint8_t> partial_frame_;
 };

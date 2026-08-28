@@ -13,6 +13,9 @@
 // limitations under the License.
 #pragma once
 
+#include "absl/base/thread_annotations.h"
+#include "absl/synchronization/mutex.h"
+
 #include "android/base/clock.h"
 
 namespace android::base {
@@ -28,6 +31,7 @@ class TestClock : public IClock {
     absl::Time Now(ClockType /*type*/) const override {
         // In a test environment, we don't need to distinguish between
         // different clock types. We just return the time that has been set.
+        const absl::MutexLock lock(&mutex_);
         return current_time_;
     }
 
@@ -35,16 +39,23 @@ class TestClock : public IClock {
      * @brief Sets the current time of the mock clock.
      * @param new_time The new time to set.
      */
-    void SetTime(absl::Time new_time) { current_time_ = new_time; }
+    void SetTime(absl::Time new_time) {
+        const absl::MutexLock lock(&mutex_);
+        current_time_ = new_time;
+    }
 
     /**
      * @brief Advances the clock by a specified duration.
      * @param duration The duration to advance the clock by.
      */
-    void Advance(absl::Duration duration) { current_time_ += duration; }
+    void Advance(absl::Duration duration) {
+        const absl::MutexLock lock(&mutex_);
+        current_time_ += duration;
+    }
 
   private:
-    absl::Time current_time_;
+    mutable absl::Mutex mutex_;
+    absl::Time current_time_ ABSL_GUARDED_BY(mutex_);
 };
 
 }  // namespace android::base

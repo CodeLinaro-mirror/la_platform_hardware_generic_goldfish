@@ -333,6 +333,7 @@ class ObservableProcess : public Process {
     std::unique_ptr<ProcessOverseer> overseer_;
     std::unique_ptr<std::thread> overseer_thread_;
     bool overseer_active_ ABSL_GUARDED_BY(overseer_mutex_){false};
+    bool overseer_started_ ABSL_GUARDED_BY(overseer_mutex_){false};
     mutable absl::Mutex overseer_mutex_;
 
     std::unique_ptr<ProcessOutput> std_out_;

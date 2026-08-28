@@ -19,7 +19,7 @@
 // IWYU pragma: begin_keep
 extern "C" {
 #include "qemu/osdep.h"
-#include "hw/qdev-core.h"
+#include "hw/core/qdev.h"
 
 // Remove windows compatibility defines.
 #ifdef _WIN32

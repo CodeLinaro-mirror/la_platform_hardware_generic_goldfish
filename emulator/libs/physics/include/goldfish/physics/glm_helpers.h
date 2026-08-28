@@ -20,11 +20,13 @@
 
 constexpr float kPhysicsEpsilon = 0.001F;
 
-inline bool VecNearEqual(glm::vec3 lhs, glm::vec3 rhs, float epsilon = kPhysicsEpsilon) {
+inline bool VecNearEqual(const glm::vec3& lhs, const glm::vec3& rhs,
+                         float epsilon = kPhysicsEpsilon) {
     return glm::all(glm::epsilonEqual(lhs, rhs, epsilon));
 }
 
-inline bool QuaternionNearEqual(glm::quat lhs, glm::quat rhs, float epsilon = kPhysicsEpsilon) {
+inline bool QuaternionNearEqual(const glm::quat& lhs, const glm::quat& rhs,
+                                float epsilon = kPhysicsEpsilon) {
     return glm::all(glm::epsilonEqual(lhs, rhs, epsilon)) ||
            glm::all(glm::epsilonEqual(lhs, -rhs, epsilon));
 }

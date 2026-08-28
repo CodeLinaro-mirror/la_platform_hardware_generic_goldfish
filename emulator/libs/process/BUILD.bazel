@@ -1,3 +1,4 @@
+load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_test")
 load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_test")
 
 cc_library(
@@ -74,4 +75,14 @@ cc_test(
         "@abseil-cpp//absl/flags:flag",
         "@abseil-cpp//absl/flags:parse",
     ],
+)
+
+clang_tidy_test(
+    name = "tidy",
+    targets = [
+        ":process",
+        ":sleep_emu",
+        ":process_unittests",
+    ],
+    tidy_config_file = "//:clang_tidy_config",
 )

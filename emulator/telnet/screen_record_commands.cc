@@ -156,14 +156,14 @@ absl::Status ParseScreenshotArgs(ArgStream& args, uint32_t* display, std::filesy
     }
 
     absl::Time now = absl::Now();
-    std::string fileName =
-            absl::StrFormat("Screenshot_%lld.png", (long long)absl::ToUnixSeconds(now));
+    std::string file_name = absl::StrFormat("Screenshot_%lld.png",
+                                            static_cast<long long>(absl::ToUnixSeconds(now)));
 
     if (absl::EndsWith(path_str, ".png")) {
         *path = path_str;
     } else {
-        *path = path_str.empty() ? std::filesystem::path(fileName)
-                                 : (std::filesystem::path(path_str) / fileName);
+        *path = path_str.empty() ? std::filesystem::path(file_name)
+                                 : (std::filesystem::path(path_str) / file_name);
     }
     return absl::OkStatus();
 }

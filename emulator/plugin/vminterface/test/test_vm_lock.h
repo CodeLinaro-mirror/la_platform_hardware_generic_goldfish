@@ -21,59 +21,59 @@ namespace android::goldfish {
 
 class TestVmLock : public VmLock {
   public:
-    static TestVmLock* getInstance();
+    static TestVmLock* GetInstance();
 
-    TestVmLock() : mOldVmLock(VmLock::set(this)), mInstalled(true) {}
+    TestVmLock() : old_vm_lock_(VmLock::Set(this)), installed_(true) {}
 
-    ~TestVmLock() { release(); }
+    ~TestVmLock() override { Release(); }
 
-    void release() {
-        if (mInstalled) {
-            // NOTE: A value of nullptr for mOldVmLock is valid.
-            VmLock::set(mOldVmLock);
-            mInstalled = false;
+    void Release() {
+        if (installed_) {
+            // NOTE: A value of nullptr for old_vm_lock_ is valid.
+            VmLock::Set(old_vm_lock_);
+            installed_ = false;
         }
     }
 
-    void lock() override { mLockCount++; }
-    void unlock() override { mUnlockCount++; }
-    bool isLockedBySelf() const override { return mLockCount > mUnlockCount; }
+    void Lock() override { lock_count_++; }
+    void Unlock() override { unlock_count_++; }
+    bool IsLockedBySelf() const override { return lock_count_ > unlock_count_; }
 
-    int mLockCount = 0;
-    int mUnlockCount = 0;
-    VmLock* mOldVmLock = nullptr;
-    bool mInstalled = false;
+    int lock_count_ = 0;
+    int unlock_count_ = 0;
+    VmLock* old_vm_lock_ = nullptr;
+    bool installed_ = false;
 };
 
 class HostVmLock : public VmLock {
   public:
-    static HostVmLock* getInstance();
+    static HostVmLock* GetInstance();
 
-    HostVmLock() : mOldVmLock(VmLock::set(this)), mInstalled(true) {}
+    HostVmLock() : old_vm_lock_(VmLock::Set(this)), installed_(true) {}
 
-    ~HostVmLock() { release(); }
+    ~HostVmLock() override { Release(); }
 
-    void release() {
-        if (mInstalled) {
-            // NOTE: A value of nullptr for mOldVmLock is valid.
-            VmLock::set(mOldVmLock);
-            mInstalled = false;
+    void Release() {
+        if (installed_) {
+            // NOTE: A value of nullptr for old_vm_lock_ is valid.
+            VmLock::Set(old_vm_lock_);
+            installed_ = false;
         }
     }
 
-    void lock() override ABSL_NO_THREAD_SAFETY_ANALYSIS { mLock.lock(); }
-    void unlock() override ABSL_NO_THREAD_SAFETY_ANALYSIS { mLock.unlock(); }
-    bool isLockedBySelf() const override ABSL_NO_THREAD_SAFETY_ANALYSIS {
-        if (mLock.TryLock()) {
-            mLock.unlock();
+    void Lock() override ABSL_NO_THREAD_SAFETY_ANALYSIS { lock_.Lock(); }
+    void Unlock() override ABSL_NO_THREAD_SAFETY_ANALYSIS { lock_.Unlock(); }
+    bool IsLockedBySelf() const override ABSL_NO_THREAD_SAFETY_ANALYSIS {
+        if (lock_.TryLock()) {
+            lock_.Unlock();
             return false;
         }
         return true;
     }
 
-    mutable absl::Mutex mLock;
-    VmLock* mOldVmLock = nullptr;
-    bool mInstalled = false;
+    mutable absl::Mutex lock_;
+    VmLock* old_vm_lock_ = nullptr;
+    bool installed_ = false;
 };
 
 }  // namespace android::goldfish

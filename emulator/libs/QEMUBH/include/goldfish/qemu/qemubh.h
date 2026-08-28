@@ -38,7 +38,8 @@ class QEMUBHDeleter {
     }
 
     QEMUBHDeleter(QEMUBHDeleter&&) noexcept = default;
-    QEMUBHDeleter& operator=(QEMUBHDeleter&&) = delete;
+    QEMUBHDeleter& operator=(QEMUBHDeleter&&) = default;
+
     QEMUBHDeleter(const QEMUBHDeleter&) = delete;
     QEMUBHDeleter& operator=(const QEMUBHDeleter&) = delete;
 

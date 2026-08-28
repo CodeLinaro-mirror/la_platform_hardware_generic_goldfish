@@ -91,6 +91,12 @@ absl::Status LaunchQemu::addDevices() {
         "-object",
         "iothread,id=disk-iothread",
     });
+    if (o.strict_snapshot_load) {
+        // A bad snapshot load might trigger a guest shutdown that is hidden by auto-rebooting.
+        addDevice<ParameterList>(std::initializer_list<std::string>{
+            "-no-reboot",
+        });
+    }
 
     addDevice<ParameterList>(std::initializer_list<std::string>{
         "-name", absl::StrFormat("%s,debug-threads=on", a.Name())});
@@ -158,17 +164,24 @@ absl::Status LaunchQemu::addDevices() {
         // It should lookup the actual port number and set the property
         // "vendor.qemu.vport.<name>" to "/dev/vport8p<N>"
         // e.g. /dev/vport8p3 for bt (4th port)
-        addDevice<ParameterList>(std::initializer_list<std::string>{
-            "-chardev",
-            "netsim-uwb,id=uwb",
-            "-device",
-            "virtconsole,chardev=uwb,name=uwb",
+        std::vector<std::string> radio_params = {
+            "-chardev", "netsim-uwb,id=uwb",
+            "-device",  "virtconsole,chardev=uwb,name=uwb",
 
-            "-chardev",
-            "netsim-bt,id=bluetooth",
-            "-device",
-            "virtserialport,chardev=bluetooth,name=bluetooth",
-        });
+            "-chardev", "netsim-bt,id=bluetooth",
+            "-device",  "virtserialport,chardev=bluetooth,name=bluetooth",
+        };
+
+        if (o.nfc) {
+            radio_params.insert(radio_params.end(), {
+                                                        "-chardev",
+                                                        "netsim-nfc,id=nfc",
+                                                        "-device",
+                                                        "virtserialport,chardev=nfc,name=nfc",
+                                                    });
+        }
+
+        addDevice<ParameterList>(std::move(radio_params));
     }
 
     // TODO(whollins): set netsim_backend to true when netsimd supports this (and not o.no_netsim)
@@ -208,6 +221,9 @@ absl::Status LaunchQemu::addDevices() {
     // Make sure we have our other devices available before we setup the gRPC device, the gRPC
     // device depends on the virtio devices for input event delivery.
     if (!o.no_grpc) {
+        // The webrtc device must be added before grpc, so it is realized *before* grpc
+        // and unrealized *before* audio drivers.
+        addDevice<ParameterList>(std::initializer_list<std::string>{"-device", "webrtc"});
         addDevice<GrpcDevice>();
     }
 
@@ -284,13 +300,16 @@ std::vector<std::string> LaunchQemu::getCmdline() const {
 
 absl::StatusOr<::goldfish::async::LaunchConfig> LaunchQemu::launch_config() {
     const auto& o = config_.opts();
+
+    // we need the gpu variable setup early
+    // before initialize
+    setupGpuVariables();
+
     auto status = initialize();
     if (!status.ok()) {
         VLOG(1) << "Failed to prepare emulator: " << status.message();
         return status;
     }
-
-    setupGpuVariables();
 
     fs::path exe_path = qemu_exe_path();
     std::vector<std::string> args = getCmdline();

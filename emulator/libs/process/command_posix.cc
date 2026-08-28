@@ -125,6 +125,7 @@ class PosixOverseer : public ProcessOverseer {
 
     ~PosixOverseer() override {
         DD("~PosixOverseer");
+        Stop();
         if (stop_pipe_[0] != -1) close(stop_pipe_[0]);
         if (stop_pipe_[1] != -1) close(stop_pipe_[1]);
     }
@@ -185,6 +186,7 @@ class PosixOverseer : public ProcessOverseer {
                 }
             }
         }
+        ClosePipes();
         DD("Observer finished.");
     }
 
@@ -192,16 +194,29 @@ class PosixOverseer : public ProcessOverseer {
     // should be invoked.
     // no writes to std_out, std_err should happen.
     void Stop() override {
-        if (stop_pipe_[1] != -1) {
-            // Send a byte to the stop pipe to wake up the poll loop.
-            char c = 's';
-            (void)write(stop_pipe_[1], &c, 1);
+        bool expected = false;
+        if (stopped_.compare_exchange_strong(expected, true)) {
+            if (stop_pipe_[1] != -1) {
+                // Send a byte to the stop pipe to wake up the poll loop.
+                char c = 's';
+                (void)write(stop_pipe_[1], &c, 1);
+            }
         }
-        close(std_out_pipe_[0]);
-        close(std_err_pipe_[0]);
     };
 
   private:
+    void ClosePipes() {
+        const absl::MutexLock lk(&pipe_mutex_);
+        if (std_out_pipe_[0] != -1) {
+            close(std_out_pipe_[0]);
+            std_out_pipe_[0] = -1;
+        }
+        if (std_err_pipe_[0] != -1) {
+            close(std_err_pipe_[0]);
+            std_err_pipe_[0] = -1;
+        }
+    }
+
     void SetNonBlocking(int fd) {
         if (fd < 0) return;
         int flags = fcntl(fd, F_GETFL, 0);
@@ -211,6 +226,8 @@ class PosixOverseer : public ProcessOverseer {
     int std_out_pipe_[2];
     int std_err_pipe_[2];
     int stop_pipe_[2];
+    std::atomic<bool> stopped_{false};
+    absl::Mutex pipe_mutex_;
 };
 
 class PosixProcess : public ObservableProcess {

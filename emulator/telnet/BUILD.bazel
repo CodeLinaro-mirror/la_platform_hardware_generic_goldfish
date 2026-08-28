@@ -70,6 +70,7 @@ cc_library(
         "@aemu//protos/services/emulator-controller:emulator_controller_cc_grpc",
         "@aemu//protos/services/incubating/modem:modem_service_cc_grpc",
         "@aemu//protos/services/incubating/recording:screen_recording_service_cc_grpc",
+        "@aemu//protos/services/snapshot:snapshot_service_cc_grpc",
     ],
 )
 
@@ -87,6 +88,23 @@ cc_library(
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",
         "@aemu//protos/services/incubating/modem:modem_service_cc_grpc",
+        "@aemu//protos/services/snapshot:snapshot_service_cc_grpc",
+    ],
+)
+
+cc_library(
+    name = "snapshot_commands",
+    srcs = ["snapshot_commands.cc"],
+    hdrs = ["snapshot_commands.h"],
+    deps = [
+        ":command_registry",
+        ":console_context",
+        "//emulator/libs/grpc_utils:absl_translate",
+        "//emulator/libs/status_macros",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@aemu//protos/services/snapshot:snapshot_service_cc_grpc",
     ],
 )
 
@@ -138,6 +156,7 @@ cc_library(
         ":console_context",
         ":gsm_commands",
         ":line_command_handler",
+        ":snapshot_commands",
         ":telnet_auth",
         "//emulator/libs/grpc_client",
         "//emulator/libs/grpc_utils:absl_translate",
@@ -211,6 +230,7 @@ cc_test(
         "//emulator/libs/test:googletest_main",
         "@aemu//protos/services/emulator-controller:emulator_controller_cc_grpc",
         "@aemu//protos/services/incubating/modem:modem_service_cc_grpc",
+        "@aemu//protos/services/snapshot:snapshot_service_cc_grpc",
     ],
 )
 
@@ -221,8 +241,10 @@ cc_test(
         ":command_registry",
         ":console_context",
         ":gsm_commands",
+        ":snapshot_commands",
         "//emulator/libs/test:googletest_main",
         "@aemu//protos/services/incubating/modem:modem_service_cc_grpc",
+        "@aemu//protos/services/snapshot:snapshot_service_cc_grpc",
     ],
 )
 
@@ -236,6 +258,7 @@ cc_test(
         "//emulator/libs/test:googletest_main",
         "@aemu//protos/services/emulator-controller:emulator_controller_cc_grpc",
         "@aemu//protos/services/incubating/recording:screen_recording_service_cc_grpc",
+        "@aemu//protos/services/snapshot:snapshot_service_cc_grpc",
     ],
 )
 
@@ -247,6 +270,7 @@ clang_tidy_test(
         ":command_registry",
         ":console_context",
         ":gsm_commands",
+        ":snapshot_commands",
         ":legacy_console_bridge",
         ":console_server",
     ],

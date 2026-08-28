@@ -22,14 +22,14 @@
 
 namespace goldfish::gvk::util {
 namespace {
-std::vector<uint16_t> getQueueFamilyPreferredOrder(const VkQueueFamilyProperties* qfps,
-                                                   const size_t qfpsSize) {
-    std::vector<uint16_t> queueFamilyIndices(qfpsSize);
-    for (size_t i = 0; i < qfpsSize; ++i) {
-        queueFamilyIndices[i] = i;
+std::vector<uint16_t> GetQueueFamilyPreferredOrder(const VkQueueFamilyProperties* qfps,
+                                                   const size_t qfps_size) {
+    std::vector<uint16_t> queue_family_indices(qfps_size);
+    for (size_t i = 0; i < qfps_size; ++i) {
+        queue_family_indices[i] = i;
     }
 
-    std::sort(queueFamilyIndices.begin(), queueFamilyIndices.end(),
+    std::sort(queue_family_indices.begin(), queue_family_indices.end(),
               [qfps](const unsigned lhsi, const unsigned rhsi) {
                   const VkQueueFamilyProperties& lhs = qfps[lhsi];
                   const VkQueueFamilyProperties& rhs = qfps[rhsi];
@@ -52,55 +52,56 @@ std::vector<uint16_t> getQueueFamilyPreferredOrder(const VkQueueFamilyProperties
                   }
               });
 
-    return queueFamilyIndices;
+    return queue_family_indices;
 }
 
-void setDeviceQueueLocation(DeviceQueueLocation& dst, const unsigned queueFamilyIndex,
-                            const unsigned queueFamilyCapacity,
-                            uint16_t queueFamilyAllocCounter[]) {
-    dst.familyIndex = queueFamilyIndex;
-    dst.queueIndex = queueFamilyAllocCounter[queueFamilyIndex] % queueFamilyCapacity;
-    ++queueFamilyAllocCounter[queueFamilyIndex];
+void SetDeviceQueueLocation(DeviceQueueLocation& dst, const unsigned queue_family_index,
+                            const unsigned queue_family_capacity,
+                            uint16_t queue_family_alloc_counter[]) {
+    dst.familyIndex = queue_family_index;
+    dst.queueIndex = queue_family_alloc_counter[queue_family_index] % queue_family_capacity;
+    ++queue_family_alloc_counter[queue_family_index];
 }
 
-VkDeviceQueueCreateInfo makeDQCI(const uint32_t queueFamilyIndex, const uint32_t queueCount) {
+VkDeviceQueueCreateInfo MakeDeviceQueueCreateInfo(const uint32_t queue_family_index,
+                                                  const uint32_t queue_count) {
     return {
         .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
         .pNext = nullptr,
         .flags = 0,
-        .queueFamilyIndex = queueFamilyIndex,
-        .queueCount = queueCount,
+        .queueFamilyIndex = queue_family_index,
+        .queueCount = queue_count,
         .pQueuePriorities = nullptr,
     };
 }
 }  // namespace
 
-BuildDeviceQueueCreateInfoResult buildDeviceQueueCreateInfo(
-        const size_t qfpsSize, const VkQueueFamilyProperties* qfps,
-        const VkQueueFlags requestedQueueFlags) {
-    if (!qfpsSize || !requestedQueueFlags) {
+BuildDeviceQueueCreateInfoResult BuildDeviceQueueCreateInfo(
+        const size_t qfps_size, const VkQueueFamilyProperties* qfps,
+        const VkQueueFlags requested_queue_flags) {
+    if (!qfps_size || !requested_queue_flags) {
         return {};
     }
 
     BuildDeviceQueueCreateInfoResult result;
 
-    const std::vector<uint16_t> queueFamilyPreferredOrder =
-            getQueueFamilyPreferredOrder(qfps, qfpsSize);
+    const std::vector<uint16_t> queue_family_preferred_order =
+            GetQueueFamilyPreferredOrder(qfps, qfps_size);
 
-    std::vector<uint16_t> queueFamilyAllocCounter(qfpsSize);
+    std::vector<uint16_t> queue_family_alloc_counter(qfps_size);
 
-    if (requestedQueueFlags & VK_QUEUE_GRAPHICS_BIT) {
-        for (unsigned i = 0; i < qfpsSize; ++i) {
-            const unsigned queueFamilyIndex = queueFamilyPreferredOrder[i];
-            const VkQueueFamilyProperties& qfp = qfps[queueFamilyIndex];
+    if (requested_queue_flags & VK_QUEUE_GRAPHICS_BIT) {
+        for (unsigned i = 0; i < qfps_size; ++i) {
+            const unsigned queue_family_index = queue_family_preferred_order[i];
+            const VkQueueFamilyProperties& qfp = qfps[queue_family_index];
 
             if ((qfp.queueFlags & VK_QUEUE_GRAPHICS_BIT) && (qfp.queueCount > 0)) {
-                setDeviceQueueLocation(result.second.graphics, queueFamilyIndex, qfp.queueCount,
-                                       queueFamilyAllocCounter.data());
+                SetDeviceQueueLocation(result.second.graphics, queue_family_index, qfp.queueCount,
+                                       queue_family_alloc_counter.data());
 
                 // if presentation is requested and the graphics queue supports it
                 // then reuse the graphics queue for presentation.
-                if (requestedQueueFlags & qfp.queueFlags & GVK_QUEUE_PRESENTATION_BIT) {
+                if (requested_queue_flags & qfp.queueFlags & GVK_QUEUE_PRESENTATION_BIT) {
                     result.second.presentation = result.second.graphics;
                 }
                 break;
@@ -112,17 +113,17 @@ BuildDeviceQueueCreateInfoResult buildDeviceQueueCreateInfo(
         }
     }
 
-    if ((requestedQueueFlags & GVK_QUEUE_PRESENTATION_BIT) && !result.second.presentation.ok()) {
-        for (unsigned i = 0; i < qfpsSize; ++i) {
-            const unsigned queueFamilyIndex = queueFamilyPreferredOrder[i];
-            const VkQueueFamilyProperties& qfp = qfps[queueFamilyIndex];
+    if ((requested_queue_flags & GVK_QUEUE_PRESENTATION_BIT) && !result.second.presentation.ok()) {
+        for (unsigned i = 0; i < qfps_size; ++i) {
+            const unsigned queue_family_index = queue_family_preferred_order[i];
+            const VkQueueFamilyProperties& qfp = qfps[queue_family_index];
 
             if ((qfp.queueFlags & GVK_QUEUE_PRESENTATION_BIT) && (qfp.queueCount > 0)) {
-                if (queueFamilyIndex == result.second.graphics.familyIndex) {
+                if (queue_family_index == result.second.graphics.familyIndex) {
                     result.second.presentation = result.second.graphics;
                 } else {
-                    setDeviceQueueLocation(result.second.presentation, queueFamilyIndex,
-                                           qfp.queueCount, queueFamilyAllocCounter.data());
+                    SetDeviceQueueLocation(result.second.presentation, queue_family_index,
+                                           qfp.queueCount, queue_family_alloc_counter.data());
                 }
             }
         }
@@ -132,14 +133,14 @@ BuildDeviceQueueCreateInfoResult buildDeviceQueueCreateInfo(
         }
     }
 
-    if (requestedQueueFlags & VK_QUEUE_COMPUTE_BIT) {
-        for (unsigned i = 0; i < qfpsSize; ++i) {
-            const unsigned queueFamilyIndex = queueFamilyPreferredOrder[i];
-            const VkQueueFamilyProperties& qfp = qfps[queueFamilyIndex];
+    if (requested_queue_flags & VK_QUEUE_COMPUTE_BIT) {
+        for (unsigned i = 0; i < qfps_size; ++i) {
+            const unsigned queue_family_index = queue_family_preferred_order[i];
+            const VkQueueFamilyProperties& qfp = qfps[queue_family_index];
 
             if ((qfp.queueFlags & VK_QUEUE_COMPUTE_BIT) && (qfp.queueCount > 0)) {
-                setDeviceQueueLocation(result.second.compute, queueFamilyIndex, qfp.queueCount,
-                                       queueFamilyAllocCounter.data());
+                SetDeviceQueueLocation(result.second.compute, queue_family_index, qfp.queueCount,
+                                       queue_family_alloc_counter.data());
                 break;
             }
         }
@@ -149,17 +150,17 @@ BuildDeviceQueueCreateInfoResult buildDeviceQueueCreateInfo(
         }
     }
 
-    if (requestedQueueFlags & VK_QUEUE_TRANSFER_BIT) {
-        for (unsigned i = 0; i < qfpsSize; ++i) {
-            const unsigned queueFamilyIndex = queueFamilyPreferredOrder[i];
-            const VkQueueFamilyProperties& qfp = qfps[queueFamilyIndex];
+    if (requested_queue_flags & VK_QUEUE_TRANSFER_BIT) {
+        for (unsigned i = 0; i < qfps_size; ++i) {
+            const unsigned queue_family_index = queue_family_preferred_order[i];
+            const VkQueueFamilyProperties& qfp = qfps[queue_family_index];
 
             if ((qfp.queueFlags & VK_QUEUE_TRANSFER_BIT) && (qfp.queueCount > 0)) {
                 const VkExtent3D& mtg = qfp.minImageTransferGranularity;
 
                 if ((mtg.width == 1) && (mtg.width == mtg.height) && (mtg.depth == 1)) {
-                    setDeviceQueueLocation(result.second.transfer, queueFamilyIndex, qfp.queueCount,
-                                           queueFamilyAllocCounter.data());
+                    SetDeviceQueueLocation(result.second.transfer, queue_family_index,
+                                           qfp.queueCount, queue_family_alloc_counter.data());
                     break;
                 }
             }
@@ -170,11 +171,12 @@ BuildDeviceQueueCreateInfoResult buildDeviceQueueCreateInfo(
         }
     }
 
-    for (unsigned queueFamilyIndex = 0; queueFamilyIndex < qfpsSize; ++queueFamilyIndex) {
-        const uint32_t allocCount = queueFamilyAllocCounter[queueFamilyIndex];
-        if (allocCount > 0) {
-            result.first.push_back(makeDQCI(
-                    queueFamilyIndex, std::min(allocCount, qfps[queueFamilyIndex].queueCount)));
+    for (unsigned queue_family_index = 0; queue_family_index < qfps_size; ++queue_family_index) {
+        const uint32_t alloc_count = queue_family_alloc_counter[queue_family_index];
+        if (alloc_count > 0) {
+            result.first.push_back(MakeDeviceQueueCreateInfo(
+                    queue_family_index,
+                    std::min(alloc_count, qfps[queue_family_index].queueCount)));
         }
     }
 

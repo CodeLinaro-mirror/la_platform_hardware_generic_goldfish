@@ -16,6 +16,7 @@
 
 #include "android/base/system.h"
 #include "android/crashreport/crash_reporter.h"
+#include "goldfish/archive/collections/string.h"
 #include "goldfish/archive/reader.h"
 #include "goldfish/archive/writer.h"
 #include "goldfish/async/qemu_event_loop.h"
@@ -30,7 +31,7 @@
 // IWYU pragma: begin_keep
 #include "qemu/osdep.h"
 extern "C" {
-#include "hw/qdev-core.h"
+#include "hw/core/qdev.h"
 #include "system/reset.h"
 #include "qemu/main-loop.h"
 }

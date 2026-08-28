@@ -16,6 +16,7 @@
 
 #include <initializer_list>
 
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
@@ -65,6 +66,11 @@ std::vector<std::string> GpuDevice::getQemuParameters(const EmulatorConfig& emul
 
     renderer_features.append(";VulkanBatchedDescriptorSetUpdate:disabled");
 
+    // Use a separate memory type for Ahb allocations, to avoid marking them
+    // as host visible and coherent on lavapipe, which is not very well supported
+    // in virtio-gpu path right now.
+    renderer_features.append(";VulkanUseDedicatedAhbMemoryType:enabled");
+
     // Limit available GPU memory and hostmem to 4GB
     renderer_features.append(";VulkanMaxSafeHeapSize:4294967296");
 
@@ -84,6 +90,9 @@ std::vector<std::string> GpuDevice::getQemuParameters(const EmulatorConfig& emul
         params.push_back("edid=off");
         params.push_back("max_outputs=2");
     }
+    if (opts.no_window) {
+        params.push_back("wsi=headless");
+    }
 
     params.push_back(absl::StrCat("id=", mGpuName));
     params.push_back("hostmem=4096M");
@@ -94,15 +103,37 @@ std::vector<std::string> GpuDevice::getQemuParameters(const EmulatorConfig& emul
         auto snapshot_directory = emulator.avd().GetContentPath() / "renderersave" / "";
         params.push_back(absl::StrCat("snapshot_directory=", snapshot_directory.string()));
     }
-    auto resizable_configs =
-            ::goldfish::sensors::FoldableModel::ParseResizableConfigs(hw.hw_resizable_configs);
-    if (!resizable_configs.empty()) {
-        params.push_back(absl::StrCat("xres=", resizable_configs[0].width));
-        params.push_back(absl::StrCat("yres=", resizable_configs[0].height));
+
+    size_t width;
+    size_t height;
+    if (hw.hw_resizable_configs.empty()) {
+        width = hw.hw_lcd_width;
+        height = hw.hw_lcd_height;
     } else {
-        params.push_back(absl::StrCat("xres=", hw.hw_lcd_width));
-        params.push_back(absl::StrCat("yres=", hw.hw_lcd_height));
+        const auto resizable_configs =
+                ::goldfish::sensors::FoldableModel::ParseResizableConfigs(hw.hw_resizable_configs);
+
+        if (!resizable_configs || resizable_configs->empty()) {
+            LOG(ERROR) << "Failed to parse hw_resizable_configs; GPU will be disabled. "
+                          "config='"
+                       << hw.hw_resizable_configs << "'";
+            return {};
+        }
+
+        const auto& default_config = resizable_configs->front();
+        width = default_config.width;
+        height = default_config.height;
     }
+
+    if (!width || !height) {
+        LOG(ERROR) << "Invalid display dimensions; GPU will be disabled. "
+                      "width="
+                   << width << " height=" << height;
+        return {};
+    }
+
+    params.push_back(absl::StrCat("xres=", width));
+    params.push_back(absl::StrCat("yres=", height));
 
     return {"-device", absl::StrJoin(params, ",")};
 }

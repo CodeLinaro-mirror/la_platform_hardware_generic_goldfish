@@ -14,6 +14,8 @@
 
 #include <set>
 
+#include "absl/status/status.h"
+
 #include "goldfish/archive/reader.h"
 #include "goldfish/archive/writer.h"
 
@@ -34,8 +36,9 @@ struct UniqueIdAllocator {
     uint32_t Get();
     void Put(uint32_t id);
     void Reset();
-    void SaveToSnapshot(archive::IWriter& writer) const;
-    int LoadFromSnapshot(archive::IReader& reader);
+
+    friend archive::IWriter& operator<<(archive::IWriter& writer, const UniqueIdAllocator&);
+    friend absl::Status ReadValue(archive::IReader& reader, UniqueIdAllocator&);
 
   private:
     uint32_t last_id_ = kEmptyId;

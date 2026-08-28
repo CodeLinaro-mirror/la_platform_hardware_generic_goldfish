@@ -113,7 +113,13 @@ void StudioFileMetricsWriter::Write(MetricsEvent event) {
 
     wireless_android_play_playlog::LogEvent log_event;
     log_event.set_event_time_ms(event.time_ms);
-    event.as_event.SerializeToString(log_event.mutable_source_extension());
+    if (!event.as_event.SerializeToString(log_event.mutable_source_extension())) {
+        LOG(ERROR) << "Failed to serialize metrics event (time_ms=" << event.time_ms << "). "
+                   << "Individual telemetry metrics for this event will be dropped. "
+                   << "Protobuf initialization errors: "
+                   << event.as_event.InitializationErrorString();
+        return;
+    }
 
     if (!current_file_.is_open()) {
         LOG(ERROR) << "Failed to open metrics file, report will be lost: "

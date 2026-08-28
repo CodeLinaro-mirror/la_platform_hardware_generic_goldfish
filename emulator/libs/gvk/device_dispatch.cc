@@ -22,112 +22,112 @@
 
 #include "absl/log/log.h"
 
-#include "goldfish/base/array_size.h"
 #include "goldfish/debug.h"
 #include "goldfish/gvk/util/build_device_queue_create_info.h"
 #include "goldfish/gvk/util/init_pfn.h"
 #include "goldfish/gvk/util/log_vk_result.h"
 
 namespace goldfish::gvk {
-using util::logVkResult;
+using util::LogVkResult;
 
 namespace {
-void stubForDestroyDevice(VkDevice, const VkAllocationCallbacks*) {
+void StubForDestroyDevice(VkDevice, const VkAllocationCallbacks*) {
     LOG(ERROR) << "If you see this function called this means the Vulkan "
                   "implementation did not provide `vkDestroyDevice`.";
 }
 }  // namespace
 
-DeviceDispatch::DeviceDispatch(InstanceDispatch::Ptr instanceDispatch, const VkDevice device,
-                               const PFN_vkDestroyDevice destroyDevice, Private)
-        : mInstanceDispatch(std::move(instanceDispatch))
-        , mVkDevice(device)
-        , mPFN_vkDestroyDevice(destroyDevice) {}
+DeviceDispatch::DeviceDispatch(InstanceDispatch::Ptr instance_dispatch, const VkDevice device,
+                               const PFN_vkDestroyDevice destroy_device, Private)
+        : instance_dispatch_(std::move(instance_dispatch))
+        , device_(device)
+        , pfn_vkDestroyDevice(destroy_device) {}
 
 DeviceDispatch::~DeviceDispatch() {
-    (*mPFN_vkDestroyDevice)(mVkDevice, nullptr);
+    (*pfn_vkDestroyDevice)(device_, nullptr);
 }
 
-DeviceDispatch::Ptr DeviceDispatch::create(const InstanceDispatch::Ptr& instanceDispatch,
-                                           const VkPhysicalDevice physicalDevice,
-                                           const VkDeviceCreateInfo& createInfo) {
-    const VkDevice device = instanceDispatch->createDevice(physicalDevice, createInfo);
+DeviceDispatch::Ptr DeviceDispatch::create(const InstanceDispatch::Ptr& instance_dispatch,
+                                           const VkPhysicalDevice physical_device,
+                                           const VkDeviceCreateInfo& create_info) {
+    const VkDevice device = instance_dispatch->createDevice(physical_device, create_info);
     if (!device) {
         return FAILURE(nullptr);
     }
 
-    const auto getDeviceProcAddr = instanceDispatch->getDeviceProcAddr();
-    const auto getPFN = [getDeviceProcAddr, device](const char* name) {
-        return reinterpret_cast<void*>(getDeviceProcAddr(device, name));
+    const auto get_device_proc_addr = instance_dispatch->getDeviceProcAddr();
+    const auto get_pfn = [get_device_proc_addr, device](const char* name) {
+        return reinterpret_cast<void*>(get_device_proc_addr(device, name));
     };
 
-    PFN_vkDestroyDevice destroyDevice;
-    if (!util::initPFN(destroyDevice, getPFN, "vkDestroyDevice", "DeviceDispatch::create")) {
-        destroyDevice = &stubForDestroyDevice;
+    PFN_vkDestroyDevice destroy_device;
+    if (!util::initPFN(destroy_device, get_pfn, "vkDestroyDevice", "DeviceDispatch::create")) {
+        destroy_device = &StubForDestroyDevice;
         LOG(ERROR) << "No way to destroy `vkDevice` because `vkDestroyDevice` is missing.";
     }
 
-    auto deviceDispatch =
-            std::make_shared<DeviceDispatch>(instanceDispatch, device, destroyDevice, Private());
-    if (deviceDispatch->initPFNs(getPFN)) {
-        return deviceDispatch;
+    auto device_dispatch =
+            std::make_shared<DeviceDispatch>(instance_dispatch, device, destroy_device, Private());
+    if (device_dispatch->initPFNs(get_pfn)) {
+        return device_dispatch;
     } else {
         return FAILURE(nullptr);
     }
 }
 
 std::optional<DeviceDispatch::CreateResult> DeviceDispatch::create(
-        const InstanceDispatch::Ptr& instanceDispatch, const VkPhysicalDevice dev,
-        const VkQueueFlags queueFlags0, const VkSurfaceKHR surface,
-        const uint32_t enabledExtensionCount, const char* const* enabledExtensionNames,
+        const InstanceDispatch::Ptr& instance_dispatch, const VkPhysicalDevice dev,
+        const VkQueueFlags queue_flags0, const VkSurfaceKHR surface,
+        const uint32_t enabled_extension_count, const char* const* enabled_extension_names,
         const VkPhysicalDeviceFeatures2* features2) {
-    const VkQueueFlags queueFlags = queueFlags0 | (surface ? util::GVK_QUEUE_PRESENTATION_BIT : 0);
+    const VkQueueFlags queue_flags =
+            queue_flags0 | (surface ? util::GVK_QUEUE_PRESENTATION_BIT : 0);
 
-    std::vector<VkQueueFamilyProperties> queueFamilyProperties =
-            instanceDispatch->getPhysicalDeviceQueueFamilyProperties(dev);
+    std::vector<VkQueueFamilyProperties> queue_family_properties =
+            instance_dispatch->getPhysicalDeviceQueueFamilyProperties(dev);
 
-    auto [deviceQueueCreateInfos, deviceQueueLocations] = util::buildDeviceQueueCreateInfo(
-            queueFamilyProperties.size(), queueFamilyProperties.data(), queueFlags);
+    auto [deviceQueueCreateInfos, deviceQueueLocations] = util::BuildDeviceQueueCreateInfo(
+            queue_family_properties.size(), queue_family_properties.data(), queue_flags);
     if (deviceQueueCreateInfos.empty()) {
         return FAILURE(std::nullopt);
     }
 
-    const uint32_t maxQueuePrioCount = std::accumulate(
-            deviceQueueCreateInfos.begin(), deviceQueueCreateInfos.end(), uint32_t(0),
-            [](const uint32_t maxSoFar, const VkDeviceQueueCreateInfo& dqci) {
-                return std::max(maxSoFar, dqci.queueCount);
+    const uint32_t max_queue_prio_count = std::accumulate(
+            deviceQueueCreateInfos.begin(), deviceQueueCreateInfos.end(), static_cast<uint32_t>(0),
+            [](const uint32_t max_so_far, const VkDeviceQueueCreateInfo& dqci) {
+                return std::max(max_so_far, dqci.queueCount);
             });
 
-    static const float kGraphicsQueuePriorities8[] = {1.0f, 1.0f, 1.0f, 1.0f,
-                                                      1.0f, 1.0f, 1.0f, 1.0f};
+    static const float kGraphicsQueuePriorities8[] = {1.0F, 1.0F, 1.0F, 1.0F,
+                                                      1.0F, 1.0F, 1.0F, 1.0F};
 
-    std::vector<float> graphicsQueuePrioritiesVector;
-    const float* graphicsQueuePriorities;
-    if (maxQueuePrioCount <= ARRAY_SIZE(kGraphicsQueuePriorities8)) {
-        graphicsQueuePriorities = kGraphicsQueuePriorities8;
+    std::vector<float> graphics_queue_priorities_vector;
+    const float* graphics_queue_priorities;
+    if (max_queue_prio_count <= std::size(kGraphicsQueuePriorities8)) {
+        graphics_queue_priorities = kGraphicsQueuePriorities8;
     } else {
-        graphicsQueuePrioritiesVector.resize(maxQueuePrioCount, kGraphicsQueuePriorities8[0]);
-        graphicsQueuePriorities = graphicsQueuePrioritiesVector.data();
+        graphics_queue_priorities_vector.resize(max_queue_prio_count, kGraphicsQueuePriorities8[0]);
+        graphics_queue_priorities = graphics_queue_priorities_vector.data();
     }
 
     for (auto& qci : deviceQueueCreateInfos) {
-        qci.pQueuePriorities = graphicsQueuePriorities;
+        qci.pQueuePriorities = graphics_queue_priorities;
     }
 
-    const VkDeviceCreateInfo deviceCreateInfo = {
+    const VkDeviceCreateInfo device_create_info = {
         .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
         .pNext = features2,
         .flags = 0,
-        .queueCreateInfoCount = uint32_t(deviceQueueCreateInfos.size()),
+        .queueCreateInfoCount = static_cast<uint32_t>(deviceQueueCreateInfos.size()),
         .pQueueCreateInfos = deviceQueueCreateInfos.data(),
         .enabledLayerCount = 0,
         .ppEnabledLayerNames = nullptr,
-        .enabledExtensionCount = enabledExtensionCount,
-        .ppEnabledExtensionNames = enabledExtensionNames,
+        .enabledExtensionCount = enabled_extension_count,
+        .ppEnabledExtensionNames = enabled_extension_names,
         .pEnabledFeatures = nullptr,
     };
 
-    Ptr dispatch = DeviceDispatch::create(instanceDispatch, dev, deviceCreateInfo);
+    Ptr dispatch = DeviceDispatch::create(instance_dispatch, dev, device_create_info);
     if (!dispatch) {
         return FAILURE(std::nullopt);
     }
@@ -141,33 +141,33 @@ std::optional<DeviceDispatch::CreateResult> DeviceDispatch::create(
 }
 
 bool DeviceDispatch::initPFNs(const util::GetPFN& getPFN) {
-#define INIT_1_PFN(F) util::initPFN(mPFN_##F, getPFN, #F, "DeviceDispatch::initPFNs") &&
+#define INIT_1_PFN(F) util::initPFN(pfn_##F, getPFN, #F, "DeviceDispatch::initPFNs") &&
     return GOLDFISH_GVK_DeviceDispatch_FUNC_LIST(INIT_1_PFN) true;
 #undef INIT_1_PFN
 }
 
 /**************************************************************************************************/
 
-VkQueue DeviceDispatch::getDeviceQueue(const uint32_t queueFamilyIndex,
-                                       const uint32_t queueIndex) const {
+VkQueue DeviceDispatch::getDeviceQueue(const uint32_t queue_family_index,
+                                       const uint32_t queue_index) const {
     VkQueue queue = VK_NULL_HANDLE;
-    (*mPFN_vkGetDeviceQueue)(mVkDevice, queueFamilyIndex, queueIndex, &queue);
+    (*pfn_vkGetDeviceQueue)(device_, queue_family_index, queue_index, &queue);
     return queue;
 }
 
-DeviceMemory DeviceDispatch::allocateMemory(const size_t allocationSize,
-                                            const uint32_t memoryTypeIndex) const {
-    const VkMemoryAllocateInfo allocInfo = {
+DeviceMemory DeviceDispatch::allocateMemory(const size_t allocation_size,
+                                            const uint32_t memory_type_index) const {
+    const VkMemoryAllocateInfo alloc_info = {
         .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
         .pNext = nullptr,
-        .allocationSize = static_cast<VkDeviceSize>(allocationSize),
-        .memoryTypeIndex = memoryTypeIndex,
+        .allocationSize = static_cast<VkDeviceSize>(allocation_size),
+        .memoryTypeIndex = memory_type_index,
     };
 
     VkDeviceMemory memory = VK_NULL_HANDLE;
-    const VkResult result = (*mPFN_vkAllocateMemory)(mVkDevice, &allocInfo, nullptr, &memory);
+    const VkResult result = (*pfn_vkAllocateMemory)(device_, &alloc_info, nullptr, &memory);
     if (result != VK_SUCCESS) {
-        logVkResult("vkAllocateMemory", result);
+        LogVkResult("vkAllocateMemory", result);
         return {};
     }
 
@@ -177,9 +177,9 @@ DeviceMemory DeviceDispatch::allocateMemory(const size_t allocationSize,
 void* DeviceDispatch::mapMemory(const VkDeviceMemory memory, const size_t size, const size_t offset,
                                 const VkMemoryMapFlags flags) const {
     void* data = nullptr;
-    const VkResult result = (*mPFN_vkMapMemory)(mVkDevice, memory, offset, size, flags, &data);
+    const VkResult result = (*pfn_vkMapMemory)(device_, memory, offset, size, flags, &data);
     if (result != VK_SUCCESS) {
-        logVkResult("vkMapMemory", result);
+        LogVkResult("vkMapMemory", result);
         return nullptr;
     }
 
@@ -187,33 +187,33 @@ void* DeviceDispatch::mapMemory(const VkDeviceMemory memory, const size_t size, 
 }
 
 void DeviceDispatch::unmapMemory(const VkDeviceMemory memory) const {
-    (*mPFN_vkUnmapMemory)(mVkDevice, memory);
+    (*pfn_vkUnmapMemory)(device_, memory);
 }
 
 void DeviceDispatch::freeMemory(VkDeviceMemory memory) const {
-    (*mPFN_vkFreeMemory)(mVkDevice, memory, nullptr);
+    (*pfn_vkFreeMemory)(device_, memory, nullptr);
 }
 
 Buffer DeviceDispatch::createBuffer(const size_t size, const VkBufferUsageFlags usage,
                                     const VkBufferCreateFlags flags,
-                                    const uint32_t* queueFamilyIndices,
-                                    const uint32_t queueFamilyIndicesSize) const {
-    const VkBufferCreateInfo bufferCreateInfo = {
+                                    const uint32_t* queue_family_indices,
+                                    const uint32_t queue_family_indices_size) const {
+    const VkBufferCreateInfo buffer_create_info = {
         .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
         .pNext = nullptr,
         .flags = flags,
         .size = static_cast<VkDeviceSize>(size),
         .usage = usage,
-        .sharingMode = (queueFamilyIndicesSize > 0) ? VK_SHARING_MODE_CONCURRENT
-                                                    : VK_SHARING_MODE_EXCLUSIVE,
-        .queueFamilyIndexCount = queueFamilyIndicesSize,
-        .pQueueFamilyIndices = queueFamilyIndices,
+        .sharingMode = (queue_family_indices_size > 0) ? VK_SHARING_MODE_CONCURRENT
+                                                       : VK_SHARING_MODE_EXCLUSIVE,
+        .queueFamilyIndexCount = queue_family_indices_size,
+        .pQueueFamilyIndices = queue_family_indices,
     };
 
     VkBuffer buffer = VK_NULL_HANDLE;
-    VkResult result = (*mPFN_vkCreateBuffer)(mVkDevice, &bufferCreateInfo, nullptr, &buffer);
+    VkResult result = (*pfn_vkCreateBuffer)(device_, &buffer_create_info, nullptr, &buffer);
     if (result != VK_SUCCESS) {
-        logVkResult("vkCreateBuffer", result);
+        LogVkResult("vkCreateBuffer", result);
         return {};
     }
 
@@ -221,105 +221,105 @@ Buffer DeviceDispatch::createBuffer(const size_t size, const VkBufferUsageFlags 
 }
 
 VkMemoryRequirements DeviceDispatch::getBufferMemoryRequirements(const VkBuffer buffer) const {
-    VkMemoryRequirements memReqs;
-    (*mPFN_vkGetBufferMemoryRequirements)(mVkDevice, buffer, &memReqs);
-    return memReqs;
+    VkMemoryRequirements mem_reqs;
+    (*pfn_vkGetBufferMemoryRequirements)(device_, buffer, &mem_reqs);
+    return mem_reqs;
 }
 
 bool DeviceDispatch::bindBufferMemory(const VkBuffer buffer, const VkDeviceMemory memory,
                                       const size_t offset) const {
-    const VkResult result = (*mPFN_vkBindBufferMemory)(mVkDevice, buffer, memory, offset);
+    const VkResult result = (*pfn_vkBindBufferMemory)(device_, buffer, memory, offset);
     if (result != VK_SUCCESS) {
-        logVkResult("vkBindBufferMemory", result);
+        LogVkResult("vkBindBufferMemory", result);
         return false;
     }
     return true;
 }
 
 void DeviceDispatch::destroyBuffer(const VkBuffer buffer) const {
-    (*mPFN_vkDestroyBuffer)(mVkDevice, buffer, nullptr);
+    (*pfn_vkDestroyBuffer)(device_, buffer, nullptr);
 }
 
 CommandPool DeviceDispatch::createCommandPool(const VkCommandPoolCreateFlags flags,
-                                              const uint32_t queueFamilyIndex) const {
+                                              const uint32_t queue_family_index) const {
     const VkCommandPoolCreateInfo cpci = {
         .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
         .pNext = nullptr,
         .flags = flags,
-        .queueFamilyIndex = queueFamilyIndex,
+        .queueFamilyIndex = queue_family_index,
     };
 
-    VkCommandPool commandPool = VK_NULL_HANDLE;
-    const VkResult result = (*mPFN_vkCreateCommandPool)(mVkDevice, &cpci, nullptr, &commandPool);
+    VkCommandPool command_pool = VK_NULL_HANDLE;
+    const VkResult result = (*pfn_vkCreateCommandPool)(device_, &cpci, nullptr, &command_pool);
     if (result != VK_SUCCESS) {
-        logVkResult("vkCreateCommandPool", result);
+        LogVkResult("vkCreateCommandPool", result);
         return {};
     }
 
-    return CommandPool(commandPool, DeviceResourceDeleter(this));
+    return CommandPool(command_pool, DeviceResourceDeleter(this));
 }
 
-void DeviceDispatch::destroyCommandPool(VkCommandPool commandPool) const {
-    (*mPFN_vkDestroyCommandPool)(mVkDevice, commandPool, nullptr);
+void DeviceDispatch::destroyCommandPool(VkCommandPool command_pool) const {
+    (*pfn_vkDestroyCommandPool)(device_, command_pool, nullptr);
 }
 
-bool DeviceDispatch::allocateCommandBuffers(const VkCommandPool commandPool,
+bool DeviceDispatch::allocateCommandBuffers(const VkCommandPool command_pool,
                                             const VkCommandBufferLevel level,
-                                            const uint32_t bufsSize, VkCommandBuffer* bufs) const {
+                                            const uint32_t bufs_size, VkCommandBuffer* bufs) const {
     const VkCommandBufferAllocateInfo cbai = {
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
         .pNext = nullptr,
-        .commandPool = commandPool,
+        .commandPool = command_pool,
         .level = level,
-        .commandBufferCount = bufsSize,
+        .commandBufferCount = bufs_size,
     };
 
-    const VkResult result = (*mPFN_vkAllocateCommandBuffers)(mVkDevice, &cbai, bufs);
+    const VkResult result = (*pfn_vkAllocateCommandBuffers)(device_, &cbai, bufs);
     if (result != VK_SUCCESS) {
-        logVkResult("vkAllocateCommandBuffers", result);
+        LogVkResult("vkAllocateCommandBuffers", result);
         return false;
     }
 
     return true;
 }
 
-void DeviceDispatch::freeCommandBuffers(const VkCommandPool commandPool, const uint32_t bufsSize,
+void DeviceDispatch::freeCommandBuffers(const VkCommandPool command_pool, const uint32_t bufs_size,
                                         const VkCommandBuffer* bufs) const {
-    (*mPFN_vkFreeCommandBuffers)(mVkDevice, commandPool, bufsSize, bufs);
+    (*pfn_vkFreeCommandBuffers)(device_, command_pool, bufs_size, bufs);
 }
 
 CommandBufferEnder DeviceDispatch::beginCommandBuffer(
-        const VkCommandBuffer cmdbuf, const VkCommandBufferUsageFlags usageFlags,
-        const bool occlusionQueryEnable, const VkQueryControlFlags queryFlags,
-        const VkQueryPipelineStatisticFlags pipelineStatistics) const {
+        const VkCommandBuffer cmdbuf, const VkCommandBufferUsageFlags usage_flags,
+        const bool occlusion_query_enable, const VkQueryControlFlags query_flags,
+        const VkQueryPipelineStatisticFlags pipeline_statistics) const {
     const VkCommandBufferInheritanceInfo cbii = {
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_INHERITANCE_INFO,
         .pNext = nullptr,
         .renderPass = VK_NULL_HANDLE,
         .subpass = 0,
         .framebuffer = VK_NULL_HANDLE,
-        .occlusionQueryEnable = (occlusionQueryEnable ? VK_TRUE : VK_FALSE),
-        .queryFlags = queryFlags,
-        .pipelineStatistics = pipelineStatistics,
+        .occlusionQueryEnable = (occlusion_query_enable ? VK_TRUE : VK_FALSE),
+        .queryFlags = query_flags,
+        .pipelineStatistics = pipeline_statistics,
     };
 
     const VkCommandBufferBeginInfo cbbi = {
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
         .pNext = nullptr,
-        .flags = usageFlags,
+        .flags = usage_flags,
         .pInheritanceInfo = &cbii,
     };
 
-    const VkResult result = (*mPFN_vkBeginCommandBuffer)(cmdbuf, &cbbi);
+    const VkResult result = (*pfn_vkBeginCommandBuffer)(cmdbuf, &cbbi);
     if (result != VK_SUCCESS) {
-        logVkResult("vkBeginCommandBuffer", result);
+        LogVkResult("vkBeginCommandBuffer", result);
         return {};
     }
 
-    return CommandBufferEnder(cmdbuf, CommandBufferEnderImpl(mPFN_vkEndCommandBuffer));
+    return CommandBufferEnder(cmdbuf, CommandBufferEnderImpl(pfn_vkEndCommandBuffer));
 }
 
-void DeviceDispatch::cmdCopyBuffer(const VkCommandBuffer commandBuffer, const VkBuffer src,
+void DeviceDispatch::cmdCopyBuffer(const VkCommandBuffer command_buffer, const VkBuffer src,
                                    const VkBuffer dst, size_t size) const {
     const VkBufferCopy region = {
         .srcOffset = 0,
@@ -327,77 +327,77 @@ void DeviceDispatch::cmdCopyBuffer(const VkCommandBuffer commandBuffer, const Vk
         .size = static_cast<VkDeviceSize>(size),
     };
 
-    (*mPFN_vkCmdCopyBuffer)(commandBuffer, src, dst, 1, &region);
+    (*pfn_vkCmdCopyBuffer)(command_buffer, src, dst, 1, &region);
 }
 
-bool DeviceDispatch::queueSubmit(VkQueue queue, const uint32_t submitCount,
+bool DeviceDispatch::queueSubmit(VkQueue queue, const uint32_t submit_count,
                                  const VkSubmitInfo* submits, const VkFence fence) const {
-    const VkResult result = (*mPFN_vkQueueSubmit)(queue, submitCount, submits, fence);
+    const VkResult result = (*pfn_vkQueueSubmit)(queue, submit_count, submits, fence);
     if (result != VK_SUCCESS) {
-        logVkResult("vkQueueSubmit", result);
+        LogVkResult("vkQueueSubmit", result);
         return false;
     }
 
     return true;
 }
 
-bool DeviceDispatch::queueSubmit(const VkQueue queue, const VkCommandBuffer commandBuffer,
+bool DeviceDispatch::queueSubmit(const VkQueue queue, const VkCommandBuffer command_buffer,
                                  const VkFence fence) const {
-    VkSubmitInfo submitInfo = {
+    VkSubmitInfo submit_info = {
         .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
         .pNext = nullptr,
         .waitSemaphoreCount = 0,
         .pWaitSemaphores = nullptr,
         .pWaitDstStageMask = nullptr,
         .commandBufferCount = 1,
-        .pCommandBuffers = &commandBuffer,
+        .pCommandBuffers = &command_buffer,
         .signalSemaphoreCount = 0,
         .pSignalSemaphores = nullptr,
     };
-    return queueSubmit(queue, 1, &submitInfo, fence);
+    return queueSubmit(queue, 1, &submit_info, fence);
 }
 
 bool DeviceDispatch::queueWaitIdle(const VkQueue queue) const {
-    const VkResult result = (*mPFN_vkQueueWaitIdle)(queue);
+    const VkResult result = (*pfn_vkQueueWaitIdle)(queue);
     if (result != VK_SUCCESS) {
-        logVkResult("vkQueueWaitIdle", result);
+        LogVkResult("vkQueueWaitIdle", result);
         return false;
     }
 
     return true;
 }
 
-ShaderModule DeviceDispatch::createShaderModule(const void* code, const size_t codeSize) const {
-    const VkShaderModuleCreateInfo createInfo = {
+ShaderModule DeviceDispatch::createShaderModule(const void* code, const size_t code_size) const {
+    const VkShaderModuleCreateInfo create_info = {
         .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
         .pNext = nullptr,
         .flags = 0,
-        .codeSize = codeSize,
+        .codeSize = code_size,
         .pCode = static_cast<const uint32_t*>(code),
     };
 
-    VkShaderModule shaderModule = VK_NULL_HANDLE;
+    VkShaderModule shader_module = VK_NULL_HANDLE;
     const VkResult result =
-            (*mPFN_vkCreateShaderModule)(mVkDevice, &createInfo, nullptr, &shaderModule);
+            (*pfn_vkCreateShaderModule)(device_, &create_info, nullptr, &shader_module);
     if (result != VK_SUCCESS) {
-        logVkResult("vkCreateShaderModule", result);
+        LogVkResult("vkCreateShaderModule", result);
         return {};
     }
 
-    return ShaderModule(shaderModule, DeviceResourceDeleter(this));
+    return ShaderModule(shader_module, DeviceResourceDeleter(this));
 }
 
-void DeviceDispatch::destroyShaderModule(const VkShaderModule shaderModule) const {
-    (*mPFN_vkDestroyShaderModule)(mVkDevice, shaderModule, nullptr);
+void DeviceDispatch::destroyShaderModule(const VkShaderModule shader_module) const {
+    (*pfn_vkDestroyShaderModule)(device_, shader_module, nullptr);
 }
 
 DescriptorSetLayout DeviceDispatch::createDescriptorSetLayout(
-        const VkDescriptorSetLayoutCreateInfo& createInfo) const {
+        const VkDescriptorSetLayoutCreateInfo& create_info) const {
     VkDescriptorSetLayout layout = VK_NULL_HANDLE;
     const VkResult result =
-            (*mPFN_vkCreateDescriptorSetLayout)(mVkDevice, &createInfo, nullptr, &layout);
+            (*pfn_vkCreateDescriptorSetLayout)(device_, &create_info, nullptr, &layout);
     if (result != VK_SUCCESS) {
-        logVkResult("vkCreateDescriptorSetLayout", result);
+        LogVkResult("vkCreateDescriptorSetLayout", result);
         return {};
     }
 
@@ -405,97 +405,97 @@ DescriptorSetLayout DeviceDispatch::createDescriptorSetLayout(
 }
 
 DescriptorSetLayout DeviceDispatch::createDescriptorSetLayout(
-        const uint32_t bindingCount, const VkDescriptorSetLayoutBinding* bindings,
+        const uint32_t binding_count, const VkDescriptorSetLayoutBinding* bindings,
         const VkDescriptorSetLayoutCreateFlags flags) const {
-    const VkDescriptorSetLayoutCreateInfo createInfo = {
+    const VkDescriptorSetLayoutCreateInfo create_info = {
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
         .pNext = nullptr,
         .flags = flags,
-        .bindingCount = bindingCount,
+        .bindingCount = binding_count,
         .pBindings = bindings,
     };
 
-    return createDescriptorSetLayout(createInfo);
+    return createDescriptorSetLayout(create_info);
 }
 
 void DeviceDispatch::destroyDescriptorSetLayout(const VkDescriptorSetLayout layout) const {
-    (*mPFN_vkDestroyDescriptorSetLayout)(mVkDevice, layout, nullptr);
+    (*pfn_vkDestroyDescriptorSetLayout)(device_, layout, nullptr);
 }
 
-DescriptorPool DeviceDispatch::createDescriptorPool(VkDescriptorPoolCreateFlags, uint32_t maxSets,
-                                                    uint32_t poolSizeCount,
-                                                    const VkDescriptorPoolSize* poolSizes) const {
-    const VkDescriptorPoolCreateInfo createInfo = {
+DescriptorPool DeviceDispatch::createDescriptorPool(VkDescriptorPoolCreateFlags, uint32_t max_sets,
+                                                    uint32_t pool_size_count,
+                                                    const VkDescriptorPoolSize* pool_sizes) const {
+    const VkDescriptorPoolCreateInfo create_info = {
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
         .pNext = nullptr,
         .flags = 0,
-        .maxSets = maxSets,
-        .poolSizeCount = poolSizeCount,
-        .pPoolSizes = poolSizes,
+        .maxSets = max_sets,
+        .poolSizeCount = pool_size_count,
+        .pPoolSizes = pool_sizes,
     };
 
-    VkDescriptorPool descriptorPool = VK_NULL_HANDLE;
+    VkDescriptorPool descriptor_pool = VK_NULL_HANDLE;
     const VkResult result =
-            (*mPFN_vkCreateDescriptorPool)(mVkDevice, &createInfo, nullptr, &descriptorPool);
+            (*pfn_vkCreateDescriptorPool)(device_, &create_info, nullptr, &descriptor_pool);
     if (result != VK_SUCCESS) {
-        logVkResult("vkCreateDescriptorPool", result);
+        LogVkResult("vkCreateDescriptorPool", result);
         return {};
     }
 
-    return DescriptorPool(descriptorPool, DeviceResourceDeleter(this));
+    return DescriptorPool(descriptor_pool, DeviceResourceDeleter(this));
 }
 
-void DeviceDispatch::destroyDescriptorPool(VkDescriptorPool descriptorPool) const {
-    (*mPFN_vkDestroyDescriptorPool)(mVkDevice, descriptorPool, nullptr);
+void DeviceDispatch::destroyDescriptorPool(VkDescriptorPool descriptor_pool) const {
+    (*pfn_vkDestroyDescriptorPool)(device_, descriptor_pool, nullptr);
 }
 
-bool DeviceDispatch::allocateDescriptorSets(const VkDescriptorPool descriptorPool,
-                                            const uint32_t descriptorSetCount,
-                                            const VkDescriptorSetLayout* setLayouts,
-                                            VkDescriptorSet* descriptorSets) const {
-    const VkDescriptorSetAllocateInfo allocInfo = {
+bool DeviceDispatch::allocateDescriptorSets(const VkDescriptorPool descriptor_pool,
+                                            const uint32_t descriptor_set_count,
+                                            const VkDescriptorSetLayout* set_layouts,
+                                            VkDescriptorSet* descriptor_sets) const {
+    const VkDescriptorSetAllocateInfo alloc_info = {
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
         .pNext = nullptr,
-        .descriptorPool = descriptorPool,
-        .descriptorSetCount = descriptorSetCount,
-        .pSetLayouts = setLayouts,
+        .descriptorPool = descriptor_pool,
+        .descriptorSetCount = descriptor_set_count,
+        .pSetLayouts = set_layouts,
     };
 
-    const VkResult result = (*mPFN_vkAllocateDescriptorSets)(mVkDevice, &allocInfo, descriptorSets);
+    const VkResult result = (*pfn_vkAllocateDescriptorSets)(device_, &alloc_info, descriptor_sets);
     if (result != VK_SUCCESS) {
-        logVkResult("vkAllocateDescriptorSets", result);
+        LogVkResult("vkAllocateDescriptorSets", result);
         return false;
     }
 
     return true;
 }
 
-void DeviceDispatch::updateDescriptorSets(const uint32_t descriptorWriteCount,
-                                          const VkWriteDescriptorSet* descriptorWrites,
-                                          const uint32_t descriptorCopyCount,
-                                          const VkCopyDescriptorSet* descriptorCopies) const {
-    (*mPFN_vkUpdateDescriptorSets)(mVkDevice, descriptorWriteCount, descriptorWrites,
-                                   descriptorCopyCount, descriptorCopies);
+void DeviceDispatch::updateDescriptorSets(const uint32_t descriptor_write_count,
+                                          const VkWriteDescriptorSet* descriptor_writes,
+                                          const uint32_t descriptor_copy_count,
+                                          const VkCopyDescriptorSet* descriptor_copies) const {
+    (*pfn_vkUpdateDescriptorSets)(device_, descriptor_write_count, descriptor_writes,
+                                  descriptor_copy_count, descriptor_copies);
 }
 
-bool DeviceDispatch::freeDescriptorSets(const VkDescriptorPool descriptorPool,
-                                        const uint32_t descriptorSetCount,
-                                        const VkDescriptorSet* descriptorSets) const {
-    const VkResult result = (*mPFN_vkFreeDescriptorSets)(mVkDevice, descriptorPool,
-                                                         descriptorSetCount, descriptorSets);
+bool DeviceDispatch::freeDescriptorSets(const VkDescriptorPool descriptor_pool,
+                                        const uint32_t descriptor_set_count,
+                                        const VkDescriptorSet* descriptor_sets) const {
+    const VkResult result = (*pfn_vkFreeDescriptorSets)(device_, descriptor_pool,
+                                                        descriptor_set_count, descriptor_sets);
     if (result != VK_SUCCESS) {
-        logVkResult("vkFreeDescriptorSets", result);
+        LogVkResult("vkFreeDescriptorSets", result);
         return false;
     }
 
     return true;
 }
 
-Image DeviceDispatch::createImage(const VkImageCreateInfo& createInfo) const {
+Image DeviceDispatch::createImage(const VkImageCreateInfo& create_info) const {
     VkImage image = VK_NULL_HANDLE;
-    const VkResult result = (*mPFN_vkCreateImage)(mVkDevice, &createInfo, nullptr, &image);
+    const VkResult result = (*pfn_vkCreateImage)(device_, &create_info, nullptr, &image);
     if (result != VK_SUCCESS) {
-        logVkResult("vkCreateImage", result);
+        LogVkResult("vkCreateImage", result);
         return {};
     }
 
@@ -503,16 +503,16 @@ Image DeviceDispatch::createImage(const VkImageCreateInfo& createInfo) const {
 }
 
 VkMemoryRequirements DeviceDispatch::getImageMemoryRequirements(const VkImage image) const {
-    VkMemoryRequirements memReqs;
-    (*mPFN_vkGetImageMemoryRequirements)(mVkDevice, image, &memReqs);
-    return memReqs;
+    VkMemoryRequirements mem_reqs;
+    (*pfn_vkGetImageMemoryRequirements)(device_, image, &mem_reqs);
+    return mem_reqs;
 }
 
 bool DeviceDispatch::bindImageMemory(const VkImage image, const VkDeviceMemory memory,
                                      const size_t offset) const {
-    const VkResult result = (*mPFN_vkBindImageMemory)(mVkDevice, image, memory, offset);
+    const VkResult result = (*pfn_vkBindImageMemory)(device_, image, memory, offset);
     if (result != VK_SUCCESS) {
-        logVkResult("vkBindImageMemory", result);
+        LogVkResult("vkBindImageMemory", result);
         return false;
     }
 
@@ -520,34 +520,34 @@ bool DeviceDispatch::bindImageMemory(const VkImage image, const VkDeviceMemory m
 }
 
 void DeviceDispatch::destroyImage(const VkImage image) const {
-    (*mPFN_vkDestroyImage)(mVkDevice, image, nullptr);
+    (*pfn_vkDestroyImage)(device_, image, nullptr);
 }
 
-ImageView DeviceDispatch::createImageView(const VkImageViewCreateInfo& createInfo) const {
-    VkImageView imageView = VK_NULL_HANDLE;
-    const VkResult result = (*mPFN_vkCreateImageView)(mVkDevice, &createInfo, nullptr, &imageView);
+ImageView DeviceDispatch::createImageView(const VkImageViewCreateInfo& create_info) const {
+    VkImageView image_view = VK_NULL_HANDLE;
+    const VkResult result = (*pfn_vkCreateImageView)(device_, &create_info, nullptr, &image_view);
     if (result != VK_SUCCESS) {
-        logVkResult("vkCreateImageView", result);
+        LogVkResult("vkCreateImageView", result);
         return {};
     }
 
-    return ImageView(imageView, DeviceResourceDeleter(this));
+    return ImageView(image_view, DeviceResourceDeleter(this));
 }
 
-ImageView DeviceDispatch::createImageView(const VkImage image, const VkImageViewType viewType,
+ImageView DeviceDispatch::createImageView(const VkImage image, const VkImageViewType view_type,
                                           const VkFormat format,
-                                          const VkImageAspectFlags aspectFlags) const {
-    const VkImageViewCreateInfo createInfo = {
+                                          const VkImageAspectFlags aspect_flags) const {
+    const VkImageViewCreateInfo create_info = {
         .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
         .pNext = nullptr,
         .flags = 0,
         .image = image,
-        .viewType = viewType,
+        .viewType = view_type,
         .format = format,
         .components = {},  // zero-initialize to VK_COMPONENT_SWIZZLE_IDENTITY
         .subresourceRange =
                 {
-                    .aspectMask = aspectFlags,
+                    .aspectMask = aspect_flags,
                     .baseMipLevel = 0,
                     .levelCount = 1,
                     .baseArrayLayer = 0,
@@ -555,76 +555,75 @@ ImageView DeviceDispatch::createImageView(const VkImage image, const VkImageView
                 },
     };
 
-    return createImageView(createInfo);
+    return createImageView(create_info);
 }
 
-void DeviceDispatch::destroyImageView(const VkImageView imageView) const {
-    (*mPFN_vkDestroyImageView)(mVkDevice, imageView, nullptr);
+void DeviceDispatch::destroyImageView(const VkImageView image_view) const {
+    (*pfn_vkDestroyImageView)(device_, image_view, nullptr);
 }
 
 RenderPass DeviceDispatch::createRenderPass(const VkRenderPassCreateInfo& rpci) const {
-    VkRenderPass renderPass = VK_NULL_HANDLE;
-    const VkResult result = (*mPFN_vkCreateRenderPass)(mVkDevice, &rpci, nullptr, &renderPass);
+    VkRenderPass render_pass = VK_NULL_HANDLE;
+    const VkResult result = (*pfn_vkCreateRenderPass)(device_, &rpci, nullptr, &render_pass);
     if (result != VK_SUCCESS) {
-        logVkResult("vkCreateRenderPass", result);
+        LogVkResult("vkCreateRenderPass", result);
         return {};
     }
 
-    return RenderPass(renderPass, DeviceResourceDeleter(this));
+    return RenderPass(render_pass, DeviceResourceDeleter(this));
 }
 
-void DeviceDispatch::destroyRenderPass(const VkRenderPass renderPass) const {
-    (*mPFN_vkDestroyRenderPass)(mVkDevice, renderPass, nullptr);
+void DeviceDispatch::destroyRenderPass(const VkRenderPass render_pass) const {
+    (*pfn_vkDestroyRenderPass)(device_, render_pass, nullptr);
 }
 
-Framebuffer DeviceDispatch::createFramebuffer(const VkFramebufferCreateInfo& createInfo) const {
+Framebuffer DeviceDispatch::createFramebuffer(const VkFramebufferCreateInfo& create_info) const {
     VkFramebuffer framebuffer = VK_NULL_HANDLE;
     const VkResult result =
-            (*mPFN_vkCreateFramebuffer)(mVkDevice, &createInfo, nullptr, &framebuffer);
+            (*pfn_vkCreateFramebuffer)(device_, &create_info, nullptr, &framebuffer);
     if (result != VK_SUCCESS) {
-        logVkResult("vkCreateFramebuffer", result);
+        LogVkResult("vkCreateFramebuffer", result);
         return {};
     }
 
     return Framebuffer(framebuffer, DeviceResourceDeleter(this));
 }
 
-Framebuffer DeviceDispatch::createFramebuffer(const VkRenderPass renderPass,
-                                              const uint32_t attachmentCount,
+Framebuffer DeviceDispatch::createFramebuffer(const VkRenderPass render_pass,
+                                              const uint32_t attachment_count,
                                               const VkImageView* attachments, const uint32_t width,
                                               const uint32_t height, const uint32_t layers) const {
-    const VkFramebufferCreateInfo createInfo = {
+    const VkFramebufferCreateInfo create_info = {
         .sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
         .pNext = nullptr,
         .flags = 0,
-        .renderPass = renderPass,
-        .attachmentCount = attachmentCount,
+        .renderPass = render_pass,
+        .attachmentCount = attachment_count,
         .pAttachments = attachments,
         .width = width,
         .height = height,
         .layers = layers,
     };
 
-    return createFramebuffer(createInfo);
+    return createFramebuffer(create_info);
 }
 
-Framebuffer DeviceDispatch::createFramebuffer(const VkRenderPass renderPass,
+Framebuffer DeviceDispatch::createFramebuffer(const VkRenderPass render_pass,
                                               const VkImageView attachment, const uint32_t width,
                                               const uint32_t height, const uint32_t layers) const {
-    return createFramebuffer(renderPass, 1, &attachment, width, height, layers);
+    return createFramebuffer(render_pass, 1, &attachment, width, height, layers);
 }
 
 void DeviceDispatch::destroyFramebuffer(const VkFramebuffer framebuffer) const {
-    (*mPFN_vkDestroyFramebuffer)(mVkDevice, framebuffer, nullptr);
+    (*pfn_vkDestroyFramebuffer)(device_, framebuffer, nullptr);
 }
 
 PipelineLayout DeviceDispatch::createPipelineLayout(
-        const VkPipelineLayoutCreateInfo& createInfo) const {
+        const VkPipelineLayoutCreateInfo& create_info) const {
     VkPipelineLayout layout = VK_NULL_HANDLE;
-    const VkResult result =
-            (*mPFN_vkCreatePipelineLayout)(mVkDevice, &createInfo, nullptr, &layout);
+    const VkResult result = (*pfn_vkCreatePipelineLayout)(device_, &create_info, nullptr, &layout);
     if (result != VK_SUCCESS) {
-        logVkResult("vkCreatePipelineLayout", result);
+        LogVkResult("vkCreatePipelineLayout", result);
         return {};
     }
 
@@ -632,54 +631,55 @@ PipelineLayout DeviceDispatch::createPipelineLayout(
 }
 
 PipelineLayout DeviceDispatch::createPipelineLayout(
-        const uint32_t setLayoutCount, const VkDescriptorSetLayout* setLayouts,
-        const uint32_t pushConstantRangeCount,
-        const VkPushConstantRange* pushConstantRanges) const {
-    const VkPipelineLayoutCreateInfo createInfo = {
+        const uint32_t set_layout_count, const VkDescriptorSetLayout* set_layouts,
+        const uint32_t push_constant_range_count,
+        const VkPushConstantRange* push_constant_ranges) const {
+    const VkPipelineLayoutCreateInfo create_info = {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
         .pNext = nullptr,
         .flags = 0,
-        .setLayoutCount = setLayoutCount,
-        .pSetLayouts = setLayouts,
-        .pushConstantRangeCount = pushConstantRangeCount,
-        .pPushConstantRanges = pushConstantRanges,
+        .setLayoutCount = set_layout_count,
+        .pSetLayouts = set_layouts,
+        .pushConstantRangeCount = push_constant_range_count,
+        .pPushConstantRanges = push_constant_ranges,
     };
 
-    return createPipelineLayout(createInfo);
+    return createPipelineLayout(create_info);
 }
 
-void DeviceDispatch::destroyPipelineLayout(const VkPipelineLayout pipelineLayout) const {
-    (*mPFN_vkDestroyPipelineLayout)(mVkDevice, pipelineLayout, nullptr);
+void DeviceDispatch::destroyPipelineLayout(const VkPipelineLayout pipeline_layout) const {
+    (*pfn_vkDestroyPipelineLayout)(device_, pipeline_layout, nullptr);
 }
 
-bool DeviceDispatch::createGraphicsPipelinesImpl(uint32_t createInfoCount,
-                                                 const VkGraphicsPipelineCreateInfo* createInfos,
-                                                 VkPipeline* pipelinesTmp,
+bool DeviceDispatch::createGraphicsPipelinesImpl(uint32_t create_info_count,
+                                                 const VkGraphicsPipelineCreateInfo* create_infos,
+                                                 VkPipeline* pipelines_tmp,
                                                  Pipeline* pipelines) const {
-    const VkResult result = (*mPFN_vkCreateGraphicsPipelines)(
-            mVkDevice, VK_NULL_HANDLE, createInfoCount, createInfos, nullptr, pipelinesTmp);
+    const VkResult result = (*pfn_vkCreateGraphicsPipelines)(
+            device_, VK_NULL_HANDLE, create_info_count, create_infos, nullptr, pipelines_tmp);
     if (result != VK_SUCCESS) {
-        logVkResult("vkCreateGraphicsPipelines", result);
+        LogVkResult("vkCreateGraphicsPipelines", result);
         return false;
     }
 
-    for (; createInfoCount > 0; --createInfoCount, ++pipelinesTmp, ++pipelines) {
-        *pipelines = Pipeline(*pipelinesTmp, DeviceResourceDeleter(this));
+    for (; create_info_count > 0; --create_info_count, ++pipelines_tmp, ++pipelines) {
+        *pipelines = Pipeline(*pipelines_tmp, DeviceResourceDeleter(this));
     }
 
     return true;
 }
 
-bool DeviceDispatch::createGraphicsPipelines(const uint32_t createInfoCount,
-                                             const VkGraphicsPipelineCreateInfo* createInfos,
+bool DeviceDispatch::createGraphicsPipelines(const uint32_t create_info_count,
+                                             const VkGraphicsPipelineCreateInfo* create_infos,
                                              Pipeline* pipelines) const {
     constexpr size_t kSmallSize = 8;
-    if (createInfoCount <= kSmallSize) {
-        VkPipeline pipelinesTmp[kSmallSize];
-        return createGraphicsPipelinesImpl(createInfoCount, createInfos, pipelinesTmp, pipelines);
+    if (create_info_count <= kSmallSize) {
+        VkPipeline pipelines_tmp[kSmallSize];
+        return createGraphicsPipelinesImpl(create_info_count, create_infos, pipelines_tmp,
+                                           pipelines);
     } else {
-        std::vector<VkPipeline> pipelinesTmp(createInfoCount);
-        return createGraphicsPipelinesImpl(createInfoCount, createInfos, pipelinesTmp.data(),
+        std::vector<VkPipeline> pipelines_tmp(create_info_count);
+        return createGraphicsPipelinesImpl(create_info_count, create_infos, pipelines_tmp.data(),
                                            pipelines);
     }
 
@@ -687,107 +687,112 @@ bool DeviceDispatch::createGraphicsPipelines(const uint32_t createInfoCount,
 }
 
 void DeviceDispatch::destroyPipeline(const VkPipeline pipeline) const {
-    (*mPFN_vkDestroyPipeline)(mVkDevice, pipeline, nullptr);
+    (*pfn_vkDestroyPipeline)(device_, pipeline, nullptr);
 }
 
-RenderPassEnder DeviceDispatch::cmdBeginRenderPass(
-        const VkCommandBuffer commandBuffer, const VkRenderPass renderPass,
-        const VkFramebuffer framebuffer, const VkRect2D& renderArea, const uint32_t clearValueCount,
-        const VkClearValue* clearValues, const VkSubpassContents subpassContents) const {
-    const VkRenderPassBeginInfo renderPassBeginInfo = {
+RenderPassEnder DeviceDispatch::cmdBeginRenderPass(const VkCommandBuffer command_buffer,
+                                                   const VkRenderPass render_pass,
+                                                   const VkFramebuffer framebuffer,
+                                                   const VkRect2D& render_area,
+                                                   const uint32_t clear_value_count,
+                                                   const VkClearValue* clear_values,
+                                                   const VkSubpassContents subpass_contents) const {
+    const VkRenderPassBeginInfo render_pass_begin_info = {
         .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
         .pNext = nullptr,
-        .renderPass = renderPass,
+        .renderPass = render_pass,
         .framebuffer = framebuffer,
-        .renderArea = renderArea,
-        .clearValueCount = clearValueCount,
-        .pClearValues = clearValues,
+        .renderArea = render_area,
+        .clearValueCount = clear_value_count,
+        .pClearValues = clear_values,
     };
 
-    (*mPFN_vkCmdBeginRenderPass)(commandBuffer, &renderPassBeginInfo, subpassContents);
+    (*pfn_vkCmdBeginRenderPass)(command_buffer, &render_pass_begin_info, subpass_contents);
 
-    return RenderPassEnder(commandBuffer, RenderPassEnderImpl(mPFN_vkCmdEndRenderPass));
+    return RenderPassEnder(command_buffer, RenderPassEnderImpl(pfn_vkCmdEndRenderPass));
 }
 
-void DeviceDispatch::cmdBindPipeline(const VkCommandBuffer commandBuffer,
-                                     const VkPipelineBindPoint bindPoint,
+void DeviceDispatch::cmdBindPipeline(const VkCommandBuffer command_buffer,
+                                     const VkPipelineBindPoint bind_point,
                                      const VkPipeline pipeline) const {
-    (*mPFN_vkCmdBindPipeline)(commandBuffer, bindPoint, pipeline);
+    (*pfn_vkCmdBindPipeline)(command_buffer, bind_point, pipeline);
 }
 
-void DeviceDispatch::cmdBindDescriptorSets(const VkCommandBuffer commandBuffer,
-                                           const VkPipelineBindPoint pipelineBindPoint,
-                                           const VkPipelineLayout layout, const uint32_t firstSet,
-                                           const uint32_t descriptorSetCount,
-                                           const VkDescriptorSet* descriptorSets,
-                                           const uint32_t dynamicOffsetCount,
-                                           const uint32_t* dynamicOffsets) const {
-    (*mPFN_vkCmdBindDescriptorSets)(commandBuffer, pipelineBindPoint, layout, firstSet,
-                                    descriptorSetCount, descriptorSets, dynamicOffsetCount,
-                                    dynamicOffsets);
+void DeviceDispatch::cmdBindDescriptorSets(const VkCommandBuffer command_buffer,
+                                           const VkPipelineBindPoint pipeline_bind_point,
+                                           const VkPipelineLayout layout, const uint32_t first_set,
+                                           const uint32_t descriptor_set_count,
+                                           const VkDescriptorSet* descriptor_sets,
+                                           const uint32_t dynamic_offset_count,
+                                           const uint32_t* dynamic_offsets) const {
+    (*pfn_vkCmdBindDescriptorSets)(command_buffer, pipeline_bind_point, layout, first_set,
+                                   descriptor_set_count, descriptor_sets, dynamic_offset_count,
+                                   dynamic_offsets);
 }
 
-void DeviceDispatch::cmdBindVertexBuffers(const VkCommandBuffer commandBuffer,
-                                          const uint32_t firstBinding, const uint32_t bindingCount,
-                                          const VkBuffer* buffers,
+void DeviceDispatch::cmdBindVertexBuffers(const VkCommandBuffer command_buffer,
+                                          const uint32_t first_binding,
+                                          const uint32_t binding_count, const VkBuffer* buffers,
                                           const VkDeviceSize* offsets) const {
-    (*mPFN_vkCmdBindVertexBuffers)(commandBuffer, firstBinding, bindingCount, buffers, offsets);
+    (*pfn_vkCmdBindVertexBuffers)(command_buffer, first_binding, binding_count, buffers, offsets);
 }
 
-void DeviceDispatch::cmdBindIndexBuffer(const VkCommandBuffer commandBuffer, const VkBuffer buffer,
+void DeviceDispatch::cmdBindIndexBuffer(const VkCommandBuffer command_buffer, const VkBuffer buffer,
                                         const VkDeviceSize offset,
-                                        const VkIndexType indexType) const {
-    (*mPFN_vkCmdBindIndexBuffer)(commandBuffer, buffer, offset, indexType);
+                                        const VkIndexType index_type) const {
+    (*pfn_vkCmdBindIndexBuffer)(command_buffer, buffer, offset, index_type);
 }
 
-void DeviceDispatch::cmdDrawIndexed(const VkCommandBuffer commandBuffer, const uint32_t indexCount,
-                                    const uint32_t instanceCount, const uint32_t firstIndex,
-                                    const int32_t vertexOffset, uint32_t firstInstance) const {
-    (*mPFN_vkCmdDrawIndexed)(commandBuffer, indexCount, instanceCount, firstIndex, vertexOffset,
-                             firstInstance);
+void DeviceDispatch::cmdDrawIndexed(const VkCommandBuffer command_buffer,
+                                    const uint32_t index_count, const uint32_t instance_count,
+                                    const uint32_t first_index, const int32_t vertex_offset,
+                                    uint32_t first_instance) const {
+    (*pfn_vkCmdDrawIndexed)(command_buffer, index_count, instance_count, first_index, vertex_offset,
+                            first_instance);
 }
 
-void DeviceDispatch::cmdBlitImage(const VkCommandBuffer commandBuffer, const VkImage srcImage,
-                                  const VkImageLayout srcImageLayout, const VkImage dstImage,
-                                  const VkImageLayout dstImageLayout, const uint32_t regionCount,
+void DeviceDispatch::cmdBlitImage(const VkCommandBuffer command_buffer, const VkImage src_image,
+                                  const VkImageLayout src_image_layout, const VkImage dst_image,
+                                  const VkImageLayout dst_image_layout, const uint32_t region_count,
                                   const VkImageBlit* regions, const VkFilter filter) const {
-    (*mPFN_vkCmdBlitImage)(commandBuffer, srcImage, srcImageLayout, dstImage, dstImageLayout,
-                           regionCount, regions, filter);
+    (*pfn_vkCmdBlitImage)(command_buffer, src_image, src_image_layout, dst_image, dst_image_layout,
+                          region_count, regions, filter);
 }
 
-void DeviceDispatch::cmdCopyImageToBuffer(const VkCommandBuffer commandBuffer,
-                                          const VkImage srcImage,
-                                          const VkImageLayout srcImageLayout,
-                                          const VkBuffer dstBuffer, const uint32_t regionCount,
+void DeviceDispatch::cmdCopyImageToBuffer(const VkCommandBuffer command_buffer,
+                                          const VkImage src_image,
+                                          const VkImageLayout src_image_layout,
+                                          const VkBuffer dst_buffer, const uint32_t region_count,
                                           const VkBufferImageCopy* regions) const {
-    (*mPFN_vkCmdCopyImageToBuffer)(commandBuffer, srcImage, srcImageLayout, dstBuffer, regionCount,
-                                   regions);
+    (*pfn_vkCmdCopyImageToBuffer)(command_buffer, src_image, src_image_layout, dst_buffer,
+                                  region_count, regions);
 }
 
 void DeviceDispatch::cmdPipelineBarrier(
-        VkCommandBuffer commandBuffer, VkPipelineStageFlags srcStageMask,
-        VkPipelineStageFlags dstStageMask, VkDependencyFlags dependencyFlags,
-        uint32_t memoryBarrierCount, const VkMemoryBarrier* memoryBarriers,
-        uint32_t bufferMemoryBarrierCount, const VkBufferMemoryBarrier* bufferMemoryBarriers,
-        uint32_t imageMemoryBarrierCount, const VkImageMemoryBarrier* imageMemoryBarriers) const {
-    (*mPFN_vkCmdPipelineBarrier)(commandBuffer, srcStageMask, dstStageMask, dependencyFlags,
-                                 memoryBarrierCount, memoryBarriers, bufferMemoryBarrierCount,
-                                 bufferMemoryBarriers, imageMemoryBarrierCount,
-                                 imageMemoryBarriers);
+        VkCommandBuffer command_buffer, VkPipelineStageFlags src_stage_mask,
+        VkPipelineStageFlags dst_stage_mask, VkDependencyFlags dependency_flags,
+        uint32_t memory_barrier_count, const VkMemoryBarrier* memory_barriers,
+        uint32_t buffer_memory_barrier_count, const VkBufferMemoryBarrier* buffer_memory_barriers,
+        uint32_t image_memory_barrier_count,
+        const VkImageMemoryBarrier* image_memory_barriers) const {
+    (*pfn_vkCmdPipelineBarrier)(command_buffer, src_stage_mask, dst_stage_mask, dependency_flags,
+                                memory_barrier_count, memory_barriers, buffer_memory_barrier_count,
+                                buffer_memory_barriers, image_memory_barrier_count,
+                                image_memory_barriers);
 }
 
 VkSubresourceLayout DeviceDispatch::getImageSubresourceLayout(const VkImage image,
-                                                              const VkImageAspectFlags aspectMask,
-                                                              const uint32_t mipLevel,
-                                                              const uint32_t arrayLayer) const {
+                                                              const VkImageAspectFlags aspect_mask,
+                                                              const uint32_t mip_level,
+                                                              const uint32_t array_layer) const {
     const VkImageSubresource subresource = {
-        .aspectMask = aspectMask,
-        .mipLevel = mipLevel,
-        .arrayLayer = arrayLayer,
+        .aspectMask = aspect_mask,
+        .mipLevel = mip_level,
+        .arrayLayer = array_layer,
     };
 
     VkSubresourceLayout layout;
-    (*mPFN_vkGetImageSubresourceLayout)(mVkDevice, image, &subresource, &layout);
+    (*pfn_vkGetImageSubresourceLayout)(device_, image, &subresource, &layout);
     return layout;
 }
 

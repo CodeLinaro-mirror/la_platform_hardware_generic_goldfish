@@ -157,7 +157,7 @@ cc_test(
 clang_tidy_test(
     name = "tidy",
     targets = [
-        "interceptors",
+        ":interceptors",
     ],
     tidy_config_file = "//:clang_tidy_config",
 )

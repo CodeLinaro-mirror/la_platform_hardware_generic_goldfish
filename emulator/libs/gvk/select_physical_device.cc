@@ -26,39 +26,39 @@ namespace {
 using PhysicalDeviceAndPropPair = std::pair<VkPhysicalDevice, VkPhysicalDeviceProperties>;
 using PhysicalDevicesAndProps = std::vector<PhysicalDeviceAndPropPair>;
 
-PhysicalDevicesAndProps getAllPhysicalDevicesAndProps(const InstanceDispatch& instanceDispatch) {
+PhysicalDevicesAndProps GetAllPhysicalDevicesAndProps(const InstanceDispatch& instance_dispatch) {
     VkResult result;
 
-    uint32_t devCount = 0;
-    result = instanceDispatch.enumeratePhysicalDevices(&devCount, nullptr);
+    uint32_t dev_count = 0;
+    result = instance_dispatch.enumeratePhysicalDevices(&dev_count, nullptr);
     if (result != VK_SUCCESS) {
         LOG(ERROR) << "`enumeratePhysicalDevices` failed with " << result;
         return {};
     }
 
-    std::vector<VkPhysicalDevice> devs(devCount);
-    result = instanceDispatch.enumeratePhysicalDevices(&devCount, devs.data());
+    std::vector<VkPhysicalDevice> devs(dev_count);
+    result = instance_dispatch.enumeratePhysicalDevices(&dev_count, devs.data());
     if (result != VK_SUCCESS) {
         LOG(ERROR) << "`enumeratePhysicalDevices` failed with " << result;
         return {};
     }
 
-    PhysicalDevicesAndProps physicalDevicesAndProps(devCount);
-    for (uint32_t i = 0; i < devCount; ++i) {
+    PhysicalDevicesAndProps physical_devices_and_props(dev_count);
+    for (uint32_t i = 0; i < dev_count; ++i) {
         const VkPhysicalDevice dev = devs[i];
-        physicalDevicesAndProps[i] = {dev, instanceDispatch.getPhysicalDeviceProperties(dev)};
+        physical_devices_and_props[i] = {dev, instance_dispatch.getPhysicalDeviceProperties(dev)};
     }
 
-    std::sort(physicalDevicesAndProps.begin(), physicalDevicesAndProps.end(),
+    std::sort(physical_devices_and_props.begin(), physical_devices_and_props.end(),
               [](const PhysicalDeviceAndPropPair& lhsp, const PhysicalDeviceAndPropPair& rhsp) {
                   const VkPhysicalDeviceProperties& lhs = lhsp.second;
                   const VkPhysicalDeviceProperties& rhs = rhsp.second;
 
-                  const int byName =
+                  const int by_name =
                           ::strncmp(lhs.deviceName, rhs.deviceName, sizeof(lhs.deviceName));
-                  if (byName < 0) {
+                  if (by_name < 0) {
                       return true;
-                  } else if (byName > 0) {
+                  } else if (by_name > 0) {
                       return false;
                   } else {
                       return ::memcmp(lhs.pipelineCacheUUID, rhs.pipelineCacheUUID,
@@ -66,10 +66,10 @@ PhysicalDevicesAndProps getAllPhysicalDevicesAndProps(const InstanceDispatch& in
                   }
               });
 
-    return physicalDevicesAndProps;
+    return physical_devices_and_props;
 }
 
-const char* getRejectionReasonStr(const PhysicalDeviceRejectionReason reason) {
+const char* GetRejectionReasonString(const PhysicalDeviceRejectionReason reason) {
     switch (reason) {
     case PhysicalDeviceRejectionReason::NONE:
         break;
@@ -94,40 +94,40 @@ const char* getRejectionReasonStr(const PhysicalDeviceRejectionReason reason) {
 }
 }  // namespace
 
-VkPhysicalDevice selectPhysicalDevice(const InstanceDispatch& instanceDispatch,
-                                      const PhysicalDeviceScoringFunction& scoringFunc,
+VkPhysicalDevice SelectPhysicalDevice(const InstanceDispatch& instance_dispatch,
+                                      const PhysicalDeviceScoringFunction& scoring_func,
                                       const bool verbose) {
-    const PhysicalDevicesAndProps physicalDevicesAndProps =
-            getAllPhysicalDevicesAndProps(instanceDispatch);
+    const PhysicalDevicesAndProps physical_devices_and_props =
+            GetAllPhysicalDevicesAndProps(instance_dispatch);
 
-    int32_t bestScoreSoFar = -1;
-    VkPhysicalDevice bestDeviceSoFar = VK_NULL_HANDLE;
+    int32_t best_score_so_far = -1;
+    VkPhysicalDevice best_device_so_far = VK_NULL_HANDLE;
 
-    const uint32_t devCount = physicalDevicesAndProps.size();
-    for (uint32_t i = 0; i < devCount; ++i) {
-        const PhysicalDeviceAndPropPair& dp = physicalDevicesAndProps[i];
+    const uint32_t dev_count = physical_devices_and_props.size();
+    for (uint32_t i = 0; i < dev_count; ++i) {
+        const PhysicalDeviceAndPropPair& dp = physical_devices_and_props[i];
         const VkPhysicalDeviceProperties& props = dp.second;
 
         int32_t score;
         if (VK_API_VERSION_VARIANT(props.apiVersion) > 0) {
             score = -static_cast<int32_t>(PhysicalDeviceRejectionReason::NOT_VULKAN);
         } else {
-            score = scoringFunc(props);
-            if (score > bestScoreSoFar) {
-                bestScoreSoFar = score;
-                bestDeviceSoFar = dp.first;
+            score = scoring_func(props);
+            if (score > best_score_so_far) {
+                best_score_so_far = score;
+                best_device_so_far = dp.first;
             }
         }
 
         if (verbose) {
-            const char* scoreStr;
-            char scoreStrBuf[16];
+            const char* score_str;
+            char score_str_buf[16];
             if (score >= 0) {
-                ::snprintf(scoreStrBuf, sizeof(scoreStrBuf), "%d", score);
-                scoreStr = scoreStrBuf;
+                ::snprintf(score_str_buf, sizeof(score_str_buf), "%d", score);
+                score_str = score_str_buf;
             } else {
-                scoreStr =
-                        getRejectionReasonStr(static_cast<PhysicalDeviceRejectionReason>(-score));
+                score_str = GetRejectionReasonString(
+                        static_cast<PhysicalDeviceRejectionReason>(-score));
             }
 
             LOG(INFO) << i << ": "
@@ -136,20 +136,20 @@ VkPhysicalDevice selectPhysicalDevice(const InstanceDispatch& instanceDispatch,
                       << VK_API_VERSION_MINOR(props.apiVersion) << '.'
                       << VK_API_VERSION_PATCH(props.apiVersion) << std::hex
                       << ", vendorID: " << props.vendorID << ", deviceID: " << props.deviceID
-                      << ", driverVersion: " << props.driverVersion << ", score: " << scoreStr;
+                      << ", driverVersion: " << props.driverVersion << ", score: " << score_str;
         }
     }
 
-    return bestDeviceSoFar;
+    return best_device_so_far;
 }
 
-VkPhysicalDevice selectPhysicalDeviceByIndex(const InstanceDispatch& instanceDispatch,
+VkPhysicalDevice SelectPhysicalDeviceByIndex(const InstanceDispatch& instance_dispatch,
                                              const size_t index) {
-    const PhysicalDevicesAndProps physicalDevicesAndProps =
-            getAllPhysicalDevicesAndProps(instanceDispatch);
+    const PhysicalDevicesAndProps physical_devices_and_props =
+            GetAllPhysicalDevicesAndProps(instance_dispatch);
 
-    if (index < physicalDevicesAndProps.size()) {
-        return physicalDevicesAndProps[index].first;
+    if (index < physical_devices_and_props.size()) {
+        return physical_devices_and_props[index].first;
     } else {
         return VK_NULL_HANDLE;
     }

@@ -51,10 +51,20 @@ std::vector<std::string> SnapshotDevice::getQemuParameters(const EmulatorConfig&
             LOG(INFO) << "Loading '" << snapshot_name << "' ...";
             params.push_back("-loadvm");
             params.push_back(snapshot_name);
+
+            if (emulator.opts().strict_snapshot_load) {
+                params.push_back("-strict-loadvm");
+            }
         } else {
+            if (emulator.opts().strict_snapshot_load) {
+                LOG(FATAL) << "Unable to load snapshot: version missing or mismatch";
+            }
             LOG(WARNING) << "Snapshot version missing or mismatch, performing cold boot.";
         }
     } else {
+        if (emulator.opts().strict_snapshot_load) {
+            LOG(FATAL) << "Unable to load snapshot: " << skip_load_reason;
+        }
         LOG(WARNING) << "Snapshot load is disabled: " << skip_load_reason
                      << ", performing cold boot.";
     }

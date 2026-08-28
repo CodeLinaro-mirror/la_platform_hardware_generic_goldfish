@@ -22,58 +22,58 @@
 namespace goldfish::gvk {
 
 void DeviceResourceDeleter::operator()(VkBuffer buffer) const {
-    mDeviceDispatch->destroyBuffer(buffer);
+    device_dispatch_->destroyBuffer(buffer);
 }
-void DeviceResourceDeleter::operator()(VkCommandPool commandPool) const {
-    mDeviceDispatch->destroyCommandPool(commandPool);
+void DeviceResourceDeleter::operator()(VkCommandPool command_pool) const {
+    device_dispatch_->destroyCommandPool(command_pool);
 }
 void DeviceResourceDeleter::operator()(VkDeviceMemory memory) const {
-    mDeviceDispatch->freeMemory(memory);
+    device_dispatch_->freeMemory(memory);
 }
-void DeviceResourceDeleter::operator()(VkDescriptorPool descriptorPool) const {
-    mDeviceDispatch->destroyDescriptorPool(descriptorPool);
+void DeviceResourceDeleter::operator()(VkDescriptorPool descriptor_pool) const {
+    device_dispatch_->destroyDescriptorPool(descriptor_pool);
 }
 void DeviceResourceDeleter::operator()(VkDescriptorSetLayout layout) const {
-    mDeviceDispatch->destroyDescriptorSetLayout(layout);
+    device_dispatch_->destroyDescriptorSetLayout(layout);
 }
 void DeviceResourceDeleter::operator()(VkFramebuffer framebuffer) const {
-    mDeviceDispatch->destroyFramebuffer(framebuffer);
+    device_dispatch_->destroyFramebuffer(framebuffer);
 }
 void DeviceResourceDeleter::operator()(VkImage image) const {
-    mDeviceDispatch->destroyImage(image);
+    device_dispatch_->destroyImage(image);
 }
-void DeviceResourceDeleter::operator()(VkImageView imageView) const {
-    mDeviceDispatch->destroyImageView(imageView);
+void DeviceResourceDeleter::operator()(VkImageView image_view) const {
+    device_dispatch_->destroyImageView(image_view);
 }
 void DeviceResourceDeleter::operator()(VkPipeline pipeline) const {
-    mDeviceDispatch->destroyPipeline(pipeline);
+    device_dispatch_->destroyPipeline(pipeline);
 }
-void DeviceResourceDeleter::operator()(VkPipelineLayout pipelineLayout) const {
-    mDeviceDispatch->destroyPipelineLayout(pipelineLayout);
+void DeviceResourceDeleter::operator()(VkPipelineLayout pipeline_layout) const {
+    device_dispatch_->destroyPipelineLayout(pipeline_layout);
 }
-void DeviceResourceDeleter::operator()(VkShaderModule shaderModule) const {
-    mDeviceDispatch->destroyShaderModule(shaderModule);
-}
-
-void DeviceResourceDeleter::operator()(VkRenderPass renderPass) const {
-    mDeviceDispatch->destroyRenderPass(renderPass);
+void DeviceResourceDeleter::operator()(VkShaderModule shader_module) const {
+    device_dispatch_->destroyShaderModule(shader_module);
 }
 
-CommandBufferEnderImpl::CommandBufferEnderImpl(PFN_vkEndCommandBuffer endCommandBuffer)
-        : mEndCommandBuffer(endCommandBuffer) {}
+void DeviceResourceDeleter::operator()(VkRenderPass render_pass) const {
+    device_dispatch_->destroyRenderPass(render_pass);
+}
+
+CommandBufferEnderImpl::CommandBufferEnderImpl(PFN_vkEndCommandBuffer end_command_buffer)
+        : end_command_buffer_pfn_(end_command_buffer) {}
 
 void CommandBufferEnderImpl::operator()(VkCommandBuffer cmdbuf) const {
-    const VkResult result = mEndCommandBuffer(cmdbuf);
+    const VkResult result = end_command_buffer_pfn_(cmdbuf);
     if (result != VK_SUCCESS) {
         LOG(FATAL) << "vkEndCommandBuffer failed with " << result;
     }
 }
 
-RenderPassEnderImpl::RenderPassEnderImpl(PFN_vkCmdEndRenderPass endRenderPass)
-        : mEndRenderPass(endRenderPass) {}
+RenderPassEnderImpl::RenderPassEnderImpl(PFN_vkCmdEndRenderPass end_render_pass)
+        : end_render_pass_pfn_(end_render_pass) {}
 
 void RenderPassEnderImpl::operator()(VkCommandBuffer cmdbuf) const {
-    (*mEndRenderPass)(cmdbuf);
+    (*end_render_pass_pfn_)(cmdbuf);
 }
 
 }  // namespace goldfish::gvk

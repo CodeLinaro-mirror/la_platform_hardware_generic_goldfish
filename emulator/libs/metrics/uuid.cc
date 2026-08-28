@@ -59,8 +59,8 @@ Uuid Uuid::Generate() {
 }
 
 Uuid Uuid::Zero() {
-    static const Uuid zero = *FromString(kNullUuidStr);
-    return zero;
+    static const Uuid kZero = *FromString(kNullUuidStr);
+    return kZero;
 }
 
 std::string Uuid::ToString() const {

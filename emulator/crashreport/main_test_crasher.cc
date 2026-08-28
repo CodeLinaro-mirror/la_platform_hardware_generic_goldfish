@@ -46,7 +46,7 @@ ABSL_FLAG(int, delay_ms, 0, "Delay in milliseconds.");        // Default: 0
 
 using android::base::Bazel;
 
-void crashme(int arg, bool nocrash, int delay_ms) {
+void Crashme(int arg, bool nocrash, int delay_ms) {
     if (delay_ms) {
         LOG(INFO) << "Delaying crash by " << delay_ms << " ms";
         std::this_thread::sleep_for(std::chrono::milliseconds(delay_ms));
@@ -90,7 +90,7 @@ int main(int argc, char** argv) {
 
     TCRUMB() << "We are just getting started";
     LOG(INFO) << "Ready for " << (nocrash ? "clean exit" : "crash") << " in " << delay_ms << " ms";
-    crashme(argc, nocrash, delay_ms);
+    Crashme(argc, nocrash, delay_ms);
     LOG(INFO) << "test crasher done";
     return 0;
 }

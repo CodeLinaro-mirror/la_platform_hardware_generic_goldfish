@@ -81,39 +81,39 @@ class AllRed : public AllowList {
 class AuthErrorsTest : public ::testing::Test {
   public:
     void SetUp() override {
-        mAllGreen.SetSource("/tmp/fake_source.json");
-        mAllYellow.SetSource("/tmp/fake_source.json");
-        mAllRed.SetSource("/tmp/fake_source.json");
+        all_green_.SetSource("/tmp/fake_source.json");
+        all_yellow_.SetSource("/tmp/fake_source.json");
+        all_red_.SetSource("/tmp/fake_source.json");
         auto status = tink::TinkConfig::Register();
         EXPECT_TRUE(status.ok());
         status = tink::JwtSignatureRegister();
         EXPECT_TRUE(status.ok());
 
-        mTempDir = std::make_unique<TestTempDir>(
+        temp_dir_ = std::make_unique<TestTempDir>(
                 absl::StrCat("watcher_test", TestTempDir::GenerateRandomString()));
 
-        mSampleJwt = tink::RawJwtBuilder()
-                             .SetIssuer("JwkDirectoryObserverTest")
-                             .WithoutExpiration()
-                             .Build();
+        sample_jwt_ = tink::RawJwtBuilder()
+                              .SetIssuer("JwkDirectoryObserverTest")
+                              .WithoutExpiration()
+                              .Build();
 
-        mSampleValidator = tink::JwtValidatorBuilder()
-                                   .ExpectIssuer("JwkDirectoryObserverTest")
-                                   .AllowMissingExpiration()
-                                   .Build();
+        sample_validator_ = tink::JwtValidatorBuilder()
+                                    .ExpectIssuer("JwkDirectoryObserverTest")
+                                    .AllowMissingExpiration()
+                                    .Build();
     }
 
-    void TearDown() override { mTempDir.reset(); }
+    void TearDown() override { temp_dir_.reset(); }
 
-    void write(Path fname, json snippet) { write(fname, snippet.dump(2)); }
+    void Write(Path fname, json snippet) { Write(fname, snippet.dump(2)); }
 
-    void write(Path fname, std::string snippet) {
-        std::ofstream out(mTempDir->Path() / fname);
+    void Write(Path fname, std::string snippet) {
+        std::ofstream out(temp_dir_->Path() / fname);
         out << snippet;
         out.close();
     }
 
-    std::unique_ptr<tink::KeysetHandle> writeEs512(Path fname) {
+    std::unique_ptr<tink::KeysetHandle> WriteEs512(Path fname) {
         // Let's generate a json key.
         auto status = tink::JwtSignatureRegister();
         EXPECT_TRUE(status.ok());
@@ -121,32 +121,32 @@ class AuthErrorsTest : public ::testing::Test {
         EXPECT_TRUE(private_handle.ok());
         auto sign = (*private_handle)->GetPrimitive<tink::JwtPublicKeySign>();
         auto public_handle = (*private_handle)->GetPublicKeysetHandle();
-        auto jsonSnippet = tink::JwkSetFromPublicKeysetHandle(*public_handle->get());
-        write(fname, *jsonSnippet);
+        auto json_snippet = tink::JwkSetFromPublicKeysetHandle(**public_handle);
+        Write(fname, *json_snippet);
         return std::move(private_handle.value());
     }
 
   protected:
-    std::unique_ptr<TestTempDir> mTempDir;
-    absl::StatusOr<tink::RawJwt> mSampleJwt;
-    absl::StatusOr<tink::JwtValidator> mSampleValidator;
-    AllGreen mAllGreen;
-    AllYellow mAllYellow;
-    AllRed mAllRed;
+    std::unique_ptr<TestTempDir> temp_dir_;
+    absl::StatusOr<tink::RawJwt> sample_jwt_;
+    absl::StatusOr<tink::JwtValidator> sample_validator_;
+    AllGreen all_green_;
+    AllYellow all_yellow_;
+    AllRed all_red_;
 };
 
 TEST_F(AuthErrorsTest, static_token_cannot_handle_bad_token) {
-    StaticTokenAuth auth("foo", "android-studio", &mAllGreen);
+    StaticTokenAuth auth("foo", "android-studio", &all_green_);
     EXPECT_FALSE(auth.CanHandleToken("bar"));
 }
 
 TEST_F(AuthErrorsTest, static_token_can_handle_good_token) {
-    StaticTokenAuth auth("foo", "android-studio", &mAllGreen);
+    StaticTokenAuth auth("foo", "android-studio", &all_green_);
     EXPECT_TRUE(auth.CanHandleToken("Bearer foo"));
 }
 
 TEST_F(AuthErrorsTest, static_token_cannot_handle_good_token_on_red_list) {
-    StaticTokenAuth auth("foo", "android-studio", &mAllRed);
+    StaticTokenAuth auth("foo", "android-studio", &all_red_);
     auto status = auth.IsTokenValid("foo", "Bearer foo");
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.message(),
@@ -156,37 +156,37 @@ TEST_F(AuthErrorsTest, static_token_cannot_handle_good_token_on_red_list) {
 }
 
 TEST_F(AuthErrorsTest, static_token_error_on_bad_token) {
-    StaticTokenAuth auth("foo", "android-studio", &mAllGreen);
+    StaticTokenAuth auth("foo", "android-studio", &all_green_);
     auto status = auth.IsTokenValid("foo", "Bearer bar");
     EXPECT_FALSE(status.ok());
     ASSERT_THAT(status.message(), ContainsSubstr("The token `Bearer bar` is invalid"));
 }
 
 TEST_F(AuthErrorsTest, any_token_cannot_handle_bad_token) {
-    StaticTokenAuth auth("foo", "android-studio", &mAllGreen);
-    StaticTokenAuth auth2("bar", "android-studio", &mAllGreen);
-    AnyTokenAuth anyauth(std::vector<BasicTokenAuth*>({&auth, &auth2}), &mAllGreen);
+    StaticTokenAuth auth("foo", "android-studio", &all_green_);
+    StaticTokenAuth auth2("bar", "android-studio", &all_green_);
+    AnyTokenAuth anyauth(std::vector<BasicTokenAuth*>({&auth, &auth2}), &all_green_);
     EXPECT_FALSE(anyauth.CanHandleToken("bar"));
 }
 
 TEST_F(AuthErrorsTest, any_token_can_handle_good_token) {
-    StaticTokenAuth auth("foo", "android-studio", &mAllGreen);
-    StaticTokenAuth auth2("bar", "android-studio", &mAllGreen);
-    AnyTokenAuth anyauth(std::vector<BasicTokenAuth*>({&auth, &auth2}), &mAllGreen);
+    StaticTokenAuth auth("foo", "android-studio", &all_green_);
+    StaticTokenAuth auth2("bar", "android-studio", &all_green_);
+    AnyTokenAuth anyauth(std::vector<BasicTokenAuth*>({&auth, &auth2}), &all_green_);
     EXPECT_TRUE(anyauth.CanHandleToken("Bearer bar"));
 }
 
 TEST_F(AuthErrorsTest, any_token_can_validate_good_token) {
-    StaticTokenAuth auth("foo", "android-studio", &mAllGreen);
-    StaticTokenAuth auth2("bar", "android-studio", &mAllGreen);
-    AnyTokenAuth anyauth(std::vector<BasicTokenAuth*>({&auth, &auth2}), &mAllGreen);
+    StaticTokenAuth auth("foo", "android-studio", &all_green_);
+    StaticTokenAuth auth2("bar", "android-studio", &all_green_);
+    AnyTokenAuth anyauth(std::vector<BasicTokenAuth*>({&auth, &auth2}), &all_green_);
     EXPECT_TRUE(anyauth.IsTokenValid("/a/b/c", "Bearer bar").ok());
 }
 
 TEST_F(AuthErrorsTest, any_token_reject_good_token_on_red_list) {
-    StaticTokenAuth auth("foo", "android-studio", &mAllRed);
-    StaticTokenAuth auth2("bar", "android-studio", &mAllRed);
-    AnyTokenAuth anyauth(std::vector<BasicTokenAuth*>({&auth, &auth2}), &mAllGreen);
+    StaticTokenAuth auth("foo", "android-studio", &all_red_);
+    StaticTokenAuth auth2("bar", "android-studio", &all_red_);
+    AnyTokenAuth anyauth(std::vector<BasicTokenAuth*>({&auth, &auth2}), &all_green_);
     auto status = anyauth.IsTokenValid("/a/b/c", "Bearer bar");
     EXPECT_FALSE(status.ok());
     ASSERT_THAT(status.message(),
@@ -196,8 +196,8 @@ TEST_F(AuthErrorsTest, any_token_reject_good_token_on_red_list) {
 }
 
 TEST_F(AuthErrorsTest, any_token_fatal_on_bad_token) {
-    StaticTokenAuth auth("foo", "android-studio", &mAllGreen);
-    AnyTokenAuth anyauth(std::vector<BasicTokenAuth*>({&auth}), &mAllGreen);
+    StaticTokenAuth auth("foo", "android-studio", &all_green_);
+    AnyTokenAuth anyauth(std::vector<BasicTokenAuth*>({&auth}), &all_green_);
 
     auto status = anyauth.IsTokenValid("foo", "Bearer bar");
     EXPECT_FALSE(status.ok());

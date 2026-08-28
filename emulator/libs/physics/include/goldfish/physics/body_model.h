@@ -30,15 +30,6 @@ enum class BodyState : std::uint8_t {
 class BodyModel {
   public:
     BodyModel() = default;
-
-    /*
-     * Sets the current time of the AmbientEnvironment simulation.  This time is
-     * used as the current time in calculating body states, along
-     * with the time when target state change requests are recorded as taking
-     * place.  Time values must be non-decreasing.
-     */
-    static BodyState SetCurrentTime(uint64_t time_ns);
-
     /*
      * Sets the body heart rate.
      */

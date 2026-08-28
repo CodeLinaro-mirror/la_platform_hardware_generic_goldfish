@@ -221,7 +221,17 @@ class LibuvTimer : public EventLoop::Timer, public std::enable_shared_from_this<
     }
 
     void Cancel() override {
+        // Prevent duplicate cancellation and mark the timer as cancelled atomically.
+        // This resolves a race condition where a timer is created and cancelled before
+        // AddItselfToActiveTimers executes on the loop thread.
+        if (cancelled_.exchange(true)) {
+            return;
+        }
         if (event_loop_->IsOnLoopThread()) {
+            DoCancel(false);
+        } else if (event_loop_->GetState() == LooperStatusEvent::State::kNotStarted ||
+                   event_loop_->GetState() == LooperStatusEvent::State::kFinished) {
+            // Avoid PostAndWait deadlock when the looper thread is not actively running.
             DoCancel(false);
         } else {
             event_loop_->PostAndWait([this]() { DoCancel(false); }).IgnoreError();
@@ -233,7 +243,7 @@ class LibuvTimer : public EventLoop::Timer, public std::enable_shared_from_this<
         event_loop_->PostImmediatelyInternal([self = shared_from_this(),
                                               new_delay_ms = new_delay.count(),
                                               new_interval_ms = new_interval.count()] {
-            if (self->timer_handle_valid_) {
+            if (self->timer_handle_valid_ && !self->cancelled_.load()) {
                 DCHECK(self->pinned_);
 
                 uv_timer_stop(&self->uv_timer_handle_);
@@ -247,26 +257,31 @@ class LibuvTimer : public EventLoop::Timer, public std::enable_shared_from_this<
 
   private:
     void DoCancel(const bool shutting_down) {
-        DCHECK(event_loop_->IsOnLoopThread())
-                << "DoCancel callback must be executed on the event loop thread.";
+        cancelled_.store(true);
+        if (timer_handle_valid_.exchange(false)) {
+            if (event_loop_->IsOnLoopThread()) {
+                DCHECK(pinned_);
 
-        if (std::exchange(timer_handle_valid_, false)) {
-            DCHECK(pinned_);
+                uv_timer_stop(&uv_timer_handle_);
+                if (!shutting_down) {
+                    event_loop_->RemoveActiveTimer(this);
+                }
 
-            uv_timer_stop(&uv_timer_handle_);
-            if (!shutting_down) {
-                event_loop_->RemoveActiveTimer(this);
+                uv_close(reinterpret_cast<uv_handle_t*>(&uv_timer_handle_), UnpinItselfOnClose);
+            } else {
+                pinned_.reset();
             }
-
-            uv_close(reinterpret_cast<uv_handle_t*>(&uv_timer_handle_), UnpinItselfOnClose);
-        } else {
-            LOG(ERROR) << "Can't cancel a timer after it has been cancelled";
         }
     }
 
     void AddItselfToActiveTimers() {
         // shared_from_this() is not available in the ctor
         event_loop_->PostImmediatelyInternal([self = shared_from_this()]() {
+            // If the timer was already cancelled before this task executed on the loop,
+            // skip initialization to prevent lingering active timers.
+            if (self->cancelled_.load()) {
+                return;
+            }
             DCHECK(!self->pinned_) << "Timer should not be pinned before initialization.";
 
             if (const int err = uv_timer_init(&self->event_loop_->uv_loop_handle_,
@@ -307,7 +322,8 @@ class LibuvTimer : public EventLoop::Timer, public std::enable_shared_from_this<
     EventLoop::RepeatingTask task_;
     uv_timer_t uv_timer_handle_;
     const FlowId flow_id_;
-    bool timer_handle_valid_ = false;
+    std::atomic<bool> timer_handle_valid_{false};
+    std::atomic<bool> cancelled_{false};
 
     friend LibuvEventLoopImpl;
 };

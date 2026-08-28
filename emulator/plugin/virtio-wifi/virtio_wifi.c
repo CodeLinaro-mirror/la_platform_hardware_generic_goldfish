@@ -80,20 +80,6 @@ struct VirtIOWifi {
 #define TYPE_VIRTIO_WIFI "virtio-wifi-device"
 DECLARE_INSTANCE_CHECKER(VirtIOWifi, VIRTIO_WIFI, TYPE_VIRTIO_WIFI);
 
-static void virtio_wifi_state_save(QEMUFile* file, void* opaque) {
-    // TODO
-}
-
-static int virtio_wifi_state_load(QEMUFile* file, void* opaque, int version_id) {
-    // TODO
-    return 0;
-}
-
-static const SaveVMHandlers virtio_wifi_vmhandlers = {
-    .save_state = virtio_wifi_state_save,
-    .load_state = virtio_wifi_state_load,
-};
-
 static VMStateField virtio_wifi_vmstate_fields[2];
 static const VMStateDescription virtio_wifi_vmstate = {
     .name = TYPE_VIRTIO_WIFI,
@@ -115,7 +101,7 @@ static void virtio_wifi_drop_tx_queue_data(VirtIODevice* vdev, VirtIOWifiQueue* 
     }
 }
 
-static void virtio_wifi_set_status(VirtIODevice* vdev, uint8_t status) {
+static int virtio_wifi_set_status(VirtIODevice* vdev, uint8_t status) {
     ALOGV(2, "Set status: 0x%x", status);
     VirtIOWifi* wifi = VIRTIO_WIFI(vdev);
     bool link_down = (wifi->status & VIRTIO_WIFI_LINK_UP) == 0;
@@ -151,6 +137,7 @@ static void virtio_wifi_set_status(VirtIODevice* vdev, uint8_t status) {
             }
         }
     }
+    return 0;
 }
 
 // set virtio-wifi link status according to netclientstate
@@ -438,9 +425,6 @@ static void virtio_wifi_device_realize(DeviceState* dev, Error** errp) {
 
     wifi->tx_burst = kTXBurst;
 
-    // TODO(whollins): update this?
-    int instance = 0;
-    register_savevm_live(TYPE_VIRTIO_WIFI, instance, 0, &virtio_wifi_vmhandlers, wifi);
 }
 
 static void virtio_wifi_device_unrealize(DeviceState* dev) {
@@ -581,7 +565,7 @@ static void virtio_wifi_set_mac_prefix(Object* obj, Visitor* v, const char* name
     wifi->mac_prefix_set = true;
 }
 
-static void virtio_wifi_class_init(ObjectClass* klass, void* data) {
+static void virtio_wifi_class_init(ObjectClass* klass, const void* data) {
     DeviceClass* dc = DEVICE_CLASS(klass);
 
     set_bit(DEVICE_CATEGORY_NETWORK, dc->categories);
@@ -631,7 +615,7 @@ static void virtio_wifi_pci_realize(VirtIOPCIProxy* vpci_dev, Error** errp) {
     qdev_realize(vdev, BUS(&vpci_dev->bus), errp);
 }
 
-static void virtio_wifi_pci_class_init(ObjectClass* klass, void* data) {
+static void virtio_wifi_pci_class_init(ObjectClass* klass, const void* data) {
     DeviceClass* dc = DEVICE_CLASS(klass);
     set_bit(DEVICE_CATEGORY_NETWORK, dc->categories);
 

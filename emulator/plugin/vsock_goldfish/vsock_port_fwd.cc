@@ -393,7 +393,7 @@ static void vsock_fwd_set_address(Object* obj, const char* value, Error** errp) 
     vsock_fwd_device->address = g_strdup(ToString(*preferred).c_str());
 }
 
-static void vsock_fwd_class_init(ObjectClass* oc, void* data) {
+static void vsock_fwd_class_init(ObjectClass* oc, const void* data) {
     object_class_property_add(oc, "host_port", "int", NULL, vsock_fwd_set_host_port, NULL, NULL);
     object_class_property_set_description(oc, "host_port", "The host side port.");
 

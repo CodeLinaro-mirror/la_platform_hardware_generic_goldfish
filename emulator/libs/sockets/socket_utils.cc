@@ -41,6 +41,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <cstddef>
 #include <vector>
 
 namespace android {
@@ -178,7 +179,7 @@ int fixErrno() {
     } while (0);
 #endif  // !_WIN32
 
-inline void fdSetCloexec(int fd) {
+inline void FdSetCloexec(int fd) {
 #ifndef _WIN32
     int f = fcntl(fd, F_GETFD);
     fcntl(fd, F_SETFD, f | FD_CLOEXEC);
@@ -192,7 +193,7 @@ union SockAddressStorage {
     struct sockaddr_in inet;
     struct sockaddr_in6 in6;
 
-    void initLoopbackFor(int port, int domain) {
+    void InitLoopbackFor(int port, int domain) {
         if (domain == AF_INET) {
             memset(&inet, 0, sizeof(inet));
             inet.sin_family = AF_INET;
@@ -212,11 +213,11 @@ union SockAddressStorage {
     // |from| points to a sockaddr_in or sockaddr_in6 structure.
     // |fromLen| is its length in bytes.
     // Return true on success, false/errno otherwise.
-    bool initFromBsd(const void* from, size_t fromLen) {
+    bool InitFromBsd(const void* from, size_t from_len) {
         auto src = static_cast<const struct sockaddr*>(from);
         switch (src->sa_family) {
         case AF_INET:
-            if (fromLen != sizeof(inet)) {
+            if (from_len != sizeof(inet)) {
                 errno = EINVAL;
                 return false;
             }
@@ -224,7 +225,7 @@ union SockAddressStorage {
             break;
 
         case AF_INET6:
-            if (fromLen != sizeof(in6)) {
+            if (from_len != sizeof(in6)) {
                 errno = EINVAL;
                 return false;
             }
@@ -238,7 +239,7 @@ union SockAddressStorage {
         return true;
     }
 
-    void setPort(int port) {
+    void SetPort(int port) {
         switch (generic.sa_family) {
         case AF_INET:
             inet.sin_port = htons(port);
@@ -250,7 +251,7 @@ union SockAddressStorage {
         }
     }
 
-    int getPort() {
+    int GetPort() {
         switch (generic.sa_family) {
         case AF_INET:
             return ntohs(inet.sin_port);
@@ -261,9 +262,9 @@ union SockAddressStorage {
         }
     }
 
-    int family() const { return generic.sa_family; }
+    int Family() const { return generic.sa_family; }
 
-    socklen_t size() const {
+    socklen_t Size() const {
         size_t sz;
         switch (generic.sa_family) {
         case AF_INET:
@@ -286,13 +287,13 @@ union SockAddressStorage {
     // Resolve host name |hostName| into a list of SockAddressStorage.
     // If |preferIpv6| is true, prefer IPv6 addresses if available.
     // On success, return true and sets |*out| to the result.
-    static bool resolveHostNameToList(const char* hostName, ResolveOption resolveOption,
+    static bool ResolveHostNameToList(const char* host_name, ResolveOption resolve_option,
                                       std::vector<SockAddressStorage>* out) {
         addrinfo* res = nullptr;
-        bool preferIpv6 = (resolveOption == kPreferIpv6);
+        bool prefer_ipv6 = (resolve_option == kPreferIpv6);
         addrinfo hints = {};
-        hints.ai_family = preferIpv6 ? AF_INET6 : AF_UNSPEC;
-        int ret = ::getaddrinfo(hostName, nullptr, &hints, &res);
+        hints.ai_family = prefer_ipv6 ? AF_INET6 : AF_UNSPEC;
+        int ret = ::getaddrinfo(host_name, nullptr, &hints, &res);
         if (ret != 0) {
             // Handle errors.
             int err = 0;
@@ -325,7 +326,7 @@ union SockAddressStorage {
         std::vector<SockAddressStorage> result;
         for (auto r = res; r != nullptr; r = r->ai_next) {
             SockAddressStorage addr;
-            if (!addr.initFromBsd(r->ai_addr, r->ai_addrlen)) {
+            if (!addr.InitFromBsd(r->ai_addr, r->ai_addrlen)) {
                 continue;
             }
             result.emplace_back(std::move(addr));
@@ -342,30 +343,30 @@ union SockAddressStorage {
     // Initialize a SockAddressStorage instance by resolving |hostname| to
     // its preferred address, according to |resolveOptions|, with port |port|.
     // Return true on success, false/errno on error.
-    bool initResolve(const char* hostname, int port,
-                     ResolveOption resolveOptions = kDefaultResolution) {
+    bool InitResolve(const char* hostname, int port,
+                     ResolveOption resolve_options = kDefaultResolution) {
         std::vector<SockAddressStorage> addresses;
-        if (!resolveHostNameToList(hostname, resolveOptions, &addresses)) {
+        if (!ResolveHostNameToList(hostname, resolve_options, &addresses)) {
             return false;
         }
-        const bool preferIpv6 = (resolveOptions & kPreferIpv6);
+        const bool prefer_ipv6 = (resolve_options & kPreferIpv6);
         const SockAddressStorage* addr6 = nullptr;
         const SockAddressStorage* addr4 = nullptr;
         for (const auto& addr : addresses) {
-            if (addr.family() == AF_INET && !addr4) {
+            if (addr.Family() == AF_INET && !addr4) {
                 addr4 = &addr;
-                if (!preferIpv6) {
+                if (!prefer_ipv6) {
                     break;
                 }
-            } else if (addr.family() == AF_INET6 && !addr6) {
+            } else if (addr.Family() == AF_INET6 && !addr6) {
                 addr6 = &addr;
-                if (preferIpv6) {
+                if (prefer_ipv6) {
                     break;
                 }
             }
         }
         const SockAddressStorage* addr;
-        if (preferIpv6) {
+        if (prefer_ipv6) {
             addr = addr6 ? addr6 : addr4;
         } else {
             addr = addr4 ? addr4 : addr6;
@@ -378,35 +379,36 @@ union SockAddressStorage {
     }
 };
 
-int socketSetOption(int socket, int domain, int option, int _flag) {
+int SocketSetOption(int socket, int domain, int option, int flag_val) {
 #ifdef _WIN32
-    DWORD flag = (DWORD)_flag;
+    DWORD flag = (DWORD)flag_val;
 #else
-    int flag = _flag;
+    int flag = flag_val;
 #endif
     errno = 0;
-    int ret = ::setsockopt(socket, domain, option, (const char*)&flag, sizeof(flag));
+    int ret = ::setsockopt(socket, domain, option, reinterpret_cast<const char*>(&flag),
+                           sizeof(flag));
     ON_SOCKET_ERROR_RETURN_M1(ret);
     return 0;
 }
 
-int socketSetXReuseAddr(int socket) {
+int SocketSetXReuseAddr(int socket) {
 #ifdef _WIN32
     /* on Windows, SO_REUSEADDR is used to indicate that several programs can
      * bind to the same port. this is completely different from the Unix
      * semantics. Use instead SO_EXCLUSIVEADDR to explicitly prevent this.
      */
-    return socketSetOption(socket, SOL_SOCKET, SO_EXCLUSIVEADDRUSE, 1);
+    return SocketSetOption(socket, SOL_SOCKET, SO_EXCLUSIVEADDRUSE, 1);
 #else
-    return socketSetOption(socket, SOL_SOCKET, SO_REUSEADDR, 1);
+    return SocketSetOption(socket, SOL_SOCKET, SO_REUSEADDR, 1);
 #endif
 }
 
-int socketTcpBindAndListen(int socket, const SockAddressStorage* addr) {
-    int kBacklog = 5;
+int SocketTcpBindAndListen(int socket, const SockAddressStorage* addr) {
+    constexpr int kBacklog = 5;
 
     errno = 0;
-    int ret = ::bind(socket, &addr->generic, addr->size());
+    int ret = ::bind(socket, &addr->generic, addr->Size());
     ON_SOCKET_ERROR_RETURN_M1(ret);
 
     errno = 0;
@@ -416,8 +418,8 @@ int socketTcpBindAndListen(int socket, const SockAddressStorage* addr) {
     return 0;
 }
 
-static int socket_connect_posix(int fd, const void* address, uint32_t address_len) {
-    ScopedNoSigAlarm disableAlarms(SIGALRM, SIG_BLOCK);
+static int SocketConnectPosix(int fd, const void* address, uint32_t address_len) {
+    ScopedNoSigAlarm disable_alarms(SIGALRM, SIG_BLOCK);
     int ret = HANDLE_EINTR(::connect(fd, static_cast<const struct sockaddr*>(address),
                                      static_cast<socklen_t>(address_len)));
     ON_SOCKET_ERROR_RETURN_M1(ret);
@@ -425,9 +427,9 @@ static int socket_connect_posix(int fd, const void* address, uint32_t address_le
 }
 
 #ifdef _WIN32
-int socketAccept(int socket) {
+int SocketAccept(int socket) {
     errno = 0;
-    int ret = ::accept(socket, NULL, NULL);
+    int ret = ::accept(socket, nullptr, nullptr);
     ON_SOCKET_ERROR_RETURN_M1(ret);
     return ret;
 }
@@ -445,51 +447,51 @@ void socketClose(int socket) {
     errno = save_errno;
 }
 
-ssize_t socketRecv(int socket, void* buffer, size_t bufferLen) {
+ssize_t socketRecv(int socket, void* buffer, size_t buffer_len) {
     errno = 0;
-    ssize_t ret = ::recv(socket, reinterpret_cast<char*>(buffer), bufferLen, 0);
+    ssize_t ret = ::recv(socket, reinterpret_cast<char*>(buffer), buffer_len, 0);
     ON_SOCKET_ERROR_RETURN_M1(ret);
     return ret;
 }
 
-ssize_t socketSend(int socket, const void* buffer, size_t bufferLen) {
+ssize_t socketSend(int socket, const void* buffer, size_t buffer_len) {
     errno = 0;
 #ifdef MSG_NOSIGNAL
     // Prevent SIGPIPE generation on Linux when writing to a broken pipe.
     // ::send() will return -1/EPIPE instead.
-    const int sendFlags = MSG_NOSIGNAL;
+    const int send_flags = MSG_NOSIGNAL;
 #else
     // For Darwin, this is handled by setting SO_NOSIGPIPE when creating
     // the socket. On Windows, there is no SIGPIPE signal to consider.
-    const int sendFlags = 0;
+    const int send_flags = 0;
 #endif
-    ssize_t ret = ::send(socket, reinterpret_cast<const char*>(buffer), bufferLen, sendFlags);
+    ssize_t ret = ::send(socket, reinterpret_cast<const char*>(buffer), buffer_len, send_flags);
     ON_SOCKET_ERROR_RETURN_M1(ret);
     return ret;
 }
 
-bool socketSendAll(int socket, const void* buffer, size_t bufferLen) {
+bool socketSendAll(int socket, const void* buffer, size_t buffer_len) {
     auto buf = static_cast<const char*>(buffer);
-    while (bufferLen > 0) {
-        ssize_t ret = socketSend(socket, buf, bufferLen);
+    while (buffer_len > 0) {
+        ssize_t ret = socketSend(socket, buf, buffer_len);
         if (ret <= 0) {
             return false;
         }
         buf += ret;
-        bufferLen -= ret;
+        buffer_len -= ret;
     }
     return true;
 }
 
-bool socketRecvAll(int socket, void* buffer, size_t bufferLen) {
+bool socketRecvAll(int socket, void* buffer, size_t buffer_len) {
     auto buf = static_cast<char*>(buffer);
-    while (bufferLen > 0) {
-        ssize_t ret = socketRecv(socket, buf, bufferLen);
+    while (buffer_len > 0) {
+        ssize_t ret = socketRecv(socket, buf, buffer_len);
         if (ret <= 0) {
             return false;
         }
         buf += ret;
-        bufferLen -= ret;
+        buffer_len -= ret;
     }
     return true;
 }
@@ -531,7 +533,7 @@ void socketSetBlocking(int socket) {
 }
 
 void socketSetNoDelay(int socket) {
-    socketSetOption(socket, IPPROTO_TCP, TCP_NODELAY, 1);
+    SocketSetOption(socket, IPPROTO_TCP, TCP_NODELAY, 1);
 }
 
 namespace {
@@ -542,7 +544,7 @@ enum {
 #endif
 }  // namespace
 
-static int socketCreateTcpFor(int domain) {
+static int SocketCreateTcpFor(int domain) {
     errno = 0;
     int s = ::socket(domain, SOCK_STREAM | SOCK_CLOEXEC, 0);
     ON_SOCKET_ERROR_RETURN_M1(s);
@@ -550,25 +552,25 @@ static int socketCreateTcpFor(int domain) {
     // Disable SIGPIPE generation on Darwin.
     // When writing to a broken pipe, send() will return -1 and
     // set errno to EPIPE.
-    socketSetOption(s, SOL_SOCKET, SO_NOSIGPIPE, 1);
+    SocketSetOption(s, SOL_SOCKET, SO_NOSIGPIPE, 1);
 #endif
-    fdSetCloexec(s);
+    FdSetCloexec(s);
     return s;
 }
 
-static int socketTcpLoopbackServerFor(int port, int domain) {
-    ScopedSocket s(socketCreateTcpFor(domain));
+static int SocketTcpLoopbackServerFor(int port, int domain) {
+    ScopedSocket s(SocketCreateTcpFor(domain));
     if (s.get() < 0) {
         DLOG(ERROR) << "Could not create TCP socket";
         return -1;
     }
 
-    socketSetXReuseAddr(s.get());
+    SocketSetXReuseAddr(s.get());
 
     SockAddressStorage addr;
-    addr.initLoopbackFor(port, domain);
+    addr.InitLoopbackFor(port, domain);
 
-    if (socketTcpBindAndListen(s.get(), &addr) < 0) {
+    if (SocketTcpBindAndListen(s.get(), &addr) < 0) {
         DLOG(ERROR) << "Could not bind to TCP loopback port " << port << "";
         return -1;
     }
@@ -577,22 +579,22 @@ static int socketTcpLoopbackServerFor(int port, int domain) {
 }
 
 int socketTcp4LoopbackServer(int port) {
-    return socketTcpLoopbackServerFor(port, AF_INET);
+    return SocketTcpLoopbackServerFor(port, AF_INET);
 }
 
 int socketTcp6LoopbackServer(int port) {
-    return socketTcpLoopbackServerFor(port, AF_INET6);
+    return SocketTcpLoopbackServerFor(port, AF_INET6);
 }
 
-static int socketTcpLoopbackClientFor(int port, int domain) {
-    ScopedSocket s(socketCreateTcpFor(domain));
+static int SocketTcpLoopbackClientFor(int port, int domain) {
+    ScopedSocket s(SocketCreateTcpFor(domain));
     if (s.get() < 0) {
         DLOG(ERROR) << "Could not create TCP socket";
         return -1;
     }
 
     SockAddressStorage addr;
-    addr.initLoopbackFor(port, domain);
+    addr.InitLoopbackFor(port, domain);
 
     // Get all our select()-related friends together---
     // |connres| the result of connect(),
@@ -606,7 +608,7 @@ static int socketTcpLoopbackClientFor(int port, int domain) {
     FD_ZERO(&my_set);
 
     // Allow an entire 250ms to connect to "loopback" address :thinkingface:
-    tv.tv_usec = 1000 * 250;
+    tv.tv_usec = static_cast<decltype(tv.tv_usec)>(1000) * 250;
     int fd = s.get();
 
     // The initial connection needs to be nonblocking since simple configs like
@@ -615,7 +617,7 @@ static int socketTcpLoopbackClientFor(int port, int domain) {
     // like connecting to adb, so make this socket non-blocking at first.
     socketSetNonBlocking(fd);
 
-    connres = socket_connect_posix(s.get(), &addr.generic, addr.size());
+    connres = SocketConnectPosix(s.get(), &addr.generic, addr.Size());
 
     // Different OSes / setups will have all sorts of different errno's that
     // indicate that the connect() did not fail, it's just a non-blocking
@@ -624,7 +626,7 @@ static int socketTcpLoopbackClientFor(int port, int domain) {
     if (connres < 0 && (errno == EWOULDBLOCK || errno == EAGAIN || errno == EINPROGRESS)) {
 #ifdef _WIN32
         // This is a replacement for select() on Windows. (WSAPoll did not work)
-        HANDLE event = CreateEvent(NULL, TRUE, FALSE, NULL);
+        HANDLE event = CreateEvent(nullptr, TRUE, FALSE, nullptr);
         long events = FD_READ | FD_ACCEPT | FD_CLOSE | FD_CONNECT | FD_WRITE;
 
         int ret = WSAEventSelect(fd, event, events);
@@ -638,7 +640,7 @@ static int socketTcpLoopbackClientFor(int port, int domain) {
 
         ret = WaitForSingleObject(event, tv.tv_usec / 1000);
 
-        int numFdsReady = 0;
+        int num_fds_ready = 0;
 
         if (ret == WAIT_FAILED) {
             auto err = GetLastError();
@@ -647,7 +649,7 @@ static int socketTcpLoopbackClientFor(int port, int domain) {
         }
 
         if (ret == WAIT_OBJECT_0) {
-            numFdsReady = 1;
+            num_fds_ready = 1;
         }
 
         // tear down the event
@@ -661,13 +663,13 @@ static int socketTcpLoopbackClientFor(int port, int domain) {
                 .revents = 0,
             },
         };
-        int numFdsReady = HANDLE_EINTR(::poll(fds, 1, tv.tv_usec / 1000));
+        int num_fds_ready = HANDLE_EINTR(::poll(fds, 1, tv.tv_usec / 1000));
 #endif
 
-        if (numFdsReady > 0) {
+        if (num_fds_ready > 0) {
             int err = 0;
-            socklen_t optLen = sizeof(err);
-            if (getsockopt(fd, SOL_SOCKET, SO_ERROR, reinterpret_cast<char*>(&err), &optLen) ||
+            socklen_t opt_len = sizeof(err);
+            if (getsockopt(fd, SOL_SOCKET, SO_ERROR, reinterpret_cast<char*>(&err), &opt_len) ||
                 err) {
                 // Either getsockopt failed or there was an error associated
                 // with the socket. The connection did not succeed.
@@ -694,20 +696,20 @@ static int socketTcpLoopbackClientFor(int port, int domain) {
 }
 
 int socketTcp4LoopbackClient(int port) {
-    return socketTcpLoopbackClientFor(port, AF_INET);
+    return SocketTcpLoopbackClientFor(port, AF_INET);
 }
 
 int socketTcp6LoopbackClient(int port) {
-    return socketTcpLoopbackClientFor(port, AF_INET6);
+    return SocketTcpLoopbackClientFor(port, AF_INET6);
 }
 
-int socketAcceptAny(int serverSocket) {
+int socketAcceptAny(int server_socket) {
     errno = 0;
 #ifdef __linux__
-    int s = HANDLE_EINTR(::accept4(serverSocket, NULL, NULL, SOCK_CLOEXEC));
+    int s = HANDLE_EINTR(::accept4(server_socket, nullptr, nullptr, SOCK_CLOEXEC));
 #else   // !__linux__
-    int s = HANDLE_EINTR(::accept(serverSocket, NULL, NULL));
-    fdSetCloexec(s);
+    int s = HANDLE_EINTR(::accept(server_socket, nullptr, nullptr));
+    FdSetCloexec(s);
 #endif  // !__linux__
     ON_SOCKET_ERROR_RETURN_M1(s);
     return s;
@@ -721,11 +723,11 @@ int socketCreatePair(int* fd1, int* fd2) {
     if (!ret) {
         socketSetNonBlocking(fds[0]);
         socketSetNonBlocking(fds[1]);
-        fdSetCloexec(fds[0]);
-        fdSetCloexec(fds[1]);
+        FdSetCloexec(fds[0]);
+        FdSetCloexec(fds[1]);
 #ifdef SO_NOSIGPIPE
-        socketSetOption(fds[0], SOL_SOCKET, SO_NOSIGPIPE, 1);
-        socketSetOption(fds[1], SOL_SOCKET, SO_NOSIGPIPE, 1);
+        SocketSetOption(fds[0], SOL_SOCKET, SO_NOSIGPIPE, 1);
+        SocketSetOption(fds[1], SOL_SOCKET, SO_NOSIGPIPE, 1);
 #endif
         *fd1 = fds[0];
         *fd2 = fds[1];
@@ -764,7 +766,7 @@ int socketCreatePair(int* fd1, int* fd2) {
     /* we need to accept the connection on the server socket
      * this will create the second socket for the pair
      */
-    ScopedSocket s1(socketAccept(s0.get()));
+    ScopedSocket s1(SocketAccept(s0.get()));
     if (!s1.valid()) {
         DLOG(ERROR) << "Could not accept connection from server socket";
         return -1;
@@ -779,31 +781,31 @@ int socketCreatePair(int* fd1, int* fd2) {
 }
 
 int socketCreateTcp4() {
-    return socketCreateTcpFor(AF_INET);
+    return SocketCreateTcpFor(AF_INET);
 }
 
 int socketCreateTcp6() {
-    return socketCreateTcpFor(AF_INET6);
+    return SocketCreateTcpFor(AF_INET6);
 }
 
 int socketGetPort(int socket) {
     SockAddressStorage addr;
-    socklen_t addrLen = static_cast<socklen_t>(sizeof(addr));
-    if (getsockname(socket, &addr.generic, &addrLen) < 0) {
+    socklen_t addr_len = static_cast<socklen_t>(sizeof(addr));
+    if (getsockname(socket, &addr.generic, &addr_len) < 0) {
         DLOG(ERROR) << "Could not get socket name!";
         return -1;
     }
-    return addr.getPort();
+    return addr.GetPort();
 }
 
 int socketGetPeerPort(int socket) {
     SockAddressStorage addr;
-    socklen_t addrLen = static_cast<socklen_t>(sizeof(addr));
-    if (getpeername(socket, &addr.generic, &addrLen) < 0) {
+    socklen_t addr_len = static_cast<socklen_t>(sizeof(addr));
+    if (getpeername(socket, &addr.generic, &addr_len) < 0) {
         DLOG(ERROR) << "Could not get socket peer name!";
         return -1;
     }
-    return addr.getPort();
+    return addr.GetPort();
 }
 
 }  // namespace base

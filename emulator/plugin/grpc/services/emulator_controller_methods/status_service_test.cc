@@ -56,12 +56,20 @@ class StatusServiceTest : public GrcpServiceTest {
         mGuestStatus.Reset(absl::UnixEpoch());
         mAvdProperties.hw_config = android::goldfish::FakeHardwareConfig::GetHwConfig();
         mAvdProperties.avd_api = 35;
+        mAvdProperties.avd_api_str = "15.0 (V) - API 35";
         mAvdProperties.avd_name = "fake-avd";
         mAvdProperties.avd_id = "fake-avd-id";
         mStatusService = std::make_unique<StatusServiceImpl>(mGuestStatus, mAvdProperties);
         mServiceWrapper = std::make_unique<StatusServiceWrapper>(*mStatusService);
 
         GrcpServiceTest::SetUp();
+    }
+
+    void TearDown() override {
+        if (auto* avd = ::goldfish::avd_info::GetNullableAvd()) {
+            avd->SetNetsimEndpoint("");
+        }
+        GrcpServiceTest::TearDown();
     }
 
     EmulatorController::Service* getService() override { return mServiceWrapper.get(); }
@@ -86,14 +94,14 @@ TEST_F(StatusServiceTest, GetStatusInitialState) {
     // Check guestconfig
     auto guestConfig = reply.guestconfig();
     EXPECT_EQ(guestConfig["multidisplay"], "unavailable");
-    EXPECT_EQ(guestConfig["androidVersion"], "API 35");
+    EXPECT_EQ(guestConfig["androidVersion"], "15.0 (V) - API 35");
     EXPECT_EQ(guestConfig["hypervisorVersion"], "None");
 
     std::string expectedAvdDetails =
             "Name: fake-avd\n"
             "CPU/ABI: \n"
             "Path: \n"
-            "Target: API level 35\n"
+            "Target: 15.0 (V) - API 35\n"
             "Build SDK: \n"
             "Build ID: \n"
             "Build Flavour: \n";
@@ -176,7 +184,7 @@ TEST_F(StatusServiceTest, GetStatusWithAvdConfigIni) {
 
     // Static properties should still exist
     EXPECT_NE(details.find("Name: fake-avd\n"), std::string::npos);
-    EXPECT_NE(details.find("Target: API level 35\n"), std::string::npos);
+    EXPECT_NE(details.find("Target: 15.0 (V) - API 35\n"), std::string::npos);
 
     // Dynamic config.ini properties should exist
     EXPECT_NE(details.find("hw.cpu.arch: x86_64\n"), std::string::npos);
@@ -204,6 +212,23 @@ TEST_F(StatusServiceTest, GetStatusWithCpuAccelerationUnknownVersion) {
 
     auto guestConfig = reply.guestconfig();
     EXPECT_EQ(guestConfig["hypervisorVersion"], "None");
+}
+
+TEST_F(StatusServiceTest, GetStatusWithNetsimEndpoint) {
+    auto* avd = ::goldfish::avd_info::GetNullableAvd();
+    ASSERT_NE(avd, nullptr);
+    avd->SetNetsimEndpoint("localhost:12345");
+
+    auto statusService = std::make_unique<StatusServiceImpl>(mGuestStatus, mAvdProperties, avd);
+    StatusServiceWrapper serviceWrapper(*statusService);
+
+    Empty request;
+    EmulatorStatus reply;
+    auto status = serviceWrapper.getStatus(nullptr, &request, &reply);
+    ASSERT_TRUE(status.ok());
+
+    auto platform = reply.platformconfig();
+    EXPECT_EQ(platform["netsim.endpoint"], "localhost:12345");
 }
 
 }  // namespace android::emulation::control

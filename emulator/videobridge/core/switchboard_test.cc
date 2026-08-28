@@ -329,5 +329,26 @@ TEST(SwitchboardTest, ManyConcurrentParticipants) {
     }
 }
 
+class MockInputSender : public InputSender {
+  public:
+    absl::Status Start() override { return absl::OkStatus(); }
+    void SendEvent(const InputEvent& /*event*/) override {}
+    void Stop() override {}
+};
+
+TEST(SwitchboardTest, CustomInputSenderFactory) {
+    bool factory_called = false;
+    auto factory = [&factory_called](DataChannelLabel label) -> std::unique_ptr<InputSender> {
+        factory_called = true;
+        EXPECT_EQ(label, DataChannelLabel::kInput);
+        return std::make_unique<MockInputSender>();
+    };
+
+    Switchboard board(nullptr, factory);
+    auto sender = board.CreateInputSender(DataChannelLabel::kInput);
+    EXPECT_TRUE(factory_called);
+    EXPECT_NE(sender, nullptr);
+}
+
 }  // namespace
 }  // namespace goldfish::videobridge

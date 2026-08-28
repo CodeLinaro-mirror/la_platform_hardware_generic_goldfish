@@ -36,6 +36,7 @@ cc_library(
         "//emulator/libs/SocketBuffer",
         "//emulator/libs/UniqueIdAllocator",
         "//emulator/libs/archive:QEMUFileArchive",
+        "//emulator/libs/archive:collections",
         "//emulator/libs/async:libuv_event_loop",
         "//emulator/libs/async:libuv_sockets",
         "//emulator/libs/async:qemu_event_loop",
@@ -54,7 +55,6 @@ cc_library(
     ],
     alwayslink = True,
 ) for arch in [
-    "riscv64",
     "aarch64",
     "x86_64",
 ]]

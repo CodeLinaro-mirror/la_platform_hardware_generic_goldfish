@@ -24,21 +24,16 @@ ______________________________________________________________________
 ### Launching via the Automation Script
 
 The easiest way to run the demo is with `launch_java_video_demo.sh`. The script
-automatically builds `videobridge`, detects running emulator instances, starts
-the gRPC signaling bridge, and launches the demo application.
+parses the emulator PID discovery file to discover the emulator's gRPC port,
+builds the demo target, and launches the demo application connected directly to
+the emulator.
 
 ```bash
 # Launch Compose Desktop Demo (Default)
-./hardware/generic/goldfish/emulator/videobridge/java/demo/launch_java_video_demo.sh
+./hardware/generic/goldfish/emulator/videobridge/java/demo/launch_java_video_demo.sh --discovery_file ~/Library/Caches/TemporaryItems/avd/running/pid_12345.ini
 
 # Launch Swing Demo
-./hardware/generic/goldfish/emulator/videobridge/java/demo/launch_java_video_demo.sh --swing
-
-# Specify custom Video Bridge port
-./hardware/generic/goldfish/emulator/videobridge/java/demo/launch_java_video_demo.sh --port 8555
-
-# Specify explicit emulator PID discovery file
-./hardware/generic/goldfish/emulator/videobridge/java/demo/launch_java_video_demo.sh --discovery_file ~/Library/Caches/TemporaryItems/avd/running/pid_12345.ini
+./hardware/generic/goldfish/emulator/videobridge/java/demo/launch_java_video_demo.sh --discovery_file ~/Library/Caches/TemporaryItems/avd/running/pid_12345.ini --swing
 ```
 
 ### Building via Bazel
@@ -88,12 +83,14 @@ demo/
 
 ______________________________________________________________________
 
-## 4. Automatic Emulator Discovery
+## 4. Emulator Discovery File
 
-When no `--discovery_file` parameter is provided, `launch_java_video_demo.sh`
-automatically searches platform-specific temp directories for active emulator
-PID discovery files:
+`launch_java_video_demo.sh` requires the `--discovery_file` parameter pointing to
+the active emulator PID discovery `.ini` file:
 
 - **macOS**: `~/Library/Caches/TemporaryItems/avd/running/pid_*.ini`
-- **Linux**: `/tmp/avd/running/pid_*.ini`
+- **Linux**: `/tmp/avd/running/pid_*.ini` or `${TMPDIR}/avd/running/pid_*.ini`
 - **Windows**: `%LOCALAPPDATA%\Temp\avd/running/pid_*.ini`
+
+The script parses `grpc.port` from the configuration file to connect the demo
+application directly to the emulator's built-in WebRTC gRPC service.

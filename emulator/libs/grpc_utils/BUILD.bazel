@@ -70,8 +70,11 @@ cc_library(
 clang_tidy_test(
     name = "tidy",
     targets = [
-        "translate",
-        "translate_test",
+        ":absl_translate",
+        ":absl_translate_test",
+        ":async",
+        ":async_test",
+        ":event-stream",
     ],
     tidy_config_file = "//:clang_tidy_config",
 )

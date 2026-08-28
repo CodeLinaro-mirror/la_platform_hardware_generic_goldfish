@@ -17,6 +17,7 @@
 #include <zlib.h>
 
 #include <algorithm>
+#include <cstddef>
 #include <streambuf>
 #include <vector>
 
@@ -26,50 +27,50 @@ namespace {
 
 class GzipOutputStreambuf : public std::streambuf {
   public:
-    GzipOutputStreambuf(std::streambuf* dst, int level = Z_DEFAULT_COMPRESSION,
-                        std::size_t bufferCapacity = k16KB)
-            : mDst(dst), mCapacity(bufferCapacity), mIn(mCapacity), mOut(mCapacity) {
-        const int GZIP_WINDOW_BITS = 15 + 16;
-        mErr = deflateInit2(&mZstream, level, Z_DEFLATED, GZIP_WINDOW_BITS, 8, Z_DEFAULT_STRATEGY);
+    explicit GzipOutputStreambuf(std::streambuf* dst, int level = Z_DEFAULT_COMPRESSION,
+                                 std::size_t buffer_capacity = kSixteenKilobytes)
+            : dst_(dst), capacity_(buffer_capacity), in_(capacity_), out_(capacity_) {
+        const int gzip_window_bits = 15 + 16;
+        err_ = deflateInit2(&zstream_, level, Z_DEFLATED, gzip_window_bits, 8, Z_DEFAULT_STRATEGY);
 
-        setp(mIn.data(), mIn.data() + mIn.size());
+        setp(in_.data(), in_.data() + in_.size());
     }
 
     ~GzipOutputStreambuf() override {
         sync();
-        deflateEnd(&mZstream);
+        deflateEnd(&zstream_);
     }
 
   private:
-    bool compress(int flush) {
+    bool Compress(int flush) {
         int written = 0;
 
         do {
-            mZstream.next_out = reinterpret_cast<Bytef*>(mOut.data());
-            mZstream.avail_out = mOut.size();
-            mErr = deflate(&mZstream, flush);
-            if (mErr != Z_OK && mErr != Z_STREAM_END && mErr != Z_BUF_ERROR) return false;
+            zstream_.next_out = reinterpret_cast<Bytef*>(out_.data());
+            zstream_.avail_out = out_.size();
+            err_ = deflate(&zstream_, flush);
+            if (err_ != Z_OK && err_ != Z_STREAM_END && err_ != Z_BUF_ERROR) return false;
 
-            int cnt = reinterpret_cast<char*>(mZstream.next_out) - mOut.data();
-            written = mDst->sputn(mOut.data(), cnt);
+            int cnt = reinterpret_cast<char*>(zstream_.next_out) - out_.data();
+            written = dst_->sputn(out_.data(), cnt);
             if (written != cnt) {
                 return false;
             }
-        } while (mErr != Z_STREAM_END && mErr != Z_BUF_ERROR && written != 0);
+        } while (err_ != Z_STREAM_END && err_ != Z_BUF_ERROR && written != 0);
 
         return true;
     }
 
     std::streambuf::int_type overflow(std::streambuf::int_type c = traits_type::eof()) override {
-        mZstream.next_in = reinterpret_cast<Bytef*>(pbase());
-        mZstream.avail_in = pptr() - pbase();
-        while (mZstream.avail_in > 0) {
-            if (!compress(Z_NO_FLUSH)) {
+        zstream_.next_in = reinterpret_cast<Bytef*>(pbase());
+        zstream_.avail_in = pptr() - pbase();
+        while (zstream_.avail_in > 0) {
+            if (!Compress(Z_NO_FLUSH)) {
                 setp(nullptr, nullptr);
                 return traits_type::eof();
             }
         }
-        setp(mIn.data(), mIn.data() + mIn.size());
+        setp(in_.data(), in_.data() + in_.size());
         return c == traits_type::eof() ? traits_type::eof() : sputc(c);
     }
 
@@ -77,21 +78,21 @@ class GzipOutputStreambuf : public std::streambuf {
         overflow();
         if (!pptr()) return -1;
 
-        mZstream.next_in = nullptr;
-        mZstream.avail_in = 0;
-        if (!compress(Z_FINISH)) return -1;
+        zstream_.next_in = nullptr;
+        zstream_.avail_in = 0;
+        if (!Compress(Z_FINISH)) return -1;
 
-        deflateReset(&mZstream);
-        return mDst->pubsync();
+        deflateReset(&zstream_);
+        return dst_->pubsync();
     }
 
-    static constexpr std::size_t k16KB = 16 * 1024;
-    std::streambuf* mDst;
-    std::size_t mCapacity;
-    std::vector<char> mIn;
-    std::vector<char> mOut;
-    z_stream mZstream{};
-    int mErr{Z_OK};
+    static constexpr std::size_t kSixteenKilobytes = 16ULL * 1024;
+    std::streambuf* dst_;
+    std::size_t capacity_;
+    std::vector<char> in_;
+    std::vector<char> out_;
+    z_stream zstream_{};
+    int err_{Z_OK};
 };
 
 }  // namespace

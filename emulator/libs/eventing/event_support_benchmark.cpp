@@ -152,10 +152,10 @@ template <class EventSourceType>
 class EventSourceFixture : public benchmark::Fixture {
   public:
     EventSourceFixture() {
-        if (s_listeners.empty()) {
-            s_listeners.resize(kMaxListeners);
+        if (listeners_.empty()) {
+            listeners_.resize(kMaxListeners);
             for (size_t i = 0; i < kMaxListeners; ++i) {
-                s_listeners[i] = std::make_shared<MockEventListener>();
+                listeners_[i] = std::make_shared<MockEventListener>();
             }
         }
     }
@@ -163,9 +163,9 @@ class EventSourceFixture : public benchmark::Fixture {
     auto GetListener(long index) {
         using PtrType = typename EventSourceType::Ptr;
         if constexpr (is_weak_ptr_v<PtrType>) {
-            return s_listeners[index];
+            return listeners_[index];
         } else {
-            return s_listeners[index].get();
+            return listeners_[index].get();
         }
     }
 
@@ -178,7 +178,7 @@ class EventSourceFixture : public benchmark::Fixture {
     void TearDown(const ::benchmark::State& /*state*/) override { source.Clear(); }
 
     static constexpr int kMaxListeners = 8192;
-    inline static std::vector<std::shared_ptr<MockEventListener>> s_listeners;
+    inline static std::vector<std::shared_ptr<MockEventListener>> listeners_;
     EventSourceType source;
 };
 

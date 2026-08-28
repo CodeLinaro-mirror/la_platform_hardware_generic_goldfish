@@ -1,3 +1,4 @@
+load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_test")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
 
@@ -42,6 +43,28 @@ cc_library(
     deps = [
         ":zigzag",
         "@abseil-cpp//absl/status:statusor",
+    ],
+)
+
+cc_library(
+    name = "collections",
+    srcs = [
+        "string.cc",
+    ],
+    hdrs = [
+        "include/goldfish/archive/collections/deque.h",
+        "include/goldfish/archive/collections/pair.h",
+        "include/goldfish/archive/collections/set.h",
+        "include/goldfish/archive/collections/string.h",
+        "include/goldfish/archive/collections/vector.h",
+    ],
+    includes = ["include"],
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        ":archive",
+        "//emulator/libs/status_macros",
     ],
 )
 
@@ -98,6 +121,21 @@ cc_test(
 )
 
 cc_test(
+    name = "collections_unittests",
+    size = "small",
+    srcs = [
+        "collections_tests.cc",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":DequeArchive",
+        ":collections",
+        "//emulator/libs/test:googletest_main",
+        "@abseil-cpp//absl/status:status_matchers",
+    ],
+)
+
+cc_test(
     name = "time_unittests",
     size = "small",
     srcs = [
@@ -133,4 +171,19 @@ test_suite(
         ":reader_writer_unittests",
         ":zigzag_unittests",
     ],
+)
+
+clang_tidy_test(
+    name = "tidy",
+    targets = [
+        ":zigzag",
+        ":archive",
+        ":time",
+        ":DequeArchive",
+        ":QEMUFileArchive",
+        ":zigzag_unittests",
+        ":reader_writer_unittests",
+        ":time_unittests",
+    ],
+    tidy_config_file = "//:clang_tidy_config",
 )

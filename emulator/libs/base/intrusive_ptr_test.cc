@@ -23,47 +23,47 @@ namespace {
 // A simple test class with an internal reference count.
 class RefCounter {
   public:
-    RefCounter() : mRefCount(0) { sLiveInstances++; }
-    ~RefCounter() { sLiveInstances--; }
+    RefCounter() : ref_count_(0) { live_instances_++; }
+    ~RefCounter() { live_instances_--; }
 
-    void addRef() { mRefCount++; }
-    void release() {
-        if (--mRefCount == 0) {
+    void AddRef() { ref_count_++; }
+    void Release() {
+        if (--ref_count_ == 0) {
             delete this;
         }
     }
 
-    int getRefCount() const { return mRefCount; }
+    int GetRefCount() const { return ref_count_; }
 
-    static int getLiveInstances() { return sLiveInstances; }
-    static void resetLiveInstances() { sLiveInstances = 0; }
+    static int GetLiveInstances() { return live_instances_; }
+    static void ResetLiveInstances() { live_instances_ = 0; }
 
   private:
-    std::atomic<int> mRefCount;
-    static std::atomic<int> sLiveInstances;
+    std::atomic<int> ref_count_;
+    static std::atomic<int> live_instances_;
 };
 
-std::atomic<int> RefCounter::sLiveInstances(0);
+std::atomic<int> RefCounter::live_instances_(0);
 
 // ADL-discoverable functions for IntrusivePtr.
-void intrusive_ptr_add_ref(RefCounter* p) {
-    p->addRef();
+void IntrusivePtrAddRef(RefCounter* p) {
+    p->AddRef();
 }
 
-void intrusive_ptr_release(RefCounter* p) {
-    p->release();
+void IntrusivePtrRelease(RefCounter* p) {
+    p->Release();
 }
 
-void intrusive_ptr_ctor(RefCounter* p) {
-    intrusive_ptr_add_ref(p);  // mRefCount starts from zero
+void IntrusivePtrCtor(RefCounter* p) {
+    IntrusivePtrAddRef(p);  // mRefCount starts from zero
 }
 
 using Ptr = goldfish::base::IntrusivePtr<RefCounter>;
 
 class IntrusivePtrTest : public ::testing::Test {
   protected:
-    void SetUp() override { RefCounter::resetLiveInstances(); }
-    void TearDown() override { EXPECT_EQ(0, RefCounter::getLiveInstances()); }
+    void SetUp() override { RefCounter::ResetLiveInstances(); }
+    void TearDown() override { EXPECT_EQ(0, RefCounter::GetLiveInstances()); }
 };
 
 TEST_F(IntrusivePtrTest, DefaultConstructor) {
@@ -74,12 +74,12 @@ TEST_F(IntrusivePtrTest, DefaultConstructor) {
 
 TEST_F(IntrusivePtrTest, ConstructorFromRawPointer) {
     auto* raw = new RefCounter();
-    EXPECT_EQ(0, raw->getRefCount());
+    EXPECT_EQ(0, raw->GetRefCount());
 
     Ptr p(raw);
     EXPECT_EQ(raw, p.get());
-    EXPECT_EQ(1, raw->getRefCount());
-    EXPECT_EQ(1, RefCounter::getLiveInstances());
+    EXPECT_EQ(1, raw->GetRefCount());
+    EXPECT_EQ(1, RefCounter::GetLiveInstances());
 }
 
 TEST_F(IntrusivePtrTest, ConstructorFromNullRawPointer) {
@@ -89,12 +89,12 @@ TEST_F(IntrusivePtrTest, ConstructorFromNullRawPointer) {
 
 TEST_F(IntrusivePtrTest, CopyConstructor) {
     Ptr p1(new RefCounter());
-    EXPECT_EQ(1, p1->getRefCount());
+    EXPECT_EQ(1, p1->GetRefCount());
 
     Ptr p2(p1);
     EXPECT_EQ(p1.get(), p2.get());
-    EXPECT_EQ(2, p1->getRefCount());
-    EXPECT_EQ(1, RefCounter::getLiveInstances());
+    EXPECT_EQ(2, p1->GetRefCount());
+    EXPECT_EQ(1, RefCounter::GetLiveInstances());
 }
 
 TEST_F(IntrusivePtrTest, CopyConstructorFromNull) {
@@ -107,26 +107,26 @@ TEST_F(IntrusivePtrTest, CopyConstructorFromNull) {
 TEST_F(IntrusivePtrTest, MoveConstructor) {
     auto* raw = new RefCounter();
     Ptr p1(raw);
-    EXPECT_EQ(1, raw->getRefCount());
+    EXPECT_EQ(1, raw->GetRefCount());
 
     Ptr p2(std::move(p1));
     EXPECT_EQ(raw, p2.get());
     EXPECT_EQ(nullptr, p1.get());
-    EXPECT_EQ(1, raw->getRefCount());
-    EXPECT_EQ(1, RefCounter::getLiveInstances());
+    EXPECT_EQ(1, raw->GetRefCount());
+    EXPECT_EQ(1, RefCounter::GetLiveInstances());
 }
 
 TEST_F(IntrusivePtrTest, Destructor) {
     {
         Ptr p1(new RefCounter());
-        EXPECT_EQ(1, RefCounter::getLiveInstances());
+        EXPECT_EQ(1, RefCounter::GetLiveInstances());
         {
             Ptr p2(p1);
-            EXPECT_EQ(1, RefCounter::getLiveInstances());
+            EXPECT_EQ(1, RefCounter::GetLiveInstances());
         }
-        EXPECT_EQ(1, RefCounter::getLiveInstances());
+        EXPECT_EQ(1, RefCounter::GetLiveInstances());
     }
-    EXPECT_EQ(0, RefCounter::getLiveInstances());
+    EXPECT_EQ(0, RefCounter::GetLiveInstances());
 }
 
 TEST_F(IntrusivePtrTest, CopyAssignment) {
@@ -135,15 +135,15 @@ TEST_F(IntrusivePtrTest, CopyAssignment) {
     auto* raw1 = p1.get();
     auto* raw2 = p2.get();
 
-    EXPECT_EQ(1, raw1->getRefCount());
-    EXPECT_EQ(1, raw2->getRefCount());
-    EXPECT_EQ(2, RefCounter::getLiveInstances());
+    EXPECT_EQ(1, raw1->GetRefCount());
+    EXPECT_EQ(1, raw2->GetRefCount());
+    EXPECT_EQ(2, RefCounter::GetLiveInstances());
 
     p1 = p2;
 
     EXPECT_EQ(p2.get(), p1.get());
-    EXPECT_EQ(2, raw2->getRefCount());
-    EXPECT_EQ(1, RefCounter::getLiveInstances());
+    EXPECT_EQ(2, raw2->GetRefCount());
+    EXPECT_EQ(1, RefCounter::GetLiveInstances());
 }
 
 TEST_F(IntrusivePtrTest, CopyAssignmentSelf) {
@@ -152,8 +152,8 @@ TEST_F(IntrusivePtrTest, CopyAssignmentSelf) {
 
     p1 = *&p1;
 
-    EXPECT_EQ(1, raw->getRefCount());
-    EXPECT_EQ(1, RefCounter::getLiveInstances());
+    EXPECT_EQ(1, raw->GetRefCount());
+    EXPECT_EQ(1, RefCounter::GetLiveInstances());
 }
 
 TEST_F(IntrusivePtrTest, CopyAssignmentToNull) {
@@ -163,8 +163,8 @@ TEST_F(IntrusivePtrTest, CopyAssignmentToNull) {
 
     p1 = p2;
     EXPECT_EQ(p2.get(), p1.get());
-    EXPECT_EQ(2, raw2->getRefCount());
-    EXPECT_EQ(1, RefCounter::getLiveInstances());
+    EXPECT_EQ(2, raw2->GetRefCount());
+    EXPECT_EQ(1, RefCounter::GetLiveInstances());
 }
 
 TEST_F(IntrusivePtrTest, CopyAssignmentFromNull) {
@@ -173,7 +173,7 @@ TEST_F(IntrusivePtrTest, CopyAssignmentFromNull) {
 
     p1 = p2;
     EXPECT_EQ(nullptr, p1.get());
-    EXPECT_EQ(0, RefCounter::getLiveInstances());
+    EXPECT_EQ(0, RefCounter::GetLiveInstances());
 }
 
 TEST_F(IntrusivePtrTest, MoveAssignment) {
@@ -186,8 +186,8 @@ TEST_F(IntrusivePtrTest, MoveAssignment) {
 
     EXPECT_EQ(raw2, p1.get());
     EXPECT_EQ(nullptr, p2.get());
-    EXPECT_EQ(1, raw2->getRefCount());
-    EXPECT_EQ(1, RefCounter::getLiveInstances());
+    EXPECT_EQ(1, raw2->GetRefCount());
+    EXPECT_EQ(1, RefCounter::GetLiveInstances());
 }
 
 TEST_F(IntrusivePtrTest, MoveAssignmentSelf) {
@@ -197,15 +197,15 @@ TEST_F(IntrusivePtrTest, MoveAssignmentSelf) {
     p1 = std::move(*&p1);
 
     EXPECT_EQ(raw, p1.get());
-    EXPECT_EQ(1, raw->getRefCount());
-    EXPECT_EQ(1, RefCounter::getLiveInstances());
+    EXPECT_EQ(1, raw->GetRefCount());
+    EXPECT_EQ(1, RefCounter::GetLiveInstances());
 }
 
 TEST_F(IntrusivePtrTest, ResetToNull) {
     Ptr p(new RefCounter());
     p.reset();
     EXPECT_EQ(nullptr, p.get());
-    EXPECT_EQ(0, RefCounter::getLiveInstances());
+    EXPECT_EQ(0, RefCounter::GetLiveInstances());
 }
 
 TEST_F(IntrusivePtrTest, Swap) {
@@ -218,9 +218,9 @@ TEST_F(IntrusivePtrTest, Swap) {
 
     EXPECT_EQ(raw2, p1.get());
     EXPECT_EQ(raw1, p2.get());
-    EXPECT_EQ(1, raw1->getRefCount());
-    EXPECT_EQ(1, raw2->getRefCount());
-    EXPECT_EQ(2, RefCounter::getLiveInstances());
+    EXPECT_EQ(1, raw1->GetRefCount());
+    EXPECT_EQ(1, raw2->GetRefCount());
+    EXPECT_EQ(2, RefCounter::GetLiveInstances());
 }
 
 TEST_F(IntrusivePtrTest, Get) {
@@ -231,12 +231,12 @@ TEST_F(IntrusivePtrTest, Get) {
 
 TEST_F(IntrusivePtrTest, Dereference) {
     Ptr p(new RefCounter());
-    EXPECT_EQ(1, (*p).getRefCount());
+    EXPECT_EQ(1, (*p).GetRefCount());
 }
 
 TEST_F(IntrusivePtrTest, ArrowOperator) {
     Ptr p(new RefCounter());
-    EXPECT_EQ(1, p->getRefCount());
+    EXPECT_EQ(1, p->GetRefCount());
 }
 
 TEST_F(IntrusivePtrTest, BoolOperator) {

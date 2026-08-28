@@ -174,6 +174,7 @@ OPT_PARAM(net_tap_script_up, "<script>", "script to run when the TAP interface g
 OPT_PARAM(net_tap_script_down, "<script>", "script to run when the TAP interface goes down")
 OPT_PARAM(cpu_delay, "<cpudelay>", "throttle CPU emulation")
 OPT_FLAG(no_boot_anim, "disable animation for faster boot")
+OPT_FLAG(boot_anim, "enable boot animation (default except on Windows)")
 
 OPT_FLAG(no_window, "disable graphical window display")
 OPT_FLAG(qt_hide_window, "Start QT window but hide window display")
@@ -411,13 +412,15 @@ OPT_FLAG(enable_vnc, "enable vnc debug display")
 OPT_PARAM(qemu, "<qemu>", "flags to pass directly to Qemu")
 
 OPT_FLAG(no_wifi, "disable wifi device")
+OPT_FLAG(nfc, "enable nfc device")
 OPT_FLAG(no_grpc, "disable grpc device")
 OPT_FLAG(no_netsim,
          "disable launching netsimd and configuring any devices that depend on it e.g. wifi, bt, "
-         "uwb")
+         "uwb, nfc")
 OPT_FLAG(netsim_stdout, "send netsim output to stdout")
 OPT_FLAG(fishtank_stdout, "send fishtank output to stdout")
 OPT_FLAG(verbose_grpc, "verbose grpc logging")
+OPT_FLAG(strict_snapshot_load, "fail if snapshot loading fails")
 
 OPT_PARAM(V, "<v log level>", "Set the global vlog level to this integer value")
 

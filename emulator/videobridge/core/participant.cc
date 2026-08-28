@@ -159,12 +159,8 @@ absl::Status Participant::DoInitialize() {
     }
 
     if (media_provider_) {
-        if (!media_provider_->AddTracks(connection_.GetPeerConnectionFactory(),
-                                        peer_connection_.get())) {
-            return absl::InternalError(absl::StrCat(
-                    "Failed to add audio/video media tracks to PeerConnection for participant ",
-                    peer_id_));
-        }
+        return media_provider_->AddTracks(connection_.GetPeerConnectionFactory(),
+                                          peer_connection_.get());
     }
     return absl::OkStatus();
 }
