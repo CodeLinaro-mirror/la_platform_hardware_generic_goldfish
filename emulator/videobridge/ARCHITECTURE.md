@@ -18,7 +18,7 @@
 * **Hardware-Accelerated Codecs:**
     *   **macOS:** Native VideoToolbox H.264 hardware encoder (`codec_factories_mac.mm`).
     *   **Windows:** Microsoft Media Foundation (MF) hardware H.264 encoder (`mf_video_encoder_h264.cc`).
-    *   **Linux / Generic:** WebRTC software VP8/VP9 and OpenH264 encoders.
+    *   **Linux:** NVIDIA NVENC and Intel/AMD VA-API hardware H.264 encoders with multi-GPU failover and software fallback (`core/linux/`).
 * **Signaling Protocol:** Implements bidirectional streaming gRPC signaling for SDP offer/answer exchange and ICE candidate trickle.
 
 ## Dependencies

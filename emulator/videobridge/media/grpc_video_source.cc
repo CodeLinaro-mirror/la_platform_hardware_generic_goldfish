@@ -22,8 +22,9 @@
 #pragma clang diagnostic ignored "-Wthread-safety-reference-return"
 #pragma clang diagnostic ignored "-Wnullability-completeness"
 #include "api/video/video_frame.h"
-#include "libyuv/convert.h"       // NOLINT(misc-header-include-cycle)
-#include "libyuv/video_common.h"  // NOLINT(misc-header-include-cycle)
+#include "libyuv/convert.h"            // NOLINT(misc-header-include-cycle)
+#include "libyuv/convert_from_argb.h"  // NOLINT(misc-header-include-cycle)
+#include "libyuv/video_common.h"       // NOLINT(misc-header-include-cycle)
 #include "rtc_base/time_utils.h"
 #pragma clang diagnostic pop
 
@@ -36,6 +37,49 @@ namespace goldfish::videobridge {
 using ::android::emulation::control::Image;
 using ::android::emulation::control::ImageFormat;
 using ::android::emulation::control::ImageTransport;
+
+android::emulation::control::ImageFormat_ImgFormat RgbaToNv12Pipeline::GetGrpcFormat() const {
+    return android::emulation::control::ImageFormat::RGBA8888;
+}
+
+size_t RgbaToNv12Pipeline::GetRequiredSharedMemorySize(uint32_t width, uint32_t height) const {
+    const size_t w = (width > 0) ? width : 3840;
+    const size_t h = (height > 0) ? height : 2160;
+    return w * h * 4;
+}
+
+std::optional<::webrtc::VideoFrame> RgbaToNv12Pipeline::Convert(const uint8_t* raw_data,
+                                                                size_t raw_size, uint32_t width,
+                                                                uint32_t height,
+                                                                int64_t timestamp_us) {
+    // VideoToolbox (and H.264/YUV420 in general) requires even dimensions.
+    const uint32_t even_width = width & ~1U;
+    const uint32_t even_height = height & ~1U;
+
+    if (even_width == 0 || even_height == 0) {
+        return std::nullopt;
+    }
+
+    auto buffer = ::webrtc::NV12Buffer::Create(static_cast<int>(even_width),
+                                               static_cast<int>(even_height));
+
+    const int stride_abgr = static_cast<int>(width * 4);
+    const int status =
+            libyuv::ABGRToNV12(raw_data, stride_abgr, buffer->MutableDataY(), buffer->StrideY(),
+                               buffer->MutableDataUV(), buffer->StrideUV(),
+                               static_cast<int>(even_width), static_cast<int>(even_height));
+
+    if (status != 0) {
+        return std::nullopt;
+    }
+
+    return ::webrtc::VideoFrame::Builder()
+            .set_video_frame_buffer(buffer)
+            .set_timestamp_rtp(0)
+            .set_timestamp_us(timestamp_us)
+            .set_rotation(::webrtc::kVideoRotation_0)
+            .build();
+}
 
 android::emulation::control::ImageFormat_ImgFormat RgbaToI420Pipeline::GetGrpcFormat() const {
     return android::emulation::control::ImageFormat::RGBA8888;
@@ -51,7 +95,6 @@ std::optional<::webrtc::VideoFrame> RgbaToI420Pipeline::Convert(const uint8_t* r
                                                                 size_t raw_size, uint32_t width,
                                                                 uint32_t height,
                                                                 int64_t timestamp_us) {
-    // VideoToolbox (and H.264/YUV420 in general) requires even dimensions.
     const uint32_t even_width = width & ~1U;
     const uint32_t even_height = height & ~1U;
 
@@ -59,16 +102,12 @@ std::optional<::webrtc::VideoFrame> RgbaToI420Pipeline::Convert(const uint8_t* r
         return std::nullopt;
     }
 
-    if (!buffer_ || buffer_->width() != static_cast<int>(even_width) ||
-        buffer_->height() != static_cast<int>(even_height)) {
-        buffer_ = ::webrtc::I420Buffer::Create(static_cast<int>(even_width),
+    auto buffer = ::webrtc::I420Buffer::Create(static_cast<int>(even_width),
                                                static_cast<int>(even_height));
-    }
 
     const int status = libyuv::ConvertToI420(
-            raw_data, raw_size, buffer_->MutableDataY(), buffer_->StrideY(),
-            buffer_->MutableDataU(), buffer_->StrideU(), buffer_->MutableDataV(),
-            buffer_->StrideV(),
+            raw_data, raw_size, buffer->MutableDataY(), buffer->StrideY(), buffer->MutableDataU(),
+            buffer->StrideU(), buffer->MutableDataV(), buffer->StrideV(),
             /*crop_x=*/0, /*crop_y=*/0, static_cast<int>(width), static_cast<int>(height),
             static_cast<int>(even_width), static_cast<int>(even_height), libyuv::kRotate0,
             libyuv::FOURCC_ABGR);
@@ -78,7 +117,7 @@ std::optional<::webrtc::VideoFrame> RgbaToI420Pipeline::Convert(const uint8_t* r
     }
 
     return ::webrtc::VideoFrame::Builder()
-            .set_video_frame_buffer(buffer_)
+            .set_video_frame_buffer(buffer)
             .set_timestamp_rtp(0)
             .set_timestamp_us(timestamp_us)
             .set_rotation(::webrtc::kVideoRotation_0)
