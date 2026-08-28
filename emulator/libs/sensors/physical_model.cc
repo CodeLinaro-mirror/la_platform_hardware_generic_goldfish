@@ -357,7 +357,7 @@ void PhysicalModel::SetTargetInternalHumidity(float percentage, PhysicalInterpol
 
 void PhysicalModel::SetTargetInternalHingeAngle0(float degrees, PhysicalInterpolation mode) {
     if (!HasFoldableModel()) {
-        LOG(INFO) << "Device is not foldable, ignoring hinge-angle0 change to: " << degrees;
+        LOG(WARNING) << "Device is not foldable, ignoring hinge-angle0 change to: " << degrees;
         return;
     }
 
@@ -371,7 +371,7 @@ void PhysicalModel::SetTargetInternalHingeAngle0(float degrees, PhysicalInterpol
 
 void PhysicalModel::SetTargetInternalHingeAngle1(float degrees, PhysicalInterpolation mode) {
     if (!HasFoldableModel()) {
-        LOG(INFO) << "Device is not foldable, ignoring hinge-angle1 change to: " << degrees;
+        LOG(WARNING) << "Device is not foldable, ignoring hinge-angle1 change to: " << degrees;
         return;
     }
 
@@ -385,7 +385,7 @@ void PhysicalModel::SetTargetInternalHingeAngle1(float degrees, PhysicalInterpol
 
 void PhysicalModel::SetTargetInternalHingeAngle2(float degrees, PhysicalInterpolation mode) {
     if (!HasFoldableModel()) {
-        LOG(INFO) << "Device is not foldable, ignoring hinge-angle2 change to: " << degrees;
+        LOG(WARNING) << "Device is not foldable, ignoring hinge-angle2 change to: " << degrees;
         return;
     }
 
@@ -399,7 +399,7 @@ void PhysicalModel::SetTargetInternalHingeAngle2(float degrees, PhysicalInterpol
 
 void PhysicalModel::SetTargetInternalPosture(float posture, PhysicalInterpolation mode) {
     if (!HasFoldableModel()) {
-        LOG(INFO) << "Device is not foldable, ignoring posture change to: " << posture;
+        LOG(WARNING) << "Device is not foldable, ignoring posture change to: " << posture;
         return;
     }
 
@@ -413,15 +413,16 @@ void PhysicalModel::SetTargetInternalPosture(float posture, PhysicalInterpolatio
 
 void PhysicalModel::SetTargetInternalRollableImpl(unsigned index, float percentage,
                                                   PhysicalInterpolation mode) {
+    if (!HasFoldableModel()) {
+        LOG(WARNING) << "Device is not foldable, ignoring rollable" << index
+                     << " change to: " << percentage;
+        return;
+    }
+
     PhysicalStateChanging();
     {
         const std::lock_guard<std::recursive_mutex> lock(mutex_);
-        if (foldable_model_) {
-            foldable_model_->SetRollable(index, percentage, mode);
-        } else {
-            LOG(WARNING) << "Device is not foldable, ignoring rollable" << index
-                         << " change to: " << percentage;
-        }
+        foldable_model_->SetRollable(index, percentage, mode);
     }
     TargetStateChanged();
 }
