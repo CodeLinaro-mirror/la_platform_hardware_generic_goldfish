@@ -22,6 +22,10 @@
 #include <array>
 #include <numbers>
 
+#include "absl/status/status.h"
+
+#include "goldfish/archive/reader.h"
+#include "goldfish/archive/writer.h"
 #include "goldfish/physics/physics.h"
 
 namespace goldfish::physics {
@@ -123,6 +127,9 @@ class InertialModel {
 
     float GetWristTilt(
             ParameterValueType parameter_value_type = ParameterValueType::kCurrent) const;
+
+    friend archive::IWriter& operator<<(archive::IWriter&, const InertialModel&);
+    friend absl::Status ReadValue(archive::IReader&, InertialModel&);
 
   private:
     void UpdateRotations();

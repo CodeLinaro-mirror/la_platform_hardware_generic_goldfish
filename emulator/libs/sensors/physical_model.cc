@@ -24,6 +24,7 @@
 #include "absl/log/log.h"
 
 #include "android/goldfish/hardware_config.h"
+#include "android/status/status_macros.h"
 #include "goldfish/physics/ambient_environment.h"
 #include "goldfish/physics/body_model.h"
 #include "goldfish/physics/glm_helpers.h"
@@ -839,6 +840,56 @@ void PhysicalModel::NotifyTargetState(PhysicalModelChangeEvent::Type type) {
         .model = this,
     };
     FireEvent(event);
+}
+
+static_assert(PhysicalModel::kNumSensors <= sizeof(unsigned long) * CHAR_BIT);
+
+archive::IWriter& operator<<(archive::IWriter& w, const PhysicalModel& pm) {
+    w << pm.inertial_model_ << pm.ambient_environment_ << pm.body_model_ << pm.model_time_ns_
+      << pm.use_override_.to_ulong() << pm.is_physical_state_changing_;
+
+    if (pm.foldable_model_) {
+        w << true << *pm.foldable_model_;
+    } else {
+        w << false;
+    }
+
+    for (const size_t measurement_id : pm.measurement_id_) {
+        w << measurement_id;
+    }
+
+#define GOLDFISH_SENSOR_DEF(x, y, z, v, w0) w << pm.m##z##Override;
+    GOLDFISH_SENSORS_LIST
+#undef GOLDFISH_SENSOR_DEF
+
+    return w;
+}
+
+absl::Status ReadValue(archive::IReader& r, PhysicalModel& pm) {
+    unsigned long use_override_bits;
+    bool has_foldable_model;
+
+    RETURN_IF_ERROR(ReadValue(r, pm.inertial_model_, pm.ambient_environment_, pm.body_model_,
+                              pm.model_time_ns_, use_override_bits, pm.is_physical_state_changing_,
+                              has_foldable_model));
+
+    pm.use_override_ = PhysicalModel::UseOverrideMask(use_override_bits);
+
+    if (has_foldable_model != static_cast<bool>(pm.foldable_model_)) {
+        return {absl::StatusCode::kInvalidArgument, "Mismatch on the foldable model configuration"};
+    } else if (has_foldable_model) {
+        RETURN_IF_ERROR(ReadValue(r, *pm.foldable_model_));
+    }
+
+    for (size_t& measurement_id : pm.measurement_id_) {
+        RETURN_IF_ERROR(ReadValue(r, measurement_id));
+    }
+
+#define GOLDFISH_SENSOR_DEF(x, y, z, v, w) RETURN_IF_ERROR(ReadValue(r, pm.m##z##Override));
+    GOLDFISH_SENSORS_LIST
+#undef GOLDFISH_SENSOR_DEF
+
+    return absl::OkStatus();
 }
 
 }  // namespace goldfish::sensors

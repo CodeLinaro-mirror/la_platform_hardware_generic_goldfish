@@ -12,30 +12,24 @@
 
 #pragma once
 
-#include <cstdint>
-#include <vector>
+#include <glm/mat4x3.hpp>
+#include <glm/vec2.hpp>
+#include <glm/vec3.hpp>
+#include <glm/vec4.hpp>
 
-#include "absl/status/status.h"
-
-#include "android/status/status_macros.h"
-#include "goldfish/archive/collections/span.h"
 #include "goldfish/archive/reader.h"
 #include "goldfish/archive/writer.h"
 
 namespace goldfish::archive {
 
-template <class T>
-absl::Status ReadValue(archive::IReader& r, std::vector<T>& x) {
-    ASSIGN_OR_RETURN(const size_t new_size, ReadOneValue<size_t>(r));
+absl::Status ReadValue(archive::IReader& r, glm::mat4x3&);
+absl::Status ReadValue(archive::IReader& r, glm::vec2&);
+absl::Status ReadValue(archive::IReader& r, glm::vec3&);
+absl::Status ReadValue(archive::IReader& r, glm::vec4&);
 
-    x.clear();
-    x.resize(new_size);
-    return ReadIntoMutableSpan(r, std::span<T>(x));
-}
-
-template <class T>
-IWriter& operator<<(IWriter& w, const std::vector<T>& x) {
-    return w << std::span<const T>(x);
-}
+IWriter& operator<<(IWriter& w, const glm::mat4x3&);
+IWriter& operator<<(IWriter& w, const glm::vec2&);
+IWriter& operator<<(IWriter& w, const glm::vec3&);
+IWriter& operator<<(IWriter& w, const glm::vec4&);
 
 }  // namespace goldfish::archive

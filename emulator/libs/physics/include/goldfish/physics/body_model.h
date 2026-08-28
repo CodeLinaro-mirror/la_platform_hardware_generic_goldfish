@@ -18,6 +18,10 @@
 
 #include <cstdint>
 
+#include "absl/status/status.h"
+
+#include "goldfish/archive/reader.h"
+#include "goldfish/archive/writer.h"
 #include "goldfish/physics/physics.h"
 
 namespace goldfish::physics {
@@ -37,6 +41,9 @@ class BodyModel {
 
     float GetHeartRate(
             ParameterValueType parameter_value_type = ParameterValueType::kCurrent) const;
+
+    friend archive::IWriter& operator<<(archive::IWriter&, const BodyModel&);
+    friend absl::Status ReadValue(archive::IReader&, BodyModel&);
 
   private:
     /* BPM */

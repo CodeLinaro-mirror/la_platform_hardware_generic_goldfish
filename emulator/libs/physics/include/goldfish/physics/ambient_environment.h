@@ -22,6 +22,10 @@
 #include <array>
 #include <cstdint>
 
+#include "absl/status/status.h"
+
+#include "goldfish/archive/reader.h"
+#include "goldfish/archive/writer.h"
 #include "goldfish/physics/physics.h"
 
 namespace goldfish::physics {
@@ -101,6 +105,9 @@ class AmbientEnvironment {
     float GetHumidity(ParameterValueType parameter_value_type = ParameterValueType::kCurrent) const;
     glm::vec4 GetRgbcLight(
             ParameterValueType parameter_value_type = ParameterValueType::kCurrent) const;
+
+    friend archive::IWriter& operator<<(archive::IWriter&, const AmbientEnvironment&);
+    friend absl::Status ReadValue(archive::IReader&, AmbientEnvironment&);
 
   private:
     static constexpr glm::vec3 kDefaultMagneticField = glm::vec3(0.0F, 5.9F, -48.4F);
