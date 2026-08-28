@@ -87,12 +87,12 @@ DisplayServiceImpl::DisplayServiceImpl(::goldfish::display::IMultiDisplay* displ
         }
     }
 
-    if (mPhysicalModel.HasFoldableModel()) {
+    if (const auto posture_listener = mPhysicalModel.GetPostureListener()) {
         // Subscribe to future posture changes if the device supports foldables/postures.
         // When posture updates, update display folded state, fire display configuration
         // notifications, and stream posture events over gRPC.
-        mPostureSubscription = MakeScopedCallback(
-                mPhysicalModel.GetPostureListener(), [this](const FoldablePostures& posture) {
+        mPostureSubscription =
+                MakeScopedCallback(*posture_listener, [this](const FoldablePostures& posture) {
                     bool isClosed = (posture == FoldablePostures::kClosed);
                     mMultiDisplay.SetFolded(isClosed);
 
@@ -110,7 +110,7 @@ DisplayServiceImpl::DisplayServiceImpl(::goldfish::display::IMultiDisplay* displ
         // embedded emulator) connect to `streamNotification`, `NotificationStreamWriter`
         // immediately sends this cached initial posture, preventing `currentPosture` from staying
         // null.
-        const auto initial_posture = mPhysicalModel.GetFoldableState().current_posture;
+        const auto initial_posture = mPhysicalModel.GetFoldablePosture();
         if (initial_posture != FoldablePostures::kUnknown) {
             Notification event;
             event.mutable_posture()->set_value(ToProtoPosture(initial_posture));
@@ -641,7 +641,7 @@ Status DisplayServiceImpl::setDisplayMode(ServerContext* context, const DisplayM
     }
 
     if (request->value() == FOLDABLE) {
-        const auto posture = mPhysicalModel.GetFoldableState().current_posture;
+        const auto posture = mPhysicalModel.GetFoldablePosture();
 
         Notification event;
         event.mutable_posture()->set_value(ToProtoPosture(posture));
