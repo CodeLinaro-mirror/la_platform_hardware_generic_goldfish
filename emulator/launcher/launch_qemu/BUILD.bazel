@@ -153,7 +153,7 @@ cc_library(
     hdrs = ["gpu_device.h"],
     deps = [
         ":device",
-        "//emulator/libs/sensors:physical_model",
+        "//emulator/libs/parsing:resizable_display_config",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
     ],
@@ -212,7 +212,7 @@ cc_library(
         ":device",
         ":disk_drive",
         "//emulator/libs/adbkey",
-        "//emulator/libs/sensors:physical_model",
+        "//emulator/libs/parsing:resizable_display_config",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
     ],

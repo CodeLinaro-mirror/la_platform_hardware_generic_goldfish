@@ -91,12 +91,6 @@ bool PhysicalModel::GetFoldedArea(int* x, int* y, int* w, int* h) const {
     return foldable_model_->GetFoldedArea(x, y, w, h);
 }
 
-const std::vector<FoldableModel::ResizableConfig>& PhysicalModel::GetResizableConfigs() const {
-    const std::lock_guard<std::recursive_mutex> lock(mutex_);
-    DCHECK(foldable_model_);
-    return foldable_model_->GetResizableConfigs();
-}
-
 PhysicalModel::PhysicalModel(const android::goldfish::HardwareConfig& hw)
         : foldable_model_(FoldableModel::Create(hw)) {}
 

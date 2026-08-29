@@ -37,6 +37,7 @@ cc_library(
         "//emulator/libs/grpc_utils:event-stream",
         "//emulator/libs/hardware_config",
         "//emulator/libs/ini_file",
+        "//emulator/libs/parsing:resizable_display_config",
         "//emulator/libs/shared_memory",
         "//emulator/libs/sockets",
         "//emulator/plugin/audio:qemu_audio_capture",
