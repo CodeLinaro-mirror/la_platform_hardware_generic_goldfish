@@ -86,6 +86,11 @@ class EventLoop : public CallbackEventSource<LooperStatusEvent> {
      * without the overhead or copy restrictions of std::function.
      */
     using Task = absl::AnyInvocable<void()>;
+    /**
+     * @brief A repeating task that returns whether it should be rescheduled.
+     *
+     * The task is executed repeatedly until it returns false, or until it is cancelled.
+     */
     using RepeatingTask = absl::AnyInvocable<bool()>;
 
     /**
@@ -355,7 +360,7 @@ class EventLoop : public CallbackEventSource<LooperStatusEvent> {
 
     /**
      * @brief Schedules a cancellable task to be executed once after a delay.
-     * @param task The task to execute.
+     * @param task The task to execute. Must return true to reschedule, or false to stop.
      * @return A shared pointer to a Timer handle for scheduling and cancellation.
      */
     virtual std::shared_ptr<Timer> CreateTimer(RepeatingTask task) = 0;
