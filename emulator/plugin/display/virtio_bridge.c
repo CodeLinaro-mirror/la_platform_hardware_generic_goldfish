@@ -36,11 +36,14 @@ int dump_virtio_input_hid(const VirtIOInputHID* vhid, char* buf, size_t len) {
 
 int find_virtio_device(Object* obj, void* opaque) {
     VirtioDeviceInfo* device = (VirtioDeviceInfo*)opaque;
-
-    if (object_dynamic_cast(obj, TYPE_VIRTIO_INPUT_HID)) {
+    // "virtio-input-android" is the dedicated android virtio-input device
+    // used to deliver pointer events.
+    if (object_dynamic_cast(obj, "virtio-input-android")) {
         VirtIOInputHID* vhid = VIRTIO_INPUT_HID(obj);
         VirtIODevice* vid = VIRTIO_DEVICE(obj);
-        ALOGV(1, "Found virtio input:%s display:%s, head:%d", vid->name, vhid->display, vhid->head);
+        ALOGV(1, "Found virtio-input-android:%s display:%s, head:%d (target display:%s, head:%d)",
+              vid->name, vhid->display ? vhid->display : "null", vhid->head, device->display,
+              device->head);
         if (vhid->head == device->head && strcmp(vhid->display, device->display) == 0) {
             device->vhid = vhid;
             return 1;
@@ -54,7 +57,8 @@ void virtio_input_send_evdev(VirtIOInputHID* vhid, uint16_t type, uint16_t code,
     VirtIOInput* vinput = VIRTIO_INPUT(vhid);
     virtio_input_event event = {
         .type = cpu_to_le16(type), .code = cpu_to_le16(code), .value = cpu_to_le32(value)};
-    ALOGV(1, "Sending generic evdev event (%d, %d, %d) to display:%s, head:%d", type, code, value,
-          vhid->display, vhid->head);
+    ALOGV(2, "virtio_input_send_evdev: (%d, %d, %d) to display:%s, head:%d, active:%d, evt:%p",
+          type, code, value, vhid->display ? vhid->display : "null", vhid->head,
+          vinput ? vinput->active : -1, vinput ? vinput->evt : NULL);
     virtio_input_send(vinput, &event);
 }
