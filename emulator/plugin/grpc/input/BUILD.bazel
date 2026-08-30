@@ -1,6 +1,8 @@
 load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_test")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 
+package(default_visibility = ["//visibility:public"])
+
 cc_library(
     name = "ev_dev_event",
     hdrs = ["include/android/emulation/control/ev_dev_event.h"],
@@ -99,10 +101,44 @@ cc_test(
     ],
 )
 
+cc_library(
+    name = "input_session",
+    srcs = ["input_session.cc"],
+    hdrs = ["input_session.h"],
+    deps = [
+        ":ev_dev_event",
+        ":slot_registry",
+        "//emulator/plugin/display",
+        "//emulator/plugin/grpc/keyboard",
+        "@abseil-cpp//absl/container:flat_hash_set",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/types:span",
+        "@aemu//protos/services_v2/input:input_service_cc_proto",
+    ],
+)
+
+cc_test(
+    name = "input_session_test",
+    srcs = ["input_session_test.cc"],
+    deps = [
+        ":input_session",
+        "//emulator/libs/async:libuv_event_loop",
+        "//emulator/libs/async:threaded_event_loop",
+        "//emulator/libs/test:googletest_main",
+        "//emulator/plugin/avd:info-fake",
+        "//emulator/plugin/display:test-display",
+        "//emulator/plugin/grpc/keyboard:test_qemu_input_stub",
+        "@googletest//:gtest",
+        "@grpc",
+    ],
+)
+
 clang_tidy_test(
     name = "tidy",
     targets = [
         ":event_sender",
+        ":input_session",
     ],
     tidy_config_file = "//:clang_tidy_config",
 )
