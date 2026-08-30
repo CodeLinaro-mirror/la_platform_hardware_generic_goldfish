@@ -53,6 +53,7 @@
 #include "goldfish/display/QemuMultidisplay/multi_display.h"
 #include "goldfish/file/file.h"
 #include "goldfish/grpc/grpc_key_utils.h"
+#include "goldfish/grpc/v2/v2_services.h"
 #include "goldfish/modem_simulator/modem_simulator_client.h"
 #include "goldfish/tools/aemu_version.h"
 
@@ -128,10 +129,12 @@ std::vector<std::shared_ptr<::grpc::Service>> CreateServices(avd_info::AvdUniver
                                                              int modem_simulator_port) {
     std::vector<std::shared_ptr<::grpc::Service>> services;
 
+    auto* vm_operations = VmOperations::qemuVmOperations();
+
     services.emplace_back(::android::emulation::control::getEmulatorController(
-            VmOperations::qemuVmOperations(), qemu_console_lookup_by_index(0), &avd_universe,
+            vm_operations, qemu_console_lookup_by_index(0), &avd_universe,
             &avd_universe.GetMultiDisplay()));
-    services.emplace_back(std::make_shared<SnapshotServiceImpl>(*VmOperations::qemuVmOperations()));
+    services.emplace_back(std::make_shared<SnapshotServiceImpl>(*vm_operations));
     services.emplace_back(std::make_shared<::android::emulation::control::VehicleServiceImpl>(
             avd_universe.GetVehicleChannel()));
     auto service_forwarder =
@@ -157,6 +160,11 @@ std::vector<std::shared_ptr<::grpc::Service>> CreateServices(avd_info::AvdUniver
     if (auto webrtc_service = WebrtcGetService()) {
         services.emplace_back(webrtc_service);
     }
+
+    // Register AEMU v2 services
+    auto v2_services = ::goldfish::grpc::v2::CreateV2Services(avd_universe, vm_operations,
+                                                              &avd_universe.GetQemuEventLoop());
+    services.insert(services.end(), v2_services.begin(), v2_services.end());
 
     return services;
 }
