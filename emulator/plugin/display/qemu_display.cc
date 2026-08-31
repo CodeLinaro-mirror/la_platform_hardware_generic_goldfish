@@ -221,7 +221,7 @@ void QemuDisplay::SendMouseEvent(int x, int y, int button_mask) {
 
 void QemuDisplay::SendEvDevEvent(uint16_t type, uint16_t code, uint32_t value) {
     const absl::MutexLock lock(send_lock_);
-    VLOG(1) << *this << ", SendEvDevEvent(" << type << ", " << code << ", " << value << ")";
+    VLOG(2) << *this << ", SendEvDevEvent(" << type << ", " << code << ", " << value << ")";
     qemu_loop_
             ->Post([vhid = vhid_, type, code, value] {
                 virtio_input_send_evdev(vhid, type, code, value);
