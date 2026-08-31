@@ -16,6 +16,7 @@
 
 #include "android/base/system.h"
 #include "android/crashreport/crash_reporter.h"
+#include "android/goldfish/vm_interface.h"
 #include "goldfish/archive/collections/string.h"
 #include "goldfish/archive/reader.h"
 #include "goldfish/archive/writer.h"
@@ -109,17 +110,23 @@ AvdExtendedUniverse::AvdExtendedUniverse(std::unique_ptr<AvdProperties> props)
             0s, 300s);
     avd_universe.GetGuestStatus().SetMetricsReporter(avd_universe.metrics_reporter.get());
 
+    auto is_active = []() {
+        auto* vm = android::goldfish::VmOperations::qemuVmOperations();
+        return vm && vm->isRunning();
+    };
+
     avd_universe.qemu_event_loop = goldfish::async::QemuEventLoop::Create();
     auto& qemu_loop = avd_universe.qemu_event_loop;
     android::crashreport::CrashReporter::GetCrashingHangDetector().AddWatchedLooper(
-            "QemuEventLoop", *qemu_loop, absl::Seconds(15));
+            "QemuEventLoop", *qemu_loop, absl::Seconds(15), is_active);
 
     avd_universe.qemu_cpu_loops = createVCpuEventLoops();
     std::vector<goldfish::async::EventLoop*> vcpu_loop_ptrs;
     vcpu_loop_ptrs.reserve(avd_universe.qemu_cpu_loops.size());
     for (auto& loop : avd_universe.qemu_cpu_loops) {
         android::crashreport::CrashReporter::GetCrashingHangDetector().AddWatchedLooper(
-                absl::StrCat("QemuCpuLoop:", loop.getCpuIndex()), loop, absl::Seconds(15));
+                absl::StrCat("QemuCpuLoop:", loop.getCpuIndex()), loop, absl::Seconds(15),
+                is_active);
         vcpu_loop_ptrs.push_back(&loop);
     }
     avd_universe.perf_stat_reporter = std::make_unique<goldfish::metrics::PerfStatReporter>(

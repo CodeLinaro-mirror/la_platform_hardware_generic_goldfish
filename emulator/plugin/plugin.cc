@@ -230,8 +230,11 @@ extern "C" void GF_STARTUP_FUNC(int argc, char** argv) {
     absl::InstallFailureSignalHandler(options);
 
     auto* client_loop = goldfish::async::globalEventLoop();
+
+    // The global event loop is the main thread of the plugin and should always
+    // be responsive, regardless of the vm state.
     android::crashreport::CrashReporter::GetCrashingHangDetector().AddWatchedLooper(
-            "GlobalEventLoop", *client_loop, absl::Seconds(15));
+            "GlobalEventLoop", *client_loop, absl::Seconds(15), []() { return true; });
 
     LOG(INFO) << "goldfish plugin initialization completed";
 
