@@ -164,10 +164,13 @@ absl::Status LaunchQemu::addDevices() {
         // It should lookup the actual port number and set the property
         // "vendor.qemu.vport.<name>" to "/dev/vport8p<N>"
         // e.g. /dev/vport8p3 for bt (4th port)
+        std::string uwb_device = (a.VendorProperty("ro.vendor.uwb.dev") == "/dev/uwb0")
+                                         ? "virtserialport,chardev=uwb,name=uwb"
+                                         : "virtconsole,chardev=uwb,name=uwb";
+
         std::vector<std::string> radio_params = {
             "-chardev", "netsim-uwb,id=uwb",
-            "-device",  "virtconsole,chardev=uwb,name=uwb",
-
+            "-device",  uwb_device,
             "-chardev", "netsim-bt,id=bluetooth",
             "-device",  "virtserialport,chardev=bluetooth,name=bluetooth",
         };

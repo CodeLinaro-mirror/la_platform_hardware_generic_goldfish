@@ -96,6 +96,8 @@ class Avd {
     virtual std::string BuildFlavour() const = 0;
     virtual std::string BuildProductName() const = 0;
     virtual std::string BuildNumber() const = 0;
+    virtual std::string VendorProperty(std::string_view key,
+                                       std::string_view default_value = {}) const = 0;
 
     // Type of the device this will be extracted for the build.prop
     // file associated with the system image used by this avd.

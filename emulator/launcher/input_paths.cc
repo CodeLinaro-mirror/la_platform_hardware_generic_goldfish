@@ -227,6 +227,12 @@ absl::StatusOr<SystemImagePaths> ResolveSystemImagePaths(const std::vector<fs::p
     SystemImagePaths paths;
     ASSIGN_OR_RETURN(paths.build_properties,
                      Search(search_paths, "build.prop", "build properties"));
+    if (auto vendor_prop =
+                Search(search_paths, android_build ? "vendor/build.prop" : "vendor-build.prop",
+                       "vendor build properties");
+        vendor_prop.ok()) {
+        paths.vendor_build_properties = *vendor_prop;
+    }
     ASSIGN_OR_RETURN(paths.advanced_features,
                      Search(search_paths, "advancedFeatures.ini", "advanced features"));
     ASSIGN_OR_RETURN(

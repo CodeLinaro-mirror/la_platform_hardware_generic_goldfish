@@ -510,4 +510,17 @@ TEST_F(AvdTest, ImageKindPlayStore) {
     EXPECT_EQ(avd->ImageKind(), android_studio::EmulatorAvdInfo::PLAY_STORE_KIND);
 }
 
+TEST_F(AvdTest, VendorProperty) {
+    fs::path avd_dir = CreateTestAvd("vendor_prop_avd", "android-30", 30);
+    WriteToFile(avd_dir / "config.ini", "image.sysdir.1=sysimg\n");
+    fs::path sysimg = paths_.sdk_directory / "sysimg";
+    WriteToFile(sysimg / "vendor-build.prop",
+                "ro.vendor.uwb.dev=/dev/uwb0\nro.vendor.test.key=test_val\n");
+
+    ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(opts_, paths_, "vendor_prop_avd", false, {}, {}));
+    EXPECT_EQ(avd->VendorProperty("ro.vendor.uwb.dev"), "/dev/uwb0");
+    EXPECT_EQ(avd->VendorProperty("ro.vendor.test.key"), "test_val");
+    EXPECT_EQ(avd->VendorProperty("non_existent_key", "default_val"), "default_val");
+}
+
 }  // namespace android::goldfish::avd
