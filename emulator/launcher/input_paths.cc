@@ -245,8 +245,10 @@ absl::StatusOr<SystemImagePaths> ResolveSystemImagePaths(const std::vector<fs::p
                 absl::StrCat("data directory is not a directory: ", paths.data_dir.string()));
     }
 
-    ASSIGN_OR_RETURN(paths.kernel_cmdline,
-                     Search(search_paths, "kernel_cmdline.txt", "kernel cmdline"));
+    if (auto kernel_cmdline = Search(search_paths, "kernel_cmdline.txt", "kernel cmdline");
+        kernel_cmdline.ok()) {
+        paths.kernel_cmdline = *kernel_cmdline;
+    }
 
     if (opts.kernel) {
         ASSIGN_OR_RETURN(paths.kernel_image, CheckExists(opts.kernel, "override kernel image"));

@@ -132,6 +132,32 @@ TEST_F(InputPathsTest, ResolveSystemImagePaths) {
     EXPECT_EQ(paths.build_properties, sysimg_dir / "build.prop");
     EXPECT_EQ(paths.system_image, sysimg_dir / "system.img");
     EXPECT_EQ(paths.data_dir, sysimg_dir / "data");
+    EXPECT_EQ(paths.kernel_cmdline, sysimg_dir / "kernel_cmdline.txt");
+}
+
+TEST_F(InputPathsTest, ResolveSystemImagePathsWithoutKernelCmdline) {
+    fs::path sysimg_dir = tmp_->Path() / "sysimg";
+    tmp_->MakeSubDir("sysimg");
+    tmp_->MakeSubDir("sysimg/data");
+
+    WriteToFile(sysimg_dir / "build.prop", "");
+    WriteToFile(sysimg_dir / "advancedFeatures.ini", "");
+    WriteToFile(sysimg_dir / "VerifiedBootParams.textproto", "");
+    // kernel_cmdline.txt is omitted (e.g., 4K or legacy system images)
+    WriteToFile(sysimg_dir / "kernel-ranchu", "");
+    WriteToFile(sysimg_dir / "ramdisk.img", "");
+    WriteToFile(sysimg_dir / "system.img", "");
+    WriteToFile(sysimg_dir / "vendor.img", "");
+    WriteToFile(sysimg_dir / "encryptionkey.img", "");
+
+    AndroidOptions opts = {};
+    ASSERT_OK_AND_ASSIGN(auto paths,
+                         ResolveSystemImagePaths({sysimg_dir}, opts, /*android_build=*/false));
+
+    EXPECT_EQ(paths.build_properties, sysimg_dir / "build.prop");
+    EXPECT_EQ(paths.system_image, sysimg_dir / "system.img");
+    EXPECT_EQ(paths.data_dir, sysimg_dir / "data");
+    EXPECT_TRUE(paths.kernel_cmdline.empty());
 }
 
 TEST_F(InputPathsTest, ResolveSystemImagePathsAndroidBuild) {
