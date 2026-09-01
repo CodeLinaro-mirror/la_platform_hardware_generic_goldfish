@@ -41,6 +41,7 @@ class GrpcWebServer {
      * @param grpc_channel In-process or network gRPC channel to upstream services.
      * @param default_allow_origin Default CORS Access-Control-Allow-Origin header (default "*").
      * @param access_logger Optional callback invoked for every completed HTTP/gRPC-Web request.
+     * @param static_handler Optional HTTP GET handler to serve static frontend assets.
      * @return std::unique_ptr to running GrpcWebServer, or status on failure.
      *
      * Ownership: Caller takes ownership of the returned GrpcWebServer instance.
@@ -50,7 +51,8 @@ class GrpcWebServer {
     static absl::StatusOr<std::unique_ptr<GrpcWebServer>> Create(
             async::EventLoop* loop, std::shared_ptr<async::AsyncSocketFactory> socket_factory,
             const network::Endpoint& endpoint, std::shared_ptr<grpc::Channel> grpc_channel,
-            std::string default_allow_origin = "*", http::AccessLogger access_logger = nullptr);
+            std::string default_allow_origin = "*", http::AccessLogger access_logger = nullptr,
+            http::HttpHandler static_handler = nullptr);
 
     ~GrpcWebServer();
 

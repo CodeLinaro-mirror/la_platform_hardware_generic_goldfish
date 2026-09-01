@@ -1,0 +1,86 @@
+# Copyright (C) 2026 The Android Open Source Project
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_test")
+load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_test")
+
+package(default_visibility = ["//visibility:public"])
+
+cc_library(
+    name = "aquarium_ui_server",
+    srcs = ["src/aquarium_ui_server.cc"],
+    hdrs = ["include/goldfish/aquarium/aquarium_ui_server.h"],
+    includes = ["include"],
+    deps = [
+        "//emulator/libs/grpc_client",
+        "//emulator/libs/http:http_messages",
+        "//emulator/libs/network",
+        "//emulator/libs/system:bazel_info",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@grpc//:grpc++",
+    ],
+)
+
+cc_test(
+    name = "aquarium_ui_server_test",
+    srcs = ["test/aquarium_ui_server_test.cc"],
+    deps = [
+        ":aquarium_ui_server",
+        "//emulator/libs/http:http_messages",
+        "//emulator/libs/test:googletest_main",
+    ],
+)
+
+cc_binary(
+    name = "aquarium-ui",
+    srcs = ["src/main.cc"],
+    data = [
+        "//emulator/ui/aquarium:dist",
+    ],
+    deps = [
+        ":aquarium_ui_server",
+        "//emulator/libs/async:libuv_event_loop",
+        "//emulator/libs/async:libuv_sockets",
+        "//emulator/libs/async:threaded_event_loop",
+        "//emulator/libs/grpc_client",
+        "//emulator/libs/http:http_messages",
+        "//emulator/libs/http:web_server",
+        "//emulator/libs/network",
+        "//emulator/libs/system:bazel_info",
+        "//emulator/tools/grpc-web:grpc_web_protocol",
+        "//emulator/tools/grpc-web:grpc_web_server",
+        "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/flags:parse",
+        "@abseil-cpp//absl/flags:usage",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:flags",
+        "@abseil-cpp//absl/log:globals",
+        "@abseil-cpp//absl/log:initialize",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/synchronization",
+        "@grpc//:grpc++",
+    ],
+)
+
+clang_tidy_test(
+    name = "tidy",
+    targets = [
+        ":aquarium-ui",
+        ":aquarium_ui_server",
+        ":aquarium_ui_server_test",
+    ],
+    tidy_config_file = "//:clang_tidy_config",
+)

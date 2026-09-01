@@ -359,7 +359,8 @@ void HandleGrpcWebStream(const http::HttpRequest& req,
 absl::StatusOr<std::unique_ptr<GrpcWebServer>> GrpcWebServer::Create(
         async::EventLoop* loop, std::shared_ptr<async::AsyncSocketFactory> socket_factory,
         const network::Endpoint& endpoint, std::shared_ptr<grpc::Channel> grpc_channel,
-        std::string default_allow_origin, http::AccessLogger access_logger) {
+        std::string default_allow_origin, http::AccessLogger access_logger,
+        http::HttpHandler static_handler) {
     if (loop == nullptr) {
         return absl::InvalidArgumentError("EventLoop cannot be null");
     }
@@ -397,6 +398,10 @@ absl::StatusOr<std::unique_ptr<GrpcWebServer>> GrpcWebServer::Create(
                               HandleGrpcWebStream(req, std::move(writer), grpc_channel,
                                                   default_allow_origin);
                           });
+
+    if (static_handler) {
+        http_server->OnGet("/*", std::move(static_handler));
+    }
 
     auto start_status = http_server->Start(false);
     if (!start_status.ok()) {
