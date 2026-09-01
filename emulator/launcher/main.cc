@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <errno.h>
+#include <signal.h>
 #include <string.h>
 #include <unistd.h>
 
@@ -191,6 +192,7 @@ void ListAvds(const AndroidOptions& opts, const android::goldfish::UserPaths& us
 
 int main(int argc, char** argv) {
 #ifndef _WIN32
+    signal(SIGPIPE, SIG_IGN);
     if (android::base::System::GetEnvironmentVariable("ANDROID_CLI") == "1") {
         if (setsid() == -1 && errno != EPERM) {
             std::cerr << "emulator-launcher: Warning: setsid() failed: " << strerror(errno) << ".\n"
