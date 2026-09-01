@@ -242,6 +242,72 @@ TEST_F(InputPathsTest, ResolveEmulatorPaths) {
     EXPECT_EQ(paths.launcher_directory, launcher_dir);
     EXPECT_EQ(paths.binary_directory, launcher_dir / "bin");
     EXPECT_EQ(paths.qemu_system_x86_binary, launcher_dir / "bin" / ("qemu-system-x86_64" + suffix));
+    EXPECT_FALSE(paths.HasFishtank());
+}
+
+TEST_F(InputPathsTest, ResolveEmulatorPathsWithFishtank) {
+    tmp_->MakeSubDir("launcher");
+    tmp_->MakeSubDir("launcher/bin");
+    tmp_->MakeSubDir("launcher/lib/qemu");
+    tmp_->MakeSubDir("launcher/lib64");
+    tmp_->MakeSubDir("launcher/share/qemu");
+    tmp_->MakeSubDir("launcher/fishtank");
+
+    fs::path launcher_dir = tmp_->Path() / "launcher";
+    ASSERT_OK_AND_ASSIGN(auto canon, android::base::file::make_canonical(launcher_dir));
+    launcher_dir = canon;
+
+    std::string suffix = "";
+#ifdef _WIN32
+    suffix = ".exe";
+#endif
+
+    WriteToFile(launcher_dir / "bin" / ("qemu-system-x86_64" + suffix), "");
+    WriteToFile(launcher_dir / "bin" / ("qemu-system-aarch64" + suffix), "");
+    WriteToFile(launcher_dir / "bin" / ("qemu-img" + suffix), "");
+    WriteToFile(launcher_dir / "bin" / ("netsimd" + suffix), "");
+    WriteToFile(launcher_dir / "bin" / ("crashpad_handler" + suffix), "");
+    WriteToFile(launcher_dir / "fishtank" / ("fishtank" + suffix), "mock_executable_bytes");
+
+    sys_->SetEnvironmentVariable("ANDROID_EMULATOR_LAUNCHER_DIR", launcher_dir.string());
+
+    ASSERT_OK_AND_ASSIGN(auto paths, ResolveEmulatorPaths(false));
+
+    EXPECT_TRUE(paths.HasFishtank());
+    EXPECT_EQ(paths.fishtank_binary, launcher_dir / "fishtank" / ("fishtank" + suffix));
+}
+
+TEST_F(InputPathsTest, ResolveEmulatorPathsWithZeroByteFishtank) {
+    tmp_->MakeSubDir("launcher");
+    tmp_->MakeSubDir("launcher/bin");
+    tmp_->MakeSubDir("launcher/lib/qemu");
+    tmp_->MakeSubDir("launcher/lib64");
+    tmp_->MakeSubDir("launcher/share/qemu");
+    tmp_->MakeSubDir("launcher/fishtank");
+
+    fs::path launcher_dir = tmp_->Path() / "launcher";
+    ASSERT_OK_AND_ASSIGN(auto canon, android::base::file::make_canonical(launcher_dir));
+    launcher_dir = canon;
+
+    std::string suffix = "";
+#ifdef _WIN32
+    suffix = ".exe";
+#endif
+
+    WriteToFile(launcher_dir / "bin" / ("qemu-system-x86_64" + suffix), "");
+    WriteToFile(launcher_dir / "bin" / ("qemu-system-aarch64" + suffix), "");
+    WriteToFile(launcher_dir / "bin" / ("qemu-img" + suffix), "");
+    WriteToFile(launcher_dir / "bin" / ("netsimd" + suffix), "");
+    WriteToFile(launcher_dir / "bin" / ("crashpad_handler" + suffix), "");
+    // Zero-byte placeholder as created by AOSP empty.zip
+    WriteToFile(launcher_dir / "fishtank" / ("fishtank" + suffix), "");
+
+    sys_->SetEnvironmentVariable("ANDROID_EMULATOR_LAUNCHER_DIR", launcher_dir.string());
+
+    ASSERT_OK_AND_ASSIGN(auto paths, ResolveEmulatorPaths(false));
+
+    EXPECT_FALSE(paths.HasFishtank());
+    EXPECT_TRUE(paths.fishtank_binary.empty());
 }
 
 }  // namespace android::goldfish
