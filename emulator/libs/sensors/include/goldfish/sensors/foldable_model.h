@@ -33,7 +33,7 @@ class FoldableModel {
     struct Private {};
 
   public:
-    FoldableModel(const android::goldfish::HardwareConfig& hw, Private);
+    FoldableModel(FoldableConfig, Private);
 
     /**
      * @brief Factory method to create a FoldableModel instance.
@@ -42,48 +42,37 @@ class FoldableModel {
      *         supports foldable/rollable sensor capabilities or resizable configs,
      *         otherwise nullptr.
      */
-    static std::unique_ptr<FoldableModel> Create(const android::goldfish::HardwareConfig& hw);
+    static absl::StatusOr<std::unique_ptr<FoldableModel>> Create(
+            const android::goldfish::HardwareConfig& hw);
 
     using ObservablePosture =
-            eventing::ObservableValue<FoldablePostures, eventing::ObservableValueTriggerAlways>;
-
-    // called by physical model to set hinge angle.
-    void SetHingeAngle(uint32_t hinge_index, float degrees, PhysicalInterpolation mode);
-
-    // called by physical model to set hinge posture.
-    void SetPosture(float posture, PhysicalInterpolation mode);
-
-    void SetRollable(uint32_t index, float percentage, PhysicalInterpolation mode);
-
-    float GetHingeAngle(uint32_t hinge_index, ParameterValueType parameter_value_type =
-                                                      ParameterValueType::kCurrent) const;
-
-    float GetRollable(uint32_t index, ParameterValueType parameter_value_type) const;
-
-    float GetPosture(ParameterValueType parameter_value_type = ParameterValueType::kCurrent) const;
+            eventing::ObservableValue<FoldablePostures, eventing::ObservableValueTriggerOnUpdate>;
 
     const FoldableConfig& GetFoldableConfig() const { return config_; }
-    const FoldableState& GetFoldableState() const { return state_; }
+    bool GetFoldedArea(int* x, int* y, int* w, int* h) const;
+    FoldablePostures GetFoldablePosture() const { return current_posture_.GetValue(); }
+    ObservablePosture& GetPostureListener() { return current_posture_; }
 
     bool IsFolded() const;
 
-    bool GetFoldedArea(int* x, int* y, int* w, int* h) const;
+    float GetHingeAngle(uint32_t hinge_index,
+                        ParameterValueType value_type = ParameterValueType::kCurrent) const;
+    void SetHingeAngle(uint32_t hinge_index, float degrees, PhysicalInterpolation mode);
 
-    ObservablePosture& GetPostureListener() { return posture_listener_; }
+    float GetPosture(ParameterValueType parameter_value_type = ParameterValueType::kCurrent) const;
+    void SetPosture(float posture, PhysicalInterpolation mode);
+
+    float GetRollable(uint32_t index, ParameterValueType parameter_value_type) const;
+    void SetRollable(uint32_t index, float percentage, PhysicalInterpolation mode);
 
   private:
-    void InitFoldableRoll(const android::goldfish::HardwareConfig& hw);
-    void InitFoldableHinge(const android::goldfish::HardwareConfig& hw);
+    FoldablePostures CalcCurrentPosture() const;
 
-    FoldableConfig config_ = {};
-    std::vector<AnglesToPosture> angles_to_postures_;
-    FoldableState state_ = {};
-    ObservablePosture posture_listener_;
+    const FoldableConfig config_;
 
-    int folded_x_ = 0;
-    int folded_y_ = 0;
-    int folded_w_ = 0;
-    int folded_h_ = 0;
+    float current_hinge_degrees_[kMaxHinges] = {};
+    float current_rolled_percent_[kMaxRolls] = {};
+    ObservablePosture current_posture_;
 };
 
 }  // namespace goldfish::sensors

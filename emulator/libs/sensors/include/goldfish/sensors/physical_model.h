@@ -178,37 +178,8 @@ class PhysicalModel : public CallbackEventSource<PhysicalModelChangeEvent> {
 
     Rotation GetDeviceRotation() const;
 
-    const FoldableConfig& GetFoldableConfig() const;
-
-    /**
-     * @brief Gets the current foldable device state.
-     * @note Caller must ensure HasFoldableModel() is true before calling this API.
-     *       Calling it on a non-foldable target will trigger a DCHECK assertion failure.
-     * @return Current foldable state
-     */
-    const FoldableState& GetFoldableState() const;
-
-    /**
-     * @brief Checks if the physical model supports foldable capabilities.
-     * @return true if foldable capabilities are enabled, false otherwise
-     */
     bool HasFoldableModel() const;
-
-    /**
-     * @brief Gets the posture change listener.
-     * @note Caller must ensure HasFoldableModel() is true before calling this API.
-     *       Calling it on a non-foldable target will trigger a DCHECK assertion failure.
-     * @return Reference to the posture listener
-     */
-    FoldableModel::ObservablePosture& GetPostureListener();
-
-    /**
-     * @brief Checks if the foldable device is currently folded.
-     * @note Caller must ensure HasFoldableModel() is true before calling this API.
-     *       Calling it on a non-foldable target will trigger a DCHECK assertion failure.
-     * @return true if device is folded, false otherwise
-     */
-    bool FoldableIsFolded() const;
+    const FoldableConfig* GetFoldableConfig() const;
 
     /**
      * @brief Gets the folded area dimensions.
@@ -221,6 +192,11 @@ class PhysicalModel : public CallbackEventSource<PhysicalModelChangeEvent> {
      * @return true if area was retrieved successfully
      */
     bool GetFoldedArea(int* x, int* y, int* w, int* h) const;
+
+    FoldableModel::ObservablePosture* GetPostureListener();
+
+    bool FoldableIsFolded() const;
+    FoldablePostures GetFoldablePosture() const;
 
   private:
     static size_t GetSensorValueSize(AndroidSensor);

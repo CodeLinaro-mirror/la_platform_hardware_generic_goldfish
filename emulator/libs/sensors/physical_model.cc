@@ -65,44 +65,47 @@ vec4 Getvec4Value(const float* val, const size_t count) {
 float GetfloatValue(const float* val, const size_t count) {
     return count > 0 ? val[0] : 0;
 }
-}  // namespace
 
-const FoldableConfig& PhysicalModel::GetFoldableConfig() const {
-    const std::lock_guard<std::recursive_mutex> lock(mutex_);
-    DCHECK(foldable_model_);
-    return foldable_model_->GetFoldableConfig();
+std::unique_ptr<FoldableModel> HandleFoldableModelError(
+        absl::StatusOr<std::unique_ptr<FoldableModel>> fm) {
+    if (fm.ok()) {
+        return *std::move(fm);
+    } else {
+        LOG(ERROR) << "Could not create a foldable model: " << fm.status();
+        return {};
+    }
 }
 
-const FoldableState& PhysicalModel::GetFoldableState() const {
-    const std::lock_guard<std::recursive_mutex> lock(mutex_);
-    DCHECK(foldable_model_);
-    return foldable_model_->GetFoldableState();
+}  // namespace
+
+bool PhysicalModel::HasFoldableModel() const {
+    return static_cast<bool>(foldable_model_);
+}
+
+const FoldableConfig* PhysicalModel::GetFoldableConfig() const {
+    return foldable_model_ ? &foldable_model_->GetFoldableConfig() : nullptr;
+}
+
+bool PhysicalModel::GetFoldedArea(int* x, int* y, int* w, int* h) const {
+    return foldable_model_ && foldable_model_->GetFoldedArea(x, y, w, h);
+}
+
+FoldableModel::ObservablePosture* PhysicalModel::GetPostureListener() {
+    return foldable_model_ ? &foldable_model_->GetPostureListener() : nullptr;
 }
 
 bool PhysicalModel::FoldableIsFolded() const {
     const std::lock_guard<std::recursive_mutex> lock(mutex_);
-    DCHECK(foldable_model_);
-    return foldable_model_->IsFolded();
+    return foldable_model_ && foldable_model_->IsFolded();
 }
 
-bool PhysicalModel::GetFoldedArea(int* x, int* y, int* w, int* h) const {
+FoldablePostures PhysicalModel::GetFoldablePosture() const {
     const std::lock_guard<std::recursive_mutex> lock(mutex_);
-    DCHECK(foldable_model_);
-    return foldable_model_->GetFoldedArea(x, y, w, h);
+    return foldable_model_ ? foldable_model_->GetFoldablePosture() : FoldablePostures::kUnknown;
 }
 
 PhysicalModel::PhysicalModel(const android::goldfish::HardwareConfig& hw)
-        : foldable_model_(FoldableModel::Create(hw)) {}
-
-bool PhysicalModel::HasFoldableModel() const {
-    const std::lock_guard<std::recursive_mutex> lock(mutex_);
-    return foldable_model_ != nullptr;
-}
-
-FoldableModel::ObservablePosture& PhysicalModel::GetPostureListener() {
-    DCHECK(foldable_model_);
-    return foldable_model_->GetPostureListener();
-}
+        : foldable_model_(HandleFoldableModelError(FoldableModel::Create(hw))) {}
 
 SensorData PhysicalModel::GetSensorData(const AndroidSensor sensor_id) const {
     const size_t sz = GetSensorValueSize(sensor_id);

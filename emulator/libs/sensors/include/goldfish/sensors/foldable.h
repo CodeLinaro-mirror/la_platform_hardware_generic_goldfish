@@ -16,6 +16,13 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <optional>
+#include <string_view>
+#include <vector>
+
+#include "absl/status/statusor.h"
+
+#include "android/goldfish/hardware_config.h"
 
 namespace goldfish::sensors {
 
@@ -102,8 +109,13 @@ struct FoldableConfig {
 
     // For hinges only
     unsigned num_hinges = 0;
+    int folded_x;
+    int folded_y;
+    int folded_w;
+    int folded_h;
     FoldablePostures fold_at_posture;
     FoldableHingeParameters hinge_params[kMaxHinges];
+    std::vector<AnglesToPosture> angles_to_postures;
 
     // For rollables only
     unsigned num_rolls = 0;
@@ -111,10 +123,6 @@ struct FoldableConfig {
     RollableParameters rollable_params[kMaxRolls];
 };
 
-struct FoldableState {
-    float current_hinge_degrees[kMaxHinges];
-    float current_rolled_percent[kMaxRolls];
-    FoldablePostures current_posture;
-};
+absl::StatusOr<FoldableConfig> MakeFoldableConfig(const android::goldfish::HardwareConfig&);
 
 }  // namespace goldfish::sensors

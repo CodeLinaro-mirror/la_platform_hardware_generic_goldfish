@@ -635,34 +635,30 @@ TEST_F(PhysicalModelTest, FoldableInitialize) {
     model->SetCurrentTime(1000000000L);
 
     {
-        const FoldableConfig& cfg = model->GetFoldableConfig();
+        const FoldableConfig* cfg = model->GetFoldableConfig();
 
-        EXPECT_EQ(2, cfg.num_hinges);
-        EXPECT_EQ(FoldableDisplayType::kHorizontalSplit, cfg.type);
-        EXPECT_EQ(0, cfg.hinge_params[0].display_id);
-        EXPECT_EQ(0, cfg.hinge_params[0].x);
-        EXPECT_EQ(600, cfg.hinge_params[0].y);
-        EXPECT_EQ(1260, cfg.hinge_params[0].width);
-        EXPECT_EQ(10, cfg.hinge_params[0].height);
-        EXPECT_EQ(0, cfg.hinge_params[0].min_degrees);
-        EXPECT_EQ(360, cfg.hinge_params[0].max_degrees);
-        EXPECT_EQ(0, cfg.hinge_params[1].display_id);
-        EXPECT_EQ(0, cfg.hinge_params[1].x);
-        EXPECT_EQ(1200, cfg.hinge_params[1].y);
-        EXPECT_EQ(1260, cfg.hinge_params[1].width);
-        EXPECT_EQ(10, cfg.hinge_params[1].height);
-        EXPECT_EQ(0, cfg.hinge_params[1].min_degrees);
-        EXPECT_EQ(180, cfg.hinge_params[1].max_degrees);
-        EXPECT_EQ(180, cfg.hinge_params[0].default_degrees);
-        EXPECT_EQ(90, cfg.hinge_params[1].default_degrees);
+        ASSERT_TRUE(cfg != nullptr);
+        EXPECT_EQ(2, cfg->num_hinges);
+        EXPECT_EQ(FoldableDisplayType::kHorizontalSplit, cfg->type);
+        EXPECT_EQ(0, cfg->hinge_params[0].display_id);
+        EXPECT_EQ(0, cfg->hinge_params[0].x);
+        EXPECT_EQ(600, cfg->hinge_params[0].y);
+        EXPECT_EQ(1260, cfg->hinge_params[0].width);
+        EXPECT_EQ(10, cfg->hinge_params[0].height);
+        EXPECT_EQ(0, cfg->hinge_params[0].min_degrees);
+        EXPECT_EQ(360, cfg->hinge_params[0].max_degrees);
+        EXPECT_EQ(0, cfg->hinge_params[1].display_id);
+        EXPECT_EQ(0, cfg->hinge_params[1].x);
+        EXPECT_EQ(1200, cfg->hinge_params[1].y);
+        EXPECT_EQ(1260, cfg->hinge_params[1].width);
+        EXPECT_EQ(10, cfg->hinge_params[1].height);
+        EXPECT_EQ(0, cfg->hinge_params[1].min_degrees);
+        EXPECT_EQ(180, cfg->hinge_params[1].max_degrees);
+        EXPECT_EQ(180, cfg->hinge_params[0].default_degrees);
+        EXPECT_EQ(90, cfg->hinge_params[1].default_degrees);
     }
 
-    {
-        const FoldableState& st = model->GetFoldableState();
-        EXPECT_EQ(180, st.current_hinge_degrees[0]);
-        EXPECT_EQ(90, st.current_hinge_degrees[1]);
-        EXPECT_EQ(FoldablePostures::kOpened, st.current_posture);
-    }
+    EXPECT_EQ(FoldablePostures::kOpened, model->GetFoldablePosture());
 }
 
 TEST_F(PhysicalModelTest, NonFoldableDevicePostureAndHingeAnglesDoNotCrash) {

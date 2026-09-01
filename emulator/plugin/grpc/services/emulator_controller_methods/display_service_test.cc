@@ -917,8 +917,8 @@ TEST_F(DisplayServiceTest, FiresInitialPostureOnConstruction) {
             mMultiDisplay.get(), mPhysicalModel.get(), kNoResizableConfigs);
 
     EXPECT_TRUE(received_posture);
-    EXPECT_EQ(received_value, DisplayServiceImpl::ToProtoPosture(
-                                      mPhysicalModel->GetFoldableState().current_posture));
+    EXPECT_EQ(received_value,
+              DisplayServiceImpl::ToProtoPosture(mPhysicalModel->GetFoldablePosture()));
 
     ::goldfish::avd_info::GetAvd().GetGrpcNotificationChannel().RemoveCallback(callback_id);
 }
