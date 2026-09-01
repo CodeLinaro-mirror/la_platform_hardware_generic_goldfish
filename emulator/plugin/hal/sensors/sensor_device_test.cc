@@ -124,7 +124,7 @@ TEST_F(SensorDeviceTest, timeKeepsOnRolling) {
     Receive("set-delay:1");
     Clear();
     EXPECT_THAT(test_socket_->storage, Eq(""));
-    for (int i = 0; i < 11; i++) client_loop_->AdvanceClock(std::chrono::milliseconds(10));
+    for (int i = 0; i < 11; i++) client_loop_->AdvanceClock(absl::Milliseconds(10));
 
     // We should see a sync several times.
     EXPECT_THAT(CountOccurrences(test_socket_->storage, "guest-sync:"), Gt(10));

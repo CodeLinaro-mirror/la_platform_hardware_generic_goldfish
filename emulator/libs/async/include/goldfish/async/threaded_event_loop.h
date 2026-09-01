@@ -13,8 +13,9 @@
 // limitations under the License.
 #pragma once
 
-#include <chrono>
 #include <memory>
+
+#include "absl/time/time.h"
 
 #include "goldfish/async/event_loop.h"
 #include "goldfish/async/libuv_event_loop.h"
@@ -56,9 +57,9 @@ class ThreadedEventLoop : public EventLoop {
      * loop to shut down cleanly.
      * @note Exceeding this timeout may indicate that resources like active
      * timers were leaked, preventing a graceful shutdown.
-     * @return A `std::chrono::milliseconds` value representing the timeout.
+     * @return An `absl::Duration` value representing the timeout.
      */
-    static constexpr std::chrono::milliseconds GetTimeout() { return std::chrono::seconds(5); }
+    static constexpr absl::Duration GetTimeout() { return absl::Seconds(5); }
 
     /**
      * @brief Gets the current state of the event loop.

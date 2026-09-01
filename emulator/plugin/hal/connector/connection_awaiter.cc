@@ -82,7 +82,7 @@ ConnectionAwaiter::ConnectionAwaiter(async::EventLoop* event_loop,
                 AttemptConnection();
                 return true;
             },
-            interval, interval);
+            absl::FromChrono(interval), absl::FromChrono(interval));
 }
 
 bool ConnectionAwaiter::AttemptConnection() {

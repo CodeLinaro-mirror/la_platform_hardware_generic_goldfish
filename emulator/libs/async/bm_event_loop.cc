@@ -48,8 +48,7 @@ BENCHMARK_F(EventLoopBenchmark, PostWithContextThroughput)(benchmark::State& sta
     for (auto _ : state) {
         // Under baseline compilation, this overload may fall back to standard Post.
         // Once implemented, it will measure the stack-alloc and memcpy overhead.
-        (void)loop_->Post([]() { benchmark::DoNotOptimize(0); }, std::chrono::milliseconds::zero(),
-                          context);
+        (void)loop_->Post([]() { benchmark::DoNotOptimize(0); }, context);
     }
 }
 

@@ -43,13 +43,12 @@ class VCpuEventLoop : public ::goldfish::async::EventLoop {
             // We can't actually cancel - but we shouldn't allow rescheduling.
         }
 
-        void Schedule(std::chrono::milliseconds new_delay,
-                      std::chrono::milliseconds new_interval) override {
-            if (new_delay != std::chrono::milliseconds::zero()) {
+        void Schedule(absl::Duration new_delay, absl::Duration new_interval) override {
+            if (new_delay != absl::ZeroDuration()) {
                 LOG(ERROR) << "VCpuTimer does not support delayed scheduling";
                 return;
             }
-            if (new_interval != std::chrono::milliseconds::zero()) {
+            if (new_interval != absl::ZeroDuration()) {
                 LOG(ERROR) << "VCpuTimer does not support interval scheduling";
                 return;
             }
@@ -92,7 +91,7 @@ class VCpuEventLoop : public ::goldfish::async::EventLoop {
     absl::Status PostImmediately(Task task, FlowId) override {
         return absl::UnimplementedError("");
     }
-    absl::Status PostDelayed(Task task, std::chrono::milliseconds delay, FlowId) override {
+    absl::Status PostDelayed(Task task, absl::Duration delay, FlowId) override {
         return absl::UnimplementedError("");
     }
 

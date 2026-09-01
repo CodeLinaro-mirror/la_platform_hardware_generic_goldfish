@@ -140,7 +140,7 @@ TEST(PerfStatReporterTest, PeriodicReportToFile) {
     main_loop->RunAll();
 
     // Initial delay is 5s. Advance clock by 6s to trigger at least once.
-    main_loop->AdvanceClock(std::chrono::seconds(6));
+    main_loop->AdvanceClock(absl::Seconds(6));
 
     // Run tasks that were triggered by AdvanceClock
     main_loop->RunAll();
@@ -184,7 +184,7 @@ TEST(PerfStatReporterTest, FillEventMainLoopCpuUsageChange) {
     test_system.SetCpuTime(cpu_time);
 
     // Trigger an update
-    main_loop->AdvanceClock(std::chrono::seconds(6));
+    main_loop->AdvanceClock(absl::Seconds(6));
     main_loop->RunAll();
 
     AndroidStudioEvent event;
@@ -207,7 +207,7 @@ TEST(PerfStatReporterTest, FillEventMainLoopCpuUsageChange) {
     test_system.SetCpuTime(cpu_time);
 
     // Trigger update
-    main_loop->AdvanceClock(std::chrono::seconds(6));
+    main_loop->AdvanceClock(absl::Seconds(6));
     main_loop->RunAll();
 
     AndroidStudioEvent event2;

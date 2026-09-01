@@ -53,7 +53,7 @@ class WebServerTest : public ::testing::Test {
     }
 
     void TearDown() override {
-        auto status = raw_loop_->ShutdownAndWait(1000ms);
+        auto status = raw_loop_->ShutdownAndWait(absl::Seconds(1));
         EXPECT_TRUE(status.ok());
         if (loop_thread_.joinable()) {
             loop_thread_.join();
