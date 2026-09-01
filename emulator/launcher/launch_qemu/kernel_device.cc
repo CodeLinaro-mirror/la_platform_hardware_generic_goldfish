@@ -58,8 +58,9 @@ absl::StatusOr<std::string> command_line(const Avd& avd, const AndroidOptions& o
 
     // Note that this is currently duplicating: 8250.nr_uarts=1 (arm and x86) clocksource=pit (x86
     // only) but the set takes care of that. for 16k image, there is extra kernel_cmdline.txt
-    {
-        std::ifstream cmdline_file(avd.GetSystemImagePaths().kernel_cmdline);
+    if (const auto& cmdline_path = avd.GetSystemImagePaths().kernel_cmdline;
+        !cmdline_path.empty()) {
+        std::ifstream cmdline_file(cmdline_path);
         std::string first_line;
         if (cmdline_file.is_open()) {
             if (std::getline(cmdline_file, first_line)) {
