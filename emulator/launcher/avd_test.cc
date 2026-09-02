@@ -176,6 +176,28 @@ TEST_F(AvdTest, AvdNotFound) {
                 StatusIs(absl::StatusCode::kNotFound));
 }
 
+TEST_F(AvdTest, MissingSysImgFileReturnsInvalidArgument) {
+    CreateTestAvd("test_avd", "android-30", 30);
+    // Remove a required system image file to verify it does not return kNotFound.
+    base::file::rm(paths_.sdk_directory / "sysimg" / "system.img").IgnoreError();
+
+    EXPECT_THAT(Avd::FromName(opts_, paths_, "test_avd", false, ""),
+                StatusIs(absl::StatusCode::kInvalidArgument,
+                         ::testing::HasSubstr("Sysimg file error:")));
+}
+
+TEST_F(AvdTest, FromAndroidBuildMissingSysImgFileReturnsInvalidArgument) {
+    fs::path build_out = tmp_->Path() / "android_build_missing";
+    tmp_->MakeSubDir("android_build_missing");
+    tmp_->MakeSubDir("android_build_missing/system");
+    tmp_->MakeSubDir("android_build_missing/data");
+
+    EXPECT_THAT(Avd::FromAndroidBuild(opts_, paths_, "android_build_avd", build_out,
+                                      /*wipe_data=*/false, ""),
+                StatusIs(absl::StatusCode::kInvalidArgument,
+                         ::testing::HasSubstr("Sysimg file error:")));
+}
+
 TEST_F(AvdTest, ListMultipleAvds) {
     CreateTestAvd("avd1", "android-30", 30);
     CreateTestAvd("avd2", "android-30", 30);

@@ -64,13 +64,19 @@ bool DefinitelyNotPhone(const android::goldfish::Avd& avd) {
 
 }  // namespace
 
-bool ShouldTrampolineToQemu2(const android::goldfish::Avd& avd) {
+bool ShouldTrampolineToQemu2(const absl::StatusOr<std::unique_ptr<android::goldfish::Avd>>& avd) {
     if (!android::base::System::Get()->EnvGet(kNoTrampolineEnvVar).empty()) {
         VLOG(1) << "Not trampolining as AEMU_NO_TRAMPOLINE is set";
         return false;
     }
 
-    if (auto forced_version = avd.ForcedTrampolineVersion(); forced_version == 2) {
+    if (!avd.ok()) {
+        // For now, we let the legacy emulator have another go at parsing it.
+        VLOG(1) << "Trampolining as failed to load AVD: " << avd.status();
+        return true;
+    }
+
+    if (auto forced_version = (*avd)->ForcedTrampolineVersion(); forced_version == 2) {
         VLOG(1) << "Trampolining as force trampoline qemu version is 2";
         return true;
     } else if (forced_version >= 10) {
@@ -78,22 +84,22 @@ bool ShouldTrampolineToQemu2(const android::goldfish::Avd& avd) {
         return false;
     }
 
-    if (!HasMustHaveGuestFeatures(avd)) {
+    if (!HasMustHaveGuestFeatures(**avd)) {
         VLOG(1) << "Trampolining as sysimg is missing required feature";
         return true;
     }
 
-    if (DefinitelyNotPhone(avd)) {
+    if (DefinitelyNotPhone(**avd)) {
         VLOG(1) << "Trampolining as device type is not phone";
         return true;
     }
 
-    if (avd.ApiLevel() < 37) {
+    if ((*avd)->ApiLevel() < 37) {
         VLOG(1) << "Trampolining as api level is less than 37";
         return true;
     }
 
-    if (LastRunQemuVersion2(avd)) {
+    if (LastRunQemuVersion2(**avd)) {
         LOG(WARNING)
                 << "This AVD was last used with the legacy emulator so will now try to switch. Use "
                    "-wipe-data option to reset the AVD data and use this emulator.";

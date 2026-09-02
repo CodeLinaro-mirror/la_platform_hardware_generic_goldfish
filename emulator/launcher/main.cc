@@ -437,26 +437,27 @@ int main(int argc, char** argv) {
                                                        writable_content_override);
     } else {
         avd = android::goldfish::Avd::FromName(opts, *user_paths, avd_name, opts.wipe_data,
-                                               writable_content_override, opts.sysdir ? opts.sysdir : fs::path());
+                                               writable_content_override,
+                                               opts.sysdir ? opts.sysdir : fs::path());
     }
 
-    if (!avd.ok()) {
-        if (avd.status().code() == absl::StatusCode::kNotFound) {
-            LOG(ERROR) << "Unknown AVD name [" << avd_name
-                       << "], use -list-avds to see valid list.";
-            for (const auto line : absl::StrSplit(avd.status().message(), '\n')) {
-                LOG(ERROR) << line;
-            }
-        } else {
-            LOG(ERROR) << "Failed to load " << avd_name << " due to " << avd.status().message();
+    // Always error for missing AVDs, don't try to trampoline.
+    if (absl::IsNotFound(avd.status())) {
+        LOG(ERROR) << "Unknown AVD name [" << avd_name << "], use -list-avds to see valid list.";
+        for (const auto line : absl::StrSplit(avd.status().message(), '\n')) {
+            LOG(ERROR) << line;
         }
         return 1;
     }
 
-    if (android::goldfish::ShouldTrampolineToQemu2(**avd)) {
-        android::goldfish::TrampolineToQemu2(emulator_paths->launcher_directory, std::move(args_copy));
+    if (android::goldfish::ShouldTrampolineToQemu2(avd)) {
+        android::goldfish::TrampolineToQemu2(emulator_paths->launcher_directory,
+                                             std::move(args_copy));
         std::unreachable();
     }
+
+    // We currently expect AVD load failures to trigger trampoline and not reach this point.
+    LOG_IF(FATAL, !avd.ok()) << "Bug: AVD loading failed: " << avd.status();
 
     bool set_qemu_version = true;
     auto last_run_qemu_version = (*avd)->GetLastRunQemuVersion();
