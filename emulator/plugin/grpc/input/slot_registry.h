@@ -109,6 +109,13 @@ class SlotRegistry {
     void ReleaseSlot(uint32_t identifier);
 
     /**
+     * @brief Immediately releases all registered slots and generates corresponding release events.
+     *
+     * @return A vector of EvDevEvent representing the release events for all active slots.
+     */
+    std::vector<EvDevEvent> ReleaseAllSlots();
+
+    /**
      * @brief Expires old, unused slots and generates corresponding release events.
      *
      * This method iterates through all registered identifiers and releases any

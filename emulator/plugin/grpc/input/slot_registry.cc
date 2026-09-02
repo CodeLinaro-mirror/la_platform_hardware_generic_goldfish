@@ -70,6 +70,19 @@ void SlotRegistry::ReleaseSlot(uint32_t identifier) {
     id_last_used_epoch_.erase(identifier);
 }
 
+std::vector<EvDevEvent> SlotRegistry::ReleaseAllSlots() {
+    std::vector<EvDevEvent> events;
+    events.reserve(id_map_.size() * 2);
+    for (const auto& [identifier, slot] : id_map_) {
+        events.push_back({EV_ABS, ABS_MT_SLOT, slot});
+        events.push_back({EV_ABS, ABS_MT_TRACKING_ID, kMtsPointerUp});
+    }
+    id_map_.clear();
+    id_last_used_epoch_.clear();
+    used_slots_.reset();
+    return events;
+}
+
 std::vector<EvDevEvent> SlotRegistry::ExpireOldSlots() {
     std::vector<EvDevEvent> events;
 

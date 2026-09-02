@@ -172,6 +172,24 @@ TEST(SlotRegistryTest, AcquireExtendsExpiration) {
     events = registry.ExpireOldSlots();
     EXPECT_EQ(events.size(), 2);
 }
+
+TEST(SlotRegistryTest, ReleaseAllSlots) {
+    TestClock clock;
+    SlotRegistry registry(absl::Seconds(120), &clock);
+
+    int s1 = registry.AcquireSlot(10);
+    int s2 = registry.AcquireSlot(20);
+    ASSERT_GE(s1, 0);
+    ASSERT_GE(s2, 0);
+
+    auto events = registry.ReleaseAllSlots();
+    EXPECT_EQ(events.size(), 4);
+    EXPECT_FALSE(registry.IsSlotRegistered(s1));
+    EXPECT_FALSE(registry.IsSlotRegistered(s2));
+    EXPECT_FALSE(registry.IsIdentifierRegistered(10));
+    EXPECT_FALSE(registry.IsIdentifierRegistered(20));
+}
+
 }  // namespace control
 }  // namespace emulation
 }  // namespace android
