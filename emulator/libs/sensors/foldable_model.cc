@@ -27,6 +27,7 @@
 #include "absl/strings/str_split.h"
 
 #include "android/status/status_macros.h"
+#include "goldfish/archive/collections/array.h"
 
 namespace goldfish::sensors {
 
@@ -137,6 +138,24 @@ bool FoldableModel::GetFoldedArea(int* x, int* y, int* w, int* h) const {
 
 bool FoldableModel::IsFolded() const {
     return current_posture_.GetValue() == FoldablePostures::kClosed;
+}
+
+archive::IWriter& operator<<(archive::IWriter& w, const FoldableModel& fm) {
+    return w << fm.current_hinge_degrees_ << fm.current_rolled_percent_;
+}
+
+absl::Status ReadValue(archive::IReader& r, FoldableModel& fm) {
+    if (absl::Status s = ReadValue(r, fm.current_hinge_degrees_, fm.current_rolled_percent_);
+        !s.ok()) {
+        return s;
+    }
+
+    const FoldablePostures posture = fm.CalcCurrentPosture();
+    if (posture != FoldablePostures::kUnknown) {
+        fm.current_posture_.SetValue(posture);
+    }
+
+    return absl::OkStatus();
 }
 
 }  // namespace goldfish::sensors

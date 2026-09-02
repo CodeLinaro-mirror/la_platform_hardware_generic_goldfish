@@ -52,9 +52,11 @@ cc_library(
         "string.cc",
     ],
     hdrs = [
+        "include/goldfish/archive/collections/array.h",
         "include/goldfish/archive/collections/deque.h",
         "include/goldfish/archive/collections/pair.h",
         "include/goldfish/archive/collections/set.h",
+        "include/goldfish/archive/collections/span.h",
         "include/goldfish/archive/collections/string.h",
         "include/goldfish/archive/collections/vector.h",
     ],
@@ -65,6 +67,25 @@ cc_library(
     deps = [
         ":archive",
         "//emulator/libs/status_macros",
+    ],
+)
+
+cc_library(
+    name = "glm",
+    srcs = [
+        "glm.cc",
+    ],
+    hdrs = [
+        "include/goldfish/archive/glm.h",
+    ],
+    includes = ["include"],
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        ":archive",
+        "//emulator/libs/status_macros",
+        "@gfxstream//third_party/glm",
     ],
 )
 
@@ -130,6 +151,21 @@ cc_test(
     deps = [
         ":DequeArchive",
         ":collections",
+        "//emulator/libs/test:googletest_main",
+        "@abseil-cpp//absl/status:status_matchers",
+    ],
+)
+
+cc_test(
+    name = "glm_unittests",
+    size = "small",
+    srcs = [
+        "glm_test.cc",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":DequeArchive",
+        ":glm",
         "//emulator/libs/test:googletest_main",
         "@abseil-cpp//absl/status:status_matchers",
     ],

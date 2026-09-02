@@ -24,7 +24,12 @@
 #include <mutex>
 #include <vector>
 
+#include "absl/status/status.h"
+
 #include "android/goldfish/hardware_config.h"
+#include "goldfish/archive/glm.h"
+#include "goldfish/archive/reader.h"
+#include "goldfish/archive/writer.h"
 #include "goldfish/eventing/event_sources.h"
 #include "goldfish/physics/ambient_environment.h"
 #include "goldfish/physics/body_model.h"
@@ -198,6 +203,9 @@ class PhysicalModel : public CallbackEventSource<PhysicalModelChangeEvent> {
     bool FoldableIsFolded() const;
     FoldablePostures GetFoldablePosture() const;
 
+    friend archive::IWriter& operator<<(archive::IWriter&, const PhysicalModel&);
+    friend absl::Status ReadValue(archive::IReader&, PhysicalModel&);
+
   private:
     static size_t GetSensorValueSize(AndroidSensor);
     size_t GetSensorDataImpl(AndroidSensor, float* out, size_t count) const;
@@ -252,23 +260,22 @@ class PhysicalModel : public CallbackEventSource<PhysicalModelChangeEvent> {
     void TargetStateChanged();       ///< Called when target state changes
     void NotifyTargetState(PhysicalModelChangeEvent::Type);
 
-    mutable std::recursive_mutex mutex_;  ///< Mutex for thread safety
+    using UseOverrideMask = std::bitset<kNumSensors>;
 
     const std::unique_ptr<FoldableModel> foldable_model_;  ///< Models foldable device state
     InertialModel inertial_model_;            ///< Models inertial motion
     AmbientEnvironment ambient_environment_;  ///< Models ambient conditions
     BodyModel body_model_;                    ///< Models body-related sensors
-
-    std::bitset<kNumSensors> use_override_;             ///< Sensor override flags
+    int64_t model_time_ns_ = 0L;              ///< Current model time in nanoseconds
+    UseOverrideMask use_override_;            ///< Sensor override flags
     mutable size_t measurement_id_[kNumSensors] = {0};  ///< Measurement IDs
-
     bool is_physical_state_changing_{false};  ///< True if physical state is changing
 
 #define GOLDFISH_SENSOR_DEF(x, y, z, v, w) v m##z##Override{0.f};
     GOLDFISH_SENSORS_LIST
 #undef GOLDFISH_SENSOR_DEF
 
-    int64_t model_time_ns_ = 0L;  ///< Current model time in nanoseconds
+    mutable std::recursive_mutex mutex_;  ///< Mutex for thread safety
 };
 
 }  // namespace goldfish::sensors

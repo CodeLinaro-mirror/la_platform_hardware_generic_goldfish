@@ -12,8 +12,7 @@
 
 #pragma once
 
-#include <cstdint>
-#include <vector>
+#include <array>
 
 #include "absl/status/status.h"
 
@@ -24,17 +23,33 @@
 
 namespace goldfish::archive {
 
-template <class T>
-absl::Status ReadValue(archive::IReader& r, std::vector<T>& x) {
-    ASSIGN_OR_RETURN(const size_t new_size, ReadOneValue<size_t>(r));
+template <class T, size_t SIZE>
+absl::Status ReadValue(archive::IReader& r, T (&x)[SIZE]) {
+    ASSIGN_OR_RETURN(const size_t size, ReadOneValue<size_t>(r));
+    if (size != SIZE) {
+        return absl::InvalidArgumentError("Size mismatch");
+    }
 
-    x.clear();
-    x.resize(new_size);
     return ReadIntoMutableSpan(r, std::span<T>(x));
 }
 
-template <class T>
-IWriter& operator<<(IWriter& w, const std::vector<T>& x) {
+template <class T, size_t SIZE>
+absl::Status ReadValue(archive::IReader& r, std::array<T, SIZE>& x) {
+    ASSIGN_OR_RETURN(const size_t size, ReadOneValue<size_t>(r));
+    if (size != x.size()) {
+        return absl::InvalidArgumentError("Size mismatch");
+    }
+
+    return ReadIntoMutableSpan(r, std::span<T>(x));
+}
+
+template <class T, size_t SIZE>
+IWriter& operator<<(IWriter& w, const T (&x)[SIZE]) {
+    return w << std::span<const T>(x);
+}
+
+template <class T, size_t SIZE>
+IWriter& operator<<(IWriter& w, const std::array<T, SIZE>& x) {
     return w << std::span<const T>(x);
 }
 

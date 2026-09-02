@@ -22,7 +22,11 @@
 #include <string_view>
 #include <vector>
 
+#include "absl/status/status.h"
+
 #include "android/goldfish/hardware_config.h"
+#include "goldfish/archive/reader.h"
+#include "goldfish/archive/writer.h"
 #include "goldfish/eventing/observable_value.h"
 #include "goldfish/physics/physics.h"
 #include "goldfish/sensors/foldable.h"
@@ -64,6 +68,9 @@ class FoldableModel {
 
     float GetRollable(uint32_t index, ParameterValueType parameter_value_type) const;
     void SetRollable(uint32_t index, float percentage, PhysicalInterpolation mode);
+
+    friend archive::IWriter& operator<<(archive::IWriter&, const FoldableModel&);
+    friend absl::Status ReadValue(archive::IReader&, FoldableModel&);
 
   private:
     FoldablePostures CalcCurrentPosture() const;
