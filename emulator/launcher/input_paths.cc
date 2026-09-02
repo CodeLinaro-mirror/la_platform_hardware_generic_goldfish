@@ -151,7 +151,12 @@ absl::StatusOr<EmulatorPaths> ResolveEmulatorPaths(bool verbose) {
     if (auto fishtank = CheckExists(
                 paths.launcher_directory / "fishtank" / AddBinarySuffix("fishtank"), "fishtank");
         fishtank.ok()) {
-        paths.fishtank_binary = *fishtank;
+        if (auto sz = android::base::file::file_size(*fishtank); sz.ok() && sz->Bytes() > 0) {
+            paths.fishtank_binary = *fishtank;
+        } else {
+            VLOG(1) << "Ignoring empty or unreadable fishtank binary: " << *fishtank
+                    << "; the external fishtank UI will be unavailable.";
+        }
     }
 
 #ifdef _WIN32
