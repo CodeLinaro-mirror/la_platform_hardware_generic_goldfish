@@ -46,9 +46,12 @@ cc_test(
 cc_binary(
     name = "aquarium-ui",
     srcs = ["src/main.cc"],
-    data = [
-        "//emulator/ui/aquarium:dist",
-    ],
+    data = select({
+        "@platforms//os:windows": [],
+        "//conditions:default": [
+            "//emulator/ui/aquarium:dist",
+        ],
+    }),
     deps = [
         ":aquarium_ui_server",
         "//emulator/libs/async:libuv_event_loop",
