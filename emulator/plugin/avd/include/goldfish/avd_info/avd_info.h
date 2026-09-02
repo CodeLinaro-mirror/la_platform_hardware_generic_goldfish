@@ -57,6 +57,7 @@ struct AvdProperties {
     std::string build_id;
     std::string build_flavour;
     std::string snapshot_name;
+    bool snapshot_update_time{true};
     int32_t quit_after_boot_timeout_seconds{0};
     ::goldfish::metrics::Uuid metrics_session_id{::goldfish::metrics::Uuid::Zero()};
     ::goldfish::metrics::MetricsWriterConfig metrics_writer_config;

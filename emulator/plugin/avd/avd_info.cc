@@ -269,6 +269,10 @@ void avd_info_set_snapshot_name(Object* obj, const char* value, Error** errp) {
     toMutableAvdProperties(obj).snapshot_name = value;
 }
 
+void avd_info_set_snapshot_update_time(Object* obj, bool value, Error** errp) {
+    toMutableAvdProperties(obj).snapshot_update_time = value;
+}
+
 void avd_info_set_quit_after_boot_timeout(Object* obj, Visitor* v, const char* name, void* opaque,
                                           Error** errp) {
     int32_t value;
@@ -429,6 +433,8 @@ void avd_info_class_init(ObjectClass* oc, const void* data) {
     object_class_property_add_str(oc, "build_id", nullptr, avd_info_set_build_id);
     object_class_property_add_str(oc, "build_flavour", nullptr, avd_info_set_build_flavour);
     object_class_property_add_str(oc, "snapshot_name", nullptr, avd_info_set_snapshot_name);
+    object_class_property_add_bool(oc, "snapshot_update_time", nullptr,
+                                   avd_info_set_snapshot_update_time);
 
     object_class_property_add(oc, "quit_after_boot_timeout", "int", nullptr,
                               avd_info_set_quit_after_boot_timeout, nullptr, nullptr);
