@@ -370,7 +370,7 @@ class EventLoop : public CallbackEventSource<LooperStatusEvent> {
         return ScheduleRepeating(
                 [task = std::move(task)]() mutable {
                     task();
-                    return true;
+                    return false;
                 },
                 delay, absl::ZeroDuration());
     }
