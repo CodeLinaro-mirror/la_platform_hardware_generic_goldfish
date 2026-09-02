@@ -121,3 +121,23 @@ int bdrv_snapshot_list(BlockDriverState* bs, QEMUSnapshotInfo** psn_info) {
     *psn_info = NULL;
     return -1;
 }
+
+static VMChangeStateHandler* s_change_handler = NULL;
+static void* s_change_opaque = NULL;
+
+VMChangeStateEntry* qemu_add_vm_change_state_handler(VMChangeStateHandler* cb, void* opaque) {
+    s_change_handler = cb;
+    s_change_opaque = opaque;
+    return (VMChangeStateEntry*)0x1;
+}
+
+void qemu_del_vm_change_state_handler(VMChangeStateEntry* e) {
+    s_change_handler = NULL;
+    s_change_opaque = NULL;
+}
+
+void mock_fire_vm_change_state(bool running, RunState state) {
+    if (s_change_handler) {
+        s_change_handler(s_change_opaque, running, state);
+    }
+}

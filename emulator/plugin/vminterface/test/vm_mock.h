@@ -42,4 +42,7 @@ void mock_shutdown_cause_set(ShutdownCause cause);
 bool mock_iothread_locked_get();
 void mock_iothread_locked_set(bool locked);
 
+// Trigger registered VM change state handlers
+void mock_fire_vm_change_state(bool running, RunState state);
+
 __END_DECLS
