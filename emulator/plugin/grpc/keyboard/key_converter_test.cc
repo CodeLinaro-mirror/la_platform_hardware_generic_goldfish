@@ -54,6 +54,100 @@ TEST(KeyConversionTest, HandlesEvdevBit11) {
     EXPECT_EQ(evdev_102, evdev_1126);
 }
 
+TEST(KeyConversionTest, AsciiToQcodeLowercase) {
+    auto down_events = ascii_to_qcode('e', true);
+    ASSERT_EQ(down_events.size(), 1);
+    EXPECT_EQ(down_events[0].code, Q_KEY_CODE_E);
+    EXPECT_TRUE(down_events[0].down);
+    EXPECT_TRUE(IsValidQKeyCode(down_events[0].code));
+
+    auto up_events = ascii_to_qcode('e', false);
+    ASSERT_EQ(up_events.size(), 1);
+    EXPECT_EQ(up_events[0].code, Q_KEY_CODE_E);
+    EXPECT_FALSE(up_events[0].down);
+    EXPECT_TRUE(IsValidQKeyCode(up_events[0].code));
+}
+
+TEST(KeyConversionTest, AsciiToQcodeUppercaseLetters) {
+    // 'E' requires Shift + E
+    auto down_events = ascii_to_qcode('E', true);
+    ASSERT_EQ(down_events.size(), 2);
+    EXPECT_EQ(down_events[0].code, Q_KEY_CODE_SHIFT);
+    EXPECT_TRUE(down_events[0].down);
+    EXPECT_EQ(down_events[1].code, Q_KEY_CODE_E);
+    EXPECT_TRUE(down_events[1].down);
+    for (const auto& ev : down_events) {
+        EXPECT_TRUE(IsValidQKeyCode(ev.code));
+    }
+
+    auto up_events = ascii_to_qcode('E', false);
+    ASSERT_EQ(up_events.size(), 2);
+    EXPECT_EQ(up_events[0].code, Q_KEY_CODE_E);
+    EXPECT_FALSE(up_events[0].down);
+    EXPECT_EQ(up_events[1].code, Q_KEY_CODE_SHIFT);
+    EXPECT_FALSE(up_events[1].down);
+    for (const auto& ev : up_events) {
+        EXPECT_TRUE(IsValidQKeyCode(ev.code));
+    }
+}
+
+TEST(KeyConversionTest, AsciiToQcodeFnKey) {
+    // 'a' has fn = 0xe1 -> Alt + A
+    auto down_events = ascii_to_qcode(0xe1, true);
+    ASSERT_EQ(down_events.size(), 2);
+    EXPECT_EQ(down_events[0].code, Q_KEY_CODE_ALT);
+    EXPECT_TRUE(down_events[0].down);
+    EXPECT_EQ(down_events[1].code, Q_KEY_CODE_A);
+    EXPECT_TRUE(down_events[1].down);
+
+    auto up_events = ascii_to_qcode(0xe1, false);
+    ASSERT_EQ(up_events.size(), 2);
+    EXPECT_EQ(up_events[0].code, Q_KEY_CODE_A);
+    EXPECT_FALSE(up_events[0].down);
+    EXPECT_EQ(up_events[1].code, Q_KEY_CODE_ALT);
+    EXPECT_FALSE(up_events[1].down);
+}
+
+TEST(KeyConversionTest, AsciiToQcodeCapsFnKey) {
+    // 'a' has caps_fn = 0xc1 -> Shift + Alt + A
+    auto down_events = ascii_to_qcode(0xc1, true);
+    ASSERT_EQ(down_events.size(), 3);
+    EXPECT_EQ(down_events[0].code, Q_KEY_CODE_SHIFT);
+    EXPECT_TRUE(down_events[0].down);
+    EXPECT_EQ(down_events[1].code, Q_KEY_CODE_ALT);
+    EXPECT_TRUE(down_events[1].down);
+    EXPECT_EQ(down_events[2].code, Q_KEY_CODE_A);
+    EXPECT_TRUE(down_events[2].down);
+
+    auto up_events = ascii_to_qcode(0xc1, false);
+    ASSERT_EQ(up_events.size(), 3);
+    EXPECT_EQ(up_events[0].code, Q_KEY_CODE_A);
+    EXPECT_FALSE(up_events[0].down);
+    EXPECT_EQ(up_events[1].code, Q_KEY_CODE_ALT);
+    EXPECT_FALSE(up_events[1].down);
+    EXPECT_EQ(up_events[2].code, Q_KEY_CODE_SHIFT);
+    EXPECT_FALSE(up_events[2].down);
+}
+
+TEST(KeyConversionTest, AsciiToQcodeUnmappedReturnsEmpty) {
+    auto events = ascii_to_qcode(0xFFFF, true);
+    EXPECT_TRUE(events.empty());
+}
+
+TEST(KeyConversionTest, AsciiToQcodeAllAlphabetLettersValid) {
+    for (char c = 'A'; c <= 'Z'; ++c) {
+        auto events = ascii_to_qcode(c, true);
+        ASSERT_EQ(events.size(), 2) << "Failed for uppercase letter " << c;
+        EXPECT_EQ(events[0].code, Q_KEY_CODE_SHIFT);
+        EXPECT_TRUE(IsValidQKeyCode(events[1].code));
+    }
+    for (char c = 'a'; c <= 'z'; ++c) {
+        auto events = ascii_to_qcode(c, true);
+        ASSERT_EQ(events.size(), 1) << "Failed for lowercase letter " << c;
+        EXPECT_TRUE(IsValidQKeyCode(events[0].code));
+    }
+}
+
 }  // namespace keyboard
 }  // namespace control
 }  // namespace emulation

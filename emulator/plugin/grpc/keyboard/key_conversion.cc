@@ -112,44 +112,40 @@ std::vector<QemuKeyEvent> ascii_to_qcode(unsigned short unicode, bool down) {
             << ", " << std::hex << std::setfill('0') << std::setw(4) << unicode << std::dec
             << " down=" << down;
     /* check base keys */
-    for (int n = 0; n < sizeof(kSkinKeyCharacterMap); n++) {
-        if (kSkinKeyCharacterMap[n].base == unicode) {
-            return {{kSkinKeyCharacterMap[n].code, down}};
+    for (const auto& entry : kSkinKeyCharacterMap) {
+        if (entry.base == unicode) {
+            return {{entry.code, down}};
         }
     }
 
     /* check caps + keys */
-    for (int n = 0; n < sizeof(kSkinKeyCharacterMap); n++) {
-        if (kSkinKeyCharacterMap[n].caps == unicode) {
+    for (const auto& entry : kSkinKeyCharacterMap) {
+        if (entry.caps == unicode) {
             if (down) {
-                return {{Q_KEY_CODE_SHIFT, down}, {kSkinKeyCharacterMap[n].code, down}};
+                return {{Q_KEY_CODE_SHIFT, down}, {entry.code, down}};
             }
-            return {{kSkinKeyCharacterMap[n].code, down}, {Q_KEY_CODE_SHIFT, down}};
+            return {{entry.code, down}, {Q_KEY_CODE_SHIFT, down}};
         }
     }
 
     /* check fn + keys */
-    for (int n = 0; n < sizeof(kSkinKeyCharacterMap); n++) {
-        if (kSkinKeyCharacterMap[n].fn == unicode) {
+    for (const auto& entry : kSkinKeyCharacterMap) {
+        if (entry.fn == unicode) {
             if (down) {
-                return {{Q_KEY_CODE_ALT, down}, {kSkinKeyCharacterMap[n].code, down}};
+                return {{Q_KEY_CODE_ALT, down}, {entry.code, down}};
             }
-            return {{kSkinKeyCharacterMap[n].code, down}, {Q_KEY_CODE_ALT, down}};
+            return {{entry.code, down}, {Q_KEY_CODE_ALT, down}};
         }
     }
 
     /* check caps + fn + keys */
-    for (int n = 0; n < sizeof(kSkinKeyCharacterMap); n++) {
-        if (kSkinKeyCharacterMap[n].caps_fn == unicode) {
+    for (const auto& entry : kSkinKeyCharacterMap) {
+        if (entry.caps_fn == unicode) {
             if (down) {
-                return {{Q_KEY_CODE_SHIFT, down},
-                        {Q_KEY_CODE_ALT, down},
-                        {kSkinKeyCharacterMap[n].code, down}};
+                return {{Q_KEY_CODE_SHIFT, down}, {Q_KEY_CODE_ALT, down}, {entry.code, down}};
             }
 
-            return {{kSkinKeyCharacterMap[n].code, down},
-                    {Q_KEY_CODE_ALT, down},
-                    {Q_KEY_CODE_SHIFT, down}};
+            return {{entry.code, down}, {Q_KEY_CODE_ALT, down}, {Q_KEY_CODE_SHIFT, down}};
         }
     }
     return {};
