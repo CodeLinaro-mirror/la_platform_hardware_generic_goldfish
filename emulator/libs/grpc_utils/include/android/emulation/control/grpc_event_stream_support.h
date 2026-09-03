@@ -18,6 +18,7 @@
 #include <mutex>
 #include <unordered_set>
 
+#include "absl/functional/any_invocable.h"
 #include "absl/log/check.h"
 #include "absl/synchronization/mutex.h"
 #include "google/protobuf/util/message_differencer.h"
@@ -305,8 +306,8 @@ class StateStreamWriter
      * Any shared or mutable external state accessed inside `populate_fn` must be synchronized by
      * the caller.
      */
-    using PopulateStateFn = std::function<void(T*)>;
-    using FilterPredicate = std::function<bool(const typename EventParam<Event>::type&)>;
+    using PopulateStateFn = absl::AnyInvocable<void(T*) const>;
+    using FilterPredicate = absl::AnyInvocable<bool(const typename EventParam<Event>::type&) const>;
 
     /**
      * @brief Constructs a state stream writer, writes the initial state snapshot,

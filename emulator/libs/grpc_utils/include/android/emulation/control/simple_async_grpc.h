@@ -22,6 +22,7 @@
 #include <utility>
 
 #include "absl/base/thread_annotations.h"
+#include "absl/functional/any_invocable.h"
 #include "absl/synchronization/mutex.h"
 
 /**
@@ -149,8 +150,8 @@ class WithSimpleReader : public T, public virtual WithReactorLock {
 template <typename R, typename Base = grpc::ServerReadReactor<R>>
 class SimpleServerLambdaReader : public WithSimpleReader<Base> {
     // A return other than OkStatus will Finish the stream with that status.
-    using ReadCallback = std::function<grpc::Status(const R*)>;
-    using OnDoneCallback = std::function<void()>;
+    using ReadCallback = absl::AnyInvocable<grpc::Status(const R*)>;
+    using OnDoneCallback = absl::AnyInvocable<void() &&>;
 
   public:
     /**
@@ -158,11 +159,11 @@ class SimpleServerLambdaReader : public WithSimpleReader<Base> {
      *
      * @param readFn Callback invoked for each incoming message. Returning a non-OK status finishes
      * the stream with that status.
-     * @param doneFn Callback invoked when the stream completes before the reactor self-deletes.
+     * @param doneFn Optional callback invoked when the stream completes before the reactor
+     * self-deletes.
      */
-    SimpleServerLambdaReader(
-            ReadCallback readFn, OnDoneCallback doneFn = []() {})
-            : read_fn_(readFn), done_fn_(doneFn) {}
+    SimpleServerLambdaReader(ReadCallback readFn, OnDoneCallback doneFn = nullptr)
+            : read_fn_(std::move(readFn)), done_fn_(std::move(doneFn)) {}
 
     virtual bool Read(const R* read) override {
         auto status = read_fn_(read);
@@ -175,7 +176,9 @@ class SimpleServerLambdaReader : public WithSimpleReader<Base> {
     }
 
     virtual void OnDone() override {
-        done_fn_();
+        if (done_fn_) {
+            std::move(done_fn_)();
+        }
         delete this;
     }
 
@@ -214,8 +217,8 @@ class SimpleServerLambdaReader : public WithSimpleReader<Base> {
  */
 template <typename R, typename Base = grpc::ClientReadReactor<R>>
 class SimpleClientLambdaReader : public WithSimpleReader<Base> {
-    using ReadCallback = std::function<grpc::Status(const R*)>;
-    using OnDoneCallback = std::function<void(::grpc::Status)>;
+    using ReadCallback = absl::AnyInvocable<grpc::Status(const R*)>;
+    using OnDoneCallback = absl::AnyInvocable<void(::grpc::Status) &&>;
 
   public:
     /**
@@ -223,12 +226,13 @@ class SimpleClientLambdaReader : public WithSimpleReader<Base> {
      *
      * @param context Shared pointer to the gRPC client context.
      * @param readFn Callback invoked for each incoming message.
-     * @param doneFn Callback invoked upon stream completion with the final gRPC status.
+     * @param doneFn Optional callback invoked upon stream completion with the final gRPC status.
      */
-    SimpleClientLambdaReader(
-            std::shared_ptr<grpc::ClientContext> context, ReadCallback readFn,
-            OnDoneCallback doneFn = [](auto s) {})
-            : read_fn_(readFn), context_(std::move(context)), done_fn_(doneFn) {}
+    SimpleClientLambdaReader(std::shared_ptr<grpc::ClientContext> context, ReadCallback readFn,
+                             OnDoneCallback doneFn = nullptr)
+            : context_(std::move(context))
+            , read_fn_(std::move(readFn))
+            , done_fn_(std::move(doneFn)) {}
 
     virtual bool Read(const R* read) override {
         auto status = read_fn_(read);
@@ -241,16 +245,18 @@ class SimpleClientLambdaReader : public WithSimpleReader<Base> {
     }
 
     virtual void OnDone(const grpc::Status& status) override {
-        done_fn_(status);
+        if (done_fn_) {
+            std::move(done_fn_)(status);
+        }
         delete this;
     }
 
     virtual void TryCancel() { context_->TryCancel(); }
 
   private:
+    std::shared_ptr<grpc::ClientContext> context_;
     ReadCallback read_fn_;
     OnDoneCallback done_fn_;
-    std::shared_ptr<grpc::ClientContext> context_;
 };
 
 /**
