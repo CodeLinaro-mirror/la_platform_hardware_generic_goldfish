@@ -488,6 +488,7 @@ cc_library(
         "//emulator/libs/metrics",
         "//emulator/libs/metrics:configure_metrics_writer",
         "//emulator/libs/system",
+        "//emulator/modem_simulator",
         "//emulator/telnet:legacy_console_controller",
         "//emulator/tools:aemu_version",
         "@abseil-cpp//absl/log",
