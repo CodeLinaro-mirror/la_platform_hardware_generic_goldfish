@@ -420,6 +420,7 @@ OPT_FLAG(no_grpc, "disable grpc device")
 OPT_FLAG(no_netsim,
          "disable launching netsimd and configuring any devices that depend on it e.g. wifi, bt, "
          "uwb, nfc")
+OPT_FLAG(netsim_cellular, "enable netsim cellular")
 OPT_FLAG(netsim_stdout, "send netsim output to stdout")
 OPT_FLAG(fishtank_stdout, "send fishtank output to stdout")
 OPT_FLAG(verbose_grpc, "verbose grpc logging")
