@@ -20,8 +20,8 @@
 #include "api/video/nv12_buffer.h"
 #pragma clang diagnostic pop
 
-#include <cstdint>
-#include <memory>
+#include "absl/base/thread_annotations.h"
+#include "absl/synchronization/mutex.h"
 
 #include "goldfish/display/display.h"
 #include "goldfish/eventing/with_callbacks.h"
@@ -75,10 +75,11 @@ class InProcessVideoSource : public ManagedVideoTrackSource {
 
     ::goldfish::display::IMultiDisplay& multidisplay_;
     const uint32_t display_id_;
-    std::shared_ptr<::goldfish::display::IDisplay> display_;
+    absl::Mutex frame_mutex_;
+    std::shared_ptr<::goldfish::display::IDisplay> display_ ABSL_GUARDED_BY(frame_mutex_);
     std::unique_ptr<android::base::eventing::ScopedEventCallback<
             ::goldfish::display::FrameInfoCallbackSource, ::goldfish::display::FrameInfo>>
-            subscription_;
+            subscription_ ABSL_GUARDED_BY(frame_mutex_);
 };
 
 }  // namespace goldfish::videobridge

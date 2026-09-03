@@ -39,34 +39,45 @@ InProcessVideoSource::~InProcessVideoSource() {
 }
 
 void InProcessVideoSource::OnStart() {
+    std::shared_ptr<::goldfish::display::IDisplay> display;
     auto display_res = multidisplay_.GetDisplay(display_id_);
     if (display_res.ok()) {
-        display_ = display_res.value().lock();
+        display = display_res.value().lock();
     }
 
-    if (!display_) {
+    if (!display) {
         LOG(WARNING) << "InProcessVideoSource: Display " << display_id_
                      << " is unavailable; WebRTC video track will remain idle.";
         return;
     }
 
-    VLOG(1) << "Starting InProcessVideoSource for display " << static_cast<int>(display_->Id());
+    VLOG(1) << "Starting InProcessVideoSource for display " << static_cast<int>(display->Id());
     auto* callback_source =
-            static_cast<::goldfish::display::FrameInfoCallbackSource*>(display_.get());
-    subscription_ = android::base::eventing::MakeScopedCallback(
+            static_cast<::goldfish::display::FrameInfoCallbackSource*>(display.get());
+    auto sub = android::base::eventing::MakeScopedCallback(
             *callback_source, [this](const ::goldfish::display::FrameInfo& frame_info) {
                 OnFrameAvailable(frame_info);
             });
+
+    absl::MutexLock lock(&frame_mutex_);
+    display_ = std::move(display);
+    subscription_ = std::move(sub);
 }
 
 void InProcessVideoSource::OnStop() {
     VLOG(1) << "Stopping InProcessVideoSource.";
-    subscription_.reset();
-    display_.reset();
+    std::unique_ptr<android::base::eventing::ScopedEventCallback<
+            ::goldfish::display::FrameInfoCallbackSource, ::goldfish::display::FrameInfo>>
+            sub;
+    {
+        absl::MutexLock lock(&frame_mutex_);
+        sub = std::move(subscription_);
+        display_.reset();
+    }
 }
 
 void InProcessVideoSource::OnFrameAvailable(const ::goldfish::display::FrameInfo& frame_info) {
-    if (!display_ || !frame_info.pixels || frame_info.dimensions.width == 0 ||
+    if (!frame_info.pixels || frame_info.dimensions.width == 0 ||
         frame_info.dimensions.height == 0) {
         return;
     }
@@ -75,6 +86,13 @@ void InProcessVideoSource::OnFrameAvailable(const ::goldfish::display::FrameInfo
     const uint32_t even_height = frame_info.dimensions.height & ~1U;
     if (even_width == 0 || even_height == 0) {
         return;
+    }
+
+    {
+        absl::MutexLock lock(&frame_mutex_);
+        if (!display_) {
+            return;
+        }
     }
 
     auto nv12_buffer = ::webrtc::NV12Buffer::Create(static_cast<int>(even_width),
