@@ -1,0 +1,138 @@
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+load("@rules_license//rules:license.bzl", "license")
+
+package(
+    default_applicable_licenses = [":license"],
+)
+
+license(
+    name = "license",
+    package_name = "cuttlefish",
+    copyright_notice = "Copyright 2025 - The Android Open Source Project",
+    license_kinds = ["@rules_license//licenses/spdx:Apache-2.0"],
+    license_text = "//emulator:LICENSE",
+    package_url = "https://github.com/google/android-cuttlefish",
+    visibility = ["//visibility:public"],
+)
+
+# Note: this is mainly taken from
+# https://github.com/google/android-cuttlefish/tree/main/base/cvd/cuttlefish/host/commands/modem_simulator
+# and is following the cuttlefish naming and coding-style guidelines
+cc_library(
+    name = "modem_simulator_internal",
+    srcs = [
+        "call_service.cpp",
+        "channel_monitor.cpp",
+        "command_parser.cpp",
+        "data_service.cpp",
+        "device_config.cpp",
+        "misc_service.cpp",
+        "modem_service.cpp",
+        "modem_simulator.cpp",
+        "network_service.cpp",
+        "nvram_config.cpp",
+        "pdu_parser.cpp",
+        "sim_service.cpp",
+        "sms_service.cpp",
+        "stk_service.cpp",
+        "sup_service.cpp",
+        "thread_looper.cpp",
+    ],
+    hdrs = [
+        "call_service.h",
+        "channel_monitor.h",
+        "command_parser.h",
+        "data_service.h",
+        "device_config.h",
+        "misc_service.h",
+        "modem_service.h",
+        "modem_simulator.h",
+        "network_service.h",
+        "network_service_constants.h",
+        "nvram_config.h",
+        "pdu_parser.h",
+        "sim_service.h",
+        "sms_service.h",
+        "stk_service.h",
+        "sup_service.h",
+        "thread_looper.h",
+    ],
+    include_prefix = "host/commands/modem_simulator",
+    strip_include_prefix = ".",
+    tags = ["no-tidy"],
+    visibility = ["//visibility:private"],
+    deps = [
+        "//emulator/launcher:avd",
+        "//emulator/modem_simulator/deps",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:check",
+        "@jsoncpp",
+        "@tinyxml2",
+    ],
+)
+
+cc_library(
+    name = "modem_simulator",
+    srcs = ["modem_simulator_service.cc"],
+    hdrs = ["include/goldfish/modem_simulator/modem_simulator_service.h"],
+    includes = ["include"],
+    tags = ["no-tidy"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":modem_simulator_internal",
+        "//emulator/libs/file",
+        "@abseil-cpp//absl/synchronization",
+    ],
+)
+
+cc_test(
+    name = "modem_simulator_unittest",
+    srcs = [
+        "unittest/command_parser_test.cpp",
+        "unittest/pdu_parser_test.cpp",
+        "unittest/service_test.cpp",
+    ],
+    data = [
+        "files/iccprofile_for_sim0.xml",
+        "files/numeric_operator.xml",
+    ],
+    tags = ["no-tidy"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":modem_simulator_internal",
+        "//emulator/libs/system",
+        "//emulator/libs/system:bazel_info",
+        "//emulator/libs/system:test-headers",
+        "//emulator/libs/test:googletest_main",
+    ],
+)
+
+cc_library(
+    name = "i_modem_simulator_client",
+    hdrs = [
+        "include/goldfish/modem_simulator/i_modem_simulator_client.h",
+    ],
+    includes = ["include"],
+    tags = ["no-tidy"],
+    visibility = ["//visibility:public"],
+    deps = [],
+)
+
+cc_library(
+    name = "modem_simulator_client",
+    srcs = ["modem_simulator_client.cc"],
+    hdrs = [
+        "include/goldfish/modem_simulator/modem_simulator_client.h",
+    ],
+    includes = ["include"],
+    tags = ["no-tidy"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":i_modem_simulator_client",
+        "//emulator/libs/gsm:sms",
+        "//emulator/libs/parsing:hexbin",
+        "//emulator/modem_simulator/deps",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/synchronization",
+    ],
+)

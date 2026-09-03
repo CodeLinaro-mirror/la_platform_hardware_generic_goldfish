@@ -887,6 +887,15 @@ static void help_ports(stralloc_t* out) {
            "  If both ports aren't available on startup, the emulator will exit.\n\n");
 }
 
+static void help_modem_simulator_port(stralloc_t* out) {
+    PRINTF("  by default the emulator tries to bind a free port for modem simulator.\n\n"
+
+           "  use '-modem-simulaotor-port <port>' to force an emulator instance\n"
+           "  to use a given modem simulaotor port\n\n"
+
+           "  If the specified port isn't available on startup, the emulator will exit.\n\n");
+}
+
 static void help_log_nofilter(stralloc_t* out) {
     PRINTF("  Disables the duplicate logline filter (DEPRECATED).\n\n");
 }
@@ -1812,6 +1821,7 @@ static void help_vmodule(stralloc_t* out) {
 #define help_nfc NULL                   // NOLINT(readability-identifier-naming)
 #define help_no_grpc NULL               // NOLINT(readability-identifier-naming)
 #define help_no_netsim NULL             // NOLINT(readability-identifier-naming)
+#define help_netsim_cellular NULL       // NOLINT(readability-identifier-naming)
 #define help_netsim_stdout NULL         // NOLINT(readability-identifier-naming)
 #define help_fishtank_stdout NULL       // NOLINT(readability-identifier-naming)
 #define help_verbose_grpc NULL          // NOLINT(readability-identifier-naming)

@@ -31,6 +31,7 @@
 #include "android/emulation/control/allow_list.h"
 #include "android/emulation/control/basic_token_auth.h"
 #include "android/emulation/control/emulator_controller.h"
+#include "android/emulation/control/incubating/modem_service.h"
 #include "android/emulation/control/incubating/screen_recording_impl.h"
 #include "android/emulation/control/incubating/sensor_service_incubating.h"
 #include "android/emulation/control/incubating/vehicle_service.h"
@@ -52,6 +53,7 @@
 #include "goldfish/display/QemuMultidisplay/multi_display.h"
 #include "goldfish/file/file.h"
 #include "goldfish/grpc/grpc_key_utils.h"
+#include "goldfish/modem_simulator/modem_simulator_client.h"
 #include "goldfish/tools/aemu_version.h"
 
 // clang-format off
@@ -82,6 +84,7 @@ using ::goldfish::async::QemuEventLoop;
 using ::goldfish::discovery::EmulatorAdvertisement;
 using ::goldfish::discovery::EmulatorProperties;
 using ::goldfish::display::IMultiDisplay;
+using ::goldfish::modem_simulator::ModemSimulatorClient;
 
 namespace goldfish::grpc {
 
@@ -102,6 +105,7 @@ struct GrpcConfig {
     bool use_jwt{false};
     int idle_timeout{0};
     int port{0};
+    int modem_simulator_port{0};
 
     std::unique_ptr<AllowList> allow_list;
     std::vector<std::shared_ptr<::grpc::Service>> grpc_services;
@@ -120,7 +124,8 @@ struct GrpcDev {
 #define GRPC_DEV(obj) OBJECT_CHECK(GrpcDev, (obj), TYPE_GRPC)
 #define GRPC_DEVICE_GET_CLASS(obj) OBJECT_GET_CLASS(GrpcDev, obj, TYPE_GRPC)
 
-std::vector<std::shared_ptr<::grpc::Service>> CreateServices(avd_info::AvdUniverse& avd_universe) {
+std::vector<std::shared_ptr<::grpc::Service>> CreateServices(avd_info::AvdUniverse& avd_universe,
+                                                             int modem_simulator_port) {
     std::vector<std::shared_ptr<::grpc::Service>> services;
 
     services.emplace_back(::android::emulation::control::getEmulatorController(
@@ -141,9 +146,18 @@ std::vector<std::shared_ptr<::grpc::Service>> CreateServices(avd_info::AvdUniver
                           ::android::emulation::control::incubating::SensorServiceIncubatingImpl>(
             avd_universe.GetSensorsPhysicalModel()));
 
+    if (modem_simulator_port > 0) {
+        services.emplace_back(
+                std::make_shared<::android::emulation::control::incubating::ModemServiceImpl>(
+                        std::make_unique<ModemSimulatorClient>(modem_simulator_port)));
+    } else {
+        LOG(WARNING) << "No valid modem_simulator_port. Not enabling gRPC ModemService.";
+    }
+
     if (auto webrtc_service = WebrtcGetService()) {
         services.emplace_back(webrtc_service);
     }
+
     return services;
 }
 
@@ -448,7 +462,7 @@ void grpc_realize(DeviceState* dev, Error** errp) {
     auto credentials = CreateCredentials(*cred_conf, is_local_address);
 
     avd_info::AvdUniverse& avd_universe = goldfish::avd_info::GetAvd();
-    config->grpc_services = CreateServices(avd_universe);
+    config->grpc_services = CreateServices(avd_universe, config->modem_simulator_port);
     auto interceptors = CreateInterceptors(config->enable_logging, config->idle_timeout);
 
     ::grpc::ServerBuilder builder;
@@ -546,6 +560,18 @@ void grpc_set_idle_timeout(Object* obj, Visitor* v, const char* name, void* opaq
     grpc_device->config->idle_timeout = value;
 }
 
+void grpc_set_modem_simulator_port(Object* obj, Visitor* v, const char* name, void* opaque,
+                                   Error** errp) {
+    GrpcDev* grpc_device = GRPC_DEV(obj);
+    uint32_t value;
+
+    if (!visit_type_uint32(v, name, &value, errp)) {
+        return;
+    }
+
+    grpc_device->config->modem_simulator_port = value;
+}
+
 void grpc_set_enable_token(Object* obj, bool v, Error** errp) {
     GrpcDev* grpc_device = GRPC_DEV(obj);
     grpc_device->config->use_token = v;
@@ -626,6 +652,11 @@ void grpc_class_init(ObjectClass* oc, const void* data) {
             oc, "idle_timeout",
             "Shutdown the emulator after idle_timeout seconds of inactivity from the "
             "gRPC endpoint.");
+
+    object_class_property_add(oc, "modem_simulator_port", "int", NULL,
+                              grpc_set_modem_simulator_port, NULL, NULL);
+    object_class_property_set_description(oc, "modem_simulator_port",
+                                          "The port to connect to the modem simulator service.");
 
     object_class_property_add_bool(oc, "token", NULL, grpc_set_enable_token);
     object_class_property_set_description(oc, "token",

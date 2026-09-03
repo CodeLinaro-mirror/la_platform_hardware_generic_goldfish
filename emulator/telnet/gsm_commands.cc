@@ -36,9 +36,9 @@ using android::emulation::control::GrpcStatusToAbslStatus;
 namespace {
 
 struct NetsimEnv {
-    std::unique_ptr<netsim::cell::CellService::StubInterface> stub;
+    std::unique_ptr<::netsim::cell::CellService::StubInterface> stub;
     uint32_t chip_id;
-    std::unique_ptr<grpc::ClientContext> context;
+    std::unique_ptr<::grpc::ClientContext> context;
 };
 
 absl::StatusOr<NetsimEnv> GetNetsimEnv(ConsoleContext& ctx) {

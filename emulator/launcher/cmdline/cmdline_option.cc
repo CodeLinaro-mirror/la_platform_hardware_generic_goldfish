@@ -383,6 +383,25 @@ bool android_parse_ports_option(const char* ports_string, int* console_port, int
     return true;
 }
 
+bool modem_simulator_parse_port_option(const char* port_string, int* modem_simulator_port) {
+    if (port_string == nullptr) {
+        return false;
+    }
+
+    char* end;
+    errno = 0;
+    int port = strtol(port_string, &end, 0);
+    if (end == nullptr || *end || errno || port < 1 || port > UINT16_MAX) {
+        LOG(ERROR) << "option -modem_simulator_port must be followed by an integer. '"
+                   << port_string << "' is not a valid input.";
+        return false;
+    }
+
+    *modem_simulator_port = port;
+    VLOG(1) << "Requested modem simulator port " << *modem_simulator_port;
+    return true;
+}
+
 static const char* const kUserModeNetworkingOpts[] = {
     "ipv4",      "ipv6",         "dhcpstart", "host",        "net",           "restrict",
     "ipv6-host", "ipv6-net",     "hostname",  "tftp",        "bootfile",      "hostfwd",
