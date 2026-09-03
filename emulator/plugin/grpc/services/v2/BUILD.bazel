@@ -265,6 +265,65 @@ cc_test(
 )
 
 cc_library(
+    name = "system_service",
+    srcs = ["system/system_service_impl.cc"],
+    hdrs = ["system/system_service_impl.h"],
+    includes = [
+        ".",
+        "system",
+    ],
+    local_defines = select({
+        "@platforms//os:windows": ["NOGDI"],
+        "//conditions:default": [],
+    }),
+    deps = [
+        "//emulator/libs/eventing",
+        "//emulator/libs/grpc_utils:event-stream",
+        "//emulator/libs/system",
+        "//emulator/plugin/avd_universe:clipboard",
+        "//emulator/plugin/avd_universe:fingerprint",
+        "//emulator/plugin/avd_universe:grpc_notification",
+        "//emulator/plugin/avd_universe:guest_status",
+        "//emulator/plugin/vminterface",
+        "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/synchronization",
+        "@abseil-cpp//absl/time",
+        "@aemu//protos/services_v2:system_service_cc_grpc",
+        "@grpc//:grpc++",
+    ],
+)
+
+cc_test(
+    name = "system_service_test",
+    size = "small",
+    srcs = [
+        "system/system_service_impl_test.cc",
+        "test/grpc_v2_service_test.h",
+    ],
+    includes = ["."],
+    local_defines = select({
+        "@platforms//os:windows": ["NOGDI"],
+        "//conditions:default": [],
+    }),
+    deps = [
+        ":system_service",
+        "//emulator/libs/async:async_testing",
+        "//emulator/libs/test:googletest_main",
+        "//emulator/plugin/avd_universe:clipboard",
+        "//emulator/plugin/avd_universe:fingerprint",
+        "//emulator/plugin/avd_universe:grpc_notification",
+        "//emulator/plugin/avd_universe:guest_status",
+        "//emulator/plugin/vminterface",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/time",
+        "@aemu//protos/services_v2:system_service_cc_grpc",
+        "@googletest//:gtest",
+        "@grpc//:grpc++",
+    ],
+)
+
+cc_library(
     name = "v2_services",
     srcs = ["v2_services.cc"],
     hdrs = ["include/goldfish/grpc/v2/v2_services.h"],
@@ -278,6 +337,7 @@ cc_library(
         ":hypervisor_service",
         ":operations_service",
         ":sensors_service",
+        ":system_service",
         "//emulator/libs/async:async_api",
         "//emulator/plugin/avd:avd_universe",
         "//emulator/plugin/vminterface",
@@ -298,6 +358,8 @@ clang_tidy_test(
         ":operations_service_test",
         ":hypervisor_service",
         ":hypervisor_service_test",
+        ":system_service",
+        ":system_service_test",
         ":v2_services",
     ],
     tidy_config_file = "//:clang_tidy_config",

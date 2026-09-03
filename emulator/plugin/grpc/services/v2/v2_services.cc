@@ -18,6 +18,7 @@
 #include "environment/sensors_service_impl.h"
 #include "hypervisor/hypervisor_service_impl.h"
 #include "operations/operations_service_impl.h"
+#include "system/system_service_impl.h"
 
 namespace goldfish::grpc::v2 {
 
@@ -34,6 +35,10 @@ std::vector<std::shared_ptr<Service>> CreateV2Services(AvdUniverse& avd_universe
     services.emplace_back(std::make_shared<CapabilitiesServiceImpl>(avd_universe));
     services.emplace_back(
             std::make_shared<SensorsServiceImpl>(avd_universe.GetSensorsPhysicalModel()));
+    services.emplace_back(std::make_shared<SystemServiceImpl>(
+            avd_universe.GetGuestStatus(), &avd_universe.GetGrpcNotificationChannel(),
+            vm_operations, &avd_universe.GetClipboardChannel(),
+            &avd_universe.GetFingerprintSensor()));
 
     if (vm_operations != nullptr) {
         auto operations_service = std::make_shared<OperationsServiceImpl>();
