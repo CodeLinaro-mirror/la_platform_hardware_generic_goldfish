@@ -16,6 +16,7 @@
 #include <gtest/gtest.h>
 
 #include <functional>
+#include <memory>
 #include <string>
 
 #include "android/emulation/control/grpc_event_stream_support.h"
@@ -390,6 +391,55 @@ TEST(SimpleAsyncGrpcTest, StateStreamWriterImmediateSnapshotAndFilter) {
     writer->OnDone();
     source.FireEvent(30);
     EXPECT_EQ(populate_invocations, 2);
+}
+
+TEST(SimpleAsyncGrpcTest, MoveOnlyLambdaSupport) {
+    struct MyMessage {
+        int value{0};
+    };
+
+    auto tracker = std::make_unique<int>(42);
+    bool read_invoked = false;
+    bool done_invoked = false;
+
+    // absl::AnyInvocable supports move-only lambdas (e.g. capturing std::unique_ptr)
+    auto* reader = new SimpleServerLambdaReader<MyMessage, FakeReactor<MyMessage>>(
+            [t = std::move(tracker), &read_invoked](const MyMessage* msg) mutable {
+                read_invoked = true;
+                return *t == 42 ? grpc::Status::OK : grpc::Status::CANCELLED;
+            },
+            [done_tracker = std::make_unique<std::string>("done"), &done_invoked]() mutable {
+                if (*done_tracker == "done") {
+                    done_invoked = true;
+                }
+            });
+
+    reader->OnReadDone(true);
+    EXPECT_TRUE(read_invoked);
+
+    reader->OnDone();
+    EXPECT_TRUE(done_invoked);
+}
+
+TEST(SimpleAsyncGrpcTest, StateStreamWriterMoveOnlyLambda) {
+    struct StateMsg {
+        int value{0};
+    };
+
+    android::base::eventing::CallbackEventSource<int> source;
+    auto captured_ptr = std::make_unique<int>(99);
+    int populate_calls = 0;
+
+    auto* writer = new StateStreamWriter<StateMsg, int>(
+            &source,
+            [ptr = std::move(captured_ptr), &populate_calls](StateMsg* msg) {
+                populate_calls++;
+                msg->value = *ptr;
+            },
+            [](int ev) { return true; });
+
+    EXPECT_EQ(populate_calls, 1);
+    writer->OnDone();
 }
 
 }  // namespace android::emulation::control
