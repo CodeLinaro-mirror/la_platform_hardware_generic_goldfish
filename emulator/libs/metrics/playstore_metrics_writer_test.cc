@@ -213,7 +213,7 @@ TEST_F(PlaystoreMetricsWriterTest, SendDataToServer) {
         EXPECT_EQ(server.GetRequestCount(), 0);
 
         // Advance clock by 10 minutes to trigger periodic commit
-        event_loop_->AdvanceClock(10min);
+        event_loop_->AdvanceClock(absl::Minutes(10));
     }
     server.Stop();
     EXPECT_GE(server.GetRequestCount(), 1);
@@ -230,19 +230,19 @@ TEST_F(PlaystoreMetricsWriterTest, RespectsBackoff) {
 
     // First write and commit
     writer.Write(CreateEvent(test_system_->GetUnixTimeUs() / 1000));
-    event_loop_->AdvanceClock(10min);
+    event_loop_->AdvanceClock(absl::Minutes(10));
     EXPECT_EQ(server.GetRequestCount(), 1);
 
     // Second write and commit immediately after should be skipped (in-memory backoff)
     writer.Write(CreateEvent(test_system_->GetUnixTimeUs() / 1000));
-    event_loop_->AdvanceClock(10min);
+    event_loop_->AdvanceClock(absl::Minutes(10));
     EXPECT_EQ(server.GetRequestCount(), 1);
 
     // Advance system time to bypass backoff
     test_system_->SetUnixTime(test_system_->GetUnixTime() + 6);
 
     // Third commit should now proceed
-    event_loop_->AdvanceClock(10min);
+    event_loop_->AdvanceClock(absl::Minutes(10));
     EXPECT_EQ(server.GetRequestCount(), 2);
     server.Stop();
 }
@@ -255,7 +255,7 @@ TEST_F(PlaystoreMetricsWriterTest, StorageLimitDropsOldEvents) {
         for (int i = 0; i < 2000; ++i) {
             writer.Write(CreateEvent(i));
         }
-        event_loop_->AdvanceClock(10min);
+        event_loop_->AdvanceClock(absl::Minutes(10));
     }
     EXPECT_EQ(server.GetRequestCount(), 1);
     server.Stop();
@@ -268,7 +268,7 @@ TEST_F(PlaystoreMetricsWriterTest, MetadataIsCorrect) {
     {
         PlaystoreMetricsWriter writer(server.GetUrl(), test_user, *event_loop_);
         writer.Write(CreateEvent(100));
-        event_loop_->AdvanceClock(10min);
+        event_loop_->AdvanceClock(absl::Minutes(10));
     }
     server.Stop();
 

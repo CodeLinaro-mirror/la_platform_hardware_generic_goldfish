@@ -119,8 +119,7 @@ class GpsDevice : public IGpsDevice {
             OneSecondTick();
             return true;
         });
-        one_second_timer_->Schedule(absl::ToChronoMilliseconds(absl::Milliseconds(1000)),
-                                    absl::ToChronoMilliseconds(absl::Milliseconds(1000)));
+        one_second_timer_->Schedule(absl::Seconds(1), absl::Seconds(1));
     }
 
     void OnClose() override {

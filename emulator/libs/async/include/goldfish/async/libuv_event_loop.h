@@ -38,8 +38,7 @@ class LibuvEventLoop : public EventLoop {
      */
     virtual absl::Status Run() = 0;
     // These are made public for direct access by ThreadedEventLoop.
-    absl::Status PostDelayed(Task task, std::chrono::milliseconds delay,
-                             FlowId flow_id) override = 0;
+    absl::Status PostDelayed(Task task, absl::Duration delay, FlowId flow_id) override = 0;
     absl::Status PostImmediately(Task task, FlowId flow_id) override = 0;
 
     static std::unique_ptr<LibuvEventLoop> Create(std::string name = "LibuvLoop");

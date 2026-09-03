@@ -107,7 +107,7 @@ AvdExtendedUniverse::AvdExtendedUniverse(std::unique_ptr<AvdProperties> props)
                 metrics_reporter->Report([](android_studio::AndroidStudioEvent& event) {});
                 return true;
             },
-            0s, 300s);
+            absl::ZeroDuration(), absl::Seconds(300));
     avd_universe.GetGuestStatus().SetMetricsReporter(avd_universe.metrics_reporter.get());
 
     auto is_active = []() {
@@ -142,7 +142,7 @@ AvdExtendedUniverse::AvdExtendedUniverse(std::unique_ptr<AvdProperties> props)
                             avd_universe.perf_stat_reporter->FillEvent(event);
                         });
             },
-            /*initial_delay=*/60s);
+            /*initial_delay=*/absl::Seconds(60));
 
     auto* registry = &avd_universe.connector_registry;
 

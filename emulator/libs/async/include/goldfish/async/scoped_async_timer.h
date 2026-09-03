@@ -48,8 +48,7 @@ class ScopedTimer final : public async::EventLoop::Timer {
         }
     }
 
-    void Schedule(std::chrono::milliseconds new_delay,
-                  std::chrono::milliseconds new_interval) override {
+    void Schedule(absl::Duration new_delay, absl::Duration new_interval) override {
         const absl::MutexLock lock(timer_mutex_);
         if (timer_) {
             timer_->Schedule(new_delay, new_interval);

@@ -73,7 +73,7 @@ TEST(WhenAll, LibuvEventLoop) {
 
     using namespace std::literals::chrono_literals;
 
-    ASSERT_THAT(loop->ShutdownAndWait(100ms), absl_testing::IsOk());
+    ASSERT_THAT(loop->ShutdownAndWait(absl::Milliseconds(100)), absl_testing::IsOk());
     ASSERT_TRUE(loop_thread.joinable());
     loop_thread.join();
 }

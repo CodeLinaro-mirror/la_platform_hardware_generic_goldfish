@@ -114,7 +114,7 @@ class LoopWatcher {
         last_check_time_ = clock_->Now(base::ClockType::kRealtime);
         // 0 means run as soon as possible.
         if (timer_) {
-            timer_->Schedule(std::chrono::milliseconds(0));
+            timer_->Schedule(absl::ZeroDuration());
         }
     }
 

@@ -114,7 +114,7 @@ class EventLoopTest : public ::testing::TestWithParam<std::string> {
     }
 
     // Change this if you find that the timing assertions are flaky due to machine load.
-    const std::chrono::milliseconds tolerance = std::chrono::milliseconds(100);
+    const absl::Duration tolerance = absl::Milliseconds(100);
     std::string mLoopType;
     std::unique_ptr<EventLoop> mLibuvLoop;
     EventLoop* loop = nullptr;
@@ -442,16 +442,14 @@ TEST_P(EventLoopTest, PostDelayedExecutesAfterDelay) {
     runInThread();
 
     std::promise<void> task_completed;
-    const auto delay = std::chrono::milliseconds(50);
+    const auto delay = absl::Milliseconds(50);
     auto start_time = std::chrono::steady_clock::now();
 
     (void)loop->Post(
             [&]() {
                 if (mLoopType == "libuv") {
-                    auto elapsed = std::chrono::steady_clock::now() - start_time;
-                    EXPECT_NEAR(
-                            std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count(),
-                            delay.count(), tolerance.count());
+                    auto elapsed = absl::FromChrono(std::chrono::steady_clock::now() - start_time);
+                    EXPECT_LE(absl::AbsDuration(elapsed - delay), tolerance);
                 }
                 task_completed.set_value();
             },
@@ -465,16 +463,14 @@ TEST_P(EventLoopTest, ScheduleDelayedHelperExecutesSuccessfully) {
     runInThread();
 
     std::promise<void> task_completed;
-    const auto delay = std::chrono::milliseconds(50);
+    const auto delay = absl::Milliseconds(50);
     auto start_time = std::chrono::steady_clock::now();
 
     auto handle = loop->ScheduleDelayed(
             [&]() {
                 if (mLoopType == "libuv") {
-                    auto elapsed = std::chrono::steady_clock::now() - start_time;
-                    EXPECT_NEAR(
-                            std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count(),
-                            delay.count(), tolerance.count());
+                    auto elapsed = absl::FromChrono(std::chrono::steady_clock::now() - start_time);
+                    EXPECT_LE(absl::AbsDuration(elapsed - delay), tolerance);
                 }
                 task_completed.set_value();
             },
@@ -489,14 +485,13 @@ TEST_P(EventLoopTest, ScheduleDelayedExecutesSuccessfully) {
     runInThread();
 
     std::promise<void> task_completed;
-    const auto delay = std::chrono::milliseconds(50);
+    const auto delay = absl::Milliseconds(50);
     auto start_time = std::chrono::steady_clock::now();
 
     auto handle = loop->CreateTimer([&]() {
         if (mLoopType == "libuv") {
-            auto elapsed = std::chrono::steady_clock::now() - start_time;
-            EXPECT_NEAR(std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count(),
-                        delay.count(), tolerance.count());
+            auto elapsed = absl::FromChrono(std::chrono::steady_clock::now() - start_time);
+            EXPECT_LE(absl::AbsDuration(elapsed - delay), tolerance);
         }
         task_completed.set_value();
         return true;
@@ -517,7 +512,7 @@ TEST_P(EventLoopTest, ScheduleDelayedIsReschedulableAfterFiring) {
         task_executed = true;
         return true;
     });
-    handle->Schedule(100ms);
+    handle->Schedule(absl::Milliseconds(100));
 
     // Advance time past the timer's expiration.
     if (mLoopType == "qemu") {
@@ -529,7 +524,7 @@ TEST_P(EventLoopTest, ScheduleDelayedIsReschedulableAfterFiring) {
     ASSERT_TRUE(task_executed.load());
     task_executed = false;
 
-    handle->Schedule(100ms);
+    handle->Schedule(absl::Milliseconds(100));
 
     // Advance time past the timer's expiration.
     if (mLoopType == "qemu") {
@@ -548,7 +543,7 @@ TEST_P(EventLoopTest, ScheduleDelayedIsCancelledByHandle) {
         task_executed = true;
         return true;
     });
-    handle->Schedule(100ms, 0ms);
+    handle->Schedule(absl::Milliseconds(100), absl::ZeroDuration());
 
     if (mLoopType == "qemu") {
         const auto pin = std::async([]() {
@@ -579,7 +574,7 @@ TEST_P(EventLoopTest, ScheduleDelayedIsCancelledByRAII) {
             return true;
         });
 
-        handle->Schedule(100ms, 0ms);
+        handle->Schedule(absl::Milliseconds(100), absl::ZeroDuration());
         VLOG(1) << "Use count: " << handle.use_count();
 
         if (mLoopType == "qemu") {
@@ -613,8 +608,8 @@ TEST_P(EventLoopTest, ScheduleRepeatingHelperExecutesMultipleTimes) {
                 }
                 return true;
             },
-            10ms,   // Initial delay
-            50ms);  // Interval
+            absl::Milliseconds(10),   // Initial delay
+            absl::Milliseconds(50));  // Interval
 
     auto future = promise.get_future();
     runUntil(future);
@@ -634,8 +629,8 @@ TEST_P(EventLoopTest, ScheduleRepeatingExecutesMultipleTimes) {
         }
         return true;
     });
-    handle->Schedule(10ms,   // Initial delay
-                     50ms);  // Interval
+    handle->Schedule(absl::Milliseconds(10),   // Initial delay
+                     absl::Milliseconds(50));  // Interval
 
     auto future = promise.get_future();
     runUntil(future);
@@ -675,8 +670,8 @@ TEST_P(EventLoopTest, MultiThreadedCreationAndCancellation) {
             auto handle = loop_ptr->CreateTimer([&]() { /* Task body not critical for this test */
                                                         return true;
             });
-            handle->Schedule(std::chrono::milliseconds(10),  // Initial delay
-                             std::chrono::seconds(10)  // Long interval to avoid accidental ticks
+            handle->Schedule(absl::Milliseconds(10),  // Initial delay
+                             absl::Seconds(10)        // Long interval to avoid accidental ticks
             );
 
             // Push the handle into the shared queue.
@@ -760,7 +755,7 @@ TEST_P(EventLoopTest, ScheduleRepeatingIsCancelledMidway) {
         counter++;
         return true;
     });
-    handle->Schedule(10ms, 40ms);
+    handle->Schedule(absl::Milliseconds(10), absl::Milliseconds(40));
 
     if (mLoopType == "qemu") {
         fake_qemu_advance_ms(100);
@@ -804,12 +799,11 @@ TEST_P(EventLoopTest, ThreadedEventLoopWaitsAtMostTimeout) {
     std::shared_ptr<EventLoop::Timer> task;
     {
         auto threaded_loop = ThreadedEventLoop::Create(LibuvEventLoop::Create());
-        (void)threaded_loop->Post([&]() { task_completed.set_value(); }, std::chrono::seconds(10));
+        (void)threaded_loop->Post([&]() { task_completed.set_value(); }, absl::Seconds(10));
         start_time = std::chrono::steady_clock::now();
     }
-    auto elapsed = std::chrono::steady_clock::now() - start_time;
-    EXPECT_LT(std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count(),
-              ThreadedEventLoop::GetTimeout().count() + tolerance.count());
+    auto elapsed = absl::FromChrono(std::chrono::steady_clock::now() - start_time);
+    EXPECT_LT(elapsed, ThreadedEventLoop::GetTimeout() + tolerance);
 }
 
 TEST_P(EventLoopTest, ShutdownRaceConditionStressTest) {
@@ -836,7 +830,7 @@ TEST_P(EventLoopTest, ShutdownRaceConditionStressTest) {
             for (int j = 0; j < kTimersPerThread; ++j) {
                 // Create long-running timers so they don't fire during the test.
                 auto handle = loop->CreateTimer([]() { /* no-op */ return true; });
-                handle->Schedule(1h, 1h);
+                handle->Schedule(absl::Hours(1), absl::Hours(1));
 
                 absl::MutexLock lock(&vec_mutex);
                 all_timers.push_back(handle);
@@ -917,7 +911,7 @@ TEST_P(EventLoopTest, CancelTimerFromTaskCallback) {
                     }
                     return count < 3;
                 },
-                0ms, 10ms);
+                absl::ZeroDuration(), absl::Milliseconds(10));
 
         runUntil(reached_limit_future);
 
@@ -959,7 +953,7 @@ TEST_P(EventLoopTest, NoTsanFailuresOnLaunch) {
     // The test confirms this by creating a `ThreadedEventLoop` and immediately shutting it
     // down, verifying that no TSan failures or crashes occur.
     auto threaded_loop = ThreadedEventLoop::Create(LibuvEventLoop::Create());
-    auto s = threaded_loop->ShutdownAndWait(1s);
+    auto s = threaded_loop->ShutdownAndWait(absl::Seconds(1));
     ASSERT_THAT(s, absl_testing::IsOk())
             << "Shutdown failed, the thread host run is likely not active.";
 }
@@ -983,17 +977,14 @@ TEST_P(EventLoopTest, RescheduleRepeatingTimer) {
 
         if (mLoopType == "libuv") {
             if (c == 1) {
-                auto elapsed = now - schedule_time->load();
-                EXPECT_NEAR(std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count(),
-                            100, tolerance.count());
+                auto elapsed = absl::FromChrono(now - schedule_time->load());
+                EXPECT_LE(absl::AbsDuration(elapsed - absl::Milliseconds(100)), tolerance);
             } else if (c == 2) {
-                auto elapsed = now - reschedule_time->load();
-                EXPECT_NEAR(std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count(),
-                            200, tolerance.count());
+                auto elapsed = absl::FromChrono(now - reschedule_time->load());
+                EXPECT_LE(absl::AbsDuration(elapsed - absl::Milliseconds(200)), tolerance);
             } else if (c == 3) {
-                auto elapsed = now - last_fire_time->load();
-                EXPECT_NEAR(std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count(),
-                            200, tolerance.count());
+                auto elapsed = absl::FromChrono(now - last_fire_time->load());
+                EXPECT_LE(absl::AbsDuration(elapsed - absl::Milliseconds(200)), tolerance);
             }
         }
         *last_fire_time = now;
@@ -1007,7 +998,7 @@ TEST_P(EventLoopTest, RescheduleRepeatingTimer) {
 
     // Set interval to 1h  to prevent race condition
     // where the old timer fires before the main thread can reschedule it.
-    handle->Schedule(100ms, 1h);
+    handle->Schedule(absl::Milliseconds(100), absl::Hours(1));
 
     *schedule_time = std::chrono::steady_clock::now();
 
@@ -1017,7 +1008,7 @@ TEST_P(EventLoopTest, RescheduleRepeatingTimer) {
     *reschedule_time = std::chrono::steady_clock::now();
 
     // Apply the new schedule. The loop will discard the 1h wait and switch to 200ms.
-    handle->Schedule(200ms, 200ms);
+    handle->Schedule(absl::Milliseconds(200), absl::Milliseconds(200));
 
     runUntil(fired2_future);
     ASSERT_EQ(counter.load(), 2);
@@ -1038,7 +1029,7 @@ TEST_P(EventLoopTest, TimerCreatedAfterLoopShutdown) {
 
     auto timer = loop->CreateTimer([]() { return true; });
 
-    timer->Schedule(100ms, 100ms);
+    timer->Schedule(absl::Milliseconds(100), absl::Milliseconds(100));
 
     timer.reset();
 
@@ -1056,7 +1047,7 @@ TEST_P(EventLoopTest, TimerCreatedDuringLoopShutdown) {
     }
     f.wait();
 
-    timer->Schedule(100ms, 100ms);
+    timer->Schedule(absl::Milliseconds(100), absl::Milliseconds(100));
 
     timer.reset();
 
@@ -1140,15 +1131,13 @@ TEST_P(EventLoopTest, PostVoidDelayedExecutesAfterDelay) {
     runInThread();
     absl::Notification done;
     auto start = std::chrono::steady_clock::now();
-    const auto delay = 50ms;
+    const auto delay = absl::Milliseconds(50);
 
     absl::Status status = loop->Post(
             [&]() {
                 if (mLoopType == "libuv") {
-                    auto elapsed = std::chrono::steady_clock::now() - start;
-                    EXPECT_NEAR(
-                            std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count(),
-                            delay.count(), tolerance.count());
+                    auto elapsed = absl::FromChrono(std::chrono::steady_clock::now() - start);
+                    EXPECT_LE(absl::AbsDuration(elapsed - delay), tolerance);
                 }
                 done.Notify();
             },

@@ -71,7 +71,7 @@ class GrpcWebServerTest : public ::testing::Test {
         }
         grpc_server_->Wait();
 
-        auto s = raw_loop_->ShutdownAndWait(1000ms);
+        auto s = raw_loop_->ShutdownAndWait(absl::Seconds(1));
         EXPECT_TRUE(s.ok());
         if (loop_thread_.joinable()) {
             loop_thread_.join();

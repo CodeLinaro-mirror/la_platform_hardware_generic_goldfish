@@ -381,7 +381,7 @@ class Launcher {
             // Shut down the signal handlers before the loop.
             config_.signal_handlers->close();
             // This can't run on the loop itself.
-            if (auto s = config_.event_loop.ShutdownAndWait(std::chrono::seconds(10)); !s.ok()) {
+            if (auto s = config_.event_loop.ShutdownAndWait(absl::Seconds(10)); !s.ok()) {
                 LOG(ERROR) << "Event loop shutdown error: " << s;
             } else {
                 VLOG(1) << "Event loop shutdown succeeded";

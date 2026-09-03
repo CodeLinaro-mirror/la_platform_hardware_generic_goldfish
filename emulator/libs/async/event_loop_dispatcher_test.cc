@@ -155,7 +155,7 @@ TEST(EventLoopDispatcherTest, EventIsDispatchedImmediatelyWhenOnLoopThread) {
     EXPECT_EQ(listener->lastValue(), 99);
 
     // 7. Cleanly shut down the loop.
-    ASSERT_THAT(eventLoop->ShutdownAndWait(500ms), absl_testing::IsOk());
+    ASSERT_THAT(eventLoop->ShutdownAndWait(absl::Milliseconds(500)), absl_testing::IsOk());
     loopThread.join();
 }
 
@@ -197,7 +197,7 @@ TEST(EventLoopDispatcherTest, ScopedCallbackIsAutomaticallyUnregistered) {
     EXPECT_EQ(received_value, 100);  // The value should not have changed.
 
     // 7. Clean up.
-    ASSERT_THAT(eventLoop->ShutdownAndWait(500ms), absl_testing::IsOk());
+    ASSERT_THAT(eventLoop->ShutdownAndWait(absl::Milliseconds(500)), absl_testing::IsOk());
     loopThread.join();
 }
 

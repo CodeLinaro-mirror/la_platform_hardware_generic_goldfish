@@ -90,7 +90,7 @@ class ThreadedEventLoopImpl : public ThreadedEventLoop {
         return loop_->PostImmediately(std::move(task), flow_id);
     }
 
-    absl::Status PostDelayed(Task task, std::chrono::milliseconds delay, FlowId flow_id) override {
+    absl::Status PostDelayed(Task task, absl::Duration delay, FlowId flow_id) override {
         return loop_->PostDelayed(std::move(task), delay, flow_id);
     }
 
@@ -109,7 +109,7 @@ ThreadedEventLoopImpl::ThreadedEventLoopImpl(std::unique_ptr<LibuvEventLoop> loo
 ThreadedEventLoopImpl::~ThreadedEventLoopImpl() {
     VLOG(1) << "~ThreadedEventLoopImpl";
     auto future = Shutdown();
-    auto wait = future.wait_for(GetTimeout());
+    auto wait = future.wait_for(absl::ToChronoNanoseconds(GetTimeout()));
     if (wait == std::future_status::ready) {
         auto status = future.get();
         if (!status.ok()) {
@@ -118,8 +118,7 @@ ThreadedEventLoopImpl::~ThreadedEventLoopImpl() {
     } else {
         // There is likely a hung task blocking the loop.
         // Join will hang if the loop has not shutdown. All we can do is crash with an error.
-        LOG(FATAL) << "ThreadedEventLoop did not complete shutdown within: "
-                   << absl::FromChrono(GetTimeout());
+        LOG(FATAL) << "ThreadedEventLoop did not complete shutdown within: " << GetTimeout();
     }
 
     if (runner_.joinable()) {

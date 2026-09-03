@@ -189,8 +189,7 @@ PlaystoreMetricsWriter::PlaystoreMetricsWriter(const std::string& playstore_url,
                       Commit();
                       return true;
                   },
-                  absl::ToChronoMilliseconds(kCommitInterval),
-                  absl::ToChronoMilliseconds(kCommitInterval))) {
+                  kCommitInterval, kCommitInterval)) {
     curl_global_init(CURL_GLOBAL_ALL);
     // GetOsName() caches result on first call
     android::base::System::Get()->GetOsName();
