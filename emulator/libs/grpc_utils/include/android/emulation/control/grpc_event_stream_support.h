@@ -82,8 +82,9 @@ using android::base::eventing::EventParam;
  * @tparam Event The underlying event type produced by the event source.
  */
 template <class T, class Event, class Source = CallbackEventSource<Event>,
-          size_t max_queue_size = 0, size_t recycle_size = 0>
-class BaseEventStreamWriter : public SimpleServerWriter<T, max_queue_size, recycle_size>,
+          size_t max_queue_size = 0, size_t recycle_size = 0,
+          class Reactor = ::grpc::ServerWriteReactor<T>>
+class BaseEventStreamWriter : public WithSimpleQueueWriter<Reactor, max_queue_size, recycle_size>,
                               EventListener<Event> {
   public:
     using ChangeSupport = Source;
@@ -116,7 +117,7 @@ class BaseEventStreamWriter : public SimpleServerWriter<T, max_queue_size, recyc
         DD_EVT("Cancelled %p", this);
         Unsubscribe();
         absl::MutexLock lock(&this->reactor_lock_);
-        grpc::ServerWriteReactor<T>::Finish(grpc::Status::CANCELLED);
+        Reactor::Finish(grpc::Status::CANCELLED);
     }
 
   protected:
@@ -279,9 +280,10 @@ class UniqueEventStreamWriter : public GenericEventStreamWriter<T, max_queue_siz
  * @tparam recycle_size The maximum number of items to keep in the recycle pool (0 = disabled).
  */
 template <class T, class Event, class Source = CallbackEventSource<Event>,
-          size_t max_queue_size = 0, size_t recycle_size = 0>
+          size_t max_queue_size = 0, size_t recycle_size = 0,
+          class Reactor = ::grpc::ServerWriteReactor<T>>
 class StateStreamWriter
-        : public BaseEventStreamWriter<T, Event, Source, max_queue_size, recycle_size> {
+        : public BaseEventStreamWriter<T, Event, Source, max_queue_size, recycle_size, Reactor> {
   public:
     using ChangeSupport = Source;
 
@@ -321,7 +323,7 @@ class StateStreamWriter
      */
     StateStreamWriter(ChangeSupport* source, PopulateStateFn populate_fn,
                       FilterPredicate filter_fn = nullptr)
-            : BaseEventStreamWriter<T, Event, Source, max_queue_size, recycle_size>(source)
+            : BaseEventStreamWriter<T, Event, Source, max_queue_size, recycle_size, Reactor>(source)
             , populate_fn_(std::move(populate_fn))
             , filter_fn_(std::move(filter_fn)) {
         WriteState();
