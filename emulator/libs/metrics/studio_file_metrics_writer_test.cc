@@ -163,7 +163,7 @@ TEST_F(StudioFileMetricsWriterTest, DISABLED_FileRotationByTime) {
 
         // kMaxFileDuration is 10 minutes.
         // The timer runs every 10s.
-        main_loop->AdvanceClock(std::chrono::minutes(11));
+        main_loop->AdvanceClock(absl::Minutes(11));
         main_loop->RunAll();
 
         // Now it should be .trk
@@ -344,7 +344,7 @@ TEST_F(StudioFileMetricsWriterTest, LockFileManagement) {
 
         // 2. Check refresh
         // The timer runs every 10s. Advance enough time for at least one trigger.
-        main_loop->AdvanceClock(std::chrono::seconds(11));
+        main_loop->AdvanceClock(absl::Seconds(11));
         main_loop->RunAll();
 
         auto refreshed_time = android::base::file::last_write_time(lock_path).value();

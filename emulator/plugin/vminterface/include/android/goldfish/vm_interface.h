@@ -18,6 +18,8 @@
 #include "absl/strings/str_format.h"
 #include "absl/time/time.h"
 
+#include "goldfish/eventing/event_sources.h"
+
 namespace android {
 namespace goldfish {
 
@@ -224,9 +226,10 @@ void AbslStringify(Sink& sink, EmuRunState e) {
  * @brief Interface for performing operations on a virtual machine.
  *
  * This interface provides methods to control and manage the lifecycle of a VM,
- * including starting, stopping, pausing, resuming, and querying its configuration.
+ * including starting, stopping, pausing, resuming, querying its configuration,
+ * and subscribing to run state changes.
  */
-class VmOperations {
+class VmOperations : public android::base::eventing::CallbackEventSource<EmuRunState> {
   public:
     /**
      * @brief Virtual destructor for the VmOperations interface.

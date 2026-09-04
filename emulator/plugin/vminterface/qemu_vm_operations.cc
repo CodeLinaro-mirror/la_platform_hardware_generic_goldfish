@@ -47,6 +47,7 @@ absl::Status ToStatus(const absl::StatusCode code, Error** errp) {
 }  // namespace
 
 static_assert(static_cast<int>(QemuShutdownCause::Max) == static_cast<int>(SHUTDOWN_CAUSE__MAX));
+static_assert(static_cast<int>(EmuRunState::Max) == static_cast<int>(RUN_STATE__MAX));
 
 /**
  * @brief QemuVmOperations class implementing the VmOperations interface.
@@ -56,8 +57,18 @@ static_assert(static_cast<int>(QemuShutdownCause::Max) == static_cast<int>(SHUTD
  */
 class QemuVmOperations : public VmOperations {
   public:
-    QemuVmOperations() = default;
-    ~QemuVmOperations() override = default;
+    // RecursiveScopedVmLock allows registration/deregistration to run safely on
+    // both the QEMU main thread as well as the event thread.
+    QemuVmOperations() {
+        RecursiveScopedVmLock lock;
+        change_state_entry_ = qemu_add_vm_change_state_handler(OnVmChangeState, this);
+    }
+    ~QemuVmOperations() override {
+        if (change_state_entry_) {
+            RecursiveScopedVmLock lock;
+            qemu_del_vm_change_state_handler(change_state_entry_);
+        }
+    }
 
     /**
      * @brief Stops the QEMU virtual machine.
@@ -250,6 +261,16 @@ class QemuVmOperations : public VmOperations {
         ::g_free(qsi);
         return absl::OkStatus();
     }
+
+  private:
+    static void OnVmChangeState(void* opaque, bool running, RunState state) {
+        auto* self = static_cast<QemuVmOperations*>(opaque);
+        if (self) {
+            self->FireEvent(static_cast<EmuRunState>(state));
+        }
+    }
+
+    VMChangeStateEntry* change_state_entry_{nullptr};
 };
 
 /**

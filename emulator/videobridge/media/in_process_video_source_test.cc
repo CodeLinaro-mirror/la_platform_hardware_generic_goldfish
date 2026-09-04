@@ -22,6 +22,9 @@
 #include <thread>
 #include <vector>
 
+#include "absl/base/thread_annotations.h"
+#include "absl/synchronization/mutex.h"
+
 #include "api/make_ref_counted.h"
 #include "api/video/video_frame.h"
 #include "api/video/video_sink_interface.h"
@@ -33,18 +36,47 @@
 namespace goldfish::videobridge {
 namespace {
 
-struct DummyVideoSink : public webrtc::VideoSinkInterface<webrtc::VideoFrame> {
+class DummyVideoSink : public webrtc::VideoSinkInterface<webrtc::VideoFrame> {
+  public:
     void OnFrame(const webrtc::VideoFrame& frame) override {
-        last_width = frame.width();
-        last_height = frame.height();
-        last_rotation = frame.rotation();
-        frame_count++;
+        absl::MutexLock lock(&mutex_);
+        last_width_ = frame.width();
+        last_height_ = frame.height();
+        last_rotation_ = frame.rotation();
+        last_buffer_type_ = frame.video_frame_buffer() ? frame.video_frame_buffer()->type()
+                                                       : webrtc::VideoFrameBuffer::Type::kNative;
+        frame_count_++;
     }
 
-    int frame_count = 0;
-    int last_width = 0;
-    int last_height = 0;
-    webrtc::VideoRotation last_rotation = webrtc::kVideoRotation_0;
+    int FrameCount() const {
+        absl::MutexLock lock(&mutex_);
+        return frame_count_;
+    }
+    int LastWidth() const {
+        absl::MutexLock lock(&mutex_);
+        return last_width_;
+    }
+    int LastHeight() const {
+        absl::MutexLock lock(&mutex_);
+        return last_height_;
+    }
+    webrtc::VideoRotation LastRotation() const {
+        absl::MutexLock lock(&mutex_);
+        return last_rotation_;
+    }
+    webrtc::VideoFrameBuffer::Type LastBufferType() const {
+        absl::MutexLock lock(&mutex_);
+        return last_buffer_type_;
+    }
+
+  private:
+    mutable absl::Mutex mutex_;
+    int frame_count_ ABSL_GUARDED_BY(mutex_) = 0;
+    int last_width_ ABSL_GUARDED_BY(mutex_) = 0;
+    int last_height_ ABSL_GUARDED_BY(mutex_) = 0;
+    webrtc::VideoRotation last_rotation_ ABSL_GUARDED_BY(mutex_) = webrtc::kVideoRotation_0;
+    webrtc::VideoFrameBuffer::Type last_buffer_type_ ABSL_GUARDED_BY(mutex_) =
+            webrtc::VideoFrameBuffer::Type::kNative;
 };
 
 TEST(InProcessVideoSourceTest, StartCapturesFrameFromMultiDisplay) {
@@ -66,10 +98,11 @@ TEST(InProcessVideoSourceTest, StartCapturesFrameFromMultiDisplay) {
     display->WaitForFramesWithTimeout(2, absl::Milliseconds(1000));
     display->Stop();
 
-    EXPECT_GT(sink.frame_count, 0);
-    EXPECT_EQ(sink.last_width, 640);
-    EXPECT_EQ(sink.last_height, 480);
-    EXPECT_EQ(sink.last_rotation, webrtc::kVideoRotation_0);
+    EXPECT_GT(sink.FrameCount(), 0);
+    EXPECT_EQ(sink.LastWidth(), 640);
+    EXPECT_EQ(sink.LastHeight(), 480);
+    EXPECT_EQ(sink.LastRotation(), webrtc::kVideoRotation_0);
+    EXPECT_EQ(sink.LastBufferType(), webrtc::VideoFrameBuffer::Type::kNV12);
 
     source->Stop();
     track_source->RemoveSink(&sink);
@@ -102,9 +135,10 @@ TEST(InProcessVideoSourceTest, HandlesDisplayCreatedAfterSourceInitialization) {
     display->WaitForFramesWithTimeout(2, absl::Milliseconds(1000));
     display->Stop();
 
-    EXPECT_GT(sink.frame_count, 0);
-    EXPECT_EQ(sink.last_width, 800);
-    EXPECT_EQ(sink.last_height, 600);
+    EXPECT_GT(sink.FrameCount(), 0);
+    EXPECT_EQ(sink.LastWidth(), 800);
+    EXPECT_EQ(sink.LastHeight(), 600);
+    EXPECT_EQ(sink.LastBufferType(), webrtc::VideoFrameBuffer::Type::kNV12);
 
     source->Stop();
     track_source->RemoveSink(&sink);

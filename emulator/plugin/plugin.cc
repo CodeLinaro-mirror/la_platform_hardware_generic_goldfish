@@ -217,7 +217,7 @@ extern "C" void GF_STARTUP_FUNC(int argc, char** argv) {
 
     setup_logging();
 
-    VLOG(1) << "Goldfish plugin version: " VERSION << "-" << BUILD_ID;
+    VLOG(1) << "Goldfish plugin version: " << goldfish::version::GetEmulatorFullVersion();
     // The plugin crash system should never try to upload - that should only be
     // done by the launcher.
     if (!android::crashreport::CrashSystem::get().initialize()) {
@@ -230,8 +230,11 @@ extern "C" void GF_STARTUP_FUNC(int argc, char** argv) {
     absl::InstallFailureSignalHandler(options);
 
     auto* client_loop = goldfish::async::globalEventLoop();
+
+    // The global event loop is the main thread of the plugin and should always
+    // be responsive, regardless of the vm state.
     android::crashreport::CrashReporter::GetCrashingHangDetector().AddWatchedLooper(
-            "GlobalEventLoop", *client_loop, absl::Seconds(15));
+            "GlobalEventLoop", *client_loop, absl::Seconds(15), []() { return true; });
 
     LOG(INFO) << "goldfish plugin initialization completed";
 
@@ -247,7 +250,7 @@ extern "C" void GF_SHUTDOWN_FUNC(void) {
     auto* client_loop = goldfish::async::globalEventLoop();
     android::crashreport::CrashReporter::GetCrashingHangDetector().RemoveWatchedLooper(
             *client_loop);
-    LOG_IF(FATAL, !client_loop->ShutdownAndWait(std::chrono::seconds(10)).ok())
+    LOG_IF(FATAL, !client_loop->ShutdownAndWait(absl::Seconds(10)).ok())
             << "global event loop shutdown failed within 10s";
     LOG(INFO) << "goldfish plugin shutdown completed";
 }

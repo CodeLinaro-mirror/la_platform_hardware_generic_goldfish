@@ -14,8 +14,9 @@
 // limitations under the License.
 #pragma once
 
-#include <chrono>
 #include <memory>
+
+#include "absl/time/time.h"
 
 #include "goldfish/async/event_loop.h"
 
@@ -73,6 +74,6 @@ class TestEventLoop : public EventLoop {
      * immediately pending tasks from the separate queue.
      * @param duration The amount of time to advance the clock.
      */
-    virtual void AdvanceClock(std::chrono::milliseconds duration) = 0;
+    virtual void AdvanceClock(absl::Duration duration) = 0;
 };
 }  // namespace goldfish::async::testing

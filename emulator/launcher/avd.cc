@@ -258,7 +258,12 @@ struct BuildProp {
         return {};
     }
 
+    std::string VendorProperty(std::string_view key, std::string_view default_value = {}) const {
+        return vendor_build_ini.GetString(key, default_value);
+    }
+
     IniFile build_ini;
+    IniFile vendor_build_ini;
 };
 
 }  // namespace
@@ -335,6 +340,10 @@ class FileBackedAvd : public Avd {
     std::string BuildFlavour() const override { return build_ini_.Flavour(); }
     std::string BuildProductName() const override { return build_ini_.ProductName(); }
     std::string BuildNumber() const override { return build_ini_.Number(); }
+    std::string VendorProperty(std::string_view key,
+                               std::string_view default_value = {}) const override {
+        return build_ini_.VendorProperty(key, default_value);
+    }
 
     std::string Dessert() const override { return std::string(GetApiDessertName(ApiLevel())); }
 
@@ -437,6 +446,15 @@ bool CheckAvdName(const std::string& name) {
                                             "0123456789_.-"));
     return (name.size() == len);
 }
+
+template <typename T>
+absl::StatusOr<T> ConvertSysImgStatus(absl::StatusOr<T> s) {
+    if (!s.ok()) {
+        return absl::InvalidArgumentError(absl::StrCat("Sysimg file error: ", s.status()));
+    }
+    return s;
+}
+
 }  // namespace
 
 // static
@@ -565,8 +583,9 @@ absl::StatusOr<std::unique_ptr<Avd>> Avd::FromName(const AndroidOptions& opts,
         }
     }
 
-    ASSIGN_OR_RETURN(auto system_image_paths, ResolveSystemImagePaths(sys_image_search_paths, opts,
-                                                                      /*android_build=*/false));
+    ASSIGN_OR_RETURN(auto system_image_paths,
+                     ConvertSysImgStatus(ResolveSystemImagePaths(sys_image_search_paths, opts,
+                                                                 /*android_build=*/false)));
 
     return FromSysDirs(opts, user_paths, name, std::move(config_ini),
                        !content_override.empty() ? std::move(content_override)
@@ -610,7 +629,8 @@ absl::StatusOr<std::unique_ptr<Avd>> Avd::FromAndroidBuild(
     }
 
     ASSIGN_OR_RETURN(auto system_image_paths,
-                     ResolveSystemImagePaths(sys_image_search_paths, opts, /*android_build=*/true));
+                     ConvertSysImgStatus(ResolveSystemImagePaths(sys_image_search_paths, opts,
+                                                                 /*android_build=*/true)));
 
     return android::goldfish::Avd::FromSysDirs(opts, user_paths, name, std::move(config_ini),
                                                !writable_content_override.empty()
@@ -644,8 +664,16 @@ absl::StatusOr<std::unique_ptr<Avd>> Avd::FromSysDirs(
         return absl::InternalError(absl::StrCat("Unable to parse build properties file: ",
                                                 system_image_paths.build_properties.string()));
     }
+    IniFile vendor_build_ini(system_image_paths.vendor_build_properties);
+    if (!system_image_paths.vendor_build_properties.empty()) {
+        if (!vendor_build_ini.Read()) {
+            VLOG(1) << "Unable to parse vendor build properties file: "
+                    << system_image_paths.vendor_build_properties.string();
+        }
+    }
     BuildProp build_wrapper{
         .build_ini = std::move(build_ini),
+        .vendor_build_ini = std::move(vendor_build_ini),
     };
 
     // Will be unknown under android build.

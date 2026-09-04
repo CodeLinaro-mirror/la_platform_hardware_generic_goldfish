@@ -9,19 +9,17 @@
 ### Top-Level Components
 | Component | Description | Documentation |
 | :--- | :--- | :--- |
-| **[Emulator](emulator/ARCHITECTURE.md)** | The core emulator implementation. Includes the launcher, QEMU plugins, HALs, and control services (gRPC). | [Architecture](emulator/ARCHITECTURE.md) |
-| **[Android](android/ARCHITECTURE.md)** | Cross-platform C++ support libraries (System, Process, Network, Logging) used by the emulator. | [Architecture](android/ARCHITECTURE.md) |
+| **[Emulator](emulator/ARCHITECTURE.md)** | The core emulator implementation. Includes the launcher, QEMU plugins, HALs, libraries, and control services (gRPC). | [Architecture](emulator/ARCHITECTURE.md) |
 | **[Development](development/ARCHITECTURE.md)** | Developer tools, VS Code settings, and task runners. | [Architecture](development/ARCHITECTURE.md) |
-| **[Third Party](third_party/ARCHITECTURE.md)** | Vendored external libraries (e.g., Sparse Image). | [Architecture](third_party/ARCHITECTURE.md) |
+| **[Third Party](third_party/ARCHITECTURE.md)** | Vendored external libraries (e.g., Sparse Image, ext4_utils). | [Architecture](third_party/ARCHITECTURE.md) |
 
 ## Project Structure
 
-*   **`emulator/`**: Contains the business logic of the emulator.
+*   **`emulator/`**: Contains the business logic, launcher, QEMU plugins, and support libraries.
     *   **`launcher/`**: The `emulator` binary entry point.
-    *   **`plugin/`**: Dynamic libraries loaded by QEMU (`goldfish_*.so`).
-    *   **`hal/`**: Host-side implementations of Android Hardware Abstraction Layers.
-    *   **`grpc/`**: The gRPC control plane.
-*   **`android/`**: A "libbase" equivalent for the emulator, providing OS abstractions.
+    *   **`plugin/`**: Dynamic libraries loaded by QEMU (`goldfish_*.so`), including virtual hardware devices, HALs, and the gRPC control service.
+    *   **`libs/`**: Cross-platform C++ support libraries (System, Process, Network, Logging, Async I/O) used across components.
+*   **`development/`**: Developer tools, build scripts, and editor configuration.
 *   **`third_party/`**: External code that isn't managed via Bazel external repositories.
 
 ## Getting Started

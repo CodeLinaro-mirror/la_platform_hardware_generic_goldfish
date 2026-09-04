@@ -1,0 +1,158 @@
+# Copyright (C) 2026 The Android Open Source Project
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+load("@aquarium_npm//:defs.bzl", "npm_link_all_packages")
+load("@aspect_bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
+load("@aspect_rules_esbuild//esbuild:defs.bzl", "esbuild")
+load("@aspect_rules_js//js:defs.bzl", "js_library")
+load("@aspect_rules_ts//ts:defs.bzl", "ts_project")
+load("@rules_license//rules:license.bzl", "license")
+
+package(
+    default_applicable_licenses = [":license"],
+    default_visibility = ["//visibility:public"],
+)
+
+_NOT_WINDOWS = select({
+    "@platforms//os:windows": ["@platforms//:incompatible"],
+    "//conditions:default": [],
+})
+
+copy_to_directory(
+    name = "emulator_services_node_module",
+    srcs = ["@aemu//protos/services_v2:services_v2_ts_proto"],
+    out = "node_modules/@android/emulator-services",
+    include_external_repositories = ["aemu*"],
+    root_paths = ["protos/services_v2"],
+    target_compatible_with = _NOT_WINDOWS,
+)
+
+js_library(
+    name = "emulator_services_pkg",
+    srcs = [":emulator_services_node_module"],
+    target_compatible_with = _NOT_WINDOWS,
+)
+
+npm_link_all_packages(name = "node_modules")
+
+license(
+    name = "license",
+    package_name = "@android/aquarium",
+    copyright_notice = "Copyright 2026 - The Android Open Source Project",
+    license_kinds = [
+        "@rules_license//licenses/spdx:Apache-2.0",
+        "@rules_license//licenses/spdx:MIT",
+    ],
+    license_text = "//emulator:LICENSE",
+)
+
+exports_files([
+    "package.json",
+    "pnpm-lock.yaml",
+    "tsconfig.json",
+    "DESIGN.md",
+    "index.html",
+])
+
+# Hermetic TypeScript type-checking and compilation
+ts_project(
+    name = "ts",
+    srcs = [
+        "example/main.tsx",
+        "src/core/audio.ts",
+        "src/core/auth.ts",
+        "src/core/battery.ts",
+        "src/core/biometrics.ts",
+        "src/core/camera.ts",
+        "src/core/capabilities.ts",
+        "src/core/client.ts",
+        "src/core/clipboard.ts",
+        "src/core/display.ts",
+        "src/core/input_channel.ts",
+        "src/core/location.ts",
+        "src/core/posture.ts",
+        "src/core/rtc_controller.ts",
+        "src/core/screen_capture.ts",
+        "src/core/sensors.ts",
+        "src/core/snapshot.ts",
+        "src/core/system.ts",
+        "src/core/telephony.ts",
+        "src/core/transport.ts",
+        "src/core/vm.ts",
+        "src/index.ts",
+        "src/react/EmulatorView.tsx",
+        "src/react/context.tsx",
+        "src/react/hooks.ts",
+    ],
+    declaration = True,
+    declaration_dir = "_ts_out/types",
+    out_dir = "_ts_out",
+    target_compatible_with = _NOT_WINDOWS,
+    tsconfig = "tsconfig.json",
+    validate = False,
+    deps = [
+        ":emulator_services_pkg",
+        ":node_modules/@bufbuild/protobuf",
+        ":node_modules/@types/node",
+        ":node_modules/@types/react",
+        ":node_modules/@types/react-dom",
+        ":node_modules/grpc-web",
+        ":node_modules/loglevel",
+        ":node_modules/react",
+        ":node_modules/react-dom",
+        ":node_modules/rxjs",
+        ":node_modules/ts-proto",
+    ],
+)
+
+# Production ESM bundle built via native Go-compiled esbuild
+esbuild(
+    name = "bundle",
+    srcs = [":ts"],
+    define = {
+        "process.env.NODE_ENV": '"production"',
+    },
+    entry_point = "_ts_out/example/main.js",
+    format = "esm",
+    minify = True,
+    output = "assets/index.js",
+    sourcemap = "external",
+    target = "es2022",
+    target_compatible_with = _NOT_WINDOWS,
+    deps = [
+        ":emulator_services_pkg",
+        ":node_modules/@bufbuild/protobuf",
+        ":node_modules/grpc-web",
+        ":node_modules/loglevel",
+        ":node_modules/react",
+        ":node_modules/react-dom",
+        ":node_modules/rxjs",
+        ":node_modules/scheduler",
+    ],
+)
+
+# Production web directory containing index.html and assets
+copy_to_directory(
+    name = "dist",
+    srcs = [
+        "index.html",
+        ":bundle",
+    ],
+    root_paths = [
+        "hardware/generic/goldfish/emulator/ui/aquarium",
+        "emulator/ui/aquarium",
+    ],
+    target_compatible_with = _NOT_WINDOWS,
+    visibility = ["//visibility:public"],
+)

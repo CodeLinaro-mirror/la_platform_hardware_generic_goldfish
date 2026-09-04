@@ -16,6 +16,8 @@
 
 #include "goldfish/physics/ambient_environment.h"
 
+#include "goldfish/archive/glm.h"
+
 namespace goldfish::physics {
 
 void AmbientEnvironment::SetMagneticField(float north, float east, float vertical,
@@ -81,6 +83,16 @@ float AmbientEnvironment::GetHumidity(ParameterValueType value_type) const {
 
 glm::vec4 AmbientEnvironment::GetRgbcLight(ParameterValueType value_type) const {
     return value_type == ParameterValueType::kDefault ? kDefaultRgbcLight : rgbc_light_;
+}
+
+archive::IWriter& operator<<(archive::IWriter& w, const AmbientEnvironment& ae) {
+    return w << ae.magnetic_field_ << ae.gravity_ << ae.temperature_ << ae.proximity_ << ae.light_
+             << ae.pressure_ << ae.humidity_ << ae.rgbc_light_;
+}
+
+absl::Status ReadValue(archive::IReader& r, AmbientEnvironment& ae) {
+    return ReadValue(r, ae.magnetic_field_, ae.gravity_, ae.temperature_, ae.proximity_, ae.light_,
+                     ae.pressure_, ae.humidity_, ae.rgbc_light_);
 }
 
 }  // namespace goldfish::physics

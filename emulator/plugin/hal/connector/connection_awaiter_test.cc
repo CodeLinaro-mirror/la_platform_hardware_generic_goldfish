@@ -120,7 +120,7 @@ TEST(ConnectionAwaiter, fires_on_connect) {
             [&](auto plug) { return fakeConnection(event_loop.get(), tsm, plug); },
             [&](SocketPtr sock) { connected = true; }, 10ms);
 
-    event_loop->AdvanceClock(10ms);
+    event_loop->AdvanceClock(absl::Milliseconds(10));
     event_loop->RunAll();
     EXPECT_TRUE(connected);
 }
@@ -140,10 +140,10 @@ TEST(ConnectionAwaiter, tries_to_connect_multiple_times) {
             },
             [&](SocketPtr sock) { connected = true; }, 10ms);
 
-    event_loop->AdvanceClock(10ms);
-    event_loop->AdvanceClock(10ms);
-    event_loop->AdvanceClock(10ms);
-    event_loop->AdvanceClock(10ms);
+    event_loop->AdvanceClock(absl::Milliseconds(10));
+    event_loop->AdvanceClock(absl::Milliseconds(10));
+    event_loop->AdvanceClock(absl::Milliseconds(10));
+    event_loop->AdvanceClock(absl::Milliseconds(10));
     EXPECT_FALSE(connected);
     EXPECT_EQ(invocation, 4);
 }
@@ -167,7 +167,7 @@ TEST(ConnectionAwaiter, stop_calling_after_connect) {
             [&](SocketPtr sock) { connected = true; }, 10ms);
 
     for (int i = 0; i < 4; i++) {
-        event_loop->AdvanceClock(10ms);
+        event_loop->AdvanceClock(absl::Milliseconds(10));
         event_loop->RunAll();
     }
 

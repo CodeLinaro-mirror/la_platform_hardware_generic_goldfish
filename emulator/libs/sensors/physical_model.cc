@@ -24,6 +24,7 @@
 #include "absl/log/log.h"
 
 #include "android/goldfish/hardware_config.h"
+#include "android/status/status_macros.h"
 #include "goldfish/physics/ambient_environment.h"
 #include "goldfish/physics/body_model.h"
 #include "goldfish/physics/glm_helpers.h"
@@ -65,50 +66,47 @@ vec4 Getvec4Value(const float* val, const size_t count) {
 float GetfloatValue(const float* val, const size_t count) {
     return count > 0 ? val[0] : 0;
 }
-}  // namespace
 
-const FoldableConfig& PhysicalModel::GetFoldableConfig() const {
-    const std::lock_guard<std::recursive_mutex> lock(mutex_);
-    DCHECK(foldable_model_);
-    return foldable_model_->GetFoldableConfig();
+std::unique_ptr<FoldableModel> HandleFoldableModelError(
+        absl::StatusOr<std::unique_ptr<FoldableModel>> fm) {
+    if (fm.ok()) {
+        return *std::move(fm);
+    } else {
+        LOG(ERROR) << "Could not create a foldable model: " << fm.status();
+        return {};
+    }
 }
 
-const FoldableState& PhysicalModel::GetFoldableState() const {
-    const std::lock_guard<std::recursive_mutex> lock(mutex_);
-    DCHECK(foldable_model_);
-    return foldable_model_->GetFoldableState();
+}  // namespace
+
+bool PhysicalModel::HasFoldableModel() const {
+    return static_cast<bool>(foldable_model_);
+}
+
+const FoldableConfig* PhysicalModel::GetFoldableConfig() const {
+    return foldable_model_ ? &foldable_model_->GetFoldableConfig() : nullptr;
+}
+
+bool PhysicalModel::GetFoldedArea(int* x, int* y, int* w, int* h) const {
+    return foldable_model_ && foldable_model_->GetFoldedArea(x, y, w, h);
+}
+
+FoldableModel::ObservablePosture* PhysicalModel::GetPostureListener() {
+    return foldable_model_ ? &foldable_model_->GetPostureListener() : nullptr;
 }
 
 bool PhysicalModel::FoldableIsFolded() const {
     const std::lock_guard<std::recursive_mutex> lock(mutex_);
-    DCHECK(foldable_model_);
-    return foldable_model_->IsFolded();
+    return foldable_model_ && foldable_model_->IsFolded();
 }
 
-bool PhysicalModel::GetFoldedArea(int* x, int* y, int* w, int* h) const {
+FoldablePostures PhysicalModel::GetFoldablePosture() const {
     const std::lock_guard<std::recursive_mutex> lock(mutex_);
-    DCHECK(foldable_model_);
-    return foldable_model_->GetFoldedArea(x, y, w, h);
-}
-
-const std::vector<FoldableModel::ResizableConfig>& PhysicalModel::GetResizableConfigs() const {
-    const std::lock_guard<std::recursive_mutex> lock(mutex_);
-    DCHECK(foldable_model_);
-    return foldable_model_->GetResizableConfigs();
+    return foldable_model_ ? foldable_model_->GetFoldablePosture() : FoldablePostures::kUnknown;
 }
 
 PhysicalModel::PhysicalModel(const android::goldfish::HardwareConfig& hw)
-        : foldable_model_(FoldableModel::Create(hw)) {}
-
-bool PhysicalModel::HasFoldableModel() const {
-    const std::lock_guard<std::recursive_mutex> lock(mutex_);
-    return foldable_model_ != nullptr;
-}
-
-FoldableModel::ObservablePosture& PhysicalModel::GetPostureListener() {
-    DCHECK(foldable_model_);
-    return foldable_model_->GetPostureListener();
-}
+        : foldable_model_(HandleFoldableModelError(FoldableModel::Create(hw))) {}
 
 SensorData PhysicalModel::GetSensorData(const AndroidSensor sensor_id) const {
     const size_t sz = GetSensorValueSize(sensor_id);
@@ -356,82 +354,87 @@ void PhysicalModel::SetTargetInternalHumidity(float percentage, PhysicalInterpol
 }
 
 void PhysicalModel::SetTargetInternalHingeAngle0(float degrees, PhysicalInterpolation mode) {
+    if (!HasFoldableModel()) {
+        LOG(WARNING) << "Device is not foldable, ignoring hinge-angle0 change to: " << degrees;
+        return;
+    }
+
     PhysicalStateChanging();
     {
         const std::lock_guard<std::recursive_mutex> lock(mutex_);
-        if (!foldable_model_) {
-            LOG(INFO) << "Device is not foldable, ignoring hinge-angle0 change to: " << degrees;
-            return;
-        }
         foldable_model_->SetHingeAngle(0, degrees, mode);
     }
     TargetStateChanged();
 }
 
 void PhysicalModel::SetTargetInternalHingeAngle1(float degrees, PhysicalInterpolation mode) {
+    if (!HasFoldableModel()) {
+        LOG(WARNING) << "Device is not foldable, ignoring hinge-angle1 change to: " << degrees;
+        return;
+    }
+
     PhysicalStateChanging();
     {
         const std::lock_guard<std::recursive_mutex> lock(mutex_);
-        if (!foldable_model_) {
-            LOG(INFO) << "Device is not foldable, ignoring hinge-angle1 change to: " << degrees;
-            return;
-        }
         foldable_model_->SetHingeAngle(1, degrees, mode);
     }
     TargetStateChanged();
 }
 
 void PhysicalModel::SetTargetInternalHingeAngle2(float degrees, PhysicalInterpolation mode) {
+    if (!HasFoldableModel()) {
+        LOG(WARNING) << "Device is not foldable, ignoring hinge-angle2 change to: " << degrees;
+        return;
+    }
+
     PhysicalStateChanging();
     {
         const std::lock_guard<std::recursive_mutex> lock(mutex_);
-        if (!foldable_model_) {
-            LOG(INFO) << "Device is not foldable, ignoring hinge-angle2 change to: " << degrees;
-            return;
-        }
         foldable_model_->SetHingeAngle(2, degrees, mode);
     }
     TargetStateChanged();
 }
 
 void PhysicalModel::SetTargetInternalPosture(float posture, PhysicalInterpolation mode) {
+    if (!HasFoldableModel()) {
+        LOG(WARNING) << "Device is not foldable, ignoring posture change to: " << posture;
+        return;
+    }
+
     PhysicalStateChanging();
     {
         const std::lock_guard<std::recursive_mutex> lock(mutex_);
-        if (!foldable_model_) {
-            LOG(INFO) << "Device is not foldable, ignoring posture change to: " << posture;
-            return;
-        }
         foldable_model_->SetPosture(posture, mode);
     }
     TargetStateChanged();
 }
 
-void PhysicalModel::SetTargetInternalRollable0(float percentage, PhysicalInterpolation mode) {
+void PhysicalModel::SetTargetInternalRollableImpl(unsigned index, float percentage,
+                                                  PhysicalInterpolation mode) {
+    if (!HasFoldableModel()) {
+        LOG(WARNING) << "Device is not foldable, ignoring rollable" << index
+                     << " change to: " << percentage;
+        return;
+    }
+
     PhysicalStateChanging();
     {
         const std::lock_guard<std::recursive_mutex> lock(mutex_);
-        FoldableModel::SetRollable(0, percentage, mode);
+        foldable_model_->SetRollable(index, percentage, mode);
     }
     TargetStateChanged();
+}
+
+void PhysicalModel::SetTargetInternalRollable0(float percentage, PhysicalInterpolation mode) {
+    SetTargetInternalRollableImpl(0, percentage, mode);
 }
 
 void PhysicalModel::SetTargetInternalRollable1(float percentage, PhysicalInterpolation mode) {
-    PhysicalStateChanging();
-    {
-        const std::lock_guard<std::recursive_mutex> lock(mutex_);
-        FoldableModel::SetRollable(1, percentage, mode);
-    }
-    TargetStateChanged();
+    SetTargetInternalRollableImpl(1, percentage, mode);
 }
 
 void PhysicalModel::SetTargetInternalRollable2(float percentage, PhysicalInterpolation mode) {
-    PhysicalStateChanging();
-    {
-        const std::lock_guard<std::recursive_mutex> lock(mutex_);
-        FoldableModel::SetRollable(2, percentage, mode);
-    }
-    TargetStateChanged();
+    SetTargetInternalRollableImpl(2, percentage, mode);
 }
 
 void PhysicalModel::SetTargetInternalHeartRate(float bpm, PhysicalInterpolation mode) {
@@ -837,6 +840,56 @@ void PhysicalModel::NotifyTargetState(PhysicalModelChangeEvent::Type type) {
         .model = this,
     };
     FireEvent(event);
+}
+
+static_assert(PhysicalModel::kNumSensors <= sizeof(unsigned long) * CHAR_BIT);
+
+archive::IWriter& operator<<(archive::IWriter& w, const PhysicalModel& pm) {
+    w << pm.inertial_model_ << pm.ambient_environment_ << pm.body_model_ << pm.model_time_ns_
+      << pm.use_override_.to_ulong() << pm.is_physical_state_changing_;
+
+    if (pm.foldable_model_) {
+        w << true << *pm.foldable_model_;
+    } else {
+        w << false;
+    }
+
+    for (const size_t measurement_id : pm.measurement_id_) {
+        w << measurement_id;
+    }
+
+#define GOLDFISH_SENSOR_DEF(x, y, z, v, w0) w << pm.m##z##Override;
+    GOLDFISH_SENSORS_LIST
+#undef GOLDFISH_SENSOR_DEF
+
+    return w;
+}
+
+absl::Status ReadValue(archive::IReader& r, PhysicalModel& pm) {
+    unsigned long use_override_bits;
+    bool has_foldable_model;
+
+    RETURN_IF_ERROR(ReadValue(r, pm.inertial_model_, pm.ambient_environment_, pm.body_model_,
+                              pm.model_time_ns_, use_override_bits, pm.is_physical_state_changing_,
+                              has_foldable_model));
+
+    pm.use_override_ = PhysicalModel::UseOverrideMask(use_override_bits);
+
+    if (has_foldable_model != static_cast<bool>(pm.foldable_model_)) {
+        return {absl::StatusCode::kInvalidArgument, "Mismatch on the foldable model configuration"};
+    } else if (has_foldable_model) {
+        RETURN_IF_ERROR(ReadValue(r, *pm.foldable_model_));
+    }
+
+    for (size_t& measurement_id : pm.measurement_id_) {
+        RETURN_IF_ERROR(ReadValue(r, measurement_id));
+    }
+
+#define GOLDFISH_SENSOR_DEF(x, y, z, v, w) RETURN_IF_ERROR(ReadValue(r, pm.m##z##Override));
+    GOLDFISH_SENSORS_LIST
+#undef GOLDFISH_SENSOR_DEF
+
+    return absl::OkStatus();
 }
 
 }  // namespace goldfish::sensors

@@ -1,0 +1,171 @@
+# Copyright (C) 2026 The Android Open Source Project
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_test")
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+
+package(default_visibility = ["//visibility:public"])
+
+cc_library(
+    name = "http_messages",
+    srcs = [
+        "src/http_request.cc",
+        "src/http_response.cc",
+    ],
+    hdrs = [
+        "include/goldfish/http/http_headers.h",
+        "include/goldfish/http/http_request.h",
+        "include/goldfish/http/http_response.h",
+        "include/goldfish/http/http_response_writer.h",
+    ],
+    includes = ["include"],
+    deps = [
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/hash",
+        "@abseil-cpp//absl/strings",
+    ],
+)
+
+cc_test(
+    name = "http_message_test",
+    srcs = ["test/http_message_test.cc"],
+    deps = [
+        ":http_messages",
+        "//emulator/libs/test:googletest_main",
+        "@abseil-cpp//absl/strings",
+    ],
+)
+
+cc_library(
+    name = "http_router",
+    srcs = ["src/http_router.cc"],
+    hdrs = ["include/goldfish/http/http_router.h"],
+    includes = ["include"],
+    deps = [
+        ":http_messages",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/container:flat_hash_set",
+        "@abseil-cpp//absl/hash",
+        "@abseil-cpp//absl/strings",
+    ],
+)
+
+cc_test(
+    name = "http_router_test",
+    srcs = ["test/http_router_test.cc"],
+    deps = [
+        ":http_router",
+        "//emulator/libs/test:googletest_main",
+    ],
+)
+
+cc_library(
+    name = "http_session",
+    srcs = ["src/http_session.cc"],
+    hdrs = ["include/goldfish/http/http_session.h"],
+    includes = ["include"],
+    deps = [
+        ":http_messages",
+        ":http_router",
+        "//emulator/libs/async:async_api",
+        "//emulator/libs/network",
+        "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/synchronization",
+        "@abseil-cpp//absl/time",
+        "@llhttp",
+    ],
+)
+
+cc_test(
+    name = "http_session_test",
+    srcs = ["test/http_session_test.cc"],
+    deps = [
+        ":http_session",
+        "//emulator/libs/async:async_testing",
+        "//emulator/libs/network",
+        "//emulator/libs/test:googletest_main",
+        "@abseil-cpp//absl/strings",
+    ],
+)
+
+cc_library(
+    name = "web_server",
+    srcs = ["src/web_server.cc"],
+    hdrs = ["include/goldfish/http/web_server.h"],
+    includes = ["include"],
+    deps = [
+        ":http_messages",
+        ":http_router",
+        ":http_session",
+        "//emulator/libs/async:async_api",
+        "//emulator/libs/async:libuv_event_loop",
+        "//emulator/libs/async:libuv_sockets",
+        "//emulator/libs/async:threaded_event_loop",
+        "//emulator/libs/network",
+        "@abseil-cpp//absl/container:flat_hash_set",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/synchronization",
+        "@abseil-cpp//absl/time",
+    ],
+)
+
+cc_library(
+    name = "http_server",
+    hdrs = [
+        "include/goldfish/http/http_headers.h",
+        "include/goldfish/http/http_request.h",
+        "include/goldfish/http/http_response.h",
+        "include/goldfish/http/http_response_writer.h",
+        "include/goldfish/http/http_router.h",
+        "include/goldfish/http/http_session.h",
+        "include/goldfish/http/web_server.h",
+    ],
+    includes = ["include"],
+    deps = [
+        ":http_messages",
+        ":http_router",
+        ":http_session",
+        ":web_server",
+    ],
+)
+
+cc_test(
+    name = "web_server_test",
+    srcs = ["test/web_server_test.cc"],
+    deps = [
+        ":web_server",
+        "//emulator/libs/async:libuv_event_loop",
+        "//emulator/libs/async:libuv_sockets",
+        "//emulator/libs/test:googletest_main",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/synchronization",
+        "@abseil-cpp//absl/time",
+    ],
+)
+
+clang_tidy_test(
+    name = "tidy",
+    targets = [
+        ":http_messages",
+        ":http_router",
+        ":http_session",
+        ":web_server",
+    ],
+    tidy_config_file = "//:clang_tidy_config",
+)

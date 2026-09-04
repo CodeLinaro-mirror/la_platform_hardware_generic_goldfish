@@ -16,12 +16,17 @@
 
 #include <utility>
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wthread-safety-reference-return"
+#pragma clang diagnostic ignored "-Wnullability-completeness"
+#include "api/video/video_frame.h"
+#include "libyuv/convert_from_argb.h"
+#include "rtc_base/time_utils.h"
+#pragma clang diagnostic pop
+
 #include "absl/log/log.h"
 
-#include "api/video/video_frame.h"
 #include "goldfish/display/QemuMultidisplay/multi_display.h"
-#include "libyuv.h"
-#include "rtc_base/time_utils.h"
 
 namespace goldfish::videobridge {
 
@@ -34,34 +39,45 @@ InProcessVideoSource::~InProcessVideoSource() {
 }
 
 void InProcessVideoSource::OnStart() {
+    std::shared_ptr<::goldfish::display::IDisplay> display;
     auto display_res = multidisplay_.GetDisplay(display_id_);
     if (display_res.ok()) {
-        display_ = display_res.value().lock();
+        display = display_res.value().lock();
     }
 
-    if (!display_) {
+    if (!display) {
         LOG(WARNING) << "InProcessVideoSource: Display " << display_id_
                      << " is unavailable; WebRTC video track will remain idle.";
         return;
     }
 
-    VLOG(1) << "Starting InProcessVideoSource for display " << static_cast<int>(display_->Id());
+    VLOG(1) << "Starting InProcessVideoSource for display " << static_cast<int>(display->Id());
     auto* callback_source =
-            static_cast<::goldfish::display::FrameInfoCallbackSource*>(display_.get());
-    subscription_ = android::base::eventing::MakeScopedCallback(
+            static_cast<::goldfish::display::FrameInfoCallbackSource*>(display.get());
+    auto sub = android::base::eventing::MakeScopedCallback(
             *callback_source, [this](const ::goldfish::display::FrameInfo& frame_info) {
                 OnFrameAvailable(frame_info);
             });
+
+    absl::MutexLock lock(&frame_mutex_);
+    display_ = std::move(display);
+    subscription_ = std::move(sub);
 }
 
 void InProcessVideoSource::OnStop() {
     VLOG(1) << "Stopping InProcessVideoSource.";
-    subscription_.reset();
-    display_.reset();
+    std::unique_ptr<android::base::eventing::ScopedEventCallback<
+            ::goldfish::display::FrameInfoCallbackSource, ::goldfish::display::FrameInfo>>
+            sub;
+    {
+        absl::MutexLock lock(&frame_mutex_);
+        sub = std::move(subscription_);
+        display_.reset();
+    }
 }
 
 void InProcessVideoSource::OnFrameAvailable(const ::goldfish::display::FrameInfo& frame_info) {
-    if (!display_ || !frame_info.pixels || frame_info.dimensions.width == 0 ||
+    if (!frame_info.pixels || frame_info.dimensions.width == 0 ||
         frame_info.dimensions.height == 0) {
         return;
     }
@@ -72,20 +88,23 @@ void InProcessVideoSource::OnFrameAvailable(const ::goldfish::display::FrameInfo
         return;
     }
 
-    if (!i420_buffer_ || i420_buffer_->width() != static_cast<int>(even_width) ||
-        i420_buffer_->height() != static_cast<int>(even_height)) {
-        i420_buffer_ = ::webrtc::I420Buffer::Create(static_cast<int>(even_width),
-                                                    static_cast<int>(even_height));
+    {
+        absl::MutexLock lock(&frame_mutex_);
+        if (!display_) {
+            return;
+        }
     }
 
-    const int cvt_res = libyuv::ABGRToI420(
-            frame_info.pixels, static_cast<int>(frame_info.stride), i420_buffer_->MutableDataY(),
-            i420_buffer_->StrideY(), i420_buffer_->MutableDataU(), i420_buffer_->StrideU(),
-            i420_buffer_->MutableDataV(), i420_buffer_->StrideV(), static_cast<int>(even_width),
-            static_cast<int>(even_height));
+    auto nv12_buffer = ::webrtc::NV12Buffer::Create(static_cast<int>(even_width),
+                                                    static_cast<int>(even_height));
+
+    const int cvt_res = libyuv::ABGRToNV12(
+            frame_info.pixels, static_cast<int>(frame_info.stride), nv12_buffer->MutableDataY(),
+            nv12_buffer->StrideY(), nv12_buffer->MutableDataUV(), nv12_buffer->StrideUV(),
+            static_cast<int>(even_width), static_cast<int>(even_height));
 
     if (cvt_res != 0) {
-        LOG(ERROR) << "InProcessVideoSource failed to convert frame to I420 format.";
+        LOG(ERROR) << "InProcessVideoSource failed to convert frame to NV12 format.";
         return;
     }
 
@@ -108,7 +127,7 @@ void InProcessVideoSource::OnFrameAvailable(const ::goldfish::display::FrameInfo
     }
 
     ::webrtc::VideoFrame video_frame = ::webrtc::VideoFrame::Builder()
-                                               .set_video_frame_buffer(i420_buffer_)
+                                               .set_video_frame_buffer(nv12_buffer)
                                                .set_timestamp_rtp(0)
                                                .set_timestamp_us(timestamp_us)
                                                .set_rotation(webrtc_rotation)

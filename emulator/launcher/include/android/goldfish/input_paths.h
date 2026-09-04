@@ -56,6 +56,7 @@ struct UserPaths {
 
 struct SystemImagePaths {
     fs::path build_properties;
+    fs::path vendor_build_properties;
     fs::path advanced_features;
     fs::path verified_boot_params;
 

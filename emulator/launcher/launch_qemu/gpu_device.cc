@@ -24,7 +24,7 @@
 
 #include "android/goldfish/avd.h"
 #include "android/goldfish/hardware_config.h"
-#include "goldfish/sensors/foldable_model.h"
+#include "goldfish/parsing/resizable_display_config.h"
 
 namespace android::goldfish {
 
@@ -80,6 +80,18 @@ std::vector<std::string> GpuDevice::getQemuParameters(const EmulatorConfig& emul
         renderer_features.append(";GuestVulkanMaxApiVersion:1.3.0");
     }
 
+    if (opts.vulkan_validation) {
+        renderer_features.append(absl::StrCat(";VulkanValidation:", opts.vulkan_validation));
+    }
+    if (opts.vulkan_validation_include_filter) {
+        renderer_features.append(absl::StrCat(";VulkanValidationIncludeFilter:",
+                                              opts.vulkan_validation_include_filter));
+    }
+    if (opts.vulkan_validation_exclude_filter) {
+        renderer_features.append(absl::StrCat(";VulkanValidationExcludeFilter:",
+                                              opts.vulkan_validation_exclude_filter));
+    }
+
     std::string gfxstream_backends = "gfxstream-vulkan=on";
     if (needs_gles) {
         gfxstream_backends.append(",x-gfxstream-gles=on");
@@ -111,7 +123,7 @@ std::vector<std::string> GpuDevice::getQemuParameters(const EmulatorConfig& emul
         height = hw.hw_lcd_height;
     } else {
         const auto resizable_configs =
-                ::goldfish::sensors::FoldableModel::ParseResizableConfigs(hw.hw_resizable_configs);
+                ::goldfish::parsing::ParseResizableDisplayConfig(hw.hw_resizable_configs);
 
         if (!resizable_configs || resizable_configs->empty()) {
             LOG(ERROR) << "Failed to parse hw_resizable_configs; GPU will be disabled. "

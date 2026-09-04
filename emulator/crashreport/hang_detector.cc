@@ -25,7 +25,6 @@
 
 #include "android/base/clock.h"
 #include "android/crashreport/debug.h"
-#include "android/goldfish/vm_interface.h"
 #include "goldfish/async/event_loop.h"
 
 namespace android::crashreport {
@@ -35,11 +34,12 @@ class LoopWatcher {
   public:
     LoopWatcher(std::string loop_name, ::goldfish::async::EventLoop& event_loop,
                 absl::Duration hang_timeout, absl::Duration hang_check_timeout,
-                const android::base::IClock* clock)
+                const android::base::IClock* clock, HangDetector::ActivePredicate is_active)
             : loop_name_(std::move(loop_name))
             , timeout_(hang_timeout)
             , hang_check_timeout_(hang_check_timeout)
             , clock_(clock)
+            , is_active_(std::move(is_active))
             , event_loop_(event_loop)
             , timer_(event_loop.CreateTimer([this]() {
                 TaskComplete();
@@ -90,17 +90,11 @@ class LoopWatcher {
                 const absl::Duration time_passed = now - last_check_time_;
                 const auto message = absl::StrCat("detected a hanging thread '", loop_name_,
                                                   "'. No response for ", time_passed);
+                const bool is_ignored = android::base::IsDebuggerAttached() || !is_active_();
                 ++hang_count_;
-
                 LOG(ERROR) << message
-                           << (android::base::IsDebuggerAttached() ||
-                                               !android::goldfish::VmOperations::qemuVmOperations()
-                                                        ->isRunning()
-                                       ? ", ignored (debugger attached or vm stopped)"
-                                       : "");
-                if (hang_count_ >= kMaxHangCount && hang_callback &&
-                    !android::base::IsDebuggerAttached() &&
-                    android::goldfish::VmOperations::qemuVmOperations()->isRunning()) {
+                           << (is_ignored ? ", ignored (debugger attached or vm stopped)" : "");
+                if (hang_count_ >= kMaxHangCount && hang_callback && !is_ignored) {
                     l.Release();
                     hang_callback(message);
                     return;
@@ -120,7 +114,7 @@ class LoopWatcher {
         last_check_time_ = clock_->Now(base::ClockType::kRealtime);
         // 0 means run as soon as possible.
         if (timer_) {
-            timer_->Schedule(std::chrono::milliseconds(0));
+            timer_->Schedule(absl::ZeroDuration());
         }
     }
 
@@ -133,6 +127,7 @@ class LoopWatcher {
     const absl::Duration timeout_;
     const absl::Duration hang_check_timeout_;
     const android::base::IClock* const clock_;
+    const HangDetector::ActivePredicate is_active_;
 
     absl::Mutex mutex_;
     ::goldfish::async::EventLoop& event_loop_;
@@ -156,14 +151,14 @@ class HangDetectorImpl : public HangDetector {
     ~HangDetectorImpl() override { Stop(); }
 
     void AddWatchedLooper(std::string loop_name, ::goldfish::async::EventLoop& event_loop,
-                          absl::Duration task_timeout) override {
+                          absl::Duration task_timeout, ActivePredicate is_active) override {
         const absl::MutexLock l(&mutex_);
         if (stopping_) {
             return;
         }
-        loop_watchers_.emplace_back(
-                std::make_shared<LoopWatcher>(std::move(loop_name), event_loop, task_timeout,
-                                              timing_.hang_check_timeout, clock_.get()));
+        loop_watchers_.emplace_back(std::make_shared<LoopWatcher>(
+                std::move(loop_name), event_loop, task_timeout, timing_.hang_check_timeout,
+                clock_.get(), std::move(is_active)));
         loop_watchers_.back()->StartHangCheck();
     }
 
@@ -190,20 +185,6 @@ class HangDetectorImpl : public HangDetector {
         }
     }
 
-    void AddPredicateCheck(HangPredicate predicate, std::string msg) override {
-        const absl::MutexLock l(&mutex_);
-        predicates_.emplace_back(std::move(predicate), std::move(msg));
-    }
-
-    void AddPredicateCheck(StatefulHangdetector* detector, std::string msg) override {
-        {
-            const absl::MutexLock l(&mutex_);
-            registered_.push_back(std::unique_ptr<StatefulHangdetector>(detector));
-        }
-        const HangPredicate pred = [detector] { return detector->Check(); };
-        AddPredicateCheck([detector] { return detector->Check(); }, std::move(msg));
-    }
-
     void Stop() override {
         std::vector<std::shared_ptr<LoopWatcher>> loop_watchers;
         {
@@ -228,7 +209,6 @@ class HangDetectorImpl : public HangDetector {
         auto await = [this] ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_) { return stopping_; };
         for (;;) {
             std::vector<std::shared_ptr<LoopWatcher>> watchers;
-            std::vector<std::pair<HangPredicate, std::string>> predicates;
             {
                 const absl::MutexLock l(&mutex_);
                 if (mutex_.AwaitWithTimeout(absl::Condition(&await),
@@ -238,32 +218,10 @@ class HangDetectorImpl : public HangDetector {
                     }
                 }
                 watchers = loop_watchers_;
-                predicates = predicates_;
             }
 
             for (auto&& lw : watchers) {
                 lw->Process(hang_callback_);
-            }
-
-            // Check to see if any of the predicates evaluate to true.
-            for (const auto& predicate : predicates) {
-                if (predicate.first()) {
-                    const auto message = absl::StrFormat("Failed hang detection predicate: '%s'",
-                                                         predicate.second);
-
-                    LOG(ERROR)
-                            << message
-                            << (android::base::IsDebuggerAttached() ||
-                                                !android::goldfish::VmOperations::qemuVmOperations()
-                                                         ->isRunning()
-                                        ? ", ignored (debugger attached or vm stopped)"
-                                        : "");
-
-                    if (hang_callback_ && !android::base::IsDebuggerAttached() &&
-                        android::goldfish::VmOperations::qemuVmOperations()->isRunning()) {
-                        hang_callback_(message);
-                    }
-                }
             }
         }
     }
@@ -273,8 +231,6 @@ class HangDetectorImpl : public HangDetector {
     const std::unique_ptr<android::base::IClock> clock_;
 
     std::vector<std::shared_ptr<LoopWatcher>> loop_watchers_ ABSL_GUARDED_BY(mutex_);
-    std::vector<std::pair<HangPredicate, std::string>> predicates_ ABSL_GUARDED_BY(mutex_);
-    std::vector<std::unique_ptr<StatefulHangdetector>> registered_ ABSL_GUARDED_BY(mutex_);
 
     absl::Mutex mutex_;
     bool stopping_ ABSL_GUARDED_BY(mutex_) = false;

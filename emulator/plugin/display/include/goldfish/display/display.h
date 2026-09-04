@@ -24,6 +24,7 @@
 #include "absl/time/time.h"
 
 #include "goldfish/async/event_loop_dispatcher.h"
+#include "goldfish/base/unique_handle.h"
 
 extern "C" {
 struct QemuConsole;
@@ -215,6 +216,59 @@ class IDisplay : public FrameInfoCallbackSource,
         return WaitForFrame(timeout, Seq().sequence_number);
     }
 
+    using CallbackId = FrameInfoCallbackSource::CallbackId;
+    static constexpr CallbackId kInvalidCallbackId = FrameInfoCallbackSource::kInvalidCallbackId;
+    using ScopedFrameListener = android::base::eventing::ScopedEventCallback<IDisplay, FrameInfo>;
+
+    using ResizeEventCallbackSource::AddCallback;
+    using ResizeEventCallbackSource::RemoveCallback;
+
+    /**
+     * @brief Adds a listener for frame updates.
+     * @return An RAII ScopedFrameListener that automatically unregisters when destroyed.
+     */
+    [[nodiscard]] virtual ScopedFrameListener AddFrameListener(
+            std::function<void(const FrameInfo&)> listener) {
+        return ScopedFrameListener(*this, std::move(listener));
+    }
+
+    /**
+     * @brief Adds a callback to the underlying frame source and notifies lifecycle hooks.
+     * If a subscription is already active and a valid frame exists, immediately yields the
+     * current frame to the new listener.
+     */
+    CallbackId AddCallback(std::function<void(const FrameInfo&)> callback) override {
+        if (frame_source_.CallbackCount() > 0) {
+            const FrameInfo current_frame = Seq();
+            // A sequence_number == 0 indicates the display just started and has not yet
+            // received its first frame; wait for the initial frame event from QEMU.
+            if (current_frame.sequence_number > 0) {
+                callback(current_frame);
+            }
+        }
+        auto id = frame_source_.AddCallback(std::move(callback));
+        OnListenerAdded();
+        return id;
+    }
+
+    /**
+     * @brief Removes a previously added frame callback and notifies lifecycle hooks.
+     */
+    void RemoveCallback(CallbackId id) override {
+        frame_source_.RemoveCallback(id);
+        OnListenerRemoved();
+    }
+
+  protected:
+    virtual void OnListenerAdded() {}
+    virtual void OnListenerRemoved() {}
+
+    void FireFrameEvent(const FrameInfo& info) {
+        frame_source_.FireEvent(info);
+        FrameInfoCallbackSource::FireEvent(info);
+    }
+
+  public:
     /**
      * @brief Retrieves pixel data for a specified region, writing it into a caller-provided buffer.
      *
@@ -302,7 +356,7 @@ class IDisplay : public FrameInfoCallbackSource,
         info.sequence_number = seq_.sequence_number + 1;
         info.timestamp = absl::Now();
         seq_ = info;
-        FrameInfoCallbackSource::FireEvent(seq_);
+        FireFrameEvent(seq_);
     }
 
     virtual std::string String() const;
@@ -314,7 +368,8 @@ class IDisplay : public FrameInfoCallbackSource,
             , dpi_(dpi)
             , flags_(flags)
             , display_id_(id)
-            , dimensions_({.width = width, .height = height}) {}
+            , dimensions_({.width = width, .height = height})
+            , frame_source_(loop) {}
 
     FrameInfo seq_ ABSL_GUARDED_BY(seq_access_){0};
     mutable absl::Mutex seq_access_;
@@ -326,6 +381,69 @@ class IDisplay : public FrameInfoCallbackSource,
   private:
     Dimensions dimensions_ ABSL_GUARDED_BY(dimension_mutex_);
     mutable absl::Mutex dimension_mutex_;
+    FrameInfoCallbackSource frame_source_;
+};
+
+/**
+ * A proxy that bridges the display's refcounted frame listener API to a standard
+ * CallbackEventSource, allowing consumers to subscribe to frames using generic
+ * eventing utilities (e.g., MultiEventSourceWaiter).
+ *
+ * Data Flow:
+ * When this proxy is instantiated, it registers a listener with the underlying
+ * IDisplay. As the IDisplay pushes FrameInfo events, this proxy intercepts them
+ * and broadcasts them to its own CallbackEventSource subscribers.
+ *
+ * Thread Safety:
+ * Frame events are dispatched on the display's event loop (typically a background
+ * plugin thread).
+ * Consumers must ensure their callbacks are thread-safe or bound to appropriate dispatchers.
+ *
+ * Ownership & Lifetimes:
+ * This proxy acts as a non-owning observer and holds a weak reference to the target
+ * IDisplay, preventing it from artificially extending the display's lifetime. When
+ * the proxy is destroyed, it unregisters the underlying frame listener if the display
+ * is still alive.
+ */
+class DisplayEventProxy final : public android::base::eventing::CallbackEventSource<FrameInfo> {
+  public:
+    /**
+     * Constructs a DisplayEventProxy attached to the given display.
+     *
+     * @param display The target display to proxy frame events from. If null or expired,
+     *                no listener will be registered.
+     */
+    explicit DisplayEventProxy(std::weak_ptr<IDisplay> display) {
+        if (auto d = display.lock()) {
+            // Note: Immediate event is ignored, as we have no subscribers yet.
+            const auto id =
+                    d->AddCallback([this](const FrameInfo& info) { this->FireEvent(info); });
+            callback_handle_ = CallbackHandle(id, CallbackDeleter(std::move(display)));
+        }
+    }
+
+    virtual ~DisplayEventProxy() = default;
+
+  private:
+    struct CallbackDeleter {
+        struct Empty {};
+        explicit CallbackDeleter(Empty = {}) : display{} {}
+        explicit CallbackDeleter(std::weak_ptr<IDisplay> display) : display(std::move(display)) {}
+
+        void operator()(IDisplay::CallbackId id) const {
+            if (auto d = display.lock()) {
+                d->RemoveCallback(id);
+            }
+        }
+
+        std::weak_ptr<IDisplay> display;
+    };
+
+    using CallbackHandle =
+            ::goldfish::base::UniqueHandle<IDisplay::CallbackId, IDisplay::kInvalidCallbackId,
+                                           CallbackDeleter>;
+
+    CallbackHandle callback_handle_;
 };
 
 }  // namespace goldfish::display

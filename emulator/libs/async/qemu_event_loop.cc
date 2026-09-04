@@ -112,19 +112,18 @@ class QemuEventLoopImpl : public goldfish::async::QemuEventLoop {
             }
         }
 
-        void Schedule(std::chrono::milliseconds new_delay,
-                      std::chrono::milliseconds new_interval) override {
-            event_loop_->PostImmediatelyInternal([self = shared_from_this(),
-                                                  new_delay_ms = new_delay.count(),
-                                                  new_interval_ms = new_interval.count()] {
-                if (self->pinned_) {
-                    self->interval_ms_ = new_interval_ms;
-                    self->next_t_ = qemu_clock_get_ms(QEMU_CLOCK_VIRTUAL) + new_delay_ms;
-                    timer_mod(&self->qemu_timer_handle_, self->next_t_);
-                } else {
-                    LOG(ERROR) << "Can't schedule a timer after it has been cancelled";
-                }
-            });
+        void Schedule(absl::Duration new_delay, absl::Duration new_interval) override {
+            event_loop_->PostImmediatelyInternal(
+                    [self = shared_from_this(), new_delay_ms = absl::ToInt64Milliseconds(new_delay),
+                     new_interval_ms = absl::ToInt64Milliseconds(new_interval)] {
+                        if (self->pinned_) {
+                            self->interval_ms_ = new_interval_ms;
+                            self->next_t_ = qemu_clock_get_ms(QEMU_CLOCK_VIRTUAL) + new_delay_ms;
+                            timer_mod(&self->qemu_timer_handle_, self->next_t_);
+                        } else {
+                            LOG(ERROR) << "Can't schedule a timer after it has been cancelled";
+                        }
+                    });
         }
 
       private:
@@ -231,7 +230,7 @@ class QemuEventLoopImpl : public goldfish::async::QemuEventLoop {
 
     void PostImmediatelyInternal(Task task, FlowId flow_id = 0);
     absl::Status PostImmediately(Task task, FlowId flow_id) override;
-    absl::Status PostDelayed(Task task, std::chrono::milliseconds delay, FlowId flow_id) override;
+    absl::Status PostDelayed(Task task, absl::Duration delay, FlowId flow_id) override;
 
     size_t DrainQueue() {
         qemu_thread_id_ = std::this_thread::get_id();
@@ -367,8 +366,7 @@ absl::Status QemuEventLoopImpl::PostImmediately(Task task, FlowId flow_id) {
     return absl::OkStatus();
 }
 
-absl::Status QemuEventLoopImpl::PostDelayed(Task task, std::chrono::milliseconds delay,
-                                            FlowId flow_id) {
+absl::Status QemuEventLoopImpl::PostDelayed(Task task, absl::Duration delay, FlowId flow_id) {
     if (is_shutting_down_) {
         LOG(ERROR) << "Event loop is shutting down, not scheduling task";
         return absl::UnavailableError("QemuEventLoopImpl is shutting down");
@@ -383,7 +381,7 @@ absl::Status QemuEventLoopImpl::PostDelayed(Task task, std::chrono::milliseconds
                 return false;
             },
             flow_id);
-    timer->Schedule(delay, std::chrono::milliseconds::zero());
+    timer->Schedule(delay, absl::ZeroDuration());
     return absl::OkStatus();
 }
 

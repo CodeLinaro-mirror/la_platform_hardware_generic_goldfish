@@ -16,6 +16,7 @@
 
 #include "android/base/system.h"
 #include "android/crashreport/crash_reporter.h"
+#include "android/goldfish/vm_interface.h"
 #include "goldfish/archive/collections/string.h"
 #include "goldfish/archive/reader.h"
 #include "goldfish/archive/writer.h"
@@ -106,20 +107,26 @@ AvdExtendedUniverse::AvdExtendedUniverse(std::unique_ptr<AvdProperties> props)
                 metrics_reporter->Report([](android_studio::AndroidStudioEvent& event) {});
                 return true;
             },
-            0s, 300s);
+            absl::ZeroDuration(), absl::Seconds(300));
     avd_universe.GetGuestStatus().SetMetricsReporter(avd_universe.metrics_reporter.get());
+
+    auto is_active = []() {
+        auto* vm = android::goldfish::VmOperations::qemuVmOperations();
+        return vm && vm->isRunning();
+    };
 
     avd_universe.qemu_event_loop = goldfish::async::QemuEventLoop::Create();
     auto& qemu_loop = avd_universe.qemu_event_loop;
     android::crashreport::CrashReporter::GetCrashingHangDetector().AddWatchedLooper(
-            "QemuEventLoop", *qemu_loop, absl::Seconds(15));
+            "QemuEventLoop", *qemu_loop, absl::Seconds(15), is_active);
 
     avd_universe.qemu_cpu_loops = createVCpuEventLoops();
     std::vector<goldfish::async::EventLoop*> vcpu_loop_ptrs;
     vcpu_loop_ptrs.reserve(avd_universe.qemu_cpu_loops.size());
     for (auto& loop : avd_universe.qemu_cpu_loops) {
         android::crashreport::CrashReporter::GetCrashingHangDetector().AddWatchedLooper(
-                absl::StrCat("QemuCpuLoop:", loop.getCpuIndex()), loop, absl::Seconds(15));
+                absl::StrCat("QemuCpuLoop:", loop.getCpuIndex()), loop, absl::Seconds(15),
+                is_active);
         vcpu_loop_ptrs.push_back(&loop);
     }
     avd_universe.perf_stat_reporter = std::make_unique<goldfish::metrics::PerfStatReporter>(
@@ -135,7 +142,7 @@ AvdExtendedUniverse::AvdExtendedUniverse(std::unique_ptr<AvdProperties> props)
                             avd_universe.perf_stat_reporter->FillEvent(event);
                         });
             },
-            /*initial_delay=*/60s);
+            /*initial_delay=*/absl::Seconds(60));
 
     auto* registry = &avd_universe.connector_registry;
 
@@ -279,7 +286,10 @@ absl::Status AvdExtendedUniverse::OnSave(archive::IWriter& writer) const {
 
 void AvdExtendedUniverse::OnSaveProps(archive::IWriter& writer) const {
     const auto& p = Props();
-    constexpr std::string_view platform = PLATFORM " (" TARGET_CPU "), " COMPILATION_MODE;
+    const std::string_view platform = ::goldfish::version::GetPlatformString();
+    const std::string_view full_version = ::goldfish::version::GetEmulatorFullVersion();
+    const std::string_view version = ::goldfish::version::GetEmulatorVersion();
+    const std::string_view build_id = ::goldfish::version::GetEmulatorBuildId();
     std::string vk_icd = GetCurrentVkIcd();
     LOG(INFO) << "Saving AvdProperties: "
               << "avd_abi=" << p.avd_abi << ", "
@@ -287,9 +297,9 @@ void AvdExtendedUniverse::OnSaveProps(archive::IWriter& writer) const {
               << "build_sdk=" << p.build_sdk << ", "
               << "build_id=" << p.build_id << ", "
               << "build_flavour=" << p.build_flavour << ", "
-              << "emulator_full_version=" << EMULATOR_FULL_VERSION_STRING << ", "
-              << "emulator_version=" << VERSION << ", "
-              << "emulator_build_id=" << BUILD_ID << ", "
+              << "emulator_full_version=" << full_version << ", "
+              << "emulator_version=" << version << ", "
+              << "emulator_build_id=" << build_id << ", "
               << "emulator_platform=" << platform << ", "
               << "emulator_vk_icd=" << vk_icd;
 
@@ -298,9 +308,9 @@ void AvdExtendedUniverse::OnSaveProps(archive::IWriter& writer) const {
     writer << p.build_sdk;
     writer << p.build_id;
     writer << p.build_flavour;
-    writer << std::string_view(EMULATOR_FULL_VERSION_STRING);
-    writer << std::string_view(VERSION);
-    writer << std::string_view(BUILD_ID);
+    writer << full_version;
+    writer << version;
+    writer << build_id;
     writer << platform;
     writer << vk_icd;
 
@@ -390,7 +400,7 @@ absl::Status AvdExtendedUniverse::OnLoadProps(archive::IReader& reader) {
             ok = false;
         }
     };
-    auto check_str = [&](const char* name, const std::string& val) {
+    auto check_str = [&](const char* name, std::string_view val) {
         std::string loaded;
         if (const absl::Status s = ReadValue(reader, loaded); s.ok()) {
             if (loaded != val) {
@@ -404,16 +414,16 @@ absl::Status AvdExtendedUniverse::OnLoadProps(archive::IReader& reader) {
         }
     };
 
-    constexpr std::string_view platform = PLATFORM " (" TARGET_CPU "), " COMPILATION_MODE;
+    const std::string_view platform = ::goldfish::version::GetPlatformString();
     check_str("avd_abi", p.avd_abi);
     check_int32("avd_api", p.avd_api);
     check_str("build_sdk", p.build_sdk);
     check_str("build_id", p.build_id);
     check_str("build_flavour", p.build_flavour);
-    check_str("emulator_full_version", EMULATOR_FULL_VERSION_STRING);
-    check_str("emulator_version", VERSION);
-    check_str("emulator_build_id", BUILD_ID);
-    check_str("emulator_platform", std::string(platform));
+    check_str("emulator_full_version", ::goldfish::version::GetEmulatorFullVersion());
+    check_str("emulator_version", ::goldfish::version::GetEmulatorVersion());
+    check_str("emulator_build_id", ::goldfish::version::GetEmulatorBuildId());
+    check_str("emulator_platform", platform);
 
     std::string current_vk_icd = GetCurrentVkIcd();
     std::string loaded_vk_icd;

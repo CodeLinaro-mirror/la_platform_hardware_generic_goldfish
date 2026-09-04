@@ -70,6 +70,10 @@ absl::Status AvdInfoDevice::initialize(const EmulatorConfig& emulator) {
         params.emplace_back("dump_perf_stat_path", perf_stat_path.string());
     }
 
+    if (const char* icc_profile = emulator.opts().icc_profile) {
+        params.emplace_back("icc_profile", icc_profile);
+    }
+
     const char* snapshot_name = SnapshotDevice::get_snapshot_name(emulator);
     params.emplace_back("snapshot_name", snapshot_name);
 

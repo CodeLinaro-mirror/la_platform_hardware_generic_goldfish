@@ -138,5 +138,36 @@ TEST_F(QemuVmOperationsTest, SystemShutdownRequest) {
     ASSERT_EQ(mock_shutdown_cause_get(), SHUTDOWN_CAUSE_HOST_ERROR);
 }
 
+TEST_F(QemuVmOperationsTest, RunStateChangeCallback) {
+    std::vector<EmuRunState> received_states;
+    auto id = vm_ops_->AddCallback([&](EmuRunState state) { received_states.push_back(state); });
+
+    mock_fire_vm_change_state(true, RUN_STATE_RUNNING);
+    mock_fire_vm_change_state(false, RUN_STATE_PAUSED);
+
+    ASSERT_EQ(received_states.size(), 2);
+    EXPECT_EQ(received_states[0], EmuRunState::Running);
+    EXPECT_EQ(received_states[1], EmuRunState::Paused);
+
+    vm_ops_->RemoveCallback(id);
+    mock_fire_vm_change_state(true, RUN_STATE_RUNNING);
+    EXPECT_EQ(received_states.size(), 2);
+}
+
+TEST_F(QemuVmOperationsTest, RunStateChangeScopedCallback) {
+    std::vector<EmuRunState> received_states;
+    {
+        auto handle = android::base::eventing::MakeScopedCallback(
+                *vm_ops_, [&](EmuRunState state) { received_states.push_back(state); });
+
+        mock_fire_vm_change_state(true, RUN_STATE_RUNNING);
+        EXPECT_EQ(received_states.size(), 1);
+        EXPECT_EQ(received_states[0], EmuRunState::Running);
+    }
+    // Handle went out of scope, callback should be automatically unregistered.
+    mock_fire_vm_change_state(false, RUN_STATE_PAUSED);
+    EXPECT_EQ(received_states.size(), 1);
+}
+
 }  // namespace goldfish
 }  // namespace android

@@ -17,11 +17,11 @@
 #pragma clang diagnostic ignored "-Wthread-safety-reference-return"
 #pragma clang diagnostic ignored "-Wnullability-completeness"
 #include "api/scoped_refptr.h"
-#include "api/video/i420_buffer.h"
+#include "api/video/nv12_buffer.h"
 #pragma clang diagnostic pop
 
-#include <cstdint>
-#include <memory>
+#include "absl/base/thread_annotations.h"
+#include "absl/synchronization/mutex.h"
 
 #include "goldfish/display/display.h"
 #include "goldfish/eventing/with_callbacks.h"
@@ -41,7 +41,7 @@ namespace goldfish::videobridge {
  * - Reactive Activation: Lazily queries IMultiDisplay for the active IDisplay when the first
  *   WebRTC sink attaches (OnStart) and unsubscribes when all participants disconnect (OnStop).
  * - Subscribes to FrameInfo updates from the active display, converting raw BGRA/RGBA pixels
- *   to I420 format and dispatching frames to attached WebRTC sinks.
+ *   to NV12 format and dispatching frames to attached WebRTC sinks.
  *
  * Thread Safety:
  * - InProcessVideoSource methods (OnStart, OnStop) are marshalled on WebRTC signaling threads.
@@ -75,11 +75,11 @@ class InProcessVideoSource : public ManagedVideoTrackSource {
 
     ::goldfish::display::IMultiDisplay& multidisplay_;
     const uint32_t display_id_;
-    std::shared_ptr<::goldfish::display::IDisplay> display_;
+    absl::Mutex frame_mutex_;
+    std::shared_ptr<::goldfish::display::IDisplay> display_ ABSL_GUARDED_BY(frame_mutex_);
     std::unique_ptr<android::base::eventing::ScopedEventCallback<
             ::goldfish::display::FrameInfoCallbackSource, ::goldfish::display::FrameInfo>>
-            subscription_;
-    ::webrtc::scoped_refptr<::webrtc::I420Buffer> i420_buffer_;
+            subscription_ ABSL_GUARDED_BY(frame_mutex_);
 };
 
 }  // namespace goldfish::videobridge

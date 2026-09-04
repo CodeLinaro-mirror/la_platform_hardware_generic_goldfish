@@ -39,7 +39,10 @@ cc_library(
     hdrs = ["include/android/goldfish/vm_interface.h"],
     includes = ["include"],
     visibility = ["//visibility:public"],
-    deps = ["@abseil-cpp//absl/strings:str_format"],
+    deps = [
+        "//emulator/libs/eventing",
+        "@abseil-cpp//absl/strings:str_format",
+    ],
 )
 
 cc_library(
@@ -121,7 +124,9 @@ cc_library(
     hdrs = ["test/fake_vm_operations.h"],
     includes = ["test"],
     visibility = ["//visibility:public"],
-    deps = [":vminterface"],
+    deps = [
+        ":vminterface",
+    ],
 )
 
 clang_tidy_test(

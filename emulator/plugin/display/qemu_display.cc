@@ -21,6 +21,7 @@
 #include "absl/log/log.h"
 
 #include "goldfish/display/input_handler.h"
+#include "goldfish/display/multi_display_callbacks.h"
 #include "null_display.h"
 
 // clang-format off
@@ -36,12 +37,8 @@ extern "C" {
 #include "virtio_bridge.h"
 // IWYU pragma: end_keep
 // clang-format on
-namespace goldfish::display {
 
-SharedDisplay IDisplay::GetNullDisplay() {
-    static auto null_display = std::make_shared<NullDisplay>();
-    return null_display;
-}
+namespace goldfish::display {
 
 namespace {
 
@@ -65,11 +62,23 @@ uint32_t bmap[INPUT_BUTTON__MAX] = {
     [INPUT_BUTTON_WHEEL_UP] = 0x08, [INPUT_BUTTON_WHEEL_DOWN] = 0x10,
 };
 
+constexpr DisplayChangeListenerOps kDclOps = {
+    .dpy_name = "grpc-display",
+    .dpy_gfx_update = grpc_dpy_gfx_update,
+    .dpy_gfx_switch = grpc_dpy_gfx_switch,
+};
+
 }  // namespace
 
 QemuDisplay::QemuDisplay(EventLoop* loop, EventLoop* qemu_loop, QemuConsole* con,
                          DisplaySurface* ds, int index)
-        : PixmanDisplay(loop, index, ds->image), console_(con), qemu_loop_(qemu_loop) {
+        : PixmanDisplay(loop, index, ds->image)
+        , console_(con)
+        , qemu_loop_(qemu_loop)
+        , dcl_(std::make_unique<DisplayChangeListener>(DisplayChangeListener{
+              .ops = &kDclOps,
+              .con = con,
+          })) {
     if (!console_) {
         LOG(FATAL) << "Display: " << index << " has nullptr console";
     }
@@ -96,8 +105,68 @@ QemuDisplay::QemuDisplay(EventLoop* loop, EventLoop* qemu_loop, QemuConsole* con
 }
 
 QemuDisplay::~QemuDisplay() {
+    // Release ownership so we can unregister and delete on the QEMU event loop.
+    auto cleanup = [dcl = std::move(dcl_)]() {
+        if (dcl->ds != nullptr) {
+            unregister_displaychangelistener(dcl.get());
+        }
+    };
+
+    if (qemu_loop_->IsOnLoopThread()) {
+        cleanup();
+    } else if (auto status = qemu_loop_->Post(std::move(cleanup)); !status.ok()) {
+        LOG(WARNING) << "Failed to post display unregister task to QEMU event loop: " << status
+                     << ". The DisplayChangeListener could not be cleanly unregistered, which may "
+                        "cause use-after-free or memory corruption during QEMU shutdown.";
+    }
+
     if (owned_surface_) {
         qemu_free_displaysurface(owned_surface_);
+    }
+}
+
+bool QemuDisplay::IsActive() const {
+    const absl::MutexLock lock(sub_lock_);
+    return active_subscriptions_ > 0;
+}
+
+void QemuDisplay::OnListenerAdded() {
+    const absl::MutexLock lock(sub_lock_);
+    active_subscriptions_++;
+    VLOG(1) << *this << " OnListenerAdded, active_subscriptions_=" << active_subscriptions_;
+    if (active_subscriptions_ == 1) {
+        // Optimization: We only register the DisplayChangeListener with QEMU
+        // when there is at least one active subscriber. From this point onwards
+        // qemu will start pulling frames from the virtio-gpu device.
+        VLOG(1) << *this << " Posting register_displaychangelistener to qemu_loop_";
+        qemu_loop_
+                ->Post([self = std::static_pointer_cast<QemuDisplay>(shared_from_this())]() {
+                    VLOG(1) << *self << " Executing register_displaychangelistener on qemu_loop_";
+                    if (self->dcl_->ds == nullptr) {
+                        register_displaychangelistener(self->dcl_.get());
+                        graphic_hw_update(self->console_);
+                    }
+                })
+                .IgnoreError();
+    }
+}
+
+void QemuDisplay::OnListenerRemoved() {
+    const absl::MutexLock lock(sub_lock_);
+    active_subscriptions_--;
+    VLOG(1) << *this << " OnListenerRemoved, active_subscriptions_=" << active_subscriptions_;
+    if (active_subscriptions_ == 0) {
+        // Optimization: When the last subscriber detaches, unregister the
+        // DisplayChangeListener to stop QEMU from actively pushing frames.
+        VLOG(1) << *this << " Posting unregister_displaychangelistener to qemu_loop_";
+        qemu_loop_
+                ->Post([self = std::static_pointer_cast<QemuDisplay>(shared_from_this())]() {
+                    VLOG(1) << *self << " Executing unregister_displaychangelistener on qemu_loop_";
+                    if (self->dcl_->ds != nullptr) {
+                        unregister_displaychangelistener(self->dcl_.get());
+                    }
+                })
+                .IgnoreError();
     }
 }
 
@@ -152,7 +221,7 @@ void QemuDisplay::SendMouseEvent(int x, int y, int button_mask) {
 
 void QemuDisplay::SendEvDevEvent(uint16_t type, uint16_t code, uint32_t value) {
     const absl::MutexLock lock(send_lock_);
-    VLOG(1) << *this << ", SendEvDevEvent(" << type << ", " << code << ", " << value << ")";
+    VLOG(2) << *this << ", SendEvDevEvent(" << type << ", " << code << ", " << value << ")";
     qemu_loop_
             ->Post([vhid = vhid_, type, code, value] {
                 virtio_input_send_evdev(vhid, type, code, value);

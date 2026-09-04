@@ -24,6 +24,7 @@
 #include "emulator_controller.grpc.pb.h"
 #include "goldfish/display/QemuMultidisplay/multi_display.h"
 #include "goldfish/eventing/with_callbacks.h"
+#include "goldfish/parsing/resizable_display_config.h"
 #include "goldfish/sensors/physical_model.h"
 
 namespace android {
@@ -40,7 +41,8 @@ using grpc::Status;
 class DisplayServiceImpl : public EmulatorController::Service {
   public:
     DisplayServiceImpl(::goldfish::display::IMultiDisplay* display,
-                       ::goldfish::sensors::PhysicalModel* pm);
+                       ::goldfish::sensors::PhysicalModel* pm,
+                       std::vector<::goldfish::parsing::ResizableDisplayConfig>);
 
     Status streamScreenshot(ServerContext* context, const ImageFormat* request,
                             grpc::ServerWriter<Image>* writer) override;
@@ -95,6 +97,7 @@ class DisplayServiceImpl : public EmulatorController::Service {
 
     ::goldfish::display::IMultiDisplay& mMultiDisplay;
     ::goldfish::sensors::PhysicalModel& mPhysicalModel;
+    const std::vector<::goldfish::parsing::ResizableDisplayConfig> resizable_configs_;
 
     ::goldfish::sensors::FoldableModel::ObservablePosture::ScopedCallbackHandle
             mPostureSubscription;

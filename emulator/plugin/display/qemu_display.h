@@ -34,6 +34,7 @@ class QemuDisplay : public PixmanDisplay {
     QemuDisplay(EventLoop* loop, EventLoop* qemu_loop, QemuConsole* con, DisplaySurface* ds,
                 int index);
     ~QemuDisplay() override;
+    bool IsActive() const;
     void SendMultiTouchEvent(uint8_t slot, int x, int y, MultiTouchType type) override;
     void SendMouseEvent(int x, int y, int button_mask) override;
     void SendEvDevEvent(uint16_t type, uint16_t code, uint32_t value) override;
@@ -41,6 +42,10 @@ class QemuDisplay : public PixmanDisplay {
     void SetOwnedSurface(DisplaySurface* surface);
 
     QemuConsole* GetConsole() const override { return console_; }
+
+  protected:
+    void OnListenerAdded() override;
+    void OnListenerRemoved() override;
 
   private:
     template <typename Sink>
@@ -51,7 +56,11 @@ class QemuDisplay : public PixmanDisplay {
     int last_bmask_ ABSL_GUARDED_BY(send_lock_) = 0;
     struct touch_slot touch_slots_[INPUT_EVENT_SLOTS_MAX];
     absl::Mutex send_lock_;
+    std::unique_ptr<DisplayChangeListener> dcl_;
     DisplaySurface* owned_surface_{nullptr};
+
+    mutable absl::Mutex sub_lock_;
+    unsigned int active_subscriptions_ ABSL_GUARDED_BY(sub_lock_) = 0;
 };
 
 template <typename Sink>

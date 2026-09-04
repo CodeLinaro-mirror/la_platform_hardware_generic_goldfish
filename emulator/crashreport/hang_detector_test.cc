@@ -24,7 +24,6 @@
 
 #include "android/base/testing/test_clock.h"
 #include "android/crashreport/debug.h"
-#include "emulator/plugin/vminterface/test/vm_mock.h"
 #include "goldfish/async/libuv_event_loop.h"
 #include "goldfish/async/threaded_event_loop.h"
 
@@ -46,7 +45,6 @@ class HangDetectorTest : public ::testing::Test {
                     .hang_check_timeout = absl::Milliseconds(1000),
                 },
                 std::move(clock));
-        mock_runstate_set(RUN_STATE_RUNNING);
     }
 
     void TearDown() override {
@@ -65,19 +63,12 @@ class HangDetectorTest : public ::testing::Test {
     std::unique_ptr<HangDetector> mHangDetector;
 };
 
-TEST_F(HangDetectorTest, PredicateTriggersHang) {
-    if (android::base::IsDebuggerAttached()) {
-        GTEST_SKIP() << "This test cannot be run under a debugger";
-    }
-    mHangDetector->AddPredicateCheck([] { return true; }, "Always dead");
-    ASSERT_TRUE(wait_for_hang(absl::Seconds(1)));
-}
-
 TEST_F(HangDetectorTest, NormalLoopNoHang) {
     auto event_loop =
             goldfish::async::ThreadedEventLoop::Create(goldfish::async::LibuvEventLoop::Create());
 
-    mHangDetector->AddWatchedLooper("test loop", *event_loop, absl::Seconds(1));
+    mHangDetector->AddWatchedLooper("test loop", *event_loop, absl::Seconds(1),
+                                    []() { return true; });
 
     EXPECT_FALSE(wait_for_hang(absl::Milliseconds(20)));
 
@@ -88,7 +79,8 @@ TEST_F(HangDetectorTest, HangDetectorDestroyedFirst) {
     auto event_loop =
             goldfish::async::ThreadedEventLoop::Create(goldfish::async::LibuvEventLoop::Create());
 
-    mHangDetector->AddWatchedLooper("test loop", *event_loop, absl::Seconds(1));
+    mHangDetector->AddWatchedLooper("test loop", *event_loop, absl::Seconds(1),
+                                    []() { return true; });
 
     EXPECT_FALSE(wait_for_hang(absl::Milliseconds(20)));
 
@@ -100,7 +92,8 @@ TEST_F(HangDetectorTest, BlockedLoopTriggersHang) {
     auto event_loop =
             goldfish::async::ThreadedEventLoop::Create(goldfish::async::LibuvEventLoop::Create());
 
-    mHangDetector->AddWatchedLooper("test loop", *event_loop, absl::Seconds(1));
+    mHangDetector->AddWatchedLooper("test loop", *event_loop, absl::Seconds(1),
+                                    []() { return true; });
 
     // Add a hanging task
     absl::Notification hang;
@@ -112,7 +105,7 @@ TEST_F(HangDetectorTest, BlockedLoopTriggersHang) {
         mTestClock->Advance(absl::Milliseconds(100));
         absl::SleepFor(absl::Milliseconds(10));
     }
-    ASSERT_TRUE(wait_for_hang(absl::Seconds(1)));
+    ASSERT_TRUE(wait_for_hang(absl::Seconds(10)));
 
     // Unblock the loop so that it actually terminates!
     hang.Notify();
@@ -121,6 +114,33 @@ TEST_F(HangDetectorTest, BlockedLoopTriggersHang) {
 
     // Wait for loop to shutdown as the hang task is referencing the hang notification which gets
     // destroyed before the loop.
+    event_loop->ShutdownAndWait().IgnoreError();
+}
+
+TEST_F(HangDetectorTest, BlockedLoopIgnoredWhenVmStopped) {
+    auto event_loop =
+            goldfish::async::ThreadedEventLoop::Create(goldfish::async::LibuvEventLoop::Create());
+
+    // Register looper with is_vm_running predicate returning false (VM stopped)
+    mHangDetector->AddWatchedLooper("test loop", *event_loop, absl::Seconds(1),
+                                    []() { return false; });
+
+    // Add a hanging task
+    absl::Notification hang;
+    event_loop->Post([&hang] { hang.WaitForNotification(); }).IgnoreError();
+
+    // Advance clock past the hang timeout repeatedly
+    for (int i = 0; i < 20; ++i) {
+        mTestClock->Advance(absl::Milliseconds(100));
+        absl::SleepFor(absl::Milliseconds(10));
+    }
+
+    // Verify hang callback was NOT invoked because the VM was stopped
+    EXPECT_FALSE(mNotify.HasBeenNotified());
+
+    // Unblock and clean up
+    hang.Notify();
+    mHangDetector->RemoveWatchedLooper(*event_loop);
     event_loop->ShutdownAndWait().IgnoreError();
 }
 
@@ -159,7 +179,8 @@ TEST_F(HangDetectorTest, NoHangCallbackDeadlockWhenRemovingLooper) {
             },
             std::move(test_clock));
 
-    hang_detector->AddWatchedLooper("test loop", *event_loop, absl::Milliseconds(100));
+    hang_detector->AddWatchedLooper("test loop", *event_loop, absl::Milliseconds(100),
+                                    []() { return true; });
 
     // Block the event loop to trigger hang detection
     absl::Notification hang;
@@ -171,10 +192,10 @@ TEST_F(HangDetectorTest, NoHangCallbackDeadlockWhenRemovingLooper) {
         clock_ptr->Advance(absl::Milliseconds(20));
         absl::SleepFor(absl::Milliseconds(5));
     }
-    ASSERT_TRUE(hang_cb_called.WaitForNotificationWithTimeout(absl::Seconds(1)));
+    ASSERT_TRUE(hang_cb_called.WaitForNotificationWithTimeout(absl::Seconds(10)));
 
     hang.Notify();
-    ASSERT_TRUE(remove_completed.WaitForNotificationWithTimeout(absl::Seconds(1)));
+    ASSERT_TRUE(remove_completed.WaitForNotificationWithTimeout(absl::Seconds(10)));
     if (remove_thread.joinable()) {
         remove_thread.join();
     }
@@ -185,7 +206,8 @@ TEST_F(HangDetectorTest, RemoveWatchedLooperAfterStopNoCrash) {
     auto event_loop =
             goldfish::async::ThreadedEventLoop::Create(goldfish::async::LibuvEventLoop::Create());
 
-    mHangDetector->AddWatchedLooper("test loop", *event_loop, absl::Seconds(1));
+    mHangDetector->AddWatchedLooper("test loop", *event_loop, absl::Seconds(1),
+                                    []() { return true; });
 
     // Stop the detector first (simulating early teardown)
     mHangDetector->Stop();

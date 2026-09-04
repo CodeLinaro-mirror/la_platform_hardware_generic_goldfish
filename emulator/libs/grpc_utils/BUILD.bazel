@@ -1,4 +1,5 @@
 load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_test")
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
 
@@ -49,6 +50,7 @@ cc_test(
     ],
     deps = [
         ":async",
+        ":event-stream",
         "//emulator/libs/test:googletest_main",
         "@googletest//:gtest",
     ],
@@ -62,8 +64,19 @@ cc_library(
     deps = [
         ":async",
         "//emulator/libs/eventing",
+        "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/synchronization",
         "@grpc//:grpc++",
+    ],
+)
+
+cc_binary(
+    name = "async_perf",
+    testonly = True,
+    srcs = ["simple_async_grpc_perf.cc"],
+    deps = [
+        ":async",
+        "@google_benchmark//:benchmark_main",
     ],
 )
 
@@ -73,6 +86,7 @@ clang_tidy_test(
         ":absl_translate",
         ":absl_translate_test",
         ":async",
+        ":async_perf",
         ":async_test",
         ":event-stream",
     ],

@@ -48,6 +48,8 @@ class MockAvd : public Avd {
     MOCK_METHOD(int64_t, BuildTimestamp, (), (const, override));
     MOCK_METHOD(std::string, BuildFlavour, (), (const, override));
     MOCK_METHOD(std::string, BuildNumber, (), (const, override));
+    MOCK_METHOD(std::string, VendorProperty, (std::string_view key, std::string_view default_value),
+                (const, override));
     MOCK_METHOD(absl::StatusOr<std::optional<int>>, GetLastRunQemuVersion, (), (const, override));
     MOCK_METHOD(absl::Status, SetLastRunQemuVersion, (int version), (override));
     MOCK_METHOD(android_studio::EmulatorAvdInfo::EmulatorAvdImageKind, ImageKind, (),

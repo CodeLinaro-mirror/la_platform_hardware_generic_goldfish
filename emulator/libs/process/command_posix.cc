@@ -252,7 +252,10 @@ class PosixProcess : public ObservableProcess {
         using namespace std::chrono_literals;
 
         if (IsAlive()) {
-            kill(pid_, SIGKILL);
+            // This should be checked by IsAlive() but check again to be sure!
+            if (pid_ > 0) {
+                kill(pid_, SIGKILL);
+            }
             HANDLE_EINTR(waitpid(pid_, nullptr, WNOHANG));
             WaitForKernel(10s);
         }
@@ -261,10 +264,15 @@ class PosixProcess : public ObservableProcess {
     }
 
     bool IsAlive() const override {
+        // If there's not pid then we were never started.
+        if (pid_ <= 0) {
+            return false;
+        }
         // If we already have an exit code then it's not alive.
         if (GetExitCode()) {
             return false;
         }
+        // Note that pid_ must be > 0 here.
         return kill(pid_, 0) == 0;
     }
 

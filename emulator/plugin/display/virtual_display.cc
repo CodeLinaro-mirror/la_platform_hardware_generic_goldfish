@@ -51,8 +51,7 @@ VirtualDisplay::VirtualDisplay(EventLoop* loop, EventLoop* qloop, uint8_t id, ui
         OneFrameTick();
         return true;
     });
-    one_second_timer_->Schedule(absl::ToChronoMilliseconds(absl::Milliseconds(50)),
-                                absl::ToChronoMilliseconds(absl::Milliseconds(50)));
+    one_second_timer_->Schedule(absl::Milliseconds(50), absl::Milliseconds(50));
 
     const char* gpu = "gpu0";
     // Head will normally be > 0 for virtual console

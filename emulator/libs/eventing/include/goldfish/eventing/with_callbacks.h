@@ -171,7 +171,7 @@ class WithCallbacks : public EventSourceType {
     /**
      * @brief Removes a callback by its ID.
      */
-    void RemoveCallback(CallbackId id) {
+    virtual void RemoveCallback(CallbackId id) {
         if (id == kInvalidCallbackId) {
             return;
         }

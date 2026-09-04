@@ -213,6 +213,9 @@ OPT_PARAM(nand_limits, "<nlimits>", "enforce NAND/Flash read/write thresholds")
 #endif
 
 OPT_PARAM(gpu, "<mode>", "set hardware OpenGLES emulation mode")
+OPT_PARAM(vulkan_validation, "<mode>", "Vulkan validation mode (off|print|fail|crash)")
+OPT_PARAM(vulkan_validation_include_filter, "<filters>", "Comma-separated list of app/engine filters to include for Vulkan validation")
+OPT_PARAM(vulkan_validation_exclude_filter, "<filters>", "Comma-separated list of app/engine filters to exclude for Vulkan validation")
 
 OPT_PARAM(vsync_rate, "<rate>", "set the vsync rate (refresh rate) in Hz for the guest display")
 
@@ -417,6 +420,7 @@ OPT_FLAG(no_grpc, "disable grpc device")
 OPT_FLAG(no_netsim,
          "disable launching netsimd and configuring any devices that depend on it e.g. wifi, bt, "
          "uwb, nfc")
+OPT_FLAG(netsim_cellular, "enable netsim cellular")
 OPT_FLAG(netsim_stdout, "send netsim output to stdout")
 OPT_FLAG(fishtank_stdout, "send fishtank output to stdout")
 OPT_FLAG(verbose_grpc, "verbose grpc logging")

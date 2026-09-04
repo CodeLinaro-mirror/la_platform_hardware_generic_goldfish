@@ -13,18 +13,23 @@
 // limitations under the License.
 
 #pragma once
+#include <algorithm>
+#include <cstddef>
 #include <cstdint>
+#include <optional>
+#include <string_view>
+#include <vector>
+
+#include "absl/status/statusor.h"
+
+#include "android/goldfish/hardware_config.h"
 
 namespace goldfish::sensors {
 
-#define ANDROID_FOLDABLE_MAX_HINGES 3
-#define ANDROID_FOLDABLE_MAX_ROLLS 2
-#if ANDROID_FOLDABLE_MAX_HINGES > ANDROID_FOLDABLE_MAX_ROLLS
-#define ANDROID_FOLDABLE_MAX_HINGES_ROLLS ANDROID_FOLDABLE_MAX_HINGES
-#else
-#define ANDROID_FOLDABLE_MAX_HINGES_ROLLS ANDROID_FOLDABLE_MAX_ROLLS
-#endif
-#define ANDROID_FOLDABLE_MAX_DISPLAY_REGIONS 3
+constexpr size_t kMaxHinges = 3;
+constexpr size_t kMaxRolls = 2;
+constexpr size_t kMaxHingesRolls = std::max(kMaxHinges, kMaxRolls);
+constexpr size_t kMaxDisplayRegions = 3;
 
 enum class FoldablePostures : uint8_t {
     kUnknown = 0,
@@ -43,7 +48,7 @@ struct AnglesToPosture {
         float default_value;
     };
 
-    Angles angles[ANDROID_FOLDABLE_MAX_HINGES_ROLLS];
+    Angles angles[kMaxHingesRolls];
     FoldablePostures posture;
 };
 
@@ -81,7 +86,7 @@ enum class FoldableDisplayType : uint8_t {
 };
 
 struct FoldableHingeParameters {
-    int x, y, width, height;
+    unsigned x, y, width, height;
     int display_id;
     float min_degrees;
     float max_degrees;
@@ -103,20 +108,21 @@ struct FoldableConfig {
     FoldableDisplayType type;
 
     // For hinges only
-    int num_hinges;
+    unsigned num_hinges = 0;
+    int folded_x;
+    int folded_y;
+    int folded_w;
+    int folded_h;
     FoldablePostures fold_at_posture;
-    FoldableHingeParameters hinge_params[ANDROID_FOLDABLE_MAX_HINGES];
+    FoldableHingeParameters hinge_params[kMaxHinges];
+    std::vector<AnglesToPosture> angles_to_postures;
 
     // For rollables only
-    int num_rolls;
-    FoldablePostures resize_at_posture[ANDROID_FOLDABLE_MAX_DISPLAY_REGIONS];
-    RollableParameters rollable_params[ANDROID_FOLDABLE_MAX_ROLLS];
+    unsigned num_rolls = 0;
+    FoldablePostures resize_at_posture[kMaxDisplayRegions];
+    RollableParameters rollable_params[kMaxRolls];
 };
 
-struct FoldableState {
-    float current_hinge_degrees[ANDROID_FOLDABLE_MAX_HINGES];
-    float current_rolled_percent[ANDROID_FOLDABLE_MAX_ROLLS];
-    FoldablePostures current_posture;
-};
+absl::StatusOr<FoldableConfig> MakeFoldableConfig(const android::goldfish::HardwareConfig&);
 
 }  // namespace goldfish::sensors

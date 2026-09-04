@@ -1,13 +1,14 @@
 # Component: Android Sockets
 
 **Role:** Cross-platform wrappers for BSD sockets.
-**Location:** `hardware/generic/goldfish/android/sockets`
+**Location:** `hardware/generic/goldfish/emulator/libs/sockets`
 **Namespace:** `android::base`
 
 ## Integration Guide
 | Class / Interface | Bazel Target | Header Path | Description |
 | :--- | :--- | :--- | :--- |
-| `SocketUtils.h` | `:sockets` | `@aemu//base/sockets/SocketUtils.h` | Exports functions like `socketCreateTcp4`, `socketAccept`, `socketRecv`. |
+| `SocketUtils` | `:sockets` | `include/android/sockets/socket_utils.h` | Exports functions like `socketCreateTcp4`, `socketAccept`, `socketRecv`. |
+| `ScopedSocket` | `:sockets` | `include/android/sockets/scoped_socket.h` | RAII wrapper around socket descriptors. |
 
 ## Critical Infrastructure
 * **Platform Abstraction:** Handles differences between POSIX sockets and Windows Winsock (`WSA*`, `closesocket` vs `close`).
@@ -16,7 +17,7 @@
 
 ## Dependencies
 * **System:** `//emulator/libs/system`.
-* **Base:** `@aemu//base:aemu-base` (for `EintrWrapper` etc).
+* **Abseil:** `@abseil-cpp//absl/log`.
 
 ## Threading Model
 * **Thread Safe:** Socket file descriptors are thread-safe OS resources.

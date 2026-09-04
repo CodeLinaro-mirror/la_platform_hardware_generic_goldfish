@@ -65,33 +65,34 @@ using DeviceSkinRotationCallbackSource =
         ObservableValue<DeviceSkinRotation, ObservableValueTriggerOnUpdate>;
 
 DisplayServiceImpl::DisplayServiceImpl(::goldfish::display::IMultiDisplay* display,
-                                       ::goldfish::sensors::PhysicalModel* pm)
-        : mMultiDisplay(*display), mPhysicalModel(*pm) {
-    if (mPhysicalModel.HasFoldableModel()) {
-        const auto& resizable_configs = mPhysicalModel.GetResizableConfigs();
-        if (!resizable_configs.empty()) {
-            auto screen = mMultiDisplay.GetDisplay(0);
-            if (screen.ok()) {
-                if (auto d0 = screen->lock()) {
-                    auto dims = d0->GetDimensions();
-                    for (const auto& rc : resizable_configs) {
-                        if (rc.width == dims.width && rc.height == dims.height) {
-                            uint32_t total_modes = static_cast<uint32_t>(resizable_configs.size());
-                            uint32_t guest_mode_id = total_modes - 1 - rc.id;
-                            mMultiDisplay.SetDisplayMode(rc.id, rc.width, rc.height, rc.dpi,
-                                                         guest_mode_id);
-                            break;
-                        }
+                                       ::goldfish::sensors::PhysicalModel* pm,
+                                       std::vector<::goldfish::parsing::ResizableDisplayConfig> rdc)
+        : mMultiDisplay(*display), mPhysicalModel(*pm), resizable_configs_(std::move(rdc)) {
+    if (!resizable_configs_.empty()) {
+        auto screen = mMultiDisplay.GetDisplay(0);
+        if (screen.ok()) {
+            if (auto d0 = screen->lock()) {
+                auto dims = d0->GetDimensions();
+                const uint32_t total_modes = static_cast<uint32_t>(resizable_configs_.size());
+
+                for (const auto& rc : resizable_configs_) {
+                    if (rc.width == dims.width && rc.height == dims.height) {
+                        uint32_t guest_mode_id = total_modes - 1 - rc.id;
+                        mMultiDisplay.SetDisplayMode(rc.id, rc.width, rc.height, rc.dpi,
+                                                     guest_mode_id);
+                        break;
                     }
                 }
             }
         }
+    }
 
+    if (const auto posture_listener = mPhysicalModel.GetPostureListener()) {
         // Subscribe to future posture changes if the device supports foldables/postures.
         // When posture updates, update display folded state, fire display configuration
         // notifications, and stream posture events over gRPC.
-        mPostureSubscription = MakeScopedCallback(
-                mPhysicalModel.GetPostureListener(), [this](const FoldablePostures& posture) {
+        mPostureSubscription =
+                MakeScopedCallback(*posture_listener, [this](const FoldablePostures& posture) {
                     bool isClosed = (posture == FoldablePostures::kClosed);
                     mMultiDisplay.SetFolded(isClosed);
 
@@ -109,7 +110,7 @@ DisplayServiceImpl::DisplayServiceImpl(::goldfish::display::IMultiDisplay* displ
         // embedded emulator) connect to `streamNotification`, `NotificationStreamWriter`
         // immediately sends this cached initial posture, preventing `currentPosture` from staying
         // null.
-        const auto initial_posture = mPhysicalModel.GetFoldableState().current_posture;
+        const auto initial_posture = mPhysicalModel.GetFoldablePosture();
         if (initial_posture != FoldablePostures::kUnknown) {
             Notification event;
             event.mutable_posture()->set_value(ToProtoPosture(initial_posture));
@@ -607,7 +608,7 @@ Status DisplayServiceImpl::setDisplayConfigurations(ServerContext* context,
 
 Status DisplayServiceImpl::getDisplayMode(ServerContext* context, const Empty* request,
                                           DisplayMode* reply) {
-    if (!mPhysicalModel.HasFoldableModel() || mPhysicalModel.GetResizableConfigs().empty()) {
+    if (resizable_configs_.empty()) {
         return Status(grpc::StatusCode::FAILED_PRECONDITION, "AVD is not resizable.");
     }
 
@@ -617,11 +618,7 @@ Status DisplayServiceImpl::getDisplayMode(ServerContext* context, const Empty* r
 
 Status DisplayServiceImpl::setDisplayMode(ServerContext* context, const DisplayMode* request,
                                           Empty* reply) {
-    if (!mPhysicalModel.HasFoldableModel()) {
-        return Status(grpc::StatusCode::FAILED_PRECONDITION, "AVD is not resizable.");
-    }
-    const auto& resizable_configs = mPhysicalModel.GetResizableConfigs();
-    if (resizable_configs.empty()) {
+    if (resizable_configs_.empty()) {
         return Status(grpc::StatusCode::FAILED_PRECONDITION, "AVD is not resizable.");
     }
 
@@ -629,7 +626,7 @@ Status DisplayServiceImpl::setDisplayMode(ServerContext* context, const DisplayM
     uint32_t target_w = 0, target_h = 0;
     uint32_t target_dpi = 0;
 
-    for (const auto& rc : resizable_configs) {
+    for (const auto& rc : resizable_configs_) {
         if (rc.id == static_cast<uint32_t>(request->value())) {
             target_w = rc.width;
             target_h = rc.height;
@@ -644,14 +641,14 @@ Status DisplayServiceImpl::setDisplayMode(ServerContext* context, const DisplayM
     }
 
     if (request->value() == FOLDABLE) {
-        const auto posture = mPhysicalModel.GetFoldableState().current_posture;
+        const auto posture = mPhysicalModel.GetFoldablePosture();
 
         Notification event;
         event.mutable_posture()->set_value(ToProtoPosture(posture));
         ::goldfish::avd_info::GetAvd().GetGrpcNotificationChannel().FireEvent(event);
     }
 
-    uint32_t total_modes = static_cast<uint32_t>(resizable_configs.size());
+    uint32_t total_modes = static_cast<uint32_t>(resizable_configs_.size());
     uint32_t requested_mode_id = static_cast<uint32_t>(request->value());
     uint32_t guest_mode_id = total_modes - 1 - requested_mode_id;
 

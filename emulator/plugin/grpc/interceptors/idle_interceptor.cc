@@ -38,8 +38,7 @@ IdleInterceptor::IdleInterceptor(std::chrono::seconds timeout,
         , active_requests_(active_requests) {}
 
 IdleInterceptor::~IdleInterceptor() {
-    const uint64_t idle_time =
-            absl::ToUnixSeconds(IClock::HostNow() + absl::Seconds(timeout_.count()));
+    const uint64_t idle_time = absl::ToUnixSeconds(IClock::HostNow() + absl::FromChrono(timeout_));
     termination_unix_time_->store(idle_time);
     active_requests_->fetch_sub(1);
 }
@@ -51,13 +50,13 @@ void IdleInterceptor::Intercept(InterceptorBatchMethods* methods) {
 IdleInterceptorFactory::IdleInterceptorFactory(std::chrono::seconds timeout, EventLoop* event_loop)
         : timeout_(timeout)
         , termination_unix_time_(static_cast<uint64_t>(
-                  absl::ToUnixSeconds(IClock::HostNow() + absl::Seconds(timeout.count())))) {
+                  absl::ToUnixSeconds(IClock::HostNow() + absl::FromChrono(timeout)))) {
     timeout_checker_ = event_loop->ScheduleRepeating(
             [this]() {
                 CheckIdleTimeout();
                 return true;
             },
-            std::chrono::milliseconds(timeout_), std::chrono::milliseconds(timeout_));
+            absl::FromChrono(timeout_), absl::FromChrono(timeout_));
 }
 
 Interceptor* IdleInterceptorFactory::CreateServerInterceptor(ServerRpcInfo* /* info */) {

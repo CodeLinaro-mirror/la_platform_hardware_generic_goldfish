@@ -149,6 +149,7 @@ absl::Status LaunchQemu::addDevices() {
 
     addDevice<AvdInfoDevice>();
 
+    bool netsim_cellular = false;
     if (!o.no_netsim) {
         addDevice<ParameterList>(std::initializer_list<std::string>{
             "-device",
@@ -164,10 +165,13 @@ absl::Status LaunchQemu::addDevices() {
         // It should lookup the actual port number and set the property
         // "vendor.qemu.vport.<name>" to "/dev/vport8p<N>"
         // e.g. /dev/vport8p3 for bt (4th port)
+        std::string uwb_device = (a.VendorProperty("ro.vendor.uwb.dev") == "/dev/uwb0")
+                                         ? "virtserialport,chardev=uwb,name=uwb"
+                                         : "virtconsole,chardev=uwb,name=uwb";
+
         std::vector<std::string> radio_params = {
             "-chardev", "netsim-uwb,id=uwb",
-            "-device",  "virtconsole,chardev=uwb,name=uwb",
-
+            "-device",  uwb_device,
             "-chardev", "netsim-bt,id=bluetooth",
             "-device",  "virtserialport,chardev=bluetooth,name=bluetooth",
         };
@@ -182,6 +186,16 @@ absl::Status LaunchQemu::addDevices() {
         }
 
         addDevice<ParameterList>(std::move(radio_params));
+
+        if (o.netsim_cellular) {
+            netsim_cellular = true;
+            addDevice<ParameterList>(std::initializer_list<std::string>{
+                "-chardev",
+                "netsim-cellular,id=modem",
+                "-device",
+                "virtserialport,chardev=modem,name=modem",
+            });
+        }
     }
 
     // TODO(whollins): set netsim_backend to true when netsimd supports this (and not o.no_netsim)
@@ -190,7 +204,7 @@ absl::Status LaunchQemu::addDevices() {
     // TODO TV ethernet addDevice<NetworkDevice>("eth1", "0d.0", /*cellular=*/false,
     // /*netsim_backend=*/false);
 
-    if (!config_.chardev_endpoints().modem_simulator.empty()) {
+    if (!netsim_cellular && !config_.chardev_endpoints().modem_simulator.empty()) {
         addDevice<ParameterList>(std::initializer_list<std::string>{
             "-chardev",
             absl::StrCat("socket,id=modem,nodelay=on,reconnect-ms=100,",

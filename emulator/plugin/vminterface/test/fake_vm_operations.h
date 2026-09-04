@@ -22,10 +22,12 @@ class FakeVmOperations : public VmOperations {
     void Shutdown() override { mIsRunning = false; }
     bool pause() override {
         mRunState = EmuRunState::Paused;
+        FireEvent(mRunState);
         return true;
     }
     bool resume() override {
         mRunState = EmuRunState::Running;
+        FireEvent(mRunState);
         return true;
     }
     bool isRunning() override { return mIsRunning; }
@@ -33,7 +35,10 @@ class FakeVmOperations : public VmOperations {
 
     VmConfiguration getConfiguration() override { return {VmHypervisorType::None, 1, "fake"}; }
     EmuRunState getRunState() override { return mRunState; }
-    void setRunState(EmuRunState runState) { mRunState = runState; }
+    void setRunState(EmuRunState runState) {
+        mRunState = runState;
+        FireEvent(mRunState);
+    }
 
     void systemShutdownRequest(QemuShutdownCause reason) override {}
 

@@ -56,7 +56,7 @@ class UnixPipeTest : public ::testing::Test {
 
     void TearDown() override {
         registry_.Close();
-        auto s = client_loop_->ShutdownAndWait(3000ms);
+        auto s = client_loop_->ShutdownAndWait(absl::Seconds(3));
         EXPECT_THAT(s, absl_testing::IsOk());
         if (client_loop_thread_.joinable()) {
             client_loop_thread_.join();
@@ -157,7 +157,7 @@ TEST_F(UnixPipeTest, echo_over_host_side) {
             absl::Condition(
                     +[](const void* ptr) { return static_cast<const DeviceState*>(ptr)->ready(); },
                     &device_state),
-            absl::FromChrono(1s)));
+            absl::Seconds(1)));
 
     EXPECT_EQ(device_state.rx_buffer, test_message);
 
@@ -234,7 +234,7 @@ TEST_F(UnixPipeTest, close_on_host) {
                             return static_cast<const DeviceState*>(ptr)->ready();
                         },
                         &device_state),
-                absl::FromChrono(1s)));
+                absl::Seconds(1)));
 
         rx_total.append(device_state.rx_buffer);
         device_state.rx_buffer.clear();
@@ -252,7 +252,7 @@ TEST_F(UnixPipeTest, close_on_host) {
                             return static_cast<const DeviceState*>(ptr)->ready();
                         },
                         &device_state),
-                absl::FromChrono(1s)));
+                absl::Seconds(1)));
 
         EXPECT_TRUE(device_state.rx_buffer.empty());
         EXPECT_TRUE(device_state.disconnected);

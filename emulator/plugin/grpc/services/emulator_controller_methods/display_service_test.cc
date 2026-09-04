@@ -45,6 +45,7 @@ using ::goldfish::display::IMultiDisplay;
 using ::goldfish::display::PixelFormat;
 using ::goldfish::display::test::FakeMultiDisplay;
 using ::goldfish::memory::SharedMemory;
+using ::goldfish::parsing::ResizableDisplayConfig;
 using ::goldfish::sensors::AndroidSensor;
 using ::goldfish::sensors::PhysicalModel;
 using ::grpc::ServerContext;
@@ -52,6 +53,10 @@ using ::grpc::Status;
 using ::grpc::StatusCode;
 
 using namespace std::chrono_literals;
+
+namespace {
+const std::vector<ResizableDisplayConfig> kNoResizableConfigs;
+}  // namespace
 
 class DisplayServiceTest : public GrcpServiceTest {
   protected:
@@ -63,8 +68,8 @@ class DisplayServiceTest : public GrcpServiceTest {
         mQemuLoop = ::goldfish::async::ThreadedEventLoop::Create(
                 ::goldfish::async::LibuvEventLoop::Create());
         mMultiDisplay = std::make_unique<FakeMultiDisplay>(mLoop.get());
-        mDisplayService =
-                std::make_unique<DisplayServiceImpl>(mMultiDisplay.get(), mPhysicalModel.get());
+        mDisplayService = std::make_unique<DisplayServiceImpl>(
+                mMultiDisplay.get(), mPhysicalModel.get(), kNoResizableConfigs);
         auto createResult = mMultiDisplay->CreateDisplay(1, 100, 50, 320, 1);
         ASSERT_TRUE(createResult.ok());
 
@@ -908,12 +913,12 @@ TEST_F(DisplayServiceTest, FiresInitialPostureOnConstruction) {
                 }
             });
 
-    auto test_service =
-            std::make_unique<DisplayServiceImpl>(mMultiDisplay.get(), mPhysicalModel.get());
+    auto test_service = std::make_unique<DisplayServiceImpl>(
+            mMultiDisplay.get(), mPhysicalModel.get(), kNoResizableConfigs);
 
     EXPECT_TRUE(received_posture);
-    EXPECT_EQ(received_value, DisplayServiceImpl::ToProtoPosture(
-                                      mPhysicalModel->GetFoldableState().current_posture));
+    EXPECT_EQ(received_value,
+              DisplayServiceImpl::ToProtoPosture(mPhysicalModel->GetFoldablePosture()));
 
     ::goldfish::avd_info::GetAvd().GetGrpcNotificationChannel().RemoveCallback(callback_id);
 }

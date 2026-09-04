@@ -24,7 +24,12 @@
 #include <mutex>
 #include <vector>
 
+#include "absl/status/status.h"
+
 #include "android/goldfish/hardware_config.h"
+#include "goldfish/archive/glm.h"
+#include "goldfish/archive/reader.h"
+#include "goldfish/archive/writer.h"
 #include "goldfish/eventing/event_sources.h"
 #include "goldfish/physics/ambient_environment.h"
 #include "goldfish/physics/body_model.h"
@@ -178,37 +183,8 @@ class PhysicalModel : public CallbackEventSource<PhysicalModelChangeEvent> {
 
     Rotation GetDeviceRotation() const;
 
-    const FoldableConfig& GetFoldableConfig() const;
-
-    /**
-     * @brief Gets the current foldable device state.
-     * @note Caller must ensure HasFoldableModel() is true before calling this API.
-     *       Calling it on a non-foldable target will trigger a DCHECK assertion failure.
-     * @return Current foldable state
-     */
-    const FoldableState& GetFoldableState() const;
-
-    /**
-     * @brief Checks if the physical model supports foldable capabilities.
-     * @return true if foldable capabilities are enabled, false otherwise
-     */
     bool HasFoldableModel() const;
-
-    /**
-     * @brief Gets the posture change listener.
-     * @note Caller must ensure HasFoldableModel() is true before calling this API.
-     *       Calling it on a non-foldable target will trigger a DCHECK assertion failure.
-     * @return Reference to the posture listener
-     */
-    FoldableModel::ObservablePosture& GetPostureListener();
-
-    /**
-     * @brief Checks if the foldable device is currently folded.
-     * @note Caller must ensure HasFoldableModel() is true before calling this API.
-     *       Calling it on a non-foldable target will trigger a DCHECK assertion failure.
-     * @return true if device is folded, false otherwise
-     */
-    bool FoldableIsFolded() const;
+    const FoldableConfig* GetFoldableConfig() const;
 
     /**
      * @brief Gets the folded area dimensions.
@@ -222,18 +198,20 @@ class PhysicalModel : public CallbackEventSource<PhysicalModelChangeEvent> {
      */
     bool GetFoldedArea(int* x, int* y, int* w, int* h) const;
 
-    /**
-     * @brief Gets the list of resizable configurations.
-     * @note Caller must ensure HasFoldableModel() is true before calling this API.
-     *       Calling it on a non-foldable target will trigger a DCHECK assertion failure.
-     * @return List of resizable configs
-     */
-    const std::vector<FoldableModel::ResizableConfig>& GetResizableConfigs() const;
+    FoldableModel::ObservablePosture* GetPostureListener();
+
+    bool FoldableIsFolded() const;
+    FoldablePostures GetFoldablePosture() const;
+
+    friend archive::IWriter& operator<<(archive::IWriter&, const PhysicalModel&);
+    friend absl::Status ReadValue(archive::IReader&, PhysicalModel&);
 
   private:
     static size_t GetSensorValueSize(AndroidSensor);
     size_t GetSensorDataImpl(AndroidSensor, float* out, size_t count) const;
     void SetSensorValueImpl(AndroidSensor, const float* val, size_t count);
+    void SetTargetInternalRollableImpl(unsigned index, float percentage,
+                                       PhysicalInterpolation mode);
 
     /*
      * Sets the target value for the given physical parameter that the physical
@@ -282,23 +260,22 @@ class PhysicalModel : public CallbackEventSource<PhysicalModelChangeEvent> {
     void TargetStateChanged();       ///< Called when target state changes
     void NotifyTargetState(PhysicalModelChangeEvent::Type);
 
-    mutable std::recursive_mutex mutex_;  ///< Mutex for thread safety
+    using UseOverrideMask = std::bitset<kNumSensors>;
 
+    const std::unique_ptr<FoldableModel> foldable_model_;  ///< Models foldable device state
     InertialModel inertial_model_;            ///< Models inertial motion
     AmbientEnvironment ambient_environment_;  ///< Models ambient conditions
-    std::unique_ptr<FoldableModel> foldable_model_;  ///< Models foldable device state
     BodyModel body_model_;                    ///< Models body-related sensors
-
-    std::bitset<kNumSensors> use_override_;             ///< Sensor override flags
+    int64_t model_time_ns_ = 0L;              ///< Current model time in nanoseconds
+    UseOverrideMask use_override_;            ///< Sensor override flags
     mutable size_t measurement_id_[kNumSensors] = {0};  ///< Measurement IDs
-
     bool is_physical_state_changing_{false};  ///< True if physical state is changing
 
 #define GOLDFISH_SENSOR_DEF(x, y, z, v, w) v m##z##Override{0.f};
     GOLDFISH_SENSORS_LIST
 #undef GOLDFISH_SENSOR_DEF
 
-    int64_t model_time_ns_ = 0L;  ///< Current model time in nanoseconds
+    mutable std::recursive_mutex mutex_;  ///< Mutex for thread safety
 };
 
 }  // namespace goldfish::sensors

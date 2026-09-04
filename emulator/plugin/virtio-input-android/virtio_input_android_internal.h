@@ -156,6 +156,12 @@
 #define MTS_ORIENTATION_RANGE_MAX 90
 
 /**
+ * @brief Minimum and maximum values for stylus tilt X/Y (representing [-90, 90] degrees).
+ */
+#define MTS_TILT_RANGE_MIN -90
+#define MTS_TILT_RANGE_MAX 90
+
+/**
  * @brief Maximum value for touch pressure (1024 levels).
  *
  * Specifies the maximum pressure value that the device can report, representing
