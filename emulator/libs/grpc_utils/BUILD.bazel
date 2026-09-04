@@ -52,6 +52,7 @@ cc_test(
         ":async",
         ":event-stream",
         "//emulator/libs/test:googletest_main",
+        "@aemu//protos/services/emulator-controller:emulator_controller_cc_grpc",
         "@googletest//:gtest",
     ],
 )
