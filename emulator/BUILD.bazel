@@ -614,6 +614,10 @@ pkg_zip(
         "emulator-dir-unstripped",
         ":security",
     ],
+    compression_level = select({
+        ":is_developer_build": 0,
+        "//conditions:default": 9,
+    }),
     package_file_name = "UNSTRIPPED-sdk-repo-{platform}-{product_name}-{build_id}.zip",
     package_variables = "//emulator/tools:aemu_version_info",
     tags = ["manual"],
@@ -634,6 +638,10 @@ breakpad_symbols_pkg(
 native_symbols_pkg(
     name = "package_goldfish_native_symbols",
     binaries = all_binaries,
+    compression_level = select({
+        ":is_developer_build": 0,
+        "//conditions:default": 9,
+    }),
     layout_templates = {
         "launcher": ":launcher",
         "qemu": ":qemu",
