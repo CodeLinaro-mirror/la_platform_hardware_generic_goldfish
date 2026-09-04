@@ -249,7 +249,7 @@ def breakpad_symbols_pkg(name, binaries, package_file_name, package_variables, i
         package_variables = package_variables,
     )
 
-def native_symbols_pkg(name, binaries, package_file_name, package_variables, layout_templates = {}):
+def native_symbols_pkg(name, binaries, package_file_name, package_variables, layout_templates = {}, compression_level = None):
     """Creates a zip file with native symbols.
 
     This function first extracts symbols from the given binaries using the
@@ -267,6 +267,7 @@ def native_symbols_pkg(name, binaries, package_file_name, package_variables, lay
         package_file_name: The name of the output zip file.
         package_variables: A dictionary of variables to be expanded in the
                            package template.
+        compression_level: The compression level (0-9) to use for the zip archive.
     """
     extract = name + "_extract"
     native_symbols(
@@ -293,6 +294,7 @@ def native_symbols_pkg(name, binaries, package_file_name, package_variables, lay
         name = name,
         tags = ["manual"],
         srcs = pkg_files,
+        compression_level = compression_level,
         package_file_name = package_file_name,
         package_variables = package_variables,
     )
