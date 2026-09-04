@@ -137,7 +137,7 @@ class LibuvEventLoopImpl : public LibuvEventLoop {
         FlowId flow_id;
     };
 
-    absl::Status PostDelayed(Task task, std::chrono::milliseconds delay, FlowId flow_id) override;
+    absl::Status PostDelayed(Task task, absl::Duration delay, FlowId flow_id) override;
 
     absl::Status PostImmediately(Task task, FlowId flow_id) override {
         if (is_shutting_down_) {
@@ -238,21 +238,20 @@ class LibuvTimer : public EventLoop::Timer, public std::enable_shared_from_this<
         }
     }
 
-    void Schedule(std::chrono::milliseconds new_delay,
-                  std::chrono::milliseconds new_interval) override {
-        event_loop_->PostImmediatelyInternal([self = shared_from_this(),
-                                              new_delay_ms = new_delay.count(),
-                                              new_interval_ms = new_interval.count()] {
-            if (self->timer_handle_valid_ && !self->cancelled_.load()) {
-                DCHECK(self->pinned_);
+    void Schedule(absl::Duration new_delay, absl::Duration new_interval) override {
+        event_loop_->PostImmediatelyInternal(
+                [self = shared_from_this(), new_delay_ms = absl::ToInt64Milliseconds(new_delay),
+                 new_interval_ms = absl::ToInt64Milliseconds(new_interval)] {
+                    if (self->timer_handle_valid_ && !self->cancelled_.load()) {
+                        DCHECK(self->pinned_);
 
-                uv_timer_stop(&self->uv_timer_handle_);
-                uv_timer_start(&self->uv_timer_handle_, OnTimerStatic, new_delay_ms,
-                               new_interval_ms);
-            } else {
-                LOG(ERROR) << "Can't schedule a timer after it has been cancelled";
-            }
-        });
+                        uv_timer_stop(&self->uv_timer_handle_);
+                        uv_timer_start(&self->uv_timer_handle_, OnTimerStatic, new_delay_ms,
+                                       new_interval_ms);
+                    } else {
+                        LOG(ERROR) << "Can't schedule a timer after it has been cancelled";
+                    }
+                });
     }
 
   private:
@@ -391,8 +390,7 @@ std::shared_ptr<EventLoop::Timer> LibuvEventLoopImpl::CreateTimer(RepeatingTask 
     return std::make_shared<ScopedTimer>(timer);
 }
 
-absl::Status LibuvEventLoopImpl::PostDelayed(Task task, std::chrono::milliseconds delay,
-                                             FlowId flow_id) {
+absl::Status LibuvEventLoopImpl::PostDelayed(Task task, absl::Duration delay, FlowId flow_id) {
     if (is_shutting_down_) {
         LOG(WARNING) << "LibuvEventLoopImpl is not available as it is shutting down";
         return absl::UnavailableError("LibuvEventLoopImpl is shutting down");
@@ -406,7 +404,7 @@ absl::Status LibuvEventLoopImpl::PostDelayed(Task task, std::chrono::millisecond
                 return false;
             },
             flow_id);
-    timer->Schedule(delay, std::chrono::milliseconds::zero());
+    timer->Schedule(delay, absl::ZeroDuration());
     return absl::OkStatus();
 }
 

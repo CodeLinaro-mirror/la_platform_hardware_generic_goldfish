@@ -19,6 +19,8 @@
 #include <mutex>
 #include <unordered_set>
 
+#include "absl/functional/function_ref.h"
+
 namespace android::emulation::control {
 
 /**
@@ -74,7 +76,7 @@ class Library {
      *
      * @param fun The function to apply to each borrowed object's pointer.
      */
-    void ForEach(const std::function<void(T*)>& fun) {
+    void ForEach(absl::FunctionRef<void(T*)> fun) {
         const std::lock_guard<std::mutex> lock(mutex_);
         for (auto* ptr : borrowed_) {
             fun(ptr);

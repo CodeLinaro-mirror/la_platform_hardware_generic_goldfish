@@ -54,7 +54,7 @@ class AsyncSocketTest : public ::testing::Test {
     }
 
     void TearDown() override {
-        auto s = raw_event_loop_->ShutdownAndWait(100ms);
+        auto s = raw_event_loop_->ShutdownAndWait(absl::Milliseconds(100));
         ASSERT_THAT(s, absl_testing::IsOk());
         if (loop_thread_.joinable()) {
             loop_thread_.join();

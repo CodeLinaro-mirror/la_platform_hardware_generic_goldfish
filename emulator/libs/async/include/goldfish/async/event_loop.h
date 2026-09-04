@@ -27,6 +27,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/synchronization/notification.h"
+#include "absl/time/time.h"
 
 #include "android/crashreport/thread.h"
 #include "goldfish/async/looper_breadcrumb_tracker.h"
@@ -86,6 +87,11 @@ class EventLoop : public CallbackEventSource<LooperStatusEvent> {
      * without the overhead or copy restrictions of std::function.
      */
     using Task = absl::AnyInvocable<void()>;
+    /**
+     * @brief A repeating task that returns whether it should be rescheduled.
+     *
+     * The task is executed repeatedly until it returns false, or until it is cancelled.
+     */
     using RepeatingTask = absl::AnyInvocable<bool()>;
 
     /**
@@ -111,10 +117,9 @@ class EventLoop : public CallbackEventSource<LooperStatusEvent> {
          *
          * @param new_delay The new delay before the next execution.
          * @param new_interval The new interval for subsequent executions. When
-         * set to 0 the timer will not repeat.
+         * set to absl::ZeroDuration(), the timer will not repeat.
          */
-        virtual void Schedule(std::chrono::milliseconds new_delay,
-                              std::chrono::milliseconds new_interval) = 0;
+        virtual void Schedule(absl::Duration new_delay, absl::Duration new_interval) = 0;
 
         /**
          * @brief (Re)Schedules a timer with a new delay.
@@ -125,9 +130,7 @@ class EventLoop : public CallbackEventSource<LooperStatusEvent> {
          *
          * @param new_delay The new delay before the next execution.
          */
-        void Schedule(std::chrono::milliseconds new_delay) {
-            Schedule(new_delay, std::chrono::milliseconds::zero());
-        }
+        void Schedule(absl::Duration new_delay) { Schedule(new_delay, absl::ZeroDuration()); }
     };
 
     /**
@@ -145,11 +148,10 @@ class EventLoop : public CallbackEventSource<LooperStatusEvent> {
      */
     const std::string& GetName() const { return name_; }
 
-    absl::Status ShutdownAndWait(
-            std::chrono::milliseconds timeout = std::chrono::milliseconds::zero()) {
+    absl::Status ShutdownAndWait(absl::Duration timeout = absl::ZeroDuration()) {
         auto future = Shutdown();
-        if (timeout != std::chrono::milliseconds::zero()) {
-            if (future.wait_for(timeout) != std::future_status::ready) {
+        if (timeout != absl::ZeroDuration()) {
+            if (future.wait_for(absl::ToChronoNanoseconds(timeout)) != std::future_status::ready) {
                 return absl::DeadlineExceededError(
                         "Loop shutdown did not return a result within the deadline");
             }
@@ -218,8 +220,8 @@ class EventLoop : public CallbackEventSource<LooperStatusEvent> {
      * @return absl::Status for void tasks, or std::future<T> for value-returning tasks.
      */
     template <typename F>
-    auto Post(F&& f, std::chrono::milliseconds delay = std::chrono::milliseconds::zero(),
-              PostOptions options = {}) -> PostReturnType<F> {
+    auto Post(F&& f, absl::Duration delay = absl::ZeroDuration(), PostOptions options = {})
+            -> PostReturnType<F> {
         if (options.caller_pc == 0) {
             options.caller_pc = __builtin_return_address(0);
         }
@@ -243,8 +245,7 @@ class EventLoop : public CallbackEventSource<LooperStatusEvent> {
      * @return absl::Status for void tasks, or std::future<T> for value-returning tasks.
      */
     template <typename F>
-    auto Post(F&& f, std::chrono::milliseconds delay, std::string_view context)
-            -> PostReturnType<F> {
+    auto Post(F&& f, absl::Duration delay, std::string_view context) -> PostReturnType<F> {
         return Post(std::forward<F>(f), delay,
                     PostOptions{.caller_pc = __builtin_return_address(0), .context = context});
     }
@@ -262,23 +263,22 @@ class EventLoop : public CallbackEventSource<LooperStatusEvent> {
      */
     template <typename F>
     auto Post(F&& f, std::string_view context) -> PostReturnType<F> {
-        return Post(std::forward<F>(f), std::chrono::milliseconds::zero(), context);
+        return Post(std::forward<F>(f), absl::ZeroDuration(), context);
     }
 
   private:
-    absl::Status PostTaskWithOptions(Task task, std::chrono::milliseconds delay,
-                                     const PostOptions& options) {
+    absl::Status PostTaskWithOptions(Task task, absl::Duration delay, const PostOptions& options) {
         FlowId flow_id = 0;
         if (tracker_) {
             flow_id = tracker_->LogPost(options);
         }
-        if (delay == std::chrono::milliseconds::zero()) {
+        if (delay == absl::ZeroDuration()) {
             return PostImmediately(std::move(task), flow_id);
         }
         return PostDelayed(std::move(task), delay, flow_id);
     }
     template <typename F>
-    auto PostWithOptions(F&& f, std::chrono::milliseconds delay, const PostOptions& options)
+    auto PostWithOptions(F&& f, absl::Duration delay, const PostOptions& options)
             -> absl::StatusOr<std::future<decltype(std::forward<F>(f)())>> {
         using ReturnType = decltype(std::forward<F>(f)());
         std::promise<ReturnType> promise;
@@ -355,7 +355,7 @@ class EventLoop : public CallbackEventSource<LooperStatusEvent> {
 
     /**
      * @brief Schedules a cancellable task to be executed once after a delay.
-     * @param task The task to execute.
+     * @param task The task to execute. Must return true to reschedule, or false to stop.
      * @return A shared pointer to a Timer handle for scheduling and cancellation.
      */
     virtual std::shared_ptr<Timer> CreateTimer(RepeatingTask task) = 0;
@@ -366,13 +366,13 @@ class EventLoop : public CallbackEventSource<LooperStatusEvent> {
      * @param delay The duration to wait before executing the task.
      * @return A shared pointer to a Timer handle for cancellation.
      */
-    std::shared_ptr<Timer> ScheduleDelayed(Task task, std::chrono::milliseconds delay) {
+    std::shared_ptr<Timer> ScheduleDelayed(Task task, absl::Duration delay) {
         return ScheduleRepeating(
                 [task = std::move(task)]() mutable {
                     task();
-                    return true;
+                    return false;
                 },
-                delay, std::chrono::milliseconds::zero());
+                delay, absl::ZeroDuration());
     }
 
     /**
@@ -382,9 +382,8 @@ class EventLoop : public CallbackEventSource<LooperStatusEvent> {
      * @param interval The time between subsequent executions.
      * @return A shared pointer to a Timer handle for cancellation.
      */
-    std::shared_ptr<Timer> ScheduleRepeating(RepeatingTask task,
-                                             std::chrono::milliseconds initial_delay,
-                                             std::chrono::milliseconds interval) {
+    std::shared_ptr<Timer> ScheduleRepeating(RepeatingTask task, absl::Duration initial_delay,
+                                             absl::Duration interval) {
         auto timer = CreateTimer(std::move(task));
         timer->Schedule(initial_delay, interval);
         return timer;
@@ -410,8 +409,7 @@ class EventLoop : public CallbackEventSource<LooperStatusEvent> {
 
   protected:
     virtual absl::Status PostImmediately(Task task, FlowId flow_id) = 0;
-    virtual absl::Status PostDelayed(Task task, std::chrono::milliseconds delay,
-                                     FlowId flow_id) = 0;
+    virtual absl::Status PostDelayed(Task task, absl::Duration delay, FlowId flow_id) = 0;
 
     void SetState(LooperStatusEvent::State new_state) {
         const LooperStatusEvent::State old_state = state_.exchange(new_state);

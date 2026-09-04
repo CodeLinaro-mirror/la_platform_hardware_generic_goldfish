@@ -73,7 +73,8 @@ class CrashSystemImpl : public CrashSystem {
         database_path_ = databaseDirectory();
         auto metrics_path = ::base::FilePath();
         auto annotations = std::map<std::string, std::string>{
-            {"prod", "AndroidEmulator"}, {"ver", EMULATOR_FULL_VERSION_STRING}};
+            {"prod", "AndroidEmulator"},
+            {"ver", std::string(goldfish::version::GetEmulatorFullVersion())}};
 
         VLOG(1) << "Starting crashpad-handler: " << handler_path;
         auto file_path = ::base::FilePath(database_path_.native());

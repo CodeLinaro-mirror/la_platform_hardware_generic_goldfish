@@ -50,7 +50,7 @@ class PerfStatReporter {
                     cpu_usage_.ScheduleUpdateNow();
                     return true;
                 },
-                /*initial_delay=*/5s, /*interval=*/5s);
+                /*initial_delay=*/absl::Seconds(5), /*interval=*/absl::Seconds(5));
 
         cpu_usage_.ScheduleUpdateNow();
     }

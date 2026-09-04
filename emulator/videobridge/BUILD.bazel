@@ -18,7 +18,10 @@ WEBRTC_LINKOPTS = select({
 
 WEBRTC_COPTS = select({
     "@platforms//os:windows": ["/GR-"],
-    "//conditions:default": ["-fno-rtti"],
+    "//conditions:default": [
+        "-fno-rtti",
+        "-Wno-nullability-completeness",
+    ],
 })
 
 cc_library(
@@ -116,14 +119,246 @@ cc_library(
 )
 
 cc_library(
+    name = "nvenc_loader",
+    srcs = ["core/linux/nvenc_loader.cc"],
+    hdrs = ["core/linux/nvenc_loader.h"],
+    copts = WEBRTC_COPTS,
+    includes = ["."],
+    target_compatible_with = select({
+        "@platforms//os:linux": [],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
+    deps = [
+        "//emulator/libs/os",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings:str_format",
+        "@goldfish_prebuilts_common//libnvidia:nvenc_headers",
+    ],
+)
+
+cc_test(
+    name = "nvenc_loader_test",
+    srcs = ["core/linux/test/nvenc_loader_test.cc"],
+    copts = WEBRTC_COPTS,
+    includes = ["."],
+    target_compatible_with = select({
+        "@platforms//os:linux": [],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
+    deps = [
+        ":nvenc_loader",
+        "//emulator/libs/test:googletest_main",
+        "@goldfish_prebuilts_common//libnvidia:nvenc_headers",
+    ],
+)
+
+cc_library(
+    name = "fake_nvenc_driver",
+    testonly = True,
+    srcs = ["core/linux/test/fake_nvenc_driver.cc"],
+    hdrs = ["core/linux/test/fake_nvenc_driver.h"],
+    copts = WEBRTC_COPTS,
+    includes = ["."],
+    target_compatible_with = select({
+        "@platforms//os:linux": [],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
+    deps = [
+        "@goldfish_prebuilts_common//libnvidia:nvenc_headers",
+    ],
+)
+
+cc_library(
+    name = "nvenc_video_encoder",
+    srcs = [
+        "core/linux/nvenc_video_encoder.cc",
+        "core/linux/nvenc_video_encoder_factory.cc",
+    ],
+    hdrs = [
+        "core/linux/frame_nv12_converter.h",
+        "core/linux/h264_format_utils.h",
+        "core/linux/nvenc_video_encoder.h",
+        "core/linux/nvenc_video_encoder_factory.h",
+        "core/linux/va_api_types.h",
+    ],
+    copts = WEBRTC_COPTS,
+    includes = ["."],
+    target_compatible_with = select({
+        "@platforms//os:linux": [],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
+    deps = [
+        ":nvenc_loader",
+        "@abseil-cpp//absl/cleanup",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/synchronization",
+        "@goldfish_prebuilts_common//libnvidia:nvenc_headers",
+        "@libyuv",
+        "@webrtc//api:scoped_refptr",
+        "@webrtc//api/video:video_frame",
+        "@webrtc//api/video:video_rtp_headers",
+        "@webrtc//api/video_codecs:video_codecs_api",
+        "@webrtc//common_video",
+        "@webrtc//modules/video_coding:video_codec_interface",
+        "@webrtc//rtc_base:checks",
+        "@webrtc//rtc_base:logging",
+    ],
+)
+
+cc_test(
+    name = "nvenc_video_encoder_test",
+    srcs = ["core/linux/test/nvenc_video_encoder_test.cc"],
+    copts = WEBRTC_COPTS,
+    includes = ["."],
+    target_compatible_with = select({
+        "@platforms//os:linux": [],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
+    deps = [
+        ":fake_nvenc_driver",
+        ":nvenc_video_encoder",
+        "//emulator/libs/test:googletest_main",
+        "@abseil-cpp//absl/synchronization",
+        "@goldfish_prebuilts_common//libnvidia:nvenc_headers",
+        "@webrtc//api/video:video_frame",
+        "@webrtc//api/video_codecs:video_codecs_api",
+    ],
+)
+
+cc_library(
+    name = "vaapi_loader",
+    srcs = ["core/linux/vaapi_loader.cc"],
+    hdrs = [
+        "core/linux/va_api_types.h",
+        "core/linux/vaapi_loader.h",
+    ],
+    copts = WEBRTC_COPTS,
+    includes = ["."],
+    target_compatible_with = select({
+        "@platforms//os:linux": [],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
+    deps = [
+        "//emulator/libs/os",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/strings:str_format",
+        "@webrtc//rtc_base:logging",
+    ],
+)
+
+cc_test(
+    name = "vaapi_loader_test",
+    srcs = ["core/linux/test/vaapi_loader_test.cc"],
+    copts = WEBRTC_COPTS,
+    includes = ["."],
+    target_compatible_with = select({
+        "@platforms//os:linux": [],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
+    deps = [
+        ":fake_vaapi_driver",
+        ":vaapi_loader",
+        "//emulator/libs/test:googletest_main",
+    ],
+)
+
+cc_library(
+    name = "fake_vaapi_driver",
+    testonly = True,
+    srcs = ["core/linux/test/fake_vaapi_driver.cc"],
+    hdrs = ["core/linux/test/fake_vaapi_driver.h"],
+    copts = WEBRTC_COPTS,
+    includes = ["."],
+    target_compatible_with = select({
+        "@platforms//os:linux": [],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
+    deps = [
+        ":vaapi_loader",
+    ],
+)
+
+cc_library(
+    name = "vaapi_video_encoder",
+    srcs = [
+        "core/linux/vaapi_video_encoder.cc",
+        "core/linux/vaapi_video_encoder_factory.cc",
+    ],
+    hdrs = [
+        "core/linux/frame_nv12_converter.h",
+        "core/linux/h264_format_utils.h",
+        "core/linux/va_api_types.h",
+        "core/linux/vaapi_video_encoder.h",
+        "core/linux/vaapi_video_encoder_factory.h",
+    ],
+    copts = WEBRTC_COPTS,
+    includes = ["."],
+    target_compatible_with = select({
+        "@platforms//os:linux": [],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
+    deps = [
+        ":vaapi_loader",
+        "@abseil-cpp//absl/cleanup",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/synchronization",
+        "@libyuv",
+        "@webrtc//api:scoped_refptr",
+        "@webrtc//api/video:video_frame",
+        "@webrtc//api/video:video_rtp_headers",
+        "@webrtc//api/video_codecs:video_codecs_api",
+        "@webrtc//common_video",
+        "@webrtc//modules/video_coding:video_codec_interface",
+        "@webrtc//rtc_base:checks",
+        "@webrtc//rtc_base:logging",
+    ],
+)
+
+cc_test(
+    name = "vaapi_video_encoder_test",
+    srcs = ["core/linux/test/vaapi_video_encoder_test.cc"],
+    copts = WEBRTC_COPTS,
+    includes = ["."],
+    target_compatible_with = select({
+        "@platforms//os:linux": [],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
+    deps = [
+        ":fake_vaapi_driver",
+        ":vaapi_video_encoder",
+        "//emulator/libs/test:googletest_main",
+        "@abseil-cpp//absl/synchronization",
+        "@webrtc//api/video:video_frame",
+        "@webrtc//api/video_codecs:video_codecs_api",
+    ],
+)
+
+cc_library(
     name = "videobridge_codecs",
     srcs = select({
+        "@platforms//os:linux": ["core/linux/codec_factories_linux.cc"],
         "@platforms//os:macos": [],
+        "@platforms//os:windows": ["core/win/codec_factories_win.cc"],
         "//conditions:default": ["core/codec_factories.cc"],
     }),
     hdrs = ["include/goldfish/videobridge/codec_factories.h"],
+    copts = WEBRTC_COPTS,
+    includes = ["."],
     strip_include_prefix = "include",
     deps = select({
+        "@platforms//os:linux": [
+            ":nvenc_video_encoder",
+            ":vaapi_video_encoder",
+            "@abseil-cpp//absl/strings",
+            "@webrtc//api/video_codecs:builtin_video_decoder_factory",
+            "@webrtc//api/video_codecs:builtin_video_encoder_factory",
+            "@webrtc//api/video_codecs:video_codecs_api",
+            "@webrtc//rtc_base:logging",
+        ],
         "@platforms//os:macos": [":videobridge_codecs_objc"],
         "@platforms//os:windows": [
             ":videobridge_codecs_win",
@@ -135,6 +370,23 @@ cc_library(
             "@webrtc//api/video_codecs:builtin_video_encoder_factory",
         ],
     }),
+)
+
+cc_test(
+    name = "codec_factories_linux_test",
+    srcs = ["core/linux/test/codec_factories_linux_test.cc"],
+    copts = WEBRTC_COPTS,
+    includes = ["."],
+    target_compatible_with = select({
+        "@platforms//os:linux": [],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
+    deps = [
+        ":videobridge_codecs",
+        "//emulator/libs/test:googletest_main",
+        "@webrtc//api/environment:environment_factory",
+        "@webrtc//api/video_codecs:video_codecs_api",
+    ],
 )
 
 cc_test(
@@ -472,6 +724,7 @@ cc_test(
         "//emulator/plugin/avd:global-event-loop",
         "//emulator/plugin/display:primary_display",
         "//emulator/plugin/display:test-display",
+        "@abseil-cpp//absl/synchronization",
         "@webrtc//api:peer_connection_interface",
     ],
 )
@@ -524,6 +777,16 @@ clang_tidy_test(
         ":in_process_video_source_test",
         ":grpc_video_source_test",
         ":grpc_audio_source_test",
+        ":nvenc_loader",
+        ":nvenc_loader_test",
+        ":nvenc_video_encoder",
+        ":nvenc_video_encoder_test",
+        ":vaapi_loader",
+        ":vaapi_loader_test",
+        ":vaapi_video_encoder",
+        ":vaapi_video_encoder_test",
+        ":videobridge_codecs",
+        ":codec_factories_linux_test",
     ],
     tidy_config_file = "//:clang_tidy_config",
 )

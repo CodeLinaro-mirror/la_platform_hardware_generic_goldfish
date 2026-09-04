@@ -453,9 +453,10 @@ class HostSystem : public System {
         if (os_release.is_open()) {
             std::string line;
             while (std::getline(os_release, line)) {
-                if (absl::StartsWith(line, "PRETTY_NAME=")) {
+                constexpr std::string_view kPrettyNamePrefix = "PRETTY_NAME=";
+                if (absl::StartsWith(line, kPrettyNamePrefix)) {
                     std::string_view value = line;
-                    value.remove_prefix(12);
+                    value.remove_prefix(kPrettyNamePrefix.length());
                     if (value.size() >= 2 && ((value.front() == '"' && value.back() == '"') ||
                                               (value.front() == '\'' && value.back() == '\''))) {
                         value.remove_prefix(1);
@@ -473,13 +474,18 @@ class HostSystem : public System {
 
         if (proc->WaitFor(std::chrono::seconds(1)) == std::future_status::ready) {
             auto contents = proc->Out()->AsString();
-            lastSuccessfulValue =
-                    absl::StripAsciiWhitespace(contents.substr(12, contents.size() - 12));
-            return lastSuccessfulValue;
+            constexpr std::string_view kDescriptionPrefix = "Description:";
+            if (absl::StartsWith(contents, kDescriptionPrefix)) {
+                std::string_view value = contents;
+                value.remove_prefix(kDescriptionPrefix.length());
+                lastSuccessfulValue = absl::StripAsciiWhitespace(value);
+                return lastSuccessfulValue;
+            }
         }
-        return "Unknown OS";
+        lastSuccessfulValue = "Unknown Linux";
+        return lastSuccessfulValue;
 #else
-#error getOsName(): unsupported OS;
+#error GetOsName(): unsupported OS;
 #endif
     }
 

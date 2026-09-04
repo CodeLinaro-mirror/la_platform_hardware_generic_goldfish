@@ -2,22 +2,47 @@ load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_test")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 
 cc_library(
+    name = "foldable",
+    srcs = [
+        "foldable.cc",
+    ],
+    hdrs = [
+        "include/goldfish/sensors/foldable.h",
+    ],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//emulator/libs/hardware_config",
+        "//emulator/libs/status_macros",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+    ],
+    alwayslink = True,
+)
+
+cc_library(
     name = "foldable_model",
     srcs = [
         "foldable_model.cc",
     ],
     hdrs = [
-        "include/goldfish/sensors/foldable.h",
         "include/goldfish/sensors/foldable_model.h",
     ],
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
+        ":foldable",
+        "//emulator/libs/archive",
+        "//emulator/libs/archive:collections",
         "//emulator/libs/eventing",
         "//emulator/libs/hardware_config",
         "//emulator/libs/physics",
+        "//emulator/libs/status_macros",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/strings",
     ],
     alwayslink = True,
@@ -40,16 +65,32 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":foldable_model",
+        "//emulator/libs/archive",
+        "//emulator/libs/archive:glm",
         "//emulator/libs/eventing",
         "//emulator/libs/hardware_config",
         "//emulator/libs/physics",
+        "//emulator/libs/status_macros",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",
         "@gfxstream//third_party/glm",
     ],
     alwayslink = True,
+)
+
+cc_test(
+    name = "foldable_test",
+    srcs = ["foldable_test.cc"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":foldable",
+        "//emulator/libs/hardware_config:fake_hardware_config",
+        "//emulator/libs/test:googletest_main",
+        "@abseil-cpp//absl/status:status_matchers",
+    ],
 )
 
 cc_test(
@@ -61,6 +102,7 @@ cc_test(
         ":foldable_model",
         "//emulator/libs/hardware_config:fake_hardware_config",
         "//emulator/libs/test:googletest_main",
+        "@abseil-cpp//absl/status:status_matchers",
     ],
 )
 

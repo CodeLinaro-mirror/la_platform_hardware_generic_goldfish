@@ -20,6 +20,7 @@
 #include "pixman.h"
 #include "qapi/error.h"
 #include "hw/virtio/virtio-input.h"
+#include "virtio_bridge.h"
 // clang-format on
 
 // A set of stubs for qemu methods we do not have.
@@ -86,12 +87,20 @@ Object* object_dynamic_cast(Object* obj, const char* type_name) {
     return NULL;
 }
 
+static VirtIOInputHID s_fake_vhid = {
+    .display = "gpu0",
+    .head = 0,
+};
+
 int object_child_foreach_recursive(Object* obj, int (*fn)(Object* child, void* opaque),
                                    void* opaque) {
     (void)obj;
     (void)fn;
-    (void)opaque;
-    return 0;
+    if (opaque) {
+        VirtioDeviceInfo* info = (VirtioDeviceInfo*)opaque;
+        info->vhid = &s_fake_vhid;
+    }
+    return 1;
 }
 
 Object* object_resolve_path_component(Object* parent, const char* part) {
@@ -106,6 +115,22 @@ Object* object_resolve_path_type(const char* path, const char* type_name,
     (void)type_name;
     (void)ambiguous;
     return NULL;
+}
+
+void qemu_input_event_send_key_number(QemuConsole* src, int num,  // NOLINT
+                                      bool down) {
+    (void)src;
+    (void)num;
+    (void)down;
+}
+
+void console_handle_mouse_event(QemuConsole* dcl, int dx, int dy, int dz,  // NOLINT
+                                int button_state) {
+    (void)dcl;
+    (void)dx;
+    (void)dy;
+    (void)dz;
+    (void)button_state;
 }
 
 void virtio_input_send(VirtIOInput* vinput, virtio_input_event* event) {
@@ -142,4 +167,33 @@ int dpy_set_ui_info(QemuConsole* con, QemuUIInfo* info, bool delay) {
     (void)info;
     (void)delay;
     return 0;
+}
+
+void unregister_displaychangelistener(DisplayChangeListener* dcl) {
+    if (dcl) {
+        dcl->ds = NULL;
+    }
+}
+void register_displaychangelistener(DisplayChangeListener* dcl) {
+    if (dcl) {
+        dcl->ds = (DisplayState*)0x1;
+    }
+}
+void graphic_hw_update(QemuConsole* con) {
+    (void)con;
+}
+
+__attribute__((weak)) void grpc_dpy_gfx_switch(  // NOLINT(readability-identifier-naming)
+        struct DisplayChangeListener* dcl, struct DisplaySurface* new_surface) {
+    (void)dcl;
+    (void)new_surface;
+}
+
+__attribute__((weak)) void grpc_dpy_gfx_update(  // NOLINT(readability-identifier-naming)
+        struct DisplayChangeListener* dcl, int x, int y, int w, int h) {
+    (void)dcl;
+    (void)x;
+    (void)y;
+    (void)w;
+    (void)h;
 }

@@ -18,6 +18,8 @@
 
 #include <glm/gtc/quaternion.hpp>
 
+#include "goldfish/archive/glm.h"
+
 namespace goldfish::physics {
 
 constexpr float kEpsilon = 0.0000000001F;
@@ -840,6 +842,43 @@ float InertialModel::GetAmbientMotionBoundsSecondDeriv(
                glm::dot(ambient_motion_second_deriv_cubic_, cubic_time_vector);
     }
     return 0.F;
+}
+
+archive::IWriter& operator<<(archive::IWriter& w, const InertialModel& im) {
+    w << im.position_change_start_time_ << im.position_heptic_ << im.position_cubic_
+      << im.velocity_heptic_ << im.velocity_cubic_ << im.acceleration_heptic_
+      << im.acceleration_cubic_ << im.jerk_heptic_ << im.jerk_cubic_ << im.position_change_end_time_
+      << im.zero_velocity_after_end_time_ << im.position_after_end_cubic_
+      << im.velocity_after_end_cubic_ << im.rotation_change_start_time_ << im.rotation_quintic_
+      << im.rotation_cubic_ << im.rotation_after_end_cubic_ << im.rotational_velocity_quintic_
+      << im.rotational_velocity_cubic_ << im.rotational_acceleration_quintic_
+      << im.rotational_acceleration_cubic_ << im.rotation_change_end_time_
+      << im.ambient_motion_change_start_time_ << im.ambient_motion_end_value_
+      << im.ambient_motion_value_quintic_ << im.ambient_motion_value_cubic_
+      << im.ambient_motion_first_deriv_quintic_ << im.ambient_motion_first_deriv_cubic_
+      << im.ambient_motion_second_deriv_quintic_ << im.ambient_motion_second_deriv_cubic_
+      << im.ambient_motion_change_end_time_ << im.wrist_tilt_ << im.model_time_ns_;
+
+    return w;
+}
+
+absl::Status ReadValue(archive::IReader& r, InertialModel& im) {
+    return ReadValue(r, im.position_change_start_time_, im.position_heptic_, im.position_cubic_,
+                     im.velocity_heptic_, im.velocity_cubic_, im.acceleration_heptic_,
+                     im.acceleration_cubic_, im.jerk_heptic_, im.jerk_cubic_,
+                     im.position_change_end_time_, im.zero_velocity_after_end_time_,
+                     im.position_after_end_cubic_, im.velocity_after_end_cubic_,
+                     im.rotation_change_start_time_, im.rotation_quintic_, im.rotation_cubic_,
+                     im.rotation_after_end_cubic_, im.rotational_velocity_quintic_,
+                     im.rotational_velocity_cubic_, im.rotational_acceleration_quintic_,
+                     im.rotational_acceleration_cubic_, im.rotation_change_end_time_,
+                     im.ambient_motion_change_start_time_, im.ambient_motion_end_value_,
+                     im.ambient_motion_value_quintic_, im.ambient_motion_value_cubic_,
+                     im.ambient_motion_first_deriv_quintic_, im.ambient_motion_first_deriv_cubic_,
+                     im.ambient_motion_second_deriv_quintic_, im.ambient_motion_second_deriv_cubic_,
+                     im.ambient_motion_change_end_time_, im.wrist_tilt_, im.model_time_ns_);
+
+    return absl::OkStatus();
 }
 
 }  // namespace goldfish::physics

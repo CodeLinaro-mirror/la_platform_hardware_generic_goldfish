@@ -37,6 +37,7 @@
 #include "emulator_controller_methods/sensor_service.h"
 #include "emulator_controller_methods/status_service.h"
 #include "emulator_controller_methods/vm_service.h"
+#include "goldfish/parsing/resizable_display_config.h"
 
 namespace android {
 namespace emulation {
@@ -48,6 +49,19 @@ using ::goldfish::display::IMultiDisplay;
 using ::google::protobuf::Empty;
 using grpc::ServerContext;
 using grpc::Status;
+
+namespace {
+std::vector<::goldfish::parsing::ResizableDisplayConfig> GetResizableConfig(
+        const AvdUniverse& avd_universe) {
+    auto configs = ::goldfish::parsing::ParseResizableDisplayConfig(
+            avd_universe.Props().hw_config.hw_resizable_configs);
+    if (configs) {
+        return *std::move(configs);
+    }
+
+    return {};
+}
+}  // namespace
 
 // Logic and data behind the server's behavior.
 class EmulatorControllerImpl final
@@ -72,7 +86,8 @@ class EmulatorControllerImpl final
             , mFingerprintService(avdUniverse->GetFingerprintSensor())
             , mClipboardService(avdUniverse->GetClipboardChannel())
             , mInputEventSender(multidisplay)
-            , mDisplayService(multidisplay, &avdUniverse->GetSensorsPhysicalModel()) {}
+            , mDisplayService(multidisplay, &avdUniverse->GetSensorsPhysicalModel(),
+                              GetResizableConfig(*avdUniverse)) {}
 
     Status getBattery(ServerContext* /*context*/, const Empty* /*request*/,
                       BatteryState* reply) override {

@@ -15,10 +15,10 @@
 
 #pragma once
 
-#include <chrono>
 #include <functional>
 
 #include "absl/synchronization/mutex.h"
+#include "absl/time/time.h"
 
 #include "android/base/cpu_time.h"
 #include "android/base/system.h"
@@ -72,7 +72,7 @@ class CpuUsage final {
             return last_diff_;
         }
 
-        void ScheduleNow() { task_->Schedule(/*delay=*/std::chrono::milliseconds::zero()); }
+        void ScheduleNow() { task_->Schedule(/*delay=*/absl::ZeroDuration()); }
 
       private:
         ::goldfish::async::EventLoop& loop_;

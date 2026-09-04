@@ -102,7 +102,7 @@ void MarshallingHalSocket::Send(std::string data) {
                             socket_->SendAsync(payload_to_send.data(), payload_to_send.size());
                         }
                     },
-                    std::chrono::milliseconds::zero(), {.caller_pc = calling_pc})
+                    absl::ZeroDuration(), {.caller_pc = calling_pc})
             .IgnoreError();
 }
 

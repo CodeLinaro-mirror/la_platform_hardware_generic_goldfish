@@ -134,11 +134,11 @@ conversions:
   native GPU handle metadata) and constructs the final `webrtc::VideoFrame` with
   the correct rotation and timestamps.
 - **Supported Pipelines:**
-  - `RgbaToI420Pipeline`: The default pipeline. It requests `RGBA8888` from the
-    emulator, converts it to `I420` YUV on the CPU using `libyuv`, and packages
-    it into a standard software-backed `VideoFrame`.
-  - _Future Pipelines:_ `RgbaToNv12Pipeline` (for hardware-accelerated encoders)
-    and `NativeTexturePipeline` (for zero-copy GPU texture streaming).
+  - `RgbaToNv12Pipeline`: The default pipeline. It requests `RGBA8888` from the
+    emulator, converts it to `NV12` bi-planar YUV on the CPU using `libyuv::ABGRToNV12`,
+    and packages it into a native `webrtc::NV12Buffer` to eliminate intermediate
+    transcodes for hardware encoders (NVENC, VA-API, Media Foundation, VideoToolbox).
+  - _Future Pipelines:_ `NativeTexturePipeline` (for zero-copy GPU texture streaming).
 
 ### 3.3 `Switchboard` & `Participant`
 

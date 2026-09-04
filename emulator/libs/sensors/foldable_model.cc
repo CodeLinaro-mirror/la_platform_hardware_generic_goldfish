@@ -19,402 +19,143 @@
 #include <string_view>
 #include <utility>
 
+#include "absl/log/check.h"
 #include "absl/log/log.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_split.h"
 
+#include "android/status/status_macros.h"
+#include "goldfish/archive/collections/array.h"
+
 namespace goldfish::sensors {
 
-bool FoldableModel::ResizableConfig::operator==(const ResizableConfig& rhs) const {
-    return (name == rhs.name) && (id == rhs.id) && (width == rhs.width) && (height == rhs.height) &&
-           (dpi == rhs.dpi);
+FoldableModel::FoldableModel(FoldableConfig fcfg, Private) : config_(std::move(fcfg)) {
+    for (unsigned int i = 0; i < config_.num_hinges; ++i) {
+        current_hinge_degrees_[i] = config_.hinge_params[i].default_degrees;
+    }
+
+    for (unsigned int i = 0; i < config_.num_rolls; ++i) {
+        current_rolled_percent_[i] = config_.rollable_params[i].default_rolled_percent;
+    }
+
+    current_posture_.SetValue(CalcCurrentPosture());
 }
 
-std::optional<std::vector<FoldableModel::ResizableConfig>> FoldableModel::ParseResizableConfigs(
-        const std::string_view config_str) {
-    std::vector<ResizableConfig> resizable_configs;
-    if (config_str.empty()) {
-        return resizable_configs;
+absl::StatusOr<std::unique_ptr<FoldableModel>> FoldableModel::Create(
+        const android::goldfish::HardwareConfig& hw) {
+    if (!hw.hw_sensor_hinge && !hw.hw_sensor_roll) {
+        return std::unique_ptr<FoldableModel>();
     }
 
-    for (const auto& config : absl::StrSplit(config_str, ',')) {
-        const std::vector<std::string_view> parts = absl::StrSplit(config, '-');
+    ASSIGN_OR_RETURN(auto fcfg, MakeFoldableConfig(hw));
 
-        if ((parts.size() < 4) || (parts.size() > 5)) {
-            return std::nullopt;
-        } else {
-            ResizableConfig rc;
-            rc.name = absl::StripAsciiWhitespace(parts[0]);
-            if (rc.name.empty()) {
-                return std::nullopt;
-            }
-
-            if (!absl::SimpleAtoi(parts[1], &rc.id) || !absl::SimpleAtoi(parts[2], &rc.width) ||
-                !absl::SimpleAtoi(parts[3], &rc.height)) {
-                return std::nullopt;
-            }
-            if (parts.size() == 5) {
-                if (!absl::SimpleAtoi(parts[4], &rc.dpi)) {
-                    return std::nullopt;
-                }
-            }
-
-            resizable_configs.push_back(std::move(rc));
-        }
-    }
-
-    return resizable_configs;
+    return std::make_unique<FoldableModel>(std::move(fcfg), Private());
 }
 
-void FoldableModel::InitFoldableRoll(const android::goldfish::HardwareConfig& hw) {
-    if (!hw.hw_sensor_roll) {
-        config_.num_rolls = 0;
-        return;
-    }
-
-    auto type = static_cast<FoldableDisplayType>(hw.hw_sensor_hinge_type);
-    if (type >= FoldableDisplayType::kTypeMax) {
-        type = FoldableDisplayType::kHorizontalRoll;
-    }
-    config_.type = type;
-
-    // number
-    int num_rolls = hw.hw_sensor_roll_count;
-    if (num_rolls < 0 || num_rolls > ANDROID_FOLDABLE_MAX_ROLLS) {
-        num_rolls = 0;
-        LOG(FATAL) << "Incorrect roll count " << hw.hw_sensor_roll_count;
-    }
-    config_.num_rolls = num_rolls;
-
-    // resize at postures
-    config_.resize_at_posture[0] = static_cast<enum FoldablePostures>(
-            hw.hw_sensor_roll_resize_to_displayRegion_0_1_at_posture);
-    config_.resize_at_posture[1] = static_cast<enum FoldablePostures>(
-            hw.hw_sensor_roll_resize_to_displayRegion_0_2_at_posture);
-    config_.resize_at_posture[2] = static_cast<enum FoldablePostures>(
-            hw.hw_sensor_roll_resize_to_displayRegion_0_3_at_posture);
-
-    // hinge angle ranges and defaults
-    const std::string_view roll_ranges(hw.hw_sensor_roll_ranges);
-    const std::string_view roll_defaults(hw.hw_sensor_roll_defaults);
-    const std::string_view roll_radius(hw.hw_sensor_roll_radius);
-    const std::string_view roll_direction(hw.hw_sensor_roll_direction);
-    const std::vector<std::string_view> roll_range_tokens = absl::StrSplit(roll_ranges, ',');
-    const std::vector<std::string_view> roll_default_tokens = absl::StrSplit(roll_defaults, ',');
-    const std::vector<std::string_view> roll_radius_tokens = absl::StrSplit(roll_radius, ',');
-    const std::vector<std::string_view> roll_direction_tokens = absl::StrSplit(roll_direction, ',');
-    if (roll_range_tokens.size() != num_rolls || roll_default_tokens.size() != num_rolls ||
-        roll_radius_tokens.size() != num_rolls || roll_direction_tokens.size() != num_rolls) {
-        LOG(FATAL) << "Incorrect rollable configs for ranges " << roll_ranges << ", defaults "
-                   << roll_defaults << ", radius " << roll_radius << ", or directions "
-                   << roll_direction;
-
-    } else {
-        for (int i = 0; i < num_rolls; i++) {
-            std::vector<std::string> range = absl::StrSplit(roll_range_tokens[i], '-');
-            if (range.size() != 2) {
-                LOG(FATAL) << "Incorrect rollable angle range " << roll_range_tokens[i];
-
-            } else {
-                config_.rollable_params[i] = {
-                    .display_id = 0,  // TODO: put 0 for now
-                };
-                if (!absl::SimpleAtof(roll_radius_tokens[i],
-                                      &config_.rollable_params[i].roll_radius_as_display_percent) ||
-                    !absl::SimpleAtof(range[0], &config_.rollable_params[i].min_rolled_percent) ||
-                    !absl::SimpleAtof(range[1], &config_.rollable_params[i].max_rolled_percent) ||
-                    !absl::SimpleAtof(roll_default_tokens[i],
-                                      &config_.rollable_params[i].default_rolled_percent)) {
-                    LOG(FATAL) << "Incorrect rollable configs";
-                }
-                if (!absl::SimpleAtoi(roll_direction_tokens[i],
-                                      &config_.rollable_params[i].direction)) {
-                    LOG(FATAL) << "Incorrect rollable direction " << roll_direction_tokens[i];
-                }
-            }
-        }
-    }
-    for (unsigned int i = 0; std::cmp_less(i, config_.num_rolls); ++i) {
-        state_.current_rolled_percent[i] = config_.rollable_params[i].default_rolled_percent;
-    }
-}
-/*
-
-README:
-typical hinge related avd configuration
-
-hw.hw_sensor_hinge_count=2
-hw.hw_sensor_hinge_defaults="180,180"
-hw.hw_sensor_hinge_ranges="0-180,0-180"
-hw.hw_sensor_hinge_angles_posture_definitions="0-30&0-45, 30-150&45-120, 150-180&120-180"
-hw.hw_sensor_posture_list="1, 2, 3"
-
-*/
-void FoldableModel::InitFoldableHinge(const android::goldfish::HardwareConfig& hw) {
-    if (!hw.hw_sensor_hinge) {
-        config_.num_hinges = 0;
-        return;
-    }
-
-    auto type = static_cast<FoldableDisplayType>(hw.hw_sensor_hinge_type);
-    if (type >= FoldableDisplayType::kTypeMax) {
-        type = FoldableDisplayType::kHorizontalSplit;
-    }
-    config_.type = type;
-
-    config_.fold_at_posture = static_cast<enum FoldablePostures>(
-            hw.hw_sensor_hinge_fold_to_displayRegion_0_1_at_posture);
-
-    folded_x_ = hw.hw_displayRegion_0_1_xOffset;
-    folded_y_ = hw.hw_displayRegion_0_1_yOffset;
-    folded_w_ = hw.hw_displayRegion_0_1_width;
-    folded_h_ = hw.hw_displayRegion_0_1_height;
-
-    // number
-    int num_hinges = hw.hw_sensor_hinge_count;
-    if (num_hinges < 0 || num_hinges > ANDROID_FOLDABLE_MAX_HINGES) {
-        num_hinges = 0;
-        LOG(FATAL) << "Incorrect hinge count " << hw.hw_sensor_hinge_count;
-    }
-    config_.num_hinges = num_hinges;
-
-    const std::string_view hinge_ranges(hw.hw_sensor_hinge_ranges);
-    const std::string_view hinge_defaults(hw.hw_sensor_hinge_defaults);
-    const std::string_view hinge_areas(hw.hw_sensor_hinge_areas);
-    const std::vector<std::string_view> range_tokens = absl::StrSplit(hinge_ranges, ',');
-    const std::vector<std::string_view> default_tokens = absl::StrSplit(hinge_defaults, ',');
-    const std::vector<std::string_view> area_tokens = absl::StrSplit(hinge_areas, ',');
-
-    if (range_tokens.size() != static_cast<size_t>(num_hinges) ||
-        default_tokens.size() != static_cast<size_t>(num_hinges) ||
-        area_tokens.size() != static_cast<size_t>(num_hinges)) {
-        LOG(FATAL) << "Incorrect hinge configs for ranges " << hinge_ranges << ", defaults "
-                   << hinge_defaults << ", or areas " << hinge_areas;
-    } else {
-        for (int i = 0; i < num_hinges; i++) {
-            std::vector<std::string_view> angles = absl::StrSplit(range_tokens[i], '-');
-            std::vector<std::string_view> area = absl::StrSplit(area_tokens[i], '-');
-            if (angles.size() != 2 || (area.size() != 2 && area.size() != 4)) {
-                LOG(FATAL) << "Incorrect hinge angle range " << range_tokens[i] << " or area "
-                           << area_tokens[i];
-            } else {
-                float min_deg;
-                float max_deg;
-                float def_deg;
-                if (!absl::SimpleAtof(angles[0], &min_deg) ||
-                    !absl::SimpleAtof(angles[1], &max_deg) ||
-                    !absl::SimpleAtof(default_tokens[i], &def_deg)) {
-                    LOG(FATAL) << "Incorrect hinge configs for range " << range_tokens[i]
-                               << " or default " << default_tokens[i];
-                }
-
-                state_.current_hinge_degrees[i] = def_deg;
-
-                config_.hinge_params[i].min_degrees = min_deg;
-                config_.hinge_params[i].max_degrees = max_deg;
-                config_.hinge_params[i].default_degrees = def_deg;
-                config_.hinge_params[i].display_id = 0;
-
-                if (area.size() == 2) {
-                    // percentage on screen and width config style
-                    float area_0;
-                    if (!absl::SimpleAtof(area[0], &area_0)) {
-                        LOG(FATAL) << "Incorrect hinge area " << area[0];
-                    }
-                    if (type == FoldableDisplayType::kHorizontalSplit) {
-                        config_.hinge_params[i].x = 0;
-                        config_.hinge_params[i].y = static_cast<int>(
-                                area_0 * static_cast<float>(hw.hw_lcd_height) / 100.0F);
-                        config_.hinge_params[i].width = hw.hw_lcd_width;
-                        if (!absl::SimpleAtoi(area[1], &config_.hinge_params[i].height)) {
-                            LOG(FATAL) << "Incorrect hinge area height " << area[1];
-                        }
-                    } else {
-                        config_.hinge_params[i].x = static_cast<int>(
-                                area_0 * static_cast<float>(hw.hw_lcd_width) / 100.0F);
-                        config_.hinge_params[i].y = 0;
-                        if (!absl::SimpleAtoi(area[1], &config_.hinge_params[i].width)) {
-                            LOG(FATAL) << "Incorrect hinge area width " << area[1];
-                        }
-                        config_.hinge_params[i].height = hw.hw_lcd_height;
-                    }
-                } else {
-                    if (!absl::SimpleAtoi(area[0], &config_.hinge_params[i].x) ||
-                        !absl::SimpleAtoi(area[1], &config_.hinge_params[i].y) ||
-                        !absl::SimpleAtoi(area[2], &config_.hinge_params[i].width) ||
-                        !absl::SimpleAtoi(area[3], &config_.hinge_params[i].height)) {
-                        LOG(FATAL) << "Incorrect hinge area " << area_tokens[i];
-                    }
-                }
-            }
-        }
-    }
-
-    // Postures parsing
-    const std::string_view posture_list(hw.hw_sensor_posture_list);
-    const std::string_view posture_definitions(hw.hw_sensor_hinge_angles_posture_definitions);
-
-    if (!posture_list.empty() && !posture_definitions.empty()) {
-        const std::vector<std::string_view> posture_tokens = absl::StrSplit(posture_list, ',');
-        const std::vector<std::string_view> def_tokens = absl::StrSplit(posture_definitions, ',');
-
-        if (posture_tokens.size() == def_tokens.size()) {
-            for (size_t i = 0; i < posture_tokens.size(); ++i) {
-                AnglesToPosture atp;
-                int posture_val;
-                if (!absl::SimpleAtoi(posture_tokens[i], &posture_val)) {
-                    LOG(FATAL) << "Incorrect posture " << posture_tokens[i];
-                }
-                atp.posture = static_cast<FoldablePostures>(posture_val);
-
-                std::vector<std::string_view> hinge_defs = absl::StrSplit(def_tokens[i], '&');
-                for (size_t j = 0; j < hinge_defs.size() && j < ANDROID_FOLDABLE_MAX_HINGES; ++j) {
-                    std::vector<std::string_view> range = absl::StrSplit(hinge_defs[j], '-');
-                    if (range.size() >= 2) {
-                        if (!absl::SimpleAtof(range[0], &atp.angles[j].left) ||
-                            !absl::SimpleAtof(range[1], &atp.angles[j].right)) {
-                            LOG(FATAL) << "Incorrect posture range " << hinge_defs[j];
-                        }
-                        if (range.size() >= 3) {
-                            if (!absl::SimpleAtof(range[2], &atp.angles[j].default_value)) {
-                                LOG(FATAL) << "Incorrect posture default " << hinge_defs[j];
-                            }
-                        } else {
-                            atp.angles[j].default_value =
-                                    (atp.angles[j].left + atp.angles[j].right) / 2.0F;
-                        }
-                    }
-                }
-                angles_to_postures_.push_back(atp);
-            }
-        }
-    }
-
-    // Determine initial posture based on default hinge angles
-    state_.current_posture = FoldablePostures::kUnknown;
-    for (const auto& atp : angles_to_postures_) {
+FoldablePostures FoldableModel::CalcCurrentPosture() const {
+    for (const auto& atp : config_.angles_to_postures) {
         bool match = true;
-        for (int i = 0; i < config_.num_hinges; ++i) {
-            if (state_.current_hinge_degrees[i] < atp.angles[i].left ||
-                state_.current_hinge_degrees[i] > atp.angles[i].right) {
+        for (unsigned i = 0; i < config_.num_hinges; ++i) {
+            if (current_hinge_degrees_[i] < atp.angles[i].left ||
+                current_hinge_degrees_[i] > atp.angles[i].right) {
                 match = false;
                 break;
             }
         }
+
         if (match) {
-            state_.current_posture = atp.posture;
-            break;
-        }
-    }
-    if (state_.current_posture == FoldablePostures::kUnknown) {
-        LOG(FATAL) << "Cannot decide current posture";
-    }
-}
-
-FoldableModel::FoldableModel(const android::goldfish::HardwareConfig& hw, Private) {
-    InitFoldableRoll(hw);
-    InitFoldableHinge(hw);
-    InitResizableConfigs(hw);
-}
-
-std::unique_ptr<FoldableModel> FoldableModel::Create(const android::goldfish::HardwareConfig& hw) {
-    if (!hw.hw_sensor_hinge && !hw.hw_sensor_roll && hw.hw_resizable_configs.empty()) {
-        return {};
-    }
-    return std::make_unique<FoldableModel>(hw, Private());
-}
-
-void FoldableModel::InitResizableConfigs(const android::goldfish::HardwareConfig& hw) {
-    auto configs = ParseResizableConfigs(hw.hw_resizable_configs);
-    CHECK(configs) << "Could not parse hw_resizable_configs: '" << hw.hw_resizable_configs << "'";
-    resizable_configs_ = *std::move(configs);
-}
-
-void FoldableModel::SetHingeAngle(uint32_t hinge_index, float degree,
-                                  PhysicalInterpolation /*mode*/) {
-    if (hinge_index < ANDROID_FOLDABLE_MAX_HINGES) {
-        state_.current_hinge_degrees[hinge_index] = degree;
-
-        FoldablePostures new_posture = state_.current_posture;
-        for (const auto& atp : angles_to_postures_) {
-            bool match = true;
-            for (int i = 0; i < config_.num_hinges; ++i) {
-                if (state_.current_hinge_degrees[i] < atp.angles[i].left ||
-                    state_.current_hinge_degrees[i] > atp.angles[i].right) {
-                    match = false;
-                    break;
-                }
-            }
-            if (match) {
-                new_posture = atp.posture;
-                break;
-            }
-        }
-
-        if (new_posture != state_.current_posture) {
-            state_.current_posture = new_posture;
-            posture_listener_.SetValue(state_.current_posture);
-        }
-    }
-}
-
-void FoldableModel::SetPosture(float posture, PhysicalInterpolation /*mode*/) {
-    const auto new_posture = static_cast<FoldablePostures>(posture);
-    for (const auto& atp : angles_to_postures_) {
-        if (atp.posture == new_posture) {
-            for (int i = 0; i < config_.num_hinges; ++i) {
-                state_.current_hinge_degrees[i] = atp.angles[i].default_value;
-            }
-            break;
+            return atp.posture;
         }
     }
 
-    if (new_posture != state_.current_posture) {
-        state_.current_posture = new_posture;
-        posture_listener_.SetValue(state_.current_posture);
-    }
-}
-
-void FoldableModel::SetRollable(uint32_t /*index*/, float /*percentage*/,
-                                PhysicalInterpolation /*mode*/) {
-    LOG(WARNING) << "Not yet implemented";
+    return FoldablePostures::kUnknown;
 }
 
 float FoldableModel::GetHingeAngle(uint32_t hinge_index,
                                    ParameterValueType parameter_value_type) const {
-    if (hinge_index >= ANDROID_FOLDABLE_MAX_HINGES) return 0.0F;
-    if (std::cmp_greater_equal(hinge_index, config_.num_hinges)) return 0.0F;
+    DCHECK(config_.num_hinges <= kMaxHinges);
+    if (hinge_index >= config_.num_hinges) return 0.0F;
+
     return parameter_value_type == ParameterValueType::kDefault
                    ? config_.hinge_params[hinge_index].default_degrees
-                   : state_.current_hinge_degrees[hinge_index];
+                   : current_hinge_degrees_[hinge_index];
+}
+
+void FoldableModel::SetHingeAngle(uint32_t hinge_index, float degree,
+                                  PhysicalInterpolation /*mode*/) {
+    if (hinge_index < config_.num_hinges) {
+        current_hinge_degrees_[hinge_index] = degree;
+
+        const FoldablePostures posture = CalcCurrentPosture();
+        if (posture != FoldablePostures::kUnknown) {
+            current_posture_.SetValue(posture);
+        }
+    }
 }
 
 float FoldableModel::GetPosture(ParameterValueType parameter_value_type) const {
     return parameter_value_type == ParameterValueType::kDefault
                    ? static_cast<float>(FoldablePostures::kUnknown)
-                   : static_cast<float>(state_.current_posture);
+                   : static_cast<float>(current_posture_.GetValue());
 }
 
+void FoldableModel::SetPosture(float posture_float, PhysicalInterpolation /*mode*/) {
+    const FoldablePostures posture = static_cast<FoldablePostures>(posture_float);
+
+    for (const auto& atp : config_.angles_to_postures) {
+        if (atp.posture == posture) {
+            for (unsigned i = 0; i < config_.num_hinges; ++i) {
+                current_hinge_degrees_[i] = atp.angles[i].default_value;
+            }
+
+            current_posture_.SetValue(posture);
+            break;
+        }
+    }
+}
+
+void FoldableModel::SetRollable(uint32_t /*index*/, float /*percentage*/,
+                                PhysicalInterpolation /*mode*/) {}
+
 float FoldableModel::GetRollable(uint32_t index, ParameterValueType parameter_value_type) const {
-    if (index >= ANDROID_FOLDABLE_MAX_ROLLS) return 0.0F;
-    if (std::cmp_greater_equal(index, config_.num_rolls)) return 0.0F;
+    DCHECK(config_.num_rolls <= kMaxRolls);
+    if (index >= config_.num_rolls) return 0.0F;
 
     return parameter_value_type == ParameterValueType::kDefault
                    ? config_.rollable_params[index].default_rolled_percent
-                   : state_.current_rolled_percent[index];
+                   : current_rolled_percent_[index];
 }
 
 bool FoldableModel::GetFoldedArea(int* x, int* y, int* w, int* h) const {
-    if (x) *x = folded_x_;
-    if (y) *y = folded_y_;
-    if (w) *w = folded_w_;
-    if (h) *h = folded_h_;
-    return (folded_w_ > 0 && folded_h_ > 0);
+    if (x) *x = config_.folded_x;
+    if (y) *y = config_.folded_y;
+    if (w) *w = config_.folded_w;
+    if (h) *h = config_.folded_h;
+    return ((config_.folded_w > 0) && (config_.folded_h > 0));
 }
 
 bool FoldableModel::IsFolded() const {
-    return state_.current_posture == FoldablePostures::kClosed;
+    return current_posture_.GetValue() == FoldablePostures::kClosed;
+}
+
+archive::IWriter& operator<<(archive::IWriter& w, const FoldableModel& fm) {
+    return w << fm.current_hinge_degrees_ << fm.current_rolled_percent_;
+}
+
+absl::Status ReadValue(archive::IReader& r, FoldableModel& fm) {
+    if (absl::Status s = ReadValue(r, fm.current_hinge_degrees_, fm.current_rolled_percent_);
+        !s.ok()) {
+        return s;
+    }
+
+    const FoldablePostures posture = fm.CalcCurrentPosture();
+    if (posture != FoldablePostures::kUnknown) {
+        fm.current_posture_.SetValue(posture);
+    }
+
+    return absl::OkStatus();
 }
 
 }  // namespace goldfish::sensors

@@ -102,8 +102,8 @@ class HalPlugAdapterTest : public ::testing::Test {
         mMockHalPlug.reset();
         mMockSocketPtr.reset();
 
-        mClientLoop->ShutdownAndWait(std::chrono::seconds(2)).IgnoreError();
-        mQemuLoop->ShutdownAndWait(std::chrono::seconds(2)).IgnoreError();
+        mClientLoop->ShutdownAndWait(absl::Seconds(2)).IgnoreError();
+        mQemuLoop->ShutdownAndWait(absl::Seconds(2)).IgnoreError();
     }
 
     void Connect() {

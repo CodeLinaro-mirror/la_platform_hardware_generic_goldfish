@@ -26,6 +26,8 @@
 
 #include "absl/base/thread_annotations.h"
 #include "absl/status/status.h"
+#include "absl/time/clock.h"
+#include "absl/time/time.h"
 
 #include "android/base/threads/thread_utils.h"
 
@@ -45,18 +47,18 @@ class TestEventLoopImpl : public TestEventLoop {
     std::future<absl::Status> Shutdown() override;
     bool IsOnLoopThread() const override;
     absl::Status PostImmediately(Task task, FlowId flow_id) override;
-    absl::Status PostDelayed(Task task, std::chrono::milliseconds delay, FlowId flow_id) override;
+    absl::Status PostDelayed(Task task, absl::Duration delay, FlowId flow_id) override;
     std::shared_ptr<Timer> CreateTimer(RepeatingTask task) override;
 
     // TestEventLoop Interface
     void RunAll() override;
     bool RunOne() override;
     size_t RunMany(size_t count) override;
-    void AdvanceClock(std::chrono::milliseconds duration) override;
+    void AdvanceClock(absl::Duration duration) override;
     size_t TaskCount() const override;
 
-    void Reschedule(std::shared_ptr<TestEventLoopImpl::TestTimer> timer,
-                    std::chrono::milliseconds new_delay, std::chrono::milliseconds new_interval);
+    void Reschedule(std::shared_ptr<TestEventLoopImpl::TestTimer> timer, absl::Duration new_delay,
+                    absl::Duration new_interval);
 
   private:
     struct QueuedTask {
@@ -65,8 +67,8 @@ class TestEventLoopImpl : public TestEventLoop {
     };
 
     struct ScheduledTask {
-        std::chrono::steady_clock::time_point execution_time;
-        std::chrono::milliseconds interval;
+        absl::Time execution_time;
+        absl::Duration interval;
         std::shared_ptr<RepeatingTask> task;
 
         // handle to the timer that is handed to the developer
@@ -90,8 +92,7 @@ class TestEventLoopImpl : public TestEventLoop {
         bool IsCancelled() const { return cancelled_; }
         std::shared_ptr<RepeatingTask> task() { return pending_task_; }  // NOLINT
         FlowId GetFlowId() const { return flow_id_; }
-        void Schedule(std::chrono::milliseconds new_delay,
-                      std::chrono::milliseconds new_interval) override {
+        void Schedule(absl::Duration new_delay, absl::Duration new_interval) override {
             loop_->Reschedule(shared_from_this(), new_delay, new_interval);
         }
 
@@ -106,7 +107,7 @@ class TestEventLoopImpl : public TestEventLoop {
 
     void Loop();
     bool RunOneUnlocked() ABSL_NO_THREAD_SAFETY_ANALYSIS;
-    void AdvanceClockUnlocked(std::chrono::milliseconds duration) ABSL_NO_THREAD_SAFETY_ANALYSIS;
+    void AdvanceClockUnlocked(absl::Duration duration) ABSL_NO_THREAD_SAFETY_ANALYSIS;
 
     std::thread thread_;
     std::thread::id thread_id_;
@@ -121,9 +122,9 @@ class TestEventLoopImpl : public TestEventLoop {
 
     // scheduled things
     std::vector<ScheduledTask> scheduled_tasks_;
-    std::chrono::steady_clock::time_point now_;
+    absl::Time now_;
     Command command_ = Command::kNone;
-    std::chrono::milliseconds time_advance_{0};
+    absl::Duration time_advance_{absl::ZeroDuration()};
     size_t run_count_ = 0;
     size_t tasks_actually_run_ = 0;
     size_t tasks_processed_ = 0;
@@ -137,7 +138,7 @@ std::unique_ptr<TestEventLoop> TestEventLoop::Create(std::string name) {
 
 // --- TestEventLoopImpl Implementation ---
 TestEventLoopImpl::TestEventLoopImpl(std::string name)
-        : TestEventLoop(std::move(name)), now_(std::chrono::steady_clock::now()) {
+        : TestEventLoop(std::move(name)), now_(absl::Now()) {
     std::promise<void> thread_started_promise;
     auto thread_started_future = thread_started_promise.get_future();
     thread_ = std::thread([this, &thread_started_promise]() {
@@ -197,8 +198,7 @@ absl::Status TestEventLoopImpl::PostImmediately(Task task, FlowId flow_id) {
     return absl::OkStatus();
 }
 
-absl::Status TestEventLoopImpl::PostDelayed(Task task, std::chrono::milliseconds delay,
-                                            FlowId flow_id) {
+absl::Status TestEventLoopImpl::PostDelayed(Task task, absl::Duration delay, FlowId flow_id) {
     if (GetState() == LooperStatusEvent::State::kShuttingDown) {
         LOG(ERROR) << "Loop is shutting down.";
         return absl::UnavailableError("test loop is shutting down");
@@ -210,7 +210,7 @@ absl::Status TestEventLoopImpl::PostDelayed(Task task, std::chrono::milliseconds
                 return false;
             },
             flow_id);
-    timer->Schedule(delay, std::chrono::milliseconds::zero());
+    timer->Schedule(delay, absl::ZeroDuration());
     return absl::OkStatus();
 }
 
@@ -223,9 +223,8 @@ std::shared_ptr<EventLoop::Timer> TestEventLoopImpl::CreateTimer(RepeatingTask t
     return std::make_shared<TestTimer>(this, std::move(task), 0);
 }
 
-void TestEventLoopImpl::Reschedule(std::shared_ptr<TestTimer> timer,
-                                   std::chrono::milliseconds new_delay,
-                                   std::chrono::milliseconds new_interval) {
+void TestEventLoopImpl::Reschedule(std::shared_ptr<TestTimer> timer, absl::Duration new_delay,
+                                   absl::Duration new_interval) {
     const std::lock_guard<std::mutex> lock(mutex_);
     auto it = std::ranges::find_if(scheduled_tasks_, [&](const ScheduledTask& task) {
         auto handle = task.handle.lock();
@@ -267,7 +266,7 @@ size_t TestEventLoopImpl::RunMany(size_t count) {
     return tasks_actually_run_;
 }
 
-void TestEventLoopImpl::AdvanceClock(std::chrono::milliseconds duration) {
+void TestEventLoopImpl::AdvanceClock(absl::Duration duration) {
     std::unique_lock<std::mutex> lock(mutex_);
     command_ = Command::kAdvanceTime;
     time_advance_ = duration;
@@ -334,7 +333,7 @@ bool TestEventLoopImpl::RunOneUnlocked() ABSL_NO_THREAD_SAFETY_ANALYSIS {
     return true;
 }
 
-void TestEventLoopImpl::AdvanceClockUnlocked(std::chrono::milliseconds duration)
+void TestEventLoopImpl::AdvanceClockUnlocked(absl::Duration duration)
         ABSL_NO_THREAD_SAFETY_ANALYSIS {
     now_ += duration;
     std::vector<ScheduledTask> tasks_to_run;
@@ -363,7 +362,7 @@ void TestEventLoopImpl::AdvanceClockUnlocked(std::chrono::milliseconds duration)
         // Reschedule task if needed.
         if (!keep_repeating) {
             handle->Cancel();
-        } else if (task.interval > std::chrono::milliseconds(0)) {
+        } else if (task.interval > absl::ZeroDuration()) {
             task.execution_time += task.interval;
             scheduled_tasks_.push_back(std::move(task));
             std::ranges::push_heap(scheduled_tasks_, std::greater<>{});

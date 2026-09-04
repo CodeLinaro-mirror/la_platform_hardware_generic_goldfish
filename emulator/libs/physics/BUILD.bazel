@@ -39,6 +39,9 @@ cc_library(
     ],
     deps = [
         ":glm_helpers",
+        "//emulator/libs/archive",
+        "//emulator/libs/archive:glm",
+        "@abseil-cpp//absl/status",
     ],
 )
 

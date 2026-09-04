@@ -85,6 +85,32 @@ TEST_F(InputPathsTest, ResolveUserPaths) {
 #endif
 }
 
+TEST_F(InputPathsTest, ResolveUserPathsWithoutSdkRoot) {
+    fs::path user_dir = tmp_->Path() / "user_home";
+    fs::path avd_root = tmp_->Path() / "avd_root";
+    fs::path runtime_dir = tmp_->Path() / "runtime";
+
+    tmp_->MakeSubDir("user_home");
+    tmp_->MakeSubDir("avd_root");
+    tmp_->MakeSubDir("avd_root/avd");
+    tmp_->MakeSubDir("runtime");
+
+    sys_->EnvSet("ANDROID_EMULATOR_HOME", user_dir.string());
+    sys_->EnvSet("ANDROID_AVD_HOME", avd_root.string());
+    sys_->EnvSet("XDG_RUNTIME_DIR", runtime_dir.string());
+
+    ASSERT_OK_AND_ASSIGN(auto paths, ResolveUserPaths(tmp_->Path(), false));
+
+    EXPECT_EQ(paths.user_directory, user_dir);
+    EXPECT_EQ(paths.avd_directory, avd_root);
+    EXPECT_EQ(paths.sdk_directory, fs::path());
+#ifdef __linux__
+    EXPECT_EQ(paths.discovery_directory, runtime_dir / "avd" / "running");
+#else
+    EXPECT_EQ(paths.discovery_directory, user_dir / "avd" / "running");
+#endif
+}
+
 TEST_F(InputPathsTest, ResolveSystemImagePaths) {
     fs::path sysimg_dir = tmp_->Path() / "sysimg";
     tmp_->MakeSubDir("sysimg");
@@ -106,6 +132,32 @@ TEST_F(InputPathsTest, ResolveSystemImagePaths) {
     EXPECT_EQ(paths.build_properties, sysimg_dir / "build.prop");
     EXPECT_EQ(paths.system_image, sysimg_dir / "system.img");
     EXPECT_EQ(paths.data_dir, sysimg_dir / "data");
+    EXPECT_EQ(paths.kernel_cmdline, sysimg_dir / "kernel_cmdline.txt");
+}
+
+TEST_F(InputPathsTest, ResolveSystemImagePathsWithoutKernelCmdline) {
+    fs::path sysimg_dir = tmp_->Path() / "sysimg";
+    tmp_->MakeSubDir("sysimg");
+    tmp_->MakeSubDir("sysimg/data");
+
+    WriteToFile(sysimg_dir / "build.prop", "");
+    WriteToFile(sysimg_dir / "advancedFeatures.ini", "");
+    WriteToFile(sysimg_dir / "VerifiedBootParams.textproto", "");
+    // kernel_cmdline.txt is omitted (e.g., 4K or legacy system images)
+    WriteToFile(sysimg_dir / "kernel-ranchu", "");
+    WriteToFile(sysimg_dir / "ramdisk.img", "");
+    WriteToFile(sysimg_dir / "system.img", "");
+    WriteToFile(sysimg_dir / "vendor.img", "");
+    WriteToFile(sysimg_dir / "encryptionkey.img", "");
+
+    AndroidOptions opts = {};
+    ASSERT_OK_AND_ASSIGN(auto paths,
+                         ResolveSystemImagePaths({sysimg_dir}, opts, /*android_build=*/false));
+
+    EXPECT_EQ(paths.build_properties, sysimg_dir / "build.prop");
+    EXPECT_EQ(paths.system_image, sysimg_dir / "system.img");
+    EXPECT_EQ(paths.data_dir, sysimg_dir / "data");
+    EXPECT_TRUE(paths.kernel_cmdline.empty());
 }
 
 TEST_F(InputPathsTest, ResolveSystemImagePathsAndroidBuild) {
@@ -216,6 +268,72 @@ TEST_F(InputPathsTest, ResolveEmulatorPaths) {
     EXPECT_EQ(paths.launcher_directory, launcher_dir);
     EXPECT_EQ(paths.binary_directory, launcher_dir / "bin");
     EXPECT_EQ(paths.qemu_system_x86_binary, launcher_dir / "bin" / ("qemu-system-x86_64" + suffix));
+    EXPECT_FALSE(paths.HasFishtank());
+}
+
+TEST_F(InputPathsTest, ResolveEmulatorPathsWithFishtank) {
+    tmp_->MakeSubDir("launcher");
+    tmp_->MakeSubDir("launcher/bin");
+    tmp_->MakeSubDir("launcher/lib/qemu");
+    tmp_->MakeSubDir("launcher/lib64");
+    tmp_->MakeSubDir("launcher/share/qemu");
+    tmp_->MakeSubDir("launcher/fishtank");
+
+    fs::path launcher_dir = tmp_->Path() / "launcher";
+    ASSERT_OK_AND_ASSIGN(auto canon, android::base::file::make_canonical(launcher_dir));
+    launcher_dir = canon;
+
+    std::string suffix = "";
+#ifdef _WIN32
+    suffix = ".exe";
+#endif
+
+    WriteToFile(launcher_dir / "bin" / ("qemu-system-x86_64" + suffix), "");
+    WriteToFile(launcher_dir / "bin" / ("qemu-system-aarch64" + suffix), "");
+    WriteToFile(launcher_dir / "bin" / ("qemu-img" + suffix), "");
+    WriteToFile(launcher_dir / "bin" / ("netsimd" + suffix), "");
+    WriteToFile(launcher_dir / "bin" / ("crashpad_handler" + suffix), "");
+    WriteToFile(launcher_dir / "fishtank" / ("fishtank" + suffix), "mock_executable_bytes");
+
+    sys_->SetEnvironmentVariable("ANDROID_EMULATOR_LAUNCHER_DIR", launcher_dir.string());
+
+    ASSERT_OK_AND_ASSIGN(auto paths, ResolveEmulatorPaths(false));
+
+    EXPECT_TRUE(paths.HasFishtank());
+    EXPECT_EQ(paths.fishtank_binary, launcher_dir / "fishtank" / ("fishtank" + suffix));
+}
+
+TEST_F(InputPathsTest, ResolveEmulatorPathsWithZeroByteFishtank) {
+    tmp_->MakeSubDir("launcher");
+    tmp_->MakeSubDir("launcher/bin");
+    tmp_->MakeSubDir("launcher/lib/qemu");
+    tmp_->MakeSubDir("launcher/lib64");
+    tmp_->MakeSubDir("launcher/share/qemu");
+    tmp_->MakeSubDir("launcher/fishtank");
+
+    fs::path launcher_dir = tmp_->Path() / "launcher";
+    ASSERT_OK_AND_ASSIGN(auto canon, android::base::file::make_canonical(launcher_dir));
+    launcher_dir = canon;
+
+    std::string suffix = "";
+#ifdef _WIN32
+    suffix = ".exe";
+#endif
+
+    WriteToFile(launcher_dir / "bin" / ("qemu-system-x86_64" + suffix), "");
+    WriteToFile(launcher_dir / "bin" / ("qemu-system-aarch64" + suffix), "");
+    WriteToFile(launcher_dir / "bin" / ("qemu-img" + suffix), "");
+    WriteToFile(launcher_dir / "bin" / ("netsimd" + suffix), "");
+    WriteToFile(launcher_dir / "bin" / ("crashpad_handler" + suffix), "");
+    // Zero-byte placeholder as created by AOSP empty.zip
+    WriteToFile(launcher_dir / "fishtank" / ("fishtank" + suffix), "");
+
+    sys_->SetEnvironmentVariable("ANDROID_EMULATOR_LAUNCHER_DIR", launcher_dir.string());
+
+    ASSERT_OK_AND_ASSIGN(auto paths, ResolveEmulatorPaths(false));
+
+    EXPECT_FALSE(paths.HasFishtank());
+    EXPECT_TRUE(paths.fishtank_binary.empty());
 }
 
 }  // namespace android::goldfish

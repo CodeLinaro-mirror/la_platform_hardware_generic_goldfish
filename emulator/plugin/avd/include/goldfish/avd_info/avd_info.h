@@ -61,6 +61,7 @@ struct AvdProperties {
     ::goldfish::metrics::Uuid metrics_session_id{::goldfish::metrics::Uuid::Zero()};
     ::goldfish::metrics::MetricsWriterConfig metrics_writer_config;
     std::filesystem::path dump_perf_stat_path;
+    std::filesystem::path icc_profile;
 
     android::goldfish::HardwareConfig hw_config;
 };

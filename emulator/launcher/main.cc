@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <errno.h>
+#include <signal.h>
 #include <string.h>
 #include <unistd.h>
 
@@ -66,7 +67,7 @@ constexpr int kMetricsCrashesAbandoned = 1;
 // clang-format off
 
 void ShowBanner() {
-    constexpr std::string_view platform = PLATFORM " (" TARGET_CPU "), " COMPILATION_MODE;
+    const std::string_view platform = goldfish::version::GetPlatformString();
 
     // Check if stdout is a terminal
     const bool use_color = isatty(fileno(stdout));
@@ -89,7 +90,9 @@ R"(                           Welcome to goldfish
                            feature-complete and stabilizing, but may still
                            contain bugs or not work exactly as expected.
 )",
-            VERSION, BUILD_ID, platform, c_tail, c_body, c_face, c_beta, c_reset);
+            goldfish::version::GetEmulatorVersion(),
+            goldfish::version::GetEmulatorBuildId(),
+            platform, c_tail, c_body, c_face, c_beta, c_reset);
 }
 // clang-format on
 
@@ -191,6 +194,7 @@ void ListAvds(const AndroidOptions& opts, const android::goldfish::UserPaths& us
 
 int main(int argc, char** argv) {
 #ifndef _WIN32
+    signal(SIGPIPE, SIG_IGN);
     if (android::base::System::GetEnvironmentVariable("ANDROID_CLI") == "1") {
         if (setsid() == -1 && errno != EPERM) {
             std::cerr << "emulator-launcher: Warning: setsid() failed: " << strerror(errno) << ".\n"
@@ -278,14 +282,6 @@ int main(int argc, char** argv) {
 #endif
 
     if (!opts.not_in_bazel && android::base::Bazel::InBazel()) {
-        android::base::Bazel::StoreCommandLineArgs(argc, argv);
-        // We are running in the bazel environment, make sure the plugins and binaries can be found.
-        auto launcher_dir =
-                fs::path(android::base::Bazel::RunfilesPath("goldfish+/emulator/launcher"));
-        LOG_IF(FATAL, !android::base::file::exists(launcher_dir))
-                << "Unable to locate launcher directory: " << launcher_dir;
-        android::base::System::SetEnvironmentVariable("ANDROID_EMULATOR_LAUNCHER_DIR",
-                                                      launcher_dir.string());
         if (android::base::System::GetEnvironmentVariable("ANDROID_EMU_CRASH_REPORTING_DATABASE")
                     .empty()) {
             android::base::System::SetEnvironmentVariable(
@@ -435,26 +431,27 @@ int main(int argc, char** argv) {
                                                        writable_content_override);
     } else {
         avd = android::goldfish::Avd::FromName(opts, *user_paths, avd_name, opts.wipe_data,
-                                               writable_content_override, opts.sysdir ? opts.sysdir : fs::path());
+                                               writable_content_override,
+                                               opts.sysdir ? opts.sysdir : fs::path());
     }
 
-    if (!avd.ok()) {
-        if (avd.status().code() == absl::StatusCode::kNotFound) {
-            LOG(ERROR) << "Unknown AVD name [" << avd_name
-                       << "], use -list-avds to see valid list.";
-            for (const auto line : absl::StrSplit(avd.status().message(), '\n')) {
-                LOG(ERROR) << line;
-            }
-        } else {
-            LOG(ERROR) << "Failed to load " << avd_name << " due to " << avd.status().message();
+    // Always error for missing AVDs, don't try to trampoline.
+    if (absl::IsNotFound(avd.status())) {
+        LOG(ERROR) << "Unknown AVD name [" << avd_name << "], use -list-avds to see valid list.";
+        for (const auto line : absl::StrSplit(avd.status().message(), '\n')) {
+            LOG(ERROR) << line;
         }
         return 1;
     }
 
-    if (android::goldfish::ShouldTrampolineToQemu2(**avd)) {
-        android::goldfish::TrampolineToQemu2(emulator_paths->launcher_directory, std::move(args_copy));
+    if (android::goldfish::ShouldTrampolineToQemu2(avd)) {
+        android::goldfish::TrampolineToQemu2(emulator_paths->launcher_directory,
+                                             std::move(args_copy));
         std::unreachable();
     }
+
+    // We currently expect AVD load failures to trigger trampoline and not reach this point.
+    LOG_IF(FATAL, !avd.ok()) << "Bug: AVD loading failed: " << avd.status();
 
     bool set_qemu_version = true;
     auto last_run_qemu_version = (*avd)->GetLastRunQemuVersion();

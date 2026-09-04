@@ -59,7 +59,7 @@ class HangDetector {
     }
 
     using HangCallback = std::function<void(std::string_view message)>;
-    using HangPredicate = std::function<bool()>;
+    using ActivePredicate = std::function<bool()>;
 
     HangDetector() = default;
     virtual ~HangDetector() = default;
@@ -69,18 +69,9 @@ class HangDetector {
     HangDetector& operator=(HangDetector&&) = delete;
 
     virtual void AddWatchedLooper(std::string loop_name, ::goldfish::async::EventLoop& event_loop,
-                                  absl::Duration task_timeout) = 0;
+                                  absl::Duration task_timeout, ActivePredicate is_active) = 0;
 
     virtual void RemoveWatchedLooper(::goldfish::async::EventLoop& event_loop) = 0;
-
-    // We implicitly assume:
-    //    predicate() -> []predicate() (if a predicate becomes true, it will
-    //    always return true, we only need to infer a system hangs once)
-    virtual void AddPredicateCheck(HangPredicate predicate, std::string msg) = 0;
-
-    // Registers a stateful hangdetector. This class will take ownership of the
-    // object
-    virtual void AddPredicateCheck(StatefulHangdetector* detector, std::string msg) = 0;
 
     virtual void Stop() = 0;
 

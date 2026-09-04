@@ -21,8 +21,48 @@
 #define REVISION "@REVISION@"
 #define TARGET_CPU "@TARGET_CPU@"
 #define COMPILATION_MODE "@COMPILATION_MODE@"
-#define BUILD_ID "@BUILD_ID@"
 
-// Full version, with build suffix
-#define EMULATOR_FULL_VERSION_STRING VERSION "-" BUILD_ID
+#ifdef __cplusplus
+#include <string_view>
+
+namespace goldfish::version {
+
+// Returns the build ID of the emulator (e.g. "15673869" or "developer").
+std::string_view GetEmulatorBuildId();
+
+// Returns the full version string (e.g. "37.1.2-15673869").
+std::string_view GetEmulatorFullVersion();
+
+// Returns the release version string (e.g. "37.1.2").
+constexpr std::string_view GetEmulatorVersion() {
+    return VERSION;
+}
+
+// Returns the target platform string (e.g. "linux").
+constexpr std::string_view GetEmulatorPlatform() {
+    return PLATFORM;
+}
+
+// Returns the target CPU string (e.g. "x86_64").
+constexpr std::string_view GetEmulatorTargetCpu() {
+    return TARGET_CPU;
+}
+
+// Returns the compilation mode string (e.g. "opt" or "dbg").
+constexpr std::string_view GetEmulatorCompilationMode() {
+    return COMPILATION_MODE;
+}
+
+// Returns the platform description string (e.g. "linux (x86_64), opt").
+constexpr std::string_view GetPlatformString() {
+    return PLATFORM " (" TARGET_CPU "), " COMPILATION_MODE;
+}
+
+constexpr std::string_view GetEmulatorPlatformString() {
+    return GetPlatformString();
+}
+
+}  // namespace goldfish::version
+#endif  // __cplusplus
+
 #endif  // VERSION_H

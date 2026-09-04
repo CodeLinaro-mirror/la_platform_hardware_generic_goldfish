@@ -18,6 +18,7 @@
 #include "absl/status/status.h"
 
 #include "android/status/status_macros.h"
+#include "goldfish/archive/collections/span.h"
 #include "goldfish/archive/reader.h"
 #include "goldfish/archive/writer.h"
 
@@ -29,37 +30,12 @@ absl::Status ReadValue(archive::IReader& r, std::vector<T>& x) {
 
     x.clear();
     x.resize(new_size);
-
-    if constexpr (std::same_as<T, char> || std::same_as<T, int8_t> || std::same_as<T, uint8_t> ||
-                  std::same_as<T, float> || std::same_as<T, double>) {
-        if (!x.empty()) {
-            return r.Read(x.data(), x.size() * sizeof(T));
-        }
-    } else {
-        for (T& v : x) {
-            RETURN_IF_ERROR(ReadValue(r, v));
-        }
-    }
-
-    return absl::OkStatus();
+    return ReadIntoMutableSpan(r, std::span<T>(x));
 }
 
 template <class T>
 IWriter& operator<<(IWriter& w, const std::vector<T>& x) {
-    w << x.size();
-
-    if constexpr (std::same_as<T, char> || std::same_as<T, int8_t> || std::same_as<T, uint8_t> ||
-                  std::same_as<T, float> || std::same_as<T, double>) {
-        if (!x.empty()) {
-            w.Write(x.data(), x.size() * sizeof(T));
-        }
-    } else {
-        for (const T& v : x) {
-            w << v;
-        }
-    }
-
-    return w;
+    return w << std::span<const T>(x);
 }
 
 }  // namespace goldfish::archive

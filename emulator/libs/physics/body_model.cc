@@ -26,4 +26,13 @@ float BodyModel::GetHeartRate(ParameterValueType value_type) const {
     return value_type == ParameterValueType::kDefault ? kDefaultHeartRate : heart_rate_;
 }
 
+archive::IWriter& operator<<(archive::IWriter& w, const BodyModel& bm) {
+    w << bm.heart_rate_;
+    return w;
+}
+
+absl::Status ReadValue(archive::IReader& r, BodyModel& bm) {
+    return ReadValue(r, bm.heart_rate_);
+}
+
 }  // namespace goldfish::physics

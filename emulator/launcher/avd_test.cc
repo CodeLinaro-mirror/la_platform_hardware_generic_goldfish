@@ -176,6 +176,28 @@ TEST_F(AvdTest, AvdNotFound) {
                 StatusIs(absl::StatusCode::kNotFound));
 }
 
+TEST_F(AvdTest, MissingSysImgFileReturnsInvalidArgument) {
+    CreateTestAvd("test_avd", "android-30", 30);
+    // Remove a required system image file to verify it does not return kNotFound.
+    base::file::rm(paths_.sdk_directory / "sysimg" / "system.img").IgnoreError();
+
+    EXPECT_THAT(Avd::FromName(opts_, paths_, "test_avd", false, ""),
+                StatusIs(absl::StatusCode::kInvalidArgument,
+                         ::testing::HasSubstr("Sysimg file error:")));
+}
+
+TEST_F(AvdTest, FromAndroidBuildMissingSysImgFileReturnsInvalidArgument) {
+    fs::path build_out = tmp_->Path() / "android_build_missing";
+    tmp_->MakeSubDir("android_build_missing");
+    tmp_->MakeSubDir("android_build_missing/system");
+    tmp_->MakeSubDir("android_build_missing/data");
+
+    EXPECT_THAT(Avd::FromAndroidBuild(opts_, paths_, "android_build_avd", build_out,
+                                      /*wipe_data=*/false, ""),
+                StatusIs(absl::StatusCode::kInvalidArgument,
+                         ::testing::HasSubstr("Sysimg file error:")));
+}
+
 TEST_F(AvdTest, ListMultipleAvds) {
     CreateTestAvd("avd1", "android-30", 30);
     CreateTestAvd("avd2", "android-30", 30);
@@ -508,6 +530,19 @@ TEST_F(AvdTest, ImageKindPlayStore) {
 
     ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(opts_, paths_, "playstore_avd", false, {}, {}));
     EXPECT_EQ(avd->ImageKind(), android_studio::EmulatorAvdInfo::PLAY_STORE_KIND);
+}
+
+TEST_F(AvdTest, VendorProperty) {
+    fs::path avd_dir = CreateTestAvd("vendor_prop_avd", "android-30", 30);
+    WriteToFile(avd_dir / "config.ini", "image.sysdir.1=sysimg\n");
+    fs::path sysimg = paths_.sdk_directory / "sysimg";
+    WriteToFile(sysimg / "vendor-build.prop",
+                "ro.vendor.uwb.dev=/dev/uwb0\nro.vendor.test.key=test_val\n");
+
+    ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(opts_, paths_, "vendor_prop_avd", false, {}, {}));
+    EXPECT_EQ(avd->VendorProperty("ro.vendor.uwb.dev"), "/dev/uwb0");
+    EXPECT_EQ(avd->VendorProperty("ro.vendor.test.key"), "test_val");
+    EXPECT_EQ(avd->VendorProperty("non_existent_key", "default_val"), "default_val");
 }
 
 }  // namespace android::goldfish::avd

@@ -1321,6 +1321,33 @@ static void help_gpu(stralloc_t* out) {
            "\n");
 }
 
+static void help_vulkan_validation(stralloc_t* out) {
+    PRINTF(
+        "  use '-vulkan-validation <mode>' to set Vulkan validation layer behavior.\n"
+        "  Valid modes are:\n\n"
+        "      off   -> Vulkan validation layers are disabled (default)\n"
+        "      print -> Vulkan validation messages are logged to host console\n"
+        "      fail  -> Vulkan validation errors return VK_ERROR_VALIDATION_FAILED_EXT\n"
+        "      crash -> Vulkan validation errors force a host process crash\n\n");
+}
+
+static void help_vulkan_validation_include_filter(stralloc_t* out) {
+    PRINTF(
+        "  use '-vulkan-validation-include-filter <filters>' to specify a comma-separated\n"
+        "  list of exact string filters to include for Vulkan validation.\n"
+        "  Validation will only be enabled for guest applications or engines matching\n"
+        "  one of the filters in the list (case-insensitive exact match). If empty,\n"
+        "  all applications are validated by default.\n\n");
+}
+
+static void help_vulkan_validation_exclude_filter(stralloc_t* out) {
+    PRINTF(
+        "  use '-vulkan-validation-exclude-filter <filters>' to specify a comma-separated\n"
+        "  list of exact string filters to exclude from Vulkan validation.\n"
+        "  Validation will be disabled for guest applications or engines matching\n"
+        "  any of the filters in the list (case-insensitive exact match).\n\n");
+}
+
 static void help_vsync_rate(stralloc_t* out) {
     PRINTF("  Use -vsync-rate <rate> to override the vsync rate of the emulated guest\n"
            "  display. This value is in Hz, for example: -vsync-rate 30 will set the\n"
@@ -1794,6 +1821,7 @@ static void help_vmodule(stralloc_t* out) {
 #define help_nfc NULL                   // NOLINT(readability-identifier-naming)
 #define help_no_grpc NULL               // NOLINT(readability-identifier-naming)
 #define help_no_netsim NULL             // NOLINT(readability-identifier-naming)
+#define help_netsim_cellular NULL       // NOLINT(readability-identifier-naming)
 #define help_netsim_stdout NULL         // NOLINT(readability-identifier-naming)
 #define help_fishtank_stdout NULL       // NOLINT(readability-identifier-naming)
 #define help_verbose_grpc NULL          // NOLINT(readability-identifier-naming)
@@ -1835,7 +1863,7 @@ static const TopicHelp kTopicHelp[] = {
 
 int android_help_for_option(const char* option, stralloc_t* out) {
     const OptionHelp* oo;
-    char temp[32];
+    char temp[128];
 
     /* the names in the option_help table use underscore instead
      * of dashes, so create a translated copy of the option name
@@ -1879,7 +1907,7 @@ extern void android_help_list_options(stralloc_t* out) {
     }
 
     for (oo = kOptionHelp; oo->name != nullptr; oo++) {
-        char temp[32];
+        char temp[128];
         /* the names in the option_help table use underscores instead
          * of dashes, so create a translated copy of the option's name
          */

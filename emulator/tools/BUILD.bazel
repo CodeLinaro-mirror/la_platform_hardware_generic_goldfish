@@ -1,4 +1,4 @@
-load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 load("@rules_python//python:defs.bzl", "py_binary")
 load(":packaging.bzl", "aemu_naming")
 load(":version_info.bzl", "version_info_header")
@@ -64,9 +64,27 @@ version_info_header(
     visibility = ["//visibility:public"],
 )
 
+version_info_header(
+    name = "version_info_cc",
+    outs = "aemu_version.cc",
+    template = "aemu_version.cc.in",
+    version_info = ":aemu_version_info",
+    visibility = ["//visibility:private"],
+)
+
 cc_library(
     name = "aemu_version",
+    srcs = [":aemu_version.cc"],
     hdrs = ["aemu_version.h"],
     include_prefix = "goldfish/tools",
     visibility = ["//visibility:public"],
+)
+
+cc_test(
+    name = "aemu_version_test",
+    srcs = ["aemu_version_test.cc"],
+    deps = [
+        ":aemu_version",
+        "@googletest//:gtest_main",
+    ],
 )

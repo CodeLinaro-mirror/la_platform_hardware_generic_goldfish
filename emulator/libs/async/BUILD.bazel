@@ -39,6 +39,7 @@ cc_library(
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/synchronization",
+        "@abseil-cpp//absl/time",
     ],
 )
 
@@ -79,6 +80,7 @@ cc_library(
         ":libuv_event_loop",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/time",
     ] + select({
         "@platforms//os:windows": ["//emulator/libs/windows:win32_utils"],
         "//conditions:default": [],
@@ -98,6 +100,7 @@ cc_library(
         "//emulator/libs/system:threads",
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/time",
         "@libuv",
     ],
 )
@@ -116,6 +119,7 @@ cc_library(
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/synchronization",
+        "@abseil-cpp//absl/time",
         "@qemu//:qemu-headers-exported",
     ],
 )
@@ -263,6 +267,7 @@ cc_library(
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/time",
     ],
 )
 

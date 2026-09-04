@@ -457,7 +457,7 @@ class SensorDevice : public ISensorDevice {
         DCHECK(self_) << "Self reference should have been set, otherwise we are scheduling a "
                          "callback where we can disappear from (i.e. Tick could be called with "
                          "this == nullptr)!";
-        timer_->Schedule(absl::ToChronoMilliseconds(delay_), absl::ToChronoMilliseconds(delay_));
+        timer_->Schedule(delay_, delay_);
     }
 
     PhysicalModel* const physical_model_;

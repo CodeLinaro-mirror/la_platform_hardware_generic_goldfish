@@ -151,7 +151,12 @@ absl::StatusOr<EmulatorPaths> ResolveEmulatorPaths(bool verbose) {
     if (auto fishtank = CheckExists(
                 paths.launcher_directory / "fishtank" / AddBinarySuffix("fishtank"), "fishtank");
         fishtank.ok()) {
-        paths.fishtank_binary = *fishtank;
+        if (auto sz = android::base::file::file_size(*fishtank); sz.ok() && sz->Bytes() > 0) {
+            paths.fishtank_binary = *fishtank;
+        } else {
+            VLOG(1) << "Ignoring empty or unreadable fishtank binary: " << *fishtank
+                    << "; the external fishtank UI will be unavailable.";
+        }
     }
 
 #ifdef _WIN32
@@ -180,10 +185,17 @@ absl::StatusOr<UserPaths> ResolveUserPaths(const fs::path& launcher_dir, bool ve
     ASSIGN_OR_RETURN(
             paths.avd_directory,
             CheckExists(android::goldfish::ConfigDirs::GetAvdRootDirectory(), "avd directory"));
-    ASSIGN_OR_RETURN(
-            paths.sdk_directory,
-            CheckExists(android::goldfish::ConfigDirs::GetSdkRootDirectory(launcher_dir, verbose),
-                        "sdk directory"));
+
+    // Only log a warning if the SDK directory does not exist as it is not actually required.
+    if (auto sdk_status = CheckExists(
+                android::goldfish::ConfigDirs::GetSdkRootDirectory(launcher_dir, verbose),
+                "sdk directory"); sdk_status.ok()) {
+        paths.sdk_directory = *std::move(sdk_status);
+    } else {
+        LOG(INFO) << "Optional SDK directory not found. Will continue without it. Status: "
+                << sdk_status.status();
+    }
+
     ASSIGN_OR_RETURN(
             paths.discovery_directory,
             CheckExists(::goldfish::discovery::EmulatorAdvertisement::GetDiscoveryDirectory(),
@@ -220,6 +232,12 @@ absl::StatusOr<SystemImagePaths> ResolveSystemImagePaths(const std::vector<fs::p
     SystemImagePaths paths;
     ASSIGN_OR_RETURN(paths.build_properties,
                      Search(search_paths, "build.prop", "build properties"));
+    if (auto vendor_prop =
+                Search(search_paths, android_build ? "vendor/build.prop" : "vendor-build.prop",
+                       "vendor build properties");
+        vendor_prop.ok()) {
+        paths.vendor_build_properties = *vendor_prop;
+    }
     ASSIGN_OR_RETURN(paths.advanced_features,
                      Search(search_paths, "advancedFeatures.ini", "advanced features"));
     ASSIGN_OR_RETURN(
@@ -232,8 +250,10 @@ absl::StatusOr<SystemImagePaths> ResolveSystemImagePaths(const std::vector<fs::p
                 absl::StrCat("data directory is not a directory: ", paths.data_dir.string()));
     }
 
-    ASSIGN_OR_RETURN(paths.kernel_cmdline,
-                     Search(search_paths, "kernel_cmdline.txt", "kernel cmdline"));
+    if (auto kernel_cmdline = Search(search_paths, "kernel_cmdline.txt", "kernel cmdline");
+        kernel_cmdline.ok()) {
+        paths.kernel_cmdline = *kernel_cmdline;
+    }
 
     if (opts.kernel) {
         ASSIGN_OR_RETURN(paths.kernel_image, CheckExists(opts.kernel, "override kernel image"));

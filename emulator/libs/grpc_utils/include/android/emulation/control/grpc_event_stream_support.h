@@ -14,9 +14,12 @@
 #pragma once
 #include <grpcpp/grpcpp.h>
 
+#include <functional>
 #include <mutex>
 #include <unordered_set>
 
+#include "absl/functional/any_invocable.h"
+#include "absl/log/check.h"
 #include "absl/synchronization/mutex.h"
 #include "google/protobuf/util/message_differencer.h"
 
@@ -79,15 +82,18 @@ using android::base::eventing::EventParam;
  * @tparam T The type of gRPC messages to be written to the stream.
  * @tparam Event The underlying event type produced by the event source.
  */
-template <class T, class Event>
-class BaseEventStreamWriter : public SimpleServerWriter<T>, EventListener<Event> {
+template <class T, class Event, class Source = CallbackEventSource<Event>,
+          size_t max_queue_size = 0, size_t recycle_size = 0,
+          class Reactor = ::grpc::ServerWriteReactor<T>>
+class BaseEventStreamWriter : public WithSimpleQueueWriter<Reactor, max_queue_size, recycle_size>,
+                              EventListener<Event> {
   public:
-    using ChangeSupport = CallbackEventSource<Event>;
+    using ChangeSupport = Source;
 
     /**
      * @brief Constructs a `BaseEventStreamWriter` for the specified event source.
      *
-     * @param listener Pointer to the `CallbackEventSource` instance managing event subscriptions.
+     * @param listener Pointer to the event source instance managing event subscriptions.
      */
     explicit BaseEventStreamWriter(ChangeSupport* listener) : listener_(listener) {}
 
@@ -112,7 +118,7 @@ class BaseEventStreamWriter : public SimpleServerWriter<T>, EventListener<Event>
         DD_EVT("Cancelled %p", this);
         Unsubscribe();
         absl::MutexLock lock(&this->reactor_lock_);
-        grpc::ServerWriteReactor<T>::Finish(grpc::Status::CANCELLED);
+        Reactor::Finish(grpc::Status::CANCELLED);
     }
 
   protected:
@@ -157,8 +163,9 @@ class BaseEventStreamWriter : public SimpleServerWriter<T>, EventListener<Event>
  *
  * @tparam T The type of events and gRPC messages to be written to the stream.
  */
-template <class T>
-class GenericEventStreamWriter : public BaseEventStreamWriter<T, T> {
+template <class T, size_t max_queue_size = 0, size_t recycle_size = 0>
+class GenericEventStreamWriter
+        : public BaseEventStreamWriter<T, T, CallbackEventSource<T>, max_queue_size, recycle_size> {
     using ChangeSupport = CallbackEventSource<T>;
 
   public:
@@ -168,7 +175,8 @@ class GenericEventStreamWriter : public BaseEventStreamWriter<T, T> {
      * @param listener Pointer to the `CallbackEventSource` instance.
      */
     explicit GenericEventStreamWriter(ChangeSupport* listener)
-            : BaseEventStreamWriter<T, T>(listener) {
+            : BaseEventStreamWriter<T, T, CallbackEventSource<T>, max_queue_size, recycle_size>(
+                      listener) {
         this->Subscribe();
     }
 
@@ -182,7 +190,7 @@ class GenericEventStreamWriter : public BaseEventStreamWriter<T, T> {
      */
     void EventArrived(typename EventParam<T>::type event) override {
         DD_EVT("Handling %p, %s", this, event.ShortDebugString().c_str());
-        SimpleServerWriter<T>::Write(event);
+        this->Write(event);
     };
 };
 
@@ -196,8 +204,8 @@ class GenericEventStreamWriter : public BaseEventStreamWriter<T, T> {
  *
  * @tparam T The type of events and gRPC messages to be written to the stream.
  */
-template <class T>
-class UniqueEventStreamWriter : public GenericEventStreamWriter<T> {
+template <class T, size_t max_queue_size = 0, size_t recycle_size = 0>
+class UniqueEventStreamWriter : public GenericEventStreamWriter<T, max_queue_size, recycle_size> {
     using ChangeSupport = CallbackEventSource<T>;
 
   public:
@@ -206,7 +214,8 @@ class UniqueEventStreamWriter : public GenericEventStreamWriter<T> {
      *
      * @param listener Pointer to the `CallbackEventSource` instance.
      */
-    UniqueEventStreamWriter(ChangeSupport* listener) : GenericEventStreamWriter<T>(listener) {}
+    UniqueEventStreamWriter(ChangeSupport* listener)
+            : GenericEventStreamWriter<T, max_queue_size, recycle_size>(listener) {}
     virtual ~UniqueEventStreamWriter() = default;
 
     /**
@@ -219,12 +228,127 @@ class UniqueEventStreamWriter : public GenericEventStreamWriter<T> {
         const std::lock_guard<std::mutex> lock(event_lock_);
         if (!google::protobuf::util::MessageDifferencer::Equals(event, last_event_)) {
             last_event_ = event;
-            GenericEventStreamWriter<T>::Write(event);
+            this->Write(event);
         }
     };
 
     T last_event_;
     std::mutex event_lock_;
+};
+
+/**
+ * @class StateStreamWriter
+ * @brief A gRPC server event stream writer that sends an immediate initial snapshot
+ * upon connection and reactively streams state updates as events arrive.
+ *
+ * @details When recycling is enabled (`recycle_size > 0`), message objects passed to
+ * `populate_fn` are acquired from the internal pool via `AcquireMessage()` and can (and will)
+ * contain stale data from previous transmissions. It is up to `populate_fn` to properly initialize
+ * the recycled object (e.g. overwriting fields or clearing stale state as needed). This behavior is
+ * intentional and by design to allow reusing existing `std::string` buffers, repeated fields, and
+ * allocated storage across stream updates without repetitive heap allocations.
+ *
+ * ### Thread Safety:
+ * - `populate_fn` is invoked synchronously on the calling thread during `StateStreamWriter`
+ *   construction to deliver the initial state snapshot, and subsequently invoked asynchronously
+ *   on whichever thread(s) dispatch notifications from the `CallbackEventSource` via
+ * `EventArrived`.
+ * - `populate_fn` MUST be thread-safe with respect to any external state being read. Callers should
+ *   acquire appropriate locks (e.g. state/framebuffer mutexes) inside `populate_fn` if external
+ *   state can be modified concurrently.
+ * - Internal queue operations and recycling via `AcquireMessage()` and `Write()` are fully
+ * thread-safe and protected by `reactor_lock_`.
+ *
+ * ### Example `populate_fn` Usage:
+ * @code
+ * auto populate_fn = [&](ImageFrame* frame) {
+ *     // Acquire external lock if state can be modified concurrently:
+ *     absl::MutexLock lock(&display_mutex_);
+ *
+ *     // Scalars must be explicitly overwritten since recycled instances contain stale data:
+ *     frame->set_img_width(current_width_);
+ *     frame->set_img_height(current_height_);
+ *     frame->set_format(ImageFormat::RGBA8888);
+ *
+ *     // Reuses internal std::string capacity without allocating new heap memory:
+ *     frame->mutable_image_bytes()->assign(raw_pixels, byte_size);
+ * };
+ * @endcode
+ *
+ * @tparam T The gRPC Protobuf message type to write to the stream.
+ * @tparam Event The underlying event type produced by the CallbackEventSource.
+ * @tparam max_queue_size The maximum number of items to keep in the write queue (0 = unbounded).
+ * @tparam recycle_size The maximum number of items to keep in the recycle pool (0 = disabled).
+ */
+template <class T, class Event, class Source = CallbackEventSource<Event>,
+          size_t max_queue_size = 0, size_t recycle_size = 0,
+          class Reactor = ::grpc::ServerWriteReactor<T>>
+class StateStreamWriter
+        : public BaseEventStreamWriter<T, Event, Source, max_queue_size, recycle_size, Reactor> {
+  public:
+    using ChangeSupport = Source;
+
+    /**
+     * @brief Callback function type to populate a Protobuf message `T` with the current state.
+     *
+     * @details
+     * ### Stale Data & Buffer Reuse:
+     * When recycling is enabled (`recycle_size > 0`), the `T*` passed to this function can
+     * (and will) contain stale data from previous transmissions. It is up to `populate_fn` to
+     * properly initialize the recycled object (e.g. overwriting fields or clearing unneeded data).
+     * For example, assigning scalar fields like `set_img_width()` / `set_img_height()` and
+     * using `mutable_image_bytes()->assign(...)` allows reusing existing `std::string` buffer
+     * capacity without incurring repetitive heap allocations.
+     *
+     * ### Thread Safety:
+     * This callback is executed synchronously during `StateStreamWriter` construction (initial
+     * snapshot) and asynchronously from event source dispatcher threads during `EventArrived()`.
+     * Any shared or mutable external state accessed inside `populate_fn` must be synchronized by
+     * the caller.
+     */
+    using PopulateStateFn = absl::AnyInvocable<void(T*) const>;
+    using FilterPredicate = absl::AnyInvocable<bool(const typename EventParam<Event>::type&) const>;
+
+    /**
+     * @brief Constructs a state stream writer, writes the initial state snapshot,
+     * and subscribes to the event source.
+     *
+     * @param source The event source to subscribe to.
+     * @param populate_fn Function to populate the Protobuf message with current state.
+     *                    Note: When recycling is enabled (`recycle_size > 0`), the object passed
+     *                    to `populate_fn` can (and will) contain stale data and must be properly
+     *                    initialized by `populate_fn` (e.g. setting `img_width`, `img_height`, and
+     *                    reusing `std::string` buffers). Must be thread-safe as it is invoked
+     * across constructor and event dispatch threads.
+     * @param filter_fn Optional predicate to filter incoming events.
+     */
+    StateStreamWriter(ChangeSupport* source, PopulateStateFn populate_fn,
+                      FilterPredicate filter_fn = nullptr)
+            : BaseEventStreamWriter<T, Event, Source, max_queue_size, recycle_size, Reactor>(source)
+            , populate_fn_(std::move(populate_fn))
+            , filter_fn_(std::move(filter_fn)) {
+        WriteState();
+        this->Subscribe();
+    }
+
+    virtual ~StateStreamWriter() { this->Unsubscribe(); }
+
+    void EventArrived(typename EventParam<Event>::type event) override {
+        if (!filter_fn_ || filter_fn_(event)) {
+            WriteState();
+        }
+    }
+
+  private:
+    void WriteState() {
+        DCHECK(populate_fn_);
+        T current_state = this->AcquireMessage();
+        populate_fn_(&current_state);
+        this->Write(std::move(current_state));
+    }
+
+    PopulateStateFn populate_fn_;
+    FilterPredicate filter_fn_;
 };
 
 }  // namespace control

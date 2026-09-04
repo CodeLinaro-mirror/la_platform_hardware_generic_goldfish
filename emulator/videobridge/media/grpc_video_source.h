@@ -23,7 +23,7 @@
 
 #include "api/scoped_refptr.h"
 #include "api/video/i420_buffer.h"
-#include "media/base/adapted_video_track_source.h"
+#include "api/video/nv12_buffer.h"
 #pragma clang diagnostic pop
 
 #include <atomic>
@@ -32,8 +32,6 @@
 #include <optional>
 #include <string>
 #include <thread>
-
-#include "absl/synchronization/mutex.h"
 
 #include "goldfish/videobridge/emulator_client.h"
 #include "goldfish/videobridge/managed_video_track_source.h"
@@ -83,7 +81,19 @@ class VideoFormatPipeline {
 };
 
 /**
- * Default pipeline requesting RGBA8888 from the emulator and converting it to I420.
+ * Default pipeline requesting RGBA8888 from the emulator and converting it to NV12.
+ */
+class RgbaToNv12Pipeline : public VideoFormatPipeline {
+  public:
+    android::emulation::control::ImageFormat_ImgFormat GetGrpcFormat() const override;
+    size_t GetRequiredSharedMemorySize(uint32_t width, uint32_t height) const override;
+    std::optional<::webrtc::VideoFrame> Convert(const uint8_t* raw_data, size_t raw_size,
+                                                uint32_t width, uint32_t height,
+                                                int64_t timestamp_us) override;
+};
+
+/**
+ * Pipeline requesting RGBA8888 from the emulator and converting it to I420.
  */
 class RgbaToI420Pipeline : public VideoFormatPipeline {
   public:
@@ -92,9 +102,6 @@ class RgbaToI420Pipeline : public VideoFormatPipeline {
     std::optional<::webrtc::VideoFrame> Convert(const uint8_t* raw_data, size_t raw_size,
                                                 uint32_t width, uint32_t height,
                                                 int64_t timestamp_us) override;
-
-  private:
-    ::webrtc::scoped_refptr<::webrtc::I420Buffer> buffer_;
 };
 
 /**
@@ -106,7 +113,7 @@ class GrpcVideoSource : public ManagedVideoTrackSource {
   public:
     GrpcVideoSource(
             std::shared_ptr<EmulatorClient> client, GrpcVideoSourceOptions options,
-            std::unique_ptr<VideoFormatPipeline> pipeline = std::make_unique<RgbaToI420Pipeline>());
+            std::unique_ptr<VideoFormatPipeline> pipeline = std::make_unique<RgbaToNv12Pipeline>());
     ~GrpcVideoSource() override;
 
   protected:

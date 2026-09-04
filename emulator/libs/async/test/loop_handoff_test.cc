@@ -45,7 +45,7 @@ class LoopHandoffTest : public ::testing::Test {
     }
 
     void TearDown() override {
-        server_loop_->ShutdownAndWait(100ms).IgnoreError();
+        server_loop_->ShutdownAndWait(absl::Milliseconds(100)).IgnoreError();
         if (server_thread_.joinable()) {
             server_thread_.join();
         }
