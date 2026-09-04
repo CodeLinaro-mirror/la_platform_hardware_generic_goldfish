@@ -49,6 +49,7 @@ cc_library(
         "//emulator/plugin/grpc/services:snapshot_service",
         "//emulator/plugin/grpc/services:ui_controller_forwarder",
         "//emulator/plugin/grpc/services:vehicle_service",
+        "//emulator/plugin/grpc/services/v2:v2_services",
         "//emulator/plugin/webrtc",
         "//emulator/tools:aemu_version",
         "@abseil-cpp//absl/status",
