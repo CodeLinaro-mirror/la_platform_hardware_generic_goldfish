@@ -349,8 +349,8 @@ EmulatorProperties CreateProps(const GrpcConfig* config, const avd_info::AvdUniv
     const auto& avdprops = avd_universe.Props();
     EmulatorProperties props{
         {"port.serial", std::to_string(avdprops.serial_number)},
-        {"emulator.build", BUILD_ID},
-        {"emulator.version", VERSION},
+        {"emulator.build", std::string(goldfish::version::GetEmulatorBuildId())},
+        {"emulator.version", std::string(goldfish::version::GetEmulatorVersion())},
         {"port.adb", std::to_string(avdprops.adb_port)},
         {"avd.name", avdprops.avd_name},
         {"avd.id", avdprops.avd_id},

@@ -66,7 +66,7 @@ absl::Status NetsimTransport::initialize(::netsim::startup::Chip chip) {
     auto* device_info = initial_info->mutable_device_info();
     device_info->set_name(avdprops.avd_name);
     device_info->set_kind("EMULATOR");
-    device_info->set_version(VERSION);
+    device_info->set_version(std::string(::goldfish::version::GetEmulatorVersion()));
     device_info->set_sdk_version(avdprops.build_sdk);
     device_info->set_build_id(avdprops.build_id);
     device_info->set_variant(avdprops.build_flavour);

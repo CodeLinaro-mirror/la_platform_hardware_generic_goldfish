@@ -58,8 +58,8 @@ void MetricsReporter::SetBaseFields(android_studio::AndroidStudioEvent& event) {
     auto& product = *event.mutable_product_details();
     auto& details = *event.mutable_emulator_details();
     product.set_product(android_studio::ProductDetails::EMULATOR);
-    product.set_version(VERSION);
-    product.set_build(EMULATOR_FULL_VERSION_STRING);
+    product.set_version(std::string(goldfish::version::GetEmulatorVersion()));
+    product.set_build(std::string(goldfish::version::GetEmulatorFullVersion()));
     details.set_core_version(QEMU_FULL_VERSION);
 
     const auto times = android::base::System::Get()->GetProcessTimes();

@@ -194,7 +194,7 @@ class PlaystoreMetricsWriterTest : public ::testing::Test {
         ASSERT_TRUE(request.has_client_info());
         auto& desktop = request.client_info().desktop_client_info();
         EXPECT_EQ(desktop.logging_id(), expected_user);
-        EXPECT_EQ(desktop.application_build(), VERSION);
+        EXPECT_EQ(desktop.application_build(), goldfish::version::GetEmulatorVersion());
         EXPECT_EQ(request.log_event_size(), expected_events);
     }
 

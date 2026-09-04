@@ -60,7 +60,7 @@ LogRequest BuildBaseRequest(const std::string& user_id) {
     client.set_client_type(wireless_android_play_playlog::ClientInfo::DESKTOP);
 
     auto& desktop = *client.mutable_desktop_client_info();
-    desktop.set_application_build(VERSION);
+    desktop.set_application_build(std::string(goldfish::version::GetEmulatorVersion()));
     desktop.set_os(GetOsType());
     desktop.set_os_full_version(android::base::System::Get()->GetOsName());
     desktop.set_os_major_version(android::base::System::Get()->GetMajorOsVersion());

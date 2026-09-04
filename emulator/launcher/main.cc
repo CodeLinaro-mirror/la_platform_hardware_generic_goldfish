@@ -67,7 +67,7 @@ constexpr int kMetricsCrashesAbandoned = 1;
 // clang-format off
 
 void ShowBanner() {
-    constexpr std::string_view platform = PLATFORM " (" TARGET_CPU "), " COMPILATION_MODE;
+    const std::string_view platform = goldfish::version::GetPlatformString();
 
     // Check if stdout is a terminal
     const bool use_color = isatty(fileno(stdout));
@@ -90,7 +90,9 @@ R"(                           Welcome to goldfish
                            feature-complete and stabilizing, but may still
                            contain bugs or not work exactly as expected.
 )",
-            VERSION, BUILD_ID, platform, c_tail, c_body, c_face, c_beta, c_reset);
+            goldfish::version::GetEmulatorVersion(),
+            goldfish::version::GetEmulatorBuildId(),
+            platform, c_tail, c_body, c_face, c_beta, c_reset);
 }
 // clang-format on
 
