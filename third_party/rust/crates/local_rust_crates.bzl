@@ -147,6 +147,7 @@ def _lrc_impl(module_ctx):
         "httparse",
         "indexmap",
         "itoa",
+        "jiff",
         "lazy_static",
         "libc",
         "libz-sys",
