@@ -19,7 +19,7 @@ namespace android::emulation::control {
 constexpr int kMinVideoBitrate = 100 * 1000;           // bps
 constexpr int kMaxVideoBitrate = 25 * 1000 * 1000;     // bps
 constexpr int kDefaultTimeLimit = 3 * 60;              // seconds (180)
-constexpr int kMaxTimeLimit = 30 * 60;                 // seconds (1800)
+constexpr int kMaxTimeLimit = 4 * 60 * 60;             // seconds (14400, 4 hours)
 constexpr int kMaxFPS = 60;                            // fps
 constexpr int kFPS = 24;                               // fps
 constexpr int kDefaultVideoBitrate = 4 * 1000 * 1000;  // bps (4Mbps)
