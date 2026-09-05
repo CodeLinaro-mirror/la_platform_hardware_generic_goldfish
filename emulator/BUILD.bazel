@@ -4,11 +4,11 @@ load("@bazel_skylib//lib:selects.bzl", "selects")
 load("@bazel_skylib//rules:build_test.bzl", "build_test")
 load("@bazel_skylib//rules:common_settings.bzl", "bool_flag", "string_flag")
 load("@bazel_skylib//rules:select_file.bzl", "select_file")
+load("@goldfish_build//rules:zip.bzl", "parallel_pkg_zip")
 load("@goldfish_build//rules/native:native_binaries.bzl", "stripped_binaries")
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_license//rules:license_kind.bzl", "license_kind")
 load("@rules_pkg//pkg:mappings.bzl", "filter_directory", "pkg_attributes", "pkg_filegroup", "pkg_files")
-load("@rules_pkg//pkg:zip.bzl", "pkg_zip")
 load(
     "//emulator/tools:notice.bzl",
     "generate_notice_file",
@@ -584,7 +584,7 @@ pkg_filegroup(
     prefix = "emulator",
 )
 
-pkg_zip(
+parallel_pkg_zip(
     name = "release",
     srcs = [
         "emulator-dir",
@@ -608,7 +608,7 @@ internal_release(
     tags = ["manual"],
 )
 
-pkg_zip(
+parallel_pkg_zip(
     name = "release_unstripped",
     srcs = [
         "emulator-dir-unstripped",

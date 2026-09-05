@@ -2,10 +2,10 @@
 
 load("@bazel_skylib//lib:paths.bzl", "paths")
 load("@breakpad//:breakpad_symbols.bzl", "breakpad_symbols")
+load("@goldfish_build//rules:zip.bzl", "parallel_pkg_zip")
 load("@goldfish_build//rules/native:native_binaries.bzl", "TransformedFilesInfo", "native_symbols")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes")
 load("@rules_pkg//pkg:providers.bzl", "PackageFilesInfo", "PackageVariablesInfo")
-load("@rules_pkg//pkg:zip.bzl", "pkg_zip")
 
 visibility("//emulator/...")
 
@@ -254,7 +254,7 @@ def native_symbols_pkg(name, binaries, package_file_name, package_variables, lay
 
     This function first extracts symbols from the given binaries using the
     `native_symbols` rule, and then packages them into a zip archive using
-    `pkg_zip`.
+    `parallel_pkg_zip`.
 
     Args:
         name: The name of the rule.
@@ -290,7 +290,7 @@ def native_symbols_pkg(name, binaries, package_file_name, package_variables, lay
         )
     if not layout_templates:
         pkg_files.append(extract)
-    pkg_zip(
+    parallel_pkg_zip(
         name = name,
         tags = ["manual"],
         srcs = pkg_files,
