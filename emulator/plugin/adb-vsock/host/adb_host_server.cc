@@ -143,6 +143,44 @@ bool AdbHostServer::notify(int adbEmulatorPort, int adbClientPort) {
     return sendMessage(socket.get(), message);
 }
 
+bool AdbHostServer::runShellCommand(const std::string& shellCommand, int serialNumber,
+                                    int adbClientPort) {
+    ScopedSocket socket = connectToAdbServer(adbClientPort);
+    if (!socket.valid()) {
+        VLOG(1) << "runShellCommand: failed to connect to ADB server on port " << adbClientPort;
+        return false;
+    }
+
+    std::string transport = (serialNumber > 0)
+                                    ? absl::StrFormat("host:transport:emulator-%d", serialNumber)
+                                    : std::string("host:transport-any");
+
+    if (!sendMessage(socket.get(), transport)) {
+        VLOG(1) << "runShellCommand: failed to send transport request: " << transport;
+        return false;
+    }
+
+    auto transportResponse = readResponse(socket.get(), 4);
+    if (transportResponse.compare("OKAY") != 0) {
+        VLOG(1) << "runShellCommand: transport request rejected with: " << transportResponse;
+        return false;
+    }
+
+    auto shell = absl::StrFormat("shell:%s", shellCommand);
+    if (!sendMessage(socket.get(), shell)) {
+        VLOG(1) << "runShellCommand: failed to send shell command: " << shellCommand;
+        return false;
+    }
+
+    auto shellResponse = readResponse(socket.get(), 4);
+    if (shellResponse.compare("OKAY") != 0) {
+        VLOG(1) << "runShellCommand: shell command rejected with: " << shellResponse;
+        return false;
+    }
+
+    return true;
+}
+
 int AdbHostServer::getClientPort() {
     int clientPort = kDefaultAdbClientPort;
     const std::string_view kVarName = "ANDROID_ADB_SERVER_PORT";

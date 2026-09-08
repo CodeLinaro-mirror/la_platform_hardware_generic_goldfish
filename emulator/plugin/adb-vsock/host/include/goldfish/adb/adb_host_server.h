@@ -11,6 +11,7 @@
 
 #pragma once
 #include <optional>
+#include <string>
 
 namespace goldfish::adb {
 
@@ -38,6 +39,18 @@ struct AdbHostServer {
      * @return The ADB client port.
      */
     static int getClientPort();
+
+    /**
+     * @brief Run a shell command on an emulator instance via the local ADB server.
+     *
+     * @param shellCommand The shell command to execute.
+     * @param serialNumber The optional serial number of the emulator (e.g. 5554 for emulator-5554,
+     * or 0 for any).
+     * @param adbClientPort The localhost TCP port the ADB server is listening on.
+     * @return True on success, false on error.
+     */
+    static bool runShellCommand(const std::string& shellCommand, int serialNumber = 0,
+                                int adbClientPort = getClientPort());
 
     /**
      * @brief Get the ADB protocol version reported by the running daemon.

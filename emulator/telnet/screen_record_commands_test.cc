@@ -261,15 +261,29 @@ TEST(ScreenRecordCommandsTest, ParseStartCommandExtendedTimeLimit) {
 
     EXPECT_CALL(*mock_stub, StartRecording(_, _, _))
             .WillOnce([](grpc::ClientContext*, const RecordingInfo& request, RecordingInfo*) {
-                EXPECT_EQ(request.time_limit(), 1800);
+                EXPECT_EQ(request.time_limit(), 14400);
                 return grpc::Status::OK;
             });
 
     ctx.mock_stub = std::move(mock_stub);
 
-    auto result = (*registry)("screenrecord start --time-limit 1800 test.webm", ctx);
+    auto result = (*registry)("screenrecord start --time-limit 14400 test.webm", ctx);
     ASSERT_TRUE(result.ok()) << result.status().message();
     EXPECT_EQ(*result, "");
+}
+
+TEST(ScreenRecordCommandsTest, ParseStartCommandExceedsTimeLimitFails) {
+    CommandRegistryBuilder builder("/dummy/token");
+    auto screenrecord = builder.Command("screenrecord", "desc");
+    RegisterScreenRecordCommands(screenrecord);
+    auto registry = builder.Build();
+
+    MockConsoleContext ctx(5554);
+    ctx.authenticated = true;
+
+    auto result = (*registry)("screenrecord start --time-limit 14401 test.webm", ctx);
+    ASSERT_FALSE(result.ok());
+    EXPECT_EQ(result.status().message(), "Time limit 14401s outside acceptable range [1,14400]");
 }
 
 }  // namespace

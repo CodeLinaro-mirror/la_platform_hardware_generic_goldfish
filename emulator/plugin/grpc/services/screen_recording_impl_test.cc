@@ -187,6 +187,24 @@ TEST_F(ScreenRecordingServiceImplTest, StartRecordingFailsForInvalidFps) {
     EXPECT_EQ(status.error_code(), grpc::StatusCode::INVALID_ARGUMENT);
 }
 
+TEST_F(ScreenRecordingServiceImplTest, StartRecordingFailsForExcessiveTimeLimit) {
+    std::string test_file = (temp_dir_ / "test_invalid_timelimit.webm").string();
+
+    RecordingInfo request;
+    request.set_file_name(test_file);
+    request.set_time_limit(android::emulation::control::kMaxTimeLimit + 1);
+
+    RecordingInfo response;
+    grpc::ServerContext context;
+
+    auto status = service->StartRecording(&context, &request, &response);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.error_code(), grpc::StatusCode::INVALID_ARGUMENT);
+    EXPECT_EQ(status.error_message(), absl::StrCat("Time limit must be between 1 and ",
+                                                   android::emulation::control::kMaxTimeLimit));
+}
+
 TEST_F(ScreenRecordingServiceImplTest, StartRecordingFailsIfFileExists) {
     std::string test_file = (temp_dir_ / "test_exists.webm").string();
     // Create the file first

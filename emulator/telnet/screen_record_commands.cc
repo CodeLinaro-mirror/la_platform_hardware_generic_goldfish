@@ -183,7 +183,7 @@ void RegisterScreenRecordCommands(CommandRegistryBuilder::NodeBuilder& screenrec
                         RecordingInfo response;
                         auto status = stub->StartRecording(context.get(), request, &response);
                         if (!status.ok()) {
-                            return absl::InternalError("Error while trying to start recording");
+                            return GrpcStatusToAbslStatus(status);
                         }
 
                         return absl::OkStatus();
