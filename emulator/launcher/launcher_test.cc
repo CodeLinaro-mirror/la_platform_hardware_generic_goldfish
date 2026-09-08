@@ -592,6 +592,33 @@ TEST_F(LauncherTest, HuntsForFreePort) {
     trigger.join();
 }
 
+TEST_F(LauncherTest, RespectsNoSnapshotUpdateTimeFlag) {
+    opts.no_snapshot_update_time = true;
+    auto avd = CreateMockAvd();
+
+    EXPECT_CALL(*mock_socket_factory, CreateServer(_, IsPort(5554), _, _))
+            .Times(2)
+            .WillRepeatedly(Return(std::make_shared<MockAsyncSocketServer>()));
+
+    absl::Notification launched;
+    ::goldfish::async::ProcessLauncher::ExitCallback emulator_exit_cb;
+
+    auto config_matcher = testing::AllOf(
+            testing::Field(&::goldfish::async::LaunchConfig::exe_path, ExpectedQemuBinary()),
+            testing::Field(&::goldfish::async::LaunchConfig::args,
+                           testing::AllOf(testing::Contains(testing::HasSubstr("avdstart")),
+                                          testing::Contains(testing::HasSubstr(
+                                                  "snapshot_update_time=false")))));
+
+    ExpectEmulatorLaunch(launched, emulator_exit_cb, nullptr, config_matcher);
+
+    std::thread trigger = TriggerEmulatorExit(launched, emulator_exit_cb);
+
+    RunLauncher(std::move(avd));
+
+    trigger.join();
+}
+
 TEST_F(LauncherTest, ShutsDownDirectlyWhenNoEmulatorProcess) {
     auto avd = CreateMockAvd();
 

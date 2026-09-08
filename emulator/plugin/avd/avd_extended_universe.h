@@ -71,6 +71,8 @@ struct AvdExtendedUniverse : public AvdUniverse {
     absl::Status OnLoadProps(archive::IReader&);
     absl::Status OnLoadPhysicalState(archive::IReader&);
     absl::Status OnLoadDisplayState(archive::IReader&);
+
+    void SyncGuestTimeToHost();
 };
 
 }  // namespace goldfish::avd_info
