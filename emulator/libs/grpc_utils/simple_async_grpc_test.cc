@@ -978,4 +978,292 @@ TEST(SimpleAsyncGrpcTest, WithSimpleQueueWriterConcurrentWritesAndFinish) {
     }
 }
 
+TEST(SimpleAsyncGrpcTest, SimpleServerLambdaWriterStartAndWrite) {
+    struct TestMsg {
+        int value{0};
+    };
+
+    bool start_called = false;
+    bool done_called = false;
+    SimpleServerLambdaWriter<TestMsg, FakeWriteReactor<TestMsg>>* writer_ptr = nullptr;
+
+    auto* writer = new SimpleServerLambdaWriter<TestMsg, FakeWriteReactor<TestMsg>>(
+            [&](auto* w) {
+                start_called = true;
+                writer_ptr = w;
+                w->Write(TestMsg{42});
+            },
+            []() {}, [&]() { done_called = true; });
+
+    EXPECT_TRUE(start_called);
+    EXPECT_EQ(writer_ptr, writer);
+    EXPECT_FALSE(writer->finish_called);
+    EXPECT_TRUE(writer->start_write_called);
+    ASSERT_EQ(writer->written_messages.size(), 1);
+    EXPECT_EQ(writer->written_messages[0].value, 42);
+    EXPECT_FALSE(writer->IsFinished());
+    EXPECT_FALSE(writer->IsCancelled());
+
+    writer->Finish(::grpc::Status::OK);
+    EXPECT_TRUE(writer->finish_called);
+    EXPECT_EQ(writer->finish_called_count, 1);
+    EXPECT_TRUE(writer->finish_status.ok());
+    EXPECT_TRUE(writer->IsFinished());
+    EXPECT_FALSE(writer->IsCancelled());
+
+    // Subsequent Finish calls should be idempotent no-ops
+    writer->Finish(::grpc::Status::CANCELLED);
+    EXPECT_EQ(writer->finish_called_count, 1);
+    EXPECT_TRUE(writer->finish_status.ok());
+
+    writer->OnDone();
+    EXPECT_TRUE(done_called);
+}
+
+TEST(SimpleAsyncGrpcTest, SimpleServerLambdaWriterCancellation) {
+    struct TestMsg {
+        int value{0};
+    };
+
+    bool cancel_called = false;
+    bool done_called = false;
+
+    auto* writer = new SimpleServerLambdaWriter<TestMsg, FakeWriteReactor<TestMsg>>(
+            [](auto* w) {}, [&]() { cancel_called = true; }, [&]() { done_called = true; });
+
+    EXPECT_FALSE(writer->IsCancelled());
+    EXPECT_FALSE(writer->IsFinished());
+
+    writer->OnCancel();
+    EXPECT_TRUE(cancel_called);
+    EXPECT_TRUE(writer->IsCancelled());
+    EXPECT_TRUE(writer->IsFinished());
+    EXPECT_TRUE(writer->finish_called);
+    EXPECT_EQ(writer->finish_called_count, 1);
+    EXPECT_EQ(writer->finish_status.error_code(), ::grpc::StatusCode::CANCELLED);
+
+    // Subsequent Finish calls after cancellation should be idempotent no-ops
+    writer->Finish(::grpc::Status::OK);
+    EXPECT_EQ(writer->finish_called_count, 1);
+    EXPECT_EQ(writer->finish_status.error_code(), ::grpc::StatusCode::CANCELLED);
+
+    writer->OnDone();
+    EXPECT_TRUE(done_called);
+}
+
+TEST(SimpleAsyncGrpcTest, SimpleServerLambdaWriterMultipleOnCancelIsIdempotent) {
+    struct TestMsg {
+        int value{0};
+    };
+
+    int cancel_count = 0;
+    int done_count = 0;
+
+    auto* writer = new SimpleServerLambdaWriter<TestMsg, FakeWriteReactor<TestMsg>>(
+            [](auto* w) {}, [&]() { cancel_count++; }, [&]() { done_count++; });
+
+    writer->OnCancel();
+    EXPECT_EQ(cancel_count, 1);
+    EXPECT_EQ(writer->finish_called_count, 1);
+
+    // Multiple calls to OnCancel() must be safe and idempotent no-ops
+    writer->OnCancel();
+    writer->OnCancel();
+    EXPECT_EQ(cancel_count, 1);
+    EXPECT_EQ(writer->finish_called_count, 1);
+
+    writer->OnDone();
+    EXPECT_EQ(done_count, 1);
+}
+
+TEST(SimpleAsyncGrpcTest, SimpleServerLambdaWriterCancelCallbackCallsFinish) {
+    struct TestMsg {
+        int value{0};
+    };
+
+    bool cancel_called = false;
+    SimpleServerLambdaWriter<TestMsg, FakeWriteReactor<TestMsg>>* writer = nullptr;
+    writer = new SimpleServerLambdaWriter<TestMsg, FakeWriteReactor<TestMsg>>(
+            [](auto* w) {},
+            [&]() {
+                cancel_called = true;
+                // If cancel callback itself invokes Finish(), Base::Finish must only be called
+                // once.
+                writer->Finish(::grpc::Status(::grpc::StatusCode::RESOURCE_EXHAUSTED, "quota"));
+            });
+
+    writer->OnCancel();
+    EXPECT_TRUE(cancel_called);
+    EXPECT_TRUE(writer->IsCancelled());
+    EXPECT_TRUE(writer->IsFinished());
+    EXPECT_TRUE(writer->finish_called);
+    EXPECT_EQ(writer->finish_called_count, 1);
+    EXPECT_EQ(writer->finish_status.error_code(), ::grpc::StatusCode::RESOURCE_EXHAUSTED);
+
+    writer->OnDone();
+}
+
+TEST(SimpleAsyncGrpcTest, SimpleServerLambdaWriterFinishImmediatelyMarksFinished) {
+    struct TestMsg {
+        int value{0};
+    };
+
+    auto* writer = new SimpleServerLambdaWriter<TestMsg, FakeWriteReactor<TestMsg>>([](auto* w) {});
+
+    EXPECT_FALSE(writer->IsFinished());
+    EXPECT_FALSE(writer->IsCancelled());
+
+    // Producer calling Finish immediately causes IsFinished() to return true,
+    // while IsCancelled() remains false for clean completion.
+    writer->Finish(::grpc::Status::OK);
+    EXPECT_TRUE(writer->IsFinished());
+    EXPECT_FALSE(writer->IsCancelled());
+
+    writer->OnDone();
+}
+
+TEST(SimpleAsyncGrpcTest, SimpleServerLambdaWriterMoveOnlyLambda) {
+    struct TestMsg {
+        int value{0};
+    };
+
+    auto start_ptr = std::make_unique<int>(123);
+    auto cancel_ptr = std::make_unique<int>(456);
+    auto done_ptr = std::make_unique<int>(789);
+
+    int cancel_val = 0;
+    int done_val = 0;
+
+    auto* writer = new SimpleServerLambdaWriter<TestMsg, FakeWriteReactor<TestMsg>>(
+            [captured = std::move(start_ptr)](auto* w) { w->Write(TestMsg{*captured}); },
+            [captured = std::move(cancel_ptr), &cancel_val]() mutable { cancel_val = *captured; },
+            [captured = std::move(done_ptr), &done_val]() mutable { done_val = *captured; });
+
+    ASSERT_EQ(writer->written_messages.size(), 1);
+    EXPECT_EQ(writer->written_messages[0].value, 123);
+
+    writer->OnCancel();
+    EXPECT_EQ(cancel_val, 456);
+
+    writer->OnDone();
+    EXPECT_EQ(done_val, 789);
+}
+
+TEST(SimpleAsyncGrpcTest, SimpleServerLambdaWriterWritesIgnoredAfterFinish) {
+    struct TestMsg {
+        int value{0};
+    };
+
+    auto* writer = new SimpleServerLambdaWriter<TestMsg, FakeWriteReactor<TestMsg>>([](auto* w) {});
+
+    // Write message 1: starts writing immediately
+    writer->Write(TestMsg{1});
+    EXPECT_TRUE(writer->start_write_called);
+    EXPECT_EQ(writer->start_write_called_count, 1);
+    EXPECT_EQ(writer->QueueSize(), 1);
+
+    // Write message 2: enqueued as pending write
+    writer->Write(TestMsg{2});
+    EXPECT_EQ(writer->QueueSize(), 2);
+    EXPECT_EQ(writer->start_write_called_count, 1);
+
+    // Calling Finish() marks stream as finished
+    writer->Finish(::grpc::Status::OK);
+    EXPECT_TRUE(writer->IsFinished());
+    EXPECT_FALSE(writer->IsCancelled());
+    EXPECT_EQ(writer->finish_called_count, 1);
+    // In-flight message 1 and pending message 2 remain in queue
+    EXPECT_EQ(writer->QueueSize(), 2);
+
+    // New writes after Finish() are safely ignored
+    writer->Write(TestMsg{3});
+    EXPECT_EQ(writer->QueueSize(), 2);
+
+    // When the in-flight wire write completes, OnWriteDone pops message 1 and does NOT start write
+    // 2 or 3
+    writer->OnWriteDone(true);
+    EXPECT_EQ(writer->QueueSize(), 1);
+    EXPECT_EQ(writer->start_write_called_count, 1);
+    EXPECT_FALSE(writer->start_write_after_finish);
+
+    writer->OnDone();
+}
+
+TEST(SimpleAsyncGrpcTest, SimpleServerLambdaWriterWritesIgnoredAfterCancel) {
+    struct TestMsg {
+        int value{0};
+    };
+
+    auto* writer = new SimpleServerLambdaWriter<TestMsg, FakeWriteReactor<TestMsg>>([](auto* w) {});
+
+    writer->Write(TestMsg{10});
+    writer->Write(TestMsg{20});
+    EXPECT_EQ(writer->QueueSize(), 2);
+    EXPECT_EQ(writer->start_write_called_count, 1);
+
+    writer->OnCancel();
+    EXPECT_TRUE(writer->IsCancelled());
+    EXPECT_TRUE(writer->IsFinished());
+    EXPECT_EQ(writer->finish_called_count, 1);
+    EXPECT_EQ(writer->QueueSize(), 2);
+
+    // Subsequent writes ignored
+    writer->Write(TestMsg{30});
+    EXPECT_EQ(writer->QueueSize(), 2);
+
+    writer->OnWriteDone(true);
+    EXPECT_EQ(writer->QueueSize(), 1);
+    EXPECT_EQ(writer->start_write_called_count, 1);
+    EXPECT_FALSE(writer->start_write_after_finish);
+
+    writer->OnDone();
+}
+
+TEST(SimpleAsyncGrpcTest, SimpleServerLambdaWriterConcurrentWritesAndFinish) {
+    struct TestMsg {
+        int value{0};
+    };
+
+    for (int iter = 0; iter < 100; ++iter) {
+        auto* writer =
+                new SimpleServerLambdaWriter<TestMsg, FakeWriteReactor<TestMsg>>([](auto* w) {});
+
+        std::atomic<bool> start_signal{false};
+        std::vector<std::thread> producers;
+        for (int t = 0; t < 4; ++t) {
+            producers.emplace_back([&, t]() {
+                while (!start_signal.load(std::memory_order_acquire)) {
+                }
+                for (int i = 0; i < 50; ++i) {
+                    writer->Write(TestMsg{t * 1000 + i});
+                }
+            });
+        }
+
+        std::thread finisher([&]() {
+            while (!start_signal.load(std::memory_order_acquire)) {
+            }
+            writer->Finish(::grpc::Status::OK);
+        });
+
+        start_signal.store(true, std::memory_order_release);
+
+        for (auto& p : producers) {
+            p.join();
+        }
+        finisher.join();
+
+        // Complete the in-flight wire write if one was started
+        if (writer->start_write_called) {
+            writer->OnWriteDone(true);
+        }
+
+        EXPECT_TRUE(writer->IsFinished());
+        EXPECT_FALSE(writer->start_write_after_finish);
+        EXPECT_EQ(writer->finish_called_count, 1);
+
+        writer->OnDone();
+    }
+}
+
 }  // namespace android::emulation::control

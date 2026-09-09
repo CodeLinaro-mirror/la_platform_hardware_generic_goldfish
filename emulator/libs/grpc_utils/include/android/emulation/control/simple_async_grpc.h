@@ -554,6 +554,89 @@ using SimpleServerWriter =
         WithSimpleQueueWriter<grpc::ServerWriteReactor<W>, max_queue_size, recycle_size>;
 
 /**
+ * @class SimpleServerLambdaWriter
+ * @brief Server-side streaming write reactor utilizing lambda callbacks for stream initiation,
+ * cancellation, and completion.
+ *
+ * Automatically deletes itself upon completion (`OnDone()`). Enables inline streaming
+ * without declaring a bespoke subclass of `WithSimpleQueueWriter`:
+ *
+ * @code
+ * return new SimpleServerLambdaWriter<LogEntry>(
+ *     [this](auto* writer) {
+ *         // Start: register callback or initiate producer -> writer->Write(msg);
+ *     },
+ *     [this]() {
+ *         // Optional: client cancelled stream
+ *     });
+ * @endcode
+ *
+ * The `Base` template parameter defaults to `grpc::ServerWriteReactor<W>`, but can be
+ * substituted with an in-memory mock reactor (e.g. `FakeWriteReactor<W>`) for hermetic unit
+ * testing.
+ *
+ * @tparam W The type of outgoing response messages.
+ * @tparam Base The underlying reactor base class (defaults to `grpc::ServerWriteReactor<W>`).
+ * @tparam max_queue_size Maximum pending messages in write queue (0 = unbounded).
+ * @tparam recycle_size Maximum recycled messages to retain (0 = disabled).
+ */
+template <typename W, typename Base = grpc::ServerWriteReactor<W>, size_t max_queue_size = 0,
+          size_t recycle_size = 0>
+class SimpleServerLambdaWriter : public WithSimpleQueueWriter<Base, max_queue_size, recycle_size> {
+  public:
+    using StartCallback = absl::AnyInvocable<void(SimpleServerLambdaWriter*)>;
+    // These are 'use only once' callbacks see http://go/totw/191 for details.
+    using OnCancelCallback = absl::AnyInvocable<void() &&>;
+    using OnDoneCallback = absl::AnyInvocable<void() &&>;
+
+    /**
+     * @brief Constructs a `SimpleServerLambdaWriter` with specified start, cancel, and done
+     * callbacks.
+     *
+     * @param startFn Callback invoked once construction is complete, passing `this` to begin
+     * streaming.
+     * @param cancelFn Optional callback invoked when the client cancels the stream.
+     * @param doneFn Optional callback invoked when the stream completes before the reactor
+     * self-deletes.
+     */
+    SimpleServerLambdaWriter(StartCallback startFn, OnCancelCallback cancelFn = nullptr,
+                             OnDoneCallback doneFn = nullptr)
+            : cancel_fn_(std::move(cancelFn)), done_fn_(std::move(doneFn)) {
+        if (startFn) {
+            startFn(this);
+        }
+    }
+
+    /**
+     * @brief Callback invoked by gRPC when the client cancels the stream. Thread-safe and
+     * idempotent.
+     */
+    void OnCancel() override {
+        if (!this->SetCancelled()) {
+            return;
+        }
+        if (cancel_fn_) {
+            std::move(cancel_fn_)();
+        }
+        this->Finish(::grpc::Status::CANCELLED);
+    }
+
+    /**
+     * @brief Final completion callback invoked by gRPC. Executes `done_fn_` and self-deletes.
+     */
+    void OnDone() override {
+        if (done_fn_) {
+            std::move(done_fn_)();
+        }
+        delete this;
+    }
+
+  private:
+    OnCancelCallback cancel_fn_;
+    OnDoneCallback done_fn_;
+};
+
+/**
  * @brief A bidirectional client stream composed of both simple reader and queue writer mixins.
  *
  * @tparam R The type of incoming response messages.
