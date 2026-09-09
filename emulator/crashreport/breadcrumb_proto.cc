@@ -137,9 +137,13 @@ FlowId AllocateGlobalFlowId() {
     return next_flow_id.fetch_add(1, std::memory_order_relaxed);
 }
 
-void RegisterLooper(uint8_t loop_id, std::string_view name) {
+static LooperRegistrationsAnnotation<4096>& GetLooperRegistrations() {
     static LooperRegistrationsAnnotation<4096> s_regs("looper_registrations");
-    s_regs.Append(loop_id, name);
+    return s_regs;
+}
+
+uint8_t RegisterLooper(std::string_view name) {
+    return GetLooperRegistrations().GetOrRegister(name);
 }
 
 }  // namespace android::crashreport

@@ -162,8 +162,11 @@ cc_library(
     deps = [
         ":breadcrumb",
         "//emulator/libs/proto_data_store",
+        "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/synchronization",
         "@aemu//protos/services/diagnostic:breadcrumb_cc_proto",
         "@crashpad//client",
     ],

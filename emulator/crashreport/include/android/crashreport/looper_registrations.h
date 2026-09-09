@@ -13,13 +13,18 @@
 // limitations under the License.
 #pragma once
 
+#include <algorithm>
 #include <cstdint>
 #include <cstring>
+#include <limits>
 #include <mutex>
+#include <optional>
 #include <span>
 #include <string_view>
 #include <vector>
 
+#include "absl/base/thread_annotations.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/strings/str_cat.h"
@@ -39,17 +44,20 @@ namespace android::crashreport {
  * @brief Thread-safe Crashpad annotation for gathering looper name registries.
  *
  * This allows event loops to dynamically register their names on startup.
- * The annotation is stored as a standard string annotation.
- * Format: "1=QemuLoop;2=LibuvLoop;..."
+ * The annotation is stored as a standard string annotation formatted as
+ * "1=QemuLoop;2=LibuvLoop;...".
  *
- * @note Synchronization Design:
- * This class uses blocking synchronization (absl::Mutex) instead of lock-free
- * reservation or ScopedSpinGuard. Because SetSize() is only updated after
- * a write is fully completed, a crash during registration will only result in
- * losing the single in-flight registration. The previously registered loopers
- * will still be successfully captured. Using ScopedSpinGuard here would cause
- * the crash handler to discard the entire looper registrations registry if a
- * crash occurred during registration.
+ * @note Architecture & Invariants:
+ * - Architectural Role: Maintains the centralized Crashpad annotation string mapping
+ *   numeric loop IDs to human-readable loop names for minidump post-processing.
+ * - Deduplication & Zero Heap Overhead: Distinct loop names are tracked in an internal
+ *   hash map (registered_loopers_) keyed by std::string_view instances that point directly
+ *   into the underlying annotation buffer (buffer_). Lookups and duplicate registrations
+ *   execute in O(1) time without heap allocations or buffer re-formatting.
+ * - Thread Safety: All operations are synchronized via registrations_mutex_.
+ * - Invariant: size() <= MaxSize holds whenever registrations_mutex_ is not held.
+ * - Lifetime: Keys in registered_loopers_ borrow persistent memory from buffer_, ensuring
+ *   they remain valid for the lifetime of this annotation instance.
  */
 template <crashpad::Annotation::ValueSizeType MaxSize>
 struct LooperRegistrationsBufferStorage {
@@ -60,15 +68,35 @@ template <crashpad::Annotation::ValueSizeType MaxSize>
 class LooperRegistrationsAnnotation : private LooperRegistrationsBufferStorage<MaxSize>,
                                       public crashpad::Annotation {
   public:
-    LooperRegistrationsAnnotation(const char name[])
+    explicit LooperRegistrationsAnnotation(const char name[])
             : LooperRegistrationsBufferStorage<MaxSize>()
             , crashpad::Annotation(crashpad::Annotation::Type::kString, name,
                                    this->buffer_.data()) {
         SetSize(0);
     }
 
-    void Append(uint8_t loop_id, std::string_view loop_name) {
-        absl::MutexLock lock(mutex_);
+    /**
+     * @brief Gets the existing loop_id for loop_name or registers a new one sequentially.
+     *
+     * If loop_name has already been registered, returns its existing loop_id.
+     * Otherwise, assigns the next sequential loop_id, appends it to the Crashpad
+     * annotation buffer, records it in the lookup map, and returns the assigned ID.
+     *
+     * @param loop_name The name of the event loop.
+     * @return The unique numeric identifier assigned to this event loop name.
+     */
+    uint8_t GetOrRegister(std::string_view loop_name) {
+        absl::MutexLock registrations_lock(&registrations_mutex_);
+        auto it = registered_loopers_.find(loop_name);
+        if (it != registered_loopers_.end()) {
+            return it->second;
+        }
+
+        uint8_t loop_id = next_loop_id_;
+        if (next_loop_id_ < std::numeric_limits<uint8_t>::max()) {
+            next_loop_id_++;
+        }
+
         size_t current_size = size();
 
         // 3 chars max for uint8_t (max 255), 1 for '=', 1 for ';', 1 for '\0'
@@ -76,18 +104,32 @@ class LooperRegistrationsAnnotation : private LooperRegistrationsBufferStorage<M
         if (current_size + loop_name.size() + kMaxFormatOverhead >= MaxSize) {
             LOG(WARNING) << "Diagnostic buffer limit reached. Crash diagnostics for event loop '"
                          << loop_name << "' will be skipped.";
-            return;
+            return loop_id;
         }
 
         int len = absl::SNPrintF(this->buffer_.data() + current_size, MaxSize - current_size,
                                  "%u=%s;", loop_id, loop_name);
-        if (len > 0) {
-            SetSize(current_size + len);
+        if (len <= 0) {
+            return loop_id;
         }
+
+        char* entry_start = this->buffer_.data() + current_size;
+        char* eq_ptr = static_cast<char*>(std::memchr(entry_start, '=', len));
+        DCHECK(eq_ptr != nullptr);
+        char* name_start = eq_ptr + 1;
+
+        std::string_view persistent_name(name_start, loop_name.size());
+        registered_loopers_.emplace(persistent_name, loop_id);
+
+        SetSize(current_size + len);
+        return loop_id;
     }
 
   private:
-    absl::Mutex mutex_;
+    mutable absl::Mutex registrations_mutex_;
+    uint8_t next_loop_id_ ABSL_GUARDED_BY(registrations_mutex_) = 1;
+    absl::flat_hash_map<std::string_view, uint8_t> registered_loopers_
+            ABSL_GUARDED_BY(registrations_mutex_);
 };
 
 template <crashpad::Annotation::ValueSizeType MaxSize>
@@ -126,6 +168,6 @@ class DynamicBinaryAnnotation : private DynamicBinaryStorage<MaxSize>, public cr
 };
 
 // Global function to register a looper.
-void RegisterLooper(uint8_t loop_id, std::string_view name);
+uint8_t RegisterLooper(std::string_view name);
 
 }  // namespace android::crashreport
