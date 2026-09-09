@@ -13,13 +13,20 @@
 // limitations under the License.
 #include "android/emulation/control/simple_async_grpc.h"
 
+#include <grpcpp/grpcpp.h>
 #include <gtest/gtest.h>
 
+#include <atomic>
+#include <chrono>
+#include <cstdlib>
 #include <functional>
 #include <memory>
 #include <string>
+#include <thread>
+#include <vector>
 
 #include "android/emulation/control/grpc_event_stream_support.h"
+#include "emulator_controller.grpc.pb.h"
 #include "goldfish/eventing/event_sources.h"
 
 namespace android::emulation::control {
@@ -94,20 +101,29 @@ class FakeWriteReactor {
     virtual ~FakeWriteReactor() = default;
     virtual void OnWriteDone(bool ok) = 0;
     virtual void OnDone() {}
+    virtual void OnCancel() {}
 
     void StartWrite(const W* msg) {
+        if (finish_called) {
+            start_write_after_finish = true;
+        }
         start_write_called = true;
+        start_write_called_count++;
         last_write_msg = msg;
         written_messages.push_back(*msg);
     }
 
-    void Finish(grpc::Status status) {
+    void Finish(const grpc::Status& status) {
+        finish_called_count++;
         finish_called = true;
         finish_status = status;
     }
 
     bool start_write_called = false;
+    int start_write_called_count = 0;
+    bool start_write_after_finish = false;
     bool finish_called = false;
+    int finish_called_count = 0;
     grpc::Status finish_status = grpc::Status::OK;
     const W* last_write_msg = nullptr;
     std::vector<W> written_messages;
@@ -440,6 +456,526 @@ TEST(SimpleAsyncGrpcTest, StateStreamWriterMoveOnlyLambda) {
 
     EXPECT_EQ(populate_calls, 1);
     writer->OnDone();
+}
+
+TEST(SimpleAsyncGrpcTest, GenericEventStreamWriterRaiiDestructionUnsubscribes) {
+    android::base::eventing::CallbackEventSource<ClipData> source;
+    EXPECT_EQ(source.CallbackCount(), 0);
+
+    {
+        GenericEventStreamWriter<ClipData> writer(&source);
+        EXPECT_EQ(source.CallbackCount(), 1);
+        // Writer goes out of scope without OnDone() or OnCancel() ever being invoked.
+    }
+
+    // Must automatically unsubscribe via ~BaseEventStreamWriter().
+    EXPECT_EQ(source.CallbackCount(), 0);
+
+    // Firing an event must not dispatch to the destroyed instance.
+    ClipData clip;
+    clip.set_text("post_destruction_event");
+    source.FireEvent(clip);
+}
+
+namespace {
+bool IsLinuxSanitizerBuild() {
+#if defined(__linux__)
+#if defined(__has_feature)
+#if __has_feature(address_sanitizer) || __has_feature(thread_sanitizer)
+    return true;
+#endif
+#endif
+#if defined(__SANITIZE_ADDRESS__) || defined(__SANITIZE_THREAD__)
+    return true;
+#endif
+#endif
+    if (std::getenv("RUN_REAL_GRPC_SERVER_TESTS") != nullptr) {
+        return true;
+    }
+    return false;
+}
+}  // namespace
+
+class RealGrpcServerTest : public ::testing::Test {
+  protected:
+    void SetUp() override {
+        if (!IsLinuxSanitizerBuild()) {
+            GTEST_SKIP() << "Real gRPC server tests only execute in Linux TSAN/ASAN builds.";
+        }
+        grpc::ServerBuilder builder;
+        int port = 0;
+        builder.AddListeningPort("localhost:0", grpc::InsecureServerCredentials(), &port);
+        builder.RegisterService(&service_);
+        server_ = builder.BuildAndStart();
+        ASSERT_NE(server_, nullptr);
+        server_address_ = "localhost:" + std::to_string(port);
+        channel_ = grpc::CreateChannel(server_address_, grpc::InsecureChannelCredentials());
+        stub_ = EmulatorController::NewStub(channel_);
+    }
+
+    void TearDown() override {
+        if (server_) {
+            auto deadline = std::chrono::system_clock::now() + std::chrono::milliseconds(200);
+            server_->Shutdown(deadline);
+            server_->Wait();
+        }
+        service_.read_fn = nullptr;
+        service_.reader_done_fn = nullptr;
+        service_.stream_clipboard_fn = nullptr;
+    }
+
+    class TestService : public EmulatorController::CallbackService {
+      public:
+        std::function<grpc::Status(const InputEvent*)> read_fn;
+        std::function<void()> reader_done_fn;
+
+        CallbackEventSource<ClipData> clipboard_source;
+
+        grpc::ServerReadReactor<InputEvent>* streamInputEvent(
+                grpc::CallbackServerContext* context, google::protobuf::Empty* response) override {
+            return new SimpleServerLambdaReader<InputEvent>(
+                    [this](const InputEvent* ev) {
+                        if (read_fn) return read_fn(ev);
+                        return grpc::Status::OK;
+                    },
+                    [this]() {
+                        if (reader_done_fn) reader_done_fn();
+                    });
+        }
+
+        std::function<grpc::ServerWriteReactor<ClipData>*(grpc::CallbackServerContext*,
+                                                          const google::protobuf::Empty*)>
+                stream_clipboard_fn;
+
+        grpc::ServerWriteReactor<ClipData>* streamClipboard(
+                grpc::CallbackServerContext* context,
+                const google::protobuf::Empty* request) override {
+            if (stream_clipboard_fn) {
+                return stream_clipboard_fn(context, request);
+            }
+            return new GenericEventStreamWriter<ClipData>(&clipboard_source);
+        }
+    };
+
+    TestService service_;
+    std::string server_address_;
+    std::unique_ptr<grpc::Server> server_;
+    std::shared_ptr<grpc::Channel> channel_;
+    std::unique_ptr<EmulatorController::Stub> stub_;
+};
+
+TEST_F(RealGrpcServerTest, SimpleServerLambdaReaderErrorTriggersUaf) {
+    std::atomic<bool> done_called{false};
+    service_.read_fn = [](const InputEvent* ev) {
+        return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT, "invalid input");
+    };
+    service_.reader_done_fn = [&]() { done_called.store(true); };
+
+    grpc::ClientContext context;
+    google::protobuf::Empty response;
+    auto stream = stub_->streamInputEvent(&context, &response);
+    InputEvent ev;
+    stream->Write(ev);
+    auto status = stream->Finish();
+    EXPECT_EQ(status.error_code(), grpc::StatusCode::INVALID_ARGUMENT);
+
+    // Give gRPC thread pool time to process OnDone and self-delete
+    for (int i = 0; i < 50 && !done_called.load(); ++i) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+    EXPECT_TRUE(done_called.load());
+}
+
+TEST_F(RealGrpcServerTest, WithSimpleReaderClientDoneTriggersUaf) {
+    std::atomic<bool> done_called{false};
+    service_.read_fn = [](const InputEvent* ev) { return grpc::Status::OK; };
+    service_.reader_done_fn = [&]() { done_called.store(true); };
+
+    grpc::ClientContext context;
+    google::protobuf::Empty response;
+    auto stream = stub_->streamInputEvent(&context, &response);
+    InputEvent ev;
+    stream->Write(ev);
+    stream->WritesDone();
+    auto status = stream->Finish();
+    EXPECT_TRUE(status.ok());
+
+    for (int i = 0; i < 50 && !done_called.load(); ++i) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+    EXPECT_TRUE(done_called.load());
+}
+
+TEST_F(RealGrpcServerTest, SimpleServerLambdaReaderConcurrentErrors) {
+    service_.read_fn = [](const InputEvent* ev) {
+        return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT, "invalid input");
+    };
+
+    std::vector<std::thread> clients;
+    for (int t = 0; t < 20; ++t) {
+        clients.emplace_back([&]() {
+            for (int i = 0; i < 5; ++i) {
+                grpc::ClientContext context;
+                google::protobuf::Empty response;
+                auto stream = stub_->streamInputEvent(&context, &response);
+                InputEvent ev;
+                stream->Write(ev);
+                auto status = stream->Finish();
+                EXPECT_EQ(status.error_code(), grpc::StatusCode::INVALID_ARGUMENT);
+            }
+        });
+    }
+    for (auto& c : clients) {
+        c.join();
+    }
+}
+
+TEST_F(RealGrpcServerTest, GenericEventStreamWriterConcurrentEventsDuringCancel) {
+    for (int iter = 0; iter < 10; ++iter) {
+        while (service_.clipboard_source.CallbackCount() > 0) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+
+        grpc::ClientContext context;
+        google::protobuf::Empty request;
+        auto stream = stub_->streamClipboard(&context, request);
+
+        while (service_.clipboard_source.CallbackCount() == 0) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+
+        std::atomic<bool> stop{false};
+        std::vector<std::thread> producers;
+        for (int t = 0; t < 4; ++t) {
+            producers.emplace_back([&, t]() {
+                int count = 0;
+                while (!stop.load(std::memory_order_relaxed)) {
+                    ClipData clip;
+                    clip.set_text("msg_" + std::to_string(t) + "_" + std::to_string(count++));
+                    service_.clipboard_source.FireEvent(clip);
+                }
+            });
+        }
+
+        ClipData received;
+        EXPECT_TRUE(stream->Read(&received));
+
+        // Cancel the stream while producers are actively firing events to stress-test
+        // concurrent Unsubscribe() and RemoveCallback() deadlock safety.
+        context.TryCancel();
+
+        auto status = stream->Finish();
+        EXPECT_EQ(status.error_code(), grpc::StatusCode::CANCELLED);
+
+        // Stop and join producers now that the stream has finished and unsubscribed.
+        stop.store(true, std::memory_order_relaxed);
+        for (auto& p : producers) {
+            p.join();
+        }
+    }
+}
+
+TEST_F(RealGrpcServerTest, GenericEventStreamWriterConcurrentEventsDuringServerFinish) {
+    for (int iter = 0; iter < 10; ++iter) {
+        while (service_.clipboard_source.CallbackCount() > 0) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+
+        std::atomic<GenericEventStreamWriter<ClipData>*> writer_ptr{nullptr};
+        service_.stream_clipboard_fn = [&](grpc::CallbackServerContext*,
+                                           const google::protobuf::Empty*) {
+            auto* writer = new GenericEventStreamWriter<ClipData>(&service_.clipboard_source);
+            writer_ptr.store(writer, std::memory_order_release);
+            return writer;
+        };
+
+        grpc::ClientContext context;
+        google::protobuf::Empty request;
+        auto stream = stub_->streamClipboard(&context, request);
+
+        while (service_.clipboard_source.CallbackCount() == 0 ||
+               writer_ptr.load(std::memory_order_acquire) == nullptr) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+
+        std::atomic<bool> stop{false};
+        std::vector<std::thread> producers;
+        for (int t = 0; t < 4; ++t) {
+            producers.emplace_back([&, t]() {
+                int count = 0;
+                while (!stop.load(std::memory_order_relaxed)) {
+                    ClipData clip;
+                    clip.set_text("msg_" + std::to_string(t) + "_" + std::to_string(count++));
+                    service_.clipboard_source.FireEvent(clip);
+                }
+            });
+        }
+
+        ClipData received;
+        EXPECT_TRUE(stream->Read(&received));
+
+        // Finish the stream from the server side without client cancellation.
+        // This exercises OnDone() -> delete this while producers are actively firing events,
+        // without OnCancel() being invoked.
+        writer_ptr.load(std::memory_order_acquire)->Finish(grpc::Status::OK);
+
+        while (stream->Read(&received)) {
+        }
+        auto status = stream->Finish();
+        EXPECT_TRUE(status.ok());
+
+        // Stop and join producers now that the stream has finished and unsubscribed.
+        stop.store(true, std::memory_order_relaxed);
+        for (auto& p : producers) {
+            p.join();
+        }
+
+        service_.stream_clipboard_fn = nullptr;
+    }
+}
+
+TEST_F(RealGrpcServerTest, WithSimpleQueueWriterQueuedWritesDuringCancel) {
+    for (int iter = 0; iter < 10; ++iter) {
+        while (service_.clipboard_source.CallbackCount() > 0) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+
+        grpc::ClientContext context;
+        google::protobuf::Empty request;
+        auto stream = stub_->streamClipboard(&context, request);
+
+        while (service_.clipboard_source.CallbackCount() == 0) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+
+        // Fire multiple events in rapid succession so that messages 2..20 are queued
+        // in write_queue_ while message 1 is in-flight on the wire.
+        for (int i = 0; i < 20; ++i) {
+            ClipData clip;
+            clip.set_text("queued_msg_" + std::to_string(i));
+            service_.clipboard_source.FireEvent(clip);
+        }
+
+        // Immediately cancel the stream while writes are still queued
+        context.TryCancel();
+
+        auto status = stream->Finish();
+        EXPECT_EQ(status.error_code(), grpc::StatusCode::CANCELLED);
+    }
+}
+
+template <typename R>
+class SelfDeletingFakeReactor {
+  public:
+    virtual ~SelfDeletingFakeReactor() = default;
+    virtual void OnReadDone(bool ok) = 0;
+    virtual void OnDone() {}
+
+    void StartRead(R* msg) {}
+    void Finish(grpc::Status status) {
+        // Simulates gRPC dispatching OnDone immediately upon Finish()
+        this->OnDone();
+    }
+};
+
+TEST(SimpleAsyncGrpcTest, SimpleServerLambdaReaderSelfDeletingUafSafety) {
+    struct MyMessage {
+        int value;
+    };
+    bool done_called = false;
+    auto* reader = new SimpleServerLambdaReader<MyMessage, SelfDeletingFakeReactor<MyMessage>>(
+            [](const MyMessage* msg) { return grpc::Status(grpc::StatusCode::CANCELLED, "stop"); },
+            [&]() { done_called = true; });
+
+    // OnReadDone triggers Read(), which returns non-OK status and invokes Base::Finish().
+    // Base::Finish immediately triggers OnDone(), which executes 'delete this'.
+    // If reactor_lock_ was held across Base::Finish, unlocking after delete this triggers a UAF.
+    reader->OnReadDone(true);
+    EXPECT_TRUE(done_called);
+}
+
+template <typename R>
+class SelfDeletingFakeClientReactor {
+  public:
+    virtual ~SelfDeletingFakeClientReactor() = default;
+    virtual void OnReadDone(bool ok) = 0;
+    virtual void OnDone(const grpc::Status& status) {}
+
+    void StartRead(R* msg) {}
+    void Finish(grpc::Status status) {
+        // Simulates gRPC dispatching OnDone immediately upon Finish()
+        this->OnDone(status);
+    }
+};
+
+TEST(SimpleAsyncGrpcTest, SimpleClientLambdaReaderSelfDeletingUafSafety) {
+    struct MyMessage {
+        int value;
+    };
+    bool done_called = false;
+    auto context = std::make_shared<grpc::ClientContext>();
+    auto* reader =
+            new SimpleClientLambdaReader<MyMessage, SelfDeletingFakeClientReactor<MyMessage>>(
+                    context,
+                    [](const MyMessage* msg) {
+                        return grpc::Status(grpc::StatusCode::CANCELLED, "stop");
+                    },
+                    [&](grpc::Status status) { done_called = true; });
+
+    // OnReadDone triggers Read(), which returns non-OK status and invokes Base::Finish().
+    // Base::Finish immediately triggers OnDone(), which executes 'delete this'.
+    // If reactor_lock_ was held across Base::Finish, unlocking after delete this triggers a UAF.
+    reader->OnReadDone(true);
+    EXPECT_TRUE(done_called);
+}
+
+TEST(SimpleAsyncGrpcTest, WithSimpleQueueWriterWritesIgnoredAfterFinish) {
+    struct TestMsg {
+        int value{0};
+    };
+
+    WithSimpleQueueWriter<FakeWriteReactor<TestMsg>> writer;
+
+    // Write message 1: starts writing immediately
+    writer.Write(TestMsg{1});
+    EXPECT_TRUE(writer.start_write_called);
+    EXPECT_EQ(writer.start_write_called_count, 1);
+    EXPECT_EQ(writer.QueueSize(), 1);
+
+    // Write message 2: enqueued as pending write
+    writer.Write(TestMsg{2});
+    EXPECT_EQ(writer.QueueSize(), 2);
+    EXPECT_EQ(writer.start_write_called_count, 1);
+
+    // Calling Finish() marks stream as finished and delegates to FakeWriteReactor::Finish
+    writer.Finish(grpc::Status::OK);
+    EXPECT_TRUE(writer.finish_called);
+    EXPECT_EQ(writer.finish_called_count, 1);
+    EXPECT_TRUE(writer.IsFinished());
+    EXPECT_FALSE(writer.IsCancelled());
+    // In-flight message 1 and pending message 2 remain in queue
+    EXPECT_EQ(writer.QueueSize(), 2);
+
+    // Subsequent Finish() is idempotent and does not delegate again
+    writer.Finish(grpc::Status::CANCELLED);
+    EXPECT_EQ(writer.finish_called_count, 1);
+    EXPECT_EQ(writer.finish_status.error_code(), grpc::StatusCode::OK);
+
+    // New writes after finish are safely ignored (both rvalue and const lvalue)
+    writer.Write(TestMsg{3});
+    const TestMsg lvalue_msg{4};
+    writer.Write(lvalue_msg);
+    EXPECT_EQ(writer.QueueSize(), 2);
+
+    // When the in-flight wire write completes, OnWriteDone pops message 1 and does NOT start write
+    // 2 or 3
+    writer.OnWriteDone(true);
+    // Message 1 is popped; pending message 2 remains unwritten in queue until destruction
+    EXPECT_EQ(writer.QueueSize(), 1);
+    EXPECT_EQ(writer.start_write_called_count, 1);
+    EXPECT_FALSE(writer.start_write_after_finish);
+}
+
+TEST(SimpleAsyncGrpcTest, WithSimpleQueueWriterConstWriteAfterFinishDoesNotDepleteRecyclePool) {
+    struct TestMsg {
+        int value{0};
+    };
+
+    WithSimpleQueueWriter<FakeWriteReactor<TestMsg>, 0, 5> writer;
+
+    // Send a message and complete it to populate the recycle pool
+    writer.Write(TestMsg{1});
+    writer.OnWriteDone(true);
+    EXPECT_EQ(writer.RecycleQueueSize(), 1);
+
+    // Finish the writer
+    writer.Finish(grpc::Status::OK);
+    EXPECT_TRUE(writer.IsFinished());
+
+    // Calling Write with const lvalue after finish should NOT acquire from or modify recycle pool
+    const TestMsg msg{2};
+    writer.Write(msg);
+    EXPECT_EQ(writer.RecycleQueueSize(), 1);
+    EXPECT_EQ(writer.QueueSize(), 0);
+}
+
+TEST(SimpleAsyncGrpcTest, WithSimpleQueueWriterWritesIgnoredAfterCancel) {
+    struct TestMsg {
+        int value{0};
+    };
+
+    struct TestCancelWriter : public WithSimpleQueueWriter<FakeWriteReactor<TestMsg>> {
+        using WithSimpleQueueWriter<FakeWriteReactor<TestMsg>>::SetCancelled;
+    };
+
+    TestCancelWriter writer;
+
+    writer.Write(TestMsg{10});
+    writer.Write(TestMsg{20});
+    EXPECT_EQ(writer.QueueSize(), 2);
+    EXPECT_EQ(writer.start_write_called_count, 1);
+
+    EXPECT_TRUE(writer.SetCancelled());
+    EXPECT_TRUE(writer.IsCancelled());
+    EXPECT_FALSE(writer.IsFinished());
+    EXPECT_EQ(writer.QueueSize(), 2);
+
+    // Subsequent writes ignored (both rvalue and const lvalue)
+    writer.Write(TestMsg{30});
+    const TestMsg lvalue_cancel{40};
+    writer.Write(lvalue_cancel);
+    EXPECT_EQ(writer.QueueSize(), 2);
+
+    writer.OnWriteDone(true);
+    EXPECT_EQ(writer.QueueSize(), 1);
+    EXPECT_EQ(writer.start_write_called_count, 1);
+    EXPECT_FALSE(writer.start_write_after_finish);
+
+    // Subsequent SetCancelled is idempotent
+    EXPECT_FALSE(writer.SetCancelled());
+}
+
+TEST(SimpleAsyncGrpcTest, WithSimpleQueueWriterConcurrentWritesAndFinish) {
+    struct TestMsg {
+        int value{0};
+    };
+
+    for (int iter = 0; iter < 100; ++iter) {
+        WithSimpleQueueWriter<FakeWriteReactor<TestMsg>> writer;
+
+        std::atomic<bool> start_signal{false};
+        std::vector<std::thread> producers;
+        for (int t = 0; t < 4; ++t) {
+            producers.emplace_back([&, t]() {
+                while (!start_signal.load(std::memory_order_acquire)) {
+                }
+                for (int i = 0; i < 50; ++i) {
+                    writer.Write(TestMsg{t * 1000 + i});
+                }
+            });
+        }
+
+        std::thread finisher([&]() {
+            while (!start_signal.load(std::memory_order_acquire)) {
+            }
+            writer.Finish(grpc::Status::OK);
+        });
+
+        start_signal.store(true, std::memory_order_release);
+
+        for (auto& p : producers) {
+            p.join();
+        }
+        finisher.join();
+
+        // Complete the in-flight wire write if one was started
+        if (writer.start_write_called) {
+            writer.OnWriteDone(true);
+        }
+
+        EXPECT_TRUE(writer.IsFinished());
+        EXPECT_FALSE(writer.start_write_after_finish);
+    }
 }
 
 }  // namespace android::emulation::control

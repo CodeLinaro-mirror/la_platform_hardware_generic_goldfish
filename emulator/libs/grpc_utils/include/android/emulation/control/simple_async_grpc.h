@@ -82,7 +82,7 @@ using Select_t = typename Select<Index, T>::type;
  * @details For a server reader, the channel will be closed with `grpc::Status::OK`
  * if a message cannot be read (i.e., `OnReadDone` is not ok).
  *
- * `T` can be a Server or Client Reactor. Note that for a client reactor, you must
+ * `T` can be a Server or Client Reactor. Note that for a client reader, you must
  * explicitly call `StartRead` once you create the reader object.
  *
  * @tparam T The base gRPC reactor class (e.g., `grpc::ServerReadReactor`,
@@ -113,8 +113,7 @@ class WithSimpleReader : public T, public virtual WithReactorLock {
             }
         } else {
             if constexpr (is_server::value) {
-                // Call finish if we are a server
-                absl::MutexLock lock(&this->reactor_lock_);
+                // Call finish if we are a server without holding reactor_lock_
                 T::Finish(grpc::Status::OK);
             }
         }
@@ -168,7 +167,6 @@ class SimpleServerLambdaReader : public WithSimpleReader<Base> {
     virtual bool Read(const R* read) override {
         auto status = read_fn_(read);
         if (!status.ok()) {
-            absl::MutexLock lock(&this->reactor_lock_);
             Base::Finish(status);
             return false;
         }
@@ -237,7 +235,6 @@ class SimpleClientLambdaReader : public WithSimpleReader<Base> {
     virtual bool Read(const R* read) override {
         auto status = read_fn_(read);
         if (!status.ok()) {
-            absl::MutexLock lock(&this->reactor_lock_);
             Base::Finish(status);
             return false;
         }
@@ -269,14 +266,14 @@ class SimpleClientLambdaReader : public WithSimpleReader<Base> {
  * wire.
  * - The internal queue will grow unbounded if the enqueue rate exceeds the underlying gRPC
  * network transmission rate and max_queue_size is 0.
- * - **Capacity & In-flight Semantics (`max_queue_size`)**: When `writing_` is in progress, the
- * front element (`write_queue_.front()`) is currently in-flight on the gRPC wire and owned by the
- * reactor; it cannot be modified or dropped until `OnWriteDone()`. Therefore, `max_queue_size`
- * bounds the number of queued pending messages. When the queue reaches `max_queue_size`, new writes
- * replace the latest pending message at the back of the queue. Consequently, total
- * `write_queue_.size()` (and `QueueSize()`) can reach up to `max_queue_size + 1` (1 in-flight item
- * + `max_queue_size` pending items; e.g., when `max_queue_size == 1`, size can be 2: 1 in-flight
- * and 1 pending).
+ * - **Capacity & In-flight Semantics (`max_queue_size`)**: When `status_.writing` is in
+ * progress, the front element (`write_queue_.front()`) is currently in-flight on the gRPC wire and
+ * owned by the reactor; it cannot be modified or dropped until `OnWriteDone()`. Therefore,
+ * `max_queue_size` bounds the number of queued pending messages. When the queue reaches
+ * `max_queue_size`, new writes replace the latest pending message at the back of the queue.
+ * Consequently, total `write_queue_.size()` (and `QueueSize()`) can reach up to `max_queue_size +
+ * 1` (1 in-flight item + `max_queue_size` pending items; e.g., when `max_queue_size == 1`, size can
+ * be 2: 1 in-flight and 1 pending).
  * - When `recycle_size > 0`, sent or evicted message objects are preserved in an internal recycle
  * pool and can be retrieved via `AcquireMessage()`. **Important**: Recycled objects can (and will)
  * contain stale data from previous transmissions. It is up to the caller (or populate function) to
@@ -310,7 +307,7 @@ class WithSimpleQueueWriter : public T, public virtual WithReactorLock {
                 }
             }
             write_queue_.pop_front();
-            writing_ = false;
+            status_.writing = false;
         }
         NextWrite();
     }
@@ -321,6 +318,12 @@ class WithSimpleQueueWriter : public T, public virtual WithReactorLock {
      * @param msg The message object of type `W` to write.
      */
     void Write(const W& msg) {
+        {
+            absl::MutexLock lock(&this->reactor_lock_);
+            if (status_.IsTerminated()) {
+                return;
+            }
+        }
         if constexpr (recycle_size > 0) {
             W recycled = this->AcquireMessage();
             recycled = msg;  // Overwrites and reuses buffers
@@ -339,14 +342,17 @@ class WithSimpleQueueWriter : public T, public virtual WithReactorLock {
     void Write(W&& msg) {
         {
             absl::MutexLock lock(&this->reactor_lock_);
+            if (status_.IsTerminated()) {
+                return;
+            }
             // Drop previously queued pending element if the pending backlog is full.
-            // Note: If writing_ is true, write_queue_.front() is in-flight on the wire and owned
-            // by the gRPC reactor, so pending_count tracks unwritten elements waiting in the queue.
-            // For real-time streams (e.g. graphics/video frames), replacing the unwritten
-            // frame at the back ensures the newest frame is delivered with lowest latency
-            // while preserving monotonic arrival order without queue reordering.
+            // Note: If status_.writing is true, write_queue_.front() is in-flight on the wire and
+            // owned by the gRPC reactor, so pending_count tracks unwritten elements waiting in the
+            // queue. For real-time streams (e.g. graphics/video frames), replacing the unwritten
+            // frame at the back ensures the newest frame is delivered with lowest latency while
+            // preserving monotonic arrival order without queue reordering.
             if (max_queue_size > 0) {
-                const size_t in_flight = writing_ ? 1 : 0;
+                const size_t in_flight = status_.writing ? 1 : 0;
                 const size_t pending_count = write_queue_.size() - in_flight;
                 if (pending_count >= max_queue_size) {
                     if constexpr (recycle_size > 0) {
@@ -405,23 +411,86 @@ class WithSimpleQueueWriter : public T, public virtual WithReactorLock {
         return 0;
     }
 
+    /**
+     * @brief Returns true if the stream has finished.
+     */
+    bool IsFinished() const {
+        absl::MutexLock lock(&this->reactor_lock_);
+        return status_.finished;
+    }
+
+    /**
+     * @brief Returns true if the client cancelled the stream.
+     */
+    bool IsCancelled() const {
+        absl::MutexLock lock(&this->reactor_lock_);
+        return status_.cancelled;
+    }
+
+    /**
+     * @brief Finishes the stream. Thread-safe and idempotent.
+     */
+    template <typename... Args>
+    void Finish(Args&&... args) {
+        if (SetFinished()) {
+            T::Finish(std::forward<Args>(args)...);
+        }
+    }
+
+  protected:
+    struct StatusFlags {
+        bool writing : 1 {false};
+        bool finished : 1 {false};
+        bool cancelled : 1 {false};
+
+        bool IsTerminated() const { return finished || cancelled; }
+    };
+
+    /**
+     * @brief Marks the writer as finished.
+     *
+     * @return true if this call transitioned the writer to finished; false if already finished.
+     */
+    bool SetFinished() {
+        absl::MutexLock lock(&this->reactor_lock_);
+        if (status_.finished) {
+            return false;
+        }
+        status_.finished = true;
+        return true;
+    }
+
+    /**
+     * @brief Marks the writer as cancelled.
+     *
+     * @return true if this call transitioned the writer to cancelled; false if already cancelled.
+     */
+    bool SetCancelled() {
+        absl::MutexLock lock(&this->reactor_lock_);
+        if (status_.cancelled) {
+            return false;
+        }
+        status_.cancelled = true;
+        return true;
+    }
+
   private:
     void NextWrite() {
         absl::MutexLock lock(&this->reactor_lock_);
-        if (!write_queue_.empty() && !writing_) {
-            writing_ = true;
+        if (!status_.IsTerminated() && !status_.writing && !write_queue_.empty()) {
+            status_.writing = true;
             T::StartWrite(&write_queue_.front());
         }
     }
 
-    std::deque<W> write_queue_;
-    bool writing_{false};
+    std::deque<W> write_queue_ ABSL_GUARDED_BY(this->reactor_lock_);
+    StatusFlags status_ ABSL_GUARDED_BY(this->reactor_lock_){};
     using storage_type =
             std::conditional_t<(recycle_size > 0), recycle_storage, empty_recycle_storage>;
 
     // Takes 0 bytes when recycle_size == 0 due to [[no_unique_address]]
     // https://en.cppreference.com/cpp/language/attributes/no_unique_address
-    [[no_unique_address]] storage_type recycled_;
+    [[no_unique_address]] storage_type recycled_ ABSL_GUARDED_BY(this->reactor_lock_);
 };
 
 /**
