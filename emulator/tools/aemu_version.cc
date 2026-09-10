@@ -13,23 +13,28 @@
 // limitations under the License.
 
 #include "goldfish/tools/aemu_version.h"
- 
+
+#include <string>
 #include <string_view>
 
 namespace goldfish::version {
-namespace {
 
-constexpr std::string_view kBuildId = "@BUILD_ID@";
-constexpr std::string_view kFullVersion = "@VERSION@-@BUILD_ID@";
-
-}  // namespace
+// Defined in aemu_linkstamp.cc (compiled per-binary at link time).
+extern const char kStampedBuildId[];
 
 std::string_view GetEmulatorBuildId() {
-    return kBuildId;
+    if (kStampedBuildId[0] != '\0') {
+        return kStampedBuildId;
+    }
+    return "developer";
 }
 
 std::string_view GetEmulatorFullVersion() {
-    return kFullVersion;
+    static const std::string* const kFullVersion = []() {
+        std::string_view build_id = GetEmulatorBuildId();
+        return new std::string(std::string(VERSION) + "-" + std::string(build_id));
+    }();
+    return *kFullVersion;
 }
 
 }  // namespace goldfish::version

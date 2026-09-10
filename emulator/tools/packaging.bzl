@@ -38,8 +38,11 @@ def _aemu_naming_impl(ctx):
     values["target_cpu"] = ctx.var.get("TARGET_CPU")
     values["compilation_mode"] = ctx.var.get("COMPILATION_MODE")
 
-    build_id_dep = ctx.attr.build_id_dep[PackageVariablesInfo]
-    values["build_id"] = build_id_dep.values["build_id"]
+    if ctx.attr.build_id_dep:
+        build_id_dep = ctx.attr.build_id_dep[PackageVariablesInfo]
+        values["build_id"] = build_id_dep.values["build_id"]
+    else:
+        values["build_id"] = ctx.attr.build_id or "developer"
     return PackageVariablesInfo(values = values)
 
 #
