@@ -16,29 +16,48 @@
 #include <cstdint>
 #include <functional>
 #include <memory>
+#include <optional>
+#include <string_view>
 
 #include "absl/status/status.h"
 
 #include "emulator_controller.pb.h"
+#include "input/input_service.pb.h"
 
 namespace goldfish::videobridge {
 
 using ::android::emulation::control::InputEvent;
+using V2InputEvent = ::android::emulation::v2::input::InputEvent;
 
 /**
  * @brief Labels representing the different type of WebRTC data channels
  * used for forwarding inputs to the emulator.
  */
-enum class DataChannelLabel : uint8_t { kInput, kAdb };
+enum class DataChannelLabel : uint8_t { kInput, kInputV2, kAdb };
 
 inline const char* AsString(DataChannelLabel label) {
     switch (label) {
     case DataChannelLabel::kInput:
         return "input";
+    case DataChannelLabel::kInputV2:
+        return "input_v2";
     case DataChannelLabel::kAdb:
         return "adb";
     }
     return "unknown";
+}
+
+inline std::optional<DataChannelLabel> ParseDataChannelLabel(std::string_view label) {
+    if (label == "input") {
+        return DataChannelLabel::kInput;
+    }
+    if (label == "input_v2") {
+        return DataChannelLabel::kInputV2;
+    }
+    if (label == "adb") {
+        return DataChannelLabel::kAdb;
+    }
+    return std::nullopt;
 }
 
 /**
@@ -67,6 +86,13 @@ class InputSender {
      * @param event The parsed protobuf InputEvent to be injected.
      */
     virtual void SendEvent(const InputEvent& event) = 0;
+
+    /**
+     * @brief Forwards an AEMU v2 heterogeneous input event to the emulator.
+     *
+     * @param event The parsed v2 protobuf InputEvent to be injected.
+     */
+    virtual void SendV2Event(const V2InputEvent& /*event*/) {}
 
     /**
      * @brief Stops the underlying input transport channel and releases resources.
