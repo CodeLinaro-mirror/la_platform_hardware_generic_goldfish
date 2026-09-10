@@ -17,6 +17,7 @@
 #include <chrono>
 #include <thread>
 
+#include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
@@ -545,7 +546,7 @@ absl::Status AvdExtendedUniverse::OnLoadPhysicalState(archive::IReader& reader) 
 void AvdExtendedUniverse::SyncGuestTimeToHost() {
     std::thread([serialNumber = props_->serial_number]() {
         int clientPort = goldfish::adb::AdbHostServer::getClientPort();
-        bool success = false;
+        auto last_status = absl::OkStatus();
         for (int retry = 0; retry < 20; ++retry) {
             // We use 'cmd alarm set-time <epoch_ms>' because:
             // 1. Android's shell user (UID 2000) holds android.permission.SET_TIME,
@@ -567,18 +568,22 @@ void AvdExtendedUniverse::SyncGuestTimeToHost() {
             //   than network/telephony or disabled by default in device configuration.
             int64_t now_ms = absl::ToUnixMillis(absl::Now());
             std::string cmd = absl::StrCat("cmd alarm set-time ", now_ms);
-            if (goldfish::adb::AdbHostServer::runShellCommand(cmd, serialNumber, clientPort)) {
+            auto s = goldfish::adb::AdbHostServer::runShellCommand(cmd, serialNumber, clientPort);
+            if (s.ok()) {
                 LOG(INFO) << "Updated guest system time to " << now_ms
                           << " via ADB after snapshot restore.";
-                success = true;
-                break;
+                return;
             }
+            if (absl::IsUnauthenticated(s)) {
+                LOG(WARNING) << "Aborting guest time sync for emulator-" << serialNumber
+                             << ": ADB authentication mismatch (device is unauthorized).";
+                return;
+            }
+            last_status = s;
             std::this_thread::sleep_for(std::chrono::milliseconds(500));
         }
-        if (!success) {
-            LOG(WARNING) << "Failed to update guest system time via ADB after snapshot restore "
-                            "(timed out waiting for ADB).";
-        }
+        LOG(WARNING) << "Failed to update guest system time via ADB after snapshot restore: "
+                     << last_status;
     }).detach();
 }
 
