@@ -1,0 +1,24 @@
+# Copyright 2025 - The Android Open Source Project
+#
+# SPDX-License-Identifier: Apache-2.0
+
+"""idna_adapter bazel build rule"""
+
+load("@rules_rust//rust:defs.bzl", "rust_library")
+
+package(default_visibility = ["//visibility:public"])
+
+rust_library(
+    name = "idna_adapter",
+    srcs = glob(["**/*.rs"]),
+    crate_features = [
+        "compiled_data",
+    ],
+    crate_name = "idna_adapter",
+    crate_root = "src/lib.rs",
+    edition = "2024",
+    deps = [
+        "@icu_normalizer",
+        "@icu_properties",
+    ],
+)

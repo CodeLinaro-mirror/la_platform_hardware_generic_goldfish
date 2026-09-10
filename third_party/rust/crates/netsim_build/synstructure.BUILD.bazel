@@ -1,0 +1,25 @@
+# Copyright 2025 - The Android Open Source Project
+#
+# SPDX-License-Identifier: Apache-2.0
+
+"""synstructure bazel build rule"""
+
+load("@rules_rust//rust:defs.bzl", "rust_library")
+
+package(default_visibility = ["//visibility:public"])
+
+rust_library(
+    name = "synstructure",
+    srcs = glob(["**/*.rs"]),
+    crate_features = [
+        "proc-macro",
+    ],
+    crate_name = "synstructure",
+    crate_root = "src/lib.rs",
+    edition = "2018",
+    deps = [
+        "@proc-macro2",
+        "@quote",
+        "@syn",
+    ],
+)
