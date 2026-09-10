@@ -156,8 +156,14 @@ void QemuKeyEvent::send(QKbdState* kbd) const {
     qkbd_state_key_event(kbd, code, down);
 }
 
+namespace {
+constexpr std::string_view ToKeycodeStringView(const char* str) {
+    return str ? std::string_view(str) : std::string_view();
+}
+}  // namespace
+
 #define USB_KEYMAP(usb, evdev, xkb, win, mac, code, id) \
-    {DomCode::id, usb, evdev, xkb, win, mac, code}
+    {DomCode::id, usb, evdev, xkb, win, mac, ToKeycodeStringView(code)}
 #define USB_KEYMAP_DECLARATION static const std::vector<KeycodeMapEntry> usb_keycode_map =
 #include "keycode_converter_data.inc"
 
@@ -181,6 +187,30 @@ QKeyCode dom_to_qcode(DomCode key) {
 uint32_t dom_to_evdev(DomCode key) {
     for (const auto entry : usb_keycode_map) {
         if (entry.id == key) {
+            return entry.evdev;
+        }
+    }
+    return 0;
+}
+
+uint32_t dom_code_to_evdev(std::string_view code) {
+    if (code.empty()) {
+        return 0;
+    }
+
+    // Alias common shorthands to canonical W3C DOM Code names
+    if (code == "VolumeUp") {
+        code = "AudioVolumeUp";
+    } else if (code == "VolumeDown") {
+        code = "AudioVolumeDown";
+    } else if (code == "VolumeMute") {
+        code = "AudioVolumeMute";
+    } else if (code == "Back") {
+        code = "GoBack";
+    }
+
+    for (const auto& entry : usb_keycode_map) {
+        if (entry.code == code) {
             return entry.evdev;
         }
     }
