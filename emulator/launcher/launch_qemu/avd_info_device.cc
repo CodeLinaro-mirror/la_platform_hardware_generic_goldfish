@@ -63,6 +63,7 @@ absl::Status AvdInfoDevice::initialize(const EmulatorConfig& emulator) {
         {"build_sdk", emulator.avd().BuildSdk()},
         {"build_id", emulator.avd().BuildId()},
         {"build_flavour", emulator.avd().BuildFlavour()},
+        {"build_fingerprint", emulator.avd().BuildFingerprint()},
     };
 
     if (char* perf_stat = emulator.opts().perf_stat) {

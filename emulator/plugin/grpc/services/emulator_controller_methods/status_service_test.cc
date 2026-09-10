@@ -23,6 +23,7 @@
 #include "android/goldfish/fake_hardware_config.h"
 #include "emulator_controller.grpc.pb.h"
 #include "goldfish/avd_info/avd_info.h"
+#include "goldfish/tools/aemu_version.h"
 #include "test/grpc_service_test.h"
 
 namespace android::emulation::control {
@@ -90,14 +91,19 @@ TEST_F(StatusServiceTest, GetStatusInitialState) {
     EXPECT_FALSE(reply.booted());
     EXPECT_EQ(reply.heartbeat(), 0);
     EXPECT_GT(reply.uptime(), 0);
+    EXPECT_EQ(reply.version(), absl::StrCat(::goldfish::version::GetEmulatorVersion(), " (",
+                                            ::goldfish::version::GetEmulatorFullVersion(), ")"));
 
     // Check guestconfig
-    auto guestConfig = reply.guestconfig();
-    EXPECT_EQ(guestConfig["multidisplay"], "unavailable");
-    EXPECT_EQ(guestConfig["androidVersion"], "15.0 (V) - API 35");
-    EXPECT_EQ(guestConfig["hypervisorVersion"], "None");
+    auto guest_config = reply.guestconfig();
+    EXPECT_EQ(guest_config["multidisplay"], "unavailable");
+    EXPECT_EQ(guest_config["androidVersion"], "15.0 (V) - API 35");
+    EXPECT_EQ(guest_config["hypervisorVersion"], "None");
+    EXPECT_FALSE(guest_config["hostOsName"].empty());
+    EXPECT_FALSE(guest_config["totalMem"].empty());
+    EXPECT_EQ(guest_config["gpu"], "host");
 
-    std::string expectedAvdDetails =
+    std::string expected_avd_details =
             "Name: fake-avd\n"
             "CPU/ABI: \n"
             "Path: \n"
@@ -105,7 +111,7 @@ TEST_F(StatusServiceTest, GetStatusInitialState) {
             "Build SDK: \n"
             "Build ID: \n"
             "Build Flavour: \n";
-    EXPECT_EQ(guestConfig["avdDetails"], expectedAvdDetails);
+    EXPECT_EQ(guest_config["avdDetails"], expected_avd_details);
 
     // Check hardwareconfig
     EXPECT_GT(reply.hardwareconfig().entry_size(), 0);
@@ -229,6 +235,20 @@ TEST_F(StatusServiceTest, GetStatusWithNetsimEndpoint) {
 
     auto platform = reply.platformconfig();
     EXPECT_EQ(platform["netsim.endpoint"], "localhost:12345");
+}
+
+TEST_F(StatusServiceTest, GetStatusWithBuildFingerprint) {
+    mAvdProperties.build_fingerprint =
+            "google/sdk_gphone64_x86_64/emu64x:15/AP3A/12345:userdebug/dev-keys";
+
+    Empty request;
+    EmulatorStatus reply;
+    auto context = getContextWithTimeout();
+    ASSERT_GRPC_STATUS(mStub->getStatus(context.get(), request, &reply));
+
+    auto guest_config = reply.guestconfig();
+    EXPECT_EQ(guest_config["buildFingerprint"],
+              "google/sdk_gphone64_x86_64/emu64x:15/AP3A/12345:userdebug/dev-keys");
 }
 
 }  // namespace android::emulation::control
