@@ -1,5 +1,5 @@
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
-load("@rules_python//python:defs.bzl", "py_binary")
+load("@rules_python//python:defs.bzl", "py_binary", "py_test")
 load(":packaging.bzl", "aemu_naming")
 load(":version_info.bzl", "version_info_header")
 
@@ -30,6 +30,15 @@ config_setting(
 py_binary(
     name = "symbol_zipper",
     srcs = ["symbol_zipper.py"],
+)
+
+py_test(
+    name = "symbol_zipper_test",
+    srcs = ["symbol_zipper_test.py"],
+    data = ["symbol_zipper.py"],
+    deps = [
+        ":symbol_zipper",
+    ],
 )
 
 py_binary(

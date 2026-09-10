@@ -177,12 +177,17 @@ def _symbol_zipper_impl(ctx):
     args = ctx.actions.args()
     args.add("-o", output_file.path)
     args.add("-c", str(ctx.attr.compression_level))
+    args.add("-t", "315532800")
+    args.add("--sevenzip", ctx.executable._sevenzip.path)
     args.add_all([input.path for input in all_inputs])
+    args.set_param_file_format("multiline")
+    args.use_param_file("@%s")
 
     ctx.actions.run(
         mnemonic = "SymbolZip",
         inputs = all_inputs,
         executable = ctx.executable._symbol_zipper_exe,
+        tools = [ctx.attr._sevenzip[DefaultInfo].files_to_run],
         arguments = [args],
         outputs = [output_file],
         env = {
@@ -190,6 +195,7 @@ def _symbol_zipper_impl(ctx):
             "LC_CTYPE": "UTF-8",
             "PYTHONIOENCODING": "UTF-8",
             "PYTHONUTF8": "1",
+            "TZ": "UTC",
         },
         use_default_shell_env = True,
     )
@@ -203,14 +209,14 @@ symbol_zipper = rule(
             mandatory = True,
             doc = "The list of symbol files.",
         ),
+        "compression_level": attr.int(
+            default = 1,
+            doc = "The compression level to use (0-9). 0 is uncompressed, 1 is fastest.",
+        ),
         "package_file_name": attr.string(doc = "See [Common Attributes](#package_file_name)", mandatory = True),
         "package_variables": attr.label(
             doc = "See [Common Attributes](#package_variables)",
             providers = [PackageVariablesInfo],
-        ),
-        "compression_level": attr.int(
-            default = 1,
-            doc = "The compression level (0-9) to use for the zip archive. 0 is stored, 1 is fastest, 9 is maximum.",
         ),
         "out": attr.output(
             doc = """output file name. Default: name + ".zip".""",
@@ -223,6 +229,12 @@ symbol_zipper = rule(
             cfg = "exec",
             doc = "The symbol_zipper executable. Defaults to @goldfish//emulator/tools:symbol_zipper.",
         ),
+        "_sevenzip": attr.label(
+            default = Label("@goldfish_build//rules:7za"),
+            executable = True,
+            cfg = "exec",
+            doc = "The 7za executable.",
+        ),
     },
 )
 
@@ -230,7 +242,7 @@ def breakpad_symbols_pkg(name, binaries, package_file_name, package_variables, i
     """Creates a zip file with breakpad symbols.
 
     This function first extracts symbols from the given binaries using the
-    `breakpad_symbols` rule. Then, it uses `pkg_zip` to package the extracted
+    `breakpad_symbols` rule. Then, it uses `symbol_zipper` to package the extracted
     symbols into a zip file.
 
     Args:
@@ -240,7 +252,7 @@ def breakpad_symbols_pkg(name, binaries, package_file_name, package_variables, i
         package_file_name: The name of the output zip file.
         package_variables: A dictionary of variables to be expanded in the
                            package template.
-        compression_level: The compression level (0-9) to use for the zip archive.
+        compression_level: The compression level (0-9) to use for the zip archive. Defaults to 1.
     """
     extract = name + "_extract"
     breakpad_symbols(
@@ -259,7 +271,7 @@ def breakpad_symbols_pkg(name, binaries, package_file_name, package_variables, i
         package_variables = package_variables,
     )
 
-def native_symbols_pkg(name, binaries, package_file_name, package_variables, layout_templates = {}, compression_level = None):
+def native_symbols_pkg(name, binaries, package_file_name, package_variables, layout_templates = {}, compression_level = 1):
     """Creates a zip file with native symbols.
 
     This function first extracts symbols from the given binaries using the
