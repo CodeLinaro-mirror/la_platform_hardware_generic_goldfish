@@ -71,6 +71,10 @@ constexpr uint32_t kDynamicPortsStart = 1U << 31;
 constexpr uint32_t kMaxReturnedHostPortsSize = 1024;
 constexpr uint32_t kTicksPerHostPort = 1024;
 
+bool is_host_ahead(const uint32_t host_tx, const uint32_t guest_rx) {
+    return static_cast<int32_t>(host_tx - guest_rx) >= 0;
+}
+
 struct GoldfishVirtioVsockDevice;
 
 struct VsockStream : public goldfish::devices::cable::ISocket {
@@ -416,7 +420,7 @@ struct GoldfishVirtioVsockDevice {
             if (streamI != mStreams.end()) {
                 VsockStream& stream = const_cast<VsockStream&>(*streamI);
                 unsigned op;
-                if (hdr.fwd_cnt > stream.hostSentCnt) {
+                if (!is_host_ahead(stream.hostSentCnt, hdr.fwd_cnt)) {
                     LOG(INFO) << "The guest claims it received more (" << hdr.fwd_cnt
                               << ") than we sent (" << stream.hostSentCnt << ")";
                     op = VIRTIO_VSOCK_OP_RST;
@@ -476,7 +480,7 @@ struct GoldfishVirtioVsockDevice {
         const auto streamI = mStreams.find(key);
         if (streamI != mStreams.end()) {
             VsockStream& stream = const_cast<VsockStream&>(*streamI);
-            if (hdr.fwd_cnt > stream.hostSentCnt) {
+            if (!is_host_ahead(stream.hostSentCnt, hdr.fwd_cnt)) {
                 LOG(INFO) << "The guest claims it received more (" << hdr.fwd_cnt
                           << ") than we sent (" << stream.hostSentCnt << ")";
 
@@ -556,7 +560,7 @@ struct GoldfishVirtioVsockDevice {
 
         for (const VsockStream& cStream : mStreams) {
             VsockStream& stream = const_cast<VsockStream&>(cStream);
-            DCHECK(stream.guestFwdCnt <= stream.hostSentCnt);
+            DCHECK(is_host_ahead(stream.hostSentCnt, stream.guestFwdCnt));
             size_t guestAvailSize =
                     stream.guestBufAlloc - (stream.hostSentCnt - stream.guestFwdCnt);
             unsigned sendOpMask =
