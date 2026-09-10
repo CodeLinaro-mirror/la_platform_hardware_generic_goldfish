@@ -592,7 +592,7 @@ parallel_pkg_zip(
     ],
     compression_level = select({
         ":is_developer_build": 0,
-        "//conditions:default": 9,
+        "//conditions:default": 6,
     }),
     package_file_name = select({
         ":internal_fishtank_enabled": "G3-sdk-repo-{platform}-{product_name}-{build_id}.zip",
@@ -616,7 +616,7 @@ parallel_pkg_zip(
     ],
     compression_level = select({
         ":is_developer_build": 0,
-        "//conditions:default": 9,
+        "//conditions:default": 6,
     }),
     package_file_name = "UNSTRIPPED-sdk-repo-{platform}-{product_name}-{build_id}.zip",
     package_variables = "//emulator/tools:aemu_version_info",
@@ -626,6 +626,10 @@ parallel_pkg_zip(
 breakpad_symbols_pkg(
     name = "package_goldfish_symbols",
     binaries = all_binaries,
+    compression_level = select({
+        ":is_developer_build": 0,
+        "//conditions:default": 1,
+    }),
     ignore_paths_with_suffix = [
         "goldfish_prebuilts_common+/vulkan/windows-x86_64/vulkan-1.dll",
         "goldfish_prebuilts_common+/vulkan/windows-x86_64/icds/libvulkan_lvp.dll",
@@ -640,7 +644,7 @@ native_symbols_pkg(
     binaries = all_binaries,
     compression_level = select({
         ":is_developer_build": 0,
-        "//conditions:default": 9,
+        "//conditions:default": 1,
     }),
     layout_templates = {
         "launcher": ":launcher",

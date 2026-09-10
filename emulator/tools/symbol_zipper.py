@@ -195,13 +195,31 @@ def main():
         help="The unix time to use for files added into the zip. values prior to"
         " Jan 1, 1980 are ignored.",
     )
+    parser.add_argument(
+        "-c",
+        "--compression-level",
+        type=int,
+        choices=range(0, 10),
+        default=1,
+        help="Compression level (0-9). 0 is stored (no compression), 1 is fastest, 9 is maximum.",
+    )
 
     args = parser.parse_args()
     lvl = logging.DEBUG if args.verbose else logging.INFO
     configure_logging(lvl)
 
+    compress_type = (
+        zipfile.ZIP_STORED if args.compression_level == 0 else zipfile.ZIP_DEFLATED
+    )
+    compress_level = None if args.compression_level == 0 else args.compression_level
     unix_ts = parse_date(max(ZIP_EPOCH, args.timestamp))
-    with zipfile.ZipFile(args.out, "w", zipfile.ZIP_DEFLATED, allowZip64=True) as zipf:
+    with zipfile.ZipFile(
+        args.out,
+        "w",
+        compression=compress_type,
+        compresslevel=compress_level,
+        allowZip64=True,
+    ) as zipf:
         seen_entry = set()
         for path in args.symbol_file:
             arcname = str(symbol_destination(Path(path)))
@@ -212,11 +230,11 @@ def main():
             logging.debug("Writing %s -> %s", path, arcname)
 
             zip_info = zipfile.ZipInfo.from_file(path, arcname)
-            zip_info.compress_type = zipfile.ZIP_DEFLATED
+            zip_info.compress_type = compress_type
             zip_info.external_attr = 0o644 << 16
             zip_info.date_time = unix_ts
             with open(path, "rb") as f:
-                zipf.writestr(zip_info, f.read())
+                zipf.writestr(zip_info, f.read(), compresslevel=compress_level)
 
 
 if __name__ == "__main__":

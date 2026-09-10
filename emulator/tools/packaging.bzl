@@ -173,6 +173,7 @@ def _symbol_zipper_impl(ctx):
     # arguments for zip action.
     args = ctx.actions.args()
     args.add("-o", output_file.path)
+    args.add("-c", str(ctx.attr.compression_level))
     args.add_all([input.path for input in all_inputs])
 
     ctx.actions.run(
@@ -204,6 +205,10 @@ symbol_zipper = rule(
             doc = "See [Common Attributes](#package_variables)",
             providers = [PackageVariablesInfo],
         ),
+        "compression_level": attr.int(
+            default = 1,
+            doc = "The compression level (0-9) to use for the zip archive. 0 is stored, 1 is fastest, 9 is maximum.",
+        ),
         "out": attr.output(
             doc = """output file name. Default: name + ".zip".""",
             mandatory = True,
@@ -218,7 +223,7 @@ symbol_zipper = rule(
     },
 )
 
-def breakpad_symbols_pkg(name, binaries, package_file_name, package_variables, ignore_paths_with_suffix = None):
+def breakpad_symbols_pkg(name, binaries, package_file_name, package_variables, ignore_paths_with_suffix = None, compression_level = 1):
     """Creates a zip file with breakpad symbols.
 
     This function first extracts symbols from the given binaries using the
@@ -232,6 +237,7 @@ def breakpad_symbols_pkg(name, binaries, package_file_name, package_variables, i
         package_file_name: The name of the output zip file.
         package_variables: A dictionary of variables to be expanded in the
                            package template.
+        compression_level: The compression level (0-9) to use for the zip archive.
     """
     extract = name + "_extract"
     breakpad_symbols(
@@ -245,6 +251,7 @@ def breakpad_symbols_pkg(name, binaries, package_file_name, package_variables, i
         out = name + ".zip",
         symbols = [extract],
         tags = ["manual"],
+        compression_level = compression_level,
         package_file_name = package_file_name,
         package_variables = package_variables,
     )
