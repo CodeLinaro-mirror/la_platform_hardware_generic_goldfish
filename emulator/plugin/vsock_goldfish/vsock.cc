@@ -561,8 +561,9 @@ struct GoldfishVirtioVsockDevice {
         for (const VsockStream& cStream : mStreams) {
             VsockStream& stream = const_cast<VsockStream&>(cStream);
             DCHECK(is_host_ahead(stream.hostSentCnt, stream.guestFwdCnt));
+            const uint32_t in_flight_size = stream.hostSentCnt - stream.guestFwdCnt;
             size_t guestAvailSize =
-                    stream.guestBufAlloc - (stream.hostSentCnt - stream.guestFwdCnt);
+                    stream.guestBufAlloc - std::min(in_flight_size, stream.guestBufAlloc);
             unsigned sendOpMask =
                     stream.sendOpMask |
                     ((guestAvailSize == 0) ? (1U << VIRTIO_VSOCK_OP_CREDIT_REQUEST) : 0);
