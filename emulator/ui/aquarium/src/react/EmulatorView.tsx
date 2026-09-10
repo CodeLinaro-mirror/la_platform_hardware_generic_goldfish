@@ -243,20 +243,28 @@ export function EmulatorView({
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLDivElement>) => {
+      const code = e.code || e.key;
       client.input.sendKey({
-        domCode: e.key,
+        domCode: code,
         action: KeyAction.DOWN,
       });
+      if (['Tab', 'Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Backspace'].includes(e.code)) {
+        e.preventDefault();
+      }
     },
     [client]
   );
 
   const handleKeyUp = useCallback(
     (e: KeyboardEvent<HTMLDivElement>) => {
+      const code = e.code || e.key;
       client.input.sendKey({
-        domCode: e.key,
+        domCode: code,
         action: KeyAction.UP,
       });
+      if (['Tab', 'Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Backspace'].includes(e.code)) {
+        e.preventDefault();
+      }
     },
     [client]
   );
