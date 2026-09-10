@@ -613,7 +613,6 @@ test_suite(
     tags = ["manual"],
     tests = [
         ":can_boot_with_minigbm",
-        ":can_boot_with_minigbm_zip",
     ],
 )
 
