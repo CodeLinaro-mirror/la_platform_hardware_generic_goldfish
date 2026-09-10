@@ -54,7 +54,8 @@ using keyboard::IKeyEventSender;
  * - The returned factory lambda is thread-safe and can be invoked on WebRTC signaling threads.
  */
 InputSenderFactory CreateInProcessInputSenderFactory(
-        IMultiDisplay& multidisplay, std::shared_ptr<IKeyEventSender> key_event_sender);
+        IMultiDisplay& multidisplay, std::shared_ptr<IKeyEventSender> key_event_sender,
+        bool hw_sensor_hinge = false);
 
 /**
  * Instantiates the in-process WebRTC RtcService bound to AvdUniverse.
