@@ -17,6 +17,7 @@
 #include <unordered_map>
 
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/strings/str_format.h"
 #include "absl/synchronization/mutex.h"
 
@@ -265,6 +266,12 @@ struct GoldfishVirtioVsockDevice {
 
     bool processPacketOpRequestLocked(const struct virtio_vsock_hdr& hdr)
             ABSL_EXCLUSIVE_LOCKS_REQUIRED(mStateMutex) {
+        if (hdr.fwd_cnt) {
+            LOG(INFO) << "The guest claims it received data (" << hdr.fwd_cnt
+                      << ") while we have not sent any";
+            return false;
+        }
+
         const uint32_t hostPort = hdr.dst_port;
         const auto portListenerI = mHostPortListeners.find(hostPort);
         if (portListenerI != mHostPortListeners.end()) {
@@ -275,7 +282,6 @@ struct GoldfishVirtioVsockDevice {
                 if (std::visit(PlugOrSocketVisitor(stream),
                                (portListenerI->second)(SocketPtr(&stream)))) {
                     stream.guestBufAlloc = hdr.buf_alloc;
-                    stream.guestFwdCnt = hdr.fwd_cnt;
                     stream.isConnected = true;
                     stream.sendOp(VIRTIO_VSOCK_OP_RESPONSE);
 
@@ -409,10 +415,18 @@ struct GoldfishVirtioVsockDevice {
 
             if (streamI != mStreams.end()) {
                 VsockStream& stream = const_cast<VsockStream&>(*streamI);
-                stream.guestBufAlloc = hdr.buf_alloc;
-                stream.guestFwdCnt = hdr.fwd_cnt;
+                unsigned op;
+                if (hdr.fwd_cnt > stream.hostSentCnt) {
+                    LOG(INFO) << "The guest claims it received more (" << hdr.fwd_cnt
+                              << ") than we sent (" << stream.hostSentCnt << ")";
+                    op = VIRTIO_VSOCK_OP_RST;
+                } else {
+                    stream.guestBufAlloc = hdr.buf_alloc;
+                    stream.guestFwdCnt = hdr.fwd_cnt;
+                    op = hdr.op;
+                }
 
-                switch (hdr.op) {
+                switch (op) {
                 case VIRTIO_VSOCK_OP_RESPONSE:
                     stream.isConnected = true;
 
@@ -462,6 +476,16 @@ struct GoldfishVirtioVsockDevice {
         const auto streamI = mStreams.find(key);
         if (streamI != mStreams.end()) {
             VsockStream& stream = const_cast<VsockStream&>(*streamI);
+            if (hdr.fwd_cnt > stream.hostSentCnt) {
+                LOG(INFO) << "The guest claims it received more (" << hdr.fwd_cnt
+                          << ") than we sent (" << stream.hostSentCnt << ")";
+
+                recycleStreamLocked(stream, true, VIRTIO_VSOCK_OP_INVALID);
+                mStreams.erase(streamI);
+                mStateMutex.unlock();
+                return nullptr;
+            }
+
             stream.guestBufAlloc = hdr.buf_alloc;
             stream.guestFwdCnt = hdr.fwd_cnt;
             return &stream;
@@ -532,6 +556,7 @@ struct GoldfishVirtioVsockDevice {
 
         for (const VsockStream& cStream : mStreams) {
             VsockStream& stream = const_cast<VsockStream&>(cStream);
+            DCHECK(stream.guestFwdCnt <= stream.hostSentCnt);
             size_t guestAvailSize =
                     stream.guestBufAlloc - (stream.hostSentCnt - stream.guestFwdCnt);
             unsigned sendOpMask =
