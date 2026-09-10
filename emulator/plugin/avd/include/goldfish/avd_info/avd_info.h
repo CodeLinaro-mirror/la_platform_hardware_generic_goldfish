@@ -56,6 +56,7 @@ struct AvdProperties {
     std::string build_sdk;
     std::string build_id;
     std::string build_flavour;
+    std::string build_fingerprint;
     std::string snapshot_name;
     bool snapshot_update_time{true};
     int32_t quit_after_boot_timeout_seconds{0};

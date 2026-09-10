@@ -13,7 +13,10 @@
 // limitations under the License.
 #include "status_service.h"
 
+#include <cinttypes>
+
 #include "absl/log/log.h"
+#include "absl/strings/ascii.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 
@@ -21,6 +24,7 @@
 #include "android/cpu/cpu_accelerator.h"
 #include "android/goldfish/hardware_config.h"
 #include "android/goldfish/ini_file.h"
+#include "goldfish/tools/aemu_version.h"
 
 namespace android {
 namespace emulation {
@@ -58,6 +62,8 @@ grpc::Status StatusServiceImpl::getStatus(EmulatorStatus* reply) {
 
     reply->set_booted(guest_status_.IsBootCompleted());
     reply->set_heartbeat(guest_status_.GetHeartbeatCounter());
+    reply->set_version(absl::StrCat(::goldfish::version::GetEmulatorVersion(), " (",
+                                    ::goldfish::version::GetEmulatorFullVersion(), ")"));
 
     auto cnf = getQemuConfig(avd_properties_.avd_api, avd_properties_.hw_config);
 
@@ -103,31 +109,42 @@ grpc::Status StatusServiceImpl::getStatus(EmulatorStatus* reply) {
     }
     guestConfig["hypervisorVersion"] = hypervisorVer;
 
-    // 3. Construct and Map complete AVD Details Configuration
-    std::string avdDetails;
-    absl::StrAppendFormat(&avdDetails, "Name: %s\n", avd_properties_.avd_name);
-    absl::StrAppendFormat(&avdDetails, "CPU/ABI: %s\n", avd_properties_.avd_abi);
-    absl::StrAppendFormat(&avdDetails, "Path: %s\n", avd_properties_.avd_content_path.string());
-    absl::StrAppendFormat(&avdDetails, "Target: %s\n", avd_properties_.avd_api_str);
-    absl::StrAppendFormat(&avdDetails, "Build SDK: %s\n", avd_properties_.build_sdk);
-    absl::StrAppendFormat(&avdDetails, "Build ID: %s\n", avd_properties_.build_id);
-    absl::StrAppendFormat(&avdDetails, "Build Flavour: %s\n", avd_properties_.build_flavour);
+    // 3. Map Host System Metrics
+    guestConfig["hostOsName"] = System::Get()->GetOsName();
+    guestConfig["cpuModel"] = std::string(absl::StripAsciiWhitespace(android::GetCpuInfo().second));
+    guestConfig["totalMem"] = absl::StrFormat(
+            "%" PRIu64, System::Get()->GetMemUsage().total_phys_memory / (1024ULL * 1024ULL));
+    guestConfig["gpu"] = avd_properties_.hw_config.hw_gpu_mode;
+
+    // 4. Construct and Map complete AVD Details Configuration
+    std::string avd_details;
+    absl::StrAppendFormat(&avd_details, "Name: %s\n", avd_properties_.avd_name);
+    absl::StrAppendFormat(&avd_details, "CPU/ABI: %s\n", avd_properties_.avd_abi);
+    absl::StrAppendFormat(&avd_details, "Path: %s\n", avd_properties_.avd_content_path.string());
+    absl::StrAppendFormat(&avd_details, "Target: %s\n", avd_properties_.avd_api_str);
+    absl::StrAppendFormat(&avd_details, "Build SDK: %s\n", avd_properties_.build_sdk);
+    absl::StrAppendFormat(&avd_details, "Build ID: %s\n", avd_properties_.build_id);
+    absl::StrAppendFormat(&avd_details, "Build Flavour: %s\n", avd_properties_.build_flavour);
 
     // Parse and append all keys from the local AVD config.ini file
-    std::filesystem::path configIniPath = avd_properties_.avd_content_path / "config.ini";
-    android::goldfish::IniFile configIni(configIniPath);
-    if (configIni.Read()) {
-        for (const auto& entry : configIni) {
+    std::filesystem::path config_ini_path = avd_properties_.avd_content_path / "config.ini";
+    android::goldfish::IniFile config_ini(config_ini_path);
+    if (config_ini.Read()) {
+        for (const auto& entry : config_ini) {
             // Ignore AVD name and ID properties to prevent redundant
             // duplication in client UI views, since these parameters are
             // already printed as explicit headers above or mapped as
             // first-class structured fields in platformconfig.
             if (entry.first != "AvdId" && entry.first != "avd.id" && entry.first != "avd.name") {
-                absl::StrAppendFormat(&avdDetails, "%s: %s\n", entry.first, entry.second);
+                absl::StrAppendFormat(&avd_details, "%s: %s\n", entry.first, entry.second);
             }
         }
     }
-    guestConfig["avdDetails"] = avdDetails;
+    guestConfig["avdDetails"] = avd_details;
+
+    if (!avd_properties_.build_fingerprint.empty()) {
+        guestConfig["buildFingerprint"] = avd_properties_.build_fingerprint;
+    }
 
     return grpc::Status::OK;
 }

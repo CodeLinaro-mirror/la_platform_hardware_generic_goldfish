@@ -51,4 +51,19 @@ TEST(AvdInfoDeviceTest, NoSnapshotUpdateTimeDisablesSnapshotUpdateTime) {
                                          ::testing::HasSubstr("snapshot_update_time=false"))));
 }
 
+TEST(AvdInfoDeviceTest, SetsBuildFingerprint) {
+    FakeEmulator emu;
+    EXPECT_CALL(emu.mock_avd(), BuildFingerprint())
+            .WillRepeatedly(
+                    Return("google/sdk_gphone64_arm64/emu64a:15/AP3A/12345:userdebug/dev-keys"));
+
+    AvdInfoDevice dev;
+    EXPECT_THAT(dev.initialize(emu.config()), absl_testing::IsOk());
+    EXPECT_THAT(dev.getQemuParameters(emu.config()),
+                ::testing::ElementsAre(
+                        Eq("-device"),
+                        ::testing::HasSubstr("build_fingerprint=google/sdk_gphone64_arm64/"
+                                             "emu64a:15/AP3A/12345:userdebug/dev-keys")));
+}
+
 }  // namespace android::goldfish::test

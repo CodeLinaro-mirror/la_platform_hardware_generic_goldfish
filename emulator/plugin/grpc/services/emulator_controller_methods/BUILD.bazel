@@ -1,3 +1,4 @@
+load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_test")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 
 package(default_visibility = ["//visibility:public"])
@@ -45,6 +46,7 @@ cc_library(
         "//emulator/plugin/display",
         "//emulator/plugin/grpc/keyboard",
         "//emulator/plugin/vminterface",
+        "//emulator/tools:aemu_version",
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/time",
@@ -80,6 +82,16 @@ cc_test(
         "//emulator/plugin/grpc/keyboard:test_qemu_input_stub",
         "//emulator/plugin/vminterface:test_vminterface",
         "//emulator/plugin/vminterface:vminterface-test",
+        "//emulator/tools:aemu_version",
         "@abseil-cpp//absl/synchronization",
     ],
+)
+
+clang_tidy_test(
+    name = "tidy",
+    targets = [
+        ":emulator_controller_methods",
+        ":emulator_controller_methods_test",
+    ],
+    tidy_config_file = "//:clang_tidy_config",
 )
