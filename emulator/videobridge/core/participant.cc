@@ -150,6 +150,11 @@ void Participant::IncomingMessage(const nlohmann::json& msg) {
 
 void Participant::DoIncomingMessage(const nlohmann::json& msg) {
     DCHECK(connection_.SignalingThread()->IsCurrent());
+    // Drop messages arriving after closure.
+    if (peer_connection_ == nullptr) {
+        VLOG(1) << "Dropping JSEP message for closed participant " << peer_id_;
+        return;
+    }
     if (msg.contains("candidate")) {
         HandleCandidate(internal::UnwrapEnvelope(msg, "candidate"));
     }
