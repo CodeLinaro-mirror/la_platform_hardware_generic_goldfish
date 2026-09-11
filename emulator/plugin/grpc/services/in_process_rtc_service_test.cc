@@ -26,6 +26,7 @@
 #include "goldfish/avd_info/avd_info.h"
 #include "goldfish/display/test/fake_multi_display.h"
 #include "goldfish/display/test/fake_pixman_display.h"
+#include "input/input_service.pb.h"
 
 extern "C" {
 struct QemuConsole {
@@ -134,6 +135,34 @@ TEST(InProcessRtcServiceTest, InputSenderDispatchesTouchAndMouseEvent) {
     ASSERT_EQ(display->mouse_events.size(), 1);
     EXPECT_EQ(display->mouse_events[0].x, 50);
     EXPECT_EQ(display->mouse_events[0].y, 60);
+}
+
+TEST(InProcessRtcServiceTest, InputSenderV2DispatchesV2PointerEvent) {
+    ::goldfish::display::test::FakeMultiDisplay fake_multidisplay(
+            ::goldfish::async::globalEventLoop());
+    TestAvdUniverse universe(&fake_multidisplay, *::goldfish::async::globalEventLoop());
+    auto key_event_sender = std::make_shared<FakeKeyEventSender>();
+    auto factory = CreateInProcessInputSenderFactory(fake_multidisplay, key_event_sender);
+    auto sender = factory(DataChannelLabel::kInputV2);
+    ASSERT_NE(sender, nullptr);
+    EXPECT_TRUE(sender->Start().ok());
+
+    ::android::emulation::v2::input::InputEvent v2_event;
+    auto* pointer = v2_event.mutable_pointer();
+    pointer->set_display_id(0);
+    pointer->set_action(::android::emulation::v2::input::PointerAction::POINTER_ACTION_DOWN);
+    auto* ptr = pointer->add_pointers();
+    ptr->set_pointer_id(0);
+    ptr->set_x(0.5F);
+    ptr->set_y(0.5F);
+    ptr->set_pressure(1.0F);
+
+    sender->SendV2Event(v2_event);
+
+    auto display = fake_multidisplay.GetDisplay<::goldfish::display::test::ActiveFakePixmanDisplay>(
+            fake_multidisplay.GetDisplay(0));
+
+    EXPECT_GT(display->evdevs.size(), 0);
 }
 
 }  // namespace
