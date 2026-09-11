@@ -413,6 +413,8 @@ cc_library(
         "core/grpc_input_sender.cc",
         "core/grpc_input_sender.h",
         "core/in_process_input_sender.cc",
+        "core/jsep_parse.cc",
+        "core/jsep_parse.h",
         "core/participant.cc",
         "core/participant.h",
         "core/rtc_config.cc",
@@ -506,6 +508,22 @@ cc_test(
         ":videobridge_core",
         "//emulator/libs/test:googletest_main",
         "@abseil-cpp//absl/time",
+        "@nlohmann_json//:singleheader-json",
+    ],
+)
+
+cc_test(
+    name = "jsep_parse_test",
+    srcs = [
+        "core/jsep_parse.h",
+        "core/jsep_parse_test.cc",
+    ],
+    copts = WEBRTC_COPTS,
+    linkopts = WEBRTC_LINKOPTS,
+    deps = [
+        ":videobridge_core",
+        "//emulator/libs/test:googletest_main",
+        "@abseil-cpp//absl/status",
         "@nlohmann_json//:singleheader-json",
     ],
 )
