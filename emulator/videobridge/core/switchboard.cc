@@ -159,62 +159,18 @@ std::unique_ptr<InputSender> Switchboard::CreateInputSender(DataChannelLabel lab
     return nullptr;
 }
 
-void Switchboard::NextMessage(const std::string& identity, MessageCallback callback) {
-    auto queue = GetQueue(identity);
-    if (!queue) {
-        if (callback) {
-            callback(absl::NotFoundError(
-                    absl::StrCat("Participant queue not found for: ", identity)));
-        }
-        return;
-    }
-    std::string msg;
-    {
-        const absl::MutexLock lock(&queue->mutex);
-        if (!queue->queue.empty()) {
-            msg = std::move(queue->queue.front());
-            queue->queue.pop();
-        } else {
-            VLOG(1) << "NextMessage: No messages queued for participant " << identity
-                    << ". Registering pending callback.";
-            queue->callback = std::move(callback);
-            return;
-        }
-    }
-    if (callback) {
-        VLOG(1) << "NextMessage: Immediately dispatching queued signaling message to participant: "
-                << identity;
-        callback(std::move(msg));
-    }
-}
-
 void Switchboard::Send(std::string to, const nlohmann::json& msg) {
     auto queue = GetQueue(to);
     if (!queue) {
         VLOG(1) << "Send: Dropping message to already disconnected participant: " << to;
         return;
     }
-    MessageCallback cb;
-    std::string msg_str = msg.dump();
-    {
-        const absl::MutexLock lock(&queue->mutex);
-        if (queue->callback) {
-            cb = std::move(queue->callback);
-            queue->callback = nullptr;
-        } else {
-            VLOG(1) << "Send: No pending callback. Storing signaling message in FIFO queue for "
-                       "participant: "
-                    << to;
-            queue->queue.push(std::move(msg_str));
-            return;
-        }
-    }
-    if (cb) {
-        VLOG(1) << "Send: Dispatching signaling message directly to pending callback for "
-                   "participant: "
-                << to;
-        cb(std::move(msg_str));
-    }
+
+    // Enqueueing is the whole delivery path: a reader blocked in NextMessage
+    // re-evaluates its await condition as soon as this lock is released, so it
+    // sees the message immediately rather than on its next poll.
+    const absl::MutexLock lock(&queue->mutex);
+    queue->queue.push(msg.dump());
 }
 
 std::shared_ptr<Switchboard::ParticipantQueue> Switchboard::GetOrCreateQueue(
