@@ -122,6 +122,48 @@ TEST(SwitchboardTest, AcceptJsepMessagesValidation) {
     board.Disconnect("user");
 }
 
+// A signaling client can put anything on the wire, and AcceptJsepMessage is
+// the door it comes through. Routing runs as a BlockingCall onto the WebRTC
+// signaling thread, so a parser that throws instead of returning a status
+// unwinds into Thread::Dispatch and terminates the emulator. That makes every
+// payload below a remotely triggerable abort; the assertion that matters here
+// is simply that the test process is still alive at the end.
+TEST(SwitchboardTest, SurvivesHostileJsepPayloads) {
+    Switchboard board(nullptr);
+    ASSERT_TRUE(board.Connect("user", "{}"));
+
+    constexpr const char* kHostilePayloads[] = {
+        // Fields of the wrong JSON type. Present, so a contains() check
+        // passes them through to a conversion that has no reason to succeed.
+        R"({"type": 42, "sdp": "v=0"})",
+        R"({"type": "offer", "sdp": 42})",
+        R"({"type": null, "sdp": null})",
+        R"({"type": ["offer"], "sdp": {"a": 1}})",
+        // The same, wrapped in the nested envelope the parsers also accept.
+        R"({"sdp": {"type": 42, "sdp": "v=0"}})",
+        // Values that are not objects where an object is expected.
+        R"({"sdp": true})",
+        R"({"sdp": [1, 2, 3]})",
+        // The candidate arm of the dispatch.
+        R"({"candidate": {"sdpMid": 0, "sdpMLineIndex": 0, "candidate": "c"}})",
+        R"({"candidate": {"sdpMid": "0", "sdpMLineIndex": "0", "candidate": "c"}})",
+        R"({"candidate": 42})",
+        // Both arms in one message, so neither can mask the other.
+        R"({"candidate": null, "sdp": null})",
+    };
+
+    for (const char* payload : kHostilePayloads) {
+        EXPECT_TRUE(board.AcceptJsepMessage("user", payload).ok())
+                << "Payload was rejected at the transport layer rather than by the "
+                   "parser, so it never reached the code under test: "
+                << payload;
+    }
+
+    // Still serving after all of that.
+    EXPECT_TRUE(board.AcceptJsepMessage("user", R"({"sdp": {"type": "offer"}})").ok());
+    board.Disconnect("user");
+}
+
 TEST(SwitchboardTest, NextMessageFIFOOrdering) {
     Switchboard board(nullptr);
     EXPECT_TRUE(board.Connect("user", "{}"));
