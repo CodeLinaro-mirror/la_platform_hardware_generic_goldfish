@@ -1,0 +1,31 @@
+# Copyright 2025 - The Android Open Source Project
+#
+# SPDX-License-Identifier: Apache-2.0
+
+"""zerovec bazel build rule"""
+
+load("@rules_rust//rust:defs.bzl", "rust_library")
+
+package(default_visibility = ["//visibility:public"])
+
+rust_library(
+    name = "zerovec",
+    srcs = glob(["**/*.rs"]),
+    crate_features = [
+        "alloc",
+        "derive",
+        "serde",
+        "yoke",
+    ],
+    crate_name = "zerovec",
+    crate_root = "src/lib.rs",
+    edition = "2021",
+    proc_macro_deps = [
+        "@zerovec-derive",
+    ],
+    deps = [
+        "@serde",
+        "@yoke",
+        "@zerofrom",
+    ],
+)

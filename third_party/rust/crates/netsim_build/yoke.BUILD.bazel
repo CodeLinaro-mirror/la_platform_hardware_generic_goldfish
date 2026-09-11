@@ -1,0 +1,30 @@
+# Copyright 2025 - The Android Open Source Project
+#
+# SPDX-License-Identifier: Apache-2.0
+
+"""yoke bazel build rule"""
+
+load("@rules_rust//rust:defs.bzl", "rust_library")
+
+package(default_visibility = ["//visibility:public"])
+
+rust_library(
+    name = "yoke",
+    srcs = glob(["**/*.rs"]),
+    crate_features = [
+        "alloc",
+        "derive",
+        "serde",
+        "zerofrom",
+    ],
+    crate_name = "yoke",
+    crate_root = "src/lib.rs",
+    edition = "2021",
+    proc_macro_deps = [
+        "@yoke-derive",
+    ],
+    deps = [
+        "@stable_deref_trait",
+        "@zerofrom",
+    ],
+)
