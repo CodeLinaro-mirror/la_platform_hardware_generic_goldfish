@@ -132,6 +132,9 @@ absl::Status Participant::DoInitialize() {
     if (auto s = AddDataChannel(DataChannelLabel::kInput); !s.ok()) {
         return s;
     }
+    if (auto s = AddDataChannel(DataChannelLabel::kInputV2); !s.ok()) {
+        return s;
+    }
 
     if (media_provider_) {
         return media_provider_->AddTracks(connection_.GetPeerConnectionFactory(),
@@ -199,9 +202,22 @@ void Participant::OnIceConnectionChange(
 
 void Participant::OnDataChannel(webrtc::scoped_refptr<::webrtc::DataChannelInterface> channel) {
     DCHECK(connection_.SignalingThread()->IsCurrent());
-    LOG(INFO) << "Registered incoming remote WebRTC data channel '" << channel->label()
+    const std::string label_str = channel->label();
+    LOG(INFO) << "Registered incoming remote WebRTC data channel '" << label_str
               << "' for participant " << peer_id_;
-    data_channels_[channel->label()] = channel;
+    data_channels_[label_str] = channel;
+
+    auto label_opt = ParseDataChannelLabel(label_str);
+    if (label_opt.has_value()) {
+        DataChannelLabel label = *label_opt;
+        if (event_forwarders_.find(label) == event_forwarders_.end()) {
+            auto sender = connection_.CreateInputSender(label);
+            if (sender) {
+                event_forwarders_[label] =
+                        std::make_unique<EventForwarder>(channel, label, std::move(sender));
+            }
+        }
+    }
 }
 
 void Participant::DoClose() {
