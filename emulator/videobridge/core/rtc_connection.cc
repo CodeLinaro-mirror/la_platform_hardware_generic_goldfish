@@ -69,6 +69,10 @@ RtcConnection::RtcConnection()
 
 RtcConnection::~RtcConnection() {
     connection_factory_ = nullptr;
+    // Both are bound to the network thread and may hop onto it as they go, so
+    // they have to be released while it is still turning.
+    socket_factory_.reset();
+    network_manager_.reset();
     signaling_thread_->Stop();
     worker_thread_->Stop();
     network_thread_->Stop();
