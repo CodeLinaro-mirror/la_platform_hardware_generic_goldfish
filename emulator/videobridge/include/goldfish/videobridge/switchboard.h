@@ -57,6 +57,17 @@ class Switchboard : public RtcConnection {
 
     ~Switchboard() override;
 
+  protected:
+    /**
+     * @brief Constructs a Switchboard on a caller-supplied network substrate.
+     *
+     * Lets a subclass run participants over an in-memory network instead of
+     * the host's. Behaves identically to the public constructor otherwise.
+     */
+    Switchboard(std::shared_ptr<MediaProvider> media_provider,
+                InputSenderFactory input_sender_factory, NetworkSubstrate substrate);
+
+  public:
     /**
      * @brief Establishes a new Participant connection session, initializing its PeerConnection.
      * Thread-safe.

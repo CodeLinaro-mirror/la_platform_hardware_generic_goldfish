@@ -24,6 +24,7 @@
 #include "rtc_base/thread.h"
 #pragma clang diagnostic pop
 
+#include <functional>
 #include <memory>
 #include <string>
 
@@ -34,6 +35,7 @@
 namespace webrtc {
 class NetworkManager;
 class PacketSocketFactory;
+class SocketServer;
 }  // namespace webrtc
 
 namespace goldfish::videobridge {
@@ -108,6 +110,28 @@ class RtcConnection {
     ::webrtc::PacketSocketFactory* GetSocketFactory() { return socket_factory_.get(); }
 
   protected:
+    /**
+     * @brief The networking substrate this connection is built on.
+     *
+     * Defaults reproduce the host environment. Tests override it so that
+     * connection setup runs entirely in memory, without binding ports or
+     * enumerating the interfaces of whichever machine happens to be running
+     * them.
+     */
+    struct NetworkSubstrate {
+        /// Socket server backing the network thread. Null means the host's.
+        std::unique_ptr<webrtc::SocketServer> socket_server;
+        /// Builds the network manager. Null means enumerate real interfaces.
+        std::function<std::unique_ptr<::webrtc::NetworkManager>(webrtc::Thread*)> network_manager;
+    };
+
+    /**
+     * @brief Constructs a connection on a caller-supplied network substrate.
+     *
+     * @param substrate The socket server and network manager to build on.
+     */
+    explicit RtcConnection(NetworkSubstrate substrate);
+
     std::unique_ptr<::webrtc::TaskQueueFactory> task_factory_;
     std::unique_ptr<webrtc::Thread> network_thread_;
     std::unique_ptr<webrtc::Thread> worker_thread_;

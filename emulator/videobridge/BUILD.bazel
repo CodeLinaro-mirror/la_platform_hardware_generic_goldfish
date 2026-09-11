@@ -529,6 +529,24 @@ cc_test(
 )
 
 cc_test(
+    name = "virtual_network_test",
+    srcs = [
+        "core/virtual_network_fixture.h",
+        "core/virtual_network_test.cc",
+    ],
+    copts = WEBRTC_COPTS,
+    linkopts = WEBRTC_LINKOPTS,
+    deps = [
+        ":videobridge_core",
+        "//emulator/libs/test:googletest_main",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/time",
+        "@nlohmann_json//:singleheader-json",
+        "@webrtc//rtc_base:rtc_base_tests_utils",
+    ],
+)
+
+cc_test(
     name = "mf_video_encoder_h264_test",
     srcs = ["core/win/mf_video_encoder_h264_test.cc"],
     target_compatible_with = select({
