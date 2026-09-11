@@ -65,6 +65,21 @@ TEST_P(MalformedSdpTest, IsRejectedRatherThanThrown) {
     EXPECT_FALSE(result.ok()) << "Accepted a malformed payload: " << GetParam();
 }
 
+INSTANTIATE_TEST_SUITE_P(WrongFieldTypes, MalformedSdpTest,
+                         testing::Values(
+                                 // 'type' is present but is not a string.
+                                 R"({"type": 42, "sdp": "v=0"})", R"({"type": true, "sdp": "v=0"})",
+                                 R"({"type": null, "sdp": "v=0"})", R"({"type": [], "sdp": "v=0"})",
+                                 R"({"type": {}, "sdp": "v=0"})", R"({"type": 1.5, "sdp": "v=0"})",
+                                 // 'sdp' is present but is not a string.
+                                 R"({"type": "offer", "sdp": 7})",
+                                 R"({"type": "offer", "sdp": null})",
+                                 R"({"type": "offer", "sdp": false})",
+                                 R"({"type": "offer", "sdp": []})",
+                                 R"({"type": "offer", "sdp": {}})",
+                                 // Both wrong at once.
+                                 R"({"type": 0, "sdp": 0})"));
+
 INSTANTIATE_TEST_SUITE_P(MissingFields, MalformedSdpTest,
                          testing::Values(R"({})", R"({"type": "offer"})", R"({"sdp": "v=0"})",
                                          R"({"unrelated": "value"})"));

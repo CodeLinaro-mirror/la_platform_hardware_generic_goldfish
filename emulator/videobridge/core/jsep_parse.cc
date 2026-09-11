@@ -44,8 +44,15 @@ absl::StatusOr<std::unique_ptr<::webrtc::SessionDescriptionInterface>> ParseSdpM
     if (!msg.contains("type") || !msg.contains("sdp")) {
         return absl::InvalidArgumentError("SDP message missing required 'type' or 'sdp' fields.");
     }
-    const std::string type = msg["type"];
-    const std::string sdp = msg["sdp"];
+    // Checked before conversion, not after: nlohmann throws on an implicit
+    // conversion from the wrong type, and this runs on the WebRTC signaling
+    // thread, where an escaping exception takes the process down with it.
+    if (!msg["type"].is_string() || !msg["sdp"].is_string()) {
+        return absl::InvalidArgumentError(
+                "SDP message fields have invalid types (expected string, string)");
+    }
+    const std::string type = msg["type"].get<std::string>();
+    const std::string sdp = msg["sdp"].get<std::string>();
 
     if (type == "offer-loopback") {
         return absl::UnimplementedError("Loopback offers are not supported by this bridge.");
