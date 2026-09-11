@@ -17,9 +17,12 @@
 #include <gtest/gtest.h>
 
 #include <chrono>
+#include <memory>
 #include <string>
 #include <thread>
 
+#include "absl/status/status.h"
+#include "absl/time/clock.h"
 #include "absl/time/time.h"
 
 #include "nlohmann/json.hpp"
@@ -266,22 +269,21 @@ TEST(SwitchboardTest, NextMessageBlockedInterruptedByDisconnect) {
     EXPECT_TRUE(board.Connect("user", "{}"));
 
     absl::Status status = absl::OkStatus();
+    const absl::Time start = absl::Now();
     std::thread t([&board, &status]() {
-        // This will block until disconnected or timed out. We set a large timeout
-        // to make sure it gets interrupted by the Disconnect call instead.
+        // Long timeout ensures Disconnect interrupts the wait, not the deadline.
         auto maybe_msg = board.NextMessage("user", absl::Seconds(10));
         status = maybe_msg.status();
     });
 
-    // Give the thread a moment to enter NextMessage and block.
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));
-
-    // Disconnect should unblock the thread (which will eventually time out since no message
-    // arrives).
+    // Sticky closed flag unblocks readers even if Disconnect runs first.
     board.Disconnect("user");
     t.join();
+    const absl::Duration elapsed = absl::Now() - start;
 
-    EXPECT_EQ(status.code(), absl::StatusCode::kDeadlineExceeded);
+    EXPECT_FALSE(status.ok());
+    EXPECT_FALSE(absl::IsDeadlineExceeded(status)) << "Reader waited out its deadline: " << status;
+    EXPECT_LT(elapsed, absl::Seconds(5)) << "Disconnect did not promptly wake the blocked reader.";
 }
 
 TEST(SwitchboardTest, NextMessageZeroTimeout) {

@@ -131,6 +131,15 @@ class Switchboard : public RtcConnection {
         std::queue<std::string> queue;
         MessageCallback callback;
 
+        // Sticky flag to wake blocked readers on teardown.
+        bool closed ABSL_GUARDED_BY(mutex) = false;
+
+        // Unblocks readers waiting on this queue.
+        void Close() {
+            const absl::MutexLock lock(&mutex);
+            closed = true;
+        }
+
         ~ParticipantQueue() {
             if (callback) {
                 callback(absl::CancelledError("Queue destroyed"));

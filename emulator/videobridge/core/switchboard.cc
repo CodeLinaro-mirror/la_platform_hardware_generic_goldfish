@@ -119,11 +119,19 @@ absl::StatusOr<std::string> Switchboard::NextMessage(const std::string& identity
         return absl::NotFoundError(absl::StrCat("Participant queue not found for: ", identity));
     }
     const absl::MutexLock lock(&queue->mutex);
-    auto has_items = [&queue]() { return !queue->queue.empty(); };
-    if (queue->mutex.AwaitWithTimeout(absl::Condition(&has_items), timeout)) {
-        std::string next_message = std::move(queue->queue.front());
-        queue->queue.pop();
-        return next_message;
+    auto ready = [&queue]() {
+        queue->mutex.AssertHeld();
+        return !queue->queue.empty() || queue->closed;
+    };
+    if (queue->mutex.AwaitWithTimeout(absl::Condition(&ready), timeout)) {
+        // Drain remaining messages before reporting closure.
+        if (!queue->queue.empty()) {
+            std::string next_message = std::move(queue->queue.front());
+            queue->queue.pop();
+            return next_message;
+        }
+        return absl::CancelledError(
+                absl::StrCat("Session closed while waiting for participant: ", identity));
     }
     return absl::DeadlineExceededError(
             absl::StrCat("Timeout waiting for next JSEP message from participant: ", identity));
@@ -220,8 +228,17 @@ std::shared_ptr<Switchboard::ParticipantQueue> Switchboard::GetQueue(const std::
 }
 
 void Switchboard::RemoveQueue(const std::string& identity) {
-    const absl::MutexLock lock(&queues_mutex_);
-    message_queues_.erase(identity);
+    std::shared_ptr<ParticipantQueue> queue;
+    {
+        const absl::MutexLock lock(&queues_mutex_);
+        auto node = message_queues_.extract(identity);
+        if (node.empty()) {
+            return;
+        }
+        queue = std::move(node.mapped());
+    }
+    // Wake blocked readers; close outside queues_mutex_ to avoid lock nesting.
+    queue->Close();
 }
 
 }  // namespace goldfish::videobridge
