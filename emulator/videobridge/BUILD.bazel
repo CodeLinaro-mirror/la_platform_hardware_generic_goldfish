@@ -405,6 +405,28 @@ cc_test(
 )
 
 cc_library(
+    name = "session_id",
+    srcs = ["core/session_id.cc"],
+    hdrs = ["include/goldfish/videobridge/session_id.h"],
+    strip_include_prefix = "include",
+    deps = [
+        "@abseil-cpp//absl/random",
+        "@abseil-cpp//absl/strings:str_format",
+    ],
+)
+
+cc_test(
+    name = "session_id_test",
+    size = "small",
+    srcs = ["core/session_id_test.cc"],
+    deps = [
+        ":session_id",
+        "//emulator/libs/test:googletest_main",
+        "@googletest//:gtest",
+    ],
+)
+
+cc_library(
     name = "videobridge_core",
     srcs = [
         "core/event_forwarder.cc",
@@ -641,10 +663,10 @@ cc_library(
     copts = WEBRTC_COPTS,
     strip_include_prefix = "include",
     deps = [
+        ":session_id",
         ":videobridge_core",
         "//emulator/libs/grpc_utils:absl_translate",
         "@abseil-cpp//absl/log",
-        "@abseil-cpp//absl/random",
         "@abseil-cpp//absl/strings",
         "@aemu//protos/services/webrtc:rtc_service_v2_cc_grpc",
         "@grpc//:grpc++",
