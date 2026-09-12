@@ -18,6 +18,7 @@
 #include <cstdint>
 #include <functional>
 #include <memory>
+#include <vector>
 
 #include "android/emulation/control/keyboard/key_event_sender.h"
 #include "goldfish/display/display.h"
@@ -58,21 +59,21 @@ InputSenderFactory CreateInProcessInputSenderFactory(
         bool hw_sensor_hinge = false);
 
 /**
- * Instantiates the in-process WebRTC RtcService bound to AvdUniverse.
+ * Instantiates the in-process WebRTC RtcServices (v1 and v2) bound to AvdUniverse.
  *
  * Data Flow & Coordination:
  * - Wires guest display rendering from IMultiDisplay (display_id) to InProcessVideoSource.
  * - Wires guest PCM audio recording from QEMU's AudioBackend to QemuAudioSource.
  * - Configures InProcessInputSender to inject remote user inputs directly into QEMU.
- * - Bundles all sources and handlers into Switchboard and returns the hosted RtcService.
+ * - Bundles all sources and handlers into a single Switchboard, then returns one gRPC service
+ *   per signaling API version sharing that Switchboard.
  *
  * Lifetime:
- * - The returned gRPC Service instance manages the lifecycles of its underlying WebRTC
+ * - The returned gRPC Service instances manage the lifecycles of their underlying WebRTC
  *   pipeline, video sources, audio sources, and input senders.
  */
-std::shared_ptr<::grpc::Service> CreateInProcessRtcService(AvdUniverse& avd_universe,
-                                                           uint32_t display_id = 0,
-                                                           uint32_t console_index = 0,
-                                                           AudioBackend* audio_backend = nullptr);
+std::vector<std::shared_ptr<::grpc::Service>> CreateInProcessRtcServices(
+        AvdUniverse& avd_universe, uint32_t display_id = 0, uint32_t console_index = 0,
+        AudioBackend* audio_backend = nullptr);
 
 }  // namespace android::emulation::control

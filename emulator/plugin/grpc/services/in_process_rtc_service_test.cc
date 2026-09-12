@@ -72,13 +72,15 @@ class FakeKeyEventSender : public keyboard::IKeyEventSender {
     std::vector<KeyboardEvent> sent_events;
 };
 
-TEST(InProcessRtcServiceTest, CreatesServiceFromAvdUniverse) {
+TEST(InProcessRtcServiceTest, CreatesServicesFromAvdUniverse) {
     ::goldfish::display::test::FakeMultiDisplay fake_multidisplay(
             ::goldfish::async::globalEventLoop());
     TestAvdUniverse universe(&fake_multidisplay, *::goldfish::async::globalEventLoop());
 
-    auto service = CreateInProcessRtcService(universe, 0, 0);
-    ASSERT_NE(service, nullptr);
+    auto services = CreateInProcessRtcServices(universe, 0, 0);
+    EXPECT_EQ(services.size(), 2);
+    EXPECT_NE(services[0], nullptr);
+    EXPECT_NE(services[1], nullptr);
 }
 
 TEST(InProcessRtcServiceTest, InputSenderDispatchesKeyEvent) {

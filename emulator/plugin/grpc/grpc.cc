@@ -157,7 +157,7 @@ std::vector<std::shared_ptr<::grpc::Service>> CreateServices(avd_info::AvdUniver
         LOG(WARNING) << "No valid modem_simulator_port. Not enabling gRPC ModemService.";
     }
 
-    if (auto webrtc_service = WebrtcGetService()) {
+    for (const auto& webrtc_service : WebrtcGetServices()) {
         services.emplace_back(webrtc_service);
     }
 

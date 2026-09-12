@@ -96,6 +96,17 @@ class Switchboard : public RtcConnection {
      */
     absl::Status AcceptJsepMessage(const std::string& identity, const std::string& msg);
 
+    /**
+     * @brief Reports whether a participant session is currently connected. Thread-safe.
+     *
+     * Lets signaling services reject operations on unknown or already torn down sessions rather
+     * than silently accepting them.
+     *
+     * @param identity The client identifier.
+     * @return true if the participant has an active connection.
+     */
+    bool HasSession(const std::string& identity);
+
     using MessageCallback = std::function<void(absl::StatusOr<std::string>)>;
 
     /**
