@@ -310,13 +310,20 @@ export class InputChannel {
       }).finish();
     }
 
+    const key: any = {
+      action: k.action as any,
+    };
+
+    if (k.domCode) {
+      key.domCode = k.domCode;
+    } else if (k.androidKeycode !== undefined || k.keycode !== undefined) {
+      key.androidKeycode = k.androidKeycode ?? k.keycode;
+    } else if (k.evdevCode !== undefined) {
+      key.evdevCode = k.evdevCode;
+    }
+
     const inputEvent: InputEvent = {
-      key: {
-        action: k.action as any,
-        domCode: k.domCode ?? "",
-        androidKeycode: k.androidKeycode ?? k.keycode ?? 0,
-        evdevCode: k.evdevCode ?? 0,
-      },
+      key,
     };
 
     return InputEvent.encode(inputEvent).finish();

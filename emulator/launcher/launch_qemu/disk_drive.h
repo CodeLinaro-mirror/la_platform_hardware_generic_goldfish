@@ -13,17 +13,33 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 #pragma once
+#include <chrono>
 #include <filesystem>
 #include <string>
 #include <vector>
 
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 
 #include "device.h"
 
 namespace android::goldfish {
 
 namespace fs = std::filesystem;
+
+/**
+ * @brief Executes the qemu-img binary with the provided arguments.
+ *
+ * Captures stdout and stderr, enforces a timeout, and returns stdout on success.
+ *
+ * @param qemu_img_binary Path to the qemu-img binary.
+ * @param args Arguments to pass to qemu-img.
+ * @param timeout Maximum duration to wait before aborting.
+ * @return Standard output on success, or an error status on failure / timeout.
+ */
+absl::StatusOr<std::string> exec_qemu_img(
+        const fs::path& qemu_img_binary, const std::vector<std::string>& args,
+        std::chrono::milliseconds timeout = std::chrono::seconds(10));
 
 // A raw qemu.img that is read only.
 class RoDrive : public PciDevice {

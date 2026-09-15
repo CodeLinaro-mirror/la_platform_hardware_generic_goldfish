@@ -82,6 +82,11 @@ class LooperBreadcrumbTracker {
      */
     void LogExecute(FlowId flow_id);
 
+    /**
+     * @brief Returns the numeric loop identifier assigned to this event loop.
+     */
+    uint8_t loop_id() const { return loop_id_; }
+
   private:
     absl::Status LogEvent(FlowId flow_id, BreadcrumbPhase phase, PayloadType payload_type,
                           std::string_view payload);

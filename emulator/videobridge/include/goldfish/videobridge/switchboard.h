@@ -57,6 +57,17 @@ class Switchboard : public RtcConnection {
 
     ~Switchboard() override;
 
+  protected:
+    /**
+     * @brief Constructs a Switchboard on a caller-supplied network substrate.
+     *
+     * Lets a subclass run participants over an in-memory network instead of
+     * the host's. Behaves identically to the public constructor otherwise.
+     */
+    Switchboard(std::shared_ptr<MediaProvider> media_provider,
+                InputSenderFactory input_sender_factory, NetworkSubstrate substrate);
+
+  public:
     /**
      * @brief Establishes a new Participant connection session, initializing its PeerConnection.
      * Thread-safe.
@@ -130,6 +141,15 @@ class Switchboard : public RtcConnection {
         absl::Mutex mutex;
         std::queue<std::string> queue;
         MessageCallback callback;
+
+        // Sticky flag to wake blocked readers on teardown.
+        bool closed ABSL_GUARDED_BY(mutex) = false;
+
+        // Unblocks readers waiting on this queue.
+        void Close() {
+            const absl::MutexLock lock(&mutex);
+            closed = true;
+        }
 
         ~ParticipantQueue() {
             if (callback) {

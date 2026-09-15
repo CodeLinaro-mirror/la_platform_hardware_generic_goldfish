@@ -1,0 +1,21 @@
+# Copyright 2025 - The Android Open Source Project
+#
+# SPDX-License-Identifier: Apache-2.0
+
+"""icu_normalizer_data bazel build rule"""
+
+load("@rules_rust//rust:defs.bzl", "rust_library")
+
+package(default_visibility = ["//visibility:public"])
+
+rust_library(
+    name = "icu_normalizer_data",
+    srcs = glob([
+        "data/**/*.rs",
+        "src/**/*.rs",
+    ]),
+    compile_data = glob(["data/*.rs.data"]),
+    crate_name = "icu_normalizer_data",
+    crate_root = "src/lib.rs",
+    edition = "2021",
+)

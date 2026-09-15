@@ -483,7 +483,7 @@ void grpc_realize(DeviceState* dev, Error** errp) {
     builder.experimental().SetInterceptorCreators(std::move(interceptors));
     config->grpc_server = builder.BuildAndStart();
     if (!config->grpc_server) {
-        error_setg(errp, "failed to initialise grpc server");
+        error_setg(errp, "failed to initialize grpc server");
         return;
     }
 

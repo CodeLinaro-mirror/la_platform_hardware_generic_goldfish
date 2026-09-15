@@ -54,14 +54,22 @@ void EventForwarder::OnStateChange() {
 }
 
 void EventForwarder::OnMessage(const ::webrtc::DataBuffer& buffer) {
-    InputEvent input_event;
-
     if (label_ == DataChannelLabel::kInput) {
+        InputEvent input_event;
         if (!input_event.ParseFromArray(buffer.data.data(), static_cast<int>(buffer.size()))) {
-            LOG(ERROR) << "Failed to deserialize InputEvent protobuf from data channel '"
+            LOG(ERROR) << "Failed to deserialize legacy v1 InputEvent protobuf from data channel '"
                        << AsString(label_) << "'";
             return;
         }
+        sender_->SendEvent(input_event);
+    } else if (label_ == DataChannelLabel::kInputV2) {
+        V2InputEvent v2_event;
+        if (!v2_event.ParseFromArray(buffer.data.data(), static_cast<int>(buffer.size()))) {
+            LOG(ERROR) << "Failed to deserialize v2 InputEvent protobuf from data channel '"
+                       << AsString(label_) << "'";
+            return;
+        }
+        sender_->SendV2Event(v2_event);
     } else if (label_ == DataChannelLabel::kAdb) {
         LOG(WARNING) << "Received ADB command over WebRTC data channel for '" << AsString(label_)
                      << "', but ADB over WebRTC data channels is deprecated.";
@@ -70,8 +78,6 @@ void EventForwarder::OnMessage(const ::webrtc::DataBuffer& buffer) {
         LOG(WARNING) << "Ignoring message received on unhandled/unsupported data channel type.";
         return;
     }
-
-    sender_->SendEvent(input_event);
 }
 
 }  // namespace goldfish::videobridge

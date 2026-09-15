@@ -361,6 +361,48 @@ TEST_F(AvdTest, DeviceType) {
         ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(opts_, paths_, "wear_avd", false, ""));
         EXPECT_EQ(avd->GetDeviceType(), DeviceType::kWear);
     }
+
+    // Generic system image (GSI / MP37) where ro.product.system.name is generic_system_google
+    // and tag.id is google_apis_playstore.
+    auto gsi_phone_dir = CreateTestAvd("gsi_phone_avd", "android-37", 37);
+    WriteToFile(gsi_phone_dir / "config.ini",
+                "target=android-37\nimage.sysdir.1=sysimg\n"
+                "tag.id=google_apis_playstore");
+    WriteToFile(paths_.sdk_directory / "sysimg" / "build.prop",
+                "ro.product.system.name=generic_system_google\n"
+                "ro.build.flavor=generic_system_google-user\n"
+                "ro.system.build.version.sdk=37\nro.product.cpu.abi=x86_64");
+    {
+        ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(opts_, paths_, "gsi_phone_avd", false, ""));
+        EXPECT_EQ(avd->GetDeviceType(), DeviceType::kPhone);
+        EXPECT_THAT(avd->Details(/*verbose=*/true), ::testing::HasSubstr("📱"));
+    }
+
+    auto xr_avd_dir = CreateTestAvd("xr_avd", "android-34", 34);
+    WriteToFile(xr_avd_dir / "config.ini",
+                "target=android-34\nimage.sysdir.1=sysimg\ntag.id=android-xr");
+    WriteToFile(paths_.sdk_directory / "sysimg" / "build.prop",
+                "ro.product.system.name=mainline\n"
+                "ro.build.flavor=gms_sdk_xr64_arm64-userdebug\n"
+                "ro.system.build.version.sdk=34\nro.product.cpu.abi=x86_64");
+    {
+        ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(opts_, paths_, "xr_avd", false, ""));
+        EXPECT_EQ(avd->GetDeviceType(), DeviceType::kXr);
+        EXPECT_THAT(avd->Details(/*verbose=*/true), ::testing::HasSubstr("🥽"));
+    }
+
+    auto glasses_avd_dir = CreateTestAvd("glasses_avd", "android-36", 36);
+    WriteToFile(glasses_avd_dir / "config.ini",
+                "target=android-36\nimage.sysdir.1=sysimg\ntag.id=ai-glasses");
+    WriteToFile(paths_.sdk_directory / "sysimg" / "build.prop",
+                "ro.product.system.name=mainline\n"
+                "ro.build.flavor=sdk_glasses_arm64-userdebug\n"
+                "ro.system.build.version.sdk=36\nro.product.cpu.abi=x86_64");
+    {
+        ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(opts_, paths_, "glasses_avd", false, ""));
+        EXPECT_EQ(avd->GetDeviceType(), DeviceType::kGlasses);
+        EXPECT_THAT(avd->Details(/*verbose=*/true), ::testing::HasSubstr("👓"));
+    }
 }
 
 TEST_F(AvdTest, QemuVersion) {
@@ -543,6 +585,47 @@ TEST_F(AvdTest, VendorProperty) {
     EXPECT_EQ(avd->VendorProperty("ro.vendor.uwb.dev"), "/dev/uwb0");
     EXPECT_EQ(avd->VendorProperty("ro.vendor.test.key"), "test_val");
     EXPECT_EQ(avd->VendorProperty("non_existent_key", "default_val"), "default_val");
+}
+
+TEST_F(AvdTest, ListSnapshotsWithoutInspector) {
+    fs::path avd_dir = CreateTestAvd("snap_avd", "android-30", 30);
+    fs::path snap1 = avd_dir / "snapshots" / "snap1";
+    fs::create_directories(snap1);
+    WriteToFile(snap1 / "snapshot.pb", "pb data");
+    WriteToFile(snap1 / "ram.bin", "ram data");
+
+    // Root qcow2 should not be listed if no inspector is provided
+    WriteToFile(avd_dir / "cache.img.qcow2", "dummy qcow");
+
+    ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(opts_, paths_, "snap_avd", false, {}, {}));
+    auto snaps = avd->ListSnapshots();
+    ASSERT_EQ(snaps.size(), 1);
+    EXPECT_EQ(snaps[0].name, "snap1");
+    EXPECT_TRUE(snaps[0].has_snapshot_pb);
+    EXPECT_TRUE(snaps[0].has_ram_file);
+    EXPECT_GT(snaps[0].size_bytes, 0);
+    EXPECT_TRUE(snaps[0].image_info.empty());
+}
+
+TEST_F(AvdTest, ListSnapshotsWithInspector) {
+    fs::path avd_dir = CreateTestAvd("snap_avd2", "android-30", 30);
+    fs::path snap1 = avd_dir / "snapshots" / "snap1";
+    fs::create_directories(snap1);
+    WriteToFile(snap1 / "ram.qcow2", "qcow ram");
+    WriteToFile(avd_dir / "userdata-qemu.img.qcow2", "userdata qcow");
+
+    ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(opts_, paths_, "snap_avd2", false, {}, {}));
+    auto mock_inspector = [](const fs::path& p) -> std::string {
+        return "mock qemu-img info for " + p.filename().string();
+    };
+    auto snaps = avd->ListSnapshots(mock_inspector);
+    ASSERT_EQ(snaps.size(), 2);
+    EXPECT_EQ(snaps[0].name, "snap1");
+    EXPECT_TRUE(snaps[0].has_ram_file);
+    EXPECT_THAT(snaps[0].image_info, ::testing::HasSubstr("Image [ram.qcow2]"));
+    EXPECT_EQ(snaps[1].name, "Disk Image: userdata-qemu.img.qcow2");
+    EXPECT_THAT(snaps[1].image_info,
+                ::testing::HasSubstr("mock qemu-img info for userdata-qemu.img.qcow2"));
 }
 
 }  // namespace android::goldfish::avd

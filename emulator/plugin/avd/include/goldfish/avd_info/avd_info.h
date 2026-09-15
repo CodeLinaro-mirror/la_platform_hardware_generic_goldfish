@@ -55,8 +55,10 @@ struct AvdProperties {
     std::filesystem::path avd_content_path;
     std::string build_sdk;
     std::string build_id;
-    std::string build_flavour;
+    std::string build_flavor;
+    std::string build_fingerprint;
     std::string snapshot_name;
+    bool snapshot_update_time{true};
     int32_t quit_after_boot_timeout_seconds{0};
     ::goldfish::metrics::Uuid metrics_session_id{::goldfish::metrics::Uuid::Zero()};
     ::goldfish::metrics::MetricsWriterConfig metrics_writer_config;

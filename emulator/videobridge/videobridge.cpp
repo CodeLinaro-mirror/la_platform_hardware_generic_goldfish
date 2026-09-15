@@ -275,8 +275,11 @@ int RunServer() {
 
     auto provider = std::make_shared<MediaTrackProvider>(video_source, audio_source);
     auto switchboard = std::make_shared<Switchboard>(
-            provider, [client](DataChannelLabel /*label*/) -> std::unique_ptr<InputSender> {
-                return std::make_unique<GrpcInputSender>(client);
+            provider, [client](DataChannelLabel label) -> std::unique_ptr<InputSender> {
+                if (label == DataChannelLabel::kInput) {
+                    return std::make_unique<GrpcInputSender>(client);
+                }
+                return nullptr;
             });
 
     // 3. Initialize RtcService and Start gRPC Server

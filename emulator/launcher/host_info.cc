@@ -265,6 +265,23 @@ void FillFeatureFlagState(android_studio::EmulatorFeatureFlagState& feature_flag
     // TODO
 }
 
+android_studio::EmulatorDetails::VulkanIcd GetVulkanIcd() {
+    std::string vk_icd = android::base::System::Get()->EnvGet("ANDROID_EMU_VK_ICD");
+    if (vk_icd == "") {  // Use hardware when vk_icd is null
+        return android_studio::EmulatorDetails::HOST_DEFAULT_VK;
+    } else if (vk_icd == "swiftshader") {
+        return android_studio::EmulatorDetails::SWIFTSHADER_VK;
+    } else if (vk_icd == "lavapipe") {
+        return android_studio::EmulatorDetails::LAVAPIPE_VK;
+    } else if (vk_icd == "moltenvk") {
+        return android_studio::EmulatorDetails::MOLTEN_VK;
+    } else if (vk_icd == "kosmickrisp") {
+        return android_studio::EmulatorDetails::KOSMICKRISP_VK;
+    } else {
+        return android_studio::EmulatorDetails::UNKNOWN_VK;
+    }
+}
+
 void FillDetails(android_studio::EmulatorDetails& details, const Avd& avd, long launcher_pid,
                  long qemu_pid, bool metrics_collection_opt, bool fuchsia_opt, bool openglAlive) {
     FillAvdInfo(*details.mutable_avd_info(), avd);
@@ -291,6 +308,9 @@ void FillDetails(android_studio::EmulatorDetails& details, const Avd& avd, long 
                 renderer->fillGLESUsages(details.mutable_gles_usages());
         }
     }*/
+
+    // Must be called after launch_qemu has setup environment.
+    details.set_vulkan_icd(GetVulkanIcd());
 
     // TODO Set available GPU info.
     /*for (const GpuInfo& gpu : globalGpuInfoList().infos) {

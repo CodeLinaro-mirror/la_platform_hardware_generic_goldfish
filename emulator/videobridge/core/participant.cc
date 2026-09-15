@@ -35,6 +35,7 @@
 #include "event_forwarder.h"
 #include "goldfish/videobridge/media_provider.h"
 #include "goldfish/videobridge/rtc_connection.h"
+#include "jsep_parse.h"
 #include "rtc_config.h"
 
 namespace goldfish::videobridge {
@@ -60,32 +61,6 @@ class SetRemoteDescriptionCallback : public ::webrtc::SetRemoteDescriptionObserv
 
   private:
     std::weak_ptr<Participant> participant_;
-};
-
-struct IceCandidate {
-    std::string sdp_mid;    ///< The media stream identifier (e.g. "0", "1", "audio", "video").
-    int sdp_mline_index;    ///< The index (0-based) of the m-line association.
-    std::string candidate;  ///< The raw candidate SDP string (e.g., "candidate:842163049 1 ...").
-
-    static absl::StatusOr<IceCandidate> FromJson(const nlohmann::json& json_candidate) {
-        if (!json_candidate.contains("sdpMid") || !json_candidate.contains("sdpMLineIndex") ||
-            !json_candidate.contains("candidate")) {
-            return absl::InvalidArgumentError(
-                    "JSON missing required properties ('sdpMid', 'sdpMLineIndex', or "
-                    "'candidate')");
-        }
-        if (!json_candidate["sdpMid"].is_string() ||
-            !json_candidate["sdpMLineIndex"].is_number_integer() ||
-            !json_candidate["candidate"].is_string()) {
-            return absl::InvalidArgumentError(
-                    "JSON properties have invalid types (expected string, int, string)");
-        }
-        return IceCandidate{
-            json_candidate["sdpMid"].get<std::string>(),
-            json_candidate["sdpMLineIndex"].get<int>(),
-            json_candidate["candidate"].get<std::string>(),
-        };
-    }
 };
 
 class DummySetSessionDescriptionObserver : public ::webrtc::SetSessionDescriptionObserver {
@@ -157,6 +132,9 @@ absl::Status Participant::DoInitialize() {
     if (auto s = AddDataChannel(DataChannelLabel::kInput); !s.ok()) {
         return s;
     }
+    if (auto s = AddDataChannel(DataChannelLabel::kInputV2); !s.ok()) {
+        return s;
+    }
 
     if (media_provider_) {
         return media_provider_->AddTracks(connection_.GetPeerConnectionFactory(),
@@ -175,19 +153,16 @@ void Participant::IncomingMessage(const nlohmann::json& msg) {
 
 void Participant::DoIncomingMessage(const nlohmann::json& msg) {
     DCHECK(connection_.SignalingThread()->IsCurrent());
+    // Drop messages arriving after closure.
+    if (peer_connection_ == nullptr) {
+        VLOG(1) << "Dropping JSEP message for closed participant " << peer_id_;
+        return;
+    }
     if (msg.contains("candidate")) {
-        if (msg["candidate"].is_object() && msg["candidate"].contains("candidate")) {
-            HandleCandidate(msg["candidate"]);
-        } else {
-            HandleCandidate(msg);
-        }
+        HandleCandidate(internal::UnwrapEnvelope(msg, "candidate"));
     }
     if (msg.contains("sdp")) {
-        if (msg["sdp"].is_object() && msg["sdp"].contains("sdp")) {
-            HandleOffer(msg["sdp"]);
-        } else {
-            HandleOffer(msg);
-        }
+        HandleOffer(internal::UnwrapEnvelope(msg, "sdp"));
     }
 }
 
@@ -227,9 +202,22 @@ void Participant::OnIceConnectionChange(
 
 void Participant::OnDataChannel(webrtc::scoped_refptr<::webrtc::DataChannelInterface> channel) {
     DCHECK(connection_.SignalingThread()->IsCurrent());
-    LOG(INFO) << "Registered incoming remote WebRTC data channel '" << channel->label()
+    const std::string label_str = channel->label();
+    LOG(INFO) << "Registered incoming remote WebRTC data channel '" << label_str
               << "' for participant " << peer_id_;
-    data_channels_[channel->label()] = channel;
+    data_channels_[label_str] = channel;
+
+    auto label_opt = ParseDataChannelLabel(label_str);
+    if (label_opt.has_value()) {
+        DataChannelLabel label = *label_opt;
+        if (event_forwarders_.find(label) == event_forwarders_.end()) {
+            auto sender = connection_.CreateInputSender(label);
+            if (sender) {
+                event_forwarders_[label] =
+                        std::make_unique<EventForwarder>(channel, label, std::move(sender));
+            }
+        }
+    }
 }
 
 void Participant::DoClose() {
@@ -267,7 +255,7 @@ void Participant::SendMessage(const nlohmann::json& msg) {
 
 void Participant::HandleCandidate(const nlohmann::json& msg) {
     DCHECK(connection_.SignalingThread()->IsCurrent());
-    auto candidate_result = IceCandidate::FromJson(msg);
+    auto candidate_result = internal::ParseIceCandidate(msg);
     if (!candidate_result.ok()) {
         LOG(WARNING) << "Received invalid ICE candidate from " << peer_id_ << ": "
                      << candidate_result.status();
@@ -303,34 +291,9 @@ void Participant::HandleCandidate(const nlohmann::json& msg) {
     });
 }
 
-absl::StatusOr<SessionDescriptionPtr> Participant::ParseSdpMessage(const nlohmann::json& msg) {
-    DCHECK(connection_.SignalingThread()->IsCurrent());
-    if (!msg.contains("type") || !msg.contains("sdp")) {
-        return absl::InvalidArgumentError("SDP message missing required 'type' or 'sdp' fields.");
-    }
-    const std::string type = msg["type"];
-    const std::string sdp = msg["sdp"];
-
-    if (type == "offer-loopback") {
-        return absl::UnimplementedError("Loopback offers are not supported by this bridge.");
-    }
-
-    auto sdp_type_opt = ::webrtc::SdpTypeFromString(type);
-    if (!sdp_type_opt) {
-        return absl::InvalidArgumentError(absl::StrCat("Invalid JSEP message type: '", type, "'"));
-    }
-
-    ::webrtc::SdpParseError error;
-    auto session_description = ::webrtc::CreateSessionDescription(*sdp_type_opt, sdp, &error);
-    if (!session_description) {
-        return absl::InvalidArgumentError(absl::StrCat("SDP parse failed: ", error.description));
-    }
-    return session_description;
-}
-
 void Participant::HandleOffer(const nlohmann::json& msg) {
     DCHECK(connection_.SignalingThread()->IsCurrent());
-    auto parsed_sdp = ParseSdpMessage(msg);
+    auto parsed_sdp = internal::ParseSdpMessage(msg);
     if (!parsed_sdp.ok()) {
         LOG(WARNING) << "Invalid SDP offer from " << peer_id_ << ": " << parsed_sdp.status();
         return;

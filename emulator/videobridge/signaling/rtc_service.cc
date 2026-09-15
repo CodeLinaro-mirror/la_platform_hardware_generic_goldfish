@@ -18,11 +18,10 @@
 
 #include "absl/log/check.h"
 #include "absl/log/log.h"
-#include "absl/random/random.h"
 #include "absl/strings/match.h"
-#include "absl/strings/str_format.h"
 
 #include "android/emulation/control/absl_status_translate.h"
+#include "goldfish/videobridge/session_id.h"
 #include "nlohmann/json.hpp"
 
 namespace goldfish::videobridge {
@@ -30,15 +29,6 @@ namespace goldfish::videobridge {
 namespace v2 = ::android::emulation::control::v2;
 
 namespace {
-
-std::string GenerateGuid() {
-    // TODO(jansene): use thread_local if this is used for many concurrent connections.
-    absl::BitGen bitgen;
-    return absl::StrFormat("%08x-%04x-%04x-%04x-%12x", absl::Uniform<uint32_t>(bitgen),
-                           absl::Uniform<uint16_t>(bitgen), absl::Uniform<uint16_t>(bitgen),
-                           absl::Uniform<uint16_t>(bitgen),
-                           absl::Uniform<uint64_t>(bitgen) & 0xFFFFFFFFFFFFULL);
-}
 
 /**
  * @brief Converts a gRPC IceServerConfig protobuf into a JSON string conforming
@@ -96,7 +86,7 @@ RtcService::RtcService(std::shared_ptr<Switchboard> switchboard)
 ::grpc::Status RtcService::RequestRtcStream(::grpc::ServerContext* /*context*/,
                                             const v2::RtcStreamRequest* request,
                                             v2::RtcStreamResponse* response) {
-    const std::string guid = GenerateGuid();
+    const std::string guid = GenerateSessionId();
     std::string turn_config;
     if (request->has_ice_server_config()) {
         turn_config = IceServerConfigToJson(request->ice_server_config());

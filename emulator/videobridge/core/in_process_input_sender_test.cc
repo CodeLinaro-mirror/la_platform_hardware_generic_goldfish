@@ -66,5 +66,40 @@ TEST(InProcessInputSenderTest, DispatcherErrorStatusHandling) {
     sender.SendEvent(event);
 }
 
+TEST(InProcessInputSenderTest, V2EventDispatching) {
+    V2InputEvent last_v2_event;
+    int v2_count = 0;
+
+    auto v2_dispatcher = [&](const V2InputEvent& event) -> absl::Status {
+        last_v2_event = event;
+        v2_count++;
+        return absl::OkStatus();
+    };
+
+    InProcessInputSender sender(nullptr, v2_dispatcher);
+
+    V2InputEvent event1;
+    event1.mutable_pointer()->set_display_id(0);
+    event1.mutable_pointer()->set_action(
+            ::android::emulation::v2::input::PointerAction::POINTER_ACTION_DOWN);
+
+    // Before Start -> ignored
+    sender.SendV2Event(event1);
+    EXPECT_EQ(v2_count, 0);
+
+    // Start -> dispatched
+    EXPECT_TRUE(sender.Start().ok());
+    sender.SendV2Event(event1);
+    EXPECT_EQ(v2_count, 1);
+    EXPECT_EQ(last_v2_event.pointer().display_id(), 0);
+    EXPECT_EQ(last_v2_event.pointer().action(),
+              ::android::emulation::v2::input::PointerAction::POINTER_ACTION_DOWN);
+
+    // Stop -> ignored
+    sender.Stop();
+    sender.SendV2Event(event1);
+    EXPECT_EQ(v2_count, 1);
+}
+
 }  // namespace
 }  // namespace goldfish::videobridge

@@ -17,9 +17,12 @@
 #include <gtest/gtest.h>
 
 #include <chrono>
+#include <memory>
 #include <string>
 #include <thread>
 
+#include "absl/status/status.h"
+#include "absl/time/clock.h"
 #include "absl/time/time.h"
 
 #include "nlohmann/json.hpp"
@@ -116,6 +119,48 @@ TEST(SwitchboardTest, AcceptJsepMessagesValidation) {
     // Any valid JSON parsed successfully will return Ok from AcceptJsepMessage
     EXPECT_TRUE(board.AcceptJsepMessage("user", "{}").ok());
 
+    board.Disconnect("user");
+}
+
+// A signaling client can put anything on the wire, and AcceptJsepMessage is
+// the door it comes through. Routing runs as a BlockingCall onto the WebRTC
+// signaling thread, so a parser that throws instead of returning a status
+// unwinds into Thread::Dispatch and terminates the emulator. That makes every
+// payload below a remotely triggerable abort; the assertion that matters here
+// is simply that the test process is still alive at the end.
+TEST(SwitchboardTest, SurvivesHostileJsepPayloads) {
+    Switchboard board(nullptr);
+    ASSERT_TRUE(board.Connect("user", "{}"));
+
+    constexpr const char* kHostilePayloads[] = {
+        // Fields of the wrong JSON type. Present, so a contains() check
+        // passes them through to a conversion that has no reason to succeed.
+        R"({"type": 42, "sdp": "v=0"})",
+        R"({"type": "offer", "sdp": 42})",
+        R"({"type": null, "sdp": null})",
+        R"({"type": ["offer"], "sdp": {"a": 1}})",
+        // The same, wrapped in the nested envelope the parsers also accept.
+        R"({"sdp": {"type": 42, "sdp": "v=0"}})",
+        // Values that are not objects where an object is expected.
+        R"({"sdp": true})",
+        R"({"sdp": [1, 2, 3]})",
+        // The candidate arm of the dispatch.
+        R"({"candidate": {"sdpMid": 0, "sdpMLineIndex": 0, "candidate": "c"}})",
+        R"({"candidate": {"sdpMid": "0", "sdpMLineIndex": "0", "candidate": "c"}})",
+        R"({"candidate": 42})",
+        // Both arms in one message, so neither can mask the other.
+        R"({"candidate": null, "sdp": null})",
+    };
+
+    for (const char* payload : kHostilePayloads) {
+        EXPECT_TRUE(board.AcceptJsepMessage("user", payload).ok())
+                << "Payload was rejected at the transport layer rather than by the "
+                   "parser, so it never reached the code under test: "
+                << payload;
+    }
+
+    // Still serving after all of that.
+    EXPECT_TRUE(board.AcceptJsepMessage("user", R"({"sdp": {"type": "offer"}})").ok());
     board.Disconnect("user");
 }
 
@@ -266,22 +311,21 @@ TEST(SwitchboardTest, NextMessageBlockedInterruptedByDisconnect) {
     EXPECT_TRUE(board.Connect("user", "{}"));
 
     absl::Status status = absl::OkStatus();
+    const absl::Time start = absl::Now();
     std::thread t([&board, &status]() {
-        // This will block until disconnected or timed out. We set a large timeout
-        // to make sure it gets interrupted by the Disconnect call instead.
+        // Long timeout ensures Disconnect interrupts the wait, not the deadline.
         auto maybe_msg = board.NextMessage("user", absl::Seconds(10));
         status = maybe_msg.status();
     });
 
-    // Give the thread a moment to enter NextMessage and block.
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));
-
-    // Disconnect should unblock the thread (which will eventually time out since no message
-    // arrives).
+    // Sticky closed flag unblocks readers even if Disconnect runs first.
     board.Disconnect("user");
     t.join();
+    const absl::Duration elapsed = absl::Now() - start;
 
-    EXPECT_EQ(status.code(), absl::StatusCode::kDeadlineExceeded);
+    EXPECT_FALSE(status.ok());
+    EXPECT_FALSE(absl::IsDeadlineExceeded(status)) << "Reader waited out its deadline: " << status;
+    EXPECT_LT(elapsed, absl::Seconds(5)) << "Disconnect did not promptly wake the blocked reader.";
 }
 
 TEST(SwitchboardTest, NextMessageZeroTimeout) {

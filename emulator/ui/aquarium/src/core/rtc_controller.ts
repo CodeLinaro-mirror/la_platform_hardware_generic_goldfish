@@ -144,8 +144,8 @@ export class RtcController {
       this.peerConnection = this.createPcFn(rtcConfig);
       this.setupPeerConnectionEvents(this.peerConnection);
 
-      // 3. Create input DataChannel
-      const dataChannel = this.peerConnection.createDataChannel("input", {
+      // 3. Create input_v2 DataChannel
+      const dataChannel = this.peerConnection.createDataChannel("input_v2", {
         ordered: true,
       });
       this.inputChannel.attachDataChannel(dataChannel);
@@ -235,7 +235,7 @@ export class RtcController {
 
     pc.ondatachannel = (event) => {
       console.log(`[RtcController] ondatachannel event: label=${event.channel.label}, state=${event.channel.readyState}`);
-      if (event.channel.label === "input") {
+      if (event.channel.label === "input_v2" || event.channel.label === "input") {
         this.inputChannel.attachDataChannel(event.channel);
       }
     };

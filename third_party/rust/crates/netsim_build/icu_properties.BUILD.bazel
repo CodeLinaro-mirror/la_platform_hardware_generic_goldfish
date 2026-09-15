@@ -1,0 +1,31 @@
+# Copyright 2025 - The Android Open Source Project
+#
+# SPDX-License-Identifier: Apache-2.0
+
+"""icu_properties bazel build rule"""
+
+load("@rules_rust//rust:defs.bzl", "rust_library")
+
+package(default_visibility = ["//visibility:public"])
+
+rust_library(
+    name = "icu_properties",
+    srcs = glob(["**/*.rs"]),
+    crate_features = [
+        "alloc",
+        "compiled_data",
+        "unicode_bidi",
+    ],
+    crate_name = "icu_properties",
+    crate_root = "src/lib.rs",
+    edition = "2021",
+    deps = [
+        "@icu_collections",
+        "@icu_locale_core",
+        "@icu_properties_data",
+        "@icu_provider",
+        "@unicode-bidi",
+        "@zerotrie",
+        "@zerovec",
+    ],
+)

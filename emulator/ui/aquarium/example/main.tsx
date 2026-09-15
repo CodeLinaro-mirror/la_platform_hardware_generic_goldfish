@@ -204,10 +204,10 @@ function AquariumDemoApp({ onLog }: { onLog: (msg: string, type?: LogEntry['type
                   <button style={styles.btnSecondary} onClick={() => sendKey('Power', 'Power')}>
                     ⏻ Power
                   </button>
-                  <button style={styles.btnSecondary} onClick={() => sendKey('VolumeUp', 'Vol+')}>
+                  <button style={styles.btnSecondary} onClick={() => sendKey('AudioVolumeUp', 'Vol+')}>
                     🔊 Vol +
                   </button>
-                  <button style={styles.btnSecondary} onClick={() => sendKey('VolumeDown', 'Vol-')}>
+                  <button style={styles.btnSecondary} onClick={() => sendKey('AudioVolumeDown', 'Vol-')}>
                     🔉 Vol -
                   </button>
                 </div>
