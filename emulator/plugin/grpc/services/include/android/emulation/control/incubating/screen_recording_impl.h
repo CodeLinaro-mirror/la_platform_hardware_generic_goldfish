@@ -24,7 +24,7 @@
 #include "grpcpp/grpcpp.h"
 
 #include "android/emulation/control/screen_recording_constants.h"
-#include "goldfish/display/QemuMultidisplay/multi_display.h"
+#include "goldfish/display/abstract_multi_display.h"
 #include "goldfish/display/video_recorder.h"
 #include "screen_recording_service.grpc.pb.h"
 

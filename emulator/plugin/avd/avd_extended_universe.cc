@@ -32,7 +32,7 @@
 #include "goldfish/async/testing/global_event_loop.h"
 #include "goldfish/avd_info/gralloc_impl.h"
 #include "goldfish/devices/vehicle/vehicle_device.h"
-#include "goldfish/display/QemuMultidisplay/multi_display.h"
+#include "goldfish/display/abstract_multi_display.h"
 #include "goldfish/tools/aemu_version.h"
 #include "goldfish/vsock/clear.h"
 

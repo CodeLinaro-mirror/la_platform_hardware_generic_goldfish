@@ -20,7 +20,7 @@
 
 #include "android/goldfish/vm_interface.h"
 #include "goldfish/avd_info/avd_info.h"
-#include "goldfish/display/QemuMultidisplay/multi_display.h"
+#include "goldfish/display/abstract_multi_display.h"
 
 extern "C" {
 struct QemuConsole;

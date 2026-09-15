@@ -20,27 +20,6 @@ cc_library(
 )
 
 cc_library(
-    name = "display",
-    srcs = [
-        "multi_display.cc",
-        "virtual_display.cc",
-    ],
-    hdrs = [
-        "include/goldfish/display/virtual_display.h",
-    ],
-    includes = ["include"],
-    visibility = ["//visibility:public"],
-    deps = [
-        ":primary_display",
-        "//emulator/libs/async:async_api",
-        "//emulator/libs/base",
-        "//emulator/plugin/hal/multidisplay",
-        "@abseil-cpp//absl/status",
-        "@abseil-cpp//absl/time",
-    ],
-)
-
-cc_library(
     name = "primary_display",
     srcs = [
         "imaging.cc",
@@ -55,7 +34,6 @@ cc_library(
         "write_png.cc",
     ],
     hdrs = [
-        "include/goldfish/display/QemuMultidisplay/multi_display.h",
         "include/goldfish/display/imaging.h",
         "include/goldfish/display/input_handler.h",
         "include/goldfish/display/multi_display_callbacks.h",
@@ -68,7 +46,6 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":base",
-        "//emulator/libs/archive",
         "//emulator/libs/base",
         "//emulator/libs/fps_calculator",
         "//emulator/libs/logging:absl_c_bridge",
@@ -84,13 +61,48 @@ cc_library(
 )
 
 cc_library(
+    name = "abstract_multi_display",
+    hdrs = [
+        "include/goldfish/display/abstract_multi_display.h",
+    ],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":base",
+        "//emulator/libs/archive",
+    ],
+)
+
+cc_library(
+    name = "display",
+    srcs = [
+        "multi_display.cc",
+        "virtual_display.cc",
+    ],
+    hdrs = [
+        "include/goldfish/display/virtual_display.h",
+    ],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":abstract_multi_display",
+        ":primary_display",
+        "//emulator/libs/archive",
+        "//emulator/libs/async:async_api",
+        "//emulator/libs/base",
+        "//emulator/plugin/hal/multidisplay",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/time",
+    ],
+)
+
+cc_library(
     name = "video_recorder",
     srcs = [
         "video_recorder.cc",
         "webm_encoder.cc",
     ],
     hdrs = [
-        "include/goldfish/display/QemuMultidisplay/multi_display.h",
         "include/goldfish/display/multi_display_callbacks.h",
         "include/goldfish/display/video_recorder.h",
         "include/goldfish/display/webm_encoder.h",
@@ -98,6 +110,7 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
+        ":abstract_multi_display",
         ":base",
         "//emulator/libs/base",
         "//emulator/libs/logging:absl_c_bridge",
@@ -130,6 +143,7 @@ cc_library(
     includes = ["test/include"],
     visibility = ["//visibility:public"],
     deps = [
+        ":abstract_multi_display",
         ":primary_display",
     ],
 )

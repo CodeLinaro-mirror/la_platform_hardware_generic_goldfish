@@ -30,7 +30,7 @@
 #include "emulator/plugin/grpc/input/input_session.h"
 #include "goldfish/audio/qemu_audio_source.h"
 #include "goldfish/avd_info/avd_info.h"
-#include "goldfish/display/QemuMultidisplay/multi_display.h"
+#include "goldfish/display/abstract_multi_display.h"
 #include "goldfish/videobridge/in_process_input_sender.h"
 #include "goldfish/videobridge/in_process_video_source.h"
 #include "goldfish/videobridge/media_track_provider.h"
