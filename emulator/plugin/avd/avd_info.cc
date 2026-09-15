@@ -261,8 +261,8 @@ void avd_info_set_build_id(Object* obj, const char* value, Error** errp) {
     toMutableAvdProperties(obj).build_id = value;
 }
 
-void avd_info_set_build_flavour(Object* obj, const char* value, Error** errp) {
-    toMutableAvdProperties(obj).build_flavour = value;
+void avd_info_set_build_flavor(Object* obj, const char* value, Error** errp) {
+    toMutableAvdProperties(obj).build_flavor = value;
 }
 
 void avd_info_set_build_fingerprint(Object* obj, const char* value, Error** errp) {
@@ -435,7 +435,7 @@ void avd_info_class_init(ObjectClass* oc, const void* data) {
 
     object_class_property_add_str(oc, "build_sdk", nullptr, avd_info_set_build_sdk);
     object_class_property_add_str(oc, "build_id", nullptr, avd_info_set_build_id);
-    object_class_property_add_str(oc, "build_flavour", nullptr, avd_info_set_build_flavour);
+    object_class_property_add_str(oc, "build_flavor", nullptr, avd_info_set_build_flavor);
     object_class_property_add_str(oc, "build_fingerprint", nullptr, avd_info_set_build_fingerprint);
     object_class_property_add_str(oc, "snapshot_name", nullptr, avd_info_set_snapshot_name);
     object_class_property_add_bool(oc, "snapshot_update_time", nullptr,

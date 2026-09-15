@@ -124,7 +124,7 @@ grpc::Status StatusServiceImpl::getStatus(EmulatorStatus* reply) {
     absl::StrAppendFormat(&avd_details, "Target: %s\n", avd_properties_.avd_api_str);
     absl::StrAppendFormat(&avd_details, "Build SDK: %s\n", avd_properties_.build_sdk);
     absl::StrAppendFormat(&avd_details, "Build ID: %s\n", avd_properties_.build_id);
-    absl::StrAppendFormat(&avd_details, "Build Flavour: %s\n", avd_properties_.build_flavour);
+    absl::StrAppendFormat(&avd_details, "Build Flavor: %s\n", avd_properties_.build_flavor);
 
     // Parse and append all keys from the local AVD config.ini file
     std::filesystem::path config_ini_path = avd_properties_.avd_content_path / "config.ini";

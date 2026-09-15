@@ -94,7 +94,7 @@ class Avd {
     virtual std::string BuildId() const = 0;
     virtual std::string BuildFingerprint() const = 0;
     virtual int64_t BuildTimestamp() const = 0;
-    virtual std::string BuildFlavour() const = 0;
+    virtual std::string BuildFlavor() const = 0;
     virtual std::string BuildProductName() const = 0;
     virtual std::string BuildNumber() const = 0;
     virtual std::string VendorProperty(std::string_view key,
@@ -241,9 +241,9 @@ class Avd {
      *
      * @param name The name of the AVD.
      * @param sysdir_override Optionally supply a path to override the system directory
-     *        search. Use empty string for default behaviour.
+     *        search. Use empty string for default behavior.
      * @param writable_content_override Optionally supply a path to override the content
-     *        directory. Use empty string for default behaviour.
+     *        directory. Use empty string for default behavior.
      * @return An absl::StatusOr<Avd> object. On success, contains the
      *         constructed AVD. On failure, contains an error status.
      */

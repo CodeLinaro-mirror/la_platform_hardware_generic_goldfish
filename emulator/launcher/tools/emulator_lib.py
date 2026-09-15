@@ -463,7 +463,7 @@ async def launch_and_monitor_emulator(
                 if runner.process:
                     runner.process.send_signal(sig)
             # Note that Bazel forwards SIGINT to all processes so when running
-            # under Bazel this might mean the emulator gets signalled twice,
+            # under Bazel this might mean the emulator gets signaled twice,
             # which should be fine.
             signal.signal(signal.SIGINT, signal_handler)
             signal.signal(signal.SIGTERM, signal_handler)

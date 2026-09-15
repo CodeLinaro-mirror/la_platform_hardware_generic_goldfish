@@ -62,7 +62,7 @@ absl::Status AvdInfoDevice::initialize(const EmulatorConfig& emulator) {
         {"avd_dir", emulator.avd().GetContentPath().string()},
         {"build_sdk", emulator.avd().BuildSdk()},
         {"build_id", emulator.avd().BuildId()},
-        {"build_flavour", emulator.avd().BuildFlavour()},
+        {"build_flavor", emulator.avd().BuildFlavor()},
         {"build_fingerprint", emulator.avd().BuildFingerprint()},
     };
 

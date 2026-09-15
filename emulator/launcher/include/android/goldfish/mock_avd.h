@@ -46,7 +46,7 @@ class MockAvd : public Avd {
     MOCK_METHOD(std::string, BuildId, (), (const, override));
     MOCK_METHOD(std::string, BuildFingerprint, (), (const, override));
     MOCK_METHOD(int64_t, BuildTimestamp, (), (const, override));
-    MOCK_METHOD(std::string, BuildFlavour, (), (const, override));
+    MOCK_METHOD(std::string, BuildFlavor, (), (const, override));
     MOCK_METHOD(std::string, BuildNumber, (), (const, override));
     MOCK_METHOD(std::string, VendorProperty, (std::string_view key, std::string_view default_value),
                 (const, override));

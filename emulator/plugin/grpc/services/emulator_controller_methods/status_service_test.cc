@@ -110,7 +110,7 @@ TEST_F(StatusServiceTest, GetStatusInitialState) {
             "Target: 15.0 (V) - API 35\n"
             "Build SDK: \n"
             "Build ID: \n"
-            "Build Flavour: \n";
+            "Build Flavor: \n";
     EXPECT_EQ(guest_config["avdDetails"], expected_avd_details);
 
     // Check hardwareconfig

@@ -245,7 +245,7 @@ struct BuildProp {
     }
     int64_t Timestamp() const { return build_ini.GetInt64("ro.build.date.utc", 0); }
 
-    std::string Flavour() const { return build_ini.GetString("ro.build.flavor", "unknown"); }
+    std::string Flavor() const { return build_ini.GetString("ro.build.flavor", "unknown"); }
 
     std::string ProductName() const {
         using namespace std::literals;
@@ -289,7 +289,7 @@ class FileBackedAvd : public Avd {
     const HardwareConfig& Hw() const override { return hw_cfg_; }
 
     android_studio::EmulatorAvdInfo::EmulatorAvdImageKind ImageKind() const override {
-        const std::string flavour = BuildFlavour();
+        const std::string flavor = BuildFlavor();
         std::string tag_id = config_ini_.GetString("tag.id", "");
         if (tag_id.empty()) {
             tag_id = config_ini_.GetString("tag.ids", "");
@@ -297,15 +297,15 @@ class FileBackedAvd : public Avd {
 
         bool is_playstore = config_ini_.GetBool("PlayStore.enabled", false) ||
                             (tag_id.find("playstore") != std::string::npos) ||
-                            (flavour.find("playstore") != std::string::npos);
+                            (flavor.find("playstore") != std::string::npos);
         if (is_playstore) {
             return android_studio::EmulatorAvdInfo::PLAY_STORE_KIND;
         }
 
         bool is_atd = (tag_id.find("atd") != std::string::npos ||
-                       flavour.find("atd") != std::string::npos);
+                       flavor.find("atd") != std::string::npos);
         bool is_google = (tag_id.find("google_apis") != std::string::npos) ||
-                         (flavour.find("google_apis") != std::string::npos);
+                         (flavor.find("google_apis") != std::string::npos);
         if (is_google) {
             return is_atd ? android_studio::EmulatorAvdInfo::GOOGLE_ATD
                           : android_studio::EmulatorAvdInfo::GOOGLE;
@@ -340,7 +340,7 @@ class FileBackedAvd : public Avd {
     std::string BuildId() const override { return build_ini_.Id(); }
     std::string BuildFingerprint() const override { return build_ini_.Fingerprint(); }
     int64_t BuildTimestamp() const override { return build_ini_.Timestamp(); }
-    std::string BuildFlavour() const override { return build_ini_.Flavour(); }
+    std::string BuildFlavor() const override { return build_ini_.Flavor(); }
     std::string BuildProductName() const override { return build_ini_.ProductName(); }
     std::string BuildNumber() const override { return build_ini_.Number(); }
     std::string VendorProperty(std::string_view key,
@@ -533,10 +533,10 @@ class FileBackedAvd : public Avd {
     std::string Details(const bool verbose) const override {
         if (verbose) {
             auto icon = GetIconForDeviceType(GetDeviceType());
-            return absl::StrFormat("%s (%s) %s api: %d arch: %s res: %4dx%4d build: %s flavour: %s",
+            return absl::StrFormat("%s (%s) %s api: %d arch: %s res: %4dx%4d build: %s flavor: %s",
                                    Id(), DisplayName(), icon, ApiLevel(), Abi(),
                                    hw_cfg_.hw_lcd_width, hw_cfg_.hw_lcd_height, BuildNumber(),
-                                   BuildFlavour());
+                                   BuildFlavor());
         }
         return name_;
     }
@@ -715,7 +715,7 @@ absl::StatusOr<std::unique_ptr<Avd>> Avd::FromAndroidBuild(
         const std::string& name, fs::path android_build_out, bool wipe_data,
         fs::path writable_content_override) {
     if (writable_content_override.empty() && wipe_data) {
-        // Specific -wipe-data behaviour for android build.
+        // Specific -wipe-data behavior for android build.
         using namespace std::literals;
         constexpr auto kFilesToDelete = std::array{
             "system.img.qcow2"sv,  "vendor.img.qcow2"sv,        "encryptionkey.img.qcow2"sv,

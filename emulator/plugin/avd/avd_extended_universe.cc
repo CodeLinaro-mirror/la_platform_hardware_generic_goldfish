@@ -304,7 +304,7 @@ void AvdExtendedUniverse::OnSaveProps(archive::IWriter& writer) const {
               << "avd_api=" << p.avd_api << ", "
               << "build_sdk=" << p.build_sdk << ", "
               << "build_id=" << p.build_id << ", "
-              << "build_flavour=" << p.build_flavour << ", "
+              << "build_flavor=" << p.build_flavor << ", "
               << "emulator_full_version=" << full_version << ", "
               << "emulator_version=" << version << ", "
               << "emulator_build_id=" << build_id << ", "
@@ -315,7 +315,7 @@ void AvdExtendedUniverse::OnSaveProps(archive::IWriter& writer) const {
     writer << p.avd_api;
     writer << p.build_sdk;
     writer << p.build_id;
-    writer << p.build_flavour;
+    writer << p.build_flavor;
     writer << full_version;
     writer << version;
     writer << build_id;
@@ -427,7 +427,7 @@ absl::Status AvdExtendedUniverse::OnLoadProps(archive::IReader& reader) {
     check_int32("avd_api", p.avd_api);
     check_str("build_sdk", p.build_sdk);
     check_str("build_id", p.build_id);
-    check_str("build_flavour", p.build_flavour);
+    check_str("build_flavor", p.build_flavor);
     check_str("emulator_full_version", ::goldfish::version::GetEmulatorFullVersion());
     check_str("emulator_version", ::goldfish::version::GetEmulatorVersion());
     check_str("emulator_build_id", ::goldfish::version::GetEmulatorBuildId());
