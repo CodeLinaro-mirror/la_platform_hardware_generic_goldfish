@@ -421,13 +421,13 @@ class MultiDisplayImpl : public IMultiDisplay {
     }
 
   private:
-    mutable absl::Mutex display_access_;
+    EventLoop* const qemu_loop_;
     QemuDisplayMap qemu_displays_ ABSL_GUARDED_BY(display_access_);
     VirtualDisplayMap virtual_displays_ ABSL_GUARDED_BY(display_access_);
     std::unordered_map<DisplayId, bool> active_states_ ABSL_GUARDED_BY(display_access_);
-    bool is_folded_ ABSL_GUARDED_BY(display_access_) = false;
     uint32_t display_mode_ ABSL_GUARDED_BY(display_access_) = 0;
-    EventLoop* qemu_loop_;
+    bool is_folded_ ABSL_GUARDED_BY(display_access_) = false;
+    mutable absl::Mutex display_access_;
 };
 
 std::unique_ptr<IMultiDisplay> IMultiDisplay::Create(EventLoop* loop, EventLoop* qemu_loop) {
