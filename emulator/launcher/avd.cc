@@ -405,7 +405,7 @@ class FileBackedAvd : public Avd {
 
     DeviceType GetDeviceType() const override {
         using namespace std::literals;
-        constexpr auto kLabelMap = std::array{
+        constexpr auto kFlavorMap = std::array{
             std::pair{"phone"sv, DeviceType::kPhone},     std::pair{"atv"sv, DeviceType::kTv},
             std::pair{"wear"sv, DeviceType::kWear},       std::pair{"aw"sv, DeviceType::kWear},
             std::pair{"car"sv, DeviceType::kAndroidAuto}, std::pair{"pc"sv, DeviceType::kDesktop},
@@ -414,7 +414,7 @@ class FileBackedAvd : public Avd {
 
         auto product_name = BuildProductName();
         auto flavor = BuildFlavor();
-        for (const auto& [key, val] : kLabelMap) {
+        for (const auto& [key, val] : kFlavorMap) {
             if (product_name.contains(key) || flavor.contains(key)) {
                 return val;
             }
