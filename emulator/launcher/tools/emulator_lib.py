@@ -32,6 +32,7 @@ from process_monitor import ProcessTreeMonitor
 
 logging.basicConfig(stream=sys.stderr, encoding="utf-8", level=logging.DEBUG)
 
+
 class EmulatorLocator:
     """Locates all necessary emulator files and artifacts."""
 
@@ -61,9 +62,7 @@ class EmulatorLocator:
 
     async def _locate_goldfish_exec(self):
         if self.use_zip:
-            zip_path = Path(
-                self.r.Rlocation("goldfish+/emulator/release.zip")
-            )
+            zip_path = Path(self.r.Rlocation("goldfish+/emulator/release.zip"))
             if not zip_path.exists():
                 raise FileNotFoundError(f"Goldfish zip not found: {zip_path}")
 
@@ -82,9 +81,7 @@ class EmulatorLocator:
             self.goldfish_exec = extract_path / "emulator" / "emulator"
         else:
             self.goldfish_exec = Path(
-                self.r.Rlocation(
-                    "goldfish+/emulator/launcher/emulator"
-                )
+                self.r.Rlocation("goldfish+/emulator/launcher/emulator")
             )
 
         if platform.system() == "Windows":
@@ -147,9 +144,7 @@ class EmulatorLocator:
             )
 
     def _locate_marker_files(self):
-        marker_files_path = self.r.Rlocation(
-            "goldfish+/emulator/sdk/platforms/empty"
-        )
+        marker_files_path = self.r.Rlocation("goldfish+/emulator/sdk/platforms/empty")
         if not marker_files_path:
             raise FileNotFoundError("Marker files not found.")
         self.marker_files_path = Path(marker_files_path).parent.parent
@@ -267,12 +262,24 @@ class EmulatorCommand:
 
 
 class EmulatorRunner:
-    """Handles the execution and monitoring of the emulator process."""
+    """Handles the execution and monitoring of the emulator and auxiliary processes."""
 
     def __init__(self, command, env):
         self.command = command
         self.env = env
         self.process = None
+        self.auxiliary_processes = []
+        self.background_tasks = []
+
+    def register_process(self, proc, name):
+        """Registers an auxiliary subprocess to be gracefully terminated on teardown."""
+        self.auxiliary_processes.append((proc, name))
+
+    def start_background_task(self, coro):
+        """Starts a background coroutine as an asyncio task and tracks it for cleanup."""
+        task = asyncio.create_task(coro)
+        self.background_tasks.append(task)
+        return task
 
     async def launch_and_wait(
         self,
@@ -335,18 +342,40 @@ class EmulatorRunner:
                 await monitor.stop()
             await self._terminate_process()
 
+    async def _pump_stream(self, stream, tag):
+        """Asynchronously pumps lines from a stream to logging with a tag prefix."""
+        while True:
+            line_bytes = await stream.readline()
+            if not line_bytes:
+                logging.info("[%s] --- Process stream closed ---", tag)
+                break
+            line = line_bytes.decode("utf-8", errors="replace").strip()
+            logging.info("[%s] %s", tag, line)
+
     async def _terminate_process(self):
-        if self.process and self.process.returncode is None:
-            logging.info("--- Terminating emulator process... ---")
-            try:
-                self.process.terminate()
-                await asyncio.wait_for(self.process.wait(), timeout=10)
-            except asyncio.TimeoutError:
-                logging.warning(
-                    "--- Emulator did not terminate gracefully. Forcing kill. ---"
-                )
-                self.process.kill()
-                await self.process.wait()
+        # Cancel all background streaming tasks
+        for task in self.background_tasks:
+            if not task.done():
+                task.cancel()
+        if self.background_tasks:
+            await asyncio.gather(*self.background_tasks, return_exceptions=True)
+
+        for proc, name in [(self.process, "emulator")] + self.auxiliary_processes:
+            if proc and proc.returncode is None:
+                logging.info("--- Terminating %s process... ---", name)
+                try:
+                    proc.terminate()
+                    await asyncio.wait_for(proc.wait(), timeout=10)
+                except asyncio.TimeoutError:
+                    logging.warning(
+                        "--- %s did not terminate gracefully. Forcing kill. ---", name
+                    )
+                    proc.kill()
+                    await proc.wait()
+
+    async def _on_emulator_line(self, line):
+        """Hook for subclasses or auxiliary processors to inspect each emulator log line."""
+        pass
 
     async def _stream_output_and_find_log(
         self,
@@ -366,11 +395,13 @@ class EmulatorRunner:
         while True:
             line_bytes = await stream.readline()
             if not line_bytes:
-                logging.error("--- Stream ended before target log line was found. ---")
+                logging.error(
+                    "[emulator] --- Stream ended before target log line was found. ---"
+                )
                 return False
 
             line = line_bytes.decode("utf-8", errors="replace").strip()
-            logging.info(line)
+            logging.info("[emulator] %s", line)
 
             if count_re and count_re.search(line):
                 pattern_count += 1
@@ -380,9 +411,14 @@ class EmulatorRunner:
                     pattern_count,
                 )
 
+            await self._on_emulator_line(line)
+
             if target_re.search(line):
                 logging.info("--- Target log line detected! ---")
-                if expected_occurrences is not None and pattern_count != expected_occurrences:
+                if (
+                    expected_occurrences is not None
+                    and pattern_count != expected_occurrences
+                ):
                     logging.error(
                         "--- Assertion failed: count_log_pattern '%s' occurred %d times, expected exactly %d ---",
                         count_log_pattern,
@@ -393,13 +429,7 @@ class EmulatorRunner:
                 return True
 
     async def _stream_output(self, stream):
-        while True:
-            line_bytes = await stream.readline()
-            if not line_bytes:
-                logging.info("--- Emulator process exited. ---")
-                break
-            line = line_bytes.decode("utf-8", errors="replace").strip()
-            logging.info(line)
+        await self._pump_stream(stream, tag="emulator")
 
 
 async def launch_and_monitor_emulator(
@@ -462,6 +492,7 @@ async def launch_and_monitor_emulator(
                 logging.info("Signal received: %d", sig)
                 if runner.process:
                     runner.process.send_signal(sig)
+
             # Note that Bazel forwards SIGINT to all processes so when running
             # under Bazel this might mean the emulator gets signaled twice,
             # which should be fine.
