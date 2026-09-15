@@ -361,6 +361,48 @@ TEST_F(AvdTest, DeviceType) {
         ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(opts_, paths_, "wear_avd", false, ""));
         EXPECT_EQ(avd->GetDeviceType(), DeviceType::kWear);
     }
+
+    // Generic system image (GSI / MP37) where ro.product.system.name is generic_system_google
+    // and tag.id is google_apis_playstore.
+    auto gsi_phone_dir = CreateTestAvd("gsi_phone_avd", "android-37", 37);
+    WriteToFile(gsi_phone_dir / "config.ini",
+                "target=android-37\nimage.sysdir.1=sysimg\n"
+                "tag.id=google_apis_playstore");
+    WriteToFile(paths_.sdk_directory / "sysimg" / "build.prop",
+                "ro.product.system.name=generic_system_google\n"
+                "ro.build.flavor=generic_system_google-user\n"
+                "ro.system.build.version.sdk=37\nro.product.cpu.abi=x86_64");
+    {
+        ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(opts_, paths_, "gsi_phone_avd", false, ""));
+        EXPECT_EQ(avd->GetDeviceType(), DeviceType::kPhone);
+        EXPECT_THAT(avd->Details(/*verbose=*/true), ::testing::HasSubstr("📱"));
+    }
+
+    auto xr_avd_dir = CreateTestAvd("xr_avd", "android-34", 34);
+    WriteToFile(xr_avd_dir / "config.ini",
+                "target=android-34\nimage.sysdir.1=sysimg\ntag.id=android-xr");
+    WriteToFile(paths_.sdk_directory / "sysimg" / "build.prop",
+                "ro.product.system.name=mainline\n"
+                "ro.build.flavor=gms_sdk_xr64_arm64-userdebug\n"
+                "ro.system.build.version.sdk=34\nro.product.cpu.abi=x86_64");
+    {
+        ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(opts_, paths_, "xr_avd", false, ""));
+        EXPECT_EQ(avd->GetDeviceType(), DeviceType::kXr);
+        EXPECT_THAT(avd->Details(/*verbose=*/true), ::testing::HasSubstr("🥽"));
+    }
+
+    auto glasses_avd_dir = CreateTestAvd("glasses_avd", "android-36", 36);
+    WriteToFile(glasses_avd_dir / "config.ini",
+                "target=android-36\nimage.sysdir.1=sysimg\ntag.id=ai-glasses");
+    WriteToFile(paths_.sdk_directory / "sysimg" / "build.prop",
+                "ro.product.system.name=mainline\n"
+                "ro.build.flavor=sdk_glasses_arm64-userdebug\n"
+                "ro.system.build.version.sdk=36\nro.product.cpu.abi=x86_64");
+    {
+        ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(opts_, paths_, "glasses_avd", false, ""));
+        EXPECT_EQ(avd->GetDeviceType(), DeviceType::kGlasses);
+        EXPECT_THAT(avd->Details(/*verbose=*/true), ::testing::HasSubstr("👓"));
+    }
 }
 
 TEST_F(AvdTest, QemuVersion) {

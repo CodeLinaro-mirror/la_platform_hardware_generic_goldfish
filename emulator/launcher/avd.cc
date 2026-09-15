@@ -203,6 +203,10 @@ std::string GetIconForDeviceType(DeviceType flavor) {
         return "🚗";  // 🚗 (Car)
     case DeviceType::kDesktop:
         return "🖥️";  // 🖥️ (Desktop computer)
+    case DeviceType::kXr:
+        return "🥽";  // 🥽 (XR headset)
+    case DeviceType::kGlasses:
+        return "👓";  // 👓 (Glasses)
     default:
         return "🤷";  // 🤷 (Unknown)
     }
@@ -409,8 +413,30 @@ class FileBackedAvd : public Avd {
             std::pair{"glasses"sv, DeviceType::kGlasses}};
 
         auto product_name = BuildProductName();
+        auto flavor = BuildFlavor();
         for (const auto& [key, val] : kLabelMap) {
-            if (product_name.contains(key)) {
+            if (product_name.contains(key) || flavor.contains(key)) {
+                return val;
+            }
+        }
+
+        constexpr auto kTagIdMap = std::array{
+            std::pair{"tv"sv, DeviceType::kTv},
+            std::pair{"wear"sv, DeviceType::kWear},
+            std::pair{"automotive"sv, DeviceType::kAndroidAuto},
+            std::pair{"desktop"sv, DeviceType::kDesktop},
+            std::pair{"chromeos"sv, DeviceType::kDesktop},
+            std::pair{"xr"sv, DeviceType::kXr},
+            std::pair{"glasses"sv, DeviceType::kGlasses},
+            std::pair{"google_apis"sv, DeviceType::kPhone},
+            std::pair{"google_atd"sv, DeviceType::kPhone},
+            std::pair{"aosp_atd"sv, DeviceType::kPhone},
+            std::pair{"default"sv, DeviceType::kPhone},
+        };
+
+        auto tag_id = config_ini_.GetString("tag.id", "");
+        for (const auto& [key, val] : kTagIdMap) {
+            if (tag_id.contains(key)) {
                 return val;
             }
         }
