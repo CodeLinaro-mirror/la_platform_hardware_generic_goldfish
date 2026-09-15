@@ -12,8 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "goldfish/display/QemuMultidisplay/multi_display.h"
-
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -31,6 +29,7 @@
 #include "android/status/status_macros.h"
 #include "goldfish/avd_info/avd_info.h"
 #include "goldfish/devices/multidisplay/multidisplay_device.h"
+#include "goldfish/display/abstract_multi_display.h"
 #include "goldfish/display/display.h"
 #include "goldfish/display/multi_display_callbacks.h"
 #include "goldfish/display/virtual_display.h"

@@ -744,7 +744,7 @@ cc_library(
     strip_include_prefix = "include",
     deps = [
         ":videobridge_core",
-        "//emulator/plugin/display:primary_display",
+        "//emulator/plugin/display:abstract_multi_display",
         "@abseil-cpp//absl/log",
         "@libyuv",
         "@webrtc//api:peer_connection_interface",

@@ -22,7 +22,7 @@
 
 #include "android/emulation/control/ev_dev_event.h"
 #include "android/emulation/control/keyboard/key_event_sender.h"
-#include "goldfish/display/QemuMultidisplay/multi_display.h"
+#include "goldfish/display/abstract_multi_display.h"
 #include "input/input_service.pb.h"
 #include "slot_registry.h"
 

@@ -26,7 +26,7 @@
 
 #include "absl/log/log.h"
 
-#include "goldfish/display/QemuMultidisplay/multi_display.h"
+#include "goldfish/display/abstract_multi_display.h"
 
 namespace goldfish::videobridge {
 

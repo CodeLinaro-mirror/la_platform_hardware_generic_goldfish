@@ -50,7 +50,7 @@
 #include "goldfish/avd_info/avd_info.h"
 #include "goldfish/avd_info/avd_private.h"
 #include "goldfish/discovery/emulator_advertisement.h"
-#include "goldfish/display/QemuMultidisplay/multi_display.h"
+#include "goldfish/display/abstract_multi_display.h"
 #include "goldfish/file/file.h"
 #include "goldfish/grpc/grpc_key_utils.h"
 #include "goldfish/grpc/v2/v2_services.h"

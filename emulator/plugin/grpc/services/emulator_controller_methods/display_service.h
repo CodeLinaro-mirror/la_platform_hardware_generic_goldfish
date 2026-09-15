@@ -22,7 +22,7 @@
 #include "absl/synchronization/mutex.h"
 
 #include "emulator_controller.grpc.pb.h"
-#include "goldfish/display/QemuMultidisplay/multi_display.h"
+#include "goldfish/display/abstract_multi_display.h"
 #include "goldfish/eventing/with_callbacks.h"
 #include "goldfish/parsing/resizable_display_config.h"
 #include "goldfish/sensors/physical_model.h"
