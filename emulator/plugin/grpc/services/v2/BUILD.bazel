@@ -53,6 +53,72 @@ cc_test(
 )
 
 cc_library(
+    name = "rtc_service",
+    srcs = ["webrtc/rtc_service_impl.cc"],
+    hdrs = ["webrtc/rtc_service_impl.h"],
+    copts = select({
+        "@platforms//os:windows": ["/GR-"],
+        "//conditions:default": ["-fno-rtti"],
+    }),
+    includes = ["."],
+    deps = [
+        "//emulator/libs/grpc_utils:absl_translate",
+        "//emulator/videobridge:session_id",
+        "//emulator/videobridge:videobridge_core",
+        "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/cleanup",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/container:flat_hash_set",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/synchronization",
+        "@abseil-cpp//absl/time",
+        "@aemu//protos/services_v2/webrtc:rtc_service_cc_grpc",
+        "@grpc//:grpc++",
+    ],
+)
+
+cc_test(
+    name = "rtc_service_test",
+    srcs = ["webrtc/rtc_service_impl_test.cc"],
+    copts = select({
+        "@platforms//os:windows": ["/GR-"],
+        "//conditions:default": ["-fno-rtti"],
+    }),
+    linkopts = select({
+        "@platforms//os:macos": [
+            "-Wl,-ObjC",
+            "-framework VideoToolbox",
+            "-framework CoreMedia",
+            "-framework AVFoundation",
+            "-framework CoreVideo",
+            "-framework Foundation",
+        ],
+        "@platforms//os:windows": [
+            "strmiids.lib",
+            "uuid.lib",
+            "ole32.lib",
+            "oleaut32.lib",
+        ],
+        "//conditions:default": [],
+    }),
+    deps = [
+        ":rtc_service",
+        "//emulator/libs/test:googletest_main",
+        "//emulator/videobridge:videobridge_core",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/synchronization",
+        "@abseil-cpp//absl/time",
+        "@aemu//protos/services_v2/webrtc:rtc_service_cc_grpc",
+        "@googletest//:gtest",
+        "@grpc//:grpc++",
+        "@nlohmann_json//:singleheader-json",
+    ],
+)
+
+cc_library(
     name = "v2_services",
     srcs = ["v2_services.cc"],
     hdrs = ["include/goldfish/grpc/v2/v2_services.h"],

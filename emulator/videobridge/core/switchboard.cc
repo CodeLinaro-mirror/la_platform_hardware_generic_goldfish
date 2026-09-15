@@ -118,6 +118,11 @@ absl::Status Switchboard::AcceptJsepMessage(const std::string& identity, const s
     return absl::OkStatus();
 }
 
+bool Switchboard::HasSession(const std::string& identity) {
+    const absl::MutexLock lock(&connections_mutex_);
+    return connections_.contains(identity);
+}
+
 absl::StatusOr<std::string> Switchboard::NextMessage(const std::string& identity,
                                                      absl::Duration timeout) {
     auto queue = GetQueue(identity);

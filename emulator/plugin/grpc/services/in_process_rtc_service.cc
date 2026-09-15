@@ -20,6 +20,7 @@
 
 #include <memory>
 #include <utility>
+#include <vector>
 
 #include "absl/log/check.h"
 #include "absl/log/log.h"
@@ -28,6 +29,7 @@
 #include "android/emulation/control/event_sender.h"
 #include "api/make_ref_counted.h"
 #include "emulator/plugin/grpc/input/input_session.h"
+#include "emulator/plugin/grpc/services/v2/webrtc/rtc_service_impl.h"
 #include "goldfish/audio/qemu_audio_source.h"
 #include "goldfish/avd_info/avd_info.h"
 #include "goldfish/display/QemuMultidisplay/multi_display.h"
@@ -121,12 +123,10 @@ InputSenderFactory CreateInProcessInputSenderFactory(
     };
 }
 
-std::shared_ptr<::grpc::Service> CreateInProcessRtcService(AvdUniverse& avd_universe,
-                                                           uint32_t display_id,
-                                                           uint32_t console_index,
-                                                           AudioBackend* audio_backend) {
-    LOG(INFO) << "Creating in-process WebRTC RtcService for display " << display_id;
-
+static std::shared_ptr<Switchboard> CreateInProcessSwitchboard(AvdUniverse& avd_universe,
+                                                               uint32_t display_id,
+                                                               uint32_t console_index,
+                                                               AudioBackend* audio_backend) {
     auto video_source = ::webrtc::make_ref_counted<InProcessVideoSource>(
             avd_universe.GetMultiDisplay(), display_id);
 
@@ -149,9 +149,19 @@ std::shared_ptr<::grpc::Service> CreateInProcessRtcService(AvdUniverse& avd_univ
     auto input_sender_factory = CreateInProcessInputSenderFactory(
             avd_universe.GetMultiDisplay(), std::move(key_event_sender),
             avd_universe.Props().hw_config.hw_sensor_hinge);
-    auto switchboard = std::make_shared<Switchboard>(media_provider, input_sender_factory);
+    return std::make_shared<Switchboard>(media_provider, input_sender_factory);
+}
 
-    return std::make_shared<RtcService>(switchboard);
+std::vector<std::shared_ptr<::grpc::Service>> CreateInProcessRtcServices(
+        AvdUniverse& avd_universe, uint32_t display_id, uint32_t console_index,
+        AudioBackend* audio_backend) {
+    LOG(INFO) << "Creating in-process WebRTC RtcServices (v1 and v2) for display " << display_id;
+    auto switchboard =
+            CreateInProcessSwitchboard(avd_universe, display_id, console_index, audio_backend);
+    return {
+        std::make_shared<RtcService>(switchboard),
+        std::make_shared<::goldfish::grpc::v2::RtcServiceImpl>(switchboard),
+    };
 }
 
 }  // namespace android::emulation::control

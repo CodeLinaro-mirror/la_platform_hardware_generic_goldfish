@@ -16,6 +16,8 @@ extern "C" {
 // IWYU pragma: end_keep
 // clang-format on
 
+#include <vector>
+
 #include "android/emulation/control/in_process_rtc_service.h"
 #include "goldfish/avd_info/avd_info.h"
 
@@ -23,32 +25,32 @@ extern "C" {
 OBJECT_DECLARE_SIMPLE_TYPE(WebrtcDev, WEBRTC)
 struct WebrtcDev {
     DeviceState parent_obj;
-    std::shared_ptr<::grpc::Service> rtc_service;
+    std::vector<std::shared_ptr<::grpc::Service>> rtc_services;
 };
 
 namespace goldfish::grpc {
 static std::mutex webrtc_service_mutex;
-static std::shared_ptr<::grpc::Service> webrtc_service;
+static std::vector<std::shared_ptr<::grpc::Service>> webrtc_services;
 
-std::shared_ptr<::grpc::Service> WebrtcGetService() {
+std::vector<std::shared_ptr<::grpc::Service>> WebrtcGetServices() {
     std::lock_guard<std::mutex> lock(webrtc_service_mutex);
-    return webrtc_service;
+    return webrtc_services;
 }
 
 // NOLINTBEGIN(readability-identifier-naming)
 static void webrtc_realize(DeviceState* dev, Error** errp) {
     WebrtcDev* webrtc = WEBRTC(dev);
-    webrtc->rtc_service =
-            android::emulation::control::CreateInProcessRtcService(goldfish::avd_info::GetAvd());
+    webrtc->rtc_services =
+            android::emulation::control::CreateInProcessRtcServices(goldfish::avd_info::GetAvd());
     std::lock_guard<std::mutex> lock(webrtc_service_mutex);
-    webrtc_service = webrtc->rtc_service;
+    webrtc_services = webrtc->rtc_services;
 }
 
 static void webrtc_unrealize(DeviceState* dev) {
     WebrtcDev* webrtc = WEBRTC(dev);
-    webrtc->rtc_service.reset();
+    webrtc->rtc_services.clear();
     std::lock_guard<std::mutex> lock(webrtc_service_mutex);
-    webrtc_service.reset();
+    webrtc_services.clear();
 }
 
 static void webrtc_class_init(ObjectClass* oc, const void* data) {
