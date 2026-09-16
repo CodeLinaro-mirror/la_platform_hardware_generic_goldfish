@@ -202,7 +202,9 @@ AvdExtendedUniverse::AvdExtendedUniverse(std::unique_ptr<AvdProperties> props)
     DEVS::unix_pipe::IUnixPipe::RegisterDevice(&avd_universe.test_tools_connector_registry,
                                                client_loop, qemu_loop.get());
 
-    avd_universe.multi_display = display::IMultiDisplay::Create(client_loop, qemu_loop.get());
+    avd_universe.multi_display = display::IMultiDisplay::Create(
+            client_loop, qemu_loop.get(),
+            avd_universe.GetSensorsPhysicalModel().GetFoldableConfig());
 
     // Initialize the battery to a default state and register it.
     avd_universe.battery_subscription = DEVS::battery::RegisterBattery(

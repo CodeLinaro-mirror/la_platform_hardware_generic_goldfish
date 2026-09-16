@@ -22,6 +22,7 @@
 #include "goldfish/async/event_loop.h"
 #include "goldfish/async/event_loop_dispatcher.h"
 #include "goldfish/display/display.h"
+#include "goldfish/sensors/foldable.h"
 
 namespace goldfish::display {
 
@@ -193,7 +194,8 @@ class IMultiDisplay : public LoopBoundCallbackSource<DisplayEvent> {
 
     static constexpr size_t kMaxDisplays = 11;  ///< Maximum number of supported Android displays.
 
-    static std::unique_ptr<IMultiDisplay> Create(EventLoop* loop, EventLoop* qemu_loop);
+    static std::unique_ptr<IMultiDisplay> Create(EventLoop* loop, EventLoop* qemu_loop,
+                                                 const sensors::FoldableConfig* fc);
 
   protected:
     EventLoop* loop_;

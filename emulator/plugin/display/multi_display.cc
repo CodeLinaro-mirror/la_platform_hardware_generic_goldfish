@@ -89,8 +89,8 @@ absl::StatusOr<SharedDisplay> IMultiDisplay::GetActiveDisplay(DisplayId display_
 
 class MultiDisplayImpl : public IMultiDisplay {
   public:
-    MultiDisplayImpl(EventLoop* loop, EventLoop* qemu_loop)
-            : IMultiDisplay(loop), qemu_loop_(qemu_loop) {}
+    MultiDisplayImpl(EventLoop* loop, EventLoop* qemu_loop, bool has_hinge)
+            : IMultiDisplay(loop), qemu_loop_(qemu_loop), has_hinge_(has_hinge) {}
     ~MultiDisplayImpl() override = default;
 
     absl::StatusOr<DisplayPtr> CreateDisplay(DisplayId display_id, uint32_t width, uint32_t height,
@@ -326,8 +326,7 @@ class MultiDisplayImpl : public IMultiDisplay {
     }
 
     void SetFolded(bool folded) override {
-        const auto& hw = ::goldfish::avd_info::GetAvd().Props().hw_config;
-        if (hw.hw_sensor_hinge) {
+        if (has_hinge_) {
             const absl::MutexLock lock(display_access_);
             is_folded_ = folded;
 
@@ -425,12 +424,14 @@ class MultiDisplayImpl : public IMultiDisplay {
     VirtualDisplayMap virtual_displays_ ABSL_GUARDED_BY(display_access_);
     std::unordered_map<DisplayId, bool> active_states_ ABSL_GUARDED_BY(display_access_);
     uint32_t display_mode_ ABSL_GUARDED_BY(display_access_) = 0;
+    const bool has_hinge_;
     bool is_folded_ ABSL_GUARDED_BY(display_access_) = false;
     mutable absl::Mutex display_access_;
 };
 
-std::unique_ptr<IMultiDisplay> IMultiDisplay::Create(EventLoop* loop, EventLoop* qemu_loop) {
-    return std::make_unique<MultiDisplayImpl>(loop, qemu_loop);
+std::unique_ptr<IMultiDisplay> IMultiDisplay::Create(EventLoop* loop, EventLoop* qemu_loop,
+                                                     const sensors::FoldableConfig* fc) {
+    return std::make_unique<MultiDisplayImpl>(loop, qemu_loop, fc && (fc->num_hinges > 0));
 }
 
 extern "C" void grpc_dpy_gfx_update(struct DisplayChangeListener* dcl, int x, int y, int w, int h) {
