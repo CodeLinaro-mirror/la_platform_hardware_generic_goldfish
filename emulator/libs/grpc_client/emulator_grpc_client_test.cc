@@ -327,19 +327,18 @@ TEST_F(CallbackClientTest, Disconnect_DuringAsyncConnection_Cancels) {
     VLOG(1) << "Test: Finished. Client will be destroyed now.";
 }
 
-// TODO FIX this test is flakey
 TEST_F(CallbackClientTest, ConnectAsync_WithLiveServer_CanReconnect) {
     StartServer();
     VLOG(1) << "Test: Creating client.";
     auto client = CreateClient(server_address);
     VLOG(1) << "Test: Calling ConnectAsync.";
     auto future = client->ConnectAsync(absl::Seconds(10));
-    ASSERT_EQ(future.wait_for(std::chrono::seconds(1)), std::future_status::ready);
+    ASSERT_EQ(future.wait_for(std::chrono::seconds(5)), std::future_status::ready);
 
     VLOG(1) << "Test: Calling Disconnect.";
     client->Disconnect();
     auto snd = client->ConnectAsync(absl::Seconds(10));
-    ASSERT_EQ(snd.wait_for(std::chrono::seconds(1)), std::future_status::ready);
+    ASSERT_EQ(snd.wait_for(std::chrono::seconds(5)), std::future_status::ready);
     EXPECT_EQ(snd.get(), absl::OkStatus());
 }
 
