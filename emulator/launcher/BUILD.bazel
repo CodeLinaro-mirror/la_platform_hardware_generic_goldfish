@@ -650,11 +650,24 @@ py_library(
     ],
 )
 
+py_test(
+    name = "emulator_lib_test",
+    size = "small",
+    srcs = ["tools/emulator_lib_test.py"],
+    main = "tools/emulator_lib_test.py",
+    deps = [
+        ":emulator_lib",
+        "@pypi_aemu//psutil",
+    ],
+)
+
 py_binary(
     name = "launch_emulator",
     srcs = ["tools/launch_emulator.py"],
     data = [
         ":launcher",
+        "//emulator/tools/aquarium-ui",
+        "//emulator/ui/aquarium:dist",
     ] + select({
         "@platforms//os:macos": [
             "//emulator/sdk/system_images/minigbm-arm64-v8a:minigbm",

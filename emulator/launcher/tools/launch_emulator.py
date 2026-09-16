@@ -81,6 +81,18 @@ if __name__ == "__main__":
         "--system_image_dir",
         help="Use the this system image directory instead of the default.",
     )
+    parser.add_argument(
+        "--http_port",
+        type=int,
+        default=8085,
+        help="HTTP port to bind and listen on; default: 8085; scans for an available port starting at this port.",
+    )
+    parser.add_argument(
+        "--http_address",
+        type=str,
+        default="127.0.0.1",
+        help="HTTP host/IP address to bind and listen on (default: 127.0.0.1).",
+    )
 
     args, extra_args = parser.parse_known_args()
 
@@ -112,6 +124,8 @@ if __name__ == "__main__":
                     system_image_dir=args.system_image_dir,
                     count_log_pattern=args.count_log_pattern,
                     expected_occurrences=args.expected_occurrences,
+                    http_port=args.http_port,
+                    http_address=args.http_address,
                 )
             )
 
