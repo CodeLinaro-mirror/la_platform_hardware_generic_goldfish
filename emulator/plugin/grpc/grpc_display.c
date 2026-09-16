@@ -23,14 +23,6 @@
 // IWYU pragma: end_keep
 // clang-format on
 
-static const DisplayChangeListenerOps k_dcl_ops = {
-    .dpy_name = "grpc-display",
-    .dpy_gfx_update = grpc_dpy_gfx_update,
-    .dpy_gfx_switch = grpc_dpy_gfx_switch,
-};
-
-static QLIST_HEAD(, DisplayChangeListener) s_dcls = QLIST_HEAD_INITIALIZER(DisplayChangeListener);
-
 static void android_display_init(struct DisplayState* ds, struct DisplayOptions* o) {
     for (int idx = 0;; idx++) {
         QemuConsole* con = qemu_console_lookup_by_index(idx);
@@ -41,17 +33,14 @@ static void android_display_init(struct DisplayState* ds, struct DisplayOptions*
             continue;
         }
 
-        DisplayChangeListener* dcl = g_malloc0(sizeof(DisplayChangeListener));
-        if (!dcl) {
-            break;
-        }
-
-        dcl->con = con;
-        dcl->ops = &k_dcl_ops;
-
+        // UI info must still be initialized. DCL registration is handled dynamically by
+        // QemuDisplay.
         grpc_dpy_gfx_update_ui_info(con, 0, 0);
 
-        register_displaychangelistener(dcl);
+        // Eagerly push the initial surface to multi_display so QemuDisplay instances
+        // are created. We pass a dummy DCL struct because grpc_dpy_gfx_switch expects one.
+        DisplayChangeListener dummy_dcl = {.con = con};
+        grpc_dpy_gfx_switch(&dummy_dcl, qemu_console_surface(con));
     }
 }
 

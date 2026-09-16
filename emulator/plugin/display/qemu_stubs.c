@@ -169,6 +169,19 @@ int dpy_set_ui_info(QemuConsole* con, QemuUIInfo* info, bool delay) {
     return 0;
 }
 
+typedef void (*RegisterDclHook)(DisplayChangeListener* dcl);
+typedef void (*GraphicHwUpdateHook)(QemuConsole* con);
+static RegisterDclHook g_register_dcl_hook = NULL;
+static GraphicHwUpdateHook g_graphic_hw_update_hook = NULL;
+
+void SetTestRegisterDclHook(RegisterDclHook hook) {
+    g_register_dcl_hook = hook;
+}
+
+void SetTestGraphicHwUpdateHook(GraphicHwUpdateHook hook) {
+    g_graphic_hw_update_hook = hook;
+}
+
 void unregister_displaychangelistener(DisplayChangeListener* dcl) {
     if (dcl) {
         dcl->ds = NULL;
@@ -177,10 +190,15 @@ void unregister_displaychangelistener(DisplayChangeListener* dcl) {
 void register_displaychangelistener(DisplayChangeListener* dcl) {
     if (dcl) {
         dcl->ds = (DisplayState*)0x1;
+        if (g_register_dcl_hook) {
+            g_register_dcl_hook(dcl);
+        }
     }
 }
 void graphic_hw_update(QemuConsole* con) {
-    (void)con;
+    if (g_graphic_hw_update_hook) {
+        g_graphic_hw_update_hook(con);
+    }
 }
 
 __attribute__((weak)) void grpc_dpy_gfx_switch(  // NOLINT(readability-identifier-naming)
