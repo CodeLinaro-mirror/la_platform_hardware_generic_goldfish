@@ -378,8 +378,7 @@ void AvdExtendedUniverse::OnSaveProps(archive::IWriter& writer) const {
 }
 
 void AvdExtendedUniverse::OnSavePhysicalState(archive::IWriter& writer) const {
-    // TODO: sensors_physical_model_
-    writer << battery_ << guest_status_ << location_;
+    writer << battery_ << guest_status_ << location_ << sensors_physical_model_;
 }
 
 absl::Status AvdExtendedUniverse::OnLoad(archive::IReader& reader) {
@@ -538,8 +537,7 @@ absl::Status AvdExtendedUniverse::OnLoadProps(archive::IReader& reader) {
 }
 
 absl::Status AvdExtendedUniverse::OnLoadPhysicalState(archive::IReader& reader) {
-    // TODO: sensors_physical_model_
-    return ReadValue(reader, battery_, guest_status_, location_);
+    return ReadValue(reader, battery_, guest_status_, location_, sensors_physical_model_);
 }
 
 void AvdExtendedUniverse::SyncGuestTimeToHost() {
