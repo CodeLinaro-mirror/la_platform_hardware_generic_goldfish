@@ -15,14 +15,40 @@
 #include "android/status/status_macros.h"
 
 namespace goldfish::archive {
+namespace {
 
-absl::Status ReadValue(archive::IReader& r, glm::mat4x3& x) {
+template <class Mat>
+absl::Status ReadMat(archive::IReader& r, Mat& x) {
     for (unsigned col = 0; col < x.length(); ++col) {
         for (unsigned row = 0; row < x[col].length(); ++row) {
             RETURN_IF_ERROR(ReadValue(r, x[col][row]));
         }
     }
     return absl::OkStatus();
+}
+
+template <class Mat>
+IWriter& WriteMat(IWriter& w, const Mat& x) {
+    for (unsigned col = 0; col < x.length(); ++col) {
+        for (unsigned row = 0; row < x[col].length(); ++row) {
+            w << x[col][row];
+        }
+    }
+    return w;
+}
+
+}  // namespace
+
+absl::Status ReadValue(archive::IReader& r, glm::mat2x4& x) {
+    return ReadMat(r, x);
+}
+
+absl::Status ReadValue(archive::IReader& r, glm::mat4x3& x) {
+    return ReadMat(r, x);
+}
+
+absl::Status ReadValue(archive::IReader& r, glm::mat4x4& x) {
+    return ReadMat(r, x);
 }
 
 absl::Status ReadValue(archive::IReader& r, glm::vec2& x) {
@@ -37,14 +63,16 @@ absl::Status ReadValue(archive::IReader& r, glm::vec4& x) {
     return ReadValue(r, x[0], x[1], x[2], x[3]);
 }
 
-IWriter& operator<<(IWriter& w, const glm::mat4x3& x) {
-    for (unsigned col = 0; col < x.length(); ++col) {
-        for (unsigned row = 0; row < x[col].length(); ++row) {
-            w << x[col][row];
-        }
-    }
+IWriter& operator<<(IWriter& w, const glm::mat2x4& x) {
+    return WriteMat(w, x);
+}
 
-    return w;
+IWriter& operator<<(IWriter& w, const glm::mat4x3& x) {
+    return WriteMat(w, x);
+}
+
+IWriter& operator<<(IWriter& w, const glm::mat4x4& x) {
+    return WriteMat(w, x);
 }
 
 IWriter& operator<<(IWriter& w, const glm::vec2& x) {
