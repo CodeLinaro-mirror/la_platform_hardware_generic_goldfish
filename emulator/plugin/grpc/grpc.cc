@@ -43,6 +43,7 @@
 #include "android/sockets/socket_utils.h"
 #include "android/status/status_macros.h"
 #include "emulator/plugin/grpc/grpc_display.h"
+#include "emulator/plugin/vminterface/vm_lock.h"
 #include "emulator/plugin/webrtc/webrtc_device.h"
 #include "goldfish/async/event_loop.h"
 #include "goldfish/async/qemu_event_loop.h"
@@ -415,7 +416,10 @@ void grpc_shutdown_notify(Notifier* notifier, void* data) {
     }
 
     auto deadline = std::chrono::system_clock::now() + std::chrono::milliseconds(100);
-    config->grpc_server->Shutdown(deadline);
+    {
+        android::goldfish::ScopedVmUnlock unlock;
+        config->grpc_server->Shutdown(deadline);
+    }
 }
 
 void grpc_realize(DeviceState* dev, Error** errp) {
@@ -511,7 +515,10 @@ void grpc_unrealize(DeviceState* dev) {
         // program exit as we may be holding on to loopers, which threads
         // have likely been destroyed at that point.
         auto deadline = std::chrono::system_clock::now() + std::chrono::milliseconds(500);
+        android::goldfish::ScopedVmUnlock unlock;
         config->grpc_server->Shutdown(deadline);
+        config->grpc_server.reset();
+        config->grpc_services.clear();
     }
 }
 
