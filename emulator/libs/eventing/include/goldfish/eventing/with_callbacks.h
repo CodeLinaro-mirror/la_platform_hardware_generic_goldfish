@@ -141,6 +141,7 @@ class WithCallbacks : public EventSourceType {
             std::unique_ptr<ScopedEventCallback<WithCallbacks<EventSourceType>, T>>;
 
     using EventSourceType::EventSourceType;
+    virtual ~WithCallbacks() = default;
 
     /**
      * @brief Adds a callback, creating a dedicated listener for it.
