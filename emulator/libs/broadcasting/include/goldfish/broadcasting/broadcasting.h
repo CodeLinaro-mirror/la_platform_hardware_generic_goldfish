@@ -130,17 +130,12 @@ class Topic : public TopicBase {
         const absl::MutexLock lock(mutex_);
         live_subscriptions.reserve(subscriptions_.size());
 
-        auto i = subscriptions_.begin();
-        while (i != subscriptions_.end()) {
-            if (auto live_subscriber = i->second.subscriber.lock()) {
+        for (const auto& [id, entry] : subscriptions_) {
+            if (auto live_subscriber = entry.subscriber.lock()) {
                 live_subscriptions.push_back({
                     .subscriber = std::move(live_subscriber),
-                    .trampoline = i->second.trampoline,
+                    .trampoline = entry.trampoline,
                 });
-
-                ++i;
-            } else {
-                subscriptions_.erase(i++);
             }
         }
 

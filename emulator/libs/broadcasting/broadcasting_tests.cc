@@ -12,7 +12,10 @@
 #include <gtest/gtest.h>
 
 #include <functional>
+#include <thread>
 #include <vector>
+
+#include "absl/synchronization/notification.h"
 
 #include "goldfish/broadcasting/broadcasting.h"
 
@@ -99,6 +102,45 @@ TEST(broadcasting, no_deadlock) {
     EXPECT_EQ(topic->Broadcast(77), 2);
     EXPECT_EQ(subscriber->value, 77);
     EXPECT_EQ(lateSubscriber->value, 77);
+}
+
+TEST(broadcasting, destructor_race_with_broadcast_does_not_crash) {
+    auto topic = Topic<int>::Create();
+
+    struct DestroyingSubscriber {
+        explicit DestroyingSubscriber(absl::Notification* dtor_entered,
+                                      absl::Notification* broadcast_done)
+                : dtor_entered(dtor_entered), broadcast_done(broadcast_done) {}
+
+        ~DestroyingSubscriber() {
+            // At this point, std::shared_ptr strong refcount is already 0,
+            // but member `subscription` has not been destroyed yet.
+            dtor_entered->Notify();
+            broadcast_done->WaitForNotification();
+        }
+
+        void OnEvent(int) {}
+
+        absl::Notification* dtor_entered;
+        absl::Notification* broadcast_done;
+        Subscription subscription;
+    };
+
+    absl::Notification dtor_entered;
+    absl::Notification broadcast_done;
+
+    auto sub = std::make_shared<DestroyingSubscriber>(&dtor_entered, &broadcast_done);
+    sub->subscription = topic->Subscribe(sub, &DestroyingSubscriber::OnEvent);
+
+    std::thread broadcaster([&]() {
+        dtor_entered.WaitForNotification();
+        // Broadcast sees expired weak_ptr (refcount == 0) and erases it from subscriptions_.
+        topic->Broadcast(42);
+        broadcast_done.Notify();
+    });
+
+    sub.reset();  // ~DestroyingSubscriber() -> ~Subscription() -> Topic::Unsubscribe
+    broadcaster.join();
 }
 
 }  // namespace goldfish::broadcasting
