@@ -70,6 +70,7 @@ cc_library(
     deps = [
         ":base",
         "//emulator/libs/archive",
+        "//emulator/libs/sensors:physical_model",
     ],
 )
 
