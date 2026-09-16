@@ -14,12 +14,13 @@
 #pragma once
 #include <functional>
 #include <memory>
-#include <mutex>
 #include <unordered_map>
 #include <utility>
 #include <vector>
 
+#include "absl/base/thread_annotations.h"
 #include "absl/log/check.h"
+#include "absl/synchronization/mutex.h"
 
 #include "goldfish//base/unique_handle.h"
 #include "goldfish/eventing/event_source.h"
@@ -152,7 +153,7 @@ class WithCallbacks : public EventSourceType {
         CallbackId id;
 
         {
-            const std::lock_guard<std::mutex> lock(api_lock_);
+            absl::MutexLock callbacks_lock(callbacks_mutex_);
             id = next_id_++;
             const bool inserted = listener_map_.insert({id, listener}).second;
             DCHECK(inserted);
@@ -178,7 +179,7 @@ class WithCallbacks : public EventSourceType {
         }
         std::shared_ptr<InternalListener> listener;
         {
-            const std::lock_guard<std::mutex> lock(api_lock_);
+            absl::MutexLock callbacks_lock(callbacks_mutex_);
             auto it = listener_map_.find(id);
             if (it == listener_map_.end()) {
                 return;
@@ -211,7 +212,7 @@ class WithCallbacks : public EventSourceType {
      * @brief Returns the number of active callbacks.
      */
     size_t CallbackCount() const {
-        const std::lock_guard<std::mutex> lock(api_lock_);
+        absl::MutexLock callbacks_lock(callbacks_mutex_);
         return listener_map_.size();
     }
 
@@ -226,9 +227,10 @@ class WithCallbacks : public EventSourceType {
         EventCallback callback_;
     };
 
-    mutable std::mutex api_lock_;
-    CallbackId next_id_ = 1;
-    std::unordered_map<CallbackId, std::shared_ptr<InternalListener>> listener_map_;
+    mutable absl::Mutex callbacks_mutex_;
+    CallbackId next_id_ ABSL_GUARDED_BY(callbacks_mutex_) = 1;
+    std::unordered_map<CallbackId, std::shared_ptr<InternalListener>> listener_map_
+            ABSL_GUARDED_BY(callbacks_mutex_);
 };
 
 /**
