@@ -208,7 +208,9 @@ std::future<absl::Status> GrpcConnectionMonitor::Watch(absl::Duration timeout) {
     if (auto channel = state_->channel.lock()) {
         auto callback = std::make_shared<MonitorCallback>(state_, std::move(p), deadline);
         // Trigger the connection process with true.
-        callback->Arm(channel, channel->GetState(true), deadline);
+        auto state = channel->GetState(true);
+        callback->Arm(channel, state,
+                      state == GRPC_CHANNEL_READY ? gpr_now(GPR_CLOCK_REALTIME) : deadline);
     } else {
         p.set_value(absl::CancelledError("Channel is gone."));
     }
