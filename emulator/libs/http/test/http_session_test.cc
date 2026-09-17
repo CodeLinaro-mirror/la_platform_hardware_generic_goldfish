@@ -637,4 +637,54 @@ TEST_F(HttpSessionTest, SendChunkAfterFinishCorruptsKeepAlive) {
                "stream!";
 }
 
+TEST_F(HttpSessionTest, PipelinedBufferLimitDuringStreaming) {
+    std::shared_ptr<HttpResponseWriter> stream_writer;
+    router_->AddStreamingRoute(HttpMethod::kPost, "/stream",
+                               [&](const HttpRequest&, std::shared_ptr<HttpResponseWriter> writer) {
+                                   stream_writer = writer;
+                               });
+
+    // Create session with 1 KiB max payload size
+    auto session = CreateSession(1024);
+
+    EXPECT_TRUE(session->OnDataReceived("POST /stream HTTP/1.1\r\nHost: localhost\r\n\r\n"));
+    ASSERT_NE(stream_writer, nullptr);
+
+    // Flood pipelined buffer beyond 1024 bytes while stream is active
+    std::string excessive_data(2048, 'A');
+    EXPECT_FALSE(session->OnDataReceived(excessive_data));
+
+    std::string sent = GetSentData();
+    EXPECT_TRUE(absl::StrContains(sent, "413 Payload Too Large"));
+}
+
+TEST_F(HttpSessionTest, OversizedHeadersRejected) {
+    auto session = CreateSession();
+    std::string large_header_val(70 * 1024, 'X');
+    std::string req = absl::StrCat(
+            "GET / HTTP/1.1\r\nHost: localhost\r\nX-Large: ", large_header_val, "\r\n\r\n");
+    EXPECT_FALSE(session->OnDataReceived(req));
+    std::string sent = GetSentData();
+    EXPECT_TRUE(absl::StrContains(sent, "400 Bad Request"));
+}
+
+TEST_F(HttpSessionTest, SetOnCloseCallbackFiresImmediatelyWhenAlreadyDetached) {
+    std::shared_ptr<HttpResponseWriter> captured_writer;
+    router_->AddStreamingRoute(HttpMethod::kPost, "/stream",
+                               [&](const HttpRequest&, std::shared_ptr<HttpResponseWriter> writer) {
+                                   captured_writer = writer;
+                               });
+
+    auto session = CreateSession();
+    EXPECT_TRUE(session->OnDataReceived("POST /stream HTTP/1.1\r\nHost: localhost\r\n\r\n"));
+    ASSERT_NE(captured_writer, nullptr);
+
+    // Detach socket before SetOnCloseCallback is registered
+    session->DetachSocket();
+
+    bool callback_fired = false;
+    captured_writer->SetOnCloseCallback([&]() { callback_fired = true; });
+    EXPECT_TRUE(callback_fired);
+}
+
 }  // namespace goldfish::http

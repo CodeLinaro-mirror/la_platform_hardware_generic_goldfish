@@ -105,6 +105,10 @@ class HttpSession::ResponseWriterImpl : public HttpResponseWriter {
             session = std::move(session_);
         }
         if (session) {
+            {
+                const absl::MutexLock lock(&session->close_cb_mutex_);
+                session->on_client_closed_ = nullptr;
+            }
             session->EmitAccessLog(method_, path_, status_, bytes_sent_, start_time_);
             bool is_chunked = is_chunked_;
             bool keep_alive = keep_alive_;
@@ -130,8 +134,20 @@ class HttpSession::ResponseWriterImpl : public HttpResponseWriter {
             session = session_;
         }
         if (session) {
-            const absl::MutexLock lock(&session->close_cb_mutex_);
-            session->on_client_closed_ = std::move(on_close);
+            bool call_immediately = false;
+            {
+                const absl::MutexLock lock(&session->close_cb_mutex_);
+                if (session->is_detached_) {
+                    call_immediately = true;
+                } else {
+                    session->on_client_closed_ = std::move(on_close);
+                }
+            }
+            if (call_immediately && on_close) {
+                on_close();
+            }
+        } else if (on_close) {
+            on_close();
         }
     }
 
@@ -228,6 +244,7 @@ void HttpSession::DetachSocket() {
     std::function<void()> on_close;
     {
         const absl::MutexLock lock(&close_cb_mutex_);
+        is_detached_ = true;
         on_close = std::move(on_client_closed_);
     }
     if (on_close) {
@@ -253,12 +270,17 @@ void HttpSession::SetOnDetachedCallback(OnDetachedCallback on_detached) {
 
 void HttpSession::Reset() {
     PostOrRun([self = shared_from_this()]() {
+        {
+            const absl::MutexLock lock(&self->close_cb_mutex_);
+            self->on_client_closed_ = nullptr;
+        }
         self->current_request_.path_.clear();
         self->current_request_.headers_.clear();
         self->current_request_.body_.clear();
         self->current_request_.keep_alive_ = true;
         self->current_header_field_.clear();
         self->current_header_value_.clear();
+        self->current_headers_bytes_ = 0;
         self->header_state_ = HeaderState::kNone;
         self->payload_too_large_ = false;
         self->error_occurred_ = false;
@@ -298,6 +320,13 @@ bool HttpSession::OnDataReceived(std::string_view data) {
         return false;
     }
     if (is_streaming_active_) {
+        if (pipelined_buffer_.size() + data.size() > max_payload_size_) {
+            payload_too_large_ = true;
+            error_occurred_ = true;
+            SendHttpError(static_cast<int>(HttpStatus::kPayloadTooLarge),
+                          HttpStatusToReason(HttpStatus::kPayloadTooLarge));
+            return false;
+        }
         pipelined_buffer_.append(data);
         return true;
     }
@@ -430,18 +459,30 @@ int HttpSession::OnMessageBegin(llhttp_t* parser) {
 
 int HttpSession::OnUrl(llhttp_t* parser, const char* at, size_t length) {
     auto* self = static_cast<HttpSession*>(parser->data);
+    if (self->current_headers_bytes_ + length > kMaxHeaderSize) {
+        return HPE_USER;
+    }
+    self->current_headers_bytes_ += length;
     self->current_request_.path_.append(at, length);
     return 0;
 }
 
 int HttpSession::OnHeaderField(llhttp_t* parser, const char* at, size_t length) {
     auto* self = static_cast<HttpSession*>(parser->data);
+    if (self->current_headers_bytes_ + length > kMaxHeaderSize) {
+        return HPE_USER;
+    }
+    self->current_headers_bytes_ += length;
     self->current_header_field_.append(at, length);
     return 0;
 }
 
 int HttpSession::OnHeaderValue(llhttp_t* parser, const char* at, size_t length) {
     auto* self = static_cast<HttpSession*>(parser->data);
+    if (self->current_headers_bytes_ + length > kMaxHeaderSize) {
+        return HPE_USER;
+    }
+    self->current_headers_bytes_ += length;
     self->current_header_value_.append(at, length);
     return 0;
 }
