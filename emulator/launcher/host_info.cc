@@ -16,79 +16,85 @@ namespace android::goldfish {
 
 namespace {
 
-android_studio::EmulatorAvdInfo::EmulatorDeviceName getDeviceName(
-        const std::string& hw_device_name) {
-    using namespace android_studio;
-    static const auto device_name_map =
-            absl::flat_hash_map<std::string_view, EmulatorAvdInfo::EmulatorDeviceName>({
-                {"resizable", EmulatorAvdInfo::RESIZABLE},
-                {"7.6in Foldable", EmulatorAvdInfo::FOLDABLE_7_6_IN},
-                {"small_phone", EmulatorAvdInfo::SMALL_PHONE},
-                {"medium_phone", EmulatorAvdInfo::MEDIUM_PHONE},
-                {"medium_tablet", EmulatorAvdInfo::MEDIUM_TABLET},
-                {"pixel_c", EmulatorAvdInfo::PIXEL_C},
-                {"pixel", EmulatorAvdInfo::PIXEL},
-                {"pixel_xl", EmulatorAvdInfo::PIXEL_XL},
-                {"pixel_2", EmulatorAvdInfo::PIXEL_2},
-                {"pixel_2_xl", EmulatorAvdInfo::PIXEL_2_XL},
-                {"pixel_3", EmulatorAvdInfo::PIXEL_3},
-                {"pixel_3_xl", EmulatorAvdInfo::PIXEL_3_XL},
-                {"pixel_3a", EmulatorAvdInfo::PIXEL_3A},
-                {"pixel_3a_xl", EmulatorAvdInfo::PIXEL_3A_XL},
-                {"pixel_4", EmulatorAvdInfo::PIXEL_4},
-                {"pixel_4_xl", EmulatorAvdInfo::PIXEL_4_XL},
-                {"pixel_4a", EmulatorAvdInfo::PIXEL_4A},
-                {"pixel_5", EmulatorAvdInfo::PIXEL_5},
-                {"pixel_6", EmulatorAvdInfo::PIXEL_6},
-                {"pixel_6_pro", EmulatorAvdInfo::PIXEL_6_PRO},
-                {"pixel_6a", EmulatorAvdInfo::PIXEL_6A},
-                {"pixel_7_pro", EmulatorAvdInfo::PIXEL_7_PRO},
-                {"pixel_7", EmulatorAvdInfo::PIXEL_7},
-                {"pixel_7a", EmulatorAvdInfo::PIXEL_7A},
-                {"pixel_8_pro", EmulatorAvdInfo::PIXEL_8_PRO},
-                {"pixel_8", EmulatorAvdInfo::PIXEL_8},
-                {"pixel_8a", EmulatorAvdInfo::PIXEL_8A},
-                {"pixel_9", EmulatorAvdInfo::PIXEL_9},
-                {"pixel_9a", EmulatorAvdInfo::PIXEL_9A},
-                {"pixel_9_pro", EmulatorAvdInfo::PIXEL_9_PRO},
-                {"pixel_9_pro_xl", EmulatorAvdInfo::PIXEL_9_PRO_XL},
-                {"pixel_9_pro_fold", EmulatorAvdInfo::PIXEL_9_PRO_FOLD},
-                {"pixel_10", EmulatorAvdInfo::PIXEL_10},
-                {"pixel_10_pro", EmulatorAvdInfo::PIXEL_10_PRO},
-                {"pixel_10_pro_xl", EmulatorAvdInfo::PIXEL_10_PRO_XL},
-                {"pixel_10_pro_fold", EmulatorAvdInfo::PIXEL_10_PRO_FOLD},
-                {"pixel_fold", EmulatorAvdInfo::PIXEL_FOLD},
-                {"pixel_tablet", EmulatorAvdInfo::PIXEL_TABLET},
-                {"automotive_1024p_landscape", EmulatorAvdInfo::AUTOMOTIVE_1024P_LANDSCAPE},
-                {"automotive_1080p_landscape", EmulatorAvdInfo::AUTOMOTIVE_1080P_LANDSCAPE},
-                {"automotive_1408p_landscape_with_play",
-                 EmulatorAvdInfo::AUTOMOTIVE_1408P_LANDSCAPE_WITH_PLAY},
-                {"automotive_1408p_landscape_with_google_apis",
-                 EmulatorAvdInfo::AUTOMOTIVE_1408P_LANDSCAPE_WITH_GOOGLE_APIS},
-                {"automotive_portrait", EmulatorAvdInfo::AUTOMOTIVE_PORTRAIT},
-                {"automotive_distant_display", EmulatorAvdInfo::AUTOMOTIVE_DISTANT_DISPLAY},
-                {"automotive_distant_display_with_play",
-                 EmulatorAvdInfo::AUTOMOTIVE_DISTANT_DISPLAY_WITH_PLAY},
-                {"automotive_ultrawide", EmulatorAvdInfo::AUTOMOTIVE_ULTRAWIDE_DISPLAY},
-                {"automotive_large_portrait", EmulatorAvdInfo::AUTOMOTIVE_LARGE_PORTRAIT},
-                {"desktop_small", EmulatorAvdInfo::DESKTOP_SMALL},
-                {"desktop_medium", EmulatorAvdInfo::DESKTOP_MEDIUM},
-                {"desktop_large", EmulatorAvdInfo::DESKTOP_LARGE},
-                {"tv_4k", EmulatorAvdInfo::TV_4K},
-                {"tv_1080p", EmulatorAvdInfo::TV_1080P},
-                {"tv_720p", EmulatorAvdInfo::TV_720P},
-                {"wearos_large_round", EmulatorAvdInfo::WEAROS_LARGE_ROUND},
-                {"wearos_small_round", EmulatorAvdInfo::WEAROS_SMALL_ROUND},
-                {"wearos_rect", EmulatorAvdInfo::WEAROS_RECT},
-                {"wearos_square", EmulatorAvdInfo::WEAROS_SQUARE},
-                {"xr_headset_device", EmulatorAvdInfo::XR_HEADSET_DEVICE},
-                {"xr_glasses_device", EmulatorAvdInfo::XR_GLASSES_DEVICE},
-                {"ai_glasses_device", EmulatorAvdInfo::AI_GLASSES_DEVICE},
-            });
-    if (auto i = device_name_map.find(hw_device_name); i != device_name_map.end()) {
-        return i->second;
+template <typename T>
+concept HasEmulatorDeviceName = requires(T t) {
+    typename T::EmulatorDeviceName;
+    t.set_device_name(T::UNKNOWN_EMULATOR_DEVICE_NAME);
+};
+
+template <typename T>
+void SetDeviceNameIfSupported(T& avd_info, const std::string& hw_device_name) {
+    if constexpr (HasEmulatorDeviceName<T>) {
+        using DeviceNameEnum = typename T::EmulatorDeviceName;
+        static const auto device_name_map = absl::flat_hash_map<std::string_view, DeviceNameEnum>({
+            {"resizable", T::RESIZABLE},
+            {"7.6in Foldable", T::FOLDABLE_7_6_IN},
+            {"small_phone", T::SMALL_PHONE},
+            {"medium_phone", T::MEDIUM_PHONE},
+            {"medium_tablet", T::MEDIUM_TABLET},
+            {"pixel_c", T::PIXEL_C},
+            {"pixel", T::PIXEL},
+            {"pixel_xl", T::PIXEL_XL},
+            {"pixel_2", T::PIXEL_2},
+            {"pixel_2_xl", T::PIXEL_2_XL},
+            {"pixel_3", T::PIXEL_3},
+            {"pixel_3_xl", T::PIXEL_3_XL},
+            {"pixel_3a", T::PIXEL_3A},
+            {"pixel_3a_xl", T::PIXEL_3A_XL},
+            {"pixel_4", T::PIXEL_4},
+            {"pixel_4_xl", T::PIXEL_4_XL},
+            {"pixel_4a", T::PIXEL_4A},
+            {"pixel_5", T::PIXEL_5},
+            {"pixel_6", T::PIXEL_6},
+            {"pixel_6_pro", T::PIXEL_6_PRO},
+            {"pixel_6a", T::PIXEL_6A},
+            {"pixel_7_pro", T::PIXEL_7_PRO},
+            {"pixel_7", T::PIXEL_7},
+            {"pixel_7a", T::PIXEL_7A},
+            {"pixel_8_pro", T::PIXEL_8_PRO},
+            {"pixel_8", T::PIXEL_8},
+            {"pixel_8a", T::PIXEL_8A},
+            {"pixel_9", T::PIXEL_9},
+            {"pixel_9a", T::PIXEL_9A},
+            {"pixel_9_pro", T::PIXEL_9_PRO},
+            {"pixel_9_pro_xl", T::PIXEL_9_PRO_XL},
+            {"pixel_9_pro_fold", T::PIXEL_9_PRO_FOLD},
+            {"pixel_10", T::PIXEL_10},
+            {"pixel_10_pro", T::PIXEL_10_PRO},
+            {"pixel_10_pro_xl", T::PIXEL_10_PRO_XL},
+            {"pixel_10_pro_fold", T::PIXEL_10_PRO_FOLD},
+            {"pixel_fold", T::PIXEL_FOLD},
+            {"pixel_tablet", T::PIXEL_TABLET},
+            {"automotive_1024p_landscape", T::AUTOMOTIVE_1024P_LANDSCAPE},
+            {"automotive_1080p_landscape", T::AUTOMOTIVE_1080P_LANDSCAPE},
+            {"automotive_1408p_landscape_with_play", T::AUTOMOTIVE_1408P_LANDSCAPE_WITH_PLAY},
+            {"automotive_1408p_landscape_with_google_apis",
+             T::AUTOMOTIVE_1408P_LANDSCAPE_WITH_GOOGLE_APIS},
+            {"automotive_portrait", T::AUTOMOTIVE_PORTRAIT},
+            {"automotive_distant_display", T::AUTOMOTIVE_DISTANT_DISPLAY},
+            {"automotive_distant_display_with_play", T::AUTOMOTIVE_DISTANT_DISPLAY_WITH_PLAY},
+            {"automotive_ultrawide", T::AUTOMOTIVE_ULTRAWIDE_DISPLAY},
+            {"automotive_large_portrait", T::AUTOMOTIVE_LARGE_PORTRAIT},
+            {"desktop_small", T::DESKTOP_SMALL},
+            {"desktop_medium", T::DESKTOP_MEDIUM},
+            {"desktop_large", T::DESKTOP_LARGE},
+            {"tv_4k", T::TV_4K},
+            {"tv_1080p", T::TV_1080P},
+            {"tv_720p", T::TV_720P},
+            {"wearos_large_round", T::WEAROS_LARGE_ROUND},
+            {"wearos_small_round", T::WEAROS_SMALL_ROUND},
+            {"wearos_rect", T::WEAROS_RECT},
+            {"wearos_square", T::WEAROS_SQUARE},
+            {"xr_headset_device", T::XR_HEADSET_DEVICE},
+            {"xr_glasses_device", T::XR_GLASSES_DEVICE},
+            {"ai_glasses_device", T::AI_GLASSES_DEVICE},
+        });
+        if (auto i = device_name_map.find(hw_device_name); i != device_name_map.end()) {
+            avd_info.set_device_name(i->second);
+        } else {
+            avd_info.set_device_name(T::UNKNOWN_EMULATOR_DEVICE_NAME);
+        }
     }
-    return android_studio::EmulatorAvdInfo::UNKNOWN_EMULATOR_DEVICE_NAME;
 }
 
 android_studio::EmulatorDetails::GuestCpuArchitecture toClearcutLogGuestArch(
@@ -166,7 +172,7 @@ void FillAvdInfo(android_studio::EmulatorAvdInfo& avd_info, const Avd& avd) {
     }
     avd_info.set_build_id(avd.BuildFingerprint());
 
-    avd_info.set_device_name(getDeviceName(hw.hw_device_name));
+    SetDeviceNameIfSupported(avd_info, hw.hw_device_name);
 
     FillAvdFileInfo(*avd_info.add_files(), android_studio::EmulatorAvdFile::KERNEL,
                     /*path=*/hw.kernel_path, /*is_custom=TODO*/ false);
