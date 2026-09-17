@@ -237,6 +237,7 @@ def _generate_sorted_listfile(staging_dir: Path, listfile_path: Path) -> bool:
     listfile_path.write_text(
         "\n".join(items_to_archive) + "\n",
         encoding="utf-8",
+        newline="\n",
     )
     return True
 
