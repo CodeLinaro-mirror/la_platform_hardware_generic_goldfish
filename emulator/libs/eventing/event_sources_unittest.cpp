@@ -20,6 +20,8 @@
 #include <thread>
 #include <vector>
 
+#include "absl/synchronization/notification.h"
+
 #include "goldfish/eventing/multi_event_source_waiter.h"
 
 namespace {
@@ -558,6 +560,116 @@ TEST(MultiEventSourceWaiterTest, UnsubscribesOnDestruction) {
     ASSERT_EQ(source.Size(), 0);
     // Firing should not crash.
     source.FireEvent({1});
+}
+
+TEST(CallbackEventSourceTest, RemoveCallbackWaitsForInFlightCallbackBeforeReturning) {
+    CallbackEventSource<TestEvent> source;
+
+    struct InFlightSubscriber {
+        InFlightSubscriber() : raw_resource(new int(42)) {}
+        ~InFlightSubscriber() { delete raw_resource; }
+
+        void OnEvent(const TestEvent& event) {
+            callback_entered.Notify();
+            allow_callback_to_continue.WaitForNotification();
+            std::this_thread::sleep_for(std::chrono::milliseconds(20));
+            // Under ASAN, if RemoveCallback() returned without waiting for OnEvent() to finish,
+            // raw_resource has already been deleted by the unsubscribing thread -> Heap-UAF!
+            *raw_resource += event.value;
+        }
+
+        int* raw_resource;
+        absl::Notification callback_entered;
+        absl::Notification allow_callback_to_continue;
+        CallbackEventSource<TestEvent>::ScopedCallbackHandle handle;
+    };
+
+    auto subscriber = std::make_unique<InFlightSubscriber>();
+    subscriber->handle = MakeScopedCallback(
+            source, [&sub = *subscriber](const TestEvent& e) { sub.OnEvent(e); });
+
+    std::thread broadcaster([&]() { source.FireEvent({10}); });
+
+    subscriber->callback_entered.WaitForNotification();
+    subscriber->allow_callback_to_continue.Notify();
+
+    // Reset handle (calling RemoveCallback) and immediately delete resource owned by subscriber.
+    subscriber->handle.reset();
+    delete subscriber->raw_resource;
+    subscriber->raw_resource = nullptr;
+
+    broadcaster.join();
+}
+
+TEST(CallbackEventSourceTest, DestructorWaitsForInFlightCallbacksWithoutDeadlock) {
+    auto source = std::make_unique<CallbackEventSource<TestEvent>>();
+    auto* raw_source = source.get();
+    absl::Notification callback_entered;
+    absl::Notification allow_callback_to_finish;
+    std::atomic<bool> query_succeeded = false;
+
+    // Register a callback that queries CallbackCount() while in flight.
+    // If ~WithCallbacks() held callbacks_mutex_ while draining listeners,
+    // calling CallbackCount() here would deadlock with the destructor.
+    source->AddCallback([&](const TestEvent&) {
+        callback_entered.Notify();
+        allow_callback_to_finish.WaitForNotification();
+        while (raw_source->CallbackCount() > 0) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+        query_succeeded.store(true, std::memory_order_relaxed);
+    });
+
+    std::thread broadcaster([&]() { raw_source->FireEvent({10}); });
+
+    callback_entered.WaitForNotification();
+
+    // Destroy the source in another thread.
+    // Because listener_map_ is cleared and the lock released before calling
+    // Disconnect(), ~WithCallbacks() does not hold callbacks_mutex_ while waiting
+    // for in-flight callbacks.
+    std::thread destroyer([&]() { source.reset(); });
+
+    // Allow in-flight callback to proceed and query CallbackCount().
+    allow_callback_to_finish.Notify();
+
+    broadcaster.join();
+    destroyer.join();
+
+    EXPECT_TRUE(query_succeeded.load(std::memory_order_relaxed));
+}
+
+TEST(CallbackEventSourceTest, RemoveCallbackWaitsForInFlightCallbackWithoutDeadlock) {
+    CallbackEventSource<TestEvent> source;
+    absl::Notification callback_entered;
+    absl::Notification allow_callback_to_finish;
+    std::atomic<bool> query_succeeded = false;
+
+    // Register a callback that queries CallbackCount() while in flight.
+    // If RemoveCallback held callbacks_mutex_ while disconnecting,
+    // calling CallbackCount() here would deadlock with RemoveCallback.
+    auto handle = MakeScopedCallback(source, [&](const TestEvent&) {
+        callback_entered.Notify();
+        allow_callback_to_finish.WaitForNotification();
+        while (source.CallbackCount() > 0) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+        query_succeeded.store(true, std::memory_order_relaxed);
+    });
+
+    std::thread broadcaster([&]() { source.FireEvent({10}); });
+
+    callback_entered.WaitForNotification();
+
+    std::thread unregisterer([&]() { handle.reset(); });
+
+    // Allow in-flight callback to proceed and query CallbackCount().
+    allow_callback_to_finish.Notify();
+
+    unregisterer.join();
+    broadcaster.join();
+
+    EXPECT_TRUE(query_succeeded.load(std::memory_order_relaxed));
 }
 
 }  // namespace
