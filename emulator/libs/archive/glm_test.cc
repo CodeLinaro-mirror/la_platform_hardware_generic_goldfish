@@ -197,4 +197,33 @@ TEST(glm, mixed_stream) {
     EXPECT_TRUE(archive.Empty());
 }
 
+TEST(glm, mat2x4_positive) {
+    const glm::mat2x4 mat(1.0f, 2.0f, 3.0f, 4.0f,   // col 0
+                          5.0f, 6.0f, 7.0f, 8.0f);  // col 1
+
+    DequeArchive archive;
+    archive << mat;
+
+    glm::mat2x4 read_mat;
+    ASSERT_THAT(ReadValue(archive, read_mat), IsOk());
+    EXPECT_EQ(read_mat, mat);
+    EXPECT_TRUE(archive.Empty());
+}
+
+TEST(glm, mat4x4_positive) {
+    const glm::mat4x4 mat(1.0f, 2.0f, 3.0f, 4.0f,     // col 0
+                          5.0f, 6.0f, 7.0f, 8.0f,     // col 1
+                          9.0f, 10.0f, 11.0f, 12.0f,  // col 2
+                          13.0f, 14.0f, 15.0f, 16.0f  // col 3
+    );
+
+    DequeArchive archive;
+    archive << mat;
+
+    glm::mat4x4 read_mat;
+    ASSERT_THAT(ReadValue(archive, read_mat), IsOk());
+    EXPECT_EQ(read_mat, mat);
+    EXPECT_TRUE(archive.Empty());
+}
+
 }  // namespace goldfish::archive

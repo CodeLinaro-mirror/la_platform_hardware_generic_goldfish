@@ -12,7 +12,9 @@
 
 #pragma once
 
+#include <glm/mat2x4.hpp>
 #include <glm/mat4x3.hpp>
+#include <glm/mat4x4.hpp>
 #include <glm/vec2.hpp>
 #include <glm/vec3.hpp>
 #include <glm/vec4.hpp>
@@ -22,12 +24,16 @@
 
 namespace goldfish::archive {
 
+absl::Status ReadValue(archive::IReader& r, glm::mat2x4&);
 absl::Status ReadValue(archive::IReader& r, glm::mat4x3&);
+absl::Status ReadValue(archive::IReader& r, glm::mat4x4&);
 absl::Status ReadValue(archive::IReader& r, glm::vec2&);
 absl::Status ReadValue(archive::IReader& r, glm::vec3&);
 absl::Status ReadValue(archive::IReader& r, glm::vec4&);
 
+IWriter& operator<<(IWriter& w, const glm::mat2x4&);
 IWriter& operator<<(IWriter& w, const glm::mat4x3&);
+IWriter& operator<<(IWriter& w, const glm::mat4x4&);
 IWriter& operator<<(IWriter& w, const glm::vec2&);
 IWriter& operator<<(IWriter& w, const glm::vec3&);
 IWriter& operator<<(IWriter& w, const glm::vec4&);
