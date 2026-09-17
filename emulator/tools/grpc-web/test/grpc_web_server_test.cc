@@ -1248,4 +1248,63 @@ TEST_F(GrpcWebServerTest, RejectsInvalidBase64BinaryMetadata) {
     EXPECT_NE(received_data.find("Invalid base64 binary metadata"), std::string::npos);
 }
 
+TEST_F(GrpcWebServerTest, DrainsActiveReactorsOnServerStop) {
+    auto endpoint = network::ToEndpoint(network::ToIpAddress("127.0.0.1").value(), 0);
+    auto server_or = PostAndWait([&]() {
+        return GrpcWebServer::Create(raw_loop_, socket_factory_, endpoint, grpc_channel_);
+    });
+    ASSERT_TRUE(server_or.ok());
+    auto server = std::move(*server_or);
+    auto listen_ep = PostAndWait([&]() { return server->GetEndpoint(); });
+
+    absl::Notification call_started;
+    absl::Notification server_finished_tag;
+
+    std::thread responder([&]() {
+        grpc::GenericServerContext server_ctx;
+        grpc::GenericServerAsyncReaderWriter stream(&server_ctx);
+
+        generic_service_.RequestCall(&server_ctx, &stream, cq_.get(), cq_.get(),
+                                     reinterpret_cast<void*>(1));
+        if (WaitForTag(reinterpret_cast<void*>(1))) {
+            call_started.Notify();
+            // Hold stream open until client/server cancellation triggers
+            stream.Finish(grpc::Status::CANCELLED, reinterpret_cast<void*>(2));
+            WaitForTag(reinterpret_cast<void*>(2));
+            server_finished_tag.Notify();
+        }
+    });
+
+    std::string valid_frame = Protocol::PackFrame(kFrameData, "stream_req");
+    std::string req =
+            "POST /test.StreamService/Stream HTTP/1.1\r\n"
+            "Host: 127.0.0.1\r\n"
+            "Content-Type: application/grpc-web+proto\r\n"
+            "Content-Length: " +
+            std::to_string(valid_frame.size()) + "\r\n\r\n" + valid_frame;
+
+    async::ScopedAsyncSocket client(PostAndWait([&]() {
+        auto sock = socket_factory_->CreateSocket(raw_loop_, listen_ep);
+        sock->SetOnReadCallbackNoFlowControl([](std::string_view, absl::Status) {});
+        sock->SetOnConnectedCallback([req](async::AsyncSocket& s, absl::Status status) {
+            if (status.ok()) {
+                s.Send(req.data(), req.size()).IgnoreError();
+            }
+        });
+        EXPECT_TRUE(sock->Connect().ok());
+        return sock;
+    }));
+
+    ASSERT_TRUE(call_started.WaitForNotificationWithTimeout(absl::Seconds(5)));
+
+    // Calling Stop() while stream is in-flight must cancel and drain active reactors without UAF
+    server->Stop();
+
+    EXPECT_TRUE(server_finished_tag.WaitForNotificationWithTimeout(absl::Seconds(5)));
+    if (responder.joinable()) {
+        responder.join();
+    }
+    PostAndWait([&]() { client->Close(); });
+}
+
 }  // namespace goldfish::grpcweb
