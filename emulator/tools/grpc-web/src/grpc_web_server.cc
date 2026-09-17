@@ -94,25 +94,25 @@ http::HttpResponse HandleCorsPreflight(const http::HttpRequest& req,
                                           http::HttpStatus::kForbidden);
     }
 
-    std::string origin_header_val;
-    if (default_allow_origin == "*") {
-        origin_header_val = req_origin.empty() ? "*" : std::string(req_origin);
-    } else {
-        origin_header_val = std::string(req_origin);
-    }
-
     std::string_view allow_headers = req.GetHeader(http::headers::kAccessControlRequestHeaders);
     if (allow_headers.empty()) {
         allow_headers = "content-type,x-grpc-web,x-user-agent,authorization";
     }
 
-    return http::HttpResponse::Empty(http::HttpStatus::kNoContent)
-            .WithHeader(http::headers::kAccessControlAllowOrigin, origin_header_val)
-            .WithHeader(http::headers::kAccessControlAllowMethods, "POST, OPTIONS")
-            .WithHeader(http::headers::kAccessControlAllowHeaders, allow_headers)
-            .WithHeader(http::headers::kAccessControlAllowCredentials, http::protocol::kTrue)
-            .WithHeader(http::headers::kAccessControlMaxAge, "1728000")
-            .WithHeader(http::headers::kVary, "Origin");
+    auto resp = http::HttpResponse::Empty(http::HttpStatus::kNoContent)
+                        .WithHeader(http::headers::kAccessControlAllowMethods, "POST, OPTIONS")
+                        .WithHeader(http::headers::kAccessControlAllowHeaders, allow_headers)
+                        .WithHeader(http::headers::kAccessControlMaxAge, "1728000");
+
+    if (default_allow_origin == "*") {
+        resp.WithHeader(http::headers::kAccessControlAllowOrigin, "*");
+    } else if (!req_origin.empty()) {
+        resp.WithHeader(http::headers::kAccessControlAllowOrigin, req_origin)
+                .WithHeader(http::headers::kAccessControlAllowCredentials, http::protocol::kTrue)
+                .WithHeader(http::headers::kVary, "Origin");
+    }
+
+    return resp;
 }
 
 constexpr std::string_view kGrpcExposeHeaders =
@@ -131,12 +131,12 @@ absl::flat_hash_map<std::string, std::string> FormatHttp200Headers(
     headers.emplace(http::headers::kTransferEncoding, "chunked");
 
     std::string_view req_origin = req.GetHeader(http::headers::kOrigin);
-    if (!req_origin.empty() && IsOriginAllowed(req_origin, default_allow_origin)) {
+    if (default_allow_origin == "*") {
+        headers.emplace(http::headers::kAccessControlAllowOrigin, "*");
+    } else if (!req_origin.empty() && IsOriginAllowed(req_origin, default_allow_origin)) {
         headers.emplace(http::headers::kAccessControlAllowOrigin, req_origin);
         headers.emplace(http::headers::kAccessControlAllowCredentials, http::protocol::kTrue);
         headers.emplace(http::headers::kVary, "Origin");
-    } else if (default_allow_origin == "*") {
-        headers.emplace(http::headers::kAccessControlAllowOrigin, "*");
     }
 
     return headers;
@@ -306,9 +306,11 @@ void HandleGrpcWebStream(const http::HttpRequest& req,
     grpc::ByteBuffer request_bb;
     bool has_request_frame = false;
     if (!frame_bytes.empty()) {
-        auto frame_opt = Protocol::UnpackFrame(frame_bytes);
-        if (!frame_opt.has_value()) {
-            VLOG(1) << "Malformed gRPC-Web framing header for " << req.Path();
+        size_t consumed = 0;
+        auto frame_opt = Protocol::UnpackFrame(frame_bytes, &consumed);
+        if (!frame_opt.has_value() || consumed != frame_bytes.size() ||
+            frame_opt->flag != kFrameData) {
+            VLOG(1) << "Malformed or unsupported gRPC-Web frame for " << req.Path();
             send_error(http::HttpStatus::kBadRequest, "Malformed gRPC-Web framing header");
             return;
         }
@@ -340,7 +342,17 @@ void HandleGrpcWebStream(const http::HttpRequest& req,
         if (absl::StartsWithIgnoreCase(k, kHeaderPrefixCustom) ||
             absl::EqualsIgnoreCase(k, http::headers::kAuthorization) ||
             absl::EqualsIgnoreCase(k, http::headers::kProxyAuthorization)) {
-            context->AddMetadata(absl::AsciiStrToLower(k), v);
+            std::string lower_k = absl::AsciiStrToLower(k);
+            if (absl::EndsWith(lower_k, "-bin")) {
+                std::string decoded_bin;
+                if (!absl::Base64Unescape(absl::StripAsciiWhitespace(v), &decoded_bin)) {
+                    send_error(http::HttpStatus::kBadRequest, "Invalid base64 binary metadata");
+                    return;
+                }
+                context->AddMetadata(lower_k, decoded_bin);
+            } else {
+                context->AddMetadata(lower_k, v);
+            }
         }
     }
 
