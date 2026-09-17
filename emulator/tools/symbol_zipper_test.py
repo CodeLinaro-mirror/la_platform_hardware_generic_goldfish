@@ -50,6 +50,7 @@ class SymbolZipperTest(unittest.TestCase):
                 "MODULE Darwin arm64 4C4C444655553144A1925AF7C65861290 libtest.dylib\n"
                 "PUBLIC 1000 0 func\n",
                 encoding="utf-8",
+                newline="\n",
             )
             dest = symbol_destination(sym_file)
             self.assertEqual(
@@ -65,7 +66,7 @@ class SymbolZipperTest(unittest.TestCase):
                 "MODULE Linux x86_64 11223344556677889900AABBCCDDEEFF0 libsample.so\n"
                 + "PUBLIC 100 0 some_function\n" * 200
             )
-            sym_file.write_text(sym_content, encoding="utf-8")
+            sym_file.write_text(sym_content, encoding="utf-8", newline="\n")
 
             zipper_py = Path(__file__).parent / "symbol_zipper.py"
 
@@ -115,7 +116,7 @@ class SymbolZipperTest(unittest.TestCase):
             tmp_path = Path(tmpdir)
             sym_file = tmp_path / "mod.sym"
             sym_content = "MODULE Linux x86_64 ABCDEF1234567890ABCDEF12345678900 libmod.so\nPUBLIC 0 0 fn\n"
-            sym_file.write_text(sym_content, encoding="utf-8")
+            sym_file.write_text(sym_content, encoding="utf-8", newline="\n")
 
             zipper_py = Path(__file__).parent / "symbol_zipper.py"
             out_zip = tmp_path / "response_test.zip"
@@ -123,6 +124,7 @@ class SymbolZipperTest(unittest.TestCase):
             param_file.write_text(
                 f"-o\n{out_zip}\n-c\n1\n--sevenzip\n{sevenzip_exe}\n{sym_file}\n",
                 encoding="utf-8",
+                newline="\n",
             )
 
             subprocess.check_call(
