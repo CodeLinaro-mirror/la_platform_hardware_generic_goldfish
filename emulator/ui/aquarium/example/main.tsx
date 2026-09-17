@@ -15,16 +15,16 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { createRoot } from 'react-dom/client';
 import {
-  AquariumProvider,
-  EmulatorView,
-  useAquarium,
+  DeviceProvider,
+  DeviceView,
+  useDevice,
   useSensors,
   useCapabilities,
   useLocation,
   useVm,
   RtcConnectionState,
   KeyAction,
-} from '../src/index';
+} from '@android/web';
 
 interface LogEntry {
   id: number;
@@ -43,8 +43,8 @@ interface LogEntry {
  *   - useLocation: geographic coordinates and GPS emulation
  *   - useVm: virtual machine lifecycle control
  */
-function AquariumDemoApp({ onLog }: { onLog: (msg: string, type?: LogEntry['type']) => void }) {
-  const { state, connect, disconnect, client } = useAquarium();
+function DeviceDemoApp({ onLog }: { onLog: (msg: string, type?: LogEntry['type']) => void }) {
+  const { state, connect, disconnect, client } = useDevice();
   const {
     fetchSensors,
     setOrientation,
@@ -95,8 +95,8 @@ function AquariumDemoApp({ onLog }: { onLog: (msg: string, type?: LogEntry['type
       <header style={styles.header}>
         <div style={styles.headerLeft}>
           <h1 style={styles.title}>
-            🐠 <span style={{ color: '#60a5fa' }}>Aquarium</span>
-            <span style={styles.badge}>React SDK v0.1.0</span>
+            📱 <span style={{ color: '#60a5fa' }}>Device Stream</span>
+            <span style={styles.badge}>Web SDK v0.1.0</span>
           </h1>
         </div>
 
@@ -440,7 +440,7 @@ function AquariumDemoApp({ onLog }: { onLog: (msg: string, type?: LogEntry['type
                       {capabilities.metadata?.displayName || 'Android Emulator'}
                     </div>
                     <div>Model: {capabilities.metadata?.modelId || 'Virtual Device'}</div>
-                    {capabilities.display?.builtInDisplays?.map((d, i) => (
+                    {capabilities.display?.builtInDisplays?.map((d: any, i: number) => (
                       <div key={i} style={{ marginLeft: '8px', color: '#94a3b8' }}>
                         Display #{d.displayId}: {d.width}x{d.height} @ {d.densityDpi} DPI ({d.refreshRateHz}Hz)
                       </div>
@@ -495,10 +495,10 @@ function AquariumDemoApp({ onLog }: { onLog: (msg: string, type?: LogEntry['type
         {/* Center: The Single Visual UI Component Footprint */}
         <main style={styles.main}>
           <div style={styles.emulatorWrapper}>
-            <EmulatorView
+            <DeviceView
               displayId={0}
               autoConnect={true}
-              onError={(err) => onLog(`EmulatorView error: ${err.message}`, 'error')}
+              onError={(err) => onLog(`DeviceView error: ${err.message}`, 'error')}
             />
           </div>
         </main>
@@ -572,11 +572,11 @@ function RootApp() {
         </div>
       </div>
 
-      {/* AquariumProvider wrapping the app */}
+      {/* DeviceProvider wrapping the app */}
       <div style={styles.bodyWrapper}>
-        <AquariumProvider uri={endpoint} token={token || undefined}>
-          <AquariumDemoApp onLog={addLog} />
-        </AquariumProvider>
+        <DeviceProvider uri={endpoint} token={token || undefined}>
+          <DeviceDemoApp onLog={addLog} />
+        </DeviceProvider>
       </div>
 
       {/* Bottom Collapsible Diagnostic Log Console */}
