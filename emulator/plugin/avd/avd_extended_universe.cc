@@ -32,7 +32,7 @@
 #include "goldfish/async/testing/global_event_loop.h"
 #include "goldfish/avd_info/gralloc_impl.h"
 #include "goldfish/devices/vehicle/vehicle_device.h"
-#include "goldfish/display/QemuMultidisplay/multi_display.h"
+#include "goldfish/display/abstract_multi_display.h"
 #include "goldfish/tools/aemu_version.h"
 #include "goldfish/vsock/clear.h"
 
@@ -202,7 +202,9 @@ AvdExtendedUniverse::AvdExtendedUniverse(std::unique_ptr<AvdProperties> props)
     DEVS::unix_pipe::IUnixPipe::RegisterDevice(&avd_universe.test_tools_connector_registry,
                                                client_loop, qemu_loop.get());
 
-    avd_universe.multi_display = display::IMultiDisplay::Create(client_loop, qemu_loop.get());
+    avd_universe.multi_display = display::IMultiDisplay::Create(
+            client_loop, qemu_loop.get(),
+            avd_universe.GetSensorsPhysicalModel().GetFoldableConfig());
 
     // Initialize the battery to a default state and register it.
     avd_universe.battery_subscription = DEVS::battery::RegisterBattery(
@@ -376,8 +378,7 @@ void AvdExtendedUniverse::OnSaveProps(archive::IWriter& writer) const {
 }
 
 void AvdExtendedUniverse::OnSavePhysicalState(archive::IWriter& writer) const {
-    // TODO: sensors_physical_model_
-    writer << battery_ << guest_status_ << location_;
+    writer << battery_ << guest_status_ << location_ << sensors_physical_model_;
 }
 
 absl::Status AvdExtendedUniverse::OnLoad(archive::IReader& reader) {
@@ -536,8 +537,7 @@ absl::Status AvdExtendedUniverse::OnLoadProps(archive::IReader& reader) {
 }
 
 absl::Status AvdExtendedUniverse::OnLoadPhysicalState(archive::IReader& reader) {
-    // TODO: sensors_physical_model_
-    return ReadValue(reader, battery_, guest_status_, location_);
+    return ReadValue(reader, battery_, guest_status_, location_, sensors_physical_model_);
 }
 
 void AvdExtendedUniverse::SyncGuestTimeToHost() {

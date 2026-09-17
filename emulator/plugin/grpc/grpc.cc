@@ -43,6 +43,7 @@
 #include "android/sockets/socket_utils.h"
 #include "android/status/status_macros.h"
 #include "emulator/plugin/grpc/grpc_display.h"
+#include "emulator/plugin/vminterface/vm_lock.h"
 #include "emulator/plugin/webrtc/webrtc_device.h"
 #include "goldfish/async/event_loop.h"
 #include "goldfish/async/qemu_event_loop.h"
@@ -50,7 +51,7 @@
 #include "goldfish/avd_info/avd_info.h"
 #include "goldfish/avd_info/avd_private.h"
 #include "goldfish/discovery/emulator_advertisement.h"
-#include "goldfish/display/QemuMultidisplay/multi_display.h"
+#include "goldfish/display/abstract_multi_display.h"
 #include "goldfish/file/file.h"
 #include "goldfish/grpc/grpc_key_utils.h"
 #include "goldfish/grpc/v2/v2_services.h"
@@ -157,7 +158,7 @@ std::vector<std::shared_ptr<::grpc::Service>> CreateServices(avd_info::AvdUniver
         LOG(WARNING) << "No valid modem_simulator_port. Not enabling gRPC ModemService.";
     }
 
-    if (auto webrtc_service = WebrtcGetService()) {
+    for (const auto& webrtc_service : WebrtcGetServices()) {
         services.emplace_back(webrtc_service);
     }
 
@@ -415,7 +416,10 @@ void grpc_shutdown_notify(Notifier* notifier, void* data) {
     }
 
     auto deadline = std::chrono::system_clock::now() + std::chrono::milliseconds(100);
-    config->grpc_server->Shutdown(deadline);
+    {
+        android::goldfish::ScopedVmUnlock unlock;
+        config->grpc_server->Shutdown(deadline);
+    }
 }
 
 void grpc_realize(DeviceState* dev, Error** errp) {
@@ -511,7 +515,10 @@ void grpc_unrealize(DeviceState* dev) {
         // program exit as we may be holding on to loopers, which threads
         // have likely been destroyed at that point.
         auto deadline = std::chrono::system_clock::now() + std::chrono::milliseconds(500);
+        android::goldfish::ScopedVmUnlock unlock;
         config->grpc_server->Shutdown(deadline);
+        config->grpc_server.reset();
+        config->grpc_services.clear();
     }
 }
 

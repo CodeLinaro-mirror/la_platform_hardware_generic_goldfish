@@ -25,6 +25,7 @@ cc_library(
     deps = [
         "//emulator/libs/archive",
         "//emulator/libs/base",
+        "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/container:flat_hash_set",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",

@@ -96,28 +96,30 @@ class Switchboard : public RtcConnection {
      */
     absl::Status AcceptJsepMessage(const std::string& identity, const std::string& msg);
 
-    using MessageCallback = std::function<void(absl::StatusOr<std::string>)>;
+    /**
+     * @brief Reports whether a participant session is currently connected. Thread-safe.
+     *
+     * Lets signaling services reject operations on unknown or already torn down sessions rather
+     * than silently accepting them.
+     *
+     * @param identity The client identifier.
+     * @return true if the participant has an active connection.
+     */
+    bool HasSession(const std::string& identity);
 
     /**
      * @brief Synchronously blocks the calling thread waiting for the next outgoing JSEP message
      * from the participant. Used by unary gRPC or poll-based signaling transports.
      *
-     * @param identity Client identifier.
-     * @param timeout Maximum duration to block.
-     * @return absl::StatusOr<std::string> The retrieved signaling payload, or an error status
-     * (e.g., DeadlineExceeded).
-     */
-    absl::StatusOr<std::string> NextMessage(const std::string& identity, absl::Duration timeout);
-
-    /**
-     * @brief Asynchronously registers a callback to be executed once a new outgoing JSEP message is
-     * available. Used by streaming gRPC signaling systems. Invokes callback instantly if a message
-     * is already queued. Invokes callback with an error status if the participant disconnects.
+     * Returns Cancelled if the session is closed while waiting, and DeadlineExceeded if the
+     * timeout elapses first. Callers driving a stream should treat only the latter as a reason
+     * to keep waiting.
      *
      * @param identity Client identifier.
-     * @param callback The handler to execute when signaling data arrives.
+     * @param timeout Maximum duration to block.
+     * @return absl::StatusOr<std::string> The retrieved signaling payload, or an error status.
      */
-    void NextMessage(const std::string& identity, MessageCallback callback);
+    absl::StatusOr<std::string> NextMessage(const std::string& identity, absl::Duration timeout);
 
     // RtcConnection overrides
     /**
@@ -140,7 +142,6 @@ class Switchboard : public RtcConnection {
     struct ParticipantQueue {
         absl::Mutex mutex;
         std::queue<std::string> queue;
-        MessageCallback callback;
 
         // Sticky flag to wake blocked readers on teardown.
         bool closed ABSL_GUARDED_BY(mutex) = false;
@@ -149,12 +150,6 @@ class Switchboard : public RtcConnection {
         void Close() {
             const absl::MutexLock lock(&mutex);
             closed = true;
-        }
-
-        ~ParticipantQueue() {
-            if (callback) {
-                callback(absl::CancelledError("Queue destroyed"));
-            }
         }
     };
 

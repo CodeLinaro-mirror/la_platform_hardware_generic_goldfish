@@ -12,8 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "goldfish/display/QemuMultidisplay/multi_display.h"
-
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -31,6 +29,7 @@
 #include "android/status/status_macros.h"
 #include "goldfish/avd_info/avd_info.h"
 #include "goldfish/devices/multidisplay/multidisplay_device.h"
+#include "goldfish/display/abstract_multi_display.h"
 #include "goldfish/display/display.h"
 #include "goldfish/display/multi_display_callbacks.h"
 #include "goldfish/display/virtual_display.h"
@@ -90,8 +89,8 @@ absl::StatusOr<SharedDisplay> IMultiDisplay::GetActiveDisplay(DisplayId display_
 
 class MultiDisplayImpl : public IMultiDisplay {
   public:
-    MultiDisplayImpl(EventLoop* loop, EventLoop* qemu_loop)
-            : IMultiDisplay(loop), qemu_loop_(qemu_loop) {}
+    MultiDisplayImpl(EventLoop* loop, EventLoop* qemu_loop, bool has_hinge)
+            : IMultiDisplay(loop), qemu_loop_(qemu_loop), has_hinge_(has_hinge) {}
     ~MultiDisplayImpl() override = default;
 
     absl::StatusOr<DisplayPtr> CreateDisplay(DisplayId display_id, uint32_t width, uint32_t height,
@@ -327,8 +326,7 @@ class MultiDisplayImpl : public IMultiDisplay {
     }
 
     void SetFolded(bool folded) override {
-        const auto& hw = ::goldfish::avd_info::GetAvd().Props().hw_config;
-        if (hw.hw_sensor_hinge) {
+        if (has_hinge_) {
             const absl::MutexLock lock(display_access_);
             is_folded_ = folded;
 
@@ -426,12 +424,14 @@ class MultiDisplayImpl : public IMultiDisplay {
     VirtualDisplayMap virtual_displays_ ABSL_GUARDED_BY(display_access_);
     std::unordered_map<DisplayId, bool> active_states_ ABSL_GUARDED_BY(display_access_);
     uint32_t display_mode_ ABSL_GUARDED_BY(display_access_) = 0;
+    const bool has_hinge_;
     bool is_folded_ ABSL_GUARDED_BY(display_access_) = false;
     mutable absl::Mutex display_access_;
 };
 
-std::unique_ptr<IMultiDisplay> IMultiDisplay::Create(EventLoop* loop, EventLoop* qemu_loop) {
-    return std::make_unique<MultiDisplayImpl>(loop, qemu_loop);
+std::unique_ptr<IMultiDisplay> IMultiDisplay::Create(EventLoop* loop, EventLoop* qemu_loop,
+                                                     const sensors::FoldableConfig* fc) {
+    return std::make_unique<MultiDisplayImpl>(loop, qemu_loop, fc && (fc->num_hinges > 0));
 }
 
 extern "C" void grpc_dpy_gfx_update(struct DisplayChangeListener* dcl, int x, int y, int w, int h) {
@@ -488,13 +488,13 @@ extern "C" void grpc_dpy_gfx_switch(struct DisplayChangeListener* dcl,
         con = qemu_console_lookup_default();
     }
     const auto index = qemu_console_get_index(con);
-    if (index == 0 && surface_is_placeholder(new_surface)) {
+    auto device = multi_display.GetDisplayWeak(index);
+    if (index == 0 && new_surface && surface_is_placeholder(new_surface) && device.ok()) {
         // do nothing on place holder surface because it does
         // not come from android guest
         VLOG(1) << "Ignore place holder surface";
         return;
     }
-    auto device = multi_display.GetDisplayWeak(index);
     if (absl::IsNotFound(device.status())) {
         DisplaySurface* surface = new_surface;
         bool created_surface = false;

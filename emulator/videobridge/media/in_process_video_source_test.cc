@@ -144,5 +144,104 @@ TEST(InProcessVideoSourceTest, HandlesDisplayCreatedAfterSourceInitialization) {
     track_source->RemoveSink(&sink);
 }
 
+class SpyDisplay : public goldfish::display::test::FakePixmanDisplay {
+  public:
+    SpyDisplay(goldfish::async::EventLoop* loop, int id)
+            : FakePixmanDisplay(loop, id,
+                                goldfish::display::PixmanImagePtr(pixman_image_create_bits(
+                                        PIXMAN_a8r8g8b8, 100, 100, nullptr, 100 * 4))) {}
+
+    void OnListenerAdded() override { added_count++; }
+    void OnListenerRemoved() override { removed_count++; }
+
+    int added_count = 0;
+    int removed_count = 0;
+};
+
+class SpyMultiDisplay : public goldfish::display::test::FakeMultiDisplay {
+  public:
+    SpyMultiDisplay(goldfish::async::EventLoop* loop, std::shared_ptr<SpyDisplay> display)
+            : FakeMultiDisplay(loop), display_(std::move(display)) {}
+
+    absl::StatusOr<goldfish::display::DisplayPtr> GetDisplay(
+            goldfish::display::DisplayId display_id) const override {
+        if (display_ && display_id == display_->Id()) {
+            return display_;
+        }
+        return absl::NotFoundError("Display not found");
+    }
+
+  private:
+    std::shared_ptr<SpyDisplay> display_;
+};
+
+TEST(InProcessVideoSourceTest, ManagesListenerLifecycleOnStartAndStop) {
+    auto loop = goldfish::async::globalEventLoop();
+    auto display = std::make_shared<SpyDisplay>(loop, 0);
+    SpyMultiDisplay multidisplay(loop, display);
+
+    auto source = webrtc::make_ref_counted<InProcessVideoSource>(multidisplay, 0);
+
+    EXPECT_EQ(0, display->added_count);
+    EXPECT_EQ(0, display->removed_count);
+
+    source->Start();
+    EXPECT_EQ(1, display->added_count);
+    EXPECT_EQ(0, display->removed_count);
+
+    source->Stop();
+    EXPECT_EQ(1, display->added_count);
+    EXPECT_EQ(1, display->removed_count);
+}
+
+TEST(InProcessVideoSourceTest, RepeatedStartStopCyclesDoNotLeakCallbacks) {
+    auto loop = goldfish::async::globalEventLoop();
+    auto display = std::make_shared<SpyDisplay>(loop, 0);
+    SpyMultiDisplay multidisplay(loop, display);
+
+    auto source = webrtc::make_ref_counted<InProcessVideoSource>(multidisplay, 0);
+
+    for (int i = 1; i <= 5; ++i) {
+        source->Start();
+        EXPECT_EQ(i, display->added_count);
+        EXPECT_EQ(i - 1, display->removed_count);
+
+        source->Stop();
+        EXPECT_EQ(i, display->added_count);
+        EXPECT_EQ(i, display->removed_count);
+    }
+}
+
+TEST(InProcessVideoSourceTest, DestructorCleansUpActiveListener) {
+    auto loop = goldfish::async::globalEventLoop();
+    auto display = std::make_shared<SpyDisplay>(loop, 0);
+    SpyMultiDisplay multidisplay(loop, display);
+
+    {
+        auto source = webrtc::make_ref_counted<InProcessVideoSource>(multidisplay, 0);
+        source->Start();
+        EXPECT_EQ(1, display->added_count);
+        EXPECT_EQ(0, display->removed_count);
+    }
+
+    // After destruction of source, listener should be removed
+    EXPECT_EQ(1, display->added_count);
+    EXPECT_EQ(1, display->removed_count);
+}
+
+TEST(InProcessVideoSourceTest, HandlesDisplayUnavailableGracefully) {
+    auto loop = goldfish::async::globalEventLoop();
+    auto display = std::make_shared<SpyDisplay>(loop, 0);
+    SpyMultiDisplay multidisplay(loop, display);
+
+    // Request non-existent display ID 99
+    auto source = webrtc::make_ref_counted<InProcessVideoSource>(multidisplay, 99);
+    source->Start();
+    EXPECT_EQ(0, display->added_count);
+
+    source->Stop();
+    EXPECT_EQ(0, display->removed_count);
+}
+
 }  // namespace
 }  // namespace goldfish::videobridge

@@ -166,9 +166,10 @@ absl::Status prepareUserDataBaseImage(const Avd& avd, const fs::path& init_data,
             // sdcard.
             return absl::OkStatus();
         }
-        return absl::UnimplementedError(
-                "no empty_data_disk marker found but data dirs are not supported by this version "
-                "of the emulator");
+        LOG(WARNING)
+                << "No empty_data_disk marker found but data dirs are not fully supported by this "
+                   "version of the emulator: data partition will be initialized empty";
+        return absl::OkStatus();
     }
 }
 
