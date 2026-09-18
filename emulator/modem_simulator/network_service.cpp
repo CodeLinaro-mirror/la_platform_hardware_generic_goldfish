@@ -1092,10 +1092,7 @@ void NetworkService::OnDataRegisterStateChanged() {
   switch (data_registration_status_.unsol_mode) {
     case NetworkRegistrationStatus::REGISTRATION_UNSOL_ENABLED:
       ss << "+CGREG: " << data_registration_status_.registration_state;
-      if (data_registration_status_.network_type ==
-          NetworkRegistrationStatus::ACCESS_TECH_EUTRAN) {
-        ss << "\r+CEREG: " << data_registration_status_.registration_state;
-      }
+      ss << "\r+CEREG: " << data_registration_status_.registration_state;
       break;
     case NetworkRegistrationStatus::REGISTRATION_UNSOL_ENABLED_FULL:
       ss << "+CGREG: " << data_registration_status_.registration_state;
@@ -1106,16 +1103,13 @@ void NetworkService::OnDataRegisterStateChanged() {
         ss << ",\"" << kAreaCode << "\",\"" << kCellId << "\","
            << data_registration_status_.network_type;
       }
-      if (data_registration_status_.network_type ==
-          NetworkRegistrationStatus::ACCESS_TECH_EUTRAN) {
-        ss << "\r+CEREG: " << data_registration_status_.registration_state;
-        if (data_registration_status_.registration_state ==
-                NET_REGISTRATION_HOME ||
-            data_registration_status_.registration_state ==
-                NET_REGISTRATION_ROAMING) {
-          ss << ",\"" << kAreaCode << "\",\"" << kCellId << "\","
-             << data_registration_status_.network_type;
-        }
+      ss << "\r+CEREG: " << data_registration_status_.registration_state;
+      if (data_registration_status_.registration_state ==
+              NET_REGISTRATION_HOME ||
+          data_registration_status_.registration_state ==
+              NET_REGISTRATION_ROAMING) {
+        ss << ",\"" << kAreaCode << "\",\"" << kCellId << "\","
+            << data_registration_status_.network_type;
       }
       break;
     default:
