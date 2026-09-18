@@ -39,22 +39,22 @@ using Call = IModemSimulatorClient::Call;
 using CellInfo = IModemSimulatorClient::CellInfo;
 
 namespace {
-unsigned ToInt(const IModemSimulatorClient::SignalStrength ss) {
+unsigned ToPercentage(const IModemSimulatorClient::SignalStrength ss) {
     switch (ss) {
     case IModemSimulatorClient::SignalStrength::NONE_OR_UNKNOWN:
         return 0;
 
     case IModemSimulatorClient::SignalStrength::POOR:
-        return 1;
+        return 25;
 
     case IModemSimulatorClient::SignalStrength::MODERATE:
-        return 2;
+        return 50;
 
     case IModemSimulatorClient::SignalStrength::GOOD:
-        return 3;
+        return 75;
 
     case IModemSimulatorClient::SignalStrength::GREAT:
-        return 4;
+        return 100;
     }
 
     return 0;
@@ -181,7 +181,7 @@ absl::StatusOr<SharedFD> ConnectToSimulator(const int serverPort) {
 
 absl::Status SetSignalStrength(SharedFD& socket, const IModemSimulatorClient::SignalStrength ss) {
     using namespace std::literals::string_view_literals;
-    const std::string req = absl::StrCat("AT+REMOTESIGNAL: "sv, ToInt(ss), "\r"sv);
+    const std::string req = absl::StrCat("AT+REMOTESIGNAL: "sv, ToPercentage(ss), "\r"sv);
     return SendModemRequest(socket, req);
 }
 
