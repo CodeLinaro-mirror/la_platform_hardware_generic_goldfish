@@ -16,6 +16,7 @@
 #include "goldfish/modem_simulator/modem_simulator_client.h"
 
 #include <sys/types.h>
+#include <thread>
 
 #include "absl/log/check.h"
 #include "absl/log/log.h"
@@ -162,6 +163,10 @@ absl::Status SendModemRequest(SharedFD& socket, const std::string_view req) {
     }
 }
 
+void FlushModemSocket(SharedFD&) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+}
+
 absl::StatusOr<SharedFD> ConnectToSimulator(const int serverPort) {
     SharedFD socket = SharedFD::SocketLocalClient(serverPort);
     if (!socket) {
@@ -208,6 +213,7 @@ absl::Status SendSmsPdus(const int serverPort, const std::vector<SmsPdu>& pdus) 
         RETURN_IF_ERROR(SendModemRequest(socket, req));
     }
 
+    FlushModemSocket(socket);
     return absl::OkStatus();
 }
 
@@ -329,6 +335,7 @@ absl::StatusOr<CellInfo> ModemSimulatorClient::SetCellInfo(const CellInfo& ci) {
 
     RETURN_IF_ERROR(SetSignalStrength(socket, ci.signalStrength));
 
+    FlushModemSocket(socket);
     return ci;
 }
 
@@ -361,6 +368,7 @@ absl::StatusOr<Call> ModemSimulatorClient::UpdateCall(const Call& call) {
 
     const ModemCallState mcs = ToModemCallState(call.state);
     ASSIGN_OR_RETURN(SharedFD socket, SendCallRequest(serverPort_, mcs, call.number));
+    FlushModemSocket(socket);
 
     const absl::MutexLock lock(mtx_);
     const auto i = calls_.find(call.number);
@@ -375,6 +383,7 @@ absl::StatusOr<Call> ModemSimulatorClient::UpdateCall(const Call& call) {
 absl::Status ModemSimulatorClient::DeleteCall(const Call& call) {
     ASSIGN_OR_RETURN(SharedFD socket,
                      SendCallRequest(serverPort_, ModemCallState::HANGUP, call.number));
+    FlushModemSocket(socket);
 
     const absl::MutexLock lock(mtx_);
     if (calls_.erase(call.number) > 0) {
@@ -418,7 +427,9 @@ absl::Status ModemSimulatorClient::UpdateClock() {
     ASSIGN_OR_RETURN(SharedFD socket, ConnectToSimulator(serverPort_));
 
     using namespace std::literals::string_view_literals;
-    return SendModemRequest(socket, "AT+REMOTETIMEUPDATE: \r"sv);
+    RETURN_IF_ERROR(SendModemRequest(socket, "AT+REMOTETIMEUPDATE: \r"sv));
+    FlushModemSocket(socket);
+    return absl::OkStatus();
 }
 
 }  // namespace goldfish::modem_simulator
