@@ -57,7 +57,9 @@ class LoopWatcher {
 
     void StartHangCheck() {
         const absl::MutexLock l(&mutex_);
-        ScheduleHangCheckLocked();
+        if (IsActive()) {
+            ScheduleHangCheckLocked();
+        }
     }
 
     void CancelHangCheck() {
@@ -75,6 +77,11 @@ class LoopWatcher {
 
     void Process(const HangDetector::HangCallback& hang_callback) {
         absl::ReleasableMutexLock l(&mutex_);
+        if (android::base::IsDebuggerAttached() || !IsActive()) {
+            is_task_running_ = false;
+            hang_count_ = 0;
+            return;
+        }
 
         const absl::Time now = clock_->Now(base::ClockType::kRealtime);
         if (is_task_running_) {
@@ -90,11 +97,9 @@ class LoopWatcher {
                 const absl::Duration time_passed = now - last_check_time_;
                 const auto message = absl::StrCat("detected a hanging thread '", loop_name_,
                                                   "'. No response for ", time_passed);
-                const bool is_ignored = android::base::IsDebuggerAttached() || !is_active_();
                 ++hang_count_;
-                LOG(ERROR) << message
-                           << (is_ignored ? ", ignored (debugger attached or vm stopped)" : "");
-                if (hang_count_ >= kMaxHangCount && hang_callback && !is_ignored) {
+                LOG(ERROR) << message;
+                if (hang_count_ >= kMaxHangCount && hang_callback) {
                     l.Release();
                     hang_callback(message);
                     return;
@@ -109,6 +114,8 @@ class LoopWatcher {
     }
 
   private:
+    bool IsActive() const { return !is_active_ || is_active_(); }
+
     void ScheduleHangCheckLocked() ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_) {
         is_task_running_ = true;
         last_check_time_ = clock_->Now(base::ClockType::kRealtime);
