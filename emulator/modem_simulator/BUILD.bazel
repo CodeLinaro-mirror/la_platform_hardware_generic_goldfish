@@ -131,6 +131,7 @@ cc_library(
         ":i_modem_simulator_client",
         "//emulator/libs/gsm:sms",
         "//emulator/libs/parsing:hexbin",
+        "//emulator/libs/status_macros",
         "//emulator/modem_simulator/deps",
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/synchronization",
