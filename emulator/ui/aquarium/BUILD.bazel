@@ -65,36 +65,34 @@ exports_files([
     "index.html",
 ])
 
-# Hermetic TypeScript type-checking and compilation
-ts_project(
-    name = "ts",
-    srcs = [
-        "example/main.tsx",
-        "src/core/audio.ts",
-        "src/core/auth.ts",
-        "src/core/battery.ts",
-        "src/core/biometrics.ts",
-        "src/core/camera.ts",
-        "src/core/capabilities.ts",
-        "src/core/client.ts",
-        "src/core/clipboard.ts",
-        "src/core/display.ts",
-        "src/core/input_channel.ts",
-        "src/core/location.ts",
-        "src/core/posture.ts",
-        "src/core/rtc_controller.ts",
-        "src/core/screen_capture.ts",
-        "src/core/sensors.ts",
-        "src/core/snapshot.ts",
-        "src/core/system.ts",
-        "src/core/telephony.ts",
-        "src/core/transport.ts",
-        "src/core/vm.ts",
-        "src/index.ts",
-        "src/react/EmulatorView.tsx",
-        "src/react/context.tsx",
-        "src/react/hooks.ts",
+copy_to_directory(
+    name = "web_node_module",
+    srcs = ["@aemu//api/web:pkg"],
+    out = "node_modules/@android/web",
+    include_external_repositories = ["aemu*"],
+    root_paths = [
+        "api/web/pkg",
+        "hardware/google/aemu/api/web/pkg",
     ],
+    target_compatible_with = _NOT_WINDOWS,
+)
+
+js_library(
+    name = "web_pkg",
+    srcs = [":web_node_module"],
+    target_compatible_with = _NOT_WINDOWS,
+)
+
+alias(
+    name = "aquarium_pkg",
+    actual = ":web_pkg",
+    target_compatible_with = _NOT_WINDOWS,
+)
+
+# Example application consuming the web library package
+ts_project(
+    name = "example",
+    srcs = ["example/main.tsx"],
     declaration = True,
     declaration_dir = "_ts_out/types",
     out_dir = "_ts_out",
@@ -102,24 +100,22 @@ ts_project(
     tsconfig = "tsconfig.json",
     validate = False,
     deps = [
-        ":emulator_services_pkg",
-        ":node_modules/@bufbuild/protobuf",
         ":node_modules/@types/node",
         ":node_modules/@types/react",
         ":node_modules/@types/react-dom",
-        ":node_modules/grpc-web",
-        ":node_modules/loglevel",
         ":node_modules/react",
         ":node_modules/react-dom",
-        ":node_modules/rxjs",
-        ":node_modules/ts-proto",
+        ":web_pkg",
     ],
 )
 
 # Production ESM bundle built via native Go-compiled esbuild
 esbuild(
     name = "bundle",
-    srcs = [":ts"],
+    srcs = [
+        ":example",
+        ":web_pkg",
+    ],
     define = {
         "process.env.NODE_ENV": '"production"',
     },
@@ -130,6 +126,7 @@ esbuild(
     sourcemap = "external",
     target = "es2022",
     target_compatible_with = _NOT_WINDOWS,
+    tsconfig = "tsconfig.json",
     deps = [
         ":emulator_services_pkg",
         ":node_modules/@bufbuild/protobuf",
@@ -139,6 +136,7 @@ esbuild(
         ":node_modules/react-dom",
         ":node_modules/rxjs",
         ":node_modules/scheduler",
+        ":web_pkg",
     ],
 )
 

@@ -20,12 +20,27 @@
     "outDir": "_ts_out",
     "esModuleInterop": true,
     "paths": {
-      "@/*": ["./src/*"],
+      "@android/web": [
+        "./node_modules/@android/web",
+        "./node_modules/@android/web/types/src/index.d.ts"
+      ],
+      "@android/web/*": [
+        "./node_modules/@android/web/*",
+        "./node_modules/@android/web/types/src/*"
+      ],
+      "@android/aquarium": [
+        "./node_modules/@android/web",
+        "./node_modules/@android/web/types/src/index.d.ts"
+      ],
+      "@android/aquarium/*": [
+        "./node_modules/@android/web/*",
+        "./node_modules/@android/web/types/src/*"
+      ],
       "@android/emulator-services/*": [
         "./node_modules/@android/emulator-services/*"
       ]
     }
   },
-  "include": ["src", "example"],
+  "include": ["example"],
   "exclude": ["node_modules", "dist"]
 }
