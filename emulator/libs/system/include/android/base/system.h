@@ -214,10 +214,6 @@ class System {
     // want to redirect parameter validation.
     virtual void ConfigureHost() const = 0;
 
-    // bug: 117923532
-    // macOS will make the emulator nap, which will mess up timers
-    // and cause mayhem like hang detection.
-    // On other platforms, this function doesn't do anything.
     static void DisableAppNap();
 
     // Returns the wallclock (high res time us) user, and system time spent
