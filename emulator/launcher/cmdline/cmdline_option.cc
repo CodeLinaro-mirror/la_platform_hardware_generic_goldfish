@@ -97,22 +97,6 @@ int android_parse_options(int* pargc, char*** pargv, AndroidOptions* opt) {
             arg = "debug-init";
         }
 
-        /* special handing for -debug <tags> and -debug-<tags> */
-        if (!strcmp(arg, "debug")) {
-            if (nargs == 0) {
-                LOG(ERROR) << "-debug must be followed by tags (see -help-verbose)";
-                return -1;
-            }
-            nargs--;
-            android_parse_debug_tags_option(*aread++, /*parse_as_suffix*/ false);
-            continue;
-        } else if (!strncmp(arg, "debug-", sizeof("debug-") - 1)) {
-            // For a "-debug-<tag>" option we only allow a single tag,
-            // otherwise it may look strange to someone.
-            android_parse_debug_tags_option(arg + sizeof("debug-") - 1, /*parse_as_suffix*/ true);
-            continue;
-        }
-
         /* NOTE: variable tables map option names to values
          * (e.g. field offsets into the AndroidOptions structure).
          *
@@ -177,6 +161,23 @@ int android_parse_options(int* pargc, char*** pargv, AndroidOptions* opt) {
             }
 
             if (oo->name == nullptr) { /* unknown option ? */
+                /* special handing for -debug <tags> and -debug-<tags> */
+                if (!strcmp(arg, "debug")) {
+                    if (nargs == 0) {
+                        LOG(ERROR) << "-debug must be followed by tags (see -help-verbose)";
+                        return -1;
+                    }
+                    nargs--;
+                    android_parse_debug_tags_option(*aread++, /*parse_as_suffix*/ false);
+                    continue;
+                } else if (!strncmp(arg, "debug-", sizeof("debug-") - 1)) {
+                    // For a "-debug-<tag>" option we only allow a single tag,
+                    // otherwise it may look strange to someone.
+                    android_parse_debug_tags_option(arg + sizeof("debug-") - 1,
+                                                    /*parse_as_suffix*/ true);
+                    continue;
+                }
+
                 nargs++;
                 aread--;
                 break;

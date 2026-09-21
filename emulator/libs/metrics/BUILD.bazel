@@ -78,9 +78,11 @@ cc_library(
         "//emulator/libs/system",
         "//emulator/tools:aemu_version",
         "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:vlog_is_on",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/synchronization",
+        "@protobuf",
         "@qemu//:qemu-version-header",
     ],
 )
