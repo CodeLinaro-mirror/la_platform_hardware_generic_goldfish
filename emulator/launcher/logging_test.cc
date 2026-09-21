@@ -27,6 +27,7 @@
 #include "android/base/system.h"
 #include "android/cmdline_definitions.h"
 #include "android/cmdline_option.h"
+#include "goldfish/metrics/metrics_reporter.h"
 
 namespace {
 
@@ -111,6 +112,29 @@ TEST_F(ConfigureLoggingRealTest, HandlesMultiplePatterns) {
     opts.verbose = 1;
     opts.vmodule = (char*)"foo=2,bar=3";
     configureLogging(opts);
+    EXPECT_EQ(absl::log_internal::VLogLevel("foo.cc"), 2);
+    EXPECT_EQ(absl::log_internal::VLogLevel("bar.cc"), 3);
+}
+
+TEST_F(ConfigureLoggingRealTest, SetsDebugMetricsLevel) {
+    AndroidOptions opts = {};
+    opts.verbose = 0;
+    opts.debug_metrics = 1;
+    configureLogging(opts);
+    EXPECT_EQ(absl::MinLogLevel(), absl::LogSeverityAtLeast::kInfo);
+    EXPECT_EQ(absl::log_internal::VLogLevel("metrics_reporter.cc"),
+              goldfish::metrics::kMetricsWriterDebugVlogLevel);
+}
+
+TEST_F(ConfigureLoggingRealTest, DebugMetricsIsAdditiveWithVmodule) {
+    AndroidOptions opts = {};
+    opts.verbose = 0;
+    opts.debug_metrics = 1;
+    opts.vmodule = (char*)"foo=2,bar=3";
+    configureLogging(opts);
+    EXPECT_EQ(absl::MinLogLevel(), absl::LogSeverityAtLeast::kInfo);
+    EXPECT_EQ(absl::log_internal::VLogLevel("metrics_reporter.cc"),
+              goldfish::metrics::kMetricsWriterDebugVlogLevel);
     EXPECT_EQ(absl::log_internal::VLogLevel("foo.cc"), 2);
     EXPECT_EQ(absl::log_internal::VLogLevel("bar.cc"), 3);
 }

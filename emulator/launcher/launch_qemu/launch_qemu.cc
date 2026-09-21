@@ -42,6 +42,7 @@
 #include "configure_drives.h"
 #include "cpu_device.h"
 #include "display_device.h"
+#include "goldfish/metrics/metrics_reporter.h"
 #include "gpu_device.h"
 #include "hugepage_device.h"
 #include "initrd_device.h"
@@ -64,7 +65,7 @@ absl::Status LaunchQemu::addDevices() {
     const auto& o = config_.opts();
     const auto& a = config_.avd();
 
-    bool enableInfoLevel = o.verbose || o.V || o.vmodule;
+    bool enableInfoLevel = o.verbose || o.V || o.vmodule || o.debug_metrics;
     int pluginLogLevel = static_cast<int>(enableInfoLevel ? absl::LogSeverityAtLeast::kInfo
                                                           : absl::LogSeverityAtLeast::kWarning);
 
@@ -74,6 +75,13 @@ absl::Status LaunchQemu::addDevices() {
             vmodules += ",";
         }
         vmodules += o.vmodule;
+    }
+    if (o.debug_metrics) {
+        if (!vmodules.empty()) {
+            vmodules += ",";
+        }
+        absl::StrAppend(&vmodules,
+                        "metrics_reporter=", ::goldfish::metrics::kMetricsWriterDebugVlogLevel);
     }
 
     if (System::Get()->GetEnvironmentVariable("AEMU_LOG_LEVEL").empty() || enableInfoLevel) {

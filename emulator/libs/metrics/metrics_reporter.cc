@@ -16,6 +16,7 @@
 #include "goldfish/metrics/metrics_reporter.h"
 
 #include "absl/log/log.h"
+#include "absl/log/vlog_is_on.h"
 
 #include "android/base/system.h"
 #include "goldfish/tools/aemu_version.h"
@@ -24,6 +25,7 @@
 namespace goldfish::metrics {
 
 MetricsReporter::MetricsReporter(Uuid session_id) : session_id_(session_id.ToString()) {
+    debug_printer_.SetSingleLineMode(true);
     absl::MutexLock lock(mutex_);
     running_ = true;
     worker_thread_ = std::thread(&MetricsReporter::Run, this);
@@ -97,6 +99,14 @@ void MetricsReporter::Run() {
 
         auto event = std::move(event_queue_.front());
         event_queue_.pop();
+
+        if (VLOG_IS_ON(kMetricsWriterDebugVlogLevel)) {
+            std::string buf;
+            LOG_IF(ERROR, !debug_printer_.PrintToString(event.as_event, &buf))
+                    << "Failed to format metrics event";
+            VLOG(kMetricsWriterDebugVlogLevel)
+                    << "event time " << event.time_ms << "ms\n{ " << buf << "}";
+        }
 
         if (writer_) {
             writer_->Write(std::move(event));

@@ -14,9 +14,10 @@
 #include "android/base/color_log_sink.h"
 #include "android/base/system.h"
 #include "android/cmdline_option.h"
+#include "goldfish/metrics/metrics_reporter.h"
 
 void configureLogging(const AndroidOptions& opts) {
-    bool enableInfoLevel = opts.verbose || opts.V || opts.vmodule;
+    bool enableInfoLevel = opts.verbose || opts.V || opts.vmodule || opts.debug_metrics;
     absl::LogSeverityAtLeast launcherLogLevel =
             enableInfoLevel ? absl::LogSeverityAtLeast::kInfo : absl::LogSeverityAtLeast::kWarning;
     absl::SetStderrThreshold(absl::LogSeverityAtLeast::kInfo);
@@ -48,5 +49,9 @@ void configureLogging(const AndroidOptions& opts) {
             const int level = it.second;
             absl::SetVLogLevel(glob, level);
         }
+    }
+
+    if (opts.debug_metrics) {
+        absl::SetVLogLevel("metrics_reporter", goldfish::metrics::kMetricsWriterDebugVlogLevel);
     }
 }

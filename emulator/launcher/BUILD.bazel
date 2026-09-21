@@ -238,6 +238,7 @@ cc_library(
     deps = [
         "//emulator/launcher/cmdline",
         "//emulator/libs/logging:color_log_sink",
+        "//emulator/libs/metrics:metrics_reporter",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:initialize",
         "@abseil-cpp//absl/strings",

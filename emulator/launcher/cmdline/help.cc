@@ -1322,30 +1322,27 @@ static void help_gpu(stralloc_t* out) {
 }
 
 static void help_vulkan_validation(stralloc_t* out) {
-    PRINTF(
-        "  use '-vulkan-validation <mode>' to set Vulkan validation layer behavior.\n"
-        "  Valid modes are:\n\n"
-        "      off   -> Vulkan validation layers are disabled (default)\n"
-        "      print -> Vulkan validation messages are logged to host console\n"
-        "      fail  -> Vulkan validation errors return VK_ERROR_VALIDATION_FAILED_EXT\n"
-        "      crash -> Vulkan validation errors force a host process crash\n\n");
+    PRINTF("  use '-vulkan-validation <mode>' to set Vulkan validation layer behavior.\n"
+           "  Valid modes are:\n\n"
+           "      off   -> Vulkan validation layers are disabled (default)\n"
+           "      print -> Vulkan validation messages are logged to host console\n"
+           "      fail  -> Vulkan validation errors return VK_ERROR_VALIDATION_FAILED_EXT\n"
+           "      crash -> Vulkan validation errors force a host process crash\n\n");
 }
 
 static void help_vulkan_validation_include_filter(stralloc_t* out) {
-    PRINTF(
-        "  use '-vulkan-validation-include-filter <filters>' to specify a comma-separated\n"
-        "  list of exact string filters to include for Vulkan validation.\n"
-        "  Validation will only be enabled for guest applications or engines matching\n"
-        "  one of the filters in the list (case-insensitive exact match). If empty,\n"
-        "  all applications are validated by default.\n\n");
+    PRINTF("  use '-vulkan-validation-include-filter <filters>' to specify a comma-separated\n"
+           "  list of exact string filters to include for Vulkan validation.\n"
+           "  Validation will only be enabled for guest applications or engines matching\n"
+           "  one of the filters in the list (case-insensitive exact match). If empty,\n"
+           "  all applications are validated by default.\n\n");
 }
 
 static void help_vulkan_validation_exclude_filter(stralloc_t* out) {
-    PRINTF(
-        "  use '-vulkan-validation-exclude-filter <filters>' to specify a comma-separated\n"
-        "  list of exact string filters to exclude from Vulkan validation.\n"
-        "  Validation will be disabled for guest applications or engines matching\n"
-        "  any of the filters in the list (case-insensitive exact match).\n\n");
+    PRINTF("  use '-vulkan-validation-exclude-filter <filters>' to specify a comma-separated\n"
+           "  list of exact string filters to exclude from Vulkan validation.\n"
+           "  Validation will be disabled for guest applications or engines matching\n"
+           "  any of the filters in the list (case-insensitive exact match).\n\n");
 }
 
 static void help_vsync_rate(stralloc_t* out) {
@@ -1476,6 +1473,11 @@ static void help_metrics_to_console(stralloc_t* out) {
            "  data to stdout in JSON format.\n"
            "  Mutually exclusive with \"-metrics-to-file <file>\" and "
            "\"-metrics-collection\".\n\n");
+}
+
+static void help_debug_metrics(stralloc_t* out) {
+    PRINTF("  Log metrics events to stdout for debugging without changing the\n"
+           "  active metrics backend writer.\n\n");
 }
 
 static void help_metrics_collection(stralloc_t* out) {
