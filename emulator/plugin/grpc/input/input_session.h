@@ -23,7 +23,7 @@
 #include "android/emulation/control/ev_dev_event.h"
 #include "android/emulation/control/keyboard/key_event_sender.h"
 #include "goldfish/display/abstract_multi_display.h"
-#include "input/input_service.pb.h"
+#include "input_service.pb.h"
 #include "slot_registry.h"
 
 namespace goldfish::grpc::v2 {
@@ -31,11 +31,11 @@ namespace goldfish::grpc::v2 {
 using ::android::emulation::control::EvDevEvent;
 using ::android::emulation::control::SlotRegistry;
 using ::android::emulation::control::keyboard::IKeyEventSender;
-using ::android::emulation::v2::input::AxisEvent;
-using ::android::emulation::v2::input::InputEvent;
-using ::android::emulation::v2::input::KeyEvent;
-using ::android::emulation::v2::input::PointerEvent;
-using ::android::emulation::v2::input::TextEvent;
+using ::android::emulation::v2::AxisEvent;
+using ::android::emulation::v2::InputEvent;
+using ::android::emulation::v2::KeyEvent;
+using ::android::emulation::v2::PointerEvent;
+using ::android::emulation::v2::TextEvent;
 using ::goldfish::display::IMultiDisplay;
 
 /**

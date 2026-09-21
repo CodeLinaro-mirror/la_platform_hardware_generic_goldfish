@@ -35,16 +35,16 @@ namespace {
 using ::android::emulation::control::EvDevEvent;
 using ::android::emulation::control::kMtsPointerUp;
 using ::android::emulation::control::keyboard::IKeyEventSender;
-using ::android::emulation::v2::input::AxisEvent;
-using ::android::emulation::v2::input::AxisType;
-using ::android::emulation::v2::input::ButtonMask;
-using ::android::emulation::v2::input::InputEvent;
-using ::android::emulation::v2::input::KeyAction;
-using ::android::emulation::v2::input::KeyEvent;
-using ::android::emulation::v2::input::PointerAction;
-using ::android::emulation::v2::input::PointerEvent;
-using ::android::emulation::v2::input::TextEvent;
-using ::android::emulation::v2::input::ToolType;
+using ::android::emulation::v2::AxisEvent;
+using ::android::emulation::v2::AxisType;
+using ::android::emulation::v2::ButtonMask;
+using ::android::emulation::v2::InputEvent;
+using ::android::emulation::v2::KeyAction;
+using ::android::emulation::v2::KeyEvent;
+using ::android::emulation::v2::PointerAction;
+using ::android::emulation::v2::PointerEvent;
+using ::android::emulation::v2::TextEvent;
+using ::android::emulation::v2::ToolType;
 using ::goldfish::async::EventLoop;
 using ::goldfish::async::LibuvEventLoop;
 using ::goldfish::async::ThreadedEventLoop;
@@ -1857,6 +1857,108 @@ TEST_F(InputSessionTestFixture, UnmappedAndroidKeycodeReturnsInvalidArgumentErro
     key_sender_->sent_events.clear();
     EXPECT_FALSE(session.DispatchInputEvent(event).ok());
     EXPECT_TRUE(key_sender_->sent_events.empty());
+}
+
+TEST_F(InputSessionTestFixture, PointerMoveWithOmittedPressureDefaultsToFullPressureAndStaysDown) {
+    auto* display = GetDisplay(0);
+    ASSERT_NE(display, nullptr);
+    InputSession session(*multi_display_, key_sender_, false);
+
+    {
+        InputEvent down_event;
+        auto* ptr = down_event.mutable_pointer();
+        ptr->set_display_id(0);
+        ptr->set_action(PointerAction::POINTER_ACTION_DOWN);
+        auto* p = ptr->add_pointers();
+        p->set_pointer_id(0);
+        p->set_x(0.5F);
+        p->set_y(0.5F);
+        EXPECT_TRUE(session.DispatchInputEvent(down_event).ok());
+    }
+
+    {
+        InputEvent move_event;
+        auto* ptr = move_event.mutable_pointer();
+        ptr->set_display_id(0);
+        ptr->set_action(PointerAction::POINTER_ACTION_MOVE);
+        auto* p = ptr->add_pointers();
+        p->set_pointer_id(0);
+        p->set_x(0.5F);
+        p->set_y(0.75F);
+        // Intentionally omit `pressure` on POINTER_ACTION_MOVE
+
+        display->evdevs.clear();
+        EXPECT_TRUE(session.DispatchInputEvent(move_event).ok());
+
+        EXPECT_FALSE(HasEvent(display->evdevs, EV_ABS, ABS_MT_TRACKING_ID, kMtsPointerUp));
+        EXPECT_TRUE(HasEvent(display->evdevs, EV_ABS, ABS_MT_PRESSURE, 0x7FFF));
+    }
+}
+
+TEST_F(InputSessionTestFixture, MultiTouchPointerUpReleasesOnlyZeroOrOmittedPressurePointers) {
+    auto* display = GetDisplay(0);
+    ASSERT_NE(display, nullptr);
+    InputSession session(*multi_display_, key_sender_, false);
+
+    {
+        InputEvent down_event;
+        auto* ptr = down_event.mutable_pointer();
+        ptr->set_display_id(0);
+        ptr->set_action(PointerAction::POINTER_ACTION_DOWN);
+
+        auto* p0 = ptr->add_pointers();
+        p0->set_pointer_id(0);
+        p0->set_x(0.3F);
+        p0->set_y(0.5F);
+        p0->set_pressure(1.0F);
+
+        auto* p1 = ptr->add_pointers();
+        p1->set_pointer_id(1);
+        p1->set_x(0.7F);
+        p1->set_y(0.5F);
+        p1->set_pressure(1.0F);
+
+        EXPECT_TRUE(session.DispatchInputEvent(down_event).ok());
+    }
+
+    {
+        InputEvent partial_up_event;
+        auto* ptr = partial_up_event.mutable_pointer();
+        ptr->set_display_id(0);
+        ptr->set_action(PointerAction::POINTER_ACTION_UP);
+
+        auto* p0 = ptr->add_pointers();
+        p0->set_pointer_id(0);
+        p0->set_x(0.3F);
+        p0->set_y(0.5F);
+        p0->set_pressure(1.0F);
+
+        auto* p1 = ptr->add_pointers();
+        p1->set_pointer_id(1);
+        p1->set_x(0.7F);
+        p1->set_y(0.5F);
+        p1->set_pressure(0.0F);
+
+        display->evdevs.clear();
+        EXPECT_TRUE(session.DispatchInputEvent(partial_up_event).ok());
+
+        bool slot_0_released = false;
+        bool slot_1_released = false;
+        for (size_t i = 0; i + 1 < display->evdevs.size(); ++i) {
+            if (display->evdevs[i].type == EV_ABS && display->evdevs[i].code == ABS_MT_SLOT &&
+                display->evdevs[i + 1].type == EV_ABS &&
+                display->evdevs[i + 1].code == ABS_MT_TRACKING_ID &&
+                display->evdevs[i + 1].value == kMtsPointerUp) {
+                if (display->evdevs[i].value == 0) {
+                    slot_0_released = true;
+                } else if (display->evdevs[i].value == 1) {
+                    slot_1_released = true;
+                }
+            }
+        }
+        EXPECT_FALSE(slot_0_released);
+        EXPECT_TRUE(slot_1_released);
+    }
 }
 
 }  // namespace

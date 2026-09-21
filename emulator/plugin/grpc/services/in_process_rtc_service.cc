@@ -111,7 +111,7 @@ InputSenderFactory CreateInProcessInputSenderFactory(
                     multidisplay, key_event_sender, hw_sensor_hinge);
             return std::make_unique<InProcessInputSender>(
                     /*dispatcher=*/nullptr,
-                    [input_session](const ::android::emulation::v2::input::InputEvent& request) {
+                    [input_session](const ::android::emulation::v2::InputEvent& request) {
                         return input_session->DispatchInputEvent(request);
                     });
         }

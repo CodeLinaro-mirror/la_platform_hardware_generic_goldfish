@@ -28,11 +28,11 @@ namespace {
 
 using ::android::emulation::control::KeyboardEvent;
 using ::android::emulation::control::kMtsPointerUp;
-using ::android::emulation::v2::input::AxisType;
-using ::android::emulation::v2::input::ButtonMask;
-using ::android::emulation::v2::input::KeyAction;
-using ::android::emulation::v2::input::PointerAction;
-using ::android::emulation::v2::input::ToolType;
+using ::android::emulation::v2::AxisType;
+using ::android::emulation::v2::ButtonMask;
+using ::android::emulation::v2::KeyAction;
+using ::android::emulation::v2::PointerAction;
+using ::android::emulation::v2::ToolType;
 
 constexpr uint32_t kEvAbsMax = 0x7FFF;
 // Default touch contact radius (~4% of normalized range [0, 32767]).
@@ -232,19 +232,28 @@ void AppendRelativeMotionEvents(const PointerEvent& pointer, std::vector<EvDevEv
 
 /**
  * @brief Determines if a pointer action or pressure indicator signifies a touch release / cancel.
+ *
+ * - On CANCEL or HOVER_EXIT, all pointers in the event are released.
+ * - On POINTER_ACTION_UP, pointers lift unless they explicitly report positive contact pressure
+ *   (`p.has_pressure() && p.pressure() > 0.0F`), supporting multi-touch partial finger lifts.
+ * - On POINTER_ACTION_DOWN, HOVER_ENTER, and HOVER_MOVE, contacts remain active.
+ * - On POINTER_ACTION_MOVE, contacts remain active when `pressure` is omitted (`!p.has_pressure()`,
+ *   which defaults to 1.0) and only lift if `pressure` is explicitly set to `<= 0.0F`.
  */
-bool IsPointerUp(PointerAction action, float pressure) {
-    if (action == PointerAction::POINTER_ACTION_UP ||
-        action == PointerAction::POINTER_ACTION_CANCEL ||
+bool IsPointerUp(PointerAction action, const PointerEvent::Pointer& p) {
+    if (action == PointerAction::POINTER_ACTION_CANCEL ||
         action == PointerAction::POINTER_ACTION_HOVER_EXIT) {
         return true;
+    }
+    if (action == PointerAction::POINTER_ACTION_UP) {
+        return !(p.has_pressure() && p.pressure() > 0.0F);
     }
     if (action == PointerAction::POINTER_ACTION_DOWN ||
         action == PointerAction::POINTER_ACTION_HOVER_ENTER ||
         action == PointerAction::POINTER_ACTION_HOVER_MOVE) {
         return false;
     }
-    return pressure == 0.0F;
+    return p.has_pressure() && p.pressure() <= 0.0F;
 }
 
 /**
@@ -287,7 +296,8 @@ void AppendPointerDownOrMove(const PointerEvent::Pointer& p, PointerAction actio
 
     const bool is_hover = (action == PointerAction::POINTER_ACTION_HOVER_MOVE ||
                            action == PointerAction::POINTER_ACTION_HOVER_ENTER);
-    const float pressure = is_hover ? 0.0F : (p.pressure() > 0.0F ? p.pressure() : 1.0F);
+    const float pressure =
+            is_hover ? 0.0F : ((p.has_pressure() && p.pressure() > 0.0F) ? p.pressure() : 1.0F);
     events.push_back({EV_ABS, ABS_MT_PRESSURE, NormalizeToEvAbs(pressure)});
 
     const uint32_t touch_major = p.size() > 0.0F ? NormalizeToEvAbs(p.size()) : kDefaultTouchMajor;
@@ -329,7 +339,7 @@ void AppendTouchTrackingEvents(const PointerEvent& pointer, SlotRegistry& slot_r
     }
 
     for (const auto& p : pointer.pointers()) {
-        if (IsPointerUp(pointer.action(), p.pressure())) {
+        if (IsPointerUp(pointer.action(), p)) {
             AppendPointerUp(p.pointer_id(), slot_registry, events);
         } else {
             AppendPointerDownOrMove(p, pointer.action(), slot_registry, events);

@@ -27,7 +27,7 @@ cc_library(
     }),
     deps = [
         "//emulator/plugin/avd:info",
-        "@aemu//protos/services_v2/discovery:capabilities_service_cc_grpc",
+        "@aemu//protos/services_v2:capabilities_service_cc_grpc",
         "@grpc//:grpc++",
     ],
 )
@@ -75,7 +75,7 @@ cc_library(
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/synchronization",
         "@abseil-cpp//absl/time",
-        "@aemu//protos/services_v2/webrtc:rtc_service_cc_grpc",
+        "@aemu//protos/services_v2:webrtc_service_cc_grpc",
         "@grpc//:grpc++",
     ],
 )
@@ -111,7 +111,7 @@ cc_test(
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/synchronization",
         "@abseil-cpp//absl/time",
-        "@aemu//protos/services_v2/webrtc:rtc_service_cc_grpc",
+        "@aemu//protos/services_v2:webrtc_service_cc_grpc",
         "@googletest//:gtest",
         "@grpc//:grpc++",
         "@nlohmann_json//:singleheader-json",

@@ -114,7 +114,7 @@ cc_library(
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/types:span",
-        "@aemu//protos/services_v2/input:input_service_cc_proto",
+        "@aemu//protos/services_v2:input_service_cc_proto",
     ],
 )
 
