@@ -10,8 +10,11 @@
 // GNU General Public License for more details.
 
 #pragma once
-#include <optional>
 #include <string>
+#include <string_view>
+
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
 
 namespace goldfish::adb {
 
@@ -47,17 +50,18 @@ struct AdbHostServer {
      * @param serialNumber The optional serial number of the emulator (e.g. 5554 for emulator-5554,
      * or 0 for any).
      * @param adbClientPort The localhost TCP port the ADB server is listening on.
-     * @return True on success, false on error.
+     * @return absl::OkStatus() on success, or an error Status (e.g. absl::UnauthenticatedError if
+     * unauthorized).
      */
-    static bool runShellCommand(const std::string& shellCommand, int serialNumber = 0,
-                                int adbClientPort = getClientPort());
+    static absl::Status runShellCommand(const std::string& shellCommand, int serialNumber = 0,
+                                        int adbClientPort = getClientPort());
 
     /**
      * @brief Get the ADB protocol version reported by the running daemon.
      *
-     * @return The ADB protocol version, or std::nullopt if unavailable
+     * @return The ADB protocol version, or an error status if unavailable.
      */
-    static std::optional<int> getProtocolVersion();
+    static absl::StatusOr<int> getProtocolVersion();
 };
 
 }  // namespace goldfish::adb

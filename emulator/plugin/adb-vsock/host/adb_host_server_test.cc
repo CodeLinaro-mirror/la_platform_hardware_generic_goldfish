@@ -13,11 +13,14 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <cstdint>
 #include <cstdio>
 #include <string>
 #include <string_view>
 #include <thread>
+
+#include "absl/status/status.h"
 
 #include "android/base/testing/needs_winsock.h"
 #include "android/base/testing/test_system.h"
@@ -73,10 +76,13 @@ namespace {
 
 class MockAdbShellServerThread {
   public:
-    MockAdbShellServerThread(bool transportOk = true, bool shellOk = true)
+    MockAdbShellServerThread(bool transportOk = true, bool shellOk = true,
+                             std::string transportFailReason = "", std::string shellFailReason = "")
             : mSocket(android::base::socketTcp4LoopbackServer(0))
             , mTransportOk(transportOk)
-            , mShellOk(shellOk) {}
+            , mShellOk(shellOk)
+            , mTransportFailReason(std::move(transportFailReason))
+            , mShellFailReason(std::move(shellFailReason)) {}
 
     ~MockAdbShellServerThread() { wait(); }
 
@@ -97,13 +103,24 @@ class MockAdbShellServerThread {
     const std::string& shellReceived() const { return mShellReceived; }
 
   private:
+    static void sendFailResponse(int fd, std::string_view reason) {
+        android::base::socketSendAll(fd, "FAIL", 4);
+        if (!reason.empty()) {
+            uint32_t len = static_cast<uint32_t>(std::min<size_t>(reason.size(), 0xFFFF));
+            char lenBuf[5] = {};
+            snprintf(lenBuf, sizeof(lenBuf), "%04x", len);
+            android::base::socketSendAll(fd, lenBuf, 4);
+            android::base::socketSendAll(fd, reason.data(), len);
+        }
+    }
+
     void run() {
         int fd = android::base::socketAcceptAny(mSocket.get());
         if (fd < 0) return;
 
         mTransportReceived = readProtocolMessage(fd);
         if (!mTransportOk) {
-            android::base::socketSendAll(fd, "FAIL", 4);
+            sendFailResponse(fd, mTransportFailReason);
             android::base::socketClose(fd);
             return;
         }
@@ -111,7 +128,7 @@ class MockAdbShellServerThread {
 
         mShellReceived = readProtocolMessage(fd);
         if (!mShellOk) {
-            android::base::socketSendAll(fd, "FAIL", 4);
+            sendFailResponse(fd, mShellFailReason);
             android::base::socketClose(fd);
             return;
         }
@@ -144,6 +161,8 @@ class MockAdbShellServerThread {
     android::base::ScopedSocket mSocket;
     bool mTransportOk;
     bool mShellOk;
+    std::string mTransportFailReason;
+    std::string mShellFailReason;
     std::string mTransportReceived;
     std::string mShellReceived;
     std::thread mThread;
@@ -156,8 +175,9 @@ TEST(AdbHostServer, runShellCommand_successWithSerial) {
     ASSERT_TRUE(server.valid());
     server.start();
 
-    EXPECT_TRUE(AdbHostServer::runShellCommand("cmd alarm set-time 1788360000000", 5554,
-                                               server.port()));
+    EXPECT_TRUE(
+            AdbHostServer::runShellCommand("cmd alarm set-time 1788360000000", 5554, server.port())
+                    .ok());
     server.wait();
 
     EXPECT_EQ("host:transport:emulator-5554", server.transportReceived());
@@ -169,7 +189,8 @@ TEST(AdbHostServer, runShellCommand_successAnySerial) {
     ASSERT_TRUE(server.valid());
     server.start();
 
-    EXPECT_TRUE(AdbHostServer::runShellCommand("settings put secure test 1", 0, server.port()));
+    EXPECT_TRUE(
+            AdbHostServer::runShellCommand("settings put secure test 1", 0, server.port()).ok());
     server.wait();
 
     EXPECT_EQ("host:transport-any", server.transportReceived());
@@ -181,8 +202,9 @@ TEST(AdbHostServer, runShellCommand_transportFailure) {
     ASSERT_TRUE(server.valid());
     server.start();
 
-    EXPECT_FALSE(AdbHostServer::runShellCommand("cmd alarm set-time 1788360000000", 5554,
-                                                server.port()));
+    EXPECT_FALSE(
+            AdbHostServer::runShellCommand("cmd alarm set-time 1788360000000", 5554, server.port())
+                    .ok());
     server.wait();
 }
 
@@ -191,13 +213,189 @@ TEST(AdbHostServer, runShellCommand_shellFailure) {
     ASSERT_TRUE(server.valid());
     server.start();
 
-    EXPECT_FALSE(AdbHostServer::runShellCommand("cmd alarm set-time 1788360000000", 5554,
-                                                server.port()));
+    EXPECT_FALSE(
+            AdbHostServer::runShellCommand("cmd alarm set-time 1788360000000", 5554, server.port())
+                    .ok());
     server.wait();
 }
 
 TEST(AdbHostServer, runShellCommand_connectionFailure) {
-    EXPECT_FALSE(AdbHostServer::runShellCommand("cmd alarm set-time 1788360000000", 5554, -1));
+    EXPECT_FALSE(AdbHostServer::runShellCommand("cmd alarm set-time 1788360000000", 5554, -1).ok());
+}
+
+TEST(AdbHostServer, runShellCommand_unauthorizedTransport) {
+    MockAdbShellServerThread server(
+            /*transportOk=*/false, /*shellOk=*/true,
+            /*transportFailReason=*/
+            "device unauthorized.\nThis adb server's $ADB_VENDOR_KEYS is not set");
+    ASSERT_TRUE(server.valid());
+    server.start();
+
+    absl::Status status =
+            AdbHostServer::runShellCommand("cmd alarm set-time 1788360000000", 5554, server.port());
+    server.wait();
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_TRUE(absl::IsUnauthenticated(status));
+    EXPECT_EQ(status.code(), absl::StatusCode::kUnauthenticated);
+}
+
+TEST(AdbHostServer, runShellCommand_unauthorizedShell) {
+    MockAdbShellServerThread server(
+            /*transportOk=*/true, /*shellOk=*/false,
+            /*transportFailReason=*/"",
+            /*shellFailReason=*/
+            "device unauthorized.\nThis adb server's $ADB_VENDOR_KEYS is not set");
+    ASSERT_TRUE(server.valid());
+    server.start();
+
+    absl::Status status =
+            AdbHostServer::runShellCommand("cmd alarm set-time 1788360000000", 5554, server.port());
+    server.wait();
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_TRUE(absl::IsUnauthenticated(status));
+    EXPECT_EQ(status.code(), absl::StatusCode::kUnauthenticated);
+}
+
+TEST(AdbHostServer, runShellCommand_unauthorizedAnySerial) {
+    MockAdbShellServerThread server(
+            /*transportOk=*/false, /*shellOk=*/true,
+            /*transportFailReason=*/
+            "device unauthorized.\nThis adb server's $ADB_VENDOR_KEYS is not set");
+    ASSERT_TRUE(server.valid());
+    server.start();
+
+    absl::Status status =
+            AdbHostServer::runShellCommand("cmd alarm set-time 1788360000000", 0, server.port());
+    server.wait();
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_TRUE(absl::IsUnauthenticated(status));
+    EXPECT_EQ(status.code(), absl::StatusCode::kUnauthenticated);
+}
+
+TEST(AdbHostServer, runShellCommand_shellWithUnauthorizedStringDoesNotTriggerIsUnauthorized) {
+    MockAdbShellServerThread server(/*transportOk=*/true, /*shellOk=*/false,
+                                    /*transportFailReason=*/"",
+                                    /*shellFailReason=*/"unknown command");
+    ASSERT_TRUE(server.valid());
+    server.start();
+
+    absl::Status status = AdbHostServer::runShellCommand("echo unauthorized", 5554, server.port());
+    server.wait();
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_FALSE(absl::IsUnauthenticated(status));
+    EXPECT_EQ(status.code(), absl::StatusCode::kInternal);
+}
+
+TEST(AdbHostServer, runShellCommand_emptyResponse) {
+    android::base::ScopedSocket listenSocket(android::base::socketTcp4LoopbackServer(0));
+    ASSERT_TRUE(listenSocket.valid());
+    int port = android::base::socketGetPort(listenSocket.get());
+
+    std::thread serverThread([fd = listenSocket.get()]() {
+        int clientFd = android::base::socketAcceptAny(fd);
+        if (clientFd >= 0) {
+            android::base::socketClose(clientFd);
+        }
+    });
+
+    absl::Status status = AdbHostServer::runShellCommand("test", 5554, port);
+    if (serverThread.joinable()) {
+        serverThread.join();
+    }
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code(), absl::StatusCode::kUnavailable);
+}
+
+TEST(AdbHostServer, getProtocolVersion_success) {
+    TestSystem testSystem("/bin");
+    android::base::ScopedSocket listenSocket(android::base::socketTcp4LoopbackServer(0));
+    ASSERT_TRUE(listenSocket.valid());
+    int port = android::base::socketGetPort(listenSocket.get());
+    testSystem.EnvSet("ANDROID_ADB_SERVER_PORT", std::to_string(port));
+
+    std::thread serverThread([fd = listenSocket.get()]() {
+        int clientFd = android::base::socketAcceptAny(fd);
+        if (clientFd < 0) return;
+        char req[16] = {};
+        android::base::socketRecv(clientFd, req, 16);
+        android::base::socketSendAll(clientFd, "OKAY", 4);
+        android::base::socketSendAll(clientFd, "00040028", 8);
+        android::base::socketClose(clientFd);
+    });
+
+    auto version = AdbHostServer::getProtocolVersion();
+    if (serverThread.joinable()) {
+        serverThread.join();
+    }
+
+    ASSERT_TRUE(version.ok());
+    EXPECT_EQ(40, *version);
+}
+
+TEST(AdbHostServer, getProtocolVersion_daemonFail) {
+    TestSystem testSystem("/bin");
+    android::base::ScopedSocket listenSocket(android::base::socketTcp4LoopbackServer(0));
+    ASSERT_TRUE(listenSocket.valid());
+    int port = android::base::socketGetPort(listenSocket.get());
+    testSystem.EnvSet("ANDROID_ADB_SERVER_PORT", std::to_string(port));
+
+    std::thread serverThread([fd = listenSocket.get()]() {
+        int clientFd = android::base::socketAcceptAny(fd);
+        if (clientFd < 0) return;
+        char req[16] = {};
+        android::base::socketRecv(clientFd, req, 16);
+        android::base::socketSendAll(clientFd, "FAIL", 4);
+        android::base::socketSendAll(clientFd, "000cdaemon error", 16);
+        android::base::socketClose(clientFd);
+    });
+
+    auto version = AdbHostServer::getProtocolVersion();
+    if (serverThread.joinable()) {
+        serverThread.join();
+    }
+
+    EXPECT_FALSE(version.ok());
+    EXPECT_EQ(version.status().code(), absl::StatusCode::kInternal);
+}
+
+TEST(AdbHostServer, getProtocolVersion_malformedPayload) {
+    TestSystem testSystem("/bin");
+    android::base::ScopedSocket listenSocket(android::base::socketTcp4LoopbackServer(0));
+    ASSERT_TRUE(listenSocket.valid());
+    int port = android::base::socketGetPort(listenSocket.get());
+    testSystem.EnvSet("ANDROID_ADB_SERVER_PORT", std::to_string(port));
+
+    std::thread serverThread([fd = listenSocket.get()]() {
+        int clientFd = android::base::socketAcceptAny(fd);
+        if (clientFd < 0) return;
+        char req[16] = {};
+        android::base::socketRecv(clientFd, req, 16);
+        android::base::socketSendAll(clientFd, "OKAY", 4);
+        android::base::socketSendAll(clientFd, "0004zzzz", 8);
+        android::base::socketClose(clientFd);
+    });
+
+    auto version = AdbHostServer::getProtocolVersion();
+    if (serverThread.joinable()) {
+        serverThread.join();
+    }
+
+    EXPECT_FALSE(version.ok());
+    EXPECT_EQ(version.status().code(), absl::StatusCode::kInternal);
+}
+
+TEST(AdbHostServer, getProtocolVersion_connectionFailure) {
+    TestSystem testSystem("/bin");
+    testSystem.EnvSet("ANDROID_ADB_SERVER_PORT", "-1");
+
+    auto version = AdbHostServer::getProtocolVersion();
+    EXPECT_FALSE(version.ok());
+    EXPECT_EQ(version.status().code(), absl::StatusCode::kUnavailable);
 }
 
 }  // namespace goldfish::adb
