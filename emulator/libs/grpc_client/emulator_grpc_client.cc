@@ -81,7 +81,6 @@ class EmulatorGrpcClientImpl : public std::enable_shared_from_this<EmulatorGrpcC
     absl::Mutex channel_mutex_;
     std::shared_ptr<::grpc::Channel> channel_ ABSL_GUARDED_BY(channel_mutex_);
     std::unique_ptr<GrpcConnectionMonitor> monitor_;
-    GrpcConnectionMonitor::ScopedCallbackHandle monitor_callback_handle_;
 
     std::atomic<bool> shutting_down_{false};
     android::base::eventing::CallbackEventSource<ConnectionState> connection_state_source_;
@@ -126,9 +125,8 @@ std::future<absl::Status> EmulatorGrpcClientImpl::ConnectAsync(absl::Duration ti
         return MakeReadyStatusFuture(status);
     }
 
-    monitor_ = std::make_unique<GrpcConnectionMonitor>(GetChannel());
-    monitor_callback_handle_ = android::base::eventing::MakeScopedCallback(
-            monitor_->state_changes(), [weak_self = weak_from_this()](ConnectionState state) {
+    monitor_ = std::make_unique<GrpcConnectionMonitor>(
+            GetChannel(), [weak_self = weak_from_this()](ConnectionState state) {
                 // Forward channel state event, (if we are still alive.)
                 if (auto self = weak_self.lock()) {
                     self->state_.store(state, std::memory_order_release);
@@ -143,7 +141,6 @@ void EmulatorGrpcClientImpl::Disconnect() {
     if (shutting_down_.exchange(true)) {
         return;  // Already shutting down.
     }
-    monitor_callback_handle_ = {};
     {
         const absl::MutexLock lock(channel_mutex_);
         channel_.reset();
