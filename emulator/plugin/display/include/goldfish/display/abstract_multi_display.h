@@ -23,6 +23,7 @@
 #include "goldfish/async/event_loop_dispatcher.h"
 #include "goldfish/display/display.h"
 #include "goldfish/sensors/foldable.h"
+#include "goldfish/sensors/physical_model.h"
 
 namespace goldfish::display {
 
@@ -194,11 +195,56 @@ class IMultiDisplay : public LoopBoundCallbackSource<DisplayEvent> {
 
     static constexpr size_t kMaxDisplays = 11;  ///< Maximum number of supported Android displays.
 
+    ImageRotation GetRotation() const { return rotation_.load(std::memory_order_relaxed); }
+
+    // Updates rotation across all managed displays under the assumption that all
+    // displays are attached to the same device chassis and share the same
+    // PhysicalModel orientation.
+    void SetRotation(ImageRotation rotation) {
+        rotation_.store(rotation, std::memory_order_relaxed);
+        for (const auto& display_weak : Displays()) {
+            if (auto display = display_weak.lock()) {
+                display->SetRotation(rotation);
+            }
+        }
+    }
+
+    using ScopedRotationSubscription = std::unique_ptr<android::base::eventing::ScopedEventCallback<
+            sensors::PhysicalModel, sensors::PhysicalModelChangeEvent>>;
+
+    ScopedRotationSubscription RegisterPhysicalModel(sensors::PhysicalModel& physical_model) {
+        auto to_image_rotation = [](physics::SkinRotation skin_rotation) {
+            switch (skin_rotation) {
+            case physics::SkinRotation::kLandscape:
+                return ImageRotation::kRotation90;
+            case physics::SkinRotation::kReversePortrait:
+                return ImageRotation::kRotation180;
+            case physics::SkinRotation::kReverseLandscape:
+                return ImageRotation::kRotation270;
+            case physics::SkinRotation::kPortrait:
+            default:
+                return ImageRotation::kRotation0;
+            }
+        };
+        SetRotation(to_image_rotation(physical_model.GetDeviceRotation().rotation));
+        return android::base::eventing::MakeScopedCallback(
+                physical_model, [this, &physical_model, to_image_rotation](
+                                        const sensors::PhysicalModelChangeEvent& event) {
+                    if (event.type ==
+                        sensors::PhysicalModelChangeEvent::Type::kTargetStateChanged) {
+                        SetRotation(to_image_rotation(physical_model.GetDeviceRotation().rotation));
+                    }
+                });
+    }
+
     static std::unique_ptr<IMultiDisplay> Create(EventLoop* loop, EventLoop* qemu_loop,
                                                  const sensors::FoldableConfig* fc);
 
   protected:
     EventLoop* loop_;
+
+  private:
+    std::atomic<ImageRotation> rotation_{ImageRotation::kRotation0};
 };
 
 }  // namespace goldfish::display

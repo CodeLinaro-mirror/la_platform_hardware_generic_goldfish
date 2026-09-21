@@ -98,6 +98,7 @@ class MultiDisplayImpl : public IMultiDisplay {
         const absl::MutexLock lock(display_access_);
         auto display = std::make_shared<VirtualDisplay>(loop_, qemu_loop_, display_id, width,
                                                         height, dpi, flags);
+        display->SetRotation(GetRotation());
         auto [it, inserted] = virtual_displays_.insert({display_id, display});
         if (!inserted) {
             return absl::AlreadyExistsError(
@@ -115,6 +116,7 @@ class MultiDisplayImpl : public IMultiDisplay {
                                                      uint8_t id) {
         const absl::MutexLock lock(display_access_);
         auto display = std::make_shared<QemuDisplay>(loop_, qemu_loop_, console, ds, id);
+        display->SetRotation(GetRotation());
 
         auto [it, inserted] = qemu_displays_.insert({id, display});
         if (!inserted) {

@@ -30,6 +30,7 @@ absl::StatusOr<DisplayPtr> FakeMultiDisplay::CreateDisplay(DisplayId display_id,
     auto shared_display = ActiveFakePixmanDisplay::CreateShared(
             loop_, static_cast<int>(display_id), 30, static_cast<int>(width),
             static_cast<int>(height), dpi, flags);
+    shared_display->SetRotation(GetRotation());
     displays_[display_id] = shared_display;
 
     FireEvent(DisplayEvent{DisplayEvent::AddedEvent{shared_display}});

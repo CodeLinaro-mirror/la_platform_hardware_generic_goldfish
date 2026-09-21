@@ -13,6 +13,7 @@
 // limitations under the License.
 #pragma once
 
+#include <atomic>
 #include <cstdint>
 #include <memory>
 #include <utility>
@@ -325,6 +326,13 @@ class IDisplay : public FrameInfoCallbackSource,
         SetDimensions({.width = width, .height = height});
     }
 
+    ImageRotation GetRotation() const { return rotation_.load(std::memory_order_relaxed); }
+
+    void SetRotation(ImageRotation rotation) {
+        rotation_.store(rotation, std::memory_order_relaxed);
+        FrameReceived(Seq());
+    }
+
     template <typename Sink>
     friend void AbslStringify(Sink& sink, const IDisplay* display) {
         absl::Format(&sink, "%s", display ? display->String().c_str() : "<none>");
@@ -353,6 +361,7 @@ class IDisplay : public FrameInfoCallbackSource,
 
     void FrameReceived(FrameInfo info = FrameInfo()) {
         const absl::MutexLock lock(seq_access_);
+        info.rotation = GetRotation();
         info.sequence_number = seq_.sequence_number + 1;
         info.timestamp = absl::Now();
         seq_ = info;
@@ -380,6 +389,7 @@ class IDisplay : public FrameInfoCallbackSource,
 
   private:
     Dimensions dimensions_ ABSL_GUARDED_BY(dimension_mutex_);
+    std::atomic<ImageRotation> rotation_{ImageRotation::kRotation0};
     mutable absl::Mutex dimension_mutex_;
     FrameInfoCallbackSource frame_source_;
 };

@@ -24,12 +24,16 @@
 
 #include "goldfish/async/libuv_event_loop.h"
 #include "goldfish/async/threaded_event_loop.h"
+#include "goldfish/display/abstract_multi_display.h"
+#include "goldfish/display/test/fake_multi_display.h"
+#include "goldfish/sensors/physical_model.h"
 
 using goldfish::async::EventLoop;
 using goldfish::display::Dimensions;
 using goldfish::display::FrameInfo;
 using goldfish::display::IDisplay;
 using goldfish::display::ImageRotation;
+using goldfish::display::IMultiDisplay;
 using goldfish::display::MultiTouchType;
 using goldfish::display::PixelFormat;
 
@@ -275,4 +279,78 @@ TEST_F(DisplayTest, DisplayEventProxy_HandlesDisplayDestroyedFirst) {
 TEST_F(DisplayTest, DisplayEventProxy_HandlesNullDisplay) {
     auto proxy = std::make_unique<goldfish::display::DisplayEventProxy>(std::weak_ptr<IDisplay>{});
     EXPECT_NO_FATAL_FAILURE(proxy.reset());
+}
+
+TEST_F(DisplayTest, SetRotationEmitsFrameWithUpdatedRotation) {
+    TestDisplay display(loop_.get(), 0, 100, 100);
+    EXPECT_EQ(display.GetRotation(), ImageRotation::kRotation0);
+    EXPECT_EQ(display.Seq().sequence_number, 0);
+
+    absl::Mutex frame_mutex;
+    ImageRotation last_rotation = ImageRotation::kRotation0;
+    uint64_t last_seq = 0;
+
+    auto wait_for_seq = [&](uint64_t target_seq) {
+        auto has_seq = [&]() ABSL_EXCLUSIVE_LOCKS_REQUIRED(frame_mutex) {
+            return last_seq >= target_seq;
+        };
+        absl::MutexLock lock(&frame_mutex);
+        return frame_mutex.AwaitWithTimeout(absl::Condition(&has_seq), absl::Seconds(1));
+    };
+
+    auto listener = display.AddFrameListener([&](const FrameInfo& info) {
+        absl::MutexLock lock(&frame_mutex);
+        last_rotation = info.rotation;
+        last_seq = info.sequence_number;
+    });
+
+    display.SetRotation(ImageRotation::kRotation90);
+    ASSERT_TRUE(wait_for_seq(1));
+    EXPECT_EQ(display.GetRotation(), ImageRotation::kRotation90);
+    EXPECT_EQ(display.Seq().rotation, ImageRotation::kRotation90);
+    EXPECT_EQ(last_rotation, ImageRotation::kRotation90);
+
+    // Subsequent incoming frames preserve the current rotation.
+    display.Incoming();
+    ASSERT_TRUE(wait_for_seq(2));
+    EXPECT_EQ(display.Seq().rotation, ImageRotation::kRotation90);
+    EXPECT_EQ(last_rotation, ImageRotation::kRotation90);
+
+    // Updating rotation emits a frame with the new rotation.
+    display.SetRotation(ImageRotation::kRotation180);
+    ASSERT_TRUE(wait_for_seq(3));
+    EXPECT_EQ(display.Seq().rotation, ImageRotation::kRotation180);
+    EXPECT_EQ(last_rotation, ImageRotation::kRotation180);
+}
+
+TEST_F(DisplayTest, MultiDisplayPropagatesPhysicalModelRotationToDisplays) {
+    android::goldfish::HardwareConfig hw{};
+    goldfish::sensors::PhysicalModel physical_model(hw);
+
+    // Set initial rotation to Landscape (+90° around Z axis) before registration.
+    physical_model.SetTargetRotation(goldfish::sensors::vec3(0.0F, 0.0F, 90.0F),
+                                     PhysicalInterpolation::kStep);
+
+    goldfish::display::test::FakeMultiDisplay multi_display(loop_.get());
+    auto sub = multi_display.RegisterPhysicalModel(physical_model);
+    auto create_res = multi_display.CreateDisplay(1, 640, 480, 320, 0);
+    ASSERT_TRUE(create_res.ok());
+    auto display = create_res->lock();
+    ASSERT_NE(display, nullptr);
+
+    // Newly created display inherits current PhysicalModel rotation.
+    EXPECT_EQ(display->GetRotation(), ImageRotation::kRotation90);
+
+    // Updating PhysicalModel target rotation updates active display rotations across orientations.
+    physical_model.SetTargetRotation(goldfish::sensors::vec3(0.0F, 0.0F, 180.0F),
+                                     PhysicalInterpolation::kStep);
+    EXPECT_EQ(display->GetRotation(), ImageRotation::kRotation180);
+
+    physical_model.SetTargetRotation(goldfish::sensors::vec3(0.0F, 0.0F, -90.0F),
+                                     PhysicalInterpolation::kStep);
+    EXPECT_EQ(display->GetRotation(), ImageRotation::kRotation270);
+
+    physical_model.SetTargetRotation(goldfish::sensors::vec3(0.0F, 0.0F, 0.0F),
+                                     PhysicalInterpolation::kStep);
+    EXPECT_EQ(display->GetRotation(), ImageRotation::kRotation0);
 }
