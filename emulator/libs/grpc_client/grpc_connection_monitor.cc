@@ -40,14 +40,18 @@ std::ostream& operator<<(std::ostream& os, ConnectionState state) {
 }  // namespace
 
 struct GrpcConnectionMonitor::State {
-    explicit State(const std::shared_ptr<grpc::Channel>& channel) : channel(channel) {}
+    explicit State(const std::shared_ptr<grpc::Channel>& channel, StateChangeCallback callback)
+            : channel(channel), on_state_change(std::move(callback)) {}
 
     void SetConnectionState(ConnectionState state) {
         connection_state = state;
-        state_changes.FireEvent(state);
+        if (on_state_change) {
+            on_state_change(state);
+        }
     }
 
     std::weak_ptr<grpc::Channel> channel;
+    StateChangeCallback on_state_change;
 
     std::thread worker_thread;
     std::thread::id worker_thread_id;
@@ -57,7 +61,6 @@ struct GrpcConnectionMonitor::State {
     grpc::CompletionQueue completion_queue;
 
     ConnectionState connection_state{ConnectionState::kDisconnected};
-    android::base::eventing::CallbackEventSource<ConnectionState> state_changes;
 };
 
 namespace {
@@ -148,21 +151,26 @@ class MonitorCallback : public std::enable_shared_from_this<MonitorCallback> {
     }
 
     void CompletePromise(absl::Status status) {
-        promise_.set_value(std::move(status));
+        if (!promise_completed_) {
+            promise_completed_ = true;
+            promise_.set_value(std::move(status));
+        }
     }
 
     std::shared_ptr<GrpcConnectionMonitor::State> monitor_state_;
     std::promise<absl::Status> promise_;
     gpr_timespec deadline_;
 
+    bool promise_completed_ = false;
     bool connection_established_ = false;
     std::shared_ptr<MonitorCallback> self_;
 };
 
 }  // namespace
 
-GrpcConnectionMonitor::GrpcConnectionMonitor(const std::shared_ptr<grpc::Channel>& channel)
-        : state_(std::make_shared<State>(channel)) {
+GrpcConnectionMonitor::GrpcConnectionMonitor(const std::shared_ptr<grpc::Channel>& channel,
+                                             StateChangeCallback on_state_change)
+        : state_(std::make_shared<State>(channel, std::move(on_state_change))) {
     state_->worker_thread = std::thread([state = state_]() {
         void* tag;
         bool ok;
@@ -181,12 +189,15 @@ GrpcConnectionMonitor::~GrpcConnectionMonitor() {
 }
 
 void GrpcConnectionMonitor::Stop() {
-    if (std::this_thread::get_id() == state_->worker_thread_id) {
-        LOG(ERROR) << "You cannot Stop the monitor thread from the monitor thread.";
+    if (state_->shutting_down.exchange(true)) {
         return;
     }
 
-    if (state_->shutting_down.exchange(true)) {
+    if (std::this_thread::get_id() == state_->worker_thread_id) {
+        state_->completion_queue.Shutdown();
+        if (state_->worker_thread.joinable()) {
+            state_->worker_thread.detach();
+        }
         return;
     }
 
@@ -194,7 +205,9 @@ void GrpcConnectionMonitor::Stop() {
         const absl::MutexLock lock(state_->callback_active);
         state_->completion_queue.Shutdown();
     }
-    state_->worker_thread.join();
+    if (state_->worker_thread.joinable()) {
+        state_->worker_thread.join();
+    }
 }
 
 std::future<absl::Status> GrpcConnectionMonitor::Watch(absl::Duration timeout) {
@@ -216,11 +229,6 @@ std::future<absl::Status> GrpcConnectionMonitor::Watch(absl::Duration timeout) {
     }
 
     return future;
-}
-
-android::base::eventing::CallbackEventSource<ConnectionState>&
-GrpcConnectionMonitor::state_changes() {
-    return state_->state_changes;
 }
 
 }  // namespace android::emulation::control
