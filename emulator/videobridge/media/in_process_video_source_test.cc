@@ -64,6 +64,13 @@ class DummyVideoSink : public webrtc::VideoSinkInterface<webrtc::VideoFrame> {
         absl::MutexLock lock(&mutex_);
         return last_rotation_;
     }
+    bool WaitForRotation(webrtc::VideoRotation expected, absl::Duration timeout) const {
+        auto has_rotation = [&]() ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_) {
+            return last_rotation_ == expected;
+        };
+        absl::MutexLock lock(&mutex_);
+        return mutex_.AwaitWithTimeout(absl::Condition(&has_rotation), timeout);
+    }
     webrtc::VideoFrameBuffer::Type LastBufferType() const {
         absl::MutexLock lock(&mutex_);
         return last_buffer_type_;
@@ -241,6 +248,73 @@ TEST(InProcessVideoSourceTest, HandlesDisplayUnavailableGracefully) {
 
     source->Stop();
     EXPECT_EQ(0, display->removed_count);
+}
+
+TEST(InProcessVideoSourceTest, AppliesDisplayRotationToCapturedFrames) {
+    goldfish::display::test::FakeMultiDisplay fake_multidisplay(goldfish::async::globalEventLoop());
+    auto source = webrtc::make_ref_counted<InProcessVideoSource>(fake_multidisplay, 0);
+    DummyVideoSink sink;
+
+    webrtc::VideoTrackSourceInterface* track_source = source.get();
+    track_source->AddOrUpdateSink(&sink, webrtc::VideoSinkWants());
+    source->Start();
+
+    auto display_res = fake_multidisplay.GetDisplay(0);
+    ASSERT_TRUE(display_res.ok());
+    auto display = fake_multidisplay.GetDisplay<goldfish::display::test::ActiveFakePixmanDisplay>(
+            display_res);
+    ASSERT_NE(display, nullptr);
+
+    display->SetRotation(goldfish::display::ImageRotation::kRotation90);
+
+    display->Start();
+    display->WaitForFramesWithTimeout(2, absl::Milliseconds(1000));
+    display->Stop();
+
+    EXPECT_GT(sink.FrameCount(), 0);
+    EXPECT_EQ(sink.LastRotation(), webrtc::kVideoRotation_270);
+
+    source->Stop();
+    track_source->RemoveSink(&sink);
+}
+
+TEST(InProcessVideoSourceTest, EmitsRotatedFrameWhenDisplayRotationChanges) {
+    goldfish::display::test::FakeMultiDisplay fake_multidisplay(goldfish::async::globalEventLoop());
+    auto source = webrtc::make_ref_counted<InProcessVideoSource>(fake_multidisplay, 0);
+    DummyVideoSink sink;
+
+    webrtc::VideoTrackSourceInterface* track_source = source.get();
+    track_source->AddOrUpdateSink(&sink, webrtc::VideoSinkWants());
+    source->Start();
+
+    auto display_res = fake_multidisplay.GetDisplay(0);
+    ASSERT_TRUE(display_res.ok());
+    auto display = fake_multidisplay.GetDisplay<goldfish::display::test::ActiveFakePixmanDisplay>(
+            display_res);
+    ASSERT_NE(display, nullptr);
+
+    display->Start();
+    display->WaitForFramesWithTimeout(2, absl::Milliseconds(1000));
+    display->Stop();
+
+    const int count_before_rotation = sink.FrameCount();
+    EXPECT_GT(count_before_rotation, 0);
+    EXPECT_EQ(sink.LastRotation(), webrtc::kVideoRotation_0);
+
+    // Even with display frame production stopped (static screen), updating IDisplay
+    // rotation immediately re-emits the current frame with the updated rotation.
+    display->SetRotation(goldfish::display::ImageRotation::kRotation90);
+    EXPECT_TRUE(sink.WaitForRotation(webrtc::kVideoRotation_270, absl::Seconds(1)));
+    EXPECT_GT(sink.FrameCount(), count_before_rotation);
+
+    display->SetRotation(goldfish::display::ImageRotation::kRotation180);
+    EXPECT_TRUE(sink.WaitForRotation(webrtc::kVideoRotation_180, absl::Seconds(1)));
+
+    display->SetRotation(goldfish::display::ImageRotation::kRotation270);
+    EXPECT_TRUE(sink.WaitForRotation(webrtc::kVideoRotation_90, absl::Seconds(1)));
+
+    source->Stop();
+    track_source->RemoveSink(&sink);
 }
 
 }  // namespace

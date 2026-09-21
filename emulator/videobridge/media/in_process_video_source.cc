@@ -107,15 +107,17 @@ void InProcessVideoSource::OnFrameAvailable(const ::goldfish::display::FrameInfo
 
     const int64_t timestamp_us = ::webrtc::TimeMicros();
     ::webrtc::VideoRotation webrtc_rotation = ::webrtc::kVideoRotation_0;
+    // Note: Goldfish ImageRotation is counter-clockwise (CCW), whereas
+    // webrtc::VideoRotation (RTP CVO) is clockwise (CW).
     switch (frame_info.rotation) {
     case goldfish::display::ImageRotation::kRotation90:
-        webrtc_rotation = ::webrtc::kVideoRotation_90;
+        webrtc_rotation = ::webrtc::kVideoRotation_270;
         break;
     case goldfish::display::ImageRotation::kRotation180:
         webrtc_rotation = ::webrtc::kVideoRotation_180;
         break;
     case goldfish::display::ImageRotation::kRotation270:
-        webrtc_rotation = ::webrtc::kVideoRotation_270;
+        webrtc_rotation = ::webrtc::kVideoRotation_90;
         break;
     case goldfish::display::ImageRotation::kRotation0:
     default:
