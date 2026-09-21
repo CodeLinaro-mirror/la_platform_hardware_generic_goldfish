@@ -165,12 +165,112 @@ cc_test(
 )
 
 cc_library(
+    name = "operations_service",
+    srcs = ["operations/operations_service_impl.cc"],
+    hdrs = ["operations/operations_service_impl.h"],
+    includes = ["."],
+    local_defines = select({
+        "@platforms//os:windows": ["NOGDI"],
+        "//conditions:default": [],
+    }),
+    deps = [
+        "@@googleapis+//google/longrunning:longrunning_cc_grpc",
+        "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/synchronization",
+        "@abseil-cpp//absl/time",
+        "@grpc//:grpc++",
+        "@protobuf",
+    ],
+)
+
+cc_test(
+    name = "operations_service_test",
+    size = "small",
+    srcs = ["operations/operations_service_impl_test.cc"],
+    local_defines = select({
+        "@platforms//os:windows": ["NOGDI"],
+        "//conditions:default": [],
+    }),
+    deps = [
+        ":operations_service",
+        "//emulator/libs/test:googletest_main",
+        "@@googleapis+//google/longrunning:longrunning_cc_grpc",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/synchronization",
+        "@aemu//protos/services_v2:hypervisor_service_cc_grpc",
+        "@googletest//:gtest",
+        "@grpc//:grpc++",
+    ],
+)
+
+cc_library(
+    name = "hypervisor_service",
+    srcs = ["hypervisor/hypervisor_service_impl.cc"],
+    hdrs = ["hypervisor/hypervisor_service_impl.h"],
+    includes = ["."],
+    local_defines = select({
+        "@platforms//os:windows": ["NOGDI"],
+        "//conditions:default": [],
+    }),
+    deps = [
+        ":operations_service",
+        "//emulator/libs/grpc_utils:absl_translate",
+        "//emulator/libs/grpc_utils:event-stream",
+        "//emulator/plugin/vminterface",
+        "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/synchronization",
+        "@abseil-cpp//absl/time",
+        "@aemu//protos/services_v2:hypervisor_service_cc_grpc",
+        "@grpc//:grpc++",
+        "@protobuf",
+    ],
+)
+
+cc_test(
+    name = "hypervisor_service_test",
+    size = "small",
+    srcs = ["hypervisor/hypervisor_service_impl_test.cc"],
+    local_defines = select({
+        "@platforms//os:windows": ["NOGDI"],
+        "//conditions:default": [],
+    }),
+    deps = [
+        ":hypervisor_service",
+        ":operations_service",
+        "//emulator/libs/test:googletest_main",
+        "//emulator/plugin/vminterface",
+        "@@googleapis+//google/longrunning:longrunning_cc_grpc",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/time",
+        "@aemu//protos/services_v2:hypervisor_service_cc_grpc",
+        "@googletest//:gtest",
+        "@grpc//:grpc++",
+    ],
+)
+
+cc_library(
     name = "v2_services",
     srcs = ["v2_services.cc"],
     hdrs = ["include/goldfish/grpc/v2/v2_services.h"],
     includes = ["include"],
+    local_defines = select({
+        "@platforms//os:windows": ["NOGDI"],
+        "//conditions:default": [],
+    }),
     deps = [
         ":capabilities_service",
+        ":hypervisor_service",
+        ":operations_service",
         ":sensors_service",
         "//emulator/libs/async:async_api",
         "//emulator/plugin/avd:avd_universe",
