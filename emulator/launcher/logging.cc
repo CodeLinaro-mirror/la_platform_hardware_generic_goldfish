@@ -2,7 +2,6 @@
 
 #include <unistd.h>
 
-#include <functional>
 #include <iostream>
 #include <string_view>
 #include <vector>
@@ -16,9 +15,10 @@
 #include "android/base/system.h"
 #include "android/cmdline_option.h"
 
-void configureLogging(const AndroidOptions& opts, SetVLogLevel setVLogLevel) {
+void configureLogging(const AndroidOptions& opts) {
+    bool enableInfoLevel = opts.verbose || opts.V || opts.vmodule;
     absl::LogSeverityAtLeast launcherLogLevel =
-            opts.verbose ? absl::LogSeverityAtLeast::kInfo : absl::LogSeverityAtLeast::kWarning;
+            enableInfoLevel ? absl::LogSeverityAtLeast::kInfo : absl::LogSeverityAtLeast::kWarning;
     absl::SetStderrThreshold(absl::LogSeverityAtLeast::kInfo);
     absl::SetMinLogLevel(launcherLogLevel);
 
@@ -33,22 +33,20 @@ void configureLogging(const AndroidOptions& opts, SetVLogLevel setVLogLevel) {
         absl::SetGlobalVLogLevel(v_level);
     }
 
-    if (!opts.vmodule) {
-        return;
-    }
-
-    std::vector<std::pair<std::string_view, int>> glob_levels;
-    for (absl::string_view glob_level : absl::StrSplit(opts.vmodule, ',')) {
-        const size_t eq = glob_level.rfind('=');
-        if (eq == glob_level.npos) continue;
-        const absl::string_view glob = glob_level.substr(0, eq);
-        int level;
-        if (!absl::SimpleAtoi(glob_level.substr(eq + 1), &level)) continue;
-        glob_levels.emplace_back(glob, level);
-    }
-    for (const auto& it : glob_levels) {
-        const absl::string_view glob = it.first;
-        const int level = it.second;
-        setVLogLevel(glob, level);
+    if (opts.vmodule) {
+        std::vector<std::pair<std::string_view, int>> glob_levels;
+        for (absl::string_view glob_level : absl::StrSplit(opts.vmodule, ',')) {
+            const size_t eq = glob_level.rfind('=');
+            if (eq == glob_level.npos) continue;
+            const absl::string_view glob = glob_level.substr(0, eq);
+            int level;
+            if (!absl::SimpleAtoi(glob_level.substr(eq + 1), &level)) continue;
+            glob_levels.emplace_back(glob, level);
+        }
+        for (const auto& it : glob_levels) {
+            const absl::string_view glob = it.first;
+            const int level = it.second;
+            absl::SetVLogLevel(glob, level);
+        }
     }
 }

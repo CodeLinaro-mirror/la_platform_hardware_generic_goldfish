@@ -20,6 +20,7 @@
 #include <vector>
 
 #include "absl/log/globals.h"
+#include "absl/log/internal/vlog_config.h"
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_split.h"
 
@@ -29,11 +30,12 @@
 
 namespace {
 
-// Helper to reset absl log state between tests (if possible)
+// Helper to reset absl log state between tests
 void ResetAbslLogState() {
     absl::SetMinLogLevel(absl::LogSeverityAtLeast::kWarning);
     absl::SetStderrThreshold(absl::LogSeverityAtLeast::kWarning);
-    absl::SetVLogLevel("*", 0);  // Reset all vmodule levels
+    absl::SetGlobalVLogLevel(0);
+    absl::log_internal::UpdateVModule("");
 }
 
 class ConfigureLoggingRealTest : public ::testing::Test {
@@ -68,72 +70,49 @@ TEST_F(ConfigureLoggingRealTest, IgnoresNullVmodule) {
     AndroidOptions opts = {};
     opts.verbose = 1;
     opts.vmodule = nullptr;
-    std::vector<std::pair<std::string, int>> seen;
-    configureLogging(opts, [&](std::string_view glob, int level) {
-        seen.emplace_back(std::string(glob), level);
-    });
-    EXPECT_TRUE(seen.empty());
+    configureLogging(opts);
+    EXPECT_EQ(absl::log_internal::VLogLevel("foo.cc"), 0);
 }
 
 TEST_F(ConfigureLoggingRealTest, IgnoresEmptyVmodule) {
     AndroidOptions opts = {};
     opts.verbose = 1;
     opts.vmodule = (char*)"";
-    std::vector<std::pair<std::string, int>> seen;
-    configureLogging(opts, [&](std::string_view glob, int level) {
-        seen.emplace_back(std::string(glob), level);
-    });
-    EXPECT_TRUE(seen.empty());
+    configureLogging(opts);
+    EXPECT_EQ(absl::log_internal::VLogLevel("foo.cc"), 0);
 }
 
 TEST_F(ConfigureLoggingRealTest, SetsSingleVmoduleLevel) {
     AndroidOptions opts = {};
     opts.verbose = 1;
     opts.vmodule = (char*)"foo=2";
-    std::vector<std::pair<std::string, int>> seen;
-    configureLogging(opts, [&](std::string_view glob, int level) {
-        seen.emplace_back(std::string(glob), level);
-    });
-    ASSERT_EQ(seen.size(), 1u);
-    EXPECT_EQ(seen[0].first, "foo");
-    EXPECT_EQ(seen[0].second, 2);
+    configureLogging(opts);
+    EXPECT_EQ(absl::log_internal::VLogLevel("foo.cc"), 2);
 }
 
 TEST_F(ConfigureLoggingRealTest, IgnoresInvalidVmodulePattern) {
     AndroidOptions opts = {};
     opts.verbose = 1;
     opts.vmodule = (char*)"foo";  // No '='
-    std::vector<std::pair<std::string, int>> seen;
-    configureLogging(opts, [&](std::string_view glob, int level) {
-        seen.emplace_back(std::string(glob), level);
-    });
-    EXPECT_TRUE(seen.empty());
+    configureLogging(opts);
+    EXPECT_EQ(absl::log_internal::VLogLevel("foo.cc"), 0);
 }
 
 TEST_F(ConfigureLoggingRealTest, IgnoresNonIntegerLevel) {
     AndroidOptions opts = {};
     opts.verbose = 1;
     opts.vmodule = (char*)"foo=bar";
-    std::vector<std::pair<std::string, int>> seen;
-    configureLogging(opts, [&](std::string_view glob, int level) {
-        seen.emplace_back(std::string(glob), level);
-    });
-    EXPECT_TRUE(seen.empty());
+    configureLogging(opts);
+    EXPECT_EQ(absl::log_internal::VLogLevel("foo.cc"), 0);
 }
 
 TEST_F(ConfigureLoggingRealTest, HandlesMultiplePatterns) {
     AndroidOptions opts = {};
     opts.verbose = 1;
     opts.vmodule = (char*)"foo=2,bar=3";
-    std::vector<std::pair<std::string, int>> seen;
-    configureLogging(opts, [&](std::string_view glob, int level) {
-        seen.emplace_back(std::string(glob), level);
-    });
-    ASSERT_EQ(seen.size(), 2u);
-    EXPECT_EQ(seen[0].first, "foo");
-    EXPECT_EQ(seen[0].second, 2);
-    EXPECT_EQ(seen[1].first, "bar");
-    EXPECT_EQ(seen[1].second, 3);
+    configureLogging(opts);
+    EXPECT_EQ(absl::log_internal::VLogLevel("foo.cc"), 2);
+    EXPECT_EQ(absl::log_internal::VLogLevel("bar.cc"), 3);
 }
 
 }  // namespace
