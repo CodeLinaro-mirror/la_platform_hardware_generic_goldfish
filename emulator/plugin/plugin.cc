@@ -216,6 +216,7 @@ extern "C" void GF_STARTUP_FUNC(int argc, char** argv) {
     absl::InitializeSymbolizer(argv[0]);
 
     setup_logging();
+    android::base::System::DisableAppNap();
 
     VLOG(1) << "Goldfish plugin version: " << goldfish::version::GetEmulatorFullVersion();
     // The plugin crash system should never try to upload - that should only be
