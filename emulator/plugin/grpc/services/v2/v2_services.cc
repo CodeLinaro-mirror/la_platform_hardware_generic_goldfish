@@ -15,6 +15,7 @@
 #include "goldfish/grpc/v2/v2_services.h"
 
 #include "discovery/capabilities_service_impl.h"
+#include "environment/sensors_service_impl.h"
 
 namespace goldfish::grpc::v2 {
 
@@ -29,6 +30,8 @@ std::vector<std::shared_ptr<Service>> CreateV2Services(AvdUniverse& avd_universe
     std::vector<std::shared_ptr<Service>> services;
 
     services.emplace_back(std::make_shared<CapabilitiesServiceImpl>(avd_universe));
+    services.emplace_back(
+            std::make_shared<SensorsServiceImpl>(avd_universe.GetSensorsPhysicalModel()));
 
     return services;
 }
