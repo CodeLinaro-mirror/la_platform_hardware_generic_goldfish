@@ -70,7 +70,7 @@ class EmulatorLocatorTest(unittest.TestCase):
         self.mock_runfiles.Rlocation.return_value = "/mock/missing-aquarium-ui"
         with self.assertRaises(FileNotFoundError) as ctx:
             self.locator._locate_aquarium_ui()
-        self.assertIn("/mock/missing-aquarium-ui", str(ctx.exception))
+        self.assertIn(str(Path("/mock/missing-aquarium-ui")), str(ctx.exception))
 
     @patch("platform.system", return_value="Linux")
     @patch.object(Path, "is_dir", return_value=True)
@@ -79,7 +79,7 @@ class EmulatorLocatorTest(unittest.TestCase):
         self.mock_runfiles.Rlocation.return_value = "/mock/dir-aquarium-ui"
         with self.assertRaises(IsADirectoryError) as ctx:
             self.locator._locate_aquarium_ui()
-        self.assertIn("/mock/dir-aquarium-ui", str(ctx.exception))
+        self.assertIn(str(Path("/mock/dir-aquarium-ui")), str(ctx.exception))
 
     @patch("platform.system", return_value="Linux")
     @patch("os.access", return_value=False)
@@ -92,7 +92,7 @@ class EmulatorLocatorTest(unittest.TestCase):
         self.mock_runfiles.Rlocation.return_value = "/mock/noexec-aquarium-ui"
         with self.assertRaises(PermissionError) as ctx:
             self.locator._locate_aquarium_ui()
-        self.assertIn("/mock/noexec-aquarium-ui", str(ctx.exception))
+        self.assertIn(str(Path("/mock/noexec-aquarium-ui")), str(ctx.exception))
 
 
 class EmulatorLibTest(unittest.IsolatedAsyncioTestCase):
