@@ -45,6 +45,28 @@
 
 namespace goldfish::grpcweb {
 
+struct ReactorTracker {
+    absl::Mutex active_mutex;
+    size_t active_count ABSL_GUARDED_BY(active_mutex) = 0;
+
+    void Increment() {
+        const absl::MutexLock lock(&active_mutex);
+        ++active_count;
+    }
+
+    void Decrement() {
+        const absl::MutexLock lock(&active_mutex);
+        --active_count;
+    }
+
+    bool IsZero() const ABSL_EXCLUSIVE_LOCKS_REQUIRED(active_mutex) { return active_count == 0; }
+
+    void WaitUntilDrained() {
+        const absl::MutexLock lock(&active_mutex);
+        active_mutex.Await(absl::Condition(this, &ReactorTracker::IsZero));
+    }
+};
+
 namespace {
 
 bool IsOriginAllowed(std::string_view origin, std::string_view default_allow_origin) {
@@ -94,25 +116,25 @@ http::HttpResponse HandleCorsPreflight(const http::HttpRequest& req,
                                           http::HttpStatus::kForbidden);
     }
 
-    std::string origin_header_val;
-    if (default_allow_origin == "*") {
-        origin_header_val = req_origin.empty() ? "*" : std::string(req_origin);
-    } else {
-        origin_header_val = std::string(req_origin);
-    }
-
     std::string_view allow_headers = req.GetHeader(http::headers::kAccessControlRequestHeaders);
     if (allow_headers.empty()) {
         allow_headers = "content-type,x-grpc-web,x-user-agent,authorization";
     }
 
-    return http::HttpResponse::Empty(http::HttpStatus::kNoContent)
-            .WithHeader(http::headers::kAccessControlAllowOrigin, origin_header_val)
-            .WithHeader(http::headers::kAccessControlAllowMethods, "POST, OPTIONS")
-            .WithHeader(http::headers::kAccessControlAllowHeaders, allow_headers)
-            .WithHeader(http::headers::kAccessControlAllowCredentials, http::protocol::kTrue)
-            .WithHeader(http::headers::kAccessControlMaxAge, "1728000")
-            .WithHeader(http::headers::kVary, "Origin");
+    auto resp = http::HttpResponse::Empty(http::HttpStatus::kNoContent)
+                        .WithHeader(http::headers::kAccessControlAllowMethods, "POST, OPTIONS")
+                        .WithHeader(http::headers::kAccessControlAllowHeaders, allow_headers)
+                        .WithHeader(http::headers::kAccessControlMaxAge, "1728000");
+
+    if (default_allow_origin == "*") {
+        resp.WithHeader(http::headers::kAccessControlAllowOrigin, "*");
+    } else if (!req_origin.empty()) {
+        resp.WithHeader(http::headers::kAccessControlAllowOrigin, req_origin)
+                .WithHeader(http::headers::kAccessControlAllowCredentials, http::protocol::kTrue)
+                .WithHeader(http::headers::kVary, "Origin");
+    }
+
+    return resp;
 }
 
 constexpr std::string_view kGrpcExposeHeaders =
@@ -131,12 +153,12 @@ absl::flat_hash_map<std::string, std::string> FormatHttp200Headers(
     headers.emplace(http::headers::kTransferEncoding, "chunked");
 
     std::string_view req_origin = req.GetHeader(http::headers::kOrigin);
-    if (!req_origin.empty() && IsOriginAllowed(req_origin, default_allow_origin)) {
+    if (default_allow_origin == "*") {
+        headers.emplace(http::headers::kAccessControlAllowOrigin, "*");
+    } else if (!req_origin.empty() && IsOriginAllowed(req_origin, default_allow_origin)) {
         headers.emplace(http::headers::kAccessControlAllowOrigin, req_origin);
         headers.emplace(http::headers::kAccessControlAllowCredentials, http::protocol::kTrue);
         headers.emplace(http::headers::kVary, "Origin");
-    } else if (default_allow_origin == "*") {
-        headers.emplace(http::headers::kAccessControlAllowOrigin, "*");
     }
 
     return headers;
@@ -147,14 +169,20 @@ class GrpcWebReactor : public grpc::ClientBidiReactor<grpc::ByteBuffer, grpc::By
     GrpcWebReactor(std::shared_ptr<http::HttpResponseWriter> writer,
                    std::shared_ptr<grpc::ClientContext> context, std::string method,
                    absl::flat_hash_map<std::string, std::string> http_headers,
-                   bool is_text_response, bool has_request_payload, grpc::ByteBuffer write_bb)
+                   bool is_text_response, bool has_request_payload, grpc::ByteBuffer write_bb,
+                   std::shared_ptr<ReactorTracker> tracker)
             : writer_(std::move(writer))
             , context_(std::move(context))
             , method_(std::move(method))
             , http_headers_(std::move(http_headers))
             , is_text_response_(is_text_response)
             , has_request_payload_(has_request_payload)
-            , write_bb_(std::move(write_bb)) {}
+            , write_bb_(std::move(write_bb))
+            , tracker_(std::move(tracker)) {
+        if (tracker_) {
+            tracker_->Increment();
+        }
+    }
 
     const std::string& Method() const { return method_; }
 
@@ -169,7 +197,7 @@ class GrpcWebReactor : public grpc::ClientBidiReactor<grpc::ByteBuffer, grpc::By
     }
 
     void OnReadInitialMetadataDone(bool /*ok*/) override {
-        const absl::MutexLock lock(&mutex_);
+        const absl::MutexLock lock(&response_mutex_);
         MaybeSendHeaders();
     }
 
@@ -182,15 +210,11 @@ class GrpcWebReactor : public grpc::ClientBidiReactor<grpc::ByteBuffer, grpc::By
                 context_->TryCancel();
                 return;
             }
-            std::string chunk_to_send;
-            if (is_text_response_) {
-                chunk_to_send = b64_encoder_.EncodeChunk(data_frame);
-            } else {
-                chunk_to_send = std::move(data_frame);
-            }
             {
-                const absl::MutexLock lock(&mutex_);
+                const absl::MutexLock lock(&response_mutex_);
                 MaybeSendHeaders();
+                std::string chunk_to_send = is_text_response_ ? b64_encoder_.EncodeChunk(data_frame)
+                                                              : std::move(data_frame);
                 if (!chunk_to_send.empty()) {
                     writer_->SendChunk(chunk_to_send);
                 }
@@ -209,25 +233,25 @@ class GrpcWebReactor : public grpc::ClientBidiReactor<grpc::ByteBuffer, grpc::By
         std::string trailers =
                 Protocol::FormatTrailers(status, context_->GetServerTrailingMetadata());
         std::string trailer_frame = Protocol::PackFrame(kFrameTrailer, trailers);
-        std::string trailer_chunk;
-        if (is_text_response_) {
-            trailer_chunk = b64_encoder_.Finalize(trailer_frame);
-        } else {
-            trailer_chunk = std::move(trailer_frame);
-        }
         {
-            const absl::MutexLock lock(&mutex_);
+            const absl::MutexLock lock(&response_mutex_);
             MaybeSendHeaders();
+            std::string trailer_chunk = is_text_response_ ? b64_encoder_.Finalize(trailer_frame)
+                                                          : std::move(trailer_frame);
             if (!trailer_chunk.empty()) {
                 writer_->SendChunk(trailer_chunk);
             }
             writer_->Finish();
         }
+        auto tracker = std::move(tracker_);
         delete this;
+        if (tracker) {
+            tracker->Decrement();
+        }
     }
 
   private:
-    void MaybeSendHeaders() ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_) {
+    void MaybeSendHeaders() ABSL_EXCLUSIVE_LOCKS_REQUIRED(response_mutex_) {
         if (!headers_sent_) {
             headers_sent_ = true;
             writer_->SendHeaders(http_headers_, 200);
@@ -240,16 +264,18 @@ class GrpcWebReactor : public grpc::ClientBidiReactor<grpc::ByteBuffer, grpc::By
     absl::flat_hash_map<std::string, std::string> http_headers_;
     bool is_text_response_ = false;
     bool has_request_payload_ = false;
-    absl::Mutex mutex_;
-    bool headers_sent_ ABSL_GUARDED_BY(mutex_) = false;
+    absl::Mutex response_mutex_;
+    bool headers_sent_ ABSL_GUARDED_BY(response_mutex_) = false;
+    StreamingBase64Encoder b64_encoder_ ABSL_GUARDED_BY(response_mutex_);
     grpc::ByteBuffer write_bb_;
     grpc::ByteBuffer read_bb_;
-    StreamingBase64Encoder b64_encoder_;
+    std::shared_ptr<ReactorTracker> tracker_;
 };
 
 void HandleGrpcWebStream(const http::HttpRequest& req,
                          std::shared_ptr<http::HttpResponseWriter> writer,
-                         std::shared_ptr<grpc::Channel> channel, std::string default_allow_origin) {
+                         std::shared_ptr<grpc::Channel> channel, std::string default_allow_origin,
+                         std::shared_ptr<ReactorTracker> tracker) {
     auto send_error = [&](http::HttpStatus status, std::string_view msg) {
         absl::flat_hash_map<std::string, std::string> err_headers;
         err_headers.emplace(http::headers::kContentType, http::mime::kTextPlain);
@@ -306,9 +332,11 @@ void HandleGrpcWebStream(const http::HttpRequest& req,
     grpc::ByteBuffer request_bb;
     bool has_request_frame = false;
     if (!frame_bytes.empty()) {
-        auto frame_opt = Protocol::UnpackFrame(frame_bytes);
-        if (!frame_opt.has_value()) {
-            VLOG(1) << "Malformed gRPC-Web framing header for " << req.Path();
+        size_t consumed = 0;
+        auto frame_opt = Protocol::UnpackFrame(frame_bytes, &consumed);
+        if (!frame_opt.has_value() || consumed != frame_bytes.size() ||
+            frame_opt->flag != kFrameData) {
+            VLOG(1) << "Malformed or unsupported gRPC-Web frame for " << req.Path();
             send_error(http::HttpStatus::kBadRequest, "Malformed gRPC-Web framing header");
             return;
         }
@@ -340,14 +368,25 @@ void HandleGrpcWebStream(const http::HttpRequest& req,
         if (absl::StartsWithIgnoreCase(k, kHeaderPrefixCustom) ||
             absl::EqualsIgnoreCase(k, http::headers::kAuthorization) ||
             absl::EqualsIgnoreCase(k, http::headers::kProxyAuthorization)) {
-            context->AddMetadata(absl::AsciiStrToLower(k), v);
+            std::string lower_k = absl::AsciiStrToLower(k);
+            if (absl::EndsWith(lower_k, "-bin")) {
+                std::string decoded_bin;
+                if (!absl::Base64Unescape(absl::StripAsciiWhitespace(v), &decoded_bin)) {
+                    send_error(http::HttpStatus::kBadRequest, "Invalid base64 binary metadata");
+                    return;
+                }
+                context->AddMetadata(lower_k, decoded_bin);
+            } else {
+                context->AddMetadata(lower_k, v);
+            }
         }
     }
 
     auto http_headers = FormatHttp200Headers(req, is_text_response, default_allow_origin);
     std::string method = std::string(req.Path());
     auto* reactor = new GrpcWebReactor(writer, context, std::move(method), std::move(http_headers),
-                                       is_text_response, has_request_frame, std::move(request_bb));
+                                       is_text_response, has_request_frame, std::move(request_bb),
+                                       std::move(tracker));
 
     grpc::GenericStub stub(channel);
     stub.PrepareBidiStreamingCall(context.get(), reactor->Method(), /*options=*/{}, reactor);
@@ -386,17 +425,18 @@ absl::StatusOr<std::unique_ptr<GrpcWebServer>> GrpcWebServer::Create(
     }
 
     auto http_server = std::make_unique<http::WebServer>(std::move(config));
+    auto reactor_tracker = std::make_shared<ReactorTracker>();
 
     http_server->OnOptions("/*", [default_allow_origin](const http::HttpRequest& req) {
         return HandleCorsPreflight(req, default_allow_origin);
     });
 
     http_server->OnStream(http::HttpMethod::kPost, "/*",
-                          [grpc_channel = std::move(grpc_channel), default_allow_origin](
-                                  const http::HttpRequest& req,
-                                  std::shared_ptr<http::HttpResponseWriter> writer) {
+                          [grpc_channel = std::move(grpc_channel), default_allow_origin,
+                           reactor_tracker](const http::HttpRequest& req,
+                                            std::shared_ptr<http::HttpResponseWriter> writer) {
                               HandleGrpcWebStream(req, std::move(writer), grpc_channel,
-                                                  default_allow_origin);
+                                                  default_allow_origin, reactor_tracker);
                           });
 
     if (static_handler) {
@@ -408,11 +448,13 @@ absl::StatusOr<std::unique_ptr<GrpcWebServer>> GrpcWebServer::Create(
         return start_status;
     }
 
-    return std::unique_ptr<GrpcWebServer>(new GrpcWebServer(std::move(http_server)));
+    return std::unique_ptr<GrpcWebServer>(
+            new GrpcWebServer(std::move(http_server), std::move(reactor_tracker)));
 }
 
-GrpcWebServer::GrpcWebServer(std::unique_ptr<http::WebServer> http_server)
-        : http_server_(std::move(http_server)) {}
+GrpcWebServer::GrpcWebServer(std::unique_ptr<http::WebServer> http_server,
+                             std::shared_ptr<ReactorTracker> reactor_tracker)
+        : http_server_(std::move(http_server)), reactor_tracker_(std::move(reactor_tracker)) {}
 
 GrpcWebServer::~GrpcWebServer() {
     Stop();
@@ -435,6 +477,9 @@ size_t GrpcWebServer::ActiveSessionsCount() const {
 void GrpcWebServer::Stop() {
     if (http_server_) {
         http_server_->Stop();
+    }
+    if (reactor_tracker_) {
+        reactor_tracker_->WaitUntilDrained();
     }
 }
 

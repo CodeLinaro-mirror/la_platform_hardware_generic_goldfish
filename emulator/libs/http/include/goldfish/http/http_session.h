@@ -198,12 +198,16 @@ class HttpSession : public std::enable_shared_from_this<HttpSession> {
     OnDetachedCallback on_detached_ ABSL_GUARDED_BY(detached_mutex_);
 
     absl::Mutex close_cb_mutex_;
+    bool is_detached_ ABSL_GUARDED_BY(close_cb_mutex_) = false;
     std::function<void()> on_client_closed_ ABSL_GUARDED_BY(close_cb_mutex_);
 
     enum class HeaderState { kNone, kField, kValue };
     HeaderState header_state_ = HeaderState::kNone;
     std::string current_header_field_;
     std::string current_header_value_;
+    size_t current_headers_bytes_ = 0;
+
+    static constexpr size_t kMaxHeaderSize = 64 * 1024;
 
     HttpRequest current_request_;
     bool payload_too_large_ = false;

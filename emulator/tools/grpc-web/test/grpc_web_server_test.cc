@@ -159,8 +159,8 @@ TEST_F(GrpcWebServerTest, EndToEndCorsPreflight) {
     });
 
     EXPECT_NE(received_data.find("HTTP/1.1 204 No Content"), std::string::npos);
-    EXPECT_NE(received_data.find("access-control-allow-origin: http://localhost:3000"),
-              std::string::npos);
+    EXPECT_NE(received_data.find("access-control-allow-origin: *"), std::string::npos);
+    EXPECT_EQ(received_data.find("access-control-allow-credentials"), std::string::npos);
 }
 
 TEST_F(GrpcWebServerTest, RejectsCorsOriginNotInAllowlist) {
@@ -447,6 +447,12 @@ TEST_F(GrpcWebServerTest, EndToEndGrpcEchoCall) {
                 EXPECT_EQ(std::string(custom_it->second.data(), custom_it->second.size()),
                           "custom-token-456");
             }
+            auto bin_it = client_metadata.find("x-custom-header-bin");
+            EXPECT_NE(bin_it, client_metadata.end());
+            if (bin_it != client_metadata.end()) {
+                EXPECT_EQ(std::string(bin_it->second.data(), bin_it->second.size()),
+                          std::string("\x01\x02\x00\xff", 4));
+            }
 
             grpc::ByteBuffer recv_bb;
             stream.Read(&recv_bb, reinterpret_cast<void*>(2));
@@ -466,6 +472,7 @@ TEST_F(GrpcWebServerTest, EndToEndGrpcEchoCall) {
             "Host: 127.0.0.1\r\n"
             "Authorization: Bearer test-jwt-token-123\r\n"
             "X-Custom-Auth: custom-token-456\r\n"
+            "X-Custom-Header-bin: AQIA/w==\r\n"
             "Content-Type: application/grpc-web+proto\r\n"
             "Content-Length: " +
             std::to_string(data_frame.size()) +
@@ -753,7 +760,8 @@ TEST_F(GrpcWebServerTest, TextModeMultiChunkOddByteStreaming) {
 TEST_F(GrpcWebServerTest, EndToEndGrpcCallWithConnectionClose) {
     auto endpoint = network::ToEndpoint(network::ToIpAddress("127.0.0.1").value(), 0);
     auto server_or = PostAndWait([&]() {
-        return GrpcWebServer::Create(raw_loop_, socket_factory_, endpoint, grpc_channel_);
+        return GrpcWebServer::Create(raw_loop_, socket_factory_, endpoint, grpc_channel_,
+                                     "http://localhost:3000");
     });
     ASSERT_TRUE(server_or.ok());
     auto server = std::move(*server_or);
@@ -1084,6 +1092,219 @@ TEST_F(GrpcWebServerTest, AccessLoggingCallbackInvoked) {
         client_sock->Close();
         server->Stop();
     });
+}
+
+TEST_F(GrpcWebServerTest, RejectsTrailingGarbageFrame) {
+    auto endpoint = network::ToEndpoint(network::ToIpAddress("127.0.0.1").value(), 0);
+    auto server_or = PostAndWait([&]() {
+        return GrpcWebServer::Create(raw_loop_, socket_factory_, endpoint, grpc_channel_);
+    });
+    ASSERT_TRUE(server_or.ok());
+    auto server = std::move(*server_or);
+    auto listen_ep = PostAndWait([&]() { return server->GetEndpoint(); });
+
+    std::string valid_frame = Protocol::PackFrame(kFrameData, "hello");
+    std::string body_with_garbage = valid_frame + "TRAILING_GARBAGE";
+    std::string req =
+            "POST /test.Service/Method HTTP/1.1\r\n"
+            "Host: 127.0.0.1\r\n"
+            "Content-Type: application/grpc-web+proto\r\n"
+            "Content-Length: " +
+            std::to_string(body_with_garbage.size()) + "\r\n\r\n" + body_with_garbage;
+
+    absl::Notification response_received;
+    std::string received_data;
+
+    async::ScopedAsyncSocket client(PostAndWait([&]() {
+        auto sock = socket_factory_->CreateSocket(raw_loop_, listen_ep);
+        sock->SetOnReadCallbackNoFlowControl([&](std::string_view data, absl::Status err) {
+            if (err.ok()) {
+                received_data.append(data);
+                if (received_data.find("\r\n\r\n") != std::string::npos) {
+                    if (!response_received.HasBeenNotified()) {
+                        response_received.Notify();
+                    }
+                }
+            }
+        });
+        sock->SetOnConnectedCallback([req](async::AsyncSocket& s, absl::Status status) {
+            if (status.ok()) {
+                s.Send(req.data(), req.size()).IgnoreError();
+            }
+        });
+        EXPECT_TRUE(sock->Connect().ok());
+        return sock;
+    }));
+
+    ASSERT_TRUE(response_received.WaitForNotificationWithTimeout(absl::Seconds(5)));
+    PostAndWait([&]() {
+        client->Close();
+        server->Stop();
+    });
+
+    EXPECT_NE(received_data.find("HTTP/1.1 400 Bad Request"), std::string::npos);
+}
+
+TEST_F(GrpcWebServerTest, RejectsCompressedIngressFrame) {
+    auto endpoint = network::ToEndpoint(network::ToIpAddress("127.0.0.1").value(), 0);
+    auto server_or = PostAndWait([&]() {
+        return GrpcWebServer::Create(raw_loop_, socket_factory_, endpoint, grpc_channel_);
+    });
+    ASSERT_TRUE(server_or.ok());
+    auto server = std::move(*server_or);
+    auto listen_ep = PostAndWait([&]() { return server->GetEndpoint(); });
+
+    std::string compressed_frame = Protocol::PackFrame(kFrameCompressedData, "compressed_payload");
+    std::string req =
+            "POST /test.Service/Method HTTP/1.1\r\n"
+            "Host: 127.0.0.1\r\n"
+            "Content-Type: application/grpc-web+proto\r\n"
+            "Content-Length: " +
+            std::to_string(compressed_frame.size()) + "\r\n\r\n" + compressed_frame;
+
+    absl::Notification response_received;
+    std::string received_data;
+
+    async::ScopedAsyncSocket client(PostAndWait([&]() {
+        auto sock = socket_factory_->CreateSocket(raw_loop_, listen_ep);
+        sock->SetOnReadCallbackNoFlowControl([&](std::string_view data, absl::Status err) {
+            if (err.ok()) {
+                received_data.append(data);
+                if (received_data.find("Malformed gRPC-Web framing header") != std::string::npos) {
+                    if (!response_received.HasBeenNotified()) {
+                        response_received.Notify();
+                    }
+                }
+            }
+        });
+        sock->SetOnConnectedCallback([req](async::AsyncSocket& s, absl::Status status) {
+            if (status.ok()) {
+                s.Send(req.data(), req.size()).IgnoreError();
+            }
+        });
+        EXPECT_TRUE(sock->Connect().ok());
+        return sock;
+    }));
+
+    ASSERT_TRUE(response_received.WaitForNotificationWithTimeout(absl::Seconds(5)));
+    PostAndWait([&]() {
+        client->Close();
+        server->Stop();
+    });
+
+    EXPECT_NE(received_data.find("HTTP/1.1 400 Bad Request"), std::string::npos);
+    EXPECT_NE(received_data.find("Malformed gRPC-Web framing header"), std::string::npos);
+}
+
+TEST_F(GrpcWebServerTest, RejectsInvalidBase64BinaryMetadata) {
+    auto endpoint = network::ToEndpoint(network::ToIpAddress("127.0.0.1").value(), 0);
+    auto server_or = PostAndWait([&]() {
+        return GrpcWebServer::Create(raw_loop_, socket_factory_, endpoint, grpc_channel_);
+    });
+    ASSERT_TRUE(server_or.ok());
+    auto server = std::move(*server_or);
+    auto listen_ep = PostAndWait([&]() { return server->GetEndpoint(); });
+
+    std::string valid_frame = Protocol::PackFrame(kFrameData, "hello");
+    std::string req =
+            "POST /test.Service/Method HTTP/1.1\r\n"
+            "Host: 127.0.0.1\r\n"
+            "Content-Type: application/grpc-web+proto\r\n"
+            "X-Custom-Header-bin: !!!not-valid-base64!!!\r\n"
+            "Content-Length: " +
+            std::to_string(valid_frame.size()) + "\r\n\r\n" + valid_frame;
+
+    absl::Notification response_received;
+    std::string received_data;
+
+    async::ScopedAsyncSocket client(PostAndWait([&]() {
+        auto sock = socket_factory_->CreateSocket(raw_loop_, listen_ep);
+        sock->SetOnReadCallbackNoFlowControl([&](std::string_view data, absl::Status err) {
+            if (err.ok()) {
+                received_data.append(data);
+                if (received_data.find("Invalid base64 binary metadata") != std::string::npos) {
+                    if (!response_received.HasBeenNotified()) {
+                        response_received.Notify();
+                    }
+                }
+            }
+        });
+        sock->SetOnConnectedCallback([req](async::AsyncSocket& s, absl::Status status) {
+            if (status.ok()) {
+                s.Send(req.data(), req.size()).IgnoreError();
+            }
+        });
+        EXPECT_TRUE(sock->Connect().ok());
+        return sock;
+    }));
+
+    ASSERT_TRUE(response_received.WaitForNotificationWithTimeout(absl::Seconds(5)));
+    PostAndWait([&]() {
+        client->Close();
+        server->Stop();
+    });
+
+    EXPECT_NE(received_data.find("HTTP/1.1 400 Bad Request"), std::string::npos);
+    EXPECT_NE(received_data.find("Invalid base64 binary metadata"), std::string::npos);
+}
+
+TEST_F(GrpcWebServerTest, DrainsActiveReactorsOnServerStop) {
+    auto endpoint = network::ToEndpoint(network::ToIpAddress("127.0.0.1").value(), 0);
+    auto server_or = PostAndWait([&]() {
+        return GrpcWebServer::Create(raw_loop_, socket_factory_, endpoint, grpc_channel_);
+    });
+    ASSERT_TRUE(server_or.ok());
+    auto server = std::move(*server_or);
+    auto listen_ep = PostAndWait([&]() { return server->GetEndpoint(); });
+
+    absl::Notification call_started;
+    absl::Notification server_finished_tag;
+
+    std::thread responder([&]() {
+        grpc::GenericServerContext server_ctx;
+        grpc::GenericServerAsyncReaderWriter stream(&server_ctx);
+
+        generic_service_.RequestCall(&server_ctx, &stream, cq_.get(), cq_.get(),
+                                     reinterpret_cast<void*>(1));
+        if (WaitForTag(reinterpret_cast<void*>(1))) {
+            call_started.Notify();
+            // Hold stream open until client/server cancellation triggers
+            stream.Finish(grpc::Status::CANCELLED, reinterpret_cast<void*>(2));
+            WaitForTag(reinterpret_cast<void*>(2));
+            server_finished_tag.Notify();
+        }
+    });
+
+    std::string valid_frame = Protocol::PackFrame(kFrameData, "stream_req");
+    std::string req =
+            "POST /test.StreamService/Stream HTTP/1.1\r\n"
+            "Host: 127.0.0.1\r\n"
+            "Content-Type: application/grpc-web+proto\r\n"
+            "Content-Length: " +
+            std::to_string(valid_frame.size()) + "\r\n\r\n" + valid_frame;
+
+    async::ScopedAsyncSocket client(PostAndWait([&]() {
+        auto sock = socket_factory_->CreateSocket(raw_loop_, listen_ep);
+        sock->SetOnReadCallbackNoFlowControl([](std::string_view, absl::Status) {});
+        sock->SetOnConnectedCallback([req](async::AsyncSocket& s, absl::Status status) {
+            if (status.ok()) {
+                s.Send(req.data(), req.size()).IgnoreError();
+            }
+        });
+        EXPECT_TRUE(sock->Connect().ok());
+        return sock;
+    }));
+
+    ASSERT_TRUE(call_started.WaitForNotificationWithTimeout(absl::Seconds(5)));
+
+    // Calling Stop() while stream is in-flight must cancel and drain active reactors without UAF
+    server->Stop();
+
+    EXPECT_TRUE(server_finished_tag.WaitForNotificationWithTimeout(absl::Seconds(5)));
+    if (responder.joinable()) {
+        responder.join();
+    }
+    PostAndWait([&]() { client->Close(); });
 }
 
 }  // namespace goldfish::grpcweb
