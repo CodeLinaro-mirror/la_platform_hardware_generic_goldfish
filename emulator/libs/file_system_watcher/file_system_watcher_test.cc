@@ -15,6 +15,11 @@
 
 #include "android/base/file_system_watcher.h"
 
+#ifndef _WIN32
+#include <fcntl.h>
+#include <unistd.h>
+#endif
+
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
@@ -24,6 +29,7 @@
 #include <thread>
 #include <vector>
 
+#include "absl/cleanup/cleanup.h"
 #include "absl/log/log.h"
 #include "absl/random/random.h"
 #include "absl/synchronization/mutex.h"
@@ -202,6 +208,7 @@ class FileSystemWatcherTest : public ::testing::Test {
                     absl::Milliseconds(100));
 
             if (event_found) {
+                handler->reset();
                 return true;  // The watcher is live!
             }
 
@@ -248,8 +255,9 @@ TEST_F(FileSystemWatcherTest, DetectsFileCreation) {
     bool event_found = WaitForEvent(
             handler,
             [](const WatchResult& change) {
-                return change.type == FileSystemWatcher::WatcherChangeType::kCreated ||
-                       change.type == FileSystemWatcher::WatcherChangeType::kChanged;
+                return change.path.find("test_file1.txt") != std::string::npos &&
+                       (change.type == FileSystemWatcher::WatcherChangeType::kCreated ||
+                        change.type == FileSystemWatcher::WatcherChangeType::kChanged);
             },
             absl::Seconds(5));
     EXPECT_TRUE(event_found);
@@ -274,7 +282,12 @@ TEST_F(FileSystemWatcherTest, DetectsFileDeletion) {
     ASSERT_TRUE(waitForCanary(handler));
 
     ASSERT_TRUE(createFile("test_file2.txt"));
-    WaitForEvent(handler, [](const auto&) { return true; }, absl::Seconds(5));
+    WaitForEvent(
+            handler,
+            [](const WatchResult& change) {
+                return change.path.find("test_file2.txt") != std::string::npos;
+            },
+            absl::Seconds(5));
     handler->reset();
 
     ASSERT_TRUE(deleteFile("test_file2.txt"));
@@ -282,8 +295,9 @@ TEST_F(FileSystemWatcherTest, DetectsFileDeletion) {
     bool event_found = WaitForEvent(
             handler,
             [](const WatchResult& change) {
-                return change.type == FileSystemWatcher::WatcherChangeType::kDeleted ||
-                       change.type == FileSystemWatcher::WatcherChangeType::kChanged;
+                return change.path.find("test_file2.txt") != std::string::npos &&
+                       (change.type == FileSystemWatcher::WatcherChangeType::kDeleted ||
+                        change.type == FileSystemWatcher::WatcherChangeType::kChanged);
             },
             absl::Seconds(5));
     EXPECT_TRUE(event_found);
@@ -299,7 +313,12 @@ TEST_F(FileSystemWatcherTest, DetectsFileLastModifiedTimestampModification) {
     ASSERT_TRUE(waitForCanary(handler));
 
     ASSERT_TRUE(createFile("test_file3.txt"));
-    WaitForEvent(handler, [](const auto&) { return true; }, absl::Seconds(5));
+    WaitForEvent(
+            handler,
+            [](const WatchResult& change) {
+                return change.path.find("test_file3.txt") != std::string::npos;
+            },
+            absl::Seconds(5));
     handler->reset();
 
     ASSERT_TRUE(modifyFile("test_file3.txt"));
@@ -307,8 +326,9 @@ TEST_F(FileSystemWatcherTest, DetectsFileLastModifiedTimestampModification) {
     bool event_found = WaitForEvent(
             handler,
             [](const WatchResult& change) {
-                return change.type == FileSystemWatcher::WatcherChangeType::kChanged ||
-                       change.type == FileSystemWatcher::WatcherChangeType::kCreated;
+                return change.path.find("test_file3.txt") != std::string::npos &&
+                       (change.type == FileSystemWatcher::WatcherChangeType::kChanged ||
+                        change.type == FileSystemWatcher::WatcherChangeType::kCreated);
             },
             absl::Seconds(5));
     EXPECT_TRUE(event_found);
@@ -324,7 +344,12 @@ TEST_F(FileSystemWatcherTest, DetectsFileSizeModification) {
     ASSERT_TRUE(waitForCanary(handler));
 
     ASSERT_TRUE(createFile("test_file4.txt"));
-    WaitForEvent(handler, [](const auto&) { return true; }, absl::Seconds(5));
+    WaitForEvent(
+            handler,
+            [](const WatchResult& change) {
+                return change.path.find("test_file4.txt") != std::string::npos;
+            },
+            absl::Seconds(5));
     handler->reset();
 
     ASSERT_TRUE(appendFile("test_file4.txt"));
@@ -332,8 +357,9 @@ TEST_F(FileSystemWatcherTest, DetectsFileSizeModification) {
     bool event_found = WaitForEvent(
             handler,
             [](const WatchResult& change) {
-                return change.type == FileSystemWatcher::WatcherChangeType::kChanged ||
-                       change.type == FileSystemWatcher::WatcherChangeType::kCreated;
+                return change.path.find("test_file4.txt") != std::string::npos &&
+                       (change.type == FileSystemWatcher::WatcherChangeType::kChanged ||
+                        change.type == FileSystemWatcher::WatcherChangeType::kCreated);
             },
             absl::Seconds(10));
     EXPECT_TRUE(event_found);
@@ -355,5 +381,101 @@ TEST_F(FileSystemWatcherTest, StopPreventsFurtherEvents) {
     auto changes = handler->waitForChange(absl::Seconds(1));
     EXPECT_THAT(changes, IsEmpty());
 }
+
+TEST_F(FileSystemWatcherTest, DetectsFileRename) {
+    auto handler = std::make_shared<TestEventHandler>(mTempDir / "renamed_dst.txt");
+    mWatcher = FileSystemWatcher::GetFileSystemWatcher(
+            mTempDir, [handler](auto type, auto path) { (*handler)(type, path); });
+    ASSERT_TRUE(mWatcher->Start());
+    ASSERT_TRUE(waitForCanary(handler));
+
+    ASSERT_TRUE(createFile("renamed_src.txt"));
+    ASSERT_TRUE(WaitForEvent(
+            handler,
+            [](const WatchResult& change) {
+                return change.path.find("renamed_src.txt") != std::string::npos;
+            },
+            absl::Seconds(5)));
+    handler->reset();
+
+    std::error_code ec;
+    std::filesystem::rename(mTempDir / "renamed_src.txt", mTempDir / "renamed_dst.txt", ec);
+    ASSERT_FALSE(ec);
+
+    bool dst_created = WaitForEvent(
+            handler,
+            [](const WatchResult& change) {
+                return change.path.find("renamed_dst.txt") != std::string::npos &&
+                       (change.type == FileSystemWatcher::WatcherChangeType::kCreated ||
+                        change.type == FileSystemWatcher::WatcherChangeType::kChanged);
+            },
+            absl::Seconds(3));
+    EXPECT_TRUE(dst_created);
+}
+
+TEST_F(FileSystemWatcherTest, RestartSameInstanceAndConcurrentStop) {
+    auto handler = std::make_shared<TestEventHandler>(mTempDir / "restart_file.txt");
+    mWatcher = FileSystemWatcher::GetFileSystemWatcher(
+            mTempDir, [handler](auto type, auto path) { (*handler)(type, path); });
+    ASSERT_NE(mWatcher, nullptr);
+
+    // First lifecycle
+    ASSERT_TRUE(mWatcher->Start());
+    std::thread stopper1([this]() { mWatcher->Stop(); });
+    std::thread stopper2([this]() { mWatcher->Stop(); });
+    stopper1.join();
+    stopper2.join();
+
+    // Restart the same instance and verify it still delivers events
+    ASSERT_TRUE(mWatcher->Start());
+    ASSERT_TRUE(waitForCanary(handler));
+    handler->reset();
+
+    ASSERT_TRUE(createFile("restart_file.txt"));
+    bool found = WaitForEvent(
+            handler,
+            [](const WatchResult& change) {
+                return change.path.find("restart_file.txt") != std::string::npos;
+            },
+            absl::Seconds(5));
+    EXPECT_TRUE(found);
+    mWatcher->Stop();
+}
+
+#ifndef _WIN32
+TEST_F(FileSystemWatcherTest, StartsAndStopsWhenStdinClosed) {
+    const int saved_stdin = dup(STDIN_FILENO);
+    ASSERT_GE(saved_stdin, 0);
+    const absl::Cleanup restore_stdin = [this, saved_stdin] {
+        if (mWatcher) {
+            mWatcher->Stop();
+        }
+        dup2(saved_stdin, STDIN_FILENO);
+        close(saved_stdin);
+    };
+    close(STDIN_FILENO);
+
+    auto handler = std::make_shared<TestEventHandler>(mTempDir / "stdin_closed.txt");
+    mWatcher = FileSystemWatcher::GetFileSystemWatcher(
+            mTempDir, [handler](auto type, auto path) { (*handler)(type, path); });
+    ASSERT_NE(mWatcher, nullptr);
+    ASSERT_TRUE(mWatcher->Start());
+    ASSERT_TRUE(waitForCanary(handler));
+    handler->reset();
+
+    ASSERT_TRUE(createFile("stdin_closed.txt"));
+    bool found = WaitForEvent(
+            handler,
+            [](const WatchResult& change) {
+                return change.path.find("stdin_closed.txt") != std::string::npos;
+            },
+            absl::Seconds(5));
+    EXPECT_TRUE(found);
+    mWatcher->Stop();
+#ifdef __linux__
+    EXPECT_EQ(fcntl(STDIN_FILENO, F_GETFD), -1);
+#endif
+}
+#endif
 
 }  // namespace android::base

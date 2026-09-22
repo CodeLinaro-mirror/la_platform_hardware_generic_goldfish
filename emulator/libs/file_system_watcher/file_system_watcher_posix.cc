@@ -9,22 +9,26 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 #include <fcntl.h>
+#include <poll.h>
 #include <sys/inotify.h>
-#include <sys/select.h>
 #include <sys/types.h>
 #include <unistd.h>
 
 #include <atomic>
 #include <cerrno>
 #include <climits>
+#include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <memory>
 #include <thread>
 #include <utility>
 
+#include "absl/base/thread_annotations.h"
+#include "absl/cleanup/cleanup.h"
+#include "absl/log/check.h"
 #include "absl/log/log.h"
-#include "absl/synchronization/notification.h"
+#include "absl/synchronization/mutex.h"
 
 #include "android/base/file_system_watcher.h"
 #include "goldfish/file/file.h"
@@ -48,98 +52,182 @@ namespace android::base {
  */
 class FileSystemWatcherPosix : public FileSystemWatcher {
   public:
+    enum class State : std::uint8_t {
+        kIdle,
+        kStarting,
+        kRunning,
+        kStopping,
+    };
+
     FileSystemWatcherPosix(std::filesystem::path path, FileSystemWatcherCallback on_change_callback)
             : FileSystemWatcher(std::move(on_change_callback)), path_(std::move(path)) {}
 
     ~FileSystemWatcherPosix() override { Stop(); }
 
     bool Start() override {
-        bool expected = false;
-        if (!running_.compare_exchange_strong(expected, true)) {
-            return false;
+        {
+            const absl::MutexLock lock(mu_);
+            if (state_ != State::kIdle) {
+                return false;
+            }
+            state_ = State::kStarting;
+            worker_done_ = false;
+            DCHECK(!watcher_thread_.joinable()) << "A watcher thread is active.";
+            watcher_thread_ = std::thread([this] { WatchForChanges(); });
+            mu_.Await(absl::Condition(this, &FileSystemWatcherPosix::IsNotStarting));
+            if (state_ == State::kRunning) {
+                return true;
+            }
         }
-        std::thread watcher([this] { WatchForChanges(); });
-        watcher_thread_ = std::move(watcher);
-        started_.WaitForNotification();
-        return notify_fd_ != 0 && pipe_[0] != -1;
+        Stop();
+        return false;
     }
 
     void Stop() override {
-        bool expected = true;
-        if (running_.compare_exchange_strong(expected, false)) {
-            DD("Closing watchers");
-            if (pipe_[1] != -1) {
-                (void)write(pipe_[1], "x", 1);
+        std::thread thread_to_join;
+        {
+            const absl::MutexLock lock(mu_);
+            if (state_ == State::kIdle) {
+                DCHECK(!watcher_thread_.joinable());
+                return;
             }
-            watcher_thread_.join();
+            if (state_ == State::kStopping) {
+                mu_.Await(absl::Condition(this, &FileSystemWatcherPosix::IsIdle));
+                return;
+            }
+            state_ = State::kStopping;
+            DD("Closing watchers");
+            const int wake_fd = pipe_[1].load();
+            if (wake_fd != -1) {
+                (void)write(wake_fd, "x", 1);
+            }
+            thread_to_join = std::move(watcher_thread_);
+        }
+
+        if (thread_to_join.joinable()) {
+            thread_to_join.join();
+        }
+
+        {
+            const absl::MutexLock lock(mu_);
+            state_ = State::kIdle;
         }
     }
 
   private:
+    bool IsNotStarting() const ABSL_EXCLUSIVE_LOCKS_REQUIRED(mu_) {
+        return state_ != State::kStarting || worker_done_;
+    }
+
+    bool IsIdle() const ABSL_EXCLUSIVE_LOCKS_REQUIRED(mu_) { return state_ == State::kIdle; }
+
+    bool IsRunning() {
+        const absl::MutexLock lock(mu_);
+        return state_ == State::kRunning;
+    }
+
     void WaitForFdEvents() {
-        fd_set readfds;
-        FD_ZERO(&readfds);
-        FD_SET(pipe_[0], &readfds);
-        FD_SET(notify_fd_, &readfds);
-        select(std::max(pipe_[0].load(), notify_fd_) + 1, &readfds, nullptr, nullptr, nullptr);
+        struct pollfd fds[2] = {
+            {.fd = pipe_[0].load(), .events = POLLIN, .revents = 0},
+            {.fd = notify_fd_, .events = POLLIN, .revents = 0},
+        };
+        (void)poll(fds, 2, -1);
     }
 
     bool WatchForChanges() {
+        const absl::Cleanup cleanup_worker = [this] {
+            if (notify_fd_ >= 0) {
+                close(notify_fd_);
+                notify_fd_ = -1;
+            }
+            const int rfd = pipe_[0].exchange(-1);
+            if (rfd != -1) {
+                close(rfd);
+            }
+            const absl::MutexLock lock(mu_);
+            const int wfd = pipe_[1].exchange(-1);
+            if (wfd != -1) {
+                close(wfd);
+            }
+            worker_done_ = true;
+        };
+
         notify_fd_ = inotify_init1(IN_NONBLOCK | IN_CLOEXEC);
-        if (notify_fd_ < 1) {
-            notify_fd_ = 0;
-            started_.Notify();
+        if (notify_fd_ < 0) {
+            notify_fd_ = -1;
             return false;
         }
 
         int p[2];
-        if (pipe(p) != 0 || (fcntl(p[0], F_SETFL, O_NONBLOCK) < 0)) {
+        if (pipe2(p, O_NONBLOCK | O_CLOEXEC) != 0) {
             PLOG(ERROR) << "Unable to open pipe.";
-            started_.Notify();
             return false;
-        };
+        }
         pipe_[0] = p[0];
-        pipe_[1] = p[1];
+        {
+            const absl::MutexLock lock(mu_);
+            pipe_[1] = p[1];
+        }
 
         // Note, this will not work for filenames longer than 256 chars, this
         // does not include the path.
-        constexpr int kMaxEvents = 4;
-        constexpr int kEventSize = sizeof(struct inotify_event);
-        constexpr int kMaxFilename = 256;
-        constexpr int kEventBuffer = kMaxEvents * (kEventSize + kMaxFilename);
+        constexpr size_t kMaxEvents = 4;
+        constexpr size_t kEventSize = sizeof(struct inotify_event);
+        constexpr size_t kMaxFilename = 256;
+        constexpr size_t kEventBuffer = kMaxEvents * (kEventSize + kMaxFilename);
 
-        auto fd = inotify_add_watch(notify_fd_, path_.c_str(), IN_MODIFY | IN_CREATE | IN_DELETE);
+        auto fd =
+                inotify_add_watch(notify_fd_, path_.c_str(),
+                                  IN_MODIFY | IN_CREATE | IN_DELETE | IN_MOVED_TO | IN_MOVED_FROM);
 
         if (fd == -1) {
-            close(notify_fd_);
-            notify_fd_ = 0;
-            started_.Notify();
             return false;
         }
 
-        started_.Notify();
-        while (running_) {
-            uint8_t buffer[kEventBuffer];
+        {
+            const absl::MutexLock lock(mu_);
+            if (state_ == State::kStopping) {
+                return false;
+            }
+            state_ = State::kRunning;
+        }
+
+        while (IsRunning()) {
+            alignas(struct inotify_event) uint8_t buffer[kEventBuffer];
 
             WaitForFdEvents();
 
-            if (!running_) {
+            if (!IsRunning()) {
                 break;
             }
 
             const ssize_t length = read(notify_fd_, buffer, sizeof(buffer));
+            if (length < 0) {
+                if (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR) {
+                    continue;
+                }
+                PLOG(ERROR) << "Failed to read inotify events.";
+                break;
+            }
+            if (length == 0) {
+                break;
+            }
             DD("Read %zd bytes", length);
 
-            ssize_t i = 0;
-            while (i < length && running_) {
+            const auto total_bytes = static_cast<size_t>(length);
+            size_t i = 0;
+            while (i + kEventSize <= total_bytes && IsRunning()) {
                 auto* event = reinterpret_cast<struct inotify_event*>(&buffer[i]);
-                DD("i: %zd, event->len: %d", i, event->len);
+                if (i + kEventSize + event->len > total_bytes) {
+                    break;
+                }
+                DD("i: %zu, event->len: %u", i, event->len);
                 if (event->len) {
                     const std::filesystem::path changed = path_ / event->name;
                     DD("Changed: %s", changed.c_str());
-                    if (event->mask & IN_CREATE) {
+                    if (event->mask & (IN_CREATE | IN_MOVED_TO)) {
                         change_callback(WatcherChangeType::kCreated, changed);
-                    } else if (event->mask & IN_DELETE) {
+                    } else if (event->mask & (IN_DELETE | IN_MOVED_FROM)) {
                         change_callback(WatcherChangeType::kDeleted, changed);
                     } else if (event->mask & IN_MODIFY) {
                         change_callback(WatcherChangeType::kChanged, changed);
@@ -150,23 +238,15 @@ class FileSystemWatcherPosix : public FileSystemWatcher {
         }
 
         DD("Exit loop");
-        close(notify_fd_);
-        if (const int fd = pipe_[0] != -1) {
-            pipe_[0] = -1;
-            close(fd);
-        }
-        if (const int fd = pipe_[1] != -1) {
-            pipe_[1] = -1;
-            close(fd);
-        }
         return true;
     }
 
     std::filesystem::path path_;
-    std::atomic_bool running_{false};
-    std::thread watcher_thread_;
-    absl::Notification started_;
-    int notify_fd_{0};
+    absl::Mutex mu_;
+    State state_ ABSL_GUARDED_BY(mu_) = State::kIdle;
+    bool worker_done_ ABSL_GUARDED_BY(mu_) = false;
+    std::thread watcher_thread_ ABSL_GUARDED_BY(mu_);
+    int notify_fd_{-1};
     std::atomic_int pipe_[2] = {-1, -1};
 };
 
