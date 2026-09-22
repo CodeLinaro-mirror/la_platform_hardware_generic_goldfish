@@ -205,11 +205,11 @@ TEST_F(ScreenRecordingServiceImplTest, StartRecordingFailsForExcessiveTimeLimit)
                                                    android::emulation::control::kMaxTimeLimit));
 }
 
-TEST_F(ScreenRecordingServiceImplTest, StartRecordingFailsIfFileExists) {
-    std::string test_file = (temp_dir_ / "test_exists.webm").string();
-    // Create the file first
+TEST_F(ScreenRecordingServiceImplTest, StartRecordingOverwritesExistingFile) {
+    std::string test_file = (temp_dir_ / "test_overwrite.webm").string();
+    // Create pre-existing file on disk
     std::ofstream file(test_file);
-    file << "dummy content";
+    file << "dummy existing content";
     file.close();
 
     RecordingInfo request;
@@ -219,9 +219,37 @@ TEST_F(ScreenRecordingServiceImplTest, StartRecordingFailsIfFileExists) {
     grpc::ServerContext context;
 
     auto status = service->StartRecording(&context, &request, &response);
+    EXPECT_TRUE(status.ok()) << status.error_message();
 
-    EXPECT_FALSE(status.ok());
-    EXPECT_EQ(status.error_code(), grpc::StatusCode::ALREADY_EXISTS);
+    service->StopRecording(&context, &request, &response);
+    // Clean up
+    std::remove(test_file.c_str());
+}
+
+TEST_F(ScreenRecordingServiceImplTest, StartRecordingSucceedsOnSecondAttempt) {
+    std::string test_file = (temp_dir_ / "test_second_attempt.webm").string();
+
+    RecordingInfo request;
+    request.set_file_name(test_file);
+
+    RecordingInfo response;
+    grpc::ServerContext context1;
+
+    // First recording attempt
+    auto status = service->StartRecording(&context1, &request, &response);
+    EXPECT_TRUE(status.ok()) << status.error_message();
+
+    status = service->StopRecording(&context1, &request, &response);
+    EXPECT_TRUE(status.ok()) << status.error_message();
+    EXPECT_TRUE(std::filesystem::exists(test_file));
+
+    // Second recording attempt to the same file path (e.g. Studio / Extended Controls staging)
+    grpc::ServerContext context2;
+    status = service->StartRecording(&context2, &request, &response);
+    EXPECT_TRUE(status.ok()) << status.error_message();
+
+    status = service->StopRecording(&context2, &request, &response);
+    EXPECT_TRUE(status.ok()) << status.error_message();
 
     // Clean up
     std::remove(test_file.c_str());

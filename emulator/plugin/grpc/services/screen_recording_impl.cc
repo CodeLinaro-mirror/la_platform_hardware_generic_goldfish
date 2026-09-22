@@ -81,6 +81,19 @@ Status ScreenRecordingServiceImpl::StartRecording(ServerContext* context,
         }
     }
 
+    // If a previous recording file already exists on disk, remove it first so that
+    // subsequent recordings to the same staging path (e.g. in Studio or Extended Controls)
+    // succeed while still creating the new file exclusively with restricted permissions.
+    if (android::base::file::exists(configured_request.file_name())) {
+        auto rm_status = android::base::file::rm(configured_request.file_name());
+        if (!rm_status.ok()) {
+            LOG(WARNING) << "Unable to remove existing recording file: " << rm_status;
+            return Status(grpc::StatusCode::INTERNAL,
+                          absl::StrCat("Unable to remove existing recording file: ",
+                                       rm_status.message()));
+        }
+    }
+
     // Create the file exclusively to prevent TOCTOU race and ensure restricted permissions.
     auto file_status =
             android::base::file::CreatePrivateFileExclusive(configured_request.file_name(), "");
