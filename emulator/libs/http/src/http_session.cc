@@ -347,8 +347,9 @@ bool HttpSession::OnDataReceived(std::string_view data) {
                 SendHttpError(static_cast<int>(HttpStatus::kPayloadTooLarge),
                               HttpStatusToReason(HttpStatus::kPayloadTooLarge));
             } else {
+                const char* reason = llhttp_get_error_reason(&parser_);
                 SendHttpError(static_cast<int>(HttpStatus::kBadRequest),
-                              llhttp_get_error_reason(&parser_));
+                              reason ? reason : HttpStatusToReason(HttpStatus::kBadRequest));
             }
         }
         return false;
