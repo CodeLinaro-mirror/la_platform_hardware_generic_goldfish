@@ -120,8 +120,8 @@ absl::Status ParseRecordingInfo(ArgStream& args, RecordingInfo* request) {
                         "Invalid arguments (see help screenrecord start).");
             }
         } else {
-            filename = args.Next();
-            break;  // Assume filename is the last argument
+            filename = std::string(args.Remaining());
+            break;  // Assume filename is the rest of the arguments
         }
     }
 
@@ -150,7 +150,7 @@ absl::Status ParseScreenshotArgs(ArgStream& args, uint32_t* display, std::filesy
                         "Invalid arguments (see help screenrecord screenshot).");
             }
         } else {
-            path_str = args.Next();
+            path_str = std::string(args.Remaining());
             break;
         }
     }
