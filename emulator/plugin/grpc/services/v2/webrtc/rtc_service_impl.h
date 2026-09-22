@@ -27,7 +27,7 @@
 #include "absl/time/time.h"
 
 #include "goldfish/videobridge/switchboard.h"
-#include "webrtc/rtc_service.grpc.pb.h"
+#include "webrtc_service.grpc.pb.h"
 
 namespace goldfish::grpc::v2 {
 
@@ -41,7 +41,7 @@ namespace goldfish::grpc::v2 {
  * It provides thread-safe concurrent session management, automatic garbage collection for
  * abandoned sessions, and maps internal absl::Status codes directly to canonical gRPC Status.
  */
-class RtcServiceImpl : public ::android::emulation::v2::webrtc::RtcService::Service {
+class RtcServiceImpl : public ::android::emulation::v2::RtcService::Service {
   public:
     using Switchboard = ::goldfish::videobridge::Switchboard;
     using Clock = std::function<absl::Time()>;
@@ -76,24 +76,27 @@ class RtcServiceImpl : public ::android::emulation::v2::webrtc::RtcService::Serv
             Clock clock = absl::Now);
     ~RtcServiceImpl() override = default;
 
-    ::grpc::Status RequestRtcStream(
-            ::grpc::ServerContext* context,
-            const ::android::emulation::v2::webrtc::RtcStreamRequest* request,
-            ::android::emulation::v2::webrtc::RtcStreamResponse* response) override;
+    ::grpc::Status RequestRtcStream(::grpc::ServerContext* context,
+                                    const ::android::emulation::v2::RtcStreamRequest* request,
+                                    ::android::emulation::v2::RtcStreamResponse* response) override;
 
     ::grpc::Status UpdateRtcStream(
             ::grpc::ServerContext* context,
-            const ::android::emulation::v2::webrtc::RtcStreamUpdateRequest* request,
-            ::google::protobuf::Empty* response) override;
+            const ::android::emulation::v2::RtcStreamUpdateRequest* request,
+            ::android::emulation::v2::UpdateRtcStreamResponse* response) override;
 
-    ::grpc::Status SendJsepMessage(::grpc::ServerContext* context,
-                                   const ::android::emulation::v2::webrtc::JsepMessage* request,
-                                   ::google::protobuf::Empty* response) override;
+    ::grpc::Status CloseRtcStream(
+            ::grpc::ServerContext* context,
+            const ::android::emulation::v2::CloseRtcStreamRequest* request,
+            ::android::emulation::v2::CloseRtcStreamResponse* response) override;
+
+    ::grpc::Status SendJsepMessage(
+            ::grpc::ServerContext* context, const ::android::emulation::v2::JsepMessage* request,
+            ::android::emulation::v2::SendJsepMessageResponse* response) override;
 
     ::grpc::Status ReceiveJsepMessageStream(
-            ::grpc::ServerContext* context,
-            const ::android::emulation::v2::webrtc::RtcSession* request,
-            ::grpc::ServerWriter<::android::emulation::v2::webrtc::JsepMessage>* writer) override;
+            ::grpc::ServerContext* context, const ::android::emulation::v2::RtcSession* request,
+            ::grpc::ServerWriter<::android::emulation::v2::JsepMessage>* writer) override;
 
   protected:
     /**

@@ -81,7 +81,7 @@ TEST(InProcessInputSenderTest, V2EventDispatching) {
     V2InputEvent event1;
     event1.mutable_pointer()->set_display_id(0);
     event1.mutable_pointer()->set_action(
-            ::android::emulation::v2::input::PointerAction::POINTER_ACTION_DOWN);
+            ::android::emulation::v2::PointerAction::POINTER_ACTION_DOWN);
 
     // Before Start -> ignored
     sender.SendV2Event(event1);
@@ -93,7 +93,7 @@ TEST(InProcessInputSenderTest, V2EventDispatching) {
     EXPECT_EQ(v2_count, 1);
     EXPECT_EQ(last_v2_event.pointer().display_id(), 0);
     EXPECT_EQ(last_v2_event.pointer().action(),
-              ::android::emulation::v2::input::PointerAction::POINTER_ACTION_DOWN);
+              ::android::emulation::v2::PointerAction::POINTER_ACTION_DOWN);
 
     // Stop -> ignored
     sender.Stop();

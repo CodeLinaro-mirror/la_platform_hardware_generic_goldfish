@@ -22,12 +22,12 @@
 #include "absl/status/status.h"
 
 #include "emulator_controller.pb.h"
-#include "input/input_service.pb.h"
+#include "input_service.pb.h"
 
 namespace goldfish::videobridge {
 
 using ::android::emulation::control::InputEvent;
-using V2InputEvent = ::android::emulation::v2::input::InputEvent;
+using V2InputEvent = ::android::emulation::v2::InputEvent;
 
 /**
  * @brief Labels representing the different type of WebRTC data channels

@@ -260,7 +260,7 @@ cc_test(
         "//emulator/plugin/avd:info-fake",
         "//emulator/plugin/display:test-display",
         "//emulator/plugin/grpc/keyboard:test_qemu_input_stub",
-        "@aemu//protos/services_v2/input:input_service_cc_proto",
+        "@aemu//protos/services_v2:input_service_cc_proto",
         "@grpc//:grpc++",
     ],
 )

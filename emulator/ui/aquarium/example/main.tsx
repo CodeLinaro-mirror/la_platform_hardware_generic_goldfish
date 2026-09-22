@@ -24,6 +24,7 @@ import {
   useVm,
   RtcConnectionState,
   KeyAction,
+  InputFeature,
 } from '@android/web';
 
 interface LogEntry {
@@ -81,9 +82,9 @@ function DeviceDemoApp({ onLog }: { onLog: (msg: string, type?: LogEntry['type']
         return;
       }
       onLog(`Send Key: ${name} (${domCode})`);
-      client.input.sendKey({ action: KeyAction.DOWN, domCode });
+      client.input.sendKey({ action: KeyAction.KEY_ACTION_DOWN, domCode });
       setTimeout(() => {
-        client.input.sendKey({ action: KeyAction.UP, domCode });
+        client.input.sendKey({ action: KeyAction.KEY_ACTION_UP, domCode });
       }, 50);
     },
     [client, onLog]
@@ -342,7 +343,7 @@ function DeviceDemoApp({ onLog }: { onLog: (msg: string, type?: LogEntry['type']
                     onLog('Fetching current sensors state from guest OS...');
                     try {
                       const s = await fetchSensors();
-                      onLog(`Sensors snapshot: Temp=${s.ambientTemperatureCelsius}°C, Light=${s.lightLux}lx`, 'success');
+                      onLog(`Sensors snapshot: Temp=${s.environment?.ambientTemperatureCelsius}°C, Light=${s.environment?.lightLux}lx`, 'success');
                     } catch (err: any) {
                       onLog(`Failed to fetch sensors: ${err.message}`, 'error');
                     }
@@ -440,7 +441,7 @@ function DeviceDemoApp({ onLog }: { onLog: (msg: string, type?: LogEntry['type']
                       {capabilities.metadata?.displayName || 'Android Emulator'}
                     </div>
                     <div>Model: {capabilities.metadata?.modelId || 'Virtual Device'}</div>
-                    {capabilities.display?.builtInDisplays?.map((d: any, i: number) => (
+                    {capabilities.display?.builtInDisplays?.map((d, i) => (
                       <div key={i} style={{ marginLeft: '8px', color: '#94a3b8' }}>
                         Display #{d.displayId}: {d.width}x{d.height} @ {d.densityDpi} DPI ({d.refreshRateHz}Hz)
                       </div>
@@ -448,7 +449,9 @@ function DeviceDemoApp({ onLog }: { onLog: (msg: string, type?: LogEntry['type']
                     <div style={{ marginTop: '6px' }}>
                       Sensors: {capabilities.sensors?.availableSensors?.length ? `${capabilities.sensors.availableSensors.length} sensor(s)` : 'Standard'}
                     </div>
-                    <div>Touch: {capabilities.input?.supportsMultiTouch ? 'Multi-Touch' : 'Basic'}</div>
+                    <div>
+                      Touch: {capabilities.input?.supportedFeatures?.includes(InputFeature.INPUT_FEATURE_MULTI_TOUCH) ? 'Multi-Touch' : 'Basic'}
+                    </div>
                   </div>
                 ) : (
                   <div style={styles.emptyState}>No capabilities loaded yet. Click Query above.</div>

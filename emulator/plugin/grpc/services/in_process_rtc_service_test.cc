@@ -26,7 +26,7 @@
 #include "goldfish/avd_info/avd_info.h"
 #include "goldfish/display/test/fake_multi_display.h"
 #include "goldfish/display/test/fake_pixman_display.h"
-#include "input/input_service.pb.h"
+#include "input_service.pb.h"
 
 extern "C" {
 struct QemuConsole {
@@ -149,10 +149,10 @@ TEST(InProcessRtcServiceTest, InputSenderV2DispatchesV2PointerEvent) {
     ASSERT_NE(sender, nullptr);
     EXPECT_TRUE(sender->Start().ok());
 
-    ::android::emulation::v2::input::InputEvent v2_event;
+    ::android::emulation::v2::InputEvent v2_event;
     auto* pointer = v2_event.mutable_pointer();
     pointer->set_display_id(0);
-    pointer->set_action(::android::emulation::v2::input::PointerAction::POINTER_ACTION_DOWN);
+    pointer->set_action(::android::emulation::v2::PointerAction::POINTER_ACTION_DOWN);
     auto* ptr = pointer->add_pointers();
     ptr->set_pointer_id(0);
     ptr->set_x(0.5F);
