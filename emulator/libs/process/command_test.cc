@@ -107,36 +107,44 @@ TEST(Process, discovered_proc_same_as_launched) {
 }
 
 TEST(Process, can_discover_launched_proc) {
-    auto proc = Command::Create({SleepExe(), "--sleep", "1s"}).Execute();
-    auto pids = Process::FromName("sleep_emu");
+    auto proc = Command::Create({SleepExe(), "--sleep", "10s"}).Execute();
 
     const absl::Time start = absl::Now();
     const absl::Time deadline = start + absl::Seconds(10);
-    // On linux we scan /proc/... which is not instantenous on our gce machines.
-    // Note that the scan itself can take +/- 20ms.
-    while (pids.size() == 0 && absl::Now() < deadline) {
+    // On linux we scan /proc/... which is not instantaneous on our gce machines,
+    // and under ASAN posix_spawnp may return before the child completes execve.
+    bool found = false;
+    std::vector<std::unique_ptr<Process>> pids;
+    while (!found && absl::Now() < deadline) {
         pids = Process::FromName("sleep_emu");
+        for (const auto& pid : pids) {
+            if (pid->pid() == proc->pid()) {
+                found = true;
+                break;
+            }
+        }
+        if (!found) {
+            std::this_thread::sleep_for(5ms);
+        }
     }
     LOG(INFO) << "It took " << (absl::Now() - start) << " to find the process";
     EXPECT_GT(pids.size(), 0);
-
-    bool found = false;
-    for (const auto& pid : pids) {
-        if (pid->pid() == proc->pid()) {
-            found = true;
-        }
-    }
     EXPECT_TRUE(found) << SleepExe() << "was not found.";
 }
 
 TEST(Process, can_read_process_name) {
-    auto proc = Command::Create({SleepExe(), "--sleep", "1s"}).Execute();
+    auto proc = Command::Create({SleepExe(), "--sleep", "10s"}).Execute();
     auto sleep = Process::FromPid(proc->pid());
     ASSERT_NE(sleep, nullptr);
     std::string name;
     const absl::Time deadline = absl::Now() + absl::Seconds(10);
-    while (name.empty() && absl::Now() < deadline) {
+    // Between fork()/clone() and execve(), /proc/<pid>/cmdline may still contain
+    // the parent test binary's name (process_unittests). Poll until execve updates it.
+    while (!absl::StrContains(name, "sleep_emu") && absl::Now() < deadline) {
         name = sleep->Exe();
+        if (!absl::StrContains(name, "sleep_emu")) {
+            std::this_thread::sleep_for(5ms);
+        }
     }
     EXPECT_TRUE(absl::StrContains(name, "sleep_emu"))
             << "Expected sleep_emu in the process name: " << name
@@ -153,7 +161,7 @@ TEST(Process, can_get_exitcode_from_discovered_process) {
 }
 
 TEST(Process, terminate_someone_else) {
-    auto proc = Command::Create({SleepExe(), "--sleep", "200ms"}).Asdaemon().Execute();
+    auto proc = Command::Create({SleepExe(), "--sleep", "10s"}).Asdaemon().Execute();
     auto sleep = Process::FromPid(proc->pid());
     ASSERT_NE(sleep, nullptr);
     sleep->Terminate();
@@ -190,13 +198,13 @@ TEST(Command, properly_escape_params) {
                         .Arg("Hello there")
                         .RedirectStdoutToUnsafe(&std_out)
                         .Execute();
-    ASSERT_EQ(proc->WaitFor(5s), std::future_status::ready);
+    ASSERT_EQ(proc->WaitFor(30s), std::future_status::ready);
     EXPECT_EQ(proc->Out()->AsString(), "Hello there");
 }
 
 TEST(Command, a_terminated_process_is_dead) {
     using namespace std::chrono_literals;
-    auto proc = Command::Create({SleepExe(), "--sleep", "5s"}).Execute();
+    auto proc = Command::Create({SleepExe(), "--sleep", "30s"}).Execute();
     EXPECT_TRUE(proc->IsAlive());
     EXPECT_TRUE(proc->Terminate());
     EXPECT_FALSE(proc->IsAlive());
@@ -205,7 +213,7 @@ TEST(Command, a_terminated_process_is_dead) {
 TEST(Command, out_of_scope_process_gets_terminated) {
     int pid = 0;
     {
-        auto proc = Command::Create({SleepExe(), "--sleep", "5s"}).Execute();
+        auto proc = Command::Create({SleepExe(), "--sleep", "30s"}).Execute();
         EXPECT_TRUE(proc->IsAlive());
         pid = proc->pid();
     }
@@ -218,7 +226,7 @@ TEST(Command, out_of_scope_process_gets_terminated) {
 }
 
 TEST(Command, WaitFor_completion_times_out) {
-    auto proc = Command::Create({SleepExe(), "--sleep", "5s"}).Execute();
+    auto proc = Command::Create({SleepExe(), "--sleep", "30s"}).Execute();
 
     // Well, we sleep for a few seconds.. so we should timeout.
     EXPECT_EQ(proc->WaitFor(10ms), std::future_status::timeout);
@@ -231,7 +239,7 @@ TEST(Command, we_can_capture_std_out) {
     auto proc = Command::Create({SleepExe(), "--msg_std_out", "stdout"})
                         .RedirectStdoutToUnsafe(&std_out)
                         .Execute();
-    ASSERT_EQ(proc->WaitFor(5s), std::future_status::ready);
+    ASSERT_EQ(proc->WaitFor(30s), std::future_status::ready);
 
     // We should print out the message.
     EXPECT_EQ(proc->Out()->AsString(), "stdout");
@@ -244,7 +252,7 @@ TEST(Command, we_can_capture_std_err) {
     auto proc = Command::Create({SleepExe(), "--msg_std_err", "error"})
                         .RedirectStderrToUnsafe(&std_err)
                         .Execute();
-    ASSERT_EQ(proc->WaitFor(5s), std::future_status::ready);
+    ASSERT_EQ(proc->WaitFor(30s), std::future_status::ready);
 
     // We should print out the message.
     EXPECT_EQ(proc->Err()->AsString(), "error");
@@ -327,7 +335,7 @@ TEST(Command, we_can_capture_both) {
                         .RedirectStdoutToUnsafe(&std_out)
                         .RedirectStderrToUnsafe(&std_err)
                         .Execute();
-    ASSERT_EQ(proc->WaitFor(5s), std::future_status::ready);
+    ASSERT_EQ(proc->WaitFor(30s), std::future_status::ready);
 
     // We should print out the message.
     EXPECT_EQ(proc->Out()->AsString(), "stdout");
@@ -340,7 +348,7 @@ TEST(Command, double_capture_should_not_lock) {
     auto proc = Command::Create({SleepExe(), "--msg_std_out", "stdout", "--msg_std_err", "error"})
                         .RedirectStderrToUnsafe(&std_err)
                         .Execute();
-    ASSERT_EQ(proc->WaitFor(5s), std::future_status::ready);
+    ASSERT_EQ(proc->WaitFor(30s), std::future_status::ready);
 
     // We should print out the message.
     EXPECT_EQ(proc->Err()->AsString(), "error");
