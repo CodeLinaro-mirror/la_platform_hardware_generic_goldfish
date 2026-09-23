@@ -131,8 +131,11 @@ class Launcher {
                             }
                         });
                     }
-                    config_.event_loop.Post([this, chardevs]() { init_modem_simulator(chardevs); })
-                            .IgnoreError();
+                    if (!config_.opts.netsim_cellular) {
+                        config_.event_loop
+                                .Post([this, chardevs]() { init_modem_simulator(chardevs); })
+                                .IgnoreError();
+                    }
                 })
                 .IgnoreError();
     }
