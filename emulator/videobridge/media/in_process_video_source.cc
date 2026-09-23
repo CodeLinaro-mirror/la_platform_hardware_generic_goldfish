@@ -106,24 +106,7 @@ void InProcessVideoSource::OnFrameAvailable(const ::goldfish::display::FrameInfo
     }
 
     const int64_t timestamp_us = ::webrtc::TimeMicros();
-    ::webrtc::VideoRotation webrtc_rotation = ::webrtc::kVideoRotation_0;
-    // Note: Goldfish ImageRotation is counter-clockwise (CCW), whereas
-    // webrtc::VideoRotation (RTP CVO) is clockwise (CW).
-    switch (frame_info.rotation) {
-    case goldfish::display::ImageRotation::kRotation90:
-        webrtc_rotation = ::webrtc::kVideoRotation_270;
-        break;
-    case goldfish::display::ImageRotation::kRotation180:
-        webrtc_rotation = ::webrtc::kVideoRotation_180;
-        break;
-    case goldfish::display::ImageRotation::kRotation270:
-        webrtc_rotation = ::webrtc::kVideoRotation_90;
-        break;
-    case goldfish::display::ImageRotation::kRotation0:
-    default:
-        webrtc_rotation = ::webrtc::kVideoRotation_0;
-        break;
-    }
+    const ::webrtc::VideoRotation webrtc_rotation = ToWebRtcRotation(frame_info.rotation);
 
     ::webrtc::VideoFrame video_frame = ::webrtc::VideoFrame::Builder()
                                                .set_video_frame_buffer(nv12_buffer)
@@ -133,6 +116,22 @@ void InProcessVideoSource::OnFrameAvailable(const ::goldfish::display::FrameInfo
                                                .build();
 
     this->OnFrame(video_frame);
+}
+
+::webrtc::VideoRotation ToWebRtcRotation(goldfish::display::ImageRotation rotation) {
+    // Note: Goldfish ImageRotation is counter-clockwise (CCW), whereas
+    // webrtc::VideoRotation (RTP CVO) is clockwise (CW).
+    switch (rotation) {
+    case goldfish::display::ImageRotation::kRotation90:
+        return ::webrtc::kVideoRotation_270;
+    case goldfish::display::ImageRotation::kRotation180:
+        return ::webrtc::kVideoRotation_180;
+    case goldfish::display::ImageRotation::kRotation270:
+        return ::webrtc::kVideoRotation_90;
+    case goldfish::display::ImageRotation::kRotation0:
+    default:
+        return ::webrtc::kVideoRotation_0;
+    }
 }
 
 }  // namespace goldfish::videobridge

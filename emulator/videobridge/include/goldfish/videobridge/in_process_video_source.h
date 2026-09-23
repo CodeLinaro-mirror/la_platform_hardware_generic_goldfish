@@ -18,6 +18,7 @@
 #pragma clang diagnostic ignored "-Wnullability-completeness"
 #include "api/scoped_refptr.h"
 #include "api/video/nv12_buffer.h"
+#include "api/video/video_rotation.h"
 #pragma clang diagnostic pop
 
 #include "absl/base/thread_annotations.h"
@@ -32,6 +33,11 @@ class IMultiDisplay;
 }
 
 namespace goldfish::videobridge {
+
+/**
+ * Converts Goldfish counter-clockwise (CCW) ImageRotation to WebRTC clockwise (CW) VideoRotation.
+ */
+::webrtc::VideoRotation ToWebRtcRotation(goldfish::display::ImageRotation rotation);
 
 /**
  * WebRTC video track source capturing guest display frames directly from IMultiDisplay in-process.

@@ -317,5 +317,13 @@ TEST(InProcessVideoSourceTest, EmitsRotatedFrameWhenDisplayRotationChanges) {
     track_source->RemoveSink(&sink);
 }
 
+TEST(InProcessVideoSourceTest, ConvertsImageRotationToWebRtcRotation) {
+    using goldfish::display::ImageRotation;
+    EXPECT_EQ(ToWebRtcRotation(ImageRotation::kRotation0), webrtc::kVideoRotation_0);
+    EXPECT_EQ(ToWebRtcRotation(ImageRotation::kRotation90), webrtc::kVideoRotation_270);
+    EXPECT_EQ(ToWebRtcRotation(ImageRotation::kRotation180), webrtc::kVideoRotation_180);
+    EXPECT_EQ(ToWebRtcRotation(ImageRotation::kRotation270), webrtc::kVideoRotation_90);
+}
+
 }  // namespace
 }  // namespace goldfish::videobridge
