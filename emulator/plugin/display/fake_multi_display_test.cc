@@ -226,7 +226,7 @@ TEST_F(FakeMultiDisplayTest, DisplayEventsAreOnTheEventLoop) {
     event.WaitForNotificationWithTimeout(absl::Milliseconds(100));
 }
 
-TEST_F(FakeMultiDisplayTest, DISABLED_ResizeMaintainsPatternIntegrity) {
+TEST_F(FakeMultiDisplayTest, ResizeMaintainsPatternIntegrity) {
     constexpr int kWidth = 1080;
     constexpr int kHeight = 2400;
 
