@@ -206,6 +206,8 @@ AvdExtendedUniverse::AvdExtendedUniverse(std::unique_ptr<AvdProperties> props)
     avd_universe.multi_display = display::IMultiDisplay::Create(
             client_loop, qemu_loop.get(),
             avd_universe.GetSensorsPhysicalModel().GetFoldableConfig());
+    avd_universe.display_rotation_subscription = avd_universe.multi_display->RegisterPhysicalModel(
+            avd_universe.GetSensorsPhysicalModel());
 
     // Initialize the battery to a default state and register it.
     avd_universe.battery_subscription = DEVS::battery::RegisterBattery(

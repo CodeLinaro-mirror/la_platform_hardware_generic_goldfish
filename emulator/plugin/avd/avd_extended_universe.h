@@ -27,6 +27,7 @@
 #include "goldfish/devices/multidisplay/multidisplay_device.h"
 #include "goldfish/devices/sensor/sensor_device.h"
 #include "goldfish/devices/unix_pipe/unix_pipe.h"
+#include "goldfish/display/abstract_multi_display.h"
 #include "goldfish/metrics/metrics_reporter.h"
 #include "goldfish/metrics/perf_stat_reporter.h"
 #include "vcpu_event_loop.h"
@@ -57,6 +58,7 @@ struct AvdExtendedUniverse : public AvdUniverse {
     devices::ConnectorRegistry connector_registry;
     devices::ConnectorRegistry test_tools_connector_registry;
     avd_universe::battery::ObservableBattery::ScopedCallbackHandle battery_subscription;
+    display::IMultiDisplay::ScopedRotationSubscription display_rotation_subscription;
     std::unique_ptr<metrics::MetricsReporter> metrics_reporter;
     std::shared_ptr<async::EventLoop::Timer> metrics_ping_timer;
 
