@@ -339,6 +339,7 @@ collect_plugins(
         "@platforms//os:linux": [
             "@goldfish_prebuilts_common//vulkan:icds_linux_x86_64",
             "@goldfish_prebuilts_common//vulkan:lib_linux_x86_64",
+            "@llvm-project//llvm:libLLVM.so",
             "@mesa3d//:vulkan_lvp",
             "@mesa3d//:generate_lvp_icd",
         ],
