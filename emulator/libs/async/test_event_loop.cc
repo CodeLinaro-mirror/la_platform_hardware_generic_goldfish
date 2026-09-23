@@ -14,18 +14,17 @@
 #include "goldfish/async/testing/test_event_loop.h"
 
 #include <algorithm>
-#include <condition_variable>
 #include <deque>
 #include <functional>
 #include <future>
 #include <limits>
-#include <mutex>
 #include <queue>
 #include <thread>
 #include <vector>
 
 #include "absl/base/thread_annotations.h"
 #include "absl/status/status.h"
+#include "absl/synchronization/mutex.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 
@@ -109,26 +108,33 @@ class TestEventLoopImpl : public TestEventLoop {
     bool RunOneUnlocked() ABSL_NO_THREAD_SAFETY_ANALYSIS;
     void AdvanceClockUnlocked(absl::Duration duration) ABSL_NO_THREAD_SAFETY_ANALYSIS;
 
+    bool HasCommandOrStopped() const ABSL_SHARED_LOCKS_REQUIRED(mutex_) {
+        return command_ != Command::kNone || stop_;
+    }
+    bool IsCommandNone() const ABSL_SHARED_LOCKS_REQUIRED(mutex_) {
+        return command_ == Command::kNone;
+    }
+    bool IsQueueIdle() const ABSL_SHARED_LOCKS_REQUIRED(mutex_) {
+        return queue_is_idle_;
+    }
+
     std::thread thread_;
     std::thread::id thread_id_;
-    std::atomic<bool> stop_{false};
-    mutable std::mutex mutex_;
-    std::condition_variable cv_;
-    std::condition_variable cmd_cv_;
-    std::condition_variable queue_is_idle_cv_;
+    mutable absl::Mutex mutex_;
+    bool stop_ ABSL_GUARDED_BY(mutex_){false};
 
     // post queue
-    std::deque<QueuedTask> tasks_;
+    std::deque<QueuedTask> tasks_ ABSL_GUARDED_BY(mutex_);
 
     // scheduled things
-    std::vector<ScheduledTask> scheduled_tasks_;
-    absl::Time now_;
-    Command command_ = Command::kNone;
-    absl::Duration time_advance_{absl::ZeroDuration()};
-    size_t run_count_ = 0;
-    size_t tasks_actually_run_ = 0;
-    size_t tasks_processed_ = 0;
-    bool queue_is_idle_ = true;
+    std::vector<ScheduledTask> scheduled_tasks_ ABSL_GUARDED_BY(mutex_);
+    absl::Time now_ ABSL_GUARDED_BY(mutex_);
+    Command command_ ABSL_GUARDED_BY(mutex_) = Command::kNone;
+    absl::Duration time_advance_ ABSL_GUARDED_BY(mutex_){absl::ZeroDuration()};
+    size_t run_count_ ABSL_GUARDED_BY(mutex_) = 0;
+    size_t tasks_actually_run_ ABSL_GUARDED_BY(mutex_) = 0;
+    size_t tasks_processed_ ABSL_GUARDED_BY(mutex_) = 0;
+    bool queue_is_idle_ ABSL_GUARDED_BY(mutex_) = true;
 };
 
 // --- Factory Function ---
@@ -154,21 +160,23 @@ TestEventLoopImpl::~TestEventLoopImpl() {
     if (GetState() != LooperStatusEvent::State::kShuttingDown) {
         ShutdownAndWait().IgnoreError();
     }
-    stop_ = true;
-    cv_.notify_one();
+    {
+        absl::MutexLock lock(&mutex_);
+        stop_ = true;
+    }
     if (thread_.joinable()) {
         thread_.join();
     }
 }
 
 void TestEventLoopImpl::ShutdownTimers() {
-    const std::lock_guard<std::mutex> lock(mutex_);
+    absl::MutexLock lock(&mutex_);
     scheduled_tasks_.clear();
 }
 
 size_t TestEventLoopImpl::WaitUntilIdle() {
-    std::unique_lock<std::mutex> lock(mutex_);
-    queue_is_idle_cv_.wait(lock, [this]() { return queue_is_idle_; });
+    absl::MutexLock lock(&mutex_);
+    mutex_.Await(absl::Condition(this, &TestEventLoopImpl::IsQueueIdle));
     return tasks_processed_;
 }
 
@@ -176,7 +184,7 @@ std::future<absl::Status> TestEventLoopImpl::Shutdown() {
     SetState(LooperStatusEvent::State::kShuttingDown);
     std::promise<absl::Status> promise;
     promise.set_value(absl::OkStatus());
-    const std::lock_guard<std::mutex> lock(mutex_);
+    absl::MutexLock lock(&mutex_);
     tasks_.clear();
     scheduled_tasks_.clear();
 
@@ -192,7 +200,7 @@ absl::Status TestEventLoopImpl::PostImmediately(Task task, FlowId flow_id) {
         LOG(ERROR) << "Loop is shutting down.";
         return absl::UnavailableError("test loop is shutting down");
     }
-    const std::lock_guard<std::mutex> lock(mutex_);
+    absl::MutexLock lock(&mutex_);
     queue_is_idle_ = false;
     tasks_.push_back(QueuedTask{std::move(task), flow_id});
     return absl::OkStatus();
@@ -215,7 +223,7 @@ absl::Status TestEventLoopImpl::PostDelayed(Task task, absl::Duration delay, Flo
 }
 
 size_t TestEventLoopImpl::TaskCount() const {
-    const std::lock_guard<std::mutex> lock(mutex_);
+    absl::MutexLock lock(&mutex_);
     return tasks_.size();
 }
 
@@ -225,7 +233,7 @@ std::shared_ptr<EventLoop::Timer> TestEventLoopImpl::CreateTimer(RepeatingTask t
 
 void TestEventLoopImpl::Reschedule(std::shared_ptr<TestTimer> timer, absl::Duration new_delay,
                                    absl::Duration new_interval) {
-    const std::lock_guard<std::mutex> lock(mutex_);
+    absl::MutexLock lock(&mutex_);
     auto it = std::ranges::find_if(scheduled_tasks_, [&](const ScheduledTask& task) {
         auto handle = task.handle.lock();
         return handle && handle.get() == timer.get();
@@ -248,37 +256,34 @@ void TestEventLoopImpl::RunAll() {
 }
 
 bool TestEventLoopImpl::RunOne() {
-    std::unique_lock<std::mutex> lock(mutex_);
+    absl::MutexLock lock(&mutex_);
     command_ = Command::kRunOne;
     tasks_actually_run_ = 0;
-    cv_.notify_one();
-    cmd_cv_.wait(lock, [this] { return command_ == Command::kNone; });
+    mutex_.Await(absl::Condition(this, &TestEventLoopImpl::IsCommandNone));
     return tasks_actually_run_ > 0;
 }
 
 size_t TestEventLoopImpl::RunMany(size_t count) {
-    std::unique_lock<std::mutex> lock(mutex_);
+    absl::MutexLock lock(&mutex_);
     command_ = Command::kRunMany;
     run_count_ = count;
     tasks_actually_run_ = 0;
-    cv_.notify_one();
-    cmd_cv_.wait(lock, [this] { return command_ == Command::kNone; });
+    mutex_.Await(absl::Condition(this, &TestEventLoopImpl::IsCommandNone));
     return tasks_actually_run_;
 }
 
 void TestEventLoopImpl::AdvanceClock(absl::Duration duration) {
-    std::unique_lock<std::mutex> lock(mutex_);
+    absl::MutexLock lock(&mutex_);
     command_ = Command::kAdvanceTime;
     time_advance_ = duration;
-    cv_.notify_one();
-    cmd_cv_.wait(lock, [this] { return command_ == Command::kNone; });
+    mutex_.Await(absl::Condition(this, &TestEventLoopImpl::IsCommandNone));
 }
 
 void TestEventLoopImpl::Loop() {
     android::base::ThreadUtils::SetCurrentThreadName(GetName());
-    std::unique_lock<std::mutex> lock(mutex_);
+    absl::MutexLock lock(&mutex_);
     while (!stop_) {
-        cv_.wait(lock, [this] { return command_ != Command::kNone || stop_; });
+        mutex_.Await(absl::Condition(this, &TestEventLoopImpl::HasCommandOrStopped));
         if (stop_) break;
 
         // Note, we have the mutex here.
@@ -303,7 +308,6 @@ void TestEventLoopImpl::Loop() {
         }
 
         command_ = Command::kNone;
-        cmd_cv_.notify_one();
     }
     SetState(LooperStatusEvent::State::kFinished);
 }
@@ -315,7 +319,7 @@ bool TestEventLoopImpl::RunOneUnlocked() ABSL_NO_THREAD_SAFETY_ANALYSIS {
     }
     QueuedTask queued = std::move(tasks_.front());
     tasks_.pop_front();
-    mutex_.unlock();
+    mutex_.Unlock();
     {
         // without lock so tasks can schedule more tasks etc..
         QueuedTask queued_scoped = std::move(queued);
@@ -324,11 +328,10 @@ bool TestEventLoopImpl::RunOneUnlocked() ABSL_NO_THREAD_SAFETY_ANALYSIS {
         }
         queued_scoped.task();
     }
-    mutex_.lock();
+    mutex_.Lock();
     ++tasks_processed_;
     if (tasks_.empty()) {
         queue_is_idle_ = true;
-        queue_is_idle_cv_.notify_all();
     }
     return true;
 }
@@ -352,12 +355,12 @@ void TestEventLoopImpl::AdvanceClockUnlocked(absl::Duration duration)
         }
 
         // Run the task without a lock.
-        mutex_.unlock();
+        mutex_.Unlock();
         if (task.flow_id != 0 && tracker()) {
             tracker()->LogExecute(task.flow_id);
         }
         const bool keep_repeating = (*task.task)();
-        mutex_.lock();
+        mutex_.Lock();
 
         // Reschedule task if needed.
         if (!keep_repeating) {
