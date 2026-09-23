@@ -73,6 +73,7 @@ struct MockConsoleContext : public LegacyConsoleBridge::ConsoleContext {
     absl::StatusOr<std::unique_ptr<grpc::ClientContext>> NewContext(
             std::chrono::time_point<std::chrono::system_clock> deadline =
                     std::chrono::system_clock::now() + std::chrono::milliseconds(500)) override {
+        ++new_context_count;
         auto ctx = std::make_unique<grpc::ClientContext>();
         ctx->set_deadline(deadline);
         return ctx;
@@ -100,6 +101,7 @@ struct MockConsoleContext : public LegacyConsoleBridge::ConsoleContext {
     std::unique_ptr<android::emulation::control::SnapshotService::StubInterface> mock_snapshot_stub;
     std::optional<absl::StatusOr<LegacyConsoleBridge::DiscoveredEmulator>> mock_discovery;
     std::optional<absl::StatusOr<std::vector<std::filesystem::path>>> mock_discovered_emulators;
+    int new_context_count = 0;
     bool crash_triggered = false;
 };
 
@@ -923,21 +925,30 @@ TEST_F(LegacyConsoleBridgeTest, SensorStatusReturnsFormattedList) {
     auto ctx = CreateContext();
     ctx->authenticated = true;
 
+    int get_sensor_calls = 0;
     auto mock_stub = std::make_unique<android::emulation::control::MockEmulatorControllerStub>();
     EXPECT_CALL(*mock_stub, getSensor(_, _, _))
             .Times(testing::AtLeast(1))
-            .WillRepeatedly([](grpc::ClientContext* context,
-                               const android::emulation::control::SensorValue& request,
-                               android::emulation::control::SensorValue* response) -> grpc::Status {
-                response->set_target(request.target());
-                response->set_status(android::emulation::control::SensorValue::OK);
-                return grpc::Status::OK;
-            });
+            .WillRepeatedly(
+                    [&ctx, &get_sensor_calls](
+                            grpc::ClientContext* context,
+                            const android::emulation::control::SensorValue& request,
+                            android::emulation::control::SensorValue* response) -> grpc::Status {
+                        ++get_sensor_calls;
+                        EXPECT_NE(context, nullptr);
+                        EXPECT_EQ(ctx->new_context_count, get_sensor_calls)
+                                << "Each getSensor RPC must use a new grpc::ClientContext";
+                        response->set_target(request.target());
+                        response->set_status(android::emulation::control::SensorValue::OK);
+                        return grpc::Status::OK;
+                    });
     ctx->mock_stub = std::move(mock_stub);
 
     auto result = (*bridge_)("sensor status", *ctx);
 
     ASSERT_TRUE(result.ok()) << result.status().message();
+    EXPECT_EQ(get_sensor_calls, 18);
+    EXPECT_EQ(ctx->new_context_count, 18);
     EXPECT_TRUE(result->find("acceleration: enabled.\r\n") != std::string::npos);
     EXPECT_TRUE(result->find("gyroscope: enabled.\r\n") != std::string::npos);
     EXPECT_TRUE(result->find("light: enabled.\r\n") != std::string::npos);
