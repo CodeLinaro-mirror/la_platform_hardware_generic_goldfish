@@ -319,61 +319,6 @@ TEST_F(FakeMultiDisplayTest, DISABLED_ResizeWithScaling) {
     EXPECT_FALSE(strategy.IsGeneratedBy(validation_image2.get(), 0));
 }
 
-// This test was used as a diagnostic tool to identify a shearing artifact
-// that occurred during image scaling. The issue was traced back to rounding
-// errors in pixman's scaling algorithm when the source and destination
-// dimensions did not share a sufficiently simple ratio.
-//
-// The test iterates through various scaled widths, keeping the aspect ratio,
-// to pinpoint the exact dimensions where the shearing (pattern corruption)
-// begins. The insights from this test led to the implementation of a "snapping"
-// mechanism that forces the scaled dimensions to a ratio that pixman can
-// handle without introducing these rounding errors, thus preserving image
-// integrity.
-//
-// It is disabled because it is a diagnostic test and not a regression test.
-TEST_F(FakeMultiDisplayTest, DISABLED_ScalingFailureBoundaryTest) {
-    constexpr int kInitialWidth = 1080;
-    constexpr int kInitialHeight = 2400;
-
-    // 1. Create Image
-    ChessboardStrategy strategy;
-    auto source_image = PixmanImagePtr(pixman_image_create_bits_no_clear(
-            PIXMAN_a8r8g8b8, kInitialWidth, kInitialHeight, nullptr, 0));
-    ASSERT_NE(source_image.get(), nullptr);
-    strategy.Generate(source_image.get(), 0);
-
-    // 2. Get Display HAL
-    auto display_result = fake_multi_display_->GetDisplay(0);
-    ASSERT_TRUE(display_result.ok());
-    auto display = std::dynamic_pointer_cast<FakePixmanDisplay>(display_result->lock());
-    ASSERT_NE(display, nullptr);
-
-    // 3. Update HAL State
-    display->UpdateSourceImage(source_image.get());
-    display->UpdateSurface(0, 0, kInitialWidth, kInitialHeight);
-
-    // 4. Iterate and validate
-    for (int w = kInitialWidth; w >= 530; --w) {
-        auto [new_width, new_height] = display->ResizeKeepAspectRatio(w, kInitialHeight);
-
-        std::vector<uint8_t> buffer(static_cast<size_t>(new_width) * new_height * 4);
-        size_t buffer_size = buffer.size();
-        auto result = display->GetPixels(PixelFormat::kRgba8888, new_width, new_height,
-                                         ImageRotation::kRotation0, buffer.data(), &buffer_size);
-        ASSERT_TRUE(result.ok());
-
-        auto validation_image = PixmanImagePtr(pixman_image_create_bits_no_clear(
-                PIXMAN_a8r8g8b8, new_width, new_height, reinterpret_cast<uint32_t*>(buffer.data()),
-                new_width * 4));
-        ASSERT_NE(validation_image.get(), nullptr);
-
-        const bool success = strategy.IsGeneratedBy(validation_image.get(), 0);
-        std::cout << "Width: " << new_width << ", Height: " << new_height << " -> "
-                  << (success ? "PASS" : "FAIL") << "\n";
-    }
-}
-
 TEST_F(FakeMultiDisplayTest, ResizeKeepAspectRatioZeroDimensionsReturnZero) {
     auto display_result = fake_multi_display_->CreateDisplay(1, 1080, 2400, 320, 1);
     auto display = display_result.value().lock();

@@ -22,7 +22,6 @@
 
 #include "goldfish/display/input_handler.h"
 #include "goldfish/display/multi_display_callbacks.h"
-#include "null_display.h"
 
 // clang-format off
 // IWYU pragma: begin_keep
