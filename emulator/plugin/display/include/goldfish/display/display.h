@@ -338,8 +338,6 @@ class IDisplay : public FrameInfoCallbackSource,
         absl::Format(&sink, "%s", display ? display->String().c_str() : "<none>");
     }
 
-    static SharedDisplay GetNullDisplay();
-
   protected:
     struct LogicalFit {
         int width;
