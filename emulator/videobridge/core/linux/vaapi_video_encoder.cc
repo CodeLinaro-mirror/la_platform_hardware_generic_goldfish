@@ -46,6 +46,249 @@ namespace {
 constexpr uint32_t kDefaultTargetBitrateBps = 2000000;  // 2 Mbps
 constexpr uint32_t kDefaultMaxFramerateFps = 30;
 constexpr size_t kMaxCodedBufferSize = 4ULL * 1024ULL * 1024ULL;  // 4 MB
+constexpr uint32_t kMaxSupportedDimension = 4096;
+
+/**
+ * @class BitWriter
+ * @brief Minimal Exp-Golomb bit writer for generating H.264 Annex-B SPS and PPS RBSP payloads.
+ */
+class BitWriter {
+  public:
+    void PutBit(uint32_t bit) {
+        cur_byte_ = static_cast<uint8_t>((cur_byte_ << 1) | (bit & 1U));
+        if (++bit_pos_ == 8) {
+            FlushByte(cur_byte_);
+            cur_byte_ = 0;
+            bit_pos_ = 0;
+        }
+    }
+
+    void PutBits(uint32_t val, int num_bits) {
+        for (int i = num_bits - 1; i >= 0; --i) {
+            PutBit((val >> i) & 1U);
+        }
+    }
+
+    void PutUE(uint32_t val) {
+        uint32_t code_num = val + 1;
+        int leading_zero_bits = -1;
+        for (uint32_t tmp = code_num; tmp > 0; tmp >>= 1) {
+            ++leading_zero_bits;
+        }
+        for (int i = 0; i < leading_zero_bits; ++i) {
+            PutBit(0);
+        }
+        PutBits(code_num, leading_zero_bits + 1);
+    }
+
+    void PutSE(int32_t val) {
+        uint32_t code_num =
+                (val <= 0) ? static_cast<uint32_t>(-2 * val) : static_cast<uint32_t>(2 * val - 1);
+        PutUE(code_num);
+    }
+
+    void WriteRbspTrailingBits() {
+        PutBit(1);
+        while (bit_pos_ != 0) {
+            PutBit(0);
+        }
+    }
+
+    std::vector<uint8_t> BuildAnnexBNalu(uint8_t nal_header) const {
+        std::vector<uint8_t> out = {0x00, 0x00, 0x00, 0x01, nal_header};
+        out.insert(out.end(), bytes_.begin(), bytes_.end());
+        return out;
+    }
+
+  private:
+    void FlushByte(uint8_t b) {
+        if (zero_run_ >= 2 && b <= 0x03) {
+            bytes_.push_back(0x03);
+            zero_run_ = 0;
+        }
+        bytes_.push_back(b);
+        if (b == 0x00) {
+            ++zero_run_;
+        } else {
+            zero_run_ = 0;
+        }
+    }
+
+    std::vector<uint8_t> bytes_;
+    uint8_t cur_byte_{0};
+    int bit_pos_{0};
+    int zero_run_{0};
+};
+
+uint8_t VaapiProfileToIdc(VAProfile profile) {
+    switch (profile) {
+    case VAProfileH264Main:
+        return 77;
+    case VAProfileH264High:
+        return 100;
+    case VAProfileH264ConstrainedBaseline:
+    case VAProfileH264Baseline:
+    default:
+        return 66;
+    }
+}
+
+uint8_t VaapiProfileToConstraintFlags(VAProfile profile) {
+    switch (profile) {
+    case VAProfileH264Main:
+        return 0x40;  // constraint_set1_flag
+    case VAProfileH264High:
+        return 0x00;
+    case VAProfileH264ConstrainedBaseline:
+    case VAProfileH264Baseline:
+    default:
+        return 0xC0;  // constraint_set0_flag | constraint_set1_flag
+    }
+}
+
+std::vector<uint8_t> BuildAnnexBSpsNalu(VAProfile profile,
+                                        const VAEncSequenceParameterBufferH264& seq) {
+    BitWriter bw;
+    const uint8_t profile_idc = VaapiProfileToIdc(profile);
+    const uint8_t constraint_flags = VaapiProfileToConstraintFlags(profile);
+    bw.PutBits(profile_idc, 8);
+    bw.PutBits(constraint_flags, 8);
+    bw.PutBits(seq.level_idc, 8);
+    bw.PutUE(seq.seq_parameter_set_id);
+
+    if (profile_idc == 100 || profile_idc == 110 || profile_idc == 122 || profile_idc == 244 ||
+        profile_idc == 44 || profile_idc == 83 || profile_idc == 86 || profile_idc == 118 ||
+        profile_idc == 128) {
+        bw.PutUE(seq.seq_fields.bits.chroma_format_idc);
+        if (seq.seq_fields.bits.chroma_format_idc == 3) {
+            bw.PutBit(0);
+        }
+        bw.PutUE(seq.bit_depth_luma_minus8);
+        bw.PutUE(seq.bit_depth_chroma_minus8);
+        bw.PutBit(0);  // qpprime_y_zero_transform_bypass_flag
+        bw.PutBit(0);  // seq_scaling_matrix_present_flag
+    }
+
+    bw.PutUE(seq.seq_fields.bits.log2_max_frame_num_minus4);
+    bw.PutUE(seq.seq_fields.bits.pic_order_cnt_type);
+    if (seq.seq_fields.bits.pic_order_cnt_type == 0) {
+        bw.PutUE(seq.seq_fields.bits.log2_max_pic_order_cnt_lsb_minus4);
+    }
+    bw.PutUE(seq.max_num_ref_frames);
+    bw.PutBit(0);  // gaps_in_frame_num_value_allowed_flag
+    bw.PutUE(seq.picture_width_in_mbs - 1);
+    bw.PutUE(seq.picture_height_in_mbs - 1);
+    bw.PutBit(seq.seq_fields.bits.frame_mbs_only_flag);
+    if (!seq.seq_fields.bits.frame_mbs_only_flag) {
+        bw.PutBit(seq.seq_fields.bits.mb_adaptive_frame_field_flag);
+    }
+    bw.PutBit(seq.seq_fields.bits.direct_8x8_inference_flag);
+    bw.PutBit(seq.frame_cropping_flag);
+    if (seq.frame_cropping_flag) {
+        bw.PutUE(seq.frame_crop_left_offset);
+        bw.PutUE(seq.frame_crop_right_offset);
+        bw.PutUE(seq.frame_crop_top_offset);
+        bw.PutUE(seq.frame_crop_bottom_offset);
+    }
+    bw.PutBit(seq.vui_parameters_present_flag);
+    if (seq.vui_parameters_present_flag) {
+        bw.PutBit(0);  // aspect_ratio_info_present_flag
+        bw.PutBit(0);  // overscan_info_present_flag
+        bw.PutBit(0);  // video_signal_type_present_flag
+        bw.PutBit(0);  // chroma_loc_info_present_flag
+        bw.PutBit(seq.vui_fields.bits.timing_info_present_flag);
+        if (seq.vui_fields.bits.timing_info_present_flag) {
+            bw.PutBits(seq.num_units_in_tick, 32);
+            bw.PutBits(seq.time_scale, 32);
+            bw.PutBit(1);  // fixed_frame_rate_flag
+        }
+        bw.PutBit(0);  // nal_hrd_parameters_present_flag
+        bw.PutBit(0);  // vcl_hrd_parameters_present_flag
+        bw.PutBit(0);  // pic_struct_present_flag
+        bw.PutBit(seq.vui_fields.bits.bitstream_restriction_flag);
+        if (seq.vui_fields.bits.bitstream_restriction_flag) {
+            bw.PutBit(1);  // motion_vectors_over_pic_boundaries_flag
+            bw.PutUE(0);   // max_bytes_per_pic_denom
+            bw.PutUE(0);   // max_bits_per_mb_denom
+            bw.PutUE(11);  // log2_max_mv_length_horizontal
+            bw.PutUE(11);  // log2_max_mv_length_vertical
+            bw.PutUE(0);   // max_num_reorder_frames (0 for ultra-low latency!)
+            bw.PutUE(1);   // max_dec_frame_buffering
+        }
+    }
+    bw.WriteRbspTrailingBits();
+    return bw.BuildAnnexBNalu(0x67);  // nal_ref_idc=3, nal_unit_type=7 (SPS)
+}
+
+std::vector<uint8_t> BuildAnnexBPpsNalu(VAProfile profile,
+                                        const VAEncPictureParameterBufferH264& pic) {
+    BitWriter bw;
+    bw.PutUE(pic.pic_parameter_set_id);
+    bw.PutUE(pic.seq_parameter_set_id);
+    bw.PutBit(pic.pic_fields.bits.entropy_coding_mode_flag);
+    bw.PutBit(pic.pic_fields.bits.pic_order_present_flag);
+    bw.PutUE(0);  // num_slice_groups_minus1
+    bw.PutUE(pic.num_ref_idx_l0_active_minus1);
+    bw.PutUE(pic.num_ref_idx_l1_active_minus1);
+    bw.PutBit(pic.pic_fields.bits.weighted_pred_flag);
+    bw.PutBits(pic.pic_fields.bits.weighted_bipred_idc, 2);
+    bw.PutSE(static_cast<int32_t>(pic.pic_init_qp) - 26);
+    bw.PutSE(0);  // pic_init_qs_minus26
+    bw.PutSE(pic.chroma_qp_index_offset);
+    bw.PutBit(pic.pic_fields.bits.deblocking_filter_control_present_flag);
+    bw.PutBit(pic.pic_fields.bits.constrained_intra_pred_flag);
+    bw.PutBit(pic.pic_fields.bits.redundant_pic_cnt_present_flag);
+
+    if (VaapiProfileToIdc(profile) == 100 &&
+        (pic.pic_fields.bits.transform_8x8_mode_flag != 0 ||
+         pic.pic_fields.bits.pic_scaling_matrix_present_flag != 0 ||
+         pic.second_chroma_qp_index_offset != pic.chroma_qp_index_offset)) {
+        bw.PutBit(pic.pic_fields.bits.transform_8x8_mode_flag);
+        bw.PutBit(pic.pic_fields.bits.pic_scaling_matrix_present_flag);
+        bw.PutSE(pic.second_chroma_qp_index_offset);
+    }
+
+    bw.WriteRbspTrailingBits();
+    return bw.BuildAnnexBNalu(0x68);  // nal_ref_idc=3, nal_unit_type=8 (PPS)
+}
+
+bool HasMatchingSpsNalu(const std::vector<uint8_t>& bitstream, uint8_t expected_profile_idc) {
+    for (size_t i = 0; i + 5 < bitstream.size(); ++i) {
+        if (bitstream[i] == 0x00 && bitstream[i + 1] == 0x00) {
+            size_t hdr_idx = 0;
+            if (bitstream[i + 2] == 0x01) {
+                hdr_idx = i + 3;
+            } else if (bitstream[i + 2] == 0x00 && bitstream[i + 3] == 0x01) {
+                hdr_idx = i + 4;
+            }
+            if (hdr_idx > 0 && hdr_idx + 1 < bitstream.size() && (bitstream[hdr_idx] & 0x1F) == 7) {
+                return bitstream[hdr_idx + 1] == expected_profile_idc;
+            }
+        }
+    }
+    return false;
+}
+
+std::vector<uint8_t> StripLeadingSpsPps(const std::vector<uint8_t>& bitstream) {
+    for (size_t i = 0; i + 4 < bitstream.size(); ++i) {
+        if (bitstream[i] == 0x00 && bitstream[i + 1] == 0x00) {
+            size_t hdr_idx = 0;
+            if (bitstream[i + 2] == 0x01) {
+                hdr_idx = i + 3;
+            } else if (bitstream[i + 2] == 0x00 && bitstream[i + 3] == 0x01) {
+                hdr_idx = i + 4;
+            }
+            if (hdr_idx > 0 && hdr_idx < bitstream.size()) {
+                uint8_t nal_type = bitstream[hdr_idx] & 0x1F;
+                if (nal_type != 7 && nal_type != 8) {
+                    return std::vector<uint8_t>(bitstream.begin() + static_cast<ptrdiff_t>(i),
+                                                bitstream.end());
+                }
+            }
+        }
+    }
+    return bitstream;
+}
 
 /**
  * @class ScopedVaapiDerivedImage
@@ -142,6 +385,8 @@ int32_t VaapiVideoEncoder::InitEncode(const webrtc::VideoCodec* codec_settings,
     target_bitrate_bps_ = codec_settings->startBitrate > 0 ? codec_settings->startBitrate * 1000
                                                            : kDefaultTargetBitrateBps;
     frame_num_ = 0;
+    idr_pic_id_ = 0;
+    recon_slot_ = 0;
 
     absl::Status status = InitializeSessionLocked();
     if (!status.ok()) {
@@ -155,22 +400,57 @@ int32_t VaapiVideoEncoder::InitEncode(const webrtc::VideoCodec* codec_settings,
 }
 
 absl::Status VaapiVideoEncoder::InitializeSessionLocked() {
+    if (width_ == 0 || height_ == 0 || width_ > kMaxSupportedDimension ||
+        height_ > kMaxSupportedDimension) {
+        return absl::InvalidArgumentError(
+                absl::StrCat("Unsupported encode dimensions: ", width_, "x", height_));
+    }
+
     VADisplay dpy = loader_->display();
     if (!dpy) {
         return absl::InternalError("Invalid VADisplay connection in VaapiVideoEncoder.");
     }
 
-    VAConfigAttrib attribs[2]{};
-    attribs[0].type = VAConfigAttribRTFormat;
-    attribs[0].value = VA_RT_FORMAT_YUV420;
-    attribs[1].type = VAConfigAttribRateControl;
-    attribs[1].value = VA_RC_CBR;
-
     VAEntrypoint entrypoints[] = {VAEntrypointEncSlice, VAEntrypointEncSliceLP};
     VAStatus va_status = VA_STATUS_ERROR_UNKNOWN;
+    packed_headers_attrib_ = 0;
+
     for (auto entrypoint : entrypoints) {
+        VAConfigAttrib query_attribs[3]{};
+        query_attribs[0].type = VAConfigAttribRTFormat;
+        query_attribs[1].type = VAConfigAttribRateControl;
+        query_attribs[2].type = VAConfigAttribEncPackedHeaders;
+        if (loader_->api().vaGetConfigAttributes) {
+            loader_->api().vaGetConfigAttributes(dpy, profile_, entrypoint, query_attribs, 3);
+        }
+
+        uint32_t rc_mode = VA_RC_CBR;
+        if (query_attribs[1].value != 0 && query_attribs[1].value != VA_INVALID_ID) {
+            if (query_attribs[1].value & VA_RC_CBR) {
+                rc_mode = VA_RC_CBR;
+            } else if (query_attribs[1].value & VA_RC_VBR) {
+                rc_mode = VA_RC_VBR;
+            } else if (query_attribs[1].value & VA_RC_CQP) {
+                rc_mode = VA_RC_CQP;
+            }
+        }
+
+        std::vector<VAConfigAttrib> create_attribs;
+        create_attribs.push_back({VAConfigAttribRTFormat, VA_RT_FORMAT_YUV420});
+        create_attribs.push_back({VAConfigAttribRateControl, rc_mode});
+
+        if (query_attribs[2].value != 0 && query_attribs[2].value != VA_INVALID_ID) {
+            uint32_t packed = query_attribs[2].value &
+                              (VA_ENC_PACKED_HEADER_SEQUENCE | VA_ENC_PACKED_HEADER_PICTURE);
+            if (packed != 0) {
+                create_attribs.push_back({VAConfigAttribEncPackedHeaders, packed});
+                packed_headers_attrib_ = packed;
+            }
+        }
+
         va_status =
-                loader_->api().vaCreateConfig(dpy, profile_, entrypoint, attribs, 2, &config_id_);
+                loader_->api().vaCreateConfig(dpy, profile_, entrypoint, create_attribs.data(),
+                                              static_cast<int>(create_attribs.size()), &config_id_);
         if (va_status == VA_STATUS_SUCCESS) break;
     }
     if (va_status != VA_STATUS_SUCCESS) {
@@ -181,17 +461,21 @@ absl::Status VaapiVideoEncoder::InitializeSessionLocked() {
     VASurfaceAttrib surf_attrib{};
     surf_attrib.type = VASurfaceAttribPixelFormat;
     surf_attrib.flags = VA_SURFACE_ATTRIB_SETTABLE;
-    surf_attrib.value.type = 1;
-    surf_attrib.value.value.value = VA_FOURCC_NV12;
+    surf_attrib.value.type = VAGenericValueTypeInteger;
+    surf_attrib.value.value.i = static_cast<int32_t>(VA_FOURCC_NV12);
 
+    VASurfaceID all_surfaces[3] = {VA_INVALID_SURFACE, VA_INVALID_SURFACE, VA_INVALID_SURFACE};
     va_status = loader_->api().vaCreateSurfaces(dpy, VA_RT_FORMAT_YUV420, width_, height_,
-                                                &surface_id_, 1, &surf_attrib, 1);
+                                                all_surfaces, 3, &surf_attrib, 1);
     if (va_status != VA_STATUS_SUCCESS) {
         return absl::InternalError(
                 absl::StrCat("vaCreateSurfaces failed: ", VaapiStatusToString(va_status)));
     }
+    surface_id_ = all_surfaces[0];
+    recon_surface_ids_[0] = all_surfaces[1];
+    recon_surface_ids_[1] = all_surfaces[2];
 
-    va_status = loader_->api().vaCreateContext(dpy, config_id_, width_, height_, 0, &surface_id_, 1,
+    va_status = loader_->api().vaCreateContext(dpy, config_id_, width_, height_, 0, all_surfaces, 3,
                                                &context_id_);
     if (va_status != VA_STATUS_SUCCESS) {
         return absl::InternalError(
@@ -219,9 +503,20 @@ void VaapiVideoEncoder::DestroySessionLocked() {
             loader_->api().vaDestroyContext(dpy, context_id_);
             context_id_ = VA_INVALID_ID;
         }
+        VASurfaceID surfaces_to_destroy[3];
+        int num_surfaces = 0;
         if (surface_id_ != VA_INVALID_SURFACE) {
-            loader_->api().vaDestroySurfaces(dpy, &surface_id_, 1);
+            surfaces_to_destroy[num_surfaces++] = surface_id_;
             surface_id_ = VA_INVALID_SURFACE;
+        }
+        for (int i = 0; i < 2; ++i) {
+            if (recon_surface_ids_[i] != VA_INVALID_SURFACE) {
+                surfaces_to_destroy[num_surfaces++] = recon_surface_ids_[i];
+                recon_surface_ids_[i] = VA_INVALID_SURFACE;
+            }
+        }
+        if (num_surfaces > 0) {
+            loader_->api().vaDestroySurfaces(dpy, surfaces_to_destroy, num_surfaces);
         }
         if (config_id_ != VA_INVALID_ID) {
             loader_->api().vaDestroyConfig(dpy, config_id_);
@@ -266,7 +561,7 @@ int32_t VaapiVideoEncoder::Encode(const webrtc::VideoFrame& frame,
 
         VADisplay dpy = loader_->display();
 
-        // 1. Ingest frame into derived VA-API surface via RAII helper
+        // 1. Ingest frame into derived VA-API input surface via RAII helper
         {
             ScopedVaapiDerivedImage derived_image(dpy, loader_->api(), surface_id_);
             if (!derived_image.Ok()) {
@@ -285,27 +580,60 @@ int32_t VaapiVideoEncoder::Encode(const webrtc::VideoFrame& frame,
             }
         }
 
-        bool force_idr = (frame_types && !frame_types->empty() &&
-                          (*frame_types)[0] == webrtc::VideoFrameType::kVideoFrameKey);
+        const bool force_idr =
+                (frame_num_ == 0) || (frame_types && !frame_types->empty() &&
+                                      (*frame_types)[0] == webrtc::VideoFrameType::kVideoFrameKey);
+        if (force_idr) {
+            frame_num_ = 0;
+        }
 
-        uint32_t width_in_mbs = (width_ + 15) / 16;
-        uint32_t height_in_mbs = (height_ + 15) / 16;
-        uint32_t num_macroblocks = width_in_mbs * height_in_mbs;
+        const uint16_t width_in_mbs = static_cast<uint16_t>((width_ + 15) / 16);
+        const uint16_t height_in_mbs = static_cast<uint16_t>((height_ + 15) / 16);
+        const uint32_t num_macroblocks =
+                static_cast<uint32_t>(width_in_mbs) * static_cast<uint32_t>(height_in_mbs);
 
-        // 1. Sequence Parameter Buffer
+        const uint32_t curr_frame_num = frame_num_ & 0xFFU;
+        const int32_t curr_poc = static_cast<int32_t>((curr_frame_num * 2) & 0xFFU);
+        const uint32_t curr_recon_idx = recon_slot_ & 1U;
+        const uint32_t prev_recon_idx = (recon_slot_ + 1U) & 1U;
+        const uint32_t prev_frame_num = (curr_frame_num > 0) ? (curr_frame_num - 1) : 0;
+        const int32_t prev_poc = static_cast<int32_t>((prev_frame_num * 2) & 0xFFU);
+
+        // 2. Sequence Parameter Buffer
         VAEncSequenceParameterBufferH264 seq_param{};
         seq_param.seq_parameter_set_id = 0;
-        seq_param.level_idc = 52;    // Level 5.2
-        seq_param.intra_period = 0;  // Infinite GOP for WebRTC
-        seq_param.intra_idr_period = 0;
+        seq_param.level_idc = 41;  // Level 4.1 (widely supported across Haswell i965 & Gen8+ iHD)
+        seq_param.intra_period = 300;
+        seq_param.intra_idr_period = 300;
         seq_param.ip_period = 1;
         seq_param.bits_per_second = target_bitrate_bps_;
         seq_param.max_num_ref_frames = 1;
         seq_param.picture_width_in_mbs = width_in_mbs;
         seq_param.picture_height_in_mbs = height_in_mbs;
-        seq_param.seq_fields.chroma_format_idc = 1;
-        seq_param.seq_fields.frame_mbs_only_flag = 1;
-        seq_param.seq_fields.direct_8x8_inference_flag = 1;
+        seq_param.seq_fields.bits.chroma_format_idc = 1;
+        seq_param.seq_fields.bits.frame_mbs_only_flag = 1;
+        seq_param.seq_fields.bits.direct_8x8_inference_flag = 1;
+        seq_param.seq_fields.bits.log2_max_frame_num_minus4 = 4;
+        seq_param.seq_fields.bits.pic_order_cnt_type = 0;
+        seq_param.seq_fields.bits.log2_max_pic_order_cnt_lsb_minus4 = 4;
+
+        const uint32_t padded_width = static_cast<uint32_t>(width_in_mbs) * 16;
+        const uint32_t padded_height = static_cast<uint32_t>(height_in_mbs) * 16;
+        if (padded_width != width_ || padded_height != height_) {
+            seq_param.frame_cropping_flag = 1;
+            seq_param.frame_crop_left_offset = 0;
+            seq_param.frame_crop_right_offset = (padded_width - width_) / 2;
+            seq_param.frame_crop_top_offset = 0;
+            seq_param.frame_crop_bottom_offset = (padded_height - height_) / 2;
+        }
+
+        seq_param.vui_parameters_present_flag = 1;
+        seq_param.vui_fields.bits.timing_info_present_flag = 1;
+        seq_param.vui_fields.bits.fixed_frame_rate_flag = 1;
+        seq_param.vui_fields.bits.bitstream_restriction_flag = 1;
+        seq_param.vui_fields.bits.motion_vectors_over_pic_boundaries_flag = 1;
+        seq_param.num_units_in_tick = 1;
+        seq_param.time_scale = max_framerate_fps_ * 2;
 
         std::vector<VABufferID> render_buffers;
         auto buffer_cleanup = absl::MakeCleanup([this, dpy, &render_buffers]() {
@@ -327,32 +655,39 @@ int32_t VaapiVideoEncoder::Encode(const webrtc::VideoFrame& frame,
         }
         render_buffers.push_back(seq_buf_id);
 
-        // 2. Picture Parameter Buffer
+        // 3. Picture Parameter Buffer
+        const bool use_cabac = (profile_ == VAProfileH264Main || profile_ == VAProfileH264High);
         VAEncPictureParameterBufferH264 pic_param{};
-        pic_param.CurrPic.picture_id = surface_id_;
-        pic_param.CurrPic.frame_num = frame_num_;
-        pic_param.CurrPic.flags = 0;
+        pic_param.CurrPic.picture_id = recon_surface_ids_[curr_recon_idx];
+        pic_param.CurrPic.frame_num = curr_frame_num;
+        pic_param.CurrPic.flags = VA_PICTURE_H264_SHORT_TERM_REFERENCE;
+        pic_param.CurrPic.TopFieldOrderCnt = curr_poc;
+        pic_param.CurrPic.BottomFieldOrderCnt = curr_poc;
         for (auto& ref : pic_param.ReferenceFrames) {
             ref.picture_id = VA_INVALID_SURFACE;
             ref.flags = VA_PICTURE_H264_INVALID;
         }
         if (!force_idr) {
-            pic_param.ReferenceFrames[0].picture_id = surface_id_;
-            pic_param.ReferenceFrames[0].frame_num = frame_num_ > 0 ? frame_num_ - 1 : 0;
-            pic_param.ReferenceFrames[0].flags = 0;
+            pic_param.ReferenceFrames[0].picture_id = recon_surface_ids_[prev_recon_idx];
+            pic_param.ReferenceFrames[0].frame_num = prev_frame_num;
+            pic_param.ReferenceFrames[0].flags = VA_PICTURE_H264_SHORT_TERM_REFERENCE;
+            pic_param.ReferenceFrames[0].TopFieldOrderCnt = prev_poc;
+            pic_param.ReferenceFrames[0].BottomFieldOrderCnt = prev_poc;
         }
         pic_param.coded_buf = coded_buf_id_;
         pic_param.pic_parameter_set_id = 0;
         pic_param.seq_parameter_set_id = 0;
         pic_param.last_picture = 0;
-        pic_param.frame_num = static_cast<uint16_t>(frame_num_++);
+        pic_param.frame_num = static_cast<uint16_t>(curr_frame_num);
         pic_param.pic_init_qp = 26;
         pic_param.num_ref_idx_l0_active_minus1 = 0;
         pic_param.num_ref_idx_l1_active_minus1 = 0;
-        pic_param.pic_fields.idr_pic_flag = force_idr ? 1 : 0;
-        pic_param.pic_fields.reference_pic_flag = 1;
-        pic_param.pic_fields.entropy_coding_mode_flag = 1;
-        pic_param.pic_fields.deblocking_filter_control_present_flag = 1;
+        pic_param.chroma_qp_index_offset = 0;
+        pic_param.second_chroma_qp_index_offset = 0;
+        pic_param.pic_fields.bits.idr_pic_flag = force_idr ? 1 : 0;
+        pic_param.pic_fields.bits.reference_pic_flag = 1;
+        pic_param.pic_fields.bits.entropy_coding_mode_flag = use_cabac ? 1 : 0;
+        pic_param.pic_fields.bits.deblocking_filter_control_present_flag = 1;
 
         VABufferID pic_buf_id = VA_INVALID_ID;
         status = loader_->api().vaCreateBuffer(dpy, context_id_, VAEncPictureParameterBufferType,
@@ -364,14 +699,59 @@ int32_t VaapiVideoEncoder::Encode(const webrtc::VideoFrame& frame,
         }
         render_buffers.push_back(pic_buf_id);
 
-        // 3. Slice Parameter Buffer
+        // Build matching Annex-B SPS and PPS NAL units
+        const std::vector<uint8_t> sps_nalu = BuildAnnexBSpsNalu(profile_, seq_param);
+        const std::vector<uint8_t> pps_nalu = BuildAnnexBPpsNalu(profile_, pic_param);
+
+        if (force_idr && (packed_headers_attrib_ & VA_ENC_PACKED_HEADER_SEQUENCE)) {
+            VAEncPackedHeaderParameterBuffer packed_seq{};
+            packed_seq.type = VAEncPackedHeaderSequence;
+            packed_seq.bit_length = static_cast<uint32_t>(sps_nalu.size() * 8);
+            packed_seq.has_emulation_bytes = 1;
+
+            VABufferID packed_seq_param_id = VA_INVALID_ID;
+            VABufferID packed_seq_data_id = VA_INVALID_ID;
+            if (loader_->api().vaCreateBuffer(
+                        dpy, context_id_, VAEncPackedHeaderParameterBufferType, sizeof(packed_seq),
+                        1, &packed_seq, &packed_seq_param_id) == VA_STATUS_SUCCESS &&
+                loader_->api().vaCreateBuffer(dpy, context_id_, VAEncPackedHeaderDataBufferType,
+                                              static_cast<unsigned int>(sps_nalu.size()), 1,
+                                              const_cast<uint8_t*>(sps_nalu.data()),
+                                              &packed_seq_data_id) == VA_STATUS_SUCCESS) {
+                render_buffers.push_back(packed_seq_param_id);
+                render_buffers.push_back(packed_seq_data_id);
+            }
+        }
+
+        if (force_idr && (packed_headers_attrib_ & VA_ENC_PACKED_HEADER_PICTURE)) {
+            VAEncPackedHeaderParameterBuffer packed_pic{};
+            packed_pic.type = VAEncPackedHeaderPicture;
+            packed_pic.bit_length = static_cast<uint32_t>(pps_nalu.size() * 8);
+            packed_pic.has_emulation_bytes = 1;
+
+            VABufferID packed_pic_param_id = VA_INVALID_ID;
+            VABufferID packed_pic_data_id = VA_INVALID_ID;
+            if (loader_->api().vaCreateBuffer(
+                        dpy, context_id_, VAEncPackedHeaderParameterBufferType, sizeof(packed_pic),
+                        1, &packed_pic, &packed_pic_param_id) == VA_STATUS_SUCCESS &&
+                loader_->api().vaCreateBuffer(dpy, context_id_, VAEncPackedHeaderDataBufferType,
+                                              static_cast<unsigned int>(pps_nalu.size()), 1,
+                                              const_cast<uint8_t*>(pps_nalu.data()),
+                                              &packed_pic_data_id) == VA_STATUS_SUCCESS) {
+                render_buffers.push_back(packed_pic_param_id);
+                render_buffers.push_back(packed_pic_data_id);
+            }
+        }
+
+        // 4. Slice Parameter Buffer
         VAEncSliceParameterBufferH264 slice_param{};
         slice_param.macroblock_address = 0;
         slice_param.num_macroblocks = num_macroblocks;
         slice_param.macroblock_info = VA_INVALID_ID;
         slice_param.slice_type = force_idr ? VA_SLICE_I : VA_SLICE_P;
         slice_param.pic_parameter_set_id = 0;
-        slice_param.idr_pic_id = force_idr ? 0 : 0;
+        slice_param.idr_pic_id = static_cast<uint16_t>(idr_pic_id_ & 0xFFFFU);
+        slice_param.pic_order_cnt_lsb = static_cast<uint16_t>(curr_poc);
         for (auto& ref : slice_param.RefPicList0) {
             ref.picture_id = VA_INVALID_SURFACE;
             ref.flags = VA_PICTURE_H264_INVALID;
@@ -381,8 +761,7 @@ int32_t VaapiVideoEncoder::Encode(const webrtc::VideoFrame& frame,
             ref.flags = VA_PICTURE_H264_INVALID;
         }
         if (!force_idr) {
-            slice_param.RefPicList0[0].picture_id = surface_id_;
-            slice_param.RefPicList0[0].flags = 0;
+            slice_param.RefPicList0[0] = pic_param.ReferenceFrames[0];
         }
 
         VABufferID slice_buf_id = VA_INVALID_ID;
@@ -395,7 +774,7 @@ int32_t VaapiVideoEncoder::Encode(const webrtc::VideoFrame& frame,
         }
         render_buffers.push_back(slice_buf_id);
 
-        // 4. Rate Control Misc Buffer
+        // 5. Rate Control, FrameRate, and HRD Misc Buffers
         struct {
             VAEncMiscParameterBuffer misc;
             VAEncMiscParameterRateControl rc;
@@ -404,6 +783,9 @@ int32_t VaapiVideoEncoder::Encode(const webrtc::VideoFrame& frame,
         rc_buf.rc.bits_per_second = target_bitrate_bps_;
         rc_buf.rc.target_percentage = 95;
         rc_buf.rc.window_size = 1000;
+        rc_buf.rc.initial_qp = 26;
+        rc_buf.rc.min_qp = 10;
+        rc_buf.rc.max_qp = 51;
 
         VABufferID rc_buf_id = VA_INVALID_ID;
         status = loader_->api().vaCreateBuffer(dpy, context_id_, VAEncMiscParameterBufferType,
@@ -415,6 +797,37 @@ int32_t VaapiVideoEncoder::Encode(const webrtc::VideoFrame& frame,
         }
         render_buffers.push_back(rc_buf_id);
 
+        struct {
+            VAEncMiscParameterBuffer misc;
+            VAEncMiscParameterFrameRate fr;
+        } fr_buf{};
+        fr_buf.misc.type = VAEncMiscParameterTypeFrameRate;
+        fr_buf.fr.framerate = max_framerate_fps_;
+
+        VABufferID fr_buf_id = VA_INVALID_ID;
+        if (loader_->api().vaCreateBuffer(dpy, context_id_, VAEncMiscParameterBufferType,
+                                          sizeof(fr_buf), 1, &fr_buf,
+                                          &fr_buf_id) == VA_STATUS_SUCCESS &&
+            fr_buf_id != VA_INVALID_ID) {
+            render_buffers.push_back(fr_buf_id);
+        }
+
+        struct {
+            VAEncMiscParameterBuffer misc;
+            VAEncMiscParameterHRD hrd;
+        } hrd_buf{};
+        hrd_buf.misc.type = VAEncMiscParameterTypeHRD;
+        hrd_buf.hrd.buffer_size = target_bitrate_bps_;
+        hrd_buf.hrd.initial_buffer_fullness = target_bitrate_bps_ / 2;
+
+        VABufferID hrd_buf_id = VA_INVALID_ID;
+        if (loader_->api().vaCreateBuffer(dpy, context_id_, VAEncMiscParameterBufferType,
+                                          sizeof(hrd_buf), 1, &hrd_buf,
+                                          &hrd_buf_id) == VA_STATUS_SUCCESS &&
+            hrd_buf_id != VA_INVALID_ID) {
+            render_buffers.push_back(hrd_buf_id);
+        }
+
         status = loader_->api().vaBeginPicture(dpy, context_id_, surface_id_);
         if (status != VA_STATUS_SUCCESS) {
             RTC_LOG(LS_ERROR) << "vaBeginPicture failed: " << VaapiStatusToString(status);
@@ -422,7 +835,7 @@ int32_t VaapiVideoEncoder::Encode(const webrtc::VideoFrame& frame,
         }
 
         status = loader_->api().vaRenderPicture(dpy, context_id_, render_buffers.data(),
-                                                render_buffers.size());
+                                                static_cast<int>(render_buffers.size()));
         if (status != VA_STATUS_SUCCESS) {
             RTC_LOG(LS_ERROR) << "vaRenderPicture failed: " << VaapiStatusToString(status);
             return WEBRTC_VIDEO_CODEC_ERROR;
@@ -451,22 +864,46 @@ int32_t VaapiVideoEncoder::Encode(const webrtc::VideoFrame& frame,
         auto coded_unlocker = absl::MakeCleanup(
                 [this, dpy, coded_buf]() { loader_->api().vaUnmapBuffer(dpy, coded_buf); });
 
+        std::vector<uint8_t> bitstream;
         const auto* segment = static_cast<const VACodedBufferSegment*>(coded_data);
-        if (segment && segment->buf && segment->size > 0) {
-            encoded_image.SetEncodedData(webrtc::EncodedImageBuffer::Create(
-                    static_cast<const uint8_t*>(segment->buf), segment->size));
-        } else {
-            size_t bitstream_size = force_idr ? 31 : 11;
-            encoded_image.SetEncodedData(webrtc::EncodedImageBuffer::Create(
-                    static_cast<const uint8_t*>(coded_data), bitstream_size));
+        while (segment != nullptr) {
+            if (segment->buf && segment->size > 0) {
+                const auto* bytes = static_cast<const uint8_t*>(segment->buf);
+                bitstream.insert(bitstream.end(), bytes, bytes + segment->size);
+            }
+            segment = static_cast<const VACodedBufferSegment*>(segment->next);
         }
 
+        if (bitstream.empty()) {
+            size_t fallback_size = force_idr ? 31 : 11;
+            const auto* bytes = static_cast<const uint8_t*>(coded_data);
+            bitstream.assign(bytes, bytes + fallback_size);
+        }
+
+        if (force_idr && !HasMatchingSpsNalu(bitstream, VaapiProfileToIdc(profile_))) {
+            std::vector<uint8_t> slice_only = StripLeadingSpsPps(bitstream);
+            std::vector<uint8_t> full_idr;
+            full_idr.reserve(sps_nalu.size() + pps_nalu.size() + slice_only.size());
+            full_idr.insert(full_idr.end(), sps_nalu.begin(), sps_nalu.end());
+            full_idr.insert(full_idr.end(), pps_nalu.begin(), pps_nalu.end());
+            full_idr.insert(full_idr.end(), slice_only.begin(), slice_only.end());
+            bitstream = std::move(full_idr);
+        }
+
+        encoded_image.SetEncodedData(
+                webrtc::EncodedImageBuffer::Create(bitstream.data(), bitstream.size()));
         encoded_image._encodedWidth = width_;
         encoded_image._encodedHeight = height_;
         encoded_image.SetRtpTimestamp(frame.rtp_timestamp());
         encoded_image.capture_time_ms_ = frame.render_time_ms();
         encoded_image._frameType = force_idr ? webrtc::VideoFrameType::kVideoFrameKey
                                              : webrtc::VideoFrameType::kVideoFrameDelta;
+
+        ++frame_num_;
+        ++recon_slot_;
+        if (force_idr) {
+            ++idr_pic_id_;
+        }
     }
 
     callback->OnEncodedImage(encoded_image, &codec_specific_info_);
