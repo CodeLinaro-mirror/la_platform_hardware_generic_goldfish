@@ -104,6 +104,7 @@ absl::Status NvencVideoEncoder::InitializeSessionLocked() {
     auto session_params = MakeNvencStruct<NV_ENC_OPEN_ENCODE_SESSION_EX_PARAMS>();
     session_params.apiVersion = NVENCAPI_VERSION;
     session_params.deviceType = NV_ENC_DEVICE_TYPE_CUDA;
+    session_params.device = loader_->cuda_context();
 
     NVENCSTATUS status =
             loader_->api().nvEncOpenEncodeSessionEx(&session_params, &encoder_session_);
@@ -135,9 +136,10 @@ absl::Status NvencVideoEncoder::InitializeSessionLocked() {
 
     // Infinite GOP: WebRTC does not use periodic keyframes (which spike network bandwidth).
     // Instead, keyframes (IDR) are generated on-demand when a PLI (Picture Loss Indication)
-    // arrives.
+    // arrives. Repeat SPS/PPS on every IDR so late joiners and recovering decoders can parse it.
     encode_config_.gopLength = NVENC_INFINITE_GOPLENGTH;
     encode_config_.encodeCodecConfig.h264Config.idrPeriod = NVENC_INFINITE_GOPLENGTH;
+    encode_config_.encodeCodecConfig.h264Config.repeatSPSPPS = 1;
 
     // Zero B-Frames: IPPP structure eliminates frame reordering and display latency.
     encode_config_.frameIntervalP = 1;
@@ -284,7 +286,8 @@ int32_t NvencVideoEncoder::Encode(const webrtc::VideoFrame& frame,
         encode_pic_params.bufferFmt = NV_ENC_BUFFER_FORMAT_NV12;
         encode_pic_params.pictureStruct = NV_ENC_PIC_STRUCT_FRAME;
         if (force_idr) {
-            encode_pic_params.encodePicFlags |= NV_ENC_PIC_FLAG_FORCEIDR;
+            encode_pic_params.encodePicFlags |=
+                    NV_ENC_PIC_FLAG_FORCEIDR | NV_ENC_PIC_FLAG_OUTPUT_SPSPPS;
         }
 
         status = loader_->api().nvEncEncodePicture(encoder_session_, &encode_pic_params);
