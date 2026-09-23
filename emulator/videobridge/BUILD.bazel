@@ -227,6 +227,33 @@ cc_test(
     ],
 )
 
+cc_test(
+    name = "nvenc_hardware_test",
+    size = "small",
+    srcs = ["core/linux/test/nvenc_hardware_test.cc"],
+    copts = WEBRTC_COPTS,
+    includes = ["."],
+    target_compatible_with = select({
+        "@platforms//os:linux": [],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
+    deps = [
+        ":nvenc_loader",
+        ":nvenc_video_encoder",
+        ":videobridge_codecs",
+        "//emulator/libs/test:googletest_main",
+        "@ffmpeg",
+        "@ffmpeg//:ffmpeg_headers",
+        "@goldfish_prebuilts_common//libnvidia:nvenc_headers",
+        "@webrtc//api:scoped_refptr",
+        "@webrtc//api/environment:environment_factory",
+        "@webrtc//api/video:video_frame",
+        "@webrtc//api/video_codecs:video_codecs_api",
+        "@webrtc//common_video",
+        "@webrtc//modules/video_coding:video_codec_interface",
+    ],
+)
+
 cc_library(
     name = "vaapi_loader",
     srcs = ["core/linux/vaapi_loader.cc"],
@@ -334,6 +361,32 @@ cc_test(
         "@abseil-cpp//absl/synchronization",
         "@webrtc//api/video:video_frame",
         "@webrtc//api/video_codecs:video_codecs_api",
+    ],
+)
+
+cc_test(
+    name = "vaapi_hardware_test",
+    size = "small",
+    srcs = ["core/linux/test/vaapi_hardware_test.cc"],
+    copts = WEBRTC_COPTS,
+    includes = ["."],
+    target_compatible_with = select({
+        "@platforms//os:linux": [],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
+    deps = [
+        ":vaapi_loader",
+        ":vaapi_video_encoder",
+        ":videobridge_codecs",
+        "//emulator/libs/test:googletest_main",
+        "@ffmpeg",
+        "@ffmpeg//:ffmpeg_headers",
+        "@webrtc//api:scoped_refptr",
+        "@webrtc//api/environment:environment_factory",
+        "@webrtc//api/video:video_frame",
+        "@webrtc//api/video_codecs:video_codecs_api",
+        "@webrtc//common_video",
+        "@webrtc//modules/video_coding:video_codec_interface",
     ],
 )
 
@@ -859,10 +912,12 @@ clang_tidy_test(
         ":nvenc_loader_test",
         ":nvenc_video_encoder",
         ":nvenc_video_encoder_test",
+        ":nvenc_hardware_test",
         ":vaapi_loader",
         ":vaapi_loader_test",
         ":vaapi_video_encoder",
         ":vaapi_video_encoder_test",
+        ":vaapi_hardware_test",
         ":videobridge_codecs",
         ":codec_factories_linux_test",
     ],
