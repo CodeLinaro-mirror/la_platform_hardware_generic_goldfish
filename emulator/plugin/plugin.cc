@@ -45,6 +45,8 @@
 #include "goldfish/netsim/netsim_chardev.h"
 #include "goldfish/netsim/netsim_connection.h"
 #include "goldfish/netsim/netsim_netdev.h"
+#include "goldfish/perfetto/perfetto.h"
+#include "goldfish/perfetto/perfetto_categories.h"
 #include "goldfish/tools/aemu_version.h"
 #include "goldfish/vsock/vsock_low_level.h"
 #include "goldfish/vsock/vsock_port_fwd.h"
@@ -55,6 +57,9 @@
 // clang-format off
 // IWYU pragma: begin_keep
 extern "C" {
+#if defined(CONFIG_TRACE_GOLDFISH)
+    #include "google/drivers/trace/goldfish.h"
+#endif
     #include "qemu/error-report.h"
 }
 // IWYU pragma: end_keep
@@ -212,11 +217,38 @@ extern "C" void GF_REGISTER_TYPES_FUNC(void) {
     VLOG(1) << "Exit GF_REGISTER_TYPES";
 }
 
+static std::unique_ptr<goldfish::perfetto::EmulatorTracingSession> sTracingSession;
+
+#if defined(CONFIG_TRACE_GOLDFISH)
+static void OnQemuGoldfishTrace(const GoldfishTraceData* data) {
+    if (!data) return;
+    if (data->type == GOLDFISH_TRACE_EVENT_START) {
+        TRACE_EVENT_BEGIN("qemu", perfetto::StaticString{data->name});
+    } else if (data->type == GOLDFISH_TRACE_EVENT_END) {
+        TRACE_EVENT_END("qemu");
+    }
+}
+#endif
+
 extern "C" void GF_STARTUP_FUNC(int argc, char** argv) {
     absl::InitializeSymbolizer(argv[0]);
 
     setup_logging();
     android::base::System::DisableAppNap();
+
+    goldfish::perfetto::Initialize();
+
+#if defined(CONFIG_TRACE_GOLDFISH)
+    qemu_goldfish_set_trace_callback(OnQemuGoldfishTrace);
+#endif
+
+    const std::string trace_path =
+            System::Get()->GetEnvironmentVariable("ANDROID_EMU_PERFETTO_TRACE");
+    if (!trace_path.empty()) {
+        LOG(INFO) << "Starting Perfetto tracing session to: " << trace_path;
+        sTracingSession = std::make_unique<goldfish::perfetto::EmulatorTracingSession>(
+                trace_path, "qemu,rendering,grpc,display,async");
+    }
 
     VLOG(1) << "Goldfish plugin version: " << goldfish::version::GetEmulatorFullVersion();
     // The plugin crash system should never try to upload - that should only be
@@ -248,6 +280,12 @@ extern "C" void GF_STARTUP_FUNC(int argc, char** argv) {
 }
 
 extern "C" void GF_SHUTDOWN_FUNC(void) {
+    if (sTracingSession) {
+        LOG(INFO) << "Stopping Perfetto tracing session";
+        sTracingSession->Stop();
+        sTracingSession.reset();
+    }
+
     auto* client_loop = goldfish::async::globalEventLoop();
     android::crashreport::CrashReporter::GetCrashingHangDetector().RemoveWatchedLooper(
             *client_loop);
