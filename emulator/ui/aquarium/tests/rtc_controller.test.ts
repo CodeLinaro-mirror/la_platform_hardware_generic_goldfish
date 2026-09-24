@@ -209,6 +209,26 @@ describe('RtcController (TDD)', () => {
     expect(inputChannel.isReady).toBe(true);
   });
 
+  it('attaches incoming input_v2 DataChannel to inputChannel', async () => {
+    await rtcController.connect();
+    expect(inputChannel.isReady).toBe(false);
+
+    const mockDataChannel = {
+      label: 'input_v2',
+      readyState: 'open',
+      binaryType: 'arraybuffer',
+      send: vi.fn(),
+    };
+
+    if (mockPeerConnection.ondatachannel) {
+      mockPeerConnection.ondatachannel({
+        channel: mockDataChannel,
+      });
+    }
+
+    expect(inputChannel.isReady).toBe(true);
+  });
+
   it('disconnect() closes PeerConnection and transitions state to disconnected', async () => {
     await rtcController.connect();
     rtcController.disconnect();

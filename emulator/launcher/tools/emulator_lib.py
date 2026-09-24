@@ -23,6 +23,7 @@ import random
 import re
 import shutil
 import signal
+import socket
 import sys
 import tempfile
 from pathlib import Path
@@ -31,6 +32,41 @@ from python.runfiles import Runfiles
 from process_monitor import ProcessTreeMonitor
 
 logging.basicConfig(stream=sys.stderr, encoding="utf-8", level=logging.DEBUG)
+
+
+def find_available_port(start_port=8085, host="127.0.0.1", max_attempts=100):
+    """Finds the first available TCP port starting from `start_port`.
+
+    Args:
+        start_port: The port to begin scanning from (default: 8085).
+        host: The host interface to probe (default: '127.0.0.1').
+        max_attempts: Maximum number of sequential ports to probe.
+
+    Returns:
+        An available port number.
+
+    Raises:
+        RuntimeError: If no available port could be found within `max_attempts`.
+    """
+    try:
+        addrinfo = socket.getaddrinfo(
+            host, None, family=socket.AF_UNSPEC, type=socket.SOCK_STREAM, flags=socket.AI_PASSIVE
+        )
+        family = addrinfo[0][0] if addrinfo else socket.AF_INET
+    except OSError:
+        family = socket.AF_INET
+
+    for port in range(start_port, start_port + max_attempts):
+        try:
+            with socket.socket(family, socket.SOCK_STREAM) as s:
+                s.bind((host, port))
+                return port
+        except OSError:
+            continue
+    raise RuntimeError(
+        f"Unable to find an available port in range [{start_port}, {start_port + max_attempts}) on {host}."
+    )
+
 
 class EmulatorLocator:
     """Locates all necessary emulator files and artifacts."""
@@ -46,6 +82,7 @@ class EmulatorLocator:
             )
 
         self.goldfish_exec = None
+        self.aquarium_exec = None
         self.system_image_dir = system_image_dir
         self.phone_ini_path = None
         self.config_ini_path = None
@@ -58,12 +95,37 @@ class EmulatorLocator:
         self._locate_system_image()
         self._locate_ini_files()
         self._locate_marker_files()
+        self._locate_aquarium_ui()
+
+    def _locate_aquarium_ui(self):
+        aquarium_rlocation = "goldfish+/emulator/tools/aquarium-ui/aquarium-ui"
+        aquarium_path = self.r.Rlocation(aquarium_rlocation)
+        if not aquarium_path:
+            raise FileNotFoundError(
+                f"Couldn't find the aquarium ui binary in runfiles: {aquarium_rlocation}"
+            )
+        self.aquarium_exec = Path(aquarium_path)
+        if platform.system() == "Windows":
+            self.aquarium_exec = self.aquarium_exec.with_suffix(".exe")
+
+        if not self.aquarium_exec.exists():
+            raise FileNotFoundError(
+                f"Couldn't find the aquarium ui binary: {self.aquarium_exec}"
+            )
+        if self.aquarium_exec.is_dir():
+            raise IsADirectoryError(
+                f"Aquarium UI binary is a directory, not a file: {self.aquarium_exec}"
+            )
+        if not self.aquarium_exec.is_file() or not os.access(
+            self.aquarium_exec, os.X_OK
+        ):
+            raise PermissionError(
+                f"Couldn't access the aquarium ui binary: {self.aquarium_exec}"
+            )
 
     async def _locate_goldfish_exec(self):
         if self.use_zip:
-            zip_path = Path(
-                self.r.Rlocation("goldfish+/emulator/release.zip")
-            )
+            zip_path = Path(self.r.Rlocation("goldfish+/emulator/release.zip"))
             if not zip_path.exists():
                 raise FileNotFoundError(f"Goldfish zip not found: {zip_path}")
 
@@ -82,9 +144,7 @@ class EmulatorLocator:
             self.goldfish_exec = extract_path / "emulator" / "emulator"
         else:
             self.goldfish_exec = Path(
-                self.r.Rlocation(
-                    "goldfish+/emulator/launcher/emulator"
-                )
+                self.r.Rlocation("goldfish+/emulator/launcher/emulator")
             )
 
         if platform.system() == "Windows":
@@ -147,9 +207,7 @@ class EmulatorLocator:
             )
 
     def _locate_marker_files(self):
-        marker_files_path = self.r.Rlocation(
-            "goldfish+/emulator/sdk/platforms/empty"
-        )
+        marker_files_path = self.r.Rlocation("goldfish+/emulator/sdk/platforms/empty")
         if not marker_files_path:
             raise FileNotFoundError("Marker files not found.")
         self.marker_files_path = Path(marker_files_path).parent.parent
@@ -267,12 +325,36 @@ class EmulatorCommand:
 
 
 class EmulatorRunner:
-    """Handles the execution and monitoring of the emulator process."""
+    """Handles the execution and monitoring of the emulator and auxiliary processes."""
 
-    def __init__(self, command, env):
+    def __init__(
+        self,
+        command,
+        aquarium_exec,
+        env,
+        http_port=8085,
+        http_address="127.0.0.1",
+    ):
         self.command = command
+        self.aquarium_exec = aquarium_exec
         self.env = env
+        self.http_port = http_port
+        self.http_address = http_address
         self.process = None
+        self.aquarium = None
+        self.auxiliary_processes = []
+        self.background_tasks = []
+        self._discovery_line = re.compile(r"Advertising in discovery file: (.*)$")
+
+    def register_process(self, proc, name):
+        """Registers an auxiliary subprocess to be gracefully terminated on teardown."""
+        self.auxiliary_processes.append((proc, name))
+
+    def start_background_task(self, coro):
+        """Starts a background coroutine as an asyncio task and tracks it for cleanup."""
+        task = asyncio.create_task(coro)
+        self.background_tasks.append(task)
+        return task
 
     async def launch_and_wait(
         self,
@@ -335,18 +417,87 @@ class EmulatorRunner:
                 await monitor.stop()
             await self._terminate_process()
 
+    async def _pump_stream(self, stream, tag, on_line=None):
+        """Asynchronously pumps lines from a stream to logging with a tag prefix."""
+        while True:
+            line_bytes = await stream.readline()
+            if not line_bytes:
+                logging.info("[%s] --- Process stream closed ---", tag)
+                break
+            line = line_bytes.decode("utf-8", errors="replace").strip()
+            logging.info("[%s] %s", tag, line)
+            if on_line:
+                await on_line(line)
+
     async def _terminate_process(self):
-        if self.process and self.process.returncode is None:
-            logging.info("--- Terminating emulator process... ---")
-            try:
-                self.process.terminate()
-                await asyncio.wait_for(self.process.wait(), timeout=10)
-            except asyncio.TimeoutError:
-                logging.warning(
-                    "--- Emulator did not terminate gracefully. Forcing kill. ---"
-                )
-                self.process.kill()
-                await self.process.wait()
+        # Cancel all background streaming tasks
+        for task in self.background_tasks:
+            if not task.done():
+                task.cancel()
+        if self.background_tasks:
+            await asyncio.gather(*self.background_tasks, return_exceptions=True)
+
+        for proc, name in [(self.process, "emulator")] + self.auxiliary_processes:
+            if proc and proc.returncode is None:
+                logging.info("--- Terminating %s process... ---", name)
+                try:
+                    proc.terminate()
+                    await asyncio.wait_for(proc.wait(), timeout=10)
+                except asyncio.TimeoutError:
+                    logging.warning(
+                        "--- %s did not terminate gracefully. Forcing kill. ---", name
+                    )
+                    proc.kill()
+                    await proc.wait()
+
+    async def _on_emulator_line(self, line):
+        discovery_match = self._discovery_line.search(line)
+        if discovery_match and self.aquarium is None:
+            discovery_file = discovery_match.group(1).strip()
+            logging.info("--- Found discovery file: %s ---", discovery_file)
+            await self._launch_aquarium(discovery_file)
+
+    async def _launch_aquarium(self, discovery_file):
+        if not self.aquarium_exec:
+            return
+
+        # Note: There's a brief period where port could be claimed by someone else.
+        port = await asyncio.to_thread(
+            find_available_port,
+            start_port=self.http_port,
+            host=self.http_address,
+        )
+        if port != self.http_port:
+            logging.info(
+                "--- Port %d was in use; found available port %d for Aquarium UI ---",
+                self.http_port,
+                port,
+            )
+
+        aquarium_cmd = [
+            str(self.aquarium_exec),
+            "--discovery_file",
+            discovery_file,
+            "--http_address",
+            self.http_address,
+            "--http_port",
+            str(port),
+        ]
+        logging.info("Launching: %s", " ".join(aquarium_cmd))
+        try:
+            self.aquarium = await asyncio.create_subprocess_exec(
+                *aquarium_cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.STDOUT,
+                env=self.env,
+            )
+            self.register_process(self.aquarium, "aquarium")
+            self.start_background_task(
+                self._pump_stream(self.aquarium.stdout, tag="aquarium")
+            )
+        except Exception as e:
+            logging.error("--- Could not start aquarium: %s ---", e)
+            raise
 
     async def _stream_output_and_find_log(
         self,
@@ -366,11 +517,13 @@ class EmulatorRunner:
         while True:
             line_bytes = await stream.readline()
             if not line_bytes:
-                logging.error("--- Stream ended before target log line was found. ---")
+                logging.error(
+                    "[emulator] --- Stream ended before target log line was found. ---"
+                )
                 return False
 
             line = line_bytes.decode("utf-8", errors="replace").strip()
-            logging.info(line)
+            logging.info("[emulator] %s", line)
 
             if count_re and count_re.search(line):
                 pattern_count += 1
@@ -380,9 +533,14 @@ class EmulatorRunner:
                     pattern_count,
                 )
 
+            await self._on_emulator_line(line)
+
             if target_re.search(line):
                 logging.info("--- Target log line detected! ---")
-                if expected_occurrences is not None and pattern_count != expected_occurrences:
+                if (
+                    expected_occurrences is not None
+                    and pattern_count != expected_occurrences
+                ):
                     logging.error(
                         "--- Assertion failed: count_log_pattern '%s' occurred %d times, expected exactly %d ---",
                         count_log_pattern,
@@ -393,13 +551,7 @@ class EmulatorRunner:
                 return True
 
     async def _stream_output(self, stream):
-        while True:
-            line_bytes = await stream.readline()
-            if not line_bytes:
-                logging.info("--- Emulator process exited. ---")
-                break
-            line = line_bytes.decode("utf-8", errors="replace").strip()
-            logging.info(line)
+        await self._pump_stream(stream, tag="emulator", on_line=self._on_emulator_line)
 
 
 async def launch_and_monitor_emulator(
@@ -413,6 +565,8 @@ async def launch_and_monitor_emulator(
     system_image_dir=None,
     count_log_pattern=None,
     expected_occurrences=None,
+    http_port=8085,
+    http_address="127.0.0.1",
 ):
     """Launches and monitors an emulator instance.
 
@@ -426,6 +580,8 @@ async def launch_and_monitor_emulator(
         system_image_dir: Optional path to a system image to use.
         count_log_pattern: Regular expression pattern to count in emulator logs.
         expected_occurrences: Exact number of times count_log_pattern must occur.
+        http_port: Starting port to scan for Aquarium UI (default: 8085).
+        http_address: Host interface to bind Aquarium UI on (default: '127.0.0.1').
 
     Returns:
         0 on success, 1 on failure.
@@ -456,14 +612,21 @@ async def launch_and_monitor_emulator(
             logging.info("--- Command: %s ---", " ".join(command))
             logging.info("--- ANDROID_AVD_HOME: %s ---", avd.avd_dir.name)
 
-            runner = EmulatorRunner(command, environment)
+            runner = EmulatorRunner(
+                command,
+                locator.aquarium_exec,
+                environment,
+                http_port=http_port,
+                http_address=http_address,
+            )
 
             def signal_handler(sig, frame):
                 logging.info("Signal received: %d", sig)
                 if runner.process:
                     runner.process.send_signal(sig)
+
             # Note that Bazel forwards SIGINT to all processes so when running
-            # under Bazel this might mean the emulator gets signalled twice,
+            # under Bazel this might mean the emulator gets signaled twice,
             # which should be fine.
             signal.signal(signal.SIGINT, signal_handler)
             signal.signal(signal.SIGTERM, signal_handler)

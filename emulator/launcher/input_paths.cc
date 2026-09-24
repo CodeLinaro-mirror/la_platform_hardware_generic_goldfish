@@ -115,7 +115,7 @@ absl::StatusOr<EmulatorPaths> ResolveEmulatorPaths(bool verbose) {
     if (verbose) {
         LOG(INFO) << "Listing launcher directory (" << paths.launcher_directory << "):";
         for (const auto& path : base::file::scan_dir_recursive(paths.launcher_directory)) {
-            LOG(INFO) << "    " << path.lexically_relative(paths.launcher_directory).string();
+            LOG_FIRST_N(INFO, 1000) << "    " << path.lexically_relative(paths.launcher_directory).string();
         }
     }
 

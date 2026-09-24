@@ -62,7 +62,8 @@ absl::Status AvdInfoDevice::initialize(const EmulatorConfig& emulator) {
         {"avd_dir", emulator.avd().GetContentPath().string()},
         {"build_sdk", emulator.avd().BuildSdk()},
         {"build_id", emulator.avd().BuildId()},
-        {"build_flavour", emulator.avd().BuildFlavour()},
+        {"build_flavor", emulator.avd().BuildFlavor()},
+        {"build_fingerprint", emulator.avd().BuildFingerprint()},
     };
 
     if (char* perf_stat = emulator.opts().perf_stat) {
@@ -76,6 +77,8 @@ absl::Status AvdInfoDevice::initialize(const EmulatorConfig& emulator) {
 
     const char* snapshot_name = SnapshotDevice::get_snapshot_name(emulator);
     params.emplace_back("snapshot_name", snapshot_name);
+    params.emplace_back("snapshot_update_time",
+                        emulator.opts().no_snapshot_update_time ? "false" : "true");
 
     mAvdParams = absl::StrJoin(params, ",", [](std::string* s, const auto& pair) {
         absl::StrAppend(s, pair.first, "=", pair.second);

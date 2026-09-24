@@ -21,6 +21,7 @@
 
 #include "android/goldfish/fake_hardware_config.h"
 #include "android/goldfish/hardware_config.h"
+#include "goldfish/archive/deque_archive.h"
 #include "goldfish/eventing/event_sources.h"
 
 namespace goldfish::sensors {
@@ -685,6 +686,28 @@ TEST_F(PhysicalModelTest, NonFoldableDevicePostureAndHingeAnglesDoNotCrash) {
     EXPECT_FLOAT_EQ(model->GetHingeAngle0(&measurement_id), 0.0f);
     EXPECT_FLOAT_EQ(model->GetHingeAngle1(&measurement_id), 0.0f);
     EXPECT_FLOAT_EQ(model->GetHingeAngle2(&measurement_id), 0.0f);
+}
+
+TEST_F(PhysicalModelTest, SnapshotSaveLoad) {
+    model->SetCurrentTime(1000000000L);
+    model->SetTargetRotation(vec3(15.0f, 30.0f, 45.0f), PhysicalInterpolation::kSmooth);
+    model->SetTargetPosition(vec3(1.0f, 2.0f, 3.0f), PhysicalInterpolation::kSmooth);
+    model->SetCurrentTime(2000000000L);
+
+    size_t measurement_id = 0;
+    const vec3 expected_accel = model->GetAccelerometer(&measurement_id);
+    const vec3 expected_gyro = model->GetGyroscope(&measurement_id);
+
+    archive::DequeArchive archive;
+    archive << *model;
+
+    auto loaded_model =
+            std::make_unique<PhysicalModel>(android::goldfish::FakeHardwareConfig::GetHwConfig());
+    ASSERT_TRUE(ReadValue(archive, *loaded_model).ok());
+    EXPECT_TRUE(archive.Empty());
+
+    EXPECT_VEC3_NEAR(expected_accel, loaded_model->GetAccelerometer(&measurement_id), 1e-5f);
+    EXPECT_VEC3_NEAR(expected_gyro, loaded_model->GetGyroscope(&measurement_id), 1e-5f);
 }
 
 }  // namespace goldfish::sensors

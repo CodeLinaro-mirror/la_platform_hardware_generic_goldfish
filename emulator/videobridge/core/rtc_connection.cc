@@ -39,9 +39,13 @@
 
 namespace goldfish::videobridge {
 
-RtcConnection::RtcConnection()
+RtcConnection::RtcConnection() : RtcConnection(NetworkSubstrate{}) {}
+
+RtcConnection::RtcConnection(NetworkSubstrate substrate)
         : task_factory_(::webrtc::CreateDefaultTaskQueueFactory())
-        , network_thread_(webrtc::Thread::CreateWithSocketServer())
+        , network_thread_(substrate.socket_server ? std::make_unique<webrtc::Thread>(
+                                                            std::move(substrate.socket_server))
+                                                  : webrtc::Thread::CreateWithSocketServer())
         , worker_thread_(webrtc::Thread::Create())
         , signaling_thread_(webrtc::Thread::Create()) {
     network_thread_->SetName("Sw-Network", nullptr);
@@ -54,8 +58,11 @@ RtcConnection::RtcConnection()
     // Instantiate and cache the default NetworkManager and PacketSocketFactory.
     // They must remain valid for the lifetime of the connection (and any PortAllocators).
     ::webrtc::Environment env = ::webrtc::CreateEnvironment();
-    network_manager_ =
-            std::make_unique<::webrtc::BasicNetworkManager>(env, network_thread_->socketserver());
+    network_manager_ = substrate.network_manager ? substrate.network_manager(network_thread_.get())
+                                                 : std::make_unique<::webrtc::BasicNetworkManager>(
+                                                           env, network_thread_->socketserver());
+    // Reads back whichever socket server the network thread was given, so a
+    // substituted one propagates to every port this connection allocates.
     socket_factory_ =
             std::make_unique<::webrtc::BasicPacketSocketFactory>(network_thread_->socketserver());
 
@@ -69,6 +76,10 @@ RtcConnection::RtcConnection()
 
 RtcConnection::~RtcConnection() {
     connection_factory_ = nullptr;
+    // Both are bound to the network thread and may hop onto it as they go, so
+    // they have to be released while it is still turning.
+    socket_factory_.reset();
+    network_manager_.reset();
     signaling_thread_->Stop();
     worker_thread_->Stop();
     network_thread_->Stop();

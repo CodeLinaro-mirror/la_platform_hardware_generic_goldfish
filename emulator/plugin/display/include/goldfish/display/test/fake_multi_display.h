@@ -13,7 +13,7 @@
 // limitations under the License.
 #pragma once
 
-#include "goldfish/display/QemuMultidisplay/multi_display.h"
+#include "goldfish/display/abstract_multi_display.h"
 
 namespace goldfish::display::test {
 

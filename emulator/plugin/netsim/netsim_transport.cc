@@ -69,10 +69,10 @@ absl::Status NetsimTransport::initialize(::netsim::startup::Chip chip) {
     device_info->set_version(std::string(::goldfish::version::GetEmulatorVersion()));
     device_info->set_sdk_version(avdprops.build_sdk);
     device_info->set_build_id(avdprops.build_id);
-    device_info->set_variant(avdprops.build_flavour);
+    device_info->set_variant(avdprops.build_flavor);
     device_info->set_arch(avdprops.avd_abi);
 
-    // Hold the ptr until we're done initialising, after that the stub has access to the channel.
+    // Hold the ptr until we're done initializing, after that the stub has access to the channel.
     ASSIGN_OR_RETURN(
             std::shared_ptr<android::emulation::control::EmulatorGrpcClientBase> grpc_client,
             get_connected_netsim_grpc_client());

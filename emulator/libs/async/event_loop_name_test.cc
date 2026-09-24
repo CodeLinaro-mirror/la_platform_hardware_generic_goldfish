@@ -72,4 +72,16 @@ TEST(EventLoopNameTest, TestLoopRenamesThread) {
     (void)loop->ShutdownAndWait();
 }
 
+TEST(EventLoopNameTest, RepeatedLoopsReuseLoopId) {
+    auto loop1 = LibuvEventLoop::Create("ReusedConsoleLoop");
+    auto loop2 = LibuvEventLoop::Create("ReusedConsoleLoop");
+    ASSERT_NE(loop1->tracker(), nullptr);
+    ASSERT_NE(loop2->tracker(), nullptr);
+    EXPECT_EQ(loop1->tracker()->loop_id(), loop2->tracker()->loop_id());
+
+    auto loop3 = LibuvEventLoop::Create("DistinctLoopName");
+    ASSERT_NE(loop3->tracker(), nullptr);
+    EXPECT_NE(loop1->tracker()->loop_id(), loop3->tracker()->loop_id());
+}
+
 }  // namespace goldfish::async

@@ -32,7 +32,7 @@
 #include "goldfish/archive/qemu_file_reader.h"
 #include "goldfish/archive/qemu_file_writer.h"
 #include "goldfish/avd_info/avd_private.h"
-#include "goldfish/display/QemuMultidisplay/multi_display.h"
+#include "goldfish/display/abstract_multi_display.h"
 #include "host-common/constants.h"
 
 // clang-format off
@@ -261,12 +261,20 @@ void avd_info_set_build_id(Object* obj, const char* value, Error** errp) {
     toMutableAvdProperties(obj).build_id = value;
 }
 
-void avd_info_set_build_flavour(Object* obj, const char* value, Error** errp) {
-    toMutableAvdProperties(obj).build_flavour = value;
+void avd_info_set_build_flavor(Object* obj, const char* value, Error** errp) {
+    toMutableAvdProperties(obj).build_flavor = value;
+}
+
+void avd_info_set_build_fingerprint(Object* obj, const char* value, Error** errp) {
+    toMutableAvdProperties(obj).build_fingerprint = value;
 }
 
 void avd_info_set_snapshot_name(Object* obj, const char* value, Error** errp) {
     toMutableAvdProperties(obj).snapshot_name = value;
+}
+
+void avd_info_set_snapshot_update_time(Object* obj, bool value, Error** errp) {
+    toMutableAvdProperties(obj).snapshot_update_time = value;
 }
 
 void avd_info_set_quit_after_boot_timeout(Object* obj, Visitor* v, const char* name, void* opaque,
@@ -427,8 +435,11 @@ void avd_info_class_init(ObjectClass* oc, const void* data) {
 
     object_class_property_add_str(oc, "build_sdk", nullptr, avd_info_set_build_sdk);
     object_class_property_add_str(oc, "build_id", nullptr, avd_info_set_build_id);
-    object_class_property_add_str(oc, "build_flavour", nullptr, avd_info_set_build_flavour);
+    object_class_property_add_str(oc, "build_flavor", nullptr, avd_info_set_build_flavor);
+    object_class_property_add_str(oc, "build_fingerprint", nullptr, avd_info_set_build_fingerprint);
     object_class_property_add_str(oc, "snapshot_name", nullptr, avd_info_set_snapshot_name);
+    object_class_property_add_bool(oc, "snapshot_update_time", nullptr,
+                                   avd_info_set_snapshot_update_time);
 
     object_class_property_add(oc, "quit_after_boot_timeout", "int", nullptr,
                               avd_info_set_quit_after_boot_timeout, nullptr, nullptr);

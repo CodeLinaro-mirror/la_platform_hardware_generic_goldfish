@@ -311,6 +311,18 @@ class KeyEventSenderImpl : public IKeyEventSender {
                     // Nope we have to send the domcode..
                     SendKeyCode(dom_to_evdev(code), KeyboardEvent::Evdev, request.eventtype());
                 }
+            } else {
+                // If BrowserKeyToDomKey returns NONE, check if request.key() is a DOM Code string
+                // (e.g. "KeyA", "Space", "VolumeUp", etc.)
+                uint32_t evdev = dom_code_to_evdev(request.key());
+                if (evdev > 0) {
+                    SendKeyCode(evdev, KeyboardEvent::Evdev, request.eventtype());
+                } else {
+                    LOG(WARNING) << "Dropped keyboard event: '" << request.key()
+                                 << "' is not a valid W3C DOM key/code. "
+                                 << "Use a standard DOM string (e.g. 'KeyA', 'Enter'), "
+                                 << "an evdev 'keyCode', or the 'text' field.";
+                }
             }
         }
 

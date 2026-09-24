@@ -77,9 +77,7 @@ class InProcessVideoSource : public ManagedVideoTrackSource {
     const uint32_t display_id_;
     absl::Mutex frame_mutex_;
     std::shared_ptr<::goldfish::display::IDisplay> display_ ABSL_GUARDED_BY(frame_mutex_);
-    std::unique_ptr<android::base::eventing::ScopedEventCallback<
-            ::goldfish::display::FrameInfoCallbackSource, ::goldfish::display::FrameInfo>>
-            subscription_ ABSL_GUARDED_BY(frame_mutex_);
+    ::goldfish::display::IDisplay::ScopedFrameListener listener_ ABSL_GUARDED_BY(frame_mutex_);
 };
 
 }  // namespace goldfish::videobridge

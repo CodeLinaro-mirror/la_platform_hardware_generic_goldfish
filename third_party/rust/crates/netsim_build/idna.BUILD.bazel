@@ -1,0 +1,28 @@
+# Copyright 2025 - The Android Open Source Project
+#
+# SPDX-License-Identifier: Apache-2.0
+
+"""idna bazel build rule"""
+
+load("@rules_rust//rust:defs.bzl", "rust_library")
+
+package(default_visibility = ["//visibility:public"])
+
+rust_library(
+    name = "idna",
+    srcs = glob(["**/*.rs"]),
+    crate_features = [
+        "alloc",
+        "compiled_data",
+        "default",
+        "std",
+    ],
+    crate_name = "idna",
+    crate_root = "src/lib.rs",
+    edition = "2018",
+    deps = [
+        "@idna_adapter",
+        "@smallvec",
+        "@utf8_iter",
+    ],
+)

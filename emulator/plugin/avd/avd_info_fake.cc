@@ -15,7 +15,7 @@
 #include <memory>
 
 #include "goldfish/avd_info/avd_info.h"
-#include "goldfish/display/QemuMultidisplay/multi_display.h"
+#include "goldfish/display/abstract_multi_display.h"
 
 namespace goldfish::avd_info {
 

@@ -312,7 +312,7 @@ absl::Status EmulatorAdvertisement::Write(const EmulatorProperties& config) cons
         return s;
     }
 
-    LOG(INFO) << "Advertising in discovery file: " << location_.string();
+    LOG(WARNING) << "Advertising in discovery file: " << location_.string();
 #ifndef _WIN32
     // Protect the discovery file from system cleanup (e.g., systemd-tmpfiles).
     // We must either:

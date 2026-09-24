@@ -28,6 +28,22 @@ class ReleaseZipTest(unittest.TestCase):
         if error_msgs:
             self.fail("\n".join(error_msgs))
 
+    def test_directory_permissions(self):
+        self.assertNotEqual(ARGS.release_zip_path, "", msg="--release_zip_path must be provided")
+        runfiles = Runfiles.Create()
+        bad_dirs = []
+        with zipfile.ZipFile(runfiles.Rlocation(ARGS.release_zip_path)) as zf:
+            for info in zf.infolist():
+                if info.filename.endswith("/"):
+                    mode = (info.external_attr >> 16) & 0o7777
+                    if mode != 0o755:
+                        bad_dirs.append(f"{info.filename} (mode: {oct(mode)})")
+        if bad_dirs:
+            self.fail(
+                "Directories in release zip must have 0o755 permissions:\n  "
+                + "\n  ".join(sorted(bad_dirs))
+            )
+
 
 def parse_args():
     """Parses the test arguments, removing these from sys.argv."""

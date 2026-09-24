@@ -25,7 +25,13 @@ namespace goldfish::videobridge {
 
 Switchboard::Switchboard(std::shared_ptr<MediaProvider> media_provider,
                          InputSenderFactory input_sender_factory)
-        : media_provider_(std::move(media_provider))
+        : Switchboard(std::move(media_provider), std::move(input_sender_factory),
+                      NetworkSubstrate{}) {}
+
+Switchboard::Switchboard(std::shared_ptr<MediaProvider> media_provider,
+                         InputSenderFactory input_sender_factory, NetworkSubstrate substrate)
+        : RtcConnection(std::move(substrate))
+        , media_provider_(std::move(media_provider))
         , input_sender_factory_(std::move(input_sender_factory)) {
     ConfigureWebRtcLogging();
 }
@@ -112,6 +118,11 @@ absl::Status Switchboard::AcceptJsepMessage(const std::string& identity, const s
     return absl::OkStatus();
 }
 
+bool Switchboard::HasSession(const std::string& identity) {
+    const absl::MutexLock lock(&connections_mutex_);
+    return connections_.contains(identity);
+}
+
 absl::StatusOr<std::string> Switchboard::NextMessage(const std::string& identity,
                                                      absl::Duration timeout) {
     auto queue = GetQueue(identity);
@@ -119,11 +130,19 @@ absl::StatusOr<std::string> Switchboard::NextMessage(const std::string& identity
         return absl::NotFoundError(absl::StrCat("Participant queue not found for: ", identity));
     }
     const absl::MutexLock lock(&queue->mutex);
-    auto has_items = [&queue]() { return !queue->queue.empty(); };
-    if (queue->mutex.AwaitWithTimeout(absl::Condition(&has_items), timeout)) {
-        std::string next_message = std::move(queue->queue.front());
-        queue->queue.pop();
-        return next_message;
+    auto ready = [&queue]() {
+        queue->mutex.AssertHeld();
+        return !queue->queue.empty() || queue->closed;
+    };
+    if (queue->mutex.AwaitWithTimeout(absl::Condition(&ready), timeout)) {
+        // Drain remaining messages before reporting closure.
+        if (!queue->queue.empty()) {
+            std::string next_message = std::move(queue->queue.front());
+            queue->queue.pop();
+            return next_message;
+        }
+        return absl::CancelledError(
+                absl::StrCat("Session closed while waiting for participant: ", identity));
     }
     return absl::DeadlineExceededError(
             absl::StrCat("Timeout waiting for next JSEP message from participant: ", identity));
@@ -140,62 +159,18 @@ std::unique_ptr<InputSender> Switchboard::CreateInputSender(DataChannelLabel lab
     return nullptr;
 }
 
-void Switchboard::NextMessage(const std::string& identity, MessageCallback callback) {
-    auto queue = GetQueue(identity);
-    if (!queue) {
-        if (callback) {
-            callback(absl::NotFoundError(
-                    absl::StrCat("Participant queue not found for: ", identity)));
-        }
-        return;
-    }
-    std::string msg;
-    {
-        const absl::MutexLock lock(&queue->mutex);
-        if (!queue->queue.empty()) {
-            msg = std::move(queue->queue.front());
-            queue->queue.pop();
-        } else {
-            VLOG(1) << "NextMessage: No messages queued for participant " << identity
-                    << ". Registering pending callback.";
-            queue->callback = std::move(callback);
-            return;
-        }
-    }
-    if (callback) {
-        VLOG(1) << "NextMessage: Immediately dispatching queued signaling message to participant: "
-                << identity;
-        callback(std::move(msg));
-    }
-}
-
 void Switchboard::Send(std::string to, const nlohmann::json& msg) {
     auto queue = GetQueue(to);
     if (!queue) {
         VLOG(1) << "Send: Dropping message to already disconnected participant: " << to;
         return;
     }
-    MessageCallback cb;
-    std::string msg_str = msg.dump();
-    {
-        const absl::MutexLock lock(&queue->mutex);
-        if (queue->callback) {
-            cb = std::move(queue->callback);
-            queue->callback = nullptr;
-        } else {
-            VLOG(1) << "Send: No pending callback. Storing signaling message in FIFO queue for "
-                       "participant: "
-                    << to;
-            queue->queue.push(std::move(msg_str));
-            return;
-        }
-    }
-    if (cb) {
-        VLOG(1) << "Send: Dispatching signaling message directly to pending callback for "
-                   "participant: "
-                << to;
-        cb(std::move(msg_str));
-    }
+
+    // Enqueueing is the whole delivery path: a reader blocked in NextMessage
+    // re-evaluates its await condition as soon as this lock is released, so it
+    // sees the message immediately rather than on its next poll.
+    const absl::MutexLock lock(&queue->mutex);
+    queue->queue.push(msg.dump());
 }
 
 std::shared_ptr<Switchboard::ParticipantQueue> Switchboard::GetOrCreateQueue(
@@ -220,8 +195,17 @@ std::shared_ptr<Switchboard::ParticipantQueue> Switchboard::GetQueue(const std::
 }
 
 void Switchboard::RemoveQueue(const std::string& identity) {
-    const absl::MutexLock lock(&queues_mutex_);
-    message_queues_.erase(identity);
+    std::shared_ptr<ParticipantQueue> queue;
+    {
+        const absl::MutexLock lock(&queues_mutex_);
+        auto node = message_queues_.extract(identity);
+        if (node.empty()) {
+            return;
+        }
+        queue = std::move(node.mapped());
+    }
+    // Wake blocked readers; close outside queues_mutex_ to avoid lock nesting.
+    queue->Close();
 }
 
 }  // namespace goldfish::videobridge

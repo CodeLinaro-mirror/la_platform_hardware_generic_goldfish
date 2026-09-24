@@ -19,7 +19,7 @@
 
 #include "android/emulation/control/ev_dev_event.h"
 #include "emulator_controller.grpc.pb.h"
-#include "goldfish/display/QemuMultidisplay/multi_display.h"
+#include "goldfish/display/abstract_multi_display.h"
 
 namespace android::emulation::control {
 

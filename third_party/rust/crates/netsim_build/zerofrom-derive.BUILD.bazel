@@ -1,0 +1,23 @@
+# Copyright 2025 - The Android Open Source Project
+#
+# SPDX-License-Identifier: Apache-2.0
+
+"""zerofrom_derive bazel build rule"""
+
+load("@rules_rust//rust:defs.bzl", "rust_proc_macro")
+
+package(default_visibility = ["//visibility:public"])
+
+rust_proc_macro(
+    name = "zerofrom-derive",
+    srcs = glob(["**/*.rs"]),
+    crate_name = "zerofrom_derive",
+    crate_root = "src/lib.rs",
+    edition = "2021",
+    deps = [
+        "@proc-macro2",
+        "@quote",
+        "@syn",
+        "@synstructure",
+    ],
+)

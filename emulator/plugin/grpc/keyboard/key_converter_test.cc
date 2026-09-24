@@ -148,6 +148,37 @@ TEST(KeyConversionTest, AsciiToQcodeAllAlphabetLettersValid) {
     }
 }
 
+TEST(KeyConversionTest, DomCodeToEvdevStandardKeys) {
+    EXPECT_EQ(dom_code_to_evdev("KeyA"), 0x001eU);       // KEY_A
+    EXPECT_EQ(dom_code_to_evdev("KeyB"), 0x0030U);       // KEY_B
+    EXPECT_EQ(dom_code_to_evdev("Digit1"), 0x0002U);     // KEY_1
+    EXPECT_EQ(dom_code_to_evdev("Enter"), 0x001cU);      // KEY_ENTER
+    EXPECT_EQ(dom_code_to_evdev("Backspace"), 0x000eU);  // KEY_BACKSPACE
+    EXPECT_EQ(dom_code_to_evdev("Escape"), 0x0001U);     // KEY_ESC
+    EXPECT_EQ(dom_code_to_evdev("Space"), 0x0039U);      // KEY_SPACE
+    EXPECT_EQ(dom_code_to_evdev("ShiftLeft"), 0x002aU);  // KEY_LEFTSHIFT
+    EXPECT_EQ(dom_code_to_evdev("Power"), 0x0074U);      // KEY_POWER
+    EXPECT_EQ(dom_code_to_evdev("GoHome"), 0x0066U);     // KEY_HOME
+    EXPECT_EQ(dom_code_to_evdev("GoBack"), 0x009eU);     // KEY_BACK
+    EXPECT_EQ(dom_code_to_evdev("AppSwitch"), 0x0244U);  // KEY_APPSELECT
+}
+
+TEST(KeyConversionTest, DomCodeToEvdevAliasesAndUnknown) {
+    // Aliases
+    EXPECT_EQ(dom_code_to_evdev("VolumeUp"), 0x0073U);         // KEY_VOLUMEUP
+    EXPECT_EQ(dom_code_to_evdev("AudioVolumeUp"), 0x0073U);    // KEY_VOLUMEUP
+    EXPECT_EQ(dom_code_to_evdev("VolumeDown"), 0x0072U);       // KEY_VOLUMEDOWN
+    EXPECT_EQ(dom_code_to_evdev("AudioVolumeDown"), 0x0072U);  // KEY_VOLUMEDOWN
+    EXPECT_EQ(dom_code_to_evdev("VolumeMute"), 0x0071U);       // KEY_MUTE
+    EXPECT_EQ(dom_code_to_evdev("AudioVolumeMute"), 0x0071U);  // KEY_MUTE
+    EXPECT_EQ(dom_code_to_evdev("Back"), 0x009eU);             // KEY_BACK
+    EXPECT_EQ(dom_code_to_evdev("Home"), 0x01c4U);             // KEY_HOMEPAGE
+
+    // Empty and unknown
+    EXPECT_EQ(dom_code_to_evdev(""), 0U);
+    EXPECT_EQ(dom_code_to_evdev("NonExistentKey"), 0U);
+}
+
 }  // namespace keyboard
 }  // namespace control
 }  // namespace emulation

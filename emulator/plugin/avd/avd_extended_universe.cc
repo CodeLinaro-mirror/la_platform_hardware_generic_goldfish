@@ -14,9 +14,17 @@
 
 #include "avd_extended_universe.h"
 
+#include <chrono>
+#include <thread>
+
+#include "absl/strings/str_cat.h"
+#include "absl/time/clock.h"
+#include "absl/time/time.h"
+
 #include "android/base/system.h"
 #include "android/crashreport/crash_reporter.h"
 #include "android/goldfish/vm_interface.h"
+#include "goldfish/adb/adb_host_server.h"
 #include "goldfish/archive/collections/string.h"
 #include "goldfish/archive/reader.h"
 #include "goldfish/archive/writer.h"
@@ -24,7 +32,7 @@
 #include "goldfish/async/testing/global_event_loop.h"
 #include "goldfish/avd_info/gralloc_impl.h"
 #include "goldfish/devices/vehicle/vehicle_device.h"
-#include "goldfish/display/QemuMultidisplay/multi_display.h"
+#include "goldfish/display/abstract_multi_display.h"
 #include "goldfish/tools/aemu_version.h"
 #include "goldfish/vsock/clear.h"
 
@@ -194,7 +202,9 @@ AvdExtendedUniverse::AvdExtendedUniverse(std::unique_ptr<AvdProperties> props)
     DEVS::unix_pipe::IUnixPipe::RegisterDevice(&avd_universe.test_tools_connector_registry,
                                                client_loop, qemu_loop.get());
 
-    avd_universe.multi_display = display::IMultiDisplay::Create(client_loop, qemu_loop.get());
+    avd_universe.multi_display = display::IMultiDisplay::Create(
+            client_loop, qemu_loop.get(),
+            avd_universe.GetSensorsPhysicalModel().GetFoldableConfig());
 
     // Initialize the battery to a default state and register it.
     avd_universe.battery_subscription = DEVS::battery::RegisterBattery(
@@ -296,7 +306,7 @@ void AvdExtendedUniverse::OnSaveProps(archive::IWriter& writer) const {
               << "avd_api=" << p.avd_api << ", "
               << "build_sdk=" << p.build_sdk << ", "
               << "build_id=" << p.build_id << ", "
-              << "build_flavour=" << p.build_flavour << ", "
+              << "build_flavor=" << p.build_flavor << ", "
               << "emulator_full_version=" << full_version << ", "
               << "emulator_version=" << version << ", "
               << "emulator_build_id=" << build_id << ", "
@@ -307,7 +317,7 @@ void AvdExtendedUniverse::OnSaveProps(archive::IWriter& writer) const {
     writer << p.avd_api;
     writer << p.build_sdk;
     writer << p.build_id;
-    writer << p.build_flavour;
+    writer << p.build_flavor;
     writer << full_version;
     writer << version;
     writer << build_id;
@@ -368,8 +378,7 @@ void AvdExtendedUniverse::OnSaveProps(archive::IWriter& writer) const {
 }
 
 void AvdExtendedUniverse::OnSavePhysicalState(archive::IWriter& writer) const {
-    // TODO: sensors_physical_model_
-    writer << battery_ << guest_status_ << location_;
+    writer << battery_ << guest_status_ << location_ << sensors_physical_model_;
 }
 
 absl::Status AvdExtendedUniverse::OnLoad(archive::IReader& reader) {
@@ -419,7 +428,7 @@ absl::Status AvdExtendedUniverse::OnLoadProps(archive::IReader& reader) {
     check_int32("avd_api", p.avd_api);
     check_str("build_sdk", p.build_sdk);
     check_str("build_id", p.build_id);
-    check_str("build_flavour", p.build_flavour);
+    check_str("build_flavor", p.build_flavor);
     check_str("emulator_full_version", ::goldfish::version::GetEmulatorFullVersion());
     check_str("emulator_version", ::goldfish::version::GetEmulatorVersion());
     check_str("emulator_build_id", ::goldfish::version::GetEmulatorBuildId());
@@ -528,12 +537,56 @@ absl::Status AvdExtendedUniverse::OnLoadProps(archive::IReader& reader) {
 }
 
 absl::Status AvdExtendedUniverse::OnLoadPhysicalState(archive::IReader& reader) {
-    // TODO: sensors_physical_model_
-    return ReadValue(reader, battery_, guest_status_, location_);
+    return ReadValue(reader, battery_, guest_status_, location_, sensors_physical_model_);
+}
+
+void AvdExtendedUniverse::SyncGuestTimeToHost() {
+    std::thread([serialNumber = props_->serial_number]() {
+        int clientPort = goldfish::adb::AdbHostServer::getClientPort();
+        bool success = false;
+        for (int retry = 0; retry < 20; ++retry) {
+            // We use 'cmd alarm set-time <epoch_ms>' because:
+            // 1. Android's shell user (UID 2000) holds android.permission.SET_TIME,
+            //    allowing it to work on production user/Play Store images without root
+            //    (unlike 'date' or 'hwclock' which fail with EPERM).
+            // 2. It immediately updates CLOCK_REALTIME without disabling automatic
+            //    time detection (autoDetectionEnabled), so subsequent network (NTP)
+            //    or telephony (NITZ) updates continue to work seamlessly.
+            // 3. It only requires target epoch milliseconds, without needing to coordinate
+            //    with guest elapsedRealtime.
+            //
+            // Why 'cmd time_detector' commands do not work for us:
+            // - 'cmd time_detector suggest_manual_time' is ignored when auto-detection is
+            //   enabled unless 'cmd time_detector set_auto_detection_enabled false' is run
+            //   first, which permanently disables automatic time detection.
+            // - 'suggest_manual_time' and 'suggest_external_time' both require coordinating
+            //   guest elapsedRealtime with epoch time over ADB.
+            // - External time suggestions ('suggest_external_time') are often lower priority
+            //   than network/telephony or disabled by default in device configuration.
+            int64_t now_ms = absl::ToUnixMillis(absl::Now());
+            std::string cmd = absl::StrCat("cmd alarm set-time ", now_ms);
+            if (goldfish::adb::AdbHostServer::runShellCommand(cmd, serialNumber, clientPort)) {
+                LOG(INFO) << "Updated guest system time to " << now_ms
+                          << " via ADB after snapshot restore.";
+                success = true;
+                break;
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(500));
+        }
+        if (!success) {
+            LOG(WARNING) << "Failed to update guest system time via ADB after snapshot restore "
+                            "(timed out waiting for ADB).";
+        }
+    }).detach();
 }
 
 absl::Status AvdExtendedUniverse::OnPostLoad() {
     guest_status_.OnPostLoad();
+
+    if (props_->snapshot_update_time) {
+        SyncGuestTimeToHost();
+    }
+
     return absl::OkStatus();
 }
 

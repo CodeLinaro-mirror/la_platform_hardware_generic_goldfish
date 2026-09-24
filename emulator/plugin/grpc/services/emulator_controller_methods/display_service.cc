@@ -20,8 +20,10 @@
 #include "absl/hash/hash.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
+#include "absl/status/status.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
+#include "absl/synchronization/notification.h"
 #include "absl/time/time.h"
 #include "grpcpp/grpcpp.h"
 
@@ -230,40 +232,45 @@ Status DisplayServiceImpl::streamScreenshot(ServerContext* context, const ImageF
                 }
             });
 
-    MultiEventSourceWaiter frameOrSensorEvent;
-    frameOrSensorEvent.Listen<FrameInfoCallbackSource>(display.get());
+    MultiEventSourceWaiter frame_or_sensor_event;
+    auto proxy = std::make_shared<::goldfish::display::DisplayEventProxy>(display);
+    frame_or_sensor_event.Listen<::goldfish::display::DisplayEventProxy>(proxy.get());
 
     std::shared_ptr<IDisplay> d0, d1;
+    std::shared_ptr<::goldfish::display::DisplayEventProxy> proxy0, proxy1;
     if (hw_sensor_hinge) {
         auto s0 = mMultiDisplay.GetDisplay(0);
         auto s1 = mMultiDisplay.GetDisplay(1);
         if (s0.ok()) {
             d0 = s0->lock();
             if (d0 && d0.get() != display.get()) {
-                frameOrSensorEvent.Listen<FrameInfoCallbackSource>(d0.get());
+                proxy0 = std::make_shared<::goldfish::display::DisplayEventProxy>(d0);
+                frame_or_sensor_event.Listen<::goldfish::display::DisplayEventProxy>(proxy0.get());
             }
         }
         if (s1.ok()) {
             d1 = s1->lock();
             if (d1 && d1.get() != display.get()) {
-                frameOrSensorEvent.Listen<FrameInfoCallbackSource>(d1.get());
+                proxy1 = std::make_shared<::goldfish::display::DisplayEventProxy>(d1);
+                frame_or_sensor_event.Listen<::goldfish::display::DisplayEventProxy>(proxy1.get());
             }
         }
     }
-    frameOrSensorEvent.Listen<DeviceSkinRotationCallbackSource>(&deviceSkinRotationCallbackSource);
+    frame_or_sensor_event.Listen<DeviceSkinRotationCallbackSource>(
+            &deviceSkinRotationCallbackSource);
 
     // TODO(jansene): Bring back metrics.
     // Track percentiles, and report if we have seen at least 32 frames.
     // metrics::Percentiles perfEstimator(32, {0.5, 0.95});
-    bool firstTime = true;
+    bool first_time = true;
     while (clientAvailable) {
-        const auto kTimeToWaitForFrame = absl::Milliseconds(125);
-        bool framesArrived = frameOrSensorEvent.WaitForNextEvent(kTimeToWaitForFrame, frame);
-        if ((framesArrived || firstTime) && !context->IsCancelled()) {
+        constexpr auto kTimeToWaitForFrame = absl::Milliseconds(125);
+        bool frames_arrived = frame_or_sensor_event.WaitForNextEvent(kTimeToWaitForFrame, frame);
+        if ((frames_arrived || first_time) && !context->IsCancelled()) {
             // TODO(jansene): It might have been possible for a frame to have been
-            // delivered between framesArrived and this call, which resulted in
+            // delivered between frames_arrived and this call, which resulted in
             // the increment of the frame counter. We would not "see" this frame.
-            frame = frameOrSensorEvent.GetEventSequence();
+            frame = frame_or_sensor_event.GetEventSequence();
             auto status = getScreenshot(context, request, &reply, *allocator);
             if (status.error_code() == grpc::StatusCode::FAILED_PRECONDITION) {
                 continue;
@@ -272,7 +279,7 @@ Status DisplayServiceImpl::streamScreenshot(ServerContext* context, const ImageF
                 return status;
             }
 
-            firstTime = false;
+            first_time = false;
             // The size of the image might change due to rotation or scaling.
 
             // We send the first empty frame, after that we wait for
@@ -434,8 +441,19 @@ Status DisplayServiceImpl::getScreenshot(ServerContext* context, const ImageForm
     size_t c_pixels = 0;
     PixelFormat format = PixelFormatFromProtobuf(request->format());
 
-    auto seq = display->GetPixels(format, newWidth, newHeight, rotation, /*pixels=*/nullptr,
-                                  &c_pixels);
+    // Optimization: Ensure QEMU is awake and actively pushing frames.
+    // By adding a listener, we guarantee QEMU renders a frame if inactive, or immediately
+    // yields the current frame if already active.
+    {
+        auto frame_arrived = std::make_shared<absl::Notification>();
+        auto listener = display->AddFrameListener([frame_arrived](const auto&) {
+            if (!frame_arrived->HasBeenNotified()) frame_arrived->Notify();
+        });
+        frame_arrived->WaitForNotificationWithTimeout(absl::Milliseconds(250));
+    }
+
+    auto seq =
+            display->GetPixels(format, newWidth, newHeight, rotation, /*pixel=*/nullptr, &c_pixels);
     DCHECK(absl::IsFailedPrecondition(seq.status()))
             << "The c-style callback should inform us how many bytes we should allocate.";
 

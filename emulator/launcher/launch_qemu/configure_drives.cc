@@ -116,7 +116,7 @@ absl::StatusOr<std::vector<DiskConfig>> getDiskConfigs(const Avd& avd, const And
 
     const auto& sys_img_paths = avd.GetSystemImagePaths();
 
-    // Data partition can have special case initialisation. If it can be created normally then this
+    // Data partition can have special case initialization. If it can be created normally then this
     // function won't create it. This function might remove the qcow2 file so that it can be
     // recreated.
     RETURN_IF_ERROR(prepareUserDataBaseImage(avd, sys_img_paths.data_dir, user_data, data_size,

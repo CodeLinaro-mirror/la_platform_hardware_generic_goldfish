@@ -14,6 +14,7 @@
 #pragma once
 #include <cstdint>
 #include <filesystem>
+#include <functional>
 #include <initializer_list>
 #include <memory>
 #include <string>
@@ -93,7 +94,7 @@ class Avd {
     virtual std::string BuildId() const = 0;
     virtual std::string BuildFingerprint() const = 0;
     virtual int64_t BuildTimestamp() const = 0;
-    virtual std::string BuildFlavour() const = 0;
+    virtual std::string BuildFlavor() const = 0;
     virtual std::string BuildProductName() const = 0;
     virtual std::string BuildNumber() const = 0;
     virtual std::string VendorProperty(std::string_view key,
@@ -195,6 +196,27 @@ class Avd {
      */
     virtual absl::Status SetLastRunQemuVersion(int version) = 0;
 
+    struct SnapshotInfo {
+        std::string name;
+        fs::path path;
+        int64_t size_bytes{0};
+        std::string last_modified;
+        bool has_snapshot_pb{false};
+        bool has_ram_file{false};
+        std::string image_info;
+    };
+
+    using ImageInspector = std::function<std::string(const fs::path&)>;
+
+    /**
+     * @brief Discovers and inspects snapshots offline in the AVD's content directory.
+     *
+     * Scans the snapshots directory and inspects qcow2/image files (e.g. via qemu-img).
+     *
+     * @param inspector Optional function to inspect image files (e.g. via qemu-img info).
+     */
+    virtual std::vector<SnapshotInfo> ListSnapshots(ImageInspector inspector = nullptr) const = 0;
+
     /**
      * @brief Retrieves the filename associated with the given AVD image type.
      *
@@ -219,9 +241,9 @@ class Avd {
      *
      * @param name The name of the AVD.
      * @param sysdir_override Optionally supply a path to override the system directory
-     *        search. Use empty string for default behaviour.
+     *        search. Use empty string for default behavior.
      * @param writable_content_override Optionally supply a path to override the content
-     *        directory. Use empty string for default behaviour.
+     *        directory. Use empty string for default behavior.
      * @return An absl::StatusOr<Avd> object. On success, contains the
      *         constructed AVD. On failure, contains an error status.
      */

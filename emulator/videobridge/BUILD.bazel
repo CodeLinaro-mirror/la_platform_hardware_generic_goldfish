@@ -405,6 +405,28 @@ cc_test(
 )
 
 cc_library(
+    name = "session_id",
+    srcs = ["core/session_id.cc"],
+    hdrs = ["include/goldfish/videobridge/session_id.h"],
+    strip_include_prefix = "include",
+    deps = [
+        "@abseil-cpp//absl/random",
+        "@abseil-cpp//absl/strings:str_format",
+    ],
+)
+
+cc_test(
+    name = "session_id_test",
+    size = "small",
+    srcs = ["core/session_id_test.cc"],
+    deps = [
+        ":session_id",
+        "//emulator/libs/test:googletest_main",
+        "@googletest//:gtest",
+    ],
+)
+
+cc_library(
     name = "videobridge_core",
     srcs = [
         "core/event_forwarder.cc",
@@ -413,6 +435,8 @@ cc_library(
         "core/grpc_input_sender.cc",
         "core/grpc_input_sender.h",
         "core/in_process_input_sender.cc",
+        "core/jsep_parse.cc",
+        "core/jsep_parse.h",
         "core/participant.cc",
         "core/participant.h",
         "core/rtc_config.cc",
@@ -447,6 +471,7 @@ cc_library(
         "@abseil-cpp//absl/synchronization",
         "@abseil-cpp//absl/time",
         "@aemu//protos/services/emulator-controller:emulator_controller_cc_grpc",
+        "@aemu//protos/services_v2/input:input_service_cc_proto",
         "@grpc//:grpc++",
         "@nlohmann_json//:singleheader-json",
         "@webrtc//api:create_peerconnection_factory",
@@ -507,6 +532,59 @@ cc_test(
         "//emulator/libs/test:googletest_main",
         "@abseil-cpp//absl/time",
         "@nlohmann_json//:singleheader-json",
+    ],
+)
+
+cc_test(
+    name = "jsep_parse_test",
+    srcs = [
+        "core/jsep_parse.h",
+        "core/jsep_parse_test.cc",
+    ],
+    copts = WEBRTC_COPTS,
+    linkopts = WEBRTC_LINKOPTS,
+    deps = [
+        ":videobridge_core",
+        "//emulator/libs/test:googletest_main",
+        "@abseil-cpp//absl/status",
+        "@nlohmann_json//:singleheader-json",
+    ],
+)
+
+cc_test(
+    name = "virtual_network_test",
+    srcs = [
+        "core/virtual_network_fixture.h",
+        "core/virtual_network_test.cc",
+    ],
+    copts = WEBRTC_COPTS,
+    linkopts = WEBRTC_LINKOPTS,
+    deps = [
+        ":videobridge_core",
+        "//emulator/libs/test:googletest_main",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/time",
+        "@nlohmann_json//:singleheader-json",
+        "@webrtc//rtc_base:rtc_base_tests_utils",
+    ],
+)
+
+cc_test(
+    name = "participant_test",
+    srcs = [
+        "core/participant.h",
+        "core/participant_test.cc",
+        "core/virtual_network_fixture.h",
+    ],
+    copts = WEBRTC_COPTS,
+    linkopts = WEBRTC_LINKOPTS,
+    deps = [
+        ":videobridge_core",
+        "//emulator/libs/test:googletest_main",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/time",
+        "@nlohmann_json//:singleheader-json",
+        "@webrtc//rtc_base:rtc_base_tests_utils",
     ],
 )
 
@@ -585,10 +663,10 @@ cc_library(
     copts = WEBRTC_COPTS,
     strip_include_prefix = "include",
     deps = [
+        ":session_id",
         ":videobridge_core",
         "//emulator/libs/grpc_utils:absl_translate",
         "@abseil-cpp//absl/log",
-        "@abseil-cpp//absl/random",
         "@abseil-cpp//absl/strings",
         "@aemu//protos/services/webrtc:rtc_service_v2_cc_grpc",
         "@grpc//:grpc++",
@@ -666,7 +744,7 @@ cc_library(
     strip_include_prefix = "include",
     deps = [
         ":videobridge_core",
-        "//emulator/plugin/display:primary_display",
+        "//emulator/plugin/display:abstract_multi_display",
         "@abseil-cpp//absl/log",
         "@libyuv",
         "@webrtc//api:peer_connection_interface",

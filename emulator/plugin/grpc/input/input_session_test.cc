@@ -660,6 +660,22 @@ TEST_F(InputSessionTestFixture, KeyEvents_DomCodeMappedToKeyDown) {
               ::android::emulation::control::KeyboardEvent::keydown);
 }
 
+TEST_F(InputSessionTestFixture, KeyEvents_DomCodeMappedToKeyUp) {
+    InputSession session(*multi_display_, key_sender_, false);
+
+    InputEvent event;
+    auto* key = event.mutable_key();
+    key->set_action(KeyAction::KEY_ACTION_UP);
+    key->set_dom_code("VolumeUp");
+
+    key_sender_->sent_events.clear();
+    EXPECT_TRUE(session.DispatchInputEvent(event).ok());
+    ASSERT_EQ(key_sender_->sent_events.size(), 1);
+    EXPECT_EQ(key_sender_->sent_events[0].key(), "VolumeUp");
+    EXPECT_EQ(key_sender_->sent_events[0].eventtype(),
+              ::android::emulation::control::KeyboardEvent::keyup);
+}
+
 TEST_F(InputSessionTestFixture, KeyEvents_AndroidKeycodeMappedToEvdevKey) {
     InputSession session(*multi_display_, key_sender_, false);
 

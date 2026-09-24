@@ -156,12 +156,12 @@ TEST(AdbHostServer, runShellCommand_successWithSerial) {
     ASSERT_TRUE(server.valid());
     server.start();
 
-    EXPECT_TRUE(
-            AdbHostServer::runShellCommand("cmd alarm set-time 1788360000", 5554, server.port()));
+    EXPECT_TRUE(AdbHostServer::runShellCommand("cmd alarm set-time 1788360000000", 5554,
+                                               server.port()));
     server.wait();
 
     EXPECT_EQ("host:transport:emulator-5554", server.transportReceived());
-    EXPECT_EQ("shell:cmd alarm set-time 1788360000", server.shellReceived());
+    EXPECT_EQ("shell:cmd alarm set-time 1788360000000", server.shellReceived());
 }
 
 TEST(AdbHostServer, runShellCommand_successAnySerial) {
@@ -181,8 +181,8 @@ TEST(AdbHostServer, runShellCommand_transportFailure) {
     ASSERT_TRUE(server.valid());
     server.start();
 
-    EXPECT_FALSE(
-            AdbHostServer::runShellCommand("cmd alarm set-time 1788360000", 5554, server.port()));
+    EXPECT_FALSE(AdbHostServer::runShellCommand("cmd alarm set-time 1788360000000", 5554,
+                                                server.port()));
     server.wait();
 }
 
@@ -191,13 +191,13 @@ TEST(AdbHostServer, runShellCommand_shellFailure) {
     ASSERT_TRUE(server.valid());
     server.start();
 
-    EXPECT_FALSE(
-            AdbHostServer::runShellCommand("cmd alarm set-time 1788360000", 5554, server.port()));
+    EXPECT_FALSE(AdbHostServer::runShellCommand("cmd alarm set-time 1788360000000", 5554,
+                                                server.port()));
     server.wait();
 }
 
 TEST(AdbHostServer, runShellCommand_connectionFailure) {
-    EXPECT_FALSE(AdbHostServer::runShellCommand("cmd alarm set-time 1788360000", 5554, -1));
+    EXPECT_FALSE(AdbHostServer::runShellCommand("cmd alarm set-time 1788360000000", 5554, -1));
 }
 
 }  // namespace goldfish::adb

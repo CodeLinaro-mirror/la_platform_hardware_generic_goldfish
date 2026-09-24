@@ -46,7 +46,7 @@ class MockAvd : public Avd {
     MOCK_METHOD(std::string, BuildId, (), (const, override));
     MOCK_METHOD(std::string, BuildFingerprint, (), (const, override));
     MOCK_METHOD(int64_t, BuildTimestamp, (), (const, override));
-    MOCK_METHOD(std::string, BuildFlavour, (), (const, override));
+    MOCK_METHOD(std::string, BuildFlavor, (), (const, override));
     MOCK_METHOD(std::string, BuildNumber, (), (const, override));
     MOCK_METHOD(std::string, VendorProperty, (std::string_view key, std::string_view default_value),
                 (const, override));
@@ -54,6 +54,7 @@ class MockAvd : public Avd {
     MOCK_METHOD(absl::Status, SetLastRunQemuVersion, (int version), (override));
     MOCK_METHOD(android_studio::EmulatorAvdInfo::EmulatorAvdImageKind, ImageKind, (),
                 (const, override));
+    MOCK_METHOD(std::vector<SnapshotInfo>, ListSnapshots, (ImageInspector), (const, override));
     MOCK_METHOD(std::string, BuildProductName, (), (const, override));
     MOCK_METHOD(int, ForcedTrampolineVersion, (), (const, override));
 };

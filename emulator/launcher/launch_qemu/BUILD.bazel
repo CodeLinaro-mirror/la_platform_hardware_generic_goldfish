@@ -392,6 +392,7 @@ cc_library(
     name = "disk_drive",
     srcs = ["disk_drive.cc"],
     hdrs = ["disk_drive.h"],
+    visibility = ["//visibility:public"],
     deps = [
         ":device",
         "//emulator/libs/ext4",

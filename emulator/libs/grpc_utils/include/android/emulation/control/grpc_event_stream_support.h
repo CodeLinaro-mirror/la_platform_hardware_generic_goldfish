@@ -95,7 +95,9 @@ class BaseEventStreamWriter : public WithSimpleQueueWriter<Reactor, max_queue_si
      *
      * @param listener Pointer to the event source instance managing event subscriptions.
      */
-    explicit BaseEventStreamWriter(ChangeSupport* listener) : listener_(listener) {}
+    explicit BaseEventStreamWriter(ChangeSupport* listener) : listener_(listener) {
+        DCHECK(listener);
+    }
 
     virtual ~BaseEventStreamWriter() { Unsubscribe(); }
 
@@ -116,10 +118,28 @@ class BaseEventStreamWriter : public WithSimpleQueueWriter<Reactor, max_queue_si
      */
     void OnCancel() override {
         DD_EVT("Cancelled %p", this);
+        if (!this->SetCancelled()) {
+            return;
+        }
         Unsubscribe();
-        absl::MutexLock lock(&this->reactor_lock_);
-        Reactor::Finish(grpc::Status::CANCELLED);
+        this->Finish(grpc::Status::CANCELLED);
     }
+
+    /**
+     * @brief Finishes the stream. Thread-safe and idempotent.
+     * Unsubscribes from the event source prior to finishing the gRPC stream.
+     */
+    template <typename... Args>
+    void Finish(Args&&... args) {
+        Unsubscribe();
+        WithSimpleQueueWriter<Reactor, max_queue_size, recycle_size>::Finish(
+                std::forward<Args>(args)...);
+    }
+
+    /**
+     * @brief Default no-op handler for event delivery during base class destruction.
+     */
+    void EventArrived(typename EventParam<Event>::type /*event*/) override {}
 
   protected:
     /**
@@ -141,19 +161,24 @@ class BaseEventStreamWriter : public WithSimpleQueueWriter<Reactor, max_queue_si
      * @brief Unsubscribes from the event source.
      *
      * @note Thread-safe and idempotent. Automatically invoked on cancellation, completion, and
-     * destruction.
+     * destruction. Calls `RemoveCallback` outside `reactor_lock_` to prevent deadlock with
+     * concurrent event deliveries.
      */
     void Unsubscribe() {
-        absl::MutexLock lock(&this->reactor_lock_);
-        if (callback_id_ != ChangeSupport::kInvalidCallbackId && listener_) {
-            listener_->RemoveCallback(callback_id_);
-            callback_id_ = ChangeSupport::kInvalidCallbackId;
+        typename ChangeSupport::CallbackId id_to_remove = ChangeSupport::kInvalidCallbackId;
+        {
+            absl::MutexLock lock(&this->reactor_lock_);
+            id_to_remove = std::exchange(callback_id_, ChangeSupport::kInvalidCallbackId);
+        }
+        if (id_to_remove != ChangeSupport::kInvalidCallbackId) {
+            listener_->RemoveCallback(id_to_remove);
         }
     }
 
   private:
-    typename ChangeSupport::CallbackId callback_id_{ChangeSupport::kInvalidCallbackId};
-    ChangeSupport* listener_;
+    typename ChangeSupport::CallbackId callback_id_ ABSL_GUARDED_BY(this->reactor_lock_){
+        ChangeSupport::kInvalidCallbackId};
+    ChangeSupport* const listener_;
 };
 
 /**

@@ -32,7 +32,10 @@
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
+#include "absl/time/clock.h"
+#include "absl/time/time.h"
 
 #include "android/base/system.h"
 #include "android/goldfish/hardware_config.h"
@@ -200,6 +203,10 @@ std::string GetIconForDeviceType(DeviceType flavor) {
         return "🚗";  // 🚗 (Car)
     case DeviceType::kDesktop:
         return "🖥️";  // 🖥️ (Desktop computer)
+    case DeviceType::kXr:
+        return "🥽";  // 🥽 (XR headset)
+    case DeviceType::kGlasses:
+        return "👓";  // 👓 (Glasses)
     default:
         return "🤷";  // 🤷 (Unknown)
     }
@@ -242,7 +249,7 @@ struct BuildProp {
     }
     int64_t Timestamp() const { return build_ini.GetInt64("ro.build.date.utc", 0); }
 
-    std::string Flavour() const { return build_ini.GetString("ro.build.flavor", "unknown"); }
+    std::string Flavor() const { return build_ini.GetString("ro.build.flavor", "unknown"); }
 
     std::string ProductName() const {
         using namespace std::literals;
@@ -286,7 +293,7 @@ class FileBackedAvd : public Avd {
     const HardwareConfig& Hw() const override { return hw_cfg_; }
 
     android_studio::EmulatorAvdInfo::EmulatorAvdImageKind ImageKind() const override {
-        const std::string flavour = BuildFlavour();
+        const std::string flavor = BuildFlavor();
         std::string tag_id = config_ini_.GetString("tag.id", "");
         if (tag_id.empty()) {
             tag_id = config_ini_.GetString("tag.ids", "");
@@ -294,15 +301,15 @@ class FileBackedAvd : public Avd {
 
         bool is_playstore = config_ini_.GetBool("PlayStore.enabled", false) ||
                             (tag_id.find("playstore") != std::string::npos) ||
-                            (flavour.find("playstore") != std::string::npos);
+                            (flavor.find("playstore") != std::string::npos);
         if (is_playstore) {
             return android_studio::EmulatorAvdInfo::PLAY_STORE_KIND;
         }
 
         bool is_atd = (tag_id.find("atd") != std::string::npos ||
-                       flavour.find("atd") != std::string::npos);
+                       flavor.find("atd") != std::string::npos);
         bool is_google = (tag_id.find("google_apis") != std::string::npos) ||
-                         (flavour.find("google_apis") != std::string::npos);
+                         (flavor.find("google_apis") != std::string::npos);
         if (is_google) {
             return is_atd ? android_studio::EmulatorAvdInfo::GOOGLE_ATD
                           : android_studio::EmulatorAvdInfo::GOOGLE;
@@ -337,7 +344,7 @@ class FileBackedAvd : public Avd {
     std::string BuildId() const override { return build_ini_.Id(); }
     std::string BuildFingerprint() const override { return build_ini_.Fingerprint(); }
     int64_t BuildTimestamp() const override { return build_ini_.Timestamp(); }
-    std::string BuildFlavour() const override { return build_ini_.Flavour(); }
+    std::string BuildFlavor() const override { return build_ini_.Flavor(); }
     std::string BuildProductName() const override { return build_ini_.ProductName(); }
     std::string BuildNumber() const override { return build_ini_.Number(); }
     std::string VendorProperty(std::string_view key,
@@ -398,7 +405,7 @@ class FileBackedAvd : public Avd {
 
     DeviceType GetDeviceType() const override {
         using namespace std::literals;
-        constexpr auto kLabelMap = std::array{
+        constexpr auto kFlavorMap = std::array{
             std::pair{"phone"sv, DeviceType::kPhone},     std::pair{"atv"sv, DeviceType::kTv},
             std::pair{"wear"sv, DeviceType::kWear},       std::pair{"aw"sv, DeviceType::kWear},
             std::pair{"car"sv, DeviceType::kAndroidAuto}, std::pair{"pc"sv, DeviceType::kDesktop},
@@ -406,21 +413,156 @@ class FileBackedAvd : public Avd {
             std::pair{"glasses"sv, DeviceType::kGlasses}};
 
         auto product_name = BuildProductName();
-        for (const auto& [key, val] : kLabelMap) {
-            if (product_name.contains(key)) {
+        auto flavor = BuildFlavor();
+        for (const auto& [key, val] : kFlavorMap) {
+            if (product_name.contains(key) || flavor.contains(key)) {
+                return val;
+            }
+        }
+
+        constexpr auto kTagIdMap = std::array{
+            std::pair{"tv"sv, DeviceType::kTv},
+            std::pair{"wear"sv, DeviceType::kWear},
+            std::pair{"automotive"sv, DeviceType::kAndroidAuto},
+            std::pair{"desktop"sv, DeviceType::kDesktop},
+            std::pair{"chromeos"sv, DeviceType::kDesktop},
+            std::pair{"xr"sv, DeviceType::kXr},
+            std::pair{"glasses"sv, DeviceType::kGlasses},
+            std::pair{"google_apis"sv, DeviceType::kPhone},
+            std::pair{"google_atd"sv, DeviceType::kPhone},
+            std::pair{"aosp_atd"sv, DeviceType::kPhone},
+            std::pair{"default"sv, DeviceType::kPhone},
+        };
+
+        auto tag_id = config_ini_.GetString("tag.id", "");
+        for (const auto& [key, val] : kTagIdMap) {
+            if (tag_id.contains(key)) {
                 return val;
             }
         }
         return DeviceType::kUnknown;
     }
 
+    std::vector<Avd::SnapshotInfo> ListSnapshots(
+            ImageInspector inspector = nullptr) const override {
+        std::vector<Avd::SnapshotInfo> result;
+        fs::path snapshots_dir = GetContentPath() / "snapshots";
+        if (!android::base::file::is_dir(snapshots_dir)) {
+            return result;
+        }
+
+        auto entries = android::base::file::scan_dir(snapshots_dir, /*fullPath=*/true);
+        for (const auto& snap_path : entries) {
+            if (!android::base::file::is_dir(snap_path)) {
+                continue;
+            }
+            Avd::SnapshotInfo info;
+            info.name = snap_path.filename().string();
+            info.path = snap_path;
+
+            fs::path pb_path = snap_path / "snapshot.pb";
+            if (android::base::file::exists(pb_path)) {
+                info.has_snapshot_pb = true;
+            }
+
+            fs::path ram_path = snap_path / "ram.bin";
+            if (!android::base::file::exists(ram_path)) {
+                ram_path = snap_path / "ram.qcow2";
+            }
+            if (android::base::file::exists(ram_path)) {
+                info.has_ram_file = true;
+            }
+
+            int64_t total_bytes = 0;
+            absl::Time latest_time = absl::InfinitePast();
+            auto snap_files = android::base::file::scan_dir_recursive(snap_path);
+            for (const auto& f : snap_files) {
+                if (android::base::file::is_file(f)) {
+                    auto sz = android::base::file::file_size(f);
+                    if (sz.ok()) {
+                        total_bytes += sz->Bytes();
+                    }
+                    auto mtime = android::base::file::last_write_time(f);
+                    if (mtime.ok() && *mtime > latest_time) {
+                        latest_time = *mtime;
+                    }
+                }
+            }
+            info.size_bytes = total_bytes;
+            if (latest_time != absl::InfinitePast()) {
+                info.last_modified =
+                        absl::FormatTime("%Y-%m-%d %H:%M:%S", latest_time, absl::LocalTimeZone());
+            }
+
+            if (inspector) {
+                std::string img_info_accum;
+                auto files_in_snap = android::base::file::scan_dir(snap_path, /*fullPath=*/true);
+                for (const auto& f : files_in_snap) {
+                    std::string ext = f.extension().string();
+                    if (ext == ".qcow2" || ext == ".img") {
+                        std::string img_info = inspector(f);
+                        if (!img_info.empty()) {
+                            absl::StrAppend(&img_info_accum, "   Image [", f.filename().string(),
+                                            "]:\n");
+                            for (const auto line : absl::StrSplit(img_info, '\n')) {
+                                if (!line.empty()) {
+                                    absl::StrAppend(&img_info_accum, "     ", line, "\n");
+                                }
+                            }
+                        }
+                    }
+                }
+                info.image_info = std::move(img_info_accum);
+            }
+            result.push_back(std::move(info));
+        }
+
+        // Inspect root AVD content directory for .qcow2 disk images (e.g., cache.img.qcow2,
+        // userdata-qemu.img.qcow2)
+        if (inspector) {
+            fs::path content_dir = GetContentPath();
+            if (android::base::file::is_dir(content_dir)) {
+                auto root_files = android::base::file::scan_dir(content_dir, /*fullPath=*/true);
+                for (const auto& f : root_files) {
+                    if (f.extension().string() == ".qcow2") {
+                        std::string img_info = inspector(f);
+                        if (!img_info.empty()) {
+                            Avd::SnapshotInfo info;
+                            info.name = absl::StrCat("Disk Image: ", f.filename().string());
+                            info.path = f;
+                            auto sz = android::base::file::file_size(f);
+                            if (sz.ok()) {
+                                info.size_bytes = sz->Bytes();
+                            }
+                            auto mtime = android::base::file::last_write_time(f);
+                            if (mtime.ok()) {
+                                info.last_modified = absl::FormatTime("%Y-%m-%d %H:%M:%S", *mtime,
+                                                                      absl::LocalTimeZone());
+                            }
+                            std::string formatted_info;
+                            for (const auto line : absl::StrSplit(img_info, '\n')) {
+                                if (!line.empty()) {
+                                    absl::StrAppend(&formatted_info, "     ", line, "\n");
+                                }
+                            }
+                            info.image_info = std::move(formatted_info);
+                            result.push_back(std::move(info));
+                        }
+                    }
+                }
+            }
+        }
+
+        return result;
+    }
+
     std::string Details(const bool verbose) const override {
         if (verbose) {
             auto icon = GetIconForDeviceType(GetDeviceType());
-            return absl::StrFormat("%s (%s) %s api: %d arch: %s res: %4dx%4d build: %s flavour: %s",
+            return absl::StrFormat("%s (%s) %s api: %d arch: %s res: %4dx%4d build: %s flavor: %s",
                                    Id(), DisplayName(), icon, ApiLevel(), Abi(),
                                    hw_cfg_.hw_lcd_width, hw_cfg_.hw_lcd_height, BuildNumber(),
-                                   BuildFlavour());
+                                   BuildFlavor());
         }
         return name_;
     }
@@ -599,7 +741,7 @@ absl::StatusOr<std::unique_ptr<Avd>> Avd::FromAndroidBuild(
         const std::string& name, fs::path android_build_out, bool wipe_data,
         fs::path writable_content_override) {
     if (writable_content_override.empty() && wipe_data) {
-        // Specific -wipe-data behaviour for android build.
+        // Specific -wipe-data behavior for android build.
         using namespace std::literals;
         constexpr auto kFilesToDelete = std::array{
             "system.img.qcow2"sv,  "vendor.img.qcow2"sv,        "encryptionkey.img.qcow2"sv,

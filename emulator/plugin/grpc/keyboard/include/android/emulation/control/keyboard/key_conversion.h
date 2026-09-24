@@ -27,6 +27,7 @@ typedef struct QKbdState QKbdState;
 // clang-format on
 }
 
+#include <string_view>
 #include <vector>
 
 // Necessary on Windows.
@@ -125,7 +126,7 @@ struct KeycodeMapEntry {
      * @brief The UIEvents (aka: DOM4Events) |code| value as defined in:
      * http://www.w3.org/TR/DOM-Level-3-Events-code/
      */
-    const char* code;
+    std::string_view code;
 };
 
 /**
@@ -179,6 +180,14 @@ std::vector<QemuKeyEvent> ascii_to_qcode(unsigned short ascii, bool down);
  * @return The corresponding evdev keycode.
  */
 uint32_t dom_to_evdev(DomCode key);
+
+/**
+ * @brief Converts a W3C DOM Code string (e.g. "KeyA", "Space", "Enter") to an evdev keycode.
+ *
+ * @param code The W3C DOM Code string.
+ * @return The corresponding evdev keycode, or 0 if unmapped.
+ */
+uint32_t dom_code_to_evdev(std::string_view code);
 
 /**
  * @brief Converts a keycode of a given type to an evdev keycode.

@@ -22,6 +22,8 @@ rust_library(
     name = "smallvec",
     srcs = glob(["**/*.rs"]),
     crate_features = [
+        "const_generics",
+        "const_new",
         "write",
     ],
     crate_name = "smallvec",

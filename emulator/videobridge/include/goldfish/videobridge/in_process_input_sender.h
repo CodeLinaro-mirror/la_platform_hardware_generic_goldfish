@@ -30,16 +30,20 @@ namespace goldfish::videobridge {
 class InProcessInputSender : public InputSender {
   public:
     using EventDispatcher = std::function<absl::Status(const InputEvent&)>;
+    using V2EventDispatcher = std::function<absl::Status(const V2InputEvent&)>;
 
-    explicit InProcessInputSender(EventDispatcher dispatcher);
+    explicit InProcessInputSender(EventDispatcher dispatcher,
+                                  V2EventDispatcher v2_dispatcher = nullptr);
     ~InProcessInputSender() override = default;
 
     absl::Status Start() override;
     void SendEvent(const InputEvent& event) override;
+    void SendV2Event(const V2InputEvent& event) override;
     void Stop() override;
 
   private:
     EventDispatcher dispatcher_;
+    V2EventDispatcher v2_dispatcher_;
     std::atomic_bool started_{false};
 };
 

@@ -21,8 +21,11 @@
 #include <memory>
 #include <thread>
 
+#include "absl/synchronization/notification.h"
+
 #include "goldfish/async/testing/test_event_loop.h"
 #include "goldfish/display/display.h"
+#include "goldfish/eventing/multi_event_source_waiter.h"
 
 extern "C" {
 #include "ui/console.h"
@@ -211,4 +214,99 @@ TEST_F(QemuDisplayConcurrencyTest, InputEvents_DispatchedToQemuLoop) {
 
     qemu_loop_->RunAll();
     EXPECT_EQ(qemu_loop_->TaskCount(), 0);
+}
+
+TEST_F(QemuDisplayConcurrencyTest, DisplayEventProxy_DrivesLifecycleAndReceivesFrames) {
+    EXPECT_FALSE(display_->IsActive());
+    EXPECT_EQ(qemu_loop_->TaskCount(), 0);
+
+    {
+        auto proxy = std::make_unique<goldfish::display::DisplayEventProxy>(display_);
+        EXPECT_TRUE(display_->IsActive());
+        EXPECT_EQ(qemu_loop_->TaskCount(), 1);  // 0 -> 1 posts REG task
+
+        qemu_loop_->RunAll();
+        EXPECT_EQ(qemu_loop_->TaskCount(), 0);
+
+        absl::Notification notification;
+        auto callback = android::base::eventing::MakeScopedCallback(*proxy, [&](const FrameInfo&) {
+            if (!notification.HasBeenNotified()) {
+                notification.Notify();
+            }
+        });
+
+        display_->UpdateSurface(0, 0, 100, 100);
+        main_loop_->RunAll();
+        EXPECT_TRUE(notification.HasBeenNotified());
+    }
+
+    // Proxy destroyed -> removes listener -> 1 -> 0 posts UNREG task
+    EXPECT_FALSE(display_->IsActive());
+    EXPECT_EQ(qemu_loop_->TaskCount(), 1);
+
+    qemu_loop_->RunAll();
+    EXPECT_EQ(qemu_loop_->TaskCount(), 0);
+}
+
+TEST_F(QemuDisplayConcurrencyTest, MultiEventSourceWaiter_Integration) {
+    auto proxy = std::make_unique<goldfish::display::DisplayEventProxy>(display_);
+    EXPECT_TRUE(display_->IsActive());
+    qemu_loop_->RunAll();
+
+    android::base::eventing::MultiEventSourceWaiter waiter;
+    waiter.Listen<goldfish::display::DisplayEventProxy>(proxy.get());
+
+    const auto seq = waiter.GetEventSequence();
+    display_->UpdateSurface(0, 0, 100, 100);
+    main_loop_->RunAll();
+
+    EXPECT_TRUE(waiter.WaitForNextEvent(absl::Milliseconds(100), seq));
+}
+
+TEST_F(QemuDisplayConcurrencyTest, SurfaceSwap_UpdatesPixmanImage) {
+    auto* new_image = pixman_image_create_bits(PIXMAN_a8r8g8b8, 200, 200, nullptr, 200 * 4);
+    display_->UpdateSourceImage(new_image);
+
+    EXPECT_EQ(display_->GetDimensions().width, 200);
+    EXPECT_EQ(display_->GetDimensions().height, 200);
+
+    pixman_image_unref(new_image);
+}
+
+extern "C" {
+void SetTestRegisterDclHook(void (*hook)(DisplayChangeListener*));
+void SetTestGraphicHwUpdateHook(void (*hook)(QemuConsole*));
+}
+
+TEST_F(QemuDisplayConcurrencyTest, Registration_SuppressesPrematureGfxUpdateUntilHardwareUpdate) {
+    static bool s_gfx_update_null_during_register = false;
+    static bool s_gfx_update_restored_during_hw_update = false;
+    static DisplayChangeListener* s_captured_dcl = nullptr;
+
+    s_gfx_update_null_during_register = false;
+    s_gfx_update_restored_during_hw_update = false;
+    s_captured_dcl = nullptr;
+
+    SetTestRegisterDclHook([](DisplayChangeListener* dcl) {
+        s_captured_dcl = dcl;
+        // Verify dpy_gfx_update is suppressed during registration.
+        s_gfx_update_null_during_register = (dcl->ops->dpy_gfx_update == nullptr);
+    });
+
+    SetTestGraphicHwUpdateHook([](QemuConsole* /*con*/) {
+        // Verify dpy_gfx_update is restored before graphic_hw_update runs.
+        if (s_captured_dcl != nullptr) {
+            s_gfx_update_restored_during_hw_update =
+                    (s_captured_dcl->ops->dpy_gfx_update != nullptr);
+        }
+    });
+
+    auto listener = display_->AddFrameListener([](const FrameInfo&) {});
+    qemu_loop_->RunAll();
+
+    EXPECT_TRUE(s_gfx_update_null_during_register);
+    EXPECT_TRUE(s_gfx_update_restored_during_hw_update);
+
+    SetTestRegisterDclHook(nullptr);
+    SetTestGraphicHwUpdateHook(nullptr);
 }

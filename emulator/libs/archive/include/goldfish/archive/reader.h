@@ -75,6 +75,10 @@ inline absl::Status ReadValue(IReader&) {
 }
 
 template <typename T, typename... Args>
+// Enforces >= 2 values. Prevents this variadic template from matching
+// single-value calls (Args == {}) when a type-specific overload for T is
+// missing, which would cause infinite self-recursion and a stack overflow.
+    requires(sizeof...(Args) > 0)
 absl::Status ReadValue(IReader& r, T& first, Args&... rest) {
     if (const absl::Status s = ReadValue(r, first); s.ok()) {
         return ReadValue(r, rest...);

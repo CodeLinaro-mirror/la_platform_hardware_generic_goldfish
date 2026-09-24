@@ -35,10 +35,8 @@ using goldfish::proto_data_store::RawCircularLog;
 // Capped to prevent long context strings from flooding the circular log.
 constexpr size_t kMaxContextLen = 32;
 
-static std::atomic<uint8_t> next_loop_id{1};
-
 LooperBreadcrumbTracker::LooperBreadcrumbTracker(std::string name)
-        : name_(std::move(name)), loop_id_(next_loop_id++), annotation_(name_) {
+        : name_(std::move(name)), loop_id_(RegisterLooper(name_)), annotation_(name_) {
     // The looper local log (breadcrumb log) stores a circular buffer of recent event loop
     // posts and executions. This is written to a DynamicBinaryAnnotation, which is captured
     // by Crashpad during minidump generation. If initialization fails, the event loop will
@@ -51,7 +49,6 @@ LooperBreadcrumbTracker::LooperBreadcrumbTracker(std::string name)
     } else {
         breadcrumb_log_ = std::move(*log);
     }
-    RegisterLooper(loop_id_, name_);
 }
 
 FlowId LooperBreadcrumbTracker::LogPost(const PostOptions& options) {

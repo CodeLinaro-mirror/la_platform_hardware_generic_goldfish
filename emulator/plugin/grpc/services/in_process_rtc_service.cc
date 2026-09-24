@@ -20,6 +20,7 @@
 
 #include <memory>
 #include <utility>
+#include <vector>
 
 #include "absl/log/check.h"
 #include "absl/log/log.h"
@@ -27,15 +28,16 @@
 
 #include "android/emulation/control/event_sender.h"
 #include "api/make_ref_counted.h"
+#include "emulator/plugin/grpc/input/input_session.h"
+#include "emulator/plugin/grpc/services/v2/webrtc/rtc_service_impl.h"
 #include "goldfish/audio/qemu_audio_source.h"
 #include "goldfish/avd_info/avd_info.h"
-#include "goldfish/display/QemuMultidisplay/multi_display.h"
+#include "goldfish/display/abstract_multi_display.h"
 #include "goldfish/videobridge/in_process_input_sender.h"
 #include "goldfish/videobridge/in_process_video_source.h"
 #include "goldfish/videobridge/media_track_provider.h"
 #include "goldfish/videobridge/rtc_service.h"
 #include "goldfish/videobridge/switchboard.h"
-
 extern "C" {
 typedef struct QemuConsole QemuConsole;
 // NOLINTNEXTLINE(readability-identifier-naming)
@@ -97,12 +99,23 @@ absl::Status DispatchInProcessInputEvent(const InputEvent& request,
 }  // namespace
 
 InputSenderFactory CreateInProcessInputSenderFactory(
-        IMultiDisplay& multidisplay, std::shared_ptr<IKeyEventSender> key_event_sender) {
+        IMultiDisplay& multidisplay, std::shared_ptr<IKeyEventSender> key_event_sender,
+        bool hw_sensor_hinge) {
     CHECK_NE(key_event_sender, nullptr) << "key_event_sender must not be null";
     auto input_event_sender = std::make_shared<InputEventSender>(&multidisplay);
 
-    return [input_event_sender, key_event_sender = std::move(key_event_sender)](
-                   DataChannelLabel /*label*/) -> std::unique_ptr<InputSender> {
+    return [&multidisplay, input_event_sender, key_event_sender = std::move(key_event_sender),
+            hw_sensor_hinge](DataChannelLabel label) -> std::unique_ptr<InputSender> {
+        if (label == DataChannelLabel::kInputV2) {
+            auto input_session = std::make_shared<::goldfish::grpc::v2::InputSession>(
+                    multidisplay, key_event_sender, hw_sensor_hinge);
+            return std::make_unique<InProcessInputSender>(
+                    /*dispatcher=*/nullptr,
+                    [input_session](const ::android::emulation::v2::input::InputEvent& request) {
+                        return input_session->DispatchInputEvent(request);
+                    });
+        }
+
         return std::make_unique<InProcessInputSender>([input_event_sender, key_event_sender](
                                                               const InputEvent& request) {
             return DispatchInProcessInputEvent(request, *input_event_sender, *key_event_sender);
@@ -110,12 +123,10 @@ InputSenderFactory CreateInProcessInputSenderFactory(
     };
 }
 
-std::shared_ptr<::grpc::Service> CreateInProcessRtcService(AvdUniverse& avd_universe,
-                                                           uint32_t display_id,
-                                                           uint32_t console_index,
-                                                           AudioBackend* audio_backend) {
-    LOG(INFO) << "Creating in-process WebRTC RtcService for display " << display_id;
-
+static std::shared_ptr<Switchboard> CreateInProcessSwitchboard(AvdUniverse& avd_universe,
+                                                               uint32_t display_id,
+                                                               uint32_t console_index,
+                                                               AudioBackend* audio_backend) {
     auto video_source = ::webrtc::make_ref_counted<InProcessVideoSource>(
             avd_universe.GetMultiDisplay(), display_id);
 
@@ -135,11 +146,22 @@ std::shared_ptr<::grpc::Service> CreateInProcessRtcService(AvdUniverse& avd_univ
     // keyboard::createKeyEventSender explicitly supports a null QemuConsole* gracefully.
     std::shared_ptr<IKeyEventSender> key_event_sender =
             keyboard::createKeyEventSender(console, &avd_universe.GetQemuEventLoop());
-    auto input_sender_factory = CreateInProcessInputSenderFactory(avd_universe.GetMultiDisplay(),
-                                                                  std::move(key_event_sender));
-    auto switchboard = std::make_shared<Switchboard>(media_provider, input_sender_factory);
+    auto input_sender_factory = CreateInProcessInputSenderFactory(
+            avd_universe.GetMultiDisplay(), std::move(key_event_sender),
+            avd_universe.Props().hw_config.hw_sensor_hinge);
+    return std::make_shared<Switchboard>(media_provider, input_sender_factory);
+}
 
-    return std::make_shared<RtcService>(switchboard);
+std::vector<std::shared_ptr<::grpc::Service>> CreateInProcessRtcServices(
+        AvdUniverse& avd_universe, uint32_t display_id, uint32_t console_index,
+        AudioBackend* audio_backend) {
+    LOG(INFO) << "Creating in-process WebRTC RtcServices (v1 and v2) for display " << display_id;
+    auto switchboard =
+            CreateInProcessSwitchboard(avd_universe, display_id, console_index, audio_backend);
+    return {
+        std::make_shared<RtcService>(switchboard),
+        std::make_shared<::goldfish::grpc::v2::RtcServiceImpl>(switchboard),
+    };
 }
 
 }  // namespace android::emulation::control

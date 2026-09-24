@@ -156,7 +156,6 @@ class Participant : public EmptyConnectionObserver,
     void HandleCandidate(const nlohmann::json& msg);
     absl::Status CreatePeerConnection(const nlohmann::json& rtc_configuration);
     absl::Status AddDataChannel(DataChannelLabel label);
-    absl::StatusOr<SessionDescriptionPtr> ParseSdpMessage(const nlohmann::json& msg);
     void ReceivedSessionDescription(::webrtc::SessionDescriptionInterface* desc);
     void OnRemoteDescriptionSet();
 

@@ -213,7 +213,9 @@ cc_library(
         "//emulator/plugin/avd:info",
         "//emulator/plugin/display:base",
         "//emulator/plugin/grpc/input:event_sender",
+        "//emulator/plugin/grpc/input:input_session",
         "//emulator/plugin/grpc/keyboard",
+        "//emulator/plugin/grpc/services/v2:rtc_service",
         "//emulator/videobridge:in_process_media_providers",
         "//emulator/videobridge:rtc_service",
         "//emulator/videobridge:videobridge_core",
@@ -258,6 +260,7 @@ cc_test(
         "//emulator/plugin/avd:info-fake",
         "//emulator/plugin/display:test-display",
         "//emulator/plugin/grpc/keyboard:test_qemu_input_stub",
+        "@aemu//protos/services_v2/input:input_service_cc_proto",
         "@grpc//:grpc++",
     ],
 )
