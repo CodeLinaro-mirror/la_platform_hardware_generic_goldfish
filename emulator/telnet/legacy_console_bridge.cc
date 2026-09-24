@@ -1007,10 +1007,10 @@ LegacyConsoleBridge::LegacyConsoleBridge(int port, std::filesystem::path token_p
     sensor.On("status" /* do_sensors_status */, "list available sensors and their status",
               [](ConsoleContext& ctx) -> absl::StatusOr<std::string> {
                   ASSIGN_OR_RETURN(auto stub, ctx.EmulatorControllerStub());
-                  ASSIGN_OR_RETURN(auto context, ctx.NewContext());
 
                   std::string out;
                   for (const auto& def : kSupportedSensors) {
+                      ASSIGN_OR_RETURN(auto context, ctx.NewContext());
                       android::emulation::control::SensorValue request;
                       request.set_target(
                               static_cast<android::emulation::control::SensorValue::SensorType>(
