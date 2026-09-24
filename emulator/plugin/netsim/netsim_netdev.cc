@@ -17,6 +17,7 @@
 #include <sys/types.h>
 
 #include <memory>
+#include <string>
 
 #include "absl/log/check.h"
 #include "absl/log/log.h"
@@ -34,6 +35,11 @@ extern "C" {
 #include "qom/object.h"
 // IWYU pragma: end_keep
 // clang-format on
+
+// qemu/iov.h can't be included because of void* arithmetic
+size_t iov_size(const struct iovec* iov, const unsigned int iov_cnt);
+size_t iov_to_buf_full(const struct iovec* iov, const unsigned int iov_cnt, size_t offset,
+                       void* buf, size_t bytes);
 }
 
 #undef send
@@ -102,33 +108,48 @@ bool netsim_netdev_send(NetClientState* nc, std::unique_ptr<std::vector<uint8_t>
     }
 }
 
-ssize_t netsim_netdev_receive(NetClientState* nc, const uint8_t* buf, size_t size) {
+ssize_t netsim_netdev_receive_iov(NetClientState* nc, const struct iovec* iov, int iovcnt) {
     // From guest to netsim.
-    VLOG(2) << "NETSIM: receive (netsim <- guest)";
+    VLOG(2) << "NETSIM: receive_iov (netsim <- guest)";
+    if (iovcnt <= 0) {
+        return -1;
+    }
     auto* s = reinterpret_cast<NetsimNicState*>(nc);
+
+    const size_t total_len = iov_size(iov, iovcnt);
+    if (total_len == 0) {
+        return -1;
+    }
+    if (total_len > NET_BUFSIZE) {
+        LOG(WARNING) << "Packet length exceeds maximum allowed packet size";
+        return -1;
+    }
+
+    ::netsim::packet::PacketRequest toSend;
+    auto* packet_bytes = toSend.mutable_packet();
+    packet_bytes->resize(total_len);
+    iov_to_buf_full(iov, iovcnt, 0, packet_bytes->data(), total_len);
 
     if (s->is_wifi) {
         // Filter out spurious garbage data from the guest.
-        const goldfish::network::GenericNetlinkMessage msg(buf, size);
+        if (total_len <
+            sizeof(goldfish::network::nlmsghdr) + sizeof(goldfish::network::genlmsghdr)) {
+            // Too small for GenericNetlinkMessage.
+            return total_len;
+        }
+        const goldfish::network::GenericNetlinkMessage msg(
+                reinterpret_cast<const uint8_t*>(toSend.packet().data()), total_len);
         if (msg.genericNetlinkHeader()->cmd != HWSIM_CMD_FRAME) {
             VLOG(1) << "Not sending junk frame";
-            return size;
+            return total_len;
         }
-
-        ::netsim::packet::PacketRequest toSend;
-        toSend.set_packet(
-                std::string_view(reinterpret_cast<const char*>(msg.data()), msg.dataLen()));
-        s->netsim->transport->send(std::move(toSend));
-    } else {
-        ::netsim::packet::PacketRequest toSend;
-        toSend.set_packet(std::string_view(reinterpret_cast<const char*>(buf), size));
-        s->netsim->transport->send(std::move(toSend));
+        packet_bytes->resize(msg.dataLen());
     }
+    s->netsim->transport->send(std::move(toSend));
 
     // TODO(whollins): Should we try to detect netsimd connection drop and set link down?
 
-    // Return consumed buffer size.
-    return size;
+    return total_len;
 }
 
 void reset_transport(NetsimState* netsim) {
@@ -166,11 +187,8 @@ NetClientInfo netsim_netdev_nic_info = {
     // .type = NET_CLIENT_DRIVER_NETSIM,
     .type = NET_CLIENT_DRIVER_NONE,
     .size = sizeof(NetsimNicState),
-    .receive = netsim_netdev_receive,
+    .receive_iov = netsim_netdev_receive_iov,
     .cleanup = netsim_netdev_cleanup,
-    // TODO consider adding a receive iov handler.
-    // ssize_t netsim_netdev_receive_iov(NetClientState *nc, const struct iovec *iov, int iovcnt)
-    //.receive_iov = netsim_netdev_receive_iov,
     .link_status_changed = netsim_netdev_link_status_changed,
 };
 
