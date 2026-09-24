@@ -28,3 +28,14 @@ cc_proto_library(
     visibility = ["//visibility:public"],
     deps = [":google_logs_publishing_proto"],
 )
+
+proto_library(
+    name = "analytics_settings_proto",
+    srcs = ["analytics_settings.proto"],
+)
+
+cc_proto_library(
+    name = "analytics_settings_cc_proto",
+    visibility = ["//visibility:public"],
+    deps = [":analytics_settings_proto"],
+)
