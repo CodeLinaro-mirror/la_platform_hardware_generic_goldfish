@@ -27,6 +27,7 @@
 #include "absl/log/log.h"
 
 #include "goldfish/display/abstract_multi_display.h"
+#include "goldfish/perfetto/perfetto_categories.h"
 
 namespace goldfish::videobridge {
 
@@ -90,15 +91,27 @@ void InProcessVideoSource::OnFrameAvailable(const ::goldfish::display::FrameInfo
         if (!display_) {
             return;
         }
+        if (last_seq_ != 0 && frame_info.sequence_number > last_seq_ + 1) {
+            const uint64_t dropped = frame_info.sequence_number - last_seq_ - 1;
+            total_dropped_ += dropped;
+            TRACE_COUNTER("display", "webrtc_dropped_frames", total_dropped_);
+            TRACE_EVENT_INSTANT("display", "WebRTCFrameDropped", "dropped_count", dropped,
+                                "last_seq", last_seq_, "current_seq", frame_info.sequence_number);
+        }
+        last_seq_ = frame_info.sequence_number;
     }
 
     auto nv12_buffer = ::webrtc::NV12Buffer::Create(static_cast<int>(even_width),
                                                     static_cast<int>(even_height));
 
-    const int cvt_res = libyuv::ABGRToNV12(
-            frame_info.pixels, static_cast<int>(frame_info.stride), nv12_buffer->MutableDataY(),
-            nv12_buffer->StrideY(), nv12_buffer->MutableDataUV(), nv12_buffer->StrideUV(),
-            static_cast<int>(even_width), static_cast<int>(even_height));
+    int cvt_res = 0;
+    {
+        TRACE_EVENT("display", "libyuv::ABGRToNV12", "w", even_width, "h", even_height);
+        cvt_res = libyuv::ABGRToNV12(frame_info.pixels, static_cast<int>(frame_info.stride),
+                                     nv12_buffer->MutableDataY(), nv12_buffer->StrideY(),
+                                     nv12_buffer->MutableDataUV(), nv12_buffer->StrideUV(),
+                                     static_cast<int>(even_width), static_cast<int>(even_height));
+    }
 
     if (cvt_res != 0) {
         LOG(ERROR) << "InProcessVideoSource failed to convert frame to NV12 format.";
@@ -115,7 +128,12 @@ void InProcessVideoSource::OnFrameAvailable(const ::goldfish::display::FrameInfo
                                                .set_rotation(webrtc_rotation)
                                                .build();
 
-    this->OnFrame(video_frame);
+    {
+        TRACE_EVENT("display", "InProcessVideoSource::OnFrame",
+                    perfetto::Flow::ProcessScoped(frame_info.sequence_number), "seq",
+                    frame_info.sequence_number);
+        this->OnFrame(video_frame);
+    }
 }
 
 ::webrtc::VideoRotation ToWebRtcRotation(goldfish::display::ImageRotation rotation) {

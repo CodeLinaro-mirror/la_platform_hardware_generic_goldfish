@@ -797,6 +797,7 @@ cc_library(
     strip_include_prefix = "include",
     deps = [
         ":videobridge_core",
+        "//emulator/libs/perfetto:init",
         "//emulator/plugin/display:abstract_multi_display",
         "@abseil-cpp//absl/log",
         "@libyuv",
