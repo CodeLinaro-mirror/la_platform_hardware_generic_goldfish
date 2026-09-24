@@ -38,7 +38,7 @@ PERFETTO_TRACK_EVENT_STATIC_STORAGE();
 namespace goldfish::perfetto {
 void Initialize() {
     ::perfetto::TracingInitArgs args;
-    args.backends = ::perfetto::kInProcessBackend;
+    args.backends = ::perfetto::kInProcessBackend | ::perfetto::kSystemBackend;
     ::perfetto::Tracing::Initialize(args);
     ::perfetto::TrackEvent::Register();
 }

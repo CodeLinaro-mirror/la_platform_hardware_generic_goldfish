@@ -51,4 +51,5 @@ PERFETTO_DEFINE_CATEGORIES(
         perfetto::Category("async").SetDescription(
                 "Event loop primitives, task scheduling, and I/O"),
         perfetto::Category("grpc").SetDescription("gRPC call tracing"),
-        perfetto::Category("qemu").SetDescription("QEMU internal trace events"));
+        perfetto::Category("qemu").SetDescription("QEMU internal trace events"),
+        perfetto::Category("display").SetDescription("Display and frame delivery pipeline"));
