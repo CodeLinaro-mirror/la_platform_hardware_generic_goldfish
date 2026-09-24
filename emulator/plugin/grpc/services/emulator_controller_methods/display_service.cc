@@ -264,6 +264,9 @@ Status DisplayServiceImpl::streamScreenshot(ServerContext* context, const ImageF
     // Track percentiles, and report if we have seen at least 32 frames.
     // metrics::Percentiles perfEstimator(32, {0.5, 0.95});
     bool first_time = true;
+    uint64_t last_seq = 0;
+    uint64_t total_dropped = 0;
+    absl::Time last_frame_time = absl::InfinitePast();
     while (clientAvailable) {
         constexpr auto kTimeToWaitForFrame = absl::Milliseconds(125);
         bool frames_arrived = frame_or_sensor_event.WaitForNextEvent(kTimeToWaitForFrame, frame);
@@ -289,9 +292,31 @@ Status DisplayServiceImpl::streamScreenshot(ServerContext* context, const ImageF
             // this timeline: (0 is empty frame. F is frame) [0, ...
             // <nothing> ..., F1, F2, F3, 0, ...<nothing>... ]
             bool emptyFrame = reply.format().width() == 0;
+            const uint64_t current_seq = reply.seq();
+            if (last_seq != 0 && current_seq > last_seq + 1) {
+                const uint64_t dropped = current_seq - last_seq - 1;
+                total_dropped += dropped;
+                TRACE_COUNTER("display", "dropped_frames", total_dropped);
+                TRACE_EVENT_INSTANT("display", "FrameDropped", "dropped_count", dropped, "last_seq",
+                                    last_seq, "current_seq", current_seq);
+            }
+            last_seq = current_seq;
+
             if (!context->IsCancelled() && (!lastFrameWasEmpty || !emptyFrame)) {
+                const absl::Time now_time = absl::Now();
+                if (last_frame_time != absl::InfinitePast()) {
+                    const int64_t interval_ms =
+                            absl::ToInt64Milliseconds(now_time - last_frame_time);
+                    TRACE_COUNTER("display", "grpc_frame_interval_ms", interval_ms);
+                }
+                last_frame_time = now_time;
+
                 VLOG(2) << "Writing frame: " << reply.seq() << ", hash: " << hasher(reply.image());
-                clientAvailable = writer->Write(reply);
+                {
+                    TRACE_EVENT("display", "grpc::ServerWriter::Write", "seq", current_seq, "bytes",
+                                reply.ByteSizeLong());
+                    clientAvailable = writer->Write(reply);
+                }
                 if (!clientAvailable) {
                     break;
                 }
