@@ -46,11 +46,17 @@ void PerfettoInterceptor::Intercept(grpc::experimental::InterceptorBatchMethods*
 
 grpc::experimental::Interceptor* PerfettoInterceptorFactory::CreateServerInterceptor(
         grpc::experimental::ServerRpcInfo* info) {
+    if (!TRACE_EVENT_CATEGORY_ENABLED("grpc")) {
+        return nullptr;
+    }
     return new PerfettoInterceptor(info);
 }
 
 grpc::experimental::Interceptor* PerfettoInterceptorFactory::CreateClientInterceptor(
         grpc::experimental::ClientRpcInfo* info) {
+    if (!TRACE_EVENT_CATEGORY_ENABLED("grpc")) {
+        return nullptr;
+    }
     return new PerfettoInterceptor(info);
 }
 
