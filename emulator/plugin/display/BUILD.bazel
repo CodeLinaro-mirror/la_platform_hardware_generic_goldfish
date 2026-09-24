@@ -14,6 +14,7 @@ cc_library(
     deps = [
         "//emulator/libs/async:async_api",
         "//emulator/libs/base",
+        "//emulator/libs/perfetto:init",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/time",
     ],
@@ -48,6 +49,7 @@ cc_library(
         "//emulator/libs/base",
         "//emulator/libs/fps_calculator",
         "//emulator/libs/logging:absl_c_bridge",
+        "//emulator/libs/perfetto:init",
         "//emulator/libs/physics",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/strings",
@@ -90,6 +92,7 @@ cc_library(
         "//emulator/libs/archive",
         "//emulator/libs/async:async_api",
         "//emulator/libs/base",
+        "//emulator/libs/perfetto:init",
         "//emulator/plugin/hal/multidisplay",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/time",

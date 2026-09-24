@@ -26,6 +26,7 @@
 
 #include "goldfish/async/event_loop_dispatcher.h"
 #include "goldfish/base/unique_handle.h"
+#include "goldfish/perfetto/perfetto_categories.h"
 
 extern "C" {
 struct QemuConsole;
@@ -363,6 +364,9 @@ class IDisplay : public FrameInfoCallbackSource,
         info.sequence_number = seq_.sequence_number + 1;
         info.timestamp = absl::Now();
         seq_ = info;
+        TRACE_EVENT_INSTANT("display", "IDisplay::FrameReceived",
+                            perfetto::Flow::ProcessScoped(seq_.sequence_number), "seq",
+                            seq_.sequence_number);
         FireFrameEvent(seq_);
     }
 
