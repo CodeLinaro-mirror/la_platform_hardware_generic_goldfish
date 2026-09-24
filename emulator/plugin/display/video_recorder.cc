@@ -19,6 +19,8 @@
 
 #include "absl/log/log.h"
 
+#include "goldfish/perfetto/perfetto_categories.h"
+
 namespace goldfish::display {
 
 VideoRecorder::VideoRecorder(int width, int height, int fps, int bitrate, int duration)
@@ -94,6 +96,8 @@ void VideoRecorder::GenerationLoop() {
 
         // 2. Execute User Callback (Draw the frame)
         if (draw_callback_) {
+            TRACE_EVENT("display", "VideoRecorder::DrawFrame", "frame_index", frame_index,
+                        "time_sec", time_sec);
             draw_callback_(frame_buffer.data(), width_, height_, frame_index, time_sec);
         }
 
@@ -113,7 +117,12 @@ void VideoRecorder::GenerationLoop() {
                 std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
 
         if (work_duration < frame_duration) {
+            TRACE_EVENT("display", "VideoRecorder::FramePacingSleep", "sleep_ms",
+                        (frame_duration - work_duration).count());
             std::this_thread::sleep_for(frame_duration - work_duration);
+        } else {
+            TRACE_EVENT_INSTANT("display", "VideoRecorder::FrameOverrun", "work_ms",
+                                work_duration.count(), "target_ms", frame_duration.count());
         }
     }
 

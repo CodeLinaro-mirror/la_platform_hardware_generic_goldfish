@@ -18,6 +18,8 @@
 
 #include "absl/log/log.h"
 
+#include "goldfish/perfetto/perfetto_categories.h"
+
 namespace goldfish::display {
 
 WebMEncoder::WebMEncoder(std::string fname, int w, int h, int f, int br)
@@ -144,6 +146,7 @@ bool WebMEncoder::Init() {
 }
 
 void WebMEncoder::AddFrame(const uint8_t* rgb_data) {
+    TRACE_EVENT("display", "WebMEncoder::AddFrame");
     {
         const absl::MutexLock lock(queue_mutex_);
         if (!is_initialized_ || stop_signal_) return;
@@ -155,6 +158,7 @@ void WebMEncoder::AddFrame(const uint8_t* rgb_data) {
     {
         const absl::MutexLock lock(queue_mutex_);
         frame_queue_.push(std::move(frame_data));
+        TRACE_COUNTER("display", "webm_queue_depth", frame_queue_.size());
     }
 }
 
@@ -202,6 +206,7 @@ void WebMEncoder::EncodeLoop() {
             }
             current_data = std::move(frame_queue_.front());
             frame_queue_.pop();
+            TRACE_COUNTER("display", "webm_queue_depth", frame_queue_.size());
         }
 
         ProcessFrame(current_data, pts_counter_++);
@@ -237,16 +242,23 @@ void WebMEncoder::EncodeLoop() {
 }
 
 void WebMEncoder::ProcessFrame(const std::vector<uint8_t>& raw_data, int64_t frame_index) {
+    TRACE_EVENT("display", "WebMEncoder::ProcessFrame", "frame_index", frame_index);
     if (av_frame_make_writable(frame_) < 0) return;
 
     const uint8_t* const src_slice[AV_NUM_DATA_POINTERS] = {raw_data.data()};
     const int src_stride[AV_NUM_DATA_POINTERS] = {width_ * 3};
 
-    sws_scale(sws_ctx_, src_slice, src_stride, 0, height_, frame_->data, frame_->linesize);
+    {
+        TRACE_EVENT("display", "sws_scale");
+        sws_scale(sws_ctx_, src_slice, src_stride, 0, height_, frame_->data, frame_->linesize);
+    }
 
     frame_->pts = frame_index;
 
-    if (avcodec_send_frame(codec_ctx_, frame_) < 0) return;
+    {
+        TRACE_EVENT("display", "avcodec_send_frame");
+        if (avcodec_send_frame(codec_ctx_, frame_) < 0) return;
+    }
 
     while (true) {
         const int ret = avcodec_receive_packet(codec_ctx_, pkt_);
