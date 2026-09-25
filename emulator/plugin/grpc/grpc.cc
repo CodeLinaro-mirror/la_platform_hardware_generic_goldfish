@@ -28,6 +28,7 @@
 #include "android/control/interceptor/idle_interceptor.h"
 #include "android/control/interceptor/logging_interceptor.h"
 #include "android/control/interceptor/metrics_interceptor.h"
+#include "android/control/interceptor/perfetto_interceptor.h"
 #include "android/emulation/control/allow_list.h"
 #include "android/emulation/control/basic_token_auth.h"
 #include "android/emulation/control/emulator_controller.h"
@@ -183,6 +184,8 @@ CreateInterceptors(bool enable_logging, int idle_timeout) {
     creators.emplace_back(
             std::make_unique<android::control::interceptor::MetricsInterceptorFactory>(
                     ::goldfish::avd_info::GetAvd().GetMetricsReporter()));
+    creators.emplace_back(
+            std::make_unique<android::control::interceptor::PerfettoInterceptorFactory>());
 
     if (idle_timeout > 0) {
         LOG(INFO) << "Terminating emulator if no activity after " << idle_timeout << " seconds.";

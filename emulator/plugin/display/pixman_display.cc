@@ -31,6 +31,7 @@
 #include "android/base/clock.h"
 #include "goldfish/display/imaging.h"
 #include "goldfish/display/write_png.h"
+#include "goldfish/perfetto/perfetto_categories.h"
 
 extern "C" {
 // clang-format off
@@ -248,6 +249,8 @@ void PixmanDisplay::UpdateSourceImage(::pixman_image_t* image) {
 absl::StatusOr<FrameInfo> PixmanDisplay::GetPixels(PixelFormat format, int new_width,
                                                    int new_height, ImageRotation rotation,
                                                    uint8_t* pixels, size_t* c_pixels) const {
+    TRACE_EVENT("display", "PixmanDisplay::GetPixels", "format", static_cast<int>(format), "w",
+                new_width, "h", new_height);
     // NOTE: We expect newWidth and new_height to be safe, shearing *WILL* happen if the ratios
     // are not proper.
     const absl::MutexLock lock(pixman_mutex_);
@@ -417,12 +420,14 @@ absl::StatusOr<FrameInfo> PixmanDisplay::GetPixels(PixelFormat format, int new_w
 }
 
 void PixmanDisplay::UpdateSurface(int x, int y, int width, int height) {
+    TRACE_EVENT("display", "PixmanDisplay::UpdateSurface", "x", x, "y", y, "w", width, "h", height);
     VLOG(2) << "UpdateSurface " << *this << ", to: (" << x << ", " << y << "), (" << width << "x"
             << height << ")";
 
     frame_manager_->UpdateSurface();
     FrameInfo info;
     {
+        TRACE_EVENT("display", "WithRenderableImage");
         const absl::MutexLock lock(&pixman_mutex_);
         frame_manager_->WithRenderableImage([&](::pixman_image_t* src_img) {
             if (src_img) {
@@ -435,7 +440,10 @@ void PixmanDisplay::UpdateSurface(int x, int y, int width, int height) {
             }
         });
     }
-    FrameReceived(info);
+    {
+        TRACE_EVENT("display", "FrameReceived");
+        FrameReceived(info);
+    }
     if (ABSL_VLOG_IS_ON(2)) {
         fps_calculator_.AddFrame();
         VLOG_EVERY_N_SEC(2, 1) << "Qemu framerate: " << fps_calculator_.GetFps() << " fps";

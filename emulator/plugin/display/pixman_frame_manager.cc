@@ -19,6 +19,7 @@
 #include "absl/strings/string_view.h"
 
 #include "goldfish/display/pixman_image_ptr.h"
+#include "goldfish/perfetto/perfetto_categories.h"
 
 namespace {
 // Calculates a hash of the pixel data of a pixman_image_t, used for debugging frame issues.
@@ -41,8 +42,11 @@ size_t CalculateHash(::pixman_image_t* image) {
 namespace goldfish::display {
 
 void PixmanFrameManager::UpdateSurface() {
+    TRACE_EVENT("display", "PixmanFrameManager::UpdateSurface");
     const absl::MutexLock lock(display_access_);
     auto height = pixman_image_get_height(current_image_.get());
+    TRACE_EVENT("display", "PixmanFrameManager::memcpy", "bytes",
+                static_cast<uint64_t>(height) * stride_);
     memcpy(pixman_image_get_data(current_image_.get()), src_bits_,
            static_cast<size_t>(height) * stride_);
 }

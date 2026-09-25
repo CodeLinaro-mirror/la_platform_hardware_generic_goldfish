@@ -33,6 +33,7 @@
 #include "goldfish/display/display.h"
 #include "goldfish/display/multi_display_callbacks.h"
 #include "goldfish/display/virtual_display.h"
+#include "goldfish/perfetto/perfetto_categories.h"
 #include "goldfish/physics/rotation.h"
 #include "goldfish/physics/skin_rotation.h"
 #include "qemu_display.h"
@@ -437,6 +438,7 @@ std::unique_ptr<IMultiDisplay> IMultiDisplay::Create(EventLoop* loop, EventLoop*
 }
 
 extern "C" void grpc_dpy_gfx_update(struct DisplayChangeListener* dcl, int x, int y, int w, int h) {
+    TRACE_EVENT("display", "grpc_dpy_gfx_update", "x", x, "y", y, "w", w, "h", h);
     // TODO(jansene): True multidisplay support should go over the qemu consoles, that are tied
     // to gpu0, head:%d
     auto& multi_display =

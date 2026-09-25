@@ -38,6 +38,7 @@
 #include "goldfish/eventing/observable_value.h"
 #include "goldfish/fps_calculator.h"
 #include "goldfish/memory/shared_memory.h"
+#include "goldfish/perfetto/perfetto_categories.h"
 #include "goldfish/physics/rotation.h"
 
 namespace android {
@@ -370,6 +371,7 @@ absl::StatusOr<DisplayServiceImpl::MemoryAllocator> DisplayServiceImpl::createAl
 
 Status DisplayServiceImpl::getScreenshot(ServerContext* context, const ImageFormat* request,
                                          Image* reply, MemoryAllocator& allocator) {
+    TRACE_EVENT("display", "DisplayServiceImpl::getScreenshot", "display", request->display());
     bool needs_side_channel =
             request->has_transport() && request->transport().channel() == ImageTransport::MMAP;
     const auto& hw = ::goldfish::avd_info::GetAvd().Props().hw_config;
@@ -445,6 +447,7 @@ Status DisplayServiceImpl::getScreenshot(ServerContext* context, const ImageForm
     // By adding a listener, we guarantee QEMU renders a frame if inactive, or immediately
     // yields the current frame if already active.
     {
+        TRACE_EVENT("display", "WaitForFrameArrival");
         auto frame_arrived = std::make_shared<absl::Notification>();
         auto listener = display->AddFrameListener([frame_arrived](const auto&) {
             if (!frame_arrived->HasBeenNotified()) frame_arrived->Notify();
@@ -461,7 +464,11 @@ Status DisplayServiceImpl::getScreenshot(ServerContext* context, const ImageForm
     if (!allocated_pixels.ok()) {
         return AbslStatusToGrpcStatus(allocated_pixels.status());
     }
-    seq = display->GetPixels(format, newWidth, newHeight, rotation, *allocated_pixels, &c_pixels);
+    {
+        TRACE_EVENT("display", "display->GetPixels");
+        seq = display->GetPixels(format, newWidth, newHeight, rotation, *allocated_pixels,
+                                 &c_pixels);
+    }
 
     if (!seq.status().ok()) {
         return AbslStatusToGrpcStatus(seq.status());
