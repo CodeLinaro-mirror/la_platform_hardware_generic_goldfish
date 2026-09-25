@@ -180,6 +180,33 @@ TEST_F(RtcServiceImplTest, ReceiveJsepMessageStreamDeliversUpdates) {
     EXPECT_TRUE(reader->Finish().ok());
 }
 
+TEST_F(RtcServiceImplTest, ReceiveJsepMessageStreamDeliversEnvelopedIceCandidate) {
+    const std::string session_id = StartSession();
+    RtcSession request;
+    request.set_session_id(session_id);
+    ::grpc::ClientContext context;
+    auto reader = stub_->ReceiveJsepMessageStream(&context, request);
+
+    // Participant::OnIceCandidate emits a nested {"candidate": {...}} JSON envelope.
+    switchboard_->Send(
+            session_id,
+            {{"candidate",
+              {{"sdpMid", "0"},
+               {"sdpMLineIndex", 1},
+               {"candidate", "candidate:123 1 udp 2122260223 127.0.0.1 54321 typ host"}}}});
+
+    JsepMessage message;
+    ASSERT_TRUE(reader->Read(&message));
+    EXPECT_EQ(message.handle().session_id(), session_id);
+    EXPECT_EQ(message.ice_candidate().sdp_mid(), "0");
+    EXPECT_EQ(message.ice_candidate().sdp_m_line_index(), 1);
+    EXPECT_EQ(message.ice_candidate().candidate(),
+              "candidate:123 1 udp 2122260223 127.0.0.1 54321 typ host");
+
+    switchboard_->Disconnect(session_id);
+    EXPECT_TRUE(reader->Finish().ok());
+}
+
 TEST_F(RtcServiceImplTest, ReceiveJsepMessageStreamDrainsBacklogWithoutRecursing) {
     // The previous callback based implementation re-armed itself from its own
     // completion, so a backlog cost one stack frame per message and crashed here.

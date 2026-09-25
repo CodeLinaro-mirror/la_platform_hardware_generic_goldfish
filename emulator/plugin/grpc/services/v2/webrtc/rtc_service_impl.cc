@@ -96,26 +96,31 @@ JsepMessage ParseSwitchboardJsonToJsep(std::string_view session_id, std::string_
 
     auto parsed = nlohmann::json::parse(raw_json, nullptr, false);
     if (!parsed.is_discarded() && parsed.is_object()) {
-        if (parsed.contains("sdp") && parsed["sdp"].is_string()) {
+        const auto& sdp_obj =
+                (parsed.contains("sdp") && parsed["sdp"].is_object()) ? parsed["sdp"] : parsed;
+        if (sdp_obj.contains("sdp") && sdp_obj["sdp"].is_string()) {
             auto* sdp = response.mutable_sdp();
-            sdp->set_sdp(parsed["sdp"].get<std::string>());
-            if (parsed.contains("type") && parsed["type"].is_string()) {
-                sdp->set_type(StringToSdpType(parsed["type"].get<std::string>()));
+            sdp->set_sdp(sdp_obj["sdp"].get<std::string>());
+            if (sdp_obj.contains("type") && sdp_obj["type"].is_string()) {
+                sdp->set_type(StringToSdpType(sdp_obj["type"].get<std::string>()));
             }
             return response;
         }
+        const auto& cand_obj = (parsed.contains("candidate") && parsed["candidate"].is_object())
+                                       ? parsed["candidate"]
+                                       : parsed;
         auto* ice = response.mutable_ice_candidate();
-        if (parsed.contains("candidate") && parsed["candidate"].is_string()) {
-            ice->set_candidate(parsed["candidate"].get<std::string>());
+        if (cand_obj.contains("candidate") && cand_obj["candidate"].is_string()) {
+            ice->set_candidate(cand_obj["candidate"].get<std::string>());
         }
-        if (parsed.contains("sdpMid") && parsed["sdpMid"].is_string()) {
-            ice->set_sdp_mid(parsed["sdpMid"].get<std::string>());
+        if (cand_obj.contains("sdpMid") && cand_obj["sdpMid"].is_string()) {
+            ice->set_sdp_mid(cand_obj["sdpMid"].get<std::string>());
         }
-        if (parsed.contains("sdpMLineIndex") && parsed["sdpMLineIndex"].is_number_integer()) {
-            ice->set_sdp_m_line_index(parsed["sdpMLineIndex"].get<int32_t>());
+        if (cand_obj.contains("sdpMLineIndex") && cand_obj["sdpMLineIndex"].is_number_integer()) {
+            ice->set_sdp_m_line_index(cand_obj["sdpMLineIndex"].get<int32_t>());
         }
-        if (parsed.contains("usernameFragment") && parsed["usernameFragment"].is_string()) {
-            ice->set_username_fragment(parsed["usernameFragment"].get<std::string>());
+        if (cand_obj.contains("usernameFragment") && cand_obj["usernameFragment"].is_string()) {
+            ice->set_username_fragment(cand_obj["usernameFragment"].get<std::string>());
         }
     }
     return response;
