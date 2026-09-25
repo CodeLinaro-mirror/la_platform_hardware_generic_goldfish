@@ -22,6 +22,7 @@
 
 #include "goldfish/file/file.h"
 #include "goldfish/file/file_atomic.h"
+#include "goldfish/perfetto/perfetto_categories.h"
 
 namespace android {
 namespace emulation {
@@ -119,10 +120,17 @@ Status ScreenRecordingServiceImpl::StartRecording(ServerContext* context,
     const char* kFileName = configured_request.file_name().c_str();
     auto frame_generator = [display, width2, height2](uint8_t* pixels, int w, int h, int frameIndex,
                                                       double time) {
+        TRACE_EVENT("display", "ScreenRecording::GenerateFrame", "frame_index", frameIndex, "time",
+                    time);
         auto format2 = ::goldfish::display::PixelFormat::kRgb888;
         auto rotation2 = ::goldfish::display::ImageRotation::kRotation0;
         size_t c_pixels = static_cast<size_t>(width2) * height2 * 3;
         auto seq = display->GetPixels(format2, width2, height2, rotation2, pixels, &c_pixels);
+        if (seq.ok()) {
+            TRACE_EVENT_INSTANT("display", "ScreenRecording::FrameGenerated",
+                                perfetto::Flow::ProcessScoped(seq.value().sequence_number), "seq",
+                                seq.value().sequence_number, "frame_index", frameIndex);
+        }
     };
     if (!recorder_->Start(kFileName, frame_generator)) {
         recorder_.reset();

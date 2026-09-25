@@ -117,6 +117,7 @@ cc_library(
         ":base",
         "//emulator/libs/base",
         "//emulator/libs/logging:absl_c_bridge",
+        "//emulator/libs/perfetto:init",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/time",

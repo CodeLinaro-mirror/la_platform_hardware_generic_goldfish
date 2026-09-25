@@ -163,6 +163,7 @@ cc_library(
         "//emulator/libs/archive",
         "//emulator/libs/file",
         "//emulator/libs/grpc_utils:absl_translate",
+        "//emulator/libs/perfetto:init",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/log",
