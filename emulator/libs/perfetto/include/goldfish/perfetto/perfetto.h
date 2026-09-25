@@ -17,7 +17,9 @@
 #include <memory>
 #include <string_view>
 
+#if defined(CONFIG_TRACE_GOLDFISH)
 #include "perfetto/tracing/tracing.h"
+#endif
 
 /**
  * @file perfetto.h
@@ -25,6 +27,8 @@
  */
 
 namespace goldfish::perfetto {
+
+#if defined(CONFIG_TRACE_GOLDFISH)
 
 /**
  * @brief Initializes the Perfetto tracing system for the emulator.
@@ -90,5 +94,7 @@ class EmulatorTracingSession {
     /// The underlying Perfetto tracing session.
     std::unique_ptr<::perfetto::TracingSession> session_;
 };
+
+#endif  // defined(CONFIG_TRACE_GOLDFISH)
 
 }  // namespace goldfish::perfetto

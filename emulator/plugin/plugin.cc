@@ -217,9 +217,9 @@ extern "C" void GF_REGISTER_TYPES_FUNC(void) {
     VLOG(1) << "Exit GF_REGISTER_TYPES";
 }
 
+#if defined(CONFIG_TRACE_GOLDFISH)
 static std::unique_ptr<goldfish::perfetto::EmulatorTracingSession> sTracingSession;
 
-#if defined(CONFIG_TRACE_GOLDFISH)
 static void OnQemuGoldfishTrace(const GoldfishTraceData* data) {
     if (!data) return;
     if (data->type == GOLDFISH_TRACE_EVENT_START) {
@@ -228,19 +228,10 @@ static void OnQemuGoldfishTrace(const GoldfishTraceData* data) {
         TRACE_EVENT_END("qemu");
     }
 }
-#endif
 
-extern "C" void GF_STARTUP_FUNC(int argc, char** argv) {
-    absl::InitializeSymbolizer(argv[0]);
-
-    setup_logging();
-    android::base::System::DisableAppNap();
-
+static void start_tracing() {
     goldfish::perfetto::Initialize();
-
-#if defined(CONFIG_TRACE_GOLDFISH)
     qemu_goldfish_set_trace_callback(OnQemuGoldfishTrace);
-#endif
 
     const std::string trace_path =
             System::Get()->GetEnvironmentVariable("ANDROID_EMU_PERFETTO_TRACE");
@@ -249,6 +240,26 @@ extern "C" void GF_STARTUP_FUNC(int argc, char** argv) {
         sTracingSession = std::make_unique<goldfish::perfetto::EmulatorTracingSession>(
                 trace_path, "qemu,rendering,grpc,display,async");
     }
+}
+
+static void stop_tracing() {
+    if (sTracingSession) {
+        LOG(INFO) << "Stopping Perfetto tracing session";
+        sTracingSession->Stop();
+        sTracingSession.reset();
+    }
+}
+#else
+static void start_tracing() {}
+static void stop_tracing() {}
+#endif
+
+extern "C" void GF_STARTUP_FUNC(int argc, char** argv) {
+    absl::InitializeSymbolizer(argv[0]);
+
+    setup_logging();
+    android::base::System::DisableAppNap();
+    start_tracing();
 
     VLOG(1) << "Goldfish plugin version: " << goldfish::version::GetEmulatorFullVersion();
     // The plugin crash system should never try to upload - that should only be
@@ -280,11 +291,7 @@ extern "C" void GF_STARTUP_FUNC(int argc, char** argv) {
 }
 
 extern "C" void GF_SHUTDOWN_FUNC(void) {
-    if (sTracingSession) {
-        LOG(INFO) << "Stopping Perfetto tracing session";
-        sTracingSession->Stop();
-        sTracingSession.reset();
-    }
+    stop_tracing();
 
     auto* client_loop = goldfish::async::globalEventLoop();
     android::crashreport::CrashReporter::GetCrashingHangDetector().RemoveWatchedLooper(

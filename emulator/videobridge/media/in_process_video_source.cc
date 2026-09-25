@@ -91,14 +91,17 @@ void InProcessVideoSource::OnFrameAvailable(const ::goldfish::display::FrameInfo
         if (!display_) {
             return;
         }
-        if (last_seq_ != 0 && frame_info.sequence_number > last_seq_ + 1) {
-            const uint64_t dropped = frame_info.sequence_number - last_seq_ - 1;
-            total_dropped_ += dropped;
-            TRACE_COUNTER("display", "webrtc_dropped_frames", total_dropped_);
-            TRACE_EVENT_INSTANT("display", "WebRTCFrameDropped", "dropped_count", dropped,
-                                "last_seq", last_seq_, "current_seq", frame_info.sequence_number);
+        if (TRACE_EVENT_CATEGORY_ENABLED("display")) {
+            if (last_seq_ != 0 && frame_info.sequence_number > last_seq_ + 1) {
+                const uint64_t dropped = frame_info.sequence_number - last_seq_ - 1;
+                total_dropped_ += dropped;
+                TRACE_COUNTER("display", "webrtc_dropped_frames", total_dropped_);
+                TRACE_EVENT_INSTANT("display", "WebRTCFrameDropped", "dropped_count", dropped,
+                                    "last_seq", last_seq_, "current_seq",
+                                    frame_info.sequence_number);
+            }
+            last_seq_ = frame_info.sequence_number;
         }
-        last_seq_ = frame_info.sequence_number;
     }
 
     auto nv12_buffer = ::webrtc::NV12Buffer::Create(static_cast<int>(even_width),

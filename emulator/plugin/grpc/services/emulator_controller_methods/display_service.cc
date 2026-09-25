@@ -266,7 +266,7 @@ Status DisplayServiceImpl::streamScreenshot(ServerContext* context, const ImageF
     bool first_time = true;
     uint64_t last_seq = 0;
     uint64_t total_dropped = 0;
-    absl::Time last_frame_time = absl::InfinitePast();
+    absl::Time last_frame_time = absl::Now();
     while (clientAvailable) {
         constexpr auto kTimeToWaitForFrame = absl::Milliseconds(125);
         bool frames_arrived = frame_or_sensor_event.WaitForNextEvent(kTimeToWaitForFrame, frame);
@@ -291,25 +291,27 @@ Status DisplayServiceImpl::streamScreenshot(ServerContext* context, const ImageF
             // for a screen that comes in and out the client will see
             // this timeline: (0 is empty frame. F is frame) [0, ...
             // <nothing> ..., F1, F2, F3, 0, ...<nothing>... ]
-            bool emptyFrame = reply.format().width() == 0;
+            bool empty_frame = reply.format().width() == 0;
             const uint64_t current_seq = reply.seq();
-            if (last_seq != 0 && current_seq > last_seq + 1) {
-                const uint64_t dropped = current_seq - last_seq - 1;
-                total_dropped += dropped;
-                TRACE_COUNTER("display", "dropped_frames", total_dropped);
-                TRACE_EVENT_INSTANT("display", "FrameDropped", "dropped_count", dropped, "last_seq",
-                                    last_seq, "current_seq", current_seq);
+            if (TRACE_EVENT_CATEGORY_ENABLED("display")) {
+                if (last_seq != 0 && current_seq > last_seq + 1) {
+                    const uint64_t dropped = current_seq - last_seq - 1;
+                    total_dropped += dropped;
+                    TRACE_COUNTER("display", "dropped_frames", total_dropped);
+                    TRACE_EVENT_INSTANT("display", "FrameDropped", "dropped_count", dropped,
+                                        "last_seq", last_seq, "current_seq", current_seq);
+                }
+                last_seq = current_seq;
             }
-            last_seq = current_seq;
 
-            if (!context->IsCancelled() && (!lastFrameWasEmpty || !emptyFrame)) {
-                const absl::Time now_time = absl::Now();
-                if (last_frame_time != absl::InfinitePast()) {
+            if (!context->IsCancelled() && (!lastFrameWasEmpty || !empty_frame)) {
+                if (TRACE_EVENT_CATEGORY_ENABLED("display")) {
+                    const absl::Time now_time = absl::Now();
                     const int64_t interval_ms =
                             absl::ToInt64Milliseconds(now_time - last_frame_time);
                     TRACE_COUNTER("display", "grpc_frame_interval_ms", interval_ms);
+                    last_frame_time = now_time;
                 }
-                last_frame_time = now_time;
 
                 VLOG(2) << "Writing frame: " << reply.seq() << ", hash: " << hasher(reply.image());
                 {
@@ -328,7 +330,7 @@ Status DisplayServiceImpl::streamScreenshot(ServerContext* context, const ImageF
                             << "gRPC framerate: " << fpsCalculator.GetFps() << " fps";
                 }
             }
-            lastFrameWasEmpty = emptyFrame;
+            lastFrameWasEmpty = empty_frame;
         }
         if (context->IsCancelled()) {
             break;
