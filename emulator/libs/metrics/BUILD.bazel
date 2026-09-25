@@ -185,8 +185,10 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
+        ":uuid",
         "//emulator/libs/file",
-        "@nlohmann_json//:singleheader-json",
+        "@protobuf",
+        "@studio_stats//:analytics_settings_cc_proto",
     ],
 )
 
