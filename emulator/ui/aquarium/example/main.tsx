@@ -74,6 +74,29 @@ function DeviceDemoApp({ onLog }: { onLog: (msg: string, type?: LogEntry['type']
     }
   }, [state, onLog]);
 
+  // Automatically connect and reconnect whenever not connected or when the remote peer closes the DataChannel
+  const connectedSinceRef = useRef<number>(0);
+  useEffect(() => {
+    if (state === RtcConnectionState.CONNECTED) {
+      connectedSinceRef.current = Date.now();
+    } else {
+      connectedSinceRef.current = 0;
+    }
+    const timer = setInterval(() => {
+      if (state === RtcConnectionState.CONNECTED) {
+        if (!client.input.isReady && connectedSinceRef.current > 0 && Date.now() - connectedSinceRef.current > 4000) {
+          onLog('Remote DataChannel closed; reconnecting...', 'warn');
+          disconnect();
+        }
+        return;
+      }
+      if (state !== RtcConnectionState.CONNECTING) {
+        connect().catch((err) => onLog(`Auto-connect retry: ${err.message}`, 'warn'));
+      }
+    }, 2000);
+    return () => clearInterval(timer);
+  }, [state, client, connect, disconnect, onLog]);
+
   // Android Navigation key sender
   const sendKey = useCallback(
     async (domCode: string, name: string) => {
