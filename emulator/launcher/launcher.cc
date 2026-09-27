@@ -218,7 +218,7 @@ class Launcher {
     absl::Status setup_emulator_ports(const AndroidOptions& opts,
                                       ::goldfish::async::EventLoop& event_loop) {
         auto console_controller = std::make_unique<::goldfish::telnet::LegacyConsoleController>(
-                *config_.socket_factory, &event_loop);
+                *config_.socket_factory, &event_loop, *config_.metrics_reporter);
         if (opts.ports) {
             // Format should be console_port,adb_port
             std::vector<std::string_view> parts = absl::StrSplit(opts.ports, ',');

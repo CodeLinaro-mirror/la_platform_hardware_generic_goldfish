@@ -26,6 +26,7 @@
 #include "goldfish/async/libuv_event_loop.h"
 #include "goldfish/async/testing/fake_async_socket.h"
 #include "goldfish/async/threaded_event_loop.h"
+#include "goldfish/metrics/metrics_reporter.h"
 #include "goldfish/network/endpoint.h"
 
 namespace goldfish::telnet {
@@ -73,6 +74,7 @@ class LegacyConsoleControllerTest : public ::testing::Test {
         }
     }
 
+    goldfish::metrics::MetricsReporter metrics_reporter_;
     std::unique_ptr<ThreadedEventLoop> loop_;
     std::unique_ptr<absl::Notification> test_done_;
     std::thread watchdog_;
@@ -81,7 +83,7 @@ class LegacyConsoleControllerTest : public ::testing::Test {
 TEST_F(LegacyConsoleControllerTest, StartsBothServers) {
     ::testing::NiceMock<MockAsyncSocketFactory> factory;
     int port = 5554;
-    LegacyConsoleController controller(factory, loop_.get());
+    LegacyConsoleController controller(factory, loop_.get(), metrics_reporter_);
 
     const auto k_ipv4_loopback = ToIpv4Address(127, 0, 0, 1);
     auto ipv4_endpoint = ToEndpoint(k_ipv4_loopback, port);
@@ -107,7 +109,7 @@ TEST_F(LegacyConsoleControllerTest, StartsBothServers) {
 TEST_F(LegacyConsoleControllerTest, HandlesIpv4Failure) {
     ::testing::NiceMock<MockAsyncSocketFactory> factory;
     int port = 5554;
-    LegacyConsoleController controller(factory, loop_.get());
+    LegacyConsoleController controller(factory, loop_.get(), metrics_reporter_);
 
     const auto k_ipv4_loopback = ToIpv4Address(127, 0, 0, 1);
     auto ipv4_endpoint = ToEndpoint(k_ipv4_loopback, port);

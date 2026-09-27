@@ -96,6 +96,8 @@ class CommandRegistry : public LineCommandHandler {
 
     using CommandHandler =
             std::function<absl::StatusOr<std::string>(LineCommandHandler::Context&, ArgStream&)>;
+    using CommandObserver =
+            std::function<void(std::string_view top_level_name, std::string_view canonical_path)>;
 
     /**
      * @brief Internal representation of a command node in the tree.
@@ -110,9 +112,11 @@ class CommandRegistry : public LineCommandHandler {
     };
 
     explicit CommandRegistry(Passkey, std::filesystem::path token_path,
-                             std::vector<std::unique_ptr<Entry>> root_commands);
+                             std::vector<std::unique_ptr<Entry>> root_commands,
+                             CommandObserver command_observer = nullptr);
 
     static bool Matches(const Entry& entry, std::string_view name);
+    static std::string_view GetCanonicalName(std::string_view names);
     static const Entry* FindChild(const std::vector<std::unique_ptr<Entry>>& children,
                                   std::string_view name);
 
@@ -126,6 +130,7 @@ class CommandRegistry : public LineCommandHandler {
 
     const std::filesystem::path token_path_;
     std::vector<std::unique_ptr<Entry>> root_commands_;
+    CommandObserver command_observer_;
 };
 
 /**
@@ -136,7 +141,8 @@ class CommandRegistry : public LineCommandHandler {
  */
 class CommandRegistryBuilder {
   public:
-    explicit CommandRegistryBuilder(std::filesystem::path token_path);
+    explicit CommandRegistryBuilder(std::filesystem::path token_path,
+                                    CommandRegistry::CommandObserver command_observer = nullptr);
 
     /**
      * @brief Helper to configure a specific command node.
@@ -297,6 +303,7 @@ class CommandRegistryBuilder {
 
     std::filesystem::path token_path_;
     std::vector<std::unique_ptr<CommandRegistry::Entry>> root_commands_;
+    CommandRegistry::CommandObserver command_observer_;
 };
 
 }  // namespace goldfish::telnet

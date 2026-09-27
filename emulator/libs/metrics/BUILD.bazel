@@ -93,10 +93,25 @@ alias(
     visibility = ["//visibility:public"],
 )
 
+cc_library(
+    name = "fake_metrics_writer",
+    testonly = True,
+    hdrs = ["include/goldfish/metrics/testing/fake_metrics_writer.h"],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":metrics_writer",
+        "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/synchronization",
+        "@abseil-cpp//absl/time",
+    ],
+)
+
 cc_test(
     name = "metrics_reporter_test",
     srcs = ["metrics_reporter_test.cc"],
     deps = [
+        ":fake_metrics_writer",
         ":metrics_reporter",
         "//emulator/libs/test:googletest_main",
     ],

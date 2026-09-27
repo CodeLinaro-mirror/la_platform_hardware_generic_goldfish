@@ -25,6 +25,8 @@
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/synchronization/mutex.h"
+#include "absl/time/time.h"
 
 #include "android/base/system.h"
 #include "android/base/testing/test_system.h"
@@ -33,6 +35,8 @@
 #include "emulator_controller_mock.grpc.pb.h"
 #include "goldfish/discovery/emulator_advertisement.h"
 #include "goldfish/file/file.h"
+#include "goldfish/metrics/metrics_reporter.h"
+#include "goldfish/metrics/testing/fake_metrics_writer.h"
 #include "modem_service_mock.grpc.pb.h"
 #include "snapshot_service.grpc.pb.h"
 #include "snapshot_service_mock.grpc.pb.h"
@@ -41,6 +45,7 @@
 namespace goldfish::telnet {
 namespace {
 
+using ::goldfish::metrics::testing::FakeMetricsWriter;
 using testing::_;
 
 struct MockConsoleContext : public LegacyConsoleBridge::ConsoleContext {
@@ -117,7 +122,10 @@ class LegacyConsoleBridgeTest : public ::testing::Test {
 
         WriteToken("valid_token_123");
 
-        bridge_ = std::make_unique<LegacyConsoleBridge>(5554, token_path_);
+        auto writer = std::make_unique<FakeMetricsWriter>();
+        metrics_writer_ = writer.get();
+        metrics_reporter_.SetWriter(std::move(writer));
+        bridge_ = std::make_unique<LegacyConsoleBridge>(5554, token_path_, metrics_reporter_);
     }
 
     std::unique_ptr<MockConsoleContext> CreateContext(int port = 5554) {
@@ -133,6 +141,8 @@ class LegacyConsoleBridgeTest : public ::testing::Test {
     android::base::TestSystem test_system_{"/foo/bar"};
     std::filesystem::path test_home_;
     std::string token_path_;
+    goldfish::metrics::MetricsReporter metrics_reporter_;
+    FakeMetricsWriter* metrics_writer_ = nullptr;
     std::unique_ptr<LegacyConsoleBridge> bridge_;
 };
 
@@ -617,7 +627,7 @@ TEST_F(LegacyConsoleBridgeTest, CreatesTokenFileIfMissingOnConstruction) {
     std::filesystem::remove(token_path_);
     EXPECT_FALSE(std::filesystem::exists(token_path_));
 
-    auto new_bridge = std::make_unique<LegacyConsoleBridge>(5554, token_path_);
+    auto new_bridge = std::make_unique<LegacyConsoleBridge>(5554, token_path_, metrics_reporter_);
 
     EXPECT_TRUE(std::filesystem::exists(token_path_));
     EXPECT_EQ(TelnetAuth::GetStatus(token_path_), AuthStatus::kRequired);
@@ -2016,6 +2026,89 @@ TEST_F(LegacyConsoleBridgeTest, CdmaSsourceAndPrlVersion) {
     auto prl_res = (*bridge_)("cdma prl_version 1", *ctx);
     ASSERT_TRUE(prl_res.ok()) << prl_res.status().message();
     EXPECT_EQ(*prl_res, "");
+}
+
+TEST_F(LegacyConsoleBridgeTest, ReportsTelnetCommandMetrics) {
+    auto ctx = CreateContext();
+
+    // Unauthenticated unsafe command should NOT be tracked.
+    EXPECT_FALSE((*bridge_)("avd status", *ctx).ok());
+
+    auto make_running_stub = []() {
+        auto stub = std::make_unique<android::emulation::control::MockEmulatorControllerStub>();
+        EXPECT_CALL(*stub, getVmState(_, _, _))
+                .WillRepeatedly([](grpc::ClientContext*, const google::protobuf::Empty&,
+                                   android::emulation::control::VmRunState* reply) {
+                    reply->set_state(android::emulation::control::VmRunState::RUNNING);
+                    return grpc::Status::OK;
+                });
+        return stub;
+    };
+
+    // Safe commands work without authentication and are tracked by primary top-level name.
+    ctx->mock_stub = make_running_stub();
+    EXPECT_TRUE((*bridge_)("ping", *ctx).ok());
+    EXPECT_TRUE((*bridge_)("help", *ctx).ok());
+    EXPECT_TRUE((*bridge_)("h", *ctx).ok());
+    EXPECT_TRUE((*bridge_)("?", *ctx).ok());
+    EXPECT_TRUE((*bridge_)("auth valid_token_123", *ctx).ok());
+    EXPECT_TRUE(ctx->authenticated);
+
+    // Subcommands under non-avd/event groups are tracked by top-level name.
+    EXPECT_TRUE((*bridge_)("cdma ssource nv", *ctx).ok());
+    EXPECT_TRUE((*bridge_)("cdma prl_version 1", *ctx).ok());
+
+    // Subcommands under avd and event are tracked by full primary path (including aliases ->
+    // primary).
+    ctx->mock_stub = make_running_stub();
+    EXPECT_TRUE((*bridge_)("avd status", *ctx).ok());
+
+    auto make_snap_stub = []() {
+        auto stub = std::make_unique<android::emulation::control::MockSnapshotServiceStub>();
+        EXPECT_CALL(*stub, DeleteSnapshot(_, _, _))
+                .WillRepeatedly([](grpc::ClientContext*,
+                                   const android::emulation::control::SnapshotPackage&,
+                                   android::emulation::control::SnapshotPackage* reply) {
+                    reply->set_success(true);
+                    return grpc::Status::OK;
+                });
+        return stub;
+    };
+    // "delete" is an alias for "del" ("del|delete") -> should record "avd snapshot del"
+    ctx->mock_snapshot_stub = make_snap_stub();
+    EXPECT_TRUE((*bridge_)("avd snapshot delete snap1", *ctx).ok());
+    ctx->mock_snapshot_stub = make_snap_stub();
+    EXPECT_TRUE((*bridge_)("avd snapshot del snap2", *ctx).ok());
+
+    EXPECT_TRUE((*bridge_)("event types", *ctx).ok());
+
+    // Unknown or incomplete group commands are not tracked.
+    EXPECT_FALSE((*bridge_)("unknown_cmd", *ctx).ok());
+    EXPECT_FALSE((*bridge_)("avd", *ctx).ok());
+
+    bridge_->ReportMetrics();
+    ASSERT_TRUE(metrics_writer_->WaitForEvents(1, absl::Seconds(5)));
+
+    const absl::MutexLock lock(metrics_writer_->mutex);
+    ASSERT_EQ(metrics_writer_->events.size(), 1u);
+    const auto& event = metrics_writer_->events[0];
+    EXPECT_EQ(event.kind(), android_studio::AndroidStudioEvent::EMULATOR_CONSOLE_EVENTS);
+
+    absl::flat_hash_map<std::string, int64_t> reported;
+    for (const auto& console_event : event.emulator_console_events()) {
+        EXPECT_EQ(console_event.source(), android_studio::EmulatorConsoleEvent::TELNET);
+        reported[console_event.command()] = console_event.value();
+    }
+
+    EXPECT_EQ(reported["ping"], 1);
+    EXPECT_EQ(reported["help"], 3);
+    EXPECT_EQ(reported["auth"], 1);
+    EXPECT_EQ(reported["cdma"], 2);
+    EXPECT_EQ(reported["avd status"], 1);
+    EXPECT_EQ(reported["avd snapshot del"], 2);
+    EXPECT_EQ(reported["event types"], 1);
+    EXPECT_FALSE(reported.contains("avd"));
+    EXPECT_FALSE(reported.contains("unknown_cmd"));
 }
 
 }  // namespace

@@ -17,35 +17,18 @@
 
 #include <gtest/gtest.h>
 
-#include <vector>
-
 #include "absl/synchronization/mutex.h"
 #include "absl/time/time.h"
 
+#include "goldfish/metrics/testing/fake_metrics_writer.h"
+
 namespace goldfish::metrics {
 
-class MockWriter : public MetricsWriter {
-  public:
-    void Write(MetricsEvent event) override {
-        absl::MutexLock lock(mutex);
-        events.push_back(std::move(event.as_event));
-    }
-
-    bool WaitForEvents(size_t count, absl::Duration timeout) {
-        auto has_enough_events = [this, count]() ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex) {
-            return events.size() >= count;
-        };
-        absl::MutexLock lock(mutex);
-        return mutex.AwaitWithTimeout(absl::Condition(&has_enough_events), timeout);
-    }
-
-    std::vector<android_studio::AndroidStudioEvent> events;
-    mutable absl::Mutex mutex;
-};
+using ::goldfish::metrics::testing::FakeMetricsWriter;
 
 TEST(MetricsReporterTest, ReportPing) {
     MetricsReporter reporter;
-    auto writer = std::make_unique<MockWriter>();
+    auto writer = std::make_unique<FakeMetricsWriter>();
     auto* writer_ptr = writer.get();
     reporter.SetWriter(std::move(writer));
 
@@ -63,7 +46,7 @@ TEST(MetricsReporterTest, ReportPing) {
 
 TEST(MetricsReporterTest, ReportMultiple) {
     MetricsReporter reporter;
-    auto writer = std::make_unique<MockWriter>();
+    auto writer = std::make_unique<FakeMetricsWriter>();
     auto* writer_ptr = writer.get();
     reporter.SetWriter(std::move(writer));
 
@@ -84,7 +67,7 @@ TEST(MetricsReporterTest, ReportMultiple) {
 
 TEST(MetricsReporterTest, ReportWithCustomCallback) {
     MetricsReporter reporter;
-    auto writer = std::make_unique<MockWriter>();
+    auto writer = std::make_unique<FakeMetricsWriter>();
     auto* writer_ptr = writer.get();
     reporter.SetWriter(std::move(writer));
 
@@ -111,7 +94,7 @@ TEST(MetricsReporterTest, NoWriterNoCrash) {
 TEST(MetricsReporterTest, SetWriter) {
     MetricsReporter reporter;
 
-    auto writer1 = std::make_unique<MockWriter>();
+    auto writer1 = std::make_unique<FakeMetricsWriter>();
     auto* writer1_ptr = writer1.get();
     reporter.SetWriter(std::move(writer1));
 
@@ -124,7 +107,7 @@ TEST(MetricsReporterTest, SetWriter) {
         EXPECT_EQ(writer1_ptr->events.size(), 1);
     }
 
-    auto writer2 = std::make_unique<MockWriter>();
+    auto writer2 = std::make_unique<FakeMetricsWriter>();
     auto* writer2_ptr = writer2.get();
     // writer1 is destroyed here.
     reporter.SetWriter(std::move(writer2));
