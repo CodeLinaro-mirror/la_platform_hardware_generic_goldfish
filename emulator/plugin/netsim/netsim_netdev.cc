@@ -63,9 +63,6 @@ struct NetsimNetdev {
 struct NetsimState {
     std::unique_ptr<NetsimTransport> transport;
     std::unique_ptr<std::vector<uint8_t>> async_tx;
-    QEMUBH* bh = nullptr;  ///< Schedules incoming packets onto QEMU's main loop thread.
-    std::unique_ptr<std::vector<uint8_t>>
-            incoming_packet;  ///< Holds incoming packet for zero-copy BH execution.
 };
 
 struct NetsimNicState {
@@ -102,20 +99,6 @@ bool netsim_netdev_send(NetClientState* nc, std::unique_ptr<std::vector<uint8_t>
         return false;
     } else {
         return true;
-    }
-}
-
-void netsim_netdev_bh(void* opaque) {
-    auto* nc = static_cast<NetClientState*>(opaque);
-    auto* s = reinterpret_cast<NetsimNicState*>(nc);
-    if (!s->netsim->incoming_packet) {
-        DCHECK(false) << "Netsim bottom half execution was scheduled on QEMU's main loop, but no "
-                         "incoming packet buffer was found. Skipping packet transmission.";
-        return;
-    }
-    if (netsim_netdev_send(nc, std::move(s->netsim->incoming_packet))) {
-        s->netsim->incoming_packet = nullptr;
-        s->netsim->transport->next_recv();
     }
 }
 
@@ -173,10 +156,6 @@ void netsim_netdev_cleanup(NetClientState* nc) {
 
     reset_transport(s->netsim);
 
-    if (s->netsim->bh) {
-        qemu_bh_delete(s->netsim->bh);
-        s->netsim->bh = nullptr;
-    }
     delete s->netsim;
     s->netsim = nullptr;
 }
@@ -224,22 +203,13 @@ void netsim_netdev_realize(DeviceState* dev, Error** errp) {
     auto* s = reinterpret_cast<NetsimNicState*>(nc);
 
     s->netsim = new NetsimState;
-    s->netsim->bh = qemu_bh_new(netsim_netdev_bh, nc);
     s->netsim->transport =
             std::make_unique<NetsimTransport>([nc](::netsim::packet::PacketResponse* packet) {
-                auto* s = reinterpret_cast<NetsimNicState*>(nc);
                 if (packet->has_packet()) {
-                    if (s->netsim->incoming_packet) {
-                        DCHECK(false) << "A new packet arrived from Netsim while the previous "
-                                         "packet is still pending delivery on QEMU's main loop. "
-                                         "Dropping the new packet to preserve flow control.";
-                        return false;
-                    }
-                    s->netsim->incoming_packet = ToUniqueVec(packet->mutable_packet());
-                    if (s->netsim->bh) {
-                        qemu_bh_schedule(s->netsim->bh);
-                    }
-                    return false;
+                    bql_lock();
+                    bool delivered = netsim_netdev_send(nc, ToUniqueVec(packet->mutable_packet()));
+                    bql_unlock();
+                    return delivered;
                 } else {
                     LOG(WARNING) << "Unexpected packet " << packet->DebugString();
                     // Try to receive next packet immediately.
