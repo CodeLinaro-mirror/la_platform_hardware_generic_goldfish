@@ -121,15 +121,17 @@ cc_test(
 
 cc_test(
     name = "interceptors_test",
-    srcs =
-        select({
-            "@platforms//os:windows": [],
-            "//conditions:default": [
-                "breadcrumb_interceptor_test.cc",
-                "logging_interceptor_test.cc",
-                "perfetto_interceptor_test.cc",
-            ],
-        }),
+    srcs = select({
+        "@platforms//os:windows": [],
+        "//conditions:default": [
+            "breadcrumb_interceptor_test.cc",
+            "logging_interceptor_test.cc",
+        ],
+    }) + select({
+        "@platforms//os:windows": [],
+        "@qemu//:goldfish_enabled": ["perfetto_interceptor_test.cc"],
+        "//conditions:default": [],
+    }),
     visibility = ["//visibility:public"],
     deps = [
         ":interceptors",
@@ -145,7 +147,10 @@ cc_test(
 
 cc_test(
     name = "perfetto_interceptor_only_test",
-    srcs = ["perfetto_interceptor_test.cc"],
+    srcs = select({
+        "@qemu//:goldfish_enabled": ["perfetto_interceptor_test.cc"],
+        "//conditions:default": [],
+    }),
     deps = [
         ":perfetto_interceptor",
         "//emulator/libs/system:test-headers",
