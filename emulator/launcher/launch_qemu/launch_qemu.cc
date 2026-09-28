@@ -214,9 +214,9 @@ absl::Status LaunchQemu::addDevices() {
         }
     }
 
-    // TODO(whollins): set netsim_backend to true when netsimd supports this (and not o.no_netsim)
     // Note that we assume Linux calls first (virtio-net*) ethernet device eth0 etc.
-    addDevice<NetworkDevice>("eth0", "0c.0", /*cellular=*/true, /*netsim_backend=*/false);
+    addDevice<NetworkDevice>("eth0", "0c.0", /*cellular=*/true,
+                             /*netsim_backend=*/netsim_cellular);
     // TODO TV ethernet addDevice<NetworkDevice>("eth1", "0d.0", /*cellular=*/false,
     // /*netsim_backend=*/false);
 
