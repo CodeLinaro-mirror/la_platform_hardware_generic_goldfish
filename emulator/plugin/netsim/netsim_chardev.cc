@@ -326,7 +326,11 @@ class CellularProtocol : public Protocol {
 
     void reset() override { buffer_.clear(); }
     void reset_guest(Chardev* c) override {
-        // N/A
+        // Report radio off to the guest so it issues AT+CFUN=1.
+        // Snapshots see modem restart and get a time update.
+        const std::string reset_sequence = "+CFUN: 0\r\n";
+        qemu_chr_be_write(c, reinterpret_cast<const uint8_t*>(reset_sequence.data()),
+                          reset_sequence.size());
     }
 
     void netsim_to_guest_packet(Chardev* c,
