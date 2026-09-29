@@ -217,6 +217,7 @@ cc_library(
         "//emulator/plugin/grpc/input:input_session",
         "//emulator/plugin/grpc/keyboard",
         "//emulator/plugin/grpc/services/v2:rtc_service",
+        "//emulator/plugin/grpc/services/v2:sensors_service",
         "//emulator/videobridge:in_process_media_providers",
         "//emulator/videobridge:rtc_service",
         "//emulator/videobridge:videobridge_core",

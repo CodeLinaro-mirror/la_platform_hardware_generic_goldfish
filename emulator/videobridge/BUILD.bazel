@@ -525,6 +525,7 @@ cc_library(
         "@abseil-cpp//absl/time",
         "@aemu//protos/services/emulator-controller:emulator_controller_cc_grpc",
         "@aemu//protos/services_v2:input_service_cc_proto",
+        "@aemu//protos/services_v2:sensors_service_cc_proto",
         "@grpc//:grpc++",
         "@nlohmann_json//:singleheader-json",
         "@webrtc//api:create_peerconnection_factory",
