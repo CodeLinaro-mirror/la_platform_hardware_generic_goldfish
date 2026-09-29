@@ -27,53 +27,19 @@
 namespace android::goldfish {
 
 namespace internal {
-struct DiskConfig {
-    std::string id;
-    std::string pci_address;
-
-    bool is_writable;
-
-    std::optional<fs::path> system_image_path_ro;
-    std::optional<fs::path> src_directory_path;
-    fs::path user_image_path;
-
-    uint64_t size_bytes;
-};
-
-absl::StatusOr<std::vector<DiskConfig>> getDiskConfigs(const Avd& avd, const AndroidOptions& opts);
+absl::StatusOr<std::vector<std::unique_ptr<PciDevice>>> getDiskConfigs(const Avd& avd,
+                                                                       const AndroidOptions& opts);
 }  // namespace internal
 
 // Templated for simplified testing.
 template <typename T>
 absl::Status addDrives(const EmulatorConfig& config, T& emulator) {
-    ASSIGN_OR_RETURN(auto disk_configs, internal::getDiskConfigs(config.avd(), config.opts()));
+    ASSIGN_OR_RETURN(auto disks, internal::getDiskConfigs(config.avd(), config.opts()));
 
-    for (const auto& dc : disk_configs) {
-        // TODO(whollins): why don't we use qcow2 without backing file for sdcard and cache?
-        // And why do we copy the images for encryption_key (and system and vendor in writable)?
-        if (dc.is_writable) {
-            auto qcow2 = fs::path(dc.user_image_path).concat(".qcow2");
-            if (dc.src_directory_path) {
-                emulator.template addDevice<RwDrive>(dc.id, dc.pci_address, dc.system_image_path_ro,
-                                                     dc.src_directory_path, dc.user_image_path,
-                                                     qcow2, dc.size_bytes);
-            } else {
-                emulator.template addDevice<RwDrive>(dc.id, dc.pci_address, dc.system_image_path_ro,
-                                                     dc.user_image_path, qcow2, dc.size_bytes);
-            }
-        } else {
-            fs::path image;
-            if (base::file::exists(dc.user_image_path)) {
-                image = dc.user_image_path;
-            } else if (dc.system_image_path_ro) {
-                image = *dc.system_image_path_ro;
-            } else {
-                LOG(FATAL) << "A read-only drive was requested with a non-existent image: "
-                           << dc.user_image_path;
-            }
-            emulator.template addDevice<RoDrive>(dc.id, dc.pci_address, image);
-        }
+    for (std::unique_ptr<PciDevice>& disk : disks) {
+        emulator.addDevice(std::move(disk));
     }
+
     return absl::OkStatus();
 }
 

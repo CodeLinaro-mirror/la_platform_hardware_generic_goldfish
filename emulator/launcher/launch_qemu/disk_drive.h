@@ -55,44 +55,72 @@ class RoDrive : public PciDevice {
 };
 
 /**
- * @brief Represents a mutable disk drive backed by a Qcow2 image, connected to
- * the PCI bus.
+ * @brief Represents a mutable disk (qcow2 backed).
  */
-class RwDrive : public PciDevice {
+class Qcow2Drive : public PciDevice {
   public:
-    explicit RwDrive(std::string id, std::string addr, std::optional<fs::path> src_path,
-                     fs::path dst_image, fs::path qcow2_image, uint64_t size_bytes)
-            : PciDevice(id, addr)
-            , mSourcePath(src_path)
-            , mDestinationImage(dst_image)
-            , mQcow2Image(qcow2_image)
-            , mSizeBytes(size_bytes) {}
-
-    explicit RwDrive(std::string id, std::string addr, std::optional<fs::path> src_path,
-                     std::optional<fs::path> src_directory, fs::path dst_image,
-                     fs::path qcow2_image, uint64_t size_bytes)
-            : PciDevice(id, addr)
-            , mSourcePath(src_path)
-            , mSourceDirectory(src_directory)
-            , mDestinationImage(dst_image)
-            , mQcow2Image(qcow2_image)
-            , mSizeBytes(size_bytes) {}
-
-    absl::Status initialize(const EmulatorConfig& emulator) override;
     std::vector<std::string> getQemuParameters(const EmulatorConfig& emulator) const override;
 
   protected:
-    std::optional<fs::path> mSourcePath;
-    // for data partition with extra init data,
-    // such as display settings xml, most for foldable
-    // it is different from mSourcePath, which is ext4 already
-    // here it is just a data folder with some extra files
-    // usually located at <avd.name>.avd/data, or some tmp
-    // folder
-    std::optional<fs::path> mSourceDirectory;
-    fs::path mDestinationImage;
-    fs::path mQcow2Image;
-    uint64_t mSizeBytes;
+    Qcow2Drive(std::string id, std::string addr, fs::path backing_image, fs::path qcow2_image)
+            : PciDevice(std::move(id), std::move(addr))
+            , backing_image_(std::move(backing_image))
+            , qcow2_image_(std::move(qcow2_image)) {}
+
+    absl::Status MakeQcow2(const EmulatorConfig& emulator) const;
+
+    const fs::path backing_image_;
+    const fs::path qcow2_image_;
+};
+
+/**
+ * @brief Represents a mutable disk created from an already existing image pointed by `img_path`.
+ */
+class WritableImgDrive : public Qcow2Drive {
+  public:
+    WritableImgDrive(std::string id, std::string addr, fs::path backing_image, fs::path qcow2_image)
+            : Qcow2Drive(std::move(id), std::move(addr), std::move(backing_image),
+                         std::move(qcow2_image)) {}
+
+    absl::Status initialize(const EmulatorConfig& emulator) override;
+};
+
+/**
+ * @brief Represents a mutable disk of `size_bytes` size. `img_path` must be located
+ * inside the AVD folder.
+ */
+class BlankWritableDrive : public Qcow2Drive {
+  public:
+    BlankWritableDrive(std::string id, std::string addr, fs::path backing_image,
+                       fs::path qcow2_image, uint64_t size_bytes)
+            : Qcow2Drive(std::move(id), std::move(addr), std::move(backing_image),
+                         std::move(qcow2_image))
+            , size_bytes_(size_bytes) {}
+
+    absl::Status initialize(const EmulatorConfig& emulator) override;
+
+  protected:
+    const uint64_t size_bytes_;
+};
+
+/**
+ * @brief Represents a mutable disk created from `src_directory` of size `size_bytes`.
+ * `img_path` must be located inside the AVD folder.
+ */
+class WritableDirectoryDrive : public Qcow2Drive {
+  public:
+    WritableDirectoryDrive(std::string id, std::string addr, fs::path backing_image,
+                           fs::path qcow2_image, fs::path src_directory, uint64_t size_bytes)
+            : Qcow2Drive(std::move(id), std::move(addr), std::move(backing_image),
+                         std::move(qcow2_image))
+            , src_directory_(std::move(src_directory))
+            , size_bytes_(size_bytes) {}
+
+    absl::Status initialize(const EmulatorConfig& emulator) override;
+
+  protected:
+    const fs::path src_directory_;
+    const uint64_t size_bytes_;
 };
 
 }  // namespace android::goldfish

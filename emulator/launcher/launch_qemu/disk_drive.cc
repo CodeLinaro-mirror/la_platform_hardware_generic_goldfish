@@ -187,48 +187,52 @@ std::vector<std::string> RoDrive::getQemuParameters(const EmulatorConfig& emulat
                          ",read-only=on,file.driver=file,file.filename=", mImagePath.string())};
 }
 
-absl::Status RwDrive::initialize(const EmulatorConfig& emulator) {
-    LOG(INFO) << "Preparing drive: " << mDestinationImage << " for " << id();
-    if (!base::file::exists(mDestinationImage)) {
-        base::file::rm(mQcow2Image).IgnoreError();
-        if (mSourceDirectory) {
-            LOG(INFO) << "Preparing non empty drive: " << mDestinationImage
-                      << " from src directory " << *mSourceDirectory;
-            RETURN_IF_ERROR(
-                    createExt4Image(mDestinationImage, *mSourceDirectory, mSizeBytes, id()));
-        } else if (mSourcePath) {
-            LOG(INFO) << "Preparing drive: " << mDestinationImage << " from src file"
-                      << *mSourcePath;
-            base::file::cp_file(*mSourcePath, mDestinationImage, /*overwrite=*/true).IgnoreError();
-
-            if (!base::file::exists(mDestinationImage)) {
-                return absl::NotFoundError(absl::StrCat("Failed to copy '", mSourcePath->string(),
-                                                        "' to '", mDestinationImage.string(), "'"));
-            }
-        } else {
-            LOG(INFO) << "Preparing empty drive: " << mDestinationImage;
-            RETURN_IF_ERROR(createEmptyExt4Image(mDestinationImage, mSizeBytes, id()));
-        }
-    } else {
-        LOG(INFO) << "skip Preparing drive: " << mDestinationImage << " for " << id();
-    }
-
-    if (!base::file::exists(mQcow2Image)) {
-        return convertImgToQcow2(emulator.emulator_paths().qemu_img_binary, mDestinationImage,
-                                 mQcow2Image);
-    }
-
-    return absl::OkStatus();
-}
-
-std::vector<std::string> RwDrive::getQemuParameters(const EmulatorConfig& emulator) const {
+std::vector<std::string> Qcow2Drive::getQemuParameters(const EmulatorConfig& emulator) const {
     return {
         "-device", absl::StrCat(getDeviceParam(emulator.avd(), id(), addr()), ",write-cache=on"),
         "-blockdev",
         absl::StrCat(
                 "driver=qcow2,node-name=", id(),
-                ",file.driver=file,file.filename=", mQcow2Image.string(),
+                ",file.driver=file,file.filename=", qcow2_image_.string(),
                 ",overlap-check=none,cache.direct=off,cache.no-flush=on,l2-cache-size=1048576")};
+}
+
+absl::Status Qcow2Drive::MakeQcow2(const EmulatorConfig& emulator) const {
+    if (!base::file::exists(qcow2_image_)) {
+        return convertImgToQcow2(emulator.emulator_paths().qemu_img_binary, backing_image_,
+                                 qcow2_image_);
+    }
+
+    return absl::OkStatus();
+}
+
+absl::Status WritableImgDrive::initialize(const EmulatorConfig& emulator) {
+    return MakeQcow2(emulator);
+}
+
+absl::Status BlankWritableDrive::initialize(const EmulatorConfig& emulator) {
+    if (base::file::exists(backing_image_)) {
+        LOG(INFO) << backing_image_ << " already exists for " << id();
+    } else {
+        LOG(INFO) << "Preparing empty drive: " << backing_image_;
+        base::file::rm(qcow2_image_).IgnoreError();
+        RETURN_IF_ERROR(createEmptyExt4Image(backing_image_, size_bytes_, id()));
+    }
+
+    return MakeQcow2(emulator);
+}
+
+absl::Status WritableDirectoryDrive::initialize(const EmulatorConfig& emulator) {
+    if (base::file::exists(backing_image_)) {
+        LOG(INFO) << backing_image_ << " already exists for " << id();
+    } else {
+        LOG(INFO) << "Preparing non empty drive: " << backing_image_ << " from src directory "
+                  << src_directory_;
+        base::file::rm(qcow2_image_).IgnoreError();
+        RETURN_IF_ERROR(createExt4Image(backing_image_, src_directory_, size_bytes_, id()));
+    }
+
+    return MakeQcow2(emulator);
 }
 
 }  // namespace android::goldfish

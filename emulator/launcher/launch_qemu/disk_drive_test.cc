@@ -90,18 +90,18 @@ TEST(RoDrive, MissingImage) {
     EXPECT_THAT(dev.initialize(emu.config()), StatusIs(absl::StatusCode::kInvalidArgument));
 }
 
-TEST(RwDrive, Basic_x86) {
+TEST(WritableImgDrive, Basic_x86) {
     auto launcher_path = std::filesystem::temp_directory_path();
     base::TestSystem sys(launcher_path);
     auto userData = launcher_path / "userdata.img";
-    auto qcow2Image = launcher_path / "userdata-qemu.qcow2";
+    auto qcow2Image = launcher_path / "userdata.img.qcow2";
     std::ofstream(userData).close();
     std::ofstream(qcow2Image).close();
 
     FakeEmulator emu;
     EXPECT_CALL(emu.mock_avd(), Arch()).WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
 
-    RwDrive dev("userdata", "04.0", std::nullopt, userData, qcow2Image, 1024);
+    WritableImgDrive dev("userdata", "04.0", userData, qcow2Image);
     EXPECT_OK(dev.initialize(emu.config()));
     EXPECT_THAT(
             dev.getQemuParameters(emu.config()),
@@ -114,18 +114,114 @@ TEST(RwDrive, Basic_x86) {
                                  "cache-size=1048576")));
 }
 
-TEST(RwDrive, Basic_arm) {
+TEST(WritableImgDrive, Basic_arm) {
     auto launcher_path = std::filesystem::temp_directory_path();
     base::TestSystem sys(launcher_path);
     auto userData = launcher_path / "userdata.img";
-    auto qcow2Image = launcher_path / "userdata-qemu.qcow2";
+    auto qcow2Image = launcher_path / "userdata.img.qcow2";
     std::ofstream(userData).close();
     std::ofstream(qcow2Image).close();
 
     FakeEmulator emu;
     EXPECT_CALL(emu.mock_avd(), Arch()).WillRepeatedly(testing::Return(Avd::CpuArchitecture::kArm));
 
-    RwDrive dev("userdata", "04.0", std::nullopt, userData, qcow2Image, 1024);
+    WritableImgDrive dev("userdata", "04.0", userData, qcow2Image);
+    EXPECT_OK(dev.initialize(emu.config()));
+    EXPECT_THAT(
+            dev.getQemuParameters(emu.config()),
+            testing::ElementsAre(
+                    "-device", "virtio-blk-device,drive=userdata,write-cache=on", "-blockdev",
+                    absl::StrCat("driver=qcow2,node-name=userdata,file.driver=file,file.filename=",
+                                 qcow2Image.string(),
+                                 ",overlap-check=none,cache.direct=off,cache.no-flush=on,l2-"
+                                 "cache-size=1048576")));
+}
+
+TEST(BlankWritableDrive, Basic_x86) {
+    auto launcher_path = std::filesystem::temp_directory_path();
+    base::TestSystem sys(launcher_path);
+    auto userData = launcher_path / "userdata.img";
+    auto qcow2Image = launcher_path / "userdata.img.qcow2";
+    std::ofstream(userData).close();
+    std::ofstream(qcow2Image).close();
+
+    FakeEmulator emu;
+    EXPECT_CALL(emu.mock_avd(), Arch()).WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
+
+    BlankWritableDrive dev("userdata", "04.0", userData, qcow2Image, 1024);
+    EXPECT_OK(dev.initialize(emu.config()));
+    EXPECT_THAT(
+            dev.getQemuParameters(emu.config()),
+            testing::ElementsAre(
+                    "-device", "virtio-blk-pci,addr=04.0,drive=userdata,write-cache=on",
+                    "-blockdev",
+                    absl::StrCat("driver=qcow2,node-name=userdata,file.driver=file,file.filename=",
+                                 qcow2Image.string(),
+                                 ",overlap-check=none,cache.direct=off,cache.no-flush=on,l2-"
+                                 "cache-size=1048576")));
+}
+
+TEST(BlankWritableDrive, Basic_arm) {
+    auto launcher_path = std::filesystem::temp_directory_path();
+    base::TestSystem sys(launcher_path);
+    auto userData = launcher_path / "userdata.img";
+    auto qcow2Image = launcher_path / "userdata.img.qcow2";
+    std::ofstream(userData).close();
+    std::ofstream(qcow2Image).close();
+
+    FakeEmulator emu;
+    EXPECT_CALL(emu.mock_avd(), Arch()).WillRepeatedly(testing::Return(Avd::CpuArchitecture::kArm));
+
+    BlankWritableDrive dev("userdata", "04.0", userData, qcow2Image, 1024);
+    EXPECT_OK(dev.initialize(emu.config()));
+    EXPECT_THAT(
+            dev.getQemuParameters(emu.config()),
+            testing::ElementsAre(
+                    "-device", "virtio-blk-device,drive=userdata,write-cache=on", "-blockdev",
+                    absl::StrCat("driver=qcow2,node-name=userdata,file.driver=file,file.filename=",
+                                 qcow2Image.string(),
+                                 ",overlap-check=none,cache.direct=off,cache.no-flush=on,l2-"
+                                 "cache-size=1048576")));
+}
+
+TEST(WritableDirectoryDrive, Basic_x86) {
+    auto launcher_path = std::filesystem::temp_directory_path();
+    base::TestSystem sys(launcher_path);
+    auto userData = launcher_path / "userdata.img";
+    auto qcow2Image = launcher_path / "userdata.img.qcow2";
+    auto srcDir = launcher_path / "data";
+    std::ofstream(userData).close();
+    std::ofstream(qcow2Image).close();
+
+    FakeEmulator emu;
+    EXPECT_CALL(emu.mock_avd(), Arch()).WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
+
+    WritableDirectoryDrive dev("userdata", "04.0", userData, qcow2Image, srcDir, 1024);
+    EXPECT_OK(dev.initialize(emu.config()));
+    EXPECT_THAT(
+            dev.getQemuParameters(emu.config()),
+            testing::ElementsAre(
+                    "-device", "virtio-blk-pci,addr=04.0,drive=userdata,write-cache=on",
+                    "-blockdev",
+                    absl::StrCat("driver=qcow2,node-name=userdata,file.driver=file,file.filename=",
+                                 qcow2Image.string(),
+                                 ",overlap-check=none,cache.direct=off,cache.no-flush=on,l2-"
+                                 "cache-size=1048576")));
+}
+
+TEST(WritableDirectoryDrive, Basic_arm) {
+    auto launcher_path = std::filesystem::temp_directory_path();
+    base::TestSystem sys(launcher_path);
+    auto userData = launcher_path / "userdata.img";
+    auto qcow2Image = launcher_path / "userdata.img.qcow2";
+    auto srcDir = launcher_path / "data";
+    std::ofstream(userData).close();
+    std::ofstream(qcow2Image).close();
+
+    FakeEmulator emu;
+    EXPECT_CALL(emu.mock_avd(), Arch()).WillRepeatedly(testing::Return(Avd::CpuArchitecture::kArm));
+
+    WritableDirectoryDrive dev("userdata", "04.0", userData, qcow2Image, srcDir, 1024);
     EXPECT_OK(dev.initialize(emu.config()));
     EXPECT_THAT(
             dev.getQemuParameters(emu.config()),
