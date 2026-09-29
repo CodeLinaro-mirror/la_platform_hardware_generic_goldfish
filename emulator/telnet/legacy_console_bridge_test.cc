@@ -37,7 +37,6 @@
 #include "goldfish/file/file.h"
 #include "goldfish/metrics/metrics_reporter.h"
 #include "goldfish/metrics/testing/fake_metrics_writer.h"
-#include "modem_service_mock.grpc.pb.h"
 #include "snapshot_service.grpc.pb.h"
 #include "snapshot_service_mock.grpc.pb.h"
 #include "telnet_auth.h"
@@ -57,14 +56,6 @@ struct MockConsoleContext : public LegacyConsoleBridge::ConsoleContext {
             return std::move(mock_stub);
         }
         return ConsoleContext::EmulatorControllerStub();
-    }
-
-    absl::StatusOr<std::unique_ptr<android::emulation::control::incubating::Modem::StubInterface>>
-    ModemStub() override {
-        if (mock_modem_stub) {
-            return std::move(mock_modem_stub);
-        }
-        return ConsoleContext::ModemStub();
     }
 
     absl::StatusOr<std::unique_ptr<android::emulation::control::SnapshotService::StubInterface>>
@@ -102,7 +93,6 @@ struct MockConsoleContext : public LegacyConsoleBridge::ConsoleContext {
     void TriggerCrash() override { crash_triggered = true; }
 
     std::unique_ptr<android::emulation::control::EmulatorController::StubInterface> mock_stub;
-    std::unique_ptr<android::emulation::control::incubating::Modem::StubInterface> mock_modem_stub;
     std::unique_ptr<android::emulation::control::SnapshotService::StubInterface> mock_snapshot_stub;
     std::optional<absl::StatusOr<LegacyConsoleBridge::DiscoveredEmulator>> mock_discovery;
     std::optional<absl::StatusOr<std::vector<std::filesystem::path>>> mock_discovered_emulators;
@@ -1522,25 +1512,15 @@ TEST_F(LegacyConsoleBridgeTest, ResizeDisplayFailsOnUnsupportedIndex) {
     EXPECT_TRUE(result.status().message().find("size index 3 not supported") != std::string::npos);
 }
 
-TEST_F(LegacyConsoleBridgeTest, SmsSendCallsReceiveSms) {
+TEST_F(LegacyConsoleBridgeTest, SmsSendReturnsUnimplemented) {
     auto ctx = CreateContext();
     ctx->authenticated = true;
 
-    auto mock_modem = std::make_unique<android::emulation::control::incubating::MockModemStub>();
-    EXPECT_CALL(*mock_modem, receiveSms(_, _, _))
-            .WillOnce([](grpc::ClientContext* context,
-                         const android::emulation::control::incubating::SmsMessage& request,
-                         google::protobuf::Empty* response) {
-                EXPECT_EQ(request.number(), "123456789");
-                EXPECT_EQ(request.text(), "Hello World!");
-                return grpc::Status::OK;
-            });
-    ctx->mock_modem_stub = std::move(mock_modem);
-
     auto result = (*bridge_)("sms send 123456789 Hello World!", *ctx);
 
-    ASSERT_TRUE(result.ok()) << result.status().message();
-    EXPECT_EQ(*result, "");
+    EXPECT_FALSE(result.ok());
+    EXPECT_EQ(result.status().code(), absl::StatusCode::kUnimplemented);
+    EXPECT_EQ(result.status().message(), kSmsDeprecatedMessage);
 }
 
 TEST_F(LegacyConsoleBridgeTest, SmsSendFailsOnMissingArguments) {
@@ -1554,26 +1534,16 @@ TEST_F(LegacyConsoleBridgeTest, SmsSendFailsOnMissingArguments) {
     EXPECT_TRUE(result.status().message().find("missing argument") != std::string::npos);
 }
 
-TEST_F(LegacyConsoleBridgeTest, SmsPduCallsReceiveSms) {
+TEST_F(LegacyConsoleBridgeTest, SmsPduReturnsUnimplemented) {
     auto ctx = CreateContext();
     ctx->authenticated = true;
-
-    auto mock_modem = std::make_unique<android::emulation::control::incubating::MockModemStub>();
-    EXPECT_CALL(*mock_modem, receiveSms(_, _, _))
-            .WillOnce([](grpc::ClientContext* context,
-                         const android::emulation::control::incubating::SmsMessage& request,
-                         google::protobuf::Empty* response) {
-                EXPECT_EQ(request.encodedmessage(),
-                          "07914151551512f2040b914151551512f200006021201112340205e8329bfd06");
-                return grpc::Status::OK;
-            });
-    ctx->mock_modem_stub = std::move(mock_modem);
 
     auto result = (*bridge_)(
             "sms pdu 07914151551512f2040b914151551512f200006021201112340205e8329bfd06", *ctx);
 
-    ASSERT_TRUE(result.ok()) << result.status().message();
-    EXPECT_EQ(*result, "");
+    EXPECT_FALSE(result.ok());
+    EXPECT_EQ(result.status().code(), absl::StatusCode::kUnimplemented);
+    EXPECT_EQ(result.status().message(), kSmsDeprecatedMessage);
 }
 
 TEST_F(LegacyConsoleBridgeTest, SmsPduFailsOnMissingArguments) {

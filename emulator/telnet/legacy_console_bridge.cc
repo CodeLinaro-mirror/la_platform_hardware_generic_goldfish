@@ -926,7 +926,7 @@ LegacyConsoleBridge::LegacyConsoleBridge(int port, std::filesystem::path token_p
     // --- SMS Commands ---
     auto sms = builder.Command("sms", "SMS related commands");
     sms.On("send" /* do_sms_send */, "send inbound SMS text message",
-           [](ConsoleContext& ctx, ArgStream& args) -> absl::Status {
+           [](ConsoleContext& /*ctx*/, ArgStream& args) -> absl::Status {
                if (args.Empty()) {
                    return absl::InvalidArgumentError(
                            "missing argument, try 'sms send <phonenumber> <text message>'");
@@ -936,35 +936,14 @@ LegacyConsoleBridge::LegacyConsoleBridge(int port, std::filesystem::path token_p
                    return absl::InvalidArgumentError(
                            "missing argument, try 'sms send <phonenumber> <text message>'");
                }
-               std::string message = std::string(args.Remaining());
-
-               ASSIGN_OR_RETURN(auto stub, ctx.ModemStub());
-               ASSIGN_OR_RETURN(auto context, ctx.NewContext());
-
-               android::emulation::control::incubating::SmsMessage request;
-               request.set_number(phonenumber);
-               request.set_text(message);
-               google::protobuf::Empty unused;
-
-               return GrpcStatusToAbslStatus(stub->receiveSms(context.get(), request, &unused));
+               return absl::UnimplementedError(kSmsDeprecatedMessage);
            });
     sms.On("pdu" /* do_sms_sendpdu */, "send inbound SMS PDU",
-           [](ConsoleContext& ctx, std::optional<std::string> hex) -> absl::Status {
+           [](ConsoleContext& /*ctx*/, std::optional<std::string> hex) -> absl::Status {
                if (!hex.has_value() || hex->empty()) {
                    return absl::InvalidArgumentError("missing argument, try 'sms pdu <hexstring>'");
                }
-               ASSIGN_OR_RETURN(auto stub, ctx.ModemStub());
-               ASSIGN_OR_RETURN(auto context, ctx.NewContext());
-
-               android::emulation::control::incubating::SmsMessage request;
-               request.set_encodedmessage(*hex);
-               google::protobuf::Empty unused;
-
-               auto status = stub->receiveSms(context.get(), request, &unused);
-               if (!status.ok()) {
-                   return absl::InvalidArgumentError("badly formatted <hexstring>");
-               }
-               return absl::OkStatus();
+               return absl::UnimplementedError(kSmsDeprecatedMessage);
            });
     // --- Sensor Commands ---
     struct SensorDefinition {

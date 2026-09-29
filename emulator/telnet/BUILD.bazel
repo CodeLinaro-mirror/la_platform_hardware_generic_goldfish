@@ -68,10 +68,8 @@ cc_library(
     hdrs = ["console_context.h"],
     deps = [
         ":line_command_handler",
-        ":netsim_connection_provider",
         "//emulator/libs/discovery:emulator_advertisement",
         "//emulator/libs/grpc_client",
-        "//emulator/libs/grpc_utils:absl_translate",
         "//emulator/libs/status_macros",
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/log",
@@ -79,11 +77,8 @@ cc_library(
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/synchronization",
         "@aemu//protos/services/emulator-controller:emulator_controller_cc_grpc",
-        "@aemu//protos/services/incubating/modem:modem_service_cc_grpc",
         "@aemu//protos/services/incubating/recording:screen_recording_service_cc_grpc",
         "@aemu//protos/services/snapshot:snapshot_service_cc_grpc",
-        "@netsim//proto:netsim_cc_grpc",
-        "@netsim//proto:netsim_cc_proto",
     ],
 )
 
@@ -94,14 +89,8 @@ cc_library(
     deps = [
         ":command_registry",
         ":console_context",
-        "//emulator/libs/grpc_utils:absl_translate",
-        "//emulator/libs/status_macros",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
-        "@abseil-cpp//absl/strings",
-        "@abseil-cpp//absl/strings:str_format",
-        "@netsim//proto:netsim_cc_grpc",
-        "@netsim//proto:netsim_cc_proto",
     ],
 )
 
@@ -187,7 +176,6 @@ cc_library(
         "@aemu//protos/services/emulator-controller:emulator_controller_cc_grpc",
         "@aemu//protos/services/incubating/recording:screen_recording_service_cc_grpc",
         "@aemu//protos/services/snapshot:snapshot_service_cc_grpc",
-        "@netsim//proto:netsim_cc_grpc",
     ],
 )
 
@@ -251,7 +239,6 @@ cc_test(
         "//emulator/libs/system:test-headers",
         "//emulator/libs/test:googletest_main",
         "@aemu//protos/services/emulator-controller:emulator_controller_cc_grpc",
-        "@aemu//protos/services/incubating/modem:modem_service_cc_grpc",
         "@aemu//protos/services/snapshot:snapshot_service_cc_grpc",
     ],
 )
@@ -264,7 +251,6 @@ cc_test(
         ":console_context",
         ":gsm_commands",
         "//emulator/libs/test:googletest_main",
-        "@netsim//proto:netsim_cc_grpc",
     ],
 )
 

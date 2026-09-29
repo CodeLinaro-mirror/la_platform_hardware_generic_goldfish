@@ -31,6 +31,9 @@
 
 namespace goldfish::telnet {
 
+inline constexpr std::string_view kSmsDeprecatedMessage =
+        "SMS console commands are deprecated. Use the netsim CLI instead.";
+
 /**
  * @brief A bridge that maps legacy Telnet console commands to modern gRPC
  * service calls.

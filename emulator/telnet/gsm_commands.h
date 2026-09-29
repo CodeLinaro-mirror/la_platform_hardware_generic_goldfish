@@ -13,9 +13,14 @@
 // limitations under the License.
 #pragma once
 
+#include <string_view>
+
 #include "command_registry.h"
 
 namespace goldfish::telnet {
+
+inline constexpr std::string_view kGsmDeprecatedMessage =
+        "GSM console commands are deprecated. Use the netsim CLI instead.";
 
 void RegisterGsmCommands(CommandRegistryBuilder::NodeBuilder& gsm);
 
