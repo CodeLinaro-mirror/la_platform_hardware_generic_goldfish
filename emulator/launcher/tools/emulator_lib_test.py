@@ -119,10 +119,21 @@ class EmulatorLocatorTest(unittest.TestCase):
         self.assertEqual(self.locator.device_hub_exec, Path("/mock/android-device-hub"))
 
     @patch("platform.system", return_value="Windows")
-    def test_locate_device_hub_unsupported_os_raises(self, mock_system):
-        with self.assertRaises(RuntimeError) as ctx:
-            self.locator._locate_device_hub()
-        self.assertIn("only supported on Linux and macOS", str(ctx.exception))
+    @patch("os.access", return_value=True)
+    @patch.object(Path, "is_file", return_value=True)
+    @patch.object(Path, "is_dir", return_value=False)
+    @patch.object(Path, "exists", return_value=True)
+    def test_locate_device_hub_windows_success(
+        self, mock_exists, mock_is_dir, mock_is_file, mock_access, mock_system
+    ):
+        self.mock_runfiles.Rlocation.return_value = "/mock/android_device_hub.exe"
+        self.locator._locate_device_hub()
+        self.mock_runfiles.Rlocation.assert_called_once_with(
+            "goldfish+/emulator/launcher/android-device-hub/android_device_hub.exe"
+        )
+        self.assertEqual(
+            self.locator.device_hub_exec, Path("/mock/android_device_hub.exe")
+        )
 
     @patch("platform.system", return_value="Linux")
     def test_locate_device_hub_not_in_runfiles(self, mock_system):

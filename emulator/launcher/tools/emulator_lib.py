@@ -109,12 +109,13 @@ class EmulatorLocator:
             self._locate_device_hub()
 
     def _locate_device_hub(self):
-        if platform.system() not in ("Linux", "Darwin"):
-            raise RuntimeError(
-                f"Android Device Hub is only supported on Linux and macOS (current platform: {platform.system()})."
-            )
+        binary_name = (
+            "android_device_hub.exe"
+            if platform.system() == "Windows"
+            else "android-device-hub"
+        )
         device_hub_rlocation = (
-            "goldfish+/emulator/launcher/android-device-hub/android-device-hub"
+            f"goldfish+/emulator/launcher/android-device-hub/{binary_name}"
         )
         device_hub_path = self.r.Rlocation(device_hub_rlocation)
         if not device_hub_path:
