@@ -72,13 +72,19 @@ objc_library(
     includes = ["include"],
     deps = [
         "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/synchronization",
+        "@libyuv",
+        "@webrtc//api/video:video_frame",
         "@webrtc//api/video_codecs:builtin_video_decoder_factory",
         "@webrtc//api/video_codecs:builtin_video_encoder_factory",
         "@webrtc//api/video_codecs:video_codecs_api",
+        "@webrtc//modules/video_coding:video_codec_interface",
         "@webrtc//pc:video_track_source_proxy",
         "@webrtc//rtc_base:checks",
+        "@webrtc//rtc_base:logging",
         "@webrtc//sdk:native_api",
+        "@webrtc//sdk:videoframebuffer_objc",
         "@webrtc//sdk:videotoolbox_objc",
     ],
 )
@@ -701,6 +707,38 @@ cc_test(
         "//emulator/libs/test:googletest_main",
         "@webrtc//api:create_peerconnection_factory",
         "@webrtc//api/video_codecs:video_codecs_api",
+    ],
+)
+
+cc_test(
+    name = "videotoolbox_hardware_test",
+    size = "small",
+    srcs = ["core/mac/test/videotoolbox_hardware_test.cc"],
+    copts = WEBRTC_COPTS,
+    includes = ["."],
+    linkopts = WEBRTC_LINKOPTS + [
+        "-framework VideoToolbox",
+        "-framework CoreMedia",
+        "-framework CoreVideo",
+        "-framework CoreFoundation",
+        "-framework Foundation",
+    ],
+    target_compatible_with = select({
+        "@platforms//os:macos": [],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
+    deps = [
+        ":videobridge_codecs",
+        "//emulator/libs/test:googletest_main",
+        "@ffmpeg",
+        "@ffmpeg//:ffmpeg_headers",
+        "@libyuv",
+        "@webrtc//api:scoped_refptr",
+        "@webrtc//api/environment:environment_factory",
+        "@webrtc//api/video:video_frame",
+        "@webrtc//api/video_codecs:video_codecs_api",
+        "@webrtc//common_video",
+        "@webrtc//modules/video_coding:video_codec_interface",
     ],
 )
 

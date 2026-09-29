@@ -175,4 +175,29 @@ TEST_F(MacCodecFactoriesTest, CanEncodeDummyFrame) {
     encoder->Release();
 }
 
+TEST_F(MacCodecFactoriesTest, RespectsSoftwareVideoEncoderEnvironmentOverride) {
+    setenv("ANDROID_EMU_VIDEO_ENCODER", "software", 1);
+    auto factory = CreatePlatformVideoEncoderFactory();
+    unsetenv("ANDROID_EMU_VIDEO_ENCODER");
+    ASSERT_NE(factory, nullptr);
+
+    auto formats = factory->GetSupportedFormats();
+    EXPECT_FALSE(formats.empty());
+    bool has_vp8 = false;
+    bool has_h264 = false;
+    for (const auto& format : formats) {
+        if (format.name == "VP8") {
+            has_vp8 = true;
+        }
+        if (format.name == "H264") {
+            has_h264 = true;
+        }
+    }
+    EXPECT_TRUE(has_vp8);
+    EXPECT_FALSE(has_h264);
+
+    auto vp8_encoder = factory->Create(env_, webrtc::SdpVideoFormat("VP8"));
+    EXPECT_NE(vp8_encoder, nullptr);
+}
+
 }  // namespace goldfish::videobridge
