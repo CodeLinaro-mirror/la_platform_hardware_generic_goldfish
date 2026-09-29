@@ -35,6 +35,7 @@ cc_library(
         "//emulator/crashreport:breadcrumb_proto",
         "//emulator/libs/eventing",
         "//emulator/libs/network",
+        "//emulator/libs/status_macros:flatten",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/status:statusor",

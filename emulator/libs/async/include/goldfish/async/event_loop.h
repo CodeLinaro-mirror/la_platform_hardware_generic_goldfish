@@ -30,6 +30,7 @@
 #include "absl/time/time.h"
 
 #include "android/crashreport/thread.h"
+#include "android/status/flatten.h"
 #include "goldfish/async/looper_breadcrumb_tracker.h"
 #include "goldfish/eventing/event_sources.h"
 
@@ -199,11 +200,11 @@ class EventLoop : public CallbackEventSource<LooperStatusEvent> {
             std::conditional_t<std::is_void_v<std::invoke_result_t<std::decay_t<F>>>, absl::Status,
                                absl::StatusOr<std::future<std::invoke_result_t<std::decay_t<F>>>>>;
 
-    // Evaluates to absl::Status for void tasks, or absl::StatusOr<T> for tasks returning T.
+    // Evaluates to absl::Status for void or absl::Status tasks, absl::StatusOr<T> for
+    // absl::StatusOr<T> tasks, or absl::StatusOr<T> for tasks returning a plain value T.
     template <typename F>
     using PostAndWaitReturnType =
-            std::conditional_t<std::is_void_v<std::invoke_result_t<std::decay_t<F>>>, absl::Status,
-                               absl::StatusOr<std::invoke_result_t<std::decay_t<F>>>>;
+            android::status::flatten_status_or_t<std::invoke_result_t<std::decay_t<F>>>;
 
     /**
      * @brief Posts a callable object for execution on the event loop.
