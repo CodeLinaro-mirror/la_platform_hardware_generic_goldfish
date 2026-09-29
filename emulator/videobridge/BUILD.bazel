@@ -656,6 +656,39 @@ cc_test(
 )
 
 cc_test(
+    name = "mf_hardware_test",
+    size = "small",
+    srcs = ["core/win/test/mf_hardware_test.cc"],
+    copts = WEBRTC_COPTS,
+    includes = ["."],
+    linkopts = [
+        "-DEFAULTLIB:mfplat.lib",
+        "-DEFAULTLIB:mfuuid.lib",
+        "-DEFAULTLIB:ole32.lib",
+        "-DEFAULTLIB:strmiids.lib",
+        "-DEFAULTLIB:uuid.lib",
+    ],
+    target_compatible_with = select({
+        "@platforms//os:windows": [],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
+    deps = [
+        ":videobridge_codecs",
+        ":videobridge_codecs_win",
+        "//emulator/libs/test:googletest_main",
+        "@ffmpeg",
+        "@ffmpeg//:ffmpeg_headers",
+        "@libyuv",
+        "@webrtc//api:scoped_refptr",
+        "@webrtc//api/environment:environment_factory",
+        "@webrtc//api/video:video_frame",
+        "@webrtc//api/video_codecs:video_codecs_api",
+        "@webrtc//common_video",
+        "@webrtc//modules/video_coding:video_codec_interface",
+    ],
+)
+
+cc_test(
     name = "codec_factories_mac_test",
     srcs = ["core/mac/codec_factories_mac_test.cc"],
     linkopts = WEBRTC_LINKOPTS,

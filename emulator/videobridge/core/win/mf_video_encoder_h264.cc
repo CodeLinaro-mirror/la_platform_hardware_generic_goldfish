@@ -17,7 +17,10 @@
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wthread-safety-reference-return"
 #pragma clang diagnostic ignored "-Wnullability-completeness"
+#include <iostream>
+
 #include "api/scoped_refptr.h"
+#include "api/video_codecs/h264_profile_level_id.h"
 #include "modules/video_coding/include/video_codec_interface.h"
 #include "modules/video_coding/include/video_error_codes.h"
 #include "rtc_base/checks.h"
@@ -25,29 +28,34 @@
 #include "third_party/libyuv/include/libyuv.h"
 #pragma clang diagnostic pop
 
-#include <strmif.h>
 #include <codecapi.h>
 #include <mfapi.h>
 #include <mferror.h>
+#include <mfidl.h>
 #include <mfobjects.h>
+#include <strmif.h>
 #include <winerror.h>
 
 #pragma comment(lib, "mfplat.lib")
 #pragma comment(lib, "mfuuid.lib")
 #pragma comment(lib, "ole32.lib")
 
-#define RETURN_IF_FAILED(expr) \
-    do {                       \
-        HRESULT _hr = (expr);  \
-        if (FAILED(_hr)) {     \
-            return _hr;        \
-        }                      \
+#define RETURN_IF_FAILED(expr)                                                                  \
+    do {                                                                                        \
+        HRESULT _hr = (expr);                                                                   \
+        if (FAILED(_hr)) {                                                                      \
+            RTC_LOG(LS_ERROR) << #expr << " failed: 0x" << std::hex << _hr << std::dec;         \
+            std::cerr << "[MF ERROR] " << #expr << " failed: 0x" << std::hex << _hr << std::dec \
+                      << std::endl;                                                             \
+            return _hr;                                                                         \
+        }                                                                                       \
     } while (0)
 
 namespace goldfish::videobridge {
 
-MFVideoEncoderH264::MFVideoEncoderH264()
-        : initialized_(false)
+MFVideoEncoderH264::MFVideoEncoderH264(webrtc::SdpVideoFormat format)
+        : format_(std::move(format))
+        , initialized_(false)
         , callback_(nullptr)
         , com_initialized_(false)
         , target_bitrate_bps_(kDefaultTargetBitrateBps)
@@ -78,7 +86,7 @@ int32_t MFVideoEncoderH264::InitEncode(const webrtc::VideoCodec* codec_settings,
                                        int32_t number_of_cores, size_t max_payload_size) {
     absl::MutexLock lock(&mutex_);
     if (initialized_) {
-        Release();
+        ReleaseUnlocked();
     }
 
     if (!codec_settings || codec_settings->codecType != webrtc::kVideoCodecH264) {
@@ -108,6 +116,11 @@ int32_t MFVideoEncoderH264::InitEncode(const webrtc::VideoCodec* codec_settings,
     return WEBRTC_VIDEO_CODEC_OK;
 }
 
+int32_t MFVideoEncoderH264::InitEncode(const webrtc::VideoCodec* codec_settings,
+                                       const webrtc::VideoEncoder::Settings& settings) {
+    return InitEncode(codec_settings, settings.number_of_cores, settings.max_payload_size);
+}
+
 int32_t MFVideoEncoderH264::RegisterEncodeCompleteCallback(webrtc::EncodedImageCallback* callback) {
     absl::MutexLock lock(&mutex_);
     callback_ = callback;
@@ -116,8 +129,24 @@ int32_t MFVideoEncoderH264::RegisterEncodeCompleteCallback(webrtc::EncodedImageC
 
 int32_t MFVideoEncoderH264::Release() {
     absl::MutexLock lock(&mutex_);
+    return ReleaseUnlocked();
+}
+
+int32_t MFVideoEncoderH264::ReleaseUnlocked() {
     if (!initialized_) {
         return WEBRTC_VIDEO_CODEC_OK;
+    }
+
+    if (encoder_mft_) {
+        encoder_mft_->ProcessMessage(MFT_MESSAGE_COMMAND_FLUSH, 0);
+        encoder_mft_->ProcessMessage(MFT_MESSAGE_NOTIFY_END_OF_STREAM, 0);
+        encoder_mft_->ProcessMessage(MFT_MESSAGE_NOTIFY_END_STREAMING, 0);
+        if (is_async_mft_) {
+            ComPtr<IMFShutdown> shutdown;
+            if (SUCCEEDED(encoder_mft_->QueryInterface(IID_PPV_ARGS(&shutdown)))) {
+                shutdown->Shutdown();
+            }
+        }
     }
 
     input_sample_.Reset();
@@ -126,7 +155,10 @@ int32_t MFVideoEncoderH264::Release() {
     output_buffer_.Reset();
     input_type_.Reset();
     output_type_.Reset();
+    event_generator_.Reset();
     encoder_mft_.Reset();
+    is_async_mft_ = false;
+    pending_input_count_ = 0;
 
     initialized_ = false;
     return WEBRTC_VIDEO_CODEC_OK;
@@ -139,8 +171,28 @@ int32_t MFVideoEncoderH264::Encode(const webrtc::VideoFrame& frame,
         return WEBRTC_VIDEO_CODEC_UNINITIALIZED;
     }
 
+    bool force_keyframe = false;
+    if (frame_types) {
+        for (const auto& type : *frame_types) {
+            if (type == webrtc::VideoFrameType::kVideoFrameKey) {
+                force_keyframe = true;
+                break;
+            }
+        }
+    }
+
+    if (force_keyframe && encoder_mft_) {
+        ComPtr<ICodecAPI> codec_api;
+        if (SUCCEEDED(encoder_mft_->QueryInterface(IID_PPV_ARGS(&codec_api)))) {
+            VARIANT var = {};
+            var.vt = VT_UI4;
+            var.ulVal = 1;
+            codec_api->SetValue(&CODECAPI_AVEncVideoForceKeyFrame, &var);
+        }
+    }
+
     // 1. Process the input frame (convert to NV12 and feed to MFT)
-    HRESULT hr = ProcessInputFrame(frame);
+    HRESULT hr = ProcessInputFrame(frame, force_keyframe);
     if (FAILED(hr)) {
         RTC_LOG(LS_ERROR) << "Failed to process input frame in MFT: " << hr;
         return WEBRTC_VIDEO_CODEC_ERROR;
@@ -163,14 +215,12 @@ void MFVideoEncoderH264::SetRates(const RateControlParameters& parameters) {
     uint32_t new_bitrate_bps = parameters.bitrate.get_sum_bps();
     uint32_t new_fps = static_cast<uint32_t>(parameters.framerate_fps);
 
-    if (new_bitrate_bps != target_bitrate_bps_) {
+    if (new_bitrate_bps != target_bitrate_bps_ || new_fps != target_fps_) {
         target_bitrate_bps_ = new_bitrate_bps;
+        if (new_fps > 0) {
+            target_fps_ = new_fps;
+        }
         SetBitrateAndRateControl(target_bitrate_bps_);
-    }
-    if (new_fps != target_fps_) {
-        target_fps_ = new_fps;
-        // Reconfigure media types if framerate changes significantly
-        ConfigureInputOutputTypes(codec_settings_.width, codec_settings_.height, target_fps_);
     }
 }
 
@@ -189,70 +239,106 @@ webrtc::VideoEncoder::EncoderInfo MFVideoEncoderH264::GetEncoderInfo() const {
 }
 
 HRESULT MFVideoEncoderH264::InitializeMFT() {
+    return S_OK;
+}
+
+HRESULT MFVideoEncoderH264::ConfigureMFT() {
     MFT_REGISTER_TYPE_INFO input_info = {MFMediaType_Video, MFVideoFormat_NV12};
     MFT_REGISTER_TYPE_INFO output_info = {MFMediaType_Video, MFVideoFormat_H264};
 
     IMFActivate** ppActivate = nullptr;
     UINT32 count = 0;
 
-    // Enumerate H.264 video encoders
+    // Enumerate hardware H.264 video encoders
     HRESULT hr = MFTEnumEx(MFT_CATEGORY_VIDEO_ENCODER,
                            MFT_ENUM_FLAG_HARDWARE,  // Force hardware acceleration
                            &input_info, &output_info, &ppActivate, &count);
 
     if (FAILED(hr) || count == 0) {
         RTC_LOG(LS_WARNING) << "No hardware H.264 MFT found. Falling back to software MFT.";
-        RETURN_IF_FAILED(MFTEnumEx(MFT_CATEGORY_VIDEO_ENCODER,
-                                   MFT_ENUM_FLAG_SYNCMFT | MFT_ENUM_FLAG_ASYNCMFT,
-                                   &input_info, &output_info, &ppActivate, &count));
+        hr = MFTEnumEx(MFT_CATEGORY_VIDEO_ENCODER, MFT_ENUM_FLAG_SYNCMFT | MFT_ENUM_FLAG_ASYNCMFT,
+                       &input_info, &output_info, &ppActivate, &count);
     }
 
-    if (count > 0) {
-        // Activate the first encoder MFT
-        hr = ppActivate[0]->ActivateObject(IID_PPV_ARGS(&encoder_mft_));
+    if (FAILED(hr) || count == 0) {
+        RTC_LOG(LS_ERROR) << "No H.264 MFT found: 0x" << std::hex << hr;
+        return FAILED(hr) ? hr : E_FAIL;
+    }
 
-        // Clean up activation objects
-        for (UINT32 i = 0; i < count; i++) {
-            ppActivate[i]->Release();
+    HRESULT config_hr = E_FAIL;
+    for (UINT32 i = 0; i < count; ++i) {
+        encoder_mft_.Reset();
+        hr = ppActivate[i]->ActivateObject(IID_PPV_ARGS(&encoder_mft_));
+        if (FAILED(hr) || !encoder_mft_) {
+            RTC_LOG(LS_WARNING) << "Failed to activate MFT candidate " << i << ": 0x" << std::hex
+                                << hr;
+            continue;
         }
-        CoTaskMemFree(ppActivate);
-        RETURN_IF_FAILED(hr);
-    }
 
-    // Query stream IDs
-    DWORD input_count = 0;
-    DWORD output_count = 0;
-    RETURN_IF_FAILED(encoder_mft_->GetStreamCount(&input_count, &output_count));
-    if (input_count > 0 && output_count > 0) {
+        // Unlock asynchronous MFT if required (e.g. Intel Quick Sync Video MFT)
+        ComPtr<IMFAttributes> attributes;
+        is_async_mft_ = false;
+        if (SUCCEEDED(encoder_mft_->GetAttributes(&attributes))) {
+            UINT32 is_async = 0;
+            if (SUCCEEDED(attributes->GetUINT32(MF_TRANSFORM_ASYNC, &is_async)) && is_async) {
+                RTC_LOG(LS_INFO) << "MFT candidate " << i
+                                 << " is async; setting MF_TRANSFORM_ASYNC_UNLOCK.";
+                attributes->SetUINT32(MF_TRANSFORM_ASYNC_UNLOCK, TRUE);
+                is_async_mft_ = true;
+            }
+        }
+
+        if (is_async_mft_) {
+            encoder_mft_->QueryInterface(IID_PPV_ARGS(&event_generator_));
+        }
+
+        // Query stream IDs
+        DWORD input_count = 0;
+        DWORD output_count = 0;
+        hr = encoder_mft_->GetStreamCount(&input_count, &output_count);
+        if (FAILED(hr) || input_count == 0 || output_count == 0) {
+            RTC_LOG(LS_WARNING) << "GetStreamCount failed on candidate " << i << ": 0x" << std::hex
+                                << hr;
+            continue;
+        }
+
+        input_stream_id_ = 0;
+        output_stream_id_ = 0;
         std::vector<DWORD> input_ids(input_count);
         std::vector<DWORD> output_ids(output_count);
-        hr = encoder_mft_->GetStreamIDs(input_count, input_ids.data(), output_count,
-                                        output_ids.data());
-        if (SUCCEEDED(hr)) {
+        if (SUCCEEDED(encoder_mft_->GetStreamIDs(input_count, input_ids.data(), output_count,
+                                                 output_ids.data()))) {
             input_stream_id_ = input_ids[0];
             output_stream_id_ = output_ids[0];
-        } else if (hr == E_NOTIMPL) {
-            // If GetStreamIDs is not implemented, stream IDs are 0-indexed
-            input_stream_id_ = 0;
-            output_stream_id_ = 0;
-        } else {
-            return hr;
         }
+
+        config_hr = ConfigureInputOutputTypes(codec_settings_.width, codec_settings_.height,
+                                              target_fps_);
+        if (SUCCEEDED(config_hr)) {
+            RTC_LOG(LS_INFO) << "Successfully configured MFT candidate " << i;
+            break;
+        }
+        RTC_LOG(LS_WARNING) << "ConfigureInputOutputTypes failed on candidate " << i << ": 0x"
+                            << std::hex << config_hr;
     }
 
-    return S_OK;
-}
-
-HRESULT MFVideoEncoderH264::ConfigureMFT() {
-    RETURN_IF_FAILED(InitializeMFT());
-    RETURN_IF_FAILED(
-            ConfigureInputOutputTypes(codec_settings_.width, codec_settings_.height, target_fps_));
-
-    HRESULT hr = SetBitrateAndRateControl(target_bitrate_bps_);
-    if (FAILED(hr)) {
-        RTC_LOG(LS_WARNING) << "Failed to set bitrate/rate control, continuing with defaults: "
-                            << hr;
+    for (UINT32 i = 0; i < count; ++i) {
+        ppActivate[i]->Release();
     }
+    CoTaskMemFree(ppActivate);
+
+    if (FAILED(config_hr)) {
+        RTC_LOG(LS_ERROR) << "All " << count << " MFT candidates failed configuration: 0x"
+                          << std::hex << config_hr;
+        return config_hr;
+    }
+
+    SetBitrateAndRateControl(target_bitrate_bps_);
+
+    pending_input_count_ = 0;
+    encoder_mft_->ProcessMessage(MFT_MESSAGE_NOTIFY_BEGIN_STREAMING, 0);
+    encoder_mft_->ProcessMessage(MFT_MESSAGE_NOTIFY_START_OF_STREAM, 0);
+
     return S_OK;
 }
 
@@ -265,6 +351,20 @@ HRESULT MFVideoEncoderH264::ConfigureInputOutputTypes(int width, int height, int
     RETURN_IF_FAILED(MFSetAttributeSize(output_type_.Get(), MF_MT_FRAME_SIZE, width, height));
     RETURN_IF_FAILED(MFSetAttributeRatio(output_type_.Get(), MF_MT_FRAME_RATE, framerate, 1));
     RETURN_IF_FAILED(output_type_->SetUINT32(MF_MT_INTERLACE_MODE, MFVideoInterlace_Progressive));
+    RETURN_IF_FAILED(MFSetAttributeRatio(output_type_.Get(), MF_MT_PIXEL_ASPECT_RATIO, 1, 1));
+
+    // Configure profile (Baseline, Main, High / Constrained High)
+    UINT32 profile = eAVEncH264VProfile_Base;
+    auto profile_level_id = webrtc::ParseSdpForH264ProfileLevelId(format_.parameters);
+    if (profile_level_id) {
+        if (profile_level_id->profile == webrtc::H264Profile::kProfileHigh ||
+            profile_level_id->profile == webrtc::H264Profile::kProfileConstrainedHigh) {
+            profile = eAVEncH264VProfile_High;
+        } else if (profile_level_id->profile == webrtc::H264Profile::kProfileMain) {
+            profile = eAVEncH264VProfile_Main;
+        }
+    }
+    RETURN_IF_FAILED(output_type_->SetUINT32(MF_MT_MPEG2_PROFILE, profile));
 
     RETURN_IF_FAILED(encoder_mft_->SetOutputType(output_stream_id_, output_type_.Get(), 0));
 
@@ -275,6 +375,8 @@ HRESULT MFVideoEncoderH264::ConfigureInputOutputTypes(int width, int height, int
     RETURN_IF_FAILED(MFSetAttributeSize(input_type_.Get(), MF_MT_FRAME_SIZE, width, height));
     RETURN_IF_FAILED(MFSetAttributeRatio(input_type_.Get(), MF_MT_FRAME_RATE, framerate, 1));
     RETURN_IF_FAILED(input_type_->SetUINT32(MF_MT_INTERLACE_MODE, MFVideoInterlace_Progressive));
+    RETURN_IF_FAILED(MFSetAttributeRatio(input_type_.Get(), MF_MT_PIXEL_ASPECT_RATIO, 1, 1));
+    RETURN_IF_FAILED(input_type_->SetUINT32(MF_MT_ALL_SAMPLES_INDEPENDENT, TRUE));
 
     RETURN_IF_FAILED(encoder_mft_->SetInputType(input_stream_id_, input_type_.Get(), 0));
 
@@ -286,21 +388,35 @@ HRESULT MFVideoEncoderH264::ConfigureInputOutputTypes(int width, int height, int
 
 HRESULT MFVideoEncoderH264::SetBitrateAndRateControl(uint32_t bitrate_bps) {
     ComPtr<ICodecAPI> codec_api;
-    RETURN_IF_FAILED(encoder_mft_->QueryInterface(IID_PPV_ARGS(&codec_api)));
+    if (FAILED(encoder_mft_->QueryInterface(IID_PPV_ARGS(&codec_api)))) {
+        return S_OK;
+    }
 
-    // Set Rate Control Mode to RETURN_IF_FAILED (Constant Bitrate)
+    // Set Rate Control Mode (Constant Bitrate)
     VARIANT var = {};
     var.vt = VT_UI4;
     var.ulVal = eAVEncCommonRateControlMode_CBR;
-    RETURN_IF_FAILED(codec_api->SetValue(&CODECAPI_AVEncCommonRateControlMode, &var));
+    codec_api->SetValue(&CODECAPI_AVEncCommonRateControlMode, &var);
 
     // Set Average Bitrate
     var.ulVal = bitrate_bps;
-    RETURN_IF_FAILED(codec_api->SetValue(&CODECAPI_AVEncCommonMeanBitRate, &var));
+    codec_api->SetValue(&CODECAPI_AVEncCommonMeanBitRate, &var);
 
     // Set GOP size (Keyframe interval) to 2 seconds (2 * FPS)
     var.ulVal = target_fps_ * 2;
-    RETURN_IF_FAILED(codec_api->SetValue(&CODECAPI_AVEncMPVGOPSize, &var));
+    codec_api->SetValue(&CODECAPI_AVEncMPVGOPSize, &var);
+
+    // Enable Low Latency mode for real-time WebRTC streaming
+    VARIANT var_ll = {};
+    var_ll.vt = VT_BOOL;
+    var_ll.boolVal = VARIANT_TRUE;
+    codec_api->SetValue(&CODECAPI_AVEncCommonLowLatency, &var_ll);
+
+    // Disable B-frames for zero-latency interactive streaming
+    VARIANT var_bf = {};
+    var_bf.vt = VT_UI4;
+    var_bf.ulVal = 0;
+    codec_api->SetValue(&CODECAPI_AVEncMPVDefaultBPictureCount, &var_bf);
 
     return S_OK;
 }
@@ -313,24 +429,37 @@ HRESULT MFVideoEncoderH264::AllocateInputBuffers(int width, int height) {
 }
 
 HRESULT MFVideoEncoderH264::AllocateOutputBuffers() {
+    DWORD buffer_size = output_stream_info_.cbSize;
+    if (buffer_size == 0) {
+        buffer_size = codec_settings_.width * codec_settings_.height * 3 / 2;
+        if (buffer_size < 1048576) {
+            buffer_size = 1048576;
+        }
+    }
     RETURN_IF_FAILED(MFCreateSample(&output_sample_));
-    RETURN_IF_FAILED(MFCreateMemoryBuffer(output_stream_info_.cbSize, &output_buffer_));
+    RETURN_IF_FAILED(MFCreateMemoryBuffer(buffer_size, &output_buffer_));
     return output_sample_->AddBuffer(output_buffer_.Get());
 }
 
-HRESULT MFVideoEncoderH264::ProcessInputFrame(const webrtc::VideoFrame& frame) {
-    // Convert incoming I420 frame to NV12 in our pre-allocated input buffer
-    BYTE* buffer_data = nullptr;
-    DWORD max_length = 0;
-    DWORD current_length = 0;
-
-    RETURN_IF_FAILED(input_buffer_->Lock(&buffer_data, &max_length, &current_length));
-
+HRESULT MFVideoEncoderH264::ProcessInputFrame(const webrtc::VideoFrame& frame,
+                                              bool force_keyframe) {
     webrtc::scoped_refptr<webrtc::I420BufferInterface> i420_buffer =
             frame.video_frame_buffer()->ToI420();
 
     int width = i420_buffer->width();
     int height = i420_buffer->height();
+    DWORD buffer_size = width * height * 3 / 2;
+
+    ComPtr<IMFSample> sample;
+    RETURN_IF_FAILED(MFCreateSample(&sample));
+
+    ComPtr<IMFMediaBuffer> media_buffer;
+    RETURN_IF_FAILED(MFCreateMemoryBuffer(buffer_size, &media_buffer));
+
+    BYTE* buffer_data = nullptr;
+    DWORD max_length = 0;
+    DWORD current_length = 0;
+    RETURN_IF_FAILED(media_buffer->Lock(&buffer_data, &max_length, &current_length));
 
     uint8_t* dst_y = buffer_data;
     int dst_stride_y = width;
@@ -342,51 +471,175 @@ HRESULT MFVideoEncoderH264::ProcessInputFrame(const webrtc::VideoFrame& frame) {
                        i420_buffer->StrideU(), i420_buffer->DataV(), i420_buffer->StrideV(), dst_y,
                        dst_stride_y, dst_uv, dst_stride_uv, width, height);
 
-    input_buffer_->Unlock();
-    RETURN_IF_FAILED(input_buffer_->SetCurrentLength(width * height * 3 / 2));
+    media_buffer->Unlock();
+    RETURN_IF_FAILED(media_buffer->SetCurrentLength(buffer_size));
+    RETURN_IF_FAILED(sample->AddBuffer(media_buffer.Get()));
 
-    // Set timestamp on the sample (in 100-nanosecond units)
-    RETURN_IF_FAILED(input_sample_->SetSampleTime(frame.timestamp_us() * 10));
+    if (force_keyframe) {
+        RETURN_IF_FAILED(sample->SetUINT32(MFSampleExtension_CleanPoint, 1));
+    }
 
-    // Feed the sample to the MFT
-    RETURN_IF_FAILED(encoder_mft_->ProcessInput(input_stream_id_, input_sample_.Get(), 0));
-    return S_OK;
+    // Set timestamp and duration on the sample (in 100-nanosecond units)
+    RETURN_IF_FAILED(sample->SetSampleTime(frame.timestamp_us() * 10));
+    UINT64 duration = 10000000ULL / (target_fps_ ? target_fps_ : 30);
+    RETURN_IF_FAILED(sample->SetSampleDuration(duration));
+
+    // If this is an asynchronous MFT, we must follow the IMFMediaEventGenerator event loop:
+    // Wait for METransformNeedInput before calling ProcessInput, and drain on
+    // METransformHaveOutput.
+    if (is_async_mft_ && event_generator_) {
+        while (pending_input_count_ == 0) {
+            ComPtr<IMFMediaEvent> event;
+            HRESULT ev_hr = event_generator_->GetEvent(0, &event);
+            if (FAILED(ev_hr)) {
+                return ev_hr;
+            }
+            MediaEventType event_type = MEUnknown;
+            event->GetType(&event_type);
+            if (event_type == METransformNeedInput) {
+                pending_input_count_++;
+            } else if (event_type == METransformHaveOutput) {
+                RETURN_IF_FAILED(DrainEncodedFrames(frame.rtp_timestamp(), frame.render_time_ms(),
+                                                    callback_));
+            }
+        }
+        pending_input_count_--;
+        return encoder_mft_->ProcessInput(input_stream_id_, sample.Get(), 0);
+    }
+
+    // Synchronous MFT path
+    HRESULT hr = encoder_mft_->ProcessInput(input_stream_id_, sample.Get(), 0);
+    if (hr == MF_E_NOTACCEPTING) {
+        DrainEncodedFrames(frame.rtp_timestamp(), frame.render_time_ms(), callback_);
+        hr = encoder_mft_->ProcessInput(input_stream_id_, sample.Get(), 0);
+    }
+    return hr;
 }
 
 HRESULT MFVideoEncoderH264::DrainEncodedFrames(uint32_t rtp_timestamp, int64_t capture_time_ms,
                                                webrtc::EncodedImageCallback* callback) {
-    HRESULT hr = S_OK;
+    bool mft_provides_samples =
+            (output_stream_info_.dwFlags &
+             (MFT_OUTPUT_STREAM_PROVIDES_SAMPLES | MFT_OUTPUT_STREAM_CAN_PROVIDE_SAMPLES)) != 0;
+
+    bool drained_any = false;
     while (true) {
+        if (is_async_mft_ && event_generator_) {
+            bool have_output = false;
+            while (true) {
+                ComPtr<IMFMediaEvent> event;
+                // Wait blocking for the first output event; once at least one output frame has been
+                // drained (or if the MFT asks for more input), poll non-blocking for any remaining
+                // events.
+                DWORD flags = drained_any ? MF_EVENT_FLAG_NO_WAIT : 0;
+                HRESULT ev_hr = event_generator_->GetEvent(flags, &event);
+                if (ev_hr == MF_E_NO_EVENTS_AVAILABLE || FAILED(ev_hr)) {
+                    break;
+                }
+                MediaEventType event_type = MEUnknown;
+                event->GetType(&event_type);
+                if (event_type == METransformNeedInput) {
+                    pending_input_count_++;
+                    // Once the MFT signals NeedInput, switch to non-blocking check to see if
+                    // an output event was also queued; if not, return so Encode() can finish.
+                    drained_any = true;
+                } else if (event_type == METransformHaveOutput) {
+                    have_output = true;
+                    drained_any = true;
+                    break;
+                }
+            }
+            if (!have_output) {
+                break;
+            }
+        }
+
         // Reset the output buffer length before requesting new output from MFT
-        if (output_buffer_) {
+        if (!mft_provides_samples && output_buffer_) {
             output_buffer_->SetCurrentLength(0);
         }
 
-        MFT_OUTPUT_DATA_BUFFER output_buffer = {};
-        output_buffer.dwStreamID = output_stream_id_;
-        output_buffer.pSample = output_sample_.Get();
+        MFT_OUTPUT_DATA_BUFFER output_data = {};
+        output_data.dwStreamID = output_stream_id_;
+        output_data.pSample = mft_provides_samples ? nullptr : output_sample_.Get();
 
         DWORD status = 0;
-        hr = encoder_mft_->ProcessOutput(0, 1, &output_buffer, &status);
+        HRESULT hr = encoder_mft_->ProcessOutput(0, 1, &output_data, &status);
+        if (output_data.pEvents) {
+            output_data.pEvents->Release();
+        }
 
         if (hr == MF_E_TRANSFORM_NEED_MORE_INPUT) {
-            // No more frames available, break and wait for next input
             break;
+        }
+        if (hr == MF_E_TRANSFORM_STREAM_CHANGE) {
+            ComPtr<IMFMediaType> new_output_type;
+            if (SUCCEEDED(encoder_mft_->GetOutputAvailableType(output_stream_id_, 0,
+                                                               &new_output_type))) {
+                encoder_mft_->SetOutputType(output_stream_id_, new_output_type.Get(), 0);
+                encoder_mft_->GetOutputStreamInfo(output_stream_id_, &output_stream_info_);
+                mft_provides_samples = (output_stream_info_.dwFlags &
+                                        (MFT_OUTPUT_STREAM_PROVIDES_SAMPLES |
+                                         MFT_OUTPUT_STREAM_CAN_PROVIDE_SAMPLES)) != 0;
+            }
+            continue;
         }
 
         if (FAILED(hr)) {
-            RTC_LOG(LS_ERROR) << "MFT ProcessOutput failed: " << hr;
+            RTC_LOG(LS_ERROR) << "MFT ProcessOutput failed: 0x" << std::hex << hr;
             return hr;
+        }
+
+        IMFSample* result_sample =
+                mft_provides_samples ? output_data.pSample : output_sample_.Get();
+        if (!result_sample) {
+            continue;
+        }
+
+        ComPtr<IMFMediaBuffer> result_buffer;
+        hr = result_sample->ConvertToContiguousBuffer(&result_buffer);
+        if (FAILED(hr) || !result_buffer) {
+            if (mft_provides_samples && output_data.pSample) {
+                output_data.pSample->Release();
+            }
+            return FAILED(hr) ? hr : E_FAIL;
         }
 
         // Retrieve the encoded payload
         BYTE* data = nullptr;
         DWORD current_length = 0;
-        RETURN_IF_FAILED(output_buffer_->Lock(&data, nullptr, &current_length));
+        hr = result_buffer->Lock(&data, nullptr, &current_length);
+        if (FAILED(hr)) {
+            if (mft_provides_samples && output_data.pSample) {
+                output_data.pSample->Release();
+            }
+            return hr;
+        }
 
         // Check if this is a keyframe (look for H.264 SPS/PPS or Keyframe attribute)
         UINT32 is_keyframe = 0;
-        output_sample_->GetUINT32(MFSampleExtension_CleanPoint, &is_keyframe);
+        result_sample->GetUINT32(MFSampleExtension_CleanPoint, &is_keyframe);
+
+        // Inspect bitstream for IDR or SPS NAL units to ensure keyframe classification is accurate
+        if (data && current_length >= 4) {
+            for (DWORD i = 0; i + 4 <= current_length; ++i) {
+                if (data[i] == 0 && data[i + 1] == 0) {
+                    if (data[i + 2] == 1) {
+                        uint8_t nal_type = data[i + 3] & 0x1F;
+                        if (nal_type == 5 || nal_type == 7) {
+                            is_keyframe = 1;
+                            break;
+                        }
+                    } else if (i + 4 < current_length && data[i + 2] == 0 && data[i + 3] == 1) {
+                        uint8_t nal_type = data[i + 4] & 0x1F;
+                        if (nal_type == 5 || nal_type == 7) {
+                            is_keyframe = 1;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
 
         // Wrap the payload in webrtc::EncodedImage
         webrtc::EncodedImage encoded_image;
@@ -400,8 +653,13 @@ HRESULT MFVideoEncoderH264::DrainEncodedFrames(uint32_t rtp_timestamp, int64_t c
 
         webrtc::CodecSpecificInfo codec_info;
         codec_info.codecType = webrtc::kVideoCodecH264;
+        codec_info.codecSpecific.H264.packetization_mode =
+                webrtc::H264PacketizationMode::NonInterleaved;
 
-        output_buffer_->Unlock();
+        result_buffer->Unlock();
+        if (mft_provides_samples && output_data.pSample) {
+            output_data.pSample->Release();
+        }
 
         // Deliver the encoded image
         if (callback) {
