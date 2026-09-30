@@ -438,7 +438,7 @@ int RawVideofileSource::convertFrameToRGBA() {
         mConvertedFrameCache->height = mFrameCache->height;
         int bufferSize = av_image_get_buffer_size(AV_PIX_FMT_RGBA, mFrameCache->width,
                                                   mFrameCache->height, 1);
-        mConvertedFrameBuffer.resize(bufferSize);
+        mConvertedFrameBuffer.resize(bufferSize + AV_INPUT_BUFFER_PADDING_SIZE, 0);
         int ret = av_image_fill_arrays(mConvertedFrameCache->data, mConvertedFrameCache->linesize,
                                        mConvertedFrameBuffer.data(), AV_PIX_FMT_RGBA,
                                        mFrameCache->width, mFrameCache->height, 1);
