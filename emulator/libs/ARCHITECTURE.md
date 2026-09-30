@@ -53,6 +53,7 @@
 | Library | Description | Documentation |
 | :--- | :--- | :--- |
 | **gvk** | Goldfish Vulkan wrappers and dispatch tables. | [Architecture](gvk/ARCHITECTURE.md) |
+| **ver** | Virtual Environment Renderer (3D scenes, posters, media) using GVK. | [Architecture](ver/ARCHITECTURE.md) |
 | **imaging** | Pixel formats and image data containers. | [Architecture](imaging/ARCHITECTURE.md) |
 | **fps_calculator** | Moving average FPS calculation. | [Architecture](fps_calculator/ARCHITECTURE.md) |
 | **sensors** | Sensor simulation logic and foldable state. | [Architecture](sensors/ARCHITECTURE.md) |
