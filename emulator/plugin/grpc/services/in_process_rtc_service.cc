@@ -29,6 +29,7 @@
 #include "android/emulation/control/event_sender.h"
 #include "api/make_ref_counted.h"
 #include "emulator/plugin/grpc/input/input_session.h"
+#include "emulator/plugin/grpc/services/v2/environment/sensors_service_impl.h"
 #include "emulator/plugin/grpc/services/v2/webrtc/rtc_service_impl.h"
 #include "goldfish/audio/qemu_audio_source.h"
 #include "goldfish/avd_info/avd_info.h"
@@ -100,12 +101,18 @@ absl::Status DispatchInProcessInputEvent(const InputEvent& request,
 
 InputSenderFactory CreateInProcessInputSenderFactory(
         IMultiDisplay& multidisplay, std::shared_ptr<IKeyEventSender> key_event_sender,
-        bool hw_sensor_hinge) {
+        bool hw_sensor_hinge, ::goldfish::sensors::PhysicalModel* physical_model) {
     CHECK_NE(key_event_sender, nullptr) << "key_event_sender must not be null";
     auto input_event_sender = std::make_shared<InputEventSender>(&multidisplay);
+    std::shared_ptr<::goldfish::grpc::v2::SensorsServiceImpl> sensors_service;
+    if (physical_model != nullptr) {
+        sensors_service =
+                std::make_shared<::goldfish::grpc::v2::SensorsServiceImpl>(*physical_model);
+    }
 
     return [&multidisplay, input_event_sender, key_event_sender = std::move(key_event_sender),
-            hw_sensor_hinge](DataChannelLabel label) -> std::unique_ptr<InputSender> {
+            hw_sensor_hinge,
+            sensors_service](DataChannelLabel label) -> std::unique_ptr<InputSender> {
         if (label == DataChannelLabel::kInputV2) {
             auto input_session = std::make_shared<::goldfish::grpc::v2::InputSession>(
                     multidisplay, key_event_sender, hw_sensor_hinge);
@@ -113,6 +120,15 @@ InputSenderFactory CreateInProcessInputSenderFactory(
                     /*dispatcher=*/nullptr,
                     [input_session](const ::android::emulation::v2::InputEvent& request) {
                         return input_session->DispatchInputEvent(request);
+                    });
+        }
+        if (label == DataChannelLabel::kSensorsV2 && sensors_service != nullptr) {
+            return std::make_unique<InProcessInputSender>(
+                    /*dispatcher=*/nullptr,
+                    /*v2_dispatcher=*/nullptr,
+                    [sensors_service](
+                            const ::android::emulation::v2::UpdateSensorsStateRequest& request) {
+                        return sensors_service->ApplySensorsUpdate(request);
                     });
         }
 
@@ -148,7 +164,8 @@ static std::shared_ptr<Switchboard> CreateInProcessSwitchboard(AvdUniverse& avd_
             keyboard::createKeyEventSender(console, &avd_universe.GetQemuEventLoop());
     auto input_sender_factory = CreateInProcessInputSenderFactory(
             avd_universe.GetMultiDisplay(), std::move(key_event_sender),
-            avd_universe.Props().hw_config.hw_sensor_hinge);
+            avd_universe.Props().hw_config.hw_sensor_hinge,
+            &avd_universe.GetSensorsPhysicalModel());
     return std::make_shared<Switchboard>(media_provider, input_sender_factory);
 }
 

@@ -19,12 +19,15 @@ import {
   DeviceView,
   useDevice,
   useSensors,
+  usePosture,
   useCapabilities,
   useLocation,
   useVm,
   RtcConnectionState,
   KeyAction,
   InputFeature,
+  TransitionMode,
+  PostureType,
 } from '@android/web';
 
 interface LogEntry {
@@ -47,19 +50,32 @@ interface LogEntry {
 function DeviceDemoApp({ onLog }: { onLog: (msg: string, type?: LogEntry['type']) => void }) {
   const { state, connect, disconnect, client } = useDevice();
   const {
+    sensors,
     fetchSensors,
-    setOrientation,
+    setPoseRotation,
     setAccelerometer,
+    clearRawOverrides,
     setAmbientLight,
     setTemperature,
     setProximity,
+    isBrowserStreaming,
+    startBrowserSensorStream,
+    stopBrowserSensorStream,
     isUpdating: isSensorsUpdating,
   } = useSensors();
+  const { setHingeAngle, setDevicePosture } = usePosture();
   const { capabilities, fetchCapabilities, isLoading: isCapsLoading } = useCapabilities();
   const { setLocation, isUpdating: isLocUpdating } = useLocation();
   const { pause, resume, isBusy: isVmBusy } = useVm();
 
   const [activeTab, setActiveTab] = useState<'controls' | 'sensors' | 'location' | 'capabilities' | 'vm'>('controls');
+  const [pitchVal, setPitchVal] = useState<number>(0);
+  const [yawVal, setYawVal] = useState<number>(0);
+  const [rollVal, setRollVal] = useState<number>(0);
+  const [transitionMode, setTransitionMode] = useState<TransitionMode>(
+    TransitionMode.TRANSITION_MODE_SMOOTH
+  );
+  const [hingeVal, setHingeVal] = useState<number>(180);
   const [lightVal, setLightVal] = useState<number>(100);
   const [tempVal, setTempVal] = useState<number>(22);
   const [latInput, setLatInput] = useState<string>('37.4220');
@@ -238,64 +254,262 @@ function DeviceDemoApp({ onLog }: { onLog: (msg: string, type?: LogEntry['type']
               </div>
             )}
 
-            {/* 2. Sensors Tab (matches DESIGN.md Section 3.2) */}
+            {/* 2. V2 Sensors & Posture Tab */}
             {activeTab === 'sensors' && (
               <div style={styles.section}>
-                <h3 style={styles.sectionTitle}>Device Sensors & Orientation</h3>
-                <p style={styles.sectionDesc}>Interactive controls using the useSensors() hook.</p>
+                <h3 style={styles.sectionTitle}>V2 Sensors & Physical Simulation</h3>
+                <p style={styles.sectionDesc}>
+                  Drives 3D pose & ambient environment over WebRTC DataChannel (&quot;sensors_v2&quot;) or gRPC-Web.
+                </p>
 
+                {/* WebRTC Browser Physical Sensor Streaming */}
                 <div style={styles.controlRow}>
-                  <label style={styles.label}>Orientation Presets:</label>
+                  <button
+                    style={{
+                      ...(isBrowserStreaming ? styles.btnDanger : styles.btnPrimary),
+                      width: '100%',
+                    }}
+                    onClick={() => {
+                      if (isBrowserStreaming) {
+                        stopBrowserSensorStream();
+                        onLog('Stopped client browser orientation streaming');
+                      } else {
+                        startBrowserSensorStream();
+                        onLog(
+                          'Started client browser orientation streaming over WebRTC DataChannel ("sensors_v2")',
+                          'success'
+                        );
+                      }
+                    }}
+                  >
+                    {isBrowserStreaming
+                      ? '⏹ Stop Browser Sensor Stream (WebRTC)'
+                      : '📡 Stream Browser Orientation (WebRTC)'}
+                  </button>
+                </div>
+
+                {/* Transition Mode Toggle */}
+                <div style={styles.controlRow}>
+                  <label style={styles.label}>Kinematics Transition Mode:</label>
                   <div style={styles.btnRow}>
                     <button
-                      style={styles.btnSmall}
-                      onClick={() => {
-                        onLog('Setting orientation to Portrait (0°)');
-                        setOrientation({ azimuth: 0, pitch: 0, roll: 0 });
-                      }}
-                      disabled={isSensorsUpdating}
+                      style={
+                        transitionMode === TransitionMode.TRANSITION_MODE_SMOOTH
+                          ? styles.btnPrimary
+                          : styles.btnSmall
+                      }
+                      onClick={() => setTransitionMode(TransitionMode.TRANSITION_MODE_SMOOTH)}
                     >
-                      Portrait (0°)
+                      Smooth (Natural Physics)
                     </button>
                     <button
-                      style={styles.btnSmall}
-                      onClick={() => {
-                        onLog('Setting orientation to Landscape (90°)');
-                        setOrientation({ azimuth: 0, pitch: 90, roll: 0 });
-                      }}
-                      disabled={isSensorsUpdating}
+                      style={
+                        transitionMode === TransitionMode.TRANSITION_MODE_STEP
+                          ? styles.btnPrimary
+                          : styles.btnSmall
+                      }
+                      onClick={() => setTransitionMode(TransitionMode.TRANSITION_MODE_STEP)}
                     >
-                      Landscape (90°)
+                      Step (Instant Jump)
                     </button>
                   </div>
                 </div>
 
+                {/* 3D Pose Orientation Presets */}
                 <div style={styles.controlRow}>
-                  <label style={styles.label}>Accelerometer Gravity:</label>
-                  <div style={styles.btnRow}>
+                  <label style={styles.label}>3D Pose Presets:</label>
+                  <div style={styles.btnGrid}>
                     <button
                       style={styles.btnSmall}
                       onClick={() => {
-                        onLog('Setting accelerometer: Face Up (Z = 9.81)');
-                        setAccelerometer({ x: 0, y: 0, z: 9.81 });
+                        setPitchVal(0);
+                        setYawVal(0);
+                        setRollVal(0);
+                        onLog('Setting 3D Pose: Portrait (0°, 0°, 0°)');
+                        setPoseRotation({ pitch: 0, yaw: 0, roll: 0 }, transitionMode);
                       }}
-                      disabled={isSensorsUpdating}
                     >
-                      Face Up
+                      Portrait
                     </button>
                     <button
                       style={styles.btnSmall}
                       onClick={() => {
-                        onLog('Setting accelerometer: Face Down (Z = -9.81)');
-                        setAccelerometer({ x: 0, y: 0, z: -9.81 });
+                        setPitchVal(0);
+                        setYawVal(0);
+                        setRollVal(90);
+                        onLog('Setting 3D Pose: Landscape (0°, 0°, 90°)');
+                        setPoseRotation({ pitch: 0, yaw: 0, roll: 90 }, transitionMode);
                       }}
-                      disabled={isSensorsUpdating}
                     >
-                      Face Down
+                      Landscape
+                    </button>
+                    <button
+                      style={styles.btnSmall}
+                      onClick={() => {
+                        setPitchVal(0);
+                        setYawVal(0);
+                        setRollVal(180);
+                        onLog('Setting 3D Pose: Upside Down (0°, 0°, 180°)');
+                        setPoseRotation({ pitch: 0, yaw: 0, roll: 180 }, transitionMode);
+                      }}
+                    >
+                      Upside Down
+                    </button>
+                    <button
+                      style={styles.btnSmall}
+                      onClick={() => {
+                        setPitchVal(0);
+                        setYawVal(0);
+                        setRollVal(-90);
+                        onLog('Setting 3D Pose: Seascape (0°, 0°, -90°)');
+                        setPoseRotation({ pitch: 0, yaw: 0, roll: -90 }, transitionMode);
+                      }}
+                    >
+                      Seascape
+                    </button>
+                    <button
+                      style={styles.btnSmall}
+                      onClick={() => {
+                        setPitchVal(-90);
+                        setYawVal(0);
+                        setRollVal(0);
+                        onLog('Setting 3D Pose: Flat Face-Up (-90°, 0°, 0°)');
+                        setPoseRotation({ pitch: -90, yaw: 0, roll: 0 }, transitionMode);
+                      }}
+                    >
+                      Flat Up
+                    </button>
+                    <button
+                      style={styles.btnSmall}
+                      onClick={() => {
+                        setPitchVal(90);
+                        setYawVal(0);
+                        setRollVal(0);
+                        onLog('Setting 3D Pose: Flat Face-Down (90°, 0°, 0°)');
+                        setPoseRotation({ pitch: 90, yaw: 0, roll: 0 }, transitionMode);
+                      }}
+                    >
+                      Flat Down
                     </button>
                   </div>
                 </div>
 
+                {/* 3D Euler Angles Scrubbing over WebRTC DataChannel */}
+                <div style={styles.controlRow}>
+                  <div style={styles.sliderHeader}>
+                    <label style={styles.label}>Pitch (X):</label>
+                    <span style={styles.sliderVal}>{pitchVal}°</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="-180"
+                    max="180"
+                    step="1"
+                    value={pitchVal}
+                    style={styles.range}
+                    onChange={(e) => {
+                      const v = Number(e.target.value);
+                      setPitchVal(v);
+                      setPoseRotation({ pitch: v, yaw: yawVal, roll: rollVal }, transitionMode);
+                    }}
+                  />
+                </div>
+
+                <div style={styles.controlRow}>
+                  <div style={styles.sliderHeader}>
+                    <label style={styles.label}>Yaw / Azimuth (Y):</label>
+                    <span style={styles.sliderVal}>{yawVal}°</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="360"
+                    step="1"
+                    value={yawVal}
+                    style={styles.range}
+                    onChange={(e) => {
+                      const v = Number(e.target.value);
+                      setYawVal(v);
+                      setPoseRotation({ pitch: pitchVal, yaw: v, roll: rollVal }, transitionMode);
+                    }}
+                  />
+                </div>
+
+                <div style={styles.controlRow}>
+                  <div style={styles.sliderHeader}>
+                    <label style={styles.label}>Roll (Z):</label>
+                    <span style={styles.sliderVal}>{rollVal}°</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="-90"
+                    max="90"
+                    step="1"
+                    value={rollVal}
+                    style={styles.range}
+                    onChange={(e) => {
+                      const v = Number(e.target.value);
+                      setRollVal(v);
+                      setPoseRotation({ pitch: pitchVal, yaw: yawVal, roll: v }, transitionMode);
+                    }}
+                  />
+                </div>
+
+                {/* Live Synthesized IMU Telemetry Readout */}
+                <div style={styles.codeBlock}>
+                  <div style={{ color: '#93c5fd', fontWeight: 600, marginBottom: '4px' }}>
+                    Live IMU Telemetry (Guest HAL)
+                  </div>
+                  <div>
+                    Accel (m/s²): ({(sensors?.imu?.accelerometer?.x ?? 0).toFixed(2)},{' '}
+                    {(sensors?.imu?.accelerometer?.y ?? 0).toFixed(2)},{' '}
+                    {(sensors?.imu?.accelerometer?.z ?? 0).toFixed(2)})
+                  </div>
+                  <div>
+                    Gyro (rad/s): ({(sensors?.imu?.gyroscope?.x ?? 0).toFixed(2)},{' '}
+                    {(sensors?.imu?.gyroscope?.y ?? 0).toFixed(2)},{' '}
+                    {(sensors?.imu?.gyroscope?.z ?? 0).toFixed(2)})
+                  </div>
+                  <div>
+                    Mag (µT): ({(sensors?.imu?.magnetometer?.x ?? 0).toFixed(1)},{' '}
+                    {(sensors?.imu?.magnetometer?.y ?? 0).toFixed(1)},{' '}
+                    {(sensors?.imu?.magnetometer?.z ?? 0).toFixed(1)})
+                  </div>
+                  {sensors?.imu?.activeOverrides?.length ? (
+                    <div style={{ color: '#fbbf24', marginTop: '4px' }}>
+                      Active Overrides: {sensors.imu.activeOverrides.length} pinned sensor(s)
+                    </div>
+                  ) : null}
+                </div>
+
+                {/* Raw Sensor Overrides (Fault Injection) */}
+                <div style={styles.controlRow}>
+                  <label style={styles.label}>Raw Sensor Overrides (Bypass Physics):</label>
+                  <div style={styles.btnRow}>
+                    <button
+                      style={styles.btnSmall}
+                      onClick={() => {
+                        onLog('Injecting 0g Freefall raw override (Accel = 0,0,0)');
+                        setAccelerometer({ x: 0, y: 0, z: 0 });
+                      }}
+                      disabled={isSensorsUpdating}
+                    >
+                      0g Freefall Override
+                    </button>
+                    <button
+                      style={styles.btnSmall}
+                      onClick={() => {
+                        onLog('Clearing raw sensor overrides (returning to physics model)');
+                        clearRawOverrides();
+                      }}
+                      disabled={isSensorsUpdating}
+                    >
+                      Clear Overrides
+                    </button>
+                  </div>
+                </div>
+
+                {/* Ambient Environment Controls */}
                 <div style={styles.controlRow}>
                   <div style={styles.sliderHeader}>
                     <label style={styles.label}>Ambient Light:</label>
@@ -360,13 +574,69 @@ function DeviceDemoApp({ onLog }: { onLog: (msg: string, type?: LogEntry['type']
                   </div>
                 </div>
 
+                {/* Foldable Posture & Hinge Controls */}
+                <div style={styles.controlRow}>
+                  <div style={styles.sliderHeader}>
+                    <label style={styles.label}>Foldable Hinge Angle:</label>
+                    <span style={styles.sliderVal}>{hingeVal}°</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="180"
+                    step="5"
+                    value={hingeVal}
+                    style={styles.range}
+                    onChange={(e) => {
+                      const v = Number(e.target.value);
+                      setHingeVal(v);
+                      setHingeAngle(v, 0);
+                    }}
+                  />
+                  <div style={{ ...styles.btnGrid, marginTop: '4px' }}>
+                    <button
+                      style={styles.btnSmall}
+                      onClick={() => {
+                        setHingeVal(0);
+                        onLog('Setting Posture: Closed (0°)');
+                        setDevicePosture(PostureType.POSTURE_TYPE_CLOSED);
+                      }}
+                    >
+                      Closed
+                    </button>
+                    <button
+                      style={styles.btnSmall}
+                      onClick={() => {
+                        setHingeVal(90);
+                        onLog('Setting Posture: Half-Opened (90°)');
+                        setDevicePosture(PostureType.POSTURE_TYPE_HALF_OPENED);
+                      }}
+                    >
+                      Half-Open
+                    </button>
+                    <button
+                      style={styles.btnSmall}
+                      onClick={() => {
+                        setHingeVal(180);
+                        onLog('Setting Posture: Opened (180°)');
+                        setDevicePosture(PostureType.POSTURE_TYPE_OPENED);
+                      }}
+                    >
+                      Opened
+                    </button>
+                  </div>
+                </div>
+
                 <button
                   style={{ ...styles.btnSecondary, marginTop: '8px', width: '100%' }}
                   onClick={async () => {
-                    onLog('Fetching current sensors state from guest OS...');
+                    onLog('Fetching current V2 SensorsState from guest OS...');
                     try {
                       const s = await fetchSensors();
-                      onLog(`Sensors snapshot: Temp=${s.environment?.ambientTemperatureCelsius}°C, Light=${s.environment?.lightLux}lx`, 'success');
+                      onLog(
+                        `Sensors snapshot: Temp=${s.environment?.ambientTemperatureCelsius}°C, Light=${s.environment?.lightLux}lx`,
+                        'success'
+                      );
                     } catch (err: any) {
                       onLog(`Failed to fetch sensors: ${err.message}`, 'error');
                     }

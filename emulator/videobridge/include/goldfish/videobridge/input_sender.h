@@ -23,17 +23,19 @@
 
 #include "emulator_controller.pb.h"
 #include "input_service.pb.h"
+#include "sensors_service.pb.h"
 
 namespace goldfish::videobridge {
 
 using ::android::emulation::control::InputEvent;
 using V2InputEvent = ::android::emulation::v2::InputEvent;
+using V2SensorsUpdateRequest = ::android::emulation::v2::UpdateSensorsStateRequest;
 
 /**
  * @brief Labels representing the different type of WebRTC data channels
  * used for forwarding inputs to the emulator.
  */
-enum class DataChannelLabel : uint8_t { kInput, kInputV2, kAdb };
+enum class DataChannelLabel : uint8_t { kInput, kInputV2, kSensorsV2, kAdb };
 
 inline const char* AsString(DataChannelLabel label) {
     switch (label) {
@@ -41,6 +43,8 @@ inline const char* AsString(DataChannelLabel label) {
         return "input";
     case DataChannelLabel::kInputV2:
         return "input_v2";
+    case DataChannelLabel::kSensorsV2:
+        return "sensors_v2";
     case DataChannelLabel::kAdb:
         return "adb";
     }
@@ -53,6 +57,9 @@ inline std::optional<DataChannelLabel> ParseDataChannelLabel(std::string_view la
     }
     if (label == "input_v2") {
         return DataChannelLabel::kInputV2;
+    }
+    if (label == "sensors_v2") {
+        return DataChannelLabel::kSensorsV2;
     }
     if (label == "adb") {
         return DataChannelLabel::kAdb;
@@ -93,6 +100,13 @@ class InputSender {
      * @param event The parsed v2 protobuf InputEvent to be injected.
      */
     virtual void SendV2Event(const V2InputEvent& /*event*/) {}
+
+    /**
+     * @brief Forwards an AEMU v2 high-frequency sensor/pose update to the emulator.
+     *
+     * @param request The parsed v2 UpdateSensorsStateRequest protobuf to be applied.
+     */
+    virtual void SendV2SensorsUpdate(const V2SensorsUpdateRequest& /*request*/) {}
 
     /**
      * @brief Stops the underlying input transport channel and releases resources.

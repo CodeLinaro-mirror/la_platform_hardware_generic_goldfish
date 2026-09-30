@@ -70,6 +70,15 @@ void EventForwarder::OnMessage(const ::webrtc::DataBuffer& buffer) {
             return;
         }
         sender_->SendV2Event(v2_event);
+    } else if (label_ == DataChannelLabel::kSensorsV2) {
+        V2SensorsUpdateRequest sensors_update;
+        if (!sensors_update.ParseFromArray(buffer.data.data(), static_cast<int>(buffer.size()))) {
+            LOG(ERROR) << "Failed to deserialize v2 UpdateSensorsStateRequest protobuf from data "
+                          "channel '"
+                       << AsString(label_) << "'";
+            return;
+        }
+        sender_->SendV2SensorsUpdate(sensors_update);
     } else if (label_ == DataChannelLabel::kAdb) {
         LOG(WARNING) << "Received ADB command over WebRTC data channel for '" << AsString(label_)
                      << "', but ADB over WebRTC data channels is deprecated.";
