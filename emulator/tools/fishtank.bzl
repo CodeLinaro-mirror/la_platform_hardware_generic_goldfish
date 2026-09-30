@@ -7,7 +7,8 @@ def _unzip_impl(ctx):
     args = ctx.actions.args()
     args.add("x")
     args.add(ctx.file.zipfile.path)
-    args.add_all(["-d", root.path])
+    args.add("-o" + root.path)
+    args.add_all(["-y", "-bd", "-bso0", "-bsp0"])
 
     ctx.actions.run(
         outputs = [root],
@@ -31,8 +32,7 @@ unzip = rule(
             mandatory = True,
         ),
         "_zip": attr.label(
-            allow_single_file = True,
-            default = "@bazel_tools//tools/zip:zipper",
+            default = Label("@goldfish_build//rules:7za"),
             cfg = "exec",
             executable = True,
         ),
