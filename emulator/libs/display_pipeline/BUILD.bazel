@@ -5,6 +5,7 @@ cc_library(
     name = "core",
     srcs = [
         "display_frames.cc",
+        "frame_producer.cc",
         "latest_frame_pump.cc",
         "read_request.cc",
         "slot_pool.cc",
@@ -12,6 +13,8 @@ cc_library(
     hdrs = [
         "include/goldfish/display/display_frames.h",
         "include/goldfish/display/frame.h",
+        "include/goldfish/display/frame_producer.h",
+        "include/goldfish/display/frame_source.h",
         "include/goldfish/display/geometry.h",
         "include/goldfish/display/latest_frame_pump.h",
         "include/goldfish/display/slot_pool.h",
@@ -65,6 +68,7 @@ cc_test(
     srcs = [
         "display_frames_test.cc",
         "fake_slot_storage_test.cc",
+        "frame_producer_test.cc",
         "frame_test.cc",
         "latest_frame_pump_test.cc",
         "read_request_test.cc",
