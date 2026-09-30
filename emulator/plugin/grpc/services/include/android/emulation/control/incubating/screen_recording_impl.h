@@ -14,6 +14,7 @@
 
 #pragma once
 
+#include <cstdint>
 #include <map>
 #include <memory>
 #include <string>
@@ -64,6 +65,10 @@ class ScreenRecordingServiceImpl final : public ScreenRecording::Service {
     // RPC: Stream events (e.g., status updates)
     Status ReceiveRecordingEvents(ServerContext* context, const google::protobuf::Empty* request,
                                   ServerWriter<RecordingInfo>* writer) override;
+
+    // Returns the number of frames the active recording has encoded, or 0 if
+    // nothing is recording.
+    uint64_t FramesEncodedForTesting() ABSL_LOCKS_EXCLUDED(mu_);
 
   private:
     // Helper to validate request parameters

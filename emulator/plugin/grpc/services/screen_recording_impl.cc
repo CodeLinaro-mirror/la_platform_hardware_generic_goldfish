@@ -313,6 +313,11 @@ Status ScreenRecordingServiceImpl::ReceiveRecordingEvents(ServerContext* context
     return Status::OK;
 }
 
+uint64_t ScreenRecordingServiceImpl::FramesEncodedForTesting() {
+    absl::MutexLock lock(mu_);
+    return recorder_ ? recorder_->FramesEncoded() : 0;
+}
+
 bool ScreenRecordingServiceImpl::ValidateRecordingParams(const RecordingInfo* info,
                                                          std::string& error_msg) {
     // Check file extension

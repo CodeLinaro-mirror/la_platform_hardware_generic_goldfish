@@ -15,6 +15,7 @@
 #pragma once
 
 #include <atomic>
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <string>
@@ -45,6 +46,11 @@ class VideoRecorder {
     // Returns true if the recording thread is currently active.
     bool IsRunning() const;
 
+    // Returns the number of frames sent to the codec, sampled as of the last
+    // generated frame. Stop flushes these to the file; frames still queued are
+    // dropped.
+    uint64_t FramesEncoded() const { return frames_encoded_.load(); }
+
   private:  // The main loop that runs inside worker_thread_
     void GenerationLoop();
 
@@ -57,6 +63,8 @@ class VideoRecorder {
 
     // State
     std::atomic<bool> running_{false};
+    // Written by worker_thread_, which owns encoder_ while it runs.
+    std::atomic<uint64_t> frames_encoded_{0};
     DrawCallback draw_callback_;
 
     // Resources
