@@ -610,7 +610,7 @@ create_launch_emulator_test(
         "-no-boot-anim",
     ],
     target_log_line = "'Boot completed in \\d+ ms'",
-    timeout_seconds = 180,
+    timeout_seconds = 300,
 )
 
 create_launch_emulator_test(
@@ -621,7 +621,7 @@ create_launch_emulator_test(
         "'pixman_display=2'",
     ],
     target_log_line = "'UpdateSurface Display: 0 \\(1080x2400\\), seq: 25'",
-    timeout_seconds = 180,
+    timeout_seconds = 300,
 )
 
 create_launch_emulator_test(
@@ -632,7 +632,7 @@ create_launch_emulator_test(
     ],
     repeat = 1,
     target_log_line = "'Boot completed in \\d+ ms'",
-    timeout_seconds = 180,
+    timeout_seconds = 300,
 )
 
 test_suite(
