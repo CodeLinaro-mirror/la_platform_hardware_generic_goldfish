@@ -4,10 +4,12 @@ load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 cc_library(
     name = "core",
     srcs = [
+        "display_frames.cc",
         "read_request.cc",
         "slot_pool.cc",
     ],
     hdrs = [
+        "include/goldfish/display/display_frames.h",
         "include/goldfish/display/frame.h",
         "include/goldfish/display/geometry.h",
         "include/goldfish/display/slot_pool.h",
@@ -16,6 +18,7 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
+        "//emulator/libs/async:async_api",
         "//emulator/libs/base",
         "//emulator/libs/perfetto:init",
         "//emulator/libs/physics",
@@ -58,6 +61,7 @@ cc_library(
 cc_test(
     name = "core_test",
     srcs = [
+        "display_frames_test.cc",
         "fake_slot_storage_test.cc",
         "frame_test.cc",
         "read_request_test.cc",
@@ -66,6 +70,7 @@ cc_test(
     deps = [
         ":core",
         ":testing",
+        "//emulator/libs/async:async_testing",
         "//emulator/libs/physics",
         "//emulator/libs/test:googletest_main",
         "@abseil-cpp//absl/base:core_headers",
