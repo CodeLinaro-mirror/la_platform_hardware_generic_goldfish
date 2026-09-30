@@ -27,8 +27,6 @@
 #include <vector>
 
 #include "VertexTypes.h"
-#include "aemu/base/AlignedBuf.h"
-#include "aemu/base/synchronization/Lock.h"
 #include "ver/virtual_environment_renderer_types.h"
 
 namespace android {
@@ -145,13 +143,17 @@ class RendererView {
     float mBlurFactor = 0.0f;
 
     struct Cache {
+        struct alignas(16) BlurScratchPixel {
+            int32_t channels[4];
+        };
+
         static const uint64_t INVALID_SCENE_HASH = ~0ULL;
         uint64_t mSceneHash = INVALID_SCENE_HASH;
         uint64_t mFrameTime = 0;
         std::vector<uint8_t> mFramebufferRGBA8;
-        android::AlignedBuf<int32_t, 16> mBlurScratchBuffer;
+        std::vector<BlurScratchPixel> mBlurScratchBuffer;
 
-        Cache() : mBlurScratchBuffer(0) {}
+        Cache() = default;
 
         void invalidate() {
             mSceneHash = INVALID_SCENE_HASH;

@@ -18,11 +18,7 @@
 
 #include <limits>
 
-#include "aemu/base/logging/CLog.h"
-
-#define E(...) derror(__VA_ARGS__)
-#define W(...) dwarning(__VA_ARGS__)
-#define D(...) dprint(__VA_ARGS__)
+#include "VerLogging.h"
 
 namespace android {
 namespace ver {
@@ -54,8 +50,8 @@ bool SceneObject::isVisible() const {
 }
 
 void SceneObject::setTexture(int renderableIndex, Texture texture) {
-    if (renderableIndex < 0 || renderableIndex >= mRenderables.size()) {
-        E("%s: invalid parameters", __func__);
+    if (renderableIndex < 0 || static_cast<size_t>(renderableIndex) >= mRenderables.size()) {
+        derror("%s: invalid parameters", __func__);
         return;
     }
 

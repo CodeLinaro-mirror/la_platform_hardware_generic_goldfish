@@ -33,7 +33,6 @@
 #include "Renderer.h"
 #include "TextureUtils.h"
 #include "VulkanShaders.h"
-#include "aemu/base/synchronization/Lock.h"
 #include "goldfish/gvk/device_dispatch.h"
 #include "goldfish/gvk/device_resources.h"
 #include "goldfish/gvk/instance_dispatch.h"
@@ -42,7 +41,8 @@ namespace android {
 namespace ver {
 
 class RendererVulkan : public Renderer {
-    DISALLOW_COPY_AND_ASSIGN(RendererVulkan);
+    RendererVulkan(const RendererVulkan&) = delete;
+    RendererVulkan& operator=(const RendererVulkan&) = delete;
 
   public:
     RendererVulkan(int width, int height, const std::filesystem::path& vulkanBasePath = {});
@@ -184,7 +184,7 @@ class RendererVulkan : public Renderer {
 
     goldfish::gvk::CommandPool mLoaderCommandPool;
     VkCommandBuffer mLoaderCommandBuffer = VK_NULL_HANDLE;
-    android::base::Lock mQueueLock;
+    std::mutex mQueueLock;
 
     goldfish::gvk::Sampler mSampler;
     goldfish::gvk::DescriptorSetLayout mDescriptorSetLayout;
@@ -213,7 +213,7 @@ class RendererVulkan : public Renderer {
     std::deque<LoaderCommand> mLoaderQueue;
     std::thread mLoaderThread;
 
-    android::base::Lock mResourceLock;
+    std::mutex mResourceLock;
     int mNextResourceId = 0;
     std::unordered_map<int, MaterialData> mMaterials;
     std::unordered_map<int, MeshData> mMeshes;

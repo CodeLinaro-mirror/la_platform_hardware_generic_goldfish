@@ -8,10 +8,10 @@ package(
 objc_library(
     name = "webcam_source_darwin",
     srcs = [
+        "src/VerLogging.h",
         "src/raw_image_sources/fourcc_utils.h",
         "src/raw_image_sources/raw_image_source.h",
         "src/raw_image_sources/webcam/webcam_source.h",
-        "src/raw_image_sources/webcam/webcam_source_mac.mm",
     ],
     hdrs = [
         "include/ver/export.h",
@@ -24,6 +24,9 @@ objc_library(
         "src/raw_image_sources",
         "src/raw_image_sources/webcam",
     ],
+    non_arc_srcs = [
+        "src/raw_image_sources/webcam/webcam_source_mac.mm",
+    ],
     sdk_frameworks = [
         "AVFoundation",
         "Accelerate",
@@ -34,11 +37,13 @@ objc_library(
         "@platforms//os:macos",
     ],
     deps = [
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/types:optional",
         "@aemu//base:aemu-base-headers",
-        "@aemu//base:aemu-base-logging",
         "@gfxstream//third_party/glm",
     ],
     alwayslink = True,
@@ -47,6 +52,7 @@ objc_library(
 cc_library(
     name = "raw_video_file_source",
     srcs = [
+        "src/VerLogging.h",
         "src/raw_image_sources/raw_image_source.h",
         "src/raw_image_sources/video_file/raw_video_file_source.cc",
     ],
@@ -67,11 +73,12 @@ cc_library(
     ],
     visibility = ["//visibility:private"],
     deps = [
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings:str_format",
         "@aemu//base:aemu-base-headers",
-        "@aemu//base:aemu-base-logging",
         "@gfxstream//third_party/glm",
     ],
 )
@@ -98,6 +105,7 @@ cc_library(
         "src/StreetViewUtils.h",
         "src/TextureUtils.cpp",
         "src/TextureUtils.h",
+        "src/VerLogging.h",
         "src/VertexTypes.h",
         "src/VulkanShaders.h",
         "src/raw_image_sources/fourcc_utils.cc",
@@ -122,27 +130,54 @@ cc_library(
         "include/ver/virtual_environment_renderer_types.h",
     ],
     copts = [
-        "-DGLM_ENABLE_EXPERIMENTAL",
-        "-DGLM_FORCE_RADIANS",
         "-Wno-unused-function",
+    ] + select({
+        # @curl 8.12.0 exports "lib" in its include path, which contains an
+        # internal "share.h" that shadows the Windows UCRT <share.h> included by
+        # MSVC STL headers (<xiosbase>, <fstream>) and pulls in "curl_setup.h"
+        # (redefining fopen to curlx_win32_fopen with C++ linkage).
+        "@platforms//os:windows": [
+            "/FIcorecrt_share.h",
+            "/DHEADER_CURL_SHARE_H",
+        ],
+        "//conditions:default": [],
+    }),
+    defines = [
+        "GLM_ENABLE_EXPERIMENTAL",
+        "GLM_FORCE_CXX14",
+        "GLM_FORCE_RADIANS",
+        "VER_STATIC_DEFINE",
     ],
-    defines = ["VER_STATIC_DEFINE"],
+    implementation_deps = [
+        "@curl",
+    ],
     includes = [
         "include",
         "src",
     ],
+    linkopts = select({
+        "@platforms//os:windows": [
+            "-DEFAULTLIB:mfplat.lib",
+            "-DEFAULTLIB:mfuuid.lib",
+            "-DEFAULTLIB:ole32.lib",
+            "-DEFAULTLIB:strmiids.lib",
+            "-DEFAULTLIB:uuid.lib",
+        ],
+        "//conditions:default": [],
+    }),
+    linkstatic = True,
     deps = [
         ":raw_video_file_source",
         "//emulator/libs/gvk",
         "//emulator/libs/system",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/types:optional",
-        "@aemu//base:aemu-base",
         "@aemu//base:aemu-base-headers",
-        "@aemu//base:aemu-base-logging",
-        "@curl",
         "@gfxstream//third_party/glm",
         "@libjpeg_turbo//:jpeg",
         "@libpng//:png",
@@ -155,4 +190,5 @@ cc_library(
         "@platforms//os:macos": [":webcam_source_darwin"],
         "//conditions:default": [],
     }),
+    alwayslink = True,
 )

@@ -22,13 +22,12 @@
 #include <fstream>
 #include <memory>
 
-#include "aemu/base/files/PathUtils.h"
+#include "absl/strings/ascii.h"
+
+#include "VerLogging.h"
 #include "aemu/base/files/ScopedStdioFile.h"
-#include "aemu/base/logging/CLog.h"
-#include "aemu/base/misc/StringUtils.h"
 #include "android/base/system.h"
 
-using android::base::PathUtils;
 using android::base::ScopedStdioFile;
 
 #include "MeshSceneObject.h"
@@ -190,7 +189,7 @@ bool Scene::initialize() {
             double longitude = 0;
 
             std::string rawMapsKey = System::Get()->EnvGet("ANDROID_EMU_MAPS_KEY");
-            std::string mapsKey = android::base::trim(rawMapsKey);
+            std::string mapsKey(absl::StripAsciiWhitespace(rawMapsKey));
 
             // 1. Try to fetch and stitch 360 tiles via Map Tiles API
             mStreetViewImageResult =

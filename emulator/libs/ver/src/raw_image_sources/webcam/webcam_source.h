@@ -21,7 +21,6 @@
 
 #include "../fourcc_utils.h"
 #include "../raw_image_source.h"
-#include "android/utils/compiler.h"
 #include "ver/virtual_environment_renderer_types.h"
 
 namespace android {

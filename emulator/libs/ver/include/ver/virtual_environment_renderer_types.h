@@ -24,7 +24,7 @@
 #include <string_view>
 #include <vector>
 
-#include "aemu/base/Log.h"
+#include "absl/log/log.h"
 #ifndef GLM_ENABLE_EXPERIMENTAL
 #define GLM_ENABLE_EXPERIMENTAL
 #endif
@@ -127,8 +127,7 @@ struct SceneConfig {
         } else if (sceneModeStr == "video360") {
             return SceneConfig::Mode::Video360;
         } else {
-            dwarning("Unknown scene mode requested: %.*s", static_cast<int>(sceneModeStr.size()),
-                     sceneModeStr.data());
+            LOG(WARNING) << "Unknown scene mode requested: " << sceneModeStr;
             return SceneConfig::Mode::Unknown;
         }
     }
@@ -177,7 +176,7 @@ struct SceneConfig {
         } else if (mode == SceneConfig::Mode::Webcam) {
             return kDefaultWebcam;
         } else {
-            derror("%s: Invalid mode %d", __func__, (int)mode);
+            LOG(ERROR) << __func__ << ": Invalid mode " << static_cast<int>(mode);
             return "invalid_filename";
         }
     }

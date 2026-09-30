@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <map>
 #include <memory>
+#include <mutex>
 #include <set>
 #include <string>
 #include <vector>
@@ -24,10 +25,8 @@
 #include "absl/types/optional.h"
 
 #include "../fourcc_utils.h"
-#include "aemu/base/logging/Log.h"
-#include "aemu/base/memory/LazyInstance.h"
-#include "aemu/base/synchronization/Lock.h"
-#include "aemu/base/system/Win32UnicodeString.h"
+#include "VerLogging.h"
+#include "android/base/win32_unicode_string.h"
 #include "webcam_source.h"
 
 using namespace Microsoft::WRL;
@@ -223,7 +222,10 @@ class MFApi {
     bool mSupportsAdvancedVideoProcessor = false;
 };
 
-static LazyInstance<MFApi> sMFApi = LAZY_INSTANCE_INIT;
+static MFApi& getMFApiInstance() {
+    static MFApi* const sMFApi = new MFApi();
+    return *sMFApi;
+}
 
 class MFInitialize {
   public:
@@ -237,11 +239,11 @@ class MFInitialize {
             LOG(INFO) << "CoInitializeEx failed, hr=" << hrToString(hr);
             return;
         }
-        if (!sMFApi->isValid()) {
+        if (!getMFApiInstance().isValid()) {
             LOG(INFO) << "MFApi is not valid";
             return;
         }
-        hr = sMFApi->mfStartup(MF_VERSION, MFSTARTUP_NOSOCKET);
+        hr = getMFApiInstance().mfStartup(MF_VERSION, MFSTARTUP_NOSOCKET);
         if (FAILED(hr)) {
             LOG(INFO) << "MFStartup failed, hr=" << hrToString(hr);
             return;
@@ -249,11 +251,11 @@ class MFInitialize {
         mMfInit = true;
     }
     ~MFInitialize() {
-        if (mMfInit) sMFApi->mfShutdown();
+        if (mMfInit) getMFApiInstance().mfShutdown();
         if (mComInit) CoUninitialize();
     }
     operator bool() { return mMfInit; }
-    MFApi& getMFApi() { return sMFApi.get(); }
+    MFApi& getMFApi() { return getMFApiInstance(); }
 
   private:
     bool mComInit = false;
@@ -356,8 +358,8 @@ std::vector<std::shared_ptr<WebcamSource::WebcamInfo>> WebcamSource::EnumerateWe
                                 {static_cast<unsigned int>(w), static_cast<unsigned int>(h)});
                         uint32_t pixel_format = subtypeToPixelFormat(subtype);
                         if (pixel_format == 0) {
-                            VLOG(camera) << "Skipping unsupported webcam pixel format subtype: "
-                                         << subtypeHumanReadableName(subtype);
+                            VLOG(1) << "Skipping unsupported webcam pixel format subtype: "
+                                    << subtypeHumanReadableName(subtype);
                             continue;
                         }
                         WebcamPixelFormat& wpfmt = format_map[pixel_format];
@@ -386,8 +388,8 @@ std::vector<std::shared_ptr<WebcamSource::WebcamInfo>> WebcamSource::EnumerateWe
                     for (const auto& res : all_resolutions) {
                         wpfmt.resolutions.push_back({{res.first, res.second}, {}});
                     }
-                    VLOG(camera) << "No native supported formats found for webcam, falling back to "
-                                    "RGB32 via transcoding.";
+                    VLOG(1) << "No native supported formats found for webcam, falling back to "
+                               "RGB32 via transcoding.";
                 }
             }
             device->ShutdownObject();
@@ -418,7 +420,7 @@ class SourceReaderCallback : public IMFSourceReaderCallback {
     SourceReaderCallback() { mFrameAvailable = CreateEvent(nullptr, false, false, nullptr); }
     virtual ~SourceReaderCallback() { CloseHandle(mFrameAvailable); }
 
-    STDMETHODIMP QueryInterface(REFIID iid, void** ppv) {
+    STDMETHODIMP QueryInterface(REFIID iid, void** ppv) override {
         if (!ppv) return E_INVALIDARG;
         *ppv = nullptr;
         if (iid == __uuidof(IUnknown) || iid == __uuidof(IAgileObject) ||
@@ -429,8 +431,8 @@ class SourceReaderCallback : public IMFSourceReaderCallback {
         }
         return E_NOINTERFACE;
     }
-    STDMETHODIMP_(ULONG) AddRef() { return InterlockedIncrement(&mRefCount); }
-    STDMETHODIMP_(ULONG) Release() {
+    STDMETHODIMP_(ULONG) AddRef() override { return InterlockedIncrement(&mRefCount); }
+    STDMETHODIMP_(ULONG) Release() override {
         ULONG refs = InterlockedDecrement(&mRefCount);
         if (refs == 0) delete this;
         return refs;
@@ -438,8 +440,8 @@ class SourceReaderCallback : public IMFSourceReaderCallback {
 
     STDMETHODIMP OnReadSample(HRESULT hr, DWORD, DWORD streamFlags, LONGLONG,
                               IMFSample* sample) override {
-        AutoLock lock(mLock);
-        VLOG(camera) << "OnReadSample, hr = " << hrToString(hr);
+        std::lock_guard<std::mutex> lock(mLock);
+        VLOG(1) << "OnReadSample, hr = " << hrToString(hr);
         mNewSample = true;
         mLastHr = hr;
         mStreamFlags = streamFlags;
@@ -451,7 +453,7 @@ class SourceReaderCallback : public IMFSourceReaderCallback {
     STDMETHODIMP OnFlush(DWORD) override { return S_OK; }
 
     bool TryGetSample(HRESULT* hr, DWORD* streamFlags, IMFSample** sample) {
-        AutoLock lock(mLock);
+        std::lock_guard<std::mutex> lock(mLock);
         bool isNew = mNewSample;
         *hr = mLastHr;
         *streamFlags = mStreamFlags;
@@ -463,7 +465,7 @@ class SourceReaderCallback : public IMFSourceReaderCallback {
 
   private:
     volatile ULONG mRefCount = 1;
-    Lock mLock;
+    std::mutex mLock;
     bool mNewSample = false;
     HRESULT mLastHr = S_OK;
     DWORD mStreamFlags = 0;
@@ -515,8 +517,8 @@ class WindowsImpl : public WebcamSource::Impl {
 
                 uint32_t pf = subtypeToPixelFormat(subtype);
                 if (pf == 0) {
-                    VLOG(camera) << "Unsupported webcam pixel format subtype during configuration: "
-                                 << subtypeHumanReadableName(subtype);
+                    VLOG(1) << "Unsupported webcam pixel format subtype during configuration: "
+                            << subtypeHumanReadableName(subtype);
                     continue;
                 }
 

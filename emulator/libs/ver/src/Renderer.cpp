@@ -23,7 +23,7 @@
 #include <cstring>
 
 #include "RendererVulkan.h"
-#include "aemu/base/logging/CLog.h"
+#include "VerLogging.h"
 
 #define E(...) derror(__VA_ARGS__)
 #define W(...) dwarning(__VA_ARGS__)
@@ -168,17 +168,16 @@ void RendererView::preRenderLocked() {
     const size_t viewCacheSize = static_cast<size_t>(mFrameWidth) * mFrameHeight * 4;
     mCache.mFramebufferRGBA8.resize(viewCacheSize);
 
-    const size_t scratchBufferNumItems =
-            (static_cast<size_t>(mFrameWidth) * (mFrameHeight + 1) * 16) / sizeof(uint32_t);
-    if (mCache.mBlurScratchBuffer.size() < scratchBufferNumItems) {
-        mCache.mBlurScratchBuffer.resize(scratchBufferNumItems);
+    const size_t scratchBufferNumPixels = static_cast<size_t>(mFrameWidth) * (mFrameHeight + 1);
+    if (mCache.mBlurScratchBuffer.size() < scratchBufferNumPixels) {
+        mCache.mBlurScratchBuffer.resize(scratchBufferNumPixels);
     }
 }
 
 void RendererView::postRenderLocked() {
-    if (mBlurFactor > 0) {
+    if (mBlurFactor > 0 && !mCache.mBlurScratchBuffer.empty()) {
         applyBlurInPlaceCPU(mFrameWidth, mFrameHeight, mCache.mFramebufferRGBA8.data(),
-                            mCache.mBlurScratchBuffer.data(), mBlurFactor);
+                            mCache.mBlurScratchBuffer[0].channels, mBlurFactor);
     }
 }
 

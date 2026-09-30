@@ -26,8 +26,7 @@
 #include <functional>
 
 #include "ScenesManager.h"
-#include "aemu/base/files/PathUtils.h"
-#include "aemu/base/logging/CLog.h"
+#include "VerLogging.h"
 #include "android/base/system.h"
 #include "goldfish/gvk/system_meta_loader.h"
 
@@ -562,7 +561,7 @@ bool RendererVulkan::createVulkanImage(uint32_t width, uint32_t height, VkFormat
 }
 
 void RendererVulkan::submitCommandBuffer(VkCommandBuffer cmdBuffer) {
-    AutoLock queueLock(mQueueLock);
+    std::lock_guard<std::mutex> queueLock(mQueueLock);
     mVkDevice->queueSubmit(mQueue, cmdBuffer);
     mVkDevice->queueWaitIdle(mQueue);
 }
@@ -719,14 +718,14 @@ float RendererVulkan::getAspectRatio() {
 }
 
 bool RendererVulkan::isTextureLoaded(Texture texture) {
-    AutoLock lock(mResourceLock);
+    std::lock_guard<std::mutex> lock(mResourceLock);
     auto it = mTextures.find(texture.id);
     if (it == mTextures.end()) return false;
     return it->second.mState == TextureState::Loaded;
 }
 
 void RendererVulkan::getTextureInfo(Texture texture, uint32_t* outWidth, uint32_t* outHeight) {
-    AutoLock lock(mResourceLock);
+    std::lock_guard<std::mutex> lock(mResourceLock);
     auto it = mTextures.find(texture.id);
     if (it != mTextures.end()) {
         *outWidth = it->second.mWidth;
@@ -742,7 +741,7 @@ void RendererVulkan::releaseTexture(Texture texture) {
         return;
     }
 
-    AutoLock lock(mResourceLock);
+    std::lock_guard<std::mutex> lock(mResourceLock);
     if (texture.id == mDefaultTexture.id) {
         return;
     }
@@ -767,7 +766,7 @@ void RendererVulkan::releaseMaterial(Material material) {
         return;
     }
 
-    AutoLock lock(mResourceLock);
+    std::lock_guard<std::mutex> lock(mResourceLock);
     if (!isStandardMaterial(material)) {
         releaseMaterialInternal(material);
     }
@@ -785,7 +784,7 @@ void RendererVulkan::releaseMesh(Mesh mesh) {
         return;
     }
 
-    AutoLock lock(mResourceLock);
+    std::lock_guard<std::mutex> lock(mResourceLock);
     auto it = mMeshes.find(mesh.id);
     if (it != mMeshes.end()) {
         mMeshes.erase(it);
@@ -798,7 +797,7 @@ Material RendererVulkan::createMaterialTextured() {
         return mMaterialTextured;
     }
 
-    AutoLock lock(mResourceLock);
+    std::lock_guard<std::mutex> lock(mResourceLock);
     int id = mNextResourceId++;
 
     MaterialData data;
@@ -822,7 +821,7 @@ Material RendererVulkan::createMaterialTextured() {
 }
 
 Material RendererVulkan::createMaterialCheckerboard() {
-    AutoLock lock(mResourceLock);
+    std::lock_guard<std::mutex> lock(mResourceLock);
     int id = mNextResourceId++;
 
     MaterialData data;
@@ -846,7 +845,7 @@ Material RendererVulkan::createMaterialCheckerboard() {
 }
 
 Material RendererVulkan::createMaterialScreenSpace(const char* frag) {
-    AutoLock lock(mResourceLock);
+    std::lock_guard<std::mutex> lock(mResourceLock);
     int id = mNextResourceId++;
 
     MaterialData data;
@@ -881,7 +880,7 @@ Mesh RendererVulkan::createMesh(const VertexPositionUV* vertices, size_t vertice
         return Mesh{};
     }
 
-    AutoLock lock(mResourceLock);
+    std::lock_guard<std::mutex> lock(mResourceLock);
     int id = mNextResourceId++;
 
     MeshData meshData;
@@ -922,7 +921,7 @@ Mesh RendererVulkan::createMesh(const VertexPositionUV* vertices, size_t vertice
 }
 
 Texture RendererVulkan::createEmptyTexture(uint32_t width, uint32_t height) {
-    AutoLock lock(mResourceLock);
+    std::lock_guard<std::mutex> lock(mResourceLock);
     int id = mNextResourceId++;
 
     TextureData data;
@@ -979,7 +978,7 @@ bool RendererVulkan::isStandardMaterial(Material material) {
 
 Texture RendererVulkan::tryGetCachedTexture(const char* filename) {
     if (!filename) return Texture{-1};
-    AutoLock lock(mResourceLock);
+    std::lock_guard<std::mutex> lock(mResourceLock);
     auto it = mTextureCache.find(filename);
     if (it != mTextureCache.end()) {
         mTextures[it->second].mRefCount++;
@@ -1098,7 +1097,7 @@ void RendererVulkan::uploadTextureImage(TextureData& texData, const TextureUtils
 
 Texture RendererVulkan::createTextureInternal(TextureState state, const char* filename,
                                               const TextureUtils::Result& data) {
-    AutoLock lock(mResourceLock);
+    std::lock_guard<std::mutex> lock(mResourceLock);
     int id = mNextResourceId++;
 
     TextureData texData;
@@ -1118,7 +1117,7 @@ bool RendererVulkan::updateMesh(Mesh meshHandle, const VertexPositionUV* vertice
     if (!meshHandle.isValid() || !vertices || verticesSize == 0) {
         return false;
     }
-    AutoLock lock(mResourceLock);
+    std::lock_guard<std::mutex> lock(mResourceLock);
     auto it = mMeshes.find(meshHandle.id);
     if (it == mMeshes.end() || !it->second.mVertexMemory) {
         return false;
@@ -1144,7 +1143,7 @@ Texture RendererVulkan::loadTexture(const char* filename) {
     const uint64_t loadStartUs = System::Get()->GetHighResTimeUs();
 
     std::string path;
-    if (!PathUtils::isAbsolute(filename)) {
+    if (!std::filesystem::path(filename).is_absolute()) {
         path = std::filesystem::absolute(filename).string();
     } else {
         path = filename;
@@ -1172,7 +1171,7 @@ Texture RendererVulkan::loadTextureAsync(const char* filename) {
     if (!filename) return Texture{-1};
 
     std::string path;
-    if (!PathUtils::isAbsolute(filename)) {
+    if (!std::filesystem::path(filename).is_absolute()) {
         path = std::filesystem::absolute(filename).string();
     } else {
         path = filename;
@@ -1191,7 +1190,7 @@ Texture RendererVulkan::loadTextureAsync(const char* filename) {
 void RendererVulkan::onLoaderLoadTexture(Texture texture) {
     std::string filename;
     {
-        AutoLock lock(mResourceLock);
+        std::lock_guard<std::mutex> lock(mResourceLock);
         auto it = mTextures.find(texture.id);
         if (it == mTextures.end()) return;
         filename = it->second.mFilename;
@@ -1206,7 +1205,7 @@ void RendererVulkan::onLoaderLoadTexture(Texture texture) {
 }
 
 bool RendererVulkan::replaceTextureInternal(Texture texture, const TextureUtils::Result& data) {
-    AutoLock lock(mResourceLock);
+    std::lock_guard<std::mutex> lock(mResourceLock);
     auto it = mTextures.find(texture.id);
     if (it == mTextures.end()) return false;
 
@@ -1229,7 +1228,7 @@ Texture RendererVulkan::createTextureRGBA(const uint8_t* rgba, uint32_t width, u
 }
 
 Texture RendererVulkan::duplicateTexture(Texture texture) {
-    AutoLock lock(mResourceLock);
+    std::lock_guard<std::mutex> lock(mResourceLock);
     auto it = mTextures.find(texture.id);
     if (it != mTextures.end()) {
         it->second.mRefCount++;
@@ -1297,7 +1296,7 @@ bool RendererVulkan::render(RendererView* view, const std::vector<RenderableObje
     if (width <= 0 || height <= 0) return false;
 
     {
-        AutoLock lock(mResourceLock);
+        std::lock_guard<std::mutex> lock(mResourceLock);
         executeSingleTimeCommands(mCommandBuffer, [this, &renderables, time](VkCommandBuffer cmd) {
             VkClearValue clearValues[2] = {};
             clearValues[0].color = {{0.0f, 0.0f, 0.0f, 1.0f}};

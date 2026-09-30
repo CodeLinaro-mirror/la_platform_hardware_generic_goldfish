@@ -12,6 +12,7 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         "//emulator/libs/gvk",
+        "//emulator/libs/ver",
         "//emulator/plugin/hal/camera:image_provider_api",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
