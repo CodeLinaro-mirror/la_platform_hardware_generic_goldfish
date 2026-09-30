@@ -36,10 +36,6 @@ extern "C" {
 #include <jpeglib.h>
 }
 
-#define E(...) derror(__VA_ARGS__)
-#define W(...) dwarning(__VA_ARGS__)
-#define D(...) dprint(__VA_ARGS__)
-
 using android::base::ScopedStdioFile;
 
 namespace android {
@@ -54,7 +50,7 @@ static inline T alignRowBytes(T value) {
 }
 
 static void pngWarningCallback(png_structp readPtr, png_const_charp warningMessage) {
-    D("%s: %s\n", __FUNCTION__, warningMessage);
+    dinfo("%s: %s\n", __FUNCTION__, warningMessage);
 }
 
 TextureUtils::Result TextureUtils::createEmpty(uint32_t width, uint32_t height) {
@@ -84,7 +80,7 @@ std::optional<TextureUtils::Result> TextureUtils::load(const char* filename,
                strncasecmp(extension.data(), ".jpeg", extension.size()) == 0) {
         return loadJPEG(filename, orientation);
     } else {
-        E("%s: Unsupported file format %s", __FUNCTION__, extension.c_str());
+        derror("%s: Unsupported file format %s", __FUNCTION__, extension.c_str());
         return {};
     }
 }
@@ -93,30 +89,30 @@ std::optional<TextureUtils::Result> TextureUtils::loadPNG(const char* filename,
                                                           Orientation orientation) {
     ScopedStdioFile fp(fopen(filename, "rb"));
     if (!fp) {
-        E("%s: Failed to open file %s", __FUNCTION__, filename);
+        derror("%s: Failed to open file %s", __FUNCTION__, filename);
         return {};
     }
 
     uint8_t header[8];
     if (fread(header, sizeof(header), 1, fp.get()) != 1) {
-        E("%s: Failed to read header", __FUNCTION__);
+        derror("%s: Failed to read header", __FUNCTION__);
         return {};
     }
 
     if (png_sig_cmp(header, 0, sizeof(header))) {
-        E("%s: header is not a PNG header", __FUNCTION__);
+        derror("%s: header is not a PNG header", __FUNCTION__);
         return {};
     }
 
     png_structp png = png_create_read_struct(PNG_LIBPNG_VER_STRING, 0, 0, 0);
     if (!png) {
-        E("%s: Failed to allocate png read struct", __FUNCTION__);
+        derror("%s: Failed to allocate png read struct", __FUNCTION__);
         return {};
     }
 
     png_infop pngInfo = png_create_info_struct(png);
     if (!pngInfo) {
-        E("%s: Failed to allocate png info struct", __FUNCTION__);
+        derror("%s: Failed to allocate png info struct", __FUNCTION__);
         return {};
     }
 
@@ -126,7 +122,7 @@ std::optional<TextureUtils::Result> TextureUtils::loadPNG(const char* filename,
     std::vector<uint8_t*> rowPtrs;
 
     if (setjmp(png_jmpbuf(png))) {
-        E("%s: PNG library error", __FUNCTION__);
+        derror("%s: PNG library error", __FUNCTION__);
         png_destroy_read_struct(&png, &pngInfo, 0);
         return {};
     }
@@ -141,8 +137,8 @@ std::optional<TextureUtils::Result> TextureUtils::loadPNG(const char* filename,
     int bitDepth = 0;
     int colorType = 0;
     png_get_IHDR(png, pngInfo, &width, &height, &bitDepth, &colorType, nullptr, nullptr, nullptr);
-    D("%s: Loaded PNG %s, %dx%d (d=%d, c=%d)", __FUNCTION__, filename, width, height, bitDepth,
-      colorType);
+    dinfo("%s: Loaded PNG %s, %dx%d (d=%d, c=%d)", __FUNCTION__, filename, width, height, bitDepth,
+          colorType);
 
     // Convert to RGB if required.
     if (colorType == PNG_COLOR_TYPE_PALETTE) {
@@ -168,11 +164,11 @@ std::optional<TextureUtils::Result> TextureUtils::loadPNG(const char* filename,
     const int newBitDepth = png_get_bit_depth(png, pngInfo);
     const int newColorType = png_get_color_type(png, pngInfo);
     if (newBitDepth != bitDepth || newColorType != colorType) {
-        D("%s: Converting PNG to (d=%d, c=%d)", __FUNCTION__, newBitDepth, newColorType);
+        dinfo("%s: Converting PNG to (d=%d, c=%d)", __FUNCTION__, newBitDepth, newColorType);
     }
 
     if (newColorType != PNG_COLOR_TYPE_RGB && newColorType != PNG_COLOR_TYPE_RGB_ALPHA) {
-        E("%s: Unsupported color type: %d", __FUNCTION__, newColorType);
+        derror("%s: Unsupported color type: %d", __FUNCTION__, newColorType);
         png_destroy_read_struct(&png, &pngInfo, 0);
         return {};
     }
@@ -219,7 +215,8 @@ std::optional<TextureUtils::Result> TextureUtils::loadJPEG(const char* filename,
     }
 
     if (info.num_components != 3) {
-        E("%s: Unsupported num_components %d, should be 3.", __FUNCTION__, info.num_components);
+        derror("%s: Unsupported num_components %d, should be 3.", __FUNCTION__,
+               info.num_components);
         return {};
     }
 
@@ -251,7 +248,8 @@ std::optional<TextureUtils::Result> TextureUtils::loadJPEGFromMemory(const uint8
     }
 
     if (info.num_components != 3) {
-        E("%s: Unsupported num_components %d, should be 3.", __FUNCTION__, info.num_components);
+        derror("%s: Unsupported num_components %d, should be 3.", __FUNCTION__,
+               info.num_components);
         return {};
     }
 

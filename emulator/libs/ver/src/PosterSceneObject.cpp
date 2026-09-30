@@ -20,10 +20,6 @@
 
 #include "VerLogging.h"
 
-#define E(...) derror(__VA_ARGS__)
-#define W(...) dwarning(__VA_ARGS__)
-#define D(...) dprint(__VA_ARGS__)
-
 static constexpr android::ver::VertexPositionUV kQuadVerts[] = {
     {glm::vec3(-0.5f, -0.5f, 0.f), glm::vec2(0.f, 0.f)},
     {glm::vec3(0.5f, -0.5f, 0.f), glm::vec2(1.f, 0.f)},

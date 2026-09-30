@@ -43,10 +43,6 @@ using namespace android::base;
 using android::ver::StreetViewUtils;
 namespace fs = std::filesystem;
 
-#define E(...) derror(__VA_ARGS__)
-#define W(...) dwarning(__VA_ARGS__)
-#define D(...) dprint(__VA_ARGS__)
-
 // Function to find fullpath from a filename for the scene
 // Scene filenames can be provided as fullpaths, or local
 // paths based on the basePaths argument.
@@ -87,14 +83,14 @@ namespace ver {
 Scene::Scene(const SceneConfig& config, const std::vector<std::filesystem::path>& basePaths,
              const std::filesystem::path& vulkanBasePath)
         : mConfig(config), mResourceBasePaths(basePaths), mVulkanBasePath(vulkanBasePath) {
-    D("%s: creating Scene", __func__);
+    dinfo("%s: creating Scene", __func__);
 }
 
 Scene::~Scene() {
-    D("%s: destroying Scene", __func__);
+    dinfo("%s: destroying Scene", __func__);
     if (mSceneObjects.size() || mRawImageSource || mOverlayObject) {
         // releaseResources should have been called!
-        E("%s: Scene resources are not released!", __func__);
+        derror("%s: Scene resources are not released!", __func__);
     }
     mRenderer.reset();
 }
@@ -311,7 +307,7 @@ bool Scene::initialize() {
         // loading content twice
         auto result = TextureUtils::load(sceneFilename.c_str());
         if (!result) {
-            E("%s: Could not load texture from file '%s'", __func__, sceneFilename.c_str());
+            derror("%s: Could not load texture from file '%s'", __func__, sceneFilename.c_str());
             return false;
         }
 
@@ -321,7 +317,7 @@ bool Scene::initialize() {
     } break;
     case SceneConfig::Mode::StreetView: {
         if (!mStreetViewImageResult || mStreetViewImageResult->mBuffer.empty()) {
-            E("%s: Could not load StreetView image data", __func__);
+            derror("%s: Could not load StreetView image data", __func__);
             return false;
         }
         mBaseRotation = 90;
@@ -375,14 +371,14 @@ bool Scene::loadRendererResources() {
 
     mRenderer = Renderer::create(mVulkanBasePath);
     if (!mRenderer) {
-        E("VirtualSceneManager renderer failed to construct");
+        derror("VirtualSceneManager renderer failed to construct");
         return false;
     }
 
     // Make the renderer context current for graphics operations
     auto context = mRenderer ? mRenderer->makeCurrent() : nullptr;
     if (context && !context->isValid()) {
-        E("%s: Cannot use EGL context", __FUNCTION__);
+        derror("%s: Cannot use EGL context", __FUNCTION__);
         return false;
     }
 
@@ -391,7 +387,7 @@ bool Scene::loadRendererResources() {
     if (sceneMode != SceneConfig::Mode::Color && sceneMode != SceneConfig::Mode::StreetView) {
         sceneFilename = resolveSceneFilename(mConfig.mArgument, mResourceBasePaths);
         if (sceneFilename.empty()) {
-            E("%s: Cannot find file '%s'", __FUNCTION__, mConfig.mArgument.c_str());
+            derror("%s: Cannot find file '%s'", __FUNCTION__, mConfig.mArgument.c_str());
             return false;
         }
     }
@@ -419,7 +415,7 @@ bool Scene::loadRendererResources() {
     } break;
     case SceneConfig::Mode::StreetView: {
         if (!mStreetViewImageResult || mStreetViewImageResult->mBuffer.empty()) {
-            E("%s: StreetView image data is missing", __FUNCTION__);
+            derror("%s: StreetView image data is missing", __FUNCTION__);
             return false;
         }
         std::unique_ptr<MeshSceneObject> photoSphereObject =
@@ -481,7 +477,7 @@ bool Scene::releaseResources() {
     auto context = mRenderer ? mRenderer->makeCurrent() : nullptr;
     if (mRenderer) {
         if (!context->isValid()) {
-            E("%s: Cannot use EGL context", __FUNCTION__);
+            derror("%s: Cannot use EGL context", __FUNCTION__);
             return false;
         }
 
@@ -578,7 +574,8 @@ void Scene::update(bool updateTime) {
                 mObjectsVersion++;
             }
         } else {
-            E("Failed to Update Image Source: %s", std::string(res.status().message()).c_str());
+            derror("Failed to Update Image Source: %s",
+                   std::string(res.status().message()).c_str());
         }
     }
 }
@@ -626,7 +623,7 @@ bool Scene::createPosterLocation(const PosterInfo& info) {
     storage.sceneObject = PosterSceneObject::create(*mRenderer, info.position, info.rotation,
                                                     kPosterMinimumSizeMeters, info.size);
     if (!storage.sceneObject) {
-        W("%s: Failed to create poster scene object %s.", __FUNCTION__, info.name.c_str());
+        dwarning("%s: Failed to create poster scene object %s.", __FUNCTION__, info.name.c_str());
         return false;
     }
 
@@ -643,7 +640,7 @@ bool Scene::loadPoster(const char* posterName, const char* filename, float scale
                        LoadBehavior loadBehavior) {
     auto it = mPosters.find(posterName);
     if (it == mPosters.end()) {
-        W("%s: Could not find poster with name '%s'", __FUNCTION__, posterName);
+        dwarning("%s: Could not find poster with name '%s'", __FUNCTION__, posterName);
         return false;
     }
 
@@ -673,7 +670,7 @@ bool Scene::loadPoster(const char* posterName, const char* filename, float scale
 void Scene::updatePosterScale(const char* posterName, float scale) {
     auto it = mPosters.find(posterName);
     if (it == mPosters.end()) {
-        W("%s: Could not find poster with name '%s'", __FUNCTION__, posterName);
+        dwarning("%s: Could not find poster with name '%s'", __FUNCTION__, posterName);
         return;
     }
 
