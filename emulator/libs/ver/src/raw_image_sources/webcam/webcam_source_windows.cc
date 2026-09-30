@@ -9,8 +9,6 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-#include "webcam_source.h"
-
 #include <mfapi.h>
 #include <mfidl.h>
 #include <mfreadwrite.h>
@@ -30,6 +28,7 @@
 #include "aemu/base/memory/LazyInstance.h"
 #include "aemu/base/synchronization/Lock.h"
 #include "aemu/base/system/Win32UnicodeString.h"
+#include "webcam_source.h"
 
 using namespace Microsoft::WRL;
 using namespace android::base;
@@ -39,33 +38,16 @@ namespace ver {
 
 // Media Foundation Attribute GUIDs
 static constexpr GUID ANDROID_MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE = {
-        0xc60ac5fe,
-        0x252a,
-        0x478f,
-        {0xa0, 0xef, 0xbc, 0x8f, 0xa5, 0xf7, 0xca, 0xd3}};
-static constexpr GUID
-        ANDROID_MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_VIDCAP_SYMBOLIC_LINK = {
-                0x58f0aad8,
-                0x22bf,
-                0x4f8a,
-                {0xbb, 0x3d, 0xd2, 0xc4, 0x97, 0x8c, 0x6e, 0x2f}};
+    0xc60ac5fe, 0x252a, 0x478f, {0xa0, 0xef, 0xbc, 0x8f, 0xa5, 0xf7, 0xca, 0xd3}};
+static constexpr GUID ANDROID_MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_VIDCAP_SYMBOLIC_LINK = {
+    0x58f0aad8, 0x22bf, 0x4f8a, {0xbb, 0x3d, 0xd2, 0xc4, 0x97, 0x8c, 0x6e, 0x2f}};
 static constexpr GUID ANDROID_MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_VIDCAP_GUID = {
-        0x8ac3587a,
-        0x4ae7,
-        0x42d8,
-        {0x99, 0xe0, 0x0a, 0x60, 0x13, 0xee, 0xf9, 0x0f}};
+    0x8ac3587a, 0x4ae7, 0x42d8, {0x99, 0xe0, 0x0a, 0x60, 0x13, 0xee, 0xf9, 0x0f}};
 
-static constexpr GUID
-        ANDROID_MF_SOURCE_READER_ENABLE_ADVANCED_VIDEO_PROCESSING = {
-                0xf81da2c,
-                0xb537,
-                0x4672,
-                {0xa8, 0xb2, 0xa6, 0x81, 0xb1, 0x73, 0x7, 0xa3}};
+static constexpr GUID ANDROID_MF_SOURCE_READER_ENABLE_ADVANCED_VIDEO_PROCESSING = {
+    0xf81da2c, 0xb537, 0x4672, {0xa8, 0xb2, 0xa6, 0x81, 0xb1, 0x73, 0x7, 0xa3}};
 static constexpr GUID ANDROID_CLSID_VideoProcessorMFT = {
-        0x88753b26,
-        0x5b24,
-        0x49bd,
-        {0xb2, 0xe7, 0xc, 0x44, 0x5c, 0x78, 0xc9, 0x82}};
+    0x88753b26, 0x5b24, 0x49bd, {0xb2, 0xe7, 0xc, 0x44, 0x5c, 0x78, 0xc9, 0x82}};
 
 static constexpr GUID kGuidNull = {};
 
@@ -76,12 +58,12 @@ struct CameraFormatMapping {
 };
 
 static const CameraFormatMapping kSupportedPixelFormats[] = {
-        {MFVideoFormat_NV12, V4L2_PIX_FMT_NV12, "NV12"},
-        {MFVideoFormat_I420, V4L2_PIX_FMT_YUV420, "I420"},
-        {MFVideoFormat_YUY2, V4L2_PIX_FMT_YUY2, "YUY2"},
-        {MFVideoFormat_RGB32, V4L2_PIX_FMT_BGR32, "RGB32"},
-        {MFVideoFormat_ARGB32, V4L2_PIX_FMT_BGR32, "ARGB32"},
-        {MFVideoFormat_RGB24, V4L2_PIX_FMT_BGR24, "RGB24"},
+    {MFVideoFormat_NV12, V4L2_PIX_FMT_NV12, "NV12"},
+    {MFVideoFormat_I420, V4L2_PIX_FMT_YUV420, "I420"},
+    {MFVideoFormat_YUY2, V4L2_PIX_FMT_YUY2, "YUY2"},
+    {MFVideoFormat_RGB32, V4L2_PIX_FMT_BGR32, "RGB32"},
+    {MFVideoFormat_ARGB32, V4L2_PIX_FMT_BGR32, "ARGB32"},
+    {MFVideoFormat_RGB24, V4L2_PIX_FMT_BGR24, "RGB24"},
 };
 
 static uint32_t subtypeToPixelFormat(REFGUID subtype) {
@@ -104,9 +86,8 @@ static std::string guidToString(REFGUID guid) {
     snprintf(buf, sizeof(buf),
              "%08lX-%04hX-%04hX-%02hhX%02hhX-%02hhX%02hhX%02hhX%02hhX%02hhX%"
              "02hhX",
-             guid.Data1, guid.Data2, guid.Data3, guid.Data4[0], guid.Data4[1],
-             guid.Data4[2], guid.Data4[3], guid.Data4[4], guid.Data4[5],
-             guid.Data4[6], guid.Data4[7]);
+             guid.Data1, guid.Data2, guid.Data3, guid.Data4[0], guid.Data4[1], guid.Data4[2],
+             guid.Data4[3], guid.Data4[4], guid.Data4[5], guid.Data4[6], guid.Data4[7]);
     return std::string(buf);
 }
 
@@ -129,26 +110,26 @@ static std::string subtypeHumanReadableName(REFGUID subtype) {
     // Convert common subtypes as well, this list is not extensive.
     // https://docs.microsoft.com/en-us/windows/desktop/medfound/video-subtype-guids
     static const SubtypeToName kSubtypeToName[] = {
-            // RGB formats, except for supported formats handled above.
-            {MFVideoFormat_RGB8, "RGB8"},
-            {MFVideoFormat_RGB555, "RGB555"},
-            {MFVideoFormat_RGB565, "RGB565"},
-            // YUV formats, except for supported formats handled above.
-            {MFVideoFormat_AI44, "AI44"},
-            {MFVideoFormat_AYUV, "AYUV"},
-            {MFVideoFormat_IYUV, "IYUV"},
-            {MFVideoFormat_NV11, "NV11"},
-            {MFVideoFormat_UYVY, "UYVY"},
-            {MFVideoFormat_YUY2, "YUY2"},
-            {MFVideoFormat_YV12, "YV12"},
-            {MFVideoFormat_YVYU, "YVYU"},
-            // Compressed formats.
-            {MFVideoFormat_H264, "H264"},
-            {MFVideoFormat_H265, "H265"},
-            {MFVideoFormat_H264_ES, "H264_ES"},
-            {MFVideoFormat_HEVC, "HEVC"},
-            {MFVideoFormat_HEVC_ES, "HEVC_ES"},
-            {MFVideoFormat_MP4V, "MP4V"},
+        // RGB formats, except for supported formats handled above.
+        {MFVideoFormat_RGB8, "RGB8"},
+        {MFVideoFormat_RGB555, "RGB555"},
+        {MFVideoFormat_RGB565, "RGB565"},
+        // YUV formats, except for supported formats handled above.
+        {MFVideoFormat_AI44, "AI44"},
+        {MFVideoFormat_AYUV, "AYUV"},
+        {MFVideoFormat_IYUV, "IYUV"},
+        {MFVideoFormat_NV11, "NV11"},
+        {MFVideoFormat_UYVY, "UYVY"},
+        {MFVideoFormat_YUY2, "YUY2"},
+        {MFVideoFormat_YV12, "YV12"},
+        {MFVideoFormat_YVYU, "YVYU"},
+        // Compressed formats.
+        {MFVideoFormat_H264, "H264"},
+        {MFVideoFormat_H265, "H265"},
+        {MFVideoFormat_H264_ES, "H264_ES"},
+        {MFVideoFormat_HEVC, "HEVC"},
+        {MFVideoFormat_HEVC_ES, "HEVC_ES"},
+        {MFVideoFormat_MP4V, "MP4V"},
     };
 
     for (const auto& mapping : kSubtypeToName) {
@@ -168,12 +149,10 @@ static HRESULT getMediaHandler(const ComPtr<IMFMediaSource>& source,
     if (SUCCEEDED(hr)) {
         BOOL selected;
         ComPtr<IMFStreamDescriptor> streamDesc;
-        hr = presentationDesc->GetStreamDescriptorByIndex(0, &selected,
-                                                          &streamDesc);
+        hr = presentationDesc->GetStreamDescriptorByIndex(0, &selected, &streamDesc);
 
         if (SUCCEEDED(hr)) {
-            hr = streamDesc->GetMediaTypeHandler(
-                    outMediaHandler->ReleaseAndGetAddressOf());
+            hr = streamDesc->GetMediaTypeHandler(outMediaHandler->ReleaseAndGetAddressOf());
         }
     }
 
@@ -182,7 +161,7 @@ static HRESULT getMediaHandler(const ComPtr<IMFMediaSource>& source,
 
 template <typename Type>
 class DelayLoad {
-public:
+  public:
     DelayLoad(const char* dll, const char* name) {
         mModule = LoadLibraryA(dll);
         if (mModule) {
@@ -193,8 +172,7 @@ public:
         }
     }
     ~DelayLoad() {
-        if (mModule)
-            FreeLibrary(mModule);
+        if (mModule) FreeLibrary(mModule);
     }
     bool isValid() const { return mFunction != nullptr; }
     template <typename... Args>
@@ -202,60 +180,53 @@ public:
         return mFunction ? mFunction(std::forward<Args>(args)...) : E_NOTIMPL;
     }
 
-private:
+  private:
     HMODULE mModule = nullptr;
     Type* mFunction = nullptr;
 };
 
 class MFApi {
-public:
+  public:
     MFApi()
-        : mfStartup("mfplat.dll", "MFStartup"),
-          mfShutdown("mfplat.dll", "MFShutdown"),
-          mfCreateAttributes("mfplat.dll", "MFCreateAttributes"),
-          mfEnumDeviceSources("mf.dll", "MFEnumDeviceSources"),
-          mfCreateDeviceSource("mf.dll", "MFCreateDeviceSource"),
-          mfCreateSourceReaderFromMediaSource(
-                  "mfreadwrite.dll",
-                  "MFCreateSourceReaderFromMediaSource"),
-          mfCreateMediaType("mfplat.dll", "MFCreateMediaType") {
+            : mfStartup("mfplat.dll", "MFStartup")
+            , mfShutdown("mfplat.dll", "MFShutdown")
+            , mfCreateAttributes("mfplat.dll", "MFCreateAttributes")
+            , mfEnumDeviceSources("mf.dll", "MFEnumDeviceSources")
+            , mfCreateDeviceSource("mf.dll", "MFCreateDeviceSource")
+            , mfCreateSourceReaderFromMediaSource("mfreadwrite.dll",
+                                                  "MFCreateSourceReaderFromMediaSource")
+            , mfCreateMediaType("mfplat.dll", "MFCreateMediaType") {
         if (isValid()) {
             ComPtr<IUnknown> obj;
-            if (SUCCEEDED(CoCreateInstance(ANDROID_CLSID_VideoProcessorMFT,
-                                           nullptr, CLSCTX_INPROC_SERVER,
-                                           IID_PPV_ARGS(&obj)))) {
+            if (SUCCEEDED(CoCreateInstance(ANDROID_CLSID_VideoProcessorMFT, nullptr,
+                                           CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&obj)))) {
                 mSupportsAdvancedVideoProcessor = true;
             }
         }
     }
     bool isValid() {
-        return mfStartup.isValid() && mfShutdown.isValid() &&
-               mfCreateAttributes.isValid() && mfEnumDeviceSources.isValid() &&
-               mfCreateDeviceSource.isValid() &&
-               mfCreateSourceReaderFromMediaSource.isValid() &&
-               mfCreateMediaType.isValid();
+        return mfStartup.isValid() && mfShutdown.isValid() && mfCreateAttributes.isValid() &&
+               mfEnumDeviceSources.isValid() && mfCreateDeviceSource.isValid() &&
+               mfCreateSourceReaderFromMediaSource.isValid() && mfCreateMediaType.isValid();
     }
-    bool supportsAdvancedVideoProcessor() const {
-        return mSupportsAdvancedVideoProcessor;
-    }
+    bool supportsAdvancedVideoProcessor() const { return mSupportsAdvancedVideoProcessor; }
 
     DelayLoad<decltype(MFStartup)> mfStartup;
     DelayLoad<HRESULT()> mfShutdown;
     DelayLoad<decltype(MFCreateAttributes)> mfCreateAttributes;
     DelayLoad<decltype(MFEnumDeviceSources)> mfEnumDeviceSources;
     DelayLoad<decltype(MFCreateDeviceSource)> mfCreateDeviceSource;
-    DelayLoad<decltype(MFCreateSourceReaderFromMediaSource)>
-            mfCreateSourceReaderFromMediaSource;
+    DelayLoad<decltype(MFCreateSourceReaderFromMediaSource)> mfCreateSourceReaderFromMediaSource;
     DelayLoad<decltype(MFCreateMediaType)> mfCreateMediaType;
 
-private:
+  private:
     bool mSupportsAdvancedVideoProcessor = false;
 };
 
 static LazyInstance<MFApi> sMFApi = LAZY_INSTANCE_INIT;
 
 class MFInitialize {
-public:
+  public:
     MFInitialize() {
         HRESULT hr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
         if (SUCCEEDED(hr)) {
@@ -278,25 +249,21 @@ public:
         mMfInit = true;
     }
     ~MFInitialize() {
-        if (mMfInit)
-            sMFApi->mfShutdown();
-        if (mComInit)
-            CoUninitialize();
+        if (mMfInit) sMFApi->mfShutdown();
+        if (mComInit) CoUninitialize();
     }
     operator bool() { return mMfInit; }
     MFApi& getMFApi() { return sMFApi.get(); }
 
-private:
+  private:
     bool mComInit = false;
     bool mMfInit = false;
 };
 
-std::vector<std::shared_ptr<WebcamSource::WebcamInfo>>
-WebcamSource::EnumerateWebcams() {
+std::vector<std::shared_ptr<WebcamSource::WebcamInfo>> WebcamSource::EnumerateWebcams() {
     std::vector<std::shared_ptr<WebcamSource::WebcamInfo>> webcams;
     MFInitialize mf;
-    if (!mf)
-        return webcams;
+    if (!mf) return webcams;
 
     ComPtr<IMFAttributes> attributes;
     HRESULT hr = mf.getMFApi().mfCreateAttributes(&attributes, 1);
@@ -304,9 +271,8 @@ WebcamSource::EnumerateWebcams() {
         LOG(ERROR) << "Failed to create attributes, hr=" << hrToString(hr);
         return webcams;
     }
-    hr = attributes->SetGUID(
-            ANDROID_MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE,
-            ANDROID_MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_VIDCAP_GUID);
+    hr = attributes->SetGUID(ANDROID_MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE,
+                             ANDROID_MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_VIDCAP_GUID);
     if (FAILED(hr)) {
         LOG(ERROR) << "Failed setting attributes, hr=" << hrToString(hr);
         return webcams;
@@ -314,8 +280,7 @@ WebcamSource::EnumerateWebcams() {
 
     IMFActivate** devices = nullptr;
     UINT32 deviceCount = 0;
-    hr = mf.getMFApi().mfEnumDeviceSources(attributes.Get(), &devices,
-                                           &deviceCount);
+    hr = mf.getMFApi().mfEnumDeviceSources(attributes.Get(), &devices, &deviceCount);
     if (FAILED(hr)) {
         LOG(ERROR) << "MFEnumDeviceSources, hr=" << hrToString(hr);
         return webcams;
@@ -329,26 +294,23 @@ WebcamSource::EnumerateWebcams() {
         UINT32 len = 0;
         std::shared_ptr<WebcamInfo> info = std::make_shared<WebcamInfo>();
         hr = device->GetAllocatedString(
-                ANDROID_MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_VIDCAP_SYMBOLIC_LINK,
-                &symbolicLink, &len);
+                ANDROID_MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_VIDCAP_SYMBOLIC_LINK, &symbolicLink,
+                &len);
         if (SUCCEEDED(hr)) {
             info->os_name = Win32UnicodeString(symbolicLink).toString();
             info->os_alias = info->os_name;
             CoTaskMemFree(symbolicLink);
         } else {
-            LOG(WARNING) << "Failed to get webcam info for device, hr="
-                         << hrToString(hr);
+            LOG(WARNING) << "Failed to get webcam info for device, hr=" << hrToString(hr);
         }
 
         WCHAR* friendlyName = nullptr;
-        hr = device->GetAllocatedString(MF_DEVSOURCE_ATTRIBUTE_FRIENDLY_NAME,
-                                        &friendlyName, &len);
+        hr = device->GetAllocatedString(MF_DEVSOURCE_ATTRIBUTE_FRIENDLY_NAME, &friendlyName, &len);
         if (SUCCEEDED(hr)) {
             info->friendly_name = Win32UnicodeString(friendlyName).toString();
             CoTaskMemFree(friendlyName);
         } else {
-            LOG(WARNING) << "Failed to get user friendly name for device, hr="
-                         << hrToString(hr);
+            LOG(WARNING) << "Failed to get user friendly name for device, hr=" << hrToString(hr);
         }
 
         info->preferred_format_index = -1;
@@ -358,8 +320,7 @@ WebcamSource::EnumerateWebcams() {
         ComPtr<IMFMediaSource> source;
         HRESULT hr_act = device->ActivateObject(IID_PPV_ARGS(&source));
         if (FAILED(hr_act)) {
-            LOG(WARNING) << "Failed to activate device object, hr="
-                         << hrToString(hr_act);
+            LOG(WARNING) << "Failed to activate device object, hr=" << hrToString(hr_act);
         }
         if (SUCCEEDED(hr_act)) {
             ComPtr<IMFMediaTypeHandler> handler;
@@ -367,19 +328,17 @@ WebcamSource::EnumerateWebcams() {
                 DWORD count = 0;
                 HRESULT hr_count = handler->GetMediaTypeCount(&count);
                 if (FAILED(hr_count)) {
-                    LOG(WARNING) << "Failed to get media type count, hr="
-                                 << hrToString(hr_count);
+                    LOG(WARNING) << "Failed to get media type count, hr=" << hrToString(hr_count);
                     count = 0;
                 }
                 for (DWORD j = 0; j < count; ++j) {
                     ComPtr<IMFMediaType> type;
                     if (SUCCEEDED(handler->GetMediaTypeByIndex(j, &type))) {
                         GUID subtype;
-                        HRESULT hr_guid =
-                                type->GetGUID(MF_MT_SUBTYPE, &subtype);
+                        HRESULT hr_guid = type->GetGUID(MF_MT_SUBTYPE, &subtype);
                         if (FAILED(hr_guid)) {
-                            LOG(WARNING) << "Failed to get media subtype, hr="
-                                         << hrToString(hr_guid);
+                            LOG(WARNING)
+                                    << "Failed to get media subtype, hr=" << hrToString(hr_guid);
                             continue;
                         }
                         // The webcam on the HTC Vive reports H264 with
@@ -388,20 +347,17 @@ WebcamSource::EnumerateWebcams() {
                             continue;
                         }
                         UINT32 w = 0, h = 0;
-                        HRESULT hr_size = MFGetAttributeSize(
-                                type.Get(), MF_MT_FRAME_SIZE, &w, &h);
+                        HRESULT hr_size = MFGetAttributeSize(type.Get(), MF_MT_FRAME_SIZE, &w, &h);
                         if (FAILED(hr_size)) {
-                            LOG(WARNING) << "Failed to get frame size, hr="
-                                         << hrToString(hr_size);
+                            LOG(WARNING) << "Failed to get frame size, hr=" << hrToString(hr_size);
                             continue;
                         }
-                        all_resolutions.insert({static_cast<unsigned int>(w),
-                                                static_cast<unsigned int>(h)});
+                        all_resolutions.insert(
+                                {static_cast<unsigned int>(w), static_cast<unsigned int>(h)});
                         uint32_t pixel_format = subtypeToPixelFormat(subtype);
                         if (pixel_format == 0) {
-                            VLOG(camera)
-                                    << "Skipping unsupported webcam pixel format subtype: "
-                                    << subtypeHumanReadableName(subtype);
+                            VLOG(camera) << "Skipping unsupported webcam pixel format subtype: "
+                                         << subtypeHumanReadableName(subtype);
                             continue;
                         }
                         WebcamPixelFormat& wpfmt = format_map[pixel_format];
@@ -410,18 +366,15 @@ WebcamSource::EnumerateWebcams() {
 
                         bool duplicate = false;
                         for (const auto& res : wpfmt.resolutions) {
-                            if (res.resolution.width ==
-                                        static_cast<unsigned int>(w) &&
-                                res.resolution.height ==
-                                        static_cast<unsigned int>(h)) {
+                            if (res.resolution.width == static_cast<unsigned int>(w) &&
+                                res.resolution.height == static_cast<unsigned int>(h)) {
                                 duplicate = true;
                                 break;
                             }
                         }
                         if (!duplicate) {
                             wpfmt.resolutions.push_back(
-                                    {{static_cast<unsigned int>(w),
-                                      static_cast<unsigned int>(h)},
+                                    {{static_cast<unsigned int>(w), static_cast<unsigned int>(h)},
                                      {}});
                         }
                     }
@@ -431,11 +384,10 @@ WebcamSource::EnumerateWebcams() {
                     wpfmt.pixel_format = V4L2_PIX_FMT_BGR32;
                     wpfmt.compressed = false;
                     for (const auto& res : all_resolutions) {
-                        wpfmt.resolutions.push_back(
-                                {{res.first, res.second}, {}});
+                        wpfmt.resolutions.push_back({{res.first, res.second}, {}});
                     }
-                    VLOG(camera)
-                            << "No native supported formats found for webcam, falling back to RGB32 via transcoding.";
+                    VLOG(camera) << "No native supported formats found for webcam, falling back to "
+                                    "RGB32 via transcoding.";
                 }
             }
             device->ShutdownObject();
@@ -444,18 +396,16 @@ WebcamSource::EnumerateWebcams() {
         for (auto& entry : format_map) {
             WebcamPixelFormat& wpfmt = entry.second;
             /* Sort resolutions by pixel count */
-            std::sort(
-                    wpfmt.resolutions.begin(), wpfmt.resolutions.end(),
-                    [](const WebcamResolutions& a, const WebcamResolutions& b) {
-                        return a.resolution.width * a.resolution.height <
-                               b.resolution.width * b.resolution.height;
-                    });
+            std::sort(wpfmt.resolutions.begin(), wpfmt.resolutions.end(),
+                      [](const WebcamResolutions& a, const WebcamResolutions& b) {
+                          return a.resolution.width * a.resolution.height <
+                                 b.resolution.width * b.resolution.height;
+                      });
             info->supported_formats.push_back(std::move(wpfmt));
         }
 
         if (!info->supported_formats.empty()) {
-            info->preferred_format_index =
-                    GetPreferredFormatIndex(info->supported_formats);
+            info->preferred_format_index = GetPreferredFormatIndex(info->supported_formats);
             webcams.push_back(std::move(info));
         }
     }
@@ -464,15 +414,12 @@ WebcamSource::EnumerateWebcams() {
 }
 
 class SourceReaderCallback : public IMFSourceReaderCallback {
-public:
-    SourceReaderCallback() {
-        mFrameAvailable = CreateEvent(nullptr, false, false, nullptr);
-    }
+  public:
+    SourceReaderCallback() { mFrameAvailable = CreateEvent(nullptr, false, false, nullptr); }
     virtual ~SourceReaderCallback() { CloseHandle(mFrameAvailable); }
 
     STDMETHODIMP QueryInterface(REFIID iid, void** ppv) {
-        if (!ppv)
-            return E_INVALIDARG;
+        if (!ppv) return E_INVALIDARG;
         *ppv = nullptr;
         if (iid == __uuidof(IUnknown) || iid == __uuidof(IAgileObject) ||
             iid == IID_IMFSourceReaderCallback) {
@@ -485,15 +432,11 @@ public:
     STDMETHODIMP_(ULONG) AddRef() { return InterlockedIncrement(&mRefCount); }
     STDMETHODIMP_(ULONG) Release() {
         ULONG refs = InterlockedDecrement(&mRefCount);
-        if (refs == 0)
-            delete this;
+        if (refs == 0) delete this;
         return refs;
     }
 
-    STDMETHODIMP OnReadSample(HRESULT hr,
-                              DWORD,
-                              DWORD streamFlags,
-                              LONGLONG,
+    STDMETHODIMP OnReadSample(HRESULT hr, DWORD, DWORD streamFlags, LONGLONG,
                               IMFSample* sample) override {
         AutoLock lock(mLock);
         VLOG(camera) << "OnReadSample, hr = " << hrToString(hr);
@@ -518,7 +461,7 @@ public:
     }
     HANDLE getEvent() { return mFrameAvailable; }
 
-private:
+  private:
     volatile ULONG mRefCount = 1;
     Lock mLock;
     bool mNewSample = false;
@@ -529,16 +472,13 @@ private:
 };
 
 class WindowsImpl : public WebcamSource::Impl {
-public:
+  public:
     explicit WindowsImpl(std::shared_ptr<const WebcamSource::WebcamInfo> info)
-        : webcam_info_(std::move(info)) {}
+            : webcam_info_(std::move(info)) {}
     ~WindowsImpl() override { StopLocked(); }
 
-    HRESULT configureMediaSource(const ComPtr<IMFMediaSource>& source,
-                                 uint32_t pixel_format,
-                                 int frame_width,
-                                 int frame_height,
-                                 GUID* out_native_subtype) {
+    HRESULT configureMediaSource(const ComPtr<IMFMediaSource>& source, uint32_t pixel_format,
+                                 int frame_width, int frame_height, GUID* out_native_subtype) {
         auto format = webcam_info_->NegotiateFormat(pixel_format);
         if (!format.has_value()) {
             LOG(ERROR) << "Camera" << webcam_info_->friendly_name.c_str()
@@ -546,21 +486,17 @@ public:
             return E_FAIL;
         }
 
-        WebcamSource::Resolution requested_res = {
-                static_cast<unsigned int>(frame_width),
-                static_cast<unsigned int>(frame_height)};
-        WebcamSource::Resolution best_res =
-                format->FindBestMatchForResolution(requested_res);
+        WebcamSource::Resolution requested_res = {static_cast<unsigned int>(frame_width),
+                                                  static_cast<unsigned int>(frame_height)};
+        WebcamSource::Resolution best_res = format->FindBestMatchForResolution(requested_res);
 
         ComPtr<IMFMediaTypeHandler> mediaHandler;
         HRESULT hr = getMediaHandler(source, &mediaHandler);
-        if (FAILED(hr))
-            return hr;
+        if (FAILED(hr)) return hr;
 
         DWORD count;
         hr = mediaHandler->GetMediaTypeCount(&count);
-        if (FAILED(hr))
-            return hr;
+        if (FAILED(hr)) return hr;
 
         ComPtr<IMFMediaType> bestMediaType;
         for (DWORD j = 0; j < count; ++j) {
@@ -572,22 +508,19 @@ public:
                     continue;
                 }
                 UINT32 w = 0, h = 0;
-                HRESULT hr_size = MFGetAttributeSize(type.Get(),
-                                                     MF_MT_FRAME_SIZE, &w, &h);
+                HRESULT hr_size = MFGetAttributeSize(type.Get(), MF_MT_FRAME_SIZE, &w, &h);
                 if (FAILED(hr_size)) {
                     continue;
                 }
 
                 uint32_t pf = subtypeToPixelFormat(subtype);
                 if (pf == 0) {
-                    VLOG(camera)
-                            << "Unsupported webcam pixel format subtype during configuration: "
-                            << subtypeHumanReadableName(subtype);
+                    VLOG(camera) << "Unsupported webcam pixel format subtype during configuration: "
+                                 << subtypeHumanReadableName(subtype);
                     continue;
                 }
 
-                if (pf == format->pixel_format && w == best_res.width &&
-                    h == best_res.height) {
+                if (pf == format->pixel_format && w == best_res.width && h == best_res.height) {
                     bestMediaType = type;
                     break;
                 }
@@ -597,15 +530,13 @@ public:
         if (bestMediaType) {
             hr = mediaHandler->SetCurrentMediaType(bestMediaType.Get());
             if (FAILED(hr)) {
-                LOG(INFO) << "Failed to set media type on source, hr="
-                          << hrToString(hr);
+                LOG(INFO) << "Failed to set media type on source, hr=" << hrToString(hr);
             } else {
-                LOG(INFO) << "Configured webcam device to " << best_res.width
-                          << "x" << best_res.height;
+                LOG(INFO) << "Configured webcam device to " << best_res.width << "x"
+                          << best_res.height;
                 hr = bestMediaType->GetGUID(MF_MT_SUBTYPE, out_native_subtype);
                 if (FAILED(hr)) {
-                    LOG(WARNING) << "Failed to get native subtype GUID, hr="
-                                 << hrToString(hr);
+                    LOG(WARNING) << "Failed to get native subtype GUID, hr=" << hrToString(hr);
                     *out_native_subtype = kGuidNull;
                 }
             }
@@ -614,11 +545,8 @@ public:
         return hr;
     }
 
-    int StartLocked(uint32_t pixel_format,
-                    int frame_width,
-                    int frame_height) override {
-        LOG(INFO) << "Starting webcam at " << frame_width << "x"
-                  << frame_height;
+    int StartLocked(uint32_t pixel_format, int frame_width, int frame_height) override {
+        LOG(INFO) << "Starting webcam at " << frame_width << "x" << frame_height;
         if (!mMF) {
             LOG(ERROR) << "Media Foundation not initialized";
             return -1;
@@ -630,16 +558,14 @@ public:
             return -1;
         }
         // Specify that we want to create a webcam with a specific id.
-        hr = attr->SetGUID(
-                ANDROID_MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE,
-                ANDROID_MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_VIDCAP_GUID);
+        hr = attr->SetGUID(ANDROID_MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE,
+                           ANDROID_MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_VIDCAP_GUID);
         if (FAILED(hr)) {
             LOG(ERROR) << "Failed setting attributes, hr=" << hrToString(hr);
             return -1;
         }
-        hr = attr->SetString(
-                ANDROID_MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_VIDCAP_SYMBOLIC_LINK,
-                Win32UnicodeString(webcam_info_->os_name).data());
+        hr = attr->SetString(ANDROID_MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_VIDCAP_SYMBOLIC_LINK,
+                             Win32UnicodeString(webcam_info_->os_name).data());
         if (FAILED(hr)) {
             LOG(ERROR) << "Failed setting attributes, hr=" << hrToString(hr);
             return -1;
@@ -648,14 +574,12 @@ public:
         ComPtr<IMFMediaSource> source;
         hr = mMF.getMFApi().mfCreateDeviceSource(attr.Get(), &source);
         if (FAILED(hr)) {
-            LOG(ERROR) << "Webcam source creation failed, hr="
-                       << hrToString(hr);
+            LOG(ERROR) << "Webcam source creation failed, hr=" << hrToString(hr);
             return -1;
         }
 
         GUID native_subtype = kGuidNull;
-        hr = configureMediaSource(source, pixel_format, frame_width,
-                                  frame_height, &native_subtype);
+        hr = configureMediaSource(source, pixel_format, frame_width, frame_height, &native_subtype);
         if (FAILED(hr)) {
             return -1;
         }
@@ -667,8 +591,7 @@ public:
             return -1;
         }
         mCallback.Attach(new SourceReaderCallback());
-        hr = readerAttr->SetUnknown(MF_SOURCE_READER_ASYNC_CALLBACK,
-                                    mCallback.Get());
+        hr = readerAttr->SetUnknown(MF_SOURCE_READER_ASYNC_CALLBACK, mCallback.Get());
         if (FAILED(hr)) {
             LOG(ERROR) << "Failed setting attributes, hr=" << hrToString(hr);
             StopLocked();
@@ -676,12 +599,10 @@ public:
         }
 
         if (mMF.getMFApi().supportsAdvancedVideoProcessor()) {
-            hr = readerAttr->SetUINT32(
-                    ANDROID_MF_SOURCE_READER_ENABLE_ADVANCED_VIDEO_PROCESSING,
-                    TRUE);
-        } else {
-            hr = readerAttr->SetUINT32(MF_SOURCE_READER_ENABLE_VIDEO_PROCESSING,
+            hr = readerAttr->SetUINT32(ANDROID_MF_SOURCE_READER_ENABLE_ADVANCED_VIDEO_PROCESSING,
                                        TRUE);
+        } else {
+            hr = readerAttr->SetUINT32(MF_SOURCE_READER_ENABLE_VIDEO_PROCESSING, TRUE);
         }
         if (FAILED(hr)) {
             LOG(ERROR) << "Failed setting attributes, hr=" << hrToString(hr);
@@ -689,11 +610,10 @@ public:
             return -1;
         }
 
-        hr = mMF.getMFApi().mfCreateSourceReaderFromMediaSource(
-                source.Get(), readerAttr.Get(), &mSourceReader);
+        hr = mMF.getMFApi().mfCreateSourceReaderFromMediaSource(source.Get(), readerAttr.Get(),
+                                                                &mSourceReader);
         if (FAILED(hr)) {
-            LOG(ERROR) << "Configure source reader failed, hr="
-                       << hrToString(hr);
+            LOG(ERROR) << "Configure source reader failed, hr=" << hrToString(hr);
             StopLocked();
             return -1;
         }
@@ -714,22 +634,18 @@ public:
             }
         }
         if (SUCCEEDED(hr)) {
-            hr = MFSetAttributeSize(type.Get(), MF_MT_FRAME_SIZE, frame_width,
-                                    frame_height);
+            hr = MFSetAttributeSize(type.Get(), MF_MT_FRAME_SIZE, frame_width, frame_height);
         }
         if (FAILED(hr)) {
-            LOG(ERROR) << "Failed to configure media type attributes, hr="
-                       << hrToString(hr);
+            LOG(ERROR) << "Failed to configure media type attributes, hr=" << hrToString(hr);
             StopLocked();
             return -1;
         }
 
-        hr = mSourceReader->SetCurrentMediaType(
-                (DWORD)MF_SOURCE_READER_FIRST_VIDEO_STREAM, nullptr,
-                type.Get());
+        hr = mSourceReader->SetCurrentMediaType((DWORD)MF_SOURCE_READER_FIRST_VIDEO_STREAM, nullptr,
+                                                type.Get());
         if (FAILED(hr)) {
-            LOG(ERROR) << "Configure webcam source failed, hr="
-                       << hrToString(hr);
+            LOG(ERROR) << "Configure webcam source failed, hr=" << hrToString(hr);
             StopLocked();
             return -1;
         }
@@ -739,8 +655,7 @@ public:
             if (native_subtype == kGuidNull) {
                 mPixelFormat = V4L2_PIX_FMT_BGR32;
             } else {
-                LOG(ERROR)
-                        << "Unknown pixel format, could not configure webcam";
+                LOG(ERROR) << "Unknown pixel format, could not configure webcam";
                 StopLocked();
                 return -1;
             }
@@ -748,9 +663,8 @@ public:
         mWidth = frame_width;
         mHeight = frame_height;
 
-        hr = mSourceReader->ReadSample(
-                (DWORD)MF_SOURCE_READER_FIRST_VIDEO_STREAM, 0, nullptr, nullptr,
-                nullptr, nullptr);
+        hr = mSourceReader->ReadSample((DWORD)MF_SOURCE_READER_FIRST_VIDEO_STREAM, 0, nullptr,
+                                       nullptr, nullptr, nullptr);
         if (FAILED(hr)) {
             LOG(ERROR) << "ReadSample failed, hr=" << hrToString(hr);
             StopLocked();
@@ -767,10 +681,8 @@ public:
     }
 
     absl::StatusOr<bool> FetchNextFrame(
-            std::function<absl::Status(const RawImageBufferView*)> new_frame_cb)
-            override {
-        if (!mSourceReader || !mCallback)
-            return absl::InternalError("Not started");
+            std::function<absl::Status(const RawImageBufferView*)> new_frame_cb) override {
+        if (!mSourceReader || !mCallback) return absl::InternalError("Not started");
 
         HRESULT hr;
         DWORD flags;
@@ -787,24 +699,20 @@ public:
         }
 
         if (isNew) {
-            hr = mSourceReader->ReadSample(
-                    (DWORD)MF_SOURCE_READER_FIRST_VIDEO_STREAM, 0, nullptr,
-                    nullptr, nullptr, nullptr);
+            hr = mSourceReader->ReadSample((DWORD)MF_SOURCE_READER_FIRST_VIDEO_STREAM, 0, nullptr,
+                                           nullptr, nullptr, nullptr);
             if (FAILED(hr)) {
-                LOG(ERROR) << "ReadSample failed in FetchNextFrame, hr="
-                           << hrToString(hr);
+                LOG(ERROR) << "ReadSample failed in FetchNextFrame, hr=" << hrToString(hr);
                 return absl::InternalError("ReadSample failed");
             }
         }
 
-        if (!sample)
-            return false;
+        if (!sample) return false;
 
         ComPtr<IMFMediaBuffer> buffer;
         HRESULT hr_conv = sample->ConvertToContiguousBuffer(&buffer);
         if (FAILED(hr_conv)) {
-            LOG(ERROR) << "ConvertToContiguousBuffer failed, hr="
-                       << hrToString(hr_conv);
+            LOG(ERROR) << "ConvertToContiguousBuffer failed, hr=" << hrToString(hr_conv);
             return absl::InternalError("ConvertToContiguousBuffer failed");
         }
 
@@ -812,16 +720,14 @@ public:
         DWORD len;
         HRESULT hr_lock = buffer->Lock(&data, nullptr, &len);
         if (FAILED(hr_lock)) {
-            LOG(ERROR) << "Locking the webcam buffer failed, hr="
-                       << hrToString(hr_lock);
+            LOG(ERROR) << "Locking the webcam buffer failed, hr=" << hrToString(hr_lock);
             return absl::InternalError("Buffer lock failed");
         }
 
-        RawImageBufferViewFourCC view = {data, static_cast<size_t>(len),
-                                         mPixelFormat, mWidth, mHeight};
+        RawImageBufferViewFourCC view = {data, static_cast<size_t>(len), mPixelFormat, mWidth,
+                                         mHeight};
         if (view.pixel_format != V4L2_PIX_FMT_RGB32) {
-            if (ConvertBufferToRGB32(view, conversion_storage_,
-                                     staging_buffer_) != 0) {
+            if (ConvertBufferToRGB32(view, conversion_storage_, staging_buffer_) != 0) {
                 buffer->Unlock();
                 return absl::InternalError("Format conversion failed");
             }
@@ -830,13 +736,12 @@ public:
         absl::Status status = new_frame_cb(&ver_view);
         buffer->Unlock();
 
-        if (!status.ok())
-            return status;
+        if (!status.ok()) return status;
 
         return true;
     }
 
-private:
+  private:
     MFInitialize mMF;
     std::shared_ptr<const WebcamSource::WebcamInfo> webcam_info_;
     ComPtr<SourceReaderCallback> mCallback;

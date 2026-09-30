@@ -13,14 +13,13 @@
 // limitations under the License.
 
 #include "raw_image_sources/webcam/webcam_source_virtual.h"
+
 #include "../fourcc_utils.h"
 
 namespace android {
 namespace ver {
 
-int VirtualWebcamImpl::StartLocked(uint32_t pixel_format,
-                                   int width,
-                                   int height) {
+int VirtualWebcamImpl::StartLocked(uint32_t pixel_format, int width, int height) {
     mFormat = FourccToVerImageFormat(pixel_format);
     mWidth = width;
     mHeight = height;
@@ -34,8 +33,7 @@ absl::StatusOr<bool> VirtualWebcamImpl::FetchNextFrame(
         return false;
     }
 
-    RawImageBufferView view = {mFrameBuffer.data(), mFrameBuffer.size(),
-                               mFormat, mWidth, mHeight};
+    RawImageBufferView view = {mFrameBuffer.data(), mFrameBuffer.size(), mFormat, mWidth, mHeight};
     absl::Status status = new_frame_cb(&view);
     if (!status.ok()) {
         return status;
@@ -44,8 +42,7 @@ absl::StatusOr<bool> VirtualWebcamImpl::FetchNextFrame(
     return true;
 }
 
-void WebcamSourceTestHelper::AddVirtualWebcam(
-        std::shared_ptr<WebcamSource::WebcamInfo> info) {
+void WebcamSourceTestHelper::AddVirtualWebcam(std::shared_ptr<WebcamSource::WebcamInfo> info) {
     std::lock_guard<std::mutex> lock(WebcamSource::s_webcam_info_list_lock_);
     if (!WebcamSource::s_webcam_info_list_) {
         WebcamSource::s_webcam_info_list_ =
@@ -56,12 +53,10 @@ void WebcamSourceTestHelper::AddVirtualWebcam(
 
 void WebcamSourceTestHelper::ClearWebcams() {
     std::lock_guard<std::mutex> lock(WebcamSource::s_webcam_info_list_lock_);
-    WebcamSource::s_webcam_info_list_ =
-            std::vector<std::shared_ptr<WebcamSource::WebcamInfo>>();
+    WebcamSource::s_webcam_info_list_ = std::vector<std::shared_ptr<WebcamSource::WebcamInfo>>();
 }
 
-std::vector<std::shared_ptr<WebcamSource::WebcamInfo>>
-WebcamSourceTestHelper::EnumerateWebcams() {
+std::vector<std::shared_ptr<WebcamSource::WebcamInfo>> WebcamSourceTestHelper::EnumerateWebcams() {
     std::lock_guard<std::mutex> lock(WebcamSource::s_webcam_info_list_lock_);
     return WebcamSource::EnumerateWebcams();
 }

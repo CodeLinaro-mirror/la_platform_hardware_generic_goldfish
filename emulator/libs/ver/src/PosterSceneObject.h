@@ -29,10 +29,10 @@ class PosterSceneObject : public SceneObject {
     PosterSceneObject(const PosterSceneObject& other) = delete;
     PosterSceneObject& operator=(const PosterSceneObject& other) = delete;
 
-protected:
+  protected:
     PosterSceneObject(Renderer& renderer);
 
-public:
+  public:
     // Creates a PosterSceneObject from a unit quad.
     //
     // |renderer| - Renderer context, VirtualPosterSceneObject will be bound to
@@ -46,10 +46,8 @@ public:
     //
     // Returns a PosterSceneObject instance if the object could be loaded or
     // null if there was an error.
-    static std::unique_ptr<PosterSceneObject> create(Renderer& renderer,
-                                                     const glm::vec3& position,
-                                                     const glm::quat& rotation,
-                                                     float minSize,
+    static std::unique_ptr<PosterSceneObject> create(Renderer& renderer, const glm::vec3& position,
+                                                     const glm::quat& rotation, float minSize,
                                                      const glm::vec2& maxSize);
 
     // Set the scale of the poster, with a value between 0 and 1.  The value
@@ -62,7 +60,7 @@ public:
     // Update the PosterSceneObject for the current frame.
     void update();
 
-private:
+  private:
     // Make private, setScale should be used instead.
     using SceneObject::setTransform;
 

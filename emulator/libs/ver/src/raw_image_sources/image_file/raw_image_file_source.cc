@@ -9,9 +9,9 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 #include "raw_image_file_source.h"
-#include "JpegUtils.h"
 
 #include <png.h>
+
 #include <csetjmp>
 #include <cstddef>
 #include <cstring>
@@ -19,7 +19,10 @@
 #include <optional>
 #include <string>
 #include <vector>
+
 #include "absl/status/status.h"
+
+#include "JpegUtils.h"
 
 // jpeglib.h needs to be included. It's a C library.
 extern "C" {
@@ -43,8 +46,7 @@ static std::optional<size_t> safeMultiply(size_t a, size_t b) {
     return a * b;
 }
 
-static void pngWarningCallback(png_structp readPtr,
-                               png_const_charp warningMessage) {
+static void pngWarningCallback(png_structp readPtr, png_const_charp warningMessage) {
     dprint("%s: %s\n", __FUNCTION__, warningMessage);
 }
 
@@ -75,8 +77,7 @@ static std::optional<ExifOrientation> toExifOrientation(int value) {
 }
 
 static bool exifOrientationSwapsDims(ExifOrientation orientation) {
-    return orientation >= ExifOrientation::Transpose &&
-           orientation <= ExifOrientation::Rotate270CW;
+    return orientation >= ExifOrientation::Transpose && orientation <= ExifOrientation::Rotate270CW;
 }
 
 // TIFF Header Constants
@@ -98,41 +99,31 @@ constexpr size_t kTiffDirEntryValueOffset = 8;
 
 static uint16_t read16(const uint8_t* ptr, bool little_endian) {
     if (little_endian) {
-        return static_cast<uint32_t>(ptr[0]) |
-               (static_cast<uint32_t>(ptr[1]) << 8);
+        return static_cast<uint32_t>(ptr[0]) | (static_cast<uint32_t>(ptr[1]) << 8);
     } else {
-        return (static_cast<uint32_t>(ptr[0]) << 8) |
-               static_cast<uint32_t>(ptr[1]);
+        return (static_cast<uint32_t>(ptr[0]) << 8) | static_cast<uint32_t>(ptr[1]);
     }
 }
 
 static uint32_t read32(const uint8_t* ptr, bool little_endian) {
     if (little_endian) {
-        return static_cast<uint32_t>(ptr[0]) |
-               (static_cast<uint32_t>(ptr[1]) << 8) |
-               (static_cast<uint32_t>(ptr[2]) << 16) |
-               (static_cast<uint32_t>(ptr[3]) << 24);
+        return static_cast<uint32_t>(ptr[0]) | (static_cast<uint32_t>(ptr[1]) << 8) |
+               (static_cast<uint32_t>(ptr[2]) << 16) | (static_cast<uint32_t>(ptr[3]) << 24);
     } else {
-        return (static_cast<uint32_t>(ptr[0]) << 24) |
-               (static_cast<uint32_t>(ptr[1]) << 16) |
-               (static_cast<uint32_t>(ptr[2]) << 8) |
-               static_cast<uint32_t>(ptr[3]);
+        return (static_cast<uint32_t>(ptr[0]) << 24) | (static_cast<uint32_t>(ptr[1]) << 16) |
+               (static_cast<uint32_t>(ptr[2]) << 8) | static_cast<uint32_t>(ptr[3]);
     }
 }
 
-static std::optional<ExifOrientation> getOrientationFromTiff(
-        const uint8_t* tiff,
-        size_t tiff_len) {
+static std::optional<ExifOrientation> getOrientationFromTiff(const uint8_t* tiff, size_t tiff_len) {
     if (tiff_len < kTiffHeaderSize) {
         return std::nullopt;
     }
 
     bool little_endian = false;
-    if (tiff[0] == kTiffLittleEndianMarker &&
-        tiff[1] == kTiffLittleEndianMarker) {
+    if (tiff[0] == kTiffLittleEndianMarker && tiff[1] == kTiffLittleEndianMarker) {
         little_endian = true;
-    } else if (tiff[0] == kTiffBigEndianMarker &&
-               tiff[1] == kTiffBigEndianMarker) {
+    } else if (tiff[0] == kTiffBigEndianMarker && tiff[1] == kTiffBigEndianMarker) {
         little_endian = false;
     } else {
         return std::nullopt;
@@ -144,33 +135,25 @@ static std::optional<ExifOrientation> getOrientationFromTiff(
     }
 
     uint32_t ifd0_offset = read32(tiff + 4, little_endian);
-    if (ifd0_offset > tiff_len ||
-        tiff_len - ifd0_offset < kTiffDirNumEntriesSize) {
+    if (ifd0_offset > tiff_len || tiff_len - ifd0_offset < kTiffDirNumEntriesSize) {
         return std::nullopt;
     }
 
     uint16_t num_entries = read16(tiff + ifd0_offset, little_endian);
-    size_t entry_offset =
-            static_cast<size_t>(ifd0_offset) + kTiffDirNumEntriesSize;
+    size_t entry_offset = static_cast<size_t>(ifd0_offset) + kTiffDirNumEntriesSize;
 
     for (int i = 0; i < num_entries; ++i) {
-        if (entry_offset > tiff_len ||
-            tiff_len - entry_offset < kTiffDirEntrySize) {
+        if (entry_offset > tiff_len || tiff_len - entry_offset < kTiffDirEntrySize) {
             return std::nullopt;
         }
 
         uint16_t tag = read16(tiff + entry_offset, little_endian);
         if (tag == kExifOrientationTag) {
-            uint16_t type =
-                    read16(tiff + entry_offset + kTiffDirEntryTypeOffset,
-                           little_endian);
-            uint32_t count =
-                    read32(tiff + entry_offset + kTiffDirEntryCountOffset,
-                           little_endian);
+            uint16_t type = read16(tiff + entry_offset + kTiffDirEntryTypeOffset, little_endian);
+            uint32_t count = read32(tiff + entry_offset + kTiffDirEntryCountOffset, little_endian);
             if (type == kTiffTypeShort && count == 1) {
                 uint16_t val =
-                        read16(tiff + entry_offset + kTiffDirEntryValueOffset,
-                               little_endian);
+                        read16(tiff + entry_offset + kTiffDirEntryValueOffset, little_endian);
                 return toExifOrientation(val);
             }
         }
@@ -180,8 +163,7 @@ static std::optional<ExifOrientation> getOrientationFromTiff(
     return std::nullopt;
 }
 
-static std::optional<ExifOrientation> getOrientation(const uint8_t* app1_data,
-                                                     size_t length) {
+static std::optional<ExifOrientation> getOrientation(const uint8_t* app1_data, size_t length) {
     const uint8_t kExifSignature[] = {'E', 'x', 'i', 'f', 0, 0};
     const size_t kExifSignatureSize = sizeof(kExifSignature);
 
@@ -191,8 +173,7 @@ static std::optional<ExifOrientation> getOrientation(const uint8_t* app1_data,
     if (memcmp(app1_data, kExifSignature, kExifSignatureSize) != 0) {
         return std::nullopt;
     }
-    return getOrientationFromTiff(app1_data + kExifSignatureSize,
-                                  length - kExifSignatureSize);
+    return getOrientationFromTiff(app1_data + kExifSignatureSize, length - kExifSignatureSize);
 }
 
 static void transformImage(ImageData& img, ExifOrientation orientation) {
@@ -230,66 +211,64 @@ static void transformImage(ImageData& img, ExifOrientation orientation) {
     std::vector<unsigned char> dst_data(*dst_size);
 
     auto copy_pixel = [&](uint32_t x, uint32_t y, uint32_t dx, uint32_t dy) {
-        const unsigned char* src_pixel =
-                &img.data[y * img.line_size + x * img.num_components];
-        unsigned char* dst_pixel =
-                &dst_data[dy * dst_line_size + dx * img.num_components];
+        const unsigned char* src_pixel = &img.data[y * img.line_size + x * img.num_components];
+        unsigned char* dst_pixel = &dst_data[dy * dst_line_size + dx * img.num_components];
         memcpy(dst_pixel, src_pixel, img.num_components);
     };
 
     switch (orientation) {
-        case ExifOrientation::FlipHorizontal:
-            for (uint32_t y = 0; y < src_h; ++y) {
-                for (uint32_t x = 0; x < src_w; ++x) {
-                    copy_pixel(x, y, src_w - 1 - x, y);
-                }
+    case ExifOrientation::FlipHorizontal:
+        for (uint32_t y = 0; y < src_h; ++y) {
+            for (uint32_t x = 0; x < src_w; ++x) {
+                copy_pixel(x, y, src_w - 1 - x, y);
             }
-            break;
-        case ExifOrientation::Rotate180:
-            for (uint32_t y = 0; y < src_h; ++y) {
-                for (uint32_t x = 0; x < src_w; ++x) {
-                    copy_pixel(x, y, src_w - 1 - x, src_h - 1 - y);
-                }
+        }
+        break;
+    case ExifOrientation::Rotate180:
+        for (uint32_t y = 0; y < src_h; ++y) {
+            for (uint32_t x = 0; x < src_w; ++x) {
+                copy_pixel(x, y, src_w - 1 - x, src_h - 1 - y);
             }
-            break;
-        case ExifOrientation::FlipVertical:
-            for (uint32_t y = 0; y < src_h; ++y) {
-                for (uint32_t x = 0; x < src_w; ++x) {
-                    copy_pixel(x, y, x, src_h - 1 - y);
-                }
+        }
+        break;
+    case ExifOrientation::FlipVertical:
+        for (uint32_t y = 0; y < src_h; ++y) {
+            for (uint32_t x = 0; x < src_w; ++x) {
+                copy_pixel(x, y, x, src_h - 1 - y);
             }
-            break;
-        case ExifOrientation::Transpose:
-            for (uint32_t y = 0; y < src_h; ++y) {
-                for (uint32_t x = 0; x < src_w; ++x) {
-                    copy_pixel(x, y, y, x);
-                }
+        }
+        break;
+    case ExifOrientation::Transpose:
+        for (uint32_t y = 0; y < src_h; ++y) {
+            for (uint32_t x = 0; x < src_w; ++x) {
+                copy_pixel(x, y, y, x);
             }
-            break;
-        case ExifOrientation::Rotate90CW:
-            for (uint32_t y = 0; y < src_h; ++y) {
-                for (uint32_t x = 0; x < src_w; ++x) {
-                    copy_pixel(x, y, src_h - 1 - y, x);
-                }
+        }
+        break;
+    case ExifOrientation::Rotate90CW:
+        for (uint32_t y = 0; y < src_h; ++y) {
+            for (uint32_t x = 0; x < src_w; ++x) {
+                copy_pixel(x, y, src_h - 1 - y, x);
             }
-            break;
-        case ExifOrientation::Transverse:
-            for (uint32_t y = 0; y < src_h; ++y) {
-                for (uint32_t x = 0; x < src_w; ++x) {
-                    copy_pixel(x, y, src_h - 1 - y, src_w - 1 - x);
-                }
+        }
+        break;
+    case ExifOrientation::Transverse:
+        for (uint32_t y = 0; y < src_h; ++y) {
+            for (uint32_t x = 0; x < src_w; ++x) {
+                copy_pixel(x, y, src_h - 1 - y, src_w - 1 - x);
             }
-            break;
-        case ExifOrientation::Rotate270CW:
-            for (uint32_t y = 0; y < src_h; ++y) {
-                for (uint32_t x = 0; x < src_w; ++x) {
-                    copy_pixel(x, y, y, src_w - 1 - x);
-                }
+        }
+        break;
+    case ExifOrientation::Rotate270CW:
+        for (uint32_t y = 0; y < src_h; ++y) {
+            for (uint32_t x = 0; x < src_w; ++x) {
+                copy_pixel(x, y, y, src_w - 1 - x);
             }
-            break;
-        default:
-            // We've already handled ExifOrientation::Normal
-            break;
+        }
+        break;
+    default:
+        // We've already handled ExifOrientation::Normal
+        break;
     }
 
     img.data = std::move(dst_data);
@@ -317,8 +296,7 @@ std::optional<ImageData> loadPNGImage(const std::string& filename) {
         return {};
     }
 
-    png_structp png = png_create_read_struct(PNG_LIBPNG_VER_STRING, nullptr,
-                                             nullptr, nullptr);
+    png_structp png = png_create_read_struct(PNG_LIBPNG_VER_STRING, nullptr, nullptr, nullptr);
     if (!png) {
         derror("Failed to allocate png read struct");
         return {};
@@ -351,16 +329,14 @@ std::optional<ImageData> loadPNGImage(const std::string& filename) {
     png_uint_32 height = 0;
     int bitDepth = 0;
     int colorType = 0;
-    png_get_IHDR(png, pngInfo, &width, &height, &bitDepth, &colorType, nullptr,
-                 nullptr, nullptr);
-    dprint("%s: Loaded PNG %s, %dx%d (d=%d, c=%d)", __FUNCTION__,
-           filename.c_str(), width, height, bitDepth, colorType);
+    png_get_IHDR(png, pngInfo, &width, &height, &bitDepth, &colorType, nullptr, nullptr, nullptr);
+    dprint("%s: Loaded PNG %s, %dx%d (d=%d, c=%d)", __FUNCTION__, filename.c_str(), width, height,
+           bitDepth, colorType);
 
     // Convert to RGB if required.
     if (colorType == PNG_COLOR_TYPE_PALETTE) {
         png_set_palette_to_rgb(png);
-    } else if (colorType == PNG_COLOR_TYPE_GRAY ||
-               colorType == PNG_COLOR_TYPE_GRAY_ALPHA) {
+    } else if (colorType == PNG_COLOR_TYPE_GRAY || colorType == PNG_COLOR_TYPE_GRAY_ALPHA) {
         png_set_gray_to_rgb(png);
     }
 
@@ -370,8 +346,7 @@ std::optional<ImageData> loadPNGImage(const std::string& filename) {
     }
 
     // If we still don't have an alpha channel, add a full alpha channel.
-    if (!(colorType & PNG_COLOR_MASK_ALPHA) &&
-        !png_get_valid(png, pngInfo, PNG_INFO_tRNS)) {
+    if (!(colorType & PNG_COLOR_MASK_ALPHA) && !png_get_valid(png, pngInfo, PNG_INFO_tRNS)) {
         png_set_add_alpha(png, 0xFF, PNG_FILLER_AFTER);
     }
 
@@ -387,8 +362,7 @@ std::optional<ImageData> loadPNGImage(const std::string& filename) {
     const int newBitDepth = png_get_bit_depth(png, pngInfo);
     const int newColorType = png_get_color_type(png, pngInfo);
     if (newBitDepth != bitDepth || newColorType != colorType) {
-        dprint("%s: Converting PNG to (d=%d, c=%d)", __FUNCTION__, newBitDepth,
-               newColorType);
+        dprint("%s: Converting PNG to (d=%d, c=%d)", __FUNCTION__, newBitDepth, newColorType);
     }
 
     if (newColorType != PNG_COLOR_TYPE_RGB_ALPHA) {
@@ -423,8 +397,7 @@ std::optional<ImageData> loadPNGImage(const std::string& filename) {
     png_bytep exif_data = nullptr;
     ExifOrientation orientation = ExifOrientation::Normal;
     if (png_get_eXIf_1(png, pngInfo, &num_exif, &exif_data) & PNG_INFO_eXIf) {
-        orientation = getOrientationFromTiff(exif_data, num_exif)
-                              .value_or(ExifOrientation::Normal);
+        orientation = getOrientationFromTiff(exif_data, num_exif).value_or(ExifOrientation::Normal);
     }
 
     png_destroy_read_struct(&png, &pngInfo, nullptr);
@@ -483,14 +456,12 @@ std::optional<ImageData> loadImageFromFile(const std::string& filename) {
                strncasecmp(extension.data(), ".jpeg", extension.size()) == 0) {
         return loadJPEGImage(filename);
     } else {
-        derror("Unsupported file format %s",
-               android::base::c_str(extension).get());
+        derror("Unsupported file format %s", android::base::c_str(extension).get());
         return std::nullopt;
     }
 }
 
-std::unique_ptr<RawImageFileSource> RawImageFileSource::Create(
-        const std::string& filename) {
+std::unique_ptr<RawImageFileSource> RawImageFileSource::Create(const std::string& filename) {
     std::optional<ImageData> maybeImage = loadImageFromFile(filename);
     if (maybeImage) {
         return std::unique_ptr<RawImageFileSource>(
@@ -500,26 +471,21 @@ std::unique_ptr<RawImageFileSource> RawImageFileSource::Create(
 }
 
 RawImageFileSource::RawImageFileSource(const std::string& filename, ImageData&& image)
-    : file_(filename), image_(std::move(image)) {}
+        : file_(filename), image_(std::move(image)) {}
 
-int RawImageFileSource::Start(VerImageFormat pixel_format,
-                                     int width,
-                                     int height) {
+int RawImageFileSource::Start(VerImageFormat pixel_format, int width, int height) {
     return 0;
 }
 
 absl::StatusOr<std::optional<RawImageToken>> RawImageFileSource::UpdateImage(
-        int64_t target_time_us,
-        std::optional<RawImageToken> token,
+        int64_t target_time_us, std::optional<RawImageToken> token,
         std::function<absl::Status(const RawImageBufferView*)> updater) {
     if (token.has_value() && token.value().token == 1) {
         return std::nullopt;
     }
     struct RawImageBufferView im = {
-            image_.data_ptr,
-            static_cast<size_t>(image_.line_size) * image_.height,
-            VerImageFormat::RGBA8, static_cast<int>(image_.width),
-            static_cast<int>(image_.height)};
+        image_.data_ptr, static_cast<size_t>(image_.line_size) * image_.height,
+        VerImageFormat::RGBA8, static_cast<int>(image_.width), static_cast<int>(image_.height)};
     absl::Status ret = updater(&im);
     if (ret.ok()) {
         return RawImageToken{1};

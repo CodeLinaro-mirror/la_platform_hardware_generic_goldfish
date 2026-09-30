@@ -18,22 +18,20 @@
 
 #include <optional>
 #include <string>
+
 #include "TextureUtils.h"
 
 namespace android {
 namespace ver {
 
 class StreetViewUtils {
-public:
-    static std::optional<TextureUtils::Result> fetch360Panorama(
-            double latitude,
-            double longitude,
-            const std::string& mapsKey);
+  public:
+    static std::optional<TextureUtils::Result> fetch360Panorama(double latitude, double longitude,
+                                                                const std::string& mapsKey);
 
-    static std::optional<TextureUtils::Result> downloadStaticImage(
-            double latitude,
-            double longitude,
-            const std::string& mapsKey);
+    static std::optional<TextureUtils::Result> downloadStaticImage(double latitude,
+                                                                   double longitude,
+                                                                   const std::string& mapsKey);
 };
 
 }  // namespace ver

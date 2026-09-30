@@ -15,7 +15,6 @@
  */
 
 #include "TextureUtils.h"
-#include "JpegUtils.h"
 
 #include <cstdint>
 #include <cstdio>
@@ -23,6 +22,7 @@
 #include <string>
 #include <string_view>
 
+#include "JpegUtils.h"
 #include "aemu/base/files/PathUtils.h"
 #include "aemu/base/files/ScopedStdioFile.h"
 #include "aemu/base/logging/CLog.h"
@@ -54,13 +54,11 @@ static inline T alignRowBytes(T value) {
     return (value + 3) / 4 * 4;
 }
 
-static void pngWarningCallback(png_structp readPtr,
-                               png_const_charp warningMessage) {
+static void pngWarningCallback(png_structp readPtr, png_const_charp warningMessage) {
     D("%s: %s\n", __FUNCTION__, warningMessage);
 }
 
-TextureUtils::Result TextureUtils::createEmpty(uint32_t width,
-                                               uint32_t height) {
+TextureUtils::Result TextureUtils::createEmpty(uint32_t width, uint32_t height) {
     Result result;
     result.mWidth = width;
     result.mHeight = height;
@@ -70,17 +68,15 @@ TextureUtils::Result TextureUtils::createEmpty(uint32_t width,
 
 TextureUtils::Result TextureUtils::createPlaceholder() {
     Result result;
-    result.mBuffer.resize(alignRowBytes(kPlaceholderWidth * 4) *
-                          kPlaceholderHeight);
+    result.mBuffer.resize(alignRowBytes(kPlaceholderWidth * 4) * kPlaceholderHeight);
     result.mWidth = kPlaceholderWidth;
     result.mHeight = kPlaceholderHeight;
     result.mFormat = Format::RGBA32;
     return result;
 }
 
-std::optional<TextureUtils::Result> TextureUtils::load(
-        const char* filename,
-        Orientation orientation) {
+std::optional<TextureUtils::Result> TextureUtils::load(const char* filename,
+                                                       Orientation orientation) {
     const std::string filename_str{filename};
     const std::string_view extension{PathUtils::extension(filename_str)};
 
@@ -90,15 +86,13 @@ std::optional<TextureUtils::Result> TextureUtils::load(
                strncasecmp(extension.data(), ".jpeg", extension.size()) == 0) {
         return loadJPEG(filename, orientation);
     } else {
-        E("%s: Unsupported file format %s", __FUNCTION__,
-          base::c_str(extension).get());
+        E("%s: Unsupported file format %s", __FUNCTION__, base::c_str(extension).get());
         return {};
     }
 }
 
-std::optional<TextureUtils::Result> TextureUtils::loadPNG(
-        const char* filename,
-        Orientation orientation) {
+std::optional<TextureUtils::Result> TextureUtils::loadPNG(const char* filename,
+                                                          Orientation orientation) {
     ScopedStdioFile fp(fopen(filename, "rb"));
     if (!fp) {
         E("%s: Failed to open file %s", __FUNCTION__, filename);
@@ -148,16 +142,14 @@ std::optional<TextureUtils::Result> TextureUtils::loadPNG(
     png_uint_32 height = 0;
     int bitDepth = 0;
     int colorType = 0;
-    png_get_IHDR(png, pngInfo, &width, &height, &bitDepth, &colorType, nullptr,
-                 nullptr, nullptr);
-    D("%s: Loaded PNG %s, %dx%d (d=%d, c=%d)", __FUNCTION__, filename, width,
-      height, bitDepth, colorType);
+    png_get_IHDR(png, pngInfo, &width, &height, &bitDepth, &colorType, nullptr, nullptr, nullptr);
+    D("%s: Loaded PNG %s, %dx%d (d=%d, c=%d)", __FUNCTION__, filename, width, height, bitDepth,
+      colorType);
 
     // Convert to RGB if required.
     if (colorType == PNG_COLOR_TYPE_PALETTE) {
         png_set_palette_to_rgb(png);
-    } else if (colorType == PNG_COLOR_TYPE_GRAY ||
-               colorType == PNG_COLOR_TYPE_GRAY_ALPHA) {
+    } else if (colorType == PNG_COLOR_TYPE_GRAY || colorType == PNG_COLOR_TYPE_GRAY_ALPHA) {
         png_set_gray_to_rgb(png);
     }
 
@@ -178,12 +170,10 @@ std::optional<TextureUtils::Result> TextureUtils::loadPNG(
     const int newBitDepth = png_get_bit_depth(png, pngInfo);
     const int newColorType = png_get_color_type(png, pngInfo);
     if (newBitDepth != bitDepth || newColorType != colorType) {
-        D("%s: Converting PNG to (d=%d, c=%d)", __FUNCTION__, newBitDepth,
-          newColorType);
+        D("%s: Converting PNG to (d=%d, c=%d)", __FUNCTION__, newBitDepth, newColorType);
     }
 
-    if (newColorType != PNG_COLOR_TYPE_RGB &&
-        newColorType != PNG_COLOR_TYPE_RGB_ALPHA) {
+    if (newColorType != PNG_COLOR_TYPE_RGB && newColorType != PNG_COLOR_TYPE_RGB_ALPHA) {
         E("%s: Unsupported color type: %d", __FUNCTION__, newColorType);
         png_destroy_read_struct(&png, &pngInfo, 0);
         return {};
@@ -208,14 +198,12 @@ std::optional<TextureUtils::Result> TextureUtils::loadPNG(
     result.mBuffer = std::move(data);
     result.mWidth = width;
     result.mHeight = height;
-    result.mFormat =
-            newColorType == PNG_COLOR_TYPE_RGB ? Format::RGB24 : Format::RGBA32;
+    result.mFormat = newColorType == PNG_COLOR_TYPE_RGB ? Format::RGB24 : Format::RGBA32;
     return result;
 }
 
-std::optional<TextureUtils::Result> TextureUtils::loadJPEG(
-        const char* filename,
-        Orientation orientation) {
+std::optional<TextureUtils::Result> TextureUtils::loadJPEG(const char* filename,
+                                                           Orientation orientation) {
     if (!filename) {
         return {};
     }
@@ -225,17 +213,15 @@ std::optional<TextureUtils::Result> TextureUtils::loadJPEG(
     JpegDecompressOptions options;
     options.color_space = JCS_RGB;
     options.align_row_stride = true;
-    options.orientation = (orientation == Orientation::BottomUp)
-                                  ? JpegOrientation::BottomUp
-                                  : JpegOrientation::TopDown;
+    options.orientation = (orientation == Orientation::BottomUp) ? JpegOrientation::BottomUp
+                                                                 : JpegOrientation::TopDown;
 
     if (!JpegUtils::DecompressFromFile(filename, data, &info, options)) {
         return {};
     }
 
     if (info.num_components != 3) {
-        E("%s: Unsupported num_components %d, should be 3.", __FUNCTION__,
-          info.num_components);
+        E("%s: Unsupported num_components %d, should be 3.", __FUNCTION__, info.num_components);
         return {};
     }
 
@@ -247,10 +233,9 @@ std::optional<TextureUtils::Result> TextureUtils::loadJPEG(
     return result;
 }
 
-std::optional<TextureUtils::Result> TextureUtils::loadJPEGFromMemory(
-        const uint8_t* buffer,
-        size_t size,
-        Orientation orientation) {
+std::optional<TextureUtils::Result> TextureUtils::loadJPEGFromMemory(const uint8_t* buffer,
+                                                                     size_t size,
+                                                                     Orientation orientation) {
     if (!buffer || size == 0) {
         return {};
     }
@@ -260,17 +245,15 @@ std::optional<TextureUtils::Result> TextureUtils::loadJPEGFromMemory(
     JpegDecompressOptions options;
     options.color_space = JCS_RGB;
     options.align_row_stride = true;
-    options.orientation = (orientation == Orientation::BottomUp)
-                                  ? JpegOrientation::BottomUp
-                                  : JpegOrientation::TopDown;
+    options.orientation = (orientation == Orientation::BottomUp) ? JpegOrientation::BottomUp
+                                                                 : JpegOrientation::TopDown;
 
     if (!JpegUtils::DecompressFromMemory(buffer, size, data, &info, options)) {
         return {};
     }
 
     if (info.num_components != 3) {
-        E("%s: Unsupported num_components %d, should be 3.", __FUNCTION__,
-          info.num_components);
+        E("%s: Unsupported num_components %d, should be 3.", __FUNCTION__, info.num_components);
         return {};
     }
 
@@ -282,20 +265,14 @@ std::optional<TextureUtils::Result> TextureUtils::loadJPEGFromMemory(
     return result;
 }
 
-bool TextureUtils::writePNG(const char* filename,
-                            uint32_t width,
-                            uint32_t height,
+bool TextureUtils::writePNG(const char* filename, uint32_t width, uint32_t height,
                             const uint8_t* rgba) {
-    if (!filename || !rgba || width == 0 || height == 0)
-        return false;
+    if (!filename || !rgba || width == 0 || height == 0) return false;
     ScopedStdioFile fp(fopen(filename, "wb"));
-    if (!fp)
-        return false;
+    if (!fp) return false;
 
-    png_structp png = png_create_write_struct(PNG_LIBPNG_VER_STRING, nullptr,
-                                              nullptr, nullptr);
-    if (!png)
-        return false;
+    png_structp png = png_create_write_struct(PNG_LIBPNG_VER_STRING, nullptr, nullptr, nullptr);
+    if (!png) return false;
     png_infop info = png_create_info_struct(png);
     if (!info) {
         png_destroy_write_struct(&png, nullptr);
@@ -307,9 +284,8 @@ bool TextureUtils::writePNG(const char* filename,
     }
 
     png_init_io(png, fp.get());
-    png_set_IHDR(png, info, width, height, 8, PNG_COLOR_TYPE_RGBA,
-                 PNG_INTERLACE_NONE, PNG_COMPRESSION_TYPE_DEFAULT,
-                 PNG_FILTER_TYPE_DEFAULT);
+    png_set_IHDR(png, info, width, height, 8, PNG_COLOR_TYPE_RGBA, PNG_INTERLACE_NONE,
+                 PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
     png_write_info(png, info);
 
     std::vector<png_bytep> rowPointers(height);

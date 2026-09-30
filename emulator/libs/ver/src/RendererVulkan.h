@@ -16,15 +16,6 @@
 
 #pragma once
 
-#include "Renderer.h"
-#include "TextureUtils.h"
-#include "VulkanShaders.h"
-
-#include "aemu/base/synchronization/Lock.h"
-#include "goldfish/gvk/device_dispatch.h"
-#include "goldfish/gvk/device_resources.h"
-#include "goldfish/gvk/instance_dispatch.h"
-
 #include <vulkan/vulkan.h>
 
 #include <condition_variable>
@@ -39,29 +30,32 @@
 #include <unordered_map>
 #include <vector>
 
+#include "Renderer.h"
+#include "TextureUtils.h"
+#include "VulkanShaders.h"
+#include "aemu/base/synchronization/Lock.h"
+#include "goldfish/gvk/device_dispatch.h"
+#include "goldfish/gvk/device_resources.h"
+#include "goldfish/gvk/instance_dispatch.h"
+
 namespace android {
 namespace ver {
 
 class RendererVulkan : public Renderer {
     DISALLOW_COPY_AND_ASSIGN(RendererVulkan);
 
-public:
-    RendererVulkan(int width,
-                   int height,
-                   const std::filesystem::path& vulkanBasePath = {});
+  public:
+    RendererVulkan(int width, int height, const std::filesystem::path& vulkanBasePath = {});
     ~RendererVulkan() override;
 
-    static std::unique_ptr<RendererVulkan> create(
-            const std::filesystem::path& vulkanBasePath);
+    static std::unique_ptr<RendererVulkan> create(const std::filesystem::path& vulkanBasePath);
 
     bool initialize();
 
     // Renderer public API.
     float getAspectRatio() override;
     bool isTextureLoaded(Texture texture) override;
-    void getTextureInfo(Texture texture,
-                        uint32_t* outWidth,
-                        uint32_t* outHeight) override;
+    void getTextureInfo(Texture texture, uint32_t* outWidth, uint32_t* outHeight) override;
 
     void releaseTexture(Texture texture) override;
     void releaseMaterial(Material material) override;
@@ -71,29 +65,22 @@ public:
     Material createMaterialTextured() override;
     Material createMaterialScreenSpace(const char* frag) override;
 
-    Mesh createMesh(const VertexPositionUV* vertices,
-                    size_t verticesSize,
-                    const uint32_t* indices,
+    Mesh createMesh(const VertexPositionUV* vertices, size_t verticesSize, const uint32_t* indices,
                     size_t indicesSize) override;
 
-    bool updateMesh(Mesh mesh,
-                    const VertexPositionUV* vertices,
-                    size_t verticesSize) override;
+    bool updateMesh(Mesh mesh, const VertexPositionUV* vertices, size_t verticesSize) override;
 
     Texture loadTexture(const char* filename) override;
     Texture loadTextureAsync(const char* filename) override;
-    Texture createTextureRGBA(const uint8_t* rgba,
-                              uint32_t width,
-                              uint32_t height) override;
+    Texture createTextureRGBA(const uint8_t* rgba, uint32_t width, uint32_t height) override;
     Texture duplicateTexture(Texture texture) override;
 
-    bool render(RendererView* view,
-                const std::vector<RenderableObject>& renderables,
+    bool render(RendererView* view, const std::vector<RenderableObject>& renderables,
                 float time) override;
 
     std::unique_ptr<RendererContext> makeCurrent() override;
 
-private:
+  private:
     struct MaterialData {
         goldfish::gvk::Pipeline pipeline;
         VkPipelineLayout pipelineLayout = VK_NULL_HANDLE;
@@ -131,8 +118,7 @@ private:
         LoaderCommandType mType;
         int mHandle = -1;
 
-        LoaderCommand(LoaderCommandType type, int handle)
-            : mType(type), mHandle(handle) {}
+        LoaderCommand(LoaderCommandType type, int handle) : mType(type), mHandle(handle) {}
     };
 
     void enqueueLoaderCommand(LoaderCommand command);
@@ -142,65 +128,44 @@ private:
     bool isStandardMaterial(Material material);
     Texture tryGetCachedTexture(const char* filename);
     Texture createEmptyTexture(uint32_t width, uint32_t height);
-    Texture createTextureInternal(TextureState state,
-                                  const char* filename,
+    Texture createTextureInternal(TextureState state, const char* filename,
                                   const TextureUtils::Result& data);
     void onLoaderLoadTexture(Texture texture);
-    bool replaceTextureInternal(Texture texture,
-                                const TextureUtils::Result& data);
+    bool replaceTextureInternal(Texture texture, const TextureUtils::Result& data);
 
-    void uploadTextureImage(TextureData& texData,
-                            const TextureUtils::Result& data);
+    void uploadTextureImage(TextureData& texData, const TextureUtils::Result& data);
 
-    uint32_t findMemoryType(uint32_t typeFilter,
-                            VkMemoryPropertyFlags properties);
+    uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
 
-    bool createVulkanBuffer(VkDeviceSize size,
-                            VkBufferUsageFlags usage,
-                            VkMemoryPropertyFlags properties,
-                            goldfish::gvk::Buffer& buffer,
+    bool createVulkanBuffer(VkDeviceSize size, VkBufferUsageFlags usage,
+                            VkMemoryPropertyFlags properties, goldfish::gvk::Buffer& buffer,
                             goldfish::gvk::DeviceMemory& bufferMemory);
 
-    bool createVulkanImage(uint32_t width,
-                           uint32_t height,
-                           VkFormat format,
-                           VkImageUsageFlags usage,
-                           VkMemoryPropertyFlags properties,
-                           goldfish::gvk::Image& image,
-                           goldfish::gvk::DeviceMemory& imageMemory,
+    bool createVulkanImage(uint32_t width, uint32_t height, VkFormat format,
+                           VkImageUsageFlags usage, VkMemoryPropertyFlags properties,
+                           goldfish::gvk::Image& image, goldfish::gvk::DeviceMemory& imageMemory,
                            goldfish::gvk::ImageView& imageView);
 
     void submitCommandBuffer(VkCommandBuffer cmdBuffer);
 
-    void executeSingleTimeCommands(
-            VkCommandBuffer cmdBuffer,
-            const std::function<void(VkCommandBuffer)>& recordFunc);
+    void executeSingleTimeCommands(VkCommandBuffer cmdBuffer,
+                                   const std::function<void(VkCommandBuffer)>& recordFunc);
 
-    void transitionImageLayout(
-            VkCommandBuffer cmdBuffer,
-            VkImage image,
-            VkImageLayout oldLayout,
-            VkImageLayout newLayout,
-            VkAccessFlags srcAccessMask,
-            VkAccessFlags dstAccessMask,
-            VkPipelineStageFlags srcStageMask,
-            VkPipelineStageFlags dstStageMask,
-            VkImageAspectFlags aspectMask = VK_IMAGE_ASPECT_COLOR_BIT);
+    void transitionImageLayout(VkCommandBuffer cmdBuffer, VkImage image, VkImageLayout oldLayout,
+                               VkImageLayout newLayout, VkAccessFlags srcAccessMask,
+                               VkAccessFlags dstAccessMask, VkPipelineStageFlags srcStageMask,
+                               VkPipelineStageFlags dstStageMask,
+                               VkImageAspectFlags aspectMask = VK_IMAGE_ASPECT_COLOR_BIT);
 
-    void drawRenderables(VkCommandBuffer cmd,
-                         const std::vector<RenderableObject>& renderables,
+    void drawRenderables(VkCommandBuffer cmd, const std::vector<RenderableObject>& renderables,
                          float time);
 
-    std::optional<goldfish::gvk::ShaderModule> createShaderModule(
-            const uint32_t* spirvCode,
-            size_t codeSize);
+    std::optional<goldfish::gvk::ShaderModule> createShaderModule(const uint32_t* spirvCode,
+                                                                  size_t codeSize);
 
-    bool createGraphicsPipeline(VkShaderModule vertShader,
-                                VkShaderModule fragShader,
-                                VkPipelineLayout pipelineLayout,
-                                VkRenderPass renderPass,
-                                bool enableDepth,
-                                goldfish::gvk::Pipeline& pipeline);
+    bool createGraphicsPipeline(VkShaderModule vertShader, VkShaderModule fragShader,
+                                VkPipelineLayout pipelineLayout, VkRenderPass renderPass,
+                                bool enableDepth, goldfish::gvk::Pipeline& pipeline);
 
     const int mRenderWidth;
     const int mRenderHeight;

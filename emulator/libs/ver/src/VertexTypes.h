@@ -34,8 +34,7 @@ struct VertexPositionUV {
     glm::vec2 uv;
 };
 
-inline bool operator==(const VertexPositionUV& lhs,
-                       const VertexPositionUV& rhs) {
+inline bool operator==(const VertexPositionUV& lhs, const VertexPositionUV& rhs) {
     return lhs.pos == rhs.pos && lhs.uv == rhs.uv;
 }
 

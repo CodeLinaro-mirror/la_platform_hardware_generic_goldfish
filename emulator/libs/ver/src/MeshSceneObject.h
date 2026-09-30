@@ -28,10 +28,10 @@ class MeshSceneObject : public SceneObject {
     MeshSceneObject(const MeshSceneObject& other) = delete;
     MeshSceneObject& operator=(const MeshSceneObject& other) = delete;
 
-protected:
+  protected:
     MeshSceneObject(Renderer& renderer);
 
-public:
+  public:
     // Loads an object mesh from an .obj or .gltf/.glb file.
     //
     // |renderer| - Renderer context.
@@ -39,8 +39,7 @@ public:
     //
     // Returns a MeshSceneObject instance if the object could be loaded or null
     // if there was an error.
-    static std::unique_ptr<MeshSceneObject> load(Renderer& renderer,
-                                                 const char* filename);
+    static std::unique_ptr<MeshSceneObject> load(Renderer& renderer, const char* filename);
 
     // Checks if the .obj or .gltf/.glb file can be loaded, without using a renderer
     //
@@ -58,7 +57,7 @@ public:
 
     void setAnimationTime(float timeSec) override;
 
-private:
+  private:
     struct GltfNodeData {
         std::string name;
         int parent = -1;
@@ -106,10 +105,8 @@ private:
 
     static bool canLoadObj(const char* filename);
     static bool canLoadGltf(const char* filename);
-    static std::unique_ptr<MeshSceneObject> loadObj(Renderer& renderer,
-                                                    const char* filename);
-    static std::unique_ptr<MeshSceneObject> loadGltf(Renderer& renderer,
-                                                     const char* filename);
+    static std::unique_ptr<MeshSceneObject> loadObj(Renderer& renderer, const char* filename);
+    static std::unique_ptr<MeshSceneObject> loadGltf(Renderer& renderer, const char* filename);
 };
 
 }  // namespace ver

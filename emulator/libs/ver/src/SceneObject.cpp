@@ -17,6 +17,7 @@
 #include "SceneObject.h"
 
 #include <limits>
+
 #include "aemu/base/logging/CLog.h"
 
 #define E(...) derror(__VA_ARGS__)
@@ -67,14 +68,10 @@ bool SceneObject::getBoundingBox(glm::vec3* outMin, glm::vec3* outMax) const {
         return false;
     }
     glm::vec3 corners[8] = {
-        {mMinBounds.x, mMinBounds.y, mMinBounds.z},
-        {mMaxBounds.x, mMinBounds.y, mMinBounds.z},
-        {mMinBounds.x, mMaxBounds.y, mMinBounds.z},
-        {mMaxBounds.x, mMaxBounds.y, mMinBounds.z},
-        {mMinBounds.x, mMinBounds.y, mMaxBounds.z},
-        {mMaxBounds.x, mMinBounds.y, mMaxBounds.z},
-        {mMinBounds.x, mMaxBounds.y, mMaxBounds.z},
-        {mMaxBounds.x, mMaxBounds.y, mMaxBounds.z},
+        {mMinBounds.x, mMinBounds.y, mMinBounds.z}, {mMaxBounds.x, mMinBounds.y, mMinBounds.z},
+        {mMinBounds.x, mMaxBounds.y, mMinBounds.z}, {mMaxBounds.x, mMaxBounds.y, mMinBounds.z},
+        {mMinBounds.x, mMinBounds.y, mMaxBounds.z}, {mMaxBounds.x, mMinBounds.y, mMaxBounds.z},
+        {mMinBounds.x, mMaxBounds.y, mMaxBounds.z}, {mMaxBounds.x, mMaxBounds.y, mMaxBounds.z},
     };
     glm::vec3 minP(std::numeric_limits<float>::max());
     glm::vec3 maxP(std::numeric_limits<float>::lowest());

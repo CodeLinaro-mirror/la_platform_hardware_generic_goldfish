@@ -23,10 +23,10 @@
 #define D(...) dprint(__VA_ARGS__)
 
 static constexpr android::ver::VertexPositionUV kQuadVerts[] = {
-        {glm::vec3(-0.5f, -0.5f, 0.f), glm::vec2(0.f, 0.f)},
-        {glm::vec3(0.5f, -0.5f, 0.f), glm::vec2(1.f, 0.f)},
-        {glm::vec3(-0.5f, 0.5f, 0.f), glm::vec2(0.f, 1.f)},
-        {glm::vec3(0.5f, 0.5f, 0.f), glm::vec2(1.f, 1.f)},
+    {glm::vec3(-0.5f, -0.5f, 0.f), glm::vec2(0.f, 0.f)},
+    {glm::vec3(0.5f, -0.5f, 0.f), glm::vec2(1.f, 0.f)},
+    {glm::vec3(-0.5f, 0.5f, 0.f), glm::vec2(0.f, 1.f)},
+    {glm::vec3(0.5f, 0.5f, 0.f), glm::vec2(1.f, 1.f)},
 };
 
 static constexpr uint32_t kQuadIndices[] = {0, 1, 2, 2, 1, 3};
@@ -34,15 +34,13 @@ static constexpr uint32_t kQuadIndices[] = {0, 1, 2, 2, 1, 3};
 namespace android {
 namespace ver {
 
-PosterSceneObject::PosterSceneObject(Renderer& renderer)
-    : SceneObject(renderer) {}
+PosterSceneObject::PosterSceneObject(Renderer& renderer) : SceneObject(renderer) {}
 
-std::unique_ptr<PosterSceneObject> PosterSceneObject::create(
-        Renderer& renderer,
-        const glm::vec3& position,
-        const glm::quat& rotation,
-        float minSize,
-        const glm::vec2& maxSize) {
+std::unique_ptr<PosterSceneObject> PosterSceneObject::create(Renderer& renderer,
+                                                             const glm::vec3& position,
+                                                             const glm::quat& rotation,
+                                                             float minSize,
+                                                             const glm::vec2& maxSize) {
     // Create an empty PosterSceneObject so that the texture can be attached
     // to something.
     std::unique_ptr<PosterSceneObject> result(new PosterSceneObject(renderer));
@@ -79,8 +77,7 @@ void PosterSceneObject::update() {
     uint32_t height = 0;
     mRenderer.getTextureInfo(texture, &width, &height);
 
-    glm::vec2 aspectRatio =
-            glm::vec2(static_cast<float>(width), static_cast<float>(height));
+    glm::vec2 aspectRatio = glm::vec2(static_cast<float>(width), static_cast<float>(height));
     const float aspectRatioMax = std::max(aspectRatio.x, aspectRatio.y);
     if (aspectRatioMax > 0.0f) {
         aspectRatio /= aspectRatioMax;

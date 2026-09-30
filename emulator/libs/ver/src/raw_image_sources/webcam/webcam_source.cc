@@ -13,6 +13,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+
 #include <array>
 #include <charconv>
 #include <memory>
@@ -31,8 +32,7 @@ std::mutex WebcamSource::s_webcam_info_list_lock_;
 std::optional<std::vector<std::shared_ptr<WebcamSource::WebcamInfo>>>
         WebcamSource::s_webcam_info_list_;
 
-WebcamSource::WebcamSource(std::shared_ptr<WebcamInfo> info)
-    : webcam_info_(std::move(info)) {
+WebcamSource::WebcamSource(std::shared_ptr<WebcamInfo> info) : webcam_info_(std::move(info)) {
     if (auto shared = webcam_info_->shared_impl.lock()) {
         impl_ = shared;
     } else {
@@ -49,20 +49,16 @@ WebcamSource::~WebcamSource() {
     impl_.reset();
 }
 
-int WebcamSource::Start(VerImageFormat ver_image_format,
-                        int frame_width,
-                        int frame_height) {
+int WebcamSource::Start(VerImageFormat ver_image_format, int frame_width, int frame_height) {
     if (ver_image_format != VerImageFormat::RGBA8) {
         derror("Scene system currently only supports RGBA8");
         return -1;
     }
-    return impl_->Start(VerImageFormatToFourcc(ver_image_format), frame_width,
-                        frame_height);
+    return impl_->Start(VerImageFormatToFourcc(ver_image_format), frame_width, frame_height);
 }
 
 absl::StatusOr<std::optional<RawImageToken>> WebcamSource::UpdateImage(
-        int64_t target_time_us,
-        std::optional<RawImageToken> token,
+        int64_t target_time_us, std::optional<RawImageToken> token,
         std::function<absl::Status(const RawImageBufferView*)> updater) {
     return impl_->UpdateImage(target_time_us, token, updater);
 }
@@ -71,8 +67,7 @@ int WebcamSource::Stop() {
     return impl_->Stop();
 }
 
-int WebcamSource::GetPreferredFormatIndex(
-        std::vector<WebcamPixelFormat>& formats) {
+int WebcamSource::GetPreferredFormatIndex(std::vector<WebcamPixelFormat>& formats) {
     /* Preferred pixel formats arranged from the most to the least desired.
      *
      * More than anything else this array is defined by the existence of format
@@ -89,19 +84,18 @@ int WebcamSource::GetPreferredFormatIndex(
      * conversion for it exists.
      */
     static constexpr std::array<uint32_t, 16> _preferred_formats = {
-            /* Native format for the emulated camera: no conversion at all. */
-            V4L2_PIX_FMT_YUV420, V4L2_PIX_FMT_YVU420,
-            /* Continue with YCbCr: less math than with RGB */
-            V4L2_PIX_FMT_NV12, V4L2_PIX_FMT_NV21,
-            /* Compressed formats: high performance, full resolution & framerate */
-            V4L2_PIX_FMT_MJPEG, V4L2_PIX_FMT_JPEG,
-            /* Packed YUV */
-            V4L2_PIX_FMT_YUYV,
-            V4L2_PIX_FMT_UYVY, V4L2_PIX_FMT_YUY2, V4L2_PIX_FMT_YUNV,
-            V4L2_PIX_FMT_V422,
-            /* End with RGB. */
-            V4L2_PIX_FMT_RGB32, V4L2_PIX_FMT_RGB24, V4L2_PIX_FMT_ARGB32,
-            V4L2_PIX_FMT_BGR32, V4L2_PIX_FMT_BGR24};
+        /* Native format for the emulated camera: no conversion at all. */
+        V4L2_PIX_FMT_YUV420, V4L2_PIX_FMT_YVU420,
+        /* Continue with YCbCr: less math than with RGB */
+        V4L2_PIX_FMT_NV12, V4L2_PIX_FMT_NV21,
+        /* Compressed formats: high performance, full resolution & framerate */
+        V4L2_PIX_FMT_MJPEG, V4L2_PIX_FMT_JPEG,
+        /* Packed YUV */
+        V4L2_PIX_FMT_YUYV, V4L2_PIX_FMT_UYVY, V4L2_PIX_FMT_YUY2, V4L2_PIX_FMT_YUNV,
+        V4L2_PIX_FMT_V422,
+        /* End with RGB. */
+        V4L2_PIX_FMT_RGB32, V4L2_PIX_FMT_RGB24, V4L2_PIX_FMT_ARGB32, V4L2_PIX_FMT_BGR32,
+        V4L2_PIX_FMT_BGR24};
 
     for (auto preferred : _preferred_formats) {
         for (int i = 0; i < (int)formats.size(); i++) {
@@ -115,8 +109,7 @@ int WebcamSource::GetPreferredFormatIndex(
     return -1;
 }
 
-std::unique_ptr<WebcamSource> WebcamSource::Create(
-        std::string_view camera_arg) {
+std::unique_ptr<WebcamSource> WebcamSource::Create(std::string_view camera_arg) {
     std::lock_guard<std::mutex> lock(s_webcam_info_list_lock_);
     if (!s_webcam_info_list_) {
         s_webcam_info_list_ = EnumerateWebcams();
@@ -130,13 +123,12 @@ std::unique_ptr<WebcamSource> WebcamSource::Create(
             return std::unique_ptr<WebcamSource>(new WebcamSource(info));
         }
     }
-    derror("No webcam found matching '%.*s'!",
-           static_cast<int>(camera_arg.length()), camera_arg.data());
+    derror("No webcam found matching '%.*s'!", static_cast<int>(camera_arg.length()),
+           camera_arg.data());
     return nullptr;
 }
 
-WebcamSource::Resolution
-WebcamSource::WebcamPixelFormat::FindBestMatchForResolution(
+WebcamSource::Resolution WebcamSource::WebcamPixelFormat::FindBestMatchForResolution(
         WebcamSource::Resolution requested) {
     unsigned int w = 0;
     unsigned int h = 0;
@@ -150,8 +142,7 @@ WebcamSource::WebcamPixelFormat::FindBestMatchForResolution(
     // we come across that is larger than the target will be the first one
     // larger than it
     for (const WebcamResolutions& res : this->resolutions) {
-        if (res.resolution.height * res.resolution.width *
-                    threshold_denomanator >
+        if (res.resolution.height * res.resolution.width * threshold_denomanator >
             threshold_numerator * requested.width * requested.height) {
             // We've gone too large. Use the previous resolution if there is one
             if (w == 0 && h == 0) {
@@ -159,8 +150,7 @@ WebcamSource::WebcamPixelFormat::FindBestMatchForResolution(
             }
             return {w, h};
         }
-        if (res.resolution.width >= requested.width &&
-            res.resolution.height >= requested.height) {
+        if (res.resolution.width >= requested.width && res.resolution.height >= requested.height) {
             // This resolution is suitable to support the target
             return {res.resolution.width, res.resolution.height};
         }
@@ -172,20 +162,20 @@ WebcamSource::WebcamPixelFormat::FindBestMatchForResolution(
     return {w, h};
 }
 
-std::optional<WebcamSource::WebcamPixelFormat>
-WebcamSource::WebcamInfo::NegotiateFormat(uint32_t requested_format) const {
+std::optional<WebcamSource::WebcamPixelFormat> WebcamSource::WebcamInfo::NegotiateFormat(
+        uint32_t requested_format) const {
     WebcamSource::WebcamPixelFormat format;
     if (preferred_format_index >= 0 &&
         preferred_format_index < static_cast<int>(supported_formats.size())) {
         format = supported_formats[preferred_format_index];
     } else if (!supported_formats.empty()) {
         dwarning(
-                "No preferred format found for camera '%s', using first supported format as fallback.",
+                "No preferred format found for camera '%s', using first supported format as "
+                "fallback.",
                 friendly_name.c_str());
         format = supported_formats[0];
     } else {
-        derror("No supported pixel format found for camera '%s'",
-               friendly_name.c_str());
+        derror("No supported pixel format found for camera '%s'", friendly_name.c_str());
         return std::nullopt;
     }
 
@@ -220,11 +210,10 @@ std::string WebcamSource::ResolveWebcamId(std::string_view camera_arg) {
     }
 
     int index = -1;
-    auto [ptr, ec] = std::from_chars(
-            camera_arg.data(), camera_arg.data() + camera_arg.size(), index);
+    auto [ptr, ec] =
+            std::from_chars(camera_arg.data(), camera_arg.data() + camera_arg.size(), index);
     if (ec == std::errc() && ptr == camera_arg.data() + camera_arg.size()) {
-        if (index >= 0 &&
-            static_cast<size_t>(index) < s_webcam_info_list_->size()) {
+        if (index >= 0 && static_cast<size_t>(index) < s_webcam_info_list_->size()) {
             const auto& info = (*s_webcam_info_list_)[index];
             return info->os_alias.empty() ? info->os_name : info->os_alias;
         }
@@ -241,8 +230,7 @@ size_t WebcamSource::GetWebcamCount() {
     return s_webcam_info_list_->size();
 }
 
-std::shared_ptr<WebcamSource::WebcamInfo> WebcamSource::GetWebcamInfo(
-        size_t index) {
+std::shared_ptr<WebcamSource::WebcamInfo> WebcamSource::GetWebcamInfo(size_t index) {
     std::lock_guard<std::mutex> lock(s_webcam_info_list_lock_);
     if (!s_webcam_info_list_) {
         s_webcam_info_list_ = EnumerateWebcams();
@@ -281,15 +269,13 @@ int WebcamSource::Impl::Stop() {
 }
 
 absl::StatusOr<std::optional<RawImageToken>> WebcamSource::Impl::UpdateImage(
-        int64_t target_time_us,
-        std::optional<RawImageToken> token,
+        int64_t target_time_us, std::optional<RawImageToken> token,
         std::function<absl::Status(const RawImageBufferView*)> updater) {
     std::lock_guard<std::mutex> lock(mMutex);
 
-    if (mLatestToken.has_value() &&
-        (!token.has_value() || token->token < mLatestToken->token)) {
-        RawImageBufferView view = {mCacheBuffer.data(), mCacheBuffer.size(),
-                                   mLatestFormat, mLatestWidth, mLatestHeight};
+    if (mLatestToken.has_value() && (!token.has_value() || token->token < mLatestToken->token)) {
+        RawImageBufferView view = {mCacheBuffer.data(), mCacheBuffer.size(), mLatestFormat,
+                                   mLatestWidth, mLatestHeight};
         absl::Status status = updater(&view);
         if (!status.ok()) {
             return status;

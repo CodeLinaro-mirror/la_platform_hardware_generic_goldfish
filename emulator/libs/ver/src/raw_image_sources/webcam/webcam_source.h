@@ -12,6 +12,7 @@
 
 #include <stdint.h>
 #include <stdlib.h>
+
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -20,7 +21,6 @@
 
 #include "../fourcc_utils.h"
 #include "../raw_image_source.h"
-
 #include "android/utils/compiler.h"
 #include "ver/virtual_environment_renderer_types.h"
 
@@ -33,7 +33,7 @@ namespace ver {
  */
 
 class WebcamSource : public RawImageSource {
-public:
+  public:
     class Impl;  // Forward declaration
 
     struct Resolution {
@@ -64,8 +64,7 @@ public:
 
         std::weak_ptr<Impl> shared_impl;
 
-        std::optional<WebcamPixelFormat> NegotiateFormat(
-                uint32_t requested_format) const;
+        std::optional<WebcamPixelFormat> NegotiateFormat(uint32_t requested_format) const;
     };
 
     static size_t GetWebcamCount();
@@ -76,32 +75,26 @@ public:
     ~WebcamSource() override;
     int Start(VerImageFormat ver_image_format, int width, int height) override;
     absl::StatusOr<std::optional<RawImageToken>> UpdateImage(
-            int64_t target_time_us,
-            std::optional<RawImageToken> token,
-            std::function<absl::Status(const RawImageBufferView*)> updater)
-            override;
+            int64_t target_time_us, std::optional<RawImageToken> token,
+            std::function<absl::Status(const RawImageBufferView*)> updater) override;
     int Stop() override;
 
     class Impl {
-    public:
+      public:
         virtual ~Impl() = default;
         int Start(uint32_t pixel_format, int width, int height);
         int Stop();
         absl::StatusOr<std::optional<RawImageToken>> UpdateImage(
-                int64_t target_time_us,
-                std::optional<RawImageToken> token,
+                int64_t target_time_us, std::optional<RawImageToken> token,
                 std::function<absl::Status(const RawImageBufferView*)> updater);
 
-    protected:
-        virtual int StartLocked(uint32_t pixel_format,
-                                int width,
-                                int height) = 0;
+      protected:
+        virtual int StartLocked(uint32_t pixel_format, int width, int height) = 0;
         virtual int StopLocked() = 0;
         virtual absl::StatusOr<bool> FetchNextFrame(
-                std::function<absl::Status(const RawImageBufferView*)>
-                        new_frame_cb) = 0;
+                std::function<absl::Status(const RawImageBufferView*)> new_frame_cb) = 0;
 
-    private:
+      private:
         std::mutex mMutex;
         int mStartCount = 0;
         int mStartStatus = 0;
@@ -118,7 +111,7 @@ public:
         int64_t mTokenCounter = 0;
     };
 
-private:
+  private:
     friend class WebcamSourceTestHelper;
     explicit WebcamSource(std::shared_ptr<WebcamInfo> info);
     // The list of webcams available on the system. This is a shared ptr so we
@@ -129,8 +122,7 @@ private:
 
     // Lock to be held when accessing or modifying the webcam list
     static std::mutex s_webcam_info_list_lock_;
-    static std::optional<std::vector<std::shared_ptr<WebcamInfo>>>
-            s_webcam_info_list_;
+    static std::optional<std::vector<std::shared_ptr<WebcamInfo>>> s_webcam_info_list_;
     std::shared_ptr<WebcamInfo> webcam_info_;
     std::shared_ptr<Impl> impl_;
 };

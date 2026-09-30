@@ -34,20 +34,16 @@ class RendererView;
  * @brief Singleton-like manager for all virtual scenes and views.
  */
 class ScenesManager {
-public:
-    static void setSearchPaths(
-            const std::vector<std::filesystem::path>& resourceSearchPaths);
+  public:
+    static void setSearchPaths(const std::vector<std::filesystem::path>& resourceSearchPaths);
 
-    static void setVulkanBasePath(
-            const std::filesystem::path& vulkanBasePath);
+    static void setVulkanBasePath(const std::filesystem::path& vulkanBasePath);
 
     static bool configArgumentFileExists(const SceneConfig& config);
 
     static Scene* createScene(const SceneConfig& config);
 
-    static bool renderView(Scene* scene,
-                           RendererView* view,
-                           std::function<void()> finishCallback,
+    static bool renderView(Scene* scene, RendererView* view, std::function<void()> finishCallback,
                            uint64_t* outFrameTime);
 
     static bool removeScene(Scene* scene);
@@ -57,7 +53,7 @@ public:
 
     static bool removeAll();
 
-private:
+  private:
     static android::base::StaticLock mScenesLock;
     static std::vector<std::unique_ptr<Scene>> mScenes;
     static std::vector<std::filesystem::path> mResourceSearchPaths;

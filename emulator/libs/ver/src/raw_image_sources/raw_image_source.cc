@@ -9,6 +9,7 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 #include "raw_image_source.h"
+
 #include <cstdint>
 #include <optional>
 
@@ -18,11 +19,10 @@
 namespace android {
 namespace ver {
 
-SolidColorImageSource::SolidColorImageSource()
-    : SolidColorImageSource({0, 0, 0}) {}
+SolidColorImageSource::SolidColorImageSource() : SolidColorImageSource({0, 0, 0}) {}
 
 SolidColorImageSource::SolidColorImageSource(Color c)
-    : buffer_({image_, sizeof(image_), VerImageFormat::RGBA8, 1, 1}) {
+        : buffer_({image_, sizeof(image_), VerImageFormat::RGBA8, 1, 1}) {
     image_[0] = c.r;
     image_[1] = c.g;
     image_[2] = c.b;
@@ -34,8 +34,7 @@ int SolidColorImageSource::Start(VerImageFormat pixel_format, int width, int hei
 }
 
 absl::StatusOr<std::optional<RawImageToken>> SolidColorImageSource::UpdateImage(
-        int64_t target_time_us,
-        std::optional<RawImageToken> token,
+        int64_t target_time_us, std::optional<RawImageToken> token,
         std::function<absl::Status(const RawImageBufferView*)> updater) {
     if (token.has_value() && token.value().token == 1) {
         return std::nullopt;

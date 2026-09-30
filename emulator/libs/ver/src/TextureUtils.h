@@ -29,7 +29,7 @@ namespace android {
 namespace ver {
 
 class TextureUtils {
-public:
+  public:
     enum class Format {
         RGB24,   // Packed, 3-bytes-per-pixel, with stride aligned to a 4-byte
                  // boundary.  Matches what glTexImage2D with GL_RGB and
@@ -64,9 +64,7 @@ public:
     static Result createPlaceholder();
 
     // Writes an RGBA image buffer to a PNG file.
-    static bool writePNG(const char* filename,
-                         uint32_t width,
-                         uint32_t height,
+    static bool writePNG(const char* filename, uint32_t width, uint32_t height,
                          const uint8_t* rgba);
 
     // Loads an image from disk, converting to either RGB or RGBA if necessary.
@@ -79,9 +77,8 @@ public:
     // |orientation| - Image orientation, match OpenGL by default.
     //
     // If the load was successful, returns a Result.
-    static std::optional<Result> load(
-            const char* filename,
-            Orientation orientation = Orientation::OpenGL);
+    static std::optional<Result> load(const char* filename,
+                                      Orientation orientation = Orientation::OpenGL);
 
     // Loads a PNG from disk, converting to either RGB or RGBA if necessary.
     //
@@ -92,9 +89,8 @@ public:
     // |orientation| - Image orientation, match OpenGL by default.
     //
     // If the load was successful, returns a Result.
-    static std::optional<Result> loadPNG(
-            const char* filename,
-            Orientation orientation = Orientation::OpenGL);
+    static std::optional<Result> loadPNG(const char* filename,
+                                         Orientation orientation = Orientation::OpenGL);
 
     // Loads a JPEG from disk.
     //
@@ -105,9 +101,8 @@ public:
     // |orientation| - Image orientation, match OpenGL by default.
     //
     // If the load was successful, returns a Result.
-    static std::optional<Result> loadJPEG(
-            const char* filename,
-            Orientation orientation = Orientation::OpenGL);
+    static std::optional<Result> loadJPEG(const char* filename,
+                                          Orientation orientation = Orientation::OpenGL);
 
     // Loads a JPEG from a memory buffer.
     //
@@ -119,10 +114,8 @@ public:
     // |orientation| - Image orientation, match OpenGL by default.
     //
     // If the load was successful, returns a Result.
-    static std::optional<Result> loadJPEGFromMemory(
-            const uint8_t* buffer,
-            size_t size,
-            Orientation orientation = Orientation::OpenGL);
+    static std::optional<Result> loadJPEGFromMemory(const uint8_t* buffer, size_t size,
+                                                    Orientation orientation = Orientation::OpenGL);
 };
 
 }  // namespace ver

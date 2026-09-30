@@ -14,12 +14,6 @@
 
 #include "MeshSceneObject.h"
 
-#include "aemu/base/files/PathUtils.h"
-#include "aemu/base/logging/CLog.h"
-
-#include "tiny_gltf.h"
-#include "tiny_obj_loader.h"
-
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/quaternion.hpp>
 
@@ -28,6 +22,11 @@
 #include <filesystem>
 #include <functional>
 #include <unordered_map>
+
+#include "aemu/base/files/PathUtils.h"
+#include "aemu/base/logging/CLog.h"
+#include "tiny_gltf.h"
+#include "tiny_obj_loader.h"
 
 #define E(...) derror(__VA_ARGS__)
 #define W(...) dwarning(__VA_ARGS__)
@@ -64,15 +63,14 @@ bool MeshSceneObject::canLoadObj(const char* filename) {
 
     std::string warn;
     std::string err;
-    const bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err,
-                                      filename, resourcesDir.c_str());
+    const bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, filename,
+                                      resourcesDir.c_str());
     if (!ret) {
         E("%s: Error loading obj %s: %s", __FUNCTION__, filename,
           err.empty() ? "<no message>" : err.c_str());
         return false;
     } else if (!warn.empty()) {
-        W("%s: Warnings loading obj %s: %s", __FUNCTION__, filename,
-          warn.c_str());
+        W("%s: Warnings loading obj %s: %s", __FUNCTION__, filename, warn.c_str());
     }
 
     const size_t vertexCount = attrib.vertices.size() / 3;
@@ -95,8 +93,7 @@ bool MeshSceneObject::canLoadObj(const char* filename) {
                 if (index.texcoord_index >= texcoordCount) {
                     E("%s: Error parsing %s, invalid texture coordinate index %d, expected "
                       "less than %d",
-                      __FUNCTION__, filename, index.texcoord_index,
-                      texcoordCount);
+                      __FUNCTION__, filename, index.texcoord_index, texcoordCount);
                     return false;
                 }
             }
@@ -149,16 +146,13 @@ bool MeshSceneObject::canLoadGltf(const char* filename) {
                 continue;
             }
             int posAccessorIdx = posIt->second;
-            if (posAccessorIdx < 0 ||
-                posAccessorIdx >= static_cast<int>(model.accessors.size())) {
-                E("%s: Invalid position accessor index in glTF %s",
-                  __FUNCTION__, filename);
+            if (posAccessorIdx < 0 || posAccessorIdx >= static_cast<int>(model.accessors.size())) {
+                E("%s: Invalid position accessor index in glTF %s", __FUNCTION__, filename);
                 return false;
             }
             if (primitive.indices >= 0 &&
                 primitive.indices >= static_cast<int>(model.accessors.size())) {
-                E("%s: Invalid index accessor in glTF %s", __FUNCTION__,
-                  filename);
+                E("%s: Invalid index accessor in glTF %s", __FUNCTION__, filename);
                 return false;
             }
         }
@@ -191,15 +185,14 @@ std::unique_ptr<MeshSceneObject> MeshSceneObject::loadObj(Renderer& renderer,
 
     std::string warn;
     std::string err;
-    const bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err,
-                                      filename, resourcesDir.c_str());
+    const bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, filename,
+                                      resourcesDir.c_str());
     if (!ret) {
         E("%s: Error loading obj %s: %s", __FUNCTION__, filename,
           err.empty() ? "<no message>" : err.c_str());
         return nullptr;
     } else if (!warn.empty()) {
-        W("%s: Warnings loading obj %s: %s", __FUNCTION__, filename,
-          warn.c_str());
+        W("%s: Warnings loading obj %s: %s", __FUNCTION__, filename, warn.c_str());
     }
 
     std::unique_ptr<MeshSceneObject> result(new MeshSceneObject(renderer));
@@ -211,8 +204,7 @@ std::unique_ptr<MeshSceneObject> MeshSceneObject::loadObj(Renderer& renderer,
         const tinyobj::mesh_t& mesh = shape.mesh;
 
         std::vector<VertexPositionUV> vertices;
-        std::unordered_map<VertexPositionUV, uint32_t, VertexPositionUVHash>
-                existingVertexToIndex;
+        std::unordered_map<VertexPositionUV, uint32_t, VertexPositionUVHash> existingVertexToIndex;
         std::vector<uint32_t> indices;
         Texture texture;
 
@@ -221,12 +213,10 @@ std::unique_ptr<MeshSceneObject> MeshSceneObject::loadObj(Renderer& renderer,
         if (!mesh.material_ids.empty()) {
             const int material_id = mesh.material_ids[0];
             if (material_id >= 0 && material_id < materials.size()) {
-                if (strstr(materials[material_id].diffuse_texname.c_str(),
-                           "TV")) {
+                if (strstr(materials[material_id].diffuse_texname.c_str(), "TV")) {
                     useCheckerboardMaterial = true;
                 } else {
-                    texture = renderer.loadTexture(
-                            materials[material_id].diffuse_texname.c_str());
+                    texture = renderer.loadTexture(materials[material_id].diffuse_texname.c_str());
                 }
             }
         }
@@ -250,14 +240,12 @@ std::unique_ptr<MeshSceneObject> MeshSceneObject::loadObj(Renderer& renderer,
                 if (index.texcoord_index >= texcoordCount) {
                     E("%s: Error parsing %s, invalid texture coordinate index %d, expected "
                       "less than %d",
-                      __FUNCTION__, filename, index.texcoord_index,
-                      texcoordCount);
+                      __FUNCTION__, filename, index.texcoord_index, texcoordCount);
                     return nullptr;
                 }
 
-                vertex.uv = glm::vec2(
-                        attrib.texcoords[2 * index.texcoord_index],
-                        attrib.texcoords[2 * index.texcoord_index + 1]);
+                vertex.uv = glm::vec2(attrib.texcoords[2 * index.texcoord_index],
+                                      attrib.texcoords[2 * index.texcoord_index + 1]);
             }
 
             auto existingEntry = existingVertexToIndex.find(vertex);
@@ -273,8 +261,8 @@ std::unique_ptr<MeshSceneObject> MeshSceneObject::loadObj(Renderer& renderer,
             }
         }
 
-        D("%s: Creating mesh with %d vertices, %d indices", __FUNCTION__,
-          vertices.size(), indices.size());
+        D("%s: Creating mesh with %d vertices, %d indices", __FUNCTION__, vertices.size(),
+          indices.size());
 
         glm::vec3 minP(std::numeric_limits<float>::max());
         glm::vec3 maxP(std::numeric_limits<float>::lowest());
@@ -291,9 +279,8 @@ std::unique_ptr<MeshSceneObject> MeshSceneObject::loadObj(Renderer& renderer,
         }
 
         Renderable renderable;
-        renderable.material = useCheckerboardMaterial
-                                      ? renderer.createMaterialCheckerboard()
-                                      : renderer.createMaterialTextured();
+        renderable.material = useCheckerboardMaterial ? renderer.createMaterialCheckerboard()
+                                                      : renderer.createMaterialTextured();
         renderable.mesh = renderer.createMesh(vertices, indices);
         renderable.texture = texture;
 
@@ -304,7 +291,7 @@ std::unique_ptr<MeshSceneObject> MeshSceneObject::loadObj(Renderer& renderer,
 }
 
 std::unique_ptr<MeshSceneObject> MeshSceneObject::loadGltf(Renderer& renderer,
-                                                          const char* filename) {
+                                                           const char* filename) {
     const fs::path filePath(filename);
     const std::string resourcesDir =
             PathUtils::addTrailingDirSeparator(filePath.parent_path().string());
@@ -330,8 +317,7 @@ std::unique_ptr<MeshSceneObject> MeshSceneObject::loadGltf(Renderer& renderer,
           err.empty() ? "<no message>" : err.c_str());
         return nullptr;
     } else if (!warn.empty()) {
-        W("%s: Warnings loading glTF %s: %s", __FUNCTION__, filename,
-          warn.c_str());
+        W("%s: Warnings loading glTF %s: %s", __FUNCTION__, filename, warn.c_str());
     }
 
     std::unique_ptr<MeshSceneObject> result(new MeshSceneObject(renderer));
@@ -353,13 +339,13 @@ std::unique_ptr<MeshSceneObject> MeshSceneObject::loadGltf(Renderer& renderer,
         } else {
             nodeData.hasMatrix = false;
             if (n.translation.size() == 3) {
-                nodeData.translation = glm::vec3(n.translation[0], n.translation[1], n.translation[2]);
+                nodeData.translation =
+                        glm::vec3(n.translation[0], n.translation[1], n.translation[2]);
             }
             if (n.rotation.size() == 4) {
-                nodeData.rotation = glm::quat(static_cast<float>(n.rotation[3]),
-                                             static_cast<float>(n.rotation[0]),
-                                             static_cast<float>(n.rotation[1]),
-                                             static_cast<float>(n.rotation[2]));
+                nodeData.rotation = glm::quat(
+                        static_cast<float>(n.rotation[3]), static_cast<float>(n.rotation[0]),
+                        static_cast<float>(n.rotation[1]), static_cast<float>(n.rotation[2]));
             }
             if (n.scale.size() == 3) {
                 nodeData.scale = glm::vec3(n.scale[0], n.scale[1], n.scale[2]);
@@ -389,7 +375,8 @@ std::unique_ptr<MeshSceneObject> MeshSceneObject::loadGltf(Renderer& renderer,
                     const uint8_t* ptr = model.buffers[bufferView.buffer].data.data() +
                                          bufferView.byteOffset + accessor.byteOffset;
                     skinData.inverseBindMatrices.resize(accessor.count);
-                    std::memcpy(skinData.inverseBindMatrices.data(), ptr, accessor.count * sizeof(glm::mat4));
+                    std::memcpy(skinData.inverseBindMatrices.data(), ptr,
+                                accessor.count * sizeof(glm::mat4));
                 }
             }
         }
@@ -405,8 +392,7 @@ std::unique_ptr<MeshSceneObject> MeshSceneObject::loadGltf(Renderer& renderer,
         for (const auto& channel : anim.channels) {
             if (channel.target_node < 0 ||
                 channel.target_node >= static_cast<int>(model.nodes.size()) ||
-                channel.sampler < 0 ||
-                channel.sampler >= static_cast<int>(anim.samplers.size())) {
+                channel.sampler < 0 || channel.sampler >= static_cast<int>(anim.samplers.size())) {
                 continue;
             }
             const auto& sampler = anim.samplers[channel.sampler];
@@ -423,9 +409,11 @@ std::unique_ptr<MeshSceneObject> MeshSceneObject::loadGltf(Renderer& renderer,
             animChan.targetPath = channel.target_path;
 
             // Read key times
-            if (timeAcc.bufferView >= 0 && timeAcc.bufferView < static_cast<int>(model.bufferViews.size())) {
+            if (timeAcc.bufferView >= 0 &&
+                timeAcc.bufferView < static_cast<int>(model.bufferViews.size())) {
                 const auto& bv = model.bufferViews[timeAcc.bufferView];
-                const uint8_t* ptr = model.buffers[bv.buffer].data.data() + bv.byteOffset + timeAcc.byteOffset;
+                const uint8_t* ptr =
+                        model.buffers[bv.buffer].data.data() + bv.byteOffset + timeAcc.byteOffset;
                 animChan.keyTimes.resize(timeAcc.count);
                 const float* fPtr = reinterpret_cast<const float*>(ptr);
                 for (size_t k = 0; k < timeAcc.count; ++k) {
@@ -436,26 +424,31 @@ std::unique_ptr<MeshSceneObject> MeshSceneObject::loadGltf(Renderer& renderer,
             }
 
             // Read key values
-            if (valAcc.bufferView >= 0 && valAcc.bufferView < static_cast<int>(model.bufferViews.size())) {
+            if (valAcc.bufferView >= 0 &&
+                valAcc.bufferView < static_cast<int>(model.bufferViews.size())) {
                 const auto& bv = model.bufferViews[valAcc.bufferView];
-                const uint8_t* ptr = model.buffers[bv.buffer].data.data() + bv.byteOffset + valAcc.byteOffset;
+                const uint8_t* ptr =
+                        model.buffers[bv.buffer].data.data() + bv.byteOffset + valAcc.byteOffset;
                 if (channel.target_path == "translation") {
                     animChan.keyTranslations.resize(valAcc.count);
                     const float* fPtr = reinterpret_cast<const float*>(ptr);
                     for (size_t k = 0; k < valAcc.count; ++k) {
-                        animChan.keyTranslations[k] = glm::vec3(fPtr[k * 3], fPtr[k * 3 + 1], fPtr[k * 3 + 2]);
+                        animChan.keyTranslations[k] =
+                                glm::vec3(fPtr[k * 3], fPtr[k * 3 + 1], fPtr[k * 3 + 2]);
                     }
                 } else if (channel.target_path == "rotation") {
                     animChan.keyRotations.resize(valAcc.count);
                     const float* fPtr = reinterpret_cast<const float*>(ptr);
                     for (size_t k = 0; k < valAcc.count; ++k) {
-                        animChan.keyRotations[k] = glm::quat(fPtr[k * 4 + 3], fPtr[k * 4 + 0], fPtr[k * 4 + 1], fPtr[k * 4 + 2]);
+                        animChan.keyRotations[k] = glm::quat(fPtr[k * 4 + 3], fPtr[k * 4 + 0],
+                                                             fPtr[k * 4 + 1], fPtr[k * 4 + 2]);
                     }
                 } else if (channel.target_path == "scale") {
                     animChan.keyScales.resize(valAcc.count);
                     const float* fPtr = reinterpret_cast<const float*>(ptr);
                     for (size_t k = 0; k < valAcc.count; ++k) {
-                        animChan.keyScales[k] = glm::vec3(fPtr[k * 3], fPtr[k * 3 + 1], fPtr[k * 3 + 2]);
+                        animChan.keyScales[k] =
+                                glm::vec3(fPtr[k * 3], fPtr[k * 3 + 1], fPtr[k * 3 + 2]);
                     }
                 }
             }
@@ -469,44 +462,36 @@ std::unique_ptr<MeshSceneObject> MeshSceneObject::loadGltf(Renderer& renderer,
         result->mGltfAnimations.push_back(std::move(animData));
     }
 
-    auto processPrimitive = [&](const tinygltf::Primitive& primitive,
-                                const glm::mat4& transform,
+    auto processPrimitive = [&](const tinygltf::Primitive& primitive, const glm::mat4& transform,
                                 int nodeIdx) {
         auto posIt = primitive.attributes.find("POSITION");
         if (posIt == primitive.attributes.end()) {
             return;
         }
         int posAccessorIdx = posIt->second;
-        if (posAccessorIdx < 0 ||
-            posAccessorIdx >= static_cast<int>(model.accessors.size())) {
-            E("%s: Invalid position accessor index in glTF %s", __FUNCTION__,
-              filename);
+        if (posAccessorIdx < 0 || posAccessorIdx >= static_cast<int>(model.accessors.size())) {
+            E("%s: Invalid position accessor index in glTF %s", __FUNCTION__, filename);
             return;
         }
 
         const tinygltf::Accessor& posAccessor = model.accessors[posAccessorIdx];
         if (posAccessor.bufferView < 0 ||
             posAccessor.bufferView >= static_cast<int>(model.bufferViews.size())) {
-            E("%s: Invalid position buffer view index in glTF %s", __FUNCTION__,
-              filename);
+            E("%s: Invalid position buffer view index in glTF %s", __FUNCTION__, filename);
             return;
         }
-        const tinygltf::BufferView& posBufferView =
-                model.bufferViews[posAccessor.bufferView];
+        const tinygltf::BufferView& posBufferView = model.bufferViews[posAccessor.bufferView];
         if (posBufferView.buffer < 0 ||
             posBufferView.buffer >= static_cast<int>(model.buffers.size())) {
-            E("%s: Invalid position buffer index in glTF %s", __FUNCTION__,
-              filename);
+            E("%s: Invalid position buffer index in glTF %s", __FUNCTION__, filename);
             return;
         }
         const tinygltf::Buffer& posBuffer = model.buffers[posBufferView.buffer];
 
-        const uint8_t* posBytePtr = posBuffer.data.data() +
-                                    posBufferView.byteOffset +
-                                    posAccessor.byteOffset;
-        size_t posStride = posBufferView.byteStride != 0
-                                   ? posBufferView.byteStride
-                                   : (sizeof(float) * 3);
+        const uint8_t* posBytePtr =
+                posBuffer.data.data() + posBufferView.byteOffset + posAccessor.byteOffset;
+        size_t posStride =
+                posBufferView.byteStride != 0 ? posBufferView.byteStride : (sizeof(float) * 3);
 
         size_t vertexCount = posAccessor.count;
 
@@ -518,31 +503,22 @@ std::unique_ptr<MeshSceneObject> MeshSceneObject::loadGltf(Renderer& renderer,
         auto uvIt = primitive.attributes.find("TEXCOORD_0");
         if (uvIt != primitive.attributes.end()) {
             int uvAccessorIdx = uvIt->second;
-            if (uvAccessorIdx >= 0 &&
-                uvAccessorIdx < static_cast<int>(model.accessors.size())) {
-                const tinygltf::Accessor& uvAccessor =
-                        model.accessors[uvAccessorIdx];
+            if (uvAccessorIdx >= 0 && uvAccessorIdx < static_cast<int>(model.accessors.size())) {
+                const tinygltf::Accessor& uvAccessor = model.accessors[uvAccessorIdx];
                 if (uvAccessor.bufferView >= 0 &&
-                    uvAccessor.bufferView <
-                            static_cast<int>(model.bufferViews.size())) {
+                    uvAccessor.bufferView < static_cast<int>(model.bufferViews.size())) {
                     const tinygltf::BufferView& uvBufferView =
                             model.bufferViews[uvAccessor.bufferView];
                     if (uvBufferView.buffer >= 0 &&
-                        uvBufferView.buffer <
-                                static_cast<int>(model.buffers.size())) {
-                        const tinygltf::Buffer& uvBuffer =
-                                model.buffers[uvBufferView.buffer];
-                        uvBytePtr = uvBuffer.data.data() +
-                                    uvBufferView.byteOffset +
+                        uvBufferView.buffer < static_cast<int>(model.buffers.size())) {
+                        const tinygltf::Buffer& uvBuffer = model.buffers[uvBufferView.buffer];
+                        uvBytePtr = uvBuffer.data.data() + uvBufferView.byteOffset +
                                     uvAccessor.byteOffset;
                         uvComponentType = uvAccessor.componentType;
-                        int compSize = tinygltf::GetComponentSizeInBytes(
-                                uvComponentType);
-                        int numComp = tinygltf::GetNumComponentsInType(
-                                uvAccessor.type);
-                        uvStride = uvBufferView.byteStride != 0
-                                           ? uvBufferView.byteStride
-                                           : (compSize * numComp);
+                        int compSize = tinygltf::GetComponentSizeInBytes(uvComponentType);
+                        int numComp = tinygltf::GetNumComponentsInType(uvAccessor.type);
+                        uvStride = uvBufferView.byteStride != 0 ? uvBufferView.byteStride
+                                                                : (compSize * numComp);
                         hasUV = true;
                     }
                 }
@@ -564,16 +540,11 @@ std::unique_ptr<MeshSceneObject> MeshSceneObject::loadGltf(Renderer& renderer,
                 if (uvComponentType == TINYGLTF_COMPONENT_TYPE_FLOAT) {
                     const float* uvf = reinterpret_cast<const float*>(uvPtr);
                     vertex.uv = glm::vec2(uvf[0], 1.0f - uvf[1]);
-                } else if (uvComponentType ==
-                           TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE) {
-                    vertex.uv = glm::vec2(uvPtr[0] / 255.0f,
-                                          1.0f - (uvPtr[1] / 255.0f));
-                } else if (uvComponentType ==
-                           TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT) {
-                    const uint16_t* uvs =
-                            reinterpret_cast<const uint16_t*>(uvPtr);
-                    vertex.uv = glm::vec2(uvs[0] / 65535.0f,
-                                          1.0f - (uvs[1] / 65535.0f));
+                } else if (uvComponentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE) {
+                    vertex.uv = glm::vec2(uvPtr[0] / 255.0f, 1.0f - (uvPtr[1] / 255.0f));
+                } else if (uvComponentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT) {
+                    const uint16_t* uvs = reinterpret_cast<const uint16_t*>(uvPtr);
+                    vertex.uv = glm::vec2(uvs[0] / 65535.0f, 1.0f - (uvs[1] / 65535.0f));
                 } else {
                     vertex.uv = glm::vec2(0.0f, 0.0f);
                 }
@@ -605,7 +576,8 @@ std::unique_ptr<MeshSceneObject> MeshSceneObject::loadGltf(Renderer& renderer,
                         jointsComponentType = accessor.componentType;
                         int compSize = tinygltf::GetComponentSizeInBytes(jointsComponentType);
                         int numComp = tinygltf::GetNumComponentsInType(accessor.type);
-                        jointsStride = bufferView.byteStride != 0 ? bufferView.byteStride : (compSize * numComp);
+                        jointsStride = bufferView.byteStride != 0 ? bufferView.byteStride
+                                                                  : (compSize * numComp);
                         hasJoints = true;
                     }
                 }
@@ -633,7 +605,8 @@ std::unique_ptr<MeshSceneObject> MeshSceneObject::loadGltf(Renderer& renderer,
                         weightsComponentType = accessor.componentType;
                         int compSize = tinygltf::GetComponentSizeInBytes(weightsComponentType);
                         int numComp = tinygltf::GetNumComponentsInType(accessor.type);
-                        weightsStride = bufferView.byteStride != 0 ? bufferView.byteStride : (compSize * numComp);
+                        weightsStride = bufferView.byteStride != 0 ? bufferView.byteStride
+                                                                   : (compSize * numComp);
                         hasWeights = true;
                     }
                 }
@@ -670,10 +643,12 @@ std::unique_ptr<MeshSceneObject> MeshSceneObject::loadGltf(Renderer& renderer,
                     const float* ptr = reinterpret_cast<const float*>(wPtr);
                     w = glm::vec4(ptr[0], ptr[1], ptr[2], ptr[3]);
                 } else if (weightsComponentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE) {
-                    w = glm::vec4(wPtr[0] / 255.0f, wPtr[1] / 255.0f, wPtr[2] / 255.0f, wPtr[3] / 255.0f);
+                    w = glm::vec4(wPtr[0] / 255.0f, wPtr[1] / 255.0f, wPtr[2] / 255.0f,
+                                  wPtr[3] / 255.0f);
                 } else if (weightsComponentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT) {
                     const uint16_t* ptr = reinterpret_cast<const uint16_t*>(wPtr);
-                    w = glm::vec4(ptr[0] / 65535.0f, ptr[1] / 65535.0f, ptr[2] / 65535.0f, ptr[3] / 65535.0f);
+                    w = glm::vec4(ptr[0] / 65535.0f, ptr[1] / 65535.0f, ptr[2] / 65535.0f,
+                                  ptr[3] / 65535.0f);
                 }
                 vertexWeights.push_back(w);
             }
@@ -682,33 +657,27 @@ std::unique_ptr<MeshSceneObject> MeshSceneObject::loadGltf(Renderer& renderer,
         std::vector<uint32_t> indices;
         if (primitive.indices >= 0 &&
             primitive.indices < static_cast<int>(model.accessors.size())) {
-            const tinygltf::Accessor& indexAccessor =
-                    model.accessors[primitive.indices];
+            const tinygltf::Accessor& indexAccessor = model.accessors[primitive.indices];
             if (indexAccessor.bufferView >= 0 &&
-                indexAccessor.bufferView <
-                        static_cast<int>(model.bufferViews.size())) {
+                indexAccessor.bufferView < static_cast<int>(model.bufferViews.size())) {
                 const tinygltf::BufferView& indexBufferView =
                         model.bufferViews[indexAccessor.bufferView];
                 if (indexBufferView.buffer >= 0 &&
-                    indexBufferView.buffer <
-                            static_cast<int>(model.buffers.size())) {
-                    const tinygltf::Buffer& indexBuffer =
-                            model.buffers[indexBufferView.buffer];
-                    const uint8_t* indexBytePtr =
-                            indexBuffer.data.data() +
-                            indexBufferView.byteOffset + indexAccessor.byteOffset;
-                    size_t indexStride =
-                            indexBufferView.byteStride != 0
-                                    ? indexBufferView.byteStride
-                                    : tinygltf::GetComponentSizeInBytes(
-                                              indexAccessor.componentType);
+                    indexBufferView.buffer < static_cast<int>(model.buffers.size())) {
+                    const tinygltf::Buffer& indexBuffer = model.buffers[indexBufferView.buffer];
+                    const uint8_t* indexBytePtr = indexBuffer.data.data() +
+                                                  indexBufferView.byteOffset +
+                                                  indexAccessor.byteOffset;
+                    size_t indexStride = indexBufferView.byteStride != 0
+                                                 ? indexBufferView.byteStride
+                                                 : tinygltf::GetComponentSizeInBytes(
+                                                           indexAccessor.componentType);
 
                     indices.reserve(indexAccessor.count);
                     for (size_t j = 0; j < indexAccessor.count; ++j) {
                         uint32_t idx = 0;
                         const uint8_t* ptr = indexBytePtr + j * indexStride;
-                        if (indexAccessor.componentType ==
-                            TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT) {
+                        if (indexAccessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT) {
                             idx = *reinterpret_cast<const uint16_t*>(ptr);
                         } else if (indexAccessor.componentType ==
                                    TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT) {
@@ -720,8 +689,8 @@ std::unique_ptr<MeshSceneObject> MeshSceneObject::loadGltf(Renderer& renderer,
                         if (idx < vertexCount) {
                             indices.push_back(idx);
                         } else {
-                            derror("VER: invalid index %d, vertex count %zu, when loading %s",
-                                   idx, vertexCount, filename);
+                            derror("VER: invalid index %d, vertex count %zu, when loading %s", idx,
+                                   vertexCount, filename);
                             indices.push_back(0);
                         }
                     }
@@ -736,8 +705,8 @@ std::unique_ptr<MeshSceneObject> MeshSceneObject::loadGltf(Renderer& renderer,
             }
         }
 
-        D("%s: Creating glTF primitive mesh with %zu vertices, %zu indices",
-          __FUNCTION__, vertices.size(), indices.size());
+        D("%s: Creating glTF primitive mesh with %zu vertices, %zu indices", __FUNCTION__,
+          vertices.size(), indices.size());
 
         Texture texture;
         bool useCheckerboardMaterial = false;
@@ -751,34 +720,26 @@ std::unique_ptr<MeshSceneObject> MeshSceneObject::loadGltf(Renderer& renderer,
             }
 
             int texIndex = mat.pbrMetallicRoughness.baseColorTexture.index;
-            if (texIndex >= 0 &&
-                texIndex < static_cast<int>(model.textures.size())) {
+            if (texIndex >= 0 && texIndex < static_cast<int>(model.textures.size())) {
                 const tinygltf::Texture& gltfTex = model.textures[texIndex];
-                if (gltfTex.source >= 0 &&
-                    gltfTex.source < static_cast<int>(model.images.size())) {
-                    const tinygltf::Image& gltfImg =
-                            model.images[gltfTex.source];
+                if (gltfTex.source >= 0 && gltfTex.source < static_cast<int>(model.images.size())) {
+                    const tinygltf::Image& gltfImg = model.images[gltfTex.source];
                     if (gltfImg.uri.find("TV") != std::string::npos ||
                         gltfImg.name.find("TV") != std::string::npos) {
                         useCheckerboardMaterial = true;
                     }
-                    if (!gltfImg.uri.empty() &&
-                        gltfImg.uri.rfind("data:", 0) != 0) {
-                        std::string texPath =
-                                PathUtils::join(resourcesDir, gltfImg.uri);
+                    if (!gltfImg.uri.empty() && gltfImg.uri.rfind("data:", 0) != 0) {
+                        std::string texPath = PathUtils::join(resourcesDir, gltfImg.uri);
                         texture = renderer.loadTexture(texPath.c_str());
-                    } else if (!gltfImg.image.empty() && gltfImg.width > 0 &&
-                               gltfImg.height > 0) {
+                    } else if (!gltfImg.image.empty() && gltfImg.width > 0 && gltfImg.height > 0) {
                         int w = gltfImg.width;
                         int h = gltfImg.height;
                         int comp = gltfImg.component;
                         std::vector<uint8_t> rgbaData(w * h * 4);
 
                         for (int y = 0; y < h; ++y) {
-                            const uint8_t* srcRow =
-                                    gltfImg.image.data() + y * w * comp;
-                            uint8_t* dstRow =
-                                    rgbaData.data() + (h - 1 - y) * w * 4;
+                            const uint8_t* srcRow = gltfImg.image.data() + y * w * comp;
+                            uint8_t* dstRow = rgbaData.data() + (h - 1 - y) * w * 4;
                             for (int x = 0; x < w; ++x) {
                                 if (comp == 4) {
                                     dstRow[x * 4 + 0] = srcRow[x * 4 + 0];
@@ -798,8 +759,7 @@ std::unique_ptr<MeshSceneObject> MeshSceneObject::loadGltf(Renderer& renderer,
                                 }
                             }
                         }
-                        texture = renderer.createTextureRGBA(rgbaData.data(), w,
-                                                             h);
+                        texture = renderer.createTextureRGBA(rgbaData.data(), w, h);
                     }
                 }
             }
@@ -811,14 +771,14 @@ std::unique_ptr<MeshSceneObject> MeshSceneObject::loadGltf(Renderer& renderer,
                 primitive.material < static_cast<int>(model.materials.size())) {
                 const tinygltf::Material& mat = model.materials[primitive.material];
                 if (mat.pbrMetallicRoughness.baseColorFactor.size() == 4) {
-                    rgba[0] = static_cast<uint8_t>(
-                            std::clamp(mat.pbrMetallicRoughness.baseColorFactor[0] * 255.0, 0.0, 255.0));
-                    rgba[1] = static_cast<uint8_t>(
-                            std::clamp(mat.pbrMetallicRoughness.baseColorFactor[1] * 255.0, 0.0, 255.0));
-                    rgba[2] = static_cast<uint8_t>(
-                            std::clamp(mat.pbrMetallicRoughness.baseColorFactor[2] * 255.0, 0.0, 255.0));
-                    rgba[3] = static_cast<uint8_t>(
-                            std::clamp(mat.pbrMetallicRoughness.baseColorFactor[3] * 255.0, 0.0, 255.0));
+                    rgba[0] = static_cast<uint8_t>(std::clamp(
+                            mat.pbrMetallicRoughness.baseColorFactor[0] * 255.0, 0.0, 255.0));
+                    rgba[1] = static_cast<uint8_t>(std::clamp(
+                            mat.pbrMetallicRoughness.baseColorFactor[1] * 255.0, 0.0, 255.0));
+                    rgba[2] = static_cast<uint8_t>(std::clamp(
+                            mat.pbrMetallicRoughness.baseColorFactor[2] * 255.0, 0.0, 255.0));
+                    rgba[3] = static_cast<uint8_t>(std::clamp(
+                            mat.pbrMetallicRoughness.baseColorFactor[3] * 255.0, 0.0, 255.0));
                 }
             }
             texture = renderer.createTextureRGBA(rgba, 1, 1);
@@ -839,9 +799,8 @@ std::unique_ptr<MeshSceneObject> MeshSceneObject::loadGltf(Renderer& renderer,
         }
 
         Renderable renderable;
-        renderable.material = useCheckerboardMaterial
-                                      ? renderer.createMaterialCheckerboard()
-                                      : renderer.createMaterialTextured();
+        renderable.material = useCheckerboardMaterial ? renderer.createMaterialCheckerboard()
+                                                      : renderer.createMaterialTextured();
         renderable.mesh = renderer.createMesh(vertices, indices);
         renderable.texture = texture;
 
@@ -863,67 +822,57 @@ std::unique_ptr<MeshSceneObject> MeshSceneObject::loadGltf(Renderer& renderer,
         }
     };
 
-    std::function<void(int, const glm::mat4&)> processNode =
-            [&](int nodeIdx, const glm::mat4& parentTransform) {
-                if (nodeIdx < 0 ||
-                    nodeIdx >= static_cast<int>(model.nodes.size())) {
-                    return;
-                }
-                const tinygltf::Node& node = model.nodes[nodeIdx];
+    std::function<void(int, const glm::mat4&)> processNode = [&](int nodeIdx,
+                                                                 const glm::mat4& parentTransform) {
+        if (nodeIdx < 0 || nodeIdx >= static_cast<int>(model.nodes.size())) {
+            return;
+        }
+        const tinygltf::Node& node = model.nodes[nodeIdx];
 
-                glm::mat4 localTransform(1.0f);
-                if (node.matrix.size() == 16) {
-                    for (int col = 0; col < 4; ++col) {
-                        for (int row = 0; row < 4; ++row) {
-                            localTransform[col][row] = static_cast<float>(
-                                    node.matrix[col * 4 + row]);
-                        }
-                    }
-                } else {
-                    glm::vec3 translation(0.0f);
-                    if (node.translation.size() == 3) {
-                        translation = glm::vec3(node.translation[0],
-                                                node.translation[1],
-                                                node.translation[2]);
-                    }
-                    glm::quat rotation(1.0f, 0.0f, 0.0f, 0.0f);
-                    if (node.rotation.size() == 4) {
-                        rotation = glm::quat(
-                                static_cast<float>(node.rotation[3]),  // w
-                                static_cast<float>(node.rotation[0]),  // x
-                                static_cast<float>(node.rotation[1]),  // y
-                                static_cast<float>(node.rotation[2])); // z
-                    }
-                    glm::vec3 scale(1.0f);
-                    if (node.scale.size() == 3) {
-                        scale = glm::vec3(node.scale[0], node.scale[1],
-                                          node.scale[2]);
-                    }
-                    localTransform =
-                            glm::translate(glm::mat4(1.0f), translation) *
-                            glm::mat4_cast(rotation) *
-                            glm::scale(glm::mat4(1.0f), scale);
+        glm::mat4 localTransform(1.0f);
+        if (node.matrix.size() == 16) {
+            for (int col = 0; col < 4; ++col) {
+                for (int row = 0; row < 4; ++row) {
+                    localTransform[col][row] = static_cast<float>(node.matrix[col * 4 + row]);
                 }
+            }
+        } else {
+            glm::vec3 translation(0.0f);
+            if (node.translation.size() == 3) {
+                translation =
+                        glm::vec3(node.translation[0], node.translation[1], node.translation[2]);
+            }
+            glm::quat rotation(1.0f, 0.0f, 0.0f, 0.0f);
+            if (node.rotation.size() == 4) {
+                rotation = glm::quat(static_cast<float>(node.rotation[3]),   // w
+                                     static_cast<float>(node.rotation[0]),   // x
+                                     static_cast<float>(node.rotation[1]),   // y
+                                     static_cast<float>(node.rotation[2]));  // z
+            }
+            glm::vec3 scale(1.0f);
+            if (node.scale.size() == 3) {
+                scale = glm::vec3(node.scale[0], node.scale[1], node.scale[2]);
+            }
+            localTransform = glm::translate(glm::mat4(1.0f), translation) *
+                             glm::mat4_cast(rotation) * glm::scale(glm::mat4(1.0f), scale);
+        }
 
-                glm::mat4 currentTransform = parentTransform * localTransform;
+        glm::mat4 currentTransform = parentTransform * localTransform;
 
-                if (node.mesh >= 0 &&
-                    node.mesh < static_cast<int>(model.meshes.size())) {
-                    const tinygltf::Mesh& mesh = model.meshes[node.mesh];
-                    for (const tinygltf::Primitive& primitive :
-                         mesh.primitives) {
-                        processPrimitive(primitive, currentTransform, nodeIdx);
-                    }
-                }
+        if (node.mesh >= 0 && node.mesh < static_cast<int>(model.meshes.size())) {
+            const tinygltf::Mesh& mesh = model.meshes[node.mesh];
+            for (const tinygltf::Primitive& primitive : mesh.primitives) {
+                processPrimitive(primitive, currentTransform, nodeIdx);
+            }
+        }
 
-                for (int childIdx : node.children) {
-                    processNode(childIdx, currentTransform);
-                }
-            };
+        for (int childIdx : node.children) {
+            processNode(childIdx, currentTransform);
+        }
+    };
 
     int activeScene = model.defaultScene >= 0 ? model.defaultScene : 0;
-    if (activeScene >= 0 &&
-        activeScene < static_cast<int>(model.scenes.size())) {
+    if (activeScene >= 0 && activeScene < static_cast<int>(model.scenes.size())) {
         for (int nodeIdx : model.scenes[activeScene].nodes) {
             processNode(nodeIdx, glm::mat4(1.0f));
         }
@@ -952,8 +901,7 @@ std::unique_ptr<MeshSceneObject> MeshSceneObject::loadGltf(Renderer& renderer,
     return result;
 }
 
-std::unique_ptr<MeshSceneObject> MeshSceneObject::load(Renderer& renderer,
-                                                       const char* filename) {
+std::unique_ptr<MeshSceneObject> MeshSceneObject::load(Renderer& renderer, const char* filename) {
     if (!filename) {
         E("%s: Invalid input", __FUNCTION__);
         return nullptr;
@@ -965,8 +913,7 @@ std::unique_ptr<MeshSceneObject> MeshSceneObject::load(Renderer& renderer,
     }
 }
 
-std::unique_ptr<MeshSceneObject> MeshSceneObject::createSphere(
-        Renderer& renderer) {
+std::unique_ptr<MeshSceneObject> MeshSceneObject::createSphere(Renderer& renderer) {
     // Number of segments horizontally and vertically
     const int segments = 64;
 
@@ -1070,11 +1017,13 @@ void MeshSceneObject::setAnimationTime(float timeSec) {
 
         float factor = 0.0f;
         if (k0 != k1 && channel.keyTimes[k1] > channel.keyTimes[k0]) {
-            factor = (animTime - channel.keyTimes[k0]) / (channel.keyTimes[k1] - channel.keyTimes[k0]);
+            factor = (animTime - channel.keyTimes[k0]) /
+                     (channel.keyTimes[k1] - channel.keyTimes[k0]);
         }
 
         if (channel.targetPath == "translation" && !channel.keyTranslations.empty()) {
-            node.translation = glm::mix(channel.keyTranslations[k0], channel.keyTranslations[k1], factor);
+            node.translation =
+                    glm::mix(channel.keyTranslations[k0], channel.keyTranslations[k1], factor);
         } else if (channel.targetPath == "rotation" && !channel.keyRotations.empty()) {
             node.rotation = glm::slerp(channel.keyRotations[k0], channel.keyRotations[k1], factor);
         } else if (channel.targetPath == "scale" && !channel.keyScales.empty()) {
@@ -1084,22 +1033,22 @@ void MeshSceneObject::setAnimationTime(float timeSec) {
 
     // 2. Compute Global Transforms for all nodes
     std::vector<glm::mat4> globalTransforms(nodes.size(), glm::mat4(1.0f));
-    std::function<void(int, const glm::mat4&)> computeGlobal = [&](int nodeIdx, const glm::mat4& parentTransform) {
-        if (nodeIdx < 0 || nodeIdx >= static_cast<int>(nodes.size())) return;
-        const auto& n = nodes[nodeIdx];
-        glm::mat4 local(1.0f);
-        if (n.hasMatrix) {
-            local = n.matrix;
-        } else {
-            local = glm::translate(glm::mat4(1.0f), n.translation) *
-                    glm::mat4_cast(n.rotation) *
-                    glm::scale(glm::mat4(1.0f), n.scale);
-        }
-        globalTransforms[nodeIdx] = parentTransform * local;
-        for (int c : n.children) {
-            computeGlobal(c, globalTransforms[nodeIdx]);
-        }
-    };
+    std::function<void(int, const glm::mat4&)> computeGlobal =
+            [&](int nodeIdx, const glm::mat4& parentTransform) {
+                if (nodeIdx < 0 || nodeIdx >= static_cast<int>(nodes.size())) return;
+                const auto& n = nodes[nodeIdx];
+                glm::mat4 local(1.0f);
+                if (n.hasMatrix) {
+                    local = n.matrix;
+                } else {
+                    local = glm::translate(glm::mat4(1.0f), n.translation) *
+                            glm::mat4_cast(n.rotation) * glm::scale(glm::mat4(1.0f), n.scale);
+                }
+                globalTransforms[nodeIdx] = parentTransform * local;
+                for (int c : n.children) {
+                    computeGlobal(c, globalTransforms[nodeIdx]);
+                }
+            };
 
     for (size_t i = 0; i < nodes.size(); ++i) {
         if (nodes[i].parent == -1) {
@@ -1114,7 +1063,8 @@ void MeshSceneObject::setAnimationTime(float timeSec) {
         skinJointMatrices[s].resize(skin.joints.size());
         for (size_t j = 0; j < skin.joints.size(); ++j) {
             int jointNode = skin.joints[j];
-            glm::mat4 invBind = (j < skin.inverseBindMatrices.size()) ? skin.inverseBindMatrices[j] : glm::mat4(1.0f);
+            glm::mat4 invBind = (j < skin.inverseBindMatrices.size()) ? skin.inverseBindMatrices[j]
+                                                                      : glm::mat4(1.0f);
             if (jointNode >= 0 && jointNode < static_cast<int>(globalTransforms.size())) {
                 skinJointMatrices[s][j] = globalTransforms[jointNode] * invBind;
             } else {
@@ -1148,7 +1098,8 @@ void MeshSceneObject::setAnimationTime(float timeSec) {
             animatedVerts[i].pos = glm::vec3(skinMat * basePos);
         }
 
-        mRenderer.updateMesh(mRenderables[prim.renderableIndex].mesh, animatedVerts.data(), animatedVerts.size());
+        mRenderer.updateMesh(mRenderables[prim.renderableIndex].mesh, animatedVerts.data(),
+                             animatedVerts.size());
     }
 }
 

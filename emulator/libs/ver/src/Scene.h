@@ -20,16 +20,16 @@
  * The Scene container for the Virtual Scene.
  */
 
-#include "PosterSceneObject.h"
-#include "TextureUtils.h"
-#include "raw_image_sources/raw_image_source.h"
-#include "ver/virtual_environment_renderer_types.h"
-
 #include <filesystem>
 #include <memory>
 #include <optional>
 #include <unordered_map>
 #include <vector>
+
+#include "PosterSceneObject.h"
+#include "TextureUtils.h"
+#include "raw_image_sources/raw_image_source.h"
+#include "ver/virtual_environment_renderer_types.h"
 
 namespace android {
 namespace ver {
@@ -46,8 +46,7 @@ struct SceneOverlayObject {
     std::vector<uint8_t> mDataRGBA;
 
     bool isValid() const {
-        return (mWidth > 0) && (mHeight > 0) &&
-               (mDataRGBA.size() == (mWidth * mHeight * 4));
+        return (mWidth > 0) && (mHeight > 0) && (mDataRGBA.size() == (mWidth * mHeight * 4));
     }
 };
 
@@ -55,7 +54,7 @@ class Scene {
     Scene(const Scene& other) = delete;
     Scene& operator=(const Scene& other) = delete;
 
-public:
+  public:
     enum class LoadBehavior { Default, Synchronous };
 
     ~Scene();
@@ -63,14 +62,12 @@ public:
     // Creates a scene instance if the scene was successfully created or
     // null if there was an error.
     static std::unique_ptr<Scene> create(
-            const SceneConfig& config,
-            const std::vector<std::filesystem::path>& resourceBasePaths,
+            const SceneConfig& config, const std::vector<std::filesystem::path>& resourceBasePaths,
             const std::filesystem::path& vulkanBasePath);
 
     // Check if the argument file for the scene config exists
     static bool configArgumentFileExists(
-            const SceneConfig& config,
-            const std::vector<std::filesystem::path>& resourceBasePaths);
+            const SceneConfig& config, const std::vector<std::filesystem::path>& resourceBasePaths);
 
     // Before teardown, release all Renderer resources and SceneObjects.
     bool releaseResources();
@@ -92,8 +89,7 @@ public:
     uint64_t getVersionHashForView(const RendererView* lockedView) const;
 
     // Get the list of RenderableObjects for the current frame.
-    std::vector<RenderableObject> getRenderableObjects(
-            const glm::mat4& viewProjection) const;
+    std::vector<RenderableObject> getRenderableObjects(const glm::mat4& viewProjection) const;
 
     // Create a new poster location.
     //
@@ -112,9 +108,7 @@ public:
     //                  texture will be loaded asynchronously.
     //
     // Returns true on success.
-    bool loadPoster(const char* posterName,
-                    const char* filename,
-                    float scale,
+    bool loadPoster(const char* posterName, const char* filename, float scale,
                     LoadBehavior loadBehavior);
 
     // Update a given poster's scale.  If the poster does not exist, this has
@@ -125,9 +119,7 @@ public:
     //           clamped.
     void updatePosterScale(const char* posterName, float scale);
 
-    const SceneOverlayObject* getOverlayObject() const {
-        return mOverlayObject.get();
-    }
+    const SceneOverlayObject* getOverlayObject() const { return mOverlayObject.get(); }
 
     Renderer* getRenderer() { return mRenderer.get(); }
 
@@ -141,10 +133,9 @@ public:
 
     bool getBoundingBox(glm::vec3* outMin, glm::vec3* outMax) const;
 
-private:
+  private:
     // Private constructor, use Scene::create to create an instance.
-    Scene(const SceneConfig& config,
-          const std::vector<std::filesystem::path>& basePaths,
+    Scene(const SceneConfig& config, const std::vector<std::filesystem::path>& basePaths,
           const std::filesystem::path& vulkanBasePath);
 
     // Load the scene and create SceneObjects.
@@ -159,8 +150,7 @@ private:
 
     // Gets RenderableObjects from a SceneObject.
     static void getRenderableObjectsFromSceneObject(
-            const glm::mat4& viewProjection,
-            const SceneObject* sceneObject,
+            const glm::mat4& viewProjection, const SceneObject* sceneObject,
             std::vector<RenderableObject>& outRenderableObjects);
 
     struct PosterStorage {

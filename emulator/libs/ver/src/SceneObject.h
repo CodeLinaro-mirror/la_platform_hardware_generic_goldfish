@@ -22,10 +22,11 @@
  * MeshSceneObject.
  */
 
-#include "Renderer.h"
+#include <glm/glm.hpp>
 
 #include <limits>
-#include <glm/glm.hpp>
+
+#include "Renderer.h"
 
 namespace android {
 namespace ver {
@@ -34,10 +35,10 @@ class SceneObject {
     SceneObject(const SceneObject& other) = delete;
     SceneObject& operator=(const SceneObject& other) = delete;
 
-protected:
+  protected:
     SceneObject(Renderer& renderer);
 
-public:
+  public:
     virtual ~SceneObject();
 
     // Sets the model transform.
@@ -63,7 +64,7 @@ public:
     // Update object animation for a given time in seconds.
     virtual void setAnimationTime(float timeSec) {}
 
-protected:
+  protected:
     Renderer& mRenderer;
 
     glm::mat4 mTransform = glm::mat4();

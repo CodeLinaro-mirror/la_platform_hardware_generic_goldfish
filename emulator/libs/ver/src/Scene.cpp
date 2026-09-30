@@ -31,15 +31,14 @@
 using android::base::PathUtils;
 using android::base::ScopedStdioFile;
 
-#include "raw_image_sources/image_file/raw_image_file_source.h"
-#include "raw_image_sources/raw_image_source.h"
-#include "raw_image_sources/video_file/raw_video_file_source.h"
-#include "raw_image_sources/webcam/webcam_source.h"
-
 #include "MeshSceneObject.h"
 #include "Renderer.h"
 #include "StreetViewUtils.h"
 #include "TextureUtils.h"
+#include "raw_image_sources/image_file/raw_image_file_source.h"
+#include "raw_image_sources/raw_image_source.h"
+#include "raw_image_sources/video_file/raw_video_file_source.h"
+#include "raw_image_sources/webcam/webcam_source.h"
 
 using namespace android::base;
 using android::ver::StreetViewUtils;
@@ -72,8 +71,7 @@ std::string resolveSceneFilename(const std::string& sceneFilename,
         return fs::absolute(inputPath).string();
     }
 
-    dwarning("Could not resolve environment scene filename '%s'",
-             sceneFilename.c_str());
+    dwarning("Could not resolve environment scene filename '%s'", sceneFilename.c_str());
     return "";
 }
 
@@ -87,12 +85,9 @@ std::unique_ptr<To> static_unique_cast(std::unique_ptr<From>& from) {
 namespace android {
 namespace ver {
 
-Scene::Scene(const SceneConfig& config,
-             const std::vector<std::filesystem::path>& basePaths,
+Scene::Scene(const SceneConfig& config, const std::vector<std::filesystem::path>& basePaths,
              const std::filesystem::path& vulkanBasePath)
-    : mConfig(config),
-      mResourceBasePaths(basePaths),
-      mVulkanBasePath(vulkanBasePath) {
+        : mConfig(config), mResourceBasePaths(basePaths), mVulkanBasePath(vulkanBasePath) {
     D("%s: creating Scene", __func__);
 }
 
@@ -105,10 +100,9 @@ Scene::~Scene() {
     mRenderer.reset();
 }
 
-std::unique_ptr<Scene> Scene::create(
-        const SceneConfig& config,
-        const std::vector<fs::path>& resourceBasePaths,
-        const std::filesystem::path& vulkanBasePath) {
+std::unique_ptr<Scene> Scene::create(const SceneConfig& config,
+                                     const std::vector<fs::path>& resourceBasePaths,
+                                     const std::filesystem::path& vulkanBasePath) {
     std::unique_ptr<Scene> scene;
     scene.reset(new Scene(config, resourceBasePaths, vulkanBasePath));
     if (!scene->initialize()) {
@@ -118,9 +112,8 @@ std::unique_ptr<Scene> Scene::create(
     return scene;
 }
 
-bool Scene::configArgumentFileExists(
-        const SceneConfig& config,
-        const std::vector<fs::path>& resourceBasePaths) {
+bool Scene::configArgumentFileExists(const SceneConfig& config,
+                                     const std::vector<fs::path>& resourceBasePaths) {
     if (config.mSceneMode == SceneConfig::Mode::Color ||
         config.mSceneMode == SceneConfig::Mode::StreetView) {
         // Argument is not a file, or resolved dynamically
@@ -129,11 +122,9 @@ bool Scene::configArgumentFileExists(
     if (config.mSceneMode == SceneConfig::Mode::Webcam) {
         return !WebcamSource::ResolveWebcamId(config.mArgument).empty();
     }
-    auto sceneFilename =
-            resolveSceneFilename(config.mArgument, resourceBasePaths);
+    auto sceneFilename = resolveSceneFilename(config.mArgument, resourceBasePaths);
     if (sceneFilename.empty()) {
-        dprint("%s: Invalid scene argument: %s", __func__,
-               config.mArgument.c_str());
+        dprint("%s: Invalid scene argument: %s", __func__, config.mArgument.c_str());
         return false;
     }
     return true;
@@ -148,10 +139,8 @@ bool Scene::initialize() {
     // Find and validate the input file parameter, call configArgumentFileExists
     // to avoid or handle this case earlier.
     std::string sceneFilename;
-    if (sceneMode != SceneConfig::Mode::Color &&
-        sceneMode != SceneConfig::Mode::Webcam &&
+    if (sceneMode != SceneConfig::Mode::Color && sceneMode != SceneConfig::Mode::Webcam &&
         sceneMode != SceneConfig::Mode::StreetView) {
-
         if (sceneMode == SceneConfig::Mode::Video360) {
             // Check if the feature is enabled:
             const std::string video360FeatureVar =
@@ -163,11 +152,9 @@ bool Scene::initialize() {
             }
         }
 
-        sceneFilename =
-                resolveSceneFilename(mConfig.mArgument, mResourceBasePaths);
+        sceneFilename = resolveSceneFilename(mConfig.mArgument, mResourceBasePaths);
         if (sceneFilename.empty()) {
-            derror("%s: Invalid scene argument: %s", __func__,
-                   mConfig.mArgument.c_str());
+            derror("%s: Invalid scene argument: %s", __func__, mConfig.mArgument.c_str());
             return false;
         }
     } else if (sceneMode == SceneConfig::Mode::StreetView) {
@@ -180,20 +167,19 @@ bool Scene::initialize() {
             return false;
         }
 
-        std::string envImage =
-                System::Get()->EnvGet("ANDROID_EMU_STREETVIEW_IMAGE_PATH");
+        std::string envImage = System::Get()->EnvGet("ANDROID_EMU_STREETVIEW_IMAGE_PATH");
         if (!envImage.empty()) {
             // For tests, a local test image will be provided via env variable
-            std::string filename =
-                    resolveSceneFilename(envImage, mResourceBasePaths);
+            std::string filename = resolveSceneFilename(envImage, mResourceBasePaths);
             if (!filename.empty()) {
-                dprint("StreetView: using environment variable image: %s -> %s",
-                       envImage.c_str(), filename.c_str());
-                mStreetViewImageResult = TextureUtils::load(
-                        filename.c_str(), TextureUtils::Orientation::OpenGL);
+                dprint("StreetView: using environment variable image: %s -> %s", envImage.c_str(),
+                       filename.c_str());
+                mStreetViewImageResult =
+                        TextureUtils::load(filename.c_str(), TextureUtils::Orientation::OpenGL);
             } else {
                 dwarning(
-                        "StreetView: environment variable specified '%s' but could not resolve file",
+                        "StreetView: environment variable specified '%s' but could not resolve "
+                        "file",
                         envImage.c_str());
             }
         }
@@ -203,36 +189,32 @@ bool Scene::initialize() {
             double latitude = 51.4816;
             double longitude = 0;
 
-            std::string rawMapsKey =
-                    System::Get()->EnvGet("ANDROID_EMU_MAPS_KEY");
+            std::string rawMapsKey = System::Get()->EnvGet("ANDROID_EMU_MAPS_KEY");
             std::string mapsKey = android::base::trim(rawMapsKey);
 
             // 1. Try to fetch and stitch 360 tiles via Map Tiles API
-            mStreetViewImageResult = StreetViewUtils::fetch360Panorama(
-                    latitude, longitude, mapsKey);
+            mStreetViewImageResult =
+                    StreetViewUtils::fetch360Panorama(latitude, longitude, mapsKey);
 
             // 2. Fall back to static Street View request if tile stitching
             // failed
             if (!mStreetViewImageResult) {
                 dprint("StreetView: tile stitching unavailable, falling back to static request");
-                mStreetViewImageResult = StreetViewUtils::downloadStaticImage(
-                        latitude, longitude, mapsKey);
+                mStreetViewImageResult =
+                        StreetViewUtils::downloadStaticImage(latitude, longitude, mapsKey);
             }
 
             // 3. Fall back to default local file if network downloads failed
             if (!mStreetViewImageResult) {
                 std::string filename = resolveSceneFilename(
-                        SceneConfig::defaultArgumentForMode(
-                                SceneConfig::Mode::StreetView),
+                        SceneConfig::defaultArgumentForMode(SceneConfig::Mode::StreetView),
                         mResourceBasePaths);
                 if (!filename.empty()) {
                     dprint("StreetView: falling back to %s: %s",
-                           SceneConfig::defaultArgumentForMode(
-                                   SceneConfig::Mode::StreetView),
+                           SceneConfig::defaultArgumentForMode(SceneConfig::Mode::StreetView),
                            filename.c_str());
-                    mStreetViewImageResult = TextureUtils::load(
-                            filename.c_str(),
-                            TextureUtils::Orientation::OpenGL);
+                    mStreetViewImageResult =
+                            TextureUtils::load(filename.c_str(), TextureUtils::Orientation::OpenGL);
                 } else {
                     derror("StreetView: could not find fallback file");
                     return false;
@@ -240,8 +222,7 @@ bool Scene::initialize() {
             }
         }
 
-        if (!mStreetViewImageResult ||
-            mStreetViewImageResult->mBuffer.empty()) {
+        if (!mStreetViewImageResult || mStreetViewImageResult->mBuffer.empty()) {
             derror("StreetView: could not load streetview image");
             return false;
         }
@@ -253,8 +234,7 @@ bool Scene::initialize() {
             const uint8_t* src = mStreetViewImageResult->mBuffer.data();
             for (uint32_t y = 0; y < mStreetViewImageResult->mHeight; ++y) {
                 const uint8_t* srcRow = src + y * srcStride;
-                uint8_t* dstRow =
-                        rgba.data() + y * mStreetViewImageResult->mWidth * 4;
+                uint8_t* dstRow = rgba.data() + y * mStreetViewImageResult->mWidth * 4;
                 for (uint32_t x = 0; x < mStreetViewImageResult->mWidth; ++x) {
                     dstRow[x * 4 + 0] = srcRow[x * 3 + 0];
                     dstRow[x * 4 + 1] = srcRow[x * 3 + 1];
@@ -268,104 +248,96 @@ bool Scene::initialize() {
     }
 
     switch (sceneMode) {
-        case SceneConfig::Mode::Unknown: {
-            derror("%s: Unknown scene mode!", __func__);
+    case SceneConfig::Mode::Unknown: {
+        derror("%s: Unknown scene mode!", __func__);
+        return false;
+    } break;
+    case SceneConfig::Mode::Mesh3D: {
+        // Just check if the obj file is valid, the object addition is
+        // handled in loadRendererResources
+        // TODO(virtualscene-perf): initialize renderer early and avoid
+        // loading content twice
+        if (!MeshSceneObject::canLoad(sceneFilename.c_str())) {
+            derror("%s: Could not load scene object: %s", __func__, sceneFilename.c_str());
             return false;
-        } break;
-        case SceneConfig::Mode::Mesh3D: {
-            // Just check if the obj file is valid, the object addition is
-            // handled in loadRendererResources
-            // TODO(virtualscene-perf): initialize renderer early and avoid
-            // loading content twice
-            if (!MeshSceneObject::canLoad(sceneFilename.c_str())) {
-                derror("%s: Could not load scene object: %s", __func__,
-                       sceneFilename.c_str());
-                return false;
-            }
+        }
 
-            // TODO(virtualscene) The virtual scene by default renders the
-            // image rotated 90 degrees
-            mBaseRotation = 90;
-        } break;
-        case SceneConfig::Mode::VideoFile: {
-            mRawImageSource = RawVideofileSource::Create(sceneFilename);
-            if (!mRawImageSource) {
-                derror("%s: Could not load video file: '%s'", __func__,
-                       mConfig.mArgument.c_str());
-                return false;
-            }
-        } break;
-        case SceneConfig::Mode::ImageFile: {
-            mRawImageSource = RawImageFileSource::Create(sceneFilename);
-            if (!mRawImageSource) {
-                derror("%s: Could not load image file: '%s'", __func__,
-                       mConfig.mArgument.c_str());
-                return false;
-            }
-        } break;
-        case SceneConfig::Mode::Color: {
-            unsigned int r, g, b;
-            if (sscanf(mConfig.mArgument.c_str(), "#%02x%02x%02x", &r, &g,
-                       &b) != 3) {
-                derror("%s: Could not parse color: %s", __func__,
-                       mConfig.mArgument.c_str());
-                return false;
-            }
+        // TODO(virtualscene) The virtual scene by default renders the
+        // image rotated 90 degrees
+        mBaseRotation = 90;
+    } break;
+    case SceneConfig::Mode::VideoFile: {
+        mRawImageSource = RawVideofileSource::Create(sceneFilename);
+        if (!mRawImageSource) {
+            derror("%s: Could not load video file: '%s'", __func__, mConfig.mArgument.c_str());
+            return false;
+        }
+    } break;
+    case SceneConfig::Mode::ImageFile: {
+        mRawImageSource = RawImageFileSource::Create(sceneFilename);
+        if (!mRawImageSource) {
+            derror("%s: Could not load image file: '%s'", __func__, mConfig.mArgument.c_str());
+            return false;
+        }
+    } break;
+    case SceneConfig::Mode::Color: {
+        unsigned int r, g, b;
+        if (sscanf(mConfig.mArgument.c_str(), "#%02x%02x%02x", &r, &g, &b) != 3) {
+            derror("%s: Could not parse color: %s", __func__, mConfig.mArgument.c_str());
+            return false;
+        }
 
-            mRawImageSource = std::make_unique<SolidColorImageSource>(
-                    Color{(uint8_t)r, (uint8_t)g, (uint8_t)b});
-        } break;
-        case SceneConfig::Mode::Webcam: {
-            std::string resolvedId =
-                    WebcamSource::ResolveWebcamId(mConfig.mArgument);
-            if (resolvedId.empty()) {
-                derror("%s: Could not resolve webcam argument: '%s'", __func__,
-                       mConfig.mArgument.c_str());
-                return false;
-            }
-            mRawImageSource = WebcamSource::Create(resolvedId);
-            if (!mRawImageSource) {
-                derror("%s: Could not load webcam: '%s' (resolved: '%s')",
-                       __func__, mConfig.mArgument.c_str(), resolvedId.c_str());
-                return false;
-            }
-        } break;
-        case SceneConfig::Mode::Image360: {
-            // Check if the texture file is valid to be able to return error
-            // back to the caller, the object addition is handled in
-            // loadRendererResources
-            // TODO(virtualscene-perf): initialize renderer early and avoid
-            // loading content twice
-            auto result = TextureUtils::load(sceneFilename.c_str());
-            if (!result) {
-                E("%s: Could not load texture from file '%s'", __func__,
-                  sceneFilename.c_str());
-                return false;
-            }
+        mRawImageSource =
+                std::make_unique<SolidColorImageSource>(Color{(uint8_t)r, (uint8_t)g, (uint8_t)b});
+    } break;
+    case SceneConfig::Mode::Webcam: {
+        std::string resolvedId = WebcamSource::ResolveWebcamId(mConfig.mArgument);
+        if (resolvedId.empty()) {
+            derror("%s: Could not resolve webcam argument: '%s'", __func__,
+                   mConfig.mArgument.c_str());
+            return false;
+        }
+        mRawImageSource = WebcamSource::Create(resolvedId);
+        if (!mRawImageSource) {
+            derror("%s: Could not load webcam: '%s' (resolved: '%s')", __func__,
+                   mConfig.mArgument.c_str(), resolvedId.c_str());
+            return false;
+        }
+    } break;
+    case SceneConfig::Mode::Image360: {
+        // Check if the texture file is valid to be able to return error
+        // back to the caller, the object addition is handled in
+        // loadRendererResources
+        // TODO(virtualscene-perf): initialize renderer early and avoid
+        // loading content twice
+        auto result = TextureUtils::load(sceneFilename.c_str());
+        if (!result) {
+            E("%s: Could not load texture from file '%s'", __func__, sceneFilename.c_str());
+            return false;
+        }
 
-            // TODO(virtualscene) The virtual scene by default renders the
-            // image rotated 90 degrees
-            mBaseRotation = 90;
-        } break;
-        case SceneConfig::Mode::StreetView: {
-            if (!mStreetViewImageResult ||
-                mStreetViewImageResult->mBuffer.empty()) {
-                E("%s: Could not load StreetView image data", __func__);
-                return false;
-            }
-            mBaseRotation = 90;
-        } break;
-        case SceneConfig::Mode::Video360: {
-            mRawImageSource = RawVideofileSource::Create(sceneFilename);
-            if (!mRawImageSource) {
-                derror("%s: Could not load video file for video360: '%s'",
-                       __func__, mConfig.mArgument.c_str());
-                return false;
-            }
-            mBaseRotation = 90;
-        } break;
-        default:
-            dwarning("%s: Unhandled scene mode %d", __func__, (int)sceneMode);
+        // TODO(virtualscene) The virtual scene by default renders the
+        // image rotated 90 degrees
+        mBaseRotation = 90;
+    } break;
+    case SceneConfig::Mode::StreetView: {
+        if (!mStreetViewImageResult || mStreetViewImageResult->mBuffer.empty()) {
+            E("%s: Could not load StreetView image data", __func__);
+            return false;
+        }
+        mBaseRotation = 90;
+    } break;
+    case SceneConfig::Mode::Video360: {
+        mRawImageSource = RawVideofileSource::Create(sceneFilename);
+        if (!mRawImageSource) {
+            derror("%s: Could not load video file for video360: '%s'", __func__,
+                   mConfig.mArgument.c_str());
+            return false;
+        }
+        mBaseRotation = 90;
+    } break;
+    default:
+        dwarning("%s: Unhandled scene mode %d", __func__, (int)sceneMode);
     }
 
     if (mRawImageSource) {
@@ -417,76 +389,68 @@ bool Scene::loadRendererResources() {
 
     // Find the file, in case it's given as a local path
     std::string sceneFilename;
-    if (sceneMode != SceneConfig::Mode::Color &&
-        sceneMode != SceneConfig::Mode::StreetView) {
-        sceneFilename =
-                resolveSceneFilename(mConfig.mArgument, mResourceBasePaths);
+    if (sceneMode != SceneConfig::Mode::Color && sceneMode != SceneConfig::Mode::StreetView) {
+        sceneFilename = resolveSceneFilename(mConfig.mArgument, mResourceBasePaths);
         if (sceneFilename.empty()) {
-            E("%s: Cannot find file '%s'", __FUNCTION__,
-              mConfig.mArgument.c_str());
+            E("%s: Cannot find file '%s'", __FUNCTION__, mConfig.mArgument.c_str());
             return false;
         }
     }
 
     switch (sceneMode) {
-        case SceneConfig::Mode::Mesh3D: {
-            std::unique_ptr<MeshSceneObject> sceneObject =
-                    MeshSceneObject::load(*mRenderer, sceneFilename.c_str());
-            if (!sceneObject) {
-                derror("%s: Could not load scene object: %s", __func__,
-                       sceneFilename.c_str());
-                return false;
-            }
+    case SceneConfig::Mode::Mesh3D: {
+        std::unique_ptr<MeshSceneObject> sceneObject =
+                MeshSceneObject::load(*mRenderer, sceneFilename.c_str());
+        if (!sceneObject) {
+            derror("%s: Could not load scene object: %s", __func__, sceneFilename.c_str());
+            return false;
+        }
 
-            mSceneObjects.push_back(std::move(sceneObject));
-        } break;
-        case SceneConfig::Mode::Image360: {
-            std::unique_ptr<MeshSceneObject> photoSphereObject =
-                    MeshSceneObject::createSphere(*mRenderer);
+        mSceneObjects.push_back(std::move(sceneObject));
+    } break;
+    case SceneConfig::Mode::Image360: {
+        std::unique_ptr<MeshSceneObject> photoSphereObject =
+                MeshSceneObject::createSphere(*mRenderer);
+        Texture sceneTexture = mRenderer->loadTexture(sceneFilename.c_str());
+        if (sceneTexture.isValid()) {
+            photoSphereObject->setTexture(0, sceneTexture);
+            mRenderer->releaseTexture(sceneTexture);
+        }
+        mSceneObjects.push_back(std::move(photoSphereObject));
+    } break;
+    case SceneConfig::Mode::StreetView: {
+        if (!mStreetViewImageResult || mStreetViewImageResult->mBuffer.empty()) {
+            E("%s: StreetView image data is missing", __FUNCTION__);
+            return false;
+        }
+        std::unique_ptr<MeshSceneObject> photoSphereObject =
+                MeshSceneObject::createSphere(*mRenderer);
+        Texture sceneTexture = mRenderer->createTextureRGBA(mStreetViewImageResult->mBuffer.data(),
+                                                            mStreetViewImageResult->mWidth,
+                                                            mStreetViewImageResult->mHeight);
+        if (sceneTexture.isValid()) {
+            photoSphereObject->setTexture(0, sceneTexture);
+            mRenderer->releaseTexture(sceneTexture);
+        }
+        mSceneObjects.push_back(std::move(photoSphereObject));
+    } break;
+    case SceneConfig::Mode::Video360: {
+        std::unique_ptr<MeshSceneObject> photoSphereObject =
+                MeshSceneObject::createSphere(*mRenderer);
+        if (mOverlayObject && mOverlayObject->isValid()) {
             Texture sceneTexture =
-                    mRenderer->loadTexture(sceneFilename.c_str());
+                    mRenderer->createTextureRGBA(mOverlayObject->mDataRGBA.data(),
+                                                 mOverlayObject->mWidth, mOverlayObject->mHeight);
             if (sceneTexture.isValid()) {
                 photoSphereObject->setTexture(0, sceneTexture);
                 mRenderer->releaseTexture(sceneTexture);
+                mVideo360TextureToken = mRawImageSourceToken;
             }
-            mSceneObjects.push_back(std::move(photoSphereObject));
-        } break;
-        case SceneConfig::Mode::StreetView: {
-            if (!mStreetViewImageResult ||
-                mStreetViewImageResult->mBuffer.empty()) {
-                E("%s: StreetView image data is missing", __FUNCTION__);
-                return false;
-            }
-            std::unique_ptr<MeshSceneObject> photoSphereObject =
-                    MeshSceneObject::createSphere(*mRenderer);
-            Texture sceneTexture = mRenderer->createTextureRGBA(
-                    mStreetViewImageResult->mBuffer.data(),
-                    mStreetViewImageResult->mWidth,
-                    mStreetViewImageResult->mHeight);
-            if (sceneTexture.isValid()) {
-                photoSphereObject->setTexture(0, sceneTexture);
-                mRenderer->releaseTexture(sceneTexture);
-            }
-            mSceneObjects.push_back(std::move(photoSphereObject));
-        } break;
-        case SceneConfig::Mode::Video360: {
-            std::unique_ptr<MeshSceneObject> photoSphereObject =
-                    MeshSceneObject::createSphere(*mRenderer);
-            if (mOverlayObject && mOverlayObject->isValid()) {
-                Texture sceneTexture = mRenderer->createTextureRGBA(
-                        mOverlayObject->mDataRGBA.data(),
-                        mOverlayObject->mWidth,
-                        mOverlayObject->mHeight);
-                if (sceneTexture.isValid()) {
-                    photoSphereObject->setTexture(0, sceneTexture);
-                    mRenderer->releaseTexture(sceneTexture);
-                    mVideo360TextureToken = mRawImageSourceToken;
-                }
-            }
-            mSceneObjects.push_back(std::move(photoSphereObject));
-        } break;
-        default:
-            break;
+        }
+        mSceneObjects.push_back(std::move(photoSphereObject));
+    } break;
+    default:
+        break;
     }
 
     mObjectsVersion++;
@@ -498,18 +462,15 @@ void Scene::updateVideo360Texture() {
     if (mConfig.mSceneMode != SceneConfig::Mode::Video360) {
         return;
     }
-    if (mVideo360TextureToken.has_value() &&
-        mRawImageSourceToken.has_value() &&
+    if (mVideo360TextureToken.has_value() && mRawImageSourceToken.has_value() &&
         mVideo360TextureToken->token == mRawImageSourceToken->token) {
         return;
     }
-    if (!mRenderer || mSceneObjects.empty() || !mOverlayObject ||
-        !mOverlayObject->isValid()) {
+    if (!mRenderer || mSceneObjects.empty() || !mOverlayObject || !mOverlayObject->isValid()) {
         return;
     }
     Texture sceneTexture = mRenderer->createTextureRGBA(
-            mOverlayObject->mDataRGBA.data(), mOverlayObject->mWidth,
-            mOverlayObject->mHeight);
+            mOverlayObject->mDataRGBA.data(), mOverlayObject->mWidth, mOverlayObject->mHeight);
     if (sceneTexture.isValid()) {
         mSceneObjects[0]->setTexture(0, sceneTexture);
         mRenderer->releaseTexture(sceneTexture);
@@ -574,16 +535,14 @@ void Scene::update(bool updateTime) {
 
     if (mRawImageSource) {
         auto res = mRawImageSource->UpdateImage(
-                mFrameTimeUs, mRawImageSourceToken,
-                [&](const RawImageBufferView* buffer) {
+                mFrameTimeUs, mRawImageSourceToken, [&](const RawImageBufferView* buffer) {
                     if (buffer->pixel_format != VerImageFormat::RGBA8) {
-                        return absl::InvalidArgumentError(absl::StrFormat(
-                                "Unsupported pixel format from image source: %d",
-                                (int)(buffer->pixel_format)));
+                        return absl::InvalidArgumentError(
+                                absl::StrFormat("Unsupported pixel format from image source: %d",
+                                                (int)(buffer->pixel_format)));
                     }
 
-                    if (mOverlayObject->mDataRGBA.size() <
-                        buffer->buffer_size) {
+                    if (mOverlayObject->mDataRGBA.size() < buffer->buffer_size) {
                         mOverlayObject->mDataRGBA.resize(buffer->buffer_size);
                         mOverlayObject->mWidth = buffer->width;
                         mOverlayObject->mHeight = buffer->height;
@@ -601,19 +560,16 @@ void Scene::update(bool updateTime) {
                             const size_t srcRow = ((buffer->height - 1) - row);
 
                             for (size_t col = 0; col < buffer->width; col++) {
-                                const size_t dstStart =
-                                        (dstRow * buffer->width + col) * 4;
-                                const size_t srcStart =
-                                        (srcRow * buffer->width + col) * 4;
+                                const size_t dstStart = (dstRow * buffer->width + col) * 4;
+                                const size_t srcStart = (srcRow * buffer->width + col) * 4;
                                 for (int channel = 0; channel < 4; channel++) {
-                                    dstRGBA[dstStart + channel] =
-                                            srcRGBA[srcStart + channel];
+                                    dstRGBA[dstStart + channel] = srcRGBA[srcStart + channel];
                                 }
                             }
                         }
                     } else {
-                        std::memcpy(mOverlayObject->mDataRGBA.data(),
-                                    buffer->buffer, buffer->buffer_size);
+                        std::memcpy(mOverlayObject->mDataRGBA.data(), buffer->buffer,
+                                    buffer->buffer_size);
                     }
                     return absl::OkStatus();
                 });
@@ -623,8 +579,7 @@ void Scene::update(bool updateTime) {
                 mObjectsVersion++;
             }
         } else {
-            E("Failed to Update Image Source: %s",
-              std::string(res.status().message()).c_str());
+            E("Failed to Update Image Source: %s", std::string(res.status().message()).c_str());
         }
     }
 }
@@ -634,29 +589,25 @@ void Scene::setFrameTimeUs(uint64_t timeUs) {
     mStartTimeUs = System::Get()->GetUnixTimeUs() - mFrameTimeUs;
 }
 
-uint64_t Scene::getVersionHashForView(
-        const RendererView* /*lockedView*/) const {
+uint64_t Scene::getVersionHashForView(const RendererView* /*lockedView*/) const {
     const uint64_t sceneHash = reinterpret_cast<uint64_t>(this);
     // TODO(virtualscene-perf): check if the objects inside the view frustum
     // includes any changes/animations
     return (mObjectsVersion ^ sceneHash);
 }
 
-std::vector<RenderableObject> Scene::getRenderableObjects(
-        const glm::mat4& viewProjection) const {
+std::vector<RenderableObject> Scene::getRenderableObjects(const glm::mat4& viewProjection) const {
     // TODO(virtualscene): optimize video image upload
     const_cast<Scene*>(this)->updateVideo360Texture();
     std::vector<RenderableObject> renderables;
 
     for (auto& sceneObject : mSceneObjects) {
-        getRenderableObjectsFromSceneObject(viewProjection, sceneObject.get(),
-                                            renderables);
+        getRenderableObjectsFromSceneObject(viewProjection, sceneObject.get(), renderables);
     }
 
     for (auto& poster : mPosters) {
         if (poster.second.sceneObject) {
-            getRenderableObjectsFromSceneObject(viewProjection,
-                                                poster.second.sceneObject.get(),
+            getRenderableObjectsFromSceneObject(viewProjection, poster.second.sceneObject.get(),
                                                 renderables);
         }
     }
@@ -673,18 +624,15 @@ bool Scene::createPosterLocation(const PosterInfo& info) {
         return false;
     }
     PosterStorage storage;
-    storage.sceneObject =
-            PosterSceneObject::create(*mRenderer, info.position, info.rotation,
-                                      kPosterMinimumSizeMeters, info.size);
+    storage.sceneObject = PosterSceneObject::create(*mRenderer, info.position, info.rotation,
+                                                    kPosterMinimumSizeMeters, info.size);
     if (!storage.sceneObject) {
-        W("%s: Failed to create poster scene object %s.", __FUNCTION__,
-          info.name.c_str());
+        W("%s: Failed to create poster scene object %s.", __FUNCTION__, info.name.c_str());
         return false;
     }
 
     if (!info.defaultFilename.empty()) {
-        storage.defaultTexture =
-                mRenderer->loadTextureAsync(info.defaultFilename.c_str());
+        storage.defaultTexture = mRenderer->loadTextureAsync(info.defaultFilename.c_str());
         storage.sceneObject->setTexture(0, storage.defaultTexture);
     }
 
@@ -692,9 +640,7 @@ bool Scene::createPosterLocation(const PosterInfo& info) {
     return true;
 }
 
-bool Scene::loadPoster(const char* posterName,
-                       const char* filename,
-                       float scale,
+bool Scene::loadPoster(const char* posterName, const char* filename, float scale,
                        LoadBehavior loadBehavior) {
     auto it = mPosters.find(posterName);
     if (it == mPosters.end()) {
@@ -717,9 +663,8 @@ bool Scene::loadPoster(const char* posterName,
     }
 
     poster.sceneObject->setScale(scale);
-    poster.sceneObject->setTexture(0, poster.texture.isValid()
-                                              ? poster.texture
-                                              : poster.defaultTexture);
+    poster.sceneObject->setTexture(
+            0, poster.texture.isValid() ? poster.texture : poster.defaultTexture);
 
     mObjectsVersion++;
 
@@ -740,8 +685,7 @@ void Scene::updatePosterScale(const char* posterName, float scale) {
 }
 
 void Scene::getRenderableObjectsFromSceneObject(
-        const glm::mat4& viewProjection,
-        const SceneObject* sceneObject,
+        const glm::mat4& viewProjection, const SceneObject* sceneObject,
         std::vector<RenderableObject>& outRenderableObjects) {
     if (sceneObject->isVisible()) {
         const glm::mat4 mvp = viewProjection * sceneObject->getTransform();
@@ -789,8 +733,7 @@ bool Scene::getBoundingBox(glm::vec3* outMin, glm::vec3* outMax) const {
     bool hasBounds = false;
 
     for (const auto& obj : mSceneObjects) {
-        if (!obj || !obj->isVisible())
-            continue;
+        if (!obj || !obj->isVisible()) continue;
         glm::vec3 objMin, objMax;
         if (obj->getBoundingBox(&objMin, &objMax)) {
             minP = glm::min(minP, objMin);

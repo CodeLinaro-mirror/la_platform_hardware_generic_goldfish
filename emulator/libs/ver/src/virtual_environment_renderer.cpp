@@ -14,25 +14,24 @@
  * limitations under the License.
  */
 
+#include "ver/virtual_environment_renderer.h"
+
+#include <glm/gtc/matrix_transform.hpp>
 #include <stddef.h>
+
 #include <algorithm>
 #include <cmath>
 #include <fstream>
 #include <memory>
 #include <vector>
 
-#include "aemu/base/files/PathUtils.h"
-#include "android/base/system.h"
-
 #include "Renderer.h"
 #include "Scene.h"
 #include "ScenesManager.h"
 #include "TextureUtils.h"
-
+#include "aemu/base/files/PathUtils.h"
+#include "android/base/system.h"
 #include "raw_image_sources/webcam/webcam_source.h"
-#include "ver/virtual_environment_renderer.h"
-
-#include <glm/gtc/matrix_transform.hpp>
 
 namespace android {
 namespace ver {
@@ -46,14 +45,12 @@ std::filesystem::path ScenesManager::mVulkanBasePath;
 android::base::StaticLock ScenesManager::mViewsLock;
 std::vector<std::unique_ptr<RendererView>> ScenesManager::mViews;
 
-void ScenesManager::setSearchPaths(
-        const std::vector<std::filesystem::path>& resourceSearchPaths) {
+void ScenesManager::setSearchPaths(const std::vector<std::filesystem::path>& resourceSearchPaths) {
     android::base::AutoLock lock(mScenesLock);
     mResourceSearchPaths = resourceSearchPaths;
 }
 
-void ScenesManager::setVulkanBasePath(
-        const std::filesystem::path& vulkanBasePath) {
+void ScenesManager::setVulkanBasePath(const std::filesystem::path& vulkanBasePath) {
     android::base::AutoLock lock(mScenesLock);
     mVulkanBasePath = vulkanBasePath;
 }
@@ -70,11 +67,9 @@ Scene* ScenesManager::createScene(const SceneConfig& config) {
     }
 
     dinfo("Initializing a scene with mode: %s, argument: %s",
-          SceneConfig::modeToString(config.mSceneMode),
-          config.mArgument.c_str());
+          SceneConfig::modeToString(config.mSceneMode), config.mArgument.c_str());
 
-    std::unique_ptr<Scene> scene =
-            Scene::create(config, mResourceSearchPaths, mVulkanBasePath);
+    std::unique_ptr<Scene> scene = Scene::create(config, mResourceSearchPaths, mVulkanBasePath);
     if (!scene) {
         derror("%s: scene failed to load", __func__);
         return nullptr;
@@ -87,10 +82,8 @@ Scene* ScenesManager::createScene(const SceneConfig& config) {
     return rawPtr;
 }
 
-bool ScenesManager::renderView(Scene* scene,
-                               RendererView* view,
-                               std::function<void()> finishCallback,
-                               uint64_t* outFrameTime) {
+bool ScenesManager::renderView(Scene* scene, RendererView* view,
+                               std::function<void()> finishCallback, uint64_t* outFrameTime) {
     if (!scene || !view) {
         derror("%s: invalid parameters", __func__);
         return false;
@@ -135,45 +128,41 @@ bool ScenesManager::renderView(Scene* scene,
     view->preRenderLocked();
 
     switch (mode) {
-        case SceneConfig::Mode::Mesh3D:
-        case SceneConfig::Mode::Image360:
-        case SceneConfig::Mode::StreetView:
-        case SceneConfig::Mode::Video360: {
-            const auto renderables =
-                    scene->getRenderableObjects(view->mViewProjection);
-            if (!renderer || !renderer->render(view, renderables, renderTime)) {
-                derror("Scene rendering failed");
-                return false;
-            }
-        } break;
-        case SceneConfig::Mode::ImageFile:
-        case SceneConfig::Mode::VideoFile:
-        case SceneConfig::Mode::Color:
-        case SceneConfig::Mode::Webcam: {
-            const SceneOverlayObject* overlay = scene->getOverlayObject();
-            if (!overlay || !overlay->isValid()) {
-                derror("Scene rendering failed");
-                return false;
-            }
-            std::vector<uint8_t>& fbData = view->getFramebufferLocked();
-
-            ImageScaler scaler(view->getWidthLocked(), view->getHeightLocked(),
-                               fbData.data());
-            auto scaleMode = ImageScaler::ScaleMode::AspectFitZoom;
-            if (overlay->mWidth == 1 && overlay->mHeight == 1) {
-                scaleMode = ImageScaler::ScaleMode::ScaleToFill;
-            }
-            if (!scaler.updateImage(overlay->mWidth, overlay->mHeight,
-                                    overlay->mDataRGBA.data(), scaleMode)) {
-                derror("%s: Failed to resize the framebuffer for the view",
-                       __FUNCTION__);
-                return false;
-            }
-        } break;
-        default: {
-            derror("%s: Unknown scene mode: %d", __FUNCTION__,
-                   static_cast<int>(mode));
+    case SceneConfig::Mode::Mesh3D:
+    case SceneConfig::Mode::Image360:
+    case SceneConfig::Mode::StreetView:
+    case SceneConfig::Mode::Video360: {
+        const auto renderables = scene->getRenderableObjects(view->mViewProjection);
+        if (!renderer || !renderer->render(view, renderables, renderTime)) {
+            derror("Scene rendering failed");
+            return false;
         }
+    } break;
+    case SceneConfig::Mode::ImageFile:
+    case SceneConfig::Mode::VideoFile:
+    case SceneConfig::Mode::Color:
+    case SceneConfig::Mode::Webcam: {
+        const SceneOverlayObject* overlay = scene->getOverlayObject();
+        if (!overlay || !overlay->isValid()) {
+            derror("Scene rendering failed");
+            return false;
+        }
+        std::vector<uint8_t>& fbData = view->getFramebufferLocked();
+
+        ImageScaler scaler(view->getWidthLocked(), view->getHeightLocked(), fbData.data());
+        auto scaleMode = ImageScaler::ScaleMode::AspectFitZoom;
+        if (overlay->mWidth == 1 && overlay->mHeight == 1) {
+            scaleMode = ImageScaler::ScaleMode::ScaleToFill;
+        }
+        if (!scaler.updateImage(overlay->mWidth, overlay->mHeight, overlay->mDataRGBA.data(),
+                                scaleMode)) {
+            derror("%s: Failed to resize the framebuffer for the view", __FUNCTION__);
+            return false;
+        }
+    } break;
+    default: {
+        derror("%s: Unknown scene mode: %d", __FUNCTION__, static_cast<int>(mode));
+    }
     }
 
     view->postRenderLocked();
@@ -194,9 +183,8 @@ bool ScenesManager::removeScene(Scene* scene) {
     android::base::AutoLock lock(mScenesLock);
     scene->releaseResources();
 
-    auto it = std::find_if(
-            mScenes.begin(), mScenes.end(),
-            [scene](const auto& entry) { return entry.get() == scene; });
+    auto it = std::find_if(mScenes.begin(), mScenes.end(),
+                           [scene](const auto& entry) { return entry.get() == scene; });
 
     if (it != mScenes.end()) {
         mScenes.erase(it);
@@ -225,9 +213,8 @@ bool ScenesManager::removeView(RendererView* view) {
     dinfo("%s: view=%p", __func__, view);
 
     android::base::AutoLock lock(mViewsLock);
-    auto it = std::find_if(
-            mViews.begin(), mViews.end(),
-            [view](const auto& entry) { return entry.get() == view; });
+    auto it = std::find_if(mViews.begin(), mViews.end(),
+                           [view](const auto& entry) { return entry.get() == view; });
 
     if (it != mViews.end()) {
         mViews.erase(it);
@@ -280,8 +267,7 @@ bool ver_initialize(const std::vector<std::filesystem::path>& resourceBasePaths,
 }
 
 bool ver_initialize(const std::vector<std::filesystem::path>& resourceBasePaths,
-                    const void* /*eglDispatch*/,
-                    const void* /*gles2Dispatch*/,
+                    const void* /*eglDispatch*/, const void* /*gles2Dispatch*/,
                     const std::filesystem::path& vulkanBasePath) {
     return ver_initialize(resourceBasePaths, vulkanBasePath);
 }
@@ -294,15 +280,12 @@ VerSceneHandle ver_create_scene(const VerSceneConfig& config) {
     return reinterpret_cast<VerSceneHandle>(ScenesManager::createScene(config));
 }
 
-bool ver_render_view(VerSceneHandle scene,
-                     VerRenderViewHandle view,
-                     VerRenderFinishCallback finish_cb,
-                     uint64_t* out_frame_time) {
+bool ver_render_view(VerSceneHandle scene, VerRenderViewHandle view,
+                     VerRenderFinishCallback finish_cb, uint64_t* out_frame_time) {
     auto* scenePtr = reinterpret_cast<Scene*>(scene);
     auto* viewPtr = reinterpret_cast<RendererView*>(view);
 
-    return ScenesManager::renderView(scenePtr, viewPtr, finish_cb,
-                                     out_frame_time);
+    return ScenesManager::renderView(scenePtr, viewPtr, finish_cb, out_frame_time);
 }
 
 void ver_destroy_scene(VerSceneHandle scene) {
@@ -313,9 +296,8 @@ bool ver_cleanup(void) {
     return ScenesManager::removeAll();
 }
 
-void ver_scene_load_user_resources(
-        VerSceneHandle scene,
-        std::function<void()> loadRendererResourcesCallback) {
+void ver_scene_load_user_resources(VerSceneHandle scene,
+                                   std::function<void()> loadRendererResourcesCallback) {
     auto* scenePtr = reinterpret_cast<Scene*>(scene);
     if (!scenePtr) {
         return;
@@ -361,8 +343,7 @@ int ver_scene_get_scene_rotation(VerSceneHandle scene) {
     return scenePtr ? scenePtr->getSceneRotation() : 0;
 }
 
-uint64_t ver_scene_get_version_hash_for_view(VerSceneHandle scene,
-                                             VerRenderViewHandle view) {
+uint64_t ver_scene_get_version_hash_for_view(VerSceneHandle scene, VerRenderViewHandle view) {
     auto* scenePtr = reinterpret_cast<Scene*>(scene);
     auto* viewPtr = reinterpret_cast<RendererView*>(view);
     return (scenePtr && viewPtr) ? scenePtr->getVersionHashForView(viewPtr) : 0;
@@ -380,16 +361,10 @@ void ver_scene_set_frame_time_us(VerSceneHandle scene, uint64_t timeUs) {
     }
 }
 
-bool ver_scene_get_bounding_box(VerSceneHandle scene,
-                                float* outMinX,
-                                float* outMinY,
-                                float* outMinZ,
-                                float* outMaxX,
-                                float* outMaxY,
-                                float* outMaxZ) {
+bool ver_scene_get_bounding_box(VerSceneHandle scene, float* outMinX, float* outMinY,
+                                float* outMinZ, float* outMaxX, float* outMaxY, float* outMaxZ) {
     auto* scenePtr = reinterpret_cast<Scene*>(scene);
-    if (!scenePtr || !outMinX || !outMinY || !outMinZ || !outMaxX || !outMaxY ||
-        !outMaxZ) {
+    if (!scenePtr || !outMinX || !outMinY || !outMinZ || !outMaxX || !outMaxY || !outMaxZ) {
         return false;
     }
     glm::vec3 minP, maxP;
@@ -405,28 +380,22 @@ bool ver_scene_get_bounding_box(VerSceneHandle scene,
     return false;
 }
 
-void ver_scene_update_poster_scale(VerSceneHandle scene,
-                                   const char* posterName,
-                                   float scale) {
+void ver_scene_update_poster_scale(VerSceneHandle scene, const char* posterName, float scale) {
     auto* scenePtr = reinterpret_cast<Scene*>(scene);
     if (scenePtr) {
         scenePtr->updatePosterScale(posterName, scale);
     }
 }
 
-uint64_t ver_scene_load_poster(VerSceneHandle scene,
-                               const char* posterName,
-                               const char* filename,
+uint64_t ver_scene_load_poster(VerSceneHandle scene, const char* posterName, const char* filename,
                                float scale) {
     auto* scenePtr = reinterpret_cast<Scene*>(scene);
-    return scenePtr ? scenePtr->loadPoster(posterName, filename, scale,
-                                           Scene::LoadBehavior::Default)
-                    : 0;
+    return scenePtr
+                   ? scenePtr->loadPoster(posterName, filename, scale, Scene::LoadBehavior::Default)
+                   : 0;
 }
 
-bool ver_scene_create_poster_location(
-        VerSceneHandle scene,
-        const android::ver::PosterInfo& info) {
+bool ver_scene_create_poster_location(VerSceneHandle scene, const android::ver::PosterInfo& info) {
     auto* scenePtr = reinterpret_cast<Scene*>(scene);
     return scenePtr ? scenePtr->createPosterLocation(info) : false;
 }
@@ -439,23 +408,19 @@ void ver_destroy_render_view(VerRenderViewHandle view) {
     ScenesManager::removeView(reinterpret_cast<RendererView*>(view));
 }
 
-bool ver_render_view_set_dimensions(VerRenderViewHandle view,
-                                    int32_t frameWidth,
+bool ver_render_view_set_dimensions(VerRenderViewHandle view, int32_t frameWidth,
                                     int32_t frameHeight) {
     auto* viewPtr = reinterpret_cast<RendererView*>(view);
     if (viewPtr) {
-        return viewPtr->updateTarget(VerImageFormat::RGBA8, frameWidth,
-                                     frameHeight);
+        return viewPtr->updateTarget(VerImageFormat::RGBA8, frameWidth, frameHeight);
     }
     return false;
 }
 
-void ver_render_view_set_view_projection(VerRenderViewHandle view,
-                                         const float* viewProjMatrix) {
+void ver_render_view_set_view_projection(VerRenderViewHandle view, const float* viewProjMatrix) {
     auto* viewPtr = reinterpret_cast<RendererView*>(view);
     if (viewPtr && viewProjMatrix) {
-        const auto* viewProj =
-                reinterpret_cast<const glm::mat4*>(viewProjMatrix);
+        const auto* viewProj = reinterpret_cast<const glm::mat4*>(viewProjMatrix);
         viewPtr->updateViewProjection(*viewProj);
     }
 }
@@ -467,8 +432,7 @@ void ver_render_view_set_blur_factor(VerRenderViewHandle view, float factor) {
     }
 }
 
-void ver_render_view_get_dimensions(VerRenderViewHandle view,
-                                    int32_t* frameWidth,
+void ver_render_view_get_dimensions(VerRenderViewHandle view, int32_t* frameWidth,
                                     int32_t* frameHeight) {
     auto* viewPtr = reinterpret_cast<RendererView*>(view);
     if (viewPtr && frameWidth && frameHeight) {
@@ -477,8 +441,7 @@ void ver_render_view_get_dimensions(VerRenderViewHandle view,
     }
 }
 
-void ver_render_view_get_framebuffer(VerRenderViewHandle view,
-                                     const uint8_t** out_fb_data_ptr,
+void ver_render_view_get_framebuffer(VerRenderViewHandle view, const uint8_t** out_fb_data_ptr,
                                      uint64_t* out_fb_data_size) {
     auto* viewPtr = reinterpret_cast<RendererView*>(view);
     if (viewPtr && out_fb_data_ptr && out_fb_data_size) {
@@ -488,24 +451,20 @@ void ver_render_view_get_framebuffer(VerRenderViewHandle view,
     }
 }
 
-bool ver_render_view_cache_is_valid_for(VerRenderViewHandle view,
-                                        uint64_t sceneHash,
+bool ver_render_view_cache_is_valid_for(VerRenderViewHandle view, uint64_t sceneHash,
                                         uint64_t frameTime) {
     auto* viewPtr = reinterpret_cast<RendererView*>(view);
     return viewPtr ? viewPtr->isCacheValidFor(sceneHash, frameTime) : false;
 }
 
-bool ver_texture_utils_load_png(const char* filename,
-                                int* outWidth,
-                                int* outHeight,
-                                int* outFormatBpp,
-                                std::vector<uint8_t>* outBuffer) {
+bool ver_texture_utils_load_png(const char* filename, int* outWidth, int* outHeight,
+                                int* outFormatBpp, std::vector<uint8_t>* outBuffer) {
     if (!outWidth || !outHeight || !outFormatBpp || !outBuffer) {
         return false;
     }
 
-    auto result = android::ver::TextureUtils::loadPNG(
-            filename, android::ver::TextureUtils::Orientation::Qt);
+    auto result = android::ver::TextureUtils::loadPNG(filename,
+                                                      android::ver::TextureUtils::Orientation::Qt);
     if (!result) {
         return false;
     }
@@ -513,10 +472,7 @@ bool ver_texture_utils_load_png(const char* filename,
     *outBuffer = std::move(result->mBuffer);
     *outWidth = result->mWidth;
     *outHeight = result->mHeight;
-    *outFormatBpp = (result->mFormat ==
-                     android::ver::TextureUtils::Format::RGB24)
-                            ? 3
-                            : 4;
+    *outFormatBpp = (result->mFormat == android::ver::TextureUtils::Format::RGB24) ? 3 : 4;
     return true;
 }
 
@@ -547,40 +503,33 @@ void ver_free_webcam_info(VerWebcamHandle handle) {
 }
 
 const char* ver_webcam_info_get_user_facing_name(VerWebcamHandle handle) {
-    if (!handle)
-        return nullptr;
+    if (!handle) return nullptr;
     auto opaque = reinterpret_cast<VerWebcamInfoOpaque*>(handle);
     return opaque->info->friendly_name.c_str();
 }
 
 const char* ver_webcam_info_get_id(VerWebcamHandle handle) {
-    if (!handle)
-        return nullptr;
+    if (!handle) return nullptr;
     auto opaque = reinterpret_cast<VerWebcamInfoOpaque*>(handle);
     return opaque->info->os_alias.c_str();
 }
 
 int ver_webcam_info_get_preferred_format_index(VerWebcamHandle handle) {
-    if (!handle)
-        return -1;
+    if (!handle) return -1;
     auto opaque = reinterpret_cast<VerWebcamInfoOpaque*>(handle);
     return opaque->info->preferred_format_index;
 }
 
 uint32_t ver_webcam_info_get_format_count(VerWebcamHandle handle) {
-    if (!handle)
-        return 0;
+    if (!handle) return 0;
     auto opaque = reinterpret_cast<VerWebcamInfoOpaque*>(handle);
     return static_cast<uint32_t>(opaque->info->supported_formats.size());
 }
 
-uint32_t ver_webcam_info_get_pixel_format_fourcc(VerWebcamHandle handle,
-                                                 uint32_t format_index) {
-    if (!handle)
-        return 0;
+uint32_t ver_webcam_info_get_pixel_format_fourcc(VerWebcamHandle handle, uint32_t format_index) {
+    if (!handle) return 0;
     auto opaque = reinterpret_cast<VerWebcamInfoOpaque*>(handle);
-    if (static_cast<size_t>(format_index) >=
-        opaque->info->supported_formats.size()) {
+    if (static_cast<size_t>(format_index) >= opaque->info->supported_formats.size()) {
         return 0;
     }
     return opaque->info->supported_formats[format_index].pixel_format;
@@ -588,27 +537,19 @@ uint32_t ver_webcam_info_get_pixel_format_fourcc(VerWebcamHandle handle,
 
 uint32_t ver_webcam_info_get_format_resolution_count(VerWebcamHandle handle,
                                                      uint32_t format_index) {
-    if (!handle)
-        return 0;
+    if (!handle) return 0;
     auto opaque = reinterpret_cast<VerWebcamInfoOpaque*>(handle);
-    if (static_cast<size_t>(format_index) >=
-        opaque->info->supported_formats.size()) {
+    if (static_cast<size_t>(format_index) >= opaque->info->supported_formats.size()) {
         return 0;
     }
-    return static_cast<uint32_t>(
-            opaque->info->supported_formats[format_index].resolutions.size());
+    return static_cast<uint32_t>(opaque->info->supported_formats[format_index].resolutions.size());
 }
 
-bool ver_webcam_info_get_format_resolution(VerWebcamHandle handle,
-                                           uint32_t format_index,
-                                           uint32_t res_index,
-                                           int* out_width,
-                                           int* out_height) {
-    if (!handle || !out_width || !out_height)
-        return false;
+bool ver_webcam_info_get_format_resolution(VerWebcamHandle handle, uint32_t format_index,
+                                           uint32_t res_index, int* out_width, int* out_height) {
+    if (!handle || !out_width || !out_height) return false;
     auto opaque = reinterpret_cast<VerWebcamInfoOpaque*>(handle);
-    if (static_cast<size_t>(format_index) >=
-        opaque->info->supported_formats.size()) {
+    if (static_cast<size_t>(format_index) >= opaque->info->supported_formats.size()) {
         return false;
     }
     const auto& format = opaque->info->supported_formats[format_index];

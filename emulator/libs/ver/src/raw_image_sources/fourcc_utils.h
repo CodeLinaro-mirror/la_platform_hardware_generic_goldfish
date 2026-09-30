@@ -16,6 +16,7 @@
 
 #include <stdint.h>
 #include <stdlib.h>
+
 #include <string>
 #include <vector>
 
@@ -95,15 +96,13 @@ struct RawImageBufferViewFourCC {
 std::string FourccToString(uint32_t fourcc);
 VerImageFormat FourccToVerImageFormat(uint32_t fourcc);
 uint32_t VerImageFormatToFourcc(VerImageFormat ver_image_format);
-RawImageBufferView RawImageBufferViewFourCCBridge(
-        RawImageBufferViewFourCC* fourcc);
+RawImageBufferView RawImageBufferViewFourCCBridge(RawImageBufferViewFourCC* fourcc);
 
 // Converts the provided buffer to RGB32
 // If conversion is successful, buffer will be updated to point at
 // conversion_storage. conversion_storage and staging_buffer will
 // be resized if necessary.
-int ConvertBufferToRGB32(RawImageBufferViewFourCC& buffer,
-                         std::vector<uint8_t>& conversion_storage,
+int ConvertBufferToRGB32(RawImageBufferViewFourCC& buffer, std::vector<uint8_t>& conversion_storage,
                          std::vector<uint8_t>& staging_buffer);
 
 }  // namespace ver

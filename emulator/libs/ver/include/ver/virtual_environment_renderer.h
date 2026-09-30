@@ -18,6 +18,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+
 #include <filesystem>
 #include <functional>
 #include <string>
@@ -49,19 +50,16 @@ using android::ver::VerWebcamHandle;
  * @param vulkanBasePath The base path for Vulkan drivers.
  * @return true if successful, false otherwise.
  */
-VER_EXPORT bool ver_initialize(
-        const std::vector<std::filesystem::path>& resourceBasePaths,
-        const std::filesystem::path& vulkanBasePath = {});
+VER_EXPORT bool ver_initialize(const std::vector<std::filesystem::path>& resourceBasePaths,
+                               const std::filesystem::path& vulkanBasePath = {});
 
 /**
  * @brief Legacy overload retained for source compatibility; eglDispatch and
  * gles2Dispatch are ignored as VER is Vulkan-only.
  */
-VER_EXPORT bool ver_initialize(
-        const std::vector<std::filesystem::path>& resourceBasePaths,
-        const void* eglDispatch,
-        const void* gles2Dispatch,
-        const std::filesystem::path& vulkanBasePath);
+VER_EXPORT bool ver_initialize(const std::vector<std::filesystem::path>& resourceBasePaths,
+                               const void* eglDispatch, const void* gles2Dispatch,
+                               const std::filesystem::path& vulkanBasePath);
 
 /**
  * @brief Removes all virtual scenes and cleans up the renderer resources.
@@ -107,10 +105,8 @@ VER_EXPORT void ver_destroy_scene(VerSceneHandle scene);
  * (optional).
  * @return true if rendering was initiated successfully, false otherwise.
  */
-VER_EXPORT bool ver_render_view(VerSceneHandle scene,
-                                VerRenderViewHandle view,
-                                VerRenderFinishCallback finish_cb,
-                                uint64_t* out_frame_time);
+VER_EXPORT bool ver_render_view(VerSceneHandle scene, VerRenderViewHandle view,
+                                VerRenderFinishCallback finish_cb, uint64_t* out_frame_time);
 
 /**
  * @brief Loads user-specific resources for the scene.
@@ -119,9 +115,8 @@ VER_EXPORT bool ver_render_view(VerSceneHandle scene,
  * @param loadRendererResourcesCallback Callback called when resources are
  * loaded.
  */
-VER_EXPORT void ver_scene_load_user_resources(
-        VerSceneHandle scene,
-        std::function<void()> loadRendererResourcesCallback);
+VER_EXPORT void ver_scene_load_user_resources(VerSceneHandle scene,
+                                              std::function<void()> loadRendererResourcesCallback);
 
 /**
  * @brief Unloads user-specific resources from the scene.
@@ -173,9 +168,8 @@ VER_EXPORT int ver_scene_get_scene_rotation(VerSceneHandle scene);
  * @param view The handle of the render view.
  * @return The calculated 64-bit version hash.
  */
-VER_EXPORT uint64_t
-ver_scene_get_version_hash_for_view(VerSceneHandle scene,
-                                    VerRenderViewHandle view);
+VER_EXPORT uint64_t ver_scene_get_version_hash_for_view(VerSceneHandle scene,
+                                                        VerRenderViewHandle view);
 
 /**
  * @brief Retrieves the current frame time of the scene in microseconds.
@@ -191,8 +185,7 @@ VER_EXPORT uint64_t ver_scene_get_frame_time_us(VerSceneHandle scene);
  * @param scene The handle of the scene.
  * @param timeUs The frame time in microseconds.
  */
-VER_EXPORT void ver_scene_set_frame_time_us(VerSceneHandle scene,
-                                            uint64_t timeUs);
+VER_EXPORT void ver_scene_set_frame_time_us(VerSceneHandle scene, uint64_t timeUs);
 
 /**
  * @brief Retrieves the bounding box of the scene in world coordinates.
@@ -206,12 +199,8 @@ VER_EXPORT void ver_scene_set_frame_time_us(VerSceneHandle scene,
  * @param outMaxZ Pointer to receive max Z coordinate.
  * @return true if bounding box was calculated, false otherwise.
  */
-VER_EXPORT bool ver_scene_get_bounding_box(VerSceneHandle scene,
-                                           float* outMinX,
-                                           float* outMinY,
-                                           float* outMinZ,
-                                           float* outMaxX,
-                                           float* outMaxY,
+VER_EXPORT bool ver_scene_get_bounding_box(VerSceneHandle scene, float* outMinX, float* outMinY,
+                                           float* outMinZ, float* outMaxX, float* outMaxY,
                                            float* outMaxZ);
 
 // --- Poster Management ---
@@ -223,8 +212,7 @@ VER_EXPORT bool ver_scene_get_bounding_box(VerSceneHandle scene,
  * @param posterName The unique name of the poster.
  * @param scale The new scale factor for the poster.
  */
-VER_EXPORT void ver_scene_update_poster_scale(VerSceneHandle scene,
-                                              const char* posterName,
+VER_EXPORT void ver_scene_update_poster_scale(VerSceneHandle scene, const char* posterName,
                                               float scale);
 
 /**
@@ -236,10 +224,8 @@ VER_EXPORT void ver_scene_update_poster_scale(VerSceneHandle scene,
  * @param scale The initial scale for the poster.
  * @return A unique identifier for the loaded poster.
  */
-VER_EXPORT uint64_t ver_scene_load_poster(VerSceneHandle scene,
-                                          const char* posterName,
-                                          const char* filename,
-                                          float scale);
+VER_EXPORT uint64_t ver_scene_load_poster(VerSceneHandle scene, const char* posterName,
+                                          const char* filename, float scale);
 
 /**
  * @brief Creates a location for a poster within the scene.
@@ -248,9 +234,8 @@ VER_EXPORT uint64_t ver_scene_load_poster(VerSceneHandle scene,
  * @param info Information about the poster's location and properties.
  * @return true if the poster location was created successfully.
  */
-VER_EXPORT bool ver_scene_create_poster_location(
-        VerSceneHandle scene,
-        const android::ver::PosterInfo& info);
+VER_EXPORT bool ver_scene_create_poster_location(VerSceneHandle scene,
+                                                 const android::ver::PosterInfo& info);
 
 // --- Render View Management ---
 
@@ -275,8 +260,7 @@ VER_EXPORT void ver_destroy_render_view(VerRenderViewHandle view);
  * @param frameWidth The width of the frame in pixels.
  * @param frameHeight The height of the frame in pixels.
  */
-VER_EXPORT bool ver_render_view_set_dimensions(VerRenderViewHandle view,
-                                               int32_t frameWidth,
+VER_EXPORT bool ver_render_view_set_dimensions(VerRenderViewHandle view, int32_t frameWidth,
                                                int32_t frameHeight);
 
 /**
@@ -288,8 +272,7 @@ VER_EXPORT bool ver_render_view_set_dimensions(VerRenderViewHandle view,
  * @param frameWidth Pointer to receive the width.
  * @param frameHeight Pointer to receive the height.
  */
-VER_EXPORT void ver_render_view_get_dimensions(VerRenderViewHandle view,
-                                               int32_t* frameWidth,
+VER_EXPORT void ver_render_view_get_dimensions(VerRenderViewHandle view, int32_t* frameWidth,
                                                int32_t* frameHeight);
 
 /**
@@ -298,9 +281,8 @@ VER_EXPORT void ver_render_view_get_dimensions(VerRenderViewHandle view,
  * @param view The handle of the render view.
  * @param viewProjMatrix Pointer to a 4x4 matrix (16 floats).
  */
-VER_EXPORT void ver_render_view_set_view_projection(
-        VerRenderViewHandle view,
-        const float* viewProjMatrix);
+VER_EXPORT void ver_render_view_set_view_projection(VerRenderViewHandle view,
+                                                    const float* viewProjMatrix);
 
 /**
  * @brief Sets the blur factor for a render view.
@@ -308,8 +290,7 @@ VER_EXPORT void ver_render_view_set_view_projection(
  * @param view The handle of the render view.
  * @param factor The blur factor (0.0 for no blur).
  */
-VER_EXPORT void ver_render_view_set_blur_factor(VerRenderViewHandle view,
-                                                float factor);
+VER_EXPORT void ver_render_view_set_blur_factor(VerRenderViewHandle view, float factor);
 
 /**
  * @brief Retrieves the CPU framebuffer cache for the render view.
@@ -334,8 +315,7 @@ VER_EXPORT void ver_render_view_get_framebuffer(VerRenderViewHandle view,
  * @param frameTime The frame time of the scene.
  * @return true if the cache is valid, false if a re-render is required.
  */
-VER_EXPORT bool ver_render_view_cache_is_valid_for(VerRenderViewHandle view,
-                                                   uint64_t sceneHash,
+VER_EXPORT bool ver_render_view_cache_is_valid_for(VerRenderViewHandle view, uint64_t sceneHash,
                                                    uint64_t frameTime);
 
 /**
@@ -348,11 +328,8 @@ VER_EXPORT bool ver_render_view_cache_is_valid_for(VerRenderViewHandle view,
  * @param outBuffer The data of the image.
  * @return true if image loaded successful, false otherwise.
  */
-VER_EXPORT bool ver_texture_utils_load_png(const char* filename,
-                                           int* outWidth,
-                                           int* outHeight,
-                                           int* outFormatBpp,
-                                           std::vector<uint8_t>* outBuffer);
+VER_EXPORT bool ver_texture_utils_load_png(const char* filename, int* outWidth, int* outHeight,
+                                           int* outFormatBpp, std::vector<uint8_t>* outBuffer);
 
 ANDROID_BEGIN_HEADER
 
@@ -383,8 +360,7 @@ VER_EXPORT void ver_free_webcam_info(VerWebcamHandle handle);
  * @param handle The webcam info handle.
  * @return The user-facing name of the webcam.
  */
-VER_EXPORT const char* ver_webcam_info_get_user_facing_name(
-        VerWebcamHandle handle);
+VER_EXPORT const char* ver_webcam_info_get_user_facing_name(VerWebcamHandle handle);
 
 /**
  * @brief Retrieves the OS-specific identifier of the webcam.
@@ -400,8 +376,7 @@ VER_EXPORT const char* ver_webcam_info_get_id(VerWebcamHandle handle);
  * @param handle The webcam info handle.
  * @return The index of the preferred format, or -1 if no format is supported.
  */
-VER_EXPORT int ver_webcam_info_get_preferred_format_index(
-        VerWebcamHandle handle);
+VER_EXPORT int ver_webcam_info_get_preferred_format_index(VerWebcamHandle handle);
 
 /**
  * @brief Retrieves the number of formats supported by the webcam.
@@ -416,9 +391,8 @@ VER_EXPORT uint32_t ver_webcam_info_get_format_count(VerWebcamHandle handle);
  * @param format_index The index of the format.
  * @return The pixel format fourcc.
  */
-VER_EXPORT uint32_t
-ver_webcam_info_get_pixel_format_fourcc(VerWebcamHandle handle,
-                                        uint32_t format_index);
+VER_EXPORT uint32_t ver_webcam_info_get_pixel_format_fourcc(VerWebcamHandle handle,
+                                                            uint32_t format_index);
 
 /**
  * @brief Retrieves the number of resolutions supported by this format.
@@ -426,9 +400,8 @@ ver_webcam_info_get_pixel_format_fourcc(VerWebcamHandle handle,
  * @param format_index The index of the format.
  * @return The number of supported resolutions.
  */
-VER_EXPORT uint32_t
-ver_webcam_info_get_format_resolution_count(VerWebcamHandle handle,
-                                            uint32_t format_index);
+VER_EXPORT uint32_t ver_webcam_info_get_format_resolution_count(VerWebcamHandle handle,
+                                                                uint32_t format_index);
 
 /**
  * @brief Retrieves the width and height of the resolution at index for the
@@ -439,10 +412,8 @@ ver_webcam_info_get_format_resolution_count(VerWebcamHandle handle,
  * @param out_width Pointer to receive the width.
  * @param out_height Pointer to receive the height.
  */
-VER_EXPORT bool ver_webcam_info_get_format_resolution(VerWebcamHandle handle,
-                                                      uint32_t format_index,
-                                                      uint32_t res_index,
-                                                      int* out_width,
+VER_EXPORT bool ver_webcam_info_get_format_resolution(VerWebcamHandle handle, uint32_t format_index,
+                                                      uint32_t res_index, int* out_width,
                                                       int* out_height);
 
 ANDROID_END_HEADER

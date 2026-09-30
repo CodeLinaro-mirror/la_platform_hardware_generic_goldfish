@@ -16,13 +16,14 @@
 
 #include <mutex>
 #include <vector>
+
 #include "raw_image_sources/webcam/webcam_source.h"
 
 namespace android {
 namespace ver {
 
 class VirtualWebcamImpl : public WebcamSource::Impl {
-public:
+  public:
     VirtualWebcamImpl() = default;
     ~VirtualWebcamImpl() override = default;
 
@@ -32,14 +33,13 @@ public:
         mFrameUpdated = true;
     }
 
-protected:
+  protected:
     int StartLocked(uint32_t pixel_format, int width, int height) override;
     int StopLocked() override { return 0; }
     absl::StatusOr<bool> FetchNextFrame(
-            std::function<absl::Status(const RawImageBufferView*)> new_frame_cb)
-            override;
+            std::function<absl::Status(const RawImageBufferView*)> new_frame_cb) override;
 
-private:
+  private:
     std::mutex mFrameMutex;
     std::vector<uint8_t> mFrameBuffer;
     bool mFrameUpdated = false;
@@ -49,14 +49,11 @@ private:
 };
 
 class WebcamSourceTestHelper {
-public:
-    static void AddVirtualWebcam(
-            std::shared_ptr<WebcamSource::WebcamInfo> info);
+  public:
+    static void AddVirtualWebcam(std::shared_ptr<WebcamSource::WebcamInfo> info);
     static void ClearWebcams();
-    static std::vector<std::shared_ptr<WebcamSource::WebcamInfo>>
-    EnumerateWebcams();
-    static int GetPreferredFormatIndex(
-            std::vector<WebcamSource::WebcamPixelFormat>& formats);
+    static std::vector<std::shared_ptr<WebcamSource::WebcamInfo>> EnumerateWebcams();
+    static int GetPreferredFormatIndex(std::vector<WebcamSource::WebcamPixelFormat>& formats);
 };
 
 }  // namespace ver

@@ -22,7 +22,9 @@
 #include <string>
 #include <utility>
 #include <vector>
+
 #include "absl/status/statusor.h"
+
 #include "../raw_image_source.h"
 
 extern "C" {
@@ -36,20 +38,18 @@ namespace android {
 namespace ver {
 
 class RawVideofileSource : public RawImageSource {
-public:
+  public:
     static std::unique_ptr<RawVideofileSource> Create(const std::string& filename);
     ~RawVideofileSource() override;
     int Start(VerImageFormat pixel_format, int width, int height) override;
     absl::StatusOr<std::optional<RawImageToken>> UpdateImage(
-            int64_t target_time_us,
-            std::optional<RawImageToken> token,
-            std::function<absl::Status(const RawImageBufferView*)> updater)
-            override;
+            int64_t target_time_us, std::optional<RawImageToken> token,
+            std::function<absl::Status(const RawImageBufferView*)> updater) override;
     int Stop() override;
     int GetBaseRotation() override;
     int64_t GetAnimationLengthUs() override;
 
-private:
+  private:
     std::string file_;
     int64_t us_per_frame_;
     int64_t seek_threshold_pts_;
@@ -64,15 +64,13 @@ private:
         void operator()(AVFormatContext* p) const;
     };
 
-    using AVFormatContextPtr =
-            std::unique_ptr<AVFormatContext, AVFormatContextDeleter>;
+    using AVFormatContextPtr = std::unique_ptr<AVFormatContext, AVFormatContextDeleter>;
 
     struct AVCodecContextDeleter {
         void operator()(AVCodecContext* p) const;
     };
 
-    using AVCodecContextPtr =
-            std::unique_ptr<AVCodecContext, AVCodecContextDeleter>;
+    using AVCodecContextPtr = std::unique_ptr<AVCodecContext, AVCodecContextDeleter>;
 
     struct AVFrameDeleter {
         void operator()(AVFrame* p) const;
@@ -119,12 +117,8 @@ private:
     static std::optional<VideoFile> openVideoFile(const char* filename);
 
     std::vector<std::pair<ConversionKey, SwsContextPtr>> mConverterCache;
-    SwsContext* getSwsContext(const int srcWidth,
-                              const int srcHeight,
-                              const int srcFmt,
-                              const int dstWidth,
-                              const int dstHeight,
-                              const int dstFmt);
+    SwsContext* getSwsContext(const int srcWidth, const int srcHeight, const int srcFmt,
+                              const int dstWidth, const int dstHeight, const int dstFmt);
 };
 
 }  // namespace ver

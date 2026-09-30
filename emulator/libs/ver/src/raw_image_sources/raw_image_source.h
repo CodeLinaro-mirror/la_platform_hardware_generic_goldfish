@@ -12,19 +12,22 @@
 
 #include <stdint.h>
 #include <stdlib.h>
+
 #include <cstdint>
 #include <functional>
 #include <memory>
 #include <optional>
+
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+
 #include "ver/virtual_environment_renderer_types.h"
 
 namespace android {
 namespace ver {
 
 struct RawImageBufferView {
-    const uint8_t *buffer;
+    const uint8_t* buffer;
     size_t buffer_size;
     VerImageFormat pixel_format;
     int width;
@@ -36,7 +39,7 @@ struct RawImageToken {
 };
 
 class RawImageSource {
-public:
+  public:
     /* The arguments are suggestions, must check Image for resulting values */
     virtual int Start(VerImageFormat pixel_format, int width, int height) = 0;
     /* Updates the current image using the given updater function.
@@ -49,8 +52,7 @@ public:
      * token.
      */
     virtual absl::StatusOr<std::optional<RawImageToken>> UpdateImage(
-            int64_t target_time_us,
-            std::optional<RawImageToken> token,
+            int64_t target_time_us, std::optional<RawImageToken> token,
             std::function<absl::Status(const RawImageBufferView*)> updater) = 0;
     virtual int Stop() = 0;
     /* This is the rotation that must be applied to the images produced by this
@@ -76,18 +78,16 @@ constexpr Color kErrorColor = {0xff, 0x00, 0xff};
 // SolidColorImageProvider provides a 1x1 color image
 // By default, this is black.
 class SolidColorImageSource : public RawImageSource {
-public:
+  public:
     SolidColorImageSource();
     explicit SolidColorImageSource(Color c);
     int Start(VerImageFormat pixel_format, int width, int height) override;
     absl::StatusOr<std::optional<RawImageToken>> UpdateImage(
-            int64_t target_time_us,
-            std::optional<RawImageToken> token,
-            std::function<absl::Status(const RawImageBufferView*)> updater)
-            override;
+            int64_t target_time_us, std::optional<RawImageToken> token,
+            std::function<absl::Status(const RawImageBufferView*)> updater) override;
     int Stop() override;
 
-private:
+  private:
     uint8_t image_[4];
     RawImageBufferView buffer_;
 };

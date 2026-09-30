@@ -63,14 +63,11 @@ void skipInputData(j_decompress_ptr cinfo, long numBytes) {
 
 void termSource(j_decompress_ptr cinfo) {}
 
-void jpeg_mem_src_custom(j_decompress_ptr cinfo,
-                         const uint8_t* buffer,
-                         size_t size) {
+void jpeg_mem_src_custom(j_decompress_ptr cinfo, const uint8_t* buffer, size_t size) {
     if (cinfo->src == nullptr) {
-        cinfo->src =
-                static_cast<struct jpeg_source_mgr*>((*cinfo->mem->alloc_small)(
-                        reinterpret_cast<j_common_ptr>(cinfo), JPOOL_PERMANENT,
-                        sizeof(struct jpeg_source_mgr)));
+        cinfo->src = static_cast<struct jpeg_source_mgr*>(
+                (*cinfo->mem->alloc_small)(reinterpret_cast<j_common_ptr>(cinfo), JPOOL_PERMANENT,
+                                           sizeof(struct jpeg_source_mgr)));
     }
     cinfo->src->init_source = initSource;
     cinfo->src->fill_input_buffer = fillInputBuffer;
@@ -92,10 +89,8 @@ struct JpegSource {
     const char* filename = nullptr;
 };
 
-bool DecompressInternal(const JpegSource& source,
-                        std::vector<uint8_t>& out_buffer,
-                        JpegImageInfo* out_info,
-                        const JpegDecompressOptions& options) {
+bool DecompressInternal(const JpegSource& source, std::vector<uint8_t>& out_buffer,
+                        JpegImageInfo* out_info, const JpegDecompressOptions& options) {
     struct jpeg_decompress_struct cinfo = {};
     JpegErrorManager jerr;
 
@@ -104,16 +99,14 @@ bool DecompressInternal(const JpegSource& source,
 
     // All cpp classes must be declared before the setjmp to ensure their
     // destructors are called on error exit.
-    std::unique_ptr<jpeg_decompress_struct, decltype(&jpeg_destroy_decompress)>
-            cinfo_guard(&cinfo, &jpeg_destroy_decompress);
+    std::unique_ptr<jpeg_decompress_struct, decltype(&jpeg_destroy_decompress)> cinfo_guard(
+            &cinfo, &jpeg_destroy_decompress);
 
     if (setjmp(jerr.setjmp_buffer)) {
         char buffer[JMSG_LENGTH_MAX];
-        (*cinfo.err->format_message)(
-                reinterpret_cast<jpeg_common_struct*>(&cinfo), buffer);
+        (*cinfo.err->format_message)(reinterpret_cast<jpeg_common_struct*>(&cinfo), buffer);
         if (source.filename) {
-            derror("%s: JPEG library error for %s: %s", __FUNCTION__,
-                   source.filename, buffer);
+            derror("%s: JPEG library error for %s: %s", __FUNCTION__, source.filename, buffer);
         } else {
             derror("%s: JPEG library error: %s", __FUNCTION__, buffer);
         }
@@ -144,8 +137,8 @@ bool DecompressInternal(const JpegSource& source,
         jpeg_saved_marker_ptr marker = cinfo.marker_list;
         while (marker != nullptr) {
             if (marker->marker == JPEG_APP0 + 1) {
-                out_info->app1_markers.emplace_back(
-                        marker->data, marker->data + marker->data_length);
+                out_info->app1_markers.emplace_back(marker->data,
+                                                    marker->data + marker->data_length);
             }
             marker = marker->next;
         }
@@ -160,26 +153,25 @@ bool DecompressInternal(const JpegSource& source,
     int height = cinfo.output_height;
     int components = cinfo.output_components;
 
-    if (width <= 0 || height <= 0 || width > 16384 || height > 16384 ||
-        components <= 0 || components > 4) {
+    if (width <= 0 || height <= 0 || width > 16384 || height > 16384 || components <= 0 ||
+        components > 4) {
         if (source.filename) {
-            dwarning("%s: Invalid JPEG dimensions %dx%d or components %d for %s",
-                     __FUNCTION__, width, height, components, source.filename);
+            dwarning("%s: Invalid JPEG dimensions %dx%d or components %d for %s", __FUNCTION__,
+                     width, height, components, source.filename);
         } else {
-            dwarning("%s: Invalid JPEG dimensions %dx%d or components %d",
-                     __FUNCTION__, width, height, components);
+            dwarning("%s: Invalid JPEG dimensions %dx%d or components %d", __FUNCTION__, width,
+                     height, components);
         }
         return false;
     }
 
     size_t raw_line_size = static_cast<size_t>(width) * components;
-    size_t stride = options.align_row_stride ? alignTo4Bytes(raw_line_size)
-                                             : raw_line_size;
+    size_t stride = options.align_row_stride ? alignTo4Bytes(raw_line_size) : raw_line_size;
 
     if (height > 0 && stride > std::numeric_limits<size_t>::max() / height) {
         if (source.filename) {
-            dwarning("%s: Image data allocation size overflow for %s",
-                     __FUNCTION__, source.filename);
+            dwarning("%s: Image data allocation size overflow for %s", __FUNCTION__,
+                     source.filename);
         } else {
             dwarning("%s: Image data allocation size overflow", __FUNCTION__);
         }
@@ -192,20 +184,17 @@ bool DecompressInternal(const JpegSource& source,
     while (cinfo.output_scanline < cinfo.output_height) {
         uint8_t* row_ptr;
         if (options.orientation == JpegOrientation::BottomUp) {
-            row_ptr = out_buffer.data() +
-                      (height - cinfo.output_scanline - 1) * stride;
+            row_ptr = out_buffer.data() + (height - cinfo.output_scanline - 1) * stride;
         } else {
             row_ptr = out_buffer.data() + cinfo.output_scanline * stride;
         }
         if (jpeg_read_scanlines(&cinfo, &row_ptr, 1) == 0) {
             if (source.filename) {
-                dwarning("%s: Stalled scanline read at line %u / %u for %s",
-                         __FUNCTION__, cinfo.output_scanline,
-                         cinfo.output_height, source.filename);
+                dwarning("%s: Stalled scanline read at line %u / %u for %s", __FUNCTION__,
+                         cinfo.output_scanline, cinfo.output_height, source.filename);
             } else {
-                dwarning("%s: Stalled scanline read at line %u / %u",
-                         __FUNCTION__, cinfo.output_scanline,
-                         cinfo.output_height);
+                dwarning("%s: Stalled scanline read at line %u / %u", __FUNCTION__,
+                         cinfo.output_scanline, cinfo.output_height);
             }
             return false;
         }
@@ -226,10 +215,8 @@ bool DecompressInternal(const JpegSource& source,
 
 }  // namespace
 
-bool JpegUtils::DecompressFromMemory(const uint8_t* jpeg_data,
-                                     size_t jpeg_size,
-                                     std::vector<uint8_t>& out_buffer,
-                                     JpegImageInfo* out_info,
+bool JpegUtils::DecompressFromMemory(const uint8_t* jpeg_data, size_t jpeg_size,
+                                     std::vector<uint8_t>& out_buffer, JpegImageInfo* out_info,
                                      const JpegDecompressOptions& options) {
     if (!jpeg_data || jpeg_size == 0) {
         return false;
@@ -240,10 +227,8 @@ bool JpegUtils::DecompressFromMemory(const uint8_t* jpeg_data,
     return DecompressInternal(source, out_buffer, out_info, options);
 }
 
-bool JpegUtils::DecompressFromFile(const std::string& filepath,
-                                   std::vector<uint8_t>& out_buffer,
-                                   JpegImageInfo* out_info,
-                                   const JpegDecompressOptions& options) {
+bool JpegUtils::DecompressFromFile(const std::string& filepath, std::vector<uint8_t>& out_buffer,
+                                   JpegImageInfo* out_info, const JpegDecompressOptions& options) {
     base::ScopedStdioFile fp(fopen(filepath.c_str(), "rb"));
     if (!fp) {
         derror("%s: Failed to open file %s", __FUNCTION__, filepath.c_str());

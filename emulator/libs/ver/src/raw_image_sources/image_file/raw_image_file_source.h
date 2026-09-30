@@ -12,12 +12,14 @@
 
 #include <stdint.h>
 #include <stdlib.h>
+
 #include <memory>
 #include <string>
 #include <vector>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+
 #include "../raw_image_source.h"
 
 namespace android {
@@ -33,11 +35,11 @@ struct ImageData {
 
     ImageData() = default;
     ImageData(ImageData&& other) noexcept
-        : width(other.width),
-          height(other.height),
-          num_components(other.num_components),
-          line_size(other.line_size),
-          data(std::move(other.data)) {
+            : width(other.width)
+            , height(other.height)
+            , num_components(other.num_components)
+            , line_size(other.line_size)
+            , data(std::move(other.data)) {
         data_ptr = &data[0];
         other.data_ptr = nullptr;
         other.width = 0;
@@ -61,17 +63,15 @@ struct ImageData {
 };
 
 class RawImageFileSource : public RawImageSource {
-public:
+  public:
     static std::unique_ptr<RawImageFileSource> Create(const std::string& filename);
     int Start(VerImageFormat pixel_format, int width, int height) override;
     absl::StatusOr<std::optional<RawImageToken>> UpdateImage(
-            int64_t target_time_us,
-            std::optional<RawImageToken> token,
-            std::function<absl::Status(const RawImageBufferView*)> updater)
-            override;
+            int64_t target_time_us, std::optional<RawImageToken> token,
+            std::function<absl::Status(const RawImageBufferView*)> updater) override;
     int Stop() override;
 
-private:
+  private:
     explicit RawImageFileSource(const std::string& file, ImageData&& image);
     std::string file_;
     ImageData image_;

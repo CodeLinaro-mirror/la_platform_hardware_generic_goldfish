@@ -18,6 +18,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+
 #include <functional>
 #include <string>
 #include <string_view>
@@ -49,11 +50,11 @@ static constexpr float kPosterMinimumSizeMeters = 0.2f;
  * @brief Information about a poster location and default image.
  */
 struct PosterInfo {
-    std::string name;                      ///< Unique identifier for the poster
-    glm::vec2 size = glm::vec2(1.0f, 1.0f); ///< Dimensions in meters
-    glm::vec3 position = glm::vec3();      ///< 3D coordinates in the scene
-    glm::quat rotation = glm::quat();      ///< Orientation in the scene
-    std::string defaultFilename;           ///< Fallback image filename
+    std::string name;                        ///< Unique identifier for the poster
+    glm::vec2 size = glm::vec2(1.0f, 1.0f);  ///< Dimensions in meters
+    glm::vec3 position = glm::vec3();        ///< 3D coordinates in the scene
+    glm::quat rotation = glm::quat();        ///< Orientation in the scene
+    std::string defaultFilename;             ///< Fallback image filename
 };
 
 /**
@@ -70,14 +71,14 @@ struct SceneConfig {
      */
     enum class Mode {
         Unknown = 0,
-        Mesh3D,     ///< Full 3D environment with posters
-        VideoFile,  ///< Single video file rendered as a plane
-        ImageFile,  ///< Single image file rendered as a plane
-        Color,      ///< Uniform background color
-        Image360,   ///< 360-degree panoramic image
-        StreetView, ///< 360-degree street view panoramic image
-        Webcam,     ///< Single webcam feed rendered as a plane
-        Video360,   ///< 360-degree video panoramic image
+        Mesh3D,      ///< Full 3D environment with posters
+        VideoFile,   ///< Single video file rendered as a plane
+        ImageFile,   ///< Single image file rendered as a plane
+        Color,       ///< Uniform background color
+        Image360,    ///< 360-degree panoramic image
+        StreetView,  ///< 360-degree street view panoramic image
+        Webcam,      ///< Single webcam feed rendered as a plane
+        Video360,    ///< 360-degree video panoramic image
     };
 
     SceneConfig() = default;
@@ -87,8 +88,8 @@ struct SceneConfig {
         mArgument = argument;
     }
 
-    Mode mSceneMode = Mode::Unknown; ///< Selected rendering mode
-    std::string mArgument;           ///< Path or argument specific to the mode
+    Mode mSceneMode = Mode::Unknown;  ///< Selected rendering mode
+    std::string mArgument;            ///< Path or argument specific to the mode
 
     // Default filenames for different scene modes, can be used
     // when the file cannot be found or loaded, all relative to
@@ -126,8 +127,7 @@ struct SceneConfig {
         } else if (sceneModeStr == "video360") {
             return SceneConfig::Mode::Video360;
         } else {
-            dwarning("Unknown scene mode requested: %.*s",
-                     static_cast<int>(sceneModeStr.size()),
+            dwarning("Unknown scene mode requested: %.*s", static_cast<int>(sceneModeStr.size()),
                      sceneModeStr.data());
             return SceneConfig::Mode::Unknown;
         }
@@ -170,8 +170,7 @@ struct SceneConfig {
             return kDefaultImageFile;
         } else if (mode == SceneConfig::Mode::Color) {
             return kDefaultColor;
-        } else if (mode == SceneConfig::Mode::Image360 ||
-                   mode == SceneConfig::Mode::StreetView) {
+        } else if (mode == SceneConfig::Mode::Image360 || mode == SceneConfig::Mode::StreetView) {
             return kDefaultImage360File;
         } else if (mode == SceneConfig::Mode::Video360) {
             return kDefaultVideo360File;
@@ -187,38 +186,31 @@ struct SceneConfig {
      * @brief Checks if the mode requires a hardware-accelerated renderer.
      */
     static bool modeRequiresRenderer(SceneConfig::Mode mode) {
-        return (mode == SceneConfig::Mode::Mesh3D) ||
-               (mode == SceneConfig::Mode::Image360) ||
-               (mode == SceneConfig::Mode::StreetView) ||
-               (mode == SceneConfig::Mode::Video360);
+        return (mode == SceneConfig::Mode::Mesh3D) || (mode == SceneConfig::Mode::Image360) ||
+               (mode == SceneConfig::Mode::StreetView) || (mode == SceneConfig::Mode::Video360);
     }
 
     /**
      * @brief Checks if the mode supports view-space rotations.
      */
     static bool modeSupportsViewRotations(SceneConfig::Mode mode) {
-        return (mode == SceneConfig::Mode::Mesh3D) ||
-               (mode == SceneConfig::Mode::Image360) ||
-               (mode == SceneConfig::Mode::StreetView) ||
-               (mode == SceneConfig::Mode::Video360);
+        return (mode == SceneConfig::Mode::Mesh3D) || (mode == SceneConfig::Mode::Image360) ||
+               (mode == SceneConfig::Mode::StreetView) || (mode == SceneConfig::Mode::Video360);
     }
 
     /**
      * @brief Checks if the mode supports animations (e.g., video).
      */
     static bool modeSupportsAnimations(SceneConfig::Mode mode) {
-        return (mode != SceneConfig::Mode::ImageFile &&
-                mode != SceneConfig::Mode::Color);
+        return (mode != SceneConfig::Mode::ImageFile && mode != SceneConfig::Mode::Color);
     }
 
     /**
      * @brief Checks if the mode supports scene-level controls (camera).
      */
     static bool modeSupportsSceneControls(SceneConfig::Mode mode) {
-        return (mode == SceneConfig::Mode::Mesh3D) ||
-               (mode == SceneConfig::Mode::Image360) ||
-               (mode == SceneConfig::Mode::StreetView) ||
-               (mode == SceneConfig::Mode::Video360);
+        return (mode == SceneConfig::Mode::Mesh3D) || (mode == SceneConfig::Mode::Image360) ||
+               (mode == SceneConfig::Mode::StreetView) || (mode == SceneConfig::Mode::Video360);
     }
 
     /**
@@ -238,8 +230,7 @@ struct SceneConfig {
 };
 
 inline bool operator==(const SceneConfig& lhs, const SceneConfig& rhs) {
-    return (lhs.mSceneMode == rhs.mSceneMode) &&
-           (lhs.mArgument == rhs.mArgument);
+    return (lhs.mSceneMode == rhs.mSceneMode) && (lhs.mArgument == rhs.mArgument);
 }
 
 }  // namespace ver

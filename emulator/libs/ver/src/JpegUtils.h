@@ -55,19 +55,17 @@ struct JpegImageInfo {
 };
 
 class JpegUtils {
-public:
+  public:
     // Decompresses a JPEG image from an in-memory buffer.
     // Reuses out_buffer if it already has sufficient capacity (zero heap
     // allocations for streaming).
-    static bool DecompressFromMemory(const uint8_t* jpeg_data,
-                                     size_t jpeg_size,
+    static bool DecompressFromMemory(const uint8_t* jpeg_data, size_t jpeg_size,
                                      std::vector<uint8_t>& out_buffer,
                                      JpegImageInfo* out_info = nullptr,
                                      const JpegDecompressOptions& options = {});
 
     // Decompresses a JPEG image from a file on disk.
-    static bool DecompressFromFile(const std::string& filepath,
-                                   std::vector<uint8_t>& out_buffer,
+    static bool DecompressFromFile(const std::string& filepath, std::vector<uint8_t>& out_buffer,
                                    JpegImageInfo* out_info = nullptr,
                                    const JpegDecompressOptions& options = {});
 };

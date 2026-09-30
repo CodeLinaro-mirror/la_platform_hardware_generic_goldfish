@@ -13,11 +13,13 @@
 // limitations under the License.
 
 #include "fourcc_utils.h"
+
 #include <libyuv.h>
+
 #include <cstddef>
+#include <cstring>
 
 #include "JpegUtils.h"
-#include <cstring>
 
 namespace android {
 namespace ver {
@@ -46,24 +48,19 @@ uint32_t VerImageFormatToFourcc(VerImageFormat ver_image_format) {
     return 0;
 }
 
-RawImageBufferView RawImageBufferViewFourCCBridge(
-        RawImageBufferViewFourCC* fourcc) {
-    return {fourcc->buffer, fourcc->buffer_size,
-            FourccToVerImageFormat(fourcc->pixel_format), fourcc->width,
-            fourcc->height};
+RawImageBufferView RawImageBufferViewFourCCBridge(RawImageBufferViewFourCC* fourcc) {
+    return {fourcc->buffer, fourcc->buffer_size, FourccToVerImageFormat(fourcc->pixel_format),
+            fourcc->width, fourcc->height};
 }
 
-int ConvertBufferToRGB32(RawImageBufferViewFourCC& buffer,
-                         std::vector<uint8_t>& conversion_storage,
+int ConvertBufferToRGB32(RawImageBufferViewFourCC& buffer, std::vector<uint8_t>& conversion_storage,
                          std::vector<uint8_t>& staging_buffer) {
     if (!buffer.buffer || buffer.buffer_size == 0) {
         return -1;
     }
 
-    if (conversion_storage.size() <
-        static_cast<size_t>(buffer.height) * buffer.width * 4) {
-        conversion_storage.resize(static_cast<size_t>(buffer.height) *
-                                  buffer.width * 4);
+    if (conversion_storage.size() < static_cast<size_t>(buffer.height) * buffer.width * 4) {
+        conversion_storage.resize(static_cast<size_t>(buffer.height) * buffer.width * 4);
     }
 
     int width = buffer.width;
@@ -78,18 +75,17 @@ int ConvertBufferToRGB32(RawImageBufferViewFourCC& buffer,
         res = 0;
     } else if (buffer.pixel_format == V4L2_PIX_FMT_BGR32) {
         // Swap R and B channels: FOURCC_ARGB -> FOURCC_ABGR
-        res = libyuv::ARGBToABGR(static_cast<const uint8_t*>(buffer.buffer),
-                                 width * 4, conversion_storage.data(),
-                                 width * 4, width, height);
+        res = libyuv::ARGBToABGR(static_cast<const uint8_t*>(buffer.buffer), width * 4,
+                                 conversion_storage.data(), width * 4, width, height);
     } else if (buffer.pixel_format == V4L2_PIX_FMT_MJPEG ||
                buffer.pixel_format == V4L2_PIX_FMT_JPEG) {
         JpegImageInfo info;
         JpegDecompressOptions options;
         options.color_space = JCS_RGBA_8888;
         options.align_row_stride = false;
-        if (JpegUtils::DecompressFromMemory(
-                    static_cast<const uint8_t*>(buffer.buffer),
-                    buffer.buffer_size, conversion_storage, &info, options)) {
+        if (JpegUtils::DecompressFromMemory(static_cast<const uint8_t*>(buffer.buffer),
+                                            buffer.buffer_size, conversion_storage, &info,
+                                            options)) {
             width = info.width;
             height = info.height;
             res = 0;
@@ -115,23 +111,20 @@ int ConvertBufferToRGB32(RawImageBufferViewFourCC& buffer,
 
         uint32_t src_format = buffer.pixel_format;
         // These formats are aliases of each other
-        if (buffer.pixel_format == V4L2_PIX_FMT_YUY2 ||
-            buffer.pixel_format == V4L2_PIX_FMT_YUNV ||
+        if (buffer.pixel_format == V4L2_PIX_FMT_YUY2 || buffer.pixel_format == V4L2_PIX_FMT_YUNV ||
             buffer.pixel_format == V4L2_PIX_FMT_V422) {
             src_format = V4L2_PIX_FMT_YUYV;
         }
 
-        res = libyuv::ConvertToI420(static_cast<const uint8_t*>(buffer.buffer),
-                                    buffer.buffer_size, y_staging, y_stride,
-                                    u_staging, u_stride, v_staging, v_stride, 0,
-                                    0, width, height, width, height,
-                                    libyuv::kRotate0, src_format);
+        res = libyuv::ConvertToI420(static_cast<const uint8_t*>(buffer.buffer), buffer.buffer_size,
+                                    y_staging, y_stride, u_staging, u_stride, v_staging, v_stride,
+                                    0, 0, width, height, width, height, libyuv::kRotate0,
+                                    src_format);
 
         if (res == 0) {
-            res = libyuv::ConvertFromI420(y_staging, y_stride, u_staging,
-                                          u_stride, v_staging, v_stride,
-                                          conversion_storage.data(), 0, width,
-                                          height, libyuv::FOURCC_ABGR);
+            res = libyuv::ConvertFromI420(y_staging, y_stride, u_staging, u_stride, v_staging,
+                                          v_stride, conversion_storage.data(), 0, width, height,
+                                          libyuv::FOURCC_ABGR);
         } else {
             res = -1;
         }

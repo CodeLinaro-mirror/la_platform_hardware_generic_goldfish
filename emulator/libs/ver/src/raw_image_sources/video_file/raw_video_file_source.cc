@@ -15,12 +15,8 @@
  */
 
 #include "raw_video_file_source.h"
-#include <libavutil/error.h>
 
-#include "absl/status/status.h"
-#include "absl/status/statusor.h"
-#include "absl/strings/str_format.h"
-#include "aemu/base/logging/CLog.h"
+#include <libavutil/error.h>
 
 #include <algorithm>
 #include <cerrno>
@@ -33,6 +29,12 @@
 #include <optional>
 #include <tuple>
 #include <vector>
+
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
+
+#include "aemu/base/logging/CLog.h"
 
 extern "C" {
 #include <libavcodec/avcodec.h>
@@ -60,8 +62,7 @@ int getVideoStreamIndex(const AVFormatContext& fmtctx) {
 int getVideoStreamRotation(const AVFormatContext& fmtctx, int streamIndex) {
     const AVPacketSideData* side_data = av_packet_side_data_get(
             fmtctx.streams[streamIndex]->codecpar->coded_side_data,
-            fmtctx.streams[streamIndex]->codecpar->nb_coded_side_data,
-            AV_PKT_DATA_DISPLAYMATRIX);
+            fmtctx.streams[streamIndex]->codecpar->nb_coded_side_data, AV_PKT_DATA_DISPLAYMATRIX);
     const uint8_t* display_matrix = side_data ? side_data->data : nullptr;
     size_t display_matrix_size = side_data ? side_data->size : 0;
 
@@ -70,8 +71,7 @@ int getVideoStreamRotation(const AVFormatContext& fmtctx, int streamIndex) {
     // Handle rotations in the modern display matrix way
     if (display_matrix && display_matrix_size >= 9 * sizeof(int32_t)) {
         // Currently ignoring the possibilities of flips
-        raw_rotation = av_display_rotation_get(
-                reinterpret_cast<const int32_t*>(display_matrix));
+        raw_rotation = av_display_rotation_get(reinterpret_cast<const int32_t*>(display_matrix));
 
         // av_display_rotation_get returns in [-180.0, 180.0], or NaN
         if (std::isnan(raw_rotation)) {
@@ -79,8 +79,8 @@ int getVideoStreamRotation(const AVFormatContext& fmtctx, int streamIndex) {
         }
     } else {
         // Handle rotations via stream metadata
-        AVDictionaryEntry* tag = av_dict_get(
-                fmtctx.streams[streamIndex]->metadata, "rotate", nullptr, 0);
+        AVDictionaryEntry* tag =
+                av_dict_get(fmtctx.streams[streamIndex]->metadata, "rotate", nullptr, 0);
         if (!tag) {
             // If that's not present, check container metadata
             tag = av_dict_get(fmtctx.metadata, "rotate", nullptr, 0);
@@ -121,8 +121,7 @@ std::optional<RawVideofileSource::VideoFile> RawVideofileSource::openVideoFile(
 
     err = avformat_find_stream_info(fmtCtx.get(), nullptr);
     if (err < 0) {
-        derror("avformat_find_stream_info failed with %d for '%s'", err,
-               filename);
+        derror("avformat_find_stream_info failed with %d for '%s'", err, filename);
         return std::nullopt;
     }
 
@@ -132,26 +131,23 @@ std::optional<RawVideofileSource::VideoFile> RawVideofileSource::openVideoFile(
         return std::nullopt;
     }
 
-    const AVCodecParameters* codecParams =
-            fmtCtx->streams[videoStreamIndex]->codecpar;
+    const AVCodecParameters* codecParams = fmtCtx->streams[videoStreamIndex]->codecpar;
     const AVCodec* codec = ::avcodec_find_decoder(codecParams->codec_id);
     if (!codec) {
-        derror("Unsupported codec_id=%d in '%s'", codecParams->codec_id,
-               filename);
+        derror("Unsupported codec_id=%d in '%s'", codecParams->codec_id, filename);
         return std::nullopt;
     }
 
     AVCodecContext* codecCtxWeak = ::avcodec_alloc_context3(codec);
     if (!codecCtxWeak) {
-        derror("avcodec_alloc_context3 failed for codec_id=%d for '%s'",
-               codecParams->codec_id, filename);
+        derror("avcodec_alloc_context3 failed for codec_id=%d for '%s'", codecParams->codec_id,
+               filename);
         return std::nullopt;
     }
 
     err = ::avcodec_parameters_to_context(codecCtxWeak, codecParams);
     if (err < 0) {
-        derror("avcodec_parameters_to_context failed with %d for '%s'", err,
-               filename);
+        derror("avcodec_parameters_to_context failed with %d for '%s'", err, filename);
         ::avcodec_free_context(&codecCtxWeak);
         return std::nullopt;
     }
@@ -183,13 +179,11 @@ std::optional<RawVideofileSource::VideoFile> RawVideofileSource::openVideoFile(
     return videoFile;
 }
 
-void RawVideofileSource::AVFormatContextDeleter::operator()(
-        AVFormatContext* p) const {
+void RawVideofileSource::AVFormatContextDeleter::operator()(AVFormatContext* p) const {
     ::avformat_close_input(&p);
 }
 
-void RawVideofileSource::AVCodecContextDeleter::operator()(
-        AVCodecContext* p) const {
+void RawVideofileSource::AVCodecContextDeleter::operator()(AVCodecContext* p) const {
     ::avcodec_free_context(&p);
 }
 
@@ -204,7 +198,7 @@ void RawVideofileSource::SwsContextDeleter::operator()(SwsContext* p) const {
 RawVideofileSource::~RawVideofileSource() = default;
 
 RawVideofileSource::RawVideofileSource(RawVideofileSource::VideoFile videoFile)
-    : mVideoFile(std::move(videoFile)) {
+        : mVideoFile(std::move(videoFile)) {
     // Assuming 30 fps for the moment
     us_per_frame_ = 33333;
     seek_threshold_pts_ = this->GetPtsFromUs(us_per_frame_) * 10;
@@ -213,8 +207,7 @@ RawVideofileSource::RawVideofileSource(RawVideofileSource::VideoFile videoFile)
     paused_ = false;
 }
 
-std::unique_ptr<RawVideofileSource> RawVideofileSource::Create(
-        const std::string& filename) {
+std::unique_ptr<RawVideofileSource> RawVideofileSource::Create(const std::string& filename) {
     std::optional<VideoFile> maybeVideofile = openVideoFile(filename.c_str());
     if (maybeVideofile) {
         return std::unique_ptr<RawVideofileSource>(
@@ -225,8 +218,7 @@ std::unique_ptr<RawVideofileSource> RawVideofileSource::Create(
 }
 
 int RawVideofileSource::Start(VerImageFormat pixel_format, int width, int height) {
-    const int err = ::av_seek_frame(mVideoFile.formatCtx.get(), -1, 0,
-                                    AVSEEK_FLAG_BACKWARD);
+    const int err = ::av_seek_frame(mVideoFile.formatCtx.get(), -1, 0, AVSEEK_FLAG_BACKWARD);
     if (err >= 0) {
         mConverterCache.clear();
         mFrameCache.reset(::av_frame_alloc());
@@ -239,8 +231,7 @@ int RawVideofileSource::Start(VerImageFormat pixel_format, int width, int height
 };
 
 absl::StatusOr<std::optional<RawImageToken>> RawVideofileSource::UpdateImage(
-        int64_t target_time_us,
-        std::optional<RawImageToken> token,
+        int64_t target_time_us, std::optional<RawImageToken> token,
         std::function<absl::Status(const RawImageBufferView*)> updater) {
     if (!mFrameCache || !mConvertedFrameCache) {
         return absl::FailedPreconditionError("Video source is not started");
@@ -253,12 +244,11 @@ absl::StatusOr<std::optional<RawImageToken>> RawVideofileSource::UpdateImage(
     // ahead, seek
     if (target_time_us < last_update_time_us_ ||
         target_time_pts - last_update_time_pts_ > seek_threshold_pts_) {
-        int err = ::av_seek_frame(mVideoFile.formatCtx.get(),
-                                  mVideoFile.videoStreamIndex, target_time_pts,
-                                  AVSEEK_FLAG_BACKWARD);
+        int err = ::av_seek_frame(mVideoFile.formatCtx.get(), mVideoFile.videoStreamIndex,
+                                  target_time_pts, AVSEEK_FLAG_BACKWARD);
         if (err < 0) {
-            return absl::UnavailableError(absl::StrFormat(
-                    "%s:%d av_seek_frame: err=%d", __func__, __LINE__, err));
+            return absl::UnavailableError(
+                    absl::StrFormat("%s:%d av_seek_frame: err=%d", __func__, __LINE__, err));
         }
         avcodec_flush_buffers(mVideoFile.codecCtx.get());
     } else if (last_update_time_pts_ > target_time_pts) {
@@ -269,8 +259,7 @@ absl::StatusOr<std::optional<RawImageToken>> RawVideofileSource::UpdateImage(
     // If we're paused and up to date, we don't need to do anything.
     // Otherwise the requestor either has no current image, or has
     // an image that is not up to date with what we're providing
-    if (paused_ && token.has_value() &&
-        token.value().token == last_update_time_pts_) {
+    if (paused_ && token.has_value() && token.value().token == last_update_time_pts_) {
         return std::nullopt;
     }
 
@@ -293,7 +282,7 @@ absl::StatusOr<std::optional<RawImageToken>> RawVideofileSource::UpdateImage(
         // looped the video, and should give up
         max_skip--;
         dprint("%s: Video source dropping frame at %.3f", __func__,
-                 GetUsFromPts(mFrameCache->best_effort_timestamp) / 1000000.0);
+               GetUsFromPts(mFrameCache->best_effort_timestamp) / 1000000.0);
     } while (!err && max_skip > 0 && curr_frame_pts > last_frame_pts);
 
     if (err == AVERROR_EOF) {
@@ -302,8 +291,7 @@ absl::StatusOr<std::optional<RawImageToken>> RawVideofileSource::UpdateImage(
     if (err >= 0) {
         err = convertFrameToRGBA();
         if (err < 0) {
-            return absl::UnavailableError(
-                    absl::StrFormat("Could not convert the frame: %d", err));
+            return absl::UnavailableError(absl::StrFormat("Could not convert the frame: %d", err));
         }
 
         const AVFrame* avFrame = mConvertedFrameCache.get();
@@ -318,9 +306,8 @@ absl::StatusOr<std::optional<RawImageToken>> RawVideofileSource::UpdateImage(
         if (avFrame->best_effort_timestamp != AV_NOPTS_VALUE) {
             frame_time = avFrame->best_effort_timestamp;
         } else {
-            dwarning(
-                    "No best effort time available. Using provided time of %" PRId64,
-                    last_update_time_us_);
+            dwarning("No best effort time available. Using provided time of %" PRId64,
+                     last_update_time_us_);
             frame_time = target_time_us;
         }
         absl::Status ret = updater(&img);
@@ -356,8 +343,7 @@ int64_t RawVideofileSource::GetAnimationLengthUs() {
 // Converts from the stream specific pts units to a microsecond value
 int64_t RawVideofileSource::GetUsFromPts(int64_t pts) const {
     AVRational stream_time_base =
-            mVideoFile.formatCtx->streams[mVideoFile.videoStreamIndex]
-                    ->time_base;
+            mVideoFile.formatCtx->streams[mVideoFile.videoStreamIndex]->time_base;
 
     return av_rescale_q(pts, stream_time_base, AV_TIME_BASE_Q);
 };
@@ -365,8 +351,7 @@ int64_t RawVideofileSource::GetUsFromPts(int64_t pts) const {
 // Converts from the stream specific pts units to a microsecond value
 int64_t RawVideofileSource::GetPtsFromUs(int64_t us) const {
     AVRational stream_time_base =
-            mVideoFile.formatCtx->streams[mVideoFile.videoStreamIndex]
-                    ->time_base;
+            mVideoFile.formatCtx->streams[mVideoFile.videoStreamIndex]->time_base;
 
     return av_rescale_q(us, AV_TIME_BASE_Q, stream_time_base);
 };
@@ -393,7 +378,6 @@ int RawVideofileSource::decodeNextFrame() {
     packet.size = 0;
 
     while ((err = ::av_read_frame(mVideoFile.formatCtx.get(), &packet)) >= 0) {
-
         if (packet.stream_index != mVideoFile.videoStreamIndex) {
             ::av_packet_unref(&packet);
             continue;
@@ -407,8 +391,7 @@ int RawVideofileSource::decodeNextFrame() {
             continue;
         }
 
-        err = ::avcodec_receive_frame(mVideoFile.codecCtx.get(),
-                                      mFrameCache.get());
+        err = ::avcodec_receive_frame(mVideoFile.codecCtx.get(), mFrameCache.get());
         if (err >= 0) {
             return 0;
         } else if (err != AVERROR(EAGAIN)) {
@@ -421,8 +404,7 @@ int RawVideofileSource::decodeNextFrame() {
     // avcodec_receive_frame at the top of the function
     if (err == AVERROR_EOF) {
         avcodec_send_packet(mVideoFile.codecCtx.get(), nullptr);
-        err = ::avcodec_receive_frame(mVideoFile.codecCtx.get(),
-                                      mFrameCache.get());
+        err = ::avcodec_receive_frame(mVideoFile.codecCtx.get(), mFrameCache.get());
         if (err >= 0) {
             return 0;
         } else if (err != AVERROR(EAGAIN) && err != AVERROR_EOF) {
@@ -434,10 +416,9 @@ int RawVideofileSource::decodeNextFrame() {
 }
 
 int RawVideofileSource::convertFrameToRGBA() {
-    SwsContext* swsCtx =
-            getSwsContext(mFrameCache->width, mFrameCache->height,
-                          static_cast<AVPixelFormat>(mFrameCache->format),
-                          mFrameCache->width, mFrameCache->height, AV_PIX_FMT_RGBA);
+    SwsContext* swsCtx = getSwsContext(mFrameCache->width, mFrameCache->height,
+                                       static_cast<AVPixelFormat>(mFrameCache->format),
+                                       mFrameCache->width, mFrameCache->height, AV_PIX_FMT_RGBA);
     if (!swsCtx) {
         derror("Could not allocate SwsContext for src={ %dx%d, fmt=%d }, "
                "dst={ %dx%d, fmt=%d }",
@@ -455,13 +436,12 @@ int RawVideofileSource::convertFrameToRGBA() {
         mConvertedFrameCache->format = AV_PIX_FMT_RGBA;
         mConvertedFrameCache->width = mFrameCache->width;
         mConvertedFrameCache->height = mFrameCache->height;
-        int bufferSize = av_image_get_buffer_size(
-                AV_PIX_FMT_RGBA, mFrameCache->width, mFrameCache->height, 1);
+        int bufferSize = av_image_get_buffer_size(AV_PIX_FMT_RGBA, mFrameCache->width,
+                                                  mFrameCache->height, 1);
         mConvertedFrameBuffer.resize(bufferSize);
-        int ret = av_image_fill_arrays(mConvertedFrameCache->data,
-                                 mConvertedFrameCache->linesize,
-                                 mConvertedFrameBuffer.data(), AV_PIX_FMT_RGBA,
-                                 mFrameCache->width, mFrameCache->height, 1);
+        int ret = av_image_fill_arrays(mConvertedFrameCache->data, mConvertedFrameCache->linesize,
+                                       mConvertedFrameBuffer.data(), AV_PIX_FMT_RGBA,
+                                       mFrameCache->width, mFrameCache->height, 1);
         if (ret < 0) {
             return ret;
         }
@@ -473,34 +453,29 @@ int RawVideofileSource::convertFrameToRGBA() {
     return 0;
 }
 
-SwsContext* RawVideofileSource::getSwsContext(const int srcWidth,
-                                              const int srcHeight,
-                                              const int srcFmt,
-                                              const int dstWidth,
-                                              const int dstHeight,
-                                              const int dstFmt) {
+SwsContext* RawVideofileSource::getSwsContext(const int srcWidth, const int srcHeight,
+                                              const int srcFmt, const int dstWidth,
+                                              const int dstHeight, const int dstFmt) {
     ConversionKey conv = {
-            .srcWidth = srcWidth,
-            .srcHeight = srcHeight,
-            .srcFmt = srcFmt,
-            .dstWidth = dstWidth,
-            .dstHeight = dstHeight,
-            .dstFmt = dstFmt,
+        .srcWidth = srcWidth,
+        .srcHeight = srcHeight,
+        .srcFmt = srcFmt,
+        .dstWidth = dstWidth,
+        .dstHeight = dstHeight,
+        .dstFmt = dstFmt,
     };
 
-    const auto i = std::find_if(
-            mConverterCache.begin(), mConverterCache.end(),
-            [&conv](const std::pair<ConversionKey, SwsContextPtr>& kv) {
-                return conv == kv.first;
-            });
+    const auto i = std::find_if(mConverterCache.begin(), mConverterCache.end(),
+                                [&conv](const std::pair<ConversionKey, SwsContextPtr>& kv) {
+                                    return conv == kv.first;
+                                });
     if (i != mConverterCache.end()) {
         return i->second.get();
     }
 
-    SwsContext* ctx = ::sws_getContext(
-            srcWidth, srcHeight, static_cast<AVPixelFormat>(srcFmt), dstWidth,
-            dstHeight, static_cast<AVPixelFormat>(dstFmt), SWS_FAST_BILINEAR,
-            nullptr, nullptr, nullptr);
+    SwsContext* ctx = ::sws_getContext(srcWidth, srcHeight, static_cast<AVPixelFormat>(srcFmt),
+                                       dstWidth, dstHeight, static_cast<AVPixelFormat>(dstFmt),
+                                       SWS_FAST_BILINEAR, nullptr, nullptr, nullptr);
     if (ctx) {
         mConverterCache.push_back({std::move(conv), SwsContextPtr(ctx)});
     }
