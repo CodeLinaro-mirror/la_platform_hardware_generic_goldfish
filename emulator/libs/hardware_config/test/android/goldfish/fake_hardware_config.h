@@ -153,7 +153,6 @@ class FakeHardwareConfig {
         hw.avd_name = "35";
         hw.avd_id = "35";
         hw.fastboot_forceColdBoot = false;
-        hw.userdata_useQcow2 = true;
 
         return hw;
     }
