@@ -14,12 +14,22 @@
 
 #include "goldfish/display/display.h"
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
+#include <string>
 #include <utility>
+#include <vector>
 
-#include "absl/log/log.h"
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
+#include "absl/time/clock.h"
+#include "absl/time/time.h"
+#include "absl/types/span.h"
+
+#include "goldfish/display/write_png.h"
 
 namespace goldfish::display {
 
@@ -69,10 +79,100 @@ std::pair<int, int> IDisplay::ResizeKeepAspectRatio(int desired_width, int desir
     return {fit.width, fit.height};
 }
 
+absl::StatusOr<FrameInfo> IDisplay::GetPixels(PixelFormat fmt, int width, int height,
+                                              ImageRotation rotation, uint8_t* pixel,
+                                              size_t* c_pixels) const {
+    if (c_pixels == nullptr) {
+        return absl::InvalidArgumentError("c_pixels must not be null");
+    }
+    if (!frames_) {
+        return absl::UnavailableError("Display has no frame source");
+    }
+
+    FramePtr frame;
+    auto fresh = WaitForFreshFrame(absl::Now() + absl::Milliseconds(500));
+    if (fresh.ok()) {
+        frame = std::move(*fresh);
+    } else if (absl::IsDeadlineExceeded(fresh.status())) {
+        LatestFrame latest = AcquireLatestFrame();
+        if (latest.removed) {
+            return absl::NotFoundError("Display removed");
+        }
+        frame = std::move(latest.frame);
+    } else {
+        return fresh.status();
+    }
+
+    if (!frame) {
+        return absl::UnavailableError("No frame has been produced yet.");
+    }
+
+    Dimensions output{0, 0};
+    if (width > 0 && height > 0) {
+        output = {.width = static_cast<uint32_t>(width), .height = static_cast<uint32_t>(height)};
+    }
+    const ReadRequest req{.rotation = rotation, .output = output};
+    Dimensions out_dims{0, 0};
+
+    if (fmt == PixelFormat::kPng) {
+        std::vector<uint8_t> rgba;
+        auto dims = frame->ReadInto(
+                req, [&](const ReadLayout& layout) -> absl::StatusOr<Rgba8888Target> {
+                    rgba.resize(layout.total_bytes);
+                    return Rgba8888Target{.plane = Plane{.data = absl::MakeSpan(rgba)}};
+                });
+        if (!dims.ok()) {
+            return dims.status();
+        }
+        out_dims = *dims;
+        std::vector<uint8_t> png_bytes;
+        if (!write_png(4, static_cast<int>(out_dims.width), static_cast<int>(out_dims.height),
+                       rgba.data(), png_bytes)) {
+            return absl::UnavailableError("Failed to create PNG screenshot!");
+        }
+        if (pixel == nullptr || *c_pixels < png_bytes.size()) {
+            const size_t old = *c_pixels;
+            *c_pixels = png_bytes.size();
+            return absl::FailedPreconditionError(absl::StrFormat(
+                    "Buffer too small; need %u bytes, have %u", png_bytes.size(), old));
+        }
+        std::memcpy(pixel, png_bytes.data(), png_bytes.size());
+        *c_pixels = png_bytes.size();
+    } else {
+        const ReadFormat read_fmt =
+                (fmt == PixelFormat::kRgb888) ? ReadFormat::kRgb888 : ReadFormat::kRgba8888;
+        auto dims = frame->ReadInto(
+                req, read_fmt, [&](const ReadLayout& layout) -> absl::StatusOr<uint8_t*> {
+                    if (pixel == nullptr || *c_pixels < layout.total_bytes) {
+                        const size_t old = *c_pixels;
+                        *c_pixels = layout.total_bytes;
+                        return absl::FailedPreconditionError(
+                                absl::StrFormat("Buffer too small; need %u bytes, have %u",
+                                                layout.total_bytes, old));
+                    }
+                    *c_pixels = layout.total_bytes;
+                    return pixel;
+                });
+        if (!dims.ok()) {
+            return dims.status();
+        }
+        out_dims = *dims;
+    }
+
+    const FrameEvent& ev = frame->event();
+    FrameInfo info;
+    info.dimensions = out_dims;
+    info.format = fmt;
+    info.rotation = rotation;
+    info.sequence_number = ev.frame_id;
+    info.timestamp = (ev.capture_time == absl::InfinitePast()) ? absl::Now() : ev.capture_time;
+    return info;
+}
+
 std::string IDisplay::String() const {
     const Dimensions dims = GetDimensions();
     return absl::StrFormat("Display: %d (%dx%d), seq: %u", display_id_, dims.width, dims.height,
-                           Seq().sequence_number);
+                           CurrentFrameId());
 }
 
 }  // namespace goldfish::display

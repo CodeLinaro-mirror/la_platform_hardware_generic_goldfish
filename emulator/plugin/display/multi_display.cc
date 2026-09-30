@@ -96,17 +96,19 @@ class MultiDisplayImpl : public IMultiDisplay {
 
     absl::StatusOr<DisplayPtr> CreateDisplay(DisplayId display_id, uint32_t width, uint32_t height,
                                              uint32_t dpi, uint32_t flags) override {
-        const absl::MutexLock lock(display_access_);
-        auto display = std::make_shared<VirtualDisplay>(loop_, qemu_loop_, display_id, width,
-                                                        height, dpi, flags);
-        display->SetRotation(GetRotation());
-        auto [it, inserted] = virtual_displays_.insert({display_id, display});
-        if (!inserted) {
-            return absl::AlreadyExistsError(
-                    absl::StrFormat("Display with id %d already exists.", display_id));
+        SharedVirtualDisplayImpl display;
+        {
+            const absl::MutexLock lock(display_access_);
+            if (virtual_displays_.find(display_id) != virtual_displays_.end()) {
+                return absl::AlreadyExistsError(
+                        absl::StrFormat("Display with id %d already exists.", display_id));
+            }
+            display = std::make_shared<VirtualDisplay>(loop_, qemu_loop_, display_id, width, height,
+                                                       dpi, flags);
+            display->SetRotation(GetRotation());
+            virtual_displays_.emplace(display_id, display);
+            active_states_[display_id] = true;
         }
-
-        active_states_[display_id] = true;
 
         VLOG(1) << "Created display: " << display_id;
         FireEvent(DisplayEvent{DisplayEvent::AddedEvent{display}});
@@ -115,25 +117,21 @@ class MultiDisplayImpl : public IMultiDisplay {
 
     absl::StatusOr<DisplayPtr> CreateDisplayFromQemu(QemuConsole* console, DisplaySurface* ds,
                                                      uint8_t id) {
-        const absl::MutexLock lock(display_access_);
-        auto display = std::make_shared<QemuDisplay>(loop_, qemu_loop_, console, ds, id);
-        display->SetRotation(GetRotation());
+        SharedDisplayImpl display;
+        {
+            const absl::MutexLock lock(display_access_);
+            if (qemu_displays_.find(id) != qemu_displays_.end()) {
+                return absl::AlreadyExistsError(
+                        absl::StrFormat("Display with id %d already exists.", id));
+            }
+            display = std::make_shared<QemuDisplay>(loop_, qemu_loop_, console, ds, id);
+            display->SetRotation(GetRotation());
+            qemu_displays_.emplace(id, display);
 
-        auto [it, inserted] = qemu_displays_.insert({id, display});
-        if (!inserted) {
-            return absl::AlreadyExistsError(
-                    absl::StrFormat("Display with id %d already exists.", id));
-        }
+            VLOG(1) << "Created display: " << *display;
 
-        auto dims = display->GetDimensions();
-
-        VLOG(1) << "Created display: " << *display;
-
-        if (active_states_.find(id) == active_states_.end()) {
-            if (id != 0) {
-                active_states_[id] = false;
-            } else {
-                active_states_[id] = true;
+            if (active_states_.find(id) == active_states_.end()) {
+                active_states_[id] = (id == 0);
             }
         }
 
@@ -195,29 +193,37 @@ class MultiDisplayImpl : public IMultiDisplay {
     }
 
     absl::Status EraseQemuDisplay(DisplayId display_id) {
-        const absl::MutexLock lock(display_access_);
-        auto it = qemu_displays_.find(display_id);
-        if (it == qemu_displays_.end()) {
-            return absl::NotFoundError(
-                    absl::StrFormat("Display: %d does not exist (already removed?).", display_id));
+        SharedDisplayImpl display;
+        {
+            const absl::MutexLock lock(display_access_);
+            auto it = qemu_displays_.find(display_id);
+            if (it == qemu_displays_.end()) {
+                return absl::NotFoundError(absl::StrFormat(
+                        "Display: %d does not exist (already removed?).", display_id));
+            }
+            display = std::move(it->second);
+            qemu_displays_.erase(it);
+            active_states_.erase(display_id);
         }
-        qemu_displays_.erase(it);
-        active_states_.erase(display_id);
-        FireEvent({DisplayEvent{DisplayEvent::DeletedEvent{display_id}}});
+        NotifyDisplayRemoved(std::move(display), display_id);
         return absl::OkStatus();
     }
 
     absl::Status EraseVirtualDisplay(DisplayId display_id) {
-        const absl::MutexLock lock(display_access_);
-        auto it = virtual_displays_.find(display_id);
-        if (it == virtual_displays_.end()) {
-            return absl::NotFoundError(
-                    absl::StrFormat("Display: %d does not exist (already removed?).", display_id));
+        SharedVirtualDisplayImpl display;
+        {
+            const absl::MutexLock lock(display_access_);
+            auto it = virtual_displays_.find(display_id);
+            if (it == virtual_displays_.end()) {
+                return absl::NotFoundError(absl::StrFormat(
+                        "Display: %d does not exist (already removed?).", display_id));
+            }
+            display = std::move(it->second);
+            virtual_displays_.erase(it);
+            active_states_.erase(display_id);
         }
-        it->second->Disconnect();
-        virtual_displays_.erase(it);
-        active_states_.erase(display_id);
-        FireEvent({DisplayEvent{DisplayEvent::DeletedEvent{display_id}}});
+        display->Disconnect();
+        NotifyDisplayRemoved(std::move(display), display_id);
         return absl::OkStatus();
     }
 
@@ -301,31 +307,42 @@ class MultiDisplayImpl : public IMultiDisplay {
         }
 
         SetFolded(res_f);
+        for (const auto& display : SnapshotQemuDisplays()) {
+            display->OnDeviceReset();
+        }
         return absl::OkStatus();
     }
 
     void Reset() override {
-        const absl::MutexLock lock(display_access_);
+        VirtualDisplayMap removed_virtual;
+        {
+            const absl::MutexLock lock(display_access_);
+            removed_virtual = std::move(virtual_displays_);
+            virtual_displays_.clear();
+
+            // Clear active states for virtual displays, and default QEMU displays to false (except
+            // main)
+            for (auto it = active_states_.begin(); it != active_states_.end();) {
+                if (qemu_displays_.find(it->first) == qemu_displays_.end()) {
+                    it = active_states_.erase(it);
+                } else {
+                    it->second = (it->first == 0);  // Display 0 active, others inactive
+                    ++it;
+                }
+            }
+            display_mode_ = 0;
+        }
+
+        for (const auto& display : SnapshotQemuDisplays()) {
+            display->OnDeviceReset();
+        }
 
         // When the AVD resets, we must clean up all virtual displays
         // as the guest OS will forget about them.
-        for (const auto& [id, display] : virtual_displays_) {
+        for (auto& [id, display] : removed_virtual) {
             display->Disconnect();
-            FireEvent({DisplayEvent{DisplayEvent::DeletedEvent{id}}});
+            NotifyDisplayRemoved(std::move(display), id);
         }
-        virtual_displays_.clear();
-
-        // Clear active states for virtual displays, and default QEMU displays to false (except
-        // main)
-        for (auto it = active_states_.begin(); it != active_states_.end();) {
-            if (qemu_displays_.find(it->first) == qemu_displays_.end()) {
-                it = active_states_.erase(it);
-            } else {
-                it->second = (it->first == 0);  // Display 0 active, others inactive
-                ++it;
-            }
-        }
-        display_mode_ = 0;
     }
 
     void SetFolded(bool folded) override {
@@ -354,12 +371,18 @@ class MultiDisplayImpl : public IMultiDisplay {
                         uint32_t guest_mode_id) override {
         if (mode != IMultiDisplay::kDisplayModeFoldable) {
             if (IsFolded()) {
-                uint64_t start_sequence = 0;
-                auto s0 = GetDisplay(0);
-                if (s0.ok()) {
-                    if (auto d0 = s0->lock()) {
-                        start_sequence = d0->Seq().sequence_number;
-                    }
+                SharedDisplay d0;
+                if (auto s0 = GetDisplay(0); s0.ok()) {
+                    d0 = s0->lock();
+                }
+
+                const absl::Time deadline = absl::Now() + absl::Milliseconds(2000);
+                IDisplay::ScopedFrameListener unfold_listener;
+                FrameId after_id = 0;
+                if (d0) {
+                    unfold_listener = d0->AddFrameListener([](const FrameEvent&) {});
+                    (void)d0->WaitForFreshFrame(deadline);
+                    after_id = d0->CurrentFrameId();
                 }
 
                 PhysicalModel& pm = ::goldfish::avd_info::GetAvd().GetSensorsPhysicalModel();
@@ -369,20 +392,21 @@ class MultiDisplayImpl : public IMultiDisplay {
                             PhysicalInterpolation::kStep);
                 }
 
-                // Wait for display 0 to receive a frame after setting target posture
-                absl::Time start = absl::Now();
+                // Wait for display 0 to receive a non-blank frame after setting target posture
                 bool received_frame = false;
-                while (absl::Now() - start < absl::Milliseconds(2000)) {
-                    auto s0_check = GetDisplay(0);
-                    if (s0_check.ok()) {
-                        if (auto d0_check = s0_check->lock()) {
-                            if (d0_check->Seq().sequence_number > start_sequence) {
-                                received_frame = true;
-                                break;
-                            }
+                if (d0) {
+                    while (absl::Now() < deadline) {
+                        auto frame_or = d0->WaitForFrame(deadline, after_id);
+                        if (!frame_or.ok()) {
+                            break;
+                        }
+                        const auto& frame = *frame_or;
+                        after_id = frame->event().frame_id;
+                        if (!frame->event().blank) {
+                            received_frame = true;
+                            break;
                         }
                     }
-                    absl::SleepFor(absl::Milliseconds(5));
                 }
 
                 if (!received_frame) {
@@ -422,6 +446,28 @@ class MultiDisplayImpl : public IMultiDisplay {
     }
 
   private:
+    std::vector<SharedDisplayImpl> SnapshotQemuDisplays() const {
+        const absl::MutexLock lock(display_access_);
+        std::vector<SharedDisplayImpl> list;
+        list.reserve(qemu_displays_.size());
+        for (const auto& [id, display] : qemu_displays_) {
+            list.push_back(display);
+        }
+        return list;
+    }
+
+    void NotifyDisplayRemoved(SharedDisplay display, DisplayId display_id) {
+        auto notify = [this, display = std::move(display), display_id]() {
+            display->Remove();
+            FireEvent(DisplayEvent{DisplayEvent::DeletedEvent{display_id}});
+        };
+        if (loop_ != nullptr && !loop_->IsOnLoopThread()) {
+            loop_->Post(std::move(notify)).IgnoreError();
+        } else {
+            notify();
+        }
+    }
+
     EventLoop* const qemu_loop_;
     QemuDisplayMap qemu_displays_ ABSL_GUARDED_BY(display_access_);
     VirtualDisplayMap virtual_displays_ ABSL_GUARDED_BY(display_access_);
@@ -474,7 +520,7 @@ extern "C" void grpc_dpy_gfx_update(struct DisplayChangeListener* dcl, int x, in
             }
         }
 
-        display->UpdateSurface(x, y, w, h);
+        display->OnGuestFrame(surface_of_console);
     }
 }
 
@@ -493,12 +539,6 @@ extern "C" void grpc_dpy_gfx_switch(struct DisplayChangeListener* dcl,
     }
     const auto index = qemu_console_get_index(con);
     auto device = multi_display.GetDisplayWeak(index);
-    if (index == 0 && new_surface && surface_is_placeholder(new_surface) && device.ok()) {
-        // do nothing on place holder surface because it does
-        // not come from android guest
-        VLOG(1) << "Ignore place holder surface";
-        return;
-    }
     if (absl::IsNotFound(device.status())) {
         DisplaySurface* surface = new_surface;
         bool created_surface = false;
@@ -518,7 +558,7 @@ extern "C" void grpc_dpy_gfx_switch(struct DisplayChangeListener* dcl,
     }
 
     if (auto display = device->lock()) {
-        if (new_surface) {
+        if (new_surface && !surface_is_placeholder(new_surface)) {
             auto dims = display->GetDimensions();
             if (std::cmp_not_equal(surface_width(new_surface), dims.width) ||
                 std::cmp_not_equal(surface_height(new_surface), dims.height)) {
@@ -528,7 +568,7 @@ extern "C" void grpc_dpy_gfx_switch(struct DisplayChangeListener* dcl,
             }
             display->SetOwnedSurface(nullptr);
         }
-        display->UpdateSourceImage(new_surface ? new_surface->image : nullptr);
+        display->OnSurfaceSwitch(new_surface);
     }
 }
 

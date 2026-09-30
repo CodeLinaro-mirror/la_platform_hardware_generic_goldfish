@@ -81,6 +81,7 @@ class ScreenRecordingServiceImpl final : public ScreenRecording::Service {
 
     // Recorer: for now, there is only one active recorder
     std::unique_ptr<::goldfish::display::VideoRecorder> recorder_;
+    ::goldfish::display::IDisplay::ScopedFrameListener recording_listener_;
 };
 
 }  // namespace incubating

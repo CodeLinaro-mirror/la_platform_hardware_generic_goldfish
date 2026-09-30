@@ -16,6 +16,7 @@
 #include <gmock/gmock.h>
 
 #include "goldfish/display/display.h"
+#include "goldfish/display/test/display_test_peer.h"
 
 namespace goldfish::display::test {
 
@@ -30,6 +31,12 @@ class MockDisplay : public IDisplay {
                 (override));
     MOCK_METHOD(void, SendMouseEvent, (int x, int y, int button_mask), (override));
     MOCK_METHOD(void, SendEvDevEvent, (uint16_t type, uint16_t code, uint32_t value), (override));
+    MOCK_METHOD(void, OnDemand, (bool has_consumers), (override));
+    MOCK_METHOD(void, OnFrameRequested, (), (override));
+
+    const std::shared_ptr<DisplayFrames>& mutable_frames() {
+        return DisplayTestPeer::frames(*this);
+    }
 };
 // NOLINTEND(modernize-type-traits)
 

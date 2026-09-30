@@ -23,6 +23,7 @@
 #include "gtest/gtest.h"
 
 #include "goldfish/async/libuv_event_loop.h"
+#include "goldfish/async/threaded_event_loop.h"
 #include "goldfish/display/test/fake_multi_display.h"
 #include "goldfish/display/test/fake_pixman_display.h"
 
@@ -34,12 +35,15 @@
 namespace android::emulation::control::incubating {
 
 using ::goldfish::async::LibuvEventLoop;
+using ::goldfish::async::ThreadedEventLoop;
 using ::goldfish::display::test::FakeMultiDisplay;
 
 class ScreenRecordingServiceImplTest : public ::testing::Test {
   protected:
     void SetUp() override {
-        loop = LibuvEventLoop::Create();
+        // The display posts demand changes and captures to its loop, so the
+        // loop must run for the recorder to receive frames.
+        loop = ThreadedEventLoop::Create(LibuvEventLoop::Create());
         fake_display = std::make_unique<FakeMultiDisplay>(loop.get());
         // Create default display 0
         fake_display->CreateDisplay(0, 1080, 2400, 440, 0).IgnoreError();
@@ -52,7 +56,7 @@ class ScreenRecordingServiceImplTest : public ::testing::Test {
         }
     }
 
-    std::unique_ptr<LibuvEventLoop> loop;
+    std::unique_ptr<::goldfish::async::EventLoop> loop;
     std::unique_ptr<FakeMultiDisplay> fake_display;
     std::unique_ptr<ScreenRecordingServiceImpl> service;
     std::filesystem::path temp_dir_;

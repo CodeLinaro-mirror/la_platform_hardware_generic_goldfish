@@ -45,6 +45,7 @@ cc_library(
         "//emulator/plugin/audio:qemu_audio_capture",
         "//emulator/plugin/avd:info",
         "//emulator/plugin/display",
+        "//emulator/plugin/display:write_png",
         "//emulator/plugin/grpc/keyboard",
         "//emulator/plugin/vminterface",
         "//emulator/tools:aemu_version",

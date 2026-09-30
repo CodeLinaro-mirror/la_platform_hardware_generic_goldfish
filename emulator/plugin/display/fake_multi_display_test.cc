@@ -40,7 +40,10 @@ class FakeMultiDisplayTest : public ::testing::Test {
         // Clear all displays except the default one before each test
         fake_multi_display_ = std::make_unique<FakeMultiDisplay>(loop_.get());
     }
-    void TearDown() override { loop_.reset(); }
+    void TearDown() override {
+        fake_multi_display_.reset();  // Display teardown posts to the loop.
+        loop_.reset();
+    }
 
     std::unique_ptr<FakeMultiDisplay> fake_multi_display_;
     std::unique_ptr<EventLoop> loop_;

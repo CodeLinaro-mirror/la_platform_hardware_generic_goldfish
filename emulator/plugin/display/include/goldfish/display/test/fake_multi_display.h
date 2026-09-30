@@ -13,6 +13,11 @@
 // limitations under the License.
 #pragma once
 
+#include <unordered_map>
+
+#include "absl/base/thread_annotations.h"
+#include "absl/synchronization/mutex.h"
+
 #include "goldfish/display/abstract_multi_display.h"
 
 namespace goldfish::display::test {
@@ -99,7 +104,8 @@ class FakeMultiDisplay : public IMultiDisplay {
     void Clear();
 
   private:
-    std::unordered_map<uint8_t, SharedDisplay> displays_;
+    mutable absl::Mutex mutex_;
+    std::unordered_map<uint8_t, SharedDisplay> displays_ ABSL_GUARDED_BY(mutex_);
     static FakeMultiDisplay* s_instance;
     bool enabled_{true};
 };
