@@ -526,6 +526,7 @@ cc_test(
         ":launcher_lib",
         ":mock_avd",
         "//emulator/libs/async:async_testing",
+        "//emulator/libs/cpu",
         "//emulator/libs/test:googletest_main",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
