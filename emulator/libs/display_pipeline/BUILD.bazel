@@ -5,41 +5,76 @@ cc_library(
     name = "core",
     srcs = [
         "read_request.cc",
+        "slot_pool.cc",
     ],
     hdrs = [
         "include/goldfish/display/frame.h",
         "include/goldfish/display/geometry.h",
+        "include/goldfish/display/slot_pool.h",
+        "include/goldfish/display/slot_storage.h",
     ],
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
+        "//emulator/libs/base",
+        "//emulator/libs/perfetto:init",
         "//emulator/libs/physics",
         "//emulator/libs/status_macros",
+        "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/functional:any_invocable",
         "@abseil-cpp//absl/functional:function_ref",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings:str_format",
+        "@abseil-cpp//absl/synchronization",
         "@abseil-cpp//absl/time",
         "@abseil-cpp//absl/types:span",
+    ],
+)
+
+cc_library(
+    name = "testing",
+    testonly = True,
+    srcs = [
+        "fake_slot_storage.cc",
+    ],
+    hdrs = [
+        "include/goldfish/display/test/fake_slot_storage.h",
+    ],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":core",
+        "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/functional:any_invocable",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/synchronization",
     ],
 )
 
 cc_test(
     name = "core_test",
     srcs = [
+        "fake_slot_storage_test.cc",
         "frame_test.cc",
         "read_request_test.cc",
+        "slot_pool_test.cc",
     ],
     deps = [
         ":core",
+        ":testing",
         "//emulator/libs/physics",
         "//emulator/libs/test:googletest_main",
+        "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:status_matchers",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/synchronization",
         "@abseil-cpp//absl/time",
-        "@abseil-cpp//absl/types:span",
         "@googletest//:gtest",
     ],
 )
@@ -48,6 +83,7 @@ clang_tidy_test(
     name = "tidy",
     targets = [
         ":core",
+        ":testing",
         ":core_test",
     ],
     tidy_config_file = "//:clang_tidy_config",

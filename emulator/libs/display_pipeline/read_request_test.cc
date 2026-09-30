@@ -579,6 +579,48 @@ TEST(BlankSlotTest, ConcurrentReadsAreSafe) {
     EXPECT_EQ(black_reads.load(), kThreads * kIterations);
 }
 
+TEST(SlotLeaseTest, BlankLeaseReadsOpaqueBlack) {
+    const SlotLease lease = SlotLease::Blank({6, 4});
+    EXPECT_EQ(lease.dimensions(), (Dimensions{6, 4}));
+    std::vector<uint8_t> rgba;
+    EXPECT_THAT(lease.ReadInto({.rotation = ImageRotation::kRotation90}, ReadFormat::kRgba8888,
+                               [&](const ReadLayout& layout) -> absl::StatusOr<uint8_t*> {
+                                   rgba.assign(layout.total_bytes, kSentinel);
+                                   return rgba.data();
+                               }),
+                IsOkAndHolds(Dimensions{4, 6}));
+    const ReadLayout layout = Slot::LayoutFor({6, 4}, {.rotation = ImageRotation::kRotation90},
+                                              ReadFormat::kRgba8888);
+    EXPECT_TRUE(IsOpaqueBlack(layout, rgba));
+}
+
+TEST(SlotLeaseTest, MovedFromLeaseRejectsEveryReadOverload) {
+    SlotLease lease = SlotLease::Blank({6, 4});
+    const SlotLease moved = std::move(lease);
+    std::vector<uint8_t> bytes(size_t{6} * 4 * 4);
+    const Rgba8888Target target{Plane{absl::MakeSpan(bytes)}};
+    int allocations = 0;
+
+    // NOLINTBEGIN(bugprone-use-after-move): the moved-from state is the point.
+    EXPECT_THAT(lease.ReadInto({}, target), StatusIs(absl::StatusCode::kFailedPrecondition));
+    EXPECT_THAT(lease.ReadInto({}, ReadFormat::kRgba8888,
+                               [&](const ReadLayout&) -> absl::StatusOr<uint8_t*> {
+                                   ++allocations;
+                                   return bytes.data();
+                               }),
+                StatusIs(absl::StatusCode::kFailedPrecondition));
+    EXPECT_THAT(lease.ReadInto({},
+                               [&](const ReadLayout&) -> absl::StatusOr<Rgba8888Target> {
+                                   ++allocations;
+                                   return target;
+                               }),
+                StatusIs(absl::StatusCode::kFailedPrecondition));
+    // NOLINTEND(bugprone-use-after-move)
+
+    EXPECT_EQ(allocations, 0);
+    EXPECT_THAT(moved.ReadInto({}, target), IsOk());
+}
+
 TEST(ReadIntoAllocatorTest, DeducesTargetFormatAtCompileTime) {
     const std::unique_ptr<const Slot> blank = Slot::Blank(kOddFrame);
 
