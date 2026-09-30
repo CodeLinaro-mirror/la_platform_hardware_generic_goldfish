@@ -46,10 +46,12 @@ cc_library(
     name = "cpu_pipeline",
     srcs = [
         "cpu_read_pipeline.cc",
+        "cpu_slot_storage.cc",
         "legacy_surface_source.cc",
     ],
     hdrs = [
         "include/goldfish/display/cpu_read_pipeline.h",
+        "include/goldfish/display/cpu_slot_storage.h",
         "include/goldfish/display/legacy_surface_source.h",
     ],
     includes = ["include"],
@@ -63,9 +65,9 @@ cc_library(
         "@abseil-cpp//absl/functional:any_invocable",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/synchronization",
-        "@abseil-cpp//absl/types:span",
         "@libyuv",
         "@pixman//:pixman-1",
     ],
@@ -129,6 +131,7 @@ cc_test(
     name = "cpu_pipeline_test",
     srcs = [
         "cpu_read_pipeline_test.cc",
+        "cpu_slot_storage_test.cc",
         "legacy_surface_source_test.cc",
     ],
     deps = [
