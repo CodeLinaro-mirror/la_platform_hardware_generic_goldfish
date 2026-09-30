@@ -26,7 +26,7 @@ class Avd;
 namespace fs = std::filesystem;
 
 absl::Status prepareUserDataBaseImage(const Avd& avd, const fs::path& init_data,
-                                      const fs::path& user_data, uint64_t data_size, bool resize);
+                                      const fs::path& user_data);
 
 std::optional<fs::path> getUserSrcDirectory(const Avd& avd);
 

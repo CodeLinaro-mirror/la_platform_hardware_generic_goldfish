@@ -34,84 +34,6 @@ namespace android::goldfish {
 
 namespace fs = std::filesystem;
 
-namespace {
-
-using android::base::StorageCapacity;
-using android::base::operator""_MiB;
-using android::base::operator""_TiB;
-
-absl::Status resizePartition(fs::path partition, StorageCapacity size) {
-    constexpr auto minSize = 128_MiB;
-    constexpr auto maxSize = 16_TiB;
-
-    if (size < minSize) {
-        return absl::InvalidArgumentError(
-                absl::StrFormat("Partition '%s' cannot be smaller than %s. Requested size: %s",
-                                partition.string(), minSize.String(), size.String()));
-    }
-
-    if (size > maxSize) {
-        return absl::InvalidArgumentError(
-                absl::StrFormat("Partition '%s' cannot be larger than %s. Requested size: %s",
-                                partition.string(), maxSize.String(), size.String()));
-    }
-
-    // TODO the extprogs are not currently bundled with emu-next. For this to work they should be
-    // included in the release zip.
-    int resizeResult = resizeExt4Partition(fs::path("some-dir-TODO"), partition.string().c_str(),
-                                           size.Bytes());
-
-    // Interpret the error codes can propagate.
-    if (resizeResult != 0) {
-        std::string resizeError;
-        switch (resizeResult) {
-        case -1:
-            resizeError = "Argument formatting failed";
-            break;
-        case -2:
-            resizeError = "System call failed";
-            break;
-        default:
-            resizeError = absl::StrFormat("resize2fs failed with exit code %d", resizeResult);
-            break;
-        }
-        return absl::InternalError(absl::StrFormat("Could not resize partition %s. Error: %s",
-                                                   partition.string(), resizeError));
-    }
-
-    return absl::OkStatus();
-}
-
-bool pathIsExt4(fs::path path) {
-    // read 2 bytes
-    uint8_t magic[2] = {'\0'};
-    std::ifstream ifs(path, std::ios_base::binary);
-    if (!ifs.good()) {
-        return false;
-    }
-    ifs.ignore(1080);
-    ifs.read(reinterpret_cast<char*>(magic), sizeof(magic));
-
-    return magic[0] == 0x53 && magic[1] == 0xEF;
-}
-
-absl::Status minimizePartition(fs::path image, uint64_t desired_size_bytes) {
-    if (pathIsExt4(image)) {
-        ASSIGN_OR_RETURN(auto current_data_size, base::file::file_size(image));
-        if (desired_size_bytes > 0 && current_data_size.Bytes() < desired_size_bytes) {
-            // Log resize intent
-            LOG(WARNING) << "Resizing userdata partition " << image << " from "
-                         << current_data_size.String() << " to " << desired_size_bytes;
-            RETURN_IF_ERROR(resizePartition(image, desired_size_bytes));
-            // It will be recreated by RwDrive.
-            base::file::rm(image.concat(".qcow2")).IgnoreError();
-        }
-    }
-    return absl::OkStatus();
-}
-
-}  // namespace
-
 std::optional<fs::path> getUserSrcDirectory(const Avd& avd) {
     if (avd.Hw().hw_sensor_hinge) {
         return avd.GetContentPath() / "data";
@@ -121,56 +43,51 @@ std::optional<fs::path> getUserSrcDirectory(const Avd& avd) {
 }
 
 absl::Status prepareUserDataBaseImage(const Avd& avd, const fs::path& init_data,
-                                      const fs::path& user_data, uint64_t data_size, bool resize) {
+                                      const fs::path& user_data) {
     if (base::file::exists(user_data)) {
-        if (!resize) {
-            return absl::OkStatus();
-        }
-        return minimizePartition(user_data, data_size);
-    } else {
-        if (!base::file::is_dir(init_data)) {
+        return absl::OkStatus();
+    }
+
+    if (!base::file::is_dir(init_data)) {
+        return absl::InvalidArgumentError(absl::StrCat(
+                "data partition initialization path is not a directory: ", init_data.string()));
+    }
+
+    std::optional<fs::path> src_directory = getUserSrcDirectory(avd);
+    if (src_directory) {
+        LOG(INFO) << "prepareUserDataBaseImage: init_data=" << init_data
+                  << ", user_data=" << user_data << ", src_directory=" << src_directory->string();
+
+        LOG(INFO) << "wiping and recreating " << *src_directory;
+        RETURN_IF_ERROR(base::file::rm_recursive(*src_directory));
+        fs::path dest_dir = *src_directory / "system";
+        RETURN_IF_ERROR(base::file::mkdir_recursive(dest_dir, 0755));
+        fs::path src_init = init_data / "misc" / "pixel_9_pro_fold";
+        if (base::file::is_dir(src_init)) {
+            LOG(INFO) << "Copying from " << src_init << " to " << dest_dir;
+            std::error_code ec;
+            fs::copy(src_init, dest_dir,
+                     fs::copy_options::recursive | fs::copy_options::overwrite_existing, ec);
+            if (ec) {
+                return absl::InternalError(absl::StrCat("Failed to copy ", src_init.string(),
+                                                        " to ", dest_dir.string(), ": ",
+                                                        ec.message()));
+            }
+        } else {
             return absl::InvalidArgumentError(absl::StrCat(
                     "data partition initialization path is not a directory: ", init_data.string()));
         }
-        fs::path empty_data_path = init_data / "empty_data_disk";
-        std::optional<fs::path> src_directory = getUserSrcDirectory(avd);
-        if (src_directory) {
-            LOG(INFO) << "prepareUserDataBaseImage: init_data=" << init_data
-                      << ", user_data=" << user_data
-                      << ", src_directory=" << (src_directory ? src_directory->string() : "none");
 
-            LOG(INFO) << "wiping and recreating " << *src_directory;
-            RETURN_IF_ERROR(base::file::rm_recursive(*src_directory));
-            fs::path dest_dir = *src_directory / "system";
-            RETURN_IF_ERROR(base::file::mkdir_recursive(dest_dir, 0755));
-            fs::path src_init = init_data / "misc" / "pixel_9_pro_fold";
-            if (base::file::is_dir(src_init)) {
-                LOG(INFO) << "Copying from " << src_init << " to " << dest_dir;
-                std::error_code ec;
-                fs::copy(src_init, dest_dir,
-                         fs::copy_options::recursive | fs::copy_options::overwrite_existing, ec);
-                if (ec) {
-                    return absl::InternalError(absl::StrCat("Failed to copy ", src_init.string(),
-                                                            " to ", dest_dir.string(), ": ",
-                                                            ec.message()));
-                }
-            } else {
-                return absl::InvalidArgumentError(
-                        absl::StrCat("data partition initialization path is not a directory: ",
-                                     init_data.string()));
-            }
-
-            return absl::OkStatus();
-        } else if (base::file::exists(empty_data_path)) {
-            // Don't create anything - in this case, userdata should be created the same as cache or
-            // sdcard.
-            return absl::OkStatus();
-        }
-        LOG(WARNING)
-                << "No empty_data_disk marker found but data dirs are not fully supported by this "
-                   "version of the emulator: data partition will be initialized empty";
+        return absl::OkStatus();
+    } else if (base::file::exists(init_data / "empty_data_disk")) {
+        // Don't create anything - in this case, userdata should be created the same as cache or
+        // sdcard.
         return absl::OkStatus();
     }
+
+    LOG(WARNING) << "No empty_data_disk marker found but data dirs are not fully supported by this "
+                    "version of the emulator: data partition will be initialized empty";
+    return absl::OkStatus();
 }
 
 }  // namespace android::goldfish
