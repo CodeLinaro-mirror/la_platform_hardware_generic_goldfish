@@ -288,6 +288,16 @@ void DeviceDispatch::freeCommandBuffers(const VkCommandPool command_pool, const 
     (*pfn_vkFreeCommandBuffers)(device_, command_pool, bufs_size, bufs);
 }
 
+bool DeviceDispatch::resetCommandBuffer(const VkCommandBuffer command_buffer,
+                                        const VkCommandBufferResetFlags flags) const {
+    const VkResult result = (*pfn_vkResetCommandBuffer)(command_buffer, flags);
+    if (result != VK_SUCCESS) {
+        LogVkResult("vkResetCommandBuffer", result);
+        return false;
+    }
+    return true;
+}
+
 CommandBufferEnder DeviceDispatch::beginCommandBuffer(
         const VkCommandBuffer cmdbuf, const VkCommandBufferUsageFlags usage_flags,
         const bool occlusion_query_enable, const VkQueryControlFlags query_flags,
@@ -367,6 +377,16 @@ bool DeviceDispatch::queueWaitIdle(const VkQueue queue) const {
     return true;
 }
 
+bool DeviceDispatch::deviceWaitIdle() const {
+    const VkResult result = (*pfn_vkDeviceWaitIdle)(device_);
+    if (result != VK_SUCCESS) {
+        LogVkResult("vkDeviceWaitIdle", result);
+        return false;
+    }
+
+    return true;
+}
+
 ShaderModule DeviceDispatch::createShaderModule(const void* code, const size_t code_size) const {
     const VkShaderModuleCreateInfo create_info = {
         .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
@@ -389,6 +409,21 @@ ShaderModule DeviceDispatch::createShaderModule(const void* code, const size_t c
 
 void DeviceDispatch::destroyShaderModule(const VkShaderModule shader_module) const {
     (*pfn_vkDestroyShaderModule)(device_, shader_module, nullptr);
+}
+
+Sampler DeviceDispatch::createSampler(const VkSamplerCreateInfo& create_info) const {
+    VkSampler sampler = VK_NULL_HANDLE;
+    const VkResult result = (*pfn_vkCreateSampler)(device_, &create_info, nullptr, &sampler);
+    if (result != VK_SUCCESS) {
+        LogVkResult("vkCreateSampler", result);
+        return {};
+    }
+
+    return Sampler(sampler, DeviceResourceDeleter(this));
+}
+
+void DeviceDispatch::destroySampler(const VkSampler sampler) const {
+    (*pfn_vkDestroySampler)(device_, sampler, nullptr);
 }
 
 DescriptorSetLayout DeviceDispatch::createDescriptorSetLayout(
@@ -422,13 +457,13 @@ void DeviceDispatch::destroyDescriptorSetLayout(const VkDescriptorSetLayout layo
     (*pfn_vkDestroyDescriptorSetLayout)(device_, layout, nullptr);
 }
 
-DescriptorPool DeviceDispatch::createDescriptorPool(VkDescriptorPoolCreateFlags, uint32_t max_sets,
-                                                    uint32_t pool_size_count,
+DescriptorPool DeviceDispatch::createDescriptorPool(const VkDescriptorPoolCreateFlags flags,
+                                                    uint32_t max_sets, uint32_t pool_size_count,
                                                     const VkDescriptorPoolSize* pool_sizes) const {
     const VkDescriptorPoolCreateInfo create_info = {
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
         .pNext = nullptr,
-        .flags = 0,
+        .flags = flags,
         .maxSets = max_sets,
         .poolSizeCount = pool_size_count,
         .pPoolSizes = pool_sizes,
@@ -751,6 +786,25 @@ void DeviceDispatch::cmdDrawIndexed(const VkCommandBuffer command_buffer,
                             first_instance);
 }
 
+void DeviceDispatch::cmdPushConstants(const VkCommandBuffer command_buffer,
+                                      const VkPipelineLayout layout,
+                                      const VkShaderStageFlags stage_flags, const uint32_t offset,
+                                      const uint32_t size, const void* values) const {
+    (*pfn_vkCmdPushConstants)(command_buffer, layout, stage_flags, offset, size, values);
+}
+
+void DeviceDispatch::cmdSetViewport(const VkCommandBuffer command_buffer,
+                                    const uint32_t first_viewport, const uint32_t viewport_count,
+                                    const VkViewport* viewports) const {
+    (*pfn_vkCmdSetViewport)(command_buffer, first_viewport, viewport_count, viewports);
+}
+
+void DeviceDispatch::cmdSetScissor(const VkCommandBuffer command_buffer,
+                                   const uint32_t first_scissor, const uint32_t scissor_count,
+                                   const VkRect2D* scissors) const {
+    (*pfn_vkCmdSetScissor)(command_buffer, first_scissor, scissor_count, scissors);
+}
+
 void DeviceDispatch::cmdBlitImage(const VkCommandBuffer command_buffer, const VkImage src_image,
                                   const VkImageLayout src_image_layout, const VkImage dst_image,
                                   const VkImageLayout dst_image_layout, const uint32_t region_count,
@@ -768,6 +822,15 @@ void DeviceDispatch::cmdCopyImageToBuffer(const VkCommandBuffer command_buffer,
                                   region_count, regions);
 }
 
+void DeviceDispatch::cmdCopyBufferToImage(const VkCommandBuffer command_buffer,
+                                          const VkBuffer src_buffer, const VkImage dst_image,
+                                          const VkImageLayout dst_image_layout,
+                                          const uint32_t region_count,
+                                          const VkBufferImageCopy* regions) const {
+    (*pfn_vkCmdCopyBufferToImage)(command_buffer, src_buffer, dst_image, dst_image_layout,
+                                  region_count, regions);
+}
+
 void DeviceDispatch::cmdPipelineBarrier(
         VkCommandBuffer command_buffer, VkPipelineStageFlags src_stage_mask,
         VkPipelineStageFlags dst_stage_mask, VkDependencyFlags dependency_flags,
@@ -777,8 +840,8 @@ void DeviceDispatch::cmdPipelineBarrier(
         const VkImageMemoryBarrier* image_memory_barriers) const {
     (*pfn_vkCmdPipelineBarrier)(command_buffer, src_stage_mask, dst_stage_mask, dependency_flags,
                                 memory_barrier_count, memory_barriers, buffer_memory_barrier_count,
-                                buffer_memory_barriers, image_memory_barrier_count,
-                                image_memory_barriers);
+                                buffer_memory_barrier_count ? buffer_memory_barriers : nullptr,
+                                image_memory_barrier_count, image_memory_barriers);
 }
 
 VkSubresourceLayout DeviceDispatch::getImageSubresourceLayout(const VkImage image,

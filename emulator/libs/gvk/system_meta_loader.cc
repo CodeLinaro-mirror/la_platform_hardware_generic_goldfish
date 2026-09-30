@@ -15,8 +15,10 @@
 
 #include "goldfish/gvk/system_meta_loader.h"
 
+#include <filesystem>
 #include <memory>
 #include <mutex>
+#include <string>
 
 #include "absl/log/log.h"
 
@@ -101,7 +103,7 @@ PFN_vkGetInstanceProcAddr SystemMetaLoader::getInstanceProcAddr() const {
     return pfn_vkGetInstanceProcAddr;
 }
 
-IMetaLoader::Ptr SystemMetaLoader::get() {
+IMetaLoader::Ptr SystemMetaLoader::get(const char* custom_search_dir) {
     static const char* const kSearchPaths[] = {
 #if defined(__linux__)
         "libvulkan.so.1",
@@ -117,7 +119,7 @@ IMetaLoader::Ptr SystemMetaLoader::get() {
     };
 
     std::shared_ptr<SystemMetaLoader> loader;
-    for (const char* path : kSearchPaths) {
+    auto try_load = [&loader](const char* path) -> bool {
         os::DynamicLibrary lib(path);
         if (lib.ok()) {
             if (!loader) {
@@ -126,8 +128,25 @@ IMetaLoader::Ptr SystemMetaLoader::get() {
 
             if (loader->initPFNs([&lib](const char* name) { return lib[name]; })) {
                 loader->library_ = std::move(lib);
+                return true;
+            }
+        }
+        return false;
+    };
+
+    if (custom_search_dir && custom_search_dir[0] != '\0') {
+        const std::filesystem::path base_dir(custom_search_dir);
+        for (const char* path : kSearchPaths) {
+            const std::string full_path = (base_dir / path).string();
+            if (try_load(full_path.c_str())) {
                 return loader;
             }
+        }
+    }
+
+    for (const char* path : kSearchPaths) {
+        if (try_load(path)) {
+            return loader;
         }
     }
 
