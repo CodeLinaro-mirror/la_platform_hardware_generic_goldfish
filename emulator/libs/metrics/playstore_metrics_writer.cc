@@ -150,8 +150,9 @@ absl::StatusOr<absl::Duration> SendToPlaystore(const std::string& url, LogReques
     curl_easy_setopt(curl.get(), CURLOPT_WRITEDATA, &resp);
     curl_easy_setopt(curl.get(), CURLOPT_FOLLOWLOCATION, 1L);
     curl_easy_setopt(curl.get(), CURLOPT_MAXREDIRS, 10L);
+    curl_easy_setopt(curl.get(), CURLOPT_SSL_OPTIONS, CURLSSLOPT_NATIVE_CA);
     if (VLOG_IS_ON(1)) {
-        curl_easy_setopt(curl.get(), CURLOPT_VERBOSE, true);
+        curl_easy_setopt(curl.get(), CURLOPT_VERBOSE, 1L);
     }
 
     CURLcode res = curl_easy_perform(curl.get());
