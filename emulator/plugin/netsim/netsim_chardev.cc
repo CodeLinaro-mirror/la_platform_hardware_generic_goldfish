@@ -69,10 +69,11 @@ class UwbProtocol : public Protocol {
     void reset() override {
         state_ = UCI_HEADER;
         mBytesWanted = UCI_HEADER_SIZE;
+        mPacket.clear();
     }
 
     void reset_guest(Chardev* c) override {
-        // N/A
+        qemu_chr_be_write(c, reset_sequence, sizeof(reset_sequence));
     }
 
     void netsim_to_guest_packet(Chardev* c,
@@ -129,6 +130,9 @@ class UwbProtocol : public Protocol {
     }
 
   private:
+    // UCI CORE_DEVICE_STATUS_NTF (DEVICE_STATE_ERROR) to trigger guest UWB stack recovery.
+    static constexpr uint8_t reset_sequence[] = {0x60, 0x01, 0x00, 0x01, 0xff};
+
     const size_t UCI_HEADER_SIZE = 4;
     const size_t UCI_PAYLOAD_LENGTH_FIELD = 3;
     enum State { UCI_HEADER, UCI_PAYLOAD };
@@ -150,8 +154,8 @@ class NfcProtocol : public Protocol {
         mPacket.clear();
     }
 
-    void reset_guest(Chardev* /*c*/) override {
-        // N/A
+    void reset_guest(Chardev* c) override {
+        qemu_chr_be_write(c, reset_sequence, sizeof(reset_sequence));
     }
 
     void netsim_to_guest_packet(Chardev* c,
@@ -211,6 +215,9 @@ class NfcProtocol : public Protocol {
     }
 
   private:
+    // NCI 2.0 CORE_RESET_NTF (UnrecoverableError) to trigger guest NFC stack recovery.
+    static constexpr uint8_t reset_sequence[] = {0x60, 0x00, 0x05, 0x00, 0x01, 0x20, 0x00, 0x00};
+
     static constexpr size_t NCI_HEADER_SIZE = 3;
     static constexpr size_t NCI_PAYLOAD_LENGTH_FIELD = 2;
     enum State { NCI_HEADER, NCI_PAYLOAD };
@@ -428,6 +435,11 @@ int netsim_chardev_write(Chardev* chr, const uint8_t* buf, int len) {
     // From guest -> netsim
     VLOG(2) << "NETSIM: receive (netsim <- guest)";
     auto* state = NETSIM_CHARDEV(chr)->state;
+    // Drop any guest writes that arrive before netsim_chardev_set_fe_open
+    // connects the transport and resets the guest.
+    if (!state->transport) {
+        return len;
+    }
 
     // parser writes into parser_packet_queue
     uint64_t left = len;
@@ -521,6 +533,10 @@ bool netsim_chardev_open(Chardev* chr, ChardevBackend* backend, Error** errp) {
     // This is because chardevs are opened way before "device"s and so no AVD information is yet
     // available. However, the frontend is also a device and ordered after the device. So we connect
     // to Netsimd at that point (netsim_chardev_set_fe_open).
+    // Report the backend as open immediately so the guest virtio-serial port stays
+    // connected across snapshot load instead of seeing a transient EOF before
+    // netsim_chardev_set_fe_open connects and resets the guest.
+    qemu_chr_be_event(chr, CHR_EVENT_OPENED);
     return true;
 }
 
