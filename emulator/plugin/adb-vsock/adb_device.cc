@@ -95,9 +95,13 @@ void adb_vsock_realize(DeviceState* dev, Error** errp) {
     vsock_fwd_dev->on_connect = adb_vsock_connected;
 
     VLOG(1) << "ADB monitor: " << (adb->monitor ? "enabled" : "disabled");
-    vsock_fwd_dev->data_sniffer_factory =
-            [host = vsock_fwd_dev->host_port, guest = vsock_fwd_dev->guest_port,
-             verbose = adb->monitor] { return std::make_unique<AdbLogger>(host, guest, verbose); };
+    if (adb->monitor) {
+        vsock_fwd_dev->data_sniffer_factory = [host = vsock_fwd_dev->host_port,
+                                               guest = vsock_fwd_dev->guest_port,
+                                               verbose = adb->monitor] {
+            return std::make_unique<AdbLogger>(host, guest, verbose);
+        };
+    }
 
     // Initialize the vsock port forwarder.
     adc->vsock_port_fwd_realize(dev, errp);
