@@ -123,7 +123,13 @@ class CrashMetadata:
 
     @property
     def primary_signature(self) -> Optional[str]:
-        return self.report_proto.get("stableSignature")
+        return self.report_proto.get("stableSignature") or self.report_proto.get(
+            "stable_signature"
+        )
+
+    @property
+    def stable_signature(self) -> Optional[str]:
+        return self.primary_signature
 
     @property
     def modules(self) -> List[Tuple[str, str]]:
@@ -140,7 +146,10 @@ class CrashMetadata:
         # Check through thread stack frames
         threads = self.report_proto.get("thread", [])
         for t in threads:
-            frames = t.get("stack_trace", {}).get("frame", [])
+            frames = (
+                t.get("stack_trace", {}).get("frame", [])
+                or t.get("StackTrace", {}).get("StackFrame", [])
+            )
             for f in frames:
                 mod = f.get("Module", {})
                 df = mod.get("DebugFile")

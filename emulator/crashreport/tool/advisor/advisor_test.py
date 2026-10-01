@@ -146,6 +146,105 @@ class TestCrashAdvisor(unittest.TestCase):
         self.assertTrue(out_path.exists())
         mock_run.assert_called_once()
 
+    @patch("client.subprocess.run")
+    def test_gosso_fetch_url_fallback_to_stubby_get_report(
+        self, mock_run: MagicMock
+    ) -> None:
+        """Test GossoClient falls back to stubby GetReport when gosso returns 403."""
+        client = GossoClient(
+            gosso_path="/usr/bin/gosso", stubby_path="/usr/bin/stubby"
+        )
+        out_path = self.temp_path / "metadata.json"
+
+        stubby_stdout = json.dumps(
+            {
+                "status": {"status_code": 0},
+                "report": {
+                    "original_report": {
+                        "ReportID": self.crash_id,
+                        "product": {
+                            "Name": "AndroidEmulator",
+                            "Version": "37.1.3-16373346",
+                        },
+                        "stable_signature": "CrashReporterImpl::Die",
+                    }
+                },
+            }
+        )
+
+        mock_run.side_effect = [
+            subprocess.CalledProcessError(
+                1, ["/usr/bin/gosso"], stderr=b"403 Forbidden"
+            ),
+            MagicMock(returncode=0, stdout=stubby_stdout, stderr=""),
+        ]
+
+        url = f"https://crash.corp.google.com/get_report?id={self.crash_id}&response_type=json"
+        client.fetch_url_to_file(url, out_path)
+
+        self.assertTrue(out_path.exists())
+        saved = json.loads(out_path.read_text(encoding="utf-8"))
+        self.assertEqual(saved["report_proto"]["ReportID"], self.crash_id)
+        self.assertEqual(
+            saved["report_proto"]["stableSignature"], "CrashReporterImpl::Die"
+        )
+        self.assertEqual(mock_run.call_count, 2)
+
+    @patch("client.subprocess.run")
+    def test_gosso_fetch_url_fallback_to_stubby_fetch_file(
+        self, mock_run: MagicMock
+    ) -> None:
+        """Test GossoClient falls back to stubby GetFile when gosso returns 403."""
+        client = GossoClient(
+            gosso_path="/usr/bin/gosso", stubby_path="/usr/bin/stubby"
+        )
+        out_path = self.temp_path / "minidump.dmp"
+
+        stubby_stdout = json.dumps(
+            {
+                "status": {"status_code": 0},
+                "file": [
+                    {
+                        "file_field_name": "upload_file_minidump",
+                        "contents": "TURNUA==",  # base64("MDMP")
+                    }
+                ],
+            }
+        )
+
+        mock_run.side_effect = [
+            subprocess.CalledProcessError(
+                1, ["/usr/bin/gosso"], stderr=b"403 Forbidden"
+            ),
+            MagicMock(returncode=0, stdout=stubby_stdout, stderr=""),
+        ]
+
+        url = f"https://crash.corp.google.com/fetch_file?reportid={self.crash_id}&filename=upload_file_minidump"
+        client.fetch_url_to_file(url, out_path)
+
+        self.assertTrue(out_path.exists())
+        self.assertEqual(out_path.read_bytes(), b"MDMP")
+        self.assertEqual(mock_run.call_count, 2)
+
+    @patch("client.shutil.which", return_value=None)
+    @patch("client.subprocess.run")
+    def test_gosso_fetch_url_reraises_when_stubby_unavailable(
+        self, mock_run: MagicMock, _mock_which: MagicMock
+    ) -> None:
+        """Test GossoClient re-raises CalledProcessError when stubby fallback is unavailable."""
+        client = GossoClient(gosso_path="/usr/bin/gosso", stubby_path=None)
+        out_path = self.temp_path / "out.dmp"
+        mock_run.side_effect = subprocess.CalledProcessError(
+            1, ["/usr/bin/gosso"], stderr=b"403 Forbidden"
+        )
+
+        with self.assertRaises(subprocess.CalledProcessError):
+            client.fetch_url_to_file(
+                f"https://crash.corp.google.com/get_report?id={self.crash_id}&response_type=json",
+                out_path,
+            )
+        self.assertFalse(out_path.exists())
+
     def test_context_sandbox_preparation(self) -> None:
         """Test CrashReportContext crash ID parsing and sandbox directory creation."""
         context = CrashReportContext(
