@@ -739,22 +739,25 @@ absl::StatusOr<std::unique_ptr<Avd>> Avd::FromAndroidBuild(
         const AndroidOptions& opts, const android::goldfish::UserPaths& user_paths,
         const std::string& name, fs::path android_build_out, bool wipe_data,
         fs::path writable_content_override) {
-    if (writable_content_override.empty() && wipe_data) {
-        // Specific -wipe-data behavior for android build.
-        using namespace std::literals;
-        constexpr auto kFilesToDelete = std::array{
-            "system.img.qcow2"sv,  "vendor.img.qcow2"sv,        "encryptionkey.img.qcow2"sv,
-            "userdata-qemu.img"sv, "userdata-qemu.img.qcow2"sv, "cache.img.qcow2"sv,
-            "hardware-qemu.ini"sv, "qemu-version.txt"sv};
-        for (const auto& f : kFilesToDelete) {
-            auto path = android_build_out / f;
-            if (auto s = android::base::file::rm(path); !s.ok()) {
+    fs::path content_path;
+    if (!writable_content_override.empty()) {
+        content_path = std::move(writable_content_override);
+    } else {
+        content_path = android_build_out / "avd.tmp";
+        if (wipe_data) {
+            LOG(WARNING) << "Performing factory reset: clearing AVD for an initial cold boot";
+            if (auto s = android::base::file::rm_recursive(content_path); !s.ok()) {
                 LOG(ERROR) << "Could not remove AVD contents file for -wipe-data, you might have "
-                              "to manually remove this file. Path: "
-                           << path << ", Status: " << s;
+                              "to manually remove the directory. Path: "
+                           << content_path << ", Status: " << s;
             }
         }
+        if (auto s = android::base::file::mkdir_recursive(content_path, 0755); !s.ok()) {
+            return absl::InternalError(absl::StrCat(
+                    "Could not create the avd path: ", content_path.string(), ", Status: ", s));
+        }
     }
+
     std::vector<fs::path> sys_image_search_paths{
         android_build_out,
         // build.prop is under system dir.
@@ -774,9 +777,7 @@ absl::StatusOr<std::unique_ptr<Avd>> Avd::FromAndroidBuild(
                                                                  /*android_build=*/true)));
 
     return android::goldfish::Avd::FromSysDirs(opts, user_paths, name, std::move(config_ini),
-                                               !writable_content_override.empty()
-                                                       ? std::move(writable_content_override)
-                                                       : std::move(android_build_out),
+                                               std::move(content_path),
                                                std::move(system_image_paths));
 }
 
