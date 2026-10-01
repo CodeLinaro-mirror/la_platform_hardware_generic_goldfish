@@ -226,12 +226,14 @@ void AdbMessageLogger::Observe(const void* data, size_t size) {
     }
 }
 
-AdbLogger::AdbLogger(int host_port, int guest_port, bool verbose)
+AdbLogger::AdbLogger(int host_port, int guest_port, bool verbose, bool capture_snippets)
         : to_guest_(AdbMessageLogger(absl::StrFormat(">> (%d) ", guest_port), true, verbose))
         , to_host_(AdbMessageLogger(absl::StrFormat("<< (%d) ", host_port), false, verbose)) {
-    tracker_ = std::make_unique<AdbBreadcrumbTracker>();
+#if defined(CONFIG_TRACE_GOLDFISH)
+    tracker_ = std::make_unique<AdbBreadcrumbTracker>(capture_snippets);
     to_guest_.SetCallback(tracker_.get());
     to_host_.SetCallback(tracker_.get());
+#endif
 }
 
 void AdbLogger::ToSocket(const void* data, size_t data_size) {

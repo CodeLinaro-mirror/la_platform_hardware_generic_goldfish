@@ -535,4 +535,48 @@ TEST(AdbBreadcrumbTrackerTest, InvariantMismatchedEvictionTest) {
     EXPECT_TRUE(found);
 }
 
+TEST(AdbBreadcrumbTrackerTest, ExplicitDisableDoesNotCapturePayloadSnippets) {
+    AdbBreadcrumbTracker tracker(false);  // Explicitly disable snippet capture
+    APacket packet;
+    packet.message.command = kAdbWrte;
+    packet.message.arg0 = 200;
+    packet.message.arg1 = 300;
+    const char secret_data[] = "SECRET_PASSWORD_OR_COMMAND";
+    packet.message.data_length = sizeof(secret_data);
+
+    tracker.OnPacket(packet.message, secret_data, true);
+
+    auto* raw_log = AdbBreadcrumbTracker::GetLogForTesting();
+    ASSERT_NE(raw_log, nullptr);
+
+    uint64_t expected_flow_id = (static_cast<uint64_t>(200) << 32) | 300;
+    bool found = FindAdbEvent(raw_log, kAdbWrte, expected_flow_id,
+                              [&](const BreadcrumbEnvelope& env, const RawAdbPayload& payload,
+                                  const char* snippet) { EXPECT_EQ(payload.snippet_len, 0); });
+
+    EXPECT_TRUE(found);
+}
+
+TEST(AdbBreadcrumbTrackerTest, DefaultCapturesPayloadSnippets) {
+    AdbBreadcrumbTracker tracker;  // Defaults to capture_snippets = true
+    APacket packet;
+    packet.message.command = kAdbWrte;
+    packet.message.arg0 = 201;
+    packet.message.arg1 = 301;
+    const char payload_data[] = "USER_REQUESTED_SNIPPET";
+    packet.message.data_length = sizeof(payload_data);
+
+    tracker.OnPacket(packet.message, payload_data, true);
+
+    auto* raw_log = AdbBreadcrumbTracker::GetLogForTesting();
+    ASSERT_NE(raw_log, nullptr);
+
+    uint64_t expected_flow_id = (static_cast<uint64_t>(201) << 32) | 301;
+    bool found = FindAdbEvent(raw_log, kAdbWrte, expected_flow_id,
+                              [&](const BreadcrumbEnvelope& env, const RawAdbPayload& payload,
+                                  const char* snippet) { EXPECT_GT(payload.snippet_len, 0); });
+
+    EXPECT_TRUE(found);
+}
+
 }  // namespace goldfish::adb
