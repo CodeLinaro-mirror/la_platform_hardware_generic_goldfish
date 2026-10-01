@@ -49,8 +49,12 @@ _SERVERS_DIR = _REPO_ROOT / "tools" / "buildSrc" / "servers"
 if str(_SERVERS_DIR) not in sys.path:
     sys.path.insert(0, str(_SERVERS_DIR))
 
-import bazel
-import build_environment
+try:
+    from engine import bazel
+    from host import build_environment
+except ImportError:
+    import bazel
+    import build_environment
 
 CPP_EXTENSIONS = (
     ".c",
