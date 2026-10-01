@@ -56,10 +56,9 @@
  * - a "config.ini" file used to hold configuration information for the
  *   AVD
  *
- * - mandatory user data image ("userdata-qemu.img") and cache image
- *   ("cache.img")
+ * - mandatory user data image ("userdata.img") and cache image ("cache.img")
  *
- * - optional mutable system image ("system-qemu.img"), kernel image
+ * - optional mutable system image ("system.img"), kernel image
  *   ("kernel-qemu") and read-only ramdisk ("ramdisk.img")
  *
  * When starting up an AVD, the emulator looks for relevant disk images
@@ -518,7 +517,7 @@ class FileBackedAvd : public Avd {
         }
 
         // Inspect root AVD content directory for .qcow2 disk images (e.g., cache.img.qcow2,
-        // userdata-qemu.img.qcow2)
+        // userdata.img.qcow2)
         if (inspector) {
             fs::path content_dir = GetContentPath();
             if (android::base::file::is_dir(content_dir)) {

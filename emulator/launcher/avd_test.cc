@@ -612,7 +612,7 @@ TEST_F(AvdTest, ListSnapshotsWithInspector) {
     fs::path snap1 = avd_dir / "snapshots" / "snap1";
     fs::create_directories(snap1);
     WriteToFile(snap1 / "ram.qcow2", "qcow ram");
-    WriteToFile(avd_dir / "userdata-qemu.img.qcow2", "userdata qcow");
+    WriteToFile(avd_dir / "userdata.img.qcow2", "userdata qcow");
 
     ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(opts_, paths_, "snap_avd2", false, {}, {}));
     auto mock_inspector = [](const fs::path& p) -> std::string {
@@ -623,9 +623,9 @@ TEST_F(AvdTest, ListSnapshotsWithInspector) {
     EXPECT_EQ(snaps[0].name, "snap1");
     EXPECT_TRUE(snaps[0].has_ram_file);
     EXPECT_THAT(snaps[0].image_info, ::testing::HasSubstr("Image [ram.qcow2]"));
-    EXPECT_EQ(snaps[1].name, "Disk Image: userdata-qemu.img.qcow2");
+    EXPECT_EQ(snaps[1].name, "Disk Image: userdata.img.qcow2");
     EXPECT_THAT(snaps[1].image_info,
-                ::testing::HasSubstr("mock qemu-img info for userdata-qemu.img.qcow2"));
+                ::testing::HasSubstr("mock qemu-img info for userdata.img.qcow2"));
 }
 
 }  // namespace android::goldfish::avd

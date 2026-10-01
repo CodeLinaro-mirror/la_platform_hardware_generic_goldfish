@@ -93,7 +93,7 @@ static void HelpSdkImages(stralloc_t* out) {
            "  The image files are documented in -help-disk-images. By default, an AVD\n"
            "  content directory will contain the following persistent image files:\n\n"
 
-           "     userdata-qemu.img     - the /data partition image file\n"
+           "     userdata.img          - the /data partition image file\n"
            "     cache.img             - the /cache partition image file\n\n"
 
            "  You can use -wipe-data to re-initialize the /data partition to its factory\n"
@@ -149,20 +149,11 @@ static void HelpDiskImages(stralloc_t* out) {
 
            "  The minimal required image files are the following:\n\n"
 
-           "    kernel-qemu      the emulator-specific Linux kernel image\n"
-           "    ramdisk.img      the ramdisk image used to boot the system\n"
-           "    system.img       the *initial* system image\n"
-           "    vendor.img       the *initial* vendor image\n"
-           "    userdata.img     the *initial* data partition image\n\n"
-
-           "  It will also use the following writable image files:\n\n"
-
-           "    userdata-qemu.img  the persistent data partition image\n"
-           "    system-qemu.img    an *optional* persistent system image\n"
-           "    vendor-qemu.img    an *optional* persistent vendor image\n"
-           "    cache.img          an *optional* cache partition image\n"
-           "    sdcard.img         an *optional* SD Card partition image\n\n"
-           "    snapshots.img      an *optional* state snapshots image\n\n"
+           "    kernel-qemu         the emulator-specific Linux kernel image\n"
+           "    ramdisk.img         the ramdisk image used to boot the system\n"
+           "    system.img          the system image\n"
+           "    vendor.img          the vendor image\n"
+           "    encryptionkey.img   the encryption key image\n"
 
            "  If you use a virtual device, its content directory should store\n"
            "  all writable images, and read-only ones will be found from the\n"
@@ -189,8 +180,7 @@ static void HelpDiskImages(stralloc_t* out) {
 
            "      -initdata        Specify an alternative *initial* user data image\n\n"
 
-           "      -wipe-data       Copy the content of the *initial* user data image\n"
-           "                           (userdata.img) into the writable one (userdata-qemu.img)\n\n"
+           "      -wipe-data       Reset the AVD directory\n\n"
 
            "      -no-cache        do not use a cache partition, even if one is\n"
            "                       available.\n\n");
