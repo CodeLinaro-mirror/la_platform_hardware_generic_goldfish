@@ -209,6 +209,44 @@ TEST_P(EventLoopTest, PostAndWaitVoid) {
     EXPECT_THAT(status_future.get(), absl_testing::IsOk());
 }
 
+TEST_P(EventLoopTest, PostAndWaitStatus) {
+    runInThread();
+    std::promise<absl::Status> status_promise;
+    std::thread t([&status_promise, this] {
+        status_promise.set_value(loop->PostAndWait(
+                []() -> absl::Status { return absl::InvalidArgumentError("invalid input"); }));
+    });
+    auto status_future = status_promise.get_future();
+    runUntil(status_future);
+    t.join();
+    EXPECT_THAT(status_future.get(), absl_testing::StatusIs(absl::StatusCode::kInvalidArgument));
+}
+
+TEST_P(EventLoopTest, PostAndWaitStatusOr) {
+    runInThread();
+    std::promise<absl::StatusOr<int>> status_promise;
+    std::thread t([&status_promise, this] {
+        status_promise.set_value(loop->PostAndWait([]() -> absl::StatusOr<int> { return 42; }));
+    });
+    auto status_future = status_promise.get_future();
+    runUntil(status_future);
+    t.join();
+    EXPECT_THAT(status_future.get(), absl_testing::IsOkAndHolds(42));
+}
+
+TEST_P(EventLoopTest, PostAndWaitStatusOrError) {
+    runInThread();
+    std::promise<absl::StatusOr<int>> status_promise;
+    std::thread t([&status_promise, this] {
+        status_promise.set_value(loop->PostAndWait(
+                []() -> absl::StatusOr<int> { return absl::NotFoundError("not found"); }));
+    });
+    auto status_future = status_promise.get_future();
+    runUntil(status_future);
+    t.join();
+    EXPECT_THAT(status_future.get(), absl_testing::StatusIs(absl::StatusCode::kNotFound));
+}
+
 TEST_P(EventLoopTest, ScheduleAndExecuteSingleTaskOnRunningLoop) {
     if (mLoopType == "qemu") {
         GTEST_SKIP() << "ThreadedEventLoop is not compatible with the singleton QemuEventLoop.";

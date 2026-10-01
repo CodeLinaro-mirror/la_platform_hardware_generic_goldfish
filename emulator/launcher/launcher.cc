@@ -301,26 +301,24 @@ class Launcher {
     }
 
     absl::Status launch_netsimd() {
-        ASSIGN_OR_RETURN(
-                auto launch_status, config_.event_loop.PostAndWait([this]() -> absl::Status {
-                    if (shutting_down_) {
-                        return absl::CancelledError("Cancelled netsimd launch: emulator launcher is shutting down");
-                    }
+        return config_.event_loop.PostAndWait([this]() -> absl::Status {
+            if (shutting_down_) {
+                return absl::CancelledError(
+                        "Cancelled netsimd launch: emulator launcher is shutting down");
+            }
 
-                    ASSIGN_OR_RETURN(auto netsim_config,
-                                     netsim::netsimd_launch_config(
-                                             config_.emulator_paths.netsim_binary, config_.opts));
-                    ASSIGN_OR_RETURN(auto proc,
-                                     config_.process_launcher->Launch(
-                                             netsim_config, [this](int64_t status, int signal) {
-                                                 netsimd_exit(status, signal);
-                                             }));
-                    netsimd_process_ = std::move(proc);
-                    VLOG(1) << "Running netsimd as pid: " << netsimd_process_->GetPid();
-                    config_.process_launcher->ForgetProcess(*netsimd_process_);
-                    return absl::OkStatus();
-                }));
-        return launch_status;
+            ASSIGN_OR_RETURN(auto netsim_config,
+                             netsim::netsimd_launch_config(config_.emulator_paths.netsim_binary,
+                                                           config_.opts));
+            ASSIGN_OR_RETURN(auto proc, config_.process_launcher->Launch(
+                                                netsim_config, [this](int64_t status, int signal) {
+                                                    netsimd_exit(status, signal);
+                                                }));
+            netsimd_process_ = std::move(proc);
+            VLOG(1) << "Running netsimd as pid: " << netsimd_process_->GetPid();
+            config_.process_launcher->ForgetProcess(*netsimd_process_);
+            return absl::OkStatus();
+        });
     }
 
     void emulator_exit(int64_t exit_status, int term_signal) {
