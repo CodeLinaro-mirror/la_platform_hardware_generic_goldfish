@@ -146,7 +146,7 @@ class FakeHardwareConfig {
                 "~/Android/sdk/system-images/android-35/google_apis_playstore/arm64-v8a//"
                 "vendor.img";
         hw.disk_vendorPartition_size = 800_MiB;
-        hw.disk_dataPartition_path = "~/../avd/35.avd/userdata-qemu.img";
+        hw.disk_dataPartition_path = "~/../avd/35.avd/userdata.img";
         hw.disk_dataPartition_size = 6_GiB;
         hw.disk_encryptionKeyPartition_path = "~/../avd/35.avd/encryptionkey.img";
         hw.PlayStore_enabled = true;
