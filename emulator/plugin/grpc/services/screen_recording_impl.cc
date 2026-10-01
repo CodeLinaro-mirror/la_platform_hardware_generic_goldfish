@@ -14,12 +14,22 @@
 
 #include "android/emulation/control/incubating/screen_recording_impl.h"
 
+#include <algorithm>
+#include <cstring>
+#include <memory>
+#include <vector>
+
 #include "absl/hash/hash.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
+#include "absl/time/clock.h"
 #include "absl/time/time.h"
+#include "absl/types/span.h"
 
+#include "goldfish/display/display_frames.h"
+#include "goldfish/display/frame.h"
+#include "goldfish/display/geometry.h"
 #include "goldfish/file/file.h"
 #include "goldfish/file/file_atomic.h"
 #include "goldfish/perfetto/perfetto_categories.h"
@@ -112,28 +122,114 @@ Status ScreenRecordingServiceImpl::StartRecording(ServerContext* context,
     const int kBitRate = configured_request.bit_rate();
     const int kSeconds = configured_request.time_limit();
 
+    recording_listener_ = display->AddFrameListener([](const ::goldfish::display::FrameEvent&) {});
+    if (!display->AcquireLatestFrame().frame) {
+        (void)display->WaitForFreshFrame(absl::Now() + absl::Milliseconds(500));
+    }
+
     // We just ignore the width and height from request
     const int width2 = dims.width;
     const int height2 = dims.height;
     recorder_.reset(
             new ::goldfish::display::VideoRecorder(width2, height2, kFps, kBitRate, kSeconds));
     const char* kFileName = configured_request.file_name().c_str();
-    auto frame_generator = [display, width2, height2](uint8_t* pixels, int w, int h, int frameIndex,
-                                                      double time) {
+    struct FrameRepeatState {
+        ::goldfish::display::FrameId last_frame_id = 0;
+        std::vector<uint8_t> last_encoded;
+    };
+    auto repeat_state = std::make_shared<FrameRepeatState>();
+
+    auto frame_generator = [display, repeat_state](uint8_t* pixels, int w, int h, int frameIndex,
+                                                   double time) {
         TRACE_EVENT("display", "ScreenRecording::GenerateFrame", "frame_index", frameIndex, "time",
                     time);
-        auto format2 = ::goldfish::display::PixelFormat::kRgb888;
-        auto rotation2 = ::goldfish::display::ImageRotation::kRotation0;
-        size_t c_pixels = static_cast<size_t>(width2) * height2 * 3;
-        auto seq = display->GetPixels(format2, width2, height2, rotation2, pixels, &c_pixels);
-        if (seq.ok()) {
-            TRACE_EVENT_INSTANT("display", "ScreenRecording::FrameGenerated",
-                                perfetto::Flow::ProcessScoped(seq.value().sequence_number), "seq",
-                                seq.value().sequence_number, "frame_index", frameIndex);
+        if (pixels == nullptr || w <= 0 || h <= 0) {
+            return;
+        }
+        const size_t dst_bytes = static_cast<size_t>(w) * static_cast<size_t>(h) * 3;
+        auto latest = display->AcquireLatestFrame();
+        if (!latest.frame) {
+            if (repeat_state->last_encoded.size() == dst_bytes) {
+                std::memcpy(pixels, repeat_state->last_encoded.data(), dst_bytes);
+            } else {
+                std::memset(pixels, 0, dst_bytes);
+            }
+            return;
+        }
+
+        const auto frame_id = latest.frame->event().frame_id;
+        if (frame_id == repeat_state->last_frame_id &&
+            repeat_state->last_encoded.size() == dst_bytes) {
+            std::memcpy(pixels, repeat_state->last_encoded.data(), dst_bytes);
+            return;
+        }
+
+        const auto f_dims = latest.frame->dimensions();
+        if (f_dims.width == static_cast<uint32_t>(w) && f_dims.height == static_cast<uint32_t>(h)) {
+            const ::goldfish::display::ReadRequest req{
+                .rotation = ::goldfish::display::ImageRotation::kRotation0,
+                .output = {0, 0},
+            };
+            const ::goldfish::display::Rgb888Target target{
+                .plane =
+                        ::goldfish::display::Plane{
+                            .data = absl::MakeSpan(pixels, dst_bytes),
+                            .stride = static_cast<size_t>(w) * 3,
+                        },
+            };
+            if (latest.frame->ReadInto(req, target).ok()) {
+                repeat_state->last_frame_id = frame_id;
+                repeat_state->last_encoded.assign(pixels, pixels + dst_bytes);
+                TRACE_EVENT_INSTANT("display", "ScreenRecording::FrameGenerated",
+                                    perfetto::Flow::ProcessScoped(frame_id), "seq", frame_id,
+                                    "frame_index", frameIndex);
+            } else if (repeat_state->last_encoded.size() == dst_bytes) {
+                std::memcpy(pixels, repeat_state->last_encoded.data(), dst_bytes);
+            } else {
+                std::memset(pixels, 0, dst_bytes);
+            }
+            return;
+        }
+
+        std::memset(pixels, 0, dst_bytes);
+        const uint32_t fit_w = std::min<uint32_t>(f_dims.width, static_cast<uint32_t>(w));
+        const uint32_t fit_h = std::min<uint32_t>(f_dims.height, static_cast<uint32_t>(h));
+        if (fit_w > 0 && fit_h > 0) {
+            const ::goldfish::display::ReadRequest req{
+                .rotation = ::goldfish::display::ImageRotation::kRotation0,
+                .output = {fit_w, fit_h},
+            };
+            std::vector<uint8_t> tmp;
+            if (latest.frame
+                        ->ReadInto(req,
+                                   [&](const ::goldfish::display::ReadLayout& layout)
+                                           -> absl::StatusOr<::goldfish::display::Rgb888Target> {
+                                       tmp.resize(layout.total_bytes);
+                                       return ::goldfish::display::Rgb888Target{
+                                           .plane = {.data = absl::MakeSpan(tmp)},
+                                       };
+                                   })
+                        .ok()) {
+                const uint32_t off_x = (static_cast<uint32_t>(w) - fit_w) / 2;
+                const uint32_t off_y = (static_cast<uint32_t>(h) - fit_h) / 2;
+                for (uint32_t row = 0; row < fit_h; ++row) {
+                    std::memcpy(pixels + ((off_y + row) * static_cast<size_t>(w) + off_x) * 3,
+                                tmp.data() + row * static_cast<size_t>(fit_w) * 3,
+                                static_cast<size_t>(fit_w) * 3);
+                }
+                repeat_state->last_frame_id = frame_id;
+                repeat_state->last_encoded.assign(pixels, pixels + dst_bytes);
+                TRACE_EVENT_INSTANT("display", "ScreenRecording::FrameGenerated",
+                                    perfetto::Flow::ProcessScoped(frame_id), "seq", frame_id,
+                                    "frame_index", frameIndex);
+            } else if (repeat_state->last_encoded.size() == dst_bytes) {
+                std::memcpy(pixels, repeat_state->last_encoded.data(), dst_bytes);
+            }
         }
     };
     if (!recorder_->Start(kFileName, frame_generator)) {
         recorder_.reset();
+        recording_listener_.reset();
         return Status(grpc::StatusCode::INTERNAL,
                       "Failed to initialize video encoder. Check emulator logs for details.");
     }
@@ -178,6 +274,7 @@ Status ScreenRecordingServiceImpl::StopRecording(ServerContext* context,
 
     recorder_->Stop();
     recorder_.reset();
+    recording_listener_.reset();
 
     LOG(INFO) << "Stopped screen recording for file: " << request->file_name();
     return Status::OK;

@@ -14,17 +14,24 @@
 // limitations under the License.
 #include "display_service.h"
 
+#include <algorithm>
 #include <cstdint>
+#include <cstring>
 #include <memory>
+#include <utility>
+#include <vector>
 
+#include "absl/base/thread_annotations.h"
 #include "absl/hash/hash.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
-#include "absl/synchronization/notification.h"
+#include "absl/synchronization/mutex.h"
+#include "absl/time/clock.h"
 #include "absl/time/time.h"
+#include "absl/types/span.h"
 #include "grpcpp/grpcpp.h"
 
 #include "android/base/system.h"
@@ -32,10 +39,12 @@
 #include "android/goldfish/hardware_config.h"
 #include "goldfish/avd_info/avd_info.h"
 #include "goldfish/devices/multidisplay/multidisplay_device.h"
+#include "goldfish/display/display_frames.h"
+#include "goldfish/display/frame.h"
+#include "goldfish/display/geometry.h"
 #include "goldfish/display/multi_display_callbacks.h"
 #include "goldfish/display/pixman_display.h"
-#include "goldfish/eventing/multi_event_source_waiter.h"
-#include "goldfish/eventing/observable_value.h"
+#include "goldfish/display/write_png.h"
 #include "goldfish/fps_calculator.h"
 #include "goldfish/memory/shared_memory.h"
 #include "goldfish/perfetto/perfetto_categories.h"
@@ -45,15 +54,20 @@ namespace android {
 namespace emulation {
 namespace control {
 
-using android::base::eventing::MultiEventSourceWaiter;
-using ::goldfish::display::FrameInfo;
-using ::goldfish::display::FrameInfoCallbackSource;
+using ::goldfish::display::FrameEvent;
+using ::goldfish::display::FramePtr;
 using ::goldfish::display::IDisplay;
 using ::goldfish::display::ImageRotation;
 using ::goldfish::display::IMultiDisplay;
 using ::goldfish::display::PixelFormat;
-using ::goldfish::eventing::ObservableValue;
-using ::goldfish::eventing::ObservableValueTriggerOnUpdate;
+using ::goldfish::display::Plane;
+using ::goldfish::display::ReadFormat;
+using ::goldfish::display::ReadLayout;
+using ::goldfish::display::ReadRequest;
+using ::goldfish::display::ReadTarget;
+using ::goldfish::display::Rgb888Target;
+using ::goldfish::display::Rgba8888Target;
+using ::goldfish::display::ToImageRotation;
 using ::goldfish::memory::SharedMemory;
 using ::goldfish::sensors::AndroidSensor;
 using ::goldfish::sensors::FoldablePostures;
@@ -64,13 +78,12 @@ using DeviceRotation = ::goldfish::physics::Rotation;
 using DeviceSkinRotation = ::goldfish::physics::SkinRotation;
 using ProtoRotation = android::emulation::control::Rotation;
 
-using DeviceSkinRotationCallbackSource =
-        ObservableValue<DeviceSkinRotation, ObservableValueTriggerOnUpdate>;
-
 DisplayServiceImpl::DisplayServiceImpl(::goldfish::display::IMultiDisplay* display,
                                        ::goldfish::sensors::PhysicalModel* pm,
                                        std::vector<::goldfish::parsing::ResizableDisplayConfig> rdc)
         : mMultiDisplay(*display), mPhysicalModel(*pm), resizable_configs_(std::move(rdc)) {
+    mRotationSubscription = mMultiDisplay.RegisterPhysicalModel(mPhysicalModel);
+
     if (!resizable_configs_.empty()) {
         auto screen = mMultiDisplay.GetDisplay(0);
         if (screen.ok()) {
@@ -187,18 +200,32 @@ static uint8_t* standard_allocator(Image* img, size_t size) {
     return reinterpret_cast<uint8_t*>(raw_data);
 }
 
+// Scales `size` down, keeping its aspect ratio, until it fits in `bound`.
+static ::goldfish::display::Dimensions FitWithin(::goldfish::display::Dimensions size,
+                                                 ::goldfish::display::Dimensions bound) {
+    if (size.width <= bound.width && size.height <= bound.height) {
+        return size;
+    }
+    // Both results are at most `bound`, so they fit in uint32_t.
+    if (uint64_t{size.width} * bound.height >= uint64_t{size.height} * bound.width) {
+        const auto height = static_cast<uint32_t>(uint64_t{size.height} * bound.width / size.width);
+        return {.width = bound.width, .height = std::max<uint32_t>(1, height)};
+    }
+    const auto width = static_cast<uint32_t>(uint64_t{size.width} * bound.height / size.height);
+    return {.width = std::max<uint32_t>(1, width), .height = bound.height};
+}
+
 Status DisplayServiceImpl::streamScreenshot(ServerContext* context, const ImageFormat* request,
                                             grpc::ServerWriter<Image>* writer) {
     // Make sure we always write the first frame, this can be
     // a completely empty frame if the screen is not active.
     Image reply;
     absl::Hash<std::string> hasher;
-    ::goldfish::FpsCalculator fpsCalculator(10);
+    ::goldfish::FpsCalculator fps_calculator(10);
 
-    bool clientAvailable = !context->IsCancelled();
+    bool client_available = !context->IsCancelled();
 
-    bool lastFrameWasEmpty = reply.format().width() == 0;
-    int frame = 0;
+    bool last_frame_was_empty = reply.format().width() == 0;
 
     ::goldfish::display::SharedDisplay display;
     const bool hw_sensor_hinge = ::goldfish::avd_info::GetAvd().Props().hw_config.hw_sensor_hinge;
@@ -223,66 +250,93 @@ Status DisplayServiceImpl::streamScreenshot(ServerContext* context, const ImageF
         return AbslStatusToGrpcStatus(allocator.status());
     }
 
-    DeviceSkinRotationCallbackSource deviceSkinRotationCallbackSource;
-    const auto deviceSkinRotationSubscription = android::base::eventing::MakeScopedCallback(
-            mPhysicalModel,
-            [this, &deviceSkinRotationCallbackSource](const PhysicalModelChangeEvent& event) {
-                if (event.type == PhysicalModelChangeEvent::Type::kTargetStateChanged) {
-                    deviceSkinRotationCallbackSource.FireEvent(
-                            mPhysicalModel.GetDeviceRotation().rotation);
+    absl::Mutex wait_mu;
+    ::goldfish::display::FrameId latest_frame_id ABSL_GUARDED_BY(wait_mu) = 0;
+    ::goldfish::display::FrameId seen_frame_id ABSL_GUARDED_BY(wait_mu) = 0;
+    ImageRotation latest_rotation ABSL_GUARDED_BY(wait_mu) = display->GetRotation();
+    uint64_t aux_event_seq ABSL_GUARDED_BY(wait_mu) = 0;
+    uint64_t seen_aux_seq ABSL_GUARDED_BY(wait_mu) = 0;
+
+    auto bump_aux_seq = [&wait_mu, &aux_event_seq]() {
+        const absl::MutexLock lock(&wait_mu);
+        ++aux_event_seq;
+    };
+
+    auto listener = display->AddFrameListener(
+            [&wait_mu, &latest_frame_id, &latest_rotation, &aux_event_seq](const FrameEvent& ev) {
+                const absl::MutexLock lock(&wait_mu);
+                latest_frame_id = std::max(latest_frame_id, ev.frame_id);
+                if (ev.rotation != latest_rotation) {
+                    latest_rotation = ev.rotation;
+                    ++aux_event_seq;
                 }
             });
 
-    MultiEventSourceWaiter frame_or_sensor_event;
-    auto proxy = std::make_shared<::goldfish::display::DisplayEventProxy>(display);
-    frame_or_sensor_event.Listen<::goldfish::display::DisplayEventProxy>(proxy.get());
-
     std::shared_ptr<IDisplay> d0, d1;
-    std::shared_ptr<::goldfish::display::DisplayEventProxy> proxy0, proxy1;
+    IDisplay::ScopedFrameListener listener0, listener1;
     if (hw_sensor_hinge) {
         auto s0 = mMultiDisplay.GetDisplay(0);
         auto s1 = mMultiDisplay.GetDisplay(1);
         if (s0.ok()) {
             d0 = s0->lock();
             if (d0 && d0.get() != display.get()) {
-                proxy0 = std::make_shared<::goldfish::display::DisplayEventProxy>(d0);
-                frame_or_sensor_event.Listen<::goldfish::display::DisplayEventProxy>(proxy0.get());
+                listener0 = d0->AddFrameListener(
+                        [&bump_aux_seq](const FrameEvent&) { bump_aux_seq(); });
             }
         }
         if (s1.ok()) {
             d1 = s1->lock();
             if (d1 && d1.get() != display.get()) {
-                proxy1 = std::make_shared<::goldfish::display::DisplayEventProxy>(d1);
-                frame_or_sensor_event.Listen<::goldfish::display::DisplayEventProxy>(proxy1.get());
+                listener1 = d1->AddFrameListener(
+                        [&bump_aux_seq](const FrameEvent&) { bump_aux_seq(); });
             }
         }
     }
-    frame_or_sensor_event.Listen<DeviceSkinRotationCallbackSource>(
-            &deviceSkinRotationCallbackSource);
 
-    // TODO(jansene): Bring back metrics.
-    // Track percentiles, and report if we have seen at least 32 frames.
-    // metrics::Percentiles perfEstimator(32, {0.5, 0.95});
     bool first_time = true;
+    bool retry = false;  // The last read failed in a way the next frame fixes.
     uint64_t last_seq = 0;
     uint64_t total_dropped = 0;
     absl::Time last_frame_time = absl::Now();
-    while (clientAvailable) {
+    while (client_available) {
         constexpr auto kTimeToWaitForFrame = absl::Milliseconds(125);
-        bool frames_arrived = frame_or_sensor_event.WaitForNextEvent(kTimeToWaitForFrame, frame);
-        if ((frames_arrived || first_time) && !context->IsCancelled()) {
-            // TODO(jansene): It might have been possible for a frame to have been
-            // delivered between frames_arrived and this call, which resulted in
-            // the increment of the frame counter. We would not "see" this frame.
-            frame = frame_or_sensor_event.GetEventSequence();
+        const bool retrying = std::exchange(retry, false);
+        bool frames_arrived = first_time;
+        if (!first_time || retrying) {
+            const absl::MutexLock lock(&wait_mu);
+            auto cond = [&]() ABSL_EXCLUSIVE_LOCKS_REQUIRED(wait_mu) {
+                return latest_frame_id > seen_frame_id || aux_event_seq > seen_aux_seq;
+            };
+            frames_arrived = wait_mu.AwaitWithTimeout(absl::Condition(&cond), kTimeToWaitForFrame);
+            seen_frame_id = std::max(seen_frame_id, latest_frame_id);
+            seen_aux_seq = aux_event_seq;
+        } else {
+            const absl::MutexLock lock(&wait_mu);
+            seen_aux_seq = aux_event_seq;
+        }
+
+        if (display->AcquireLatestFrame().removed) {
+            return Status(grpc::StatusCode::NOT_FOUND, "Display was removed.");
+        }
+
+        if ((frames_arrived || first_time || retrying) && !context->IsCancelled()) {
             auto status = getScreenshot(context, request, &reply, *allocator);
-            if (status.error_code() == grpc::StatusCode::FAILED_PRECONDITION) {
+            // UNAVAILABLE: no frame yet, or a device reset or snapshot load
+            // fenced the frame; a new one replaces it.
+            if (status.error_code() == grpc::StatusCode::FAILED_PRECONDITION ||
+                status.error_code() == grpc::StatusCode::UNAVAILABLE) {
+                retry = true;
                 continue;
             }
             if (!status.ok()) {
                 return status;
             }
 
+            {
+                const absl::MutexLock lock(&wait_mu);
+                seen_frame_id = std::max(seen_frame_id,
+                                         static_cast<::goldfish::display::FrameId>(reply.seq()));
+            }
             first_time = false;
             // The size of the image might change due to rotation or scaling.
 
@@ -304,7 +358,7 @@ Status DisplayServiceImpl::streamScreenshot(ServerContext* context, const ImageF
                 last_seq = current_seq;
             }
 
-            if (!context->IsCancelled() && (!lastFrameWasEmpty || !empty_frame)) {
+            if (!context->IsCancelled() && (!last_frame_was_empty || !empty_frame)) {
                 if (TRACE_EVENT_CATEGORY_ENABLED("display")) {
                     const absl::Time now_time = absl::Now();
                     const int64_t interval_ms =
@@ -317,26 +371,26 @@ Status DisplayServiceImpl::streamScreenshot(ServerContext* context, const ImageF
                 {
                     TRACE_EVENT("display", "grpc::ServerWriter::Write", "seq", current_seq, "bytes",
                                 reply.ByteSizeLong());
-                    clientAvailable = writer->Write(reply);
+                    client_available = writer->Write(reply);
                 }
-                if (!clientAvailable) {
+                if (!client_available) {
                     break;
                 }
 
                 // Log the FPS when verbose logging is enabled.
                 if (ABSL_VLOG_IS_ON(1)) {
-                    fpsCalculator.AddFrame();
+                    fps_calculator.AddFrame();
                     VLOG_EVERY_N_SEC(1, 1)
-                            << "gRPC framerate: " << fpsCalculator.GetFps() << " fps";
+                            << "gRPC framerate: " << fps_calculator.GetFps() << " fps";
                 }
             }
-            lastFrameWasEmpty = empty_frame;
+            last_frame_was_empty = empty_frame;
         }
         if (context->IsCancelled()) {
             break;
         }
-        clientAvailable = !context->IsCancelled() && clientAvailable;
-        if (!clientAvailable) {
+        client_available = !context->IsCancelled() && client_available;
+        if (!client_available) {
             break;
         }
     }
@@ -396,7 +450,7 @@ absl::StatusOr<DisplayServiceImpl::MemoryAllocator> DisplayServiceImpl::createAl
     };
 }
 
-Status DisplayServiceImpl::getScreenshot(ServerContext* context, const ImageFormat* request,
+Status DisplayServiceImpl::getScreenshot(ServerContext* /*context*/, const ImageFormat* request,
                                          Image* reply, MemoryAllocator& allocator) {
     TRACE_EVENT("display", "DisplayServiceImpl::getScreenshot", "display", request->display());
     bool needs_side_channel =
@@ -408,103 +462,102 @@ Status DisplayServiceImpl::getScreenshot(ServerContext* context, const ImageForm
     }
     auto display = *res;
 
-    const DeviceRotation deviceRotation = mPhysicalModel.GetDeviceRotation();
-    auto dims = display->GetDimensions();
-    int desired_width = request->width();
-    int desired_height = request->height();
+    const DeviceRotation device_rotation = mPhysicalModel.GetDeviceRotation();
 
-    // User wants to use device width/height
-    if (desired_width == 0 || desired_height == 0) {
-        desired_width = dims.width;
-        desired_height = dims.height;
-    }
-
-    // the desired_width and display height are not stable at the moment
-    // they switch from 616x1218 to 616x1080, and that behavior
-    // caused some confusion in embedded ui; in addition, the
-    // sensor does not give correct orientation neither, sometime
-    // it shows landscape, no idea what went wrong. for now,
-    // just do a simple scale according to the ratio of display w/h
-    // TODO: fix this b/448504524
-    const double desired_over_display_ratio = ((double)desired_width) / ((double)dims.width);
-    desired_height = (int)(desired_over_display_ratio * dims.height);
-
-    // Depending on the rotation state width and height need to be
-    // reversed. as our apsect ration depends on how we are holding our
-    // phone..
-    if (deviceRotation.rotation == DeviceSkinRotation::kLandscape ||
-        deviceRotation.rotation == DeviceSkinRotation::kReverseLandscape) {
-        VLOG(2) << "Swapping width & height " << desired_width << "x" << desired_height << " to "
-                << desired_height << "x" << desired_width;
-        std::swap(desired_width, desired_height);
-
-        // TODO(jansene): Support for folded device.
-        // if (not_pixel_fold && isFolded) {
-        //     std::swap(rect.pos.x, rect.pos.y);
-        //     std::swap(rect.size.w, rect.size.h);
-        // }
-    }
-
-    // Calculate width and height, keeping aspect ratio in mind.
-    auto [newWidth, newHeight] = display->ResizeKeepAspectRatio(desired_width, desired_height);
-    VLOG(2) << "Resizing from " << desired_width << "x" << desired_height << " to " << newWidth
-            << "x" << newHeight;
-
-    ImageRotation rotation = ImageRotation::kRotation0;
-    switch (deviceRotation.rotation) {
-    case DeviceSkinRotation::kPortrait:
-        rotation = ImageRotation::kRotation0;
-        break;
-    case DeviceSkinRotation::kLandscape:
-        rotation = ImageRotation::kRotation90;
-        break;
-    case DeviceSkinRotation::kReversePortrait:
-        rotation = ImageRotation::kRotation180;
-        break;
-    case DeviceSkinRotation::kReverseLandscape:
-        rotation = ImageRotation::kRotation270;
-        break;
-    }
-
-    // Let's figure out how many pixels we need, and allocate a buffer than can hold it.
-    size_t c_pixels = 0;
-    PixelFormat format = PixelFormatFromProtobuf(request->format());
-
-    // Optimization: Ensure QEMU is awake and actively pushing frames.
-    // By adding a listener, we guarantee QEMU renders a frame if inactive, or immediately
-    // yields the current frame if already active.
+    FramePtr frame;
     {
         TRACE_EVENT("display", "WaitForFrameArrival");
-        auto frame_arrived = std::make_shared<absl::Notification>();
-        auto listener = display->AddFrameListener([frame_arrived](const auto&) {
-            if (!frame_arrived->HasBeenNotified()) frame_arrived->Notify();
-        });
-        frame_arrived->WaitForNotificationWithTimeout(absl::Milliseconds(250));
+        auto fresh = display->WaitForFreshFrame(absl::Now() + absl::Milliseconds(500));
+        if (fresh.ok()) {
+            frame = std::move(*fresh);
+        } else if (absl::IsDeadlineExceeded(fresh.status())) {
+            auto latest = display->AcquireLatestFrame();
+            if (latest.removed) {
+                return Status(grpc::StatusCode::NOT_FOUND, "Display was removed.");
+            }
+            frame = std::move(latest.frame);
+        } else {
+            return AbslStatusToGrpcStatus(fresh.status());
+        }
     }
 
-    auto seq =
-            display->GetPixels(format, newWidth, newHeight, rotation, /*pixel=*/nullptr, &c_pixels);
-    DCHECK(absl::IsFailedPrecondition(seq.status()))
-            << "The c-style callback should inform us how many bytes we should allocate.";
-
-    auto allocated_pixels = allocator(reply, c_pixels);
-    if (!allocated_pixels.ok()) {
-        return AbslStatusToGrpcStatus(allocated_pixels.status());
-    }
-    {
-        TRACE_EVENT("display", "display->GetPixels");
-        seq = display->GetPixels(format, newWidth, newHeight, rotation, *allocated_pixels,
-                                 &c_pixels);
+    if (!frame) {
+        return Status(grpc::StatusCode::UNAVAILABLE, "No frame has been produced yet.");
     }
 
-    if (!seq.status().ok()) {
-        return AbslStatusToGrpcStatus(seq.status());
+    const ImageRotation rotation = frame->rotation();
+    const PixelFormat format = PixelFormatFromProtobuf(request->format());
+    ::goldfish::display::Dimensions output{0, 0};
+    if (request->width() > 0 && request->height() > 0) {
+        const auto dims = frame->dimensions();
+        if (dims.width > 0 && dims.height > 0) {
+            const bool quarter_turn = rotation == ImageRotation::kRotation90 ||
+                                      rotation == ImageRotation::kRotation270;
+            int desired_width = request->width();
+            const double ratio =
+                    static_cast<double>(desired_width) / static_cast<double>(dims.width);
+            int desired_height = static_cast<int>(ratio * dims.height);
+            if (quarter_turn) {
+                std::swap(desired_width, desired_height);
+            }
+            auto [newWidth, newHeight] =
+                    display->ResizeKeepAspectRatio(desired_width, desired_height);
+            if (newWidth > 0 && newHeight > 0) {
+                // The display fits its current size, which can exceed this
+                // frame's (a resize before the next frame). Reads never upscale.
+                output = FitWithin(
+                        {.width = static_cast<uint32_t>(newWidth),
+                         .height = static_cast<uint32_t>(newHeight)},
+                        quarter_turn ? ::goldfish::display::Dimensions{dims.height, dims.width}
+                                     : dims);
+            }
+        }
     }
+    const ReadRequest req{.rotation = rotation, .output = output};
+    ::goldfish::display::Dimensions out_dims{0, 0};
 
-    // Make sure studio does not get confused, as the pixels required for png < image size..
-    if (!needs_side_channel && format == PixelFormat::kPng &&
-        c_pixels < reply->mutable_image()->size()) {
-        reply->mutable_image()->resize(c_pixels);
+    if (format == PixelFormat::kPng) {
+        std::vector<uint8_t> rgba;
+        absl::StatusOr<::goldfish::display::Dimensions> dims;
+        {
+            TRACE_EVENT("display", "display->GetPixels");
+            dims = frame->ReadInto(
+                    req, [&](const ReadLayout& layout) -> absl::StatusOr<Rgba8888Target> {
+                        rgba.resize(layout.total_bytes);
+                        return Rgba8888Target{.plane = Plane{.data = absl::MakeSpan(rgba)}};
+                    });
+        }
+        if (!dims.ok()) {
+            return AbslStatusToGrpcStatus(dims.status());
+        }
+        out_dims = *dims;
+        std::vector<uint8_t> png_bytes;
+        if (!::goldfish::display::write_png(4, out_dims.width, out_dims.height, rgba.data(),
+                                            png_bytes)) {
+            return Status(grpc::StatusCode::INTERNAL, "Failed to create PNG screenshot!");
+        }
+        auto allocated_pixels = allocator(reply, png_bytes.size());
+        if (!allocated_pixels.ok()) {
+            return AbslStatusToGrpcStatus(allocated_pixels.status());
+        }
+        std::memcpy(*allocated_pixels, png_bytes.data(), png_bytes.size());
+        if (!needs_side_channel && png_bytes.size() < reply->mutable_image()->size()) {
+            reply->mutable_image()->resize(png_bytes.size());
+        }
+    } else {
+        const ReadFormat read_fmt =
+                (format == PixelFormat::kRgb888) ? ReadFormat::kRgb888 : ReadFormat::kRgba8888;
+        absl::StatusOr<::goldfish::display::Dimensions> dims;
+        {
+            TRACE_EVENT("display", "display->GetPixels");
+            dims = frame->ReadInto(req, read_fmt, [&](const ReadLayout& layout) {
+                return allocator(reply, layout.total_bytes);
+            });
+        }
+        if (!dims.ok()) {
+            return AbslStatusToGrpcStatus(dims.status());
+        }
+        out_dims = *dims;
     }
 
     if (needs_side_channel) {
@@ -513,16 +566,17 @@ Status DisplayServiceImpl::getScreenshot(ServerContext* context, const ImageForm
         transport->set_channel(ImageTransport::MMAP);
     }
 
-    auto outFormat = reply->mutable_format();
-    outFormat->set_width(newWidth);
-    outFormat->set_height(newHeight);
-    outFormat->set_format(request->format());
-    outFormat->set_display(display->Id());
-    *outFormat->mutable_rotation() = toProtobufRotation(deviceRotation);
+    auto out_format = reply->mutable_format();
+    out_format->set_width(static_cast<int>(out_dims.width));
+    out_format->set_height(static_cast<int>(out_dims.height));
+    out_format->set_format(request->format());
+    out_format->set_display(display->Id());
+    *out_format->mutable_rotation() = toProtobufRotation(device_rotation);
 
-    // TODO(jansene): Do we want android frame timestamp or now?
-    reply->set_timestampus(absl::ToUnixMicros(seq->timestamp));
-    reply->set_seq(seq->sequence_number);
+    const FrameEvent& ev = frame->event();
+    const absl::Time ts = (ev.capture_time == absl::InfinitePast()) ? absl::Now() : ev.capture_time;
+    reply->set_timestampus(absl::ToUnixMicros(ts));
+    reply->set_seq(static_cast<uint32_t>(ev.frame_id));
 
     if (!hw.hw_resizable_configs.empty()) {
         reply->mutable_format()->set_displaymode(
@@ -533,18 +587,18 @@ Status DisplayServiceImpl::getScreenshot(ServerContext* context, const ImageForm
         if (mMultiDisplay.IsFolded()) {
             int fx, fy, fw, fh;
             if (mPhysicalModel.GetFoldedArea(&fx, &fy, &fw, &fh)) {
-                auto foldedDisplay = outFormat->mutable_foldeddisplay();
-                foldedDisplay->set_width(fw);
-                foldedDisplay->set_height(fh);
-                foldedDisplay->set_xoffset(fx);
-                foldedDisplay->set_yoffset(fy);
+                auto folded_display = out_format->mutable_foldeddisplay();
+                folded_display->set_width(fw);
+                folded_display->set_height(fh);
+                folded_display->set_xoffset(fx);
+                folded_display->set_yoffset(fy);
             }
         } else {
             reply->mutable_format()->clear_foldeddisplay();
         }
     }
 
-    VLOG(2) << "Produced frame: " << outFormat->ShortDebugString();
+    VLOG(2) << "Produced frame: " << out_format->ShortDebugString();
     return Status::OK;
 }
 

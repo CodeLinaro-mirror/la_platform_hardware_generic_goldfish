@@ -13,8 +13,12 @@
 // limitations under the License.D
 #pragma once
 
+#include <functional>
 #include <memory>
+#include <utility>
+#include <vector>
 
+#include "absl/base/thread_annotations.h"
 #include "absl/synchronization/mutex.h"
 
 #include "goldfish/display/pixman_display.h"
@@ -125,9 +129,9 @@ struct FakePixmanDisplay : public PixmanDisplay {
                       uint32_t flags = 0);
 
     /**
-     * @brief Destroys the FakePixmanDisplay.
+     * @brief Destroys the FakePixmanDisplay, shutting its producer down first.
      */
-    ~FakePixmanDisplay() override = default;
+    ~FakePixmanDisplay() override;
 
     /**
      * @brief Sends a simulated multi-touch event.
@@ -167,12 +171,31 @@ struct FakePixmanDisplay : public PixmanDisplay {
      *
      * @return A pointer to the current pixman image.
      */
-    PixmanImagePtr Image() { return frame_manager_->GetRenderableImage(); }
+    PixmanImagePtr Image() { return SourceImage(); }
+
+    /**
+     * @brief Resets the producer as a guest device reset or snapshot load
+     * does: frames published before it can no longer be read.
+     */
+    void ResetProducer() { frame_producer_->Reset(); }
+
+    /**
+     * @brief Runs `hook` inside the next ResizeKeepAspectRatio call, which a
+     * scaled screenshot makes after it acquires its frame and before it reads it.
+     */
+    void RunDuringNextResize(std::function<void()> hook) ABSL_LOCKS_EXCLUDED(hook_mutex_);
+
+    std::pair<int, int> ResizeKeepAspectRatio(int desired_width, int desired_height) override
+            ABSL_LOCKS_EXCLUDED(hook_mutex_);
 
     std::vector<FakeEvDevEvent> evdevs;        ///< A list of simulated evdev events.
     std::vector<FakeMouseEvent> mouse_events;  ///< A list of simulated mouse events.
     std::vector<FakeMultiTouchEvent>
             multi_touch_events;  ///< A list of simulated multi-touch events.
+
+  private:
+    absl::Mutex hook_mutex_;
+    std::function<void()> resize_hook_ ABSL_GUARDED_BY(hook_mutex_);
 };
 
 /**
@@ -185,7 +208,8 @@ class ActiveFakePixmanDisplay : public FakePixmanDisplay,
                                 public android::base::eventing::EventListener<PixmanImagePtr> {
   public:
     /**
-     * @brief Destroys the ActiveFakePixmanDisplay.
+     * @brief Destroys the ActiveFakePixmanDisplay, stopping the generator
+     * thread and then the producer before any member is destroyed.
      */
     ~ActiveFakePixmanDisplay() override;
 

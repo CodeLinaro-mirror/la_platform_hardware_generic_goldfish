@@ -19,13 +19,17 @@
 #include "api/scoped_refptr.h"
 #include "api/video/nv12_buffer.h"
 #include "api/video/video_rotation.h"
+#include "common_video/include/video_frame_buffer_pool.h"
 #pragma clang diagnostic pop
+
+#include <memory>
 
 #include "absl/base/thread_annotations.h"
 #include "absl/synchronization/mutex.h"
 
+#include "goldfish/async/event_loop.h"
 #include "goldfish/display/display.h"
-#include "goldfish/eventing/with_callbacks.h"
+#include "goldfish/display/latest_frame_pump.h"
 #include "goldfish/videobridge/managed_video_track_source.h"
 
 namespace goldfish::display {
@@ -46,18 +50,9 @@ namespace goldfish::videobridge {
  * - Ingests a reference to IMultiDisplay and a target logical display ID.
  * - Reactive Activation: Lazily queries IMultiDisplay for the active IDisplay when the first
  *   WebRTC sink attaches (OnStart) and unsubscribes when all participants disconnect (OnStop).
- * - Subscribes to FrameInfo updates from the active display, converting raw BGRA/RGBA pixels
- *   to NV12 format and dispatching frames to attached WebRTC sinks.
- *
- * Thread Safety:
- * - InProcessVideoSource methods (OnStart, OnStop) are marshalled on WebRTC signaling threads.
- * - Frame arrival (OnFrameAvailable) occurs on QEMU display / render worker threads.
- * - Sink registration is synchronized via ManagedVideoTrackSource.
- *
- * Ownership & Lifetimes:
- * - Managed via webrtc::scoped_refptr (implements webrtc::VideoTrackSourceInterface).
- * - Holds a non-owning reference to IMultiDisplay, which must outlive this source.
- * - Holds a temporary shared_ptr handle to IDisplay only while actively streaming.
+ * - Subscribes to FrameEvents (including display rotation updates) from the active display via
+ *   LatestFramePump, reading NV12 pixels from immutable SurfaceFrames on a dedicated worker loop
+ *   and dispatching frames to attached WebRTC sinks.
  */
 class InProcessVideoSource : public ManagedVideoTrackSource {
   public:
@@ -77,12 +72,17 @@ class InProcessVideoSource : public ManagedVideoTrackSource {
     void OnStop() override;
 
   private:
-    void OnFrameAvailable(const ::goldfish::display::FrameInfo& frame_info);
+    void ProcessFrame(::goldfish::display::FramePtr frame);
 
     ::goldfish::display::IMultiDisplay& multidisplay_;
     const uint32_t display_id_;
+    ::webrtc::VideoFrameBufferPool buffer_pool_{/*zero_initialize=*/false,
+                                                /*max_number_of_buffers=*/8};
+
     absl::Mutex frame_mutex_;
     std::shared_ptr<::goldfish::display::IDisplay> display_ ABSL_GUARDED_BY(frame_mutex_);
+    std::unique_ptr<::goldfish::async::EventLoop> worker_ ABSL_GUARDED_BY(frame_mutex_);
+    std::shared_ptr<::goldfish::display::LatestFramePump> pump_ ABSL_GUARDED_BY(frame_mutex_);
     ::goldfish::display::IDisplay::ScopedFrameListener listener_ ABSL_GUARDED_BY(frame_mutex_);
     uint64_t last_seq_ ABSL_GUARDED_BY(frame_mutex_) = 0;
     uint64_t total_dropped_ ABSL_GUARDED_BY(frame_mutex_) = 0;

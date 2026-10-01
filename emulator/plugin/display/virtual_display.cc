@@ -14,14 +14,21 @@
 
 #include "goldfish/display/virtual_display.h"
 
-#include <algorithm>
-#include <cstring>
-#include <iostream>
+#include <cstddef>
+#include <cstdint>
+#include <memory>
+#include <utility>
 
 #include "absl/log/log.h"
+#include "absl/synchronization/mutex.h"
+#include "absl/time/time.h"
 
 #include "goldfish/devices/multidisplay/multidisplay_device.h"
+#include "goldfish/display/cpu_slot_storage.h"
+#include "goldfish/display/frame_producer.h"
+#include "goldfish/display/frame_source.h"
 #include "goldfish/display/input_handler.h"
+#include "goldfish/display/legacy_surface_source.h"
 
 // clang-format off
 // IWYU pragma: begin_keep
@@ -40,23 +47,42 @@ namespace goldfish::display {
 
 VirtualDisplay::VirtualDisplay(EventLoop* loop, EventLoop* qloop, uint8_t id, uint32_t width,
                                uint32_t height, uint32_t dpi, uint32_t flags)
-        : IDisplay(loop, id, width, height, dpi, flags), qemu_loop_(qloop) {
+        : IDisplay(loop, id, width, height, dpi, flags)
+        , frame_producer_(
+                  std::make_shared<FrameProducer>(qloop != nullptr ? qloop : loop, frames()))
+        , legacy_(LegacySurfaceSource::Create(
+                  frame_producer_,
+                  LegacySurfaceSource::Hooks{.capture =
+                                                     [this](LegacySurfaceSource& source) {
+                                                         return CaptureSurface(source);
+                                                     }},
+                  std::make_unique<CpuSlotStorage>()))
+        , qemu_loop_(qloop) {
+    frame_producer_->SetSource(legacy_);
+    legacy_->Resize({.width = width, .height = height});
+
     // Initialize our dummy framebuffer with a solid color (e.g., White RGBA)
     // In reality, this memory would be mapped to a virtio-gpu guest buffer.
     const size_t buffer_size = static_cast<size_t>(width) * height * 4;
-    frame_buffer_.resize(buffer_size, 0xFF);
+    {
+        const absl::MutexLock lock(&buffer_lock_);
+        frame_buffer_.resize(buffer_size, 0xFF);
+    }
     goldfish::devices::multidisplay::SendAddDisplay(id, width, height, dpi, flags);
     SimulateGuestFrameUpdate();
-    one_second_timer_ = loop->CreateTimer([this] {
-        OneFrameTick();
-        return true;
-    });
-    one_second_timer_->Schedule(absl::Milliseconds(50), absl::Milliseconds(50));
+    if (loop != nullptr) {
+        poll_timer_ = loop->CreateTimer([this] {
+            if (!frame_producer_->warm() || disconnected_.load(std::memory_order_acquire)) {
+                return false;
+            }
+            OnFrameRequested();
+            return true;
+        });
+    }
 
     const char* gpu = "gpu0";
     // Head will normally be > 0 for virtual console
     const uint32_t head = this->Id();
-    // uint32_t head = 0;
     VirtioDeviceInfo device_info{.display = gpu, .head = head};
     Object* objs = object_resolve_path_component(object_get_root(), "machine");
     if (!object_child_foreach_recursive(objs, ::find_virtio_device, &device_info)) {
@@ -68,9 +94,11 @@ VirtualDisplay::VirtualDisplay(EventLoop* loop, EventLoop* qloop, uint8_t id, ui
 }
 
 void VirtualDisplay::Disconnect() {
-    if (!disconnected_) {
+    if (!disconnected_.exchange(true, std::memory_order_acq_rel)) {
+        if (poll_timer_) {
+            poll_timer_->Cancel();
+        }
         ::goldfish::devices::multidisplay::SendDelDisplay(display_id_);
-        disconnected_ = true;
     }
 }
 
@@ -80,8 +108,10 @@ VirtualDisplay::~VirtualDisplay() {
     // windows or background queues can cause this destructor to run asynchronously
     // on non-network threads or post-unrealize when the AVD universe is offline.
     // Intentional network teardown must execute explicitly via Disconnect() instead.
-    if (one_second_timer_) {
-        one_second_timer_->Cancel();
+    StopProducerCalls();  // OnDemand uses poll_timer_.
+    frame_producer_->Shutdown();
+    if (poll_timer_) {
+        poll_timer_->Cancel();
     }
 }
 
@@ -90,69 +120,47 @@ std::pair<int, int> VirtualDisplay::ResizeKeepAspectRatio(int /*desired_width*/,
     return {GetDimensions().width, GetDimensions().height};
 }
 
-absl::StatusOr<FrameInfo> VirtualDisplay::GetPixels(PixelFormat fmt, int width, int height,
-                                                    ImageRotation /*rotation*/, uint8_t* pixel,
-                                                    size_t* c_pixels) const {
-    // 1. Validate inputs
-    if (c_pixels == nullptr) {
-        return absl::InvalidArgumentError("size pointer cannot be null.");
-    }
-
-    int bytes_per_pixel = 0;
-    if (fmt == PixelFormat::kRgba8888) {
-        bytes_per_pixel = 4;
-    } else if (fmt == PixelFormat::kRgb888) {
-        bytes_per_pixel = 3;
+void VirtualDisplay::OnDemand(bool warm) {
+    warm = warm && !disconnected_.load(std::memory_order_acquire);
+    if (warm) {
+        if (poll_timer_) {
+            poll_timer_->Schedule(absl::Milliseconds(50), absl::Milliseconds(50));
+        }
     } else {
-        return absl::InvalidArgumentError("Unsupported PixelFormat requested.");
-    }
-
-    width = static_cast<int>(GetDimensions().width);
-    height = static_cast<int>(GetDimensions().height);
-
-    const size_t required_size = static_cast<size_t>(width) * height * bytes_per_pixel;
-
-    if (required_size > *c_pixels) {
-        auto old = *c_pixels;
-        *c_pixels = required_size;
-        return absl::FailedPreconditionError(
-                absl::StrFormat("Buffer too small; need %u bytes, have %u", required_size, old));
-    }
-
-    // 1. Check if the guest has bound a color buffer yet
-    const uint32_t cb_handle = goldfish::devices::multidisplay::GetDisplayColorBuffer(this->Id());
-
-    if (pixel != nullptr) {
-        if (cb_handle > 0) {
-            goldfish::devices::multidisplay::ReadDisplayColorBuffer(
-                    cb_handle, const_cast<uint8_t*>(frame_buffer_.data()));
-            auto fast_abgr_to_rgb_le = [](const uint8_t* byte_src, uint8_t* dst, int num_pixels) {
-                for (int i = 0; i < num_pixels; i++) {
-                    // Source index: jumps 4 bytes at a time (skip Alpha)
-                    // Dest index: jumps 3 bytes at a time
-                    dst[(i * 3) + 0] = byte_src[(i * 4) + 0];  // R
-                    dst[(i * 3) + 1] = byte_src[(i * 4) + 1];  // G
-                    dst[(i * 3) + 2] = byte_src[(i * 4) + 2];  // B
-                    // Skip byte_src[i*4 + 3] (Alpha)
-                }
-            };
-
-            fast_abgr_to_rgb_le(frame_buffer_.data(), pixel, width * height);
-        } else {
-            std::memcpy(pixel, frame_buffer_.data(), required_size);
+        if (poll_timer_) {
+            poll_timer_->Cancel();
         }
     }
-    // 2. Perform the copy (and theoretically, rotation/color conversion)
+    frame_producer_->SetDemand(warm);
+}
 
-    // Update the out parameter with the actual number of bytes written
-    *c_pixels = required_size;
+void VirtualDisplay::OnFrameRequested() {
+    if (disconnected_.load(std::memory_order_acquire)) {
+        return;
+    }
+    frame_producer_->RequestFrame();
+}
 
-    // 3. Return the exact FrameInfo associated with the pixels we just grabbed
-    return Seq();
+IFrameSource::Start VirtualDisplay::CaptureSurface(LegacySurfaceSource& source) {
+    const absl::MutexLock lock(&buffer_lock_);
+    const Dimensions dims = GetDimensions();
+    if (dims.width == 0 || dims.height == 0 || frame_buffer_.empty()) {
+        return IFrameSource::Start::kNoContent;
+    }
+    const uint32_t cb_handle = goldfish::devices::multidisplay::GetDisplayColorBuffer(this->Id());
+    if (cb_handle > 0) {
+        goldfish::devices::multidisplay::ReadDisplayColorBuffer(cb_handle, frame_buffer_.data());
+    }
+    return source.CaptureFrom(SurfaceSource{
+        .data = frame_buffer_.data(),
+        .dimensions = dims,
+        .stride = static_cast<size_t>(dims.width) * 4,
+        .pixman_format = PIXMAN_x8b8g8r8,
+    });
 }
 
 void VirtualDisplay::SendMultiTouchEvent(uint8_t slot, int x, int y, MultiTouchType type) {
-    const absl::MutexLock lock(send_lock_);
+    const absl::MutexLock lock(&send_lock_);
     if (!vhid_) return;
 
     const Dimensions dims = GetDimensions();
@@ -169,44 +177,29 @@ void VirtualDisplay::SendMultiTouchEvent(uint8_t slot, int x, int y, MultiTouchT
 }
 
 void VirtualDisplay::SendMouseEvent(int x, int y, int button_mask) {
-    const absl::MutexLock lock(send_lock_);
+    const absl::MutexLock lock(&send_lock_);
     if (!vhid_) return;
-
     const Dimensions dims = GetDimensions();
-
     qemu_loop_
-            ->Post([vhid = vhid_, x, y, button_mask, dims]() {
+            ->Post([vhid = vhid_, x, y, button_mask, dims] {
                 InputHandler::SendMouseEvent(vhid, x, y, button_mask, dims);
             })
             .IgnoreError();
-
-    // E. Update State
     last_bmask_ = button_mask;
-    VLOG(2) << "[VirtualDisplay " << static_cast<int>(Id()) << "] Mouse -> "
-            << "X: " << x << ", Y: " << y << ", Buttons: " << button_mask << "\n";
 }
 
 void VirtualDisplay::SendEvDevEvent(uint16_t type, uint16_t code, uint32_t value) {
-    const absl::MutexLock lock(send_lock_);
+    const absl::MutexLock lock(&send_lock_);
+    if (!vhid_) return;
     qemu_loop_
             ->Post([vhid = vhid_, type, code, value] {
                 virtio_input_send_evdev(vhid, type, code, value);
             })
             .IgnoreError();
-
-    VLOG(2) << "[VirtualDisplay " << static_cast<int>(Id()) << "] Raw EvDev -> "
-            << "Type: " << type << ", Code: " << code << ", Value: " << value << "\n";
 }
 
 void VirtualDisplay::SimulateGuestFrameUpdate() {
-    // Call the protected method from the IDisplay base class.
-    // This increments the sequence counter, updates the timestamp, and fires
-    // the event to any listeners on the EventLoop.
-    FrameReceived();
-}
-
-void VirtualDisplay::OneFrameTick() {
-    SimulateGuestFrameUpdate();
+    OnFrameRequested();
 }
 
 }  // namespace goldfish::display

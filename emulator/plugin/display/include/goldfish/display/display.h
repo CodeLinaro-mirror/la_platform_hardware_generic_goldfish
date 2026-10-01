@@ -13,19 +13,24 @@
 // limitations under the License.
 #pragma once
 
-#include <atomic>
+#include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <string>
 #include <utility>
 
 #include "absl/base/thread_annotations.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/synchronization/mutex.h"
+#include "absl/time/clock.h"
 #include "absl/time/time.h"
 
-#include "goldfish/async/event_loop_dispatcher.h"
-#include "goldfish/base/unique_handle.h"
+#include "goldfish/async/event_loop.h"
+#include "goldfish/display/display_frames.h"
+#include "goldfish/display/frame.h"
+#include "goldfish/display/geometry.h"
 #include "goldfish/perfetto/perfetto_categories.h"
 
 extern "C" {
@@ -35,20 +40,6 @@ struct QemuConsole;
 namespace goldfish::display {
 
 using ::goldfish::async::EventLoop;
-using ::goldfish::async::LoopBoundCallbackSource;
-
-struct Dimensions {
-    uint32_t width;
-    uint32_t height;
-};
-
-struct ResizeEvent {
-    uint8_t display_id;
-    uint32_t previous_width;
-    uint32_t previous_height;
-    uint32_t width;
-    uint32_t height;
-};
 
 enum class MultiTouchType : std::uint8_t {
     kBegin,   //  = INPUT_MULTI_TOUCH_TYPE_BEGIN,
@@ -79,35 +70,15 @@ enum class Orientation : std::uint8_t {
 };
 
 /**
- * @enum ImageRotation
- * @brief Represents the supported counter-clockwise rotation angles for pixel
- *        retrieval.
- *
- * Restricting rotations to these four orthogonal values ensures that
- * coordinate transformations (swapping width/height and mirroring axes)
- * are precise and do not introduce interpolation artifacts or require
- * complex arbitrary-angle rotation math.
- */
-enum class ImageRotation : std::uint16_t {
-    kRotation0 = 0,
-    kRotation90 = 90,
-    kRotation180 = 180,
-    kRotation270 = 270,
-};
-
-/**
  * @struct FrameInfo
- * @brief  Represents information about a display frame update, including optional
- *         zero-copy raw frame buffer view data when available.
+ * @brief  Metadata returned by IDisplay::GetPixels describing the retrieved frame.
  */
 struct FrameInfo {
-    const uint8_t* pixels = nullptr;
-    size_t stride = 0;
     Dimensions dimensions{0, 0};
     PixelFormat format = PixelFormat::kRgba8888;
     ImageRotation rotation = ImageRotation::kRotation0;
     uint64_t sequence_number = 0;  ///< Monotonically increasing frame sequence number.
-    absl::Time timestamp;          ///< Timestamp when the frame was updated.
+    absl::Time timestamp;          ///< Timestamp when the frame was captured.
 
     explicit FrameInfo(uint64_t seq = 0) : sequence_number(seq), timestamp(absl::Now()) {}
 };
@@ -116,26 +87,20 @@ class IDisplay;
 using DisplayPtr = std::weak_ptr<IDisplay>;
 using SharedDisplay = std::shared_ptr<IDisplay>;
 
-using FrameInfoCallbackSource = LoopBoundCallbackSource<FrameInfo>;
-using ResizeEventCallbackSource = LoopBoundCallbackSource<ResizeEvent>;
 /**
  * @class IDisplay
  * @brief Interface representing an Android display.
  *
  *  This interface provides methods to get display properties,
- *  retrieve pixel data in different ways, send virtio input events,
- *  and signal frame updates via events.
- *
- *  It inherits from CallbackEventSource< FrameInfo> to provide
- *  event signaling capabilities. Subscribers can register to receive events
- *  of type FrameInfo, which represents information about a display frame update.
+ *  acquire immutable SurfaceFrames, subscribe to FrameEvents via DisplayFrames,
+ *  and send virtio input events.
  */
-class IDisplay : public FrameInfoCallbackSource,
-                 public ResizeEventCallbackSource,
-                 public std::enable_shared_from_this<IDisplay> {
+class IDisplay : public std::enable_shared_from_this<IDisplay> {
   public:
+    using ScopedFrameListener = ::goldfish::display::ScopedFrameListener;
+
     explicit IDisplay(EventLoop* loop) : IDisplay(loop, 0, 0, 0) {}
-    virtual ~IDisplay() = default;
+    virtual ~IDisplay() { StopProducerCalls(); }
 
     /**
      * @brief Returns the orientation of the given dimensions.
@@ -156,7 +121,7 @@ class IDisplay : public FrameInfoCallbackSource,
      * @return The display dimensions (Dimensions).
      */
     Dimensions GetDimensions() const {
-        const absl::MutexLock lock(dimension_mutex_);
+        const absl::MutexLock lock(&dimension_mutex_);
         return dimensions_;
     }
 
@@ -185,121 +150,63 @@ class IDisplay : public FrameInfoCallbackSource,
     virtual std::pair<int, int> ResizeKeepAspectRatio(int desired_width, int desired_height);
 
     /**
-     * @brief Returns the current frame information.
-     *
-     *  This is a monotonically increasing counter that is incremented whenever
-     *  the Android display produces a new frame, along with a timestamp of the update.
-     *  It can be used to detect when the display content has updated and the timing.
-     *
-     *  A new frame event with this frame information is also fired via the
-     *  WithCallbacks interface whenever a new frame is rendered.
-     *  Subscribers can listen for these events to be notified of frame updates and their
-     * timestamps.
-     *
-     * @return The frame information (FrameInfo).
-     */
-    FrameInfo Seq() const {
-        const absl::MutexLock lock(seq_access_);
-        return seq_;
-    }
-
-    // True if a frame there is a frame that is newer than last_sequence_number before timneout.
-    bool WaitForFrame(absl::Duration timeout, uint64_t last_sequence_number) const {
-        auto next_frame = [&]() ABSL_EXCLUSIVE_LOCKS_REQUIRED(seq_access_) {
-            return seq_.sequence_number > last_sequence_number;
-        };
-        const absl::MutexLock lock(seq_access_);
-        seq_access_.AwaitWithTimeout(absl::Condition(&next_frame), timeout);
-        return seq_.sequence_number > last_sequence_number;
-    }
-
-    // True if a frame arrived before timneout.
-    bool WaitForNextFrame(absl::Duration timeout) const {
-        return WaitForFrame(timeout, Seq().sequence_number);
-    }
-
-    using CallbackId = FrameInfoCallbackSource::CallbackId;
-    static constexpr CallbackId kInvalidCallbackId = FrameInfoCallbackSource::kInvalidCallbackId;
-    using ScopedFrameListener = android::base::eventing::ScopedEventCallback<IDisplay, FrameInfo>;
-
-    using ResizeEventCallbackSource::AddCallback;
-    using ResizeEventCallbackSource::RemoveCallback;
-
-    /**
      * @brief Adds a listener for frame updates.
      * @return An RAII ScopedFrameListener that automatically unregisters when destroyed.
      */
-    [[nodiscard]] virtual ScopedFrameListener AddFrameListener(
-            std::function<void(const FrameInfo&)> listener) {
-        return ScopedFrameListener(*this, std::move(listener));
+    [[nodiscard]] ScopedFrameListener AddFrameListener(FrameListener listener) {
+        return frames_ ? frames_->AddFrameListener(std::move(listener)) : ScopedFrameListener{};
     }
 
     /**
-     * @brief Adds a callback to the underlying frame source and notifies lifecycle hooks.
-     * If a subscription is already active and a valid frame exists, immediately yields the
-     * current frame to the new listener.
+     * @brief Acquires the latest published frame in O(1) without blocking.
      */
-    CallbackId AddCallback(std::function<void(const FrameInfo&)> callback) override {
-        if (frame_source_.CallbackCount() > 0) {
-            const FrameInfo current_frame = Seq();
-            // A sequence_number == 0 indicates the display just started and has not yet
-            // received its first frame; wait for the initial frame event from QEMU.
-            if (current_frame.sequence_number > 0) {
-                callback(current_frame);
-            }
+    LatestFrame AcquireLatestFrame() const {
+        return frames_ ? frames_->AcquireLatestFrame() : LatestFrame{};
+    }
+
+    /**
+     * @brief Waits until the display is warm and has a non-null frame, or until deadline.
+     */
+    absl::StatusOr<FramePtr> WaitForFreshFrame(absl::Time deadline) const {
+        if (!frames_) {
+            return absl::UnavailableError("Display has no frame source");
         }
-        auto id = frame_source_.AddCallback(std::move(callback));
-        OnListenerAdded();
-        return id;
+        return frames_->WaitForFreshFrame(deadline);
     }
 
     /**
-     * @brief Removes a previously added frame callback and notifies lifecycle hooks.
+     * @brief Waits until a frame with frame_id > after is published, or until deadline.
      */
-    void RemoveCallback(CallbackId id) override {
-        frame_source_.RemoveCallback(id);
-        OnListenerRemoved();
+    absl::StatusOr<FramePtr> WaitForFrame(absl::Time deadline, FrameId after) const {
+        if (!frames_) {
+            return absl::UnavailableError("Display has no frame source");
+        }
+        return frames_->WaitForFrame(deadline, after);
     }
 
-  protected:
-    virtual void OnListenerAdded() {}
-    virtual void OnListenerRemoved() {}
-
-    void FireFrameEvent(const FrameInfo& info) {
-        frame_source_.FireEvent(info);
-        FrameInfoCallbackSource::FireEvent(info);
-    }
-
-  public:
     /**
-     * @brief Retrieves pixel data for a specified region, writing it into a caller-provided buffer.
+     * @brief Returns the last assigned FrameId on this display (0 if none).
+     */
+    FrameId CurrentFrameId() const { return frames_ ? frames_->CurrentFrameId() : 0; }
+
+    /**
+     * @brief Permanently marks the display as removed, invalidates frames, and wakes waiters.
+     */
+    void Remove() {
+        if (frames_) {
+            frames_->Remove();
+        }
+    }
+
+    /**
+     * @brief Retrieves pixel data for the display into a caller-provided buffer.
      *
-     *  This method allows for reusing a pre-allocated buffer to potentially minimize
-     *  memory allocation overhead and copying, especially when called repeatedly.
-     *
-     * @param format The desired image format (PixelFormat::kRgba8888 or PixelFormat::kRgb888).
-     * @param startX The starting X coordinate of the region (inclusive).
-     * @param startY The starting Y coordinate of the region (inclusive).
-     * @param width The width of the region to retrieve.
-     * @param height The height of the region to retrieve.
-     * @param pixelBuffer A reference to a std::vector<uint8_t> that will be populated
-     *                    with the pixel data. The caller should ensure this vector
-     *                    is aDt least large enough to hold the expected pixel data.
-     * @return absl::Status indicating success or failure.
-     *         absl::OkStatus() on success, or an error absl::Status on failure.
-     *         Assumes pixel data is tightly packed in memory (stride == width * bytes_per_pixel).
-     *
-     * @throws std::invalid_argument If an unsupported PixelFormat is provided (e.g.,
-     * PixelFormat::kPng).
-     *
-     * @note The pixelBuffer vector will be resized to the exact size of the retrieved pixel data.
-     *       Only PixelFormat::kRgba8888 and PixelFormat::kRgb888 formats are supported by
-     * GetPixels. For kPng format or image resizing/rotation, use higher-level image processing
-     * libraries after retrieving raw pixels if needed.
+     * Waits for a fresh frame via WaitForFreshFrame (with fallback to AcquireLatestFrame on
+     * deadline exceeded), validates the buffer size against LayoutFor, and reads via ReadInto.
      */
     virtual absl::StatusOr<FrameInfo> GetPixels(PixelFormat fmt, int width, int height,
                                                 ImageRotation rotation, uint8_t* pixel,
-                                                size_t* c_pixels) const = 0;
+                                                size_t* c_pixels) const;
 
     /**
      * Sends a touch event to the proper display
@@ -319,19 +226,33 @@ class IDisplay : public FrameInfoCallbackSource,
     virtual QemuConsole* GetConsole() const { return nullptr; }
 
     void SetDimensions(Dimensions dim) {
-        const absl::MutexLock lock(dimension_mutex_);
-        dimensions_ = dim;
+        {
+            const absl::MutexLock lock(&dimension_mutex_);
+            dimensions_ = dim;
+        }
+        if (frames_ && dim.width > 0 && dim.height > 0) {
+            frames_->SetConfiguredSize(dim);
+        }
     }
 
     void SetDimensions(uint32_t width, uint32_t height) {
         SetDimensions({.width = width, .height = height});
     }
 
-    ImageRotation GetRotation() const { return rotation_.load(std::memory_order_relaxed); }
-
+    /**
+     * @brief Updates the display's counter-clockwise rotation and notifies active frame listeners.
+     */
     void SetRotation(ImageRotation rotation) {
-        rotation_.store(rotation, std::memory_order_relaxed);
-        FrameReceived(Seq());
+        if (frames_) {
+            frames_->SetRotation(rotation);
+        }
+    }
+
+    /**
+     * @brief Returns the current counter-clockwise rotation of the display.
+     */
+    ImageRotation GetRotation() const {
+        return frames_ ? frames_->GetRotation() : ImageRotation::kRotation0;
     }
 
     template <typename Sink>
@@ -346,116 +267,116 @@ class IDisplay : public FrameInfoCallbackSource,
         bool swapped;
     };
 
-    /**
-     * @brief Calculates the ideal logical dimensions for the display to fit
-     *        within the given box while preserving aspect ratio and matching
-     *        the box orientation.
-     *
-     * @param desired_width The maximum logical width of the bounding box.
-     * @param desired_height The maximum logical height of the bounding box.
-     * @return A LogicalFit struct containing the new logical dimensions and
-     *         whether the source was swapped.
-     */
     LogicalFit CalculateLogicalFit(int desired_width, int desired_height) const;
-
-    void FrameReceived(FrameInfo info = FrameInfo()) {
-        const absl::MutexLock lock(seq_access_);
-        info.rotation = GetRotation();
-        info.sequence_number = seq_.sequence_number + 1;
-        info.timestamp = absl::Now();
-        seq_ = info;
-        TRACE_EVENT_INSTANT("display", "IDisplay::FrameReceived",
-                            perfetto::Flow::ProcessScoped(seq_.sequence_number), "seq",
-                            seq_.sequence_number);
-        FireFrameEvent(seq_);
-    }
 
     virtual std::string String() const;
 
     IDisplay(EventLoop* loop, uint8_t id, uint32_t width, uint32_t height, uint32_t dpi = 0,
              uint32_t flags = 0)
-            : FrameInfoCallbackSource(loop)
-            , ResizeEventCallbackSource(loop)
-            , dpi_(dpi)
+            : dpi_(dpi)
             , flags_(flags)
             , display_id_(id)
+            , loop_(loop)
             , dimensions_({.width = width, .height = height})
-            , frame_source_(loop) {}
+            , frames_(loop ? DisplayFrames::Create(loop, id, dimensions_) : nullptr)
+            , producer_(std::make_shared<Producer>(this)) {
+        if (frames_) {
+            frames_->SetProducer(producer_);
+        }
+    }
 
-    FrameInfo seq_ ABSL_GUARDED_BY(seq_access_){0};
-    mutable absl::Mutex seq_access_;
+    EventLoop* loop() const { return loop_; }
+    // The sink the display's producer publishes into. Null without a loop.
+    const std::shared_ptr<DisplayFrames>& frames() const { return frames_; }
+    // Forwards IFrameProducer calls to OnDemand and OnFrameRequested.
+    std::weak_ptr<IFrameProducer> weak_producer() const { return producer_; }
+
+    // IFrameProducer::SetDemand and RequestFrame, as hooks. Called on the
+    // threads IFrameProducer allows, never on a display being destroyed once
+    // StopProducerCalls has returned.
+    virtual void OnDemand(bool /*warm*/) {}
+    virtual void OnFrameRequested() {}
+
+    // Waits for a hook call in progress and stops new ones. Idempotent.
+    // ~IDisplay calls it, but only after derived members are destroyed, so
+    // the most-derived destructor of a display that overrides a hook must
+    // call it first.
+    void StopProducerCalls() { producer_->Detach(); }
 
     uint32_t dpi_{0};
     uint32_t flags_{0};
     const uint8_t display_id_;
 
   private:
-    Dimensions dimensions_ ABSL_GUARDED_BY(dimension_mutex_);
-    std::atomic<ImageRotation> rotation_{ImageRotation::kRotation0};
-    mutable absl::Mutex dimension_mutex_;
-    FrameInfoCallbackSource frame_source_;
-};
+    friend class DisplayTestPeer;
 
-/**
- * A proxy that bridges the display's refcounted frame listener API to a standard
- * CallbackEventSource, allowing consumers to subscribe to frames using generic
- * eventing utilities (e.g., MultiEventSourceWaiter).
- *
- * Data Flow:
- * When this proxy is instantiated, it registers a listener with the underlying
- * IDisplay. As the IDisplay pushes FrameInfo events, this proxy intercepts them
- * and broadcasts them to its own CallbackEventSource subscribers.
- *
- * Thread Safety:
- * Frame events are dispatched on the display's event loop (typically a background
- * plugin thread).
- * Consumers must ensure their callbacks are thread-safe or bound to appropriate dispatchers.
- *
- * Ownership & Lifetimes:
- * This proxy acts as a non-owning observer and holds a weak reference to the target
- * IDisplay, preventing it from artificially extending the display's lifetime. When
- * the proxy is destroyed, it unregisters the underlying frame listener if the display
- * is still alive.
- */
-class DisplayEventProxy final : public android::base::eventing::CallbackEventSource<FrameInfo> {
-  public:
-    /**
-     * Constructs a DisplayEventProxy attached to the given display.
-     *
-     * @param display The target display to proxy frame events from. If null or expired,
-     *                no listener will be registered.
-     */
-    explicit DisplayEventProxy(std::weak_ptr<IDisplay> display) {
-        if (auto d = display.lock()) {
-            // Note: Immediate event is ignored, as we have no subscribers yet.
-            const auto id =
-                    d->AddCallback([this](const FrameInfo& info) { this->FireEvent(info); });
-            callback_handle_ = CallbackHandle(id, CallbackDeleter(std::move(display)));
+    // The display's IFrameProducer. A display owned by a shared_ptr is kept alive
+    // for the duration of each call, and a call that starts once its destruction
+    // has begun does nothing. A display never owned by a shared_ptr (a test
+    // fixture) is called directly, and StopProducerCalls waits for calls in
+    // progress.
+    class Producer final : public IFrameProducer {
+      public:
+        explicit Producer(IDisplay* owner) : owner_(owner) {}
+
+        // No call reaches the display after this returns. Idempotent.
+        void Detach() ABSL_LOCKS_EXCLUDED(owner_mutex_) {
+            const absl::MutexLock owner_lock(&owner_mutex_);
+            owner_ = nullptr;
+            owner_mutex_.Await(
+                    absl::Condition(+[](int* calls) { return *calls == 0; }, &unowned_calls_));
         }
-    }
 
-    virtual ~DisplayEventProxy() = default;
+        void SetDemand(bool warm) override {
+            Call([warm](IDisplay& display) { display.OnDemand(warm); });
+        }
+        void RequestFrame() override {
+            Call([](IDisplay& display) { display.OnFrameRequested(); });
+        }
 
-  private:
-    struct CallbackDeleter {
-        struct Empty {};
-        explicit CallbackDeleter(Empty = {}) : display{} {}
-        explicit CallbackDeleter(std::weak_ptr<IDisplay> display) : display(std::move(display)) {}
-
-        void operator()(IDisplay::CallbackId id) const {
-            if (auto d = display.lock()) {
-                d->RemoveCallback(id);
+      private:
+        template <typename Hook>
+        void Call(Hook hook) ABSL_LOCKS_EXCLUDED(owner_mutex_) {
+            std::shared_ptr<IDisplay> owned;
+            IDisplay* unowned = nullptr;
+            {
+                const absl::MutexLock owner_lock(&owner_mutex_);
+                if (owner_ == nullptr) return;
+                const std::weak_ptr<IDisplay> weak = owner_->weak_from_this();
+                if (IsEmpty(weak)) {
+                    unowned = owner_;
+                    ++unowned_calls_;
+                } else {
+                    // Null once the last owner is gone, before any destructor runs.
+                    owned = weak.lock();
+                    if (owned == nullptr) return;
+                }
             }
+            if (owned != nullptr) {
+                hook(*owned);
+                return;  // If the display's owners let go meanwhile, it dies here.
+            }
+            hook(*unowned);
+            const absl::MutexLock owner_lock(&owner_mutex_);
+            --unowned_calls_;
         }
 
-        std::weak_ptr<IDisplay> display;
+        // True if `weak` never referred to an object (not merely expired).
+        static bool IsEmpty(const std::weak_ptr<IDisplay>& weak) {
+            const std::weak_ptr<IDisplay> empty;
+            return !weak.owner_before(empty) && !empty.owner_before(weak);
+        }
+
+        absl::Mutex owner_mutex_;
+        IDisplay* owner_ ABSL_GUARDED_BY(owner_mutex_);
+        int unowned_calls_ ABSL_GUARDED_BY(owner_mutex_) = 0;
     };
 
-    using CallbackHandle =
-            ::goldfish::base::UniqueHandle<IDisplay::CallbackId, IDisplay::kInvalidCallbackId,
-                                           CallbackDeleter>;
-
-    CallbackHandle callback_handle_;
+    EventLoop* loop_ = nullptr;
+    Dimensions dimensions_ ABSL_GUARDED_BY(dimension_mutex_);
+    mutable absl::Mutex dimension_mutex_;
+    std::shared_ptr<DisplayFrames> frames_;
+    std::shared_ptr<Producer> producer_;
 };
 
 }  // namespace goldfish::display
