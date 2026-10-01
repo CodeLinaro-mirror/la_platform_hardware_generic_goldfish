@@ -24,6 +24,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <filesystem>
 #include <fstream>
 #include <memory>
 #include <string>
@@ -33,16 +34,15 @@ extern "C" {
 #include <jpeglib.h>
 }
 
+#include "absl/strings/str_format.h"
+
 #include "TextureUtils.h"
-#include "aemu/base/StringFormat.h"
-#include "aemu/base/files/PathUtils.h"
+#include "VerLogging.h"
 #include "aemu/base/files/ScopedStdioFile.h"
-#include "aemu/base/logging/CLog.h"
 #include "android/base/system.h"
 
-using android::base::PathUtils;
+using absl::StrFormat;
 using android::base::ScopedStdioFile;
-using android::base::StringFormat;
 using android::base::System;
 
 namespace android {
@@ -169,9 +169,8 @@ std::string fetchPanoId(double latitude, double longitude, const std::string& ma
 
     std::string panoId;
     if (!sessionToken.empty()) {
-        std::string metaUrl =
-                StringFormat("%s?session=%s&key=%s&lat=%.6f&lng=%.6f", kTileMetadataUrl,
-                             sessionToken, mapsKey, latitude, longitude);
+        std::string metaUrl = StrFormat("%s?session=%s&key=%s&lat=%.6f&lng=%.6f", kTileMetadataUrl,
+                                        sessionToken, mapsKey, latitude, longitude);
         std::string metaResp = downloadUrl(metaUrl);
         panoId = parseJsonField(metaResp, "panoId");
         if (panoId.empty()) {
@@ -182,10 +181,10 @@ std::string fetchPanoId(double latitude, double longitude, const std::string& ma
     if (panoId.empty()) {
         std::string metaUrl;
         if (!mapsKey.empty()) {
-            metaUrl = StringFormat("%s?location=%.6f,%.6f&key=%s", kMapsMetadataUrl, latitude,
-                                   longitude, mapsKey);
+            metaUrl = StrFormat("%s?location=%.6f,%.6f&key=%s", kMapsMetadataUrl, latitude,
+                                longitude, mapsKey);
         } else {
-            metaUrl = StringFormat("%s?location=%.6f,%.6f", kMapsMetadataUrl, latitude, longitude);
+            metaUrl = StrFormat("%s?location=%.6f,%.6f", kMapsMetadataUrl, latitude, longitude);
         }
         std::string metaResp = downloadUrl(metaUrl);
         panoId = parseJsonField(metaResp, "pano_id");
@@ -351,10 +350,10 @@ std::optional<TextureUtils::Result> StreetViewUtils::fetch360Panorama(double lat
             }
 
             if (saveImages) {
-                std::string tempTilePath = PathUtils::join(
-                        tempDir, "sv_tile_" + std::to_string(x) + "_" + std::to_string(y) + ".jpg");
-                std::ofstream tileFile(PathUtils::asUnicodePath(tempTilePath.c_str()).c_str(),
-                                       std::ios_base::binary | std::ios_base::trunc);
+                std::filesystem::path tempTilePath =
+                        std::filesystem::path(tempDir) /
+                        ("sv_tile_" + std::to_string(x) + "_" + std::to_string(y) + ".jpg");
+                std::ofstream tileFile(tempTilePath, std::ios_base::binary | std::ios_base::trunc);
                 if (tileFile.is_open()) {
                     tileFile.write(tileData.data(), tileData.size());
                     tileFile.close();
@@ -379,7 +378,7 @@ std::optional<TextureUtils::Result> StreetViewUtils::fetch360Panorama(double lat
             stitchTilesToRGBA(tiles, numTilesX, numTilesY, &totalW, &totalH);
 
     if (saveImages) {
-        std::string filename = PathUtils::join(tempDir, "streetview.jpg");
+        std::string filename = (std::filesystem::path(tempDir) / "streetview.jpg").string();
         if (saveRGBAToJPEG(filename.c_str(), stitched.data(), totalW, totalH, 90)) {
             dprint("StreetView: saved stitched 360 equirectangular image (%dx%d) to %s", totalW,
                    totalH, filename.c_str());
@@ -411,10 +410,8 @@ std::optional<TextureUtils::Result> StreetViewUtils::downloadStaticImage(
         const std::string saveImagesVar =
                 System::Get()->EnvGet("ANDROID_EMU_SAVE_STREETVIEW_IMAGES");
         if (saveImagesVar == "1") {
-            std::string filename =
-                    PathUtils::join(System::Get()->GetTempDir().string(), "streetview.jpg");
-            std::ofstream outFile(PathUtils::asUnicodePath(filename.c_str()).c_str(),
-                                  std::ios_base::binary | std::ios_base::trunc);
+            std::filesystem::path filename = System::Get()->GetTempDir() / "streetview.jpg";
+            std::ofstream outFile(filename, std::ios_base::binary | std::ios_base::trunc);
             if (outFile.is_open()) {
                 outFile.write(res.data(), res.size());
                 outFile.close();

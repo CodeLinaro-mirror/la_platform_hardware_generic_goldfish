@@ -22,8 +22,8 @@
 #include <limits>
 #include <memory>
 
+#include "VerLogging.h"
 #include "aemu/base/files/ScopedStdioFile.h"
-#include "aemu/base/logging/CLog.h"
 
 namespace android {
 namespace ver {

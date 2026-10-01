@@ -30,9 +30,9 @@
 #include "absl/types/optional.h"
 
 #include "../fourcc_utils.h"
+#include "VerLogging.h"
 #include "aemu/base/EintrWrapper.h"
 #include "aemu/base/files/ScopedFd.h"
-#include "aemu/base/logging/CLog.h"
 #include "webcam_source.h"
 
 using android::base::ScopedFd;

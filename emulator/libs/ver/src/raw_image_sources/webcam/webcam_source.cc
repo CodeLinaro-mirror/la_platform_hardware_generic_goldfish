@@ -22,7 +22,7 @@
 #include <vector>
 
 #include "../fourcc_utils.h"
-#include "aemu/base/logging/CLog.h"
+#include "VerLogging.h"
 #include "ver/virtual_environment_renderer_types.h"
 
 namespace android {

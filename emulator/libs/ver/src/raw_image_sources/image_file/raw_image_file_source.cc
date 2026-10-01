@@ -15,6 +15,7 @@
 #include <csetjmp>
 #include <cstddef>
 #include <cstring>
+#include <filesystem>
 #include <limits>
 #include <optional>
 #include <string>
@@ -29,11 +30,13 @@ extern "C" {
 #include <jpeglib.h>
 }
 
-#include "aemu/base/files/PathUtils.h"
+#include "VerLogging.h"
 #include "aemu/base/files/ScopedStdioFile.h"
-#include "aemu/base/logging/CLog.h"
 
-using android::base::PathUtils;
+#ifdef _MSC_VER
+#include "msvc-posix.h"
+#endif
+
 using android::base::ScopedStdioFile;
 
 namespace android {
@@ -448,7 +451,7 @@ std::optional<ImageData> loadJPEGImage(const std::string& filename) {
 }
 
 std::optional<ImageData> loadImageFromFile(const std::string& filename) {
-    const std::string_view extension{PathUtils::extension(filename)};
+    const std::string extension = std::filesystem::path(filename).extension().string();
 
     if (strncasecmp(extension.data(), ".png", extension.size()) == 0) {
         return loadPNGImage(filename);
@@ -456,7 +459,7 @@ std::optional<ImageData> loadImageFromFile(const std::string& filename) {
                strncasecmp(extension.data(), ".jpeg", extension.size()) == 0) {
         return loadJPEGImage(filename);
     } else {
-        derror("Unsupported file format %s", android::base::c_str(extension).get());
+        derror("Unsupported file format %s", extension.c_str());
         return std::nullopt;
     }
 }

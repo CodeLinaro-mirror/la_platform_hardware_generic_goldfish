@@ -19,13 +19,13 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <filesystem>
 #include <string>
 #include <string_view>
 
 #include "JpegUtils.h"
-#include "aemu/base/files/PathUtils.h"
+#include "VerLogging.h"
 #include "aemu/base/files/ScopedStdioFile.h"
-#include "aemu/base/logging/CLog.h"
 
 #ifdef _MSC_VER
 #include "msvc-posix.h"
@@ -40,7 +40,6 @@ extern "C" {
 #define W(...) dwarning(__VA_ARGS__)
 #define D(...) dprint(__VA_ARGS__)
 
-using android::base::PathUtils;
 using android::base::ScopedStdioFile;
 
 namespace android {
@@ -77,8 +76,7 @@ TextureUtils::Result TextureUtils::createPlaceholder() {
 
 std::optional<TextureUtils::Result> TextureUtils::load(const char* filename,
                                                        Orientation orientation) {
-    const std::string filename_str{filename};
-    const std::string_view extension{PathUtils::extension(filename_str)};
+    const std::string extension = std::filesystem::path(filename).extension().string();
 
     if (strncasecmp(extension.data(), ".png", extension.size()) == 0) {
         return loadPNG(filename, orientation);
@@ -86,7 +84,7 @@ std::optional<TextureUtils::Result> TextureUtils::load(const char* filename,
                strncasecmp(extension.data(), ".jpeg", extension.size()) == 0) {
         return loadJPEG(filename, orientation);
     } else {
-        E("%s: Unsupported file format %s", __FUNCTION__, base::c_str(extension).get());
+        E("%s: Unsupported file format %s", __FUNCTION__, extension.c_str());
         return {};
     }
 }

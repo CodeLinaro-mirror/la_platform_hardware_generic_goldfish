@@ -23,7 +23,7 @@
 #include "absl/types/optional.h"
 
 #include "../fourcc_utils.h"
-#include "aemu/base/logging/CLog.h"
+#include "VerLogging.h"
 
 enum AndroidCoarseOrientation {
     ANDROID_COARSE_PORTRAIT = 0,
@@ -82,8 +82,8 @@ WebcamSource::EnumerateWebcams() {
 
     NSArray* videoDevices =
             [videoDevicesUnsorted sortedArrayUsingComparator:^(id lhs, id rhs) {
-              const int r = strcmp([[lhs uniqueID] UTF8String],
-                                   [[rhs uniqueID] UTF8String]);
+              const int r = strcmp([[(AVCaptureDevice*)lhs uniqueID] UTF8String],
+                                   [[(AVCaptureDevice*)rhs uniqueID] UTF8String]);
               if (r > 0) {
                   return (NSComparisonResult)NSOrderedDescending;
               } else if (r < 0) {
@@ -319,8 +319,8 @@ static vImage_Buffer shallowCropToAspectRatio(const vImage_Buffer* src,
             .bitsPerComponent = 8,
             .bitsPerPixel = 32,
             .colorSpace = imageColorSpace_,
-            .bitmapInfo = (CGBitmapInfo)(kCGImageByteOrder32Big |
-                                         kCGImageAlphaNoneSkipLast),
+            .bitmapInfo = static_cast<CGBitmapInfo>(kCGImageByteOrder32Big) |
+                          static_cast<CGBitmapInfo>(kCGImageAlphaNoneSkipLast),
             .version = 0,
             .decode = nil,
             .renderingIntent = kCGRenderingIntentDefault};

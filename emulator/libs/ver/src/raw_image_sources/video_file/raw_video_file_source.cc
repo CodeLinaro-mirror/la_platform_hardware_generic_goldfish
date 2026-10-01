@@ -34,7 +34,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 
-#include "aemu/base/logging/CLog.h"
+#include "VerLogging.h"
 
 extern "C" {
 #include <libavcodec/avcodec.h>

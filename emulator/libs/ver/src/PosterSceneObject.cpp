@@ -18,6 +18,8 @@
 
 #include <glm/gtc/matrix_transform.hpp>
 
+#include "VerLogging.h"
+
 #define E(...) derror(__VA_ARGS__)
 #define W(...) dwarning(__VA_ARGS__)
 #define D(...) dprint(__VA_ARGS__)

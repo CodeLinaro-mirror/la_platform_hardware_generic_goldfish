@@ -14,6 +14,7 @@
 
 #include "MeshSceneObject.h"
 
+#include <glm/gtc/constants.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/quaternion.hpp>
 
@@ -23,8 +24,7 @@
 #include <functional>
 #include <unordered_map>
 
-#include "aemu/base/files/PathUtils.h"
-#include "aemu/base/logging/CLog.h"
+#include "VerLogging.h"
 #include "tiny_gltf.h"
 #include "tiny_obj_loader.h"
 
@@ -32,7 +32,6 @@
 #define W(...) dwarning(__VA_ARGS__)
 #define D(...) dprint(__VA_ARGS__)
 
-using android::base::PathUtils;
 namespace fs = std::filesystem;
 
 namespace android {
@@ -54,8 +53,7 @@ MeshSceneObject::MeshSceneObject(Renderer& renderer) : SceneObject(renderer) {}
 
 bool MeshSceneObject::canLoadObj(const char* filename) {
     const fs::path filePath(filename);
-    const std::string resourcesDir =
-            PathUtils::addTrailingDirSeparator(filePath.parent_path().string());
+    const std::string resourcesDir = (filePath.parent_path() / "").string();
 
     tinyobj::attrib_t attrib;
     std::vector<tinyobj::shape_t> shapes;
@@ -82,7 +80,7 @@ bool MeshSceneObject::canLoadObj(const char* filename) {
         for (size_t i = 0; i < mesh.indices.size(); i++) {
             tinyobj::index_t index = mesh.indices[i];
 
-            if (index.vertex_index < 0 || index.vertex_index >= vertexCount) {
+            if (index.vertex_index < 0 || static_cast<size_t>(index.vertex_index) >= vertexCount) {
                 E("%s: Error parsing %s, invalid vertex index %d, expected "
                   "less than %d",
                   __FUNCTION__, filename, index.vertex_index, vertexCount);
@@ -90,7 +88,7 @@ bool MeshSceneObject::canLoadObj(const char* filename) {
             }
 
             if (index.texcoord_index >= 0) {
-                if (index.texcoord_index >= texcoordCount) {
+                if (static_cast<size_t>(index.texcoord_index) >= texcoordCount) {
                     E("%s: Error parsing %s, invalid texture coordinate index %d, expected "
                       "less than %d",
                       __FUNCTION__, filename, index.texcoord_index, texcoordCount);
@@ -176,8 +174,7 @@ bool MeshSceneObject::canLoad(const char* filename) {
 std::unique_ptr<MeshSceneObject> MeshSceneObject::loadObj(Renderer& renderer,
                                                           const char* filename) {
     const fs::path filePath(filename);
-    const std::string resourcesDir =
-            PathUtils::addTrailingDirSeparator(filePath.parent_path().string());
+    const std::string resourcesDir = (filePath.parent_path() / "").string();
 
     tinyobj::attrib_t attrib;
     std::vector<tinyobj::shape_t> shapes;
@@ -212,7 +209,7 @@ std::unique_ptr<MeshSceneObject> MeshSceneObject::loadObj(Renderer& renderer,
 
         if (!mesh.material_ids.empty()) {
             const int material_id = mesh.material_ids[0];
-            if (material_id >= 0 && material_id < materials.size()) {
+            if (material_id >= 0 && static_cast<size_t>(material_id) < materials.size()) {
                 if (strstr(materials[material_id].diffuse_texname.c_str(), "TV")) {
                     useCheckerboardMaterial = true;
                 } else {
@@ -225,7 +222,7 @@ std::unique_ptr<MeshSceneObject> MeshSceneObject::loadObj(Renderer& renderer,
             tinyobj::index_t index = mesh.indices[i];
             VertexPositionUV vertex;
 
-            if (index.vertex_index < 0 || index.vertex_index >= vertexCount) {
+            if (index.vertex_index < 0 || static_cast<size_t>(index.vertex_index) >= vertexCount) {
                 E("%s: Error parsing %s, invalid vertex index %d, expected "
                   "less than %d",
                   __FUNCTION__, filename, index.vertex_index, vertexCount);
@@ -237,7 +234,7 @@ std::unique_ptr<MeshSceneObject> MeshSceneObject::loadObj(Renderer& renderer,
                                    attrib.vertices[3 * index.vertex_index + 2]);
 
             if (index.texcoord_index >= 0) {
-                if (index.texcoord_index >= texcoordCount) {
+                if (static_cast<size_t>(index.texcoord_index) >= texcoordCount) {
                     E("%s: Error parsing %s, invalid texture coordinate index %d, expected "
                       "less than %d",
                       __FUNCTION__, filename, index.texcoord_index, texcoordCount);
@@ -293,8 +290,7 @@ std::unique_ptr<MeshSceneObject> MeshSceneObject::loadObj(Renderer& renderer,
 std::unique_ptr<MeshSceneObject> MeshSceneObject::loadGltf(Renderer& renderer,
                                                            const char* filename) {
     const fs::path filePath(filename);
-    const std::string resourcesDir =
-            PathUtils::addTrailingDirSeparator(filePath.parent_path().string());
+    const std::string resourcesDir = (filePath.parent_path() / "").string();
 
     tinygltf::TinyGLTF loader;
     tinygltf::Model model;
@@ -729,7 +725,7 @@ std::unique_ptr<MeshSceneObject> MeshSceneObject::loadGltf(Renderer& renderer,
                         useCheckerboardMaterial = true;
                     }
                     if (!gltfImg.uri.empty() && gltfImg.uri.rfind("data:", 0) != 0) {
-                        std::string texPath = PathUtils::join(resourcesDir, gltfImg.uri);
+                        std::string texPath = (fs::path(resourcesDir) / gltfImg.uri).string();
                         texture = renderer.loadTexture(texPath.c_str());
                     } else if (!gltfImg.image.empty() && gltfImg.width > 0 && gltfImg.height > 0) {
                         int w = gltfImg.width;
@@ -922,11 +918,11 @@ std::unique_ptr<MeshSceneObject> MeshSceneObject::createSphere(Renderer& rendere
     vertices.reserve((segments + 1) * (segments + 1));
     for (int i = 0; i <= segments; ++i) {
         float v_coord = (float)i / segments;
-        float phi = v_coord * M_PI;
+        float phi = v_coord * glm::pi<float>();
 
         for (int j = 0; j <= segments; ++j) {
             float u_coord = (float)j / segments;
-            float theta = (u_coord + 0.25f) * 2.0f * M_PI;  // Longitude
+            float theta = (u_coord + 0.25f) * 2.0f * glm::pi<float>();  // Longitude
 
             VertexPositionUV v;
             v.pos.x = std::sin(phi) * std::cos(theta);

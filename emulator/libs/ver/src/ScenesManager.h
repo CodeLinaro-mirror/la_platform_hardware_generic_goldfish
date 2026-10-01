@@ -19,9 +19,9 @@
 #include <filesystem>
 #include <functional>
 #include <memory>
+#include <mutex>
 #include <vector>
 
-#include "aemu/base/synchronization/Lock.h"
 #include "ver/virtual_environment_renderer_types.h"
 
 namespace android {
@@ -54,12 +54,12 @@ class ScenesManager {
     static bool removeAll();
 
   private:
-    static android::base::StaticLock mScenesLock;
+    static std::mutex mScenesLock;
     static std::vector<std::unique_ptr<Scene>> mScenes;
     static std::vector<std::filesystem::path> mResourceSearchPaths;
     static std::filesystem::path mVulkanBasePath;
 
-    static android::base::StaticLock mViewsLock;
+    static std::mutex mViewsLock;
     static std::vector<std::unique_ptr<RendererView>> mViews;
 };
 

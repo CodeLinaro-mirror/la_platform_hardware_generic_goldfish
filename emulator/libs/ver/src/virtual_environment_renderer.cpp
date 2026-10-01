@@ -29,7 +29,7 @@
 #include "Scene.h"
 #include "ScenesManager.h"
 #include "TextureUtils.h"
-#include "aemu/base/files/PathUtils.h"
+#include "VerLogging.h"
 #include "android/base/system.h"
 #include "raw_image_sources/webcam/webcam_source.h"
 
@@ -37,26 +37,26 @@ namespace android {
 namespace ver {
 
 // Static initialization
-android::base::StaticLock ScenesManager::mScenesLock;
+std::mutex ScenesManager::mScenesLock;
 std::vector<std::unique_ptr<Scene>> ScenesManager::mScenes;
 std::vector<std::filesystem::path> ScenesManager::mResourceSearchPaths;
 std::filesystem::path ScenesManager::mVulkanBasePath;
 
-android::base::StaticLock ScenesManager::mViewsLock;
+std::mutex ScenesManager::mViewsLock;
 std::vector<std::unique_ptr<RendererView>> ScenesManager::mViews;
 
 void ScenesManager::setSearchPaths(const std::vector<std::filesystem::path>& resourceSearchPaths) {
-    android::base::AutoLock lock(mScenesLock);
+    std::lock_guard<std::mutex> lock(mScenesLock);
     mResourceSearchPaths = resourceSearchPaths;
 }
 
 void ScenesManager::setVulkanBasePath(const std::filesystem::path& vulkanBasePath) {
-    android::base::AutoLock lock(mScenesLock);
+    std::lock_guard<std::mutex> lock(mScenesLock);
     mVulkanBasePath = vulkanBasePath;
 }
 
 bool ScenesManager::configArgumentFileExists(const SceneConfig& config) {
-    android::base::AutoLock lock(mScenesLock);
+    std::lock_guard<std::mutex> lock(mScenesLock);
     return Scene::configArgumentFileExists(config, mResourceSearchPaths);
 }
 
@@ -76,7 +76,7 @@ Scene* ScenesManager::createScene(const SceneConfig& config) {
     }
 
     Scene* rawPtr = scene.get();
-    android::base::AutoLock lock(mScenesLock);
+    std::lock_guard<std::mutex> lock(mScenesLock);
     mScenes.push_back(std::move(scene));
 
     return rawPtr;
@@ -180,7 +180,7 @@ bool ScenesManager::removeScene(Scene* scene) {
 
     dinfo("%s: scene=%p", __func__, scene);
 
-    android::base::AutoLock lock(mScenesLock);
+    std::lock_guard<std::mutex> lock(mScenesLock);
     scene->releaseResources();
 
     auto it = std::find_if(mScenes.begin(), mScenes.end(),
@@ -199,7 +199,7 @@ RendererView* ScenesManager::createView() {
     dinfo("%s", __func__);
     std::unique_ptr<RendererView> view = std::make_unique<RendererView>();
 
-    android::base::AutoLock lock(mViewsLock);
+    std::lock_guard<std::mutex> lock(mViewsLock);
     RendererView* rawPtr = view.get();
     mViews.push_back(std::move(view));
     return rawPtr;
@@ -212,7 +212,7 @@ bool ScenesManager::removeView(RendererView* view) {
 
     dinfo("%s: view=%p", __func__, view);
 
-    android::base::AutoLock lock(mViewsLock);
+    std::lock_guard<std::mutex> lock(mViewsLock);
     auto it = std::find_if(mViews.begin(), mViews.end(),
                            [view](const auto& entry) { return entry.get() == view; });
 
@@ -229,7 +229,7 @@ bool ScenesManager::removeAll() {
     dinfo("%s", __func__);
 
     {
-        android::base::AutoLock lock(mScenesLock);
+        std::lock_guard<std::mutex> lock(mScenesLock);
         for (auto& scene : mScenes) {
             scene->releaseResources();
         }
@@ -238,7 +238,7 @@ bool ScenesManager::removeAll() {
     }
 
     {
-        android::base::AutoLock lock(mViewsLock);
+        std::lock_guard<std::mutex> lock(mViewsLock);
         mViews.clear();
     }
 
