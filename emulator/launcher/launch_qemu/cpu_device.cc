@@ -55,14 +55,20 @@ bool getAccelForcedOff(const EmulatorConfig& emulator) {
     if (char* accel = emulator.opts().accel; accel && std::string_view(accel) == "off"sv) {
         return true;
     }
-    return emulator.opts().no_accel;
+    return false;
 }
 
 absl::StatusOr<std::string> getAccelString(const EmulatorConfig& emulator,
                                            Avd::CpuArchitecture host_arch,
                                            Avd::CpuArchitecture target_arch) {
     if (getAccelForcedOff(emulator)) {
-        LOG(WARNING) << "-no-accel option passed so forcing TCG. This will "
+        if (System::Get()->GetEnvironmentVariable("ANDROID_I_WANT_MY_TCG") != "yes") {
+            return absl::InvalidArgumentError(
+                    "Software CPU emulation (-accel off) is not supported. A hardware CPU "
+                    "accelerator is required (or set ANDROID_I_WANT_MY_TCG=yes to force TCG "
+                    "software emulation).");
+        }
+        LOG(WARNING) << "-accel off option passed so forcing TCG. This will "
                      << "result in a very slow emulator!";
         return "tcg";
     }
@@ -70,8 +76,8 @@ absl::StatusOr<std::string> getAccelString(const EmulatorConfig& emulator,
     auto supported = GetCurrentCpuAccelerator();
     if (supported == CPU_ACCELERATOR_NONE) {
         return absl::InvalidArgumentError(
-                "CPU accelerator not available. If you really want to use TCG then pass -no-accel "
-                "option");
+                "CPU accelerator not available. If you really want to use TCG then set "
+                "ANDROID_I_WANT_MY_TCG=yes and pass -accel off");
     }
 
     if (target_arch != host_arch) {
@@ -79,7 +85,7 @@ absl::StatusOr<std::string> getAccelString(const EmulatorConfig& emulator,
                      << "This will result in a very slow emulator!";
         return absl::InvalidArgumentError(
                 "CPU accelerator does not match target arch. If you really want to use TCG then "
-                "pass -no-accel option");
+                "set ANDROID_I_WANT_MY_TCG=yes and pass -accel off");
     }
 
     // TODO(whollins): support any other values of -accel flag?

@@ -32,6 +32,11 @@ ANDROID_BEGIN_HEADER
  */
 extern int android_parse_options(int* pargc, char*** pargv, AndroidOptions* opt);
 
+/* Logs the warnings found by android_parse_options() (e.g. obsolete options).
+ * Call it once logging is configured, the parser runs before that.
+ */
+extern void android_log_parse_warnings(void);
+
 /* Parse |port_string| into |console_port| and |adb_port|. Error checking is
  * done and appropriate warning or error messages shown if needed. If the
  * function returns false the output parameter is not touched.

@@ -104,6 +104,11 @@ bool SnapshotDevice::should_load_snapshot(const EmulatorConfig& emulator, std::s
         reason = "-no-snapshot-load is set";
         return false;
     }
+    // Hidden alias of -no-snapshot-load, still used by Android Studio for Cold Boot.
+    if (o.no_snapstorage) {
+        reason = "-no-snapstorage is set";
+        return false;
+    }
     return true;
 }
 

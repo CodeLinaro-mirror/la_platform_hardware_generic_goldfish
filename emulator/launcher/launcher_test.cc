@@ -27,6 +27,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
+#include "android/cpu/cpu_accelerator.h"
 #include "android/goldfish/avd.h"
 #include "android/goldfish/input_paths.h"
 #include "goldfish/async/async_socket_server.h"
@@ -157,8 +158,10 @@ class LauncherTest : public testing::Test {
         opts.no_netsim = true;
         opts.avd = "test_avd";
 #ifdef _WIN32
-        // Windows VMs don't support nested virt.
-        opts.no_accel = true;
+        // Windows VMs don't support nested virt, mock WHPX availability.
+        SetCurrentCpuAcceleratorForTesting(CpuAccelerator::CPU_ACCELERATOR_WHPX,
+                                           AndroidCpuAcceleration::ANDROID_CPU_ACCELERATION_READY,
+                                           "");
 #endif
 
         owned_launcher = std::make_unique<MockProcessLauncher>();

@@ -318,6 +318,7 @@ int main(int argc, char** argv) {
     }
 
     configureLogging(opts);
+    android_log_parse_warnings();
 
 #if defined(__linux__) || defined(__APPLE__)
     const char* kXDG_RUNTIME_DIR_NAME = "XDG_RUNTIME_DIR";
