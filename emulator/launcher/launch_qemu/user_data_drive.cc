@@ -34,7 +34,8 @@ namespace android::goldfish {
 
 namespace fs = std::filesystem;
 
-std::optional<fs::path> getUserSrcDirectory(const Avd& avd) {
+namespace {
+std::optional<fs::path> getUserdataScratchDirectory(const Avd& avd) {
     if (avd.Hw().hw_sensor_hinge) {
         return avd.GetContentPath() / "data";
     } else {
@@ -42,52 +43,50 @@ std::optional<fs::path> getUserSrcDirectory(const Avd& avd) {
     }
 }
 
-absl::Status prepareUserDataBaseImage(const Avd& avd, const fs::path& init_data,
-                                      const fs::path& user_data) {
-    if (base::file::exists(user_data)) {
-        return absl::OkStatus();
+absl::StatusOr<fs::path> prepareUserdataSrcDirImpl(fs::path scratch_dir,
+                                                   const fs::path& init_data) {
+    LOG(INFO) << __func__ << ": init_data=" << init_data << ", scratch_dir=" << scratch_dir;
+
+    const fs::path src_dir = init_data / "misc" / "pixel_9_pro_fold";
+    if (!base::file::is_dir(src_dir)) {
+        return absl::InvalidArgumentError(absl::StrCat(
+                "data partition initialization path is not a directory: ", src_dir.string()));
     }
 
+    RETURN_IF_ERROR(base::file::rm_recursive(scratch_dir));
+    const fs::path dst_dir = scratch_dir / "system";
+    RETURN_IF_ERROR(base::file::mkdir_recursive(dst_dir, 0755));
+
+    LOG(INFO) << "Copying from " << src_dir << " to " << dst_dir;
+    std::error_code ec;
+    fs::copy(src_dir, dst_dir, fs::copy_options::recursive | fs::copy_options::overwrite_existing,
+             ec);
+    if (ec) {
+        return absl::InternalError(absl::StrCat("Failed to copy ", src_dir.string(), " to ",
+                                                dst_dir.string(), ": ", ec.message()));
+    }
+
+    return scratch_dir;
+}
+}  // namespace
+
+absl::StatusOr<std::optional<fs::path>> prepareUserdataSrcDir(const Avd& avd,
+                                                              const fs::path& init_data) {
     if (!base::file::is_dir(init_data)) {
         return absl::InvalidArgumentError(absl::StrCat(
                 "data partition initialization path is not a directory: ", init_data.string()));
     }
 
-    std::optional<fs::path> src_directory = getUserSrcDirectory(avd);
-    if (src_directory) {
-        LOG(INFO) << "prepareUserDataBaseImage: init_data=" << init_data
-                  << ", user_data=" << user_data << ", src_directory=" << src_directory->string();
-
-        LOG(INFO) << "wiping and recreating " << *src_directory;
-        RETURN_IF_ERROR(base::file::rm_recursive(*src_directory));
-        fs::path dest_dir = *src_directory / "system";
-        RETURN_IF_ERROR(base::file::mkdir_recursive(dest_dir, 0755));
-        fs::path src_init = init_data / "misc" / "pixel_9_pro_fold";
-        if (base::file::is_dir(src_init)) {
-            LOG(INFO) << "Copying from " << src_init << " to " << dest_dir;
-            std::error_code ec;
-            fs::copy(src_init, dest_dir,
-                     fs::copy_options::recursive | fs::copy_options::overwrite_existing, ec);
-            if (ec) {
-                return absl::InternalError(absl::StrCat("Failed to copy ", src_init.string(),
-                                                        " to ", dest_dir.string(), ": ",
-                                                        ec.message()));
-            }
-        } else {
-            return absl::InvalidArgumentError(absl::StrCat(
-                    "data partition initialization path is not a directory: ", init_data.string()));
-        }
-
-        return absl::OkStatus();
+    std::optional<fs::path> scratch_directory = getUserdataScratchDirectory(avd);
+    if (scratch_directory) {
+        return prepareUserdataSrcDirImpl(*std::move(scratch_directory), init_data);
     } else if (base::file::exists(init_data / "empty_data_disk")) {
-        // Don't create anything - in this case, userdata should be created the same as cache or
-        // sdcard.
-        return absl::OkStatus();
+        return std::nullopt;
     }
 
     LOG(WARNING) << "No empty_data_disk marker found but data dirs are not fully supported by this "
                     "version of the emulator: data partition will be initialized empty";
-    return absl::OkStatus();
+    return std::nullopt;
 }
 
 }  // namespace android::goldfish

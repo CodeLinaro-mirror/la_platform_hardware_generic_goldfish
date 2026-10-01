@@ -388,6 +388,19 @@ cc_library(
     ],
 )
 
+cc_test(
+    name = "user_data_drive_test",
+    srcs = ["user_data_drive_test.cc"],
+    deps = [
+        ":user_data_drive",
+        "//emulator/launcher:mock_avd",
+        "//emulator/libs/system:test-headers",
+        "//emulator/libs/test:googletest_main",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:status_matchers",
+    ],
+)
+
 cc_library(
     name = "disk_drive",
     srcs = ["disk_drive.cc"],
