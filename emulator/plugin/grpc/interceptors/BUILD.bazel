@@ -21,6 +21,10 @@ cc_library(
     name = "breadcrumb_interceptor",
     srcs = ["breadcrumb_interceptor.cc"],
     hdrs = ["include/android/control/interceptor/breadcrumb_interceptor.h"],
+    defines = select({
+        "@qemu//:goldfish_enabled": ["CONFIG_TRACE_GOLDFISH"],
+        "//conditions:default": [],
+    }),
     includes = ["include"],
     deps = [
         "//emulator/crashreport:breadcrumb_proto",
