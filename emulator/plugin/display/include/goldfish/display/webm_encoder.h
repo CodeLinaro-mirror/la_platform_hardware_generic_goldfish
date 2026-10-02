@@ -16,6 +16,7 @@
 
 #include <atomic>
 #include <condition_variable>
+#include <cstdint>
 #include <iostream>
 #include <queue>
 #include <string>
@@ -50,6 +51,10 @@ class WebMEncoder {
     // Signals the encoder to stop and waits for completion.
     void Finish();
 
+    // Returns the number of frames sent to the codec so far. Finish writes
+    // all of them to the file; frames still queued are dropped.
+    uint64_t FramesEncoded() const { return frames_encoded_.load(); }
+
   private:
     void EncodeLoop();
     void ProcessFrame(const std::vector<uint8_t>& raw_data, int64_t frame_index);
@@ -76,5 +81,6 @@ class WebMEncoder {
     std::atomic<bool> stop_signal_ ABSL_GUARDED_BY(queue_mutex_){false};
     std::atomic<bool> finished_{false};
     int64_t pts_counter_ = 0;
+    std::atomic<uint64_t> frames_encoded_{0};
 };
 }  // namespace goldfish::display

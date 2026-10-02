@@ -104,6 +104,7 @@ void VideoRecorder::GenerationLoop() {
         // 3. Send to Encoder
         if (encoder_) {
             encoder_->AddFrame(frame_buffer.data());
+            frames_encoded_ = encoder_->FramesEncoded();
         }
 
         frame_index++;

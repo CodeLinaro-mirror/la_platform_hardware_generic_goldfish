@@ -259,6 +259,7 @@ void WebMEncoder::ProcessFrame(const std::vector<uint8_t>& raw_data, int64_t fra
         TRACE_EVENT("display", "avcodec_send_frame");
         if (avcodec_send_frame(codec_ctx_, frame_) < 0) return;
     }
+    frames_encoded_.fetch_add(1);
 
     while (true) {
         const int ret = avcodec_receive_packet(codec_ctx_, pkt_);
