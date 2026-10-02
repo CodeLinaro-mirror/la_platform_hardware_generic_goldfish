@@ -29,8 +29,8 @@
 namespace android::goldfish::test {
 
 TEST(BootProperties, Basic) {
-    auto launcher_path = std::filesystem::temp_directory_path();
-    base::TestSystem sys(launcher_path);
+    base::TestSystem sys("");
+    auto launcher_path = sys.GetTempRoot()->Path();
 
     FakeEmulator emu;
 
@@ -48,8 +48,7 @@ TEST(BootProperties, Basic) {
 }
 
 TEST(BootProperties, NoBootAnim) {
-    auto launcher_path = std::filesystem::temp_directory_path();
-    base::TestSystem sys(launcher_path);
+    base::TestSystem sys("");
 
     AndroidOptions opts{.no_boot_anim = true};
     FakeEmulator emu(std::move(opts));
@@ -66,8 +65,7 @@ TEST(BootProperties, NoBootAnim) {
 }
 
 TEST(BootProperties, Logcat) {
-    auto launcher_path = std::filesystem::temp_directory_path();
-    base::TestSystem sys(launcher_path);
+    base::TestSystem sys("");
 
     AndroidOptions opts{.logcat = "*:S Zygote:E"};
     FakeEmulator emu(std::move(opts));
@@ -85,8 +83,8 @@ TEST(BootProperties, Logcat) {
 }
 
 TEST(Initrd, Basic) {
-    auto launcher_path = std::filesystem::temp_directory_path();
-    base::TestSystem sys(launcher_path);
+    base::TestSystem sys("");
+    auto launcher_path = sys.GetTempRoot()->Path();
 
     android::base::file::mkdir_recursive(launcher_path / "content", 0755).IgnoreError();
     android::base::file::mkdir_recursive(launcher_path / "system", 0755).IgnoreError();
@@ -120,8 +118,8 @@ TEST(Initrd, Basic) {
 }
 
 TEST(Initrd, RamdiskFlag) {
-    auto launcher_path = std::filesystem::temp_directory_path();
-    base::TestSystem sys(launcher_path);
+    base::TestSystem sys("");
+    auto launcher_path = sys.GetTempRoot()->Path();
 
     android::base::file::mkdir_recursive(launcher_path / "content", 0755).IgnoreError();
     android::base::file::mkdir_recursive(launcher_path / "system", 0755).IgnoreError();

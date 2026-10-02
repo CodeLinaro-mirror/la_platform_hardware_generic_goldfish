@@ -32,8 +32,8 @@ using ::absl_testing::StatusIs;
 namespace android::goldfish::test {
 
 TEST(RoDrive, Basic_x86) {
-    auto launcher_path = std::filesystem::temp_directory_path();
-    base::TestSystem sys(launcher_path);
+    base::TestSystem sys("");
+    auto launcher_path = sys.GetTempRoot()->Path();
     auto image_file = launcher_path / "disk-image";
 
     std::ofstream{image_file};
@@ -56,8 +56,8 @@ TEST(RoDrive, Basic_x86) {
 }
 
 TEST(RoDrive, Basic_arm64) {
-    auto launcher_path = std::filesystem::temp_directory_path();
-    base::TestSystem sys(launcher_path);
+    base::TestSystem sys("");
+    auto launcher_path = sys.GetTempRoot()->Path();
     auto image_file = launcher_path / "disk-image";
 
     // TODO(whollins): clean-up created files and directories.
@@ -80,8 +80,8 @@ TEST(RoDrive, Basic_arm64) {
 }
 
 TEST(RoDrive, MissingImage) {
-    auto launcher_path = std::filesystem::temp_directory_path();
-    base::TestSystem sys(launcher_path);
+    base::TestSystem sys("");
+    auto launcher_path = sys.GetTempRoot()->Path();
     auto image_file = launcher_path / "disk-image-not-found";
 
     FakeEmulator emu;
@@ -91,8 +91,8 @@ TEST(RoDrive, MissingImage) {
 }
 
 TEST(WritableImgDrive, Basic_x86) {
-    auto launcher_path = std::filesystem::temp_directory_path();
-    base::TestSystem sys(launcher_path);
+    base::TestSystem sys("");
+    auto launcher_path = sys.GetTempRoot()->Path();
     auto userData = launcher_path / "userdata.img";
     auto qcow2Image = launcher_path / "userdata.img.qcow2";
     std::ofstream(userData).close();
@@ -115,8 +115,8 @@ TEST(WritableImgDrive, Basic_x86) {
 }
 
 TEST(WritableImgDrive, Basic_arm) {
-    auto launcher_path = std::filesystem::temp_directory_path();
-    base::TestSystem sys(launcher_path);
+    base::TestSystem sys("");
+    auto launcher_path = sys.GetTempRoot()->Path();
     auto userData = launcher_path / "userdata.img";
     auto qcow2Image = launcher_path / "userdata.img.qcow2";
     std::ofstream(userData).close();
@@ -138,8 +138,8 @@ TEST(WritableImgDrive, Basic_arm) {
 }
 
 TEST(BlankWritableDrive, Basic_x86) {
-    auto launcher_path = std::filesystem::temp_directory_path();
-    base::TestSystem sys(launcher_path);
+    base::TestSystem sys("");
+    auto launcher_path = sys.GetTempRoot()->Path();
     auto userData = launcher_path / "userdata.img";
     auto qcow2Image = launcher_path / "userdata.img.qcow2";
     std::ofstream(userData).close();
@@ -162,8 +162,8 @@ TEST(BlankWritableDrive, Basic_x86) {
 }
 
 TEST(BlankWritableDrive, Basic_arm) {
-    auto launcher_path = std::filesystem::temp_directory_path();
-    base::TestSystem sys(launcher_path);
+    base::TestSystem sys("");
+    auto launcher_path = sys.GetTempRoot()->Path();
     auto userData = launcher_path / "userdata.img";
     auto qcow2Image = launcher_path / "userdata.img.qcow2";
     std::ofstream(userData).close();
@@ -185,8 +185,8 @@ TEST(BlankWritableDrive, Basic_arm) {
 }
 
 TEST(WritableDirectoryDrive, Basic_x86) {
-    auto launcher_path = std::filesystem::temp_directory_path();
-    base::TestSystem sys(launcher_path);
+    base::TestSystem sys("");
+    auto launcher_path = sys.GetTempRoot()->Path();
     auto userData = launcher_path / "userdata.img";
     auto qcow2Image = launcher_path / "userdata.img.qcow2";
     auto srcDir = launcher_path / "data";
@@ -210,8 +210,8 @@ TEST(WritableDirectoryDrive, Basic_x86) {
 }
 
 TEST(WritableDirectoryDrive, Basic_arm) {
-    auto launcher_path = std::filesystem::temp_directory_path();
-    base::TestSystem sys(launcher_path);
+    base::TestSystem sys("");
+    auto launcher_path = sys.GetTempRoot()->Path();
     auto userData = launcher_path / "userdata.img";
     auto qcow2Image = launcher_path / "userdata.img.qcow2";
     auto srcDir = launcher_path / "data";

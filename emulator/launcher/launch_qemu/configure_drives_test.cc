@@ -9,6 +9,7 @@
 #include "absl/status/status_matchers.h"
 
 #include "android/base/system.h"
+#include "android/base/testing/test_system.h"
 #include "android/goldfish/hardware_config.h"
 #include "disk_drive.h"
 #include "fake_emulator.h"
@@ -55,27 +56,20 @@ class MockDeviceContainer {
 class ConfigureDrivesTest : public ::testing::Test {
   protected:
     void SetUp() override {
-        launcher_path_ = std::filesystem::temp_directory_path();
+        launcher_path_ = sys_.GetTempRoot()->Path();
         user_dir_ = launcher_path_ / "user";
         system_dir_ = launcher_path_ / "system";
-        base::file::rm_recursive(user_dir_).IgnoreError();
-        base::file::rm_recursive(system_dir_).IgnoreError();
         base::file::mkdir(user_dir_, 0755).IgnoreError();
         base::file::mkdir(system_dir_, 0755).IgnoreError();
         base::file::mkdir(system_dir_ / "data", 0755).IgnoreError();
         base::file::touch(system_dir_ / "data" / "empty_data_disk").IgnoreError();
 
-        android::base::System::Get()->EnvSet("ANDROID_EMULATOR_HOME", launcher_path_.string());
+        sys_.EnvSet("ANDROID_EMULATOR_HOME", launcher_path_.string());
 
         system_image_paths_.system_image = system_dir_ / "system.img";
         system_image_paths_.vendor_image = system_dir_ / "vendor.img";
         system_image_paths_.encryption_key_image = system_dir_ / "encryption_key.img";
         system_image_paths_.data_dir = system_dir_ / "data";
-    }
-
-    void TearDown() override {
-        base::file::rm_recursive(user_dir_).IgnoreError();
-        base::file::rm_recursive(system_dir_).IgnoreError();
     }
 
     void ConfigureMockAvd(MockAvd& mock_avd) {
@@ -84,6 +78,7 @@ class ConfigureDrivesTest : public ::testing::Test {
         EXPECT_CALL(mock_avd, GetContentPath()).WillRepeatedly(Return(user_dir_));
     }
 
+    base::TestSystem sys_{""};
     fs::path launcher_path_;
     fs::path user_dir_;
     fs::path system_dir_;
