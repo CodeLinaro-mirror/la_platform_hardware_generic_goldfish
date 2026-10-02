@@ -48,6 +48,18 @@ absl::StatusOr<fs::path> getWritableImgPath(const Avd& avd, Avd::ImageType user_
     }
 }
 
+absl::StatusOr<fs::path> getUserdataImgPath(const Avd& avd, const char* override_path) {
+    if (override_path) {
+        return getOverridePath(override_path);
+    } else {
+        fs::path path = getWritableImgPath(avd, Avd::ImageType::USERDATA_OLD);
+        if (!base::file::exists(path)) {
+            path = getWritableImgPath(avd, Avd::ImageType::USERDATA);
+        }
+        return path;
+    }
+}
+
 fs::path to_qcow2(fs::path base) {
     return base.concat(".qcow2");
 }
@@ -123,8 +135,7 @@ absl::StatusOr<std::vector<std::unique_ptr<PciDevice>>> getDiskConfigs(const Avd
                                                                        const AndroidOptions& opts) {
     const auto& sys_img_paths = avd.GetSystemImagePaths();
 
-    ASSIGN_OR_RETURN(const auto userdata_path,
-                     getWritableImgPath(avd, Avd::ImageType::USERDATA, opts.data));
+    ASSIGN_OR_RETURN(const auto userdata_path, getUserdataImgPath(avd, opts.data));
     uint64_t userdata_create_size = 0;
     std::optional<fs::path> userdata_src_dir;
     if (!base::file::exists(userdata_path)) {

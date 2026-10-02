@@ -50,6 +50,9 @@ class RoDrive : public PciDevice {
     absl::Status initialize(const EmulatorConfig& emulator) override;
     std::vector<std::string> getQemuParameters(const EmulatorConfig& emulator) const override;
 
+    // for testing
+    const fs::path& image_path() const { return mImagePath; }
+
   protected:
     fs::path mImagePath;
 };
@@ -60,6 +63,10 @@ class RoDrive : public PciDevice {
 class Qcow2Drive : public PciDevice {
   public:
     std::vector<std::string> getQemuParameters(const EmulatorConfig& emulator) const override;
+
+    // for testing
+    const fs::path& backing_image() const { return backing_image_; }
+    const fs::path& qcow2_image() const { return qcow2_image_; }
 
   protected:
     Qcow2Drive(std::string id, std::string addr, fs::path backing_image, fs::path qcow2_image)
@@ -117,6 +124,9 @@ class WritableDirectoryDrive : public Qcow2Drive {
             , size_bytes_(size_bytes) {}
 
     absl::Status initialize(const EmulatorConfig& emulator) override;
+
+    // for testing
+    const fs::path& src_directory() const { return src_directory_; }
 
   protected:
     const fs::path src_directory_;

@@ -31,22 +31,34 @@ class MockDeviceContainer {
     MOCK_METHOD(const Avd&, avd, (), (const));
     MOCK_METHOD(const AndroidOptions&, opts, (), (const));
 
-    MOCK_METHOD(void, addRoDrive, (std::string_view id, std::string_view pci_address));
-    MOCK_METHOD(void, addWritableImgDrive, (std::string_view id, std::string_view pci_address));
-    MOCK_METHOD(void, addBlankWritableDrive, (std::string_view id, std::string_view pci_address));
+    MOCK_METHOD(void, addRoDrive,
+                (std::string_view id, std::string_view pci_address, const fs::path& image_path));
+    MOCK_METHOD(void, addWritableImgDrive,
+                (std::string_view id, std::string_view pci_address, const fs::path& backing_image,
+                 const fs::path& qcow2_image));
+    MOCK_METHOD(void, addBlankWritableDrive,
+                (std::string_view id, std::string_view pci_address, const fs::path& backing_image,
+                 const fs::path& qcow2_image));
     MOCK_METHOD(void, addWritableDirectoryDrive,
-                (std::string_view id, std::string_view pci_address));
+                (std::string_view id, std::string_view pci_address, const fs::path& backing_image,
+                 const fs::path& qcow2_image, const fs::path& src_directory));
 
     void addDevice(std::unique_ptr<PciDevice> disk) {
         const PciDevice& d = *disk;
         if (typeid(d) == typeid(RoDrive)) {
-            addRoDrive(d.id(), d.addr());
+            const auto& ro = static_cast<const RoDrive&>(d);
+            addRoDrive(ro.id(), ro.addr(), ro.image_path());
         } else if (typeid(d) == typeid(WritableImgDrive)) {
-            addWritableImgDrive(d.id(), d.addr());
+            const auto& rw = static_cast<const WritableImgDrive&>(d);
+            addWritableImgDrive(rw.id(), rw.addr(), rw.backing_image(), rw.qcow2_image());
         } else if (typeid(d) == typeid(BlankWritableDrive)) {
-            addBlankWritableDrive(d.id(), d.addr());
+            const auto& blank = static_cast<const BlankWritableDrive&>(d);
+            addBlankWritableDrive(blank.id(), blank.addr(), blank.backing_image(),
+                                  blank.qcow2_image());
         } else if (typeid(d) == typeid(WritableDirectoryDrive)) {
-            addWritableDirectoryDrive(d.id(), d.addr());
+            const auto& dir = static_cast<const WritableDirectoryDrive&>(d);
+            addWritableDirectoryDrive(dir.id(), dir.addr(), dir.backing_image(), dir.qcow2_image(),
+                                      dir.src_directory());
         } else {
             ADD_FAILURE() << "Unknown disk drive type for " << d.id();
         }
@@ -93,14 +105,25 @@ TEST_F(ConfigureDrivesTest, AddDrives) {
     ConfigureMockAvd(emu.mock_avd());
 
     MockDeviceContainer mock_container;
-    EXPECT_CALL(mock_container, addRoDrive("system", "03.0")).Times(1);
-    EXPECT_CALL(mock_container, addWritableImgDrive("encrypt", "06.0")).Times(1);
-    EXPECT_CALL(mock_container, addRoDrive("vendor", "07.0")).Times(1);
-    EXPECT_CALL(mock_container, addBlankWritableDrive("userdata", "05.0")).Times(1);
-    EXPECT_CALL(mock_container, addBlankWritableDrive("cache", "04.0")).Times(1);
+    EXPECT_CALL(mock_container, addRoDrive("system", "03.0", system_dir_ / "system.img")).Times(1);
+    EXPECT_CALL(mock_container,
+                addWritableImgDrive("encrypt", "06.0", system_dir_ / "encryption_key.img",
+                                    user_dir_ / "encryptionkey.img.qcow2"))
+            .Times(1);
+    EXPECT_CALL(mock_container, addRoDrive("vendor", "07.0", system_dir_ / "vendor.img")).Times(1);
+    EXPECT_CALL(mock_container,
+                addBlankWritableDrive("userdata", "05.0", user_dir_ / "userdata.img",
+                                      user_dir_ / "userdata.img.qcow2"))
+            .Times(1);
+    EXPECT_CALL(mock_container, addBlankWritableDrive("cache", "04.0", user_dir_ / "cache.img",
+                                                      user_dir_ / "cache.img.qcow2"))
+            .Times(1);
 #ifdef __x86_64__
     if (hw_.hw_sdCard) {
-        EXPECT_CALL(mock_container, addBlankWritableDrive("sdcard", "08.0")).Times(1);
+        EXPECT_CALL(mock_container,
+                    addBlankWritableDrive("sdcard", "08.0", user_dir_ / "sdcard.img",
+                                          user_dir_ / "sdcard.img.qcow2"))
+                .Times(1);
     }
 #endif
     ASSERT_THAT(addDrives(emu.config(), mock_container), IsOk());
@@ -112,14 +135,29 @@ TEST_F(ConfigureDrivesTest, AddDrivesWritableSystem) {
     ConfigureMockAvd(emu.mock_avd());
 
     MockDeviceContainer mock_container;
-    EXPECT_CALL(mock_container, addWritableImgDrive("system", "03.0")).Times(1);
-    EXPECT_CALL(mock_container, addWritableImgDrive("encrypt", "06.0")).Times(1);
-    EXPECT_CALL(mock_container, addWritableImgDrive("vendor", "07.0")).Times(1);
-    EXPECT_CALL(mock_container, addBlankWritableDrive("userdata", "05.0")).Times(1);
-    EXPECT_CALL(mock_container, addBlankWritableDrive("cache", "04.0")).Times(1);
+    EXPECT_CALL(mock_container, addWritableImgDrive("system", "03.0", system_dir_ / "system.img",
+                                                    user_dir_ / "system.img.qcow2"))
+            .Times(1);
+    EXPECT_CALL(mock_container,
+                addWritableImgDrive("encrypt", "06.0", system_dir_ / "encryption_key.img",
+                                    user_dir_ / "encryptionkey.img.qcow2"))
+            .Times(1);
+    EXPECT_CALL(mock_container, addWritableImgDrive("vendor", "07.0", system_dir_ / "vendor.img",
+                                                    user_dir_ / "vendor.img.qcow2"))
+            .Times(1);
+    EXPECT_CALL(mock_container,
+                addBlankWritableDrive("userdata", "05.0", user_dir_ / "userdata.img",
+                                      user_dir_ / "userdata.img.qcow2"))
+            .Times(1);
+    EXPECT_CALL(mock_container, addBlankWritableDrive("cache", "04.0", user_dir_ / "cache.img",
+                                                      user_dir_ / "cache.img.qcow2"))
+            .Times(1);
 #ifdef __x86_64__
     if (hw_.hw_sdCard) {
-        EXPECT_CALL(mock_container, addBlankWritableDrive("sdcard", "08.0")).Times(1);
+        EXPECT_CALL(mock_container,
+                    addBlankWritableDrive("sdcard", "08.0", user_dir_ / "sdcard.img",
+                                          user_dir_ / "sdcard.img.qcow2"))
+                .Times(1);
     }
 #endif
     ASSERT_THAT(addDrives(emu.config(), mock_container), IsOk());
@@ -129,19 +167,62 @@ TEST_F(ConfigureDrivesTest, AddDrivesExistingUserdataWithMatchingSize) {
     FakeEmulator emu;
     ConfigureMockAvd(emu.mock_avd());
 
+    const fs::path userdata_path = user_dir_ / "userdata.img";
+    base::file::touch(userdata_path).IgnoreError();
+    std::filesystem::resize_file(userdata_path, 6ULL * 1024 * 1024 * 1024);
+
+    MockDeviceContainer mock_container;
+    EXPECT_CALL(mock_container, addRoDrive("system", "03.0", system_dir_ / "system.img")).Times(1);
+    EXPECT_CALL(mock_container,
+                addWritableImgDrive("encrypt", "06.0", system_dir_ / "encryption_key.img",
+                                    user_dir_ / "encryptionkey.img.qcow2"))
+            .Times(1);
+    EXPECT_CALL(mock_container, addRoDrive("vendor", "07.0", system_dir_ / "vendor.img")).Times(1);
+    EXPECT_CALL(mock_container, addWritableImgDrive("userdata", "05.0", userdata_path,
+                                                    user_dir_ / "userdata.img.qcow2"))
+            .Times(1);
+    EXPECT_CALL(mock_container, addBlankWritableDrive("cache", "04.0", user_dir_ / "cache.img",
+                                                      user_dir_ / "cache.img.qcow2"))
+            .Times(1);
+#ifdef __x86_64__
+    if (hw_.hw_sdCard) {
+        EXPECT_CALL(mock_container,
+                    addBlankWritableDrive("sdcard", "08.0", user_dir_ / "sdcard.img",
+                                          user_dir_ / "sdcard.img.qcow2"))
+                .Times(1);
+    }
+#endif
+    ASSERT_THAT(addDrives(emu.config(), mock_container), IsOk());
+    EXPECT_TRUE(base::file::exists(userdata_path));
+}
+
+TEST_F(ConfigureDrivesTest, AddDrivesExistingOldUserdataWithMatchingSize) {
+    FakeEmulator emu;
+    ConfigureMockAvd(emu.mock_avd());
+
     const fs::path userdata_path = user_dir_ / "userdata-qemu.img";
     base::file::touch(userdata_path).IgnoreError();
     std::filesystem::resize_file(userdata_path, 6ULL * 1024 * 1024 * 1024);
 
     MockDeviceContainer mock_container;
-    EXPECT_CALL(mock_container, addRoDrive("system", "03.0")).Times(1);
-    EXPECT_CALL(mock_container, addWritableImgDrive("encrypt", "06.0")).Times(1);
-    EXPECT_CALL(mock_container, addRoDrive("vendor", "07.0")).Times(1);
-    EXPECT_CALL(mock_container, addWritableImgDrive("userdata", "05.0")).Times(1);
-    EXPECT_CALL(mock_container, addBlankWritableDrive("cache", "04.0")).Times(1);
+    EXPECT_CALL(mock_container, addRoDrive("system", "03.0", system_dir_ / "system.img")).Times(1);
+    EXPECT_CALL(mock_container,
+                addWritableImgDrive("encrypt", "06.0", system_dir_ / "encryption_key.img",
+                                    user_dir_ / "encryptionkey.img.qcow2"))
+            .Times(1);
+    EXPECT_CALL(mock_container, addRoDrive("vendor", "07.0", system_dir_ / "vendor.img")).Times(1);
+    EXPECT_CALL(mock_container, addWritableImgDrive("userdata", "05.0", userdata_path,
+                                                    user_dir_ / "userdata-qemu.img.qcow2"))
+            .Times(1);
+    EXPECT_CALL(mock_container, addBlankWritableDrive("cache", "04.0", user_dir_ / "cache.img",
+                                                      user_dir_ / "cache.img.qcow2"))
+            .Times(1);
 #ifdef __x86_64__
     if (hw_.hw_sdCard) {
-        EXPECT_CALL(mock_container, addBlankWritableDrive("sdcard", "08.0")).Times(1);
+        EXPECT_CALL(mock_container,
+                    addBlankWritableDrive("sdcard", "08.0", user_dir_ / "sdcard.img",
+                                          user_dir_ / "sdcard.img.qcow2"))
+                .Times(1);
     }
 #endif
     ASSERT_THAT(addDrives(emu.config(), mock_container), IsOk());
@@ -161,14 +242,24 @@ TEST_F(ConfigureDrivesTest, AddDrivesCustomDataSmallerThanRequestedUsedAsIs) {
     ConfigureMockAvd(emu.mock_avd());
 
     MockDeviceContainer mock_container;
-    EXPECT_CALL(mock_container, addRoDrive("system", "03.0")).Times(1);
-    EXPECT_CALL(mock_container, addWritableImgDrive("encrypt", "06.0")).Times(1);
-    EXPECT_CALL(mock_container, addRoDrive("vendor", "07.0")).Times(1);
-    EXPECT_CALL(mock_container, addWritableImgDrive("userdata", "05.0")).Times(1);
-    EXPECT_CALL(mock_container, addBlankWritableDrive("cache", "04.0")).Times(1);
+    EXPECT_CALL(mock_container, addRoDrive("system", "03.0", system_dir_ / "system.img")).Times(1);
+    EXPECT_CALL(mock_container,
+                addWritableImgDrive("encrypt", "06.0", system_dir_ / "encryption_key.img",
+                                    user_dir_ / "encryptionkey.img.qcow2"))
+            .Times(1);
+    EXPECT_CALL(mock_container, addRoDrive("vendor", "07.0", system_dir_ / "vendor.img")).Times(1);
+    EXPECT_CALL(mock_container,
+                addWritableImgDrive("userdata", "05.0", custom_data_path, custom_data_qcow2_path))
+            .Times(1);
+    EXPECT_CALL(mock_container, addBlankWritableDrive("cache", "04.0", user_dir_ / "cache.img",
+                                                      user_dir_ / "cache.img.qcow2"))
+            .Times(1);
 #ifdef __x86_64__
     if (hw_.hw_sdCard) {
-        EXPECT_CALL(mock_container, addBlankWritableDrive("sdcard", "08.0")).Times(1);
+        EXPECT_CALL(mock_container,
+                    addBlankWritableDrive("sdcard", "08.0", user_dir_ / "sdcard.img",
+                                          user_dir_ / "sdcard.img.qcow2"))
+                .Times(1);
     }
 #endif
     ASSERT_THAT(addDrives(emu.config(), mock_container), IsOk());
@@ -185,14 +276,25 @@ TEST_F(ConfigureDrivesTest, AddDrivesUserdataFromDirectory) {
             .IgnoreError();
 
     MockDeviceContainer mock_container;
-    EXPECT_CALL(mock_container, addRoDrive("system", "03.0")).Times(1);
-    EXPECT_CALL(mock_container, addWritableImgDrive("encrypt", "06.0")).Times(1);
-    EXPECT_CALL(mock_container, addRoDrive("vendor", "07.0")).Times(1);
-    EXPECT_CALL(mock_container, addWritableDirectoryDrive("userdata", "05.0")).Times(1);
-    EXPECT_CALL(mock_container, addBlankWritableDrive("cache", "04.0")).Times(1);
+    EXPECT_CALL(mock_container, addRoDrive("system", "03.0", system_dir_ / "system.img")).Times(1);
+    EXPECT_CALL(mock_container,
+                addWritableImgDrive("encrypt", "06.0", system_dir_ / "encryption_key.img",
+                                    user_dir_ / "encryptionkey.img.qcow2"))
+            .Times(1);
+    EXPECT_CALL(mock_container, addRoDrive("vendor", "07.0", system_dir_ / "vendor.img")).Times(1);
+    EXPECT_CALL(mock_container,
+                addWritableDirectoryDrive("userdata", "05.0", user_dir_ / "userdata.img",
+                                          user_dir_ / "userdata.img.qcow2", user_dir_ / "data"))
+            .Times(1);
+    EXPECT_CALL(mock_container, addBlankWritableDrive("cache", "04.0", user_dir_ / "cache.img",
+                                                      user_dir_ / "cache.img.qcow2"))
+            .Times(1);
 #ifdef __x86_64__
     if (hw_.hw_sdCard) {
-        EXPECT_CALL(mock_container, addBlankWritableDrive("sdcard", "08.0")).Times(1);
+        EXPECT_CALL(mock_container,
+                    addBlankWritableDrive("sdcard", "08.0", user_dir_ / "sdcard.img",
+                                          user_dir_ / "sdcard.img.qcow2"))
+                .Times(1);
     }
 #endif
     ASSERT_THAT(addDrives(emu.config(), mock_container), IsOk());

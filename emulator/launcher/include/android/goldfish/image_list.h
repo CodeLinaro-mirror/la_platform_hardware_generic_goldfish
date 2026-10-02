@@ -24,7 +24,8 @@
     _AVD_IMG(RAMDISK, "ramdisk.img", "ramdisk")                                              \
     _AVD_IMG(SYSTEM, "system.img", "system")                                                 \
     _AVD_IMG(VENDOR, "vendor.img", "vendor")                                                 \
-    _AVD_IMG(USERDATA, "userdata-qemu.img", "user data")                                     \
+    _AVD_IMG(USERDATA, "userdata.img", "user data")                                          \
+    _AVD_IMG(USERDATA_OLD, "userdata-qemu.img", "user data (old name)")                      \
     _AVD_IMG(CACHE, "cache.img", "cache")                                                    \
     _AVD_IMG(SDCARD, "sdcard.img", "SD Card")                                                \
     _AVD_IMG(ENCRYPTIONKEY, "encryptionkey.img", "Encryption Key")                           \
