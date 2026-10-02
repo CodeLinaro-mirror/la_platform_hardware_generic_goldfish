@@ -180,10 +180,7 @@ static void HelpDiskImages(stralloc_t* out) {
 
            "      -initdata        Specify an alternative *initial* user data image\n\n"
 
-           "      -wipe-data       Reset the AVD directory\n\n"
-
-           "      -no-cache        do not use a cache partition, even if one is\n"
-           "                       available.\n\n");
+           "      -wipe-data       Reset the AVD directory\n\n");
 }
 
 static void HelpEnvironment(stralloc_t* out) {
@@ -388,22 +385,12 @@ static void help_cache(stralloc_t* out) {
            "  backed by a temporary file that is deleted when the emulator exits.\n"
            "  using the -cache option allows it to be persistent.\n\n"
 
-           "  the '-no-cache' option can be used to disable the cache partition.\n\n"
-
            "  see '-help-disk-images' for more information about disk image files\n\n");
 }
 
 static void help_cache_size(stralloc_t* out) {
     PRINTF("  use '-cache <size>' to specify a /cache partition size in MB. By default,\n"
            "  the cache partition size is set to 66MB\n\n");
-}
-
-static void help_no_cache(stralloc_t* out) {
-    PRINTF("  use '-no-cache' to disable the cache partition in the emulated system.\n"
-           "  the cache partition is optional, but when available, is used by the browser\n"
-           "  to cache web pages and images\n\n"
-
-           "  see '-help-disk-images' for more information about disk image files\n\n");
 }
 
 static void help_sdcard(stralloc_t* out) {
@@ -1648,7 +1635,6 @@ static void help_vmodule(stralloc_t* out) {
 
 #define help_noaudio NULL             // NOLINT(readability-identifier-naming)
 #define help_noskin NULL              // NOLINT(readability-identifier-naming)
-#define help_nocache NULL             // NOLINT(readability-identifier-naming)
 #define help_dalvik_vm_checkjni NULL  // NOLINT(readability-identifier-naming)
 #define help_initdata NULL            // NOLINT(readability-identifier-naming)
 #define help_no_sim NULL              // NOLINT(readability-identifier-naming)
