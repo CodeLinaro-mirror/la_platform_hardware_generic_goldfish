@@ -15,6 +15,7 @@
 """Executes the crashreport C++ binary to generate a complete local dump."""
 
 import logging
+import os
 import subprocess
 import sys
 from pathlib import Path

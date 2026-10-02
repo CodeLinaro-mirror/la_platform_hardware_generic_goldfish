@@ -22,8 +22,10 @@ import json
 import logging
 import os
 import random
+import re
 import shutil
 import subprocess
+import tempfile
 import time
 import urllib.error
 import urllib.parse
@@ -64,12 +66,64 @@ class BuganizerClient:
         self.base_url = QA_REST_ENDPOINT if qa_mode else PROD_REST_ENDPOINT
 
     def _resolve_cli_binary(self) -> Optional[str]:
-        """Resolve base_cli or buganizer CLI binary if available (GLinux)."""
+        """Resolve base_cli, buganizer, or issues CLI binary if available (GLinux)."""
         for bin_name in ["buganizer", "base_cli"]:
             path = shutil.which(bin_name)
             if path:
                 return path
-        return None
+        return shutil.which("issues") or shutil.which(
+            "issues", path="/google/bin/releases/issues-cli"
+        )
+
+    def _is_issues_cli(self) -> bool:
+        """Return True if the resolved CLI binary is /google/bin/releases/issues-cli/issues."""
+        return bool(self.cli_binary and os.path.basename(self.cli_binary) == "issues")
+
+    @staticmethod
+    def _parse_issues_cli_output(raw: str) -> List[Dict[str, Any]]:
+        """Parse human-readable output from `issues readonly search --verbose` or `get-issue-metadata`."""
+        clean = re.sub(r"\x1b\[[0-9;]*[a-zA-Z]", "", raw)
+        results: List[Dict[str, Any]] = []
+        current: Dict[str, Any] = {}
+        for line in clean.splitlines():
+            s = line.strip()
+            if (
+                not s
+                or s.startswith("Showing first ")
+                or s.startswith("Next page token:")
+            ):
+                continue
+            if s == "---":
+                if current.get("issueId"):
+                    results.append(current)
+                current = {}
+                continue
+            m = re.match(r"^([A-Za-z ]+):\s*(.+)$", s)
+            if not m:
+                continue
+            key, val = m.group(1).strip().lower(), m.group(2).strip()
+            if key in ("issue id", "id"):
+                current["issueId"] = val
+                current["id"] = val
+            elif key == "title":
+                current["title"] = val
+                current.setdefault("issueState", {})["title"] = val
+            elif key == "status":
+                status_tok = val.split()[0].upper()
+                current["status"] = status_tok
+                current.setdefault("issueState", {})["status"] = status_tok
+            elif key in ("assignee", "escalation owner"):
+                current.setdefault("issueState", {})["assignee"] = {
+                    "emailAddress": val
+                }
+            elif key == "component id":
+                try:
+                    current.setdefault("issueState", {})["componentId"] = int(val)
+                except ValueError:
+                    pass
+        if current.get("issueId"):
+            results.append(current)
+        return results
 
     def _get_auth_token(self) -> str:
         """Fetch OAuth2 token from constructor or environment variables."""
@@ -111,6 +165,13 @@ class BuganizerClient:
                         "  oauth2l fetch --sso $USER@google.com https://www.googleapis.com/auth/buganizer\n"
                         "and re-run advisor.py. Execution will idempotently resume."
                     ) from e
+                if e.code == 403 and self.cli_binary and self.token:
+                    logging.debug(
+                        "REST API returned HTTP 403; falling back to local CLI binary %s",
+                        self.cli_binary,
+                    )
+                    self.token = None
+                    continue
                 if e.code in (429, 503, 504):
                     if attempt == max_attempts - 1:
                         raise BuganizerError(
@@ -169,26 +230,50 @@ class BuganizerClient:
             body = response.read().decode("utf-8")
             return json.loads(body) if body else {}
 
+    def _cli_search(self, query: str) -> List[Dict[str, Any]]:
+        """Execute a search query using either issues CLI or buganizer/base_cli."""
+        if self._is_issues_cli():
+            cmd = [
+                self.cli_binary,
+                "readonly",
+                "search",
+                f"--query={query}",
+                "--verbose",
+            ]
+            res = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            return self._parse_issues_cli_output(res.stdout)
+        cmd = [self.cli_binary, "search", query, "--format=json"]
+        if self.qa_mode:
+            cmd.append("--api=blade:corp-issuetracker-test-api")
+        res = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        return json.loads(res.stdout) if res.stdout.strip() else []
+
     def search_issue_by_signature(
         self, stable_signature: str
     ) -> Optional[Dict[str, Any]]:
         """Search Buganizer for an existing issue matching the stableSignature in the component."""
 
         def _search() -> Optional[Dict[str, Any]]:
-            queries = [
-                f'componentid:{self.component_id} title:"{stable_signature}"',
-                f'componentid:{self.component_id} "{stable_signature}"',
-                f'componentid:{self.component_id} status:open title:"{stable_signature}"',
-                f'componentid:{self.component_id} status:open "{stable_signature}"',
-            ]
+            sig_variants = [stable_signature]
+            m_hash = re.match(r"^(.+?)[\s\-][0-9a-fA-F]{7,8}$", stable_signature.strip())
+            if m_hash:
+                base_sig = m_hash.group(1).strip()
+                if base_sig and base_sig not in sig_variants:
+                    sig_variants.append(base_sig)
+
+            queries: List[str] = []
+            for sig in sig_variants:
+                queries.extend(
+                    [
+                        f'componentid:{self.component_id} title:"{sig}"',
+                        f'componentid:{self.component_id} "{sig}"',
+                        f'componentid:{self.component_id} status:open title:"{sig}"',
+                        f'componentid:{self.component_id} status:open "{sig}"',
+                    ]
+                )
             for query in queries:
                 if self.cli_binary and not self.token:
-                    # Use CLI backend
-                    cmd = [self.cli_binary, "search", query, "--format=json"]
-                    if self.qa_mode:
-                        cmd.append("--api=blade:corp-issuetracker-test-api")
-                    res = subprocess.run(cmd, capture_output=True, text=True, check=True)
-                    issues = json.loads(res.stdout) if res.stdout.strip() else []
+                    issues = self._cli_search(query)
                     if issues:
                         return issues[0]
                 else:
@@ -208,11 +293,22 @@ class BuganizerClient:
 
         def _get_status() -> str:
             if self.cli_binary and not self.token:
-                cmd = [self.cli_binary, "view", str(issue_id), "--format=json"]
-                if self.qa_mode:
-                    cmd.append("--api=blade:corp-issuetracker-test-api")
-                res = subprocess.run(cmd, capture_output=True, text=True, check=True)
-                data = json.loads(res.stdout) if res.stdout.strip() else {}
+                if self._is_issues_cli():
+                    cmd = [
+                        self.cli_binary,
+                        "readonly",
+                        "get-issue-metadata",
+                        str(issue_id),
+                    ]
+                    res = subprocess.run(cmd, capture_output=True, text=True, check=True)
+                    parsed = self._parse_issues_cli_output(res.stdout)
+                    data = parsed[0] if parsed else {}
+                else:
+                    cmd = [self.cli_binary, "view", str(issue_id), "--format=json"]
+                    if self.qa_mode:
+                        cmd.append("--api=blade:corp-issuetracker-test-api")
+                    res = subprocess.run(cmd, capture_output=True, text=True, check=True)
+                    data = json.loads(res.stdout) if res.stdout.strip() else {}
                 return data.get("issueState", {}).get("status") or data.get("status", "UNKNOWN")
             else:
                 url = f"{self.base_url}/{issue_id}"
@@ -228,6 +324,35 @@ class BuganizerClient:
 
         def _create() -> int:
             if self.cli_binary and not self.token:
+                if self._is_issues_cli():
+                    with tempfile.NamedTemporaryFile(
+                        "w", encoding="utf-8", delete=False
+                    ) as tf:
+                        tf.write(clean_desc)
+                        tf_path = tf.name
+                    try:
+                        cmd = [
+                            self.cli_binary,
+                            "mutate",
+                            "create",
+                            f"--component_id={self.component_id}",
+                            f"--title={title}",
+                            f"--description_file={tf_path}",
+                            "--priority=P2",
+                            "--severity=S2",
+                        ]
+                        res = subprocess.run(
+                            cmd, capture_output=True, text=True, check=True
+                        )
+                        m = re.search(r"b/(\d+)", res.stdout) or re.search(
+                            r"(\d{6,})", res.stdout
+                        )
+                        return int(m.group(1)) if m else 0
+                    finally:
+                        try:
+                            os.unlink(tf_path)
+                        except OSError:
+                            pass
                 cmd = [
                     self.cli_binary,
                     "new",
@@ -269,6 +394,16 @@ class BuganizerClient:
 
         def _update() -> bool:
             if self.cli_binary and not self.token:
+                if self._is_issues_cli():
+                    cmd = [
+                        self.cli_binary,
+                        "mutate",
+                        "comment",
+                        f"--issue_id={issue_id}",
+                        f"--comment={clean_comment}",
+                    ]
+                    subprocess.run(cmd, capture_output=True, text=True, check=True)
+                    return True
                 cmd = [
                     self.cli_binary,
                     "modify",
@@ -298,6 +433,16 @@ class BuganizerClient:
 
         def _reopen() -> bool:
             if self.cli_binary and not self.token:
+                if self._is_issues_cli():
+                    cmd = [
+                        self.cli_binary,
+                        "mutate",
+                        "comment",
+                        f"--issue_id={issue_id}",
+                        f"--comment={clean_comment}",
+                    ]
+                    subprocess.run(cmd, capture_output=True, text=True, check=True)
+                    return True
                 cmd = [
                     self.cli_binary,
                     "modify",
@@ -328,6 +473,10 @@ class BuganizerClient:
 
         def _fetch() -> List[str]:
             if self.cli_binary and not self.token:
+                if self._is_issues_cli():
+                    cmd = [self.cli_binary, "readonly", "render", str(issue_id)]
+                    res = subprocess.run(cmd, capture_output=True, text=True, check=True)
+                    return [res.stdout] if res.stdout.strip() else []
                 cmd = [self.cli_binary, "comments", str(issue_id), "--format=json"]
                 if self.qa_mode:
                     cmd.append("--api=blade:corp-issuetracker-test-api")
