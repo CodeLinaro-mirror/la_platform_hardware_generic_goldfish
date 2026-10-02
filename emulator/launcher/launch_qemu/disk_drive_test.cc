@@ -31,6 +31,36 @@ using ::absl_testing::StatusIs;
 
 namespace android::goldfish::test {
 
+TEST(NullDrive, Basic_x86) {
+    FakeEmulator emu;
+    EXPECT_CALL(emu.mock_avd(), Arch())
+            .Times(1)
+            .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
+
+    NullDrive dev("cache", "04.0");
+    EXPECT_OK(dev.initialize(emu.config()));
+    EXPECT_THAT(dev.getQemuParameters(emu.config()),
+                testing::ElementsAre(
+                        testing::Eq("-device"), testing::Eq("virtio-blk-pci,addr=04.0,drive=cache"),
+                        testing::Eq("-blockdev"),
+                        testing::Eq("driver=null-co,node-name=cache,read-only=on,read-zeroes=on")));
+}
+
+TEST(NullDrive, Basic_arm64) {
+    FakeEmulator emu;
+    EXPECT_CALL(emu.mock_avd(), Arch())
+            .Times(1)
+            .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kArm));
+
+    NullDrive dev("cache", "04.0");
+    EXPECT_OK(dev.initialize(emu.config()));
+    EXPECT_THAT(dev.getQemuParameters(emu.config()),
+                testing::ElementsAre(
+                        testing::Eq("-device"), testing::Eq("virtio-blk-device,drive=cache"),
+                        testing::Eq("-blockdev"),
+                        testing::Eq("driver=null-co,node-name=cache,read-only=on,read-zeroes=on")));
+}
+
 TEST(RoDrive, Basic_x86) {
     base::TestSystem sys("");
     auto launcher_path = sys.GetTempRoot()->Path();

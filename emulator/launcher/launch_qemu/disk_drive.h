@@ -41,6 +41,16 @@ absl::StatusOr<std::string> exec_qemu_img(
         const fs::path& qemu_img_binary, const std::vector<std::string>& args,
         std::chrono::milliseconds timeout = std::chrono::seconds(10));
 
+// A dummy drive backed by QEMU's null-co driver.
+class NullDrive : public PciDevice {
+  public:
+    explicit NullDrive(std::string id, std::string addr)
+            : PciDevice(std::move(id), std::move(addr)) {}
+
+    absl::Status initialize(const EmulatorConfig& emulator) override { return absl::OkStatus(); }
+    std::vector<std::string> getQemuParameters(const EmulatorConfig& emulator) const override;
+};
+
 // A raw qemu.img that is read only.
 class RoDrive : public PciDevice {
   public:

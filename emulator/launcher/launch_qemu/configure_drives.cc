@@ -84,11 +84,6 @@ uint64_t getDataSize(const Avd& avd, const AndroidOptions& opts) {
     return std::max(data_size, kMinPlaystoreImageSize);
 }
 
-uint64_t getCacheSize(const Avd& avd, const AndroidOptions& opts) {
-    constexpr uint64_t kMinCacheSize = 66ULL * 1024 * 1024;
-    return std::max(avd.Hw().disk_cachePartition_size.Bytes(), kMinCacheSize);
-}
-
 uint64_t getSdcardSize(const Avd& avd, const AndroidOptions& opts) {
     // TODO minimum size?
     return avd.Hw().hw_sd_card_size.Bytes();
@@ -134,8 +129,6 @@ absl::StatusOr<std::vector<std::unique_ptr<PciDevice>>> getDiskConfigs(const Avd
         userdata_create_size = getDataSize(avd, opts);
     }
 
-    const auto cache_path = getWritableImgPath(avd, Avd::ImageType::CACHE);
-
     const bool rw_sys = opts.writable_system;
     if (rw_sys) {
         LOG(WARNING) << "System image is writable";
@@ -151,6 +144,10 @@ absl::StatusOr<std::vector<std::unique_ptr<PciDevice>>> getDiskConfigs(const Avd
                                    std::move(image_create_src_dir)));
     };
 
+    const auto add_null_drive = [&drives](std::string id, std::string pci_address) {
+        drives.push_back(std::make_unique<NullDrive>(std::move(id), std::move(pci_address)));
+    };
+
     // Currently this must be the first drive on ARM to match the androidboot.boot_devices
     // parameter set in initrd_device.cpp.
     add_drive("system", "03.0", /*rw=*/rw_sys, sys_img_paths.system_image,
@@ -163,8 +160,8 @@ absl::StatusOr<std::vector<std::unique_ptr<PciDevice>>> getDiskConfigs(const Avd
               userdata_create_size, std::move(userdata_src_dir));
     add_drive("vendor", "07.0", /*rw=*/rw_sys, sys_img_paths.vendor_image,
               getQcow2Path(avd, Avd::ImageType::VENDOR));
-    add_drive("cache", "04.0", /*rw=*/true, cache_path, to_qcow2(cache_path),
-              getCacheSize(avd, opts));
+    // Placeholder drive to preserve /dev/block/vd* device ordering expected by fstab.ranchu.
+    add_null_drive("cache", "04.0");
 
 #ifdef __x86_64__
     if (avd.Hw().hw_sdCard) {

@@ -168,6 +168,12 @@ absl::StatusOr<std::string> exec_qemu_img(const fs::path& qemu_img_binary,
     return proc->Out() ? proc->Out()->AsString() : "";
 }
 
+std::vector<std::string> NullDrive::getQemuParameters(const EmulatorConfig& emulator) const {
+    const Avd& avd = emulator.avd();
+    return {"-device", getDeviceParam(avd, id(), addr()), "-blockdev",
+            absl::StrCat("driver=null-co,node-name=", id(), ",read-only=on,read-zeroes=on")};
+}
+
 absl::Status RoDrive::initialize(const EmulatorConfig& emulator) {
     if (!base::file::is_file(mImagePath)) {
         return absl::InvalidArgumentError(absl::StrCat(
