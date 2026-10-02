@@ -22,16 +22,29 @@ from pathlib import Path
 from typing import Optional
 
 from context import CrashReportContext
-from python.runfiles import Runfiles
+
+try:
+    from python.runfiles import Runfiles
+except ImportError:
+    try:
+        from rules_python.python.runfiles import runfiles as Runfiles
+    except ImportError:
+        try:
+            from bazel_tools.tools.python.runfiles import runfiles as Runfiles
+        except ImportError:
+            Runfiles = None
 
 
 class CrashReportDumper:
     """Executes the crashreport C++ binary to generate a complete local dump."""
 
     def __init__(self) -> None:
-        self.runfiles = Runfiles.Create()
-        if not self.runfiles:
-            raise RuntimeError("Failed to initialize Bazel runfiles.")
+        self.runfiles = None
+        if Runfiles is not None:
+            try:
+                self.runfiles = Runfiles.Create()
+            except Exception as e:
+                logging.debug("Could not initialize Bazel runfiles: %s", e)
         self.crashreport_path = self._locate_binary()
 
     def _locate_binary(self) -> Optional[str]:
@@ -70,10 +83,23 @@ class CrashReportDumper:
         try:
             cwd_path = Path.cwd()
             for p in [cwd_path] + list(cwd_path.parents):
-                bbin = p / "bazel-bin" / "external" / "goldfish+" / "emulator" / "crashreport" / "tool" / f"crashreport{exe_suffix}"
-                if bbin.exists() and os.access(bbin, os.X_OK):
-                    logging.debug("Found crashreport binary at workspace build output: %s", bbin)
-                    return str(bbin.resolve())
+                for repo_name in ["goldfish+", "goldfish"]:
+                    bbin = (
+                        p
+                        / "bazel-bin"
+                        / "external"
+                        / repo_name
+                        / "emulator"
+                        / "crashreport"
+                        / "tool"
+                        / f"crashreport{exe_suffix}"
+                    )
+                    if bbin.exists() and os.access(bbin, os.X_OK):
+                        logging.debug(
+                            "Found crashreport binary at workspace build output: %s",
+                            bbin,
+                        )
+                        return str(bbin.resolve())
         except Exception:
             pass
 
