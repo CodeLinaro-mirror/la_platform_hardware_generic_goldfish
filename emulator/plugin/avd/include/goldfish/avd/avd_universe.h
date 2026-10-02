@@ -78,6 +78,11 @@ struct AvdUniverse : public snapshottable::Snapshottable {
 
     virtual display::IMultiDisplay& GetMultiDisplay() const = 0;
 
+    void SetGenericSnapshotInProgress(bool in_progress) {
+        generic_snapshot_in_progress_ = in_progress;
+    }
+    bool IsGenericSnapshotInProgress() const { return generic_snapshot_in_progress_; }
+
     explicit AvdUniverse(std::unique_ptr<AvdProperties> props);
     AvdUniverse(const AvdUniverse&) = delete;
     AvdUniverse(AvdUniverse&&) = delete;
@@ -86,6 +91,7 @@ struct AvdUniverse : public snapshottable::Snapshottable {
 
   protected:
     const std::unique_ptr<const AvdProperties> props_;
+    bool generic_snapshot_in_progress_{false};
 
     mutable absl::Mutex device_mutex_;
     std::shared_ptr<devices::multidisplay::MultiDisplayDevice> active_multi_display_device_

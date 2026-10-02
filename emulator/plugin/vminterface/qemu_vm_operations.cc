@@ -13,9 +13,14 @@
 // limitations under the License.
 #include <array>
 
+#include "absl/cleanup/cleanup.h"
 #include "absl/strings/str_cat.h"
+#include "absl/time/clock.h"
+#include "absl/time/time.h"
 
 #include "android/goldfish/vm_interface.h"
+#include "goldfish/avd/avd_info.h"
+#include "goldfish/metrics/snapshot_metrics.h"
 
 // clang-format off
 // IWYU pragma: begin_keep
@@ -189,24 +194,37 @@ class QemuVmOperations : public VmOperations {
     }
 
     absl::Status SaveSnapshot(const char* name, const bool overwrite) override {
+        absl::Time start = absl::Now();
         ScopedVmLock lock;
+        auto& avd = ::goldfish::avd::GetAvd();
+        avd.SetGenericSnapshotInProgress(true);
+        auto cleanup = absl::MakeCleanup([&avd] { avd.SetGenericSnapshotInProgress(false); });
         ::Error* errp = nullptr;
-        if (!::save_snapshot(name, overwrite, /*vmstate=*/nullptr, /*has_devices=*/false,
-                             /*devices=*/nullptr, &errp)) {
+        bool ok = ::save_snapshot(name, overwrite, /*vmstate=*/nullptr, /*has_devices=*/false,
+                                  /*devices=*/nullptr, &errp);
+        ::goldfish::metrics::ReportGenericSnapshotSave(avd.GetMetricsReporter(), name, ok,
+                                                       absl::Now() - start);
+        if (!ok) {
             return ToStatus(absl::StatusCode::kInternal, &errp);
         }
-
         return absl::OkStatus();
     }
 
     absl::Status LoadSnapshot(const char* id_or_name, const bool and_resume) override {
+        absl::Time start = absl::Now();
         ScopedVmLock lock;
+        auto& avd = ::goldfish::avd::GetAvd();
         ::Error* errp = nullptr;
 
         ::vm_stop(RUN_STATE_RESTORE_VM);
 
-        if (!::load_snapshot(id_or_name, /*vmstate=*/nullptr, /*has_devices=*/false,
-                             /*devices=*/nullptr, &errp)) {
+        avd.SetGenericSnapshotInProgress(true);
+        auto cleanup = absl::MakeCleanup([&avd] { avd.SetGenericSnapshotInProgress(false); });
+        bool ok = ::load_snapshot(id_or_name, /*vmstate=*/nullptr, /*has_devices=*/false,
+                                  /*devices=*/nullptr, &errp);
+        ::goldfish::metrics::ReportGenericSnapshotLoad(avd.GetMetricsReporter(), id_or_name, ok,
+                                                       absl::Now() - start);
+        if (!ok) {
             return ToStatus(absl::StatusCode::kInternal, &errp);
         }
 

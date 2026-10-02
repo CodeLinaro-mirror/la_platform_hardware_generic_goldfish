@@ -30,6 +30,7 @@
 #include "goldfish/display/abstract_multi_display.h"
 #include "goldfish/metrics/metrics_reporter.h"
 #include "goldfish/metrics/perf_stat_reporter.h"
+#include "goldfish/metrics/snapshot_metrics.h"
 #include "vcpu_event_loop.h"
 
 namespace goldfish::avd {
@@ -44,7 +45,9 @@ struct AvdExtendedUniverse : public AvdUniverse {
     metrics::MetricsReporter& GetMetricsReporter() override;
     display::IMultiDisplay& GetMultiDisplay() const override;
 
+    void OnPreSave() override;
     absl::Status OnSave(archive::IWriter&) const override;
+    void OnPreLoad() override;
     absl::Status OnLoad(archive::IReader&) override;
     absl::Status OnPostLoad() override;
 
@@ -75,6 +78,8 @@ struct AvdExtendedUniverse : public AvdUniverse {
     absl::Status OnLoadDisplayState(archive::IReader&);
 
     void SyncGuestTimeToHost();
+
+    metrics::QuickbootMetricsState quickboot_metrics_;
 };
 
 }  // namespace goldfish::avd

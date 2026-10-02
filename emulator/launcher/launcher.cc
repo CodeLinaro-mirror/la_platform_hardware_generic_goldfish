@@ -45,6 +45,7 @@
 #include "goldfish/async/when_all.h"
 #include "goldfish/file/file.h"
 #include "goldfish/metrics/metrics_reporter.h"
+#include "goldfish/metrics/snapshot_metrics.h"
 #include "goldfish/modem_simulator/modem_simulator_service.h"
 #include "goldfish/network/endpoint.h"
 #include "host_info.h"
@@ -52,6 +53,7 @@
 #include "launch_netsimd.h"
 #include "launch_qemu/emulator_config.h"
 #include "launch_qemu/launch_qemu.h"
+#include "launch_qemu/snapshot_device.h"
 #include "legacy_console_controller.h"
 #include "logging.h"
 
@@ -386,11 +388,19 @@ class Launcher {
                 emulator_process_ = *std::move(s);
                 LOG(INFO) << "Running emulator as pid: " << emulator_process_->GetPid();
                 report_host_info_metrics();
+                report_quickboot_metrics(emulator);
             } else {
                 LOG(FATAL) << "Fatal error whilst launching the emulator: " << s.status();
             }
         } else {
             LOG(FATAL) << "Fatal error whilst launching the emulator: " << emulator_config.status();
+        }
+    }
+
+    void report_quickboot_metrics(const LaunchQemu& emulator) {
+        if (const auto* snapshot = emulator.get<SnapshotDevice>("snapshot")) {
+            ::goldfish::metrics::ReportQuickbootSkippedMetrics(
+                    *config_.metrics_reporter, snapshot->load_status(), snapshot->save_status());
         }
     }
 

@@ -17,6 +17,7 @@
 #include "absl/status/status.h"
 
 #include "goldfish/avd/avd_universe.h"
+#include "goldfish/metrics/metrics_reporter.h"
 
 namespace goldfish::avd {
 
@@ -33,6 +34,9 @@ class FakeAvdUniverse : public AvdUniverse {
 
     absl::Status OnSave(archive::IWriter&) const override;
     absl::Status OnLoad(archive::IReader&) override;
+
+  private:
+    metrics::MetricsReporter metrics_reporter_;
 };
 
 }  // namespace goldfish::avd

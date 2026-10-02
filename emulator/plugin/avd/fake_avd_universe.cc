@@ -21,6 +21,7 @@
 
 #include "goldfish/avd/avd_info.h"
 #include "goldfish/avd/avd_properties.h"
+#include "goldfish/metrics/metrics_reporter.h"
 
 namespace goldfish::avd {
 
@@ -37,7 +38,7 @@ async::EventLoop& FakeAvdUniverse::GetQemuEventLoop() {
 }
 
 metrics::MetricsReporter& FakeAvdUniverse::GetMetricsReporter() {
-    LOG(FATAL) << "GetMetricsReporter not implemented";
+    return metrics_reporter_;
 }
 
 display::IMultiDisplay& FakeAvdUniverse::GetMultiDisplay() const {

@@ -312,3 +312,29 @@ cc_test(
         "@zlib",
     ],
 )
+
+cc_library(
+    name = "snapshot_metrics",
+    srcs = ["snapshot_metrics.cc"],
+    hdrs = ["include/goldfish/metrics/snapshot_metrics.h"],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":metrics_reporter",
+        ":perf_stat_reporter",
+        ":studio_stats_wrapper",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/time",
+        "@boringssl//:crypto",
+    ],
+)
+
+cc_test(
+    name = "snapshot_metrics_test",
+    srcs = ["snapshot_metrics_test.cc"],
+    deps = [
+        ":fake_metrics_writer",
+        ":snapshot_metrics",
+        "//emulator/libs/test:googletest_main",
+    ],
+)
