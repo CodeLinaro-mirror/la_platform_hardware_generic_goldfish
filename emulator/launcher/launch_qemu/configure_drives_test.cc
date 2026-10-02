@@ -31,6 +31,7 @@ class MockDeviceContainer {
     MOCK_METHOD(const Avd&, avd, (), (const));
     MOCK_METHOD(const AndroidOptions&, opts, (), (const));
 
+    MOCK_METHOD(void, addNullDrive, (std::string_view id, std::string_view pci_address));
     MOCK_METHOD(void, addRoDrive,
                 (std::string_view id, std::string_view pci_address, const fs::path& image_path));
     MOCK_METHOD(void, addWritableImgDrive,
@@ -45,7 +46,10 @@ class MockDeviceContainer {
 
     void addDevice(std::unique_ptr<PciDevice> disk) {
         const PciDevice& d = *disk;
-        if (typeid(d) == typeid(RoDrive)) {
+        if (typeid(d) == typeid(NullDrive)) {
+            const auto& null_drive = static_cast<const NullDrive&>(d);
+            addNullDrive(null_drive.id(), null_drive.addr());
+        } else if (typeid(d) == typeid(RoDrive)) {
             const auto& ro = static_cast<const RoDrive&>(d);
             addRoDrive(ro.id(), ro.addr(), ro.image_path());
         } else if (typeid(d) == typeid(WritableImgDrive)) {
@@ -115,9 +119,7 @@ TEST_F(ConfigureDrivesTest, AddDrives) {
                 addBlankWritableDrive("userdata", "05.0", user_dir_ / "userdata.img",
                                       user_dir_ / "userdata.img.qcow2"))
             .Times(1);
-    EXPECT_CALL(mock_container, addBlankWritableDrive("cache", "04.0", user_dir_ / "cache.img",
-                                                      user_dir_ / "cache.img.qcow2"))
-            .Times(1);
+    EXPECT_CALL(mock_container, addNullDrive("cache", "04.0")).Times(1);
 #ifdef __x86_64__
     if (hw_.hw_sdCard) {
         EXPECT_CALL(mock_container,
@@ -149,9 +151,7 @@ TEST_F(ConfigureDrivesTest, AddDrivesWritableSystem) {
                 addBlankWritableDrive("userdata", "05.0", user_dir_ / "userdata.img",
                                       user_dir_ / "userdata.img.qcow2"))
             .Times(1);
-    EXPECT_CALL(mock_container, addBlankWritableDrive("cache", "04.0", user_dir_ / "cache.img",
-                                                      user_dir_ / "cache.img.qcow2"))
-            .Times(1);
+    EXPECT_CALL(mock_container, addNullDrive("cache", "04.0")).Times(1);
 #ifdef __x86_64__
     if (hw_.hw_sdCard) {
         EXPECT_CALL(mock_container,
@@ -181,9 +181,7 @@ TEST_F(ConfigureDrivesTest, AddDrivesExistingUserdataWithMatchingSize) {
     EXPECT_CALL(mock_container, addWritableImgDrive("userdata", "05.0", userdata_path,
                                                     user_dir_ / "userdata.img.qcow2"))
             .Times(1);
-    EXPECT_CALL(mock_container, addBlankWritableDrive("cache", "04.0", user_dir_ / "cache.img",
-                                                      user_dir_ / "cache.img.qcow2"))
-            .Times(1);
+    EXPECT_CALL(mock_container, addNullDrive("cache", "04.0")).Times(1);
 #ifdef __x86_64__
     if (hw_.hw_sdCard) {
         EXPECT_CALL(mock_container,
@@ -214,9 +212,7 @@ TEST_F(ConfigureDrivesTest, AddDrivesExistingOldUserdataWithMatchingSize) {
     EXPECT_CALL(mock_container, addWritableImgDrive("userdata", "05.0", userdata_path,
                                                     user_dir_ / "userdata-qemu.img.qcow2"))
             .Times(1);
-    EXPECT_CALL(mock_container, addBlankWritableDrive("cache", "04.0", user_dir_ / "cache.img",
-                                                      user_dir_ / "cache.img.qcow2"))
-            .Times(1);
+    EXPECT_CALL(mock_container, addNullDrive("cache", "04.0")).Times(1);
 #ifdef __x86_64__
     if (hw_.hw_sdCard) {
         EXPECT_CALL(mock_container,
@@ -251,9 +247,7 @@ TEST_F(ConfigureDrivesTest, AddDrivesCustomDataSmallerThanRequestedUsedAsIs) {
     EXPECT_CALL(mock_container,
                 addWritableImgDrive("userdata", "05.0", custom_data_path, custom_data_qcow2_path))
             .Times(1);
-    EXPECT_CALL(mock_container, addBlankWritableDrive("cache", "04.0", user_dir_ / "cache.img",
-                                                      user_dir_ / "cache.img.qcow2"))
-            .Times(1);
+    EXPECT_CALL(mock_container, addNullDrive("cache", "04.0")).Times(1);
 #ifdef __x86_64__
     if (hw_.hw_sdCard) {
         EXPECT_CALL(mock_container,
@@ -286,9 +280,7 @@ TEST_F(ConfigureDrivesTest, AddDrivesUserdataFromDirectory) {
                 addWritableDirectoryDrive("userdata", "05.0", user_dir_ / "userdata.img",
                                           user_dir_ / "userdata.img.qcow2", user_dir_ / "data"))
             .Times(1);
-    EXPECT_CALL(mock_container, addBlankWritableDrive("cache", "04.0", user_dir_ / "cache.img",
-                                                      user_dir_ / "cache.img.qcow2"))
-            .Times(1);
+    EXPECT_CALL(mock_container, addNullDrive("cache", "04.0")).Times(1);
 #ifdef __x86_64__
     if (hw_.hw_sdCard) {
         EXPECT_CALL(mock_container,
