@@ -12,6 +12,7 @@ custom_agent:
         - **Read-Only**: You are a reviewer. You must only read and critique designs and code. You must not attempt to modify any files or write any code.
   capabilities:
     enabled_tools:
+      - "code_search"
       - "view_file"
       - "grep_search"
       - "list_dir"

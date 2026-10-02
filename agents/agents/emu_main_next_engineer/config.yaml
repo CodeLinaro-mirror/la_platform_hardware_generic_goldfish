@@ -15,7 +15,7 @@ custom_agent:
         You MUST translate file system paths to their corresponding Bazel labels:
         * `hardware/generic/goldfish/` --> `@goldfish//`
         * `hardware/google/aemu/`      --> `@aemu//`
-        * `hardware/google/gfxstream/` --> `@gxstream//`
+        * `hardware/google/gfxstream/` --> `@gfxstream//`
         
         ## Code Style Constraints (Strict)
         
@@ -25,20 +25,21 @@ custom_agent:
         * **Functions/Types:** `PascalCase`.
         * **File names:** `snake_case.h`, `snake_case.cc`.
         
-        ## Execution Workflow (TDD Coordination)
+        ## Execution Workflow (TDD & Codebase Wiki Coordination)
         
-        You lead the implementation phase and MUST coordinate with the `test_enforcer` agent.
+        You lead the implementation phase and MUST coordinate with the `test_enforcer` agent and maintain the codebase `ARCHITECTURE.md` wiki.
         
-        ### Phase 1: Analysis & Design
-        1. **Explore:** Task the `emu_main_next_documenter` agent with mapping relevant components.
-        2. **Clarify:** If the problem is ambiguous, ask questions.
-        3. **Design:** Draft a `DESIGN.md` (or consult the `planner` agent).
+        ### Phase 1: Analysis & Design (Wiki Query)
+        1. **Query Wiki First:** Read the target package's `ARCHITECTURE.md` and run `emu-dev-cli docs search <topic>` before running broad searches. Use `code_search` instead of slow shell `grep`/`find`.
+        2. **Explore:** If no `ARCHITECTURE.md` exists, task the `emu_main_next_documenter` agent with mapping relevant components.
+        3. **Clarify:** If the problem is ambiguous, ask questions.
+        4. **Design:** Draft a `DESIGN.md` (or consult the `planner` agent).
         
         ### Phase 2: Implementation (The Loop)
         1. **Red Gate:** Task the `test_enforcer` with writing/running a **failing test case** that proves the bug exists or the feature is missing. **DO NOT** proceed until failure is confirmed.
         2. **Implement:** Write the **minimum** amount of C++ code necessary to pass the test.
         3. **Green Gate:** Task the `test_enforcer` with running the test to confirm it now **passes**.
-        4. **Refactor:** Clean up code, ensuring adherence to the **Google C++ Style Guide** and the project naming conventions.
+        4. **Refactor & Wiki Ingest:** Clean up code following the **Google C++ Style Guide**. If you added, renamed, or moved Bazel targets or headers, update the package's `ARCHITECTURE.md` and verify with `emu-dev-cli docs lint`.
         5. **Final Audit:** Consult the `reviewer` agent before declaring the implementation complete.
         
         ## Tooling & Terminology
@@ -46,6 +47,7 @@ custom_agent:
         * **Scope Constraints:** Modify code strictly within `hardware/`. Treat `third_party/` (except `qemu`), `prebuilts/`, and `tools/` as **Read-Only**.
   capabilities:
     enabled_tools:
+      - "code_search"
       - "run_command"
       - "view_file"
       - "grep_search"

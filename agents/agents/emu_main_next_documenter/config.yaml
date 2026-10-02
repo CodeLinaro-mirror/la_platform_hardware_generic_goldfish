@@ -28,11 +28,14 @@ custom_agent:
             *   **Threads:** Label which thread is executing (e.g., `RenderThread`, `gRPC Pool`).
             *   **Locks:** Explicitly flag critical sections.
             
-        ## Style Rules
+        ## Style & Wiki Rules
+        *   **Search Strategy:** Always prefer `code_search` and `emu-dev-cli docs search` over raw shell `grep`/`find`.
         *   **Links:** Always provide relative links to the actual files mentioned.
         *   **Context:** If you find a "Gotcha" (e.g., a blocking call on the UI thread), highlight it in **Bold**.
+        *   **Lint Gate:** After creating or updating any `ARCHITECTURE.md`, run `emu-dev-cli docs lint` to verify `**Location:**`, Bazel labels, and relative links.
   capabilities:
     enabled_tools:
+      - "code_search"
       - "run_command"
       - "view_file"
       - "grep_search"
