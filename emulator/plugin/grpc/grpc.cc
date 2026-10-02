@@ -19,6 +19,7 @@
 #include <filesystem>
 #include <memory>
 #include <system_error>
+#include <type_traits>
 
 #include "absl/log/log.h"
 #include "absl/random/random.h"
@@ -114,18 +115,18 @@ struct GrpcConfig {
     std::vector<std::shared_ptr<::grpc::Service>> grpc_services;
     std::unique_ptr<::grpc::Server> grpc_server;
     std::unique_ptr<EmulatorAdvertisement> advertiser;
-    Notifier shutdown_notifier;
 };
 
 struct GrpcDev {
-    DeviceClass parent_class;
+    DeviceState parent_obj;
 
     GrpcConfig* config;
+    Notifier shutdown_notifier;
 };
+static_assert(std::is_standard_layout_v<GrpcDev>);
 
 #define TYPE_GRPC "grpc"
 #define GRPC_DEV(obj) OBJECT_CHECK(GrpcDev, (obj), TYPE_GRPC)
-#define GRPC_DEVICE_GET_CLASS(obj) OBJECT_GET_CLASS(GrpcDev, obj, TYPE_GRPC)
 
 std::vector<std::shared_ptr<::grpc::Service>> CreateServices(avd_info::AvdUniverse& avd_universe,
                                                              int modem_simulator_port) {
@@ -402,7 +403,11 @@ std::string ShutdownCauseToString(ShutdownCause cause) {
 #endif
 
 void grpc_shutdown_notify(Notifier* notifier, void* data) {
-    GrpcConfig* config = container_of(notifier, GrpcConfig, shutdown_notifier);
+    GrpcDev* grpc_device = container_of(notifier, GrpcDev, shutdown_notifier);
+    GrpcConfig* config = grpc_device->config;
+    if (!config) {
+        return;
+    }
     config->advertiser.reset();
     if (!config->grpc_server) {
         return;
@@ -502,8 +507,8 @@ void grpc_realize(DeviceState* dev, Error** errp) {
                      << s;
     }
 
-    config->shutdown_notifier.notify = grpc_shutdown_notify;
-    qemu_register_shutdown_notifier(&config->shutdown_notifier);
+    grpc_device->shutdown_notifier.notify = grpc_shutdown_notify;
+    qemu_register_shutdown_notifier(&grpc_device->shutdown_notifier);
 }
 
 void grpc_unrealize(DeviceState* dev) {
@@ -511,7 +516,7 @@ void grpc_unrealize(DeviceState* dev) {
     GrpcDev* grpc_device = GRPC_DEV(dev);
     auto* config = grpc_device->config;
 
-    notifier_remove(&config->shutdown_notifier);
+    notifier_remove(&grpc_device->shutdown_notifier);
 
     if (config->grpc_server) {
         // Explicitly cleanup resources. We do not want to do this at
@@ -636,6 +641,7 @@ void grpc_instance_init(Object* obj) {
 void grpc_instance_finalize(Object* obj) {
     GrpcDev* grpc_device = GRPC_DEV(obj);
     delete grpc_device->config;
+    grpc_device->config = nullptr;
 }
 
 void grpc_class_init(ObjectClass* oc, const void* data) {
