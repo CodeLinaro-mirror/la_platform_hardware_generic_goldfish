@@ -38,6 +38,9 @@ EventForwarder::~EventForwarder() {
 }
 
 void EventForwarder::OnStateChange() {
+    if (!sender_) {
+        return;
+    }
     if (channel_->state() == ::webrtc::DataChannelInterface::kOpen) {
         VLOG(1) << "WebRTC DataChannel state changed to OPEN for label: " << AsString(label_);
         if (auto status = sender_->Start(); !status.ok()) {
@@ -54,6 +57,9 @@ void EventForwarder::OnStateChange() {
 }
 
 void EventForwarder::OnMessage(const ::webrtc::DataBuffer& buffer) {
+    if (!sender_) {
+        return;
+    }
     if (label_ == DataChannelLabel::kInput) {
         InputEvent input_event;
         if (!input_event.ParseFromArray(buffer.data.data(), static_cast<int>(buffer.size()))) {

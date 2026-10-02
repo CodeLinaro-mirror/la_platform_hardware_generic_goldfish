@@ -27,7 +27,10 @@
 #include "grpcpp/grpcpp.h"
 
 #include "android/emulation/control/basic_token_auth.h"
+#include "api/audio_codecs/builtin_audio_decoder_factory.h"
+#include "api/audio_codecs/builtin_audio_encoder_factory.h"
 #include "core/grpc_input_sender.h"
+#include "goldfish/videobridge/codec_factories.h"
 #include "goldfish/videobridge/emulator_client.h"
 #include "goldfish/videobridge/media_track_provider.h"
 #include "goldfish/videobridge/rtc_service.h"
@@ -35,6 +38,7 @@
 #include "media/grpc_audio_source.h"
 #include "media/grpc_video_source.h"
 #include "rtc_base/logging.h"
+#include "webrtc/rtc_service_impl.h"
 
 ABSL_FLAG(std::string, webrtc_log_level, "none",
           "WebRTC native logging level (verbose, info, warning, error, none).");
@@ -52,10 +56,9 @@ ABSL_FLAG(std::string, shared_memory_path, "",
           "Path to the shared memory file to enable MMAP transport optimization (POSIX shared "
           "memory).");
 ABSL_FLAG(bool, list_codecs, false, "List the available WebRTC codecs and exit.");
-
-#include "api/audio_codecs/builtin_audio_decoder_factory.h"
-#include "api/audio_codecs/builtin_audio_encoder_factory.h"
-#include "goldfish/videobridge/codec_factories.h"
+ABSL_FLAG(uint32_t, width, 0, "Optional target video capture width (0 for native display width).");
+ABSL_FLAG(uint32_t, height, 0,
+          "Optional target video capture height (0 for native display height).");
 
 namespace goldfish::videobridge {
 
@@ -75,7 +78,6 @@ void ListCodecs() {
     std::unique_ptr<webrtc::VideoDecoderFactory> video_decoder_factory =
             CreatePlatformVideoDecoderFactory();
 
-    // 1. Query Video Encoders
     std::vector<webrtc::SdpVideoFormat> video_encoders =
             video_encoder_factory->GetSupportedFormats();
     std::cout << "[Video Encoders (Preference Order)]\n";
@@ -91,7 +93,6 @@ void ListCodecs() {
     }
     std::cout << "\n";
 
-    // 2. Query Video Decoders
     std::vector<webrtc::SdpVideoFormat> video_decoders =
             video_decoder_factory->GetSupportedFormats();
     std::cout << "[Video Decoders]\n";
@@ -107,7 +108,6 @@ void ListCodecs() {
     }
     std::cout << "\n";
 
-    // 3. Query Audio Encoders
     auto audio_encoder_factory = ::webrtc::CreateBuiltinAudioEncoderFactory();
     std::vector<webrtc::AudioCodecSpec> audio_encoders =
             audio_encoder_factory->GetSupportedEncoders();
@@ -123,7 +123,6 @@ void ListCodecs() {
     }
     std::cout << "\n";
 
-    // 4. Query Audio Decoders
     auto audio_decoder_factory = ::webrtc::CreateBuiltinAudioDecoderFactory();
     std::vector<webrtc::AudioCodecSpec> audio_decoders =
             audio_decoder_factory->GetSupportedDecoders();
@@ -202,7 +201,6 @@ class AbseilLogSink : public webrtc::LogSink {
         if (!msg.empty() && msg.back() == '\n') {
             msg.remove_suffix(1);
         }
-        // LOG(INFO) << "[WebRTC] " << msg;
     }
 
     void OnLogMessage(const std::string& message, webrtc::LoggingSeverity severity) override {
@@ -229,7 +227,7 @@ class AbseilLogSink : public webrtc::LogSink {
     }
 };
 
-static AbseilLogSink g_abseil_log_sink;
+AbseilLogSink g_abseil_log_sink;
 
 void ConfigureWebRtcLogging(const std::string& level) {
     webrtc::LoggingSeverity min_sev = webrtc::LS_WARNING;
@@ -250,18 +248,31 @@ void ConfigureWebRtcLogging(const std::string& level) {
     webrtc::LogMessage::AddLogToStream(&g_abseil_log_sink, min_sev);
 }
 
+std::unique_ptr<InputSender> CreateGrpcInputSenderForLabel(
+        const std::shared_ptr<EmulatorClient>& client, DataChannelLabel label) {
+    switch (label) {
+    case DataChannelLabel::kInput:
+    case DataChannelLabel::kInputV2:
+    case DataChannelLabel::kSensorsV2:
+        return std::make_unique<GrpcInputSender>(client, label);
+    case DataChannelLabel::kAdb:
+        return nullptr;
+    }
+    return nullptr;
+}
+
 int RunServer() {
     ConfigureWebRtcLogging(absl::GetFlag(FLAGS_webrtc_log_level));
-    // 1. Initialize EmulatorClient
     auto client = std::make_shared<EmulatorClient>(absl::GetFlag(FLAGS_discovery_file));
     if (!client->Connect(absl::Seconds(5)).ok()) {
         LOG(ERROR) << "Failed to connect to emulator. Ensure emulator is running.";
         return 1;
     }
 
-    // 2. Initialize Media Sources & Switchboard
     GrpcVideoSourceOptions video_options;
     video_options.display_id = 0;
+    video_options.width = absl::GetFlag(FLAGS_width);
+    video_options.height = absl::GetFlag(FLAGS_height);
     if (!absl::GetFlag(FLAGS_shared_memory_path).empty()) {
         video_options.transport = GrpcVideoSourceOptions::Transport::kSharedMemory;
         video_options.shared_memory_path =
@@ -274,21 +285,18 @@ int RunServer() {
     auto audio_source = ::webrtc::make_ref_counted<GrpcAudioSource>(client);
 
     auto provider = std::make_shared<MediaTrackProvider>(video_source, audio_source);
-    auto switchboard = std::make_shared<Switchboard>(
-            provider, [client](DataChannelLabel label) -> std::unique_ptr<InputSender> {
-                if (label == DataChannelLabel::kInput) {
-                    return std::make_unique<GrpcInputSender>(client);
-                }
-                return nullptr;
-            });
+    auto switchboard = std::make_shared<Switchboard>(provider, [client](DataChannelLabel label) {
+        return CreateGrpcInputSenderForLabel(client, label);
+    });
 
-    // 3. Initialize RtcService and Start gRPC Server
     RtcService rtc_service(switchboard);
+    ::goldfish::grpc::v2::RtcServiceImpl v2_rtc_service(switchboard);
 
     const std::string server_address = absl::GetFlag(FLAGS_grpc_address);
     ::grpc::ServerBuilder builder;
     builder.AddListeningPort(server_address, BuildCredentials());
     builder.RegisterService(&rtc_service);
+    builder.RegisterService(&v2_rtc_service);
 
     std::unique_ptr<::grpc::Server> server(builder.BuildAndStart());
     if (!server) {
