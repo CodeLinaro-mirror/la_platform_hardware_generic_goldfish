@@ -169,7 +169,6 @@ void AbslStringify(Sink& sink, FSEventFlagsWrapper wrapper) {
     }
 }
 }  // namespace
-using Path = FileSystemWatcher::Path;
 
 // Filesystem watcher based on
 // https://developer.apple.com/documentation/coreservices/file_system_events
@@ -183,7 +182,7 @@ class FileSystemWatcherFS : public FileSystemWatcher {
         kStopping   ///< Stop() was called, thread is signaled to exit.
     };
 
-    FileSystemWatcherFS(Path path, FileSystemWatcherCallback on_change_callback)
+    FileSystemWatcherFS(std::filesystem::path path, FileSystemWatcherCallback on_change_callback)
             : FileSystemWatcher(std::move(on_change_callback)), path_(std::move(path)) {}
 
     ~FileSystemWatcherFS() override { Stop(); }
@@ -324,7 +323,7 @@ class FileSystemWatcherFS : public FileSystemWatcher {
         FSEventStreamStop(stream.get());
     }
 
-    const Path path_;
+    const std::filesystem::path path_;
     absl::Mutex mu_;
     State state_ ABSL_GUARDED_BY(mu_) = State::kIdle;
     std::thread watcher_thread_ ABSL_GUARDED_BY(mu_);
@@ -332,7 +331,7 @@ class FileSystemWatcherFS : public FileSystemWatcher {
 };
 
 std::unique_ptr<FileSystemWatcher> FileSystemWatcher::GetFileSystemWatcher(
-        const Path& path, const FileSystemWatcherCallback& on_change_callback) {
+        const std::filesystem::path& path, const FileSystemWatcherCallback& on_change_callback) {
     if (!base::file::is_dir(path)) {
         return nullptr;
     }
