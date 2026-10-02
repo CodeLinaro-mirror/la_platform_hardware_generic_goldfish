@@ -689,6 +689,7 @@ absl::StatusOr<std::unique_ptr<Avd>> Avd::FromName(const AndroidOptions& opts,
             if (path.filename() == kConfigIni) {
                 continue;
             }
+            // sdcard.img is created by the Android Studio, keep it.
             if (path.filename() == kSdCardImg) {
                 continue;
             }
