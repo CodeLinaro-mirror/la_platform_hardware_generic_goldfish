@@ -223,6 +223,67 @@ class TestBuganizerClient(unittest.TestCase):
             client.create_issue(self.stable_sig, "Auth error dummy")
         self.assertIn("OAuth2 token expired (HTTP 401)", str(ctx.exception))
 
+    @patch("buganizer.subprocess.run")
+    @patch("buganizer.shutil.which")
+    def test_search_issue_unhashed_signature_fallback(
+        self, mock_which: MagicMock, mock_run: MagicMock
+    ) -> None:
+        """Test search_issue_by_signature falls back to stripped signature when hash suffix returns empty."""
+        mock_which.return_value = "/usr/bin/buganizer"
+        empty_res = MagicMock(stdout="[]")
+        match_res = MagicMock(
+            stdout=json.dumps([{"id": 565638477, "status": "ASSIGNED"}])
+        )
+        mock_run.side_effect = [empty_res, empty_res, empty_res, empty_res, match_res]
+
+        client = BuganizerClient(token=None)
+        issue = client.search_issue_by_signature(
+            "[Assert] android::qemu2::ModemSimulator::ReadOnSocket-88f45ea2"
+        )
+        self.assertIsNotNone(issue)
+        self.assertEqual(issue["id"], 565638477)
+        self.assertEqual(mock_run.call_count, 5)
+        fifth_cmd = mock_run.call_args_list[4][0][0]
+        self.assertIn(
+            'title:"[Assert] android::qemu2::ModemSimulator::ReadOnSocket"',
+            fifth_cmd[2],
+        )
+
+    @patch("buganizer.subprocess.run")
+    @patch("buganizer.urllib.request.urlopen")
+    @patch("buganizer.shutil.which")
+    def test_http_403_falls_back_to_issues_cli(
+        self,
+        mock_which: MagicMock,
+        mock_urlopen: MagicMock,
+        mock_run: MagicMock,
+    ) -> None:
+        """Test HTTP 403 on REST API falls back to issues CLI when available."""
+        mock_which.side_effect = lambda name, **kwargs: (
+            "/google/bin/releases/issues-cli/issues" if name == "issues" else None
+        )
+        mock_urlopen.side_effect = urllib.error.HTTPError(
+            "http://fake", 403, "Forbidden", {}, None
+        )
+        mock_run.return_value = MagicMock(
+            stdout=(
+                "Showing first 1 results:\n"
+                "Issue ID: 567580358\n"
+                "Title: [Crash] gfxstream::host::BackendCallbacks\n"
+                "Status:NEW (P2/S2)\n"
+                "Assignee: user@google.com\n"
+                "Component ID: 29601\n"
+                "---\n"
+            )
+        )
+
+        client = BuganizerClient(token=self.token)
+        issue = client.search_issue_by_signature("gfxstream::host::BackendCallbacks")
+        self.assertIsNotNone(issue)
+        self.assertEqual(issue["id"], "567580358")
+        self.assertEqual(issue["status"], "NEW")
+        self.assertIsNone(client.token)
+
 
 if __name__ == "__main__":
     unittest.main()

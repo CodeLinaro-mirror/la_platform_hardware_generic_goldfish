@@ -491,6 +491,26 @@ class TestCrashAdvisor(unittest.TestCase):
             )
             self.assertTrue(cached_zip.exists())
 
+    @patch("symbols.subprocess.check_output")
+    @patch("symbols.shutil.which")
+    @patch("symbols.AndroidBuildClient")
+    def test_symbol_fetcher_sso_fallback(
+        self,
+        mock_ab_class: MagicMock,
+        mock_which: MagicMock,
+        mock_check_output: MagicMock,
+    ) -> None:
+        """Test SymbolFetcher._obtain_oauth_token falls back to OnePlatform sso when oauth2l is unavailable."""
+        mock_ab_class.obtain_token.side_effect = ValueError("oauth2l not found")
+        mock_which.side_effect = lambda name, **kwargs: (
+            "/google/data/ro/teams/oneplatform/sso" if name == "sso" else None
+        )
+        mock_check_output.return_value = "sso_fallback_token\n"
+
+        fetcher = SymbolFetcher(MagicMock(), global_cache_dir=str(self.temp_path))
+        token = fetcher._obtain_oauth_token(None)
+        self.assertEqual(token, "sso_fallback_token")
+
     @patch("dump.Runfiles")
     @patch("dump.subprocess.run")
     def test_crash_report_dumper(
@@ -514,6 +534,26 @@ class TestCrashAdvisor(unittest.TestCase):
 
         self.assertEqual(dump_path, context.work_dir / "crashreport.txt")
         self.assertEqual(mock_run.call_count, 1)  # Called for text dump
+
+    @patch("dump.Path.home")
+    @patch("dump.Runfiles")
+    def test_crash_report_dumper_home_installed_fallback(
+        self, mock_runfiles: MagicMock, mock_home: MagicMock
+    ) -> None:
+        """Test CrashReportDumper discovers ~/.android/emu-dev-cli/lib/bin/crashreport using os.access."""
+        mock_rf_inst = MagicMock()
+        mock_rf_inst.Rlocation.return_value = None
+        mock_runfiles.Create.return_value = mock_rf_inst
+        mock_home.return_value = self.temp_path
+
+        bin_dir = self.temp_path / ".android" / "emu-dev-cli" / "lib" / "bin"
+        bin_dir.mkdir(parents=True, exist_ok=True)
+        fake_bin = bin_dir / ("crashreport.exe" if sys.platform == "win32" else "crashreport")
+        fake_bin.write_text("#!/bin/sh\n")
+        fake_bin.chmod(0o755)
+
+        dumper = CrashReportDumper()
+        self.assertEqual(dumper.crashreport_path, str(fake_bin))
 
     def test_crash_report_analyzer(self) -> None:
         """Test CrashReportAnalyzer generating investigation_cmd.sh interactive script."""

@@ -54,6 +54,25 @@ class SymbolFetcher:
         except Exception as e:
             logging.debug("AndroidBuildClient.obtain_token (--sso) failed: %s", e)
 
+        # Fallback for gLinux / capsule environments without oauth2l: use OnePlatform sso CLI
+        sso_path = shutil.which("sso", path="/google/data/ro/teams/oneplatform")
+        if sso_path:
+            user = getpass.getuser()
+            try:
+                token = subprocess.check_output(
+                    [
+                        sso_path,
+                        f"{user}@google.com",
+                        "https://www.googleapis.com/auth/androidbuild.internal",
+                    ],
+                    timeout=30,
+                    text=True,
+                )
+                if token and token.strip():
+                    return token.strip()
+            except Exception as e:
+                logging.debug("OnePlatform sso token fetch failed: %s", e)
+
         # Fallback for macOS / non-SSO environments: use plain 'oauth2l fetch androidbuild.internal'
         oauth2l_path = shutil.which("oauth2l") or shutil.which(
             "oauth2l", path=Path.home() / "go" / "bin"
