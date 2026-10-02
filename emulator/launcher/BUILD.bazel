@@ -498,6 +498,12 @@ collect_plugins(
     plugins = [":advanced_features_ini"],
 )
 
+collect_plugins(
+    name = "virtualscene_data",
+    output_dir = "data/virtualscene/Toren1BD",
+    plugins = ["@goldfish_prebuilts_common//virtualscene/Toren1BD"],
+)
+
 cc_library(
     name = "launcher_lib",
     srcs = ["launcher.cc"],
@@ -562,6 +568,7 @@ cc_binary(
         ":roms",
         ":shared_libraries",
         ":unsecure-emulator-access",
+        ":virtualscene_data",
         ":vulkan_icds",
         ":vulkan_layers",
     ],

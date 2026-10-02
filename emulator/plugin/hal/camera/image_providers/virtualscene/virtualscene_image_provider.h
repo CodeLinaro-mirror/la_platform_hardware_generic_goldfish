@@ -15,11 +15,12 @@
 
 #pragma once
 
+#include <cstdint>
 #include <optional>
 #include <vector>
 
 #include "android/camera/camera_image_provider_api.h"
-#include "goldfish/gvk/device_dispatch.h"
+#include "ver/virtual_environment_renderer.h"
 
 namespace goldfish::camera_image_providers::virtualscene {
 
@@ -35,15 +36,11 @@ struct VirtualsceneImageProvider {
     };
 
     struct CaptureStreamBuffers {
-        gvk::DeviceMemory gpuImageMemory;
-        gvk::DeviceMemory dstBufferMemory;
-        // if gpuImage is empty it means the framebuffer has
-        // exactly the same format and size, so we can copy
-        // from it directly.
-        gvk::Image gpuImage;
-        gvk::Buffer dstBuffer;
+        // If dstBuffer is empty, the framebuffer has the exact same format and size,
+        // so we can read from the VER framebuffer directly.
+        mutable std::vector<uint8_t> dstBuffer;
         CameraImageProviderRect size = {};
-        CropRegion srcCropRegion = {};  // for vkCmdBlitImage
+        CropRegion srcCropRegion = {};
         uint32_t bufferSizeBytes = 0;
         int32_t id = -1;  // CameraImageProviderStreamConfig::id
     };
@@ -76,45 +73,15 @@ struct VirtualsceneImageProvider {
     struct CaptureSession {
         std::vector<CaptureStreamBuffers> captureStreamBuffers;
         std::vector<uint8_t> yuvConversionBuffer;
-        gvk::DeviceMemory framebufferImageMemory;
-        gvk::Image framebufferImage;
-        gvk::ImageView framebufferImageView;
-        gvk::RenderPass renderPass;
-        gvk::Framebuffer framebuffer;
-        gvk::Pipeline pipeline;
-        VkCommandBuffer renderCmdBuf = VK_NULL_HANDLE;
-        CameraImageProviderRect framebuffer_size;
-        uint8_t frameCounter = 0;
+        VerRenderViewHandle view = VER_INVALID_HANDLE;
+        CameraImageProviderRect framebuffer_size = {};
     };
 
     bool captureImpl(const CaptureSession&, CameraImageProviderStreamCaptureSink, void* sinkOpaque,
                      const CameraImageProviderStreamCaptureInfo* sci, unsigned scin,
                      uint8_t* yuvConversionBuffer);
 
-    bool updateUniformData(CameraImageProviderRect framebuffer_size, float angle);
-
-    VkCommandBuffer recordCommandBuffer(const CaptureSession&,
-                                        const CameraImageProviderStreamCaptureInfo* sci,
-                                        unsigned sciSize);
-
-    gvk::DeviceDispatch::Ptr mDeviceDispatch;
-    gvk::CommandPool mCommandPool;
-    gvk::DeviceMemory mVerticesMem;
-    gvk::DeviceMemory mIndicesMem;
-    gvk::DeviceMemory mUniformMem;
-    gvk::Buffer mVerticesBuf;
-    gvk::Buffer mIndicesBuf;
-    gvk::Buffer mUniformBuf;
-    gvk::ShaderModule mVertexShaderModule;
-    gvk::ShaderModule mFragmentShaderModule;
-    gvk::DescriptorSetLayout mDescriptorSetLayout;
-    gvk::DescriptorPool mDescriptorPool;
-    gvk::PipelineLayout mPipelineLayout;
-    VkDescriptorSet mDescriptorSet = VK_NULL_HANDLE;
-
-    VkQueue mGraphicsQueue = VK_NULL_HANDLE;
-    VkPhysicalDeviceMemoryProperties mMemoryProperties = {};
-    gvk::DeviceQueueLocation mGraphicsQueueLocation;
+    VerSceneHandle mScene = VER_INVALID_HANDLE;
 
     std::optional<CaptureSession> mCaptureSession;
 };

@@ -11,12 +11,12 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
-        "//emulator/libs/gvk",
+        "//emulator/libs/debug",
+        "//emulator/libs/imaging",
         "//emulator/libs/ver",
         "//emulator/plugin/hal/camera:image_provider_api",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
-        "@gfxstream//third_party/glm",
         "@libyuv",
         "@tinygltf",
         "@tinyobjloader",
@@ -30,7 +30,10 @@ cc_test(
         "virtualscene_data.cc",
         "virtualscene_image_provider_test.cc",
     ],
-    data = ["@goldfish_prebuilts_common//virtualscene/Toren1BD"],
+    data = [
+        "//emulator/libs/ver:test_vulkan_icds",
+        "@goldfish_prebuilts_common//virtualscene/Toren1BD",
+    ],
     visibility = ["//visibility:public"],
     deps = [
         ":virtualscene",
