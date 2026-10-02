@@ -86,16 +86,7 @@ uint64_t getDataSize(const Avd& avd, const AndroidOptions& opts) {
 
 uint64_t getCacheSize(const Avd& avd, const AndroidOptions& opts) {
     constexpr uint64_t kMinCacheSize = 66ULL * 1024 * 1024;
-    uint64_t cache_size = avd.Hw().disk_cachePartition_size.Bytes();
-    if (opts.cache_size != nullptr) {
-        uint64_t size_mib;
-        if (absl::SimpleAtoi(opts.cache_size, &size_mib)) {
-            cache_size = size_mib * 1024 * 1024;
-        } else {
-            LOG(ERROR) << "Failed to parse -cache-size flag: " << opts.cache_size;
-        }
-    }
-    return std::max(cache_size, kMinCacheSize);
+    return std::max(avd.Hw().disk_cachePartition_size.Bytes(), kMinCacheSize);
 }
 
 uint64_t getSdcardSize(const Avd& avd, const AndroidOptions& opts) {
@@ -143,8 +134,7 @@ absl::StatusOr<std::vector<std::unique_ptr<PciDevice>>> getDiskConfigs(const Avd
         userdata_create_size = getDataSize(avd, opts);
     }
 
-    ASSIGN_OR_RETURN(const auto cache_path,
-                     getWritableImgPath(avd, Avd::ImageType::CACHE, opts.cache));
+    const auto cache_path = getWritableImgPath(avd, Avd::ImageType::CACHE);
 
     const bool rw_sys = opts.writable_system;
     if (rw_sys) {
