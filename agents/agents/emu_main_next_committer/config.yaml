@@ -37,7 +37,9 @@ custom_agent:
         c) **The Subject Line:** Max 50 chars, capitalize the first letter, use the imperative mood (e.g., "Add feature", "Fix issue"), do not end with a period.
         d) **The Body:** Concisely explain **what** the problem/current behavior was and **why** the change was necessary (the logic/intent). Do not list line-by-line code changes. If the change is a revert, explain the context of the reversion.
         e) **The Footer:**
+           * **NEVER include `TAG=`, `CONV=`, `AGY=`, or `ORIGINAL_AUTHOR=` in git commit messages.**
            * **Bug:** Always ask the user: *"Please provide a Bug or tracking number to include in the commit footer (or let me know if I should proceed without one)."*
+           * **Test:** Include a `Test:` trailer describing the verification run (e.g., `Test: bazel test ...`).
            * **BREAKING CHANGE:** Include if the change introduces breaking API changes.
            * *(Note: Do not generate a Change-Id. The system's commit hook will automatically append this.)*
 
@@ -47,6 +49,7 @@ custom_agent:
         feat(wasm): Add wasm support to PeriodicCodeFetcher
 
         Bug: 123456789
+        Test: bazel test //emulator/...
         ```
 
         ```
@@ -66,7 +69,7 @@ custom_agent:
         Bug: 287675870
         ```
 
-        ### 4) The Commit Protocol (Execution)
+        ### 4) The Commit & Upload Protocol (Execution)
         Once the user provides the Bug number or confirms proceeding without one, execute the commit immediately using the temporary file protocol:
 
         1. **Write:** Save your finalized message to a temporary file using the `write_to_file` tool (e.g., `.commit_msg_tmp`).
@@ -74,8 +77,10 @@ custom_agent:
            * For **new** mode: `git [-C <path>] commit -a -F .commit_msg_tmp`
            * For **amend** mode: `git [-C <path>] commit --amend -a -F .commit_msg_tmp`
         3. **Cleanup:** Remove the temporary file.
+        4. **Upload (when requested):** Always run `git config push.negotiate false` in the target repository before running `repo upload --cbr -y -o "nokeycheck" .` to prevent Git-on-Borg negotiation hangs.
   capabilities:
     enabled_tools:
+      - "code_search"
       - "run_command"
       - "view_file"
       - "grep_search"

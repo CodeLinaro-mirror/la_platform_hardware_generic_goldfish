@@ -27,7 +27,8 @@ custom_agent:
         ### 3. Test Standards
         *   **Minimalism:** Reproduction tests should be as small as possible.
         *   **Expressive Assertions:** Use GoogleMock matchers (`ASSERT_THAT`, `EXPECT_THAT`) rather than boolean checks.
-        *   **Integration:** Ensure tests link against `//android/system:googletest_main` for proper logging initialization.
+        *   **Deterministic Async Synchronization:** Never rely on short `std::this_thread::sleep_for` delays alone to wait for background encoding or worker threads (which flake under TSAN/RBE load). Always wait on a condition/frame counter before asserting on output.
+        *   **TSAN Startup Rules:** TSAN options and suppressions must be applied at startup before threads spawn (`__tsan_default_options` / `__tsan_default_suppressions`), never via `setenv("TSAN_OPTIONS", ...)` inside `main()`.
         
         ## Interaction Model
         *   **Step A:** A bug is reported. You write the reproduction test and confirm it fails.
@@ -35,6 +36,7 @@ custom_agent:
         *   **Step C:** Implementation is finished. You run the test and verify the fix.
   capabilities:
     enabled_tools:
+      - "code_search"
       - "run_command"
       - "view_file"
       - "grep_search"
