@@ -122,8 +122,7 @@ static void HelpBuildImages(stralloc_t* out) {
            "  You can use the -sysdir, -system, -vendor -kernel, -ramdisk, -datadir, -data "
            "options\n"
            "  to specify different search directories or specific image files. You can\n"
-           "  also use the -cache and -sdcard options to indicate specific cache partition\n"
-           "  and SD Card image files.\n\n"
+           "  also use the -sdcard option to indicate the SD Card image file.\n\n"
 
            "  For more details, see the corresponding -help-<option> section.\n\n"
 
@@ -133,10 +132,6 @@ static void HelpBuildImages(stralloc_t* out) {
            "    automatically removed when the emulator exits. There is thus no way to\n"
            "    make persistent changes to this image through the emulator, even if\n"
            "    you use the '-image <file>' option.\n\n"
-
-           "  - unless you use the '-cache <file>' option, the cache partition image\n"
-           "    is backed by a temporary file that is initially empty and destroyed on\n"
-           "    program exit.\n\n"
 
            "  SPECIAL NOTE: If you are using the emulator with the Android SDK, the\n"
            "  information above doesn't apply. See -help-sdk-images for more details.\n");
@@ -168,7 +163,7 @@ static void HelpDiskImages(stralloc_t* out) {
            "  If you're neither using the SDK or the Android build system, you\n"
            "  can still run the emulator by explicitly providing the paths to\n"
            "  *all* required disk images through a combination of the following\n"
-           "  options: -sysdir, -datadir, -kernel, -ramdisk, -system, -data, -cache\n"
+           "  options: -sysdir, -datadir, -kernel, -ramdisk, -system, -data\n"
            "  and -sdcard.\n\n"
 
            "  The actual logic being that the emulator should be able to find all\n"
@@ -377,20 +372,6 @@ static void help_writable_system(stralloc_t* out) {
            "  Note that using this flag will create a temporary copy of the system\n"
            "  image that can be very large (several hundreds of MBs), but will be\n"
            "  destroyed at emulator exit.\n");
-}
-
-static void help_cache(stralloc_t* out) {
-    PRINTF("  use '-cache <file>' to specify a /cache partition image. if <file> does\n"
-           "  not exist, it will be created empty. by default, the cache partition is\n"
-           "  backed by a temporary file that is deleted when the emulator exits.\n"
-           "  using the -cache option allows it to be persistent.\n\n"
-
-           "  see '-help-disk-images' for more information about disk image files\n\n");
-}
-
-static void help_cache_size(stralloc_t* out) {
-    PRINTF("  use '-cache <size>' to specify a /cache partition size in MB. By default,\n"
-           "  the cache partition size is set to 66MB\n\n");
 }
 
 static void help_sdcard(stralloc_t* out) {
