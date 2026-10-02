@@ -47,9 +47,6 @@ class FakeHardwareConfig {
         hw.hw_audioInput = true;
         hw.hw_audioOutput = true;
         hw.hw_sdCard = true;
-        hw.disk_cachePartition = true;
-        hw.disk_cachePartition_path = "~/../avd/35.avd/cache.img";
-        hw.disk_cachePartition_size = 66_MiB;
         hw.test_quitAfterBootTimeOut = -1;
         hw.test_delayAdbTillBootComplete = 0;
         hw.test_monitorAdb = 0;
