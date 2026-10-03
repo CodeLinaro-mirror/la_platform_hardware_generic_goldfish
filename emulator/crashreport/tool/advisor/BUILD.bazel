@@ -35,7 +35,7 @@ py_binary(
     visibility = ["//visibility:public"],
     deps = [
         "@aemu//tools/libs_python:ab",
-        "@bazel_tools//tools/python/runfiles",
+        "@rules_python//python/runfiles",
     ],
 )
 
@@ -49,7 +49,7 @@ py_test(
     deps = [
         ":advisor",
         "@aemu//tools/libs_python:ab",
-        "@bazel_tools//tools/python/runfiles",
+        "@rules_python//python/runfiles",
     ],
 )
 

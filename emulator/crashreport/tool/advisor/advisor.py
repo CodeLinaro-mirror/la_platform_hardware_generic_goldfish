@@ -21,9 +21,28 @@ crash reports from crash.corp.google.com.
 
 import argparse
 import logging
+from pathlib import Path
 import subprocess
 import sys
 from typing import List, Optional
+
+_curr_path = Path(__file__).resolve()
+_found_libs = False
+for _p in [_curr_path] + list(_curr_path.parents):
+    _candidate = _p / "hardware" / "google" / "aemu" / "tools" / "libs_python"
+    if _candidate.exists() and str(_candidate) not in sys.path:
+        sys.path.insert(0, str(_candidate))
+        break
+    for _rf in [
+        _p / "aemu+" / "tools" / "libs_python",
+        _p / "aemu" / "tools" / "libs_python",
+    ]:
+        if _rf.exists() and str(_rf) not in sys.path:
+            sys.path.insert(0, str(_rf))
+            _found_libs = True
+            break
+    if _found_libs:
+        break
 
 from api import CrashApi
 from buganizer import (
@@ -127,6 +146,10 @@ Prerequisite: OAuth2 Token
             "--timeout",
             default="30m",
             help="Execution timeout for the underlying AI investigation CLI (default: 30m)",
+        )
+        parser.add_argument(
+            "--title",
+            help="Explicit title for newly created Buganizer issue",
         )
         parser.add_argument(
             "--work-dir",
@@ -278,7 +301,9 @@ Prerequisite: OAuth2 Token
                         "No existing issue found. Creating new issue in Component %d",
                         EMULATOR_COMPONENT_ID,
                     )
-                    bug_id = buganizer.create_issue(stable_sig, rca_content)
+                    bug_id = buganizer.create_issue(
+                        stable_sig, rca_content, title=self.args.title
+                    )
                     logging.info("Created new issue b/%d", bug_id)
 
             # Step 7: Parse YAML actionability block for autonomous agent handoff

@@ -23,7 +23,30 @@ import tempfile
 from pathlib import Path
 from typing import Optional
 
-from ab.android_build_client import AndroidBuildClient
+try:
+    from ab.android_build_client import AndroidBuildClient
+except ImportError:
+    import sys
+
+    _curr_path = Path(__file__).resolve()
+    _found_libs = False
+    for _p in [_curr_path] + list(_curr_path.parents):
+        _candidate = _p / "hardware" / "google" / "aemu" / "tools" / "libs_python"
+        if _candidate.exists() and str(_candidate) not in sys.path:
+            sys.path.insert(0, str(_candidate))
+            break
+        for _rf in [
+            _p / "aemu+" / "tools" / "libs_python",
+            _p / "aemu" / "tools" / "libs_python",
+        ]:
+            if _rf.exists() and str(_rf) not in sys.path:
+                sys.path.insert(0, str(_rf))
+                _found_libs = True
+                break
+        if _found_libs:
+            break
+    from ab.android_build_client import AndroidBuildClient
+
 from api import CrashApi
 from metadata import CrashMetadata
 

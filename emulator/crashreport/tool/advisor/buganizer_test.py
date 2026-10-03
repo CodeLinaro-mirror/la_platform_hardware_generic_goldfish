@@ -29,6 +29,7 @@ from buganizer import (
     BuganizerAuthError,
     BuganizerClient,
     BuganizerError,
+    derive_crash_title,
 )
 
 
@@ -138,6 +139,127 @@ class TestBuganizerClient(unittest.TestCase):
         self.assertEqual(payload["issueState"]["componentId"], EMULATOR_COMPONENT_ID)
 
     @patch("buganizer.urllib.request.urlopen")
+    def test_create_issue_with_custom_title(self, mock_urlopen: MagicMock) -> None:
+        """Test create_issue uses explicit custom title."""
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = json.dumps({"issueId": 112233}).encode("utf-8")
+        mock_urlopen.return_value.__enter__.return_value = mock_resp
+
+        client = BuganizerClient(token=self.token)
+        issue_id = client.create_issue(
+            self.stable_sig,
+            "Crash description",
+            title="[Crash][macOS] Launcher: port binding failure",
+        )
+
+        self.assertEqual(issue_id, 112233)
+        req = mock_urlopen.call_args[0][0]
+        payload = json.loads(req.data.decode("utf-8"))
+        self.assertEqual(
+            payload["issueState"]["title"],
+            "[Crash][macOS] Launcher: port binding failure",
+        )
+
+    def test_derive_crash_title_prefers_explicit_title(self) -> None:
+        """Test derive_crash_title respects explicit title parameter."""
+        title = derive_crash_title(
+            "FailWithoutStackTrace-7a37e8e9",
+            description="# Title: [Crash] Something else",
+            title="Launcher: port conflict",
+        )
+        self.assertEqual(title, "[Crash] Launcher: port conflict")
+
+    def test_derive_crash_title_extracts_from_rca_heading(self) -> None:
+        """Test derive_crash_title extracts title from '# Title:' in markdown."""
+        desc = (
+            "# Title: [Crash][macOS] Launcher port conflict\n"
+            "### Root Cause\nPorts exhausted."
+        )
+        title = derive_crash_title("FailWithoutStackTrace-7a37e8e9", description=desc)
+        self.assertEqual(title, "[Crash][macOS] Launcher port conflict")
+
+    def test_derive_crash_title_generic_abort_fallback(self) -> None:
+        """Test derive_crash_title skips FailWithoutStackTrace and finds domain frame."""
+        desc = (
+            "### Crashing Stack Trace\n"
+            "#7: absl::log_internal::LogMessage::FailWithoutStackTrace()\n"
+            "#8: absl::log_internal::LogMessage::Flush()\n"
+            "#9: absl::log_internal::Voidify::operator&&\n"
+            "#10: android::goldfish::Launcher::Launcher(LauncherConfig)\n"
+        )
+        title = derive_crash_title(
+            "absl::lts_20260526::log_internal::LogMessage::FailWithoutStackTrace-7a37e8e9",
+            description=desc,
+        )
+        self.assertIn("Launcher::Launcher", title)
+        self.assertIn("FailWithoutStackTrace-7a37e8e9", title)
+        self.assertTrue(title.startswith("[Crash]"))
+
+    def test_derive_crash_title_abort_and_raise_word_boundaries(self) -> None:
+        """Test derive_crash_title matches abort-hash and raise-hash with word boundaries."""
+        desc = (
+            "### Crashing Stack Trace\n"
+            "#0: __pthread_kill()\n"
+            "#1: raise()\n"
+            "#2: abort()\n"
+            "#3: android::goldfish::HostRenderer::DrawFrame()\n"
+        )
+        title_abort = derive_crash_title("abort-7a37e8e9", description=desc)
+        self.assertIn("HostRenderer::DrawFrame", title_abort)
+        self.assertIn("abort-7a37e8e9", title_abort)
+
+        title_raise = derive_crash_title("raise-1234abcd", description=desc)
+        self.assertIn("HostRenderer::DrawFrame", title_raise)
+        self.assertIn("raise-1234abcd", title_raise)
+
+    def test_derive_crash_title_quoted_with_apostrophe(self) -> None:
+        """Test derive_crash_title parses double-quoted title containing apostrophes."""
+        desc1 = '---\ntitle: "User\'s session crash in emulator"\n---\nSome details.'
+        title1 = derive_crash_title("some_sig", description=desc1)
+        self.assertEqual(title1, "[Crash] User's session crash in emulator")
+
+        desc2 = "# Title: \"User's session crash in emulator\"\nDetails"
+        title2 = derive_crash_title("some_sig", description=desc2)
+        self.assertEqual(title2, "[Crash] User's session crash in emulator")
+
+    def test_derive_crash_title_filters_hex_addresses_and_preserves_templates(self) -> None:
+        """Test derive_crash_title skips hex addresses and preserves C++ templates and operator()."""
+        desc = (
+            "### Crashing Stack Trace\n"
+            "#0: abort()\n"
+            "#1: 0x7f83a12b4000 [qemu-system-x86_64]\n"
+            "#2: 0x00007fff5fc24000\n"
+            "#3: android::goldfish::Container<std::string>::ProcessItem(std::string)\n"
+        )
+        title = derive_crash_title("abort-11223344", description=desc)
+        self.assertIn("Container<std::string>::ProcessItem", title)
+        self.assertIn("abort-11223344", title)
+
+        desc_op = (
+            "### Crashing Stack Trace\n"
+            "#0: abort()\n"
+            "#1: 0x7f83a12b4000\n"
+            "#2: android::goldfish::Invoker::operator()(int)\n"
+        )
+        title_op = derive_crash_title("abort-11223344", description=desc_op)
+        self.assertIn("Invoker::operator()", title_op)
+
+    @patch("buganizer.urllib.request.urlopen")
+    def test_get_issue_status_and_title_handles_none_issue_state(
+        self, mock_urlopen: MagicMock
+    ) -> None:
+        """Test get_issue_status and get_issue_title handle issueState: None safely."""
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = json.dumps(
+            {"issueId": 123456, "issueState": None, "status": "FIXED"}
+        ).encode("utf-8")
+        mock_urlopen.return_value.__enter__.return_value = mock_resp
+
+        client = BuganizerClient(token=self.token)
+        self.assertEqual(client.get_issue_status(123456), "FIXED")
+        self.assertEqual(client.get_issue_title(123456), "")
+
+    @patch("buganizer.urllib.request.urlopen")
     def test_update_issue_comment_rest_backend(self, mock_urlopen: MagicMock) -> None:
         """Test update_issue_comment execution via REST backend."""
         mock_resp = MagicMock()
@@ -187,6 +309,39 @@ class TestBuganizerClient(unittest.TestCase):
         self.assertEqual(comments, ["Human tried fix A", "Failed"])
         mock_urlopen.assert_called_once()
         self.assertIn("123456/comments", mock_urlopen.call_args[0][0].full_url)
+
+    @patch("buganizer.urllib.request.urlopen")
+    def test_get_issue_title_rest_backend(self, mock_urlopen: MagicMock) -> None:
+        """Test get_issue_title execution via REST backend."""
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = json.dumps(
+            {"issueId": 123456, "issueState": {"title": "[Crash] FooBar"}}
+        ).encode("utf-8")
+        mock_urlopen.return_value.__enter__.return_value = mock_resp
+
+        client = BuganizerClient(token=self.token)
+        title = client.get_issue_title(123456)
+
+        self.assertEqual(title, "[Crash] FooBar")
+        mock_urlopen.assert_called_once()
+        self.assertIn("123456", mock_urlopen.call_args[0][0].full_url)
+
+    @patch("buganizer.urllib.request.urlopen")
+    def test_update_issue_title_rest_backend(self, mock_urlopen: MagicMock) -> None:
+        """Test update_issue_title execution via REST backend."""
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = json.dumps({"issueId": 123456}).encode("utf-8")
+        mock_urlopen.return_value.__enter__.return_value = mock_resp
+
+        client = BuganizerClient(token=self.token)
+        success = client.update_issue_title(123456, "[Crash][Linux] Baz: New Title")
+
+        self.assertTrue(success)
+        mock_urlopen.assert_called_once()
+        req = mock_urlopen.call_args[0][0]
+        self.assertIn("123456:modify", req.full_url)
+        payload = json.loads(req.data.decode("utf-8"))
+        self.assertEqual(payload["issueState"]["title"], "[Crash][Linux] Baz: New Title")
 
     @patch("buganizer.time.sleep", return_value=None)
     @patch("buganizer.urllib.request.urlopen")

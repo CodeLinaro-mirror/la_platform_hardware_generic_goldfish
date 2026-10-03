@@ -48,6 +48,131 @@ class BuganizerAuthError(BuganizerError):
     """Exception raised for HTTP 401 Unauthorized errors."""
 
 
+_GENERIC_ABORT_SIGNATURES = re.compile(
+    r"(?:FailWithoutStackTrace|LogMessage::Flush|\babort\b|__pthread_kill|\braise\b|__assert_fail|_wassert|std::terminate|std::__1::__throw|LogMessage::~LogMessage)",
+    re.IGNORECASE,
+)
+
+
+def strip_trailing_call_params(symbol: str) -> str:
+    """Strips trailing function call parameters from the end of a symbol while preserving templates and operator()."""
+    s = symbol.strip()
+    if not s.endswith(")"):
+        return s
+    depth = 0
+    for i in range(len(s) - 1, -1, -1):
+        if s[i] == ")":
+            depth += 1
+        elif s[i] == "(":
+            depth -= 1
+            if depth == 0:
+                if i >= 8 and s[i - 8 : i] == "operator":
+                    return s
+                prefix = s[:i].strip()
+                return prefix if prefix else s
+    return s
+
+
+def split_top_level_namespaces(symbol: str) -> List[str]:
+    """Splits a C++ symbol on '::' only outside template angle brackets <...>."""
+    parts: List[str] = []
+    current: List[str] = []
+    depth = 0
+    i = 0
+    n = len(symbol)
+    while i < n:
+        c = symbol[i]
+        if c == "<":
+            depth += 1
+            current.append(c)
+            i += 1
+        elif c == ">":
+            if depth > 0:
+                depth -= 1
+            current.append(c)
+            i += 1
+        elif depth == 0 and symbol[i : i + 2] == "::":
+            part = "".join(current).strip()
+            if part and part != "(anonymous namespace)":
+                parts.append(part)
+            current = []
+            i += 2
+        else:
+            current.append(c)
+            i += 1
+    last_part = "".join(current).strip()
+    if last_part and last_part != "(anonymous namespace)":
+        parts.append(last_part)
+    return parts
+
+
+def derive_crash_title(
+    stable_signature: str,
+    description: str = "",
+    title: Optional[str] = None,
+) -> str:
+    """Derives an informative Buganizer issue title for a crash.
+
+    1. If explicit `title` is passed, formats and returns it.
+    2. Otherwise, scans `description` for '# Title: ...', '# Issue Title: ...',
+       frontmatter 'title: ...', or a leading '# [Crash] ...' line.
+    3. If `stable_signature` is a generic abort frame (e.g. FailWithoutStackTrace,
+       abort, __pthread_kill), attempts to extract the first domain frame from
+       stack frames present in `description`.
+    4. Defaults to `f"[Crash] {stable_signature}"`.
+    """
+    if title and title.strip():
+        t = title.strip()
+        if not t.startswith("[Crash]"):
+            t = f"[Crash] {t}"
+        return t[:250]
+
+    if description:
+        m = re.search(
+            r"^#\s*(?:Title|Issue Title):\s*(?:\"([^\n\"]+)\"|'([^\n']+)'|([^\n]+))$",
+            description,
+            re.MULTILINE | re.IGNORECASE,
+        )
+        if not m:
+            m = re.search(
+                r"^title:\s*(?:\"([^\n\"]+)\"|'([^\n']+)'|([^\n\r]+))",
+                description,
+                re.MULTILINE | re.IGNORECASE,
+            )
+        if not m:
+            m = re.search(r"^#\s*(\[Crash\][^\n]+)$", description, re.MULTILINE)
+        if m:
+            t = (m.group(1) or m.group(2) or m.group(3) or "").strip()
+            if t:
+                if not t.startswith("[Crash]"):
+                    t = f"[Crash] {t}"
+                return t[:250]
+
+    # If stable_signature is generic boilerplate, try finding the first domain frame in the description
+    if _GENERIC_ABORT_SIGNATURES.search(stable_signature) and description:
+        frame_matches = re.findall(
+            r"#(?:[0-9]+):\s+([^\n\r]+)",
+            description,
+        )
+        for raw_frame in frame_matches:
+            frame_line = re.sub(r"\s*\[[^\]]+\]\s*$", "", raw_frame.strip())
+            # Explicitly ignore raw hexadecimal memory addresses (e.g. #1: 0x7f83a12b4000)
+            if frame_line.lower().startswith("0x") or not re.search(r"[a-zA-Z_]", frame_line):
+                continue
+            if not _GENERIC_ABORT_SIGNATURES.search(frame_line) and not frame_line.startswith(
+                ("std::", "absl::", "__")
+            ):
+                short_symbol = strip_trailing_call_params(frame_line)
+                parts = split_top_level_namespaces(short_symbol)
+                if len(parts) >= 2:
+                    short_symbol = "::".join(parts[-2:])
+                elif parts:
+                    short_symbol = parts[0]
+                return f"[Crash] {short_symbol} ({stable_signature})"[:250]
+
+    return f"[Crash] {stable_signature}"[:250]
+
+
 class BuganizerClient:
     """Cross-platform client for managing Buganizer issues."""
 
@@ -288,39 +413,110 @@ class BuganizerClient:
 
         return self._execute_with_retry(_search)
 
-    def get_issue_status(self, issue_id: int) -> str:
-        """Fetch the current status of an issue."""
+    def get_issue(self, issue_id: int) -> Dict[str, Any]:
+        """Fetch issue details by issue ID."""
 
-        def _get_status() -> str:
+        def _get() -> Dict[str, Any]:
             if self.cli_binary and not self.token:
                 if self._is_issues_cli():
+                    cmd = [
+                        self.cli_binary,
+                        "readonly",
+                        "search",
+                        f"--query=id:{issue_id}",
+                        "--verbose",
+                    ]
+                    res = subprocess.run(
+                        cmd, capture_output=True, text=True, check=True
+                    )
+                    parsed = self._parse_issues_cli_output(res.stdout)
+                    if parsed:
+                        return parsed[0]
                     cmd = [
                         self.cli_binary,
                         "readonly",
                         "get-issue-metadata",
                         str(issue_id),
                     ]
-                    res = subprocess.run(cmd, capture_output=True, text=True, check=True)
+                    res = subprocess.run(
+                        cmd, capture_output=True, text=True, check=True
+                    )
                     parsed = self._parse_issues_cli_output(res.stdout)
-                    data = parsed[0] if parsed else {}
+                    return parsed[0] if parsed else {}
                 else:
                     cmd = [self.cli_binary, "view", str(issue_id), "--format=json"]
                     if self.qa_mode:
                         cmd.append("--api=blade:corp-issuetracker-test-api")
-                    res = subprocess.run(cmd, capture_output=True, text=True, check=True)
-                    data = json.loads(res.stdout) if res.stdout.strip() else {}
-                return data.get("issueState", {}).get("status") or data.get("status", "UNKNOWN")
+                    res = subprocess.run(
+                        cmd, capture_output=True, text=True, check=True
+                    )
+                    return json.loads(res.stdout) if res.stdout.strip() else {}
             else:
                 url = f"{self.base_url}/{issue_id}"
-                data = self._call_rest_api(url, method="GET")
-                return data.get("issueState", {}).get("status") or data.get("status", "UNKNOWN")
+                return self._call_rest_api(url, method="GET")
 
-        return self._execute_with_retry(_get_status)
+        return self._execute_with_retry(_get)
 
-    def create_issue(self, stable_signature: str, description: str) -> int:
+    def get_issue_status(self, issue_id: int) -> str:
+        """Fetch the current status of an issue."""
+        data = self.get_issue(issue_id)
+        return (data.get("issueState") or {}).get("status") or data.get("status", "UNKNOWN")
+
+    def get_issue_title(self, issue_id: int) -> str:
+        """Fetch the current title of an issue."""
+        data = self.get_issue(issue_id)
+        return (data.get("issueState") or {}).get("title") or data.get("title", "")
+
+    def update_issue_title(self, issue_id: int, new_title: str) -> bool:
+        """Update the title of an existing Buganizer issue."""
+
+        def _update() -> bool:
+            if self.cli_binary and not self.token:
+                if self._is_issues_cli():
+                    cmd = [
+                        self.cli_binary,
+                        "mutate",
+                        "update",
+                        "title",
+                        f"--issue_id={issue_id}",
+                        f"--title={new_title}",
+                    ]
+                    subprocess.run(
+                        cmd, capture_output=True, text=True, check=True
+                    )
+                    return True
+                cmd = [
+                    self.cli_binary,
+                    "modify",
+                    str(issue_id),
+                    f"--title={new_title}",
+                    "--format=json",
+                ]
+                if self.qa_mode:
+                    cmd.append("--api=blade:corp-issuetracker-test-api")
+                subprocess.run(
+                    cmd, capture_output=True, text=True, check=True
+                )
+                return True
+            else:
+                url = f"{self.base_url}/{issue_id}:modify"
+                payload = {
+                    "issueState": {"title": new_title},
+                }
+                self._call_rest_api(url, method="POST", payload=payload)
+                return True
+
+        return self._execute_with_retry(_update)
+
+    def create_issue(
+        self,
+        stable_signature: str,
+        description: str,
+        title: Optional[str] = None,
+    ) -> int:
         """Create a new Buganizer issue in the target component."""
         clean_desc = self._truncate_payload(description)
-        title = f"[Crash] {stable_signature}"
+        resolved_title = derive_crash_title(stable_signature, clean_desc, title=title)
 
         def _create() -> int:
             if self.cli_binary and not self.token:
@@ -336,7 +532,7 @@ class BuganizerClient:
                             "mutate",
                             "create",
                             f"--component_id={self.component_id}",
-                            f"--title={title}",
+                            f"--title={resolved_title}",
                             f"--description_file={tf_path}",
                             "--priority=P2",
                             "--severity=S2",
@@ -356,7 +552,7 @@ class BuganizerClient:
                 cmd = [
                     self.cli_binary,
                     "new",
-                    f"--title={title}",
+                    f"--title={resolved_title}",
                     f"--description={clean_desc}",
                     f"--component={self.component_id}",
                     "--status=ASSIGNED",
@@ -371,7 +567,7 @@ class BuganizerClient:
             else:
                 payload = {
                     "issueState": {
-                        "title": title,
+                        "title": resolved_title,
                         "componentId": self.component_id,
                         "status": "ASSIGNED",
                     },
