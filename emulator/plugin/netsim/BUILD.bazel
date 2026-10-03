@@ -22,16 +22,9 @@ cc_library(
 
 cc_library(
     name = "netsim_transport",
-    srcs = ["netsim_transport.cc"],
-    hdrs = ["netsim_transport.h"],
+    visibility = ["//visibility:public"],
     deps = [
-        ":netsim_connection",
-        "//emulator/libs/grpc_client",
-        "//emulator/plugin/avd:avd_info",
-        "//emulator/tools:aemu_version",
-        "@abseil-cpp//absl/log",
-        "@grpc//:grpc++",
-        "@netsim//:netsimd_cc_grpc",
+        "//emulator/plugin/netsim/grpc_transport",
     ],
 )
 
@@ -42,8 +35,8 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
-        ":netsim_transport",
         "//emulator/libs/network:generic_netlink_message",
+        "//emulator/plugin/netsim/grpc_transport",
         "@abseil-cpp//absl/log",
         "@qemu//:qemu-headers-exported",
     ],
@@ -60,10 +53,10 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
-        ":netsim_transport",
         "//emulator/libs/QEMUBH",
         "//emulator/libs/file",
         "//emulator/plugin/avd:avd_info",
+        "//emulator/plugin/netsim/grpc_transport",
         "@abseil-cpp//absl/log",
         "@qemu//:qemu-headers-exported",
     ],

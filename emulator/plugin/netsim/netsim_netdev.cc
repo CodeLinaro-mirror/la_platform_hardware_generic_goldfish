@@ -44,8 +44,8 @@ size_t iov_to_buf_full(const struct iovec* iov, const unsigned int iov_cnt, size
 
 #undef send
 
+#include "emulator/plugin/netsim/grpc_transport/grpc_transport.h"
 #include "goldfish/network/generic_netlink_message.h"
-#include "netsim_transport.h"
 
 #define __packed
 typedef int8_t s8;

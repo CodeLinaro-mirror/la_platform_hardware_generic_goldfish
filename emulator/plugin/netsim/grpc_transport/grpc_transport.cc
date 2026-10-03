@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "netsim_transport.h"
+#include "grpc_transport.h"
 
 #include <grpcpp/grpcpp.h>
 #include <grpcpp/support/status.h>
@@ -27,11 +27,11 @@
 
 #include "android/emulation/control/emulator_grpc_client.h"
 #include "android/status/status_macros.h"
+#include "emulator/plugin/netsim/netsim_connection_internal.h"
 #include "goldfish/avd/avd_info.h"
 #include "goldfish/tools/aemu_version.h"
 #include "netsim/packet_streamer.grpc.pb.h"
 #include "netsim/packet_streamer.pb.h"
-#include "netsim_connection_internal.h"
 
 namespace goldfish::netsim {
 

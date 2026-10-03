@@ -37,11 +37,11 @@ extern "C" {
 
 #undef send
 #include "android/emulation/control/enum_translate.h"
+#include "emulator/plugin/netsim/grpc_transport/grpc_transport.h"
 #include "goldfish/avd/avd_info.h"
 #include "goldfish/file/file.h"
 #include "goldfish/qemu/qemubh.h"
 #include "h4_parser.h"
-#include "netsim_transport.h"
 
 namespace goldfish::netsim {
 
