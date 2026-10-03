@@ -37,7 +37,6 @@
 
 namespace android::base {
 
-using Path = FileSystemWatcher::Path;
 using FileSystemWatcherCallback = FileSystemWatcher::FileSystemWatcherCallback;
 using WatcherChangeType = FileSystemWatcher::WatcherChangeType;
 
@@ -56,7 +55,8 @@ class ReadDirectoryChangesWin32 : public FileSystemWatcher {
         kStopping   ///< Stop() was called, thread is signaled to exit.
     };
 
-    ReadDirectoryChangesWin32(Path path, FileSystemWatcherCallback on_change_callback)
+    ReadDirectoryChangesWin32(std::filesystem::path path,
+                              FileSystemWatcherCallback on_change_callback)
             : FileSystemWatcher(std::move(on_change_callback)), path_(std::move(path)) {}
 
     ~ReadDirectoryChangesWin32() override { Stop(); }
@@ -179,7 +179,7 @@ class ReadDirectoryChangesWin32 : public FileSystemWatcher {
                     reinterpret_cast<FILE_NOTIFY_INFORMATION*>(buffer + offset);
 
             // FILE_NOTIFY_INFORMATION always uses WCHAR for FileName.
-            const Path changed =
+            const std::filesystem::path changed =
                     path_ / Win32UnicodeString::convertToUtf8(
                                     info->FileName, info->FileNameLength / sizeof(wchar_t));
 
@@ -217,7 +217,7 @@ class ReadDirectoryChangesWin32 : public FileSystemWatcher {
         state_ = State::kIdle;
     }
 
-    const Path path_;
+    const std::filesystem::path path_;
     absl::Mutex mu_;
     State state_ ABSL_GUARDED_BY(mu_) = State::kIdle;
     ScopedFileHandle dir_handle_ ABSL_GUARDED_BY(mu_);
@@ -225,7 +225,7 @@ class ReadDirectoryChangesWin32 : public FileSystemWatcher {
 };
 
 std::unique_ptr<FileSystemWatcher> FileSystemWatcher::GetFileSystemWatcher(
-        const Path& path, const FileSystemWatcherCallback& on_change_callback) {
+        const std::filesystem::path& path, const FileSystemWatcherCallback& on_change_callback) {
     if (!base::file::is_dir(path)) {
         return nullptr;
     }

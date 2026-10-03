@@ -48,7 +48,7 @@ namespace android::base {
  */
 class FileSystemWatcherPosix : public FileSystemWatcher {
   public:
-    FileSystemWatcherPosix(Path path, FileSystemWatcherCallback on_change_callback)
+    FileSystemWatcherPosix(std::filesystem::path path, FileSystemWatcherCallback on_change_callback)
             : FileSystemWatcher(std::move(on_change_callback)), path_(std::move(path)) {}
 
     ~FileSystemWatcherPosix() override { Stop(); }
@@ -135,7 +135,7 @@ class FileSystemWatcherPosix : public FileSystemWatcher {
                 auto* event = reinterpret_cast<struct inotify_event*>(&buffer[i]);
                 DD("i: %zd, event->len: %d", i, event->len);
                 if (event->len) {
-                    const Path changed = path_ / event->name;
+                    const std::filesystem::path changed = path_ / event->name;
                     DD("Changed: %s", changed.c_str());
                     if (event->mask & IN_CREATE) {
                         change_callback(WatcherChangeType::kCreated, changed);
@@ -162,7 +162,7 @@ class FileSystemWatcherPosix : public FileSystemWatcher {
         return true;
     }
 
-    Path path_;
+    std::filesystem::path path_;
     std::atomic_bool running_{false};
     std::thread watcher_thread_;
     absl::Notification started_;
@@ -171,7 +171,7 @@ class FileSystemWatcherPosix : public FileSystemWatcher {
 };
 
 std::unique_ptr<FileSystemWatcher> FileSystemWatcher::GetFileSystemWatcher(
-        const Path& path, const FileSystemWatcherCallback& on_change_callback) {
+        const std::filesystem::path& path, const FileSystemWatcherCallback& on_change_callback) {
     if (!base::file::is_dir(path)) {
         return nullptr;
     }

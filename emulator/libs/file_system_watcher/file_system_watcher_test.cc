@@ -71,7 +71,7 @@ class TestEventHandler {
     TestEventHandler(fs::path expected_path) : mExpectedPath(std::move(expected_path)) {}
 
     void operator()(FileSystemWatcher::WatcherChangeType type,
-                    const FileSystemWatcher::Path& path) {
+                    const std::filesystem::path& path) {
         absl::MutexLock lock(mMutex);
         mResults.push_back({type, path.string()});
     }

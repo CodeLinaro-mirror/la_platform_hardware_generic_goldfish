@@ -4,7 +4,7 @@ load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 # It's an older code sir but it checks out
 cc_library(
     name = "file_system_watcher",
-    srcs = ["file_system_watcher.cc"] + select({
+    srcs = select({
         "@platforms//os:windows": ["file_system_watcher_windows.cc"],
         "@platforms//os:macos": ["file_system_watcher_darwin.cc"],
         "@platforms//os:linux": ["file_system_watcher_posix.cc"],

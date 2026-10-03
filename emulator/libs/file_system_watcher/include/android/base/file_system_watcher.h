@@ -38,9 +38,6 @@ namespace android::base {
  */
 class FileSystemWatcher {
   public:
-    // On one day we will have std::filesystem everywhere..
-    using Path = std::filesystem::path;
-
     /**
      * @brief Defines the type of file system change that occurred.
      */
@@ -53,7 +50,8 @@ class FileSystemWatcher {
     };
 
     // Change type, and file that was created, deleted or changed.
-    using FileSystemWatcherCallback = std::function<void(WatcherChangeType, const Path&)>;
+    using FileSystemWatcherCallback =
+            std::function<void(WatcherChangeType, const std::filesystem::path&)>;
 
     explicit FileSystemWatcher(FileSystemWatcherCallback callback)
             : change_callback(std::move(callback)) {}
@@ -80,7 +78,7 @@ class FileSystemWatcher {
      *         given path is not a directory.
      */
     static std::unique_ptr<FileSystemWatcher> GetFileSystemWatcher(
-            const Path& path, const FileSystemWatcherCallback& on_change_callback);
+            const std::filesystem::path& path, const FileSystemWatcherCallback& on_change_callback);
 
     FileSystemWatcherCallback change_callback;
 };
