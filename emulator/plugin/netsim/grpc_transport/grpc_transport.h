@@ -16,37 +16,37 @@
 
 #include <grpcpp/grpcpp.h>
 
+#include <memory>
+#include <mutex>
 #include <queue>
+#include <string>
+#include <vector>
 
+#include "absl/status/status.h"
 #include "absl/synchronization/notification.h"
 
+#include "emulator/plugin/netsim/packet_transport.h"
 #include "netsim/packet_streamer.grpc.pb.h"
 #include "netsim/packet_streamer.pb.h"
 
 namespace goldfish::netsim {
 
-// Convert a protobuf bytes field into std::unique_ptr<vec<uint8_t>>.
-//
-// Release ownership of the bytes field and convert it to a vector using
-// move iterators. No copy when called with a mutable reference.
-std::unique_ptr<std::vector<uint8_t>> ToUniqueVec(std::string* bytes_field);
-
-class NetsimTransport : public grpc::ClientBidiReactor<::netsim::packet::PacketRequest,
+class NetsimTransport : public PacketTransport,
+                        public grpc::ClientBidiReactor<::netsim::packet::PacketRequest,
                                                        ::netsim::packet::PacketResponse> {
   public:
-    using RecvCallback = std::function<bool(::netsim::packet::PacketResponse* packet)>;
-
-    NetsimTransport(RecvCallback recv_cb);
+    explicit NetsimTransport(PacketTransport::RecvCallback recv_cb);
     ~NetsimTransport() override;
 
-    absl::Status initialize(::netsim::startup::Chip chip);
+    absl::Status initialize(const ChipConfig& chip) override;
 
-    void send(::netsim::packet::PacketRequest msg);
+    void send(Packet packet) override;
 
-    void next_recv();
+    void next_recv() override;
 
   private:
     void cancel();
+    void send_proto(::netsim::packet::PacketRequest msg);
     void OnDone(const grpc::Status& s) override;
 
     void OnReadDone(bool ok) override;
@@ -54,9 +54,10 @@ class NetsimTransport : public grpc::ClientBidiReactor<::netsim::packet::PacketR
     void OnWriteDone(bool ok) override;
     void NextWrite_locked();
 
-    RecvCallback mRecvCb;
+    PacketTransport::RecvCallback mRecvCb;
 
     std::string mKindName;
+    ChipKind mKind{ChipKind::kBluetooth};
 
     std::unique_ptr<::netsim::packet::PacketStreamer::Stub> mPacketStreamerStub;
 
