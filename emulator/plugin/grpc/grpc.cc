@@ -49,9 +49,8 @@
 #include "emulator/plugin/webrtc/webrtc_device.h"
 #include "goldfish/async/event_loop.h"
 #include "goldfish/async/qemu_event_loop.h"
-#include "goldfish/async/testing/global_event_loop.h"
-#include "goldfish/avd_info/avd_info.h"
-#include "goldfish/avd_info/avd_private.h"
+#include "goldfish/avd/avd_info.h"
+#include "goldfish/avd/global_event_loop.h"
 #include "goldfish/discovery/emulator_advertisement.h"
 #include "goldfish/display/abstract_multi_display.h"
 #include "goldfish/file/file.h"
@@ -128,7 +127,7 @@ static_assert(std::is_standard_layout_v<GrpcDev>);
 #define TYPE_GRPC "grpc"
 #define GRPC_DEV(obj) OBJECT_CHECK(GrpcDev, (obj), TYPE_GRPC)
 
-std::vector<std::shared_ptr<::grpc::Service>> CreateServices(avd_info::AvdUniverse& avd_universe,
+std::vector<std::shared_ptr<::grpc::Service>> CreateServices(avd::AvdUniverse& avd_universe,
                                                              int modem_simulator_port) {
     std::vector<std::shared_ptr<::grpc::Service>> services;
 
@@ -184,7 +183,7 @@ CreateInterceptors(bool enable_logging, int idle_timeout) {
             std::make_unique<android::control::interceptor::BreadcrumbInterceptorFactory>());
     creators.emplace_back(
             std::make_unique<android::control::interceptor::MetricsInterceptorFactory>(
-                    ::goldfish::avd_info::GetAvd().GetMetricsReporter()));
+                    ::goldfish::avd::GetAvd().GetMetricsReporter()));
     creators.emplace_back(
             std::make_unique<android::control::interceptor::PerfettoInterceptorFactory>());
 
@@ -192,7 +191,7 @@ CreateInterceptors(bool enable_logging, int idle_timeout) {
         LOG(INFO) << "Terminating emulator if no activity after " << idle_timeout << " seconds.";
         creators.emplace_back(
                 std::make_unique<android::control::interceptor::IdleInterceptorFactory>(
-                        std::chrono::seconds(idle_timeout), goldfish::async::globalEventLoop()));
+                        std::chrono::seconds(idle_timeout), goldfish::avd::globalEventLoop()));
     }
     return creators;
 }
@@ -349,7 +348,7 @@ std::shared_ptr<::grpc::ServerCredentials> CreateCredentials(const CredConf& cre
     return creds;
 }
 
-EmulatorProperties CreateProps(const GrpcConfig* config, const avd_info::AvdUniverse& avd_universe,
+EmulatorProperties CreateProps(const GrpcConfig* config, const avd::AvdUniverse& avd_universe,
                                const CredConf& cred_conf) {
     const auto& avdprops = avd_universe.Props();
     EmulatorProperties props{
@@ -481,7 +480,7 @@ void grpc_realize(DeviceState* dev, Error** errp) {
 
     auto credentials = CreateCredentials(*cred_conf, is_local_address);
 
-    avd_info::AvdUniverse& avd_universe = goldfish::avd_info::GetAvd();
+    avd::AvdUniverse& avd_universe = goldfish::avd::GetAvd();
     config->grpc_services = CreateServices(avd_universe, config->modem_simulator_port);
     auto interceptors = CreateInterceptors(config->enable_logging, config->idle_timeout);
 

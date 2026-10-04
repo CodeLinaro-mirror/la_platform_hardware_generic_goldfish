@@ -28,7 +28,7 @@ extern "C" {
 typedef struct AudioBackend AudioBackend;
 }
 
-namespace goldfish::avd_info {
+namespace goldfish::avd {
 struct AvdUniverse;
 }
 
@@ -42,7 +42,7 @@ class PhysicalModel;
 
 namespace android::emulation::control {
 
-using ::goldfish::avd_info::AvdUniverse;
+using ::goldfish::avd::AvdUniverse;
 using ::goldfish::display::IMultiDisplay;
 using ::goldfish::videobridge::DataChannelLabel;
 using ::goldfish::videobridge::InputSender;

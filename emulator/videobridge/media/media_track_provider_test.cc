@@ -28,7 +28,7 @@
 #include "p2p/client/basic_port_allocator.h"
 #pragma clang diagnostic pop
 
-#include "goldfish/async/testing/global_event_loop.h"
+#include "goldfish/avd/global_event_loop.h"
 #include "goldfish/display/display.h"
 #include "goldfish/display/test/fake_multi_display.h"
 #include "goldfish/videobridge/in_process_audio_source.h"
@@ -80,7 +80,7 @@ class MediaTrackProviderTest : public ::testing::Test {
 };
 
 TEST_F(MediaTrackProviderTest, NullFactoryOrPeerConnectionReturnsInvalidArgument) {
-    goldfish::display::test::FakeMultiDisplay fake_multidisplay(goldfish::async::globalEventLoop());
+    goldfish::display::test::FakeMultiDisplay fake_multidisplay(goldfish::avd::globalEventLoop());
     auto video_source = ::webrtc::make_ref_counted<InProcessVideoSource>(fake_multidisplay, 0);
     MediaTrackProvider provider(video_source);
 
@@ -103,7 +103,7 @@ TEST_F(MediaTrackProviderTest, NeitherVideoNorAudioConfiguredReturnsFailedPrecon
 }
 
 TEST_F(MediaTrackProviderTest, GettersReturnConfiguredSources) {
-    goldfish::display::test::FakeMultiDisplay fake_multidisplay(goldfish::async::globalEventLoop());
+    goldfish::display::test::FakeMultiDisplay fake_multidisplay(goldfish::avd::globalEventLoop());
     auto video_source = ::webrtc::make_ref_counted<InProcessVideoSource>(fake_multidisplay, 0);
     auto audio_source = ::webrtc::make_ref_counted<InProcessAudioSource>(48000, 2);
     MediaTrackProvider provider(video_source, audio_source);
@@ -113,7 +113,7 @@ TEST_F(MediaTrackProviderTest, GettersReturnConfiguredSources) {
 }
 
 TEST_F(MediaTrackProviderTest, AttachesBothVideoAndAudioTracks) {
-    goldfish::display::test::FakeMultiDisplay fake_multidisplay(goldfish::async::globalEventLoop());
+    goldfish::display::test::FakeMultiDisplay fake_multidisplay(goldfish::avd::globalEventLoop());
     auto video_source = ::webrtc::make_ref_counted<InProcessVideoSource>(fake_multidisplay, 0);
     auto audio_source = ::webrtc::make_ref_counted<InProcessAudioSource>(48000, 2);
     MediaTrackProvider provider(video_source, audio_source);
@@ -129,7 +129,7 @@ TEST_F(MediaTrackProviderTest, AttachesBothVideoAndAudioTracks) {
 }
 
 TEST_F(MediaTrackProviderTest, AttachesVideoOnlyTrack) {
-    goldfish::display::test::FakeMultiDisplay fake_multidisplay(goldfish::async::globalEventLoop());
+    goldfish::display::test::FakeMultiDisplay fake_multidisplay(goldfish::avd::globalEventLoop());
     auto video_source = ::webrtc::make_ref_counted<InProcessVideoSource>(fake_multidisplay, 0);
     MediaTrackProvider provider(video_source, nullptr);
 
@@ -156,7 +156,7 @@ TEST_F(MediaTrackProviderTest, AttachesAudioOnlyTrack) {
 }
 
 TEST_F(MediaTrackProviderTest, CustomTrackAndStreamIdentifiers) {
-    goldfish::display::test::FakeMultiDisplay fake_multidisplay(goldfish::async::globalEventLoop());
+    goldfish::display::test::FakeMultiDisplay fake_multidisplay(goldfish::avd::globalEventLoop());
     auto video_source = ::webrtc::make_ref_counted<InProcessVideoSource>(fake_multidisplay, 1);
     auto audio_source = ::webrtc::make_ref_counted<InProcessAudioSource>(48000, 2);
     MediaTrackProvider provider(video_source, audio_source, "custom_vtrack", "custom_vstream",
@@ -193,7 +193,7 @@ TEST_F(MediaTrackProviderTest, CustomTrackAndStreamIdentifiers) {
 }
 
 TEST(MediaTrackProviderSwitchboardTest, ConnectAndDisconnectParticipantEndToEnd) {
-    goldfish::display::test::FakeMultiDisplay fake_multidisplay(goldfish::async::globalEventLoop());
+    goldfish::display::test::FakeMultiDisplay fake_multidisplay(goldfish::avd::globalEventLoop());
     auto video_source = ::webrtc::make_ref_counted<InProcessVideoSource>(fake_multidisplay, 0);
     auto audio_source = ::webrtc::make_ref_counted<InProcessAudioSource>(48000, 2);
     auto provider = std::make_shared<MediaTrackProvider>(video_source, audio_source);

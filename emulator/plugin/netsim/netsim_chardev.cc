@@ -37,7 +37,7 @@ extern "C" {
 
 #undef send
 #include "android/emulation/control/enum_translate.h"
-#include "goldfish/avd_info/avd_info.h"
+#include "goldfish/avd/avd_info.h"
 #include "goldfish/file/file.h"
 #include "goldfish/qemu/qemubh.h"
 #include "h4_parser.h"
@@ -383,7 +383,7 @@ class CellularProtocol : public Protocol {
         ::netsim::startup::Chip chip;
         chip.set_kind(::netsim::common::ChipKind::CELLULAR);
 
-        auto& props = goldfish::avd_info::GetAvd().Props();
+        auto& props = goldfish::avd::GetAvd().Props();
         if (!props.icc_profile.empty()) {
             auto content_or = android::base::file::read_whole_file(props.icc_profile, false);
             if (content_or.ok()) {

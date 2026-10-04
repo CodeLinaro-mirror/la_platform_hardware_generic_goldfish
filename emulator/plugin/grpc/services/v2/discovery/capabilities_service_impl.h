@@ -21,7 +21,7 @@
 #include <grpcpp/grpcpp.h>
 
 #include "capabilities_service.grpc.pb.h"
-#include "goldfish/avd_info/avd_info.h"
+#include "goldfish/avd/avd_universe.h"
 
 #ifdef DeviceCapabilities
 #undef DeviceCapabilities
@@ -38,7 +38,7 @@ namespace goldfish::grpc::v2 {
 class CapabilitiesServiceImpl final
         : public ::android::emulation::v2::CapabilitiesService::Service {
   public:
-    explicit CapabilitiesServiceImpl(const ::goldfish::avd_info::AvdUniverse& avd_universe);
+    explicit CapabilitiesServiceImpl(const ::goldfish::avd::AvdUniverse& avd_universe);
 
     ::grpc::Status GetDeviceCapabilities(
             ::grpc::ServerContext* context,
@@ -46,7 +46,7 @@ class CapabilitiesServiceImpl final
             ::android::emulation::v2::DeviceCapabilities* reply) override;
 
   private:
-    const ::goldfish::avd_info::AvdUniverse& avd_universe_;
+    const ::goldfish::avd::AvdUniverse& avd_universe_;
 };
 
 }  // namespace goldfish::grpc::v2

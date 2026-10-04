@@ -34,7 +34,8 @@
 #include "emulator_controller.grpc.pb.h"
 #include "goldfish/async/libuv_event_loop.h"
 #include "goldfish/async/threaded_event_loop.h"
-#include "goldfish/avd_info/avd_info.h"
+#include "goldfish/avd/avd_info.h"
+#include "goldfish/avd/fake_avd_universe.h"
 #include "goldfish/display/test/fake_multi_display.h"
 #include "goldfish/display/test/fake_pixman_display.h"
 #include "goldfish/memory/shared_memory.h"
@@ -61,6 +62,8 @@ const std::vector<ResizableDisplayConfig> kNoResizableConfigs;
 
 class DisplayServiceTest : public GrcpServiceTest {
   protected:
+    ::goldfish::avd::FakeAvdUniverse fake_avd_;
+
     void SetUp() override {
         mHw = android::goldfish::FakeHardwareConfig::GetHwConfig();
         mPhysicalModel = std::make_unique<PhysicalModel>(mHw);
@@ -910,7 +913,7 @@ TEST_F(DisplayServiceTest, FiresInitialPostureOnConstruction) {
     bool received_posture = false;
     Posture::PostureValue received_value = Posture::POSTURE_UNKNOWN;
 
-    auto callback_id = ::goldfish::avd_info::GetAvd().GetGrpcNotificationChannel().AddCallback(
+    auto callback_id = ::goldfish::avd::GetAvd().GetGrpcNotificationChannel().AddCallback(
             [&](const ::android::emulation::control::Notification& notification) {
                 if (notification.has_posture()) {
                     received_posture = true;
@@ -925,7 +928,7 @@ TEST_F(DisplayServiceTest, FiresInitialPostureOnConstruction) {
     EXPECT_EQ(received_value,
               DisplayServiceImpl::ToProtoPosture(mPhysicalModel->GetFoldablePosture()));
 
-    ::goldfish::avd_info::GetAvd().GetGrpcNotificationChannel().RemoveCallback(callback_id);
+    ::goldfish::avd::GetAvd().GetGrpcNotificationChannel().RemoveCallback(callback_id);
 }
 
 TEST(DisplayServiceTest_ToProtoPosture, ConvertsPostures) {

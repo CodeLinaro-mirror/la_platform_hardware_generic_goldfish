@@ -13,7 +13,7 @@ cc_library(
     deps = [
         "//emulator/plugin/adb-vsock/host",
         "//emulator/plugin/adb-vsock/logger",
-        "//emulator/plugin/avd:impl",
+        "//emulator/plugin/avd:avd_info",
         "//emulator/plugin/vsock_goldfish:goldfish_vsock_hdrs",
     ],
 )

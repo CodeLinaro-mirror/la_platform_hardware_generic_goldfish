@@ -11,16 +11,15 @@
 
 #pragma once
 
-#include <filesystem>
+#include <memory>
 #include <string>
 #include <string_view>
 
-#include "absl/log/check.h"
+#include "absl/base/thread_annotations.h"
 #include "absl/synchronization/mutex.h"
 
-#include "android/goldfish/device_type.h"
-#include "android/goldfish/hardware_config.h"
 #include "goldfish/async/event_loop.h"
+#include "goldfish/avd/avd_properties.h"
 #include "goldfish/avd_universe/battery/battery_state.h"
 #include "goldfish/avd_universe/clipboard/clipboard_data.h"
 #include "goldfish/avd_universe/fingerprint/fingerprint_sensor.h"
@@ -28,45 +27,12 @@
 #include "goldfish/avd_universe/grpc/grpc_notification_channel.h"
 #include "goldfish/avd_universe/guest_status/guest_status.h"
 #include "goldfish/avd_universe/vehicle/vehicle_data.h"
-#include "goldfish/metrics/configure_metrics_writer.h"
-#include "goldfish/metrics/uuid.h"
+#include "goldfish/devices/multidisplay/multidisplay_device.h"
+#include "goldfish/display/abstract_multi_display.h"
 #include "goldfish/sensors/physical_model.h"
 #include "goldfish/snapshottable/snapshottable.h"
 
-namespace goldfish::display {
-class IMultiDisplay;
-}
-
-namespace goldfish::devices::multidisplay {
-class MultiDisplayDevice;
-}
-
-namespace goldfish::avd_info {
-
-struct AvdProperties {
-    int32_t serial_number{0};
-    int32_t adb_port{0};
-    std::string avd_name;
-    std::string avd_id;
-    std::string avd_abi;
-    int32_t avd_api{0};
-    std::string avd_api_str;
-    android::goldfish::DeviceType avd_type{android::goldfish::DeviceType::kUnknown};
-    std::filesystem::path avd_content_path;
-    std::string build_sdk;
-    std::string build_id;
-    std::string build_flavor;
-    std::string build_fingerprint;
-    std::string snapshot_name;
-    bool snapshot_update_time{true};
-    int32_t quit_after_boot_timeout_seconds{0};
-    ::goldfish::metrics::Uuid metrics_session_id{::goldfish::metrics::Uuid::Zero()};
-    ::goldfish::metrics::MetricsWriterConfig metrics_writer_config;
-    std::filesystem::path dump_perf_stat_path;
-    std::filesystem::path icc_profile;
-
-    android::goldfish::HardwareConfig hw_config;
-};
+namespace goldfish::avd {
 
 /**
  * @brief This struct represents the whole AVD state.
@@ -102,18 +68,13 @@ struct AvdUniverse : public snapshottable::Snapshottable {
     virtual metrics::MetricsReporter& GetMetricsReporter() = 0;
 
     void SetActiveMultiDisplayDevice(
-            std::shared_ptr<devices::multidisplay::MultiDisplayDevice> device);
-    std::shared_ptr<devices::multidisplay::MultiDisplayDevice> GetActiveMultiDisplayDevice();
+            std::shared_ptr<devices::multidisplay::MultiDisplayDevice> device)
+            ABSL_LOCKS_EXCLUDED(device_mutex_);
+    std::shared_ptr<devices::multidisplay::MultiDisplayDevice> GetActiveMultiDisplayDevice()
+            ABSL_LOCKS_EXCLUDED(device_mutex_);
 
-    void SetNetsimEndpoint(std::string_view endpoint) ABSL_LOCKS_EXCLUDED(device_mutex_) {
-        absl::MutexLock lock(&device_mutex_);
-        netsim_endpoint_ = endpoint;
-    }
-
-    std::string GetNetsimEndpoint() const ABSL_LOCKS_EXCLUDED(device_mutex_) {
-        absl::MutexLock lock(&device_mutex_);
-        return netsim_endpoint_;
-    }
+    void SetNetsimEndpoint(std::string_view endpoint) ABSL_LOCKS_EXCLUDED(device_mutex_);
+    std::string GetNetsimEndpoint() const ABSL_LOCKS_EXCLUDED(device_mutex_);
 
     virtual display::IMultiDisplay& GetMultiDisplay() const = 0;
 
@@ -141,16 +102,4 @@ struct AvdUniverse : public snapshottable::Snapshottable {
     sensors::PhysicalModel sensors_physical_model_;
 };
 
-AvdUniverse* GetNullableAvd();
-
-namespace {
-
-AvdUniverse& GetAvd() {
-    AvdUniverse* avd = GetNullableAvd();
-    CHECK(avd);  // TODO(b/539388746): handle the nullptr cases
-    return *avd;
-}
-
-}  // namespace
-
-}  // namespace goldfish::avd_info
+}  // namespace goldfish::avd

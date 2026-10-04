@@ -34,10 +34,9 @@
 #include "android/crashreport/debug.h"
 #include "emulator/plugin/webrtc/webrtc_device.h"
 #include "goldfish/adb_device/adb_device.h"
-#include "goldfish/async/testing/global_event_loop.h"
-#include "goldfish/avd_finalize/avd_finalize.h"
-#include "goldfish/avd_info/avd_info.h"
-#include "goldfish/avd_info/avd_info_register_types.h"
+#include "goldfish/avd/avd_finalize.h"
+#include "goldfish/avd/avd_start.h"
+#include "goldfish/avd/global_event_loop.h"
 #include "goldfish/battery/goldfish_battery.h"
 #include "goldfish/grpc/grpc.h"
 #include "goldfish/input/virtio_input_android.h"
@@ -204,8 +203,8 @@ extern "C" void GF_REGISTER_TYPES_FUNC(void) {
     goldfish_battery_register_types();
     vsock_port_fwd_register_types();
     vsock_low_level_register_types();
-    goldfish::avd_info::avd_info_register_types();
-    goldfish::avd_finalize::avd_finalize_register_types();
+    goldfish::avd::avd_info_register_types();
+    goldfish::avd::avd_finalize_register_types();
     goldfish::adb_device::adb_device_register_types();
     virtio_input_android_register_types();
     goldfish::grpc::grpc_register_types();
@@ -273,7 +272,7 @@ extern "C" void GF_STARTUP_FUNC(int argc, char** argv) {
     options.call_previous_handler = true;
     absl::InstallFailureSignalHandler(options);
 
-    auto* client_loop = goldfish::async::globalEventLoop();
+    auto* client_loop = goldfish::avd::globalEventLoop();
 
     // The global event loop is the main thread of the plugin and should always
     // be responsive, regardless of the vm state.
@@ -293,7 +292,7 @@ extern "C" void GF_STARTUP_FUNC(int argc, char** argv) {
 extern "C" void GF_SHUTDOWN_FUNC(void) {
     stop_tracing();
 
-    auto* client_loop = goldfish::async::globalEventLoop();
+    auto* client_loop = goldfish::avd::globalEventLoop();
     android::crashreport::CrashReporter::GetCrashingHangDetector().RemoveWatchedLooper(
             *client_loop);
     LOG_IF(FATAL, !client_loop->ShutdownAndWait(absl::Seconds(10)).ok())

@@ -13,10 +13,12 @@
  * limitations under the License.
  */
 
+#pragma once
+
 #include "goldfish/devices/camera/gralloc_details.h"
 
-namespace goldfish::avd_info {
+namespace goldfish::avd {
 
 devices::camera::GrallocDetailsPtr GetGrallocImpl();
 
-}  // namespace goldfish::avd_info
+}  // namespace goldfish::avd

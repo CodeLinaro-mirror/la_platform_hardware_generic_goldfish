@@ -13,7 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "goldfish/async/testing/global_event_loop.h"
+#include "goldfish/avd/global_event_loop.h"
 
 #include <gtest/gtest.h>
 
@@ -23,8 +23,7 @@
 
 #include "goldfish/async/event_loop.h"
 
-namespace goldfish {
-namespace async {
+namespace goldfish::avd {
 
 TEST(QemuLooperTest, IsNotNull) {
     // Verifies that the global event loop is not null.
@@ -54,5 +53,4 @@ TEST(QemuLooperTest, IsThreadSafe) {
     }
 }
 
-}  // namespace async
-}  // namespace goldfish
+}  // namespace goldfish::avd

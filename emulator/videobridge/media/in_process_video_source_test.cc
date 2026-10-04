@@ -30,8 +30,8 @@
 #include "api/make_ref_counted.h"
 #include "api/video/video_frame.h"
 #include "api/video/video_sink_interface.h"
-#include "goldfish/async/testing/global_event_loop.h"
 #include "goldfish/async/testing/test_event_loop.h"
+#include "goldfish/avd/global_event_loop.h"
 #include "goldfish/display/display.h"
 #include "goldfish/display/display_frames.h"
 #include "goldfish/display/test/display_test_peer.h"
@@ -124,7 +124,7 @@ class GlobalLoopDrain {
     GlobalLoopDrain& operator=(const GlobalLoopDrain&) = delete;
     ~GlobalLoopDrain() {
         absl::Notification drained;
-        if (goldfish::async::globalEventLoop()->Post([&drained] { drained.Notify(); }).ok()) {
+        if (goldfish::avd::globalEventLoop()->Post([&drained] { drained.Notify(); }).ok()) {
             drained.WaitForNotification();
         }
     }
@@ -132,7 +132,7 @@ class GlobalLoopDrain {
 
 TEST(InProcessVideoSourceTest, StartCapturesFrameFromMultiDisplay) {
     const GlobalLoopDrain drain;
-    goldfish::display::test::FakeMultiDisplay fake_multidisplay(goldfish::async::globalEventLoop());
+    goldfish::display::test::FakeMultiDisplay fake_multidisplay(goldfish::avd::globalEventLoop());
     auto source = webrtc::make_ref_counted<InProcessVideoSource>(fake_multidisplay, 0);
     DummyVideoSink sink;
 
@@ -162,7 +162,7 @@ TEST(InProcessVideoSourceTest, StartCapturesFrameFromMultiDisplay) {
 
 TEST(InProcessVideoSourceTest, HandlesDisplayCreatedAfterSourceInitialization) {
     const GlobalLoopDrain drain;
-    goldfish::display::test::FakeMultiDisplay fake_multidisplay(goldfish::async::globalEventLoop());
+    goldfish::display::test::FakeMultiDisplay fake_multidisplay(goldfish::avd::globalEventLoop());
     // Display 1 does not exist initially
     auto source = webrtc::make_ref_counted<InProcessVideoSource>(fake_multidisplay, 1);
     DummyVideoSink sink;
@@ -316,7 +316,7 @@ TEST(InProcessVideoSourceTest, HandlesDisplayUnavailableGracefully) {
 
 TEST(InProcessVideoSourceTest, AppliesDisplayRotationToCapturedFrames) {
     const GlobalLoopDrain drain;
-    goldfish::display::test::FakeMultiDisplay fake_multidisplay(goldfish::async::globalEventLoop());
+    goldfish::display::test::FakeMultiDisplay fake_multidisplay(goldfish::avd::globalEventLoop());
     auto source = webrtc::make_ref_counted<InProcessVideoSource>(fake_multidisplay, 0);
     DummyVideoSink sink;
 
@@ -345,7 +345,7 @@ TEST(InProcessVideoSourceTest, AppliesDisplayRotationToCapturedFrames) {
 
 TEST(InProcessVideoSourceTest, EmitsRotatedFrameWhenDisplayRotationChanges) {
     const GlobalLoopDrain drain;
-    goldfish::display::test::FakeMultiDisplay fake_multidisplay(goldfish::async::globalEventLoop());
+    goldfish::display::test::FakeMultiDisplay fake_multidisplay(goldfish::avd::globalEventLoop());
     auto source = webrtc::make_ref_counted<InProcessVideoSource>(fake_multidisplay, 0);
     DummyVideoSink sink;
 
@@ -393,8 +393,8 @@ TEST(InProcessVideoSourceTest, ConvertsImageRotationToWebRtcRotation) {
 
 TEST(InProcessVideoSourceTest, EmitsBlackNv12FrameOnBlankFrame) {
     const GlobalLoopDrain drain;
-    auto display = std::make_shared<SpyDisplay>(goldfish::async::globalEventLoop(), 0);
-    SpyMultiDisplay multidisplay(goldfish::async::globalEventLoop(), display);
+    auto display = std::make_shared<SpyDisplay>(goldfish::avd::globalEventLoop(), 0);
+    SpyMultiDisplay multidisplay(goldfish::avd::globalEventLoop(), display);
     auto source = webrtc::make_ref_counted<InProcessVideoSource>(multidisplay, 0);
     DummyVideoSink sink;
 

@@ -894,7 +894,7 @@ cc_library(
     deps = [
         ":in_process_audio_source",
         ":in_process_video_source",
-        "//emulator/plugin/avd:global-event-loop",
+        "//emulator/plugin/avd:global_event_loop",
     ],
 )
 
@@ -907,7 +907,7 @@ cc_test(
         ":in_process_media_providers",
         ":videobridge_core",
         "//emulator/libs/test:googletest_main",
-        "//emulator/plugin/avd:global-event-loop",
+        "//emulator/plugin/avd:global_event_loop",
         "//emulator/plugin/display:primary_display",
         "//emulator/plugin/display:test-display",
         "@webrtc//api:peer_connection_interface",
@@ -935,7 +935,7 @@ cc_test(
         ":videobridge_core",
         "//emulator/libs/async:async_testing",
         "//emulator/libs/test:googletest_main",
-        "//emulator/plugin/avd:global-event-loop",
+        "//emulator/plugin/avd:global_event_loop",
         "//emulator/plugin/display:primary_display",
         "//emulator/plugin/display:test-display",
         "@abseil-cpp//absl/synchronization",
@@ -984,7 +984,7 @@ clang_tidy_test(
         ":grpc_media_providers",
         ":in_process_audio_source",
         ":in_process_video_source",
-        "//emulator/plugin/avd:global-event-loop",
+        "//emulator/plugin/avd:global_event_loop",
         ":in_process_media_providers",
         ":media_track_provider_test",
         ":in_process_audio_source_test",

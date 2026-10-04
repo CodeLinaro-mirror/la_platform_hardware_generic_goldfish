@@ -52,7 +52,7 @@ using ::android::emulation::v2::SystemCapabilities;
 using ::android::emulation::v2::VmCapabilities;
 using ::android::emulation::v2::VmOperation;
 using ::android::goldfish::HardwareConfig;
-using ::goldfish::avd_info::AvdProperties;
+using ::goldfish::avd::AvdProperties;
 using ::grpc::ServerContext;
 using ::grpc::Status;
 
@@ -236,8 +236,7 @@ void PopulateSnapshotCapabilities(SnapshotCapabilities* snap_caps) {
 
 }  // namespace
 
-CapabilitiesServiceImpl::CapabilitiesServiceImpl(
-        const ::goldfish::avd_info::AvdUniverse& avd_universe)
+CapabilitiesServiceImpl::CapabilitiesServiceImpl(const ::goldfish::avd::AvdUniverse& avd_universe)
         : avd_universe_(avd_universe) {}
 
 Status CapabilitiesServiceImpl::GetDeviceCapabilities(

@@ -11,8 +11,8 @@
 
 #pragma once
 
-namespace goldfish::avd_info {
+namespace goldfish::avd {
 
-void UniverseBuildComplete();
+void avd_info_register_types(void);
 
-}  // namespace goldfish::avd_info
+}  // namespace goldfish::avd

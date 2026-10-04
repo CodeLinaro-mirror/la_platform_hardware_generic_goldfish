@@ -30,8 +30,8 @@
 #include "goldfish/archive/reader.h"
 #include "goldfish/archive/writer.h"
 #include "goldfish/async/qemu_event_loop.h"
-#include "goldfish/async/testing/global_event_loop.h"
-#include "goldfish/avd_info/gralloc_impl.h"
+#include "goldfish/avd/global_event_loop.h"
+#include "goldfish/avd/gralloc_impl.h"
 #include "goldfish/devices/vehicle/vehicle_device.h"
 #include "goldfish/display/abstract_multi_display.h"
 #include "goldfish/tools/aemu_version.h"
@@ -50,7 +50,7 @@ extern "C" {
 // IWYU pragma: end_keep
 // clang-format on
 
-namespace goldfish::avd_info {
+namespace goldfish::avd {
 
 using devices::boot::EventLoop;
 using namespace goldfish::archive;
@@ -103,7 +103,7 @@ AvdExtendedUniverse::AvdExtendedUniverse(std::unique_ptr<AvdProperties> props)
     const AvdProperties& avd_props = avd_universe.Props();
 
     LOG(INFO) << "Loaded avd directory: " << avd_props.avd_content_path;
-    auto* client_loop = goldfish::async::globalEventLoop();
+    auto* client_loop = globalEventLoop();
 
     avd_universe.metrics_reporter =
             std::make_unique<::goldfish::metrics::MetricsReporter>(avd_props.metrics_session_id);
@@ -251,7 +251,7 @@ void AvdExtendedUniverse::WaitUntilEventLoopsIdle() {
         return updated;
     };
 
-    EventLoop* loops[] = {goldfish::async::globalEventLoop(), qemu_event_loop.get()};
+    EventLoop* loops[] = {globalEventLoop(), qemu_event_loop.get()};
     size_t counters[std::size(loops)];
     std::transform(std::begin(loops), std::end(loops), std::begin(counters), [](EventLoop* l) {
         l->ShutdownTimers();
@@ -601,4 +601,4 @@ void AvdExtendedUniverse::Reset() {
     GetMultiDisplay().Reset();
 }
 
-}  // namespace goldfish::avd_info
+}  // namespace goldfish::avd

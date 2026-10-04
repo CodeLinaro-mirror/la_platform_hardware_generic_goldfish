@@ -19,7 +19,7 @@ extern "C" {
 #include <vector>
 
 #include "android/emulation/control/in_process_rtc_service.h"
-#include "goldfish/avd_info/avd_info.h"
+#include "goldfish/avd/avd_info.h"
 
 #define TYPE_WEBRTC "webrtc"
 OBJECT_DECLARE_SIMPLE_TYPE(WebrtcDev, WEBRTC)
@@ -41,7 +41,7 @@ std::vector<std::shared_ptr<::grpc::Service>> WebrtcGetServices() {
 static void webrtc_realize(DeviceState* dev, Error** errp) {
     WebrtcDev* webrtc = WEBRTC(dev);
     webrtc->rtc_services =
-            android::emulation::control::CreateInProcessRtcServices(goldfish::avd_info::GetAvd());
+            android::emulation::control::CreateInProcessRtcServices(goldfish::avd::GetAvd());
     std::lock_guard<std::mutex> lock(webrtc_service_mutex);
     webrtc_services = webrtc->rtc_services;
 }

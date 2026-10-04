@@ -105,7 +105,6 @@ cc_library(
         ":logging_interceptor",
         ":percentiles",
         "//emulator/libs/metrics",
-        "//emulator/plugin/avd:info",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/synchronization",
         "@zlib",

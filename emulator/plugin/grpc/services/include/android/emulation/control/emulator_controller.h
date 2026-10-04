@@ -19,7 +19,7 @@
 #include <memory>
 
 #include "android/goldfish/vm_interface.h"
-#include "goldfish/avd_info/avd_info.h"
+#include "goldfish/avd/avd_universe.h"
 #include "goldfish/display/abstract_multi_display.h"
 
 extern "C" {
@@ -32,7 +32,7 @@ namespace control {
 
 std::shared_ptr<grpc::Service> getEmulatorController(
         android::goldfish::VmOperations* vmInterface, QemuConsole* keyboardConsole,
-        ::goldfish::avd_info::AvdUniverse* avdUniverse,
+        ::goldfish::avd::AvdUniverse* avdUniverse,
         ::goldfish::display::IMultiDisplay* multiDisplay);
 
 }  // namespace control

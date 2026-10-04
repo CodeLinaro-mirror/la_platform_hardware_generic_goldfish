@@ -22,7 +22,7 @@
 #include "emulator/plugin/avd/qemu_cpu_wrapper.h"
 #include "goldfish/async/event_loop.h"
 
-namespace goldfish::avd_info {
+namespace goldfish::avd {
 
 using ::android::crashreport::FlowId;
 
@@ -103,4 +103,4 @@ class VCpuEventLoop : public ::goldfish::async::EventLoop {
     int mCpuIndex;
 };
 
-}  // namespace goldfish::avd_info
+}  // namespace goldfish::avd

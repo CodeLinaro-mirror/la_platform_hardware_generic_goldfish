@@ -6,7 +6,7 @@ cc_library(
     hdrs = ["webrtc_device.h"],
     visibility = ["//visibility:public"],
     deps = [
-        "//emulator/plugin/avd:impl",
+        "//emulator/plugin/avd:avd_info",
         "//emulator/plugin/grpc/services:in_process_rtc_service",
         "@qemu//:qemu-headers-exported",
     ],

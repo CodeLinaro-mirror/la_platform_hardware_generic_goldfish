@@ -23,6 +23,7 @@
 #include "absl/synchronization/mutex.h"
 #include "absl/time/time.h"
 
+#include "goldfish/avd/avd_info.h"
 #include "goldfish/devices/multidisplay/multidisplay_device.h"
 #include "goldfish/display/cpu_slot_storage.h"
 #include "goldfish/display/frame_producer.h"
@@ -68,7 +69,12 @@ VirtualDisplay::VirtualDisplay(EventLoop* loop, EventLoop* qloop, uint8_t id, ui
         const absl::MutexLock lock(&buffer_lock_);
         frame_buffer_.resize(buffer_size, 0xFF);
     }
-    goldfish::devices::multidisplay::SendAddDisplay(id, width, height, dpi, flags);
+    auto* avd = avd::GetNullableAvd();
+    if (auto device = avd ? avd->GetActiveMultiDisplayDevice() : nullptr) {
+        device->SendAddDisplay(id, width, height, dpi, flags);
+    } else {
+        LOG(WARNING) << "Dropped multidisplay message: Guest not connected.";
+    }
     SimulateGuestFrameUpdate();
     if (loop != nullptr) {
         poll_timer_ = loop->CreateTimer([this] {
@@ -98,7 +104,12 @@ void VirtualDisplay::Disconnect() {
         if (poll_timer_) {
             poll_timer_->Cancel();
         }
-        ::goldfish::devices::multidisplay::SendDelDisplay(display_id_);
+        auto* avd = avd::GetNullableAvd();
+        if (auto device = avd ? avd->GetActiveMultiDisplayDevice() : nullptr) {
+            device->SendDelDisplay(display_id_);
+        } else {
+            LOG(WARNING) << "Dropped multidisplay message: Guest not connected.";
+        }
     }
 }
 
@@ -147,9 +158,11 @@ IFrameSource::Start VirtualDisplay::CaptureSurface(LegacySurfaceSource& source) 
     if (dims.width == 0 || dims.height == 0 || frame_buffer_.empty()) {
         return IFrameSource::Start::kNoContent;
     }
-    const uint32_t cb_handle = goldfish::devices::multidisplay::GetDisplayColorBuffer(this->Id());
+    auto* avd = avd::GetNullableAvd();
+    auto device = avd ? avd->GetActiveMultiDisplayDevice() : nullptr;
+    const uint32_t cb_handle = device ? device->GetDisplayColorBuffer(this->Id()) : 0;
     if (cb_handle > 0) {
-        goldfish::devices::multidisplay::ReadDisplayColorBuffer(cb_handle, frame_buffer_.data());
+        device->ReadDisplayColorBuffer(cb_handle, frame_buffer_.data());
     }
     return source.CaptureFrom(SurfaceSource{
         .data = frame_buffer_.data(),

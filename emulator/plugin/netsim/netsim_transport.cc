@@ -27,7 +27,7 @@
 
 #include "android/emulation/control/emulator_grpc_client.h"
 #include "android/status/status_macros.h"
-#include "goldfish/avd_info/avd_info.h"
+#include "goldfish/avd/avd_info.h"
 #include "goldfish/tools/aemu_version.h"
 #include "netsim/packet_streamer.grpc.pb.h"
 #include "netsim/packet_streamer.pb.h"
@@ -58,7 +58,7 @@ void NetsimTransport::cancel() {
 
 absl::Status NetsimTransport::initialize(::netsim::startup::Chip chip) {
     mKindName = ::netsim::common::ChipKind_Name(chip.kind());
-    auto& avdprops = goldfish::avd_info::GetAvd().Props();
+    auto& avdprops = goldfish::avd::GetAvd().Props();
 
     ::netsim::packet::PacketRequest initial_request;
     auto* initial_info = initial_request.mutable_initial_info();

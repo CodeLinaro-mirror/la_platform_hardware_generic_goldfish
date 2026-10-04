@@ -12,8 +12,8 @@
 
 #pragma once
 
-namespace goldfish::avd_finalize {
+namespace goldfish::avd {
 
 void avd_finalize_register_types(void);
 
-}  // namespace goldfish::avd_finalize
+}  // namespace goldfish::avd

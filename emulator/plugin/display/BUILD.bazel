@@ -110,6 +110,7 @@ cc_library(
         "//emulator/libs/display_pipeline:core",
         "//emulator/libs/display_pipeline:cpu_pipeline",
         "//emulator/libs/perfetto:init",
+        "//emulator/plugin/avd:avd_info",
         "//emulator/plugin/hal/multidisplay",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/time",

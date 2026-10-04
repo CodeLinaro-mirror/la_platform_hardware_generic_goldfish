@@ -21,7 +21,7 @@
 
 #include "android/goldfish/vm_interface.h"
 #include "goldfish/async/event_loop.h"
-#include "goldfish/avd_info/avd_info.h"
+#include "goldfish/avd/avd_universe.h"
 
 namespace goldfish::grpc::v2 {
 
@@ -29,7 +29,7 @@ namespace goldfish::grpc::v2 {
  * @brief Creates and bundles the AEMU v2 microservice implementations.
  */
 std::vector<std::shared_ptr<::grpc::Service>> CreateV2Services(
-        ::goldfish::avd_info::AvdUniverse& avd_universe,
+        ::goldfish::avd::AvdUniverse& avd_universe,
         ::android::goldfish::VmOperations* vm_operations = nullptr,
         ::goldfish::async::EventLoop* event_loop = nullptr);
 

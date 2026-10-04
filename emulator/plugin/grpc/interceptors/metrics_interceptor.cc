@@ -19,7 +19,6 @@
 
 #include "absl/log/log.h"
 
-#include "goldfish/avd_info/avd_info.h"
 #include "goldfish/metrics/metrics_reporter.h"
 #include "goldfish/metrics/studio_stats_wrapper.h"
 

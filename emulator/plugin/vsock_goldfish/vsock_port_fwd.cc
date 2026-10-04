@@ -33,10 +33,9 @@
 #include "goldfish/async/libuv_event_loop.h"
 #include "goldfish/async/libuv_socket_factory.h"
 #include "goldfish/async/qemu_event_loop.h"
-#include "goldfish/async/testing/global_event_loop.h"
 #include "goldfish/async/threaded_event_loop.h"
-#include "goldfish/avd_info/avd_info.h"
-#include "goldfish/avd_info/avd_private.h"
+#include "goldfish/avd/avd_info.h"
+#include "goldfish/avd/global_event_loop.h"
 #include "goldfish/devices/cable/cable.h"
 #include "goldfish/devices/connection_awaiter.h"
 #include "goldfish/devices/hal_plug_factory.h"
@@ -191,11 +190,11 @@ class HostToGuestConnection : public goldfish::devices::HalPlug,
 class VSockProxyImpl : public VSockProxy {
   public:
     VSockProxyImpl(const Endpoint& hostEndpoint, VSockFwdDev* device,
-                   goldfish::avd_info::AvdUniverse& universe)
+                   goldfish::avd::AvdUniverse& universe)
             : mHostEndpoint(hostEndpoint)
             , mDevice(device)
             , mQemuLoop(universe.GetQemuEventLoop())
-            , mClientLoop(goldfish::async::globalEventLoop())
+            , mClientLoop(goldfish::avd::globalEventLoop())
             , mGuestStatus(universe.GetGuestStatus()) {
         using namespace std::chrono_literals;
         mConnectionAwaiter = ConnectionAwaiter::RetryUntilConnected(
@@ -319,7 +318,7 @@ static void vsock_fwd_realize(DeviceState* dev, Error** errp) {
     }
 
     vsock_fwd_device->forwarder =
-            new VSockProxyImpl(*preferred, vsock_fwd_device, goldfish::avd_info::GetAvd());
+            new VSockProxyImpl(*preferred, vsock_fwd_device, goldfish::avd::GetAvd());
     VLOG(VLOG_DBG) << "Realizing vsock forwarder: (address:host <-> guest) " << ToString(*preferred)
                    << "<->" << vsock_fwd_device->guest_port;
 }

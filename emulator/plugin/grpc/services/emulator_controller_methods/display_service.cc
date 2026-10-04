@@ -37,7 +37,7 @@
 #include "android/base/system.h"
 #include "android/emulation/control/absl_status_translate.h"
 #include "android/goldfish/hardware_config.h"
-#include "goldfish/avd_info/avd_info.h"
+#include "goldfish/avd/avd_info.h"
 #include "goldfish/devices/multidisplay/multidisplay_device.h"
 #include "goldfish/display/display_frames.h"
 #include "goldfish/display/frame.h"
@@ -116,7 +116,7 @@ DisplayServiceImpl::DisplayServiceImpl(::goldfish::display::IMultiDisplay* displ
 
                     Notification event;
                     event.mutable_posture()->set_value(ToProtoPosture(posture));
-                    ::goldfish::avd_info::GetAvd().GetGrpcNotificationChannel().FireEvent(event);
+                    ::goldfish::avd::GetAvd().GetGrpcNotificationChannel().FireEvent(event);
                 });
 
         // MakeScopedCallback only fires on future updates and does not invoke the callback for
@@ -130,7 +130,7 @@ DisplayServiceImpl::DisplayServiceImpl(::goldfish::display::IMultiDisplay* displ
         if (initial_posture != FoldablePostures::kUnknown) {
             Notification event;
             event.mutable_posture()->set_value(ToProtoPosture(initial_posture));
-            ::goldfish::avd_info::GetAvd().GetGrpcNotificationChannel().FireEvent(event);
+            ::goldfish::avd::GetAvd().GetGrpcNotificationChannel().FireEvent(event);
         }
     }
 }
@@ -228,7 +228,7 @@ Status DisplayServiceImpl::streamScreenshot(ServerContext* context, const ImageF
     bool last_frame_was_empty = reply.format().width() == 0;
 
     ::goldfish::display::SharedDisplay display;
-    const bool hw_sensor_hinge = ::goldfish::avd_info::GetAvd().Props().hw_config.hw_sensor_hinge;
+    const bool hw_sensor_hinge = ::goldfish::avd::GetAvd().Props().hw_config.hw_sensor_hinge;
     while (!context->IsCancelled()) {
         auto res = mMultiDisplay.GetActiveDisplay(request->display(), hw_sensor_hinge);
         if (res.ok()) {
@@ -399,7 +399,7 @@ Status DisplayServiceImpl::streamScreenshot(ServerContext* context, const ImageF
 
 Status DisplayServiceImpl::getScreenshot(ServerContext* context, const ImageFormat* request,
                                          Image* reply) {
-    const bool hw_sensor_hinge = ::goldfish::avd_info::GetAvd().Props().hw_config.hw_sensor_hinge;
+    const bool hw_sensor_hinge = ::goldfish::avd::GetAvd().Props().hw_config.hw_sensor_hinge;
     auto res = mMultiDisplay.GetActiveDisplay(request->display(), hw_sensor_hinge);
     if (!res.ok()) {
         return AbslStatusToGrpcStatus(res.status());
@@ -455,7 +455,7 @@ Status DisplayServiceImpl::getScreenshot(ServerContext* /*context*/, const Image
     TRACE_EVENT("display", "DisplayServiceImpl::getScreenshot", "display", request->display());
     bool needs_side_channel =
             request->has_transport() && request->transport().channel() == ImageTransport::MMAP;
-    const auto& hw = ::goldfish::avd_info::GetAvd().Props().hw_config;
+    const auto& hw = ::goldfish::avd::GetAvd().Props().hw_config;
     auto res = mMultiDisplay.GetActiveDisplay(request->display(), hw.hw_sensor_hinge);
     if (!res.ok()) {
         return AbslStatusToGrpcStatus(res.status());
@@ -751,7 +751,7 @@ Status DisplayServiceImpl::setDisplayMode(ServerContext* context, const DisplayM
 
         Notification event;
         event.mutable_posture()->set_value(ToProtoPosture(posture));
-        ::goldfish::avd_info::GetAvd().GetGrpcNotificationChannel().FireEvent(event);
+        ::goldfish::avd::GetAvd().GetGrpcNotificationChannel().FireEvent(event);
     }
 
     uint32_t total_modes = static_cast<uint32_t>(resizable_configs_.size());
@@ -766,7 +766,7 @@ Status DisplayServiceImpl::setDisplayMode(ServerContext* context, const DisplayM
 
 void DisplayServiceImpl::fireDisplayConfigurationsChanged() {
     // Fill and fire the notification event
-    auto& avdUniverse = ::goldfish::avd_info::GetAvd();
+    auto& avd_universe = ::goldfish::avd::GetAvd();
     ::android::emulation::control::Notification event;
 
     // Set the oneof type to DisplayConfigurationsChangedNotification
@@ -776,7 +776,7 @@ void DisplayServiceImpl::fireDisplayConfigurationsChanged() {
     getDisplayConfigurations(mMultiDisplay, changed_notification->mutable_displayconfigurations());
 
     // Fire the event to any connected gRPC notification streams
-    avdUniverse.GetGrpcNotificationChannel().FireEvent(event);
+    avd_universe.GetGrpcNotificationChannel().FireEvent(event);
 }
 
 Status DisplayServiceImpl::getDisplayConfigurations(ServerContext* context, const Empty* request,

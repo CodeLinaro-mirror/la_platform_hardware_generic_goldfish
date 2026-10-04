@@ -8,10 +8,11 @@
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
+#pragma once
+
 #include "goldfish/async/event_loop.h"
 
-namespace goldfish {
-namespace async {
+namespace goldfish::avd {
 
 /**
  * @brief Returns the global event loop.
@@ -24,7 +25,7 @@ namespace async {
  *
  * @return The global event loop.
  */
-EventLoop* globalEventLoop();
+async::EventLoop* globalEventLoop();
 
 namespace testing {
 /**
@@ -35,7 +36,7 @@ namespace testing {
  *
  * @param newLoop The event loop to set as the global one.
  */
-void setGlobalEventLoopForTesting(EventLoop* newLoop);
+void setGlobalEventLoopForTesting(async::EventLoop* newLoop);
 }  // namespace testing
-}  // namespace async
-}  // namespace goldfish
+
+}  // namespace goldfish::avd

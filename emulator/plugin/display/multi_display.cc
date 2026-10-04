@@ -27,7 +27,7 @@
 #include "absl/time/time.h"
 
 #include "android/status/status_macros.h"
-#include "goldfish/avd_info/avd_info.h"
+#include "goldfish/avd/avd_info.h"
 #include "goldfish/devices/multidisplay/multidisplay_device.h"
 #include "goldfish/display/abstract_multi_display.h"
 #include "goldfish/display/display.h"
@@ -385,7 +385,7 @@ class MultiDisplayImpl : public IMultiDisplay {
                     after_id = d0->CurrentFrameId();
                 }
 
-                PhysicalModel& pm = ::goldfish::avd_info::GetAvd().GetSensorsPhysicalModel();
+                PhysicalModel& pm = ::goldfish::avd::GetAvd().GetSensorsPhysicalModel();
                 if (pm.HasFoldableModel()) {
                     pm.SetTargetPosture(
                             static_cast<float>(::goldfish::sensors::FoldablePostures::kOpened),
@@ -434,8 +434,12 @@ class MultiDisplayImpl : public IMultiDisplay {
                     grpc_dpy_gfx_update_ui_info(con, width, height);
                 }
 
-                ::goldfish::devices::multidisplay::SendSetDisplay(guest_mode_id, width, height, dpi,
-                                                                  display->Flags());
+                auto* avd = ::goldfish::avd::GetNullableAvd();
+                if (auto device = avd ? avd->GetActiveMultiDisplayDevice() : nullptr) {
+                    device->SendSetDisplay(guest_mode_id, width, height, dpi, display->Flags());
+                } else {
+                    LOG(WARNING) << "Dropped multidisplay message: Guest not connected.";
+                }
             }
         }
     }
@@ -488,7 +492,7 @@ extern "C" void grpc_dpy_gfx_update(struct DisplayChangeListener* dcl, int x, in
     // TODO(jansene): True multidisplay support should go over the qemu consoles, that are tied
     // to gpu0, head:%d
     auto& multi_display =
-            static_cast<MultiDisplayImpl&>(::goldfish::avd_info::GetAvd().GetMultiDisplay());
+            static_cast<MultiDisplayImpl&>(::goldfish::avd::GetAvd().GetMultiDisplay());
     QemuConsole* con = dcl->con;
     if (con == nullptr) {
         con = qemu_console_lookup_default();
@@ -530,7 +534,7 @@ extern "C" void grpc_dpy_gfx_refresh(DisplayChangeListener* dcl) {
 
 extern "C" void grpc_dpy_gfx_switch(struct DisplayChangeListener* dcl,
                                     struct DisplaySurface* new_surface) {
-    avd_info::AvdUniverse& avd = ::goldfish::avd_info::GetAvd();
+    avd::AvdUniverse& avd = ::goldfish::avd::GetAvd();
     auto& multi_display = static_cast<MultiDisplayImpl&>(avd.GetMultiDisplay());
     QemuConsole* con = dcl->con;
     if (con == nullptr) {
@@ -581,7 +585,7 @@ extern "C" void grpc_dpy_gfx_update_ui_info(QemuConsole* con, int w, int h) {
     auto index = qemu_console_get_index(con);
     if (w == 0 || h == 0) {
         if (index == 1) {
-            const auto& hw = ::goldfish::avd_info::GetAvd().Props().hw_config;
+            const auto& hw = ::goldfish::avd::GetAvd().Props().hw_config;
             if (hw.hw_sensor_hinge) {
                 info.width = static_cast<uint32_t>(hw.hw_displayRegion_0_1_width);
                 info.height = static_cast<uint32_t>(hw.hw_displayRegion_0_1_height);

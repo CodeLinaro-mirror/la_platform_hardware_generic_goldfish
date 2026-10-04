@@ -2,30 +2,154 @@ load("@rules_cc//cc:cc_test.bzl", "cc_test")
 load("@rules_cc//cc:defs.bzl", "cc_library")
 
 cc_library(
-    name = "info",
-    hdrs = ["include/goldfish/avd_info/avd_info.h"],
+    name = "avd_properties",
+    hdrs = ["include/goldfish/avd/avd_properties.h"],
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
         "//emulator/libs/hardware_config",
         "//emulator/libs/hardware_config:device_type",
         "//emulator/libs/metrics:configure_metrics_writer",
-        "//emulator/libs/sensors:physical_model",
-        "//emulator/libs/snapshottable",
-        "//emulator/plugin/avd_universe",
-        "@abseil-cpp//absl/synchronization",
     ],
 )
 
 cc_library(
-    name = "info-fake",
-    srcs = ["avd_info_fake.cc"],
+    name = "avd_universe",
+    srcs = ["avd_universe.cc"],
+    hdrs = ["include/goldfish/avd/avd_universe.h"],
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
-        ":info",
-        "//emulator/plugin/display",
+        ":avd_properties",
+        "//emulator/libs/async:async_api",
+        "//emulator/libs/sensors:physical_model",
+        "//emulator/libs/snapshottable",
+        "//emulator/libs/system",
+        "//emulator/plugin/avd_universe",
+        "//emulator/plugin/display:abstract_multi_display",
         "//emulator/plugin/hal/multidisplay",
+        "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/synchronization",
+        "@abseil-cpp//absl/time",
+    ],
+)
+
+cc_library(
+    name = "avd_extended_universe",
+    srcs = ["avd_extended_universe.cc"],
+    hdrs = ["avd_extended_universe.h"],
+    copts = ["-Wno-extern-c-compat"],
+    includes = ["include"],
+    deps = [
+        ":avd_properties",
+        ":avd_universe",
+        ":global_event_loop",
+        ":gralloc_impl",
+        ":vcpu_event_loop",
+        "//emulator/crashreport:crash_reporter",
+        "//emulator/libs/archive",
+        "//emulator/libs/archive:collections",
+        "//emulator/libs/async:async_api",
+        "//emulator/libs/async:qemu_event_loop",
+        "//emulator/libs/metrics",
+        "//emulator/libs/metrics:perf_stat_reporter",
+        "//emulator/libs/system",
+        "//emulator/plugin/adb-vsock/host",
+        "//emulator/plugin/battery",
+        "//emulator/plugin/display",
+        "//emulator/plugin/display:abstract_multi_display",
+        "//emulator/plugin/hal/bootproperties",
+        "//emulator/plugin/hal/camera",
+        "//emulator/plugin/hal/clipboard",
+        "//emulator/plugin/hal/common:emulator_reset",
+        "//emulator/plugin/hal/connector:connector_registry_impl",
+        "//emulator/plugin/hal/fingerprint",
+        "//emulator/plugin/hal/gps",
+        "//emulator/plugin/hal/guest-status",
+        "//emulator/plugin/hal/multidisplay",
+        "//emulator/plugin/hal/sensors",
+        "//emulator/plugin/hal/unix_pipe",
+        "//emulator/plugin/hal/vehicle",
+        "//emulator/tools:aemu_version",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/time",
+        "@qemu//:qemu-headers-exported",
+    ],
+)
+
+cc_library(
+    name = "avd_info",
+    srcs = ["avd_info.cc"],
+    hdrs = ["include/goldfish/avd/avd_info.h"],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":avd_universe",
+        "@abseil-cpp//absl/log:check",
+    ],
+)
+
+cc_library(
+    name = "avd_start",
+    srcs = ["avd_start.cc"],
+    hdrs = [
+        "avd_start_internal.h",
+        "include/goldfish/avd/avd_start.h",
+    ],
+    copts = ["-Wno-extern-c-compat"],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":avd_extended_universe",
+        ":avd_info",
+        ":avd_properties",
+        ":avd_universe",
+        "//emulator/libs/archive:QEMUFileArchive",
+        "//emulator/libs/file",
+        "//emulator/libs/host-common",
+        "//emulator/libs/ini_file",
+        "//emulator/plugin/display:abstract_multi_display",
+        "//emulator/plugin/system:qemu_clock",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/strings:str_format",
+        "@abseil-cpp//absl/time",
+        "@qemu//:qemu-headers-exported",
+    ],
+    alwayslink = True,
+)
+
+cc_library(
+    name = "avd_finalize",
+    srcs = ["avd_finalize.cc"],
+    hdrs = ["include/goldfish/avd/avd_finalize.h"],
+    copts = ["-Wno-extern-c-compat"],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":avd_start",
+        "@qemu//:qemu-headers-exported",
+    ],
+    alwayslink = True,
+)
+
+cc_library(
+    name = "fake_avd_universe",
+    testonly = True,
+    srcs = ["fake_avd_universe.cc"],
+    hdrs = ["include/goldfish/avd/fake_avd_universe.h"],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":avd_info",
+        ":avd_properties",
+        ":avd_universe",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/status",
     ],
 )
 
@@ -36,8 +160,8 @@ cc_library(
         "rutabaga_glue.c",
     ],
     hdrs = [
+        "include/goldfish/avd/gralloc_impl.h",
         "include/goldfish/avd/rutabaga_glue.h",
-        "include/goldfish/avd_info/gralloc_impl.h",
     ],
     copts = ["-Wno-extern-c-compat"],
     includes = ["include"],
@@ -51,15 +175,14 @@ cc_library(
         "@qemu//:qemu-headers-exported",
         "@rutabaga_gfx//:rutabaga_c_ffi",
     ],
-    alwayslink = True,
 )
 
 cc_library(
-    name = "global-event-loop",
+    name = "global_event_loop",
     srcs = [
         "global_event_loop.cc",
     ],
-    hdrs = ["include/goldfish/async/testing/global_event_loop.h"],
+    hdrs = ["include/goldfish/avd/global_event_loop.h"],
     includes = ["include"],
     visibility = [
         "//visibility:public",
@@ -73,14 +196,13 @@ cc_library(
 )
 
 cc_test(
-    name = "global-event-loop-tests",
+    name = "global_event_loop_test",
     size = "small",
     srcs = [
         "global_event_loop_test.cc",
     ],
-    visibility = ["//visibility:public"],
     deps = [
-        ":global-event-loop",
+        ":global_event_loop",
         "//emulator/libs/test:googletest_main",
     ],
 )
@@ -92,66 +214,5 @@ cc_library(
         "qemu_cpu_wrapper.h",
         "vcpu_event_loop.h",
     ],
-    visibility = ["//visibility:public"],
     deps = ["@qemu//:qemu-headers-exported"],
-)
-
-cc_library(
-    name = "impl",
-    srcs = [
-        "avd_extended_universe.cc",
-        "avd_extended_universe.h",
-        "avd_finalize.cc",
-        "avd_info.cc",
-    ],
-    hdrs = [
-        "include/goldfish/avd_finalize/avd_finalize.h",
-        "include/goldfish/avd_info/avd_info_register_types.h",
-        "include/goldfish/avd_info/avd_private.h",
-    ],
-    copts = ["-Wno-extern-c-compat"],
-    includes = ["include"],
-    visibility = ["//visibility:public"],
-    deps = [
-        ":global-event-loop",
-        ":gralloc_impl",
-        ":info",
-        ":vcpu_event_loop",
-        "//emulator/crashreport:crash_reporter",
-        "//emulator/libs/archive",
-        "//emulator/libs/archive:QEMUFileArchive",
-        "//emulator/libs/archive:collections",
-        "//emulator/libs/async:async_api",
-        "//emulator/libs/async:libuv_event_loop",
-        "//emulator/libs/async:qemu_event_loop",
-        "//emulator/libs/host-common",
-        "//emulator/libs/metrics",
-        "//emulator/libs/metrics:perf_stat_reporter",
-        "//emulator/plugin/adb-vsock/host",
-        "//emulator/plugin/battery",
-        "//emulator/plugin/display",
-        "//emulator/plugin/hal/bootproperties",
-        "//emulator/plugin/hal/camera",
-        "//emulator/plugin/hal/clipboard",
-        "//emulator/plugin/hal/common:emulator_reset",
-        "//emulator/plugin/hal/connector:connector_registry_impl",
-        "//emulator/plugin/hal/fingerprint",
-        "//emulator/plugin/hal/gps",
-        "//emulator/plugin/hal/guest-status",
-        "//emulator/plugin/hal/multidisplay",
-        "//emulator/plugin/hal/sensors",
-        "//emulator/plugin/hal/unix_pipe",
-        "//emulator/plugin/hal/vehicle",
-        "//emulator/plugin/system:qemu_clock",
-        "//emulator/tools:aemu_version",
-        "@abseil-cpp//absl/log",
-        "@abseil-cpp//absl/log:check",
-        "@abseil-cpp//absl/log:globals",
-        "@abseil-cpp//absl/log:initialize",
-        "@abseil-cpp//absl/log:log_sink_registry",
-        "@abseil-cpp//absl/strings",
-        "@abseil-cpp//absl/time",
-        "@qemu//:qemu-headers-exported",
-    ],
-    alwayslink = True,
 )

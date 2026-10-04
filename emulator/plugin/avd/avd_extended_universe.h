@@ -15,7 +15,7 @@
 #pragma once
 
 #include "goldfish/async/event_loop.h"
-#include "goldfish/avd_info/avd_info.h"
+#include "goldfish/avd/avd_universe.h"
 #include "goldfish/devices/battery/battery.h"
 #include "goldfish/devices/boot/boot_properties_device.h"
 #include "goldfish/devices/camera/register_device.h"
@@ -32,7 +32,7 @@
 #include "goldfish/metrics/perf_stat_reporter.h"
 #include "vcpu_event_loop.h"
 
-namespace goldfish::avd_info {
+namespace goldfish::avd {
 
 struct AvdExtendedUniverse : public AvdUniverse {
     AvdExtendedUniverse(std::unique_ptr<AvdProperties> props);
@@ -77,4 +77,4 @@ struct AvdExtendedUniverse : public AvdUniverse {
     void SyncGuestTimeToHost();
 };
 
-}  // namespace goldfish::avd_info
+}  // namespace goldfish::avd

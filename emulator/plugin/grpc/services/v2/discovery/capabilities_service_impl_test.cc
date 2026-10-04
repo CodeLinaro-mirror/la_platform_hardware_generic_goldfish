@@ -21,7 +21,8 @@
 
 #include "android/goldfish/fake_hardware_config.h"
 #include "capabilities_service.grpc.pb.h"
-#include "goldfish/avd_info/avd_info.h"
+#include "goldfish/avd/avd_properties.h"
+#include "goldfish/avd/avd_universe.h"
 
 #ifdef DeviceCapabilities
 #undef DeviceCapabilities
@@ -38,8 +39,8 @@ using ::android::emulation::v2::GetDeviceCapabilitiesRequest;
 using ::android::emulation::v2::InputFeature;
 using ::android::emulation::v2::VmOperation;
 using ::android::goldfish::FakeHardwareConfig;
-using ::goldfish::avd_info::AvdProperties;
-using ::goldfish::avd_info::AvdUniverse;
+using ::goldfish::avd::AvdProperties;
+using ::goldfish::avd::AvdUniverse;
 using ::grpc::ServerContext;
 using ::grpc::Status;
 using ::testing::Contains;
