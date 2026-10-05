@@ -18,6 +18,10 @@
 
 #include <libyuv.h>
 
+#if defined(__linux__) || defined(__APPLE__)
+#include <dlfcn.h>
+#endif
+
 #include <algorithm>
 #include <cassert>
 #include <cinttypes>
@@ -31,10 +35,6 @@
 #include "goldfish/gvk/system_meta_loader.h"
 
 using namespace android::base;
-
-#define E(...) derror(__VA_ARGS__)
-#define W(...) dwarning(__VA_ARGS__)
-#define D(...) dprint(__VA_ARGS__)
 
 static constexpr int kRendererDefaultFramebufferWidth = 1024;
 static constexpr int kRendererDefaultFramebufferHeight = 1024;
@@ -73,6 +73,35 @@ RendererVulkan::RendererVulkan(int width, int height, const std::filesystem::pat
         : mRenderWidth(width), mRenderHeight(height), mVulkanBasePath(vulkanBasePath) {}
 
 bool RendererVulkan::initialize() {
+    if (!mVulkanBasePath.empty()) {
+        System::Get()->AddLibrarySearchDir(mVulkanBasePath.string());
+        if (System::Get()->EnvGet("VK_DRIVER_FILES").empty() &&
+            System::Get()->EnvGet("VK_ICD_FILENAMES").empty()) {
+            std::filesystem::path lvpIcd = mVulkanBasePath / "lvp_icd.json";
+            if (std::filesystem::exists(lvpIcd)) {
+                std::string absIcd = std::filesystem::absolute(lvpIcd).string();
+                System::Get()->EnvSet("VK_DRIVER_FILES", absIcd);
+                System::Get()->EnvSet("VK_ICD_FILENAMES", absIcd);
+            }
+        }
+
+        // Pin libvulkan_lvp in the process address space with RTLD_NODELETE so it
+        // remains mapped until process exit. Unmapping the library causes ASan/LSan
+        // failures during test teardown and across multiple test cases due to
+        // unmapped symbol addresses and lingering global/TLS state in Mesa/LLVM.
+#if defined(__linux__)
+        std::filesystem::path lvpLib = mVulkanBasePath / "libvulkan_lvp.so";
+#elif defined(__APPLE__)
+        std::filesystem::path lvpLib = mVulkanBasePath / "libvulkan_lvp.dylib";
+#endif
+#if defined(__linux__) || defined(__APPLE__)
+        if (std::filesystem::exists(lvpLib)) {
+            if (void* handle = ::dlopen(lvpLib.c_str(), RTLD_NOW | RTLD_LOCAL | RTLD_NODELETE)) {
+                ::dlclose(handle);
+            }
+        }
+#endif
+    }
     std::string customDir = mVulkanBasePath.string();
     auto metaLoader =
             goldfish::gvk::SystemMetaLoader::get(customDir.empty() ? nullptr : customDir.c_str());
@@ -1126,7 +1155,7 @@ bool RendererVulkan::updateMesh(Mesh meshHandle, const VertexPositionUV* vertice
     VkDeviceSize vertBufferSize = sizeof(VertexPositionUV) * verticesSize;
     void* mapped = mVkDevice->mapMemory(it->second.mVertexMemory.get(), vertBufferSize, 0);
     if (!mapped) {
-        E("%s: Vulkan map memory failed", __FUNCTION__);
+        derror("%s: Vulkan map memory failed", __FUNCTION__);
         return false;
     }
 
@@ -1160,9 +1189,9 @@ Texture RendererVulkan::loadTexture(const char* filename) {
     Texture texture = createTextureInternal(TextureState::Loaded, path.c_str(), resOpt.value());
 
     const uint64_t importEndUs = System::Get()->GetHighResTimeUs();
-    D("%s: Sync load texture %d in %" PRIu64 "ms, [read: %" PRIu64 "ms, import: %" PRIu64 "ms]",
-      __FUNCTION__, texture.id, durationUsToMs(loadStartUs, importEndUs),
-      durationUsToMs(loadStartUs, loadEndUs), durationUsToMs(loadEndUs, importEndUs));
+    dinfo("%s: Sync load texture %d in %" PRIu64 "ms, [read: %" PRIu64 "ms, import: %" PRIu64 "ms]",
+          __FUNCTION__, texture.id, durationUsToMs(loadStartUs, importEndUs),
+          durationUsToMs(loadStartUs, loadEndUs), durationUsToMs(loadEndUs, importEndUs));
 
     return texture;
 }

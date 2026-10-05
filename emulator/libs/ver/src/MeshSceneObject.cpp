@@ -28,10 +28,6 @@
 #include "tiny_gltf.h"
 #include "tiny_obj_loader.h"
 
-#define E(...) derror(__VA_ARGS__)
-#define W(...) dwarning(__VA_ARGS__)
-#define D(...) dprint(__VA_ARGS__)
-
 namespace fs = std::filesystem;
 
 namespace android {
@@ -64,11 +60,11 @@ bool MeshSceneObject::canLoadObj(const char* filename) {
     const bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, filename,
                                       resourcesDir.c_str());
     if (!ret) {
-        E("%s: Error loading obj %s: %s", __FUNCTION__, filename,
-          err.empty() ? "<no message>" : err.c_str());
+        derror("%s: Error loading obj %s: %s", __FUNCTION__, filename,
+               err.empty() ? "<no message>" : err.c_str());
         return false;
     } else if (!warn.empty()) {
-        W("%s: Warnings loading obj %s: %s", __FUNCTION__, filename, warn.c_str());
+        dwarning("%s: Warnings loading obj %s: %s", __FUNCTION__, filename, warn.c_str());
     }
 
     const size_t vertexCount = attrib.vertices.size() / 3;
@@ -81,17 +77,17 @@ bool MeshSceneObject::canLoadObj(const char* filename) {
             tinyobj::index_t index = mesh.indices[i];
 
             if (index.vertex_index < 0 || static_cast<size_t>(index.vertex_index) >= vertexCount) {
-                E("%s: Error parsing %s, invalid vertex index %d, expected "
-                  "less than %d",
-                  __FUNCTION__, filename, index.vertex_index, vertexCount);
+                derror("%s: Error parsing %s, invalid vertex index %d, expected "
+                       "less than %d",
+                       __FUNCTION__, filename, index.vertex_index, vertexCount);
                 return false;
             }
 
             if (index.texcoord_index >= 0) {
                 if (static_cast<size_t>(index.texcoord_index) >= texcoordCount) {
-                    E("%s: Error parsing %s, invalid texture coordinate index %d, expected "
-                      "less than %d",
-                      __FUNCTION__, filename, index.texcoord_index, texcoordCount);
+                    derror("%s: Error parsing %s, invalid texture coordinate index %d, expected "
+                           "less than %d",
+                           __FUNCTION__, filename, index.texcoord_index, texcoordCount);
                     return false;
                 }
             }
@@ -127,13 +123,13 @@ bool MeshSceneObject::canLoadGltf(const char* filename) {
     }
 
     if (!ret) {
-        E("%s: Error loading glTF %s: %s", __FUNCTION__, filename,
-          err.empty() ? "<no message>" : err.c_str());
+        derror("%s: Error loading glTF %s: %s", __FUNCTION__, filename,
+               err.empty() ? "<no message>" : err.c_str());
         return false;
     }
 
     if (model.meshes.empty()) {
-        E("%s: No meshes found in glTF %s", __FUNCTION__, filename);
+        derror("%s: No meshes found in glTF %s", __FUNCTION__, filename);
         return false;
     }
 
@@ -145,12 +141,12 @@ bool MeshSceneObject::canLoadGltf(const char* filename) {
             }
             int posAccessorIdx = posIt->second;
             if (posAccessorIdx < 0 || posAccessorIdx >= static_cast<int>(model.accessors.size())) {
-                E("%s: Invalid position accessor index in glTF %s", __FUNCTION__, filename);
+                derror("%s: Invalid position accessor index in glTF %s", __FUNCTION__, filename);
                 return false;
             }
             if (primitive.indices >= 0 &&
                 primitive.indices >= static_cast<int>(model.accessors.size())) {
-                E("%s: Invalid index accessor in glTF %s", __FUNCTION__, filename);
+                derror("%s: Invalid index accessor in glTF %s", __FUNCTION__, filename);
                 return false;
             }
         }
@@ -161,7 +157,7 @@ bool MeshSceneObject::canLoadGltf(const char* filename) {
 
 bool MeshSceneObject::canLoad(const char* filename) {
     if (!filename) {
-        E("%s: Invalid input", __FUNCTION__);
+        derror("%s: Invalid input", __FUNCTION__);
         return false;
     }
     if (isGltfFile(filename)) {
@@ -185,11 +181,11 @@ std::unique_ptr<MeshSceneObject> MeshSceneObject::loadObj(Renderer& renderer,
     const bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, filename,
                                       resourcesDir.c_str());
     if (!ret) {
-        E("%s: Error loading obj %s: %s", __FUNCTION__, filename,
-          err.empty() ? "<no message>" : err.c_str());
+        derror("%s: Error loading obj %s: %s", __FUNCTION__, filename,
+               err.empty() ? "<no message>" : err.c_str());
         return nullptr;
     } else if (!warn.empty()) {
-        W("%s: Warnings loading obj %s: %s", __FUNCTION__, filename, warn.c_str());
+        dwarning("%s: Warnings loading obj %s: %s", __FUNCTION__, filename, warn.c_str());
     }
 
     std::unique_ptr<MeshSceneObject> result(new MeshSceneObject(renderer));
@@ -212,8 +208,16 @@ std::unique_ptr<MeshSceneObject> MeshSceneObject::loadObj(Renderer& renderer,
             if (material_id >= 0 && static_cast<size_t>(material_id) < materials.size()) {
                 if (strstr(materials[material_id].diffuse_texname.c_str(), "TV")) {
                     useCheckerboardMaterial = true;
-                } else {
-                    texture = renderer.loadTexture(materials[material_id].diffuse_texname.c_str());
+                } else if (!materials[material_id].diffuse_texname.empty()) {
+                    std::string texPath =
+                            (fs::path(resourcesDir) / materials[material_id].diffuse_texname)
+                                    .string();
+                    if (fs::exists(texPath)) {
+                        texture = renderer.loadTexture(texPath.c_str());
+                    } else {
+                        texture = renderer.loadTexture(
+                                materials[material_id].diffuse_texname.c_str());
+                    }
                 }
             }
         }
@@ -223,9 +227,9 @@ std::unique_ptr<MeshSceneObject> MeshSceneObject::loadObj(Renderer& renderer,
             VertexPositionUV vertex;
 
             if (index.vertex_index < 0 || static_cast<size_t>(index.vertex_index) >= vertexCount) {
-                E("%s: Error parsing %s, invalid vertex index %d, expected "
-                  "less than %d",
-                  __FUNCTION__, filename, index.vertex_index, vertexCount);
+                derror("%s: Error parsing %s, invalid vertex index %d, expected "
+                       "less than %d",
+                       __FUNCTION__, filename, index.vertex_index, vertexCount);
                 return nullptr;
             }
 
@@ -235,9 +239,9 @@ std::unique_ptr<MeshSceneObject> MeshSceneObject::loadObj(Renderer& renderer,
 
             if (index.texcoord_index >= 0) {
                 if (static_cast<size_t>(index.texcoord_index) >= texcoordCount) {
-                    E("%s: Error parsing %s, invalid texture coordinate index %d, expected "
-                      "less than %d",
-                      __FUNCTION__, filename, index.texcoord_index, texcoordCount);
+                    derror("%s: Error parsing %s, invalid texture coordinate index %d, expected "
+                           "less than %d",
+                           __FUNCTION__, filename, index.texcoord_index, texcoordCount);
                     return nullptr;
                 }
 
@@ -258,8 +262,8 @@ std::unique_ptr<MeshSceneObject> MeshSceneObject::loadObj(Renderer& renderer,
             }
         }
 
-        D("%s: Creating mesh with %d vertices, %d indices", __FUNCTION__, vertices.size(),
-          indices.size());
+        dinfo("%s: Creating mesh with %d vertices, %d indices", __FUNCTION__, vertices.size(),
+              indices.size());
 
         glm::vec3 minP(std::numeric_limits<float>::max());
         glm::vec3 maxP(std::numeric_limits<float>::lowest());
@@ -309,11 +313,11 @@ std::unique_ptr<MeshSceneObject> MeshSceneObject::loadGltf(Renderer& renderer,
     }
 
     if (!ret) {
-        E("%s: Error loading glTF %s: %s", __FUNCTION__, filename,
-          err.empty() ? "<no message>" : err.c_str());
+        derror("%s: Error loading glTF %s: %s", __FUNCTION__, filename,
+               err.empty() ? "<no message>" : err.c_str());
         return nullptr;
     } else if (!warn.empty()) {
-        W("%s: Warnings loading glTF %s: %s", __FUNCTION__, filename, warn.c_str());
+        dwarning("%s: Warnings loading glTF %s: %s", __FUNCTION__, filename, warn.c_str());
     }
 
     std::unique_ptr<MeshSceneObject> result(new MeshSceneObject(renderer));
@@ -466,20 +470,20 @@ std::unique_ptr<MeshSceneObject> MeshSceneObject::loadGltf(Renderer& renderer,
         }
         int posAccessorIdx = posIt->second;
         if (posAccessorIdx < 0 || posAccessorIdx >= static_cast<int>(model.accessors.size())) {
-            E("%s: Invalid position accessor index in glTF %s", __FUNCTION__, filename);
+            derror("%s: Invalid position accessor index in glTF %s", __FUNCTION__, filename);
             return;
         }
 
         const tinygltf::Accessor& posAccessor = model.accessors[posAccessorIdx];
         if (posAccessor.bufferView < 0 ||
             posAccessor.bufferView >= static_cast<int>(model.bufferViews.size())) {
-            E("%s: Invalid position buffer view index in glTF %s", __FUNCTION__, filename);
+            derror("%s: Invalid position buffer view index in glTF %s", __FUNCTION__, filename);
             return;
         }
         const tinygltf::BufferView& posBufferView = model.bufferViews[posAccessor.bufferView];
         if (posBufferView.buffer < 0 ||
             posBufferView.buffer >= static_cast<int>(model.buffers.size())) {
-            E("%s: Invalid position buffer index in glTF %s", __FUNCTION__, filename);
+            derror("%s: Invalid position buffer index in glTF %s", __FUNCTION__, filename);
             return;
         }
         const tinygltf::Buffer& posBuffer = model.buffers[posBufferView.buffer];
@@ -701,8 +705,8 @@ std::unique_ptr<MeshSceneObject> MeshSceneObject::loadGltf(Renderer& renderer,
             }
         }
 
-        D("%s: Creating glTF primitive mesh with %zu vertices, %zu indices", __FUNCTION__,
-          vertices.size(), indices.size());
+        dinfo("%s: Creating glTF primitive mesh with %zu vertices, %zu indices", __FUNCTION__,
+              vertices.size(), indices.size());
 
         Texture texture;
         bool useCheckerboardMaterial = false;
@@ -899,7 +903,7 @@ std::unique_ptr<MeshSceneObject> MeshSceneObject::loadGltf(Renderer& renderer,
 
 std::unique_ptr<MeshSceneObject> MeshSceneObject::load(Renderer& renderer, const char* filename) {
     if (!filename) {
-        E("%s: Invalid input", __FUNCTION__);
+        derror("%s: Invalid input", __FUNCTION__);
         return nullptr;
     }
     if (isGltfFile(filename)) {

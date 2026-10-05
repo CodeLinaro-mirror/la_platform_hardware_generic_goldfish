@@ -1,8 +1,20 @@
-load("@rules_cc//cc:defs.bzl", "cc_library", "objc_library")
+load("@bazel_skylib//lib:selects.bzl", "selects")
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test", "objc_library")
+load("//emulator/tools:plugins.bzl", "collect_plugins")
 
 package(
     default_visibility = ["//visibility:public"],
     licenses = ["notice"],
+)
+
+exports_files(["ver_testdata.BUILD"])
+
+selects.config_setting_group(
+    name = "darwin_aarch64",
+    match_all = [
+        "@platforms//os:macos",
+        "@platforms//cpu:aarch64",
+    ],
 )
 
 objc_library(
@@ -87,37 +99,19 @@ cc_library(
     name = "ver",
     srcs = [
         "src/JpegUtils.cpp",
-        "src/JpegUtils.h",
         "src/MeshSceneObject.cpp",
-        "src/MeshSceneObject.h",
         "src/PosterSceneObject.cpp",
-        "src/PosterSceneObject.h",
         "src/Renderer.cpp",
-        "src/Renderer.h",
         "src/RendererVulkan.cpp",
-        "src/RendererVulkan.h",
         "src/Scene.cpp",
-        "src/Scene.h",
         "src/SceneObject.cpp",
-        "src/SceneObject.h",
-        "src/ScenesManager.h",
         "src/StreetViewUtils.cpp",
-        "src/StreetViewUtils.h",
         "src/TextureUtils.cpp",
-        "src/TextureUtils.h",
-        "src/VerLogging.h",
-        "src/VertexTypes.h",
-        "src/VulkanShaders.h",
         "src/raw_image_sources/fourcc_utils.cc",
-        "src/raw_image_sources/fourcc_utils.h",
         "src/raw_image_sources/image_file/raw_image_file_source.cc",
-        "src/raw_image_sources/image_file/raw_image_file_source.h",
         "src/raw_image_sources/raw_image_source.cc",
-        "src/raw_image_sources/raw_image_source.h",
         "src/raw_image_sources/webcam/webcam_source.cc",
-        "src/raw_image_sources/webcam/webcam_source.h",
         "src/raw_image_sources/webcam/webcam_source_virtual.cc",
-        "src/raw_image_sources/webcam/webcam_source_virtual.h",
         "src/virtual_environment_renderer.cpp",
     ] + select({
         "@platforms//os:linux": ["src/raw_image_sources/webcam/webcam_source_linux.cc"],
@@ -128,6 +122,24 @@ cc_library(
         "include/ver/export.h",
         "include/ver/virtual_environment_renderer.h",
         "include/ver/virtual_environment_renderer_types.h",
+        "src/JpegUtils.h",
+        "src/MeshSceneObject.h",
+        "src/PosterSceneObject.h",
+        "src/Renderer.h",
+        "src/RendererVulkan.h",
+        "src/Scene.h",
+        "src/SceneObject.h",
+        "src/ScenesManager.h",
+        "src/StreetViewUtils.h",
+        "src/TextureUtils.h",
+        "src/VerLogging.h",
+        "src/VertexTypes.h",
+        "src/VulkanShaders.h",
+        "src/raw_image_sources/fourcc_utils.h",
+        "src/raw_image_sources/image_file/raw_image_file_source.h",
+        "src/raw_image_sources/raw_image_source.h",
+        "src/raw_image_sources/webcam/webcam_source.h",
+        "src/raw_image_sources/webcam/webcam_source_virtual.h",
     ],
     copts = [
         "-Wno-unused-function",
@@ -191,4 +203,96 @@ cc_library(
         "//conditions:default": [],
     }),
     alwayslink = True,
+)
+
+collect_plugins(
+    name = "test_vulkan_icds",
+    output_dir = "lib64/vulkan",
+    plugins = select({
+        ":darwin_aarch64": [
+            "@goldfish_prebuilts_common//vulkan:icds_darwin_aarch64",
+            "@goldfish_prebuilts_common//vulkan:lib_darwin_aarch64",
+            "@mesa3d//:generate_lvp_icd",
+            "@mesa3d//:vulkan_lvp",
+        ],
+        "@platforms//os:linux": [
+            "@goldfish_prebuilts_common//vulkan:icds_linux_x86_64",
+            "@goldfish_prebuilts_common//vulkan:lib_linux_x86_64",
+            "@llvm-project//llvm:libLLVM.so",
+            "@mesa3d//:vulkan_lvp",
+            "@mesa3d//:generate_lvp_icd",
+        ],
+        "@platforms//os:windows": [
+            "@goldfish_prebuilts_common//vulkan:icds_windows_x86_64",
+            "@goldfish_prebuilts_common//vulkan:lib_windows_x86_64",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+collect_plugins(
+    name = "test_resources",
+    output_dir = "resources",
+    plugins = [
+        "@goldfish_prebuilts_common//virtualscene/Toren1BD",
+        "@ver_testdata//:virtualscene_default",
+    ],
+)
+
+collect_plugins(
+    name = "test_testdata",
+    output_dir = "testdata",
+    plugins = [
+        "@ver_testdata//:testdata_flat",
+    ],
+)
+
+collect_plugins(
+    name = "test_testdata_exif",
+    output_dir = "testdata/ver/exif_rotation",
+    plugins = [
+        "@ver_testdata//:testdata_exif_rotation",
+    ],
+)
+
+cc_test(
+    name = "ver_unittests",
+    size = "small",
+    srcs = [
+        "test/JpegUtils_unittest.cpp",
+        "test/RawImageFileSource_unittest.cpp",
+        "test/SceneRenderingGltf_unittests.cpp",
+        "test/SceneRendering_unittests.cpp",
+        "test/TestUtils.h",
+        "test/TextureUtils_unittest.cpp",
+        "test/WebcamSource_unittest.cpp",
+    ],
+    copts = [
+        "-DGLM_ENABLE_EXPERIMENTAL",
+        "-DGLM_FORCE_RADIANS",
+    ],
+    data = [
+        ":test_resources",
+        ":test_testdata",
+        ":test_testdata_exif",
+        ":test_vulkan_icds",
+    ],
+    env = {
+        "LD_LIBRARY_PATH": "emulator/libs/ver/lib64/vulkan",
+    },
+    # TODO(b/568399159): Intentionally skipped on Windows.
+    target_compatible_with = select({
+        "@platforms//os:windows": ["@platforms//:incompatible"],
+        "//conditions:default": [],
+    }),
+    deps = [
+        ":ver",
+        "//emulator/libs/system",
+        "//emulator/libs/system:bazel_info",
+        "//emulator/libs/test:googletest_main",
+        "@aemu//base:aemu-base-headers",
+        "@gfxstream//third_party/glm",
+        "@libjpeg_turbo//:jpeg",
+        "@libpng//:png",
+    ],
 )

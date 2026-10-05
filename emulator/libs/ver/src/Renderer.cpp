@@ -25,10 +25,6 @@
 #include "RendererVulkan.h"
 #include "VerLogging.h"
 
-#define E(...) derror(__VA_ARGS__)
-#define W(...) dwarning(__VA_ARGS__)
-#define D(...) dprint(__VA_ARGS__)
-
 static constexpr int kMaxViewDimension = 16384;
 
 namespace android {
