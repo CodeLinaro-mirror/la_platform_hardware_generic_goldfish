@@ -32,8 +32,6 @@ extern "C" {
 // IWYU pragma: end_keep
 // clang-format on
 
-typedef struct VSockProxy {
-} VSockProxy;
 typedef struct VSockFwdDev VSockFwdDev;
 
 typedef void (*OnVsockHostConnectFn)(VSockFwdDev*);
@@ -44,7 +42,7 @@ struct VSockFwdDev {
     int host_port;
     int guest_port;
     char* address;
-    VSockProxy* forwarder;
+    void* forwarder_impl;
     OnVsockHostConnectFn on_connect;
     SnifferFactory data_sniffer_factory;
 };

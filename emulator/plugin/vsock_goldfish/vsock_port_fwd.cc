@@ -187,7 +187,7 @@ class HostToGuestConnection : public goldfish::devices::HalPlug,
  * port in the guest is not yet up. We expect those who connect to the port to
  * be able to deal with the potential delays this can cause.
  */
-class VSockProxyImpl : public VSockProxy {
+class VSockProxyImpl {
   public:
     VSockProxyImpl(const Endpoint& hostEndpoint, VSockFwdDev* device,
                    goldfish::avd::AvdUniverse& universe)
@@ -317,7 +317,7 @@ static void vsock_fwd_realize(DeviceState* dev, Error** errp) {
                      << " we will use: " << ToString(*preferred);
     }
 
-    vsock_fwd_device->forwarder =
+    vsock_fwd_device->forwarder_impl =
             new VSockProxyImpl(*preferred, vsock_fwd_device, goldfish::avd::GetAvd());
     VLOG(VLOG_DBG) << "Realizing vsock forwarder: (address:host <-> guest) " << ToString(*preferred)
                    << "<->" << vsock_fwd_device->guest_port;
@@ -328,8 +328,10 @@ static void vsock_fwd_unrealize(DeviceState* dev) {
 
     VLOG(VLOG_DBG) << "Erasing vsock forwarder: (host:guest) " << vsock_fwd_device->host_port << ":"
                    << vsock_fwd_device->guest_port;
-    static_cast<VSockProxyImpl*>(vsock_fwd_device->forwarder)->close();
-    delete vsock_fwd_device->forwarder;
+
+    VSockProxyImpl* impl = static_cast<VSockProxyImpl*>(vsock_fwd_device->forwarder_impl);
+    impl->close();
+    delete impl;
 }
 
 static void vsock_fwd_set_host_port(Object* obj, Visitor* v, const char* name, void* opaque,
