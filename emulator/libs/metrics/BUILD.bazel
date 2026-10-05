@@ -12,7 +12,7 @@ clang_tidy_test(
     name = "tidy",
     targets = [
         # TODO(whollins): Figure out why these don't work.
-        #":uuid",
+        #":metrics_uuid",
         #":metrics_reporter",
         #":text_metrics_writer",
     ],
@@ -20,7 +20,7 @@ clang_tidy_test(
 )
 
 cc_library(
-    name = "uuid",
+    name = "metrics_uuid",
     srcs = ["uuid.cc"],
     hdrs = ["include/goldfish/metrics/uuid.h"],
     includes = ["include"],
@@ -43,7 +43,7 @@ cc_test(
     name = "uuid_test",
     srcs = ["uuid_test.cc"],
     deps = [
-        ":uuid",
+        ":metrics_uuid",
         "//emulator/libs/status_macros:status_matcher_macros",
         "//emulator/libs/test:googletest_main",
     ],
@@ -72,9 +72,9 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
+        ":metrics_uuid",
         ":metrics_writer",
         ":studio_stats_wrapper",
-        ":uuid",
         "//emulator/libs/system",
         "//emulator/tools:aemu_version",
         "@abseil-cpp//absl/log",
@@ -200,7 +200,7 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
-        ":uuid",
+        ":metrics_uuid",
         "//emulator/libs/file",
         "@protobuf",
         "@studio_stats//:analytics_settings_cc_proto",
