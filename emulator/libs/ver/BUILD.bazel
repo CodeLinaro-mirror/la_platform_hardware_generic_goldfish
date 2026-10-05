@@ -284,10 +284,6 @@ cc_test(
     target_compatible_with = select({
         "@platforms//os:windows": ["@platforms//:incompatible"],
         "//conditions:default": [],
-    }) + select({
-        # TODO(b/513154005): fix virtual environment tests with asan
-        "//emulator/tools:asan": ["@platforms//:incompatible"],
-        "//conditions:default": [],
     }),
     deps = [
         ":ver",

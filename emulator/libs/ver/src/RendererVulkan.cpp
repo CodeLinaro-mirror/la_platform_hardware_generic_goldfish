@@ -18,6 +18,10 @@
 
 #include <libyuv.h>
 
+#if defined(__linux__) || defined(__APPLE__)
+#include <dlfcn.h>
+#endif
+
 #include <algorithm>
 #include <cassert>
 #include <cinttypes>
@@ -80,6 +84,23 @@ bool RendererVulkan::initialize() {
                 System::Get()->EnvSet("VK_ICD_FILENAMES", absIcd);
             }
         }
+
+        // Pin libvulkan_lvp in the process address space with RTLD_NODELETE so it
+        // remains mapped until process exit. Unmapping the library causes ASan/LSan
+        // failures during test teardown and across multiple test cases due to
+        // unmapped symbol addresses and lingering global/TLS state in Mesa/LLVM.
+#if defined(__linux__)
+        std::filesystem::path lvpLib = mVulkanBasePath / "libvulkan_lvp.so";
+#elif defined(__APPLE__)
+        std::filesystem::path lvpLib = mVulkanBasePath / "libvulkan_lvp.dylib";
+#endif
+#if defined(__linux__) || defined(__APPLE__)
+        if (std::filesystem::exists(lvpLib)) {
+            if (void* handle = ::dlopen(lvpLib.c_str(), RTLD_NOW | RTLD_LOCAL | RTLD_NODELETE)) {
+                ::dlclose(handle);
+            }
+        }
+#endif
     }
     std::string customDir = mVulkanBasePath.string();
     auto metaLoader =
