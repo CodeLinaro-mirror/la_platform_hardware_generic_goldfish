@@ -16,6 +16,7 @@ def _unzip_impl(ctx):
         arguments = [args],
         mnemonic = "Extracting",
         executable = ctx.executable._zip,
+        execution_requirements = {"no-remote": "1"},
     )
 
     return [
