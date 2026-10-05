@@ -8,9 +8,9 @@ backed by libuv or QEMU. **Location:** `emulator/libs/async/` **Namespace:** `go
 | Class / Interface    | Bazel Target                                | Header Path                                     | Description                                        |
 | :------------------- | :------------------------------------------ | :---------------------------------------------- | :------------------------------------------------- |
 | `AsyncSocket`        | `//emulator/libs/async:async_api`           | `include/goldfish/async/async_socket.h`         | Abstract interface for async sockets.              |
-| `EventLoop`          | `//emulator/libs/async:async_api`           | `include/goldfish/async/event_loop.h`           | Abstract interface for the event loop.             |
-| `LibuvEventLoop`     | `//emulator/libs/async:libuv_event_loop`    | `include/goldfish/async/libuv_event_loop.h`     | libuv-backed EventLoop implementation.             |
-| `QemuEventLoop`      | `//emulator/libs/async:qemu_event_loop`     | `include/goldfish/async/qemu_event_loop.h`      | QEMU main-loop backed EventLoop adapter.           |
+| `EventLoop`          | `//emulator/libs/async:async_api`           | `include/goldfish/async/event_loop.h`           | Abstract interface for the event loop (`Post`, `PostAndWait`, `Schedule`). Tested in `event_loop_test.cc` (`@goldfish//emulator/libs/async:eventloop_unittests`). |
+| `LibuvEventLoop`     | `//emulator/libs/async:libuv_event_loop`    | `include/goldfish/async/libuv_event_loop.h`     | libuv-backed EventLoop implementation (`@goldfish//emulator/libs/async:eventloop_unittests`). |
+| `QemuEventLoop`      | `//emulator/libs/async:qemu_event_loop`     | `include/goldfish/async/qemu_event_loop.h`      | QEMU main-loop backed EventLoop adapter (`@goldfish//emulator/libs/async:eventloop_unittests`). |
 | `ThreadedEventLoop`  | `//emulator/libs/async:threaded_event_loop` | `include/goldfish/async/threaded_event_loop.h`  | Helper running an EventLoop in a dedicated thread. |
 | `AsyncSocketFactory` | `//emulator/libs/async:async_api`           | `include/goldfish/async/async_socket_factory.h` | Factory interface for creating sockets.            |
 
@@ -18,6 +18,7 @@ backed by libuv or QEMU. **Location:** `emulator/libs/async/` **Namespace:** `go
 
 | File                  | Responsibility                                         |
 | :-------------------- | :----------------------------------------------------- |
+| `include/goldfish/async/event_loop.h` | Defines `EventLoop::Post` and `EventLoop::PostAndWait`, using `android::status::Flatten` / `flatten_status_or_t<T>` from `//emulator/libs/status_macros:flatten` (`emulator/libs/status_macros/include/android/status/flatten.h`, tested in `emulator/libs/status_macros/flatten_test.cc` / `@goldfish//emulator/libs/status_macros:flatten_test`) so callables returning `absl::Status` or `absl::StatusOr<T>` flatten cleanly instead of returning nested `absl::StatusOr<absl::StatusOr<T>>`. |
 | `libuv_sockets.cc`    | Implements `AsyncSocket` using libuv primitives.       |
 | `libuv_event_loop.cc` | Wraps `uv_loop_t` and handles task scheduling.         |
 | `qemu_event_loop.cc`  | Maps QEMU's `AioContext` to the `EventLoop` interface. |

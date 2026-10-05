@@ -5,11 +5,12 @@
 **Namespace:** `android::goldfish`
 
 ## Integration Guide
-| Class / Interface | Bazel Target | Header Path | Description |
+| Class / Script | Bazel Target | File Path | Description |
 | :--- | :--- | :--- | :--- |
-| `Launcher` | `:launcher` | `launcher.h` | Main coordination and lifecycle supervisor class. |
-| `LaunchQemu` | `//emulator/launcher/launch_qemu` | `launch_qemu/launch_qemu.h` | Configures QEMU parameters, drives, and device flags. |
-| `Avd` | `:avd` | `include/android/goldfish/avd.h` | Represents the Android Virtual Device configuration and universe properties. |
+| `Launcher` | `@goldfish//emulator/launcher:launcher` | `launcher.h`, `main.cc` | Main C++ coordination and lifecycle supervisor class. |
+| `LaunchQemu` | `//emulator/launcher/launch_qemu` | `launch_qemu/launch_qemu.h` | Configures QEMU parameters, drives (`ConfigureDrives`), and device flags. |
+| `Avd` & `ImageList` | `@goldfish//emulator/launcher:avd` | `include/android/goldfish/avd.h`, `include/android/goldfish/image_list.h`, `avd.cc` | Resolves Android Virtual Device partition image paths (`.img` vs `-qemu.img`) and hardware properties (`@goldfish//emulator/launcher:avd_test`). |
+| `emulator_lib.py` & `launch_emulator.py` | `@goldfish//emulator/launcher:emulator_lib`, `@goldfish//emulator/launcher:launch_emulator` | `tools/emulator_lib.py`, `tools/launch_emulator.py`, `tools/launcher_test.bzl` | Python emulator launcher wrapper (`launch_emulator`, `parse_args`, `wait_for_emulator_discovery_file`) handling companion UI flags such as `--android-device-hub` (hiding the default window, polling the discovery file, and spawning the Device Hub UI binary). Tested in `tools/emulator_lib_test.py` (`@goldfish//emulator/launcher:emulator_lib_test`). |
 
 ## Critical Infrastructure
 * **Startup Sequence:**
