@@ -16,6 +16,8 @@
 
 #include <memory>
 
+#include "absl/time/time.h"
+
 #include "android/cmdline_option.h"
 #include "android/goldfish/avd.h"
 #include "android/goldfish/input_paths.h"
@@ -46,6 +48,7 @@ struct LauncherConfig {
     std::unique_ptr<Avd> avd;
     AndroidOptions opts;
     ::goldfish::metrics::MetricsWriterConfig metrics_writer_config;
+    absl::Duration qemu_shutdown_timeout = absl::Seconds(60);
 };
 
 // Runs the emulator launcher and enters the event loop.

@@ -125,9 +125,10 @@ class Launcher {
                                         })
                                         .IgnoreError();
                             } else if (!shutting_down_) {
-                                LOG(FATAL)
-                                        << "Emulator launch aborted: Failed to connect to netsimd (required for Wi-Fi, Bluetooth, and Telephony). Status: "
-                                        << connection.status();
+                                LOG(FATAL) << "Emulator launch aborted: Failed to connect to "
+                                              "netsimd (required for Wi-Fi, Bluetooth, and "
+                                              "Telephony). Status: "
+                                           << connection.status();
                             }
                         });
                     }
@@ -154,15 +155,39 @@ class Launcher {
   private:
     void forwarding_signal_handler(int signum) {
         VLOG(1) << "forwarding_signal_handler called with signum: " << signum;
-        shutting_down_ = true;
+        if (shutting_down_) {
+            return;
+        }
         if (auto* p = emulator_process_.get()) {
+            if (qemu_shutdown_timeout_) {
+                // If the user has sent another signal, e.g. another INT or TERM, then they
+                // must really want us to exit immediately so don't wait any longer.
+                LOG(WARNING)
+                        << "Signal " << signum
+                        << " received while already shutting down; sending SIGKILL to emulator";
+                qemu_shutdown_timeout_->Cancel();
+                p->Kill(SIGKILL);
+                return;
+            }
             LOG(ERROR) << "Signal received, sending shutdown command to emulator: " << signum;
             if (auto s = send_emulator_grpc_shutdown(ports_.serial_number); !s.ok()) {
-                LOG(WARNING) << "Graceful gRPC shutdown failed; falling back to forceful kill with signal: " << signum << " - " << s;
+                LOG(WARNING) << "Graceful gRPC shutdown failed; falling back to forceful kill with "
+                                "signal: "
+                             << signum << " - " << s;
                 // Note that: on Windows, this does not send a signal but instead calls
                 // TerminateProcess().
                 p->Kill(signum);
             }
+            qemu_shutdown_timeout_ = config_.event_loop.ScheduleDelayed(
+                    [this] {
+                        if (auto* proc = emulator_process_.get()) {
+                            LOG(WARNING) << "Emulator did not exit within "
+                                         << config_.qemu_shutdown_timeout
+                                         << " after shutdown signal; sending SIGKILL";
+                            proc->Kill(SIGKILL);
+                        }
+                    },
+                    config_.qemu_shutdown_timeout);
         } else {
             // If there is no emulator process yet then we want to shutdown directly.
             shutdown();
@@ -323,13 +348,9 @@ class Launcher {
 
     void emulator_exit(int64_t exit_status, int term_signal) {
         LOG(INFO) << "emulator exited with status " << exit_status << ", signal " << term_signal;
+        qemu_shutdown_timeout_.reset();
         emulator_exit_status_ = exit_status;
         emulator_process_.reset();
-
-        // Shutdown fishtank if it's running.
-        if (auto* p = fishtank_process_.get()) {
-            p->Kill(SIGTERM);
-        }
 
         // Send a final ping with the crash status.
         config_.metrics_reporter->Report([exit_status,
@@ -384,6 +405,15 @@ class Launcher {
     }
 
     void shutdown() {
+        if (shutting_down_.exchange(true)) {
+            return;
+        }
+
+        // Shutdown fishtank if it's running.
+        if (auto* p = fishtank_process_.get()) {
+            p->Kill(SIGTERM);
+        }
+
         if (console_controller_) {
             if (auto s = console_controller_->Stop(); !s.ok()) {
                 LOG(WARNING) << "Failed to gracefully stop console controller: " << s;
@@ -423,6 +453,7 @@ class Launcher {
     std::unique_ptr<::goldfish::async::ManagedProcess> fishtank_process_;
     std::unique_ptr<::goldfish::async::ManagedProcess> netsimd_process_;
     std::unique_ptr<::goldfish::async::ManagedProcess> emulator_process_;
+    std::shared_ptr<::goldfish::async::EventLoop::Timer> qemu_shutdown_timeout_;
     std::shared_ptr<ModemSimulatorService> modem_simulator_service_;
 
     int emulator_exit_status_ = 0;
