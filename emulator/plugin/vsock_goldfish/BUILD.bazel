@@ -52,6 +52,8 @@ cc_library(
         "//emulator/plugin/hal/connector:connection_awaiter",
         "//emulator/plugin/hal/guest-status",
         "//emulator/plugin/hal/plug:hal_plug_factory",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
         "@qemu//:qemu-headers-exported",
     ],
     alwayslink = True,
