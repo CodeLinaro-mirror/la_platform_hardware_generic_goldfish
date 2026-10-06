@@ -32,11 +32,15 @@ cc_library(
 cc_binary(
     name = "crashreport",
     srcs = ["crashreport.cc"],
+    env = {
+        # Match the crash database location used by `bazel run //emulator/launcher`
+        # and `bazel run //emulator/launcher:launch_emulator`.
+        "ANDROID_EMU_CRASH_REPORTING_DATABASE": "/tmp/crash-report.db",
+    },
     visibility = ["//visibility:public"],
     deps = [
         ":tool_lib",
         "//emulator/crashreport/tool/breadcrumbs",
-        "//emulator/libs/system:bazel_info",
         "@abseil-cpp//absl/flags:flag",
         "@abseil-cpp//absl/flags:parse",
         "@abseil-cpp//absl/flags:usage",
@@ -53,6 +57,11 @@ py_binary(
         ":crashreport",
         "//emulator:package_goldfish_symbols_extract",
     ],
+    env = {
+        # Match the crash database location used by `bazel run //emulator/launcher`
+        # and `bazel run //emulator/launcher:launch_emulator`.
+        "ANDROID_EMU_CRASH_REPORTING_DATABASE": "/tmp/crash-report.db",
+    },
     deps = [
         "//emulator/tools:symbol_zipper",
         "@bazel_tools//tools/python/runfiles",

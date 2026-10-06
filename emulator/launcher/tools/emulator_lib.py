@@ -331,6 +331,10 @@ class EmulatorAvd:
                 ),
             }
         )
+        # Since ANDROID_TMP points to a temporary directory that is cleaned up
+        # on exit, default the crash database to a fixed location so crash
+        # reports persist and can be inspected with the crashreport tool.
+        env.setdefault("ANDROID_EMU_CRASH_REPORTING_DATABASE", "/tmp/crash-report.db")
         return env
 
 

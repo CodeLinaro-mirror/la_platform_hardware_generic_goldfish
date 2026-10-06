@@ -13,6 +13,7 @@
 
 #include "absl/log/log.h"
 
+#include "android/base/system.h"
 #include "android/utils/misc.h"
 #include "host-common/constants.h"
 
@@ -24,9 +25,8 @@ static const struct {
     const char* name;
     int flag;
     const char* text;
-} kDebugTags[] = {
-    // VERBOSE_TAG_LIST
-    {nullptr, 0, nullptr}};
+} kDebugTags[] = {// VERBOSE_TAG_LIST
+                  {nullptr, 0, nullptr}};
 
 void ParseEnvDebugTags(void);
 
@@ -336,8 +336,10 @@ bool android_parse_debug_tags_option(const char* opt, bool parse_as_suffix) {
 }
 
 void ParseEnvDebugTags(void) {
-    const char* env = getenv(ENV_DEBUG);
-    android_parse_debug_tags_option(env, /*parse_as_suffix*/ false);
+    std::string env = android::base::System::Get()->EnvGet(ENV_DEBUG);
+    if (!env.empty()) {
+        android_parse_debug_tags_option(env.c_str(), /*parse_as_suffix*/ false);
+    }
 }
 
 bool android_validate_ports(int console_port, int adb_port) {

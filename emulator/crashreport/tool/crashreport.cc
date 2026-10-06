@@ -33,8 +33,6 @@
 #include "absl/log/log.h"
 #include "absl/strings/str_format.h"
 
-#include "android/base/bazel_info.h"
-#include "android/base/system.h"
 #include "android/crashreport/breadcrumbs/breadcrumb_parser.h"
 #include "android/crashreport/breadcrumbs/breadcrumb_processor.h"
 #include "android/crashreport/breadcrumbs/trace_renderer_factory.h"
@@ -84,7 +82,6 @@ ABSL_FLAG(bool, standalone, false,
 ABSL_FLAG(std::string, breadcrumb_format, "text", "Breadcrumb output format: 'text' or 'mermaid'");
 ABSL_FLAG(std::string, color, "auto", "Enable color output: 'always', 'never', or 'auto'");
 
-using android::base::System;
 using android::crashreport::AnnotationExtractor;
 using android::crashreport::CrashReportManager;
 using android::crashreport::Formatter;
@@ -303,15 +300,6 @@ int main(int argc, char* argv[]) {
         LOG(ERROR) << "--breadcrumb_format is only valid when used with --minidump.";
         return 1;
     }
-    if (android::base::Bazel::InBazel()) {
-        if (System::GetEnvironmentVariable("ANDROID_EMU_CRASH_REPORTING_DATABASE").empty()) {
-            System::SetEnvironmentVariable("ANDROID_EMU_CRASH_REPORTING_DATABASE",
-                                           "/tmp/crash-report.db");
-        }
-        LOG(INFO) << "Running in bazel environment using crash database: "
-                  << System::GetEnvironmentVariable("ANDROID_EMU_CRASH_REPORTING_DATABASE");
-    }
-
     bool standalone = absl::GetFlag(FLAGS_standalone);
     bool do_list = absl::GetFlag(FLAGS_list) || absl::GetFlag(FLAGS_l);
     bool do_upload = absl::GetFlag(FLAGS_upload) || absl::GetFlag(FLAGS_u);

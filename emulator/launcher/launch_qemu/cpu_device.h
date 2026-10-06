@@ -26,6 +26,8 @@ class CpuDevice : public Device {
 
     absl::Status initialize(const EmulatorConfig& emulator) override;
     std::vector<std::string> getQemuParameters(const EmulatorConfig& emulator) const override;
+    absl::flat_hash_map<std::string, std::string> getQemuEnv(
+            const EmulatorConfig& emulator) const override;
 
     static void forceHostArch_TestOnly(Avd::CpuArchitecture arch);
 

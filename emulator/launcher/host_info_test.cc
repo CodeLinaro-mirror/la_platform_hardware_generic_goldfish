@@ -144,64 +144,46 @@ class HostInfoVulkanTest : public ::testing::Test {
 };
 
 TEST_F(HostInfoVulkanTest, setVulkanIcdHostDefault) {
-    TestSystem sys("bin", "myhome");
-    sys.EnvSet("ANDROID_EMU_VK_ICD", "");
-
     android_studio::AndroidStudioEvent event;
-    FillEmulatorHostEvent(event, avd_, 1234, 5678, true, false);
+    FillEmulatorHostEvent(event, avd_, 1234, 5678, true, false, "");
 
     EXPECT_EQ(event.emulator_details().vulkan_icd(),
               android_studio::EmulatorDetails::HOST_DEFAULT_VK);
 }
 
 TEST_F(HostInfoVulkanTest, setVulkanIcdSwiftshader) {
-    TestSystem sys("bin", "myhome");
-    sys.EnvSet("ANDROID_EMU_VK_ICD", "swiftshader");
-
     android_studio::AndroidStudioEvent event;
-    FillEmulatorHostEvent(event, avd_, 1234, 5678, true, false);
+    FillEmulatorHostEvent(event, avd_, 1234, 5678, true, false, "swiftshader");
 
     EXPECT_EQ(event.emulator_details().vulkan_icd(),
               android_studio::EmulatorDetails::SWIFTSHADER_VK);
 }
 
 TEST_F(HostInfoVulkanTest, setVulkanIcdLavapipe) {
-    TestSystem sys("bin", "myhome");
-    sys.EnvSet("ANDROID_EMU_VK_ICD", "lavapipe");
-
     android_studio::AndroidStudioEvent event;
-    FillEmulatorHostEvent(event, avd_, 1234, 5678, true, false);
+    FillEmulatorHostEvent(event, avd_, 1234, 5678, true, false, "lavapipe");
 
     EXPECT_EQ(event.emulator_details().vulkan_icd(), android_studio::EmulatorDetails::LAVAPIPE_VK);
 }
 
 TEST_F(HostInfoVulkanTest, setVulkanIcdMoltenvk) {
-    TestSystem sys("bin", "myhome");
-    sys.EnvSet("ANDROID_EMU_VK_ICD", "moltenvk");
-
     android_studio::AndroidStudioEvent event;
-    FillEmulatorHostEvent(event, avd_, 1234, 5678, true, false);
+    FillEmulatorHostEvent(event, avd_, 1234, 5678, true, false, "moltenvk");
 
     EXPECT_EQ(event.emulator_details().vulkan_icd(), android_studio::EmulatorDetails::MOLTEN_VK);
 }
 
 TEST_F(HostInfoVulkanTest, setVulkanIcdKosmickrisp) {
-    TestSystem sys("bin", "myhome");
-    sys.EnvSet("ANDROID_EMU_VK_ICD", "kosmickrisp");
-
     android_studio::AndroidStudioEvent event;
-    FillEmulatorHostEvent(event, avd_, 1234, 5678, true, false);
+    FillEmulatorHostEvent(event, avd_, 1234, 5678, true, false, "kosmickrisp");
 
     EXPECT_EQ(event.emulator_details().vulkan_icd(),
               android_studio::EmulatorDetails::KOSMICKRISP_VK);
 }
 
 TEST_F(HostInfoVulkanTest, setVulkanIcdUnknown) {
-    TestSystem sys("bin", "myhome");
-    sys.EnvSet("ANDROID_EMU_VK_ICD", "unknown_icd");
-
     android_studio::AndroidStudioEvent event;
-    FillEmulatorHostEvent(event, avd_, 1234, 5678, true, false);
+    FillEmulatorHostEvent(event, avd_, 1234, 5678, true, false, "unknown_icd");
 
     EXPECT_EQ(event.emulator_details().vulkan_icd(), android_studio::EmulatorDetails::UNKNOWN_VK);
 }

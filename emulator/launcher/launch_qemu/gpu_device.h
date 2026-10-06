@@ -26,14 +26,19 @@ namespace android::goldfish {
 class GpuDevice : public PciDevice {
   public:
     explicit GpuDevice(std::string_view gpu_name, const SnapshotDevice& snapshot_device)
-            : PciDevice("gpu", "01.0"), mGpuName(gpu_name), mSnapshotDevice(snapshot_device) {}
+            : PciDevice(std::string(gpu_name), "01.0"), mSnapshotDevice(snapshot_device) {}
 
     absl::Status initialize(const EmulatorConfig& emulator) override;
     std::vector<std::string> getQemuParameters(const EmulatorConfig& emulator) const override;
+    absl::flat_hash_map<std::string, std::string> getQemuEnv(
+            const EmulatorConfig& emulator) const override;
+
+    std::string_view getVulkanIcd() const { return mVulkanIcd; }
 
   private:
-    std::string mGpuName;
     const SnapshotDevice& mSnapshotDevice;
+    std::string mEmuRenderer;
+    std::string mVulkanIcd;
 };
 
 }  // namespace android::goldfish

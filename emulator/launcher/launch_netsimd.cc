@@ -22,6 +22,7 @@
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
 
+#include "android/base/system.h"
 #include "android/cmdline_option.h"
 #include "android/goldfish/ini_file.h"
 #include "android/status/status_macros.h"
@@ -34,8 +35,8 @@ namespace fs = std::filesystem;
 
 namespace {
 
-fs::path getEnvDir(const char* envvar, std::string_view subdir) {
-    if (char* env_p = std::getenv(envvar); env_p && *env_p) {
+fs::path getEnvDir(std::string_view envvar, std::string_view subdir) {
+    if (std::string env_p = android::base::System::Get()->EnvGet(envvar); !env_p.empty()) {
         return fs::path(env_p) / subdir;
     }
     LOG(WARNING) << "No discovery env for " << envvar << ", using tmp/";
@@ -44,8 +45,8 @@ fs::path getEnvDir(const char* envvar, std::string_view subdir) {
 
 fs::path GetNetsimDiscoveryDir() {
     // $TMPDIR is the temp directory on buildbots (and Mac).
-    const char* test_env_p = std::getenv("TMPDIR");
-    if (test_env_p && *test_env_p) {
+    if (std::string test_env_p = android::base::System::Get()->EnvGet("TMPDIR");
+        !test_env_p.empty()) {
         return fs::path(test_env_p);
     }
 #if defined(_WIN32)
@@ -151,7 +152,8 @@ NetsimConnector::NetsimConnector(LaunchNetsimdFn launch_netsimd_on_loop,
 
 absl::StatusOr<NetsimConnection_ptr> NetsimConnector::Run() {
     if (shutting_down_) {
-        return absl::CancelledError("Cancelled netsimd connection sequence: emulator is shutting down");
+        return absl::CancelledError(
+                "Cancelled netsimd connection sequence: emulator is shutting down");
     }
     if (force_existing_netsimd_endpoint_ && !force_existing_netsimd_endpoint_->empty()) {
         VLOG(1) << "Trying to connect to existing netsimd at: "
@@ -169,8 +171,8 @@ absl::StatusOr<NetsimConnection_ptr> NetsimConnector::Run() {
                     << existing_port;
             return conn;
         }
-        LOG(WARNING) << "Existing netsimd at port " << existing_port
-                     << " is unreachable (" << conn.status()
+        LOG(WARNING) << "Existing netsimd at port " << existing_port << " is unreachable ("
+                     << conn.status()
                      << "). Assuming stale discovery file; proceeding to launch a new instance.";
     }
 
@@ -210,7 +212,8 @@ absl::StatusOr<int> NetsimConnector::WaitForNewPort(int old_port, absl::Duration
     }
 
     if (shutting_down_) {
-        return absl::CancelledError("Cancelled netsimd waiting for port: emulator is shutting down");
+        return absl::CancelledError(
+                "Cancelled netsimd waiting for port: emulator is shutting down");
     }
     return absl::DeadlineExceededError(absl::StrCat(
             "Timed out after ", absl::FormatDuration(timeout),

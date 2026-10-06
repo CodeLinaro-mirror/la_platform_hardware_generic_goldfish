@@ -41,10 +41,11 @@ TEST(BootProperties, Basic) {
             .Times(1)
             .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
 
-    EXPECT_THAT(getBootProperties(emu.config()), testing::IsSupersetOf(std::vector{
-                                                     std::pair{"androidboot.hardware", "ranchu"},
-                                                     std::pair{"androidboot.logcat", "*:V"},
-                                                 }));
+    EXPECT_THAT(getBootProperties(emu.config(), "lavapipe"),
+                testing::IsSupersetOf(std::vector{
+                    std::pair{"androidboot.hardware", "ranchu"},
+                    std::pair{"androidboot.logcat", "*:V"},
+                }));
 }
 
 TEST(BootProperties, NoBootAnim) {
@@ -60,7 +61,7 @@ TEST(BootProperties, NoBootAnim) {
             .Times(1)
             .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
 
-    EXPECT_THAT(getBootProperties(emu.config()),
+    EXPECT_THAT(getBootProperties(emu.config(), "lavapipe"),
                 testing::IsSupersetOf(std::vector{std::pair{"android.bootanim", "0"}}));
 }
 
@@ -78,7 +79,7 @@ TEST(BootProperties, Logcat) {
             .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
 
     EXPECT_THAT(
-            getBootProperties(emu.config()),
+            getBootProperties(emu.config(), "lavapipe"),
             testing::IsSupersetOf(std::vector{std::pair{"androidboot.logcat", "*:S,Zygote:E"}}));
 }
 
@@ -109,7 +110,10 @@ TEST(Initrd, Basic) {
             .Times(1)
             .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
 
-    InitrdDevice dev;
+    SnapshotDevice snapshot_dev;
+    GpuDevice gpu_dev("gpu0", snapshot_dev);
+    EXPECT_OK(gpu_dev.initialize(emu.config()));
+    InitrdDevice dev(gpu_dev);
     EXPECT_OK(dev.initialize(emu.config()));
     EXPECT_THAT(dev.getQemuParameters(emu.config()),
                 testing::ElementsAre(
@@ -150,7 +154,10 @@ TEST(Initrd, RamdiskFlag) {
             .Times(1)
             .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
 
-    InitrdDevice dev;
+    SnapshotDevice snapshot_dev;
+    GpuDevice gpu_dev("gpu0", snapshot_dev);
+    EXPECT_OK(gpu_dev.initialize(emu.config()));
+    InitrdDevice dev(gpu_dev);
     EXPECT_OK(dev.initialize(emu.config()));
     auto params = dev.getQemuParameters(emu.config());
 
