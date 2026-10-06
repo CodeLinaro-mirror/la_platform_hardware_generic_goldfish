@@ -361,11 +361,13 @@ class LibuvSocket : public AsyncSocket, public std::enable_shared_from_this<Libu
     }
 
   protected:
+    static constexpr uint32_t kDefaultReadBufferSize = 65536;
+
     LibuvSocket(EventLoop* loop, Endpoint endpoint, const bool is_incoming)
             : event_loop_(loop)
             , loop_(static_cast<uv_loop_t*>(loop->GetRawLoop()))
             , endpoint_(std::move(endpoint))
-            , read_buffer_allocator_(16384)
+            , read_buffer_allocator_(kDefaultReadBufferSize)
             , is_incoming_(is_incoming) {}
 
     EventLoop* const event_loop_;
