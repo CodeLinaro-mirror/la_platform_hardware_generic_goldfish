@@ -107,4 +107,17 @@ TEST(MemoryDevice, InvalidOverride) {
     EXPECT_FALSE(dev.initialize(emu.config()).ok());
 }
 
+TEST(MemoryDevice, UnsupportedLowApiLevel) {
+    FakeEmulator emu;
+
+    auto hw = HardwareConfig();
+    hw.hw_ramSize = 512;
+    EXPECT_CALL(emu.mock_avd(), Hw()).WillRepeatedly(ReturnRef(hw));
+    EXPECT_CALL(emu.mock_avd(), ApiLevel()).WillRepeatedly(Return(20));
+
+    MemoryDevice dev;
+    EXPECT_THAT(dev.initialize(emu.config()),
+                absl_testing::StatusIs(absl::StatusCode::kInvalidArgument));
+}
+
 }  // namespace android::goldfish::test

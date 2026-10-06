@@ -97,8 +97,19 @@ bool IsExcludedProp(std::string_view name) {
 
 }  // namespace
 
-AvdExtendedUniverse::AvdExtendedUniverse(std::unique_ptr<AvdProperties> props)
-        : AvdUniverse(std::move(props)) {
+absl::StatusOr<std::unique_ptr<AvdExtendedUniverse>> AvdExtendedUniverse::Create(
+        std::unique_ptr<AvdProperties> props) {
+    auto universe = std::make_unique<AvdExtendedUniverse>(Private(), std::move(props));
+    if (auto s = universe->Initialize(); !s.ok()) {
+        return s;
+    }
+    return universe;
+}
+
+AvdExtendedUniverse::AvdExtendedUniverse(Private, std::unique_ptr<AvdProperties> props)
+        : AvdUniverse(std::move(props)) {}
+
+absl::Status AvdExtendedUniverse::Initialize() {
     auto& avd_universe = *this;
     const AvdProperties& avd_props = avd_universe.Props();
 
@@ -187,18 +198,17 @@ AvdExtendedUniverse::AvdExtendedUniverse(std::unique_ptr<AvdProperties> props)
                                  []() { return GetGrallocImpl(); });
 
     using namespace std::string_literals;
-    if (auto props = devices::boot::IBootPropertiesDevice::MakeProperties({
-            {"qemu.sf.fake_camera"s, emulatedCameraProp},
-            {"qemu.sf.lcd_density"s, absl::StrCat(avd_props.hw_config.hw_lcd_density)},
-            // This is the same value that is passed to the virtio-wifi module.
-            {"net.wifi_mac_prefix"s, absl::StrCat(avd_props.serial_number)},
-        });
-        !props.ok()) {
-        LOG(FATAL) << "Failed to parse boot property strings: " << props.status();
-    } else {
-        DEVS::boot::IBootPropertiesDevice::RegisterDevice(registry, *std::move(props), client_loop,
-                                                          qemu_loop.get());
+    auto props = devices::boot::IBootPropertiesDevice::MakeProperties({
+        {"qemu.sf.fake_camera"s, emulatedCameraProp},
+        {"qemu.sf.lcd_density"s, absl::StrCat(avd_props.hw_config.hw_lcd_density)},
+        // This is the same value that is passed to the virtio-wifi module.
+        {"net.wifi_mac_prefix"s, absl::StrCat(avd_props.serial_number)},
+    });
+    if (!props.ok()) {
+        return props.status();
     }
+    DEVS::boot::IBootPropertiesDevice::RegisterDevice(registry, *std::move(props), client_loop,
+                                                      qemu_loop.get());
 
     DEVS::unix_pipe::IUnixPipe::RegisterDevice(&avd_universe.test_tools_connector_registry,
                                                client_loop, qemu_loop.get());
@@ -212,6 +222,8 @@ AvdExtendedUniverse::AvdExtendedUniverse(std::unique_ptr<AvdProperties> props)
     // Initialize the battery to a default state and register it.
     avd_universe.battery_subscription = DEVS::battery::RegisterBattery(
             &avd_universe.GetBattery(), avd_props.hw_config.hw_battery, qemu_loop.get());
+
+    return absl::OkStatus();
 }
 
 AvdExtendedUniverse::~AvdExtendedUniverse() {
@@ -231,11 +243,15 @@ AvdExtendedUniverse::~AvdExtendedUniverse() {
             hd.RemoveWatchedLooper(loop);
         }
 
-        hd.RemoveWatchedLooper(*qemu_event_loop);
+        if (qemu_event_loop) {
+            hd.RemoveWatchedLooper(*qemu_event_loop);
+        }
     }
 
-    WaitUntilEventLoopsIdle();
-    ShutdownQemuLoop();
+    if (qemu_event_loop) {
+        WaitUntilEventLoopsIdle();
+        ShutdownQemuLoop();
+    }
 }
 
 void AvdExtendedUniverse::WaitUntilEventLoopsIdle() {

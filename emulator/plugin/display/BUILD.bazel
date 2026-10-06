@@ -67,6 +67,7 @@ cc_library(
         "//emulator/libs/perfetto:init",
         "//emulator/libs/physics",
         "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/time",
         "@libpng//:png",
@@ -110,9 +111,12 @@ cc_library(
         "//emulator/libs/display_pipeline:core",
         "//emulator/libs/display_pipeline:cpu_pipeline",
         "//emulator/libs/perfetto:init",
+        "//emulator/libs/status_macros",
         "//emulator/plugin/avd:avd_info",
         "//emulator/plugin/hal/multidisplay",
         "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/time",
     ],
 )
@@ -185,6 +189,7 @@ cc_test(
     ],
     visibility = ["//visibility:public"],
     deps = [
+        ":display",
         ":test-display",
         "//emulator/libs/async:async_testing",
         "//emulator/libs/async:libuv_event_loop",
@@ -192,8 +197,10 @@ cc_test(
         "//emulator/libs/display_pipeline:core",
         "//emulator/libs/hardware_config:fake_hardware_config",
         "//emulator/libs/sensors:physical_model",
+        "//emulator/libs/status_macros:status_matcher_macros",
         "//emulator/libs/test:googletest_main",
         "@abseil-cpp//absl/log:scoped_mock_log",
+        "@abseil-cpp//absl/status:status_matchers",
     ],
 )
 

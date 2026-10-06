@@ -195,12 +195,13 @@ class LauncherTest : public testing::Test {
 
     void TearDown() override { fs::remove_all(temp_dir); }
 
-    int RunLauncher(std::unique_ptr<MockAvd> avd,
-                    std::unique_ptr<::goldfish::metrics::MetricsReporter> reporter = nullptr) {
+    absl::StatusOr<int> RunLauncherStatus(
+            std::unique_ptr<MockAvd> avd,
+            std::unique_ptr<::goldfish::metrics::MetricsReporter> reporter = nullptr) {
         if (!reporter) {
             reporter = std::make_unique<::goldfish::metrics::MetricsReporter>();
         }
-        int status = android::goldfish::RunLauncher({
+        return android::goldfish::RunLauncher({
             .event_loop = *event_loop,
             .process_launcher = std::move(owned_launcher),
             .signal_handlers = std::move(owned_signal_handlers),
@@ -212,8 +213,13 @@ class LauncherTest : public testing::Test {
             .opts = std::move(opts),
             .qemu_shutdown_timeout = qemu_shutdown_timeout,
         });
+    }
 
-        return status;
+    int RunLauncher(std::unique_ptr<MockAvd> avd,
+                    std::unique_ptr<::goldfish::metrics::MetricsReporter> reporter = nullptr) {
+        auto status = RunLauncherStatus(std::move(avd), std::move(reporter));
+        EXPECT_TRUE(status.ok()) << status.status();
+        return status.value_or(1);
     }
 
     std::thread TriggerEmulatorScript(absl::Notification& launched, std::function<void()> script,
@@ -797,6 +803,31 @@ TEST_F(LauncherTest, CancelsShutdownTimeoutWhenEmulatorExitsPromptly) {
     int status = RunLauncher(std::move(avd));
     trigger.join();
     EXPECT_EQ(status, 0);
+}
+
+TEST_F(LauncherTest, ReturnsErrorStatusWhenPortIsBusy) {
+    auto avd = CreateMockAvd();
+    opts.port = "5562";
+
+    EXPECT_CALL(*mock_socket_factory, CreateServer(_, IsPort(5562), _, _))
+            .WillOnce(Return(nullptr));
+    EXPECT_CALL(*mock_launcher, Launch(_, _)).Times(0);
+
+    absl::StatusOr<int> status = RunLauncherStatus(std::move(avd));
+    EXPECT_FALSE(status.ok());
+}
+
+TEST_F(LauncherTest, ReturnsErrorStatusWhenEmulatorLaunchFails) {
+    auto avd = CreateMockAvd();
+
+    EXPECT_CALL(*mock_launcher, Launch(testing::Field(&::goldfish::async::LaunchConfig::exe_path,
+                                                      ExpectedQemuBinary()),
+                                       _))
+            .WillOnce(Return(absl::InternalError("failed to launch qemu")));
+
+    absl::StatusOr<int> status = RunLauncherStatus(std::move(avd));
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.status().code(), absl::StatusCode::kInternal);
 }
 
 }  // namespace

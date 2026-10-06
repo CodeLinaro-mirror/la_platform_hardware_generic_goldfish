@@ -14,6 +14,10 @@
 
 #pragma once
 
+#include <memory>
+
+#include "absl/status/statusor.h"
+
 #include "goldfish/async/event_loop.h"
 #include "goldfish/avd/avd_universe.h"
 #include "goldfish/devices/battery/battery.h"
@@ -36,7 +40,14 @@
 namespace goldfish::avd {
 
 struct AvdExtendedUniverse : public AvdUniverse {
-    AvdExtendedUniverse(std::unique_ptr<AvdProperties> props);
+  private:
+    struct Private {};
+
+  public:
+    static absl::StatusOr<std::unique_ptr<AvdExtendedUniverse>> Create(
+            std::unique_ptr<AvdProperties> props);
+    AvdExtendedUniverse(Private, std::unique_ptr<AvdProperties> props);
+
     ~AvdExtendedUniverse() override;
 
     void WaitUntilEventLoopsIdle();
@@ -69,6 +80,8 @@ struct AvdExtendedUniverse : public AvdUniverse {
     std::shared_ptr<async::EventLoop::Timer> perf_stat_reporter_task;
 
   private:
+    absl::Status Initialize();
+
     void OnSaveProps(archive::IWriter&) const;
     void OnSavePhysicalState(archive::IWriter&) const;
     absl::Status OnSaveDisplayState(archive::IWriter&) const;
