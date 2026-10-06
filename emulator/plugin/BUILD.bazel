@@ -45,6 +45,7 @@ load("@rules_cc//cc:defs.bzl", "cc_binary")
             "//emulator/crashreport:debug",
             "//emulator/libs/logging:color_log_sink",
             "//emulator/libs/perfetto:init",
+            "//emulator/libs/perfetto:qemu_trace_bridge",
             "//emulator/plugin/adb-vsock",
             "//emulator/plugin/avd:avd_finalize",
             "//emulator/plugin/avd:avd_start",
