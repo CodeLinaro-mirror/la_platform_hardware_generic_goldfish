@@ -98,6 +98,7 @@ cc_library(
     deps = [
         ":async_api",
         ":uv_to_absl",
+        "//emulator/libs/perfetto:init",
         "//emulator/libs/system:threads",
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/log:check",
@@ -115,6 +116,7 @@ cc_library(
     deps = [
         ":async_api",
         "//emulator/libs/QEMUBH",
+        "//emulator/libs/perfetto:init",
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",

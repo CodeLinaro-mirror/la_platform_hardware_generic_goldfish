@@ -39,6 +39,7 @@
 
 #include "goldfish/async/event_loop.h"
 #include "goldfish/async/scoped_async_timer.h"
+#include "goldfish/perfetto/perfetto_categories.h"
 #include "goldfish/qemu/qemubh.h"
 
 extern "C" {
@@ -242,6 +243,7 @@ class QemuEventLoopImpl : public goldfish::async::QemuEventLoop {
         }
 
         const size_t num_tasks_to_process = local_queue.size();
+        TRACE_EVENT("async", "QemuEventLoop::DrainQueue", "batch_size", num_tasks_to_process);
 
         while (!local_queue.empty()) {
             FlowId flow_id = local_queue.front().flow_id;
