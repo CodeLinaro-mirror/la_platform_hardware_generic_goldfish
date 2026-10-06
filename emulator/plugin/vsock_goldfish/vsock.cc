@@ -564,9 +564,7 @@ struct GoldfishVirtioVsockDevice {
             const uint32_t in_flight_size = stream.hostSentCnt - stream.guestFwdCnt;
             size_t guestAvailSize =
                     stream.guestBufAlloc - std::min(in_flight_size, stream.guestBufAlloc);
-            unsigned sendOpMask =
-                    stream.sendOpMask |
-                    ((guestAvailSize == 0) ? (1U << VIRTIO_VSOCK_OP_CREDIT_REQUEST) : 0);
+            unsigned sendOpMask = stream.sendOpMask;
 
             if (sendOpMask) {
                 static const enum virtio_vsock_op ops[] = {
