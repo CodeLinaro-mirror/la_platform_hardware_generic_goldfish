@@ -16,8 +16,8 @@
 
 namespace goldfish {
 namespace {
-size_t GetCapacity(const size_t size) {
-    return std::max(SocketBuffer::kMinCapacity, size * 3U / 2U);
+size_t GetCapacity(const size_t size, const size_t current_capacity = 0) {
+    return std::max({SocketBuffer::kMinCapacity, current_capacity * 2U, size * 3U / 2U});
 }
 }  // namespace
 
@@ -26,7 +26,7 @@ size_t SocketBuffer::Append(const void* const append_data, const size_t append_s
 
     const size_t new_size = size_ + append_size;
     if (new_size > capacity_) {
-        const size_t new_capacity = GetCapacity(new_size);
+        const size_t new_capacity = GetCapacity(new_size, capacity_);
         DCHECK(new_capacity >= new_size);
         std::unique_ptr<char[]> new_data = std::make_unique<char[]>(new_capacity);
 

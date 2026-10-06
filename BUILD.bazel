@@ -8,6 +8,7 @@ TESTS = [
 
 # We have a set of test binaries used here and there
 PERF_TESTS = [
+    "//emulator/libs/SocketBuffer:socket_buffer_perf",
     "//emulator/libs/async:sockets_perf",
     "//emulator/libs/logging:log_bridge_perf",
     "//emulator/libs/system:clock_perf",
