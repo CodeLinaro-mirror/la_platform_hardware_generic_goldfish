@@ -285,16 +285,27 @@ display::IMultiDisplay& AvdExtendedUniverse::GetMultiDisplay() const {
     return *multi_display;
 }
 
+void AvdExtendedUniverse::OnPreSave() {
+    quickboot_metrics_.op_start_time = absl::Now();
+}
+
 absl::Status AvdExtendedUniverse::OnSave(archive::IWriter& writer) const {
-    OnSaveProps(writer);
-    OnSavePhysicalState(writer);
+    auto do_save = [&]() -> absl::Status {
+        OnSaveProps(writer);
+        OnSavePhysicalState(writer);
 
-    if (auto s = GetMultiDisplay().Save(writer); !s.ok()) {
-        LOG(WARNING) << "Failed to save multidisplay state: " << s;
-        return absl::UnknownError("-1");
+        if (auto s = GetMultiDisplay().Save(writer); !s.ok()) {
+            LOG(WARNING) << "Failed to save multidisplay state: " << s;
+            return absl::UnknownError("-1");
+        }
+        return absl::OkStatus();
+    };
+    absl::Status s = do_save();
+    if (!IsGenericSnapshotInProgress()) {
+        metrics::ReportQuickbootSave(*metrics_reporter, props_->snapshot_name,
+                                     /*success=*/s.ok(), quickboot_metrics_);
     }
-
-    return absl::OkStatus();
+    return s;
 }
 
 void AvdExtendedUniverse::OnSaveProps(archive::IWriter& writer) const {
@@ -384,15 +395,44 @@ void AvdExtendedUniverse::OnSavePhysicalState(archive::IWriter& writer) const {
     writer << battery_ << guest_status_ << location_ << sensors_physical_model_;
 }
 
-absl::Status AvdExtendedUniverse::OnLoad(archive::IReader& reader) {
-    RETURN_IF_ERROR(OnLoadProps(reader));
-    RETURN_IF_ERROR(OnLoadPhysicalState(reader));
+void AvdExtendedUniverse::OnPreLoad() {
+    quickboot_metrics_.op_start_time = absl::Now();
+}
 
-    if (absl::Status s = GetMultiDisplay().Load(reader); !s.ok()) {
-        LOG(WARNING) << "Failed to load multidisplay state: " << s;
-        return s;
+absl::Status AvdExtendedUniverse::OnLoad(archive::IReader& reader) {
+    // Note: Hooking into AvdExtendedUniverse's VMState callbacks only measures the duration of the
+    // avd_info device's VMState section rather than the full snapshot load/save duration (RAM,
+    // block devices, and all QEMU devices), and does not observe failures that occur before QEMU
+    // reaches the avd_info section.
+    // TODO: Move to a more comprehensive solution that orchestrates or hooks full quickboot
+    // snapshot load/save operations.
+    bool config_mismatch = false;
+    auto do_load = [&]() -> absl::Status {
+        if (absl::Status s = OnLoadProps(reader); !s.ok()) {
+            config_mismatch = true;
+            return s;
+        }
+        if (absl::Status s = OnLoadPhysicalState(reader); !s.ok()) {
+            return s;
+        }
+        if (absl::Status s = GetMultiDisplay().Load(reader); !s.ok()) {
+            LOG(WARNING) << "Failed to load multidisplay state: " << s;
+            return s;
+        }
+        return absl::OkStatus();
+    };
+    absl::Status s = do_load();
+    if (!s.ok() && !IsGenericSnapshotInProgress()) {
+        if (config_mismatch) {
+            metrics::ReportQuickbootLoad(
+                    *metrics_reporter, props_->snapshot_name, /*success=*/false, quickboot_metrics_,
+                    android_studio::EMULATOR_SNAPSHOT_FAILURE_REASON_CONFIG_MISMATCH_AVD);
+        } else {
+            metrics::ReportQuickbootLoad(*metrics_reporter, props_->snapshot_name,
+                                         /*success=*/false, quickboot_metrics_);
+        }
     }
-    return absl::OkStatus();
+    return s;
 }
 
 absl::Status AvdExtendedUniverse::OnLoadProps(archive::IReader& reader) {
@@ -592,6 +632,11 @@ absl::Status AvdExtendedUniverse::OnPostLoad() {
 
     if (props_->snapshot_update_time) {
         SyncGuestTimeToHost();
+    }
+
+    if (!IsGenericSnapshotInProgress()) {
+        metrics::ReportQuickbootLoad(*metrics_reporter, props_->snapshot_name, /*success=*/true,
+                                     quickboot_metrics_);
     }
 
     return absl::OkStatus();

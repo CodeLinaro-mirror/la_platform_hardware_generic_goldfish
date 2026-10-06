@@ -463,8 +463,25 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":device",
+        "//emulator/libs/file",
+        "//emulator/libs/metrics:snapshot_metrics",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/strings",
+    ],
+)
+
+cc_test(
+    name = "snapshot_device_test",
+    srcs = ["snapshot_device_test.cc"],
+    deps = [
+        ":device",
+        ":fake_emulator",
+        ":snapshot_device",
+        "//emulator/libs/file",
+        "//emulator/libs/status_macros:status_matcher_macros",
+        "//emulator/libs/system:test-headers",
+        "//emulator/libs/test:googletest_main",
+        "@abseil-cpp//absl/status:status_matchers",
     ],
 )
 

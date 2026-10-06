@@ -75,7 +75,7 @@ absl::Status AvdInfoDevice::initialize(const EmulatorConfig& emulator) {
         params.emplace_back("icc_profile", icc_profile);
     }
 
-    const char* snapshot_name = SnapshotDevice::get_snapshot_name(emulator);
+    std::string_view snapshot_name = SnapshotDevice::get_snapshot_name(emulator);
     params.emplace_back("snapshot_name", snapshot_name);
     params.emplace_back("snapshot_update_time",
                         emulator.opts().no_snapshot_update_time ? "false" : "true");

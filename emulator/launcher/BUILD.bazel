@@ -523,6 +523,7 @@ cc_library(
         "//emulator/libs/file",
         "//emulator/libs/metrics",
         "//emulator/libs/metrics:configure_metrics_writer",
+        "//emulator/libs/metrics:snapshot_metrics",
         "//emulator/libs/system",
         "//emulator/modem_simulator",
         "//emulator/telnet:legacy_console_controller",
