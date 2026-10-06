@@ -34,6 +34,7 @@
 #include "goldfish/imaging/query_info.h"
 #include "goldfish/physics/glm_helpers.h"
 #include "goldfish/sensors/physical_model.h"
+#include "libyuv/convert.h"
 #include "libyuv/convert_from_argb.h"
 #include "libyuv/scale_argb.h"
 
@@ -395,7 +396,7 @@ bool VirtualsceneImageProvider::captureImpl(const CaptureSession& session,
             uint8_t* u = y + width * height;
             uint8_t* v = u + width * height / 4;
 
-            libyuv::ARGBToI420(bits, width * 4, y, width, u, width2, v, width2, width, height);
+            libyuv::ABGRToI420(bits, width * 4, y, width, u, width2, v, width2, width, height);
             sink(sinkOpaque, &sci, yuvConversionBuffer, width * height * 3 / 2);
         } break;
 
@@ -405,7 +406,7 @@ bool VirtualsceneImageProvider::captureImpl(const CaptureSession& session,
             uint8_t* y = yuvConversionBuffer;
             uint8_t* uv = y + width * height;
 
-            libyuv::ARGBToNV12(bits, width * 4, y, width, uv, width, width, height);
+            libyuv::ABGRToNV12(bits, width * 4, y, width, uv, width, width, height);
             sink(sinkOpaque, &sci, yuvConversionBuffer, width * height * 3 / 2);
         } break;
         }
