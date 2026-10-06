@@ -628,6 +628,87 @@ class TestCrashAdvisor(unittest.TestCase):
         with self.assertRaises(FileNotFoundError):
             analyzer.generate_explanation(context, dump_path)
 
+    @patch("advisor.BuganizerClient")
+    def test_process_closed_loop_explicit_bug_id_updates_issue(
+        self, mock_bug_cls: MagicMock
+    ) -> None:
+        """Test _process_closed_loop inspects comments and updates issue when --bug-id is passed."""
+        mock_bug = MagicMock()
+        mock_bug.get_issue.return_value = {
+            "id": 567125517,
+            "title": "[Crash][Linux] Vulkan error",
+            "description": "Crash on Linux",
+            "issueState": {"status": "ASSIGNED"},
+        }
+        mock_bug.get_issue_comments.return_value = []
+        mock_bug_cls.return_value = mock_bug
+
+        context = CrashReportContext(self.crash_id, base_dir=str(self.temp_path))
+        context.prepare_sandbox()
+        (context.work_dir / "rca_summary.md").write_text(
+            "## Root Cause\nDetailed analysis.", encoding="utf-8"
+        )
+
+        app = CrashAdvisorApp(
+            [self.crash_id, "--enable-buganizer", "--bug-id", "567125517"]
+        )
+        app.context = context
+        meta = MagicMock()
+        meta.stable_signature = "sig-test"
+        meta.version = "37.1.3-16373346"
+        meta.build_id = "16373346"
+        meta.os_summary = "Mac OS X"
+        meta.primary_signature = "setup_ports (launcher.cc:93)"
+        meta.custom_keys = {}
+
+        app._process_closed_loop(meta)
+
+        mock_bug.get_issue.assert_called_once_with(567125517)
+        mock_bug.ensure_crash_hotlists.assert_called_once_with(
+            567125517, version="37.1.3"
+        )
+        mock_bug.get_issue_comments.assert_called_once_with(567125517)
+        mock_bug.update_issue_comment.assert_called_once()
+
+    @patch("advisor.BuganizerClient")
+    def test_process_closed_loop_search_issue_with_none_id(
+        self, mock_bug_cls: MagicMock
+    ) -> None:
+        """Test _process_closed_loop falls back to issueId when id is explicitly None."""
+        mock_bug = MagicMock()
+        mock_bug.search_issue_by_signature.return_value = {
+            "id": None,
+            "issueId": "567125517",
+            "title": "[Crash][Linux] Vulkan error",
+            "description": "Crash on Linux",
+            "status": None,
+            "issueState": {"status": None},
+        }
+        mock_bug.get_issue_comments.return_value = []
+        mock_bug_cls.return_value = mock_bug
+
+        context = CrashReportContext(self.crash_id, base_dir=str(self.temp_path))
+        context.prepare_sandbox()
+        (context.work_dir / "rca_summary.md").write_text(
+            "## Root Cause\nDetailed analysis.", encoding="utf-8"
+        )
+
+        app = CrashAdvisorApp([self.crash_id, "--enable-buganizer"])
+        app.context = context
+        meta = MagicMock()
+        meta.stable_signature = "sig-test"
+        meta.version = "37.1.3-16373346"
+        meta.build_id = "16373346"
+        meta.os_summary = "Linux"
+        meta.primary_signature = "Vulkan"
+        meta.custom_keys = {}
+
+        app._process_closed_loop(meta)
+
+        mock_bug.ensure_crash_hotlists.assert_called_once_with(
+            567125517, version="37.1.3"
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

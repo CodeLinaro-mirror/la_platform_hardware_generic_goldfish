@@ -22,14 +22,19 @@ from unittest.mock import MagicMock, patch
 
 from buganizer import (
     EMULATOR_COMPONENT_ID,
+    GENERAL_CRASHES_HOTLIST_NAME,
     PROD_REST_ENDPOINT,
     QA_REST_ENDPOINT,
     TAG_ANALYZED,
     TAG_DISPATCHED,
+    VERSION_CRASHES_HOTLIST_PREFIX,
     BuganizerAuthError,
     BuganizerClient,
     BuganizerError,
+    clean_version_string,
     derive_crash_title,
+    format_new_crash_info_comment,
+    has_new_crash_information,
 )
 
 
@@ -438,6 +443,483 @@ class TestBuganizerClient(unittest.TestCase):
         self.assertEqual(issue["id"], "567580358")
         self.assertEqual(issue["status"], "NEW")
         self.assertIsNone(client.token)
+
+    def test_clean_version_string(self):
+        self.assertEqual(clean_version_string("37.1.3-16373346"), "37.1.3")
+        self.assertEqual(clean_version_string("37.1.2-16173978"), "37.1.2")
+        self.assertEqual(clean_version_string("0.0.1-dev"), "0.0.1")
+        self.assertEqual(clean_version_string("37.1.4"), "37.1.4")
+        self.assertEqual(clean_version_string(None), "")
+        self.assertEqual(clean_version_string(""), "")
+
+    @patch("buganizer.subprocess.run")
+    @patch(
+        "buganizer.shutil.which",
+        side_effect=lambda name, **kwargs: (
+            "/google/bin/releases/issues-cli/issues" if name == "issues" else None
+        ),
+    )
+    def test_get_or_create_hotlist_found(self, mock_which, mock_run):
+        mock_run.return_value = MagicMock(
+            returncode=0,
+            stdout=(
+                "Hotlist ID: 778899\n"
+                "Hotlist Name: qemu-next-crashes\n"
+                "Hotlist Description: General tracking hotlist\n"
+                "\n"
+            ),
+        )
+        client = BuganizerClient(token=None)
+        hl_id = client.get_or_create_hotlist("qemu-next-crashes")
+        self.assertEqual(hl_id, 778899)
+        self.assertEqual(client._hotlist_cache["qemu-next-crashes"], 778899)
+
+    @patch("buganizer.subprocess.run")
+    @patch(
+        "buganizer.shutil.which",
+        side_effect=lambda name, **kwargs: (
+            "/google/bin/releases/issues-cli/issues" if name == "issues" else None
+        ),
+    )
+    def test_get_or_create_hotlist_creates_when_missing(self, mock_which, mock_run):
+        # First call: search returns non-zero/empty without crashing. Second call: create returns created ID
+        mock_run.side_effect = [
+            MagicMock(returncode=1, stdout="No hotlists found matching query.\n"),
+            MagicMock(returncode=0, stdout="Created hotlist ID: 998877\n"),
+        ]
+        client = BuganizerClient(token=None)
+        hl_id = client.get_or_create_hotlist("qemu-next-crashes-version-37.1.3")
+        self.assertEqual(hl_id, 998877)
+        self.assertEqual(
+            client._hotlist_cache["qemu-next-crashes-version-37.1.3"], 998877
+        )
+
+    @patch("buganizer.subprocess.run")
+    @patch(
+        "buganizer.shutil.which",
+        side_effect=lambda name, **kwargs: (
+            "/google/bin/releases/issues-cli/issues" if name == "issues" else None
+        ),
+    )
+    def test_add_issue_to_hotlist(self, mock_which, mock_run):
+        mock_run.return_value = MagicMock(returncode=0)
+        client = BuganizerClient(token=None)
+        ok = client.add_issue_to_hotlist(123456, 778899)
+        self.assertTrue(ok)
+        self.assertIn("add-hotlist", mock_run.call_args[0][0])
+        self.assertIn("--issue_id=123456", mock_run.call_args[0][0])
+        self.assertIn("--hotlist_id=778899", mock_run.call_args[0][0])
+
+    @patch.object(BuganizerClient, "add_issue_to_hotlist", return_value=True)
+    @patch.object(BuganizerClient, "get_or_create_hotlist")
+    def test_ensure_crash_hotlists(self, mock_get_or_create, mock_add):
+        mock_get_or_create.side_effect = [111, 222]
+        client = BuganizerClient(token=None)
+        hl_ids = client.ensure_crash_hotlists(555666, version="37.1.3-16373346")
+        self.assertEqual(hl_ids, [111, 222])
+        self.assertEqual(mock_get_or_create.call_count, 2)
+        mock_get_or_create.assert_any_call(
+            GENERAL_CRASHES_HOTLIST_NAME,
+            description="General tracking hotlist for all qemu-next production crashes",
+        )
+        mock_get_or_create.assert_any_call(
+            f"{VERSION_CRASHES_HOTLIST_PREFIX}37.1.3",
+            description="Tracking hotlist for qemu-next crashes observed in version 37.1.3",
+        )
+
+    def test_has_new_crash_information_identical_returns_false(self):
+        existing_issue = {
+            "title": "[Crash][Linux] Host: Vulkan pipeline crash",
+            "description": "Crash on Linux with build 16300000. internal-msg: out of memory",
+            "issueState": {"status": "ASSIGNED"},
+        }
+        existing_comments = [
+            "Additional crash on Linux, build 16300000, internal-msg: out of memory"
+        ]
+        new_crash = {
+            "os": ["Linux"],
+            "build_ids": ["16300000"],
+            "custom_keys": {"internal-msg": "out of memory"},
+            "crash_location": "Host (vulkan.cc:10)",
+        }
+        has_new, reasons = has_new_crash_information(
+            existing_issue, existing_comments, new_crash
+        )
+        self.assertFalse(has_new)
+        self.assertEqual(reasons, [])
+
+    def test_has_new_crash_information_new_platform_returns_true(self):
+        existing_issue = {
+            "title": "[Crash][Linux] Host: Vulkan pipeline crash",
+            "description": "Crash on Linux with build 16300000",
+            "issueState": {"status": "ASSIGNED"},
+        }
+        existing_comments = []
+        new_crash = {
+            "os": ["Mac OS X"],
+            "build_ids": ["16300000"],
+            "crash_location": "Host (vulkan.cc:10)",
+        }
+        has_new, reasons = has_new_crash_information(
+            existing_issue, existing_comments, new_crash
+        )
+        self.assertTrue(has_new)
+        self.assertTrue(any("macOS" in r for r in reasons))
+
+    def test_has_new_crash_information_word_boundary_os_detection(self):
+        # Description contains 'window' and 'machine', but neither Windows nor macOS has been observed yet
+        existing_issue = {
+            "title": "[Crash][Linux] Host: Vulkan pipeline crash",
+            "description": "Failed to create guest window inside Linux machine virtual space.",
+            "issueState": {"status": "ASSIGNED"},
+        }
+        existing_comments = []
+
+        new_crash_win = {
+            "os": ["Windows 11"],
+            "build_ids": ["16300000"],
+            "crash_location": "Host (vulkan.cc:10)",
+        }
+        has_new, reasons = has_new_crash_information(
+            existing_issue, existing_comments, new_crash_win
+        )
+        self.assertTrue(has_new)
+        self.assertTrue(any("Windows" in r for r in reasons))
+
+        new_crash_mac = {
+            "os": ["Mac OS X"],
+            "build_ids": ["16300000"],
+            "crash_location": "Host (vulkan.cc:10)",
+        }
+        has_new_mac, reasons_mac = has_new_crash_information(
+            existing_issue, existing_comments, new_crash_mac
+        )
+        self.assertTrue(has_new_mac)
+        self.assertTrue(any("macOS" in r for r in reasons_mac))
+
+    def test_has_new_crash_information_new_error_message_returns_true(self):
+        existing_issue = {
+            "title": "[Crash][Linux] Launcher crash",
+            "description": "Crash occurred on Linux.",
+            "issueState": {"status": "ASSIGNED"},
+        }
+        existing_comments = []
+        new_crash = {
+            "os": ["Linux"],
+            "custom_keys": {"internal-msg": "Failed to bind port 5554: Address already in use"},
+        }
+        has_new, reasons = has_new_crash_information(
+            existing_issue, existing_comments, new_crash
+        )
+        self.assertTrue(has_new)
+        self.assertTrue(any("Failed to bind port 5554" in r for r in reasons))
+
+    def test_has_new_crash_information_regression_on_closed_returns_true(self):
+        existing_issue = {
+            "title": "[Crash][Linux] Fixed crash",
+            "description": "Fixed in CL 12345.",
+            "issueState": {"status": "FIXED"},
+        }
+        existing_comments = []
+        new_crash = {
+            "os": ["Linux"],
+            "build_ids": ["16400000"],
+        }
+        has_new, reasons = has_new_crash_information(
+            existing_issue, existing_comments, new_crash
+        )
+        self.assertTrue(has_new)
+        self.assertTrue(any("regression" in r.lower() for r in reasons))
+
+    def test_format_new_crash_info_comment(self):
+        reasons = [
+            "New host platform: First occurrence observed on macOS (Mac OS X)",
+            "New internal error message: 'Failed to bind port'",
+        ]
+        new_crash = {
+            "os": ["Mac OS X"],
+            "versions": ["37.1.3-16373346"],
+            "build_ids": ["16373346"],
+            "crash_location": "setup_ports (launcher.cc:93)",
+        }
+        md = format_new_crash_info_comment("190d58d170400000", reasons, new_crash)
+        self.assertIn("http://go/crash/190d58d170400000", md)
+        self.assertIn("First occurrence observed on macOS", md)
+        self.assertIn("setup_ports (launcher.cc:93)", md)
+
+    def test_has_new_crash_information_none_fields_handled_safely(self):
+        existing_issue = {
+            "title": None,
+            "description": None,
+            "issueState": None,
+        }
+        existing_comments = [None, "Some comment"]
+        new_crash = {
+            "os": ["Linux"],
+            "build_ids": ["16300000"],
+            "crash_location": "Host (vulkan.cc:10)",
+        }
+        # Verify no TypeError is raised
+        has_new, reasons = has_new_crash_information(
+            existing_issue, existing_comments, new_crash
+        )
+        self.assertTrue(has_new)
+
+    def test_has_new_crash_information_regression_empty_build_id(self):
+        existing_issue = {
+            "title": "[Crash][Linux] Fixed crash",
+            "description": "Fixed in CL 12345.",
+            "issueState": {"status": "FIXED"},
+        }
+        existing_comments = []
+        new_crash = {
+            "os": ["Linux"],
+            "build_ids": [""],
+        }
+        has_new, reasons = has_new_crash_information(
+            existing_issue, existing_comments, new_crash
+        )
+        self.assertTrue(has_new)
+        self.assertFalse(any("on Build ID  " in r or r.endswith("on Build ID ") for r in reasons))
+
+    def test_format_new_crash_info_comment_scalar_strings(self):
+        reasons = ["New platform observed"]
+        new_crash = {
+            "os": "Linux",
+            "versions": "37.1.3",
+            "build_ids": "16300000",
+            "crash_location": "setup_ports",
+        }
+        md = format_new_crash_info_comment("190d58d170400000", reasons, new_crash)
+        self.assertIn("- **Host OS:** `Linux`", md)
+        self.assertNotIn("L, i, n, u, x", md)
+        self.assertIn("- **Build IDs / Version:** `16300000` (`37.1.3`)", md)
+
+    def test_parse_hotlists_cli_output_consecutive_records(self):
+        raw = (
+            "Hotlist ID: 111\n"
+            "Hotlist Name: qemu-next-crashes\n"
+            "Hotlist Description: General\n"
+            "Hotlist ID: 222\n"
+            "Hotlist Name: qemu-next-crashes-version-37.1.3\n"
+            "Hotlist Description: Milestone\n"
+        )
+        parsed = BuganizerClient._parse_hotlists_cli_output(raw)
+        self.assertEqual(len(parsed), 2)
+        self.assertEqual(parsed[0]["id"], 111)
+        self.assertEqual(parsed[0]["name"], "qemu-next-crashes")
+        self.assertEqual(parsed[1]["id"], 222)
+        self.assertEqual(parsed[1]["name"], "qemu-next-crashes-version-37.1.3")
+
+    def test_has_new_crash_information_truncated_snippet_containment(self):
+        long_msg = "A" * 250
+        truncated_snippet = long_msg[:200]
+        existing_issue = {
+            "title": "[Crash][Linux] Test",
+            "description": "Some description",
+            "issueState": {"status": "ASSIGNED"},
+        }
+        existing_comments = [f"New internal error message: '{truncated_snippet}'"]
+        new_crash = {
+            "os": ["Linux"],
+            "custom_keys": {"internal-msg": long_msg},
+        }
+        # Because we compare snippet[:200] against all_text, it should find it and return False
+        has_new, reasons = has_new_crash_information(
+            existing_issue, existing_comments, new_crash
+        )
+        self.assertFalse(has_new)
+        self.assertEqual(reasons, [])
+
+    def test_has_new_crash_information_strips_guest_host_prefix(self):
+        existing_issue = {
+            "title": "[Crash][Linux] Vulkan error",
+            "description": "Vulkan error in vulkan_pipeline.cc:123",
+            "issueState": {"status": "ASSIGNED"},
+        }
+        existing_comments = []
+        new_crash = {
+            "os": ["Linux"],
+            "crash_location": "Guest (vulkan_pipeline.cc:123)",
+        }
+        has_new, reasons = has_new_crash_information(
+            existing_issue, existing_comments, new_crash
+        )
+        self.assertFalse(has_new)
+        # Verify "Guest" was not extracted as a function name
+        self.assertFalse(any("Different faulting function: Guest" in r for r in reasons))
+
+        # Verify divergent location after "Host: " or "Host (" is detected
+        divergent_crash = {
+            "os": ["Linux"],
+            "crash_location": "Host: decode_frame (decoder.cc:42)",
+        }
+        has_new_div, reasons_div = has_new_crash_information(
+            existing_issue, existing_comments, divergent_crash
+        )
+        self.assertTrue(has_new_div)
+        self.assertTrue(
+            any("Different faulting function: decode_frame" in r for r in reasons_div)
+        )
+
+        # Verify raw hexadecimal memory addresses (unsymbolicated frames) are ignored
+        hex_crash = {
+            "os": ["Linux"],
+            "crash_location": "Host: 0x7f9a12345678",
+        }
+        has_new_hex, reasons_hex = has_new_crash_information(
+            existing_issue, existing_comments, hex_crash
+        )
+        self.assertFalse(has_new_hex)
+        self.assertEqual(reasons_hex, [])
+
+    @patch("buganizer.subprocess.run")
+    @patch(
+        "buganizer.shutil.which",
+        side_effect=lambda name, **kwargs: (
+            "/usr/bin/base_cli" if name == "base_cli" else None
+        ),
+    )
+    def test_get_or_create_hotlist_creates_with_base_cli(self, mock_which, mock_run):
+        mock_run.side_effect = [
+            # 1. hotlist search returns empty []
+            MagicMock(returncode=0, stdout="[]"),
+            # 2. hotlist create returns new hotlist dict
+            MagicMock(returncode=0, stdout='{"id": 887766, "name": "qemu-next-crashes"}'),
+        ]
+        client = BuganizerClient(token=None)
+        self.assertEqual(client.cli_binary, "/usr/bin/base_cli")
+        hl_id = client.get_or_create_hotlist("qemu-next-crashes")
+        self.assertEqual(hl_id, 887766)
+        self.assertEqual(client._hotlist_cache["qemu-next-crashes"], 887766)
+
+    def test_has_new_crash_information_regression_scalar_build_id_and_dedup(self):
+        existing_issue = {
+            "title": "[Crash][Linux] Fixed crash",
+            "description": "Fixed in CL 12345.",
+            "issueState": {"status": "FIXED"},
+        }
+        existing_comments = []
+        new_crash = {
+            "os": ["Linux"],
+            "build_ids": "16400000",
+        }
+        has_new, reasons = has_new_crash_information(
+            existing_issue, existing_comments, new_crash
+        )
+        self.assertTrue(has_new)
+        self.assertTrue(any("on Build ID 16400000" in r for r in reasons))
+
+        # Subsequent run where the regression comment is already in existing_comments
+        existing_comments_with_reg = [reasons[0]]
+        has_new_dup, reasons_dup = has_new_crash_information(
+            existing_issue, existing_comments_with_reg, new_crash
+        )
+        self.assertFalse(has_new_dup)
+        self.assertEqual(reasons_dup, [])
+
+    def test_parse_created_hotlist_id_ignores_unanchored_numbers(self):
+        self.assertEqual(
+            BuganizerClient._parse_created_hotlist_id("Created hotlist ID: 998877"),
+            998877,
+        )
+        self.assertEqual(
+            BuganizerClient._parse_created_hotlist_id("20261005 19:35:00 Error 50000"),
+            0,
+        )
+
+    def test_clean_version_string_handles_non_string_scalar(self):
+        self.assertEqual(clean_version_string(16373346), "16373346")
+        self.assertEqual(clean_version_string("37.1.3-16373346"), "37.1.3")
+        self.assertEqual(clean_version_string(None), "")
+
+    def test_has_new_crash_information_mac_address_and_quick_win_do_not_suppress_os(self):
+        existing_issue = {
+            "title": "[Crash][Linux] Network interface error",
+            "description": "Failed to configure MAC address on Linux. A quick win is to retry.",
+            "issueState": {"status": "ASSIGNED"},
+        }
+        new_crash_mac = {
+            "os": ["Mac OS X"],
+        }
+        has_new, reasons = has_new_crash_information(existing_issue, [], new_crash_mac)
+        self.assertTrue(has_new)
+        self.assertTrue(any("macOS" in r for r in reasons))
+
+        new_crash_win = {
+            "os": ["Windows 11"],
+        }
+        has_new_w, reasons_w = has_new_crash_information(existing_issue, [], new_crash_win)
+        self.assertTrue(has_new_w)
+        self.assertTrue(any("Windows" in r for r in reasons_w))
+
+    def test_has_new_crash_information_multiline_msg_and_non_string_scalars(self):
+        existing_issue = {
+            "title": "[Crash][Linux] Crash",
+            "description": "Crash on Linux",
+            "issueState": {"status": "ASSIGNED"},
+        }
+        new_crash = {
+            "os": 123,
+            "versions": 37,
+            "build_ids": 16400000,
+            "custom_keys": {"internal-msg": "line one\nline two\n   line three"},
+        }
+        has_new, reasons = has_new_crash_information(existing_issue, [], new_crash)
+        self.assertTrue(has_new)
+        self.assertIn("New internal error message: 'line one line two line three'", reasons)
+        md = format_new_crash_info_comment("1234", reasons, new_crash)
+        self.assertIn("- **Build IDs / Version:** `16400000` (`37`)", md)
+
+    def test_parse_hotlists_cli_output_supports_hotlist_title(self):
+        raw = (
+            "Hotlist ID: 333\n"
+            "Hotlist Title: qemu-next-crashes\n"
+            "Hotlist Description: General\n"
+        )
+        parsed = BuganizerClient._parse_hotlists_cli_output(raw)
+        self.assertEqual(len(parsed), 1)
+        self.assertEqual(parsed[0]["id"], 333)
+        self.assertEqual(parsed[0]["name"], "qemu-next-crashes")
+
+    @patch("buganizer.subprocess.run")
+    @patch(
+        "buganizer.shutil.which",
+        side_effect=lambda name, **kwargs: (
+            "/usr/bin/base_cli" if name == "base_cli" else None
+        ),
+    )
+    def test_hotlist_cli_dict_unwrapping_and_qa_mode(self, mock_which, mock_run):
+        mock_run.side_effect = [
+            MagicMock(
+                returncode=0,
+                stdout='{"hotlists": [{"id": 998811, "name": "qemu-next-crashes"}]}',
+            ),
+            MagicMock(returncode=0, stdout="{}"),
+        ]
+        client = BuganizerClient(token=None, qa_mode=True)
+        hl_id = client.get_or_create_hotlist("qemu-next-crashes")
+        self.assertEqual(hl_id, 998811)
+        search_cmd = mock_run.call_args_list[0][0][0]
+        self.assertIn("--api=blade:corp-issuetracker-test-api", search_cmd)
+
+        ok = client.add_issue_to_hotlist(123456, 998811)
+        self.assertTrue(ok)
+        add_cmd = mock_run.call_args_list[1][0][0]
+        self.assertIn("--api=blade:corp-issuetracker-test-api", add_cmd)
+
+    def test_has_new_crash_information_none_status(self):
+        existing_issue = {
+            "title": "[Crash][Linux] Vulkan error",
+            "description": "Vulkan error on Linux",
+            "status": None,
+            "issueState": {"status": None},
+        }
+        has_new, reasons = has_new_crash_information(
+            existing_issue, [], {"os": ["Linux"]}
+        )
+        self.assertFalse(has_new)
+        self.assertEqual(reasons, [])
 
 
 if __name__ == "__main__":

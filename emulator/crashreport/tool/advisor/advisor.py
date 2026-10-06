@@ -50,6 +50,9 @@ from buganizer import (
     BuganizerError,
     EMULATOR_COMPONENT_ID,
     TAG_DISPATCHED,
+    clean_version_string,
+    format_new_crash_info_comment,
+    has_new_crash_information,
 )
 from client import GossoClient
 from context import CrashReportContext
@@ -154,6 +157,16 @@ Prerequisite: OAuth2 Token
         parser.add_argument(
             "--work-dir",
             help="Custom working directory sandbox path for crash artifacts",
+        )
+        parser.add_argument(
+            "--force",
+            action="store_true",
+            help="Force posting RCA comment on existing Buganizer issue even if no new crash info is detected",
+        )
+        parser.add_argument(
+            "--qa",
+            action="store_true",
+            help="Target Buganizer QA test environment instead of production",
         )
         return parser.parse_args(args_list)
 
@@ -260,54 +273,93 @@ Prerequisite: OAuth2 Token
 
         try:
             buganizer = BuganizerClient(
-                token=self.args.token, verbose=self.args.verbose
+                token=self.args.token,
+                qa_mode=getattr(self.args, "qa", False),
+                verbose=self.args.verbose,
             )
             bug_id = self.args.bug_id
 
-            if not bug_id:
+            clean_ver = clean_version_string(
+                getattr(metadata, "version", "") or getattr(metadata, "build_id", "")
+            )
+
+            if bug_id:
+                try:
+                    existing_issue = buganizer.get_issue(bug_id) or {"id": bug_id}
+                except BuganizerError:
+                    existing_issue = {"id": bug_id}
+            else:
                 logging.info(
                     "Searching Buganizer for existing issue matching stableSignature: %s",
                     stable_sig,
                 )
                 existing_issue = buganizer.search_issue_by_signature(stable_sig)
-                if existing_issue:
-                    bug_id = int(
-                        existing_issue.get("id", existing_issue.get("issueId", 0))
+
+            if existing_issue:
+                if not bug_id:
+                    raw_id = str(
+                        existing_issue.get("id")
+                        or existing_issue.get("issueId")
+                        or 0
+                    ).removeprefix("b/").strip()
+                    bug_id = int(raw_id) if raw_id.isdigit() else 0
+                status = (
+                    existing_issue.get("status")
+                    or (existing_issue.get("issueState") or {}).get("status")
+                    or "NEW"
+                )
+                logging.info(
+                    "Found existing issue b/%d (status: %s)", bug_id, status
+                )
+                if bug_id > 0:
+                    buganizer.ensure_crash_hotlists(bug_id, version=clean_ver)
+
+                    comments = buganizer.get_issue_comments(bug_id)
+                    crash_dict = {
+                        "os": getattr(metadata, "os_summary", "") or getattr(metadata, "os_name", "") or getattr(metadata, "os", ""),
+                        "versions": [getattr(metadata, "version", "") or getattr(metadata, "build_id", "")],
+                        "build_ids": [getattr(metadata, "build_id", "")],
+                        "crash_location": getattr(metadata, "primary_signature", "") or getattr(metadata, "crash_location", ""),
+                        "custom_keys": getattr(metadata, "custom_keys", {}),
+                    }
+                    has_new_info, reasons = has_new_crash_information(
+                        existing_issue, comments, crash_dict
                     )
-                    status = existing_issue.get(
-                        "status",
-                        existing_issue.get("issueState", {}).get("status", "NEW"),
-                    )
-                    logging.info(
-                        "Found existing issue b/%d (status: %s)", bug_id, status
-                    )
-                    if status in ("FIXED", "VERIFIED", "OBSOLETE"):
-                        build_id_str = self.metadata.build_id if self.metadata else "unknown"
+                    force_comment = getattr(self.args, "force", False)
+                    if has_new_info or force_comment:
                         logging.info(
-                            "Issue b/%d is %s. Crash originated on Build ID %s (older repository version context).",
-                            bug_id,
-                            status,
-                            build_id_str,
+                            "Crash report contains new information: %s. Adding concise Buganizer update.",
+                            reasons,
                         )
-                        buganizer.update_issue_comment(
-                            bug_id,
-                            f"Crash report captured on Build ID {build_id_str} (older repository version):\n{rca_content}",
+                        update_comment = (
+                            format_new_crash_info_comment(
+                                self.context.crash_id, reasons, crash_dict
+                            )
+                            if has_new_info and not force_comment
+                            else rca_content
                         )
+                        buganizer.update_issue_comment(bug_id, update_comment)
                     else:
-                        logging.info("Issue is open. Adding RCA comment.")
-                        buganizer.update_issue_comment(bug_id, rca_content)
-                else:
-                    logging.info(
-                        "No existing issue found. Creating new issue in Component %d",
-                        EMULATOR_COMPONENT_ID,
-                    )
-                    bug_id = buganizer.create_issue(
-                        stable_sig, rca_content, title=self.args.title
-                    )
-                    logging.info("Created new issue b/%d", bug_id)
+                        logging.info(
+                            "Existing issue b/%d already covers this crash report with identical information. "
+                            "Skipping redundant Buganizer comment (occurrences tracked in go/crash).",
+                            bug_id,
+                        )
+            else:
+                logging.info(
+                    "No existing issue found. Creating new issue in Component %d",
+                    EMULATOR_COMPONENT_ID,
+                )
+                bug_id = buganizer.create_issue(
+                    stable_sig, rca_content, title=self.args.title
+                )
+                logging.info("Created new issue b/%d", bug_id)
+                if bug_id > 0:
+                    buganizer.ensure_crash_hotlists(bug_id, version=clean_ver)
 
             # Step 7: Parse YAML actionability block for autonomous agent handoff
-            self._execute_agent_handoff(buganizer, bug_id, rca_content)
+            if bug_id and bug_id > 0:
+                self._execute_agent_handoff(buganizer, bug_id, rca_content)
 
         except BuganizerError as e:
             logging.error(
