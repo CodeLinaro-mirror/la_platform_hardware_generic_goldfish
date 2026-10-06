@@ -37,7 +37,7 @@
 
 using android::base::System;
 
-static auto convertBytesToMB(uint64_t size) -> unsigned {
+static auto ConvertBytesToMB(uint64_t size) -> unsigned {
     if (size == 0) {
         return 0;
     }
@@ -52,7 +52,7 @@ static auto convertBytesToMB(uint64_t size) -> unsigned {
 // function errors that show up regardless of host platform. Equivalent
 // to printing the stringified error code from errno or GetLastError()
 // (for windows).
-void explainSystemErrors(const char* msg) {
+void ExplainSystemErrors(const char* msg) {
 #ifdef _WIN32
     char* pstr = NULL;
     FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_ALLOCATE_BUFFER, NULL, GetLastError(),
@@ -64,30 +64,30 @@ void explainSystemErrors(const char* msg) {
 #endif
 }
 
-static auto runExt4Program(std::filesystem::path executable,
+static auto RunExt4Program(std::filesystem::path executable,
                            std::initializer_list<std::string> params) -> int {
     if (executable.empty()) {
         LOG(ERROR) << "Couldn't get path to " << executable << " binary";
         return -1;
     }
 
-    std::vector<std::string> commandLine{executable.string()};
-    commandLine.insert(commandLine.end(), params);
+    std::vector<std::string> command_line{executable.string()};
+    command_line.insert(command_line.end(), params);
 
-    auto proc = android::base::Command::Create(commandLine).Execute();
-    auto exitCode = proc->ExitCode();
+    auto proc = android::base::Command::Create(command_line).Execute();
+    auto exit_code = proc->ExitCode();
 
-    if (exitCode != 0) {
-        LOG(ERROR) << "Resizing partition " << executable << " failed with exit code " << exitCode;
-        return exitCode;
+    if (exit_code != 0) {
+        LOG(ERROR) << "Resizing partition " << executable << " failed with exit code " << exit_code;
+        return exit_code;
     }
     return 0;
 }
 
-auto resizeExt4Partition(std::filesystem::path binary_path, const char* partitionPath,
-                         int64_t newByteSize) -> int {
+auto resizeExt4Partition(std::filesystem::path binary_path, const char* partition_path,
+                         int64_t new_byte_size) -> int {
     // sanity checks
-    if (partitionPath == nullptr || !checkExt4PartitionSize(newByteSize)) {
+    if (partition_path == nullptr || !checkExt4PartitionSize(new_byte_size)) {
         return -1;
     }
 
@@ -96,27 +96,27 @@ auto resizeExt4Partition(std::filesystem::path binary_path, const char* partitio
     // the guest kernel could decide to replay the journal and end up in a state
     // before the resize took place. This is something that frequently happened
     // and caused the resize to not be visible in the guest system.
-    int fsckReturnCode = runExt4Program(binary_path / "e2fsck", {"-y", partitionPath});
-    if (fsckReturnCode != 0) {
-        return fsckReturnCode;
+    int fsck_return_code = RunExt4Program(binary_path / "e2fsck", {"-y", partition_path});
+    if (fsck_return_code != 0) {
+        return fsck_return_code;
     }
 
-    char size_in_MB[50];
-    int copied = snprintf(size_in_MB, sizeof(size_in_MB), "%uM", convertBytesToMB(newByteSize));
-    size_in_MB[sizeof(size_in_MB) - 1] = '\0';
-    if (copied < 0 || static_cast<size_t>(copied) >= sizeof(size_in_MB)) {
+    char size_in_mb[50];
+    int copied = snprintf(size_in_mb, sizeof(size_in_mb), "%uM", ConvertBytesToMB(new_byte_size));
+    size_in_mb[sizeof(size_in_mb) - 1] = '\0';
+    if (copied < 0 || static_cast<size_t>(copied) >= sizeof(size_in_mb)) {
         LOG(ERROR) << "failed to format size in resize2fs command";
         return -1;
     }
 
-    return runExt4Program(binary_path / "resize2fs", {"-f", partitionPath, size_in_MB});
+    return RunExt4Program(binary_path / "resize2fs", {"-f", partition_path, size_in_mb});
 }
 
-auto checkExt4PartitionSize(int64_t byteSize) -> bool {
-    uint64_t maxSizeMB = 16 * 1024 * 1024;  // (16 TiB) * (1024 GiB / TiB) * (1024 MiB / GiB)
-    uint64_t minSizeMB = 128;
-    uint64_t sizeMB = convertBytesToMB(byteSize);
+auto checkExt4PartitionSize(int64_t byte_size) -> bool {
+    uint64_t max_size_mb = 16ULL * 1024 * 1024;  // (16 TiB) * (1024 GiB / TiB) * (1024 MiB / GiB)
+    uint64_t min_size_mb = 128;
+    uint64_t size_mb = ConvertBytesToMB(byte_size);
 
     // compiler converts signed to unsigned
-    return (sizeMB >= minSizeMB) && (sizeMB <= maxSizeMB);
+    return (size_mb >= min_size_mb) && (size_mb <= max_size_mb);
 }

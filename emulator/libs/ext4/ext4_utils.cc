@@ -22,21 +22,21 @@ namespace android::filesystems {
 
 namespace fs = std::filesystem;
 
-int android_createEmptyExt4Image(fs::path dstFilePath, uint64_t size, const char* mountpoint) {
-    int ret = ::make_ext4fs_from_dir(dstFilePath.string().c_str(), nullptr, size, mountpoint, -1);
+int android_createEmptyExt4Image(fs::path dst_file_path, uint64_t size, const char* mountpoint) {
+    int ret = ::make_ext4fs_from_dir(dst_file_path.string().c_str(), nullptr, size, mountpoint, -1);
     if (ret < 0) {
-        LOG(ERROR) << "Failed to create ext4 image at: " << dstFilePath;
+        LOG(ERROR) << "Failed to create ext4 image at: " << dst_file_path;
     }
     return ret;
 }
 
-int android_createExt4ImageFromDir(fs::path dstFilePath, fs::path srcDirectory, uint64_t size,
+int android_createExt4ImageFromDir(fs::path dst_file_path, fs::path src_directory, uint64_t size,
                                    const char* mountpoint) {
-    int ret = ::make_ext4fs_from_dir(dstFilePath.string().c_str(), srcDirectory.string().c_str(),
+    int ret = ::make_ext4fs_from_dir(dst_file_path.string().c_str(), src_directory.string().c_str(),
                                      size, mountpoint, -1);
     if (ret < 0) {
-        LOG(ERROR) << "Failed to create ext4 image at: " << dstFilePath << " from src "
-                   << srcDirectory;
+        LOG(ERROR) << "Failed to create ext4 image at: " << dst_file_path << " from src "
+                   << src_directory;
     }
     return ret;
 }
