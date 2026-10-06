@@ -37,10 +37,10 @@ constexpr const char* kDefaultSceneModelPath = "data/virtualscene/Toren1BD/Toren
 
 // Default 4x4 view-projection matrix from initial SceneCamera pose.
 constexpr float kDefaultViewProj[16] = {
-    1.500f,  0.000f,  0.000f,  0.000f,   //
-    0.000f,  -1.993f, -0.083f, -0.083f,  //
-    -0.000f, 0.166f,  -0.999f, -0.997f,  //
-    -0.090f, -0.060f, -0.202f, -0.002f,
+    0.000f,  -2.000f, 0.000f,  0.000f,   //
+    -1.495f, 0.000f,  -0.083f, -0.083f,  //
+    0.124f,  0.000f,  -0.999f, -0.997f,  //
+    -0.045f, 0.120f,  -0.202f, -0.002f,
 };
 
 }  // namespace
