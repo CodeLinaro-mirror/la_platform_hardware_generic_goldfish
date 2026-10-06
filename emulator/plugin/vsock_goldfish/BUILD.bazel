@@ -1,3 +1,4 @@
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
 
@@ -92,6 +93,28 @@ cc_test(
         ":vsock_core",
         "//emulator/plugin/hal/connector:cable",
         "@googletest//:gtest_main",
+        "@qemu//:qemu-headers-exported",
+    ],
+)
+
+cc_binary(
+    name = "vsock_perf",
+    srcs = [
+        "vsock_perf.cc",
+    ],
+    tags = ["benchmark"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":goldfish_vsock_hdrs",
+        ":vsock_core",
+        "//emulator/libs/async:libuv_event_loop",
+        "//emulator/libs/async:threaded_event_loop",
+        "//emulator/plugin/adb-vsock/logger",
+        "//emulator/plugin/hal/connector:cable",
+        "//emulator/plugin/hal/plug:hal_plug",
+        "//emulator/plugin/hal/plug:hal_plug_factory",
+        "@abseil-cpp//absl/synchronization",
+        "@google_benchmark//:benchmark",
         "@qemu//:qemu-headers-exported",
     ],
 )
