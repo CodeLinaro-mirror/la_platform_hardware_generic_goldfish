@@ -20,6 +20,7 @@
 
 #include <cstdint>
 #include <optional>
+#include <string>
 #include <vector>
 
 #include "android/camera/camera_image_provider_api.h"
@@ -32,6 +33,11 @@ class PhysicalModel;
 namespace goldfish::camera_image_providers::virtualscene {
 
 struct VirtualsceneImageProvider {
+    struct CreateArgs {
+        VerSceneConfig sceneConfig;
+        const sensors::PhysicalModel* physicalModel = nullptr;
+    };
+
     struct RenderOutputConfig {
         CameraImageProviderRect size = {};
         imaging::ImageFormat getFormat() const;
@@ -99,6 +105,7 @@ struct VirtualsceneImageProvider {
 
     VerSceneHandle mScene = VER_INVALID_HANDLE;
     const sensors::PhysicalModel* mPhysicalModel = nullptr;
+    std::string mId = "virtualscene";
     bool mIsBackFacing = true;
 
     std::optional<CaptureSession> mCaptureSession;

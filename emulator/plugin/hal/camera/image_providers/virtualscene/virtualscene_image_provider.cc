@@ -78,7 +78,7 @@ glm::mat4 projectionMatrixForCameraIntrinsics(float width, float height, float f
 }  // namespace
 
 const char* VirtualsceneImageProvider::getId() const {
-    return "virtualscene";
+    return mId.c_str();
 }
 
 glm::mat4 VirtualsceneImageProvider::computeProjectionMatrix(const CameraImageProviderRect size) {
@@ -333,8 +333,10 @@ bool VirtualsceneImageProvider::captureImpl(const CaptureSession& session,
                                             const unsigned scisSize, uint8_t* yuvConversionBuffer) {
     ver_scene_update(mScene, true);
 
-    const glm::mat4 viewProj = updateViewProjection(session.projection);
-    ver_render_view_set_view_projection(session.view, &viewProj[0][0]);
+    if (VerSceneConfig::modeSupportsViewRotations(ver_scene_get_mode(mScene))) {
+        const glm::mat4 viewProj = updateViewProjection(session.projection);
+        ver_render_view_set_view_projection(session.view, &viewProj[0][0]);
+    }
 
     if (!ver_render_view(mScene, session.view, []() {}, nullptr)) {
         return FAILURE_STR("ver_render_view", false);
@@ -434,7 +436,19 @@ VirtualsceneImageProvider::~VirtualsceneImageProvider() {
 }
 
 void* VirtualsceneImageProvider::create(const CameraImageProviderInfo& info) {
-    const VerSceneConfig sceneConfig(VerSceneConfig::Mode::Mesh3D, kDefaultSceneModelPath);
+    const auto* args = static_cast<const CreateArgs*>(info.createArg);
+    VerSceneConfig sceneConfig =
+            (args && args->sceneConfig.mSceneMode != VerSceneConfig::Mode::Unknown)
+                    ? args->sceneConfig
+                    : VerSceneConfig(VerSceneConfig::Mode::Mesh3D, kDefaultSceneModelPath);
+    if (sceneConfig.mArgument.empty()) {
+        if (sceneConfig.mSceneMode == VerSceneConfig::Mode::Mesh3D) {
+            sceneConfig.mArgument = kDefaultSceneModelPath;
+        } else {
+            sceneConfig.mArgument = VerSceneConfig::defaultArgumentForMode(sceneConfig.mSceneMode);
+        }
+    }
+
     if (const char* launcherDir = std::getenv("ANDROID_EMULATOR_LAUNCHER_DIR");
         launcherDir && launcherDir[0] != '\0') {
         const std::filesystem::path baseDir(launcherDir);
@@ -452,14 +466,16 @@ void* VirtualsceneImageProvider::create(const CameraImageProviderInfo& info) {
 
     bool resourcesLoaded = false;
     ver_scene_load_user_resources(scene, [&resourcesLoaded]() { resourcesLoaded = true; });
-    if (!resourcesLoaded) {
+    if (VerSceneConfig::modeRequiresRenderer(sceneConfig.mSceneMode) && !resourcesLoaded) {
         ver_destroy_scene(scene);
         return FAILURE_STR("ver_scene_load_user_resources", nullptr);
     }
 
     auto imageProvider = std::make_unique<VirtualsceneImageProvider>();
     imageProvider->mScene = scene;
-    imageProvider->mPhysicalModel = static_cast<const sensors::PhysicalModel*>(info.createArg);
+    imageProvider->mPhysicalModel = args ? args->physicalModel : nullptr;
+    imageProvider->mId = std::string(VerSceneConfig::modeToString(sceneConfig.mSceneMode)) + ":" +
+                         sceneConfig.mArgument;
     imageProvider->mIsBackFacing = (info.isBackFacing != 0);
 
     return imageProvider.release();

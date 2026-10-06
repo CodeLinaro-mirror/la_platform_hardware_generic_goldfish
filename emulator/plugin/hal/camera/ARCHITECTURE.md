@@ -25,7 +25,7 @@
 - **Core:** `//emulator/plugin/hal/connector` (Registration).
 - **Imaging:** `//emulator/libs/imaging` (Pixel formats).
 - **Config:** `//emulator/libs/hardware_config:hardware_config`.
-- **Providers:** Includes implementations for `imagefile`, `videofile`, `virtualscene`, `webcam`.
+- **Providers:** Uses `virtualscene` (`VirtualsceneImageProvider`), backed by VER (`//emulator/libs/ver`), for `virtualscene`, `videofile`, `imagefile`, and `webcam` camera sources.
 
 ## Threading Model
 
