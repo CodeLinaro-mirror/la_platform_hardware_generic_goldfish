@@ -58,6 +58,7 @@ TEST_F(SnapshotDeviceTest, ColdBootWhenSnapshotVersionMissing) {
     EXPECT_OK(dev.initialize(emu.config()));
     EXPECT_EQ(dev.load_status(), SnapshotDevice::LoadStatus::kSkippedOldSnapshot);
     EXPECT_EQ(dev.save_status(), SnapshotDevice::SaveStatus::kSaving);
+    EXPECT_TRUE(dev.is_enabled());
     EXPECT_THAT(dev.getQemuParameters(emu.config()),
                 ElementsAre(Eq("-savevm"), Eq("default_boot")));
 }
@@ -73,6 +74,7 @@ TEST_F(SnapshotDeviceTest, WarmBootWhenSnapshotVersionMatches) {
     EXPECT_OK(dev.initialize(emu.config()));
     EXPECT_EQ(dev.load_status(), SnapshotDevice::LoadStatus::kLoading);
     EXPECT_EQ(dev.save_status(), SnapshotDevice::SaveStatus::kSaving);
+    EXPECT_TRUE(dev.is_enabled());
     EXPECT_THAT(dev.getQemuParameters(emu.config()),
                 ElementsAre(Eq("-loadvm"), Eq("default_boot"), Eq("-savevm"), Eq("default_boot")));
 }
@@ -90,6 +92,7 @@ TEST_F(SnapshotDeviceTest, NoSnapshotDisablesLoadAndSaveViaCmdline) {
     EXPECT_OK(dev.initialize(emu.config()));
     EXPECT_EQ(dev.load_status(), SnapshotDevice::LoadStatus::kSkippedCmdline);
     EXPECT_EQ(dev.save_status(), SnapshotDevice::SaveStatus::kDisabledCmdline);
+    EXPECT_FALSE(dev.is_enabled());
     EXPECT_THAT(dev.getQemuParameters(emu.config()), IsEmpty());
 }
 
@@ -106,6 +109,7 @@ TEST_F(SnapshotDeviceTest, NoSnapshotLoadSkipsLoadViaCmdline) {
     EXPECT_OK(dev.initialize(emu.config()));
     EXPECT_EQ(dev.load_status(), SnapshotDevice::LoadStatus::kSkippedCmdline);
     EXPECT_EQ(dev.save_status(), SnapshotDevice::SaveStatus::kSaving);
+    EXPECT_TRUE(dev.is_enabled());
     EXPECT_THAT(dev.getQemuParameters(emu.config()),
                 ElementsAre(Eq("-savevm"), Eq("default_boot")));
 }
@@ -123,6 +127,7 @@ TEST_F(SnapshotDeviceTest, NoSnapstorageSkipsLoadViaCmdline) {
     EXPECT_OK(dev.initialize(emu.config()));
     EXPECT_EQ(dev.load_status(), SnapshotDevice::LoadStatus::kSkippedCmdline);
     EXPECT_EQ(dev.save_status(), SnapshotDevice::SaveStatus::kSaving);
+    EXPECT_TRUE(dev.is_enabled());
     EXPECT_THAT(dev.getQemuParameters(emu.config()),
                 ElementsAre(Eq("-savevm"), Eq("default_boot")));
 }
@@ -140,6 +145,7 @@ TEST_F(SnapshotDeviceTest, NoSnapshotSaveDisablesSaveViaCmdline) {
     EXPECT_OK(dev.initialize(emu.config()));
     EXPECT_EQ(dev.load_status(), SnapshotDevice::LoadStatus::kLoading);
     EXPECT_EQ(dev.save_status(), SnapshotDevice::SaveStatus::kDisabledCmdline);
+    EXPECT_TRUE(dev.is_enabled());
     EXPECT_THAT(dev.getQemuParameters(emu.config()),
                 ElementsAre(Eq("-loadvm"), Eq("default_boot")));
 }
@@ -156,6 +162,7 @@ TEST_F(SnapshotDeviceTest, ForceColdBootSkipsLoadAndSaveViaAvd) {
     EXPECT_OK(dev.initialize(emu.config()));
     EXPECT_EQ(dev.load_status(), SnapshotDevice::LoadStatus::kSkippedAvd);
     EXPECT_EQ(dev.save_status(), SnapshotDevice::SaveStatus::kDisabledAvd);
+    EXPECT_FALSE(dev.is_enabled());
     EXPECT_THAT(dev.getQemuParameters(emu.config()), IsEmpty());
 }
 
@@ -170,6 +177,7 @@ TEST_F(SnapshotDeviceTest, ColdBootWhenSnapshotVersionMismatches) {
     EXPECT_OK(dev.initialize(emu.config()));
     EXPECT_EQ(dev.load_status(), SnapshotDevice::LoadStatus::kSkippedOldSnapshot);
     EXPECT_EQ(dev.save_status(), SnapshotDevice::SaveStatus::kSaving);
+    EXPECT_TRUE(dev.is_enabled());
     EXPECT_THAT(dev.getQemuParameters(emu.config()),
                 ElementsAre(Eq("-savevm"), Eq("default_boot")));
 }
@@ -185,6 +193,7 @@ TEST_F(SnapshotDeviceTest, DirectoryErrorWhenSnapshotDirCreationFails) {
     EXPECT_OK(dev.initialize(emu.config()));
     EXPECT_EQ(dev.load_status(), SnapshotDevice::LoadStatus::kSkippedOldSnapshot);
     EXPECT_EQ(dev.save_status(), SnapshotDevice::SaveStatus::kDirectoryError);
+    EXPECT_FALSE(dev.is_enabled());
     EXPECT_THAT(dev.getQemuParameters(emu.config()), IsEmpty());
 }
 

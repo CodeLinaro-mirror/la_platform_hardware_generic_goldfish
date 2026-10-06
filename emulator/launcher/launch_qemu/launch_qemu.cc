@@ -230,11 +230,10 @@ absl::Status LaunchQemu::addDevices() {
         });
     }
 
+    const auto& snapshot_device = addDevice<SnapshotDevice>();
+
     std::string gpu_name = "gpu0";
-    std::string dont_care_reason;
-    addDevice<GpuDevice>(gpu_name,
-                         SnapshotDevice::should_load_snapshot(config_, dont_care_reason) ||
-                                 SnapshotDevice::should_save_snapshot(config_, dont_care_reason));
+    addDevice<GpuDevice>(gpu_name, snapshot_device);
 
     // Also includes input devices for the display.
     addDevice<DisplayDevice>(gpu_name);
@@ -270,8 +269,6 @@ absl::Status LaunchQemu::addDevices() {
             "telnet::15454,server,nowait",
         });
     }
-
-    addDevice<SnapshotDevice>();
 
     if (o.qemu) {
         addDevice<ParameterList>(absl::StrSplit(o.qemu, ' '));
