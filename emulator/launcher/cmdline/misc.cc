@@ -95,7 +95,7 @@ extern char* tempstr_get(int size) {
     if (t->size < size) {
         t->buffer = static_cast<char*>(realloc(t->buffer, size));
         if (t->buffer == nullptr) {
-            LOG(FATAL) << "could not allocate " << size << " bytes";
+            LOG(QFATAL) << "could not allocate " << size << " bytes";
         }
         t->size = size;
     }

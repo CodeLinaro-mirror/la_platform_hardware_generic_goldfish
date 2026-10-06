@@ -61,7 +61,7 @@ void BqlSafeUnregisterEmulatorReset(QEMUResetHandler* func, void* opaque) {
     if (bql_locked()) {
         qemu_unregister_reset(func, opaque);
     } else {
-        LOG(FATAL) << "Attempted to call qemu_unregister_reset with BQL held.";
+        LOG(QFATAL) << "Attempted to call qemu_unregister_reset without BQL held.";
     }
 }
 
@@ -283,10 +283,10 @@ void AvdExtendedUniverse::ShutdownQemuLoop() {
     // In the current Qemu implementation, we are already running on the Qemu main thread and so
     // shutdown will have run serially.
     if (f.wait_for(std::chrono::seconds(15)) != std::future_status::ready) {
-        LOG(FATAL) << "Qemu loop shutdown failed to complete within 15s";
+        LOG(QFATAL) << "Qemu loop shutdown failed to complete within 15s";
     }
     auto s = f.get();
-    LOG_IF(FATAL, !s.ok()) << "Qemu loop shutdown failed: " << s;
+    LOG_IF(QFATAL, !s.ok()) << "Qemu loop shutdown failed: " << s;
 }
 
 async::EventLoop& AvdExtendedUniverse::GetQemuEventLoop() {

@@ -96,7 +96,7 @@ class UwbProtocol : public Protocol {
         }
         size_t bytes_to_read = mBytesWanted;
         if ((uint32_t)len > bytes_to_read) {
-            LOG(FATAL) << "Uwb: More bytes read than expected";
+            LOG(QFATAL) << "Uwb: More bytes read than expected";
         }
 
         mPacket.insert(mPacket.end(), buf, buf + len);
@@ -179,7 +179,7 @@ class NfcProtocol : public Protocol {
             return;
         }
         if (len > mBytesWanted) {
-            LOG(FATAL) << "NFC: More bytes read than expected";
+            LOG(QFATAL) << "NFC: More bytes read than expected";
         }
 
         mPacket.insert(mPacket.end(), buf, buf + len);

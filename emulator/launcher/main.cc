@@ -524,7 +524,10 @@ int main(int argc, char** argv) {
     }
 
     // We currently expect AVD load failures to trigger trampoline and not reach this point.
-    LOG_IF(FATAL, !avd.ok()) << "Bug: AVD loading failed: " << avd.status();
+    if (!avd.ok()) {
+        LOG(ERROR) << "Bug: AVD loading failed: " << avd.status();
+        return 1;
+    }
 
     bool set_qemu_version = true;
     auto last_run_qemu_version = (*avd)->GetLastRunQemuVersion();

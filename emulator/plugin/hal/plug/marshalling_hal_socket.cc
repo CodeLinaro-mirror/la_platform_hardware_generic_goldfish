@@ -31,7 +31,7 @@ struct NullSocket : public cable::ISocket {
     };
 
     cable::PlugPtr SwitchPlug(cable::PlugPtr new_plug) override {
-        LOG(FATAL) << "NullSocket::SwitchPlug should not be called";
+        LOG(QFATAL) << "NullSocket::SwitchPlug should not be called";
         return new_plug;
     }
 
