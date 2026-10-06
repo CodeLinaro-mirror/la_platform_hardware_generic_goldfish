@@ -13,9 +13,11 @@
 // limitations under the License.
 #pragma once
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "device.h"
+#include "snapshot_device.h"
 
 namespace android::goldfish {
 
@@ -23,15 +25,15 @@ namespace android::goldfish {
 // The gpu card lives in the first pci slot (01.0)
 class GpuDevice : public PciDevice {
   public:
-    explicit GpuDevice(std::string_view gpu_name, bool snapshot_enabled)
-            : PciDevice("gpu", "01.0"), mGpuName(gpu_name), mSnapshotEnabled(snapshot_enabled) {}
+    explicit GpuDevice(std::string_view gpu_name, const SnapshotDevice& snapshot_device)
+            : PciDevice("gpu", "01.0"), mGpuName(gpu_name), mSnapshotDevice(snapshot_device) {}
 
     absl::Status initialize(const EmulatorConfig& emulator) override;
     std::vector<std::string> getQemuParameters(const EmulatorConfig& emulator) const override;
 
   private:
     std::string mGpuName;
-    bool mSnapshotEnabled;
+    const SnapshotDevice& mSnapshotDevice;
 };
 
 }  // namespace android::goldfish

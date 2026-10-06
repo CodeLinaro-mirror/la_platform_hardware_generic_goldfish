@@ -107,8 +107,11 @@ class LaunchQemu {
     }
 
     template <typename T, typename... Args>
-    void addDevice(Args&&... args) {
-        addDevice(std::make_unique<T>(std::forward<Args>(args)...));
+    const T& addDevice(Args&&... args) {
+        auto device = std::make_unique<T>(std::forward<Args>(args)...);
+        const T& ref = *device;
+        addDevice(std::move(device));
+        return ref;
     }
 
   private:

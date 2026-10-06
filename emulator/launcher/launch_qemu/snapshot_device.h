@@ -34,15 +34,18 @@ class SnapshotDevice : public Device {
 
     LoadStatus load_status() const { return load_status_; }
     SaveStatus save_status() const { return save_status_; }
+    bool is_enabled() const {
+        return load_status_ == LoadStatus::kLoading || save_status_ == SaveStatus::kSaving;
+    }
 
+    static std::string_view get_snapshot_name(const EmulatorConfig& emulator);
+
+  private:
     static bool should_load_snapshot(const EmulatorConfig& emulator, std::string& reason,
                                      LoadStatus* status = nullptr);
     static bool should_save_snapshot(const EmulatorConfig& emulator, std::string& reason,
                                      SaveStatus* status = nullptr);
-    static std::string_view get_snapshot_name(const EmulatorConfig& emulator);
-    static bool snapshotExists(const EmulatorConfig& emulator, const std::string& name);
 
-  private:
     std::string snapshot_name_;
     bool strict_snapshot_load_ = false;
     LoadStatus load_status_ = LoadStatus::kSkippedOldSnapshot;
