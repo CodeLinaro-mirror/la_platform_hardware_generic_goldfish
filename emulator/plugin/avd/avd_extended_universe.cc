@@ -183,7 +183,8 @@ AvdExtendedUniverse::AvdExtendedUniverse(std::unique_ptr<AvdProperties> props)
                                                            client_loop, qemu_loop.get());
 
     std::string emulatedCameraProp;
-    DEVS::camera::RegisterDevice(registry, &emulatedCameraProp, avd_props.hw_config,
+    DEVS::camera::RegisterDevice(&avd_universe.GetSensorsPhysicalModel(), registry,
+                                 &emulatedCameraProp, avd_props.hw_config,
                                  []() { return GetGrallocImpl(); });
 
     using namespace std::string_literals;

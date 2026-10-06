@@ -17,8 +17,13 @@
 
 #include "android/camera/camera_image_provider_api.h"
 
+namespace goldfish::sensors {
+class PhysicalModel;
+}  // namespace goldfish::sensors
+
 namespace goldfish::camera_image_providers::virtualscene {
 
-bool getImageProviderInfo(CameraImageProviderInfo* dst, bool isBackFacing);
+bool getImageProviderInfo(CameraImageProviderInfo* dst, bool isBackFacing,
+                          const sensors::PhysicalModel* physicalModel);
 
 }  // namespace goldfish::camera_image_providers::virtualscene

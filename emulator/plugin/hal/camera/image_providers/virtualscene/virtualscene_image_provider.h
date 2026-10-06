@@ -15,12 +15,19 @@
 
 #pragma once
 
+#include <glm/mat4x4.hpp>
+#include <glm/vec3.hpp>
+
 #include <cstdint>
 #include <optional>
 #include <vector>
 
 #include "android/camera/camera_image_provider_api.h"
 #include "ver/virtual_environment_renderer.h"
+
+namespace goldfish::sensors {
+class PhysicalModel;
+}  // namespace goldfish::sensors
 
 namespace goldfish::camera_image_providers::virtualscene {
 
@@ -69,19 +76,30 @@ struct VirtualsceneImageProvider {
                                                                 const CaptureStreamBuffers* a,
                                                                 size_t n);
 
+    static glm::mat4 computeProjectionMatrix(CameraImageProviderRect size);
+    static glm::mat4 computeViewProjectionMatrix(const glm::mat4& projection,
+                                                 const glm::vec3& position,
+                                                 const glm::vec3& rotationEulerDegrees,
+                                                 bool isBackFacing, bool supportsPosition);
+
   private:
     struct CaptureSession {
         std::vector<CaptureStreamBuffers> captureStreamBuffers;
         std::vector<uint8_t> yuvConversionBuffer;
+        glm::mat4 projection = glm::mat4(1.0f);
         VerRenderViewHandle view = VER_INVALID_HANDLE;
         CameraImageProviderRect framebuffer_size = {};
     };
+
+    glm::mat4 updateViewProjection(const glm::mat4& projection) const;
 
     bool captureImpl(const CaptureSession&, CameraImageProviderStreamCaptureSink, void* sinkOpaque,
                      const CameraImageProviderStreamCaptureInfo* sci, unsigned scin,
                      uint8_t* yuvConversionBuffer);
 
     VerSceneHandle mScene = VER_INVALID_HANDLE;
+    const sensors::PhysicalModel* mPhysicalModel = nullptr;
+    bool mIsBackFacing = true;
 
     std::optional<CaptureSession> mCaptureSession;
 };

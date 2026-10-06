@@ -19,7 +19,12 @@
 
 #define FAILURE_DEBUG_PREFIX "VirtualsceneImageProvider"
 
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/quaternion.hpp>
+#include <glm/trigonometric.hpp>
+
 #include <algorithm>
+#include <cmath>
 #include <cstdlib>
 #include <filesystem>
 #include <memory>
@@ -27,6 +32,8 @@
 
 #include "goldfish/debug.h"
 #include "goldfish/imaging/query_info.h"
+#include "goldfish/physics/glm_helpers.h"
+#include "goldfish/sensors/physical_model.h"
 #include "libyuv/convert_from_argb.h"
 #include "libyuv/scale_argb.h"
 
@@ -35,18 +42,91 @@ namespace {
 
 constexpr const char* kDefaultSceneModelPath = "data/virtualscene/Toren1BD/Toren1BD.obj";
 
-// Default 4x4 view-projection matrix from initial SceneCamera pose.
-constexpr float kDefaultViewProj[16] = {
-    0.000f,  -2.000f, 0.000f,  0.000f,   //
-    -1.495f, 0.000f,  -0.083f, -0.083f,  //
-    0.124f,  0.000f,  -0.999f, -0.997f,  //
-    -0.045f, 0.120f,  -0.202f, -0.002f,
-};
+constexpr float kDefaultZNear = 0.1f;
+constexpr float kDefaultZFar = 100.0f;
+constexpr float kDefaultFx = 1.0f;
+constexpr float kDefaultFy = 1.0f;
+
+const glm::mat4& getCameraFromSensors() {
+    static const glm::mat4 kCameraFromSensors = []() {
+        const float sqrt2_over_2 = std::sqrt(2.0f) / 2.0f;
+        glm::mat4 sensorLocalMatrix =
+                glm::mat4_cast(glm::quat(sqrt2_over_2, 0.0f, 0.0f, sqrt2_over_2));
+        sensorLocalMatrix[3] = glm::vec4(-0.03f, -0.06f, 0.002f, 1.0f);
+        const glm::mat4 cameraLocalTransform(
+                glm::vec4(1.0f, 0.0f, 0.0f, 0.0f), glm::vec4(0.0f, -1.0f, 0.0f, 0.0f),
+                glm::vec4(0.0f, 0.0f, 1.0f, 0.0f), glm::vec4(0.0f, 0.0f, 0.0f, 1.0f));
+        return cameraLocalTransform * sensorLocalMatrix;
+    }();
+    return kCameraFromSensors;
+}
+
+glm::mat4 projectionMatrixForCameraIntrinsics(float width, float height, float fx, float fy,
+                                              float cx, float cy, float zNear, float zFar) {
+    const float xscale = zNear / fx;
+    const float yscale = zNear / fy;
+    const float xoffset = (cx - (width / 2.0f)) * xscale;
+    // Color camera's coordinates has y pointing downwards so we negate this term.
+    const float yoffset = -(cy - (height / 2.0f)) * yscale;
+
+    return glm::frustum(xscale * -width / 2.0f - xoffset, xscale * width / 2.0f - xoffset,
+                        yscale * -height / 2.0f - yoffset, yscale * height / 2.0f - yoffset, zNear,
+                        zFar);
+}
 
 }  // namespace
 
 const char* VirtualsceneImageProvider::getId() const {
     return "virtualscene";
+}
+
+glm::mat4 VirtualsceneImageProvider::computeProjectionMatrix(const CameraImageProviderRect size) {
+    DCHECK(size.width);
+    DCHECK(size.height);
+    const float aspectRatio = static_cast<float>(size.width) / static_cast<float>(size.height);
+    return projectionMatrixForCameraIntrinsics(aspectRatio, 1.0f, kDefaultFx, kDefaultFy,
+                                               aspectRatio / 2.0f, 0.5f, kDefaultZNear,
+                                               kDefaultZFar);
+}
+
+glm::mat4 VirtualsceneImageProvider::computeViewProjectionMatrix(
+        const glm::mat4& projection, const glm::vec3& position,
+        const glm::vec3& rotationEulerDegrees, const bool isBackFacing,
+        const bool supportsPosition) {
+    glm::vec3 extraRotationEulerDegrees(0.0f);
+    if (!isBackFacing) {
+        extraRotationEulerDegrees.y += 180.0f;
+    }
+
+    const glm::mat4 sensorsExtraRotation =
+            glm::mat4_cast(FromEulerAnglesXyz(glm::radians(extraRotationEulerDegrees)));
+    const glm::mat4 rotationMat =
+            glm::mat4_cast(FromEulerAnglesXyz(glm::radians(rotationEulerDegrees))) *
+            sensorsExtraRotation;
+
+    glm::mat4 inverseSensorsPose = glm::inverse(rotationMat);
+    if (supportsPosition) {
+        inverseSensorsPose *= glm::translate(glm::mat4(1.0f), -position);
+    }
+
+    const glm::mat4 viewFromWorld = getCameraFromSensors() * inverseSensorsPose;
+    return projection * viewFromWorld;
+}
+
+glm::mat4 VirtualsceneImageProvider::updateViewProjection(const glm::mat4& projection) const {
+    glm::vec3 position(0.0f);
+    glm::vec3 rotationEulerDegrees(0.0f);
+    if (mPhysicalModel) {
+        int64_t timestamp = 0;
+        mPhysicalModel->GetTransform(&position.x, &position.y, &position.z, &rotationEulerDegrees.x,
+                                     &rotationEulerDegrees.y, &rotationEulerDegrees.z, &timestamp);
+    }
+    const bool supportsPosition =
+            (mScene != VER_INVALID_HANDLE)
+                    ? VerSceneConfig::modeSupportsCameraTranslation(ver_scene_get_mode(mScene))
+                    : true;
+    return computeViewProjectionMatrix(projection, position, rotationEulerDegrees, mIsBackFacing,
+                                       supportsPosition);
 }
 
 int VirtualsceneImageProvider::start(const CameraImageProviderStreamConfig* const streamConfigs,
@@ -124,7 +204,9 @@ int VirtualsceneImageProvider::start(const CameraImageProviderStreamConfig* cons
         return FAILURE_STR("ver_create_render_view", -1);
     }
 
-    ver_render_view_set_view_projection(view, kDefaultViewProj);
+    const glm::mat4 projection = computeProjectionMatrix(roc.size);
+    const glm::mat4 viewProj = updateViewProjection(projection);
+    ver_render_view_set_view_projection(view, &viewProj[0][0]);
     if (!ver_render_view_set_dimensions(view, static_cast<int32_t>(roc.size.width),
                                         static_cast<int32_t>(roc.size.height))) {
         ver_destroy_render_view(view);
@@ -136,6 +218,7 @@ int VirtualsceneImageProvider::start(const CameraImageProviderStreamConfig* cons
     CaptureSession captureSession;
     captureSession.captureStreamBuffers = std::move(captureStreamBuffers);
     captureSession.yuvConversionBuffer.resize(maxYuvConversionBufferSize);
+    captureSession.projection = projection;
     captureSession.view = view;
     captureSession.framebuffer_size = roc.size;
 
@@ -249,7 +332,9 @@ bool VirtualsceneImageProvider::captureImpl(const CaptureSession& session,
                                             const unsigned scisSize, uint8_t* yuvConversionBuffer) {
     ver_scene_update(mScene, true);
 
-    // TODO(virtualscene): Update view parameters based on physical model
+    const glm::mat4 viewProj = updateViewProjection(session.projection);
+    ver_render_view_set_view_projection(session.view, &viewProj[0][0]);
+
     if (!ver_render_view(mScene, session.view, []() {}, nullptr)) {
         return FAILURE_STR("ver_render_view", false);
     }
@@ -347,7 +432,7 @@ VirtualsceneImageProvider::~VirtualsceneImageProvider() {
     }
 }
 
-void* VirtualsceneImageProvider::create(const CameraImageProviderInfo& /*info*/) {
+void* VirtualsceneImageProvider::create(const CameraImageProviderInfo& info) {
     const VerSceneConfig sceneConfig(VerSceneConfig::Mode::Mesh3D, kDefaultSceneModelPath);
     if (const char* launcherDir = std::getenv("ANDROID_EMULATOR_LAUNCHER_DIR");
         launcherDir && launcherDir[0] != '\0') {
@@ -373,6 +458,8 @@ void* VirtualsceneImageProvider::create(const CameraImageProviderInfo& /*info*/)
 
     auto imageProvider = std::make_unique<VirtualsceneImageProvider>();
     imageProvider->mScene = scene;
+    imageProvider->mPhysicalModel = static_cast<const sensors::PhysicalModel*>(info.createArg);
+    imageProvider->mIsBackFacing = (info.isBackFacing != 0);
 
     return imageProvider.release();
 }

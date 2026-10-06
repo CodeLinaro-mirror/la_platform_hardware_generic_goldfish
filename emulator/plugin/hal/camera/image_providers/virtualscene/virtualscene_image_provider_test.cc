@@ -198,4 +198,54 @@ TEST(VirtualsceneImageProvider, CreateStartCaptureStopMultiStream) {
     fs::remove_all(tempRoot);
 }
 
+TEST(VirtualsceneImageProvider, ComputeViewProjectionMatrix_InitialPoseMatchesSceneCamera) {
+    const glm::mat4 proj = VirtualsceneImageProvider::computeProjectionMatrix({640, 480});
+    const glm::mat4 viewProj = VirtualsceneImageProvider::computeViewProjectionMatrix(
+            proj, glm::vec3(0.0f), glm::vec3(-4.75f, 0.0f, 0.0f),
+            /*isBackFacing=*/true, /*supportsPosition=*/true);
+
+    constexpr float kExpected[16] = {
+        0.000f,  -2.000f, 0.000f,  0.000f,   //
+        -1.495f, 0.000f,  -0.083f, -0.083f,  //
+        0.124f,  0.000f,  -0.999f, -0.997f,  //
+        -0.045f, 0.120f,  -0.202f, -0.002f,
+    };
+
+    const float* actual = &viewProj[0][0];
+    for (int i = 0; i < 16; ++i) {
+        EXPECT_NEAR(actual[i], kExpected[i], 0.001f) << "index " << i;
+    }
+}
+
+TEST(VirtualsceneImageProvider, ComputeViewProjectionMatrix_LandscapeRotationRotatesAxes) {
+    const glm::mat4 proj = VirtualsceneImageProvider::computeProjectionMatrix({640, 480});
+    // Rotating the device +90 degrees around Z (landscape) should cancel the +90 degree
+    // sensor mount roll for the back-facing camera, aligning world +X with clip +X (1.5)
+    // and world +Y with clip -Y (-2.0).
+    const glm::mat4 viewProj = VirtualsceneImageProvider::computeViewProjectionMatrix(
+            proj, glm::vec3(0.0f), glm::vec3(0.0f, 0.0f, 90.0f),
+            /*isBackFacing=*/true, /*supportsPosition=*/true);
+
+    EXPECT_NEAR(viewProj[0][0], 1.5f, 0.001f);
+    EXPECT_NEAR(viewProj[0][1], 0.0f, 0.001f);
+    EXPECT_NEAR(viewProj[1][0], 0.0f, 0.001f);
+    EXPECT_NEAR(viewProj[1][1], -2.0f, 0.001f);
+}
+
+TEST(VirtualsceneImageProvider, ComputeViewProjectionMatrix_FrontFacingFlipsViewDirection) {
+    const glm::mat4 proj = VirtualsceneImageProvider::computeProjectionMatrix({640, 480});
+    const glm::mat4 backViewProj = VirtualsceneImageProvider::computeViewProjectionMatrix(
+            proj, glm::vec3(0.0f), glm::vec3(0.0f),
+            /*isBackFacing=*/true, /*supportsPosition=*/true);
+    const glm::mat4 frontViewProj = VirtualsceneImageProvider::computeViewProjectionMatrix(
+            proj, glm::vec3(0.0f), glm::vec3(0.0f),
+            /*isBackFacing=*/false, /*supportsPosition=*/true);
+
+    // Front camera adds a 180-degree Y rotation, negating the X and Z columns of viewFromWorld.
+    EXPECT_NEAR(frontViewProj[0][1], -backViewProj[0][1], 0.001f);
+    EXPECT_NEAR(frontViewProj[1][0], backViewProj[1][0], 0.001f);
+    EXPECT_NEAR(frontViewProj[2][2], -backViewProj[2][2], 0.001f);
+    EXPECT_NEAR(frontViewProj[2][3], -backViewProj[2][3], 0.001f);
+}
+
 }  // namespace goldfish::camera_image_providers::virtualscene
