@@ -164,7 +164,9 @@ class LibuvSocket : public AsyncSocket, public std::enable_shared_from_this<Libu
 
         uv_stream_t* stream = GetUvSocketStream();
         if (!is_connected_ || UvIsClosing(stream)) {
-            return UvErrToAbslStatus(UV_ENOTCONN);
+            const absl::Status status = UvErrToAbslStatus(UV_ENOTCONN);
+            on_send(status);
+            return status;
         }
 
         // Fast path: when no async writes are queued, attempt a synchronous
@@ -198,11 +200,18 @@ class LibuvSocket : public AsyncSocket, public std::enable_shared_from_this<Libu
         }
 
         auto* write_req = WriteReqT::Create(buffer, buffer_size, std::move(on_send));
-        uv_write(&write_req->req, stream, &write_req->buf, 1, [](uv_write_t* req, int s) {
-            auto* w = reinterpret_cast<WriteReqT*>(req);
-            w->on_send(UvErrToAbslStatus(s));
-            WriteReqT::Destroy(w);
-        });
+        const int err =
+                uv_write(&write_req->req, stream, &write_req->buf, 1, [](uv_write_t* req, int s) {
+                    auto* w = reinterpret_cast<WriteReqT*>(req);
+                    w->on_send(UvErrToAbslStatus(s));
+                    WriteReqT::Destroy(w);
+                });
+        if (err != 0) {
+            const absl::Status status = UvErrToAbslStatus(err);
+            write_req->on_send(status);
+            WriteReqT::Destroy(write_req);
+            return status;
+        }
 
         return absl::OkStatus();
     }
