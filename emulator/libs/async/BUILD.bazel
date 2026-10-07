@@ -186,6 +186,7 @@ cc_library(
         "//emulator/libs/base",
         "//emulator/libs/cpp",
         "//emulator/libs/network",
+        "//emulator/libs/perfetto:init",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/strings",

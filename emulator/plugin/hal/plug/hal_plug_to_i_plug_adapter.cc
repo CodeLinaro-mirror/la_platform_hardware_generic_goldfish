@@ -15,6 +15,7 @@
  */
 #include "goldfish/devices/hal_plug_to_i_plug_adapter.h"
 
+#include <cstdint>
 #include <string_view>
 #include <utility>
 
@@ -22,6 +23,7 @@
 #include "absl/log/log.h"
 
 #include "goldfish/devices/marshalling_hal_socket.h"
+#include "goldfish/perfetto/perfetto_categories.h"
 
 namespace goldfish::devices {
 
@@ -52,26 +54,39 @@ bool HalPlugToIPlugAdapter::OnReceive(const void* data, size_t size) {
     // client loop for the real HalPlug to handle.
     // We return true immediately, preventing the QEMU thread from blocking.
     bool schedule_delivery = false;
+    uint64_t trace_flow_id = 0;
     {
         const absl::MutexLock lock(&receive_buffer_mutex_);
         schedule_delivery = !std::exchange(has_pending_receive_, true);
-        receive_buffer_.append(static_cast<const char*>(data), size);
-        if (!schedule_delivery) {
+        if (schedule_delivery) {
+            if (TRACE_EVENT_CATEGORY_ENABLED("async")) {
+                trace_flow_id = TRACE_NONCE();
+            }
+            receive_buffer_.append(static_cast<const char*>(data), size);
+        } else {
+            TRACE_EVENT("async", "HalPlugToIPlugAdapter::Coalesce", "bytes", size,
+                        "coalesced_bytes", receive_buffer_.size() + size);
+            receive_buffer_.append(static_cast<const char*>(data), size);
             VLOG(2) << "Coalesced " << size << " bytes for mHalPlug " << *hal_plug_
                     << " (total: " << receive_buffer_.size() << " bytes)";
             return true;
         }
     }
 
+    TRACE_EVENT("async", "HalPlugToIPlugAdapter::OnReceive",
+                perfetto::Flow::ProcessScoped(trace_flow_id), "bytes", size);
     VLOG(2) << "Scheduling onReceive for mHalPlug " << *hal_plug_ << " with: " << size << " bytes.";
     client_loop_
-            ->Post([this, self = shared_from_this()]() {
+            ->Post([this, self = shared_from_this(), trace_flow_id]() {
                 {
                     const absl::MutexLock lock(&receive_buffer_mutex_);
                     DCHECK(has_pending_receive_);
                     has_pending_receive_ = false;
                     receive_buffer_.swap(deliver_buffer_);
                 }
+                TRACE_EVENT("async", "HalPlugToIPlugAdapter::Deliver",
+                            perfetto::Flow::ProcessScoped(trace_flow_id), "bytes",
+                            deliver_buffer_.size());
                 hal_plug_->OnReceive(deliver_buffer_);
                 deliver_buffer_.clear();
             })

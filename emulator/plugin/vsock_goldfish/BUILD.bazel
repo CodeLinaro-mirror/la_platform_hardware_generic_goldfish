@@ -33,6 +33,7 @@ cc_library(
         "//emulator/libs/archive:QEMUFileArchive",
         "//emulator/libs/archive:collections",
         "//emulator/libs/debug",
+        "//emulator/libs/perfetto:init",
         "//emulator/libs/synchronization",
         "//emulator/plugin/hal/connector:cable",
         "@abseil-cpp//absl/log",

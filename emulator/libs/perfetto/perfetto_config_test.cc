@@ -148,5 +148,12 @@ TEST_F(PerfettoConfigTest, BridgesQemuTraceEventsAndArgumentsToPerfetto) {
     EXPECT_TRUE(TraceContainsEvent(trace_file, "elem_len"));
 }
 
+TEST_F(PerfettoConfigTest, TraceNonceGeneratesUniqueMonotonicIds) {
+    const uint64_t first = TRACE_NONCE();
+    const uint64_t second = TRACE_NONCE();
+    EXPECT_GT(first, 0U);
+    EXPECT_EQ(second, first + 1);
+}
+
 }  // namespace
 }  // namespace goldfish::perfetto

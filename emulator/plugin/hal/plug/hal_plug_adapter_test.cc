@@ -18,18 +18,25 @@
 #include <gtest/gtest.h>
 
 #include <chrono>
+#include <filesystem>
+#include <fstream>
+#include <iterator>
 #include <memory>
+#include <string>
 #include <thread>
+#include <vector>
 
 #include "absl/status/status_matchers.h"
 #include "absl/synchronization/notification.h"
 
+#include "android/base/testing/test_temp_dir.h"
 #include "goldfish/async/libuv_event_loop.h"
 #include "goldfish/async/threaded_event_loop.h"
 #include "goldfish/devices/hal_plug_factory.h"
 #include "goldfish/devices/hal_plug_to_i_plug_adapter.h"
 #include "goldfish/devices/marshalling_hal_socket.h"
 #include "goldfish/devices/test/hal_plug_testing_friend.h"
+#include "goldfish/perfetto/perfetto.h"
 
 using namespace goldfish::devices;
 using namespace goldfish::async;
@@ -376,5 +383,49 @@ TEST_F(HalPlugAdapterTest, ReusesSendBufferAcrossFlushes) {
     EXPECT_NE(flush1Ptr, nullptr);
     EXPECT_EQ(flush1Ptr, flush2Ptr);
 }
+
+#if defined(CONFIG_TRACE_GOLDFISH)
+bool TraceFileContains(const std::filesystem::path& path, std::string_view needle) {
+    std::ifstream in(path, std::ios::binary);
+    if (!in.is_open()) {
+        return false;
+    }
+    const std::string content((std::istreambuf_iterator<char>(in)),
+                              std::istreambuf_iterator<char>());
+    return content.find(needle) != std::string::npos;
+}
+
+TEST_F(HalPlugAdapterTest, EmitsPerfettoTraceEventsForSendAndReceive) {
+    goldfish::perfetto::Initialize();
+    android::base::TestTempDir tmp_dir("hal_plug_perfetto");
+    const std::filesystem::path trace_file = tmp_dir.MakeSubPath("hal_plug.pftrace");
+
+    {
+        goldfish::perfetto::EmulatorTracingSession session(trace_file, "async,qemu");
+        Connect();
+
+        absl::Notification sendDone;
+        absl::Notification recvDone;
+        EXPECT_CALL(*mMockSocket, SendAsync(_, _)).WillOnce(Invoke([&](const void*, size_t) {
+            sendDone.Notify();
+        }));
+        EXPECT_CALL(*mMockHalPlug, OnReceive(StrEq("pong"))).WillOnce(Invoke([&](std::string_view) {
+            recvDone.Notify();
+        }));
+
+        mMockHalPlug->getSocket()->Send("ping");
+        mQemuLoop->Post([&] { mAdapter->OnReceive("pong", 4); }).IgnoreError();
+
+        sendDone.WaitForNotificationWithTimeout(absl::Milliseconds(200));
+        recvDone.WaitForNotificationWithTimeout(absl::Milliseconds(200));
+    }
+
+    EXPECT_TRUE(std::filesystem::exists(trace_file));
+    EXPECT_TRUE(TraceFileContains(trace_file, "MarshallingHalSocket::Send"));
+    EXPECT_TRUE(TraceFileContains(trace_file, "MarshallingHalSocket::Flush"));
+    EXPECT_TRUE(TraceFileContains(trace_file, "HalPlugToIPlugAdapter::OnReceive"));
+    EXPECT_TRUE(TraceFileContains(trace_file, "HalPlugToIPlugAdapter::Deliver"));
+}
+#endif
 
 }  // namespace

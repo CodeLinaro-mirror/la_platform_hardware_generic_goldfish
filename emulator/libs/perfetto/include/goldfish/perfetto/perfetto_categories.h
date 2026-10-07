@@ -15,6 +15,9 @@
 
 #if defined(CONFIG_TRACE_GOLDFISH)
 
+#include <atomic>
+#include <cstdint>
+
 #include "perfetto/tracing/track_event.h"
 
 /**
@@ -56,6 +59,15 @@ PERFETTO_DEFINE_CATEGORIES(
         perfetto::Category("qemu").SetDescription("QEMU internal trace events"),
         perfetto::Category("display").SetDescription("Display and frame delivery pipeline"));
 
+namespace perfetto::internal {
+inline uint64_t NextTraceNonce() noexcept {
+    static std::atomic<uint64_t> nonce{1};
+    return nonce.fetch_add(1, std::memory_order_relaxed);
+}
+}  // namespace perfetto::internal
+
+#define TRACE_NONCE() (::perfetto::internal::NextTraceNonce())
+
 #else  // !defined(CONFIG_TRACE_GOLDFISH)
 
 #include <cstdint>
@@ -87,5 +99,6 @@ constexpr void IgnoreTraceArgs(const First& /*first*/, const Rest&... /*rest*/) 
 #define TRACE_COUNTER(...) GOLDFISH_PERFETTO_NOOP(__VA_ARGS__)
 
 #define TRACE_EVENT_CATEGORY_ENABLED(category) (false)
+#define TRACE_NONCE() (static_cast<uint64_t>(0))
 
 #endif  // defined(CONFIG_TRACE_GOLDFISH)

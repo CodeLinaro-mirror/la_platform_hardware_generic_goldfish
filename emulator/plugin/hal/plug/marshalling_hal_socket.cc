@@ -15,9 +15,13 @@
  */
 #include "goldfish/devices/marshalling_hal_socket.h"
 
+#include <cstdint>
+
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/synchronization/mutex.h"
+
+#include "goldfish/perfetto/perfetto_categories.h"
 
 namespace goldfish::devices {
 
@@ -65,33 +69,46 @@ void MarshallingHalSocket::Send(std::string_view data) {
 
     bool schedule_flush = false;
     goldfish::async::StackAddress calling_pc = 0;
+    uint64_t trace_flow_id = 0;
+    const size_t data_size = data.size();
 
     {
         const absl::MutexLock lock(&socket_mutex_);
         schedule_flush = send_buffer_.empty();
-        send_buffer_.append(data);
 
         if (schedule_flush) {
             // Note: During write-buffer coalescing, we record the instruction pointer
             // (calling_pc) of the first Send() call that initiates the batch flush task.
             calling_pc = __builtin_return_address(0);
+            if (TRACE_EVENT_CATEGORY_ENABLED("async")) {
+                trace_flow_id = TRACE_NONCE();
+            }
+            send_buffer_.append(data);
         } else {
-            VLOG(2) << "Appended " << data.size()
+            TRACE_EVENT("async", "MarshallingHalSocket::Coalesce", "bytes", data_size,
+                        "coalesced_bytes", send_buffer_.size() + data_size);
+            send_buffer_.append(data);
+            VLOG(2) << "Appended " << data_size
                     << " bytes to pending coalesced buffer (total: " << send_buffer_.size()
                     << " bytes)";
             return;
         }
     }
 
+    TRACE_EVENT("async", "MarshallingHalSocket::Send", perfetto::Flow::ProcessScoped(trace_flow_id),
+                "bytes", data_size);
     // Post the coalesced send operation to the QEMU loop asynchronously.
     qemu_loop_
             ->Post(
-                    [this, self = shared_from_this()]() {
+                    [this, self = shared_from_this(), trace_flow_id]() {
                         const absl::MutexLock lock(&socket_mutex_);
                         if (send_buffer_.empty()) {
                             return;
                         }
 
+                        TRACE_EVENT("async", "MarshallingHalSocket::Flush",
+                                    perfetto::Flow::ProcessScoped(trace_flow_id), "bytes",
+                                    send_buffer_.size());
                         VLOG(2) << "Sending coalesced payload of " << send_buffer_.size()
                                 << " bytes";
                         // Bytes go either to the *real* or NullSocket..

@@ -27,6 +27,7 @@
 #include "goldfish/debug.h"
 #include "goldfish/devices/cable/cable.h"
 #include "goldfish/devices/cable/saveload.h"
+#include "goldfish/perfetto/perfetto_categories.h"
 #include "goldfish/socket_buffer.h"
 #include "goldfish/synchronization/mutex.h"
 #include "goldfish/unique_id_allocator.h"
@@ -211,6 +212,8 @@ struct GoldfishVirtioVsockDevice {
 
     void sendAsyncImpl(VsockStream& stream, const void* const data, const size_t size) {
         DEBUG_MSG("this=%p", this);
+        TRACE_EVENT("qemu", "Vsock::SendAsync", "host_port", stream.hostPort, "guest_port",
+                    stream.guestPort, "bytes", size);
 
         const absl::MutexLock lock(mStateMutex);
         if (stream.isConnected) {
@@ -218,7 +221,12 @@ struct GoldfishVirtioVsockDevice {
                 stream.dataSniffer->ToSocket(data, size);
             }
 
-            if (stream.hostToGuestBuf.Append(data, size) >= stream.kBufferSizeHighWatermark) {
+            const size_t buffered_bytes = stream.hostToGuestBuf.Append(data, size);
+            TRACE_COUNTER("qemu", "vsock_host_to_guest_buf_bytes",
+                          static_cast<int64_t>(buffered_bytes));
+            if (buffered_bytes >= stream.kBufferSizeHighWatermark) {
+                TRACE_EVENT_INSTANT("qemu", "Vsock::BackpressureThrottle", "host_port",
+                                    stream.hostPort, "buffered_bytes", buffered_bytes);
                 stream.setProducerEnabled(false);
             }
 
@@ -504,6 +512,8 @@ struct GoldfishVirtioVsockDevice {
     int onPacketReceiveRw(void* streamPtr, const void* data, const size_t size)
             ABSL_EXCLUSIVE_LOCKS_REQUIRED(mStateMutex) {
         VsockStream& stream = *static_cast<VsockStream*>(streamPtr);
+        TRACE_EVENT("qemu", "Vsock::OnPacketReceiveRw", "host_port", stream.hostPort, "guest_port",
+                    stream.guestPort, "bytes", size);
 
         if (stream.isConnected) {
             if (stream.dataSniffer) {
@@ -539,6 +549,8 @@ struct GoldfishVirtioVsockDevice {
 
     int sendPacketsLocked() ABSL_EXCLUSIVE_LOCKS_REQUIRED(mStateMutex) {
         DEBUG_MSG("this=%p", this);
+        TRACE_EVENT("qemu", "Vsock::SendPacketsLocked", "num_streams", mStreams.size(),
+                    "orphan_packets", mOrphanPackets.size());
 
         bool needNotify = false;
         VirtIOVSockSendResult sendResult;
@@ -565,6 +577,13 @@ struct GoldfishVirtioVsockDevice {
             size_t guestAvailSize =
                     stream.guestBufAlloc - std::min(in_flight_size, stream.guestBufAlloc);
             unsigned sendOpMask = stream.sendOpMask;
+
+            if (TRACE_EVENT_CATEGORY_ENABLED("qemu") && guestAvailSize == 0 &&
+                stream.hostToGuestBuf.Peek().second > 0) {
+                TRACE_EVENT_INSTANT("qemu", "Vsock::CreditStarved", "host_port", stream.hostPort,
+                                    "guest_port", stream.guestPort, "in_flight_bytes",
+                                    in_flight_size);
+            }
 
             if (sendOpMask) {
                 static const enum virtio_vsock_op ops[] = {
@@ -605,12 +624,17 @@ struct GoldfishVirtioVsockDevice {
                 sendResult = (*NOT_NULL(sendPacketHostToGuest))(NOT_NULL(mQemuDev), &hdr, data);
 
                 const size_t sentSize = VirtIOVSockSentSize(sendResult);
-                if (stream.hostToGuestBuf.Consume(sentSize) < stream.kBufferSizeLowWatermark) {
+                const size_t remaining_buf = stream.hostToGuestBuf.Consume(sentSize);
+                TRACE_COUNTER("qemu", "vsock_host_to_guest_buf_bytes",
+                              static_cast<int64_t>(remaining_buf));
+                if (remaining_buf < stream.kBufferSizeLowWatermark) {
                     stream.setProducerEnabled(true);
                 }
 
                 stream.hostSentCnt += sentSize;
                 guestAvailSize -= sentSize;
+                TRACE_COUNTER("qemu", "vsock_guest_avail_credit",
+                              static_cast<int64_t>(guestAvailSize));
 
                 if (VirtIOVSockSendNeedNotify(sendResult)) {
                     needNotify = true;
