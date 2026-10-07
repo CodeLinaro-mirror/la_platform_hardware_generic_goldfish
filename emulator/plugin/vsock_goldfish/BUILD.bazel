@@ -1,4 +1,5 @@
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:cc_test.bzl", "cc_test")
 
 cc_library(
     name = "goldfish_vsock_hdrs",
@@ -18,10 +19,33 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "vsock_core",
+    srcs = [
+        "vsock.cc",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":goldfish_vsock_hdrs",
+        "//emulator/libs/SocketBuffer",
+        "//emulator/libs/UniqueIdAllocator",
+        "//emulator/libs/archive:QEMUFileArchive",
+        "//emulator/libs/archive:collections",
+        "//emulator/libs/debug",
+        "//emulator/libs/synchronization",
+        "//emulator/plugin/hal/connector:cable",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/strings:str_format",
+        "@abseil-cpp//absl/synchronization",
+        "@qemu//:qemu-headers-exported",
+    ],
+    alwayslink = True,
+)
+
 [cc_library(
     name = "vsock_impl_" + arch,
     srcs = [
-        "vsock.cc",
         "vsock_low_level.c",
         "vsock_port_fwd.cc",
     ],
@@ -33,19 +57,14 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":goldfish_vsock_hdrs",
-        "//emulator/libs/SocketBuffer",
-        "//emulator/libs/UniqueIdAllocator",
-        "//emulator/libs/archive:QEMUFileArchive",
-        "//emulator/libs/archive:collections",
+        ":vsock_core",
         "//emulator/libs/async:libuv_event_loop",
         "//emulator/libs/async:libuv_sockets",
         "//emulator/libs/async:qemu_event_loop",
         "//emulator/libs/async:threaded_event_loop",
-        "//emulator/libs/debug",
         "//emulator/libs/eventing",
         "//emulator/libs/logging:absl_c_bridge",
         "//emulator/libs/network",
-        "//emulator/libs/synchronization",
         "//emulator/plugin/avd:avd_info",
         "//emulator/plugin/avd:global_event_loop",
         "//emulator/plugin/hal/connector:cable",
@@ -59,3 +78,18 @@ cc_library(
     "aarch64",
     "x86_64",
 ]]
+
+cc_test(
+    name = "vsock_unittests",
+    size = "small",
+    srcs = [
+        "vsock_test.cc",
+    ],
+    deps = [
+        ":goldfish_vsock_hdrs",
+        ":vsock_core",
+        "//emulator/plugin/hal/connector:cable",
+        "@googletest//:gtest_main",
+        "@qemu//:qemu-headers-exported",
+    ],
+)
