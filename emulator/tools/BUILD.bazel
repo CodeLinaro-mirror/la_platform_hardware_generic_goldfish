@@ -62,7 +62,7 @@ aemu_naming(
         ":opt": "emulator",
     }),
     stage = "",
-    version = "37.1.3",
+    version = "37.1.4",
 )
 
 aemu_naming(
@@ -81,7 +81,7 @@ aemu_naming(
         ":opt": "emulator",
     }),
     stage = "",
-    version = "37.1.3",
+    version = "37.1.4",
 )
 
 version_info_header(
