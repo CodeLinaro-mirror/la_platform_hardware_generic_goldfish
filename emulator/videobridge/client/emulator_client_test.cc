@@ -25,6 +25,7 @@
 
 #include "absl/random/random.h"
 #include "absl/strings/str_cat.h"
+#include "absl/time/clock.h"
 #include "absl/time/time.h"
 
 #include "emulator_controller.grpc.pb.h"
@@ -76,9 +77,11 @@ class MockEmulatorController final : public EmulatorController::Service {
 
 class EmulatorClientTest : public ::testing::Test {
   protected:
+    static constexpr absl::Duration kConnectionTimeout = absl::Seconds(10);
+
     void TearDown() override {
         if (server) {
-            server->Shutdown();
+            server->Shutdown(absl::ToChronoTime(absl::Now() + absl::Seconds(2)));
         }
     }
 
@@ -99,10 +102,11 @@ class EmulatorClientTest : public ::testing::Test {
         explicit TmpDiscoveryFile(const std::string& content) {
             std::string file_name = absl::StrCat(
                     "grpc_client_test_",
-                    absl::Hex(absl::Uniform<uint64_t>(absl::BitGen()), absl::kSpacePad16));
+                    absl::Hex(absl::Uniform<uint64_t>(absl::BitGen()), absl::kZeroPad16));
             mPath = fs::temp_directory_path() / file_name;
             std::ofstream out(mPath);
             out << content;
+            out.close();
         }
 
         ~TmpDiscoveryFile() {
@@ -131,12 +135,16 @@ TEST_F(EmulatorClientTest, Connect_ValidDiscoveryFile_ConnectsSuccessfully) {
     EmulatorClient client(tmpFile.path().string());
 
     EXPECT_FALSE(client.IsConnected());
-    absl::Status status = client.Connect(absl::Seconds(2));
+    EXPECT_EQ(client.TargetAddress(), "<not connected>");
+
+    absl::Status status = client.Connect(kConnectionTimeout);
     EXPECT_TRUE(status.ok()) << status.message();
     EXPECT_TRUE(client.IsConnected());
+    EXPECT_EQ(client.TargetAddress(), server_address);
 
     client.Disconnect();
     EXPECT_FALSE(client.IsConnected());
+    EXPECT_EQ(client.TargetAddress(), "<not connected>");
 }
 
 TEST_F(EmulatorClientTest, StreamScreenshot_ReceivesFrames) {
@@ -146,7 +154,7 @@ TEST_F(EmulatorClientTest, StreamScreenshot_ReceivesFrames) {
 
     TmpDiscoveryFile tmpFile(absl::StrCat("grpc.port = ", port));
     EmulatorClient client(tmpFile.path().string());
-    ASSERT_TRUE(client.Connect(absl::Seconds(2)).ok());
+    ASSERT_TRUE(client.Connect(kConnectionTimeout).ok());
 
     ::grpc::ClientContext context;
     ImageFormat format;
@@ -173,7 +181,7 @@ TEST_F(EmulatorClientTest, StreamAudio_ReceivesAudioPackets) {
 
     TmpDiscoveryFile tmpFile(absl::StrCat("grpc.port = ", port));
     EmulatorClient client(tmpFile.path().string());
-    ASSERT_TRUE(client.Connect(absl::Seconds(2)).ok());
+    ASSERT_TRUE(client.Connect(kConnectionTimeout).ok());
 
     ::grpc::ClientContext context;
     AudioFormat format;
@@ -197,7 +205,7 @@ TEST_F(EmulatorClientTest, StreamInputEvent_SendsEvents) {
 
     TmpDiscoveryFile tmpFile(absl::StrCat("grpc.port = ", port));
     EmulatorClient client(tmpFile.path().string());
-    ASSERT_TRUE(client.Connect(absl::Seconds(2)).ok());
+    ASSERT_TRUE(client.Connect(kConnectionTimeout).ok());
 
     ::grpc::ClientContext context;
     ::google::protobuf::Empty response;
@@ -223,6 +231,26 @@ TEST_F(EmulatorClientTest, StreamInputEvent_SendsEvents) {
     EXPECT_EQ(service.mReceivedEvents[0].key_event().key(), "A");
     EXPECT_EQ(service.mReceivedEvents[1].mouse_event().x(), 100);
     EXPECT_EQ(service.mReceivedEvents[1].mouse_event().y(), 200);
+}
+
+TEST_F(EmulatorClientTest, UnconnectedClient_StreamMethodsReturnNullptr) {
+    EmulatorClient client;
+    EXPECT_FALSE(client.IsConnected());
+    EXPECT_EQ(client.TargetAddress(), "<not connected>");
+
+    ::grpc::ClientContext context;
+    EXPECT_EQ(client.StreamScreenshot(&context, {}), nullptr);
+    EXPECT_EQ(client.StreamAudio(&context, {}), nullptr);
+    ::google::protobuf::Empty response;
+    EXPECT_EQ(client.StreamInputEvent(&context, &response), nullptr);
+}
+
+TEST_F(EmulatorClientTest, Connect_NonExistentDiscoveryFile_Fails) {
+    EmulatorClient client("/nonexistent/discovery_file.ini");
+    EXPECT_FALSE(client.IsConnected());
+    absl::Status status = client.Connect(absl::Milliseconds(100));
+    EXPECT_FALSE(status.ok());
+    EXPECT_FALSE(client.IsConnected());
 }
 
 }  // namespace
