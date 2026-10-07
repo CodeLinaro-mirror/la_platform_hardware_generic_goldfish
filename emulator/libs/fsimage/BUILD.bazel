@@ -12,8 +12,6 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
-        "//emulator/libs/process",
-        "//emulator/libs/system",
         "//third_party/ext4_utils",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:absl_log",
