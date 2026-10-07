@@ -4,10 +4,10 @@ load("@rules_cc//cc:defs.bzl", "cc_library")
 cc_library(
     name = "fsimage",
     srcs = [
-        "ext4_utils.cc",
+        "ext4.cc",
     ],
     hdrs = [
-        "include/android/fsimage/ext4_utils.h",
+        "include/android/fsimage/ext4.h",
     ],
     includes = ["include"],
     visibility = ["//visibility:public"],

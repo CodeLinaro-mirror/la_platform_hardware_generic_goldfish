@@ -22,8 +22,8 @@ namespace fs = std::filesystem;
 // of |size| bytes. |mountPoint| is the name of the corresponding
 // mount point, e.g. 'cache' for the cache partition.
 // Returns 0 on success, or -errno on failure.
-int android_createEmptyExt4Image(fs::path filePath, uint64_t size, const char* mountpoint);
+int CreateEmptyExt4Image(const fs::path& image, uint64_t size, const char* mountpoint);
 
-int android_createExt4ImageFromDir(fs::path filePath, fs::path srcDir, uint64_t size,
-                                   const char* mountpoint);
+int CreateExt4ImageFromDir(const fs::path& image, const fs::path& src_dir, uint64_t size,
+                           const char* mountpoint);
 }  // namespace android::fsimage
