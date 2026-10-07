@@ -9,7 +9,7 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-#include "android/filesystems/ext4_utils.h"
+#include "android/fsimage/ext4_utils.h"
 
 #include <cstdint>
 #include <cstring>
@@ -18,7 +18,7 @@
 
 #include "make_ext4fs.h"
 
-namespace android::filesystems {
+namespace android::fsimage {
 
 namespace fs = std::filesystem;
 
@@ -41,4 +41,4 @@ int android_createExt4ImageFromDir(fs::path dst_file_path, fs::path src_director
     return ret;
 }
 
-}  // namespace android::filesystems
+}  // namespace android::fsimage

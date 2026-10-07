@@ -39,7 +39,7 @@
 | **archive** | Serialization (`IReader`/`IWriter`) with VarInt encoding. | [Architecture](archive/ARCHITECTURE.md) |
 | **parsing** | String splitting, key-value parsing, and type-safe argument streams (`ArgStream`). | [Architecture](parsing/ARCHITECTURE.md) |
 | **UniqueIdAllocator** | ID generation and recycling. | [Architecture](UniqueIdAllocator/ARCHITECTURE.md) |
-| **ext4** | Utilities for creating and resizing ext4 filesystem images. | [Architecture](ext4/ARCHITECTURE.md) |
+| **fsimage** | Utilities for creating and resizing ext4 and exFAT filesystem images. | [Architecture](fsimage/ARCHITECTURE.md) |
 
 ### gRPC & Security
 | Library | Description | Documentation |

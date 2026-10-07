@@ -2,14 +2,14 @@ load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_test")
 load("@rules_cc//cc:defs.bzl", "cc_library")
 
 cc_library(
-    name = "ext4",
+    name = "fsimage",
     srcs = [
         "ext4_resize.cc",
         "ext4_utils.cc",
     ],
     hdrs = [
-        "include/android/filesystems/ext4_resize.h",
-        "include/android/filesystems/ext4_utils.h",
+        "include/android/fsimage/ext4_resize.h",
+        "include/android/fsimage/ext4_utils.h",
     ],
     includes = ["include"],
     visibility = ["//visibility:public"],
@@ -25,7 +25,7 @@ cc_library(
 clang_tidy_test(
     name = "tidy",
     targets = [
-        ":ext4",
+        ":fsimage",
     ],
     tidy_config_file = "//:clang_tidy_config",
 )
