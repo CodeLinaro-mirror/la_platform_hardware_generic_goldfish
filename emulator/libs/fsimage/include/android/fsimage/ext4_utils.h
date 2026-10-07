@@ -14,7 +14,7 @@
 #include <cstdint>
 #include <filesystem>
 
-namespace android::filesystems {
+namespace android::fsimage {
 
 namespace fs = std::filesystem;
 
@@ -26,4 +26,4 @@ int android_createEmptyExt4Image(fs::path filePath, uint64_t size, const char* m
 
 int android_createExt4ImageFromDir(fs::path filePath, fs::path srcDir, uint64_t size,
                                    const char* mountpoint);
-}  // namespace android::filesystems
+}  // namespace android::fsimage

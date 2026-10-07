@@ -394,7 +394,7 @@ cc_library(
     hdrs = ["user_data_drive.h"],
     deps = [
         ":device",
-        "//emulator/libs/ext4",
+        "//emulator/libs/fsimage",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
     ],
@@ -421,7 +421,7 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":device",
-        "//emulator/libs/ext4",
+        "//emulator/libs/fsimage",
         "//emulator/libs/process",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
