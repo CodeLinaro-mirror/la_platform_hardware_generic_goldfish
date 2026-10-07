@@ -26,6 +26,7 @@
 #include "android/goldfish/avd.h"
 #include "android/goldfish/hardware_config.h"
 #include "android/goldfish/memory_config.h"
+#include "android/status/status_macros.h"
 #include "goldfish/file/file.h"
 #include "goldfish/file/storage_capacity.h"
 
@@ -46,7 +47,8 @@ absl::Status MemoryDevice::initialize(const EmulatorConfig& emulator) {
         }
     }
 
-    int minRam = MemoryConfig::CalculateMinimumRam(hw, avd.ApiLevel(), avd.GetDeviceType());
+    ASSIGN_OR_RETURN(int minRam,
+                     MemoryConfig::CalculateMinimumRam(hw, avd.ApiLevel(), avd.GetDeviceType()));
 
     if (emulator.opts().lowram) {
         LOG(INFO) << "Resetting min RAM to 0; [reason='lowram_flag_active', api_level="

@@ -16,6 +16,7 @@
 #include <memory>
 
 #include "absl/base/thread_annotations.h"
+#include "absl/status/statusor.h"
 #include "absl/synchronization/mutex.h"
 
 #include "goldfish/display/pixman_display.h"
@@ -33,9 +34,15 @@ using VirtIOInputHID = struct VirtIOInputHID;
 namespace goldfish::display {
 
 class QemuDisplay : public PixmanDisplay {
+    struct Private {};
+
   public:
-    QemuDisplay(EventLoop* loop, EventLoop* qemu_loop, QemuConsole* con, DisplaySurface* ds,
-                int index);
+    static absl::StatusOr<std::shared_ptr<QemuDisplay>> Create(EventLoop* loop,
+                                                               EventLoop* qemu_loop,
+                                                               QemuConsole* con, DisplaySurface* ds,
+                                                               int index);
+    QemuDisplay(Private, EventLoop* loop, EventLoop* qemu_loop, QemuConsole* con,
+                DisplaySurface* ds, int index, ::VirtIOInputHID* vhid);
     ~QemuDisplay() override;
 
     bool IsActive() const;
@@ -60,6 +67,7 @@ class QemuDisplay : public PixmanDisplay {
     IFrameSource::Start CaptureSource(LegacySurfaceSource& source) override;
 
   private:
+
     // The console's surface, or the last one QEMU gave us.
     DisplaySurface* LegacySurface() const;
 

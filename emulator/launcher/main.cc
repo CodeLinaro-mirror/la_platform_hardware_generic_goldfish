@@ -517,13 +517,17 @@ int main(int argc, char** argv) {
     }
 
     if (android::goldfish::ShouldTrampolineToQemu2(avd)) {
-        android::goldfish::TrampolineToQemu2(emulator_paths->launcher_directory,
-                                             std::move(args_copy));
-        std::unreachable();
+        auto s = android::goldfish::TrampolineToQemu2(emulator_paths->launcher_directory,
+                                                      std::move(args_copy));
+        LOG(ERROR) << s;
+        return 1;
     }
 
     // We currently expect AVD load failures to trigger trampoline and not reach this point.
-    LOG_IF(FATAL, !avd.ok()) << "Bug: AVD loading failed: " << avd.status();
+    if (!avd.ok()) {
+        LOG(ERROR) << "Bug: AVD loading failed: " << avd.status();
+        return 1;
+    }
 
     bool set_qemu_version = true;
     auto last_run_qemu_version = (*avd)->GetLastRunQemuVersion();
@@ -554,7 +558,7 @@ int main(int argc, char** argv) {
     }
 
     LOG(INFO) << "Launching AVD: " << (*avd)->Details(opts.verbose);
-    return android::goldfish::RunLauncher({
+    auto exit_status = android::goldfish::RunLauncher({
         .event_loop = *event_loop,
         .process_launcher = std::make_unique<::goldfish::async::UvProcessLauncher>(*event_loop),
         .signal_handlers = std::make_unique<::goldfish::async::UvSignalHandlers>(*event_loop),
@@ -566,4 +570,9 @@ int main(int argc, char** argv) {
         .opts = std::move(opts),
         .metrics_writer_config = std::move(metrics_writer_config),
     });
+    if (!exit_status.ok()) {
+        LOG(ERROR) << exit_status.status();
+        return 1;
+    }
+    return *exit_status;
 }

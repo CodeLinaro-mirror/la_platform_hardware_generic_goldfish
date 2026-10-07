@@ -295,7 +295,7 @@ extern "C" void GF_SHUTDOWN_FUNC(void) {
     auto* client_loop = goldfish::avd::globalEventLoop();
     android::crashreport::CrashReporter::GetCrashingHangDetector().RemoveWatchedLooper(
             *client_loop);
-    LOG_IF(FATAL, !client_loop->ShutdownAndWait(absl::Seconds(10)).ok())
+    LOG_IF(QFATAL, !client_loop->ShutdownAndWait(absl::Seconds(10)).ok())
             << "global event loop shutdown failed within 10s";
     LOG(INFO) << "goldfish plugin shutdown completed";
 }

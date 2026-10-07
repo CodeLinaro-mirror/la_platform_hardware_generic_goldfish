@@ -249,7 +249,7 @@ TEST(TrampolineDeathTest, trampolineToQemu2Success) {
     fs::copy_file(mock_src, dest, fs::copy_options::overwrite_existing);
     fs::permissions(dest, fs::perms::owner_all | fs::perms::group_exec | fs::perms::others_exec);
 
-    EXPECT_EXIT(android::goldfish::TrampolineToQemu2(launcher_dir, {}),
+    EXPECT_EXIT(android::goldfish::TrampolineToQemu2(launcher_dir, {}).IgnoreError(),
                 ::testing::ExitedWithCode(42), "");
 }
 
@@ -266,21 +266,24 @@ TEST(TrampolineDeathTest, trampolineToQemu2ArgsForwarded) {
     fs::copy_file(mock_src, dest, fs::copy_options::overwrite_existing);
     fs::permissions(dest, fs::perms::owner_all | fs::perms::group_exec | fs::perms::others_exec);
 
-    EXPECT_EXIT(android::goldfish::TrampolineToQemu2(launcher_dir, {"foo", "bar"}),
+    EXPECT_EXIT(android::goldfish::TrampolineToQemu2(launcher_dir, {"foo", "bar"}).IgnoreError(),
                 ::testing::ExitedWithCode(43), "");
 }
 
-TEST(TrampolineDeathTest, trampolineToQemu2BinaryNotExists) {
+TEST(TrampolineTest, trampolineToQemu2BinaryNotExists) {
     TestSystem sys("bin", "myhome");
     fs::path temp_dir = sys.GetTempRoot()->Path();
     fs::path launcher_dir = temp_dir / "nested" / "bin";
 
-    EXPECT_DEATH(
-            android::goldfish::TrampolineToQemu2(launcher_dir, {}),
+    auto status = android::goldfish::TrampolineToQemu2(launcher_dir, {});
+    EXPECT_TRUE(absl::IsNotFound(status)) << status;
+    EXPECT_THAT(
+            status.message(),
             ::testing::HasSubstr("Trying to trampoline but legacy emulator binary does not exist"));
 }
 
-TEST(TrampolineDeathTest, trampolineToQemu2BinaryNotExecutable) {
+#ifndef _WIN32
+TEST(TrampolineTest, trampolineToQemu2BinaryNotExecutable) {
     fs::path mock_src = FindFakeLauncherMain();
     ASSERT_FALSE(mock_src.empty()) << "Could not find fake_launcher_main in runfiles!";
 
@@ -293,12 +296,10 @@ TEST(TrampolineDeathTest, trampolineToQemu2BinaryNotExecutable) {
     fs::copy_file(mock_src, dest, fs::copy_options::overwrite_existing);
     fs::permissions(dest, fs::perms::owner_read | fs::perms::owner_write);
 
-    // TODO(whollins): Work out why this fails to match on Windows.
-    EXPECT_DEATH(android::goldfish::TrampolineToQemu2(launcher_dir, {}),
-#ifdef _WIN32
-                 "");
-#else
-                 ::testing::HasSubstr(
-                         "Trying to trampoline but cannot execute legacy emulator binary"));
-#endif
+    auto status = android::goldfish::TrampolineToQemu2(launcher_dir, {});
+    EXPECT_TRUE(absl::IsPermissionDenied(status)) << status;
+    EXPECT_THAT(
+            status.message(),
+            ::testing::HasSubstr("Trying to trampoline but cannot execute legacy emulator binary"));
 }
+#endif

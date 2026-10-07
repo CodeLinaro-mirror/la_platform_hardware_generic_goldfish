@@ -16,6 +16,7 @@
 
 #include <memory>
 
+#include "absl/status/statusor.h"
 #include "absl/time/time.h"
 
 #include "android/cmdline_option.h"
@@ -52,8 +53,8 @@ struct LauncherConfig {
 };
 
 // Runs the emulator launcher and enters the event loop.
-// Returns the exit status of the emulator.
-int RunLauncher(LauncherConfig config);
+// Returns the exit status of the emulator, or an error status if startup failed.
+absl::StatusOr<int> RunLauncher(LauncherConfig config);
 
 inline bool ShouldLaunchFishtank(const AndroidOptions& opts) {
     return !opts.no_window;

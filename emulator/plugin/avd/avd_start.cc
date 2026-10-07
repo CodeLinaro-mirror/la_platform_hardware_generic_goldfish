@@ -151,8 +151,13 @@ void avd_info_realize(DeviceState* dev, Error** errp) {
         return;
     }
 
-    avd_info->universe = new AvdExtendedUniverse(
+    auto universe = AvdExtendedUniverse::Create(
             std::unique_ptr<AvdProperties>(std::exchange(avd_info->mutable_props, nullptr)));
+    if (!universe.ok()) {
+        error_setg(errp, "%s", universe.status().ToString().c_str());
+        return;
+    }
+    avd_info->universe = universe->release();
 
     // Make avd universe visible to other modules.
     SetGlobalAvdUniverse(avd_info->universe);

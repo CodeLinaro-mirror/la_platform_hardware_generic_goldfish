@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "absl/base/thread_annotations.h"
+#include "absl/status/statusor.h"
 #include "absl/synchronization/mutex.h"
 
 #include "goldfish/async/event_loop.h"
@@ -41,9 +42,15 @@ using VirtIOInputHID = struct VirtIOInputHID;
 namespace goldfish::display {
 
 class VirtualDisplay : public IDisplay {
+    struct Private {};
+
   public:
-    VirtualDisplay(EventLoop* loop, EventLoop* qloop, uint8_t id, uint32_t width, uint32_t height,
-                   uint32_t dpi, uint32_t flags);
+    static absl::StatusOr<std::shared_ptr<VirtualDisplay>> Create(EventLoop* loop, EventLoop* qloop,
+                                                                  uint8_t id, uint32_t width,
+                                                                  uint32_t height, uint32_t dpi,
+                                                                  uint32_t flags);
+    VirtualDisplay(Private, EventLoop* loop, EventLoop* qloop, uint8_t id, uint32_t width,
+                   uint32_t height, uint32_t dpi, uint32_t flags, ::VirtIOInputHID* vhid);
 
     ~VirtualDisplay() override;
 
@@ -62,6 +69,7 @@ class VirtualDisplay : public IDisplay {
     void OnFrameRequested() override;
 
   private:
+
     IFrameSource::Start CaptureSurface(LegacySurfaceSource& source);
 
     std::atomic<bool> disconnected_{false};

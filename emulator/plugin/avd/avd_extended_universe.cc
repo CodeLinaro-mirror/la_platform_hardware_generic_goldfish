@@ -61,7 +61,7 @@ void BqlSafeUnregisterEmulatorReset(QEMUResetHandler* func, void* opaque) {
     if (bql_locked()) {
         qemu_unregister_reset(func, opaque);
     } else {
-        LOG(FATAL) << "Attempted to call qemu_unregister_reset with BQL held.";
+        LOG(QFATAL) << "Attempted to call qemu_unregister_reset without BQL held.";
     }
 }
 
@@ -97,8 +97,19 @@ bool IsExcludedProp(std::string_view name) {
 
 }  // namespace
 
-AvdExtendedUniverse::AvdExtendedUniverse(std::unique_ptr<AvdProperties> props)
-        : AvdUniverse(std::move(props)) {
+absl::StatusOr<std::unique_ptr<AvdExtendedUniverse>> AvdExtendedUniverse::Create(
+        std::unique_ptr<AvdProperties> props) {
+    auto universe = std::make_unique<AvdExtendedUniverse>(Private(), std::move(props));
+    if (auto s = universe->Initialize(); !s.ok()) {
+        return s;
+    }
+    return universe;
+}
+
+AvdExtendedUniverse::AvdExtendedUniverse(Private, std::unique_ptr<AvdProperties> props)
+        : AvdUniverse(std::move(props)) {}
+
+absl::Status AvdExtendedUniverse::Initialize() {
     auto& avd_universe = *this;
     const AvdProperties& avd_props = avd_universe.Props();
 
@@ -188,18 +199,17 @@ AvdExtendedUniverse::AvdExtendedUniverse(std::unique_ptr<AvdProperties> props)
                                  []() { return GetGrallocImpl(); });
 
     using namespace std::string_literals;
-    if (auto props = devices::boot::IBootPropertiesDevice::MakeProperties({
-            {"qemu.sf.fake_camera"s, emulatedCameraProp},
-            {"qemu.sf.lcd_density"s, absl::StrCat(avd_props.hw_config.hw_lcd_density)},
-            // This is the same value that is passed to the virtio-wifi module.
-            {"net.wifi_mac_prefix"s, absl::StrCat(avd_props.serial_number)},
-        });
-        !props.ok()) {
-        LOG(FATAL) << "Failed to parse boot property strings: " << props.status();
-    } else {
-        DEVS::boot::IBootPropertiesDevice::RegisterDevice(registry, *std::move(props), client_loop,
-                                                          qemu_loop.get());
+    auto props = devices::boot::IBootPropertiesDevice::MakeProperties({
+        {"qemu.sf.fake_camera"s, emulatedCameraProp},
+        {"qemu.sf.lcd_density"s, absl::StrCat(avd_props.hw_config.hw_lcd_density)},
+        // This is the same value that is passed to the virtio-wifi module.
+        {"net.wifi_mac_prefix"s, absl::StrCat(avd_props.serial_number)},
+    });
+    if (!props.ok()) {
+        return props.status();
     }
+    DEVS::boot::IBootPropertiesDevice::RegisterDevice(registry, *std::move(props), client_loop,
+                                                      qemu_loop.get());
 
     DEVS::unix_pipe::IUnixPipe::RegisterDevice(&avd_universe.test_tools_connector_registry,
                                                client_loop, qemu_loop.get());
@@ -213,6 +223,8 @@ AvdExtendedUniverse::AvdExtendedUniverse(std::unique_ptr<AvdProperties> props)
     // Initialize the battery to a default state and register it.
     avd_universe.battery_subscription = DEVS::battery::RegisterBattery(
             &avd_universe.GetBattery(), avd_props.hw_config.hw_battery, qemu_loop.get());
+
+    return absl::OkStatus();
 }
 
 AvdExtendedUniverse::~AvdExtendedUniverse() {
@@ -232,11 +244,15 @@ AvdExtendedUniverse::~AvdExtendedUniverse() {
             hd.RemoveWatchedLooper(loop);
         }
 
-        hd.RemoveWatchedLooper(*qemu_event_loop);
+        if (qemu_event_loop) {
+            hd.RemoveWatchedLooper(*qemu_event_loop);
+        }
     }
 
-    WaitUntilEventLoopsIdle();
-    ShutdownQemuLoop();
+    if (qemu_event_loop) {
+        WaitUntilEventLoopsIdle();
+        ShutdownQemuLoop();
+    }
 }
 
 void AvdExtendedUniverse::WaitUntilEventLoopsIdle() {
@@ -268,10 +284,10 @@ void AvdExtendedUniverse::ShutdownQemuLoop() {
     // In the current Qemu implementation, we are already running on the Qemu main thread and so
     // shutdown will have run serially.
     if (f.wait_for(std::chrono::seconds(15)) != std::future_status::ready) {
-        LOG(FATAL) << "Qemu loop shutdown failed to complete within 15s";
+        LOG(QFATAL) << "Qemu loop shutdown failed to complete within 15s";
     }
     auto s = f.get();
-    LOG_IF(FATAL, !s.ok()) << "Qemu loop shutdown failed: " << s;
+    LOG_IF(QFATAL, !s.ok()) << "Qemu loop shutdown failed: " << s;
 }
 
 async::EventLoop& AvdExtendedUniverse::GetQemuEventLoop() {

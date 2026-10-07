@@ -20,6 +20,8 @@
 #include <utility>
 
 #include "absl/log/log.h"
+#include "absl/status/status.h"
+#include "absl/strings/str_cat.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/time/time.h"
 
@@ -46,8 +48,27 @@ extern "C" {
 
 namespace goldfish::display {
 
-VirtualDisplay::VirtualDisplay(EventLoop* loop, EventLoop* qloop, uint8_t id, uint32_t width,
-                               uint32_t height, uint32_t dpi, uint32_t flags)
+absl::StatusOr<std::shared_ptr<VirtualDisplay>> VirtualDisplay::Create(
+        EventLoop* loop, EventLoop* qloop, uint8_t id, uint32_t width, uint32_t height,
+        uint32_t dpi, uint32_t flags) {
+    const char* gpu = "gpu0";
+    // Head will normally be > 0 for virtual console
+    const uint32_t head = id;
+    VirtioDeviceInfo device_info{.display = gpu, .head = head};
+    Object* objs = object_resolve_path_component(object_get_root(), "machine");
+    if (!object_child_foreach_recursive(objs, ::find_virtio_device, &device_info)) {
+        return absl::NotFoundError(
+                absl::StrCat("Unable to find a virtio device for head: ", device_info.head,
+                             " attached to display: ", device_info.display));
+    }
+    VLOG(1) << "display id " << static_cast<int>(head) << " vhid " << device_info.vhid;
+    return std::make_shared<VirtualDisplay>(Private(), loop, qloop, id, width, height, dpi, flags,
+                                            device_info.vhid);
+}
+
+VirtualDisplay::VirtualDisplay(Private, EventLoop* loop, EventLoop* qloop, uint8_t id,
+                               uint32_t width, uint32_t height, uint32_t dpi, uint32_t flags,
+                               ::VirtIOInputHID* vhid)
         : IDisplay(loop, id, width, height, dpi, flags)
         , frame_producer_(
                   std::make_shared<FrameProducer>(qloop != nullptr ? qloop : loop, frames()))
@@ -58,7 +79,8 @@ VirtualDisplay::VirtualDisplay(EventLoop* loop, EventLoop* qloop, uint8_t id, ui
                                                          return CaptureSurface(source);
                                                      }},
                   std::make_unique<CpuSlotStorage>()))
-        , qemu_loop_(qloop) {
+        , qemu_loop_(qloop)
+        , vhid_(vhid) {
     frame_producer_->SetSource(legacy_);
     legacy_->Resize({.width = width, .height = height});
 
@@ -85,18 +107,6 @@ VirtualDisplay::VirtualDisplay(EventLoop* loop, EventLoop* qloop, uint8_t id, ui
             return true;
         });
     }
-
-    const char* gpu = "gpu0";
-    // Head will normally be > 0 for virtual console
-    const uint32_t head = this->Id();
-    VirtioDeviceInfo device_info{.display = gpu, .head = head};
-    Object* objs = object_resolve_path_component(object_get_root(), "machine");
-    if (!object_child_foreach_recursive(objs, ::find_virtio_device, &device_info)) {
-        LOG(FATAL) << "Unable to find a virtio device for head: " << device_info.head
-                   << " attached to display: " << device_info.display;
-    }
-    VLOG(1) << "display id " << static_cast<int>(head) << " vhid " << device_info.vhid;
-    vhid_ = device_info.vhid;
 }
 
 void VirtualDisplay::Disconnect() {

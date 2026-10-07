@@ -17,6 +17,8 @@
 #include <fstream>
 
 #include "absl/log/log.h"
+#include "absl/status/status.h"
+#include "absl/strings/str_cat.h"
 
 #include "goldfish/file/file.h"
 
@@ -46,14 +48,16 @@ absl::Status SnapshotDevice::initialize(const EmulatorConfig& emulator) {
             LOG(INFO) << "Loading '" << snapshot_name_ << "' ...";
         } else {
             if (strict_snapshot_load_) {
-                LOG(FATAL) << "Unable to load snapshot: version missing or mismatch";
+                return absl::FailedPreconditionError(
+                        "Unable to load snapshot: version missing or mismatch");
             }
             LOG(WARNING) << "Snapshot version missing or mismatch, performing cold boot.";
             load_status_ = LoadStatus::kSkippedOldSnapshot;
         }
     } else {
         if (strict_snapshot_load_) {
-            LOG(FATAL) << "Unable to load snapshot: " << skip_load_reason;
+            return absl::FailedPreconditionError(
+                    absl::StrCat("Unable to load snapshot: ", skip_load_reason));
         }
         LOG(WARNING) << "Snapshot load is disabled: " << skip_load_reason
                      << ", performing cold boot.";
@@ -76,7 +80,8 @@ absl::Status SnapshotDevice::initialize(const EmulatorConfig& emulator) {
     return absl::OkStatus();
 }
 
-std::vector<std::string> SnapshotDevice::getQemuParameters(const EmulatorConfig& emulator) const {
+std::vector<std::string> SnapshotDevice::getQemuParameters(
+        const EmulatorConfig& /*emulator*/) const {
     std::vector<std::string> params;
     if (load_status_ == LoadStatus::kLoading) {
         params.push_back("-loadvm");

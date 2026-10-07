@@ -18,6 +18,8 @@
 #include <utility>
 
 #include "absl/log/log.h"
+#include "absl/status/status.h"
+#include "absl/strings/str_cat.h"
 
 #include "goldfish/display/input_handler.h"
 #include "goldfish/display/multi_display_callbacks.h"
@@ -74,20 +76,50 @@ constexpr DisplayChangeListenerOps kDclSwitchOnlyOps = {
 
 }  // namespace
 
-QemuDisplay::QemuDisplay(EventLoop* loop, EventLoop* qemu_loop, QemuConsole* con,
-                         DisplaySurface* ds, int index)
+absl::StatusOr<std::shared_ptr<QemuDisplay>> QemuDisplay::Create(EventLoop* loop,
+                                                                 EventLoop* qemu_loop,
+                                                                 QemuConsole* con,
+                                                                 DisplaySurface* ds, int index) {
+    if (!con) {
+        return absl::InvalidArgumentError(absl::StrCat("Display: ", index, " has nullptr console"));
+    }
+
+    // note, the input 1 to 5 are taken by virtual displays
+    // and external display offset starts from 6, so we need
+    // to add 5 to account for the offset
+    constexpr int kExternalDisplayInputOffset = 5;
+    const char* gpu = "gpu0";
+    // Head will normally be 0 if this is the default console.
+    uint32_t head = qemu_console_get_head(con);
+    if (head != 0) {
+        head += kExternalDisplayInputOffset;
+    }
+    VirtioDeviceInfo device_info{.display = gpu, .head = head};
+    Object* objs = object_resolve_path_component(object_get_root(), "machine");
+    if (!object_child_foreach_recursive(objs, ::find_virtio_device, &device_info)) {
+        return absl::NotFoundError(
+                absl::StrCat("Unable to find a virtio device for head: ", device_info.head,
+                             " attached to display: ", device_info.display));
+    }
+
+    auto display = std::make_shared<QemuDisplay>(Private(), loop, qemu_loop, con, ds, index,
+                                                 device_info.vhid);
+    VLOG(1) << "Connecting: " << *display << ", to: " << device_info;
+    return display;
+}
+
+QemuDisplay::QemuDisplay(Private, EventLoop* loop, EventLoop* qemu_loop, QemuConsole* con,
+                         DisplaySurface* ds, int index, ::VirtIOInputHID* vhid)
         : PixmanDisplay(loop, /*executor=*/qemu_loop, index, ds ? ds->image : nullptr)
         , console_(con)
         , qemu_loop_(qemu_loop)
+        , vhid_(vhid)
         , dcl_(std::make_unique<DisplayChangeListener>(DisplayChangeListener{
               .ops = &kDclOps,
               .con = con,
           }))
         , current_surface_(ds)
         , placeholder_shown_(ds == nullptr || surface_is_placeholder(ds)) {
-    if (!console_) {
-        LOG(FATAL) << "Display: " << index << " has nullptr console";
-    }
     if (ds != nullptr && !surface_is_placeholder(ds) && ds->image != nullptr) {
         current_size_ = {
             .width = static_cast<uint32_t>(surface_width(ds)),
@@ -97,26 +129,6 @@ QemuDisplay::QemuDisplay(EventLoop* loop, EventLoop* qemu_loop, QemuConsole* con
             legacy_->Resize(current_size_);
         }
     }
-
-    // note, the input 1 to 5 are taken by virtual displays
-    // and external display offset starts from 6, so we need
-    // to add 5 to account for the offset
-    constexpr int kExternalDisplayInputOffset = 5;
-    const char* gpu = "gpu0";
-    // Head will normally be 0 if this is the default console.
-    uint32_t head = qemu_console_get_head(console_);
-    if (head == 0) {
-    } else {
-        head += kExternalDisplayInputOffset;
-    }
-    VirtioDeviceInfo device_info{.display = gpu, .head = head};
-    Object* objs = object_resolve_path_component(object_get_root(), "machine");
-    if (!object_child_foreach_recursive(objs, ::find_virtio_device, &device_info)) {
-        LOG(FATAL) << "Unable to find a virtio device for head: " << device_info.head
-                   << " attached to display: " << device_info.display;
-    }
-    VLOG(1) << "Connecting: " << *this << ", to: " << device_info;
-    vhid_ = device_info.vhid;
 }
 
 QemuDisplay::~QemuDisplay() {

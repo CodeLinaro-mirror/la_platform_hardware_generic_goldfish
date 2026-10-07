@@ -103,8 +103,8 @@ class MultiDisplayImpl : public IMultiDisplay {
                 return absl::AlreadyExistsError(
                         absl::StrFormat("Display with id %d already exists.", display_id));
             }
-            display = std::make_shared<VirtualDisplay>(loop_, qemu_loop_, display_id, width, height,
-                                                       dpi, flags);
+            ASSIGN_OR_RETURN(display, VirtualDisplay::Create(loop_, qemu_loop_, display_id, width,
+                                                             height, dpi, flags));
             display->SetRotation(GetRotation());
             virtual_displays_.emplace(display_id, display);
             active_states_[display_id] = true;
@@ -124,7 +124,7 @@ class MultiDisplayImpl : public IMultiDisplay {
                 return absl::AlreadyExistsError(
                         absl::StrFormat("Display with id %d already exists.", id));
             }
-            display = std::make_shared<QemuDisplay>(loop_, qemu_loop_, console, ds, id);
+            ASSIGN_OR_RETURN(display, QemuDisplay::Create(loop_, qemu_loop_, console, ds, id));
             display->SetRotation(GetRotation());
             qemu_displays_.emplace(id, display);
 
@@ -555,7 +555,11 @@ extern "C" void grpc_dpy_gfx_switch(struct DisplayChangeListener* dcl,
             }
         }
         auto status = multi_display.CreateDisplayFromQemu(con, surface, index);
-        if (status.ok() && created_surface) {
+        if (!status.ok()) {
+            LOG(QFATAL) << "Failed to create QEMU display " << static_cast<int>(index) << ": "
+                        << status.status();
+        }
+        if (created_surface) {
             static_cast<QemuDisplay*>(status.value().lock().get())->SetOwnedSurface(surface);
         }
         return;

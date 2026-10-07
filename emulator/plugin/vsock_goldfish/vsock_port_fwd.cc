@@ -242,9 +242,9 @@ class VSockProxyImpl {
         }
 
         if (!mSocketServer) {
-            LOG(FATAL) << "The VSockProxy that forwards the guest port: " << mDevice->guest_port
-                       << " to the host: " << ToString(mHostEndpoint)
-                       << " could not be created, error code: " << errno;
+            LOG(QFATAL) << "The VSockProxy that forwards the guest port: " << mDevice->guest_port
+                        << " to the host: " << ToString(mHostEndpoint)
+                        << " could not be created, error code: " << errno;
         }
 
         // Notify the world that we are available

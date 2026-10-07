@@ -27,15 +27,19 @@
 
 #include "absl/base/log_severity.h"
 #include "absl/log/scoped_mock_log.h"
+#include "absl/status/status.h"
+#include "absl/status/status_matchers.h"
 #include "absl/synchronization/notification.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 
+#include "android/status/status_matcher_macros.h"
 #include "goldfish/async/testing/test_event_loop.h"
 #include "goldfish/display/display.h"
 #include "goldfish/display/display_frames.h"
 #include "goldfish/display/frame.h"
 #include "goldfish/display/test/display_test_peer.h"
+#include "goldfish/display/virtual_display.h"
 
 extern "C" {
 #include "ui/console.h"
@@ -45,6 +49,7 @@ extern "C" {
 extern "C" {
 void SetTestRegisterDclHook(void (*hook)(DisplayChangeListener*));
 void SetTestGraphicHwUpdateHook(void (*hook)(QemuConsole*));
+void SetTestFindVirtioDeviceResult(int result);
 }
 
 using goldfish::async::testing::TestEventLoop;
@@ -57,6 +62,7 @@ using EmulatorDisplay = goldfish::display::QemuDisplay;
 class QemuDisplayConcurrencyTest : public ::testing::Test {
   protected:
     void SetUp() override {
+        SetTestFindVirtioDeviceResult(1);
         main_loop_ = TestEventLoop::Create("main");
         qemu_loop_ = TestEventLoop::Create("qemu");
 
@@ -68,8 +74,8 @@ class QemuDisplayConcurrencyTest : public ::testing::Test {
         surface_ = new DisplaySurface();
         surface_->image = pixman_image_create_bits(PIXMAN_a8r8g8b8, 100, 100, nullptr, 100 * 4);
 
-        display_ = std::make_shared<EmulatorDisplay>(main_loop_.get(), qemu_loop_.get(), console_,
-                                                     surface_, 0);
+        ASSERT_OK_AND_ASSIGN(display_, EmulatorDisplay::Create(main_loop_.get(), qemu_loop_.get(),
+                                                               console_, surface_, 0));
     }
 
     void TearDown() override {
@@ -326,8 +332,8 @@ TEST_F(QemuDisplayConcurrencyTest, InitialPlaceholderSurface_WarmUpAndRealSurfac
     placeholder.flags = QEMU_PLACEHOLDER_FLAG;
     placeholder.image = pixman_image_create_bits(PIXMAN_x8r8g8b8, 640, 480, nullptr, 640 * 4);
 
-    auto display = std::make_shared<EmulatorDisplay>(main_loop_.get(), qemu_loop_.get(), console_,
-                                                     &placeholder, 0);
+    ASSERT_OK_AND_ASSIGN(auto display, EmulatorDisplay::Create(main_loop_.get(), qemu_loop_.get(),
+                                                               console_, &placeholder, 0));
 
     static EmulatorDisplay* s_display = nullptr;
     static DisplaySurface* s_placeholder = nullptr;
@@ -403,4 +409,22 @@ TEST_F(QemuDisplayConcurrencyTest, OnDeviceReset_InvalidatesOldFrameAndRecapture
     EXPECT_TRUE(post_reset.frame->ReadInto(req, target).ok());
 
     SetTestGraphicHwUpdateHook(nullptr);
+}
+
+TEST_F(QemuDisplayConcurrencyTest, Create_NullConsoleFails) {
+    EXPECT_THAT(EmulatorDisplay::Create(main_loop_.get(), qemu_loop_.get(), nullptr, surface_, 0),
+                absl_testing::StatusIs(absl::StatusCode::kInvalidArgument));
+}
+
+TEST_F(QemuDisplayConcurrencyTest, Create_VirtioDeviceNotFoundFails) {
+    SetTestFindVirtioDeviceResult(0);
+    EXPECT_THAT(EmulatorDisplay::Create(main_loop_.get(), qemu_loop_.get(), console_, surface_, 0),
+                absl_testing::StatusIs(absl::StatusCode::kNotFound));
+}
+
+TEST_F(QemuDisplayConcurrencyTest, VirtualDisplayCreate_VirtioDeviceNotFoundFails) {
+    SetTestFindVirtioDeviceResult(0);
+    EXPECT_THAT(goldfish::display::VirtualDisplay::Create(main_loop_.get(), qemu_loop_.get(), 1,
+                                                          800, 600, 320, 0),
+                absl_testing::StatusIs(absl::StatusCode::kNotFound));
 }

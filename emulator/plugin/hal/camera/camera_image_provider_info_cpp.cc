@@ -44,7 +44,7 @@ CameraImageProviderInfoCpp::~CameraImageProviderInfoCpp() {
         if (dctor) {
             dctor(unconst(mInfo.createArg));
         } else {
-            LOG(FATAL) << "`createArg` is provided, but there is no `createArgDctor`";
+            LOG(QFATAL) << "`createArg` is provided, but there is no `createArgDctor`";
         }
     }
 }

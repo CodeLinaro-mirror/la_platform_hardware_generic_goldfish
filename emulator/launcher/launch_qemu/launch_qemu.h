@@ -101,7 +101,7 @@ class LaunchQemu {
     void addDevice(std::unique_ptr<Device> newDevice) {
         auto result = mDeviceMap.insert({newDevice->id(), newDevice.get()});
         if (!result.second) {
-            LOG(FATAL) << "Device with id " << newDevice->id() << " already exists.";
+            LOG(QFATAL) << "Device with id " << newDevice->id() << " already exists.";
         }
         mDevices.push_back(std::move(newDevice));
     }

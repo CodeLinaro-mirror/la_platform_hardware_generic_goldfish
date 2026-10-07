@@ -250,7 +250,7 @@ class KeyEventSenderImpl : public IKeyEventSender {
         KeyCodeType type = static_cast<KeyCodeType>(code_type);
         QKeyCode qcode = keycode_to_qcode(code, type);
         if (qcode >= Q_KEY_CODE__MAX) {
-            LOG(FATAL) << "Invalid QKeyCode - too big: " << qcode;
+            LOG(QFATAL) << "Invalid QKeyCode - too big: " << qcode;
         }
         if (event_type == KeyboardEvent::keydown || event_type == KeyboardEvent::keypress) {
             qemu_loop_
