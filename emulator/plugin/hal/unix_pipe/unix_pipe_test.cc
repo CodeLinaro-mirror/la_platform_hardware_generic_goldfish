@@ -139,7 +139,7 @@ TEST_F(UnixPipeTest, echo_over_host_side) {
     absl::Mutex device_updated;
     DeviceState device_state;
 
-    device_socket->on_send = [&](const std::string& data) {
+    device_socket->on_send = [&](std::string_view data) {
         const absl::MutexLock lk(&device_updated);
         if (data.empty()) {
             device_state.disconnected = true;
@@ -161,7 +161,7 @@ TEST_F(UnixPipeTest, echo_over_host_side) {
 
     EXPECT_EQ(device_state.rx_buffer, test_message);
 
-    device_socket->on_send = [](const std::string& data) {};
+    device_socket->on_send = [](std::string_view) {};
 }
 
 TEST_F(UnixPipeTest, close_on_host) {
@@ -213,7 +213,7 @@ TEST_F(UnixPipeTest, close_on_host) {
     absl::Mutex device_updated;
     DeviceState device_state;
 
-    device_socket->on_send = [&](const std::string& data) {
+    device_socket->on_send = [&](std::string_view data) {
         const absl::MutexLock lk(&device_updated);
         if (data.empty()) {
             device_state.disconnected = true;
@@ -257,7 +257,7 @@ TEST_F(UnixPipeTest, close_on_host) {
         EXPECT_TRUE(device_state.rx_buffer.empty());
         EXPECT_TRUE(device_state.disconnected);
 
-        device_socket->on_send = [](const std::string& data) {};
+        device_socket->on_send = [](std::string_view) {};
     }
 }
 

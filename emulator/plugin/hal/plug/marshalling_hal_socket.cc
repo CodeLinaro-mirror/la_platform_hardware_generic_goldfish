@@ -57,7 +57,7 @@ MarshallingHalSocket::~MarshallingHalSocket() {
     }
 }
 
-void MarshallingHalSocket::Send(std::string data) {
+void MarshallingHalSocket::Send(std::string_view data) {
     if (is_closed_) {
         VLOG(2) << "Dropping packet, socket is closed.";
         return;
@@ -87,20 +87,16 @@ void MarshallingHalSocket::Send(std::string data) {
     qemu_loop_
             ->Post(
                     [this, self = shared_from_this()]() {
-                        std::string payload_to_send;
-                        {
-                            const absl::MutexLock lock(&socket_mutex_);
-                            if (send_buffer_.empty()) {
-                                return;
-                            }
-                            payload_to_send = std::move(send_buffer_);
-                            send_buffer_.reserve(kInitialBufferSize);
-
-                            VLOG(2) << "Sending coalesced payload of " << payload_to_send.size()
-                                    << " bytes";
-                            // Bytes go either to the *real* or NullSocket..
-                            socket_->SendAsync(payload_to_send.data(), payload_to_send.size());
+                        const absl::MutexLock lock(&socket_mutex_);
+                        if (send_buffer_.empty()) {
+                            return;
                         }
+
+                        VLOG(2) << "Sending coalesced payload of " << send_buffer_.size()
+                                << " bytes";
+                        // Bytes go either to the *real* or NullSocket..
+                        socket_->SendAsync(send_buffer_.data(), send_buffer_.size());
+                        send_buffer_.clear();
                     },
                     absl::ZeroDuration(), {.caller_pc = calling_pc})
             .IgnoreError();

@@ -60,7 +60,7 @@ class MarshallingHalSocket : public HalSocket,
      * the real ISocket's sendAsync method on the QEMU event loop.
      * @param data The data to send.
      */
-    void Send(std::string data) override;
+    void Send(std::string_view data) override;
 
     /**
      * @brief Asynchronously closes the connection.
@@ -77,7 +77,7 @@ class MarshallingHalSocket : public HalSocket,
     friend class HalPlugToIPlugAdapter;
     cable::SocketPtr Release();
 
-    static constexpr size_t kInitialBufferSize = 4096;
+    static constexpr size_t kInitialBufferSize = 64 * 1024;
 
     cable::SocketPtr socket_ ABSL_GUARDED_BY(socket_mutex_);
     absl::Mutex socket_mutex_;
