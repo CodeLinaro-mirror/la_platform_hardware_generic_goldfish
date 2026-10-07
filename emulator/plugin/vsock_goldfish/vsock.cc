@@ -670,7 +670,7 @@ struct GoldfishVirtioVsockDevice {
             if (supportsLoading) {
                 DCHECK(!stream.dataSniffer && "dataSniffer is not snapshottable yet");
 
-                const unsigned flags = (stream.isConnected ? 1U : 0U) | stream.sendOpMask;
+                const uint8_t flags = (stream.isConnected ? 1U : 0U) | stream.sendOpMask;
 
                 writer << stream.guestBufAlloc << stream.guestFwdCnt << stream.hostSentCnt << flags;
 
