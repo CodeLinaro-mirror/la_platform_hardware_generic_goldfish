@@ -36,6 +36,7 @@ cc_library(
 
 cc_test(
     name = "eventing_unittests",
+    size = "small",
     srcs = [
         "event_sources_unittest.cpp",
         "property_change_event_unittest.cpp",

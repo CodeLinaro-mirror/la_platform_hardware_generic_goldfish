@@ -87,6 +87,7 @@ cc_library(
 
 cc_test(
     name = "modem_simulator_unittest",
+    size = "small",
     srcs = [
         "unittest/command_parser_test.cpp",
         "unittest/pdu_parser_test.cpp",

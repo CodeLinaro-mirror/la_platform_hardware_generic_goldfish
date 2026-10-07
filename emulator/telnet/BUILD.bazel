@@ -181,6 +181,7 @@ cc_library(
 
 cc_test(
     name = "console_server_test",
+    size = "small",
     srcs = ["console_server_test.cc"],
     deps = [
         ":console_server",
@@ -193,6 +194,7 @@ cc_test(
 
 cc_test(
     name = "telnet_auth_test",
+    size = "small",
     srcs = ["telnet_auth_test.cc"],
     deps = [
         ":telnet_auth",
@@ -204,6 +206,7 @@ cc_test(
 
 cc_test(
     name = "command_registry_test",
+    size = "small",
     srcs = ["command_registry_test.cc"],
     deps = [
         ":command_registry",
@@ -214,6 +217,7 @@ cc_test(
 
 cc_test(
     name = "legacy_console_controller_test",
+    size = "small",
     srcs = ["legacy_console_controller_test.cc"],
     deps = [
         ":legacy_console_bridge",
@@ -229,6 +233,7 @@ cc_test(
 
 cc_test(
     name = "legacy_console_bridge_test",
+    size = "small",
     srcs = ["legacy_console_bridge_test.cc"],
     deps = [
         ":legacy_console_bridge",
@@ -245,6 +250,7 @@ cc_test(
 
 cc_test(
     name = "gsm_commands_test",
+    size = "small",
     srcs = ["gsm_commands_test.cc"],
     deps = [
         ":command_registry",
@@ -256,6 +262,7 @@ cc_test(
 
 cc_test(
     name = "screen_record_commands_test",
+    size = "small",
     srcs = ["screen_record_commands_test.cc"],
     deps = [
         ":legacy_console_bridge",

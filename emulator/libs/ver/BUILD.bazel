@@ -257,7 +257,7 @@ collect_plugins(
 
 cc_test(
     name = "ver_unittests",
-    size = "small",
+    size = "medium",
     srcs = [
         "test/JpegUtils_unittest.cpp",
         "test/RawImageFileSource_unittest.cpp",

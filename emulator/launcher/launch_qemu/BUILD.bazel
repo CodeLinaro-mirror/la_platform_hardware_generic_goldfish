@@ -54,6 +54,7 @@ cc_library(
 
 cc_test(
     name = "adb_device_test",
+    size = "small",
     srcs = ["adb_device_test.cc"],
     deps = [
         ":adb_device",
@@ -81,6 +82,7 @@ cc_library(
 
 cc_test(
     name = "avd_info_device_test",
+    size = "small",
     srcs = ["avd_info_device_test.cc"],
     deps = [
         ":avd_info_device",
@@ -108,6 +110,7 @@ cc_library(
 
 cc_test(
     name = "cpu_device_test",
+    size = "small",
     srcs = ["cpu_device_test.cc"],
     deps = [
         ":cpu_device",
@@ -134,6 +137,7 @@ cc_library(
 
 cc_test(
     name = "display_device_test",
+    size = "small",
     srcs = ["display_device_test.cc"],
     deps = [
         ":device",
@@ -173,6 +177,7 @@ cc_library(
 
 cc_test(
     name = "grpc_device_test",
+    size = "small",
     srcs = ["grpc_device_test.cc"],
     data = ["//emulator/launcher:unsecure-emulator-access"],
     deps = [
@@ -196,6 +201,7 @@ cc_library(
 
 cc_test(
     name = "bootconfig_test",
+    size = "small",
     srcs = ["bootconfig_test.cc"],
     deps = [
         ":bootconfig",
@@ -221,6 +227,7 @@ cc_library(
 
 cc_test(
     name = "initrd_device_test",
+    size = "small",
     srcs = ["initrd_device_test.cc"],
     deps = [
         ":device",
@@ -248,6 +255,7 @@ cc_library(
 
 cc_test(
     name = "kernel_device_test",
+    size = "small",
     srcs = ["kernel_device_test.cc"],
     deps = [
         ":device",
@@ -274,6 +282,7 @@ cc_library(
 
 cc_test(
     name = "machine_test",
+    size = "small",
     srcs = ["machine_test.cc"],
     deps = [
         ":device",
@@ -300,6 +309,7 @@ cc_library(
 
 cc_test(
     name = "memory_device_test",
+    size = "small",
     srcs = ["memory_device_test.cc"],
     deps = [
         ":device",
@@ -327,6 +337,7 @@ cc_library(
 
 cc_test(
     name = "network_device_test",
+    size = "small",
     srcs = ["network_device_test.cc"],
     deps = [
         ":device",
@@ -391,6 +402,7 @@ cc_library(
 
 cc_test(
     name = "user_data_drive_test",
+    size = "small",
     srcs = ["user_data_drive_test.cc"],
     deps = [
         ":user_data_drive",
@@ -418,6 +430,7 @@ cc_library(
 
 cc_test(
     name = "disk_drive_test",
+    size = "small",
     srcs = ["disk_drive_test.cc"],
     deps = [
         ":disk_drive",
@@ -445,6 +458,7 @@ cc_library(
 
 cc_test(
     name = "configure_drives_test",
+    size = "small",
     srcs = ["configure_drives_test.cc"],
     deps = [
         ":configure_drives",
@@ -473,6 +487,7 @@ cc_library(
 
 cc_test(
     name = "snapshot_device_test",
+    size = "small",
     srcs = ["snapshot_device_test.cc"],
     deps = [
         ":device",

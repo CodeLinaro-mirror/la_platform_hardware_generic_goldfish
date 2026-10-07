@@ -51,6 +51,7 @@ cc_library(
 
 cc_test(
     name = "modem_service_test",
+    size = "small",
     srcs = ["modem_service_test.cc"],
     deps = [
         ":modem_service",
@@ -80,6 +81,7 @@ cc_library(
 
 cc_test(
     name = "sensor_service_incubating_test",
+    size = "small",
     srcs = ["sensor_service_incubating_test.cc"],
     deps = [
         ":sensor_service_incubating",
@@ -105,6 +107,7 @@ cc_library(
 
 cc_test(
     name = "service_forwarder_impl_test",
+    size = "small",
     srcs = ["service_forwarder_impl_test.cc"],
     deps = [
         ":service_forwarder",
@@ -144,6 +147,7 @@ cc_library(
 
 cc_test(
     name = "ui_controller_forwarder_test",
+    size = "small",
     srcs = ["ui_controller_forwarder_test.cc"],
     deps = [
         ":service_forwarder",
@@ -189,6 +193,7 @@ cc_library(
 
 cc_test(
     name = "screen_recording_impl_test",
+    size = "medium",
     srcs = ["screen_recording_impl_test.cc"],
     deps = [
         ":screen_recorder",
@@ -230,6 +235,7 @@ cc_library(
 
 cc_test(
     name = "in_process_rtc_service_test",
+    size = "small",
     srcs = ["in_process_rtc_service_test.cc"],
     copts = select({
         "@platforms//os:windows": ["/GR-"],

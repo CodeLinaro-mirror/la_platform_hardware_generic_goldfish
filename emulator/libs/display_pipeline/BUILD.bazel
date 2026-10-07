@@ -101,6 +101,7 @@ cc_library(
 
 cc_test(
     name = "core_test",
+    size = "small",
     srcs = [
         "display_frames_test.cc",
         "fake_slot_storage_test.cc",
@@ -129,6 +130,7 @@ cc_test(
 
 cc_test(
     name = "cpu_pipeline_test",
+    size = "medium",
     srcs = [
         "cpu_read_pipeline_test.cc",
         "cpu_slot_storage_test.cc",

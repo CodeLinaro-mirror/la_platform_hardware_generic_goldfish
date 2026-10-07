@@ -35,6 +35,7 @@ cc_library(
 
 cc_test(
     name = "capabilities_service_test",
+    size = "small",
     srcs = [
         "discovery/capabilities_service_impl_test.cc",
     ],
@@ -84,6 +85,7 @@ cc_library(
 
 cc_test(
     name = "rtc_service_test",
+    size = "small",
     srcs = ["webrtc/rtc_service_impl_test.cc"],
     copts = select({
         "@platforms//os:windows": ["/GR-"],
@@ -144,6 +146,7 @@ cc_library(
 
 cc_test(
     name = "sensors_service_test",
+    size = "small",
     srcs = ["environment/sensors_service_impl_test.cc"],
     local_defines = select({
         "@platforms//os:windows": ["NOGDI"],

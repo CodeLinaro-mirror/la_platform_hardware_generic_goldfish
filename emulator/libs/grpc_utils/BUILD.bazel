@@ -21,6 +21,7 @@ cc_library(
 
 cc_test(
     name = "absl_translate_test",
+    size = "small",
     srcs = ["absl_status_translate_test.cc"],
     deps = [
         ":absl_translate",
@@ -44,6 +45,7 @@ cc_library(
 
 cc_test(
     name = "async_test",
+    size = "small",
     srcs = [
         "async_test.cc",
         "simple_async_grpc_test.cc",

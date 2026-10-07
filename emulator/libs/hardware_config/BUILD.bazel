@@ -55,6 +55,7 @@ cc_library(
 
 cc_test(
     name = "memory_config_test",
+    size = "small",
     srcs = ["memory_config_test.cc"],
     deps = [
         ":hardware_config",

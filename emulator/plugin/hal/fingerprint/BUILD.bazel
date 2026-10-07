@@ -24,6 +24,7 @@ cc_library(
 
 cc_test(
     name = "fingerprint_unittests",
+    size = "small",
     srcs = [
         "fingerprint_device_test.cc",
     ],

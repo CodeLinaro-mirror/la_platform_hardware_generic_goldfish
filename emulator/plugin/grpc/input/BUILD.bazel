@@ -59,6 +59,7 @@ cc_library(
 
 cc_test(
     name = "slot_registry_test",
+    size = "small",
     srcs = ["slot_registry_test.cc"],
     visibility = ["//visibility:public"],
     deps = [
@@ -71,6 +72,7 @@ cc_test(
 
 cc_test(
     name = "pointer_event_dispatcher_test",
+    size = "small",
     srcs = ["pointer_event_dispatcher_test.cc"],
     visibility = ["//visibility:public"],
     deps = [
@@ -88,6 +90,7 @@ cc_test(
 
 cc_test(
     name = "event_sender_test",
+    size = "small",
     srcs = ["event_sender_test.cc"],
     visibility = ["//visibility:public"],
     deps = [
@@ -119,6 +122,7 @@ cc_library(
 
 cc_test(
     name = "input_session_test",
+    size = "small",
     srcs = ["input_session_test.cc"],
     deps = [
         ":input_session",

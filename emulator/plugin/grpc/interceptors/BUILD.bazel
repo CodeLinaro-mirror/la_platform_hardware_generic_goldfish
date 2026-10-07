@@ -88,6 +88,7 @@ cc_library(
 
 cc_test(
     name = "percentiles_test",
+    size = "small",
     srcs = ["percentiles_test.cc"],
     deps = [
         ":percentiles",
@@ -113,6 +114,7 @@ cc_library(
 
 cc_test(
     name = "metrics_interceptor_test",
+    size = "small",
     srcs = ["metrics_interceptor_test.cc"],
     visibility = ["//visibility:public"],
     deps = [
@@ -124,6 +126,7 @@ cc_test(
 
 cc_test(
     name = "interceptors_test",
+    size = "small",
     srcs = select({
         "@platforms//os:windows": [],
         "//conditions:default": [
@@ -150,6 +153,7 @@ cc_test(
 
 cc_test(
     name = "perfetto_interceptor_only_test",
+    size = "small",
     srcs = select({
         "@qemu//:goldfish_enabled": ["perfetto_interceptor_test.cc"],
         "//conditions:default": [],

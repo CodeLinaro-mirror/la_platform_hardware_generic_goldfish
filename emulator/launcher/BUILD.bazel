@@ -120,6 +120,7 @@ cc_library(
 
 cc_test(
     name = "input_paths_test",
+    size = "small",
     srcs = ["input_paths_test.cc"],
     deps = [
         ":input_paths",
@@ -158,6 +159,7 @@ cc_library(
 
 cc_test(
     name = "avd_test",
+    size = "small",
     srcs = ["avd_test.cc"],
     deps = [
         ":avd",
@@ -237,6 +239,7 @@ cc_library(
 
 cc_test(
     name = "host_info_test",
+    size = "small",
     srcs = ["host_info_test.cc"],
     deps = [
         ":host_info",
@@ -263,6 +266,7 @@ cc_library(
 
 cc_test(
     name = "logging_test",
+    size = "small",
     srcs = ["logging_test.cc"],
     deps = [
         ":logging",

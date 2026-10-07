@@ -71,6 +71,7 @@ cc_library(
 
 cc_test(
     name = "win32_utils_test",
+    size = "small",
     srcs = [
         "win32_unicode_string_test.cc",
         "win32_utils_test.cc",
@@ -86,6 +87,7 @@ cc_test(
 
 cc_test(
     name = "win32_security_test",
+    size = "small",
     srcs = ["win32_security_test.cc"],
     target_compatible_with = ["@platforms//os:windows"],
     visibility = ["//visibility:public"],

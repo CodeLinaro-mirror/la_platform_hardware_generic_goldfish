@@ -34,6 +34,7 @@ cc_test(
         "@platforms//os:macos": ["file_system_watcher_darwin_test.cc"],
         "//conditions:default": [],
     }),
+    tags = ["exclusive-if-local"],
     visibility = ["//visibility:public"],
     deps = [
         ":file_system_watcher",

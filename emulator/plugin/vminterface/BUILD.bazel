@@ -110,6 +110,7 @@ collect_plugins(
 
 cc_test(
     name = "vminterface_unittests",
+    size = "small",
     testonly = True,
     srcs = ["vm_test.cc"],
     data = [":binplace"],

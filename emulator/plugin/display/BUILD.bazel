@@ -173,6 +173,7 @@ cc_library(
 
 cc_test(
     name = "display_unittests",
+    size = "small",
     srcs = [
         "display_test.cc",
         "fake_multi_display_test.cc",

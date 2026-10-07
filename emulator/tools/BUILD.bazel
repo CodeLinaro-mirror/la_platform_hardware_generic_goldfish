@@ -34,6 +34,7 @@ py_binary(
 
 py_test(
     name = "symbol_zipper_test",
+    size = "small",
     srcs = ["symbol_zipper_test.py"],
     data = ["symbol_zipper.py"],
     deps = [
@@ -102,6 +103,7 @@ cc_library(
 
 cc_test(
     name = "aemu_version_test",
+    size = "small",
     srcs = ["aemu_version_test.cc"],
     deps = [
         ":aemu_version",

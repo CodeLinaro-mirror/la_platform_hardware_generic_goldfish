@@ -200,6 +200,7 @@ alias(
 
 cc_test(
     name = "crashreport_test",
+    size = "small",
     srcs = [
         "annotation_buffer_test.cc",
         "binary_annotation_test.cc",

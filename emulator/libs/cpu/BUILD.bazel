@@ -9,6 +9,7 @@ cc_library(
 
 cc_test(
     name = "x86_cpuid_test",
+    size = "small",
     srcs = ["x86_cpuid_test.cc"],
     deps = [
         ":x86_cpuid",
@@ -70,6 +71,7 @@ cc_library(
 
 cc_test(
     name = "version_test",
+    size = "small",
     srcs = ["version_test.cc"],
     linkopts = select({
         "@platforms//os:macos": ["-undefined error"],

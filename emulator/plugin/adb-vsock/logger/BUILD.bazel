@@ -31,6 +31,7 @@ cc_library(
 
 cc_test(
     name = "logger_unittests",
+    size = "medium",
     srcs = [
         "adb_breadcrumb_tracker_test.cc",
         "adb_message_logger_test.cc",

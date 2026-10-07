@@ -60,6 +60,7 @@ cc_library(
 
 cc_test(
     name = "emulator_controller_methods_test",
+    size = "small",
     srcs = [
         "audio_stream_writer_test.cc",
         "display_service_test.cc",

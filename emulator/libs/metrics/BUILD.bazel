@@ -41,6 +41,7 @@ cc_library(
 
 cc_test(
     name = "uuid_test",
+    size = "small",
     srcs = ["uuid_test.cc"],
     deps = [
         ":metrics_uuid",
@@ -109,6 +110,7 @@ cc_library(
 
 cc_test(
     name = "metrics_reporter_test",
+    size = "small",
     srcs = ["metrics_reporter_test.cc"],
     deps = [
         ":fake_metrics_writer",
@@ -148,6 +150,7 @@ cc_library(
 
 cc_test(
     name = "text_metrics_writer_test",
+    size = "small",
     srcs = ["text_metrics_writer_test.cc"],
     deps = [
         ":text_metrics_writer",
@@ -183,6 +186,7 @@ cc_library(
 
 cc_test(
     name = "perf_stat_reporter_test",
+    size = "small",
     srcs = ["perf_stat_reporter_test.cc"],
     deps = [
         ":perf_stat_reporter",
@@ -209,6 +213,7 @@ cc_library(
 
 cc_test(
     name = "studio_config_test",
+    size = "small",
     srcs = ["studio_config_test.cc"],
     deps = [
         ":studio_config",
@@ -240,6 +245,7 @@ cc_library(
 
 cc_test(
     name = "studio_file_metrics_writer_test",
+    size = "small",
     srcs = ["studio_file_metrics_writer_test.cc"],
     deps = [
         ":studio_file_metrics_writer",
@@ -258,6 +264,7 @@ cc_library(
 
 cc_test(
     name = "gzip_ostream_test",
+    size = "small",
     srcs = ["gzip_ostream_test.cc"],
     deps = [
         ":gzip_ostream",
@@ -300,6 +307,7 @@ cc_library(
 
 cc_test(
     name = "playstore_metrics_writer_test",
+    size = "small",
     srcs = ["playstore_metrics_writer_test.cc"],
     deps = [
         ":playstore_metrics_writer",
@@ -331,6 +339,7 @@ cc_library(
 
 cc_test(
     name = "snapshot_metrics_test",
+    size = "small",
     srcs = ["snapshot_metrics_test.cc"],
     deps = [
         ":fake_metrics_writer",

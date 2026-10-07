@@ -145,6 +145,7 @@ cc_library(
 
 cc_test(
     name = "nvenc_loader_test",
+    size = "small",
     srcs = ["core/linux/test/nvenc_loader_test.cc"],
     copts = WEBRTC_COPTS,
     includes = ["."],
@@ -215,6 +216,7 @@ cc_library(
 
 cc_test(
     name = "nvenc_video_encoder_test",
+    size = "small",
     srcs = ["core/linux/test/nvenc_video_encoder_test.cc"],
     copts = WEBRTC_COPTS,
     includes = ["."],
@@ -284,6 +286,7 @@ cc_library(
 
 cc_test(
     name = "vaapi_loader_test",
+    size = "small",
     srcs = ["core/linux/test/vaapi_loader_test.cc"],
     copts = WEBRTC_COPTS,
     includes = ["."],
@@ -353,6 +356,7 @@ cc_library(
 
 cc_test(
     name = "vaapi_video_encoder_test",
+    size = "small",
     srcs = ["core/linux/test/vaapi_video_encoder_test.cc"],
     copts = WEBRTC_COPTS,
     includes = ["."],
@@ -433,6 +437,7 @@ cc_library(
 
 cc_test(
     name = "codec_factories_linux_test",
+    size = "small",
     srcs = ["core/linux/test/codec_factories_linux_test.cc"],
     copts = WEBRTC_COPTS,
     includes = ["."],
@@ -450,6 +455,7 @@ cc_test(
 
 cc_test(
     name = "emulator_client_test",
+    size = "small",
     srcs = ["client/emulator_client_test.cc"],
     deps = [
         ":emulator_client",
@@ -552,6 +558,7 @@ cc_library(
 
 cc_test(
     name = "goldfish_audio_device_module_test",
+    size = "small",
     srcs = ["core/goldfish_audio_device_module_test.cc"],
     copts = WEBRTC_COPTS,
     deps = [
@@ -562,6 +569,7 @@ cc_test(
 
 cc_test(
     name = "rtc_config_test",
+    size = "small",
     srcs = ["core/rtc_config_test.cc"],
     copts = WEBRTC_COPTS,
     deps = [
@@ -573,6 +581,7 @@ cc_test(
 
 cc_test(
     name = "in_process_input_sender_test",
+    size = "small",
     srcs = ["core/in_process_input_sender_test.cc"],
     copts = select({
         "@platforms//os:windows": ["/GR-"],
@@ -587,6 +596,7 @@ cc_test(
 
 cc_test(
     name = "switchboard_test",
+    size = "small",
     srcs = ["core/switchboard_test.cc"],
     copts = WEBRTC_COPTS,
     linkopts = WEBRTC_LINKOPTS,
@@ -600,6 +610,7 @@ cc_test(
 
 cc_test(
     name = "jsep_parse_test",
+    size = "small",
     srcs = [
         "core/jsep_parse.h",
         "core/jsep_parse_test.cc",
@@ -616,6 +627,7 @@ cc_test(
 
 cc_test(
     name = "virtual_network_test",
+    size = "small",
     srcs = [
         "core/virtual_network_fixture.h",
         "core/virtual_network_test.cc",
@@ -634,6 +646,7 @@ cc_test(
 
 cc_test(
     name = "participant_test",
+    size = "small",
     srcs = [
         "core/participant.h",
         "core/participant_test.cc",
@@ -653,6 +666,7 @@ cc_test(
 
 cc_test(
     name = "mf_video_encoder_h264_test",
+    size = "small",
     srcs = ["core/win/mf_video_encoder_h264_test.cc"],
     target_compatible_with = select({
         "@platforms//os:windows": [],
@@ -700,6 +714,7 @@ cc_test(
 
 cc_test(
     name = "codec_factories_mac_test",
+    size = "small",
     srcs = ["core/mac/codec_factories_mac_test.cc"],
     linkopts = WEBRTC_LINKOPTS,
     target_compatible_with = select({
@@ -772,6 +787,7 @@ cc_binary(
 
 cc_test(
     name = "codec_factories_dylib_test",
+    size = "small",
     srcs = ["core/mac/codec_factories_dylib_test.cc"],
     data = [":videobridge_codecs_shared"],
     target_compatible_with = select({
@@ -900,6 +916,7 @@ cc_library(
 
 cc_test(
     name = "media_track_provider_test",
+    size = "small",
     srcs = ["media/media_track_provider_test.cc"],
     copts = WEBRTC_COPTS,
     linkopts = WEBRTC_LINKOPTS,
@@ -916,6 +933,7 @@ cc_test(
 
 cc_test(
     name = "in_process_audio_source_test",
+    size = "small",
     srcs = ["media/in_process_audio_source_test.cc"],
     copts = WEBRTC_COPTS,
     deps = [
@@ -928,6 +946,7 @@ cc_test(
 
 cc_test(
     name = "in_process_video_source_test",
+    size = "small",
     srcs = ["media/in_process_video_source_test.cc"],
     copts = WEBRTC_COPTS,
     deps = [
@@ -945,6 +964,7 @@ cc_test(
 
 cc_test(
     name = "grpc_video_source_test",
+    size = "small",
     srcs = ["media/grpc_video_source_test.cc"],
     copts = WEBRTC_COPTS,
     deps = [
@@ -961,6 +981,7 @@ cc_test(
 
 cc_test(
     name = "grpc_audio_source_test",
+    size = "small",
     srcs = ["media/grpc_audio_source_test.cc"],
     copts = WEBRTC_COPTS,
     deps = [
