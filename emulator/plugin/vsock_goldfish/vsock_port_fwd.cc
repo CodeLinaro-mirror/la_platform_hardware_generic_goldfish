@@ -124,7 +124,7 @@ class HostToGuestConnection : public goldfish::devices::HalPlug,
         if (mGuestConnected) {
             VLOG(VLOG_TRACE) << "Host (" << *mHostSocket << ") forwarding: (" << data.size() << ") "
                              << data;
-            Socket()->Send(std::string(data));
+            Socket()->Send(data);
         } else {
             VLOG(VLOG_TRACE) << "Host (" << *mHostSocket << ") storing: (" << data.size() << ") "
                              << data;
@@ -148,8 +148,8 @@ class HostToGuestConnection : public goldfish::devices::HalPlug,
             /// @note we are on the client loop, so no-one is touching mHostBuffer.
             VLOG(1) << "Guest (vsock) receiving initial data: (" << mHostBuffer.size()
                     << ") :" << mHostBuffer;
-            Socket()->Send(std::move(mHostBuffer));
-            DCHECK(mHostBuffer.empty());
+            Socket()->Send(mHostBuffer);
+            mHostBuffer.clear();
         }
     }
 
