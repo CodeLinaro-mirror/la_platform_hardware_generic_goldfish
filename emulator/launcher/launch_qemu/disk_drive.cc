@@ -27,7 +27,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 
-#include "android/fsimage/ext4_utils.h"
+#include "android/fsimage/ext4.h"
 #include "android/goldfish/avd.h"
 #include "android/goldfish/hardware_config.h"
 #include "android/process/command.h"
@@ -53,8 +53,8 @@ std::string getDeviceParam(const Avd& avd, std::string_view diskId, std::string_
 
 absl::Status createExt4Image(fs::path destination, fs::path srcDir, StorageCapacity size,
                              std::string mount_point) {
-    if (android::fsimage::android_createExt4ImageFromDir(destination, srcDir, size.Bytes(),
-                                                         mount_point.c_str()) == 0) {
+    if (android::fsimage::CreateExt4ImageFromDir(destination, srcDir, size.Bytes(),
+                                                 mount_point.c_str()) == 0) {
         return absl::OkStatus();
     }
 
@@ -65,8 +65,8 @@ absl::Status createExt4Image(fs::path destination, fs::path srcDir, StorageCapac
 
 absl::Status createEmptyExt4Image(fs::path destination, StorageCapacity size,
                                   std::string mount_point) {
-    if (android::fsimage::android_createEmptyExt4Image(destination, size.Bytes(),
-                                                       mount_point.c_str()) == 0) {
+    if (android::fsimage::CreateEmptyExt4Image(destination, size.Bytes(), mount_point.c_str()) ==
+        0) {
         return absl::OkStatus();
     }
 
