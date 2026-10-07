@@ -23,7 +23,6 @@
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 
-#include "android/fsimage/ext4_resize.h"
 #include "android/fsimage/ext4_utils.h"
 #include "android/goldfish/avd.h"
 #include "android/status/status_macros.h"

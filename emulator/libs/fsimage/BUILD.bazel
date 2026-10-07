@@ -4,11 +4,9 @@ load("@rules_cc//cc:defs.bzl", "cc_library")
 cc_library(
     name = "fsimage",
     srcs = [
-        "ext4_resize.cc",
         "ext4_utils.cc",
     ],
     hdrs = [
-        "include/android/fsimage/ext4_resize.h",
         "include/android/fsimage/ext4_utils.h",
     ],
     includes = ["include"],
