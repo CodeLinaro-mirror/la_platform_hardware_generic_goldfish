@@ -9,30 +9,49 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-#include "android/fsimage/ext4.h"
+#include "goldfish/fsimage/ext4.h"
 
-#include "absl/log/log.h"
+#include "absl/strings/str_format.h"
 
 #include "make_ext4fs.h"
 
-namespace android::fsimage {
+namespace goldfish::fsimage {
 
-int CreateEmptyExt4Image(const fs::path& image, uint64_t size, const char* mountpoint) {
-    int ret = ::make_ext4fs_from_dir(image.string().c_str(), nullptr, size, mountpoint, -1);
-    if (ret < 0) {
-        LOG(ERROR) << "Failed to create ext4 image at: " << image;
+namespace {
+
+using android::base::StorageCapacity;
+
+absl::Status CreateExt4ImageFromDirImpl(const fs::path& image, const fs::path* src_dir,
+                                        const StorageCapacity size,
+                                        const std::string& mount_point) {
+    const int ret = ::make_ext4fs_from_dir(image.string().c_str(),
+                                           src_dir ? src_dir->string().c_str() : nullptr,
+                                           size.Bytes(), mount_point.c_str(), -1);
+    if (ret) {
+        if (src_dir) {
+            return absl::InternalError(absl::StrFormat(
+                    "Failed to create an Ext4 image from '%s' in '%s' of size %d bytes, ret=%d",
+                    src_dir->string(), image.string(), size.Bytes(), ret));
+        } else {
+            return absl::InternalError(absl::StrFormat(
+                    "Failed to create an empty Ext4 image '%s' of size %d bytes, ret=%d",
+                    image.string(), size.Bytes(), ret));
+        }
     }
-    return ret;
+
+    return absl::OkStatus();
 }
 
-int CreateExt4ImageFromDir(const fs::path& image, const fs::path& src_dir, uint64_t size,
-                           const char* mountpoint) {
-    int ret = ::make_ext4fs_from_dir(image.string().c_str(), src_dir.string().c_str(), size,
-                                     mountpoint, -1);
-    if (ret < 0) {
-        LOG(ERROR) << "Failed to create ext4 image at: " << image << " from src " << src_dir;
-    }
-    return ret;
+}  // namespace
+
+absl::Status CreateEmptyExt4Image(const fs::path& image, const StorageCapacity size,
+                                  const std::string& mount_point) {
+    return CreateExt4ImageFromDirImpl(image, nullptr, size, mount_point);
 }
 
-}  // namespace android::fsimage
+absl::Status CreateExt4ImageFromDir(const fs::path& image, const fs::path& src_dir,
+                                    const StorageCapacity size, const std::string& mount_point) {
+    return CreateExt4ImageFromDirImpl(image, &src_dir, size, mount_point);
+}
+
+}  // namespace goldfish::fsimage

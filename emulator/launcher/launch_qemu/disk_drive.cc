@@ -27,12 +27,12 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 
-#include "android/fsimage/ext4.h"
 #include "android/goldfish/avd.h"
 #include "android/goldfish/hardware_config.h"
 #include "android/process/command.h"
 #include "android/status/status_macros.h"
 #include "goldfish/file/file.h"
+#include "goldfish/fsimage/ext4.h"
 
 namespace android::goldfish {
 
@@ -49,30 +49,6 @@ std::string getDeviceParam(const Avd& avd, std::string_view diskId, std::string_
     default:
         return {};
     }
-}
-
-absl::Status createExt4Image(fs::path destination, fs::path srcDir, StorageCapacity size,
-                             std::string mount_point) {
-    if (android::fsimage::CreateExt4ImageFromDir(destination, srcDir, size.Bytes(),
-                                                 mount_point.c_str()) == 0) {
-        return absl::OkStatus();
-    }
-
-    return absl::InternalError(
-            absl::StrFormat("Failed to create an Ext4 image from %s in '%s' of size %d bytes",
-                            destination.string(), srcDir.string(), size.Bytes()));
-}
-
-absl::Status createEmptyExt4Image(fs::path destination, StorageCapacity size,
-                                  std::string mount_point) {
-    if (android::fsimage::CreateEmptyExt4Image(destination, size.Bytes(), mount_point.c_str()) ==
-        0) {
-        return absl::OkStatus();
-    }
-
-    return absl::InternalError(
-            absl::StrFormat("Failed to create an empty Ext4 image in '%s' of size %d bytes",
-                            destination.string(), size.Bytes()));
 }
 
 bool pathIsQcow2(fs::path path) {
@@ -222,7 +198,8 @@ absl::Status BlankWritableDrive::initialize(const EmulatorConfig& emulator) {
     } else {
         LOG(INFO) << "Preparing empty drive: " << backing_image_;
         base::file::rm(qcow2_image_).IgnoreError();
-        RETURN_IF_ERROR(createEmptyExt4Image(backing_image_, size_bytes_, id()));
+        RETURN_IF_ERROR(
+                ::goldfish::fsimage::CreateEmptyExt4Image(backing_image_, size_bytes_, id()));
     }
 
     return MakeQcow2(emulator);
@@ -235,7 +212,8 @@ absl::Status WritableDirectoryDrive::initialize(const EmulatorConfig& emulator) 
         LOG(INFO) << "Preparing non empty drive: " << backing_image_ << " from src directory "
                   << src_directory_;
         base::file::rm(qcow2_image_).IgnoreError();
-        RETURN_IF_ERROR(createExt4Image(backing_image_, src_directory_, size_bytes_, id()));
+        RETURN_IF_ERROR(::goldfish::fsimage::CreateExt4ImageFromDir(backing_image_, src_directory_,
+                                                                    size_bytes_, id()));
     }
 
     return MakeQcow2(emulator);

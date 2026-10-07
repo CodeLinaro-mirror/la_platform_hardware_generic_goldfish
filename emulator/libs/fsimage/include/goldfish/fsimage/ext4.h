@@ -14,16 +14,19 @@
 #include <cstdint>
 #include <filesystem>
 
-namespace android::fsimage {
+#include "absl/status/status.h"
+
+#include "goldfish/file/storage_capacity.h"
+
+namespace goldfish::fsimage {
 
 namespace fs = std::filesystem;
 
-// Create a new empty EXT4 partition image file at |filePath|
-// of |size| bytes. |mountPoint| is the name of the corresponding
-// mount point, e.g. 'cache' for the cache partition.
-// Returns 0 on success, or -errno on failure.
-int CreateEmptyExt4Image(const fs::path& image, uint64_t size, const char* mountpoint);
+absl::Status CreateEmptyExt4Image(const fs::path& image, android::base::StorageCapacity size,
+                                  const std::string& mount_point);
 
-int CreateExt4ImageFromDir(const fs::path& image, const fs::path& src_dir, uint64_t size,
-                           const char* mountpoint);
-}  // namespace android::fsimage
+absl::Status CreateExt4ImageFromDir(const fs::path& image, const fs::path& src_dir,
+                                    android::base::StorageCapacity size,
+                                    const std::string& mount_point);
+
+}  // namespace goldfish::fsimage

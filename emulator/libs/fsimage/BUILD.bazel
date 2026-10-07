@@ -7,14 +7,15 @@ cc_library(
         "ext4.cc",
     ],
     hdrs = [
-        "include/android/fsimage/ext4.h",
+        "include/goldfish/fsimage/ext4.h",
     ],
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
+        "//emulator/libs/file",
         "//third_party/ext4_utils",
-        "@abseil-cpp//absl/log",
-        "@abseil-cpp//absl/log:absl_log",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/strings:str_format",
     ],
 )
 
