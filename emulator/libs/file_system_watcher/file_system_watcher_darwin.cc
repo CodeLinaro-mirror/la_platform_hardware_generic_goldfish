@@ -195,6 +195,10 @@ class FileSystemWatcherFS : public FileSystemWatcher {
     ~FileSystemWatcherFS() override { Stop(); }
 
     bool Start() override {
+        if (!__builtin_available(macOS 14.0, *)) {
+            LOG(WARNING) << "Running on macOS < 14: FSEvents may experience performance issues "
+                            "that could result in missed events on volumes with heavy churn.";
+        }
         {
             const absl::MutexLock lock(mu_);
             if (state_ != State::kIdle) {

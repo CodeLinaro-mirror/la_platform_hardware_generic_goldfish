@@ -76,8 +76,7 @@ class TestEventHandler {
   public:
     TestEventHandler(fs::path expected_path) : mExpectedPath(std::move(expected_path)) {}
 
-    void operator()(FileSystemWatcher::WatcherChangeType type,
-                    const std::filesystem::path& path) {
+    void operator()(FileSystemWatcher::WatcherChangeType type, const std::filesystem::path& path) {
         absl::MutexLock lock(mMutex);
         mResults.push_back({type, path.string()});
     }
@@ -121,6 +120,15 @@ class FileSystemWatcherTest : public ::testing::Test {
     }
 
     void SetUp() override {
+#ifdef __APPLE__
+        // see:
+        // https://stackoverflow.com/questions/57825757/obj-c-has-available-swift-has-available-what-can-i-use-in-c-c
+        // see:
+        // https://raw.githubusercontent.com/facebook/watchman/main/website/docs/troubleshooting.md
+        if (!__builtin_available(macOS 14.0, *)) {
+            GTEST_SKIP() << "Skipping live FSEvents test on macOS < 14 (Ventura fseventsd bug).";
+        }
+#endif
         // Create a watchdog to detect hangs.
         mTestDone = std::make_unique<absl::Notification>();
         mWatchdog = std::thread([this]() {
@@ -152,7 +160,7 @@ class FileSystemWatcherTest : public ::testing::Test {
         if (mWatcher) {
             mWatcher->Stop();
         }
-        if (android::base::file::exists(mTempDir)) {
+        if (!mTempDir.empty() && android::base::file::exists(mTempDir)) {
             android::base::file::rm_recursive(mTempDir).IgnoreError();
         }
     }

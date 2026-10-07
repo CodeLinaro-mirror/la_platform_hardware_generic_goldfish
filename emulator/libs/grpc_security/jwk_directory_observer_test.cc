@@ -55,6 +55,13 @@ using crypto::tink::TinkConfig;
 class JwkDirectoryObserverTest : public ::testing::Test {
   public:
     void SetUp() override {
+#ifdef __APPLE__
+        // see:
+        // https://stackoverflow.com/questions/57825757/obj-c-has-available-swift-has-available-what-can-i-use-in-c-c
+        if (!__builtin_available(macOS 14.0, *)) {
+            GTEST_SKIP() << "Skipping live FSEvents test on macOS < 14 (Ventura fseventsd bug).";
+        }
+#endif
         auto status = TinkConfig::Register();
         EXPECT_TRUE(status.ok());
         status = tink::JwtSignatureRegister();
