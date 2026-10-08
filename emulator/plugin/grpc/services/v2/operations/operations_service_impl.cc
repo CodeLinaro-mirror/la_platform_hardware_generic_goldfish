@@ -14,6 +14,7 @@
 
 #include "operations/operations_service_impl.h"
 
+#include <algorithm>
 #include <string>
 #include <string_view>
 
@@ -195,7 +196,38 @@ Status OperationsServiceImpl::CancelOperation(ServerContext* /*context*/,
     return Status::OK;
 }
 
-Status OperationsServiceImpl::WaitOperation(ServerContext* /*context*/,
+absl::StatusOr<Operation> OperationsServiceImpl::WaitForOperation(
+        std::string_view name, absl::Time deadline, absl::FunctionRef<bool()> is_cancelled) {
+    absl::MutexLock operations_lock(&operations_mutex_);
+    const auto is_done_or_deleted = [this, name]()
+                                            ABSL_EXCLUSIVE_LOCKS_REQUIRED(operations_mutex_) {
+                                                auto it = operations_.find(name);
+                                                return it == operations_.end() || it->second.done();
+                                            };
+
+    if (operations_.contains(name)) {
+        // Cancellation does not release operations_mutex_, so the condition alone would never
+        // observe it. Wait in bounded slices and poll is_cancelled between them.
+        while (!operations_mutex_.AwaitWithDeadline(
+                absl::Condition(&is_done_or_deleted),
+                std::min(deadline, absl::Now() + kCancellationPollInterval))) {
+            if (is_cancelled()) {
+                return absl::CancelledError("WaitOperation cancelled by client.");
+            }
+            if (absl::Now() >= deadline) {
+                break;
+            }
+        }
+    }
+
+    auto it = operations_.find(name);
+    if (it == operations_.end()) {
+        return absl::NotFoundError(absl::StrCat("Operation not found: ", name));
+    }
+    return it->second;
+}
+
+Status OperationsServiceImpl::WaitOperation(ServerContext* context,
                                             const WaitOperationRequest* request,
                                             Operation* response) {
     if (request->name().empty()) {
@@ -206,26 +238,14 @@ Status OperationsServiceImpl::WaitOperation(ServerContext* /*context*/,
                                            ? absl::Seconds(request->timeout().seconds()) +
                                                      absl::Nanoseconds(request->timeout().nanos())
                                            : absl::Seconds(30);
-    const absl::Time deadline = absl::Now() + timeout;
 
-    absl::MutexLock operations_lock(&operations_mutex_);
-    if (!operations_.contains(request->name())) {
-        return {StatusCode::NOT_FOUND, absl::StrCat("Operation not found: ", request->name())};
+    absl::StatusOr<Operation> op = WaitForOperation(request->name(), absl::Now() + timeout,
+                                                    [context] { return context->IsCancelled(); });
+    if (!op.ok()) {
+        // absl::StatusCode and grpc::StatusCode share the canonical numeric values.
+        return {static_cast<StatusCode>(op.status().code()), std::string(op.status().message())};
     }
-
-    const auto is_done_or_deleted = [this, &name = request->name()]()
-                                            ABSL_EXCLUSIVE_LOCKS_REQUIRED(operations_mutex_) {
-                                                auto it = operations_.find(name);
-                                                return it == operations_.end() || it->second.done();
-                                            };
-
-    operations_mutex_.AwaitWithDeadline(absl::Condition(&is_done_or_deleted), deadline);
-
-    auto it = operations_.find(request->name());
-    if (it == operations_.end()) {
-        return {StatusCode::NOT_FOUND, absl::StrCat("Operation not found: ", request->name())};
-    }
-    *response = it->second;
+    *response = *std::move(op);
     return Status::OK;
 }
 

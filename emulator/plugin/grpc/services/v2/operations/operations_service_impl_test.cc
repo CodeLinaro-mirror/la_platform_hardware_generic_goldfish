@@ -16,10 +16,14 @@
 
 #include <gtest/gtest.h>
 
+#include <atomic>
 #include <thread>
 
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/synchronization/notification.h"
+#include "absl/time/clock.h"
+#include "absl/time/time.h"
 #include "google/longrunning/operations.pb.h"
 
 #include "hypervisor_service.pb.h"
@@ -115,6 +119,33 @@ TEST(OperationsServiceImplTest, WaitOperationWakesImmediatelyOnCompletion) {
     Snapshot unpacked;
     ASSERT_TRUE(waited.response().UnpackTo(&unpacked));
     EXPECT_EQ(unpacked.snapshot_id(), "async_snap");
+}
+
+TEST(OperationsServiceImplTest, WaitForOperationReturnsPromptlyWhenCancelled) {
+    OperationsServiceImpl service;
+    SnapshotOperationMetadata meta;
+    const Operation started = service.StartOperation("snapshot/create", meta);
+
+    std::atomic<bool> cancelled{false};
+    absl::Notification waiter_started;
+    absl::StatusOr<Operation> result;
+    absl::Duration elapsed;
+
+    std::thread waiter([&] {
+        const absl::Time start = absl::Now();
+        waiter_started.Notify();
+        // The operation never completes; only cancellation can end this wait early.
+        result = service.WaitForOperation(started.name(), start + absl::Seconds(30),
+                                          [&] { return cancelled.load(); });
+        elapsed = absl::Now() - start;
+    });
+
+    waiter_started.WaitForNotification();
+    cancelled = true;
+    waiter.join();
+
+    EXPECT_EQ(result.status().code(), absl::StatusCode::kCancelled);
+    EXPECT_LT(elapsed, absl::Seconds(5));
 }
 
 TEST(OperationsServiceImplTest, ListCancelAndDeleteOperations) {
