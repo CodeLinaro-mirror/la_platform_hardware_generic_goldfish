@@ -24,7 +24,9 @@
 #include <vector>
 
 #include "android/base/bazel_info.h"
+#include "android/goldfish/fake_hardware_config.h"
 #include "goldfish/camera_image_providers/virtualscene/virtualscene.h"
+#include "goldfish/sensors/physical_model.h"
 
 namespace goldfish::camera_image_providers::virtualscene {
 
@@ -132,7 +134,15 @@ TEST(VirtualsceneImageProvider, CreateStartCaptureStopMultiStream) {
             ::android::base::Bazel::RunfilesPath("goldfish+/emulator/libs/ver/lib64/vulkan");
     ASSERT_TRUE(ver_initialize({tempRoot}, vulkanDir));
 
-    CameraImageProviderInfo info = {};
+    sensors::PhysicalModel physicalModel(android::goldfish::FakeHardwareConfig::GetHwConfig());
+    VirtualsceneImageProvider::CreateArgs createArgs{
+        .sceneConfig = VerSceneConfig(VerSceneConfig::Mode::Mesh3D, ""),
+        .physicalModel = &physicalModel,
+    };
+    CameraImageProviderInfo info = {
+        .createArg = &createArgs,
+        .isBackFacing = 1,
+    };
     std::unique_ptr<VirtualsceneImageProvider> provider(
             static_cast<VirtualsceneImageProvider*>(VirtualsceneImageProvider::create(info)));
     if (!provider) {
@@ -140,6 +150,8 @@ TEST(VirtualsceneImageProvider, CreateStartCaptureStopMultiStream) {
         fs::remove_all(tempRoot);
         GTEST_SKIP() << "Vulkan renderer unavailable in test environment";
     }
+
+    EXPECT_FALSE(physicalModel.GetVirtualSceneCamera().IsConnected());
 
     const CameraImageProviderStreamConfig streams[] = {
         {
@@ -160,6 +172,11 @@ TEST(VirtualsceneImageProvider, CreateStartCaptureStopMultiStream) {
     };
 
     ASSERT_EQ(provider->start(streams, std::size(streams)), 0);
+    EXPECT_TRUE(physicalModel.GetVirtualSceneCamera().IsConnected());
+
+    // Reconfiguring streams while active should keep scene controls active without dropping to 0.
+    ASSERT_EQ(provider->start(streams, std::size(streams)), 0);
+    EXPECT_TRUE(physicalModel.GetVirtualSceneCamera().IsConnected());
 
     const CameraImageProviderStreamCaptureInfo captureInfos[] = {
         {.cfg = &streams[0]},
@@ -194,6 +211,7 @@ TEST(VirtualsceneImageProvider, CreateStartCaptureStopMultiStream) {
                             [](uint8_t b) { return b != 0; }));
 
     provider->stop();
+    EXPECT_FALSE(physicalModel.GetVirtualSceneCamera().IsConnected());
     provider.reset();
     ver_cleanup();
     fs::remove_all(tempRoot);

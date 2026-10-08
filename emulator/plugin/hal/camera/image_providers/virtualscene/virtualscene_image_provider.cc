@@ -212,6 +212,16 @@ int VirtualsceneImageProvider::start(const CameraImageProviderStreamConfig* cons
         return FAILURE_STR("ver_render_view_set_dimensions", -1);
     }
 
+    const bool enableSceneControls =
+            mPhysicalModel && mScene != VER_INVALID_HANDLE &&
+            VerSceneConfig::modeSupportsSceneControls(ver_scene_get_mode(mScene));
+    if (enableSceneControls) {
+        // TODO(b/513154005): Const casting is not ideal, and a temporary solution until we
+        // refactor for environment scene manager, this is safe as we don't support background
+        // rendering and there can only be one camera using the VirtualSceneCamera.
+        const_cast<sensors::PhysicalModel*>(mPhysicalModel)->GetVirtualSceneCamera().AddSceneUser();
+    }
+
     stop();
 
     CaptureSession captureSession;
@@ -220,6 +230,7 @@ int VirtualsceneImageProvider::start(const CameraImageProviderStreamConfig* cons
     captureSession.projection = projection;
     captureSession.view = view;
     captureSession.framebuffer_size = roc.size;
+    captureSession.sceneControlsActive = enableSceneControls;
 
     mCaptureSession = std::move(captureSession);
     return 0;
@@ -417,6 +428,15 @@ bool VirtualsceneImageProvider::captureImpl(const CaptureSession& session,
 
 void VirtualsceneImageProvider::stop() {
     if (mCaptureSession) {
+        if (mCaptureSession->sceneControlsActive && mPhysicalModel) {
+            // TODO(b/513154005): Const casting is not ideal, and a temporary solution until we
+            // refactor for environment scene manager, this is safe as we don't support background
+            // rendering and there can only be one camera using the VirtualSceneCamera.
+            const_cast<sensors::PhysicalModel*>(mPhysicalModel)
+                    ->GetVirtualSceneCamera()
+                    .RemoveSceneUser();
+            mCaptureSession->sceneControlsActive = false;
+        }
         if (mCaptureSession->view != VER_INVALID_HANDLE) {
             ver_destroy_render_view(mCaptureSession->view);
             mCaptureSession->view = VER_INVALID_HANDLE;

@@ -52,6 +52,7 @@ cc_library(
     name = "physical_model",
     srcs = [
         "physical_model.cc",
+        "virtual_scene_camera.cc",
     ],
     hdrs = [
         "include/goldfish/sensors/android_sensor.h",
@@ -60,6 +61,7 @@ cc_library(
         "include/goldfish/sensors/physical_model.h",
         "include/goldfish/sensors/physical_parameter.h",
         "include/goldfish/sensors/sensor_data.h",
+        "include/goldfish/sensors/virtual_scene_camera.h",
     ],
     includes = ["include"],
     visibility = ["//visibility:public"],

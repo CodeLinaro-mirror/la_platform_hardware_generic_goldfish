@@ -23,6 +23,8 @@
 #include "android/goldfish/hardware_config.h"
 #include "goldfish/archive/deque_archive.h"
 #include "goldfish/eventing/event_sources.h"
+#include "goldfish/eventing/with_callbacks.h"
+#include "goldfish/physics/glm_helpers.h"
 
 namespace goldfish::sensors {
 
@@ -742,6 +744,69 @@ TEST_F(PhysicalModelTest, IsSensorOverriddenAndClearOverridesPreservesSmoothTran
     model->SetCurrentTime(SecondsToNs(2.0F));
     const vec3 final_rotation = model->GetParameterRotation(ParameterValueType::kCurrent);
     EXPECT_VEC3_NEAR((vec3{0.0F, 0.0F, 90.0F}), final_rotation, 0.01F);
+}
+
+TEST_F(PhysicalModelTest, VirtualSceneCamera_Lifecycle) {
+    auto& camera = model->GetVirtualSceneCamera();
+    EXPECT_FALSE(camera.IsConnected());
+    EXPECT_FLOAT_EQ(model->GetParameterAmbientMotion(ParameterValueType::kTarget), 0.0F);
+
+    std::vector<bool> active_events;
+    auto sub = android::base::eventing::MakeScopedCallback(
+            camera.GetActiveListener(),
+            [&active_events](const bool& active) { active_events.push_back(active); });
+
+    camera.AddSceneUser();
+    EXPECT_TRUE(camera.IsConnected());
+    ASSERT_EQ(active_events.size(), 1U);
+    EXPECT_TRUE(active_events[0]);
+
+    // Adding a second user should not re-trigger the active event.
+    camera.AddSceneUser();
+    EXPECT_TRUE(camera.IsConnected());
+    EXPECT_EQ(active_events.size(), 1U);
+
+    // Removing the first of two users keeps the camera active.
+    camera.RemoveSceneUser();
+    EXPECT_TRUE(camera.IsConnected());
+    EXPECT_EQ(active_events.size(), 1U);
+
+    // Removing the last user disables the camera and resets ambient motion.
+    camera.RemoveSceneUser();
+    EXPECT_FALSE(camera.IsConnected());
+    EXPECT_FLOAT_EQ(model->GetParameterAmbientMotion(ParameterValueType::kTarget), 0.0F);
+    ASSERT_EQ(active_events.size(), 2U);
+    EXPECT_FALSE(active_events[1]);
+}
+
+TEST_F(PhysicalModelTest, VirtualSceneCamera_RotateAndVelocity) {
+    auto& camera = model->GetVirtualSceneCamera();
+
+    // Ignored when inactive.
+    camera.Rotate(vec3(glm::radians(10.0F), glm::radians(20.0F), 0.0F));
+    camera.SetVelocity(vec3(1.0F, 0.0F, 0.0F));
+    EXPECT_VEC3_NEAR((vec3{0.0F, 0.0F, 0.0F}),
+                     model->GetParameterRotation(ParameterValueType::kTarget), 1e-4F);
+    EXPECT_VEC3_NEAR((vec3{0.0F, 0.0F, 0.0F}),
+                     model->GetParameterVelocity(ParameterValueType::kTarget), 1e-4F);
+
+    camera.AddSceneUser();
+
+    // Rotate 90 degrees around Y (yaw) and clamp X (pitch) to kMaxVerticalRotationDegrees (80).
+    camera.Rotate(vec3(glm::radians(85.0F), glm::radians(90.0F), 0.0F));
+    const vec3 expected_rot = glm::degrees(ToEulerAnglesXyz(
+            FromEulerAnglesYxz(vec3(glm::radians(80.0F), glm::radians(90.0F), 0.0F))));
+    EXPECT_VEC3_NEAR(expected_rot, model->GetParameterRotation(ParameterValueType::kTarget), 0.01F);
+
+    // Forward velocity along -Z in camera look space should rotate by +90 deg around Y to -X.
+    camera.SetVelocity(vec3(0.0F, 0.0F, -2.0F));
+    EXPECT_VEC3_NEAR((vec3{-2.0F, 0.0F, 0.0F}),
+                     model->GetParameterVelocity(ParameterValueType::kTarget), 0.01F);
+
+    // Disabling resets velocity to zero.
+    camera.RemoveSceneUser();
+    EXPECT_VEC3_NEAR((vec3{0.0F, 0.0F, 0.0F}),
+                     model->GetParameterVelocity(ParameterValueType::kTarget), 1e-4F);
 }
 
 }  // namespace goldfish::sensors

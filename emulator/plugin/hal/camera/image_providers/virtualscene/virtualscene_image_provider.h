@@ -95,6 +95,7 @@ struct VirtualsceneImageProvider {
         glm::mat4 projection = glm::mat4(1.0f);
         VerRenderViewHandle view = VER_INVALID_HANDLE;
         CameraImageProviderRect framebuffer_size = {};
+        bool sceneControlsActive = false;
     };
 
     glm::mat4 updateViewProjection(const glm::mat4& projection) const;
