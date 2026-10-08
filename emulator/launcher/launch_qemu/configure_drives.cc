@@ -26,9 +26,9 @@
 namespace android::goldfish::internal {
 
 namespace {
-absl::StatusOr<fs::path> getOverridePath(const char* path_str) {
+absl::StatusOr<fs::path> getOverrideFilePath(const char* path_str) {
     fs::path path(path_str);
-    if (base::file::exists(path)) {
+    if (base::file::is_file(path)) {
         return path;
     } else {
         return absl::NotFoundError(absl::StrCat("File not found: ", path_str));
@@ -42,7 +42,7 @@ fs::path getWritableImgPath(const Avd& avd, Avd::ImageType user_image_type) {
 absl::StatusOr<fs::path> getWritableImgPath(const Avd& avd, Avd::ImageType user_image_type,
                                             const char* override_path) {
     if (override_path) {
-        return getOverridePath(override_path);
+        return getOverrideFilePath(override_path);
     } else {
         return getWritableImgPath(avd, user_image_type);
     }
@@ -50,10 +50,10 @@ absl::StatusOr<fs::path> getWritableImgPath(const Avd& avd, Avd::ImageType user_
 
 absl::StatusOr<fs::path> getUserdataImgPath(const Avd& avd, const char* override_path) {
     if (override_path) {
-        return getOverridePath(override_path);
+        return getOverrideFilePath(override_path);
     } else {
         fs::path path = getWritableImgPath(avd, Avd::ImageType::USERDATA_OLD);
-        if (!base::file::exists(path)) {
+        if (!base::file::is_file(path)) {
             path = getWritableImgPath(avd, Avd::ImageType::USERDATA);
         }
         return path;
@@ -124,7 +124,7 @@ absl::StatusOr<std::vector<std::unique_ptr<PciDevice>>> getDiskConfigs(const Avd
     ASSIGN_OR_RETURN(const auto userdata_path, getUserdataImgPath(avd, opts.data));
     uint64_t userdata_create_size = 0;
     std::optional<fs::path> userdata_src_dir;
-    if (!base::file::exists(userdata_path)) {
+    if (!base::file::is_file(userdata_path)) {
         ASSIGN_OR_RETURN(userdata_src_dir, prepareUserdataSrcDir(avd, sys_img_paths.data_dir));
         userdata_create_size = getDataSize(avd, opts);
     }
