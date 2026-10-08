@@ -10,7 +10,8 @@ socket-like communication between the Host and Guest. **Location:**
 | Class / Interface           | Bazel Target           | Header Path                     | Description                                                     |
 | :-------------------------- | :--------------------- | :------------------------------ | :-------------------------------------------------------------- |
 | `GoldfishVirtIOVSockDevAPI` | `:goldfish_vsock_hdrs` | `.../vsock_low_level.h`         | Structure of function pointers passed from QEMU to this plugin. |
-| `Connect` / `Listen`        | `:goldfish_vsock_hdrs` | `.../connect.h`, `.../listen.h` | APIs for Host services to open VSOCK connections to the Guest.  |
+| `Connect` / `Listen`        | `:vsock_core`          | `.../connect.h`, `.../listen.h` | APIs for Host services to open VSOCK connections to the Guest.  |
+| `vsock_perf`                | `:vsock_perf`          | N/A                             | Google Benchmark suite for Host->Guest and Guest->Host paths.   |
 
 ## Critical Infrastructure
 
