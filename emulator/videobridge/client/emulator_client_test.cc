@@ -29,6 +29,8 @@
 #include "absl/time/time.h"
 
 #include "emulator_controller.grpc.pb.h"
+#include "input_service.grpc.pb.h"
+#include "sensors_service.grpc.pb.h"
 
 namespace goldfish::videobridge {
 namespace {
@@ -37,7 +39,7 @@ namespace fs = std::filesystem;
 
 class MockEmulatorController final : public EmulatorController::Service {
   public:
-    ::grpc::Status streamScreenshot(::grpc::ServerContext* context, const ImageFormat* request,
+    ::grpc::Status streamScreenshot(::grpc::ServerContext* /*context*/, const ImageFormat* request,
                                     ::grpc::ServerWriter<Image>* writer) override {
         mScreenshotRequested = true;
         mRequestedDisplayId = request->display();
@@ -48,7 +50,7 @@ class MockEmulatorController final : public EmulatorController::Service {
         return ::grpc::Status::OK;
     }
 
-    ::grpc::Status streamAudio(::grpc::ServerContext* context, const AudioFormat* request,
+    ::grpc::Status streamAudio(::grpc::ServerContext* /*context*/, const AudioFormat* /*request*/,
                                ::grpc::ServerWriter<AudioPacket>* writer) override {
         mAudioRequested = true;
         AudioPacket packet;
@@ -57,9 +59,9 @@ class MockEmulatorController final : public EmulatorController::Service {
         return ::grpc::Status::OK;
     }
 
-    ::grpc::Status streamInputEvent(::grpc::ServerContext* context,
+    ::grpc::Status streamInputEvent(::grpc::ServerContext* /*context*/,
                                     ::grpc::ServerReader<InputEvent>* reader,
-                                    ::google::protobuf::Empty* response) override {
+                                    ::google::protobuf::Empty* /*response*/) override {
         mEventStreamOpened = true;
         InputEvent event;
         while (reader->Read(&event)) {
@@ -73,6 +75,39 @@ class MockEmulatorController final : public EmulatorController::Service {
     bool mAudioRequested = false;
     bool mEventStreamOpened = false;
     std::vector<InputEvent> mReceivedEvents;
+};
+
+class MockV2InputService final : public ::android::emulation::v2::InputService::Service {
+  public:
+    ::grpc::Status StreamInputEvents(
+            ::grpc::ServerContext* /*context*/,
+            ::grpc::ServerReader<::android::emulation::v2::InputEvent>* reader,
+            ::android::emulation::v2::StreamInputEventsResponse* /*response*/) override {
+        mStreamOpened = true;
+        ::android::emulation::v2::InputEvent event;
+        while (reader->Read(&event)) {
+            mReceivedEvents.push_back(event);
+        }
+        return ::grpc::Status::OK;
+    }
+
+    bool mStreamOpened = false;
+    std::vector<::android::emulation::v2::InputEvent> mReceivedEvents;
+};
+
+class MockV2SensorsService final : public ::android::emulation::v2::SensorsService::Service {
+  public:
+    ::grpc::Status UpdateSensorsState(
+            ::grpc::ServerContext* /*context*/,
+            const ::android::emulation::v2::UpdateSensorsStateRequest* request,
+            ::android::emulation::v2::SensorsState* /*response*/) override {
+        mUpdateCalled = true;
+        mReceivedRequests.push_back(*request);
+        return ::grpc::Status::OK;
+    }
+
+    bool mUpdateCalled = false;
+    std::vector<::android::emulation::v2::UpdateSensorsStateRequest> mReceivedRequests;
 };
 
 class EmulatorClientTest : public ::testing::Test {
@@ -92,6 +127,8 @@ class EmulatorClientTest : public ::testing::Test {
         builder.AddListeningPort(server_address, ::grpc::InsecureServerCredentials(),
                                  &selected_port);
         builder.RegisterService(&service);
+        builder.RegisterService(&v2_input_service);
+        builder.RegisterService(&v2_sensors_service);
         server = builder.BuildAndStart();
         ASSERT_NE(server, nullptr);
         server_address = "localhost:" + std::to_string(selected_port);
@@ -121,6 +158,8 @@ class EmulatorClientTest : public ::testing::Test {
     };
 
     MockEmulatorController service;
+    MockV2InputService v2_input_service;
+    MockV2SensorsService v2_sensors_service;
     std::unique_ptr<::grpc::Server> server;
     std::string server_address;
 };
@@ -243,6 +282,9 @@ TEST_F(EmulatorClientTest, UnconnectedClient_StreamMethodsReturnNullptr) {
     EXPECT_EQ(client.StreamAudio(&context, {}), nullptr);
     ::google::protobuf::Empty response;
     EXPECT_EQ(client.StreamInputEvent(&context, &response), nullptr);
+    ::android::emulation::v2::StreamInputEventsResponse v2_response;
+    EXPECT_EQ(client.StreamV2InputEvents(&context, &v2_response), nullptr);
+    EXPECT_FALSE(client.UpdateV2SensorsState({}).ok());
 }
 
 TEST_F(EmulatorClientTest, Connect_NonExistentDiscoveryFile_Fails) {
@@ -251,6 +293,38 @@ TEST_F(EmulatorClientTest, Connect_NonExistentDiscoveryFile_Fails) {
     absl::Status status = client.Connect(absl::Milliseconds(100));
     EXPECT_FALSE(status.ok());
     EXPECT_FALSE(client.IsConnected());
+}
+
+TEST_F(EmulatorClientTest, StreamV2InputEventsAndUpdateSensors_ForwardsMessages) {
+    StartServer();
+    size_t colon = server_address.find(':');
+    std::string port = server_address.substr(colon + 1);
+
+    TmpDiscoveryFile tmpFile(absl::StrCat("grpc.port = ", port));
+    EmulatorClient client(tmpFile.path().string());
+    ASSERT_TRUE(client.Connect(kConnectionTimeout).ok());
+
+    ::grpc::ClientContext context;
+    ::android::emulation::v2::StreamInputEventsResponse v2_response;
+    auto v2_writer = client.StreamV2InputEvents(&context, &v2_response);
+    ASSERT_NE(v2_writer, nullptr);
+
+    ::android::emulation::v2::InputEvent v2_key;
+    v2_key.mutable_key()->set_dom_code("KeyZ");
+    EXPECT_TRUE(v2_writer->Write(v2_key));
+    EXPECT_TRUE(v2_writer->WritesDone());
+    EXPECT_TRUE(v2_writer->Finish().ok());
+
+    EXPECT_TRUE(v2_input_service.mStreamOpened);
+    ASSERT_EQ(v2_input_service.mReceivedEvents.size(), 1U);
+    EXPECT_EQ(v2_input_service.mReceivedEvents[0].key().dom_code(), "KeyZ");
+
+    ::android::emulation::v2::UpdateSensorsStateRequest sensors_req;
+    sensors_req.mutable_environment()->set_light_lux(450.0F);
+    EXPECT_TRUE(client.UpdateV2SensorsState(sensors_req).ok());
+    EXPECT_TRUE(v2_sensors_service.mUpdateCalled);
+    ASSERT_EQ(v2_sensors_service.mReceivedRequests.size(), 1U);
+    EXPECT_FLOAT_EQ(v2_sensors_service.mReceivedRequests[0].environment().light_lux(), 450.0F);
 }
 
 }  // namespace

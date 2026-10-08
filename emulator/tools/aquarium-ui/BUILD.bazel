@@ -14,6 +14,7 @@
 
 load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_test")
 load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_test")
+load("@rules_python//python:defs.bzl", "py_binary", "py_test")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -76,6 +77,38 @@ cc_binary(
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/synchronization",
         "@grpc//:grpc++",
+    ],
+)
+
+py_binary(
+    name = "clownfish",
+    srcs = ["@aemu//tools/clownfish:src/clownfish/__main__.py"],
+    data = [
+        ":aquarium-ui",
+        "//emulator/tools/grpc-web:grpc-web-proxy",
+        "//emulator/ui/aquarium:dist",
+        "//emulator/videobridge",
+    ],
+    main = "@aemu//tools/clownfish:src/clownfish/__main__.py",
+    deps = [
+        "@aemu//tools/clownfish:clownfish_lib",
+    ],
+)
+
+py_test(
+    name = "clownfish_e2e_test",
+    size = "small",
+    srcs = ["test/clownfish_e2e_test.py"],
+    data = [
+        ":aquarium-ui",
+        "//emulator/tools/grpc-web:grpc-web-proxy",
+        "//emulator/ui/aquarium:dist",
+        "//emulator/videobridge",
+    ],
+    tags = ["requires-network"],
+    deps = [
+        "@aemu//tools/clownfish:clownfish_lib",
+        "@pypi_aemu//pytest",
     ],
 )
 

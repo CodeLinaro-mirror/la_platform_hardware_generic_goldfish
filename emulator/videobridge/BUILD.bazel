@@ -31,10 +31,13 @@ cc_library(
     strip_include_prefix = "include",
     deps = [
         "//emulator/libs/grpc_client",
+        "//emulator/libs/grpc_utils:absl_translate",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/time",
         "@aemu//protos/services/emulator-controller:emulator_controller_cc_grpc",
+        "@aemu//protos/services_v2:input_service_cc_grpc",
+        "@aemu//protos/services_v2:sensors_service_cc_grpc",
         "@grpc//:grpc++",
     ],
 )
@@ -50,6 +53,7 @@ cc_binary(
         ":rtc_service",
         ":videobridge_codecs",
         "//emulator/libs/grpc_security",
+        "//emulator/plugin/grpc/services/v2:rtc_service",
         "@abseil-cpp//absl/flags:flag",
         "@abseil-cpp//absl/flags:parse",
         "@abseil-cpp//absl/log",
@@ -595,6 +599,22 @@ cc_test(
 )
 
 cc_test(
+    name = "grpc_input_sender_test",
+    srcs = [
+        "core/grpc_input_sender.h",
+        "core/grpc_input_sender_test.cc",
+    ],
+    copts = WEBRTC_COPTS,
+    includes = ["."],
+    deps = [
+        ":emulator_client",
+        ":videobridge_core",
+        "//emulator/libs/test:googletest_main",
+        "@grpc//:grpc++",
+    ],
+)
+
+cc_test(
     name = "switchboard_test",
     size = "small",
     srcs = ["core/switchboard_test.cc"],
@@ -1012,6 +1032,7 @@ clang_tidy_test(
         ":in_process_video_source_test",
         ":grpc_video_source_test",
         ":grpc_audio_source_test",
+        ":grpc_input_sender_test",
         ":nvenc_loader",
         ":nvenc_loader_test",
         ":nvenc_video_encoder",
