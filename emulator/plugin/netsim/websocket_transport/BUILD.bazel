@@ -1,0 +1,79 @@
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+
+package(default_visibility = ["//visibility:public"])
+
+cc_library(
+    name = "netsim_discovery",
+    srcs = ["netsim_discovery.cc"],
+    hdrs = ["netsim_discovery.h"],
+    deps = [
+        "//emulator/libs/file",
+        "//emulator/libs/ini_file",
+        "//emulator/libs/network",
+        "//emulator/libs/system",
+        "//emulator/plugin/netsim:packet_transport",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/strings:str_format",
+    ],
+)
+
+cc_library(
+    name = "websocket",
+    srcs = ["websocket.cc"],
+    hdrs = ["websocket.h"],
+    deps = [
+        "//emulator/libs/SocketBuffer",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/strings:str_format",
+        "@boringssl//:crypto",
+    ],
+)
+
+cc_library(
+    name = "websocket_transport",
+    srcs = ["websocket_transport.cc"],
+    hdrs = ["websocket_transport.h"],
+    deps = [
+        ":netsim_discovery",
+        ":websocket",
+        "//emulator/libs/async:async_api",
+        "//emulator/libs/async:libuv_sockets",
+        "//emulator/libs/async:uv_to_absl",
+        "//emulator/libs/network",
+        "//emulator/plugin/netsim:packet_transport",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/strings:str_format",
+        "@abseil-cpp//absl/synchronization",
+    ],
+)
+
+cc_test(
+    name = "websocket_transport_test",
+    srcs = ["websocket_transport_test.cc"],
+    deps = [
+        ":netsim_discovery",
+        ":websocket",
+        ":websocket_transport",
+        "//emulator/libs/SocketBuffer",
+        "//emulator/libs/async:async_api",
+        "//emulator/libs/async:async_testing",
+        "//emulator/libs/async:libuv_event_loop",
+        "//emulator/libs/async:threaded_event_loop",
+        "//emulator/libs/file",
+        "//emulator/libs/ini_file",
+        "//emulator/libs/network",
+        "//emulator/libs/system:test-headers",
+        "//emulator/libs/test:googletest_main",
+        "//emulator/plugin/netsim:packet_transport",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/synchronization",
+    ],
+)
