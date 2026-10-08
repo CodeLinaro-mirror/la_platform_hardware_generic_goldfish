@@ -78,7 +78,10 @@ TEST_P(SceneRenderingTest, RenderSceneMode) {
             << "Failed to create scene for mode: " << modeName;
 
     ver_scene_load_user_resources(scene, []() {});
-    ver_scene_update(scene, true);
+
+    // Enforce a static time for deterministic updates
+    ver_scene_set_frame_time_us(scene, 0);
+    ver_scene_update(scene, false);
 
     VerRenderViewHandle view = ver_create_render_view();
     ASSERT_NE(view, (VerRenderViewHandle)VER_INVALID_HANDLE);
