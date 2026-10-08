@@ -494,5 +494,22 @@ TEST(Command, detach_stops_overseer_immediately) {
     EXPECT_LT(end - start, 500ms);
 }
 
+TEST(Command, launch_and_capture_stdout_on_success) {
+    auto res = Command::LaunchAndCapture(SleepExe(),
+                                         {"--sleep", "1ms", "--msg_std_out", "Hello Exec"});
+    ASSERT_TRUE(res.ok()) << res.status();
+    EXPECT_TRUE(absl::StrContains(*res, "Hello Exec")) << *res;
+}
+
+TEST(Command, launch_and_capture_returns_internal_error_on_nonzero_exit) {
+    auto res = Command::LaunchAndCapture(SleepExe(), {"--sleep", "1ms", "--exit", "2"});
+    EXPECT_TRUE(absl::IsInternal(res.status())) << res.status();
+}
+
+TEST(Command, launch_and_capture_returns_deadline_exceeded_on_timeout) {
+    auto res = Command::LaunchAndCapture(SleepExe(), {"--sleep", "10s"}, absl::Milliseconds(50));
+    EXPECT_TRUE(absl::IsDeadlineExceeded(res.status())) << res.status();
+}
+
 }  // namespace base
 }  // namespace android

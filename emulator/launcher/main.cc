@@ -41,6 +41,7 @@
 #include "android/goldfish/avd.h"
 #include "android/goldfish/input_paths.h"
 #include "android/main_help.h"
+#include "android/process/command.h"
 #include "android/status/status_macros.h"
 #include "goldfish/async/libuv_event_loop.h"
 #include "goldfish/async/libuv_process_launcher.h"
@@ -51,7 +52,6 @@
 #include "goldfish/metrics/studio_config.h"
 #include "goldfish/tools/aemu_version.h"
 #include "host_info.h"
-#include "launch_qemu/disk_drive.h"
 #include "launcher.h"
 #include "logging.h"
 #include "trampoline.h"
@@ -207,7 +207,8 @@ void ListSnapshots(const AndroidOptions& opts, const android::goldfish::UserPath
     android::goldfish::Avd::ImageInspector inspector = nullptr;
     if (verbose) {
         inspector = [&qemu_img_binary](const fs::path& p) -> std::string {
-            auto res = android::goldfish::exec_qemu_img(qemu_img_binary, {"info", p.string()});
+            auto res =
+                    android::base::Command::LaunchAndCapture(qemu_img_binary, {"info", p.string()});
             return res.ok() ? *res : "";
         };
     }

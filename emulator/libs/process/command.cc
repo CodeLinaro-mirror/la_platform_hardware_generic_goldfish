@@ -13,18 +13,32 @@
 // limitations under the License.
 #include "android/process/command.h"
 
+#include <chrono>
 #include <climits>
 #include <cstdio>
+#include <filesystem>
 #include <future>
 #include <iterator>
+#include <sstream>
 #include <streambuf>
+#include <string>
+#include <vector>
 
 #include "absl/log/check.h"
 #include "absl/log/log.h"
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
+#include "absl/strings/str_join.h"
+#include "absl/time/time.h"
 
 #include "goldfish/synchronized_stream_buf.h"
 
 namespace android::base {
+namespace {
+namespace fs = std::filesystem;
+}  // namespace
 
 ProcessExitCode Process::ExitCode() const {
     auto status = WaitFor(std::chrono::hours(24 * 365 * 10));
@@ -159,6 +173,45 @@ Command& Command::Inherit() {
 
 Command Command::Create(std::vector<std::string> program_with_args) {
     return Command(std::move(program_with_args));
+}
+
+absl::StatusOr<std::string> Command::LaunchAndCapture(const fs::path& target,
+                                                      const std::vector<std::string>& args,
+                                                      absl::Duration timeout) {
+    const std::string binary = target.string();
+
+    std::vector<std::string> cmd;
+    cmd.reserve(args.size() + 1);
+    cmd.push_back(binary);
+    cmd.insert(cmd.end(), args.begin(), args.end());
+
+    VLOG(1) << "Running: " << absl::StrJoin(cmd, " ");
+
+    std::basic_stringbuf<char> std_out;
+    std::basic_stringbuf<char> std_err;
+    auto proc = Command::Create(cmd)
+                        .RedirectStdoutToUnsafe(&std_out)
+                        .RedirectStderrToUnsafe(&std_err)
+                        .Execute();
+
+    if (!proc || proc->pid() <= 0) {
+        return absl::InternalError(absl::StrCat("Failed to spawn process: ", binary));
+    }
+
+    if (proc->WaitFor(absl::ToChronoMilliseconds(timeout)) == std::future_status::timeout) {
+        proc->Terminate();
+        return absl::DeadlineExceededError(
+                absl::StrFormat("'%s' timed out after %s.", binary, absl::FormatDuration(timeout)));
+    }
+
+    if (proc->ExitCode() != 0) {
+        std::string err_output = proc->Err() ? proc->Err()->AsString() : "";
+        return absl::InternalError(
+                absl::StrCat(binary, " failed with exit code ", proc->ExitCode(),
+                             err_output.empty() ? "" : absl::StrCat(": ", err_output)));
+    }
+
+    return proc->Out() ? proc->Out()->AsString() : "";
 }
 
 std::unique_ptr<ObservableProcess> Command::Execute() {

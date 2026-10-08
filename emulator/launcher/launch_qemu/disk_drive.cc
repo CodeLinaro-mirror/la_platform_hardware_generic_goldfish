@@ -18,14 +18,13 @@
 #include <chrono>
 #include <filesystem>
 #include <fstream>
-#include <future>
 #include <string_view>
 
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
-#include "absl/strings/str_join.h"
+#include "absl/time/time.h"
 
 #include "android/goldfish/avd.h"
 #include "android/goldfish/hardware_config.h"
@@ -71,7 +70,7 @@ bool pathIsQcow2(fs::path path) {
 
 absl::Status convertImgToQcow2(const fs::path& qemu_img_binary, fs::path ext4_image,
                                fs::path qcow2_image) {
-    constexpr auto kQemuImgTimeout = std::chrono::seconds(10);
+    constexpr absl::Duration kQemuImgTimeout = absl::Seconds(10);
 
     if (!base::file::exists(ext4_image)) {
         return absl::NotFoundError(
@@ -80,11 +79,11 @@ absl::Status convertImgToQcow2(const fs::path& qemu_img_binary, fs::path ext4_im
 
     auto startTime = std::chrono::steady_clock::now();
 
-    RETURN_IF_ERROR(
-            exec_qemu_img(qemu_img_binary,
-                          {"convert", "-O", "qcow2", ext4_image.string(), qcow2_image.string()},
-                          kQemuImgTimeout)
-                    .status());
+    RETURN_IF_ERROR(base::Command::LaunchAndCapture(
+                            qemu_img_binary.empty() ? "qemu-img" : qemu_img_binary,
+                            {"convert", "-O", "qcow2", ext4_image.string(), qcow2_image.string()},
+                            kQemuImgTimeout)
+                            .status());
     if (!base::file::exists(qcow2_image)) {
         return absl::NotFoundError(absl::StrCat("The requested qcow2 file has not been created: ",
                                                 qcow2_image.string()));
@@ -103,46 +102,6 @@ absl::Status convertImgToQcow2(const fs::path& qemu_img_binary, fs::path ext4_im
 }
 
 }  // namespace
-
-absl::StatusOr<std::string> exec_qemu_img(const fs::path& qemu_img_binary,
-                                          const std::vector<std::string>& args,
-                                          std::chrono::milliseconds timeout) {
-    std::string binary = qemu_img_binary.empty() ? "qemu-img" : qemu_img_binary.string();
-
-    std::vector<std::string> cmd;
-    cmd.reserve(args.size() + 1);
-    cmd.push_back(binary);
-    cmd.insert(cmd.end(), args.begin(), args.end());
-
-    VLOG(1) << "Running: " << absl::StrJoin(cmd, " ");
-
-    std::basic_stringbuf<char> std_out;
-    std::basic_stringbuf<char> std_err;
-    auto proc = base::Command::Create(cmd)
-                        .RedirectStdoutToUnsafe(&std_out)
-                        .RedirectStderrToUnsafe(&std_err)
-                        .Execute();
-
-    if (!proc || proc->pid() <= 0) {
-        return absl::InternalError(absl::StrCat("Failed to spawn process: ", binary));
-    }
-
-    if (proc->WaitFor(timeout) == std::future_status::timeout) {
-        proc->Terminate();
-        return absl::DeadlineExceededError(
-                absl::StrFormat("'%s' timed out after %d seconds.", binary,
-                                std::chrono::duration_cast<std::chrono::seconds>(timeout).count()));
-    }
-
-    if (proc->ExitCode() != 0) {
-        std::string err_output = proc->Err() ? proc->Err()->AsString() : "";
-        return absl::InternalError(
-                absl::StrCat("qemu-img failed with exit code ", proc->ExitCode(),
-                             err_output.empty() ? "" : absl::StrCat(": ", err_output)));
-    }
-
-    return proc->Out() ? proc->Out()->AsString() : "";
-}
 
 std::vector<std::string> NullDrive::getQemuParameters(const EmulatorConfig& emulator) const {
     const Avd& avd = emulator.avd();
