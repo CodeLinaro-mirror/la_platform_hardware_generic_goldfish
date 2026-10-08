@@ -72,6 +72,7 @@ using devices::cable::SocketPtr;
 constexpr uint32_t kGuestPort = 5555;
 constexpr uint64_t kGuestCid = 3;
 constexpr uint64_t kHostCid = 2;
+constexpr uint32_t kExpectedHostBufAlloc = 1024 * 1024;
 
 struct CapturedPacket {
     struct virtio_vsock_hdr hdr;
@@ -383,6 +384,13 @@ class VsockTest : public ::testing::Test {
     size_t notify_count_ = 0;
     std::vector<CapturedPacket> packets_;
 };
+
+TEST_F(VsockTest, AdvertisesOneMiBHostReceiveCreditWindow) {
+    SocketPtr socket = Connect(kGuestPort, PlugPtr(new RecordingPlug()));
+    ASSERT_FALSE(packets_.empty());
+    EXPECT_EQ(packets_.front().hdr.buf_alloc, kExpectedHostBufAlloc);
+    socket.reset();
+}
 
 TEST_F(VsockTest, IdleStreamsDoNotSendSpuriousCreditRequestsOnActiveStreamSend) {
     // Create an unaccepted stream whose guestBufAlloc is still 0.

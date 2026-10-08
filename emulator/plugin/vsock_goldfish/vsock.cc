@@ -321,7 +321,7 @@ struct GoldfishVirtioVsockDevice {
                                                        const enum virtio_vsock_op op,
                                                        const uint32_t hostFwdCnt,
                                                        const uint32_t len) {
-        constexpr uint32_t kHostBufAllocSize = 64 * 1024;
+        constexpr uint32_t kHostBufAllocSize = 1024 * 1024;
 
         // the rest of fields are set in virtio_vsock_send_packet_host_to_guest
         struct virtio_vsock_hdr hdr = {
