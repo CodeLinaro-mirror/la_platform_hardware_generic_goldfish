@@ -9,6 +9,7 @@ cc_library(
         "//emulator/libs/grpc_client",
         "//emulator/plugin/avd:avd_info",
         "//emulator/plugin/netsim:netsim_connection",
+        "//emulator/plugin/netsim:packet_transport",
         "//emulator/tools:aemu_version",
         "@abseil-cpp//absl/log",
         "@grpc//:grpc++",

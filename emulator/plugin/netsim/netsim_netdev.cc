@@ -44,7 +44,7 @@ size_t iov_to_buf_full(const struct iovec* iov, const unsigned int iov_cnt, size
 
 #undef send
 
-#include "emulator/plugin/netsim/grpc_transport/grpc_transport.h"
+#include "emulator/plugin/netsim/packet_transport.h"
 #include "goldfish/network/generic_netlink_message.h"
 
 #define __packed
@@ -59,7 +59,7 @@ namespace {
 
 struct NetsimNetdev {
     DeviceClass parent_class;
-    ::netsim::common::ChipKind chip_kind;
+    ChipKind chip_kind{ChipKind::kWifi};
 };
 
 #define TYPE_NETSIM_NETDEV "netsim-netdev"
@@ -67,7 +67,7 @@ struct NetsimNetdev {
 #define NETSIM_NETDEV_DEVICE_GET_CLASS(obj) OBJECT_GET_CLASS(NetsimNetdev, obj, TYPE_NETSIM_NETDEV)
 
 struct NetsimState {
-    std::unique_ptr<NetsimTransport> transport;
+    std::unique_ptr<PacketTransport> transport;
     std::unique_ptr<std::vector<uint8_t>> async_tx;
 };
 
@@ -84,7 +84,9 @@ void netsim_netdev_send_completed(NetClientState* nc, ssize_t len) {
     // Clean-up the saved buffer.
     s->netsim->async_tx.reset();
 
-    s->netsim->transport->next_recv();
+    if (s->netsim->transport) {
+        s->netsim->transport->next_recv();
+    }
 }
 
 bool netsim_netdev_send(NetClientState* nc, std::unique_ptr<std::vector<uint8_t>> buf) {
@@ -125,10 +127,8 @@ ssize_t netsim_netdev_receive_iov(NetClientState* nc, const struct iovec* iov, i
         return -1;
     }
 
-    ::netsim::packet::PacketRequest toSend;
-    auto* packet_bytes = toSend.mutable_packet();
-    packet_bytes->resize(total_len);
-    iov_to_buf_full(iov, iovcnt, 0, packet_bytes->data(), total_len);
+    Packet packet(total_len);
+    iov_to_buf_full(iov, iovcnt, 0, packet.data(), total_len);
 
     if (s->is_wifi) {
         // Filter out spurious garbage data from the guest.
@@ -137,15 +137,14 @@ ssize_t netsim_netdev_receive_iov(NetClientState* nc, const struct iovec* iov, i
             // Too small for GenericNetlinkMessage.
             return total_len;
         }
-        const goldfish::network::GenericNetlinkMessage msg(
-                reinterpret_cast<const uint8_t*>(toSend.packet().data()), total_len);
+        const goldfish::network::GenericNetlinkMessage msg(packet.data(), total_len);
         if (msg.genericNetlinkHeader()->cmd != HWSIM_CMD_FRAME) {
             VLOG(1) << "Not sending junk frame";
             return total_len;
         }
-        packet_bytes->resize(msg.dataLen());
+        packet.resize(msg.dataLen());
     }
-    s->netsim->transport->send(std::move(toSend));
+    s->netsim->transport->send(std::move(packet));
 
     // TODO(whollins): Should we try to detect netsimd connection drop and set link down?
 
@@ -202,10 +201,6 @@ void netsim_netdev_realize(DeviceState* dev, Error** errp) {
     VLOG(1) << "Realizing netsim netdev: " << dev->id;
 
     NetsimNetdev* netsim_netdev = NETSIM_NETDEV(dev);
-    if (netsim_netdev->chip_kind == 0) {
-        // Unset so default to wifi.
-        netsim_netdev->chip_kind = ::netsim::common::ChipKind::WIFI;
-    }
 
     NetClientState* nc;
     nc = qemu_find_netdev(dev->id);
@@ -221,26 +216,25 @@ void netsim_netdev_realize(DeviceState* dev, Error** errp) {
     auto* s = reinterpret_cast<NetsimNicState*>(nc);
 
     s->netsim = new NetsimState;
-    s->netsim->transport =
-            std::make_unique<NetsimTransport>([nc](::netsim::packet::PacketResponse* packet) {
-                if (packet->has_packet()) {
-                    bql_lock();
-                    bool delivered = netsim_netdev_send(nc, ToUniqueVec(packet->mutable_packet()));
-                    bql_unlock();
-                    return delivered;
-                } else {
-                    LOG(WARNING) << "Unexpected packet " << packet->DebugString();
-                    // Try to receive next packet immediately.
-                    return true;
-                }
-            });
-    s->is_wifi = netsim_netdev->chip_kind == ::netsim::common::ChipKind::WIFI;
+    s->netsim->transport = CreatePacketTransport([nc](Packet& packet) {
+        bql_lock();
+        auto vec = std::make_unique<std::vector<uint8_t>>(std::move(packet));
+        bool delivered = netsim_netdev_send(nc, std::move(vec));
+        bql_unlock();
+        return delivered;
+    });
+    s->is_wifi = netsim_netdev->chip_kind == ChipKind::kWifi;
 
-    ::netsim::startup::Chip chip;
-    chip.set_kind(netsim_netdev->chip_kind);
-    if (auto status = s->netsim->transport->initialize(std::move(chip)); !status.ok()) {
+    ChipConfig chip{
+        .kind = netsim_netdev->chip_kind,
+    };
+    if (auto status = s->netsim->transport->initialize(chip); !status.ok()) {
         error_setg(errp, "failed to initialize netsim transport %s: %s", dev->id,
                    status.ToString().c_str());
+        reset_transport(s->netsim);
+        delete s->netsim;
+        s->netsim = nullptr;
+        qemu_del_net_client(nc);
         return;
     }
 }
@@ -266,11 +260,11 @@ void netsim_netdev_set_mode(Object* obj, Visitor* v, const char* name, void* opa
     VLOG(1) << "netsim-netdev: mode = " << mode;
     std::string s_mode(mode);
     if (s_mode == "wifi") {
-        netdev->chip_kind = ::netsim::common::ChipKind::WIFI;
+        netdev->chip_kind = ChipKind::kWifi;
     } else if (s_mode == "ethernet") {
-        netdev->chip_kind = ::netsim::common::ChipKind::ETHERNET;
+        netdev->chip_kind = ChipKind::kEthernet;
     } else if (s_mode == "cellular") {
-        netdev->chip_kind = ::netsim::common::ChipKind::CELLULAR_DATA;
+        netdev->chip_kind = ChipKind::kCellularData;
     }
 }
 

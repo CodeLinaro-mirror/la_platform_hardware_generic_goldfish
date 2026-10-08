@@ -1,4 +1,4 @@
-load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 
 cc_library(
     name = "netsim_connection",
@@ -35,6 +35,7 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
+        ":packet_transport",
         "//emulator/libs/network:generic_netlink_message",
         "//emulator/plugin/netsim/grpc_transport",
         "@abseil-cpp//absl/log",
@@ -53,11 +54,31 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
+        ":packet_transport",
         "//emulator/libs/QEMUBH",
         "//emulator/libs/file",
         "//emulator/plugin/avd:avd_info",
         "//emulator/plugin/netsim/grpc_transport",
         "@abseil-cpp//absl/log",
         "@qemu//:qemu-headers-exported",
+    ],
+)
+
+cc_library(
+    name = "packet_transport",
+    hdrs = ["packet_transport.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "@abseil-cpp//absl/status",
+    ],
+)
+
+cc_test(
+    name = "packet_transport_test",
+    srcs = ["packet_transport_test.cc"],
+    deps = [
+        ":packet_transport",
+        "//emulator/libs/test:googletest_main",
+        "@abseil-cpp//absl/status",
     ],
 )

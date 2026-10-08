@@ -19,6 +19,7 @@
 
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "absl/log/log.h"
@@ -30,17 +31,37 @@
 #include "emulator/plugin/netsim/netsim_connection_internal.h"
 #include "goldfish/avd/avd_info.h"
 #include "goldfish/tools/aemu_version.h"
+#include "netsim/common.pb.h"
 #include "netsim/packet_streamer.grpc.pb.h"
 #include "netsim/packet_streamer.pb.h"
 
 namespace goldfish::netsim {
+namespace {
 
-std::unique_ptr<std::vector<uint8_t>> ToUniqueVec(std::string* bytes_field) {
-    return std::make_unique<std::vector<uint8_t>>(std::make_move_iterator(bytes_field->begin()),
-                                                  std::make_move_iterator(bytes_field->end()));
+::netsim::common::ChipKind ToProto(ChipKind kind) {
+    switch (kind) {
+    case ChipKind::kBluetooth:
+        return ::netsim::common::BLUETOOTH;
+    case ChipKind::kWifi:
+        return ::netsim::common::WIFI;
+    case ChipKind::kUwb:
+        return ::netsim::common::UWB;
+    case ChipKind::kNfc:
+        return ::netsim::common::NFC;
+    case ChipKind::kCellular:
+        return ::netsim::common::CELLULAR;
+    case ChipKind::kCellularData:
+        return ::netsim::common::CELLULAR_DATA;
+    case ChipKind::kEthernet:
+        return ::netsim::common::ETHERNET;
+    }
+    return ::netsim::common::UNSPECIFIED;
 }
 
-NetsimTransport::NetsimTransport(RecvCallback recv_cb) : mRecvCb(std::move(recv_cb)) {}
+}  // namespace
+
+NetsimTransport::NetsimTransport(PacketTransport::RecvCallback recv_cb)
+        : mRecvCb(std::move(recv_cb)) {}
 
 NetsimTransport::~NetsimTransport() {
     cancel();
@@ -48,6 +69,9 @@ NetsimTransport::~NetsimTransport() {
 }
 
 void NetsimTransport::cancel() {
+    if (mDone.HasBeenNotified()) {
+        return;
+    }
     if (mStreamPacketsContext) {
         mStreamPacketsContext->TryCancel();
     } else {
@@ -56,8 +80,22 @@ void NetsimTransport::cancel() {
     }
 }
 
-absl::Status NetsimTransport::initialize(::netsim::startup::Chip chip) {
-    mKindName = ::netsim::common::ChipKind_Name(chip.kind());
+absl::Status NetsimTransport::initialize(const ChipConfig& chip_config) {
+    mKind = chip_config.kind;
+    ::netsim::common::ChipKind proto_kind = ToProto(chip_config.kind);
+    mKindName = ::netsim::common::ChipKind_Name(proto_kind);
+
+    ::netsim::startup::Chip chip;
+    chip.set_kind(proto_kind);
+    chip.set_id(chip_config.id);
+    chip.set_manufacturer(chip_config.manufacturer);
+    chip.set_product_name(chip_config.product_name);
+    chip.set_address(chip_config.address);
+    if (chip_config.sim_profile) {
+        chip.set_sim_profile(*chip_config.sim_profile);
+    }
+    chip.set_loopback(chip_config.loopback);
+
     auto& avdprops = goldfish::avd::GetAvd().Props();
 
     ::netsim::packet::PacketRequest initial_request;
@@ -82,14 +120,14 @@ absl::Status NetsimTransport::initialize(::netsim::startup::Chip chip) {
     ASSIGN_OR_RETURN(mStreamPacketsContext, grpc_client->NewContext());
     mPacketStreamerStub->async()->StreamPackets(mStreamPacketsContext.get(), this);
     StartCall();
-    send(initial_request);
+    send_proto(std::move(initial_request));
     next_recv();
 
     LOG(INFO) << "Netsim Transport: " << mKindName << " - successfully initialized";
     return absl::OkStatus();
 }
 
-void NetsimTransport::send(::netsim::packet::PacketRequest msg) {
+void NetsimTransport::send_proto(::netsim::packet::PacketRequest msg) {
     std::lock_guard<std::mutex> lock(mWritelock);
     if (mWriteDone) {
         // Can't send anymore
@@ -100,9 +138,22 @@ void NetsimTransport::send(::netsim::packet::PacketRequest msg) {
     NextWrite_locked();
 }
 
+void NetsimTransport::send(Packet packet) {
+    if (packet.empty()) return;
+    ::netsim::packet::PacketRequest request;
+    if (mKind == ChipKind::kBluetooth) {
+        auto* hci = request.mutable_hci_packet();
+        hci->set_packet_type(static_cast<::netsim::packet::HCIPacket::PacketType>(packet[0]));
+        hci->set_packet(packet.data() + 1, packet.size() - 1);
+    } else {
+        request.set_packet(packet.data(), packet.size());
+    }
+    send_proto(std::move(request));
+}
+
 void NetsimTransport::OnWriteDone(bool ok) {
+    std::lock_guard<std::mutex> lock(mWritelock);
     if (ok) {
-        std::lock_guard<std::mutex> lock(mWritelock);
         mWriteQueue.pop();
         mWriting = false;
 
@@ -131,12 +182,33 @@ void NetsimTransport::next_recv() {
 
 void NetsimTransport::OnReadDone(bool ok) {
     if (ok) {
+        Packet packet;
+        bool valid = false;
         {
             std::lock_guard<std::mutex> lock(mReadlock);
+            if (mKind == ChipKind::kBluetooth && mReadBuffer.has_hci_packet()) {
+                packet.reserve(1 + mReadBuffer.hci_packet().packet().size());
+                packet.push_back(static_cast<uint8_t>(mReadBuffer.hci_packet().packet_type()));
+                packet.insert(packet.end(), mReadBuffer.hci_packet().packet().begin(),
+                              mReadBuffer.hci_packet().packet().end());
+                valid = true;
+            } else if (mReadBuffer.has_packet()) {
+                packet.assign(mReadBuffer.packet().begin(), mReadBuffer.packet().end());
+                valid = true;
+            } else {
+                LOG(WARNING) << "Unexpected packet " << mReadBuffer.DebugString();
+            }
             mReading = false;
         }
-        if (mRecvCb(&mReadBuffer)) {
-            next_recv();
+
+        bool continue_read = !valid || mRecvCb(packet);
+
+        if (continue_read) {
+            std::lock_guard<std::mutex> lock(mReadlock);
+            if (!mReadDone && !mReading) {
+                mReading = true;
+                StartRead(&mReadBuffer);
+            }
         }
     } else {
         // Reading finished
@@ -156,6 +228,10 @@ void NetsimTransport::OnDone(const grpc::Status& s) {
                      << mStreamPacketsContext->peer() << " is gone due to " << s.error_message();
     }
     mDone.Notify();
+}
+
+std::unique_ptr<PacketTransport> CreatePacketTransport(PacketTransport::RecvCallback recv_cb) {
+    return std::make_unique<NetsimTransport>(std::move(recv_cb));
 }
 
 }  // namespace goldfish::netsim
