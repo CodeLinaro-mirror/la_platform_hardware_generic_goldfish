@@ -244,6 +244,7 @@ cc_test(
 
 cc_binary_with_manifest(
     name = "crash-me",
+    testonly = True,
     srcs = ["main_test_crasher.cc"],
     data = ["@crashpad//handler:crashpad_handler"],
     linkopts = select({
