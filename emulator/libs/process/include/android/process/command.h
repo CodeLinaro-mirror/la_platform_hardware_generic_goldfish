@@ -14,12 +14,16 @@
 #pragma once
 
 #include <cstdio>
+#include <filesystem>
 #include <functional>
 #include <memory>
 #include <streambuf>
 #include <string>
 #include <utility>
 #include <vector>
+
+#include "absl/status/statusor.h"
+#include "absl/time/time.h"
 
 #include "android/process/process.h"
 
@@ -118,6 +122,18 @@ class Command {
      * @return A Command object representing the command to execute.
      */
     static Command Create(CommandArguments program_with_args);
+
+    /**
+     * @brief Executes a target binary with arguments and returns its stdout output.
+     *
+     * @param target The path to the executable to run.
+     * @param args The arguments to pass to the executable.
+     * @param timeout The maximum time to wait for the process to complete.
+     * @return The captured stdout on success, or an error status on failure or timeout.
+     */
+    static absl::StatusOr<std::string> LaunchAndCapture(const std::filesystem::path& target,
+                                                        const std::vector<std::string>& args,
+                                                        absl::Duration timeout = absl::Seconds(10));
 
     /**
      * @brief Sets a custom ProcessFactory for testing.
