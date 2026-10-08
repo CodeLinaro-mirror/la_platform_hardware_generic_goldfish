@@ -16,10 +16,11 @@
 #include <grpcpp/grpcpp.h>
 #include <gtest/gtest.h>
 
-#include <chrono>
 #include <memory>
-#include <thread>
 #include <vector>
+
+#include "absl/time/clock.h"
+#include "absl/time/time.h"
 
 #include "android/goldfish/fake_hardware_config.h"
 #include "sensor_service.grpc.pb.h"
@@ -52,17 +53,28 @@ class SensorServiceIncubatingTest : public ::testing::Test {
     }
 
     void TearDown() override {
-        auto deadline = std::chrono::system_clock::now() + std::chrono::milliseconds(100);
-        mServer->Shutdown(deadline);
+        const absl::Time deadline = absl::Now() + absl::Milliseconds(100);
+        mServer->Shutdown(absl::ToChronoTime(deadline));
         mServer->Wait();
     }
 
     std::unique_ptr<grpc::ClientContext> getContextWithTimeout(
-            std::chrono::milliseconds timeout = std::chrono::seconds(5)) {
+            absl::Duration timeout = absl::Seconds(5)) {
         auto context = std::make_unique<grpc::ClientContext>();
-        std::chrono::system_clock::time_point deadline = std::chrono::system_clock::now() + timeout;
-        context->set_deadline(deadline);
+        const absl::Time deadline = absl::Now() + timeout;
+        context->set_deadline(absl::ToChronoTime(deadline));
         return context;
+    }
+
+    bool waitForSubscription(absl::Duration timeout = absl::Seconds(5)) const {
+        const absl::Time deadline = absl::Now() + timeout;
+        while (mPhysicalModel->CallbackCount() == 0) {
+            if (absl::Now() >= deadline) {
+                return false;
+            }
+            absl::SleepFor(absl::Milliseconds(10));
+        }
+        return true;
     }
 
     android::goldfish::HardwareConfig mHw;
@@ -79,8 +91,7 @@ TEST_F(SensorServiceIncubatingTest, ReceivePhysicalStateEvents) {
     Empty request;
     auto reader = mStub->receivePhysicalStateEvents(context.get(), request);
 
-    // Give it a bit of time to settle the connection.
-    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    ASSERT_TRUE(waitForSubscription()) << "Timed out waiting for server stream subscription";
 
     // Triggering target state change
     float val = 1.0f;
@@ -97,6 +108,7 @@ TEST_F(SensorServiceIncubatingTest, ReceivePhysicalStateEvents) {
 
     // Clean up
     context->TryCancel();
+    (void)reader->Finish();
 }
 
 TEST_F(SensorServiceIncubatingTest, SetGetPhysicalModel) {
@@ -141,8 +153,7 @@ TEST_F(SensorServiceIncubatingTest, ReceivePhysicalModelEvents) {
 
     auto reader = mStub->receivePhysicalModelEvents(context.get(), request);
 
-    // Give it a bit of time to settle the connection.
-    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    ASSERT_TRUE(waitForSubscription()) << "Timed out waiting for server stream subscription";
 
     // Triggering target state change
     float val[3] = {1.0f, 2.0f, 3.0f};
@@ -160,6 +171,7 @@ TEST_F(SensorServiceIncubatingTest, ReceivePhysicalModelEvents) {
 
     // Clean up
     context->TryCancel();
+    (void)reader->Finish();
 }
 
 }  // namespace incubating
