@@ -21,26 +21,8 @@ using namespace std::literals;
 using namespace goldfish::devices::camera;
 
 TEST(getGuestEmulatedCameraProperty, simple) {
-    EXPECT_EQ(getGuestEmulatedCameraProperty(CameraImageSource::EMULATED,
-                                             CameraImageSource::EMULATED),
-              "both"s);
-
-    EXPECT_EQ(getGuestEmulatedCameraProperty(CameraImageSource::EMULATED,
-                                             CameraImageSource::VIRTUALSCENE),
-              "front"s);
-    EXPECT_EQ(getGuestEmulatedCameraProperty(CameraImageSource::EMULATED, CameraImageSource::NONE),
-              "front"s);
-
-    EXPECT_EQ(getGuestEmulatedCameraProperty(CameraImageSource::VIRTUALSCENE,
-                                             CameraImageSource::EMULATED),
-              "back"s);
-    EXPECT_EQ(getGuestEmulatedCameraProperty(CameraImageSource::NONE, CameraImageSource::EMULATED),
-              "back"s);
-
-    EXPECT_EQ(getGuestEmulatedCameraProperty(CameraImageSource::VIRTUALSCENE,
-                                             CameraImageSource::NONE),
-              "none"s);
-    EXPECT_EQ(getGuestEmulatedCameraProperty(CameraImageSource::NONE,
-                                             CameraImageSource::VIRTUALSCENE),
-              "none"s);
+    EXPECT_EQ(getGuestEmulatedCameraProperty(true, true), "both"s);
+    EXPECT_EQ(getGuestEmulatedCameraProperty(true, false), "front"s);
+    EXPECT_EQ(getGuestEmulatedCameraProperty(false, true), "back"s);
+    EXPECT_EQ(getGuestEmulatedCameraProperty(false, false), "none"s);
 }

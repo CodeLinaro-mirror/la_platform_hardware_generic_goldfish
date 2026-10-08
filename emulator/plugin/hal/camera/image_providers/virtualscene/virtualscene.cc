@@ -57,16 +57,14 @@ bool getImageProviderInfo(CameraImageProviderInfo* dst, const bool isBackFacing,
     static const CameraImageProviderInfoVtbl vtbl = {
         .create = &ImageProviderCppAdapter<VirtualsceneImageProvider>::create,
         .createArgDctor =
-                [](void* arg) {
-                    delete static_cast<VirtualsceneImageProvider::CreateArgs*>(arg);
-                },
+                [](void* arg) { delete static_cast<VirtualsceneImageProvider::CreateArgs*>(arg); },
     };
 
     *dst = (CameraImageProviderInfo){
         .vtbl = &vtbl,
         .supportedFrameSizes = supportedFrameSizes,
-        .createArg = new VirtualsceneImageProvider::CreateArgs{std::move(sceneConfig),
-                                                               physicalModel},
+        .createArg =
+                new VirtualsceneImageProvider::CreateArgs{std::move(sceneConfig), physicalModel},
         .supportedFrameSizesNum = sizeof(supportedFrameSizes) / sizeof(supportedFrameSizes[0]),
         .isBackFacing = static_cast<uint8_t>(isBackFacing),
         .needFreeSupportedSizes = 0,

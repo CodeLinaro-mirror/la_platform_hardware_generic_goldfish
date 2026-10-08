@@ -19,15 +19,15 @@ using namespace std::literals;
 
 namespace goldfish::devices::camera {
 
-std::string getGuestEmulatedCameraProperty(const CameraImageSource front,
-                                           const CameraImageSource back) {
-    if (front == CameraImageSource::EMULATED) {
-        if (back == CameraImageSource::EMULATED) {
+std::string getGuestEmulatedCameraProperty(const bool frontCameraEmulated,
+                                           const bool backCameraEmulated) {
+    if (frontCameraEmulated) {
+        if (backCameraEmulated) {
             return "both"s;
         } else {
             return "front"s;
         }
-    } else if (back == CameraImageSource::EMULATED) {
+    } else if (backCameraEmulated) {
         return "back"s;
     } else {
         return "none"s;

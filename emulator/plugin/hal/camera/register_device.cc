@@ -15,6 +15,8 @@
 
 #include "goldfish/devices/camera/register_device.h"
 
+#include <cstdlib>
+#include <filesystem>
 #include <memory>
 #include <optional>
 #include <string>
@@ -28,11 +30,11 @@
 #include "goldfish/devices/camera/camera_device.h"
 #include "goldfish/devices/camera/camera_device_enumerator.h"
 #include "goldfish/devices/camera/camera_image_provider_registry.h"
-#include "goldfish/devices/camera/camera_image_source.h"
 #include "goldfish/devices/camera/get_guest_emulated_camera_property.h"
 #include "goldfish/parsing/from_chars.h"
 #include "goldfish/parsing/get_key_value_str.h"
 #include "goldfish/parsing/split2.h"
+#include "ver/virtual_environment_renderer.h"
 
 namespace goldfish::devices::camera {
 using namespace std::literals;
@@ -45,43 +47,36 @@ using goldfish::parsing::GetKeyValueStr;
 using goldfish::parsing::Split2;
 
 namespace {
-bool addImageProviderInfo(CameraImageProviderRegistry& dst, const CameraImageSource source,
-                          const std::string_view id, const std::string_view params,
-                          const bool isBackFacing, const sensors::PhysicalModel* physicalModel) {
+bool addImageProviderInfo(CameraImageProviderRegistry& dst, const std::string_view id,
+                          const std::string_view params, const bool isBackFacing,
+                          const sensors::PhysicalModel* physicalModel) {
     namespace cip = goldfish::camera_image_providers;
 
-    VerSceneConfig sceneConfig;
-
-    switch (source) {
-    case CameraImageSource::NONE:
-    case CameraImageSource::EMULATED:
+    if (id.empty() || (id == "none"sv) || (id == "emulated"sv)) {
         return true;
+    }
 
-    case CameraImageSource::WEBCAM:
-        //                                    skip "webcam" in `id`
-        sceneConfig = VerSceneConfig(VerSceneConfig::Mode::Webcam,
-                                     std::string(params.empty() ? id.substr(6) : params));
-        break;
+    VerSceneConfig::Mode sceneMode = VerSceneConfig::Mode::Unknown;
+    std::string_view sceneArgument = params;
 
-    case CameraImageSource::VIRTUALSCENE:
-        sceneConfig = VerSceneConfig(VerSceneConfig::Mode::Mesh3D, std::string(params));
-        break;
+    if (id.starts_with("webcam"sv)) {
+        sceneMode = VerSceneConfig::Mode::Webcam;
+        if (sceneArgument.empty()) {
+            sceneArgument = id.substr(6);  // skip "webcam" in `id`
+        }
+    } else {
+        sceneMode = VerSceneConfig::modeFromString(id);
+    }
 
-    case CameraImageSource::VIDEOFILE:
-        sceneConfig = VerSceneConfig(VerSceneConfig::Mode::VideoFile, std::string(params));
-        break;
-
-    case CameraImageSource::IMAGEFILE:
-        sceneConfig = VerSceneConfig(VerSceneConfig::Mode::ImageFile, std::string(params));
-        break;
-
-    default:
+    if (sceneMode == VerSceneConfig::Mode::Unknown) {
+        VLOG(1) << "Cam image id '" << id << "' is unknown.";
         return false;
     }
 
+    const VerSceneConfig sceneConfig(sceneMode, sceneArgument);
+
     CameraImageProviderInfo info;
-    if (!cip::virtualscene::getImageProviderInfo(&info, isBackFacing, physicalModel,
-                                                 std::move(sceneConfig))) {
+    if (!cip::virtualscene::getImageProviderInfo(&info, isBackFacing, physicalModel, sceneConfig)) {
         return false;
     }
 
@@ -138,25 +133,31 @@ err:
 void RegisterDevice(const sensors::PhysicalModel* physicalModel, IConnectorRegistry* registry,
                     std::string* emulatedCameraProp, const android::goldfish::HardwareConfig& hw,
                     GrallocProvider grallocProvider) {
+    if (const char* launcherDir = std::getenv("ANDROID_EMULATOR_LAUNCHER_DIR");
+        launcherDir && launcherDir[0] != '\0') {
+        const std::filesystem::path baseDir(launcherDir);
+        ver_initialize({baseDir}, baseDir / "lib64" / "vulkan");
+    }
+
     const auto [frontCameraId, frontCameraParams] = Split2(hw.hw_camera_front, ':');
-    CameraImageSource frontCameraSource = getCameraImageSourceFromName(frontCameraId);
+    bool frontCameraEmulated = (frontCameraId == "emulated"sv);
 
     const auto [backCameraId, backCameraParams] = Split2(hw.hw_camera_back, ':');
-    CameraImageSource backCameraSource = getCameraImageSourceFromName(backCameraId);
+    bool backCameraEmulated = (backCameraId == "emulated"sv);
 
     auto imageProvidersRegistry = std::make_shared<CameraImageProviderRegistry>();
 
-    if (!addImageProviderInfo(*imageProvidersRegistry, frontCameraSource, frontCameraId,
-                              frontCameraParams, false, physicalModel)) {
-        frontCameraSource = CameraImageSource::EMULATED;
+    if (!addImageProviderInfo(*imageProvidersRegistry, frontCameraId, frontCameraParams, false,
+                              physicalModel)) {
+        frontCameraEmulated = true;
     }
 
-    if (!addImageProviderInfo(*imageProvidersRegistry, backCameraSource, backCameraId,
-                              backCameraParams, true, physicalModel)) {
-        backCameraSource = CameraImageSource::EMULATED;
+    if (!addImageProviderInfo(*imageProvidersRegistry, backCameraId, backCameraParams, true,
+                              physicalModel)) {
+        backCameraEmulated = true;
     }
 
-    *emulatedCameraProp = getGuestEmulatedCameraProperty(frontCameraSource, backCameraSource);
+    *emulatedCameraProp = getGuestEmulatedCameraProperty(frontCameraEmulated, backCameraEmulated);
 
     registry->RegisterQemuDevice(std::string(CameraDeviceBase::kServiceName),
                                  [imageProvidersRegistry = std::move(imageProvidersRegistry),
