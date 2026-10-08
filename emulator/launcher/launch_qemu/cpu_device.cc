@@ -156,4 +156,11 @@ std::vector<std::string> CpuDevice::getQemuParameters(const EmulatorConfig& emul
     };
 }
 
+absl::flat_hash_map<std::string, std::string> CpuDevice::getQemuEnv(
+        const EmulatorConfig& /*emulator*/) const {
+    // TODO: Pass through KVM_DEVICE_NAME if custom KVM device paths need to be
+    // supported in QEMU.
+    return {};
+}
+
 }  // namespace android::goldfish

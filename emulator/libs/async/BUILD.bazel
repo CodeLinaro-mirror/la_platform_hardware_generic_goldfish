@@ -291,6 +291,9 @@ cc_library(
     hdrs = ["include/goldfish/async/launch_config.h"],
     includes = ["include"],
     visibility = ["//visibility:public"],
+    deps = [
+        "@abseil-cpp//absl/container:flat_hash_map",
+    ],
 )
 
 cc_library(
@@ -307,6 +310,7 @@ cc_library(
         "//emulator/libs/system:fd_util",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
         "@libuv",
     ],
 )

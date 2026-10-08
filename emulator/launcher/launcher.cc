@@ -52,6 +52,7 @@
 #include "launch_fishtank.h"
 #include "launch_netsimd.h"
 #include "launch_qemu/emulator_config.h"
+#include "launch_qemu/gpu_device.h"
 #include "launch_qemu/launch_qemu.h"
 #include "launch_qemu/snapshot_device.h"
 #include "legacy_console_controller.h"
@@ -408,7 +409,7 @@ class Launcher {
                 s.ok()) {
                 emulator_process_ = *std::move(s);
                 LOG(INFO) << "Running emulator as pid: " << emulator_process_->GetPid();
-                report_host_info_metrics();
+                report_host_info_metrics(emulator);
                 report_quickboot_metrics(emulator);
             } else {
                 fail_startup(
@@ -430,14 +431,19 @@ class Launcher {
         }
     }
 
-    void report_host_info_metrics() {
-        config_.metrics_reporter->Report([this](android_studio::AndroidStudioEvent& event) {
-            android::goldfish::FillEmulatorHostEvent(
-                    event, *config_.avd,
-                    /*launcher_pid=*/android::base::System::GetCurrentProcessPid(),
-                    /*qemu_pid=*/emulator_process_->GetPid(), config_.opts.metrics_collection,
-                    config_.opts.fuchsia);
-        });
+    void report_host_info_metrics(const LaunchQemu& emulator) {
+        std::string vk_icd;
+        if (const auto* gpu = emulator.get<GpuDevice>("gpu0")) {
+            vk_icd = gpu->getVulkanIcd();
+        }
+        config_.metrics_reporter->Report(
+                [this, vk_icd = std::move(vk_icd)](android_studio::AndroidStudioEvent& event) {
+                    android::goldfish::FillEmulatorHostEvent(
+                            event, *config_.avd,
+                            /*launcher_pid=*/android::base::System::GetCurrentProcessPid(),
+                            /*qemu_pid=*/emulator_process_->GetPid(),
+                            config_.opts.metrics_collection, config_.opts.fuchsia, vk_icd);
+                });
     }
 
     void shutdown() {

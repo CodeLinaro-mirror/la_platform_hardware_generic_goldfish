@@ -1,4 +1,3 @@
-#include "absl/strings/str_format.h"
 #include "network_device.h"
 
 #include <string_view>
@@ -31,6 +30,24 @@ NetworkDevice::NetworkDevice(std::string id, std::string addr, bool cellular, bo
         , mac_address_(generate_random_mac()) {}
 
 absl::Status NetworkDevice::initialize(const EmulatorConfig& emulator) {
+    if (netsim_backend_) {
+        return absl::OkStatus();
+    }
+    const auto& opts = emulator.opts();
+    host_dns_ = opts.dns_server ? opts.dns_server : "";
+    if (host_dns_.empty()) {
+        if (auto al = ::goldfish::network::GetSystemDnsServers(); al.ok()) {
+            host_dns_ = absl::StrJoin(*al, ",", [](std::string* out, const auto& ip) {
+                absl::StrAppend(out, ::goldfish::network::ToString(ip));
+            });
+        } else {
+            LOG(WARNING) << "Failed to retrieve the system DNS servers due to: " << al.status();
+            LOG(WARNING) << "slirp networking will run with reduced functionality.";
+        }
+    }
+    if (!host_dns_.empty()) {
+        VLOG(1) << "Slirp DNS set to: " << host_dns_;
+    }
     return absl::OkStatus();
 }
 
@@ -58,22 +75,6 @@ std::vector<std::string> NetworkDevice::getQemuParameters(const EmulatorConfig& 
         ret.emplace_back(absl::StrCat("netsim-netdev,id=", id(),
                                       ",mode=", cellular_ ? "cellular" : "ethernet"));
     } else {
-        const auto& opts = emulator.opts();
-        std::string host_dns = opts.dns_server ? opts.dns_server : "";
-        if (host_dns.empty()) {
-            if (auto al = ::goldfish::network::GetSystemDnsServers(); al.ok()) {
-                host_dns = absl::StrJoin(*al, ",", [](std::string* out, const auto& ip) {
-                    absl::StrAppend(out, ::goldfish::network::ToString(ip));
-                });
-            } else {
-                LOG(WARNING) << "Failed to retrieve the system DNS servers due to: " << al.status();
-                LOG(WARNING) << "slirp networking will run with reduced functionality.";
-            }
-        }
-        if (!host_dns.empty()) {
-            VLOG(1) << "Slirp DNS set to: " << host_dns;
-            android::base::System::SetEnvironmentVariable("SLIRP_DNS_SERVERS", host_dns);
-        }
         ret.emplace_back("-netdev");
         ret.emplace_back(absl::StrCat("user,id=", id()));
     }
@@ -86,6 +87,14 @@ std::vector<std::string> NetworkDevice::getQemuParameters(const EmulatorConfig& 
     // ret.emplace_back(absl::StrCat("filter-dump,id=f1,netdev=", id(), ",file=/tmp/netdump.dat"));
 
     return ret;
+}
+
+absl::flat_hash_map<std::string, std::string> NetworkDevice::getQemuEnv(
+        const EmulatorConfig& /*emulator*/) const {
+    if (!netsim_backend_ && !host_dns_.empty()) {
+        return {{"SLIRP_DNS_SERVERS", host_dns_}};
+    }
+    return {};
 }
 
 }  // namespace android::goldfish

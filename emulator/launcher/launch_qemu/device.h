@@ -18,6 +18,7 @@
 #include <string>
 #include <vector>
 
+#include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 
 #include "emulator_config.h"
@@ -41,7 +42,19 @@ class Device {
      * @param emulator Pointer to the parent Emulator.
      * @return A vector of QEMU parameter strings.
      */
-    virtual std::vector<std::string> getQemuParameters(const EmulatorConfig& emulator) const = 0;
+    virtual std::vector<std::string> getQemuParameters(const EmulatorConfig& emulator) const {
+        return {};
+    }
+
+    /**
+     * @brief Returns QEMU environment variables for configuring this device.
+     * @param emulator Reference to the parent EmulatorConfig.
+     * @return A map of environment variable key-value pairs.
+     */
+    virtual absl::flat_hash_map<std::string, std::string> getQemuEnv(
+            const EmulatorConfig& emulator) const {
+        return {};
+    }
 
     /**
      * @brief Prepares the device for emulation.

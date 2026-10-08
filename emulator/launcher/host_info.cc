@@ -271,8 +271,7 @@ void FillFeatureFlagState(android_studio::EmulatorFeatureFlagState& feature_flag
     // TODO
 }
 
-android_studio::EmulatorDetails::VulkanIcd GetVulkanIcd() {
-    std::string vk_icd = android::base::System::Get()->EnvGet("ANDROID_EMU_VK_ICD");
+android_studio::EmulatorDetails::VulkanIcd GetVulkanIcd(std::string_view vk_icd) {
     if (vk_icd == "") {  // Use hardware when vk_icd is null
         return android_studio::EmulatorDetails::HOST_DEFAULT_VK;
     } else if (vk_icd == "swiftshader") {
@@ -289,7 +288,8 @@ android_studio::EmulatorDetails::VulkanIcd GetVulkanIcd() {
 }
 
 void FillDetails(android_studio::EmulatorDetails& details, const Avd& avd, long launcher_pid,
-                 long qemu_pid, bool metrics_collection_opt, bool fuchsia_opt, bool openglAlive) {
+                 long qemu_pid, bool metrics_collection_opt, bool fuchsia_opt, bool openglAlive,
+                 std::string_view vk_icd) {
     FillAvdInfo(*details.mutable_avd_info(), avd);
     FillFeatureFlagState(*details.mutable_feature_flag_state());
 
@@ -315,8 +315,7 @@ void FillDetails(android_studio::EmulatorDetails& details, const Avd& avd, long 
         }
     }*/
 
-    // Must be called after launch_qemu has setup environment.
-    details.set_vulkan_icd(GetVulkanIcd());
+    details.set_vulkan_icd(GetVulkanIcd(vk_icd));
 
     // TODO Set available GPU info.
     /*for (const GpuInfo& gpu : globalGpuInfoList().infos) {
@@ -350,7 +349,7 @@ void FillDetails(android_studio::EmulatorDetails& details, const Avd& avd, long 
 
 void FillEmulatorHostEvent(android_studio::AndroidStudioEvent& event, const Avd& avd,
                            long launcher_pid, long qemu_pid, bool metrics_collection_opt,
-                           bool fuchsia_opt) {
+                           bool fuchsia_opt, std::string_view vk_icd) {
     event.set_kind(android_studio::AndroidStudioEvent::EMULATOR_HOST);
 
     auto& product = *event.mutable_product_details();
@@ -365,7 +364,7 @@ void FillEmulatorHostEvent(android_studio::AndroidStudioEvent& event, const Avd&
 
     FillHost(*event.mutable_emulator_host());
     FillDetails(*event.mutable_emulator_details(), avd, launcher_pid, qemu_pid,
-                metrics_collection_opt, fuchsia_opt, false);
+                metrics_collection_opt, fuchsia_opt, false, vk_icd);
 }
 
 }  // namespace android::goldfish

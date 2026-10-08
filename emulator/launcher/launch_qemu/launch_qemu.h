@@ -117,11 +117,10 @@ class LaunchQemu {
   private:
     absl::Status addDevices();
 
-    // Constructs the qemu command line.
+    // Constructs the qemu command line and environment.
     std::string qemu_exe_path() const;
     std::vector<std::string> getCmdline() const;
-
-    void setupGpuVariables();
+    absl::flat_hash_map<std::string, std::string> getEnv() const;
 
     const EmulatorConfig config_;
 
