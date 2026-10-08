@@ -1,5 +1,6 @@
 #include "goldfish/async/async_socket.h"
 
+#include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
 #include <atomic>
@@ -635,4 +636,58 @@ TEST_F(AsyncSocketTest, EchoTestWithHostname) {
     EXPECT_EQ(echo_future.get(), original_message);
 }
 
+TEST_F(AsyncSocketTest, SendOnClosedSocketFailsImmediately) {
+    std::vector<ScopedAsyncSocket> server_sockets;
+    std::mutex server_sockets_mutex;
+
+    auto on_connect = [&](std::shared_ptr<AsyncSocket> socket) -> bool {
+        socket->SetOnReadCallbackNoFlowControl([](std::string_view, absl::Status) {});
+        std::lock_guard<std::mutex> lock(server_sockets_mutex);
+        server_sockets.emplace_back(std::move(socket));
+        return true;
+    };
+
+    ScopedAsyncServer server(PostAndWait([&] {
+        auto endpoint = ToEndpoint(ToIpAddress("127.0.0.1").value(), 0);
+        return factory_->CreateServer(raw_event_loop_, endpoint, on_connect);
+    }));
+    ASSERT_NE(server, nullptr);
+    Endpoint endpoint = PostAndWait([&] { return server->GetEndpoint(); });
+
+    ScopedAsyncSocket client(PostAndWait(
+            [&, endpoint] { return factory_->CreateSocket(raw_event_loop_, endpoint); }));
+    ASSERT_NE(client, nullptr);
+
+    std::promise<void> done_promise;
+    auto done_future = done_promise.get_future();
+    absl::Status immediate_send_status = absl::OkStatus();
+    absl::Status callback_send_status = absl::OkStatus();
+    bool send_callback_invoked = false;
+
+    auto on_client_connected = [&](AsyncSocket& socket, absl::Status err) {
+        ASSERT_THAT(err, IsOk());
+        socket.SetOnReadCallbackNoFlowControl([](std::string_view, absl::Status) {});
+        socket.Close();
+
+        immediate_send_status = socket.Send("Ping", 4, [&](absl::Status status) {
+            send_callback_invoked = true;
+            callback_send_status = status;
+        });
+        done_promise.set_value();
+    };
+
+    raw_event_loop_
+            ->Post([&]() {
+                client->SetOnConnectedCallback(on_client_connected);
+                ASSERT_THAT(client->Connect(), IsOk());
+            })
+            .IgnoreError();
+
+    RunUntil(done_future);
+    EXPECT_THAT(immediate_send_status, absl_testing::StatusIs(absl::StatusCode::kFailedPrecondition,
+                                                              ::testing::HasSubstr("ENOTCONN")));
+    EXPECT_TRUE(send_callback_invoked);
+    EXPECT_THAT(callback_send_status, absl_testing::StatusIs(absl::StatusCode::kFailedPrecondition,
+                                                             ::testing::HasSubstr("ENOTCONN")));
+}
 }  // namespace goldfish::async
