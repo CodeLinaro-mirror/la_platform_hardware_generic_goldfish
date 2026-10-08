@@ -16,6 +16,11 @@ emulator/data/virtualscene/Toren1BD/Toren1BD.posters
 emulator/data/virtualscene/Toren1BD/Toren1BD_Decor.png
 emulator/data/virtualscene/Toren1BD/Toren1BD_Main.png
 emulator/data/virtualscene/Toren1BD/poster.png
+emulator/data/virtualscene/default/
+emulator/data/virtualscene/default/default.jpg
+emulator/data/virtualscene/default/default.mp4
+emulator/data/virtualscene/default/default360.jpg
+emulator/data/virtualscene/default/default360.mp4
 emulator/emulator
 emulator/emulator-check
 emulator/mksdcard

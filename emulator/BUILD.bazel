@@ -370,9 +370,23 @@ pkg_files(
 )
 
 pkg_files(
+    name = "data_virtualscene_default",
+    srcs = ["@goldfish_prebuilts_common//virtualscene/default"],
+    prefix = "data/virtualscene/default",
+)
+
+pkg_files(
     name = "data_virtualscene_Toren1BD",
     srcs = ["@goldfish_prebuilts_common//virtualscene/Toren1BD"],
     prefix = "data/virtualscene/Toren1BD",
+)
+
+pkg_filegroup(
+    name = "data_virtualscene",
+    srcs = [
+        ":data_virtualscene_Toren1BD",
+        ":data_virtualscene_default",
+    ],
 )
 
 remapped_pkg_files(
@@ -547,7 +561,7 @@ pkg_filegroup(
     name = "emulator-dir",
     srcs = [
         ":advanced_features",
-        ":data_virtualscene_Toren1BD",
+        ":data_virtualscene",
         ":egl_stripped",
         ":emulator-access",
         ":emulator_notice_md",
@@ -576,7 +590,7 @@ pkg_filegroup(
 pkg_filegroup(
     name = "emulator-dir-unstripped",
     srcs = [
-        ":data_virtualscene_Toren1BD",
+        ":data_virtualscene",
         ":egl",
         ":emulator-access",
         ":emulator_notice_md",

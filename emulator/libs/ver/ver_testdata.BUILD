@@ -1,10 +1,4 @@
 filegroup(
-    name = "virtualscene_default",
-    srcs = glob(["virtualscene/default/*"]),
-    visibility = ["//visibility:public"],
-)
-
-filegroup(
     name = "testdata_flat",
     srcs = glob(
         [
