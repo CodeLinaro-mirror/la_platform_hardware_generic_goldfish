@@ -25,8 +25,6 @@
 
 #include <algorithm>
 #include <cmath>
-#include <cstdlib>
-#include <filesystem>
 #include <memory>
 #include <numeric>
 
@@ -446,16 +444,6 @@ void* VirtualsceneImageProvider::create(const CameraImageProviderInfo& info) {
             sceneConfig.mArgument = kDefaultSceneModelPath;
         } else {
             sceneConfig.mArgument = VerSceneConfig::defaultArgumentForMode(sceneConfig.mSceneMode);
-        }
-    }
-
-    if (const char* launcherDir = std::getenv("ANDROID_EMULATOR_LAUNCHER_DIR");
-        launcherDir && launcherDir[0] != '\0') {
-        const std::filesystem::path baseDir(launcherDir);
-        std::error_code ec;
-        if (!ver_scene_config_file_exists(sceneConfig) ||
-            std::filesystem::exists(baseDir / kDefaultSceneModelPath, ec)) {
-            ver_initialize({baseDir}, baseDir / "lib64" / "vulkan");
         }
     }
 
