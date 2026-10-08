@@ -24,6 +24,7 @@
 #include <vector>
 
 #include "android/base/bazel_info.h"
+#include "goldfish/camera_image_providers/virtualscene/virtualscene.h"
 
 namespace goldfish::camera_image_providers::virtualscene {
 
@@ -246,6 +247,50 @@ TEST(VirtualsceneImageProvider, ComputeViewProjectionMatrix_FrontFacingFlipsView
     EXPECT_NEAR(frontViewProj[1][0], backViewProj[1][0], 0.001f);
     EXPECT_NEAR(frontViewProj[2][2], -backViewProj[2][2], 0.001f);
     EXPECT_NEAR(frontViewProj[2][3], -backViewProj[2][3], 0.001f);
+}
+
+TEST(VirtualsceneImageProvider, GetImageProviderInfo_BundlesSceneConfigAndPhysicalModel) {
+    auto* fakePhysicalModel = reinterpret_cast<sensors::PhysicalModel*>(0x1234);
+
+    const VerSceneConfig configs[] = {
+        VerSceneConfig(VerSceneConfig::Mode::Mesh3D, "scene.obj"),
+        VerSceneConfig(VerSceneConfig::Mode::VideoFile, "clip.mp4"),
+        VerSceneConfig(VerSceneConfig::Mode::ImageFile, "photo.png"),
+        VerSceneConfig(VerSceneConfig::Mode::Webcam, "0"),
+    };
+
+    for (const auto& expectedConfig : configs) {
+        CameraImageProviderInfo info = {};
+        ASSERT_TRUE(getImageProviderInfo(&info, /*isBackFacing=*/true, fakePhysicalModel,
+                                         expectedConfig));
+        ASSERT_NE(info.vtbl, nullptr);
+        ASSERT_NE(info.vtbl->createArgDctor, nullptr);
+        ASSERT_NE(info.createArg, nullptr);
+        EXPECT_EQ(info.isBackFacing, 1u);
+
+        const auto* args =
+                static_cast<const VirtualsceneImageProvider::CreateArgs*>(info.createArg);
+        EXPECT_EQ(args->sceneConfig, expectedConfig);
+        EXPECT_EQ(args->physicalModel, fakePhysicalModel);
+
+        (info.vtbl->createArgDctor)(const_cast<void*>(info.createArg));
+    }
+}
+
+TEST(VirtualsceneImageProvider, Create_2DModeLoadsWithoutRenderer) {
+    CameraImageProviderInfo info = {};
+    ASSERT_TRUE(getImageProviderInfo(&info, /*isBackFacing=*/false, /*physicalModel=*/nullptr,
+                                     VerSceneConfig(VerSceneConfig::Mode::Color, "")));
+
+    const CameraImageProviderVtbl* vtbl = nullptr;
+    void* provider = (info.vtbl->create)(&info, &vtbl);
+    (info.vtbl->createArgDctor)(const_cast<void*>(info.createArg));
+
+    ASSERT_NE(provider, nullptr);
+    ASSERT_NE(vtbl, nullptr);
+    EXPECT_STREQ((vtbl->getId)(provider), "color:#000000");
+
+    (vtbl->dctor)(provider);
 }
 
 }  // namespace goldfish::camera_image_providers::virtualscene

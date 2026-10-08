@@ -16,6 +16,7 @@
 #pragma once
 
 #include "android/camera/camera_image_provider_api.h"
+#include "ver/virtual_environment_renderer_types.h"
 
 namespace goldfish::sensors {
 class PhysicalModel;
@@ -24,6 +25,7 @@ class PhysicalModel;
 namespace goldfish::camera_image_providers::virtualscene {
 
 bool getImageProviderInfo(CameraImageProviderInfo* dst, bool isBackFacing,
-                          const sensors::PhysicalModel* physicalModel);
+                          const sensors::PhysicalModel* physicalModel,
+                          const VerSceneConfig& sceneConfig);
 
 }  // namespace goldfish::camera_image_providers::virtualscene
