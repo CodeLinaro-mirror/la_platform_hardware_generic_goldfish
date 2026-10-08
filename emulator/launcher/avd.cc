@@ -498,7 +498,7 @@ class FileBackedAvd : public Avd {
                 auto files_in_snap = android::base::file::scan_dir(snap_path, /*fullPath=*/true);
                 for (const auto& f : files_in_snap) {
                     std::string ext = f.extension().string();
-                    if (ext == ".qcow2" || ext == ".img") {
+                    if (ext == ".qcow2") {
                         std::string img_info = inspector(f);
                         if (!img_info.empty()) {
                             absl::StrAppend(&img_info_accum, "   Image [", f.filename().string(),
