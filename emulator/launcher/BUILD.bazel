@@ -431,7 +431,6 @@ collect_plugins(
     plugins = [
         "//emulator/crashreport",
         "//third_party/sparse:img2simg",
-        "@qemu//:qemu-img",
         "@crashpad//handler:crashpad_handler",
         #"@netsim//:netsimd",
     ] + select({
@@ -602,9 +601,9 @@ cc_binary(
         "//emulator/crashreport:crash_system",
         "//emulator/launcher/cmdline",
         "//emulator/libs/async:libuv_event_loop",
+        "//emulator/libs/fsimage:qcow2",
         "//emulator/libs/metrics:configure_metrics_writer",
         "//emulator/libs/metrics:studio_config",
-        "//emulator/libs/process",
         "//emulator/libs/system",
         "//emulator/telnet:legacy_console_controller",
         "//emulator/tools:aemu_version",
@@ -617,6 +616,7 @@ cc_binary(
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",
+        "@abseil-cpp//absl/time",
     ],
 )
 

@@ -167,6 +167,19 @@ TEST(WritableImgDrive, Basic_arm) {
                                  "cache-size=1048576")));
 }
 
+TEST(WritableImgDrive, CreatesQcow2OverlayWhenMissing) {
+    base::TestSystem sys("");
+    auto launcher_path = sys.GetTempRoot()->Path();
+    auto userData = launcher_path / "userdata.img";
+    auto qcow2Image = launcher_path / "userdata.img.qcow2";
+    std::ofstream(userData).close();
+
+    FakeEmulator emu;
+    WritableImgDrive dev("userdata", "04.0", userData, qcow2Image);
+    EXPECT_OK(dev.initialize(emu.config()));
+    EXPECT_TRUE(base::file::exists(qcow2Image));
+}
+
 TEST(BlankWritableDrive, Basic_x86) {
     base::TestSystem sys("");
     auto launcher_path = sys.GetTempRoot()->Path();

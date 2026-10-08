@@ -107,40 +107,12 @@ class LauncherTest : public testing::Test {
         fs::create_directories(temp_dir / "lib64");
         fs::create_directories(temp_dir / "share" / "qemu");
 
-        // Setup dummy qemu-img
-#ifdef _WIN32
-        fs::path qemu_img = temp_dir / "bin" / "qemu-img.cmd";
-        std::ofstream qemu_img_file(qemu_img);
-        qemu_img_file << "@echo off\n"
-                      << "for %%a in (%*) do (\n"
-                      << "  set \"arg=%%~a\"\n"
-                      << "  if \"%%~xa\"==\".qcow2\" (\n"
-                      << "    powershell -Command \"[IO.File]::WriteAllBytes('%%~a', "
-                         "[byte[]](0x51, 0x46, 0x49, 0xFB))\"\n"
-                      << "  )\n"
-                      << ")\n"
-                      << "exit /b 0\n";
-#else
-        fs::path qemu_img = temp_dir / "bin" / "qemu-img";
-        std::ofstream qemu_img_file(qemu_img);
-        qemu_img_file << "#!/bin/sh\n"
-                      << "for arg in \"$@\"; do\n"
-                      << "  case \"$arg\" in\n"
-                      << "    *.qcow2) printf \"QFI\\373\" > \"$arg\" ;;\n"
-                      << "  esac\n"
-                      << "done\n"
-                      << "exit 0\n";
-#endif
-        qemu_img_file.close();
-        fs::permissions(qemu_img, fs::perms::owner_exec | fs::perms::owner_all);
-
         emulator_paths.launcher_binary = temp_dir / "emulator";
         emulator_paths.launcher_directory = temp_dir;
         emulator_paths.binary_directory = temp_dir / "bin";
         emulator_paths.library_directory = temp_dir / "lib";
         emulator_paths.lib64_directory = temp_dir / "lib64";
         emulator_paths.bios_directory = temp_dir / "share" / "qemu";
-        emulator_paths.qemu_img_binary = qemu_img;
         // No need to have .exe for Windows on these binaries as they aren't executed.
         emulator_paths.qemu_system_x86_binary = temp_dir / "bin" / "qemu-system-x86_64";
         emulator_paths.qemu_system_arm_binary = temp_dir / "bin" / "qemu-system-aarch64";

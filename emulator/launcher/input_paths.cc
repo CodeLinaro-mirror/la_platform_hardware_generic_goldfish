@@ -133,8 +133,6 @@ absl::StatusOr<EmulatorPaths> ResolveEmulatorPaths(bool verbose) {
                      CheckExists(paths.binary_directory / AddBinarySuffix("qemu-system-aarch64"),
                                  "qemu-system-aarch64"));
 
-    ASSIGN_OR_RETURN(paths.qemu_img_binary,
-                     CheckExists(paths.binary_directory / AddBinarySuffix("qemu-img"), "qemu-img"));
     ASSIGN_OR_RETURN(paths.netsim_binary,
                      CheckExists(paths.binary_directory / AddBinarySuffix("netsimd"), "netsimd"));
     ASSIGN_OR_RETURN(paths.crashpad_handler_binary,
@@ -156,7 +154,6 @@ absl::StatusOr<EmulatorPaths> ResolveEmulatorPaths(bool verbose) {
     // Note that Forge seems to break if we do this for Linux.
     ASSIGN_OR_RETURN(paths.qemu_system_x86_binary, Canonicalize(paths.qemu_system_x86_binary));
     ASSIGN_OR_RETURN(paths.qemu_system_arm_binary, Canonicalize(paths.qemu_system_arm_binary));
-    ASSIGN_OR_RETURN(paths.qemu_img_binary, Canonicalize(paths.qemu_img_binary));
     ASSIGN_OR_RETURN(paths.netsim_binary, Canonicalize(paths.netsim_binary));
     ASSIGN_OR_RETURN(paths.crashpad_handler_binary, Canonicalize(paths.crashpad_handler_binary));
 #endif

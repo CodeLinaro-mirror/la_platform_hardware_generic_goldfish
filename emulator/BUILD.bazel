@@ -142,7 +142,6 @@ filegroup(
     srcs = [
         "//emulator/crashreport",
         "//third_party/sparse:img2simg",
-        "@qemu//:qemu-img",
         "@crashpad//handler:crashpad_handler",
         #"@netsim//:netsimd",
     ] + select({

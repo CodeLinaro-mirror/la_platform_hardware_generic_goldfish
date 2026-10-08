@@ -33,7 +33,9 @@
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
 #include "absl/strings/substitute.h"
+#include "absl/time/time.h"
 
 #include "android/base/system.h"
 #include "android/cmdline_option.h"
@@ -41,12 +43,12 @@
 #include "android/goldfish/avd.h"
 #include "android/goldfish/input_paths.h"
 #include "android/main_help.h"
-#include "android/process/command.h"
 #include "android/status/status_macros.h"
 #include "goldfish/async/libuv_event_loop.h"
 #include "goldfish/async/libuv_process_launcher.h"
 #include "goldfish/async/libuv_signal_handlers.h"
 #include "goldfish/async/libuv_socket_factory.h"
+#include "goldfish/fsimage/qcow2.h"
 #include "goldfish/metrics/configure_metrics_writer.h"
 #include "goldfish/metrics/metrics_reporter.h"
 #include "goldfish/metrics/studio_config.h"
@@ -190,8 +192,27 @@ void ListAvds(const AndroidOptions& opts, const android::goldfish::UserPaths& us
     }
 }
 
+std::string FormatSnapshots(const std::vector<goldfish::fsimage::Qcow2Snapshot>& snapshots) {
+    if (snapshots.empty()) {
+        return "";
+    }
+    std::string out = absl::StrFormat("%-7s %-16s %12s %19s %15s\n", "ID", "TAG", "VM_SIZE", "DATE",
+                                      "VM_CLOCK");
+    for (const auto& s : snapshots) {
+        const int64_t clock_ms = absl::ToInt64Milliseconds(s.vm_clock);
+        const std::string clock_str =
+                absl::StrFormat("%04d:%02d:%02d.%03d", clock_ms / 3600000, (clock_ms / 60000) % 60,
+                                (clock_ms / 1000) % 60, clock_ms % 1000);
+        const std::string date_str =
+                absl::FormatTime("%Y-%m-%d %H:%M:%S", s.date, absl::LocalTimeZone());
+        absl::StrAppendFormat(&out, "%-7s %-16s %10u B %19s %15s\n", s.id, s.name, s.vm_state_size,
+                              date_str, clock_str);
+    }
+    return out;
+}
+
 void ListSnapshots(const AndroidOptions& opts, const android::goldfish::UserPaths& user_paths,
-                   const fs::path& qemu_img_binary, bool verbose) {
+                   bool verbose) {
     std::vector<std::string> avd_names;
     if (opts.avd) {
         avd_names.push_back(opts.avd);
@@ -206,10 +227,9 @@ void ListSnapshots(const AndroidOptions& opts, const android::goldfish::UserPath
 
     android::goldfish::Avd::ImageInspector inspector = nullptr;
     if (verbose) {
-        inspector = [&qemu_img_binary](const fs::path& p) -> std::string {
-            auto res =
-                    android::base::Command::LaunchAndCapture(qemu_img_binary, {"info", p.string()});
-            return res.ok() ? *res : "";
+        inspector = [](const fs::path& p) -> std::string {
+            const auto snapshots = goldfish::fsimage::ListQcow2Snapshots(p);
+            return snapshots.ok() ? FormatSnapshots(*snapshots) : "";
         };
     }
 
@@ -350,7 +370,7 @@ int main(int argc, char** argv) {
     }
 
     if (opts.snapshot_list) {
-        ListSnapshots(opts, *user_paths, emulator_paths->qemu_img_binary, opts.verbose);
+        ListSnapshots(opts, *user_paths, opts.verbose);
         return 0;
     }
 
