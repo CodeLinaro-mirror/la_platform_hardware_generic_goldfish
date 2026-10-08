@@ -720,7 +720,6 @@ py_binary(
         ":android-device-hub",
         ":launcher",
         "//emulator/tools/aquarium-ui",
-        "//emulator/ui/aquarium:dist",
     ] + select({
         "@platforms//os:macos": [
             "//emulator/sdk/system_images/minigbm-arm64-v8a:minigbm",
