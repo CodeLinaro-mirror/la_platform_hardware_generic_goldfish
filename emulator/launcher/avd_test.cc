@@ -288,6 +288,59 @@ TEST_F(AvdTest, FinalizeSavesConfig) {
     EXPECT_GE(hw_config->GetInt("vm.heapSize", 0), 16);
 }
 
+TEST_F(AvdTest, CameraCommandLineOverride) {
+    auto avd_dir = CreateTestAvd("test_avd", "android-30", 30);
+    WriteToFile(avd_dir / "config.ini",
+                "target=android-30\nimage.sysdir.1=sysimg\n"
+                "hw.camera.back=virtualscene\nhw.camera.front=emulated");
+
+    std::string camera_back = "webcam0";
+    std::string camera_front = "none";
+    opts_.camera_back = camera_back.data();
+    opts_.camera_front = camera_front.data();
+
+    {
+        ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(opts_, paths_, "test_avd", false, ""));
+        EXPECT_EQ(avd->Hw().hw_camera_back, "webcam0");
+        EXPECT_EQ(avd->Hw().hw_camera_front, "none");
+
+        IniFile hw_config(avd_dir / "hardware-qemu.ini");
+        ASSERT_TRUE(hw_config.Read());
+        EXPECT_EQ(hw_config.GetString("hw.camera.back", ""), "webcam0");
+        EXPECT_EQ(hw_config.GetString("hw.camera.front", ""), "none");
+    }
+
+    // Subsequent launch without CLI overrides should revert to config.ini values.
+    opts_.camera_back = nullptr;
+    opts_.camera_front = nullptr;
+    {
+        ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(opts_, paths_, "test_avd", false, ""));
+        EXPECT_EQ(avd->Hw().hw_camera_back, "virtualscene");
+        EXPECT_EQ(avd->Hw().hw_camera_front, "emulated");
+
+        IniFile hw_config(avd_dir / "hardware-qemu.ini");
+        ASSERT_TRUE(hw_config.Read());
+        EXPECT_EQ(hw_config.GetString("hw.camera.back", ""), "virtualscene");
+        EXPECT_EQ(hw_config.GetString("hw.camera.front", ""), "emulated");
+    }
+
+    // Empty string CLI options should be ignored and preserve config.ini values.
+    std::string empty_back;
+    std::string empty_front;
+    opts_.camera_back = empty_back.data();
+    opts_.camera_front = empty_front.data();
+    {
+        ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(opts_, paths_, "test_avd", false, ""));
+        EXPECT_EQ(avd->Hw().hw_camera_back, "virtualscene");
+        EXPECT_EQ(avd->Hw().hw_camera_front, "emulated");
+
+        IniFile hw_config(avd_dir / "hardware-qemu.ini");
+        ASSERT_TRUE(hw_config.Read());
+        EXPECT_EQ(hw_config.GetString("hw.camera.back", ""), "virtualscene");
+        EXPECT_EQ(hw_config.GetString("hw.camera.front", ""), "emulated");
+    }
+}
+
 TEST_F(AvdTest, DisplayName) {
     auto avd_dir = CreateTestAvd("test_avd", "android-30", 30);
     WriteToFile(avd_dir / "config.ini",
