@@ -83,6 +83,7 @@ cc_library(
 
 cc_test(
     name = "foldable_test",
+    size = "small",
     srcs = ["foldable_test.cc"],
     visibility = ["//visibility:public"],
     deps = [
@@ -95,6 +96,7 @@ cc_test(
 
 cc_test(
     name = "foldable_model_test",
+    size = "small",
     srcs = ["foldable_model_test.cc"],
     includes = ["test"],
     visibility = ["//visibility:public"],
@@ -108,6 +110,7 @@ cc_test(
 
 cc_test(
     name = "physical_model_test",
+    size = "medium",
     srcs = ["physical_model_test.cc"],
     includes = ["test"],
     visibility = ["//visibility:public"],

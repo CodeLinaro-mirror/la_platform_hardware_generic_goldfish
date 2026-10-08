@@ -23,7 +23,30 @@ import tempfile
 from pathlib import Path
 from typing import Optional
 
-from ab.android_build_client import AndroidBuildClient
+try:
+    from ab.android_build_client import AndroidBuildClient
+except ImportError:
+    import sys
+
+    _curr_path = Path(__file__).resolve()
+    _found_libs = False
+    for _p in [_curr_path] + list(_curr_path.parents):
+        _candidate = _p / "hardware" / "google" / "aemu" / "tools" / "libs_python"
+        if _candidate.exists() and str(_candidate) not in sys.path:
+            sys.path.insert(0, str(_candidate))
+            break
+        for _rf in [
+            _p / "aemu+" / "tools" / "libs_python",
+            _p / "aemu" / "tools" / "libs_python",
+        ]:
+            if _rf.exists() and str(_rf) not in sys.path:
+                sys.path.insert(0, str(_rf))
+                _found_libs = True
+                break
+        if _found_libs:
+            break
+    from ab.android_build_client import AndroidBuildClient
+
 from api import CrashApi
 from metadata import CrashMetadata
 
@@ -53,6 +76,25 @@ class SymbolFetcher:
                 return token.strip()
         except Exception as e:
             logging.debug("AndroidBuildClient.obtain_token (--sso) failed: %s", e)
+
+        # Fallback for gLinux / capsule environments without oauth2l: use OnePlatform sso CLI
+        sso_path = shutil.which("sso", path="/google/data/ro/teams/oneplatform")
+        if sso_path:
+            user = getpass.getuser()
+            try:
+                token = subprocess.check_output(
+                    [
+                        sso_path,
+                        f"{user}@google.com",
+                        "https://www.googleapis.com/auth/androidbuild.internal",
+                    ],
+                    timeout=30,
+                    text=True,
+                )
+                if token and token.strip():
+                    return token.strip()
+            except Exception as e:
+                logging.debug("OnePlatform sso token fetch failed: %s", e)
 
         # Fallback for macOS / non-SSO environments: use plain 'oauth2l fetch androidbuild.internal'
         oauth2l_path = shutil.which("oauth2l") or shutil.which(

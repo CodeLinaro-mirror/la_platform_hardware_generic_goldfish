@@ -13,6 +13,8 @@
 // limitations under the License.
 #pragma once
 
+#if defined(CONFIG_TRACE_GOLDFISH)
+
 #include "perfetto/tracing/track_event.h"
 
 /**
@@ -50,4 +52,40 @@ PERFETTO_DEFINE_CATEGORIES(
         perfetto::Category("rendering").SetDescription("Rendering and graphics events"),
         perfetto::Category("async").SetDescription(
                 "Event loop primitives, task scheduling, and I/O"),
-        perfetto::Category("grpc").SetDescription("gRPC call tracing"));
+        perfetto::Category("grpc").SetDescription("gRPC call tracing"),
+        perfetto::Category("qemu").SetDescription("QEMU internal trace events"),
+        perfetto::Category("display").SetDescription("Display and frame delivery pipeline"));
+
+#else  // !defined(CONFIG_TRACE_GOLDFISH)
+
+#include <cstdint>
+
+namespace perfetto {
+
+struct Flow {
+    static constexpr Flow ProcessScoped(uint64_t /*id*/) noexcept { return {}; }
+};
+
+namespace internal {
+template <typename First, typename... Rest>
+constexpr void IgnoreTraceArgs(const First& /*first*/, const Rest&... /*rest*/) noexcept {}
+}  // namespace internal
+
+}  // namespace perfetto
+
+#define GOLDFISH_PERFETTO_NOOP(...)                             \
+    do {                                                        \
+        if (false) {                                            \
+            ::perfetto::internal::IgnoreTraceArgs(__VA_ARGS__); \
+        }                                                       \
+    } while (0)
+
+#define TRACE_EVENT(...) GOLDFISH_PERFETTO_NOOP(__VA_ARGS__)
+#define TRACE_EVENT_BEGIN(...) GOLDFISH_PERFETTO_NOOP(__VA_ARGS__)
+#define TRACE_EVENT_END(...) GOLDFISH_PERFETTO_NOOP(__VA_ARGS__)
+#define TRACE_EVENT_INSTANT(...) GOLDFISH_PERFETTO_NOOP(__VA_ARGS__)
+#define TRACE_COUNTER(...) GOLDFISH_PERFETTO_NOOP(__VA_ARGS__)
+
+#define TRACE_EVENT_CATEGORY_ENABLED(category) (false)
+
+#endif  // defined(CONFIG_TRACE_GOLDFISH)

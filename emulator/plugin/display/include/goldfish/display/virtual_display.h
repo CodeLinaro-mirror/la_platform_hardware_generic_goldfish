@@ -14,17 +14,21 @@
 
 #pragma once
 
+#include <atomic>
+#include <cstdint>
 #include <memory>
+#include <utility>
 #include <vector>
 
 #include "absl/base/thread_annotations.h"
-#include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/str_format.h"
+#include "absl/synchronization/mutex.h"
 
 #include "goldfish/async/event_loop.h"
 #include "goldfish/display/display.h"
-#include "goldfish/fps_calculator.h"
+#include "goldfish/display/frame_producer.h"
+#include "goldfish/display/frame_source.h"
+#include "goldfish/display/legacy_surface_source.h"
 
 extern "C" {
 #include "pixman.h"
@@ -38,38 +42,43 @@ using VirtIOInputHID = struct VirtIOInputHID;
 namespace goldfish::display {
 
 class VirtualDisplay : public IDisplay {
+    struct Private {};
+
   public:
-    // Constructor passes essential initialization data up to the IDisplay base class
-    VirtualDisplay(EventLoop* loop, EventLoop* qloop, uint8_t id, uint32_t width, uint32_t height,
-                   uint32_t dpi, uint32_t flags);
+    static absl::StatusOr<std::shared_ptr<VirtualDisplay>> Create(EventLoop* loop, EventLoop* qloop,
+                                                                  uint8_t id, uint32_t width,
+                                                                  uint32_t height, uint32_t dpi,
+                                                                  uint32_t flags);
+    VirtualDisplay(Private, EventLoop* loop, EventLoop* qloop, uint8_t id, uint32_t width,
+                   uint32_t height, uint32_t dpi, uint32_t flags, ::VirtIOInputHID* vhid);
 
     ~VirtualDisplay() override;
 
-    // --- Overrides for pure virtual methods from IDisplay ---
-
     std::pair<int, int> ResizeKeepAspectRatio(int desired_width, int desired_height) override;
-    absl::StatusOr<FrameInfo> GetPixels(PixelFormat fmt, int width, int height,
-                                        ImageRotation rotation, uint8_t* pixel,
-                                        size_t* c_pixels) const override;
 
     void SendMultiTouchEvent(uint8_t slot, int x, int y, MultiTouchType type) override;
-
     void SendMouseEvent(int x, int y, int button_mask) override;
-
     void SendEvDevEvent(uint16_t type, uint16_t code, uint32_t value) override;
-
-    // --- Concrete class specific methods ---
 
     void Disconnect() override;
 
-    // A helper method to simulate the guest OS finishing a rendered frame
     void SimulateGuestFrameUpdate();
 
+  protected:
+    void OnDemand(bool warm) override;
+    void OnFrameRequested() override;
+
   private:
-    bool disconnected_ = false;
-    std::vector<uint8_t> frame_buffer_;
-    std::shared_ptr<EventLoop::Timer> one_second_timer_;
-    void OneFrameTick();
+
+    IFrameSource::Start CaptureSurface(LegacySurfaceSource& source);
+
+    std::atomic<bool> disconnected_{false};
+    mutable absl::Mutex buffer_lock_;
+    std::vector<uint8_t> frame_buffer_ ABSL_GUARDED_BY(buffer_lock_);
+    // Declared before legacy_, which sends it re-capture requests.
+    const std::shared_ptr<FrameProducer> frame_producer_;
+    const std::shared_ptr<LegacySurfaceSource> legacy_;
+    std::shared_ptr<EventLoop::Timer> poll_timer_;
 
     EventLoop* qemu_loop_;
     ::VirtIOInputHID* vhid_;

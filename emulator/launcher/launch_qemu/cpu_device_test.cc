@@ -17,6 +17,7 @@
 #include "absl/status/status_matchers.h"
 #include "gmock/gmock.h"
 
+#include "android/base/system.h"
 #include "android/cmdline_definitions.h"
 #include "android/cpu/cpu_accelerator.h"
 #include "android/status/status_matcher_macros.h"
@@ -73,13 +74,14 @@ TEST(Cpu, Basic_arm64) {
                                      testing::Eq("hvf")));
 }
 
-TEST(Cpu, NoAccel) {
-    AndroidOptions opts{.no_accel = true};
+TEST(Cpu, AccelOff) {
+    android::base::System::SetEnvironmentVariable("ANDROID_I_WANT_MY_TCG", "");
+    AndroidOptions opts{.accel = "off"};
     FakeEmulator emu(std::move(opts));
 
     auto hw = HardwareConfig();
     hw.hw_cpu_ncore = 3;
-    EXPECT_CALL(emu.mock_avd(), Hw()).Times(1).WillRepeatedly(testing::ReturnRef(hw));
+    EXPECT_CALL(emu.mock_avd(), Hw()).Times(0).WillRepeatedly(testing::ReturnRef(hw));
 
     EXPECT_CALL(emu.mock_avd(), Arch())
             .Times(1)
@@ -90,14 +92,12 @@ TEST(Cpu, NoAccel) {
     CpuDevice::forceHostArch_TestOnly(Avd::CpuArchitecture::kArm);
 
     CpuDevice dev;
-    EXPECT_OK(dev.initialize(emu.config()));
-    EXPECT_THAT(dev.getQemuParameters(emu.config()),
-                testing::ElementsAre(testing::Eq("-smp"), testing::Eq("3"), testing::Eq("-cpu"),
-                                     testing::Eq("cortex-a53"), testing::Eq("-accel"),
-                                     testing::Eq("tcg")));
+    EXPECT_THAT(dev.initialize(emu.config()),
+                absl_testing::StatusIs(absl::StatusCode::kInvalidArgument));
 }
 
-TEST(Cpu, AccelOff) {
+TEST(Cpu, AccelOffWithTcgEnvVar) {
+    android::base::System::SetEnvironmentVariable("ANDROID_I_WANT_MY_TCG", "yes");
     AndroidOptions opts{.accel = "off"};
     FakeEmulator emu(std::move(opts));
 
@@ -119,6 +119,7 @@ TEST(Cpu, AccelOff) {
                 testing::ElementsAre(testing::Eq("-smp"), testing::Eq("3"), testing::Eq("-cpu"),
                                      testing::Eq("cortex-a53"), testing::Eq("-accel"),
                                      testing::Eq("tcg")));
+    android::base::System::SetEnvironmentVariable("ANDROID_I_WANT_MY_TCG", "");
 }
 
 TEST(Cpu, HostAndTargetMismatch) {

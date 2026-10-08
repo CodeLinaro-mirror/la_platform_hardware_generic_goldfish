@@ -31,7 +31,7 @@ namespace goldfish::gvk {
 
 class SystemMetaLoader : public IMetaLoader {
   public:
-    static IMetaLoader::Ptr get();
+    static IMetaLoader::Ptr get(const char* customSearchDir = nullptr);
 
     uint32_t enumerateInstanceVersion() const override;
     std::vector<VkLayerProperties> enumerateInstanceLayerProperties() const override;

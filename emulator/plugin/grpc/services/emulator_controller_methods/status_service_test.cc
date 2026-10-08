@@ -22,7 +22,8 @@
 #include "android/cpu/cpu_accelerator.h"
 #include "android/goldfish/fake_hardware_config.h"
 #include "emulator_controller.grpc.pb.h"
-#include "goldfish/avd_info/avd_info.h"
+#include "goldfish/avd/avd_info.h"
+#include "goldfish/avd/fake_avd_universe.h"
 #include "goldfish/tools/aemu_version.h"
 #include "test/grpc_service_test.h"
 
@@ -54,32 +55,33 @@ class StatusServiceTest : public GrcpServiceTest {
                 android::CPU_ACCELERATOR_NONE, android::ANDROID_CPU_ACCELERATION_NO_CPU_SUPPORT,
                 "No CPU acceleration");
 
-        mGuestStatus.Reset(absl::UnixEpoch());
-        mAvdProperties.hw_config = android::goldfish::FakeHardwareConfig::GetHwConfig();
-        mAvdProperties.avd_api = 35;
-        mAvdProperties.avd_api_str = "15.0 (V) - API 35";
-        mAvdProperties.avd_name = "fake-avd";
-        mAvdProperties.avd_id = "fake-avd-id";
-        mStatusService = std::make_unique<StatusServiceImpl>(mGuestStatus, mAvdProperties);
-        mServiceWrapper = std::make_unique<StatusServiceWrapper>(*mStatusService);
+        guest_status_.Reset(absl::UnixEpoch());
+        avd_properties_.hw_config = android::goldfish::FakeHardwareConfig::GetHwConfig();
+        avd_properties_.avd_api = 35;
+        avd_properties_.avd_api_str = "15.0 (V) - API 35";
+        avd_properties_.avd_name = "fake-avd";
+        avd_properties_.avd_id = "fake-avd-id";
+        status_service_ = std::make_unique<StatusServiceImpl>(guest_status_, avd_properties_);
+        service_wrapper_ = std::make_unique<StatusServiceWrapper>(*status_service_);
 
         GrcpServiceTest::SetUp();
     }
 
     void TearDown() override {
-        if (auto* avd = ::goldfish::avd_info::GetNullableAvd()) {
+        if (auto* avd = ::goldfish::avd::GetNullableAvd()) {
             avd->SetNetsimEndpoint("");
         }
         GrcpServiceTest::TearDown();
     }
 
-    EmulatorController::Service* getService() override { return mServiceWrapper.get(); }
+    EmulatorController::Service* getService() override { return service_wrapper_.get(); }
 
   protected:
-    GuestStatus mGuestStatus;
-    ::goldfish::avd_info::AvdProperties mAvdProperties;
-    std::unique_ptr<StatusServiceImpl> mStatusService;
-    std::unique_ptr<StatusServiceWrapper> mServiceWrapper;
+    ::goldfish::avd::FakeAvdUniverse fake_avd_;
+    GuestStatus guest_status_;
+    ::goldfish::avd::AvdProperties avd_properties_;
+    std::unique_ptr<StatusServiceImpl> status_service_;
+    std::unique_ptr<StatusServiceWrapper> service_wrapper_;
 };
 
 TEST_F(StatusServiceTest, GetStatusInitialState) {
@@ -133,9 +135,9 @@ TEST_F(StatusServiceTest, GetStatusInitialState) {
 }
 
 TEST_F(StatusServiceTest, GetStatusBootedState) {
-    mGuestStatus.SetBootComplete(absl::Now());
+    guest_status_.SetBootComplete(absl::Now());
     for (unsigned n = 42; n; --n) {
-        mGuestStatus.Heartbeat();
+        guest_status_.Heartbeat();
     }
 
     Empty request;
@@ -178,7 +180,7 @@ TEST_F(StatusServiceTest, GetStatusWithAvdConfigIni) {
     out.close();
 
     // 2. Assign temporary directory to avd content path
-    mAvdProperties.avd_content_path = tempDir;
+    avd_properties_.avd_content_path = tempDir;
 
     Empty request;
     EmulatorStatus reply;
@@ -221,16 +223,16 @@ TEST_F(StatusServiceTest, GetStatusWithCpuAccelerationUnknownVersion) {
 }
 
 TEST_F(StatusServiceTest, GetStatusWithNetsimEndpoint) {
-    auto* avd = ::goldfish::avd_info::GetNullableAvd();
+    auto* avd = ::goldfish::avd::GetNullableAvd();
     ASSERT_NE(avd, nullptr);
     avd->SetNetsimEndpoint("localhost:12345");
 
-    auto statusService = std::make_unique<StatusServiceImpl>(mGuestStatus, mAvdProperties, avd);
-    StatusServiceWrapper serviceWrapper(*statusService);
+    auto status_service = std::make_unique<StatusServiceImpl>(guest_status_, avd_properties_, avd);
+    StatusServiceWrapper service_wrapper(*status_service);
 
     Empty request;
     EmulatorStatus reply;
-    auto status = serviceWrapper.getStatus(nullptr, &request, &reply);
+    auto status = service_wrapper.getStatus(nullptr, &request, &reply);
     ASSERT_TRUE(status.ok());
 
     auto platform = reply.platformconfig();
@@ -238,7 +240,7 @@ TEST_F(StatusServiceTest, GetStatusWithNetsimEndpoint) {
 }
 
 TEST_F(StatusServiceTest, GetStatusWithBuildFingerprint) {
-    mAvdProperties.build_fingerprint =
+    avd_properties_.build_fingerprint =
             "google/sdk_gphone64_x86_64/emu64x:15/AP3A/12345:userdebug/dev-keys";
 
     Empty request;

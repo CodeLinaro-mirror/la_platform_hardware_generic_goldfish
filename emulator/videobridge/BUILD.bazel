@@ -31,10 +31,13 @@ cc_library(
     strip_include_prefix = "include",
     deps = [
         "//emulator/libs/grpc_client",
+        "//emulator/libs/grpc_utils:absl_translate",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/time",
         "@aemu//protos/services/emulator-controller:emulator_controller_cc_grpc",
+        "@aemu//protos/services_v2:input_service_cc_grpc",
+        "@aemu//protos/services_v2:sensors_service_cc_grpc",
         "@grpc//:grpc++",
     ],
 )
@@ -50,6 +53,7 @@ cc_binary(
         ":rtc_service",
         ":videobridge_codecs",
         "//emulator/libs/grpc_security",
+        "//emulator/plugin/grpc/services/v2:rtc_service",
         "@abseil-cpp//absl/flags:flag",
         "@abseil-cpp//absl/flags:parse",
         "@abseil-cpp//absl/log",
@@ -72,13 +76,19 @@ objc_library(
     includes = ["include"],
     deps = [
         "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/synchronization",
+        "@libyuv",
+        "@webrtc//api/video:video_frame",
         "@webrtc//api/video_codecs:builtin_video_decoder_factory",
         "@webrtc//api/video_codecs:builtin_video_encoder_factory",
         "@webrtc//api/video_codecs:video_codecs_api",
+        "@webrtc//modules/video_coding:video_codec_interface",
         "@webrtc//pc:video_track_source_proxy",
         "@webrtc//rtc_base:checks",
+        "@webrtc//rtc_base:logging",
         "@webrtc//sdk:native_api",
+        "@webrtc//sdk:videoframebuffer_objc",
         "@webrtc//sdk:videotoolbox_objc",
     ],
 )
@@ -139,6 +149,7 @@ cc_library(
 
 cc_test(
     name = "nvenc_loader_test",
+    size = "small",
     srcs = ["core/linux/test/nvenc_loader_test.cc"],
     copts = WEBRTC_COPTS,
     includes = ["."],
@@ -209,6 +220,7 @@ cc_library(
 
 cc_test(
     name = "nvenc_video_encoder_test",
+    size = "small",
     srcs = ["core/linux/test/nvenc_video_encoder_test.cc"],
     copts = WEBRTC_COPTS,
     includes = ["."],
@@ -224,6 +236,33 @@ cc_test(
         "@goldfish_prebuilts_common//libnvidia:nvenc_headers",
         "@webrtc//api/video:video_frame",
         "@webrtc//api/video_codecs:video_codecs_api",
+    ],
+)
+
+cc_test(
+    name = "nvenc_hardware_test",
+    size = "small",
+    srcs = ["core/linux/test/nvenc_hardware_test.cc"],
+    copts = WEBRTC_COPTS,
+    includes = ["."],
+    target_compatible_with = select({
+        "@platforms//os:linux": [],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
+    deps = [
+        ":nvenc_loader",
+        ":nvenc_video_encoder",
+        ":videobridge_codecs",
+        "//emulator/libs/test:googletest_main",
+        "@ffmpeg",
+        "@ffmpeg//:ffmpeg_headers",
+        "@goldfish_prebuilts_common//libnvidia:nvenc_headers",
+        "@webrtc//api:scoped_refptr",
+        "@webrtc//api/environment:environment_factory",
+        "@webrtc//api/video:video_frame",
+        "@webrtc//api/video_codecs:video_codecs_api",
+        "@webrtc//common_video",
+        "@webrtc//modules/video_coding:video_codec_interface",
     ],
 )
 
@@ -251,6 +290,7 @@ cc_library(
 
 cc_test(
     name = "vaapi_loader_test",
+    size = "small",
     srcs = ["core/linux/test/vaapi_loader_test.cc"],
     copts = WEBRTC_COPTS,
     includes = ["."],
@@ -320,6 +360,7 @@ cc_library(
 
 cc_test(
     name = "vaapi_video_encoder_test",
+    size = "small",
     srcs = ["core/linux/test/vaapi_video_encoder_test.cc"],
     copts = WEBRTC_COPTS,
     includes = ["."],
@@ -334,6 +375,32 @@ cc_test(
         "@abseil-cpp//absl/synchronization",
         "@webrtc//api/video:video_frame",
         "@webrtc//api/video_codecs:video_codecs_api",
+    ],
+)
+
+cc_test(
+    name = "vaapi_hardware_test",
+    size = "small",
+    srcs = ["core/linux/test/vaapi_hardware_test.cc"],
+    copts = WEBRTC_COPTS,
+    includes = ["."],
+    target_compatible_with = select({
+        "@platforms//os:linux": [],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
+    deps = [
+        ":vaapi_loader",
+        ":vaapi_video_encoder",
+        ":videobridge_codecs",
+        "//emulator/libs/test:googletest_main",
+        "@ffmpeg",
+        "@ffmpeg//:ffmpeg_headers",
+        "@webrtc//api:scoped_refptr",
+        "@webrtc//api/environment:environment_factory",
+        "@webrtc//api/video:video_frame",
+        "@webrtc//api/video_codecs:video_codecs_api",
+        "@webrtc//common_video",
+        "@webrtc//modules/video_coding:video_codec_interface",
     ],
 )
 
@@ -374,6 +441,7 @@ cc_library(
 
 cc_test(
     name = "codec_factories_linux_test",
+    size = "small",
     srcs = ["core/linux/test/codec_factories_linux_test.cc"],
     copts = WEBRTC_COPTS,
     includes = ["."],
@@ -391,6 +459,7 @@ cc_test(
 
 cc_test(
     name = "emulator_client_test",
+    size = "small",
     srcs = ["client/emulator_client_test.cc"],
     deps = [
         ":emulator_client",
@@ -466,12 +535,15 @@ cc_library(
     deps = [
         ":emulator_client",
         ":videobridge_codecs",
+        "//emulator/libs/async:async_api",
+        "//emulator/libs/display_pipeline:core",
         "@abseil-cpp//absl/container:flat_hash_set",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/synchronization",
         "@abseil-cpp//absl/time",
         "@aemu//protos/services/emulator-controller:emulator_controller_cc_grpc",
-        "@aemu//protos/services_v2/input:input_service_cc_proto",
+        "@aemu//protos/services_v2:input_service_cc_grpc",
+        "@aemu//protos/services_v2:sensors_service_cc_proto",
         "@grpc//:grpc++",
         "@nlohmann_json//:singleheader-json",
         "@webrtc//api:create_peerconnection_factory",
@@ -479,6 +551,7 @@ cc_library(
         "@webrtc//api/audio_codecs:builtin_audio_decoder_factory",
         "@webrtc//api/audio_codecs:builtin_audio_encoder_factory",
         "@webrtc//api/task_queue:default_task_queue_factory",
+        "@webrtc//common_video",
         "@webrtc//media:adapted_video_track_source",
         "@webrtc//media:video_broadcaster",
         "@webrtc//modules/audio_device:audio_device_impl",
@@ -489,6 +562,7 @@ cc_library(
 
 cc_test(
     name = "goldfish_audio_device_module_test",
+    size = "small",
     srcs = ["core/goldfish_audio_device_module_test.cc"],
     copts = WEBRTC_COPTS,
     deps = [
@@ -499,6 +573,7 @@ cc_test(
 
 cc_test(
     name = "rtc_config_test",
+    size = "small",
     srcs = ["core/rtc_config_test.cc"],
     copts = WEBRTC_COPTS,
     deps = [
@@ -510,6 +585,7 @@ cc_test(
 
 cc_test(
     name = "in_process_input_sender_test",
+    size = "small",
     srcs = ["core/in_process_input_sender_test.cc"],
     copts = select({
         "@platforms//os:windows": ["/GR-"],
@@ -523,7 +599,24 @@ cc_test(
 )
 
 cc_test(
+    name = "grpc_input_sender_test",
+    srcs = [
+        "core/grpc_input_sender.h",
+        "core/grpc_input_sender_test.cc",
+    ],
+    copts = WEBRTC_COPTS,
+    includes = ["."],
+    deps = [
+        ":emulator_client",
+        ":videobridge_core",
+        "//emulator/libs/test:googletest_main",
+        "@grpc//:grpc++",
+    ],
+)
+
+cc_test(
     name = "switchboard_test",
+    size = "small",
     srcs = ["core/switchboard_test.cc"],
     copts = WEBRTC_COPTS,
     linkopts = WEBRTC_LINKOPTS,
@@ -537,6 +630,7 @@ cc_test(
 
 cc_test(
     name = "jsep_parse_test",
+    size = "small",
     srcs = [
         "core/jsep_parse.h",
         "core/jsep_parse_test.cc",
@@ -553,6 +647,7 @@ cc_test(
 
 cc_test(
     name = "virtual_network_test",
+    size = "small",
     srcs = [
         "core/virtual_network_fixture.h",
         "core/virtual_network_test.cc",
@@ -571,6 +666,7 @@ cc_test(
 
 cc_test(
     name = "participant_test",
+    size = "small",
     srcs = [
         "core/participant.h",
         "core/participant_test.cc",
@@ -590,6 +686,7 @@ cc_test(
 
 cc_test(
     name = "mf_video_encoder_h264_test",
+    size = "small",
     srcs = ["core/win/mf_video_encoder_h264_test.cc"],
     target_compatible_with = select({
         "@platforms//os:windows": [],
@@ -603,7 +700,41 @@ cc_test(
 )
 
 cc_test(
+    name = "mf_hardware_test",
+    size = "small",
+    srcs = ["core/win/test/mf_hardware_test.cc"],
+    copts = WEBRTC_COPTS,
+    includes = ["."],
+    linkopts = [
+        "-DEFAULTLIB:mfplat.lib",
+        "-DEFAULTLIB:mfuuid.lib",
+        "-DEFAULTLIB:ole32.lib",
+        "-DEFAULTLIB:strmiids.lib",
+        "-DEFAULTLIB:uuid.lib",
+    ],
+    target_compatible_with = select({
+        "@platforms//os:windows": [],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
+    deps = [
+        ":videobridge_codecs",
+        ":videobridge_codecs_win",
+        "//emulator/libs/test:googletest_main",
+        "@ffmpeg",
+        "@ffmpeg//:ffmpeg_headers",
+        "@libyuv",
+        "@webrtc//api:scoped_refptr",
+        "@webrtc//api/environment:environment_factory",
+        "@webrtc//api/video:video_frame",
+        "@webrtc//api/video_codecs:video_codecs_api",
+        "@webrtc//common_video",
+        "@webrtc//modules/video_coding:video_codec_interface",
+    ],
+)
+
+cc_test(
     name = "codec_factories_mac_test",
+    size = "small",
     srcs = ["core/mac/codec_factories_mac_test.cc"],
     linkopts = WEBRTC_LINKOPTS,
     target_compatible_with = select({
@@ -615,6 +746,38 @@ cc_test(
         "//emulator/libs/test:googletest_main",
         "@webrtc//api:create_peerconnection_factory",
         "@webrtc//api/video_codecs:video_codecs_api",
+    ],
+)
+
+cc_test(
+    name = "videotoolbox_hardware_test",
+    size = "small",
+    srcs = ["core/mac/test/videotoolbox_hardware_test.cc"],
+    copts = WEBRTC_COPTS,
+    includes = ["."],
+    linkopts = WEBRTC_LINKOPTS + [
+        "-framework VideoToolbox",
+        "-framework CoreMedia",
+        "-framework CoreVideo",
+        "-framework CoreFoundation",
+        "-framework Foundation",
+    ],
+    target_compatible_with = select({
+        "@platforms//os:macos": [],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
+    deps = [
+        ":videobridge_codecs",
+        "//emulator/libs/test:googletest_main",
+        "@ffmpeg",
+        "@ffmpeg//:ffmpeg_headers",
+        "@libyuv",
+        "@webrtc//api:scoped_refptr",
+        "@webrtc//api/environment:environment_factory",
+        "@webrtc//api/video:video_frame",
+        "@webrtc//api/video_codecs:video_codecs_api",
+        "@webrtc//common_video",
+        "@webrtc//modules/video_coding:video_codec_interface",
     ],
 )
 
@@ -644,6 +807,7 @@ cc_binary(
 
 cc_test(
     name = "codec_factories_dylib_test",
+    size = "small",
     srcs = ["core/mac/codec_factories_dylib_test.cc"],
     data = [":videobridge_codecs_shared"],
     target_compatible_with = select({
@@ -744,10 +908,17 @@ cc_library(
     strip_include_prefix = "include",
     deps = [
         ":videobridge_core",
+        "//emulator/libs/async:async_api",
+        "//emulator/libs/async:libuv_event_loop",
+        "//emulator/libs/async:threaded_event_loop",
+        "//emulator/libs/display_pipeline:core",
+        "//emulator/libs/perfetto:init",
         "//emulator/plugin/display:abstract_multi_display",
         "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/types:span",
         "@libyuv",
         "@webrtc//api:peer_connection_interface",
+        "@webrtc//common_video",
         "@webrtc//media:adapted_video_track_source",
         "@webrtc//media:video_broadcaster",
         "@webrtc//rtc_base:timeutils",
@@ -759,12 +930,13 @@ cc_library(
     deps = [
         ":in_process_audio_source",
         ":in_process_video_source",
-        "//emulator/plugin/avd:global-event-loop",
+        "//emulator/plugin/avd:global_event_loop",
     ],
 )
 
 cc_test(
     name = "media_track_provider_test",
+    size = "small",
     srcs = ["media/media_track_provider_test.cc"],
     copts = WEBRTC_COPTS,
     linkopts = WEBRTC_LINKOPTS,
@@ -772,7 +944,7 @@ cc_test(
         ":in_process_media_providers",
         ":videobridge_core",
         "//emulator/libs/test:googletest_main",
-        "//emulator/plugin/avd:global-event-loop",
+        "//emulator/plugin/avd:global_event_loop",
         "//emulator/plugin/display:primary_display",
         "//emulator/plugin/display:test-display",
         "@webrtc//api:peer_connection_interface",
@@ -781,6 +953,7 @@ cc_test(
 
 cc_test(
     name = "in_process_audio_source_test",
+    size = "small",
     srcs = ["media/in_process_audio_source_test.cc"],
     copts = WEBRTC_COPTS,
     deps = [
@@ -793,13 +966,15 @@ cc_test(
 
 cc_test(
     name = "in_process_video_source_test",
+    size = "small",
     srcs = ["media/in_process_video_source_test.cc"],
     copts = WEBRTC_COPTS,
     deps = [
         ":in_process_video_source",
         ":videobridge_core",
+        "//emulator/libs/async:async_testing",
         "//emulator/libs/test:googletest_main",
-        "//emulator/plugin/avd:global-event-loop",
+        "//emulator/plugin/avd:global_event_loop",
         "//emulator/plugin/display:primary_display",
         "//emulator/plugin/display:test-display",
         "@abseil-cpp//absl/synchronization",
@@ -809,6 +984,7 @@ cc_test(
 
 cc_test(
     name = "grpc_video_source_test",
+    size = "small",
     srcs = ["media/grpc_video_source_test.cc"],
     copts = WEBRTC_COPTS,
     deps = [
@@ -825,6 +1001,7 @@ cc_test(
 
 cc_test(
     name = "grpc_audio_source_test",
+    size = "small",
     srcs = ["media/grpc_audio_source_test.cc"],
     copts = WEBRTC_COPTS,
     deps = [
@@ -848,21 +1025,24 @@ clang_tidy_test(
         ":grpc_media_providers",
         ":in_process_audio_source",
         ":in_process_video_source",
-        "//emulator/plugin/avd:global-event-loop",
+        "//emulator/plugin/avd:global_event_loop",
         ":in_process_media_providers",
         ":media_track_provider_test",
         ":in_process_audio_source_test",
         ":in_process_video_source_test",
         ":grpc_video_source_test",
         ":grpc_audio_source_test",
+        ":grpc_input_sender_test",
         ":nvenc_loader",
         ":nvenc_loader_test",
         ":nvenc_video_encoder",
         ":nvenc_video_encoder_test",
+        ":nvenc_hardware_test",
         ":vaapi_loader",
         ":vaapi_loader_test",
         ":vaapi_video_encoder",
         ":vaapi_video_encoder_test",
+        ":vaapi_hardware_test",
         ":videobridge_codecs",
         ":codec_factories_linux_test",
     ],

@@ -18,7 +18,7 @@ cc_library(
         "//emulator/libs/hardware_config",
         "//emulator/libs/shared_memory",
         "//emulator/libs/sockets",
-        "//emulator/plugin/avd:info",
+        "//emulator/plugin/avd:avd_universe",
         "//emulator/plugin/grpc/input:event_sender",
         "//emulator/plugin/grpc/keyboard",
         "//emulator/plugin/grpc/services/emulator_controller_methods",
@@ -43,7 +43,6 @@ cc_library(
         "//emulator/libs/shared_memory",
         "//emulator/libs/sockets",
         "//emulator/modem_simulator:i_modem_simulator_client",
-        "//emulator/plugin/avd:info",
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/strings",
         "@aemu//protos/services/incubating/modem:modem_service_cc_grpc",
@@ -52,6 +51,7 @@ cc_library(
 
 cc_test(
     name = "modem_service_test",
+    size = "small",
     srcs = ["modem_service_test.cc"],
     deps = [
         ":modem_service",
@@ -70,9 +70,9 @@ cc_library(
         "//emulator/libs/grpc_utils:async",
         "//emulator/libs/grpc_utils:event-stream",
         "//emulator/libs/hardware_config",
+        "//emulator/libs/sensors:physical_model",
         "//emulator/libs/shared_memory",
         "//emulator/libs/sockets",
-        "//emulator/plugin/avd:info",
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/strings",
         "@aemu//protos/services/incubating/sensor:sensor_service_cc_grpc",
@@ -81,6 +81,7 @@ cc_library(
 
 cc_test(
     name = "sensor_service_incubating_test",
+    size = "small",
     srcs = ["sensor_service_incubating_test.cc"],
     deps = [
         ":sensor_service_incubating",
@@ -106,6 +107,7 @@ cc_library(
 
 cc_test(
     name = "service_forwarder_impl_test",
+    size = "small",
     srcs = ["service_forwarder_impl_test.cc"],
     deps = [
         ":service_forwarder",
@@ -145,6 +147,7 @@ cc_library(
 
 cc_test(
     name = "ui_controller_forwarder_test",
+    size = "small",
     srcs = ["ui_controller_forwarder_test.cc"],
     deps = [
         ":service_forwarder",
@@ -163,6 +166,7 @@ cc_library(
         "//emulator/libs/archive",
         "//emulator/libs/file",
         "//emulator/libs/grpc_utils:absl_translate",
+        "//emulator/libs/perfetto:init",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/log",
@@ -182,7 +186,6 @@ cc_library(
     deps = [
         "//emulator/libs/async:async_api",
         "//emulator/libs/grpc_utils:event-stream",
-        "//emulator/plugin/avd:info",
         "//emulator/plugin/avd_universe:vehicle",
         "@aemu//protos/services/incubating/car:vehicle_service_cc_grpc",
     ],
@@ -190,10 +193,12 @@ cc_library(
 
 cc_test(
     name = "screen_recording_impl_test",
+    size = "medium",
     srcs = ["screen_recording_impl_test.cc"],
     deps = [
         ":screen_recorder",
         "@goldfish//emulator/libs/async:libuv_event_loop",
+        "@goldfish//emulator/libs/async:threaded_event_loop",
         "@goldfish//emulator/libs/test:googletest_main",
         "@goldfish//emulator/plugin/display:test-display",
     ],
@@ -210,12 +215,13 @@ cc_library(
     includes = ["include"],
     deps = [
         "//emulator/plugin/audio:qemu_audio_source",
-        "//emulator/plugin/avd:info",
+        "//emulator/plugin/avd:avd_universe",
         "//emulator/plugin/display:base",
         "//emulator/plugin/grpc/input:event_sender",
         "//emulator/plugin/grpc/input:input_session",
         "//emulator/plugin/grpc/keyboard",
         "//emulator/plugin/grpc/services/v2:rtc_service",
+        "//emulator/plugin/grpc/services/v2:sensors_service",
         "//emulator/videobridge:in_process_media_providers",
         "//emulator/videobridge:rtc_service",
         "//emulator/videobridge:videobridge_core",
@@ -229,6 +235,7 @@ cc_library(
 
 cc_test(
     name = "in_process_rtc_service_test",
+    size = "small",
     srcs = ["in_process_rtc_service_test.cc"],
     copts = select({
         "@platforms//os:windows": ["/GR-"],
@@ -256,11 +263,13 @@ cc_test(
         "//emulator/libs/async:libuv_event_loop",
         "//emulator/libs/test:googletest_main",
         "//emulator/plugin/audio:test_qemu_audio_stub",
-        "//emulator/plugin/avd:global-event-loop",
-        "//emulator/plugin/avd:info-fake",
+        "//emulator/plugin/avd:avd_info",
+        "//emulator/plugin/avd:avd_properties",
+        "//emulator/plugin/avd:avd_universe",
+        "//emulator/plugin/avd:global_event_loop",
         "//emulator/plugin/display:test-display",
         "//emulator/plugin/grpc/keyboard:test_qemu_input_stub",
-        "@aemu//protos/services_v2/input:input_service_cc_proto",
+        "@aemu//protos/services_v2:input_service_cc_proto",
         "@grpc//:grpc++",
     ],
 )

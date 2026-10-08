@@ -59,8 +59,7 @@ def create_launch_emulator_test(
 def _create_launch_emulator_test(name, args, goldfish_dep):
     py_test(
         name = name,
-        size = "medium",
-        timeout = "long",
+        size = "large",
         tags = [
             # These tests are marked as manual so that they aren't included when using //...
             # Instead they must be explicitly named (including as part of a test_suite).

@@ -12,6 +12,10 @@ cc_library(
         "include/goldfish/adb/adb_breadcrumb_tracker.h",
         "include/goldfish/adb/adb_message_logger.h",
     ],
+    defines = select({
+        "@qemu//:goldfish_enabled": ["CONFIG_TRACE_GOLDFISH"],
+        "//conditions:default": [],
+    }),
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
@@ -27,6 +31,7 @@ cc_library(
 
 cc_test(
     name = "logger_unittests",
+    size = "medium",
     srcs = [
         "adb_breadcrumb_tracker_test.cc",
         "adb_message_logger_test.cc",

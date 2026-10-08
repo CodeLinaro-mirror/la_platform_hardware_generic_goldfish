@@ -88,7 +88,7 @@ class MFVideoEncoderFactoryH264 : public webrtc::VideoEncoderFactory {
     std::unique_ptr<webrtc::VideoEncoder> Create(const webrtc::Environment& env,
                                                  const webrtc::SdpVideoFormat& format) override {
         if (format.name == "H264") {
-            return std::make_unique<MFVideoEncoderH264>();
+            return std::make_unique<MFVideoEncoderH264>(format);
         }
         return nullptr;
     }
@@ -119,7 +119,7 @@ class CompositeVideoEncoderFactory : public webrtc::VideoEncoderFactory {
                                                  const webrtc::SdpVideoFormat& format) override {
         if (hardware_factory_) {
             for (const auto& hw_format : hardware_factory_->GetSupportedFormats()) {
-                if (hw_format.IsSameCodec(format)) {
+                if (hw_format.IsSameCodec(format) || format.name == "H264") {
                     auto encoder = hardware_factory_->Create(env, format);
                     if (encoder) return encoder;
                 }

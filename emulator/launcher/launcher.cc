@@ -45,6 +45,7 @@
 #include "goldfish/async/when_all.h"
 #include "goldfish/file/file.h"
 #include "goldfish/metrics/metrics_reporter.h"
+#include "goldfish/metrics/snapshot_metrics.h"
 #include "goldfish/modem_simulator/modem_simulator_service.h"
 #include "goldfish/network/endpoint.h"
 #include "host_info.h"
@@ -52,6 +53,7 @@
 #include "launch_netsimd.h"
 #include "launch_qemu/emulator_config.h"
 #include "launch_qemu/launch_qemu.h"
+#include "launch_qemu/snapshot_device.h"
 #include "legacy_console_controller.h"
 #include "logging.h"
 
@@ -90,7 +92,9 @@ class Launcher {
         config_.event_loop
                 .Post([this] {
                     if (auto s = setup_emulator_ports(config_.opts, config_.event_loop); !s.ok()) {
-                        LOG(FATAL) << "Failed to set ports: " << s;
+                        fail_startup(absl::Status(
+                                s.code(), absl::StrCat("Failed to set ports: ", s.message())));
+                        return;
                     }
 
                     if (ShouldLaunchFishtank(config_.opts)) {
@@ -125,19 +129,31 @@ class Launcher {
                                         })
                                         .IgnoreError();
                             } else if (!shutting_down_) {
-                                LOG(FATAL)
-                                        << "Emulator launch aborted: Failed to connect to netsimd (required for Wi-Fi, Bluetooth, and Telephony). Status: "
-                                        << connection.status();
+                                config_.event_loop
+                                        .Post([this, status = connection.status()]() {
+                                            fail_startup(absl::Status(
+                                                    status.code(),
+                                                    absl::StrCat("Emulator launch aborted: Failed "
+                                                                 "to connect to netsimd (required "
+                                                                 "for Wi-Fi, Bluetooth, and "
+                                                                 "Telephony). Status: ",
+                                                                 status.message())));
+                                        })
+                                        .IgnoreError();
                             }
                         });
                     }
-                    config_.event_loop.Post([this, chardevs]() { init_modem_simulator(chardevs); })
-                            .IgnoreError();
+                    if (!config_.opts.netsim_cellular) {
+                        config_.event_loop
+                                .Post([this, chardevs]() { init_modem_simulator(chardevs); })
+                                .IgnoreError();
+                    }
                 })
                 .IgnoreError();
     }
 
     int emulator_exit_status() const { return emulator_exit_status_; }
+    const absl::Status& startup_status() const { return startup_status_; }
 
     void join_shutdown_thread() {
         if (netsimd_connector_thread_.joinable()) {
@@ -149,17 +165,48 @@ class Launcher {
     }
 
   private:
+    void fail_startup(absl::Status status) {
+        if (startup_status_.ok()) {
+            startup_status_ = std::move(status);
+        }
+        shutdown();
+    }
+
     void forwarding_signal_handler(int signum) {
         VLOG(1) << "forwarding_signal_handler called with signum: " << signum;
-        shutting_down_ = true;
+        if (shutting_down_) {
+            return;
+        }
         if (auto* p = emulator_process_.get()) {
+            if (qemu_shutdown_timeout_) {
+                // If the user has sent another signal, e.g. another INT or TERM, then they
+                // must really want us to exit immediately so don't wait any longer.
+                LOG(WARNING)
+                        << "Signal " << signum
+                        << " received while already shutting down; sending SIGKILL to emulator";
+                qemu_shutdown_timeout_->Cancel();
+                p->Kill(SIGKILL);
+                return;
+            }
             LOG(ERROR) << "Signal received, sending shutdown command to emulator: " << signum;
             if (auto s = send_emulator_grpc_shutdown(ports_.serial_number); !s.ok()) {
-                LOG(WARNING) << "Graceful gRPC shutdown failed; falling back to forceful kill with signal: " << signum << " - " << s;
+                LOG(WARNING) << "Graceful gRPC shutdown failed; falling back to forceful kill with "
+                                "signal: "
+                             << signum << " - " << s;
                 // Note that: on Windows, this does not send a signal but instead calls
                 // TerminateProcess().
                 p->Kill(signum);
             }
+            qemu_shutdown_timeout_ = config_.event_loop.ScheduleDelayed(
+                    [this] {
+                        if (auto* proc = emulator_process_.get()) {
+                            LOG(WARNING) << "Emulator did not exit within "
+                                         << config_.qemu_shutdown_timeout
+                                         << " after shutdown signal; sending SIGKILL";
+                            proc->Kill(SIGKILL);
+                        }
+                    },
+                    config_.qemu_shutdown_timeout);
         } else {
             // If there is no emulator process yet then we want to shutdown directly.
             shutdown();
@@ -215,7 +262,7 @@ class Launcher {
     absl::Status setup_emulator_ports(const AndroidOptions& opts,
                                       ::goldfish::async::EventLoop& event_loop) {
         auto console_controller = std::make_unique<::goldfish::telnet::LegacyConsoleController>(
-                *config_.socket_factory, &event_loop);
+                *config_.socket_factory, &event_loop, *config_.metrics_reporter);
         if (opts.ports) {
             // Format should be console_port,adb_port
             std::vector<std::string_view> parts = absl::StrSplit(opts.ports, ',');
@@ -285,10 +332,14 @@ class Launcher {
                 fishtank_process_ = *std::move(s);
                 LOG(INFO) << "Running fishtank as pid: " << fishtank_process_->GetPid();
             } else {
-                LOG(FATAL) << "Fatal error whilst launching fishtank: " << s.status();
+                fail_startup(absl::Status(s.status().code(),
+                                          absl::StrCat("Fatal error whilst launching fishtank: ",
+                                                       s.status().message())));
             }
         } else {
-            LOG(FATAL) << "Fatal error whilst launching fishtank: " << fishtank_config.status();
+            fail_startup(absl::Status(fishtank_config.status().code(),
+                                      absl::StrCat("Fatal error whilst launching fishtank: ",
+                                                   fishtank_config.status().message())));
         }
     }
 
@@ -298,37 +349,31 @@ class Launcher {
     }
 
     absl::Status launch_netsimd() {
-        ASSIGN_OR_RETURN(
-                auto launch_status, config_.event_loop.PostAndWait([this]() -> absl::Status {
-                    if (shutting_down_) {
-                        return absl::CancelledError("Cancelled netsimd launch: emulator launcher is shutting down");
-                    }
+        return config_.event_loop.PostAndWait([this]() -> absl::Status {
+            if (shutting_down_) {
+                return absl::CancelledError(
+                        "Cancelled netsimd launch: emulator launcher is shutting down");
+            }
 
-                    ASSIGN_OR_RETURN(auto netsim_config,
-                                     netsim::netsimd_launch_config(
-                                             config_.emulator_paths.netsim_binary, config_.opts));
-                    ASSIGN_OR_RETURN(auto proc,
-                                     config_.process_launcher->Launch(
-                                             netsim_config, [this](int64_t status, int signal) {
-                                                 netsimd_exit(status, signal);
-                                             }));
-                    netsimd_process_ = std::move(proc);
-                    VLOG(1) << "Running netsimd as pid: " << netsimd_process_->GetPid();
-                    config_.process_launcher->ForgetProcess(*netsimd_process_);
-                    return absl::OkStatus();
-                }));
-        return launch_status;
+            ASSIGN_OR_RETURN(auto netsim_config,
+                             netsim::netsimd_launch_config(config_.emulator_paths.netsim_binary,
+                                                           config_.opts));
+            ASSIGN_OR_RETURN(auto proc, config_.process_launcher->Launch(
+                                                netsim_config, [this](int64_t status, int signal) {
+                                                    netsimd_exit(status, signal);
+                                                }));
+            netsimd_process_ = std::move(proc);
+            VLOG(1) << "Running netsimd as pid: " << netsimd_process_->GetPid();
+            config_.process_launcher->ForgetProcess(*netsimd_process_);
+            return absl::OkStatus();
+        });
     }
 
     void emulator_exit(int64_t exit_status, int term_signal) {
         LOG(INFO) << "emulator exited with status " << exit_status << ", signal " << term_signal;
+        qemu_shutdown_timeout_.reset();
         emulator_exit_status_ = exit_status;
         emulator_process_.reset();
-
-        // Shutdown fishtank if it's running.
-        if (auto* p = fishtank_process_.get()) {
-            p->Kill(SIGTERM);
-        }
 
         // Send a final ping with the crash status.
         config_.metrics_reporter->Report([exit_status,
@@ -364,11 +409,24 @@ class Launcher {
                 emulator_process_ = *std::move(s);
                 LOG(INFO) << "Running emulator as pid: " << emulator_process_->GetPid();
                 report_host_info_metrics();
+                report_quickboot_metrics(emulator);
             } else {
-                LOG(FATAL) << "Fatal error whilst launching the emulator: " << s.status();
+                fail_startup(
+                        absl::Status(s.status().code(),
+                                     absl::StrCat("Fatal error whilst launching the emulator: ",
+                                                  s.status().message())));
             }
         } else {
-            LOG(FATAL) << "Fatal error whilst launching the emulator: " << emulator_config.status();
+            fail_startup(absl::Status(emulator_config.status().code(),
+                                      absl::StrCat("Fatal error whilst launching the emulator: ",
+                                                   emulator_config.status().message())));
+        }
+    }
+
+    void report_quickboot_metrics(const LaunchQemu& emulator) {
+        if (const auto* snapshot = emulator.get<SnapshotDevice>("snapshot")) {
+            ::goldfish::metrics::ReportQuickbootSkippedMetrics(
+                    *config_.metrics_reporter, snapshot->load_status(), snapshot->save_status());
         }
     }
 
@@ -383,6 +441,15 @@ class Launcher {
     }
 
     void shutdown() {
+        if (shutting_down_.exchange(true)) {
+            return;
+        }
+
+        // Shutdown fishtank if it's running.
+        if (auto* p = fishtank_process_.get()) {
+            p->Kill(SIGTERM);
+        }
+
         if (console_controller_) {
             if (auto s = console_controller_->Stop(); !s.ok()) {
                 LOG(WARNING) << "Failed to gracefully stop console controller: " << s;
@@ -422,9 +489,11 @@ class Launcher {
     std::unique_ptr<::goldfish::async::ManagedProcess> fishtank_process_;
     std::unique_ptr<::goldfish::async::ManagedProcess> netsimd_process_;
     std::unique_ptr<::goldfish::async::ManagedProcess> emulator_process_;
+    std::shared_ptr<::goldfish::async::EventLoop::Timer> qemu_shutdown_timeout_;
     std::shared_ptr<ModemSimulatorService> modem_simulator_service_;
 
     int emulator_exit_status_ = 0;
+    absl::Status startup_status_ = absl::OkStatus();
 
     std::thread shutdown_thread_;
 
@@ -433,17 +502,22 @@ class Launcher {
 
 }  // namespace
 
-int RunLauncher(LauncherConfig config) {
+absl::StatusOr<int> RunLauncher(LauncherConfig config) {
     auto& event_loop = config.event_loop;
 
     Launcher l(std::move(config));
 
-    if (auto s = event_loop.Run(); !s.ok()) {
-        LOG(ERROR) << "Event loop run failed with error: " << s;
-        return 1;
+    auto run_status = event_loop.Run();
+    l.join_shutdown_thread();
+
+    if (!run_status.ok()) {
+        return absl::Status(run_status.code(), absl::StrCat("Event loop run failed with error: ",
+                                                            run_status.message()));
     }
 
-    l.join_shutdown_thread();
+    if (!l.startup_status().ok()) {
+        return l.startup_status();
+    }
 
     return l.emulator_exit_status();
 }

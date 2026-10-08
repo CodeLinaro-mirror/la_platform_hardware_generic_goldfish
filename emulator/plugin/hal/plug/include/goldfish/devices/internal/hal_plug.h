@@ -47,7 +47,7 @@ class HalSocket {
      * @note There are no guarantees that the data arrives in the guest.
      * @param data The message to send.
      */
-    virtual void Send(std::string data) = 0;
+    virtual void Send(std::string_view data) = 0;
 
     /**
      * @brief Asynchronously closes the connection.
@@ -108,7 +108,7 @@ std::ostream& operator<<(std::ostream& os, const HalSocket& socket);
 namespace internal {
 // A non-functional socket implementation used as a safe null object.
 class NullHalSocket : public HalSocket {
-    void Send(std::string data) override {}
+    void Send(std::string_view /*data*/) override {}
     void Close() override {}
 };
 }  // namespace internal

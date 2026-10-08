@@ -19,6 +19,7 @@
 #include <filesystem>
 #include <memory>
 #include <system_error>
+#include <type_traits>
 
 #include "absl/log/log.h"
 #include "absl/random/random.h"
@@ -28,6 +29,7 @@
 #include "android/control/interceptor/idle_interceptor.h"
 #include "android/control/interceptor/logging_interceptor.h"
 #include "android/control/interceptor/metrics_interceptor.h"
+#include "android/control/interceptor/perfetto_interceptor.h"
 #include "android/emulation/control/allow_list.h"
 #include "android/emulation/control/basic_token_auth.h"
 #include "android/emulation/control/emulator_controller.h"
@@ -47,9 +49,8 @@
 #include "emulator/plugin/webrtc/webrtc_device.h"
 #include "goldfish/async/event_loop.h"
 #include "goldfish/async/qemu_event_loop.h"
-#include "goldfish/async/testing/global_event_loop.h"
-#include "goldfish/avd_info/avd_info.h"
-#include "goldfish/avd_info/avd_private.h"
+#include "goldfish/avd/avd_info.h"
+#include "goldfish/avd/global_event_loop.h"
 #include "goldfish/discovery/emulator_advertisement.h"
 #include "goldfish/display/abstract_multi_display.h"
 #include "goldfish/file/file.h"
@@ -113,20 +114,20 @@ struct GrpcConfig {
     std::vector<std::shared_ptr<::grpc::Service>> grpc_services;
     std::unique_ptr<::grpc::Server> grpc_server;
     std::unique_ptr<EmulatorAdvertisement> advertiser;
-    Notifier shutdown_notifier;
 };
 
 struct GrpcDev {
-    DeviceClass parent_class;
+    DeviceState parent_obj;
 
     GrpcConfig* config;
+    Notifier shutdown_notifier;
 };
+static_assert(std::is_standard_layout_v<GrpcDev>);
 
 #define TYPE_GRPC "grpc"
 #define GRPC_DEV(obj) OBJECT_CHECK(GrpcDev, (obj), TYPE_GRPC)
-#define GRPC_DEVICE_GET_CLASS(obj) OBJECT_GET_CLASS(GrpcDev, obj, TYPE_GRPC)
 
-std::vector<std::shared_ptr<::grpc::Service>> CreateServices(avd_info::AvdUniverse& avd_universe,
+std::vector<std::shared_ptr<::grpc::Service>> CreateServices(avd::AvdUniverse& avd_universe,
                                                              int modem_simulator_port) {
     std::vector<std::shared_ptr<::grpc::Service>> services;
 
@@ -182,13 +183,15 @@ CreateInterceptors(bool enable_logging, int idle_timeout) {
             std::make_unique<android::control::interceptor::BreadcrumbInterceptorFactory>());
     creators.emplace_back(
             std::make_unique<android::control::interceptor::MetricsInterceptorFactory>(
-                    ::goldfish::avd_info::GetAvd().GetMetricsReporter()));
+                    ::goldfish::avd::GetAvd().GetMetricsReporter()));
+    creators.emplace_back(
+            std::make_unique<android::control::interceptor::PerfettoInterceptorFactory>());
 
     if (idle_timeout > 0) {
         LOG(INFO) << "Terminating emulator if no activity after " << idle_timeout << " seconds.";
         creators.emplace_back(
                 std::make_unique<android::control::interceptor::IdleInterceptorFactory>(
-                        std::chrono::seconds(idle_timeout), goldfish::async::globalEventLoop()));
+                        std::chrono::seconds(idle_timeout), goldfish::avd::globalEventLoop()));
     }
     return creators;
 }
@@ -345,7 +348,7 @@ std::shared_ptr<::grpc::ServerCredentials> CreateCredentials(const CredConf& cre
     return creds;
 }
 
-EmulatorProperties CreateProps(const GrpcConfig* config, const avd_info::AvdUniverse& avd_universe,
+EmulatorProperties CreateProps(const GrpcConfig* config, const avd::AvdUniverse& avd_universe,
                                const CredConf& cred_conf) {
     const auto& avdprops = avd_universe.Props();
     EmulatorProperties props{
@@ -399,7 +402,11 @@ std::string ShutdownCauseToString(ShutdownCause cause) {
 #endif
 
 void grpc_shutdown_notify(Notifier* notifier, void* data) {
-    GrpcConfig* config = container_of(notifier, GrpcConfig, shutdown_notifier);
+    GrpcDev* grpc_device = container_of(notifier, GrpcDev, shutdown_notifier);
+    GrpcConfig* config = grpc_device->config;
+    if (!config) {
+        return;
+    }
     config->advertiser.reset();
     if (!config->grpc_server) {
         return;
@@ -473,7 +480,7 @@ void grpc_realize(DeviceState* dev, Error** errp) {
 
     auto credentials = CreateCredentials(*cred_conf, is_local_address);
 
-    avd_info::AvdUniverse& avd_universe = goldfish::avd_info::GetAvd();
+    avd::AvdUniverse& avd_universe = goldfish::avd::GetAvd();
     config->grpc_services = CreateServices(avd_universe, config->modem_simulator_port);
     auto interceptors = CreateInterceptors(config->enable_logging, config->idle_timeout);
 
@@ -499,8 +506,8 @@ void grpc_realize(DeviceState* dev, Error** errp) {
                      << s;
     }
 
-    config->shutdown_notifier.notify = grpc_shutdown_notify;
-    qemu_register_shutdown_notifier(&config->shutdown_notifier);
+    grpc_device->shutdown_notifier.notify = grpc_shutdown_notify;
+    qemu_register_shutdown_notifier(&grpc_device->shutdown_notifier);
 }
 
 void grpc_unrealize(DeviceState* dev) {
@@ -508,7 +515,7 @@ void grpc_unrealize(DeviceState* dev) {
     GrpcDev* grpc_device = GRPC_DEV(dev);
     auto* config = grpc_device->config;
 
-    notifier_remove(&config->shutdown_notifier);
+    notifier_remove(&grpc_device->shutdown_notifier);
 
     if (config->grpc_server) {
         // Explicitly cleanup resources. We do not want to do this at
@@ -633,6 +640,7 @@ void grpc_instance_init(Object* obj) {
 void grpc_instance_finalize(Object* obj) {
     GrpcDev* grpc_device = GRPC_DEV(obj);
     delete grpc_device->config;
+    grpc_device->config = nullptr;
 }
 
 void grpc_class_init(ObjectClass* oc, const void* data) {

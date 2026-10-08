@@ -6,12 +6,14 @@ cc_library(
     srcs = ["gtest_main.cc"],
     data = [
         "leak_suppressions.txt",
-        "tsan_suppressions.txt",
     ],
     implementation_deps = [
         "//emulator/libs/system",
         "//emulator/libs/system:bazel_info",
     ],
+    # Linked into the test binary so its sanitizer hooks (e.g.
+    # __tsan_default_suppressions) override the runtime's weak defaults.
+    linkstatic = True,
     visibility = ["//visibility:public"],
     deps = [
         "@abseil-cpp//absl/debugging:failure_signal_handler",

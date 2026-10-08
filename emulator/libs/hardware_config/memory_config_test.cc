@@ -17,10 +17,17 @@
 #include <gtest/gtest.h>
 
 #include "absl/status/status.h"
+#include "absl/status/status_matchers.h"
+#include "gmock/gmock.h"
 
 #include "android/goldfish/hardware_config.h"
+#include "android/status/status_matcher_macros.h"
 
 namespace android::goldfish {
+
+using ::absl_testing::IsOkAndHolds;
+using ::absl_testing::StatusIs;
+using ::testing::HasSubstr;
 
 class MemoryConfigTest : public ::testing::Test {
   protected:
@@ -148,28 +155,30 @@ TEST_F(MemoryConfigTest, HighDensityLargeHeap) {
 }
 
 TEST_F(MemoryConfigTest, CalculateMinimumRam_ApiLevels) {
-    EXPECT_EQ(MemoryConfig::CalculateMinimumRam(hw, 21), 1024);
-    EXPECT_EQ(MemoryConfig::CalculateMinimumRam(hw, 26), 1536);
-    EXPECT_EQ(MemoryConfig::CalculateMinimumRam(hw, 29), 2048);
-    EXPECT_EQ(MemoryConfig::CalculateMinimumRam(hw, 34), 2560);
-    EXPECT_EQ(MemoryConfig::CalculateMinimumRam(hw, 37), 4096);
+    EXPECT_THAT(MemoryConfig::CalculateMinimumRam(hw, 21), IsOkAndHolds(1024));
+    EXPECT_THAT(MemoryConfig::CalculateMinimumRam(hw, 26), IsOkAndHolds(1536));
+    EXPECT_THAT(MemoryConfig::CalculateMinimumRam(hw, 29), IsOkAndHolds(2048));
+    EXPECT_THAT(MemoryConfig::CalculateMinimumRam(hw, 34), IsOkAndHolds(2560));
+    EXPECT_THAT(MemoryConfig::CalculateMinimumRam(hw, 37), IsOkAndHolds(4096));
 }
 
 TEST_F(MemoryConfigTest, CalculateMinimumRam_DeviceType) {
-    EXPECT_EQ(MemoryConfig::CalculateMinimumRam(hw, 30, DeviceType::kTv),
-              2048);  // API 30 requires 2048, which is > 1024
-    EXPECT_EQ(MemoryConfig::CalculateMinimumRam(hw, 21, DeviceType::kTv),
-              1024);  // API 21 requires 1024
-    EXPECT_EQ(MemoryConfig::CalculateMinimumRam(hw, 21, DeviceType::kXr),
-              4096);  // XR requires 4096
-    EXPECT_EQ(MemoryConfig::CalculateMinimumRam(hw, 37, DeviceType::kWear),
-              2048);  // Wear capped at 2048 even for API 37
-    EXPECT_EQ(MemoryConfig::CalculateMinimumRam(hw, 26, DeviceType::kWear),
-              1536);  // Wear retains lower min_ram for older APIs
+    EXPECT_THAT(MemoryConfig::CalculateMinimumRam(hw, 30, DeviceType::kTv),
+                IsOkAndHolds(2048));  // API 30 requires 2048, which is > 1024
+    EXPECT_THAT(MemoryConfig::CalculateMinimumRam(hw, 21, DeviceType::kTv),
+                IsOkAndHolds(1024));  // API 21 requires 1024
+    EXPECT_THAT(MemoryConfig::CalculateMinimumRam(hw, 21, DeviceType::kXr),
+                IsOkAndHolds(4096));  // XR requires 4096
+    EXPECT_THAT(MemoryConfig::CalculateMinimumRam(hw, 37, DeviceType::kWear),
+                IsOkAndHolds(2048));  // Wear capped at 2048 even for API 37
+    EXPECT_THAT(MemoryConfig::CalculateMinimumRam(hw, 26, DeviceType::kWear),
+                IsOkAndHolds(1536));  // Wear retains lower min_ram for older APIs
 }
 
-TEST_F(MemoryConfigTest, CalculateMinimumRam_DeathOnLowApi) {
-    EXPECT_DEATH(MemoryConfig::CalculateMinimumRam(hw, 20), "We do not support api level < 21");
+TEST_F(MemoryConfigTest, CalculateMinimumRam_ErrorOnLowApi) {
+    EXPECT_THAT(MemoryConfig::CalculateMinimumRam(hw, 20),
+                StatusIs(absl::StatusCode::kInvalidArgument,
+                         HasSubstr("We do not support api level < 21")));
 }
 
 }  // namespace android::goldfish

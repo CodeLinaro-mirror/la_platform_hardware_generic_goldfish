@@ -22,21 +22,21 @@
 namespace goldfish::broadcasting {
 namespace {
 struct MySubscriber {
-    void notifyInt(const int x) {
+    void NotifyInt(const int x) {
         value = x;
-        foreignCode();
+        foreign_code();
     }
 
-    void notifyNoArguments() {}
+    void NotifyNoArguments() {}
 
-    std::function<void()> foreignCode = []() {};
+    std::function<void()> foreign_code = []() {};
     Subscription subscription;
     int value = 0;
 };
 }  // namespace
 
 TEST(broadcasting, example) {
-    auto integerTopic = Topic<int>::Create();
+    auto integer_topic = Topic<int>::Create();
     std::vector<std::shared_ptr<MySubscriber>> subscribers(5);
     for (auto& s : subscribers) {
         s = std::make_shared<MySubscriber>();
@@ -44,17 +44,17 @@ TEST(broadcasting, example) {
     }
 
     // the `Broadcast` call goes nowhere because nobody is subscribed yet
-    EXPECT_EQ(integerTopic->Broadcast(42), 0);
+    EXPECT_EQ(integer_topic->Broadcast(42), 0);
     for (const std::shared_ptr<MySubscriber>& s : subscribers) {
         EXPECT_EQ(s->value, 0);
     }
 
     for (const std::shared_ptr<MySubscriber>& s : subscribers) {
-        s->subscription = integerTopic->Subscribe(s, &MySubscriber::notifyInt);
+        s->subscription = integer_topic->Subscribe(s, &MySubscriber::NotifyInt);
         EXPECT_TRUE(s->subscription.IsSubscribed());  // now subscribed
     }
 
-    EXPECT_EQ(integerTopic->Broadcast(42), 5);
+    EXPECT_EQ(integer_topic->Broadcast(42), 5);
     for (const std::shared_ptr<MySubscriber>& s : subscribers) {
         EXPECT_EQ(s->value, 42);
     }
@@ -65,7 +65,7 @@ TEST(broadcasting, example) {
     subscribers[2]->subscription.Unsubscribe();
     EXPECT_FALSE(subscribers[2]->subscription.IsSubscribed());
 
-    EXPECT_EQ(integerTopic->Broadcast(77), 3);
+    EXPECT_EQ(integer_topic->Broadcast(77), 3);
 
     EXPECT_EQ(subscribers[0]->value, 42);  // unsubscribed above
     EXPECT_EQ(subscribers[1]->value, 77);
@@ -74,34 +74,34 @@ TEST(broadcasting, example) {
     EXPECT_EQ(subscribers[4]->value, 77);
 
     subscribers[1].reset();  // ~Subscription unsubscribes
-    EXPECT_EQ(integerTopic->Broadcast(100), 2);
+    EXPECT_EQ(integer_topic->Broadcast(100), 2);
 }
 
 TEST(broadcasting, no_arguments_also_works) {
-    auto voidTopic = Topic<>::Create();
-    voidTopic->Subscribe(std::make_shared<MySubscriber>(), &MySubscriber::notifyNoArguments);
-    voidTopic->Broadcast();
+    auto void_topic = Topic<>::Create();
+    void_topic->Subscribe(std::make_shared<MySubscriber>(), &MySubscriber::NotifyNoArguments);
+    void_topic->Broadcast();
 }
 
 TEST(broadcasting, no_deadlock) {
     const auto topic = Topic<int>::Create();
     const auto subscriber = std::make_shared<MySubscriber>();
-    const auto lateSubscriber = std::make_shared<MySubscriber>();
-    Subscription lateSubscription;
+    const auto late_subscriber = std::make_shared<MySubscriber>();
+    Subscription late_subscription;
 
-    subscriber->foreignCode = [topic, lateSubscriber, &lateSubscription]() {
-        lateSubscription = topic->Subscribe(lateSubscriber, &MySubscriber::notifyInt);
+    subscriber->foreign_code = [topic, late_subscriber, &late_subscription]() {
+        late_subscription = topic->Subscribe(late_subscriber, &MySubscriber::NotifyInt);
     };
 
-    subscriber->subscription = topic->Subscribe(subscriber, &MySubscriber::notifyInt);
+    subscriber->subscription = topic->Subscribe(subscriber, &MySubscriber::NotifyInt);
 
     EXPECT_EQ(topic->Broadcast(42), 1);
     EXPECT_EQ(subscriber->value, 42);
-    EXPECT_EQ(lateSubscriber->value, 0);
+    EXPECT_EQ(late_subscriber->value, 0);
 
     EXPECT_EQ(topic->Broadcast(77), 2);
     EXPECT_EQ(subscriber->value, 77);
-    EXPECT_EQ(lateSubscriber->value, 77);
+    EXPECT_EQ(late_subscriber->value, 77);
 }
 
 TEST(broadcasting, destructor_race_with_broadcast_does_not_crash) {

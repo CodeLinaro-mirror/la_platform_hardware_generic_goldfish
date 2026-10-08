@@ -103,13 +103,18 @@ class VaapiVideoEncoder : public webrtc::VideoEncoder {
     VAConfigID config_id_ ABSL_GUARDED_BY(mutex_){VA_INVALID_ID};
     VAContextID context_id_ ABSL_GUARDED_BY(mutex_){VA_INVALID_ID};
     VASurfaceID surface_id_ ABSL_GUARDED_BY(mutex_){VA_INVALID_SURFACE};
+    VASurfaceID recon_surface_ids_[2] ABSL_GUARDED_BY(mutex_){VA_INVALID_SURFACE,
+                                                              VA_INVALID_SURFACE};
     VABufferID coded_buf_id_ ABSL_GUARDED_BY(mutex_){VA_INVALID_ID};
+    uint32_t packed_headers_attrib_ ABSL_GUARDED_BY(mutex_){0};
 
     uint32_t width_ ABSL_GUARDED_BY(mutex_){0};
     uint32_t height_ ABSL_GUARDED_BY(mutex_){0};
     uint32_t target_bitrate_bps_ ABSL_GUARDED_BY(mutex_){2000000};
     uint32_t max_framerate_fps_ ABSL_GUARDED_BY(mutex_){30};
     uint32_t frame_num_ ABSL_GUARDED_BY(mutex_){0};
+    uint32_t idr_pic_id_ ABSL_GUARDED_BY(mutex_){0};
+    uint32_t recon_slot_ ABSL_GUARDED_BY(mutex_){0};
 
     webrtc::EncodedImageCallback* callback_ ABSL_GUARDED_BY(mutex_){nullptr};
 };

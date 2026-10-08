@@ -321,7 +321,7 @@ struct GoldfishVirtioVsockDevice {
                                                        const enum virtio_vsock_op op,
                                                        const uint32_t hostFwdCnt,
                                                        const uint32_t len) {
-        constexpr uint32_t kHostBufAllocSize = 64 * 1024;
+        constexpr uint32_t kHostBufAllocSize = 1024 * 1024;
 
         // the rest of fields are set in virtio_vsock_send_packet_host_to_guest
         struct virtio_vsock_hdr hdr = {
@@ -564,9 +564,7 @@ struct GoldfishVirtioVsockDevice {
             const uint32_t in_flight_size = stream.hostSentCnt - stream.guestFwdCnt;
             size_t guestAvailSize =
                     stream.guestBufAlloc - std::min(in_flight_size, stream.guestBufAlloc);
-            unsigned sendOpMask =
-                    stream.sendOpMask |
-                    ((guestAvailSize == 0) ? (1U << VIRTIO_VSOCK_OP_CREDIT_REQUEST) : 0);
+            unsigned sendOpMask = stream.sendOpMask;
 
             if (sendOpMask) {
                 static const enum virtio_vsock_op ops[] = {
@@ -670,7 +668,7 @@ struct GoldfishVirtioVsockDevice {
             if (supportsLoading) {
                 DCHECK(!stream.dataSniffer && "dataSniffer is not snapshottable yet");
 
-                const unsigned flags = (stream.isConnected ? 1U : 0U) | stream.sendOpMask;
+                const uint8_t flags = (stream.isConnected ? 1U : 0U) | stream.sendOpMask;
 
                 writer << stream.guestBufAlloc << stream.guestFwdCnt << stream.hostSentCnt << flags;
 

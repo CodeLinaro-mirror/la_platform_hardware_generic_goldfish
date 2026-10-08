@@ -57,6 +57,7 @@ cc_binary(
 
 cc_test(
     name = "process_unittests",
+    size = "small",
     srcs = ["command_test.cc"],
     data = [
         ":sleep_emu",

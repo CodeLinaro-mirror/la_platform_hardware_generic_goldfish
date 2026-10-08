@@ -71,10 +71,18 @@ def find_available_port(start_port=8085, host="127.0.0.1", max_attempts=100):
 class EmulatorLocator:
     """Locates all necessary emulator files and artifacts."""
 
-    def __init__(self, abi, use_zip, tmp_dir, system_image_dir):
+    def __init__(
+        self,
+        abi,
+        use_zip,
+        tmp_dir,
+        system_image_dir,
+        android_device_hub=False,
+    ):
         self.abi_selection = abi
         self.use_zip = use_zip
         self.tmp_dir = Path(tmp_dir)
+        self.android_device_hub = android_device_hub
         self.r = Runfiles.Create()
         if not self.r:
             raise RuntimeError(
@@ -83,6 +91,7 @@ class EmulatorLocator:
 
         self.goldfish_exec = None
         self.aquarium_exec = None
+        self.device_hub_exec = None
         self.system_image_dir = system_image_dir
         self.phone_ini_path = None
         self.config_ini_path = None
@@ -96,6 +105,39 @@ class EmulatorLocator:
         self._locate_ini_files()
         self._locate_marker_files()
         self._locate_aquarium_ui()
+        if self.android_device_hub:
+            self._locate_device_hub()
+
+    def _locate_device_hub(self):
+        binary_name = (
+            "android_device_hub.exe"
+            if platform.system() == "Windows"
+            else "android-device-hub"
+        )
+        device_hub_rlocation = (
+            f"goldfish+/emulator/launcher/android-device-hub/{binary_name}"
+        )
+        device_hub_path = self.r.Rlocation(device_hub_rlocation)
+        if not device_hub_path:
+            raise FileNotFoundError(
+                f"Couldn't find the android-device-hub binary in runfiles: {device_hub_rlocation}"
+            )
+        self.device_hub_exec = Path(device_hub_path)
+
+        if not self.device_hub_exec.exists():
+            raise FileNotFoundError(
+                f"Couldn't find the android-device-hub binary: {self.device_hub_exec}"
+            )
+        if self.device_hub_exec.is_dir():
+            raise IsADirectoryError(
+                f"Android Device Hub binary is a directory, not a file: {self.device_hub_exec}"
+            )
+        if not self.device_hub_exec.is_file() or not os.access(
+            self.device_hub_exec, os.X_OK
+        ):
+            raise PermissionError(
+                f"Couldn't access the android-device-hub binary: {self.device_hub_exec}"
+            )
 
     def _locate_aquarium_ui(self):
         aquarium_rlocation = "goldfish+/emulator/tools/aquarium-ui/aquarium-ui"
@@ -334,14 +376,21 @@ class EmulatorRunner:
         env,
         http_port=8085,
         http_address="127.0.0.1",
+        device_hub_exec=None,
+        device_hub_protocol="v1",
+        serial_port=None,
     ):
         self.command = command
         self.aquarium_exec = aquarium_exec
+        self.device_hub_exec = device_hub_exec
+        self.device_hub_protocol = device_hub_protocol or "v1"
+        self.serial_port = serial_port
         self.env = env
         self.http_port = http_port
         self.http_address = http_address
         self.process = None
         self.aquarium = None
+        self.device_hub = None
         self.auxiliary_processes = []
         self.background_tasks = []
         self._discovery_line = re.compile(r"Advertising in discovery file: (.*)$")
@@ -452,10 +501,53 @@ class EmulatorRunner:
 
     async def _on_emulator_line(self, line):
         discovery_match = self._discovery_line.search(line)
-        if discovery_match and self.aquarium is None:
+        if discovery_match:
             discovery_file = discovery_match.group(1).strip()
             logging.info("--- Found discovery file: %s ---", discovery_file)
-            await self._launch_aquarium(discovery_file)
+            if self.aquarium is None:
+                await self._launch_aquarium(discovery_file)
+            if self.device_hub_exec and self.device_hub is None:
+                await self._launch_device_hub(discovery_file)
+
+    async def _launch_device_hub(self, discovery_file):
+        if not self.device_hub_exec:
+            return
+
+        serial_port = self.serial_port
+        try:
+            discovery_path = Path(discovery_file)
+            if discovery_path.is_file():
+                for raw_line in discovery_path.read_text(encoding="utf-8").splitlines():
+                    if raw_line.startswith("port.serial="):
+                        serial_port = int(raw_line.split("=", 1)[1].strip())
+                        break
+        except Exception:
+            pass
+
+        device_hub_cmd = [
+            str(self.device_hub_exec),
+            "--emulator",
+            "--protocol",
+            self.device_hub_protocol,
+        ]
+        if serial_port is not None:
+            device_hub_cmd.extend(["-s", f"emulator-{serial_port}"])
+
+        logging.info("Launching: %s", " ".join(device_hub_cmd))
+        try:
+            self.device_hub = await asyncio.create_subprocess_exec(
+                *device_hub_cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.STDOUT,
+                env=self.env,
+            )
+            self.register_process(self.device_hub, "android-device-hub")
+            self.start_background_task(
+                self._pump_stream(self.device_hub.stdout, tag="android-device-hub")
+            )
+        except Exception as e:
+            logging.error("--- Could not start android-device-hub: %s ---", e)
+            raise
 
     async def _launch_aquarium(self, discovery_file):
         if not self.aquarium_exec:
@@ -567,6 +659,7 @@ async def launch_and_monitor_emulator(
     expected_occurrences=None,
     http_port=8085,
     http_address="127.0.0.1",
+    android_device_hub=None,
 ):
     """Launches and monitors an emulator instance.
 
@@ -582,12 +675,23 @@ async def launch_and_monitor_emulator(
         expected_occurrences: Exact number of times count_log_pattern must occur.
         http_port: Starting port to scan for Aquarium UI (default: 8085).
         http_address: Host interface to bind Aquarium UI on (default: '127.0.0.1').
+        android_device_hub: Optional protocol ('v1' or 'v2') or boolean to launch
+            Android Device Hub instead of Fishtank.
 
     Returns:
         0 on success, 1 on failure.
     """
     try:
-        locator = EmulatorLocator(abi, use_zip, tmp_dir_for_images, system_image_dir)
+        device_hub_protocol = (
+            "v1" if android_device_hub is True else android_device_hub
+        )
+        locator = EmulatorLocator(
+            abi,
+            use_zip,
+            tmp_dir_for_images,
+            system_image_dir,
+            android_device_hub=bool(device_hub_protocol),
+        )
         await locator.find_resources()
 
         with EmulatorAvd(
@@ -596,9 +700,13 @@ async def launch_and_monitor_emulator(
             command_builder = EmulatorCommand(locator)
             command_builder.set_avd("phone")
             command_builder.set_sysdir(locator.system_image_dir)
-            command_builder.set_ports(
-                random.randint(10000, 20000), random.randint(10000, 20000)
-            )
+            serial_port = random.randint(10000, 20000)
+            grpc_port = random.randint(10000, 20000)
+            command_builder.set_ports(serial_port, grpc_port)
+            if device_hub_protocol and (
+                not extra_qemu_args or "-qt-hide-window" not in extra_qemu_args
+            ):
+                command_builder.add_arg("-qt-hide-window")
             command_builder.add_extra_args(extra_qemu_args)
 
             command = command_builder.get_command()
@@ -618,6 +726,9 @@ async def launch_and_monitor_emulator(
                 environment,
                 http_port=http_port,
                 http_address=http_address,
+                device_hub_exec=locator.device_hub_exec,
+                device_hub_protocol=device_hub_protocol or "v1",
+                serial_port=serial_port,
             )
 
             def signal_handler(sig, frame):

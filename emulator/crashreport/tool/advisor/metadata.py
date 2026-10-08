@@ -54,12 +54,19 @@ class CrashMetadata:
         return prod.get("Name")
 
     @property
+    def version(self) -> Optional[str]:
+        """Extract the full product version string (e.g. '37.1.3-16373346') if available."""
+        prod = self.report_proto.get("product") or {}
+        if not isinstance(prod, dict):
+            prod = {}
+        return prod.get("Version")
+
+    @property
     def build_id(self) -> Optional[str]:
         """Extract the Android Build ID from the product version string or explicit override."""
         if self.explicit_build_id:
             return self.explicit_build_id
-        prod = self.report_proto.get("product", {})
-        version_str = prod.get("Version", "")
+        version_str = self.version or ""
         if version_str and "-" in version_str:
             return version_str.split("-")[-1]
         return version_str
@@ -123,7 +130,13 @@ class CrashMetadata:
 
     @property
     def primary_signature(self) -> Optional[str]:
-        return self.report_proto.get("stableSignature")
+        return self.report_proto.get("stableSignature") or self.report_proto.get(
+            "stable_signature"
+        )
+
+    @property
+    def stable_signature(self) -> Optional[str]:
+        return self.primary_signature
 
     @property
     def modules(self) -> List[Tuple[str, str]]:
@@ -140,7 +153,10 @@ class CrashMetadata:
         # Check through thread stack frames
         threads = self.report_proto.get("thread", [])
         for t in threads:
-            frames = t.get("stack_trace", {}).get("frame", [])
+            frames = (
+                t.get("stack_trace", {}).get("frame", [])
+                or t.get("StackTrace", {}).get("StackFrame", [])
+            )
             for f in frames:
                 mod = f.get("Module", {})
                 df = mod.get("DebugFile")

@@ -43,6 +43,7 @@ cc_library(
 
 cc_test(
     name = "gvk_unittests",
+    size = "small",
     srcs = [
         "build_device_queue_create_info_test.cc",
         "get_memory_type_index_test.cc",

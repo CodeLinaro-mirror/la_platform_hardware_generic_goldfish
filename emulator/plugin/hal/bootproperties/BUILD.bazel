@@ -25,6 +25,7 @@ cc_library(
 
 cc_test(
     name = "bootproperties_unittests",
+    size = "small",
     srcs = ["boot_properties_device_test.cc"],
     visibility = ["//visibility:public"],
     deps = [

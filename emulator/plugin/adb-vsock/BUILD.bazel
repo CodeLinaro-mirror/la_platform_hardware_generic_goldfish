@@ -4,12 +4,16 @@ cc_library(
     name = "adb-vsock",
     srcs = ["adb_device.cc"],
     hdrs = ["include/goldfish/adb_device/adb_device.h"],
+    defines = select({
+        "@qemu//:goldfish_enabled": ["CONFIG_TRACE_GOLDFISH"],
+        "//conditions:default": [],
+    }),
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
         "//emulator/plugin/adb-vsock/host",
         "//emulator/plugin/adb-vsock/logger",
-        "//emulator/plugin/avd:impl",
+        "//emulator/plugin/avd:avd_info",
         "//emulator/plugin/vsock_goldfish:goldfish_vsock_hdrs",
     ],
 )

@@ -503,7 +503,8 @@ TEST_F(AvdTest, FromAndroidBuild) {
 
     EXPECT_EQ(avd->Name(), "android_build_avd");
     EXPECT_EQ(avd->Arch(), Avd::CpuArchitecture::kX86);
-    EXPECT_EQ(avd->GetContentPath(), build_out);
+    EXPECT_EQ(avd->GetContentPath(), build_out / "avd.tmp");
+    EXPECT_TRUE(base::file::is_dir(build_out / "avd.tmp"));
 }
 
 TEST_F(AvdTest, FromAndroidBuildWipeData) {
@@ -511,6 +512,7 @@ TEST_F(AvdTest, FromAndroidBuildWipeData) {
     tmp_->MakeSubDir("android_build_out_wipe");
     tmp_->MakeSubDir("android_build_out_wipe/system");
     tmp_->MakeSubDir("android_build_out_wipe/data");
+    tmp_->MakeSubDir("android_build_out_wipe/avd.tmp");
 
     WriteToFile(build_out / "system" / "build.prop",
                 "ro.system.build.version.sdk=30\nro.product.cpu.abi=x86_64");
@@ -525,14 +527,14 @@ TEST_F(AvdTest, FromAndroidBuildWipeData) {
 
     WriteToFile(build_out / "config.ini", "abi.type=x86_64\ntarget=android-30");
 
-    auto qcow1 = build_out / "system.img.qcow2";
-    auto qcow2 = build_out / "vendor.img.qcow2";
-    auto qcow3 = build_out / "encryptionkey.img.qcow2";
-    auto userdata = build_out / "userdata-qemu.img";
-    auto userdata_qcow = build_out / "userdata-qemu.img.qcow2";
-    auto cache = build_out / "cache.img.qcow2";
-    auto hw_ini = build_out / "hardware-qemu.ini";
-    auto qemu_ver = build_out / "qemu-version.txt";
+    fs::path avd_dir = build_out / "avd.tmp";
+    auto qcow1 = avd_dir / "system.img.qcow2";
+    auto qcow2 = avd_dir / "vendor.img.qcow2";
+    auto qcow3 = avd_dir / "encryptionkey.img.qcow2";
+    auto userdata = avd_dir / "userdata.img";
+    auto userdata_qcow = avd_dir / "userdata.img.qcow2";
+    auto cache = avd_dir / "cache.img.qcow2";
+    auto qemu_ver = avd_dir / "qemu-version.txt";
 
     WriteToFile(qcow1, "dummy");
     WriteToFile(qcow2, "dummy");
@@ -540,7 +542,6 @@ TEST_F(AvdTest, FromAndroidBuildWipeData) {
     WriteToFile(userdata, "dummy");
     WriteToFile(userdata_qcow, "dummy");
     WriteToFile(cache, "dummy");
-    WriteToFile(hw_ini, "dummy");
     WriteToFile(qemu_ver, "dummy");
 
     EXPECT_TRUE(base::file::exists(qcow1));
@@ -549,13 +550,13 @@ TEST_F(AvdTest, FromAndroidBuildWipeData) {
     EXPECT_TRUE(base::file::exists(userdata));
     EXPECT_TRUE(base::file::exists(userdata_qcow));
     EXPECT_TRUE(base::file::exists(cache));
-    EXPECT_TRUE(base::file::exists(hw_ini));
     EXPECT_TRUE(base::file::exists(qemu_ver));
 
     ASSERT_OK_AND_ASSIGN(auto avd,
                          Avd::FromAndroidBuild(opts_, paths_, "android_build_avd", build_out,
                                                /*wipe_data=*/true, ""));
 
+    EXPECT_EQ(avd->GetContentPath(), avd_dir);
     EXPECT_FALSE(base::file::exists(qcow1));
     EXPECT_FALSE(base::file::exists(qcow2));
     EXPECT_FALSE(base::file::exists(qcow3));
@@ -563,6 +564,7 @@ TEST_F(AvdTest, FromAndroidBuildWipeData) {
     EXPECT_FALSE(base::file::exists(userdata_qcow));
     EXPECT_FALSE(base::file::exists(cache));
     EXPECT_FALSE(base::file::exists(qemu_ver));
+    EXPECT_TRUE(base::file::exists(avd_dir / "hardware-qemu.ini"));
 }
 
 TEST_F(AvdTest, ImageKindPlayStore) {
@@ -612,7 +614,7 @@ TEST_F(AvdTest, ListSnapshotsWithInspector) {
     fs::path snap1 = avd_dir / "snapshots" / "snap1";
     fs::create_directories(snap1);
     WriteToFile(snap1 / "ram.qcow2", "qcow ram");
-    WriteToFile(avd_dir / "userdata-qemu.img.qcow2", "userdata qcow");
+    WriteToFile(avd_dir / "userdata.img.qcow2", "userdata qcow");
 
     ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(opts_, paths_, "snap_avd2", false, {}, {}));
     auto mock_inspector = [](const fs::path& p) -> std::string {
@@ -623,9 +625,9 @@ TEST_F(AvdTest, ListSnapshotsWithInspector) {
     EXPECT_EQ(snaps[0].name, "snap1");
     EXPECT_TRUE(snaps[0].has_ram_file);
     EXPECT_THAT(snaps[0].image_info, ::testing::HasSubstr("Image [ram.qcow2]"));
-    EXPECT_EQ(snaps[1].name, "Disk Image: userdata-qemu.img.qcow2");
+    EXPECT_EQ(snaps[1].name, "Disk Image: userdata.img.qcow2");
     EXPECT_THAT(snaps[1].image_info,
-                ::testing::HasSubstr("mock qemu-img info for userdata-qemu.img.qcow2"));
+                ::testing::HasSubstr("mock qemu-img info for userdata.img.qcow2"));
 }
 
 }  // namespace android::goldfish::avd

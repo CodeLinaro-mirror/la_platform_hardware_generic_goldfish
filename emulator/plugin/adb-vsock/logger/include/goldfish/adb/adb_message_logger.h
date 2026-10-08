@@ -172,7 +172,7 @@ class AdbLogger : public goldfish::devices::cable::IDataSniffer {
      * @param guest_port The port number on the guest side.
      * @param verbose Enable verbose logging.
      */
-    AdbLogger(int host_port, int guest_port, bool verbose);
+    AdbLogger(int host_port, int guest_port, bool verbose, bool capture_snippets = true);
     ~AdbLogger() = default;
 
     /**

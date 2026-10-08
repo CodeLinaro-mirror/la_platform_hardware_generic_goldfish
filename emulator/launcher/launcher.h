@@ -16,6 +16,9 @@
 
 #include <memory>
 
+#include "absl/status/statusor.h"
+#include "absl/time/time.h"
+
 #include "android/cmdline_option.h"
 #include "android/goldfish/avd.h"
 #include "android/goldfish/input_paths.h"
@@ -46,11 +49,12 @@ struct LauncherConfig {
     std::unique_ptr<Avd> avd;
     AndroidOptions opts;
     ::goldfish::metrics::MetricsWriterConfig metrics_writer_config;
+    absl::Duration qemu_shutdown_timeout = absl::Seconds(60);
 };
 
 // Runs the emulator launcher and enters the event loop.
-// Returns the exit status of the emulator.
-int RunLauncher(LauncherConfig config);
+// Returns the exit status of the emulator, or an error status if startup failed.
+absl::StatusOr<int> RunLauncher(LauncherConfig config);
 
 inline bool ShouldLaunchFishtank(const AndroidOptions& opts) {
     return !opts.no_window;

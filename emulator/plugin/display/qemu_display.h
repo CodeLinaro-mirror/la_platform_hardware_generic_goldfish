@@ -13,7 +13,10 @@
 // limitations under the License.
 #pragma once
 
+#include <memory>
+
 #include "absl/base/thread_annotations.h"
+#include "absl/status/statusor.h"
 #include "absl/synchronization/mutex.h"
 
 #include "goldfish/display/pixman_display.h"
@@ -26,14 +29,22 @@ extern "C" {
 
 using VirtIOInputHID = struct VirtIOInputHID;
 }
+#include "virtio_bridge.h"
 
 namespace goldfish::display {
 
 class QemuDisplay : public PixmanDisplay {
+    struct Private {};
+
   public:
-    QemuDisplay(EventLoop* loop, EventLoop* qemu_loop, QemuConsole* con, DisplaySurface* ds,
-                int index);
+    static absl::StatusOr<std::shared_ptr<QemuDisplay>> Create(EventLoop* loop,
+                                                               EventLoop* qemu_loop,
+                                                               QemuConsole* con, DisplaySurface* ds,
+                                                               int index);
+    QemuDisplay(Private, EventLoop* loop, EventLoop* qemu_loop, QemuConsole* con,
+                DisplaySurface* ds, int index, ::VirtIOInputHID* vhid);
     ~QemuDisplay() override;
+
     bool IsActive() const;
     void SendMultiTouchEvent(uint8_t slot, int x, int y, MultiTouchType type) override;
     void SendMouseEvent(int x, int y, int button_mask) override;
@@ -43,11 +54,23 @@ class QemuDisplay : public PixmanDisplay {
 
     QemuConsole* GetConsole() const override { return console_; }
 
+    void OnSurfaceSwitch(DisplaySurface* surface);
+    void OnGuestFrame(DisplaySurface* surface);
+    void OnDeviceReset();
+
   protected:
-    void OnListenerAdded() override;
-    void OnListenerRemoved() override;
+    // QEMU loop: the legacy source's hooks. Refresh transfers the scanout
+    // into the console surface.
+    void RefreshSource() override;
+    // (Un)registers the DisplayChangeListener.
+    void OnSourceDemandChanged(bool warm) override;
+    IFrameSource::Start CaptureSource(LegacySurfaceSource& source) override;
 
   private:
+
+    // The console's surface, or the last one QEMU gave us.
+    DisplaySurface* LegacySurface() const;
+
     template <typename Sink>
     friend void AbslStringify(Sink&, const QemuDisplay&);
     QemuConsole* console_;
@@ -58,9 +81,9 @@ class QemuDisplay : public PixmanDisplay {
     absl::Mutex send_lock_;
     std::unique_ptr<DisplayChangeListener> dcl_;
     DisplaySurface* owned_surface_{nullptr};
-
-    mutable absl::Mutex sub_lock_;
-    unsigned int active_subscriptions_ ABSL_GUARDED_BY(sub_lock_) = 0;
+    DisplaySurface* current_surface_{nullptr};
+    Dimensions current_size_{0, 0};
+    bool placeholder_shown_{false};
 };
 
 template <typename Sink>

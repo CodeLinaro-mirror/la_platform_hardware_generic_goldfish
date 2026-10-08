@@ -109,27 +109,36 @@ template <typename T>
  */
 class NvencLoader {
   public:
+    using CuCtxDestroyFunc = int (*)(void*);
+
     static absl::StatusOr<std::unique_ptr<NvencLoader>> Create(
             const std::string& custom_library_path = "");
 
     static absl::StatusOr<std::unique_ptr<NvencLoader>> CreateForTest(
-            const NV_ENCODE_API_FUNCTION_LIST& function_list);
+            const NV_ENCODE_API_FUNCTION_LIST& function_list,
+            void* cuda_context = reinterpret_cast<void*>(0xC0DAC0DE));
 
-    explicit NvencLoader(goldfish::os::DynamicLibrary lib,
-                         const NV_ENCODE_API_FUNCTION_LIST& fn_list);
-    explicit NvencLoader(const NV_ENCODE_API_FUNCTION_LIST& fn_list);
-    ~NvencLoader() = default;
+    NvencLoader(goldfish::os::DynamicLibrary lib_cuda, goldfish::os::DynamicLibrary lib_nvenc,
+                void* cuda_context, CuCtxDestroyFunc cu_ctx_destroy,
+                const NV_ENCODE_API_FUNCTION_LIST& fn_list);
+    explicit NvencLoader(const NV_ENCODE_API_FUNCTION_LIST& fn_list,
+                         void* cuda_context = reinterpret_cast<void*>(0xC0DAC0DE));
+    ~NvencLoader();
 
     // Move-only
-    NvencLoader(NvencLoader&&) noexcept = default;
-    NvencLoader& operator=(NvencLoader&&) noexcept = default;
+    NvencLoader(NvencLoader&& other) noexcept;
+    NvencLoader& operator=(NvencLoader&& other) noexcept;
     NvencLoader(const NvencLoader&) = delete;
     NvencLoader& operator=(const NvencLoader&) = delete;
 
     const NV_ENCODE_API_FUNCTION_LIST& api() const { return fn_list_; }
+    void* cuda_context() const { return cuda_context_; }
 
   private:
-    goldfish::os::DynamicLibrary lib_;
+    goldfish::os::DynamicLibrary lib_cuda_;
+    goldfish::os::DynamicLibrary lib_nvenc_;
+    void* cuda_context_{nullptr};
+    CuCtxDestroyFunc cu_ctx_destroy_{nullptr};
     NV_ENCODE_API_FUNCTION_LIST fn_list_{};
 };
 

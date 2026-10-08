@@ -2,6 +2,17 @@ load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_test")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 
 cc_library(
+    name = "write_png",
+    srcs = ["write_png.cc"],
+    hdrs = ["include/goldfish/display/write_png.h"],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "@libpng//:png",
+    ],
+)
+
+cc_library(
     name = "base",
     srcs = [
         "display.cc",
@@ -12,10 +23,16 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
+        ":write_png",
         "//emulator/libs/async:async_api",
         "//emulator/libs/base",
+        "//emulator/libs/display_pipeline:core",
+        "//emulator/libs/perfetto:init",
         "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/time",
+        "@abseil-cpp//absl/types:span",
     ],
 )
 
@@ -24,33 +41,33 @@ cc_library(
     srcs = [
         "imaging.cc",
         "input_handler.cc",
-        "null_display.h",
         "pixman_display.cc",
-        "pixman_frame_manager.cc",
         "qemu_display.cc",
         "qemu_display.h",
         "virtio_bridge.c",
         "virtio_bridge.h",
-        "write_png.cc",
     ],
     hdrs = [
         "include/goldfish/display/imaging.h",
         "include/goldfish/display/input_handler.h",
         "include/goldfish/display/multi_display_callbacks.h",
         "include/goldfish/display/pixman_display.h",
-        "include/goldfish/display/pixman_frame_manager.h",
         "include/goldfish/display/pixman_image_ptr.h",
-        "include/goldfish/display/write_png.h",
     ],
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
         ":base",
+        ":write_png",
         "//emulator/libs/base",
+        "//emulator/libs/display_pipeline:core",
+        "//emulator/libs/display_pipeline:cpu_pipeline",
         "//emulator/libs/fps_calculator",
         "//emulator/libs/logging:absl_c_bridge",
+        "//emulator/libs/perfetto:init",
         "//emulator/libs/physics",
         "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/time",
         "@libpng//:png",
@@ -91,8 +108,15 @@ cc_library(
         "//emulator/libs/archive",
         "//emulator/libs/async:async_api",
         "//emulator/libs/base",
+        "//emulator/libs/display_pipeline:core",
+        "//emulator/libs/display_pipeline:cpu_pipeline",
+        "//emulator/libs/perfetto:init",
+        "//emulator/libs/status_macros",
+        "//emulator/plugin/avd:avd_info",
         "//emulator/plugin/hal/multidisplay",
         "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/time",
     ],
 )
@@ -115,6 +139,7 @@ cc_library(
         ":base",
         "//emulator/libs/base",
         "//emulator/libs/logging:absl_c_bridge",
+        "//emulator/libs/perfetto:init",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/time",
@@ -135,6 +160,7 @@ cc_library(
         "qemu_stubs.c",
     ],
     hdrs = [
+        "include/goldfish/display/test/display_test_peer.h",
         "include/goldfish/display/test/fake_multi_display.h",
         "include/goldfish/display/test/fake_pixman_display.h",
         "include/goldfish/display/test/image_generation_strategy.h",
@@ -151,6 +177,7 @@ cc_library(
 
 cc_test(
     name = "display_unittests",
+    size = "small",
     srcs = [
         "display_test.cc",
         "fake_multi_display_test.cc",
@@ -158,17 +185,23 @@ cc_test(
         "image_generation_strategy_test.cc",
         "imaging_test.cc",
         "pixman_display_concurrency_test.cc",
-        "pixman_frame_manager_test.cc",
         "pixman_image_generator_test.cc",
         "qemu_display_test.cc",
     ],
     visibility = ["//visibility:public"],
     deps = [
+        ":display",
         ":test-display",
         "//emulator/libs/async:async_testing",
         "//emulator/libs/async:libuv_event_loop",
         "//emulator/libs/async:threaded_event_loop",
+        "//emulator/libs/display_pipeline:core",
+        "//emulator/libs/hardware_config:fake_hardware_config",
+        "//emulator/libs/sensors:physical_model",
+        "//emulator/libs/status_macros:status_matcher_macros",
         "//emulator/libs/test:googletest_main",
+        "@abseil-cpp//absl/log:scoped_mock_log",
+        "@abseil-cpp//absl/status:status_matchers",
     ],
 )
 
@@ -177,6 +210,7 @@ clang_tidy_test(
     targets = [
         ":primary_display",
         ":video_recorder",
+        ":write_png",
         ":base",
         ":display",
         ":display_unittests",

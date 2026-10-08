@@ -74,6 +74,12 @@ class PerfettoInterceptorTest : public ::testing::Test {
     static void SetUpTestSuite() { goldfish::perfetto::Initialize(); }
 };
 
+TEST_F(PerfettoInterceptorTest, ReturnsNullptrWhenTracingDisabled) {
+    auto factory = std::make_unique<PerfettoInterceptorFactory>();
+    EXPECT_EQ(factory->CreateServerInterceptor(nullptr), nullptr);
+    EXPECT_EQ(factory->CreateClientInterceptor(nullptr), nullptr);
+}
+
 TEST_F(PerfettoInterceptorTest, EmitsTraceEvents) {
     android::base::TestTempDir tmp_dir("perfetto_interceptor_test");
     ASSERT_FALSE(tmp_dir.Path().empty());
@@ -84,6 +90,7 @@ TEST_F(PerfettoInterceptorTest, EmitsTraceEvents) {
 
         auto factory = std::make_unique<PerfettoInterceptorFactory>();
         auto interceptor = std::unique_ptr<Interceptor>(factory->CreateServerInterceptor(nullptr));
+        ASSERT_NE(interceptor, nullptr);
 
         MockInterceptorBatchMethods methods;
         EXPECT_CALL(methods, Proceed()).Times(1);

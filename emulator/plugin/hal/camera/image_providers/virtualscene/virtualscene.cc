@@ -22,7 +22,8 @@ using goldfish::devices::camera::ImageProviderCppAdapter;
 
 namespace goldfish::camera_image_providers::virtualscene {
 
-bool getImageProviderInfo(CameraImageProviderInfo* dst, const bool isBackFacing) {
+bool getImageProviderInfo(CameraImageProviderInfo* dst, const bool isBackFacing,
+                          const sensors::PhysicalModel* physicalModel) {
     static const CameraImageProviderRect supportedFrameSizes[] = {
         {
             .width = 640,
@@ -52,13 +53,13 @@ bool getImageProviderInfo(CameraImageProviderInfo* dst, const bool isBackFacing)
 
     static const CameraImageProviderInfoVtbl vtbl = {
         .create = &ImageProviderCppAdapter<VirtualsceneImageProvider>::create,
-        .createArgDctor = nullptr,
+        .createArgDctor = [](void*) {},
     };
 
     *dst = (CameraImageProviderInfo){
         .vtbl = &vtbl,
         .supportedFrameSizes = supportedFrameSizes,
-        .createArg = nullptr,
+        .createArg = physicalModel,
         .supportedFrameSizesNum = sizeof(supportedFrameSizes) / sizeof(supportedFrameSizes[0]),
         .isBackFacing = static_cast<uint8_t>(isBackFacing),
         .needFreeSupportedSizes = 0,

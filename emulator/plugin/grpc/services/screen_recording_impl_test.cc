@@ -14,6 +14,7 @@
 
 #include "android/emulation/control/incubating/screen_recording_impl.h"
 
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
@@ -23,6 +24,7 @@
 #include "gtest/gtest.h"
 
 #include "goldfish/async/libuv_event_loop.h"
+#include "goldfish/async/threaded_event_loop.h"
 #include "goldfish/display/test/fake_multi_display.h"
 #include "goldfish/display/test/fake_pixman_display.h"
 
@@ -34,12 +36,15 @@
 namespace android::emulation::control::incubating {
 
 using ::goldfish::async::LibuvEventLoop;
+using ::goldfish::async::ThreadedEventLoop;
 using ::goldfish::display::test::FakeMultiDisplay;
 
 class ScreenRecordingServiceImplTest : public ::testing::Test {
   protected:
     void SetUp() override {
-        loop = LibuvEventLoop::Create();
+        // The display posts demand changes and captures to its loop, so the
+        // loop must run for the recorder to receive frames.
+        loop = ThreadedEventLoop::Create(LibuvEventLoop::Create());
         fake_display = std::make_unique<FakeMultiDisplay>(loop.get());
         // Create default display 0
         fake_display->CreateDisplay(0, 1080, 2400, 440, 0).IgnoreError();
@@ -52,7 +57,7 @@ class ScreenRecordingServiceImplTest : public ::testing::Test {
         }
     }
 
-    std::unique_ptr<LibuvEventLoop> loop;
+    std::unique_ptr<::goldfish::async::EventLoop> loop;
     std::unique_ptr<FakeMultiDisplay> fake_display;
     std::unique_ptr<ScreenRecordingServiceImpl> service;
     std::filesystem::path temp_dir_;
@@ -100,14 +105,17 @@ TEST_F(ScreenRecordingServiceImplTest, StartRecordingWithFoldableResolution) {
 
     EXPECT_TRUE(status.ok()) << status.error_message();
 
-    // Allow recorder thread to generate and encode several frames
-    auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
-    while (std::chrono::steady_clock::now() < deadline) {
-        if (std::filesystem::exists(test_file) && std::filesystem::file_size(test_file) > 1000) {
-            break;
-        }
+    // StopRecording drops the frames the encoder has not reached yet, and under
+    // sanitizers one frame can take seconds to encode, so wait for encoded
+    // frames rather than for a fixed time. Eleven frames of this static screen
+    // encode to about 1.7 KB: two keyframes and nine small delta frames.
+    constexpr uint64_t kMinEncodedFrames = 11;
+    auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(60);
+    while (service->FramesEncodedForTesting() < kMinEncodedFrames &&
+           std::chrono::steady_clock::now() < deadline) {
         std::this_thread::sleep_for(std::chrono::milliseconds(20));
     }
+    EXPECT_GE(service->FramesEncodedForTesting(), kMinEncodedFrames);
 
     service->StopRecording(&context, &request, &response);
     EXPECT_GT(std::filesystem::file_size(test_file), 1000)
@@ -205,11 +213,11 @@ TEST_F(ScreenRecordingServiceImplTest, StartRecordingFailsForExcessiveTimeLimit)
                                                    android::emulation::control::kMaxTimeLimit));
 }
 
-TEST_F(ScreenRecordingServiceImplTest, StartRecordingFailsIfFileExists) {
-    std::string test_file = (temp_dir_ / "test_exists.webm").string();
-    // Create the file first
+TEST_F(ScreenRecordingServiceImplTest, StartRecordingOverwritesExistingFile) {
+    std::string test_file = (temp_dir_ / "test_overwrite.webm").string();
+    // Create pre-existing file on disk
     std::ofstream file(test_file);
-    file << "dummy content";
+    file << "dummy existing content";
     file.close();
 
     RecordingInfo request;
@@ -219,9 +227,37 @@ TEST_F(ScreenRecordingServiceImplTest, StartRecordingFailsIfFileExists) {
     grpc::ServerContext context;
 
     auto status = service->StartRecording(&context, &request, &response);
+    EXPECT_TRUE(status.ok()) << status.error_message();
 
-    EXPECT_FALSE(status.ok());
-    EXPECT_EQ(status.error_code(), grpc::StatusCode::ALREADY_EXISTS);
+    service->StopRecording(&context, &request, &response);
+    // Clean up
+    std::remove(test_file.c_str());
+}
+
+TEST_F(ScreenRecordingServiceImplTest, StartRecordingSucceedsOnSecondAttempt) {
+    std::string test_file = (temp_dir_ / "test_second_attempt.webm").string();
+
+    RecordingInfo request;
+    request.set_file_name(test_file);
+
+    RecordingInfo response;
+    grpc::ServerContext context1;
+
+    // First recording attempt
+    auto status = service->StartRecording(&context1, &request, &response);
+    EXPECT_TRUE(status.ok()) << status.error_message();
+
+    status = service->StopRecording(&context1, &request, &response);
+    EXPECT_TRUE(status.ok()) << status.error_message();
+    EXPECT_TRUE(std::filesystem::exists(test_file));
+
+    // Second recording attempt to the same file path (e.g. Studio / Extended Controls staging)
+    grpc::ServerContext context2;
+    status = service->StartRecording(&context2, &request, &response);
+    EXPECT_TRUE(status.ok()) << status.error_message();
+
+    status = service->StopRecording(&context2, &request, &response);
+    EXPECT_TRUE(status.ok()) << status.error_message();
 
     // Clean up
     std::remove(test_file.c_str());

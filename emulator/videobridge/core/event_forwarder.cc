@@ -38,6 +38,9 @@ EventForwarder::~EventForwarder() {
 }
 
 void EventForwarder::OnStateChange() {
+    if (!sender_) {
+        return;
+    }
     if (channel_->state() == ::webrtc::DataChannelInterface::kOpen) {
         VLOG(1) << "WebRTC DataChannel state changed to OPEN for label: " << AsString(label_);
         if (auto status = sender_->Start(); !status.ok()) {
@@ -54,6 +57,9 @@ void EventForwarder::OnStateChange() {
 }
 
 void EventForwarder::OnMessage(const ::webrtc::DataBuffer& buffer) {
+    if (!sender_) {
+        return;
+    }
     if (label_ == DataChannelLabel::kInput) {
         InputEvent input_event;
         if (!input_event.ParseFromArray(buffer.data.data(), static_cast<int>(buffer.size()))) {
@@ -70,6 +76,15 @@ void EventForwarder::OnMessage(const ::webrtc::DataBuffer& buffer) {
             return;
         }
         sender_->SendV2Event(v2_event);
+    } else if (label_ == DataChannelLabel::kSensorsV2) {
+        V2SensorsUpdateRequest sensors_update;
+        if (!sensors_update.ParseFromArray(buffer.data.data(), static_cast<int>(buffer.size()))) {
+            LOG(ERROR) << "Failed to deserialize v2 UpdateSensorsStateRequest protobuf from data "
+                          "channel '"
+                       << AsString(label_) << "'";
+            return;
+        }
+        sender_->SendV2SensorsUpdate(sensors_update);
     } else if (label_ == DataChannelLabel::kAdb) {
         LOG(WARNING) << "Received ADB command over WebRTC data channel for '" << AsString(label_)
                      << "', but ADB over WebRTC data channels is deprecated.";

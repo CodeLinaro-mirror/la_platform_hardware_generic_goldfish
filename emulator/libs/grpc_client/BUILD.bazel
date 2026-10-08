@@ -34,6 +34,7 @@ cc_library(
 
 cc_test(
     name = "emulator_grpc_client_test",
+    size = "small",
     srcs = ["emulator_grpc_client_test.cc"],
     visibility = ["//visibility:public"],
     deps = [

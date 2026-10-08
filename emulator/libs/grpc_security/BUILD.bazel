@@ -50,8 +50,7 @@ cc_library(
 
 cc_test(
     name = "grpc_security_test",
-    size = "small",
-    timeout = "short",
+    size = "medium",
     srcs = [
         "allow_list_test.cc",
         "auth_error_factory_test.cc",
@@ -61,6 +60,7 @@ cc_test(
     ],
     copts = ["-Wno-deprecated-declarations"],
     data = [":emulator-access"],
+    tags = ["exclusive-if-local"],
     visibility = ["//visibility:public"],
     deps = [
         ":grpc_security",

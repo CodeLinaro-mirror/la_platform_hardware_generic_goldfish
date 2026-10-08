@@ -306,4 +306,44 @@ TEST_F(HalPlugAdapterTest, CoalescesInitialSendsAndDispatchesSubsequentSendSepar
     turn2Done.WaitForNotificationWithTimeout(absl::Milliseconds(100));
 }
 
+TEST_F(HalPlugAdapterTest, ReusesSendBufferAcrossFlushes) {
+    Connect();
+
+    absl::Notification flush1Done;
+    absl::Notification flush2Done;
+    const void* flush1Ptr = nullptr;
+    const void* flush2Ptr = nullptr;
+
+    constexpr size_t kPayloadSize = 32 * 1024;
+    const std::string payload1(kPayloadSize, 'a');
+    const std::string payload2(kPayloadSize, 'b');
+
+    ::testing::Sequence seq;
+    EXPECT_CALL(*mMockSocket, SendAsync(_, kPayloadSize))
+            .InSequence(seq)
+            .WillOnce(Invoke([&](const void* data, size_t size) {
+                EXPECT_EQ(std::string_view(static_cast<const char*>(data), size), payload1);
+                flush1Ptr = data;
+                flush1Done.Notify();
+            }));
+
+    EXPECT_CALL(*mMockSocket, SendAsync(_, kPayloadSize))
+            .InSequence(seq)
+            .WillOnce(Invoke([&](const void* data, size_t size) {
+                EXPECT_EQ(std::string_view(static_cast<const char*>(data), size), payload2);
+                flush2Ptr = data;
+                flush2Done.Notify();
+            }));
+
+    auto socket = mMockHalPlug->getSocket();
+    socket->Send(payload1);
+    ASSERT_TRUE(flush1Done.WaitForNotificationWithTimeout(absl::Milliseconds(500)));
+
+    socket->Send(payload2);
+    ASSERT_TRUE(flush2Done.WaitForNotificationWithTimeout(absl::Milliseconds(500)));
+
+    EXPECT_NE(flush1Ptr, nullptr);
+    EXPECT_EQ(flush1Ptr, flush2Ptr);
+}
+
 }  // namespace

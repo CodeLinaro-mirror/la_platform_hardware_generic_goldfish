@@ -27,6 +27,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
+#include "android/cpu/cpu_accelerator.h"
 #include "android/goldfish/avd.h"
 #include "android/goldfish/input_paths.h"
 #include "goldfish/async/async_socket_server.h"
@@ -157,8 +158,10 @@ class LauncherTest : public testing::Test {
         opts.no_netsim = true;
         opts.avd = "test_avd";
 #ifdef _WIN32
-        // Windows VMs don't support nested virt.
-        opts.no_accel = true;
+        // Windows VMs don't support nested virt, mock WHPX availability.
+        SetCurrentCpuAcceleratorForTesting(CpuAccelerator::CPU_ACCELERATOR_WHPX,
+                                           AndroidCpuAcceleration::ANDROID_CPU_ACCELERATION_READY,
+                                           "");
 #endif
 
         owned_launcher = std::make_unique<MockProcessLauncher>();
@@ -192,12 +195,13 @@ class LauncherTest : public testing::Test {
 
     void TearDown() override { fs::remove_all(temp_dir); }
 
-    int RunLauncher(std::unique_ptr<MockAvd> avd,
-                    std::unique_ptr<::goldfish::metrics::MetricsReporter> reporter = nullptr) {
+    absl::StatusOr<int> RunLauncherStatus(
+            std::unique_ptr<MockAvd> avd,
+            std::unique_ptr<::goldfish::metrics::MetricsReporter> reporter = nullptr) {
         if (!reporter) {
             reporter = std::make_unique<::goldfish::metrics::MetricsReporter>();
         }
-        int status = android::goldfish::RunLauncher({
+        return android::goldfish::RunLauncher({
             .event_loop = *event_loop,
             .process_launcher = std::move(owned_launcher),
             .signal_handlers = std::move(owned_signal_handlers),
@@ -207,9 +211,15 @@ class LauncherTest : public testing::Test {
             .emulator_paths = std::move(emulator_paths),
             .avd = std::move(avd),
             .opts = std::move(opts),
+            .qemu_shutdown_timeout = qemu_shutdown_timeout,
         });
+    }
 
-        return status;
+    int RunLauncher(std::unique_ptr<MockAvd> avd,
+                    std::unique_ptr<::goldfish::metrics::MetricsReporter> reporter = nullptr) {
+        auto status = RunLauncherStatus(std::move(avd), std::move(reporter));
+        EXPECT_TRUE(status.ok()) << status.status();
+        return status.value_or(1);
     }
 
     std::thread TriggerEmulatorScript(absl::Notification& launched, std::function<void()> script,
@@ -329,6 +339,7 @@ class LauncherTest : public testing::Test {
     SystemImagePaths system_image_paths;
     AndroidOptions opts;
     HardwareConfig hw;
+    absl::Duration qemu_shutdown_timeout = absl::Seconds(60);
     std::unique_ptr<::goldfish::async::LibuvEventLoop> event_loop;
     std::unique_ptr<MockProcessLauncher> owned_launcher;
     MockProcessLauncher* mock_launcher;
@@ -498,15 +509,54 @@ TEST_F(LauncherTest, ForwardsMultipleSignalsToEmulator) {
     std::thread trigger = TriggerEmulatorScript(
             launched,
             [&]() {
+                testing::InSequence seq;
                 EXPECT_CALL(*mock_process_ptr, Kill(SIGINT)).Times(1);
-                EXPECT_CALL(*mock_process_ptr, Kill(SIGTERM)).Times(1);
-                EXPECT_CALL(*mock_process_ptr, Kill(SIGHUP)).Times(1);
+                EXPECT_CALL(*mock_process_ptr, Kill(SIGKILL)).Times(2);
 
                 event_loop->Post([&]() { launcher_signal_cb(SIGINT); }).IgnoreError();
                 event_loop->Post([&]() { launcher_signal_cb(SIGTERM); }).IgnoreError();
                 event_loop->Post([&]() { launcher_signal_cb(SIGHUP); }).IgnoreError();
                 std::this_thread::sleep_for(std::chrono::milliseconds(50));
                 event_loop->Post([&]() { emulator_exit_cb(0, 0); }).IgnoreError();
+            },
+            &callback_set);
+
+    RunLauncher(std::move(avd));
+
+    trigger.join();
+}
+
+TEST_F(LauncherTest, EscalatesToSigkillAfterTimeout) {
+    auto avd = CreateMockAvd();
+    qemu_shutdown_timeout = absl::Milliseconds(50);
+
+    ::goldfish::async::ProcessLauncher::ExitCallback emulator_exit_cb;
+    ::goldfish::async::SignalHandlers::Callback launcher_signal_cb;
+    absl::Notification launched;
+    absl::Notification callback_set;
+    absl::Notification sigkill_sent;
+    MockManagedProcess* mock_process_ptr = nullptr;
+
+    ExpectEmulatorLaunch(launched, emulator_exit_cb, &mock_process_ptr);
+
+    EXPECT_CALL(*mock_signal_handlers, SetCallback(_))
+            .WillOnce([&](::goldfish::async::SignalHandlers::Callback signal_cb) {
+                launcher_signal_cb = std::move(signal_cb);
+                callback_set.Notify();
+            });
+
+    std::thread trigger = TriggerEmulatorScript(
+            launched,
+            [&]() {
+                testing::InSequence seq;
+                EXPECT_CALL(*mock_process_ptr, Kill(SIGTERM)).Times(1);
+                EXPECT_CALL(*mock_process_ptr, Kill(SIGKILL)).WillOnce([&]() {
+                    sigkill_sent.Notify();
+                });
+
+                event_loop->Post([&]() { launcher_signal_cb(SIGTERM); }).IgnoreError();
+                sigkill_sent.WaitForNotification();
+                event_loop->Post([&]() { emulator_exit_cb(0, SIGKILL); }).IgnoreError();
             },
             &callback_set);
 
@@ -647,9 +697,10 @@ TEST_F(LauncherTest, ShutsDownDirectlyWhenNoEmulatorProcess) {
 
     std::thread trigger = TriggerEmulatorScript(callback_set, [&]() {
         port_hunt_blocked.WaitForNotification();
-        // Signal task is posted while port hunt is blocked.
-        // It will be queued on the event loop and run after the current init task.
+        // Signal tasks are posted while port hunt is blocked.
+        // They will be queued on the event loop and run after the current init task.
         event_loop->Post([&]() { launcher_signal_cb(SIGINT); }).IgnoreError();
+        event_loop->Post([&]() { launcher_signal_cb(SIGTERM); }).IgnoreError();
         // Now let port hunt continue.
         port_hunt_can_continue.Notify();
     });
@@ -657,6 +708,126 @@ TEST_F(LauncherTest, ShutsDownDirectlyWhenNoEmulatorProcess) {
     int status = RunLauncher(std::move(avd));
     trigger.join();
     EXPECT_EQ(status, 0);
+}
+
+TEST_F(LauncherTest, NonSignalledEmulatorExitKillsFishtankAndIgnoresSubsequentSignals) {
+    auto avd = CreateMockAvd();
+    opts.no_window = false;
+
+    absl::Notification fishtank_launched;
+    absl::Notification emulator_launched;
+    absl::Notification callback_set;
+    ::goldfish::async::ProcessLauncher::ExitCallback emulator_exit_cb;
+    ::goldfish::async::SignalHandlers::Callback launcher_signal_cb;
+    MockManagedProcess* mock_emulator_ptr = nullptr;
+
+    EXPECT_CALL(*mock_signal_handlers, SetCallback(_))
+            .WillOnce([&](::goldfish::async::SignalHandlers::Callback signal_cb) {
+                launcher_signal_cb = std::move(signal_cb);
+                callback_set.Notify();
+            });
+    EXPECT_CALL(*mock_signal_handlers, close()).Times(1);
+
+    EXPECT_CALL(*mock_launcher, Launch(testing::Field(&::goldfish::async::LaunchConfig::exe_path,
+                                                      emulator_paths.fishtank_binary),
+                                       _))
+            .WillOnce([&](const ::goldfish::async::LaunchConfig&,
+                          ::goldfish::async::ProcessLauncher::ExitCallback) {
+                auto process = std::make_unique<MockManagedProcess>();
+                MockManagedProcess* process_ptr = process.get();
+                EXPECT_CALL(*process_ptr, GetPid()).WillRepeatedly(Return(5678));
+                EXPECT_CALL(*process_ptr, Kill(SIGTERM)).Times(1);
+                fishtank_launched.Notify();
+                return absl::StatusOr<std::unique_ptr<::goldfish::async::ManagedProcess>>(
+                        std::move(process));
+            });
+
+    ExpectEmulatorLaunch(emulator_launched, emulator_exit_cb, &mock_emulator_ptr);
+
+    std::thread trigger = TriggerEmulatorScript(
+            emulator_launched,
+            [&]() {
+                callback_set.WaitForNotification();
+                EXPECT_CALL(*mock_emulator_ptr, Kill(_)).Times(0);
+
+                // Simulate QEMU exiting on its own without any prior signal, followed by signals
+                // arriving while the launcher is shutting down.
+                event_loop
+                        ->Post([&]() {
+                            emulator_exit_cb(0, 0);
+                            launcher_signal_cb(SIGINT);
+                            launcher_signal_cb(SIGTERM);
+                        })
+                        .IgnoreError();
+            },
+            &fishtank_launched);
+
+    int status = RunLauncher(std::move(avd));
+    trigger.join();
+    EXPECT_EQ(status, 0);
+}
+
+TEST_F(LauncherTest, CancelsShutdownTimeoutWhenEmulatorExitsPromptly) {
+    auto avd = CreateMockAvd();
+    qemu_shutdown_timeout = absl::Milliseconds(50);
+
+    ::goldfish::async::ProcessLauncher::ExitCallback emulator_exit_cb;
+    ::goldfish::async::SignalHandlers::Callback launcher_signal_cb;
+    absl::Notification launched;
+    absl::Notification callback_set;
+    MockManagedProcess* mock_process_ptr = nullptr;
+
+    ExpectEmulatorLaunch(launched, emulator_exit_cb, &mock_process_ptr);
+
+    EXPECT_CALL(*mock_signal_handlers, SetCallback(_))
+            .WillOnce([&](::goldfish::async::SignalHandlers::Callback signal_cb) {
+                launcher_signal_cb = std::move(signal_cb);
+                callback_set.Notify();
+            });
+
+    std::thread trigger = TriggerEmulatorScript(
+            launched,
+            [&]() {
+                EXPECT_CALL(*mock_process_ptr, Kill(SIGINT)).Times(1);
+                EXPECT_CALL(*mock_process_ptr, Kill(SIGKILL)).Times(0);
+
+                event_loop
+                        ->Post([&]() {
+                            launcher_signal_cb(SIGINT);
+                            emulator_exit_cb(0, 0);
+                        })
+                        .IgnoreError();
+            },
+            &callback_set);
+
+    int status = RunLauncher(std::move(avd));
+    trigger.join();
+    EXPECT_EQ(status, 0);
+}
+
+TEST_F(LauncherTest, ReturnsErrorStatusWhenPortIsBusy) {
+    auto avd = CreateMockAvd();
+    opts.port = "5562";
+
+    EXPECT_CALL(*mock_socket_factory, CreateServer(_, IsPort(5562), _, _))
+            .WillOnce(Return(nullptr));
+    EXPECT_CALL(*mock_launcher, Launch(_, _)).Times(0);
+
+    absl::StatusOr<int> status = RunLauncherStatus(std::move(avd));
+    EXPECT_FALSE(status.ok());
+}
+
+TEST_F(LauncherTest, ReturnsErrorStatusWhenEmulatorLaunchFails) {
+    auto avd = CreateMockAvd();
+
+    EXPECT_CALL(*mock_launcher, Launch(testing::Field(&::goldfish::async::LaunchConfig::exe_path,
+                                                      ExpectedQemuBinary()),
+                                       _))
+            .WillOnce(Return(absl::InternalError("failed to launch qemu")));
+
+    absl::StatusOr<int> status = RunLauncherStatus(std::move(avd));
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.status().code(), absl::StatusCode::kInternal);
 }
 
 }  // namespace

@@ -28,6 +28,7 @@ cc_library(
 
 cc_test(
     name = "imaging_unittests",
+    size = "small",
     srcs = [
         "query_info_tests.cc",
         "to_vk_format_tests.cc",

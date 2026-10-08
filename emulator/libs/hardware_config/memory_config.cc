@@ -22,6 +22,7 @@
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
 
+#include "android/status/status_macros.h"
 #include "host-common/hw-lcd.h"
 
 namespace android::goldfish {
@@ -311,10 +312,11 @@ int AndroidHwConfigGetMinVmHeapSize(const HardwareConfig& config, int api_level)
 }
 }  // namespace
 
-int MemoryConfig::CalculateMinimumRam(const HardwareConfig& hw, int api_level,
-                                      std::optional<DeviceType> device_type) {
+absl::StatusOr<int> MemoryConfig::CalculateMinimumRam(const HardwareConfig& hw, int api_level,
+                                                      std::optional<DeviceType> device_type) {
     if (api_level < 21) {
-        LOG(FATAL) << "We do not support api level < 21. Current API level is: " << api_level;
+        return absl::InvalidArgumentError(absl::StrCat(
+                "We do not support api level < 21. Current API level is: ", api_level));
     }
 
     int min_ram = 1024;
@@ -359,7 +361,7 @@ absl::Status MemoryConfig::FinalizeRamAndHeapSize(HardwareConfig& hw, int api_le
     auto memory_size_mi_b = static_cast<uint64_t>(ram_size);
 
     // enforce CDD minimums
-    int min_ram = CalculateMinimumRam(hw, api_level);
+    ASSIGN_OR_RETURN(int min_ram, CalculateMinimumRam(hw, api_level));
 
     if (std::cmp_less(memory_size_mi_b, min_ram)) {
         LOG(INFO) << "Enforcing minimum RAM requirement; "

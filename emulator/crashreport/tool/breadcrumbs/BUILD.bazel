@@ -120,6 +120,7 @@ cc_library(
 
 cc_test(
     name = "breadcrumb_processor_test",
+    size = "small",
     srcs = ["breadcrumb_processor_test.cc"],
     deps = [
         ":breadcrumbs",
@@ -130,6 +131,7 @@ cc_test(
 
 cc_test(
     name = "breadcrumbs_test",
+    size = "small",
     srcs = ["breadcrumbs_test.cc"],
     deps = [
         ":breadcrumbs",
@@ -141,6 +143,7 @@ cc_test(
 
 py_test(
     name = "gen_breadcrumb_metadata_test",
+    size = "small",
     srcs = ["gen_breadcrumb_metadata_test.py"],
     data = [
         "@aemu//protos/services/emulator-controller:emulator_controller_proto",

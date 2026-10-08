@@ -39,11 +39,15 @@ cc_library(
         "//emulator/libs/hardware_config",
         "//emulator/libs/ini_file",
         "//emulator/libs/parsing:resizable_display_config",
+        "//emulator/libs/perfetto:init",
         "//emulator/libs/shared_memory",
         "//emulator/libs/sockets",
         "//emulator/plugin/audio:qemu_audio_capture",
-        "//emulator/plugin/avd:info",
+        "//emulator/plugin/avd:avd_info",
+        "//emulator/plugin/avd:avd_properties",
+        "//emulator/plugin/avd:avd_universe",
         "//emulator/plugin/display",
+        "//emulator/plugin/display:write_png",
         "//emulator/plugin/grpc/keyboard",
         "//emulator/plugin/vminterface",
         "//emulator/tools:aemu_version",
@@ -56,6 +60,7 @@ cc_library(
 
 cc_test(
     name = "emulator_controller_methods_test",
+    size = "small",
     srcs = [
         "audio_stream_writer_test.cc",
         "display_service_test.cc",
@@ -77,7 +82,7 @@ cc_test(
         "//emulator/libs/process",
         "//emulator/libs/test:googletest_main",
         "//emulator/plugin/audio:test_qemu_audio_stub",
-        "//emulator/plugin/avd:info-fake",
+        "//emulator/plugin/avd:fake_avd_universe",
         "//emulator/plugin/display:test-display",
         "//emulator/plugin/grpc/keyboard:test_qemu_input_stub",
         "//emulator/plugin/vminterface:test_vminterface",

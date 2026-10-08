@@ -12,6 +12,7 @@ collect_plugins(
 
 cc_test(
     name = "glib_static_test",
+    size = "small",
     srcs = ["glib_test.cc"],
     data = [":binplace"],
     visibility = ["//visibility:public"],
@@ -24,6 +25,7 @@ cc_test(
 
 cc_test(
     name = "glib_dll_test",
+    size = "small",
     srcs = ["glib_test.cc"],
     data = [":binplace"],
     dynamic_deps = [

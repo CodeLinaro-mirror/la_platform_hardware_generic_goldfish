@@ -44,6 +44,11 @@ bool CommandRegistry::Matches(const Entry& entry, std::string_view name) {
     }
 }
 
+std::string_view CommandRegistry::GetCanonicalName(std::string_view names) {
+    const size_t pos = names.find('|');
+    return pos == std::string_view::npos ? names : names.substr(0, pos);
+}
+
 // Finds the first child in the list that matches the given name.
 const CommandRegistry::Entry* CommandRegistry::FindChild(
         const std::vector<std::unique_ptr<Entry>>& children, std::string_view name) {
@@ -113,8 +118,9 @@ CommandRegistryBuilder::NodeBuilder CommandRegistryBuilder::NodeBuilder::Sub(
 
 // --- Builder implementation ---
 
-CommandRegistryBuilder::CommandRegistryBuilder(std::filesystem::path token_path)
-        : token_path_(std::move(token_path)) {}
+CommandRegistryBuilder::CommandRegistryBuilder(std::filesystem::path token_path,
+                                               CommandRegistry::CommandObserver command_observer)
+        : token_path_(std::move(token_path)), command_observer_(std::move(command_observer)) {}
 
 CommandRegistryBuilder::NodeBuilder CommandRegistryBuilder::Command(std::string name,
                                                                     std::string abstract) {
@@ -131,14 +137,16 @@ CommandRegistryBuilder::NodeBuilder CommandRegistryBuilder::Command(std::string 
 
 std::unique_ptr<CommandRegistry> CommandRegistryBuilder::Build() {
     return std::make_unique<CommandRegistry>(CommandRegistry::Passkey{}, std::move(token_path_),
-                                             std::move(root_commands_));
+                                             std::move(root_commands_),
+                                             std::move(command_observer_));
 }
 
 // --- Registry implementation ---
 
 CommandRegistry::CommandRegistry(Passkey, std::filesystem::path token_path,
-                                 std::vector<std::unique_ptr<Entry>> root_commands)
-        : token_path_(std::move(token_path)) {
+                                 std::vector<std::unique_ptr<Entry>> root_commands,
+                                 CommandObserver command_observer)
+        : token_path_(std::move(token_path)), command_observer_(std::move(command_observer)) {
     // Register built-in help commands at the beginning to match old behavior.
     auto help_verbose = std::make_unique<Entry>(Entry{
         .name = "help-verbose",
@@ -169,7 +177,9 @@ absl::StatusOr<std::string> CommandRegistry::operator()(std::string line, Contex
 absl::StatusOr<std::string> CommandRegistry::DispatchCommand(ArgStream& args, Context& ctx) const {
     const Entry* current = nullptr;
     const std::vector<std::unique_ptr<Entry>>* children = &root_commands_;
-    std::string path;  // Accumulated command path for help/error display.
+    std::string user_path;       // Accumulated user-typed command path for help/error display.
+    std::string canonical_path;  // Accumulated canonical command path for metrics tracking.
+    std::string_view top_level_name;
 
     while (!args.Empty()) {
         const std::string name = args.Peek();
@@ -177,13 +187,22 @@ absl::StatusOr<std::string> CommandRegistry::DispatchCommand(ArgStream& args, Co
         if (!next) break;
 
         args.Next();
+        const std::string_view canonical_name = GetCanonicalName(next->name);
+        if (!current) {
+            top_level_name = canonical_name;
+        }
         current = next;
         children = &current->children;
 
-        if (!path.empty()) {
-            path += " ";
+        if (!user_path.empty()) {
+            user_path += " ";
         }
-        path += name;
+        user_path += name;
+
+        if (!canonical_path.empty()) {
+            canonical_path += " ";
+        }
+        canonical_path.append(canonical_name.data(), canonical_name.size());
 
         if (!current->is_safe && !ctx.authenticated) {
             // Do not leak existence of commands that require authentication.
@@ -191,13 +210,16 @@ absl::StatusOr<std::string> CommandRegistry::DispatchCommand(ArgStream& args, Co
         }
 
         if (current->handler) {
+            if (command_observer_) {
+                command_observer_(top_level_name, canonical_path);
+            }
             return current->handler(ctx, args);
         }
     }
 
     if (current) {
-        return absl::InvalidArgumentError(
-                absl::StrCat("missing sub-command\r\n", GetSubCommandsHelp(*current, path, ctx)));
+        return absl::InvalidArgumentError(absl::StrCat(
+                "missing sub-command\r\n", GetSubCommandsHelp(*current, user_path, ctx)));
     }
 
     return absl::NotFoundError("unknown command, try 'help'.");

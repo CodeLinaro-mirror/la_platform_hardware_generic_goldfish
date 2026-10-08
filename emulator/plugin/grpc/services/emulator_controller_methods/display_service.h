@@ -99,6 +99,7 @@ class DisplayServiceImpl : public EmulatorController::Service {
     ::goldfish::sensors::PhysicalModel& mPhysicalModel;
     const std::vector<::goldfish::parsing::ResizableDisplayConfig> resizable_configs_;
 
+    ::goldfish::display::IMultiDisplay::ScopedRotationSubscription mRotationSubscription;
     ::goldfish::sensors::FoldableModel::ObservablePosture::ScopedCallbackHandle
             mPostureSubscription;
 };

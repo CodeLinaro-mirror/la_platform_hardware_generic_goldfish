@@ -43,7 +43,7 @@ namespace android {
 namespace emulation {
 namespace control {
 
-using ::goldfish::avd_info::AvdUniverse;
+using ::goldfish::avd::AvdUniverse;
 using ::goldfish::avd_universe::grpc::GrpcNotificationEventSource;
 using ::goldfish::display::IMultiDisplay;
 using ::google::protobuf::Empty;

@@ -313,7 +313,7 @@ class WindowsOverseer : public ProcessOverseer {
                     continue;
                 }
 
-                if (!pipe->pending_io) {
+                while (!pipe->pending_io && !pipe->closed && !stop_) {
                     DWORD bytes_to_read = BUFSIZE * sizeof(char);
                     BOOL success = ReadFile(pipe->read.get(), pipe->ch_read, bytes_to_read, nullptr,
                                             &pipe->overlap);
@@ -324,6 +324,8 @@ class WindowsOverseer : public ProcessOverseer {
                         if (GetOverlappedResult(pipe->read.get(), &pipe->overlap, &pipe->cb_read,
                                                 FALSE)) {
                             pipe->FlushToStreambuf();
+                        } else {
+                            pipe->Close();
                         }
                     } else if (GetLastError() == ERROR_IO_PENDING) {
                         pipe->pending_io = TRUE;
@@ -354,14 +356,14 @@ class WindowsOverseer : public ProcessOverseer {
                                                    &byte_count,       // bytes transferred
                                                    FALSE);            // do not wait
 
-                if (!success && GetLastError() == ERROR_BROKEN_PIPE) {
-                    // remove this pipe..
-                    DVLOG(1) << "Pipe " << pipe->read.get()
-                             << " broken (process likely exited). Closing.";
-                    pipe->Close();
-                } else if (success) {
+                if (success) {
                     pipe->cb_read = byte_count;
                     pipe->FlushToStreambuf();
+                } else {
+                    // remove this pipe..
+                    DVLOG(1) << "Pipe " << pipe->read.get() << " broken or closed ("
+                             << FormatLastErr() << "). Closing.";
+                    pipe->Close();
                 }
             }
         }
@@ -426,8 +428,8 @@ class WinProcess : public ObservableProcess {
         if (!process_) return false;
         DVLOG(1) << "Terminating process PID: " << pid_;
         TerminateProcess(process_.get(), 1);
-        // 100ms to shut down.
-        return WaitForSingleObject(process_.get(), 100) != WAIT_TIMEOUT;
+        // Allow up to 10s for Windows kernel process rundown (matching PosixProcess::Terminate).
+        return WaitForSingleObject(process_.get(), 10000) != WAIT_TIMEOUT;
     }
 
     std::string Exe() const override {
@@ -450,13 +452,6 @@ class WinProcess : public ObservableProcess {
         if (!process_) return false;
 
         return WaitForSingleObject(process_.get(), 0) == WAIT_TIMEOUT;
-    }
-
-    std::future_status WaitFor(const std::chrono::milliseconds timeout_duration) const override {
-        if (!process_) return std::future_status::ready;
-
-        auto state = WaitForSingleObject(process_.get(), timeout_duration.count());
-        return state == WAIT_TIMEOUT ? std::future_status::timeout : std::future_status::ready;
     }
 
     virtual std::optional<Pid> CreateProcess(const CommandArguments& args, bool capture_output,

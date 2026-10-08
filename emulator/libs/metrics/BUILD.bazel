@@ -12,7 +12,7 @@ clang_tidy_test(
     name = "tidy",
     targets = [
         # TODO(whollins): Figure out why these don't work.
-        #":uuid",
+        #":metrics_uuid",
         #":metrics_reporter",
         #":text_metrics_writer",
     ],
@@ -20,7 +20,7 @@ clang_tidy_test(
 )
 
 cc_library(
-    name = "uuid",
+    name = "metrics_uuid",
     srcs = ["uuid.cc"],
     hdrs = ["include/goldfish/metrics/uuid.h"],
     includes = ["include"],
@@ -41,9 +41,10 @@ cc_library(
 
 cc_test(
     name = "uuid_test",
+    size = "small",
     srcs = ["uuid_test.cc"],
     deps = [
-        ":uuid",
+        ":metrics_uuid",
         "//emulator/libs/status_macros:status_matcher_macros",
         "//emulator/libs/test:googletest_main",
     ],
@@ -72,15 +73,17 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
+        ":metrics_uuid",
         ":metrics_writer",
         ":studio_stats_wrapper",
-        ":uuid",
         "//emulator/libs/system",
         "//emulator/tools:aemu_version",
         "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:vlog_is_on",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/synchronization",
+        "@protobuf",
         "@qemu//:qemu-version-header",
     ],
 )
@@ -91,10 +94,26 @@ alias(
     visibility = ["//visibility:public"],
 )
 
+cc_library(
+    name = "fake_metrics_writer",
+    testonly = True,
+    hdrs = ["include/goldfish/metrics/testing/fake_metrics_writer.h"],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":metrics_writer",
+        "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/synchronization",
+        "@abseil-cpp//absl/time",
+    ],
+)
+
 cc_test(
     name = "metrics_reporter_test",
+    size = "small",
     srcs = ["metrics_reporter_test.cc"],
     deps = [
+        ":fake_metrics_writer",
         ":metrics_reporter",
         "//emulator/libs/test:googletest_main",
     ],
@@ -131,6 +150,7 @@ cc_library(
 
 cc_test(
     name = "text_metrics_writer_test",
+    size = "small",
     srcs = ["text_metrics_writer_test.cc"],
     deps = [
         ":text_metrics_writer",
@@ -166,6 +186,7 @@ cc_library(
 
 cc_test(
     name = "perf_stat_reporter_test",
+    size = "small",
     srcs = ["perf_stat_reporter_test.cc"],
     deps = [
         ":perf_stat_reporter",
@@ -183,13 +204,16 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
+        ":metrics_uuid",
         "//emulator/libs/file",
-        "@nlohmann_json//:singleheader-json",
+        "@protobuf",
+        "@studio_stats//:analytics_settings_cc_proto",
     ],
 )
 
 cc_test(
     name = "studio_config_test",
+    size = "small",
     srcs = ["studio_config_test.cc"],
     deps = [
         ":studio_config",
@@ -221,6 +245,7 @@ cc_library(
 
 cc_test(
     name = "studio_file_metrics_writer_test",
+    size = "small",
     srcs = ["studio_file_metrics_writer_test.cc"],
     deps = [
         ":studio_file_metrics_writer",
@@ -239,6 +264,7 @@ cc_library(
 
 cc_test(
     name = "gzip_ostream_test",
+    size = "small",
     srcs = ["gzip_ostream_test.cc"],
     deps = [
         ":gzip_ostream",
@@ -281,14 +307,43 @@ cc_library(
 
 cc_test(
     name = "playstore_metrics_writer_test",
+    size = "small",
     srcs = ["playstore_metrics_writer_test.cc"],
     deps = [
         ":playstore_metrics_writer",
         "//emulator/libs/async:async_testing",
         "//emulator/libs/system:test-headers",
         "//emulator/libs/test:googletest_main",
+        "@abseil-cpp//absl/log:globals",
         "@abseil-cpp//absl/strings:str_format",
         "@studio_stats//:google_logs_publishing_cc_proto",
         "@zlib",
+    ],
+)
+
+cc_library(
+    name = "snapshot_metrics",
+    srcs = ["snapshot_metrics.cc"],
+    hdrs = ["include/goldfish/metrics/snapshot_metrics.h"],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":metrics_reporter",
+        ":perf_stat_reporter",
+        ":studio_stats_wrapper",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/time",
+        "@boringssl//:crypto",
+    ],
+)
+
+cc_test(
+    name = "snapshot_metrics_test",
+    size = "small",
+    srcs = ["snapshot_metrics_test.cc"],
+    deps = [
+        ":fake_metrics_writer",
+        ":snapshot_metrics",
+        "//emulator/libs/test:googletest_main",
     ],
 )

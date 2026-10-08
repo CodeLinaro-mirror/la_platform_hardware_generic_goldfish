@@ -16,6 +16,7 @@ cc_library(
 
 cc_test(
     name = "adbkey_test",
+    size = "small",
     srcs = ["adbkey_test.cc"],
     visibility = ["//visibility:public"],
     deps = [

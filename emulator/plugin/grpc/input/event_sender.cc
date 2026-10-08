@@ -16,7 +16,7 @@
 #include "absl/log/log.h"
 
 #include "android/status/status_macros.h"
-#include "goldfish/avd_info/avd_info.h"
+#include "goldfish/avd/avd_info.h"
 #include "pointer_event_dispatcher.h"
 
 namespace android::emulation::control {
@@ -26,7 +26,7 @@ namespace {
 template <class T>
 absl::StatusOr<std::shared_ptr<IDisplay>> TryLockDisplay(IMultiDisplay& multidisplay,
                                                          const T& event) {
-    const auto& hw = ::goldfish::avd_info::GetAvd().Props().hw_config;
+    const auto& hw = ::goldfish::avd::GetAvd().Props().hw_config;
     return multidisplay.GetActiveDisplay(event.display(), hw.hw_sensor_hinge);
 }
 

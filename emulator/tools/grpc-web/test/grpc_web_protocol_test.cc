@@ -81,6 +81,23 @@ TEST(GrpcWebProtocolTest, FormatTrailers) {
     EXPECT_NE(trailers.find("x-custom-header:Value123\r\n"), std::string::npos);
 }
 
+TEST(GrpcWebProtocolTest, FormatTrailersSanitizesCrlfAndEncodesBinMetadata) {
+    grpc::Status status(grpc::StatusCode::OK, "");
+    std::multimap<grpc::string_ref, grpc::string_ref> metadata;
+    std::string binary_val = std::string("\x01\x02\r\n\x03", 5);
+    metadata.emplace("X-Custom-Bin", grpc::string_ref(binary_val.data(), binary_val.size()));
+    metadata.emplace("X-Injected\r\nKey", "Val\r\ngrpc-status:0");
+
+    std::string trailers = Protocol::FormatTrailers(status, metadata);
+
+    // Binary metadata must be base64-encoded
+    std::string expected_b64 = absl::Base64Escape(binary_val);
+    EXPECT_NE(trailers.find("x-custom-bin:" + expected_b64 + "\r\n"), std::string::npos);
+
+    // Non-binary key and value must have CRLF stripped
+    EXPECT_NE(trailers.find("x-injectedkey:Valgrpc-status:0\r\n"), std::string::npos);
+}
+
 TEST(GrpcWebProtocolTest, ParseGrpcTimeout) {
     auto now = absl::Now();
     auto deadline = Protocol::ParseGrpcTimeout("10S");
@@ -96,8 +113,14 @@ TEST(GrpcWebProtocolTest, ParseGrpcTimeout) {
     EXPECT_GE(deadline_ms - now, absl::Milliseconds(400));
     EXPECT_LE(deadline_ms - now, absl::Milliseconds(600));
 
-    // Test large timeout values
-    EXPECT_GT(Protocol::ParseGrpcTimeout("999999999H"), now + absl::Hours(10000));
+    // Test large timeout values are clamped safely within std::chrono::system_clock range
+    auto deadline_large = Protocol::ParseGrpcTimeout("3000000H");
+    EXPECT_GT(deadline_large, now + absl::Hours(10000));
+    EXPECT_TRUE(absl::ToChronoTime(deadline_large) > std::chrono::system_clock::now());
+
+    auto deadline_u64_max = Protocol::ParseGrpcTimeout("18446744073709551615H");
+    EXPECT_GT(deadline_u64_max, now + absl::Hours(10000));
+    EXPECT_TRUE(absl::ToChronoTime(deadline_u64_max) > std::chrono::system_clock::now());
 }
 
 TEST(GrpcWebProtocolTest, ByteBufferConversion) {

@@ -371,6 +371,68 @@ TEST_F(AsyncSocketTest, LargeDataTransfer) {
     EXPECT_EQ(received_size_future.get(), large_message.size());
 }
 
+TEST_F(AsyncSocketTest, ChunkedLargeDataTransferPreservesOrderAcrossBackpressure) {
+    constexpr size_t kChunkSize = 64 * 1024;
+    constexpr size_t kNumChunks = 128;  // 8 MiB total to exceed OS socket send buffer
+    constexpr size_t kTotalSize = kChunkSize * kNumChunks;
+
+    std::string expected_data;
+    expected_data.reserve(kTotalSize);
+    for (size_t i = 0; i < kNumChunks; ++i) {
+        expected_data.append(kChunkSize, static_cast<char>('A' + (i % 26)));
+    }
+
+    ScopedAsyncSocket server_socket;
+    std::promise<std::string> received_promise;
+    auto received_future = received_promise.get_future();
+    std::string received_data;
+    received_data.reserve(kTotalSize);
+
+    auto on_connect = [&](std::shared_ptr<AsyncSocket> socket) -> bool {
+        socket->SetOnReadCallbackNoFlowControl([&](std::string_view data, absl::Status err) {
+            if (err.ok()) {
+                received_data.append(data);
+            }
+        });
+        socket->SetOnCloseCallback([&] { received_promise.set_value(std::move(received_data)); });
+        server_socket = ScopedAsyncSocket(std::move(socket));
+        return true;
+    };
+
+    ScopedAsyncServer server(PostAndWait([&] {
+        auto endpoint = ToEndpoint(ToIpAddress("127.0.0.1").value(), 0);
+        return factory_->CreateServer(raw_event_loop_, endpoint, on_connect);
+    }));
+    ASSERT_NE(server, nullptr);
+    Endpoint endpoint = PostAndWait([&] { return server->GetEndpoint(); });
+
+    ScopedAsyncSocket client(PostAndWait(
+            [&, endpoint] { return factory_->CreateSocket(raw_event_loop_, endpoint); }));
+    ASSERT_NE(client, nullptr);
+
+    raw_event_loop_
+            ->Post([&]() {
+                client->SetOnConnectedCallback([&](AsyncSocket& socket, absl::Status) {
+                    ASSERT_EQ(&socket, client.get());
+                    client->SetOnReadCallbackNoFlowControl([](std::string_view, absl::Status) {});
+
+                    for (size_t i = 0; i + 1 < kNumChunks; ++i) {
+                        ASSERT_THAT(
+                                client->Send(expected_data.data() + (i * kChunkSize), kChunkSize),
+                                IsOk());
+                    }
+                    ASSERT_THAT(client->Send(expected_data.data() + ((kNumChunks - 1) * kChunkSize),
+                                             kChunkSize, [&](auto) { client->Close(); }),
+                                IsOk());
+                });
+                ASSERT_THAT(client->Connect(), IsOk());
+            })
+            .IgnoreError();
+
+    RunUntil(received_future, 30s);
+    EXPECT_EQ(received_future.get(), expected_data);
+}
+
 TEST_F(AsyncSocketTest, MultiThreadedSendIsSafe) {
     const std::string message_per_thread = "This is a message from one of many threads. ";
     const int num_threads = 10;

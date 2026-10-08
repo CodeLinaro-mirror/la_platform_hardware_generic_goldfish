@@ -85,7 +85,7 @@ void JwkDirectoryObserver::ScanJwkPath() {
 
 void JwkDirectoryObserver::Stop() {
     bool expected = true;
-    if (!running_.compare_exchange_strong(expected, false)) {
+    if (running_.compare_exchange_strong(expected, false) && watcher_) {
         watcher_->Stop();
     }
 

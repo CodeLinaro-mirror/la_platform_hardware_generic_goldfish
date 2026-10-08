@@ -36,6 +36,7 @@ cc_library(
 
 cc_test(
     name = "sockets_unittests",
+    size = "small",
     srcs = ["socket_utils_test.cc"],
     linkopts = select({
         "@platforms//os:macos": ["-undefined error"],

@@ -31,24 +31,98 @@
 
 #include "android/emulation/control/absl_status_translate.h"
 #include "goldfish/videobridge/session_id.h"
+#include "nlohmann/json.hpp"
 
 namespace goldfish::grpc::v2 {
 
-using ::android::emulation::v2::webrtc::JsepMessage;
-using ::android::emulation::v2::webrtc::RtcSession;
-using ::android::emulation::v2::webrtc::RtcStreamRequest;
-using ::android::emulation::v2::webrtc::RtcStreamResponse;
-using ::android::emulation::v2::webrtc::RtcStreamUpdateRequest;
+using ::android::emulation::v2::CloseRtcStreamRequest;
+using ::android::emulation::v2::CloseRtcStreamResponse;
+using ::android::emulation::v2::IceCandidate;
+using ::android::emulation::v2::JsepMessage;
+using ::android::emulation::v2::RtcSession;
+using ::android::emulation::v2::RtcStreamRequest;
+using ::android::emulation::v2::RtcStreamResponse;
+using ::android::emulation::v2::RtcStreamUpdateRequest;
+using ::android::emulation::v2::SendJsepMessageResponse;
+using ::android::emulation::v2::SessionDescription;
+using ::android::emulation::v2::UpdateRtcStreamResponse;
 using ::goldfish::videobridge::GenerateSessionId;
 using ::goldfish::videobridge::Switchboard;
-using ::google::protobuf::Empty;
 
 namespace {
 
-JsepMessage MakeJsepMessage(std::string_view session_id, std::string message) {
+std::string SdpTypeToString(SessionDescription::Type type) {
+    switch (type) {
+    case SessionDescription::OFFER:
+        return "offer";
+    case SessionDescription::PRANSWER:
+        return "pranswer";
+    case SessionDescription::ANSWER:
+        return "answer";
+    case SessionDescription::ROLLBACK:
+        return "rollback";
+    default:
+        return "";
+    }
+}
+
+SessionDescription::Type StringToSdpType(std::string_view type) {
+    if (type == "offer") return SessionDescription::OFFER;
+    if (type == "pranswer") return SessionDescription::PRANSWER;
+    if (type == "answer") return SessionDescription::ANSWER;
+    if (type == "rollback") return SessionDescription::ROLLBACK;
+    return SessionDescription::TYPE_UNSPECIFIED;
+}
+
+std::string SerializeJsepToSwitchboardJson(const JsepMessage& msg) {
+    nlohmann::json payload;
+    if (msg.has_sdp()) {
+        payload["type"] = SdpTypeToString(msg.sdp().type());
+        payload["sdp"] = msg.sdp().sdp();
+    } else if (msg.has_ice_candidate()) {
+        payload["candidate"] = msg.ice_candidate().candidate();
+        payload["sdpMid"] = msg.ice_candidate().sdp_mid();
+        payload["sdpMLineIndex"] = msg.ice_candidate().sdp_m_line_index();
+        if (msg.ice_candidate().has_username_fragment()) {
+            payload["usernameFragment"] = msg.ice_candidate().username_fragment();
+        }
+    }
+    return payload.dump();
+}
+
+JsepMessage ParseSwitchboardJsonToJsep(std::string_view session_id, std::string_view raw_json) {
     JsepMessage response;
     response.mutable_handle()->set_session_id(session_id.data(), session_id.size());
-    response.set_message(std::move(message));
+
+    auto parsed = nlohmann::json::parse(raw_json, nullptr, false);
+    if (!parsed.is_discarded() && parsed.is_object()) {
+        const auto& sdp_obj =
+                (parsed.contains("sdp") && parsed["sdp"].is_object()) ? parsed["sdp"] : parsed;
+        if (sdp_obj.contains("sdp") && sdp_obj["sdp"].is_string()) {
+            auto* sdp = response.mutable_sdp();
+            sdp->set_sdp(sdp_obj["sdp"].get<std::string>());
+            if (sdp_obj.contains("type") && sdp_obj["type"].is_string()) {
+                sdp->set_type(StringToSdpType(sdp_obj["type"].get<std::string>()));
+            }
+            return response;
+        }
+        const auto& cand_obj = (parsed.contains("candidate") && parsed["candidate"].is_object())
+                                       ? parsed["candidate"]
+                                       : parsed;
+        auto* ice = response.mutable_ice_candidate();
+        if (cand_obj.contains("candidate") && cand_obj["candidate"].is_string()) {
+            ice->set_candidate(cand_obj["candidate"].get<std::string>());
+        }
+        if (cand_obj.contains("sdpMid") && cand_obj["sdpMid"].is_string()) {
+            ice->set_sdp_mid(cand_obj["sdpMid"].get<std::string>());
+        }
+        if (cand_obj.contains("sdpMLineIndex") && cand_obj["sdpMLineIndex"].is_number_integer()) {
+            ice->set_sdp_m_line_index(cand_obj["sdpMLineIndex"].get<int32_t>());
+        }
+        if (cand_obj.contains("usernameFragment") && cand_obj["usernameFragment"].is_string()) {
+            ice->set_username_fragment(cand_obj["usernameFragment"].get<std::string>());
+        }
+    }
     return response;
 }
 
@@ -88,7 +162,7 @@ RtcServiceImpl::RtcServiceImpl(std::shared_ptr<Switchboard> switchboard,
 
 ::grpc::Status RtcServiceImpl::UpdateRtcStream(::grpc::ServerContext* /*context*/,
                                                const RtcStreamUpdateRequest* request,
-                                               Empty* /*response*/) {
+                                               UpdateRtcStreamResponse* /*response*/) {
     const std::string& session_id = request->handle().session_id();
     if (session_id.empty()) {
         return {::grpc::StatusCode::INVALID_ARGUMENT, "Session ID cannot be empty."};
@@ -109,16 +183,34 @@ RtcServiceImpl::RtcServiceImpl(std::shared_ptr<Switchboard> switchboard,
     return ::grpc::Status::OK;
 }
 
-::grpc::Status RtcServiceImpl::SendJsepMessage(::grpc::ServerContext* /*context*/,
-                                               const JsepMessage* request, Empty* /*response*/) {
+::grpc::Status RtcServiceImpl::CloseRtcStream(::grpc::ServerContext* /*context*/,
+                                              const CloseRtcStreamRequest* request,
+                                              CloseRtcStreamResponse* /*response*/) {
     const std::string& session_id = request->handle().session_id();
-    const std::string& message = request->message();
-    if (session_id.empty() || message.empty()) {
-        return {::grpc::StatusCode::INVALID_ARGUMENT,
-                "Session ID and message payload cannot be empty."};
+    if (session_id.empty()) {
+        return {::grpc::StatusCode::INVALID_ARGUMENT, "Session ID cannot be empty."};
+    }
+    if (!switchboard_->HasSession(session_id)) {
+        return {::grpc::StatusCode::NOT_FOUND,
+                "No active WebRTC session for the supplied session ID."};
     }
 
-    if (auto status = switchboard_->AcceptJsepMessage(session_id, message); !status.ok()) {
+    switchboard_->Disconnect(session_id);
+    DetachSession(session_id);
+    return ::grpc::Status::OK;
+}
+
+::grpc::Status RtcServiceImpl::SendJsepMessage(::grpc::ServerContext* /*context*/,
+                                               const JsepMessage* request,
+                                               SendJsepMessageResponse* /*response*/) {
+    const std::string& session_id = request->handle().session_id();
+    if (session_id.empty() || request->payload_case() == JsepMessage::PAYLOAD_NOT_SET) {
+        return {::grpc::StatusCode::INVALID_ARGUMENT,
+                "Session ID and JSEP payload (sdp or ice_candidate) cannot be empty."};
+    }
+
+    const std::string serialized = SerializeJsepToSwitchboardJson(*request);
+    if (auto status = switchboard_->AcceptJsepMessage(session_id, serialized); !status.ok()) {
         VLOG(1) << "SendJsepMessage: routing failed for session '" << session_id << "': " << status;
         return ::android::emulation::control::AbslStatusToGrpcStatus(status);
     }
@@ -140,10 +232,9 @@ RtcServiceImpl::RtcServiceImpl(std::shared_ptr<Switchboard> switchboard,
         return {::grpc::StatusCode::ALREADY_EXISTS,
                 "A signaling stream is already attached to this session."};
     }
-    const absl::Cleanup cleanup = [this, &session_id] {
-        switchboard_->Disconnect(session_id);
-        DetachSession(session_id);
-    };
+    // Canceling or dropping the signaling stream detaches the stream slot without
+    // tearing down the underlying PeerConnection so clients can reconnect.
+    const absl::Cleanup cleanup = [this, &session_id] { DetachSession(session_id); };
 
     while (!context->IsCancelled()) {
         absl::StatusOr<std::string> msg = switchboard_->NextMessage(session_id, kJsepPollInterval);
@@ -157,7 +248,7 @@ RtcServiceImpl::RtcServiceImpl(std::shared_ptr<Switchboard> switchboard,
             return ::android::emulation::control::AbslStatusToGrpcStatus(msg.status());
         }
 
-        if (!writer->Write(MakeJsepMessage(session_id, *std::move(msg)))) {
+        if (!writer->Write(ParseSwitchboardJsonToJsep(session_id, *msg))) {
             VLOG(1) << "Signaling write failed; client left session '" << session_id << "'";
             break;
         }

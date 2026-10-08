@@ -34,10 +34,9 @@
 #include "android/crashreport/debug.h"
 #include "emulator/plugin/webrtc/webrtc_device.h"
 #include "goldfish/adb_device/adb_device.h"
-#include "goldfish/async/testing/global_event_loop.h"
-#include "goldfish/avd_finalize/avd_finalize.h"
-#include "goldfish/avd_info/avd_info.h"
-#include "goldfish/avd_info/avd_info_register_types.h"
+#include "goldfish/avd/avd_finalize.h"
+#include "goldfish/avd/avd_start.h"
+#include "goldfish/avd/global_event_loop.h"
 #include "goldfish/battery/goldfish_battery.h"
 #include "goldfish/grpc/grpc.h"
 #include "goldfish/input/virtio_input_android.h"
@@ -45,6 +44,8 @@
 #include "goldfish/netsim/netsim_chardev.h"
 #include "goldfish/netsim/netsim_connection.h"
 #include "goldfish/netsim/netsim_netdev.h"
+#include "goldfish/perfetto/perfetto.h"
+#include "goldfish/perfetto/perfetto_categories.h"
 #include "goldfish/tools/aemu_version.h"
 #include "goldfish/vsock/vsock_low_level.h"
 #include "goldfish/vsock/vsock_port_fwd.h"
@@ -55,6 +56,9 @@
 // clang-format off
 // IWYU pragma: begin_keep
 extern "C" {
+#if defined(CONFIG_TRACE_GOLDFISH)
+    #include "google/drivers/trace/goldfish.h"
+#endif
     #include "qemu/error-report.h"
 }
 // IWYU pragma: end_keep
@@ -199,8 +203,8 @@ extern "C" void GF_REGISTER_TYPES_FUNC(void) {
     goldfish_battery_register_types();
     vsock_port_fwd_register_types();
     vsock_low_level_register_types();
-    goldfish::avd_info::avd_info_register_types();
-    goldfish::avd_finalize::avd_finalize_register_types();
+    goldfish::avd::avd_info_register_types();
+    goldfish::avd::avd_finalize_register_types();
     goldfish::adb_device::adb_device_register_types();
     virtio_input_android_register_types();
     goldfish::grpc::grpc_register_types();
@@ -212,10 +216,49 @@ extern "C" void GF_REGISTER_TYPES_FUNC(void) {
     VLOG(1) << "Exit GF_REGISTER_TYPES";
 }
 
+#if defined(CONFIG_TRACE_GOLDFISH)
+static std::unique_ptr<goldfish::perfetto::EmulatorTracingSession> sTracingSession;
+
+static void OnQemuGoldfishTrace(const GoldfishTraceData* data) {
+    if (!data) return;
+    if (data->type == GOLDFISH_TRACE_EVENT_START) {
+        TRACE_EVENT_BEGIN("qemu", perfetto::StaticString{data->name});
+    } else if (data->type == GOLDFISH_TRACE_EVENT_END) {
+        TRACE_EVENT_END("qemu");
+    }
+}
+
+static void start_tracing() {
+    goldfish::perfetto::Initialize();
+    qemu_goldfish_set_trace_callback(OnQemuGoldfishTrace);
+
+    const std::string trace_path =
+            System::Get()->GetEnvironmentVariable("ANDROID_EMU_PERFETTO_TRACE");
+    if (!trace_path.empty()) {
+        LOG(INFO) << "Starting Perfetto tracing session to: " << trace_path;
+        sTracingSession = std::make_unique<goldfish::perfetto::EmulatorTracingSession>(
+                trace_path, "qemu,rendering,grpc,display,async");
+    }
+}
+
+static void stop_tracing() {
+    if (sTracingSession) {
+        LOG(INFO) << "Stopping Perfetto tracing session";
+        sTracingSession->Stop();
+        sTracingSession.reset();
+    }
+}
+#else
+static void start_tracing() {}
+static void stop_tracing() {}
+#endif
+
 extern "C" void GF_STARTUP_FUNC(int argc, char** argv) {
     absl::InitializeSymbolizer(argv[0]);
 
     setup_logging();
+    android::base::System::DisableAppNap();
+    start_tracing();
 
     VLOG(1) << "Goldfish plugin version: " << goldfish::version::GetEmulatorFullVersion();
     // The plugin crash system should never try to upload - that should only be
@@ -229,7 +272,7 @@ extern "C" void GF_STARTUP_FUNC(int argc, char** argv) {
     options.call_previous_handler = true;
     absl::InstallFailureSignalHandler(options);
 
-    auto* client_loop = goldfish::async::globalEventLoop();
+    auto* client_loop = goldfish::avd::globalEventLoop();
 
     // The global event loop is the main thread of the plugin and should always
     // be responsive, regardless of the vm state.
@@ -247,10 +290,12 @@ extern "C" void GF_STARTUP_FUNC(int argc, char** argv) {
 }
 
 extern "C" void GF_SHUTDOWN_FUNC(void) {
-    auto* client_loop = goldfish::async::globalEventLoop();
+    stop_tracing();
+
+    auto* client_loop = goldfish::avd::globalEventLoop();
     android::crashreport::CrashReporter::GetCrashingHangDetector().RemoveWatchedLooper(
             *client_loop);
-    LOG_IF(FATAL, !client_loop->ShutdownAndWait(absl::Seconds(10)).ok())
+    LOG_IF(QFATAL, !client_loop->ShutdownAndWait(absl::Seconds(10)).ok())
             << "global event loop shutdown failed within 10s";
     LOG(INFO) << "goldfish plugin shutdown completed";
 }

@@ -18,6 +18,7 @@ cc_library(
 
 cc_test(
     name = "unix_pipe_unittests",
+    size = "small",
     srcs = ["unix_pipe_test.cc"],
     visibility = ["//visibility:public"],
     deps = [

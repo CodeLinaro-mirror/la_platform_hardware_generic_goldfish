@@ -42,6 +42,7 @@
 #include "configure_drives.h"
 #include "cpu_device.h"
 #include "display_device.h"
+#include "goldfish/metrics/metrics_reporter.h"
 #include "gpu_device.h"
 #include "hugepage_device.h"
 #include "initrd_device.h"
@@ -64,11 +65,26 @@ absl::Status LaunchQemu::addDevices() {
     const auto& o = config_.opts();
     const auto& a = config_.avd();
 
-    int pluginLogLevel = static_cast<int>(o.verbose ? absl::LogSeverityAtLeast::kInfo
-                                                    : absl::LogSeverityAtLeast::kWarning);
+    bool enableInfoLevel = o.verbose || o.V || o.vmodule || o.debug_metrics;
+    int pluginLogLevel = static_cast<int>(enableInfoLevel ? absl::LogSeverityAtLeast::kInfo
+                                                          : absl::LogSeverityAtLeast::kWarning);
 
-    std::string vmodules = o.vmodule ? o.vmodule : "";
-    if (System::Get()->GetEnvironmentVariable("AEMU_LOG_LEVEL").empty()) {
+    std::string vmodules = System::Get()->GetEnvironmentVariable("AEMU_VMODULE");
+    if (o.vmodule && *o.vmodule != '\0') {
+        if (!vmodules.empty()) {
+            vmodules += ",";
+        }
+        vmodules += o.vmodule;
+    }
+    if (o.debug_metrics) {
+        if (!vmodules.empty()) {
+            vmodules += ",";
+        }
+        absl::StrAppend(&vmodules,
+                        "metrics_reporter=", ::goldfish::metrics::kMetricsWriterDebugVlogLevel);
+    }
+
+    if (System::Get()->GetEnvironmentVariable("AEMU_LOG_LEVEL").empty() || enableInfoLevel) {
         VLOG(1) << "Setting AEMU_LOG_LEVEL to " << pluginLogLevel;
         System::Get()->SetEnvironmentVariable("AEMU_LOG_LEVEL", absl::StrCat(pluginLogLevel));
     }
@@ -76,7 +92,7 @@ absl::Status LaunchQemu::addDevices() {
         VLOG(1) << "Setting AEMU_VLOG_LEVEL to " << o.V;
         System::Get()->SetEnvironmentVariable("AEMU_VLOG_LEVEL", absl::StrCat(o.V ? o.V : ""));
     }
-    if (System::Get()->GetEnvironmentVariable("AEMU_VMODULE").empty()) {
+    if (!vmodules.empty()) {
         VLOG(1) << "Setting AEMU_VMODULE to " << vmodules;
         System::Get()->SetEnvironmentVariable("AEMU_VMODULE", vmodules);
     }
@@ -198,9 +214,9 @@ absl::Status LaunchQemu::addDevices() {
         }
     }
 
-    // TODO(whollins): set netsim_backend to true when netsimd supports this (and not o.no_netsim)
     // Note that we assume Linux calls first (virtio-net*) ethernet device eth0 etc.
-    addDevice<NetworkDevice>("eth0", "0c.0", /*cellular=*/true, /*netsim_backend=*/false);
+    addDevice<NetworkDevice>("eth0", "0c.0", /*cellular=*/true,
+                             /*netsim_backend=*/netsim_cellular);
     // TODO TV ethernet addDevice<NetworkDevice>("eth1", "0d.0", /*cellular=*/false,
     // /*netsim_backend=*/false);
 
@@ -214,11 +230,10 @@ absl::Status LaunchQemu::addDevices() {
         });
     }
 
+    const auto& snapshot_device = addDevice<SnapshotDevice>();
+
     std::string gpu_name = "gpu0";
-    std::string dont_care_reason;
-    addDevice<GpuDevice>(gpu_name,
-                         SnapshotDevice::should_load_snapshot(config_, dont_care_reason) ||
-                                 SnapshotDevice::should_save_snapshot(config_, dont_care_reason));
+    addDevice<GpuDevice>(gpu_name, snapshot_device);
 
     // Also includes input devices for the display.
     addDevice<DisplayDevice>(gpu_name);
@@ -254,8 +269,6 @@ absl::Status LaunchQemu::addDevices() {
             "telnet::15454,server,nowait",
         });
     }
-
-    addDevice<SnapshotDevice>();
 
     if (o.qemu) {
         addDevice<ParameterList>(absl::StrSplit(o.qemu, ' '));

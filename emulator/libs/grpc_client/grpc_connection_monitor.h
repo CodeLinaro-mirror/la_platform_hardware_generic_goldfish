@@ -15,6 +15,7 @@
 
 #include <grpcpp/grpcpp.h>
 
+#include <functional>
 #include <future>
 #include <memory>
 
@@ -22,7 +23,6 @@
 #include "absl/time/time.h"
 
 #include "android/emulation/control/emulator_grpc_client.h"
-#include "goldfish/eventing/event_sources.h"
 
 namespace android::emulation::control {
 
@@ -33,20 +33,21 @@ namespace android::emulation::control {
  * encapsulates the `grpc::CompletionQueue` and its worker thread, providing a
  * clean, future-based API for connection state monitoring. It is responsible
  * for watching the channel's connectivity state and reporting changes through
- * the `state_changes` event source.
+ * the provided state change callback.
  */
 class GrpcConnectionMonitor {
   public:
     struct State;
 
-    using ScopedCallbackHandle =
-            android::base::eventing::CallbackEventSource<ConnectionState>::ScopedCallbackHandle;
+    using StateChangeCallback = std::function<void(ConnectionState)>;
 
     /**
      * @brief Constructs a new GrpcConnectionMonitor.
      * @param channel The gRPC channel to monitor.
+     * @param on_state_change Callback invoked when the connection state changes.
      */
-    explicit GrpcConnectionMonitor(const std::shared_ptr<grpc::Channel>& channel);
+    explicit GrpcConnectionMonitor(const std::shared_ptr<grpc::Channel>& channel,
+                                   StateChangeCallback on_state_change = nullptr);
 
     /**
      * @brief Destructor that stops the monitoring thread.
@@ -70,18 +71,10 @@ class GrpcConnectionMonitor {
     /**
      * @brief Stops the monitoring and disconnects the channel.
      *
-     * This method shuts down the completion queue and joins the worker thread,
+     * This method shuts down the completion queue and stops the worker thread,
      * ensuring a clean shutdown.
      */
     void Stop();
-
-    /**
-     * @brief An event source that fires when the connection state changes.
-     *
-     * The `CallbackEmulatorGrpcClient` subscribes to this event to provide
-     * real-time connection status updates to its users.
-     */
-    android::base::eventing::CallbackEventSource<ConnectionState>& state_changes();
 
   private:
     std::shared_ptr<State> state_;

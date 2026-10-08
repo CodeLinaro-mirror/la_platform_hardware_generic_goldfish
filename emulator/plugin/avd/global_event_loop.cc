@@ -1,4 +1,4 @@
-#include "goldfish/async/testing/global_event_loop.h"
+#include "goldfish/avd/global_event_loop.h"
 
 #include <memory>
 #include <utility>
@@ -9,7 +9,7 @@
 #include "goldfish/async/libuv_event_loop.h"
 #include "goldfish/async/threaded_event_loop.h"
 
-namespace goldfish::async {
+namespace goldfish::avd {
 
 namespace {
 
@@ -40,4 +40,4 @@ void setGlobalEventLoopForTesting(EventLoop* new_loop) {
 }
 }  // namespace testing
 
-}  // namespace goldfish::async
+}  // namespace goldfish::avd

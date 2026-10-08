@@ -649,6 +649,29 @@ GOLDFISH_SENSORS_LIST
 #undef OVERRIDE_FUNCTION_NAME
 #undef GET_FUNCTION_NAME
 
+bool PhysicalModel::IsSensorOverridden(const AndroidSensor sensor) const {
+    const auto sensor_index = static_cast<size_t>(sensor);
+    if (sensor_index >= kNumSensors) {
+        return false;
+    }
+    const std::lock_guard<std::recursive_mutex> lock(mutex_);
+    return use_override_[sensor_index];
+}
+
+void PhysicalModel::ClearOverrides() {
+    NotifyTargetState(PhysicalModelChangeEvent::Type::kPhysicalStateChanging);
+    {
+        const std::lock_guard<std::recursive_mutex> lock(mutex_);
+        for (size_t i = 0; i < kNumSensors; ++i) {
+            if (use_override_[i]) {
+                measurement_id_[i]++;
+            }
+        }
+        use_override_.reset();
+    }
+    NotifyTargetState(PhysicalModelChangeEvent::Type::kTargetStateChanged);
+}
+
 vec3 PhysicalModel::GetPhysicalAccelerometer() const {
     // Implementation Note:
     // Gravity and magnetic vectors as observed by the device.

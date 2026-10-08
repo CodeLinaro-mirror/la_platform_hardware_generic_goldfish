@@ -205,7 +205,7 @@ TEST_F(BreadcrumbInterceptorTest, LogsStartOnCreation) {
 }
 
 TEST_F(BreadcrumbInterceptorTest, HandlesLargePayloadsByDroppingDetail) {
-    auto factory = std::make_unique<BreadcrumbInterceptorFactory>();
+    auto factory = std::make_unique<BreadcrumbInterceptorFactory>(/*capture_payload=*/true);
     auto interceptor = std::unique_ptr<grpc::experimental::Interceptor>(
             factory->CreateClientInterceptor(nullptr));
 
@@ -239,7 +239,7 @@ TEST_F(BreadcrumbInterceptorTest, HandlesLargePayloadsByDroppingDetail) {
     EXPECT_TRUE(found_large);
 }
 
-TEST_F(BreadcrumbInterceptorTest, CapturesIncomingMessages) {
+TEST_F(BreadcrumbInterceptorTest, DefaultConfigurationBehavior) {
     auto factory = std::make_unique<BreadcrumbInterceptorFactory>();
     auto interceptor = std::unique_ptr<grpc::experimental::Interceptor>(
             factory->CreateServerInterceptor(nullptr));
@@ -253,27 +253,108 @@ TEST_F(BreadcrumbInterceptorTest, CapturesIncomingMessages) {
             .WillRepeatedly(::testing::Return(false));
     EXPECT_CALL(methods, Proceed());
 
-    android::emulation::control::KeyboardEvent key_event;
-    key_event.set_key("A");
-    EXPECT_CALL(methods, GetRecvMessage()).WillOnce(::testing::Return(&key_event));
+    android::emulation::control::BatteryState battery_state;
+    battery_state.set_chargelevel(80);
+    EXPECT_CALL(methods, GetRecvMessage()).WillOnce(::testing::Return(&battery_state));
 
     interceptor->Intercept(&methods);
 
     auto crumbs = GetAllCrumbs();
 
-    bool found_incoming = false;
+    bool found = false;
     for (const auto& c : crumbs) {
         if (c.phase() == Breadcrumb::FLOW_STEP && c.has_grpc() &&
             c.grpc().grpc_phase() ==
                     android::control::breadcrumbs::GrpcPayload::POST_RECV_MESSAGE) {
+#if defined(CONFIG_TRACE_GOLDFISH)
             EXPECT_TRUE(c.grpc().has_payload());
-            android::emulation::control::KeyboardEvent captured;
-            EXPECT_TRUE(captured.ParseFromString(c.grpc().payload()));
-            EXPECT_EQ(captured.key(), "A");
-            found_incoming = true;
+#else
+            EXPECT_FALSE(c.grpc().has_payload());
+            EXPECT_GT(c.grpc().msg_size(), 0);
+#endif
+            found = true;
         }
     }
-    EXPECT_TRUE(found_incoming);
+    EXPECT_TRUE(found);
+}
+
+TEST_F(BreadcrumbInterceptorTest, ExplicitDisableDropsAllPayloads) {
+    const size_t start_index = GetAllCrumbs().size();
+    auto factory = std::make_unique<BreadcrumbInterceptorFactory>(/*capture_payload=*/false);
+    auto interceptor = std::unique_ptr<grpc::experimental::Interceptor>(
+            factory->CreateServerInterceptor(nullptr));
+
+    MockInterceptorBatchMethods methods;
+    EXPECT_CALL(methods, QueryInterceptionHookPoint(
+                                 grpc::experimental::InterceptionHookPoints::POST_RECV_MESSAGE))
+            .WillRepeatedly(::testing::Return(true));
+    EXPECT_CALL(methods, QueryInterceptionHookPoint(::testing::Ne(
+                                 grpc::experimental::InterceptionHookPoints::POST_RECV_MESSAGE)))
+            .WillRepeatedly(::testing::Return(false));
+    EXPECT_CALL(methods, Proceed()).Times(2);
+
+    android::emulation::control::BatteryState battery_state;
+    battery_state.set_chargelevel(80);
+    EXPECT_CALL(methods, GetRecvMessage()).WillOnce(::testing::Return(&battery_state));
+    interceptor->Intercept(&methods);
+
+    android::emulation::control::KeyboardEvent key_event;
+    key_event.set_key("SecretPassword");
+    EXPECT_CALL(methods, GetRecvMessage()).WillOnce(::testing::Return(&key_event));
+    interceptor->Intercept(&methods);
+
+    auto crumbs = GetAllCrumbs();
+    int dropped_count = 0;
+    for (size_t i = start_index; i < crumbs.size(); ++i) {
+        const auto& c = crumbs[i];
+        if (c.phase() == Breadcrumb::FLOW_STEP && c.has_grpc() &&
+            c.grpc().grpc_phase() ==
+                    android::control::breadcrumbs::GrpcPayload::POST_RECV_MESSAGE) {
+            EXPECT_FALSE(c.grpc().has_payload());
+            EXPECT_GT(c.grpc().msg_size(), 0);
+            dropped_count++;
+        }
+    }
+    EXPECT_EQ(dropped_count, 2);
+}
+
+TEST_F(BreadcrumbInterceptorTest, ExplicitEnableCapturesAllPayloads) {
+    const size_t start_index = GetAllCrumbs().size();
+    auto factory = std::make_unique<BreadcrumbInterceptorFactory>(/*capture_payload=*/true);
+    auto interceptor = std::unique_ptr<grpc::experimental::Interceptor>(
+            factory->CreateServerInterceptor(nullptr));
+
+    MockInterceptorBatchMethods methods;
+    EXPECT_CALL(methods, QueryInterceptionHookPoint(
+                                 grpc::experimental::InterceptionHookPoints::POST_RECV_MESSAGE))
+            .WillRepeatedly(::testing::Return(true));
+    EXPECT_CALL(methods, QueryInterceptionHookPoint(::testing::Ne(
+                                 grpc::experimental::InterceptionHookPoints::POST_RECV_MESSAGE)))
+            .WillRepeatedly(::testing::Return(false));
+    EXPECT_CALL(methods, Proceed()).Times(2);
+
+    android::emulation::control::BatteryState battery_state;
+    battery_state.set_chargelevel(80);
+    EXPECT_CALL(methods, GetRecvMessage()).WillOnce(::testing::Return(&battery_state));
+    interceptor->Intercept(&methods);
+
+    android::emulation::control::KeyboardEvent key_event;
+    key_event.set_key("A");
+    EXPECT_CALL(methods, GetRecvMessage()).WillOnce(::testing::Return(&key_event));
+    interceptor->Intercept(&methods);
+
+    auto crumbs = GetAllCrumbs();
+    int captured_count = 0;
+    for (size_t i = start_index; i < crumbs.size(); ++i) {
+        const auto& c = crumbs[i];
+        if (c.phase() == Breadcrumb::FLOW_STEP && c.has_grpc() &&
+            c.grpc().grpc_phase() ==
+                    android::control::breadcrumbs::GrpcPayload::POST_RECV_MESSAGE) {
+            EXPECT_TRUE(c.grpc().has_payload());
+            captured_count++;
+        }
+    }
+    EXPECT_EQ(captured_count, 2);
 }
 
 TEST_F(BreadcrumbInterceptorTest, VerifiedCircularBufferWrap) {

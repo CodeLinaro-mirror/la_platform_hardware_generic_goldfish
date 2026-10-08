@@ -16,25 +16,37 @@
 
 #include <gtest/gtest.h>
 
+#include <atomic>
 #include <chrono>
+#include <cstring>
 #include <iostream>
 #include <thread>
 #include <vector>
 
+#include "absl/status/statusor.h"
+#include "absl/synchronization/mutex.h"
+#include "absl/synchronization/notification.h"
+#include "absl/time/clock.h"
+#include "absl/time/time.h"
+
 #include "goldfish/async/libuv_event_loop.h"
 #include "goldfish/async/threaded_event_loop.h"
+#include "goldfish/display/display_frames.h"
+#include "goldfish/display/frame.h"
+#include "goldfish/display/geometry.h"
+#include "goldfish/display/test/display_test_peer.h"
 #include "goldfish/display/test/mock_display.h"
 #include "goldfish/display/test/pixman_image_generator.h"
 
-using android::base::eventing::EventListener;
 using goldfish::async::EventLoop;
-using goldfish::display::FrameInfo;
-using goldfish::display::FrameInfoCallbackSource;
+using goldfish::display::Dimensions;
+using goldfish::display::DisplayTestPeer;
+using goldfish::display::FrameEvent;
+using goldfish::display::FrameId;
+using goldfish::display::FramePtr;
 using goldfish::display::ImageRotation;
 using goldfish::display::PixelFormat;
 using goldfish::display::PixmanImagePtr;
-using goldfish::display::ResizeEvent;
-using goldfish::display::ResizeEventCallbackSource;
 using goldfish::display::test::ActiveFakePixmanDisplay;
 using goldfish::display::test::FakePixmanDisplay;
 
@@ -46,6 +58,13 @@ class FakePixmanDisplayTest : public ::testing::Test {
     }
 
     void TearDown() override { loop_.reset(); }
+
+    // Returns once every task posted to the loop before this call has run.
+    void SyncLoop() {
+        absl::Notification ran;
+        ASSERT_TRUE(loop_->Post([&ran] { ran.Notify(); }).ok());
+        ASSERT_TRUE(ran.WaitForNotificationWithTimeout(absl::Seconds(10)));
+    }
 
     std::unique_ptr<EventLoop> loop_;
 };
@@ -75,7 +94,7 @@ TEST_F(FakePixmanDisplayTest, ActiveFakePixmanDisplayTest) {
     ASSERT_EQ(pixman_image_get_height(current_image), height);
 
     // We should have received at least a few frames.
-    ASSERT_GT(display->Seq().sequence_number, 2);
+    ASSERT_GT(display->CurrentFrameId(), 2U);
 }
 
 TEST_F(FakePixmanDisplayTest, GetScreenshotRGBA8888) {
@@ -178,7 +197,7 @@ TEST_F(FakePixmanDisplayTest, GetScreenshotResizeBuffer) {
     ASSERT_NE(pixel_data[0] | pixel_data[1] | pixel_data[2] | pixel_data[3], 0);
 }
 
-TEST_F(FakePixmanDisplayTest, DISABLED_GetPixelsRotationPortraitSource) {
+TEST_F(FakePixmanDisplayTest, GetPixelsRotationPortraitSource) {
     const int src_w = 100;
     const int src_h = 200;
 
@@ -187,7 +206,7 @@ TEST_F(FakePixmanDisplayTest, DISABLED_GetPixelsRotationPortraitSource) {
             pixman_image_create_bits(PIXMAN_a8r8g8b8, src_w, src_h, nullptr, 0));
     auto* src_data = pixman_image_get_data(src_image.get());
     memset(src_data, 0, static_cast<size_t>(src_w) * src_h * 4);
-    src_data[0] = 0xFFFF0000;  // Red (AARRGGBB)
+    src_data[0] = 0xFFFF0000;  // Red in PIXMAN_a8r8g8b8 (AARRGGBB)
 
     auto display = std::make_shared<FakePixmanDisplay>(loop_.get(), 1, src_image.get());
 
@@ -201,12 +220,13 @@ TEST_F(FakePixmanDisplayTest, DISABLED_GetPixelsRotationPortraitSource) {
 
         const auto* pixels = reinterpret_cast<const uint32_t*>(buffer.data());
         const uint32_t color = pixels[(static_cast<size_t>(expected_y) * dest_w) + expected_x];
-        EXPECT_EQ(color, 0xFFFF0000)
+        // PixelFormat::kRgba8888 writes R,G,B,A in memory (0xFF0000FF on little-endian).
+        EXPECT_EQ(color, 0xFF0000FFU)
                 << "Portrait Rotation " << static_cast<int>(rot)
                 << " failed: Expected red pixel at (" << expected_x << ", " << expected_y << ")";
     };
 
-    // Note: Pixman rotation is counter-clockwise.
+    // Note: ImageRotation is counter-clockwise.
     // 0°: Red at (0, 0)
     verify_pixel(ImageRotation::kRotation0, 0, 0, src_w, src_h);
     // 90° CCW: Top-Left (0,0) moves to Bottom-Left (0, 99)
@@ -217,7 +237,7 @@ TEST_F(FakePixmanDisplayTest, DISABLED_GetPixelsRotationPortraitSource) {
     verify_pixel(ImageRotation::kRotation270, 199, 0, src_h, src_w);
 }
 
-TEST_F(FakePixmanDisplayTest, DISABLED_GetPixelsRotationLandscapeSource) {
+TEST_F(FakePixmanDisplayTest, GetPixelsRotationLandscapeSource) {
     const int src_w = 200;
     const int src_h = 100;
 
@@ -238,7 +258,7 @@ TEST_F(FakePixmanDisplayTest, DISABLED_GetPixelsRotationLandscapeSource) {
                                          &c_pixels);
         ASSERT_TRUE(result.ok());
         const auto* pixels = reinterpret_cast<const uint32_t*>(buffer.data());
-        EXPECT_EQ(pixels[(static_cast<size_t>(expected_y) * dest_w) + expected_x], 0xFFFF0000)
+        EXPECT_EQ(pixels[(static_cast<size_t>(expected_y) * dest_w) + expected_x], 0xFF0000FFU)
                 << "Landscape Rotation " << static_cast<int>(rot) << " failed";
     };
 
@@ -252,7 +272,7 @@ TEST_F(FakePixmanDisplayTest, DISABLED_GetPixelsRotationLandscapeSource) {
     verify_pixel(ImageRotation::kRotation270, 99, 0, src_h, src_w);
 }
 
-TEST_F(FakePixmanDisplayTest, DISABLED_GetPixelsRotationSquareSource) {
+TEST_F(FakePixmanDisplayTest, GetPixelsRotationSquareSource) {
     const int size = 100;
 
     // Create a Square source image (Red pixel at Top-Left 0,0)
@@ -271,7 +291,7 @@ TEST_F(FakePixmanDisplayTest, DISABLED_GetPixelsRotationSquareSource) {
                                          &c_pixels);
         ASSERT_TRUE(result.ok());
         const auto* pixels = reinterpret_cast<const uint32_t*>(buffer.data());
-        EXPECT_EQ(pixels[(static_cast<size_t>(expected_y) * size) + expected_x], 0xFFFF0000)
+        EXPECT_EQ(pixels[(static_cast<size_t>(expected_y) * size) + expected_x], 0xFF0000FFU)
                 << "Square Rotation " << static_cast<int>(rot) << " failed";
     };
 
@@ -310,85 +330,126 @@ TEST_F(FakePixmanDisplayTest, InitialImageIsBlue) {
     ASSERT_TRUE(all_pixels_blue) << "Not all pixels are blue.";
 }
 
-class TestListener : public EventListener<ResizeEvent> {
-  public:
-    void EventArrived(const ResizeEvent& event) override {
-        const absl::MutexLock lock(events_mutex);
-        events.push_back(event);
-    }
+TEST_F(FakePixmanDisplayTest, ResizeEmitsFrameWithUpdatedDimensions) {
+    const int fps = 10;
+    const int width = 100;
+    const int height = 50;
+    const int id = 0;
+
+    auto display = ActiveFakePixmanDisplay::CreateShared(loop_.get(), id, fps, width, height);
     absl::Mutex events_mutex;
-    std::vector<ResizeEvent> events;
-};
+    std::vector<FrameEvent> events;
 
-TEST_F(FakePixmanDisplayTest, ResizeEvent) {
-    const int fps = 10;
-    const int width = 100;
-    const int height = 50;
-    const int id = 0;
+    auto listener = display->AddFrameListener([&](const FrameEvent& event) {
+        absl::MutexLock lock(&events_mutex);
+        events.push_back(event);
+    });
 
-    // Create an ActiveFakePixmanDisplay
-    auto display = ActiveFakePixmanDisplay::CreateShared(loop_.get(), id, fps, width, height);
-    auto listener = std::make_shared<TestListener>();
-    display->ResizeEventCallbackSource::AddListener(listener);
-
-    // Start the generator
     display->Start();
     display->WaitForFramesWithTimeout(2, absl::Milliseconds(500));
     display->Resize(200, 100);
     display->WaitForFramesWithTimeout(4, absl::Milliseconds(500));
     display->Stop();
 
-    const absl::MutexLock lock(listener->events_mutex);
-    ASSERT_EQ(listener->events.size(), 1);
-    EXPECT_EQ(listener->events[0].previous_width, 100);
-    EXPECT_EQ(listener->events[0].previous_height, 50);
-    EXPECT_EQ(listener->events[0].width, 200);
-    EXPECT_EQ(listener->events[0].height, 100);
+    absl::MutexLock lock(&events_mutex);
+    ASSERT_GE(events.size(), 2U);
+    bool saw_geometry_change = false;
+    for (size_t i = 1; i < events.size(); ++i) {
+        if (events[i].HasGeometryChangeFrom(events[i - 1])) {
+            EXPECT_EQ(events[i - 1].dimensions, (Dimensions{100, 50}));
+            EXPECT_EQ(events[i].dimensions, (Dimensions{200, 100}));
+            saw_geometry_change = true;
+        }
+    }
+    EXPECT_TRUE(saw_geometry_change);
 }
 
-TEST_F(FakePixmanDisplayTest, ResizeEventsAreOnTheEventLoop) {
-    const int fps = 10;
-    const int width = 100;
-    const int height = 50;
-    const int id = 0;
-
-    // Create an ActiveFakePixmanDisplay
-    auto display = ActiveFakePixmanDisplay::CreateShared(loop_.get(), id, fps, width, height);
-    auto listener = std::make_shared<TestListener>();
-
-    auto* callback_source = static_cast<ResizeEventCallbackSource*>(display.get());
-    auto callback = android::base::eventing::MakeScopedCallback(
-            *callback_source, [&](const ResizeEvent& /*event*/) {
-                ASSERT_TRUE(loop_->IsOnLoopThread())
-                        << "Event should have been delivered on the event loop";
-            });
-    // Start the generator
-    display->Start();
-    display->WaitForFramesWithTimeout(2, absl::Milliseconds(500));
-    display->Resize(200, 100);
-    display->WaitForFramesWithTimeout(4, absl::Milliseconds(500));
-    display->Stop();
-}
-
-TEST_F(FakePixmanDisplayTest, FrameInfoEventsAreOnTheEventLoop) {
+TEST_F(FakePixmanDisplayTest, FrameEventsAreOnTheEventLoop) {
     const int fps = 10;
     const int width = 100;
     const int height = 50;
     const int id = 0;
     std::atomic_int frames = 0;
-    // Create an ActiveFakePixmanDisplay
     auto display = ActiveFakePixmanDisplay::CreateShared(loop_.get(), id, fps, width, height);
 
-    auto listener = display->AddFrameListener([&](const FrameInfo& /*event*/) {
+    auto listener = display->AddFrameListener([&](const FrameEvent& /*event*/) {
         frames++;
         ASSERT_TRUE(loop_->IsOnLoopThread())
                 << "Event should have been delivered on the event loop";
     });
-    // Start the generator
     display->Start();
     display->WaitForFramesWithTimeout(2, absl::Milliseconds(500));
+    display->Resize(200, 100);
+    display->WaitForFramesWithTimeout(4, absl::Milliseconds(500));
     display->Stop();
 
-    // We delivered some frames to our callback, where we verified that it is on the event loop
     EXPECT_GT(frames, 0);
+}
+
+// A warm display whose guest stops updating and whose consumers drop their
+// frames publishes nothing more: S4 re-captures only a capture that was
+// skipped for lack of a free slot, never on every frame release.
+TEST_F(FakePixmanDisplayTest, WarmIdleDisplayStopsCapturingOnceFramesAreReleased) {
+    const PixmanImagePtr image(pixman_image_create_bits(PIXMAN_a8r8g8b8, 16, 16, nullptr, 0));
+    auto display = std::make_shared<FakePixmanDisplay>(loop_.get(), 1, image.get());
+    auto listener = display->AddFrameListener([](const FrameEvent& /*event*/) {});
+    absl::StatusOr<FramePtr> fresh = display->WaitForFreshFrame(absl::Now() + absl::Seconds(10));
+    ASSERT_TRUE(fresh.ok()) << fresh.status();
+    SyncLoop();
+
+    // Each request replaces the latest frame, whose slot is released inside
+    // PublishFrame.
+    const FrameId warm_id = display->CurrentFrameId();
+    for (int i = 0; i < 6; ++i) {
+        DisplayTestPeer::producer(*display)->RequestFrame();
+        SyncLoop();
+    }
+    ASSERT_EQ(display->CurrentFrameId(), warm_id + 6);
+
+    *fresh = nullptr;  // The consumer drops its frame too.
+    SyncLoop();
+    absl::SleepFor(absl::Milliseconds(50));
+    SyncLoop();
+    EXPECT_EQ(display->CurrentFrameId(), warm_id + 6);
+}
+
+// DISPLAY_PRODUCER_SIMPLIFICATION.md finding #16: the legacy source requests
+// its owed capture inside Resize, which PixmanDisplay calls with its mutex
+// held. Here all four slots are leased, so a request is owed, and the new size
+// in UpdateSourceImage frees room for it.
+TEST_F(FakePixmanDisplayTest, OwedCaptureDuringUpdateSourceImageDoesNotSelfDeadlock) {
+    const PixmanImagePtr image(pixman_image_create_bits(PIXMAN_a8r8g8b8, 16, 16, nullptr, 0));
+    const PixmanImagePtr resized(pixman_image_create_bits(PIXMAN_a8r8g8b8, 32, 32, nullptr, 0));
+    auto display = std::make_shared<FakePixmanDisplay>(loop_.get(), 1, image.get());
+    auto held = std::make_shared<std::vector<FramePtr>>();
+    // Frame requests only capture for a warm display.
+    DisplayTestPeer::producer(*display)->SetDemand(true);
+    SyncLoop();
+    for (int i = 0; i < 3; ++i) {
+        held->push_back(display->AcquireLatestFrame().frame);
+        DisplayTestPeer::producer(*display)->RequestFrame();
+        SyncLoop();
+    }
+    const FrameId before = display->CurrentFrameId();
+    // Three frames held plus the latest: no free slot.
+    DisplayTestPeer::producer(*display)->RequestFrame();
+    SyncLoop();
+    ASSERT_EQ(display->CurrentFrameId(), before);
+
+    auto done = std::make_shared<absl::Notification>();
+    // `resized` stays owned here; the display takes its own reference.
+    std::thread updater([display, image = resized.get(), done] {
+        display->UpdateSourceImage(image);
+        done->Notify();
+    });
+    if (!done->WaitForNotificationWithTimeout(absl::Seconds(10))) {
+        // Leak what the deadlocked thread holds rather than hang the test.
+        updater.detach();
+        (void)new std::shared_ptr<std::vector<FramePtr>>(std::move(held));
+        (void)new PixmanImagePtr(resized);
+        FAIL() << "PixmanDisplay self-deadlocked re-capturing inside UpdateSourceImage";
+    }
+    updater.join();
+    SyncLoop();
+    EXPECT_GT(display->CurrentFrameId(), before);
 }

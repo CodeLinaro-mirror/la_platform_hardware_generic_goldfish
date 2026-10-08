@@ -25,9 +25,10 @@
 
 namespace goldfish::telnet {
 
-LegacyConsoleController::LegacyConsoleController(goldfish::async::AsyncSocketFactory& factory,
-                                                 goldfish::async::EventLoop* main_loop)
-        : factory_(factory), main_loop_(main_loop) {}
+LegacyConsoleController::LegacyConsoleController(
+        goldfish::async::AsyncSocketFactory& factory, goldfish::async::EventLoop* main_loop,
+        goldfish::metrics::MetricsReporter& metrics_reporter)
+        : factory_(factory), main_loop_(main_loop), metrics_reporter_(metrics_reporter) {}
 
 absl::Status LegacyConsoleController::Start(int port) {
     using ::goldfish::network::Endpoint;
@@ -45,7 +46,8 @@ absl::Status LegacyConsoleController::Start(int port) {
 
     servers_.clear();
     bool any_success = false;
-    auto handler = std::make_shared<LegacyConsoleBridge>(port, TelnetAuth::GetTokenPath());
+    auto handler = std::make_shared<LegacyConsoleBridge>(port, TelnetAuth::GetTokenPath(),
+                                                         metrics_reporter_);
 
     for (const auto& config : configs) {
         ServerInstance inst;
@@ -87,6 +89,11 @@ absl::Status LegacyConsoleController::Stop() {
             }
             inst.server.reset();
         }
+    }
+
+    if (handler_) {
+        handler_->ReportMetrics();
+        handler_.reset();
     }
 
     return status;

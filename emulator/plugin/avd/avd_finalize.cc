@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "goldfish/avd_finalize/avd_finalize.h"
+#include "goldfish/avd/avd_finalize.h"
 
-#include "goldfish/avd_info/avd_private.h"
+#include "avd_start_internal.h"
 
 // clang-format off
 // IWYU pragma: begin_keep
@@ -26,7 +26,7 @@ extern "C" {
 // IWYU pragma: end_keep
 // clang-format on
 
-namespace goldfish::avd_finalize {
+namespace goldfish::avd {
 namespace {
 
 struct AvdEndDev {
@@ -38,7 +38,7 @@ struct AvdEndDev {
 #define AVD_FINAL_INFO_DEVICE_GET_CLASS(obj) OBJECT_GET_CLASS(AvdEndDev, obj, TYPE_AVD_FINAL)
 
 void avd_finalize_realize(DeviceState* dev, Error** errp) {
-    goldfish::avd_info::UniverseBuildComplete();
+    UniverseBuildComplete();
 }
 
 void avd_finalize_class_init(ObjectClass* oc, const void* data) {
@@ -59,4 +59,4 @@ void avd_finalize_register_types(void) {
     type_register_static(&avd_finalize_type_info);
 }
 
-}  // namespace goldfish::avd_finalize
+}  // namespace goldfish::avd

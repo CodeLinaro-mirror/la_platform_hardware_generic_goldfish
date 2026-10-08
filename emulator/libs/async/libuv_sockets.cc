@@ -158,10 +158,43 @@ class LibuvSocket : public AsyncSocket, public std::enable_shared_from_this<Libu
     // --- I/O Methods ---
     absl::Status Send(const char* buffer, size_t buffer_size, OnSendCallback on_send) override {
         DCHECK(event_loop_->IsOnLoopThread()) << "Must be called on loop thread";
+        DCHECK(buffer_size <= 0x7ffff000)
+                << "Sending a buffer larger than 512MiB is not supported, "
+                   "https://docs.libuv.org/en/v1.x/misc.html#c.uv_buf_init";
 
         uv_stream_t* stream = GetUvSocketStream();
         if (!is_connected_ || UvIsClosing(stream)) {
             return UvErrToAbslStatus(UV_ENOTCONN);
+        }
+
+        // Fast path: when no async writes are queued, attempt a synchronous
+        // non-blocking write directly from the caller's buffer to avoid
+        // heap-allocating and copying a WriteReqT. Any unwritten remainder
+        // falls back to uv_write below to preserve stream ordering.
+        if (buffer_size == 0) {
+            on_send(absl::OkStatus());
+            return absl::OkStatus();
+        }
+
+        if (stream->write_queue_size == 0) {
+            uv_buf_t buf = uv_buf_init(const_cast<char*>(buffer), buffer_size);
+            // Note: uv_try_write does not return 0
+            const int written = uv_try_write(stream, &buf, 1);
+            DCHECK(written != 0) << "uv_try_write returned 0";
+            if (written > 0) {
+                size_t wrote = static_cast<size_t>(written);
+                if (wrote == buffer_size) {
+                    on_send(absl::OkStatus());
+                    return absl::OkStatus();
+                }
+
+                buffer += wrote;
+                buffer_size -= wrote;
+            } else if (written != UV_EAGAIN && written != UV_ENOSYS) {
+                const absl::Status status = UvErrToAbslStatus(written);
+                on_send(status);
+                return status;
+            }
         }
 
         auto* write_req = WriteReqT::Create(buffer, buffer_size, std::move(on_send));

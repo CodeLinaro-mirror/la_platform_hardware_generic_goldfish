@@ -22,7 +22,7 @@
 #include "absl/log/check.h"
 #include "absl/synchronization/mutex.h"
 
-#include "goldfish//base/unique_handle.h"
+#include "goldfish/base/unique_handle.h"
 #include "goldfish/eventing/event_source.h"
 #include "goldfish/eventing/policies/pointer_handlers.h"
 
@@ -121,11 +121,28 @@ class ScopedEventCallback {
  * performance characteristics. It adds an ID-based callback system where each
  * callback is managed by its own dedicated internal listener.
  *
+ * ### Concurrency and Lifetime Contract
+ * - **Thread Safety**: Registration (`AddCallback`), unregistration (`RemoveCallback`),
+ *   and event dispatch (`FireEvent`) are thread-safe and can be invoked concurrently.
+ * - **Synchronous Draining**: When `RemoveCallback` is invoked (either directly or via
+ *   `ScopedEventCallback` RAII destruction), it blocks until all active in-flight
+ *   executions of that callback on other threads have completed. Once `RemoveCallback`
+ *   returns, the callback is guaranteed never to be invoked again, and any captured
+ *   resources may be safely deallocated.
+ * - **No Re-entrant Self-Removal**: A registered callback MUST NOT synchronously unregister
+ *   itself (e.g. by resetting its own `ScopedCallbackHandle` or calling `RemoveCallback`
+ *   with its own ID) from within its own execution context. Because `RemoveCallback` waits
+ *   for all in-flight executions to exit, attempting self-unregistration from inside the
+ *   callback will result in a deadlock.
+ *
  * @tparam EventSourceType The concrete event source class to extend (e.g.,
  * eventing::ThreadSafeEventSource<MyEvent>).
  */
 template <typename EventSourceType>
 class WithCallbacks : public EventSourceType {
+  private:
+    class InternalListener;
+
   public:
     using T = typename event_source_traits<EventSourceType>::event_type;
     using EventCallback = typename event_callback_traits<T>::type;
@@ -133,6 +150,10 @@ class WithCallbacks : public EventSourceType {
     static constexpr CallbackId kInvalidCallbackId = 0;
     using PtrType = typename EventSourceType::Ptr;
 
+  private:
+    using ListenerMap = std::unordered_map<CallbackId, std::shared_ptr<InternalListener>>;
+
+  public:
     /**
      * @brief A unique pointer that holds a ScopedEventCallback, ensuring the
      * callback is automatically unregistered when the handle goes out of scope.
@@ -142,7 +163,27 @@ class WithCallbacks : public EventSourceType {
             std::unique_ptr<ScopedEventCallback<WithCallbacks<EventSourceType>, T>>;
 
     using EventSourceType::EventSourceType;
-    virtual ~WithCallbacks() = default;
+    virtual ~WithCallbacks() {
+        // Move the map under callbacks_mutex_ to synchronize with in-flight callbacks
+        // that query the source (e.g. CallbackCount()), but disconnect outside the lock
+        // to avoid deadlocking while waiting for them to complete.
+        ListenerMap listeners_to_disconnect;
+        {
+            absl::MutexLock callbacks_lock(callbacks_mutex_);
+            listeners_to_disconnect = std::move(listener_map_);
+        }
+        for (const auto& [id, listener] : listeners_to_disconnect) {
+            if (listener) {
+                if constexpr (eventing::is_shared_ptr_v<PtrType> ||
+                              eventing::is_weak_ptr_v<PtrType>) {
+                    EventSourceType::RemoveListener(listener);
+                } else {
+                    EventSourceType::RemoveListener(listener.get());
+                }
+                listener->Disconnect();
+            }
+        }
+    }
 
     /**
      * @brief Adds a callback, creating a dedicated listener for it.
@@ -172,6 +213,14 @@ class WithCallbacks : public EventSourceType {
 
     /**
      * @brief Removes a callback by its ID.
+     *
+     * Blocks until any in-flight executions of the callback on other threads
+     * finish, ensuring that resources accessed by the callback can be safely
+     * destroyed immediately after RemoveCallback returns.
+     *
+     * @warning A callback must not unregister itself (e.g. reset its own
+     * ScopedCallbackHandle) from within its own callback execution; doing so
+     * will deadlock.
      */
     virtual void RemoveCallback(CallbackId id) {
         if (id == kInvalidCallbackId) {
@@ -188,13 +237,15 @@ class WithCallbacks : public EventSourceType {
             listener_map_.erase(it);
         }
 
-        // Remove the listener from the underlying EventSource
+        // Remove the listener from the underlying EventSource and disconnect outside
+        // callbacks_mutex_ to avoid deadlocking if an in-flight callback queries the source.
         if (listener) {
             if constexpr (eventing::is_shared_ptr_v<PtrType> || eventing::is_weak_ptr_v<PtrType>) {
                 EventSourceType::RemoveListener(listener);
             } else {
                 EventSourceType::RemoveListener(listener.get());
             }
+            listener->Disconnect();
         }
     }
 
@@ -221,16 +272,47 @@ class WithCallbacks : public EventSourceType {
     class InternalListener : public eventing::EventListener<T> {
       public:
         explicit InternalListener(EventCallback cb) : callback_(std::move(cb)) {}
-        void EventArrived(typename EventParam<T>::type event) override { callback_(event); }
+
+        void EventArrived(typename EventParam<T>::type event) override {
+            {
+                absl::MutexLock state_lock(state_mutex_);
+                if (!active_) {
+                    return;
+                }
+                ++in_flight_count_;
+            }
+
+            callback_(event);
+
+            {
+                absl::MutexLock state_lock(state_mutex_);
+                --in_flight_count_;
+            }
+        }
+
+        void Disconnect() {
+            EventCallback callback_to_destroy;
+            {
+                absl::MutexLock state_lock(state_mutex_);
+                active_ = false;
+                state_mutex_.Await(absl::Condition(
+                        +[](uint32_t* count) { return *count == 0; }, &in_flight_count_));
+                callback_to_destroy = std::move(callback_);
+            }
+        }
 
       private:
+        mutable absl::Mutex state_mutex_;
+        bool active_ ABSL_GUARDED_BY(state_mutex_) = true;
+        uint32_t in_flight_count_ ABSL_GUARDED_BY(state_mutex_) = 0;
+        // Invoked outside state_mutex_ while in_flight_count_ > 0; moved out and
+        // destroyed in Disconnect() once all in-flight executions complete.
         EventCallback callback_;
     };
 
     mutable absl::Mutex callbacks_mutex_;
     CallbackId next_id_ ABSL_GUARDED_BY(callbacks_mutex_) = 1;
-    std::unordered_map<CallbackId, std::shared_ptr<InternalListener>> listener_map_
-            ABSL_GUARDED_BY(callbacks_mutex_);
+    ListenerMap listener_map_ ABSL_GUARDED_BY(callbacks_mutex_);
 };
 
 /**

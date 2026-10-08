@@ -20,11 +20,25 @@ namespace goldfish::display::test {
 
 FakePixmanDisplay::FakePixmanDisplay(EventLoop* loop, int id, ::pixman_image_t* image, uint32_t dpi,
                                      uint32_t flags)
-        : PixmanDisplay(loop, id, image, dpi, flags) {}
+        : PixmanDisplay(loop, id, image, dpi, flags) {
+    if (SourceImage()) {
+        const auto d = GetDimensions();
+        UpdateSurface(0, 0, static_cast<int>(d.width), static_cast<int>(d.height));
+    }
+}
 
 FakePixmanDisplay::FakePixmanDisplay(EventLoop* loop, int id, const PixmanImagePtr& image,
                                      uint32_t dpi, uint32_t flags)
-        : PixmanDisplay(loop, id, image, dpi, flags) {}
+        : PixmanDisplay(loop, id, image, dpi, flags) {
+    if (SourceImage()) {
+        const auto d = GetDimensions();
+        UpdateSurface(0, 0, static_cast<int>(d.width), static_cast<int>(d.height));
+    }
+}
+
+FakePixmanDisplay::~FakePixmanDisplay() {
+    ShutdownProducer();
+}
 
 void FakePixmanDisplay::SendMultiTouchEvent(uint8_t slot, int x, int y, MultiTouchType type) {
     multi_touch_events.push_back({slot, x, y, type});
@@ -36,6 +50,22 @@ void FakePixmanDisplay::UpdateSourceImage(::pixman_image_t* image) {
     UpdateSurface(0, 0, static_cast<int>(dims.width), static_cast<int>(dims.height));
 }
 
+void FakePixmanDisplay::RunDuringNextResize(std::function<void()> hook) {
+    const absl::MutexLock lock(&hook_mutex_);
+    resize_hook_ = std::move(hook);
+}
+
+std::pair<int, int> FakePixmanDisplay::ResizeKeepAspectRatio(int desired_width,
+                                                             int desired_height) {
+    std::function<void()> hook;
+    {
+        const absl::MutexLock lock(&hook_mutex_);
+        hook = std::exchange(resize_hook_, nullptr);
+    }
+    if (hook) hook();
+    return PixmanDisplay::ResizeKeepAspectRatio(desired_width, desired_height);
+}
+
 void FakePixmanDisplay::SendMouseEvent(int x, int y, int button_mask) {
     mouse_events.push_back({x, y, button_mask});
 }
@@ -44,7 +74,10 @@ void FakePixmanDisplay::SendEvDevEvent(uint16_t type, uint16_t code, uint32_t va
     evdevs.push_back({type, code, value});
 }
 
-ActiveFakePixmanDisplay::~ActiveFakePixmanDisplay() = default;
+ActiveFakePixmanDisplay::~ActiveFakePixmanDisplay() {
+    generator_->Stop();  // Its thread calls UpdateSourceImage.
+    ShutdownProducer();
+}
 
 void ActiveFakePixmanDisplay::EventArrived(const PixmanImagePtr& image) {
     // Update the FakePixmanDisplay with the new image

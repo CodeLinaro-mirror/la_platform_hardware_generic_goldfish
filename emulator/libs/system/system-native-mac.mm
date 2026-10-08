@@ -24,8 +24,11 @@
 #import <Foundation/NSProcessInfo.h>
 
 #include <mach/mach_init.h>
+#include <mach/task_policy.h>
 #include <mach/thread_act.h>
 #include <mach/mach_port.h>
+
+#include <pthread/qos.h>
 
 #include <stdlib.h>
 #include <sys/stat.h>
@@ -33,15 +36,27 @@
 namespace android {
 namespace base {
 
-// From:
-// https://stackoverflow.com/questions/49677034/thread-sleeps-too-long-on-os-x-when-in-background
 void disableAppNap_macImpl(void) {
-   if ([[NSProcessInfo processInfo]
-        respondsToSelector:@selector(beginActivityWithOptions:reason:)]) {
-      [[NSProcessInfo processInfo]
-       beginActivityWithOptions:0x00FFFFFF
-       reason:@"Not sleepy and don't want to nap"];
-   }
+    static id<NSObject> sActivityToken = [
+        [
+            [NSProcessInfo processInfo]
+                beginActivityWithOptions:NSActivityUserInitiatedAllowingIdleSystemSleep
+                        | NSActivityLatencyCritical
+                reason:@"Not sleepy and don't want to nap"
+        ]
+        retain];
+
+    pthread_set_qos_class_self_np(QOS_CLASS_USER_INTERACTIVE, 0);
+
+    task_category_policy_data_t policy = {
+        .role = TASK_FOREGROUND_APPLICATION,
+    };
+
+    task_policy_set(mach_task_self(), TASK_CATEGORY_POLICY,
+                    reinterpret_cast<task_policy_t>(&policy),
+                    TASK_CATEGORY_POLICY_COUNT);
+
+    (void)sActivityToken;
 }
 
 // based on https://stackoverflow.com/questions/13893134/get-current-pthread-cpu-usage-mac-os-x

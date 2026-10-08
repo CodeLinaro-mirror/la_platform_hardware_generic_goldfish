@@ -159,6 +159,7 @@ cc_library(
 
 cc_test(
     name = "threads_test",
+    size = "small",
     srcs = ["thread_utils_test.cc"],
     visibility = ["//visibility:public"],
     deps = [
@@ -169,6 +170,7 @@ cc_test(
 
 cc_test(
     name = "fd_util_test",
+    size = "small",
     srcs = ["fd_util_test.cc"],
     visibility = ["//visibility:public"],
     deps = [
@@ -179,6 +181,7 @@ cc_test(
 
 cc_test(
     name = "system_test",
+    size = "small",
     srcs = ["system_test.cc"],
     visibility = ["//visibility:public"],
     deps = [
@@ -191,6 +194,7 @@ cc_test(
 
 cc_test(
     name = "bazel_info_test",
+    size = "small",
     srcs = ["bazel_info_test.cc"],
     data = ["testdata/info.txt"],
     visibility = ["//visibility:public"],

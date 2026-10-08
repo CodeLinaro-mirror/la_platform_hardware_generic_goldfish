@@ -128,6 +128,73 @@ BENCHMARK_F(SocketBenchmark, WriteThroughput)(benchmark::State& state) {
     state.SetBytesProcessed(state.iterations() * buffer_size);
 }
 
+// Measures write throughput when calling Send(data, size) directly on the loop
+// thread (matching HostToGuestConnection::OnReceive in vsock_port_fwd).
+BENCHMARK_DEFINE_F(SocketBenchmark, LoopThreadSendThroughput)(benchmark::State& state) {
+    const size_t chunk_size = static_cast<size_t>(state.range(0));
+    constexpr size_t kBatchBytes = 4 * 1024 * 1024;  // 4 MiB per iteration batch
+    const size_t chunks_per_batch = kBatchBytes / chunk_size;
+    std::string chunk(chunk_size, 'B');
+
+    ScopedAsyncSocket server_socket;
+    size_t bytes_received = 0;
+    size_t target_bytes = 0;
+    absl::Notification* batch_done = nullptr;
+
+    ScopedAsyncServer server(*PostAndWait([&] {
+        auto endpoint = ToEndpoint(ToIpAddress("127.0.0.1").value(), 0);
+        return factory_->CreateServer(loop_.get(), endpoint, [&](auto socket) {
+            server_socket = ScopedAsyncSocket(socket);
+            socket->SetOnReadCallbackNoFlowControl([&](std::string_view data, absl::Status status) {
+                if (!status.ok()) return;
+                bytes_received += data.size();
+                if (batch_done != nullptr && bytes_received >= target_bytes) {
+                    absl::Notification* done = batch_done;
+                    batch_done = nullptr;
+                    done->Notify();
+                }
+            });
+            return true;
+        });
+    }));
+    Endpoint endpoint = *PostAndWait([&] { return server->GetEndpoint(); });
+
+    ScopedAsyncSocket client(
+            *PostAndWait([&, endpoint] { return factory_->CreateSocket(loop_.get(), endpoint); }));
+
+    absl::Notification connected_notification;
+    loop_->Post([&]() {
+             client->SetOnConnectedCallback([&](AsyncSocket& socket, absl::Status) {
+                 socket.SetOnReadCallbackNoFlowControl([](std::string_view, absl::Status) {});
+                 connected_notification.Notify();
+             });
+             client->Connect().IgnoreError();
+         }).IgnoreError();
+    connected_notification.WaitForNotification();
+
+    for (const auto& _ : state) {
+        absl::Notification done;
+        loop_->Post([&]() {
+                 bytes_received = 0;
+                 target_bytes = chunks_per_batch * chunk_size;
+                 batch_done = &done;
+                 for (size_t i = 0; i < chunks_per_batch; ++i) {
+                     client->Send(chunk.data(), chunk.size()).IgnoreError();
+                 }
+             }).IgnoreError();
+        done.WaitForNotification();
+    }
+
+    state.SetBytesProcessed(state.iterations() * chunks_per_batch * chunk_size);
+}
+
+BENCHMARK_REGISTER_F(SocketBenchmark, LoopThreadSendThroughput)
+        ->Arg(4096)
+        ->Arg(16384)
+        ->Arg(65536)
+        ->Arg(262144)
+        ->UseRealTime();
+
 }  // namespace
 }  // namespace goldfish::async
 

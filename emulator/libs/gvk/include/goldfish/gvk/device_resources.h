@@ -40,6 +40,7 @@ struct DeviceResourceDeleter {
     void operator()(VkPipeline) const;
     void operator()(VkPipelineLayout) const;
     void operator()(VkRenderPass) const;
+    void operator()(VkSampler) const;
     void operator()(VkShaderModule) const;
 
   private:
@@ -92,6 +93,7 @@ using RenderPass =
         goldfish::base::UniqueHandle<VkRenderPass, VK_NULL_HANDLE, DeviceResourceDeleter>;
 using RenderPassEnder =
         goldfish::base::UniqueHandle<VkCommandBuffer, VK_NULL_HANDLE, RenderPassEnderImpl>;
+using Sampler = goldfish::base::UniqueHandle<VkSampler, VK_NULL_HANDLE, DeviceResourceDeleter>;
 using ShaderModule =
         goldfish::base::UniqueHandle<VkShaderModule, VK_NULL_HANDLE, DeviceResourceDeleter>;
 

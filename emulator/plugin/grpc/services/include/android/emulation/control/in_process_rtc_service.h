@@ -28,7 +28,7 @@ extern "C" {
 typedef struct AudioBackend AudioBackend;
 }
 
-namespace goldfish::avd_info {
+namespace goldfish::avd {
 struct AvdUniverse;
 }
 
@@ -36,9 +36,13 @@ namespace goldfish::display {
 class IMultiDisplay;
 }
 
+namespace goldfish::sensors {
+class PhysicalModel;
+}
+
 namespace android::emulation::control {
 
-using ::goldfish::avd_info::AvdUniverse;
+using ::goldfish::avd::AvdUniverse;
 using ::goldfish::display::IMultiDisplay;
 using ::goldfish::videobridge::DataChannelLabel;
 using ::goldfish::videobridge::InputSender;
@@ -56,7 +60,7 @@ using keyboard::IKeyEventSender;
  */
 InputSenderFactory CreateInProcessInputSenderFactory(
         IMultiDisplay& multidisplay, std::shared_ptr<IKeyEventSender> key_event_sender,
-        bool hw_sensor_hinge = false);
+        bool hw_sensor_hinge = false, ::goldfish::sensors::PhysicalModel* physical_model = nullptr);
 
 /**
  * Instantiates the in-process WebRTC RtcServices (v1 and v2) bound to AvdUniverse.

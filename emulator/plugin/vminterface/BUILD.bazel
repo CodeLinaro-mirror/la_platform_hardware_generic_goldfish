@@ -53,20 +53,30 @@ cc_library(
         ":machine_info",
         ":vm_lock",
         ":vminterface",
+        "//emulator/libs/metrics:snapshot_metrics",
+        "//emulator/plugin/avd:avd_info",
+        "@abseil-cpp//absl/cleanup",
         "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/time",
         "@qemu//:qemu-headers-exported",
     ],
 )
 
 cc_library(
     name = "vm_ops_with_fake_machine_info",
+    testonly = True,
     srcs = ["qemu_vm_operations.cc"],
     visibility = ["//visibility:public"],
     deps = [
         ":fake_machine_info",
         ":vm_lock",
         ":vminterface",
+        "//emulator/libs/metrics:snapshot_metrics",
+        "//emulator/plugin/avd:fake_avd_universe",
+        "//emulator/plugin/display:test-display",
+        "@abseil-cpp//absl/cleanup",
         "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/time",
     ],
 )
 
@@ -100,6 +110,7 @@ collect_plugins(
 
 cc_test(
     name = "vminterface_unittests",
+    size = "small",
     testonly = True,
     srcs = ["vm_test.cc"],
     data = [":binplace"],

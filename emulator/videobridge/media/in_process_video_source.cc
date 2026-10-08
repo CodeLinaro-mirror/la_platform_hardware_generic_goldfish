@@ -14,19 +14,27 @@
 
 #include "goldfish/videobridge/in_process_video_source.h"
 
+#include <cstddef>
+#include <cstdint>
+#include <memory>
 #include <utility>
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wthread-safety-reference-return"
 #pragma clang diagnostic ignored "-Wnullability-completeness"
 #include "api/video/video_frame.h"
-#include "libyuv/convert_from_argb.h"
 #include "rtc_base/time_utils.h"
 #pragma clang diagnostic pop
 
 #include "absl/log/log.h"
+#include "absl/types/span.h"
 
+#include "goldfish/async/libuv_event_loop.h"
+#include "goldfish/async/threaded_event_loop.h"
 #include "goldfish/display/abstract_multi_display.h"
+#include "goldfish/display/frame.h"
+#include "goldfish/display/geometry.h"
+#include "goldfish/perfetto/perfetto_categories.h"
 
 namespace goldfish::videobridge {
 
@@ -39,6 +47,8 @@ InProcessVideoSource::~InProcessVideoSource() {
 }
 
 void InProcessVideoSource::OnStart() {
+    OnStop();
+
     std::shared_ptr<::goldfish::display::IDisplay> display;
     auto display_res = multidisplay_.GetDisplay(display_id_);
     if (display_res.ok()) {
@@ -52,76 +62,124 @@ void InProcessVideoSource::OnStart() {
     }
 
     VLOG(1) << "Starting InProcessVideoSource for display " << static_cast<int>(display->Id());
-    auto listener =
-            display->AddFrameListener([this](const ::goldfish::display::FrameInfo& frame_info) {
-                OnFrameAvailable(frame_info);
-            });
+    auto worker = ::goldfish::async::ThreadedEventLoop::Create(
+            ::goldfish::async::LibuvEventLoop::Create());
+    auto pump = std::make_shared<::goldfish::display::LatestFramePump>(
+            [display]() { return display; }, worker.get(),
+            [this](::goldfish::display::FramePtr frame) { ProcessFrame(std::move(frame)); });
 
-    absl::MutexLock lock(&frame_mutex_);
-    display_ = std::move(display);
+    {
+        const absl::MutexLock lock(&frame_mutex_);
+        display_ = display;
+        worker_ = std::move(worker);
+        pump_ = pump;
+        last_seq_ = 0;
+        total_dropped_ = 0;
+    }
+
+    auto listener = display->AddFrameListener(
+            [pump](const ::goldfish::display::FrameEvent& event) { pump->OnEvent(event); });
+
+    if (auto latest = display->AcquireLatestFrame(); latest.frame) {
+        pump->OnEvent(latest.frame->event());
+    }
+
+    const absl::MutexLock lock(&frame_mutex_);
     listener_ = std::move(listener);
 }
 
 void InProcessVideoSource::OnStop() {
     VLOG(1) << "Stopping InProcessVideoSource.";
-    std::shared_ptr<::goldfish::display::IDisplay> display;
     ::goldfish::display::IDisplay::ScopedFrameListener listener;
+    std::shared_ptr<::goldfish::display::LatestFramePump> pump;
+    std::unique_ptr<::goldfish::async::EventLoop> worker;
+    std::shared_ptr<::goldfish::display::IDisplay> display;
     {
-        absl::MutexLock lock(&frame_mutex_);
+        const absl::MutexLock lock(&frame_mutex_);
         listener = std::move(listener_);
+        pump = std::move(pump_);
+        worker = std::move(worker_);
         display = std::move(display_);
+        last_seq_ = 0;
+        total_dropped_ = 0;
     }
+    listener.reset();
+    worker.reset();
+    pump.reset();
+    display.reset();
+    buffer_pool_.Release();
 }
 
-void InProcessVideoSource::OnFrameAvailable(const ::goldfish::display::FrameInfo& frame_info) {
-    if (!frame_info.pixels || frame_info.dimensions.width == 0 ||
-        frame_info.dimensions.height == 0) {
+void InProcessVideoSource::ProcessFrame(::goldfish::display::FramePtr frame) {
+    if (!frame) {
         return;
     }
 
-    const uint32_t even_width = frame_info.dimensions.width & ~1U;
-    const uint32_t even_height = frame_info.dimensions.height & ~1U;
-    if (even_width == 0 || even_height == 0) {
+    const auto dims = frame->dimensions();
+    const uint32_t even_width = dims.width & ~1U;
+    const uint32_t even_height = dims.height & ~1U;
+    if (even_width < 2 || even_height < 2) {
         return;
     }
 
+    const uint64_t frame_seq = frame->event().frame_id;
+    TRACE_EVENT("display", "InProcessVideoSource::ProcessFrame", "seq", frame_seq);
     {
         absl::MutexLock lock(&frame_mutex_);
         if (!display_) {
             return;
         }
+        if (TRACE_EVENT_CATEGORY_ENABLED("display")) {
+            if (last_seq_ != 0 && frame_seq > last_seq_ + 1) {
+                const uint64_t dropped = frame_seq - last_seq_ - 1;
+                total_dropped_ += dropped;
+                TRACE_COUNTER("display", "webrtc_dropped_frames", total_dropped_);
+                TRACE_EVENT_INSTANT("display", "WebRTCFrameDropped", "dropped_count", dropped,
+                                    "last_seq", last_seq_, "current_seq", frame_seq);
+            }
+            last_seq_ = frame_seq;
+        }
     }
 
-    auto nv12_buffer = ::webrtc::NV12Buffer::Create(static_cast<int>(even_width),
-                                                    static_cast<int>(even_height));
-
-    const int cvt_res = libyuv::ABGRToNV12(
-            frame_info.pixels, static_cast<int>(frame_info.stride), nv12_buffer->MutableDataY(),
-            nv12_buffer->StrideY(), nv12_buffer->MutableDataUV(), nv12_buffer->StrideUV(),
-            static_cast<int>(even_width), static_cast<int>(even_height));
-
-    if (cvt_res != 0) {
-        LOG(ERROR) << "InProcessVideoSource failed to convert frame to NV12 format.";
+    const ::goldfish::display::ReadRequest req{
+        .rotation = ::goldfish::display::ImageRotation::kRotation0,
+        .output = {0, 0},
+    };
+    ::webrtc::scoped_refptr<::webrtc::NV12BufferInterface> nv12_buffer;
+    const auto read_res = frame->ReadInto(
+            req,
+            [&](const ::goldfish::display::ReadLayout& layout)
+                    -> absl::StatusOr<::goldfish::display::Nv12Target> {
+                const int w = static_cast<int>(layout.dimensions.width);
+                const int h = static_cast<int>(layout.dimensions.height);
+                auto buf = buffer_pool_.CreateNV12Buffer(w, h);
+                if (!buf) {
+                    buf = ::webrtc::NV12Buffer::Create(w, h);
+                }
+                const size_t y_bytes = static_cast<size_t>(buf->StrideY()) * h;
+                const size_t uv_bytes = static_cast<size_t>(buf->StrideUV()) * (h / 2);
+                ::goldfish::display::Nv12Target target{
+                    .y =
+                            ::goldfish::display::Plane{
+                                .data = absl::MakeSpan(buf->MutableDataY(), y_bytes),
+                                .stride = static_cast<size_t>(buf->StrideY()),
+                            },
+                    .uv =
+                            ::goldfish::display::Plane{
+                                .data = absl::MakeSpan(buf->MutableDataUV(), uv_bytes),
+                                .stride = static_cast<size_t>(buf->StrideUV()),
+                            },
+                };
+                nv12_buffer = std::move(buf);
+                return target;
+            });
+    if (!read_res.ok()) {
+        LOG(ERROR) << "InProcessVideoSource failed to read frame into NV12 buffer.";
         return;
     }
 
     const int64_t timestamp_us = ::webrtc::TimeMicros();
-    ::webrtc::VideoRotation webrtc_rotation = ::webrtc::kVideoRotation_0;
-    switch (frame_info.rotation) {
-    case goldfish::display::ImageRotation::kRotation90:
-        webrtc_rotation = ::webrtc::kVideoRotation_90;
-        break;
-    case goldfish::display::ImageRotation::kRotation180:
-        webrtc_rotation = ::webrtc::kVideoRotation_180;
-        break;
-    case goldfish::display::ImageRotation::kRotation270:
-        webrtc_rotation = ::webrtc::kVideoRotation_270;
-        break;
-    case goldfish::display::ImageRotation::kRotation0:
-    default:
-        webrtc_rotation = ::webrtc::kVideoRotation_0;
-        break;
-    }
+    const ::webrtc::VideoRotation webrtc_rotation = ToWebRtcRotation(frame->rotation());
 
     ::webrtc::VideoFrame video_frame = ::webrtc::VideoFrame::Builder()
                                                .set_video_frame_buffer(nv12_buffer)
@@ -130,7 +188,27 @@ void InProcessVideoSource::OnFrameAvailable(const ::goldfish::display::FrameInfo
                                                .set_rotation(webrtc_rotation)
                                                .build();
 
-    this->OnFrame(video_frame);
+    {
+        TRACE_EVENT("display", "InProcessVideoSource::OnFrame",
+                    perfetto::Flow::ProcessScoped(frame_seq), "seq", frame_seq);
+        this->OnFrame(video_frame);
+    }
+}
+
+::webrtc::VideoRotation ToWebRtcRotation(goldfish::display::ImageRotation rotation) {
+    // Note: Goldfish ImageRotation is counter-clockwise (CCW), whereas
+    // webrtc::VideoRotation (RTP CVO) is clockwise (CW).
+    switch (rotation) {
+    case goldfish::display::ImageRotation::kRotation90:
+        return ::webrtc::kVideoRotation_270;
+    case goldfish::display::ImageRotation::kRotation180:
+        return ::webrtc::kVideoRotation_180;
+    case goldfish::display::ImageRotation::kRotation270:
+        return ::webrtc::kVideoRotation_90;
+    case goldfish::display::ImageRotation::kRotation0:
+    default:
+        return ::webrtc::kVideoRotation_0;
+    }
 }
 
 }  // namespace goldfish::videobridge

@@ -51,6 +51,7 @@ void NvencVideoEncoderFactory::ProbeHardwareCapabilities() {
     auto session_params = MakeNvencStruct<NV_ENC_OPEN_ENCODE_SESSION_EX_PARAMS>();
     session_params.apiVersion = NVENCAPI_VERSION;
     session_params.deviceType = NV_ENC_DEVICE_TYPE_CUDA;
+    session_params.device = loader_->cuda_context();
 
     void* probe_session = nullptr;
     NVENCSTATUS status = loader_->api().nvEncOpenEncodeSessionEx(&session_params, &probe_session);

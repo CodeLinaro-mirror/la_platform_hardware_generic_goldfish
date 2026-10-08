@@ -21,8 +21,11 @@
 namespace goldfish::videobridge {
 
 InProcessInputSender::InProcessInputSender(EventDispatcher dispatcher,
-                                           V2EventDispatcher v2_dispatcher)
-        : dispatcher_(std::move(dispatcher)), v2_dispatcher_(std::move(v2_dispatcher)) {}
+                                           V2EventDispatcher v2_dispatcher,
+                                           V2SensorsDispatcher v2_sensors_dispatcher)
+        : dispatcher_(std::move(dispatcher))
+        , v2_dispatcher_(std::move(v2_dispatcher))
+        , v2_sensors_dispatcher_(std::move(v2_sensors_dispatcher)) {}
 
 absl::Status InProcessInputSender::Start() {
     started_ = true;
@@ -54,6 +57,20 @@ void InProcessInputSender::SendV2Event(const V2InputEvent& event) {
         if (auto status = v2_dispatcher_(event); !status.ok()) {
             LOG(WARNING) << "Failed to dispatch WebRTC v2 input event (" << event.ShortDebugString()
                          << "): " << status;
+        }
+    }
+}
+
+void InProcessInputSender::SendV2SensorsUpdate(const V2SensorsUpdateRequest& request) {
+    if (!started_) {
+        LOG(WARNING) << "Dropping WebRTC v2 sensors update (" << request.ShortDebugString()
+                     << "): delivery is not active.";
+        return;
+    }
+    if (v2_sensors_dispatcher_) {
+        if (auto status = v2_sensors_dispatcher_(request); !status.ok()) {
+            LOG(WARNING) << "Failed to dispatch WebRTC v2 sensors update ("
+                         << request.ShortDebugString() << "): " << status;
         }
     }
 }

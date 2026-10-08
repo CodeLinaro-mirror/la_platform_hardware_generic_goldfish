@@ -14,7 +14,7 @@
 * **In-Process RTC Service:** Initializes `//emulator/plugin/grpc/services:in_process_rtc_service` within QEMU memory space.
 
 ## Dependencies
-* **Core:** `//emulator/plugin/avd:impl`, `//emulator/plugin/grpc/services:in_process_rtc_service`.
+* **Core:** `//emulator/plugin/avd:avd_info`, `//emulator/plugin/grpc/services:in_process_rtc_service`.
 * **QEMU:** `@qemu//:qemu-headers-exported`.
 
 ## Threading Model

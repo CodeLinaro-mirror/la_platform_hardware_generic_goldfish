@@ -1,4 +1,4 @@
-load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 
 cc_library(
     name = "netsim_connection",
@@ -11,7 +11,7 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         "//emulator/libs/grpc_client",
-        "//emulator/plugin/avd:info",
+        "//emulator/plugin/avd:avd_info",
         "//emulator/telnet:netsim_connection_provider",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/status",
@@ -22,16 +22,9 @@ cc_library(
 
 cc_library(
     name = "netsim_transport",
-    srcs = ["netsim_transport.cc"],
-    hdrs = ["netsim_transport.h"],
+    visibility = ["//visibility:public"],
     deps = [
-        ":netsim_connection",
-        "//emulator/libs/grpc_client",
-        "//emulator/plugin/avd:impl",
-        "//emulator/tools:aemu_version",
-        "@abseil-cpp//absl/log",
-        "@grpc//:grpc++",
-        "@netsim//:netsimd_cc_grpc",
+        "//emulator/plugin/netsim/grpc_transport",
     ],
 )
 
@@ -42,8 +35,9 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
-        ":netsim_transport",
+        ":packet_transport",
         "//emulator/libs/network:generic_netlink_message",
+        "//emulator/plugin/netsim/grpc_transport",
         "@abseil-cpp//absl/log",
         "@qemu//:qemu-headers-exported",
     ],
@@ -60,9 +54,31 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
-        ":netsim_transport",
+        ":packet_transport",
+        "//emulator/libs/QEMUBH",
         "//emulator/libs/file",
+        "//emulator/plugin/avd:avd_info",
+        "//emulator/plugin/netsim/grpc_transport",
         "@abseil-cpp//absl/log",
         "@qemu//:qemu-headers-exported",
+    ],
+)
+
+cc_library(
+    name = "packet_transport",
+    hdrs = ["packet_transport.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "@abseil-cpp//absl/status",
+    ],
+)
+
+cc_test(
+    name = "packet_transport_test",
+    srcs = ["packet_transport_test.cc"],
+    deps = [
+        ":packet_transport",
+        "//emulator/libs/test:googletest_main",
+        "@abseil-cpp//absl/status",
     ],
 )

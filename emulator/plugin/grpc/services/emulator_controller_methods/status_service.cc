@@ -50,9 +50,9 @@ std::unordered_map<std::string, std::string> getQemuConfig(
     return cfg;
 }
 
-StatusServiceImpl::StatusServiceImpl(GuestStatus& guestStatus, const AvdProperties& avd_properties,
-                                     const ::goldfish::avd_info::AvdUniverse* avd_universe)
-        : guest_status_(guestStatus)
+StatusServiceImpl::StatusServiceImpl(GuestStatus& guest_status, const AvdProperties& avd_properties,
+                                     const ::goldfish::avd::AvdUniverse* avd_universe)
+        : guest_status_(guest_status)
         , avd_properties_(avd_properties)
         , avd_universe_(avd_universe) {}
 

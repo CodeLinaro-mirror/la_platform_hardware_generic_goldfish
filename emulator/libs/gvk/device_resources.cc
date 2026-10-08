@@ -58,6 +58,9 @@ void DeviceResourceDeleter::operator()(VkShaderModule shader_module) const {
 void DeviceResourceDeleter::operator()(VkRenderPass render_pass) const {
     device_dispatch_->destroyRenderPass(render_pass);
 }
+void DeviceResourceDeleter::operator()(VkSampler sampler) const {
+    device_dispatch_->destroySampler(sampler);
+}
 
 CommandBufferEnderImpl::CommandBufferEnderImpl(PFN_vkEndCommandBuffer end_command_buffer)
         : end_command_buffer_pfn_(end_command_buffer) {}

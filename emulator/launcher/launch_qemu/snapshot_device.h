@@ -13,24 +13,43 @@
 // limitations under the License.
 #pragma once
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "device.h"
+#include "goldfish/metrics/snapshot_metrics.h"
 
 namespace android::goldfish {
 
 // Handles QEMU snapshot command line parameters
 class SnapshotDevice : public Device {
   public:
+    using LoadStatus = ::goldfish::metrics::QuickbootLoadStatus;
+    using SaveStatus = ::goldfish::metrics::QuickbootSaveStatus;
+
     explicit SnapshotDevice() : Device("snapshot") {}
 
     absl::Status initialize(const EmulatorConfig& emulator) override;
     std::vector<std::string> getQemuParameters(const EmulatorConfig& emulator) const override;
 
-    static bool should_load_snapshot(const EmulatorConfig& emulator, std::string& reason);
-    static bool should_save_snapshot(const EmulatorConfig& emulator, std::string& reason);
-    static const char* get_snapshot_name(const EmulatorConfig& emulator);
-    static bool snapshotExists(const EmulatorConfig& emulator, const std::string& name);
+    LoadStatus load_status() const { return load_status_; }
+    SaveStatus save_status() const { return save_status_; }
+    bool is_enabled() const {
+        return load_status_ == LoadStatus::kLoading || save_status_ == SaveStatus::kSaving;
+    }
+
+    static std::string_view get_snapshot_name(const EmulatorConfig& emulator);
+
+  private:
+    static bool should_load_snapshot(const EmulatorConfig& emulator, std::string& reason,
+                                     LoadStatus* status = nullptr);
+    static bool should_save_snapshot(const EmulatorConfig& emulator, std::string& reason,
+                                     SaveStatus* status = nullptr);
+
+    std::string snapshot_name_;
+    bool strict_snapshot_load_ = false;
+    LoadStatus load_status_ = LoadStatus::kSkippedOldSnapshot;
+    SaveStatus save_status_ = SaveStatus::kDisabledCmdline;
 };
 
 }  // namespace android::goldfish

@@ -14,6 +14,7 @@ cc_library(
 
 cc_test(
     name = "wav_writer_test",
+    size = "small",
     srcs = ["wav_writer_test.cc"],
     deps = [
         ":wav_writer",

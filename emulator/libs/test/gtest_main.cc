@@ -44,13 +44,30 @@ void SetupSanitizers() {
     System::SetEnvironmentVariable("LSAN_OPTIONS", absl::StrCat("suppressions=", Bazel::RunfilesPath("goldfish+/emulator/libs/test/leak_suppressions.txt")));
     System::SetEnvironmentVariable("ASAN_OPTIONS", "detect_odr_violation=0");
 #endif
-#if __has_feature(thread_sanitizer)
-    System::SetEnvironmentVariable("TSAN_OPTIONS", absl::StrCat("second_deadlock_stack=1,die_after_fork=0,suppressions=", Bazel::RunfilesPath("goldfish+/emulator/libs/test/tsan_suppressions.txt")));
-#endif
 #endif
 }
 
 } // namespace
+
+#if defined(__has_feature)
+#if __has_feature(thread_sanitizer)
+// TSAN reads its options when the runtime starts, before main() runs, so
+// setting TSAN_OPTIONS from main() has no effect. These hooks are read then.
+extern "C" const char* __tsan_default_options() {
+    return "second_deadlock_stack=1:die_after_fork=0";
+}
+
+extern "C" const char* __tsan_default_suppressions() {
+    return
+            // The prebuilt libc++ runtime is not TSAN-instrumented, so the
+            // acquire/release on a shared_ptr control block's weak count
+            // (__release_weak, lock) is invisible and freeing the block after
+            // the last weak_ptr is misreported as a race.
+            "race:__on_zero_shared_weak\n"
+            "race:cuttlefish::NetworkService::isRadioOff\n";
+}
+#endif
+#endif
 
 int main(int argc, char* argv[]) {
     absl::InitializeSymbolizer(argv[0]);

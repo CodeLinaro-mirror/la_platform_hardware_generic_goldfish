@@ -22,6 +22,7 @@
 #pragma clang diagnostic ignored "-Wnullability-completeness"
 #include "absl/synchronization/mutex.h"
 
+#include "api/video_codecs/sdp_video_format.h"
 #include "api/video_codecs/video_encoder.h"
 #pragma clang diagnostic pop
 
@@ -63,8 +64,14 @@ class ComPtr {
     }
 
     T* Get() const { return ptr_; }
-    T** GetAddressOf() { Reset(); return &ptr_; }
-    T** operator&() { Reset(); return &ptr_; }
+    T** GetAddressOf() {
+        Reset();
+        return &ptr_;
+    }
+    T** operator&() {
+        Reset();
+        return &ptr_;
+    }
     T* operator->() const { return ptr_; }
     explicit operator bool() const { return ptr_ != nullptr; }
 
@@ -100,11 +107,13 @@ class MFVideoEncoderH264 : public webrtc::VideoEncoder {
     static constexpr uint32_t kDefaultTargetBitrateBps = 3000000;  // 3 Mbps
     static constexpr uint32_t kDefaultTargetFps = 60;
 
-    MFVideoEncoderH264();
+    explicit MFVideoEncoderH264(webrtc::SdpVideoFormat format = webrtc::SdpVideoFormat("H264"));
     ~MFVideoEncoderH264() override;
 
     int32_t InitEncode(const webrtc::VideoCodec* codec_settings, int32_t number_of_cores,
                        size_t max_payload_size) override;
+    int32_t InitEncode(const webrtc::VideoCodec* codec_settings,
+                       const webrtc::VideoEncoder::Settings& settings) override;
 
     int32_t RegisterEncodeCompleteCallback(webrtc::EncodedImageCallback* callback) override;
 
@@ -124,16 +133,19 @@ class MFVideoEncoderH264 : public webrtc::VideoEncoder {
     EncoderInfo GetEncoderInfo() const override;
 
   private:
+    int32_t ReleaseUnlocked() ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
     HRESULT InitializeMFT();
     HRESULT ConfigureMFT();
     HRESULT ConfigureInputOutputTypes(int width, int height, int framerate);
     HRESULT SetBitrateAndRateControl(uint32_t bitrate_bps);
     HRESULT AllocateInputBuffers(int width, int height);
     HRESULT AllocateOutputBuffers();
-    HRESULT ProcessInputFrame(const webrtc::VideoFrame& frame);
+    HRESULT ProcessInputFrame(const webrtc::VideoFrame& frame, bool force_keyframe);
     HRESULT DrainEncodedFrames(uint32_t rtp_timestamp, int64_t capture_time_ms,
                                webrtc::EncodedImageCallback* callback)
             ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
+
+    webrtc::SdpVideoFormat format_;
 
     absl::Mutex mutex_;
     bool initialized_ ABSL_GUARDED_BY(mutex_);
@@ -142,6 +154,7 @@ class MFVideoEncoderH264 : public webrtc::VideoEncoder {
 
     // Media Foundation COM Objects
     ComPtr<IMFTransform> encoder_mft_;
+    ComPtr<IMFMediaEventGenerator> event_generator_;
     ComPtr<IMFMediaType> input_type_;
     ComPtr<IMFMediaType> output_type_;
 
@@ -159,6 +172,8 @@ class MFVideoEncoderH264 : public webrtc::VideoEncoder {
     ComPtr<IMFSample> output_sample_;
 
     bool com_initialized_ = false;
+    bool is_async_mft_ = false;
+    uint32_t pending_input_count_ = 0;
 
     uint32_t target_bitrate_bps_ ABSL_GUARDED_BY(mutex_);
     uint32_t target_fps_ ABSL_GUARDED_BY(mutex_);

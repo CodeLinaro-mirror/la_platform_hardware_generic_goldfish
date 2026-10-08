@@ -16,6 +16,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 
+#include <algorithm>
 #include <cstdlib>
 #include <cstring>
 #include <utility>
@@ -26,6 +27,54 @@
 #include "absl/strings/str_join.h"
 
 namespace goldfish::videobridge {
+
+namespace {
+
+bool SupportsH264EncodeEntrypoint(const VaapiFunctionList& fn_list, VADisplay display) {
+    if (!fn_list.vaMaxNumProfiles || !fn_list.vaQueryConfigProfiles ||
+        !fn_list.vaMaxNumEntrypoints || !fn_list.vaQueryConfigEntrypoints) {
+        return true;
+    }
+
+    int max_profiles = fn_list.vaMaxNumProfiles(display);
+    if (max_profiles <= 0) max_profiles = 32;
+    std::vector<VAProfile> profiles(static_cast<size_t>(max_profiles));
+    int num_profiles = 0;
+    if (fn_list.vaQueryConfigProfiles(display, profiles.data(), &num_profiles) !=
+                VA_STATUS_SUCCESS ||
+        num_profiles <= 0) {
+        return false;
+    }
+
+    int max_entrypoints = fn_list.vaMaxNumEntrypoints(display);
+    if (max_entrypoints <= 0) max_entrypoints = 16;
+    std::vector<VAEntrypoint> entrypoints(static_cast<size_t>(max_entrypoints));
+
+    int profile_count = std::min(num_profiles, max_profiles);
+    for (int i = 0; i < profile_count; ++i) {
+        VAProfile profile = profiles[i];
+        if (profile != VAProfileH264ConstrainedBaseline && profile != VAProfileH264Baseline &&
+            profile != VAProfileH264Main && profile != VAProfileH264High) {
+            continue;
+        }
+        int num_entrypoints = 0;
+        if (fn_list.vaQueryConfigEntrypoints(display, profile, entrypoints.data(),
+                                             &num_entrypoints) != VA_STATUS_SUCCESS) {
+            continue;
+        }
+        int entrypoint_count = std::min(num_entrypoints, max_entrypoints);
+        for (int j = 0; j < entrypoint_count; ++j) {
+            if (entrypoints[j] == VAEntrypointEncSlice ||
+                entrypoints[j] == VAEntrypointEncSliceLP ||
+                entrypoints[j] == VAEntrypointEncPicture) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+}  // namespace
 
 std::string VaapiStatusToString(VAStatus status) {
     switch (status) {
@@ -97,10 +146,17 @@ absl::StatusOr<std::unique_ptr<VaapiLoader>> VaapiLoader::Create(
     };
 
     std::vector<std::string> drm_nodes = {
-        "/dev/dri/renderD128",
-        "/dev/dri/renderD129",
-        "/dev/dri/card0",
+        "/dev/dri/renderD128", "/dev/dri/renderD129", "/dev/dri/renderD130",
+        "/dev/dri/card0",      "/dev/dri/card1",
     };
+
+    const char* existing_driver_env = std::getenv("LIBVA_DRIVER_NAME");
+    std::vector<const char*> candidate_drivers = {nullptr};
+    if (!existing_driver_env || !*existing_driver_env) {
+        candidate_drivers.push_back("iHD");
+        candidate_drivers.push_back("i965");
+        candidate_drivers.push_back("radeonsi");
+    }
 
     for (const auto& va_path : va_paths) {
         goldfish::os::DynamicLibrary lib_va(va_path);
@@ -174,25 +230,43 @@ absl::StatusOr<std::unique_ptr<VaapiLoader>> VaapiLoader::Create(
             }
 
             for (const auto& node : drm_nodes) {
-                int fd = open(node.c_str(), O_RDWR | O_CLOEXEC);
-                if (fd < 0) continue;
+                for (const char* drv_name : candidate_drivers) {
+                    if (drv_name) {
+                        setenv("LIBVA_DRIVER_NAME", drv_name, 1);
+                    } else if (!existing_driver_env) {
+                        unsetenv("LIBVA_DRIVER_NAME");
+                    }
 
-                VADisplay display = fn_list.vaGetDisplayDRM(fd);
-                if (!display) {
-                    close(fd);
-                    continue;
+                    int fd = open(node.c_str(), O_RDWR | O_CLOEXEC);
+                    if (fd < 0) break;
+
+                    VADisplay display = fn_list.vaGetDisplayDRM(fd);
+                    if (!display) {
+                        close(fd);
+                        continue;
+                    }
+
+                    int major = 0;
+                    int minor = 0;
+                    VAStatus status = fn_list.vaInitialize(display, &major, &minor);
+                    if (status != VA_STATUS_SUCCESS) {
+                        fn_list.vaTerminate(display);
+                        close(fd);
+                        continue;
+                    }
+
+                    if (!SupportsH264EncodeEntrypoint(fn_list, display)) {
+                        fn_list.vaTerminate(display);
+                        close(fd);
+                        continue;
+                    }
+
+                    return std::make_unique<VaapiLoader>(std::move(lib_va), std::move(lib_va_drm),
+                                                         fd, display, fn_list);
                 }
-
-                int major = 0;
-                int minor = 0;
-                VAStatus status = fn_list.vaInitialize(display, &major, &minor);
-                if (status != VA_STATUS_SUCCESS) {
-                    close(fd);
-                    continue;
-                }
-
-                return std::make_unique<VaapiLoader>(std::move(lib_va), std::move(lib_va_drm), fd,
-                                                     display, fn_list);
+            }
+            if (!existing_driver_env) {
+                unsetenv("LIBVA_DRIVER_NAME");
             }
         }
     }

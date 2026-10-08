@@ -39,7 +39,7 @@
 | **archive** | Serialization (`IReader`/`IWriter`) with VarInt encoding. | [Architecture](archive/ARCHITECTURE.md) |
 | **parsing** | String splitting, key-value parsing, and type-safe argument streams (`ArgStream`). | [Architecture](parsing/ARCHITECTURE.md) |
 | **UniqueIdAllocator** | ID generation and recycling. | [Architecture](UniqueIdAllocator/ARCHITECTURE.md) |
-| **ext4** | Utilities for creating and resizing ext4 filesystem images. | [Architecture](ext4/ARCHITECTURE.md) |
+| **fsimage** | Utilities for creating and resizing ext4 and exFAT filesystem images. | [Architecture](fsimage/ARCHITECTURE.md) |
 
 ### gRPC & Security
 | Library | Description | Documentation |
@@ -53,7 +53,9 @@
 | Library | Description | Documentation |
 | :--- | :--- | :--- |
 | **gvk** | Goldfish Vulkan wrappers and dispatch tables. | [Architecture](gvk/ARCHITECTURE.md) |
+| **ver** | Virtual Environment Renderer (3D scenes, posters, media) using GVK. | [Architecture](ver/ARCHITECTURE.md) |
 | **imaging** | Pixel formats and image data containers. | [Architecture](imaging/ARCHITECTURE.md) |
+| **display_pipeline** | Slot-backed display frame producer and consumer pipeline. | [Design](display_pipeline/DESIGN.md) |
 | **fps_calculator** | Moving average FPS calculation. | [Architecture](fps_calculator/ARCHITECTURE.md) |
 | **sensors** | Sensor simulation logic and foldable state. | [Architecture](sensors/ARCHITECTURE.md) |
 | **physics** | Physical environment simulation (Inertial, Ambient). | [Architecture](physics/ARCHITECTURE.md) |

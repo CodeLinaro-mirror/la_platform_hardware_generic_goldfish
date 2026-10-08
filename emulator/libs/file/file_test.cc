@@ -197,4 +197,25 @@ TEST(File, copyIfMissing) {
     }
 }
 
+TEST(File, mvFileOverwritesExisting) {
+    const android::base::TestTempDir tmpdir("MvFileOverwrites");
+    const fs::path dst = tmpdir.Path() / "dst";
+    const fs::path src = tmpdir.Path() / "src";
+
+    {
+        std::ofstream f(dst);
+        ASSERT_TRUE(f);
+        f << "old";
+    }
+    {
+        std::ofstream f(src);
+        ASSERT_TRUE(f);
+        f << "new_content";
+    }
+
+    EXPECT_THAT(file::mv_file(src, dst), absl_testing::IsOk());
+    EXPECT_FALSE(file::exists(src));
+    EXPECT_THAT(file::read_whole_file(dst, false), absl_testing::IsOkAndHolds("new_content"));
+}
+
 }  // namespace android::base

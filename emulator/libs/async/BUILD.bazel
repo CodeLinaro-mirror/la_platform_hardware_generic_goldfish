@@ -35,6 +35,7 @@ cc_library(
         "//emulator/crashreport:breadcrumb_proto",
         "//emulator/libs/eventing",
         "//emulator/libs/network",
+        "//emulator/libs/status_macros:flatten",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/status:statusor",
@@ -142,7 +143,6 @@ cc_library(
 cc_test(
     name = "eventloop_unittests",
     size = "small",
-    timeout = "moderate",
     srcs = [
         "event_loop_name_test.cc",
         "event_loop_test.cc",
@@ -213,6 +213,7 @@ cc_test(
 
 cc_test(
     name = "scoped_async_resource_test",
+    size = "small",
     srcs = ["scoped_async_resource_test.cc"],
     visibility = ["//visibility:public"],
     deps = [
@@ -226,7 +227,7 @@ cc_test(
 
 cc_test(
     name = "event_loop_dispatcher_test",
-    size = "medium",
+    size = "small",
     srcs = ["event_loop_dispatcher_test.cc"],
     visibility = ["//visibility:public"],
     deps = [
@@ -267,12 +268,14 @@ cc_library(
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/synchronization",
         "@abseil-cpp//absl/time",
     ],
 )
 
 cc_test(
     name = "async_testing_unittests",
+    size = "small",
     srcs = ["test_event_loop_test.cc"],
     visibility = ["//visibility:public"],
     deps = [
@@ -325,6 +328,7 @@ cc_library(
 
 cc_test(
     name = "libuv_signal_handlers_test",
+    size = "small",
     srcs = ["libuv_signal_handlers_test.cc"],
     visibility = ["//visibility:public"],
     deps = [
@@ -336,6 +340,7 @@ cc_test(
 
 cc_test(
     name = "when_all_test",
+    size = "small",
     srcs = ["when_all_test.cc"],
     visibility = ["//visibility:public"],
     deps = [
