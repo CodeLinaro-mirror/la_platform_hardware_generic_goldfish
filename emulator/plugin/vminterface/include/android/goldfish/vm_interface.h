@@ -315,8 +315,6 @@ class VmOperations : public android::base::eventing::CallbackEventSource<EmuRunS
     virtual void LoadSnapshotResume(EmuRunState) = 0;
     virtual absl::Status DeleteSnapshot(const char* idOrName) = 0;
     virtual absl::Status ListSnapshots(SnapshotEntrySink) = 0;
-
-    static VmOperations* qemuVmOperations();
 };
 
 }  // namespace goldfish

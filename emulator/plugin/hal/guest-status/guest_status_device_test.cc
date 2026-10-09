@@ -59,9 +59,9 @@ class GuestStatusDeviceTest : public ::testing::Test {
         mQemuLoop = TestEventLoop::Create();
 
         mGuestStatus.SetGrpcNotificationChannel(&mNotificationSource);
-        IGuestStatusDevice::RegisterDevice(&mGuestStatus, &registry,
-                                           {qemu_register_reset, qemu_unregister_reset},
-                                           mClientLoop.get(), mQemuLoop.get(), 0);
+        IGuestStatusDevice::RegisterDevice(
+                &mGuestStatus, &registry, {qemu_register_reset, qemu_unregister_reset},
+                [this] { ++mShutdownRequests; }, mClientLoop.get(), mQemuLoop.get(), 0);
         device = registry.ConstructHalDevice<IGuestStatusDevice>();
         test_socket = registry.HalSocket();
         clear();
@@ -74,11 +74,12 @@ class GuestStatusDeviceTest : public ::testing::Test {
     }
 
   public:
-    void receive(const std::string_view msg) {
+    void receive(const std::string_view msg) { receive(device, msg); }
+    static void receive(IGuestStatusDevice* target, const std::string_view msg) {
         char sizeBuf[sizeof(uint32_t)];
         absl::little_endian::Store32(sizeBuf, msg.size());
-        device->OnReceive(std::string_view(sizeBuf, sizeof(sizeBuf)));
-        device->OnReceive(msg);
+        target->OnReceive(std::string_view(sizeBuf, sizeof(sizeBuf)));
+        target->OnReceive(msg);
     }
     void clear() { test_socket->storage.clear(); }
 
@@ -90,6 +91,7 @@ class GuestStatusDeviceTest : public ::testing::Test {
     TestConnectorRegistry registry;
     IGuestStatusDevice* device;
     TestHalSocket* test_socket;
+    int mShutdownRequests = 0;
 };
 
 TEST_F(GuestStatusDeviceTest, canCreateDevice) {
@@ -189,6 +191,47 @@ TEST_F(GuestStatusDeviceTest, sendsNotificationOnBootComplete) {
             .Times(1);
 
     receive("bootcomplete\0"sv);
+}
+
+namespace {
+// Marks the start of boot through the most recently registered reset handler,
+// then advances the wall clock so a later boot completion has a valid duration.
+void StartBoot(TestSystem& test) {
+    test.SetProcessTimes({.user_ms = 0, .system_ms = 0, .wall_clock_ms = 0});
+    sResetHandler(sOpaque);
+    test.SetProcessTimes({.user_ms = 1, .system_ms = 10, .wall_clock_ms = 100});
+}
+}  // namespace
+
+TEST_F(GuestStatusDeviceTest, bootCompleteDoesNotRequestShutdownByDefault) {
+    TestSystem test("/");
+    StartBoot(test);
+
+    receive("bootcomplete\0"sv);
+    mQemuLoop->RunAll();
+
+    EXPECT_EQ(mShutdownRequests, 0);
+}
+
+TEST_F(GuestStatusDeviceTest, bootCompleteRequestsShutdownOnQemuLoopWithQuitAfterBoot) {
+    TestSystem test("/");
+    TestConnectorRegistry quit_registry;
+    int shutdown_requests = 0;
+    IGuestStatusDevice::RegisterDevice(
+            &mGuestStatus, &quit_registry, {qemu_register_reset, qemu_unregister_reset},
+            [&shutdown_requests] { ++shutdown_requests; }, mClientLoop.get(), mQemuLoop.get(),
+            /*quitAfterBootTimeoutSeconds=*/1);
+    IGuestStatusDevice* quit_device = quit_registry.ConstructHalDevice<IGuestStatusDevice>();
+    StartBoot(test);
+
+    receive(quit_device, "bootcomplete\0"sv);
+    EXPECT_EQ(shutdown_requests, 0);
+
+    mQemuLoop->RunAll();
+    EXPECT_EQ(shutdown_requests, 1);
+
+    quit_registry.Close();
+    mClientLoop->RunAll();
 }
 
 }  // namespace goldfish::devices::guest_status

@@ -10,7 +10,7 @@ Implements the next-generation `android.emulation.v2` gRPC services defined in `
 ## Key Sub-Components, Files & Symbols (`namespace goldfish::grpc::v2`)
 - **Service Registration (`:v2_services`)**:
   - `include/goldfish/grpc/v2/v2_services.h` & `v2_services.cc`:
-    - `CreateV2Services(goldfish::avd_info::AvdUniverse& avd_universe)` — Instantiates `CapabilitiesServiceImpl`, `SensorsServiceImpl(avd_universe.GetSensorsPhysicalModel())`, and (when `avd_universe.GetVmOperations()` is non-null) `OperationsServiceImpl` and `HypervisorServiceImpl`, called by `CreateServices` in `emulator/plugin/grpc/grpc.cc`.
+    - `CreateV2Services(AvdUniverse& avd_universe, VmOperations* vm_operations, ...)` — Instantiates `CapabilitiesServiceImpl`, `SensorsServiceImpl(avd_universe.GetSensorsPhysicalModel())`, and (when `vm_operations` is non-null) `OperationsServiceImpl` and `HypervisorServiceImpl`, called by `CreateServices` in `emulator/plugin/grpc/grpc.cc` with `avd_universe.GetVmOperations()`.
 - **V2 Operations Service (`:operations_service`, test `:operations_service_test`)**:
   - `operations/operations_service_impl.h`, `operations/operations_service_impl.cc`, `operations/operations_service_impl_test.cc` (`OperationsServiceImpl`, `OperationEntry`).
   - Thread-safe AIP-151 `google.longrunning.Operations` registry (`GetOperation`, `ListOperations`, `WaitOperation`, `DeleteOperation`, `CancelOperation`) and programmatic lifecycle methods (`CreateOperation`, `UpdateMetadata`, `CompleteOperation`, `FailOperation`).

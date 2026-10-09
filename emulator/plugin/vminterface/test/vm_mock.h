@@ -45,4 +45,7 @@ void mock_iothread_locked_set(bool locked);
 // Trigger registered VM change state handlers
 void mock_fire_vm_change_state(bool running, RunState state);
 
+// Whether a VM change state handler is currently registered
+bool mock_has_vm_change_state_handler(void);
+
 __END_DECLS

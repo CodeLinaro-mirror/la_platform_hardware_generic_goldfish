@@ -18,6 +18,7 @@
 #include "absl/base/thread_annotations.h"
 #include "absl/synchronization/mutex.h"
 
+#include "android/goldfish/vm_interface.h"
 #include "goldfish/async/event_loop.h"
 #include "goldfish/avd/avd_properties.h"
 #include "goldfish/avd_universe/battery/battery_state.h"
@@ -66,6 +67,12 @@ struct AvdUniverse : public snapshottable::Snapshottable {
 
     virtual async::EventLoop& GetQemuEventLoop() = 0;
     virtual metrics::MetricsReporter& GetMetricsReporter() = 0;
+
+    /**
+     * @brief Controls and observes the VM of this AVD.
+     * @return A reference that stays valid for the lifetime of the universe.
+     */
+    virtual android::goldfish::VmOperations& GetVmOperations() = 0;
 
     void SetActiveMultiDisplayDevice(
             std::shared_ptr<devices::multidisplay::MultiDisplayDevice> device)

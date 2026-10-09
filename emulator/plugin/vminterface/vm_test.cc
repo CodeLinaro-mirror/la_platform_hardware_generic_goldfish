@@ -16,8 +16,10 @@
 #include <gtest/gtest.h>
 
 #include <array>
+#include <memory>
 #include <string_view>
 
+#include "android/goldfish/qemu_vm_operations.h"
 #include "android/goldfish/vm_interface.h"
 #include "emulator/plugin/vminterface/test/test_vm_lock.h"
 
@@ -42,9 +44,16 @@ class QemuVmOperationsTest : public ::testing::Test {
         old_lock_ = VmLock::Set(test_vm_lock_);
 
         ASSERT_TRUE(VmLock::HasInstance());
+
+        vm_ops_ = CreateQemuVmOperations();
+        // Construction registers QEMU handlers under the VM lock; tests only
+        // count the locking done by the operation under test.
+        test_vm_lock_->lock_count_ = 0;
+        test_vm_lock_->unlock_count_ = 0;
     }
 
     void TearDown() override {
+        vm_ops_.reset();
         VmLock::Set(old_lock_);
         test_vm_lock_->Release();
         mock_runstate_set(RUN_STATE_DEBUG);
@@ -54,7 +63,7 @@ class QemuVmOperationsTest : public ::testing::Test {
 
     TestVmLock* test_vm_lock_ = nullptr;
     VmLock* old_lock_ = nullptr;
-    VmOperations* vm_ops_ = VmOperations::qemuVmOperations();
+    std::unique_ptr<VmOperations> vm_ops_;
 };
 
 TEST_F(QemuVmOperationsTest, Stop) {
@@ -167,6 +176,14 @@ TEST_F(QemuVmOperationsTest, RunStateChangeScopedCallback) {
     // Handle went out of scope, callback should be automatically unregistered.
     mock_fire_vm_change_state(false, RUN_STATE_PAUSED);
     EXPECT_EQ(received_states.size(), 1);
+}
+
+TEST_F(QemuVmOperationsTest, DestructorUnregistersRunStateHandler) {
+    ASSERT_TRUE(mock_has_vm_change_state_handler());
+
+    vm_ops_.reset();
+
+    EXPECT_FALSE(mock_has_vm_change_state_handler());
 }
 
 }  // namespace goldfish

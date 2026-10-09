@@ -141,3 +141,7 @@ void mock_fire_vm_change_state(bool running, RunState state) {
         s_change_handler(s_change_opaque, running, state);
     }
 }
+
+bool mock_has_vm_change_state_handler(void) {
+    return s_change_handler != NULL;
+}

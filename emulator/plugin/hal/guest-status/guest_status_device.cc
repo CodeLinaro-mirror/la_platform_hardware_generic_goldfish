@@ -17,13 +17,13 @@
 #include <memory>
 #include <string>
 #include <string_view>
+#include <utility>
 
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/strings/numbers.h"
 
 #include "android/base/system.h"
-#include "android/goldfish/vm_interface.h"
 #include "goldfish/devices/qemud/qemud.h"
 
 namespace goldfish::devices::guest_status {
@@ -36,9 +36,11 @@ class GuestStatusDevice : public IGuestStatusDevice,
                           public std::enable_shared_from_this<GuestStatusDevice> {
   public:
     GuestStatusDevice(GuestStatus& guestStatus, const EmulatorResetCallbacks resetCallbacks,
-                      async::EventLoop* qemu_loop, const int quitAfterBootTimeoutSeconds)
+                      ShutdownRequester request_shutdown, async::EventLoop* qemu_loop,
+                      const int quitAfterBootTimeoutSeconds)
             : mGuestStatus(guestStatus)
             , mQemuLoop(qemu_loop)
+            , mRequestShutdown(std::move(request_shutdown))
             , mQuitAfterBootTimeoutSeconds(quitAfterBootTimeoutSeconds) {
         VLOG(1) << "GuestStatus device has been created";
         if (resetCallbacks.do_register) {
@@ -118,11 +120,7 @@ class GuestStatusDevice : public IGuestStatusDevice,
         if (mQuitAfterBootTimeoutSeconds > 0) {
             LOG(WARNING) << "Shutting down guest due to boot complete";
             // onReceive is not called on Qemu thread - schedule shutdown from there to be safe.
-            mQemuLoop
-                    ->Post([]() {
-                        android::goldfish::VmOperations::qemuVmOperations()->systemShutdownRequest(
-                                android::goldfish::QemuShutdownCause::GuestShutdown);
-                    })
+            mQemuLoop->Post([request_shutdown = mRequestShutdown] { request_shutdown(); })
                     .IgnoreError();
         }
     }
@@ -140,6 +138,7 @@ class GuestStatusDevice : public IGuestStatusDevice,
 
     GuestStatus& mGuestStatus;
     async::EventLoop* const mQemuLoop;
+    const ShutdownRequester mRequestShutdown;
     EmulatorResetCallbacks::UnregisterEmulatorReset mUnregisterEmulatorReset;
     std::vector<char> mReceiveData;
     const int mQuitAfterBootTimeoutSeconds;
@@ -147,13 +146,14 @@ class GuestStatusDevice : public IGuestStatusDevice,
 
 void IGuestStatusDevice::RegisterDevice(GuestStatus* guestStatus, IConnectorRegistry* registry,
                                         EmulatorResetCallbacks resetCallbacks,
-                                        EventLoop* client_loop, EventLoop* qemu_loop,
-                                        int quitAfterBootTimeoutSeconds) {
+                                        ShutdownRequester request_shutdown, EventLoop* client_loop,
+                                        EventLoop* qemu_loop, int quitAfterBootTimeoutSeconds) {
     registry->RegisterHalDevice(
             std::string(IGuestStatusDevice::kServiceName), client_loop, qemu_loop,
-            [guestStatus, resetCallbacks, qemu_loop,
+            [guestStatus, resetCallbacks, request_shutdown = std::move(request_shutdown), qemu_loop,
              quitAfterBootTimeoutSeconds](std::string_view /*args*/) {
-                return std::make_shared<GuestStatusDevice>(*guestStatus, resetCallbacks, qemu_loop,
+                return std::make_shared<GuestStatusDevice>(*guestStatus, resetCallbacks,
+                                                           request_shutdown, qemu_loop,
                                                            quitAfterBootTimeoutSeconds);
             });
 }

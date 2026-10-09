@@ -11,7 +11,10 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+#include "android/goldfish/qemu_vm_operations.h"
+
 #include <array>
+#include <memory>
 
 #include "absl/cleanup/cleanup.h"
 #include "absl/strings/str_cat.h"
@@ -291,14 +294,8 @@ class QemuVmOperations : public VmOperations {
     VMChangeStateEntry* change_state_entry_{nullptr};
 };
 
-/**
- * @brief Returns a singleton instance of the QemuVmOperations class.
- *
- * @return A pointer to the QemuVmOperations instance.
- */
-VmOperations* VmOperations::qemuVmOperations() {
-    static QemuVmOperations instance;
-    return &instance;
+std::unique_ptr<VmOperations> CreateQemuVmOperations() {
+    return std::make_unique<QemuVmOperations>();
 }
 
 }  // namespace goldfish

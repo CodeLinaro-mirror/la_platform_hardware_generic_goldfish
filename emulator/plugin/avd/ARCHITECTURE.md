@@ -12,7 +12,7 @@ environment, configures hardware, and starts all HAL services. **Location:**
 | `AvdProperties`            | `:avd_properties`        | `.../avd/avd_properties.h`  | Configuration and launch properties for the AVD.                 |
 | `AvdUniverse`              | `:avd_universe`          | `.../avd/avd_universe.h`    | Container for global AVD state (Properties, Sensors, Clipboard). |
 | `GetAvd()`                 | `:avd_info`              | `.../avd/avd_info.h`        | Singleton accessor for the `AvdUniverse`.                        |
-| `AvdExtendedUniverse`      | `:avd_extended_universe` | `avd_extended_universe.h`   | Concrete `AvdUniverse` implementation owning HALs and loops.     |
+| `AvdExtendedUniverse`      | `:avd_extended_universe` | `avd_extended_universe.h`   | Concrete `AvdUniverse` implementation owning HALs, loops and the `VmOperations`; constructs these services and injects them into consumers. |
 | `avd_info_register_types`  | `:avd_start`             | `.../avd/avd_start.h`       | QOM type registration for the `avdstart` bootstrap device.       |
 | `globalEventLoop()`        | `:global_event_loop`     | `.../avd/global_event_loop.h` | Accessor for the global client `EventLoop`.                    |
 
