@@ -103,9 +103,7 @@ class QemuEventLoopImpl : public goldfish::async::QemuEventLoop {
                 DoCancel(false);
                 return;
             }
-            // If DrainQueue() has not run, AddItselfToActiveTimers() has not executed and will
-            // observe cancelled_ == true.
-            if (!event_loop_->HasDrained()) {
+            if (event_loop_->GetState() == LooperStatusEvent::State::kNotStarted) {
                 return;
             }
             bool under_bql = false;
@@ -218,9 +216,7 @@ class QemuEventLoopImpl : public goldfish::async::QemuEventLoop {
     };
 
     explicit QemuEventLoopImpl(std::string name)
-            : QemuEventLoop(std::move(name)), drainer_bh_(MakeQemuBh([&] { DrainQueue(); })) {
-        SetState(LooperStatusEvent::State::kRunning);
-    }
+            : QemuEventLoop(std::move(name)), drainer_bh_(MakeQemuBh([&] { DrainQueue(); })) {}
 
     // TODO(whollins): Clean-up usages and make this FATAL.
     ~QemuEventLoopImpl() override {
@@ -233,7 +229,6 @@ class QemuEventLoopImpl : public goldfish::async::QemuEventLoop {
     std::future<absl::Status> Shutdown() override;
 
     bool IsOnLoopThread() const override;
-    bool HasDrained() const { return qemu_thread_id_.load() != std::thread::id{}; }
 
     std::shared_ptr<EventLoop::Timer> CreateTimer(RepeatingTask task) override;
 
@@ -305,7 +300,7 @@ class QemuEventLoopImpl : public goldfish::async::QemuEventLoop {
     const QEMUBHPtr drainer_bh_;
     std::promise<absl::Status> shutdown_complete_promise_;
 
-    std::atomic<std::thread::id> qemu_thread_id_;
+    std::atomic<std::thread::id> qemu_thread_id_{std::thread::id{}};
     absl::Mutex queue_mutex_;
     std::queue<QueuedTask> task_queue_ ABSL_GUARDED_BY(queue_mutex_);
     size_t tasks_processed_ ABSL_GUARDED_BY(queue_mutex_) = 0;
