@@ -17,6 +17,7 @@
 #include <atomic>
 #include <string_view>
 
+#include "absl/cleanup/cleanup.h"
 #include "absl/status/status_matchers.h"
 #include "absl/synchronization/notification.h"
 #include "absl/time/clock.h"
@@ -281,6 +282,63 @@ TEST_F(HangDetectorTest, RemoveWatchedLooperAfterStopNoCrash) {
     EXPECT_NO_FATAL_FAILURE(mHangDetector->RemoveWatchedLooper(*event_loop));
 
     event_loop->ShutdownAndWait().IgnoreError();
+}
+
+TEST_F(HangDetectorTest, PredicateOfRemovedLooperIsNotCalledAgain) {
+    if (android::base::IsDebuggerAttached()) {
+        GTEST_SKIP() << "Predicates are not evaluated under a debugger";
+    }
+
+    auto loop_a =
+            goldfish::async::ThreadedEventLoop::Create(goldfish::async::LibuvEventLoop::Create());
+    auto loop_b =
+            goldfish::async::ThreadedEventLoop::Create(goldfish::async::LibuvEventLoop::Create());
+
+    // Holds the worker inside the predicate of `loop_a` while `loop_b` is removed, so the
+    // worker's copy of the watcher list still contains the removed watcher.
+    std::atomic<bool> armed{false};
+    std::atomic<int> armed_calls{0};
+    absl::Notification worker_blocked;
+    absl::Notification release_worker;
+    absl::Notification next_iteration;
+    mHangDetector->AddWatchedLooper("a", *loop_a, absl::Seconds(1), [&]() {
+        if (!armed.load()) {
+            return true;
+        }
+        // The first armed call may come from an iteration that started before `loop_b` was
+        // added; the second one comes from an iteration that includes it.
+        const int call = ++armed_calls;
+        if (call == 2) {
+            worker_blocked.Notify();
+            release_worker.WaitForNotification();
+        } else if (call == 3) {
+            next_iteration.Notify();
+        }
+        return true;
+    });
+    std::atomic<int> removed_predicate_calls{0};
+    mHangDetector->AddWatchedLooper("b", *loop_b, absl::Seconds(1), [&]() {
+        ++removed_predicate_calls;
+        return true;
+    });
+    const absl::Cleanup cleanup = [&] {
+        armed = false;
+        if (!release_worker.HasBeenNotified()) {
+            release_worker.Notify();
+        }
+        mHangDetector->RemoveWatchedLooper(*loop_a);
+        mHangDetector->RemoveWatchedLooper(*loop_b);
+    };
+
+    armed = true;
+    ASSERT_TRUE(worker_blocked.WaitForNotificationWithTimeout(absl::Seconds(10)));
+    mHangDetector->RemoveWatchedLooper(*loop_b);
+    const int calls_after_removal = removed_predicate_calls.load();
+
+    release_worker.Notify();
+    ASSERT_TRUE(next_iteration.WaitForNotificationWithTimeout(absl::Seconds(10)));
+
+    EXPECT_EQ(removed_predicate_calls.load(), calls_after_removal);
 }
 
 }  // namespace android::crashreport
