@@ -57,11 +57,47 @@ cc_test(
     ],
 )
 
+cc_library(
+    name = "exfat",
+    srcs = [
+        "exfat.cc",
+    ],
+    hdrs = [
+        "include/goldfish/fsimage/exfat.h",
+    ],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//emulator/libs/file",
+        "//emulator/libs/status_macros",
+        "@abseil-cpp//absl/cleanup",
+        "@abseil-cpp//absl/container:flat_hash_set",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings:str_format",
+    ],
+)
+
+cc_test(
+    name = "exfat_test",
+    size = "small",
+    srcs = [
+        "exfat_test.cc",
+    ],
+    deps = [
+        ":exfat",
+        "//emulator/libs/system:test-headers",
+        "//emulator/libs/test:googletest_main",
+        "@abseil-cpp//absl/status:status_matchers",
+    ],
+)
+
 clang_tidy_test(
     name = "tidy",
     targets = [
         ":ext4",
         ":qcow2",
+        ":exfat",
     ],
     tidy_config_file = "//:clang_tidy_config",
 )

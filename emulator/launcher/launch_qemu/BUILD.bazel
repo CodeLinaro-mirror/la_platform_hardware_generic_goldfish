@@ -534,6 +534,7 @@ cc_library(
         ":device",
         ":disk_drive",
         ":user_data_drive",
+        "//emulator/libs/fsimage:exfat",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
     ],
