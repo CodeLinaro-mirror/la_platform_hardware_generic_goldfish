@@ -22,6 +22,7 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <vector>
 
 #include "absl/log/log.h"
 
@@ -132,11 +133,21 @@ err:
 
 void RegisterDevice(const sensors::PhysicalModel* physicalModel, IConnectorRegistry* registry,
                     std::string* emulatedCameraProp, const android::goldfish::HardwareConfig& hw,
-                    GrallocProvider grallocProvider) {
+                    const std::filesystem::path& avdContentPath, GrallocProvider grallocProvider) {
     if (const char* launcherDir = std::getenv("ANDROID_EMULATOR_LAUNCHER_DIR");
         launcherDir && launcherDir[0] != '\0') {
         const std::filesystem::path baseDir(launcherDir);
-        ver_initialize({baseDir}, baseDir / "lib64" / "vulkan");
+
+        // Local path resources will be searched in the given order.
+        // TODO: use 'resources' folder similar to qemu-now?
+        std::vector<std::filesystem::path> resourceBasePaths = {
+            avdContentPath,
+            baseDir / "data" / "virtualscene" / "default",
+            baseDir / "data" / "virtualscene" / "Toren1BD",
+            baseDir,
+        };
+
+        ver_initialize(resourceBasePaths, baseDir / "lib64" / "vulkan");
     }
 
     const auto [frontCameraId, frontCameraParams] = Split2(hw.hw_camera_front, ':');
