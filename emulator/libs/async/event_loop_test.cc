@@ -1203,4 +1203,60 @@ TEST_P(EventLoopTest, PostVoidWithContextAndMoveOnlyCapture) {
     EXPECT_EQ(captured_val, 42);
 }
 
+TEST_P(EventLoopTest, CancelTimerBeforeLoopRunsDoesNotHang) {
+    std::atomic<bool> timer1_executed = false;
+    std::atomic<bool> timer2_executed = false;
+
+    auto timer1 = loop->CreateTimer([&]() {
+        timer1_executed = true;
+        return true;
+    });
+    timer1->Schedule(absl::Milliseconds(10), absl::ZeroDuration());
+    timer1->Cancel();
+
+    auto timer2 = loop->CreateTimer([&]() {
+        timer2_executed = true;
+        return true;
+    });
+    timer2->Schedule(absl::Milliseconds(10), absl::ZeroDuration());
+    timer2.reset();
+
+    runInThread();
+    if (mLoopType == "qemu") {
+        fake_qemu_advance_ms(150);
+    } else {
+        std::this_thread::sleep_for(150ms);
+    }
+
+    EXPECT_FALSE(timer1_executed.load());
+    EXPECT_FALSE(timer2_executed.load());
+}
+
+TEST_P(EventLoopTest, CancelTimerOnLoopThreadBeforeDrainDoesNotFire) {
+    runInThread();
+
+    std::atomic<bool> task_executed = false;
+    absl::Notification done;
+
+    (void)loop->Post([&]() {
+        auto timer = loop->CreateTimer([&]() {
+            task_executed = true;
+            return true;
+        });
+        timer->Schedule(absl::Milliseconds(10), absl::ZeroDuration());
+        timer->Cancel();
+        done.Notify();
+    });
+
+    runUntil(done);
+
+    if (mLoopType == "qemu") {
+        fake_qemu_advance_ms(150);
+    } else {
+        std::this_thread::sleep_for(150ms);
+    }
+
+    EXPECT_FALSE(task_executed.load());
+}
+
 }  // namespace goldfish::async
