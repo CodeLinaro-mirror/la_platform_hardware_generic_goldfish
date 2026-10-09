@@ -126,12 +126,26 @@ absl::StatusOr<EmulatorPaths> ResolveEmulatorPaths(bool verbose) {
     ASSIGN_OR_RETURN(paths.bios_directory,
                      CheckExists(paths.launcher_directory / "share" / "qemu", "bios directory"));
 
-    ASSIGN_OR_RETURN(paths.qemu_system_x86_binary,
-                     CheckExists(paths.binary_directory / AddBinarySuffix("qemu-system-x86_64"),
-                                 "qemu-system-x86_64"));
-    ASSIGN_OR_RETURN(paths.qemu_system_arm_binary,
-                     CheckExists(paths.binary_directory / AddBinarySuffix("qemu-system-aarch64"),
-                                 "qemu-system-aarch64"));
+    // Releases only ship the qemu-system binary matching the host platform, so
+    // each one is optional. At least one must be present.
+    if (auto x86 = CheckExists(paths.binary_directory / AddBinarySuffix("qemu-system-x86_64"),
+                               "qemu-system-x86_64");
+        x86.ok()) {
+        paths.qemu_system_x86_binary = *std::move(x86);
+    } else {
+        VLOG(1) << "Optional binary not available: " << x86.status();
+    }
+    if (auto arm = CheckExists(paths.binary_directory / AddBinarySuffix("qemu-system-aarch64"),
+                               "qemu-system-aarch64");
+        arm.ok()) {
+        paths.qemu_system_arm_binary = *std::move(arm);
+    } else {
+        VLOG(1) << "Optional binary not available: " << arm.status();
+    }
+    if (paths.qemu_system_x86_binary.empty() && paths.qemu_system_arm_binary.empty()) {
+        return absl::NotFoundError(
+                absl::StrCat("No qemu-system binary found in: ", paths.binary_directory.string()));
+    }
 
     ASSIGN_OR_RETURN(paths.netsim_binary,
                      CheckExists(paths.binary_directory / AddBinarySuffix("netsimd"), "netsimd"));
@@ -152,8 +166,12 @@ absl::StatusOr<EmulatorPaths> ResolveEmulatorPaths(bool verbose) {
 #ifdef _WIN32
     // Canonicalize binaries as Windows cannot execute a symlink.
     // Note that Forge seems to break if we do this for Linux.
-    ASSIGN_OR_RETURN(paths.qemu_system_x86_binary, Canonicalize(paths.qemu_system_x86_binary));
-    ASSIGN_OR_RETURN(paths.qemu_system_arm_binary, Canonicalize(paths.qemu_system_arm_binary));
+    if (!paths.qemu_system_x86_binary.empty()) {
+        ASSIGN_OR_RETURN(paths.qemu_system_x86_binary, Canonicalize(paths.qemu_system_x86_binary));
+    }
+    if (!paths.qemu_system_arm_binary.empty()) {
+        ASSIGN_OR_RETURN(paths.qemu_system_arm_binary, Canonicalize(paths.qemu_system_arm_binary));
+    }
     ASSIGN_OR_RETURN(paths.netsim_binary, Canonicalize(paths.netsim_binary));
     ASSIGN_OR_RETURN(paths.crashpad_handler_binary, Canonicalize(paths.crashpad_handler_binary));
 #endif
