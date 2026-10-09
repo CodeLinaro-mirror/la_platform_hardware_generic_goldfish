@@ -363,22 +363,15 @@ std::vector<std::pair<std::string, std::string>> getUserspaceBootProperties(
 }
 
 std::string getDynamicPartitionBootDevice(const EmulatorConfig& emulator) {
-    const Avd& avd = emulator.avd();
-    auto arch = avd.Arch();
-    // auto drive = emulator.get<PciDevice>("system");
-
-    if (arch == Avd::CpuArchitecture::kX86) {
+    // return the system partition address
+    switch (emulator.avd().Arch()) {
+    case Avd::CpuArchitecture::kX86:
         return "pci0000:00/0000:00:03.0";
+    case Avd::CpuArchitecture::kArm:
+        return "a003a00.virtio_mmio";
+    default:
+        LOG(QFATAL) << "Unsupported AVD arch: " << static_cast<int>(emulator.avd().Arch());
     }
-
-    DCHECK(arch == Avd::CpuArchitecture::kArm);
-
-    // TODO(jansene): We need should determine device id from the order they were
-    // added to emulator.
-    // "a003e00", "a003c00", "a003a00", "a003800", "a003600", "a003400",
-    // system is currently first - "a0003e00".
-    // 3c must be encrypt (metadata)
-    return "a003e00.virtio_mmio";
 }
 
 std::vector<std::string> getVerifiedBootparams(const EmulatorConfig& emulator) {
