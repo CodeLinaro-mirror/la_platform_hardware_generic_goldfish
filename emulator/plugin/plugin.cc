@@ -46,6 +46,7 @@
 #include "goldfish/netsim/netsim_netdev.h"
 #include "goldfish/perfetto/perfetto.h"
 #include "goldfish/perfetto/perfetto_categories.h"
+#include "goldfish/perfetto/qemu_trace_bridge.h"
 #include "goldfish/tools/aemu_version.h"
 #include "goldfish/vsock/vsock_low_level.h"
 #include "goldfish/vsock/vsock_port_fwd.h"
@@ -219,23 +220,14 @@ extern "C" void GF_REGISTER_TYPES_FUNC(void) {
 #if defined(CONFIG_TRACE_GOLDFISH)
 static std::unique_ptr<goldfish::perfetto::EmulatorTracingSession> sTracingSession;
 
-static void OnQemuGoldfishTrace(const GoldfishTraceData* data) {
-    if (!data) return;
-    if (data->type == GOLDFISH_TRACE_EVENT_START) {
-        TRACE_EVENT_BEGIN("qemu", perfetto::StaticString{data->name});
-    } else if (data->type == GOLDFISH_TRACE_EVENT_END) {
-        TRACE_EVENT_END("qemu");
-    }
-}
-
 static void start_tracing() {
     goldfish::perfetto::Initialize();
-    qemu_goldfish_set_trace_callback(OnQemuGoldfishTrace);
 
     const std::string trace_path =
             System::Get()->GetEnvironmentVariable("ANDROID_EMU_PERFETTO_TRACE");
     if (!trace_path.empty()) {
         LOG(INFO) << "Starting Perfetto tracing session to: " << trace_path;
+        qemu_goldfish_set_trace_callback(&goldfish::perfetto::OnQemuGoldfishTrace);
         sTracingSession = std::make_unique<goldfish::perfetto::EmulatorTracingSession>(
                 trace_path, "qemu,rendering,grpc,display,async");
     }
@@ -244,6 +236,7 @@ static void start_tracing() {
 static void stop_tracing() {
     if (sTracingSession) {
         LOG(INFO) << "Stopping Perfetto tracing session";
+        qemu_goldfish_set_trace_callback(nullptr);
         sTracingSession->Stop();
         sTracingSession.reset();
     }

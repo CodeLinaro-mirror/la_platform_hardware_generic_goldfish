@@ -34,6 +34,7 @@
 #include "goldfish/async/event_loop.h"
 #include "goldfish/async/scoped_async_timer.h"
 #include "goldfish/async/uv_to_absl.h"
+#include "goldfish/perfetto/perfetto_categories.h"
 #include "uv.h"
 
 namespace goldfish::async {
@@ -428,6 +429,7 @@ void LibuvEventLoopImpl::ProcessTasks() {
     }
 
     const size_t num_tasks_to_process = tasks.size();
+    TRACE_EVENT("async", "LibuvEventLoop::ProcessTasks", "batch_size", num_tasks_to_process);
 
     while (!tasks.empty()) {
         FlowId flow_id = tasks.front().flow_id;
