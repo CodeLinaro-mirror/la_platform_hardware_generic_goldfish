@@ -255,7 +255,6 @@ TEST_F(InputPathsTest, ResolveEmulatorPaths) {
 
     WriteToFile(launcher_dir / "bin" / ("qemu-system-x86_64" + suffix), "");
     WriteToFile(launcher_dir / "bin" / ("qemu-system-aarch64" + suffix), "");
-    WriteToFile(launcher_dir / "bin" / ("qemu-img" + suffix), "");
     WriteToFile(launcher_dir / "bin" / ("netsimd" + suffix), "");
     WriteToFile(launcher_dir / "bin" / ("crashpad_handler" + suffix), "");
 
@@ -290,7 +289,6 @@ TEST_F(InputPathsTest, ResolveEmulatorPathsWithFishtank) {
 
     WriteToFile(launcher_dir / "bin" / ("qemu-system-x86_64" + suffix), "");
     WriteToFile(launcher_dir / "bin" / ("qemu-system-aarch64" + suffix), "");
-    WriteToFile(launcher_dir / "bin" / ("qemu-img" + suffix), "");
     WriteToFile(launcher_dir / "bin" / ("netsimd" + suffix), "");
     WriteToFile(launcher_dir / "bin" / ("crashpad_handler" + suffix), "");
     WriteToFile(launcher_dir / "fishtank" / ("fishtank" + suffix), "mock_executable_bytes");
@@ -322,7 +320,6 @@ TEST_F(InputPathsTest, ResolveEmulatorPathsWithZeroByteFishtank) {
 
     WriteToFile(launcher_dir / "bin" / ("qemu-system-x86_64" + suffix), "");
     WriteToFile(launcher_dir / "bin" / ("qemu-system-aarch64" + suffix), "");
-    WriteToFile(launcher_dir / "bin" / ("qemu-img" + suffix), "");
     WriteToFile(launcher_dir / "bin" / ("netsimd" + suffix), "");
     WriteToFile(launcher_dir / "bin" / ("crashpad_handler" + suffix), "");
     // Zero-byte placeholder as created by AOSP empty.zip

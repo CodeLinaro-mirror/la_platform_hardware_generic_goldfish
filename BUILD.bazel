@@ -21,9 +21,7 @@ PERF_TESTS = [
 # when indexing files.
 # Obtained throug:
 # bazel query -k 'kind(cc_binary, @qemu//...)'  |  sed 's/.*/    "&",/'
-QEMU = [
-    "@qemu//:qemu-img",
-] + select({
+QEMU = select({
     "@platforms//os:linux": [
         "@qemu//:qemu-system-x86_64",
     ],

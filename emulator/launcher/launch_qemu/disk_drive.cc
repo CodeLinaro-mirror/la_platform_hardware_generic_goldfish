@@ -15,23 +15,19 @@
 
 #include "disk_drive.h"
 
-#include <chrono>
 #include <filesystem>
-#include <fstream>
 #include <string_view>
 
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
-#include "absl/strings/str_format.h"
-#include "absl/time/time.h"
 
 #include "android/goldfish/avd.h"
 #include "android/goldfish/hardware_config.h"
-#include "android/process/command.h"
 #include "android/status/status_macros.h"
 #include "goldfish/file/file.h"
 #include "goldfish/fsimage/ext4.h"
+#include "goldfish/fsimage/qcow2.h"
 
 namespace android::goldfish {
 
@@ -48,57 +44,6 @@ std::string getDeviceParam(const Avd& avd, std::string_view diskId, std::string_
     default:
         return {};
     }
-}
-
-bool pathIsQcow2(fs::path path) {
-    // read 4 bytes
-    uint8_t magic[4] = {'\0'};
-    std::ifstream ifs(path, std::ios_base::binary);
-    if (!ifs.good()) {
-        return false;
-    }
-    ifs.read(reinterpret_cast<char*>(magic), sizeof(magic));
-
-    bool matched4bytes = false;
-    if (magic[0] == 'Q' && magic[1] == 'F' && magic[2] == 'I' &&
-        magic[3] == static_cast<uint8_t>('\xfb')) {
-        matched4bytes = true;
-    }
-
-    return matched4bytes;
-}
-
-absl::Status convertImgToQcow2(const fs::path& qemu_img_binary, fs::path ext4_image,
-                               fs::path qcow2_image) {
-    constexpr absl::Duration kQemuImgTimeout = absl::Seconds(10);
-
-    if (!base::file::exists(ext4_image)) {
-        return absl::NotFoundError(
-                absl::StrFormat("The path: %s does not exist.", ext4_image.string()));
-    }
-
-    auto startTime = std::chrono::steady_clock::now();
-
-    RETURN_IF_ERROR(base::Command::LaunchAndCapture(
-                            qemu_img_binary.empty() ? "qemu-img" : qemu_img_binary,
-                            {"convert", "-O", "qcow2", ext4_image.string(), qcow2_image.string()},
-                            kQemuImgTimeout)
-                            .status());
-    if (!base::file::exists(qcow2_image)) {
-        return absl::NotFoundError(absl::StrCat("The requested qcow2 file has not been created: ",
-                                                qcow2_image.string()));
-    }
-    if (!pathIsQcow2(qcow2_image)) {
-        return absl::DataLossError(
-                absl::StrFormat("The created file %s is not in qcow2 format", qcow2_image));
-    }
-
-    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
-            std::chrono::steady_clock::now() - startTime);
-    long long timeUsedMs = (long long)elapsed.count();
-    VLOG(1) << "Converted ext4->qcow2 " << ext4_image << " to " << qcow2_image << " in "
-            << timeUsedMs << " milliseconds.";
-    return absl::OkStatus();
 }
 
 }  // namespace
@@ -138,17 +83,16 @@ std::vector<std::string> Qcow2Drive::getQemuParameters(const EmulatorConfig& emu
                 ",overlap-check=none,cache.direct=off,cache.no-flush=on,l2-cache-size=1048576")};
 }
 
-absl::Status Qcow2Drive::MakeQcow2(const EmulatorConfig& emulator) const {
+absl::Status Qcow2Drive::MakeQcow2() const {
     if (!base::file::exists(qcow2_image_)) {
-        return convertImgToQcow2(emulator.emulator_paths().qemu_img_binary, backing_image_,
-                                 qcow2_image_);
+        return ::goldfish::fsimage::CreateQcow2Overlay(qcow2_image_, backing_image_);
     }
 
     return absl::OkStatus();
 }
 
 absl::Status WritableImgDrive::initialize(const EmulatorConfig& emulator) {
-    return MakeQcow2(emulator);
+    return MakeQcow2();
 }
 
 absl::Status BlankWritableDrive::initialize(const EmulatorConfig& emulator) {
@@ -161,7 +105,7 @@ absl::Status BlankWritableDrive::initialize(const EmulatorConfig& emulator) {
                 ::goldfish::fsimage::CreateEmptyExt4Image(backing_image_, size_bytes_, id()));
     }
 
-    return MakeQcow2(emulator);
+    return MakeQcow2();
 }
 
 absl::Status WritableDirectoryDrive::initialize(const EmulatorConfig& emulator) {
@@ -175,7 +119,7 @@ absl::Status WritableDirectoryDrive::initialize(const EmulatorConfig& emulator) 
                                                                     size_bytes_, id()));
     }
 
-    return MakeQcow2(emulator);
+    return MakeQcow2();
 }
 
 }  // namespace android::goldfish

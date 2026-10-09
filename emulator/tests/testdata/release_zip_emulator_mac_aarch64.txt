@@ -7,7 +7,6 @@ emulator/bin/crashreport
 emulator/bin/img2simg
 emulator/bin/netsim
 emulator/bin/netsimd
-emulator/bin/qemu-img
 emulator/bin/qemu-system-aarch64
 emulator/bin/qemu-system-x86_64
 emulator/data/

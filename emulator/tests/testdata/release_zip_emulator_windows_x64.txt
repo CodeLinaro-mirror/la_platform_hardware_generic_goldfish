@@ -5,7 +5,6 @@ emulator/bin/crashreport.exe
 emulator/bin/img2simg.exe
 emulator/bin/netsim.exe
 emulator/bin/netsimd.exe
-emulator/bin/qemu-img.exe
 emulator/bin/qemu-system-aarch64.exe
 emulator/bin/qemu-system-x86_64.exe
 emulator/data/

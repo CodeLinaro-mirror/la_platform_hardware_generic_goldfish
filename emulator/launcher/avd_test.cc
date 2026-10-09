@@ -618,7 +618,7 @@ TEST_F(AvdTest, ListSnapshotsWithInspector) {
 
     ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(opts_, paths_, "snap_avd2", false, {}, {}));
     auto mock_inspector = [](const fs::path& p) -> std::string {
-        return "mock qemu-img info for " + p.filename().string();
+        return "mock image info for " + p.filename().string();
     };
     auto snaps = avd->ListSnapshots(mock_inspector);
     ASSERT_EQ(snaps.size(), 2);
@@ -627,7 +627,7 @@ TEST_F(AvdTest, ListSnapshotsWithInspector) {
     EXPECT_THAT(snaps[0].image_info, ::testing::HasSubstr("Image [ram.qcow2]"));
     EXPECT_EQ(snaps[1].name, "Disk Image: userdata.img.qcow2");
     EXPECT_THAT(snaps[1].image_info,
-                ::testing::HasSubstr("mock qemu-img info for userdata.img.qcow2"));
+                ::testing::HasSubstr("mock image info for userdata.img.qcow2"));
 }
 
 }  // namespace android::goldfish::avd
