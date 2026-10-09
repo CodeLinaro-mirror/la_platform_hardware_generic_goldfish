@@ -21,7 +21,7 @@
 
 #include "android/emulation/control/keyboard/key_conversion.h"
 #include "dom_key.h"
-#include "emulator_controller.grpc.pb.h"
+#include "emulator_controller.pb.h"
 #include "goldfish/async/event_loop.h"
 
 extern "C" {
@@ -240,7 +240,11 @@ class KeyEventSenderImpl : public IKeyEventSender {
     KeyEventSenderImpl(QemuConsole* con, EventLoop* qemu_loop) : qemu_loop_(qemu_loop) {
         keyboard_state_ = qkbd_state_init(con);
     }
-    ~KeyEventSenderImpl() { qkbd_state_free(keyboard_state_); }
+    // Queued key events capture keyboard_state_, so it is freed on the loop after them. If the loop
+    // no longer accepts tasks, it is leaked rather than freed under a pending event.
+    ~KeyEventSenderImpl() {
+        qemu_loop_->Post([kbd = keyboard_state_] { qkbd_state_free(kbd); }).IgnoreError();
+    }
 
     void send(const KeyboardEvent request) override { DispatchKeyboardEvent(request); }
 
