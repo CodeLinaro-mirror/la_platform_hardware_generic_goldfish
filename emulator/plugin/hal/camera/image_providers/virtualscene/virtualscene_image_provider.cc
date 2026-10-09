@@ -34,6 +34,7 @@
 #include "goldfish/sensors/physical_model.h"
 #include "libyuv/convert.h"
 #include "libyuv/convert_from_argb.h"
+#include "libyuv/rotate_argb.h"
 #include "libyuv/scale_argb.h"
 
 namespace goldfish::camera_image_providers::virtualscene {
@@ -112,6 +113,34 @@ glm::mat4 VirtualsceneImageProvider::computeViewProjectionMatrix(
     return projection * viewFromWorld;
 }
 
+int VirtualsceneImageProvider::computePostRenderRotation(const VerSceneConfig::Mode sceneMode,
+                                                         const int sceneBaseRotationDegrees,
+                                                         const glm::vec3& accelerometer,
+                                                         const bool isBackFacing) {
+    if (VerSceneConfig::modeSupportsViewRotations(sceneMode)) {
+        return 0;
+    }
+
+    // Coarse device orientation (matching AndroidCoarseOrientation):
+    // 0: Portrait (0 deg), 1: Reverse Landscape (90 deg),
+    // 2: Reverse Portrait (180 deg), 3: Landscape (270 deg).
+    int convertOrientation = 0;
+    if (std::abs(accelerometer.x) <= std::abs(accelerometer.y)) {
+        convertOrientation = (accelerometer.y < 0.0f) ? 2 : 0;
+    } else {
+        convertOrientation = (accelerometer.x < 0.0f) ? 1 : 3;
+    }
+
+    const int deviceSteps =
+            isBackFacing ? (7 - convertOrientation) % 4 : (3 + convertOrientation) % 4;
+    const int sceneSteps = (sceneBaseRotationDegrees / 90) % 4;
+    int rotationSteps = (deviceSteps - sceneSteps) % 4;
+    if (rotationSteps < 0) {
+        rotationSteps += 4;
+    }
+    return rotationSteps * 90;
+}
+
 glm::mat4 VirtualsceneImageProvider::updateViewProjection(const glm::mat4& projection) const {
     glm::vec3 position(0.0f);
     glm::vec3 rotationEulerDegrees(0.0f);
@@ -126,6 +155,23 @@ glm::mat4 VirtualsceneImageProvider::updateViewProjection(const glm::mat4& proje
                     : true;
     return computeViewProjectionMatrix(projection, position, rotationEulerDegrees, mIsBackFacing,
                                        supportsPosition);
+}
+
+int VirtualsceneImageProvider::getPostRenderRotationDegrees() const {
+    if (mScene == VER_INVALID_HANDLE) {
+        return 0;
+    }
+    const VerSceneConfig::Mode sceneMode = ver_scene_get_mode(mScene);
+    if (VerSceneConfig::modeSupportsViewRotations(sceneMode)) {
+        return 0;
+    }
+    glm::vec3 accel(0.0f, 9.81f, 0.0f);
+    if (mPhysicalModel) {
+        size_t measurementId = 0;
+        accel = mPhysicalModel->GetAccelerometer(&measurementId);
+    }
+    const int sceneRotation = ver_scene_get_scene_rotation(mScene);
+    return computePostRenderRotation(sceneMode, sceneRotation, accel, mIsBackFacing);
 }
 
 int VirtualsceneImageProvider::start(const CameraImageProviderStreamConfig* const streamConfigs,
@@ -206,8 +252,12 @@ int VirtualsceneImageProvider::start(const CameraImageProviderStreamConfig* cons
     const glm::mat4 projection = computeProjectionMatrix(roc.size);
     const glm::mat4 viewProj = updateViewProjection(projection);
     ver_render_view_set_view_projection(view, &viewProj[0][0]);
-    if (!ver_render_view_set_dimensions(view, static_cast<int32_t>(roc.size.width),
-                                        static_cast<int32_t>(roc.size.height))) {
+    const int rotationDegrees = getPostRenderRotationDegrees();
+    const bool swapDimensions = (rotationDegrees == 90 || rotationDegrees == 270);
+    const uint16_t viewWidth = swapDimensions ? roc.size.height : roc.size.width;
+    const uint16_t viewHeight = swapDimensions ? roc.size.width : roc.size.height;
+    if (!ver_render_view_set_dimensions(view, static_cast<int32_t>(viewWidth),
+                                        static_cast<int32_t>(viewHeight))) {
         ver_destroy_render_view(view);
         return FAILURE_STR("ver_render_view_set_dimensions", -1);
     }
@@ -227,6 +277,11 @@ int VirtualsceneImageProvider::start(const CameraImageProviderStreamConfig* cons
     CaptureSession captureSession;
     captureSession.captureStreamBuffers = std::move(captureStreamBuffers);
     captureSession.yuvConversionBuffer.resize(maxYuvConversionBufferSize);
+    if (mScene != VER_INVALID_HANDLE &&
+        !VerSceneConfig::modeSupportsViewRotations(ver_scene_get_mode(mScene))) {
+        captureSession.rotatedFramebuffer.resize(static_cast<size_t>(roc.size.width) *
+                                                 static_cast<size_t>(roc.size.height) * 4);
+    }
     captureSession.projection = projection;
     captureSession.view = view;
     captureSession.framebuffer_size = roc.size;
@@ -325,7 +380,7 @@ int VirtualsceneImageProvider::capture(const CameraImageProviderCaptureOpts& /*o
     } else if (mCaptureSession) {
         CaptureSession& session = *mCaptureSession;
         if (!captureImpl(session, sink, sinkOpaque, scis, scisSize,
-                         session.yuvConversionBuffer.data())) {
+                         session.yuvConversionBuffer.data(), session.rotatedFramebuffer.data())) {
             return FAILURE_STR("captureImpl", -1);
         }
 
@@ -339,29 +394,72 @@ bool VirtualsceneImageProvider::captureImpl(const CaptureSession& session,
                                             const CameraImageProviderStreamCaptureSink sink,
                                             void* const sinkOpaque,
                                             const CameraImageProviderStreamCaptureInfo* scis,
-                                            const unsigned scisSize, uint8_t* yuvConversionBuffer) {
+                                            const unsigned scisSize, uint8_t* yuvConversionBuffer,
+                                            uint8_t* rotatedFramebuffer) {
     ver_scene_update(mScene, true);
 
-    if (VerSceneConfig::modeSupportsViewRotations(ver_scene_get_mode(mScene))) {
+    const VerSceneConfig::Mode sceneMode = (mScene != VER_INVALID_HANDLE)
+                                                   ? ver_scene_get_mode(mScene)
+                                                   : VerSceneConfig::Mode::Unknown;
+    int rotationDegrees = 0;
+    if (VerSceneConfig::modeSupportsViewRotations(sceneMode)) {
         const glm::mat4 viewProj = updateViewProjection(session.projection);
         ver_render_view_set_view_projection(session.view, &viewProj[0][0]);
+    } else {
+        rotationDegrees = getPostRenderRotationDegrees();
+    }
+
+    const bool swapDimensions = (rotationDegrees == 90 || rotationDegrees == 270);
+    const uint16_t viewWidth =
+            swapDimensions ? session.framebuffer_size.height : session.framebuffer_size.width;
+    const uint16_t viewHeight =
+            swapDimensions ? session.framebuffer_size.width : session.framebuffer_size.height;
+    if (!ver_render_view_set_dimensions(session.view, static_cast<int32_t>(viewWidth),
+                                        static_cast<int32_t>(viewHeight))) {
+        return FAILURE_STR("ver_render_view_set_dimensions", false);
     }
 
     if (!ver_render_view(mScene, session.view, []() {}, nullptr)) {
         return FAILURE_STR("ver_render_view", false);
     }
 
-    const uint8_t* fbData = nullptr;
+    const uint8_t* rawFbData = nullptr;
     uint64_t fbSize = 0;
-    ver_render_view_get_framebuffer(session.view, &fbData, &fbSize);
+    ver_render_view_get_framebuffer(session.view, &rawFbData, &fbSize);
 
     const uint64_t expectedFbSize = static_cast<uint64_t>(session.framebuffer_size.width) *
                                     static_cast<uint64_t>(session.framebuffer_size.height) * 4;
-    if (!fbData || fbSize < expectedFbSize) {
+    if (!rawFbData || fbSize < expectedFbSize) {
         return FAILURE_STR("ver_render_view_get_framebuffer", false);
     }
 
     const int srcStride = static_cast<int>(session.framebuffer_size.width) * 4;
+    const uint8_t* fbData = rawFbData;
+    if (rotationDegrees != 0) {
+        if (!rotatedFramebuffer) {
+            return FAILURE_STR("!rotatedFramebuffer", false);
+        }
+        libyuv::RotationMode mode = libyuv::kRotate0;
+        switch (rotationDegrees) {
+        case 90:
+            mode = libyuv::kRotate90;
+            break;
+        case 180:
+            mode = libyuv::kRotate180;
+            break;
+        case 270:
+            mode = libyuv::kRotate270;
+            break;
+        default:
+            break;
+        }
+        if (libyuv::ARGBRotate(rawFbData, static_cast<int>(viewWidth) * 4, rotatedFramebuffer,
+                               srcStride, static_cast<int>(viewWidth), static_cast<int>(viewHeight),
+                               mode) != 0) {
+            return FAILURE_STR("ARGBRotate", false);
+        }
+        fbData = rotatedFramebuffer;
+    }
 
     for (unsigned i = 0; i < scisSize; ++i) {
         const CameraImageProviderStreamCaptureInfo& sci = scis[i];

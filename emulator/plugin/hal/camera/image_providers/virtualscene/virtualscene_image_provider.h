@@ -87,11 +87,15 @@ struct VirtualsceneImageProvider {
                                                  const glm::vec3& position,
                                                  const glm::vec3& rotationEulerDegrees,
                                                  bool isBackFacing, bool supportsPosition);
+    static int computePostRenderRotation(VerSceneConfig::Mode sceneMode,
+                                         int sceneBaseRotationDegrees,
+                                         const glm::vec3& accelerometer, bool isBackFacing);
 
   private:
     struct CaptureSession {
         std::vector<CaptureStreamBuffers> captureStreamBuffers;
         std::vector<uint8_t> yuvConversionBuffer;
+        std::vector<uint8_t> rotatedFramebuffer;
         glm::mat4 projection = glm::mat4(1.0f);
         VerRenderViewHandle view = VER_INVALID_HANDLE;
         CameraImageProviderRect framebuffer_size = {};
@@ -99,10 +103,11 @@ struct VirtualsceneImageProvider {
     };
 
     glm::mat4 updateViewProjection(const glm::mat4& projection) const;
+    int getPostRenderRotationDegrees() const;
 
     bool captureImpl(const CaptureSession&, CameraImageProviderStreamCaptureSink, void* sinkOpaque,
                      const CameraImageProviderStreamCaptureInfo* sci, unsigned scin,
-                     uint8_t* yuvConversionBuffer);
+                     uint8_t* yuvConversionBuffer, uint8_t* rotatedFramebuffer);
 
     VerSceneHandle mScene = VER_INVALID_HANDLE;
     const sensors::PhysicalModel* mPhysicalModel = nullptr;
