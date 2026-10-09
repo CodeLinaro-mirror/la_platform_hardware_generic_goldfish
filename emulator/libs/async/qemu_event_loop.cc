@@ -96,24 +96,36 @@ class QemuEventLoopImpl : public goldfish::async::QemuEventLoop {
         }
 
         void Cancel() override {
+            if (cancelled_.exchange(true)) {
+                return;
+            }
             if (event_loop_->IsOnLoopThread()) {
                 DoCancel(false);
-            } else {
-                bool under_bql = false;
-                if (bql_locked()) {
-                    under_bql = true;
-                    bql_unlock();
-                }
+                return;
+            }
+            // If DrainQueue() has not run, AddItselfToActiveTimers() has not executed and will
+            // observe cancelled_ == true.
+            if (!event_loop_->HasDrained()) {
+                return;
+            }
+            bool under_bql = false;
+            if (bql_locked()) {
+                under_bql = true;
+                bql_unlock();
+            }
 
-                event_loop_->PostAndWait([this]() { DoCancel(false); }).IgnoreError();
+            event_loop_->PostAndWait([this]() { DoCancel(false); }).IgnoreError();
 
-                if (under_bql) {
-                    bql_lock();
-                }
+            if (under_bql) {
+                bql_lock();
             }
         }
 
         void Schedule(absl::Duration new_delay, absl::Duration new_interval) override {
+            if (cancelled_.load()) {
+                LOG(ERROR) << "Can't schedule a timer after it has been cancelled";
+                return;
+            }
             event_loop_->PostImmediatelyInternal(
                     [self = shared_from_this(), new_delay_ms = absl::ToInt64Milliseconds(new_delay),
                      new_interval_ms = absl::ToInt64Milliseconds(new_interval)] {
@@ -121,8 +133,6 @@ class QemuEventLoopImpl : public goldfish::async::QemuEventLoop {
                             self->interval_ms_ = new_interval_ms;
                             self->next_t_ = qemu_clock_get_ms(QEMU_CLOCK_VIRTUAL) + new_delay_ms;
                             timer_mod(&self->qemu_timer_handle_, self->next_t_);
-                        } else {
-                            LOG(ERROR) << "Can't schedule a timer after it has been cancelled";
                         }
                     });
         }
@@ -132,20 +142,22 @@ class QemuEventLoopImpl : public goldfish::async::QemuEventLoop {
             DCHECK(event_loop_->IsOnLoopThread())
                     << "DoCancel callback is not called from the event loop";
 
+            cancelled_.store(true);
             if (pinned_) {
                 timer_del(&qemu_timer_handle_);
                 if (!shutting_down) {
                     event_loop_->RemoveActiveTimer(this);
                 }
                 pinned_.reset();  // potentially calls dtor
-            } else {
-                LOG(ERROR) << "Can't cancel a timer after it has been cancelled";
             }
         }
 
         void AddItselfToActiveTimers() {
             // shared_from_this() is not available in the ctor
             event_loop_->PostImmediatelyInternal([self = shared_from_this()]() {
+                if (self->cancelled_.load() || self->event_loop_->is_shutting_down_.load()) {
+                    return;
+                }
                 DCHECK(!self->pinned_);
 
                 timer_init_ms(&self->qemu_timer_handle_, QEMU_CLOCK_VIRTUAL, &OnTimerStatic,
@@ -173,7 +185,7 @@ class QemuEventLoopImpl : public goldfish::async::QemuEventLoop {
 
             if (!task_()) {
                 DoCancel(false);
-            } else if (interval_ms_) {
+            } else if (interval_ms_ && !cancelled_.load()) {
                 // The Qemu Timer API doesn't natively support repeating timers so we have to kick
                 // it off again.
                 constexpr int kStarvingWarning = 3;
@@ -200,6 +212,7 @@ class QemuEventLoopImpl : public goldfish::async::QemuEventLoop {
         const FlowId flow_id_;
         int64_t next_t_ = 0;
         int64_t interval_ms_ = 0;
+        std::atomic<bool> cancelled_{false};
 
         friend QemuEventLoopImpl;
     };
@@ -220,6 +233,7 @@ class QemuEventLoopImpl : public goldfish::async::QemuEventLoop {
     std::future<absl::Status> Shutdown() override;
 
     bool IsOnLoopThread() const override;
+    bool HasDrained() const { return qemu_thread_id_.load() != std::thread::id{}; }
 
     std::shared_ptr<EventLoop::Timer> CreateTimer(RepeatingTask task) override;
 
