@@ -313,9 +313,10 @@ absl::Status CreateQcow2Overlay(const fs::path& qcow2_image, const fs::path& bac
     }
 }
 
-absl::Status CreateQcow2Overlay(const fs::path& qcow2_image, const uint64_t raw_size) {
+absl::Status CreateQcow2Overlay(const fs::path& qcow2_image,
+                                const android::base::StorageCapacity raw_size) {
     using std::string_view_literals::operator""sv;
-    return internal::CreateQcow2Overlay(qcow2_image, ""sv, ""sv, raw_size);
+    return internal::CreateQcow2Overlay(qcow2_image, ""sv, ""sv, raw_size.Bytes());
 }
 
 absl::StatusOr<std::vector<Qcow2Snapshot>> ListQcow2Snapshots(const fs::path& qcow2_path) {

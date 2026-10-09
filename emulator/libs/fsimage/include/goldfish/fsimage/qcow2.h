@@ -22,6 +22,8 @@
 #include "absl/status/statusor.h"
 #include "absl/time/time.h"
 
+#include "goldfish/file/storage_capacity.h"
+
 /*
  * We have our own code to manipulate qcow2 files because bdrv_img_create (libblock)
  * has too many build dependencies and requires complicated runtime initialization.
@@ -49,7 +51,8 @@ struct Qcow2Snapshot {
 bool IsQcow2Path(const fs::path&);
 
 absl::Status CreateQcow2Overlay(const fs::path& qcow2_image, const fs::path& backing_image);
-absl::Status CreateQcow2Overlay(const fs::path& qcow2_image, uint64_t raw_size);
+absl::Status CreateQcow2Overlay(const fs::path& qcow2_image,
+                                android::base::StorageCapacity raw_size);
 
 absl::StatusOr<std::vector<Qcow2Snapshot>> ListQcow2Snapshots(const fs::path& qcow2_path);
 
