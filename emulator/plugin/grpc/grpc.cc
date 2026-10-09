@@ -21,6 +21,7 @@
 #include <system_error>
 #include <type_traits>
 
+#include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/random/random.h"
 #include "absl/strings/escaping.h"
@@ -121,6 +122,7 @@ struct GrpcDev {
 
     GrpcConfig* config;
     Notifier shutdown_notifier;
+    Notifier main_loop_exit_notifier;
 };
 static_assert(std::is_standard_layout_v<GrpcDev>);
 
@@ -401,14 +403,15 @@ std::string ShutdownCauseToString(ShutdownCause cause) {
 }
 #endif
 
-void grpc_shutdown_notify(Notifier* notifier, void* data) {
-    GrpcDev* grpc_device = container_of(notifier, GrpcDev, shutdown_notifier);
+// Runs after the exit snapshot and before qemu_cleanup() tears down QEMU's subsystems, so clients
+// can follow the exit snapshot while no RPC or service outlives the QEMU state it uses. Some
+// services, like the WebRTC switchboard, outlive their RPC streams and release QEMU resources such
+// as audio capture when destroyed. We do not want to do this at program exit either, as we may be
+// holding on to loopers whose threads have likely been destroyed at that point.
+void grpc_main_loop_exit_notify(Notifier* notifier, void* data) {
+    GrpcDev* grpc_device = container_of(notifier, GrpcDev, main_loop_exit_notifier);
     GrpcConfig* config = grpc_device->config;
-    if (!config) {
-        return;
-    }
-    config->advertiser.reset();
-    if (!config->grpc_server) {
+    if (!config || !config->grpc_server) {
         return;
     }
 
@@ -422,11 +425,23 @@ void grpc_shutdown_notify(Notifier* notifier, void* data) {
                   << config->port << ".";
     }
 
+    // RPC handlers and service destructors may need the BQL.
     auto deadline = std::chrono::system_clock::now() + std::chrono::milliseconds(100);
-    {
-        android::goldfish::ScopedVmUnlock unlock;
-        config->grpc_server->Shutdown(deadline);
+    android::goldfish::ScopedVmUnlock unlock;
+    config->grpc_server->Shutdown(deadline);
+    config->grpc_server.reset();
+    config->grpc_services.clear();
+}
+
+// Stops advertising the endpoint so that no new clients discover this emulator. Connected clients
+// are still served while the exit snapshot is saved.
+void grpc_shutdown_notify(Notifier* notifier, void* /*data*/) {
+    GrpcDev* grpc_device = container_of(notifier, GrpcDev, shutdown_notifier);
+    GrpcConfig* config = grpc_device->config;
+    if (!config) {
+        return;
     }
+    config->advertiser.reset();
 }
 
 void grpc_realize(DeviceState* dev, Error** errp) {
@@ -508,25 +523,20 @@ void grpc_realize(DeviceState* dev, Error** errp) {
 
     grpc_device->shutdown_notifier.notify = grpc_shutdown_notify;
     qemu_register_shutdown_notifier(&grpc_device->shutdown_notifier);
+    grpc_device->main_loop_exit_notifier.notify = grpc_main_loop_exit_notify;
+    qemu_register_main_loop_exit_notifier(&grpc_device->main_loop_exit_notifier);
 }
 
 void grpc_unrealize(DeviceState* dev) {
     VLOG(1) << "Finalizing gRPC endpoint";
     GrpcDev* grpc_device = GRPC_DEV(dev);
-    auto* config = grpc_device->config;
 
     notifier_remove(&grpc_device->shutdown_notifier);
+    notifier_remove(&grpc_device->main_loop_exit_notifier);
 
-    if (config->grpc_server) {
-        // Explicitly cleanup resources. We do not want to do this at
-        // program exit as we may be holding on to loopers, which threads
-        // have likely been destroyed at that point.
-        auto deadline = std::chrono::system_clock::now() + std::chrono::milliseconds(500);
-        android::goldfish::ScopedVmUnlock unlock;
-        config->grpc_server->Shutdown(deadline);
-        config->grpc_server.reset();
-        config->grpc_services.clear();
-    }
+    // QEMU only unrealizes this device in qemu_cleanup(), after grpc_main_loop_exit_notify().
+    DCHECK(!grpc_device->config->grpc_server)
+            << "gRPC server must be gone when the main loop exits";
 }
 
 void grpc_set_tls_cer(Object* obj, const char* value, Error** errp) {
