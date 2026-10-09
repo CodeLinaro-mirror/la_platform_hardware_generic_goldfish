@@ -63,6 +63,8 @@ void SetDeviceNameIfSupported(T& avd_info, const std::string& hw_device_name) {
             {"pixel_10_pro", T::PIXEL_10_PRO},
             {"pixel_10_pro_xl", T::PIXEL_10_PRO_XL},
             {"pixel_10_pro_fold", T::PIXEL_10_PRO_FOLD},
+            {"pixel_10a", T::PIXEL_10A},
+            {"pixel_11_pro_fold", T::PIXEL_11_PRO_FOLD},
             {"pixel_fold", T::PIXEL_FOLD},
             {"pixel_tablet", T::PIXEL_TABLET},
             {"automotive_1024p_landscape", T::AUTOMOTIVE_1024P_LANDSCAPE},
@@ -88,6 +90,7 @@ void SetDeviceNameIfSupported(T& avd_info, const std::string& hw_device_name) {
             {"xr_headset_device", T::XR_HEADSET_DEVICE},
             {"xr_glasses_device", T::XR_GLASSES_DEVICE},
             {"ai_glasses_device", T::AI_GLASSES_DEVICE},
+            {"ai_glasses_displayless", T::AI_GLASSES_AUDIO_DEVICE},
         });
         if (auto i = device_name_map.find(hw_device_name); i != device_name_map.end()) {
             avd_info.set_device_name(i->second);

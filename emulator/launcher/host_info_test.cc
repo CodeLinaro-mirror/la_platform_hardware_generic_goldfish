@@ -188,4 +188,24 @@ TEST_F(HostInfoVulkanTest, setVulkanIcdUnknown) {
     EXPECT_EQ(event.emulator_details().vulkan_icd(), android_studio::EmulatorDetails::UNKNOWN_VK);
 }
 
+TEST_F(HostInfoVulkanTest, setDeviceNameMappings) {
+    using android_studio::EmulatorAvdInfo;
+    const std::pair<std::string, EmulatorAvdInfo::EmulatorDeviceName> kTestCases[] = {
+        {"pixel_10a", EmulatorAvdInfo::PIXEL_10A},
+        {"pixel_11_pro_fold", EmulatorAvdInfo::PIXEL_11_PRO_FOLD},
+        {"ai_glasses_device", EmulatorAvdInfo::AI_GLASSES_DEVICE},
+        {"ai_glasses_displayless", EmulatorAvdInfo::AI_GLASSES_AUDIO_DEVICE},
+        {"non_existent_device", EmulatorAvdInfo::UNKNOWN_EMULATOR_DEVICE_NAME},
+    };
+
+    for (const auto& [hw_device_name, expected_device_name] : kTestCases) {
+        hw_config_.hw_device_name = hw_device_name;
+        android_studio::AndroidStudioEvent event;
+        FillEmulatorHostEvent(event, avd_, 1234, 5678, true, false, "");
+
+        EXPECT_EQ(event.emulator_details().avd_info().device_name(), expected_device_name)
+                << "Failed for hw_device_name: " << hw_device_name;
+    }
+}
+
 }  // namespace android::goldfish
