@@ -30,7 +30,7 @@ cc_library(
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
-        "@aemu//protos/services/emulator-controller:emulator_controller_cc_grpc",
+        "@aemu//protos/services/emulator-controller:emulator_controller_cc_proto",
         "@qemu//:qemu-headers-exported",
     ],
 )
@@ -55,6 +55,21 @@ cc_test(
     ],
 )
 
+# Defines its own recording QEMU input stubs, so it must not link :test_qemu_input_stub.
+cc_test(
+    name = "key_event_sender_unittests",
+    size = "small",
+    srcs = ["key_event_sender_test.cc"],
+    deps = [
+        ":keyboard",
+        ":keyconversion",
+        "//emulator/libs/async:async_testing",
+        "//emulator/libs/test:googletest_main",
+        "@aemu//protos/services/emulator-controller:emulator_controller_cc_proto",
+        "@qemu//:qemu-headers-exported",
+    ],
+)
+
 clang_tidy_test(
     name = "tidy",
     targets = [
@@ -62,6 +77,7 @@ clang_tidy_test(
         ":keyboard",
         ":test_qemu_input_stub",
         ":keyboard_unittests",
+        ":key_event_sender_unittests",
     ],
     tidy_config_file = "//:clang_tidy_config",
 )
