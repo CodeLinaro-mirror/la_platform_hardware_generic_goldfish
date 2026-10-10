@@ -22,8 +22,11 @@
 
 #include "absl/base/thread_annotations.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/functional/function_ref.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/synchronization/mutex.h"
+#include "absl/time/time.h"
 #include "google/longrunning/operations.grpc.pb.h"
 #include "google/protobuf/message.h"
 #include "grpcpp/grpcpp.h"
@@ -106,6 +109,20 @@ class OperationsServiceImpl final : public ::google::longrunning::Operations::Se
             std::string_view name, const absl::Status& status,
             const ::google::protobuf::Message* final_metadata = nullptr)
             ABSL_LOCKS_EXCLUDED(operations_mutex_);
+
+    /**
+     * Blocks until the operation is done, deleted, `deadline` passes, or `is_cancelled` returns
+     * true. `is_cancelled` is polled every `kCancellationPollInterval`, since an external
+     * cancellation (e.g. a disconnected gRPC client) does not signal `operations_mutex_`.
+     *
+     * @return The operation's latest state (possibly still in-flight on deadline), NotFound if
+     * it does not exist or was deleted while waiting, or Cancelled if `is_cancelled` fired.
+     */
+    absl::StatusOr<::google::longrunning::Operation> WaitForOperation(
+            std::string_view name, absl::Time deadline, absl::FunctionRef<bool()> is_cancelled)
+            ABSL_LOCKS_EXCLUDED(operations_mutex_);
+
+    static constexpr absl::Duration kCancellationPollInterval = absl::Milliseconds(100);
 
     ::grpc::Status ListOperations(::grpc::ServerContext* context,
                                   const ::google::longrunning::ListOperationsRequest* request,

@@ -104,6 +104,9 @@ class FakeVmOperations final : public VmOperations {
     }
 
     absl::Status LoadSnapshot(const char* idOrName, bool /*andResume*/) override {
+        if (fail_load_) {
+            return absl::InternalError("Failed to read snapshot from disk");
+        }
         if (!entries_.contains(idOrName)) {
             return absl::NotFoundError("Snapshot does not exist");
         }
@@ -126,6 +129,7 @@ class FakeVmOperations final : public VmOperations {
     }
 
     bool fail_save_ = false;
+    bool fail_load_ = false;
     int reset_count_ = 0;
     int shutdown_count_ = 0;
     EmuRunState run_state_ = EmuRunState::Running;
@@ -337,6 +341,42 @@ TEST_F(HypervisorServiceTest, DeleteSnapshotAndValidationErrors) {
     EXPECT_EQ(
             hypervisor_service_->DeleteSnapshot(&del_ctx, &delete_missing, &del_resp).error_code(),
             StatusCode::NOT_FOUND);
+}
+
+TEST_F(HypervisorServiceTest, CreateSnapshotFailureIsReportedInOperation) {
+    vm_operations_.fail_save_ = true;
+
+    CreateSnapshotRequest req;
+    req.set_snapshot_id("doomed");
+    Operation op;
+    ServerContext ctx;
+    ASSERT_TRUE(hypervisor_service_->CreateSnapshot(&ctx, &req, &op).ok());
+
+    EXPECT_TRUE(op.done());
+    ASSERT_TRUE(op.has_error());
+    EXPECT_EQ(op.error().code(), static_cast<int>(absl::StatusCode::kInternal));
+    EXPECT_FALSE(op.has_response());
+}
+
+TEST_F(HypervisorServiceTest, RestoreSnapshotFailureIsReportedInOperation) {
+    CreateSnapshotRequest create_req;
+    create_req.set_snapshot_id("restorable");
+    Operation create_op;
+    ServerContext create_ctx;
+    ASSERT_TRUE(hypervisor_service_->CreateSnapshot(&create_ctx, &create_req, &create_op).ok());
+
+    vm_operations_.fail_load_ = true;
+
+    RestoreSnapshotRequest restore_req;
+    restore_req.set_snapshot_id("restorable");
+    Operation restore_op;
+    ServerContext restore_ctx;
+    ASSERT_TRUE(hypervisor_service_->RestoreSnapshot(&restore_ctx, &restore_req, &restore_op).ok());
+
+    EXPECT_TRUE(restore_op.done());
+    ASSERT_TRUE(restore_op.has_error());
+    EXPECT_EQ(restore_op.error().code(), static_cast<int>(absl::StatusCode::kInternal));
+    EXPECT_FALSE(restore_op.has_response());
 }
 
 }  // namespace

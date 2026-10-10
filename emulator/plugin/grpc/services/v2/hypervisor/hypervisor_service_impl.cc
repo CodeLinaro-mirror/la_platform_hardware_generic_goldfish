@@ -308,9 +308,11 @@ Status HypervisorServiceImpl::CreateSnapshot(ServerContext* /*context*/,
     const absl::Status save_status =
             vm_operations_.SaveSnapshot(snapshot_id.c_str(), /*overwrite=*/true);
     if (!save_status.ok()) {
+        // The operation is registered, so report the failure through the Operation
+        // (AIP-151). A non-OK gRPC status would cause the response to be discarded.
         *response =
                 operations_service_->FailOperation(started_op.name(), save_status, &initial_meta);
-        return AbslStatusToGrpcStatus(save_status);
+        return Status::OK;
     }
 
     {
@@ -376,7 +378,7 @@ Status HypervisorServiceImpl::RestoreSnapshot(ServerContext* /*context*/,
     if (!load_status.ok()) {
         *response =
                 operations_service_->FailOperation(started_op.name(), load_status, &initial_meta);
-        return AbslStatusToGrpcStatus(load_status);
+        return Status::OK;
     }
 
     Snapshot snapshot_proto;
