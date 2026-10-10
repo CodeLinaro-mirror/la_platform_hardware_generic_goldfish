@@ -54,6 +54,7 @@ struct AvdExtendedUniverse : public AvdUniverse {
     void ShutdownQemuLoop();
     async::EventLoop& GetQemuEventLoop() override;
     metrics::MetricsReporter& GetMetricsReporter() override;
+    android::goldfish::VmOperations& GetVmOperations() override;
     display::IMultiDisplay& GetMultiDisplay() const override;
 
     void OnPreSave() override;
@@ -66,6 +67,7 @@ struct AvdExtendedUniverse : public AvdUniverse {
 
     std::unique_ptr<async::EventLoop> qemu_event_loop;
     std::vector<VCpuEventLoop> qemu_cpu_loops;
+    std::unique_ptr<android::goldfish::VmOperations> vm_operations;
 
     std::unique_ptr<display::IMultiDisplay> multi_display;
     display::IMultiDisplay::ScopedRotationSubscription display_rotation_subscription;

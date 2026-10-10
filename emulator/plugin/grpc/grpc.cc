@@ -133,7 +133,7 @@ std::vector<std::shared_ptr<::grpc::Service>> CreateServices(avd::AvdUniverse& a
                                                              int modem_simulator_port) {
     std::vector<std::shared_ptr<::grpc::Service>> services;
 
-    auto* vm_operations = VmOperations::qemuVmOperations();
+    auto* vm_operations = &avd_universe.GetVmOperations();
 
     services.emplace_back(::android::emulation::control::getEmulatorController(
             vm_operations, qemu_console_lookup_by_index(0), &avd_universe,

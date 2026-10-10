@@ -59,6 +59,9 @@ class TestAvdUniverse : public ::goldfish::avd::AvdUniverse {
     ::goldfish::metrics::MetricsReporter& GetMetricsReporter() override {
         LOG(FATAL) << "GetMetricsReporter not implemented in tests";
     }
+    ::android::goldfish::VmOperations& GetVmOperations() override {
+        LOG(FATAL) << "GetVmOperations not implemented in tests";
+    }
     ::goldfish::display::IMultiDisplay& GetMultiDisplay() const override { return *multi_display_; }
 
     absl::Status OnSave(::goldfish::archive::IWriter&) const override { return absl::OkStatus(); }

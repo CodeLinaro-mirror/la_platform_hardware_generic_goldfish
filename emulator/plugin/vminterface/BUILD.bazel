@@ -48,6 +48,8 @@ cc_library(
 cc_library(
     name = "vm_ops",
     srcs = ["qemu_vm_operations.cc"],
+    hdrs = ["include/android/goldfish/qemu_vm_operations.h"],
+    includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
         ":machine_info",
@@ -66,6 +68,8 @@ cc_library(
     name = "vm_ops_with_fake_machine_info",
     testonly = True,
     srcs = ["qemu_vm_operations.cc"],
+    hdrs = ["include/android/goldfish/qemu_vm_operations.h"],
+    includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
         ":fake_machine_info",
