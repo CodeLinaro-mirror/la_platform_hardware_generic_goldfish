@@ -136,6 +136,22 @@ TEST(SocketBuffer, release_large_buffer) {
     EXPECT_EQ(buffer.Capacity(), 0);
 }
 
+TEST(SocketBuffer, retains_capacity_across_high_watermark_burst_drain) {
+    SocketBuffer buffer;
+    constexpr size_t kEightMiBBurst = 8U << 20;
+    std::vector<char> data(kEightMiBBurst, 'X');
+
+    EXPECT_EQ(buffer.Append(data.data(), data.size()), data.size());
+    const size_t burst_capacity = buffer.Capacity();
+    EXPECT_GE(burst_capacity, kEightMiBBurst);
+
+    EXPECT_EQ(buffer.Consume(kEightMiBBurst), 0U);
+    EXPECT_EQ(buffer.Size(), 0U);
+    // Normal backpressure bursts up to 8 MiB must retain their backing buffer
+    // across drains to avoid repeated multi-megabyte reallocations.
+    EXPECT_EQ(buffer.Capacity(), burst_capacity);
+}
+
 TEST(SocketBuffer, snapshot) {
     DequeArchive archive;
 
