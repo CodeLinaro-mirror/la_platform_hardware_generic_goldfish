@@ -137,8 +137,11 @@ Status HypervisorServiceImpl::GetVmState(ServerContext* /*context*/,
 
 ServerWriteReactor<VmState>* HypervisorServiceImpl::StreamVmState(
         CallbackServerContext* /*context*/, const StreamVmStateRequest* /*request*/) {
-    return new StateStreamWriter<VmState, EmuRunState, VmOperations>(
-            &vm_operations_, [this](VmState* state) { PopulateVmState(state); });
+    // The writer keeps a raw pointer to the source. That is safe because the main-loop exit hook
+    // destroys the gRPC server, and with it every writer, before qemu_cleanup() destroys the AVD
+    // universe that owns VmOperations.
+    return new StateStreamWriter<VmState, EmuRunState, VmOperations::RunStateSource>(
+            &vm_operations_.RunStateEvents(), [this](VmState* state) { PopulateVmState(state); });
 }
 
 Status HypervisorServiceImpl::PauseVm(ServerContext* /*context*/, const PauseVmRequest* /*request*/,

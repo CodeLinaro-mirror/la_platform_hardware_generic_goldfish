@@ -26,6 +26,7 @@
 #include "absl/time/time.h"
 
 #include "android/goldfish/vm_interface.h"
+#include "goldfish/async/testing/test_event_loop.h"
 #include "hypervisor_service.pb.h"
 #include "operations/operations_service_impl.h"
 
@@ -57,6 +58,7 @@ using ::android::goldfish::QemuShutdownCause;
 using ::android::goldfish::VmConfiguration;
 using ::android::goldfish::VmHypervisorType;
 using ::android::goldfish::VmOperations;
+using ::goldfish::async::testing::TestEventLoop;
 using ::google::longrunning::GetOperationRequest;
 using ::google::longrunning::Operation;
 using ::grpc::ServerContext;
@@ -65,6 +67,8 @@ using ::grpc::StatusCode;
 
 class FakeVmOperations final : public VmOperations {
   public:
+    explicit FakeVmOperations(::goldfish::async::EventLoop* loop) : VmOperations(loop) {}
+
     bool stop() override { return true; }
     bool start() override { return true; }
     void reset() override {
@@ -145,7 +149,8 @@ class HypervisorServiceTest : public ::testing::Test {
                 std::make_unique<HypervisorServiceImpl>(vm_operations_, operations_service_);
     }
 
-    FakeVmOperations vm_operations_;
+    const std::unique_ptr<TestEventLoop> loop_ = TestEventLoop::Create();
+    FakeVmOperations vm_operations_{loop_.get()};
     std::shared_ptr<OperationsServiceImpl> operations_service_;
     std::unique_ptr<HypervisorServiceImpl> hypervisor_service_;
 };

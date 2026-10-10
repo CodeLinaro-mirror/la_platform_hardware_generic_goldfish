@@ -18,10 +18,12 @@
 #include <array>
 #include <memory>
 #include <string_view>
+#include <vector>
 
 #include "android/goldfish/qemu_vm_operations.h"
 #include "android/goldfish/vm_interface.h"
 #include "emulator/plugin/vminterface/test/test_vm_lock.h"
+#include "goldfish/async/testing/test_event_loop.h"
 
 extern "C" {
 #include "emulator/plugin/vminterface/test/vm_mock.h"
@@ -30,6 +32,10 @@ extern "C" {
 
 namespace android {
 namespace goldfish {
+
+using ::goldfish::async::testing::TestEventLoop;
+using ::testing::ElementsAre;
+using ::testing::IsEmpty;
 
 class QemuVmOperationsTest : public ::testing::Test {
   protected:
@@ -45,7 +51,7 @@ class QemuVmOperationsTest : public ::testing::Test {
 
         ASSERT_TRUE(VmLock::HasInstance());
 
-        vm_ops_ = CreateQemuVmOperations();
+        vm_ops_ = CreateQemuVmOperations(loop_.get());
         // Construction registers QEMU handlers under the VM lock; tests only
         // count the locking done by the operation under test.
         test_vm_lock_->lock_count_ = 0;
@@ -63,6 +69,8 @@ class QemuVmOperationsTest : public ::testing::Test {
 
     TestVmLock* test_vm_lock_ = nullptr;
     VmLock* old_lock_ = nullptr;
+    // Declared before vm_ops_, so it outlives the VmOperations that posts to it.
+    const std::unique_ptr<TestEventLoop> loop_ = TestEventLoop::Create();
     std::unique_ptr<VmOperations> vm_ops_;
 };
 
@@ -149,17 +157,20 @@ TEST_F(QemuVmOperationsTest, SystemShutdownRequest) {
 
 TEST_F(QemuVmOperationsTest, RunStateChangeCallback) {
     std::vector<EmuRunState> received_states;
-    auto id = vm_ops_->AddCallback([&](EmuRunState state) { received_states.push_back(state); });
+    auto& events = vm_ops_->RunStateEvents();
+    auto id = events.AddCallback([&](EmuRunState state) { received_states.push_back(state); });
 
     mock_fire_vm_change_state(true, RUN_STATE_RUNNING);
     mock_fire_vm_change_state(false, RUN_STATE_PAUSED);
+    loop_->RunAll();
 
     ASSERT_EQ(received_states.size(), 2);
     EXPECT_EQ(received_states[0], EmuRunState::Running);
     EXPECT_EQ(received_states[1], EmuRunState::Paused);
 
-    vm_ops_->RemoveCallback(id);
+    events.RemoveCallback(id);
     mock_fire_vm_change_state(true, RUN_STATE_RUNNING);
+    loop_->RunAll();
     EXPECT_EQ(received_states.size(), 2);
 }
 
@@ -167,15 +178,76 @@ TEST_F(QemuVmOperationsTest, RunStateChangeScopedCallback) {
     std::vector<EmuRunState> received_states;
     {
         auto handle = android::base::eventing::MakeScopedCallback(
-                *vm_ops_, [&](EmuRunState state) { received_states.push_back(state); });
+                vm_ops_->RunStateEvents(),
+                [&](EmuRunState state) { received_states.push_back(state); });
 
         mock_fire_vm_change_state(true, RUN_STATE_RUNNING);
+        loop_->RunAll();
         EXPECT_EQ(received_states.size(), 1);
         EXPECT_EQ(received_states[0], EmuRunState::Running);
     }
     // Handle went out of scope, callback should be automatically unregistered.
     mock_fire_vm_change_state(false, RUN_STATE_PAUSED);
+    loop_->RunAll();
     EXPECT_EQ(received_states.size(), 1);
+}
+
+TEST_F(QemuVmOperationsTest, RunStateEventsAreDeliveredOnTheLoop) {
+    std::vector<EmuRunState> received_states;
+    bool delivered_on_loop = false;
+    auto handle = android::base::eventing::MakeScopedCallback(
+            vm_ops_->RunStateEvents(), [&](EmuRunState state) {
+                delivered_on_loop = loop_->IsOnLoopThread();
+                received_states.push_back(state);
+            });
+
+    mock_fire_vm_change_state(true, RUN_STATE_RUNNING);
+    // The thread that changed the run state holds the BQL, so subscribers must not run on it.
+    EXPECT_THAT(received_states, IsEmpty());
+
+    loop_->RunAll();
+    EXPECT_THAT(received_states, ElementsAre(EmuRunState::Running));
+    EXPECT_TRUE(delivered_on_loop);
+}
+
+TEST_F(QemuVmOperationsTest, CallbackRemovedWhileItsEventIsQueuedIsNotCalled) {
+    std::vector<EmuRunState> received_states;
+    {
+        auto handle = android::base::eventing::MakeScopedCallback(
+                vm_ops_->RunStateEvents(),
+                [&](EmuRunState state) { received_states.push_back(state); });
+        mock_fire_vm_change_state(true, RUN_STATE_RUNNING);
+        // The handle goes away while its event is still queued on the loop.
+    }
+    loop_->RunAll();
+
+    EXPECT_THAT(received_states, IsEmpty());
+}
+
+TEST_F(QemuVmOperationsTest, EventsQueuedWhenVmOperationsIsDestroyedAreDropped) {
+    std::vector<EmuRunState> received_states;
+    vm_ops_->RunStateEvents().AddCallback(
+            [&](EmuRunState state) { received_states.push_back(state); });
+    mock_fire_vm_change_state(true, RUN_STATE_RUNNING);
+
+    vm_ops_.reset();
+    loop_->RunAll();
+
+    EXPECT_THAT(received_states, IsEmpty());
+}
+
+using QemuVmOperationsDeathTest = QemuVmOperationsTest;
+
+TEST_F(QemuVmOperationsDeathTest, RunStateChangeOnTheLoopThreadDies) {
+    GTEST_FLAG_SET(death_test_style, "threadsafe");
+    auto change_run_state = [] { mock_fire_vm_change_state(true, RUN_STATE_RUNNING); };
+    // On the loop thread the subscribers would run inline, under the BQL.
+    EXPECT_DEBUG_DEATH(
+            {
+                loop_->Post(change_run_state).IgnoreError();
+                loop_->RunAll();
+            },
+            "event loop thread");
 }
 
 TEST_F(QemuVmOperationsTest, DestructorUnregistersRunStateHandler) {

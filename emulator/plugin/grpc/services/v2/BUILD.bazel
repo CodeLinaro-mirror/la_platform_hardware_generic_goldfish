@@ -250,6 +250,7 @@ cc_test(
     deps = [
         ":hypervisor_service",
         ":operations_service",
+        "//emulator/libs/async:async_testing",
         "//emulator/libs/test:googletest_main",
         "//emulator/plugin/vminterface",
         "@@googleapis+//google/longrunning:longrunning_cc_grpc",

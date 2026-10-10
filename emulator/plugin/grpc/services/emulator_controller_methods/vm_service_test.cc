@@ -18,11 +18,13 @@
 #include <gtest/gtest.h>
 
 #include <memory>
+#include <utility>
 
 #include "gtest/gtest.h"
 
 #include "android/goldfish/vm_interface.h"
 #include "emulator_controller.grpc.pb.h"
+#include "goldfish/async/testing/test_event_loop.h"
 #include "test/grpc_service_test.h"
 
 namespace android {
@@ -34,6 +36,7 @@ using ::android::goldfish::QemuShutdownCause;
 using GoldfishVmConfiguration = ::android::goldfish::VmConfiguration;
 using ::android::goldfish::VmHypervisorType;
 using ::android::goldfish::VmOperations;
+using ::goldfish::async::testing::TestEventLoop;
 using ::grpc::ServerContext;
 using ::grpc::Status;
 using ::testing::_;
@@ -44,6 +47,9 @@ using ::testing::SetArgPointee;
 // Mock VmOperations for testing
 class MockVmOperations : public VmOperations {
   public:
+    explicit MockVmOperations(std::unique_ptr<TestEventLoop> loop = TestEventLoop::Create())
+            : VmOperations(loop.get()), loop_(std::move(loop)) {}
+
     MOCK_METHOD(bool, stop, (), (override));
     MOCK_METHOD(bool, start, (), (override));
     MOCK_METHOD(void, reset, (), (override));
@@ -55,10 +61,13 @@ class MockVmOperations : public VmOperations {
     MOCK_METHOD(EmuRunState, getRunState, (), (override));
     MOCK_METHOD(void, systemShutdownRequest, (QemuShutdownCause reason), (override));
     MOCK_METHOD(absl::Status, SaveSnapshot, (const char* name, bool overwrite), (override));
-    MOCK_METHOD(absl::Status, LoadSnapshot, (const char* idOrName, bool andRun), (override));
+    MOCK_METHOD(absl::Status, LoadSnapshot, (const char* id_or_name, bool and_run), (override));
     MOCK_METHOD(void, LoadSnapshotResume, (EmuRunState), (override));
-    MOCK_METHOD(absl::Status, DeleteSnapshot, (const char* idOrName), (override));
+    MOCK_METHOD(absl::Status, DeleteSnapshot, (const char* id_or_name), (override));
     MOCK_METHOD(absl::Status, ListSnapshots, (SnapshotEntrySink), (override));
+
+  private:
+    const std::unique_ptr<TestEventLoop> loop_;
 };
 
 struct VmServiceTest : public ::testing::Test {
