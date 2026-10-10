@@ -48,4 +48,7 @@ void mock_fire_vm_change_state(bool running, RunState state);
 // Whether a VM change state handler is currently registered
 bool mock_has_vm_change_state_handler(void);
 
+// Setter for the return value of vm_stop()
+void mock_vm_stop_return_set(int ret);
+
 __END_DECLS

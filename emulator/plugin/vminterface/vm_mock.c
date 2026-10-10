@@ -54,8 +54,19 @@ void mock_iothread_locked_set(bool locked) {
 
 // Implementations of the mock functions
 
+static int mock_vm_stop_return = 0;
+
+void mock_vm_stop_return_set(int ret) {
+    mock_vm_stop_return = ret;
+}
+
 int vm_stop(RunState state) {
-    mock_runstate_set(state);
+    if (mock_vm_stop_return != 0) {
+        return mock_vm_stop_return;
+    }
+    if (runstate_get_value == RUN_STATE_RUNNING || runstate_get_value == RUN_STATE_SUSPENDED) {
+        mock_runstate_set(state);
+    }
     return 0;
 }
 

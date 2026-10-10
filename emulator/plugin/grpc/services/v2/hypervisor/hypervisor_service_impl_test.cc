@@ -20,12 +20,11 @@
 #include <string>
 #include <vector>
 
-#include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/strings/match.h"
-#include "absl/time/time.h"
 
 #include "android/goldfish/vm_interface.h"
+#include "fake_vm_operations.h"
 #include "goldfish/async/testing/test_event_loop.h"
 #include "hypervisor_service.pb.h"
 #include "operations/operations_service_impl.h"
@@ -39,6 +38,7 @@ using ::android::emulation::v2::DeleteSnapshotResponse;
 using ::android::emulation::v2::ExportSnapshotRequest;
 using ::android::emulation::v2::GetSnapshotRequest;
 using ::android::emulation::v2::GetVmStateRequest;
+using ::android::emulation::v2::HardResetVmRequest;
 using ::android::emulation::v2::ImportSnapshotRequest;
 using ::android::emulation::v2::ListSnapshotsRequest;
 using ::android::emulation::v2::ListSnapshotsResponse;
@@ -54,96 +54,13 @@ using ::android::emulation::v2::StopVmRequest;
 using ::android::emulation::v2::UpdateSnapshotRequest;
 using ::android::emulation::v2::VmState;
 using ::android::goldfish::EmuRunState;
-using ::android::goldfish::QemuShutdownCause;
-using ::android::goldfish::VmConfiguration;
-using ::android::goldfish::VmHypervisorType;
-using ::android::goldfish::VmOperations;
+using ::android::goldfish::FakeVmOperations;
 using ::goldfish::async::testing::TestEventLoop;
 using ::google::longrunning::GetOperationRequest;
 using ::google::longrunning::Operation;
 using ::grpc::ServerContext;
 using ::grpc::Status;
 using ::grpc::StatusCode;
-
-class FakeVmOperations final : public VmOperations {
-  public:
-    explicit FakeVmOperations(::goldfish::async::EventLoop* loop) : VmOperations(loop) {}
-
-    bool Stop() override { return true; }
-    bool Start() override { return true; }
-    void Reset() override {
-        ++reset_count_;
-        run_state_ = EmuRunState::Running;
-    }
-    void Shutdown() override {
-        ++shutdown_count_;
-        run_state_ = EmuRunState::Shutdown;
-    }
-    bool Pause() override {
-        run_state_ = EmuRunState::Paused;
-        return true;
-    }
-    bool Resume() override {
-        run_state_ = EmuRunState::Running;
-        return true;
-    }
-    bool IsRunning() override { return run_state_ == EmuRunState::Running; }
-    VmConfiguration GetConfiguration() override {
-        return {
-            .hypervisor_type = VmHypervisorType::Hvf,
-            .number_of_cpu_cores = 4,
-            .cpu_type = "arm",
-        };
-    }
-    EmuRunState GetRunState() override { return run_state_; }
-    void SystemShutdownRequest(QemuShutdownCause) override {}
-    void LoadSnapshotResume(EmuRunState) override {}
-
-    absl::Status SaveSnapshot(std::string name, bool /*overwrite*/) override {
-        if (fail_save_) {
-            return absl::InternalError("Failed to write snapshot to disk");
-        }
-        entries_[name] = SnapshotEntry{
-            .id = name,
-            .name = name,
-            .timestamp = absl::FromUnixSeconds(1700000000),
-        };
-        return absl::OkStatus();
-    }
-
-    absl::Status LoadSnapshot(std::string id_or_name, bool /*and_resume*/) override {
-        if (fail_load_) {
-            return absl::InternalError("Failed to read snapshot from disk");
-        }
-        if (!entries_.contains(id_or_name)) {
-            return absl::NotFoundError("Snapshot does not exist");
-        }
-        last_loaded_snapshot_ = std::move(id_or_name);
-        return absl::OkStatus();
-    }
-
-    absl::Status DeleteSnapshot(std::string id_or_name) override {
-        if (entries_.erase(id_or_name) == 0) {
-            return absl::NotFoundError("Snapshot does not exist");
-        }
-        return absl::OkStatus();
-    }
-
-    absl::Status ListSnapshots(SnapshotEntrySink sink) override {
-        for (const auto& [id, entry] : entries_) {
-            sink(entry);
-        }
-        return absl::OkStatus();
-    }
-
-    bool fail_save_ = false;
-    bool fail_load_ = false;
-    int reset_count_ = 0;
-    int shutdown_count_ = 0;
-    EmuRunState run_state_ = EmuRunState::Running;
-    std::string last_loaded_snapshot_;
-    absl::flat_hash_map<std::string, SnapshotEntry> entries_;
-};
 
 class HypervisorServiceTest : public ::testing::Test {
   protected:
@@ -172,23 +89,74 @@ TEST_F(HypervisorServiceTest, VmLifecycleStateAndControl) {
     ASSERT_TRUE(hypervisor_service_->PauseVm(&pause_ctx, &pause_req, &state).ok());
     EXPECT_EQ(state.state(), VmState::PAUSED);
 
+    // PauseVm is idempotent when already paused.
+    ServerContext pause_again_ctx;
+    ASSERT_TRUE(hypervisor_service_->PauseVm(&pause_again_ctx, &pause_req, &state).ok());
+    EXPECT_EQ(state.state(), VmState::PAUSED);
+
     ResumeVmRequest resume_req;
     ServerContext resume_ctx;
     ASSERT_TRUE(hypervisor_service_->ResumeVm(&resume_ctx, &resume_req, &state).ok());
     EXPECT_EQ(state.state(), VmState::RUNNING);
 
+    // ResumeVm is idempotent when already running.
+    ServerContext resume_again_ctx;
+    ASSERT_TRUE(hypervisor_service_->ResumeVm(&resume_again_ctx, &resume_req, &state).ok());
+    EXPECT_EQ(state.state(), VmState::RUNNING);
+
     ResetVmRequest reset_req;
     ServerContext reset_ctx;
     ASSERT_TRUE(hypervisor_service_->ResetVm(&reset_ctx, &reset_req, &state).ok());
-    EXPECT_EQ(vm_operations_.reset_count_, 1);
+    EXPECT_EQ(vm_operations_.reset_count, 1);
+    EXPECT_EQ(state.state(), VmState::RUNNING);
+
+    HardResetVmRequest hard_reset_req;
+    ServerContext hard_reset_ctx;
+    ASSERT_TRUE(hypervisor_service_->HardResetVm(&hard_reset_ctx, &hard_reset_req, &state).ok());
+    EXPECT_EQ(vm_operations_.reset_count, 2);
     EXPECT_EQ(state.state(), VmState::RUNNING);
 
     StopVmRequest stop_req;
     stop_req.set_save_quickboot_snapshot(true);
     ServerContext stop_ctx;
     ASSERT_TRUE(hypervisor_service_->StopVm(&stop_ctx, &stop_req, &state).ok());
-    EXPECT_EQ(vm_operations_.shutdown_count_, 1);
+    EXPECT_EQ(vm_operations_.shutdown_count, 1);
     EXPECT_EQ(state.state(), VmState::SHUTTING_DOWN);
+
+    // Once shutting down, PauseVm, ResumeVm, ResetVm, and HardResetVm fail with
+    // FAILED_PRECONDITION and preserve the underlying error message.
+    ServerContext pause_after_stop_ctx;
+    const Status pause_status =
+            hypervisor_service_->PauseVm(&pause_after_stop_ctx, &pause_req, &state);
+    EXPECT_EQ(pause_status.error_code(), StatusCode::FAILED_PRECONDITION);
+    EXPECT_TRUE(absl::StrContains(pause_status.error_message(), "Cannot pause VM"));
+
+    ServerContext resume_after_stop_ctx;
+    const Status resume_status =
+            hypervisor_service_->ResumeVm(&resume_after_stop_ctx, &resume_req, &state);
+    EXPECT_EQ(resume_status.error_code(), StatusCode::FAILED_PRECONDITION);
+    EXPECT_TRUE(absl::StrContains(resume_status.error_message(), "Cannot resume VM"));
+
+    ServerContext reset_after_stop_ctx;
+    const Status reset_status =
+            hypervisor_service_->ResetVm(&reset_after_stop_ctx, &reset_req, &state);
+    EXPECT_EQ(reset_status.error_code(), StatusCode::FAILED_PRECONDITION);
+    EXPECT_TRUE(absl::StrContains(reset_status.error_message(), "Cannot reset VM"));
+
+    ServerContext hard_reset_after_stop_ctx;
+    const Status hard_reset_status =
+            hypervisor_service_->HardResetVm(&hard_reset_after_stop_ctx, &hard_reset_req, &state);
+    EXPECT_EQ(hard_reset_status.error_code(), StatusCode::FAILED_PRECONDITION);
+    EXPECT_TRUE(absl::StrContains(hard_reset_status.error_message(), "Cannot reset VM"));
+
+    // StopVm also propagates FAILED_PRECONDITION when a snapshot is in progress.
+    vm_operations_.SetRunState(EmuRunState::SaveVm);
+    ServerContext stop_during_snapshot_ctx;
+    const Status stop_status =
+            hypervisor_service_->StopVm(&stop_during_snapshot_ctx, &stop_req, &state);
+    EXPECT_EQ(stop_status.error_code(), StatusCode::FAILED_PRECONDITION);
+    EXPECT_TRUE(
+            absl::StrContains(stop_status.error_message(), "Cannot shut down VM during snapshot"));
 }
 
 TEST_F(HypervisorServiceTest, CreateGetUpdateListAndRestoreSnapshot) {
@@ -259,7 +227,7 @@ TEST_F(HypervisorServiceTest, CreateGetUpdateListAndRestoreSnapshot) {
     ServerContext restore_ctx;
     ASSERT_TRUE(hypervisor_service_->RestoreSnapshot(&restore_ctx, &restore_req, &restore_op).ok());
     EXPECT_TRUE(restore_op.done());
-    EXPECT_EQ(vm_operations_.last_loaded_snapshot_, "pre_login");
+    EXPECT_EQ(vm_operations_.last_loaded_snapshot, "pre_login");
 }
 
 TEST_F(HypervisorServiceTest, SetAndClearQuickbootTarget) {
@@ -353,7 +321,7 @@ TEST_F(HypervisorServiceTest, DeleteSnapshotAndValidationErrors) {
 }
 
 TEST_F(HypervisorServiceTest, CreateSnapshotFailureIsReportedInOperation) {
-    vm_operations_.fail_save_ = true;
+    vm_operations_.fail_save = true;
 
     CreateSnapshotRequest req;
     req.set_snapshot_id("doomed");
@@ -374,7 +342,7 @@ TEST_F(HypervisorServiceTest, RestoreSnapshotFailureIsReportedInOperation) {
     ServerContext create_ctx;
     ASSERT_TRUE(hypervisor_service_->CreateSnapshot(&create_ctx, &create_req, &create_op).ok());
 
-    vm_operations_.fail_load_ = true;
+    vm_operations_.fail_load = true;
 
     RestoreSnapshotRequest restore_req;
     restore_req.set_snapshot_id("restorable");

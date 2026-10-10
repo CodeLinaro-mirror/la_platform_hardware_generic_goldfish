@@ -50,12 +50,12 @@ class MockVmOperations : public VmOperations {
     explicit MockVmOperations(std::unique_ptr<TestEventLoop> loop = TestEventLoop::Create())
             : VmOperations(loop.get()), loop_(std::move(loop)) {}
 
-    MOCK_METHOD(bool, Stop, (), (override));
-    MOCK_METHOD(bool, Start, (), (override));
-    MOCK_METHOD(void, Reset, (), (override));
-    MOCK_METHOD(void, Shutdown, (), (override));
-    MOCK_METHOD(bool, Pause, (), (override));
-    MOCK_METHOD(bool, Resume, (), (override));
+    MOCK_METHOD(absl::Status, Stop, (), (override));
+    MOCK_METHOD(absl::Status, Start, (), (override));
+    MOCK_METHOD(absl::Status, Reset, (), (override));
+    MOCK_METHOD(absl::Status, Shutdown, (), (override));
+    MOCK_METHOD(absl::Status, Pause, (), (override));
+    MOCK_METHOD(absl::Status, Resume, (), (override));
     MOCK_METHOD(bool, IsRunning, (), (override));
     MOCK_METHOD(GoldfishVmConfiguration, GetConfiguration, (), (override));
     MOCK_METHOD(EmuRunState, GetRunState, (), (override));
@@ -149,6 +149,28 @@ TEST_F(VmServiceTest, SetVmStateStop) {
     request.set_state(VmRunState::STOP);
 
     ASSERT_GRPC_STATUS(vm_service->setVmState(request));
+}
+
+TEST_F(VmServiceTest, SetVmStatePropagatesFailureStatus) {
+    EXPECT_CALL(vm_operations, Resume())
+            .WillOnce(Return(absl::FailedPreconditionError("Emulator is shutting down")));
+
+    VmRunState request;
+    request.set_state(VmRunState::RUNNING);
+
+    const grpc::Status status = vm_service->setVmState(request);
+    EXPECT_EQ(status.error_code(), grpc::StatusCode::FAILED_PRECONDITION);
+    EXPECT_THAT(status.error_message(), ::testing::HasSubstr("Emulator is shutting down"));
+}
+
+TEST_F(VmServiceTest, SetVmStateRejectsUnsupportedTargetState) {
+    VmRunState request;
+    request.set_state(VmRunState::SAVE_VM);
+
+    const grpc::Status status = vm_service->setVmState(request);
+    EXPECT_EQ(status.error_code(), grpc::StatusCode::INVALID_ARGUMENT);
+    EXPECT_THAT(status.error_message(), ::testing::HasSubstr("Cannot set VM state to SAVE_VM"));
+    EXPECT_THAT(status.error_message(), ::testing::HasSubstr("expected START, STOP"));
 }
 
 TEST_F(VmServiceTest, GetVmStatePaused) {

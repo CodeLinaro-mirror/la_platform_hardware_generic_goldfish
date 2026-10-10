@@ -147,21 +147,27 @@ ServerWriteReactor<VmState>* HypervisorServiceImpl::StreamVmState(
 
 Status HypervisorServiceImpl::PauseVm(ServerContext* /*context*/, const PauseVmRequest* /*request*/,
                                       VmState* response) {
-    vm_operations_.Pause();
+    if (const absl::Status status = vm_operations_.Pause(); !status.ok()) {
+        return AbslStatusToGrpcStatus(status);
+    }
     PopulateVmState(response);
     return Status::OK;
 }
 
 Status HypervisorServiceImpl::ResumeVm(ServerContext* /*context*/,
                                        const ResumeVmRequest* /*request*/, VmState* response) {
-    vm_operations_.Resume();
+    if (const absl::Status status = vm_operations_.Resume(); !status.ok()) {
+        return AbslStatusToGrpcStatus(status);
+    }
     PopulateVmState(response);
     return Status::OK;
 }
 
 Status HypervisorServiceImpl::ResetVm(ServerContext* /*context*/, const ResetVmRequest* /*request*/,
                                       VmState* response) {
-    vm_operations_.Reset();
+    if (const absl::Status status = vm_operations_.Reset(); !status.ok()) {
+        return AbslStatusToGrpcStatus(status);
+    }
     PopulateVmState(response);
     return Status::OK;
 }
@@ -169,7 +175,9 @@ Status HypervisorServiceImpl::ResetVm(ServerContext* /*context*/, const ResetVmR
 Status HypervisorServiceImpl::HardResetVm(ServerContext* /*context*/,
                                           const HardResetVmRequest* /*request*/,
                                           VmState* response) {
-    vm_operations_.Reset();
+    if (const absl::Status status = vm_operations_.Reset(); !status.ok()) {
+        return AbslStatusToGrpcStatus(status);
+    }
     PopulateVmState(response);
     return Status::OK;
 }
@@ -180,7 +188,9 @@ Status HypervisorServiceImpl::StopVm(ServerContext* /*context*/, const StopVmReq
         LOG(WARNING) << "save_quickboot_snapshot is currently unimplemented; relying on "
                         "QEMU default shutdown lifecycle.";
     }
-    vm_operations_.Shutdown();
+    if (const absl::Status status = vm_operations_.Shutdown(); !status.ok()) {
+        return AbslStatusToGrpcStatus(status);
+    }
     PopulateVmState(response);
     return Status::OK;
 }

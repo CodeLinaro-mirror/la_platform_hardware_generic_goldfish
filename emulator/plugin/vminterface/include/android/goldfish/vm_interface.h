@@ -259,40 +259,54 @@ class VmOperations {
     /**
      * @brief Stops the virtual machine.
      *
-     * @return True if the operation was successful, false otherwise.
+     * Idempotent if the VM is already paused.
+     *
+     * @return OK on success, or FailedPrecondition/Internal on failure.
      */
-    virtual bool Stop() = 0;
+    virtual absl::Status Stop() = 0;
 
     /**
      * @brief Starts the virtual machine.
      *
-     * @return True if the operation was successful, false otherwise.
+     * Idempotent if the VM is already running.
+     *
+     * @return OK on success, or FailedPrecondition on failure.
      */
-    virtual bool Start() = 0;
+    virtual absl::Status Start() = 0;
 
     /**
      * @brief Resets the virtual machine.
+     *
+     * @return OK on success, or FailedPrecondition if the VM cannot be reset.
      */
-    virtual void Reset() = 0;
+    virtual absl::Status Reset() = 0;
 
     /**
      * @brief Shuts down the virtual machine.
+     *
+     * Idempotent if the VM is already shutting down.
+     *
+     * @return OK on success, or FailedPrecondition if a snapshot is in progress.
      */
-    virtual void Shutdown() = 0;
+    virtual absl::Status Shutdown() = 0;
 
     /**
      * @brief Pauses the virtual machine.
      *
-     * @return True if the operation was successful, false otherwise.
+     * Idempotent if the VM is already paused.
+     *
+     * @return OK on success, or FailedPrecondition/Internal on failure.
      */
-    virtual bool Pause() = 0;
+    virtual absl::Status Pause() = 0;
 
     /**
      * @brief Resumes the virtual machine.
      *
-     * @return True if the operation was successful, false otherwise.
+     * Idempotent if the VM is already running.
+     *
+     * @return OK on success, or FailedPrecondition on failure.
      */
-    virtual bool Resume() = 0;
+    virtual absl::Status Resume() = 0;
 
     /**
      * @brief Checks if the virtual machine is currently running.
