@@ -246,7 +246,7 @@ class EmulatorControllerImpl final
 
     ::grpc::ServerWriteReactor<Notification>* streamNotification(
             ::grpc::CallbackServerContext* /*context*/, const Empty* /*request*/) override {
-        return new NotificationStreamWriter(&mGrpcNotificationChannel, &mNotificationStore);
+        return CreateNotificationStreamWriter(&mGrpcNotificationChannel, &mNotificationStore);
     }
 
     ::grpc::ServerWriteReactor<AudioPacket>* streamAudio(::grpc::CallbackServerContext* /*context*/,
