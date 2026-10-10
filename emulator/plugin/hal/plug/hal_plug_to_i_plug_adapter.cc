@@ -16,6 +16,7 @@
 #include "goldfish/devices/hal_plug_to_i_plug_adapter.h"
 
 #include <string_view>
+#include <utility>
 
 #include "absl/log/check.h"
 #include "absl/log/log.h"
@@ -33,6 +34,8 @@ HalPlugToIPlugAdapter::HalPlugToIPlugAdapter(async::EventLoop* client_loop,
                                              std::shared_ptr<HalPlug> hal_plug)
         : client_loop_(client_loop), hal_plug_(std::move(hal_plug)) {
     DCHECK(hal_plug_) << "hal_plug_ is nullptr";
+    receive_buffer_.reserve(kInitialBufferSize);
+    deliver_buffer_.reserve(kInitialBufferSize);
     VLOG(1) << "HalPlugToIPlugAdapter created with mHalPlug: " << *hal_plug_
             << ", use_count: " << hal_plug_.use_count();
 }
@@ -45,14 +48,32 @@ void HalPlugToIPlugAdapter::OnConnect() {
 
 bool HalPlugToIPlugAdapter::OnReceive(const void* data, size_t size) {
     // This is called on the QEMU thread.
-    // We post the data to the client loop for the real HalPlug to handle.
+    // We coalesce incoming chunks and post a single delivery task to the
+    // client loop for the real HalPlug to handle.
     // We return true immediately, preventing the QEMU thread from blocking.
-    //
-    // This means that vsock will never close out this socket from this call.
+    bool schedule_delivery = false;
+    {
+        const absl::MutexLock lock(&receive_buffer_mutex_);
+        schedule_delivery = !std::exchange(has_pending_receive_, true);
+        receive_buffer_.append(static_cast<const char*>(data), size);
+        if (!schedule_delivery) {
+            VLOG(2) << "Coalesced " << size << " bytes for mHalPlug " << *hal_plug_
+                    << " (total: " << receive_buffer_.size() << " bytes)";
+            return true;
+        }
+    }
+
     VLOG(2) << "Scheduling onReceive for mHalPlug " << *hal_plug_ << " with: " << size << " bytes.";
     client_loop_
-            ->Post([plug = hal_plug_, s = std::string(static_cast<const char*>(data), size)]() {
-                plug->OnReceive(s);
+            ->Post([this, self = shared_from_this()]() {
+                {
+                    const absl::MutexLock lock(&receive_buffer_mutex_);
+                    DCHECK(has_pending_receive_);
+                    has_pending_receive_ = false;
+                    receive_buffer_.swap(deliver_buffer_);
+                }
+                hal_plug_->OnReceive(deliver_buffer_);
+                deliver_buffer_.clear();
             })
             .IgnoreError();
 

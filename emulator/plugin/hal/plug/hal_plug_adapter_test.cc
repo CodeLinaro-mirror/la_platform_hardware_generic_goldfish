@@ -264,6 +264,37 @@ TEST_F(HalPlugAdapterTest, CoalescesMultipleSendsIntoSingleQemuTask) {
     sendAsyncCalled.WaitForNotificationWithTimeout(absl::Milliseconds(100));
 }
 
+TEST_F(HalPlugAdapterTest, CoalescesMultipleOnReceivesIntoSingleClientDelivery) {
+    Connect();
+
+    absl::Notification clientGate;
+    absl::Notification onReceiveCalled;
+
+    // Block mClientLoop so queued delivery tasks wait while QEMU pushes multiple 4 KiB pages.
+    mClientLoop->Post([&] { clientGate.WaitForNotification(); }).IgnoreError();
+
+    EXPECT_CALL(*mMockHalPlug, OnReceive(StrEq("page1:page2:page3:")))
+            .WillOnce(Invoke([&](std::string_view) {
+                EXPECT_EQ(std::this_thread::get_id(), mClientLoop->GetId());
+                onReceiveCalled.Notify();
+            }));
+
+    mQemuLoop
+            ->Post([&] {
+                mAdapter->OnReceive("page1:", 6);
+                mAdapter->OnReceive("page2:", 6);
+                mAdapter->OnReceive("page3:", 6);
+            })
+            .IgnoreError();
+
+    // Ensure the QEMU loop has processed all three OnReceive calls before releasing mClientLoop.
+    auto synced = mQemuLoop->PostAndWait([] {});
+    ASSERT_THAT(synced, ::absl_testing::IsOk());
+
+    clientGate.Notify();
+    EXPECT_TRUE(onReceiveCalled.WaitForNotificationWithTimeout(absl::Milliseconds(200)));
+}
+
 TEST_F(HalPlugAdapterTest, CoalescesInitialSendsAndDispatchesSubsequentSendSeparately) {
     Connect();
 
