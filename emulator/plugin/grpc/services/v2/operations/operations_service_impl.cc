@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <string>
 #include <string_view>
+#include <utility>
 
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
@@ -129,13 +130,21 @@ Operation OperationsServiceImpl::FailOperation(std::string_view name, const absl
     return failed_copy;
 }
 
+void OperationsServiceImpl::SetMetadataRefresher(MetadataRefresher refresher) {
+    absl::MutexLock operations_lock(&operations_mutex_);
+    metadata_refresher_ = std::move(refresher);
+}
+
 Status OperationsServiceImpl::ListOperations(ServerContext* /*context*/,
                                              const ListOperationsRequest* request,
                                              ListOperationsResponse* response) {
     absl::MutexLock operations_lock(&operations_mutex_);
     const std::string_view filter_prefix = request->name();
-    for (const auto& [name, op] : operations_) {
+    for (auto& [name, op] : operations_) {
         if (filter_prefix.empty() || absl::StartsWith(name, filter_prefix)) {
+            if (!op.done() && metadata_refresher_) {
+                metadata_refresher_(&op);
+            }
             *response->add_operations() = op;
         }
     }
@@ -153,6 +162,9 @@ Status OperationsServiceImpl::GetOperation(ServerContext* /*context*/,
     auto it = operations_.find(request->name());
     if (it == operations_.end()) {
         return {StatusCode::NOT_FOUND, absl::StrCat("Operation not found: ", request->name())};
+    }
+    if (!it->second.done() && metadata_refresher_) {
+        metadata_refresher_(&it->second);
     }
     *response = it->second;
     return Status::OK;

@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_test")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
 
@@ -281,4 +282,22 @@ cc_library(
         "//emulator/plugin/vminterface",
         "@grpc//:grpc++",
     ],
+)
+
+clang_tidy_test(
+    name = "tidy",
+    targets = [
+        ":capabilities_service",
+        ":capabilities_service_test",
+        ":rtc_service",
+        ":rtc_service_test",
+        ":sensors_service",
+        ":sensors_service_test",
+        ":operations_service",
+        ":operations_service_test",
+        ":hypervisor_service",
+        ":hypervisor_service_test",
+        ":v2_services",
+    ],
+    tidy_config_file = "//:clang_tidy_config",
 )

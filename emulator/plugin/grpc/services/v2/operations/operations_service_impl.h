@@ -17,6 +17,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <deque>
+#include <functional>
 #include <string>
 #include <string_view>
 
@@ -149,6 +150,14 @@ class OperationsServiceImpl final : public ::google::longrunning::Operations::Se
                                  ::google::longrunning::Operation* response) override
             ABSL_LOCKS_EXCLUDED(operations_mutex_);
 
+    using MetadataRefresher = std::function<void(::google::longrunning::Operation* op)>;
+
+    /**
+     * Registers an optional callback invoked by `GetOperation` and `ListOperations`
+     * to refresh live progress metadata on in-flight (`done() == false`) operations.
+     */
+    void SetMetadataRefresher(MetadataRefresher refresher) ABSL_LOCKS_EXCLUDED(operations_mutex_);
+
   private:
     void RecordCompletedOperation(std::string_view name)
             ABSL_EXCLUSIVE_LOCKS_REQUIRED(operations_mutex_);
@@ -159,6 +168,7 @@ class OperationsServiceImpl final : public ::google::longrunning::Operations::Se
     absl::flat_hash_map<std::string, ::google::longrunning::Operation> operations_
             ABSL_GUARDED_BY(operations_mutex_);
     std::deque<std::string> completed_operations_ ABSL_GUARDED_BY(operations_mutex_);
+    MetadataRefresher metadata_refresher_ ABSL_GUARDED_BY(operations_mutex_);
 };
 
 }  // namespace goldfish::grpc::v2
