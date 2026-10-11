@@ -68,10 +68,10 @@ TEST(Cpu, Basic_arm64) {
 
     CpuDevice dev;
     EXPECT_OK(dev.initialize(emu.config()));
-    EXPECT_THAT(dev.getQemuParameters(emu.config()),
-                testing::ElementsAre(testing::Eq("-smp"), testing::Eq("3"), testing::Eq("-cpu"),
-                                     testing::Eq("cortex-a53"), testing::Eq("-accel"),
-                                     testing::Eq("hvf")));
+    EXPECT_THAT(
+            dev.getQemuParameters(emu.config()),
+            testing::ElementsAre(testing::Eq("-smp"), testing::Eq("3"), testing::Eq("-cpu"),
+                                 testing::Eq("max"), testing::Eq("-accel"), testing::Eq("hvf")));
 }
 
 TEST(Cpu, AccelOff) {
