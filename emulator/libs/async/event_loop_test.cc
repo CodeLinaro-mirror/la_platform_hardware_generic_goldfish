@@ -51,7 +51,9 @@ class EventLoopTest : public ::testing::TestWithParam<std::string> {
 
     void shutdown() {
         if (loop) {
-            if (loop->GetState() == LooperStatusEvent::State::kRunning) {
+            if (loop->GetState() == LooperStatusEvent::State::kRunning ||
+                (mLoopType == "qemu" &&
+                 loop->GetState() == LooperStatusEvent::State::kNotStarted)) {
                 auto f = loop->Shutdown();
                 if (mLoopType == "qemu") {
                     // Need to run Qemu "thread" for shutdown to complete
@@ -74,10 +76,10 @@ class EventLoopTest : public ::testing::TestWithParam<std::string> {
         if (mLoopType == "libuv") {
             loop_thread =
                     std::thread([this]() { (void)dynamic_cast<LibuvEventLoop*>(loop)->Run(); });
-        }
-        // Wait for it to actually start.
-        while (loop->GetState() != LooperStatusEvent::State::kRunning) {
-            std::this_thread::sleep_for(10ms);
+            // Wait for it to actually start.
+            while (loop->GetState() != LooperStatusEvent::State::kRunning) {
+                std::this_thread::sleep_for(10ms);
+            }
         }
     }
 
