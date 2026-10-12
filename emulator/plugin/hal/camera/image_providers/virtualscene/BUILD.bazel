@@ -36,7 +36,7 @@ cc_test(
     ],
     data = [
         "//emulator/libs/ver:test_vulkan_icds",
-        "@goldfish_prebuilts_common//virtualscene/Toren1BD",
+        "@goldfish_prebuilts_common//virtualscene",
     ],
     visibility = ["//visibility:public"],
     deps = [

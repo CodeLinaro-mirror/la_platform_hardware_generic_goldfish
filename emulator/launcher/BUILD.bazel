@@ -507,9 +507,23 @@ collect_plugins(
 )
 
 collect_plugins(
-    name = "virtualscene_data",
+    name = "virtualscene_Toren1BD_data",
     output_dir = "data/virtualscene/Toren1BD",
     plugins = ["@goldfish_prebuilts_common//virtualscene/Toren1BD"],
+)
+
+collect_plugins(
+    name = "virtualscene_default_data",
+    output_dir = "data/virtualscene/default",
+    plugins = ["@goldfish_prebuilts_common//virtualscene/default"],
+)
+
+filegroup(
+    name = "virtualscene_data",
+    srcs = [
+        ":virtualscene_Toren1BD_data",
+        ":virtualscene_default_data",
+    ],
 )
 
 cc_library(
