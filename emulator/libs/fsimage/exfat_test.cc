@@ -75,6 +75,18 @@ std::vector<uint8_t> ReadBytesAt(const fs::path& path, uint64_t offset, size_t s
     return buf;
 }
 
+TEST(IsExFatFileImageTest, RejectsMissingOrNonExFATFiles) {
+    TestTempDir temp_dir("exfat_test");
+    EXPECT_FALSE(IsExFatFileImage(temp_dir.Path() / "nonexistent.img"));
+
+    const fs::path small_file = temp_dir.Path() / "small.img";
+    {
+        std::ofstream ofs(small_file, std::ios_base::binary);
+        ofs << "not exfat";
+    }
+    EXPECT_FALSE(IsExFatFileImage(small_file));
+}
+
 TEST(CreateEmptyExFATImageTest, InvalidSizesReturnInvalidArgument) {
     TestTempDir temp_dir("exfat_test");
     const fs::path image = temp_dir.Path() / "sdcard.img";
@@ -91,6 +103,7 @@ TEST(CreateEmptyExFATImageTest, CreatesValidImageWith4KiBClusters) {
 
     ASSERT_THAT(CreateEmptyExFATImage(image, kSize), IsOk());
     ASSERT_TRUE(fs::exists(image));
+    EXPECT_TRUE(IsExFatFileImage(image));
     EXPECT_FALSE(fs::exists(fs::path(image).concat(".tmp")));
     EXPECT_EQ(fs::file_size(image), kSize.Bytes());
 

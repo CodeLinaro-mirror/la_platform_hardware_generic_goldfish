@@ -548,6 +548,7 @@ cc_test(
         ":configure_drives",
         ":fake_emulator",
         "//emulator/launcher:mock_avd",
+        "//emulator/libs/fsimage:exfat",
         "//emulator/libs/system:test-headers",
         "//emulator/libs/test:googletest_main",
         "@abseil-cpp//absl/status:status_matchers",

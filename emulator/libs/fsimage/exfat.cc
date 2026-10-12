@@ -1148,6 +1148,24 @@ absl::Status CreateExFATImageImpl(const fs::path& image, const fs::path* source_
 
 }  // namespace
 
+bool IsExFatFileImage(const fs::path& path) {
+    std::ifstream ifs(path, std::ios_base::binary);
+    if (!ifs.good()) {
+        return false;
+    }
+
+    ExfatBootSector bs = {};
+    if (!ifs.read(reinterpret_cast<char*>(&bs), sizeof(bs))) {
+        return false;
+    }
+
+    constexpr char kExfatFsName[] = {'E', 'X', 'F', 'A', 'T', ' ', ' ', ' '};
+    static_assert(sizeof(kExfatFsName) == sizeof(bs.fs_name));
+
+    return ::memcmp(bs.fs_name, kExfatFsName, sizeof(bs.fs_name)) == 0 &&
+           bs.signature == HostToLe16(kBootSignature);
+}
+
 absl::Status CreateEmptyExFATImage(const fs::path& image, StorageCapacity size,
                                    std::string_view volume_label) {
     return CreateExFATImageImpl(image, /*source_directory=*/nullptr, size, volume_label);
