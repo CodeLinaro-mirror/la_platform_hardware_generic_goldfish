@@ -1,7 +1,8 @@
 load("@bazel_skylib//lib:selects.bzl", "selects")
 load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_test")
-load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_test")
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 load("@rules_python//python:defs.bzl", "py_binary", "py_library", "py_test")
+load("//emulator/tools:cc_binary_with_manifest.bzl", "cc_binary_with_manifest")
 load("//emulator/tools:fishtank.bzl", "subpath_link", "unzip")
 load("//emulator/tools:plugins.bzl", "collect_plugins")
 load("tools/launcher_test.bzl", "create_launch_emulator_test")
@@ -205,7 +206,7 @@ cc_test(
     ],
 )
 
-cc_binary(
+cc_binary_with_manifest(
     name = "fake_launcher_main",
     testonly = True,
     srcs = ["fake_launcher_main.cc"],
@@ -581,7 +582,7 @@ alias(
     visibility = ["//visibility:public"],
 )
 
-cc_binary(
+cc_binary_with_manifest(
     # This is the launcher binary but we want the name of the executable created to be "emulator" to match the legacy emulator release.
     name = "emulator",
     srcs = ["main.cc"],

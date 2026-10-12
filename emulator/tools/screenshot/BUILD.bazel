@@ -1,9 +1,9 @@
 load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_test")
-load("@rules_cc//cc:defs.bzl", "cc_binary")
+load("//emulator/tools:cc_binary_with_manifest.bzl", "cc_binary_with_manifest")
 
 package(default_visibility = ["//visibility:public"])
 
-cc_binary(
+cc_binary_with_manifest(
     name = "screenshot",
     srcs = ["screenshot.cc"],
     deps = [

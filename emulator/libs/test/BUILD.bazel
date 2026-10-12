@@ -1,5 +1,13 @@
 load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_test")
+load("@goldfish_build//rules:windows_resources.bzl", "windows_manifest_resource")
 load("@rules_cc//cc:defs.bzl", "cc_library")
+
+windows_manifest_resource(
+    name = "googletest_main_manifest_rc",
+    testonly = True,
+    binary_filename = "googletest_main.exe",
+    target_compatible_with = ["@platforms//os:windows"],
+)
 
 cc_library(
     name = "googletest_main",
@@ -24,7 +32,10 @@ cc_library(
         "@abseil-cpp//absl/log:flags",
         "@abseil-cpp//absl/log:initialize",
         "@googletest//:gtest",
-    ],
+    ] + select({
+        "@platforms//os:windows": [":googletest_main_manifest_rc"],
+        "//conditions:default": [],
+    }),
     alwayslink = True,
 )
 

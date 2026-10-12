@@ -1,7 +1,7 @@
 load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_test")
-load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
+load("//emulator/tools:cc_binary_with_manifest.bzl", "cc_binary_with_manifest")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -73,7 +73,7 @@ cc_library(
     ],
 )
 
-cc_binary(
+cc_binary_with_manifest(
     name = "async_perf",
     testonly = True,
     srcs = ["simple_async_grpc_perf.cc"],

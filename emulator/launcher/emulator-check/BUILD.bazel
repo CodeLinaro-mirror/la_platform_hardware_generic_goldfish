@@ -1,4 +1,5 @@
-load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_test")
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+load("//emulator/tools:cc_binary_with_manifest.bzl", "cc_binary_with_manifest")
 
 cc_library(
     name = "platform_info",
@@ -31,7 +32,7 @@ cc_test(
     ],
 )
 
-cc_binary(
+cc_binary_with_manifest(
     name = "emulator-check",
     srcs = ["main.cc"],
     visibility = ["//visibility:public"],

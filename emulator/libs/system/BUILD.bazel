@@ -1,6 +1,6 @@
 load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_test")
-load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test", "objc_library")
+load("//emulator/tools:cc_binary_with_manifest.bzl", "cc_binary_with_manifest")
 
 cc_library(
     name = "clock",
@@ -206,7 +206,7 @@ cc_test(
     ],
 )
 
-cc_binary(
+cc_binary_with_manifest(
     name = "clock_perf",
     testonly = True,
     srcs = ["bm_clock.cc"],

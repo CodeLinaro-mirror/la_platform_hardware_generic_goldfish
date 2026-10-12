@@ -389,4 +389,33 @@ TEST_F(InputPathsTest, ResolveEmulatorPathsWithZeroByteFishtank) {
     EXPECT_TRUE(paths.fishtank_binary.empty());
 }
 
+TEST_F(InputPathsTest, ResolveEmulatorPathsWithNonAsciiDirectory) {
+    tmp_->MakeSubDir("José Smith/launcher/bin");
+    tmp_->MakeSubDir("José Smith/launcher/lib/qemu");
+    tmp_->MakeSubDir("José Smith/launcher/lib64");
+    tmp_->MakeSubDir("José Smith/launcher/share/qemu");
+
+    fs::path launcher_dir = tmp_->Path() / "José Smith" / "launcher";
+    ASSERT_OK_AND_ASSIGN(auto canon, android::base::file::make_canonical(launcher_dir));
+    launcher_dir = canon;
+
+    std::string suffix = "";
+#ifdef _WIN32
+    suffix = ".exe";
+#endif
+
+    WriteToFile(launcher_dir / "bin" / ("qemu-system-x86_64" + suffix), "");
+    WriteToFile(launcher_dir / "bin" / ("qemu-system-aarch64" + suffix), "");
+    WriteToFile(launcher_dir / "bin" / ("netsimd" + suffix), "");
+    WriteToFile(launcher_dir / "bin" / ("crashpad_handler" + suffix), "");
+
+    sys_->SetEnvironmentVariable("ANDROID_EMULATOR_LAUNCHER_DIR", launcher_dir.string());
+
+    ASSERT_OK_AND_ASSIGN(auto paths, ResolveEmulatorPaths(false));
+
+    EXPECT_EQ(paths.launcher_directory, launcher_dir);
+    EXPECT_EQ(paths.binary_directory, launcher_dir / "bin");
+    EXPECT_EQ(paths.qemu_system_x86_binary, launcher_dir / "bin" / ("qemu-system-x86_64" + suffix));
+}
+
 }  // namespace android::goldfish

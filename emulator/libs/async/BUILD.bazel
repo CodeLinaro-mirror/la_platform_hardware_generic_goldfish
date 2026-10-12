@@ -1,6 +1,6 @@
 load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_test")
-load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+load("//emulator/tools:cc_binary_with_manifest.bzl", "cc_binary_with_manifest")
 
 cc_library(
     name = "async_api",
@@ -242,7 +242,7 @@ cc_test(
     ],
 )
 
-cc_binary(
+cc_binary_with_manifest(
     name = "sockets_perf",
     srcs = ["bm_libuv_sockets.cc"],
     copts = [
@@ -391,7 +391,7 @@ cc_test(
     ],
 )
 
-cc_binary(
+cc_binary_with_manifest(
     name = "event_loop_perf",
     srcs = ["bm_event_loop.cc"],
     copts = [
