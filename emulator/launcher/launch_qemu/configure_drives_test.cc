@@ -14,6 +14,7 @@
 #include "disk_drive.h"
 #include "fake_emulator.h"
 #include "goldfish/file/file.h"
+#include "goldfish/fsimage/exfat.h"
 #include "mock_avd.h"
 
 namespace android::goldfish {
@@ -283,6 +284,7 @@ TEST_F(ConfigureDrivesTest, AddDrivesSdCardCreatesEmuImageWhenMissing) {
     ASSERT_THAT(addDrives(emu.config(), mock_container), IsOk());
     EXPECT_TRUE(base::file::is_file(sdcard_emu_path));
     EXPECT_EQ(std::filesystem::file_size(sdcard_emu_path), (64_MiB).Bytes());
+    EXPECT_TRUE(::goldfish::fsimage::IsExFatFileImage(sdcard_emu_path));
 }
 
 TEST_F(ConfigureDrivesTest, AddDrivesSdCardUsesExistingEmuImage) {

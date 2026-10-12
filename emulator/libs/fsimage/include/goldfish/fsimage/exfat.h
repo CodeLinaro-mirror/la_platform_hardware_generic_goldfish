@@ -22,6 +22,8 @@ namespace goldfish::fsimage {
 
 namespace fs = std::filesystem;
 
+bool IsExFatFileImage(const fs::path& path);
+
 absl::Status CreateEmptyExFATImage(const fs::path& image, android::base::StorageCapacity size,
                                    std::string_view volume_label = "");
 
