@@ -148,23 +148,19 @@ filegroup(
         "@platforms//os:windows": [
             "@goldfish_prebuilts_common//netsim:netsim_cli_windows_x86_64",
             "@goldfish_prebuilts_common//netsim:netsim_windows_x86_64",
-            "@qemu//:qemu-system-aarch64",
             "@qemu//:qemu-system-x86_64",
         ],
         "@platforms//os:macos": [
             "@goldfish_prebuilts_common//netsim:netsim_cli_darwin_aarch64",
             "@goldfish_prebuilts_common//netsim:netsim_darwin_aarch64",
             "@qemu//:qemu-system-aarch64_signed",
-            "@qemu//:qemu-system-x86_64_signed",
         ],
-        "//conditions:default": [
-            "@goldfish_prebuilts_common//netsim:netsim_linux_x86_64",
+        "@platforms//os:linux": [
             "@goldfish_prebuilts_common//netsim:netsim_cli_linux_x86_64",
+            "@goldfish_prebuilts_common//netsim:netsim_linux_x86_64",
             "@qemu//:qemu-system-x86_64",
-            "@qemu//:qemu-system-aarch64",
-            # We currently don't have riscv images
-            # "@qemu//:qemu-system-riscv64",
         ],
+        "//conditions:default": [],
     }),
 )
 
@@ -225,18 +221,18 @@ filegroup(
 filegroup(
     name = "plugin_binaries",
     srcs = [
-        "//emulator/plugin:goldfish_x86_64",
-        "//emulator/plugin:goldfish_aarch64",
-        # We currently don't have riscv images
-        # "//emulator/plugin:goldfish_riscv64",
         "@rutabaga_gfx//:rutabaga_ffi",
     ] + select({
+        "@platforms//os:windows": [
+            "//emulator/plugin:goldfish_x86_64",
+        ],
+        "@platforms//os:macos": [
+            "//emulator/plugin:goldfish_aarch64",
+        ],
         "@platforms//os:linux": [
-            # TODO(b/434942959,whollins): Re-add this.
-            #"@gcc_lib//:libpulse",
+            "//emulator/plugin:goldfish_x86_64",
         ],
-        "//conditions:default": [
-        ],
+        "//conditions:default": [],
     }),
 )
 
@@ -300,7 +296,6 @@ pkg_files(
     renames = select({
         "@platforms//os:windows": {
             "@qemu//:qemu-system-x86_64": "qemu-system-x86_64.exe",
-            "@qemu//:qemu-system-aarch64": "qemu-system-aarch64.exe",
             "@goldfish_prebuilts_common//netsim:netsim_windows_x86_64": "netsimd.exe",
             "@goldfish_prebuilts_common//netsim:netsim_cli_windows_x86_64": "netsim.exe",
         },
@@ -308,19 +303,16 @@ pkg_files(
             # On Mac the Qemu binaries need to be signed and that extra steps results in a
             # different name for the binary. See here for details:
             # https://source.corp.google.com/h/googleplex-android/platform/superproject/main-emu-next-dev/+/main-emu-next-dev:external/qemu/platform/cc_interface_binary.bzl;l=101;drc=9e3171a3998e1fefddb5a024b0e0b5ffcc3f5576
-            "@qemu//:qemu-system-x86_64_signed": "qemu-system-x86_64",
             "@qemu//:qemu-system-aarch64_signed": "qemu-system-aarch64",
             "@goldfish_prebuilts_common//netsim:netsim_darwin_aarch64": "netsimd",
             "@goldfish_prebuilts_common//netsim:netsim_cli_darwin_aarch64": "netsim",
         },
-        "//conditions:default": {
+        "@platforms//os:linux": {
             "@qemu//:qemu-system-x86_64": "qemu-system-x86_64",
-            "@qemu//:qemu-system-aarch64": "qemu-system-aarch64",
             "@goldfish_prebuilts_common//netsim:netsim_linux_x86_64": "netsimd",
             "@goldfish_prebuilts_common//netsim:netsim_cli_linux_x86_64": "netsim",
-            # We currently don't have riscv images
-            # "@qemu//:qemu-system-riscv64": "qemu-system-riscv64",
         },
+        "//conditions:default": {},
     }),
 )
 

@@ -343,10 +343,13 @@ collect_plugins(
     name = "plugins",
     output_dir = "lib/qemu",
     plugins = [
-        "//emulator/plugin:goldfish_x86_64",
-        "//emulator/plugin:goldfish_aarch64",
         "@rutabaga_gfx//:rutabaga_ffi",
-    ],
+    ] + select({
+        "@platforms//os:macos": ["//emulator/plugin:goldfish_aarch64"],
+        "@platforms//os:linux": ["//emulator/plugin:goldfish_x86_64"],
+        "@platforms//os:windows": ["//emulator/plugin:goldfish_x86_64"],
+        "//conditions:default": [],
+    }),
 )
 
 collect_plugins(
@@ -437,25 +440,22 @@ collect_plugins(
         "@platforms//os:windows": [
             "@goldfish_prebuilts_common//netsim:netsim_cli_windows_x86_64",
             "@goldfish_prebuilts_common//netsim:netsim_windows_x86_64",
-            "@qemu//:qemu-system-aarch64",
             "@qemu//:qemu-system-x86_64",
         ],
         "@platforms//os:macos": [
             "@goldfish_prebuilts_common//netsim:netsim_darwin_aarch64",
             "@goldfish_prebuilts_common//netsim:netsim_cli_darwin_aarch64",
             "@qemu//:qemu-system-aarch64_signed",
-            "@qemu//:qemu-system-x86_64_signed",
         ],
-        "//conditions:default": [
+        "@platforms//os:linux": [
             "@goldfish_prebuilts_common//netsim:netsim_linux_x86_64",
             "@goldfish_prebuilts_common//netsim:netsim_cli_linux_x86_64",
-            "@qemu//:qemu-system-aarch64",
             "@qemu//:qemu-system-x86_64",
         ],
+        "//conditions:default": [],
     }),
     renames = select({
         "@platforms//os:macos": {
-            "@qemu//:qemu-system-x86_64_signed": "qemu-system-x86_64",
             "@qemu//:qemu-system-aarch64_signed": "qemu-system-aarch64",
             "@goldfish_prebuilts_common//netsim:netsim_darwin_aarch64": "netsimd",
             "@goldfish_prebuilts_common//netsim:netsim_cli_darwin_aarch64": "netsim",
@@ -464,10 +464,11 @@ collect_plugins(
             "@goldfish_prebuilts_common//netsim:netsim_windows_x86_64": "netsimd.exe",
             "@goldfish_prebuilts_common//netsim:netsim_cli_windows_x86_64": "netsim.exe",
         },
-        "//conditions:default": {
+        "@platforms//os:linux": {
             "@goldfish_prebuilts_common//netsim:netsim_linux_x86_64": "netsimd",
             "@goldfish_prebuilts_common//netsim:netsim_cli_linux_x86_64": "netsim",
         },
+        "//conditions:default": {},
     }),
 )
 

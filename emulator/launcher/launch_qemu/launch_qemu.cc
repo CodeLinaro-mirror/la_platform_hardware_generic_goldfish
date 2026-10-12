@@ -27,6 +27,7 @@
 #include "absl/log/absl_log.h"
 #include "absl/status/status.h"
 #include "absl/strings/numbers.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
@@ -314,6 +315,12 @@ absl::StatusOr<::goldfish::async::LaunchConfig> LaunchQemu::launch_config() {
     }
 
     fs::path exe_path = qemu_exe_path();
+    if (exe_path.empty()) {
+        return absl::FailedPreconditionError(absl::StrCat(
+                "This emulator does not include a qemu-system binary for the AVD's "
+                "ABI (",
+                config_.avd().Abi(), "). Only the host-native guest architecture is supported."));
+    }
     std::vector<std::string> args = getCmdline();
     {
         std::vector<std::string> printableArgs;

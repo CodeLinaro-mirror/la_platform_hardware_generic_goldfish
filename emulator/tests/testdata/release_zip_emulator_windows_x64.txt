@@ -5,7 +5,6 @@ emulator/bin/crashreport.exe
 emulator/bin/img2simg.exe
 emulator/bin/netsim.exe
 emulator/bin/netsimd.exe
-emulator/bin/qemu-system-aarch64.exe
 emulator/bin/qemu-system-x86_64.exe
 emulator/data/
 emulator/data/virtualscene/
@@ -212,7 +211,6 @@ emulator/lib/
 emulator/lib/advancedFeatures.ini
 emulator/lib/emulator_access.json
 emulator/lib/qemu/
-emulator/lib/qemu/goldfish_aarch64.dll
 emulator/lib/qemu/goldfish_x86_64.dll
 emulator/lib/qemu/rutabaga_ffi.dll
 emulator/lib/qemu/rutabaga_ffi.dll.lib
