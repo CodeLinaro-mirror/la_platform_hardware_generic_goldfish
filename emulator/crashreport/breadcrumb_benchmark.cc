@@ -103,6 +103,9 @@
 #include <cstring>
 #include <vector>
 
+#include "absl/log/check.h"
+#include "absl/log/log.h"
+
 #include "android/crashreport/breadcrumb_proto.h"
 #include "breadcrumb.pb.h"
 #include "goldfish/adb/adb_breadcrumb_tracker.h"
@@ -137,7 +140,7 @@ static void BM_ProtobufSerialization(benchmark::State& state) {
     for (auto _ : state) {
         buffer.clear();
         bool success = event.SerializeToString(&buffer);
-        assert(success);
+        DCHECK(success) << "failed to serialize, your protobuf install is not okay.";
         (void)success;
         benchmark::DoNotOptimize(buffer);
     }
