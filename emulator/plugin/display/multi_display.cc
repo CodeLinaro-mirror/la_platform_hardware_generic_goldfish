@@ -96,6 +96,17 @@ class MultiDisplayImpl : public IMultiDisplay {
 
     absl::StatusOr<DisplayPtr> CreateDisplay(DisplayId display_id, uint32_t width, uint32_t height,
                                              uint32_t dpi, uint32_t flags) override {
+        if (display_id == 0 || display_id >= kMaxDisplays) {
+            return absl::InvalidArgumentError(absl::StrFormat(
+                    "Invalid virtual display id: %u (expected 1..%u)", display_id,
+                    kMaxDisplays - 1));
+        }
+        if (width == 0 || height == 0 || width > kMaxDisplayDimension ||
+            height > kMaxDisplayDimension) {
+            return absl::InvalidArgumentError(absl::StrFormat(
+                    "Invalid display dimensions: %ux%u (expected 1..%u)", width, height,
+                    kMaxDisplayDimension));
+        }
         SharedVirtualDisplayImpl display;
         {
             const absl::MutexLock lock(display_access_);
@@ -233,12 +244,14 @@ class MultiDisplayImpl : public IMultiDisplay {
         const absl::MutexLock lock(display_access_);
         std::vector<DisplayPtr> displays;
         for (const auto& pair : qemu_displays_) {
-            if (active_states_.at(pair.first)) {
+            const auto it = active_states_.find(pair.first);
+            if (it != active_states_.end() && it->second) {
                 displays.push_back(pair.second);
             }
         }
         for (const auto& pair : virtual_displays_) {
-            if (active_states_.at(pair.first)) {
+            const auto it = active_states_.find(pair.first);
+            if (it != active_states_.end() && it->second) {
                 displays.push_back(pair.second);
             }
         }
@@ -273,10 +286,22 @@ class MultiDisplayImpl : public IMultiDisplay {
     absl::Status Load(archive::IReader& reader) override {
         uint32_t num_virtual = 0;
         RETURN_IF_ERROR(ReadValue(reader, num_virtual));
+        if (num_virtual >= kMaxDisplays) {
+            return absl::InvalidArgumentError(absl::StrFormat(
+                    "Too many virtual displays in snapshot: %u (max %u)", num_virtual,
+                    kMaxDisplays - 1));
+        }
 
         for (uint32_t i = 0; i < num_virtual; ++i) {
             uint32_t id, width, height, dpi, flags;
             RETURN_IF_ERROR(ReadValue(reader, id, width, height, dpi, flags));
+            if (id == 0 || id >= kMaxDisplays || width == 0 || height == 0 ||
+                width > kMaxDisplayDimension || height > kMaxDisplayDimension) {
+                return absl::InvalidArgumentError(absl::StrFormat(
+                        "Invalid virtual display %u (%ux%u) in snapshot (expected id 1..%u, dims "
+                        "1..%u)",
+                        id, width, height, kMaxDisplays - 1, kMaxDisplayDimension));
+            }
 
             auto disp = CreateDisplay(id, width, height, dpi, flags);
             if (!disp.ok()) {
@@ -287,11 +312,21 @@ class MultiDisplayImpl : public IMultiDisplay {
 
         uint32_t num_active_states = 0;
         RETURN_IF_ERROR(ReadValue(reader, num_active_states));
+        if (num_active_states > kMaxDisplays) {
+            return absl::InvalidArgumentError(absl::StrFormat(
+                    "Too many active display states in snapshot: %u (max %u)", num_active_states,
+                    kMaxDisplays));
+        }
 
         for (uint32_t i = 0; i < num_active_states; ++i) {
             uint32_t id;
             bool active;
             RETURN_IF_ERROR(ReadValue(reader, id, active));
+            if (id >= kMaxDisplays) {
+                return absl::InvalidArgumentError(absl::StrFormat(
+                        "Invalid display id in active_states: %u (expected < %u)", id,
+                        kMaxDisplays));
+            }
 
             const absl::MutexLock lock(display_access_);
             active_states_[id] = active;
