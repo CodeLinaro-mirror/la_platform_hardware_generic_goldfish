@@ -287,5 +287,49 @@ TEST(OperationsServiceImplTest, DoesNotResurrectOrClobberCancelledOrDeletedOpera
               StatusCode::NOT_FOUND);
 }
 
+TEST(OperationsServiceImplTest, SetMetadataRefresherRefreshesInFlightOperationsOnly) {
+    OperationsServiceImpl service;
+    int refresh_calls = 0;
+    service.SetMetadataRefresher([&](Operation* op) {
+        ++refresh_calls;
+        SnapshotOperationMetadata meta;
+        if (op->metadata().UnpackTo(&meta)) {
+            meta.set_progress_percent(42);
+            (void)op->mutable_metadata()->PackFrom(meta);
+        }
+    });
+
+    SnapshotOperationMetadata initial_meta;
+    initial_meta.set_snapshot_id("snap_live");
+    initial_meta.set_phase(SnapshotOperationMetadata::TRANSFERRING);
+    initial_meta.set_progress_percent(0);
+    const Operation op = service.StartOperation("snapshot/create", initial_meta);
+
+    GetOperationRequest get_req;
+    get_req.set_name(op.name());
+    Operation got;
+    ServerContext get_ctx;
+    ASSERT_TRUE(service.GetOperation(&get_ctx, &get_req, &got).ok());
+    EXPECT_EQ(refresh_calls, 1);
+
+    SnapshotOperationMetadata unpacked;
+    ASSERT_TRUE(got.metadata().UnpackTo(&unpacked));
+    EXPECT_EQ(unpacked.progress_percent(), 42);
+
+    Snapshot result;
+    result.set_snapshot_id("snap_live");
+    SnapshotOperationMetadata final_meta;
+    final_meta.set_snapshot_id("snap_live");
+    final_meta.set_progress_percent(100);
+    service.CompleteOperation(op.name(), result, &final_meta);
+
+    // Completed operations must not invoke the metadata refresher.
+    ServerContext get_done_ctx;
+    ASSERT_TRUE(service.GetOperation(&get_done_ctx, &get_req, &got).ok());
+    EXPECT_EQ(refresh_calls, 1);
+    ASSERT_TRUE(got.metadata().UnpackTo(&unpacked));
+    EXPECT_EQ(unpacked.progress_percent(), 100);
+}
+
 }  // namespace
 }  // namespace goldfish::grpc::v2
