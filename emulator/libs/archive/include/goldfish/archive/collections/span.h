@@ -12,21 +12,36 @@
 
 #pragma once
 
+#include <cmath>
 #include <span>
 
 #include "absl/status/status.h"
 
+#include "android/status/status_macros.h"
 #include "goldfish/archive/reader.h"
 #include "goldfish/archive/writer.h"
 
 namespace goldfish::archive {
 
+// Upper bounds for deserializing dynamic containers from snapshots to prevent
+// corrupted varint length prefixes from triggering std::bad_alloc aborts.
+inline constexpr size_t kMaxArchiveAllocationBytes = 64ULL << 20;  // 64 MiB
+inline constexpr size_t kMaxArchiveElements = 1ULL << 20;          // 1M elements
+
 template <class T>
 absl::Status ReadIntoMutableSpan(archive::IReader& r, std::span<T> x) {
-    if constexpr (std::same_as<T, char> || std::same_as<T, int8_t> || std::same_as<T, uint8_t> ||
-                  std::same_as<T, float> || std::same_as<T, double>) {
+    if constexpr (std::same_as<T, char> || std::same_as<T, int8_t> || std::same_as<T, uint8_t>) {
         if (!x.empty()) {
             return r.Read(x.data(), x.size() * sizeof(T));
+        }
+    } else if constexpr (std::same_as<T, float> || std::same_as<T, double>) {
+        if (!x.empty()) {
+            RETURN_IF_ERROR(r.Read(x.data(), x.size() * sizeof(T)));
+            for (const T& v : x) {
+                if (std::isnan(v)) {
+                    return absl::InvalidArgumentError("NaN floating point value in archive");
+                }
+            }
         }
     } else {
         for (T& v : x) {

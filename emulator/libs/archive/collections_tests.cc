@@ -12,7 +12,9 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
+#include <cstdint>
 #include <deque>
+#include <limits>
 #include <string>
 
 #include "absl/status/status_matchers.h"
@@ -91,6 +93,14 @@ TEST(deque, negative) {
         DequeArchive empty_archive;
         std::deque<Person> people;
         EXPECT_THAT(ReadValue(empty_archive, people), Not(IsOk()));
+    }
+
+    // 3. Oversized length prefix rejected before allocation
+    for (const size_t bad_size : {kMaxArchiveElements + 1, std::numeric_limits<size_t>::max()}) {
+        DequeArchive archive;
+        archive << bad_size;
+        std::deque<Person> people;
+        EXPECT_THAT(ReadValue(archive, people), Not(IsOk()));
     }
 }
 
@@ -190,6 +200,14 @@ TEST(set, negative) {
         std::set<int> int_set;
         EXPECT_THAT(ReadValue(empty_archive, int_set), Not(IsOk()));
     }
+
+    // 4. Oversized length prefix
+    for (const size_t bad_size : {kMaxArchiveElements + 1, std::numeric_limits<size_t>::max()}) {
+        DequeArchive archive;
+        archive << bad_size;
+        std::set<int> int_set;
+        EXPECT_THAT(ReadValue(archive, int_set), Not(IsOk()));
+    }
 }
 
 TEST(string, positive) {
@@ -211,6 +229,13 @@ TEST(string, negative) {
     ASSERT_FALSE(archive.Empty());
     archive.storage.pop_back();
     EXPECT_THAT(ReadOneValue<std::string>(archive), Not(IsOk()));
+
+    for (const size_t bad_size :
+         {kMaxArchiveAllocationBytes + 1, std::numeric_limits<size_t>::max()}) {
+        DequeArchive bad_archive;
+        bad_archive << bad_size;
+        EXPECT_THAT(ReadOneValue<std::string>(bad_archive), Not(IsOk()));
+    }
 }
 
 TEST(vector, pod_positive) {
@@ -250,6 +275,22 @@ TEST(vector, pod_negative) {
         DequeArchive empty_archive;
         std::vector<int> numbers;
         EXPECT_THAT(ReadValue(empty_archive, numbers), Not(IsOk()));
+    }
+
+    // 3. Oversized length prefix rejected before allocation
+    for (const size_t bad_size : {kMaxArchiveElements + 1, std::numeric_limits<size_t>::max()}) {
+        DequeArchive archive;
+        archive << bad_size;
+        std::vector<int> numbers;
+        EXPECT_THAT(ReadValue(archive, numbers), Not(IsOk()));
+    }
+
+    // 4. Float vector containing NaN rejected
+    {
+        DequeArchive archive;
+        archive << std::vector<float>{1.0F, std::numeric_limits<float>::quiet_NaN()};
+        std::vector<float> values;
+        EXPECT_THAT(ReadValue(archive, values), Not(IsOk()));
     }
 }
 
