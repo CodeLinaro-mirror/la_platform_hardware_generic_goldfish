@@ -433,7 +433,7 @@ absl::Status AvdExtendedUniverse::OnLoad(archive::IReader& reader) {
     bool config_mismatch = false;
     auto do_load = [&]() -> absl::Status {
         if (absl::Status s = OnLoadProps(reader); !s.ok()) {
-            config_mismatch = true;
+            config_mismatch = absl::IsFailedPrecondition(s);
             return s;
         }
         if (absl::Status s = OnLoadPhysicalState(reader); !s.ok()) {
@@ -462,8 +462,10 @@ absl::Status AvdExtendedUniverse::OnLoad(archive::IReader& reader) {
 absl::Status AvdExtendedUniverse::OnLoadProps(archive::IReader& reader) {
     const auto& p = Props();
     bool ok = true;
+    bool stream_ok = true;
 
     auto check_int32 = [&](const char* name, int32_t val) {
+        if (!stream_ok) return;
         int32_t loaded = 0;
         if (const absl::Status s = ReadValue(reader, loaded); s.ok()) {
             if (loaded != val) {
@@ -474,9 +476,11 @@ absl::Status AvdExtendedUniverse::OnLoadProps(archive::IReader& reader) {
         } else {
             LOG(WARNING) << "Could not load the '" << name << "' property: " << s;
             ok = false;
+            stream_ok = false;
         }
     };
     auto check_str = [&](const char* name, std::string_view val) {
+        if (!stream_ok) return;
         std::string loaded;
         if (const absl::Status s = ReadValue(reader, loaded); s.ok()) {
             if (loaded != val) {
@@ -487,6 +491,7 @@ absl::Status AvdExtendedUniverse::OnLoadProps(archive::IReader& reader) {
         } else {
             LOG(WARNING) << "Could not load the '" << name << "' property: " << s;
             ok = false;
+            stream_ok = false;
         }
     };
 
@@ -501,25 +506,29 @@ absl::Status AvdExtendedUniverse::OnLoadProps(archive::IReader& reader) {
     check_str("emulator_build_id", ::goldfish::version::GetEmulatorBuildId());
     check_str("emulator_platform", platform);
 
-    std::string current_vk_icd = GetCurrentVkIcd();
-    std::string loaded_vk_icd;
-    if (const absl::Status s = ReadValue(reader, loaded_vk_icd); s.ok()) {
-        if (loaded_vk_icd != current_vk_icd) {
-            LOG(WARNING) << "Property mismatch: emulator_vk_icd (loaded: " << loaded_vk_icd
-                         << ", expected: " << current_vk_icd << ")";
+    if (stream_ok) {
+        std::string current_vk_icd = GetCurrentVkIcd();
+        std::string loaded_vk_icd;
+        if (const absl::Status s = ReadValue(reader, loaded_vk_icd); s.ok()) {
+            if (loaded_vk_icd != current_vk_icd) {
+                LOG(WARNING) << "Property mismatch: emulator_vk_icd (loaded: " << loaded_vk_icd
+                             << ", expected: " << current_vk_icd << ")";
+                ok = false;
+            }
+        } else {
+            LOG(WARNING) << "Could not load the 'emulator_vk_icd' property: " << s;
             ok = false;
+            stream_ok = false;
         }
-    } else {
-        LOG(WARNING) << "Could not load the 'emulator_vk_icd' property: " << s;
-        ok = false;
     }
 
     class HwCfgReaderVisitor {
       public:
-        HwCfgReaderVisitor(archive::IReader& reader, bool& ok) : mReader(reader), mOk(ok) {}
+        HwCfgReaderVisitor(archive::IReader& reader, bool& ok, bool& stream_ok)
+                : mReader(reader), mOk(ok), mStreamOk(stream_ok) {}
 
         void operator()(const char* name, bool val) {
-            if (IsExcludedProp(name)) return;
+            if (!mStreamOk || IsExcludedProp(name)) return;
             bool loaded = false;
             if (const absl::Status s = ReadValue(mReader, loaded); s.ok()) {
                 if (loaded != val) {
@@ -530,10 +539,11 @@ absl::Status AvdExtendedUniverse::OnLoadProps(archive::IReader& reader) {
             } else {
                 LOG(WARNING) << "Could not load the '" << name << "' property: " << s;
                 mOk = false;
+                mStreamOk = false;
             }
         }
         void operator()(const char* name, int32_t val) {
-            if (IsExcludedProp(name)) return;
+            if (!mStreamOk || IsExcludedProp(name)) return;
             int32_t loaded = 0;
             if (const absl::Status s = ReadValue(mReader, loaded); s.ok()) {
                 if (loaded != val) {
@@ -544,10 +554,11 @@ absl::Status AvdExtendedUniverse::OnLoadProps(archive::IReader& reader) {
             } else {
                 LOG(WARNING) << "Could not load the '" << name << "' property: " << s;
                 mOk = false;
+                mStreamOk = false;
             }
         }
         void operator()(const char* name, const std::string& val) {
-            if (IsExcludedProp(name)) return;
+            if (!mStreamOk || IsExcludedProp(name)) return;
             std::string loaded;
             if (const absl::Status s = ReadValue(mReader, loaded); s.ok()) {
                 if (loaded != val) {
@@ -558,10 +569,11 @@ absl::Status AvdExtendedUniverse::OnLoadProps(archive::IReader& reader) {
             } else {
                 LOG(WARNING) << "Could not load the '" << name << "' property: " << s;
                 mOk = false;
+                mStreamOk = false;
             }
         }
         void operator()(const char* name, double val) {
-            if (IsExcludedProp(name)) return;
+            if (!mStreamOk || IsExcludedProp(name)) return;
             double loaded = 0;
             if (const absl::Status s = ReadValue(mReader, loaded); s.ok()) {
                 if (loaded != val) {
@@ -572,10 +584,11 @@ absl::Status AvdExtendedUniverse::OnLoadProps(archive::IReader& reader) {
             } else {
                 LOG(WARNING) << "Could not load the '" << name << "' property: " << s;
                 mOk = false;
+                mStreamOk = false;
             }
         }
         void operator()(const char* name, const android::goldfish::StorageCapacity& val) {
-            if (IsExcludedProp(name)) return;
+            if (!mStreamOk || IsExcludedProp(name)) return;
             uint64_t loaded = 0;
             if (const absl::Status s = ReadValue(mReader, loaded); s.ok()) {
                 if (loaded != val.Bytes()) {
@@ -586,19 +599,24 @@ absl::Status AvdExtendedUniverse::OnLoadProps(archive::IReader& reader) {
             } else {
                 LOG(WARNING) << "Could not load the '" << name << "' property: " << s;
                 mOk = false;
+                mStreamOk = false;
             }
         }
 
       private:
         archive::IReader& mReader;
         bool& mOk;
+        bool& mStreamOk;
     };
 
-    HwCfgReaderVisitor visitor(reader, ok);
+    HwCfgReaderVisitor visitor(reader, ok, stream_ok);
     p.hw_config.Accept(visitor);
 
+    if (!stream_ok) {
+        return absl::DataLossError("Failed to read AVD properties from snapshot stream");
+    }
     if (!ok) {
-        return absl::UnknownError("-1");
+        return absl::FailedPreconditionError("AVD configuration mismatch in snapshot");
     }
     return absl::OkStatus();
 }

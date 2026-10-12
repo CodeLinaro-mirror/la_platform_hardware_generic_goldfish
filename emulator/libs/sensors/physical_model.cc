@@ -22,6 +22,7 @@
 
 #include "absl/log/check.h"
 #include "absl/log/log.h"
+#include "absl/strings/str_cat.h"
 
 #include "android/goldfish/hardware_config.h"
 #include "android/status/status_macros.h"
@@ -897,6 +898,13 @@ absl::Status ReadValue(archive::IReader& r, PhysicalModel& pm) {
                               pm.model_time_ns_, use_override_bits, pm.is_physical_state_changing_,
                               has_foldable_model));
 
+    if constexpr (PhysicalModel::kNumSensors < sizeof(unsigned long) * CHAR_BIT) {
+        if ((use_override_bits >> PhysicalModel::kNumSensors) != 0) {
+            return absl::InvalidArgumentError(absl::StrCat(
+                    "Invalid sensor override bitmask 0x", absl::Hex(use_override_bits),
+                    " in PhysicalModel (kNumSensors=", PhysicalModel::kNumSensors, ")"));
+        }
+    }
     pm.use_override_ = PhysicalModel::UseOverrideMask(use_override_bits);
 
     if (has_foldable_model != static_cast<bool>(pm.foldable_model_)) {

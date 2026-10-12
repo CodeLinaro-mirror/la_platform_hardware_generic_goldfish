@@ -16,7 +16,11 @@
 
 #include "absl/log/check.h"
 #include "absl/log/log.h"
+#include "absl/status/status.h"
+#include "absl/strings/str_cat.h"
+#include "absl/time/time.h"
 
+#include "android/status/status_macros.h"
 #include "goldfish/metrics/metrics_reporter.h"
 
 namespace goldfish::avd_universe::guest_status {
@@ -40,7 +44,19 @@ archive::IWriter& operator<<(archive::IWriter& w, const GuestStatus& val) {
 }
 
 absl::Status ReadValue(archive::IReader& r, GuestStatus& val) {
-    return ReadValue(r, val.resetT_, val.bootcompleteT_, val.heartbeatCounter_);
+    absl::Time reset_t;
+    absl::Time bootcomplete_t;
+    uint64_t heartbeat_counter = 0;
+    RETURN_IF_ERROR(ReadValue(r, reset_t, bootcomplete_t, heartbeat_counter));
+    if (bootcomplete_t != absl::UnixEpoch() && bootcomplete_t < reset_t) {
+        return absl::InvalidArgumentError(absl::StrCat(
+                "bootcompleteT_ (", absl::FormatTime(bootcomplete_t), ") precedes resetT_ (",
+                absl::FormatTime(reset_t), ") in GuestStatus"));
+    }
+    val.resetT_ = reset_t;
+    val.bootcompleteT_ = bootcomplete_t;
+    val.heartbeatCounter_ = heartbeat_counter;
+    return absl::OkStatus();
 }
 
 GuestStatus::GuestStatus() : resetT_(absl::Now()) {}
@@ -73,7 +89,7 @@ void GuestStatus::SetBootComplete(const absl::Time t) {
 }
 
 void GuestStatus::OnPostLoad() const {
-    if (bootcompleteT_ >= resetT_) {
+    if (IsBootCompleted() && bootcompleteT_ >= resetT_) {
         NotifyBootcomplete(bootcompleteT_ - resetT_);
     }
 }
