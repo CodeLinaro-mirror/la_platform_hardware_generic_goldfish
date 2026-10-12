@@ -170,3 +170,32 @@ TEST(SocketBuffer, snapshot) {
         EXPECT_EQ(::strncmp(static_cast<const char*>(ptr), "test", 4), 0);
     }
 }
+
+TEST(SocketBuffer, snapshot_negative) {
+    // 1. Empty archive
+    {
+        DequeArchive archive;
+        SocketBuffer buffer;
+        EXPECT_NE(buffer.LoadFromSnapshot(archive), 0);
+    }
+
+    // 2. Oversized length prefix rejected
+    {
+        DequeArchive archive;
+        archive << static_cast<uint32_t>(SocketBuffer::kMaxSnapshotSize + 1);
+        SocketBuffer buffer;
+        EXPECT_NE(buffer.LoadFromSnapshot(archive), 0);
+    }
+
+    // 3. Truncated payload rejected without modifying existing buffer
+    {
+        DequeArchive archive;
+        archive << uint32_t{10};
+        archive.Write("abc", 3);
+
+        SocketBuffer buffer;
+        (void)buffer.Append("existing", 8);
+        EXPECT_NE(buffer.LoadFromSnapshot(archive), 0);
+        EXPECT_EQ(buffer.Size(), 8);
+    }
+}
