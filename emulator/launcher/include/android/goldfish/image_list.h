@@ -26,7 +26,6 @@
     _AVD_IMG(VENDOR, "vendor.img", "vendor")                                                   \
     _AVD_IMG(USERDATA, "userdata.img", "user data")                                            \
     _AVD_IMG(USERDATA_OLD, "userdata-qemu.img", "user data (old name)")                        \
-    _AVD_IMG(CACHE, "cache.img", "cache")                                                      \
     _AVD_IMG(SDCARD, "sdcard.img", "SD Card (survives -wipe-data)")                            \
     _AVD_IMG(SDCARD_EMU, "sdcard.emu.img", "SD Card (created by emulator)")                    \
     _AVD_IMG(SDCARD_EXTRNL_QCOW2, "sdcard.external.qcow2", "QCOW2 for SD Card outside of AVD") \

@@ -101,8 +101,7 @@ absl::Status BlankWritableDrive::initialize(const EmulatorConfig& emulator) {
     } else {
         LOG(INFO) << "Preparing empty drive: " << backing_image_;
         base::file::rm(qcow2_image_).IgnoreError();
-        RETURN_IF_ERROR(
-                ::goldfish::fsimage::CreateEmptyExt4Image(backing_image_, size_bytes_, id()));
+        RETURN_IF_ERROR(::goldfish::fsimage::CreateEmptyExt4Image(backing_image_, size_, id()));
     }
 
     return MakeQcow2();
@@ -116,7 +115,7 @@ absl::Status WritableDirectoryDrive::initialize(const EmulatorConfig& emulator) 
                   << src_directory_;
         base::file::rm(qcow2_image_).IgnoreError();
         RETURN_IF_ERROR(::goldfish::fsimage::CreateExt4ImageFromDir(backing_image_, src_directory_,
-                                                                    size_bytes_, id()));
+                                                                    size_, id()));
     }
 
     return MakeQcow2();

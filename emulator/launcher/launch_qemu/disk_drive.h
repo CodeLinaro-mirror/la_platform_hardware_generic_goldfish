@@ -20,6 +20,7 @@
 #include "absl/status/status.h"
 
 #include "device.h"
+#include "goldfish/file/storage_capacity.h"
 
 namespace android::goldfish {
 
@@ -87,35 +88,36 @@ class WritableImgDrive : public Qcow2Drive {
 };
 
 /**
- * @brief Represents a mutable disk of `size_bytes` size. `img_path` must be located
+ * @brief Represents a mutable disk of `size`. `img_path` must be located
  * inside the AVD folder.
  */
 class BlankWritableDrive : public Qcow2Drive {
   public:
     BlankWritableDrive(std::string id, std::string addr, fs::path backing_image,
-                       fs::path qcow2_image, uint64_t size_bytes)
+                       fs::path qcow2_image, android::base::StorageCapacity size)
             : Qcow2Drive(std::move(id), std::move(addr), std::move(backing_image),
                          std::move(qcow2_image))
-            , size_bytes_(size_bytes) {}
+            , size_(size) {}
 
     absl::Status initialize(const EmulatorConfig& emulator) override;
 
   protected:
-    const uint64_t size_bytes_;
+    const android::base::StorageCapacity size_;
 };
 
 /**
- * @brief Represents a mutable disk created from `src_directory` of size `size_bytes`.
+ * @brief Represents a mutable disk created from `src_directory` of `size`.
  * `img_path` must be located inside the AVD folder.
  */
 class WritableDirectoryDrive : public Qcow2Drive {
   public:
     WritableDirectoryDrive(std::string id, std::string addr, fs::path backing_image,
-                           fs::path qcow2_image, fs::path src_directory, uint64_t size_bytes)
+                           fs::path qcow2_image, fs::path src_directory,
+                           android::base::StorageCapacity size)
             : Qcow2Drive(std::move(id), std::move(addr), std::move(backing_image),
                          std::move(qcow2_image))
             , src_directory_(std::move(src_directory))
-            , size_bytes_(size_bytes) {}
+            , size_(size) {}
 
     absl::Status initialize(const EmulatorConfig& emulator) override;
 
@@ -124,7 +126,7 @@ class WritableDirectoryDrive : public Qcow2Drive {
 
   protected:
     const fs::path src_directory_;
-    const uint64_t size_bytes_;
+    const android::base::StorageCapacity size_;
 };
 
 }  // namespace android::goldfish
