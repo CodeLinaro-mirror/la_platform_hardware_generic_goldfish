@@ -10,6 +10,8 @@ namespace goldfish {
  */
 class FakeVmOperations : public VmOperations {
   public:
+    explicit FakeVmOperations(::goldfish::async::EventLoop* loop) : VmOperations(loop) {}
+
     bool stop() override {
         mIsRunning = false;
         return true;
@@ -22,12 +24,12 @@ class FakeVmOperations : public VmOperations {
     void Shutdown() override { mIsRunning = false; }
     bool pause() override {
         mRunState = EmuRunState::Paused;
-        FireEvent(mRunState);
+        RunStateEvents().FireEvent(mRunState);
         return true;
     }
     bool resume() override {
         mRunState = EmuRunState::Running;
-        FireEvent(mRunState);
+        RunStateEvents().FireEvent(mRunState);
         return true;
     }
     bool isRunning() override { return mIsRunning; }
@@ -37,7 +39,7 @@ class FakeVmOperations : public VmOperations {
     EmuRunState getRunState() override { return mRunState; }
     void setRunState(EmuRunState runState) {
         mRunState = runState;
-        FireEvent(mRunState);
+        RunStateEvents().FireEvent(mRunState);
     }
 
     void systemShutdownRequest(QemuShutdownCause reason) override {}

@@ -18,7 +18,8 @@
 #include "absl/strings/str_format.h"
 #include "absl/time/time.h"
 
-#include "goldfish/eventing/event_sources.h"
+#include "goldfish/async/event_loop.h"
+#include "goldfish/async/event_loop_dispatcher.h"
 
 namespace android {
 namespace goldfish {
@@ -229,12 +230,31 @@ void AbslStringify(Sink& sink, EmuRunState e) {
  * including starting, stopping, pausing, resuming, querying its configuration,
  * and subscribing to run state changes.
  */
-class VmOperations : public android::base::eventing::CallbackEventSource<EmuRunState> {
+class VmOperations {
   public:
+    /** @brief Source of run state changes, delivered on an event loop. */
+    using RunStateSource = ::goldfish::async::LoopBoundCallbackSource<EmuRunState>;
+
+    /**
+     * @brief Creates the interface with run state changes delivered on |loop|.
+     *
+     * @param loop The loop that runs the run state callbacks. Must outlive this object.
+     */
+    explicit VmOperations(::goldfish::async::EventLoop* loop) : run_state_events_(loop) {}
+
     /**
      * @brief Virtual destructor for the VmOperations interface.
      */
     virtual ~VmOperations() = default;
+
+    /**
+     * @brief Run state changes.
+     *
+     * Callbacks run on the loop passed to the constructor, never on the thread that changed
+     * the run state, which may hold the BQL. Events still queued when a callback is removed,
+     * or when this object is destroyed, are dropped.
+     */
+    RunStateSource& RunStateEvents() { return run_state_events_; }
 
     /**
      * @brief Stops the virtual machine.
@@ -315,6 +335,9 @@ class VmOperations : public android::base::eventing::CallbackEventSource<EmuRunS
     virtual void LoadSnapshotResume(EmuRunState) = 0;
     virtual absl::Status DeleteSnapshot(const char* idOrName) = 0;
     virtual absl::Status ListSnapshots(SnapshotEntrySink) = 0;
+
+  private:
+    RunStateSource run_state_events_;
 };
 
 }  // namespace goldfish

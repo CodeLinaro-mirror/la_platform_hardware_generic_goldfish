@@ -17,11 +17,13 @@
 #include <memory>
 
 #include "absl/cleanup/cleanup.h"
+#include "absl/log/check.h"
 #include "absl/strings/str_cat.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 
 #include "android/goldfish/vm_interface.h"
+#include "goldfish/async/event_loop.h"
 #include "goldfish/avd/avd_info.h"
 #include "goldfish/metrics/snapshot_metrics.h"
 
@@ -67,7 +69,8 @@ class QemuVmOperations : public VmOperations {
   public:
     // RecursiveScopedVmLock allows registration/deregistration to run safely on
     // both the QEMU main thread as well as the event thread.
-    QemuVmOperations() {
+    explicit QemuVmOperations(::goldfish::async::EventLoop* loop)
+            : VmOperations(loop), loop_(loop) {
         RecursiveScopedVmLock lock;
         change_state_entry_ = qemu_add_vm_change_state_handler(OnVmChangeState, this);
     }
@@ -286,16 +289,17 @@ class QemuVmOperations : public VmOperations {
   private:
     static void OnVmChangeState(void* opaque, bool running, RunState state) {
         auto* self = static_cast<QemuVmOperations*>(opaque);
-        if (self) {
-            self->FireEvent(static_cast<EmuRunState>(state));
-        }
+        // On the loop thread the dispatcher would run the subscribers inline, under the BQL.
+        DCHECK(!self->loop_->IsOnLoopThread()) << "Run state changed on the event loop thread";
+        self->RunStateEvents().FireEvent(static_cast<EmuRunState>(state));
     }
 
+    ::goldfish::async::EventLoop* const loop_;
     VMChangeStateEntry* change_state_entry_{nullptr};
 };
 
-std::unique_ptr<VmOperations> CreateQemuVmOperations() {
-    return std::make_unique<QemuVmOperations>();
+std::unique_ptr<VmOperations> CreateQemuVmOperations(::goldfish::async::EventLoop* loop) {
+    return std::make_unique<QemuVmOperations>(loop);
 }
 
 }  // namespace goldfish

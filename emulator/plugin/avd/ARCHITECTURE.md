@@ -39,3 +39,7 @@ environment, configures hardware, and starts all HAL services. **Location:**
 
 - **Main Thread:** `realize` runs on the QEMU main thread. It establishes the `QemuEventLoop` which
   wraps the QEMU AioContext, allowing thread-safe interaction from other threads via `Post`.
+- **VmOperations:** created during `realize` and bound to the global event loop, which runs its
+  run-state callbacks. Teardown order: the main-loop exit hook destroys the gRPC server and its
+  services (the run-state subscribers) before `qemu_cleanup()` destroys the universe and its
+  `VmOperations`, and `GF_SHUTDOWN_FUNC` shuts down the global event loop after `qemu_cleanup()`.

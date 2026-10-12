@@ -16,6 +16,7 @@
 #include <memory>
 
 #include "android/goldfish/vm_interface.h"
+#include "goldfish/async/event_loop.h"
 
 namespace android {
 namespace goldfish {
@@ -28,9 +29,11 @@ namespace goldfish {
  * lock is usable (for example while devices are realized) and keep it alive
  * for as long as consumers hold references to it.
  *
+ * @param loop The loop that runs the run state callbacks. Must outlive the instance,
+ *        and QEMU must never change the run state on its thread.
  * @return The QEMU-backed VmOperations.
  */
-std::unique_ptr<VmOperations> CreateQemuVmOperations();
+std::unique_ptr<VmOperations> CreateQemuVmOperations(::goldfish::async::EventLoop* loop);
 
 }  // namespace goldfish
 }  // namespace android
