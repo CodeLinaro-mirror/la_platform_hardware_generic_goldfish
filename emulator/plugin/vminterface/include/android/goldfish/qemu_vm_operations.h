@@ -29,11 +29,21 @@ namespace goldfish {
  * lock is usable (for example while devices are realized) and keep it alive
  * for as long as consumers hold references to it.
  *
- * @param loop The loop that runs the run state callbacks. Must outlive the instance,
- *        and QEMU must never change the run state on its thread.
+ * Mutating and snapshot operations are dispatched synchronously to `qemu_loop`
+ * via `PostAndWait`. They are expected to be called from external threads
+ * (such as gRPC server or worker threads) and will fatally abort if called
+ * from either `event_loop` or `qemu_loop`. Read-only queries (`isRunning`,
+ * `getRunState`, `getConfiguration`) execute directly without posting to
+ * `qemu_loop` and may be called from any thread.
+ *
+ * @param event_loop The loop that runs the `RunStateEvents()` callbacks. Must
+ *        be distinct from `qemu_loop` and outlive the returned instance.
+ * @param qemu_loop The QEMU main event loop used to execute VM operations. Must
+ *        outlive the returned instance.
  * @return The QEMU-backed VmOperations.
  */
-std::unique_ptr<VmOperations> CreateQemuVmOperations(::goldfish::async::EventLoop* loop);
+std::unique_ptr<VmOperations> CreateQemuVmOperations(::goldfish::async::EventLoop* event_loop,
+                                                     ::goldfish::async::EventLoop* qemu_loop);
 
 }  // namespace goldfish
 }  // namespace android

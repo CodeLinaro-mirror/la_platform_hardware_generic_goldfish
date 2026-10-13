@@ -229,6 +229,19 @@ void AbslStringify(Sink& sink, EmuRunState e) {
  * This interface provides methods to control and manage the lifecycle of a VM,
  * including starting, stopping, pausing, resuming, querying its configuration,
  * and subscribing to run state changes.
+ *
+ * Threading contract:
+ * - State-mutating and snapshot methods (`Stop`, `Start`, `Pause`, `Resume`,
+ *   `Reset`, `Shutdown`, `SaveSnapshot`, `LoadSnapshot`, `LoadSnapshotResume`,
+ *   `DeleteSnapshot`, `ListSnapshots`) are expected to be called from external
+ *   threads (such as gRPC server or worker threads). They must not be called
+ *   from the callback `EventLoop` passed to the constructor (to prevent
+ *   re-entrant callbacks and cross-loop deadlocks) or from the QEMU main event
+ *   loop.
+ * - Read-only queries (`IsRunning`, `GetRunState`, `GetConfiguration`) and
+ *   atomic requests (`SystemShutdownRequest`) do not block or trigger
+ *   callbacks synchronously and may be called from any thread, including
+ *   `qemu_loop`, `RunStateEvents()` callbacks, and hang detector predicates.
  */
 class VmOperations {
   public:
@@ -252,7 +265,8 @@ class VmOperations {
      *
      * Callbacks run on the loop passed to the constructor, never on the thread that changed
      * the run state, which may hold the BQL. Events still queued when a callback is removed,
-     * or when this object is destroyed, are dropped.
+     * or when this object is destroyed, are dropped. Subscribers must not invoke mutating
+     * or snapshot methods on `VmOperations` from inside a callback.
      */
     RunStateSource& RunStateEvents() { return run_state_events_; }
 

@@ -17,8 +17,10 @@
 
 #include <array>
 #include <cerrno>
+#include <cstdio>
 #include <memory>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "absl/status/status_matchers.h"
@@ -27,7 +29,10 @@
 #include "android/goldfish/vm_interface.h"
 #include "android/status/status_matcher_macros.h"
 #include "emulator/plugin/vminterface/test/test_vm_lock.h"
+#include "goldfish/async/libuv_event_loop.h"
 #include "goldfish/async/testing/test_event_loop.h"
+#include "goldfish/async/threaded_event_loop.h"
+#include "goldfish/avd/fake_avd_universe.h"
 
 extern "C" {
 #include "emulator/plugin/vminterface/test/vm_mock.h"
@@ -38,6 +43,8 @@ namespace android {
 namespace goldfish {
 
 using ::absl_testing::StatusIs;
+using ::goldfish::async::LibuvEventLoop;
+using ::goldfish::async::ThreadedEventLoop;
 using ::goldfish::async::testing::TestEventLoop;
 using ::testing::AllOf;
 using ::testing::ElementsAre;
@@ -52,6 +59,8 @@ class QemuVmOperationsTest : public ::testing::Test {
         mock_shutdown_cause_set(SHUTDOWN_CAUSE_NONE);
         mock_iothread_locked_set(false);
         mock_vm_stop_return_set(0);
+        mock_snapshot_op_ok_set(false);
+        mock_snapshot_list_set(/*entries=*/nullptr, /*count=*/-1);
         test_vm_lock_ = TestVmLock::GetInstance();
         test_vm_lock_->lock_count_ = 0;
         test_vm_lock_->unlock_count_ = 0;
@@ -59,9 +68,10 @@ class QemuVmOperationsTest : public ::testing::Test {
 
         ASSERT_TRUE(VmLock::HasInstance());
 
-        vm_ops_ = CreateQemuVmOperations(loop_.get());
-        // Construction registers QEMU handlers under the VM lock; tests only
-        // count the locking done by the operation under test.
+        vm_ops_ = CreateQemuVmOperations(/*event_loop=*/loop_.get(),
+                                         /*qemu_loop=*/qemu_loop_.get());
+        EXPECT_EQ(test_vm_lock_->lock_count_, 1);
+        EXPECT_EQ(test_vm_lock_->unlock_count_, 1);
         test_vm_lock_->lock_count_ = 0;
         test_vm_lock_->unlock_count_ = 0;
     }
@@ -74,67 +84,71 @@ class QemuVmOperationsTest : public ::testing::Test {
         mock_shutdown_cause_set(SHUTDOWN_CAUSE_NONE);
         mock_iothread_locked_set(false);
         mock_vm_stop_return_set(0);
+        mock_snapshot_op_ok_set(false);
+        mock_snapshot_list_set(/*entries=*/nullptr, /*count=*/-1);
     }
 
     TestVmLock* test_vm_lock_ = nullptr;
     VmLock* old_lock_ = nullptr;
-    // Declared before vm_ops_, so it outlives the VmOperations that posts to it.
-    const std::unique_ptr<TestEventLoop> loop_ = TestEventLoop::Create();
+    // Declared before vm_ops_, so they outlive the VmOperations that posts to them.
+    const std::unique_ptr<TestEventLoop> loop_ = TestEventLoop::Create("EventLoop");
+    const std::unique_ptr<ThreadedEventLoop> qemu_loop_ =
+            ThreadedEventLoop::Create(LibuvEventLoop::Create("QemuLoop"));
     std::unique_ptr<VmOperations> vm_ops_;
 };
 
 TEST_F(QemuVmOperationsTest, Stop) {
-    // Tests that the Stop operation correctly pauses a running VM and uses the VmLock.
     mock_runstate_set(RUN_STATE_RUNNING);
+    const size_t initial_tasks = qemu_loop_->WaitUntilIdle();
     ASSERT_OK(vm_ops_->Stop());
-    ASSERT_EQ(test_vm_lock_->lock_count_, 1);
-    ASSERT_EQ(test_vm_lock_->unlock_count_, 1);
-    ASSERT_EQ(runstate_get(), RUN_STATE_PAUSED);
+    EXPECT_EQ(qemu_loop_->WaitUntilIdle(), initial_tasks + 1);
+    EXPECT_EQ(test_vm_lock_->lock_count_, 0);
+    EXPECT_EQ(runstate_get(), RUN_STATE_PAUSED);
 }
 
 TEST_F(QemuVmOperationsTest, Start) {
-    // Tests that the Start operation correctly starts the VM and uses the VmLock.
+    const size_t initial_tasks = qemu_loop_->WaitUntilIdle();
     ASSERT_OK(vm_ops_->Start());
-    ASSERT_EQ(test_vm_lock_->lock_count_, 1);
-    ASSERT_EQ(test_vm_lock_->unlock_count_, 1);
-    ASSERT_EQ(runstate_get(), RUN_STATE_RUNNING);
+    EXPECT_EQ(qemu_loop_->WaitUntilIdle(), initial_tasks + 1);
+    EXPECT_EQ(test_vm_lock_->lock_count_, 0);
+    EXPECT_EQ(runstate_get(), RUN_STATE_RUNNING);
 }
 
 TEST_F(QemuVmOperationsTest, Reset) {
-    // Tests that the Reset operation correctly resets the VM and uses the VmLock.
+    const size_t initial_tasks = qemu_loop_->WaitUntilIdle();
     ASSERT_OK(vm_ops_->Reset());
-    ASSERT_EQ(test_vm_lock_->lock_count_, 1);
-    ASSERT_EQ(test_vm_lock_->unlock_count_, 1);
-    ASSERT_EQ(mock_shutdown_cause_get(), SHUTDOWN_CAUSE_SUBSYSTEM_RESET);
+    EXPECT_EQ(qemu_loop_->WaitUntilIdle(), initial_tasks + 1);
+    EXPECT_EQ(test_vm_lock_->lock_count_, 0);
+    EXPECT_EQ(mock_shutdown_cause_get(), SHUTDOWN_CAUSE_SUBSYSTEM_RESET);
 }
 
 TEST_F(QemuVmOperationsTest, Shutdown) {
-    // Tests that the Shutdown operation correctly shuts down the VM and uses the VmLock.
+    const size_t initial_tasks = qemu_loop_->WaitUntilIdle();
     ASSERT_OK(vm_ops_->Shutdown());
-    ASSERT_EQ(test_vm_lock_->lock_count_, 1);
-    ASSERT_EQ(test_vm_lock_->unlock_count_, 1);
+    EXPECT_EQ(qemu_loop_->WaitUntilIdle(), initial_tasks + 1);
+    EXPECT_EQ(test_vm_lock_->lock_count_, 0);
 
     // Note: qemu_system_shutdown_request is asynchronous in QEMU.
     // The mock implementation only records the shutdown cause and does not
     // simulate an immediate transition to RUN_STATE_SHUTDOWN.
-    ASSERT_EQ(mock_shutdown_cause_get(), SHUTDOWN_CAUSE_HOST_UI);
+    EXPECT_EQ(mock_shutdown_cause_get(), SHUTDOWN_CAUSE_HOST_UI);
 }
 
 TEST_F(QemuVmOperationsTest, Pause) {
-    // Tests that the Pause operation correctly pauses a running VM and uses the VmLock.
     mock_runstate_set(RUN_STATE_RUNNING);
+    const size_t initial_tasks = qemu_loop_->WaitUntilIdle();
     ASSERT_OK(vm_ops_->Pause());
-    ASSERT_EQ(test_vm_lock_->lock_count_, 1);
-    ASSERT_EQ(test_vm_lock_->unlock_count_, 1);
-    ASSERT_EQ(runstate_get(), RUN_STATE_PAUSED);
+    EXPECT_EQ(qemu_loop_->WaitUntilIdle(), initial_tasks + 1);
+    EXPECT_EQ(test_vm_lock_->lock_count_, 0);
+    EXPECT_EQ(runstate_get(), RUN_STATE_PAUSED);
 }
 
 TEST_F(QemuVmOperationsTest, Resume) {
-    // Tests that the Resume operation correctly resumes the VM and uses the VmLock.
+    const size_t initial_tasks = qemu_loop_->WaitUntilIdle();
     ASSERT_OK(vm_ops_->Resume());
-    ASSERT_EQ(test_vm_lock_->lock_count_, 1);
-    ASSERT_EQ(test_vm_lock_->unlock_count_, 1);
-    ASSERT_EQ(runstate_get(), RUN_STATE_RUNNING);
+    EXPECT_EQ(qemu_loop_->WaitUntilIdle(), initial_tasks + 1);
+    EXPECT_EQ(test_vm_lock_->lock_count_, 0);
+    EXPECT_EQ(runstate_get(), RUN_STATE_RUNNING);
 }
 
 TEST_F(QemuVmOperationsTest, StartResumePauseStopAndShutdownAreIdempotent) {
@@ -356,6 +370,23 @@ TEST_F(QemuVmOperationsTest, EventsQueuedWhenVmOperationsIsDestroyedAreDropped) 
 
 using QemuVmOperationsDeathTest = QemuVmOperationsTest;
 
+TEST_F(QemuVmOperationsDeathTest, VmOperationOnEventLoopDies) {
+    GTEST_FLAG_SET(death_test_style, "threadsafe");
+    EXPECT_DEATH(
+            {
+                loop_->Post([this] { vm_ops_->Pause().IgnoreError(); }).IgnoreError();
+                loop_->RunAll();
+            },
+            "VmOperations cannot be called from the event loop");
+}
+
+TEST_F(QemuVmOperationsDeathTest, VmOperationOnQemuLoopDies) {
+    GTEST_FLAG_SET(death_test_style, "threadsafe");
+    EXPECT_DEATH(
+            { qemu_loop_->PostAndWait([this] { vm_ops_->Pause().IgnoreError(); }).IgnoreError(); },
+            "postAndWait cannot be called from the event loop");
+}
+
 TEST_F(QemuVmOperationsDeathTest, RunStateChangeOnTheLoopThreadDies) {
     GTEST_FLAG_SET(death_test_style, "threadsafe");
     auto change_run_state = [] { mock_fire_vm_change_state(true, RUN_STATE_RUNNING); };
@@ -374,6 +405,105 @@ TEST_F(QemuVmOperationsTest, DestructorUnregistersRunStateHandler) {
     vm_ops_.reset();
 
     EXPECT_FALSE(mock_has_vm_change_state_handler());
+    EXPECT_EQ(test_vm_lock_->lock_count_, 1);
+    EXPECT_EQ(test_vm_lock_->unlock_count_, 1);
+}
+
+TEST_F(QemuVmOperationsTest, SnapshotMethodsExecuteOnQemuLoopWithoutVmLock) {
+    ::goldfish::avd::FakeAvdUniverse fake_avd;
+    mock_runstate_set(RUN_STATE_RUNNING);
+
+    // SaveSnapshot failure (with null errp) and success.
+    mock_snapshot_op_ok_set(false);
+    size_t tasks = qemu_loop_->WaitUntilIdle();
+    EXPECT_THAT(
+            vm_ops_->SaveSnapshot("snap_a", /*overwrite=*/true),
+            StatusIs(absl::StatusCode::kInternal, AllOf(HasSubstr("Cannot save snapshot 'snap_a'"),
+                                                        HasSubstr("writable qcow2 disk image"))));
+    EXPECT_EQ(qemu_loop_->WaitUntilIdle(), tasks + 1);
+    EXPECT_EQ(test_vm_lock_->lock_count_, 0);
+
+    mock_snapshot_op_ok_set(true);
+    tasks = qemu_loop_->WaitUntilIdle();
+    ASSERT_OK(vm_ops_->SaveSnapshot("snap_a", /*overwrite=*/true));
+    EXPECT_EQ(qemu_loop_->WaitUntilIdle(), tasks + 1);
+    EXPECT_EQ(test_vm_lock_->lock_count_, 0);
+
+    // LoadSnapshot failure and success (without auto-resume, followed by LoadSnapshotResume).
+    mock_snapshot_op_ok_set(false);
+    tasks = qemu_loop_->WaitUntilIdle();
+    EXPECT_THAT(
+            vm_ops_->LoadSnapshot("snap_a", /*and_resume=*/false),
+            StatusIs(absl::StatusCode::kInternal, AllOf(HasSubstr("Cannot load snapshot 'snap_a'"),
+                                                        HasSubstr("ListSnapshots"))));
+    EXPECT_EQ(qemu_loop_->WaitUntilIdle(), tasks + 1);
+    EXPECT_EQ(test_vm_lock_->lock_count_, 0);
+
+    mock_runstate_set(RUN_STATE_RUNNING);
+    mock_snapshot_op_ok_set(true);
+    tasks = qemu_loop_->WaitUntilIdle();
+    ASSERT_OK(vm_ops_->LoadSnapshot("snap_a", /*and_resume=*/false));
+    EXPECT_EQ(qemu_loop_->WaitUntilIdle(), tasks + 1);
+    EXPECT_EQ(test_vm_lock_->lock_count_, 0);
+    EXPECT_EQ(runstate_get(), RUN_STATE_RESTORE_VM);
+
+    tasks = qemu_loop_->WaitUntilIdle();
+    vm_ops_->LoadSnapshotResume(EmuRunState::Running);
+    EXPECT_EQ(qemu_loop_->WaitUntilIdle(), tasks + 1);
+    EXPECT_EQ(test_vm_lock_->lock_count_, 0);
+    EXPECT_EQ(runstate_get(), RUN_STATE_RUNNING);
+
+    // DeleteSnapshot failure and success.
+    mock_snapshot_op_ok_set(false);
+    tasks = qemu_loop_->WaitUntilIdle();
+    EXPECT_THAT(vm_ops_->DeleteSnapshot("snap_a"),
+                StatusIs(absl::StatusCode::kInternal,
+                         AllOf(HasSubstr("Cannot delete snapshot 'snap_a'"),
+                               HasSubstr("disk image is writable"))));
+    EXPECT_EQ(qemu_loop_->WaitUntilIdle(), tasks + 1);
+    EXPECT_EQ(test_vm_lock_->lock_count_, 0);
+
+    mock_snapshot_op_ok_set(true);
+    tasks = qemu_loop_->WaitUntilIdle();
+    ASSERT_OK(vm_ops_->DeleteSnapshot("snap_a"));
+    EXPECT_EQ(qemu_loop_->WaitUntilIdle(), tasks + 1);
+    EXPECT_EQ(test_vm_lock_->lock_count_, 0);
+}
+
+TEST_F(QemuVmOperationsTest, ListSnapshotsExecutesOnQemuLoopAndPropagatesErrors) {
+    // No VM state block device -> FAILED_PRECONDITION.
+    mock_snapshot_list_set(/*entries=*/nullptr, /*count=*/-1);
+    size_t tasks = qemu_loop_->WaitUntilIdle();
+    EXPECT_THAT(vm_ops_->ListSnapshots([](VmOperations::SnapshotEntry) {}),
+                StatusIs(absl::StatusCode::kFailedPrecondition,
+                         AllOf(HasSubstr("no block device supports VM state snapshots"),
+                               HasSubstr("qcow2 disk image"))));
+    EXPECT_EQ(qemu_loop_->WaitUntilIdle(), tasks + 1);
+    EXPECT_EQ(test_vm_lock_->lock_count_, 0);
+
+    // Negative -errno from bdrv_snapshot_list -> mapped via absl::ErrnoToStatus.
+    std::array<QEMUSnapshotInfo, 1> qsi{};
+    std::snprintf(qsi[0].id_str, sizeof(qsi[0].id_str), "1");
+    std::snprintf(qsi[0].name, sizeof(qsi[0].name), "default_boot");
+    qsi[0].date_sec = 1700000000;
+    mock_snapshot_list_set(/*entries=*/qsi.data(), /*count=*/-EIO);
+    tasks = qemu_loop_->WaitUntilIdle();
+    EXPECT_THAT(vm_ops_->ListSnapshots([](VmOperations::SnapshotEntry) {}),
+                StatusIs(absl::ErrnoToStatusCode(EIO),
+                         HasSubstr("Cannot list snapshots: failed to read snapshot table")));
+    EXPECT_EQ(qemu_loop_->WaitUntilIdle(), tasks + 1);
+    EXPECT_EQ(test_vm_lock_->lock_count_, 0);
+
+    // Valid snapshot list.
+    mock_snapshot_list_set(/*entries=*/qsi.data(), /*count=*/static_cast<int>(qsi.size()));
+    std::vector<VmOperations::SnapshotEntry> entries;
+    tasks = qemu_loop_->WaitUntilIdle();
+    ASSERT_OK(vm_ops_->ListSnapshots(
+            [&](VmOperations::SnapshotEntry entry) { entries.push_back(std::move(entry)); }));
+    EXPECT_EQ(qemu_loop_->WaitUntilIdle(), tasks + 1);
+    EXPECT_EQ(test_vm_lock_->lock_count_, 0);
+    ASSERT_EQ(entries.size(), 1U);
+    EXPECT_EQ(entries[0].name, "default_boot");
 }
 
 }  // namespace goldfish

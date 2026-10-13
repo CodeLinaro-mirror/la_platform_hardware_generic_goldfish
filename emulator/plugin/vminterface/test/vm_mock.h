@@ -51,4 +51,10 @@ bool mock_has_vm_change_state_handler(void);
 // Setter for the return value of vm_stop()
 void mock_vm_stop_return_set(int ret);
 
+// Configure save_snapshot / load_snapshot / delete_snapshot mock return value
+void mock_snapshot_op_ok_set(bool ok);
+
+// Configure bdrv_snapshot_list mock entries
+void mock_snapshot_list_set(const QEMUSnapshotInfo* entries, int count);
+
 __END_DECLS

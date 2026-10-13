@@ -13,17 +13,22 @@
 // limitations under the License.
 #include "emulator/plugin/vminterface/test/vm_mock.h"
 
+#include <assert.h>
 #include <stdbool.h>
 
 // Global variables for mock functions
 static RunState runstate_get_value = RUN_STATE_DEBUG;
 static ShutdownCause mock_shutdown_cause = SHUTDOWN_CAUSE_NONE;
 static bool mock_iothread_locked = false;
+static bool mock_snapshot_op_ok = false;
 
 const char* error_get_pretty(const Error* err) {
+    assert(err != NULL);
     return "error_get_pretty";
 }
-void error_free(Error* err) {}
+void error_free(Error* err) {
+    (void)err;
+}
 
 // Getter and setter for RunState
 RunState runstate_get() {
@@ -50,6 +55,10 @@ bool mock_iothread_locked_get() {
 
 void mock_iothread_locked_set(bool locked) {
     mock_iothread_locked = locked;
+}
+
+void mock_snapshot_op_ok_set(bool ok) {
+    mock_snapshot_op_ok = ok;
 }
 
 // Implementations of the mock functions
@@ -105,32 +114,65 @@ void bql_unlock(void) {
 
 bool save_snapshot(const char* name, bool overwrite, const char* vmstate, bool has_devices,
                    strList* devices, Error** errp) {
+    (void)name;
+    (void)overwrite;
+    (void)vmstate;
+    (void)has_devices;
+    (void)devices;
     *errp = NULL;
-    return false;
+    return mock_snapshot_op_ok;
 }
 
 bool load_snapshot(const char* name, const char* vmstate, bool has_devices, strList* devices,
                    Error** errp) {
+    (void)name;
+    (void)vmstate;
+    (void)has_devices;
+    (void)devices;
     *errp = NULL;
-    return false;
+    return mock_snapshot_op_ok;
 }
 
-void load_snapshot_resume(RunState state) {}
+void load_snapshot_resume(RunState state) {
+    mock_runstate_set(state);
+}
 
 bool delete_snapshot(const char* name, bool has_devices, strList* devices, Error** errp) {
+    (void)name;
+    (void)has_devices;
+    (void)devices;
     *errp = NULL;
-    return false;
+    return mock_snapshot_op_ok;
+}
+
+static const QEMUSnapshotInfo* s_mock_snapshot_entries = NULL;
+static int s_mock_snapshot_count = -1;
+
+void mock_snapshot_list_set(const QEMUSnapshotInfo* entries, int count) {
+    s_mock_snapshot_entries = entries;
+    s_mock_snapshot_count = count;
 }
 
 BlockDriverState* bdrv_all_find_vmstate_bs(const char* vmstate_bs, bool has_devices,
                                            strList* devices, Error** errp) {
+    (void)vmstate_bs;
+    (void)has_devices;
+    (void)devices;
     *errp = NULL;
-    return NULL;
+    return (s_mock_snapshot_entries != NULL || s_mock_snapshot_count >= 0) ? (BlockDriverState*)0x1
+                                                                           : NULL;
 }
 
 int bdrv_snapshot_list(BlockDriverState* bs, QEMUSnapshotInfo** psn_info) {
-    *psn_info = NULL;
-    return -1;
+    (void)bs;
+    if (s_mock_snapshot_count <= 0 || s_mock_snapshot_entries == NULL) {
+        *psn_info = NULL;
+        return s_mock_snapshot_count;
+    }
+    *psn_info = g_new0(QEMUSnapshotInfo, s_mock_snapshot_count);
+    memcpy(*psn_info, s_mock_snapshot_entries,
+           sizeof(QEMUSnapshotInfo) * (size_t)s_mock_snapshot_count);
+    return s_mock_snapshot_count;
 }
 
 static VMChangeStateHandler* s_change_handler = NULL;

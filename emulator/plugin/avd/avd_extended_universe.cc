@@ -131,11 +131,13 @@ absl::Status AvdExtendedUniverse::Initialize() {
             absl::ZeroDuration(), absl::Seconds(300));
     avd_universe.GetGuestStatus().SetMetricsReporter(avd_universe.metrics_reporter.get());
 
-    avd_universe.vm_operations = android::goldfish::CreateQemuVmOperations(client_loop);
-    auto is_active = [vm = avd_universe.vm_operations.get()]() { return vm->IsRunning(); };
-
     avd_universe.qemu_event_loop = goldfish::async::QemuEventLoop::Create();
     auto& qemu_loop = avd_universe.qemu_event_loop;
+
+    avd_universe.vm_operations = android::goldfish::CreateQemuVmOperations(
+            /*event_loop=*/client_loop, /*qemu_loop=*/qemu_loop.get());
+    auto is_active = [vm = avd_universe.vm_operations.get()]() { return vm->IsRunning(); };
+
     android::crashreport::CrashReporter::GetCrashingHangDetector().AddWatchedLooper(
             "QemuEventLoop", *qemu_loop, absl::Seconds(15), is_active);
 

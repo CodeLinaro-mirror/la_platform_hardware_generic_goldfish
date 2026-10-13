@@ -19,6 +19,7 @@
 
 #include "absl/cleanup/cleanup.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/time/clock.h"
@@ -50,10 +51,15 @@ extern "C" {
 namespace android {
 namespace goldfish {
 namespace {
-absl::Status ToStatus(const absl::StatusCode code, Error** errp) {
-    absl::Status status = absl::Status(code, ::error_get_pretty(*errp));
-    ::error_free(*errp);
-    *errp = nullptr;
+absl::Status ToStatus(const absl::StatusCode code, std::string_view prefix, Error** errp,
+                      std::string_view remediation) {
+    const char* detail =
+            (errp && *errp) ? ::error_get_pretty(*errp) : "QEMU reported an unspecified error";
+    absl::Status status(code, absl::StrCat(prefix, ": ", detail, ". ", remediation));
+    if (errp && *errp) {
+        ::error_free(*errp);
+        *errp = nullptr;
+    }
     return status;
 }
 absl::Status MakeInvalidTransitionError(std::string_view action, EmuRunState current_state,
@@ -88,14 +94,21 @@ static_assert(static_cast<int>(EmuRunState::Max) == static_cast<int>(RUN_STATE__
  * @brief QemuVmOperations class implementing the VmOperations interface.
  *
  * This class provides a concrete implementation of the VmOperations interface
- * for interacting with a QEMU virtual machine.
+ * for interacting with a QEMU virtual machine. Mutating and snapshot methods
+ * execute synchronously on `qemu_loop` via `PostAndWait` and must not be called
+ * from either `event_loop` or `qemu_loop`.
  */
 class QemuVmOperations : public VmOperations {
   public:
     // RecursiveScopedVmLock allows registration/deregistration to run safely on
-    // both the QEMU main thread as well as the event thread.
-    explicit QemuVmOperations(::goldfish::async::EventLoop* loop)
-            : VmOperations(loop), loop_(loop) {
+    // both the QEMU main thread as well as external threads during startup/teardown.
+    QemuVmOperations(::goldfish::async::EventLoop* event_loop,
+                     ::goldfish::async::EventLoop* qemu_loop)
+            : VmOperations(event_loop), event_loop_(event_loop), qemu_loop_(qemu_loop) {
+        DCHECK(event_loop_ != nullptr);
+        DCHECK(qemu_loop_ != nullptr);
+        DCHECK(event_loop_ != qemu_loop_)
+                << "event_loop and qemu_loop must be distinct event loops.";
         RecursiveScopedVmLock lock;
         change_state_entry_ = qemu_add_vm_change_state_handler(OnVmChangeState, this);
     }
@@ -111,84 +124,95 @@ class QemuVmOperations : public VmOperations {
     absl::Status Start() override { return Resume(); }
 
     absl::Status Reset() override {
-        ScopedVmLock lock;
-        switch (const EmuRunState state = GetRunState()) {
-        case EmuRunState::Shutdown:
-        case EmuRunState::SaveVm:
-        case EmuRunState::RestoreVm:
-        case EmuRunState::InMigrate:
-        case EmuRunState::FinishMigrate:
-        case EmuRunState::Colo:
-            return MakeInvalidTransitionError("reset", state,
-                                              "Running, Paused, Suspended, Debug, or fault state");
-        default:
-            qemu_system_reset_request(SHUTDOWN_CAUSE_SUBSYSTEM_RESET);
-            return absl::OkStatus();
-        }
+        return RunOnQemuLoop([this] {
+            switch (const EmuRunState state = GetRunState()) {
+            case EmuRunState::Shutdown:
+            case EmuRunState::SaveVm:
+            case EmuRunState::RestoreVm:
+            case EmuRunState::InMigrate:
+            case EmuRunState::FinishMigrate:
+            case EmuRunState::Colo:
+                return MakeInvalidTransitionError(
+                        /*action=*/"reset", /*current_state=*/state,
+                        /*expected_states=*/"Running, Paused, Suspended, Debug, or fault state");
+            default:
+                qemu_system_reset_request(SHUTDOWN_CAUSE_SUBSYSTEM_RESET);
+                return absl::OkStatus();
+            }
+        });
     }
 
     absl::Status Shutdown() override {
-        ScopedVmLock lock;
-        switch (const EmuRunState state = GetRunState()) {
-        case EmuRunState::Shutdown:
-            return absl::OkStatus();
-        case EmuRunState::SaveVm:
-        case EmuRunState::RestoreVm:
-        case EmuRunState::InMigrate:
-        case EmuRunState::FinishMigrate:
-        case EmuRunState::Colo:
-            return MakeInvalidTransitionError("shut down", state,
-                                              "Running, Paused, Suspended, Debug, or fault state");
-        default:
-            qemu_system_shutdown_request(SHUTDOWN_CAUSE_HOST_UI);
-            return absl::OkStatus();
-        }
+        return RunOnQemuLoop([this] {
+            switch (const EmuRunState state = GetRunState()) {
+            case EmuRunState::Shutdown:
+                return absl::OkStatus();
+            case EmuRunState::SaveVm:
+            case EmuRunState::RestoreVm:
+            case EmuRunState::InMigrate:
+            case EmuRunState::FinishMigrate:
+            case EmuRunState::Colo:
+                return MakeInvalidTransitionError(
+                        /*action=*/"shut down", /*current_state=*/state,
+                        /*expected_states=*/"Running, Paused, Suspended, Debug, or fault state");
+            default:
+                qemu_system_shutdown_request(SHUTDOWN_CAUSE_HOST_UI);
+                return absl::OkStatus();
+            }
+        });
     }
 
     absl::Status Pause() override {
-        ScopedVmLock lock;
-        switch (const EmuRunState state = GetRunState()) {
-        case EmuRunState::Paused:
-            return absl::OkStatus();
-        case EmuRunState::Running:
-        case EmuRunState::Suspended: {
-            const int ret = vm_stop(RUN_STATE_PAUSED);
-            if (ret < 0) {
-                return absl::ErrnoToStatus(
-                        -ret, absl::StrCat("Cannot pause VM from current state ", state,
-                                           ": QEMU vm_stop(RUN_STATE_PAUSED) failed (code ", ret,
-                                           "). Reset the VM or check host storage availability"));
+        return RunOnQemuLoop([this] {
+            switch (const EmuRunState state = GetRunState()) {
+            case EmuRunState::Paused:
+                return absl::OkStatus();
+            case EmuRunState::Running:
+            case EmuRunState::Suspended: {
+                const int ret = vm_stop(RUN_STATE_PAUSED);
+                if (ret < 0) {
+                    return absl::ErrnoToStatus(
+                            -ret,
+                            absl::StrCat("Cannot pause VM from current state ", state,
+                                         ": QEMU vm_stop(RUN_STATE_PAUSED) failed (code ", ret,
+                                         "). Reset the VM or check host storage availability"));
+                }
+                if (ret > 0) {
+                    return absl::InternalError(absl::StrCat(
+                            "Cannot pause VM from current state ", state,
+                            ": QEMU vm_stop(RUN_STATE_PAUSED) device stop callback failed with "
+                            "code ",
+                            ret, ". Reset the VM to recover."));
+                }
+                return absl::OkStatus();
             }
-            if (ret > 0) {
-                return absl::InternalError(absl::StrCat(
-                        "Cannot pause VM from current state ", state,
-                        ": QEMU vm_stop(RUN_STATE_PAUSED) device stop callback failed with code ",
-                        ret, ". Reset the VM to recover."));
+            default:
+                return MakeInvalidTransitionError(
+                        /*action=*/"pause", /*current_state=*/state,
+                        /*expected_states=*/"Running, Paused, or Suspended");
             }
-            return absl::OkStatus();
-        }
-        default:
-            return MakeInvalidTransitionError("pause", state, "Running, Paused, or Suspended");
-        }
+        });
     }
 
     absl::Status Resume() override {
-        ScopedVmLock lock;
-        switch (const EmuRunState state = GetRunState()) {
-        case EmuRunState::Running:
-            return absl::OkStatus();
-        case EmuRunState::Paused:
-        case EmuRunState::Suspended:
-        case EmuRunState::PreLaunch:
-        case EmuRunState::Debug:
-        case EmuRunState::PostMigrate:
-            vm_start();
-            return absl::OkStatus();
-        default:
-            return MakeInvalidTransitionError(
-                    "resume", state,
-                    "Running, Paused, Suspended, Debug, PreLaunch, or PostMigrate");
-        }
+        return RunOnQemuLoop([this] {
+            switch (const EmuRunState state = GetRunState()) {
+            case EmuRunState::Running:
+                return absl::OkStatus();
+            case EmuRunState::Paused:
+            case EmuRunState::Suspended:
+            case EmuRunState::PreLaunch:
+            case EmuRunState::Debug:
+            case EmuRunState::PostMigrate:
+                vm_start();
+                return absl::OkStatus();
+            default:
+                return MakeInvalidTransitionError(
+                        /*action=*/"resume", /*current_state=*/state,
+                        /*expected_states=*/
+                        "Running, Paused, Suspended, Debug, PreLaunch, or PostMigrate");
+            }
+        });
     }
 
     /**
@@ -251,107 +275,146 @@ class QemuVmOperations : public VmOperations {
     }
 
     absl::Status SaveSnapshot(std::string name, const bool overwrite) override {
-        absl::Time start = absl::Now();
-        ScopedVmLock lock;
-        auto& avd = ::goldfish::avd::GetAvd();
-        avd.SetGenericSnapshotInProgress(true);
-        auto cleanup = absl::MakeCleanup([&avd] { avd.SetGenericSnapshotInProgress(false); });
-        ::Error* errp = nullptr;
-        bool ok = ::save_snapshot(name.c_str(), overwrite, /*vmstate=*/nullptr,
-                                  /*has_devices=*/false, /*devices=*/nullptr, &errp);
-        ::goldfish::metrics::ReportGenericSnapshotSave(avd.GetMetricsReporter(), name, ok,
-                                                       absl::Now() - start);
-        if (!ok) {
-            return ToStatus(absl::StatusCode::kInternal, &errp);
-        }
-        return absl::OkStatus();
+        return RunOnQemuLoop([name = std::move(name), overwrite] {
+            absl::Time start = absl::Now();
+            auto& avd = ::goldfish::avd::GetAvd();
+            avd.SetGenericSnapshotInProgress(true);
+            auto cleanup = absl::MakeCleanup([&avd] { avd.SetGenericSnapshotInProgress(false); });
+            ::Error* errp = nullptr;
+            bool ok = ::save_snapshot(name.c_str(), overwrite, /*vmstate=*/nullptr,
+                                      /*has_devices=*/false, /*devices=*/nullptr, &errp);
+            ::goldfish::metrics::ReportGenericSnapshotSave(avd.GetMetricsReporter(), name, ok,
+                                                           absl::Now() - start);
+            if (!ok) {
+                return ToStatus(
+                        absl::StatusCode::kInternal,
+                        /*prefix=*/absl::StrCat("Cannot save snapshot '", name, "'"), &errp,
+                        /*remediation=*/
+                        "Verify that the writable qcow2 disk image has free space and retry.");
+            }
+            return absl::OkStatus();
+        });
     }
 
     absl::Status LoadSnapshot(std::string id_or_name, const bool and_resume) override {
-        absl::Time start = absl::Now();
-        ScopedVmLock lock;
-        auto& avd = ::goldfish::avd::GetAvd();
-        ::Error* errp = nullptr;
+        return RunOnQemuLoop([id_or_name = std::move(id_or_name), and_resume] {
+            absl::Time start = absl::Now();
+            auto& avd = ::goldfish::avd::GetAvd();
+            ::Error* errp = nullptr;
 
-        ::vm_stop(RUN_STATE_RESTORE_VM);
+            ::vm_stop(RUN_STATE_RESTORE_VM);
 
-        avd.SetGenericSnapshotInProgress(true);
-        auto cleanup = absl::MakeCleanup([&avd] { avd.SetGenericSnapshotInProgress(false); });
-        bool ok = ::load_snapshot(id_or_name.c_str(), /*vmstate=*/nullptr, /*has_devices=*/false,
-                                  /*devices=*/nullptr, &errp);
-        ::goldfish::metrics::ReportGenericSnapshotLoad(avd.GetMetricsReporter(), id_or_name, ok,
-                                                       absl::Now() - start);
-        if (!ok) {
-            return ToStatus(absl::StatusCode::kInternal, &errp);
-        }
+            avd.SetGenericSnapshotInProgress(true);
+            auto cleanup = absl::MakeCleanup([&avd] { avd.SetGenericSnapshotInProgress(false); });
+            bool ok = ::load_snapshot(id_or_name.c_str(), /*vmstate=*/nullptr,
+                                      /*has_devices=*/false, /*devices=*/nullptr, &errp);
+            ::goldfish::metrics::ReportGenericSnapshotLoad(avd.GetMetricsReporter(), id_or_name, ok,
+                                                           absl::Now() - start);
+            if (!ok) {
+                return ToStatus(absl::StatusCode::kInternal,
+                                /*prefix=*/absl::StrCat("Cannot load snapshot '", id_or_name, "'"),
+                                &errp,
+                                /*remediation=*/
+                                "Verify the snapshot exists with ListSnapshots, or reset/resume "
+                                "the VM.");
+            }
 
-        if (and_resume) {
-            ::load_snapshot_resume(::RUN_STATE_RUNNING);
-        }
+            if (and_resume) {
+                ::load_snapshot_resume(::RUN_STATE_RUNNING);
+            }
 
-        return absl::OkStatus();
+            return absl::OkStatus();
+        });
     }
 
     void LoadSnapshotResume(const EmuRunState ers) override {
-        ScopedVmLock lock;
-        ::load_snapshot_resume(static_cast<::RunState>(ers));
+        if (absl::Status status =
+                    RunOnQemuLoop([ers] { ::load_snapshot_resume(static_cast<::RunState>(ers)); });
+            !status.ok()) {
+            LOG(WARNING) << "Cannot resume VM to state " << ers
+                         << " after loading snapshot: " << status;
+        }
     }
 
     absl::Status DeleteSnapshot(std::string id_or_name) override {
-        ScopedVmLock lock;
-        ::Error* errp = nullptr;
-        if (!::delete_snapshot(id_or_name.c_str(), /*has_devices=*/false, /*devices=*/nullptr,
-                               &errp)) {
-            return ToStatus(absl::StatusCode::kInternal, &errp);
-        }
+        return RunOnQemuLoop([id_or_name = std::move(id_or_name)] {
+            ::Error* errp = nullptr;
+            if (!::delete_snapshot(id_or_name.c_str(), /*has_devices=*/false, /*devices=*/nullptr,
+                                   &errp)) {
+                return ToStatus(
+                        absl::StatusCode::kInternal,
+                        /*prefix=*/absl::StrCat("Cannot delete snapshot '", id_or_name, "'"), &errp,
+                        /*remediation=*/
+                        "Verify that the snapshot exists and the disk image is writable.");
+            }
 
-        return absl::OkStatus();
+            return absl::OkStatus();
+        });
     }
 
     absl::Status ListSnapshots(const SnapshotEntrySink sink) override {
-        ScopedVmLock lock;
-        ::Error* errp = nullptr;
-        ::BlockDriverState* bs = ::bdrv_all_find_vmstate_bs(
-                /*vmstate_bs=*/nullptr, /*has_devices=*/false, /*devices=*/nullptr, &errp);
-        if (!bs) {
-            return ToStatus(absl::StatusCode::kInternal, &errp);
-        }
+        return RunOnQemuLoop([sink] {
+            ::Error* errp = nullptr;
+            ::BlockDriverState* bs = ::bdrv_all_find_vmstate_bs(
+                    /*vmstate_bs=*/nullptr, /*has_devices=*/false, /*devices=*/nullptr, &errp);
+            if (!bs) {
+                return ToStatus(
+                        absl::StatusCode::kFailedPrecondition,
+                        /*prefix=*/
+                        "Cannot list snapshots: no block device supports VM state snapshots", &errp,
+                        /*remediation=*/"Ensure the AVD is configured with a qcow2 disk image.");
+            }
 
-        ::QEMUSnapshotInfo* qsi = nullptr;
-        const int qsi_size = ::bdrv_snapshot_list(bs, &qsi);
-        if (qsi_size < 0) {
-            return absl::InternalError(absl::StrCat("bdrv_snapshot_list failed with ", qsi_size));
-        }
+            ::QEMUSnapshotInfo* qsi = nullptr;
+            const int qsi_size = ::bdrv_snapshot_list(bs, &qsi);
+            if (qsi_size < 0) {
+                return absl::ErrnoToStatus(
+                        -qsi_size,
+                        "Cannot list snapshots: failed to read snapshot table from block device. "
+                        "Verify that the disk image is accessible and not corrupted.");
+            }
 
-        for (int i = 0; i < qsi_size; ++i) {
-            SnapshotEntry se = {
-                .id = qsi[i].id_str,
-                .name = qsi[i].name,
-                .timestamp = absl::FromUnixSeconds(qsi[i].date_sec) +
-                             absl::Nanoseconds(qsi[i].date_nsec),
-            };
+            for (int i = 0; i < qsi_size; ++i) {
+                SnapshotEntry se = {
+                    .id = qsi[i].id_str,
+                    .name = qsi[i].name,
+                    .timestamp = absl::FromUnixSeconds(qsi[i].date_sec) +
+                                 absl::Nanoseconds(qsi[i].date_nsec),
+                };
 
-            sink(std::move(se));
-        }
+                sink(std::move(se));
+            }
 
-        ::g_free(qsi);
-        return absl::OkStatus();
+            ::g_free(qsi);
+            return absl::OkStatus();
+        });
     }
 
   private:
-    static void OnVmChangeState(void* opaque, bool running, RunState state) {
+    template <typename F>
+    absl::Status RunOnQemuLoop(F&& fn) {
+        if (event_loop_->IsOnLoopThread()) {
+            LOG(FATAL) << "VmOperations cannot be called from the event loop.";
+        }
+        return qemu_loop_->PostAndWait(std::forward<F>(fn));
+    }
+
+    static void OnVmChangeState(void* opaque, bool /*running*/, RunState state) {
         auto* self = static_cast<QemuVmOperations*>(opaque);
         // On the loop thread the dispatcher would run the subscribers inline, under the BQL.
-        DCHECK(!self->loop_->IsOnLoopThread()) << "Run state changed on the event loop thread";
+        DCHECK(!self->event_loop_->IsOnLoopThread())
+                << "Run state changed on the event loop thread";
         self->RunStateEvents().FireEvent(static_cast<EmuRunState>(state));
     }
 
-    ::goldfish::async::EventLoop* const loop_;
+    ::goldfish::async::EventLoop* const event_loop_;
+    ::goldfish::async::EventLoop* const qemu_loop_;
     VMChangeStateEntry* change_state_entry_{nullptr};
 };
 
-std::unique_ptr<VmOperations> CreateQemuVmOperations(::goldfish::async::EventLoop* loop) {
-    return std::make_unique<QemuVmOperations>(loop);
+std::unique_ptr<VmOperations> CreateQemuVmOperations(::goldfish::async::EventLoop* event_loop,
+                                                     ::goldfish::async::EventLoop* qemu_loop) {
+    return std::make_unique<QemuVmOperations>(event_loop, qemu_loop);
 }
 
 }  // namespace goldfish
