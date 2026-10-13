@@ -12,41 +12,41 @@ class FakeVmOperations : public VmOperations {
   public:
     explicit FakeVmOperations(::goldfish::async::EventLoop* loop) : VmOperations(loop) {}
 
-    bool stop() override {
-        mIsRunning = false;
+    bool Stop() override {
+        is_running_ = false;
         return true;
     }
-    bool start() override {
-        mIsRunning = true;
+    bool Start() override {
+        is_running_ = true;
         return true;
     }
-    void reset() override {}
-    void Shutdown() override { mIsRunning = false; }
-    bool pause() override {
-        mRunState = EmuRunState::Paused;
-        RunStateEvents().FireEvent(mRunState);
+    void Reset() override {}
+    void Shutdown() override { is_running_ = false; }
+    bool Pause() override {
+        run_state_ = EmuRunState::Paused;
+        RunStateEvents().FireEvent(run_state_);
         return true;
     }
-    bool resume() override {
-        mRunState = EmuRunState::Running;
-        RunStateEvents().FireEvent(mRunState);
+    bool Resume() override {
+        run_state_ = EmuRunState::Running;
+        RunStateEvents().FireEvent(run_state_);
         return true;
     }
-    bool isRunning() override { return mIsRunning; }
-    void setIsRunning(bool isRunning) { mIsRunning = isRunning; }
+    bool IsRunning() override { return is_running_; }
+    void SetIsRunning(bool is_running) { is_running_ = is_running; }
 
-    VmConfiguration getConfiguration() override { return {VmHypervisorType::None, 1, "fake"}; }
-    EmuRunState getRunState() override { return mRunState; }
-    void setRunState(EmuRunState runState) {
-        mRunState = runState;
-        RunStateEvents().FireEvent(mRunState);
+    VmConfiguration GetConfiguration() override { return {VmHypervisorType::None, 1, "fake"}; }
+    EmuRunState GetRunState() override { return run_state_; }
+    void SetRunState(EmuRunState run_state) {
+        run_state_ = run_state;
+        RunStateEvents().FireEvent(run_state_);
     }
 
-    void systemShutdownRequest(QemuShutdownCause reason) override {}
+    void SystemShutdownRequest(QemuShutdownCause /*reason*/) override {}
 
   private:
-    bool mIsRunning = true;
-    EmuRunState mRunState = EmuRunState::Running;
+    bool is_running_ = true;
+    EmuRunState run_state_ = EmuRunState::Running;
 };
 
 }  // namespace goldfish

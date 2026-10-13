@@ -25,10 +25,10 @@ Status VmServiceImpl::setVmState(const VmRunState& request) {
     auto state = request.state();
     switch (state) {
     case VmRunState::RESET:
-        mVm->reset();
+        vm_->Reset();
         break;
     case VmRunState::SHUTDOWN:
-        mVm->Shutdown();
+        vm_->Shutdown();
         break;
     case VmRunState::TERMINATE: {
         LOG(ERROR) << "Received request to terminate the emulator process immediately. No "
@@ -36,19 +36,19 @@ Status VmServiceImpl::setVmState(const VmRunState& request) {
         android::base::Process::Me()->Terminate();
     }; break;
     case VmRunState::PAUSED:
-        mVm->pause();
+        vm_->Pause();
         break;
     case VmRunState::RUNNING:
-        mVm->resume();
+        vm_->Resume();
         break;
     case VmRunState::RESTART:
-        mVm->reset();
+        vm_->Reset();
         break;
     case VmRunState::START:
-        mVm->start();
+        vm_->Start();
         break;
     case VmRunState::STOP:
-        mVm->stop();
+        vm_->Stop();
         break;
     default:
         break;
@@ -60,7 +60,7 @@ Status VmServiceImpl::setVmState(const VmRunState& request) {
 Status VmServiceImpl::getVmState(VmRunState* reply) {
     using ::android::goldfish::EmuRunState;
 
-    auto state = mVm->getRunState();
+    auto state = vm_->GetRunState();
     VLOG(1) << "Current emulator run state: " << static_cast<int>(state) << " (" << state << ")";
     switch (state) {
     case EmuRunState::Paused:

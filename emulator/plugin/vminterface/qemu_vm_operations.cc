@@ -86,7 +86,7 @@ class QemuVmOperations : public VmOperations {
      *
      * @return True if the operation was successful, false otherwise.
      */
-    bool stop() override {
+    bool Stop() override {
         ScopedVmLock lock;
         return vm_stop(RUN_STATE_PAUSED) == 0;
     }
@@ -96,7 +96,7 @@ class QemuVmOperations : public VmOperations {
      *
      * @return True if the operation was successful, false otherwise.
      */
-    bool start() override {
+    bool Start() override {
         ScopedVmLock lock;
         vm_start();
         return true;
@@ -105,7 +105,7 @@ class QemuVmOperations : public VmOperations {
     /**
      * @brief Resets the QEMU virtual machine.
      */
-    void reset() override {
+    void Reset() override {
         ScopedVmLock lock;
         qemu_system_reset_request(SHUTDOWN_CAUSE_SUBSYSTEM_RESET);
     }
@@ -123,7 +123,7 @@ class QemuVmOperations : public VmOperations {
      *
      * @return True if the operation was successful, false otherwise.
      */
-    bool pause() override {
+    bool Pause() override {
         ScopedVmLock lock;
         return vm_stop(RUN_STATE_PAUSED) == 0;
     }
@@ -133,7 +133,7 @@ class QemuVmOperations : public VmOperations {
      *
      * @return True if the operation was successful, false otherwise.
      */
-    bool resume() override {
+    bool Resume() override {
         ScopedVmLock lock;
         // Should this be qmp_cont?
         vm_start();
@@ -145,7 +145,7 @@ class QemuVmOperations : public VmOperations {
      *
      * @return True if the VM is running, false otherwise.
      */
-    bool isRunning() override { return runstate_get() == RUN_STATE_RUNNING; }
+    bool IsRunning() override { return runstate_get() == RUN_STATE_RUNNING; }
 
     /**
      * @brief Gets the configuration of the QEMU virtual machine.
@@ -155,7 +155,7 @@ class QemuVmOperations : public VmOperations {
      *       A real implementation would need to query QEMU for the actual
      * configuration.
      */
-    VmConfiguration getConfiguration() override {
+    VmConfiguration GetConfiguration() override {
         VmConfiguration config;
         const std::string_view accel = ::accel_name_cwrap();
 
@@ -171,14 +171,14 @@ class QemuVmOperations : public VmOperations {
                 }};
         static_assert(std::size(kHyperVisorData) == static_cast<size_t>(VmHypervisorType::Max));
 
-        config.hypervisorType = VmHypervisorType::Unknown;
+        config.hypervisor_type = VmHypervisorType::Unknown;
         for (const auto& pair : kHyperVisorData) {
             if (pair.first == accel) {
-                config.hypervisorType = pair.second;
+                config.hypervisor_type = pair.second;
                 break;
             }
         }
-        config.numberOfCpuCores = ::cpu_count_cwrap();
+        config.number_of_cpu_cores = ::cpu_count_cwrap();
         config.cpu_type = ::cpu_type_cwrap();
         return config;
     }
@@ -188,14 +188,14 @@ class QemuVmOperations : public VmOperations {
      *
      * @return The emulator's run state.
      */
-    EmuRunState getRunState() override { return static_cast<EmuRunState>(runstate_get()); }
+    EmuRunState GetRunState() override { return static_cast<EmuRunState>(runstate_get()); }
 
     /**
      * @brief Requests a system shutdown with a specified reason.
      *
      * @param reason The reason for the shutdown request.
      */
-    void systemShutdownRequest(QemuShutdownCause reason) override {
+    void SystemShutdownRequest(QemuShutdownCause reason) override {
         qemu_system_shutdown_request(static_cast<ShutdownCause>(reason));
     }
 
