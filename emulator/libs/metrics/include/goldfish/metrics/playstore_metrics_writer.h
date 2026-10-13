@@ -37,6 +37,13 @@ class PlaystoreMetricsWriter : public MetricsWriter {
 
   private:
     void Commit();
+    // Queues the event, dropping the oldest ones to stay within kMaxStorage. An event bigger than
+    // kMaxStorage is dropped.
+    void PushEvent(wireless_android_play_playlog::LogEvent event)
+            ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
+    // Whether the shutdown deadline has passed. A running upload checks it, to cancel itself.
+    bool PastShutdownDeadline() ABSL_LOCKS_EXCLUDED(mutex_);
+    void BeginShutdown(absl::Duration upload_budget) ABSL_LOCKS_EXCLUDED(mutex_);
 
     const std::string playstore_url_;
     const std::string user_id_;
@@ -47,9 +54,12 @@ class PlaystoreMetricsWriter : public MetricsWriter {
     std::queue<wireless_android_play_playlog::LogEvent> events_ ABSL_GUARDED_BY(mutex_);
     size_t current_bytes_ ABSL_GUARDED_BY(mutex_) = 0;
     absl::Time send_after_ ABSL_GUARDED_BY(mutex_) = absl::InfinitePast();
+    absl::Time shutdown_deadline_ ABSL_GUARDED_BY(mutex_) = absl::InfiniteFuture();
+    bool shutdown_upload_failed_ ABSL_GUARDED_BY(mutex_) = false;
 
     static constexpr size_t kMaxStorage = 1024 * 128;
     static constexpr absl::Duration kCommitInterval = absl::Minutes(10);
+    static constexpr absl::Duration kShutdownUploadBudget = absl::Seconds(2);
 };
 
 }  // namespace goldfish::metrics
