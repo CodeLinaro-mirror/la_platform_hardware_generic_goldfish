@@ -136,6 +136,42 @@ struct Qcow2SnapshotExtraData {
 };
 static_assert(sizeof(Qcow2SnapshotExtraData) == 24);
 
+absl::Status ReadQcow2Header(const fs::path& qcow2_path, std::ifstream* ifs, Qcow2Header* header) {
+    if (!android::base::file::exists(qcow2_path)) {
+        return absl::NotFoundError(
+                absl::StrFormat("Image '%s' does not exist", qcow2_path.string()));
+    }
+
+    ifs->open(qcow2_path, std::ios_base::binary);
+    if (!ifs->good()) {
+        return absl::InternalError(
+                absl::StrFormat("Failed to open image '%s'", qcow2_path.string()));
+    }
+
+    uint32_t magic_be = 0;
+    if (!ifs->read(reinterpret_cast<char*>(&magic_be), sizeof(magic_be)) ||
+        BeToHost32(magic_be) != kQcowMagic) {
+        return absl::InvalidArgumentError(
+                absl::StrFormat("'%s' is not a qcow2 image", qcow2_path.string()));
+    }
+
+    *header = {};
+    ifs->seekg(0);
+    constexpr size_t kQcow2V2HeaderSize = offsetof(Qcow2Header, incompatible_features);
+    static_assert(kQcow2V2HeaderSize == 72);
+    if (!ifs->read(reinterpret_cast<char*>(header), kQcow2V2HeaderSize)) {
+        return absl::DataLossError(
+                absl::StrFormat("Truncated qcow2 header in '%s'", qcow2_path.string()));
+    }
+
+    const uint32_t version = BeToHost32(header->version);
+    if (version != kQcowVersion2 && version != kQcowVersion3) {
+        return absl::InvalidArgumentError(absl::StrFormat("Unsupported qcow2 version %u in '%s'",
+                                                          version, qcow2_path.string()));
+    }
+    return absl::OkStatus();
+}
+
 }  // namespace
 
 namespace internal {
@@ -319,39 +355,35 @@ absl::Status CreateQcow2Overlay(const fs::path& qcow2_image,
     return internal::CreateQcow2Overlay(qcow2_image, ""sv, ""sv, raw_size.Bytes());
 }
 
-absl::StatusOr<std::vector<Qcow2Snapshot>> ListQcow2Snapshots(const fs::path& qcow2_path) {
-    if (!android::base::file::exists(qcow2_path)) {
-        return absl::NotFoundError(
-                absl::StrFormat("Image '%s' does not exist", qcow2_path.string()));
-    }
-
-    std::ifstream ifs(qcow2_path, std::ios_base::binary);
-    if (!ifs.good()) {
-        return absl::InternalError(
-                absl::StrFormat("Failed to open image '%s'", qcow2_path.string()));
-    }
-
-    uint32_t magic_be = 0;
-    if (!ifs.read(reinterpret_cast<char*>(&magic_be), sizeof(magic_be)) ||
-        BeToHost32(magic_be) != kQcowMagic) {
-        return absl::InvalidArgumentError(
-                absl::StrFormat("'%s' is not a qcow2 image", qcow2_path.string()));
-    }
-
+absl::StatusOr<std::string> ReadBackingFileFromQcow2(const fs::path& qcow2_path) {
+    std::ifstream ifs;
     Qcow2Header header = {};
-    ifs.seekg(0);
-    constexpr size_t kQcow2V2HeaderSize = offsetof(Qcow2Header, incompatible_features);
-    static_assert(kQcow2V2HeaderSize == 72);
-    if (!ifs.read(reinterpret_cast<char*>(&header), kQcow2V2HeaderSize)) {
+    RETURN_IF_ERROR(ReadQcow2Header(qcow2_path, &ifs, &header));
+
+    const uint64_t backing_file_offset = BeToHost64(header.backing_file_offset);
+    const uint32_t backing_file_size = BeToHost32(header.backing_file_size);
+    if (backing_file_offset == 0 || backing_file_size == 0) {
+        return std::string{};
+    }
+    if (backing_file_size > kMaxBackingFileLength) {
         return absl::DataLossError(
-                absl::StrFormat("Truncated qcow2 header in '%s'", qcow2_path.string()));
+                absl::StrFormat("Backing file size (%u) exceeds maximum (%u) in '%s'",
+                                backing_file_size, kMaxBackingFileLength, qcow2_path.string()));
     }
 
-    const uint32_t version = BeToHost32(header.version);
-    if (version != kQcowVersion2 && version != kQcowVersion3) {
-        return absl::InvalidArgumentError(absl::StrFormat("Unsupported qcow2 version %u in '%s'",
-                                                          version, qcow2_path.string()));
+    ifs.seekg(static_cast<std::streamoff>(backing_file_offset));
+    std::string backing_file(backing_file_size, '\0');
+    if (!ifs.read(backing_file.data(), static_cast<std::streamsize>(backing_file_size))) {
+        return absl::DataLossError(
+                absl::StrFormat("Truncated backing file path in '%s'", qcow2_path.string()));
     }
+    return backing_file;
+}
+
+absl::StatusOr<std::vector<Qcow2Snapshot>> ListQcow2Snapshots(const fs::path& qcow2_path) {
+    std::ifstream ifs;
+    Qcow2Header header = {};
+    RETURN_IF_ERROR(ReadQcow2Header(qcow2_path, &ifs, &header));
 
     const uint32_t nb_snapshots = BeToHost32(header.nb_snapshots);
     if (nb_snapshots == 0) {

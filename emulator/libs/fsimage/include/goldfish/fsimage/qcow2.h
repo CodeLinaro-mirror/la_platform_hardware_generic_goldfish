@@ -54,6 +54,8 @@ absl::Status CreateQcow2Overlay(const fs::path& qcow2_image, const fs::path& bac
 absl::Status CreateQcow2Overlay(const fs::path& qcow2_image,
                                 android::base::StorageCapacity raw_size);
 
+absl::StatusOr<std::string> ReadBackingFileFromQcow2(const fs::path& qcow2_path);
+
 absl::StatusOr<std::vector<Qcow2Snapshot>> ListQcow2Snapshots(const fs::path& qcow2_path);
 
 }  // namespace goldfish::fsimage
