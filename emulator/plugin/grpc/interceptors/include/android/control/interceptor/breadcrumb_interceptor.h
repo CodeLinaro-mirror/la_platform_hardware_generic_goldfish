@@ -27,6 +27,12 @@ using grpc::experimental::Interceptor;
 using grpc::experimental::InterceptorBatchMethods;
 using grpc::experimental::ServerRpcInfo;
 
+#if defined(CONFIG_TRACE_GOLDFISH)
+inline constexpr bool kDefaultCaptureGrpcPayload = true;
+#else
+inline constexpr bool kDefaultCaptureGrpcPayload = false;
+#endif
+
 /**
  * @brief Intercepts gRPC calls to record structured diagnostic breadcrumbs.
  *
@@ -37,8 +43,10 @@ using grpc::experimental::ServerRpcInfo;
  */
 class BreadcrumbInterceptor : public grpc::experimental::Interceptor {
   public:
-    explicit BreadcrumbInterceptor(const ClientRpcInfo* info);
-    explicit BreadcrumbInterceptor(const ServerRpcInfo* info);
+    explicit BreadcrumbInterceptor(const ClientRpcInfo* info,
+                                   bool capture_payload = kDefaultCaptureGrpcPayload);
+    explicit BreadcrumbInterceptor(const ServerRpcInfo* info,
+                                   bool capture_payload = kDefaultCaptureGrpcPayload);
     ~BreadcrumbInterceptor() override;
 
     void Intercept(InterceptorBatchMethods* methods) override;
@@ -48,6 +56,7 @@ class BreadcrumbInterceptor : public grpc::experimental::Interceptor {
   private:
     android::crashreport::FlowId call_id_;
     uint32_t method_hash_;
+    bool capture_payload_;
 };
 
 /**
@@ -56,10 +65,13 @@ class BreadcrumbInterceptor : public grpc::experimental::Interceptor {
 class BreadcrumbInterceptorFactory : public grpc::experimental::ServerInterceptorFactoryInterface,
                                      public grpc::experimental::ClientInterceptorFactoryInterface {
   public:
-    BreadcrumbInterceptorFactory();
+    explicit BreadcrumbInterceptorFactory(bool capture_payload = kDefaultCaptureGrpcPayload);
     ~BreadcrumbInterceptorFactory() override = default;
     Interceptor* CreateServerInterceptor(ServerRpcInfo* info) override;
     Interceptor* CreateClientInterceptor(ClientRpcInfo* info) override;
+
+  private:
+    bool capture_payload_;
 };
 
 }  // namespace android::control::interceptor

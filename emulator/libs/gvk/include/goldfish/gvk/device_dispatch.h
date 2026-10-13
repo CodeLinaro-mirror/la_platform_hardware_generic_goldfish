@@ -76,8 +76,16 @@
     VISITOR(vkCmdDrawIndexed)                          \
     VISITOR(vkCmdBlitImage)                            \
     VISITOR(vkCmdCopyImageToBuffer)                    \
+    VISITOR(vkCmdCopyBufferToImage)                    \
     VISITOR(vkCmdPipelineBarrier)                      \
-    VISITOR(vkGetImageSubresourceLayout)
+    VISITOR(vkGetImageSubresourceLayout)               \
+    VISITOR(vkCreateSampler)                           \
+    VISITOR(vkDestroySampler)                          \
+    VISITOR(vkCmdPushConstants)                        \
+    VISITOR(vkCmdSetViewport)                          \
+    VISITOR(vkCmdSetScissor)                           \
+    VISITOR(vkResetCommandBuffer)                      \
+    VISITOR(vkDeviceWaitIdle)
 
 namespace goldfish::gvk {
 
@@ -120,6 +128,7 @@ class DeviceDispatch {
     bool allocateCommandBuffers(VkCommandPool, VkCommandBufferLevel, uint32_t bufsSize,
                                 VkCommandBuffer* bufs) const;
     void freeCommandBuffers(VkCommandPool, uint32_t bufsSize, const VkCommandBuffer* bufs) const;
+    bool resetCommandBuffer(VkCommandBuffer, VkCommandBufferResetFlags flags = 0) const;
 
     CommandBufferEnder beginCommandBuffer(VkCommandBuffer, VkCommandBufferUsageFlags,
                                           bool occlusionQueryEnable = false,
@@ -132,9 +141,13 @@ class DeviceDispatch {
                      VkFence = VK_NULL_HANDLE) const;
     bool queueSubmit(VkQueue, VkCommandBuffer, VkFence = VK_NULL_HANDLE) const;
     bool queueWaitIdle(VkQueue) const;
+    bool deviceWaitIdle() const;
 
     ShaderModule createShaderModule(const void* code, size_t codeSize) const;
     void destroyShaderModule(VkShaderModule) const;
+
+    Sampler createSampler(const VkSamplerCreateInfo&) const;
+    void destroySampler(VkSampler) const;
 
     DescriptorSetLayout createDescriptorSetLayout(const VkDescriptorSetLayoutCreateInfo&) const;
     DescriptorSetLayout createDescriptorSetLayout(uint32_t bindingCount,
@@ -205,12 +218,21 @@ class DeviceDispatch {
                             VkIndexType indexType) const;
     void cmdDrawIndexed(VkCommandBuffer, uint32_t indexCount, uint32_t instanceCount,
                         uint32_t firstIndex, int32_t vertexOffset, uint32_t firstInstance) const;
+    void cmdPushConstants(VkCommandBuffer, VkPipelineLayout, VkShaderStageFlags, uint32_t offset,
+                          uint32_t size, const void* values) const;
+    void cmdSetViewport(VkCommandBuffer, uint32_t firstViewport, uint32_t viewportCount,
+                        const VkViewport* viewports) const;
+    void cmdSetScissor(VkCommandBuffer, uint32_t firstScissor, uint32_t scissorCount,
+                       const VkRect2D* scissors) const;
     void cmdBlitImage(VkCommandBuffer commandBuffer, VkImage srcImage, VkImageLayout srcImageLayout,
                       VkImage dstImage, VkImageLayout dstImageLayout, uint32_t regionCount,
                       const VkImageBlit* regions, VkFilter filter) const;
     void cmdCopyImageToBuffer(VkCommandBuffer commandBuffer, VkImage srcImage,
                               VkImageLayout srcImageLayout, VkBuffer dstBuffer,
                               uint32_t regionCount, const VkBufferImageCopy* regions) const;
+    void cmdCopyBufferToImage(VkCommandBuffer commandBuffer, VkBuffer srcBuffer, VkImage dstImage,
+                              VkImageLayout dstImageLayout, uint32_t regionCount,
+                              const VkBufferImageCopy* regions) const;
     void cmdPipelineBarrier(VkCommandBuffer commandBuffer, VkPipelineStageFlags srcStageMask,
                             VkPipelineStageFlags dstStageMask, VkDependencyFlags dependencyFlags,
                             uint32_t memoryBarrierCount, const VkMemoryBarrier* memoryBarriers,

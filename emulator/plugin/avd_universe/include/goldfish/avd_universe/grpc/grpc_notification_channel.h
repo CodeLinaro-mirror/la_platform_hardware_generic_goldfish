@@ -13,7 +13,7 @@
 // limitations under the License.
 #pragma once
 
-#include "emulator_controller.grpc.pb.h"
+#include "emulator_controller.pb.h"
 #include "goldfish/eventing/event_sources.h"
 
 namespace goldfish::avd_universe::grpc {

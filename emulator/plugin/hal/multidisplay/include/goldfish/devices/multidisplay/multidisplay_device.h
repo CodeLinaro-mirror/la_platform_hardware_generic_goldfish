@@ -25,19 +25,6 @@
 
 namespace goldfish::devices::multidisplay {
 
-// The external API to send messages to the guest.
-// This is thread-safe and can be called from anywhere.
-
-// Returns the color buffer handle for the given display, or 0 if not bound.
-// Thread-safe.
-uint32_t GetDisplayColorBuffer(uint32_t display_id);
-void ReadDisplayColorBuffer(uint32_t colorbuffer, uint8_t* outptr);
-void SendToGuest(std::string message);
-void SendAddDisplay(uint32_t display_id, uint32_t width, uint32_t height, uint32_t dpi,
-                    uint32_t flag);
-void SendDelDisplay(uint32_t display_id);
-void SendSetDisplay(uint32_t mode_id, uint32_t width, uint32_t height, uint32_t dpi, uint32_t flag);
-
 class MultiDisplayDevice : public HalPlug, public std::enable_shared_from_this<MultiDisplayDevice> {
   public:
     explicit MultiDisplayDevice(async::EventLoop* client_loop);
@@ -48,22 +35,16 @@ class MultiDisplayDevice : public HalPlug, public std::enable_shared_from_this<M
     void OnClose() override;
     void OnReceive(std::string_view data) override;
 
-    // Internal send method
-    void SendInternal(std::string message);
-
-    void SendAddDisplayPacket(uint32_t display_id, uint32_t width, uint32_t height, uint32_t dpi,
-                              uint32_t flag);
-
-    // Internal helper to retrieve CB safely
-    uint32_t GetColorBufferInternal(uint32_t display_id);
-
-    // Internal helper to clear CB on delete
-    void RemoveColorBufferInternal(uint32_t display_id);
-
-    void AddDisplayInternal(uint32_t display_id, uint32_t width, uint32_t height, uint32_t dpi,
-                            uint32_t flag);
-
-    void ReadDisplayColorBufferInternal(uint32_t colorbuffer, uint8_t* outptr);
+    // Returns the color buffer handle for the given display, or 0 if not bound.
+    // Thread-safe.
+    uint32_t GetDisplayColorBuffer(uint32_t display_id);
+    void ReadDisplayColorBuffer(uint32_t colorbuffer, uint8_t* outptr);
+    void SendToGuest(std::string message);
+    void SendAddDisplay(uint32_t display_id, uint32_t width, uint32_t height, uint32_t dpi,
+                        uint32_t flag);
+    void SendDelDisplay(uint32_t display_id);
+    void SendSetDisplay(uint32_t mode_id, uint32_t width, uint32_t height, uint32_t dpi,
+                        uint32_t flag);
 
     // Static registration function
     static void RegisterDevice(const std::shared_ptr<MultiDisplayDevice>& device,
@@ -86,6 +67,12 @@ class MultiDisplayDevice : public HalPlug, public std::enable_shared_from_this<M
     static constexpr uint8_t kCmdSetDisplay = 0x10;
 
   private:
+    void SendAddDisplayPacket(uint32_t display_id, uint32_t width, uint32_t height, uint32_t dpi,
+                              uint32_t flag);
+    void RemoveColorBufferInternal(uint32_t display_id);
+    void AddDisplayInternal(uint32_t display_id, uint32_t width, uint32_t height, uint32_t dpi,
+                            uint32_t flag);
+
     async::EventLoop* client_loop_;
     std::vector<uint8_t> receive_buffer_;
 

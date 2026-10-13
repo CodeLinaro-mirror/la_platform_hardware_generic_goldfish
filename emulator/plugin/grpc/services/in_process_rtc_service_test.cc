@@ -21,12 +21,14 @@
 
 #include "absl/log/log.h"
 
-#include "goldfish/async/testing/global_event_loop.h"
 #include "goldfish/audio/qemu_audio_capture.h"
-#include "goldfish/avd_info/avd_info.h"
+#include "goldfish/avd/avd_info.h"
+#include "goldfish/avd/avd_properties.h"
+#include "goldfish/avd/avd_universe.h"
+#include "goldfish/avd/global_event_loop.h"
 #include "goldfish/display/test/fake_multi_display.h"
 #include "goldfish/display/test/fake_pixman_display.h"
-#include "input/input_service.pb.h"
+#include "input_service.pb.h"
 
 extern "C" {
 struct QemuConsole {
@@ -41,14 +43,17 @@ QemuConsole* qemu_console_lookup_by_index(int index) {
 namespace android::emulation::control {
 namespace {
 
-class TestAvdUniverse : public ::goldfish::avd_info::AvdUniverse {
+class TestAvdUniverse : public ::goldfish::avd::AvdUniverse {
   public:
     explicit TestAvdUniverse(::goldfish::display::IMultiDisplay* multi_display,
                              ::goldfish::async::EventLoop& loop)
-            : ::goldfish::avd_info::AvdUniverse(
-                      std::make_unique<::goldfish::avd_info::AvdProperties>())
+            : ::goldfish::avd::AvdUniverse(std::make_unique<::goldfish::avd::AvdProperties>())
             , multi_display_(multi_display)
-            , loop_(loop) {}
+            , loop_(loop) {
+        ::goldfish::avd::SetGlobalAvdUniverse(this);
+    }
+
+    ~TestAvdUniverse() override { ::goldfish::avd::SetGlobalAvdUniverse(nullptr); }
 
     ::goldfish::async::EventLoop& GetQemuEventLoop() override { return loop_; }
     ::goldfish::metrics::MetricsReporter& GetMetricsReporter() override {
@@ -74,8 +79,8 @@ class FakeKeyEventSender : public keyboard::IKeyEventSender {
 
 TEST(InProcessRtcServiceTest, CreatesServicesFromAvdUniverse) {
     ::goldfish::display::test::FakeMultiDisplay fake_multidisplay(
-            ::goldfish::async::globalEventLoop());
-    TestAvdUniverse universe(&fake_multidisplay, *::goldfish::async::globalEventLoop());
+            ::goldfish::avd::globalEventLoop());
+    TestAvdUniverse universe(&fake_multidisplay, *::goldfish::avd::globalEventLoop());
 
     auto services = CreateInProcessRtcServices(universe, 0, 0);
     EXPECT_EQ(services.size(), 2);
@@ -85,8 +90,8 @@ TEST(InProcessRtcServiceTest, CreatesServicesFromAvdUniverse) {
 
 TEST(InProcessRtcServiceTest, InputSenderDispatchesKeyEvent) {
     ::goldfish::display::test::FakeMultiDisplay fake_multidisplay(
-            ::goldfish::async::globalEventLoop());
-    TestAvdUniverse universe(&fake_multidisplay, *::goldfish::async::globalEventLoop());
+            ::goldfish::avd::globalEventLoop());
+    TestAvdUniverse universe(&fake_multidisplay, *::goldfish::avd::globalEventLoop());
     auto key_event_sender = std::make_shared<FakeKeyEventSender>();
     auto factory = CreateInProcessInputSenderFactory(fake_multidisplay, key_event_sender);
     auto sender = factory(DataChannelLabel::kInput);
@@ -103,8 +108,8 @@ TEST(InProcessRtcServiceTest, InputSenderDispatchesKeyEvent) {
 
 TEST(InProcessRtcServiceTest, InputSenderDispatchesTouchAndMouseEvent) {
     ::goldfish::display::test::FakeMultiDisplay fake_multidisplay(
-            ::goldfish::async::globalEventLoop());
-    TestAvdUniverse universe(&fake_multidisplay, *::goldfish::async::globalEventLoop());
+            ::goldfish::avd::globalEventLoop());
+    TestAvdUniverse universe(&fake_multidisplay, *::goldfish::avd::globalEventLoop());
     auto key_event_sender = std::make_shared<FakeKeyEventSender>();
     auto factory = CreateInProcessInputSenderFactory(fake_multidisplay, key_event_sender);
     auto sender = factory(DataChannelLabel::kInput);
@@ -141,18 +146,18 @@ TEST(InProcessRtcServiceTest, InputSenderDispatchesTouchAndMouseEvent) {
 
 TEST(InProcessRtcServiceTest, InputSenderV2DispatchesV2PointerEvent) {
     ::goldfish::display::test::FakeMultiDisplay fake_multidisplay(
-            ::goldfish::async::globalEventLoop());
-    TestAvdUniverse universe(&fake_multidisplay, *::goldfish::async::globalEventLoop());
+            ::goldfish::avd::globalEventLoop());
+    TestAvdUniverse universe(&fake_multidisplay, *::goldfish::avd::globalEventLoop());
     auto key_event_sender = std::make_shared<FakeKeyEventSender>();
     auto factory = CreateInProcessInputSenderFactory(fake_multidisplay, key_event_sender);
     auto sender = factory(DataChannelLabel::kInputV2);
     ASSERT_NE(sender, nullptr);
     EXPECT_TRUE(sender->Start().ok());
 
-    ::android::emulation::v2::input::InputEvent v2_event;
+    ::android::emulation::v2::InputEvent v2_event;
     auto* pointer = v2_event.mutable_pointer();
     pointer->set_display_id(0);
-    pointer->set_action(::android::emulation::v2::input::PointerAction::POINTER_ACTION_DOWN);
+    pointer->set_action(::android::emulation::v2::PointerAction::POINTER_ACTION_DOWN);
     auto* ptr = pointer->add_pointers();
     ptr->set_pointer_id(0);
     ptr->set_x(0.5F);

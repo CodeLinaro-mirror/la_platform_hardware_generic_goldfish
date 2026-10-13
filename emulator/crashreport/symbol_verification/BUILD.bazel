@@ -32,6 +32,7 @@ breakpad_symbols_pkg(
 
 py_test(
     name = "symbol_verification_test",
+    size = "small",
     srcs = ["symbol_verification_test.py"],
     data = [
         ":symbol_verification",
@@ -69,6 +70,7 @@ breakpad_symbols_pkg(
 
 py_test(
     name = "crash_generator_test",
+    size = "small",
     srcs = ["crash_generator_test.py"],
     data = [
         ":crash_generator",

@@ -300,10 +300,10 @@ absl::Status mv_file(const fs::path& from, const fs::path& to, bool fallback_to_
         return absl::InternalError(absl::StrCat("Failed to atomically rename file: ", from.string(),
                                                 "->", to.string(), " - ", ec.message()));
     }
-    // fs::rename can fail if files are on different disks so fallback to copy then rm.
+    // fs::rename can fail if files are on different disks or locked on Windows, so fallback to copy then rm.
     VLOG(1) << "fs::rename failed for " << from.string() << " -> " << to.string()
             << " - reverting to slower copy-then-delete: " << ec.message();
-    RETURN_IF_ERROR(cp_file(from, to));
+    RETURN_IF_ERROR(cp_file(from, to, /*overwrite=*/true));
     return rm(from);
 }
 

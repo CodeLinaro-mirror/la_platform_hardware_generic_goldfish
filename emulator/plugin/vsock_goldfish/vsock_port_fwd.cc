@@ -14,6 +14,7 @@
 #include "goldfish/vsock/vsock_port_fwd.h"
 
 #include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <cstddef>
 #include <cstring>
@@ -23,6 +24,8 @@
 
 #include "absl/log/check.h"
 #include "absl/log/log.h"
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 
@@ -33,10 +36,9 @@
 #include "goldfish/async/libuv_event_loop.h"
 #include "goldfish/async/libuv_socket_factory.h"
 #include "goldfish/async/qemu_event_loop.h"
-#include "goldfish/async/testing/global_event_loop.h"
 #include "goldfish/async/threaded_event_loop.h"
-#include "goldfish/avd_info/avd_info.h"
-#include "goldfish/avd_info/avd_private.h"
+#include "goldfish/avd/avd_info.h"
+#include "goldfish/avd/global_event_loop.h"
 #include "goldfish/devices/cable/cable.h"
 #include "goldfish/devices/connection_awaiter.h"
 #include "goldfish/devices/hal_plug_factory.h"
@@ -125,7 +127,7 @@ class HostToGuestConnection : public goldfish::devices::HalPlug,
         if (mGuestConnected) {
             VLOG(VLOG_TRACE) << "Host (" << *mHostSocket << ") forwarding: (" << data.size() << ") "
                              << data;
-            Socket()->Send(std::string(data));
+            Socket()->Send(data);
         } else {
             VLOG(VLOG_TRACE) << "Host (" << *mHostSocket << ") storing: (" << data.size() << ") "
                              << data;
@@ -149,8 +151,8 @@ class HostToGuestConnection : public goldfish::devices::HalPlug,
             /// @note we are on the client loop, so no-one is touching mHostBuffer.
             VLOG(1) << "Guest (vsock) receiving initial data: (" << mHostBuffer.size()
                     << ") :" << mHostBuffer;
-            Socket()->Send(std::move(mHostBuffer));
-            DCHECK(mHostBuffer.empty());
+            Socket()->Send(mHostBuffer);
+            mHostBuffer.clear();
         }
     }
 
@@ -184,34 +186,33 @@ class HostToGuestConnection : public goldfish::devices::HalPlug,
  * @brief This class implements a proxy that forwards traffic between a TCP port
  * on the host and a vsock port on the guest.
  *
- * Note that a connection to the guest will not necessarily succeed if the TCP
- * port in the guest is not yet up. We expect those who connect to the port to
- * be able to deal with the potential delays this can cause.
+ * The host TCP port is bound on creation, and incoming connections are closed
+ * immediately until the guest vsock port is reachable.
  */
-class VSockProxyImpl : public VSockProxy {
+class VSockProxyImpl {
+    struct Private {};
+
   public:
-    VSockProxyImpl(const Endpoint& hostEndpoint, VSockFwdDev* device,
-                   goldfish::avd_info::AvdUniverse& universe)
+    static absl::StatusOr<std::unique_ptr<VSockProxyImpl>> Create(
+            const Endpoint& hostEndpoint, VSockFwdDev* device,
+            goldfish::avd::AvdUniverse& universe) {
+        auto proxy = std::make_unique<VSockProxyImpl>(Private(), hostEndpoint, device, universe);
+        if (absl::Status status = proxy->startServer(); !status.ok()) {
+            return status;
+        }
+        return proxy;
+    }
+
+    VSockProxyImpl(Private, const Endpoint& hostEndpoint, VSockFwdDev* device,
+                   goldfish::avd::AvdUniverse& universe)
             : mHostEndpoint(hostEndpoint)
             , mDevice(device)
             , mQemuLoop(universe.GetQemuEventLoop())
-            , mClientLoop(goldfish::async::globalEventLoop())
-            , mGuestStatus(universe.GetGuestStatus()) {
-        using namespace std::chrono_literals;
-        mConnectionAwaiter = ConnectionAwaiter::RetryUntilConnected(
-                &mQemuLoop,
-                [&](auto plug) {
-                    if (mGuestStatus.IsBootCompleted()) {
-                        return goldfish::vsock::Connect(mDevice->guest_port, plug);
-                    } else {
-                        return SocketPtr{};
-                    }
-                    return SocketPtr{};
-                },
-                [&](SocketPtr sock) { vsockAliveOnQemuThread(); }, 100ms);
-    }
+            , mClientLoop(goldfish::avd::globalEventLoop())
+            , mGuestStatus(universe.GetGuestStatus()) {}
 
     void close() {
+        mConnectionAwaiter.reset();
         mClientLoop
                 ->PostAndWait([this] {
                     if (mSocketServer) {
@@ -219,43 +220,94 @@ class VSockProxyImpl : public VSockProxy {
                     }
                 })
                 .IgnoreError();
+        // Invalidate the lifetime token on the QEMU event loop after closing
+        // the server on mClientLoop and before deleting this object. Any
+        // connection tasks already posted from mClientLoop to mQemuLoop will
+        // observe an expired weak_ptr when they later run on mQemuLoop.
+        mAlive.reset();
     }
 
   private:
-    void startServer() {
-        VLOG(1) << "Starting server on " << ToString(mHostEndpoint);
-        auto incoming_socket_connection =
-                [this](std::shared_ptr<goldfish::async::AsyncSocket> hostSocket) {
-                    auto hostToGuest = HostToGuestConnection::create(std::move(hostSocket));
-                    mQemuLoop
-                            .Post([this, hostToGuest = std::move(hostToGuest)] {
-                                incomingConnectionOnQemuThread(std::move(hostToGuest));
-                            })
-                            .IgnoreError();
-                    return true;
-                };
+    absl::Status startServer() {
+        absl::Status status = mClientLoop->PostAndWait([this]() -> absl::Status {
+            VLOG(1) << "Starting server on " << ToString(mHostEndpoint);
+            auto incoming_socket_connection =
+                    [this, alive = std::weak_ptr<void>(mAlive)](
+                            std::shared_ptr<goldfish::async::AsyncSocket> hostSocket) {
+                        if (!mGuestConnected.load(std::memory_order_acquire)) {
+                            VLOG(1) << "Rejecting connection on " << ToString(mHostEndpoint)
+                                    << ": guest port " << mDevice->guest_port << " is not ready";
+                            return false;
+                        }
+                        auto hostToGuest = HostToGuestConnection::create(std::move(hostSocket));
+                        // Capture a weak lifetime token because this task is posted
+                        // from mClientLoop and may execute on mQemuLoop after close()
+                        // and deletion of VSockProxyImpl on mQemuLoop.
+                        mQemuLoop
+                                .Post([this, clientLoop = mClientLoop, alive,
+                                       hostToGuest = std::move(hostToGuest)] {
+                                    if (alive.lock()) {
+                                        incomingConnectionOnQemuThread(std::move(hostToGuest));
+                                    } else {
+                                        // VSockProxyImpl was closed before this task ran;
+                                        // close the socket on mClientLoop to release mSelf.
+                                        clientLoop
+                                                ->Post([hostToGuest = std::move(hostToGuest)] {
+                                                    hostToGuest->OnClose();
+                                                })
+                                                .IgnoreError();
+                                    }
+                                })
+                                .IgnoreError();
+                        return true;
+                    };
 
-        VLOG(1) << "Trying to bind to " << ToString(mHostEndpoint);
-        mSocketServer =
-                mSocketFactory.CreateServer(mClientLoop, mHostEndpoint, incoming_socket_connection);
-        if (mSocketServer) {
+            VLOG(1) << "Trying to bind to " << ToString(mHostEndpoint);
+            mSocketServer = mSocketFactory.CreateServer(mClientLoop, mHostEndpoint,
+                                                        incoming_socket_connection);
+            if (!mSocketServer) {
+                return absl::UnavailableError(absl::StrFormat(
+                        "The VSockProxy that forwards the guest port: %d to the host: %s "
+                        "could not be created",
+                        mDevice->guest_port, ToString(mHostEndpoint)));
+            }
             VLOG(1) << "Successfully bound to " << ToString(mHostEndpoint);
+            return absl::OkStatus();
+        });
+        if (!status.ok()) {
+            return status;
         }
 
-        if (!mSocketServer) {
-            LOG(FATAL) << "The VSockProxy that forwards the guest port: " << mDevice->guest_port
-                       << " to the host: " << ToString(mHostEndpoint)
-                       << " could not be created, error code: " << errno;
-        }
-
-        // Notify the world that we are available
-        if (mDevice->on_connect) {
-            mDevice->on_connect(mDevice);
-        }
+        using namespace std::chrono_literals;
+        // Guard both ConnectionAwaiter callbacks with mAlive in case an in-flight
+        // vsock stream keeps ConnectionAwaiter alive past mConnectionAwaiter.reset().
+        mConnectionAwaiter = ConnectionAwaiter::RetryUntilConnected(
+                &mQemuLoop,
+                [this, alive = std::weak_ptr<void>(mAlive)](auto plug) {
+                    if (alive.lock() && mGuestStatus.IsBootCompleted()) {
+                        return goldfish::vsock::Connect(mDevice->guest_port, plug);
+                    }
+                    return SocketPtr{};
+                },
+                [this, alive = std::weak_ptr<void>(mAlive)](SocketPtr /*sock*/) {
+                    if (alive.lock()) {
+                        vsockAliveOnQemuThread();
+                    }
+                },
+                100ms);
+        return absl::OkStatus();
     }
 
     void vsockAliveOnQemuThread() {
-        mClientLoop->Post([this] { startServer(); }).IgnoreError();
+        mGuestConnected.store(true, std::memory_order_release);
+        if (mDevice->on_connect) {
+            mClientLoop
+                    ->Post([device = mDevice] {
+                        // Notify the world that we are available
+                        device->on_connect(device);
+                    })
+                    .IgnoreError();
+        }
     }
 
     bool incomingConnectionOnQemuThread(std::shared_ptr<HostToGuestConnection> hostToGuest) {
@@ -283,6 +335,11 @@ class VSockProxyImpl : public VSockProxy {
     EventLoop* mClientLoop;  // Client-side event loop for sockets
     const GuestStatus& mGuestStatus;
     LibuvAsyncSocketFactory mSocketFactory;
+    std::atomic<bool> mGuestConnected{false};
+
+    /// Lifetime token reset on mQemuLoop in close() to guard callbacks on
+    /// mQemuLoop against use-after-free.
+    std::shared_ptr<void> mAlive = std::make_shared<int>(0);
 
     /// The AsyncSocketServer used to listen for incoming connections.
     std::shared_ptr<goldfish::async::AsyncSocketServer> mSocketServer;
@@ -295,7 +352,6 @@ class VSockProxyImpl : public VSockProxy {
 // QEMU device configuration logic
 
 static void vsock_fwd_realize(DeviceState* dev, Error** errp) {
-    add_deletable_object(OBJECT(dev));
     VSockFwdDev* vsock_fwd_device = VSOCK_FWD_DEV(dev);
     const char* host = vsock_fwd_device->address ? vsock_fwd_device->address : "localhost";
     auto serverAddress = absl::StrFormat("%s:%d", host, vsock_fwd_device->host_port);
@@ -318,8 +374,13 @@ static void vsock_fwd_realize(DeviceState* dev, Error** errp) {
                      << " we will use: " << ToString(*preferred);
     }
 
-    vsock_fwd_device->forwarder =
-            new VSockProxyImpl(*preferred, vsock_fwd_device, goldfish::avd_info::GetAvd());
+    auto proxy = VSockProxyImpl::Create(*preferred, vsock_fwd_device, goldfish::avd::GetAvd());
+    if (!proxy.ok()) {
+        error_setg(errp, "%s", std::string(proxy.status().message()).c_str());
+        return;
+    }
+    vsock_fwd_device->forwarder_impl = proxy->release();
+    add_deletable_object(OBJECT(dev));
     VLOG(VLOG_DBG) << "Realizing vsock forwarder: (address:host <-> guest) " << ToString(*preferred)
                    << "<->" << vsock_fwd_device->guest_port;
 }
@@ -329,8 +390,13 @@ static void vsock_fwd_unrealize(DeviceState* dev) {
 
     VLOG(VLOG_DBG) << "Erasing vsock forwarder: (host:guest) " << vsock_fwd_device->host_port << ":"
                    << vsock_fwd_device->guest_port;
-    static_cast<VSockProxyImpl*>(vsock_fwd_device->forwarder)->close();
-    delete vsock_fwd_device->forwarder;
+
+    VSockProxyImpl* impl = static_cast<VSockProxyImpl*>(vsock_fwd_device->forwarder_impl);
+    if (impl) {
+        impl->close();
+        delete impl;
+        vsock_fwd_device->forwarder_impl = nullptr;
+    }
 }
 
 static void vsock_fwd_set_host_port(Object* obj, Visitor* v, const char* name, void* opaque,

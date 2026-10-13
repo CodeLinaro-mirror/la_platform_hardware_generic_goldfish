@@ -30,19 +30,22 @@
 
 #include "goldfish/videobridge/switchboard.h"
 #include "nlohmann/json.hpp"
-#include "webrtc/rtc_service.grpc.pb.h"
+#include "webrtc_service.grpc.pb.h"
 
 namespace goldfish::grpc::v2 {
 namespace {
 
-using ::android::emulation::v2::webrtc::JsepMessage;
-using ::android::emulation::v2::webrtc::RtcSession;
-using ::android::emulation::v2::webrtc::RtcStreamRequest;
-using ::android::emulation::v2::webrtc::RtcStreamResponse;
-using ::android::emulation::v2::webrtc::RtcStreamUpdateRequest;
-using ::android::emulation::v2::webrtc::TrackType;
+using ::android::emulation::v2::CloseRtcStreamRequest;
+using ::android::emulation::v2::CloseRtcStreamResponse;
+using ::android::emulation::v2::JsepMessage;
+using ::android::emulation::v2::RtcSession;
+using ::android::emulation::v2::RtcStreamRequest;
+using ::android::emulation::v2::RtcStreamResponse;
+using ::android::emulation::v2::RtcStreamUpdateRequest;
+using ::android::emulation::v2::SendJsepMessageResponse;
+using ::android::emulation::v2::TrackType;
+using ::android::emulation::v2::UpdateRtcStreamResponse;
 using ::goldfish::videobridge::Switchboard;
-using ::google::protobuf::Empty;
 
 class TestRtcServiceImpl : public RtcServiceImpl {
   public:
@@ -70,7 +73,7 @@ class RtcServiceImplTest : public ::testing::Test {
             server_ = builder.BuildAndStart();
             ASSERT_NE(server_, nullptr);
             channel_ = server_->InProcessChannel(::grpc::ChannelArguments());
-            stub_ = ::android::emulation::v2::webrtc::RtcService::NewStub(channel_);
+            stub_ = ::android::emulation::v2::RtcService::NewStub(channel_);
         }
     }
 
@@ -99,7 +102,7 @@ class RtcServiceImplTest : public ::testing::Test {
     std::unique_ptr<TestRtcServiceImpl> service_;
     std::unique_ptr<::grpc::Server> server_;
     std::shared_ptr<::grpc::Channel> channel_;
-    std::unique_ptr<::android::emulation::v2::webrtc::RtcService::Stub> stub_;
+    std::unique_ptr<::android::emulation::v2::RtcService::Stub> stub_;
 };
 
 TEST_F(RtcServiceImplTest, RequestRtcStreamCreatesSession) {
@@ -127,10 +130,10 @@ TEST_F(RtcServiceImplTest, SendJsepMessageRoutesPayload) {
 
     JsepMessage request;
     request.mutable_handle()->set_session_id(session_id);
-    request.set_message("{\"type\":\"candidate\",\"candidate\":\"foo\"}");
+    request.mutable_ice_candidate()->set_candidate("foo");
 
     ::grpc::ClientContext send_context;
-    Empty response;
+    SendJsepMessageResponse response;
     ::grpc::Status status = stub_->SendJsepMessage(&send_context, request, &response);
 
     EXPECT_TRUE(status.ok()) << "RPC failed: " << status.error_message();
@@ -138,10 +141,10 @@ TEST_F(RtcServiceImplTest, SendJsepMessageRoutesPayload) {
 
 TEST_F(RtcServiceImplTest, SendJsepMessageEmptySessionReturnsInvalidArgument) {
     JsepMessage request;
-    request.set_message("{}");
+    request.mutable_ice_candidate()->set_candidate("foo");
 
     ::grpc::ClientContext context;
-    Empty response;
+    SendJsepMessageResponse response;
     ::grpc::Status status = stub_->SendJsepMessage(&context, request, &response);
 
     EXPECT_EQ(status.error_code(), ::grpc::StatusCode::INVALID_ARGUMENT);
@@ -150,10 +153,10 @@ TEST_F(RtcServiceImplTest, SendJsepMessageEmptySessionReturnsInvalidArgument) {
 TEST_F(RtcServiceImplTest, SendJsepMessageUnknownSessionReturnsNotFound) {
     JsepMessage request;
     request.mutable_handle()->set_session_id("does-not-exist");
-    request.set_message("{}");
+    request.mutable_ice_candidate()->set_candidate("foo");
 
     ::grpc::ClientContext context;
-    Empty response;
+    SendJsepMessageResponse response;
     ::grpc::Status status = stub_->SendJsepMessage(&context, request, &response);
 
     EXPECT_EQ(status.error_code(), ::grpc::StatusCode::NOT_FOUND);
@@ -171,7 +174,34 @@ TEST_F(RtcServiceImplTest, ReceiveJsepMessageStreamDeliversUpdates) {
     JsepMessage message;
     ASSERT_TRUE(reader->Read(&message));
     EXPECT_EQ(message.handle().session_id(), session_id);
-    EXPECT_EQ(nlohmann::json::parse(message.message())["candidate"], "bar");
+    EXPECT_EQ(message.ice_candidate().candidate(), "bar");
+
+    switchboard_->Disconnect(session_id);
+    EXPECT_TRUE(reader->Finish().ok());
+}
+
+TEST_F(RtcServiceImplTest, ReceiveJsepMessageStreamDeliversEnvelopedIceCandidate) {
+    const std::string session_id = StartSession();
+    RtcSession request;
+    request.set_session_id(session_id);
+    ::grpc::ClientContext context;
+    auto reader = stub_->ReceiveJsepMessageStream(&context, request);
+
+    // Participant::OnIceCandidate emits a nested {"candidate": {...}} JSON envelope.
+    switchboard_->Send(
+            session_id,
+            {{"candidate",
+              {{"sdpMid", "0"},
+               {"sdpMLineIndex", 1},
+               {"candidate", "candidate:123 1 udp 2122260223 127.0.0.1 54321 typ host"}}}});
+
+    JsepMessage message;
+    ASSERT_TRUE(reader->Read(&message));
+    EXPECT_EQ(message.handle().session_id(), session_id);
+    EXPECT_EQ(message.ice_candidate().sdp_mid(), "0");
+    EXPECT_EQ(message.ice_candidate().sdp_m_line_index(), 1);
+    EXPECT_EQ(message.ice_candidate().candidate(),
+              "candidate:123 1 udp 2122260223 127.0.0.1 54321 typ host");
 
     switchboard_->Disconnect(session_id);
     EXPECT_TRUE(reader->Finish().ok());
@@ -185,7 +215,7 @@ TEST_F(RtcServiceImplTest, ReceiveJsepMessageStreamDrainsBacklogWithoutRecursing
 
     const std::string session_id = StartSession();
     for (size_t i = 0; i < kBacklog; ++i) {
-        switchboard_->Send(session_id, {{"seq", i}});
+        switchboard_->Send(session_id, {{"candidate", "cand"}});
     }
 
     RtcSession request;
@@ -224,7 +254,7 @@ TEST_F(RtcServiceImplTest, ReceiveJsepMessageStreamFinishesOnDisconnect) {
     EXPECT_TRUE(reader->Finish().ok());
 }
 
-TEST_F(RtcServiceImplTest, ReceiveJsepMessageStreamDisconnectsOnCancel) {
+TEST_F(RtcServiceImplTest, ReceiveJsepMessageStreamDetachesWithoutClosingSessionOnCancel) {
     const std::string session_id = StartSession();
     RtcSession request;
     request.set_session_id(session_id);
@@ -242,6 +272,14 @@ TEST_F(RtcServiceImplTest, ReceiveJsepMessageStreamDisconnectsOnCancel) {
     ::grpc::Status status = reader->Finish();
     EXPECT_EQ(status.error_code(), ::grpc::StatusCode::CANCELLED);
     service_->AwaitSessionDetached(session_id);
+    // PeerConnection session remains active until CloseRtcStream is called.
+    EXPECT_TRUE(switchboard_->HasSession(session_id));
+
+    CloseRtcStreamRequest close_req;
+    close_req.mutable_handle()->set_session_id(session_id);
+    ::grpc::ClientContext close_ctx;
+    CloseRtcStreamResponse close_resp;
+    EXPECT_TRUE(stub_->CloseRtcStream(&close_ctx, close_req, &close_resp).ok());
     EXPECT_FALSE(switchboard_->HasSession(session_id));
 }
 
@@ -295,7 +333,7 @@ TEST_F(RtcServiceImplTest, ConcurrentSendAndTeardownIsSafe) {
     absl::Notification sending;
     std::thread sender([&]() {
         for (int i = 0; i < 256; ++i) {
-            switchboard_->Send(session_id, {{"seq", i}});
+            switchboard_->Send(session_id, {{"candidate", "cand"}});
             if (i == 0) {
                 sending.Notify();
             }
@@ -316,7 +354,7 @@ TEST_F(RtcServiceImplTest, UpdateRtcStreamValidatesSession) {
     const std::string session_id = StartSession();
 
     RtcStreamUpdateRequest request;
-    Empty response;
+    UpdateRtcStreamResponse response;
 
     // Empty handle.
     {

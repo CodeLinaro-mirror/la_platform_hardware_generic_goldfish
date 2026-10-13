@@ -14,13 +14,15 @@
 
 #include "capabilities_service_impl.h"
 
+#include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
 #include <memory>
 
 #include "android/goldfish/fake_hardware_config.h"
-#include "discovery/capabilities_service.grpc.pb.h"
-#include "goldfish/avd_info/avd_info.h"
+#include "capabilities_service.grpc.pb.h"
+#include "goldfish/avd/avd_properties.h"
+#include "goldfish/avd/avd_universe.h"
 
 #ifdef DeviceCapabilities
 #undef DeviceCapabilities
@@ -29,17 +31,20 @@
 namespace goldfish::grpc::v2 {
 namespace {
 
-using ::android::emulation::v2::common::AccessMode;
-using ::android::emulation::v2::common::FoldAxis;
-using ::android::emulation::v2::common::HingeConstruction;
-using ::android::emulation::v2::discovery::CapabilitiesService;
-using ::android::emulation::v2::discovery::DeviceCapabilities;
-using ::android::emulation::v2::discovery::GetDeviceCapabilitiesRequest;
+using ::android::emulation::v2::AccessMode;
+using ::android::emulation::v2::CapabilitiesService;
+using ::android::emulation::v2::DeviceCapabilities;
+using ::android::emulation::v2::FoldAxis;
+using ::android::emulation::v2::GetDeviceCapabilitiesRequest;
+using ::android::emulation::v2::InputFeature;
+using ::android::emulation::v2::VmOperation;
 using ::android::goldfish::FakeHardwareConfig;
-using ::goldfish::avd_info::AvdProperties;
-using ::goldfish::avd_info::AvdUniverse;
+using ::goldfish::avd::AvdProperties;
+using ::goldfish::avd::AvdUniverse;
 using ::grpc::ServerContext;
 using ::grpc::Status;
+using ::testing::Contains;
+using ::testing::Not;
 
 class TestUniverse : public AvdUniverse {
   public:
@@ -98,6 +103,8 @@ TEST_F(CapabilitiesServiceTest, ReturnsAccurateDeviceMetadata) {
     EXPECT_EQ(meta.display_name(), "test-pixel-9");
     EXPECT_EQ(meta.model_id(), "pixel_9_api_35");
     EXPECT_EQ(meta.api_level(), 35);
+    EXPECT_EQ(meta.server_version(), "2.0.0");
+    EXPECT_EQ(meta.server_implementation(), "goldfish-grpc-v2");
     EXPECT_EQ(meta.cpu_architecture(), "x86_64");
     EXPECT_EQ(meta.cpu_core_count(), 4);
     EXPECT_EQ(meta.total_ram_bytes(), 4096LL * 1024 * 1024);
@@ -122,6 +129,7 @@ TEST_F(CapabilitiesServiceTest, ReturnsDisplayCapabilities) {
     EXPECT_EQ(display.built_in_displays(0).height(), 2424);
     EXPECT_EQ(display.built_in_displays(0).density_dpi(), 428);
     EXPECT_TRUE(display.supports_virtual_display_creation());
+    EXPECT_TRUE(display.has_screen_capture());
 }
 
 TEST_F(CapabilitiesServiceTest, ReturnsSubsystemsCapabilities) {
@@ -140,24 +148,28 @@ TEST_F(CapabilitiesServiceTest, ReturnsSubsystemsCapabilities) {
     // Location
     ASSERT_TRUE(reply.has_location());
     EXPECT_EQ(reply.location().access_mode(), AccessMode::ACCESS_MODE_READ_WRITE);
-    EXPECT_TRUE(reply.location().supports_satellites());
 
     // System
     ASSERT_TRUE(reply.has_system());
     EXPECT_EQ(reply.system().access_mode(), AccessMode::ACCESS_MODE_READ_WRITE);
     EXPECT_TRUE(reply.system().supports_reboot());
+    EXPECT_TRUE(reply.system().has_biometrics());
+    EXPECT_TRUE(reply.system().has_clipboard());
 
     // VM
     ASSERT_TRUE(reply.has_vm());
     EXPECT_EQ(reply.vm().access_mode(), AccessMode::ACCESS_MODE_READ_WRITE);
-    EXPECT_TRUE(reply.vm().supports_pause_resume());
+    EXPECT_THAT(reply.vm().supported_operations(),
+                Contains(VmOperation::VM_OPERATION_PAUSE_RESUME));
 
     // Input
     ASSERT_TRUE(reply.has_input());
     EXPECT_EQ(reply.input().max_touch_point_count(), 10);
-    EXPECT_TRUE(reply.input().supports_keyboard());
-    EXPECT_FALSE(reply.input().supports_mouse_pointer());
-    EXPECT_FALSE(reply.input().supports_relative_mouse());
+    EXPECT_THAT(reply.input().supported_features(), Contains(InputFeature::INPUT_FEATURE_KEYBOARD));
+    EXPECT_THAT(reply.input().supported_features(),
+                Not(Contains(InputFeature::INPUT_FEATURE_MOUSE_POINTER)));
+    EXPECT_THAT(reply.input().supported_features(),
+                Not(Contains(InputFeature::INPUT_FEATURE_RELATIVE_MOUSE)));
 }
 
 TEST_F(CapabilitiesServiceTest, ReturnsPostureCapabilitiesWhenConfigured) {
@@ -183,12 +195,12 @@ TEST_F(CapabilitiesServiceTest, ReturnsPostureCapabilitiesWhenConfigured) {
     Status status = service.GetDeviceCapabilities(&server_context, &request, &reply);
     ASSERT_TRUE(status.ok());
 
-    ASSERT_TRUE(reply.has_posture());
-    const auto& posture = reply.posture();
+    ASSERT_TRUE(reply.sensors().has_posture());
+    const auto& posture = reply.sensors().posture();
     EXPECT_EQ(posture.access_mode(), AccessMode::ACCESS_MODE_READ_WRITE);
-    EXPECT_TRUE(posture.supports_hinge_angle());
-    EXPECT_EQ(posture.fold_axis(), FoldAxis::FOLD_AXIS_VERTICAL);
-    EXPECT_EQ(posture.hinge_construction(), HingeConstruction::HINGE_CONSTRUCTION_FOLD_ON_SCREEN);
+    ASSERT_GE(posture.hinges_size(), 1);
+    EXPECT_EQ(posture.hinges(0).hinge_id(), 0);
+    EXPECT_EQ(posture.hinges(0).fold_axis(), FoldAxis::FOLD_AXIS_VERTICAL);
 }
 
 }  // namespace

@@ -21,12 +21,16 @@
 #include <thread>
 
 #include "absl/synchronization/mutex.h"
+#include "google/protobuf/text_format.h"
 
 #include "goldfish/metrics/metrics_writer.h"
 #include "goldfish/metrics/uuid.h"
 #include "studio_stats_wrapper.h"
 
 namespace goldfish::metrics {
+
+// VLOG level for debugging metrics writer events without changing the backend writer.
+constexpr int kMetricsWriterDebugVlogLevel = 5;
 
 class MetricsReporter final {
   public:
@@ -52,6 +56,7 @@ class MetricsReporter final {
     void Run();
 
     const std::string session_id_;
+    google::protobuf::TextFormat::Printer debug_printer_;
 
     absl::Mutex mutex_;
     std::unique_ptr<MetricsWriter> writer_ ABSL_GUARDED_BY(mutex_);

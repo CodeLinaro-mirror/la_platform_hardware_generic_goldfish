@@ -1,12 +1,27 @@
 load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_test")
-load("@rules_cc//cc:defs.bzl", "cc_library")
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 
 cc_library(
-    name = "status_macros",
-    hdrs = ["include/android/status/status_macros.h"],
+    name = "flatten",
+    hdrs = ["include/android/status/flatten.h"],
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+    ],
+)
+
+cc_library(
+    name = "status_macros",
+    hdrs = [
+        "include/android/status/flatten.h",
+        "include/android/status/status_macros.h",
+    ],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":flatten",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
     ],
@@ -27,9 +42,23 @@ cc_library(
     ],
 )
 
+cc_test(
+    name = "flatten_test",
+    size = "small",
+    srcs = ["flatten_test.cc"],
+    deps = [
+        ":flatten",
+        "//emulator/libs/test:googletest_main",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:status_matchers",
+        "@abseil-cpp//absl/status:statusor",
+    ],
+)
+
 clang_tidy_test(
     name = "tidy",
     targets = [
+        ":flatten",
         ":status_macros",
         ":status_matcher_macros",
     ],

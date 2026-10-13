@@ -42,11 +42,7 @@ template <typename F>
 absl::Status PostAndWaitOrRun(async::EventLoop* loop, F&& fn) {
     if (loop != nullptr && !loop->IsOnLoopThread()) {
         if (loop->GetState() == async::LooperStatusEvent::State::kRunning) {
-            auto result = loop->PostAndWait(std::forward<F>(fn));
-            if (!result.ok()) {
-                return result.status();
-            }
-            return *result;
+            return loop->PostAndWait(std::forward<F>(fn));
         }
         return absl::FailedPreconditionError("EventLoop is not in running state");
     }

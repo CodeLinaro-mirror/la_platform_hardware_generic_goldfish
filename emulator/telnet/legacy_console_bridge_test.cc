@@ -25,6 +25,8 @@
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/synchronization/mutex.h"
+#include "absl/time/time.h"
 
 #include "android/base/system.h"
 #include "android/base/testing/test_system.h"
@@ -33,7 +35,8 @@
 #include "emulator_controller_mock.grpc.pb.h"
 #include "goldfish/discovery/emulator_advertisement.h"
 #include "goldfish/file/file.h"
-#include "modem_service_mock.grpc.pb.h"
+#include "goldfish/metrics/metrics_reporter.h"
+#include "goldfish/metrics/testing/fake_metrics_writer.h"
 #include "snapshot_service.grpc.pb.h"
 #include "snapshot_service_mock.grpc.pb.h"
 #include "telnet_auth.h"
@@ -41,6 +44,7 @@
 namespace goldfish::telnet {
 namespace {
 
+using ::goldfish::metrics::testing::FakeMetricsWriter;
 using testing::_;
 
 struct MockConsoleContext : public LegacyConsoleBridge::ConsoleContext {
@@ -54,14 +58,6 @@ struct MockConsoleContext : public LegacyConsoleBridge::ConsoleContext {
         return ConsoleContext::EmulatorControllerStub();
     }
 
-    absl::StatusOr<std::unique_ptr<android::emulation::control::incubating::Modem::StubInterface>>
-    ModemStub() override {
-        if (mock_modem_stub) {
-            return std::move(mock_modem_stub);
-        }
-        return ConsoleContext::ModemStub();
-    }
-
     absl::StatusOr<std::unique_ptr<android::emulation::control::SnapshotService::StubInterface>>
     SnapshotStub() override {
         if (mock_snapshot_stub) {
@@ -73,6 +69,7 @@ struct MockConsoleContext : public LegacyConsoleBridge::ConsoleContext {
     absl::StatusOr<std::unique_ptr<grpc::ClientContext>> NewContext(
             std::chrono::time_point<std::chrono::system_clock> deadline =
                     std::chrono::system_clock::now() + std::chrono::milliseconds(500)) override {
+        ++new_context_count;
         auto ctx = std::make_unique<grpc::ClientContext>();
         ctx->set_deadline(deadline);
         return ctx;
@@ -96,10 +93,10 @@ struct MockConsoleContext : public LegacyConsoleBridge::ConsoleContext {
     void TriggerCrash() override { crash_triggered = true; }
 
     std::unique_ptr<android::emulation::control::EmulatorController::StubInterface> mock_stub;
-    std::unique_ptr<android::emulation::control::incubating::Modem::StubInterface> mock_modem_stub;
     std::unique_ptr<android::emulation::control::SnapshotService::StubInterface> mock_snapshot_stub;
     std::optional<absl::StatusOr<LegacyConsoleBridge::DiscoveredEmulator>> mock_discovery;
     std::optional<absl::StatusOr<std::vector<std::filesystem::path>>> mock_discovered_emulators;
+    int new_context_count = 0;
     bool crash_triggered = false;
 };
 
@@ -115,7 +112,10 @@ class LegacyConsoleBridgeTest : public ::testing::Test {
 
         WriteToken("valid_token_123");
 
-        bridge_ = std::make_unique<LegacyConsoleBridge>(5554, token_path_);
+        auto writer = std::make_unique<FakeMetricsWriter>();
+        metrics_writer_ = writer.get();
+        metrics_reporter_.SetWriter(std::move(writer));
+        bridge_ = std::make_unique<LegacyConsoleBridge>(5554, token_path_, metrics_reporter_);
     }
 
     std::unique_ptr<MockConsoleContext> CreateContext(int port = 5554) {
@@ -131,6 +131,8 @@ class LegacyConsoleBridgeTest : public ::testing::Test {
     android::base::TestSystem test_system_{"/foo/bar"};
     std::filesystem::path test_home_;
     std::string token_path_;
+    goldfish::metrics::MetricsReporter metrics_reporter_;
+    FakeMetricsWriter* metrics_writer_ = nullptr;
     std::unique_ptr<LegacyConsoleBridge> bridge_;
 };
 
@@ -615,7 +617,7 @@ TEST_F(LegacyConsoleBridgeTest, CreatesTokenFileIfMissingOnConstruction) {
     std::filesystem::remove(token_path_);
     EXPECT_FALSE(std::filesystem::exists(token_path_));
 
-    auto new_bridge = std::make_unique<LegacyConsoleBridge>(5554, token_path_);
+    auto new_bridge = std::make_unique<LegacyConsoleBridge>(5554, token_path_, metrics_reporter_);
 
     EXPECT_TRUE(std::filesystem::exists(token_path_));
     EXPECT_EQ(TelnetAuth::GetStatus(token_path_), AuthStatus::kRequired);
@@ -923,21 +925,30 @@ TEST_F(LegacyConsoleBridgeTest, SensorStatusReturnsFormattedList) {
     auto ctx = CreateContext();
     ctx->authenticated = true;
 
+    int get_sensor_calls = 0;
     auto mock_stub = std::make_unique<android::emulation::control::MockEmulatorControllerStub>();
     EXPECT_CALL(*mock_stub, getSensor(_, _, _))
             .Times(testing::AtLeast(1))
-            .WillRepeatedly([](grpc::ClientContext* context,
-                               const android::emulation::control::SensorValue& request,
-                               android::emulation::control::SensorValue* response) -> grpc::Status {
-                response->set_target(request.target());
-                response->set_status(android::emulation::control::SensorValue::OK);
-                return grpc::Status::OK;
-            });
+            .WillRepeatedly(
+                    [&ctx, &get_sensor_calls](
+                            grpc::ClientContext* context,
+                            const android::emulation::control::SensorValue& request,
+                            android::emulation::control::SensorValue* response) -> grpc::Status {
+                        ++get_sensor_calls;
+                        EXPECT_NE(context, nullptr);
+                        EXPECT_EQ(ctx->new_context_count, get_sensor_calls)
+                                << "Each getSensor RPC must use a new grpc::ClientContext";
+                        response->set_target(request.target());
+                        response->set_status(android::emulation::control::SensorValue::OK);
+                        return grpc::Status::OK;
+                    });
     ctx->mock_stub = std::move(mock_stub);
 
     auto result = (*bridge_)("sensor status", *ctx);
 
     ASSERT_TRUE(result.ok()) << result.status().message();
+    EXPECT_EQ(get_sensor_calls, 18);
+    EXPECT_EQ(ctx->new_context_count, 18);
     EXPECT_TRUE(result->find("acceleration: enabled.\r\n") != std::string::npos);
     EXPECT_TRUE(result->find("gyroscope: enabled.\r\n") != std::string::npos);
     EXPECT_TRUE(result->find("light: enabled.\r\n") != std::string::npos);
@@ -1501,25 +1512,15 @@ TEST_F(LegacyConsoleBridgeTest, ResizeDisplayFailsOnUnsupportedIndex) {
     EXPECT_TRUE(result.status().message().find("size index 3 not supported") != std::string::npos);
 }
 
-TEST_F(LegacyConsoleBridgeTest, SmsSendCallsReceiveSms) {
+TEST_F(LegacyConsoleBridgeTest, SmsSendReturnsUnimplemented) {
     auto ctx = CreateContext();
     ctx->authenticated = true;
 
-    auto mock_modem = std::make_unique<android::emulation::control::incubating::MockModemStub>();
-    EXPECT_CALL(*mock_modem, receiveSms(_, _, _))
-            .WillOnce([](grpc::ClientContext* context,
-                         const android::emulation::control::incubating::SmsMessage& request,
-                         google::protobuf::Empty* response) {
-                EXPECT_EQ(request.number(), "123456789");
-                EXPECT_EQ(request.text(), "Hello World!");
-                return grpc::Status::OK;
-            });
-    ctx->mock_modem_stub = std::move(mock_modem);
-
     auto result = (*bridge_)("sms send 123456789 Hello World!", *ctx);
 
-    ASSERT_TRUE(result.ok()) << result.status().message();
-    EXPECT_EQ(*result, "");
+    EXPECT_FALSE(result.ok());
+    EXPECT_EQ(result.status().code(), absl::StatusCode::kUnimplemented);
+    EXPECT_EQ(result.status().message(), kSmsDeprecatedMessage);
 }
 
 TEST_F(LegacyConsoleBridgeTest, SmsSendFailsOnMissingArguments) {
@@ -1533,26 +1534,16 @@ TEST_F(LegacyConsoleBridgeTest, SmsSendFailsOnMissingArguments) {
     EXPECT_TRUE(result.status().message().find("missing argument") != std::string::npos);
 }
 
-TEST_F(LegacyConsoleBridgeTest, SmsPduCallsReceiveSms) {
+TEST_F(LegacyConsoleBridgeTest, SmsPduReturnsUnimplemented) {
     auto ctx = CreateContext();
     ctx->authenticated = true;
-
-    auto mock_modem = std::make_unique<android::emulation::control::incubating::MockModemStub>();
-    EXPECT_CALL(*mock_modem, receiveSms(_, _, _))
-            .WillOnce([](grpc::ClientContext* context,
-                         const android::emulation::control::incubating::SmsMessage& request,
-                         google::protobuf::Empty* response) {
-                EXPECT_EQ(request.encodedmessage(),
-                          "07914151551512f2040b914151551512f200006021201112340205e8329bfd06");
-                return grpc::Status::OK;
-            });
-    ctx->mock_modem_stub = std::move(mock_modem);
 
     auto result = (*bridge_)(
             "sms pdu 07914151551512f2040b914151551512f200006021201112340205e8329bfd06", *ctx);
 
-    ASSERT_TRUE(result.ok()) << result.status().message();
-    EXPECT_EQ(*result, "");
+    EXPECT_FALSE(result.ok());
+    EXPECT_EQ(result.status().code(), absl::StatusCode::kUnimplemented);
+    EXPECT_EQ(result.status().message(), kSmsDeprecatedMessage);
 }
 
 TEST_F(LegacyConsoleBridgeTest, SmsPduFailsOnMissingArguments) {
@@ -2005,6 +1996,89 @@ TEST_F(LegacyConsoleBridgeTest, CdmaSsourceAndPrlVersion) {
     auto prl_res = (*bridge_)("cdma prl_version 1", *ctx);
     ASSERT_TRUE(prl_res.ok()) << prl_res.status().message();
     EXPECT_EQ(*prl_res, "");
+}
+
+TEST_F(LegacyConsoleBridgeTest, ReportsTelnetCommandMetrics) {
+    auto ctx = CreateContext();
+
+    // Unauthenticated unsafe command should NOT be tracked.
+    EXPECT_FALSE((*bridge_)("avd status", *ctx).ok());
+
+    auto make_running_stub = []() {
+        auto stub = std::make_unique<android::emulation::control::MockEmulatorControllerStub>();
+        EXPECT_CALL(*stub, getVmState(_, _, _))
+                .WillRepeatedly([](grpc::ClientContext*, const google::protobuf::Empty&,
+                                   android::emulation::control::VmRunState* reply) {
+                    reply->set_state(android::emulation::control::VmRunState::RUNNING);
+                    return grpc::Status::OK;
+                });
+        return stub;
+    };
+
+    // Safe commands work without authentication and are tracked by primary top-level name.
+    ctx->mock_stub = make_running_stub();
+    EXPECT_TRUE((*bridge_)("ping", *ctx).ok());
+    EXPECT_TRUE((*bridge_)("help", *ctx).ok());
+    EXPECT_TRUE((*bridge_)("h", *ctx).ok());
+    EXPECT_TRUE((*bridge_)("?", *ctx).ok());
+    EXPECT_TRUE((*bridge_)("auth valid_token_123", *ctx).ok());
+    EXPECT_TRUE(ctx->authenticated);
+
+    // Subcommands under non-avd/event groups are tracked by top-level name.
+    EXPECT_TRUE((*bridge_)("cdma ssource nv", *ctx).ok());
+    EXPECT_TRUE((*bridge_)("cdma prl_version 1", *ctx).ok());
+
+    // Subcommands under avd and event are tracked by full primary path (including aliases ->
+    // primary).
+    ctx->mock_stub = make_running_stub();
+    EXPECT_TRUE((*bridge_)("avd status", *ctx).ok());
+
+    auto make_snap_stub = []() {
+        auto stub = std::make_unique<android::emulation::control::MockSnapshotServiceStub>();
+        EXPECT_CALL(*stub, DeleteSnapshot(_, _, _))
+                .WillRepeatedly([](grpc::ClientContext*,
+                                   const android::emulation::control::SnapshotPackage&,
+                                   android::emulation::control::SnapshotPackage* reply) {
+                    reply->set_success(true);
+                    return grpc::Status::OK;
+                });
+        return stub;
+    };
+    // "delete" is an alias for "del" ("del|delete") -> should record "avd snapshot del"
+    ctx->mock_snapshot_stub = make_snap_stub();
+    EXPECT_TRUE((*bridge_)("avd snapshot delete snap1", *ctx).ok());
+    ctx->mock_snapshot_stub = make_snap_stub();
+    EXPECT_TRUE((*bridge_)("avd snapshot del snap2", *ctx).ok());
+
+    EXPECT_TRUE((*bridge_)("event types", *ctx).ok());
+
+    // Unknown or incomplete group commands are not tracked.
+    EXPECT_FALSE((*bridge_)("unknown_cmd", *ctx).ok());
+    EXPECT_FALSE((*bridge_)("avd", *ctx).ok());
+
+    bridge_->ReportMetrics();
+    ASSERT_TRUE(metrics_writer_->WaitForEvents(1, absl::Seconds(5)));
+
+    const absl::MutexLock lock(metrics_writer_->mutex);
+    ASSERT_EQ(metrics_writer_->events.size(), 1u);
+    const auto& event = metrics_writer_->events[0];
+    EXPECT_EQ(event.kind(), android_studio::AndroidStudioEvent::EMULATOR_CONSOLE_EVENTS);
+
+    absl::flat_hash_map<std::string, int64_t> reported;
+    for (const auto& console_event : event.emulator_console_events()) {
+        EXPECT_EQ(console_event.source(), android_studio::EmulatorConsoleEvent::TELNET);
+        reported[console_event.command()] = console_event.value();
+    }
+
+    EXPECT_EQ(reported["ping"], 1);
+    EXPECT_EQ(reported["help"], 3);
+    EXPECT_EQ(reported["auth"], 1);
+    EXPECT_EQ(reported["cdma"], 2);
+    EXPECT_EQ(reported["avd status"], 1);
+    EXPECT_EQ(reported["avd snapshot del"], 2);
+    EXPECT_EQ(reported["event types"], 1);
+    EXPECT_FALSE(reported.contains("avd"));
+    EXPECT_FALSE(reported.contains("unknown_cmd"));
 }
 
 }  // namespace

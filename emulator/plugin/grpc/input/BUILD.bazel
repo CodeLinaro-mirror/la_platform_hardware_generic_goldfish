@@ -48,7 +48,7 @@ cc_library(
         ":ev_dev_event",
         ":pointer_event_dispatcher",
         "//emulator/libs/status_macros",
-        "//emulator/plugin/avd:info",
+        "//emulator/plugin/avd:avd_info",
         "//emulator/plugin/display",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/status",
@@ -59,6 +59,7 @@ cc_library(
 
 cc_test(
     name = "slot_registry_test",
+    size = "small",
     srcs = ["slot_registry_test.cc"],
     visibility = ["//visibility:public"],
     deps = [
@@ -71,6 +72,7 @@ cc_test(
 
 cc_test(
     name = "pointer_event_dispatcher_test",
+    size = "small",
     srcs = ["pointer_event_dispatcher_test.cc"],
     visibility = ["//visibility:public"],
     deps = [
@@ -79,7 +81,6 @@ cc_test(
         "//emulator/libs/grpc_utils:event-stream",
         "//emulator/libs/system:test-headers",
         "//emulator/libs/test:googletest_main",
-        "//emulator/plugin/avd:info-fake",
         "//emulator/plugin/display:test-display",
         "@abseil-cpp//absl/flags:flag",
         "@abseil-cpp//absl/flags:parse",
@@ -89,13 +90,14 @@ cc_test(
 
 cc_test(
     name = "event_sender_test",
+    size = "small",
     srcs = ["event_sender_test.cc"],
     visibility = ["//visibility:public"],
     deps = [
         ":event_sender",
         "//emulator/libs/async:async_testing",
         "//emulator/libs/test:googletest_main",
-        "//emulator/plugin/avd:info-fake",
+        "//emulator/plugin/avd:fake_avd_universe",
         "//emulator/plugin/display:test-display",
         "@grpc",
     ],
@@ -114,19 +116,19 @@ cc_library(
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/types:span",
-        "@aemu//protos/services_v2/input:input_service_cc_proto",
+        "@aemu//protos/services_v2:input_service_cc_proto",
     ],
 )
 
 cc_test(
     name = "input_session_test",
+    size = "small",
     srcs = ["input_session_test.cc"],
     deps = [
         ":input_session",
         "//emulator/libs/async:libuv_event_loop",
         "//emulator/libs/async:threaded_event_loop",
         "//emulator/libs/test:googletest_main",
-        "//emulator/plugin/avd:info-fake",
         "//emulator/plugin/display:test-display",
         "//emulator/plugin/grpc/keyboard:test_qemu_input_stub",
         "@googletest//:gtest",

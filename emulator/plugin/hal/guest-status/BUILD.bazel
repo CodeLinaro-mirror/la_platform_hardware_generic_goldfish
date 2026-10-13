@@ -37,6 +37,7 @@ collect_plugins(
 
 cc_test(
     name = "guest-status_unittests",
+    size = "small",
     srcs = ["guest_status_device_test.cc"],
     data = [":binplace"],
     dynamic_deps = [

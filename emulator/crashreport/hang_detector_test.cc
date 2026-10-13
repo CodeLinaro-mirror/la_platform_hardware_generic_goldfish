@@ -14,6 +14,7 @@
 
 #include "android/crashreport/hang_detector.h"
 
+#include <atomic>
 #include <string_view>
 
 #include "absl/status/status_matchers.h"
@@ -139,6 +140,70 @@ TEST_F(HangDetectorTest, BlockedLoopIgnoredWhenVmStopped) {
     EXPECT_FALSE(mNotify.HasBeenNotified());
 
     // Unblock and clean up
+    hang.Notify();
+    mHangDetector->RemoveWatchedLooper(*event_loop);
+    event_loop->ShutdownAndWait().IgnoreError();
+}
+
+TEST_F(HangDetectorTest, HangCheckSuspendedAndResetAcrossSaveVmTransition) {
+    auto event_loop =
+            goldfish::async::ThreadedEventLoop::Create(goldfish::async::LibuvEventLoop::Create());
+
+    std::atomic<bool> is_active{true};
+    mHangDetector->AddWatchedLooper("test loop", *event_loop, absl::Seconds(1),
+                                    [&is_active]() { return is_active.load(); });
+
+    // Simulate VM entering SAVE_VM while event loop stops processing virtual timers
+    is_active = false;
+    absl::Notification hang;
+    event_loop->Post([&hang] { hang.WaitForNotification(); }).IgnoreError();
+
+    // Advance clock by 10 seconds during SAVE_VM (> 2x 1s timeout)
+    for (int i = 0; i < 20; ++i) {
+        mTestClock->Advance(absl::Milliseconds(500));
+        absl::SleepFor(absl::Milliseconds(5));
+    }
+    EXPECT_FALSE(mNotify.HasBeenNotified());
+
+    // Simulate save_snapshot() calling vm_resume(RUN_STATE_RUNNING) briefly before exit teardown
+    is_active = true;
+
+    // Advance clock by 500ms (< 1s timeout). Because the inactive period reset is_task_running_ =
+    // false and hang_count_ = 0, resuming starts a fresh check and must NOT fire a false-positive
+    // crash!
+    for (int i = 0; i < 5; ++i) {
+        mTestClock->Advance(absl::Milliseconds(100));
+        absl::SleepFor(absl::Milliseconds(5));
+    }
+    EXPECT_FALSE(mNotify.HasBeenNotified());
+
+    hang.Notify();
+    mHangDetector->RemoveWatchedLooper(*event_loop);
+    event_loop->ShutdownAndWait().IgnoreError();
+}
+
+TEST_F(HangDetectorTest, ResumedVmDetectsSubsequentHang) {
+    auto event_loop =
+            goldfish::async::ThreadedEventLoop::Create(goldfish::async::LibuvEventLoop::Create());
+
+    std::atomic<bool> is_active{false};
+    mHangDetector->AddWatchedLooper("test loop", *event_loop, absl::Seconds(1),
+                                    [&is_active]() { return is_active.load(); });
+
+    absl::Notification hang;
+    event_loop->Post([&hang] { hang.WaitForNotification(); }).IgnoreError();
+
+    // Resume VM while loop is blocked
+    is_active = true;
+
+    // Advance clock until hang is detected
+    auto end_time = absl::Now() + absl::Seconds(5);
+    while (!mNotify.HasBeenNotified() && absl::Now() < end_time) {
+        mTestClock->Advance(absl::Milliseconds(100));
+        absl::SleepFor(absl::Milliseconds(10));
+    }
+    ASSERT_TRUE(wait_for_hang(absl::Seconds(10)));
+
     hang.Notify();
     mHangDetector->RemoveWatchedLooper(*event_loop);
     event_loop->ShutdownAndWait().IgnoreError();

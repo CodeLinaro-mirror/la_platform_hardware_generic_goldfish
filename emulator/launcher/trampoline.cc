@@ -111,8 +111,7 @@ bool ShouldTrampolineToQemu2(const absl::StatusOr<std::unique_ptr<android::goldf
     return false;
 }
 
-[[noreturn]] void TrampolineToQemu2(const fs::path& launcher_directory,
-                                    std::vector<std::string> args) {
+absl::Status TrampolineToQemu2(const fs::path& launcher_directory, std::vector<std::string> args) {
 #ifdef _WIN32
     constexpr std::string_view emulator_binary = "emulator.exe";
 #else
@@ -122,12 +121,14 @@ bool ShouldTrampolineToQemu2(const absl::StatusOr<std::unique_ptr<android::goldf
             launcher_directory.parent_path().parent_path() / "emulator" / emulator_binary;
     LOG(WARNING) << "Trampolining to legacy emulator: " << qemu2_binary_path.string();
     if (!android::base::file::exists(qemu2_binary_path)) {
-        LOG(FATAL) << "Trying to trampoline but legacy emulator binary does not exist: "
-                   << qemu2_binary_path.string();
+        return absl::NotFoundError(
+                absl::StrCat("Trying to trampoline but legacy emulator binary does not exist: ",
+                             qemu2_binary_path.string()));
     }
     if (!android::base::file::can_exec(qemu2_binary_path)) {
-        LOG(FATAL) << "Trying to trampoline but cannot execute legacy emulator binary: "
-                   << qemu2_binary_path.string();
+        return absl::PermissionDeniedError(
+                absl::StrCat("Trying to trampoline but cannot execute legacy emulator binary: ",
+                             qemu2_binary_path.string()));
     }
 
     std::vector<std::string> qemu2_args;
@@ -137,7 +138,7 @@ bool ShouldTrampolineToQemu2(const absl::StatusOr<std::unique_ptr<android::goldf
     qemu2_args.insert(qemu2_args.end(), args.begin(), args.end());
     android::base::System::Get()->EnvSet(std::string(kNoTrampolineEnvVar), "1");
     android::base::Command::Create(qemu2_args).Replace().Execute();
-    LOG(FATAL) << "Trampoline to legacy emulator failed for unknown reason";
+    return absl::InternalError("Trampoline to legacy emulator failed for unknown reason");
 }
 
 }  // namespace android::goldfish

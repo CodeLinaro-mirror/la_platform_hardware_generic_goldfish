@@ -17,8 +17,8 @@
 #include <cstdint>
 #include <string>
 
-#include "common/common.pb.h"
-#include "discovery/capabilities_service.pb.h"
+#include "capabilities_service.pb.h"
+#include "common.pb.h"
 
 #ifdef DeviceCapabilities
 #undef DeviceCapabilities
@@ -26,42 +26,47 @@
 
 namespace goldfish::grpc::v2 {
 
-using ::android::emulation::v2::common::AccessMode;
-using ::android::emulation::v2::common::ChargerSource;
-using ::android::emulation::v2::common::ConcurrencyProfile;
-using ::android::emulation::v2::common::FoldAxis;
-using ::android::emulation::v2::common::HingeConstruction;
-using ::android::emulation::v2::common::ImageFormat;
-using ::android::emulation::v2::common::PostureType;
-using ::android::emulation::v2::common::RollDirection;
-using ::android::emulation::v2::common::SensorType;
-using ::android::emulation::v2::discovery::BatteryCapabilities;
-using ::android::emulation::v2::discovery::BiometricsCapabilities;
-using ::android::emulation::v2::discovery::ClipboardCapabilities;
-using ::android::emulation::v2::discovery::DeviceCapabilities;
-using ::android::emulation::v2::discovery::DeviceMetadata;
-using ::android::emulation::v2::discovery::DisplayCapabilities;
-using ::android::emulation::v2::discovery::GetDeviceCapabilitiesRequest;
-using ::android::emulation::v2::discovery::InputCapabilities;
-using ::android::emulation::v2::discovery::LocationCapabilities;
-using ::android::emulation::v2::discovery::PostureCapabilities;
-using ::android::emulation::v2::discovery::ScreenCaptureCapabilities;
-using ::android::emulation::v2::discovery::SensorsCapabilities;
-using ::android::emulation::v2::discovery::SnapshotCapabilities;
-using ::android::emulation::v2::discovery::SystemCapabilities;
-using ::android::emulation::v2::discovery::VmCapabilities;
+using ::android::emulation::v2::AccessMode;
+using ::android::emulation::v2::BatteryCapabilities;
+using ::android::emulation::v2::BiometricsCapabilities;
+using ::android::emulation::v2::ChargerSource;
+using ::android::emulation::v2::ClipboardCapabilities;
+using ::android::emulation::v2::DeviceCapabilities;
+using ::android::emulation::v2::DeviceKind;
+using ::android::emulation::v2::DeviceMetadata;
+using ::android::emulation::v2::DisplayCapabilities;
+using ::android::emulation::v2::Fidelity;
+using ::android::emulation::v2::FoldAxis;
+using ::android::emulation::v2::GetDeviceCapabilitiesRequest;
+using ::android::emulation::v2::ImageFormat;
+using ::android::emulation::v2::InputCapabilities;
+using ::android::emulation::v2::InputFeature;
+using ::android::emulation::v2::LocationCapabilities;
+using ::android::emulation::v2::PostureCapabilities;
+using ::android::emulation::v2::ScreenCaptureCapabilities;
+using ::android::emulation::v2::SensorsCapabilities;
+using ::android::emulation::v2::SensorType;
+using ::android::emulation::v2::SnapshotCapabilities;
+using ::android::emulation::v2::SnapshotFeature;
+using ::android::emulation::v2::SystemCapabilities;
+using ::android::emulation::v2::VmCapabilities;
+using ::android::emulation::v2::VmOperation;
 using ::android::goldfish::HardwareConfig;
-using ::goldfish::avd_info::AvdProperties;
+using ::goldfish::avd::AvdProperties;
 using ::grpc::ServerContext;
 using ::grpc::Status;
 
 namespace {
 
 void PopulateMetadata(const AvdProperties& props, const HardwareConfig& hw, DeviceMetadata* meta) {
+    // This service only ever runs inside the emulator; a physical device is
+    // served by a different implementation reached over ADB.
+    meta->set_device_kind(DeviceKind::DEVICE_KIND_EMULATED);
     meta->set_display_name(props.avd_name.empty() ? "Android Emulator" : props.avd_name);
     meta->set_model_id(props.avd_id.empty() ? "emulator" : props.avd_id);
     meta->set_api_level(props.avd_api);
-    meta->set_concurrency_profile(ConcurrencyProfile::CONCURRENCY_PROFILE_SINGLE_TENANT_PERSISTENT);
+    meta->set_server_version("2.0.0");
+    meta->set_server_implementation("goldfish-grpc-v2");
     meta->set_cpu_architecture(props.avd_abi.empty() ? "x86_64" : props.avd_abi);
     meta->set_cpu_core_count(hw.hw_cpu_ncore > 0 ? hw.hw_cpu_ncore : 1);
     meta->set_total_ram_bytes(static_cast<int64_t>(hw.hw_ramSize > 0 ? hw.hw_ramSize : 2048) *
@@ -72,6 +77,14 @@ void PopulateMetadata(const AvdProperties& props, const HardwareConfig& hw, Devi
     meta->set_total_storage_bytes(hw.disk_dataPartition_size.Bytes() > 0
                                           ? static_cast<int64_t>(hw.disk_dataPartition_size.Bytes())
                                           : static_cast<int64_t>(6ULL * 1024 * 1024 * 1024));
+}
+
+void PopulateScreenCaptureCapabilities(ScreenCaptureCapabilities* media_caps) {
+    media_caps->set_access_mode(AccessMode::ACCESS_MODE_READ_WRITE);
+    media_caps->add_supported_formats(ImageFormat::IMAGE_FORMAT_PNG);
+    media_caps->add_supported_formats(ImageFormat::IMAGE_FORMAT_RAW_RGBA8888);
+    media_caps->add_supported_formats(ImageFormat::IMAGE_FORMAT_JPEG);
+    media_caps->set_supports_row_stride(true);
 }
 
 void PopulateDisplayCapabilities(const HardwareConfig& hw, DisplayCapabilities* display_caps) {
@@ -87,6 +100,8 @@ void PopulateDisplayCapabilities(const HardwareConfig& hw, DisplayCapabilities* 
     primary->set_circular(hw.hw_lcd_circular);
     primary->set_refresh_rate_hz(60.0f);
     primary->set_supports_dynamic_resizing(true);
+
+    PopulateScreenCaptureCapabilities(display_caps->mutable_screen_capture());
 }
 
 void PopulateBatteryCapabilities(const HardwareConfig& hw, BatteryCapabilities* battery_caps) {
@@ -100,11 +115,24 @@ void PopulateBatteryCapabilities(const HardwareConfig& hw, BatteryCapabilities* 
 void PopulateLocationCapabilities(const HardwareConfig& hw, LocationCapabilities* loc_caps) {
     loc_caps->set_access_mode(hw.hw_gps ? AccessMode::ACCESS_MODE_READ_WRITE
                                         : AccessMode::ACCESS_MODE_UNSPECIFIED);
-    loc_caps->set_supports_altitude(true);
-    loc_caps->set_supports_speed(true);
-    loc_caps->set_supports_bearing(true);
-    loc_caps->set_supports_accuracy(true);
-    loc_caps->set_supports_satellites(true);
+    // The emulated GNSS stack is a real HAL, not an Android framework override.
+    loc_caps->set_fidelity(Fidelity::FIDELITY_HARDWARE);
+}
+
+void PopulatePostureCapabilities(const HardwareConfig& hw, PostureCapabilities* posture_caps) {
+    posture_caps->set_access_mode(AccessMode::ACCESS_MODE_READ_WRITE);
+    if (hw.hw_sensor_hinge) {
+        const FoldAxis axis = hw.hw_sensor_hinge_type == 0 ? FoldAxis::FOLD_AXIS_HORIZONTAL
+                                                           : FoldAxis::FOLD_AXIS_VERTICAL;
+        const int count = hw.hw_sensor_hinge_count > 0 ? hw.hw_sensor_hinge_count : 1;
+        for (int i = 0; i < count; ++i) {
+            auto* hinge = posture_caps->add_hinges();
+            hinge->set_hinge_id(i);
+            hinge->set_fold_axis(axis);
+            hinge->set_min_angle_degrees(0.0F);
+            hinge->set_max_angle_degrees(180.0F);
+        }
+    }
 }
 
 void PopulateSensorsCapabilities(const HardwareConfig& hw, SensorsCapabilities* sensor_caps) {
@@ -156,43 +184,31 @@ void PopulateSensorsCapabilities(const HardwareConfig& hw, SensorsCapabilities* 
     }
     if (hw.hw_sensor_hinge) {
         sensor_caps->add_available_sensors(SensorType::SENSOR_TYPE_HINGE_ANGLE);
-    }
-    if (hw.hw_sensor_roll) {
-        sensor_caps->add_available_sensors(SensorType::SENSOR_TYPE_ROLLABLE);
+        PopulatePostureCapabilities(hw, sensor_caps->mutable_posture());
     }
 }
 
 void PopulateInputCapabilities(const HardwareConfig& hw, InputCapabilities* input_caps) {
     input_caps->set_access_mode(AccessMode::ACCESS_MODE_READ_WRITE);
-    input_caps->set_supports_touch(true);
-    input_caps->set_supports_multi_touch(true);
+    input_caps->add_supported_features(InputFeature::INPUT_FEATURE_TOUCH);
+    input_caps->add_supported_features(InputFeature::INPUT_FEATURE_MULTI_TOUCH);
     input_caps->set_max_touch_point_count(10);
-    input_caps->set_supports_keyboard(hw.hw_keyboard);
+    if (hw.hw_keyboard) {
+        input_caps->add_supported_features(InputFeature::INPUT_FEATURE_KEYBOARD);
+    }
     // TODO(jansene): These should align with what we tell the system image.
     // i.e. features: VirtioMouse, VirtioDualModeMouse
-    input_caps->set_supports_mouse_pointer(false);
-    input_caps->set_supports_relative_mouse(false);
-    input_caps->set_supports_rotary_encoder(hw.hw_rotaryInput);
+    // Mouse pointer and relative mouse are intentionally not advertised yet.
+    if (hw.hw_rotaryInput) {
+        input_caps->add_supported_features(InputFeature::INPUT_FEATURE_ROTARY_ENCODER);
+    }
 }
 
 void PopulateVmCapabilities(VmCapabilities* vm_caps) {
     vm_caps->set_access_mode(AccessMode::ACCESS_MODE_READ_WRITE);
-    vm_caps->set_supports_pause_resume(true);
-    vm_caps->set_supports_hard_reset(true);
-    vm_caps->set_supports_shutdown(true);
-}
-
-void PopulateSystemCapabilities(SystemCapabilities* sys_caps) {
-    sys_caps->set_access_mode(AccessMode::ACCESS_MODE_READ_WRITE);
-    sys_caps->set_supports_reboot(true);
-}
-
-void PopulateScreenCaptureCapabilities(ScreenCaptureCapabilities* media_caps) {
-    media_caps->set_access_mode(AccessMode::ACCESS_MODE_READ_WRITE);
-    media_caps->add_supported_formats(ImageFormat::IMAGE_FORMAT_PNG);
-    media_caps->add_supported_formats(ImageFormat::IMAGE_FORMAT_RAW_RGBA8888);
-    media_caps->add_supported_formats(ImageFormat::IMAGE_FORMAT_JPEG);
-    media_caps->set_supports_row_stride(true);
+    vm_caps->add_supported_operations(VmOperation::VM_OPERATION_PAUSE_RESUME);
+    vm_caps->add_supported_operations(VmOperation::VM_OPERATION_HARD_RESET);
+    vm_caps->add_supported_operations(VmOperation::VM_OPERATION_SHUTDOWN);
 }
 
 void PopulateBiometricsCapabilities(BiometricsCapabilities* bio_caps) {
@@ -204,35 +220,23 @@ void PopulateClipboardCapabilities(ClipboardCapabilities* clip_caps) {
     clip_caps->set_access_mode(AccessMode::ACCESS_MODE_READ_WRITE);
 }
 
-void PopulateSnapshotCapabilities(SnapshotCapabilities* snap_caps) {
-    snap_caps->set_access_mode(AccessMode::ACCESS_MODE_READ_WRITE);
-    snap_caps->set_supports_local_snapshots(true);
-    snap_caps->set_supports_cloud_storage(false);
+void PopulateSystemCapabilities(SystemCapabilities* sys_caps) {
+    sys_caps->set_access_mode(AccessMode::ACCESS_MODE_READ_WRITE);
+    sys_caps->set_supports_reboot(true);
+    PopulateBiometricsCapabilities(sys_caps->mutable_biometrics());
+    PopulateClipboardCapabilities(sys_caps->mutable_clipboard());
 }
 
-void PopulatePostureCapabilities(const HardwareConfig& hw, PostureCapabilities* posture_caps) {
-    posture_caps->set_access_mode(AccessMode::ACCESS_MODE_READ_WRITE);
-    posture_caps->set_supports_hinge_angle(hw.hw_sensor_hinge);
-    posture_caps->set_fold_axis(hw.hw_sensor_hinge_type == 0 ? FoldAxis::FOLD_AXIS_HORIZONTAL
-                                                             : FoldAxis::FOLD_AXIS_VERTICAL);
-    posture_caps->set_hinge_construction(
-            hw.hw_sensor_hinge_sub_type == 0
-                    ? HingeConstruction::HINGE_CONSTRUCTION_FOLD_ON_SCREEN
-                    : HingeConstruction::HINGE_CONSTRUCTION_DUAL_SCREEN_DIVIDER);
-
-    posture_caps->set_supports_rollable(hw.hw_sensor_roll);
-    if (hw.hw_sensor_roll) {
-        auto* roll_cfg = posture_caps->mutable_rollable();
-        roll_cfg->set_direction(hw.hw_sensor_roll_direction == "1"
-                                        ? RollDirection::ROLL_DIRECTION_RIGHT_TO_LEFT
-                                        : RollDirection::ROLL_DIRECTION_LEFT_TO_RIGHT);
-    }
+void PopulateSnapshotCapabilities(SnapshotCapabilities* snap_caps) {
+    snap_caps->set_access_mode(AccessMode::ACCESS_MODE_READ_WRITE);
+    snap_caps->add_supported_features(SnapshotFeature::SNAPSHOT_FEATURE_LOCAL);
+    // Cloud storage import/export is not wired up here; omitting the feature is
+    // the signal, so there is nothing to set to false.
 }
 
 }  // namespace
 
-CapabilitiesServiceImpl::CapabilitiesServiceImpl(
-        const ::goldfish::avd_info::AvdUniverse& avd_universe)
+CapabilitiesServiceImpl::CapabilitiesServiceImpl(const ::goldfish::avd::AvdUniverse& avd_universe)
         : avd_universe_(avd_universe) {}
 
 Status CapabilitiesServiceImpl::GetDeviceCapabilities(
@@ -249,14 +253,7 @@ Status CapabilitiesServiceImpl::GetDeviceCapabilities(
     PopulateInputCapabilities(hw, reply->mutable_input());
     PopulateVmCapabilities(reply->mutable_vm());
     PopulateSystemCapabilities(reply->mutable_system());
-    PopulateScreenCaptureCapabilities(reply->mutable_screen_capture());
-    PopulateBiometricsCapabilities(reply->mutable_biometrics());
-    PopulateClipboardCapabilities(reply->mutable_clipboard());
     PopulateSnapshotCapabilities(reply->mutable_snapshot());
-
-    if (hw.hw_sensor_hinge || hw.hw_sensor_roll) {
-        PopulatePostureCapabilities(hw, reply->mutable_posture());
-    }
 
     return Status::OK;
 }

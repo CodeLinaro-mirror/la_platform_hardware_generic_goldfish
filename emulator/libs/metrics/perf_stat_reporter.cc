@@ -15,16 +15,16 @@
 
 #include "goldfish/metrics/perf_stat_reporter.h"
 
+#include <cstdint>
+
 #include "android/base/memory.h"
 #include "android/base/system.h"
 
 namespace goldfish::metrics {
 
-namespace {
-
-void FillMemUsage(const android::base::System& system, const android::goldfish::HardwareConfig& hw,
-                  android_studio::EmulatorMemoryUsage* mem_usage_proto) {
-    const android::base::MemUsage raw_mem_usage = system.GetMemUsage();
+void FillMemUsage(android_studio::EmulatorMemoryUsage* mem_usage_proto,
+                  const android::goldfish::HardwareConfig* hw) {
+    const android::base::MemUsage raw_mem_usage = android::base::System::Get()->GetMemUsage();
     mem_usage_proto->set_resident_memory(raw_mem_usage.resident);
     mem_usage_proto->set_resident_memory_max(raw_mem_usage.resident_max);
     mem_usage_proto->set_virtual_memory(raw_mem_usage.virt);
@@ -32,10 +32,13 @@ void FillMemUsage(const android::base::System& system, const android::goldfish::
     mem_usage_proto->set_total_phys_memory(raw_mem_usage.total_phys_memory);
     mem_usage_proto->set_total_page_file(raw_mem_usage.total_page_file);
 
-    if (hw.hw_ramSize > 0) {
-        mem_usage_proto->set_total_guest_memory(hw.hw_ramSize * 1024 * 1024);
+    if (hw && hw->hw_ramSize > 0) {
+        mem_usage_proto->set_total_guest_memory(static_cast<uint64_t>(hw->hw_ramSize) * 1024 *
+                                                1024);
     }
 }
+
+namespace {
 
 void FillCpuUsage(const CpuUsage& cpu_usage, android_studio::EmulatorResourceUsage* resources) {
     cpu_usage.UseMainCpuUsage([resources](android::base::CpuTime cpu_time) {
@@ -66,7 +69,7 @@ void PerfStatReporter::FillPerfStats(const android::goldfish::HardwareConfig& hw
     // TODO stats_out->set_guest_uptime_us(x * 1000);
 
     auto* resources = stats_out->mutable_resource_usage();
-    FillMemUsage(system, hw, resources->mutable_memory_usage());
+    FillMemUsage(resources->mutable_memory_usage(), &hw);
     FillCpuUsage(cpu_usage, resources);
 }
 

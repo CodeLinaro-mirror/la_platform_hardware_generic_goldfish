@@ -19,10 +19,16 @@
 #include <thread>
 
 #include "absl/log/log.h"
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
+#include "absl/strings/numbers.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/strip.h"
 
 #include "android/base/system.h"
 #include "android/sockets/scoped_socket.h"
+#include "android/status/status_macros.h"
 
 namespace goldfish::adb {
 
@@ -55,9 +61,9 @@ static std::string readResponse(int fd, int bytesToRead) {
     std::string buffer(bytesToRead, '\0');
     unsigned int bytesRead = 0;
     while (bytesToRead > 0) {
-        auto ret = android::base::socketRecv(fd, (void*)&buffer[bytesRead], bytesToRead);
+        auto ret = android::base::socketRecv(fd, buffer.data() + bytesRead, bytesToRead);
 
-        if (ret == EAGAIN || ret == EWOULDBLOCK) {
+        if (ret < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
             std::this_thread::sleep_for(std::chrono::milliseconds(500));
             continue;
         }
@@ -74,36 +80,84 @@ static std::string readResponse(int fd, int bytesToRead) {
 }
 
 // Reads a protocol string from ADB
-static std::string readProtocolString(int fd) {
-    uint32_t bytesToRead;
-    std::string incoming = readResponse(fd, 4);
-    if (incoming.size() != 4 || sscanf(incoming.c_str(), "%04x", &bytesToRead) != 1) {
-        LOG(ERROR) << "adb protocol fault (couldn't read status length)";
-        return {};
+static absl::StatusOr<std::string> readProtocolString(int fd) {
+    std::string lengthHex = readResponse(fd, 4);
+    if (lengthHex.empty()) {
+        return absl::UnavailableError("no response from ADB server");
+    }
+    uint32_t bytesToRead = 0;
+    if (lengthHex.size() != 4 || !absl::SimpleHexAtoi(lengthHex, &bytesToRead)) {
+        return absl::InvalidArgumentError(absl::StrCat(
+                "adb protocol fault (couldn't read status length: '", lengthHex, "')"));
     }
 
-    incoming = readResponse(fd, bytesToRead);
-    if (incoming.size() != bytesToRead) {
-        LOG(ERROR) << "adb protocol fault (couldn't read status message)";
-        return {};
+    std::string payload = readResponse(fd, bytesToRead);
+    if (payload.size() != bytesToRead) {
+        return absl::InvalidArgumentError(
+                absl::StrCat("adb protocol fault (couldn't read status message: expected ",
+                             bytesToRead, " bytes, read ", payload.size(), ")"));
     }
 
-    return incoming;
+    return payload;
 }
 
-std::optional<int> AdbHostServer::getProtocolVersion() {
+static bool isUnauthorizedMessage(std::string_view msg) {
+    return msg.find("unauthorized") != std::string_view::npos;
+}
+
+// Reads status response from ADB ("OKAY" or "FAIL" + error message) and returns
+// absl::OkStatus() on OKAY, absl::UnauthenticatedError on auth mismatch, or an error Status.
+static absl::Status readAdbStatus(int fd, std::string_view requestName, int serialNumber = 0) {
+    auto response = readResponse(fd, 4);
+    if (response == "OKAY") {
+        return absl::OkStatus();
+    }
+    if (response.empty()) {
+        return absl::UnavailableError("no response from ADB server");
+    }
+    if (response.size() != 4) {
+        return absl::InvalidArgumentError(
+                absl::StrCat("adb protocol fault (couldn't read status: expected 4 bytes, got ",
+                             response.size(), ": '", response, "')"));
+    }
+    std::string errorMsg;
+    if (response == "FAIL") {
+        if (auto msg = readProtocolString(fd); msg.ok()) {
+            errorMsg = std::string(absl::StripTrailingAsciiWhitespace(*msg));
+        }
+    }
+    absl::Status status =
+            isUnauthorizedMessage(errorMsg)
+                    ? absl::UnauthenticatedError(errorMsg)
+                    : absl::InternalError(absl::StrCat(
+                              requestName, " rejected with ", response,
+                              (!errorMsg.empty() ? absl::StrCat(": ", errorMsg) : "")));
+    if (absl::IsUnauthenticated(status)) {
+        LOG(WARNING) << "ADB host server reported device unauthorized for "
+                     << (serialNumber > 0 ? absl::StrCat("emulator-", serialNumber) : "device")
+                     << ": " << errorMsg
+                     << " (ADB authentication mismatch between host keys and guest image).";
+    } else {
+        VLOG(1) << requestName << " rejected with " << response
+                << (!errorMsg.empty() ? absl::StrCat(": ", errorMsg) : "");
+    }
+    return status;
+}
+
+absl::StatusOr<int> AdbHostServer::getProtocolVersion() {
     int port = AdbHostServer::getClientPort();
 
     // Okay. let's see if we can connect to this adb server.
     ScopedSocket fd = connectToAdbServer(port);
     if (!fd.valid()) {
         LOG(ERROR) << "Unable to connect to adb daemon on port: " << port;
-        return {};
+        return absl::UnavailableError(
+                absl::StrCat("unable to connect to adb daemon on port: ", port));
     }
 
     // And ask it for its protocol version.
     if (!sendMessage(fd.get(), "host:version")) {
-        return {};
+        return absl::InternalError("failed to send host:version request");
     }
 
     android::base::socketSetNonBlocking(fd.get());
@@ -113,20 +167,19 @@ std::optional<int> AdbHostServer::getProtocolVersion() {
     // 1. For success, the 4-byte "OKAY" string
     // 2. For failure, the 4-byte "FAIL" string, followed by a
     //    4-byte hex length, followed by a string giving the reason for failure.
-    if (readResponse(fd.get(), 4).compare("OKAY") == 0) {
-        // for 'host:version', a 4-byte hex string corresponding to the server's
-        // internal version number
-        std::string version_result = readProtocolString(fd.get());
-        uint32_t version = 0;
-        if (sscanf(version_result.c_str(), "%04x", &version) == 1) {
-            android::base::socketSetBlocking(fd.get());
-            return version;
-        }
+    RETURN_IF_ERROR(readAdbStatus(fd.get(), "host:version request"));
+
+    // for 'host:version', a 4-byte hex string corresponding to the server's
+    // internal version number
+    ASSIGN_OR_RETURN(auto version_result, readProtocolString(fd.get()));
+    uint32_t version = 0;
+    if (!absl::SimpleHexAtoi(version_result, &version)) {
+        android::base::socketSetBlocking(fd.get());
+        return absl::InternalError("failed to read protocol version from adb server");
     }
 
     android::base::socketSetBlocking(fd.get());
-
-    return {};
+    return version;
 }
 
 bool AdbHostServer::notify(int adbEmulatorPort, int adbClientPort) {
@@ -143,12 +196,13 @@ bool AdbHostServer::notify(int adbEmulatorPort, int adbClientPort) {
     return sendMessage(socket.get(), message);
 }
 
-bool AdbHostServer::runShellCommand(const std::string& shellCommand, int serialNumber,
-                                    int adbClientPort) {
+absl::Status AdbHostServer::runShellCommand(const std::string& shellCommand, int serialNumber,
+                                            int adbClientPort) {
     ScopedSocket socket = connectToAdbServer(adbClientPort);
     if (!socket.valid()) {
         VLOG(1) << "runShellCommand: failed to connect to ADB server on port " << adbClientPort;
-        return false;
+        return absl::UnavailableError(
+                absl::StrCat("failed to connect to ADB server on port ", adbClientPort));
     }
 
     std::string transport = (serialNumber > 0)
@@ -157,28 +211,18 @@ bool AdbHostServer::runShellCommand(const std::string& shellCommand, int serialN
 
     if (!sendMessage(socket.get(), transport)) {
         VLOG(1) << "runShellCommand: failed to send transport request: " << transport;
-        return false;
+        return absl::InternalError(absl::StrCat("failed to send transport request: ", transport));
     }
 
-    auto transportResponse = readResponse(socket.get(), 4);
-    if (transportResponse.compare("OKAY") != 0) {
-        VLOG(1) << "runShellCommand: transport request rejected with: " << transportResponse;
-        return false;
-    }
+    RETURN_IF_ERROR(readAdbStatus(socket.get(), "transport request", serialNumber));
 
     auto shell = absl::StrFormat("shell:%s", shellCommand);
     if (!sendMessage(socket.get(), shell)) {
         VLOG(1) << "runShellCommand: failed to send shell command: " << shellCommand;
-        return false;
+        return absl::InternalError(absl::StrCat("failed to send shell command: ", shellCommand));
     }
 
-    auto shellResponse = readResponse(socket.get(), 4);
-    if (shellResponse.compare("OKAY") != 0) {
-        VLOG(1) << "runShellCommand: shell command rejected with: " << shellResponse;
-        return false;
-    }
-
-    return true;
+    return readAdbStatus(socket.get(), "shell command", serialNumber);
 }
 
 int AdbHostServer::getClientPort() {

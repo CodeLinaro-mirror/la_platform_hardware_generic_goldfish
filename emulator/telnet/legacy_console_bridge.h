@@ -13,17 +13,26 @@
 // limitations under the License.
 #pragma once
 
+#include <cstdint>
 #include <filesystem>
 #include <memory>
 #include <string>
+#include <string_view>
 
+#include "absl/base/thread_annotations.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
+#include "absl/synchronization/mutex.h"
 
 #include "command_registry.h"
 #include "console_context.h"
+#include "goldfish/metrics/metrics_reporter.h"
 #include "line_command_handler.h"
 
 namespace goldfish::telnet {
+
+inline constexpr std::string_view kSmsDeprecatedMessage =
+        "SMS console commands are deprecated. Use the netsim CLI instead.";
 
 /**
  * @brief A bridge that maps legacy Telnet console commands to modern gRPC
@@ -45,8 +54,12 @@ class LegacyConsoleBridge : public LineCommandHandler {
      * @param port The port number of the emulator instance.
      * @param token_path Path to the file containing the console authentication
      * token.
+     * @param metrics_reporter Reporter for sending telnet command usage metrics.
      */
-    LegacyConsoleBridge(int port, std::filesystem::path token_path);
+    LegacyConsoleBridge(int port, std::filesystem::path token_path,
+                        goldfish::metrics::MetricsReporter& metrics_reporter);
+
+    ~LegacyConsoleBridge() override;
 
     // LineCommandHandler implementation
     absl::StatusOr<std::string> operator()(std::string line, Context& ctx) override;
@@ -54,10 +67,19 @@ class LegacyConsoleBridge : public LineCommandHandler {
 
     std::unique_ptr<Context> CreateContext() const override;
 
+    // Flushes any accumulated telnet command metrics to the metrics reporter.
+    void ReportMetrics();
+
   private:
+    void RecordCommand(std::string_view top_level_name, std::string_view canonical_path);
+
     int port_;
     std::filesystem::path token_path_;
+    goldfish::metrics::MetricsReporter& metrics_reporter_;
     std::unique_ptr<CommandRegistry> registry_;
+
+    absl::Mutex metrics_mutex_;
+    absl::flat_hash_map<std::string_view, int64_t> command_counts_ ABSL_GUARDED_BY(metrics_mutex_);
 };
 
 }  // namespace goldfish::telnet

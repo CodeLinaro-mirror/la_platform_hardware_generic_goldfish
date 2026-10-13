@@ -48,7 +48,8 @@ using goldfish::parsing::Split2;
 namespace {
 bool addImageProviderInfo(CameraImageProviderRegistry& dst, const CameraImageSource source,
                           const std::string_view id, const std::string_view params,
-                          const bool isBackFacing, CameraImageProviderRegistry& webcamRegistry) {
+                          const bool isBackFacing, CameraImageProviderRegistry& webcamRegistry,
+                          const sensors::PhysicalModel* physicalModel) {
     namespace cip = goldfish::camera_image_providers;
 
     CameraImageProviderInfo info;
@@ -70,7 +71,7 @@ bool addImageProviderInfo(CameraImageProviderRegistry& dst, const CameraImageSou
         return false;
 
     case CameraImageSource::VIRTUALSCENE:
-        if (!cip::virtualscene::getImageProviderInfo(&info, isBackFacing)) {
+        if (!cip::virtualscene::getImageProviderInfo(&info, isBackFacing, physicalModel)) {
             return false;
         }
         break;
@@ -143,8 +144,9 @@ err:
 
 }  // namespace
 
-void RegisterDevice(IConnectorRegistry* registry, std::string* emulatedCameraProp,
-                    const android::goldfish::HardwareConfig& hw, GrallocProvider grallocProvider) {
+void RegisterDevice(const sensors::PhysicalModel* physicalModel, IConnectorRegistry* registry,
+                    std::string* emulatedCameraProp, const android::goldfish::HardwareConfig& hw,
+                    GrallocProvider grallocProvider) {
     const auto [frontCameraId, frontCameraParams] = Split2(hw.hw_camera_front, ':');
     CameraImageSource frontCameraSource = getCameraImageSourceFromName(frontCameraId);
 
@@ -165,12 +167,12 @@ void RegisterDevice(IConnectorRegistry* registry, std::string* emulatedCameraPro
     auto imageProvidersRegistry = std::make_shared<CameraImageProviderRegistry>();
 
     if (!addImageProviderInfo(*imageProvidersRegistry, frontCameraSource, frontCameraId,
-                              frontCameraParams, false, webcamRegistry)) {
+                              frontCameraParams, false, webcamRegistry, physicalModel)) {
         frontCameraSource = CameraImageSource::EMULATED;
     }
 
     if (!addImageProviderInfo(*imageProvidersRegistry, backCameraSource, backCameraId,
-                              backCameraParams, true, webcamRegistry)) {
+                              backCameraParams, true, webcamRegistry, physicalModel)) {
         backCameraSource = CameraImageSource::EMULATED;
     }
 

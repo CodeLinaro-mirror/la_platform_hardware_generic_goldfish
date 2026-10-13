@@ -35,12 +35,13 @@ py_binary(
     visibility = ["//visibility:public"],
     deps = [
         "@aemu//tools/libs_python:ab",
-        "@bazel_tools//tools/python/runfiles",
+        "@rules_python//python/runfiles",
     ],
 )
 
 py_test(
     name = "advisor_test",
+    size = "small",
     srcs = ["advisor_test.py"],
     data = [
         "crash_advisor.md",
@@ -49,12 +50,13 @@ py_test(
     deps = [
         ":advisor",
         "@aemu//tools/libs_python:ab",
-        "@bazel_tools//tools/python/runfiles",
+        "@rules_python//python/runfiles",
     ],
 )
 
 py_test(
     name = "buganizer_test",
+    size = "small",
     srcs = ["buganizer_test.py"],
     deps = [
         ":advisor",
@@ -63,6 +65,7 @@ py_test(
 
 py_test(
     name = "buganizer_e2e_test",
+    size = "medium",
     srcs = ["buganizer_e2e_test.py"],
     tags = [
         "local",

@@ -47,7 +47,7 @@ cc_library(
 
 cc_test(
     name = "physics_unittests",
-    size = "small",
+    size = "medium",
     srcs = [
         "ambient_environment_test.cc",
         "body_model_test.cc",

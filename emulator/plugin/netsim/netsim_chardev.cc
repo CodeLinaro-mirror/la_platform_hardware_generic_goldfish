@@ -36,12 +36,11 @@ extern "C" {
 }
 
 #undef send
-#include "android/emulation/control/enum_translate.h"
-#include "goldfish/avd_info/avd_info.h"
+#include "emulator/plugin/netsim/packet_transport.h"
+#include "goldfish/avd/avd_info.h"
 #include "goldfish/file/file.h"
 #include "goldfish/qemu/qemubh.h"
 #include "h4_parser.h"
-#include "netsim_transport.h"
 
 namespace goldfish::netsim {
 
@@ -50,12 +49,11 @@ namespace {
 class Protocol {
   public:
     virtual ~Protocol() = default;
-    virtual ::netsim::startup::Chip chip_info() = 0;
+    virtual ChipConfig chip_info() = 0;
     virtual void reset() = 0;
     virtual void reset_guest(Chardev* c) = 0;
 
-    virtual void netsim_to_guest_packet(
-            Chardev* c, std::unique_ptr<::netsim::packet::PacketResponse> packet) = 0;
+    virtual void netsim_to_guest_packet(Chardev* c, std::unique_ptr<Packet> packet) = 0;
 
     virtual uint64_t guest_to_netsim_parser_bytes_requested() = 0;
     virtual void guest_to_netsim_parser_consume(const uint8_t* buf, uint64_t len) = 0;
@@ -63,27 +61,22 @@ class Protocol {
 
 class UwbProtocol : public Protocol {
   public:
-    UwbProtocol(std::vector<::netsim::packet::PacketRequest>* output_queue)
-            : mPacketQueue(output_queue) {}
+    explicit UwbProtocol(std::vector<Packet>* output_queue) : mPacketQueue(output_queue) {}
 
     void reset() override {
         state_ = UCI_HEADER;
         mBytesWanted = UCI_HEADER_SIZE;
+        mPacket.clear();
     }
 
     void reset_guest(Chardev* c) override {
-        // N/A
+        qemu_chr_be_write(c, reset_sequence, sizeof(reset_sequence));
     }
 
-    void netsim_to_guest_packet(Chardev* c,
-                                std::unique_ptr<::netsim::packet::PacketResponse> packet) override {
-        if (packet->has_packet()) {
-            // From netsim -> guest
-            VLOG(2) << "NETSIM UWB: send (netsim -> guest)";
-            qemu_chr_be_write(c, (uint8_t*)packet->packet().data(), packet->packet().size());
-        } else {
-            LOG(WARNING) << "Unexpected packet " << packet->DebugString();
-        }
+    void netsim_to_guest_packet(Chardev* c, std::unique_ptr<Packet> packet) override {
+        // From netsim -> guest
+        VLOG(2) << "NETSIM UWB: send (netsim -> guest)";
+        qemu_chr_be_write(c, packet->data(), packet->size());
     }
 
     uint64_t guest_to_netsim_parser_bytes_requested() override { return mBytesWanted; }
@@ -95,7 +88,7 @@ class UwbProtocol : public Protocol {
         }
         size_t bytes_to_read = mBytesWanted;
         if ((uint32_t)len > bytes_to_read) {
-            LOG(FATAL) << "Uwb: More bytes read than expected";
+            LOG(QFATAL) << "Uwb: More bytes read than expected";
         }
 
         mPacket.insert(mPacket.end(), buf, buf + len);
@@ -110,10 +103,9 @@ class UwbProtocol : public Protocol {
                     break;
                 }
                 // Fall through if entire packet is just a header
+                [[fallthrough]];
             case UCI_PAYLOAD:
-                ::netsim::packet::PacketRequest request;
-                request.set_allocated_packet(new std::string(mPacket.begin(), mPacket.end()));
-                mPacketQueue->push_back(request);
+                mPacketQueue->push_back(std::move(mPacket));
                 mPacket.clear();
                 mBytesWanted = UCI_HEADER_SIZE;
                 state_ = UCI_HEADER;
@@ -122,13 +114,12 @@ class UwbProtocol : public Protocol {
         }
     }
 
-    ::netsim::startup::Chip chip_info() override {
-        ::netsim::startup::Chip chip;
-        chip.set_kind(::netsim::common::ChipKind::UWB);
-        return chip;
-    }
+    ChipConfig chip_info() override { return ChipConfig{.kind = ChipKind::kUwb}; }
 
   private:
+    // UCI CORE_DEVICE_STATUS_NTF (DEVICE_STATE_ERROR) to trigger guest UWB stack recovery.
+    static constexpr uint8_t reset_sequence[] = {0x60, 0x01, 0x00, 0x01, 0xff};
+
     const size_t UCI_HEADER_SIZE = 4;
     const size_t UCI_PAYLOAD_LENGTH_FIELD = 3;
     enum State { UCI_HEADER, UCI_PAYLOAD };
@@ -136,13 +127,12 @@ class UwbProtocol : public Protocol {
     State state_{UCI_HEADER};
     size_t mBytesWanted{UCI_HEADER_SIZE};
     std::vector<uint8_t> mPacket;
-    std::vector<::netsim::packet::PacketRequest>* mPacketQueue;
+    std::vector<Packet>* mPacketQueue;
 };
 
 class NfcProtocol : public Protocol {
   public:
-    explicit NfcProtocol(std::vector<::netsim::packet::PacketRequest>* output_queue)
-            : mPacketQueue(output_queue) {}
+    explicit NfcProtocol(std::vector<Packet>* output_queue) : mPacketQueue(output_queue) {}
 
     void reset() override {
         state_ = NCI_HEADER;
@@ -150,20 +140,14 @@ class NfcProtocol : public Protocol {
         mPacket.clear();
     }
 
-    void reset_guest(Chardev* /*c*/) override {
-        // N/A
+    void reset_guest(Chardev* c) override {
+        qemu_chr_be_write(c, reset_sequence, sizeof(reset_sequence));
     }
 
-    void netsim_to_guest_packet(Chardev* c,
-                                std::unique_ptr<::netsim::packet::PacketResponse> packet) override {
-        if (packet->has_packet()) {
-            // From netsim -> guest
-            VLOG(2) << "NETSIM NFC: send (netsim -> guest)";
-            qemu_chr_be_write(c, reinterpret_cast<const uint8_t*>(packet->packet().data()),
-                              packet->packet().size());
-        } else {
-            LOG(WARNING) << "Unexpected packet " << packet->DebugString();
-        }
+    void netsim_to_guest_packet(Chardev* c, std::unique_ptr<Packet> packet) override {
+        // From netsim -> guest
+        VLOG(2) << "NETSIM NFC: send (netsim -> guest)";
+        qemu_chr_be_write(c, packet->data(), packet->size());
     }
 
     uint64_t guest_to_netsim_parser_bytes_requested() override { return mBytesWanted; }
@@ -175,7 +159,7 @@ class NfcProtocol : public Protocol {
             return;
         }
         if (len > mBytesWanted) {
-            LOG(FATAL) << "NFC: More bytes read than expected";
+            LOG(QFATAL) << "NFC: More bytes read than expected";
         }
 
         mPacket.insert(mPacket.end(), buf, buf + len);
@@ -192,9 +176,7 @@ class NfcProtocol : public Protocol {
                 // Fall through if entire packet is just a header (payload length is 0)
                 [[fallthrough]];
             case NCI_PAYLOAD: {
-                ::netsim::packet::PacketRequest request;
-                request.set_allocated_packet(new std::string(mPacket.begin(), mPacket.end()));
-                mPacketQueue->push_back(std::move(request));
+                mPacketQueue->push_back(std::move(mPacket));
                 mPacket.clear();
                 mBytesWanted = NCI_HEADER_SIZE;
                 state_ = NCI_HEADER;
@@ -204,13 +186,12 @@ class NfcProtocol : public Protocol {
         }
     }
 
-    ::netsim::startup::Chip chip_info() override {
-        ::netsim::startup::Chip chip;
-        chip.set_kind(::netsim::common::ChipKind::NFC);
-        return chip;
-    }
+    ChipConfig chip_info() override { return ChipConfig{.kind = ChipKind::kNfc}; }
 
   private:
+    // NCI 2.0 CORE_RESET_NTF (UnrecoverableError) to trigger guest NFC stack recovery.
+    static constexpr uint8_t reset_sequence[] = {0x60, 0x00, 0x05, 0x00, 0x01, 0x20, 0x00, 0x00};
+
     static constexpr size_t NCI_HEADER_SIZE = 3;
     static constexpr size_t NCI_PAYLOAD_LENGTH_FIELD = 2;
     enum State { NCI_HEADER, NCI_PAYLOAD };
@@ -218,37 +199,36 @@ class NfcProtocol : public Protocol {
     State state_{NCI_HEADER};
     size_t mBytesWanted{NCI_HEADER_SIZE};
     std::vector<uint8_t> mPacket;
-    std::vector<::netsim::packet::PacketRequest>* mPacketQueue;
+    std::vector<Packet>* mPacketQueue;
 };
 
 class BtProtocol : public Protocol {
   public:
-    BtProtocol(std::vector<::netsim::packet::PacketRequest>* output_queue) {
-        auto enqueue = [queue = output_queue](::netsim::packet::HCIPacket::PacketType type,
-                                              const std::vector<uint8_t>& data) {
-            ::netsim::packet::PacketRequest request;
-            auto* packet = request.mutable_hci_packet();
-            packet->set_packet_type(type);
-            packet->set_packet(std::string(data.begin(), data.end()));
-            queue->push_back(request);
+    explicit BtProtocol(std::vector<Packet>* output_queue) {
+        auto enqueue = [queue = output_queue](uint8_t type, const std::vector<uint8_t>& data) {
+            Packet packet;
+            packet.reserve(1 + data.size());
+            packet.push_back(type);
+            packet.insert(packet.end(), data.begin(), data.end());
+            queue->push_back(std::move(packet));
         };
 
         // TODO(b/548033766): Switch to virtio-bt (requires guest change).
         h4_parser_ = std::make_unique<rootcanal::H4Parser>(
                 [enqueue](const std::vector<uint8_t>& data) {
-                    enqueue(::netsim::packet::HCIPacket::COMMAND, data);
+                    enqueue(static_cast<uint8_t>(rootcanal::PacketType::COMMAND), data);
                 },
                 [enqueue](const std::vector<uint8_t>& data) {
-                    enqueue(::netsim::packet::HCIPacket::EVENT, data);
+                    enqueue(static_cast<uint8_t>(rootcanal::PacketType::EVENT), data);
                 },
                 [enqueue](const std::vector<uint8_t>& data) {
-                    enqueue(::netsim::packet::HCIPacket::ACL, data);
+                    enqueue(static_cast<uint8_t>(rootcanal::PacketType::ACL), data);
                 },
                 [enqueue](const std::vector<uint8_t>& data) {
-                    enqueue(::netsim::packet::HCIPacket::SCO, data);
+                    enqueue(static_cast<uint8_t>(rootcanal::PacketType::SCO), data);
                 },
                 [enqueue](const std::vector<uint8_t>& data) {
-                    enqueue(::netsim::packet::HCIPacket::ISO, data);
+                    enqueue(static_cast<uint8_t>(rootcanal::PacketType::ISO), data);
                 },
                 /*enable_recovery_state=*/true);
     }
@@ -259,19 +239,10 @@ class BtProtocol : public Protocol {
         qemu_chr_be_write(c, (uint8_t*)reset_sequence, sizeof(reset_sequence));
     }
 
-    void netsim_to_guest_packet(Chardev* c,
-                                std::unique_ptr<::netsim::packet::PacketResponse> packet) override {
-        if (packet->has_hci_packet()) {
-            // From netsim -> guest
-            VLOG(2) << "NETSIM BT: send (netsim -> guest)";
-            uint8_t type = static_cast<uint8_t>(
-                    EnumTranslate::translate(kPacketType, packet->hci_packet().packet_type()));
-            qemu_chr_be_write(c, &type, 1);
-            qemu_chr_be_write(c, (uint8_t*)packet->hci_packet().packet().data(),
-                              packet->hci_packet().packet().size());
-        } else {
-            LOG(WARNING) << "Unexpected packet " << packet->DebugString();
-        }
+    void netsim_to_guest_packet(Chardev* c, std::unique_ptr<Packet> packet) override {
+        // From netsim -> guest
+        VLOG(2) << "NETSIM BT: send (netsim -> guest)";
+        qemu_chr_be_write(c, packet->data(), packet->size());
     }
 
     uint64_t guest_to_netsim_parser_bytes_requested() override {
@@ -282,62 +253,35 @@ class BtProtocol : public Protocol {
         h4_parser_->Consume(buf, len);
     }
 
-    ::netsim::startup::Chip chip_info() override {
-        ::netsim::startup::Chip chip;
-        chip.set_kind(::netsim::common::ChipKind::BLUETOOTH);
-        // TODO if ("ro.build.version.sdk=33")
-        // chip.mutable_bt_properties()->mutable_features()->set_le_connected_isochronous_stream(false);
-        return chip;
-    }
+    ChipConfig chip_info() override { return ChipConfig{.kind = ChipKind::kBluetooth}; }
 
+  private:
     // This is a HCI Hardware Error Event, which indicates a serious problem
     // with the Bluetooth hardware. As a result, the Bluetooth stack should
     // crash and restart.
     static const uint8_t constexpr reset_sequence[] = {0x04, 0x10, 0x01, 0x42};
-
-    // External <-> Internal mapping. This makes sure the external gRPC
-    // representation is independent of what is used internally.
-    enum class PacketType : uint8_t {
-        UNKNOWN = 0,
-        COMMAND = 1,
-        ACL = 2,
-        SCO = 3,
-        EVENT = 4,
-        ISO = 5,
-    };
-
-    static constexpr const std::tuple<::netsim::packet::HCIPacket::PacketType, PacketType>
-            kPacketType[] = {
-                {::netsim::packet::HCIPacket::HCI_PACKET_UNSPECIFIED, PacketType::UNKNOWN},
-                {::netsim::packet::HCIPacket::COMMAND, PacketType::COMMAND},
-                {::netsim::packet::HCIPacket::ACL, PacketType::ACL},
-                {::netsim::packet::HCIPacket::SCO, PacketType::SCO},
-                {::netsim::packet::HCIPacket::EVENT, PacketType::EVENT},
-                {::netsim::packet::HCIPacket::ISO, PacketType::ISO},
-            };
 
     std::unique_ptr<rootcanal::H4Parser> h4_parser_;
 };
 
 class CellularProtocol : public Protocol {
   public:
-    CellularProtocol(std::vector<::netsim::packet::PacketRequest>& output_queue)
-            : packet_queue_(output_queue) {}
+    explicit CellularProtocol(std::vector<Packet>& output_queue) : packet_queue_(output_queue) {}
 
     void reset() override { buffer_.clear(); }
     void reset_guest(Chardev* c) override {
-        // N/A
+        // Report radio off to the guest so it issues AT+CFUN=1.
+        // Snapshots see modem restart and get a time update.
+        const std::string reset_sequence = "+CFUN: 0\r\n";
+        qemu_chr_be_write(c, reinterpret_cast<const uint8_t*>(reset_sequence.data()),
+                          reset_sequence.size());
     }
 
-    void netsim_to_guest_packet(Chardev* c,
-                                std::unique_ptr<::netsim::packet::PacketResponse> packet) override {
-        if (packet->has_packet()) {
-            // From netsim -> guest
-            VLOG(2) << "NETSIM CELL: send (netsim -> guest): " << packet->packet();
-            qemu_chr_be_write(c, (const uint8_t*)packet->packet().data(), packet->packet().size());
-        } else {
-            LOG(WARNING) << "Unexpected packet " << packet->DebugString();
-        }
+    void netsim_to_guest_packet(Chardev* c, std::unique_ptr<Packet> packet) override {
+        // From netsim -> guest
+        VLOG(2) << "NETSIM CELL: send (netsim -> guest): "
+                << std::string(packet->begin(), packet->end());
+        qemu_chr_be_write(c, packet->data(), packet->size());
     }
 
     uint64_t guest_to_netsim_parser_bytes_requested() override {
@@ -358,25 +302,23 @@ class CellularProtocol : public Protocol {
             }
             if (c == '\r' || c == '\n' || c == 0x1A || c == 0x1B) {
                 if (!buffer_.empty()) {
-                    ::netsim::packet::PacketRequest request;
-                    request.set_allocated_packet(new std::string(buffer_.begin(), buffer_.end()));
-                    VLOG(2) << "NETSIM CELL: recv (guest -> netsim): " << request.packet();
-                    packet_queue_.push_back(std::move(request));
+                    VLOG(2) << "NETSIM CELL: recv (guest -> netsim): "
+                            << std::string(buffer_.begin(), buffer_.end());
+                    packet_queue_.push_back(std::move(buffer_));
                     buffer_.clear();
                 }
             }
         }
     }
 
-    ::netsim::startup::Chip chip_info() override {
-        ::netsim::startup::Chip chip;
-        chip.set_kind(::netsim::common::ChipKind::CELLULAR);
+    ChipConfig chip_info() override {
+        ChipConfig chip{.kind = ChipKind::kCellular};
 
-        auto& props = goldfish::avd_info::GetAvd().Props();
+        auto& props = goldfish::avd::GetAvd().Props();
         if (!props.icc_profile.empty()) {
             auto content_or = android::base::file::read_whole_file(props.icc_profile, false);
             if (content_or.ok()) {
-                chip.set_sim_profile(*content_or);
+                chip.sim_profile = *content_or;
                 VLOG(1) << "NETSIM CELL: Loaded custom SIM profile from " << props.icc_profile;
             } else {
                 LOG(ERROR) << "NETSIM CELL: Failed to read custom SIM profile at "
@@ -388,7 +330,7 @@ class CellularProtocol : public Protocol {
 
   private:
     std::vector<uint8_t> buffer_;
-    std::vector<::netsim::packet::PacketRequest>& packet_queue_;
+    std::vector<Packet>& packet_queue_;
 };
 
 void netsim_chardev_bh(void* obj);
@@ -400,10 +342,10 @@ struct NetsimChardevState {
             , protocol(make_protocol(parser_packet_queue)) {}
 
     const goldfish::qemu::QEMUBHPtr incoming_bh;
-    std::vector<::netsim::packet::PacketRequest> parser_packet_queue;
+    std::vector<Packet> parser_packet_queue;
     const std::unique_ptr<Protocol> protocol;
-    std::unique_ptr<NetsimTransport> transport;
-    std::unique_ptr<::netsim::packet::PacketResponse> incoming_packet;
+    std::unique_ptr<PacketTransport> transport;
+    std::unique_ptr<Packet> incoming_packet;
 };
 
 struct NetsimChardev {
@@ -424,6 +366,11 @@ int netsim_chardev_write(Chardev* chr, const uint8_t* buf, int len) {
     // From guest -> netsim
     VLOG(2) << "NETSIM: receive (netsim <- guest)";
     auto* state = NETSIM_CHARDEV(chr)->state;
+    // Drop any guest writes that arrive before netsim_chardev_set_fe_open
+    // connects the transport and resets the guest.
+    if (!state->transport) {
+        return len;
+    }
 
     // parser writes into parser_packet_queue
     uint64_t left = len;
@@ -462,23 +409,21 @@ void netsim_chardev_set_fe_open(Chardev* chr, int fe_open) {
     }
 
     VLOG(1) << "NETSIM chardev: frontend connected, sending reset: " << chr->label;
-    state->transport =
-            std::make_unique<NetsimTransport>([nc](::netsim::packet::PacketResponse* packet) {
-                if (nc->state->incoming_packet) {
-                    // This shouldn't happen because we always return false from this lambda and
-                    // only call next_recv() once the last incoming_packet has been cleared.
-                    DCHECK(false) << "A new packet arrived from Netsim while the previous "
-                                     "packet is still pending delivery on QEMU's main loop. "
-                                     "Dropping the new packet to preserve flow control.";
-                    return false;
-                }
-                nc->state->incoming_packet =
-                        std::make_unique<::netsim::packet::PacketResponse>(std::move(*packet));
-                if (nc->state->incoming_bh) {
-                    qemu_bh_schedule(nc->state->incoming_bh.get());
-                }
-                return false;
-            });
+    state->transport = CreatePacketTransport([nc](Packet& packet) {
+        if (nc->state->incoming_packet) {
+            // This shouldn't happen because we always return false from this lambda and
+            // only call next_recv() once the last incoming_packet has been cleared.
+            DCHECK(false) << "A new packet arrived from Netsim while the previous "
+                             "packet is still pending delivery on QEMU's main loop. "
+                             "Dropping the new packet to preserve flow control.";
+            return false;
+        }
+        nc->state->incoming_packet = std::make_unique<Packet>(std::move(packet));
+        if (nc->state->incoming_bh) {
+            qemu_bh_schedule(nc->state->incoming_bh.get());
+        }
+        return false;
+    });
 
     // TODO maybe connect in background
     // TODO maybe reconnect - ondone callback and then call initialize again (also send reset to
@@ -488,6 +433,7 @@ void netsim_chardev_set_fe_open(Chardev* chr, int fe_open) {
     if (auto status = state->transport->initialize(state->protocol->chip_info()); !status.ok()) {
         error_printf("failed to initialize netsim transport %s: %s", chr->label,
                      status.ToString().c_str());
+        state->transport.reset();
         return;
     }
 
@@ -507,7 +453,9 @@ void netsim_chardev_bh(void* obj) {
     }
     auto* chr = CHARDEV(obj);
     nc->state->protocol->netsim_to_guest_packet(chr, std::move(nc->state->incoming_packet));
-    nc->state->transport->next_recv();
+    if (nc->state->transport) {
+        nc->state->transport->next_recv();
+    }
 }
 
 bool netsim_chardev_open(Chardev* chr, ChardevBackend* backend, Error** errp) {
@@ -517,6 +465,10 @@ bool netsim_chardev_open(Chardev* chr, ChardevBackend* backend, Error** errp) {
     // This is because chardevs are opened way before "device"s and so no AVD information is yet
     // available. However, the frontend is also a device and ordered after the device. So we connect
     // to Netsimd at that point (netsim_chardev_set_fe_open).
+    // Report the backend as open immediately so the guest virtio-serial port stays
+    // connected across snapshot load instead of seeing a transient EOF before
+    // netsim_chardev_set_fe_open connects and resets the guest.
+    qemu_chr_be_event(chr, CHR_EVENT_OPENED);
     return true;
 }
 

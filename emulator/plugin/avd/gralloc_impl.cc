@@ -13,7 +13,7 @@
  * limitations under the License.
  */
 
-#include "goldfish/avd_info/gralloc_impl.h"
+#include "goldfish/avd/gralloc_impl.h"
 
 #include "goldfish/imaging/query_info.h"
 #include "goldfish/parsing/from_chars.h"
@@ -22,7 +22,7 @@ extern "C" {
 #include "goldfish/avd/rutabaga_glue.h"
 }  // extern "C"
 
-namespace goldfish::avd_info {
+namespace goldfish::avd {
 using ::goldfish::devices::camera::GrallocDetailsPtr;
 using ::goldfish::devices::camera::IGrallocDetails;
 using ::goldfish::imaging::AndroidPixelFormat;
@@ -75,4 +75,4 @@ GrallocDetailsPtr GetGrallocImpl() {
     return std::make_shared<RutabagaImpl>(r);
 }
 
-}  // namespace goldfish::avd_info
+}  // namespace goldfish::avd

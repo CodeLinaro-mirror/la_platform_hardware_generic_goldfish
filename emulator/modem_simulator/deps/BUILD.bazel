@@ -27,6 +27,7 @@ cc_library(
 
 cc_test(
     name = "deps_unittests",
+    size = "small",
     srcs = [
         "shared_fd_test.cc",
     ],

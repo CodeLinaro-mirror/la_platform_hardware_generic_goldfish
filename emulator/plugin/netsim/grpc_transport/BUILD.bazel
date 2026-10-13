@@ -1,0 +1,18 @@
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+
+cc_library(
+    name = "grpc_transport",
+    srcs = ["grpc_transport.cc"],
+    hdrs = ["grpc_transport.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//emulator/libs/grpc_client",
+        "//emulator/plugin/avd:avd_info",
+        "//emulator/plugin/netsim:netsim_connection",
+        "//emulator/plugin/netsim:packet_transport",
+        "//emulator/tools:aemu_version",
+        "@abseil-cpp//absl/log",
+        "@grpc//:grpc++",
+        "@netsim//:netsimd_cc_grpc",
+    ],
+)

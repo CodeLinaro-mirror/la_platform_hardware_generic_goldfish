@@ -18,28 +18,29 @@
 
 #include "android/goldfish/hardware_config.h"
 #include "emulator_controller.grpc.pb.h"
-#include "goldfish/avd_info/avd_info.h"
+#include "goldfish/avd/avd_properties.h"
+#include "goldfish/avd/avd_universe.h"
 #include "goldfish/avd_universe/guest_status/guest_status.h"
 
 namespace android {
 namespace emulation {
 namespace control {
 
-using ::goldfish::avd_info::AvdProperties;
+using ::goldfish::avd::AvdProperties;
 using ::goldfish::avd_universe::guest_status::GuestStatus;
 using grpc::Status;
 
 class StatusServiceImpl {
   public:
-    StatusServiceImpl(GuestStatus& guestStatus, const AvdProperties& avd_properties,
-                      const ::goldfish::avd_info::AvdUniverse* avd_universe = nullptr);
+    StatusServiceImpl(GuestStatus& guest_status, const AvdProperties& avd_properties,
+                      const ::goldfish::avd::AvdUniverse* avd_universe = nullptr);
 
     Status getStatus(EmulatorStatus* reply);
 
   private:
     GuestStatus& guest_status_;
     const AvdProperties& avd_properties_;
-    const ::goldfish::avd_info::AvdUniverse* avd_universe_{nullptr};
+    const ::goldfish::avd::AvdUniverse* avd_universe_{nullptr};
 };
 
 }  // namespace control

@@ -25,7 +25,7 @@
 #include "android/emulation/control/emulator_grpc_client.h"
 #include "android/status/status_macros.h"
 #include "emulator/telnet/netsim_connection_provider.h"
-#include "goldfish/avd_info/avd_info.h"
+#include "goldfish/avd/avd_info.h"
 #include "netsim_connection_internal.h"
 
 extern "C" {
@@ -119,7 +119,7 @@ void netsim_connection_realize(DeviceState* dev, Error** errp) {
         nc->data->grpc_client = *std::move(client);
         // Note: netsim-connection is sequenced before the grpc device in launch_qemu.cc,
         // ensuring AvdUniverse has the verified endpoint when grpc_realize writes discovery.
-        if (auto* avd = goldfish::avd_info::GetNullableAvd()) {
+        if (auto* avd = goldfish::avd::GetNullableAvd()) {
             avd->SetNetsimEndpoint(nc->data->endpoint);
         } else {
             LOG(WARNING)
@@ -134,7 +134,7 @@ void netsim_connection_realize(DeviceState* dev, Error** errp) {
         ::goldfish::telnet::NetsimConnectionProvider::Register(
                 []() { return get_connected_netsim_grpc_client(); },
                 []() -> std::string {
-                    auto avd = goldfish::avd_info::GetNullableAvd();
+                    auto avd = goldfish::avd::GetNullableAvd();
                     return avd ? avd->Props().avd_name : "";
                 });
     }
@@ -148,7 +148,7 @@ void netsim_connection_unrealize(DeviceState* dev) {
         nc->data->grpc_client.reset();
     }
     ::goldfish::telnet::NetsimConnectionProvider::Reset();
-    if (auto* avd = goldfish::avd_info::GetNullableAvd()) {
+    if (auto* avd = goldfish::avd::GetNullableAvd()) {
         avd->SetNetsimEndpoint("");
     }
 }

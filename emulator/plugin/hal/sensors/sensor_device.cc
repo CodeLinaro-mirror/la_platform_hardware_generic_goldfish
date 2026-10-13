@@ -99,7 +99,7 @@ const char* GetSensorWireName(const AndroidSensor sensor_id) {
     }
 #undef GOLDFISH_SENSOR_DEF
 
-    LOG(FATAL) << "Unexpected sensor_id: " << static_cast<int>(sensor_id);
+    LOG(QFATAL) << "Unexpected sensor_id: " << static_cast<int>(sensor_id);
 }
 
 SerializedSensor SerializeSensorData(const AndroidSensor sensor_id, const SensorData& d) {
@@ -129,7 +129,7 @@ SerializedSensor SerializeSensorData(const AndroidSensor sensor_id, const Sensor
         return serialized;
 
     default:
-        LOG(FATAL) << "Unexpected SensorValue size: " << d.value.size();
+        LOG(QFATAL) << "Unexpected SensorValue size: " << d.value.size();
     }
 }
 

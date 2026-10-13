@@ -20,7 +20,7 @@
 
 #include "goldfish/adb/adb_host_server.h"
 #include "goldfish/adb/adb_message_logger.h"
-#include "goldfish/avd_info/avd_info.h"
+#include "goldfish/avd/avd_info.h"
 // clang-format off
 // IWYU pragma: begin_keep
 #include "goldfish/vsock/vsock_port_fwd.h"
@@ -66,7 +66,7 @@ void adb_vsock_connected(VSockFwdDev* device) {
                  << " that adbd is available on localhost:" << device->host_port;
     AdbHostServer::notify(device->host_port, adb_server);
 
-    auto& avd = goldfish::avd_info::GetAvd().Props();
+    auto& avd = goldfish::avd::GetAvd().Props();
     // Make it easier for tests to find us.
     // Note that this format is implemented in adb here:
     // https://source.corp.google.com/h/googleplex-android/platform/superproject/main/+/main:packages/modules/adb/client/transport_emulator.cpp;l=79;drc=6d17979f120fcba950b024d1cc62ae24ab600a71
@@ -95,9 +95,13 @@ void adb_vsock_realize(DeviceState* dev, Error** errp) {
     vsock_fwd_dev->on_connect = adb_vsock_connected;
 
     VLOG(1) << "ADB monitor: " << (adb->monitor ? "enabled" : "disabled");
-    vsock_fwd_dev->data_sniffer_factory =
-            [host = vsock_fwd_dev->host_port, guest = vsock_fwd_dev->guest_port,
-             verbose = adb->monitor] { return std::make_unique<AdbLogger>(host, guest, verbose); };
+    if (adb->monitor) {
+        vsock_fwd_dev->data_sniffer_factory = [host = vsock_fwd_dev->host_port,
+                                               guest = vsock_fwd_dev->guest_port,
+                                               verbose = adb->monitor] {
+            return std::make_unique<AdbLogger>(host, guest, verbose);
+        };
+    }
 
     // Initialize the vsock port forwarder.
     adc->vsock_port_fwd_realize(dev, errp);

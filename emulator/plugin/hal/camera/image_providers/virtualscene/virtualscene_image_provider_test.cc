@@ -17,6 +17,14 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
+#include <filesystem>
+#include <memory>
+#include <unordered_map>
+#include <vector>
+
+#include "android/base/bazel_info.h"
+
 namespace goldfish::camera_image_providers::virtualscene {
 
 namespace {
@@ -104,6 +112,140 @@ TEST(VirtualsceneImageProvider, FindCaptureStreamBuffers) {
 
     // Test case: Search in an empty array.
     EXPECT_EQ(VirtualsceneImageProvider::findCaptureStreamBuffers(10, nullptr, 0), nullptr);
+}
+
+TEST(VirtualsceneImageProvider, CreateStartCaptureStopMultiStream) {
+    namespace fs = std::filesystem;
+
+    const fs::path objRunfile = ::android::base::Bazel::RunfilesPath(
+            "goldfish_prebuilts_common+/virtualscene/Toren1BD/Toren1BD.obj");
+    ASSERT_TRUE(fs::exists(objRunfile));
+
+    const fs::path tempRoot = fs::path(testing::TempDir()) / "virtualscene_ver_test";
+    const fs::path targetDir = tempRoot / "data" / "virtualscene" / "Toren1BD";
+    fs::remove_all(tempRoot);
+    fs::create_directories(targetDir.parent_path());
+    fs::create_directory_symlink(objRunfile.parent_path(), targetDir);
+
+    const fs::path vulkanDir =
+            ::android::base::Bazel::RunfilesPath("goldfish+/emulator/libs/ver/lib64/vulkan");
+    ASSERT_TRUE(ver_initialize({tempRoot}, vulkanDir));
+
+    CameraImageProviderInfo info = {};
+    std::unique_ptr<VirtualsceneImageProvider> provider(
+            static_cast<VirtualsceneImageProvider*>(VirtualsceneImageProvider::create(info)));
+    if (!provider) {
+        ver_cleanup();
+        fs::remove_all(tempRoot);
+        GTEST_SKIP() << "Vulkan renderer unavailable in test environment";
+    }
+
+    const CameraImageProviderStreamConfig streams[] = {
+        {
+            .size = {640, 480},
+            .id = 1,
+            .format = imaging::ImageFormat::kRgba8888,
+        },
+        {
+            .size = {320, 240},
+            .id = 2,
+            .format = imaging::ImageFormat::kYuV4203P,
+        },
+        {
+            .size = {320, 180},
+            .id = 3,
+            .format = imaging::ImageFormat::kYuV420NV12,
+        },
+    };
+
+    ASSERT_EQ(provider->start(streams, std::size(streams)), 0);
+
+    const CameraImageProviderStreamCaptureInfo captureInfos[] = {
+        {.cfg = &streams[0]},
+        {.cfg = &streams[1]},
+        {.cfg = &streams[2]},
+    };
+
+    std::unordered_map<int32_t, std::vector<uint8_t>> capturedFrames;
+    auto sink = [](void* opaque, const CameraImageProviderStreamCaptureInfo* sci,
+                   const void* frameBits, size_t frameByteSize) -> int {
+        auto* map = static_cast<std::unordered_map<int32_t, std::vector<uint8_t>>*>(opaque);
+        const auto* bytes = static_cast<const uint8_t*>(frameBits);
+        (*map)[sci->cfg->id].assign(bytes, bytes + frameByteSize);
+        return 0;
+    };
+
+    CameraImageProviderCaptureOpts opts = {};
+    ASSERT_EQ(provider->capture(opts, sink, &capturedFrames, captureInfos, std::size(captureInfos)),
+              0);
+
+    ASSERT_EQ(capturedFrames.size(), 3u);
+    EXPECT_EQ(capturedFrames[1].size(), 640u * 480u * 4u);
+    EXPECT_EQ(capturedFrames[2].size(), 320u * 240u * 3u / 2u);
+    EXPECT_EQ(capturedFrames[3].size(), 320u * 180u * 3u / 2u);
+
+    // Ensure rendered output is not all zeros.
+    EXPECT_TRUE(std::any_of(capturedFrames[1].begin(), capturedFrames[1].end(),
+                            [](uint8_t b) { return b != 0; }));
+    EXPECT_TRUE(std::any_of(capturedFrames[2].begin(), capturedFrames[2].end(),
+                            [](uint8_t b) { return b != 0; }));
+    EXPECT_TRUE(std::any_of(capturedFrames[3].begin(), capturedFrames[3].end(),
+                            [](uint8_t b) { return b != 0; }));
+
+    provider->stop();
+    provider.reset();
+    ver_cleanup();
+    fs::remove_all(tempRoot);
+}
+
+TEST(VirtualsceneImageProvider, ComputeViewProjectionMatrix_InitialPoseMatchesSceneCamera) {
+    const glm::mat4 proj = VirtualsceneImageProvider::computeProjectionMatrix({640, 480});
+    const glm::mat4 viewProj = VirtualsceneImageProvider::computeViewProjectionMatrix(
+            proj, glm::vec3(0.0f), glm::vec3(-4.75f, 0.0f, 0.0f),
+            /*isBackFacing=*/true, /*supportsPosition=*/true);
+
+    constexpr float kExpected[16] = {
+        0.000f,  -2.000f, 0.000f,  0.000f,   //
+        -1.495f, 0.000f,  -0.083f, -0.083f,  //
+        0.124f,  0.000f,  -0.999f, -0.997f,  //
+        -0.045f, 0.120f,  -0.202f, -0.002f,
+    };
+
+    const float* actual = &viewProj[0][0];
+    for (int i = 0; i < 16; ++i) {
+        EXPECT_NEAR(actual[i], kExpected[i], 0.001f) << "index " << i;
+    }
+}
+
+TEST(VirtualsceneImageProvider, ComputeViewProjectionMatrix_LandscapeRotationRotatesAxes) {
+    const glm::mat4 proj = VirtualsceneImageProvider::computeProjectionMatrix({640, 480});
+    // Rotating the device +90 degrees around Z (landscape) should cancel the +90 degree
+    // sensor mount roll for the back-facing camera, aligning world +X with clip +X (1.5)
+    // and world +Y with clip -Y (-2.0).
+    const glm::mat4 viewProj = VirtualsceneImageProvider::computeViewProjectionMatrix(
+            proj, glm::vec3(0.0f), glm::vec3(0.0f, 0.0f, 90.0f),
+            /*isBackFacing=*/true, /*supportsPosition=*/true);
+
+    EXPECT_NEAR(viewProj[0][0], 1.5f, 0.001f);
+    EXPECT_NEAR(viewProj[0][1], 0.0f, 0.001f);
+    EXPECT_NEAR(viewProj[1][0], 0.0f, 0.001f);
+    EXPECT_NEAR(viewProj[1][1], -2.0f, 0.001f);
+}
+
+TEST(VirtualsceneImageProvider, ComputeViewProjectionMatrix_FrontFacingFlipsViewDirection) {
+    const glm::mat4 proj = VirtualsceneImageProvider::computeProjectionMatrix({640, 480});
+    const glm::mat4 backViewProj = VirtualsceneImageProvider::computeViewProjectionMatrix(
+            proj, glm::vec3(0.0f), glm::vec3(0.0f),
+            /*isBackFacing=*/true, /*supportsPosition=*/true);
+    const glm::mat4 frontViewProj = VirtualsceneImageProvider::computeViewProjectionMatrix(
+            proj, glm::vec3(0.0f), glm::vec3(0.0f),
+            /*isBackFacing=*/false, /*supportsPosition=*/true);
+
+    // Front camera adds a 180-degree Y rotation, negating the X and Z columns of viewFromWorld.
+    EXPECT_NEAR(frontViewProj[0][1], -backViewProj[0][1], 0.001f);
+    EXPECT_NEAR(frontViewProj[1][0], backViewProj[1][0], 0.001f);
+    EXPECT_NEAR(frontViewProj[2][2], -backViewProj[2][2], 0.001f);
+    EXPECT_NEAR(frontViewProj[2][3], -backViewProj[2][3], 0.001f);
 }
 
 }  // namespace goldfish::camera_image_providers::virtualscene

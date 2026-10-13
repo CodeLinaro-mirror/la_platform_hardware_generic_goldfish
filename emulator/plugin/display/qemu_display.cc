@@ -14,15 +14,15 @@
 
 #include "qemu_display.h"
 
-#include <algorithm>
-#include <cstddef>
 #include <cstdint>
+#include <utility>
 
 #include "absl/log/log.h"
+#include "absl/status/status.h"
+#include "absl/strings/str_cat.h"
 
 #include "goldfish/display/input_handler.h"
 #include "goldfish/display/multi_display_callbacks.h"
-#include "null_display.h"
 
 // clang-format off
 // IWYU pragma: begin_keep
@@ -76,17 +76,12 @@ constexpr DisplayChangeListenerOps kDclSwitchOnlyOps = {
 
 }  // namespace
 
-QemuDisplay::QemuDisplay(EventLoop* loop, EventLoop* qemu_loop, QemuConsole* con,
-                         DisplaySurface* ds, int index)
-        : PixmanDisplay(loop, index, ds->image)
-        , console_(con)
-        , qemu_loop_(qemu_loop)
-        , dcl_(std::make_unique<DisplayChangeListener>(DisplayChangeListener{
-              .ops = &kDclOps,
-              .con = con,
-          })) {
-    if (!console_) {
-        LOG(FATAL) << "Display: " << index << " has nullptr console";
+absl::StatusOr<std::shared_ptr<QemuDisplay>> QemuDisplay::Create(EventLoop* loop,
+                                                                 EventLoop* qemu_loop,
+                                                                 QemuConsole* con,
+                                                                 DisplaySurface* ds, int index) {
+    if (!con) {
+        return absl::InvalidArgumentError(absl::StrCat("Display: ", index, " has nullptr console"));
     }
 
     // note, the input 1 to 5 are taken by virtual displays
@@ -95,22 +90,49 @@ QemuDisplay::QemuDisplay(EventLoop* loop, EventLoop* qemu_loop, QemuConsole* con
     constexpr int kExternalDisplayInputOffset = 5;
     const char* gpu = "gpu0";
     // Head will normally be 0 if this is the default console.
-    uint32_t head = qemu_console_get_head(console_);
-    if (head == 0) {
-    } else {
+    uint32_t head = qemu_console_get_head(con);
+    if (head != 0) {
         head += kExternalDisplayInputOffset;
     }
     VirtioDeviceInfo device_info{.display = gpu, .head = head};
     Object* objs = object_resolve_path_component(object_get_root(), "machine");
     if (!object_child_foreach_recursive(objs, ::find_virtio_device, &device_info)) {
-        LOG(FATAL) << "Unable to find a virtio device for head: " << device_info.head
-                   << " attached to display: " << device_info.display;
+        return absl::NotFoundError(
+                absl::StrCat("Unable to find a virtio device for head: ", device_info.head,
+                             " attached to display: ", device_info.display));
     }
-    VLOG(1) << "Connecting: " << *this << ", to: " << device_info;
-    vhid_ = device_info.vhid;
+
+    auto display = std::make_shared<QemuDisplay>(Private(), loop, qemu_loop, con, ds, index,
+                                                 device_info.vhid);
+    VLOG(1) << "Connecting: " << *display << ", to: " << device_info;
+    return display;
+}
+
+QemuDisplay::QemuDisplay(Private, EventLoop* loop, EventLoop* qemu_loop, QemuConsole* con,
+                         DisplaySurface* ds, int index, ::VirtIOInputHID* vhid)
+        : PixmanDisplay(loop, /*executor=*/qemu_loop, index, ds ? ds->image : nullptr)
+        , console_(con)
+        , qemu_loop_(qemu_loop)
+        , vhid_(vhid)
+        , dcl_(std::make_unique<DisplayChangeListener>(DisplayChangeListener{
+              .ops = &kDclOps,
+              .con = con,
+          }))
+        , current_surface_(ds)
+        , placeholder_shown_(ds == nullptr || surface_is_placeholder(ds)) {
+    if (ds != nullptr && !surface_is_placeholder(ds) && ds->image != nullptr) {
+        current_size_ = {
+            .width = static_cast<uint32_t>(surface_width(ds)),
+            .height = static_cast<uint32_t>(surface_height(ds)),
+        };
+        if (current_size_.width > 0 && current_size_.height > 0) {
+            legacy_->Resize(current_size_);
+        }
+    }
 }
 
 QemuDisplay::~QemuDisplay() {
+    ShutdownProducer();  // Its hooks use our state.
     // Release ownership so we can unregister and delete on the QEMU event loop.
     auto cleanup = [dcl = std::move(dcl_)]() {
         if (dcl->ds != nullptr) {
@@ -132,53 +154,128 @@ QemuDisplay::~QemuDisplay() {
 }
 
 bool QemuDisplay::IsActive() const {
-    const absl::MutexLock lock(sub_lock_);
-    return active_subscriptions_ > 0;
+    return frame_producer_->warm();
 }
 
-void QemuDisplay::OnListenerAdded() {
-    const absl::MutexLock lock(sub_lock_);
-    active_subscriptions_++;
-    VLOG(1) << *this << " OnListenerAdded, active_subscriptions_=" << active_subscriptions_;
-    if (active_subscriptions_ == 1) {
-        // Optimization: We only register the DisplayChangeListener with QEMU
-        // when there is at least one active subscriber. From this point onwards
-        // qemu will start pulling frames from the virtio-gpu device.
-        VLOG(1) << *this << " Posting register_displaychangelistener to qemu_loop_";
-        qemu_loop_
-                ->Post([self = std::static_pointer_cast<QemuDisplay>(shared_from_this())]() {
-                    VLOG(1) << *self << " Executing register_displaychangelistener on qemu_loop_";
-                    if (self->dcl_->ds == nullptr) {
-                        // Suppress dpy_gfx_update during registration so QEMU does not push
-                        // stale/blank con->surface pixels before graphic_hw_update transfers
-                        // the latest GPU scanout.
-                        self->dcl_->ops = &kDclSwitchOnlyOps;
-                        register_displaychangelistener(self->dcl_.get());
-                        self->dcl_->ops = &kDclOps;
-                        graphic_hw_update(self->console_);
-                    }
-                })
-                .IgnoreError();
+void QemuDisplay::OnSurfaceSwitch(DisplaySurface* surface) {
+    current_surface_ = surface;
+    if (surface == nullptr || surface_is_placeholder(surface)) {
+        if (!placeholder_shown_) {
+            placeholder_shown_ = true;
+            current_size_ = {0, 0};
+            const absl::MutexLock lock(&pixman_mutex_);
+            source_image_.reset();
+            legacy_->Reset();
+            frame_producer_->Reset();
+        }
+        frame_producer_->NoContent();
+        return;
+    }
+    placeholder_shown_ = false;
+    const Dimensions size{
+        .width = static_cast<uint32_t>(surface_width(surface)),
+        .height = static_cast<uint32_t>(surface_height(surface)),
+    };
+    SetDimensions(size);
+    {
+        const absl::MutexLock lock(&pixman_mutex_);
+        if (surface->image != nullptr) {
+            source_image_ = SharePixmanImage(surface->image);
+        } else {
+            source_image_.reset();
+        }
+        if (size != current_size_) {
+            current_size_ = size;
+            if (size.width > 0 && size.height > 0) {
+                legacy_->Resize(size);
+            }
+        }
     }
 }
 
-void QemuDisplay::OnListenerRemoved() {
-    const absl::MutexLock lock(sub_lock_);
-    active_subscriptions_--;
-    VLOG(1) << *this << " OnListenerRemoved, active_subscriptions_=" << active_subscriptions_;
-    if (active_subscriptions_ == 0) {
-        // Optimization: When the last subscriber detaches, unregister the
-        // DisplayChangeListener to stop QEMU from actively pushing frames.
-        VLOG(1) << *this << " Posting unregister_displaychangelistener to qemu_loop_";
-        qemu_loop_
-                ->Post([self = std::static_pointer_cast<QemuDisplay>(shared_from_this())]() {
-                    VLOG(1) << *self << " Executing unregister_displaychangelistener on qemu_loop_";
-                    if (self->dcl_->ds != nullptr) {
-                        unregister_displaychangelistener(self->dcl_.get());
-                    }
-                })
-                .IgnoreError();
+void QemuDisplay::OnGuestFrame(DisplaySurface* surface) {
+    if (surface == nullptr || surface->image == nullptr) {
+        return;
     }
+    current_surface_ = surface;
+    const Dimensions size{
+        .width = static_cast<uint32_t>(surface_width(surface)),
+        .height = static_cast<uint32_t>(surface_height(surface)),
+    };
+    SetDimensions(size);
+    {
+        const absl::MutexLock lock(&pixman_mutex_);
+        source_image_ = SharePixmanImage(surface->image);
+        if (size != current_size_ && size.width > 0 && size.height > 0) {
+            current_size_ = size;
+            legacy_->Resize(size);
+        }
+    }
+    if (pixman_image_get_data(surface->image) != nullptr) {
+        // Captures now, or once the capture or refresh in progress ends (I5).
+        frame_producer_->Invalidate();
+    }
+}
+
+void QemuDisplay::OnDeviceReset() {
+    current_size_ = {0, 0};
+    {
+        const absl::MutexLock lock(&pixman_mutex_);
+        legacy_->Reset();
+    }
+    frame_producer_->Reset();
+    frame_producer_->RequestFrame();
+}
+
+void QemuDisplay::OnSourceDemandChanged(bool warm) {
+    if (warm) {
+        VLOG(1) << *this << " Executing register_displaychangelistener on qemu_loop_";
+        if (dcl_->ds == nullptr) {
+            // Suppress dpy_gfx_update during registration so QEMU does not push
+            // stale/blank con->surface pixels before graphic_hw_update transfers
+            // the latest GPU scanout.
+            dcl_->ops = &kDclSwitchOnlyOps;
+            register_displaychangelistener(dcl_.get());
+            dcl_->ops = &kDclOps;
+        }
+    } else {
+        VLOG(1) << *this << " Executing unregister_displaychangelistener on qemu_loop_";
+        if (dcl_->ds != nullptr) {
+            unregister_displaychangelistener(dcl_.get());
+        }
+    }
+}
+
+DisplaySurface* QemuDisplay::LegacySurface() const {
+    DisplaySurface* surface = qemu_console_surface(console_);
+    return surface != nullptr ? surface : current_surface_;
+}
+
+void QemuDisplay::RefreshSource() {
+    DisplaySurface* surface = LegacySurface();
+    if (surface == nullptr || surface_is_placeholder(surface)) {
+        return;
+    }
+    // Reads the current scanout back into the surface. Its dpy_gfx_update
+    // re-enters OnGuestFrame, which only marks the producer dirty (I5).
+    graphic_hw_update(console_);
+}
+
+IFrameSource::Start QemuDisplay::CaptureSource(LegacySurfaceSource& source) {
+    DisplaySurface* surface = LegacySurface();
+    if (surface == nullptr || surface_is_placeholder(surface)) {
+        return IFrameSource::Start::kNoContent;
+    }
+    SetDimensions({
+        .width = static_cast<uint32_t>(surface_width(surface)),
+        .height = static_cast<uint32_t>(surface_height(surface)),
+    });
+    const absl::MutexLock lock(&pixman_mutex_);
+    ::pixman_image_t* img = surface->image ? surface->image : source_image_.get();
+    if (img == nullptr || pixman_image_get_data(img) == nullptr) {
+        return IFrameSource::Start::kNoContent;
+    }
+    return source.CaptureFrom(SurfaceSourceFromPixman(img));
 }
 
 void QemuDisplay::SendMultiTouchEvent(uint8_t slot, int x, int y, MultiTouchType type) {

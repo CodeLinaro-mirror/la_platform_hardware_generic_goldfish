@@ -31,19 +31,23 @@ class InProcessInputSender : public InputSender {
   public:
     using EventDispatcher = std::function<absl::Status(const InputEvent&)>;
     using V2EventDispatcher = std::function<absl::Status(const V2InputEvent&)>;
+    using V2SensorsDispatcher = std::function<absl::Status(const V2SensorsUpdateRequest&)>;
 
     explicit InProcessInputSender(EventDispatcher dispatcher,
-                                  V2EventDispatcher v2_dispatcher = nullptr);
+                                  V2EventDispatcher v2_dispatcher = nullptr,
+                                  V2SensorsDispatcher v2_sensors_dispatcher = nullptr);
     ~InProcessInputSender() override = default;
 
     absl::Status Start() override;
     void SendEvent(const InputEvent& event) override;
     void SendV2Event(const V2InputEvent& event) override;
+    void SendV2SensorsUpdate(const V2SensorsUpdateRequest& request) override;
     void Stop() override;
 
   private:
     EventDispatcher dispatcher_;
     V2EventDispatcher v2_dispatcher_;
+    V2SensorsDispatcher v2_sensors_dispatcher_;
     std::atomic_bool started_{false};
 };
 

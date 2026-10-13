@@ -20,6 +20,8 @@
 #include <string>
 #include <thread>
 
+#include "absl/base/no_destructor.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -180,13 +182,17 @@ absl::StatusOr<std::string> GetPlatformConfigProperty(LegacyConsoleBridge::Conso
 }
 }  // namespace
 
-LegacyConsoleBridge::LegacyConsoleBridge(int port, std::filesystem::path token_path)
-        : port_(port), token_path_(std::move(token_path)) {
+LegacyConsoleBridge::LegacyConsoleBridge(int port, std::filesystem::path token_path,
+                                         goldfish::metrics::MetricsReporter& metrics_reporter)
+        : port_(port), token_path_(std::move(token_path)), metrics_reporter_(metrics_reporter) {
     if (auto status = TelnetAuth::LoadOrCreateToken(16, token_path_); !status.ok()) {
         LOG(WARNING) << "Failed to load or create telnet auth token at " << token_path_ << ": "
                      << status.status();
     }
-    CommandRegistryBuilder builder(token_path_);
+    CommandRegistryBuilder builder(
+            token_path_, [this](std::string_view top_level_name, std::string_view canonical_path) {
+                RecordCommand(top_level_name, canonical_path);
+            });
 
     // --- Safe Root Commands ---
 
@@ -920,7 +926,7 @@ LegacyConsoleBridge::LegacyConsoleBridge(int port, std::filesystem::path token_p
     // --- SMS Commands ---
     auto sms = builder.Command("sms", "SMS related commands");
     sms.On("send" /* do_sms_send */, "send inbound SMS text message",
-           [](ConsoleContext& ctx, ArgStream& args) -> absl::Status {
+           [](ConsoleContext& /*ctx*/, ArgStream& args) -> absl::Status {
                if (args.Empty()) {
                    return absl::InvalidArgumentError(
                            "missing argument, try 'sms send <phonenumber> <text message>'");
@@ -930,35 +936,14 @@ LegacyConsoleBridge::LegacyConsoleBridge(int port, std::filesystem::path token_p
                    return absl::InvalidArgumentError(
                            "missing argument, try 'sms send <phonenumber> <text message>'");
                }
-               std::string message = std::string(args.Remaining());
-
-               ASSIGN_OR_RETURN(auto stub, ctx.ModemStub());
-               ASSIGN_OR_RETURN(auto context, ctx.NewContext());
-
-               android::emulation::control::incubating::SmsMessage request;
-               request.set_number(phonenumber);
-               request.set_text(message);
-               google::protobuf::Empty unused;
-
-               return GrpcStatusToAbslStatus(stub->receiveSms(context.get(), request, &unused));
+               return absl::UnimplementedError(kSmsDeprecatedMessage);
            });
     sms.On("pdu" /* do_sms_sendpdu */, "send inbound SMS PDU",
-           [](ConsoleContext& ctx, std::optional<std::string> hex) -> absl::Status {
+           [](ConsoleContext& /*ctx*/, std::optional<std::string> hex) -> absl::Status {
                if (!hex.has_value() || hex->empty()) {
                    return absl::InvalidArgumentError("missing argument, try 'sms pdu <hexstring>'");
                }
-               ASSIGN_OR_RETURN(auto stub, ctx.ModemStub());
-               ASSIGN_OR_RETURN(auto context, ctx.NewContext());
-
-               android::emulation::control::incubating::SmsMessage request;
-               request.set_encodedmessage(*hex);
-               google::protobuf::Empty unused;
-
-               auto status = stub->receiveSms(context.get(), request, &unused);
-               if (!status.ok()) {
-                   return absl::InvalidArgumentError("badly formatted <hexstring>");
-               }
-               return absl::OkStatus();
+               return absl::UnimplementedError(kSmsDeprecatedMessage);
            });
     // --- Sensor Commands ---
     struct SensorDefinition {
@@ -1007,10 +992,10 @@ LegacyConsoleBridge::LegacyConsoleBridge(int port, std::filesystem::path token_p
     sensor.On("status" /* do_sensors_status */, "list available sensors and their status",
               [](ConsoleContext& ctx) -> absl::StatusOr<std::string> {
                   ASSIGN_OR_RETURN(auto stub, ctx.EmulatorControllerStub());
-                  ASSIGN_OR_RETURN(auto context, ctx.NewContext());
 
                   std::string out;
                   for (const auto& def : kSupportedSensors) {
+                      ASSIGN_OR_RETURN(auto context, ctx.NewContext());
                       android::emulation::control::SensorValue request;
                       request.set_target(
                               static_cast<android::emulation::control::SensorValue::SensorType>(
@@ -1434,6 +1419,10 @@ LegacyConsoleBridge::LegacyConsoleBridge(int port, std::filesystem::path token_p
     registry_ = builder.Build();
 }
 
+LegacyConsoleBridge::~LegacyConsoleBridge() {
+    ReportMetrics();
+}
+
 absl::StatusOr<std::string> LegacyConsoleBridge::operator()(std::string line, Context& ctx) {
     return (*registry_)(std::move(line), ctx);
 }
@@ -1448,6 +1437,116 @@ std::unique_ptr<LineCommandHandler::Context> LegacyConsoleBridge::CreateContext(
         ctx->authenticated = true;
     }
     return ctx;
+}
+
+void LegacyConsoleBridge::RecordCommand(std::string_view top_level_name,
+                                        std::string_view canonical_path) {
+    // Set of commands we care about tracking.
+    // Includes top-level commands and detailed subcommands for 'avd' and 'event'.
+    static const absl::NoDestructor<absl::flat_hash_set<std::string_view>> kTrackedCommands({
+        "help",
+        "help-verbose",
+        "ping",
+        "automation",
+        "geo",
+        "gsm",
+        "cdma",
+        "crash",
+        "crash-on-exit",
+        "kill",
+        "restart",
+        "network",
+        "grpc",
+        "power",
+        "quit",
+        "redir",
+        "sms",
+        "qemu",
+        "sensor",
+        "physics",
+        "finger",
+        "debug",
+        "rotate",
+        "screenrecord",
+        "fold",
+        "unfold",
+        "posture",
+        "multidisplay",
+        "icebox",
+        "nodraw",
+        "resize-display",
+        "virtualscene-image",
+        "proxy",
+        "phonenumber",
+        "auth",
+        "avd stop",
+        "avd start",
+        "avd status",
+        "avd heartbeat",
+        "avd rewindaudio",
+        "avd name",
+        "avd grpc",
+        "avd pause",
+        "avd hostmicon",
+        "avd hostmicoff",
+        "avd resume",
+        "avd bugreport",
+        "avd id",
+        "avd windowtype",
+        "avd path",
+        "avd discoverypath",
+        "avd snapshotspath",
+        "avd snapshotpath",
+        "avd snapshot list",
+        "avd snapshot save",
+        "avd snapshot load",
+        "avd snapshot del",
+        "avd snapshot remap",
+        "avd snapshot pull",
+        "avd snapshot push",
+        "avd snapshot last_loaded",
+        "event send",
+        "event types",
+        "event codes",
+        "event text",
+        "event mouse",
+    });
+
+    auto it = kTrackedCommands->find(canonical_path);
+    if (it == kTrackedCommands->end()) {
+        it = kTrackedCommands->find(top_level_name);
+        if (it == kTrackedCommands->end()) {
+            return;
+        }
+    }
+
+    const absl::MutexLock lock(metrics_mutex_);
+    command_counts_[*it]++;
+}
+
+void LegacyConsoleBridge::ReportMetrics() {
+    absl::flat_hash_map<std::string_view, int64_t> counts;
+    {
+        const absl::MutexLock lock(metrics_mutex_);
+        if (command_counts_.empty()) {
+            return;
+        }
+        counts = std::move(command_counts_);
+        command_counts_.clear();
+    }
+
+    metrics_reporter_.Report(
+            [counts = std::move(counts)](android_studio::AndroidStudioEvent& event) {
+                event.set_kind(android_studio::AndroidStudioEvent::EMULATOR_CONSOLE_EVENTS);
+                for (const auto& [command, count] : counts) {
+                    if (count > 0) {
+                        auto* console_event = event.add_emulator_console_events();
+                        console_event->set_command(command);
+                        console_event->set_source(android_studio::EmulatorConsoleEvent::TELNET);
+                        console_event->set_value(count);
+                    }
+                }
+            });
 }
 
 }  // namespace goldfish::telnet

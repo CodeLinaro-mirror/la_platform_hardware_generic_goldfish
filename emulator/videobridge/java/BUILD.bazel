@@ -34,6 +34,7 @@ cc_library(
 
 cc_test(
     name = "frame_buffer_pool_test",
+    size = "small",
     srcs = ["native/frame_buffer_pool_test.cc"],
     deps = [
         ":frame_buffer_pool",
@@ -117,6 +118,7 @@ kt_jvm_library(
 
 kt_jvm_test(
     name = "webrtc_client_java_test",
+    size = "small",
     srcs = [
         "src/test/kotlin/com/android/emulator/webrtc/NativeLibraryLoaderTest.kt",
         "src/test/kotlin/com/android/emulator/webrtc/VideoFrameTest.kt",

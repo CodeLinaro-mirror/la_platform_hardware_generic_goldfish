@@ -32,6 +32,7 @@ cc_library(
 
 cc_test(
     name = "ansi_renderer_test",
+    size = "small",
     srcs = ["ansi_renderer_test.cc"],
     deps = [
         ":renderer",
@@ -43,6 +44,7 @@ cc_test(
 
 cc_test(
     name = "mermaid_renderer_test",
+    size = "small",
     srcs = ["mermaid_renderer_test.cc"],
     deps = [
         ":renderer",
@@ -54,6 +56,7 @@ cc_test(
 
 cc_test(
     name = "util_test",
+    size = "small",
     srcs = ["util_test.cc"],
     deps = [
         ":renderer",

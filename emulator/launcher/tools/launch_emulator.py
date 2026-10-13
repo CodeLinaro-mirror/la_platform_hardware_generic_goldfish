@@ -93,6 +93,14 @@ if __name__ == "__main__":
         default="127.0.0.1",
         help="HTTP host/IP address to bind and listen on (default: 127.0.0.1).",
     )
+    parser.add_argument(
+        "--android-device-hub",
+        nargs="?",
+        const="v1",
+        default=None,
+        choices=["v1", "v2"],
+        help="Use Android Device Hub as the UI instead of Fishtank. Optionally specify protocol ('v1' or 'v2', defaults to 'v1').",
+    )
 
     args, extra_args = parser.parse_known_args()
 
@@ -126,6 +134,7 @@ if __name__ == "__main__":
                     expected_occurrences=args.expected_occurrences,
                     http_port=args.http_port,
                     http_address=args.http_address,
+                    android_device_hub=args.android_device_hub,
                 )
             )
 

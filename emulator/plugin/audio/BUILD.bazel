@@ -51,6 +51,7 @@ cc_library(
 
 cc_test(
     name = "qemu_audio_source_test",
+    size = "small",
     srcs = ["qemu_audio_source_test.cc"],
     copts = WEBRTC_COPTS,
     deps = [
@@ -64,6 +65,7 @@ cc_test(
 
 cc_test(
     name = "qemu_audio_capture_test",
+    size = "small",
     srcs = ["qemu_audio_capture_test.cc"],
     copts = WEBRTC_COPTS,
     deps = [

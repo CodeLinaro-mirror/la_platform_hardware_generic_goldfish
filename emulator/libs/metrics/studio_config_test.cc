@@ -17,9 +17,13 @@
 
 #include <gtest/gtest.h>
 
+#include <chrono>
 #include <filesystem>
 #include <fstream>
 
+#include "google/protobuf/util/json_util.h"
+
+#include "analytics_settings.pb.h"
 #include "android/base/testing/test_temp_dir.h"
 
 namespace goldfish::metrics::studio {
@@ -54,6 +58,7 @@ TEST_F(StudioConfigTest, GetUserMetricsOptIn_NoFile) {
 
 TEST_F(StudioConfigTest, GetUserMetricsOptIn_EmptyFile) {
     writeSettingsFile("");
+    // Protobuf JSON parser fails on empty file
     EXPECT_EQ(GetUserMetricsOptIn(temp_path()), OptInState::kUnknown);
 }
 
@@ -72,45 +77,19 @@ TEST_F(StudioConfigTest, GetUserMetricsOptIn_OptedOut_Bool) {
     EXPECT_EQ(GetUserMetricsOptIn(temp_path()), OptInState::kOptedOut);
 }
 
-TEST_F(StudioConfigTest, GetUserMetricsOptIn_OptedIn_Number) {
+// Protobuf strict parsing disallows numbers/strings for bools.
+TEST_F(StudioConfigTest, GetUserMetricsOptIn_OptedIn_Number_FailsInProto) {
     writeSettingsFile(R"({"hasOptedIn": 1})");
-    EXPECT_EQ(GetUserMetricsOptIn(temp_path()), OptInState::kOptedIn);
-}
-
-TEST_F(StudioConfigTest, GetUserMetricsOptIn_OptedOut_Number) {
-    writeSettingsFile(R"({"hasOptedIn": 0})");
-    EXPECT_EQ(GetUserMetricsOptIn(temp_path()), OptInState::kOptedOut);
-}
-
-TEST_F(StudioConfigTest, GetUserMetricsOptIn_OptedIn_String) {
-    writeSettingsFile(R"({"hasOptedIn": "true"})");
-    EXPECT_EQ(GetUserMetricsOptIn(temp_path()), OptInState::kOptedIn);
-
-    writeSettingsFile(R"({"hasOptedIn": "1"})");
-    EXPECT_EQ(GetUserMetricsOptIn(temp_path()), OptInState::kOptedIn);
-}
-
-TEST_F(StudioConfigTest, GetUserMetricsOptIn_OptedOut_String) {
-    writeSettingsFile(R"({"hasOptedIn": "false"})");
-    EXPECT_EQ(GetUserMetricsOptIn(temp_path()), OptInState::kOptedOut);
-}
-
-TEST_F(StudioConfigTest, GetUserMetricsOptIn_MissingKey) {
-    writeSettingsFile(R"({"userId": "some-uuid"})");
     EXPECT_EQ(GetUserMetricsOptIn(temp_path()), OptInState::kUnknown);
 }
 
+TEST_F(StudioConfigTest, GetUserMetricsOptIn_MissingKey_DefaultsToFalseProto3) {
+    writeSettingsFile(R"({"userId": "some-uuid"})");
+    // Proto3 default for bool is false
+    EXPECT_EQ(GetUserMetricsOptIn(temp_path()), OptInState::kOptedOut);
+}
+
 TEST_F(StudioConfigTest, GetMetricsUserId_NoFile) {
-    EXPECT_TRUE(GetMetricsUserId(temp_path()).empty());
-}
-
-TEST_F(StudioConfigTest, GetMetricsUserId_EmptyFile) {
-    writeSettingsFile("");
-    EXPECT_TRUE(GetMetricsUserId(temp_path()).empty());
-}
-
-TEST_F(StudioConfigTest, GetMetricsUserId_InvalidJson) {
-    writeSettingsFile("{ invalid json }");
     EXPECT_TRUE(GetMetricsUserId(temp_path()).empty());
 }
 
@@ -119,14 +98,30 @@ TEST_F(StudioConfigTest, GetMetricsUserId_Valid) {
     EXPECT_EQ(GetMetricsUserId(temp_path()), "test-user-id");
 }
 
-TEST_F(StudioConfigTest, GetMetricsUserId_Missing) {
-    writeSettingsFile(R"({"hasOptedIn": true})");
-    EXPECT_TRUE(GetMetricsUserId(temp_path()).empty());
+TEST_F(StudioConfigTest, EnsureAnalyticsSettings_CreatesNewFile) {
+    auto settings_path = temp_path() / "analytics.settings";
+    EXPECT_FALSE(fs::exists(settings_path));
+
+    EnsureAnalyticsSettings(temp_path());
+
+    EXPECT_TRUE(fs::exists(settings_path));
+    EXPECT_FALSE(GetMetricsUserId(temp_path()).empty());
+
+    std::string salt = GetAnonymizationSalt(temp_path());
+    EXPECT_NE(salt, "UNKNOWN_SALT");
+    EXPECT_FALSE(salt.empty());
+
+    EXPECT_EQ(GetUserMetricsOptIn(temp_path()), OptInState::kOptedOut);
 }
 
-TEST_F(StudioConfigTest, GetMetricsUserId_NotAString) {
-    writeSettingsFile(R"({"userId": 12345})");
-    EXPECT_TRUE(GetMetricsUserId(temp_path()).empty());
+TEST_F(StudioConfigTest, EnsureAnalyticsSettings_FixesMissingSalt) {
+    writeSettingsFile(R"({"userId": "test-user"})");
+
+    EnsureAnalyticsSettings(temp_path());
+
+    // UUID should be preserved, salt should be generated
+    EXPECT_EQ(GetMetricsUserId(temp_path()), "test-user");
+    EXPECT_NE(GetAnonymizationSalt(temp_path()), "UNKNOWN_SALT");
 }
 
 }  // namespace goldfish::metrics::studio

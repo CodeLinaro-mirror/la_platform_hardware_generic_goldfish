@@ -20,83 +20,11 @@
 #include "absl/numeric/bits.h"
 #include "absl/synchronization/mutex.h"
 
-#include "goldfish/avd_info/avd_info.h"
 extern "C" {
 #include "goldfish/avd/rutabaga_glue.h"
 }  // extern "C"
 
 namespace goldfish::devices::multidisplay {
-
-// --- External API Implementation ---
-
-void ReadDisplayColorBuffer(uint32_t colorbuffer, uint8_t* outptr) {
-    auto device = avd_info::GetAvd().GetActiveMultiDisplayDevice();
-
-    if (device) {
-        device->ReadDisplayColorBufferInternal(colorbuffer, outptr);
-    }
-}
-
-uint32_t GetDisplayColorBuffer(uint32_t display_id) {
-    auto device = avd_info::GetAvd().GetActiveMultiDisplayDevice();
-
-    if (device) {
-        return device->GetColorBufferInternal(display_id);
-    }
-
-    // Device not connected or display not found
-    return 0;
-}
-
-void SendToGuest(std::string message) {
-    auto device = avd_info::GetAvd().GetActiveMultiDisplayDevice();
-
-    if (device) {
-        device->SendInternal(std::move(message));
-    } else {
-        LOG(WARNING) << "Dropped multidisplay message: Guest not connected.";
-    }
-}
-
-// Helpers for specific commands
-void SendAddDisplay(uint32_t display_id, uint32_t width, uint32_t height, uint32_t dpi,
-                    uint32_t flag) {
-    auto device = avd_info::GetAvd().GetActiveMultiDisplayDevice();
-
-    if (device) {
-        device->AddDisplayInternal(display_id, width, height, dpi, flag);
-        device->SendAddDisplayPacket(display_id, width, height, dpi, flag);
-    } else {
-        LOG(WARNING) << "Dropped multidisplay message: Guest not connected.";
-    }
-}
-
-void SendDelDisplay(uint32_t display_id) {
-    // 1. Clean up local state first
-    auto device = avd_info::GetAvd().GetActiveMultiDisplayDevice();
-
-    if (device) {
-        device->RemoveColorBufferInternal(display_id);
-    }
-    std::string msg(1 + sizeof(uint32_t), '\0');
-    msg[0] = MultiDisplayDevice::kCmdDel;
-    auto* data = reinterpret_cast<uint32_t*>(&msg[1]);
-    data[0] = display_id;
-    SendToGuest(std::move(msg));
-}
-
-void SendSetDisplay(uint32_t mode_id, uint32_t width, uint32_t height, uint32_t dpi,
-                    uint32_t flag) {
-    std::string msg(1 + (5 * sizeof(uint32_t)), '\0');
-    msg[0] = MultiDisplayDevice::kCmdSetDisplay;
-    auto* data = reinterpret_cast<uint32_t*>(&msg[1]);
-    data[0] = mode_id;
-    data[1] = width;
-    data[2] = height;
-    data[3] = dpi;
-    data[4] = flag;
-    SendToGuest(std::move(msg));
-}
 
 // --- Device Implementation ---
 
@@ -108,24 +36,51 @@ MultiDisplayDevice::~MultiDisplayDevice() {
     VLOG(1) << "MultiDisplayDevice destroyed";
 }
 
-void MultiDisplayDevice::ReadDisplayColorBufferInternal(uint32_t colorbuffer, uint8_t* outptr) {
+void MultiDisplayDevice::ReadDisplayColorBuffer(uint32_t colorbuffer, uint8_t* outptr) {
     const absl::MutexLock lock(&color_buffer_mutex_);
     auto it = frame_buffers_.find(colorbuffer);
     if (it != frame_buffers_.end()) {
         memcpy(outptr, it->second.data(), it->second.size());
     } else {
-        LOG(WARNING) << "ReadDisplayColorBufferInternal: No framebuffer found for handle "
-                     << colorbuffer;
+        LOG(WARNING) << "ReadDisplayColorBuffer: No framebuffer found for handle " << colorbuffer;
     }
 }
 
-uint32_t MultiDisplayDevice::GetColorBufferInternal(uint32_t display_id) {
+uint32_t MultiDisplayDevice::GetDisplayColorBuffer(uint32_t display_id) {
     const absl::MutexLock lock(&color_buffer_mutex_);
     auto it = display_buffers_.find(display_id);
     if (it != display_buffers_.end()) {
         return it->second.cb_handle;
     }
     return 0;  // Return 0 if not found
+}
+
+void MultiDisplayDevice::SendAddDisplay(uint32_t display_id, uint32_t width, uint32_t height,
+                                        uint32_t dpi, uint32_t flag) {
+    AddDisplayInternal(display_id, width, height, dpi, flag);
+    SendAddDisplayPacket(display_id, width, height, dpi, flag);
+}
+
+void MultiDisplayDevice::SendDelDisplay(uint32_t display_id) {
+    RemoveColorBufferInternal(display_id);
+    std::string msg(1 + sizeof(uint32_t), '\0');
+    msg[0] = kCmdDel;
+    auto* data = reinterpret_cast<uint32_t*>(&msg[1]);
+    data[0] = display_id;
+    SendToGuest(std::move(msg));
+}
+
+void MultiDisplayDevice::SendSetDisplay(uint32_t mode_id, uint32_t width, uint32_t height,
+                                        uint32_t dpi, uint32_t flag) {
+    std::string msg(1 + (5 * sizeof(uint32_t)), '\0');
+    msg[0] = kCmdSetDisplay;
+    auto* data = reinterpret_cast<uint32_t*>(&msg[1]);
+    data[0] = mode_id;
+    data[1] = width;
+    data[2] = height;
+    data[3] = dpi;
+    data[4] = flag;
+    SendToGuest(std::move(msg));
 }
 
 void MultiDisplayDevice::RemoveColorBufferInternal(uint32_t display_id) {
@@ -246,10 +201,10 @@ void MultiDisplayDevice::SendAddDisplayPacket(uint32_t display_id, uint32_t widt
     data[2] = height;
     data[3] = dpi;
     data[4] = flag;
-    SendInternal(std::move(msg));
+    SendToGuest(std::move(msg));
 }
 
-void MultiDisplayDevice::SendInternal(std::string message) {
+void MultiDisplayDevice::SendToGuest(std::string message) {
     // Ensure we run on the correct thread (Client Loop) before touching the socket
     if (!client_loop_->IsOnLoopThread()) {
         client_loop_

@@ -52,4 +52,12 @@ namespace goldfish::display {
 
 using PixmanImagePtr = ::goldfish::base::IntrusivePtr<::pixman_image_t>;
 
+// Takes a new reference to `image`, under the same lock as every other
+// PixmanImagePtr reference change.
+inline PixmanImagePtr SharePixmanImage(::pixman_image_t* image) {
+    if (image == nullptr) return {};
+    IntrusivePtrAddRef(image);
+    return PixmanImagePtr(image);
+}
+
 }  // namespace goldfish::display

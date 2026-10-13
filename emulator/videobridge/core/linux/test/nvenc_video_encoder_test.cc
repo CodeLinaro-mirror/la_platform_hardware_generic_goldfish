@@ -221,6 +221,15 @@ TEST_F(NvencVideoEncoderTest, InitEncodeFailsWithNullSettings) {
     EXPECT_EQ(encoder_->InitEncode(nullptr, settings), WEBRTC_VIDEO_CODEC_ERR_PARAMETER);
 }
 
+TEST_F(NvencVideoEncoderTest, InitEncodeFailsWhenCudaContextIsNull) {
+    auto null_ctx_loader = *NvencLoader::CreateForTest(driver_->CreateFunctionList(), nullptr);
+    auto encoder = NvencVideoEncoder::Create(std::move(null_ctx_loader));
+    ASSERT_NE(encoder, nullptr);
+
+    webrtc::VideoEncoder::Settings settings(webrtc::VideoEncoder::Capabilities(false), 1, 1000000);
+    EXPECT_EQ(encoder->InitEncode(&codec_settings_, settings), WEBRTC_VIDEO_CODEC_ERROR);
+}
+
 TEST_F(NvencVideoEncoderTest, EncodeFailsWhenUninitialized) {
     webrtc::VideoFrame frame = CreateTestI420Frame(1000);
     std::vector<webrtc::VideoFrameType> frame_types = {webrtc::VideoFrameType::kVideoFrameKey};

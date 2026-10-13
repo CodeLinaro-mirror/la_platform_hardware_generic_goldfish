@@ -92,15 +92,21 @@ static VirtIOInputHID s_fake_vhid = {
     .head = 0,
 };
 
+static int g_find_virtio_device_result = 1;
+
+void SetTestFindVirtioDeviceResult(int result) {
+    g_find_virtio_device_result = result;
+}
+
 int object_child_foreach_recursive(Object* obj, int (*fn)(Object* child, void* opaque),
                                    void* opaque) {
     (void)obj;
     (void)fn;
-    if (opaque) {
+    if (g_find_virtio_device_result && opaque) {
         VirtioDeviceInfo* info = (VirtioDeviceInfo*)opaque;
         info->vhid = &s_fake_vhid;
     }
-    return 1;
+    return g_find_virtio_device_result;
 }
 
 Object* object_resolve_path_component(Object* parent, const char* part) {

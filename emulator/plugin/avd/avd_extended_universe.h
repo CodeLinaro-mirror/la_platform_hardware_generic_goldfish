@@ -14,8 +14,12 @@
 
 #pragma once
 
+#include <memory>
+
+#include "absl/status/statusor.h"
+
 #include "goldfish/async/event_loop.h"
-#include "goldfish/avd_info/avd_info.h"
+#include "goldfish/avd/avd_universe.h"
 #include "goldfish/devices/battery/battery.h"
 #include "goldfish/devices/boot/boot_properties_device.h"
 #include "goldfish/devices/camera/register_device.h"
@@ -27,14 +31,23 @@
 #include "goldfish/devices/multidisplay/multidisplay_device.h"
 #include "goldfish/devices/sensor/sensor_device.h"
 #include "goldfish/devices/unix_pipe/unix_pipe.h"
+#include "goldfish/display/abstract_multi_display.h"
 #include "goldfish/metrics/metrics_reporter.h"
 #include "goldfish/metrics/perf_stat_reporter.h"
+#include "goldfish/metrics/snapshot_metrics.h"
 #include "vcpu_event_loop.h"
 
-namespace goldfish::avd_info {
+namespace goldfish::avd {
 
 struct AvdExtendedUniverse : public AvdUniverse {
-    AvdExtendedUniverse(std::unique_ptr<AvdProperties> props);
+  private:
+    struct Private {};
+
+  public:
+    static absl::StatusOr<std::unique_ptr<AvdExtendedUniverse>> Create(
+            std::unique_ptr<AvdProperties> props);
+    AvdExtendedUniverse(Private, std::unique_ptr<AvdProperties> props);
+
     ~AvdExtendedUniverse() override;
 
     void WaitUntilEventLoopsIdle();
@@ -43,7 +56,9 @@ struct AvdExtendedUniverse : public AvdUniverse {
     metrics::MetricsReporter& GetMetricsReporter() override;
     display::IMultiDisplay& GetMultiDisplay() const override;
 
+    void OnPreSave() override;
     absl::Status OnSave(archive::IWriter&) const override;
+    void OnPreLoad() override;
     absl::Status OnLoad(archive::IReader&) override;
     absl::Status OnPostLoad() override;
 
@@ -53,6 +68,7 @@ struct AvdExtendedUniverse : public AvdUniverse {
     std::vector<VCpuEventLoop> qemu_cpu_loops;
 
     std::unique_ptr<display::IMultiDisplay> multi_display;
+    display::IMultiDisplay::ScopedRotationSubscription display_rotation_subscription;
 
     devices::ConnectorRegistry connector_registry;
     devices::ConnectorRegistry test_tools_connector_registry;
@@ -64,6 +80,8 @@ struct AvdExtendedUniverse : public AvdUniverse {
     std::shared_ptr<async::EventLoop::Timer> perf_stat_reporter_task;
 
   private:
+    absl::Status Initialize();
+
     void OnSaveProps(archive::IWriter&) const;
     void OnSavePhysicalState(archive::IWriter&) const;
     absl::Status OnSaveDisplayState(archive::IWriter&) const;
@@ -73,6 +91,8 @@ struct AvdExtendedUniverse : public AvdUniverse {
     absl::Status OnLoadDisplayState(archive::IReader&);
 
     void SyncGuestTimeToHost();
+
+    metrics::QuickbootMetricsState quickboot_metrics_;
 };
 
-}  // namespace goldfish::avd_info
+}  // namespace goldfish::avd

@@ -34,6 +34,7 @@ py_binary(
 
 py_test(
     name = "symbol_zipper_test",
+    size = "small",
     srcs = ["symbol_zipper_test.py"],
     data = ["symbol_zipper.py"],
     deps = [
@@ -61,7 +62,7 @@ aemu_naming(
         ":opt": "emulator",
     }),
     stage = "",
-    version = "37.1.3",
+    version = "37.1.4",
 )
 
 aemu_naming(
@@ -80,7 +81,7 @@ aemu_naming(
         ":opt": "emulator",
     }),
     stage = "",
-    version = "37.1.3",
+    version = "37.1.4",
 )
 
 version_info_header(
@@ -102,6 +103,7 @@ cc_library(
 
 cc_test(
     name = "aemu_version_test",
+    size = "small",
     srcs = ["aemu_version_test.cc"],
     deps = [
         ":aemu_version",

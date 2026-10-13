@@ -374,11 +374,6 @@ TEST_F(JwkTokenAuthTest, any_message) {
 }
 
 TEST_F(JwkTokenAuthTest, deleted_jwks_is_rejected) {
-#ifdef __APPLE__
-    // There are some issues  on darwin around file deletion detection
-    // that differes by OS version.
-    GTEST_SKIP();
-#endif
     auto private_handle = WriteEs512("valid.jwk");
     auto sign = private_handle->GetPrimitive<tink::JwtPublicKeySign>();
     auto token = (*sign)->SignAndEncode(*sample_jwt_);

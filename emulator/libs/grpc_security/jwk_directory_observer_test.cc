@@ -20,6 +20,7 @@
 #include <fstream>
 #include <memory>
 #include <string>
+#include <thread>
 #include <utility>
 
 #include "absl/status/status_matchers.h"
@@ -54,6 +55,13 @@ using crypto::tink::TinkConfig;
 class JwkDirectoryObserverTest : public ::testing::Test {
   public:
     void SetUp() override {
+#ifdef __APPLE__
+        // see:
+        // https://stackoverflow.com/questions/57825757/obj-c-has-available-swift-has-available-what-can-i-use-in-c-c
+        if (!__builtin_available(macOS 14.0, *)) {
+            GTEST_SKIP() << "Skipping live FSEvents test on macOS < 14 (Ventura fseventsd bug).";
+        }
+#endif
         auto status = TinkConfig::Register();
         EXPECT_TRUE(status.ok());
         status = tink::JwtSignatureRegister();
@@ -239,9 +247,6 @@ TEST_F(JwkDirectoryObserverTest, create_multi_and_validate) {
 }
 
 TEST_F(JwkDirectoryObserverTest, create_validate_and_delete) {
-#ifdef __APPLE__
-    GTEST_SKIP() << "This test is flaky on the build bots: b/233946633";
-#endif
     // Let's generate a series of json keys
     WriteEs512("valid1.jwk");
     WriteEs512("valid2.jwk");
@@ -264,8 +269,9 @@ TEST_F(JwkDirectoryObserverTest, create_validate_and_delete) {
             test_ev_.Signal();
             break;
         case VALID_JWK_DELETED:
-            EXPECT_FALSE(verified_jwt.ok());
-            test_ev_.Signal();
+            if (!verified_jwt.ok()) {
+                test_ev_.Signal();
+            }
             break;
         default:
             break;
@@ -284,6 +290,22 @@ TEST_F(JwkDirectoryObserverTest, create_validate_and_delete) {
     auto todelete = temp_dir_->Path() / "valid.jwk";
     base::file::rm(todelete).IgnoreError();
     test_ev_.Wait();
+}
+
+TEST_F(JwkDirectoryObserverTest, stop_prevents_further_events) {
+    std::atomic<int> notifications{0};
+    JwkDirectoryObserver observer(temp_dir_->Path().string(), [&](auto) {
+        notifications.fetch_add(1);
+        test_ev_.Signal();
+    });
+    test_ev_.Wait();
+    observer.Stop();
+    test_ev_.Reset();
+    int count_after_stop = notifications.load();
+
+    WriteEs512("after_stop.jwk");
+    std::this_thread::sleep_for(std::chrono::milliseconds(300));
+    EXPECT_EQ(notifications.load(), count_after_stop);
 }
 
 }  // namespace control

@@ -16,11 +16,13 @@
 #include "goldfish/modem_simulator/modem_simulator_client.h"
 
 #include <sys/types.h>
+#include <thread>
 
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/strings/str_cat.h"
 
+#include "android/status/status_macros.h"
 #include "common/libs/fs/shared_buf.h"
 #include "common/libs/fs/shared_select.h"
 #include "goldfish/gsm/sms.h"
@@ -39,22 +41,22 @@ using Call = IModemSimulatorClient::Call;
 using CellInfo = IModemSimulatorClient::CellInfo;
 
 namespace {
-unsigned ToInt(const IModemSimulatorClient::SignalStrength ss) {
+unsigned ToPercentage(const IModemSimulatorClient::SignalStrength ss) {
     switch (ss) {
     case IModemSimulatorClient::SignalStrength::NONE_OR_UNKNOWN:
         return 0;
 
     case IModemSimulatorClient::SignalStrength::POOR:
-        return 1;
+        return 25;
 
     case IModemSimulatorClient::SignalStrength::MODERATE:
-        return 2;
+        return 50;
 
     case IModemSimulatorClient::SignalStrength::GOOD:
-        return 3;
+        return 75;
 
     case IModemSimulatorClient::SignalStrength::GREAT:
-        return 4;
+        return 100;
     }
 
     return 0;
@@ -161,6 +163,10 @@ absl::Status SendModemRequest(SharedFD& socket, const std::string_view req) {
     }
 }
 
+void FlushModemSocket(SharedFD&) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+}
+
 absl::StatusOr<SharedFD> ConnectToSimulator(const int serverPort) {
     SharedFD socket = SharedFD::SocketLocalClient(serverPort);
     if (!socket) {
@@ -181,7 +187,7 @@ absl::StatusOr<SharedFD> ConnectToSimulator(const int serverPort) {
 
 absl::Status SetSignalStrength(SharedFD& socket, const IModemSimulatorClient::SignalStrength ss) {
     using namespace std::literals::string_view_literals;
-    const std::string req = absl::StrCat("AT+REMOTESIGNAL: "sv, ToInt(ss), "\r"sv);
+    const std::string req = absl::StrCat("AT+REMOTESIGNAL: "sv, ToPercentage(ss), "\r"sv);
     return SendModemRequest(socket, req);
 }
 
@@ -198,41 +204,29 @@ absl::Status SetVoiceStatus(SharedFD& socket, const IModemSimulatorClient::CellS
 }
 
 absl::Status SendSmsPdus(const int serverPort, const std::vector<SmsPdu>& pdus) {
-    absl::StatusOr<SharedFD> socket = ConnectToSimulator(serverPort);
-    if (!socket.ok()) {
-        return socket.status();
-    }
+    ASSIGN_OR_RETURN(SharedFD socket, ConnectToSimulator(serverPort));
 
     for (const SmsPdu& pdu : pdus) {
         using namespace std::literals::string_view_literals;
         const std::string req = absl::StrCat("AT+REMOTESMS="sv, BinToHex(pdu.data), "\r"sv);
 
-        absl::Status status = SendModemRequest(*socket, req);
-        if (!status.ok()) {
-            return status;
-        }
+        RETURN_IF_ERROR(SendModemRequest(socket, req));
     }
 
+    FlushModemSocket(socket);
     return absl::OkStatus();
 }
 
 absl::StatusOr<SharedFD> SendCallRequest(const int serverPort,
                                          const ModemSimulatorClient::ModemCallState mcs,
                                          const std::string_view number) {
-    absl::StatusOr<SharedFD> socket = ConnectToSimulator(serverPort);
-    if (!socket.ok()) {
-        return socket;
-    }
+    ASSIGN_OR_RETURN(SharedFD socket, ConnectToSimulator(serverPort));
 
     using namespace std::literals::string_view_literals;
     const std::string req = absl::StrCat("AT+REMOTECALL="sv, static_cast<unsigned>(mcs),
                                          ",0,0,\""sv, number, "\",129\r"sv);
 
-    absl::Status status = SendModemRequest(*socket, req);
-    if (!status.ok()) {
-        return status;
-    }
-
+    RETURN_IF_ERROR(SendModemRequest(socket, req));
     return socket;
 }
 
@@ -329,27 +323,19 @@ ModemSimulatorClient::ModemCallState ModemSimulatorClient::ModemCall::GetState()
 ModemSimulatorClient::ModemSimulatorClient(int serverPort) : serverPort_(serverPort) {}
 
 absl::StatusOr<CellInfo> ModemSimulatorClient::SetCellInfo(const CellInfo& ci) {
-    absl::StatusOr<SharedFD> socket = ConnectToSimulator(serverPort_);
-    if (!socket.ok()) {
-        return socket.status();
-    }
+    ASSIGN_OR_RETURN(SharedFD socket, ConnectToSimulator(serverPort_));
 
     if (ci.standard != CellStandard::UNKNOWN) {
-        if (const auto status = SetCellStandard(*socket, ci.standard); !status.ok()) {
-            return status;
-        }
+        RETURN_IF_ERROR(SetCellStandard(socket, ci.standard));
     }
 
     if (ci.voiceStatus != CellStatus::UNKNOWN) {
-        if (const auto status = SetVoiceStatus(*socket, ci.voiceStatus); !status.ok()) {
-            return status;
-        }
+        RETURN_IF_ERROR(SetVoiceStatus(socket, ci.voiceStatus));
     }
 
-    if (const auto status = SetSignalStrength(*socket, ci.signalStrength); !status.ok()) {
-        return status;
-    }
+    RETURN_IF_ERROR(SetSignalStrength(socket, ci.signalStrength));
 
+    FlushModemSocket(socket);
     return ci;
 }
 
@@ -358,10 +344,8 @@ absl::StatusOr<CellInfo> ModemSimulatorClient::GetCellInfo() {
 }
 
 absl::StatusOr<Call> ModemSimulatorClient::CreateCall(const Call& call) {
-    auto activeCall = SendCallRequest(serverPort_, ModemCallState::INCOMING, call.number);
-    if (!activeCall.ok()) {
-        return activeCall.status();
-    }
+    ASSIGN_OR_RETURN(SharedFD activeCall,
+                     SendCallRequest(serverPort_, ModemCallState::INCOMING, call.number));
 
     const absl::MutexLock lock(mtx_);
     const auto [where, inserted] = calls_.insert({call.number, {}});
@@ -370,7 +354,7 @@ absl::StatusOr<Call> ModemSimulatorClient::CreateCall(const Call& call) {
                 absl::StrCat("A call with '", call.number, "' is already in progress."));
     }
 
-    where->second = std::make_unique<ModemCall>(*std::move(activeCall));
+    where->second = std::make_unique<ModemCall>(std::move(activeCall));
 
     Call result = call;
     result.state = IModemSimulatorClient::CallState::ACTIVE;
@@ -383,10 +367,8 @@ absl::StatusOr<Call> ModemSimulatorClient::UpdateCall(const Call& call) {
     }
 
     const ModemCallState mcs = ToModemCallState(call.state);
-    auto activeCall = SendCallRequest(serverPort_, mcs, call.number);
-    if (!activeCall.ok()) {
-        return activeCall.status();
-    }
+    ASSIGN_OR_RETURN(SharedFD socket, SendCallRequest(serverPort_, mcs, call.number));
+    FlushModemSocket(socket);
 
     const absl::MutexLock lock(mtx_);
     const auto i = calls_.find(call.number);
@@ -399,7 +381,9 @@ absl::StatusOr<Call> ModemSimulatorClient::UpdateCall(const Call& call) {
 }
 
 absl::Status ModemSimulatorClient::DeleteCall(const Call& call) {
-    SendCallRequest(serverPort_, ModemCallState::HANGUP, call.number).IgnoreError();
+    ASSIGN_OR_RETURN(SharedFD socket,
+                     SendCallRequest(serverPort_, ModemCallState::HANGUP, call.number));
+    FlushModemSocket(socket);
 
     const absl::MutexLock lock(mtx_);
     if (calls_.erase(call.number) > 0) {
@@ -430,31 +414,22 @@ absl::StatusOr<std::vector<Call>> ModemSimulatorClient::ListCalls() {
 
 absl::Status ModemSimulatorClient::ReceiveSmsUtf8(const std::string_view sender,
                                                   const std::string_view message) {
-    const absl::StatusOr<std::vector<SmsPdu>> pdus = SmsPdusFromUtf8(sender, message);
-    if (!pdus.ok()) {
-        return pdus.status();
-    }
-
-    return SendSmsPdus(serverPort_, *pdus);
+    ASSIGN_OR_RETURN(auto pdus, SmsPdusFromUtf8(sender, message));
+    return SendSmsPdus(serverPort_, pdus);
 }
 
 absl::Status ModemSimulatorClient::ReceiveSmsEncoded(std::vector<uint8_t> binary) {
-    const absl::StatusOr<std::vector<SmsPdu>> pdus = SmsPdusFromBinary(std::move(binary));
-    if (!pdus.ok()) {
-        return pdus.status();
-    }
-
-    return SendSmsPdus(serverPort_, *pdus);
+    ASSIGN_OR_RETURN(auto pdus, SmsPdusFromBinary(std::move(binary)));
+    return SendSmsPdus(serverPort_, pdus);
 }
 
 absl::Status ModemSimulatorClient::UpdateClock() {
-    absl::StatusOr<SharedFD> socket = ConnectToSimulator(serverPort_);
-    if (!socket.ok()) {
-        return socket.status();
-    }
+    ASSIGN_OR_RETURN(SharedFD socket, ConnectToSimulator(serverPort_));
 
     using namespace std::literals::string_view_literals;
-    return SendModemRequest(*socket, "AT+REMOTETIMEUPDATE: \r"sv);
+    RETURN_IF_ERROR(SendModemRequest(socket, "AT+REMOTETIMEUPDATE: \r"sv));
+    FlushModemSocket(socket);
+    return absl::OkStatus();
 }
 
 }  // namespace goldfish::modem_simulator

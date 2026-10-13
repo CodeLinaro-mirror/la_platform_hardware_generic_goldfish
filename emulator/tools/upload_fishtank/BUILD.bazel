@@ -13,6 +13,7 @@ py_binary(
 
 py_test(
     name = "upload_fishtank_test",
+    size = "small",
     srcs = ["upload_fishtank_test.py"],
     deps = [":upload_fishtank"],
 )

@@ -1,0 +1,28 @@
+load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_test")
+load("@rules_cc//cc:defs.bzl", "cc_library")
+
+cc_library(
+    name = "fsimage",
+    srcs = [
+        "ext4.cc",
+    ],
+    hdrs = [
+        "include/goldfish/fsimage/ext4.h",
+    ],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//emulator/libs/file",
+        "//third_party/ext4_utils",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/strings:str_format",
+    ],
+)
+
+clang_tidy_test(
+    name = "tidy",
+    targets = [
+        ":fsimage",
+    ],
+    tidy_config_file = "//:clang_tidy_config",
+)

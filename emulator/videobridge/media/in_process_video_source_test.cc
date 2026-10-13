@@ -20,16 +20,21 @@
 #include <cstddef>
 #include <memory>
 #include <thread>
+#include <utility>
 #include <vector>
 
 #include "absl/base/thread_annotations.h"
 #include "absl/synchronization/mutex.h"
+#include "absl/synchronization/notification.h"
 
 #include "api/make_ref_counted.h"
 #include "api/video/video_frame.h"
 #include "api/video/video_sink_interface.h"
-#include "goldfish/async/testing/global_event_loop.h"
+#include "goldfish/async/testing/test_event_loop.h"
+#include "goldfish/avd/global_event_loop.h"
 #include "goldfish/display/display.h"
+#include "goldfish/display/display_frames.h"
+#include "goldfish/display/test/display_test_peer.h"
 #include "goldfish/display/test/fake_multi_display.h"
 #include "goldfish/display/test/fake_pixman_display.h"
 
@@ -45,6 +50,12 @@ class DummyVideoSink : public webrtc::VideoSinkInterface<webrtc::VideoFrame> {
         last_rotation_ = frame.rotation();
         last_buffer_type_ = frame.video_frame_buffer() ? frame.video_frame_buffer()->type()
                                                        : webrtc::VideoFrameBuffer::Type::kNative;
+        if (frame.video_frame_buffer() &&
+            frame.video_frame_buffer()->type() == webrtc::VideoFrameBuffer::Type::kNV12) {
+            const webrtc::NV12BufferInterface* nv12 = frame.video_frame_buffer()->GetNV12();
+            last_y0_ = nv12->DataY()[0];
+            last_uv0_ = nv12->DataUV()[0];
+        }
         frame_count_++;
     }
 
@@ -60,9 +71,31 @@ class DummyVideoSink : public webrtc::VideoSinkInterface<webrtc::VideoFrame> {
         absl::MutexLock lock(&mutex_);
         return last_height_;
     }
+    uint8_t LastY0() const {
+        absl::MutexLock lock(&mutex_);
+        return last_y0_;
+    }
+    uint8_t LastUV0() const {
+        absl::MutexLock lock(&mutex_);
+        return last_uv0_;
+    }
     webrtc::VideoRotation LastRotation() const {
         absl::MutexLock lock(&mutex_);
         return last_rotation_;
+    }
+    bool WaitForFrameCount(int expected, absl::Duration timeout) const {
+        auto has_frames = [&]() ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_) {
+            return frame_count_ >= expected;
+        };
+        absl::MutexLock lock(&mutex_);
+        return mutex_.AwaitWithTimeout(absl::Condition(&has_frames), timeout);
+    }
+    bool WaitForRotation(webrtc::VideoRotation expected, absl::Duration timeout) const {
+        auto has_rotation = [&]() ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_) {
+            return last_rotation_ == expected;
+        };
+        absl::MutexLock lock(&mutex_);
+        return mutex_.AwaitWithTimeout(absl::Condition(&has_rotation), timeout);
     }
     webrtc::VideoFrameBuffer::Type LastBufferType() const {
         absl::MutexLock lock(&mutex_);
@@ -74,13 +107,32 @@ class DummyVideoSink : public webrtc::VideoSinkInterface<webrtc::VideoFrame> {
     int frame_count_ ABSL_GUARDED_BY(mutex_) = 0;
     int last_width_ ABSL_GUARDED_BY(mutex_) = 0;
     int last_height_ ABSL_GUARDED_BY(mutex_) = 0;
+    uint8_t last_y0_ ABSL_GUARDED_BY(mutex_) = 0;
+    uint8_t last_uv0_ ABSL_GUARDED_BY(mutex_) = 0;
     webrtc::VideoRotation last_rotation_ ABSL_GUARDED_BY(mutex_) = webrtc::kVideoRotation_0;
     webrtc::VideoFrameBuffer::Type last_buffer_type_ ABSL_GUARDED_BY(mutex_) =
             webrtc::VideoFrameBuffer::Type::kNative;
 };
 
+// Declared first in a test that uses the global loop, so it is destroyed last:
+// waits for the loop to run what the test left behind, such as the listener
+// teardown that may drop the last display reference, before the test ends.
+class GlobalLoopDrain {
+  public:
+    GlobalLoopDrain() = default;
+    GlobalLoopDrain(const GlobalLoopDrain&) = delete;
+    GlobalLoopDrain& operator=(const GlobalLoopDrain&) = delete;
+    ~GlobalLoopDrain() {
+        absl::Notification drained;
+        if (goldfish::avd::globalEventLoop()->Post([&drained] { drained.Notify(); }).ok()) {
+            drained.WaitForNotification();
+        }
+    }
+};
+
 TEST(InProcessVideoSourceTest, StartCapturesFrameFromMultiDisplay) {
-    goldfish::display::test::FakeMultiDisplay fake_multidisplay(goldfish::async::globalEventLoop());
+    const GlobalLoopDrain drain;
+    goldfish::display::test::FakeMultiDisplay fake_multidisplay(goldfish::avd::globalEventLoop());
     auto source = webrtc::make_ref_counted<InProcessVideoSource>(fake_multidisplay, 0);
     DummyVideoSink sink;
 
@@ -109,7 +161,8 @@ TEST(InProcessVideoSourceTest, StartCapturesFrameFromMultiDisplay) {
 }
 
 TEST(InProcessVideoSourceTest, HandlesDisplayCreatedAfterSourceInitialization) {
-    goldfish::display::test::FakeMultiDisplay fake_multidisplay(goldfish::async::globalEventLoop());
+    const GlobalLoopDrain drain;
+    goldfish::display::test::FakeMultiDisplay fake_multidisplay(goldfish::avd::globalEventLoop());
     // Display 1 does not exist initially
     auto source = webrtc::make_ref_counted<InProcessVideoSource>(fake_multidisplay, 1);
     DummyVideoSink sink;
@@ -150,9 +203,16 @@ class SpyDisplay : public goldfish::display::test::FakePixmanDisplay {
             : FakePixmanDisplay(loop, id,
                                 goldfish::display::PixmanImagePtr(pixman_image_create_bits(
                                         PIXMAN_a8r8g8b8, 100, 100, nullptr, 100 * 4))) {}
+    ~SpyDisplay() override { ShutdownProducer(); }
 
-    void OnListenerAdded() override { added_count++; }
-    void OnListenerRemoved() override { removed_count++; }
+    void OnDemand(bool has_consumers) override {
+        FakePixmanDisplay::OnDemand(has_consumers);
+        if (has_consumers) {
+            added_count++;
+        } else {
+            removed_count++;
+        }
+    }
 
     int added_count = 0;
     int removed_count = 0;
@@ -176,9 +236,9 @@ class SpyMultiDisplay : public goldfish::display::test::FakeMultiDisplay {
 };
 
 TEST(InProcessVideoSourceTest, ManagesListenerLifecycleOnStartAndStop) {
-    auto loop = goldfish::async::globalEventLoop();
-    auto display = std::make_shared<SpyDisplay>(loop, 0);
-    SpyMultiDisplay multidisplay(loop, display);
+    auto loop = goldfish::async::testing::TestEventLoop::Create();
+    auto display = std::make_shared<SpyDisplay>(loop.get(), 0);
+    SpyMultiDisplay multidisplay(loop.get(), display);
 
     auto source = webrtc::make_ref_counted<InProcessVideoSource>(multidisplay, 0);
 
@@ -186,61 +246,174 @@ TEST(InProcessVideoSourceTest, ManagesListenerLifecycleOnStartAndStop) {
     EXPECT_EQ(0, display->removed_count);
 
     source->Start();
+    loop->RunAll();
     EXPECT_EQ(1, display->added_count);
     EXPECT_EQ(0, display->removed_count);
 
     source->Stop();
+    loop->RunAll();
+    loop->AdvanceClock(goldfish::display::DisplayFrames::kWarmTime);
     EXPECT_EQ(1, display->added_count);
     EXPECT_EQ(1, display->removed_count);
 }
 
 TEST(InProcessVideoSourceTest, RepeatedStartStopCyclesDoNotLeakCallbacks) {
-    auto loop = goldfish::async::globalEventLoop();
-    auto display = std::make_shared<SpyDisplay>(loop, 0);
-    SpyMultiDisplay multidisplay(loop, display);
+    auto loop = goldfish::async::testing::TestEventLoop::Create();
+    auto display = std::make_shared<SpyDisplay>(loop.get(), 0);
+    SpyMultiDisplay multidisplay(loop.get(), display);
 
     auto source = webrtc::make_ref_counted<InProcessVideoSource>(multidisplay, 0);
 
     for (int i = 1; i <= 5; ++i) {
         source->Start();
+        loop->RunAll();
         EXPECT_EQ(i, display->added_count);
         EXPECT_EQ(i - 1, display->removed_count);
 
         source->Stop();
+        loop->RunAll();
+        loop->AdvanceClock(goldfish::display::DisplayFrames::kWarmTime);
         EXPECT_EQ(i, display->added_count);
         EXPECT_EQ(i, display->removed_count);
     }
 }
 
 TEST(InProcessVideoSourceTest, DestructorCleansUpActiveListener) {
-    auto loop = goldfish::async::globalEventLoop();
-    auto display = std::make_shared<SpyDisplay>(loop, 0);
-    SpyMultiDisplay multidisplay(loop, display);
+    auto loop = goldfish::async::testing::TestEventLoop::Create();
+    auto display = std::make_shared<SpyDisplay>(loop.get(), 0);
+    SpyMultiDisplay multidisplay(loop.get(), display);
 
     {
         auto source = webrtc::make_ref_counted<InProcessVideoSource>(multidisplay, 0);
         source->Start();
+        loop->RunAll();
         EXPECT_EQ(1, display->added_count);
         EXPECT_EQ(0, display->removed_count);
     }
 
-    // After destruction of source, listener should be removed
+    // After destruction of source, listener is removed and cool-down completes
+    loop->RunAll();
+    loop->AdvanceClock(goldfish::display::DisplayFrames::kWarmTime);
     EXPECT_EQ(1, display->added_count);
     EXPECT_EQ(1, display->removed_count);
 }
 
 TEST(InProcessVideoSourceTest, HandlesDisplayUnavailableGracefully) {
-    auto loop = goldfish::async::globalEventLoop();
-    auto display = std::make_shared<SpyDisplay>(loop, 0);
-    SpyMultiDisplay multidisplay(loop, display);
+    auto loop = goldfish::async::testing::TestEventLoop::Create();
+    auto display = std::make_shared<SpyDisplay>(loop.get(), 0);
+    SpyMultiDisplay multidisplay(loop.get(), display);
 
     // Request non-existent display ID 99
     auto source = webrtc::make_ref_counted<InProcessVideoSource>(multidisplay, 99);
     source->Start();
+    loop->RunAll();
     EXPECT_EQ(0, display->added_count);
 
     source->Stop();
+    loop->RunAll();
     EXPECT_EQ(0, display->removed_count);
+}
+
+TEST(InProcessVideoSourceTest, AppliesDisplayRotationToCapturedFrames) {
+    const GlobalLoopDrain drain;
+    goldfish::display::test::FakeMultiDisplay fake_multidisplay(goldfish::avd::globalEventLoop());
+    auto source = webrtc::make_ref_counted<InProcessVideoSource>(fake_multidisplay, 0);
+    DummyVideoSink sink;
+
+    webrtc::VideoTrackSourceInterface* track_source = source.get();
+    track_source->AddOrUpdateSink(&sink, webrtc::VideoSinkWants());
+    source->Start();
+
+    auto display_res = fake_multidisplay.GetDisplay(0);
+    ASSERT_TRUE(display_res.ok());
+    auto display = fake_multidisplay.GetDisplay<goldfish::display::test::ActiveFakePixmanDisplay>(
+            display_res);
+    ASSERT_NE(display, nullptr);
+
+    display->SetRotation(goldfish::display::ImageRotation::kRotation90);
+
+    display->Start();
+    display->WaitForFramesWithTimeout(2, absl::Milliseconds(1000));
+    display->Stop();
+
+    EXPECT_GT(sink.FrameCount(), 0);
+    EXPECT_EQ(sink.LastRotation(), webrtc::kVideoRotation_270);
+
+    source->Stop();
+    track_source->RemoveSink(&sink);
+}
+
+TEST(InProcessVideoSourceTest, EmitsRotatedFrameWhenDisplayRotationChanges) {
+    const GlobalLoopDrain drain;
+    goldfish::display::test::FakeMultiDisplay fake_multidisplay(goldfish::avd::globalEventLoop());
+    auto source = webrtc::make_ref_counted<InProcessVideoSource>(fake_multidisplay, 0);
+    DummyVideoSink sink;
+
+    webrtc::VideoTrackSourceInterface* track_source = source.get();
+    track_source->AddOrUpdateSink(&sink, webrtc::VideoSinkWants());
+    source->Start();
+
+    auto display_res = fake_multidisplay.GetDisplay(0);
+    ASSERT_TRUE(display_res.ok());
+    auto display = fake_multidisplay.GetDisplay<goldfish::display::test::ActiveFakePixmanDisplay>(
+            display_res);
+    ASSERT_NE(display, nullptr);
+
+    display->Start();
+    display->WaitForFramesWithTimeout(2, absl::Milliseconds(1000));
+    display->Stop();
+
+    const int count_before_rotation = sink.FrameCount();
+    EXPECT_GT(count_before_rotation, 0);
+    EXPECT_EQ(sink.LastRotation(), webrtc::kVideoRotation_0);
+
+    // Even with display frame production stopped (static screen), updating display
+    // rotation immediately re-emits the current frame with the updated rotation.
+    display->SetRotation(goldfish::display::ImageRotation::kRotation90);
+    EXPECT_TRUE(sink.WaitForRotation(webrtc::kVideoRotation_270, absl::Seconds(1)));
+    EXPECT_GT(sink.FrameCount(), count_before_rotation);
+
+    display->SetRotation(goldfish::display::ImageRotation::kRotation180);
+    EXPECT_TRUE(sink.WaitForRotation(webrtc::kVideoRotation_180, absl::Seconds(1)));
+
+    display->SetRotation(goldfish::display::ImageRotation::kRotation270);
+    EXPECT_TRUE(sink.WaitForRotation(webrtc::kVideoRotation_90, absl::Seconds(1)));
+
+    source->Stop();
+    track_source->RemoveSink(&sink);
+}
+
+TEST(InProcessVideoSourceTest, ConvertsImageRotationToWebRtcRotation) {
+    using goldfish::display::ImageRotation;
+    EXPECT_EQ(ToWebRtcRotation(ImageRotation::kRotation0), webrtc::kVideoRotation_0);
+    EXPECT_EQ(ToWebRtcRotation(ImageRotation::kRotation90), webrtc::kVideoRotation_270);
+    EXPECT_EQ(ToWebRtcRotation(ImageRotation::kRotation180), webrtc::kVideoRotation_180);
+    EXPECT_EQ(ToWebRtcRotation(ImageRotation::kRotation270), webrtc::kVideoRotation_90);
+}
+
+TEST(InProcessVideoSourceTest, EmitsBlackNv12FrameOnBlankFrame) {
+    const GlobalLoopDrain drain;
+    auto display = std::make_shared<SpyDisplay>(goldfish::avd::globalEventLoop(), 0);
+    SpyMultiDisplay multidisplay(goldfish::avd::globalEventLoop(), display);
+    auto source = webrtc::make_ref_counted<InProcessVideoSource>(multidisplay, 0);
+    DummyVideoSink sink;
+
+    webrtc::VideoTrackSourceInterface* track_source = source.get();
+    track_source->AddOrUpdateSink(&sink, webrtc::VideoSinkWants());
+    source->Start();
+    ASSERT_TRUE(sink.WaitForFrameCount(1, absl::Seconds(1)));
+
+    const int before_blank = sink.FrameCount();
+    goldfish::display::DisplayTestPeer::frames(*display)->PublishNoContent();
+    ASSERT_TRUE(sink.WaitForFrameCount(before_blank + 1, absl::Seconds(1)));
+    EXPECT_EQ(sink.LastWidth(), 100);
+    EXPECT_EQ(sink.LastHeight(), 100);
+    EXPECT_EQ(sink.LastBufferType(), webrtc::VideoFrameBuffer::Type::kNV12);
+    EXPECT_EQ(sink.LastY0(), 16);
+    EXPECT_EQ(sink.LastUV0(), 128);
+
+    source->Stop();
+    track_source->RemoveSink(&sink);
 }
 
 }  // namespace

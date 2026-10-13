@@ -146,6 +146,105 @@ class TestCrashAdvisor(unittest.TestCase):
         self.assertTrue(out_path.exists())
         mock_run.assert_called_once()
 
+    @patch("client.subprocess.run")
+    def test_gosso_fetch_url_fallback_to_stubby_get_report(
+        self, mock_run: MagicMock
+    ) -> None:
+        """Test GossoClient falls back to stubby GetReport when gosso returns 403."""
+        client = GossoClient(
+            gosso_path="/usr/bin/gosso", stubby_path="/usr/bin/stubby"
+        )
+        out_path = self.temp_path / "metadata.json"
+
+        stubby_stdout = json.dumps(
+            {
+                "status": {"status_code": 0},
+                "report": {
+                    "original_report": {
+                        "ReportID": self.crash_id,
+                        "product": {
+                            "Name": "AndroidEmulator",
+                            "Version": "37.1.3-16373346",
+                        },
+                        "stable_signature": "CrashReporterImpl::Die",
+                    }
+                },
+            }
+        )
+
+        mock_run.side_effect = [
+            subprocess.CalledProcessError(
+                1, ["/usr/bin/gosso"], stderr=b"403 Forbidden"
+            ),
+            MagicMock(returncode=0, stdout=stubby_stdout, stderr=""),
+        ]
+
+        url = f"https://crash.corp.google.com/get_report?id={self.crash_id}&response_type=json"
+        client.fetch_url_to_file(url, out_path)
+
+        self.assertTrue(out_path.exists())
+        saved = json.loads(out_path.read_text(encoding="utf-8"))
+        self.assertEqual(saved["report_proto"]["ReportID"], self.crash_id)
+        self.assertEqual(
+            saved["report_proto"]["stableSignature"], "CrashReporterImpl::Die"
+        )
+        self.assertEqual(mock_run.call_count, 2)
+
+    @patch("client.subprocess.run")
+    def test_gosso_fetch_url_fallback_to_stubby_fetch_file(
+        self, mock_run: MagicMock
+    ) -> None:
+        """Test GossoClient falls back to stubby GetFile when gosso returns 403."""
+        client = GossoClient(
+            gosso_path="/usr/bin/gosso", stubby_path="/usr/bin/stubby"
+        )
+        out_path = self.temp_path / "minidump.dmp"
+
+        stubby_stdout = json.dumps(
+            {
+                "status": {"status_code": 0},
+                "file": [
+                    {
+                        "file_field_name": "upload_file_minidump",
+                        "contents": "TURNUA==",  # base64("MDMP")
+                    }
+                ],
+            }
+        )
+
+        mock_run.side_effect = [
+            subprocess.CalledProcessError(
+                1, ["/usr/bin/gosso"], stderr=b"403 Forbidden"
+            ),
+            MagicMock(returncode=0, stdout=stubby_stdout, stderr=""),
+        ]
+
+        url = f"https://crash.corp.google.com/fetch_file?reportid={self.crash_id}&filename=upload_file_minidump"
+        client.fetch_url_to_file(url, out_path)
+
+        self.assertTrue(out_path.exists())
+        self.assertEqual(out_path.read_bytes(), b"MDMP")
+        self.assertEqual(mock_run.call_count, 2)
+
+    @patch("client.shutil.which", return_value=None)
+    @patch("client.subprocess.run")
+    def test_gosso_fetch_url_reraises_when_stubby_unavailable(
+        self, mock_run: MagicMock, _mock_which: MagicMock
+    ) -> None:
+        """Test GossoClient re-raises CalledProcessError when stubby fallback is unavailable."""
+        client = GossoClient(gosso_path="/usr/bin/gosso", stubby_path=None)
+        out_path = self.temp_path / "out.dmp"
+        mock_run.side_effect = subprocess.CalledProcessError(
+            1, ["/usr/bin/gosso"], stderr=b"403 Forbidden"
+        )
+
+        with self.assertRaises(subprocess.CalledProcessError):
+            client.fetch_url_to_file(
+                f"https://crash.corp.google.com/get_report?id={self.crash_id}&response_type=json",
+                out_path,
+            )
+        self.assertFalse(out_path.exists())
+
     def test_context_sandbox_preparation(self) -> None:
         """Test CrashReportContext crash ID parsing and sandbox directory creation."""
         context = CrashReportContext(
@@ -392,6 +491,26 @@ class TestCrashAdvisor(unittest.TestCase):
             )
             self.assertTrue(cached_zip.exists())
 
+    @patch("symbols.subprocess.check_output")
+    @patch("symbols.shutil.which")
+    @patch("symbols.AndroidBuildClient")
+    def test_symbol_fetcher_sso_fallback(
+        self,
+        mock_ab_class: MagicMock,
+        mock_which: MagicMock,
+        mock_check_output: MagicMock,
+    ) -> None:
+        """Test SymbolFetcher._obtain_oauth_token falls back to OnePlatform sso when oauth2l is unavailable."""
+        mock_ab_class.obtain_token.side_effect = ValueError("oauth2l not found")
+        mock_which.side_effect = lambda name, **kwargs: (
+            "/google/data/ro/teams/oneplatform/sso" if name == "sso" else None
+        )
+        mock_check_output.return_value = "sso_fallback_token\n"
+
+        fetcher = SymbolFetcher(MagicMock(), global_cache_dir=str(self.temp_path))
+        token = fetcher._obtain_oauth_token(None)
+        self.assertEqual(token, "sso_fallback_token")
+
     @patch("dump.Runfiles")
     @patch("dump.subprocess.run")
     def test_crash_report_dumper(
@@ -415,6 +534,26 @@ class TestCrashAdvisor(unittest.TestCase):
 
         self.assertEqual(dump_path, context.work_dir / "crashreport.txt")
         self.assertEqual(mock_run.call_count, 1)  # Called for text dump
+
+    @patch("dump.Path.home")
+    @patch("dump.Runfiles")
+    def test_crash_report_dumper_home_installed_fallback(
+        self, mock_runfiles: MagicMock, mock_home: MagicMock
+    ) -> None:
+        """Test CrashReportDumper discovers ~/.android/emu-dev-cli/lib/bin/crashreport using os.access."""
+        mock_rf_inst = MagicMock()
+        mock_rf_inst.Rlocation.return_value = None
+        mock_runfiles.Create.return_value = mock_rf_inst
+        mock_home.return_value = self.temp_path
+
+        bin_dir = self.temp_path / ".android" / "emu-dev-cli" / "lib" / "bin"
+        bin_dir.mkdir(parents=True, exist_ok=True)
+        fake_bin = bin_dir / ("crashreport.exe" if sys.platform == "win32" else "crashreport")
+        fake_bin.write_text("#!/bin/sh\n")
+        fake_bin.chmod(0o755)
+
+        dumper = CrashReportDumper()
+        self.assertEqual(dumper.crashreport_path, str(fake_bin))
 
     def test_crash_report_analyzer(self) -> None:
         """Test CrashReportAnalyzer generating investigation_cmd.sh interactive script."""
@@ -488,6 +627,87 @@ class TestCrashAdvisor(unittest.TestCase):
         analyzer = CrashReportAnalyzer()
         with self.assertRaises(FileNotFoundError):
             analyzer.generate_explanation(context, dump_path)
+
+    @patch("advisor.BuganizerClient")
+    def test_process_closed_loop_explicit_bug_id_updates_issue(
+        self, mock_bug_cls: MagicMock
+    ) -> None:
+        """Test _process_closed_loop inspects comments and updates issue when --bug-id is passed."""
+        mock_bug = MagicMock()
+        mock_bug.get_issue.return_value = {
+            "id": 567125517,
+            "title": "[Crash][Linux] Vulkan error",
+            "description": "Crash on Linux",
+            "issueState": {"status": "ASSIGNED"},
+        }
+        mock_bug.get_issue_comments.return_value = []
+        mock_bug_cls.return_value = mock_bug
+
+        context = CrashReportContext(self.crash_id, base_dir=str(self.temp_path))
+        context.prepare_sandbox()
+        (context.work_dir / "rca_summary.md").write_text(
+            "## Root Cause\nDetailed analysis.", encoding="utf-8"
+        )
+
+        app = CrashAdvisorApp(
+            [self.crash_id, "--enable-buganizer", "--bug-id", "567125517"]
+        )
+        app.context = context
+        meta = MagicMock()
+        meta.stable_signature = "sig-test"
+        meta.version = "37.1.3-16373346"
+        meta.build_id = "16373346"
+        meta.os_summary = "Mac OS X"
+        meta.primary_signature = "setup_ports (launcher.cc:93)"
+        meta.custom_keys = {}
+
+        app._process_closed_loop(meta)
+
+        mock_bug.get_issue.assert_called_once_with(567125517)
+        mock_bug.ensure_crash_hotlists.assert_called_once_with(
+            567125517, version="37.1.3"
+        )
+        mock_bug.get_issue_comments.assert_called_once_with(567125517)
+        mock_bug.update_issue_comment.assert_called_once()
+
+    @patch("advisor.BuganizerClient")
+    def test_process_closed_loop_search_issue_with_none_id(
+        self, mock_bug_cls: MagicMock
+    ) -> None:
+        """Test _process_closed_loop falls back to issueId when id is explicitly None."""
+        mock_bug = MagicMock()
+        mock_bug.search_issue_by_signature.return_value = {
+            "id": None,
+            "issueId": "567125517",
+            "title": "[Crash][Linux] Vulkan error",
+            "description": "Crash on Linux",
+            "status": None,
+            "issueState": {"status": None},
+        }
+        mock_bug.get_issue_comments.return_value = []
+        mock_bug_cls.return_value = mock_bug
+
+        context = CrashReportContext(self.crash_id, base_dir=str(self.temp_path))
+        context.prepare_sandbox()
+        (context.work_dir / "rca_summary.md").write_text(
+            "## Root Cause\nDetailed analysis.", encoding="utf-8"
+        )
+
+        app = CrashAdvisorApp([self.crash_id, "--enable-buganizer"])
+        app.context = context
+        meta = MagicMock()
+        meta.stable_signature = "sig-test"
+        meta.version = "37.1.3-16373346"
+        meta.build_id = "16373346"
+        meta.os_summary = "Linux"
+        meta.primary_signature = "Vulkan"
+        meta.custom_keys = {}
+
+        app._process_closed_loop(meta)
+
+        mock_bug.ensure_crash_hotlists.assert_called_once_with(
+            567125517, version="37.1.3"
+        )
 
 
 if __name__ == "__main__":

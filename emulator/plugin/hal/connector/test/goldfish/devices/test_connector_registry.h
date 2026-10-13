@@ -13,6 +13,7 @@
 // limitations under the License.
 #include <memory>
 #include <string>
+#include <string_view>
 
 #include "absl/log/check.h"
 #include "absl/log/log.h"
@@ -30,7 +31,7 @@ using cable::PlugPtr;
 using cable::SocketPtr;
 
 struct TestHalSocket : public HalSocket {
-    void Send(std::string data) override {
+    void Send(std::string_view data) override {
         LOG(ERROR) << "Send " << data;
         on_send(data);
         storage.append(data);
@@ -39,7 +40,7 @@ struct TestHalSocket : public HalSocket {
 
     bool closed{false};
     std::string storage;
-    std::function<void(const std::string&)> on_send = [](const std::string&) {};
+    std::function<void(std::string_view)> on_send = [](std::string_view) {};
 };
 
 /**

@@ -22,6 +22,8 @@
 
 #include "android/emulation/control/emulator_grpc_client.h"
 #include "emulator_controller.grpc.pb.h"
+#include "input_service.grpc.pb.h"
+#include "sensors_service.grpc.pb.h"
 
 namespace goldfish::videobridge {
 
@@ -34,15 +36,26 @@ using ::android::emulation::control::EmulatorGrpcClientBuilder;
 using ::android::emulation::control::Image;
 using ::android::emulation::control::ImageFormat;
 using ::android::emulation::control::InputEvent;
+using V2InputEvent = ::android::emulation::v2::InputEvent;
+using V2InputService = ::android::emulation::v2::InputService;
+using V2SensorsService = ::android::emulation::v2::SensorsService;
+using V2SensorsUpdateRequest = ::android::emulation::v2::UpdateSensorsStateRequest;
+using V2StreamInputEventsResponse = ::android::emulation::v2::StreamInputEventsResponse;
 
 /**
- * @class EmulatorClient
- * @brief Thread-safe client manager wrapping EmulatorGrpcClient to stream screenshots, audio, and
- * input events.
+ * Client manager wrapping EmulatorGrpcClient to stream screenshots, audio, and input/sensor
+ * events (legacy v1 and v2).
  *
- * This class handles auto-discovering running Android Emulator instances using platform INI
- * discovery directories, constructing the gRPC channel, and providing streaming stub helpers for
+ * This class auto-discovers running Android Emulator instances using platform INI discovery
+ * directories, constructs the gRPC channel, and provides streaming and unary stub helpers for
  * remote desktop services.
+ *
+ * Thread Safety: Connect() and Disconnect() are not thread-safe and must not be called
+ * concurrently with RPC methods. Once connected, Stream* and Update* methods are thread-safe.
+ *
+ * Ownership & Lifetimes: Owns the underlying gRPC channel and service stubs. Callers of
+ * Stream* methods own the returned ClientReaderInterface/ClientWriterInterface and must ensure
+ * the passed grpc::ClientContext outlives the stream.
  */
 class EmulatorClient {
   public:
@@ -111,10 +124,31 @@ class EmulatorClient {
     virtual std::unique_ptr<::grpc::ClientWriterInterface<InputEvent>> StreamInputEvent(
             ::grpc::ClientContext* context, ::google::protobuf::Empty* response);
 
+    /**
+     * @brief Initiates a client-streaming RPC call to forward v2 input events to InputService.
+     *
+     * @param context Pre-allocated gRPC ClientContext managing the lifetime of this call.
+     * @param response Protobuf StreamInputEventsResponse populated once the stream completes.
+     * @return std::unique_ptr<::grpc::ClientWriterInterface<V2InputEvent>> Writer stream, or
+     * nullptr if not connected.
+     */
+    virtual std::unique_ptr<::grpc::ClientWriterInterface<V2InputEvent>> StreamV2InputEvents(
+            ::grpc::ClientContext* context, V2StreamInputEventsResponse* response);
+
+    /**
+     * @brief Sends a unary v2 sensor and pose update to SensorsService.
+     *
+     * @param request The v2 UpdateSensorsStateRequest payload.
+     * @return absl::Status OK if applied, or error status if disconnected/failed.
+     */
+    virtual absl::Status UpdateV2SensorsState(const V2SensorsUpdateRequest& request);
+
   private:
     std::string discovery_file_;
     std::unique_ptr<BlockingEmulatorGrpcClient> grpc_client_;
     std::unique_ptr<EmulatorController::Stub> stub_;
+    std::unique_ptr<V2InputService::Stub> v2_input_stub_;
+    std::unique_ptr<V2SensorsService::Stub> v2_sensors_stub_;
 };
 
 }  // namespace goldfish::videobridge

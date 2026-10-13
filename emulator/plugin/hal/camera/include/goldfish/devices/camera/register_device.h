@@ -22,11 +22,16 @@
 #include "goldfish/devices/camera/gralloc_details.h"
 #include "goldfish/devices/connector_registry.h"
 
+namespace goldfish::sensors {
+class PhysicalModel;
+}  // namespace goldfish::sensors
+
 namespace goldfish::devices::camera {
 
 using GrallocProvider = std::function<GrallocDetailsPtr()>;
 
-void RegisterDevice(IConnectorRegistry* registry, std::string* emulatedCameraProp,
-                    const android::goldfish::HardwareConfig& hw, GrallocProvider);
+void RegisterDevice(const sensors::PhysicalModel* physicalModel, IConnectorRegistry* registry,
+                    std::string* emulatedCameraProp, const android::goldfish::HardwareConfig& hw,
+                    GrallocProvider);
 
 }  // namespace goldfish::devices::camera

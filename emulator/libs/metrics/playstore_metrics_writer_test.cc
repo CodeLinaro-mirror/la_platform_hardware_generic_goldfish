@@ -15,6 +15,7 @@
 
 #include "goldfish/metrics/playstore_metrics_writer.h"
 
+#include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <sys/types.h>
 #include <zlib.h>
@@ -34,6 +35,7 @@
 #include <unistd.h>
 #endif
 
+#include "absl/log/globals.h"
 #include "absl/strings/str_format.h"
 
 #include "android/base/testing/test_system.h"
@@ -116,6 +118,7 @@ class TestHttpServer {
     }
 
     std::string GetUrl() const { return absl::StrFormat("http://127.0.0.1:%d", port_); }
+    std::string GetHttpsUrl() const { return absl::StrFormat("https://127.0.0.1:%d", port_); }
 
     void Start(const std::string& response_body = "") {
         stop_ = false;
@@ -274,6 +277,28 @@ TEST_F(PlaystoreMetricsWriterTest, MetadataIsCorrect) {
 
     EXPECT_EQ(server.GetRequestCount(), 1);
     VerifyRequest(server.GetLastRequestBody(), test_user, 1);
+}
+
+TEST_F(PlaystoreMetricsWriterTest, HttpsImportsNativeCaStore) {
+    int old_vlog = absl::SetGlobalVLogLevel(1);
+    TestHttpServer server;
+    server.Start();
+    testing::internal::CaptureStderr();
+    {
+        PlaystoreMetricsWriter writer(server.GetHttpsUrl(), "test-user", *event_loop_);
+        writer.Write(CreateEvent(12345));
+        event_loop_->AdvanceClock(absl::Minutes(10));
+    }
+    server.Stop();
+    std::string stderr_output = testing::internal::GetCapturedStderr();
+    absl::SetGlobalVLogLevel(old_vlog);
+
+    EXPECT_THAT(stderr_output, ::testing::HasSubstr("ALPN: curl offers http/1.1"));
+    EXPECT_THAT(stderr_output, ::testing::HasSubstr("TLS connect error"));
+#ifdef _WIN32
+    EXPECT_THAT(stderr_output, ::testing::HasSubstr("successfully imported Windows ROOT store"));
+    EXPECT_THAT(stderr_output, ::testing::HasSubstr("successfully imported Windows CA store"));
+#endif
 }
 
 }  // namespace goldfish::metrics

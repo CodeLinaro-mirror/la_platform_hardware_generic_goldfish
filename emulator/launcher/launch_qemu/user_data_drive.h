@@ -16,8 +16,9 @@
 #pragma once
 
 #include <filesystem>
+#include <optional>
 
-#include "absl/status/status.h"
+#include "absl/status/statusor.h"
 
 namespace android::goldfish {
 
@@ -25,9 +26,7 @@ class Avd;
 
 namespace fs = std::filesystem;
 
-absl::Status prepareUserDataBaseImage(const Avd& avd, const fs::path& init_data,
-                                      const fs::path& user_data, uint64_t data_size, bool resize);
-
-std::optional<fs::path> getUserSrcDirectory(const Avd& avd);
+absl::StatusOr<std::optional<fs::path>> prepareUserdataSrcDir(const Avd& avd,
+                                                              const fs::path& init_data);
 
 }  // namespace android::goldfish

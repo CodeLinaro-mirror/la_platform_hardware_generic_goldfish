@@ -112,17 +112,20 @@ void LogEvent(const Breadcrumb& event) {
     }
 }
 
-void SetMessageDetail(Breadcrumb& event, const ::google::protobuf::Message* msg) {
+void SetMessageDetail(Breadcrumb& event, const ::google::protobuf::Message* msg,
+                      bool capture_payload) {
     if (!msg) return;
     auto size = static_cast<uint32_t>(msg->ByteSizeLong());
     auto* grpc_payload = event.mutable_grpc();
-    if (size <= kMaxCapturedPayloadSize) {
-        if (!msg->SerializeToString(grpc_payload->mutable_payload())) {
-            grpc_payload->clear_payload();
+
+    if (capture_payload && size <= kMaxCapturedPayloadSize) {
+        if (msg->SerializeToString(grpc_payload->mutable_payload())) {
+            return;
         }
-    } else {
-        grpc_payload->set_msg_size(size);
+        grpc_payload->clear_payload();
     }
+
+    grpc_payload->set_msg_size(size);
 }
 
 }  // namespace
@@ -131,9 +134,10 @@ goldfish::proto_data_store::RawCircularLog* BreadcrumbInterceptor::GetLogForTest
     return android::crashreport::GetBreadcrumbLog(android::crashreport::BreadcrumbType::kGrpc);
 }
 
-BreadcrumbInterceptor::BreadcrumbInterceptor(const ClientRpcInfo* info)
+BreadcrumbInterceptor::BreadcrumbInterceptor(const ClientRpcInfo* info, bool capture_payload)
         : call_id_(android::crashreport::AllocateGlobalFlowId())
-        , method_hash_(info ? GetMethodCrc(info->method()) : 0) {
+        , method_hash_(info ? GetMethodCrc(info->method()) : 0)
+        , capture_payload_(capture_payload) {
     Breadcrumb event;
     event.set_flow_id(call_id_);
     event.set_timestamp_ns(GetTimestampNs());
@@ -146,9 +150,10 @@ BreadcrumbInterceptor::BreadcrumbInterceptor(const ClientRpcInfo* info)
     LogEvent(event);
 }
 
-BreadcrumbInterceptor::BreadcrumbInterceptor(const ServerRpcInfo* info)
+BreadcrumbInterceptor::BreadcrumbInterceptor(const ServerRpcInfo* info, bool capture_payload)
         : call_id_(android::crashreport::AllocateGlobalFlowId())
-        , method_hash_(info ? GetMethodCrc(info->method()) : 0) {
+        , method_hash_(info ? GetMethodCrc(info->method()) : 0)
+        , capture_payload_(capture_payload) {
     Breadcrumb event;
     event.set_flow_id(call_id_);
     event.set_timestamp_ns(GetTimestampNs());
@@ -212,14 +217,18 @@ void BreadcrumbInterceptor::Intercept(InterceptorBatchMethods* methods) {
         case InterceptionHookPoints::PRE_SEND_MESSAGE:
             grpc_payload->set_grpc_phase(
                     android::control::breadcrumbs::GrpcPayload::PRE_SEND_MESSAGE);
-            SetMessageDetail(event, static_cast<const ::google::protobuf::Message*>(
-                                            methods->GetSendMessage()));
+            SetMessageDetail(
+                    event,
+                    static_cast<const ::google::protobuf::Message*>(methods->GetSendMessage()),
+                    capture_payload_);
             break;
         case InterceptionHookPoints::POST_RECV_MESSAGE:
             grpc_payload->set_grpc_phase(
                     android::control::breadcrumbs::GrpcPayload::POST_RECV_MESSAGE);
-            SetMessageDetail(event, static_cast<const ::google::protobuf::Message*>(
-                                            methods->GetRecvMessage()));
+            SetMessageDetail(
+                    event,
+                    static_cast<const ::google::protobuf::Message*>(methods->GetRecvMessage()),
+                    capture_payload_);
             break;
         case InterceptionHookPoints::PRE_RECV_MESSAGE:
             grpc_payload->set_grpc_phase(
@@ -251,20 +260,21 @@ void BreadcrumbInterceptor::Intercept(InterceptorBatchMethods* methods) {
     methods->Proceed();
 }
 
-BreadcrumbInterceptorFactory::BreadcrumbInterceptorFactory() = default;
+BreadcrumbInterceptorFactory::BreadcrumbInterceptorFactory(bool capture_payload)
+        : capture_payload_(capture_payload) {}
 
 grpc::experimental::Interceptor* BreadcrumbInterceptorFactory::CreateServerInterceptor(
         ServerRpcInfo* info) {
     // See https://grpc.io/docs/guides/interceptors for details on how interceptors
     // are managed. The gRPC engine will take ownership of this pointer.
-    return new BreadcrumbInterceptor(info);
+    return new BreadcrumbInterceptor(info, capture_payload_);
 }
 
 grpc::experimental::Interceptor* BreadcrumbInterceptorFactory::CreateClientInterceptor(
         ClientRpcInfo* info) {
     // See https://grpc.io/docs/guides/interceptors for details on how interceptors
     // are managed. The gRPC engine will take ownership of this pointer.
-    return new BreadcrumbInterceptor(info);
+    return new BreadcrumbInterceptor(info, capture_payload_);
 }
 
 }  // namespace android::control::interceptor

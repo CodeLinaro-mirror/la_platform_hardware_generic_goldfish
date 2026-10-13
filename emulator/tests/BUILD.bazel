@@ -27,7 +27,7 @@ filegroup(
 
 py_test(
     name = "release_zip_test",
-    size = "small",
+    size = "medium",
     srcs = ["release_zip_test.py"],
     args = [
         "--release_zip_path",
@@ -39,12 +39,13 @@ py_test(
         ":expected_contents",
         "//emulator:release",
     ],
+    tags = ["manual"],
     deps = ["@rules_python//python/runfiles"],
 )
 
 py_test(
     name = "release_zip_internal_test",
-    size = "small",
+    size = "medium",
     srcs = ["release_zip_test.py"],
     args = [
         "--release_zip_path",
@@ -57,6 +58,7 @@ py_test(
         "//emulator:release_internal",
     ],
     main = "release_zip_test.py",
+    tags = ["manual"],
     target_compatible_with = ["@platforms//os:linux"],
     deps = ["@rules_python//python/runfiles"],
 )

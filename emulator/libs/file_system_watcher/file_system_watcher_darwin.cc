@@ -11,6 +11,8 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+#include "android/base/file_system_watcher_darwin.h"
+
 #include <CoreServices/CoreServices.h>
 
 #include <atomic>
@@ -18,11 +20,15 @@
 #include <filesystem>
 #include <memory>
 #include <string>
+#include <system_error>
 #include <thread>
+#include <utility>
 
 #include "absl/cleanup/cleanup.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
+#include "absl/strings/match.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "absl/synchronization/notification.h"
 
@@ -50,21 +56,6 @@ struct CFTypeDeleter {
 template <typename T>
 using UniqueCFType = goldfish::base::UniqueHandle<T, nullptr, CFTypeDeleter>;
 
-struct FSEventStreamDeleter {
-    struct Empty {};
-    FSEventStreamDeleter() = default;
-    explicit FSEventStreamDeleter(Empty) {}
-    void operator()(FSEventStreamRef stream) const {
-        if (stream) {
-            FSEventStreamInvalidate(stream);
-            FSEventStreamRelease(stream);
-        }
-    }
-};
-
-using UniqueFSEventStream =
-        goldfish::base::UniqueHandle<FSEventStreamRef, nullptr, FSEventStreamDeleter>;
-
 bool IsCreatedEvent(FSEventStreamEventFlags flags) {
     return flags & kFSEventStreamEventFlagItemCreated;
 }
@@ -73,11 +64,22 @@ bool IsRemovedEvent(FSEventStreamEventFlags flags) {
     return flags & kFSEventStreamEventFlagItemRemoved;
 }
 
+bool IsRenamedEvent(FSEventStreamEventFlags flags) {
+    return flags & kFSEventStreamEventFlagItemRenamed;
+}
+
 bool IsModifiedEvent(FSEventStreamEventFlags flags) {
     return (flags & kFSEventStreamEventFlagItemModified ||
             flags & kFSEventStreamEventFlagItemInodeMetaMod ||
             flags & kFSEventStreamEventFlagItemXattrMod) &&
            !IsRemovedEvent(flags);
+}
+
+std::string StripTrailingSlashes(std::string path_str) {
+    while (path_str.size() > 1 && path_str.back() == '/') {
+        path_str.pop_back();
+    }
+    return path_str;
 }
 
 template <typename Sink>
@@ -169,7 +171,6 @@ void AbslStringify(Sink& sink, FSEventFlagsWrapper wrapper) {
     }
 }
 }  // namespace
-using Path = FileSystemWatcher::Path;
 
 // Filesystem watcher based on
 // https://developer.apple.com/documentation/coreservices/file_system_events
@@ -183,45 +184,66 @@ class FileSystemWatcherFS : public FileSystemWatcher {
         kStopping   ///< Stop() was called, thread is signaled to exit.
     };
 
-    FileSystemWatcherFS(Path path, FileSystemWatcherCallback on_change_callback)
-            : FileSystemWatcher(std::move(on_change_callback)), path_(std::move(path)) {}
+    FileSystemWatcherFS(std::filesystem::path path, FileSystemWatcherCallback on_change_callback,
+                        DarwinWatcherOptions options = {})
+            : FileSystemWatcher(std::move(on_change_callback))
+            , path_(std::move(path))
+            , watched_dir_prefix_(StripTrailingSlashes(path_.string()))
+            , canonical_dir_prefix_(ResolveCanonicalPrefix(path_))
+            , options_(std::move(options)) {}
 
     ~FileSystemWatcherFS() override { Stop(); }
 
     bool Start() override {
-        const absl::MutexLock lock(mu_);
-        if (state_ != State::kIdle) {
-            return false;
+        if (!__builtin_available(macOS 14.0, *)) {
+            LOG(WARNING) << "Running on macOS < 14: FSEvents may experience performance issues "
+                            "that could result in missed events on volumes with heavy churn.";
+        }
+        {
+            const absl::MutexLock lock(mu_);
+            if (state_ != State::kIdle) {
+                return false;
+            }
+
+            state_ = State::kStarting;
+            worker_done_ = false;
+            cf_run_loop_ = nullptr;
+            DCHECK(!watcher_thread_.joinable()) << "A watcher thread is active.";
+            watcher_thread_ = std::thread([this] { WatchForChanges(); });
+
+            // Wait for the thread to move out of the starting state.
+            if (!mu_.AwaitWithTimeout(absl::Condition(this, &FileSystemWatcherFS::IsNotStarting),
+                                      options_.startup_timeout)) {
+                LOG(ERROR) << "Timed out waiting for FileSystemWatcher to start for " << path_
+                           << ". You might not receive file change notifications for this "
+                              "directory.";
+            }
+            if (state_ == State::kRunning) {
+                return true;
+            }
         }
 
-        state_ = State::kStarting;
-        cf_run_loop_ = nullptr;
-        DCHECK(!watcher_thread_.joinable()) << "A watcher thread is active.";
-        watcher_thread_ = std::thread([this] { WatchForChanges(); });
-
-        // Wait for the thread to move out of the starting state.
-        if (!mu_.AwaitWithTimeout(absl::Condition(this, &FileSystemWatcherFS::IsNotStarting),
-                                  absl::Seconds(5))) {
-            LOG(FATAL) << "Timed out waiting for FileSystemWatcher to start for " << path_
-                       << ". You might not receive file change notifications for this directory.";
-        }
-        return state_ == State::kRunning;
+        Stop();
+        return false;
     }
 
     void Stop() override {
         std::thread thread_to_join;
         {
             const absl::MutexLock lock(mu_);
-            if (state_ == State::kIdle || state_ == State::kStopping) {
+            if (state_ == State::kIdle) {
+                DCHECK(!watcher_thread_.joinable());
+                return;
+            }
+            if (state_ == State::kStopping) {
+                mu_.Await(absl::Condition(this, &FileSystemWatcherFS::IsIdle));
                 return;
             }
 
-            // Signal the thread to stop.
-            // Note that State::kRunning -> cf_run_loop_
-            DCHECK(state_ == State::kRunning) << "Start was called, yet we are not running?";
-            DCHECK(watcher_thread_.joinable()) << "Watcher thread is not joinable.";
-            CFRunLoopStop(cf_run_loop_);
             state_ = State::kStopping;
+            if (cf_run_loop_) {
+                CFRunLoopStop(cf_run_loop_);
+            }
             thread_to_join = std::move(watcher_thread_);
         }
 
@@ -229,16 +251,48 @@ class FileSystemWatcherFS : public FileSystemWatcher {
         if (thread_to_join.joinable()) {
             thread_to_join.join();
         }
+
+        {
+            const absl::MutexLock lock(mu_);
+            cf_run_loop_ = nullptr;
+            state_ = State::kIdle;
+        }
     }
 
   private:
-    bool IsNotStarting() const ABSL_EXCLUSIVE_LOCKS_REQUIRED(mu_) {
-        return state_ != State::kStarting;
+    static std::string ResolveCanonicalPrefix(const std::filesystem::path& path) {
+        std::error_code ec;
+        const std::filesystem::path canonical = std::filesystem::weakly_canonical(path, ec);
+        return StripTrailingSlashes(ec ? path.string() : canonical.string());
     }
+
+    std::filesystem::path NormalizeEventPath(absl::string_view event_path) const {
+        if (event_path == canonical_dir_prefix_) {
+            return std::filesystem::path(watched_dir_prefix_);
+        }
+        if (absl::StartsWith(event_path, canonical_dir_prefix_) &&
+            event_path.size() > canonical_dir_prefix_.size() &&
+            event_path[canonical_dir_prefix_.size()] == '/') {
+            return std::filesystem::path(absl::StrCat(
+                    watched_dir_prefix_, event_path.substr(canonical_dir_prefix_.size())));
+        }
+        return std::filesystem::path(std::string(event_path));
+    }
+
+    bool IsNotStarting() const ABSL_EXCLUSIVE_LOCKS_REQUIRED(mu_) {
+        return state_ != State::kStarting || worker_done_;
+    }
+
+    bool IsIdle() const ABSL_EXCLUSIVE_LOCKS_REQUIRED(mu_) { return state_ == State::kIdle; }
 
     static void NotifyRunning(void* info) {
         auto* self = static_cast<FileSystemWatcherFS*>(info);
         const absl::MutexLock lock(self->mu_);
+        self->cf_run_loop_ = CFRunLoopGetCurrent();
+        if (self->state_ == State::kStopping) {
+            CFRunLoopStop(self->cf_run_loop_);
+            return;
+        }
         VLOG(1) << "Filesystem watcher is active";
         DCHECK(self->state_ == State::kStarting)
                 << "We should be in the starting state when this callback is happening";
@@ -259,12 +313,26 @@ class FileSystemWatcherFS : public FileSystemWatcher {
         char** paths = static_cast<char**>(event_paths);
         for (size_t i = 0; i < num_events; i++) {
             if (!paths[i]) continue;
-            const std::string path = paths[i];
+            const std::filesystem::path path = watcher->NormalizeEventPath(paths[i]);
             const FSEventStreamEventFlags flags = event_flags[i];
 
-            if (IsRemovedEvent(flags)) {
-                watcher->change_callback(WatcherChangeType::kDeleted, path);
+            if (IsRemovedEvent(flags) || IsRenamedEvent(flags)) {
+                if (!base::file::exists(path)) {
+                    watcher->change_callback(WatcherChangeType::kDeleted, path);
+                    continue;
+                }
+                if (IsRemovedEvent(flags)) {
+                    watcher->change_callback(WatcherChangeType::kDeleted, path);
+                }
+                if (IsCreatedEvent(flags) || IsRenamedEvent(flags)) {
+                    watcher->change_callback(WatcherChangeType::kCreated, path);
+                }
+                if (IsModifiedEvent(flags)) {
+                    watcher->change_callback(WatcherChangeType::kChanged, path);
+                }
+                continue;
             }
+
             if (IsCreatedEvent(flags)) {
                 watcher->change_callback(WatcherChangeType::kCreated, path);
             }
@@ -275,10 +343,10 @@ class FileSystemWatcherFS : public FileSystemWatcher {
     }
 
     void WatchForChanges() {
-        const absl::Cleanup back_to_idle = [this] {
+        const absl::Cleanup mark_worker_done = [this] {
             const absl::MutexLock lock(mu_);
             cf_run_loop_ = nullptr;
-            state_ = State::kIdle;
+            worker_done_ = true;
         };
 
         // Setup file event stream.
@@ -289,50 +357,89 @@ class FileSystemWatcherFS : public FileSystemWatcher {
                 nullptr, reinterpret_cast<const void**>(&dir_ptr), 1, &kCFTypeArrayCallBacks));
 
         FSEventStreamContext stream_ctx = {0, this, nullptr, nullptr, nullptr};
-        const UniqueFSEventStream stream(
-                FSEventStreamCreate(nullptr, &FileSystemWatcherFS::WatcherCb, &stream_ctx,
-                                    paths_to_watch.get(), kFSEventStreamEventIdSinceNow, 0,
-                                    kFSEventStreamCreateFlagFileEvents  // Get file-level events
-                                            | kFSEventStreamCreateFlagNoDefer));  // Get them ASAP
+        FSEventStreamRef raw_stream =
+                options_.stream_create(nullptr, &FileSystemWatcherFS::WatcherCb, &stream_ctx,
+                                       paths_to_watch.get(), kFSEventStreamEventIdSinceNow, 0,
+                                       kFSEventStreamCreateFlagFileEvents  // Get file-level events
+                                               | kFSEventStreamCreateFlagNoDefer);  // Get them ASAP
 
-        if (!stream) return;
+        if (!raw_stream) return;
+
+        bool stream_scheduled = false;
+        bool stream_started = false;
+        const absl::Cleanup cleanup_stream = [&raw_stream, &stream_scheduled, &stream_started] {
+            if (stream_started) {
+                FSEventStreamStop(raw_stream);
+            }
+            if (stream_scheduled) {
+                FSEventStreamInvalidate(raw_stream);
+            }
+            FSEventStreamRelease(raw_stream);
+        };
 
         // Setup run loop source to signal that we are fully operational.
         {
             const absl::MutexLock lock(mu_);
-            cf_run_loop_ = CFRunLoopGetCurrent();
-            CFRunLoopSourceContext source_ctx = {0,       this,    nullptr, nullptr, nullptr,
-                                                 nullptr, nullptr, nullptr, nullptr, NotifyRunning};
-
-            auto* source = CFRunLoopSourceCreate(nullptr, 0, &source_ctx);
-            if (source) {
-                // Guaranteed to run once the runloop is active.
-                CFRunLoopAddSource(cf_run_loop_, source, kCFRunLoopDefaultMode);
-                CFRunLoopSourceSignal(source);
-                CFRunLoopWakeUp(cf_run_loop_);
-                CFRelease(source);
-            } else {
-                // note, you might miss events between now and when CFRunLoopRun() is called.
-                state_ = State::kRunning;
+            if (state_ == State::kStopping) {
+                return;
             }
+        }
 
-            FSEventStreamScheduleWithRunLoop(stream.get(), cf_run_loop_, kCFRunLoopDefaultMode);
-            FSEventStreamStart(stream.get());
+        CFRunLoopRef run_loop = CFRunLoopGetCurrent();
+        CFRunLoopSourceContext source_ctx = {0,       this,    nullptr, nullptr, nullptr,
+                                             nullptr, nullptr, nullptr, nullptr, NotifyRunning};
+        UniqueCFType<CFRunLoopSourceRef> source(
+                options_.run_loop_source_create(nullptr, 0, &source_ctx));
+        if (!source) {
+            return;
+        }
+
+        // Guaranteed to run once the runloop is active.
+        CFRunLoopAddSource(run_loop, source.get(), kCFRunLoopDefaultMode);
+        CFRunLoopSourceSignal(source.get());
+        CFRunLoopWakeUp(run_loop);
+
+        FSEventStreamScheduleWithRunLoop(raw_stream, run_loop, kCFRunLoopDefaultMode);
+        stream_scheduled = true;
+        if (!options_.stream_start(raw_stream)) {
+            return;
+        }
+        stream_started = true;
+
+        {
+            const absl::MutexLock lock(mu_);
+            if (state_ == State::kStopping) {
+                return;
+            }
         }
 
         CFRunLoopRun();  // Waits until we cancel it (by calling CFRunLoopStop).
-        FSEventStreamStop(stream.get());
     }
 
-    const Path path_;
+    const std::filesystem::path path_;
+    const std::string watched_dir_prefix_;
+    const std::string canonical_dir_prefix_;
+    DarwinWatcherOptions options_;
     absl::Mutex mu_;
     State state_ ABSL_GUARDED_BY(mu_) = State::kIdle;
+    bool worker_done_ ABSL_GUARDED_BY(mu_) = false;
     std::thread watcher_thread_ ABSL_GUARDED_BY(mu_);
     CFRunLoopRef cf_run_loop_ ABSL_GUARDED_BY(mu_) = nullptr;
 };
 
+std::unique_ptr<FileSystemWatcher> CreateDarwinFileSystemWatcherForTesting(
+        const std::filesystem::path& path,
+        FileSystemWatcher::FileSystemWatcherCallback on_change_callback,
+        DarwinWatcherOptions options) {
+    if (!base::file::is_dir(path)) {
+        return nullptr;
+    }
+    return std::make_unique<FileSystemWatcherFS>(path, std::move(on_change_callback),
+                                                 std::move(options));
+}
+
 std::unique_ptr<FileSystemWatcher> FileSystemWatcher::GetFileSystemWatcher(
-        const Path& path, const FileSystemWatcherCallback& on_change_callback) {
+        const std::filesystem::path& path, const FileSystemWatcherCallback& on_change_callback) {
     if (!base::file::is_dir(path)) {
         return nullptr;
     }

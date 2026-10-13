@@ -150,13 +150,10 @@ bool ChannelMonitor::ReadCommand(Client& client) {
     return false;  // drop the client
   }
 
-  std::string& incomplete_command = client.incomplete_command;
-
   // Add the incomplete command from the last read
-  auto commands = std::string{incomplete_command.data()};
-  commands.append(buffer.data());
-
-  incomplete_command.clear();
+  auto commands = std::move(client.incomplete_command);
+  client.incomplete_command.clear();
+  commands.append(buffer.data(), bytes_read);
 
   // Replacing '\n' with '\r'
   commands = absl::StrReplaceAll(commands, {{"\n", "\r"}});
@@ -177,7 +174,7 @@ bool ChannelMonitor::ReadCommand(Client& client) {
       }
       pos = r_pos + 1;  // Skip '\r'
     } else if (pos < commands.length()) {  // Incomplete command
-      incomplete_command = commands.substr(pos);
+      client.incomplete_command = commands.substr(pos);
     }
   }
 

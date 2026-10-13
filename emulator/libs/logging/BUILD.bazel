@@ -21,6 +21,7 @@ cc_library(
 
 cc_test(
     name = "color_log_sink_test",
+    size = "small",
     srcs = ["color_log_sink_test.cc"],
     copts = ["-Wno-deprecated-declarations"],
     visibility = ["//visibility:public"],
@@ -48,6 +49,7 @@ cc_library(
 
 cc_test(
     name = "absl_c_bridge_test",
+    size = "small",
     srcs = [
         "abseil_log_bridge_test.c",
         "abseil_log_bridge_test.cc",

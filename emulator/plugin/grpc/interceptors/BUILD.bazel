@@ -21,6 +21,10 @@ cc_library(
     name = "breadcrumb_interceptor",
     srcs = ["breadcrumb_interceptor.cc"],
     hdrs = ["include/android/control/interceptor/breadcrumb_interceptor.h"],
+    defines = select({
+        "@qemu//:goldfish_enabled": ["CONFIG_TRACE_GOLDFISH"],
+        "//conditions:default": [],
+    }),
     includes = ["include"],
     deps = [
         "//emulator/crashreport:breadcrumb_proto",
@@ -84,6 +88,7 @@ cc_library(
 
 cc_test(
     name = "percentiles_test",
+    size = "small",
     srcs = ["percentiles_test.cc"],
     deps = [
         ":percentiles",
@@ -101,7 +106,6 @@ cc_library(
         ":logging_interceptor",
         ":percentiles",
         "//emulator/libs/metrics",
-        "//emulator/plugin/avd:info",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/synchronization",
         "@zlib",
@@ -110,6 +114,7 @@ cc_library(
 
 cc_test(
     name = "metrics_interceptor_test",
+    size = "small",
     srcs = ["metrics_interceptor_test.cc"],
     visibility = ["//visibility:public"],
     deps = [
@@ -121,15 +126,18 @@ cc_test(
 
 cc_test(
     name = "interceptors_test",
-    srcs =
-        select({
-            "@platforms//os:windows": [],
-            "//conditions:default": [
-                "breadcrumb_interceptor_test.cc",
-                "logging_interceptor_test.cc",
-                "perfetto_interceptor_test.cc",
-            ],
-        }),
+    size = "small",
+    srcs = select({
+        "@platforms//os:windows": [],
+        "//conditions:default": [
+            "breadcrumb_interceptor_test.cc",
+            "logging_interceptor_test.cc",
+        ],
+    }) + select({
+        "@platforms//os:windows": [],
+        "@qemu//:goldfish_enabled": ["perfetto_interceptor_test.cc"],
+        "//conditions:default": [],
+    }),
     visibility = ["//visibility:public"],
     deps = [
         ":interceptors",
@@ -145,7 +153,11 @@ cc_test(
 
 cc_test(
     name = "perfetto_interceptor_only_test",
-    srcs = ["perfetto_interceptor_test.cc"],
+    size = "small",
+    srcs = select({
+        "@qemu//:goldfish_enabled": ["perfetto_interceptor_test.cc"],
+        "//conditions:default": [],
+    }),
     deps = [
         ":perfetto_interceptor",
         "//emulator/libs/system:test-headers",

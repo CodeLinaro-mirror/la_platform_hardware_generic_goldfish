@@ -37,7 +37,6 @@
 
 namespace android::base {
 
-using Path = FileSystemWatcher::Path;
 using FileSystemWatcherCallback = FileSystemWatcher::FileSystemWatcherCallback;
 using WatcherChangeType = FileSystemWatcher::WatcherChangeType;
 
@@ -56,24 +55,33 @@ class ReadDirectoryChangesWin32 : public FileSystemWatcher {
         kStopping   ///< Stop() was called, thread is signaled to exit.
     };
 
-    ReadDirectoryChangesWin32(Path path, FileSystemWatcherCallback on_change_callback)
+    ReadDirectoryChangesWin32(std::filesystem::path path,
+                              FileSystemWatcherCallback on_change_callback)
             : FileSystemWatcher(std::move(on_change_callback)), path_(std::move(path)) {}
 
     ~ReadDirectoryChangesWin32() override { Stop(); }
 
     bool Start() override {
-        const absl::MutexLock lock(&mu_);
-        if (state_ != State::kIdle) {
-            return false;
+        {
+            const absl::MutexLock lock(&mu_);
+            if (state_ != State::kIdle) {
+                return false;
+            }
+
+            state_ = State::kStarting;
+            worker_done_ = false;
+            DCHECK(!watcher_thread_.joinable()) << "A watcher thread is active.";
+            watcher_thread_ = std::thread([this] { WatchForChanges(); });
+
+            // Wait for the thread to move out of the starting state.
+            mu_.Await(absl::Condition(this, &ReadDirectoryChangesWin32::IsNotStarting));
+            if (state_ == State::kRunning) {
+                return true;
+            }
         }
 
-        state_ = State::kStarting;
-        DCHECK(!watcher_thread_.joinable()) << "A watcher thread is active.";
-        watcher_thread_ = std::thread([this] { WatchForChanges(); });
-
-        // Wait for the thread to move out of the starting state.
-        mu_.Await(absl::Condition(this, &ReadDirectoryChangesWin32::IsNotStarting));
-        return state_ == State::kRunning;
+        Stop();
+        return false;
     }
 
     void Stop() override {
@@ -81,9 +89,13 @@ class ReadDirectoryChangesWin32 : public FileSystemWatcher {
         {
             const absl::MutexLock lock(&mu_);
             if (state_ == State::kIdle) {
+                DCHECK(!watcher_thread_.joinable());
                 return;
             }
-            DCHECK(state_ == State::kRunning) << "Stop() called while not running.";
+            if (state_ == State::kStopping) {
+                mu_.Await(absl::Condition(this, &ReadDirectoryChangesWin32::IsIdle));
+                return;
+            }
 
             state_ = State::kStopping;
             if (dir_handle_) {
@@ -96,15 +108,25 @@ class ReadDirectoryChangesWin32 : public FileSystemWatcher {
             thread_to_join.join();
         }
 
-        // After the thread has joined, we are guaranteed that the state is back to idle and
-        // resources are cleaned up.
+        {
+            const absl::MutexLock lock(&mu_);
+            dir_handle_.reset();
+            state_ = State::kIdle;
+        }
     }
 
   private:
-    bool IsNotStarting() ABSL_EXCLUSIVE_LOCKS_REQUIRED(mu_) { return state_ != State::kStarting; }
+    bool IsNotStarting() const ABSL_EXCLUSIVE_LOCKS_REQUIRED(mu_) {
+        return state_ != State::kStarting || worker_done_;
+    }
+
+    bool IsIdle() const ABSL_EXCLUSIVE_LOCKS_REQUIRED(mu_) { return state_ == State::kIdle; }
 
     void WatchForChanges() {
-        absl::Cleanup cleanup = [&] { Finish(); };
+        absl::Cleanup mark_worker_done = [this] {
+            const absl::MutexLock lock(&mu_);
+            worker_done_ = true;
+        };
         // Use A variant with UTF-8 path.
         ScopedFileHandle dir_handle(CreateFileA(
                 path_.string().c_str(), FILE_LIST_DIRECTORY,
@@ -121,6 +143,9 @@ class ReadDirectoryChangesWin32 : public FileSystemWatcher {
 
         {
             const absl::MutexLock lock(&mu_);
+            if (state_ == State::kStopping) {
+                return;
+            }
             dir_handle_ = std::move(dir_handle);
             state_ = State::kRunning;
         }
@@ -128,8 +153,22 @@ class ReadDirectoryChangesWin32 : public FileSystemWatcher {
         BYTE buffer[4096];
         OVERLAPPED overlapped = {0};
         overlapped.hEvent = raw_overlap_event;
+        bool io_pending = false;
+        absl::Cleanup drain_pending_io = [&] {
+            if (io_pending) {
+                CancelIo(raw_dir_handle);
+                DWORD ignored = 0;
+                GetOverlappedResult(raw_dir_handle, &overlapped, &ignored, TRUE);
+            }
+        };
 
         while (true) {
+            {
+                const absl::MutexLock lock(&mu_);
+                if (state_ != State::kRunning) {
+                    return;
+                }
+            }
             ResetEvent(raw_overlap_event);
 
             // Note: There is NO ReadDirectoryChangesA API. We must use ReadDirectoryChangesW.
@@ -144,6 +183,7 @@ class ReadDirectoryChangesWin32 : public FileSystemWatcher {
                     break;
                 }
             }
+            io_pending = true;
 
             {
                 const absl::MutexLock lock(&mu_);
@@ -165,8 +205,9 @@ class ReadDirectoryChangesWin32 : public FileSystemWatcher {
             }
 
             DWORD bytes_returned = 0;
-            if (GetOverlappedResult(raw_dir_handle, &overlapped, &bytes_returned, FALSE) &&
-                bytes_returned > 0) {
+            BOOL result = GetOverlappedResult(raw_dir_handle, &overlapped, &bytes_returned, FALSE);
+            io_pending = false;
+            if (result && bytes_returned > 0) {
                 ProcessBuffer(buffer, bytes_returned);
             }
         }
@@ -179,7 +220,7 @@ class ReadDirectoryChangesWin32 : public FileSystemWatcher {
                     reinterpret_cast<FILE_NOTIFY_INFORMATION*>(buffer + offset);
 
             // FILE_NOTIFY_INFORMATION always uses WCHAR for FileName.
-            const Path changed =
+            const std::filesystem::path changed =
                     path_ / Win32UnicodeString::convertToUtf8(
                                     info->FileName, info->FileNameLength / sizeof(wchar_t));
 
@@ -211,21 +252,16 @@ class ReadDirectoryChangesWin32 : public FileSystemWatcher {
         }
     }
 
-    inline void Finish() {
-        const absl::MutexLock lock(&mu_);
-        dir_handle_.reset();
-        state_ = State::kIdle;
-    }
-
-    const Path path_;
+    const std::filesystem::path path_;
     absl::Mutex mu_;
     State state_ ABSL_GUARDED_BY(mu_) = State::kIdle;
+    bool worker_done_ ABSL_GUARDED_BY(mu_) = false;
     ScopedFileHandle dir_handle_ ABSL_GUARDED_BY(mu_);
     std::thread watcher_thread_ ABSL_GUARDED_BY(mu_);
 };
 
 std::unique_ptr<FileSystemWatcher> FileSystemWatcher::GetFileSystemWatcher(
-        const Path& path, const FileSystemWatcherCallback& on_change_callback) {
+        const std::filesystem::path& path, const FileSystemWatcherCallback& on_change_callback) {
     if (!base::file::is_dir(path)) {
         return nullptr;
     }

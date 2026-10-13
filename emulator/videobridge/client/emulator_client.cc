@@ -19,6 +19,8 @@
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 
+#include "android/emulation/control/absl_status_translate.h"
+
 namespace goldfish::videobridge {
 
 EmulatorClient::EmulatorClient(std::string discovery_file)
@@ -29,17 +31,18 @@ EmulatorClient::~EmulatorClient() {
 }
 
 absl::Status EmulatorClient::Connect(absl::Duration timeout) {
-    auto client_or = discovery_file_.empty()
-                             ? EmulatorGrpcClientBuilder().ForDiscoveredEmulator({}).BuildBlocking()
-                             : EmulatorGrpcClientBuilder()
-                                       .WithDiscoveryFile(discovery_file_)
-                                       .BuildBlocking();
+    auto built_client =
+            discovery_file_.empty()
+                    ? EmulatorGrpcClientBuilder().ForDiscoveredEmulator({}).BuildBlocking()
+                    : EmulatorGrpcClientBuilder()
+                              .WithDiscoveryFile(discovery_file_)
+                              .BuildBlocking();
 
-    if (!client_or.ok()) {
-        LOG(ERROR) << "Failed to build EmulatorGrpcClient: " << client_or.status();
-        return client_or.status();
+    if (!built_client.ok()) {
+        LOG(ERROR) << "Failed to build EmulatorGrpcClient: " << built_client.status();
+        return built_client.status();
     }
-    auto client = std::move(*client_or);
+    auto client = std::move(*built_client);
 
     absl::Status status = client->Connect(timeout);
     if (!status.ok()) {
@@ -47,19 +50,35 @@ absl::Status EmulatorClient::Connect(absl::Duration timeout) {
         return status;
     }
 
-    auto stub_or = client->Stub<EmulatorController>();
-    if (!stub_or.ok()) {
-        LOG(ERROR) << "Failed to create EmulatorController stub: " << stub_or.status();
-        return stub_or.status();
+    auto controller_stub = client->Stub<EmulatorController>();
+    if (!controller_stub.ok()) {
+        LOG(ERROR) << "Failed to create EmulatorController stub: " << controller_stub.status();
+        return controller_stub.status();
+    }
+
+    auto input_stub = client->Stub<V2InputService>();
+    if (!input_stub.ok()) {
+        LOG(ERROR) << "Failed to create V2 InputService stub: " << input_stub.status();
+        return input_stub.status();
+    }
+
+    auto sensors_stub = client->Stub<V2SensorsService>();
+    if (!sensors_stub.ok()) {
+        LOG(ERROR) << "Failed to create V2 SensorsService stub: " << sensors_stub.status();
+        return sensors_stub.status();
     }
 
     grpc_client_ = std::move(client);
-    stub_ = std::move(*stub_or);
+    stub_ = std::move(*controller_stub);
+    v2_input_stub_ = std::move(*input_stub);
+    v2_sensors_stub_ = std::move(*sensors_stub);
     LOG(INFO) << "Connected to emulator gRPC server at " << TargetAddress();
     return absl::OkStatus();
 }
 
 void EmulatorClient::Disconnect() {
+    v2_sensors_stub_ = nullptr;
+    v2_input_stub_ = nullptr;
     stub_ = nullptr;
     grpc_client_ = nullptr;
 }
@@ -101,6 +120,26 @@ std::unique_ptr<::grpc::ClientWriterInterface<InputEvent>> EmulatorClient::Strea
         return nullptr;
     }
     return stub_->streamInputEvent(context, response);
+}
+
+std::unique_ptr<::grpc::ClientWriterInterface<V2InputEvent>> EmulatorClient::StreamV2InputEvents(
+        ::grpc::ClientContext* context, V2StreamInputEventsResponse* response) {
+    if (!IsConnected() || !v2_input_stub_) {
+        LOG(ERROR) << "EmulatorClient is not connected for v2 input events.";
+        return nullptr;
+    }
+    return v2_input_stub_->StreamInputEvents(context, response);
+}
+
+absl::Status EmulatorClient::UpdateV2SensorsState(const V2SensorsUpdateRequest& request) {
+    if (!IsConnected() || !v2_sensors_stub_) {
+        return absl::FailedPreconditionError("EmulatorClient is not connected for v2 sensors.");
+    }
+    ::grpc::ClientContext context;
+    ::android::emulation::v2::SensorsState response;
+    const ::grpc::Status status =
+            v2_sensors_stub_->UpdateSensorsState(&context, request, &response);
+    return ::android::emulation::control::GrpcStatusToAbslStatus(status);
 }
 
 }  // namespace goldfish::videobridge

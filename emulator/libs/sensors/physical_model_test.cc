@@ -710,4 +710,38 @@ TEST_F(PhysicalModelTest, SnapshotSaveLoad) {
     EXPECT_VEC3_NEAR(expected_gyro, loaded_model->GetGyroscope(&measurement_id), 1e-5f);
 }
 
+TEST_F(PhysicalModelTest, IsSensorOverriddenAndClearOverridesPreservesSmoothTransition) {
+    model->SetCurrentTime(0L);
+    EXPECT_FALSE(model->IsSensorOverridden(AndroidSensor::ACCELERATION));
+    EXPECT_FALSE(model->IsSensorOverridden(AndroidSensor::MAX_SENSORS));
+
+    // Start an in-flight smooth rotation towards 90 degrees around Z.
+    model->SetTargetRotation(vec3(0.0F, 0.0F, 90.0F), PhysicalInterpolation::kSmooth);
+    model->SetCurrentTime(SecondsToNs(kMinStateChangeTimeSeconds / 2.0F));
+
+    size_t mid_id = 0;
+    model->GetAccelerometer(&mid_id);
+
+    // Override accelerometer mid-transition.
+    model->OverrideAccelerometer(vec3(0.0F, 0.0F, 0.0F));
+    EXPECT_TRUE(model->IsSensorOverridden(AndroidSensor::ACCELERATION));
+    size_t override_id = 0;
+    EXPECT_VEC3_NEAR((vec3{0.0F, 0.0F, 0.0F}), model->GetAccelerometer(&override_id), 1e-5F);
+    EXPECT_GT(override_id, mid_id);
+
+    // Clear overrides without touching target rotation.
+    model->ClearOverrides();
+    EXPECT_FALSE(model->IsSensorOverridden(AndroidSensor::ACCELERATION));
+    size_t cleared_id = 0;
+    model->GetAccelerometer(&cleared_id);
+    EXPECT_GT(cleared_id, override_id);
+    EXPECT_VEC3_NEAR((vec3{0.0F, 0.0F, 90.0F}),
+                     model->GetParameterRotation(ParameterValueType::kTarget), 0.01F);
+
+    // Advance time past the end of the smooth transition and verify it still reaches 90 degrees.
+    model->SetCurrentTime(SecondsToNs(2.0F));
+    const vec3 final_rotation = model->GetParameterRotation(ParameterValueType::kCurrent);
+    EXPECT_VEC3_NEAR((vec3{0.0F, 0.0F, 90.0F}), final_rotation, 0.01F);
+}
+
 }  // namespace goldfish::sensors

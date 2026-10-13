@@ -15,6 +15,13 @@
 
 #pragma once
 
+#include <cstdint>
+#include <optional>
+#include <string>
+#include <vector>
+
+#include "absl/time/time.h"
+
 #include "goldfish/file/file.h"
 
 namespace goldfish::metrics::studio {
@@ -36,5 +43,13 @@ enum class OptInState {
 OptInState GetUserMetricsOptIn(const fs::path& user_directory);
 
 std::string GetMetricsUserId(const fs::path& user_directory);
+
+void EnsureAnalyticsSettings(const fs::path& user_directory,
+                             std::optional<absl::Time> now = std::nullopt);
+std::string GetAnonymizationSalt(const fs::path& user_directory);
+
+namespace testing {
+std::string GenerateRandomSalt(const std::vector<uint8_t>& customBytes = {});
+}  // namespace testing
 
 }  // namespace goldfish::metrics::studio

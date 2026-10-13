@@ -14,6 +14,7 @@
 
 #pragma once
 
+#include <cstdint>
 #include <map>
 #include <memory>
 #include <string>
@@ -65,6 +66,10 @@ class ScreenRecordingServiceImpl final : public ScreenRecording::Service {
     Status ReceiveRecordingEvents(ServerContext* context, const google::protobuf::Empty* request,
                                   ServerWriter<RecordingInfo>* writer) override;
 
+    // Returns the number of frames the active recording has encoded, or 0 if
+    // nothing is recording.
+    uint64_t FramesEncodedForTesting() ABSL_LOCKS_EXCLUDED(mu_);
+
   private:
     // Helper to validate request parameters
     bool ValidateRecordingParams(const RecordingInfo* info, std::string& error_msg);
@@ -81,6 +86,7 @@ class ScreenRecordingServiceImpl final : public ScreenRecording::Service {
 
     // Recorer: for now, there is only one active recorder
     std::unique_ptr<::goldfish::display::VideoRecorder> recorder_;
+    ::goldfish::display::IDisplay::ScopedFrameListener recording_listener_;
 };
 
 }  // namespace incubating

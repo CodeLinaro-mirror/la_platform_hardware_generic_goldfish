@@ -15,7 +15,7 @@
 
 ## Dependencies
 * **HAL Connector:** `//emulator/plugin/hal/connector:cable`, `//emulator/plugin/hal/connector:qemud`.
-* **AVD Info:** `//emulator/plugin/avd:info`, `//emulator/plugin/avd:gralloc_impl`.
+* **AVD:** `//emulator/plugin/avd:gralloc_impl`.
 * **Async & VM:** `//emulator/libs/async:async_api`, `//emulator/plugin/vminterface`.
 
 ## Threading Model

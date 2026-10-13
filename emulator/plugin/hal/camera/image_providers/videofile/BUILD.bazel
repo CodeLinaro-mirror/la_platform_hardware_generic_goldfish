@@ -19,6 +19,7 @@ cc_library(
 
 cc_test(
     name = "videofile_unittests",
+    size = "small",
     srcs = [
         "todo.cc",
     ],

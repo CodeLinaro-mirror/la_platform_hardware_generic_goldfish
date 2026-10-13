@@ -18,13 +18,14 @@
 #include <string>
 #include <vector>
 
+#include "absl/status/status.h"
+
 #include "android/goldfish/avd.h"
 
 namespace android::goldfish {
 
 bool ShouldTrampolineToQemu2(const absl::StatusOr<std::unique_ptr<android::goldfish::Avd>>& avd);
 
-[[noreturn]] void TrampolineToQemu2(const fs::path& launcher_directory,
-                                    std::vector<std::string> args);
+absl::Status TrampolineToQemu2(const fs::path& launcher_directory, std::vector<std::string> args);
 
 }  // namespace android::goldfish

@@ -54,6 +54,7 @@ cc_library(
 
 cc_test(
     name = "adb_device_test",
+    size = "small",
     srcs = ["adb_device_test.cc"],
     deps = [
         ":adb_device",
@@ -81,6 +82,7 @@ cc_library(
 
 cc_test(
     name = "avd_info_device_test",
+    size = "small",
     srcs = ["avd_info_device_test.cc"],
     deps = [
         ":avd_info_device",
@@ -108,6 +110,7 @@ cc_library(
 
 cc_test(
     name = "cpu_device_test",
+    size = "small",
     srcs = ["cpu_device_test.cc"],
     deps = [
         ":cpu_device",
@@ -134,6 +137,7 @@ cc_library(
 
 cc_test(
     name = "display_device_test",
+    size = "small",
     srcs = ["display_device_test.cc"],
     deps = [
         ":device",
@@ -153,6 +157,7 @@ cc_library(
     hdrs = ["gpu_device.h"],
     deps = [
         ":device",
+        ":snapshot_device",
         "//emulator/libs/parsing:resizable_display_config",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
@@ -172,6 +177,7 @@ cc_library(
 
 cc_test(
     name = "grpc_device_test",
+    size = "small",
     srcs = ["grpc_device_test.cc"],
     data = ["//emulator/launcher:unsecure-emulator-access"],
     deps = [
@@ -195,6 +201,7 @@ cc_library(
 
 cc_test(
     name = "bootconfig_test",
+    size = "small",
     srcs = ["bootconfig_test.cc"],
     deps = [
         ":bootconfig",
@@ -220,6 +227,7 @@ cc_library(
 
 cc_test(
     name = "initrd_device_test",
+    size = "small",
     srcs = ["initrd_device_test.cc"],
     deps = [
         ":device",
@@ -247,6 +255,7 @@ cc_library(
 
 cc_test(
     name = "kernel_device_test",
+    size = "small",
     srcs = ["kernel_device_test.cc"],
     deps = [
         ":device",
@@ -273,6 +282,7 @@ cc_library(
 
 cc_test(
     name = "machine_test",
+    size = "small",
     srcs = ["machine_test.cc"],
     deps = [
         ":device",
@@ -299,6 +309,7 @@ cc_library(
 
 cc_test(
     name = "memory_device_test",
+    size = "small",
     srcs = ["memory_device_test.cc"],
     deps = [
         ":device",
@@ -326,6 +337,7 @@ cc_library(
 
 cc_test(
     name = "network_device_test",
+    size = "small",
     srcs = ["network_device_test.cc"],
     deps = [
         ":device",
@@ -382,9 +394,23 @@ cc_library(
     hdrs = ["user_data_drive.h"],
     deps = [
         ":device",
-        "//emulator/libs/ext4",
+        "//emulator/libs/fsimage",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
+    ],
+)
+
+cc_test(
+    name = "user_data_drive_test",
+    size = "small",
+    srcs = ["user_data_drive_test.cc"],
+    deps = [
+        ":user_data_drive",
+        "//emulator/launcher:mock_avd",
+        "//emulator/libs/system:test-headers",
+        "//emulator/libs/test:googletest_main",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:status_matchers",
     ],
 )
 
@@ -395,7 +421,7 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":device",
-        "//emulator/libs/ext4",
+        "//emulator/libs/fsimage",
         "//emulator/libs/process",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
@@ -404,6 +430,7 @@ cc_library(
 
 cc_test(
     name = "disk_drive_test",
+    size = "small",
     srcs = ["disk_drive_test.cc"],
     deps = [
         ":disk_drive",
@@ -431,6 +458,7 @@ cc_library(
 
 cc_test(
     name = "configure_drives_test",
+    size = "small",
     srcs = ["configure_drives_test.cc"],
     deps = [
         ":configure_drives",
@@ -450,8 +478,26 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":device",
+        "//emulator/libs/file",
+        "//emulator/libs/metrics:snapshot_metrics",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/strings",
+    ],
+)
+
+cc_test(
+    name = "snapshot_device_test",
+    size = "small",
+    srcs = ["snapshot_device_test.cc"],
+    deps = [
+        ":device",
+        ":fake_emulator",
+        ":snapshot_device",
+        "//emulator/libs/file",
+        "//emulator/libs/status_macros:status_matcher_macros",
+        "//emulator/libs/system:test-headers",
+        "//emulator/libs/test:googletest_main",
+        "@abseil-cpp//absl/status:status_matchers",
     ],
 )
 

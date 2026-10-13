@@ -17,6 +17,7 @@
 #include <chrono>
 #include <thread>
 
+#include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
@@ -29,8 +30,8 @@
 #include "goldfish/archive/reader.h"
 #include "goldfish/archive/writer.h"
 #include "goldfish/async/qemu_event_loop.h"
-#include "goldfish/async/testing/global_event_loop.h"
-#include "goldfish/avd_info/gralloc_impl.h"
+#include "goldfish/avd/global_event_loop.h"
+#include "goldfish/avd/gralloc_impl.h"
 #include "goldfish/devices/vehicle/vehicle_device.h"
 #include "goldfish/display/abstract_multi_display.h"
 #include "goldfish/tools/aemu_version.h"
@@ -49,7 +50,7 @@ extern "C" {
 // IWYU pragma: end_keep
 // clang-format on
 
-namespace goldfish::avd_info {
+namespace goldfish::avd {
 
 using devices::boot::EventLoop;
 using namespace goldfish::archive;
@@ -60,7 +61,7 @@ void BqlSafeUnregisterEmulatorReset(QEMUResetHandler* func, void* opaque) {
     if (bql_locked()) {
         qemu_unregister_reset(func, opaque);
     } else {
-        LOG(FATAL) << "Attempted to call qemu_unregister_reset with BQL held.";
+        LOG(QFATAL) << "Attempted to call qemu_unregister_reset without BQL held.";
     }
 }
 
@@ -96,13 +97,24 @@ bool IsExcludedProp(std::string_view name) {
 
 }  // namespace
 
-AvdExtendedUniverse::AvdExtendedUniverse(std::unique_ptr<AvdProperties> props)
-        : AvdUniverse(std::move(props)) {
+absl::StatusOr<std::unique_ptr<AvdExtendedUniverse>> AvdExtendedUniverse::Create(
+        std::unique_ptr<AvdProperties> props) {
+    auto universe = std::make_unique<AvdExtendedUniverse>(Private(), std::move(props));
+    if (auto s = universe->Initialize(); !s.ok()) {
+        return s;
+    }
+    return universe;
+}
+
+AvdExtendedUniverse::AvdExtendedUniverse(Private, std::unique_ptr<AvdProperties> props)
+        : AvdUniverse(std::move(props)) {}
+
+absl::Status AvdExtendedUniverse::Initialize() {
     auto& avd_universe = *this;
     const AvdProperties& avd_props = avd_universe.Props();
 
     LOG(INFO) << "Loaded avd directory: " << avd_props.avd_content_path;
-    auto* client_loop = goldfish::async::globalEventLoop();
+    auto* client_loop = globalEventLoop();
 
     avd_universe.metrics_reporter =
             std::make_unique<::goldfish::metrics::MetricsReporter>(avd_props.metrics_session_id);
@@ -182,22 +194,22 @@ AvdExtendedUniverse::AvdExtendedUniverse(std::unique_ptr<AvdProperties> props)
                                                            client_loop, qemu_loop.get());
 
     std::string emulatedCameraProp;
-    DEVS::camera::RegisterDevice(registry, &emulatedCameraProp, avd_props.hw_config,
+    DEVS::camera::RegisterDevice(&avd_universe.GetSensorsPhysicalModel(), registry,
+                                 &emulatedCameraProp, avd_props.hw_config,
                                  []() { return GetGrallocImpl(); });
 
     using namespace std::string_literals;
-    if (auto props = devices::boot::IBootPropertiesDevice::MakeProperties({
-            {"qemu.sf.fake_camera"s, emulatedCameraProp},
-            {"qemu.sf.lcd_density"s, absl::StrCat(avd_props.hw_config.hw_lcd_density)},
-            // This is the same value that is passed to the virtio-wifi module.
-            {"net.wifi_mac_prefix"s, absl::StrCat(avd_props.serial_number)},
-        });
-        !props.ok()) {
-        LOG(FATAL) << "Failed to parse boot property strings: " << props.status();
-    } else {
-        DEVS::boot::IBootPropertiesDevice::RegisterDevice(registry, *std::move(props), client_loop,
-                                                          qemu_loop.get());
+    auto props = devices::boot::IBootPropertiesDevice::MakeProperties({
+        {"qemu.sf.fake_camera"s, emulatedCameraProp},
+        {"qemu.sf.lcd_density"s, absl::StrCat(avd_props.hw_config.hw_lcd_density)},
+        // This is the same value that is passed to the virtio-wifi module.
+        {"net.wifi_mac_prefix"s, absl::StrCat(avd_props.serial_number)},
+    });
+    if (!props.ok()) {
+        return props.status();
     }
+    DEVS::boot::IBootPropertiesDevice::RegisterDevice(registry, *std::move(props), client_loop,
+                                                      qemu_loop.get());
 
     DEVS::unix_pipe::IUnixPipe::RegisterDevice(&avd_universe.test_tools_connector_registry,
                                                client_loop, qemu_loop.get());
@@ -205,10 +217,14 @@ AvdExtendedUniverse::AvdExtendedUniverse(std::unique_ptr<AvdProperties> props)
     avd_universe.multi_display = display::IMultiDisplay::Create(
             client_loop, qemu_loop.get(),
             avd_universe.GetSensorsPhysicalModel().GetFoldableConfig());
+    avd_universe.display_rotation_subscription = avd_universe.multi_display->RegisterPhysicalModel(
+            avd_universe.GetSensorsPhysicalModel());
 
     // Initialize the battery to a default state and register it.
     avd_universe.battery_subscription = DEVS::battery::RegisterBattery(
             &avd_universe.GetBattery(), avd_props.hw_config.hw_battery, qemu_loop.get());
+
+    return absl::OkStatus();
 }
 
 AvdExtendedUniverse::~AvdExtendedUniverse() {
@@ -228,11 +244,15 @@ AvdExtendedUniverse::~AvdExtendedUniverse() {
             hd.RemoveWatchedLooper(loop);
         }
 
-        hd.RemoveWatchedLooper(*qemu_event_loop);
+        if (qemu_event_loop) {
+            hd.RemoveWatchedLooper(*qemu_event_loop);
+        }
     }
 
-    WaitUntilEventLoopsIdle();
-    ShutdownQemuLoop();
+    if (qemu_event_loop) {
+        WaitUntilEventLoopsIdle();
+        ShutdownQemuLoop();
+    }
 }
 
 void AvdExtendedUniverse::WaitUntilEventLoopsIdle() {
@@ -248,7 +268,7 @@ void AvdExtendedUniverse::WaitUntilEventLoopsIdle() {
         return updated;
     };
 
-    EventLoop* loops[] = {goldfish::async::globalEventLoop(), qemu_event_loop.get()};
+    EventLoop* loops[] = {globalEventLoop(), qemu_event_loop.get()};
     size_t counters[std::size(loops)];
     std::transform(std::begin(loops), std::end(loops), std::begin(counters), [](EventLoop* l) {
         l->ShutdownTimers();
@@ -264,10 +284,10 @@ void AvdExtendedUniverse::ShutdownQemuLoop() {
     // In the current Qemu implementation, we are already running on the Qemu main thread and so
     // shutdown will have run serially.
     if (f.wait_for(std::chrono::seconds(15)) != std::future_status::ready) {
-        LOG(FATAL) << "Qemu loop shutdown failed to complete within 15s";
+        LOG(QFATAL) << "Qemu loop shutdown failed to complete within 15s";
     }
     auto s = f.get();
-    LOG_IF(FATAL, !s.ok()) << "Qemu loop shutdown failed: " << s;
+    LOG_IF(QFATAL, !s.ok()) << "Qemu loop shutdown failed: " << s;
 }
 
 async::EventLoop& AvdExtendedUniverse::GetQemuEventLoop() {
@@ -282,16 +302,27 @@ display::IMultiDisplay& AvdExtendedUniverse::GetMultiDisplay() const {
     return *multi_display;
 }
 
+void AvdExtendedUniverse::OnPreSave() {
+    quickboot_metrics_.op_start_time = absl::Now();
+}
+
 absl::Status AvdExtendedUniverse::OnSave(archive::IWriter& writer) const {
-    OnSaveProps(writer);
-    OnSavePhysicalState(writer);
+    auto do_save = [&]() -> absl::Status {
+        OnSaveProps(writer);
+        OnSavePhysicalState(writer);
 
-    if (auto s = GetMultiDisplay().Save(writer); !s.ok()) {
-        LOG(WARNING) << "Failed to save multidisplay state: " << s;
-        return absl::UnknownError("-1");
+        if (auto s = GetMultiDisplay().Save(writer); !s.ok()) {
+            LOG(WARNING) << "Failed to save multidisplay state: " << s;
+            return absl::UnknownError("-1");
+        }
+        return absl::OkStatus();
+    };
+    absl::Status s = do_save();
+    if (!IsGenericSnapshotInProgress()) {
+        metrics::ReportQuickbootSave(*metrics_reporter, props_->snapshot_name,
+                                     /*success=*/s.ok(), quickboot_metrics_);
     }
-
-    return absl::OkStatus();
+    return s;
 }
 
 void AvdExtendedUniverse::OnSaveProps(archive::IWriter& writer) const {
@@ -381,15 +412,44 @@ void AvdExtendedUniverse::OnSavePhysicalState(archive::IWriter& writer) const {
     writer << battery_ << guest_status_ << location_ << sensors_physical_model_;
 }
 
-absl::Status AvdExtendedUniverse::OnLoad(archive::IReader& reader) {
-    RETURN_IF_ERROR(OnLoadProps(reader));
-    RETURN_IF_ERROR(OnLoadPhysicalState(reader));
+void AvdExtendedUniverse::OnPreLoad() {
+    quickboot_metrics_.op_start_time = absl::Now();
+}
 
-    if (absl::Status s = GetMultiDisplay().Load(reader); !s.ok()) {
-        LOG(WARNING) << "Failed to load multidisplay state: " << s;
-        return s;
+absl::Status AvdExtendedUniverse::OnLoad(archive::IReader& reader) {
+    // Note: Hooking into AvdExtendedUniverse's VMState callbacks only measures the duration of the
+    // avd_info device's VMState section rather than the full snapshot load/save duration (RAM,
+    // block devices, and all QEMU devices), and does not observe failures that occur before QEMU
+    // reaches the avd_info section.
+    // TODO: Move to a more comprehensive solution that orchestrates or hooks full quickboot
+    // snapshot load/save operations.
+    bool config_mismatch = false;
+    auto do_load = [&]() -> absl::Status {
+        if (absl::Status s = OnLoadProps(reader); !s.ok()) {
+            config_mismatch = true;
+            return s;
+        }
+        if (absl::Status s = OnLoadPhysicalState(reader); !s.ok()) {
+            return s;
+        }
+        if (absl::Status s = GetMultiDisplay().Load(reader); !s.ok()) {
+            LOG(WARNING) << "Failed to load multidisplay state: " << s;
+            return s;
+        }
+        return absl::OkStatus();
+    };
+    absl::Status s = do_load();
+    if (!s.ok() && !IsGenericSnapshotInProgress()) {
+        if (config_mismatch) {
+            metrics::ReportQuickbootLoad(
+                    *metrics_reporter, props_->snapshot_name, /*success=*/false, quickboot_metrics_,
+                    android_studio::EMULATOR_SNAPSHOT_FAILURE_REASON_CONFIG_MISMATCH_AVD);
+        } else {
+            metrics::ReportQuickbootLoad(*metrics_reporter, props_->snapshot_name,
+                                         /*success=*/false, quickboot_metrics_);
+        }
     }
-    return absl::OkStatus();
+    return s;
 }
 
 absl::Status AvdExtendedUniverse::OnLoadProps(archive::IReader& reader) {
@@ -543,7 +603,7 @@ absl::Status AvdExtendedUniverse::OnLoadPhysicalState(archive::IReader& reader) 
 void AvdExtendedUniverse::SyncGuestTimeToHost() {
     std::thread([serialNumber = props_->serial_number]() {
         int clientPort = goldfish::adb::AdbHostServer::getClientPort();
-        bool success = false;
+        auto last_status = absl::OkStatus();
         for (int retry = 0; retry < 20; ++retry) {
             // We use 'cmd alarm set-time <epoch_ms>' because:
             // 1. Android's shell user (UID 2000) holds android.permission.SET_TIME,
@@ -565,18 +625,22 @@ void AvdExtendedUniverse::SyncGuestTimeToHost() {
             //   than network/telephony or disabled by default in device configuration.
             int64_t now_ms = absl::ToUnixMillis(absl::Now());
             std::string cmd = absl::StrCat("cmd alarm set-time ", now_ms);
-            if (goldfish::adb::AdbHostServer::runShellCommand(cmd, serialNumber, clientPort)) {
+            auto s = goldfish::adb::AdbHostServer::runShellCommand(cmd, serialNumber, clientPort);
+            if (s.ok()) {
                 LOG(INFO) << "Updated guest system time to " << now_ms
                           << " via ADB after snapshot restore.";
-                success = true;
-                break;
+                return;
             }
+            if (absl::IsUnauthenticated(s)) {
+                LOG(WARNING) << "Aborting guest time sync for emulator-" << serialNumber
+                             << ": ADB authentication mismatch (device is unauthorized).";
+                return;
+            }
+            last_status = s;
             std::this_thread::sleep_for(std::chrono::milliseconds(500));
         }
-        if (!success) {
-            LOG(WARNING) << "Failed to update guest system time via ADB after snapshot restore "
-                            "(timed out waiting for ADB).";
-        }
+        LOG(WARNING) << "Failed to update guest system time via ADB after snapshot restore: "
+                     << last_status;
     }).detach();
 }
 
@@ -587,6 +651,11 @@ absl::Status AvdExtendedUniverse::OnPostLoad() {
         SyncGuestTimeToHost();
     }
 
+    if (!IsGenericSnapshotInProgress()) {
+        metrics::ReportQuickbootLoad(*metrics_reporter, props_->snapshot_name, /*success=*/true,
+                                     quickboot_metrics_);
+    }
+
     return absl::OkStatus();
 }
 
@@ -594,4 +663,4 @@ void AvdExtendedUniverse::Reset() {
     GetMultiDisplay().Reset();
 }
 
-}  // namespace goldfish::avd_info
+}  // namespace goldfish::avd

@@ -13,8 +13,10 @@
 // limitations under the License.
 #include "goldfish/grpcweb/grpc_web_protocol.h"
 
+#include <algorithm>
 #include <charconv>
 #include <cstring>
+#include <limits>
 #include <vector>
 
 #include "absl/log/log.h"
@@ -57,20 +59,37 @@ inline bool IsReservedTrailerHeader(std::string_view key) {
            absl::EqualsIgnoreCase(key, http::headers::kGrpcStatusDetailsBin);
 }
 
+inline std::string StripCrlf(std::string_view input) {
+    std::string out;
+    out.reserve(input.size());
+    for (char c : input) {
+        if (c != '\r' && c != '\n') {
+            out.push_back(c);
+        }
+    }
+    return out;
+}
+
+// Maximum timeout clamped to 100 years to prevent int64_t nanosecond overflow
+// when converting to std::chrono::system_clock::time_point.
+inline constexpr absl::Duration kMaxGrpcTimeout = absl::Hours(24 * 365 * 100);
+
 std::optional<absl::Duration> ParseTimeoutUnit(char unit, uint64_t val) {
+    constexpr uint64_t kMaxSafeVal = static_cast<uint64_t>(std::numeric_limits<int64_t>::max());
+    int64_t safe_val = static_cast<int64_t>(std::min(val, kMaxSafeVal));
     switch (unit) {
     case 'H':
-        return absl::Hours(val);
+        return std::min(absl::Hours(safe_val), kMaxGrpcTimeout);
     case 'M':
-        return absl::Minutes(val);
+        return std::min(absl::Minutes(safe_val), kMaxGrpcTimeout);
     case 'S':
-        return absl::Seconds(val);
+        return std::min(absl::Seconds(safe_val), kMaxGrpcTimeout);
     case 'm':
-        return absl::Milliseconds(val);
+        return std::min(absl::Milliseconds(safe_val), kMaxGrpcTimeout);
     case 'u':
-        return absl::Microseconds(val);
+        return std::min(absl::Microseconds(safe_val), kMaxGrpcTimeout);
     case 'n':
-        return absl::Nanoseconds(val);
+        return std::min(absl::Nanoseconds(safe_val), kMaxGrpcTimeout);
     default:
         return std::nullopt;
     }
@@ -136,11 +155,13 @@ std::string Protocol::FormatTrailers(
     }
 
     for (const auto& [key_ref, val_ref] : trailing_metadata) {
-        std::string_view key(key_ref.data(), key_ref.size());
-        if (!IsReservedTrailerHeader(key)) {
-            absl::StrAppend(&out, absl::AsciiStrToLower(key), http::protocol::kColon,
-                            std::string_view(val_ref.data(), val_ref.size()),
-                            http::protocol::kCrlf);
+        std::string_view raw_key(key_ref.data(), key_ref.size());
+        if (!IsReservedTrailerHeader(raw_key)) {
+            std::string key = absl::AsciiStrToLower(StripCrlf(raw_key));
+            std::string_view raw_val(val_ref.data(), val_ref.size());
+            std::string val =
+                    absl::EndsWith(key, "-bin") ? absl::Base64Escape(raw_val) : StripCrlf(raw_val);
+            absl::StrAppend(&out, key, http::protocol::kColon, val, http::protocol::kCrlf);
         }
     }
 

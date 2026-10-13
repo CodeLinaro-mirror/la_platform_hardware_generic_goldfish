@@ -286,5 +286,57 @@ TEST(ScreenRecordCommandsTest, ParseStartCommandExceedsTimeLimitFails) {
     EXPECT_EQ(result.status().message(), "Time limit 14401s outside acceptable range [1,14400]");
 }
 
+TEST(ScreenRecordCommandsTest, ParseStartCommandPreservesWindowsPaths) {
+    CommandRegistryBuilder builder("/dummy/token");
+    auto screenrecord = builder.Command("screenrecord", "desc");
+    RegisterScreenRecordCommands(screenrecord);
+    auto registry = builder.Build();
+
+    MockConsoleContext ctx(5554);
+    ctx.authenticated = true;
+    auto mock_stub = std::make_unique<MockScreenRecordingStub>();
+
+    const std::string windows_path = R"(C:\Users\user\.android\avd\Medium_Phone.avd\tmp.webm)";
+
+    EXPECT_CALL(*mock_stub, StartRecording(_, _, _))
+            .WillOnce([&windows_path](grpc::ClientContext*, const RecordingInfo& request,
+                                      RecordingInfo*) {
+                EXPECT_EQ(request.file_name(), windows_path);
+                return grpc::Status::OK;
+            });
+
+    ctx.mock_stub = std::move(mock_stub);
+
+    auto result = (*registry)("screenrecord start " + windows_path, ctx);
+    ASSERT_TRUE(result.ok()) << result.status().message();
+    EXPECT_EQ(*result, "");
+}
+
+TEST(ScreenRecordCommandsTest, ParseStartCommandPreservesPathsWithSpaces) {
+    CommandRegistryBuilder builder("/dummy/token");
+    auto screenrecord = builder.Command("screenrecord", "desc");
+    RegisterScreenRecordCommands(screenrecord);
+    auto registry = builder.Build();
+
+    MockConsoleContext ctx(5554);
+    ctx.authenticated = true;
+    auto mock_stub = std::make_unique<MockScreenRecordingStub>();
+
+    const std::string path_with_spaces = R"(C:\Users\user name\Android Studio Projects\tmp.webm)";
+
+    EXPECT_CALL(*mock_stub, StartRecording(_, _, _))
+            .WillOnce([&path_with_spaces](grpc::ClientContext*, const RecordingInfo& request,
+                                          RecordingInfo*) {
+                EXPECT_EQ(request.file_name(), path_with_spaces);
+                return grpc::Status::OK;
+            });
+
+    ctx.mock_stub = std::move(mock_stub);
+
+    auto result = (*registry)("screenrecord start --time-limit 60 " + path_with_spaces, ctx);
+    ASSERT_TRUE(result.ok()) << result.status().message();
+    EXPECT_EQ(*result, "");
+}
+
 }  // namespace
 }  // namespace goldfish::telnet

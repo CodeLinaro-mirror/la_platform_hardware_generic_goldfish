@@ -26,14 +26,16 @@ cc_library(
         "//conditions:default": [],
     }),
     deps = [
-        "//emulator/plugin/avd:info",
-        "@aemu//protos/services_v2/discovery:capabilities_service_cc_grpc",
+        "//emulator/plugin/avd:avd_properties",
+        "//emulator/plugin/avd:avd_universe",
+        "@aemu//protos/services_v2:capabilities_service_cc_grpc",
         "@grpc//:grpc++",
     ],
 )
 
 cc_test(
     name = "capabilities_service_test",
+    size = "small",
     srcs = [
         "discovery/capabilities_service_impl_test.cc",
     ],
@@ -45,7 +47,8 @@ cc_test(
         ":capabilities_service",
         "//emulator/libs/hardware_config:fake_hardware_config",
         "//emulator/libs/test:googletest_main",
-        "//emulator/plugin/avd:info-fake",
+        "//emulator/plugin/avd:avd_properties",
+        "//emulator/plugin/avd:avd_universe",
         "//emulator/plugin/display:test-display",
         "@googletest//:gtest",
         "@grpc//:grpc++",
@@ -75,13 +78,14 @@ cc_library(
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/synchronization",
         "@abseil-cpp//absl/time",
-        "@aemu//protos/services_v2/webrtc:rtc_service_cc_grpc",
+        "@aemu//protos/services_v2:webrtc_service_cc_grpc",
         "@grpc//:grpc++",
     ],
 )
 
 cc_test(
     name = "rtc_service_test",
+    size = "small",
     srcs = ["webrtc/rtc_service_impl_test.cc"],
     copts = select({
         "@platforms//os:windows": ["/GR-"],
@@ -111,10 +115,52 @@ cc_test(
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/synchronization",
         "@abseil-cpp//absl/time",
-        "@aemu//protos/services_v2/webrtc:rtc_service_cc_grpc",
+        "@aemu//protos/services_v2:webrtc_service_cc_grpc",
         "@googletest//:gtest",
         "@grpc//:grpc++",
         "@nlohmann_json//:singleheader-json",
+    ],
+)
+
+cc_library(
+    name = "sensors_service",
+    srcs = ["environment/sensors_service_impl.cc"],
+    hdrs = ["environment/sensors_service_impl.h"],
+    includes = ["."],
+    local_defines = select({
+        "@platforms//os:windows": ["NOGDI"],
+        "//conditions:default": [],
+    }),
+    deps = [
+        "//emulator/libs/grpc_utils:absl_translate",
+        "//emulator/libs/grpc_utils:event-stream",
+        "//emulator/libs/sensors:physical_model",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/time",
+        "@aemu//protos/services_v2:sensors_service_cc_grpc",
+        "@gfxstream//third_party/glm",
+        "@grpc//:grpc++",
+    ],
+)
+
+cc_test(
+    name = "sensors_service_test",
+    size = "small",
+    srcs = ["environment/sensors_service_impl_test.cc"],
+    local_defines = select({
+        "@platforms//os:windows": ["NOGDI"],
+        "//conditions:default": [],
+    }),
+    deps = [
+        ":sensors_service",
+        "//emulator/libs/hardware_config",
+        "//emulator/libs/sensors:physical_model",
+        "//emulator/libs/test:googletest_main",
+        "@abseil-cpp//absl/time",
+        "@aemu//protos/services_v2:sensors_service_cc_grpc",
+        "@googletest//:gtest",
+        "@grpc//:grpc++",
     ],
 )
 
@@ -125,8 +171,9 @@ cc_library(
     includes = ["include"],
     deps = [
         ":capabilities_service",
+        ":sensors_service",
         "//emulator/libs/async:async_api",
-        "//emulator/plugin/avd:info",
+        "//emulator/plugin/avd:avd_universe",
         "//emulator/plugin/vminterface",
         "@grpc//:grpc++",
     ],

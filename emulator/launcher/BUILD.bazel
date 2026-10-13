@@ -25,6 +25,22 @@ subpath_link(
     subpath_is_dir = True,
 )
 
+unzip(
+    name = "android-device-hub",
+    target_compatible_with = select({
+        "@platforms//os:linux": [],
+        "@platforms//os:macos": [],
+        "@platforms//os:windows": [],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
+    visibility = ["//visibility:public"],
+    zipfile = select({
+        "@platforms//os:linux": "@goldfish_prebuilts_common//android-device-hub:android_device_hub_linux_x86_64",
+        "@platforms//os:macos": "@goldfish_prebuilts_common//android-device-hub:android_device_hub_darwin_aarch64",
+        "@platforms//os:windows": "@goldfish_prebuilts_common//android-device-hub:android_device_hub_windows_x86_64",
+    }),
+)
+
 cc_library(
     name = "config_dirs",
     srcs = ["config_dirs.cc"],
@@ -104,6 +120,7 @@ cc_library(
 
 cc_test(
     name = "input_paths_test",
+    size = "small",
     srcs = ["input_paths_test.cc"],
     deps = [
         ":input_paths",
@@ -142,6 +159,7 @@ cc_library(
 
 cc_test(
     name = "avd_test",
+    size = "small",
     srcs = ["avd_test.cc"],
     deps = [
         ":avd",
@@ -221,6 +239,7 @@ cc_library(
 
 cc_test(
     name = "host_info_test",
+    size = "small",
     srcs = ["host_info_test.cc"],
     deps = [
         ":host_info",
@@ -238,6 +257,7 @@ cc_library(
     deps = [
         "//emulator/launcher/cmdline",
         "//emulator/libs/logging:color_log_sink",
+        "//emulator/libs/metrics:metrics_reporter",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:initialize",
         "@abseil-cpp//absl/strings",
@@ -246,11 +266,13 @@ cc_library(
 
 cc_test(
     name = "logging_test",
+    size = "small",
     srcs = ["logging_test.cc"],
     deps = [
         ":logging",
         "//emulator/libs/system:test-headers",
         "//emulator/libs/test:googletest_main",
+        "@abseil-cpp//absl/log:vlog_is_on",
         "@abseil-cpp//absl/strings",
     ],
 )
@@ -333,16 +355,23 @@ collect_plugins(
         "darwin_aarch64": [
             "@goldfish_prebuilts_common//vulkan:icds_darwin_aarch64",
             "@goldfish_prebuilts_common//vulkan:lib_darwin_aarch64",
+            "@mesa3d//:generate_kosmickrisp_icd",
+            "@mesa3d//:generate_lvp_icd",
+            "@mesa3d//:vulkan_kosmickrisp",
+            "@mesa3d//:vulkan_lvp",
         ],
         "@platforms//os:linux": [
             "@goldfish_prebuilts_common//vulkan:icds_linux_x86_64",
             "@goldfish_prebuilts_common//vulkan:lib_linux_x86_64",
+            "@llvm-project//llvm:libLLVM.so",
             "@mesa3d//:vulkan_lvp",
             "@mesa3d//:generate_lvp_icd",
         ],
         "@platforms//os:windows": [
             "@goldfish_prebuilts_common//vulkan:icds_windows_x86_64",
             "@goldfish_prebuilts_common//vulkan:lib_windows_x86_64",
+            "@mesa3d//:generate_lvp_icd",
+            "@mesa3d//:vulkan_lvp",
         ],
         "//conditions:default": [],
     }),
@@ -376,6 +405,10 @@ collect_plugins(
             "@goldfish_prebuilts_common//ANGLE:lib_darwin_aarch64",
             "@goldfish_prebuilts_common//vulkan:lib_darwin_aarch64",
             "@goldfish_prebuilts_common//vulkan:icds_darwin_aarch64",
+            "@mesa3d//:generate_kosmickrisp_icd",
+            "@mesa3d//:generate_lvp_icd",
+            "@mesa3d//:vulkan_kosmickrisp",
+            "@mesa3d//:vulkan_lvp",
         ],
         "@platforms//os:linux": [
             "@goldfish_prebuilts_common//swiftshader:lib_linux_x86_64",
@@ -384,6 +417,8 @@ collect_plugins(
             "@goldfish_prebuilts_common//ANGLE:lib_windows_x86_64",
             "@goldfish_prebuilts_common//vulkan:lib_windows_x86_64",
             "@goldfish_prebuilts_common//vulkan:icds_windows_x86_64",
+            "@mesa3d//:generate_lvp_icd",
+            "@mesa3d//:vulkan_lvp",
         ],
         "//conditions:default": [],
     }),
@@ -471,6 +506,12 @@ collect_plugins(
     plugins = [":advanced_features_ini"],
 )
 
+collect_plugins(
+    name = "virtualscene_data",
+    output_dir = "data/virtualscene/Toren1BD",
+    plugins = ["@goldfish_prebuilts_common//virtualscene/Toren1BD"],
+)
+
 cc_library(
     name = "launcher_lib",
     srcs = ["launcher.cc"],
@@ -490,6 +531,7 @@ cc_library(
         "//emulator/libs/file",
         "//emulator/libs/metrics",
         "//emulator/libs/metrics:configure_metrics_writer",
+        "//emulator/libs/metrics:snapshot_metrics",
         "//emulator/libs/system",
         "//emulator/modem_simulator",
         "//emulator/telnet:legacy_console_controller",
@@ -498,6 +540,7 @@ cc_library(
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",
+        "@abseil-cpp//absl/time",
     ],
 )
 
@@ -509,9 +552,11 @@ cc_test(
         ":launcher_lib",
         ":mock_avd",
         "//emulator/libs/async:async_testing",
+        "//emulator/libs/cpu",
         "//emulator/libs/test:googletest_main",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/time",
     ],
 )
 
@@ -534,6 +579,7 @@ cc_binary(
         ":roms",
         ":shared_libraries",
         ":unsecure-emulator-access",
+        ":virtualscene_data",
         ":vulkan_icds",
         ":vulkan_layers",
     ],
@@ -587,7 +633,7 @@ create_launch_emulator_test(
         "-no-boot-anim",
     ],
     target_log_line = "'Boot completed in \\d+ ms'",
-    timeout_seconds = 180,
+    timeout_seconds = 300,
 )
 
 create_launch_emulator_test(
@@ -598,7 +644,7 @@ create_launch_emulator_test(
         "'pixman_display=2'",
     ],
     target_log_line = "'UpdateSurface Display: 0 \\(1080x2400\\), seq: 25'",
-    timeout_seconds = 180,
+    timeout_seconds = 300,
 )
 
 create_launch_emulator_test(
@@ -609,7 +655,7 @@ create_launch_emulator_test(
     ],
     repeat = 1,
     target_log_line = "'Boot completed in \\d+ ms'",
-    timeout_seconds = 180,
+    timeout_seconds = 300,
 )
 
 test_suite(
@@ -665,6 +711,7 @@ py_binary(
     name = "launch_emulator",
     srcs = ["tools/launch_emulator.py"],
     data = [
+        ":android-device-hub",
         ":launcher",
         "//emulator/tools/aquarium-ui",
         "//emulator/ui/aquarium:dist",

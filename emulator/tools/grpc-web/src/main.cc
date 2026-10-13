@@ -41,7 +41,7 @@
 #include "goldfish/network/dns_resolver.h"
 #include "goldfish/network/endpoint.h"
 
-ABSL_FLAG(std::string, http_address, "0.0.0.0", "HTTP host/IP address to bind and listen on");
+ABSL_FLAG(std::string, http_address, "127.0.0.1", "HTTP host/IP address to bind and listen on");
 ABSL_FLAG(uint16_t, http_port, 8080, "HTTP port to bind and listen on");
 ABSL_FLAG(std::string, grpc_target, "",
           "Upstream gRPC server address (host:port or unix:path). If empty and no --discovery_file "

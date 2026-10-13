@@ -93,7 +93,7 @@ static void HelpSdkImages(stralloc_t* out) {
            "  The image files are documented in -help-disk-images. By default, an AVD\n"
            "  content directory will contain the following persistent image files:\n\n"
 
-           "     userdata-qemu.img     - the /data partition image file\n"
+           "     userdata.img          - the /data partition image file\n"
            "     cache.img             - the /cache partition image file\n\n"
 
            "  You can use -wipe-data to re-initialize the /data partition to its factory\n"
@@ -122,8 +122,7 @@ static void HelpBuildImages(stralloc_t* out) {
            "  You can use the -sysdir, -system, -vendor -kernel, -ramdisk, -datadir, -data "
            "options\n"
            "  to specify different search directories or specific image files. You can\n"
-           "  also use the -cache and -sdcard options to indicate specific cache partition\n"
-           "  and SD Card image files.\n\n"
+           "  also use the -sdcard option to indicate the SD Card image file.\n\n"
 
            "  For more details, see the corresponding -help-<option> section.\n\n"
 
@@ -133,10 +132,6 @@ static void HelpBuildImages(stralloc_t* out) {
            "    automatically removed when the emulator exits. There is thus no way to\n"
            "    make persistent changes to this image through the emulator, even if\n"
            "    you use the '-image <file>' option.\n\n"
-
-           "  - unless you use the '-cache <file>' option, the cache partition image\n"
-           "    is backed by a temporary file that is initially empty and destroyed on\n"
-           "    program exit.\n\n"
 
            "  SPECIAL NOTE: If you are using the emulator with the Android SDK, the\n"
            "  information above doesn't apply. See -help-sdk-images for more details.\n");
@@ -149,20 +144,11 @@ static void HelpDiskImages(stralloc_t* out) {
 
            "  The minimal required image files are the following:\n\n"
 
-           "    kernel-qemu      the emulator-specific Linux kernel image\n"
-           "    ramdisk.img      the ramdisk image used to boot the system\n"
-           "    system.img       the *initial* system image\n"
-           "    vendor.img       the *initial* vendor image\n"
-           "    userdata.img     the *initial* data partition image\n\n"
-
-           "  It will also use the following writable image files:\n\n"
-
-           "    userdata-qemu.img  the persistent data partition image\n"
-           "    system-qemu.img    an *optional* persistent system image\n"
-           "    vendor-qemu.img    an *optional* persistent vendor image\n"
-           "    cache.img          an *optional* cache partition image\n"
-           "    sdcard.img         an *optional* SD Card partition image\n\n"
-           "    snapshots.img      an *optional* state snapshots image\n\n"
+           "    kernel-qemu         the emulator-specific Linux kernel image\n"
+           "    ramdisk.img         the ramdisk image used to boot the system\n"
+           "    system.img          the system image\n"
+           "    vendor.img          the vendor image\n"
+           "    encryptionkey.img   the encryption key image\n"
 
            "  If you use a virtual device, its content directory should store\n"
            "  all writable images, and read-only ones will be found from the\n"
@@ -177,8 +163,8 @@ static void HelpDiskImages(stralloc_t* out) {
            "  If you're neither using the SDK or the Android build system, you\n"
            "  can still run the emulator by explicitly providing the paths to\n"
            "  *all* required disk images through a combination of the following\n"
-           "  options: -sysdir, -datadir, -kernel, -ramdisk, -system, -data, -cache\n"
-           "  -sdcard and -snapstorage.\n\n"
+           "  options: -sysdir, -datadir, -kernel, -ramdisk, -system, -data\n"
+           "  and -sdcard.\n\n"
 
            "  The actual logic being that the emulator should be able to find all\n"
            "  images from the options you give it.\n\n"
@@ -187,40 +173,24 @@ static void HelpDiskImages(stralloc_t* out) {
 
            "  Other related options are:\n\n"
 
-           "      -init-data       Specify an alternative *initial* user data image\n\n"
+           "      -initdata        Specify an alternative *initial* user data image\n\n"
 
-           "      -wipe-data       Copy the content of the *initial* user data image\n"
-           "                           (userdata.img) into the writable one (userdata-qemu.img)\n\n"
-
-           "      -no-cache        do not use a cache partition, even if one is\n"
-           "                       available.\n\n"
-
-           "      -no-snapstorage  do not use a state snapshot image, even if one is\n"
-           "                       available.\n\n");
+           "      -wipe-data       Reset the AVD directory\n\n");
 }
 
 static void HelpEnvironment(stralloc_t* out) {
     PRINTF("  The Android emulator looks at various environment variables when it starts:\n\n"
 
-           "  If ANDROID_LOG_TAGS is defined, it will be used as in '-logcat <tags>'.\n\n"
-
            "  If 'http_proxy' is defined, it will be used as in '-http-proxy <proxy>'.\n\n"
-
-           "  If ANDROID_VERBOSE is defined, it can contain a comma-separated list of\n"
-           "  verbose items. for example:\n\n"
-
-           "      ANDROID_VERBOSE=socket,radio\n\n"
-
-           "  is equivalent to using the '-verbose -verbose-socket -verbose-radio'\n"
-           "  options together. unsupported items will be ignored.\n\n"
-
-           "  If ANDROID_LOG_TAGS is defined, it will be used as in '-logcat <tags>'.\n\n"
 
            "  If ANDROID_EMULATOR_HOME is defined, it replaces the path of the '$HOME/.android'\n"
            "  directory which contains the emulator config data (key stores, etc.).\n\n"
 
            "  If ANDROID_SDK_ROOT is defined, it indicates the path of the SDK\n"
            "  installation directory.\n\n"
+
+           "  If ANDROID_I_WANT_MY_TCG=yes is defined, '-accel off' is allowed and\n"
+           "  forces unsupported software CPU emulation (TCG).\n\n"
 
     );
 }
@@ -404,30 +374,6 @@ static void help_writable_system(stralloc_t* out) {
            "  destroyed at emulator exit.\n");
 }
 
-static void help_cache(stralloc_t* out) {
-    PRINTF("  use '-cache <file>' to specify a /cache partition image. if <file> does\n"
-           "  not exist, it will be created empty. by default, the cache partition is\n"
-           "  backed by a temporary file that is deleted when the emulator exits.\n"
-           "  using the -cache option allows it to be persistent.\n\n"
-
-           "  the '-no-cache' option can be used to disable the cache partition.\n\n"
-
-           "  see '-help-disk-images' for more information about disk image files\n\n");
-}
-
-static void help_cache_size(stralloc_t* out) {
-    PRINTF("  use '-cache <size>' to specify a /cache partition size in MB. By default,\n"
-           "  the cache partition size is set to 66MB\n\n");
-}
-
-static void help_no_cache(stralloc_t* out) {
-    PRINTF("  use '-no-cache' to disable the cache partition in the emulated system.\n"
-           "  the cache partition is optional, but when available, is used by the browser\n"
-           "  to cache web pages and images\n\n"
-
-           "  see '-help-disk-images' for more information about disk image files\n\n");
-}
-
 static void help_sdcard(stralloc_t* out) {
     PRINTF("  use '-sdcard <file>' to specify a SD Card image file that will be attached\n"
            "  to the emulator. By default, the 'sdcard.img' file is searched in the data\n"
@@ -437,28 +383,6 @@ static void help_sdcard(stralloc_t* out) {
            "  attached SD Card.\n\n"
 
            "  see '-help-disk-images' for more information about disk image files\n\n");
-}
-
-static void help_snapstorage(stralloc_t* out) {
-    PRINTF("  Use '-snapstorage <file>' to specify a repository file for snapshots.\n"
-           "  All snapshots made during execution will be saved in this file, and only\n"
-           "  snapshots in this file can be restored during the emulator run.\n\n"
-
-           "  If the option is not specified, it defaults to 'snapshots.img' in the\n"
-           "  data directory. If the specified file does not exist, the emulator will\n"
-           "  start, but without support for saving or loading state snapshots.\n\n"
-
-           "  see '-help-disk-images' for more information about disk image files\n"
-           "  see '-help-snapshot' for more information about snapshots\n\n");
-}
-
-static void help_no_snapstorage(stralloc_t* out) {
-    PRINTF("  This starts the emulator without mounting a file to store or load state\n"
-           "  snapshots, forcing a full boot and disabling state snapshot functionality.\n\n"
-           ""
-           "  This command overrides the configuration specified by the parameters\n"
-           "  '-snapstorage' and '-snapshot'. A warning will be raised if either\n"
-           "  of those parameters was specified anyway.\n\n");
 }
 
 static void help_snapshot(stralloc_t* out) {
@@ -505,8 +429,8 @@ static void help_force_snapshot_load(stralloc_t* out) {
            "  sequence instead (cold boot), in case loading from snapshot fails for\n"
            "  any reason.\n\n"
 
-           "  If '-no-snapshot', '-no-snapshot-load' or '-no-snapstorage' is specified\n"
-           "  at the same time, a warning will be raised, and we will continue the boot\n"
+           "  If '-no-snapshot' or '-no-snapshot-load' is specified at the same\n"
+           "  time, a warning will be raised, and we will continue the boot\n"
            "  process.\n\n");
 }
 
@@ -532,52 +456,26 @@ static void help_snapshot_list(stralloc_t* out) {
            "  file that the emulator was started with, then exits. Values from the 'ID'\n"
            "  and 'TAG' columns can be used as arguments for the '-snapshot' parameter.\n\n"
 
-           "  If '-snapstorage <file>' was specified as well, this command prints a "
-           "  table of the snapshots stored in <file>.\n\n"
-
            "  See '-help-snapshot' for more information on snapshots.\n\n");
 }
 
 static void help_accel(stralloc_t* out) {
     PRINTF("  Use '-accel <mode>' to control how CPU emulation can be accelerated\n"
-           "  when launching the Android emulator. Accelerated emulation only works\n"
-           "  for x86 and x86_64 system images. On Linux, it relies on KVM being\n"
-           "  installed. On Windows and OS X, it relies on an Intel CPU and the\n"
-           "  Intel HAXM driver being installed on your development machine.\n"
+           "  when launching the Android emulator. Hardware acceleration is required.\n"
+           "  On Linux, it relies on KVM being installed. On Windows, it relies on\n"
+           "  WHPX. On macOS, it relies on HVF.\n"
            "  Valid values for <mode> are:\n\n"
 
            "     auto   The default, determines automatically if acceleration\n"
            "            is supported, and uses it when possible.\n\n"
 
-           "     off    Disables acceleration entirely. Mostly useful for debugging.\n\n"
+           "     on     Force acceleration. If a hardware CPU accelerator is not\n"
+           "            installed or usable, the emulator will refuse to start and\n"
+           "            print an error message.\n\n"
 
-           "     on     Force acceleration. If KVM/HAXM/WHPX is not installed or usable,\n"
-           "            the emulator will refuse to start and print an error message.\n\n"
-
-           "  Note that this flag is ignored if you're not emulating an x86 or x86_64\n");
-}
-
-static void help_no_accel(stralloc_t* out) {
-    PRINTF("  Use '-no-accel' as a shortcut to '-accel off', i.e. to disable accelerated\n"
-           "  CPU emulation, when emulating an x86 or x86_64 system image. Only useful\n"
-           "  for debugging.\n");
-}
-
-static void help_ranchu(stralloc_t* out) {
-    PRINTF("  DEPRECATED: Previously used to use the new emulator engine as the\n"
-           "  preferred backend. Now this option is simply ignored and the 'emulator'\n"
-           "  launcher will auto-detect the engine, favoring QEMU2 over the classic one\n");
-}
-
-static void help_engine(stralloc_t* out) {
-    PRINTF("  Select the emulation engine to use. Valid values are\n\n"
-           "      auto    -> perform auto-detection (default)\n"
-           "      classic -> use the classic emulator engine\n"
-           "      qemu2   -> use the newer emulator engine\n\n"
-
-           "  Auto-detection should provide the value that provides the best\n"
-           "  performance when emulating a given AVD. Only use this option\n"
-           "  for debugging / comparison purposes.\n\n");
+           "     off    UNSUPPORTED: software CPU emulation (TCG) is no longer\n"
+           "            supported, and '-accel off' returns an error unless\n"
+           "            ANDROID_I_WANT_MY_TCG=yes is set in the environment.\n\n");
 }
 
 static void help_skindir(stralloc_t* out) {
@@ -741,17 +639,6 @@ static void help_scale(stralloc_t* out) {
     PRINTF("  the '-scale <scale>' option is obsolete as of Emulator 2.0 and will be ignored\n\n");
 }
 
-static void help_code_profile(stralloc_t* out) {
-    PRINTF("  use '-code_profile <name>' to start the emulator with runtime code profiling "
-           "support.\n\n"
-           "  Profiles are stored in directory <name>, each executable will have its own profile.\n"
-           "  The profile can be further processed to generate an AutoFDO profile, which can be \n"
-           "  used to drive feedback directed optimizations.\n"
-           "  More details can be found from https://gcc.gnu.org/wiki/AutoFDO.\n\n"
-           "  IMPORTANT: This feature is *experimental* and requires a patched kernel.\n"
-           "  as such, it will not work on regular SDK system images.\n\n");
-}
-
 static void help_show_kernel(stralloc_t* out) {
     PRINTF("  use '-show-kernel' to redirect debug messages from the kernel to the current\n"
            "  terminal. this is useful to check that the boot process works correctly.\n\n");
@@ -808,10 +695,6 @@ static void help_logcat(stralloc_t* out) {
 
            "    -logcat '*:s GSM:i'\n\n"
 
-           "  if '-logcat <tags>' is not used, the emulator looks for ANDROID_LOG_TAGS\n"
-           "  in the environment. if it is defined, its value must match the <tags>\n"
-           "  format and will be used to redirect log messages to the terminal.\n\n"
-
            "  note that this doesn't prevent you from redirecting the same, or other,\n"
            "  log messages through the ADB too.\n\n");
 }
@@ -841,20 +724,6 @@ static void help_no_audio(stralloc_t* out) {
            "  the very brave can also try to use distinct backends for audio input\n"
            "  and audio outputs, this is possible by selecting one of the above values\n"
            "  into the QEMU_AUDIO_OUT_DRV and QEMU_AUDIO_IN_DRV environment variables.\n\n");
-}
-
-static void help_radio(stralloc_t* out) {
-    PRINTF("  use '-radio <device>' to redirect the GSM modem emulation to an external\n"
-           "  character device or program. this bypasses the emulator's internal modem\n"
-           "  and should only be used for testing.\n\n"
-
-           "  see '-help-char-devices' for the format of <device>\n\n"
-
-           "  the data exchanged with the external device/program are GSM AT commands\n\n"
-
-           "  note that, when running in the emulator, the Android GSM stack only supports\n"
-           "  a *very* basic subset of the GSM protocol. trying to link the emulator to\n"
-           "  a real GSM modem is very likely to not work properly.\n\n");
 }
 
 static void help_port(stralloc_t* out) {
@@ -1206,18 +1075,6 @@ static void help_net_socket(stralloc_t* out) {
            "  or connect=. See https://wiki.qemu.org/Documentation/Networking#Socket\n\n");
 }
 
-static void help_cpu_delay(stralloc_t* out) {
-    PRINTF("  this option is purely experimental, probably doesn't work as you would\n"
-           "  expect, and may even disappear in a later emulator release.\n\n"
-
-           "  use '-cpu-delay <delay>' to throttle CPU emulation. this may be useful\n"
-           "  to detect weird race conditions that only happen on 'lower' CPUs. note\n"
-           "  that <delay> is a unit-less integer that doesn't even scale linearly\n"
-           "  to observable slowdowns. use trial and error to find something that\n"
-           "  suits you, the 'correct' machine is very probably dependent on your\n"
-           "  host CPU and memory anyway...\n\n");
-}
-
 static void help_no_boot_anim(stralloc_t* out) {
     PRINTF("  use '-no-boot-anim' to disable the boot animation (red bouncing ball) when\n"
            "  starting the emulator. on slow machines, this can surprisingly speed up the\n"
@@ -1231,27 +1088,6 @@ static void help_boot_anim(stralloc_t* out) {
            "  this is the default on Linux and Mac platforms, but disabled by default\n"
            "  on Windows due to it slowing down boot time significantly.\n\n");
 }
-
-static void help_gps(stralloc_t* out) {
-    PRINTF("  use '-gps <device>' to emulate an NMEA-compatible GPS unit connected to\n"
-           "  an external character device or socket. the format of <device> is the same\n"
-           "  than the one used for '-radio <device>' (see -help-char-devices for details)\n\n");
-}
-
-#ifndef _WIN32
-static void help_nand_limits(stralloc_t* out) {
-    PRINTF("  use '-nand-limits <limits>' to enable a debugging feature that sends a\n"
-           "  signal to an external process once a read and/or write limit is achieved\n"
-           "  in the emulated system. the format of <limits> is the following:\n\n"
-
-           "     pid=<number>,signal=<number>,[reads=<threshold>][,writes=<threshold>]\n\n"
-
-           "  where 'pid' is the target process identifier, 'signal' the number of the\n"
-           "  target signal. the read and/or write threshold'reads' are a number optionally\n"
-           "  followed by a K, M or G suffix, corresponding to the number of bytes to be\n"
-           "  read or written before the signal is sent.\n\n");
-}
-#endif /* CONFIG_NAND_LIMITS */
 
 static void help_bootchart(stralloc_t* out) {
     PRINTF("  some Android system images have a modified 'init' system that  integrates\n"
@@ -1322,30 +1158,27 @@ static void help_gpu(stralloc_t* out) {
 }
 
 static void help_vulkan_validation(stralloc_t* out) {
-    PRINTF(
-        "  use '-vulkan-validation <mode>' to set Vulkan validation layer behavior.\n"
-        "  Valid modes are:\n\n"
-        "      off   -> Vulkan validation layers are disabled (default)\n"
-        "      print -> Vulkan validation messages are logged to host console\n"
-        "      fail  -> Vulkan validation errors return VK_ERROR_VALIDATION_FAILED_EXT\n"
-        "      crash -> Vulkan validation errors force a host process crash\n\n");
+    PRINTF("  use '-vulkan-validation <mode>' to set Vulkan validation layer behavior.\n"
+           "  Valid modes are:\n\n"
+           "      off   -> Vulkan validation layers are disabled (default)\n"
+           "      print -> Vulkan validation messages are logged to host console\n"
+           "      fail  -> Vulkan validation errors return VK_ERROR_VALIDATION_FAILED_EXT\n"
+           "      crash -> Vulkan validation errors force a host process crash\n\n");
 }
 
 static void help_vulkan_validation_include_filter(stralloc_t* out) {
-    PRINTF(
-        "  use '-vulkan-validation-include-filter <filters>' to specify a comma-separated\n"
-        "  list of exact string filters to include for Vulkan validation.\n"
-        "  Validation will only be enabled for guest applications or engines matching\n"
-        "  one of the filters in the list (case-insensitive exact match). If empty,\n"
-        "  all applications are validated by default.\n\n");
+    PRINTF("  use '-vulkan-validation-include-filter <filters>' to specify a comma-separated\n"
+           "  list of exact string filters to include for Vulkan validation.\n"
+           "  Validation will only be enabled for guest applications or engines matching\n"
+           "  one of the filters in the list (case-insensitive exact match). If empty,\n"
+           "  all applications are validated by default.\n\n");
 }
 
 static void help_vulkan_validation_exclude_filter(stralloc_t* out) {
-    PRINTF(
-        "  use '-vulkan-validation-exclude-filter <filters>' to specify a comma-separated\n"
-        "  list of exact string filters to exclude from Vulkan validation.\n"
-        "  Validation will be disabled for guest applications or engines matching\n"
-        "  any of the filters in the list (case-insensitive exact match).\n\n");
+    PRINTF("  use '-vulkan-validation-exclude-filter <filters>' to specify a comma-separated\n"
+           "  list of exact string filters to exclude from Vulkan validation.\n"
+           "  Validation will be disabled for guest applications or engines matching\n"
+           "  any of the filters in the list (case-insensitive exact match).\n\n");
 }
 
 static void help_vsync_rate(stralloc_t* out) {
@@ -1476,6 +1309,11 @@ static void help_metrics_to_console(stralloc_t* out) {
            "  data to stdout in JSON format.\n"
            "  Mutually exclusive with \"-metrics-to-file <file>\" and "
            "\"-metrics-collection\".\n\n");
+}
+
+static void help_debug_metrics(stralloc_t* out) {
+    PRINTF("  Log metrics events to stdout for debugging without changing the\n"
+           "  active metrics backend writer.\n\n");
 }
 
 static void help_metrics_collection(stralloc_t* out) {
@@ -1778,9 +1616,6 @@ static void help_vmodule(stralloc_t* out) {
 
 #define help_noaudio NULL             // NOLINT(readability-identifier-naming)
 #define help_noskin NULL              // NOLINT(readability-identifier-naming)
-#define help_nocache NULL             // NOLINT(readability-identifier-naming)
-#define help_no_jni NULL              // NOLINT(readability-identifier-naming)
-#define help_nojni NULL               // NOLINT(readability-identifier-naming)
 #define help_dalvik_vm_checkjni NULL  // NOLINT(readability-identifier-naming)
 #define help_initdata NULL            // NOLINT(readability-identifier-naming)
 #define help_no_sim NULL              // NOLINT(readability-identifier-naming)
@@ -1841,6 +1676,10 @@ static const OptionHelp kOptionHelp[] = {
 #define OPT_FLAG(_name, _descr) {STRINGIFY(_name), NULL, _descr, help_##_name},
 #define OPT_PARAM(_name, _tmplate, _descr) {STRINGIFY(_name), _tmplate, _descr, help_##_name},
 #define OPT_LIST OPT_PARAM
+// Hidden and obsolete options are not documented.
+#define OPT_FLAG_HIDDEN(_name, _descr)
+#define OPT_FLAG_OBSOLETE(_name)
+#define OPT_PARAM_OBSOLETE(_name, _template)
 #include "android/cmdline_options.h"
 
     {nullptr, nullptr, nullptr, nullptr}};

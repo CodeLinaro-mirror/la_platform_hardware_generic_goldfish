@@ -31,8 +31,10 @@ cc_library(
         ":device_type",
         "//emulator/libs/host-common",
         "//emulator/libs/ini_file",
+        "//emulator/libs/status_macros",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
     ],
 )
@@ -55,10 +57,13 @@ cc_library(
 
 cc_test(
     name = "memory_config_test",
+    size = "small",
     srcs = ["memory_config_test.cc"],
     deps = [
         ":hardware_config",
+        "//emulator/libs/status_macros:status_matcher_macros",
         "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:status_matchers",
         "@googletest//:gtest_main",
     ],
 )

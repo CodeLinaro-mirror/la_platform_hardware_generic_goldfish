@@ -26,6 +26,9 @@
 
 namespace goldfish::metrics {
 
+void FillMemUsage(android_studio::EmulatorMemoryUsage* mem_usage_proto,
+                  const android::goldfish::HardwareConfig* hw = nullptr);
+
 class PerfStatReporter {
   public:
     PerfStatReporter(goldfish::async::EventLoop* main_loop,

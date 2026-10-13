@@ -23,6 +23,7 @@
 #include "console_server.h"
 #include "goldfish/async/async_socket_factory.h"
 #include "goldfish/async/event_loop.h"
+#include "goldfish/metrics/metrics_reporter.h"
 
 namespace goldfish::telnet {
 
@@ -39,9 +40,11 @@ class LegacyConsoleController {
      *
      * @param factory The socket factory used to create listeners.
      * @param main_loop The core thread event loop driving the listener sockets.
+     * @param metrics_reporter Reporter for sending telnet command usage metrics.
      */
     LegacyConsoleController(goldfish::async::AsyncSocketFactory& factory,
-                            goldfish::async::EventLoop* main_loop);
+                            goldfish::async::EventLoop* main_loop,
+                            goldfish::metrics::MetricsReporter& metrics_reporter);
 
     /**
      * @brief Starts the console servers for both IPv4 and IPv6 on the specified port.
@@ -66,6 +69,7 @@ class LegacyConsoleController {
 
     goldfish::async::AsyncSocketFactory& factory_;
     goldfish::async::EventLoop* main_loop_;
+    goldfish::metrics::MetricsReporter& metrics_reporter_;
     std::shared_ptr<LegacyConsoleBridge> handler_;
 
     std::vector<ServerInstance> servers_;

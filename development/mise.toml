@@ -43,7 +43,7 @@ run = "hardware/generic/goldfish/development/tools/clang_tidy.py --commit HEAD"
 
 [tasks.submit]
 description = "Upload the current branch for code review"
-run = "repo upload . --cbr -y"
+run = "git config push.negotiate false && repo upload . --cbr -y"
 dir = "{{ cwd }}"
 
 [tasks.tidy_fix]
@@ -52,7 +52,7 @@ run = "bazel run @goldfish//:clang_tidy_report"
 
 [tasks.presubmit]
 description = "Upload the current branch for code review and mark it presubmit ready"
-run = "repo upload . --cbr -y --label 'Presubmit-Ready+1'"
+run = "git config push.negotiate false && repo upload . --cbr -y --label 'Presubmit-Ready+1'"
 dir = "{{ cwd }}"
 
 [tasks.gum]

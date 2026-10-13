@@ -45,6 +45,7 @@ cc_library(
 
 cc_test(
     name = "keyboard_unittests",
+    size = "small",
     srcs = ["key_converter_test.cc"],
     deps = [
         ":keyconversion",

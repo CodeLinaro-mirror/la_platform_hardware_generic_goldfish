@@ -91,7 +91,14 @@ class JwkKeyLoaderTest : public ::testing::Test {
                 out.flush();
             }
         }
-        auto status = base::file::mv_file(temp_dir_->Path() / tmp_name, temp_dir_->Path() / fname);
+        absl::Status status;
+        for (int i = 0; i < 20; ++i) {
+            status = base::file::mv_file(temp_dir_->Path() / tmp_name, temp_dir_->Path() / fname);
+            if (status.ok()) {
+                break;
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(5));
+        }
         EXPECT_TRUE(status.ok()) << status.message();
     }
 

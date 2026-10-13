@@ -157,6 +157,9 @@ class PhysicalModel : public CallbackEventSource<PhysicalModelChangeEvent> {
     GOLDFISH_SENSORS_LIST
 #undef GOLDFISH_SENSOR_DEF
 
+    bool IsSensorOverridden(AndroidSensor sensor) const;
+    void ClearOverrides();
+
     /*
      * Getters for all sensor values.
      * Can be called from any thread.

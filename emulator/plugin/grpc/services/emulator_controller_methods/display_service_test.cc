@@ -28,12 +28,14 @@
 #endif
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/synchronization/notification.h"
 
 #include "android/goldfish/fake_hardware_config.h"
 #include "emulator_controller.grpc.pb.h"
 #include "goldfish/async/libuv_event_loop.h"
 #include "goldfish/async/threaded_event_loop.h"
-#include "goldfish/avd_info/avd_info.h"
+#include "goldfish/avd/avd_info.h"
+#include "goldfish/avd/fake_avd_universe.h"
 #include "goldfish/display/test/fake_multi_display.h"
 #include "goldfish/display/test/fake_pixman_display.h"
 #include "goldfish/memory/shared_memory.h"
@@ -60,6 +62,8 @@ const std::vector<ResizableDisplayConfig> kNoResizableConfigs;
 
 class DisplayServiceTest : public GrcpServiceTest {
   protected:
+    ::goldfish::avd::FakeAvdUniverse fake_avd_;
+
     void SetUp() override {
         mHw = android::goldfish::FakeHardwareConfig::GetHwConfig();
         mPhysicalModel = std::make_unique<PhysicalModel>(mHw);
@@ -195,10 +199,10 @@ TEST_F(DisplayServiceTest, GetScreenshotInvalidDisplay) {
 
 TEST_F(DisplayServiceTest, GetScreenshotScaling) {
     // Create a display
-    auto createResult = mMultiDisplay->CreateDisplay(2, 400, 200, 320, 1);
-    ASSERT_TRUE(createResult.ok());
+    auto create_result = mMultiDisplay->CreateDisplay(2, 400, 200, 320, 1);
+    ASSERT_TRUE(create_result.ok());
 
-    // Get a screenshot with scaling (which is now disabled)
+    // Get a screenshot with scaling (re-enabled in Step 2.g)
     Image reply;
     ImageFormat request;
     request.set_display(2);
@@ -209,9 +213,9 @@ TEST_F(DisplayServiceTest, GetScreenshotScaling) {
     auto context = getContextWithTimeout();
     ASSERT_GRPC_STATUS(mStub->getScreenshot(context.get(), request, &reply));
 
-    // Check the format. We should get the original size back.
-    EXPECT_EQ(reply.format().width(), 400);
-    EXPECT_EQ(reply.format().height(), 200);
+    // Check the format. We should get the scaled size back.
+    EXPECT_EQ(reply.format().width(), 200);
+    EXPECT_EQ(reply.format().height(), 100);
     EXPECT_EQ(reply.format().display(), 2);
 }
 
@@ -362,7 +366,7 @@ TEST_F(DisplayServiceTest, GetScreenshotConcurrent) {
     }
 }
 
-TEST_F(DisplayServiceTest, DISABLED_StreamScreenshotSequenceIncreases) {
+TEST_F(DisplayServiceTest, StreamScreenshotSequenceIncreases) {
     // Get a screenshot with scaling that is larger than the display
     ImageFormat request;
     request.set_display(1);
@@ -392,7 +396,7 @@ TEST_F(DisplayServiceTest, DISABLED_StreamScreenshotSequenceIncreases) {
     ASSERT_EQ(count, 5);
 }
 
-TEST_F(DisplayServiceTest, DISABLED_StreamScreenshotImmediatelyGetsAFrame) {
+TEST_F(DisplayServiceTest, StreamScreenshotImmediatelyGetsAFrame) {
     // Make sure we immediately get a frame.
     ImageFormat request;
     request.set_display(1);
@@ -416,7 +420,7 @@ TEST_F(DisplayServiceTest, DISABLED_StreamScreenshotImmediatelyGetsAFrame) {
     ASSERT_NE(image.image().size(), 0);
 }
 
-TEST_F(DisplayServiceTest, DISABLED_StreamScreenshotSimulateEmbeddedInteraction) {
+TEST_F(DisplayServiceTest, StreamScreenshotSimulateEmbeddedInteraction) {
     // This simulates a resize operation as performed by the Android Studio
     // embedded emulator. When the user resizes the emulator window in Android
     // Studio, a sequence of `streamScreenshot` requests, each with potentially
@@ -472,9 +476,10 @@ TEST_F(DisplayServiceTest, DISABLED_StreamScreenshotSimulateEmbeddedInteraction)
     // cancelled.
 
     using namespace std::chrono_literals;
-    const int numThreads = 100;
+    const int num_threads = 100;
     std::vector<std::thread> threads;
-    std::vector<std::unique_ptr<grpc::ClientContext>> contexts;
+    // Sized up front: threads read earlier entries while later ones are set.
+    std::vector<std::unique_ptr<grpc::ClientContext>> contexts(num_threads);
     startFrames(1);
 
     // Lambda function to be executed by each thread
@@ -509,8 +514,8 @@ TEST_F(DisplayServiceTest, DISABLED_StreamScreenshotSimulateEmbeddedInteraction)
     };
 
     // Create and start threads
-    for (int i = 0; i < numThreads; ++i) {
-        contexts.emplace_back(getContextWithTimeout(500ms));
+    for (int i = 0; i < num_threads; ++i) {
+        contexts[i] = getContextWithTimeout(500ms);
         threads.emplace_back(threadFunc, i);
         std::this_thread::sleep_for(5ms);
     }
@@ -601,7 +606,10 @@ TEST_F(DisplayServiceTest, StreamScreenshotHasCorrectRotation) {
     seq = image.seq();
     timestampus = image.timestampus();
 
-    for (const auto& [rotation, _] : mRotationMap) {
+    // Starts with a change: the display is idle, so only a rotation change
+    // streams a new frame.
+    for (const auto rotation : {Rotation::LANDSCAPE, Rotation::REVERSE_PORTRAIT,
+                                Rotation::REVERSE_LANDSCAPE, Rotation::PORTRAIT}) {
         auto [x, y, z] = mRotationMap[rotation];
         mPhysicalModel->SetGravity(x, y, z);
 
@@ -905,7 +913,7 @@ TEST_F(DisplayServiceTest, FiresInitialPostureOnConstruction) {
     bool received_posture = false;
     Posture::PostureValue received_value = Posture::POSTURE_UNKNOWN;
 
-    auto callback_id = ::goldfish::avd_info::GetAvd().GetGrpcNotificationChannel().AddCallback(
+    auto callback_id = ::goldfish::avd::GetAvd().GetGrpcNotificationChannel().AddCallback(
             [&](const ::android::emulation::control::Notification& notification) {
                 if (notification.has_posture()) {
                     received_posture = true;
@@ -920,7 +928,7 @@ TEST_F(DisplayServiceTest, FiresInitialPostureOnConstruction) {
     EXPECT_EQ(received_value,
               DisplayServiceImpl::ToProtoPosture(mPhysicalModel->GetFoldablePosture()));
 
-    ::goldfish::avd_info::GetAvd().GetGrpcNotificationChannel().RemoveCallback(callback_id);
+    ::goldfish::avd::GetAvd().GetGrpcNotificationChannel().RemoveCallback(callback_id);
 }
 
 TEST(DisplayServiceTest_ToProtoPosture, ConvertsPostures) {
@@ -938,6 +946,101 @@ TEST(DisplayServiceTest_ToProtoPosture, ConvertsPostures) {
               Posture::POSTURE_MAX);
     EXPECT_EQ(DisplayServiceImpl::ToProtoPosture(static_cast<FoldablePostures>(99)),
               Posture::POSTURE_UNKNOWN);
+}
+
+TEST_F(DisplayServiceTest, StreamScreenshotEndsWithNotFoundOnDisplayRemoval) {
+    ASSERT_TRUE(mMultiDisplay->CreateDisplay(2, 100, 50, 320, 1).ok());
+
+    ImageFormat request;
+    request.set_display(2);
+    request.set_format(ImageFormat::RGBA8888);
+
+    auto context = getContextWithTimeout(2s);
+    std::unique_ptr<grpc::ClientReader<Image>> reader(
+            mStub->streamScreenshot(context.get(), request));
+    Image image;
+    ASSERT_TRUE(reader->Read(&image));
+
+    ASSERT_TRUE(mMultiDisplay->EraseDisplay(2).ok());
+    while (reader->Read(&image)) {
+    }
+    EXPECT_EQ(reader->Finish().error_code(), grpc::StatusCode::NOT_FOUND);
+}
+
+// B10: the display grew but has not produced a frame at its new size yet. A
+// scaled read sized from the display would upscale the frame and fail.
+TEST_F(DisplayServiceTest, GetScreenshotAfterDisplayGrowsBeforeNewFrame) {
+    auto display = mMultiDisplay->GetDisplay(1)->lock();
+    ASSERT_NE(display, nullptr);
+    display->SetDimensions(200, 100);  // The source image stays 100x50.
+
+    ImageFormat request;
+    Image reply;
+    request.set_display(1);
+    request.set_format(ImageFormat::RGBA8888);
+    request.set_width(150);
+    request.set_height(75);
+    auto context = getContextWithTimeout();
+    ASSERT_GRPC_STATUS(mStub->getScreenshot(context.get(), request, &reply));
+
+    EXPECT_EQ(reply.format().width(), 100);
+    EXPECT_EQ(reply.format().height(), 50);
+}
+
+// B10: a quarter-turned display returns the scaled size in rotated order.
+TEST_F(DisplayServiceTest, GetScreenshotRotatedAndScaledSwapsDims) {
+    auto created = mMultiDisplay->CreateDisplay(2, 400, 200, 320, 1);
+    ASSERT_TRUE(created.ok());
+    auto display = created->lock();
+    ASSERT_NE(display, nullptr);
+    display->SetRotation(::goldfish::display::ImageRotation::kRotation90);
+
+    ImageFormat request;
+    Image reply;
+    request.set_display(2);
+    request.set_format(ImageFormat::RGBA8888);
+    request.set_width(200);
+    request.set_height(100);
+    auto context = getContextWithTimeout();
+    ASSERT_GRPC_STATUS(mStub->getScreenshot(context.get(), request, &reply));
+
+    EXPECT_EQ(reply.format().width(), 100);
+    EXPECT_EQ(reply.format().height(), 200);
+    EXPECT_EQ(reply.image().size(), 100U * 200U * 4U);
+}
+
+// B11: a device reset fences the frame a screenshot already acquired. The
+// stream retries with the next frame instead of ending with UNAVAILABLE.
+TEST_F(DisplayServiceTest, StreamSurvivesProducerReset) {
+    using ::goldfish::display::test::ActiveFakePixmanDisplay;
+    auto display = mMultiDisplay->GetDisplay<ActiveFakePixmanDisplay>(mMultiDisplay->GetDisplay(1));
+    ASSERT_NE(display, nullptr);
+    startFrames(1);
+
+    ImageFormat request;
+    request.set_display(1);
+    request.set_format(ImageFormat::RGBA8888);
+    request.set_width(100);  // Scaled reads call ResizeKeepAspectRatio.
+    request.set_height(50);
+    auto context = getContextWithTimeout(5s);
+    std::unique_ptr<grpc::ClientReader<Image>> reader(
+            mStub->streamScreenshot(context.get(), request));
+    Image image;
+    ASSERT_TRUE(reader->Read(&image));
+
+    // Runs inside the display's own call, so the raw pointer is live.
+    auto reset = std::make_shared<absl::Notification>();
+    display->RunDuringNextResize([raw = display.get(), reset] {
+        raw->ResetProducer();
+        reset->Notify();
+    });
+    for (int i = 0; i < 3; ++i) {
+        ASSERT_TRUE(reader->Read(&image)) << reader->Finish().error_message();
+    }
+    EXPECT_TRUE(reset->HasBeenNotified());
+    context->TryCancel();
+    while (reader->Read(&image)) {
+    }
 }
 
 }  // namespace android::emulation::control

@@ -70,7 +70,7 @@ class EmulatorLocatorTest(unittest.TestCase):
         self.mock_runfiles.Rlocation.return_value = "/mock/missing-aquarium-ui"
         with self.assertRaises(FileNotFoundError) as ctx:
             self.locator._locate_aquarium_ui()
-        self.assertIn("/mock/missing-aquarium-ui", str(ctx.exception))
+        self.assertIn(str(Path("/mock/missing-aquarium-ui")), str(ctx.exception))
 
     @patch("platform.system", return_value="Linux")
     @patch.object(Path, "is_dir", return_value=True)
@@ -79,7 +79,7 @@ class EmulatorLocatorTest(unittest.TestCase):
         self.mock_runfiles.Rlocation.return_value = "/mock/dir-aquarium-ui"
         with self.assertRaises(IsADirectoryError) as ctx:
             self.locator._locate_aquarium_ui()
-        self.assertIn("/mock/dir-aquarium-ui", str(ctx.exception))
+        self.assertIn(str(Path("/mock/dir-aquarium-ui")), str(ctx.exception))
 
     @patch("platform.system", return_value="Linux")
     @patch("os.access", return_value=False)
@@ -92,7 +92,87 @@ class EmulatorLocatorTest(unittest.TestCase):
         self.mock_runfiles.Rlocation.return_value = "/mock/noexec-aquarium-ui"
         with self.assertRaises(PermissionError) as ctx:
             self.locator._locate_aquarium_ui()
-        self.assertIn("/mock/noexec-aquarium-ui", str(ctx.exception))
+        self.assertIn(str(Path("/mock/noexec-aquarium-ui")), str(ctx.exception))
+
+    @patch("platform.system", return_value="Linux")
+    @patch("os.access", return_value=True)
+    @patch.object(Path, "is_file", return_value=True)
+    @patch.object(Path, "is_dir", return_value=False)
+    @patch.object(Path, "exists", return_value=True)
+    def test_locate_device_hub_success(
+        self, mock_exists, mock_is_dir, mock_is_file, mock_access, mock_system
+    ):
+        self.mock_runfiles.Rlocation.return_value = "/mock/android-device-hub"
+        self.locator._locate_device_hub()
+        self.assertEqual(self.locator.device_hub_exec, Path("/mock/android-device-hub"))
+
+    @patch("platform.system", return_value="Darwin")
+    @patch("os.access", return_value=True)
+    @patch.object(Path, "is_file", return_value=True)
+    @patch.object(Path, "is_dir", return_value=False)
+    @patch.object(Path, "exists", return_value=True)
+    def test_locate_device_hub_darwin_success(
+        self, mock_exists, mock_is_dir, mock_is_file, mock_access, mock_system
+    ):
+        self.mock_runfiles.Rlocation.return_value = "/mock/android-device-hub"
+        self.locator._locate_device_hub()
+        self.assertEqual(self.locator.device_hub_exec, Path("/mock/android-device-hub"))
+
+    @patch("platform.system", return_value="Windows")
+    @patch("os.access", return_value=True)
+    @patch.object(Path, "is_file", return_value=True)
+    @patch.object(Path, "is_dir", return_value=False)
+    @patch.object(Path, "exists", return_value=True)
+    def test_locate_device_hub_windows_success(
+        self, mock_exists, mock_is_dir, mock_is_file, mock_access, mock_system
+    ):
+        self.mock_runfiles.Rlocation.return_value = "/mock/android_device_hub.exe"
+        self.locator._locate_device_hub()
+        self.mock_runfiles.Rlocation.assert_called_once_with(
+            "goldfish+/emulator/launcher/android-device-hub/android_device_hub.exe"
+        )
+        self.assertEqual(
+            self.locator.device_hub_exec, Path("/mock/android_device_hub.exe")
+        )
+
+    @patch("platform.system", return_value="Linux")
+    def test_locate_device_hub_not_in_runfiles(self, mock_system):
+        self.mock_runfiles.Rlocation.return_value = None
+        with self.assertRaises(FileNotFoundError) as ctx:
+            self.locator._locate_device_hub()
+        self.assertIn("android-device-hub", str(ctx.exception))
+
+    @patch("platform.system", return_value="Linux")
+    @patch.object(Path, "exists", return_value=False)
+    def test_locate_device_hub_missing_file(self, mock_exists, mock_system):
+        self.mock_runfiles.Rlocation.return_value = "/mock/missing-device-hub"
+        with self.assertRaises(FileNotFoundError) as ctx:
+            self.locator._locate_device_hub()
+        self.assertIn(str(Path("/mock/missing-device-hub")), str(ctx.exception))
+
+    @patch("platform.system", return_value="Linux")
+    @patch.object(Path, "is_dir", return_value=True)
+    @patch.object(Path, "exists", return_value=True)
+    def test_locate_device_hub_is_directory(
+        self, mock_exists, mock_is_dir, mock_system
+    ):
+        self.mock_runfiles.Rlocation.return_value = "/mock/dir-device-hub"
+        with self.assertRaises(IsADirectoryError) as ctx:
+            self.locator._locate_device_hub()
+        self.assertIn(str(Path("/mock/dir-device-hub")), str(ctx.exception))
+
+    @patch("platform.system", return_value="Linux")
+    @patch("os.access", return_value=False)
+    @patch.object(Path, "is_file", return_value=True)
+    @patch.object(Path, "is_dir", return_value=False)
+    @patch.object(Path, "exists", return_value=True)
+    def test_locate_device_hub_not_executable(
+        self, mock_exists, mock_is_dir, mock_is_file, mock_access, mock_system
+    ):
+        self.mock_runfiles.Rlocation.return_value = "/mock/noexec-device-hub"
+        with self.assertRaises(PermissionError) as ctx:
+            self.locator._locate_device_hub()
+        self.assertIn(str(Path("/mock/noexec-device-hub")), str(ctx.exception))
 
 
 class EmulatorLibTest(unittest.IsolatedAsyncioTestCase):
@@ -252,6 +332,104 @@ class EmulatorLibTest(unittest.IsolatedAsyncioTestCase):
         mock_subprocess.assert_called_once()
         cmd_args = list(mock_subprocess.call_args[0])
         self.assertIn("/tmp/discovery.ini", cmd_args)
+
+    @patch("asyncio.create_subprocess_exec")
+    async def test_launch_device_hub_cmd_includes_emulator_and_serial(
+        self, mock_subprocess
+    ):
+        mock_proc = AsyncMock()
+        mock_proc.stdout = AsyncMock()
+        mock_proc.stdout.readline = AsyncMock(return_value=b"")
+        mock_proc.returncode = None
+        mock_subprocess.return_value = mock_proc
+
+        runner = EmulatorRunner(
+            command=["emulator"],
+            aquarium_exec=None,
+            env={},
+            device_hub_exec=Path("/tmp/android-device-hub"),
+            serial_port=12344,
+        )
+
+        await runner._launch_device_hub("/tmp/nonexistent_discovery.ini")
+
+        mock_subprocess.assert_called_once()
+        cmd_args = list(mock_subprocess.call_args[0])
+        self.assertEqual(
+            cmd_args,
+            [
+                str(Path("/tmp/android-device-hub")),
+                "--emulator",
+                "--protocol",
+                "v1",
+                "-s",
+                "emulator-12344",
+            ],
+        )
+        self.assertIsNotNone(runner.device_hub)
+
+    @patch("asyncio.create_subprocess_exec")
+    async def test_launch_device_hub_cmd_with_v2_protocol(
+        self, mock_subprocess
+    ):
+        mock_proc = AsyncMock()
+        mock_proc.stdout = AsyncMock()
+        mock_proc.stdout.readline = AsyncMock(return_value=b"")
+        mock_proc.returncode = None
+        mock_subprocess.return_value = mock_proc
+
+        runner = EmulatorRunner(
+            command=["emulator"],
+            aquarium_exec=None,
+            env={},
+            device_hub_exec=Path("/tmp/android-device-hub"),
+            device_hub_protocol="v2",
+            serial_port=12344,
+        )
+
+        await runner._launch_device_hub("/tmp/nonexistent_discovery.ini")
+
+        mock_subprocess.assert_called_once()
+        cmd_args = list(mock_subprocess.call_args[0])
+        self.assertEqual(
+            cmd_args,
+            [
+                str(Path("/tmp/android-device-hub")),
+                "--emulator",
+                "--protocol",
+                "v2",
+                "-s",
+                "emulator-12344",
+            ],
+        )
+        self.assertIsNotNone(runner.device_hub)
+
+    @patch("asyncio.create_subprocess_exec")
+    async def test_on_emulator_line_launches_both_aquarium_and_device_hub(
+        self, mock_subprocess
+    ):
+        mock_proc = AsyncMock()
+        mock_proc.stdout = AsyncMock()
+        mock_proc.stdout.readline = AsyncMock(return_value=b"")
+        mock_proc.returncode = None
+        mock_subprocess.return_value = mock_proc
+
+        runner = EmulatorRunner(
+            command=["emulator"],
+            aquarium_exec=Path("/tmp/aquarium-ui"),
+            env={},
+            device_hub_exec=Path("/tmp/android-device-hub"),
+            serial_port=15554,
+        )
+
+        with patch("emulator_lib.find_available_port", return_value=8085):
+            await runner._on_emulator_line(
+                "Advertising in discovery file: /tmp/discovery.ini"
+            )
+
+        self.assertEqual(mock_subprocess.call_count, 2)
+        self.assertIsNotNone(runner.aquarium)
+        self.assertIsNotNone(runner.device_hub)
 
 
 if __name__ == "__main__":

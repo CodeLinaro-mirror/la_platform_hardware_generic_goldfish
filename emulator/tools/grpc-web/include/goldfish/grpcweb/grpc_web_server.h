@@ -27,6 +27,8 @@
 
 namespace goldfish::grpcweb {
 
+struct ReactorTracker;
+
 /**
  * @brief High-performance HTTP server that terminates gRPC-Web client requests
  *        and bridges them directly to an upstream gRPC server using goldfish::http.
@@ -79,9 +81,11 @@ class GrpcWebServer {
     size_t ActiveSessionsCount() const;
 
   private:
-    explicit GrpcWebServer(std::unique_ptr<http::WebServer> http_server);
+    GrpcWebServer(std::unique_ptr<http::WebServer> http_server,
+                  std::shared_ptr<ReactorTracker> reactor_tracker);
 
     std::unique_ptr<http::WebServer> http_server_;
+    std::shared_ptr<ReactorTracker> reactor_tracker_;
 };
 
 }  // namespace goldfish::grpcweb

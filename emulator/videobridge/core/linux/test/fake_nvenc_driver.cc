@@ -85,7 +85,10 @@ NV_ENCODE_API_FUNCTION_LIST FakeNvencDriver::CreateFunctionList() {
 
 NVENCSTATUS NVENCAPI
 FakeNvencDriver::OpenEncodeSessionEx(NV_ENC_OPEN_ENCODE_SESSION_EX_PARAMS* params, void** encoder) {
-    if (!encoder || !params || !instance_) return NV_ENC_ERR_INVALID_PTR;
+    if (!encoder || !params || !params->device || params->deviceType != NV_ENC_DEVICE_TYPE_CUDA ||
+        !instance_) {
+        return NV_ENC_ERR_INVALID_PTR;
+    }
     instance_->session_active_ = true;
     *encoder = static_cast<void*>(instance_);
     return NV_ENC_SUCCESS;

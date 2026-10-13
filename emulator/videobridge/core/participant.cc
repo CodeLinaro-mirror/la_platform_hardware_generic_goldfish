@@ -135,6 +135,9 @@ absl::Status Participant::DoInitialize() {
     if (auto s = AddDataChannel(DataChannelLabel::kInputV2); !s.ok()) {
         return s;
     }
+    if (auto s = AddDataChannel(DataChannelLabel::kSensorsV2); !s.ok()) {
+        return s;
+    }
 
     if (media_provider_) {
         return media_provider_->AddTracks(connection_.GetPeerConnectionFactory(),

@@ -20,6 +20,7 @@
 #include <memory>
 
 #include "goldfish/async/testing/test_event_loop.h"
+#include "goldfish/avd/fake_avd_universe.h"
 #include "goldfish/display/test/mock_display.h"
 
 namespace android::emulation::control {
@@ -64,6 +65,7 @@ class InputEventSenderTest : public ::testing::Test {
         ON_CALL(*mock_multidisplay_, IsActive(_)).WillByDefault(Return(true));
     }
 
+    ::goldfish::avd::FakeAvdUniverse fake_avd_;
     std::unique_ptr<TestEventLoop> ev_loop_;
     std::unique_ptr<MockMultiDisplay> mock_multidisplay_;
     std::unique_ptr<InputEventSender> sender_;
