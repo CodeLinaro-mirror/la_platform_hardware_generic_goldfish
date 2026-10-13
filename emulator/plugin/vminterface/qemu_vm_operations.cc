@@ -26,6 +26,7 @@
 #include "absl/time/time.h"
 
 #include "android/goldfish/vm_interface.h"
+#include "android/status/status_macros.h"
 #include "goldfish/async/event_loop.h"
 #include "goldfish/avd/avd_info.h"
 #include "goldfish/metrics/snapshot_metrics.h"
@@ -125,40 +126,20 @@ class QemuVmOperations : public VmOperations {
 
     absl::Status Reset() override {
         return RunOnQemuLoop([this] {
-            switch (const EmuRunState state = GetRunState()) {
-            case EmuRunState::Shutdown:
-            case EmuRunState::SaveVm:
-            case EmuRunState::RestoreVm:
-            case EmuRunState::InMigrate:
-            case EmuRunState::FinishMigrate:
-            case EmuRunState::Colo:
-                return MakeInvalidTransitionError(
-                        /*action=*/"reset", /*current_state=*/state,
-                        /*expected_states=*/"Running, Paused, Suspended, Debug, or fault state");
-            default:
-                qemu_system_reset_request(SHUTDOWN_CAUSE_SUBSYSTEM_RESET);
-                return absl::OkStatus();
-            }
+            RETURN_IF_ERROR(CheckCanExecuteAction("reset"));
+            qemu_system_reset_request(SHUTDOWN_CAUSE_SUBSYSTEM_RESET);
+            return absl::OkStatus();
         });
     }
 
     absl::Status Shutdown() override {
         return RunOnQemuLoop([this] {
-            switch (const EmuRunState state = GetRunState()) {
-            case EmuRunState::Shutdown:
-                return absl::OkStatus();
-            case EmuRunState::SaveVm:
-            case EmuRunState::RestoreVm:
-            case EmuRunState::InMigrate:
-            case EmuRunState::FinishMigrate:
-            case EmuRunState::Colo:
-                return MakeInvalidTransitionError(
-                        /*action=*/"shut down", /*current_state=*/state,
-                        /*expected_states=*/"Running, Paused, Suspended, Debug, or fault state");
-            default:
-                qemu_system_shutdown_request(SHUTDOWN_CAUSE_HOST_UI);
+            if (GetRunState() == EmuRunState::Shutdown) {
                 return absl::OkStatus();
             }
+            RETURN_IF_ERROR(CheckCanExecuteAction("shut down"));
+            qemu_system_shutdown_request(SHUTDOWN_CAUSE_HOST_UI);
+            return absl::OkStatus();
         });
     }
 
@@ -275,8 +256,9 @@ class QemuVmOperations : public VmOperations {
     }
 
     absl::Status SaveSnapshot(std::string name, const bool overwrite) override {
-        return RunOnQemuLoop([name = std::move(name), overwrite] {
+        return RunOnQemuLoop([this, name = std::move(name), overwrite] {
             absl::Time start = absl::Now();
+            RETURN_IF_ERROR(CheckCanExecuteAction("save snapshot for"));
             auto& avd = ::goldfish::avd::GetAvd();
             avd.SetGenericSnapshotInProgress(true);
             auto cleanup = absl::MakeCleanup([&avd] { avd.SetGenericSnapshotInProgress(false); });
@@ -297,8 +279,9 @@ class QemuVmOperations : public VmOperations {
     }
 
     absl::Status LoadSnapshot(std::string id_or_name, const bool and_resume) override {
-        return RunOnQemuLoop([id_or_name = std::move(id_or_name), and_resume] {
+        return RunOnQemuLoop([this, id_or_name = std::move(id_or_name), and_resume] {
             absl::Time start = absl::Now();
+            RETURN_IF_ERROR(CheckCanExecuteAction("load snapshot into"));
             auto& avd = ::goldfish::avd::GetAvd();
             ::Error* errp = nullptr;
 
@@ -311,6 +294,11 @@ class QemuVmOperations : public VmOperations {
             ::goldfish::metrics::ReportGenericSnapshotLoad(avd.GetMetricsReporter(), id_or_name, ok,
                                                            absl::Now() - start);
             if (!ok) {
+                // do_vm_stop(RUN_STATE_RESTORE_VM) only transitions from live states
+                // (Running/Suspended); non-live states (e.g., Paused) remain unchanged.
+                if (::runstate_get() == ::RUN_STATE_RESTORE_VM) {
+                    ::load_snapshot_resume(::RUN_STATE_PRELAUNCH);
+                }
                 return ToStatus(absl::StatusCode::kInternal,
                                 /*prefix=*/absl::StrCat("Cannot load snapshot '", id_or_name, "'"),
                                 &errp,
@@ -337,7 +325,8 @@ class QemuVmOperations : public VmOperations {
     }
 
     absl::Status DeleteSnapshot(std::string id_or_name) override {
-        return RunOnQemuLoop([id_or_name = std::move(id_or_name)] {
+        return RunOnQemuLoop([this, id_or_name = std::move(id_or_name)] {
+            RETURN_IF_ERROR(CheckCanExecuteAction("delete snapshot from"));
             ::Error* errp = nullptr;
             if (!::delete_snapshot(id_or_name.c_str(), /*has_devices=*/false, /*devices=*/nullptr,
                                    &errp)) {
@@ -391,6 +380,22 @@ class QemuVmOperations : public VmOperations {
     }
 
   private:
+    absl::Status CheckCanExecuteAction(std::string_view action) {
+        switch (const EmuRunState state = GetRunState()) {
+        case EmuRunState::Shutdown:
+        case EmuRunState::SaveVm:
+        case EmuRunState::RestoreVm:
+        case EmuRunState::InMigrate:
+        case EmuRunState::FinishMigrate:
+        case EmuRunState::Colo:
+            return MakeInvalidTransitionError(
+                    action, /*current_state=*/state,
+                    /*expected_states=*/"Running, Paused, Suspended, Debug, or fault state");
+        default:
+            return absl::OkStatus();
+        }
+    }
+
     template <typename F>
     absl::Status RunOnQemuLoop(F&& fn) {
         if (event_loop_->IsOnLoopThread()) {
