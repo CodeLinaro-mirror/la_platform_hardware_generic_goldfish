@@ -13,6 +13,10 @@
 // limitations under the License.
 #pragma once
 
+#include <algorithm>
+#include <cstdint>
+#include <string>
+
 #include "absl/functional/function_ref.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_format.h"
@@ -238,22 +242,85 @@ void AbslStringify(Sink& sink, EmuRunState e) {
  *   from the callback `EventLoop` passed to the constructor (to prevent
  *   re-entrant callbacks and cross-loop deadlocks) or from the QEMU main event
  *   loop.
- * - Read-only queries (`IsRunning`, `GetRunState`, `GetConfiguration`) and
- *   atomic requests (`SystemShutdownRequest`) do not block or trigger
- *   callbacks synchronously and may be called from any thread, including
- *   `qemu_loop`, `RunStateEvents()` callbacks, and hang detector predicates.
+ * - Read-only queries (`IsRunning`, `GetRunState`, `GetConfiguration`,
+ *   `GetSnapshotProgress`) and atomic requests (`SystemShutdownRequest`) do
+ *   not block or trigger callbacks synchronously and may be called from any
+ *   thread, including `qemu_loop`, `RunStateEvents()` and `SnapshotEvents()`
+ *   callbacks, and hang detector predicates.
  */
 class VmOperations {
   public:
     /** @brief Source of run state changes, delivered on an event loop. */
     using RunStateSource = ::goldfish::async::LoopBoundCallbackSource<EmuRunState>;
 
+    enum class SnapshotOperationType {
+        Idle = 0,
+        Save = 1,
+        Load = 2,
+    };
+
+    enum class SnapshotPhase {
+        None = 0,
+        Preparing = 1,
+        Transferring = 2,
+        Completed = 3,
+        Failed = 4,
+    };
+
+    struct SnapshotProgress {
+        SnapshotOperationType operation = SnapshotOperationType::Idle;
+        SnapshotPhase phase = SnapshotPhase::None;
+        std::string snapshot_id;
+        std::string active_component;
+        int64_t transferred_bytes = 0;
+        int64_t total_bytes = 0;
+        int64_t disk_bytes = 0;
+        int32_t completed_devices = 0;
+        int32_t total_devices = 0;
+        std::string error_message;
+
+        int32_t progress_percent() const {
+            if (phase == SnapshotPhase::Completed) {
+                return 100;
+            }
+            if (phase == SnapshotPhase::None && operation == SnapshotOperationType::Idle) {
+                return total_bytes > 0 && transferred_bytes >= total_bytes ? 100 : 0;
+            }
+            if (phase == SnapshotPhase::Preparing) {
+                return 0;
+            }
+            double ratio = 0.0;
+            if (total_bytes > 0) {
+                const double byte_ratio = std::clamp(
+                        static_cast<double>(transferred_bytes) / static_cast<double>(total_bytes),
+                        0.0, 1.0);
+                if (total_devices > 0) {
+                    const double dev_ratio = std::clamp(static_cast<double>(completed_devices) /
+                                                                static_cast<double>(total_devices),
+                                                        0.0, 1.0);
+                    ratio = 0.85 * byte_ratio + 0.15 * dev_ratio;
+                } else {
+                    ratio = byte_ratio;
+                }
+            } else if (total_devices > 0) {
+                ratio = std::clamp(
+                        static_cast<double>(completed_devices) / static_cast<double>(total_devices),
+                        0.0, 1.0);
+            }
+            return std::clamp(static_cast<int32_t>(ratio * 100.0), 0, 99);
+        }
+    };
+
+    /** @brief Source of snapshot progress updates, delivered on an event loop. */
+    using SnapshotSource = ::goldfish::async::LoopBoundCallbackSource<SnapshotProgress>;
+
     /**
-     * @brief Creates the interface with run state changes delivered on |loop|.
+     * @brief Creates the interface with run state and snapshot events delivered on |loop|.
      *
-     * @param loop The loop that runs the run state callbacks. Must outlive this object.
+     * @param loop The loop that runs the callbacks. Must outlive this object.
      */
-    explicit VmOperations(::goldfish::async::EventLoop* loop) : run_state_events_(loop) {}
+    explicit VmOperations(::goldfish::async::EventLoop* loop)
+            : run_state_events_(loop), snapshot_events_(loop) {}
 
     /**
      * @brief Virtual destructor for the VmOperations interface.
@@ -269,6 +336,15 @@ class VmOperations {
      * or snapshot methods on `VmOperations` from inside a callback.
      */
     RunStateSource& RunStateEvents() { return run_state_events_; }
+
+    /**
+     * @brief Snapshot progress events.
+     *
+     * Callbacks run on the loop passed to the constructor, never on the thread performing the
+     * snapshot operation, which holds the BQL. Every operation reports Preparing once, optional
+     * Transferring updates (throttled to at most 4 Hz), and finally Completed or Failed once.
+     */
+    SnapshotSource& SnapshotEvents() { return snapshot_events_; }
 
     /**
      * @brief Stops the virtual machine.
@@ -363,8 +439,14 @@ class VmOperations {
     virtual absl::Status DeleteSnapshot(std::string id_or_name) = 0;
     virtual absl::Status ListSnapshots(SnapshotEntrySink sink) = 0;
 
+    /**
+     * @brief Queries the latest snapshot progress without acquiring the BQL.
+     */
+    virtual SnapshotProgress GetSnapshotProgress() const { return {}; }
+
   private:
     RunStateSource run_state_events_;
+    SnapshotSource snapshot_events_;
 };
 
 }  // namespace goldfish

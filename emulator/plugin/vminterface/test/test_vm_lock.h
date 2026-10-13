@@ -15,6 +15,7 @@
 
 #include "absl/synchronization/mutex.h"
 
+#include "emulator/plugin/vminterface/test/vm_mock.h"
 #include "emulator/plugin/vminterface/vm_lock.h"
 
 namespace android::goldfish {
@@ -35,8 +36,14 @@ class TestVmLock : public VmLock {
         }
     }
 
-    void Lock() override { lock_count_++; }
-    void Unlock() override { unlock_count_++; }
+    void Lock() override {
+        lock_count_++;
+        mock_iothread_locked_set(IsLockedBySelf());
+    }
+    void Unlock() override {
+        unlock_count_++;
+        mock_iothread_locked_set(IsLockedBySelf());
+    }
     bool IsLockedBySelf() const override { return lock_count_ > unlock_count_; }
 
     int lock_count_ = 0;
@@ -61,8 +68,14 @@ class HostVmLock : public VmLock {
         }
     }
 
-    void Lock() override ABSL_NO_THREAD_SAFETY_ANALYSIS { lock_.Lock(); }
-    void Unlock() override ABSL_NO_THREAD_SAFETY_ANALYSIS { lock_.Unlock(); }
+    void Lock() override ABSL_NO_THREAD_SAFETY_ANALYSIS {
+        lock_.Lock();
+        mock_iothread_locked_set(true);
+    }
+    void Unlock() override ABSL_NO_THREAD_SAFETY_ANALYSIS {
+        mock_iothread_locked_set(false);
+        lock_.Unlock();
+    }
     bool IsLockedBySelf() const override ABSL_NO_THREAD_SAFETY_ANALYSIS {
         if (lock_.TryLock()) {
             lock_.Unlock();

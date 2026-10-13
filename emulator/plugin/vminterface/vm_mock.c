@@ -198,3 +198,33 @@ void mock_fire_vm_change_state(bool running, RunState state) {
 bool mock_has_vm_change_state_handler(void) {
     return s_change_handler != NULL;
 }
+
+static QemuSnapshotProgressHandler* s_snapshot_progress_handler = NULL;
+static void* s_snapshot_progress_opaque = NULL;
+
+// NOLINTBEGIN(readability-identifier-naming)
+QemuSnapshotProgressEntry* add_snapshot_progress_handler(QemuSnapshotProgressHandler* cb,
+                                                         void* opaque) {
+    assert(bql_locked());
+    s_snapshot_progress_handler = cb;
+    s_snapshot_progress_opaque = opaque;
+    return (QemuSnapshotProgressEntry*)0x1;
+}
+
+void del_snapshot_progress_handler(QemuSnapshotProgressEntry* e) {
+    (void)e;
+    assert(bql_locked());
+    s_snapshot_progress_handler = NULL;
+    s_snapshot_progress_opaque = NULL;
+}
+// NOLINTEND(readability-identifier-naming)
+
+void mock_fire_snapshot_progress(const QemuSnapshotProgress* progress) {
+    if (s_snapshot_progress_handler) {
+        s_snapshot_progress_handler(s_snapshot_progress_opaque, progress);
+    }
+}
+
+bool mock_has_snapshot_progress_handler(void) {
+    return s_snapshot_progress_handler != NULL;
+}

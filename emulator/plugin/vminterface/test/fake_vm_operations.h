@@ -1,5 +1,6 @@
 #pragma once
 
+#include <functional>
 #include <string>
 #include <utility>
 
@@ -71,6 +72,9 @@ class FakeVmOperations : public VmOperations {
     void LoadSnapshotResume(EmuRunState /*state*/) override {}
 
     absl::Status SaveSnapshot(std::string name, bool /*overwrite*/) override {
+        if (on_save) {
+            on_save(name.c_str());
+        }
         if (fail_save) {
             return absl::InternalError("Failed to write snapshot to disk");
         }
@@ -82,6 +86,9 @@ class FakeVmOperations : public VmOperations {
     }
 
     absl::Status LoadSnapshot(std::string id_or_name, bool /*and_resume*/) override {
+        if (on_load) {
+            on_load(id_or_name.c_str());
+        }
         if (fail_load) {
             return absl::InternalError("Failed to read snapshot from disk");
         }
@@ -106,6 +113,15 @@ class FakeVmOperations : public VmOperations {
         return absl::OkStatus();
     }
 
+    SnapshotProgress GetSnapshotProgress() const override { return progress; }
+
+    void EmitRunState(EmuRunState state) { SetRunState(state); }
+
+    void EmitSnapshotProgress(const SnapshotProgress& next_progress) {
+        progress = next_progress;
+        SnapshotEvents().FireEvent(next_progress);
+    }
+
     bool fail_save = false;
     bool fail_load = false;
     int reset_count = 0;
@@ -117,6 +133,9 @@ class FakeVmOperations : public VmOperations {
         .cpu_type = "arm",
     };
     std::string last_loaded_snapshot;
+    SnapshotProgress progress;
+    std::function<void(const char*)> on_save;
+    std::function<void(const char*)> on_load;
     absl::flat_hash_map<std::string, SnapshotEntry> entries;
 };
 

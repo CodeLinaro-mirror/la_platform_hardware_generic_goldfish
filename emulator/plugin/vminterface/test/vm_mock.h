@@ -51,6 +51,12 @@ bool mock_has_vm_change_state_handler(void);
 // Setter for the return value of vm_stop()
 void mock_vm_stop_return_set(int ret);
 
+// Trigger registered snapshot progress handlers
+void mock_fire_snapshot_progress(const QemuSnapshotProgress* progress);
+
+// Whether a snapshot progress handler is currently registered
+bool mock_has_snapshot_progress_handler(void);
+
 // Configure save_snapshot / load_snapshot / delete_snapshot mock return value
 void mock_snapshot_op_ok_set(bool ok);
 
