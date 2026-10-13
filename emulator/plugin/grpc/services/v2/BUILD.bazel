@@ -277,6 +277,7 @@ cc_library(
     }),
     deps = [
         "//emulator/libs/eventing",
+        "//emulator/libs/grpc_utils:absl_translate",
         "//emulator/libs/grpc_utils:event-stream",
         "//emulator/libs/system",
         "//emulator/plugin/avd_universe:clipboard",
@@ -286,6 +287,7 @@ cc_library(
         "//emulator/plugin/vminterface",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/synchronization",
         "@abseil-cpp//absl/time",
         "@aemu//protos/services_v2:system_service_cc_grpc",

@@ -18,16 +18,19 @@
 #include <utility>
 
 #include "absl/log/check.h"
+#include "absl/status/status.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 
 #include "android/base/system.h"
+#include "android/emulation/control/absl_status_translate.h"
 #include "android/emulation/control/grpc_event_stream_support.h"
 
 namespace goldfish::grpc::v2 {
 
 using ::android::base::System;
+using ::android::emulation::control::AbslStatusToGrpcStatus;
 using ::android::emulation::control::StateStreamWriter;
 using ::android::emulation::v2::ClipboardState;
 using ::android::emulation::v2::GetClipboardStateRequest;
@@ -134,8 +137,7 @@ Status SystemServiceImpl::RebootDevice(ServerContext* /*context*/,
                                        const RebootDeviceRequest* /*request*/,
                                        RebootDeviceResponse* /*reply*/) {
     DCHECK(vm_operations_);
-    vm_operations_->reset();
-    return Status::OK;
+    return AbslStatusToGrpcStatus(vm_operations_->Reset());
 }
 
 Status SystemServiceImpl::GetClipboardState(ServerContext* /*context*/,

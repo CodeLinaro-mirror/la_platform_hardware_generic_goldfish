@@ -59,20 +59,20 @@ class MockVmOps : public VmOperations {
   public:
     explicit MockVmOps(::goldfish::async::EventLoop* loop) : VmOperations(loop) {}
 
-    MOCK_METHOD(bool, stop, (), (override));
-    MOCK_METHOD(bool, start, (), (override));
-    MOCK_METHOD(void, reset, (), (override));
-    MOCK_METHOD(void, Shutdown, (), (override));
-    MOCK_METHOD(bool, pause, (), (override));
-    MOCK_METHOD(bool, resume, (), (override));
-    MOCK_METHOD(bool, isRunning, (), (override));
-    MOCK_METHOD(VmConfiguration, getConfiguration, (), (override));
-    MOCK_METHOD(EmuRunState, getRunState, (), (override));
-    MOCK_METHOD(void, systemShutdownRequest, (QemuShutdownCause reason), (override));
-    MOCK_METHOD(absl::Status, SaveSnapshot, (const char* name, bool overwrite), (override));
-    MOCK_METHOD(absl::Status, LoadSnapshot, (const char* id_or_name, bool and_run), (override));
+    MOCK_METHOD(absl::Status, Stop, (), (override));
+    MOCK_METHOD(absl::Status, Start, (), (override));
+    MOCK_METHOD(absl::Status, Reset, (), (override));
+    MOCK_METHOD(absl::Status, Shutdown, (), (override));
+    MOCK_METHOD(absl::Status, Pause, (), (override));
+    MOCK_METHOD(absl::Status, Resume, (), (override));
+    MOCK_METHOD(bool, IsRunning, (), (override));
+    MOCK_METHOD(VmConfiguration, GetConfiguration, (), (override));
+    MOCK_METHOD(EmuRunState, GetRunState, (), (override));
+    MOCK_METHOD(void, SystemShutdownRequest, (QemuShutdownCause reason), (override));
+    MOCK_METHOD(absl::Status, SaveSnapshot, (std::string name, bool overwrite), (override));
+    MOCK_METHOD(absl::Status, LoadSnapshot, (std::string id_or_name, bool and_resume), (override));
     MOCK_METHOD(void, LoadSnapshotResume, (EmuRunState), (override));
-    MOCK_METHOD(absl::Status, DeleteSnapshot, (const char* id_or_name), (override));
+    MOCK_METHOD(absl::Status, DeleteSnapshot, (std::string id_or_name), (override));
     MOCK_METHOD(absl::Status, ListSnapshots, (SnapshotEntrySink), (override));
 };
 
@@ -152,7 +152,7 @@ TEST_F(SystemServiceTest, StreamSystemStateReactivelyReceivesUpdates) {
 }
 
 TEST_F(SystemServiceTest, RebootDeviceTriggersVmReset) {
-    EXPECT_CALL(*mock_vm_, reset()).Times(1);
+    EXPECT_CALL(*mock_vm_, Reset()).WillOnce(::testing::Return(absl::OkStatus()));
 
     RebootDeviceRequest req;
     RebootDeviceResponse reply;
