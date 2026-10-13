@@ -16,12 +16,16 @@
 #include <gtest/gtest.h>
 
 #include <array>
+#include <cerrno>
 #include <memory>
 #include <string_view>
 #include <vector>
 
+#include "absl/status/status_matchers.h"
+
 #include "android/goldfish/qemu_vm_operations.h"
 #include "android/goldfish/vm_interface.h"
+#include "android/status/status_matcher_macros.h"
 #include "emulator/plugin/vminterface/test/test_vm_lock.h"
 #include "goldfish/async/testing/test_event_loop.h"
 
@@ -33,8 +37,11 @@ extern "C" {
 namespace android {
 namespace goldfish {
 
+using ::absl_testing::StatusIs;
 using ::goldfish::async::testing::TestEventLoop;
+using ::testing::AllOf;
 using ::testing::ElementsAre;
+using ::testing::HasSubstr;
 using ::testing::IsEmpty;
 
 class QemuVmOperationsTest : public ::testing::Test {
@@ -44,6 +51,7 @@ class QemuVmOperationsTest : public ::testing::Test {
         mock_runstate_set(RUN_STATE_DEBUG);
         mock_shutdown_cause_set(SHUTDOWN_CAUSE_NONE);
         mock_iothread_locked_set(false);
+        mock_vm_stop_return_set(0);
         test_vm_lock_ = TestVmLock::GetInstance();
         test_vm_lock_->lock_count_ = 0;
         test_vm_lock_->unlock_count_ = 0;
@@ -65,6 +73,7 @@ class QemuVmOperationsTest : public ::testing::Test {
         mock_runstate_set(RUN_STATE_DEBUG);
         mock_shutdown_cause_set(SHUTDOWN_CAUSE_NONE);
         mock_iothread_locked_set(false);
+        mock_vm_stop_return_set(0);
     }
 
     TestVmLock* test_vm_lock_ = nullptr;
@@ -75,8 +84,9 @@ class QemuVmOperationsTest : public ::testing::Test {
 };
 
 TEST_F(QemuVmOperationsTest, Stop) {
-    // Tests that the Stop operation correctly pauses the VM and uses the VmLock.
-    ASSERT_TRUE(vm_ops_->Stop());
+    // Tests that the Stop operation correctly pauses a running VM and uses the VmLock.
+    mock_runstate_set(RUN_STATE_RUNNING);
+    ASSERT_OK(vm_ops_->Stop());
     ASSERT_EQ(test_vm_lock_->lock_count_, 1);
     ASSERT_EQ(test_vm_lock_->unlock_count_, 1);
     ASSERT_EQ(runstate_get(), RUN_STATE_PAUSED);
@@ -84,7 +94,7 @@ TEST_F(QemuVmOperationsTest, Stop) {
 
 TEST_F(QemuVmOperationsTest, Start) {
     // Tests that the Start operation correctly starts the VM and uses the VmLock.
-    ASSERT_TRUE(vm_ops_->Start());
+    ASSERT_OK(vm_ops_->Start());
     ASSERT_EQ(test_vm_lock_->lock_count_, 1);
     ASSERT_EQ(test_vm_lock_->unlock_count_, 1);
     ASSERT_EQ(runstate_get(), RUN_STATE_RUNNING);
@@ -92,7 +102,7 @@ TEST_F(QemuVmOperationsTest, Start) {
 
 TEST_F(QemuVmOperationsTest, Reset) {
     // Tests that the Reset operation correctly resets the VM and uses the VmLock.
-    vm_ops_->Reset();
+    ASSERT_OK(vm_ops_->Reset());
     ASSERT_EQ(test_vm_lock_->lock_count_, 1);
     ASSERT_EQ(test_vm_lock_->unlock_count_, 1);
     ASSERT_EQ(mock_shutdown_cause_get(), SHUTDOWN_CAUSE_SUBSYSTEM_RESET);
@@ -100,7 +110,7 @@ TEST_F(QemuVmOperationsTest, Reset) {
 
 TEST_F(QemuVmOperationsTest, Shutdown) {
     // Tests that the Shutdown operation correctly shuts down the VM and uses the VmLock.
-    vm_ops_->Shutdown();
+    ASSERT_OK(vm_ops_->Shutdown());
     ASSERT_EQ(test_vm_lock_->lock_count_, 1);
     ASSERT_EQ(test_vm_lock_->unlock_count_, 1);
 
@@ -111,8 +121,9 @@ TEST_F(QemuVmOperationsTest, Shutdown) {
 }
 
 TEST_F(QemuVmOperationsTest, Pause) {
-    // Tests that the Pause operation correctly pauses the VM and uses the VmLock.
-    ASSERT_TRUE(vm_ops_->Pause());
+    // Tests that the Pause operation correctly pauses a running VM and uses the VmLock.
+    mock_runstate_set(RUN_STATE_RUNNING);
+    ASSERT_OK(vm_ops_->Pause());
     ASSERT_EQ(test_vm_lock_->lock_count_, 1);
     ASSERT_EQ(test_vm_lock_->unlock_count_, 1);
     ASSERT_EQ(runstate_get(), RUN_STATE_PAUSED);
@@ -120,10 +131,117 @@ TEST_F(QemuVmOperationsTest, Pause) {
 
 TEST_F(QemuVmOperationsTest, Resume) {
     // Tests that the Resume operation correctly resumes the VM and uses the VmLock.
-    ASSERT_TRUE(vm_ops_->Resume());
+    ASSERT_OK(vm_ops_->Resume());
     ASSERT_EQ(test_vm_lock_->lock_count_, 1);
     ASSERT_EQ(test_vm_lock_->unlock_count_, 1);
     ASSERT_EQ(runstate_get(), RUN_STATE_RUNNING);
+}
+
+TEST_F(QemuVmOperationsTest, StartResumePauseStopAndShutdownAreIdempotent) {
+    mock_runstate_set(RUN_STATE_RUNNING);
+    EXPECT_OK(vm_ops_->Start());
+    EXPECT_OK(vm_ops_->Resume());
+
+    mock_runstate_set(RUN_STATE_PAUSED);
+    EXPECT_OK(vm_ops_->Pause());
+    EXPECT_OK(vm_ops_->Stop());
+
+    mock_runstate_set(RUN_STATE_SHUTDOWN);
+    EXPECT_OK(vm_ops_->Shutdown());
+}
+
+TEST_F(QemuVmOperationsTest, StartAndResumeFailInConflictingStates) {
+    for (RunState state : {RUN_STATE_SHUTDOWN, RUN_STATE_SAVE_VM, RUN_STATE_RESTORE_VM,
+                           RUN_STATE_INTERNAL_ERROR, RUN_STATE_GUEST_PANICKED}) {
+        mock_runstate_set(state);
+        EXPECT_THAT(vm_ops_->Start(), StatusIs(absl::StatusCode::kFailedPrecondition,
+                                               HasSubstr("Running, Paused, Suspended")));
+        EXPECT_THAT(vm_ops_->Resume(), StatusIs(absl::StatusCode::kFailedPrecondition,
+                                                HasSubstr("Running, Paused, Suspended")));
+        EXPECT_EQ(runstate_get(), state);
+    }
+
+    mock_runstate_set(RUN_STATE_SHUTDOWN);
+    EXPECT_THAT(vm_ops_->Resume(), StatusIs(absl::StatusCode::kFailedPrecondition,
+                                            AllOf(HasSubstr("Shutdown"),
+                                                  HasSubstr("Launch a new emulator instance"))));
+
+    mock_runstate_set(RUN_STATE_SAVE_VM);
+    EXPECT_THAT(
+            vm_ops_->Resume(),
+            StatusIs(absl::StatusCode::kFailedPrecondition,
+                     AllOf(HasSubstr("SaveVm"), HasSubstr("Wait for the operation to complete"))));
+
+    mock_runstate_set(RUN_STATE_GUEST_PANICKED);
+    EXPECT_THAT(vm_ops_->Resume(),
+                StatusIs(absl::StatusCode::kFailedPrecondition,
+                         AllOf(HasSubstr("GuestPanicked"), HasSubstr("Reset the VM"))));
+}
+
+TEST_F(QemuVmOperationsTest, PauseAndStopFailInConflictingStates) {
+    for (RunState state : {RUN_STATE_DEBUG, RUN_STATE_PRELAUNCH, RUN_STATE_POSTMIGRATE,
+                           RUN_STATE_SHUTDOWN, RUN_STATE_SAVE_VM, RUN_STATE_RESTORE_VM,
+                           RUN_STATE_INTERNAL_ERROR, RUN_STATE_GUEST_PANICKED}) {
+        mock_runstate_set(state);
+        EXPECT_THAT(vm_ops_->Pause(), StatusIs(absl::StatusCode::kFailedPrecondition,
+                                               HasSubstr("Running, Paused, or Suspended")));
+        EXPECT_THAT(vm_ops_->Stop(), StatusIs(absl::StatusCode::kFailedPrecondition,
+                                              HasSubstr("Running, Paused, or Suspended")));
+        EXPECT_EQ(runstate_get(), state);
+    }
+
+    mock_runstate_set(RUN_STATE_SHUTDOWN);
+    EXPECT_THAT(vm_ops_->Pause(), StatusIs(absl::StatusCode::kFailedPrecondition,
+                                           AllOf(HasSubstr("Shutdown"),
+                                                 HasSubstr("Launch a new emulator instance"))));
+
+    mock_runstate_set(RUN_STATE_SAVE_VM);
+    EXPECT_THAT(vm_ops_->Pause(), StatusIs(absl::StatusCode::kFailedPrecondition,
+                                           AllOf(HasSubstr("SaveVm"),
+                                                 HasSubstr("Wait for the operation to complete"))));
+
+    mock_runstate_set(RUN_STATE_DEBUG);
+    EXPECT_THAT(vm_ops_->Pause(), StatusIs(absl::StatusCode::kFailedPrecondition,
+                                           AllOf(HasSubstr("Debug"), HasSubstr("Reset the VM"))));
+}
+
+TEST_F(QemuVmOperationsTest, PauseAndStopPropagateVmStopErrors) {
+    mock_runstate_set(RUN_STATE_RUNNING);
+    mock_vm_stop_return_set(-ENOSPC);
+
+    EXPECT_THAT(vm_ops_->Pause(),
+                StatusIs(absl::StatusCode::kResourceExhausted,
+                         AllOf(HasSubstr("Cannot pause VM"), HasSubstr("check host storage"))));
+    EXPECT_THAT(vm_ops_->Stop(),
+                StatusIs(absl::StatusCode::kResourceExhausted, HasSubstr("Cannot pause VM")));
+
+    mock_vm_stop_return_set(1);
+    EXPECT_THAT(vm_ops_->Pause(), StatusIs(absl::StatusCode::kInternal,
+                                           AllOf(HasSubstr("device stop callback failed"),
+                                                 HasSubstr("Reset the VM"))));
+    EXPECT_THAT(vm_ops_->Stop(),
+                StatusIs(absl::StatusCode::kInternal, HasSubstr("device stop callback failed")));
+}
+
+TEST_F(QemuVmOperationsTest, ResetAndShutdownFailInConflictingStates) {
+    mock_runstate_set(RUN_STATE_SHUTDOWN);
+    EXPECT_THAT(vm_ops_->Reset(),
+                StatusIs(absl::StatusCode::kFailedPrecondition,
+                         AllOf(HasSubstr("Shutdown"),
+                               HasSubstr("Running, Paused, Suspended, Debug, or fault state"),
+                               HasSubstr("Launch a new emulator instance"))));
+
+    for (RunState state : {RUN_STATE_SAVE_VM, RUN_STATE_RESTORE_VM}) {
+        mock_runstate_set(state);
+        EXPECT_THAT(vm_ops_->Reset(),
+                    StatusIs(absl::StatusCode::kFailedPrecondition,
+                             AllOf(HasSubstr("Running, Paused, Suspended, Debug, or fault state"),
+                                   HasSubstr("Wait for the operation to complete"))));
+        EXPECT_THAT(vm_ops_->Shutdown(),
+                    StatusIs(absl::StatusCode::kFailedPrecondition,
+                             AllOf(HasSubstr("Running, Paused, Suspended, Debug, or fault state"),
+                                   HasSubstr("Wait for the operation to complete"))));
+    }
 }
 
 TEST_F(QemuVmOperationsTest, IsRunning) {

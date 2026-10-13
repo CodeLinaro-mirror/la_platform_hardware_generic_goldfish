@@ -132,8 +132,10 @@ cc_test(
     deps = [
         ":vminterface-test",
         "//emulator/libs/async:async_testing",
+        "//emulator/libs/status_macros:status_matcher_macros",
         "//emulator/libs/system:test-headers",
         "//emulator/libs/test:googletest_main",
+        "@abseil-cpp//absl/status:status_matchers",
         "@glib//glib:glib_import",
         "@glib//gmodule:gmodule_import",
     ],
@@ -147,6 +149,9 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":vminterface",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/time",
     ],
 )
 

@@ -14,7 +14,9 @@
 #include "vm_service.h"
 
 #include "absl/log/log.h"
+#include "absl/strings/str_cat.h"
 
+#include "android/emulation/control/absl_status_translate.h"
 #include "android/process/process.h"
 
 namespace android {
@@ -25,33 +27,30 @@ Status VmServiceImpl::setVmState(const VmRunState& request) {
     auto state = request.state();
     switch (state) {
     case VmRunState::RESET:
-        vm_->Reset();
-        break;
+        return AbslStatusToGrpcStatus(vm_->Reset());
     case VmRunState::SHUTDOWN:
-        vm_->Shutdown();
-        break;
+        return AbslStatusToGrpcStatus(vm_->Shutdown());
     case VmRunState::TERMINATE: {
         LOG(ERROR) << "Received request to terminate the emulator process immediately. No "
                       "cleanup will be performed.";
         android::base::Process::Me()->Terminate();
     }; break;
     case VmRunState::PAUSED:
-        vm_->Pause();
-        break;
+        return AbslStatusToGrpcStatus(vm_->Pause());
     case VmRunState::RUNNING:
-        vm_->Resume();
-        break;
+        return AbslStatusToGrpcStatus(vm_->Resume());
     case VmRunState::RESTART:
-        vm_->Reset();
-        break;
+        return AbslStatusToGrpcStatus(vm_->Reset());
     case VmRunState::START:
-        vm_->Start();
-        break;
+        return AbslStatusToGrpcStatus(vm_->Start());
     case VmRunState::STOP:
-        vm_->Stop();
-        break;
+        return AbslStatusToGrpcStatus(vm_->Stop());
     default:
-        break;
+        return Status(grpc::StatusCode::INVALID_ARGUMENT,
+                      absl::StrCat("Cannot set VM state to ", VmRunState::RunState_Name(state),
+                                   " (", static_cast<int>(state),
+                                   "): expected START, STOP, PAUSED, RUNNING, "
+                                   "RESET, RESTART, SHUTDOWN, or TERMINATE."));
     };
 
     return Status::OK;

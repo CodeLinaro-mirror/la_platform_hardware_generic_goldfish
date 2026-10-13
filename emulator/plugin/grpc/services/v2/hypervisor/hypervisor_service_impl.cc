@@ -147,21 +147,27 @@ ServerWriteReactor<VmState>* HypervisorServiceImpl::StreamVmState(
 
 Status HypervisorServiceImpl::PauseVm(ServerContext* /*context*/, const PauseVmRequest* /*request*/,
                                       VmState* response) {
-    vm_operations_.Pause();
+    if (const absl::Status status = vm_operations_.Pause(); !status.ok()) {
+        return AbslStatusToGrpcStatus(status);
+    }
     PopulateVmState(response);
     return Status::OK;
 }
 
 Status HypervisorServiceImpl::ResumeVm(ServerContext* /*context*/,
                                        const ResumeVmRequest* /*request*/, VmState* response) {
-    vm_operations_.Resume();
+    if (const absl::Status status = vm_operations_.Resume(); !status.ok()) {
+        return AbslStatusToGrpcStatus(status);
+    }
     PopulateVmState(response);
     return Status::OK;
 }
 
 Status HypervisorServiceImpl::ResetVm(ServerContext* /*context*/, const ResetVmRequest* /*request*/,
                                       VmState* response) {
-    vm_operations_.Reset();
+    if (const absl::Status status = vm_operations_.Reset(); !status.ok()) {
+        return AbslStatusToGrpcStatus(status);
+    }
     PopulateVmState(response);
     return Status::OK;
 }
@@ -169,7 +175,9 @@ Status HypervisorServiceImpl::ResetVm(ServerContext* /*context*/, const ResetVmR
 Status HypervisorServiceImpl::HardResetVm(ServerContext* /*context*/,
                                           const HardResetVmRequest* /*request*/,
                                           VmState* response) {
-    vm_operations_.Reset();
+    if (const absl::Status status = vm_operations_.Reset(); !status.ok()) {
+        return AbslStatusToGrpcStatus(status);
+    }
     PopulateVmState(response);
     return Status::OK;
 }
@@ -180,7 +188,9 @@ Status HypervisorServiceImpl::StopVm(ServerContext* /*context*/, const StopVmReq
         LOG(WARNING) << "save_quickboot_snapshot is currently unimplemented; relying on "
                         "QEMU default shutdown lifecycle.";
     }
-    vm_operations_.Shutdown();
+    if (const absl::Status status = vm_operations_.Shutdown(); !status.ok()) {
+        return AbslStatusToGrpcStatus(status);
+    }
     PopulateVmState(response);
     return Status::OK;
 }
@@ -309,8 +319,7 @@ Status HypervisorServiceImpl::CreateSnapshot(ServerContext* /*context*/,
     const Operation started_op =
             operations_service_->StartOperation("snapshot/create", initial_meta);
 
-    const absl::Status save_status =
-            vm_operations_.SaveSnapshot(snapshot_id.c_str(), /*overwrite=*/true);
+    const absl::Status save_status = vm_operations_.SaveSnapshot(snapshot_id, /*overwrite=*/true);
     if (!save_status.ok()) {
         // The operation is registered, so report the failure through the Operation
         // (AIP-151). A non-OK gRPC status would cause the response to be discarded.
@@ -378,7 +387,7 @@ Status HypervisorServiceImpl::RestoreSnapshot(ServerContext* /*context*/,
             operations_service_->StartOperation("snapshot/restore", initial_meta);
 
     const absl::Status load_status =
-            vm_operations_.LoadSnapshot(request->snapshot_id().c_str(), /*and_resume=*/true);
+            vm_operations_.LoadSnapshot(request->snapshot_id(), /*and_resume=*/true);
     if (!load_status.ok()) {
         *response =
                 operations_service_->FailOperation(started_op.name(), load_status, &initial_meta);
@@ -403,7 +412,7 @@ Status HypervisorServiceImpl::DeleteSnapshot(ServerContext* /*context*/,
                 "snapshot_id must not be empty or contain path separators or '..'."};
     }
 
-    const absl::Status status = vm_operations_.DeleteSnapshot(request->snapshot_id().c_str());
+    const absl::Status status = vm_operations_.DeleteSnapshot(request->snapshot_id());
     if (!status.ok()) {
         return AbslStatusToGrpcStatus(status);
     }
