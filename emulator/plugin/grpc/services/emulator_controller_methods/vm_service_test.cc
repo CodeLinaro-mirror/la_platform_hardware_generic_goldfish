@@ -50,51 +50,51 @@ class MockVmOperations : public VmOperations {
     explicit MockVmOperations(std::unique_ptr<TestEventLoop> loop = TestEventLoop::Create())
             : VmOperations(loop.get()), loop_(std::move(loop)) {}
 
-    MOCK_METHOD(bool, stop, (), (override));
-    MOCK_METHOD(bool, start, (), (override));
-    MOCK_METHOD(void, reset, (), (override));
+    MOCK_METHOD(bool, Stop, (), (override));
+    MOCK_METHOD(bool, Start, (), (override));
+    MOCK_METHOD(void, Reset, (), (override));
     MOCK_METHOD(void, Shutdown, (), (override));
-    MOCK_METHOD(bool, pause, (), (override));
-    MOCK_METHOD(bool, resume, (), (override));
-    MOCK_METHOD(bool, isRunning, (), (override));
-    MOCK_METHOD(GoldfishVmConfiguration, getConfiguration, (), (override));
-    MOCK_METHOD(EmuRunState, getRunState, (), (override));
-    MOCK_METHOD(void, systemShutdownRequest, (QemuShutdownCause reason), (override));
+    MOCK_METHOD(bool, Pause, (), (override));
+    MOCK_METHOD(bool, Resume, (), (override));
+    MOCK_METHOD(bool, IsRunning, (), (override));
+    MOCK_METHOD(GoldfishVmConfiguration, GetConfiguration, (), (override));
+    MOCK_METHOD(EmuRunState, GetRunState, (), (override));
+    MOCK_METHOD(void, SystemShutdownRequest, (QemuShutdownCause reason), (override));
     MOCK_METHOD(absl::Status, SaveSnapshot, (const char* name, bool overwrite), (override));
-    MOCK_METHOD(absl::Status, LoadSnapshot, (const char* id_or_name, bool and_run), (override));
-    MOCK_METHOD(void, LoadSnapshotResume, (EmuRunState), (override));
+    MOCK_METHOD(absl::Status, LoadSnapshot, (const char* id_or_name, bool and_resume), (override));
+    MOCK_METHOD(void, LoadSnapshotResume, (EmuRunState state), (override));
     MOCK_METHOD(absl::Status, DeleteSnapshot, (const char* id_or_name), (override));
-    MOCK_METHOD(absl::Status, ListSnapshots, (SnapshotEntrySink), (override));
+    MOCK_METHOD(absl::Status, ListSnapshots, (SnapshotEntrySink sink), (override));
 
   private:
     const std::unique_ptr<TestEventLoop> loop_;
 };
 
 struct VmServiceTest : public ::testing::Test {
-    void SetUp() override { vmService = std::make_unique<VmServiceImpl>(&vmOperations); }
+    void SetUp() override { vm_service = std::make_unique<VmServiceImpl>(&vm_operations); }
 
-    void TearDown() override { vmService.reset(); }
+    void TearDown() override { vm_service.reset(); }
 
-    MockVmOperations vmOperations;
-    std::unique_ptr<VmServiceImpl> vmService;
+    MockVmOperations vm_operations;
+    std::unique_ptr<VmServiceImpl> vm_service;
 };
 
 TEST_F(VmServiceTest, SetVmStateReset) {
-    EXPECT_CALL(vmOperations, reset()).Times(1);
+    EXPECT_CALL(vm_operations, Reset()).Times(1);
 
     VmRunState request;
     request.set_state(VmRunState::RESET);
 
-    ASSERT_GRPC_STATUS(vmService->setVmState(request));
+    ASSERT_GRPC_STATUS(vm_service->setVmState(request));
 }
 
 TEST_F(VmServiceTest, SetVmStateShutdown) {
-    EXPECT_CALL(vmOperations, Shutdown()).Times(1);
+    EXPECT_CALL(vm_operations, Shutdown()).Times(1);
 
     VmRunState request;
     request.set_state(VmRunState::SHUTDOWN);
 
-    ASSERT_GRPC_STATUS(vmService->setVmState(request));
+    ASSERT_GRPC_STATUS(vm_service->setVmState(request));
 }
 
 TEST_F(VmServiceTest, SetVmStateTerminate) {
@@ -103,179 +103,179 @@ TEST_F(VmServiceTest, SetVmStateTerminate) {
     VmRunState request;
     request.set_state(VmRunState::TERMINATE);
 
-    EXPECT_DEATH_IF_SUPPORTED(vmService->setVmState(request), ".*");
+    EXPECT_DEATH_IF_SUPPORTED(vm_service->setVmState(request), ".*");
 }
 
 TEST_F(VmServiceTest, SetVmStatePaused) {
-    EXPECT_CALL(vmOperations, pause()).Times(1);
+    EXPECT_CALL(vm_operations, Pause()).Times(1);
 
     VmRunState request;
     request.set_state(VmRunState::PAUSED);
 
-    ASSERT_GRPC_STATUS(vmService->setVmState(request));
+    ASSERT_GRPC_STATUS(vm_service->setVmState(request));
 }
 
 TEST_F(VmServiceTest, SetVmStateRunning) {
-    EXPECT_CALL(vmOperations, resume()).Times(1);
+    EXPECT_CALL(vm_operations, Resume()).Times(1);
 
     VmRunState request;
     request.set_state(VmRunState::RUNNING);
 
-    ASSERT_GRPC_STATUS(vmService->setVmState(request));
+    ASSERT_GRPC_STATUS(vm_service->setVmState(request));
 }
 
 TEST_F(VmServiceTest, SetVmStateRestart) {
-    EXPECT_CALL(vmOperations, reset()).Times(1);
+    EXPECT_CALL(vm_operations, Reset()).Times(1);
 
     VmRunState request;
     request.set_state(VmRunState::RESTART);
 
-    ASSERT_GRPC_STATUS(vmService->setVmState(request));
+    ASSERT_GRPC_STATUS(vm_service->setVmState(request));
 }
 
 TEST_F(VmServiceTest, SetVmStateStart) {
-    EXPECT_CALL(vmOperations, start()).Times(1);
+    EXPECT_CALL(vm_operations, Start()).Times(1);
 
     VmRunState request;
     request.set_state(VmRunState::START);
 
-    ASSERT_GRPC_STATUS(vmService->setVmState(request));
+    ASSERT_GRPC_STATUS(vm_service->setVmState(request));
 }
 
 TEST_F(VmServiceTest, SetVmStateStop) {
-    EXPECT_CALL(vmOperations, stop()).Times(1);
+    EXPECT_CALL(vm_operations, Stop()).Times(1);
 
     VmRunState request;
     request.set_state(VmRunState::STOP);
 
-    ASSERT_GRPC_STATUS(vmService->setVmState(request));
+    ASSERT_GRPC_STATUS(vm_service->setVmState(request));
 }
 
 TEST_F(VmServiceTest, GetVmStatePaused) {
-    EXPECT_CALL(vmOperations, getRunState()).WillOnce(Return(EmuRunState::Paused));
+    EXPECT_CALL(vm_operations, GetRunState()).WillOnce(Return(EmuRunState::Paused));
 
     VmRunState reply;
-    ASSERT_GRPC_STATUS(vmService->getVmState(&reply));
+    ASSERT_GRPC_STATUS(vm_service->getVmState(&reply));
     EXPECT_EQ(reply.state(), VmRunState::PAUSED);
 }
 
 TEST_F(VmServiceTest, GetVmStateSuspended) {
-    EXPECT_CALL(vmOperations, getRunState()).WillOnce(Return(EmuRunState::Suspended));
+    EXPECT_CALL(vm_operations, GetRunState()).WillOnce(Return(EmuRunState::Suspended));
 
     VmRunState reply;
-    ASSERT_GRPC_STATUS(vmService->getVmState(&reply));
+    ASSERT_GRPC_STATUS(vm_service->getVmState(&reply));
     EXPECT_EQ(reply.state(), VmRunState::PAUSED);
 }
 
 TEST_F(VmServiceTest, GetVmStateRestoreVm) {
-    EXPECT_CALL(vmOperations, getRunState()).WillOnce(Return(EmuRunState::RestoreVm));
+    EXPECT_CALL(vm_operations, GetRunState()).WillOnce(Return(EmuRunState::RestoreVm));
 
     VmRunState reply;
-    ASSERT_GRPC_STATUS(vmService->getVmState(&reply));
+    ASSERT_GRPC_STATUS(vm_service->getVmState(&reply));
     EXPECT_EQ(reply.state(), VmRunState::RESTORE_VM);
 }
 
 TEST_F(VmServiceTest, GetVmStateRunning) {
-    EXPECT_CALL(vmOperations, getRunState()).WillOnce(Return(EmuRunState::Running));
+    EXPECT_CALL(vm_operations, GetRunState()).WillOnce(Return(EmuRunState::Running));
 
     VmRunState reply;
-    ASSERT_GRPC_STATUS(vmService->getVmState(&reply));
+    ASSERT_GRPC_STATUS(vm_service->getVmState(&reply));
     EXPECT_EQ(reply.state(), VmRunState::RUNNING);
 }
 
 TEST_F(VmServiceTest, GetVmStateSaveVm) {
-    EXPECT_CALL(vmOperations, getRunState()).WillOnce(Return(EmuRunState::SaveVm));
+    EXPECT_CALL(vm_operations, GetRunState()).WillOnce(Return(EmuRunState::SaveVm));
 
     VmRunState reply;
-    ASSERT_GRPC_STATUS(vmService->getVmState(&reply));
+    ASSERT_GRPC_STATUS(vm_service->getVmState(&reply));
     EXPECT_EQ(reply.state(), VmRunState::SAVE_VM);
 }
 
 TEST_F(VmServiceTest, GetVmStateShutdown) {
-    EXPECT_CALL(vmOperations, getRunState()).WillOnce(Return(EmuRunState::Shutdown));
+    EXPECT_CALL(vm_operations, GetRunState()).WillOnce(Return(EmuRunState::Shutdown));
 
     VmRunState reply;
-    ASSERT_GRPC_STATUS(vmService->getVmState(&reply));
+    ASSERT_GRPC_STATUS(vm_service->getVmState(&reply));
     EXPECT_EQ(reply.state(), VmRunState::SHUTDOWN);
 }
 
 TEST_F(VmServiceTest, GetVmStateInternalError) {
     VmRunState reply;
 
-    EXPECT_CALL(vmOperations, getRunState()).WillOnce(Return(EmuRunState::GuestPanicked));
-    ASSERT_GRPC_STATUS(vmService->getVmState(&reply));
+    EXPECT_CALL(vm_operations, GetRunState()).WillOnce(Return(EmuRunState::GuestPanicked));
+    ASSERT_GRPC_STATUS(vm_service->getVmState(&reply));
     EXPECT_EQ(reply.state(), VmRunState::INTERNAL_ERROR);
 
-    EXPECT_CALL(vmOperations, getRunState()).WillOnce(Return(EmuRunState::InternalError));
-    ASSERT_GRPC_STATUS(vmService->getVmState(&reply));
+    EXPECT_CALL(vm_operations, GetRunState()).WillOnce(Return(EmuRunState::InternalError));
+    ASSERT_GRPC_STATUS(vm_service->getVmState(&reply));
     EXPECT_EQ(reply.state(), VmRunState::INTERNAL_ERROR);
 
-    EXPECT_CALL(vmOperations, getRunState()).WillOnce(Return(EmuRunState::IoError));
-    ASSERT_GRPC_STATUS(vmService->getVmState(&reply));
+    EXPECT_CALL(vm_operations, GetRunState()).WillOnce(Return(EmuRunState::IoError));
+    ASSERT_GRPC_STATUS(vm_service->getVmState(&reply));
     EXPECT_EQ(reply.state(), VmRunState::INTERNAL_ERROR);
 }
 
 TEST_F(VmServiceTest, GetVmStateDebug) {
-    EXPECT_CALL(vmOperations, getRunState()).WillOnce(Return(EmuRunState::Debug));
+    EXPECT_CALL(vm_operations, GetRunState()).WillOnce(Return(EmuRunState::Debug));
 
     VmRunState reply;
-    ASSERT_GRPC_STATUS(vmService->getVmState(&reply));
+    ASSERT_GRPC_STATUS(vm_service->getVmState(&reply));
     EXPECT_EQ(reply.state(), VmRunState::UNKNOWN);
 }
 
 TEST_F(VmServiceTest, GetVmStateInMigrate) {
-    EXPECT_CALL(vmOperations, getRunState()).WillOnce(Return(EmuRunState::InMigrate));
+    EXPECT_CALL(vm_operations, GetRunState()).WillOnce(Return(EmuRunState::InMigrate));
 
     VmRunState reply;
-    ASSERT_GRPC_STATUS(vmService->getVmState(&reply));
+    ASSERT_GRPC_STATUS(vm_service->getVmState(&reply));
     EXPECT_EQ(reply.state(), VmRunState::RESTORE_VM);
 }
 
 TEST_F(VmServiceTest, GetVmStatePostMigrate) {
-    EXPECT_CALL(vmOperations, getRunState()).WillOnce(Return(EmuRunState::PostMigrate));
+    EXPECT_CALL(vm_operations, GetRunState()).WillOnce(Return(EmuRunState::PostMigrate));
 
     VmRunState reply;
-    ASSERT_GRPC_STATUS(vmService->getVmState(&reply));
+    ASSERT_GRPC_STATUS(vm_service->getVmState(&reply));
     EXPECT_EQ(reply.state(), VmRunState::RESTORE_VM);
 }
 
 TEST_F(VmServiceTest, GetVmStatePreLaunch) {
-    EXPECT_CALL(vmOperations, getRunState()).WillOnce(Return(EmuRunState::PreLaunch));
+    EXPECT_CALL(vm_operations, GetRunState()).WillOnce(Return(EmuRunState::PreLaunch));
 
     VmRunState reply;
-    ASSERT_GRPC_STATUS(vmService->getVmState(&reply));
+    ASSERT_GRPC_STATUS(vm_service->getVmState(&reply));
     EXPECT_EQ(reply.state(), VmRunState::UNKNOWN);
 }
 
 TEST_F(VmServiceTest, GetVmStateFinishMigrate) {
-    EXPECT_CALL(vmOperations, getRunState()).WillOnce(Return(EmuRunState::FinishMigrate));
+    EXPECT_CALL(vm_operations, GetRunState()).WillOnce(Return(EmuRunState::FinishMigrate));
 
     VmRunState reply;
-    ASSERT_GRPC_STATUS(vmService->getVmState(&reply));
+    ASSERT_GRPC_STATUS(vm_service->getVmState(&reply));
     EXPECT_EQ(reply.state(), VmRunState::RESTORE_VM);
 }
 
 TEST_F(VmServiceTest, GetVmStateWatchdog) {
-    EXPECT_CALL(vmOperations, getRunState()).WillOnce(Return(EmuRunState::Watchdog));
+    EXPECT_CALL(vm_operations, GetRunState()).WillOnce(Return(EmuRunState::Watchdog));
 
     VmRunState reply;
-    ASSERT_GRPC_STATUS(vmService->getVmState(&reply));
+    ASSERT_GRPC_STATUS(vm_service->getVmState(&reply));
     EXPECT_EQ(reply.state(), VmRunState::UNKNOWN);
 }
 
 TEST_F(VmServiceTest, GetVmStateColo) {
-    EXPECT_CALL(vmOperations, getRunState()).WillOnce(Return(EmuRunState::Colo));
+    EXPECT_CALL(vm_operations, GetRunState()).WillOnce(Return(EmuRunState::Colo));
 
     VmRunState reply;
-    ASSERT_GRPC_STATUS(vmService->getVmState(&reply));
+    ASSERT_GRPC_STATUS(vm_service->getVmState(&reply));
     EXPECT_EQ(reply.state(), VmRunState::UNKNOWN);
 }
 
 TEST_F(VmServiceTest, GetVmStateDefault) {
-    EXPECT_CALL(vmOperations, getRunState()).WillOnce(Return(EmuRunState::Max));
+    EXPECT_CALL(vm_operations, GetRunState()).WillOnce(Return(EmuRunState::Max));
 
     VmRunState reply;
-    ASSERT_GRPC_STATUS(vmService->getVmState(&reply));
+    ASSERT_GRPC_STATUS(vm_service->getVmState(&reply));
     EXPECT_EQ(reply.state(), VmRunState::UNKNOWN);
 }
 

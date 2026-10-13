@@ -125,16 +125,16 @@ void AbslStringify(Sink& sink, VmHypervisorType e) {
 
 // VM Configuration
 struct VmConfiguration {
-    VmHypervisorType hypervisorType;  ///< Type of hypervisor.
-    int32_t numberOfCpuCores;         ///< Number of CPU cores.
-    const char* cpu_type;             ///< Type of the cpu
+    VmHypervisorType hypervisor_type;  ///< Type of hypervisor.
+    int32_t number_of_cpu_cores;       ///< Number of CPU cores.
+    const char* cpu_type;              ///< Type of the cpu
 };
 
 template <typename Sink>
 void AbslStringify(Sink& sink, const VmConfiguration& config) {
     absl::Format(&sink,
-                 "VmConfiguration { hypervisorType: %v, numberOfCpuCores: %d, cpu_type: %s }",
-                 config.hypervisorType, config.numberOfCpuCores, config.cpu_type);
+                 "VmConfiguration { hypervisor_type: %v, number_of_cpu_cores: %d, cpu_type: %s }",
+                 config.hypervisor_type, config.number_of_cpu_cores, config.cpu_type);
 }
 
 /**
@@ -261,19 +261,19 @@ class VmOperations {
      *
      * @return True if the operation was successful, false otherwise.
      */
-    virtual bool stop() = 0;
+    virtual bool Stop() = 0;
 
     /**
      * @brief Starts the virtual machine.
      *
      * @return True if the operation was successful, false otherwise.
      */
-    virtual bool start() = 0;
+    virtual bool Start() = 0;
 
     /**
      * @brief Resets the virtual machine.
      */
-    virtual void reset() = 0;
+    virtual void Reset() = 0;
 
     /**
      * @brief Shuts down the virtual machine.
@@ -285,42 +285,42 @@ class VmOperations {
      *
      * @return True if the operation was successful, false otherwise.
      */
-    virtual bool pause() = 0;
+    virtual bool Pause() = 0;
 
     /**
      * @brief Resumes the virtual machine.
      *
      * @return True if the operation was successful, false otherwise.
      */
-    virtual bool resume() = 0;
+    virtual bool Resume() = 0;
 
     /**
      * @brief Checks if the virtual machine is currently running.
      *
      * @return True if the VM is running, false otherwise.
      */
-    virtual bool isRunning() = 0;
+    virtual bool IsRunning() = 0;
 
     /**
      * @brief Gets the configuration of the virtual machine.
      *
      * @return The VM's configuration.
      */
-    virtual VmConfiguration getConfiguration() = 0;
+    virtual VmConfiguration GetConfiguration() = 0;
 
     /**
      * @brief Gets the current run state of the emulator.
      *
      * @return The emulator's run state.
      */
-    virtual EmuRunState getRunState() = 0;
+    virtual EmuRunState GetRunState() = 0;
 
     /**
      * @brief Requests a system shutdown with a specified reason.
      *
      * @param reason The reason for the shutdown request.
      */
-    virtual void systemShutdownRequest(QemuShutdownCause reason) = 0;
+    virtual void SystemShutdownRequest(QemuShutdownCause reason) = 0;
 
     struct SnapshotEntry {
         std::string id;
@@ -331,10 +331,10 @@ class VmOperations {
     using SnapshotEntrySink = absl::FunctionRef<void(SnapshotEntry)>;
 
     virtual absl::Status SaveSnapshot(const char* name, bool overwrite) = 0;
-    virtual absl::Status LoadSnapshot(const char* idOrName, bool andResume) = 0;
-    virtual void LoadSnapshotResume(EmuRunState) = 0;
-    virtual absl::Status DeleteSnapshot(const char* idOrName) = 0;
-    virtual absl::Status ListSnapshots(SnapshotEntrySink) = 0;
+    virtual absl::Status LoadSnapshot(const char* id_or_name, bool and_resume) = 0;
+    virtual void LoadSnapshotResume(EmuRunState state) = 0;
+    virtual absl::Status DeleteSnapshot(const char* id_or_name) = 0;
+    virtual absl::Status ListSnapshots(SnapshotEntrySink sink) = 0;
 
   private:
     RunStateSource run_state_events_;

@@ -75,24 +75,24 @@ class QemuVmOperationsTest : public ::testing::Test {
 };
 
 TEST_F(QemuVmOperationsTest, Stop) {
-    // Tests that the stop operation correctly pauses the VM and uses the VmLock.
-    ASSERT_TRUE(vm_ops_->stop());
+    // Tests that the Stop operation correctly pauses the VM and uses the VmLock.
+    ASSERT_TRUE(vm_ops_->Stop());
     ASSERT_EQ(test_vm_lock_->lock_count_, 1);
     ASSERT_EQ(test_vm_lock_->unlock_count_, 1);
     ASSERT_EQ(runstate_get(), RUN_STATE_PAUSED);
 }
 
 TEST_F(QemuVmOperationsTest, Start) {
-    // Tests that the start operation correctly starts the VM and uses the VmLock.
-    ASSERT_TRUE(vm_ops_->start());
+    // Tests that the Start operation correctly starts the VM and uses the VmLock.
+    ASSERT_TRUE(vm_ops_->Start());
     ASSERT_EQ(test_vm_lock_->lock_count_, 1);
     ASSERT_EQ(test_vm_lock_->unlock_count_, 1);
     ASSERT_EQ(runstate_get(), RUN_STATE_RUNNING);
 }
 
 TEST_F(QemuVmOperationsTest, Reset) {
-    // Tests that the reset operation correctly resets the VM and uses the VmLock.
-    vm_ops_->reset();
+    // Tests that the Reset operation correctly resets the VM and uses the VmLock.
+    vm_ops_->Reset();
     ASSERT_EQ(test_vm_lock_->lock_count_, 1);
     ASSERT_EQ(test_vm_lock_->unlock_count_, 1);
     ASSERT_EQ(mock_shutdown_cause_get(), SHUTDOWN_CAUSE_SUBSYSTEM_RESET);
@@ -111,47 +111,47 @@ TEST_F(QemuVmOperationsTest, Shutdown) {
 }
 
 TEST_F(QemuVmOperationsTest, Pause) {
-    // Tests that the pause operation correctly pauses the VM and uses the VmLock.
-    ASSERT_TRUE(vm_ops_->pause());
+    // Tests that the Pause operation correctly pauses the VM and uses the VmLock.
+    ASSERT_TRUE(vm_ops_->Pause());
     ASSERT_EQ(test_vm_lock_->lock_count_, 1);
     ASSERT_EQ(test_vm_lock_->unlock_count_, 1);
     ASSERT_EQ(runstate_get(), RUN_STATE_PAUSED);
 }
 
 TEST_F(QemuVmOperationsTest, Resume) {
-    // Tests that the resume operation correctly resumes the VM and uses the VmLock.
-    ASSERT_TRUE(vm_ops_->resume());
+    // Tests that the Resume operation correctly resumes the VM and uses the VmLock.
+    ASSERT_TRUE(vm_ops_->Resume());
     ASSERT_EQ(test_vm_lock_->lock_count_, 1);
     ASSERT_EQ(test_vm_lock_->unlock_count_, 1);
     ASSERT_EQ(runstate_get(), RUN_STATE_RUNNING);
 }
 
 TEST_F(QemuVmOperationsTest, IsRunning) {
-    // Tests that isRunning correctly reports the VM's running state.
+    // Tests that IsRunning correctly reports the VM's running state.
     mock_runstate_set(RUN_STATE_RUNNING);
-    ASSERT_TRUE(vm_ops_->isRunning());
+    ASSERT_TRUE(vm_ops_->IsRunning());
     mock_runstate_set(RUN_STATE_PAUSED);
-    ASSERT_FALSE(vm_ops_->isRunning());
+    ASSERT_FALSE(vm_ops_->IsRunning());
     mock_runstate_set(RUN_STATE_DEBUG);
-    ASSERT_FALSE(vm_ops_->isRunning());
+    ASSERT_FALSE(vm_ops_->IsRunning());
 }
 
 TEST_F(QemuVmOperationsTest, GetRunState) {
-    // Tests that getRunState correctly returns the VM's run state.
+    // Tests that GetRunState correctly returns the VM's run state.
     mock_runstate_set(RUN_STATE_RUNNING);
-    ASSERT_EQ(vm_ops_->getRunState(), EmuRunState::Running);
+    ASSERT_EQ(vm_ops_->GetRunState(), EmuRunState::Running);
     mock_runstate_set(RUN_STATE_PAUSED);
-    ASSERT_EQ(vm_ops_->getRunState(), EmuRunState::Paused);
+    ASSERT_EQ(vm_ops_->GetRunState(), EmuRunState::Paused);
     mock_runstate_set(RUN_STATE_DEBUG);
-    ASSERT_EQ(vm_ops_->getRunState(), EmuRunState::Debug);
+    ASSERT_EQ(vm_ops_->GetRunState(), EmuRunState::Debug);
 }
 
 TEST_F(QemuVmOperationsTest, SystemShutdownRequest) {
-    // Tests that systemShutdownRequest correctly sets the shutdown cause.
-    vm_ops_->systemShutdownRequest(QemuShutdownCause::GuestShutdown);
+    // Tests that SystemShutdownRequest correctly sets the shutdown cause.
+    vm_ops_->SystemShutdownRequest(QemuShutdownCause::GuestShutdown);
     ASSERT_EQ(mock_shutdown_cause_get(), SHUTDOWN_CAUSE_GUEST_SHUTDOWN);
 
-    vm_ops_->systemShutdownRequest(QemuShutdownCause::HostError);
+    vm_ops_->SystemShutdownRequest(QemuShutdownCause::HostError);
     ASSERT_EQ(mock_shutdown_cause_get(), SHUTDOWN_CAUSE_HOST_ERROR);
 }
 

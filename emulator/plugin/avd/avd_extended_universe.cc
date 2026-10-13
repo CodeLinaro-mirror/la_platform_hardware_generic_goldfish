@@ -132,7 +132,7 @@ absl::Status AvdExtendedUniverse::Initialize() {
     avd_universe.GetGuestStatus().SetMetricsReporter(avd_universe.metrics_reporter.get());
 
     avd_universe.vm_operations = android::goldfish::CreateQemuVmOperations(client_loop);
-    auto is_active = [vm = avd_universe.vm_operations.get()]() { return vm->isRunning(); };
+    auto is_active = [vm = avd_universe.vm_operations.get()]() { return vm->IsRunning(); };
 
     avd_universe.qemu_event_loop = goldfish::async::QemuEventLoop::Create();
     auto& qemu_loop = avd_universe.qemu_event_loop;
@@ -181,7 +181,7 @@ absl::Status AvdExtendedUniverse::Initialize() {
             &avd_universe.GetGuestStatus(), registry,
             {qemu_register_reset, BqlSafeUnregisterEmulatorReset},
             [vm = avd_universe.vm_operations.get()] {
-                vm->systemShutdownRequest(android::goldfish::QemuShutdownCause::GuestShutdown);
+                vm->SystemShutdownRequest(android::goldfish::QemuShutdownCause::GuestShutdown);
             },
             client_loop, qemu_loop.get(), avd_props.quit_after_boot_timeout_seconds);
     DEVS::fingerprint::IFingerprintDevice::RegisterDevice(&avd_universe.GetFingerprintSensor(),

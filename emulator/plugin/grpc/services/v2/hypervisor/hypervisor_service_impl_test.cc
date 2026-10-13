@@ -69,9 +69,9 @@ class FakeVmOperations final : public VmOperations {
   public:
     explicit FakeVmOperations(::goldfish::async::EventLoop* loop) : VmOperations(loop) {}
 
-    bool stop() override { return true; }
-    bool start() override { return true; }
-    void reset() override {
+    bool Stop() override { return true; }
+    bool Start() override { return true; }
+    void Reset() override {
         ++reset_count_;
         run_state_ = EmuRunState::Running;
     }
@@ -79,20 +79,24 @@ class FakeVmOperations final : public VmOperations {
         ++shutdown_count_;
         run_state_ = EmuRunState::Shutdown;
     }
-    bool pause() override {
+    bool Pause() override {
         run_state_ = EmuRunState::Paused;
         return true;
     }
-    bool resume() override {
+    bool Resume() override {
         run_state_ = EmuRunState::Running;
         return true;
     }
-    bool isRunning() override { return run_state_ == EmuRunState::Running; }
-    VmConfiguration getConfiguration() override {
-        return {.hypervisorType = VmHypervisorType::Hvf, .numberOfCpuCores = 4, .cpu_type = "arm"};
+    bool IsRunning() override { return run_state_ == EmuRunState::Running; }
+    VmConfiguration GetConfiguration() override {
+        return {
+            .hypervisor_type = VmHypervisorType::Hvf,
+            .number_of_cpu_cores = 4,
+            .cpu_type = "arm",
+        };
     }
-    EmuRunState getRunState() override { return run_state_; }
-    void systemShutdownRequest(QemuShutdownCause) override {}
+    EmuRunState GetRunState() override { return run_state_; }
+    void SystemShutdownRequest(QemuShutdownCause) override {}
     void LoadSnapshotResume(EmuRunState) override {}
 
     absl::Status SaveSnapshot(const char* name, bool /*overwrite*/) override {
@@ -107,19 +111,19 @@ class FakeVmOperations final : public VmOperations {
         return absl::OkStatus();
     }
 
-    absl::Status LoadSnapshot(const char* idOrName, bool /*andResume*/) override {
+    absl::Status LoadSnapshot(const char* id_or_name, bool /*and_resume*/) override {
         if (fail_load_) {
             return absl::InternalError("Failed to read snapshot from disk");
         }
-        if (!entries_.contains(idOrName)) {
+        if (!entries_.contains(id_or_name)) {
             return absl::NotFoundError("Snapshot does not exist");
         }
-        last_loaded_snapshot_ = idOrName;
+        last_loaded_snapshot_ = id_or_name;
         return absl::OkStatus();
     }
 
-    absl::Status DeleteSnapshot(const char* idOrName) override {
-        if (entries_.erase(idOrName) == 0) {
+    absl::Status DeleteSnapshot(const char* id_or_name) override {
+        if (entries_.erase(id_or_name) == 0) {
             return absl::NotFoundError("Snapshot does not exist");
         }
         return absl::OkStatus();

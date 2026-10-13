@@ -40,7 +40,7 @@ grpc::Status SnapshotServiceImpl::LoadSnapshot(grpc::ServerContext* context,
                                                const SnapshotPackage* request,
                                                SnapshotPackage* reply) {
     const absl::Status s = vm_operations_.LoadSnapshot(request->snapshot_id().c_str(),
-                                                       /*andResume=*/true);
+                                                       /*and_resume=*/true);
     reply->set_success(s.ok());
     reply->set_snapshot_id(request->snapshot_id());
     return AbslStatusToGrpcStatus(s);

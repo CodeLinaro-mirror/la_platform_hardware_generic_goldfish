@@ -102,7 +102,7 @@ HypervisorServiceImpl::HypervisorServiceImpl(
 }
 
 void HypervisorServiceImpl::PopulateVmState(VmState* state) const {
-    const EmuRunState run_state = vm_operations_.getRunState();
+    const EmuRunState run_state = vm_operations_.GetRunState();
     switch (run_state) {
     case EmuRunState::Running:
         state->set_state(VmState::RUNNING);
@@ -121,12 +121,13 @@ void HypervisorServiceImpl::PopulateVmState(VmState* state) const {
         state->set_state(VmState::RESTORING_SNAPSHOT);
         break;
     default:
-        state->set_state(vm_operations_.isRunning() ? VmState::RUNNING : VmState::STOPPED);
+        state->set_state(vm_operations_.IsRunning() ? VmState::RUNNING : VmState::STOPPED);
         break;
     }
 
-    const auto config = vm_operations_.getConfiguration();
-    state->set_allocated_cpu_core_count(config.numberOfCpuCores > 0 ? config.numberOfCpuCores : 1);
+    const auto config = vm_operations_.GetConfiguration();
+    state->set_allocated_cpu_core_count(config.number_of_cpu_cores > 0 ? config.number_of_cpu_cores
+                                                                       : 1);
 }
 
 Status HypervisorServiceImpl::GetVmState(ServerContext* /*context*/,
@@ -146,21 +147,21 @@ ServerWriteReactor<VmState>* HypervisorServiceImpl::StreamVmState(
 
 Status HypervisorServiceImpl::PauseVm(ServerContext* /*context*/, const PauseVmRequest* /*request*/,
                                       VmState* response) {
-    vm_operations_.pause();
+    vm_operations_.Pause();
     PopulateVmState(response);
     return Status::OK;
 }
 
 Status HypervisorServiceImpl::ResumeVm(ServerContext* /*context*/,
                                        const ResumeVmRequest* /*request*/, VmState* response) {
-    vm_operations_.resume();
+    vm_operations_.Resume();
     PopulateVmState(response);
     return Status::OK;
 }
 
 Status HypervisorServiceImpl::ResetVm(ServerContext* /*context*/, const ResetVmRequest* /*request*/,
                                       VmState* response) {
-    vm_operations_.reset();
+    vm_operations_.Reset();
     PopulateVmState(response);
     return Status::OK;
 }
@@ -168,7 +169,7 @@ Status HypervisorServiceImpl::ResetVm(ServerContext* /*context*/, const ResetVmR
 Status HypervisorServiceImpl::HardResetVm(ServerContext* /*context*/,
                                           const HardResetVmRequest* /*request*/,
                                           VmState* response) {
-    vm_operations_.reset();
+    vm_operations_.Reset();
     PopulateVmState(response);
     return Status::OK;
 }
@@ -377,7 +378,7 @@ Status HypervisorServiceImpl::RestoreSnapshot(ServerContext* /*context*/,
             operations_service_->StartOperation("snapshot/restore", initial_meta);
 
     const absl::Status load_status =
-            vm_operations_.LoadSnapshot(request->snapshot_id().c_str(), /*andResume=*/true);
+            vm_operations_.LoadSnapshot(request->snapshot_id().c_str(), /*and_resume=*/true);
     if (!load_status.ok()) {
         *response =
                 operations_service_->FailOperation(started_op.name(), load_status, &initial_meta);
