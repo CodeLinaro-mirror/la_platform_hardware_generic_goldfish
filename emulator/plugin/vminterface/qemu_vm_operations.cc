@@ -365,7 +365,6 @@ class QemuVmOperations : public VmOperations {
 
             for (int i = 0; i < qsi_size; ++i) {
                 SnapshotEntry se = {
-                    .id = qsi[i].id_str,
                     .name = qsi[i].name,
                     .timestamp = absl::FromUnixSeconds(qsi[i].date_sec) +
                                  absl::Nanoseconds(qsi[i].date_nsec),

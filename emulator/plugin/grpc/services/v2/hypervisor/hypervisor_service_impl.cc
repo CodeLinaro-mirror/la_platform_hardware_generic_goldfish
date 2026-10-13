@@ -197,15 +197,15 @@ Status HypervisorServiceImpl::StopVm(ServerContext* /*context*/, const StopVmReq
 
 void HypervisorServiceImpl::PopulateSnapshotProto(const VmOperations::SnapshotEntry& entry,
                                                   Snapshot* out) const {
-    out->set_snapshot_id(entry.id);
+    out->set_snapshot_id(entry.name);
 
-    std::string display_name = entry.name.empty() ? entry.id : entry.name;
+    std::string display_name = entry.name;
     std::string description;
     bool is_quickboot = false;
     {
         absl::MutexLock state_lock(&state_mutex_);
-        is_quickboot = (entry.id == quickboot_target_id_);
-        if (auto it = user_metadata_.find(entry.id); it != user_metadata_.end()) {
+        is_quickboot = (entry.name == quickboot_target_id_);
+        if (auto it = user_metadata_.find(entry.name); it != user_metadata_.end()) {
             if (!it->second.display_name.empty()) {
                 display_name = it->second.display_name;
             }
@@ -250,7 +250,7 @@ Status HypervisorServiceImpl::GetSnapshot(ServerContext* /*context*/,
     std::optional<VmOperations::SnapshotEntry> found;
     const absl::Status status =
             vm_operations_.ListSnapshots([&](VmOperations::SnapshotEntry entry) {
-                if (entry.id == request->snapshot_id()) {
+                if (entry.name == request->snapshot_id()) {
                     found = std::move(entry);
                 }
             });
@@ -276,7 +276,7 @@ Status HypervisorServiceImpl::UpdateSnapshot(ServerContext* /*context*/,
     std::optional<VmOperations::SnapshotEntry> found;
     const absl::Status status =
             vm_operations_.ListSnapshots([&](VmOperations::SnapshotEntry entry) {
-                if (entry.id == request->snapshot_id()) {
+                if (entry.name == request->snapshot_id()) {
                     found = std::move(entry);
                 }
             });
@@ -337,13 +337,12 @@ Status HypervisorServiceImpl::CreateSnapshot(ServerContext* /*context*/,
     }
 
     VmOperations::SnapshotEntry entry{
-        .id = snapshot_id,
-        .name = request->display_name().empty() ? snapshot_id : request->display_name(),
+        .name = snapshot_id,
         .timestamp = absl::Now(),
     };
     vm_operations_
             .ListSnapshots([&](VmOperations::SnapshotEntry listed) {
-                if (listed.id == snapshot_id) {
+                if (listed.name == snapshot_id) {
                     entry = std::move(listed);
                 }
             })
@@ -369,7 +368,7 @@ Status HypervisorServiceImpl::RestoreSnapshot(ServerContext* /*context*/,
     std::optional<VmOperations::SnapshotEntry> target_entry;
     const absl::Status list_status =
             vm_operations_.ListSnapshots([&](VmOperations::SnapshotEntry entry) {
-                if (entry.id == request->snapshot_id()) {
+                if (entry.name == request->snapshot_id()) {
                     target_entry = std::move(entry);
                 }
             });
@@ -437,7 +436,7 @@ Status HypervisorServiceImpl::SetQuickbootTarget(ServerContext* /*context*/,
     bool exists = false;
     const absl::Status status =
             vm_operations_.ListSnapshots([&](VmOperations::SnapshotEntry entry) {
-                if (entry.id == request->snapshot_id()) {
+                if (entry.name == request->snapshot_id()) {
                     exists = true;
                 }
             });

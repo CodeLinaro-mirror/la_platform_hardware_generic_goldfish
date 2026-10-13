@@ -28,7 +28,7 @@ grpc::Status SnapshotServiceImpl::ListSnapshots(grpc::ServerContext* context,
     return AbslStatusToGrpcStatus(vm_operations_.ListSnapshots([reply](SnapshotEntry se) {
         SnapshotDetails* details = reply->mutable_snapshots()->Add();
 
-        details->set_snapshot_id(std::move(se.id));
+        details->set_snapshot_id(se.name);
 
         emulator_snapshot::Snapshot* details2 = details->mutable_details();
         details2->set_logical_name(std::move(se.name));
