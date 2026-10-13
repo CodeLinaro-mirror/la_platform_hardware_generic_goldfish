@@ -621,6 +621,7 @@ cc_binary_with_manifest(
         "//emulator/libs/metrics:configure_metrics_writer",
         "//emulator/libs/metrics:studio_config",
         "//emulator/libs/system",
+        "//emulator/libs/update_check",
         "//emulator/telnet:legacy_console_controller",
         "//emulator/tools:aemu_version",
         "@abseil-cpp//absl/debugging:failure_signal_handler",
@@ -633,6 +634,7 @@ cc_binary_with_manifest(
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/time",
+        "@qemu//:qemu-version-header",
     ],
 )
 

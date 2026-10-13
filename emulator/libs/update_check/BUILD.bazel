@@ -1,0 +1,80 @@
+load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_test")
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+
+cc_library(
+    name = "repository_manifest",
+    srcs = ["repository_manifest.cc"],
+    hdrs = ["include/goldfish/update_check/repository_manifest.h"],
+    implementation_deps = [
+        "@tinyxml2",
+    ],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/strings:str_format",
+    ],
+)
+
+cc_library(
+    name = "update_check",
+    srcs = ["update_checker.cc"],
+    hdrs = ["include/goldfish/update_check/update_checker.h"],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":repository_manifest",
+        "//emulator/libs/ini_file",
+        "//emulator/libs/network:http_client",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/strings:charset",
+        "@abseil-cpp//absl/strings:str_format",
+        "@abseil-cpp//absl/time",
+    ],
+)
+
+cc_test(
+    name = "repository_manifest_test",
+    size = "small",
+    srcs = ["repository_manifest_test.cc"],
+    deps = [
+        ":repository_manifest",
+        "//emulator/libs/status_macros:status_matcher_macros",
+        "//emulator/libs/test:googletest_main",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:status_matchers",
+    ],
+)
+
+cc_test(
+    name = "update_checker_test",
+    size = "small",
+    srcs = ["update_checker_test.cc"],
+    deps = [
+        ":update_check",
+        "//emulator/libs/http:web_server",
+        "//emulator/libs/network:http_client",
+        "//emulator/libs/status_macros:status_matcher_macros",
+        "//emulator/libs/system:test-headers",
+        "//emulator/libs/test:googletest_main",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:status_matchers",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/time",
+    ],
+)
+
+clang_tidy_test(
+    name = "tidy",
+    targets = [
+        ":repository_manifest",
+        ":update_check",
+    ],
+    tidy_config_file = "//:clang_tidy_config",
+)
