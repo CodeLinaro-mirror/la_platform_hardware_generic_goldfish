@@ -39,7 +39,7 @@ grpc::Status SnapshotServiceImpl::ListSnapshots(grpc::ServerContext* context,
 grpc::Status SnapshotServiceImpl::LoadSnapshot(grpc::ServerContext* context,
                                                const SnapshotPackage* request,
                                                SnapshotPackage* reply) {
-    const absl::Status s = vm_operations_.LoadSnapshot(request->snapshot_id().c_str(),
+    const absl::Status s = vm_operations_.LoadSnapshot(request->snapshot_id(),
                                                        /*and_resume=*/true);
     reply->set_success(s.ok());
     reply->set_snapshot_id(request->snapshot_id());
@@ -49,7 +49,7 @@ grpc::Status SnapshotServiceImpl::LoadSnapshot(grpc::ServerContext* context,
 grpc::Status SnapshotServiceImpl::SaveSnapshot(grpc::ServerContext* context,
                                                const SnapshotPackage* request,
                                                SnapshotPackage* reply) {
-    const absl::Status s = vm_operations_.SaveSnapshot(request->snapshot_id().c_str(),
+    const absl::Status s = vm_operations_.SaveSnapshot(request->snapshot_id(),
                                                        /*overwrite=*/true);
     reply->set_success(s.ok());
     reply->set_snapshot_id(request->snapshot_id());
@@ -59,7 +59,7 @@ grpc::Status SnapshotServiceImpl::SaveSnapshot(grpc::ServerContext* context,
 grpc::Status SnapshotServiceImpl::DeleteSnapshot(grpc::ServerContext* context,
                                                  const SnapshotPackage* request,
                                                  SnapshotPackage* reply) {
-    const absl::Status s = vm_operations_.DeleteSnapshot(request->snapshot_id().c_str());
+    const absl::Status s = vm_operations_.DeleteSnapshot(request->snapshot_id());
     reply->set_success(s.ok());
     reply->set_snapshot_id(request->snapshot_id());
     return AbslStatusToGrpcStatus(s);

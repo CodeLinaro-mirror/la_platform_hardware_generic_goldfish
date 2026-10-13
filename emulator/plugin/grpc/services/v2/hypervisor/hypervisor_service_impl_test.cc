@@ -99,7 +99,7 @@ class FakeVmOperations final : public VmOperations {
     void SystemShutdownRequest(QemuShutdownCause) override {}
     void LoadSnapshotResume(EmuRunState) override {}
 
-    absl::Status SaveSnapshot(const char* name, bool /*overwrite*/) override {
+    absl::Status SaveSnapshot(std::string name, bool /*overwrite*/) override {
         if (fail_save_) {
             return absl::InternalError("Failed to write snapshot to disk");
         }
@@ -111,18 +111,18 @@ class FakeVmOperations final : public VmOperations {
         return absl::OkStatus();
     }
 
-    absl::Status LoadSnapshot(const char* id_or_name, bool /*and_resume*/) override {
+    absl::Status LoadSnapshot(std::string id_or_name, bool /*and_resume*/) override {
         if (fail_load_) {
             return absl::InternalError("Failed to read snapshot from disk");
         }
         if (!entries_.contains(id_or_name)) {
             return absl::NotFoundError("Snapshot does not exist");
         }
-        last_loaded_snapshot_ = id_or_name;
+        last_loaded_snapshot_ = std::move(id_or_name);
         return absl::OkStatus();
     }
 
-    absl::Status DeleteSnapshot(const char* id_or_name) override {
+    absl::Status DeleteSnapshot(std::string id_or_name) override {
         if (entries_.erase(id_or_name) == 0) {
             return absl::NotFoundError("Snapshot does not exist");
         }

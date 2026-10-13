@@ -309,8 +309,7 @@ Status HypervisorServiceImpl::CreateSnapshot(ServerContext* /*context*/,
     const Operation started_op =
             operations_service_->StartOperation("snapshot/create", initial_meta);
 
-    const absl::Status save_status =
-            vm_operations_.SaveSnapshot(snapshot_id.c_str(), /*overwrite=*/true);
+    const absl::Status save_status = vm_operations_.SaveSnapshot(snapshot_id, /*overwrite=*/true);
     if (!save_status.ok()) {
         // The operation is registered, so report the failure through the Operation
         // (AIP-151). A non-OK gRPC status would cause the response to be discarded.
@@ -378,7 +377,7 @@ Status HypervisorServiceImpl::RestoreSnapshot(ServerContext* /*context*/,
             operations_service_->StartOperation("snapshot/restore", initial_meta);
 
     const absl::Status load_status =
-            vm_operations_.LoadSnapshot(request->snapshot_id().c_str(), /*and_resume=*/true);
+            vm_operations_.LoadSnapshot(request->snapshot_id(), /*and_resume=*/true);
     if (!load_status.ok()) {
         *response =
                 operations_service_->FailOperation(started_op.name(), load_status, &initial_meta);
@@ -403,7 +402,7 @@ Status HypervisorServiceImpl::DeleteSnapshot(ServerContext* /*context*/,
                 "snapshot_id must not be empty or contain path separators or '..'."};
     }
 
-    const absl::Status status = vm_operations_.DeleteSnapshot(request->snapshot_id().c_str());
+    const absl::Status status = vm_operations_.DeleteSnapshot(request->snapshot_id());
     if (!status.ok()) {
         return AbslStatusToGrpcStatus(status);
     }

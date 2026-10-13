@@ -60,10 +60,10 @@ class MockVmOperations : public VmOperations {
     MOCK_METHOD(GoldfishVmConfiguration, GetConfiguration, (), (override));
     MOCK_METHOD(EmuRunState, GetRunState, (), (override));
     MOCK_METHOD(void, SystemShutdownRequest, (QemuShutdownCause reason), (override));
-    MOCK_METHOD(absl::Status, SaveSnapshot, (const char* name, bool overwrite), (override));
-    MOCK_METHOD(absl::Status, LoadSnapshot, (const char* id_or_name, bool and_resume), (override));
+    MOCK_METHOD(absl::Status, SaveSnapshot, (std::string name, bool overwrite), (override));
+    MOCK_METHOD(absl::Status, LoadSnapshot, (std::string id_or_name, bool and_resume), (override));
     MOCK_METHOD(void, LoadSnapshotResume, (EmuRunState state), (override));
-    MOCK_METHOD(absl::Status, DeleteSnapshot, (const char* id_or_name), (override));
+    MOCK_METHOD(absl::Status, DeleteSnapshot, (std::string id_or_name), (override));
     MOCK_METHOD(absl::Status, ListSnapshots, (SnapshotEntrySink sink), (override));
 
   private:

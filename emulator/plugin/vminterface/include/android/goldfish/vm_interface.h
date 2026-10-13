@@ -330,10 +330,10 @@ class VmOperations {
 
     using SnapshotEntrySink = absl::FunctionRef<void(SnapshotEntry)>;
 
-    virtual absl::Status SaveSnapshot(const char* name, bool overwrite) = 0;
-    virtual absl::Status LoadSnapshot(const char* id_or_name, bool and_resume) = 0;
+    virtual absl::Status SaveSnapshot(std::string name, bool overwrite) = 0;
+    virtual absl::Status LoadSnapshot(std::string id_or_name, bool and_resume) = 0;
     virtual void LoadSnapshotResume(EmuRunState state) = 0;
-    virtual absl::Status DeleteSnapshot(const char* id_or_name) = 0;
+    virtual absl::Status DeleteSnapshot(std::string id_or_name) = 0;
     virtual absl::Status ListSnapshots(SnapshotEntrySink sink) = 0;
 
   private:

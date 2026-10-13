@@ -199,15 +199,15 @@ class QemuVmOperations : public VmOperations {
         qemu_system_shutdown_request(static_cast<ShutdownCause>(reason));
     }
 
-    absl::Status SaveSnapshot(const char* name, const bool overwrite) override {
+    absl::Status SaveSnapshot(std::string name, const bool overwrite) override {
         absl::Time start = absl::Now();
         ScopedVmLock lock;
         auto& avd = ::goldfish::avd::GetAvd();
         avd.SetGenericSnapshotInProgress(true);
         auto cleanup = absl::MakeCleanup([&avd] { avd.SetGenericSnapshotInProgress(false); });
         ::Error* errp = nullptr;
-        bool ok = ::save_snapshot(name, overwrite, /*vmstate=*/nullptr, /*has_devices=*/false,
-                                  /*devices=*/nullptr, &errp);
+        bool ok = ::save_snapshot(name.c_str(), overwrite, /*vmstate=*/nullptr,
+                                  /*has_devices=*/false, /*devices=*/nullptr, &errp);
         ::goldfish::metrics::ReportGenericSnapshotSave(avd.GetMetricsReporter(), name, ok,
                                                        absl::Now() - start);
         if (!ok) {
@@ -216,7 +216,7 @@ class QemuVmOperations : public VmOperations {
         return absl::OkStatus();
     }
 
-    absl::Status LoadSnapshot(const char* id_or_name, const bool and_resume) override {
+    absl::Status LoadSnapshot(std::string id_or_name, const bool and_resume) override {
         absl::Time start = absl::Now();
         ScopedVmLock lock;
         auto& avd = ::goldfish::avd::GetAvd();
@@ -226,7 +226,7 @@ class QemuVmOperations : public VmOperations {
 
         avd.SetGenericSnapshotInProgress(true);
         auto cleanup = absl::MakeCleanup([&avd] { avd.SetGenericSnapshotInProgress(false); });
-        bool ok = ::load_snapshot(id_or_name, /*vmstate=*/nullptr, /*has_devices=*/false,
+        bool ok = ::load_snapshot(id_or_name.c_str(), /*vmstate=*/nullptr, /*has_devices=*/false,
                                   /*devices=*/nullptr, &errp);
         ::goldfish::metrics::ReportGenericSnapshotLoad(avd.GetMetricsReporter(), id_or_name, ok,
                                                        absl::Now() - start);
@@ -246,10 +246,11 @@ class QemuVmOperations : public VmOperations {
         ::load_snapshot_resume(static_cast<::RunState>(ers));
     }
 
-    absl::Status DeleteSnapshot(const char* id_or_name) override {
+    absl::Status DeleteSnapshot(std::string id_or_name) override {
         ScopedVmLock lock;
         ::Error* errp = nullptr;
-        if (!::delete_snapshot(id_or_name, /*has_devices=*/false, /*devices=*/nullptr, &errp)) {
+        if (!::delete_snapshot(id_or_name.c_str(), /*has_devices=*/false, /*devices=*/nullptr,
+                               &errp)) {
             return ToStatus(absl::StatusCode::kInternal, &errp);
         }
 
