@@ -316,6 +316,17 @@ TEST(OperationsServiceImplTest, SetMetadataRefresherRefreshesInFlightOperationsO
     ASSERT_TRUE(got.metadata().UnpackTo(&unpacked));
     EXPECT_EQ(unpacked.progress_percent(), 42);
 
+    WaitOperationRequest wait_req;
+    wait_req.set_name(op.name());
+    wait_req.mutable_timeout()->set_nanos(1000000);
+    Operation waited;
+    ServerContext wait_ctx;
+    ASSERT_TRUE(service.WaitOperation(&wait_ctx, &wait_req, &waited).ok());
+    EXPECT_FALSE(waited.done());
+    EXPECT_EQ(refresh_calls, 2);
+    ASSERT_TRUE(waited.metadata().UnpackTo(&unpacked));
+    EXPECT_EQ(unpacked.progress_percent(), 42);
+
     Snapshot result;
     result.set_snapshot_id("snap_live");
     SnapshotOperationMetadata final_meta;
@@ -326,7 +337,7 @@ TEST(OperationsServiceImplTest, SetMetadataRefresherRefreshesInFlightOperationsO
     // Completed operations must not invoke the metadata refresher.
     ServerContext get_done_ctx;
     ASSERT_TRUE(service.GetOperation(&get_done_ctx, &get_req, &got).ok());
-    EXPECT_EQ(refresh_calls, 1);
+    EXPECT_EQ(refresh_calls, 2);
     ASSERT_TRUE(got.metadata().UnpackTo(&unpacked));
     EXPECT_EQ(unpacked.progress_percent(), 100);
 }

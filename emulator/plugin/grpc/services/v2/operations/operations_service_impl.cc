@@ -236,6 +236,9 @@ absl::StatusOr<Operation> OperationsServiceImpl::WaitForOperation(
     if (it == operations_.end()) {
         return absl::NotFoundError(absl::StrCat("Operation not found: ", name));
     }
+    if (!it->second.done() && metadata_refresher_) {
+        metadata_refresher_(&it->second);
+    }
     return it->second;
 }
 
