@@ -15,6 +15,7 @@
 
 #pragma once
 
+#include <filesystem>
 #include <functional>
 #include <string>
 
@@ -32,6 +33,6 @@ using GrallocProvider = std::function<GrallocDetailsPtr()>;
 
 void RegisterDevice(const sensors::PhysicalModel* physicalModel, IConnectorRegistry* registry,
                     std::string* emulatedCameraProp, const android::goldfish::HardwareConfig& hw,
-                    GrallocProvider);
+                    const std::filesystem::path& avdContentPath, GrallocProvider);
 
 }  // namespace goldfish::devices::camera

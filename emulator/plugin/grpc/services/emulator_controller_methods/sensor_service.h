@@ -17,6 +17,8 @@
 #include <grpcpp/grpcpp.h>
 
 #include "emulator_controller.grpc.pb.h"
+#include "goldfish/avd_universe/grpc/grpc_notification_channel.h"
+#include "goldfish/eventing/with_callbacks.h"
 #include "goldfish/sensors/physical_model.h"
 
 namespace android {
@@ -34,7 +36,9 @@ using grpc::Status;
  */
 class SensorServiceImpl {
   public:
-    SensorServiceImpl(::goldfish::sensors::PhysicalModel& pm) : mPhysicalModel(pm) {}
+    explicit SensorServiceImpl(::goldfish::sensors::PhysicalModel& pm,
+                               ::goldfish::avd_universe::grpc::GrpcNotificationEventSource*
+                                       notification_channel = nullptr);
 
     grpc::Status setSensor(const SensorValue& request);
 
@@ -44,8 +48,17 @@ class SensorServiceImpl {
 
     grpc::Status getPhysicalModel(const PhysicalModelValue& request, PhysicalModelValue* reply);
 
+    grpc::Status rotateVirtualSceneCamera(const RotationRadian& request);
+
+    grpc::Status setVirtualSceneCameraVelocity(const Velocity& request);
+
   private:
+    void fireCameraNotification(bool active);
+
     ::goldfish::sensors::PhysicalModel& mPhysicalModel;
+    ::goldfish::avd_universe::grpc::GrpcNotificationEventSource* mNotificationChannel{nullptr};
+    ::goldfish::sensors::VirtualSceneCamera::ObservableActive::ScopedCallbackHandle
+            mCameraActiveSubscription;
 };
 
 }  // namespace control

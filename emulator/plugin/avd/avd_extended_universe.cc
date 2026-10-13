@@ -198,7 +198,7 @@ absl::Status AvdExtendedUniverse::Initialize() {
     std::string emulatedCameraProp;
     DEVS::camera::RegisterDevice(&avd_universe.GetSensorsPhysicalModel(), registry,
                                  &emulatedCameraProp, avd_props.hw_config,
-                                 []() { return GetGrallocImpl(); });
+                                 avd_props.avd_content_path, []() { return GetGrallocImpl(); });
 
     using namespace std::string_literals;
     auto props = devices::boot::IBootPropertiesDevice::MakeProperties({
