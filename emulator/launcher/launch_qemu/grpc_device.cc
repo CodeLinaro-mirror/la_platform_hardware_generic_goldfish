@@ -77,7 +77,7 @@ std::vector<std::string> GrpcDevice::getQemuParameters(const EmulatorConfig& emu
     }
 
     auto grpc_params = absl::StrJoin(params, ",", [](std::string* s, const auto& pair) {
-        absl::StrAppend(s, pair.first, "=", pair.second);
+        absl::StrAppend(s, pair.first, "=", EscapeQemuOptionValue(pair.second));
     });
 
     return {"-device", absl::StrCat("grpc,", grpc_params)};

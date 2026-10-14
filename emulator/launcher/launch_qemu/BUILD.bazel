@@ -247,9 +247,11 @@ cc_test(
         ":fake_emulator",
         ":gpu_device",
         ":snapshot_device",
+        "//emulator/libs/file",
         "//emulator/libs/status_macros:status_matcher_macros",
         "//emulator/libs/system:test-headers",
         "//emulator/libs/test:googletest_main",
+        "@abseil-cpp//absl/strings",
     ],
 )
 
@@ -531,6 +533,7 @@ cc_test(
     deps = [
         ":disk_drive",
         ":fake_emulator",
+        "//emulator/libs/file",
         "//emulator/libs/status_macros:status_matcher_macros",
         "//emulator/libs/system:test-headers",
         "//emulator/libs/test:googletest_main",

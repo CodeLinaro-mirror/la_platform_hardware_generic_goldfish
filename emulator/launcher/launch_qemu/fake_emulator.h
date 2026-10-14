@@ -30,6 +30,8 @@ class FakeEmulator {
 
     EmulatorPaths& emulator_paths() { return mEmulatorPaths; }
 
+    UserPaths& user_paths() { return mUserPaths; }
+
     const EmulatorConfig& config() { return *mEmulatorConfig; }
 
   private:

@@ -81,7 +81,7 @@ absl::Status LaunchQemu::addDevices() {
     }
 
     addDevice<ParameterList>(std::initializer_list<std::string>{
-        "-name", absl::StrFormat("%s,debug-threads=on", a.Name())});
+        "-name", absl::StrFormat("%s,debug-threads=on", Device::EscapeQemuOptionValue(a.Name()))});
     addDevice<Machine>();
     addDevice<CpuDevice>();
     addDevice<MemoryDevice>();
@@ -118,7 +118,7 @@ absl::Status LaunchQemu::addDevices() {
         addDevice<ParameterList>(std::initializer_list<std::string>{
             // Actual logcat location.
             "-device", "virtconsole,chardev=forhvc1,name=logcat", "-chardev",
-            absl::StrCat("file,id=forhvc1,path=", o.logcat_output)});
+            absl::StrCat("file,id=forhvc1,path=", Device::EscapeQemuOptionValue(o.logcat_output))});
     } else {
         addDevice<ParameterList>(std::initializer_list<std::string>{
             // Actual logcat location.

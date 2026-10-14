@@ -16,17 +16,24 @@
 
 #include <gtest/gtest.h>
 
+#include "absl/strings/str_cat.h"
 #include "gmock/gmock.h"
 
 #include "android/base/testing/test_system.h"
 #include "android/cmdline_definitions.h"
 #include "android/status/status_matcher_macros.h"
 #include "fake_emulator.h"
+#include "goldfish/file/file.h"
 #include "snapshot_device.h"
 
 namespace android::goldfish::test {
 
+using ::testing::AllOf;
+using ::testing::ElementsAre;
+using ::testing::Eq;
+using ::testing::HasSubstr;
 using ::testing::Pair;
+using ::testing::Return;
 using ::testing::ReturnRef;
 using ::testing::UnorderedElementsAre;
 
@@ -47,6 +54,37 @@ TEST(GpuDeviceTest, DefaultSoftwareGpuEnv) {
                                      Pair("ANDROID_EGL_ON_EGL", "1"),
                                      Pair("ANGLE_DEFAULT_PLATFORM", "vulkan"),
                                      Pair("ANDROID_EMULATOR_LAUNCHER_DIR", "/default/launcher")));
+}
+
+TEST(GpuDeviceTest, EscapesCommasInSnapshotDirectoryAndRendererFeatures) {
+    base::TestSystem sys("");
+    const fs::path avd_content = sys.GetTempRoot()->Path() / "avd,with,comma";
+    ASSERT_OK(base::file::mkdir_recursive(avd_content, 0755));
+
+    char renderer_features[] = "FeatureA:enabled,FeatureB:disabled";
+    AndroidOptions opts{.renderer_features = renderer_features};
+    FakeEmulator emu(opts);
+    HardwareConfig hw;
+    hw.hw_lcd_width = 1080;
+    hw.hw_lcd_height = 2400;
+    EXPECT_CALL(emu.mock_avd(), Hw()).WillRepeatedly(ReturnRef(hw));
+    EXPECT_CALL(emu.mock_avd(), GetContentPath()).WillRepeatedly(Return(avd_content));
+
+    SnapshotDevice snapshot_dev;
+    EXPECT_OK(snapshot_dev.initialize(emu.config()));
+    ASSERT_TRUE(snapshot_dev.is_enabled());
+
+    GpuDevice dev("gpu0", snapshot_dev);
+    EXPECT_OK(dev.initialize(emu.config()));
+
+    const fs::path expected_snapshot_dir = avd_content / "renderersave" / "";
+    EXPECT_THAT(
+            dev.getQemuParameters(emu.config()),
+            ElementsAre(Eq("-device"),
+                        AllOf(HasSubstr("renderer_features=FeatureA:enabled,,FeatureB:disabled;"),
+                              HasSubstr(absl::StrCat("snapshot_directory=",
+                                                     Device::EscapeQemuOptionValue(
+                                                             expected_snapshot_dir.string()))))));
 }
 
 TEST(GpuDeviceTest, HostGpuModeAndLauncherDirEnv) {
