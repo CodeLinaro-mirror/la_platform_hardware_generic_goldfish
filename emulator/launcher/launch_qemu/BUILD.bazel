@@ -225,6 +225,13 @@ cc_test(
 )
 
 cc_library(
+    name = "vulkan_gpu_device_info",
+    hdrs = ["vulkan_gpu_device_info.h"],
+    visibility = ["//visibility:public"],
+    deps = ["@vulkan-headers//:vulkan_headers"],
+)
+
+cc_library(
     name = "gpu_device",
     srcs = ["gpu_device.cc"],
     hdrs = ["gpu_device.h"],
@@ -232,15 +239,24 @@ cc_library(
     deps = [
         ":device",
         ":snapshot_device",
+        ":vulkan_gpu_device_info",
+        "//emulator/libs/file",
+        "//emulator/libs/gvk",
         "//emulator/libs/parsing:resizable_display_config",
         "//emulator/libs/system",
+        "@abseil-cpp//absl/base:no_destructor",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/strings:str_format",
+        "@vulkan-headers//:vulkan_headers",
     ],
 )
 
 cc_test(
     name = "gpu_device_test",
+    size = "small",
     srcs = ["gpu_device_test.cc"],
     deps = [
         ":device",
@@ -248,6 +264,7 @@ cc_test(
         ":gpu_device",
         ":snapshot_device",
         "//emulator/libs/file",
+        "//emulator/libs/gvk",
         "//emulator/libs/status_macros:status_matcher_macros",
         "//emulator/libs/system:test-headers",
         "//emulator/libs/test:googletest_main",

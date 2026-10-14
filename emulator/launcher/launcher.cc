@@ -433,17 +433,23 @@ class Launcher {
 
     void report_host_info_metrics(const LaunchQemu& emulator) {
         std::string vk_icd;
+        std::vector<VulkanGpuDeviceInfo> host_gpus;
+        std::optional<VulkanGpuDeviceInfo> selected_gpu;
         if (const auto* gpu = emulator.get<GpuDevice>("gpu0")) {
             vk_icd = gpu->getVulkanIcd();
+            host_gpus.assign(gpu->getHostGpus().begin(), gpu->getHostGpus().end());
+            selected_gpu = gpu->getSelectedGpu();
         }
-        config_.metrics_reporter->Report(
-                [this, vk_icd = std::move(vk_icd)](android_studio::AndroidStudioEvent& event) {
-                    android::goldfish::FillEmulatorHostEvent(
-                            event, *config_.avd,
-                            /*launcher_pid=*/android::base::System::GetCurrentProcessPid(),
-                            /*qemu_pid=*/emulator_process_->GetPid(),
-                            config_.opts.metrics_collection, config_.opts.fuchsia, vk_icd);
-                });
+        config_.metrics_reporter->Report([this, vk_icd = std::move(vk_icd),
+                                          host_gpus = std::move(host_gpus),
+                                          selected_gpu = std::move(selected_gpu)](
+                                                 android_studio::AndroidStudioEvent& event) {
+            android::goldfish::FillEmulatorHostEvent(
+                    event, *config_.avd,
+                    /*launcher_pid=*/android::base::System::GetCurrentProcessPid(),
+                    /*qemu_pid=*/emulator_process_->GetPid(), config_.opts.metrics_collection,
+                    config_.opts.fuchsia, vk_icd, host_gpus, selected_gpu);
+        });
     }
 
     void shutdown() {
