@@ -2,6 +2,7 @@
 
 #include <functional>
 #include <string>
+#include <string_view>
 #include <utility>
 
 #include "absl/container/flat_hash_map.h"
@@ -73,7 +74,7 @@ class FakeVmOperations : public VmOperations {
 
     absl::Status SaveSnapshot(std::string name, bool /*overwrite*/) override {
         if (on_save) {
-            on_save(name.c_str());
+            on_save(name);
         }
         if (fail_save) {
             return absl::InternalError("Failed to write snapshot to disk");
@@ -87,7 +88,7 @@ class FakeVmOperations : public VmOperations {
 
     absl::Status LoadSnapshot(std::string id_or_name, bool /*and_resume*/) override {
         if (on_load) {
-            on_load(id_or_name.c_str());
+            on_load(id_or_name);
         }
         if (fail_load) {
             return absl::InternalError("Failed to read snapshot from disk");
@@ -115,8 +116,6 @@ class FakeVmOperations : public VmOperations {
 
     SnapshotProgress GetSnapshotProgress() const override { return progress; }
 
-    void EmitRunState(EmuRunState state) { SetRunState(state); }
-
     void EmitSnapshotProgress(const SnapshotProgress& next_progress) {
         progress = next_progress;
         SnapshotEvents().FireEvent(next_progress);
@@ -134,8 +133,8 @@ class FakeVmOperations : public VmOperations {
     };
     std::string last_loaded_snapshot;
     SnapshotProgress progress;
-    std::function<void(const char*)> on_save;
-    std::function<void(const char*)> on_load;
+    std::function<void(std::string_view)> on_save;
+    std::function<void(std::string_view)> on_load;
     absl::flat_hash_map<std::string, SnapshotEntry> entries;
 };
 

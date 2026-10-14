@@ -20,6 +20,7 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "absl/status/status.h"
@@ -371,17 +372,17 @@ TEST_F(HypervisorServiceTest, RestoreSnapshotFailureIsReportedInOperation) {
 
 TEST_F(HypervisorServiceTest, ReportsRealTimeProgressDuringInFlightCreateAndRestore) {
     SnapshotOperationMetadata mid_save_meta;
-    vm_operations_.on_save = [&](const char* name) {
+    vm_operations_.on_save = [&](std::string_view name) {
         vm_operations_.EmitSnapshotProgress(VmOperations::SnapshotProgress{
             .operation = VmOperations::SnapshotOperationType::Save,
             .phase = VmOperations::SnapshotPhase::Preparing,
-            .snapshot_id = name,
+            .snapshot_id = std::string(name),
             .total_bytes = 4LL * 1024 * 1024 * 1024,
         });
         vm_operations_.EmitSnapshotProgress(VmOperations::SnapshotProgress{
             .operation = VmOperations::SnapshotOperationType::Save,
             .phase = VmOperations::SnapshotPhase::Transferring,
-            .snapshot_id = name,
+            .snapshot_id = std::string(name),
             .active_component = "0000:00:02.0/virtio-gpu-rutabaga",
             .transferred_bytes = 2LL * 1024 * 1024 * 1024,
             .total_bytes = 4LL * 1024 * 1024 * 1024,
@@ -402,7 +403,7 @@ TEST_F(HypervisorServiceTest, ReportsRealTimeProgressDuringInFlightCreateAndRest
         vm_operations_.EmitSnapshotProgress(VmOperations::SnapshotProgress{
             .operation = VmOperations::SnapshotOperationType::Save,
             .phase = VmOperations::SnapshotPhase::Completed,
-            .snapshot_id = name,
+            .snapshot_id = std::string(name),
             .transferred_bytes = 4LL * 1024 * 1024 * 1024,
             .total_bytes = 4LL * 1024 * 1024 * 1024,
             .disk_bytes = 1LL * 1024 * 1024 * 1024,
@@ -452,11 +453,11 @@ TEST_F(HypervisorServiceTest, ReportsRealTimeProgressDuringInFlightCreateAndRest
     EXPECT_EQ(created_snap.size_bytes(), 1LL * 1024 * 1024 * 1024);
 
     SnapshotOperationMetadata mid_load_meta;
-    vm_operations_.on_load = [&](const char* name) {
+    vm_operations_.on_load = [&](std::string_view name) {
         vm_operations_.EmitSnapshotProgress(VmOperations::SnapshotProgress{
             .operation = VmOperations::SnapshotOperationType::Load,
             .phase = VmOperations::SnapshotPhase::Transferring,
-            .snapshot_id = name,
+            .snapshot_id = std::string(name),
             .active_component = "ram",
             .transferred_bytes = 750LL * 1024 * 1024,
             .total_bytes = 1000LL * 1024 * 1024,
@@ -475,7 +476,7 @@ TEST_F(HypervisorServiceTest, ReportsRealTimeProgressDuringInFlightCreateAndRest
         vm_operations_.EmitSnapshotProgress(VmOperations::SnapshotProgress{
             .operation = VmOperations::SnapshotOperationType::Load,
             .phase = VmOperations::SnapshotPhase::Completed,
-            .snapshot_id = name,
+            .snapshot_id = std::string(name),
             .transferred_bytes = 1000LL * 1024 * 1024,
             .total_bytes = 1000LL * 1024 * 1024,
             .disk_bytes = 750LL * 1024 * 1024,
@@ -628,7 +629,7 @@ TEST_F(HypervisorServiceTest, TracksImplicitHypervisorSnapshotProgressAndExitSav
         .total_bytes = 8LL * 1024 * 1024 * 1024,
         .disk_bytes = 2LL * 1024 * 1024 * 1024,
     });
-    vm_operations_.EmitRunState(EmuRunState::Running);
+    vm_operations_.SetRunState(EmuRunState::Running);
     loop_->RunAll();
 
     VmState post_save_vm_state;
@@ -675,7 +676,7 @@ TEST_F(HypervisorServiceTest, StreamVmStateDeliversEverySnapshotPhaseFromEventPa
     // 2. Enqueue PREPARING, TRANSFERRING, and COMPLETED onto the event loop before draining it,
     // so GetSnapshotProgress() is already Completed when the loop runs. StreamVmState must
     // still emit PREPARING and TRANSFERRING from the event payloads without skipping phases.
-    vm_operations_.EmitRunState(EmuRunState::SaveVm);
+    vm_operations_.SetRunState(EmuRunState::SaveVm);
     vm_operations_.EmitSnapshotProgress(VmOperations::SnapshotProgress{
         .operation = VmOperations::SnapshotOperationType::Save,
         .phase = VmOperations::SnapshotPhase::Preparing,
@@ -697,7 +698,7 @@ TEST_F(HypervisorServiceTest, StreamVmStateDeliversEverySnapshotPhaseFromEventPa
         .transferred_bytes = 1000,
         .total_bytes = 1000,
     });
-    vm_operations_.EmitRunState(EmuRunState::Running);
+    vm_operations_.SetRunState(EmuRunState::Running);
     loop_->RunAll();
 
     // Expect PREPARING -> TRANSFERRING -> RUNNING (without duplicate RUNNING).
@@ -728,7 +729,7 @@ TEST_F(HypervisorServiceTest, StreamVmStateDeliversEverySnapshotPhaseFromEventPa
     ServerContext stop_ctx;
     ASSERT_TRUE(hypervisor_service_->StopVm(&stop_ctx, &stop_req, &stop_state).ok());
 
-    vm_operations_.EmitRunState(EmuRunState::SaveVm);
+    vm_operations_.SetRunState(EmuRunState::SaveVm);
     vm_operations_.EmitSnapshotProgress(VmOperations::SnapshotProgress{
         .operation = VmOperations::SnapshotOperationType::Save,
         .phase = VmOperations::SnapshotPhase::Preparing,
@@ -750,7 +751,7 @@ TEST_F(HypervisorServiceTest, StreamVmStateDeliversEverySnapshotPhaseFromEventPa
         .transferred_bytes = 2000,
         .total_bytes = 2000,
     });
-    vm_operations_.EmitRunState(EmuRunState::Running);
+    vm_operations_.SetRunState(EmuRunState::Running);
     loop_->RunAll();
 
     ASSERT_TRUE(reader->Read(&msg));
