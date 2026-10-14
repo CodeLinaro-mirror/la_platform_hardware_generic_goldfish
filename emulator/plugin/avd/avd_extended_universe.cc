@@ -186,8 +186,7 @@ absl::Status AvdExtendedUniverse::Initialize() {
             client_loop, qemu_loop.get(), avd_props.quit_after_boot_timeout_seconds);
     DEVS::fingerprint::IFingerprintDevice::RegisterDevice(&avd_universe.GetFingerprintSensor(),
                                                           registry, client_loop, qemu_loop.get());
-    DEVS::gps::IGpsDevice::RegisterDevice(&avd_universe.GetLocation(), registry, client_loop,
-                                          qemu_loop.get());
+    DEVS::gps::IGpsDevice::RegisterDevice(&avd_universe.GetLocation(), registry, qemu_loop.get());
 
     auto multi_display_device =
             std::make_shared<DEVS::multidisplay::MultiDisplayDevice>(client_loop);

@@ -14,16 +14,15 @@
 #include "goldfish/devices/gps/gps_device.h"
 
 #include <cmath>
-#include <cstdint>
 #include <memory>
-#include <mutex>
-#include <numeric>
 #include <string>
 #include <string_view>
-#include <vector>
+#include <utility>
 
+#include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/strings/str_format.h"
+#include "absl/time/clock.h"
 #include "absl/time/time.h"
 
 #include "goldfish/async/event_loop.h"
@@ -107,42 +106,54 @@ constexpr Location kGoogleHqLocation{.latitude = 37.4220186,
                                      .satellites = 8};
 }  // namespace
 
-class GpsDevice : public IGpsDevice {
+// Executes all HalPlug callbacks, location updates, and the 1 Hz virtual-clock
+// timer on `qemu_loop`.
+class GpsDevice : public IGpsDevice, public std::enable_shared_from_this<GpsDevice> {
   public:
-    explicit GpsDevice(EventLoop* loop) : loop_(loop) { VLOG(1) << "Gps device has been created"; }
+    explicit GpsDevice(EventLoop* qemu_loop) : loop_(qemu_loop) {
+        DCHECK(loop_ != nullptr);
+        VLOG(1) << "Gps device has been created";
+    }
 
     void OnConnect() override {
+        DCHECK(loop_->IsOnLoopThread());
         VLOG(1) << "Gps device has been connected";
 
-        self_ = shared_from_this();
-        one_second_timer_ = loop_->CreateTimer([this] {
-            OneSecondTick();
-            return true;
-        });
-        one_second_timer_->Schedule(absl::Seconds(1), absl::Seconds(1));
+        one_second_timer_ = loop_->ScheduleRepeating(
+                [weak_self = weak_from_this()] {
+                    if (const auto self = weak_self.lock()) {
+                        self->OneSecondTick();
+                        return true;
+                    }
+                    return false;
+                },
+                absl::Seconds(1), absl::Seconds(1));
     }
 
     void OnClose() override {
+        DCHECK(loop_->IsOnLoopThread());
         VLOG(1) << "Gps device has been disconnected";
 
+        location_update_subscription_.reset();
         if (one_second_timer_) {
             one_second_timer_->Cancel();
-        }
-        if (self_) {
-            loop_->Post([this] { self_.reset(); }).IgnoreError();
+            one_second_timer_.reset();
         }
     }
 
     void OnReceive(std::string_view data) override {
+        DCHECK(loop_->IsOnLoopThread());
         VLOG(1) << "The guest is (unexpectedly) sending data to the Gps device: " << data;
     }
 
     void Send(const Location& location) {
-        VLOG(1) << "Setting the location to:" << location;
-        {
-            const absl::MutexLock lock(&location_mutex_);
-            location_ = location;
+        DCHECK(loop_->IsOnLoopThread());
+        // Ignore location updates that were queued on `qemu_loop` before `OnClose()`.
+        if (!location_update_subscription_) {
+            return;
         }
+        VLOG(1) << "Setting the location to:" << location;
+        location_ = location;
         OneSecondTick();
     }
 
@@ -158,41 +169,44 @@ class GpsDevice : public IGpsDevice {
     }
 
     void OneSecondTick() {
-        const absl::MutexLock lock(&location_mutex_);
-        const auto loc = location_;
-
+        DCHECK(loop_->IsOnLoopThread());
         const absl::Time now = absl::Now();
-        const std::string gpgga = FormatGPGGA(loc, now);
-        const std::string gprmc = FormatGPRMC(loc, now);
+        const std::string gpgga = FormatGPGGA(location_, now);
+        const std::string gprmc = FormatGPRMC(location_, now);
         SendImpl(gpgga);
         SendImpl(gprmc);
     }
 
     LocationUpdateSubscription location_update_subscription_;
-
-    absl::Mutex location_mutex_;
-
     EventLoop* const loop_;
     std::shared_ptr<EventLoop::Timer> one_second_timer_;
-    std::shared_ptr<IGpsDevice> self_;
-    Location location_ ABSL_GUARDED_BY(location_mutex_) = {kGoogleHqLocation};
+    Location location_ = {kGoogleHqLocation};
 };
 
 void IGpsDevice::RegisterDevice(ObservableLocation* observable_location,
-                                IConnectorRegistry* registry, EventLoop* client_loop,
-                                EventLoop* qemu_loop) {
+                                IConnectorRegistry* registry, EventLoop* qemu_loop) {
+    // Both `HalPlug` callbacks and the 1 Hz `QemuTimer` execute on `qemu_loop`
+    // so timer creation and cancellation run synchronously on the loop thread.
     registry->RegisterHalQemuDevice(
-            std::string(GpsDevice::kServiceName), client_loop, qemu_loop,
-            [observable_location, client_loop](std::string_view /*args*/) {
-                auto dev = std::make_shared<GpsDevice>(client_loop);
+            std::string(GpsDevice::kServiceName), qemu_loop, qemu_loop,
+            [observable_location, qemu_loop](std::string_view /*args*/) {
+                auto dev = std::make_shared<GpsDevice>(qemu_loop);
                 std::weak_ptr<GpsDevice> weak_dev = dev;
 
+                // Post location updates to `qemu_loop` before locking `weak_dev`
+                // so `GpsDevice` state is only accessed on `qemu_loop` and
+                // `weak_dev` is never locked while `ObservableLocation` holds
+                // its internal callback mutex.
                 auto location_update_subscription = MakeScopedCallback(
                         *observable_location,
-                        [weak_dev = std::move(weak_dev)](const Location& location) {
-                            if (const auto dev = weak_dev.lock()) {
-                                dev->Send(location);
-                            }
+                        [weak_dev = std::move(weak_dev), qemu_loop](const Location& location) {
+                            qemu_loop
+                                    ->Post([weak_dev, location] {
+                                        if (const auto dev = weak_dev.lock()) {
+                                            dev->Send(location);
+                                        }
+                                    })
+                                    .IgnoreError();
                         });
 
                 dev->SetLocationUpdateSubscription(std::move(location_update_subscription));
