@@ -28,19 +28,24 @@ namespace android::goldfish {
 
 namespace {
 void AppendMetricsConfigString(std::string* s, const MetricsConfig& config) {
-    absl::StrAppend(s, ",metrics_session=", config.session_id);
+    absl::StrAppend(s, ",metrics_session=", Device::EscapeQemuOptionValue(config.session_id));
     absl::StrAppend(s, ",metrics_writer=", static_cast<uint32_t>(config.writer_config.type));
     switch (config.writer_config.type) {
         using enum ::goldfish::metrics::MetricsWriterType;
     case kFile:
-        absl::StrAppend(s, ",metrics_file_path=", config.writer_config.file_path.string());
+        absl::StrAppend(s, ",metrics_file_path=",
+                        Device::EscapeQemuOptionValue(config.writer_config.file_path.string()));
         break;
     case kStudio:
-        absl::StrAppend(s, ",metrics_spool_dir=", config.writer_config.studio_spool_dir.string());
+        absl::StrAppend(
+                s, ",metrics_spool_dir=",
+                Device::EscapeQemuOptionValue(config.writer_config.studio_spool_dir.string()));
         break;
     case kPlaystore:
-        absl::StrAppend(s, ",metrics_playstore_url=", config.writer_config.playstore_url);
-        absl::StrAppend(s, ",metrics_user_id=", config.writer_config.user_id);
+        absl::StrAppend(s, ",metrics_playstore_url=",
+                        Device::EscapeQemuOptionValue(config.writer_config.playstore_url));
+        absl::StrAppend(s, ",metrics_user_id=",
+                        Device::EscapeQemuOptionValue(config.writer_config.user_id));
         break;
     case kNone:
     case kConsole:
@@ -80,8 +85,10 @@ absl::Status AvdInfoDevice::initialize(const EmulatorConfig& emulator) {
     params.emplace_back("snapshot_update_time",
                         emulator.opts().no_snapshot_update_time ? "false" : "true");
 
+    // QEMU splits -device options on single commas, so commas inside values (e.g. in the AVD
+    // display name or a path) must be escaped to keep each value in its own property.
     mAvdParams = absl::StrJoin(params, ",", [](std::string* s, const auto& pair) {
-        absl::StrAppend(s, pair.first, "=", pair.second);
+        absl::StrAppend(s, pair.first, "=", EscapeQemuOptionValue(pair.second));
     });
 
     if (char* quit_after_boot = emulator.opts().quit_after_boot) {

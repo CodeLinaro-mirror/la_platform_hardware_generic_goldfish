@@ -16,10 +16,12 @@
 #pragma once
 
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
+#include "absl/strings/str_replace.h"
 
 #include "emulator_config.h"
 
@@ -30,6 +32,18 @@ namespace android::goldfish {
  */
 class Device {
   public:
+    /**
+     * @brief Escapes a value for inclusion in a QEMU comma-delimited option
+     * string.
+     *
+     * QEMU's option parser (util/qemu-option.c:get_opt_value) treats a single
+     * ',' as a delimiter between option properties and unescapes ',,' to a
+     * literal ','.
+     */
+    static std::string EscapeQemuOptionValue(std::string_view value) {
+        return absl::StrReplaceAll(value, {{",", ",,"}});
+    }
+
     /**
      * @brief Constructor.
      * @param id Unique ID for the device.

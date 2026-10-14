@@ -29,6 +29,17 @@ cc_library(
     deps = [
         ":emulator_config",
         "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/strings",
+    ],
+)
+
+cc_test(
+    name = "device_test",
+    size = "small",
+    srcs = ["device_test.cc"],
+    deps = [
+        ":device",
+        "//emulator/libs/test:googletest_main",
     ],
 )
 
@@ -147,7 +158,9 @@ cc_test(
     deps = [
         ":avd_info_device",
         ":device",
+        ":emulator_config",
         ":fake_emulator",
+        "//emulator/libs/metrics:configure_metrics_writer",
         "//emulator/libs/status_macros:status_matcher_macros",
         "//emulator/libs/system:test-headers",
         "//emulator/libs/test:googletest_main",
