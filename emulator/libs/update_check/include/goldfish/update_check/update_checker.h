@@ -42,7 +42,7 @@ struct UpdateCheckOptions {
     std::string target_cpu;
     std::string core_version;
     std::string user_id;
-    UpdateChannel channel = UpdateChannel::kUnknown;
+    UpdateChannel channel = UpdateChannel::kStable;
     absl::Duration interval;
     absl::Duration http_timeout;
 };

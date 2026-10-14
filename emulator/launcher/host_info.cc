@@ -11,6 +11,7 @@
 #include "android/goldfish/avd.h"
 #include "android/goldfish/hardware_config.h"
 #include "goldfish/file/file.h"
+#include "goldfish/metrics/studio_config.h"
 
 namespace android::goldfish {
 
@@ -348,6 +349,25 @@ void FillDetails(android_studio::EmulatorDetails& details, const Avd& avd, long 
     details.set_has_elevated_privileges(
             android::base::System::CurrentProcessHasElevatedPrivileges());
 }
+
+android_studio::ProductDetails::SoftwareLifeCycleChannel ToProductChannel(
+        ::goldfish::metrics::studio::UpdateChannel channel) {
+    using android_studio::ProductDetails;
+    using ::goldfish::metrics::studio::UpdateChannel;
+    switch (channel) {
+    case UpdateChannel::kStable:
+        return ProductDetails::STABLE;
+    case UpdateChannel::kBeta:
+        return ProductDetails::BETA;
+    case UpdateChannel::kDev:
+        return ProductDetails::DEV;
+    case UpdateChannel::kCanary:
+        return ProductDetails::CANARY;
+    case UpdateChannel::kUnknown:
+        break;
+    }
+    return ProductDetails::UNKNOWN_LIFE_CYCLE_CHANNEL;
+}
 }  // namespace
 
 void FillEmulatorHostEvent(android_studio::AndroidStudioEvent& event, const Avd& avd,
@@ -356,8 +376,7 @@ void FillEmulatorHostEvent(android_studio::AndroidStudioEvent& event, const Avd&
     event.set_kind(android_studio::AndroidStudioEvent::EMULATOR_HOST);
 
     auto& product = *event.mutable_product_details();
-    // TODO set product channel
-    product.set_channel(android_studio::ProductDetails::UNKNOWN_LIFE_CYCLE_CHANNEL);
+    product.set_channel(ToProductChannel(::goldfish::metrics::studio::GetUpdateChannel()));
 
 #ifdef __aarch64__
     product.set_os_architecture(android_studio::ProductDetails::ARM);

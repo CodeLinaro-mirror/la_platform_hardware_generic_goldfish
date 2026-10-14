@@ -126,6 +126,7 @@ UpdateCheckOptions BaseTestOptions(const std::filesystem::path& user_dir) {
         .target_cpu = "x86_64",
         .core_version = "10.2.90 (v10.2.0)",
         .user_id = "0f8fad5b-d9cb-469f-a165-70867728950e",
+        .channel = UpdateChannel::kDev,
         .interval = absl::Hours(4),
         .http_timeout = absl::Seconds(20),
     };

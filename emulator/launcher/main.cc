@@ -75,6 +75,23 @@ constexpr std::string_view kEmulatorPreviewDisplayName = "Android Emulator (Prev
 constexpr absl::Duration kUpdateCheckInterval = absl::Hours(4);
 constexpr absl::Duration kUpdateCheckHttpTimeout = absl::Seconds(20);
 
+goldfish::update_check::UpdateChannel ResolveUpdateCheckChannel(
+        goldfish::metrics::studio::UpdateChannel studio_channel) {
+    using goldfish::metrics::studio::UpdateChannel;
+    switch (studio_channel) {
+    case UpdateChannel::kBeta:
+        return goldfish::update_check::UpdateChannel::kBeta;
+    case UpdateChannel::kDev:
+        return goldfish::update_check::UpdateChannel::kDev;
+    case UpdateChannel::kCanary:
+        return goldfish::update_check::UpdateChannel::kCanary;
+    case UpdateChannel::kStable:
+    case UpdateChannel::kUnknown:
+        break;
+    }
+    return goldfish::update_check::UpdateChannel::kStable;
+}
+
 // clang-format off
 
 void ShowBanner() {
@@ -552,8 +569,7 @@ int main(int argc, char** argv) {
             .target_cpu = std::string(goldfish::version::GetEmulatorTargetCpu()),
             .core_version = QEMU_FULL_VERSION,
             .user_id = metrics_writer_config.user_id,
-            // TODO(b/572750476): Read the user's selected update channel from Android Studio config.
-            .channel = goldfish::update_check::UpdateChannel::kDev,
+            .channel = ResolveUpdateCheckChannel(goldfish::metrics::studio::GetUpdateChannel()),
             .interval = kUpdateCheckInterval,
             .http_timeout = kUpdateCheckHttpTimeout,
         });

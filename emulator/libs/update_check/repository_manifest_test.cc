@@ -168,6 +168,12 @@ TEST(RepositoryManifestTest, FiltersToChannelsAtLeastAsStableAsMaxChannel) {
                          FindLatestPackage(kSampleRepositoryXml, "linux", "x64", "emulators;",
                                            UpdateChannel::kStable));
     EXPECT_EQ(stable_preview, std::nullopt);
+
+    // kUnknown falls back to kStable.
+    ASSERT_OK_AND_ASSIGN(auto unknown_emu, FindLatestPackage(kSampleRepositoryXml, "linux", "x64",
+                                                             "emulator", UpdateChannel::kUnknown));
+    ASSERT_TRUE(unknown_emu.has_value());
+    EXPECT_EQ(*unknown_emu, (SdkPackage{{37, 2, 12, 0}, UpdateChannel::kStable}));
 }
 
 TEST(RepositoryManifestTest, ReturnsNulloptForUnsupportedHostArch) {

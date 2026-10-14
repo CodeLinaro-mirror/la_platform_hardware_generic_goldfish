@@ -283,6 +283,9 @@ absl::StatusOr<std::optional<SdkPackage>> FindLatestPackage(std::string_view xml
         }
     }
 
+    const UpdateChannel effective_max_channel =
+            (max_channel == UpdateChannel::kUnknown) ? UpdateChannel::kStable : max_channel;
+
     std::optional<SdkPackage> latest;
 
     for (const auto* node = root->FirstChildElement(); node != nullptr;
@@ -329,7 +332,7 @@ absl::StatusOr<std::optional<SdkPackage>> FindLatestPackage(std::string_view xml
             }
         }
 
-        if (channel > max_channel) {
+        if (channel > effective_max_channel) {
             continue;
         }
 
