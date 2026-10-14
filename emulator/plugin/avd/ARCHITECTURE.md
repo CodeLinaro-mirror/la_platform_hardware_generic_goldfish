@@ -12,7 +12,7 @@ environment, configures hardware, and starts all HAL services. **Location:**
 | `AvdProperties`            | `:avd_properties`        | `.../avd/avd_properties.h`  | Configuration and launch properties for the AVD.                 |
 | `AvdUniverse`              | `:avd_universe`          | `.../avd/avd_universe.h`    | Container for global AVD state (Properties, Sensors, Clipboard). |
 | `GetAvd()`                 | `:avd_info`              | `.../avd/avd_info.h`        | Singleton accessor for the `AvdUniverse`.                        |
-| `AvdExtendedUniverse`      | `:avd_extended_universe` | `avd_extended_universe.h`   | Concrete `AvdUniverse` implementation owning HALs and loops.     |
+| `AvdExtendedUniverse`      | `:avd_extended_universe` | `avd_extended_universe.h`   | Concrete `AvdUniverse` implementation owning HALs, loops and the `VmOperations`; constructs these services and injects them into consumers. |
 | `avd_info_register_types`  | `:avd_start`             | `.../avd/avd_start.h`       | QOM type registration for the `avdstart` bootstrap device.       |
 | `globalEventLoop()`        | `:global_event_loop`     | `.../avd/global_event_loop.h` | Accessor for the global client `EventLoop`.                    |
 
@@ -39,3 +39,8 @@ environment, configures hardware, and starts all HAL services. **Location:**
 
 - **Main Thread:** `realize` runs on the QEMU main thread. It establishes the `QemuEventLoop` which
   wraps the QEMU AioContext, allowing thread-safe interaction from other threads via `Post`.
+- **VmOperations:** created during `realize` with the global event loop (which runs its run-state
+  callbacks) and `QemuEventLoop` (which executes its VM and snapshot operations via `PostAndWait`).
+  Teardown order: the main-loop exit hook destroys the gRPC server and its services (the run-state
+  subscribers) before `qemu_cleanup()` destroys the universe and its `VmOperations`, and
+  `GF_SHUTDOWN_FUNC` shuts down the global event loop after `qemu_cleanup()`.

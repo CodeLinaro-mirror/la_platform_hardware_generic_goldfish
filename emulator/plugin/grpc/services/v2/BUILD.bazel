@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_test")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
 
@@ -165,16 +166,202 @@ cc_test(
 )
 
 cc_library(
+    name = "operations_service",
+    srcs = ["operations/operations_service_impl.cc"],
+    hdrs = ["operations/operations_service_impl.h"],
+    includes = ["."],
+    local_defines = select({
+        "@platforms//os:windows": ["NOGDI"],
+        "//conditions:default": [],
+    }),
+    deps = [
+        "@@googleapis+//google/longrunning:longrunning_cc_grpc",
+        "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/functional:function_ref",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/synchronization",
+        "@abseil-cpp//absl/time",
+        "@grpc//:grpc++",
+        "@protobuf",
+    ],
+)
+
+cc_test(
+    name = "operations_service_test",
+    size = "small",
+    srcs = ["operations/operations_service_impl_test.cc"],
+    local_defines = select({
+        "@platforms//os:windows": ["NOGDI"],
+        "//conditions:default": [],
+    }),
+    deps = [
+        ":operations_service",
+        "//emulator/libs/test:googletest_main",
+        "@@googleapis+//google/longrunning:longrunning_cc_grpc",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/synchronization",
+        "@abseil-cpp//absl/time",
+        "@aemu//protos/services_v2:hypervisor_service_cc_grpc",
+        "@googletest//:gtest",
+        "@grpc//:grpc++",
+    ],
+)
+
+cc_library(
+    name = "hypervisor_service",
+    srcs = ["hypervisor/hypervisor_service_impl.cc"],
+    hdrs = ["hypervisor/hypervisor_service_impl.h"],
+    includes = ["."],
+    local_defines = select({
+        "@platforms//os:windows": ["NOGDI"],
+        "//conditions:default": [],
+    }),
+    deps = [
+        ":operations_service",
+        "//emulator/libs/grpc_utils:absl_translate",
+        "//emulator/libs/grpc_utils:event-stream",
+        "//emulator/plugin/vminterface",
+        "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/synchronization",
+        "@abseil-cpp//absl/time",
+        "@aemu//protos/services_v2:hypervisor_service_cc_grpc",
+        "@grpc//:grpc++",
+        "@protobuf",
+    ],
+)
+
+cc_test(
+    name = "hypervisor_service_test",
+    size = "small",
+    srcs = ["hypervisor/hypervisor_service_impl_test.cc"],
+    local_defines = select({
+        "@platforms//os:windows": ["NOGDI"],
+        "//conditions:default": [],
+    }),
+    deps = [
+        ":hypervisor_service",
+        ":operations_service",
+        "//emulator/libs/async:async_testing",
+        "//emulator/libs/test:googletest_main",
+        "//emulator/plugin/vminterface",
+        "//emulator/plugin/vminterface:test_vminterface",
+        "@@googleapis+//google/longrunning:longrunning_cc_grpc",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/strings",
+        "@aemu//protos/services_v2:hypervisor_service_cc_grpc",
+        "@googletest//:gtest",
+        "@grpc//:grpc++",
+    ],
+)
+
+cc_library(
+    name = "system_service",
+    srcs = ["system/system_service_impl.cc"],
+    hdrs = ["system/system_service_impl.h"],
+    includes = [
+        ".",
+        "system",
+    ],
+    local_defines = select({
+        "@platforms//os:windows": ["NOGDI"],
+        "//conditions:default": [],
+    }),
+    deps = [
+        "//emulator/libs/eventing",
+        "//emulator/libs/grpc_utils:absl_translate",
+        "//emulator/libs/grpc_utils:event-stream",
+        "//emulator/libs/system",
+        "//emulator/plugin/avd_universe:clipboard",
+        "//emulator/plugin/avd_universe:fingerprint",
+        "//emulator/plugin/avd_universe:grpc_notification",
+        "//emulator/plugin/avd_universe:guest_status",
+        "//emulator/plugin/vminterface",
+        "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/synchronization",
+        "@abseil-cpp//absl/time",
+        "@aemu//protos/services_v2:system_service_cc_grpc",
+        "@grpc//:grpc++",
+    ],
+)
+
+cc_test(
+    name = "system_service_test",
+    size = "small",
+    srcs = [
+        "system/system_service_impl_test.cc",
+        "test/grpc_v2_service_test.h",
+    ],
+    includes = ["."],
+    local_defines = select({
+        "@platforms//os:windows": ["NOGDI"],
+        "//conditions:default": [],
+    }),
+    deps = [
+        ":system_service",
+        "//emulator/libs/async:async_testing",
+        "//emulator/libs/test:googletest_main",
+        "//emulator/plugin/avd_universe:clipboard",
+        "//emulator/plugin/avd_universe:fingerprint",
+        "//emulator/plugin/avd_universe:grpc_notification",
+        "//emulator/plugin/avd_universe:guest_status",
+        "//emulator/plugin/vminterface",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/time",
+        "@aemu//protos/services_v2:system_service_cc_grpc",
+        "@googletest//:gtest",
+        "@grpc//:grpc++",
+    ],
+)
+
+cc_library(
     name = "v2_services",
     srcs = ["v2_services.cc"],
     hdrs = ["include/goldfish/grpc/v2/v2_services.h"],
     includes = ["include"],
+    local_defines = select({
+        "@platforms//os:windows": ["NOGDI"],
+        "//conditions:default": [],
+    }),
     deps = [
         ":capabilities_service",
+        ":hypervisor_service",
+        ":operations_service",
         ":sensors_service",
+        ":system_service",
         "//emulator/libs/async:async_api",
         "//emulator/plugin/avd:avd_universe",
         "//emulator/plugin/vminterface",
         "@grpc//:grpc++",
     ],
+)
+
+clang_tidy_test(
+    name = "tidy",
+    targets = [
+        ":capabilities_service",
+        ":capabilities_service_test",
+        ":rtc_service",
+        ":rtc_service_test",
+        ":sensors_service",
+        ":sensors_service_test",
+        ":operations_service",
+        ":operations_service_test",
+        ":hypervisor_service",
+        ":hypervisor_service_test",
+        ":system_service",
+        ":system_service_test",
+        ":v2_services",
+    ],
+    tidy_config_file = "//:clang_tidy_config",
 )

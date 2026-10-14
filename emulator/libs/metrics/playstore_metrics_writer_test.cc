@@ -17,29 +17,20 @@
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
-#include <sys/types.h>
 #include <zlib.h>
 
-#include <atomic>
 #include <cstring>
-#include <thread>
-#include <vector>
 
-#ifdef _WIN32
-#include <winsock2.h>
-#include <ws2tcpip.h>
-#pragma comment(lib, "ws2_32.lib")
-#else
-#include <netinet/in.h>
-#include <sys/socket.h>
-#include <unistd.h>
-#endif
-
+#include "absl/base/thread_annotations.h"
 #include "absl/log/globals.h"
-#include "absl/strings/str_format.h"
+#include "absl/strings/str_cat.h"
+#include "absl/synchronization/mutex.h"
+#include "absl/time/clock.h"
+#include "absl/time/time.h"
 
 #include "android/base/testing/test_system.h"
 #include "goldfish/async/testing/test_event_loop.h"
+#include "goldfish/http/web_server.h"
 #include "goldfish/tools/aemu_version.h"
 #include "google_logs_publishing.pb.h"
 #include "google_logs_response.pb.h"
@@ -49,6 +40,80 @@ namespace goldfish::metrics {
 namespace {
 
 using namespace std::chrono_literals;
+
+class TestHttpServer {
+  public:
+    enum class Mode { kRespondOk, kRespondError, kNeverRespond };
+
+    void Start() { Start("", Mode::kRespondOk); }
+
+    void Start(std::string response_body) { Start(std::move(response_body), Mode::kRespondOk); }
+
+    void Start(std::string response_body, Mode mode) {
+        {
+            absl::MutexLock lock(&mutex_);
+            response_body_ = std::move(response_body);
+            mode_ = mode;
+        }
+        if (mode == Mode::kNeverRespond) {
+            server_.OnStream(
+                    goldfish::http::HttpMethod::kPost, "/*",
+                    [this](const goldfish::http::HttpRequest& req,
+                           std::shared_ptr<goldfish::http::HttpResponseWriter> /*writer*/) {
+                        absl::MutexLock lock(&mutex_);
+                        ++request_count_;
+                        last_request_body_ = std::string(req.Body());
+                        // Intentionally leave stream open without responding.
+                    });
+        } else {
+            server_.OnPost("/*", [this](const goldfish::http::HttpRequest& req) {
+                absl::MutexLock lock(&mutex_);
+                ++request_count_;
+                last_request_body_ = std::string(req.Body());
+                const auto status = (mode_ == Mode::kRespondError)
+                                            ? goldfish::http::HttpStatus::kInternalServerError
+                                            : goldfish::http::HttpStatus::kOk;
+                return goldfish::http::HttpResponse::String(response_body_, status);
+            });
+        }
+        ASSERT_TRUE(server_.Start(/*blocking=*/false).ok());
+    }
+
+    void SetMode(Mode mode) {
+        absl::MutexLock lock(&mutex_);
+        mode_ = mode;
+    }
+
+    void Stop() { server_.Stop(); }
+
+    std::string GetUrl() const {
+        return absl::StrCat("http://127.0.0.1:",
+                            goldfish::network::GetPortFromEndpoint(server_.GetEndpoint()));
+    }
+
+    std::string GetHttpsUrl() const {
+        return absl::StrCat("https://127.0.0.1:",
+                            goldfish::network::GetPortFromEndpoint(server_.GetEndpoint()));
+    }
+
+    int GetRequestCount() {
+        absl::MutexLock lock(&mutex_);
+        return request_count_;
+    }
+
+    std::string GetLastRequestBody() {
+        absl::MutexLock lock(&mutex_);
+        return last_request_body_;
+    }
+
+  private:
+    goldfish::http::WebServer server_{goldfish::http::CreateWebServer(0).BindAddress("127.0.0.1")};
+    absl::Mutex mutex_;
+    int request_count_ ABSL_GUARDED_BY(mutex_) = 0;
+    std::string last_request_body_ ABSL_GUARDED_BY(mutex_);
+    std::string response_body_ ABSL_GUARDED_BY(mutex_);
+    Mode mode_ ABSL_GUARDED_BY(mutex_) = Mode::kRespondOk;
+};
 
 std::string Decompress(const std::string& compressed) {
     z_stream zs;
@@ -84,97 +149,6 @@ MetricsEvent CreateEvent(uint64_t time_ms) {
 }
 
 }  // namespace
-
-class TestHttpServer {
-  public:
-    TestHttpServer() {
-#ifdef _WIN32
-        WSADATA wsaData;
-        WSAStartup(MAKEWORD(2, 2), &wsaData);
-#endif
-        server_fd_ = socket(AF_INET, SOCK_STREAM, 0);
-        sockaddr_in server_addr;
-        std::memset(&server_addr, 0, sizeof(server_addr));
-        server_addr.sin_family = AF_INET;
-        server_addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
-        server_addr.sin_port = 0;
-
-        bind(server_fd_, (struct sockaddr*)&server_addr, sizeof(server_addr));
-        listen(server_fd_, 1);
-
-        socklen_t addr_len = sizeof(server_addr);
-        getsockname(server_fd_, (struct sockaddr*)&server_addr, &addr_len);
-        port_ = ntohs(server_addr.sin_port);
-    }
-
-    ~TestHttpServer() {
-        Stop();
-#ifdef _WIN32
-        closesocket(server_fd_);
-        WSACleanup();
-#else
-        close(server_fd_);
-#endif
-    }
-
-    std::string GetUrl() const { return absl::StrFormat("http://127.0.0.1:%d", port_); }
-    std::string GetHttpsUrl() const { return absl::StrFormat("https://127.0.0.1:%d", port_); }
-
-    void Start(const std::string& response_body = "") {
-        stop_ = false;
-        request_count_ = 0;
-        last_request_body_.clear();
-        server_thread_ = std::thread([this, response_body]() {
-            while (!stop_) {
-                fd_set read_fds;
-                FD_ZERO(&read_fds);
-                FD_SET(server_fd_, &read_fds);
-                timeval tv{0, 100000};
-                if (select(server_fd_ + 1, &read_fds, nullptr, nullptr, &tv) > 0) {
-                    int client_fd = accept(server_fd_, nullptr, nullptr);
-                    if (client_fd >= 0) {
-                        char buffer[16384];
-                        ssize_t bytes = recv(client_fd, buffer, sizeof(buffer), 0);
-                        if (bytes > 0) {
-                            std::string full_request(buffer, bytes);
-                            size_t body_pos = full_request.find("\r\n\r\n");
-                            if (body_pos != std::string::npos) {
-                                last_request_body_ = full_request.substr(body_pos + 4);
-                            }
-                        }
-                        request_count_++;
-
-                        std::string response =
-                                absl::StrFormat("HTTP/1.1 200 OK\r\nContent-Length: %d\r\n\r\n%s",
-                                                response_body.size(), response_body);
-                        send(client_fd, response.data(), response.size(), 0);
-#ifdef _WIN32
-                        closesocket(client_fd);
-#else
-                        close(client_fd);
-#endif
-                    }
-                }
-            }
-        });
-    }
-
-    void Stop() {
-        stop_ = true;
-        if (server_thread_.joinable()) server_thread_.join();
-    }
-
-    int GetRequestCount() const { return request_count_; }
-    std::string GetLastRequestBody() const { return last_request_body_; }
-
-  private:
-    int server_fd_;
-    int port_;
-    std::thread server_thread_;
-    std::atomic<bool> stop_{false};
-    std::atomic<int> request_count_{0};
-    std::string last_request_body_;
-};
 
 class PlaystoreMetricsWriterTest : public ::testing::Test {
   protected:
@@ -299,6 +273,42 @@ TEST_F(PlaystoreMetricsWriterTest, HttpsImportsNativeCaStore) {
     EXPECT_THAT(stderr_output, ::testing::HasSubstr("successfully imported Windows ROOT store"));
     EXPECT_THAT(stderr_output, ::testing::HasSubstr("successfully imported Windows CA store"));
 #endif
+}
+
+TEST_F(PlaystoreMetricsWriterTest, RequeuesFailedUploadWhileRunning) {
+    TestHttpServer server;
+    server.Start("", TestHttpServer::Mode::kRespondError);
+    {
+        PlaystoreMetricsWriter writer(server.GetUrl(), "test-user", *event_loop_);
+        writer.Write(CreateEvent(12345));
+
+        // First commit fails with HTTP 500; the event should be re-queued.
+        event_loop_->AdvanceClock(absl::Minutes(10));
+        EXPECT_EQ(server.GetRequestCount(), 1);
+
+        // Next commit succeeds and delivers the re-queued event.
+        server.SetMode(TestHttpServer::Mode::kRespondOk);
+        event_loop_->AdvanceClock(absl::Minutes(10));
+        EXPECT_EQ(server.GetRequestCount(), 2);
+    }
+    server.Stop();
+    VerifyRequest(server.GetLastRequestBody(), "test-user", 1);
+}
+
+TEST_F(PlaystoreMetricsWriterTest, DestructorCancelsStalledUploadWithinShutdownBudget) {
+    TestHttpServer server;
+    server.Start("", TestHttpServer::Mode::kNeverRespond);
+    const absl::Time start = absl::Now();
+    {
+        PlaystoreMetricsWriter writer(server.GetUrl(), "test-user", *event_loop_);
+        writer.Write(CreateEvent(12345));
+    }
+    const absl::Duration elapsed = absl::Now() - start;
+    server.Stop();
+
+    EXPECT_EQ(server.GetRequestCount(), 1);
+    // Destructor enforces the 2s shutdown budget rather than waiting for the 15s upload timeout.
+    EXPECT_LT(elapsed, absl::Seconds(6));
 }
 
 }  // namespace goldfish::metrics

@@ -26,6 +26,24 @@ cc_library(
     }),
 )
 
+cc_library(
+    name = "qemu_trace_bridge",
+    srcs = select({
+        "@qemu//:goldfish_enabled": ["qemu_trace_bridge.cc"],
+        "//conditions:default": [],
+    }),
+    hdrs = [
+        "include/goldfish/perfetto/qemu_trace_bridge.h",
+    ],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":init",
+        "@abseil-cpp//absl/strings",
+        "@qemu//:qemu-headers-exported",
+    ],
+)
+
 cc_test(
     name = "init_test",
     size = "small",
@@ -35,6 +53,7 @@ cc_test(
     }),
     deps = [
         ":init",
+        ":qemu_trace_bridge",
         "//emulator/libs/system:test-headers",
         "//emulator/libs/test:googletest_main",
     ],

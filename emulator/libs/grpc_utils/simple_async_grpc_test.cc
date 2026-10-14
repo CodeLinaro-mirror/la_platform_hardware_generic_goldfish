@@ -458,6 +458,83 @@ TEST(SimpleAsyncGrpcTest, StateStreamWriterMoveOnlyLambda) {
     writer->OnDone();
 }
 
+TEST(SimpleAsyncGrpcTest, UniqueEventStreamWriterDeduplicatesDirectEvents) {
+    android::base::eventing::CallbackEventSource<ClipData> source;
+    int populate_calls = 0;
+
+    auto* writer =
+            new UniqueEventStreamWriter<ClipData,
+                                        android::base::eventing::CallbackEventSource<ClipData>, 0,
+                                        0, FakeWriteReactor<ClipData>>(&source, [&](ClipData* msg) {
+                populate_calls++;
+                msg->set_text("initial");
+            });
+
+    // 1. Initial state is written immediately on construction.
+    EXPECT_EQ(populate_calls, 1);
+    ASSERT_EQ(writer->written_messages.size(), 1U);
+    EXPECT_EQ(writer->written_messages[0].text(), "initial");
+    writer->OnWriteDone(true);
+
+    // 2. Duplicate event matching the initial state is suppressed.
+    ClipData duplicate;
+    duplicate.set_text("initial");
+    source.FireEvent(duplicate);
+    EXPECT_EQ(populate_calls, 1);
+    EXPECT_EQ(writer->written_messages.size(), 1U);
+
+    // 3. Distinct event is written directly without calling populate_fn again.
+    ClipData updated;
+    updated.set_text("updated");
+    source.FireEvent(updated);
+    EXPECT_EQ(populate_calls, 1);
+    ASSERT_EQ(writer->written_messages.size(), 2U);
+    EXPECT_EQ(writer->written_messages[1].text(), "updated");
+    writer->OnWriteDone(true);
+
+    // 4. Consecutive duplicate event is suppressed.
+    source.FireEvent(updated);
+    EXPECT_EQ(writer->written_messages.size(), 2U);
+
+    writer->OnDone();
+}
+
+TEST(SimpleAsyncGrpcTest, UniqueEventStreamWriterFiltersIncomingEvents) {
+    android::base::eventing::CallbackEventSource<ClipData> source;
+
+    auto* writer =
+            new UniqueEventStreamWriter<ClipData,
+                                        android::base::eventing::CallbackEventSource<ClipData>, 0,
+                                        0, FakeWriteReactor<ClipData>>(
+                    &source, [](ClipData* msg) { msg->set_text("v1"); },
+                    [](const ClipData& ev) { return !ev.text().empty(); });
+
+    ASSERT_EQ(writer->written_messages.size(), 1U);
+    EXPECT_EQ(writer->written_messages[0].text(), "v1");
+    writer->OnWriteDone(true);
+
+    // Filtered-out event (empty text) is ignored and does not overwrite last_state_.
+    ClipData empty_clip;
+    source.FireEvent(empty_clip);
+    EXPECT_EQ(writer->written_messages.size(), 1U);
+
+    // Subsequent duplicate of "v1" is still suppressed because last_state_ remained "v1".
+    ClipData v1_clip;
+    v1_clip.set_text("v1");
+    source.FireEvent(v1_clip);
+    EXPECT_EQ(writer->written_messages.size(), 1U);
+
+    // Accepted event with new text is written.
+    ClipData v2_clip;
+    v2_clip.set_text("v2");
+    source.FireEvent(v2_clip);
+    ASSERT_EQ(writer->written_messages.size(), 2U);
+    EXPECT_EQ(writer->written_messages[1].text(), "v2");
+    writer->OnWriteDone(true);
+
+    writer->OnDone();
+}
+
 TEST(SimpleAsyncGrpcTest, GenericEventStreamWriterRaiiDestructionUnsubscribes) {
     android::base::eventing::CallbackEventSource<ClipData> source;
     EXPECT_EQ(source.CallbackCount(), 0);

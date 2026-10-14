@@ -288,6 +288,59 @@ TEST_F(AvdTest, FinalizeSavesConfig) {
     EXPECT_GE(hw_config->GetInt("vm.heapSize", 0), 16);
 }
 
+TEST_F(AvdTest, CameraCommandLineOverride) {
+    auto avd_dir = CreateTestAvd("test_avd", "android-30", 30);
+    WriteToFile(avd_dir / "config.ini",
+                "target=android-30\nimage.sysdir.1=sysimg\n"
+                "hw.camera.back=virtualscene\nhw.camera.front=emulated");
+
+    std::string camera_back = "webcam0";
+    std::string camera_front = "none";
+    opts_.camera_back = camera_back.data();
+    opts_.camera_front = camera_front.data();
+
+    {
+        ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(opts_, paths_, "test_avd", false, ""));
+        EXPECT_EQ(avd->Hw().hw_camera_back, "webcam0");
+        EXPECT_EQ(avd->Hw().hw_camera_front, "none");
+
+        IniFile hw_config(avd_dir / "hardware-qemu.ini");
+        ASSERT_TRUE(hw_config.Read());
+        EXPECT_EQ(hw_config.GetString("hw.camera.back", ""), "webcam0");
+        EXPECT_EQ(hw_config.GetString("hw.camera.front", ""), "none");
+    }
+
+    // Subsequent launch without CLI overrides should revert to config.ini values.
+    opts_.camera_back = nullptr;
+    opts_.camera_front = nullptr;
+    {
+        ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(opts_, paths_, "test_avd", false, ""));
+        EXPECT_EQ(avd->Hw().hw_camera_back, "virtualscene");
+        EXPECT_EQ(avd->Hw().hw_camera_front, "emulated");
+
+        IniFile hw_config(avd_dir / "hardware-qemu.ini");
+        ASSERT_TRUE(hw_config.Read());
+        EXPECT_EQ(hw_config.GetString("hw.camera.back", ""), "virtualscene");
+        EXPECT_EQ(hw_config.GetString("hw.camera.front", ""), "emulated");
+    }
+
+    // Empty string CLI options should be ignored and preserve config.ini values.
+    std::string empty_back;
+    std::string empty_front;
+    opts_.camera_back = empty_back.data();
+    opts_.camera_front = empty_front.data();
+    {
+        ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(opts_, paths_, "test_avd", false, ""));
+        EXPECT_EQ(avd->Hw().hw_camera_back, "virtualscene");
+        EXPECT_EQ(avd->Hw().hw_camera_front, "emulated");
+
+        IniFile hw_config(avd_dir / "hardware-qemu.ini");
+        ASSERT_TRUE(hw_config.Read());
+        EXPECT_EQ(hw_config.GetString("hw.camera.back", ""), "virtualscene");
+        EXPECT_EQ(hw_config.GetString("hw.camera.front", ""), "emulated");
+    }
+}
+
 TEST_F(AvdTest, DisplayName) {
     auto avd_dir = CreateTestAvd("test_avd", "android-30", 30);
     WriteToFile(avd_dir / "config.ini",
@@ -618,7 +671,7 @@ TEST_F(AvdTest, ListSnapshotsWithInspector) {
 
     ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(opts_, paths_, "snap_avd2", false, {}, {}));
     auto mock_inspector = [](const fs::path& p) -> std::string {
-        return "mock qemu-img info for " + p.filename().string();
+        return "mock image info for " + p.filename().string();
     };
     auto snaps = avd->ListSnapshots(mock_inspector);
     ASSERT_EQ(snaps.size(), 2);
@@ -627,7 +680,7 @@ TEST_F(AvdTest, ListSnapshotsWithInspector) {
     EXPECT_THAT(snaps[0].image_info, ::testing::HasSubstr("Image [ram.qcow2]"));
     EXPECT_EQ(snaps[1].name, "Disk Image: userdata.img.qcow2");
     EXPECT_THAT(snaps[1].image_info,
-                ::testing::HasSubstr("mock qemu-img info for userdata.img.qcow2"));
+                ::testing::HasSubstr("mock image info for userdata.img.qcow2"));
 }
 
 }  // namespace android::goldfish::avd

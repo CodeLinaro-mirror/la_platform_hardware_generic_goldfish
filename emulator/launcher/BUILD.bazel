@@ -1,7 +1,8 @@
 load("@bazel_skylib//lib:selects.bzl", "selects")
 load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_test")
-load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_test")
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 load("@rules_python//python:defs.bzl", "py_binary", "py_library", "py_test")
+load("//emulator/tools:cc_binary_with_manifest.bzl", "cc_binary_with_manifest")
 load("//emulator/tools:fishtank.bzl", "subpath_link", "unzip")
 load("//emulator/tools:plugins.bzl", "collect_plugins")
 load("tools/launcher_test.bzl", "create_launch_emulator_test")
@@ -205,7 +206,7 @@ cc_test(
     ],
 )
 
-cc_binary(
+cc_binary_with_manifest(
     name = "fake_launcher_main",
     testonly = True,
     srcs = ["fake_launcher_main.cc"],
@@ -301,6 +302,7 @@ cc_library(
         "//emulator/libs/ini_file",
         "//emulator/libs/network",
         "//emulator/libs/status_macros",
+        "//emulator/libs/system",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
@@ -342,10 +344,13 @@ collect_plugins(
     name = "plugins",
     output_dir = "lib/qemu",
     plugins = [
-        "//emulator/plugin:goldfish_x86_64",
-        "//emulator/plugin:goldfish_aarch64",
         "@rutabaga_gfx//:rutabaga_ffi",
-    ],
+    ] + select({
+        "@platforms//os:macos": ["//emulator/plugin:goldfish_aarch64"],
+        "@platforms//os:linux": ["//emulator/plugin:goldfish_x86_64"],
+        "@platforms//os:windows": ["//emulator/plugin:goldfish_x86_64"],
+        "//conditions:default": [],
+    }),
 )
 
 collect_plugins(
@@ -430,32 +435,28 @@ collect_plugins(
     plugins = [
         "//emulator/crashreport",
         "//third_party/sparse:img2simg",
-        "@qemu//:qemu-img",
         "@crashpad//handler:crashpad_handler",
         #"@netsim//:netsimd",
     ] + select({
         "@platforms//os:windows": [
             "@goldfish_prebuilts_common//netsim:netsim_cli_windows_x86_64",
             "@goldfish_prebuilts_common//netsim:netsim_windows_x86_64",
-            "@qemu//:qemu-system-aarch64",
             "@qemu//:qemu-system-x86_64",
         ],
         "@platforms//os:macos": [
             "@goldfish_prebuilts_common//netsim:netsim_darwin_aarch64",
             "@goldfish_prebuilts_common//netsim:netsim_cli_darwin_aarch64",
             "@qemu//:qemu-system-aarch64_signed",
-            "@qemu//:qemu-system-x86_64_signed",
         ],
-        "//conditions:default": [
+        "@platforms//os:linux": [
             "@goldfish_prebuilts_common//netsim:netsim_linux_x86_64",
             "@goldfish_prebuilts_common//netsim:netsim_cli_linux_x86_64",
-            "@qemu//:qemu-system-aarch64",
             "@qemu//:qemu-system-x86_64",
         ],
+        "//conditions:default": [],
     }),
     renames = select({
         "@platforms//os:macos": {
-            "@qemu//:qemu-system-x86_64_signed": "qemu-system-x86_64",
             "@qemu//:qemu-system-aarch64_signed": "qemu-system-aarch64",
             "@goldfish_prebuilts_common//netsim:netsim_darwin_aarch64": "netsimd",
             "@goldfish_prebuilts_common//netsim:netsim_cli_darwin_aarch64": "netsim",
@@ -464,10 +465,11 @@ collect_plugins(
             "@goldfish_prebuilts_common//netsim:netsim_windows_x86_64": "netsimd.exe",
             "@goldfish_prebuilts_common//netsim:netsim_cli_windows_x86_64": "netsim.exe",
         },
-        "//conditions:default": {
+        "@platforms//os:linux": {
             "@goldfish_prebuilts_common//netsim:netsim_linux_x86_64": "netsimd",
             "@goldfish_prebuilts_common//netsim:netsim_cli_linux_x86_64": "netsim",
         },
+        "//conditions:default": {},
     }),
 )
 
@@ -507,9 +509,23 @@ collect_plugins(
 )
 
 collect_plugins(
-    name = "virtualscene_data",
+    name = "virtualscene_Toren1BD_data",
     output_dir = "data/virtualscene/Toren1BD",
     plugins = ["@goldfish_prebuilts_common//virtualscene/Toren1BD"],
+)
+
+collect_plugins(
+    name = "virtualscene_default_data",
+    output_dir = "data/virtualscene/default",
+    plugins = ["@goldfish_prebuilts_common//virtualscene/default"],
+)
+
+filegroup(
+    name = "virtualscene_data",
+    srcs = [
+        ":virtualscene_Toren1BD_data",
+        ":virtualscene_default_data",
+    ],
 )
 
 cc_library(
@@ -566,7 +582,7 @@ alias(
     visibility = ["//visibility:public"],
 )
 
-cc_binary(
+cc_binary_with_manifest(
     # This is the launcher binary but we want the name of the executable created to be "emulator" to match the legacy emulator release.
     name = "emulator",
     srcs = ["main.cc"],
@@ -583,6 +599,12 @@ cc_binary(
         ":vulkan_icds",
         ":vulkan_layers",
     ],
+    env = {
+        # Use a fixed crash database location under `bazel run` so crash reports
+        # persist across runs and can be inspected by `bazel run //emulator/crashreport/tool:crashreport`
+        # even when `launch_emulator` sets a temporary `ANDROID_TMP`.
+        "ANDROID_EMU_CRASH_REPORTING_DATABASE": "/tmp/crash-report.db",
+    },
     linkopts = select({
         "@platforms//os:macos": ["-undefined error"],
         "//conditions:default": [],
@@ -594,12 +616,11 @@ cc_binary(
         ":trampoline",
         "//emulator/crashreport:crash_system",
         "//emulator/launcher/cmdline",
-        "//emulator/launcher/launch_qemu:disk_drive",
         "//emulator/libs/async:libuv_event_loop",
+        "//emulator/libs/fsimage:qcow2",
         "//emulator/libs/metrics:configure_metrics_writer",
         "//emulator/libs/metrics:studio_config",
         "//emulator/libs/system",
-        "//emulator/libs/system:bazel_info",
         "//emulator/telnet:legacy_console_controller",
         "//emulator/tools:aemu_version",
         "@abseil-cpp//absl/debugging:failure_signal_handler",
@@ -611,6 +632,7 @@ cc_binary(
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",
+        "@abseil-cpp//absl/time",
     ],
 )
 
@@ -714,7 +736,6 @@ py_binary(
         ":android-device-hub",
         ":launcher",
         "//emulator/tools/aquarium-ui",
-        "//emulator/ui/aquarium:dist",
     ] + select({
         "@platforms//os:macos": [
             "//emulator/sdk/system_images/minigbm-arm64-v8a:minigbm",
@@ -727,6 +748,12 @@ py_binary(
     }) + [
         "//emulator/sdk:sdk-marker-files",
     ],
+    env = {
+        # Use a fixed crash database location so crash reports persist after the
+        # temporary ANDROID_TMP directory created by launch_emulator is cleaned
+        # up, and can be inspected by `bazel run //emulator/crashreport/tool:crashreport`.
+        "ANDROID_EMU_CRASH_REPORTING_DATABASE": "/tmp/crash-report.db",
+    },
     deps = [
         ":emulator_lib",
         "@rules_python//python/runfiles",

@@ -394,4 +394,45 @@ TEST_F(CircularMessageLogTest, ProtoCircularLog_PushExceedsCapacity) {
     EXPECT_TRUE(absl::IsResourceExhausted(status));
 }
 
+TEST_F(CircularMessageLogTest, PushExceedsStackThreshold) {
+    const std::string large_payload(kStackSerializationThreshold + 256, 'L');
+    GrpcBreadcrumb large_crumb;
+    large_crumb.set_call_id(777);
+    large_crumb.set_payload(large_payload);
+    ASSERT_GT(large_crumb.ByteSizeLong(), kStackSerializationThreshold);
+
+    {
+        ASSERT_OK_AND_ASSIGN(
+                auto log,
+                CircularMessageLog::CreateWriter(buffer_.data(), buffer_.size(), prototype_));
+        ASSERT_OK(log->Push(large_crumb));
+
+        int seen = 0;
+        log->ForEach([&](const google::protobuf::Message& msg) {
+            const auto& read_crumb = static_cast<const GrpcBreadcrumb&>(msg);
+            EXPECT_EQ(read_crumb.call_id(), 777);
+            EXPECT_EQ(read_crumb.payload(), large_payload);
+            seen++;
+            return true;
+        });
+        EXPECT_EQ(seen, 1);
+    }
+
+    {
+        ASSERT_OK_AND_ASSIGN(
+                auto typed_log,
+                ProtoCircularLog<GrpcBreadcrumb>::CreateWriter(buffer_.data(), buffer_.size()));
+        ASSERT_OK(typed_log->Push(large_crumb));
+
+        int seen = 0;
+        typed_log->ForEach([&](const GrpcBreadcrumb& read_crumb) {
+            EXPECT_EQ(read_crumb.call_id(), 777);
+            EXPECT_EQ(read_crumb.payload(), large_payload);
+            seen++;
+            return true;
+        });
+        EXPECT_EQ(seen, 1);
+    }
+}
+
 }  // namespace goldfish::proto_data_store

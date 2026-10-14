@@ -77,6 +77,11 @@ class LoopWatcher {
 
     void Process(const HangDetector::HangCallback& hang_callback) {
         absl::ReleasableMutexLock l(&mutex_);
+        if (!timer_) {
+            // Cancelled: the loop is no longer watched, and its predicate may capture state
+            // that the owner has already destroyed.
+            return;
+        }
         if (android::base::IsDebuggerAttached() || !IsActive()) {
             is_task_running_ = false;
             hang_count_ = 0;

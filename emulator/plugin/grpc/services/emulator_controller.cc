@@ -81,7 +81,7 @@ class EmulatorControllerImpl final
                                                              &avdUniverse->GetQemuEventLoop()))
             , mStatusService(avdUniverse->GetGuestStatus(), avdUniverse->Props(), avdUniverse)
             , mBatteryService(avdUniverse->GetBattery())
-            , mSensorService(avdUniverse->GetSensorsPhysicalModel())
+            , mSensorService(avdUniverse->GetSensorsPhysicalModel(), &mGrpcNotificationChannel)
             , mGpsService(avdUniverse->GetLocation())
             , mFingerprintService(avdUniverse->GetFingerprintSensor())
             , mClipboardService(avdUniverse->GetClipboardChannel())
@@ -140,6 +140,16 @@ class EmulatorControllerImpl final
     Status getPhysicalModel(ServerContext* /*context*/, const PhysicalModelValue* request,
                             PhysicalModelValue* reply) override {
         return mSensorService.getPhysicalModel(*request, reply);
+    }
+
+    Status rotateVirtualSceneCamera(ServerContext* /*context*/, const RotationRadian* request,
+                                    Empty* /*reply*/) override {
+        return mSensorService.rotateVirtualSceneCamera(*request);
+    }
+
+    Status setVirtualSceneCameraVelocity(ServerContext* /*context*/, const Velocity* request,
+                                         Empty* /*reply*/) override {
+        return mSensorService.setVirtualSceneCameraVelocity(*request);
     }
 
     ::grpc::ServerWriteReactor<ClipData>* streamClipboard(::grpc::CallbackServerContext* context,
@@ -246,7 +256,7 @@ class EmulatorControllerImpl final
 
     ::grpc::ServerWriteReactor<Notification>* streamNotification(
             ::grpc::CallbackServerContext* /*context*/, const Empty* /*request*/) override {
-        return new NotificationStreamWriter(&mGrpcNotificationChannel, &mNotificationStore);
+        return CreateNotificationStreamWriter(&mGrpcNotificationChannel, &mNotificationStore);
     }
 
     ::grpc::ServerWriteReactor<AudioPacket>* streamAudio(::grpc::CallbackServerContext* /*context*/,

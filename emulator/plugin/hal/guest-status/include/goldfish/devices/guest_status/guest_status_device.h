@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 #pragma once
+#include <functional>
 #include <string_view>
 
 #include "goldfish/avd_universe/guest_status/guest_status.h"
@@ -31,8 +32,18 @@ class IGuestStatusDevice : public HalPlug {
   public:
     static constexpr std::string_view kServiceName = "QemuMiscPipe"sv;
 
+    /** Asks the VM to shut down; always invoked on the QEMU event loop. */
+    using ShutdownRequester = std::function<void()>;
+
+    /**
+     * @brief Registers the guest status device with the connector registry.
+     *
+     * @param request_shutdown Invoked on `qemu_loop` when the guest reports boot
+     *     completion and `quitAfterBootTimeoutSeconds` is positive.
+     */
     static void RegisterDevice(GuestStatus* guestStatus, IConnectorRegistry* registry,
-                               EmulatorResetCallbacks resetCallbacks, EventLoop* client_loop,
+                               EmulatorResetCallbacks resetCallbacks,
+                               ShutdownRequester request_shutdown, EventLoop* client_loop,
                                EventLoop* qemu_loop, int quitAfterBootTimeoutSeconds);
 };
 }  // namespace goldfish::devices::guest_status

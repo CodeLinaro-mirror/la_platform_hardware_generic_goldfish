@@ -1,5 +1,6 @@
 load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_test")
-load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_test")
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+load("//emulator/tools:cc_binary_with_manifest.bzl", "cc_binary_with_manifest")
 
 package(
     default_visibility = ["//visibility:public"],
@@ -44,6 +45,7 @@ cc_library(
     deps = [
         ":hal_plug",
         "//emulator/libs/async:async_api",
+        "//emulator/libs/perfetto:init",
         "//emulator/plugin/hal/connector:cable",
         "@abseil-cpp//absl/log:check",
     ],
@@ -58,6 +60,7 @@ cc_library(
         ":hal_plug",
         ":marshalling_hal_socket",
         "//emulator/libs/async:async_api",
+        "//emulator/libs/perfetto:init",
         "//emulator/plugin/hal/connector:cable",
         "@abseil-cpp//absl/log:check",
     ],
@@ -102,6 +105,8 @@ cc_test(
         "//emulator/libs/async:async_testing",
         "//emulator/libs/async:libuv_event_loop",
         "//emulator/libs/async:threaded_event_loop",
+        "//emulator/libs/perfetto:init",
+        "//emulator/libs/system:test-headers",
         "//emulator/libs/test:googletest_main",
         "//emulator/plugin/hal/connector:connector_registry_impl",
         "@abseil-cpp//absl/status:status_matchers",
@@ -109,7 +114,7 @@ cc_test(
     ],
 )
 
-cc_binary(
+cc_binary_with_manifest(
     name = "marshalling_hal_socket_benchmark",
     srcs = ["marshalling_hal_socket_benchmark.cc"],
     deps = [

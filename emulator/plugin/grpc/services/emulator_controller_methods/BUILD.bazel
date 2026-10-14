@@ -75,6 +75,7 @@ cc_test(
     visibility = ["//visibility:public"],
     deps = [
         ":emulator_controller_methods",
+        "//emulator/libs/async:async_testing",
         "//emulator/libs/async:libuv_event_loop",
         "//emulator/libs/async:threaded_event_loop",
         "//emulator/libs/cpu",

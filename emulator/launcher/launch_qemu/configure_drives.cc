@@ -21,14 +21,15 @@
 #include "absl/strings/str_cat.h"
 
 #include "android/status/status_macros.h"
+#include "goldfish/fsimage/exfat.h"
 #include "user_data_drive.h"
 
 namespace android::goldfish::internal {
 
 namespace {
-absl::StatusOr<fs::path> getOverridePath(const char* path_str) {
+absl::StatusOr<fs::path> getOverrideFilePath(const char* path_str) {
     fs::path path(path_str);
-    if (base::file::exists(path)) {
+    if (base::file::is_file(path)) {
         return path;
     } else {
         return absl::NotFoundError(absl::StrCat("File not found: ", path_str));
@@ -39,21 +40,12 @@ fs::path getWritableImgPath(const Avd& avd, Avd::ImageType user_image_type) {
     return avd.GetContentPath() / Avd::GetImageFilename(user_image_type);
 }
 
-absl::StatusOr<fs::path> getWritableImgPath(const Avd& avd, Avd::ImageType user_image_type,
-                                            const char* override_path) {
-    if (override_path) {
-        return getOverridePath(override_path);
-    } else {
-        return getWritableImgPath(avd, user_image_type);
-    }
-}
-
 absl::StatusOr<fs::path> getUserdataImgPath(const Avd& avd, const char* override_path) {
     if (override_path) {
-        return getOverridePath(override_path);
+        return getOverrideFilePath(override_path);
     } else {
         fs::path path = getWritableImgPath(avd, Avd::ImageType::USERDATA_OLD);
-        if (!base::file::exists(path)) {
+        if (!base::file::is_file(path)) {
             path = getWritableImgPath(avd, Avd::ImageType::USERDATA);
         }
         return path;
@@ -84,11 +76,6 @@ uint64_t getDataSize(const Avd& avd, const AndroidOptions& opts) {
     return std::max(data_size, kMinPlaystoreImageSize);
 }
 
-uint64_t getSdcardSize(const Avd& avd, const AndroidOptions& opts) {
-    // TODO minimum size?
-    return avd.Hw().hw_sd_card_size.Bytes();
-}
-
 std::unique_ptr<PciDevice> MakeDrive(std::string id, std::string pci_address, const bool rw,
                                      fs::path backing_image, fs::path qcow_image,
                                      const uint64_t backing_image_create_size,
@@ -115,6 +102,37 @@ std::unique_ptr<PciDevice> MakeDrive(std::string id, std::string pci_address, co
                                          std::move(backing_image));
     }
 }
+
+struct SdCardConfig {
+    fs::path backing_image;
+    fs::path qcow2_image;
+    bool backing_image_missing = false;
+};
+
+absl::StatusOr<SdCardConfig> GetSdCardConfig(const Avd& avd, const AndroidOptions& opts) {
+    if (fs::path sdcard_path(opts.sdcard ? opts.sdcard : avd.Hw().hw_sdCard_path.c_str());
+        !sdcard_path.empty()) {
+        if (!base::file::is_file(sdcard_path)) {
+            return absl::NotFoundError(
+                    absl::StrCat("SD card backing path is invalid: ", sdcard_path.string()));
+        }
+        return SdCardConfig{
+            .backing_image = std::move(sdcard_path),
+            .qcow2_image = getWritableImgPath(avd, Avd::ImageType::SDCARD_EXTRNL_QCOW2),
+        };
+    }
+
+    SdCardConfig cfg;
+    cfg.backing_image = getWritableImgPath(avd, Avd::ImageType::SDCARD);
+    if (!base::file::is_file(cfg.backing_image)) {
+        cfg.backing_image = getWritableImgPath(avd, Avd::ImageType::SDCARD_EMU);
+        cfg.backing_image_missing = !base::file::is_file(cfg.backing_image);
+    }
+
+    cfg.qcow2_image = to_qcow2(cfg.backing_image);
+    return cfg;
+}
+
 }  // namespace
 
 absl::StatusOr<std::vector<std::unique_ptr<PciDevice>>> getDiskConfigs(const Avd& avd,
@@ -124,7 +142,7 @@ absl::StatusOr<std::vector<std::unique_ptr<PciDevice>>> getDiskConfigs(const Avd
     ASSIGN_OR_RETURN(const auto userdata_path, getUserdataImgPath(avd, opts.data));
     uint64_t userdata_create_size = 0;
     std::optional<fs::path> userdata_src_dir;
-    if (!base::file::exists(userdata_path)) {
+    if (!base::file::is_file(userdata_path)) {
         ASSIGN_OR_RETURN(userdata_src_dir, prepareUserdataSrcDir(avd, sys_img_paths.data_dir));
         userdata_create_size = getDataSize(avd, opts);
     }
@@ -148,29 +166,36 @@ absl::StatusOr<std::vector<std::unique_ptr<PciDevice>>> getDiskConfigs(const Avd
         drives.push_back(std::make_unique<NullDrive>(std::move(id), std::move(pci_address)));
     };
 
-    // Currently this must be the first drive on ARM to match the androidboot.boot_devices
-    // parameter set in initrd_device.cpp.
-    add_drive("system", "03.0", /*rw=*/rw_sys, sys_img_paths.system_image,
-              getQcow2Path(avd, Avd::ImageType::SYSTEM));
+    if (avd.Hw().hw_sdCard) {
+        ASSIGN_OR_RETURN(auto sdcard_config, GetSdCardConfig(avd, opts));
+        if (sdcard_config.backing_image_missing) {
+            using ::goldfish::fsimage::CreateEmptyExFATImage;
+            using namespace std::literals::string_view_literals;
+
+            RETURN_IF_ERROR(CreateEmptyExFATImage(sdcard_config.backing_image,
+                                                  avd.Hw().hw_sd_card_size, "EMULATOR"sv));
+
+            base::file::rm(sdcard_config.qcow2_image).IgnoreError();
+        }
+
+        add_drive("sdcard", "08.0", true, std::move(sdcard_config.backing_image),
+                  std::move(sdcard_config.qcow2_image));
+    } else {
+        add_null_drive("sdcard", "08.0");
+    }
+
     // Encryption must be second for ARM - to have path
     // "/dev/block/platform/a003c00.virtio_mmio/by-name/metadata".
     add_drive("encrypt", "06.0", /*rw=*/true, sys_img_paths.encryption_key_image,
               getQcow2Path(avd, Avd::ImageType::ENCRYPTIONKEY));
+    add_drive("system", "03.0", /*rw=*/rw_sys, sys_img_paths.system_image,
+              getQcow2Path(avd, Avd::ImageType::SYSTEM));
     add_drive("userdata", "05.0", /*rw=*/true, userdata_path, to_qcow2(userdata_path),
               userdata_create_size, std::move(userdata_src_dir));
     add_drive("vendor", "07.0", /*rw=*/rw_sys, sys_img_paths.vendor_image,
               getQcow2Path(avd, Avd::ImageType::VENDOR));
     // Placeholder drive to preserve /dev/block/vd* device ordering expected by fstab.ranchu.
     add_null_drive("cache", "04.0");
-
-#ifdef __x86_64__
-    if (avd.Hw().hw_sdCard) {
-        ASSIGN_OR_RETURN(const auto sdcard_path,
-                         getWritableImgPath(avd, Avd::ImageType::SDCARD, opts.sdcard));
-        add_drive("sdcard", "08.0", true, sdcard_path, to_qcow2(sdcard_path),
-                  getSdcardSize(avd, opts));
-    }
-#endif
 
     return drives;
 }

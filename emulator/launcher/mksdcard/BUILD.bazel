@@ -1,13 +1,24 @@
-load("@rules_cc//cc:defs.bzl", "cc_binary")
+load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_test")
+load("//emulator/tools:cc_binary_with_manifest.bzl", "cc_binary_with_manifest")
 
-cc_binary(
+cc_binary_with_manifest(
     name = "mksdcard",
-    srcs = ["mksdcard.c"],
-    linkopts = select({
-        "@platforms//os:windows": [
-            "-DEFAULTLIB:Shell32.lib",
-        ],
-        "//conditions:default": [],
-    }),
+    srcs = ["mksdcard.cc"],
     visibility = ["//visibility:public"],
+    deps = [
+        "//emulator/libs/file",
+        "//emulator/libs/fsimage:exfat",
+        "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/flags:parse",
+        "@abseil-cpp//absl/flags:usage",
+        "@abseil-cpp//absl/status",
+    ],
+)
+
+clang_tidy_test(
+    name = "tidy",
+    targets = [
+        ":mksdcard",
+    ],
+    tidy_config_file = "//:clang_tidy_config",
 )

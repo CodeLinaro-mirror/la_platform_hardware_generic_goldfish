@@ -63,6 +63,8 @@ void SetDeviceNameIfSupported(T& avd_info, const std::string& hw_device_name) {
             {"pixel_10_pro", T::PIXEL_10_PRO},
             {"pixel_10_pro_xl", T::PIXEL_10_PRO_XL},
             {"pixel_10_pro_fold", T::PIXEL_10_PRO_FOLD},
+            {"pixel_10a", T::PIXEL_10A},
+            {"pixel_11_pro_fold", T::PIXEL_11_PRO_FOLD},
             {"pixel_fold", T::PIXEL_FOLD},
             {"pixel_tablet", T::PIXEL_TABLET},
             {"automotive_1024p_landscape", T::AUTOMOTIVE_1024P_LANDSCAPE},
@@ -88,6 +90,7 @@ void SetDeviceNameIfSupported(T& avd_info, const std::string& hw_device_name) {
             {"xr_headset_device", T::XR_HEADSET_DEVICE},
             {"xr_glasses_device", T::XR_GLASSES_DEVICE},
             {"ai_glasses_device", T::AI_GLASSES_DEVICE},
+            {"ai_glasses_displayless", T::AI_GLASSES_AUDIO_DEVICE},
         });
         if (auto i = device_name_map.find(hw_device_name); i != device_name_map.end()) {
             avd_info.set_device_name(i->second);
@@ -271,8 +274,7 @@ void FillFeatureFlagState(android_studio::EmulatorFeatureFlagState& feature_flag
     // TODO
 }
 
-android_studio::EmulatorDetails::VulkanIcd GetVulkanIcd() {
-    std::string vk_icd = android::base::System::Get()->EnvGet("ANDROID_EMU_VK_ICD");
+android_studio::EmulatorDetails::VulkanIcd GetVulkanIcd(std::string_view vk_icd) {
     if (vk_icd == "") {  // Use hardware when vk_icd is null
         return android_studio::EmulatorDetails::HOST_DEFAULT_VK;
     } else if (vk_icd == "swiftshader") {
@@ -289,7 +291,8 @@ android_studio::EmulatorDetails::VulkanIcd GetVulkanIcd() {
 }
 
 void FillDetails(android_studio::EmulatorDetails& details, const Avd& avd, long launcher_pid,
-                 long qemu_pid, bool metrics_collection_opt, bool fuchsia_opt, bool openglAlive) {
+                 long qemu_pid, bool metrics_collection_opt, bool fuchsia_opt, bool openglAlive,
+                 std::string_view vk_icd) {
     FillAvdInfo(*details.mutable_avd_info(), avd);
     FillFeatureFlagState(*details.mutable_feature_flag_state());
 
@@ -315,8 +318,7 @@ void FillDetails(android_studio::EmulatorDetails& details, const Avd& avd, long 
         }
     }*/
 
-    // Must be called after launch_qemu has setup environment.
-    details.set_vulkan_icd(GetVulkanIcd());
+    details.set_vulkan_icd(GetVulkanIcd(vk_icd));
 
     // TODO Set available GPU info.
     /*for (const GpuInfo& gpu : globalGpuInfoList().infos) {
@@ -350,7 +352,7 @@ void FillDetails(android_studio::EmulatorDetails& details, const Avd& avd, long 
 
 void FillEmulatorHostEvent(android_studio::AndroidStudioEvent& event, const Avd& avd,
                            long launcher_pid, long qemu_pid, bool metrics_collection_opt,
-                           bool fuchsia_opt) {
+                           bool fuchsia_opt, std::string_view vk_icd) {
     event.set_kind(android_studio::AndroidStudioEvent::EMULATOR_HOST);
 
     auto& product = *event.mutable_product_details();
@@ -365,7 +367,7 @@ void FillEmulatorHostEvent(android_studio::AndroidStudioEvent& event, const Avd&
 
     FillHost(*event.mutable_emulator_host());
     FillDetails(*event.mutable_emulator_details(), avd, launcher_pid, qemu_pid,
-                metrics_collection_opt, fuchsia_opt, false);
+                metrics_collection_opt, fuchsia_opt, false, vk_icd);
 }
 
 }  // namespace android::goldfish

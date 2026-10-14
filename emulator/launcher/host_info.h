@@ -14,6 +14,8 @@
 
 #pragma once
 
+#include <string_view>
+
 #include "android/goldfish/avd.h"
 #include "studio_stats.pb.h"
 
@@ -25,6 +27,6 @@ bool IsRunningInContainer();
 
 void FillEmulatorHostEvent(android_studio::AndroidStudioEvent& event, const Avd& avd,
                            long launcher_pid, long qemu_pid, bool metrics_collection_opt,
-                           bool fuchsia_opt);
+                           bool fuchsia_opt, std::string_view vk_icd);
 
 }  // namespace android::goldfish

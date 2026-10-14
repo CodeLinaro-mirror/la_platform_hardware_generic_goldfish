@@ -13,33 +13,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 #pragma once
-#include <chrono>
 #include <filesystem>
 #include <string>
 #include <vector>
 
 #include "absl/status/status.h"
-#include "absl/status/statusor.h"
 
 #include "device.h"
+#include "goldfish/file/storage_capacity.h"
 
 namespace android::goldfish {
 
 namespace fs = std::filesystem;
-
-/**
- * @brief Executes the qemu-img binary with the provided arguments.
- *
- * Captures stdout and stderr, enforces a timeout, and returns stdout on success.
- *
- * @param qemu_img_binary Path to the qemu-img binary.
- * @param args Arguments to pass to qemu-img.
- * @param timeout Maximum duration to wait before aborting.
- * @return Standard output on success, or an error status on failure / timeout.
- */
-absl::StatusOr<std::string> exec_qemu_img(
-        const fs::path& qemu_img_binary, const std::vector<std::string>& args,
-        std::chrono::milliseconds timeout = std::chrono::seconds(10));
 
 // A dummy drive backed by QEMU's null-co driver.
 class NullDrive : public PciDevice {
@@ -84,7 +69,7 @@ class Qcow2Drive : public PciDevice {
             , backing_image_(std::move(backing_image))
             , qcow2_image_(std::move(qcow2_image)) {}
 
-    absl::Status MakeQcow2(const EmulatorConfig& emulator) const;
+    absl::Status MakeQcow2() const;
 
     const fs::path backing_image_;
     const fs::path qcow2_image_;
@@ -103,35 +88,36 @@ class WritableImgDrive : public Qcow2Drive {
 };
 
 /**
- * @brief Represents a mutable disk of `size_bytes` size. `img_path` must be located
+ * @brief Represents a mutable disk of `size`. `img_path` must be located
  * inside the AVD folder.
  */
 class BlankWritableDrive : public Qcow2Drive {
   public:
     BlankWritableDrive(std::string id, std::string addr, fs::path backing_image,
-                       fs::path qcow2_image, uint64_t size_bytes)
+                       fs::path qcow2_image, android::base::StorageCapacity size)
             : Qcow2Drive(std::move(id), std::move(addr), std::move(backing_image),
                          std::move(qcow2_image))
-            , size_bytes_(size_bytes) {}
+            , size_(size) {}
 
     absl::Status initialize(const EmulatorConfig& emulator) override;
 
   protected:
-    const uint64_t size_bytes_;
+    const android::base::StorageCapacity size_;
 };
 
 /**
- * @brief Represents a mutable disk created from `src_directory` of size `size_bytes`.
+ * @brief Represents a mutable disk created from `src_directory` of `size`.
  * `img_path` must be located inside the AVD folder.
  */
 class WritableDirectoryDrive : public Qcow2Drive {
   public:
     WritableDirectoryDrive(std::string id, std::string addr, fs::path backing_image,
-                           fs::path qcow2_image, fs::path src_directory, uint64_t size_bytes)
+                           fs::path qcow2_image, fs::path src_directory,
+                           android::base::StorageCapacity size)
             : Qcow2Drive(std::move(id), std::move(addr), std::move(backing_image),
                          std::move(qcow2_image))
             , src_directory_(std::move(src_directory))
-            , size_bytes_(size_bytes) {}
+            , size_(size) {}
 
     absl::Status initialize(const EmulatorConfig& emulator) override;
 
@@ -140,7 +126,7 @@ class WritableDirectoryDrive : public Qcow2Drive {
 
   protected:
     const fs::path src_directory_;
-    const uint64_t size_bytes_;
+    const android::base::StorageCapacity size_;
 };
 
 }  // namespace android::goldfish

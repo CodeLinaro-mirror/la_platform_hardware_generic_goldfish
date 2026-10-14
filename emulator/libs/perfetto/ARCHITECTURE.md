@@ -15,6 +15,7 @@ By default, Perfetto tracing is compiled out for zero runtime overhead unless th
   - `goldfish::perfetto::EmulatorTracingSession` (`Start`, `Stop`) — Manages active tracing sessions when `ANDROID_EMU_PERFETTO_TRACE` is set at runtime.
 - **`include/goldfish/perfetto/perfetto_categories.h`**:
   - `PERFETTO_DEFINE_CATEGORIES(...)` — Registers the `"rendering"`, `"async"`, `"grpc"`, `"qemu"`, and `"display"` trace categories when `CONFIG_TRACE_GOLDFISH` is defined.
+  - `TRACE_NONCE()` — Returns a process-wide monotonically increasing `uint64_t` flow nonce (`::perfetto::internal::NextTraceNonce()`) when `CONFIG_TRACE_GOLDFISH` is defined, or `0` when disabled.
   - When `!defined(CONFIG_TRACE_GOLDFISH)`, defines zero-cost compile-time no-op macros (`GOLDFISH_PERFETTO_NOOP`, `perfetto::internal::IgnoreTraceArgs`) for `TRACE_EVENT`, `TRACE_EVENT_BEGIN`, `TRACE_EVENT_END`, `TRACE_EVENT_INSTANT`, `TRACE_COUNTER`, `perfetto::Flow::ProcessScoped`, and defines `TRACE_EVENT_CATEGORY_ENABLED(category)` as `(false)`.
 - **`perfetto_config_test.cc`**:
   - Unit tests (`@goldfish//emulator/libs/perfetto:init_test`) verifying trace session initialization and category gating.

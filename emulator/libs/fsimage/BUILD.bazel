@@ -1,8 +1,8 @@
 load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_test")
-load("@rules_cc//cc:defs.bzl", "cc_library")
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 
 cc_library(
-    name = "fsimage",
+    name = "ext4",
     srcs = [
         "ext4.cc",
     ],
@@ -19,10 +19,85 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "qcow2",
+    srcs = [
+        "qcow2.cc",
+        "qcow2_internal.h",
+    ],
+    hdrs = [
+        "include/goldfish/fsimage/qcow2.h",
+    ],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//emulator/libs/file",
+        "//emulator/libs/status_macros",
+        "@abseil-cpp//absl/cleanup",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings:str_format",
+        "@abseil-cpp//absl/time",
+    ],
+)
+
+cc_test(
+    name = "qcow2_test",
+    size = "small",
+    srcs = [
+        "qcow2_internal.h",
+        "qcow2_test.cc",
+    ],
+    deps = [
+        ":qcow2",
+        "//emulator/libs/system:test-headers",
+        "//emulator/libs/test:googletest_main",
+        "@abseil-cpp//absl/status:status_matchers",
+        "@abseil-cpp//absl/time",
+    ],
+)
+
+cc_library(
+    name = "exfat",
+    srcs = [
+        "exfat.cc",
+    ],
+    hdrs = [
+        "include/goldfish/fsimage/exfat.h",
+    ],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//emulator/libs/file",
+        "//emulator/libs/status_macros",
+        "@abseil-cpp//absl/cleanup",
+        "@abseil-cpp//absl/container:flat_hash_set",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings:str_format",
+    ],
+)
+
+cc_test(
+    name = "exfat_test",
+    size = "small",
+    srcs = [
+        "exfat_test.cc",
+    ],
+    deps = [
+        ":exfat",
+        "//emulator/libs/system:test-headers",
+        "//emulator/libs/test:googletest_main",
+        "@abseil-cpp//absl/status:status_matchers",
+    ],
+)
+
 clang_tidy_test(
     name = "tidy",
     targets = [
-        ":fsimage",
+        ":ext4",
+        ":qcow2",
+        ":exfat",
     ],
     tidy_config_file = "//:clang_tidy_config",
 )

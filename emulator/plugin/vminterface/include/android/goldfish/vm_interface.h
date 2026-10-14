@@ -18,7 +18,8 @@
 #include "absl/strings/str_format.h"
 #include "absl/time/time.h"
 
-#include "goldfish/eventing/event_sources.h"
+#include "goldfish/async/event_loop.h"
+#include "goldfish/async/event_loop_dispatcher.h"
 
 namespace android {
 namespace goldfish {
@@ -124,16 +125,16 @@ void AbslStringify(Sink& sink, VmHypervisorType e) {
 
 // VM Configuration
 struct VmConfiguration {
-    VmHypervisorType hypervisorType;  ///< Type of hypervisor.
-    int32_t numberOfCpuCores;         ///< Number of CPU cores.
-    const char* cpu_type;             ///< Type of the cpu
+    VmHypervisorType hypervisor_type;  ///< Type of hypervisor.
+    int32_t number_of_cpu_cores;       ///< Number of CPU cores.
+    const char* cpu_type;              ///< Type of the cpu
 };
 
 template <typename Sink>
 void AbslStringify(Sink& sink, const VmConfiguration& config) {
     absl::Format(&sink,
-                 "VmConfiguration { hypervisorType: %v, numberOfCpuCores: %d, cpu_type: %s }",
-                 config.hypervisorType, config.numberOfCpuCores, config.cpu_type);
+                 "VmConfiguration { hypervisor_type: %v, number_of_cpu_cores: %d, cpu_type: %s }",
+                 config.hypervisor_type, config.number_of_cpu_cores, config.cpu_type);
 }
 
 /**
@@ -228,95 +229,142 @@ void AbslStringify(Sink& sink, EmuRunState e) {
  * This interface provides methods to control and manage the lifecycle of a VM,
  * including starting, stopping, pausing, resuming, querying its configuration,
  * and subscribing to run state changes.
+ *
+ * Threading contract:
+ * - State-mutating and snapshot methods (`Stop`, `Start`, `Pause`, `Resume`,
+ *   `Reset`, `Shutdown`, `SaveSnapshot`, `LoadSnapshot`, `LoadSnapshotResume`,
+ *   `DeleteSnapshot`, `ListSnapshots`) are expected to be called from external
+ *   threads (such as gRPC server or worker threads). They must not be called
+ *   from the callback `EventLoop` passed to the constructor (to prevent
+ *   re-entrant callbacks and cross-loop deadlocks) or from the QEMU main event
+ *   loop.
+ * - Read-only queries (`IsRunning`, `GetRunState`, `GetConfiguration`) and
+ *   atomic requests (`SystemShutdownRequest`) do not block or trigger
+ *   callbacks synchronously and may be called from any thread, including
+ *   `qemu_loop`, `RunStateEvents()` callbacks, and hang detector predicates.
  */
-class VmOperations : public android::base::eventing::CallbackEventSource<EmuRunState> {
+class VmOperations {
   public:
+    /** @brief Source of run state changes, delivered on an event loop. */
+    using RunStateSource = ::goldfish::async::LoopBoundCallbackSource<EmuRunState>;
+
+    /**
+     * @brief Creates the interface with run state changes delivered on |loop|.
+     *
+     * @param loop The loop that runs the run state callbacks. Must outlive this object.
+     */
+    explicit VmOperations(::goldfish::async::EventLoop* loop) : run_state_events_(loop) {}
+
     /**
      * @brief Virtual destructor for the VmOperations interface.
      */
     virtual ~VmOperations() = default;
 
     /**
+     * @brief Run state changes.
+     *
+     * Callbacks run on the loop passed to the constructor, never on the thread that changed
+     * the run state, which may hold the BQL. Events still queued when a callback is removed,
+     * or when this object is destroyed, are dropped. Subscribers must not invoke mutating
+     * or snapshot methods on `VmOperations` from inside a callback.
+     */
+    RunStateSource& RunStateEvents() { return run_state_events_; }
+
+    /**
      * @brief Stops the virtual machine.
      *
-     * @return True if the operation was successful, false otherwise.
+     * Idempotent if the VM is already paused.
+     *
+     * @return OK on success, or FailedPrecondition/Internal on failure.
      */
-    virtual bool stop() = 0;
+    virtual absl::Status Stop() = 0;
 
     /**
      * @brief Starts the virtual machine.
      *
-     * @return True if the operation was successful, false otherwise.
+     * Idempotent if the VM is already running.
+     *
+     * @return OK on success, or FailedPrecondition on failure.
      */
-    virtual bool start() = 0;
+    virtual absl::Status Start() = 0;
 
     /**
      * @brief Resets the virtual machine.
+     *
+     * @return OK on success, or FailedPrecondition if the VM cannot be reset.
      */
-    virtual void reset() = 0;
+    virtual absl::Status Reset() = 0;
 
     /**
      * @brief Shuts down the virtual machine.
+     *
+     * Idempotent if the VM is already shutting down.
+     *
+     * @return OK on success, or FailedPrecondition if a snapshot is in progress.
      */
-    virtual void Shutdown() = 0;
+    virtual absl::Status Shutdown() = 0;
 
     /**
      * @brief Pauses the virtual machine.
      *
-     * @return True if the operation was successful, false otherwise.
+     * Idempotent if the VM is already paused.
+     *
+     * @return OK on success, or FailedPrecondition/Internal on failure.
      */
-    virtual bool pause() = 0;
+    virtual absl::Status Pause() = 0;
 
     /**
      * @brief Resumes the virtual machine.
      *
-     * @return True if the operation was successful, false otherwise.
+     * Idempotent if the VM is already running.
+     *
+     * @return OK on success, or FailedPrecondition on failure.
      */
-    virtual bool resume() = 0;
+    virtual absl::Status Resume() = 0;
 
     /**
      * @brief Checks if the virtual machine is currently running.
      *
      * @return True if the VM is running, false otherwise.
      */
-    virtual bool isRunning() = 0;
+    virtual bool IsRunning() = 0;
 
     /**
      * @brief Gets the configuration of the virtual machine.
      *
      * @return The VM's configuration.
      */
-    virtual VmConfiguration getConfiguration() = 0;
+    virtual VmConfiguration GetConfiguration() = 0;
 
     /**
      * @brief Gets the current run state of the emulator.
      *
      * @return The emulator's run state.
      */
-    virtual EmuRunState getRunState() = 0;
+    virtual EmuRunState GetRunState() = 0;
 
     /**
      * @brief Requests a system shutdown with a specified reason.
      *
      * @param reason The reason for the shutdown request.
      */
-    virtual void systemShutdownRequest(QemuShutdownCause reason) = 0;
+    virtual void SystemShutdownRequest(QemuShutdownCause reason) = 0;
 
     struct SnapshotEntry {
-        std::string id;
         std::string name;
         absl::Time timestamp;
     };
 
     using SnapshotEntrySink = absl::FunctionRef<void(SnapshotEntry)>;
 
-    virtual absl::Status SaveSnapshot(const char* name, bool overwrite) = 0;
-    virtual absl::Status LoadSnapshot(const char* idOrName, bool andResume) = 0;
-    virtual void LoadSnapshotResume(EmuRunState) = 0;
-    virtual absl::Status DeleteSnapshot(const char* idOrName) = 0;
-    virtual absl::Status ListSnapshots(SnapshotEntrySink) = 0;
+    virtual absl::Status SaveSnapshot(std::string name, bool overwrite) = 0;
+    virtual absl::Status LoadSnapshot(std::string id_or_name, bool and_resume) = 0;
+    virtual void LoadSnapshotResume(EmuRunState state) = 0;
+    virtual absl::Status DeleteSnapshot(std::string id_or_name) = 0;
+    virtual absl::Status ListSnapshots(SnapshotEntrySink sink) = 0;
 
-    static VmOperations* qemuVmOperations();
+  private:
+    RunStateSource run_state_events_;
 };
 
 }  // namespace goldfish

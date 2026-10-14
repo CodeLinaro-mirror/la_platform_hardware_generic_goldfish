@@ -15,29 +15,32 @@
 
 #include "goldfish/metrics/playstore_metrics_writer.h"
 
-#include <chrono>
-#include <fstream>
-#include <iostream>
+#include <functional>
 #include <sstream>
+#include <string_view>
 
 #include "absl/log/log.h"
-#include "absl/log/vlog_is_on.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
+#include "absl/time/clock.h"
 
 #include "android/base/system.h"
-#include "curl/curl.h"
+#include "goldfish/network/http_client.h"
 #include "goldfish/tools/aemu_version.h"
 #include "google_logs_response.pb.h"
 #include "gzip_ostream.h"
 
 namespace goldfish::metrics {
 
-using namespace std::chrono_literals;
 using wireless_android_play_playlog::LogRequest;
 using wireless_android_play_playlog::LogResponse;
 
 namespace {
+
+// Upper bound for one upload. The batch is small (at most kMaxStorage bytes before gzip), and the
+// last upload runs while the emulator exits.
+constexpr absl::Duration kUploadTimeout = absl::Seconds(15);
 
 const char* GetOsType() {
 #ifdef _WIN32
@@ -82,7 +85,8 @@ absl::StatusOr<std::string> SerializeAndGzip(const LogRequest& request) {
 absl::StatusOr<absl::Duration> ParseResp(std::string resp) {
     LogResponse response;
     if (!response.ParseFromString(resp)) {
-        return absl::InvalidArgumentError("failed to parse server response proto");
+        return absl::InternalError(absl::StrCat("Failed to parse Clearcut LogResponse protobuf (",
+                                                resp.size(), " bytes)"));
     }
     if (!response.has_next_request_wait_millis()) {
         return absl::ZeroDuration();
@@ -94,88 +98,28 @@ absl::StatusOr<absl::Duration> ParseResp(std::string resp) {
     return absl::Milliseconds(wait);
 }
 
-size_t CurlWriteCallback(char* contents, size_t size, size_t nmemb, void* userp) {
-    auto& buff = *static_cast<std::string*>(userp);
-    const size_t total = size * nmemb;
-    buff.insert(buff.end(), contents, contents + total);
-    return total;
-}
-
-struct CurlDeleter {
-    void operator()(CURL* curl) const { ::curl_easy_cleanup(curl); }
-};
-
-struct CurlSlistDeleter {
-    void operator()(curl_slist* slist) const { ::curl_slist_free_all(slist); }
-};
-
-using CurlSlistPtr = std::unique_ptr<curl_slist, CurlSlistDeleter>;
-
-absl::Status CurlSlistAppend(CurlSlistPtr& slist, const char* string) {
-    if (struct curl_slist* new_slist = ::curl_slist_append(slist.get(), string)) {
-        slist.release();  // it was consumed by curl_slist_append
-        slist.reset(new_slist);
-        return absl::OkStatus();
-    } else {
-        return absl::InternalError(absl::StrCat("curl_slist_append failed for '", string, "'"));
-    }
-}
-
-absl::StatusOr<absl::Duration> SendToPlaystore(const std::string& url, LogRequest req) {
+// `cancel` is called during the upload, which stops once it returns true.
+absl::StatusOr<absl::Duration> SendToPlaystore(const std::string& url, const LogRequest& req,
+                                               const std::function<bool()>& cancel) {
     VLOG(1) << "Making Clearcut POST: " << url << " - " << req.ShortDebugString();
     auto serialized = SerializeAndGzip(req);
     if (!serialized.ok()) {
         return serialized.status();
     }
 
-    const std::unique_ptr<CURL, CurlDeleter> curl(curl_easy_init());
-    if (!curl) {
-        return absl::InternalError("failed to initialize curl");
+    auto http_client = goldfish::network::CreateCurlHttpClient();
+    constexpr std::string_view kHeaders[] = {
+        "Content-Encoding: gzip",
+        "Content-Type: application/x-gzip",
+    };
+    auto resp = http_client->Post(url, *serialized, kHeaders, kUploadTimeout, cancel);
+    if (!resp.ok()) {
+        return resp.status();
     }
 
-    CurlSlistPtr headers;
-    if (auto s = CurlSlistAppend(headers, "Content-Encoding: gzip"); !s.ok()) {
-        return s;
-    }
-    if (auto s = CurlSlistAppend(headers, "Content-Type: application/x-gzip"); !s.ok()) {
-        return s;
-    }
-
-    std::string resp;
-    curl_easy_setopt(curl.get(), CURLOPT_URL, url.c_str());
-    curl_easy_setopt(curl.get(), CURLOPT_POSTFIELDS, serialized->data());
-    curl_easy_setopt(curl.get(), CURLOPT_POSTFIELDSIZE, (long)serialized->size());
-    curl_easy_setopt(curl.get(), CURLOPT_HTTPHEADER, headers.get());
-    curl_easy_setopt(curl.get(), CURLOPT_WRITEFUNCTION, CurlWriteCallback);
-    curl_easy_setopt(curl.get(), CURLOPT_WRITEDATA, &resp);
-    curl_easy_setopt(curl.get(), CURLOPT_FOLLOWLOCATION, 1L);
-    curl_easy_setopt(curl.get(), CURLOPT_MAXREDIRS, 10L);
-    curl_easy_setopt(curl.get(), CURLOPT_SSL_OPTIONS, CURLSSLOPT_NATIVE_CA);
-    if (VLOG_IS_ON(1)) {
-        curl_easy_setopt(curl.get(), CURLOPT_VERBOSE, 1L);
-    }
-
-    CURLcode res = curl_easy_perform(curl.get());
-
-    if (res != CURLE_OK) {
-        return absl::InternalError(
-                absl::StrCat("curl_easy_perform() failed: ", curl_easy_strerror(res)));
-    } else {
-        long http_response = 0;
-        res = curl_easy_getinfo(curl.get(), CURLINFO_RESPONSE_CODE, &http_response);
-        if (res != CURLE_OK) {
-            return absl::InternalError(
-                    absl::StrCat("curl_easy_getinfo() failed: ", curl_easy_strerror(res)));
-        }
-
-        LOG(INFO) << "Metrics written to playstore.";
-        VLOG(2) << "Clearcut response: " << http_response << " - '" << resp << "'";
-        if (http_response == 200) {
-            return ParseResp(std::move(resp));
-        } else {
-            return absl::InternalError(absl::StrCat("Clearcut post failed: ", http_response));
-        }
-    }
+    LOG(INFO) << "Metrics written to playstore.";
+    VLOG(2) << "Clearcut response: 200 - '" << *resp << "'";
+    return ParseResp(*std::move(resp));
 }
 
 }  // namespace
@@ -191,15 +135,14 @@ PlaystoreMetricsWriter::PlaystoreMetricsWriter(const std::string& playstore_url,
                       return true;
                   },
                   kCommitInterval, kCommitInterval)) {
-    curl_global_init(CURL_GLOBAL_ALL);
     // GetOsName() caches result on first call
     android::base::System::Get()->GetOsName();
 }
 
 PlaystoreMetricsWriter::~PlaystoreMetricsWriter() {
     commit_timer_->Cancel();
+    BeginShutdown(kShutdownUploadBudget);
     Commit();
-    curl_global_cleanup();
 }
 
 void PlaystoreMetricsWriter::Write(MetricsEvent event) {
@@ -210,18 +153,21 @@ void PlaystoreMetricsWriter::Write(MetricsEvent event) {
         return;
     }
 
-    size_t message_length = log_event.ByteSizeLong();
+    absl::MutexLock lock(&mutex_);
+    PushEvent(std::move(log_event));
+}
+
+void PlaystoreMetricsWriter::PushEvent(wireless_android_play_playlog::LogEvent event) {
+    const size_t message_length = event.ByteSizeLong();
     if (message_length > kMaxStorage) {
         return;
     }
-
-    absl::MutexLock lock(&mutex_);
     while (current_bytes_ + message_length > kMaxStorage && !events_.empty()) {
         current_bytes_ -= events_.front().ByteSizeLong();
         events_.pop();
     }
 
-    events_.push(std::move(log_event));
+    events_.push(std::move(event));
     current_bytes_ += message_length;
 }
 
@@ -234,6 +180,15 @@ void PlaystoreMetricsWriter::Commit() {
             return;
         }
 
+        // Once shutting down, upload only while time is left and no upload has failed. Otherwise
+        // drop the events.
+        if (shutdown_upload_failed_ || absl::Now() >= shutdown_deadline_) {
+            VLOG(1) << "Shutting down: dropping " << events_.size() << " metrics events.";
+            events_ = {};
+            current_bytes_ = 0;
+            return;
+        }
+
         request = BuildBaseRequest(user_id_);
         while (!events_.empty()) {
             request.add_log_event()->CopyFrom(events_.front());
@@ -242,17 +197,42 @@ void PlaystoreMetricsWriter::Commit() {
         current_bytes_ = 0;
     }
 
-    if (auto wait_response = SendToPlaystore(playstore_url_, std::move(request));
-        !wait_response.ok()) {
-        LOG(ERROR) << wait_response.status();
-    } else {
-        absl::MutexLock lock(&mutex_);
-        if (*wait_response > absl::ZeroDuration()) {
-            send_after_ = absl::FromUnixMicros(android::base::System::Get()->GetUnixTimeUs()) +
-                          *wait_response;
-            VLOG(1) << "Updated backoff until " << *wait_response;
+    const auto wait_response =
+            SendToPlaystore(playstore_url_, request, [this] { return PastShutdownDeadline(); });
+
+    absl::MutexLock lock(&mutex_);
+    if (!wait_response.ok()) {
+        if (shutdown_deadline_ != absl::InfiniteFuture()) {
+            // Shutting down: no retry, so a bad network can't hold up the exit.
+            shutdown_upload_failed_ = true;
+            VLOG(1) << "Shutting down: dropping " << request.log_event_size()
+                    << " metrics events, failed to send them: " << wait_response.status();
+        } else {
+            LOG(ERROR) << "Failed to upload metrics to Playstore (" << playstore_url_
+                       << "): " << wait_response.status();
+            // Queue the events again, so that the next Commit() retries them.
+            for (auto& event : *request.mutable_log_event()) {
+                PushEvent(std::move(event));
+            }
         }
+    } else if (*wait_response > absl::ZeroDuration()) {
+        send_after_ = absl::FromUnixMicros(android::base::System::Get()->GetUnixTimeUs()) +
+                      *wait_response;
+        VLOG(1) << "Updated backoff until " << *wait_response;
     }
+}
+
+void PlaystoreMetricsWriter::BeginShutdown(absl::Duration upload_budget) {
+    absl::MutexLock lock(&mutex_);
+    if (shutdown_deadline_ == absl::InfiniteFuture()) {
+        shutdown_deadline_ = absl::Now() + upload_budget;
+        VLOG(1) << "Shutting down: uploads get " << upload_budget << " in total, no retries.";
+    }
+}
+
+bool PlaystoreMetricsWriter::PastShutdownDeadline() {
+    absl::MutexLock lock(&mutex_);
+    return absl::Now() >= shutdown_deadline_;
 }
 
 }  // namespace goldfish::metrics

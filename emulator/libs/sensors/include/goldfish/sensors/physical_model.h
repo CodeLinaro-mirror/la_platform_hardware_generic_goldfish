@@ -40,6 +40,7 @@
 #include "goldfish/sensors/foldable_model.h"
 #include "goldfish/sensors/physical_parameter.h"
 #include "goldfish/sensors/sensor_data.h"
+#include "goldfish/sensors/virtual_scene_camera.h"
 
 namespace goldfish::sensors {
 
@@ -206,6 +207,9 @@ class PhysicalModel : public CallbackEventSource<PhysicalModelChangeEvent> {
     bool FoldableIsFolded() const;
     FoldablePostures GetFoldablePosture() const;
 
+    VirtualSceneCamera& GetVirtualSceneCamera() { return virtual_scene_camera_; }
+    const VirtualSceneCamera& GetVirtualSceneCamera() const { return virtual_scene_camera_; }
+
     friend archive::IWriter& operator<<(archive::IWriter&, const PhysicalModel&);
     friend absl::Status ReadValue(archive::IReader&, PhysicalModel&);
 
@@ -266,6 +270,7 @@ class PhysicalModel : public CallbackEventSource<PhysicalModelChangeEvent> {
     using UseOverrideMask = std::bitset<kNumSensors>;
 
     const std::unique_ptr<FoldableModel> foldable_model_;  ///< Models foldable device state
+    VirtualSceneCamera virtual_scene_camera_;  ///< Manages virtual scene camera controls
     InertialModel inertial_model_;            ///< Models inertial motion
     AmbientEnvironment ambient_environment_;  ///< Models ambient conditions
     BodyModel body_model_;                    ///< Models body-related sensors

@@ -15,7 +15,10 @@
 #pragma once
 
 #include <filesystem>
+#include <string>
 #include <vector>
+
+#include "absl/container/flat_hash_map.h"
 
 namespace goldfish::async {
 
@@ -24,7 +27,7 @@ struct LaunchConfig {
 
     std::vector<std::string> args;
 
-    std::vector<std::string> environment;
+    absl::flat_hash_map<std::string, std::string> environment;
 
     bool daemon;
 

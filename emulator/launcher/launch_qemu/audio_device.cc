@@ -14,7 +14,6 @@
 
 #include "audio_device.h"
 
-#include <cstdlib>
 #ifdef __linux__
 #include <filesystem>
 #endif
@@ -44,6 +43,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 
+#include "android/base/system.h"
 #include "android/goldfish/avd.h"
 #include "goldfish/file/file.h"
 
@@ -125,8 +125,8 @@ std::string AudioDevice::detectHostAudioBackend() {
 // paaudio.c (qpa_audio_init)
 std::string AudioDevice::detectHostAudioBackend() {
     using namespace std::literals;
-    const char* runtime = std::getenv("XDG_RUNTIME_DIR");
-    if (!runtime) {
+    std::string runtime = android::base::System::Get()->EnvGet("XDG_RUNTIME_DIR");
+    if (runtime.empty()) {
         return {};
     }
 
@@ -146,16 +146,16 @@ std::string ToString(HRESULT hr) {
 
 template <class T>
 IntrusivePtr<T> CoCreateInstanceT(REFCLSID rclsid, LPUNKNOWN pUnkOuter, DWORD dwClsContext,
-                                  REFIID riid, const char *type_str) {
+                                  REFIID riid, const char* type_str) {
     void* instance = nullptr;
     HRESULT hr = ::CoCreateInstance(rclsid, pUnkOuter, dwClsContext, riid, &instance);
     if (FAILED(hr)) {
-        LOG(WARNING) << "Could not create an instance of " << type_str << ": '" << ToString(hr) <<
-                "'";
+        LOG(WARNING) << "Could not create an instance of " << type_str << ": '" << ToString(hr)
+                     << "'";
         return {};
     } else if (!instance) {
-        LOG(WARNING) << "Could not create an instance of " << type_str <<
-                ": the system returned NULL with no error";
+        LOG(WARNING) << "Could not create an instance of " << type_str
+                     << ": the system returned NULL with no error";
         return {};
     }
 
@@ -163,9 +163,7 @@ IntrusivePtr<T> CoCreateInstanceT(REFCLSID rclsid, LPUNKNOWN pUnkOuter, DWORD dw
 }
 
 struct CallCoUninitialize {
-    ~CallCoUninitialize() {
-        ::CoUninitialize();
-    }
+    ~CallCoUninitialize() { ::CoUninitialize(); }
 };
 }  // namespace
 
@@ -188,15 +186,14 @@ std::string AudioDevice::detectHostAudioBackend() {
         return {};
     }
 
-    if (HRESULT hr = dsound->SetCooperativeLevel(GetDesktopWindow(), DSSCL_PRIORITY);
-            FAILED(hr)) {
+    if (HRESULT hr = dsound->SetCooperativeLevel(GetDesktopWindow(), DSSCL_PRIORITY); FAILED(hr)) {
         LOG(WARNING) << "IDirectSound::SetCooperativeLevel failed with '" << ToString(hr) << "'";
         return {};
     }
 
-    const auto dsoundCapture = CoCreateInstanceT<IDirectSoundCapture>(
-            CLSID_DirectSoundCapture, nullptr, CLSCTX_ALL, IID_IDirectSoundCapture,
-            "IDirectSoundCapture");
+    const auto dsoundCapture =
+            CoCreateInstanceT<IDirectSoundCapture>(CLSID_DirectSoundCapture, nullptr, CLSCTX_ALL,
+                                                   IID_IDirectSoundCapture, "IDirectSoundCapture");
     if (!dsoundCapture) {
         return {};
     } else if (HRESULT hr = dsoundCapture->Initialize(nullptr); FAILED(hr)) {

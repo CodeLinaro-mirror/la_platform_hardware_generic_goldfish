@@ -1,6 +1,6 @@
 load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_test")
-load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+load("//emulator/tools:cc_binary_with_manifest.bzl", "cc_binary_with_manifest")
 
 cc_library(
     name = "async_api",
@@ -98,6 +98,7 @@ cc_library(
     deps = [
         ":async_api",
         ":uv_to_absl",
+        "//emulator/libs/perfetto:init",
         "//emulator/libs/system:threads",
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/log:check",
@@ -115,6 +116,7 @@ cc_library(
     deps = [
         ":async_api",
         "//emulator/libs/QEMUBH",
+        "//emulator/libs/perfetto:init",
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
@@ -184,6 +186,7 @@ cc_library(
         "//emulator/libs/base",
         "//emulator/libs/cpp",
         "//emulator/libs/network",
+        "//emulator/libs/perfetto:init",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/strings",
@@ -207,6 +210,7 @@ cc_test(
         "//emulator/libs/network",
         "//emulator/libs/system:test-headers",
         "//emulator/libs/test:googletest_main",
+        "@abseil-cpp//absl/cleanup",
         "@abseil-cpp//absl/status:status_matchers",
     ],
 )
@@ -238,7 +242,7 @@ cc_test(
     ],
 )
 
-cc_binary(
+cc_binary_with_manifest(
     name = "sockets_perf",
     srcs = ["bm_libuv_sockets.cc"],
     copts = [
@@ -290,6 +294,9 @@ cc_library(
     hdrs = ["include/goldfish/async/launch_config.h"],
     includes = ["include"],
     visibility = ["//visibility:public"],
+    deps = [
+        "@abseil-cpp//absl/container:flat_hash_map",
+    ],
 )
 
 cc_library(
@@ -306,6 +313,7 @@ cc_library(
         "//emulator/libs/system:fd_util",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
         "@libuv",
     ],
 )
@@ -383,7 +391,7 @@ cc_test(
     ],
 )
 
-cc_binary(
+cc_binary_with_manifest(
     name = "event_loop_perf",
     srcs = ["bm_event_loop.cc"],
     copts = [

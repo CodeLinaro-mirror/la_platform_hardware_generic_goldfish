@@ -14,7 +14,6 @@
 #pragma once
 #include <grpcpp/grpcpp.h>
 
-#include <atomic>
 #include <cstdint>
 #include <string>
 

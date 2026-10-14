@@ -15,24 +15,19 @@
 
 #include "disk_drive.h"
 
-#include <chrono>
 #include <filesystem>
-#include <fstream>
-#include <future>
 #include <string_view>
 
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
-#include "absl/strings/str_format.h"
-#include "absl/strings/str_join.h"
 
 #include "android/goldfish/avd.h"
 #include "android/goldfish/hardware_config.h"
-#include "android/process/command.h"
 #include "android/status/status_macros.h"
 #include "goldfish/file/file.h"
 #include "goldfish/fsimage/ext4.h"
+#include "goldfish/fsimage/qcow2.h"
 
 namespace android::goldfish {
 
@@ -51,98 +46,7 @@ std::string getDeviceParam(const Avd& avd, std::string_view diskId, std::string_
     }
 }
 
-bool pathIsQcow2(fs::path path) {
-    // read 4 bytes
-    uint8_t magic[4] = {'\0'};
-    std::ifstream ifs(path, std::ios_base::binary);
-    if (!ifs.good()) {
-        return false;
-    }
-    ifs.read(reinterpret_cast<char*>(magic), sizeof(magic));
-
-    bool matched4bytes = false;
-    if (magic[0] == 'Q' && magic[1] == 'F' && magic[2] == 'I' &&
-        magic[3] == static_cast<uint8_t>('\xfb')) {
-        matched4bytes = true;
-    }
-
-    return matched4bytes;
-}
-
-absl::Status convertImgToQcow2(const fs::path& qemu_img_binary, fs::path ext4_image,
-                               fs::path qcow2_image) {
-    constexpr auto kQemuImgTimeout = std::chrono::seconds(10);
-
-    if (!base::file::exists(ext4_image)) {
-        return absl::NotFoundError(
-                absl::StrFormat("The path: %s does not exist.", ext4_image.string()));
-    }
-
-    auto startTime = std::chrono::steady_clock::now();
-
-    RETURN_IF_ERROR(
-            exec_qemu_img(qemu_img_binary,
-                          {"convert", "-O", "qcow2", ext4_image.string(), qcow2_image.string()},
-                          kQemuImgTimeout)
-                    .status());
-    if (!base::file::exists(qcow2_image)) {
-        return absl::NotFoundError(absl::StrCat("The requested qcow2 file has not been created: ",
-                                                qcow2_image.string()));
-    }
-    if (!pathIsQcow2(qcow2_image)) {
-        return absl::DataLossError(
-                absl::StrFormat("The created file %s is not in qcow2 format", qcow2_image));
-    }
-
-    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
-            std::chrono::steady_clock::now() - startTime);
-    long long timeUsedMs = (long long)elapsed.count();
-    VLOG(1) << "Converted ext4->qcow2 " << ext4_image << " to " << qcow2_image << " in "
-            << timeUsedMs << " milliseconds.";
-    return absl::OkStatus();
-}
-
 }  // namespace
-
-absl::StatusOr<std::string> exec_qemu_img(const fs::path& qemu_img_binary,
-                                          const std::vector<std::string>& args,
-                                          std::chrono::milliseconds timeout) {
-    std::string binary = qemu_img_binary.empty() ? "qemu-img" : qemu_img_binary.string();
-
-    std::vector<std::string> cmd;
-    cmd.reserve(args.size() + 1);
-    cmd.push_back(binary);
-    cmd.insert(cmd.end(), args.begin(), args.end());
-
-    VLOG(1) << "Running: " << absl::StrJoin(cmd, " ");
-
-    std::basic_stringbuf<char> std_out;
-    std::basic_stringbuf<char> std_err;
-    auto proc = base::Command::Create(cmd)
-                        .RedirectStdoutToUnsafe(&std_out)
-                        .RedirectStderrToUnsafe(&std_err)
-                        .Execute();
-
-    if (!proc || proc->pid() <= 0) {
-        return absl::InternalError(absl::StrCat("Failed to spawn process: ", binary));
-    }
-
-    if (proc->WaitFor(timeout) == std::future_status::timeout) {
-        proc->Terminate();
-        return absl::DeadlineExceededError(
-                absl::StrFormat("'%s' timed out after %d seconds.", binary,
-                                std::chrono::duration_cast<std::chrono::seconds>(timeout).count()));
-    }
-
-    if (proc->ExitCode() != 0) {
-        std::string err_output = proc->Err() ? proc->Err()->AsString() : "";
-        return absl::InternalError(
-                absl::StrCat("qemu-img failed with exit code ", proc->ExitCode(),
-                             err_output.empty() ? "" : absl::StrCat(": ", err_output)));
-    }
-
-    return proc->Out() ? proc->Out()->AsString() : "";
-}
 
 std::vector<std::string> NullDrive::getQemuParameters(const EmulatorConfig& emulator) const {
     const Avd& avd = emulator.avd();
@@ -179,17 +83,16 @@ std::vector<std::string> Qcow2Drive::getQemuParameters(const EmulatorConfig& emu
                 ",overlap-check=none,cache.direct=off,cache.no-flush=on,l2-cache-size=1048576")};
 }
 
-absl::Status Qcow2Drive::MakeQcow2(const EmulatorConfig& emulator) const {
+absl::Status Qcow2Drive::MakeQcow2() const {
     if (!base::file::exists(qcow2_image_)) {
-        return convertImgToQcow2(emulator.emulator_paths().qemu_img_binary, backing_image_,
-                                 qcow2_image_);
+        return ::goldfish::fsimage::CreateQcow2Overlay(qcow2_image_, backing_image_);
     }
 
     return absl::OkStatus();
 }
 
 absl::Status WritableImgDrive::initialize(const EmulatorConfig& emulator) {
-    return MakeQcow2(emulator);
+    return MakeQcow2();
 }
 
 absl::Status BlankWritableDrive::initialize(const EmulatorConfig& emulator) {
@@ -198,11 +101,10 @@ absl::Status BlankWritableDrive::initialize(const EmulatorConfig& emulator) {
     } else {
         LOG(INFO) << "Preparing empty drive: " << backing_image_;
         base::file::rm(qcow2_image_).IgnoreError();
-        RETURN_IF_ERROR(
-                ::goldfish::fsimage::CreateEmptyExt4Image(backing_image_, size_bytes_, id()));
+        RETURN_IF_ERROR(::goldfish::fsimage::CreateEmptyExt4Image(backing_image_, size_, id()));
     }
 
-    return MakeQcow2(emulator);
+    return MakeQcow2();
 }
 
 absl::Status WritableDirectoryDrive::initialize(const EmulatorConfig& emulator) {
@@ -213,10 +115,10 @@ absl::Status WritableDirectoryDrive::initialize(const EmulatorConfig& emulator) 
                   << src_directory_;
         base::file::rm(qcow2_image_).IgnoreError();
         RETURN_IF_ERROR(::goldfish::fsimage::CreateExt4ImageFromDir(backing_image_, src_directory_,
-                                                                    size_bytes_, id()));
+                                                                    size_, id()));
     }
 
-    return MakeQcow2(emulator);
+    return MakeQcow2();
 }
 
 }  // namespace android::goldfish

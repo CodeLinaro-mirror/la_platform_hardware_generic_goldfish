@@ -42,6 +42,7 @@
 #include "goldfish/base/unique_handle.h"
 #include "goldfish/cpp/overloaded.h"
 #include "goldfish/network/endpoint.h"
+#include "goldfish/perfetto/perfetto_categories.h"
 
 #ifdef _WIN32
 #include <winsock2.h>
@@ -131,6 +132,8 @@ class LibuvSocket : public AsyncSocket, public std::enable_shared_from_this<Libu
     }
 
     void OnFlowControlEvent(const bool enable_reading) override {
+        TRACE_EVENT_INSTANT("async", "LibuvSocket::OnFlowControlEvent", "enable_reading",
+                            enable_reading);
         auto weak_self = std::weak_ptr<LibuvSocket>(shared_from_this());
         event_loop_
                 ->Post([enable_reading, weak_self = std::move(weak_self)]() {
@@ -161,10 +164,13 @@ class LibuvSocket : public AsyncSocket, public std::enable_shared_from_this<Libu
         DCHECK(buffer_size <= 0x7ffff000)
                 << "Sending a buffer larger than 512MiB is not supported, "
                    "https://docs.libuv.org/en/v1.x/misc.html#c.uv_buf_init";
+        TRACE_EVENT("async", "LibuvSocket::Send", "bytes", buffer_size);
 
         uv_stream_t* stream = GetUvSocketStream();
         if (!is_connected_ || UvIsClosing(stream)) {
-            return UvErrToAbslStatus(UV_ENOTCONN);
+            const absl::Status status = UvErrToAbslStatus(UV_ENOTCONN);
+            on_send(status);
+            return status;
         }
 
         // Fast path: when no async writes are queued, attempt a synchronous
@@ -172,6 +178,7 @@ class LibuvSocket : public AsyncSocket, public std::enable_shared_from_this<Libu
         // heap-allocating and copying a WriteReqT. Any unwritten remainder
         // falls back to uv_write below to preserve stream ordering.
         if (buffer_size == 0) {
+            TRACE_EVENT_INSTANT("async", "LibuvSocket::ImmediateSend", "bytes", 0, "full", true);
             on_send(absl::OkStatus());
             return absl::OkStatus();
         }
@@ -182,7 +189,9 @@ class LibuvSocket : public AsyncSocket, public std::enable_shared_from_this<Libu
             const int written = uv_try_write(stream, &buf, 1);
             DCHECK(written != 0) << "uv_try_write returned 0";
             if (written > 0) {
-                size_t wrote = static_cast<size_t>(written);
+                const size_t wrote = static_cast<size_t>(written);
+                TRACE_EVENT_INSTANT("async", "LibuvSocket::ImmediateSend", "bytes", wrote, "full",
+                                    wrote == buffer_size);
                 if (wrote == buffer_size) {
                     on_send(absl::OkStatus());
                     return absl::OkStatus();
@@ -197,12 +206,25 @@ class LibuvSocket : public AsyncSocket, public std::enable_shared_from_this<Libu
             }
         }
 
+        TRACE_EVENT_INSTANT("async", "LibuvSocket::QueuedSend", "bytes", buffer_size);
+        TRACE_COUNTER("async", "libuv_write_queue_bytes",
+                      static_cast<int64_t>(stream->write_queue_size + buffer_size));
         auto* write_req = WriteReqT::Create(buffer, buffer_size, std::move(on_send));
-        uv_write(&write_req->req, stream, &write_req->buf, 1, [](uv_write_t* req, int s) {
-            auto* w = reinterpret_cast<WriteReqT*>(req);
-            w->on_send(UvErrToAbslStatus(s));
-            WriteReqT::Destroy(w);
-        });
+        const int err =
+                uv_write(&write_req->req, stream, &write_req->buf, 1, [](uv_write_t* req, int s) {
+                    auto* w = reinterpret_cast<WriteReqT*>(req);
+                    TRACE_EVENT("async", "LibuvSocket::OnWriteComplete", "status", s);
+                    TRACE_COUNTER("async", "libuv_write_queue_bytes",
+                                  static_cast<int64_t>(req->handle->write_queue_size));
+                    w->on_send(UvErrToAbslStatus(s));
+                    WriteReqT::Destroy(w);
+                });
+        if (err != 0) {
+            const absl::Status status = UvErrToAbslStatus(err);
+            write_req->on_send(status);
+            WriteReqT::Destroy(write_req);
+            return status;
+        }
 
         return absl::OkStatus();
     }
@@ -321,6 +343,7 @@ class LibuvSocket : public AsyncSocket, public std::enable_shared_from_this<Libu
 
     void OnRead(ssize_t nread, const uv_buf_t* buf) {
         DCHECK(on_read_) << "`mOnRead` must be set to prevent loss of data.";
+        TRACE_EVENT("async", "LibuvSocket::OnRead", "bytes", nread);
 
         VLOG(2) << "on_read: " << nread << " : " << uv_strerror(static_cast<int>(nread));
         if (nread >= 0) {
@@ -352,11 +375,13 @@ class LibuvSocket : public AsyncSocket, public std::enable_shared_from_this<Libu
     }
 
   protected:
+    static constexpr uint32_t kDefaultReadBufferSize = 65536;
+
     LibuvSocket(EventLoop* loop, Endpoint endpoint, const bool is_incoming)
             : event_loop_(loop)
             , loop_(static_cast<uv_loop_t*>(loop->GetRawLoop()))
             , endpoint_(std::move(endpoint))
-            , read_buffer_allocator_(16384)
+            , read_buffer_allocator_(kDefaultReadBufferSize)
             , is_incoming_(is_incoming) {}
 
     EventLoop* const event_loop_;

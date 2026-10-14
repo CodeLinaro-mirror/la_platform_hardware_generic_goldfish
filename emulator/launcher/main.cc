@@ -33,9 +33,10 @@
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
 #include "absl/strings/substitute.h"
+#include "absl/time/time.h"
 
-#include "android/base/bazel_info.h"
 #include "android/base/system.h"
 #include "android/cmdline_option.h"
 #include "android/crashreport/crash_system.h"
@@ -47,12 +48,12 @@
 #include "goldfish/async/libuv_process_launcher.h"
 #include "goldfish/async/libuv_signal_handlers.h"
 #include "goldfish/async/libuv_socket_factory.h"
+#include "goldfish/fsimage/qcow2.h"
 #include "goldfish/metrics/configure_metrics_writer.h"
 #include "goldfish/metrics/metrics_reporter.h"
 #include "goldfish/metrics/studio_config.h"
 #include "goldfish/tools/aemu_version.h"
 #include "host_info.h"
-#include "launch_qemu/disk_drive.h"
 #include "launcher.h"
 #include "logging.h"
 #include "trampoline.h"
@@ -191,8 +192,27 @@ void ListAvds(const AndroidOptions& opts, const android::goldfish::UserPaths& us
     }
 }
 
+std::string FormatSnapshots(const std::vector<goldfish::fsimage::Qcow2Snapshot>& snapshots) {
+    if (snapshots.empty()) {
+        return "";
+    }
+    std::string out = absl::StrFormat("%-7s %-16s %12s %19s %15s\n", "ID", "TAG", "VM_SIZE", "DATE",
+                                      "VM_CLOCK");
+    for (const auto& s : snapshots) {
+        const int64_t clock_ms = absl::ToInt64Milliseconds(s.vm_clock);
+        const std::string clock_str =
+                absl::StrFormat("%04d:%02d:%02d.%03d", clock_ms / 3600000, (clock_ms / 60000) % 60,
+                                (clock_ms / 1000) % 60, clock_ms % 1000);
+        const std::string date_str =
+                absl::FormatTime("%Y-%m-%d %H:%M:%S", s.date, absl::LocalTimeZone());
+        absl::StrAppendFormat(&out, "%-7s %-16s %10u B %19s %15s\n", s.id, s.name, s.vm_state_size,
+                              date_str, clock_str);
+    }
+    return out;
+}
+
 void ListSnapshots(const AndroidOptions& opts, const android::goldfish::UserPaths& user_paths,
-                   const fs::path& qemu_img_binary, bool verbose) {
+                   bool verbose) {
     std::vector<std::string> avd_names;
     if (opts.avd) {
         avd_names.push_back(opts.avd);
@@ -207,9 +227,9 @@ void ListSnapshots(const AndroidOptions& opts, const android::goldfish::UserPath
 
     android::goldfish::Avd::ImageInspector inspector = nullptr;
     if (verbose) {
-        inspector = [&qemu_img_binary](const fs::path& p) -> std::string {
-            auto res = android::goldfish::exec_qemu_img(qemu_img_binary, {"info", p.string()});
-            return res.ok() ? *res : "";
+        inspector = [](const fs::path& p) -> std::string {
+            const auto snapshots = goldfish::fsimage::ListQcow2Snapshots(p);
+            return snapshots.ok() ? FormatSnapshots(*snapshots) : "";
         };
     }
 
@@ -285,21 +305,6 @@ int main(int argc, char** argv) {
         }
     }
 
-#ifdef __linux__
-    // Bug: 417138854: work around the log spam "bad fde: FDE is really a CIE"
-    std::string preload_option =
-            android::base::System::Get()->GetEnvironmentVariable("ANDROID_EMU_PRELOAD_LIBGCC");
-    if (preload_option == "1") {
-        std::string current_preload = android::base::System::GetEnvironmentVariable("LD_PRELOAD");
-        std::string libgcc_path = "/lib/x86_64-linux-gnu/libgcc_s.so.1";
-        if (current_preload.empty()) {
-            android::base::System::SetEnvironmentVariable("LD_PRELOAD", libgcc_path);
-        } else {
-            android::base::System::SetEnvironmentVariable("LD_PRELOAD",
-                                                          libgcc_path + ":" + current_preload);
-        }
-    }
-#endif
     AndroidOptions opts;
     if (android_parse_options(&argc, &argv, &opts) < 0) {
         return 1;
@@ -321,41 +326,29 @@ int main(int argc, char** argv) {
     android_log_parse_warnings();
 
 #if defined(__linux__) || defined(__APPLE__)
-    const char* kXDG_RUNTIME_DIR_NAME = "XDG_RUNTIME_DIR";
-    const char* xdg_runtime_dir_val = getenv(kXDG_RUNTIME_DIR_NAME);
-    if (!xdg_runtime_dir_val) {
-        const char* default_runtime_dir = "/tmp";
+    constexpr std::string_view kXDG_RUNTIME_DIR_NAME = "XDG_RUNTIME_DIR";
+    auto* sys = android::base::System::Get();
+    std::string xdg_runtime_dir_val = sys->EnvGet(kXDG_RUNTIME_DIR_NAME);
+    if (xdg_runtime_dir_val.empty()) {
+        std::string default_runtime_dir = "/tmp";
 #if defined(__APPLE__)
-        const char* darwin_runtime_dir = getenv("DARWIN_USER_TEMP_DIR");
-        if (darwin_runtime_dir) {
-            default_runtime_dir = darwin_runtime_dir;
-        } else {
-            const char* darwin_temp_dir = getenv("TMPDIR");
-            if (darwin_temp_dir) {
-                default_runtime_dir = darwin_temp_dir;
-            }
+        if (std::string darwin_runtime_dir = sys->EnvGet("DARWIN_USER_TEMP_DIR");
+            !darwin_runtime_dir.empty()) {
+            default_runtime_dir = std::move(darwin_runtime_dir);
+        } else if (std::string darwin_temp_dir = sys->EnvGet("TMPDIR"); !darwin_temp_dir.empty()) {
+            default_runtime_dir = std::move(darwin_temp_dir);
         }
 #endif
-        android::base::System::Get()->SetEnvironmentVariable(kXDG_RUNTIME_DIR_NAME,
-                                                             default_runtime_dir);
+        sys->SetEnvironmentVariable(std::string(kXDG_RUNTIME_DIR_NAME), default_runtime_dir);
     } else {
 #if defined(__linux__)
         // Bug: 454403989
         // when systme has XDG_RUNTIME_DIR set, we need to pass it
         // to ANDROID_EMULATOR_DISCOVERY_DIR; do nothing otherwise
-        android::base::System::Get()->EnvSet("ANDROID_EMULATOR_DISCOVERY_DIR", xdg_runtime_dir_val);
+        sys->EnvSet("ANDROID_EMULATOR_DISCOVERY_DIR", xdg_runtime_dir_val);
 #endif
     }
 #endif
-
-    if (!opts.not_in_bazel && android::base::Bazel::InBazel()) {
-        if (android::base::System::GetEnvironmentVariable("ANDROID_EMU_CRASH_REPORTING_DATABASE")
-                    .empty()) {
-            android::base::System::SetEnvironmentVariable(
-                    "ANDROID_EMU_CRASH_REPORTING_DATABASE",
-                    fs::path("/tmp/crash-report.db").string());
-        }
-    }
 
     // Check that things exist so that we can error out early if necessary.
     auto emulator_paths = android::goldfish::ResolveEmulatorPaths(opts.verbose);
@@ -377,7 +370,7 @@ int main(int argc, char** argv) {
     }
 
     if (opts.snapshot_list) {
-        ListSnapshots(opts, *user_paths, emulator_paths->qemu_img_binary, opts.verbose);
+        ListSnapshots(opts, *user_paths, opts.verbose);
         return 0;
     }
 
@@ -395,6 +388,10 @@ int main(int argc, char** argv) {
         return 1;
     }
 
+    // CrashSystem::get().initialize() reads AEMU_CRASHPAD_HANDLER from the
+    // launcher's own environment to locate the crashpad_handler executable.
+    android::base::System::SetEnvironmentVariable("AEMU_CRASHPAD_HANDLER",
+                                                  emulator_paths->crashpad_handler_binary.string());
     if (!android::crashreport::CrashSystem::get().initialize()) {
         LOG(WARNING) << "Failed to initialize crashreporting.";
     }

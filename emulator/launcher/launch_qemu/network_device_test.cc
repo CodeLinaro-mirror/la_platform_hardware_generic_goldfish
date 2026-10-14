@@ -50,6 +50,26 @@ TEST(Network, Basic_arm64) {
                         testing::Eq("-device"),
                         testing::MatchesRegex("virtio-net-device,netdev=eth0,mac=52:54:00:[0-9a-fA-"
                                               "F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}")));
+    EXPECT_THAT(dev.getQemuEnv(emu.config()), testing::IsEmpty());
+}
+
+TEST(Network, SlirpDnsEnv) {
+    char dns[] = "8.8.8.8,8.8.4.4";
+    AndroidOptions opts{.dns_server = dns};
+    FakeEmulator emu(std::move(opts));
+    EXPECT_CALL(emu.mock_avd(), Arch())
+            .Times(1)
+            .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
+
+    NetworkDevice dev("eth0", "0a.0", /*cellular=*/false, /*netsim_backend=*/false);
+    EXPECT_OK(dev.initialize(emu.config()));
+    EXPECT_THAT(dev.getQemuParameters(emu.config()),
+                testing::ElementsAre(
+                        testing::Eq("-netdev"), testing::Eq("user,id=eth0"), testing::Eq("-device"),
+                        testing::MatchesRegex("virtio-net-pci,addr=0a.0,netdev=eth0,mac=52:54:00:["
+                                              "0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}")));
+    EXPECT_THAT(dev.getQemuEnv(emu.config()), testing::UnorderedElementsAre(testing::Pair(
+                                                      "SLIRP_DNS_SERVERS", "8.8.8.8,8.8.4.4")));
 }
 
 }  // namespace android::goldfish::test

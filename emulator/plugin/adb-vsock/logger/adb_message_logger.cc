@@ -21,6 +21,7 @@
 
 #include "goldfish/adb/adb_breadcrumb_tracker.h"
 #include "goldfish/adb/adb_message_logger.h"
+#include "goldfish/perfetto/perfetto_categories.h"
 namespace goldfish::adb {
 
 // Maximum number of characters or bytes we are willing to log.
@@ -166,6 +167,19 @@ void AdbMessageLogger::Observe(const void* data, size_t size) {
                     callback_->OnOutOfSync(reason, to_guest_);
                 }
                 return;
+            }
+
+            if (TRACE_EVENT_CATEGORY_ENABLED("qemu")) {
+                const char cmd_str[4] = {
+                    static_cast<char>(header_.command & 0xFF),
+                    static_cast<char>((header_.command >> 8) & 0xFF),
+                    static_cast<char>((header_.command >> 16) & 0xFF),
+                    static_cast<char>((header_.command >> 24) & 0xFF),
+                };
+                TRACE_EVENT_INSTANT(
+                        "qemu", "Adb::Packet", "dir", to_guest_ ? "to_guest" : "to_host", "cmd",
+                        std::string_view(cmd_str, sizeof(cmd_str)), "arg0", header_.arg0, "arg1",
+                        header_.arg1, "data_length", header_.data_length);
             }
 
             if (header_.data_length > 0) {

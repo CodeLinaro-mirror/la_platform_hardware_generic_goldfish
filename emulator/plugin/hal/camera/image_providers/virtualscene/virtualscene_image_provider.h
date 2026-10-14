@@ -20,6 +20,7 @@
 
 #include <cstdint>
 #include <optional>
+#include <string>
 #include <vector>
 
 #include "android/camera/camera_image_provider_api.h"
@@ -32,6 +33,11 @@ class PhysicalModel;
 namespace goldfish::camera_image_providers::virtualscene {
 
 struct VirtualsceneImageProvider {
+    struct CreateArgs {
+        VerSceneConfig sceneConfig;
+        const sensors::PhysicalModel* physicalModel = nullptr;
+    };
+
     struct RenderOutputConfig {
         CameraImageProviderRect size = {};
         imaging::ImageFormat getFormat() const;
@@ -81,24 +87,31 @@ struct VirtualsceneImageProvider {
                                                  const glm::vec3& position,
                                                  const glm::vec3& rotationEulerDegrees,
                                                  bool isBackFacing, bool supportsPosition);
+    static int computePostRenderRotation(VerSceneConfig::Mode sceneMode,
+                                         int sceneBaseRotationDegrees,
+                                         const glm::vec3& accelerometer, bool isBackFacing);
 
   private:
     struct CaptureSession {
         std::vector<CaptureStreamBuffers> captureStreamBuffers;
         std::vector<uint8_t> yuvConversionBuffer;
+        std::vector<uint8_t> rotatedFramebuffer;
         glm::mat4 projection = glm::mat4(1.0f);
         VerRenderViewHandle view = VER_INVALID_HANDLE;
         CameraImageProviderRect framebuffer_size = {};
+        bool sceneControlsActive = false;
     };
 
     glm::mat4 updateViewProjection(const glm::mat4& projection) const;
+    int getPostRenderRotationDegrees() const;
 
     bool captureImpl(const CaptureSession&, CameraImageProviderStreamCaptureSink, void* sinkOpaque,
                      const CameraImageProviderStreamCaptureInfo* sci, unsigned scin,
-                     uint8_t* yuvConversionBuffer);
+                     uint8_t* yuvConversionBuffer, uint8_t* rotatedFramebuffer);
 
     VerSceneHandle mScene = VER_INVALID_HANDLE;
     const sensors::PhysicalModel* mPhysicalModel = nullptr;
+    std::string mId = "virtualscene";
     bool mIsBackFacing = true;
 
     std::optional<CaptureSession> mCaptureSession;

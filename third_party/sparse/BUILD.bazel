@@ -1,4 +1,5 @@
-load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library")
+load("@rules_cc//cc:defs.bzl", "cc_library")
+load("//emulator/tools:cc_binary_with_manifest.bzl", "cc_binary_with_manifest")
 
 cc_library(
     name = "sparse",
@@ -25,7 +26,7 @@ cc_library(
     }),
 )
 
-cc_binary(
+cc_binary_with_manifest(
     name = "img2simg",
     srcs = ["src/img2simg.c"],
     tags = ["no-tidy"],

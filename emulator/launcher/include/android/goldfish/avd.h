@@ -211,9 +211,9 @@ class Avd {
     /**
      * @brief Discovers and inspects snapshots offline in the AVD's content directory.
      *
-     * Scans the snapshots directory and inspects qcow2/image files (e.g. via qemu-img).
+     * Scans the snapshots directory and inspects qcow2/image files.
      *
-     * @param inspector Optional function to inspect image files (e.g. via qemu-img info).
+     * @param inspector Optional function to inspect image files.
      */
     virtual std::vector<SnapshotInfo> ListSnapshots(ImageInspector inspector = nullptr) const = 0;
 

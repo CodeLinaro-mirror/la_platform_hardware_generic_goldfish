@@ -18,7 +18,6 @@
 
 #include <algorithm>
 #include <cctype>
-#include <cstdlib>
 #include <cstring>
 #include <string>
 #include <string_view>
@@ -33,6 +32,7 @@
 #include "absl/strings/str_replace.h"
 #include "absl/strings/str_split.h"
 
+#include "android/base/system.h"
 #include "android/goldfish/avd.h"
 #include "android/goldfish/hardware_config.h"
 #include "android/status/status_macros.h"
@@ -61,8 +61,8 @@ std::string getDeviceStateString(const HardwareConfig& hw) {
 std::vector<std::pair<std::string, std::string>> getUserspaceBootProperties(
         std::string targetArch, std::string serialno, const int bootPropOpenglesVersion,
         const int apiLevel, std::string kernelSerialPrefix,
-        const std::vector<std::string>& verifiedBootParameters, const Avd& avd,
-        const AndroidOptions& opts, const UserPaths& paths) {
+        const std::vector<std::string>& verifiedBootParameters, std::string_view vk_icd,
+        const Avd& avd, const AndroidOptions& opts, const UserPaths& paths) {
     const bool isX86ish = targetArch == "x86" || targetArch == "x86_64";
     const bool hasShellConsole = false;
     std::string androidbootVerityMode = "androidboot.veritymode";
@@ -133,21 +133,11 @@ std::vector<std::pair<std::string, std::string>> getUserspaceBootProperties(
         // Enable GuestAngle (ro.hardware.egl = angle).
         params.push_back({hwEglProp, "angle"});
 
-        const char* env_aemu_angle_overrides_disabled =
-                std::getenv("AEMU_ANGLE_OVERRIDES_DISABLED");
-        std::string aemu_angle_overrides_disabled =
-                env_aemu_angle_overrides_disabled ? env_aemu_angle_overrides_disabled : "";
+        auto* sys = android::base::System::Get();
+        std::string aemu_angle_overrides_disabled = sys->EnvGet("AEMU_ANGLE_OVERRIDES_DISABLED");
+        std::string angle_overrides_enabled = sys->EnvGet("ANGLE_FEATURE_OVERRIDES_ENABLED");
+        std::string angle_overrides_disabled = sys->EnvGet("ANGLE_FEATURE_OVERRIDES_DISABLED");
 
-        const char* env_angle_overrides_enabled = std::getenv("ANGLE_FEATURE_OVERRIDES_ENABLED");
-        std::string angle_overrides_enabled =
-                env_angle_overrides_enabled ? env_angle_overrides_enabled : "";
-
-        const char* env_angle_overrides_disabled = std::getenv("ANGLE_FEATURE_OVERRIDES_DISABLED");
-        std::string angle_overrides_disabled =
-                env_angle_overrides_disabled ? env_angle_overrides_disabled : "";
-
-        const char* env_vk_icd = std::getenv("ANDROID_EMU_VK_ICD");
-        const std::string vk_icd = env_vk_icd ? env_vk_icd : "";
         if ((vk_icd == "lavapipe") && angle_overrides_enabled != "0" &&
             angle_overrides_enabled.find("supportsAndroidNativeFenceSync") == std::string::npos) {
             if (!angle_overrides_enabled.empty()) {
@@ -163,8 +153,8 @@ std::vector<std::pair<std::string, std::string>> getUserspaceBootProperties(
 
             // TODO(b/515372950): detect host gpu before this point to automatically enable
             // appropriate angle overrides.
-            const char* env_vk_nvidia = std::getenv("AEMU_VK_NVIDIA");
-            bool isVkNVIDIA = env_vk_nvidia && env_vk_nvidia[0] == '1';
+            std::string env_vk_nvidia = sys->EnvGet("AEMU_VK_NVIDIA");
+            bool isVkNVIDIA = !env_vk_nvidia.empty() && env_vk_nvidia[0] == '1';
             if (isVkNVIDIA) {
                 // enablePrecisionQualifiers
                 angle_overrides_disabled += ":enablePrec*";
@@ -373,22 +363,15 @@ std::vector<std::pair<std::string, std::string>> getUserspaceBootProperties(
 }
 
 std::string getDynamicPartitionBootDevice(const EmulatorConfig& emulator) {
-    const Avd& avd = emulator.avd();
-    auto arch = avd.Arch();
-    // auto drive = emulator.get<PciDevice>("system");
-
-    if (arch == Avd::CpuArchitecture::kX86) {
+    // return the system partition address
+    switch (emulator.avd().Arch()) {
+    case Avd::CpuArchitecture::kX86:
         return "pci0000:00/0000:00:03.0";
+    case Avd::CpuArchitecture::kArm:
+        return "a003a00.virtio_mmio";
+    default:
+        LOG(QFATAL) << "Unsupported AVD arch: " << static_cast<int>(emulator.avd().Arch());
     }
-
-    DCHECK(arch == Avd::CpuArchitecture::kArm);
-
-    // TODO(jansene): We need should determine device id from the order they were
-    // added to emulator.
-    // "a003e00", "a003c00", "a003a00", "a003800", "a003600", "a003400",
-    // system is currently first - "a0003e00".
-    // 3c must be encrypt (metadata)
-    return "a003e00.virtio_mmio";
 }
 
 std::vector<std::string> getVerifiedBootparams(const EmulatorConfig& emulator) {
@@ -424,7 +407,8 @@ std::vector<std::string> getVerifiedBootparams(const EmulatorConfig& emulator) {
 
 }  // namespace
 
-std::vector<std::pair<std::string, std::string>> getBootProperties(const EmulatorConfig& emulator) {
+std::vector<std::pair<std::string, std::string>> getBootProperties(const EmulatorConfig& emulator,
+                                                                   std::string_view vk_icd) {
     const Avd& avd = emulator.avd();
     auto hw = avd.Hw();
 
@@ -436,11 +420,11 @@ std::vector<std::pair<std::string, std::string>> getBootProperties(const Emulato
     auto verifiedBootParameters = getVerifiedBootparams(emulator);
     return getUserspaceBootProperties(hw.hw_cpu_arch, avd.Name(), bootPropOpenglesVersion,
                                       api_level, real_console_tty_prefix, verifiedBootParameters,
-                                      avd, emulator.opts(), emulator.user_paths());
+                                      vk_icd, avd, emulator.opts(), emulator.user_paths());
 }
 
 absl::Status InitrdDevice::initialize(const EmulatorConfig& emulator) {
-    auto properties = getBootProperties(emulator);
+    auto properties = getBootProperties(emulator, mGpuDevice.getVulkanIcd());
 
     const Avd& avd = emulator.avd();
 

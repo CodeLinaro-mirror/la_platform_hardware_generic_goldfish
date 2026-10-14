@@ -106,16 +106,14 @@ absl::StatusOr<EmulatorPaths> ResolveEmulatorPaths(bool verbose) {
         }
     } else {
         paths.launcher_directory = paths.launcher_binary.parent_path();
-        // Only set this if it wasn't already set as some integrators set it externally.
-        System::SetEnvironmentVariable("ANDROID_EMULATOR_LAUNCHER_DIR",
-                                       paths.launcher_directory.string());
     }
     RETURN_IF_ERROR(CheckExists(paths.launcher_directory, "launcher directory").status());
 
     if (verbose) {
         LOG(INFO) << "Listing launcher directory (" << paths.launcher_directory << "):";
         for (const auto& path : base::file::scan_dir_recursive(paths.launcher_directory)) {
-            LOG_FIRST_N(INFO, 1000) << "    " << path.lexically_relative(paths.launcher_directory).string();
+            LOG_FIRST_N(INFO, 1000)
+                    << "    " << path.lexically_relative(paths.launcher_directory).string();
         }
     }
 
@@ -125,24 +123,30 @@ absl::StatusOr<EmulatorPaths> ResolveEmulatorPaths(bool verbose) {
                      CheckExists(paths.launcher_directory / "lib" / "qemu", "library directory"));
     ASSIGN_OR_RETURN(paths.lib64_directory,
                      CheckExists(paths.launcher_directory / "lib64", "lib64 directory"));
-    // This is used by Qemu aemu_main.c to locate the goldfish plugin library.
-    // It is also used by gfxstream to locate the GL and Vulkan libraries.
-    System::SetEnvironmentVariable("ANDROID_EMULATOR_LIBRARY_DIR",
-                                   paths.library_directory.string());
     ASSIGN_OR_RETURN(paths.bios_directory,
                      CheckExists(paths.launcher_directory / "share" / "qemu", "bios directory"));
 
-    ASSIGN_OR_RETURN(paths.qemu_system_x86_binary,
-                     CheckExists(paths.binary_directory / AddBinarySuffix("qemu-system-x86_64"),
-                                 "qemu-system-x86_64"));
-    ASSIGN_OR_RETURN(paths.qemu_system_arm_binary,
-                     CheckExists(paths.binary_directory / AddBinarySuffix("qemu-system-aarch64"),
-                                 "qemu-system-aarch64"));
-    // ASSIGN_OR_RETURN(paths.qemu_system_riscv_binary, check_exists(paths.binary_directory /
-    // add_qemu_binary_suffix("qemu-system-riscv64"), "qemu-system-riscv64"));
+    // Releases only ship the qemu-system binary matching the host platform, so
+    // each one is optional. At least one must be present.
+    if (auto x86 = CheckExists(paths.binary_directory / AddBinarySuffix("qemu-system-x86_64"),
+                               "qemu-system-x86_64");
+        x86.ok()) {
+        paths.qemu_system_x86_binary = *std::move(x86);
+    } else {
+        VLOG(1) << "Optional binary not available: " << x86.status();
+    }
+    if (auto arm = CheckExists(paths.binary_directory / AddBinarySuffix("qemu-system-aarch64"),
+                               "qemu-system-aarch64");
+        arm.ok()) {
+        paths.qemu_system_arm_binary = *std::move(arm);
+    } else {
+        VLOG(1) << "Optional binary not available: " << arm.status();
+    }
+    if (paths.qemu_system_x86_binary.empty() && paths.qemu_system_arm_binary.empty()) {
+        return absl::NotFoundError(
+                absl::StrCat("No qemu-system binary found in: ", paths.binary_directory.string()));
+    }
 
-    ASSIGN_OR_RETURN(paths.qemu_img_binary,
-                     CheckExists(paths.binary_directory / AddBinarySuffix("qemu-img"), "qemu-img"));
     ASSIGN_OR_RETURN(paths.netsim_binary,
                      CheckExists(paths.binary_directory / AddBinarySuffix("netsimd"), "netsimd"));
     ASSIGN_OR_RETURN(paths.crashpad_handler_binary,
@@ -162,17 +166,15 @@ absl::StatusOr<EmulatorPaths> ResolveEmulatorPaths(bool verbose) {
 #ifdef _WIN32
     // Canonicalize binaries as Windows cannot execute a symlink.
     // Note that Forge seems to break if we do this for Linux.
-    ASSIGN_OR_RETURN(paths.qemu_system_x86_binary, Canonicalize(paths.qemu_system_x86_binary));
-    ASSIGN_OR_RETURN(paths.qemu_system_arm_binary, Canonicalize(paths.qemu_system_arm_binary));
-    // ASSIGN_OR_RETURN(paths.qemu_system_riscv_binary, Canonicalize(paths.qemu_system_riscv_binary));
-    ASSIGN_OR_RETURN(paths.qemu_img_binary, Canonicalize(paths.qemu_img_binary));
+    if (!paths.qemu_system_x86_binary.empty()) {
+        ASSIGN_OR_RETURN(paths.qemu_system_x86_binary, Canonicalize(paths.qemu_system_x86_binary));
+    }
+    if (!paths.qemu_system_arm_binary.empty()) {
+        ASSIGN_OR_RETURN(paths.qemu_system_arm_binary, Canonicalize(paths.qemu_system_arm_binary));
+    }
     ASSIGN_OR_RETURN(paths.netsim_binary, Canonicalize(paths.netsim_binary));
     ASSIGN_OR_RETURN(paths.crashpad_handler_binary, Canonicalize(paths.crashpad_handler_binary));
 #endif
-
-    // Make sure the child process is using the same crashpad handler as we are using.
-    // Child uses: android::crashreport::CrashReporter::handlerExe() to retrieve this.
-    System::SetEnvironmentVariable("AEMU_CRASHPAD_HANDLER", paths.crashpad_handler_binary.string());
 
     return paths;
 }
@@ -189,11 +191,12 @@ absl::StatusOr<UserPaths> ResolveUserPaths(const fs::path& launcher_dir, bool ve
     // Only log a warning if the SDK directory does not exist as it is not actually required.
     if (auto sdk_status = CheckExists(
                 android::goldfish::ConfigDirs::GetSdkRootDirectory(launcher_dir, verbose),
-                "sdk directory"); sdk_status.ok()) {
+                "sdk directory");
+        sdk_status.ok()) {
         paths.sdk_directory = *std::move(sdk_status);
     } else {
         LOG(INFO) << "Optional SDK directory not found. Will continue without it. Status: "
-                << sdk_status.status();
+                  << sdk_status.status();
     }
 
     ASSIGN_OR_RETURN(
@@ -220,7 +223,8 @@ absl::StatusOr<fs::path> Search(const std::vector<fs::path>& search_paths,
 }  // namespace
 
 absl::StatusOr<SystemImagePaths> ResolveSystemImagePaths(const std::vector<fs::path>& search_paths,
-                                                         const AndroidOptions& opts, bool android_build) {
+                                                         const AndroidOptions& opts,
+                                                         bool android_build) {
     if (opts.verbose) {
         for (const auto& sdk_path : search_paths) {
             LOG(INFO) << "Listing system image search directory (" << sdk_path << "):";
@@ -264,18 +268,24 @@ absl::StatusOr<SystemImagePaths> ResolveSystemImagePaths(const std::vector<fs::p
     if (opts.ramdisk) {
         ASSIGN_OR_RETURN(paths.ramdisk_image, CheckExists(opts.ramdisk, "override ramdisk image"));
     } else {
-        ASSIGN_OR_RETURN(paths.ramdisk_image, Search(search_paths, android_build ? "ramdisk-qemu.img" : "ramdisk.img", "ramdisk image"));
+        ASSIGN_OR_RETURN(paths.ramdisk_image,
+                         Search(search_paths, android_build ? "ramdisk-qemu.img" : "ramdisk.img",
+                                "ramdisk image"));
     }
 
     if (opts.system) {
         ASSIGN_OR_RETURN(paths.system_image, CheckExists(opts.system, "override system image"));
     } else {
-        ASSIGN_OR_RETURN(paths.system_image, Search(search_paths, android_build ? "system-qemu.img" : "system.img", "system image"));
+        ASSIGN_OR_RETURN(paths.system_image,
+                         Search(search_paths, android_build ? "system-qemu.img" : "system.img",
+                                "system image"));
     }
     if (opts.vendor) {
         ASSIGN_OR_RETURN(paths.vendor_image, CheckExists(opts.vendor, "override vendor image"));
     } else {
-        ASSIGN_OR_RETURN(paths.vendor_image, Search(search_paths, android_build ? "vendor-qemu.img" : "vendor.img", "vendor image"));
+        ASSIGN_OR_RETURN(paths.vendor_image,
+                         Search(search_paths, android_build ? "vendor-qemu.img" : "vendor.img",
+                                "vendor image"));
     }
     if (opts.encryption_key) {
         ASSIGN_OR_RETURN(paths.encryption_key_image,

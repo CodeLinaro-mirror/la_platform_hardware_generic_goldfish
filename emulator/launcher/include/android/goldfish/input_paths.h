@@ -38,7 +38,6 @@ struct EmulatorPaths {
     fs::path qemu_system_x86_binary;
     fs::path qemu_system_arm_binary;
     fs::path qemu_system_riscv_binary;
-    fs::path qemu_img_binary;
     fs::path netsim_binary;
     fs::path crashpad_handler_binary;
     fs::path fishtank_binary;
