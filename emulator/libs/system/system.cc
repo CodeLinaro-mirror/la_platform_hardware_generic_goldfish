@@ -29,6 +29,7 @@
 #include <vector>
 
 #include "absl/base/no_destructor.h"
+#include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/match.h"
@@ -626,14 +627,11 @@ class HostSystem : public System {
     }
 
     bool EnvTest(std::string_view varname) const override {
-#ifdef _WIN32
-        Win32UnicodeString varname_unicode(varname.data());
-        const wchar_t* value = _wgetenv(varname_unicode.c_str());
-        return value && value[0] != L'\0';
-#else
+        if (varname.empty()) {
+            return false;
+        }
         const char* value = getenv(c_str(varname));
         return value && value[0] != '\0';
-#endif
     }
 
     std::vector<std::string> EnvGetAll() const override {
@@ -974,10 +972,15 @@ System::FileSize System::GetFilePageSizeForPath(fs::path path) {
 
 // static
 void System::SetEnvironmentVariable(std::string_view varname, std::string_view varvalue) {
+    if (varname.empty()) {
+        return;
+    }
 #ifdef _WIN32
-    std::string envStr = absl::StrFormat("%s=%s", varname.data(), varvalue.data());
-    // Note: this leaks the result of release().
-    _wputenv(Win32UnicodeString(envStr).release());
+    // Note: Working with Unicode strings via narrow CRT functions (_putenv_s
+    // and getenv) on Windows requires the process active code page to be set to
+    // UTF-8 in the application manifest (<activeCodePage>UTF-8</activeCodePage>)
+    // and Windows 10 version 1903 (build 10.0.18362) or later.
+    _putenv_s(c_str(varname), c_str(varvalue));
 #else
     if (varvalue.empty()) {
         unsetenv(c_str(varname));
@@ -989,20 +992,22 @@ void System::SetEnvironmentVariable(std::string_view varname, std::string_view v
 
 // static
 std::string System::GetEnvironmentVariable(std::string_view varname) {
-#ifdef _WIN32
-    Win32UnicodeString varname_unicode(varname.data());
-    const wchar_t* value = _wgetenv(varname_unicode.c_str());
-    if (!value) {
-        return std::string();
-    } else {
-        return Win32UnicodeString::convertToUtf8(value);
+    if (varname.empty()) {
+        return "";
     }
-#else
     const char* value = getenv(c_str(varname));
     if (!value) {
         value = "";
     }
     return std::string(value);
+}
+
+// static
+bool System::IsUtf8CodePage() {
+#ifdef _WIN32
+    return ::GetACP() == CP_UTF8;
+#else
+    return true;
 #endif
 }
 
