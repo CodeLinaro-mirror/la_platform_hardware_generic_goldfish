@@ -17,6 +17,7 @@
 #include <fstream>
 #include <string>
 
+#include "absl/base/internal/endian.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 
@@ -96,14 +97,21 @@ class UwbProtocol : public Protocol {
 
         if (mBytesWanted == 0) {
             switch (state_) {
-            case UCI_HEADER:
-                mBytesWanted = mPacket[UCI_PAYLOAD_LENGTH_FIELD];
+            case UCI_HEADER: {
+                uint8_t message_type =
+                        (mPacket[0] & UCI_MESSAGE_TYPE_MASK) >> UCI_MESSAGE_TYPE_SHIFT;
+                if (message_type == UCI_MESSAGE_TYPE_DATA) {
+                    mBytesWanted = absl::little_endian::Load16(&mPacket[2]);
+                } else {
+                    mBytesWanted = mPacket[UCI_PAYLOAD_LENGTH_FIELD];
+                }
                 state_ = UCI_PAYLOAD;
                 if (mBytesWanted > 0) {
                     break;
                 }
                 // Fall through if entire packet is just a header
                 [[fallthrough]];
+            }
             case UCI_PAYLOAD:
                 mPacketQueue->push_back(std::move(mPacket));
                 mPacket.clear();
@@ -120,8 +128,11 @@ class UwbProtocol : public Protocol {
     // UCI CORE_DEVICE_STATUS_NTF (DEVICE_STATE_ERROR) to trigger guest UWB stack recovery.
     static constexpr uint8_t reset_sequence[] = {0x60, 0x01, 0x00, 0x01, 0xff};
 
-    const size_t UCI_HEADER_SIZE = 4;
-    const size_t UCI_PAYLOAD_LENGTH_FIELD = 3;
+    static constexpr size_t UCI_HEADER_SIZE = 4;
+    static constexpr size_t UCI_PAYLOAD_LENGTH_FIELD = 3;
+    static constexpr uint8_t UCI_MESSAGE_TYPE_MASK = 0xE0;
+    static constexpr uint8_t UCI_MESSAGE_TYPE_SHIFT = 5;
+    static constexpr uint8_t UCI_MESSAGE_TYPE_DATA = 0;
     enum State { UCI_HEADER, UCI_PAYLOAD };
 
     State state_{UCI_HEADER};
