@@ -75,7 +75,6 @@ class FakeVmOperations : public VmOperations {
             return absl::InternalError("Failed to write snapshot to disk");
         }
         entries[name] = SnapshotEntry{
-            .id = name,
             .name = name,
             .timestamp = absl::FromUnixSeconds(1700000000),
         };

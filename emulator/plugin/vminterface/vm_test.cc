@@ -506,5 +506,55 @@ TEST_F(QemuVmOperationsTest, ListSnapshotsExecutesOnQemuLoopAndPropagatesErrors)
     EXPECT_EQ(entries[0].name, "default_boot");
 }
 
+TEST_F(QemuVmOperationsTest, SnapshotOperationsFailInConflictingStates) {
+    for (RunState state : {RUN_STATE_SHUTDOWN, RUN_STATE_SAVE_VM, RUN_STATE_RESTORE_VM,
+                           RUN_STATE_INMIGRATE, RUN_STATE_FINISH_MIGRATE, RUN_STATE_COLO}) {
+        mock_runstate_set(state);
+        EXPECT_THAT(vm_ops_->SaveSnapshot("snap", /*overwrite=*/true),
+                    StatusIs(absl::StatusCode::kFailedPrecondition));
+        EXPECT_THAT(vm_ops_->LoadSnapshot("snap", /*and_resume=*/true),
+                    StatusIs(absl::StatusCode::kFailedPrecondition));
+        EXPECT_THAT(vm_ops_->DeleteSnapshot("snap"),
+                    StatusIs(absl::StatusCode::kFailedPrecondition));
+    }
+
+    mock_runstate_set(RUN_STATE_SHUTDOWN);
+    EXPECT_THAT(vm_ops_->SaveSnapshot("snap", /*overwrite=*/true),
+                StatusIs(absl::StatusCode::kFailedPrecondition,
+                         HasSubstr("Launch a new emulator instance")));
+
+    mock_runstate_set(RUN_STATE_SAVE_VM);
+    EXPECT_THAT(vm_ops_->LoadSnapshot("snap", /*and_resume=*/true),
+                StatusIs(absl::StatusCode::kFailedPrecondition,
+                         HasSubstr("Wait for the operation to complete")));
+}
+
+TEST_F(QemuVmOperationsTest, LoadSnapshotLeavesVmStoppedInRecoverableStateOnFailure) {
+    ::goldfish::avd::FakeAvdUniverse fake_avd;
+
+    mock_runstate_set(RUN_STATE_RUNNING);
+    mock_snapshot_op_ok_set(false);
+    EXPECT_THAT(vm_ops_->LoadSnapshot("corrupt_snap", /*and_resume=*/true),
+                StatusIs(absl::StatusCode::kInternal));
+    // Must not resume RUNNING on a potentially half-restored VM, nor stay stuck in RestoreVm.
+    EXPECT_EQ(vm_ops_->GetRunState(), EmuRunState::PreLaunch);
+    EXPECT_OK(vm_ops_->Reset());
+
+    // Can also retry LoadSnapshot or resume from PreLaunch.
+    mock_snapshot_op_ok_set(true);
+    EXPECT_OK(vm_ops_->LoadSnapshot("good_snap", /*and_resume=*/true));
+    EXPECT_EQ(vm_ops_->GetRunState(), EmuRunState::Running);
+
+    // When already Paused before LoadSnapshot fails, remains Paused and recoverable.
+    EXPECT_OK(vm_ops_->Pause());
+    ASSERT_EQ(vm_ops_->GetRunState(), EmuRunState::Paused);
+    mock_snapshot_op_ok_set(false);
+    EXPECT_THAT(vm_ops_->LoadSnapshot("missing_snap", /*and_resume=*/true),
+                StatusIs(absl::StatusCode::kInternal));
+    EXPECT_EQ(vm_ops_->GetRunState(), EmuRunState::Paused);
+    EXPECT_OK(vm_ops_->Resume());
+    EXPECT_EQ(vm_ops_->GetRunState(), EmuRunState::Running);
+}
+
 }  // namespace goldfish
 }  // namespace android

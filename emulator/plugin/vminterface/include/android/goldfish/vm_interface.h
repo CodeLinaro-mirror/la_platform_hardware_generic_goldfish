@@ -351,7 +351,6 @@ class VmOperations {
     virtual void SystemShutdownRequest(QemuShutdownCause reason) = 0;
 
     struct SnapshotEntry {
-        std::string id;
         std::string name;
         absl::Time timestamp;
     };
