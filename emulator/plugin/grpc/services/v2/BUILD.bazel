@@ -257,6 +257,7 @@ cc_test(
         "@@googleapis+//google/longrunning:longrunning_cc_grpc",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/time",
         "@aemu//protos/services_v2:hypervisor_service_cc_grpc",
         "@googletest//:gtest",
         "@grpc//:grpc++",

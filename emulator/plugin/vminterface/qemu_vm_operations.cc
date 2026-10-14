@@ -17,14 +17,17 @@
 #include <memory>
 #include <string_view>
 
+#include "absl/base/thread_annotations.h"
 #include "absl/cleanup/cleanup.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
+#include "absl/synchronization/mutex.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 
+#include "android/base/clock.h"
 #include "android/goldfish/vm_interface.h"
 #include "android/status/status_macros.h"
 #include "goldfish/async/event_loop.h"
@@ -52,6 +55,8 @@ extern "C" {
 namespace android {
 namespace goldfish {
 namespace {
+constexpr absl::Duration kMinTransferEventInterval = absl::Milliseconds(250);
+
 absl::Status ToStatus(const absl::StatusCode code, std::string_view prefix, Error** errp,
                       std::string_view remediation) {
     const char* detail =
@@ -91,6 +96,24 @@ absl::Status MakeInvalidTransitionError(std::string_view action, EmuRunState cur
 static_assert(static_cast<int>(QemuShutdownCause::Max) == static_cast<int>(SHUTDOWN_CAUSE__MAX));
 static_assert(static_cast<int>(EmuRunState::Max) == static_cast<int>(RUN_STATE__MAX));
 
+static_assert(static_cast<int>(VmOperations::SnapshotOperationType::Idle) ==
+              static_cast<int>(QEMU_SNAPSHOT_OP_NONE));
+static_assert(static_cast<int>(VmOperations::SnapshotOperationType::Save) ==
+              static_cast<int>(QEMU_SNAPSHOT_OP_SAVE));
+static_assert(static_cast<int>(VmOperations::SnapshotOperationType::Load) ==
+              static_cast<int>(QEMU_SNAPSHOT_OP_LOAD));
+
+static_assert(static_cast<int>(VmOperations::SnapshotPhase::None) ==
+              static_cast<int>(QEMU_SNAPSHOT_PHASE_NONE));
+static_assert(static_cast<int>(VmOperations::SnapshotPhase::Preparing) ==
+              static_cast<int>(QEMU_SNAPSHOT_PHASE_PREPARING));
+static_assert(static_cast<int>(VmOperations::SnapshotPhase::Transferring) ==
+              static_cast<int>(QEMU_SNAPSHOT_PHASE_TRANSFERRING));
+static_assert(static_cast<int>(VmOperations::SnapshotPhase::Completed) ==
+              static_cast<int>(QEMU_SNAPSHOT_PHASE_COMPLETED));
+static_assert(static_cast<int>(VmOperations::SnapshotPhase::Failed) ==
+              static_cast<int>(QEMU_SNAPSHOT_PHASE_FAILED));
+
 /**
  * @brief QemuVmOperations class implementing the VmOperations interface.
  *
@@ -112,11 +135,17 @@ class QemuVmOperations : public VmOperations {
                 << "event_loop and qemu_loop must be distinct event loops.";
         RecursiveScopedVmLock lock;
         change_state_entry_ = qemu_add_vm_change_state_handler(OnVmChangeState, this);
+        snapshot_progress_entry_ = add_snapshot_progress_handler(OnSnapshotProgress, this);
     }
     ~QemuVmOperations() override {
-        if (change_state_entry_) {
+        if (change_state_entry_ || snapshot_progress_entry_) {
             RecursiveScopedVmLock lock;
-            qemu_del_vm_change_state_handler(change_state_entry_);
+            if (change_state_entry_) {
+                qemu_del_vm_change_state_handler(change_state_entry_);
+            }
+            if (snapshot_progress_entry_) {
+                del_snapshot_progress_handler(snapshot_progress_entry_);
+            }
         }
     }
 
@@ -378,6 +407,11 @@ class QemuVmOperations : public VmOperations {
         });
     }
 
+    SnapshotProgress GetSnapshotProgress() const override {
+        absl::MutexLock lock(&progress_mutex_);
+        return cached_progress_;
+    }
+
   private:
     absl::Status CheckCanExecuteAction(std::string_view action) {
         switch (const EmuRunState state = GetRunState()) {
@@ -411,9 +445,67 @@ class QemuVmOperations : public VmOperations {
         self->RunStateEvents().FireEvent(static_cast<EmuRunState>(state));
     }
 
+    static void OnSnapshotProgress(void* opaque, const QemuSnapshotProgress* qprog) {
+        if (!qprog) {
+            return;
+        }
+        auto* self = static_cast<QemuVmOperations*>(opaque);
+        // On the loop thread the dispatcher would run the subscribers inline, under the BQL.
+        DCHECK(!self->event_loop_->IsOnLoopThread())
+                << "Snapshot progress reported on the event loop thread";
+
+        const auto phase = static_cast<SnapshotPhase>(qprog->phase);
+        if (phase == SnapshotPhase::Preparing) {
+            self->last_forwarded_transfer_time_ = absl::InfinitePast();
+        }
+
+        SnapshotProgress progress;
+        progress.operation = static_cast<SnapshotOperationType>(qprog->operation);
+        progress.phase = phase;
+        if (qprog->name) {
+            progress.snapshot_id = qprog->name;
+        }
+        if (qprog->active_component) {
+            progress.active_component = qprog->active_component;
+        }
+        if (qprog->error_message) {
+            progress.error_message = qprog->error_message;
+        }
+        progress.transferred_bytes = qprog->transferred_bytes;
+        progress.total_bytes = qprog->total_bytes;
+        progress.disk_bytes = qprog->disk_bytes;
+        progress.completed_devices = qprog->completed_devices;
+        progress.total_devices = qprog->total_devices;
+
+        {
+            absl::MutexLock lock(&self->progress_mutex_);
+            self->cached_progress_ = progress;
+        }
+
+        bool should_forward = true;
+        if (phase == SnapshotPhase::Transferring) {
+            const absl::Time now = ::android::base::IClock::RealtimeNow();
+            if (now - self->last_forwarded_transfer_time_ < kMinTransferEventInterval) {
+                should_forward = false;
+            } else {
+                self->last_forwarded_transfer_time_ = now;
+            }
+        }
+
+        if (should_forward) {
+            self->SnapshotEvents().FireEvent(progress);
+        }
+    }
+
     ::goldfish::async::EventLoop* const event_loop_;
     ::goldfish::async::EventLoop* const qemu_loop_;
     VMChangeStateEntry* change_state_entry_{nullptr};
+    QemuSnapshotProgressEntry* snapshot_progress_entry_{nullptr};
+    // Leaf mutex protecting cached_progress_ for BQL-free reads.
+    mutable absl::Mutex progress_mutex_;
+    SnapshotProgress cached_progress_ ABSL_GUARDED_BY(progress_mutex_);
+    // Accessed only in OnSnapshotProgress, which runs under the BQL.
+    absl::Time last_forwarded_transfer_time_{absl::InfinitePast()};
 };
 
 std::unique_ptr<VmOperations> CreateQemuVmOperations(::goldfish::async::EventLoop* event_loop,
