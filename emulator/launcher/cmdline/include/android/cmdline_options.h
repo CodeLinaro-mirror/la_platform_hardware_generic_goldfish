@@ -441,6 +441,8 @@ OPT_FLAG(no_netsim,
          "uwb, nfc")
 OPT_FLAG(netsim_cellular, "enable netsim cellular")
 OPT_FLAG(netsim_stdout, "send netsim output to stdout")
+OPT_PARAM(netsim_startup_timeout, "<timeout>",
+          "set the netsimd startup timeout (e.g. 30s or 30000ms)")
 OPT_FLAG(fishtank_stdout, "send fishtank output to stdout")
 OPT_FLAG(verbose_grpc, "verbose grpc logging")
 OPT_FLAG(strict_snapshot_load, "fail if snapshot loading fails")
