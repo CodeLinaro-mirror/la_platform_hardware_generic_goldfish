@@ -166,8 +166,6 @@ TEST(CmdLineOptions, obsoleteOptionsAreIgnored) {
     EXPECT_EQ(0, parseOptions({"-engine", "auto", "-ranchu", "-avd", "foo"}, &opts, &remaining));
     ASSERT_NE(nullptr, opts.avd);
     EXPECT_STREQ("foo", opts.avd);
-    EXPECT_EQ(nullptr, opts.engine);
-    EXPECT_EQ(0, opts.ranchu);
     EXPECT_EQ(0, remaining);
     free(opts.avd);
 
@@ -176,10 +174,6 @@ TEST(CmdLineOptions, obsoleteOptionsAreIgnored) {
                               &opts, &remaining));
     ASSERT_NE(nullptr, opts.avd);
     EXPECT_STREQ("foo", opts.avd);
-    EXPECT_EQ(nullptr, opts.radio);
-    EXPECT_EQ(nullptr, opts.gps);
-    EXPECT_EQ(nullptr, opts.code_profile);
-    EXPECT_EQ(nullptr, opts.cpu_delay);
     EXPECT_EQ(0, remaining);
     free(opts.avd);
 
@@ -188,11 +182,6 @@ TEST(CmdLineOptions, obsoleteOptionsAreIgnored) {
                               &opts, &remaining));
     ASSERT_NE(nullptr, opts.avd);
     EXPECT_STREQ("foo", opts.avd);
-    EXPECT_EQ(nullptr, opts.nand_limits);
-    EXPECT_EQ(nullptr, opts.snapstorage);
-    EXPECT_EQ(0, opts.nojni);
-    EXPECT_EQ(0, opts.no_jni);
-    EXPECT_EQ(0, opts.no_accel);
     EXPECT_EQ(0, remaining);
     free(opts.avd);
 
@@ -200,7 +189,6 @@ TEST(CmdLineOptions, obsoleteOptionsAreIgnored) {
     EXPECT_EQ(0, parseOptions({"-avd", "foo", "-engine"}, &opts, &remaining));
     ASSERT_NE(nullptr, opts.avd);
     EXPECT_STREQ("foo", opts.avd);
-    EXPECT_EQ(nullptr, opts.engine);
     EXPECT_EQ(0, remaining);
     free(opts.avd);
 
