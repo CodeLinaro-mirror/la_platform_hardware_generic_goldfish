@@ -15,21 +15,33 @@
 
 #include "goldfish/metrics/studio_config.h"
 
+#include <tinyxml2.h>
+
 #include <algorithm>
 #include <chrono>
+#include <compare>
+#include <cstddef>
 #include <cstdint>
 #include <fstream>
+#include <optional>
 #include <random>
 #include <regex>
 #include <sstream>
 #include <string>
+#include <string_view>
 #include <vector>
 
+#include "absl/status/statusor.h"
+#include "absl/strings/ascii.h"
+#include "absl/strings/numbers.h"
+#include "absl/strings/str_split.h"
+#include "absl/strings/strip.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "google/protobuf/util/json_util.h"
 
 #include "analytics_settings.pb.h"
+#include "android/base/system.h"
 #include "goldfish/file/file.h"
 #include "goldfish/file/file_atomic.h"
 #include "goldfish/metrics/uuid.h"
@@ -109,7 +121,183 @@ bool SaveAnalyticsSettings(const fs::path& settingsPath,
     return android::base::file::mv_file(tempPath, settingsPath).ok();
 }
 
+struct StudioVersion {
+    uint32_t major = 0;
+    uint32_t minor = 0;
+    uint32_t micro = 0;
+    uint32_t build = 0;  // 2 for release, 1 for preview
+
+    auto operator<=>(const StudioVersion&) const = default;
+};
+
+std::optional<StudioVersion> ExtractAndroidStudioVersion(std::string_view dir_name,
+                                                         std::string_view required_prefix) {
+    if (!absl::ConsumePrefix(&dir_name, required_prefix)) {
+        return std::nullopt;
+    }
+    absl::ConsumePrefix(&dir_name, "WithBlaze");
+
+    uint32_t build = 2;
+    if (absl::ConsumePrefix(&dir_name, "Preview")) {
+        build = 1;
+        absl::ConsumePrefix(&dir_name, "WithBlaze");
+    }
+
+    if (dir_name.empty()) {
+        return StudioVersion{.major = 0, .minor = 0, .micro = 0, .build = build};
+    }
+
+    const std::vector<std::string_view> parts = absl::StrSplit(dir_name, '.');
+    if (parts.empty() || parts.size() > 3) {
+        return std::nullopt;
+    }
+
+    uint32_t components[3] = {0, 0, 0};
+    for (size_t i = 0; i < parts.size(); ++i) {
+        if (parts[i].empty() || !absl::ascii_isdigit(parts[i].front())) {
+            return std::nullopt;
+        }
+        uint32_t val = 0;
+        if (!absl::SimpleAtoi(parts[i], &val)) {
+            return std::nullopt;
+        }
+        components[i] = val;
+    }
+
+    return StudioVersion{
+        .major = components[0],
+        .minor = components[1],
+        .micro = components[2],
+        .build = build,
+    };
+}
+
+fs::path FindLatestStudioDirIn(const fs::path& scan_path, std::string_view required_prefix) {
+    if (scan_path.empty() || !android::base::file::is_dir(scan_path)) {
+        return {};
+    }
+
+    fs::path latest_path;
+    std::optional<StudioVersion> latest_version;
+
+    for (const fs::path& entry_path : android::base::file::scan_dir(scan_path, /*fullPath=*/true)) {
+        if (!android::base::file::is_dir(entry_path)) {
+            continue;
+        }
+        const std::string name = entry_path.filename().string();
+        const auto version = ExtractAndroidStudioVersion(name, required_prefix);
+        if (!version.has_value()) {
+            continue;
+        }
+        if (!latest_version.has_value() || *version > *latest_version) {
+            latest_version = *version;
+            latest_path = entry_path;
+        }
+    }
+
+    return latest_path;
+}
+
+struct StudioCandidateParent {
+    fs::path path;
+    std::string_view prefix;
+};
+
+fs::path FindUpdatesXmlPath(const fs::path& studio_dir) {
+    if (studio_dir.empty()) {
+        return {};
+    }
+    const fs::path modern_path = studio_dir / "options" / "updates.xml";
+    if (android::base::file::is_file(modern_path)) {
+        return modern_path;
+    }
+    const fs::path legacy_path = studio_dir / "config" / "options" / "updates.xml";
+    if (android::base::file::is_file(legacy_path)) {
+        return legacy_path;
+    }
+    return {};
+}
+
+std::optional<std::string> FindXmlOptionValue(const tinyxml2::XMLElement* element,
+                                              std::string_view option_name) {
+    for (const auto* cur = element; cur != nullptr; cur = cur->NextSiblingElement()) {
+        if (std::string_view(cur->Name()) == "option") {
+            const char* name = cur->Attribute("name");
+            if (name != nullptr && option_name == name) {
+                const char* val = cur->Attribute("value");
+                if (val != nullptr) {
+                    return std::string(val);
+                }
+            }
+        }
+        if (const auto* child = cur->FirstChildElement()) {
+            if (auto nested = FindXmlOptionValue(child, option_name); nested.has_value()) {
+                return nested;
+            }
+        }
+    }
+    return std::nullopt;
+}
+
 }  // namespace
+
+fs::path FindLatestAndroidStudioDir() {
+    auto* sys = android::base::System::Get();
+    const std::string env_prefs = sys->EnvGet("ANDROID_STUDIO_PREFERENCES");
+    if (!env_prefs.empty()) {
+        return fs::path(env_prefs);
+    }
+
+    const fs::path home = sys->GetHomeDirectory();
+    const fs::path app_data = sys->GetAppDataDirectory();
+
+    std::vector<StudioCandidateParent> candidate_parents;
+#if defined(_WIN32)
+    if (!app_data.empty()) {
+        candidate_parents.push_back({app_data / "Google", "AndroidStudio"});
+    }
+    if (!home.empty()) {
+        candidate_parents.push_back({home / "AppData" / "Roaming" / "Google", "AndroidStudio"});
+        candidate_parents.push_back({home, ".AndroidStudio"});
+    }
+    if (!app_data.empty()) {
+        candidate_parents.push_back({app_data, ".AndroidStudio"});
+    }
+#elif defined(__APPLE__)
+    if (!home.empty()) {
+        candidate_parents.push_back(
+                {home / "Library" / "Application Support" / "Google", "AndroidStudio"});
+    }
+    if (!app_data.empty()) {
+        candidate_parents.push_back({app_data / "Google", "AndroidStudio"});
+        candidate_parents.push_back({app_data, "AndroidStudio"});
+    }
+    if (!home.empty()) {
+        candidate_parents.push_back({home / "Library" / "Preferences", "AndroidStudio"});
+        candidate_parents.push_back({home, ".AndroidStudio"});
+    }
+#else
+    const std::string xdg_config = sys->EnvGet("XDG_CONFIG_HOME");
+    if (!xdg_config.empty()) {
+        candidate_parents.push_back({fs::path(xdg_config) / "Google", "AndroidStudio"});
+    }
+    if (!home.empty()) {
+        candidate_parents.push_back({home / ".config" / "Google", "AndroidStudio"});
+        candidate_parents.push_back({home, ".AndroidStudio"});
+    }
+    if (!app_data.empty()) {
+        candidate_parents.push_back({app_data, ".AndroidStudio"});
+    }
+#endif
+
+    for (const StudioCandidateParent& candidate : candidate_parents) {
+        fs::path latest = FindLatestStudioDirIn(candidate.path, candidate.prefix);
+        if (!latest.empty()) {
+            return latest;
+        }
+    }
+    return {};
+}
 
 namespace testing {
 std::string GenerateRandomSalt(const std::vector<uint8_t>& customBytes) {
@@ -228,6 +416,50 @@ std::string GetMetricsUserId(const fs::path& user_directory) {
 
 fs::path GetSpoolDirectory(const fs::path& user_directory) {
     return user_directory / "metrics" / "spool";
+}
+
+UpdateChannel GetUpdateChannel(const fs::path& studio_dir) {
+    const fs::path xml_path = FindUpdatesXmlPath(studio_dir);
+    if (xml_path.empty()) {
+        return UpdateChannel::kUnknown;
+    }
+
+    const absl::StatusOr<std::string> xml_content =
+            android::base::file::read_whole_file(xml_path, /*binary=*/false);
+    if (!xml_content.ok() || xml_content->empty()) {
+        return UpdateChannel::kUnknown;
+    }
+
+    tinyxml2::XMLDocument doc;
+    if (doc.Parse(xml_content->data(), xml_content->size()) != tinyxml2::XML_SUCCESS) {
+        return UpdateChannel::kUnknown;
+    }
+    const tinyxml2::XMLElement* root = doc.RootElement();
+    if (root == nullptr) {
+        return UpdateChannel::kUnknown;
+    }
+
+    // If updates.xml is valid but UPDATE_CHANNEL_TYPE is omitted, Android Studio
+    // defaults to the Canary ("") channel.
+    const std::string channel_str = FindXmlOptionValue(root, "UPDATE_CHANNEL_TYPE").value_or("");
+    if (channel_str.empty() || channel_str == "eap") {
+        return UpdateChannel::kCanary;
+    }
+    if (channel_str == "release") {
+        return UpdateChannel::kStable;
+    }
+    if (channel_str == "beta") {
+        return UpdateChannel::kBeta;
+    }
+    if (channel_str == "milestone") {
+        return UpdateChannel::kDev;
+    }
+    return UpdateChannel::kUnknown;
+}
+
+UpdateChannel GetUpdateChannel() {
+    static const fs::path studio_dir = FindLatestAndroidStudioDir();
+    return GetUpdateChannel(studio_dir);
 }
 
 }  // namespace goldfish::metrics::studio

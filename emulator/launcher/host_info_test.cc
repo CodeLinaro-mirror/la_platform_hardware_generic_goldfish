@@ -17,7 +17,11 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
+#include <filesystem>
+#include <fstream>
+
 #include "android/base/testing/test_system.h"
+#include "android/base/testing/test_temp_dir.h"
 #include "android/goldfish/mock_avd.h"
 #include "studio_stats.pb.h"
 
@@ -126,7 +130,15 @@ TEST(HostInfoTest, RunningInContainerWithK8s) {
 
 class HostInfoVulkanTest : public ::testing::Test {
   protected:
+    static std::filesystem::path StudioPrefsDir() {
+        static const android::base::TestTempDir kTempDir("host_info_studio_prefs");
+        return kTempDir.Path() / "studio_prefs";
+    }
+
     void SetUp() override {
+        std::filesystem::remove_all(StudioPrefsDir());
+        test_sys_.EnvSet("ANDROID_STUDIO_PREFERENCES", StudioPrefsDir().string());
+
         EXPECT_CALL(avd_, ApiLevel()).WillRepeatedly(Return(37));
         EXPECT_CALL(avd_, Arch()).WillRepeatedly(Return(Avd::CpuArchitecture::kArm));
         EXPECT_CALL(avd_, BuildId())
@@ -138,6 +150,9 @@ class HostInfoVulkanTest : public ::testing::Test {
         EXPECT_CALL(avd_, Hw()).WillRepeatedly(ReturnRef(hw_config_));
     }
 
+    void TearDown() override { std::filesystem::remove_all(StudioPrefsDir()); }
+
+    TestSystem test_sys_{"/tmp", "/home", ""};
     MockAvd avd_;
     SystemImagePaths sys_image_paths_;
     HardwareConfig hw_config_;
@@ -205,6 +220,43 @@ TEST_F(HostInfoVulkanTest, setDeviceNameMappings) {
 
         EXPECT_EQ(event.emulator_details().avd_info().device_name(), expected_device_name)
                 << "Failed for hw_device_name: " << hw_device_name;
+    }
+}
+
+TEST_F(HostInfoVulkanTest, setsProductChannelFromStudioConfig) {
+    // Default with no Studio config is UNKNOWN_LIFE_CYCLE_CHANNEL.
+    {
+        android_studio::AndroidStudioEvent event;
+        FillEmulatorHostEvent(event, avd_, 1234, 5678, true, false, "");
+        EXPECT_EQ(event.product_details().channel(),
+                  android_studio::ProductDetails::UNKNOWN_LIFE_CYCLE_CHANNEL);
+    }
+
+    const std::filesystem::path prefs_dir = StudioPrefsDir();
+    std::filesystem::create_directories(prefs_dir / "options");
+
+    {
+        std::ofstream os(prefs_dir / "options" / "updates.xml");
+        os << R"xml(<application><component name="UpdatesConfigurable">
+            <option name="UPDATE_CHANNEL_TYPE" value="eap" />
+        </component></application>)xml";
+    }
+    {
+        android_studio::AndroidStudioEvent event;
+        FillEmulatorHostEvent(event, avd_, 1234, 5678, true, false, "");
+        EXPECT_EQ(event.product_details().channel(), android_studio::ProductDetails::CANARY);
+    }
+
+    {
+        std::ofstream os(prefs_dir / "options" / "updates.xml");
+        os << R"xml(<application><component name="UpdatesConfigurable">
+            <option name="UPDATE_CHANNEL_TYPE" value="release" />
+        </component></application>)xml";
+    }
+    {
+        android_studio::AndroidStudioEvent event;
+        FillEmulatorHostEvent(event, avd_, 1234, 5678, true, false, "");
+        EXPECT_EQ(event.product_details().channel(), android_studio::ProductDetails::STABLE);
     }
 }
 

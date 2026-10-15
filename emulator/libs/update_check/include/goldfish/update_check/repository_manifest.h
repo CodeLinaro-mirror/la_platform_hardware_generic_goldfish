@@ -61,8 +61,9 @@ struct SdkPackage {
 
 // Parses an SDK repository2-3.xml document and returns the newest <remotePackage>
 // matching |package_prefix| that contains an <archive> for (|host_os|, |host_arch|)
-// and is in a channel at least as stable as |max_channel| (channel <= max_channel),
-// ordered by (major, minor, micro, build_id), or std::nullopt if no matching package exists.
+// and is in a channel at least as stable as |max_channel| (channel <= max_channel;
+// UpdateChannel::kUnknown falls back to UpdateChannel::kStable), ordered by
+// (major, minor, micro, build_id), or std::nullopt if no matching package exists.
 absl::StatusOr<std::optional<SdkPackage>> FindLatestPackage(std::string_view xml,
                                                             std::string_view host_os,
                                                             std::string_view host_arch,
