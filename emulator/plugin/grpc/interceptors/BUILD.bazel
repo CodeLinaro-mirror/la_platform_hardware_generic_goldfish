@@ -142,6 +142,7 @@ cc_test(
     deps = [
         ":interceptors",
         "//emulator/libs/async:async_testing",
+        "//emulator/libs/file",
         "//emulator/libs/system:test-headers",
         "//emulator/libs/test:googletest_main",
         "//emulator/plugin/vminterface:vminterface-test",
@@ -160,6 +161,7 @@ cc_test(
     }),
     deps = [
         ":perfetto_interceptor",
+        "//emulator/libs/file",
         "//emulator/libs/system:test-headers",
         "//emulator/libs/test:googletest_main",
         "@googletest//:gtest",

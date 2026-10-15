@@ -105,6 +105,7 @@ cc_test(
         "//emulator/libs/async:async_testing",
         "//emulator/libs/async:libuv_event_loop",
         "//emulator/libs/async:threaded_event_loop",
+        "//emulator/libs/file",
         "//emulator/libs/perfetto:init",
         "//emulator/libs/system:test-headers",
         "//emulator/libs/test:googletest_main",

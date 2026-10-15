@@ -14,9 +14,7 @@
 
 #include <gtest/gtest.h>
 
-#include <fstream>
-#include <iostream>
-#include <vector>
+#include <string>
 
 #include "goldfish/file/file.h"
 
@@ -33,9 +31,9 @@ TEST(bazel_info, can_get_data_file) {
 
 TEST(bazel_info, can_read_data_file) {
     std::string path = Bazel::RunfilesPath("goldfish+/emulator/libs/system/testdata/info.txt");
-    std::ifstream file(path);
-    std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
-    EXPECT_EQ(content, "Hello World!");
+    auto content = base::file::read_whole_file(path, /*binary=*/false);
+    ASSERT_TRUE(content.ok()) << content.status();
+    EXPECT_EQ(*content, "Hello World!");
 }
 
 TEST(bazel_info, can_get_non_existent_file) {
