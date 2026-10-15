@@ -23,6 +23,9 @@ PERF_TESTS = [
 # Obtained throug:
 # bazel query -k 'kind(cc_binary, @qemu//...)'  |  sed 's/.*/    "&",/'
 QEMU = select({
+    "@goldfish_build//platforms:is_linux_aarch64": [
+        "@qemu//:qemu-system-aarch64",
+    ],
     "@platforms//os:linux": [
         "@qemu//:qemu-system-x86_64",
     ],
@@ -45,6 +48,9 @@ EMULATOR = [
     "//emulator/launcher",
     "//third_party/sparse:img2simg",
 ] + select({
+    "@goldfish_build//platforms:is_linux_aarch64": [
+        "//emulator/plugin:goldfish_aarch64",
+    ],
     "@platforms//os:linux": [
         "//emulator/plugin:goldfish_x86_64",
     ],
