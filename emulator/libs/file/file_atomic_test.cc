@@ -15,13 +15,15 @@
 
 #include <gtest/gtest.h>
 
-#include <fstream>
 #include <string>
 
+#include "absl/status/status_matchers.h"
 #include "android/base/system.h"
 #include "goldfish/file/file.h"
 
 namespace android::base::file {
+
+using ::absl_testing::IsOkAndHolds;
 
 class FileAtomicTest : public ::testing::Test {
   protected:
@@ -44,10 +46,7 @@ TEST_F(FileAtomicTest, WriteNewFile) {
     EXPECT_TRUE(status.ok()) << status.message();
     EXPECT_TRUE(fs::exists(target));
 
-    std::ifstream ifs(target);
-    std::string actual_content((std::istreambuf_iterator<char>(ifs)),
-                               std::istreambuf_iterator<char>());
-    EXPECT_EQ(actual_content, content);
+    EXPECT_THAT(read_whole_file(target, /*binary=*/false), IsOkAndHolds(content));
 }
 
 TEST_F(FileAtomicTest, FailsIfFileExists) {
@@ -59,10 +58,8 @@ TEST_F(FileAtomicTest, FailsIfFileExists) {
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code(), absl::StatusCode::kAlreadyExists);
 
-    std::ifstream ifs(target);
-    std::string actual_content((std::istreambuf_iterator<char>(ifs)),
-                               std::istreambuf_iterator<char>());
-    EXPECT_EQ(actual_content, "First");  // Content should not have changed
+    EXPECT_THAT(read_whole_file(target, /*binary=*/false),
+                IsOkAndHolds("First"));  // Content should not have changed
 }
 
 TEST_F(FileAtomicTest, PrivatePermissions) {
