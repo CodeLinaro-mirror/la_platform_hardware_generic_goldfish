@@ -180,6 +180,39 @@ absl::StatusOr<std::string> GetPlatformConfigProperty(LegacyConsoleBridge::Conso
     LOG(WARNING) << key << " not found in platform config for port " << ctx.Port();
     return absl::InternalError(absl::StrCat(key, " not found in platform config"));
 }
+
+absl::Status SetVmRunState(LegacyConsoleBridge::ConsoleContext& ctx,
+                           android::emulation::control::EmulatorController::StubInterface* stub,
+                           android::emulation::control::VmRunState::RunState state) {
+    ASSIGN_OR_RETURN(auto context, ctx.NewContext());
+    android::emulation::control::VmRunState request;
+    request.set_state(state);
+    google::protobuf::Empty response;
+    return GrpcStatusToAbslStatus(stub->setVmState(context.get(), request, &response));
+}
+
+absl::Status SetVmRunState(LegacyConsoleBridge::ConsoleContext& ctx,
+                           android::emulation::control::VmRunState::RunState state) {
+    ASSIGN_OR_RETURN(auto stub, ctx.EmulatorControllerStub());
+    return SetVmRunState(ctx, stub.get(), state);
+}
+
+absl::StatusOr<android::emulation::control::BatteryState> GetBatteryStateOrDefault(
+        LegacyConsoleBridge::ConsoleContext& ctx,
+        android::emulation::control::EmulatorController::StubInterface* stub) {
+    ASSIGN_OR_RETURN(auto context, ctx.NewContext());
+    google::protobuf::Empty request;
+    android::emulation::control::BatteryState state;
+    if (!stub->getBattery(context.get(), request, &state).ok()) {
+        state.set_hasbattery(true);
+        state.set_ispresent(true);
+        state.set_charger(android::emulation::control::BatteryState::AC);
+        state.set_chargelevel(100);
+        state.set_health(android::emulation::control::BatteryState::GOOD);
+        state.set_status(android::emulation::control::BatteryState::CHARGING);
+    }
+    return state;
+}
 }  // namespace
 
 LegacyConsoleBridge::LegacyConsoleBridge(int port, std::filesystem::path token_path,
@@ -238,13 +271,7 @@ LegacyConsoleBridge::LegacyConsoleBridge(int port, std::filesystem::path token_p
                    return absl::FailedPreconditionError("virtual device already stopped");
                }
 
-               ASSIGN_OR_RETURN(auto set_context, ctx.NewContext());
-               android::emulation::control::VmRunState set_req;
-               set_req.set_state(android::emulation::control::VmRunState::STOP);
-               google::protobuf::Empty set_res;
-
-               return GrpcStatusToAbslStatus(
-                       stub->setVmState(set_context.get(), set_req, &set_res));
+               return SetVmRunState(ctx, stub.get(), android::emulation::control::VmRunState::STOP);
            });
     avd.On("start" /* do_avd_start */, "start/restart the virtual device",
            [](ConsoleContext& ctx) -> absl::Status {
@@ -260,13 +287,8 @@ LegacyConsoleBridge::LegacyConsoleBridge(int port, std::filesystem::path token_p
                    return absl::FailedPreconditionError("virtual device already running");
                }
 
-               ASSIGN_OR_RETURN(auto set_context, ctx.NewContext());
-               android::emulation::control::VmRunState set_req;
-               set_req.set_state(android::emulation::control::VmRunState::START);
-               google::protobuf::Empty set_res;
-
-               return GrpcStatusToAbslStatus(
-                       stub->setVmState(set_context.get(), set_req, &set_res));
+               return SetVmRunState(ctx, stub.get(),
+                                    android::emulation::control::VmRunState::START);
            });
     avd.On("status" /* do_avd_status */, "query virtual device status",
            [](ConsoleContext& ctx) -> absl::StatusOr<std::string> {
@@ -299,25 +321,11 @@ LegacyConsoleBridge::LegacyConsoleBridge(int port, std::filesystem::path token_p
            [](ConsoleContext& /*ctx*/) { return absl::UnimplementedError("not implemented"); });
     avd.On("pause" /* do_avd_pause */, "pause the virtual device",
            [](ConsoleContext& ctx) -> absl::Status {
-               ASSIGN_OR_RETURN(auto stub, ctx.EmulatorControllerStub());
-               ASSIGN_OR_RETURN(auto context, ctx.NewContext());
-
-               android::emulation::control::VmRunState request;
-               request.set_state(android::emulation::control::VmRunState::PAUSED);
-               google::protobuf::Empty response;
-
-               return GrpcStatusToAbslStatus(stub->setVmState(context.get(), request, &response));
+               return SetVmRunState(ctx, android::emulation::control::VmRunState::PAUSED);
            });
     avd.On("resume" /* do_avd_resume */, "resume the virtual device",
            [](ConsoleContext& ctx) -> absl::Status {
-               ASSIGN_OR_RETURN(auto stub, ctx.EmulatorControllerStub());
-               ASSIGN_OR_RETURN(auto context, ctx.NewContext());
-
-               android::emulation::control::VmRunState request;
-               request.set_state(android::emulation::control::VmRunState::RUNNING);
-               google::protobuf::Empty response;
-
-               return GrpcStatusToAbslStatus(stub->setVmState(context.get(), request, &response));
+               return SetVmRunState(ctx, android::emulation::control::VmRunState::RUNNING);
            });
     avd.On("hostmicon" /* do_avd_hostmicon */, "activate the host audio input device",
            [](ConsoleContext& /*ctx*/) { return absl::UnimplementedError("not implemented"); });
@@ -375,19 +383,6 @@ LegacyConsoleBridge::LegacyConsoleBridge(int port, std::filesystem::path token_p
     auto snapshot = avd.Sub("snapshot", "state snapshot commands");
     RegisterSnapshotCommands(snapshot);
 
-    avd.On("snapshotspath" /* do_snapshotspath */, "query AVD snapshots path",
-           [](ConsoleContext& ctx) -> absl::StatusOr<std::string> {
-               ASSIGN_OR_RETURN(auto avd_path, GetPlatformConfigProperty(ctx, "avd.content_path"));
-               return (std::filesystem::path(avd_path) / "snapshots").string();
-           });
-    avd.On("snapshotpath" /* do_snapshotpath */, "query path to a particular AVD snapshot",
-           [](ConsoleContext& ctx, const std::string& name) -> absl::StatusOr<std::string> {
-               if (name.empty()) {
-                   return absl::InvalidArgumentError("Usage: 'avd snapshotpath <name>'");
-               }
-               ASSIGN_OR_RETURN(auto avd_path, GetPlatformConfigProperty(ctx, "avd.content_path"));
-               return (std::filesystem::path(avd_path) / "snapshots" / name).string();
-           });
     avd.Safe();
 
     // --- Automation Commands ---
@@ -721,19 +716,7 @@ LegacyConsoleBridge::LegacyConsoleBridge(int port, std::filesystem::path token_p
                std::function<absl::Status(android::emulation::control::BatteryState&)> mutator)
             -> absl::Status {
         ASSIGN_OR_RETURN(auto stub, ctx.EmulatorControllerStub());
-        ASSIGN_OR_RETURN(auto context_get, ctx.NewContext());
-
-        google::protobuf::Empty empty_req;
-        android::emulation::control::BatteryState state;
-        auto get_status = stub->getBattery(context_get.get(), empty_req, &state);
-        if (!get_status.ok()) {
-            state.set_hasbattery(true);
-            state.set_ispresent(true);
-            state.set_charger(android::emulation::control::BatteryState::AC);
-            state.set_chargelevel(100);
-            state.set_health(android::emulation::control::BatteryState::GOOD);
-            state.set_status(android::emulation::control::BatteryState::CHARGING);
-        }
+        ASSIGN_OR_RETURN(auto state, GetBatteryStateOrDefault(ctx, stub.get()));
 
         RETURN_IF_ERROR(mutator(state));
 
@@ -747,19 +730,7 @@ LegacyConsoleBridge::LegacyConsoleBridge(int port, std::filesystem::path token_p
             "display" /* do_power_display */, "display battery and charger state",
             [](ConsoleContext& ctx) -> absl::StatusOr<std::string> {
                 ASSIGN_OR_RETURN(auto stub, ctx.EmulatorControllerStub());
-                ASSIGN_OR_RETURN(auto context, ctx.NewContext());
-
-                google::protobuf::Empty request;
-                android::emulation::control::BatteryState state;
-                auto status = stub->getBattery(context.get(), request, &state);
-                if (!status.ok()) {
-                    state.set_hasbattery(true);
-                    state.set_ispresent(true);
-                    state.set_charger(android::emulation::control::BatteryState::AC);
-                    state.set_chargelevel(100);
-                    state.set_health(android::emulation::control::BatteryState::GOOD);
-                    state.set_status(android::emulation::control::BatteryState::CHARGING);
-                }
+                ASSIGN_OR_RETURN(auto state, GetBatteryStateOrDefault(ctx, stub.get()));
 
                 const char* ac_str =
                         (state.charger() == android::emulation::control::BatteryState::AC)
@@ -1223,31 +1194,16 @@ LegacyConsoleBridge::LegacyConsoleBridge(int port, std::filesystem::path token_p
                    ctx.TriggerCrash();
                    return "crashing emulator on exit, bye bye";
                });
-    builder.On(
-            "kill" /* do_kill */, "kill the emulator instance",
-            [](ConsoleContext& ctx) -> absl::Status {
-                ASSIGN_OR_RETURN(auto stub, ctx.EmulatorControllerStub());
-                ASSIGN_OR_RETURN(auto context, ctx.NewContext());
-
-                android::emulation::control::VmRunState request;
-                request.set_state(android::emulation::control::VmRunState::SHUTDOWN);
-                google::protobuf::Empty response;
-
-                return GrpcStatusToAbslStatus(stub->setVmState(context.get(), request, &response));
-            });
-    builder.On("restart" /* do_restart */, "restart the emulator",
-               [](ConsoleContext& ctx) -> absl::StatusOr<std::string> {
-                   ASSIGN_OR_RETURN(auto stub, ctx.EmulatorControllerStub());
-                   ASSIGN_OR_RETURN(auto context, ctx.NewContext());
-
-                   android::emulation::control::VmRunState request;
-                   request.set_state(android::emulation::control::VmRunState::RESET);
-                   google::protobuf::Empty response;
-
-                   RETURN_IF_ERROR(GrpcStatusToAbslStatus(
-                           stub->setVmState(context.get(), request, &response)));
-                   return "restarting emulator, bye bye";
+    builder.On("kill" /* do_kill */, "kill the emulator instance",
+               [](ConsoleContext& ctx) -> absl::Status {
+                   return SetVmRunState(ctx, android::emulation::control::VmRunState::SHUTDOWN);
                });
+    builder.On(
+            "restart" /* do_restart */, "restart the emulator",
+            [](ConsoleContext& ctx) -> absl::StatusOr<std::string> {
+                RETURN_IF_ERROR(SetVmRunState(ctx, android::emulation::control::VmRunState::RESET));
+                return "restarting emulator, bye bye";
+            });
     builder.Command("grpc", "enable the grpc endpoint")
             .On("start" /* do_start_grpc */, "start the grpc endpoint",
                 [](ConsoleContext& ctx, int port) -> absl::StatusOr<std::string> {
