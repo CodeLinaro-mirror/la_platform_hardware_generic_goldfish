@@ -77,7 +77,7 @@ cc_test(
         "//emulator/libs/status_macros:status_matcher_macros",
         "//emulator/libs/system",
         "//emulator/libs/system:test-headers",
-        "@googletest//:gtest_main",
+        "//emulator/libs/test:googletest_main",
         "@nlohmann_json//:singleheader-json",
         "@tink_cc//tink/jwt:jwk_set_converter",
         "@tink_cc//tink/jwt:jwt_key_templates",

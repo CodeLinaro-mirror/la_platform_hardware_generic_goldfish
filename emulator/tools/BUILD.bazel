@@ -107,6 +107,6 @@ cc_test(
     srcs = ["aemu_version_test.cc"],
     deps = [
         ":aemu_version",
-        "@googletest//:gtest_main",
+        "//emulator/libs/test:googletest_main",
     ],
 )
