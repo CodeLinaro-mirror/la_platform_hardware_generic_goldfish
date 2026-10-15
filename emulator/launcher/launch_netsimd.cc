@@ -18,9 +18,11 @@
 #include <thread>
 
 #include "absl/log/log.h"
+#include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
+#include "absl/time/time.h"
 
 #include "android/base/system.h"
 #include "android/cmdline_option.h"
@@ -122,6 +124,24 @@ absl::StatusOr<::goldfish::async::LaunchConfig> netsimd_launch_config(
 
     if (opts.verbose) {
         args.push_back("--logtostderr");
+    }
+
+    if (opts.netsim_startup_timeout && *opts.netsim_startup_timeout != '\0') {
+        absl::Duration timeout;
+        int64_t timeout_seconds = 0;
+        if (absl::SimpleAtoi(opts.netsim_startup_timeout, &timeout_seconds)) {
+            timeout = absl::Seconds(timeout_seconds);
+        } else if (!absl::ParseDuration(opts.netsim_startup_timeout, &timeout)) {
+            return absl::InvalidArgumentError(absl::StrCat(
+                    "Invalid -netsim-startup-timeout value: '", opts.netsim_startup_timeout,
+                    "'. Expected a duration (e.g. '30s' or '30000ms') or seconds."));
+        }
+        if (timeout <= absl::ZeroDuration()) {
+            return absl::InvalidArgumentError(
+                    absl::StrCat("-netsim-startup-timeout must be positive, got: '",
+                                 opts.netsim_startup_timeout, "'"));
+        }
+        args.push_back(absl::StrCat("--startup-timeout=", absl::ToInt64Milliseconds(timeout)));
     }
 
     for (auto& flag : absl::StrSplit(netsim_args, " ", absl::SkipEmpty())) {

@@ -273,5 +273,55 @@ TEST_F(NetsimConnectorTest, ShuttingDownAbortsCleanly) {
     EXPECT_EQ(result.status().code(), absl::StatusCode::kCancelled);
 }
 
+TEST(NetsimdLaunchConfigTest, DefaultDoesNotIncludeStartupTimeout) {
+    AndroidOptions opts{};
+    auto config = netsimd_launch_config("/path/to/netsimd", opts);
+    ASSERT_TRUE(config.ok()) << config.status();
+    EXPECT_THAT(config->args,
+                testing::Not(testing::Contains(testing::StartsWith("--startup-timeout"))));
+}
+
+TEST(NetsimdLaunchConfigTest, StartupTimeoutDurationString) {
+    AndroidOptions opts{};
+    char timeout_str[] = "30s";
+    opts.netsim_startup_timeout = timeout_str;
+    auto config = netsimd_launch_config("/path/to/netsimd", opts);
+    ASSERT_TRUE(config.ok()) << config.status();
+    EXPECT_THAT(config->args, testing::Contains("--startup-timeout=30000"));
+}
+
+TEST(NetsimdLaunchConfigTest, StartupTimeoutMillisecondsString) {
+    AndroidOptions opts{};
+    char timeout_str[] = "45000ms";
+    opts.netsim_startup_timeout = timeout_str;
+    auto config = netsimd_launch_config("/path/to/netsimd", opts);
+    ASSERT_TRUE(config.ok()) << config.status();
+    EXPECT_THAT(config->args, testing::Contains("--startup-timeout=45000"));
+}
+
+TEST(NetsimdLaunchConfigTest, StartupTimeoutPlainSeconds) {
+    AndroidOptions opts{};
+    char timeout_str[] = "30";
+    opts.netsim_startup_timeout = timeout_str;
+    auto config = netsimd_launch_config("/path/to/netsimd", opts);
+    ASSERT_TRUE(config.ok()) << config.status();
+    EXPECT_THAT(config->args, testing::Contains("--startup-timeout=30000"));
+}
+
+TEST(NetsimdLaunchConfigTest, StartupTimeoutInvalidReturnsError) {
+    AndroidOptions opts{};
+    char invalid_str[] = "not_a_duration";
+    opts.netsim_startup_timeout = invalid_str;
+    auto config = netsimd_launch_config("/path/to/netsimd", opts);
+    EXPECT_FALSE(config.ok());
+    EXPECT_EQ(config.status().code(), absl::StatusCode::kInvalidArgument);
+
+    char zero_str[] = "0s";
+    opts.netsim_startup_timeout = zero_str;
+    config = netsimd_launch_config("/path/to/netsimd", opts);
+    EXPECT_FALSE(config.ok());
+    EXPECT_EQ(config.status().code(), absl::StatusCode::kInvalidArgument);
+}
+
 }  // namespace
 }  // namespace android::goldfish::netsim

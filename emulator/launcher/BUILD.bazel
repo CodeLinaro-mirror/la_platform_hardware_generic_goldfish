@@ -656,6 +656,12 @@ create_launch_emulator_test(
     params = [
         "-show-kernel",
         "-no-boot-anim",
+        # Increase netsimd's initial device connection timeout from the 15s
+        # default so slower debug/ASAN builds (e.g. during software Vulkan ICD
+        # initialization on headless CI runners) do not time out before QEMU
+        # attaches to netsimd.
+        "-netsim-startup-timeout",
+        "30s",
     ],
     target_log_line = "'Boot completed in \\d+ ms'",
     timeout_seconds = 300,
