@@ -146,6 +146,9 @@ class HypervisorServiceImpl final : public HypervisorServiceBase {
     };
 
     void PopulateVmState(::android::emulation::v2::VmState* state) const;
+    ::grpc::Status ResetVmInternal(::android::emulation::v2::VmState* response);
+    ::grpc::Status FindSnapshotEntry(std::string_view snapshot_id,
+                                     ::android::goldfish::VmOperations::SnapshotEntry* out_entry) const;
     void BuildVmState(::android::goldfish::EmuRunState run_state,
                       const ::android::goldfish::VmOperations::SnapshotProgress& snap_progress,
                       ::android::emulation::v2::VmState* state) const;
