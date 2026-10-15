@@ -1033,6 +1033,18 @@ void cpuUsageCurrentThread_macImpl(uint64_t* user, uint64_t* sys);
 void System::DisableAppNap() {
 #ifdef __APPLE__
     disableAppNap_macImpl();
+#elif defined(_WIN32)
+    PROCESS_POWER_THROTTLING_STATE power_throttling = {};
+    power_throttling.Version = PROCESS_POWER_THROTTLING_CURRENT_VERSION;
+    power_throttling.ControlMask = PROCESS_POWER_THROTTLING_EXECUTION_SPEED;
+    power_throttling.StateMask = 0;
+
+    if (!SetProcessInformation(GetCurrentProcess(), ProcessPowerThrottling, &power_throttling,
+                               sizeof(power_throttling))) {
+        const DWORD err = GetLastError();
+        LOG(WARNING) << "Failed to disable power throttling: " << Win32Utils::getErrorString(err)
+                     << " (error " << err << ")";
+    }
 #endif
 }
 
