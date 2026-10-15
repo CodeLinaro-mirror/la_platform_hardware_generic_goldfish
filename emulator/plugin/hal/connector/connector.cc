@@ -124,7 +124,9 @@ std::pair<bool, PlugPtr> Connector::SwitchTo(const bool is_qemud, const std::str
             PlugPtr new_plug = de->factory(std::move(socket_), ping_topic_, args);
             auto& new_plug_ref = *new_plug;
             PlugPtr self = socket.SwitchPlug(std::move(new_plug));
-            new_plug_ref.OnReceive(unconsumed, unconsumed_size);
+            if (unconsumed_size > 0) {
+                new_plug_ref.OnReceive(unconsumed, unconsumed_size);
+            }
             return {true, std::move(self)};
         }
     }

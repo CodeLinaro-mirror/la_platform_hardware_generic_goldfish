@@ -252,9 +252,6 @@ TEST(ConnectorRegistryConcurrencyTest, UnplugDuringSetupRaceIsHandledSafely) {
     //    post the onConnect task to the client loop.
     //.   Note: The adapter will have been switched from a Connector to our Adapter.
     EXPECT_TRUE(connector->OnReceive(createDeviceCmd.data(), createDeviceCmd.size()));
-
-    //.   Our connector will forward our "empty" arguments to the adapter.
-    EXPECT_CALL(*mockHalPlug, OnReceive("")).Times(1);
     EXPECT_TRUE(factoryCalled);
 
     //.   Creation takes place on QEMU loop, so no tasks are created, if we would
@@ -272,17 +269,15 @@ TEST(ConnectorRegistryConcurrencyTest, UnplugDuringSetupRaceIsHandledSafely) {
     // The onUnplug call should have posted an onClose task to the client
     // AND a close/unplug task to the qemuLoop, because the socket was valid.
 
-    // Note we have 3 tasks!
-    // 1. The extra parameters from our connector ("")
-    // 2. The onConnect call, actually became alive
-    // 3. The onClose call
-    ASSERT_EQ(client_loop->TaskCount(), 3);
+    // Note we have 2 tasks!
+    // 1. The onConnect call, actually became alive
+    // 2. The onClose call
+    ASSERT_EQ(client_loop->TaskCount(), 2);
     ASSERT_EQ(qemu_loop->TaskCount(), 1);
 
     //    Step E: Now, let the client loop run. It should process onConnect
     //    first, then onClose.
     EXPECT_CALL(*mockHalPlug, OnConnect()).Times(1);
-    client_loop->RunOne();  // parameter delivery
     client_loop->RunOne();  // onConnect runs
     client_loop->RunOne();  // onClose runs
 
