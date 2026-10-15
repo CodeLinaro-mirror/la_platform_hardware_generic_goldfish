@@ -11,10 +11,12 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-#include <fstream>
 #include <iostream>
 #include <memory>
 #include <string>
+#include <string_view>
+#include <utility>
+#include <vector>
 
 #include "absl/flags/flag.h"
 #include "absl/flags/parse.h"
@@ -30,6 +32,7 @@
 #include "api/audio_codecs/builtin_audio_decoder_factory.h"
 #include "api/audio_codecs/builtin_audio_encoder_factory.h"
 #include "core/grpc_input_sender.h"
+#include "goldfish/file/file.h"
 #include "goldfish/videobridge/codec_factories.h"
 #include "goldfish/videobridge/emulator_client.h"
 #include "goldfish/videobridge/media_track_provider.h"
@@ -68,6 +71,34 @@ using ::android::emulation::control::StaticTokenAuth;
 
 namespace {
 
+void PrintVideoCodecs(std::string_view heading,
+                      const std::vector<webrtc::SdpVideoFormat>& formats) {
+    std::cout << "[" << heading << "]\n";
+    if (formats.empty()) {
+        std::cout << "  None found.\n\n";
+        return;
+    }
+    for (const auto& format : formats) {
+        std::cout << "  - Codec: " << format.name << "\n";
+        for (const auto& param : format.parameters) {
+            std::cout << "      " << param.first << " = " << param.second << "\n";
+        }
+    }
+    std::cout << "\n";
+}
+
+void PrintAudioCodecs(std::string_view heading, const std::vector<webrtc::AudioCodecSpec>& specs) {
+    std::cout << "[" << heading << "]\n";
+    if (specs.empty()) {
+        std::cout << "  None found.\n";
+        return;
+    }
+    for (const auto& spec : specs) {
+        std::cout << "  - Codec: " << spec.format.name << " (Channels: " << spec.info.num_channels
+                  << ", Sample Rate: " << spec.info.sample_rate_hz << "Hz)\n";
+    }
+}
+
 void ListCodecs() {
     std::cout << "==========================================\n";
     std::cout << "  WebRTC Host Capabilities                \n";
@@ -78,75 +109,27 @@ void ListCodecs() {
     std::unique_ptr<webrtc::VideoDecoderFactory> video_decoder_factory =
             CreatePlatformVideoDecoderFactory();
 
-    std::vector<webrtc::SdpVideoFormat> video_encoders =
-            video_encoder_factory->GetSupportedFormats();
-    std::cout << "[Video Encoders (Preference Order)]\n";
-    if (video_encoders.empty()) {
-        std::cout << "  None found.\n";
-    } else {
-        for (const auto& format : video_encoders) {
-            std::cout << "  - Codec: " << format.name << "\n";
-            for (const auto& param : format.parameters) {
-                std::cout << "      " << param.first << " = " << param.second << "\n";
-            }
-        }
-    }
-    std::cout << "\n";
-
-    std::vector<webrtc::SdpVideoFormat> video_decoders =
-            video_decoder_factory->GetSupportedFormats();
-    std::cout << "[Video Decoders]\n";
-    if (video_decoders.empty()) {
-        std::cout << "  None found.\n";
-    } else {
-        for (const auto& format : video_decoders) {
-            std::cout << "  - Codec: " << format.name << "\n";
-            for (const auto& param : format.parameters) {
-                std::cout << "      " << param.first << " = " << param.second << "\n";
-            }
-        }
-    }
-    std::cout << "\n";
+    PrintVideoCodecs("Video Encoders (Preference Order)",
+                     video_encoder_factory->GetSupportedFormats());
+    PrintVideoCodecs("Video Decoders", video_decoder_factory->GetSupportedFormats());
 
     auto audio_encoder_factory = ::webrtc::CreateBuiltinAudioEncoderFactory();
-    std::vector<webrtc::AudioCodecSpec> audio_encoders =
-            audio_encoder_factory->GetSupportedEncoders();
-    std::cout << "[Audio Encoders]\n";
-    if (audio_encoders.empty()) {
-        std::cout << "  None found.\n";
-    } else {
-        for (const auto& spec : audio_encoders) {
-            std::cout << "  - Codec: " << spec.format.name
-                      << " (Channels: " << spec.info.num_channels
-                      << ", Sample Rate: " << spec.info.sample_rate_hz << "Hz)\n";
-        }
-    }
+    PrintAudioCodecs("Audio Encoders", audio_encoder_factory->GetSupportedEncoders());
     std::cout << "\n";
 
     auto audio_decoder_factory = ::webrtc::CreateBuiltinAudioDecoderFactory();
-    std::vector<webrtc::AudioCodecSpec> audio_decoders =
-            audio_decoder_factory->GetSupportedDecoders();
-    std::cout << "[Audio Decoders]\n";
-    if (audio_decoders.empty()) {
-        std::cout << "  None found.\n";
-    } else {
-        for (const auto& spec : audio_decoders) {
-            std::cout << "  - Codec: " << spec.format.name
-                      << " (Channels: " << spec.info.num_channels
-                      << ", Sample Rate: " << spec.info.sample_rate_hz << "Hz)\n";
-        }
-    }
+    PrintAudioCodecs("Audio Decoders", audio_decoder_factory->GetSupportedDecoders());
     std::cout << "==========================================\n";
 }
 
 std::string ReadFile(const std::string& path) {
     if (path.empty()) return "";
-    std::ifstream stream(path);
-    if (!stream) {
-        LOG(ERROR) << "Failed to read file: " << path;
+    auto content = android::base::file::read_whole_file(path, /*binary=*/false);
+    if (!content.ok()) {
+        LOG(ERROR) << "Failed to read file " << path << ": " << content.status();
         return "";
     }
-    return {std::istreambuf_iterator<char>(stream), std::istreambuf_iterator<char>()};
+    return std::move(*content);
 }
 
 std::shared_ptr<::grpc::ServerCredentials> BuildCredentials() {
