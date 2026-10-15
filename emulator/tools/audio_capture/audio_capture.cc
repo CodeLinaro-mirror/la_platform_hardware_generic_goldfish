@@ -53,7 +53,6 @@ using ::android::emulation::control::AudioPacket;
 using ::android::emulation::control::BlockingEmulatorGrpcClient;
 using ::android::emulation::control::EmulatorController;
 using ::android::emulation::control::EmulatorGrpcClientBuilder;
-using ::android::emulation::remote::Endpoint;
 using ::android::emulation::tools::WavWriter;
 
 std::atomic<bool> g_stop{false};
@@ -64,24 +63,9 @@ void HandleSignal(int /*signal*/) {
 
 absl::StatusOr<std::unique_ptr<BlockingEmulatorGrpcClient>> CreateClient(
         const std::string& address, const std::string& token, const std::string& discovery_file) {
-    EmulatorGrpcClientBuilder builder;
-
-    if (!address.empty()) {
-        Endpoint endpoint;
-        endpoint.set_target(address);
-        if (!token.empty()) {
-            auto* header = endpoint.add_required_headers();
-            header->set_key("authorization");
-            header->set_value("Bearer " + token);
-        }
-        builder.WithEndpoint(endpoint);
-    } else if (!discovery_file.empty()) {
-        builder.WithDiscoveryFile(discovery_file);
-    } else {
-        builder.ForDiscoveredEmulator({});
-    }
-
-    auto client = builder.BuildBlocking();
+    auto client = EmulatorGrpcClientBuilder()
+                          .WithTargetOrDiscovery(address, token, discovery_file)
+                          .BuildBlocking();
     if (!client.ok()) {
         return client.status();
     }

@@ -61,27 +61,12 @@ namespace {
 
 using ::android::emulation::control::EmulatorGrpcClientBuilder;
 using ::android::emulation::control::GrpcChannelFactory;
-using ::android::emulation::remote::Endpoint;
 
 absl::StatusOr<std::pair<std::string, std::shared_ptr<grpc::Channel>>> ResolveGrpcTargetAndChannel(
         const std::string& target, const std::string& token, const std::string& discovery_file) {
-    EmulatorGrpcClientBuilder builder;
-    if (!target.empty()) {
-        Endpoint endpoint;
-        endpoint.set_target(target);
-        if (!token.empty()) {
-            auto* header = endpoint.add_required_headers();
-            header->set_key("authorization");
-            header->set_value("Bearer " + token);
-        }
-        builder.WithEndpoint(endpoint);
-    } else if (!discovery_file.empty()) {
-        builder.WithDiscoveryFile(discovery_file);
-    } else {
-        builder.ForDiscoveredEmulator({});
-    }
-
-    auto client = builder.BuildBlocking();
+    auto client = EmulatorGrpcClientBuilder()
+                          .WithTargetOrDiscovery(target, token, discovery_file)
+                          .BuildBlocking();
     if (!client.ok()) {
         return client.status();
     }

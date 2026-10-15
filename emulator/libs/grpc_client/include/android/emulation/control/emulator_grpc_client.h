@@ -19,6 +19,7 @@
 #include <filesystem>
 #include <future>
 #include <memory>
+#include <string_view>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -323,6 +324,25 @@ class EmulatorGrpcClientBuilder {
      * @endcode
      */
     EmulatorGrpcClientBuilder& WithEndpoint(const Endpoint& endpoint);
+
+    /**
+     * @brief Configures the client from an explicit target address (with optional
+     * bearer token), falling back to a discovery file or auto-discovered emulator.
+     *
+     * Resolution order:
+     * 1. If @p target is non-empty, connects to @p target (attaching @p token as
+     *    a Bearer authorization header when non-empty).
+     * 2. Otherwise, if @p discovery_file is non-empty, loads @p discovery_file.
+     * 3. Otherwise, discovers the first running emulator via `ForDiscoveredEmulator({})`.
+     *
+     * @param target Optional gRPC target address (e.g., "localhost:8554").
+     * @param token Optional authentication token attached as a Bearer header.
+     * @param discovery_file Optional path to an emulator discovery `.ini` file.
+     * @return A reference to the builder for chaining.
+     */
+    EmulatorGrpcClientBuilder& WithTargetOrDiscovery(
+            std::string_view target, std::string_view token = "",
+            const std::filesystem::path& discovery_file = {});
     /**
      * @brief Adds a gRPC interceptor to the client.
      *
