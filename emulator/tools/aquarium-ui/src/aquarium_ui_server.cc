@@ -14,8 +14,9 @@
 
 #include "goldfish/aquarium/aquarium_ui_server.h"
 
-#include <fstream>
-#include <sstream>
+#include <string>
+#include <string_view>
+#include <utility>
 #include <vector>
 
 #include "absl/status/statusor.h"
@@ -23,8 +24,10 @@
 #include "absl/strings/str_cat.h"
 
 #include "android/base/bazel_info.h"
+#include "android/base/system.h"
 #include "android/emulation/control/emulator_grpc_client.h"
 #include "android/emulation/control/grpc_channel_factory.h"
+#include "goldfish/file/file.h"
 #include "goldfish/http/http_response.h"
 #include "goldfish/network/endpoint.h"
 
@@ -74,23 +77,29 @@ fs::path LocateStaticDir(const std::string& custom_dir) {
     }
 
     // 2. Development & fallback lookup candidates
-    std::vector<fs::path> candidates;
+    constexpr std::string_view kDefaultRelDir =
+            "hardware/generic/goldfish/emulator/ui/aquarium/dist";
+    constexpr std::string_view kRelativeCandidates[] = {
+        kDefaultRelDir,
+        "emulator/ui/aquarium/dist",
+        "hardware/generic/goldfish/emulator/ui/aquarium",
+        "emulator/ui/aquarium",
+    };
 
-    const char* bwd = std::getenv("BUILD_WORKING_DIRECTORY");
-    if (bwd && *bwd) {
-        fs::path ws(bwd);
-        candidates.push_back(ws / "hardware/generic/goldfish/emulator/ui/aquarium/dist");
-        candidates.push_back(ws / "emulator/ui/aquarium/dist");
-        candidates.push_back(ws / "hardware/generic/goldfish/emulator/ui/aquarium");
-        candidates.push_back(ws / "emulator/ui/aquarium");
+    std::vector<fs::path> candidates;
+    const std::string bwd = android::base::System::Get()->EnvGet("BUILD_WORKING_DIRECTORY");
+    if (!bwd.empty()) {
+        const fs::path ws(bwd);
+        for (std::string_view rel : kRelativeCandidates) {
+            candidates.push_back(ws / rel);
+        }
     }
 
-    candidates.push_back("hardware/generic/goldfish/emulator/ui/aquarium/dist");
-    candidates.push_back("emulator/ui/aquarium/dist");
-    candidates.push_back("../emulator/ui/aquarium/dist");
-    candidates.push_back("hardware/generic/goldfish/emulator/ui/aquarium");
-    candidates.push_back("emulator/ui/aquarium");
-    candidates.push_back("../emulator/ui/aquarium");
+    for (std::string_view rel : kRelativeCandidates) {
+        candidates.emplace_back(rel);
+    }
+    candidates.emplace_back("../emulator/ui/aquarium/dist");
+    candidates.emplace_back("../emulator/ui/aquarium");
 
     for (const auto& candidate : candidates) {
         if (fs::exists(candidate) && fs::exists(candidate / "index.html")) {
@@ -98,10 +107,10 @@ fs::path LocateStaticDir(const std::string& custom_dir) {
         }
     }
 
-    if (bwd && *bwd) {
-        return fs::path(bwd) / "hardware/generic/goldfish/emulator/ui/aquarium/dist";
+    if (!bwd.empty()) {
+        return fs::path(bwd) / kDefaultRelDir;
     }
-    return "hardware/generic/goldfish/emulator/ui/aquarium/dist";
+    return fs::path(kDefaultRelDir);
 }
 
 goldfish::http::HttpResponse ServeStaticFile(const fs::path& base_dir, std::string_view req_path) {
@@ -140,19 +149,15 @@ goldfish::http::HttpResponse ServeStaticFile(const fs::path& base_dir, std::stri
         }
     }
 
-    std::ifstream file(file_path, std::ios::binary);
-    if (!file.is_open()) {
+    auto content = android::base::file::read_whole_file(file_path, /*binary=*/true);
+    if (!content.ok()) {
         return goldfish::http::HttpResponse::String(
                 "500 Internal Server Error", goldfish::http::HttpStatus::kInternalServerError);
     }
 
-    std::ostringstream ss;
-    ss << file.rdbuf();
-    std::string content = ss.str();
-
     std::string_view mime_type = GetMimeType(file_path.string());
-    return goldfish::http::HttpResponse::String(std::move(content), goldfish::http::HttpStatus::kOk,
-                                                mime_type)
+    return goldfish::http::HttpResponse::String(std::move(*content),
+                                                goldfish::http::HttpStatus::kOk, mime_type)
             .WithHeader("cache-control", "no-cache");
 }
 
