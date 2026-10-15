@@ -25,9 +25,11 @@ cc_library(
     hdrs = ["include/goldfish/aquarium/aquarium_ui_server.h"],
     includes = ["include"],
     deps = [
+        "//emulator/libs/file",
         "//emulator/libs/grpc_client",
         "//emulator/libs/http:http_messages",
         "//emulator/libs/network",
+        "//emulator/libs/system",
         "//emulator/libs/system:bazel_info",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
