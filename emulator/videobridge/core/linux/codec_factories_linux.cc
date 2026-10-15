@@ -11,12 +11,13 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-#include <cstdlib>
+#include <algorithm>
 #include <memory>
 #include <string>
 #include <utility>
 #include <vector>
 
+#include "android/base/system.h"
 #include "goldfish/videobridge/codec_factories.h"
 
 #pragma clang diagnostic push
@@ -50,35 +51,11 @@ class CompositeVideoEncoderFactory : public webrtc::VideoEncoderFactory {
         std::vector<webrtc::SdpVideoFormat> formats;
         for (const auto& hw_factory : hardware_factories_) {
             if (hw_factory) {
-                auto hw_formats = hw_factory->GetSupportedFormats();
-                for (const auto& hw_fmt : hw_formats) {
-                    bool already_present = false;
-                    for (const auto& fmt : formats) {
-                        if (fmt.IsSameCodec(hw_fmt)) {
-                            already_present = true;
-                            break;
-                        }
-                    }
-                    if (!already_present) {
-                        formats.push_back(hw_fmt);
-                    }
-                }
+                AppendUniqueFormats(hw_factory->GetSupportedFormats(), formats);
             }
         }
         if (software_factory_) {
-            auto sw_formats = software_factory_->GetSupportedFormats();
-            for (const auto& sw_fmt : sw_formats) {
-                bool already_present = false;
-                for (const auto& fmt : formats) {
-                    if (fmt.IsSameCodec(sw_fmt)) {
-                        already_present = true;
-                        break;
-                    }
-                }
-                if (!already_present) {
-                    formats.push_back(sw_fmt);
-                }
-            }
+            AppendUniqueFormats(software_factory_->GetSupportedFormats(), formats);
         }
         return formats;
     }
@@ -105,6 +82,19 @@ class CompositeVideoEncoderFactory : public webrtc::VideoEncoderFactory {
     }
 
   private:
+    static void AppendUniqueFormats(const std::vector<webrtc::SdpVideoFormat>& candidates,
+                                    std::vector<webrtc::SdpVideoFormat>& formats) {
+        for (const auto& candidate : candidates) {
+            bool already_present = std::any_of(formats.begin(), formats.end(),
+                                               [&](const webrtc::SdpVideoFormat& fmt) {
+                                                   return fmt.IsSameCodec(candidate);
+                                               });
+            if (!already_present) {
+                formats.push_back(candidate);
+            }
+        }
+    }
+
     std::vector<std::unique_ptr<webrtc::VideoEncoderFactory>> hardware_factories_;
     std::unique_ptr<webrtc::VideoEncoderFactory> software_factory_;
 };
@@ -114,8 +104,8 @@ class CompositeVideoEncoderFactory : public webrtc::VideoEncoderFactory {
 std::unique_ptr<webrtc::VideoEncoderFactory> CreatePlatformVideoEncoderFactory() {
     std::vector<std::unique_ptr<webrtc::VideoEncoderFactory>> hardware_factories;
 
-    const char* encoder_env = std::getenv("ANDROID_EMU_VIDEO_ENCODER");
-    std::string override_backend = encoder_env ? absl::AsciiStrToLower(encoder_env) : "";
+    const std::string override_backend = absl::AsciiStrToLower(
+            android::base::System::Get()->EnvGet("ANDROID_EMU_VIDEO_ENCODER"));
 
     auto try_add_nvenc = [&]() {
         auto nvenc_factory = NvencVideoEncoderFactory::Create();
