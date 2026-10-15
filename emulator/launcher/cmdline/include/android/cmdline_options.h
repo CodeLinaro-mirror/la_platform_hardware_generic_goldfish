@@ -21,10 +21,10 @@
 #define OPT_FLAG_HIDDEN OPT_FLAG
 #endif
 #ifndef OPT_FLAG_OBSOLETE
-#define OPT_FLAG_OBSOLETE(name) OPT_FLAG(name, "obsolete, ignored")
+#define OPT_FLAG_OBSOLETE(name)
 #endif
 #ifndef OPT_PARAM_OBSOLETE
-#define OPT_PARAM_OBSOLETE(name, tmpl) OPT_PARAM(name, tmpl, "obsolete, ignored")
+#define OPT_PARAM_OBSOLETE(name, tmpl)
 #endif
 
 /* Some options acts like flags, while others must be followed by a parameter
