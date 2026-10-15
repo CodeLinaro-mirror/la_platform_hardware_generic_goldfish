@@ -273,10 +273,11 @@ std::vector<std::string> GpuDevice::getQemuParameters(const EmulatorConfig& emul
     params.push_back("hostmem=4096M");
     params.push_back(gfxstream_backends);
     params.push_back("x-gfxstream-composer=on");
-    params.push_back(absl::StrCat("renderer_features=", renderer_features));
+    params.push_back(absl::StrCat("renderer_features=", EscapeQemuOptionValue(renderer_features)));
     if (mSnapshotDevice.is_enabled()) {
         auto snapshot_directory = emulator.avd().GetContentPath() / "renderersave" / "";
-        params.push_back(absl::StrCat("snapshot_directory=", snapshot_directory.string()));
+        params.push_back(absl::StrCat("snapshot_directory=",
+                                      EscapeQemuOptionValue(snapshot_directory.string())));
     }
 
     size_t width;

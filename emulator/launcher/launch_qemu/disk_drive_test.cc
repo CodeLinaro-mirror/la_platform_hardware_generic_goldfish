@@ -25,6 +25,7 @@
 #include "android/base/testing/test_system.h"
 #include "android/status/status_matcher_macros.h"
 #include "fake_emulator.h"
+#include "goldfish/file/file.h"
 
 using ::absl_testing::IsOk;
 using ::absl_testing::StatusIs;
@@ -120,6 +121,28 @@ TEST(RoDrive, MissingImage) {
     EXPECT_THAT(dev.initialize(emu.config()), StatusIs(absl::StatusCode::kInvalidArgument));
 }
 
+TEST(RoDrive, EscapesCommasInImagePath) {
+    base::TestSystem sys("");
+    auto image_dir = sys.GetTempRoot()->Path() / "dir,with,comma";
+    ASSERT_OK(base::file::mkdir_recursive(image_dir, 0755));
+    auto image_file = image_dir / "disk,image.img";
+    ASSERT_OK(base::file::touch(image_file));
+
+    FakeEmulator emu;
+    EXPECT_CALL(emu.mock_avd(), Arch()).WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
+
+    RoDrive dev("system", "03.0", image_file);
+    EXPECT_OK(dev.initialize(emu.config()));
+    EXPECT_THAT(
+            dev.getQemuParameters(emu.config()),
+            testing::ElementsAre(
+                    testing::Eq("-device"), testing::Eq("virtio-blk-pci,addr=03.0,drive=system"),
+                    testing::Eq("-blockdev"),
+                    testing::Eq(absl::StrCat("driver=raw,node-name=system,read-only=on,"
+                                             "file.driver=file,file.filename=",
+                                             Device::EscapeQemuOptionValue(image_file.string())))));
+}
+
 TEST(WritableImgDrive, Basic_x86) {
     base::TestSystem sys("");
     auto launcher_path = sys.GetTempRoot()->Path();
@@ -178,6 +201,31 @@ TEST(WritableImgDrive, CreatesQcow2OverlayWhenMissing) {
     WritableImgDrive dev("userdata", "04.0", userData, qcow2Image);
     EXPECT_OK(dev.initialize(emu.config()));
     EXPECT_TRUE(base::file::exists(qcow2Image));
+}
+
+TEST(WritableImgDrive, EscapesCommasInQcow2ImagePath) {
+    base::TestSystem sys("");
+    auto image_dir = sys.GetTempRoot()->Path() / "dir,with,comma";
+    ASSERT_OK(base::file::mkdir_recursive(image_dir, 0755));
+    auto userData = image_dir / "userdata,base.img";
+    auto qcow2Image = image_dir / "userdata,overlay.img.qcow2";
+    ASSERT_OK(base::file::touch(userData));
+    ASSERT_OK(base::file::touch(qcow2Image));
+
+    FakeEmulator emu;
+    EXPECT_CALL(emu.mock_avd(), Arch()).WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
+
+    WritableImgDrive dev("userdata", "04.0", userData, qcow2Image);
+    EXPECT_OK(dev.initialize(emu.config()));
+    EXPECT_THAT(
+            dev.getQemuParameters(emu.config()),
+            testing::ElementsAre(
+                    "-device", "virtio-blk-pci,addr=04.0,drive=userdata,write-cache=on",
+                    "-blockdev",
+                    absl::StrCat("driver=qcow2,node-name=userdata,file.driver=file,file.filename=",
+                                 Device::EscapeQemuOptionValue(qcow2Image.string()),
+                                 ",overlap-check=none,cache.direct=off,cache.no-flush=on,l2-"
+                                 "cache-size=1048576")));
 }
 
 TEST(BlankWritableDrive, Basic_x86) {

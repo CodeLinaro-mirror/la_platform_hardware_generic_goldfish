@@ -659,6 +659,35 @@ TEST_F(LauncherTest, RespectsNoSnapshotUpdateTimeFlag) {
     trigger.join();
 }
 
+TEST_F(LauncherTest, EscapesCommasInLogcatOutputAndAvdName) {
+    char logcat_output[] = "/tmp/log,cat.txt";
+    opts.logcat_output = logcat_output;
+    auto avd = CreateMockAvd();
+    EXPECT_CALL(*avd, Name()).WillRepeatedly(Return("test,avd"));
+
+    EXPECT_CALL(*mock_socket_factory, CreateServer(_, IsPort(5554), _, _))
+            .Times(2)
+            .WillRepeatedly(Return(std::make_shared<MockAsyncSocketServer>()));
+
+    absl::Notification launched;
+    ::goldfish::async::ProcessLauncher::ExitCallback emulator_exit_cb;
+
+    auto config_matcher = testing::AllOf(
+            testing::Field(&::goldfish::async::LaunchConfig::exe_path, ExpectedQemuBinary()),
+            testing::Field(
+                    &::goldfish::async::LaunchConfig::args,
+                    testing::AllOf(testing::Contains("test,,avd,debug-threads=on"),
+                                   testing::Contains("file,id=forhvc1,path=/tmp/log,,cat.txt"))));
+
+    ExpectEmulatorLaunch(launched, emulator_exit_cb, nullptr, config_matcher);
+
+    std::thread trigger = TriggerEmulatorExit(launched, emulator_exit_cb);
+
+    RunLauncher(std::move(avd));
+
+    trigger.join();
+}
+
 TEST_F(LauncherTest, ShutsDownDirectlyWhenNoEmulatorProcess) {
     auto avd = CreateMockAvd();
 
