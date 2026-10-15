@@ -650,6 +650,11 @@ std::pair<AndroidHyperVStatus, std::string> GetHyperVStatus() {
 #ifndef _WIN32
     // this was easy
     return std::make_pair(ANDROID_HYPERV_ABSENT, "Hyper-V runs only on Windows");
+#elif defined(__aarch64__) || defined(_M_ARM64) || defined(__arm64__)  // Windows ARM
+    // There is no "cpuid" for Windows ARM to check Hyper-V. However, according
+    // to Windows ARM devices (X Elite processors) experience, Hyper-V is always
+    // on.
+    return std::make_pair(ANDROID_HYPERV_RUNNING, "Hyper-V is enabled");
 #else  // _WIN32
     char vendor_id[16];
     android_get_x86_cpuid_vmhost_vendor_id(vendor_id, sizeof(vendor_id));
