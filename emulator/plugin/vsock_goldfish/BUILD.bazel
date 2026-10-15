@@ -92,8 +92,8 @@ cc_test(
     deps = [
         ":goldfish_vsock_hdrs",
         ":vsock_core",
+        "//emulator/libs/test:googletest_main",
         "//emulator/plugin/hal/connector:cable",
-        "@googletest//:gtest_main",
         "@qemu//:qemu-headers-exported",
     ],
 )
