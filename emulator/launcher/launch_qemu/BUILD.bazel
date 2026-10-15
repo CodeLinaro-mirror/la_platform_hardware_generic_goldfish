@@ -583,6 +583,7 @@ cc_library(
         "//emulator/libs/metrics:snapshot_metrics",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/strings",
+        "@gfxstream//host:gfxstream_backend_headers",
     ],
 )
 

@@ -64,7 +64,7 @@ TEST_F(SnapshotDeviceTest, ColdBootWhenSnapshotVersionMissing) {
 }
 
 TEST_F(SnapshotDeviceTest, WarmBootWhenSnapshotVersionMatches) {
-    WriteSnapshotVersion(1);
+    WriteSnapshotVersion(kSnapshotVersion);
 
     FakeEmulator emu;
     EXPECT_CALL(emu.mock_avd(), GetContentPath()).WillRepeatedly(Return(temp_dir_.Path()));
@@ -80,7 +80,7 @@ TEST_F(SnapshotDeviceTest, WarmBootWhenSnapshotVersionMatches) {
 }
 
 TEST_F(SnapshotDeviceTest, NoSnapshotDisablesLoadAndSaveViaCmdline) {
-    WriteSnapshotVersion(1);
+    WriteSnapshotVersion(kSnapshotVersion);
 
     AndroidOptions opts{};
     opts.no_snapshot = true;
@@ -97,7 +97,7 @@ TEST_F(SnapshotDeviceTest, NoSnapshotDisablesLoadAndSaveViaCmdline) {
 }
 
 TEST_F(SnapshotDeviceTest, NoSnapshotLoadSkipsLoadViaCmdline) {
-    WriteSnapshotVersion(1);
+    WriteSnapshotVersion(kSnapshotVersion);
 
     AndroidOptions opts{};
     opts.no_snapshot_load = true;
@@ -115,7 +115,7 @@ TEST_F(SnapshotDeviceTest, NoSnapshotLoadSkipsLoadViaCmdline) {
 }
 
 TEST_F(SnapshotDeviceTest, NoSnapstorageSkipsLoadViaCmdline) {
-    WriteSnapshotVersion(1);
+    WriteSnapshotVersion(kSnapshotVersion);
 
     AndroidOptions opts{};
     opts.no_snapstorage = true;
@@ -133,7 +133,7 @@ TEST_F(SnapshotDeviceTest, NoSnapstorageSkipsLoadViaCmdline) {
 }
 
 TEST_F(SnapshotDeviceTest, NoSnapshotSaveDisablesSaveViaCmdline) {
-    WriteSnapshotVersion(1);
+    WriteSnapshotVersion(kSnapshotVersion);
 
     AndroidOptions opts{};
     opts.no_snapshot_save = true;
@@ -151,7 +151,7 @@ TEST_F(SnapshotDeviceTest, NoSnapshotSaveDisablesSaveViaCmdline) {
 }
 
 TEST_F(SnapshotDeviceTest, ForceColdBootSkipsLoadAndSaveViaAvd) {
-    WriteSnapshotVersion(1);
+    WriteSnapshotVersion(kSnapshotVersion);
     hw_.fastboot_forceColdBoot = true;
 
     FakeEmulator emu;
@@ -167,7 +167,23 @@ TEST_F(SnapshotDeviceTest, ForceColdBootSkipsLoadAndSaveViaAvd) {
 }
 
 TEST_F(SnapshotDeviceTest, ColdBootWhenSnapshotVersionMismatches) {
-    WriteSnapshotVersion(0);
+    WriteSnapshotVersion(1);
+
+    FakeEmulator emu;
+    EXPECT_CALL(emu.mock_avd(), GetContentPath()).WillRepeatedly(Return(temp_dir_.Path()));
+    EXPECT_CALL(emu.mock_avd(), Hw()).WillRepeatedly(ReturnRef(hw_));
+
+    SnapshotDevice dev;
+    EXPECT_OK(dev.initialize(emu.config()));
+    EXPECT_EQ(dev.load_status(), SnapshotDevice::LoadStatus::kSkippedOldSnapshot);
+    EXPECT_EQ(dev.save_status(), SnapshotDevice::SaveStatus::kSaving);
+    EXPECT_TRUE(dev.is_enabled());
+    EXPECT_THAT(dev.getQemuParameters(emu.config()),
+                ElementsAre(Eq("-savevm"), Eq("default_boot")));
+}
+
+TEST_F(SnapshotDeviceTest, ColdBootWhenGfxstreamSnapshotVersionMismatches) {
+    WriteSnapshotVersion(((kGfxstreamSnapshotVersion - 1) << 16) | kSnapshotVersionBase);
 
     FakeEmulator emu;
     EXPECT_CALL(emu.mock_avd(), GetContentPath()).WillRepeatedly(Return(temp_dir_.Path()));

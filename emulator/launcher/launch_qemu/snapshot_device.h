@@ -18,8 +18,43 @@
 
 #include "device.h"
 #include "goldfish/metrics/snapshot_metrics.h"
+#include "render-utils/snapshot_operations.h"
 
 namespace android::goldfish {
+
+// Snapshot version stored in <snapshot_dir>/version.txt and checked in
+// SnapshotDevice::initialize() before launching QEMU (to decide whether to
+// pass -loadvm). Layout of the 32-bit value:
+//
+//   [30..16]  gfxstream framebuffer snapshot version
+//             (gfxstream::kFramebufferSnapshotVersion, 15 bits; bit 31 is
+//             left clear so the value is a positive int32)
+//   [15.. 0]  kSnapshotVersionBase, the emulator's own format version (16 bits)
+//
+// Folding the gfxstream version in here means that whenever gfxstream changes
+// its framebuffer stream format, snapshots written with the previous format
+// are rejected up front and the emulator falls back to a cold boot instead of
+// failing inside FrameBuffer::onLoad() after guest RAM and device state have
+// already been restored.
+//
+// Bump kSnapshotVersionBase for incompatible changes on the goldfish side
+// (e.g. VMState or hardware-properties.ini layout changes).
+// History:
+//   1 -> 2: hardware-properties.ini retired cachePartition/useQcow2 fields
+//           (b/573413085) and folded gfxstream::kFramebufferSnapshotVersion
+//           into bits [30..16].
+inline constexpr int kSnapshotVersionBase = 2;
+static_assert(kSnapshotVersionBase > 0 && kSnapshotVersionBase < (1 << 16),
+              "Base snapshot version does not fit in 16 bits.");
+
+inline constexpr int kGfxstreamSnapshotVersion =
+        static_cast<int>(gfxstream::kFramebufferSnapshotVersion);
+static_assert(kGfxstreamSnapshotVersion > 0 && kGfxstreamSnapshotVersion < (1 << 15),
+              "gfxstream framebuffer snapshot version does not fit in 15 bits.");
+
+inline constexpr int kSnapshotVersion =
+        (kGfxstreamSnapshotVersion << 16) | kSnapshotVersionBase;
+static_assert(kSnapshotVersion > 0, "Snapshot version must be a positive int32.");
 
 // Handles QEMU snapshot command line parameters
 class SnapshotDevice : public Device {
