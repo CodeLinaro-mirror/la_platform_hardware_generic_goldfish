@@ -26,6 +26,8 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
 
+#include "android/base/system.h"
+
 namespace goldfish::videobridge {
 
 namespace {
@@ -126,9 +128,9 @@ absl::StatusOr<std::unique_ptr<VaapiLoader>> VaapiLoader::Create(
         va_paths.push_back(custom_library_path);
     }
 
-    const char* env_path = std::getenv("LIBVA_PATH");
-    if (env_path && *env_path) {
-        va_paths.push_back(env_path);
+    if (std::string env_path = android::base::System::Get()->EnvGet("LIBVA_PATH");
+        !env_path.empty()) {
+        va_paths.push_back(std::move(env_path));
     }
 
     va_paths.insert(va_paths.end(), {
@@ -150,9 +152,10 @@ absl::StatusOr<std::unique_ptr<VaapiLoader>> VaapiLoader::Create(
         "/dev/dri/card0",      "/dev/dri/card1",
     };
 
-    const char* existing_driver_env = std::getenv("LIBVA_DRIVER_NAME");
+    const std::string existing_driver_env =
+            android::base::System::Get()->EnvGet("LIBVA_DRIVER_NAME");
     std::vector<const char*> candidate_drivers = {nullptr};
-    if (!existing_driver_env || !*existing_driver_env) {
+    if (existing_driver_env.empty()) {
         candidate_drivers.push_back("iHD");
         candidate_drivers.push_back("i965");
         candidate_drivers.push_back("radeonsi");
@@ -233,7 +236,7 @@ absl::StatusOr<std::unique_ptr<VaapiLoader>> VaapiLoader::Create(
                 for (const char* drv_name : candidate_drivers) {
                     if (drv_name) {
                         setenv("LIBVA_DRIVER_NAME", drv_name, 1);
-                    } else if (!existing_driver_env) {
+                    } else if (existing_driver_env.empty()) {
                         unsetenv("LIBVA_DRIVER_NAME");
                     }
 
@@ -265,7 +268,7 @@ absl::StatusOr<std::unique_ptr<VaapiLoader>> VaapiLoader::Create(
                                                          fd, display, fn_list);
                 }
             }
-            if (!existing_driver_env) {
+            if (existing_driver_env.empty()) {
                 unsetenv("LIBVA_DRIVER_NAME");
             }
         }
