@@ -43,6 +43,9 @@ class CStrWrapper {
     // Returns a null-terminated char*, potentially creating a copy to add a
     // null terminator.
     const char* get() {
+        if (mStringView.empty()) {
+            return "";
+        }
         if (mStringView.back() == '\0') {
             return mStringView.data();
         } else {
