@@ -172,6 +172,42 @@ TEST_F(HypervisorServiceTest, VmLifecycleStateAndControl) {
             absl::StrContains(stop_status.error_message(), "Cannot shut down VM during snapshot"));
 }
 
+TEST_F(HypervisorServiceTest, StopVmRejectsUnsupportedMode) {
+    StopVmRequest stop_req;
+    stop_req.set_mode(static_cast<StopVmRequest::Mode>(99));
+    VmState state;
+    ServerContext stop_ctx;
+    const Status status = hypervisor_service_->StopVm(&stop_ctx, &stop_req, &state);
+    EXPECT_EQ(status.error_code(), StatusCode::INVALID_ARGUMENT);
+    EXPECT_EQ(vm_operations_.shutdown_count, 0);
+}
+
+TEST_F(HypervisorServiceTest, StopVmTerminateKillsProcessImmediately) {
+    GTEST_FLAG_SET(death_test_style, "threadsafe");
+    vm_operations_.SetRunState(EmuRunState::SaveVm);
+
+    StopVmRequest stop_req;
+    stop_req.set_mode(StopVmRequest::TERMINATE);
+    stop_req.set_reason("Integration test bailout");
+    VmState state;
+    ServerContext stop_ctx;
+    EXPECT_DEATH_IF_SUPPORTED((void)hypervisor_service_->StopVm(&stop_ctx, &stop_req, &state),
+                              "Integration test bailout");
+}
+
+TEST_F(HypervisorServiceTest, StopVmCrashGeneratesCrashWithReason) {
+    GTEST_FLAG_SET(death_test_style, "threadsafe");
+    vm_operations_.SetRunState(EmuRunState::SaveVm);
+
+    StopVmRequest stop_req;
+    stop_req.set_mode(StopVmRequest::CRASH);
+    stop_req.set_reason("Integration test hang detected");
+    VmState state;
+    ServerContext stop_ctx;
+    EXPECT_DEATH_IF_SUPPORTED((void)hypervisor_service_->StopVm(&stop_ctx, &stop_req, &state),
+                              "Integration test hang detected");
+}
+
 TEST_F(HypervisorServiceTest, CreateGetUpdateListAndRestoreSnapshot) {
     CreateSnapshotRequest create_req;
     create_req.set_snapshot_id("pre_login");

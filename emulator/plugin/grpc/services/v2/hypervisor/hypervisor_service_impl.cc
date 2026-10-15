@@ -30,8 +30,10 @@
 #include "absl/time/time.h"
 #include "google/protobuf/timestamp.pb.h"
 
+#include "android/crashreport/crash_reporter.h"
 #include "android/emulation/control/absl_status_translate.h"
 #include "android/emulation/control/grpc_event_stream_support.h"
+#include "android/process/process.h"
 
 namespace goldfish::grpc::v2 {
 
@@ -392,17 +394,45 @@ Status HypervisorServiceImpl::HardResetVm(ServerContext* /*context*/,
 
 Status HypervisorServiceImpl::StopVm(ServerContext* /*context*/, const StopVmRequest* request,
                                      VmState* response) {
-    if (request != nullptr && request->save_quickboot_snapshot()) {
-        LOG(WARNING) << "save_quickboot_snapshot is currently unimplemented; relying on "
-                        "QEMU default shutdown lifecycle.";
+    const StopVmRequest::Mode mode =
+            request != nullptr ? request->mode() : StopVmRequest::MODE_UNSPECIFIED;
+    const std::string_view reason =
+            request != nullptr ? std::string_view(request->reason()) : std::string_view{};
+
+    switch (mode) {
+    case StopVmRequest::MODE_UNSPECIFIED:
+    case StopVmRequest::GRACEFUL:
+        if (request != nullptr && request->save_quickboot_snapshot()) {
+            LOG(WARNING) << "save_quickboot_snapshot is currently unimplemented; relying on "
+                            "QEMU default shutdown lifecycle.";
+        }
+        if (const absl::Status status = vm_operations_.Shutdown(); !status.ok()) {
+            return AbslStatusToGrpcStatus(status);
+        }
+        shutting_down_.store(true, std::memory_order_release);
+        PopulateVmState(response);
+        vm_state_events_.FireEvent(*response);
+        return Status::OK;
+
+    case StopVmRequest::TERMINATE:
+        LOG(ERROR) << "Received request to terminate the emulator process immediately"
+                   << (reason.empty() ? "" : absl::StrCat(" (reason: ", reason, ")"))
+                   << ". No cleanup will be performed.";
+        ::android::base::Process::Me()->Terminate();
+        return Status::OK;
+
+    case StopVmRequest::CRASH: {
+        const std::string_view crash_reason =
+                reason.empty() ? "Crash requested via HypervisorService.StopVm" : reason;
+        LOG(ERROR) << "Received request to crash the emulator process: " << crash_reason;
+        ::android::crashreport::CrashReporter::Get().Die(crash_reason);
+        return Status::OK;
     }
-    if (const absl::Status status = vm_operations_.Shutdown(); !status.ok()) {
-        return AbslStatusToGrpcStatus(status);
+
+    default:
+        return {StatusCode::INVALID_ARGUMENT,
+                absl::StrCat("Unsupported StopVmRequest.Mode: ", static_cast<int>(mode))};
     }
-    shutting_down_.store(true, std::memory_order_release);
-    PopulateVmState(response);
-    vm_state_events_.FireEvent(*response);
-    return Status::OK;
 }
 
 void HypervisorServiceImpl::PopulateSnapshotProto(const VmOperations::SnapshotEntry& entry,
