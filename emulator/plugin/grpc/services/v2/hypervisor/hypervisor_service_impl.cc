@@ -289,15 +289,12 @@ void HypervisorServiceImpl::BuildVmState(EmuRunState run_state,
     }
 
     if (snapshot_in_progress &&
-        snap_progress.operation == VmOperations::SnapshotOperationType::Save) {
-        state->set_state(is_shutting_down ? VmState::SHUTTING_DOWN : VmState::SAVING_SNAPSHOT);
-        const std::string snapshot_id =
-                snap_progress.snapshot_id.empty() ? "default_boot" : snap_progress.snapshot_id;
-        *state->mutable_snapshot_progress() =
-                MakeOperationMetadataFromProgress(snapshot_id, snap_progress, /*done=*/false);
-    } else if (snapshot_in_progress &&
-               snap_progress.operation == VmOperations::SnapshotOperationType::Load) {
-        state->set_state(VmState::RESTORING_SNAPSHOT);
+        (snap_progress.operation == VmOperations::SnapshotOperationType::Save ||
+         snap_progress.operation == VmOperations::SnapshotOperationType::Load)) {
+        const bool is_save = snap_progress.operation == VmOperations::SnapshotOperationType::Save;
+        state->set_state(is_save ? (is_shutting_down ? VmState::SHUTTING_DOWN
+                                                     : VmState::SAVING_SNAPSHOT)
+                                 : VmState::RESTORING_SNAPSHOT);
         const std::string snapshot_id =
                 snap_progress.snapshot_id.empty() ? "default_boot" : snap_progress.snapshot_id;
         *state->mutable_snapshot_progress() =
@@ -369,8 +366,7 @@ Status HypervisorServiceImpl::ResumeVm(ServerContext* /*context*/,
     return Status::OK;
 }
 
-Status HypervisorServiceImpl::ResetVm(ServerContext* /*context*/, const ResetVmRequest* /*request*/,
-                                      VmState* response) {
+Status HypervisorServiceImpl::ResetVmInternal(VmState* response) {
     if (const absl::Status status = vm_operations_.Reset(); !status.ok()) {
         return AbslStatusToGrpcStatus(status);
     }
@@ -379,15 +375,15 @@ Status HypervisorServiceImpl::ResetVm(ServerContext* /*context*/, const ResetVmR
     return Status::OK;
 }
 
+Status HypervisorServiceImpl::ResetVm(ServerContext* /*context*/, const ResetVmRequest* /*request*/,
+                                      VmState* response) {
+    return ResetVmInternal(response);
+}
+
 Status HypervisorServiceImpl::HardResetVm(ServerContext* /*context*/,
                                           const HardResetVmRequest* /*request*/,
                                           VmState* response) {
-    if (const absl::Status status = vm_operations_.Reset(); !status.ok()) {
-        return AbslStatusToGrpcStatus(status);
-    }
-    shutting_down_.store(false, std::memory_order_release);
-    PopulateVmState(response);
-    return Status::OK;
+    return ResetVmInternal(response);
 }
 
 Status HypervisorServiceImpl::StopVm(ServerContext* /*context*/, const StopVmRequest* request,
@@ -451,16 +447,16 @@ Status HypervisorServiceImpl::ListSnapshots(ServerContext* /*context*/,
     return AbslStatusToGrpcStatus(status);
 }
 
-Status HypervisorServiceImpl::GetSnapshot(ServerContext* /*context*/,
-                                          const GetSnapshotRequest* request, Snapshot* response) {
-    if (request->snapshot_id().empty()) {
+Status HypervisorServiceImpl::FindSnapshotEntry(
+        std::string_view snapshot_id, VmOperations::SnapshotEntry* out_entry) const {
+    if (snapshot_id.empty()) {
         return {StatusCode::INVALID_ARGUMENT, "snapshot_id cannot be empty."};
     }
 
     std::optional<VmOperations::SnapshotEntry> found;
     const absl::Status status =
             vm_operations_.ListSnapshots([&](VmOperations::SnapshotEntry entry) {
-                if (entry.name == request->snapshot_id()) {
+                if (entry.name == snapshot_id) {
                     found = std::move(entry);
                 }
             });
@@ -468,34 +464,31 @@ Status HypervisorServiceImpl::GetSnapshot(ServerContext* /*context*/,
         return AbslStatusToGrpcStatus(status);
     }
     if (!found.has_value()) {
-        return {StatusCode::NOT_FOUND,
-                absl::StrCat("Snapshot not found: ", request->snapshot_id())};
+        return {StatusCode::NOT_FOUND, absl::StrCat("Snapshot not found: ", snapshot_id)};
+    }
+    if (out_entry != nullptr) {
+        *out_entry = std::move(*found);
+    }
+    return Status::OK;
+}
+
+Status HypervisorServiceImpl::GetSnapshot(ServerContext* /*context*/,
+                                          const GetSnapshotRequest* request, Snapshot* response) {
+    VmOperations::SnapshotEntry found;
+    if (const Status status = FindSnapshotEntry(request->snapshot_id(), &found); !status.ok()) {
+        return status;
     }
 
-    PopulateSnapshotProto(*found, response);
+    PopulateSnapshotProto(found, response);
     return Status::OK;
 }
 
 Status HypervisorServiceImpl::UpdateSnapshot(ServerContext* /*context*/,
                                              const UpdateSnapshotRequest* request,
                                              Snapshot* response) {
-    if (request->snapshot_id().empty()) {
-        return {StatusCode::INVALID_ARGUMENT, "snapshot_id cannot be empty."};
-    }
-
-    std::optional<VmOperations::SnapshotEntry> found;
-    const absl::Status status =
-            vm_operations_.ListSnapshots([&](VmOperations::SnapshotEntry entry) {
-                if (entry.name == request->snapshot_id()) {
-                    found = std::move(entry);
-                }
-            });
-    if (!status.ok()) {
-        return AbslStatusToGrpcStatus(status);
-    }
-    if (!found.has_value()) {
-        return {StatusCode::NOT_FOUND,
-                absl::StrCat("Snapshot not found: ", request->snapshot_id())};
+    VmOperations::SnapshotEntry found;
+    if (const Status status = FindSnapshotEntry(request->snapshot_id(), &found); !status.ok()) {
+        return status;
     }
 
     {
@@ -509,7 +502,7 @@ Status HypervisorServiceImpl::UpdateSnapshot(ServerContext* /*context*/,
         }
     }
 
-    PopulateSnapshotProto(*found, response);
+    PopulateSnapshotProto(found, response);
     return Status::OK;
 }
 
@@ -597,23 +590,10 @@ Status HypervisorServiceImpl::CreateSnapshot(ServerContext* /*context*/,
 Status HypervisorServiceImpl::RestoreSnapshot(ServerContext* /*context*/,
                                               const RestoreSnapshotRequest* request,
                                               Operation* response) {
-    if (request->snapshot_id().empty()) {
-        return {StatusCode::INVALID_ARGUMENT, "snapshot_id cannot be empty."};
-    }
-
-    std::optional<VmOperations::SnapshotEntry> target_entry;
-    const absl::Status list_status =
-            vm_operations_.ListSnapshots([&](VmOperations::SnapshotEntry entry) {
-                if (entry.name == request->snapshot_id()) {
-                    target_entry = std::move(entry);
-                }
-            });
-    if (!list_status.ok()) {
-        return AbslStatusToGrpcStatus(list_status);
-    }
-    if (!target_entry.has_value()) {
-        return {StatusCode::NOT_FOUND,
-                absl::StrCat("Snapshot not found: ", request->snapshot_id())};
+    VmOperations::SnapshotEntry target_entry;
+    if (const Status status = FindSnapshotEntry(request->snapshot_id(), &target_entry);
+        !status.ok()) {
+        return status;
     }
 
     const SnapshotOperationMetadata initial_meta =
@@ -654,7 +634,7 @@ Status HypervisorServiceImpl::RestoreSnapshot(ServerContext* /*context*/,
     }
 
     Snapshot snapshot_proto;
-    PopulateSnapshotProto(*target_entry, &snapshot_proto);
+    PopulateSnapshotProto(target_entry, &snapshot_proto);
 
     const SnapshotOperationMetadata final_meta = MakeOperationMetadataFromProgress(
             request->snapshot_id(), matches_progress ? progress : VmOperations::SnapshotProgress{},
@@ -694,19 +674,8 @@ Status HypervisorServiceImpl::SetQuickbootTarget(ServerContext* /*context*/,
         return Status::OK;
     }
 
-    bool exists = false;
-    const absl::Status status =
-            vm_operations_.ListSnapshots([&](VmOperations::SnapshotEntry entry) {
-                if (entry.name == request->snapshot_id()) {
-                    exists = true;
-                }
-            });
-    if (!status.ok()) {
-        return AbslStatusToGrpcStatus(status);
-    }
-    if (!exists) {
-        return {StatusCode::NOT_FOUND,
-                absl::StrCat("Snapshot not found: ", request->snapshot_id())};
+    if (const Status status = FindSnapshotEntry(request->snapshot_id(), nullptr); !status.ok()) {
+        return status;
     }
 
     absl::MutexLock state_lock(&state_mutex_);
