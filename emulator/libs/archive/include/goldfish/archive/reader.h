@@ -38,7 +38,8 @@ absl::Status ReadValue(IReader& r, T& dst) {
 }
 
 template <std::unsigned_integral T>
-    requires(!std::same_as<T, size_t> && !std::same_as<T, uint8_t> && !std::same_as<T, bool>)
+    requires(!std::same_as<T, size_t> && !std::same_as<T, uint8_t> && !std::same_as<T, bool> &&
+             !std::same_as<T, char>)
 absl::Status ReadValue(IReader& r, T& dst) {
     size_t val;
     if (const absl::Status s = ReadValue(r, val); !s.ok()) {
