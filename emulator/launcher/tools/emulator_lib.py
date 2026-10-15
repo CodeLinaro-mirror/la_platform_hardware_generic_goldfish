@@ -209,22 +209,28 @@ class EmulatorLocator:
             else [self.abi_selection]
         )
 
+        repo_prefixes = ["android", "android16k"] + [
+            f"sysimg-android-{api}" for api in range(37, 28, -1)
+        ]
+
         for abi in abis:
-            for page_size in ["", "16k"]:
-                minigbm_abi_dir = f"{page_size}-{abi}"
+            for prefix in repo_prefixes:
+                repo_name = f"{prefix}-{abi}"
                 try:
                     source_prop_path = self.r.Rlocation(
-                        f"android{minigbm_abi_dir}/{abi}/source.properties"
+                        f"{repo_name}/{abi}/source.properties"
                     )
                     if source_prop_path:
                         system_image_dir = Path(source_prop_path).parent
                         if system_image_dir.exists():
-                            logging.info("--- Selected ABI: %s ---", abi)
+                            logging.info(
+                                "--- Selected ABI: %s (%s) ---", abi, repo_name
+                            )
                             self.abi = abi
                             self.system_image_dir = system_image_dir
                             return
                 except Exception:
-                    logging.info("Attempt to use %s, failed", abi)
+                    logging.info("Attempt to use %s, failed", repo_name)
 
         raise FileNotFoundError("Could not find a valid system image directory.")
 
