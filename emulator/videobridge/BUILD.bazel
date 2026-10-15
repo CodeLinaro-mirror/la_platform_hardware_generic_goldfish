@@ -53,6 +53,7 @@ cc_binary_with_manifest(
         ":grpc_media_providers",
         ":rtc_service",
         ":videobridge_codecs",
+        ":videobridge_core",
         "//emulator/libs/file",
         "//emulator/libs/grpc_security",
         "//emulator/plugin/grpc/services/v2:rtc_service",

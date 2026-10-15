@@ -13,14 +13,18 @@
 // limitations under the License.
 #pragma once
 
+#include <string_view>
+
 namespace goldfish::videobridge {
 
 /**
- * @brief Configures WebRTC logging to redirect all stdout/stderr log output to VLOG.
+ * @brief Configures WebRTC logging to redirect stdout/stderr log output to Abseil logging.
  *
  * Disables WebRTC's default direct-to-stderr/stdout printing and routes messages
- * to Abseil VLOG(1) and VLOG(2).
+ * to Abseil VLOG/LOG at the requested minimum severity ("verbose", "info",
+ * "warning", "error", or "none"). If called without an explicit level after
+ * already being initialized, the existing configuration is preserved.
  */
-void ConfigureWebRtcLogging();
+void ConfigureWebRtcLogging(std::string_view level = "");
 
 }  // namespace goldfish::videobridge

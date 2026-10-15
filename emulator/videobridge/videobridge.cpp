@@ -38,9 +38,9 @@
 #include "goldfish/videobridge/media_track_provider.h"
 #include "goldfish/videobridge/rtc_service.h"
 #include "goldfish/videobridge/switchboard.h"
+#include "goldfish/videobridge/webrtc_logging.h"
 #include "media/grpc_audio_source.h"
 #include "media/grpc_video_source.h"
-#include "rtc_base/logging.h"
 #include "webrtc/rtc_service_impl.h"
 
 ABSL_FLAG(std::string, webrtc_log_level, "none",
@@ -175,60 +175,6 @@ std::shared_ptr<::grpc::ServerCredentials> BuildCredentials() {
     }
 
     return creds;
-}
-
-class AbseilLogSink : public webrtc::LogSink {
-  public:
-    void OnLogMessage(const std::string& message) override {
-        std::string_view msg = message;
-        if (!msg.empty() && msg.back() == '\n') {
-            msg.remove_suffix(1);
-        }
-    }
-
-    void OnLogMessage(const std::string& message, webrtc::LoggingSeverity severity) override {
-        std::string_view msg = message;
-        if (!msg.empty() && msg.back() == '\n') {
-            msg.remove_suffix(1);
-        }
-        switch (severity) {
-        case webrtc::LS_VERBOSE:
-            VLOG(2) << "[WebRTC] " << msg;
-            break;
-        case webrtc::LS_INFO:
-            VLOG(1) << "[WebRTC] " << msg;
-            break;
-        case webrtc::LS_WARNING:
-            LOG(WARNING) << "[WebRTC] " << msg;
-            break;
-        case webrtc::LS_ERROR:
-            LOG(ERROR) << "[WebRTC] " << msg;
-            break;
-        default:
-            break;
-        }
-    }
-};
-
-AbseilLogSink g_abseil_log_sink;
-
-void ConfigureWebRtcLogging(const std::string& level) {
-    webrtc::LoggingSeverity min_sev = webrtc::LS_WARNING;
-    if (level == "verbose") {
-        min_sev = webrtc::LS_VERBOSE;
-    } else if (level == "info") {
-        min_sev = webrtc::LS_INFO;
-    } else if (level == "warning") {
-        min_sev = webrtc::LS_WARNING;
-    } else if (level == "error") {
-        min_sev = webrtc::LS_ERROR;
-    } else if (level == "none") {
-        min_sev = webrtc::LS_NONE;
-    }
-
-    webrtc::LogMessage::LogToDebug(webrtc::LS_NONE);
-    webrtc::LogMessage::SetLogToStderr(false);
-    webrtc::LogMessage::AddLogToStream(&g_abseil_log_sink, min_sev);
 }
 
 std::unique_ptr<InputSender> CreateGrpcInputSenderForLabel(
