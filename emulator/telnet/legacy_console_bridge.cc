@@ -181,6 +181,16 @@ absl::StatusOr<std::string> GetPlatformConfigProperty(LegacyConsoleBridge::Conso
     return absl::InternalError(absl::StrCat(key, " not found in platform config"));
 }
 
+absl::StatusOr<android::emulation::control::VmRunState::RunState> GetVmRunState(
+        LegacyConsoleBridge::ConsoleContext& ctx,
+        android::emulation::control::EmulatorController::StubInterface* stub) {
+    ASSIGN_OR_RETURN(auto context, ctx.NewContext());
+    google::protobuf::Empty request;
+    android::emulation::control::VmRunState response;
+    RETURN_IF_ERROR(GrpcStatusToAbslStatus(stub->getVmState(context.get(), request, &response)));
+    return response.state();
+}
+
 absl::Status SetVmRunState(LegacyConsoleBridge::ConsoleContext& ctx,
                            android::emulation::control::EmulatorController::StubInterface* stub,
                            android::emulation::control::VmRunState::RunState state) {
@@ -260,47 +270,27 @@ LegacyConsoleBridge::LegacyConsoleBridge(int port, std::filesystem::path token_p
     avd.On("stop" /* do_avd_stop */, "stop the virtual device",
            [](ConsoleContext& ctx) -> absl::Status {
                ASSIGN_OR_RETURN(auto stub, ctx.EmulatorControllerStub());
-               ASSIGN_OR_RETURN(auto get_context, ctx.NewContext());
-
-               google::protobuf::Empty get_req;
-               android::emulation::control::VmRunState get_res;
-               RETURN_IF_ERROR(GrpcStatusToAbslStatus(
-                       stub->getVmState(get_context.get(), get_req, &get_res)));
-
-               if (get_res.state() != android::emulation::control::VmRunState::RUNNING) {
+               ASSIGN_OR_RETURN(auto state, GetVmRunState(ctx, stub.get()));
+               if (state != android::emulation::control::VmRunState::RUNNING) {
                    return absl::FailedPreconditionError("virtual device already stopped");
                }
-
                return SetVmRunState(ctx, stub.get(), android::emulation::control::VmRunState::STOP);
            });
     avd.On("start" /* do_avd_start */, "start/restart the virtual device",
            [](ConsoleContext& ctx) -> absl::Status {
                ASSIGN_OR_RETURN(auto stub, ctx.EmulatorControllerStub());
-               ASSIGN_OR_RETURN(auto get_context, ctx.NewContext());
-
-               google::protobuf::Empty get_req;
-               android::emulation::control::VmRunState get_res;
-               RETURN_IF_ERROR(GrpcStatusToAbslStatus(
-                       stub->getVmState(get_context.get(), get_req, &get_res)));
-
-               if (get_res.state() == android::emulation::control::VmRunState::RUNNING) {
+               ASSIGN_OR_RETURN(auto state, GetVmRunState(ctx, stub.get()));
+               if (state == android::emulation::control::VmRunState::RUNNING) {
                    return absl::FailedPreconditionError("virtual device already running");
                }
-
                return SetVmRunState(ctx, stub.get(),
                                     android::emulation::control::VmRunState::START);
            });
     avd.On("status" /* do_avd_status */, "query virtual device status",
            [](ConsoleContext& ctx) -> absl::StatusOr<std::string> {
                ASSIGN_OR_RETURN(auto stub, ctx.EmulatorControllerStub());
-               ASSIGN_OR_RETURN(auto context, ctx.NewContext());
-
-               google::protobuf::Empty request;
-               android::emulation::control::VmRunState response;
-               RETURN_IF_ERROR(
-                       GrpcStatusToAbslStatus(stub->getVmState(context.get(), request, &response)));
-
-               if (response.state() == android::emulation::control::VmRunState::RUNNING) {
+               ASSIGN_OR_RETURN(auto state, GetVmRunState(ctx, stub.get()));
+               if (state == android::emulation::control::VmRunState::RUNNING) {
                    return "virtual device is running";
                }
                return "virtual device is stopped";
@@ -945,7 +935,8 @@ LegacyConsoleBridge::LegacyConsoleBridge(int port, std::filesystem::path token_p
         {"acceleration-uncalibrated", {}, 17, 6},
     };
 
-    auto find_sensor = [](std::string_view name) -> const SensorDefinition* {
+    auto find_sensor_or_error =
+            [](std::string_view name) -> absl::StatusOr<const SensorDefinition*> {
         for (const auto& def : kSupportedSensors) {
             if (absl::EqualsIgnoreCase(def.name, name)) {
                 return &def;
@@ -956,7 +947,8 @@ LegacyConsoleBridge::LegacyConsoleBridge(int port, std::filesystem::path token_p
                 }
             }
         }
-        return nullptr;
+        return absl::NotFoundError(absl::StrFormat(
+                "unknown sensor name: %s, run 'sensor status' to get available sensors.", name));
     };
 
     auto sensor = builder.Command("sensor", "manage emulator sensors");
@@ -984,18 +976,13 @@ LegacyConsoleBridge::LegacyConsoleBridge(int port, std::filesystem::path token_p
 
     sensor.On("get" /* do_sensors_get */, "get sensor values",
               "'get <sensorname>' get the values of a given sensor.\r\n",
-              [find_sensor](ConsoleContext& ctx,
-                            std::optional<std::string> sensor_name) -> absl::StatusOr<std::string> {
+              [find_sensor_or_error](
+                      ConsoleContext& ctx,
+                      std::optional<std::string> sensor_name) -> absl::StatusOr<std::string> {
                   if (!sensor_name || sensor_name->empty()) {
                       return absl::InvalidArgumentError("Usage: \"get <sensorname>\"");
                   }
-                  const auto* def = find_sensor(*sensor_name);
-                  if (!def) {
-                      return absl::NotFoundError(absl::StrFormat(
-                              "unknown sensor name: %s, run 'sensor status' to get available "
-                              "sensors.",
-                              *sensor_name));
-                  }
+                  ASSIGN_OR_RETURN(const auto* def, find_sensor_or_error(*sensor_name));
                   ASSIGN_OR_RETURN(auto stub, ctx.EmulatorControllerStub());
                   ASSIGN_OR_RETURN(auto context, ctx.NewContext());
                   android::emulation::control::SensorValue request;
@@ -1020,7 +1007,7 @@ LegacyConsoleBridge::LegacyConsoleBridge(int port, std::filesystem::path token_p
             "set" /* do_sensors_set */, "set sensor values",
             "'set <sensorname> <value-a>[:<value-b>[:<value-c>[...]]]' set the values of a given "
             "sensor.\r\n",
-            [find_sensor](
+            [find_sensor_or_error](
                     ConsoleContext& ctx, std::optional<std::string> sensor_name,
                     std::optional<goldfish::parsing::SensorValues> parsed_values) -> absl::Status {
                 if (!sensor_name || sensor_name->empty() || !parsed_values ||
@@ -1028,13 +1015,7 @@ LegacyConsoleBridge::LegacyConsoleBridge(int port, std::filesystem::path token_p
                     return absl::InvalidArgumentError(
                             "Usage: \"set <sensorname> <value-a>[:<value-b>[:<value-c>]]\"");
                 }
-                const auto* def = find_sensor(*sensor_name);
-                if (!def) {
-                    return absl::NotFoundError(absl::StrFormat(
-                            "unknown sensor name: %s, run 'sensor status' to get available "
-                            "sensors.",
-                            *sensor_name));
-                }
+                ASSIGN_OR_RETURN(const auto* def, find_sensor_or_error(*sensor_name));
 
                 ASSIGN_OR_RETURN(auto stub, ctx.EmulatorControllerStub());
                 ASSIGN_OR_RETURN(auto context, ctx.NewContext());
@@ -1082,95 +1063,92 @@ LegacyConsoleBridge::LegacyConsoleBridge(int port, std::filesystem::path token_p
               [send_fingerprint](ConsoleContext& ctx) { return send_fingerprint(ctx, false); });
 
     // --- Multi-display Commands ---
+    auto update_secondary_displays =
+            [](ConsoleContext& ctx,
+               std::function<absl::Status(
+                       const android::emulation::control::DisplayConfigurations&,
+                       android::emulation::control::DisplayConfigurations&)> mutator)
+            -> absl::Status {
+        ASSIGN_OR_RETURN(auto stub, ctx.EmulatorControllerStub());
+        ASSIGN_OR_RETURN(auto context, ctx.NewContext());
+
+        google::protobuf::Empty empty_req;
+        android::emulation::control::DisplayConfigurations current_configs;
+        RETURN_IF_ERROR(GrpcStatusToAbslStatus(
+                stub->getDisplayConfigurations(context.get(), empty_req, &current_configs)));
+
+        android::emulation::control::DisplayConfigurations new_configs;
+        RETURN_IF_ERROR(mutator(current_configs, new_configs));
+
+        ASSIGN_OR_RETURN(auto set_context, ctx.NewContext());
+        android::emulation::control::DisplayConfigurations reply;
+        return GrpcStatusToAbslStatus(
+                stub->setDisplayConfigurations(set_context.get(), new_configs, &reply));
+    };
+
     auto multidisplay = builder.Command("multidisplay", "configure the multi-display");
     multidisplay.On(
             "add" /* do_multi_display_add */, "add new or modify existing display",
-            [](ConsoleContext& ctx, int id, int width, int height, int dpi,
-               int flag) -> absl::Status {
+            [update_secondary_displays](ConsoleContext& ctx, int id, int width, int height, int dpi,
+                                        int flag) -> absl::Status {
                 if (id < 1 || id > 8) {
                     return absl::InvalidArgumentError(
                             "invalid display id; valid ids are from 1 to 8 inclusive");
                 }
-
-                ASSIGN_OR_RETURN(auto stub, ctx.EmulatorControllerStub());
-                ASSIGN_OR_RETURN(auto context, ctx.NewContext());
-
-                google::protobuf::Empty empty_req;
-                android::emulation::control::DisplayConfigurations current_configs;
-                RETURN_IF_ERROR(GrpcStatusToAbslStatus(stub->getDisplayConfigurations(
-                        context.get(), empty_req, &current_configs)));
-
-                android::emulation::control::DisplayConfigurations new_configs;
-                bool updated = false;
-                for (int i = 0; i < current_configs.displays_size(); ++i) {
-                    const auto& disp = current_configs.displays(i);
-                    if (disp.display() == 0) {
-                        continue;  // Display 0 is primary and not included in secondary configs
-                    }
-                    auto* added = new_configs.add_displays();
-                    if (disp.display() == static_cast<uint32_t>(id)) {
-                        added->set_display(id);
-                        added->set_width(width);
-                        added->set_height(height);
-                        added->set_dpi(dpi);
-                        added->set_flags(flag);
-                        updated = true;
-                    } else {
-                        *added = disp;
-                    }
-                }
-                if (!updated) {
-                    auto* added = new_configs.add_displays();
-                    added->set_display(id);
-                    added->set_width(width);
-                    added->set_height(height);
-                    added->set_dpi(dpi);
-                    added->set_flags(flag);
-                }
-
-                ASSIGN_OR_RETURN(auto set_context, ctx.NewContext());
-                android::emulation::control::DisplayConfigurations reply;
-                return GrpcStatusToAbslStatus(
-                        stub->setDisplayConfigurations(set_context.get(), new_configs, &reply));
+                auto populate_display = [&](android::emulation::control::DisplayConfiguration* d) {
+                    d->set_display(id);
+                    d->set_width(width);
+                    d->set_height(height);
+                    d->set_dpi(dpi);
+                    d->set_flags(flag);
+                };
+                return update_secondary_displays(
+                        ctx, [&](const auto& current_configs, auto& new_configs) -> absl::Status {
+                            bool updated = false;
+                            for (const auto& disp : current_configs.displays()) {
+                                if (disp.display() == 0) {
+                                    continue;  // Display 0 is primary
+                                }
+                                auto* added = new_configs.add_displays();
+                                if (disp.display() == static_cast<uint32_t>(id)) {
+                                    populate_display(added);
+                                    updated = true;
+                                } else {
+                                    *added = disp;
+                                }
+                            }
+                            if (!updated) {
+                                populate_display(new_configs.add_displays());
+                            }
+                            return absl::OkStatus();
+                        });
             });
 
-    multidisplay.On("del" /* do_multi_display_del */, "remove existing display",
-                    [](ConsoleContext& ctx, int id) -> absl::Status {
-                        if (id < 1 || id > 10) {
-                            return absl::InvalidArgumentError("invalid display id");
-                        }
-
-                        ASSIGN_OR_RETURN(auto stub, ctx.EmulatorControllerStub());
-                        ASSIGN_OR_RETURN(auto context, ctx.NewContext());
-
-                        google::protobuf::Empty empty_req;
-                        android::emulation::control::DisplayConfigurations current_configs;
-                        RETURN_IF_ERROR(GrpcStatusToAbslStatus(stub->getDisplayConfigurations(
-                                context.get(), empty_req, &current_configs)));
-
-                        bool found = false;
-                        android::emulation::control::DisplayConfigurations new_configs;
-                        for (int i = 0; i < current_configs.displays_size(); ++i) {
-                            const auto& disp = current_configs.displays(i);
-                            if (disp.display() == 0) {
-                                continue;  // Display 0 is primary
+    multidisplay.On(
+            "del" /* do_multi_display_del */, "remove existing display",
+            [update_secondary_displays](ConsoleContext& ctx, int id) -> absl::Status {
+                if (id < 1 || id > 10) {
+                    return absl::InvalidArgumentError("invalid display id");
+                }
+                return update_secondary_displays(
+                        ctx, [&](const auto& current_configs, auto& new_configs) -> absl::Status {
+                            bool found = false;
+                            for (const auto& disp : current_configs.displays()) {
+                                if (disp.display() == 0) {
+                                    continue;  // Display 0 is primary
+                                }
+                                if (disp.display() == static_cast<uint32_t>(id)) {
+                                    found = true;
+                                } else {
+                                    *new_configs.add_displays() = disp;
+                                }
                             }
-                            if (disp.display() == static_cast<uint32_t>(id)) {
-                                found = true;
-                            } else {
-                                *new_configs.add_displays() = disp;
+                            if (!found) {
+                                return absl::InvalidArgumentError("invalid display id");
                             }
-                        }
-
-                        if (!found) {
-                            return absl::InvalidArgumentError("invalid display id");
-                        }
-
-                        ASSIGN_OR_RETURN(auto set_context, ctx.NewContext());
-                        android::emulation::control::DisplayConfigurations reply;
-                        return GrpcStatusToAbslStatus(stub->setDisplayConfigurations(
-                                set_context.get(), new_configs, &reply));
-                    });
+                            return absl::OkStatus();
+                        });
+            });
     // --- Proxy Commands ---
     auto proxy = builder.Command("proxy", "manage network proxy server settings");
     proxy.On("set" /* do_proxy_set */, "set the proxy server to use",
@@ -1264,42 +1242,33 @@ LegacyConsoleBridge::LegacyConsoleBridge(int port, std::filesystem::path token_p
                            stub->setPhysicalModel(context_set.get(), request, &response));
                });
 
-    auto set_fold = [](ConsoleContext& ctx, bool is_fold) -> absl::Status {
+    auto set_posture = [](ConsoleContext& ctx, float posture_val) -> absl::Status {
         ASSIGN_OR_RETURN(auto stub, ctx.EmulatorControllerStub());
         ASSIGN_OR_RETURN(auto context, ctx.NewContext());
 
         android::emulation::control::PhysicalModelValue request;
         request.set_target(android::emulation::control::PhysicalModelValue::POSTURE);
-        request.mutable_value()->add_data(is_fold ? 1.0f : 3.0f);
+        request.mutable_value()->add_data(posture_val);
         google::protobuf::Empty response;
 
         return GrpcStatusToAbslStatus(stub->setPhysicalModel(context.get(), request, &response));
     };
 
     builder.On("fold" /* do_fold */, "fold the device",
-               [set_fold](ConsoleContext& ctx) { return set_fold(ctx, true); });
+               [set_posture](ConsoleContext& ctx) { return set_posture(ctx, 1.0F); });
     builder.On("unfold" /* do_unfold */, "unfold the device",
-               [set_fold](ConsoleContext& ctx) { return set_fold(ctx, false); });
+               [set_posture](ConsoleContext& ctx) { return set_posture(ctx, 3.0F); });
 
     builder.On("posture" /* do_set_posture */, "set the device posture",
                "Usage: posture <posture_id>\r\n"
                "  1: closed\t2: half-opened\t3: opened\t4: flipped\t5: tent\r\n",
-               [](ConsoleContext& ctx, std::optional<int> posture_val) -> absl::Status {
+               [set_posture](ConsoleContext& ctx, std::optional<int> posture_val) -> absl::Status {
                    if (!posture_val.has_value() || *posture_val < 1 || *posture_val > 5) {
                        return absl::InvalidArgumentError(
                                "Usage: \"posture <posture_id>\" "
                                "1: closed\t2: half-opened\t3: opened\t4: flipped\t5: tent");
                    }
-                   ASSIGN_OR_RETURN(auto stub, ctx.EmulatorControllerStub());
-                   ASSIGN_OR_RETURN(auto context, ctx.NewContext());
-
-                   android::emulation::control::PhysicalModelValue request;
-                   request.set_target(android::emulation::control::PhysicalModelValue::POSTURE);
-                   request.mutable_value()->add_data(static_cast<float>(*posture_val));
-                   google::protobuf::Empty response;
-
-                   return GrpcStatusToAbslStatus(
-                           stub->setPhysicalModel(context.get(), request, &response));
+                   return set_posture(ctx, static_cast<float>(*posture_val));
                });
     builder.Command("icebox", "auto-snapshot on uncaught exceptions")
             .On("track" /* do_icebox_track */,
