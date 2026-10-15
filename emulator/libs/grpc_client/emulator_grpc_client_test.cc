@@ -148,6 +148,27 @@ TEST_F(EmulatorGrpcClientTest, Builder_ValidDiscoveryFile_Succeeds) {
     EXPECT_EQ(client->GetEndpoint().target(), "localhost:8554");
 }
 
+TEST_F(EmulatorGrpcClientTest, Builder_WithTargetOrDiscovery_UsesTargetAndToken) {
+    auto clientOrStatus = EmulatorGrpcClientBuilder()
+                                  .WithTargetOrDiscovery("localhost:9999", "secret-token", "")
+                                  .BuildBlocking();
+    ASSERT_THAT(clientOrStatus, IsOk());
+    const auto& endpoint = (*clientOrStatus)->GetEndpoint();
+    EXPECT_EQ(endpoint.target(), "localhost:9999");
+    ASSERT_EQ(endpoint.required_headers_size(), 1);
+    EXPECT_EQ(endpoint.required_headers(0).key(), "authorization");
+    EXPECT_EQ(endpoint.required_headers(0).value(), "Bearer secret-token");
+}
+
+TEST_F(EmulatorGrpcClientTest, Builder_WithTargetOrDiscovery_FallsBackToDiscoveryFile) {
+    TmpDiscoveryFile tmpFile("grpc.port = 8556");
+    auto clientOrStatus = EmulatorGrpcClientBuilder()
+                                  .WithTargetOrDiscovery("", "", tmpFile.path())
+                                  .BuildBlocking();
+    ASSERT_THAT(clientOrStatus, IsOk());
+    EXPECT_EQ((*clientOrStatus)->GetEndpoint().target(), "localhost:8556");
+}
+
 TEST_F(EmulatorGrpcClientTest, Builder_NonExistentDiscoveryFile_Fails) {
     auto clientOrStatus =
             EmulatorGrpcClientBuilder().WithDiscoveryFile("/no/such/file.ini").BuildBlocking();

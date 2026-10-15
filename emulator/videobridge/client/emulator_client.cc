@@ -31,12 +31,9 @@ EmulatorClient::~EmulatorClient() {
 }
 
 absl::Status EmulatorClient::Connect(absl::Duration timeout) {
-    auto built_client =
-            discovery_file_.empty()
-                    ? EmulatorGrpcClientBuilder().ForDiscoveredEmulator({}).BuildBlocking()
-                    : EmulatorGrpcClientBuilder()
-                              .WithDiscoveryFile(discovery_file_)
-                              .BuildBlocking();
+    auto built_client = EmulatorGrpcClientBuilder()
+                                .WithTargetOrDiscovery("", "", discovery_file_)
+                                .BuildBlocking();
 
     if (!built_client.ok()) {
         LOG(ERROR) << "Failed to build EmulatorGrpcClient: " << built_client.status();

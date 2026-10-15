@@ -255,6 +255,26 @@ EmulatorGrpcClientBuilder& EmulatorGrpcClientBuilder::WithEndpoint(const Endpoin
     return *this;
 }
 
+EmulatorGrpcClientBuilder& EmulatorGrpcClientBuilder::WithTargetOrDiscovery(
+        std::string_view target, std::string_view token,
+        const std::filesystem::path& discovery_file) {
+    if (!status_.ok()) return *this;
+    if (!target.empty()) {
+        Endpoint endpoint;
+        endpoint.set_target(std::string(target));
+        if (!token.empty()) {
+            auto* header = endpoint.add_required_headers();
+            header->set_key(BasicTokenAuth::kDefaultHeader);
+            header->set_value(absl::StrCat("Bearer ", token));
+        }
+        return WithEndpoint(endpoint);
+    }
+    if (!discovery_file.empty()) {
+        return WithDiscoveryFile(discovery_file);
+    }
+    return ForDiscoveredEmulator({});
+}
+
 EmulatorGrpcClientBuilder& EmulatorGrpcClientBuilder::WithInterceptor(
         std::unique_ptr<ClientInterceptorFactoryInterface> factory) {
     if (!status_.ok()) return *this;
