@@ -352,6 +352,12 @@ int main(int argc, char** argv) {
     configureLogging(opts);
     android_log_parse_warnings();
 
+    if (!android::base::System::IsUtf8CodePage()) {
+        LOG(ERROR) << "Active system code page is not UTF-8. The Android Emulator requires "
+                      "Windows 11 or later with UTF-8 code page manifest support; non-ASCII "
+                      "file paths and environment variables may not work correctly.";
+    }
+
 #if defined(__linux__) || defined(__APPLE__)
     constexpr std::string_view kXDG_RUNTIME_DIR_NAME = "XDG_RUNTIME_DIR";
     auto* sys = android::base::System::Get();
