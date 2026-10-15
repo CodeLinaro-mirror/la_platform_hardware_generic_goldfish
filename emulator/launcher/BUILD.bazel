@@ -347,6 +347,7 @@ collect_plugins(
         "@rutabaga_gfx//:rutabaga_ffi",
     ] + select({
         "@platforms//os:macos": ["//emulator/plugin:goldfish_aarch64"],
+        "@goldfish_build//platforms:is_linux_aarch64": ["//emulator/plugin:goldfish_aarch64"],
         "@platforms//os:linux": ["//emulator/plugin:goldfish_x86_64"],
         "@platforms//os:windows": ["//emulator/plugin:goldfish_x86_64"],
         "//conditions:default": [],
@@ -365,6 +366,7 @@ collect_plugins(
             "@mesa3d//:vulkan_kosmickrisp",
             "@mesa3d//:vulkan_lvp",
         ],
+        "@goldfish_build//platforms:is_linux_aarch64": [],
         "@platforms//os:linux": [
             "@goldfish_prebuilts_common//vulkan:icds_linux_x86_64",
             "@goldfish_prebuilts_common//vulkan:lib_linux_x86_64",
@@ -389,6 +391,7 @@ collect_plugins(
         "darwin_aarch64": [
             "@goldfish_prebuilts_common//vulkan:layers_darwin_aarch64",
         ],
+        "@goldfish_build//platforms:is_linux_aarch64": [],
         "@platforms//os:linux": [
             "@goldfish_prebuilts_common//vulkan:layers_linux_x86_64",
         ],
@@ -415,6 +418,7 @@ collect_plugins(
             "@mesa3d//:vulkan_kosmickrisp",
             "@mesa3d//:vulkan_lvp",
         ],
+        "@goldfish_build//platforms:is_linux_aarch64": [],
         "@platforms//os:linux": [
             "@goldfish_prebuilts_common//swiftshader:lib_linux_x86_64",
         ],
@@ -448,6 +452,9 @@ collect_plugins(
             "@goldfish_prebuilts_common//netsim:netsim_cli_darwin_aarch64",
             "@qemu//:qemu-system-aarch64_signed",
         ],
+        "@goldfish_build//platforms:is_linux_aarch64": [
+            "@qemu//:qemu-system-aarch64",
+        ],
         "@platforms//os:linux": [
             "@goldfish_prebuilts_common//netsim:netsim_linux_x86_64",
             "@goldfish_prebuilts_common//netsim:netsim_cli_linux_x86_64",
@@ -464,6 +471,9 @@ collect_plugins(
         "@platforms//os:windows": {
             "@goldfish_prebuilts_common//netsim:netsim_windows_x86_64": "netsimd.exe",
             "@goldfish_prebuilts_common//netsim:netsim_cli_windows_x86_64": "netsim.exe",
+        },
+        "@goldfish_build//platforms:is_linux_aarch64": {
+            "@qemu//:qemu-system-aarch64": "qemu-system-aarch64",
         },
         "@platforms//os:linux": {
             "@goldfish_prebuilts_common//netsim:netsim_linux_x86_64": "netsimd",

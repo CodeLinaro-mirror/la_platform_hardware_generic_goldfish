@@ -348,7 +348,7 @@ absl::StatusOr<Call> ModemSimulatorClient::CreateCall(const Call& call) {
                      SendCallRequest(serverPort_, ModemCallState::INCOMING, call.number));
 
     const absl::MutexLock lock(mtx_);
-    const auto [where, inserted] = calls_.insert({call.number, {}});
+    const auto [where, inserted] = calls_.try_emplace(call.number);
     if (!inserted) {
         return absl::InternalError(
                 absl::StrCat("A call with '", call.number, "' is already in progress."));

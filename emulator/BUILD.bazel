@@ -155,6 +155,9 @@ filegroup(
             "@goldfish_prebuilts_common//netsim:netsim_darwin_aarch64",
             "@qemu//:qemu-system-aarch64_signed",
         ],
+        "@goldfish_build//platforms:is_linux_aarch64": [
+            "@qemu//:qemu-system-aarch64",
+        ],
         "@platforms//os:linux": [
             "@goldfish_prebuilts_common//netsim:netsim_cli_linux_x86_64",
             "@goldfish_prebuilts_common//netsim:netsim_linux_x86_64",
@@ -176,6 +179,7 @@ filegroup(
             "@mesa3d//:vulkan_kosmickrisp",
             "@mesa3d//:vulkan_lvp",
         ],
+        "@goldfish_build//platforms:is_linux_aarch64": [],
         "@platforms//os:linux": [
             "@goldfish_prebuilts_common//swiftshader:lib_linux_x86_64",
         ],
@@ -201,6 +205,7 @@ filegroup(
             "@mesa3d//:vulkan_kosmickrisp",
             "@mesa3d//:vulkan_lvp",
         ],
+        "@goldfish_build//platforms:is_linux_aarch64": [],
         "@platforms//os:linux": [
             "@goldfish_prebuilts_common//vulkan:icds_linux_x86_64",
             "@goldfish_prebuilts_common//vulkan:lib_linux_x86_64",
@@ -229,6 +234,9 @@ filegroup(
         "@platforms//os:macos": [
             "//emulator/plugin:goldfish_aarch64",
         ],
+        "@goldfish_build//platforms:is_linux_aarch64": [
+            "//emulator/plugin:goldfish_aarch64",
+        ],
         "@platforms//os:linux": [
             "//emulator/plugin:goldfish_x86_64",
         ],
@@ -248,10 +256,14 @@ all_binaries = [
     ":launcher_binaries",
     ":qemu_binaries",
     ":plugin_binaries",
-    ":egl_binaries",
-    ":vulkan_binaries",
     ":glib_binaries",
-]
+] + select({
+    "@goldfish_build//platforms:is_linux_aarch64": [],
+    "//conditions:default": [
+        ":egl_binaries",
+        ":vulkan_binaries",
+    ],
+})
 
 generate_notice_file(
     name = "emulator_notice_markdown",
@@ -306,6 +318,9 @@ pkg_files(
             "@qemu//:qemu-system-aarch64_signed": "qemu-system-aarch64",
             "@goldfish_prebuilts_common//netsim:netsim_darwin_aarch64": "netsimd",
             "@goldfish_prebuilts_common//netsim:netsim_cli_darwin_aarch64": "netsim",
+        },
+        "@goldfish_build//platforms:is_linux_aarch64": {
+            "@qemu//:qemu-system-aarch64": "qemu-system-aarch64",
         },
         "@platforms//os:linux": {
             "@qemu//:qemu-system-x86_64": "qemu-system-x86_64",
@@ -553,7 +568,6 @@ pkg_filegroup(
     srcs = [
         ":advanced_features",
         ":data_virtualscene",
-        ":egl_stripped",
         ":emulator-access",
         ":emulator_notice_md",
         ":fishtank_binary",
@@ -565,8 +579,13 @@ pkg_filegroup(
         ":qemu-roms",
         ":qemu_stripped",
         ":source_properties_pkg",
-        ":vulkan_stripped",
     ] + select({
+        "@goldfish_build//platforms:is_linux_aarch64": [],
+        "//conditions:default": [
+            ":egl_stripped",
+            ":vulkan_stripped",
+        ],
+    }) + select({
         ":use_linux_internal_fishtank": [],
         "//conditions:default": [":qtwebengine_binary"],
     }) + select({
@@ -582,7 +601,6 @@ pkg_filegroup(
     name = "emulator-dir-unstripped",
     srcs = [
         ":data_virtualscene",
-        ":egl",
         ":emulator-access",
         ":emulator_notice_md",
         ":glib_dlls",
@@ -592,8 +610,13 @@ pkg_filegroup(
         ":qemu-keymaps",
         ":qemu-roms",
         ":source_properties_pkg",
-        ":vulkan",
     ] + select({
+        "@goldfish_build//platforms:is_linux_aarch64": [],
+        "//conditions:default": [
+            ":egl",
+            ":vulkan",
+        ],
+    }) + select({
         "@platforms//os:windows": [
             ":win-dlls",
         ],

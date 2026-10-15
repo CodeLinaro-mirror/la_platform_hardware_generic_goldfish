@@ -316,7 +316,7 @@ absl::Status touch(const fs::path& path) noexcept {
 }
 
 absl::StatusOr<std::string> read_whole_file(const fs::path& path, bool binary) noexcept {
-    std::ifstream ifs(path, binary ? std::ios::binary : 0);
+    std::ifstream ifs(path, binary ? (std::ios::in | std::ios::binary) : std::ios::in);
     if (ifs.fail()) {
         return absl::UnavailableError(absl::StrCat("failed to open file: ", path.string()));
     }
