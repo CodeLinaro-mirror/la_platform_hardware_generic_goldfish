@@ -47,10 +47,15 @@ class AbseilLogSink : public ::webrtc::LogSink {
             VLOG(2) << "[WebRTC] " << msg;
             break;
         case ::webrtc::LS_INFO:
-        case ::webrtc::LS_WARNING:
-        case ::webrtc::LS_ERROR:
-        default:
             VLOG(1) << "[WebRTC] " << msg;
+            break;
+        case ::webrtc::LS_WARNING:
+            LOG(WARNING) << "[WebRTC] " << msg;
+            break;
+        case ::webrtc::LS_ERROR:
+            LOG(ERROR) << "[WebRTC] " << msg;
+            break;
+        default:
             break;
         }
     }
@@ -58,17 +63,39 @@ class AbseilLogSink : public ::webrtc::LogSink {
 
 AbseilLogSink g_abseil_log_sink;
 
+::webrtc::LoggingSeverity ParseWebRtcLoggingSeverity(std::string_view level) {
+    if (level.empty() || level == "verbose") {
+        return ::webrtc::LS_VERBOSE;
+    }
+    if (level == "info") {
+        return ::webrtc::LS_INFO;
+    }
+    if (level == "warning") {
+        return ::webrtc::LS_WARNING;
+    }
+    if (level == "error") {
+        return ::webrtc::LS_ERROR;
+    }
+    if (level == "none") {
+        return ::webrtc::LS_NONE;
+    }
+    return ::webrtc::LS_WARNING;
+}
+
 }  // namespace
 
-void ConfigureWebRtcLogging() {
+void ConfigureWebRtcLogging(std::string_view level) {
     static bool initialized = false;
-    if (initialized) {
+    if (initialized && level.empty()) {
         return;
+    }
+    if (initialized) {
+        ::webrtc::LogMessage::RemoveLogToStream(&g_abseil_log_sink);
     }
     initialized = true;
     ::webrtc::LogMessage::LogToDebug(::webrtc::LS_NONE);
     ::webrtc::LogMessage::SetLogToStderr(false);
-    ::webrtc::LogMessage::AddLogToStream(&g_abseil_log_sink, ::webrtc::LS_VERBOSE);
+    ::webrtc::LogMessage::AddLogToStream(&g_abseil_log_sink, ParseWebRtcLoggingSeverity(level));
 }
 
 }  // namespace goldfish::videobridge
