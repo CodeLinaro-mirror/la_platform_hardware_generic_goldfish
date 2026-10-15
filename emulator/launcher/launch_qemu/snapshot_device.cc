@@ -24,8 +24,6 @@
 
 namespace android::goldfish {
 
-constexpr int kSnapshotVersion = 1;
-
 absl::Status SnapshotDevice::initialize(const EmulatorConfig& emulator) {
     snapshot_name_ = get_snapshot_name(emulator);
     strict_snapshot_load_ = emulator.opts().strict_snapshot_load;
