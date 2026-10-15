@@ -100,7 +100,7 @@ std::future_status ObservableProcess::WaitFor(
     }
 
     // Then wait for overseer to finish.
-    const absl::MutexLock lk(overseer_mutex_);
+    const absl::MutexLock lk(&overseer_mutex_);
     if (!overseer_active_) {
         return std::future_status::ready;
     }
