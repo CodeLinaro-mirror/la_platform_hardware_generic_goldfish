@@ -12,11 +12,14 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
+        "//emulator/libs/async:async_api",
         "//emulator/plugin/avd_universe:location",
         "//emulator/plugin/hal/connector:connector_registry",
         "//emulator/plugin/hal/connector:qemud",
         "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/strings:str_format",
+        "@abseil-cpp//absl/time",
     ],
     alwayslink = True,
 )
@@ -35,10 +38,11 @@ cc_test(
     visibility = ["//visibility:public"],
     deps = [
         ":gps",
-        "//emulator/libs/system:test-headers",
+        "//emulator/libs/async:async_testing",
         "//emulator/libs/test:googletest_main",
         "//emulator/plugin/hal/connector:test-helpers",
         "//emulator/plugin/hal/plug:fake_vsock",
+        "@abseil-cpp//absl/time",
     ],
 )
 
