@@ -10,13 +10,21 @@ def _unzip_impl(ctx):
     args.add("-o" + root.path)
     args.add_all(["-y", "-bd", "-bso0", "-bsp0"])
 
+    # macOS .framework symlinks cause remote cache prefetch races (b/549452043).
+    # Only enforce no-remote on macOS targets so that cross-compiling for
+    # Windows with a Windows execution platform executes 7za.exe on RBE instead
+    # of failing to execute the PE binary locally on Linux.
+    exec_reqs = {}
+    if ctx.target_platform_has_constraint(ctx.attr._macos_constraint[platform_common.ConstraintValueInfo]):
+        exec_reqs["no-remote"] = "1"
+
     ctx.actions.run(
         outputs = [root],
         inputs = [ctx.file.zipfile],
         arguments = [args],
         mnemonic = "Extracting",
         executable = ctx.executable._zip,
-        execution_requirements = {"no-remote": "1"},
+        execution_requirements = exec_reqs,
     )
 
     return [
@@ -36,6 +44,9 @@ unzip = rule(
             default = Label("@goldfish_build//rules:7za"),
             cfg = "exec",
             executable = True,
+        ),
+        "_macos_constraint": attr.label(
+            default = Label("@platforms//os:macos"),
         ),
     },
 )
