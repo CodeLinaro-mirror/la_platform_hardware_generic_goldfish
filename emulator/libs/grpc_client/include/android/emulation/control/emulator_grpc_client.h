@@ -25,6 +25,7 @@
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "absl/time/time.h"
 #include "grpc_endpoint_description.pb.h"
 
@@ -94,8 +95,9 @@ class EmulatorGrpcClientBase {
     absl::StatusOr<std::unique_ptr<typename T::Stub>> Stub() {
         if (GetConnectionState() != ConnectionState::kConnected) {
             return absl::FailedPreconditionError(
-                    "Client is not connected. Call Connect() or ConnectAsync() "
-                    "first.");
+                    absl::StrCat("gRPC client for '", GetEndpoint().target(),
+                                 "' is not connected. Call Connect() or ConnectAsync() "
+                                 "before creating a service stub."));
         }
         return T::NewStub(GetChannel());
     }

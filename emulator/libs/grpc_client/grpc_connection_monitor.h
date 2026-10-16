@@ -18,6 +18,7 @@
 #include <functional>
 #include <future>
 #include <memory>
+#include <string>
 
 #include "absl/status/status.h"
 #include "absl/time/time.h"
@@ -45,9 +46,11 @@ class GrpcConnectionMonitor {
      * @brief Constructs a new GrpcConnectionMonitor.
      * @param channel The gRPC channel to monitor.
      * @param on_state_change Callback invoked when the connection state changes.
+     * @param target Target address of the channel for diagnostic error messages.
      */
     explicit GrpcConnectionMonitor(const std::shared_ptr<grpc::Channel>& channel,
-                                   StateChangeCallback on_state_change = nullptr);
+                                   StateChangeCallback on_state_change = nullptr,
+                                   std::string target = {});
 
     /**
      * @brief Destructor that stops the monitoring thread.

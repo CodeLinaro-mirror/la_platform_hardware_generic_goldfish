@@ -19,6 +19,7 @@ cc_library(
     deps = [
         "//emulator/libs/discovery:emulator_advertisement",
         "//emulator/libs/eventing",
+        "//emulator/libs/file",
         "//emulator/libs/grpc_security",
         "//emulator/libs/ini_file",
         "//emulator/libs/status_macros",
