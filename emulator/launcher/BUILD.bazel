@@ -341,6 +341,22 @@ selects.config_setting_group(
     ],
 )
 
+selects.config_setting_group(
+    name = "windows_aarch64",
+    match_all = [
+        "@platforms//os:windows",
+        "@platforms//cpu:aarch64",
+    ],
+)
+
+selects.config_setting_group(
+    name = "windows_x86_64",
+    match_all = [
+        "@platforms//os:windows",
+        "@platforms//cpu:x86_64",
+    ],
+)
+
 collect_plugins(
     name = "plugins",
     output_dir = "lib/qemu",
@@ -350,7 +366,8 @@ collect_plugins(
         "@platforms//os:macos": ["//emulator/plugin:goldfish_aarch64"],
         "@goldfish_build//platforms:is_linux_aarch64": ["//emulator/plugin:goldfish_aarch64"],
         "@platforms//os:linux": ["//emulator/plugin:goldfish_x86_64"],
-        "@platforms//os:windows": ["//emulator/plugin:goldfish_x86_64"],
+        ":windows_aarch64": ["//emulator/plugin:goldfish_aarch64"],
+        ":windows_x86_64": ["//emulator/plugin:goldfish_x86_64"],
         "//conditions:default": [],
     }),
 )
@@ -375,7 +392,11 @@ collect_plugins(
             "@mesa3d//:vulkan_lvp",
             "@mesa3d//:generate_lvp_icd",
         ],
-        "@platforms//os:windows": [
+        ":windows_aarch64": [
+            "@goldfish_prebuilts_common//vulkan:icds_windows_aarch64",
+            "@goldfish_prebuilts_common//vulkan:lib_windows_aarch64",
+        ],
+        ":windows_x86_64": [
             "@goldfish_prebuilts_common//vulkan:icds_windows_x86_64",
             "@goldfish_prebuilts_common//vulkan:lib_windows_x86_64",
             "@mesa3d//:generate_lvp_icd",
@@ -396,7 +417,8 @@ collect_plugins(
         "@platforms//os:linux": [
             "@goldfish_prebuilts_common//vulkan:layers_linux_x86_64",
         ],
-        "@platforms//os:windows": [
+        ":windows_aarch64": [],
+        ":windows_x86_64": [
             "@goldfish_prebuilts_common//vulkan:layers_windows_x86_64",
         ],
         "//conditions:default": [],
@@ -423,7 +445,12 @@ collect_plugins(
         "@platforms//os:linux": [
             "@goldfish_prebuilts_common//swiftshader:lib_linux_x86_64",
         ],
-        "@platforms//os:windows": [
+        ":windows_aarch64": [
+            "@goldfish_prebuilts_common//ANGLE:lib_windows_aarch64",
+            "@goldfish_prebuilts_common//vulkan:lib_windows_aarch64",
+            "@goldfish_prebuilts_common//vulkan:icds_windows_aarch64",
+        ],
+        ":windows_x86_64": [
             "@goldfish_prebuilts_common//ANGLE:lib_windows_x86_64",
             "@goldfish_prebuilts_common//vulkan:lib_windows_x86_64",
             "@goldfish_prebuilts_common//vulkan:icds_windows_x86_64",
@@ -443,7 +470,16 @@ collect_plugins(
         "@crashpad//handler:crashpad_handler",
         #"@netsim//:netsimd",
     ] + select({
-        "@platforms//os:windows": [
+        ":windows_aarch64": [
+            # Netsim does not yet provide native Windows ARM64 prebuilts.
+            # Packaging the x86_64 binaries is intended, as netsim runs in a
+            # separate process and is translated by Windows on ARM. Update to
+            # native ARM64 prebuilts once available.
+            "@goldfish_prebuilts_common//netsim:netsim_cli_windows_x86_64",
+            "@goldfish_prebuilts_common//netsim:netsim_windows_x86_64",
+            "@qemu//:qemu-system-aarch64",
+        ],
+        ":windows_x86_64": [
             "@goldfish_prebuilts_common//netsim:netsim_cli_windows_x86_64",
             "@goldfish_prebuilts_common//netsim:netsim_windows_x86_64",
             "@qemu//:qemu-system-x86_64",
@@ -469,7 +505,15 @@ collect_plugins(
             "@goldfish_prebuilts_common//netsim:netsim_darwin_aarch64": "netsimd",
             "@goldfish_prebuilts_common//netsim:netsim_cli_darwin_aarch64": "netsim",
         },
-        "@platforms//os:windows": {
+        ":windows_aarch64": {
+            "@qemu//:qemu-system-aarch64": "qemu-system-aarch64.exe",
+            # Netsim runs as a separate process under Windows on ARM x86_64
+            # emulation until native Windows ARM64 prebuilts are available.
+            "@goldfish_prebuilts_common//netsim:netsim_windows_x86_64": "netsimd.exe",
+            "@goldfish_prebuilts_common//netsim:netsim_cli_windows_x86_64": "netsim.exe",
+        },
+        ":windows_x86_64": {
+            "@qemu//:qemu-system-x86_64": "qemu-system-x86_64.exe",
             "@goldfish_prebuilts_common//netsim:netsim_windows_x86_64": "netsimd.exe",
             "@goldfish_prebuilts_common//netsim:netsim_cli_windows_x86_64": "netsim.exe",
         },
@@ -618,6 +662,12 @@ cc_binary_with_manifest(
     },
     linkopts = select({
         "@platforms//os:macos": ["-undefined error"],
+        "@platforms//os:windows": [
+            "-defaultlib:wbemuuid.lib",
+            "-defaultlib:oleaut32.lib",
+            "-defaultlib:comsuppw.lib",
+            "-defaultlib:ole32.lib",
+        ],
         "//conditions:default": [],
     }),
     visibility = ["//visibility:public"],
