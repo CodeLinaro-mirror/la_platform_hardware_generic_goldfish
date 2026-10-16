@@ -25,6 +25,9 @@ cc_library(
     hdrs = ["include/android/crashreport/debug.h"],
     includes = ["include"],
     visibility = ["//visibility:public"],
+    deps = [
+        "//emulator/libs/file",
+    ],
 )
 
 cc_library(

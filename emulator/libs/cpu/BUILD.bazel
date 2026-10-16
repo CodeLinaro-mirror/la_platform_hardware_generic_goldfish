@@ -55,6 +55,7 @@ cc_library(
     deps = [
         ":x86_cpuid",
         "//emulator/libs/base",
+        "//emulator/libs/file",
         "//emulator/libs/system",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",

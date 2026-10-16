@@ -35,9 +35,10 @@
 
 #include <cstdio>
 #include <filesystem>
-#include <fstream>
+#include <string_view>
 
 #include "absl/log/log.h"
+#include "absl/strings/match.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_split.h"
 
@@ -249,15 +250,13 @@ AndroidCpuAcceleration ProbeKVM(std::string* status) {
 
     // Check that kvm device can be opened.
     if (!base::file::can_read(kvm_device)) {
-        const char* kEtcGroupsPath = "/etc/group";
-        std::string etcGroupsKvmLine("LINE_NOT_FOUND");
-        std::ifstream is(kEtcGroupsPath, std::ios_base::binary);
-        if (is) {
-            std::ostringstream ss;
-            ss << is.rdbuf();
-            for (auto& line : absl::StrSplit(ss.str(), '\n')) {
-                if (!strncmp("kvm:", line.data(), 4)) {
-                    etcGroupsKvmLine = line.data();
+        constexpr char kEtcGroupsPath[] = "/etc/group";
+        std::string etc_groups_kvm_line("LINE_NOT_FOUND");
+        if (auto content_or = base::file::read_whole_file(kEtcGroupsPath, /*binary=*/true);
+            content_or.ok()) {
+            for (std::string_view line : absl::StrSplit(*content_or, '\n')) {
+                if (absl::StartsWith(line, "kvm:")) {
+                    etc_groups_kvm_line = std::string(line);
                 }
             }
         }
@@ -285,7 +284,7 @@ AndroidCpuAcceleration ProbeKVM(std::string* status) {
                               "\n"
                               "You may need to log out and back in for changes to take "
                               "effect.\n",
-                              kvm_device, etcGroupsKvmLine.c_str());
+                              kvm_device, etc_groups_kvm_line.c_str());
 
         // There are issues with ensuring the above is actually printed. Print
         // it now.
@@ -655,7 +654,7 @@ std::pair<AndroidHyperVStatus, std::string> GetHyperVStatus() {
     // to Windows ARM devices (X Elite processors) experience, Hyper-V is always
     // on.
     return std::make_pair(ANDROID_HYPERV_RUNNING, "Hyper-V is enabled");
-#else  // _WIN32
+#else                                                                  // _WIN32
     char vendor_id[16];
     android_get_x86_cpuid_vmhost_vendor_id(vendor_id, sizeof(vendor_id));
     const auto vmType = android_get_x86_cpuid_vendor_vmhost_type(vendor_id);
@@ -789,7 +788,6 @@ std::pair<AndroidCpuInfoFlags, std::string> GetCpuInfo() {
 
     flags |= ANDROID_CPU_INFO_64_BIT;
     status += "64-bit CPU\n";
-
 
     return std::make_pair(static_cast<AndroidCpuInfoFlags>(flags), status);
 }
