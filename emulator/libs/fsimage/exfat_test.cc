@@ -370,5 +370,43 @@ TEST(CreateExFATImageFromDirectoryTest, SortsDirectoryEntriesByU8String) {
     }
 }
 
+TEST(CreateExFATImageFromDirectoryTest, SizesImageToFitDirectoryWhenSizeIsZero) {
+    TestTempDir temp_dir("exfat_test");
+    const fs::path src_dir = temp_dir.Path() / "src";
+    ASSERT_TRUE(fs::create_directories(src_dir / "nested"));
+    const std::string payload(10000, 'X');
+    WriteTextFile(src_dir / "file_a.bin", payload);
+    WriteTextFile(src_dir / "nested" / "file_b.txt", "nested_text");
+
+    const fs::path image = temp_dir.Path() / "autosized.img";
+    ASSERT_THAT(CreateExFATImageFromDirectory(image, src_dir, 0_B), IsOk());
+    EXPECT_TRUE(IsExFatFileImage(image));
+
+    const uint64_t actual_bytes = fs::file_size(image);
+    EXPECT_GT(actual_bytes, 0ULL);
+    EXPECT_EQ(actual_bytes % 4096ULL, 0ULL);
+
+    const std::vector<uint8_t> boot = ReadBytesAt(image, 0, 512);
+    EXPECT_EQ(ReadLe64(boot.data() + 72) * 512ULL, actual_bytes);  // vol_length * 512
+    EXPECT_EQ(boot[112], 100U);                                    // percent_in_use == 100%
+
+    // Reducing capacity by one cluster (4 KiB) must fail as too small.
+    const fs::path too_small_image = temp_dir.Path() / "too_small.img";
+    EXPECT_THAT(CreateExFATImageFromDirectory(too_small_image, src_dir,
+                                              StorageCapacity(actual_bytes - 4096ULL)),
+                StatusIs(absl::StatusCode::kInvalidArgument));
+}
+
+TEST(CreateExFATImageFromDirectoryTest, SizesImageToFitEmptyDirectoryWhenSizeIsZero) {
+    TestTempDir temp_dir("exfat_test");
+    const fs::path src_dir = temp_dir.Path() / "empty_src";
+    ASSERT_TRUE(fs::create_directory(src_dir));
+
+    const fs::path image = temp_dir.Path() / "empty_autosized.img";
+    ASSERT_THAT(CreateExFATImageFromDirectory(image, src_dir, 0_B), IsOk());
+    EXPECT_TRUE(IsExFatFileImage(image));
+    EXPECT_EQ(fs::file_size(image), 32768ULL);
+}
+
 }  // namespace
 }  // namespace goldfish::fsimage

@@ -49,7 +49,8 @@ constexpr std::string_view kUsageMessage =
         "  if <size> is a simple integer, it specifies a size in bytes\n"
         "  if <size> is an integer followed by 'K', it specifies a size in KiB\n"
         "  if <size> is an integer followed by 'M', it specifies a size in MiB\n"
-        "  if <size> is an integer followed by 'G', it specifies a size in GiB";
+        "  if <size> is an integer followed by 'G', it specifies a size in GiB\n"
+        "  if <size> is 0 and -src is specified, the image is sized to fit the directory";
 
 [[noreturn]] void Usage() {
     std::cerr << absl::ProgramUsageMessage() << "\n";

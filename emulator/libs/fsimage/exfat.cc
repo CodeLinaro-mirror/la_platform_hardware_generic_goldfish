@@ -889,6 +889,61 @@ absl::Status WriteTreeDataRecursive(const ExfatTreeNode& node, uint64_t clu_offs
     return absl::OkStatus();
 }
 
+absl::StatusOr<uint64_t> ComputeMinVolumeBytes(ExfatTreeNode* root_node) {
+    constexpr uint64_t kMax256MiB = 256ULL * 1024 * 1024;
+    constexpr uint64_t kMax32GiB = 32ULL * 1024 * 1024 * 1024;
+    constexpr std::array<uint8_t, 3> kClusterShifts = {3U, 6U, 8U};
+
+    for (const uint8_t shift : kClusterShifts) {
+        const uint64_t sect_per_clus = 1ULL << shift;
+        const uint64_t cluster_size = sect_per_clus * kSectorSize;
+
+        uint32_t tree_next_cluster = kFirstDataCluster;
+        RETURN_IF_ERROR(AssignClustersRecursive(root_node, /*is_root=*/true, cluster_size,
+                                                &tree_next_cluster));
+        const uint64_t tree_clusters = tree_next_cluster - kFirstDataCluster;
+        const uint64_t upcase_bytes = kDefaultUpcaseTable.size() * sizeof(uint16_t);
+        const uint64_t upcase_clusters = (upcase_bytes + cluster_size - 1ULL) / cluster_size;
+
+        uint64_t bitmap_clusters = 1ULL;
+        while (true) {
+            const uint64_t clu_count = bitmap_clusters + upcase_clusters + tree_clusters;
+            const uint64_t bitmap_bytes = (clu_count + 7ULL) / 8ULL;
+            const uint64_t needed_bitmap_clusters =
+                    (bitmap_bytes + cluster_size - 1ULL) / cluster_size;
+            if (needed_bitmap_clusters == bitmap_clusters) {
+                break;
+            }
+            bitmap_clusters = needed_bitmap_clusters;
+        }
+
+        const uint64_t clu_count = bitmap_clusters + upcase_clusters + tree_clusters;
+        if (clu_count > kMaxExfatClusters) {
+            return absl::OutOfRangeError(absl::StrFormat(
+                    "exFAT cluster count (%u) exceeds maximum (%u)", clu_count, kMaxExfatClusters));
+        }
+
+        const uint64_t fat_offset = RoundUp(kTotalBootSectors, sect_per_clus);
+        const uint64_t fat_length =
+                ((clu_count + kReservedClusters) * sizeof(uint32_t) + kSectorSize - 1ULL) /
+                kSectorSize;
+        const uint64_t clu_offset = RoundUp(fat_offset + fat_length, sect_per_clus);
+        const uint64_t vol_length = clu_offset + clu_count * sect_per_clus;
+        uint64_t total_bytes = vol_length * kSectorSize;
+
+        if (shift == 6U && total_bytes <= kMax256MiB) {
+            total_bytes = kMax256MiB + cluster_size;
+        } else if (shift == 8U && total_bytes <= kMax32GiB) {
+            total_bytes = kMax32GiB + cluster_size;
+        }
+
+        if (ChooseSectorsPerClusterShift(total_bytes) == shift) {
+            return total_bytes;
+        }
+    }
+    return absl::InternalError("Failed to determine minimum exFAT volume size");
+}
+
 absl::Status CreateExFATImageImpl(const fs::path& image, const fs::path* source_directory,
                                   StorageCapacity size, std::string_view volume_label) {
     if (volume_label.size() > kMaxVolumeLabelLength) {
@@ -903,8 +958,8 @@ absl::Status CreateExFATImageImpl(const fs::path& image, const fs::path* source_
         }
     }
 
-    const uint64_t total_bytes = size.Bytes();
-    if (total_bytes == 0 || (total_bytes % kSectorSize) != 0) {
+    uint64_t total_bytes = size.Bytes();
+    if ((total_bytes == 0 && source_directory == nullptr) || (total_bytes % kSectorSize) != 0) {
         return absl::InvalidArgumentError(
                 absl::StrFormat("exFAT image size (%u bytes) must be a non-zero multiple of %u",
                                 total_bytes, kSectorSize));
@@ -923,6 +978,9 @@ absl::Status CreateExFATImageImpl(const fs::path& image, const fs::path* source_
         }
         root_node.host_path = *source_directory;
         RETURN_IF_ERROR(ScanDirectoryRecursive(*source_directory, &root_node));
+        if (total_bytes == 0) {
+            ASSIGN_OR_RETURN(total_bytes, ComputeMinVolumeBytes(&root_node));
+        }
     }
 
     const uint64_t vol_length = total_bytes / kSectorSize;

@@ -27,6 +27,8 @@ bool IsExFatFileImage(const fs::path& path);
 absl::Status CreateEmptyExFATImage(const fs::path& image, android::base::StorageCapacity size,
                                    std::string_view volume_label = "");
 
+/// Creates an exFAT image populated from @p source_directory.
+/// If @p size is 0, sizes the image to fit @p source_directory.
 absl::Status CreateExFATImageFromDirectory(const fs::path& image, const fs::path& source_directory,
                                            android::base::StorageCapacity size,
                                            std::string_view volume_label = "");
