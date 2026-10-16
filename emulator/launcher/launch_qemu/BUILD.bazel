@@ -6,6 +6,7 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         "//emulator/launcher:avd",
+        "//emulator/launcher:feature_flags",
         "//emulator/launcher:input_paths",
         "//emulator/launcher/cmdline",
         "//emulator/libs/metrics:configure_metrics_writer",

@@ -159,11 +159,13 @@ class HostInfoVulkanTest : public ::testing::Test {
     MockAvd avd_;
     SystemImagePaths sys_image_paths_;
     HardwareConfig hw_config_;
+    FeatureFlags feature_flags_;
 };
 
 TEST_F(HostInfoVulkanTest, setVulkanIcdHostDefault) {
     android_studio::AndroidStudioEvent event;
-    FillEmulatorHostEvent(event, avd_, 1234, 5678, true, false, "", {}, std::nullopt);
+    FillEmulatorHostEvent(event, avd_, feature_flags_, 1234, 5678, true, false, "", {},
+                          std::nullopt);
 
     EXPECT_EQ(event.emulator_details().vulkan_icd(),
               android_studio::EmulatorDetails::HOST_DEFAULT_VK);
@@ -171,7 +173,8 @@ TEST_F(HostInfoVulkanTest, setVulkanIcdHostDefault) {
 
 TEST_F(HostInfoVulkanTest, setVulkanIcdSwiftshader) {
     android_studio::AndroidStudioEvent event;
-    FillEmulatorHostEvent(event, avd_, 1234, 5678, true, false, "swiftshader", {}, std::nullopt);
+    FillEmulatorHostEvent(event, avd_, feature_flags_, 1234, 5678, true, false, "swiftshader", {},
+                          std::nullopt);
 
     EXPECT_EQ(event.emulator_details().vulkan_icd(),
               android_studio::EmulatorDetails::SWIFTSHADER_VK);
@@ -179,21 +182,24 @@ TEST_F(HostInfoVulkanTest, setVulkanIcdSwiftshader) {
 
 TEST_F(HostInfoVulkanTest, setVulkanIcdLavapipe) {
     android_studio::AndroidStudioEvent event;
-    FillEmulatorHostEvent(event, avd_, 1234, 5678, true, false, "lavapipe", {}, std::nullopt);
+    FillEmulatorHostEvent(event, avd_, feature_flags_, 1234, 5678, true, false, "lavapipe", {},
+                          std::nullopt);
 
     EXPECT_EQ(event.emulator_details().vulkan_icd(), android_studio::EmulatorDetails::LAVAPIPE_VK);
 }
 
 TEST_F(HostInfoVulkanTest, setVulkanIcdMoltenvk) {
     android_studio::AndroidStudioEvent event;
-    FillEmulatorHostEvent(event, avd_, 1234, 5678, true, false, "moltenvk", {}, std::nullopt);
+    FillEmulatorHostEvent(event, avd_, feature_flags_, 1234, 5678, true, false, "moltenvk", {},
+                          std::nullopt);
 
     EXPECT_EQ(event.emulator_details().vulkan_icd(), android_studio::EmulatorDetails::MOLTEN_VK);
 }
 
 TEST_F(HostInfoVulkanTest, setVulkanIcdKosmickrisp) {
     android_studio::AndroidStudioEvent event;
-    FillEmulatorHostEvent(event, avd_, 1234, 5678, true, false, "kosmickrisp", {}, std::nullopt);
+    FillEmulatorHostEvent(event, avd_, feature_flags_, 1234, 5678, true, false, "kosmickrisp", {},
+                          std::nullopt);
 
     EXPECT_EQ(event.emulator_details().vulkan_icd(),
               android_studio::EmulatorDetails::KOSMICKRISP_VK);
@@ -201,7 +207,8 @@ TEST_F(HostInfoVulkanTest, setVulkanIcdKosmickrisp) {
 
 TEST_F(HostInfoVulkanTest, setVulkanIcdUnknown) {
     android_studio::AndroidStudioEvent event;
-    FillEmulatorHostEvent(event, avd_, 1234, 5678, true, false, "unknown_icd", {}, std::nullopt);
+    FillEmulatorHostEvent(event, avd_, feature_flags_, 1234, 5678, true, false, "unknown_icd", {},
+                          std::nullopt);
 
     EXPECT_EQ(event.emulator_details().vulkan_icd(), android_studio::EmulatorDetails::UNKNOWN_VK);
 }
@@ -219,7 +226,8 @@ TEST_F(HostInfoVulkanTest, setDeviceNameMappings) {
     for (const auto& [hw_device_name, expected_device_name] : kTestCases) {
         hw_config_.hw_device_name = hw_device_name;
         android_studio::AndroidStudioEvent event;
-        FillEmulatorHostEvent(event, avd_, 1234, 5678, true, false, "", {}, std::nullopt);
+        FillEmulatorHostEvent(event, avd_, feature_flags_, 1234, 5678, true, false, "", {},
+                              std::nullopt);
 
         EXPECT_EQ(event.emulator_details().avd_info().device_name(), expected_device_name)
                 << "Failed for hw_device_name: " << hw_device_name;
@@ -230,7 +238,8 @@ TEST_F(HostInfoVulkanTest, setsProductChannelFromStudioConfig) {
     // Default with no Studio config is UNKNOWN_LIFE_CYCLE_CHANNEL.
     {
         android_studio::AndroidStudioEvent event;
-        FillEmulatorHostEvent(event, avd_, 1234, 5678, true, false, "", {}, std::nullopt);
+        FillEmulatorHostEvent(event, avd_, feature_flags_, 1234, 5678, true, false, "", {},
+                              std::nullopt);
         EXPECT_EQ(event.product_details().channel(),
                   android_studio::ProductDetails::UNKNOWN_LIFE_CYCLE_CHANNEL);
     }
@@ -246,7 +255,8 @@ TEST_F(HostInfoVulkanTest, setsProductChannelFromStudioConfig) {
     }
     {
         android_studio::AndroidStudioEvent event;
-        FillEmulatorHostEvent(event, avd_, 1234, 5678, true, false, "", {}, std::nullopt);
+        FillEmulatorHostEvent(event, avd_, feature_flags_, 1234, 5678, true, false, "", {},
+                              std::nullopt);
         EXPECT_EQ(event.product_details().channel(), android_studio::ProductDetails::CANARY);
     }
 
@@ -258,7 +268,8 @@ TEST_F(HostInfoVulkanTest, setsProductChannelFromStudioConfig) {
     }
     {
         android_studio::AndroidStudioEvent event;
-        FillEmulatorHostEvent(event, avd_, 1234, 5678, true, false, "", {}, std::nullopt);
+        FillEmulatorHostEvent(event, avd_, feature_flags_, 1234, 5678, true, false, "", {},
+                              std::nullopt);
         EXPECT_EQ(event.product_details().channel(), android_studio::ProductDetails::STABLE);
     }
 }
@@ -287,7 +298,8 @@ TEST_F(HostInfoVulkanTest, populatesHostGpusAndSelectedGpu) {
     const std::vector<VulkanGpuDeviceInfo> host_gpus = {integrated_gpu, discrete_gpu};
 
     android_studio::AndroidStudioEvent event;
-    FillEmulatorHostEvent(event, avd_, 1234, 5678, true, false, "", host_gpus, discrete_gpu);
+    FillEmulatorHostEvent(event, avd_, feature_flags_, 1234, 5678, true, false, "", host_gpus,
+                          discrete_gpu);
 
     const auto& details = event.emulator_details();
     EXPECT_EQ(details.vulkan_icd(), android_studio::EmulatorDetails::HOST_DEFAULT_VK);
@@ -339,8 +351,8 @@ TEST_F(HostInfoVulkanTest, populatesSoftwareActiveVulkanHostGpu) {
 
     const std::vector<VulkanGpuDeviceInfo> host_gpus = {host_gpu};
     android_studio::AndroidStudioEvent event;
-    FillEmulatorHostEvent(event, avd_, 1234, 5678, true, false, "lavapipe", host_gpus,
-                          software_gpu);
+    FillEmulatorHostEvent(event, avd_, feature_flags_, 1234, 5678, true, false, "lavapipe",
+                          host_gpus, software_gpu);
 
     const auto& details = event.emulator_details();
     EXPECT_EQ(details.vulkan_icd(), android_studio::EmulatorDetails::LAVAPIPE_VK);
@@ -367,14 +379,58 @@ TEST_F(HostInfoVulkanTest, omitsActiveVulkanHostGpuWhenNoneSelected) {
 
     const std::vector<VulkanGpuDeviceInfo> host_gpus = {host_gpu};
     android_studio::AndroidStudioEvent event;
-    FillEmulatorHostEvent(event, avd_, 1234, 5678, true, false, "lavapipe", host_gpus,
-                          std::nullopt);
+    FillEmulatorHostEvent(event, avd_, feature_flags_, 1234, 5678, true, false, "lavapipe",
+                          host_gpus, std::nullopt);
 
     const auto& details = event.emulator_details();
     EXPECT_EQ(details.vulkan_icd(), android_studio::EmulatorDetails::LAVAPIPE_VK);
     ASSERT_EQ(details.host_gpu_size(), 1);
     EXPECT_EQ(details.host_gpu(0).model(), "AMD Radeon RX 6800");
     EXPECT_FALSE(details.has_active_vulkan_host_gpu());
+}
+
+TEST_F(HostInfoVulkanTest, populatesFeatureFlagState) {
+    using android_studio::EmulatorFeatureFlagState;
+    const auto temp_dir = test_sys_.GetTempRoot()->Path();
+    const auto host_ini = temp_dir / "host_advancedFeatures.ini";
+    const auto guest_ini = temp_dir / "guest_advancedFeatures.ini";
+
+    {
+        std::ofstream os(host_ini);
+        os << "VulkanSnapshots = on\n";
+        os << "ForceSwiftshader = off\n";
+        os << "Minigbm = on\n";
+        os << "Uwb = on\n";
+    }
+    {
+        std::ofstream os(guest_ini);
+        os << "Minigbm = on\n";
+        os << "Uwb = on\n";
+    }
+
+    auto flags = FeatureFlags::Create({
+        .host_ini_path = host_ini,
+        .guest_ini_path = guest_ini,
+        .avd_feature_flags = "ForceSwiftshader,-Uwb",
+    });
+    ASSERT_TRUE(flags.ok()) << flags.status();
+
+    android_studio::AndroidStudioEvent event;
+    FillEmulatorHostEvent(event, avd_, *flags, 1234, 5678, true, false, "", {}, std::nullopt);
+
+    const auto& ff_state = event.emulator_details().feature_flag_state();
+    EXPECT_THAT(ff_state.attempted_enabled_feature_flags(),
+                ::testing::UnorderedElementsAre(EmulatorFeatureFlagState::VULKAN_SNAPSHOTS,
+                                                EmulatorFeatureFlagState::MINIGBM,
+                                                EmulatorFeatureFlagState::UWB));
+    EXPECT_THAT(ff_state.user_overridden_enabled_features(),
+                ::testing::UnorderedElementsAre(EmulatorFeatureFlagState::FORCE_SWIFTSHADER));
+    EXPECT_THAT(ff_state.user_overridden_disabled_features(),
+                ::testing::UnorderedElementsAre(EmulatorFeatureFlagState::UWB));
+    EXPECT_THAT(ff_state.resulting_enabled_features(),
+                ::testing::UnorderedElementsAre(EmulatorFeatureFlagState::VULKAN_SNAPSHOTS,
+                                                EmulatorFeatureFlagState::MINIGBM,
+                                                EmulatorFeatureFlagState::FORCE_SWIFTSHADER));
 }
 
 }  // namespace android::goldfish

@@ -275,8 +275,20 @@ void FillHost(android_studio::EmulatorHost& host) {
     }
 }
 
-void FillFeatureFlagState(android_studio::EmulatorFeatureFlagState& feature_flag_state) {
-    // TODO
+void FillFeatureFlagState(android_studio::EmulatorFeatureFlagState& feature_flag_state,
+                          const FeatureFlags& feature_flags) {
+    for (const auto feature : feature_flags.GetEnabledNonOverride()) {
+        feature_flag_state.add_attempted_enabled_feature_flags(feature);
+    }
+    for (const auto feature : feature_flags.GetEnabledOverride()) {
+        feature_flag_state.add_user_overridden_enabled_features(feature);
+    }
+    for (const auto feature : feature_flags.GetDisabledOverride()) {
+        feature_flag_state.add_user_overridden_disabled_features(feature);
+    }
+    for (const auto feature : feature_flags.GetEnabled()) {
+        feature_flag_state.add_resulting_enabled_features(feature);
+    }
 }
 
 android_studio::EmulatorDetails::VulkanIcd GetVulkanIcd(std::string_view vk_icd) {
@@ -295,12 +307,13 @@ android_studio::EmulatorDetails::VulkanIcd GetVulkanIcd(std::string_view vk_icd)
     }
 }
 
-void FillDetails(android_studio::EmulatorDetails& details, const Avd& avd, long launcher_pid,
-                 long qemu_pid, bool metrics_collection_opt, bool fuchsia_opt, bool openglAlive,
+void FillDetails(android_studio::EmulatorDetails& details, const Avd& avd,
+                 const FeatureFlags& feature_flags, long launcher_pid, long qemu_pid,
+                 bool metrics_collection_opt, bool fuchsia_opt, bool openglAlive,
                  std::string_view vk_icd, std::span<const VulkanGpuDeviceInfo> host_gpus,
                  const std::optional<VulkanGpuDeviceInfo>& selected_gpu) {
     FillAvdInfo(*details.mutable_avd_info(), avd);
-    FillFeatureFlagState(*details.mutable_feature_flag_state());
+    FillFeatureFlagState(*details.mutable_feature_flag_state(), feature_flags);
 
     const auto& hw = avd.Hw();
 
@@ -409,8 +422,8 @@ android_studio::ProductDetails::SoftwareLifeCycleChannel ToProductChannel(
 }  // namespace
 
 void FillEmulatorHostEvent(android_studio::AndroidStudioEvent& event, const Avd& avd,
-                           long launcher_pid, long qemu_pid, bool metrics_collection_opt,
-                           bool fuchsia_opt, std::string_view vk_icd,
+                           const FeatureFlags& feature_flags, long launcher_pid, long qemu_pid,
+                           bool metrics_collection_opt, bool fuchsia_opt, std::string_view vk_icd,
                            std::span<const VulkanGpuDeviceInfo> host_gpus,
                            const std::optional<VulkanGpuDeviceInfo>& selected_gpu) {
     event.set_kind(android_studio::AndroidStudioEvent::EMULATOR_HOST);
@@ -425,7 +438,7 @@ void FillEmulatorHostEvent(android_studio::AndroidStudioEvent& event, const Avd&
 #endif
 
     FillHost(*event.mutable_emulator_host());
-    FillDetails(*event.mutable_emulator_details(), avd, launcher_pid, qemu_pid,
+    FillDetails(*event.mutable_emulator_details(), avd, feature_flags, launcher_pid, qemu_pid,
                 metrics_collection_opt, fuchsia_opt, false, vk_icd, host_gpus, selected_gpu);
 }
 
