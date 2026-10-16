@@ -69,8 +69,11 @@ QemuAudioCapture::QemuAudioCapture(AudioCallback callback, uint32_t sample_rate_
                                    uint32_t channels, AudioBackend* audio_backend)
         : callback_(std::move(callback))
         , audio_backend_(ResolveAudioBackend(audio_backend))
-        , sample_rate_hz_(sample_rate_hz > 0 ? sample_rate_hz : 48000)
-        , channels_(channels > 0 ? channels : 2) {}
+        , sample_rate_hz_(sample_rate_hz)
+        , channels_(channels) {
+    DCHECK_GT(sample_rate_hz_, 0U);
+    DCHECK_GT(channels_, 0U);
+}
 
 QemuAudioCapture::~QemuAudioCapture() {
     Stop();

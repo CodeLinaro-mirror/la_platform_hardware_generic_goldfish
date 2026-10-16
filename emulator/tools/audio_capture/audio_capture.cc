@@ -43,7 +43,7 @@ ABSL_FLAG(std::string, grpc_address, "",
           "Direct address and port of the emulator gRPC service (e.g. localhost:8554).");
 ABSL_FLAG(std::string, grpc_token, "", "Authentication token for the emulator gRPC service.");
 ABSL_FLAG(std::string, output, "capture.wav", "Output path for the captured WAV audio file.");
-ABSL_FLAG(uint32_t, sample_rate, 44100, "Audio sample rate in Hz (default: 44100).");
+ABSL_FLAG(uint32_t, sample_rate, 48000, "Audio sample rate in Hz (default: 48000).");
 ABSL_FLAG(std::string, channels, "stereo", "Audio channel configuration ('mono' or 'stereo').");
 ABSL_FLAG(double, duration_sec, 10.0,
           "Duration in seconds to record (default: 10.0s). Set to 0 to record until Ctrl+C.");

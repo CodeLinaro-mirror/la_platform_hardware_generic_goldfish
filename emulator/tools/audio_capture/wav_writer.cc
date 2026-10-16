@@ -18,6 +18,7 @@
 #include <cstdint>
 #include <cstring>
 #include <fstream>
+#include <limits>
 #include <string>
 
 #include "absl/status/status.h"
@@ -42,17 +43,20 @@ struct WavHeader {
     char fmt_tag[4] = {'f', 'm', 't', ' '};
     uint32_t fmt_size = 16;
     uint16_t audio_format = 1;  // 1 = PCM (uncompressed)
-    uint16_t num_channels = 2;
-    uint32_t sample_rate = 44100;
-    uint32_t byte_rate = 44100 * 2 * 2;
-    uint16_t block_align = 2 * 2;
-    uint16_t bits_per_sample = 16;
+    uint16_t num_channels = 0;
+    uint32_t sample_rate = 0;
+    uint32_t byte_rate = 0;
+    uint16_t block_align = 0;
+    uint16_t bits_per_sample = 0;
     char data_tag[4] = {'d', 'a', 't', 'a'};
     uint32_t data_size = 0;
 };
 #pragma pack(pop)
 
 static_assert(sizeof(WavHeader) == 44, "WavHeader must be exactly 44 bytes");
+
+// Standard RIFF WAVE headers store riff_size (36 + data_size) as a 32-bit unsigned integer.
+constexpr size_t kMaxWavDataBytes = std::numeric_limits<uint32_t>::max() - 36;
 
 WavHeader CreateWavHeader(uint32_t sample_rate, uint16_t num_channels, uint16_t bits_per_sample,
                           uint32_t data_size) {
@@ -122,6 +126,12 @@ absl::Status WavWriter::Write(const void* data, size_t size_bytes) {
     }
     if (size_bytes == 0) {
         return absl::OkStatus();
+    }
+    if (size_bytes > kMaxWavDataBytes - bytes_written_) {
+        return absl::OutOfRangeError(absl::StrFormat(
+                "Cannot write %zu bytes to '%s': payload size (%zu + %zu bytes) would exceed "
+                "the %zu-byte RIFF container limit",
+                size_bytes, filepath_.string(), bytes_written_, size_bytes, kMaxWavDataBytes));
     }
 
     errno = 0;
