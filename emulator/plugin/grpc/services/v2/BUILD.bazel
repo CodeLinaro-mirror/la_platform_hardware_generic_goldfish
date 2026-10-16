@@ -222,8 +222,10 @@ cc_library(
     }),
     deps = [
         ":operations_service",
+        "//emulator/crashreport:crash_reporter",
         "//emulator/libs/grpc_utils:absl_translate",
         "//emulator/libs/grpc_utils:event-stream",
+        "//emulator/libs/process",
         "//emulator/plugin/vminterface",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/container:flat_hash_map",
