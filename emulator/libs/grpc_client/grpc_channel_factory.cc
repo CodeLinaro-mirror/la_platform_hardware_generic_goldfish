@@ -84,8 +84,10 @@ std::shared_ptr<grpc::Channel> GrpcChannelFactory::CreateChannel() {
     } else if (absl::StartsWith(address, "127.0.0.1") || absl::StartsWith(address, "localhost")) {
         channel_creds = ::grpc::experimental::LocalCredentials(LOCAL_TCP);
     } else {
-        LOG(ERROR) << "Insecure connections are not supported for non-local "
-                      "addresses. Please configure TLS credentials.";
+        LOG(ERROR) << "Insecure gRPC connections are not supported for non-local target '"
+                   << address
+                   << "'. Configure TLS credentials (pem_root_certs, pem_private_key, and "
+                      "pem_cert_chain) or use a localhost/127.0.0.1 target.";
         return nullptr;
     }
 
