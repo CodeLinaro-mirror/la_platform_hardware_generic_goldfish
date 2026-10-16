@@ -15,6 +15,7 @@
 #include "display_service.h"
 
 #include <algorithm>
+#include <array>
 #include <cstdint>
 #include <cstring>
 #include <memory>
@@ -78,6 +79,12 @@ using DeviceRotation = ::goldfish::physics::Rotation;
 using DeviceSkinRotation = ::goldfish::physics::SkinRotation;
 using ProtoRotation = android::emulation::control::Rotation;
 
+static void FirePostureNotification(FoldablePostures posture) {
+    Notification event;
+    event.mutable_posture()->set_value(DisplayServiceImpl::ToProtoPosture(posture));
+    ::goldfish::avd::GetAvd().GetGrpcNotificationChannel().FireEvent(event);
+}
+
 DisplayServiceImpl::DisplayServiceImpl(::goldfish::display::IMultiDisplay* display,
                                        ::goldfish::sensors::PhysicalModel* pm,
                                        std::vector<::goldfish::parsing::ResizableDisplayConfig> rdc)
@@ -89,13 +96,9 @@ DisplayServiceImpl::DisplayServiceImpl(::goldfish::display::IMultiDisplay* displ
         if (screen.ok()) {
             if (auto d0 = screen->lock()) {
                 auto dims = d0->GetDimensions();
-                const uint32_t total_modes = static_cast<uint32_t>(resizable_configs_.size());
-
                 for (const auto& rc : resizable_configs_) {
                     if (rc.width == dims.width && rc.height == dims.height) {
-                        uint32_t guest_mode_id = total_modes - 1 - rc.id;
-                        mMultiDisplay.SetDisplayMode(rc.id, rc.width, rc.height, rc.dpi,
-                                                     guest_mode_id);
+                        ApplyResizableConfig(rc);
                         break;
                     }
                 }
@@ -109,14 +112,11 @@ DisplayServiceImpl::DisplayServiceImpl(::goldfish::display::IMultiDisplay* displ
         // notifications, and stream posture events over gRPC.
         mPostureSubscription =
                 MakeScopedCallback(*posture_listener, [this](const FoldablePostures& posture) {
-                    bool isClosed = (posture == FoldablePostures::kClosed);
-                    mMultiDisplay.SetFolded(isClosed);
+                    const bool is_closed = (posture == FoldablePostures::kClosed);
+                    mMultiDisplay.SetFolded(is_closed);
 
                     fireDisplayConfigurationsChanged();
-
-                    Notification event;
-                    event.mutable_posture()->set_value(ToProtoPosture(posture));
-                    ::goldfish::avd::GetAvd().GetGrpcNotificationChannel().FireEvent(event);
+                    FirePostureNotification(posture);
                 });
 
         // MakeScopedCallback only fires on future updates and does not invoke the callback for
@@ -128,9 +128,7 @@ DisplayServiceImpl::DisplayServiceImpl(::goldfish::display::IMultiDisplay* displ
         // null.
         const auto initial_posture = mPhysicalModel.GetFoldablePosture();
         if (initial_posture != FoldablePostures::kUnknown) {
-            Notification event;
-            event.mutable_posture()->set_value(ToProtoPosture(initial_posture));
-            ::goldfish::avd::GetAvd().GetGrpcNotificationChannel().FireEvent(event);
+            FirePostureNotification(initial_posture);
         }
     }
 }
@@ -272,23 +270,22 @@ Status DisplayServiceImpl::streamScreenshot(ServerContext* context, const ImageF
                 }
             });
 
-    std::shared_ptr<IDisplay> d0, d1;
-    IDisplay::ScopedFrameListener listener0, listener1;
+    struct AuxDisplayListener {
+        std::shared_ptr<IDisplay> display;
+        IDisplay::ScopedFrameListener listener;
+    };
+    std::array<AuxDisplayListener, 2> aux_listeners;
     if (hw_sensor_hinge) {
-        auto s0 = mMultiDisplay.GetDisplay(0);
-        auto s1 = mMultiDisplay.GetDisplay(1);
-        if (s0.ok()) {
-            d0 = s0->lock();
-            if (d0 && d0.get() != display.get()) {
-                listener0 = d0->AddFrameListener(
-                        [&bump_aux_seq](const FrameEvent&) { bump_aux_seq(); });
-            }
-        }
-        if (s1.ok()) {
-            d1 = s1->lock();
-            if (d1 && d1.get() != display.get()) {
-                listener1 = d1->AddFrameListener(
-                        [&bump_aux_seq](const FrameEvent&) { bump_aux_seq(); });
+        for (uint32_t id = 0; id < aux_listeners.size(); ++id) {
+            if (auto screen = mMultiDisplay.GetDisplay(id); screen.ok()) {
+                if (auto aux_display = screen->lock();
+                    aux_display && aux_display != display) {
+                    aux_listeners[id] = {
+                            .display = aux_display,
+                            .listener = aux_display->AddFrameListener(
+                                    [&bump_aux_seq](const FrameEvent&) { bump_aux_seq(); }),
+                    };
+                }
             }
         }
     }
@@ -298,7 +295,7 @@ Status DisplayServiceImpl::streamScreenshot(ServerContext* context, const ImageF
     uint64_t last_seq = 0;
     uint64_t total_dropped = 0;
     absl::Time last_frame_time = absl::Now();
-    while (client_available) {
+    while (client_available && !context->IsCancelled()) {
         constexpr auto kTimeToWaitForFrame = absl::Milliseconds(125);
         const bool retrying = std::exchange(retry, false);
         bool frames_arrived = first_time;
@@ -385,13 +382,6 @@ Status DisplayServiceImpl::streamScreenshot(ServerContext* context, const ImageF
                 }
             }
             last_frame_was_empty = empty_frame;
-        }
-        if (context->IsCancelled()) {
-            break;
-        }
-        client_available = !context->IsCancelled() && client_available;
-        if (!client_available) {
-            break;
         }
     }
     return Status::OK;
@@ -722,43 +712,33 @@ Status DisplayServiceImpl::getDisplayMode(ServerContext* context, const Empty* r
     return Status::OK;
 }
 
+void DisplayServiceImpl::ApplyResizableConfig(
+        const ::goldfish::parsing::ResizableDisplayConfig& config) {
+    const uint32_t total_modes = static_cast<uint32_t>(resizable_configs_.size());
+    const uint32_t guest_mode_id = total_modes - 1 - config.id;
+    mMultiDisplay.SetDisplayMode(config.id, config.width, config.height, config.dpi, guest_mode_id);
+}
+
 Status DisplayServiceImpl::setDisplayMode(ServerContext* context, const DisplayMode* request,
                                           Empty* reply) {
     if (resizable_configs_.empty()) {
         return Status(grpc::StatusCode::FAILED_PRECONDITION, "AVD is not resizable.");
     }
 
-    bool found = false;
-    uint32_t target_w = 0, target_h = 0;
-    uint32_t target_dpi = 0;
-
-    for (const auto& rc : resizable_configs_) {
-        if (rc.id == static_cast<uint32_t>(request->value())) {
-            target_w = rc.width;
-            target_h = rc.height;
-            target_dpi = rc.dpi;
-            found = true;
-            break;
-        }
-    }
-
-    if (!found) {
+    const uint32_t requested_mode_id = static_cast<uint32_t>(request->value());
+    const auto it = std::find_if(resizable_configs_.begin(), resizable_configs_.end(),
+                                 [requested_mode_id](const auto& rc) {
+                                     return rc.id == requested_mode_id;
+                                 });
+    if (it == resizable_configs_.end()) {
         return Status(grpc::StatusCode::INVALID_ARGUMENT, "Invalid display mode.");
     }
 
     if (request->value() == FOLDABLE) {
-        const auto posture = mPhysicalModel.GetFoldablePosture();
-
-        Notification event;
-        event.mutable_posture()->set_value(ToProtoPosture(posture));
-        ::goldfish::avd::GetAvd().GetGrpcNotificationChannel().FireEvent(event);
+        FirePostureNotification(mPhysicalModel.GetFoldablePosture());
     }
 
-    uint32_t total_modes = static_cast<uint32_t>(resizable_configs_.size());
-    uint32_t requested_mode_id = static_cast<uint32_t>(request->value());
-    uint32_t guest_mode_id = total_modes - 1 - requested_mode_id;
-
-    mMultiDisplay.SetDisplayMode(request->value(), target_w, target_h, target_dpi, guest_mode_id);
+    ApplyResizableConfig(*it);
     fireDisplayConfigurationsChanged();
 
     return Status::OK;
