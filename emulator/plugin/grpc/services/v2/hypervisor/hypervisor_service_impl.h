@@ -15,8 +15,10 @@
 #pragma once
 
 #include <atomic>
+#include <functional>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <utility>
 
 #include "absl/base/thread_annotations.h"
@@ -155,6 +157,11 @@ class HypervisorServiceImpl final : public HypervisorServiceBase {
     void PopulateSnapshotProto(const ::android::goldfish::VmOperations::SnapshotEntry& entry,
                                ::android::emulation::v2::Snapshot* out) const
             ABSL_LOCKS_EXCLUDED(state_mutex_);
+    ::grpc::Status RunSnapshotRpc(
+            ::android::goldfish::VmOperations::SnapshotOperationType op_type,
+            std::string_view snapshot_id,
+            const std::function<::android::goldfish::VmOperations::SnapshotEntry()>& on_success,
+            ::google::longrunning::Operation* response) ABSL_LOCKS_EXCLUDED(state_mutex_);
     void RefreshOperationMetadata(::google::longrunning::Operation* op) const;
     void OnRunStateChanged(::android::goldfish::EmuRunState state);
     void OnSnapshotStateChanged(const ::android::goldfish::VmOperations::SnapshotProgress& progress)

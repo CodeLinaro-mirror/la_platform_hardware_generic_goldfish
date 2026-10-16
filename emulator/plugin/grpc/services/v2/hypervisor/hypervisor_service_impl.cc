@@ -16,6 +16,7 @@
 
 #include <atomic>
 #include <cstdint>
+#include <functional>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -120,6 +121,11 @@ SnapshotOperationMetadata MakeOperationMetadataFromProgress(
     return metadata;
 }
 
+std::string_view SnapshotOperationPrefix(VmOperations::SnapshotOperationType op_type) {
+    return op_type == VmOperations::SnapshotOperationType::Save ? "snapshot/create"
+                                                                : "snapshot/restore";
+}
+
 }  // namespace
 
 HypervisorServiceImpl::HypervisorServiceImpl(
@@ -212,11 +218,8 @@ void HypervisorServiceImpl::OnSnapshotStateChanged(const VmOperations::SnapshotP
             return;
         }
 
-        const std::string_view prefix =
-                (progress.operation == VmOperations::SnapshotOperationType::Save)
-                        ? "snapshot/create"
-                        : "snapshot/restore";
-        const Operation started = operations_service_->StartOperation(prefix, meta);
+        const Operation started = operations_service_->StartOperation(
+                SnapshotOperationPrefix(progress.operation), meta);
 
         absl::MutexLock state_lock(&state_mutex_);
         snapshot_operations_[op_key] = TrackedSnapshotOperation{
@@ -536,6 +539,64 @@ Status HypervisorServiceImpl::UpdateSnapshot(ServerContext* /*context*/,
     return Status::OK;
 }
 
+Status HypervisorServiceImpl::RunSnapshotRpc(
+        VmOperations::SnapshotOperationType op_type, std::string_view snapshot_id,
+        const std::function<VmOperations::SnapshotEntry()>& on_success, Operation* response) {
+    const std::string id_str(snapshot_id);
+    const SnapshotOperationMetadata initial_meta =
+            MakeOperationMetadata(id_str, SnapshotOperationMetadata::PREPARING, 0);
+    const Operation started_op =
+            operations_service_->StartOperation(SnapshotOperationPrefix(op_type), initial_meta);
+    const SnapshotOperationKey op_key{op_type, id_str};
+    {
+        absl::MutexLock state_lock(&state_mutex_);
+        snapshot_operations_[op_key] = TrackedSnapshotOperation{
+            .lro_name = started_op.name(),
+            .snapshot_id = id_str,
+            .is_rpc = true,
+        };
+    }
+
+    const absl::Status op_status =
+            (op_type == VmOperations::SnapshotOperationType::Save)
+                    ? vm_operations_.SaveSnapshot(id_str, /*overwrite=*/true)
+                    : vm_operations_.LoadSnapshot(id_str, /*and_resume=*/true);
+    const auto progress = vm_operations_.GetSnapshotProgress();
+    const auto expected_phase = op_status.ok() ? VmOperations::SnapshotPhase::Completed
+                                               : VmOperations::SnapshotPhase::Failed;
+    const bool matches_progress = progress.operation == op_type &&
+                                  progress.phase == expected_phase &&
+                                  progress.snapshot_id == id_str;
+    if (!matches_progress) {
+        absl::MutexLock state_lock(&state_mutex_);
+        snapshot_operations_.erase(op_key);
+    }
+    if (!op_status.ok()) {
+        const SnapshotOperationMetadata fail_meta =
+                matches_progress
+                        ? MakeOperationMetadataFromProgress(id_str, progress, /*done=*/false)
+                        : initial_meta;
+        // The operation is registered, so report the failure through the Operation
+        // (AIP-151). A non-OK gRPC status would cause the response to be discarded.
+        *response = operations_service_->FailOperation(started_op.name(), op_status, &fail_meta);
+        return Status::OK;
+    }
+
+    Snapshot snapshot_proto;
+    PopulateSnapshotProto(on_success(), &snapshot_proto);
+    if (op_type == VmOperations::SnapshotOperationType::Save && matches_progress &&
+        progress.disk_bytes > 0) {
+        snapshot_proto.set_size_bytes(progress.disk_bytes);
+    }
+
+    const SnapshotOperationMetadata final_meta = MakeOperationMetadataFromProgress(
+            id_str, matches_progress ? progress : VmOperations::SnapshotProgress{},
+            /*done=*/true);
+    *response =
+            operations_service_->CompleteOperation(started_op.name(), snapshot_proto, &final_meta);
+    return Status::OK;
+}
+
 Status HypervisorServiceImpl::CreateSnapshot(ServerContext* /*context*/,
                                              const CreateSnapshotRequest* request,
                                              Operation* response) {
@@ -546,75 +607,30 @@ Status HypervisorServiceImpl::CreateSnapshot(ServerContext* /*context*/,
 
     const std::string snapshot_id =
             request->snapshot_id().empty() ? GenerateSnapshotId() : request->snapshot_id();
-
-    const SnapshotOperationMetadata initial_meta =
-            MakeOperationMetadata(snapshot_id, SnapshotOperationMetadata::PREPARING, 0);
-    const Operation started_op =
-            operations_service_->StartOperation("snapshot/create", initial_meta);
-    const SnapshotOperationKey op_key{VmOperations::SnapshotOperationType::Save, snapshot_id};
-    {
-        absl::MutexLock state_lock(&state_mutex_);
-        snapshot_operations_[op_key] = TrackedSnapshotOperation{
-            .lro_name = started_op.name(),
-            .snapshot_id = snapshot_id,
-            .is_rpc = true,
-        };
-    }
-
-    const absl::Status save_status = vm_operations_.SaveSnapshot(snapshot_id, /*overwrite=*/true);
-    const auto progress = vm_operations_.GetSnapshotProgress();
-    const auto expected_phase = save_status.ok() ? VmOperations::SnapshotPhase::Completed
-                                                 : VmOperations::SnapshotPhase::Failed;
-    const bool matches_progress = progress.operation == VmOperations::SnapshotOperationType::Save &&
-                                  progress.phase == expected_phase &&
-                                  progress.snapshot_id == snapshot_id;
-    if (!matches_progress) {
-        absl::MutexLock state_lock(&state_mutex_);
-        snapshot_operations_.erase(op_key);
-    }
-    if (!save_status.ok()) {
-        const SnapshotOperationMetadata fail_meta =
-                matches_progress
-                        ? MakeOperationMetadataFromProgress(snapshot_id, progress, /*done=*/false)
-                        : initial_meta;
-        // The operation is registered, so report the failure through the Operation
-        // (AIP-151). A non-OK gRPC status would cause the response to be discarded.
-        *response = operations_service_->FailOperation(started_op.name(), save_status, &fail_meta);
-        return Status::OK;
-    }
-
-    {
-        absl::MutexLock state_lock(&state_mutex_);
-        user_metadata_[snapshot_id] = UserSnapshotMetadata{
-            .display_name = request->display_name(),
-            .description = request->description(),
-        };
-    }
-
-    VmOperations::SnapshotEntry entry{
-        .name = snapshot_id,
-        .timestamp = absl::Now(),
-    };
-    vm_operations_
-            .ListSnapshots([&](VmOperations::SnapshotEntry listed) {
-                if (listed.name == snapshot_id) {
-                    entry = std::move(listed);
+    return RunSnapshotRpc(
+            VmOperations::SnapshotOperationType::Save, snapshot_id,
+            [&]() {
+                {
+                    absl::MutexLock state_lock(&state_mutex_);
+                    user_metadata_[snapshot_id] = UserSnapshotMetadata{
+                        .display_name = request->display_name(),
+                        .description = request->description(),
+                    };
                 }
-            })
-            .IgnoreError();
-
-    Snapshot snapshot_proto;
-    PopulateSnapshotProto(entry, &snapshot_proto);
-    if (matches_progress && progress.disk_bytes > 0) {
-        snapshot_proto.set_size_bytes(progress.disk_bytes);
-    }
-
-    const SnapshotOperationMetadata final_meta = MakeOperationMetadataFromProgress(
-            snapshot_id, matches_progress ? progress : VmOperations::SnapshotProgress{},
-            /*done=*/true);
-    *response =
-            operations_service_->CompleteOperation(started_op.name(), snapshot_proto, &final_meta);
-    return Status::OK;
+                VmOperations::SnapshotEntry entry{
+                    .name = snapshot_id,
+                    .timestamp = absl::Now(),
+                };
+                vm_operations_
+                        .ListSnapshots([&](VmOperations::SnapshotEntry listed) {
+                            if (listed.name == snapshot_id) {
+                                entry = std::move(listed);
+                            }
+                        })
+                        .IgnoreError();
+                return entry;
+            },
+            response);
 }
 
 Status HypervisorServiceImpl::RestoreSnapshot(ServerContext* /*context*/,
@@ -626,52 +642,9 @@ Status HypervisorServiceImpl::RestoreSnapshot(ServerContext* /*context*/,
         return status;
     }
 
-    const SnapshotOperationMetadata initial_meta =
-            MakeOperationMetadata(request->snapshot_id(), SnapshotOperationMetadata::PREPARING, 0);
-    const Operation started_op =
-            operations_service_->StartOperation("snapshot/restore", initial_meta);
-    const SnapshotOperationKey op_key{VmOperations::SnapshotOperationType::Load,
-                                      request->snapshot_id()};
-    {
-        absl::MutexLock state_lock(&state_mutex_);
-        snapshot_operations_[op_key] = TrackedSnapshotOperation{
-            .lro_name = started_op.name(),
-            .snapshot_id = request->snapshot_id(),
-            .is_rpc = true,
-        };
-    }
-
-    const absl::Status load_status =
-            vm_operations_.LoadSnapshot(request->snapshot_id(), /*and_resume=*/true);
-    const auto progress = vm_operations_.GetSnapshotProgress();
-    const auto expected_phase = load_status.ok() ? VmOperations::SnapshotPhase::Completed
-                                                 : VmOperations::SnapshotPhase::Failed;
-    const bool matches_progress = progress.operation == VmOperations::SnapshotOperationType::Load &&
-                                  progress.phase == expected_phase &&
-                                  progress.snapshot_id == request->snapshot_id();
-    if (!matches_progress) {
-        absl::MutexLock state_lock(&state_mutex_);
-        snapshot_operations_.erase(op_key);
-    }
-    if (!load_status.ok()) {
-        const SnapshotOperationMetadata fail_meta =
-                matches_progress
-                        ? MakeOperationMetadataFromProgress(request->snapshot_id(), progress,
-                                                            /*done=*/false)
-                        : initial_meta;
-        *response = operations_service_->FailOperation(started_op.name(), load_status, &fail_meta);
-        return Status::OK;
-    }
-
-    Snapshot snapshot_proto;
-    PopulateSnapshotProto(target_entry, &snapshot_proto);
-
-    const SnapshotOperationMetadata final_meta = MakeOperationMetadataFromProgress(
-            request->snapshot_id(), matches_progress ? progress : VmOperations::SnapshotProgress{},
-            /*done=*/true);
-    *response =
-            operations_service_->CompleteOperation(started_op.name(), snapshot_proto, &final_meta);
-    return Status::OK;
+    return RunSnapshotRpc(
+            VmOperations::SnapshotOperationType::Load, request->snapshot_id(),
+            [&]() { return target_entry; }, response);
 }
 
 Status HypervisorServiceImpl::DeleteSnapshot(ServerContext* /*context*/,
