@@ -712,6 +712,36 @@ TEST_F(PhysicalModelTest, SnapshotSaveLoad) {
     EXPECT_VEC3_NEAR(expected_gyro, loaded_model->GetGyroscope(&measurement_id), 1e-5f);
 }
 
+TEST_F(PhysicalModelTest, SnapshotRejectsCorruptedState) {
+    archive::DequeArchive valid_archive;
+    valid_archive << *model;
+
+    // 1. Truncated stream rejected
+    {
+        archive::DequeArchive truncated = valid_archive;
+        ASSERT_FALSE(truncated.Empty());
+        truncated.storage.pop_back();
+
+        auto loaded_model = std::make_unique<PhysicalModel>(
+                android::goldfish::FakeHardwareConfig::GetHwConfig());
+        EXPECT_FALSE(ReadValue(truncated, *loaded_model).ok());
+    }
+
+    // 2. Out-of-range use_override_bits rejected
+    {
+        physics::InertialModel im;
+        physics::AmbientEnvironment ae;
+        physics::BodyModel bm;
+        archive::DequeArchive bad_archive;
+        const unsigned long invalid_override_bits = 1UL << PhysicalModel::kNumSensors;
+        bad_archive << im << ae << bm << uint64_t{0} << invalid_override_bits << false << false;
+
+        auto loaded_model = std::make_unique<PhysicalModel>(
+                android::goldfish::FakeHardwareConfig::GetHwConfig());
+        EXPECT_FALSE(ReadValue(bad_archive, *loaded_model).ok());
+    }
+}
+
 TEST_F(PhysicalModelTest, IsSensorOverriddenAndClearOverridesPreservesSmoothTransition) {
     model->SetCurrentTime(0L);
     EXPECT_FALSE(model->IsSensorOverridden(AndroidSensor::ACCELERATION));

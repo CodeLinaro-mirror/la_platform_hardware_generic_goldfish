@@ -23,6 +23,7 @@ namespace goldfish {
 struct SocketBuffer {
     constexpr static size_t kMinCapacity = 64U << 10;
     constexpr static size_t kLargeCapacityReleaseIfEmpty = 16U << 20;
+    constexpr static size_t kMaxSnapshotSize = 64U << 20;
 
     size_t Size() const { return size_; }
     size_t Capacity() const { return capacity_; }

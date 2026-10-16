@@ -192,6 +192,7 @@ cc_test(
     deps = [
         ":display",
         ":test-display",
+        "//emulator/libs/archive:DequeArchive",
         "//emulator/libs/async:async_testing",
         "//emulator/libs/async:libuv_event_loop",
         "//emulator/libs/async:threaded_event_loop",

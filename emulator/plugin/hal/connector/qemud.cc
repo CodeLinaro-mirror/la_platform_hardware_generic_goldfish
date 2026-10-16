@@ -131,7 +131,18 @@ void Parser::SaveToSnapshot(archive::IWriter& writer) const {
 }
 
 bool Parser::LoadFromSnapshot(archive::IReader& reader) {
-    return ReadValue(reader, buffer_).ok();
+    std::vector<uint8_t> loaded;
+    if (!ReadValue(reader, loaded).ok()) {
+        return false;
+    }
+    if (loaded.size() > kSizeSize) {
+        const size_t request_size = DecodeRequestSize(loaded.data());
+        if (loaded.size() >= kSizeSize + request_size) {
+            return false;
+        }
+    }
+    buffer_ = std::move(loaded);
+    return true;
 }
 
 void SendAsync(const void* data, const size_t size, cable::ISocket& dst) {

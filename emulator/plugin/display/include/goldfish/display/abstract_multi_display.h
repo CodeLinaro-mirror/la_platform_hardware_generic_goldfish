@@ -233,6 +233,7 @@ class IMultiDisplay : public LoopBoundCallbackSource<DisplayEvent> {
     }
 
     static constexpr size_t kMaxDisplays = 11;  ///< Maximum number of supported Android displays.
+    static constexpr uint32_t kMaxDisplayDimension = 8192;
 
     static std::unique_ptr<IMultiDisplay> Create(EventLoop* loop, EventLoop* qemu_loop,
                                                  const sensors::FoldableConfig* fc);

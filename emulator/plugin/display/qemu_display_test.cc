@@ -34,7 +34,9 @@
 #include "absl/time/time.h"
 
 #include "android/status/status_matcher_macros.h"
+#include "goldfish/archive/deque_archive.h"
 #include "goldfish/async/testing/test_event_loop.h"
+#include "goldfish/display/abstract_multi_display.h"
 #include "goldfish/display/display.h"
 #include "goldfish/display/display_frames.h"
 #include "goldfish/display/frame.h"
@@ -427,4 +429,54 @@ TEST_F(QemuDisplayConcurrencyTest, VirtualDisplayCreate_VirtioDeviceNotFoundFail
     EXPECT_THAT(goldfish::display::VirtualDisplay::Create(main_loop_.get(), qemu_loop_.get(), 1,
                                                           800, 600, 320, 0),
                 absl_testing::StatusIs(absl::StatusCode::kNotFound));
+}
+
+TEST_F(QemuDisplayConcurrencyTest, VirtualDisplayCreate_InvalidIdOrDimensionsFails) {
+    EXPECT_THAT(goldfish::display::VirtualDisplay::Create(main_loop_.get(), qemu_loop_.get(), 0,
+                                                          800, 600, 320, 0),
+                absl_testing::StatusIs(absl::StatusCode::kInvalidArgument));
+    EXPECT_THAT(goldfish::display::VirtualDisplay::Create(
+                        main_loop_.get(), qemu_loop_.get(),
+                        static_cast<uint8_t>(goldfish::display::IMultiDisplay::kMaxDisplays), 800,
+                        600, 320, 0),
+                absl_testing::StatusIs(absl::StatusCode::kInvalidArgument));
+    EXPECT_THAT(goldfish::display::VirtualDisplay::Create(main_loop_.get(), qemu_loop_.get(), 1, 0,
+                                                          600, 320, 0),
+                absl_testing::StatusIs(absl::StatusCode::kInvalidArgument));
+    EXPECT_THAT(goldfish::display::VirtualDisplay::Create(
+                        main_loop_.get(), qemu_loop_.get(), 1,
+                        goldfish::display::IMultiDisplay::kMaxDisplayDimension + 1, 600, 320, 0),
+                absl_testing::StatusIs(absl::StatusCode::kInvalidArgument));
+}
+
+TEST_F(QemuDisplayConcurrencyTest, MultiDisplayLoad_RejectsCorruptedSnapshot) {
+    auto multi_display =
+            goldfish::display::IMultiDisplay::Create(main_loop_.get(), qemu_loop_.get(), nullptr);
+
+    // 1. Too many virtual displays
+    {
+        goldfish::archive::DequeArchive archive;
+        archive << static_cast<uint32_t>(goldfish::display::IMultiDisplay::kMaxDisplays);
+        EXPECT_THAT(multi_display->Load(archive),
+                    absl_testing::StatusIs(absl::StatusCode::kInvalidArgument));
+    }
+
+    // 2. Oversized virtual display dimensions
+    {
+        goldfish::archive::DequeArchive archive;
+        archive << uint32_t{1} << uint32_t{1}
+                << (goldfish::display::IMultiDisplay::kMaxDisplayDimension + 1) << uint32_t{600}
+                << uint32_t{320} << uint32_t{0};
+        EXPECT_THAT(multi_display->Load(archive),
+                    absl_testing::StatusIs(absl::StatusCode::kInvalidArgument));
+    }
+
+    // 3. Invalid active_states display ID
+    {
+        goldfish::archive::DequeArchive archive;
+        archive << uint32_t{0} << uint32_t{1}
+                << static_cast<uint32_t>(goldfish::display::IMultiDisplay::kMaxDisplays) << true;
+        EXPECT_THAT(multi_display->Load(archive),
+                    absl_testing::StatusIs(absl::StatusCode::kInvalidArgument));
+    }
 }

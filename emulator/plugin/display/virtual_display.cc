@@ -27,6 +27,7 @@
 
 #include "goldfish/avd/avd_info.h"
 #include "goldfish/devices/multidisplay/multidisplay_device.h"
+#include "goldfish/display/abstract_multi_display.h"
 #include "goldfish/display/cpu_slot_storage.h"
 #include "goldfish/display/frame_producer.h"
 #include "goldfish/display/frame_source.h"
@@ -51,6 +52,17 @@ namespace goldfish::display {
 absl::StatusOr<std::shared_ptr<VirtualDisplay>> VirtualDisplay::Create(
         EventLoop* loop, EventLoop* qloop, uint8_t id, uint32_t width, uint32_t height,
         uint32_t dpi, uint32_t flags) {
+    if (id == 0 || id >= IMultiDisplay::kMaxDisplays) {
+        return absl::InvalidArgumentError(
+                absl::StrCat("Invalid virtual display id: ", static_cast<int>(id), " (expected 1..",
+                             IMultiDisplay::kMaxDisplays - 1, ")"));
+    }
+    if (width == 0 || height == 0 || width > IMultiDisplay::kMaxDisplayDimension ||
+        height > IMultiDisplay::kMaxDisplayDimension) {
+        return absl::InvalidArgumentError(
+                absl::StrCat("Invalid virtual display dimensions: ", width, "x", height,
+                             " (expected 1..", IMultiDisplay::kMaxDisplayDimension, ")"));
+    }
     const char* gpu = "gpu0";
     // Head will normally be > 0 for virtual console
     const uint32_t head = id;

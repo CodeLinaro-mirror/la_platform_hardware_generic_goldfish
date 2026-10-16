@@ -15,6 +15,7 @@
 #include <cstring>
 #include <vector>
 
+#include "goldfish/archive/collections/vector.h"
 #include "goldfish/archive/deque_archive.h"
 #include "goldfish/devices/qemud/qemud.h"
 
@@ -157,6 +158,40 @@ TEST(QemudPacketTest, EncodeMaxSizedPacket) {
     EXPECT_EQ(kSizeSize + kMaxHexEncodedSize, actual_packet.size());
     EXPECT_EQ(expected_header, actual_packet.substr(0, kSizeSize));
     EXPECT_EQ(data, actual_packet.substr(kSizeSize));
+}
+
+TEST(qemud, ParserSnapshotPositive) {
+    std::string received;
+    Parser parser([&received](const void* data, size_t size) {
+        received.assign(static_cast<const char*>(data), size);
+        return true;
+    });
+
+    // Feed partial frame ("0005hel")
+    ASSERT_TRUE(parser.OnReceive("0005hel", 7));
+    EXPECT_TRUE(received.empty());
+
+    DequeArchive archive;
+    parser.SaveToSnapshot(archive);
+
+    Parser restored([&received](const void* data, size_t size) {
+        received.assign(static_cast<const char*>(data), size);
+        return true;
+    });
+    ASSERT_TRUE(restored.LoadFromSnapshot(archive));
+    ASSERT_TRUE(restored.OnReceive("lo", 2));
+    EXPECT_EQ(received, "hello");
+}
+
+TEST(qemud, ParserSnapshotRejectsCorruptedBuffer) {
+    // Buffer claims request_size = 2 ("0002"), but already has 4 + 3 = 7 bytes in buffer_.
+    // Without validation, OnReceive would underflow `kSizeSize + request_size - buffer_size`.
+    DequeArchive archive;
+    const std::vector<uint8_t> bad_buf = {'0', '0', '0', '2', 'a', 'b', 'c'};
+    archive << bad_buf;
+
+    Parser parser([](const void*, size_t) { return true; });
+    EXPECT_FALSE(parser.LoadFromSnapshot(archive));
 }
 
 }  // namespace qemud
