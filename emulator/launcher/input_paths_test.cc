@@ -135,6 +135,56 @@ TEST_F(InputPathsTest, ResolveSystemImagePaths) {
     EXPECT_EQ(paths.kernel_cmdline, sysimg_dir / "kernel_cmdline.txt");
 }
 
+TEST_F(InputPathsTest, ResolveSystemImagePathsWithDotSearchPathStripsPrefix) {
+    fs::path sysimg_dir = tmp_->Path() / "sysimg";
+    tmp_->MakeSubDir("sysimg");
+    tmp_->MakeSubDir("sysimg/data");
+
+    WriteToFile(sysimg_dir / "build.prop", "");
+    WriteToFile(sysimg_dir / "advancedFeatures.ini", "");
+    WriteToFile(sysimg_dir / "VerifiedBootParams.textproto", "");
+    WriteToFile(sysimg_dir / "kernel_cmdline.txt", "");
+    WriteToFile(sysimg_dir / "kernel-ranchu", "");
+    WriteToFile(sysimg_dir / "ramdisk.img", "");
+    WriteToFile(sysimg_dir / "system.img", "");
+    WriteToFile(sysimg_dir / "vendor.img", "");
+    WriteToFile(sysimg_dir / "encryptionkey.img", "");
+
+    struct ScopedCurrentPath {
+        explicit ScopedCurrentPath(const fs::path& new_cwd) {
+            std::error_code ec;
+            old_cwd = fs::current_path(ec);
+            EXPECT_FALSE(ec) << ec.message();
+            set_current_path(new_cwd);
+        }
+        ~ScopedCurrentPath() {
+            if (!old_cwd.empty()) {
+                set_current_path(old_cwd);
+            }
+        }
+
+        static void set_current_path(const fs::path& cwd) {
+            std::error_code ec;
+            fs::current_path(cwd, ec);
+            EXPECT_FALSE(ec) << ec.message();
+        }
+
+        fs::path old_cwd;
+    } cwd_guard(sysimg_dir);
+    ASSERT_FALSE(HasFailure());
+
+    AndroidOptions opts = {};
+    for (const fs::path& dot_path : {fs::path("."), fs::path("./"), fs::path("./.")}) {
+        ASSERT_OK_AND_ASSIGN(auto paths,
+                             ResolveSystemImagePaths({dot_path}, opts, /*android_build=*/false));
+        EXPECT_EQ(paths.build_properties, fs::path("build.prop"));
+        EXPECT_EQ(paths.system_image, fs::path("system.img"));
+        EXPECT_EQ(paths.vendor_image, fs::path("vendor.img"));
+        EXPECT_EQ(paths.data_dir, fs::path("data"));
+        EXPECT_EQ(paths.kernel_cmdline, fs::path("kernel_cmdline.txt"));
+    }
+}
+
 TEST_F(InputPathsTest, ResolveSystemImagePathsWithoutKernelCmdline) {
     fs::path sysimg_dir = tmp_->Path() / "sysimg";
     tmp_->MakeSubDir("sysimg");
