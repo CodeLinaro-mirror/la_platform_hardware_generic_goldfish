@@ -12,6 +12,7 @@ cc_binary_with_manifest(
         "@abseil-cpp//absl/flags:parse",
         "@abseil-cpp//absl/flags:usage",
         "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/time",
     ],
 )
 

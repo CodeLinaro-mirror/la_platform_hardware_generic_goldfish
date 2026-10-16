@@ -170,10 +170,9 @@ absl::StatusOr<std::vector<std::unique_ptr<PciDevice>>> getDiskConfigs(const Avd
         ASSIGN_OR_RETURN(auto sdcard_config, GetSdCardConfig(avd, opts));
         if (sdcard_config.backing_image_missing) {
             using ::goldfish::fsimage::CreateEmptyExFATImage;
-            using namespace std::literals::string_view_literals;
 
             RETURN_IF_ERROR(CreateEmptyExFATImage(sdcard_config.backing_image,
-                                                  avd.Hw().hw_sd_card_size, "EMULATOR"sv));
+                                                  avd.Hw().hw_sd_card_size, {.label = "EMULATOR"}));
 
             base::file::rm(sdcard_config.qcow2_image).IgnoreError();
         }
