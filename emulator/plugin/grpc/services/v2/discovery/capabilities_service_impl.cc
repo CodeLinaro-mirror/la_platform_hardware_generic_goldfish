@@ -16,6 +16,7 @@
 
 #include <cstdint>
 #include <string>
+#include <utility>
 
 #include "capabilities_service.pb.h"
 #include "common.pb.h"
@@ -137,53 +138,31 @@ void PopulatePostureCapabilities(const HardwareConfig& hw, PostureCapabilities* 
 
 void PopulateSensorsCapabilities(const HardwareConfig& hw, SensorsCapabilities* sensor_caps) {
     sensor_caps->set_access_mode(AccessMode::ACCESS_MODE_READ_WRITE);
-    if (hw.hw_accelerometer) {
-        sensor_caps->add_available_sensors(SensorType::SENSOR_TYPE_ACCELEROMETER);
-    }
-    if (hw.hw_gyroscope) {
-        sensor_caps->add_available_sensors(SensorType::SENSOR_TYPE_GYROSCOPE);
-    }
-    if (hw.hw_sensors_magnetic_field) {
-        sensor_caps->add_available_sensors(SensorType::SENSOR_TYPE_MAGNETOMETER);
-    }
-    if (hw.hw_sensors_orientation) {
-        sensor_caps->add_available_sensors(SensorType::SENSOR_TYPE_ORIENTATION);
-    }
-    if (hw.hw_sensors_temperature) {
-        sensor_caps->add_available_sensors(SensorType::SENSOR_TYPE_AMBIENT_TEMPERATURE);
-    }
-    if (hw.hw_sensors_proximity) {
-        sensor_caps->add_available_sensors(SensorType::SENSOR_TYPE_PROXIMITY);
-    }
-    if (hw.hw_sensors_light) {
-        sensor_caps->add_available_sensors(SensorType::SENSOR_TYPE_LIGHT);
-    }
-    if (hw.hw_sensors_pressure) {
-        sensor_caps->add_available_sensors(SensorType::SENSOR_TYPE_PRESSURE);
-    }
-    if (hw.hw_sensors_humidity) {
-        sensor_caps->add_available_sensors(SensorType::SENSOR_TYPE_RELATIVE_HUMIDITY);
-    }
-    if (hw.hw_sensors_heart_rate) {
-        sensor_caps->add_available_sensors(SensorType::SENSOR_TYPE_HEART_RATE);
-    }
-    if (hw.hw_sensors_rgbclight) {
-        sensor_caps->add_available_sensors(SensorType::SENSOR_TYPE_RGBC_LIGHT);
-    }
-    if (hw.hw_sensors_wrist_tilt) {
-        sensor_caps->add_available_sensors(SensorType::SENSOR_TYPE_WRIST_TILT);
-    }
-    if (hw.hw_accelerometer_uncalibrated) {
-        sensor_caps->add_available_sensors(SensorType::SENSOR_TYPE_ACCELEROMETER_UNCALIBRATED);
-    }
-    if (hw.hw_sensors_gyroscope_uncalibrated) {
-        sensor_caps->add_available_sensors(SensorType::SENSOR_TYPE_GYROSCOPE_UNCALIBRATED);
-    }
-    if (hw.hw_sensors_magnetic_field_uncalibrated) {
-        sensor_caps->add_available_sensors(SensorType::SENSOR_TYPE_MAGNETOMETER_UNCALIBRATED);
+    const std::pair<bool, SensorType> sensor_flags[] = {
+            {hw.hw_accelerometer, SensorType::SENSOR_TYPE_ACCELEROMETER},
+            {hw.hw_gyroscope, SensorType::SENSOR_TYPE_GYROSCOPE},
+            {hw.hw_sensors_magnetic_field, SensorType::SENSOR_TYPE_MAGNETOMETER},
+            {hw.hw_sensors_orientation, SensorType::SENSOR_TYPE_ORIENTATION},
+            {hw.hw_sensors_temperature, SensorType::SENSOR_TYPE_AMBIENT_TEMPERATURE},
+            {hw.hw_sensors_proximity, SensorType::SENSOR_TYPE_PROXIMITY},
+            {hw.hw_sensors_light, SensorType::SENSOR_TYPE_LIGHT},
+            {hw.hw_sensors_pressure, SensorType::SENSOR_TYPE_PRESSURE},
+            {hw.hw_sensors_humidity, SensorType::SENSOR_TYPE_RELATIVE_HUMIDITY},
+            {hw.hw_sensors_heart_rate, SensorType::SENSOR_TYPE_HEART_RATE},
+            {hw.hw_sensors_rgbclight, SensorType::SENSOR_TYPE_RGBC_LIGHT},
+            {hw.hw_sensors_wrist_tilt, SensorType::SENSOR_TYPE_WRIST_TILT},
+            {hw.hw_accelerometer_uncalibrated, SensorType::SENSOR_TYPE_ACCELEROMETER_UNCALIBRATED},
+            {hw.hw_sensors_gyroscope_uncalibrated, SensorType::SENSOR_TYPE_GYROSCOPE_UNCALIBRATED},
+            {hw.hw_sensors_magnetic_field_uncalibrated,
+             SensorType::SENSOR_TYPE_MAGNETOMETER_UNCALIBRATED},
+            {hw.hw_sensor_hinge, SensorType::SENSOR_TYPE_HINGE_ANGLE},
+    };
+    for (const auto& [enabled, sensor_type] : sensor_flags) {
+        if (enabled) {
+            sensor_caps->add_available_sensors(sensor_type);
+        }
     }
     if (hw.hw_sensor_hinge) {
-        sensor_caps->add_available_sensors(SensorType::SENSOR_TYPE_HINGE_ANGLE);
         PopulatePostureCapabilities(hw, sensor_caps->mutable_posture());
     }
 }
