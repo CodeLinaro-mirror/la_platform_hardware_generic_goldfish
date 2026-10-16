@@ -23,6 +23,45 @@ namespace incubating {
 
 using ::goldfish::sensors::PhysicalModelChangeEvent;
 
+namespace {
+
+void PopulatePhysicalModelValue(::goldfish::sensors::PhysicalModel& physical_model,
+                                const PhysicalModelValue& request,
+                                PhysicalModelValue* reply) {
+    const auto parameter =
+            static_cast<::goldfish::sensors::PhysicalParameter>(request.target() - 1);
+    const size_t sz = ::goldfish::sensors::PhysicalModel::GetPhysicalParameterSize(parameter);
+
+    auto value_type = ::ParameterValueType::kCurrent;
+    switch (request.value_type()) {
+    case PhysicalModelValue::PARAMETER_VALUE_TYPE_TARGET:
+        value_type = ::ParameterValueType::kTarget;
+        break;
+    case PhysicalModelValue::PARAMETER_VALUE_TYPE_CURRENT:
+        value_type = ::ParameterValueType::kCurrent;
+        break;
+    case PhysicalModelValue::PARAMETER_VALUE_TYPE_CURRENT_NO_AMBIENT_MOTION:
+        value_type = ::ParameterValueType::kCurrentNoAmbientMotion;
+        break;
+    case PhysicalModelValue::PARAMETER_VALUE_TYPE_DEFAULT:
+        value_type = ::ParameterValueType::kDefault;
+        break;
+    default:
+        break;
+    }
+
+    std::vector<float> data(sz);
+    physical_model.GetPhysicalParameterValue(parameter, data.data(), sz, value_type);
+
+    reply->set_target(request.target());
+    reply->set_status(PhysicalModelValue::PHYSICAL_STATE_VALUE_OK);
+    auto* reply_data = reply->mutable_value()->mutable_data();
+    reply_data->Resize(sz, 0);
+    std::copy(data.begin(), data.end(), reply_data->begin());
+}
+
+}  // namespace
+
 /**
  * @brief Handles streaming of high-level physical state transition events.
  *
@@ -80,37 +119,7 @@ class PhysicalModelEventStreamWriter
         }
 
         PhysicalModelValue reply;
-        const auto parameter =
-                static_cast<::goldfish::sensors::PhysicalParameter>(mRequest.target() - 1);
-        const size_t sz = ::goldfish::sensors::PhysicalModel::GetPhysicalParameterSize(parameter);
-
-        // Map the requested value type to the internal physical model's ParameterValueType.
-        auto value_type = ::ParameterValueType::kCurrent;
-        switch (mRequest.value_type()) {
-        case PhysicalModelValue::PARAMETER_VALUE_TYPE_TARGET:
-            value_type = ::ParameterValueType::kTarget;
-            break;
-        case PhysicalModelValue::PARAMETER_VALUE_TYPE_CURRENT:
-            value_type = ::ParameterValueType::kCurrent;
-            break;
-        case PhysicalModelValue::PARAMETER_VALUE_TYPE_CURRENT_NO_AMBIENT_MOTION:
-            value_type = ::ParameterValueType::kCurrentNoAmbientMotion;
-            break;
-        case PhysicalModelValue::PARAMETER_VALUE_TYPE_DEFAULT:
-            value_type = ::ParameterValueType::kDefault;
-            break;
-        default:
-            break;
-        }
-
-        std::vector<float> data(sz);
-        mPhysicalModel.GetPhysicalParameterValue(parameter, data.data(), sz, value_type);
-
-        reply.set_target(mRequest.target());
-        reply.set_status(PhysicalModelValue::PHYSICAL_STATE_VALUE_OK);
-        auto* reply_data = reply.mutable_value()->mutable_data();
-        reply_data->Resize(sz, 0);
-        std::copy(data.begin(), data.end(), reply_data->begin());
+        PopulatePhysicalModelValue(mPhysicalModel, mRequest, &reply);
         Write(reply);
     }
 
@@ -170,36 +179,7 @@ grpc::Status SensorServiceIncubatingImpl::setPhysicalModel(grpc::ServerContext* 
 grpc::Status SensorServiceIncubatingImpl::getPhysicalModel(grpc::ServerContext* context,
                                                            const PhysicalModelValue* request,
                                                            PhysicalModelValue* reply) {
-    const auto parameter =
-            static_cast<::goldfish::sensors::PhysicalParameter>(request->target() - 1);
-    const size_t sz = ::goldfish::sensors::PhysicalModel::GetPhysicalParameterSize(parameter);
-
-    auto value_type = ::ParameterValueType::kCurrent;
-    switch (request->value_type()) {
-    case PhysicalModelValue::PARAMETER_VALUE_TYPE_TARGET:
-        value_type = ::ParameterValueType::kTarget;
-        break;
-    case PhysicalModelValue::PARAMETER_VALUE_TYPE_CURRENT:
-        value_type = ::ParameterValueType::kCurrent;
-        break;
-    case PhysicalModelValue::PARAMETER_VALUE_TYPE_CURRENT_NO_AMBIENT_MOTION:
-        value_type = ::ParameterValueType::kCurrentNoAmbientMotion;
-        break;
-    case PhysicalModelValue::PARAMETER_VALUE_TYPE_DEFAULT:
-        value_type = ::ParameterValueType::kDefault;
-        break;
-    default:
-        break;
-    }
-
-    std::vector<float> data(sz);
-    mPhysicalModel.GetPhysicalParameterValue(parameter, data.data(), sz, value_type);
-
-    reply->set_target(request->target());
-    reply->set_status(PhysicalModelValue::PHYSICAL_STATE_VALUE_OK);
-    auto* reply_data = reply->mutable_value()->mutable_data();
-    reply_data->Resize(sz, 0);
-    std::copy(data.begin(), data.end(), reply_data->begin());
+    PopulatePhysicalModelValue(mPhysicalModel, *request, reply);
     return grpc::Status::OK;
 }
 
