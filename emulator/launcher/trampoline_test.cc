@@ -277,9 +277,8 @@ TEST(TrampolineTest, trampolineToQemu2BinaryNotExists) {
 
     auto status = android::goldfish::TrampolineToQemu2(launcher_dir, {});
     EXPECT_TRUE(absl::IsNotFound(status)) << status;
-    EXPECT_THAT(
-            status.message(),
-            ::testing::HasSubstr("Trying to trampoline but legacy emulator binary does not exist"));
+    EXPECT_THAT(status.message(), ::testing::HasSubstr("Legacy emulator binary not found at"));
+    EXPECT_THAT(status.message(), ::testing::HasSubstr("sdkmanager --install emulator"));
 }
 
 #ifndef _WIN32
@@ -298,8 +297,7 @@ TEST(TrampolineTest, trampolineToQemu2BinaryNotExecutable) {
 
     auto status = android::goldfish::TrampolineToQemu2(launcher_dir, {});
     EXPECT_TRUE(absl::IsPermissionDenied(status)) << status;
-    EXPECT_THAT(
-            status.message(),
-            ::testing::HasSubstr("Trying to trampoline but cannot execute legacy emulator binary"));
+    EXPECT_THAT(status.message(), ::testing::HasSubstr("Cannot execute legacy emulator binary at"));
+    EXPECT_THAT(status.message(), ::testing::HasSubstr("sdkmanager --install emulator"));
 }
 #endif
