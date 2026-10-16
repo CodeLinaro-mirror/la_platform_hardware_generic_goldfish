@@ -159,6 +159,14 @@ class OperationsServiceImpl final : public ::google::longrunning::Operations::Se
     void SetMetadataRefresher(MetadataRefresher refresher) ABSL_LOCKS_EXCLUDED(operations_mutex_);
 
   private:
+    ::google::longrunning::Operation FinishOperation(
+            std::string_view name, const ::google::protobuf::Message* final_metadata,
+            absl::FunctionRef<void(::google::longrunning::Operation*)> populate_result)
+            ABSL_LOCKS_EXCLUDED(operations_mutex_);
+
+    void RefreshIfInFlight(::google::longrunning::Operation* op)
+            ABSL_EXCLUSIVE_LOCKS_REQUIRED(operations_mutex_);
+
     void RecordCompletedOperation(std::string_view name)
             ABSL_EXCLUSIVE_LOCKS_REQUIRED(operations_mutex_);
 

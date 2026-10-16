@@ -78,8 +78,15 @@ void OperationsServiceImpl::UpdateOperationMetadata(std::string_view name,
     (void)it->second.mutable_metadata()->PackFrom(metadata);
 }
 
-Operation OperationsServiceImpl::CompleteOperation(std::string_view name, const Message& response,
-                                                   const Message* final_metadata) {
+void OperationsServiceImpl::RefreshIfInFlight(Operation* op) {
+    if (!op->done() && metadata_refresher_) {
+        metadata_refresher_(op);
+    }
+}
+
+Operation OperationsServiceImpl::FinishOperation(
+        std::string_view name, const Message* final_metadata,
+        absl::FunctionRef<void(Operation*)> populate_result) {
     absl::MutexLock operations_lock(&operations_mutex_);
     auto it = operations_.find(name);
     if (it == operations_.end() || it->second.done()) {
@@ -96,38 +103,27 @@ Operation OperationsServiceImpl::CompleteOperation(std::string_view name, const 
     if (final_metadata != nullptr) {
         (void)op.mutable_metadata()->PackFrom(*final_metadata);
     }
-    (void)op.mutable_response()->PackFrom(response);
+    populate_result(&op);
     op.set_done(true);
-    Operation completed_copy = op;
+    Operation finished_copy = op;
     RecordCompletedOperation(name);
-    return completed_copy;
+    return finished_copy;
+}
+
+Operation OperationsServiceImpl::CompleteOperation(std::string_view name, const Message& response,
+                                                   const Message* final_metadata) {
+    return FinishOperation(name, final_metadata, [&response](Operation* op) {
+        (void)op->mutable_response()->PackFrom(response);
+    });
 }
 
 Operation OperationsServiceImpl::FailOperation(std::string_view name, const absl::Status& status,
                                                const Message* final_metadata) {
-    absl::MutexLock operations_lock(&operations_mutex_);
-    auto it = operations_.find(name);
-    if (it == operations_.end() || it->second.done()) {
-        if (it != operations_.end()) {
-            return it->second;
-        }
-        Operation op;
-        op.set_name(std::string(name));
-        op.set_done(true);
-        return op;
-    }
-    Operation& op = it->second;
-    op.set_name(std::string(name));
-    if (final_metadata != nullptr) {
-        (void)op.mutable_metadata()->PackFrom(*final_metadata);
-    }
-    auto* err = op.mutable_error();
-    err->set_code(static_cast<int>(status.code()));
-    err->set_message(std::string(status.message()));
-    op.set_done(true);
-    Operation failed_copy = op;
-    RecordCompletedOperation(name);
-    return failed_copy;
+    return FinishOperation(name, final_metadata, [&status](Operation* op) {
+        auto* err = op->mutable_error();
+        err->set_code(static_cast<int>(status.code()));
+        err->set_message(std::string(status.message()));
+    });
 }
 
 void OperationsServiceImpl::SetMetadataRefresher(MetadataRefresher refresher) {
@@ -142,9 +138,7 @@ Status OperationsServiceImpl::ListOperations(ServerContext* /*context*/,
     const std::string_view filter_prefix = request->name();
     for (auto& [name, op] : operations_) {
         if (filter_prefix.empty() || absl::StartsWith(name, filter_prefix)) {
-            if (!op.done() && metadata_refresher_) {
-                metadata_refresher_(&op);
-            }
+            RefreshIfInFlight(&op);
             *response->add_operations() = op;
         }
     }
@@ -163,9 +157,7 @@ Status OperationsServiceImpl::GetOperation(ServerContext* /*context*/,
     if (it == operations_.end()) {
         return {StatusCode::NOT_FOUND, absl::StrCat("Operation not found: ", request->name())};
     }
-    if (!it->second.done() && metadata_refresher_) {
-        metadata_refresher_(&it->second);
-    }
+    RefreshIfInFlight(&it->second);
     *response = it->second;
     return Status::OK;
 }
@@ -236,9 +228,7 @@ absl::StatusOr<Operation> OperationsServiceImpl::WaitForOperation(
     if (it == operations_.end()) {
         return absl::NotFoundError(absl::StrCat("Operation not found: ", name));
     }
-    if (!it->second.done() && metadata_refresher_) {
-        metadata_refresher_(&it->second);
-    }
+    RefreshIfInFlight(&it->second);
     return it->second;
 }
 
