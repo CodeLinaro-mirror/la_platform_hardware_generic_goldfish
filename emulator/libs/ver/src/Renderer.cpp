@@ -19,7 +19,6 @@
 #include <libyuv.h>
 
 #include <algorithm>
-#include <cstdlib>
 #include <cstring>
 
 #include "RendererVulkan.h"
@@ -205,13 +204,6 @@ Renderer::Renderer() = default;
 Renderer::~Renderer() = default;
 
 std::unique_ptr<Renderer> Renderer::create(const std::filesystem::path& vulkanBasePath) {
-    const char* backendEnv = std::getenv("VER_RENDERER_BACKEND");
-    std::string backend = backendEnv ? backendEnv : "";
-    if (backend == "gles") {
-        derror("VER: Legacy GLES backend is no longer supported; VER is Vulkan-only.");
-        return nullptr;
-    }
-
     dprint("VER: Creating Vulkan renderer.");
     auto vulkanRenderer = RendererVulkan::create(vulkanBasePath);
     if (!vulkanRenderer) {
