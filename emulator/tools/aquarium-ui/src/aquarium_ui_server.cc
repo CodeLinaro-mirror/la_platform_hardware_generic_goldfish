@@ -19,25 +19,16 @@
 #include <utility>
 #include <vector>
 
-#include "absl/status/statusor.h"
 #include "absl/strings/match.h"
-#include "absl/strings/str_cat.h"
 
 #include "android/base/bazel_info.h"
 #include "android/base/system.h"
-#include "android/emulation/control/emulator_grpc_client.h"
-#include "android/emulation/control/grpc_channel_factory.h"
 #include "goldfish/file/file.h"
 #include "goldfish/http/http_response.h"
-#include "goldfish/network/endpoint.h"
 
 namespace fs = std::filesystem;
 
 namespace goldfish::aquarium {
-
-using ::android::emulation::control::EmulatorGrpcClientBuilder;
-using ::android::emulation::control::GrpcChannelFactory;
-using ::android::emulation::remote::Endpoint;
 
 std::string_view GetMimeType(std::string_view path) {
     if (absl::EndsWith(path, ".html") || absl::EndsWith(path, ".htm"))
@@ -159,39 +150,6 @@ goldfish::http::HttpResponse ServeStaticFile(const fs::path& base_dir, std::stri
     return goldfish::http::HttpResponse::String(std::move(*content),
                                                 goldfish::http::HttpStatus::kOk, mime_type)
             .WithHeader("cache-control", "no-cache");
-}
-
-absl::StatusOr<std::pair<std::string, std::shared_ptr<grpc::Channel>>> ResolveGrpcTargetAndChannel(
-        const std::string& target, const std::string& token, const std::string& discovery_file) {
-    EmulatorGrpcClientBuilder builder;
-    if (!target.empty()) {
-        Endpoint endpoint;
-        endpoint.set_target(target);
-        if (!token.empty()) {
-            auto* header = endpoint.add_required_headers();
-            header->set_key("authorization");
-            header->set_value("Bearer " + token);
-        }
-        builder.WithEndpoint(endpoint);
-    } else if (!discovery_file.empty()) {
-        builder.WithDiscoveryFile(discovery_file);
-    } else {
-        builder.ForDiscoveredEmulator({});
-    }
-
-    auto client = builder.BuildBlocking();
-    if (!client.ok()) {
-        return client.status();
-    }
-
-    const auto& endpoint = (*client)->GetEndpoint();
-    std::string resolved_target = endpoint.target();
-    GrpcChannelFactory factory(endpoint, {});
-    auto channel = factory.CreateChannel();
-    if (!channel) {
-        return absl::InternalError("Failed to create gRPC channel for target: " + resolved_target);
-    }
-    return std::make_pair(std::move(resolved_target), std::move(channel));
 }
 
 }  // namespace goldfish::aquarium

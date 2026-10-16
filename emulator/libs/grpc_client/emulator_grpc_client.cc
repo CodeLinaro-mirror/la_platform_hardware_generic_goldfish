@@ -302,4 +302,19 @@ EmulatorGrpcClientBuilder::BuildCallback() {
     return client;
 }
 
+absl::StatusOr<std::pair<std::string, std::shared_ptr<grpc::Channel>>>
+EmulatorGrpcClientBuilder::BuildTargetAndChannel() {
+    if (!status_.ok()) {
+        return status_;
+    }
+    std::string target = destination_.target();
+    GrpcChannelFactory factory(destination_, std::move(factories_));
+    auto channel = factory.CreateChannel();
+    if (!channel) {
+        return absl::InternalError(
+                absl::StrCat("Failed to create gRPC channel for target: ", target));
+    }
+    return std::make_pair(std::move(target), std::move(channel));
+}
+
 }  // namespace android::emulation::control
