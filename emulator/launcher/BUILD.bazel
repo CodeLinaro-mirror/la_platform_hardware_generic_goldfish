@@ -748,6 +748,27 @@ py_test(
     ],
 )
 
+[
+    (
+        config_setting(
+            name = "linux_api_%d" % api,
+            constraint_values = ["@platforms//os:linux"],
+            values = {"define": "api_level=%d" % api},
+        ),
+        config_setting(
+            name = "macos_api_%d" % api,
+            constraint_values = ["@platforms//os:macos"],
+            values = {"define": "api_level=%d" % api},
+        ),
+        config_setting(
+            name = "windows_api_%d" % api,
+            constraint_values = ["@platforms//os:windows"],
+            values = {"define": "api_level=%d" % api},
+        ),
+    )
+    for api in range(29, 38)
+]
+
 py_binary(
     name = "launch_emulator",
     srcs = ["tools/launch_emulator.py"],
@@ -755,16 +776,45 @@ py_binary(
         ":android-device-hub",
         ":launcher",
         "//emulator/tools/aquarium-ui",
-    ] + select({
-        "@platforms//os:macos": [
-            "//emulator/sdk/system_images/minigbm-arm64-v8a:minigbm",
-            "@android16k-arm64-v8a//:system_image",
-        ],
-        "//conditions:default": [
-            "//emulator/sdk/system_images/minigbm-x86_64:minigbm",
-            "@android16k-x86_64//:system_image",
-        ],
-    }) + [
+    ] + select(
+        {
+            key: val
+            for d in [
+                {
+                    ":linux_api_%d" % api: [
+                        "//emulator/sdk/system_images/minigbm-x86_64:minigbm",
+                        "@sysimg-android-%d-x86_64//:system_image" % api,
+                    ]
+                    for api in range(29, 38)
+                },
+                {
+                    ":macos_api_%d" % api: [
+                        "//emulator/sdk/system_images/minigbm-arm64-v8a:minigbm",
+                        "@sysimg-android-%d-arm64-v8a//:system_image" % api,
+                    ]
+                    for api in range(29, 38)
+                },
+                {
+                    ":windows_api_%d" % api: [
+                        "//emulator/sdk/system_images/minigbm-x86_64:minigbm",
+                        "@sysimg-android-%d-x86_64//:system_image" % api,
+                    ]
+                    for api in range(29, 38)
+                },
+                {
+                    "@platforms//os:macos": [
+                        "//emulator/sdk/system_images/minigbm-arm64-v8a:minigbm",
+                        "@android16k-arm64-v8a//:system_image",
+                    ],
+                    "//conditions:default": [
+                        "//emulator/sdk/system_images/minigbm-x86_64:minigbm",
+                        "@android16k-x86_64//:system_image",
+                    ],
+                },
+            ]
+            for key, val in d.items()
+        },
+    ) + [
         "//emulator/sdk:sdk-marker-files",
     ],
     env = {

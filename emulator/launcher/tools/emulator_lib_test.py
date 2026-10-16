@@ -174,6 +174,21 @@ class EmulatorLocatorTest(unittest.TestCase):
             self.locator._locate_device_hub()
         self.assertIn(str(Path("/mock/noexec-device-hub")), str(ctx.exception))
 
+    @patch.object(Path, "exists", return_value=True)
+    def test_locate_system_image_supports_api_level_repos(self, mock_exists):
+        def fake_rlocation(path):
+            if path == "sysimg-android-36-x86_64/x86_64/source.properties":
+                return "/mock/sysimg-android-36-x86_64/x86_64/source.properties"
+            return None
+
+        self.mock_runfiles.Rlocation.side_effect = fake_rlocation
+        self.locator._locate_system_image()
+        self.assertEqual(self.locator.abi, "x86_64")
+        self.assertEqual(
+            self.locator.system_image_dir,
+            Path("/mock/sysimg-android-36-x86_64/x86_64"),
+        )
+
 
 class EmulatorLibTest(unittest.IsolatedAsyncioTestCase):
     """Tests for emulator_lib helpers and runner."""
