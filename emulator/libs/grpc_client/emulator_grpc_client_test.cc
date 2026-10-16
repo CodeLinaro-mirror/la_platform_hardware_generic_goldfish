@@ -169,6 +169,21 @@ TEST_F(EmulatorGrpcClientTest, Builder_WithTargetOrDiscovery_FallsBackToDiscover
     EXPECT_EQ((*clientOrStatus)->GetEndpoint().target(), "localhost:8556");
 }
 
+TEST_F(EmulatorGrpcClientTest, Builder_BuildTargetAndChannel_ReturnsTargetAndChannel) {
+    auto target_and_channel = EmulatorGrpcClientBuilder()
+                                      .WithTargetOrDiscovery("localhost:9999", "secret-token", "")
+                                      .BuildTargetAndChannel();
+    ASSERT_THAT(target_and_channel, IsOk());
+    EXPECT_EQ(target_and_channel->first, "localhost:9999");
+    EXPECT_NE(target_and_channel->second, nullptr);
+}
+
+TEST_F(EmulatorGrpcClientTest, Builder_BuildTargetAndChannel_PropagatesError) {
+    auto target_and_channel =
+            EmulatorGrpcClientBuilder().WithDiscoveryFile("/no/such/file.ini").BuildTargetAndChannel();
+    EXPECT_FALSE(target_and_channel.ok());
+}
+
 TEST_F(EmulatorGrpcClientTest, Builder_NonExistentDiscoveryFile_Fails) {
     auto clientOrStatus =
             EmulatorGrpcClientBuilder().WithDiscoveryFile("/no/such/file.ini").BuildBlocking();

@@ -19,7 +19,9 @@
 #include <filesystem>
 #include <future>
 #include <memory>
+#include <string>
 #include <string_view>
+#include <utility>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -394,6 +396,18 @@ class EmulatorGrpcClientBuilder {
      *         if the configuration was invalid.
      */
     absl::StatusOr<std::unique_ptr<CallbackEmulatorGrpcClient>> BuildCallback();
+
+    /**
+     * @brief Builds a raw gRPC channel and returns the resolved target address.
+     *
+     * Useful for proxy servers (such as gRPC-Web or Aquarium UI) that forward
+     * raw frames over a channel without wrapping it in a Blocking or Callback
+     * client.
+     *
+     * @return A `StatusOr` containing the resolved target address and channel,
+     *         or an error if endpoint resolution or channel creation failed.
+     */
+    absl::StatusOr<std::pair<std::string, std::shared_ptr<grpc::Channel>>> BuildTargetAndChannel();
 
   private:
     absl::Status status_{absl::OkStatus()};
