@@ -160,16 +160,22 @@ RtcServiceImpl::RtcServiceImpl(std::shared_ptr<Switchboard> switchboard,
     return ::grpc::Status::OK;
 }
 
-::grpc::Status RtcServiceImpl::UpdateRtcStream(::grpc::ServerContext* /*context*/,
-                                               const RtcStreamUpdateRequest* request,
-                                               UpdateRtcStreamResponse* /*response*/) {
-    const std::string& session_id = request->handle().session_id();
+::grpc::Status RtcServiceImpl::ValidateActiveSession(const std::string& session_id) const {
     if (session_id.empty()) {
         return {::grpc::StatusCode::INVALID_ARGUMENT, "Session ID cannot be empty."};
     }
     if (!switchboard_->HasSession(session_id)) {
         return {::grpc::StatusCode::NOT_FOUND,
                 "No active WebRTC session for the supplied session ID."};
+    }
+    return ::grpc::Status::OK;
+}
+
+::grpc::Status RtcServiceImpl::UpdateRtcStream(::grpc::ServerContext* /*context*/,
+                                               const RtcStreamUpdateRequest* request,
+                                               UpdateRtcStreamResponse* /*response*/) {
+    if (auto status = ValidateActiveSession(request->handle().session_id()); !status.ok()) {
+        return status;
     }
 
     // Dynamic track updates (adding or removing video/audio tracks during an active session)
@@ -187,12 +193,8 @@ RtcServiceImpl::RtcServiceImpl(std::shared_ptr<Switchboard> switchboard,
                                               const CloseRtcStreamRequest* request,
                                               CloseRtcStreamResponse* /*response*/) {
     const std::string& session_id = request->handle().session_id();
-    if (session_id.empty()) {
-        return {::grpc::StatusCode::INVALID_ARGUMENT, "Session ID cannot be empty."};
-    }
-    if (!switchboard_->HasSession(session_id)) {
-        return {::grpc::StatusCode::NOT_FOUND,
-                "No active WebRTC session for the supplied session ID."};
+    if (auto status = ValidateActiveSession(session_id); !status.ok()) {
+        return status;
     }
 
     switchboard_->Disconnect(session_id);
@@ -221,12 +223,8 @@ RtcServiceImpl::RtcServiceImpl(std::shared_ptr<Switchboard> switchboard,
                                                         const RtcSession* request,
                                                         ::grpc::ServerWriter<JsepMessage>* writer) {
     const std::string& session_id = request->session_id();
-    if (session_id.empty()) {
-        return {::grpc::StatusCode::INVALID_ARGUMENT, "Session ID cannot be empty."};
-    }
-    if (!switchboard_->HasSession(session_id)) {
-        return {::grpc::StatusCode::NOT_FOUND,
-                "No active WebRTC session for the supplied session ID."};
+    if (auto status = ValidateActiveSession(session_id); !status.ok()) {
+        return status;
     }
     if (!TryAttachAndClaimSession(session_id)) {
         return {::grpc::StatusCode::ALREADY_EXISTS,
@@ -276,20 +274,22 @@ void RtcServiceImpl::DetachSession(const std::string& session_id) {
     attached_sessions_.erase(session_id);
 }
 
-void RtcServiceImpl::AwaitSessionAttached(const std::string& session_id) const {
-    const auto attached = [this, &session_id]() ABSL_SHARED_LOCKS_REQUIRED(sessions_mutex_) {
-        return attached_sessions_.contains(session_id);
+void RtcServiceImpl::AwaitSessionAttachment(const std::string& session_id,
+                                            bool expected_attached) const {
+    const auto condition = [this, &session_id,
+                            expected_attached]() ABSL_SHARED_LOCKS_REQUIRED(sessions_mutex_) {
+        return attached_sessions_.contains(session_id) == expected_attached;
     };
     absl::MutexLock lock(&sessions_mutex_);
-    sessions_mutex_.Await(absl::Condition(&attached));
+    sessions_mutex_.Await(absl::Condition(&condition));
+}
+
+void RtcServiceImpl::AwaitSessionAttached(const std::string& session_id) const {
+    AwaitSessionAttachment(session_id, true);
 }
 
 void RtcServiceImpl::AwaitSessionDetached(const std::string& session_id) const {
-    const auto detached = [this, &session_id]() ABSL_SHARED_LOCKS_REQUIRED(sessions_mutex_) {
-        return !attached_sessions_.contains(session_id);
-    };
-    absl::MutexLock lock(&sessions_mutex_);
-    sessions_mutex_.Await(absl::Condition(&detached));
+    AwaitSessionAttachment(session_id, false);
 }
 
 void RtcServiceImpl::SweepUnclaimedSessions() {

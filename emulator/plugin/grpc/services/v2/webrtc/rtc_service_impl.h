@@ -114,6 +114,11 @@ class RtcServiceImpl : public ::android::emulation::v2::RtcService::Service {
     void AwaitSessionDetached(const std::string& session_id) const;
 
   private:
+    ::grpc::Status ValidateActiveSession(const std::string& session_id) const;
+
+    void AwaitSessionAttachment(const std::string& session_id, bool expected_attached) const
+            ABSL_LOCKS_EXCLUDED(sessions_mutex_);
+
     /**
      * @brief Records a freshly created session as awaiting a signaling stream.
      */
