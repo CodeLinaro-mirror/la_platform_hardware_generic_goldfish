@@ -74,7 +74,6 @@ cc_library(
     name = "system",
     srcs = ["system.cc"],
     hdrs = [
-        "include/android/base/c_str_wrapper.h",
         "include/android/base/cpu_time.h",
         "include/android/base/memory.h",
         "include/android/base/no_sigalarm.h",

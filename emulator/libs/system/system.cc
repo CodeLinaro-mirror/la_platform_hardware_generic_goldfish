@@ -37,7 +37,6 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/strip.h"
 
-#include "android/base/c_str_wrapper.h"
 #include "android/process/command.h"
 #include "goldfish/file/storage_capacity.h"
 
@@ -630,7 +629,7 @@ class HostSystem : public System {
         if (varname.empty()) {
             return false;
         }
-        const char* value = getenv(c_str(varname));
+        const char* value = getenv(std::string(varname).c_str());
         return value && value[0] != '\0';
     }
 
@@ -980,12 +979,12 @@ void System::SetEnvironmentVariable(std::string_view varname, std::string_view v
     // and getenv) on Windows requires the process active code page to be set to
     // UTF-8 in the application manifest (<activeCodePage>UTF-8</activeCodePage>)
     // and Windows 10 version 1903 (build 10.0.18362) or later.
-    _putenv_s(c_str(varname), c_str(varvalue));
+    _putenv_s(std::string(varname).c_str(), std::string(varvalue).c_str());
 #else
     if (varvalue.empty()) {
-        unsetenv(c_str(varname));
+        unsetenv(std::string(varname).c_str());
     } else {
-        setenv(c_str(varname), c_str(varvalue), 1);
+        setenv(std::string(varname).c_str(), std::string(varvalue).c_str(), 1);
     }
 #endif
 }
@@ -995,7 +994,7 @@ std::string System::GetEnvironmentVariable(std::string_view varname) {
     if (varname.empty()) {
         return "";
     }
-    const char* value = getenv(c_str(varname));
+    const char* value = getenv(std::string(varname).c_str());
     if (!value) {
         value = "";
     }
