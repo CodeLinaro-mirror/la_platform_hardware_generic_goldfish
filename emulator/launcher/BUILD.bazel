@@ -227,6 +227,7 @@ cc_library(
     hdrs = ["host_info.h"],
     deps = [
         ":avd",
+        "//emulator/launcher/launch_qemu:vulkan_gpu_device_info",
         "//emulator/libs/cpu",
         "//emulator/libs/cpu:cpu_brand",
         "//emulator/libs/file",
@@ -235,7 +236,10 @@ cc_library(
         "//emulator/libs/system",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/strings:str_format",
         "@studio_stats//:studio_stats_cc_proto",
+        "@vulkan-headers//:vulkan_headers",
     ],
 )
 
@@ -246,6 +250,7 @@ cc_test(
     deps = [
         ":host_info",
         ":mock_avd",
+        "//emulator/launcher/launch_qemu:vulkan_gpu_device_info",
         "//emulator/libs/system:test-headers",
         "//emulator/libs/test:googletest_main",
         "@studio_stats//:studio_stats_cc_proto",
