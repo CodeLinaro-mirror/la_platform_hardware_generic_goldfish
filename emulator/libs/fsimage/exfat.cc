@@ -635,10 +635,10 @@ struct ExfatTreeNode {
 
 absl::Status ScanDirectoryRecursive(const fs::path& dir_path, ExfatTreeNode* dir_node) {
     std::error_code ec;
-    std::vector<fs::directory_entry> entries;
+    std::vector<std::pair<fs::directory_entry, std::u8string>> entries;
     for (fs::directory_iterator it(dir_path, ec); !ec && it != fs::directory_iterator();
          it.increment(ec)) {
-        entries.push_back(*it);
+        entries.emplace_back(*it, it->path().filename().u8string());
     }
     if (ec) {
         return absl::InternalError(absl::StrFormat("Failed to iterate directory '%s': %s",
@@ -646,15 +646,17 @@ absl::Status ScanDirectoryRecursive(const fs::path& dir_path, ExfatTreeNode* dir
     }
 
     std::sort(entries.begin(), entries.end(),
-              [](const fs::directory_entry& a, const fs::directory_entry& b) {
-                  return a.path().filename().string() < b.path().filename().string();
-              });
+              [](const auto& a, const auto& b) { return a.second < b.second; });
+    for (auto& entry : entries) {
+        entry.second.clear();
+        entry.second.shrink_to_fit();
+    }
 
     absl::flat_hash_set<std::vector<uint16_t>> seen_upcase_names;
     dir_node->children.reserve(entries.size());
 
-    for (const fs::directory_entry& entry : entries) {
-        const fs::path& child_path = entry.path();
+    for (const auto& entry : entries) {
+        const fs::path& child_path = entry.first.path();
         const fs::file_status st = fs::symlink_status(child_path, ec);
         if (ec) {
             return absl::InternalError(
