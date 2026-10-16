@@ -14,11 +14,13 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
+#include <array>
 #include <bit>
 #include <cstdint>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <string_view>
 #include <vector>
 
 #include "absl/status/status.h"
@@ -335,6 +337,37 @@ TEST(CreateExFATImageFromDirectoryTest, ReturnsErrorWhenImageTooSmallForFiles) {
     const fs::path image = temp_dir.Path() / "small.img";
     EXPECT_THAT(CreateExFATImageFromDirectory(image, src_dir, 512_KiB),
                 StatusIs(absl::StatusCode::kInvalidArgument));
+}
+
+TEST(CreateExFATImageFromDirectoryTest, SortsDirectoryEntriesByU8String) {
+    TestTempDir temp_dir("exfat_test");
+    const fs::path src_dir = temp_dir.Path() / "src";
+    ASSERT_TRUE(fs::create_directory(src_dir));
+
+    // Create files out of order; UTF-8 code-unit order is '0' (0x30) < 'A' (0x41) < '_' (0x5F) <
+    // 'b' (0x62) < 'z' (0x7A).
+    for (std::string_view name : {"z.txt", "b.txt", "_.txt", "A.txt", "0.txt"}) {
+        WriteTextFile(src_dir / name, name);
+    }
+
+    const fs::path image = temp_dir.Path() / "sorted.img";
+    ASSERT_THAT(CreateExFATImageFromDirectory(image, src_dir, 1_MiB), IsOk());
+
+    const std::vector<uint8_t> boot = ReadBytesAt(image, 0, 512);
+    const uint32_t clu_offset = ReadLe32(boot.data() + 88);
+    const uint32_t root_cluster = ReadLe32(boot.data() + 96);
+    const uint64_t root_dir_offset = clu_offset * 512ULL + (root_cluster - 2U) * 4096ULL;
+
+    // First 3 root dentries are Volume Label, Bitmap, Up-case Table.
+    // Each short filename uses 3 dentries: File (0x85), StreamExt (0xC0), FileName (0xC1).
+    const std::vector<uint8_t> root_dir = ReadBytesAt(image, root_dir_offset, (3 + 5 * 3) * 32ULL);
+    constexpr std::array<char, 5> kExpectedFirstChars = {'0', 'A', '_', 'b', 'z'};
+    for (size_t i = 0; i < kExpectedFirstChars.size(); ++i) {
+        const uint8_t* set_base = root_dir.data() + (3 + i * 3) * 32;
+        EXPECT_EQ(set_base[0], 0x85U);
+        EXPECT_EQ(set_base[64], 0xC1U);
+        EXPECT_EQ(ReadLe16(set_base + 64 + 2), static_cast<uint16_t>(kExpectedFirstChars[i]));
+    }
 }
 
 }  // namespace

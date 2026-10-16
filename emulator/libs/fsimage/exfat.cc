@@ -635,10 +635,10 @@ struct ExfatTreeNode {
 
 absl::Status ScanDirectoryRecursive(const fs::path& dir_path, ExfatTreeNode* dir_node) {
     std::error_code ec;
-    std::vector<std::pair<fs::directory_entry, std::string>> entries;
+    std::vector<std::pair<fs::directory_entry, std::u8string>> entries;
     for (fs::directory_iterator it(dir_path, ec); !ec && it != fs::directory_iterator();
          it.increment(ec)) {
-        entries.emplace_back(*it, it->path().filename().string());
+        entries.emplace_back(*it, it->path().filename().u8string());
     }
     if (ec) {
         return absl::InternalError(absl::StrFormat("Failed to iterate directory '%s': %s",
