@@ -18,6 +18,8 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
+#include <limits>
+
 #include "absl/status/status_matchers.h"
 
 #include "goldfish/archive/deque_archive.h"
@@ -61,14 +63,25 @@ TEST(glm, vec2_negative) {
         glm::vec2 read_vec;
         EXPECT_THAT(ReadValue(archive, read_vec), Not(IsOk()));
     }
+
+    // 3. NaN component rejected
+    {
+        DequeArchive archive;
+        archive << 1.0f << std::numeric_limits<float>::quiet_NaN();
+
+        glm::vec2 read_vec;
+        EXPECT_THAT(ReadValue(archive, read_vec), Not(IsOk()));
+    }
 }
 
 TEST(glm, vec3_positive) {
     const glm::vec3 v1(1.0f, -2.5f, 3.75f);
     const glm::vec3 v2(0.0f, 0.0f, 0.0f);
+    const glm::vec3 v3(std::numeric_limits<float>::infinity(),
+                       -std::numeric_limits<float>::infinity(), 1.0f);
 
     DequeArchive archive;
-    archive << v1 << v2;
+    archive << v1 << v2 << v3;
 
     glm::vec3 read1;
     ASSERT_THAT(ReadValue(archive, read1), IsOk());
@@ -77,6 +90,10 @@ TEST(glm, vec3_positive) {
     glm::vec3 read2;
     ASSERT_THAT(ReadValue(archive, read2), IsOk());
     EXPECT_EQ(read2, v2);
+
+    glm::vec3 read3;
+    ASSERT_THAT(ReadValue(archive, read3), IsOk());
+    EXPECT_EQ(read3, v3);
 
     EXPECT_TRUE(archive.Empty());
 }
@@ -93,6 +110,15 @@ TEST(glm, vec3_negative) {
     {
         DequeArchive archive;
         archive << 1.0f << 2.0f;
+
+        glm::vec3 read_vec;
+        EXPECT_THAT(ReadValue(archive, read_vec), Not(IsOk()));
+    }
+
+    // 3. NaN component rejected
+    {
+        DequeArchive archive;
+        archive << 1.0f << 2.0f << std::numeric_limits<float>::quiet_NaN();
 
         glm::vec3 read_vec;
         EXPECT_THAT(ReadValue(archive, read_vec), Not(IsOk()));

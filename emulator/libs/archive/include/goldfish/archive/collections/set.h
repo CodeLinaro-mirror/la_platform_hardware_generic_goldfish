@@ -13,10 +13,13 @@
 #pragma once
 
 #include <set>
+#include <utility>
 
 #include "absl/status/status.h"
+#include "absl/strings/str_cat.h"
 
 #include "android/status/status_macros.h"
+#include "goldfish/archive/collections/span.h"
 #include "goldfish/archive/reader.h"
 #include "goldfish/archive/writer.h"
 
@@ -25,16 +28,22 @@ namespace goldfish::archive {
 template <class T, class CMP>
 absl::Status ReadValue(archive::IReader& r, std::set<T, CMP>& x) {
     ASSIGN_OR_RETURN(size_t new_size, ReadOneValue<size_t>(r));
+    if (new_size > kMaxArchiveElements || new_size > kMaxArchiveAllocationBytes / sizeof(T)) {
+        return absl::InvalidArgumentError(absl::StrCat(
+                "Archived set size (", new_size, ") exceeds maximum limit (elements: ",
+                kMaxArchiveElements, ", bytes: ", kMaxArchiveAllocationBytes, ")"));
+    }
 
-    x.clear();
+    std::set<T, CMP> loaded;
     for (size_t n = new_size; n; --n) {
         ASSIGN_OR_RETURN(T val, ReadOneValue<T>(r));
 
-        if (!x.insert(std::move(val)).second) {
+        if (!loaded.insert(std::move(val)).second) {
             return absl::InvalidArgumentError("Duplicate key found while deserializing std::set");
         }
     }
 
+    x = std::move(loaded);
     return absl::OkStatus();
 }
 

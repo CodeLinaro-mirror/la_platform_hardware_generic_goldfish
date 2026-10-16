@@ -12,6 +12,11 @@
 
 #include "goldfish/archive/time.h"
 
+#include <cstdint>
+#include <utility>
+
+#include "absl/strings/str_cat.h"
+
 namespace goldfish::archive {
 
 absl::Status ReadValue(archive::IReader& r, absl::Time& dst) {
@@ -19,8 +24,12 @@ absl::Status ReadValue(archive::IReader& r, absl::Time& dst) {
     if (const absl::Status s = ReadValue(r, micros); !s.ok()) {
         return s;
     }
+    if (!std::in_range<int64_t>(micros)) {
+        return absl::OutOfRangeError(
+                absl::StrCat("Timestamp microseconds out of range for int64_t: ", micros));
+    }
 
-    dst = absl::FromUnixMicros(micros);
+    dst = absl::FromUnixMicros(static_cast<int64_t>(micros));
     return absl::OkStatus();
 }
 
