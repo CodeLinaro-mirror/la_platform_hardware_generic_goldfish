@@ -45,8 +45,11 @@ bool HasMustHaveGuestFeatures(const android::goldfish::Avd& avd) {
     }
 
     for (auto must_have : kMustHaveFeatures) {
-        if (sys_img_features->find(must_have) == sys_img_features->end()) {
-            VLOG(1) << "Sysimg is missing must have feature: "
+        // The key must be present *and* on. ParseFeatureFile() records "off" as Off and
+        // unrecognized values (e.g. "foo") as Missing; neither means the image supports it.
+        auto it = sys_img_features->find(must_have);
+        if (it == sys_img_features->end() || it->second != FeatureStatus::On) {
+            VLOG(1) << "Sysimg does not enable must have feature: "
                     << android_studio::EmulatorFeatureFlagState::EmulatorFeatureFlag_Name(
                                must_have);
             return false;
