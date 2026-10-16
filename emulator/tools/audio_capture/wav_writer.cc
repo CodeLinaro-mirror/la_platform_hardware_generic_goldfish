@@ -14,15 +14,25 @@
 
 #include "wav_writer.h"
 
+#include <cerrno>
 #include <cstdint>
 #include <cstring>
 #include <fstream>
 #include <string>
 
 #include "absl/status/status.h"
+#include "absl/strings/str_format.h"
+#include "absl/strings/string_view.h"
 
 namespace android::emulation::tools {
 namespace {
+
+absl::Status FileIoErrorToStatus(int err, absl::string_view message) {
+    if (err != 0) {
+        return absl::ErrnoToStatus(err, message);
+    }
+    return absl::InternalError(message);
+}
 
 #pragma pack(push, 1)
 struct WavHeader {
@@ -75,9 +85,14 @@ absl::Status WavWriter::Open(const std::filesystem::path& filepath, uint32_t sam
     bits_per_sample_ = bits_per_sample;
     bytes_written_ = 0;
 
+    errno = 0;
     file_.open(filepath, std::ios::binary | std::ios::out | std::ios::trunc);
     if (!file_.is_open()) {
-        return absl::InternalError("Failed to open file for writing: " + filepath.string());
+        const int err = errno;
+        return FileIoErrorToStatus(
+                err, absl::StrFormat("Failed to open WAV output file '%s' for writing. Check that "
+                                     "the parent directory exists and is writable",
+                                     filepath.string()));
     }
 
     // Write an initial header with the configured audio format and 0 data size.
@@ -85,9 +100,15 @@ absl::Status WavWriter::Open(const std::filesystem::path& filepath, uint32_t sam
     // upfront allows tools like Audacity, VLC, or ffplay to recover and parse
     // the audio stream even if the process is terminated abruptly before Close().
     WavHeader initial_header = CreateWavHeader(sample_rate_, num_channels_, bits_per_sample_, 0);
+    errno = 0;
     file_.write(reinterpret_cast<const char*>(&initial_header), sizeof(initial_header));
     if (!file_.good()) {
-        return absl::InternalError("Failed to write initial WAV header to: " + filepath.string());
+        const int err = errno;
+        file_.close();
+        return FileIoErrorToStatus(
+                err, absl::StrFormat("Failed to write %zu-byte WAV header to '%s'. Check available "
+                                     "disk space and file permissions",
+                                     sizeof(initial_header), filepath.string()));
     }
 
     return absl::OkStatus();
@@ -95,15 +116,22 @@ absl::Status WavWriter::Open(const std::filesystem::path& filepath, uint32_t sam
 
 absl::Status WavWriter::Write(const void* data, size_t size_bytes) {
     if (!file_.is_open()) {
-        return absl::FailedPreconditionError("WAV file is not open");
+        return absl::FailedPreconditionError(
+                "Cannot write PCM audio data because the WAV writer is not open. Call Open() "
+                "before Write().");
     }
     if (size_bytes == 0) {
         return absl::OkStatus();
     }
 
+    errno = 0;
     file_.write(reinterpret_cast<const char*>(data), size_bytes);
     if (!file_.good()) {
-        return absl::InternalError("Failed to write PCM data");
+        const int err = errno;
+        return FileIoErrorToStatus(
+                err, absl::StrFormat("Failed to write %zu bytes of PCM audio data to '%s'. Check "
+                                     "available disk space",
+                                     size_bytes, filepath_.string()));
     }
     bytes_written_ += size_bytes;
     return absl::OkStatus();

@@ -14,6 +14,7 @@
 
 #include "wav_writer.h"
 
+#include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
 #include <cstdint>
@@ -22,8 +23,15 @@
 #include <string>
 #include <vector>
 
+#include "absl/status/status.h"
+#include "absl/status/status_matchers.h"
+
 namespace android::emulation::tools {
 namespace {
+
+using ::absl_testing::StatusIs;
+using ::testing::AllOf;
+using ::testing::HasSubstr;
 
 #pragma pack(push, 1)
 struct TestWavHeader {
@@ -92,6 +100,24 @@ TEST_F(WavWriterTest, WritesValidWavHeaderAndData) {
     std::vector<int16_t> read_samples(samples.size());
     in.read(reinterpret_cast<char*>(read_samples.data()), read_samples.size() * sizeof(int16_t));
     EXPECT_EQ(read_samples, samples);
+}
+
+TEST_F(WavWriterTest, WriteBeforeOpenReturnsFailedPrecondition) {
+    WavWriter writer;
+    const int16_t sample = 42;
+    EXPECT_THAT(writer.Write(&sample, sizeof(sample)),
+                StatusIs(absl::StatusCode::kFailedPrecondition,
+                         HasSubstr("Call Open() before Write()")));
+}
+
+TEST_F(WavWriterTest, OpenInNonexistentDirectoryReturnsNotFound) {
+    WavWriter writer;
+    const auto missing_path =
+            std::filesystem::temp_directory_path() / "nonexistent_wav_writer_dir" / "out.wav";
+    EXPECT_THAT(writer.Open(missing_path),
+                StatusIs(absl::StatusCode::kNotFound,
+                         AllOf(HasSubstr("nonexistent_wav_writer_dir"),
+                               HasSubstr("Check that the parent directory exists"))));
 }
 
 }  // namespace

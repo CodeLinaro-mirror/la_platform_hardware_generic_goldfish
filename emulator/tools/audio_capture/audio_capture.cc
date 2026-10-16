@@ -28,8 +28,10 @@
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
 #include "absl/time/time.h"
 
+#include "android/emulation/control/absl_status_translate.h"
 #include "android/emulation/control/emulator_grpc_client.h"
 #include "emulator_controller.grpc.pb.h"
 #include "wav_writer.h"
@@ -53,6 +55,7 @@ using ::android::emulation::control::AudioPacket;
 using ::android::emulation::control::BlockingEmulatorGrpcClient;
 using ::android::emulation::control::EmulatorController;
 using ::android::emulation::control::EmulatorGrpcClientBuilder;
+using ::android::emulation::control::GrpcStatusToAbslStatus;
 using ::android::emulation::tools::WavWriter;
 
 std::atomic<bool> g_stop{false};
@@ -80,6 +83,20 @@ absl::StatusOr<std::unique_ptr<BlockingEmulatorGrpcClient>> CreateClient(
 
 absl::Status CaptureAudio(BlockingEmulatorGrpcClient& client, const std::string& output_path,
                           uint32_t sample_rate, const std::string& channels, double duration_sec) {
+    if (sample_rate == 0) {
+        return absl::InvalidArgumentError(
+                "Invalid --sample_rate value 0; must be greater than 0 Hz (e.g. 44100 or 48000).");
+    }
+    if (channels != "mono" && channels != "stereo") {
+        return absl::InvalidArgumentError(absl::StrFormat(
+                "Invalid --channels value '%s'; must be 'mono' or 'stereo'.", channels));
+    }
+    if (duration_sec < 0.0) {
+        return absl::InvalidArgumentError(absl::StrFormat(
+                "Invalid --duration_sec value %g; must be >= 0 (use 0 to record until Ctrl+C).",
+                duration_sec));
+    }
+
     auto stub = client.Stub<EmulatorController>();
     if (!stub.ok()) {
         return stub.status();
@@ -113,7 +130,10 @@ absl::Status CaptureAudio(BlockingEmulatorGrpcClient& client, const std::string&
 
     auto reader = (*stub)->streamAudio((*context).get(), request);
     if (!reader) {
-        return absl::InternalError("Failed to initiate streamAudio RPC");
+        return absl::UnavailableError(absl::StrFormat(
+                "Failed to start streamAudio RPC to '%s' (%u Hz, %s). Check that the emulator "
+                "gRPC service is running and supports EmulatorController.streamAudio.",
+                client.GetEndpoint().target(), sample_rate, channels));
     }
 
     if (duration_sec > 0.0) {
@@ -126,6 +146,7 @@ absl::Status CaptureAudio(BlockingEmulatorGrpcClient& client, const std::string&
     const absl::Time start_time = absl::Now();
     const absl::Duration target_duration = absl::Seconds(duration_sec);
     size_t packet_count = 0;
+    absl::Status write_status = absl::OkStatus();
 
     AudioPacket packet;
     while (!g_stop && reader->Read(&packet)) {
@@ -139,9 +160,10 @@ absl::Status CaptureAudio(BlockingEmulatorGrpcClient& client, const std::string&
         }
 
         if (!packet.audio().empty()) {
-            if (auto status = wav_writer.Write(packet.audio().data(), packet.audio().size());
-                !status.ok()) {
-                LOG(ERROR) << "Error writing WAV packet: " << status;
+            write_status = wav_writer.Write(packet.audio().data(), packet.audio().size());
+            if (!write_status.ok()) {
+                LOG(ERROR) << "Failed to write audio packet #" << packet_count << ": "
+                           << write_status;
                 break;
             }
         }
@@ -165,8 +187,12 @@ absl::Status CaptureAudio(BlockingEmulatorGrpcClient& client, const std::string&
 
     auto finish_status = reader->Finish();
     if (!finish_status.ok() && finish_status.error_code() != grpc::StatusCode::CANCELLED) {
-        LOG(WARNING) << "streamAudio finished with error: [" << finish_status.error_code() << "] "
-                     << finish_status.error_message();
+        LOG(WARNING) << "streamAudio RPC to '" << client.GetEndpoint().target()
+                     << "' ended with error: " << GrpcStatusToAbslStatus(finish_status);
+    }
+
+    if (!write_status.ok()) {
+        return write_status;
     }
 
     if (packet_count == 0) {
