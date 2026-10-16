@@ -78,6 +78,7 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
+        "//emulator/libs/file",
         "//emulator/libs/metrics:studio_stats_wrapper",
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/log",
@@ -90,10 +91,12 @@ cc_test(
     name = "feature_flags_test",
     size = "small",
     srcs = ["feature_flags_test.cc"],
+    data = [":advanced_features_ini"],
     deps = [
         ":feature_flags",
         "//emulator/libs/status_macros:status_matcher_macros",
         "//emulator/libs/system",
+        "//emulator/libs/system:bazel_info",
         "//emulator/libs/system:test-headers",
         "//emulator/libs/test:googletest_main",
         "@abseil-cpp//absl/status:status_matchers",
@@ -884,6 +887,7 @@ py_binary(
 clang_tidy_test(
     name = "tidy",
     targets = [
+        ":feature_flags",
         ":input_paths",
         ":avd",
     ],
