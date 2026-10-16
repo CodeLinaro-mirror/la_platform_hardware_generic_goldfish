@@ -22,6 +22,7 @@
 // OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
 // ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+#include <cstdint>
 #include <cstdlib>
 #include <filesystem>
 #include <iostream>
@@ -33,11 +34,16 @@
 #include "absl/flags/parse.h"
 #include "absl/flags/usage.h"
 #include "absl/status/status.h"
+#include "absl/time/clock.h"
+#include "absl/time/time.h"
 
 #include "goldfish/file/storage_capacity.h"
 #include "goldfish/fsimage/exfat.h"
 
 ABSL_FLAG(std::string, l, "", "The volume label of the disk image to create");
+ABSL_FLAG(uint32_t, s, 1, "The volume serial number of the disk image to create");
+ABSL_FLAG(absl::Time, t, absl::Now(),
+          "Timestamp (RFC3339, e.g. 2026-01-01T00:00:00Z) for volume entries");
 ABSL_FLAG(std::string, src, "", "Source directory to pre-populate the exFAT image from");
 
 namespace {
@@ -45,7 +51,8 @@ namespace {
 constexpr std::string_view kUsageMessage =
         "mksdcard: create a blank or pre-populated exFAT image to be used with the "
         "Android emulator\n"
-        "usage: mksdcard [-l label] [-src source_directory] <size> <file>\n\n"
+        "usage: mksdcard [-l label] [-s serial] [-t rfc3339] [-src source_directory] "
+        "<size> <file>\n\n"
         "  if <size> is a simple integer, it specifies a size in bytes\n"
         "  if <size> is an integer followed by 'K', it specifies a size in KiB\n"
         "  if <size> is an integer followed by 'M', it specifies a size in MiB\n"
@@ -75,14 +82,18 @@ int main(int argc, char** argv) {
         Usage();
     }
 
-    const std::string volume_label = absl::GetFlag(FLAGS_l);
+    const goldfish::fsimage::ExfatVolumeAttributes attrs = {
+        .label = absl::GetFlag(FLAGS_l),
+        .serial_number = absl::GetFlag(FLAGS_s),
+        .timestamp = absl::GetFlag(FLAGS_t),
+    };
     const std::string source_directory = absl::GetFlag(FLAGS_src);
 
     const absl::Status status =
             !source_directory.empty()
                     ? goldfish::fsimage::CreateExFATImageFromDirectory(file_path, source_directory,
-                                                                       *capacity, volume_label)
-                    : goldfish::fsimage::CreateEmptyExFATImage(file_path, *capacity, volume_label);
+                                                                       *capacity, attrs)
+                    : goldfish::fsimage::CreateEmptyExFATImage(file_path, *capacity, attrs);
     if (!status.ok()) {
         std::cerr << "Failed to create exFAT image '" << file_path.string() << "': " << status
                   << "\n";
