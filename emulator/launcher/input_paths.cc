@@ -125,6 +125,9 @@ absl::StatusOr<EmulatorPaths> ResolveEmulatorPaths(bool verbose) {
                      CheckExists(paths.launcher_directory / "lib64", "lib64 directory"));
     ASSIGN_OR_RETURN(paths.bios_directory,
                      CheckExists(paths.launcher_directory / "share" / "qemu", "bios directory"));
+    ASSIGN_OR_RETURN(paths.advanced_features,
+                     CheckExists(paths.launcher_directory / "lib" / "advancedFeatures.ini",
+                                 "advanced features"));
 
     // Releases only ship the qemu-system binary matching the host platform, so
     // each one is optional. At least one must be present.
