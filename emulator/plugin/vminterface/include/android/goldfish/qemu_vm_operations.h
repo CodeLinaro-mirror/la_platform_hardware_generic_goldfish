@@ -15,6 +15,7 @@
 
 #include <memory>
 
+#include "android/base/clock.h"
 #include "android/goldfish/vm_interface.h"
 #include "goldfish/async/event_loop.h"
 
@@ -24,26 +25,30 @@ namespace goldfish {
 /**
  * @brief Creates the VmOperations implementation that controls the QEMU VM.
  *
- * The instance registers a QEMU run-state handler when constructed and
- * unregisters it when destroyed, both under the VM lock. Create it once the VM
- * lock is usable (for example while devices are realized) and keep it alive
- * for as long as consumers hold references to it.
+ * The instance registers QEMU run-state and snapshot-progress handlers when
+ * constructed and unregisters them when destroyed, both under the VM lock.
+ * Create it once the VM lock is usable (for example while devices are realized)
+ * and keep it alive for as long as consumers hold references to it.
  *
  * Mutating and snapshot operations are dispatched synchronously to `qemu_loop`
  * via `PostAndWait`. They are expected to be called from external threads
  * (such as gRPC server or worker threads) and will fatally abort if called
- * from either `event_loop` or `qemu_loop`. Read-only queries (`isRunning`,
- * `getRunState`, `getConfiguration`) execute directly without posting to
- * `qemu_loop` and may be called from any thread.
+ * from either `event_loop` or `qemu_loop`. Read-only queries (`IsRunning`,
+ * `GetRunState`, `GetConfiguration`, `GetSnapshotProgress`) execute directly
+ * without posting to `qemu_loop` and may be called from any thread.
  *
- * @param event_loop The loop that runs the `RunStateEvents()` callbacks. Must
- *        be distinct from `qemu_loop` and outlive the returned instance.
+ * @param event_loop The loop that runs the `RunStateEvents()` and
+ *        `SnapshotEvents()` callbacks. Must be distinct from `qemu_loop` and
+ *        outlive the returned instance.
  * @param qemu_loop The QEMU main event loop used to execute VM operations. Must
  *        outlive the returned instance.
+ * @param clock Clock source used for snapshot progress throttling. Must outlive
+ *        the returned instance. Defaults to `::android::base::IClock::Get()`.
  * @return The QEMU-backed VmOperations.
  */
-std::unique_ptr<VmOperations> CreateQemuVmOperations(::goldfish::async::EventLoop* event_loop,
-                                                     ::goldfish::async::EventLoop* qemu_loop);
+std::unique_ptr<VmOperations> CreateQemuVmOperations(
+        ::goldfish::async::EventLoop* event_loop, ::goldfish::async::EventLoop* qemu_loop,
+        ::android::base::IClock* clock = &::android::base::IClock::Get());
 
 }  // namespace goldfish
 }  // namespace android

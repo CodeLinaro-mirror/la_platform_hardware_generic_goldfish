@@ -104,7 +104,7 @@ SnapshotOperationMetadata MakeOperationMetadataFromProgress(
     const auto phase = (progress.phase == VmOperations::SnapshotPhase::Preparing && !done)
                                ? SnapshotOperationMetadata::PREPARING
                                : SnapshotOperationMetadata::TRANSFERRING;
-    const int32_t percent = done ? 100 : progress.progress_percent();
+    const int32_t percent = done ? 100 : progress.ProgressPercent();
     const int64_t total = progress.total_bytes;
     const int64_t transferred = (done && total > 0) ? total : progress.transferred_bytes;
     SnapshotOperationMetadata metadata =
@@ -246,9 +246,12 @@ void HypervisorServiceImpl::OnSnapshotStateChanged(const VmOperations::SnapshotP
     if (progress.phase == VmOperations::SnapshotPhase::Failed) {
         const SnapshotOperationMetadata fail_meta =
                 MakeOperationMetadataFromProgress(active_id, progress, /*done=*/false);
-        const absl::Status err =
-                absl::InternalError(progress.error_message.empty() ? "Snapshot operation failed"
-                                                                   : progress.error_message);
+        const std::string fallback_error = absl::StrCat(
+                "Cannot ",
+                progress.operation == VmOperations::SnapshotOperationType::Load ? "load" : "save",
+                " snapshot '", active_id, "': QEMU reported an unspecified snapshot failure");
+        const absl::Status err = absl::InternalError(
+                progress.error_message.empty() ? fallback_error : progress.error_message);
         (void)operations_service_->FailOperation(tracked.lro_name, err, &fail_meta);
         return;
     }
