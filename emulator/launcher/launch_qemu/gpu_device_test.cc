@@ -44,6 +44,7 @@ using ::testing::AllOf;
 using ::testing::ElementsAre;
 using ::testing::Eq;
 using ::testing::HasSubstr;
+using ::testing::Not;
 using ::testing::Pair;
 using ::testing::Return;
 using ::testing::ReturnRef;
@@ -325,7 +326,7 @@ TEST(GpuDeviceTest, EscapesCommasInSnapshotDirectoryAndRendererFeatures) {
     GpuDevice dev("gpu0", snapshot_dev);
     EXPECT_OK(dev.initialize(emu.config()));
 
-    const fs::path expected_snapshot_dir = avd_content / "renderersave" / "";
+    const fs::path expected_snapshot_dir = avd_content / "snapshots" / "";
     EXPECT_THAT(
             dev.getQemuParameters(emu.config()),
             ElementsAre(Eq("-device"),
@@ -333,6 +334,65 @@ TEST(GpuDeviceTest, EscapesCommasInSnapshotDirectoryAndRendererFeatures) {
                               HasSubstr(absl::StrCat("snapshot_directory=",
                                                      Device::EscapeQemuOptionValue(
                                                              expected_snapshot_dir.string()))))));
+}
+
+TEST(GpuDeviceTest, SnapshotDirectoryPresentWhenOnlyQuickbootIsOff) {
+    base::TestSystem sys("");
+    const fs::path avd_content = sys.GetTempRoot()->Path() / "avd";
+    ASSERT_OK(base::file::mkdir_recursive(avd_content, 0755));
+
+    // Runtime snapshots (gRPC, console) stay available with -no-snapshot-load
+    // -no-snapshot-save, so the GPU still needs its snapshot directory.
+    AndroidOptions opts{};
+    opts.no_snapshot_load = true;
+    opts.no_snapshot_save = true;
+    FakeEmulator emu(opts);
+    HardwareConfig hw;
+    hw.hw_lcd_width = 1080;
+    hw.hw_lcd_height = 2400;
+    EXPECT_CALL(emu.mock_avd(), Hw()).WillRepeatedly(ReturnRef(hw));
+    EXPECT_CALL(emu.mock_avd(), GetContentPath()).WillRepeatedly(Return(avd_content));
+
+    SnapshotDevice snapshot_dev;
+    EXPECT_OK(snapshot_dev.initialize(emu.config()));
+    ASSERT_FALSE(snapshot_dev.is_enabled());
+    ASSERT_TRUE(snapshot_dev.snapshots_enabled());
+
+    GpuDevice dev("gpu0", snapshot_dev);
+    EXPECT_OK(dev.initialize(emu.config()));
+
+    const fs::path expected_snapshot_dir = avd_content / "snapshots" / "";
+    EXPECT_THAT(dev.getQemuParameters(emu.config()),
+                ElementsAre(Eq("-device"),
+                            AllOf(HasSubstr("VulkanSnapshots:enabled"),
+                                  HasSubstr(absl::StrCat("snapshot_directory=",
+                                                         Device::EscapeQemuOptionValue(
+                                                                 expected_snapshot_dir.string()))))));
+}
+
+TEST(GpuDeviceTest, NoSnapshotDisablesSnapshotDirectory) {
+    base::TestSystem sys("");
+    const fs::path avd_content = sys.GetTempRoot()->Path() / "avd";
+    ASSERT_OK(base::file::mkdir_recursive(avd_content, 0755));
+
+    AndroidOptions opts{};
+    opts.no_snapshot = true;
+    FakeEmulator emu(opts);
+    HardwareConfig hw;
+    hw.hw_lcd_width = 1080;
+    hw.hw_lcd_height = 2400;
+    EXPECT_CALL(emu.mock_avd(), Hw()).WillRepeatedly(ReturnRef(hw));
+    EXPECT_CALL(emu.mock_avd(), GetContentPath()).WillRepeatedly(Return(avd_content));
+
+    SnapshotDevice snapshot_dev;
+    EXPECT_OK(snapshot_dev.initialize(emu.config()));
+    ASSERT_FALSE(snapshot_dev.snapshots_enabled());
+
+    GpuDevice dev("gpu0", snapshot_dev);
+    EXPECT_OK(dev.initialize(emu.config()));
+    EXPECT_THAT(dev.getQemuParameters(emu.config()),
+                ElementsAre(Eq("-device"), AllOf(Not(HasSubstr("VulkanSnapshots:enabled")),
+                                                 Not(HasSubstr("snapshot_directory=")))));
 }
 
 TEST(GpuDeviceTest, HostGpuModeAndLauncherDirEnv) {

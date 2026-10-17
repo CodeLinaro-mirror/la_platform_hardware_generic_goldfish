@@ -254,6 +254,19 @@ void avd_info_set_snapshot_update_time(Object* obj, bool value, Error** errp) {
     toMutableAvdProperties(obj).snapshot_update_time = value;
 }
 
+void avd_info_set_snapshots_enabled(Object* obj, bool value, Error** errp) {
+    toMutableAvdProperties(obj).snapshots_enabled = value;
+}
+
+void avd_info_set_snapshot_version(Object* obj, Visitor* v, const char* name, void* opaque,
+                                   Error** errp) {
+    int32_t value;
+    if (!visit_type_int32(v, name, &value, errp)) {
+        return;
+    }
+    toMutableAvdProperties(obj).snapshot_version = value;
+}
+
 void avd_info_set_quit_after_boot_timeout(Object* obj, Visitor* v, const char* name, void* opaque,
                                           Error** errp) {
     int32_t value;
@@ -417,6 +430,10 @@ void avd_info_class_init(ObjectClass* oc, const void* data) {
     object_class_property_add_str(oc, "snapshot_name", nullptr, avd_info_set_snapshot_name);
     object_class_property_add_bool(oc, "snapshot_update_time", nullptr,
                                    avd_info_set_snapshot_update_time);
+    object_class_property_add_bool(oc, "snapshots_enabled", nullptr,
+                                   avd_info_set_snapshots_enabled);
+    object_class_property_add(oc, "snapshot_version", "int", nullptr,
+                              avd_info_set_snapshot_version, nullptr, nullptr);
 
     object_class_property_add(oc, "quit_after_boot_timeout", "int", nullptr,
                               avd_info_set_quit_after_boot_timeout, nullptr, nullptr);

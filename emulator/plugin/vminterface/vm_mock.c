@@ -22,6 +22,37 @@ static ShutdownCause mock_shutdown_cause = SHUTDOWN_CAUSE_NONE;
 static bool mock_iothread_locked = false;
 static bool mock_snapshot_op_ok = false;
 
+// Bookkeeping of the QEMU snapshot entry points, see vm_mock.h.
+static int s_snapshot_call_count = 0;
+static GThread* s_snapshot_last_call_thread = NULL;
+static char s_snapshot_last_call_name[256] = "";
+
+static void MockSnapshotRecordCall(const char* name) {
+    s_snapshot_call_count++;
+    s_snapshot_last_call_thread = g_thread_self();
+    if (name) {
+        g_strlcpy(s_snapshot_last_call_name, name, sizeof(s_snapshot_last_call_name));
+    }
+}
+
+int mock_snapshot_call_count(void) {
+    return s_snapshot_call_count;
+}
+
+GThread* mock_snapshot_last_call_thread(void) {
+    return s_snapshot_last_call_thread;
+}
+
+const char* mock_snapshot_last_call_name(void) {
+    return s_snapshot_last_call_name;
+}
+
+void mock_snapshot_calls_reset(void) {
+    s_snapshot_call_count = 0;
+    s_snapshot_last_call_thread = NULL;
+    s_snapshot_last_call_name[0] = '\0';
+}
+
 const char* error_get_pretty(const Error* err) {
     assert(err != NULL);
     return "error_get_pretty";
@@ -114,18 +145,25 @@ void bql_unlock(void) {
 
 bool save_snapshot(const char* name, bool overwrite, const char* vmstate, bool has_devices,
                    strList* devices, Error** errp) {
-    (void)name;
+    MockSnapshotRecordCall(name);
     (void)overwrite;
     (void)vmstate;
     (void)has_devices;
     (void)devices;
     *errp = NULL;
+    /* Like QEMU, report the outcome to the progress handlers before returning. */
+    QemuSnapshotProgress progress = {
+        .operation = QEMU_SNAPSHOT_OP_SAVE,
+        .phase = mock_snapshot_op_ok ? QEMU_SNAPSHOT_PHASE_COMPLETED : QEMU_SNAPSHOT_PHASE_FAILED,
+        .name = name,
+    };
+    mock_fire_snapshot_progress(&progress);
     return mock_snapshot_op_ok;
 }
 
 bool load_snapshot(const char* name, const char* vmstate, bool has_devices, strList* devices,
                    Error** errp) {
-    (void)name;
+    MockSnapshotRecordCall(name);
     (void)vmstate;
     (void)has_devices;
     (void)devices;
@@ -138,7 +176,7 @@ void load_snapshot_resume(RunState state) {
 }
 
 bool delete_snapshot(const char* name, bool has_devices, strList* devices, Error** errp) {
-    (void)name;
+    MockSnapshotRecordCall(name);
     (void)has_devices;
     (void)devices;
     *errp = NULL;
@@ -165,6 +203,7 @@ BlockDriverState* bdrv_all_find_vmstate_bs(const char* vmstate_bs, bool has_devi
 
 int bdrv_snapshot_list(BlockDriverState* bs, QEMUSnapshotInfo** psn_info) {
     (void)bs;
+    MockSnapshotRecordCall(NULL);
     if (s_mock_snapshot_count <= 0 || s_mock_snapshot_entries == NULL) {
         *psn_info = NULL;
         return s_mock_snapshot_count;

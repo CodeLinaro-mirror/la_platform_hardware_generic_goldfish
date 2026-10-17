@@ -43,6 +43,7 @@
 #include "goldfish/gvk/instance_dispatch.h"
 #include "goldfish/gvk/system_meta_loader.h"
 #include "goldfish/parsing/resizable_display_config.h"
+#include "goldfish/snapshot/snapshot_store.h"
 
 namespace android::goldfish {
 namespace {
@@ -579,7 +580,8 @@ std::vector<std::string> GpuDevice::getQemuParameters(const EmulatorConfig& emul
         renderer_features.append(";VulkanVirtualQueue:enabled");
     }
 
-    if (mSnapshotDevice.is_enabled()) {
+    // Snapshots can also be taken at runtime (gRPC, console), not only at exit.
+    if (mSnapshotDevice.snapshots_enabled()) {
         renderer_features.append(";VulkanSnapshots:enabled");
     }
 
@@ -630,8 +632,15 @@ std::vector<std::string> GpuDevice::getQemuParameters(const EmulatorConfig& emul
     params.push_back(gfxstream_backends);
     params.push_back("x-gfxstream-composer=on");
     params.push_back(absl::StrCat("renderer_features=", EscapeQemuOptionValue(renderer_features)));
-    if (mSnapshotDevice.is_enabled()) {
-        auto snapshot_directory = emulator.avd().GetContentPath() / "renderersave" / "";
+    if (mSnapshotDevice.snapshots_enabled()) {
+        // virtio-gpu-rutabaga keeps the renderer state of each snapshot under
+        // <snapshot_directory>/<snapshot name>/renderer/, next to the version.txt
+        // that SnapshotStore writes to <snapshot_directory>/<snapshot name>/.
+        const fs::path snapshot_directory =
+                ::goldfish::snapshot::FileSnapshotStore(emulator.avd().GetContentPath(),
+                                                        kSnapshotVersion)
+                        .Root() /
+                "";
         params.push_back(absl::StrCat("snapshot_directory=",
                                       EscapeQemuOptionValue(snapshot_directory.string())));
     }

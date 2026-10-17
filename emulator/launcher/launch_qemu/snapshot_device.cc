@@ -32,6 +32,7 @@ absl::Status SnapshotDevice::initialize(const EmulatorConfig& emulator) {
         return s;
     }
     strict_snapshot_load_ = emulator.opts().strict_snapshot_load;
+    snapshots_enabled_ = are_snapshots_enabled(emulator);
 
     FileSnapshotStore store(emulator.avd().GetContentPath(), kSnapshotVersion);
 
@@ -164,6 +165,10 @@ bool SnapshotDevice::should_save_snapshot(const EmulatorConfig& emulator, std::s
 std::string_view SnapshotDevice::get_snapshot_name(const EmulatorConfig& emulator) {
     const auto& o = emulator.opts();
     return (o.snapshot && o.snapshot[0] != '\0') ? o.snapshot : kDefaultSnapshotName;
+}
+
+bool SnapshotDevice::are_snapshots_enabled(const EmulatorConfig& emulator) {
+    return !emulator.opts().no_snapshot;
 }
 
 }  // namespace android::goldfish

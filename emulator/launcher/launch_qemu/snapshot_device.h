@@ -56,11 +56,17 @@ class SnapshotDevice : public Device {
 
     LoadStatus load_status() const { return load_status_; }
     SaveStatus save_status() const { return save_status_; }
+    // Whether the launch-time Quickboot snapshot is loaded at boot or saved at exit.
     bool is_enabled() const {
         return load_status_ == LoadStatus::kLoading || save_status_ == SaveStatus::kSaving;
     }
+    // Whether any snapshot may be saved or loaded in this session, at launch
+    // or at runtime (gRPC, console). Only -no-snapshot turns this off;
+    // -no-snapshot-load / -no-snapshot-save only affect the Quickboot snapshot.
+    bool snapshots_enabled() const { return snapshots_enabled_; }
 
     static std::string_view get_snapshot_name(const EmulatorConfig& emulator);
+    static bool are_snapshots_enabled(const EmulatorConfig& emulator);
 
   private:
     static bool should_load_snapshot(const EmulatorConfig& emulator, std::string& reason,
@@ -70,6 +76,7 @@ class SnapshotDevice : public Device {
 
     std::string snapshot_name_;
     bool strict_snapshot_load_ = false;
+    bool snapshots_enabled_ = true;
     LoadStatus load_status_ = LoadStatus::kSkippedOldSnapshot;
     SaveStatus save_status_ = SaveStatus::kDisabledCmdline;
 };

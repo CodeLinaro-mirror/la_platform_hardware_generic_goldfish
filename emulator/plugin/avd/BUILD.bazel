@@ -55,6 +55,7 @@ cc_library(
         "//emulator/libs/metrics",
         "//emulator/libs/metrics:perf_stat_reporter",
         "//emulator/libs/metrics:snapshot_metrics",
+        "//emulator/libs/snapshot:snapshot_store",
         "//emulator/libs/system",
         "//emulator/plugin/adb-vsock/host",
         "//emulator/plugin/battery",

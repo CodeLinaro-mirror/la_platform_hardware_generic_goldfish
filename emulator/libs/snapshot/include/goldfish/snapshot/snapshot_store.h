@@ -46,7 +46,10 @@ namespace goldfish::snapshot {
 //   1 -> 2: hardware-properties.ini retired cachePartition/useQcow2 fields
 //           (b/573413085) and folded gfxstream::kFramebufferSnapshotVersion
 //           into bits [30..16].
-inline constexpr int kSnapshotVersionBase = 2;
+//   2 -> 3: the renderer (gfxstream/rutabaga) state moved from
+//           <avd>/renderersave/default_boot/ to <avd>/snapshots/<name>/renderer/
+//           (b/574891578); older snapshots cannot find their renderer state.
+inline constexpr int kSnapshotVersionBase = 3;
 static_assert(kSnapshotVersionBase > 0 && kSnapshotVersionBase < (1 << 16),
               "Base snapshot version does not fit in 16 bits.");
 
@@ -75,6 +78,10 @@ absl::Status ValidateSnapshotName(std::string_view name);
 //
 //
 //   <avd>/snapshots/<name>/version.txt   Version() at save time
+//   <avd>/snapshots/<name>/renderer/     gfxstream/rutabaga renderer state,
+//                                        written and read by QEMU's
+//                                        virtio-gpu-rutabaga device (which is
+//                                        given snapshot_directory=Root())
 //
 // The VM state itself is the qcow2 internal snapshot tagged <name>; this
 // class never touches it. All methods take the snapshot name, never a path,

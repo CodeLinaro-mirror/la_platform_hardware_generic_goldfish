@@ -25,7 +25,6 @@
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
-#include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/time/time.h"
@@ -35,6 +34,7 @@
 #include "android/emulation/control/absl_status_translate.h"
 #include "android/emulation/control/grpc_event_stream_support.h"
 #include "android/process/process.h"
+#include "goldfish/snapshot/snapshot_store.h"
 
 namespace goldfish::grpc::v2 {
 
@@ -74,9 +74,14 @@ using ::grpc::StatusCode;
 
 namespace {
 
-bool ContainsInvalidPathChars(std::string_view snapshot_id) {
-    return absl::StrContains(snapshot_id, "/") || absl::StrContains(snapshot_id, "\\") ||
-           absl::StrContains(snapshot_id, "..");
+// A snapshot id is a qcow2 snapshot tag and a directory name, see
+// goldfish::snapshot::ValidateSnapshotName. RPCs that accept an omitted id
+// pass allow_empty; the shared message spells out the rules to the caller.
+Status ValidateSnapshotId(std::string_view snapshot_id, bool allow_empty) {
+    if (allow_empty && snapshot_id.empty()) {
+        return Status::OK;
+    }
+    return AbslStatusToGrpcStatus(::goldfish::snapshot::ValidateSnapshotName(snapshot_id));
 }
 
 std::string GenerateSnapshotId() {
@@ -198,8 +203,9 @@ void HypervisorServiceImpl::OnSnapshotStateChanged(const VmOperations::SnapshotP
     BuildVmState(vm_operations_.GetRunState(), progress, &vm_state);
     vm_state_events_.FireEvent(vm_state);
 
-    const std::string snapshot_id =
-            progress.snapshot_id.empty() ? "default_boot" : progress.snapshot_id;
+    // QEMU reports the name of every internal snapshot operation (save_snapshot /
+    // load_snapshot always have one); the plugin never assumes a default name.
+    const std::string& snapshot_id = progress.snapshot_id;
     const SnapshotOperationKey op_key{progress.operation, snapshot_id};
 
     if (progress.phase == VmOperations::SnapshotPhase::Preparing ||
@@ -303,10 +309,8 @@ void HypervisorServiceImpl::BuildVmState(EmuRunState run_state,
         state->set_state(is_save ? (is_shutting_down ? VmState::SHUTTING_DOWN
                                                      : VmState::SAVING_SNAPSHOT)
                                  : VmState::RESTORING_SNAPSHOT);
-        const std::string snapshot_id =
-                snap_progress.snapshot_id.empty() ? "default_boot" : snap_progress.snapshot_id;
-        *state->mutable_snapshot_progress() =
-                MakeOperationMetadataFromProgress(snapshot_id, snap_progress, /*done=*/false);
+        *state->mutable_snapshot_progress() = MakeOperationMetadataFromProgress(
+                snap_progress.snapshot_id, snap_progress, /*done=*/false);
     } else {
         state->clear_snapshot_progress();
         if (is_shutting_down) {
@@ -465,7 +469,7 @@ void HypervisorServiceImpl::PopulateSnapshotProto(const VmOperations::SnapshotEn
             absl::ToInt64Nanoseconds(entry.timestamp - absl::FromUnixSeconds(seconds))));
 
     CompatibilityFingerprint* compat = out->mutable_compatibility();
-    compat->set_host_compatible(true);
+    compat->set_host_compatible(entry.compatible);
 }
 
 Status HypervisorServiceImpl::ListSnapshots(ServerContext* /*context*/,
@@ -603,9 +607,9 @@ Status HypervisorServiceImpl::RunSnapshotRpc(
 Status HypervisorServiceImpl::CreateSnapshot(ServerContext* /*context*/,
                                              const CreateSnapshotRequest* request,
                                              Operation* response) {
-    if (ContainsInvalidPathChars(request->snapshot_id())) {
-        return {StatusCode::INVALID_ARGUMENT,
-                "snapshot_id must not contain path separators or '..'."};
+    if (const Status status = ValidateSnapshotId(request->snapshot_id(), /*allow_empty=*/true);
+        !status.ok()) {
+        return status;
     }
 
     const std::string snapshot_id =
@@ -653,9 +657,9 @@ Status HypervisorServiceImpl::RestoreSnapshot(ServerContext* /*context*/,
 Status HypervisorServiceImpl::DeleteSnapshot(ServerContext* /*context*/,
                                              const DeleteSnapshotRequest* request,
                                              DeleteSnapshotResponse* /*response*/) {
-    if (request->snapshot_id().empty() || ContainsInvalidPathChars(request->snapshot_id())) {
-        return {StatusCode::INVALID_ARGUMENT,
-                "snapshot_id must not be empty or contain path separators or '..'."};
+    if (const Status status = ValidateSnapshotId(request->snapshot_id(), /*allow_empty=*/false);
+        !status.ok()) {
+        return status;
     }
 
     const absl::Status status = vm_operations_.DeleteSnapshot(request->snapshot_id());
@@ -705,11 +709,13 @@ Status HypervisorServiceImpl::ExportSnapshot(ServerContext* /*context*/,
 Status HypervisorServiceImpl::ImportSnapshot(ServerContext* /*context*/,
                                              const ImportSnapshotRequest* request,
                                              Operation* /*response*/) {
-    if (ContainsInvalidPathChars(request->snapshot_id()) ||
-        request->source_case() == ImportSnapshotRequest::SOURCE_NOT_SET) {
+    if (const Status status = ValidateSnapshotId(request->snapshot_id(), /*allow_empty=*/true);
+        !status.ok()) {
+        return status;
+    }
+    if (request->source_case() == ImportSnapshotRequest::SOURCE_NOT_SET) {
         return {StatusCode::INVALID_ARGUMENT,
-                "source (storage_uri or presigned_download_url) is required and snapshot_id must "
-                "not contain path separators or '..'."};
+                "source (storage_uri or presigned_download_url) is required."};
     }
     return {StatusCode::FAILED_PRECONDITION,
             "Cloud snapshot import is not supported on this emulator instance."};

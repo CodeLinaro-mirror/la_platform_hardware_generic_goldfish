@@ -56,7 +56,8 @@ TEST(MakeSnapshotVersionTest, LayoutAndHistory) {
     EXPECT_EQ(MakeSnapshotVersion(1) >> 16, 1);
     EXPECT_GT(MakeSnapshotVersion(1), 0);
     EXPECT_GT(MakeSnapshotVersion((1 << 15) - 1), 0) << "bit 31 must stay clear";
-    EXPECT_EQ(kSnapshotVersionBase, 2);
+    // History: 2 -> 3 for the snapshots/<name>/renderer layout (b/574891578).
+    EXPECT_EQ(kSnapshotVersionBase, 3);
 }
 
 TEST(IsValidSnapshotNameTest, AcceptsPlainNames) {

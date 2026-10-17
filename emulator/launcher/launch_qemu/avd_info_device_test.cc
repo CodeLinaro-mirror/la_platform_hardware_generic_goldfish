@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "absl/status/status_matchers.h"
+#include "absl/strings/str_cat.h"
 #include "gmock/gmock.h"
 
 #include "android/cmdline_definitions.h"
@@ -14,6 +15,7 @@
 #include "emulator_config.h"
 #include "fake_emulator.h"
 #include "goldfish/metrics/configure_metrics_writer.h"
+#include "snapshot_device.h"
 
 namespace android::goldfish::test {
 
@@ -57,6 +59,54 @@ TEST(AvdInfoDeviceTest, NoSnapshotUpdateTimeDisablesSnapshotUpdateTime) {
                         Eq("-device"),
                         ::testing::AllOf(::testing::HasSubstr("avdstart,"),
                                          ::testing::HasSubstr("snapshot_update_time=false"))));
+}
+
+TEST(AvdInfoDeviceTest, SnapshotsEnabledByDefaultAndVersionPassedToPlugin) {
+    FakeEmulator emu;
+
+    AvdInfoDevice dev;
+    EXPECT_THAT(dev.initialize(emu.config()), absl_testing::IsOk());
+    EXPECT_THAT(dev.getQemuParameters(emu.config()),
+                ::testing::ElementsAre(
+                        Eq("-device"),
+                        ::testing::AllOf(::testing::HasSubstr("avdstart,"),
+                                         ::testing::HasSubstr("snapshots_enabled=true"),
+                                         ::testing::HasSubstr(absl::StrCat(
+                                                 "snapshot_version=", kSnapshotVersion)))));
+}
+
+TEST(AvdInfoDeviceTest, NoSnapshotDisablesSnapshots) {
+    AndroidOptions opts{};
+    opts.no_snapshot = true;
+    FakeEmulator emu(opts);
+
+    AvdInfoDevice dev;
+    EXPECT_THAT(dev.initialize(emu.config()), absl_testing::IsOk());
+    EXPECT_THAT(dev.getQemuParameters(emu.config()),
+                ::testing::ElementsAre(
+                        Eq("-device"),
+                        ::testing::AllOf(::testing::HasSubstr("avdstart,"),
+                                         ::testing::HasSubstr("snapshots_enabled=false"))));
+}
+
+TEST(AvdInfoDeviceTest, NoSnapshotLoadOrSaveKeepsSnapshotsEnabled) {
+    for (const bool load_only : {true, false}) {
+        AndroidOptions opts{};
+        if (load_only) {
+            opts.no_snapshot_load = true;
+        } else {
+            opts.no_snapshot_save = true;
+        }
+        FakeEmulator emu(opts);
+
+        AvdInfoDevice dev;
+        EXPECT_THAT(dev.initialize(emu.config()), absl_testing::IsOk());
+        EXPECT_THAT(dev.getQemuParameters(emu.config()),
+                    ::testing::ElementsAre(
+                            Eq("-device"),
+                            ::testing::AllOf(::testing::HasSubstr("avdstart,"),
+                                             ::testing::HasSubstr("snapshots_enabled=true"))));
+    }
 }
 
 TEST(AvdInfoDeviceTest, SetsBuildFingerprint) {

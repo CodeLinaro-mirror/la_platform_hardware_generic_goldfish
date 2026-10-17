@@ -79,6 +79,9 @@ class FakeVmOperations : public VmOperations {
         if (fail_save) {
             return absl::InternalError("Failed to write snapshot to disk");
         }
+        if (!save_status.ok()) {
+            return save_status;
+        }
         entries[name] = SnapshotEntry{
             .name = name,
             .timestamp = absl::FromUnixSeconds(1700000000),
@@ -92,6 +95,9 @@ class FakeVmOperations : public VmOperations {
         }
         if (fail_load) {
             return absl::InternalError("Failed to read snapshot from disk");
+        }
+        if (!load_status.ok()) {
+            return load_status;
         }
         if (!entries.contains(id_or_name)) {
             return absl::NotFoundError("Snapshot does not exist");
@@ -123,6 +129,10 @@ class FakeVmOperations : public VmOperations {
 
     bool fail_save = false;
     bool fail_load = false;
+    // Returned by SaveSnapshot / LoadSnapshot when not OK, e.g. to mimic the
+    // FailedPrecondition of a session started with -no-snapshot.
+    absl::Status save_status = absl::OkStatus();
+    absl::Status load_status = absl::OkStatus();
     int reset_count = 0;
     int shutdown_count = 0;
     EmuRunState run_state = EmuRunState::Running;

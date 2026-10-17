@@ -84,6 +84,9 @@ absl::Status AvdInfoDevice::initialize(const EmulatorConfig& emulator) {
     params.emplace_back("snapshot_name", snapshot_name);
     params.emplace_back("snapshot_update_time",
                         emulator.opts().no_snapshot_update_time ? "false" : "true");
+    params.emplace_back("snapshots_enabled",
+                        SnapshotDevice::are_snapshots_enabled(emulator) ? "true" : "false");
+    params.emplace_back("snapshot_version", absl::StrCat(kSnapshotVersion));
 
     // QEMU splits -device options on single commas, so commas inside values (e.g. in the AVD
     // display name or a path) must be escaped to keep each value in its own property.

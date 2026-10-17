@@ -14,6 +14,7 @@
 
 #include "hypervisor/hypervisor_service_impl.h"
 
+#include <gmock/gmock.h>
 #include <grpcpp/grpcpp.h>
 #include <gtest/gtest.h>
 
@@ -278,6 +279,93 @@ TEST_F(HypervisorServiceTest, CreateGetUpdateListAndRestoreSnapshot) {
     ASSERT_TRUE(hypervisor_service_->RestoreSnapshot(&restore_ctx, &restore_req, &restore_op).ok());
     EXPECT_TRUE(restore_op.done());
     EXPECT_EQ(vm_operations_.last_loaded_snapshot, "pre_login");
+}
+
+TEST_F(HypervisorServiceTest, ListSnapshotsReportsAndFiltersCompatibility) {
+    vm_operations_.entries["current"] = VmOperations::SnapshotEntry{
+        .name = "current",
+        .timestamp = absl::FromUnixSeconds(1700000000),
+        .compatible = true,
+    };
+    vm_operations_.entries["stale"] = VmOperations::SnapshotEntry{
+        .name = "stale",
+        .timestamp = absl::FromUnixSeconds(1600000000),
+        .compatible = false,
+    };
+
+    ListSnapshotsRequest list_req;
+    ListSnapshotsResponse list_resp;
+    ServerContext list_ctx;
+    ASSERT_TRUE(hypervisor_service_->ListSnapshots(&list_ctx, &list_req, &list_resp).ok());
+    ASSERT_EQ(list_resp.snapshots_size(), 2);
+    for (const Snapshot& snap : list_resp.snapshots()) {
+        EXPECT_EQ(snap.compatibility().host_compatible(), snap.snapshot_id() == "current")
+                << snap.snapshot_id();
+    }
+
+    ListSnapshotsRequest compatible_req;
+    compatible_req.set_compatible_only(true);
+    ListSnapshotsResponse compatible_resp;
+    ServerContext compatible_ctx;
+    ASSERT_TRUE(hypervisor_service_->ListSnapshots(&compatible_ctx, &compatible_req, &compatible_resp)
+                        .ok());
+    ASSERT_EQ(compatible_resp.snapshots_size(), 1);
+    EXPECT_EQ(compatible_resp.snapshots(0).snapshot_id(), "current");
+
+    GetSnapshotRequest get_req;
+    get_req.set_snapshot_id("stale");
+    Snapshot stale;
+    ServerContext get_ctx;
+    ASSERT_TRUE(hypervisor_service_->GetSnapshot(&get_ctx, &get_req, &stale).ok());
+    EXPECT_FALSE(stale.compatibility().host_compatible());
+}
+
+TEST_F(HypervisorServiceTest, SnapshotsDisabledIsReportedAsFailedPreconditionInOperation) {
+    // Mirrors VmOperations under -no-snapshot: save and load are rejected.
+    vm_operations_.save_status = absl::FailedPreconditionError(
+            "Cannot save snapshot: snapshots are disabled because the emulator was started "
+            "with -no-snapshot.");
+    vm_operations_.load_status = absl::FailedPreconditionError(
+            "Cannot load snapshot: snapshots are disabled because the emulator was started "
+            "with -no-snapshot.");
+    vm_operations_.entries["existing"] = VmOperations::SnapshotEntry{
+        .name = "existing",
+        .timestamp = absl::FromUnixSeconds(1700000000),
+    };
+
+    CreateSnapshotRequest create_req;
+    create_req.set_snapshot_id("new");
+    Operation create_op;
+    ServerContext create_ctx;
+    ASSERT_TRUE(hypervisor_service_->CreateSnapshot(&create_ctx, &create_req, &create_op).ok());
+    EXPECT_TRUE(create_op.done());
+    ASSERT_TRUE(create_op.has_error());
+    EXPECT_EQ(create_op.error().code(), static_cast<int>(absl::StatusCode::kFailedPrecondition));
+    EXPECT_THAT(create_op.error().message(), ::testing::HasSubstr("-no-snapshot"));
+
+    RestoreSnapshotRequest restore_req;
+    restore_req.set_snapshot_id("existing");
+    Operation restore_op;
+    ServerContext restore_ctx;
+    ASSERT_TRUE(hypervisor_service_->RestoreSnapshot(&restore_ctx, &restore_req, &restore_op).ok());
+    EXPECT_TRUE(restore_op.done());
+    ASSERT_TRUE(restore_op.has_error());
+    EXPECT_EQ(restore_op.error().code(), static_cast<int>(absl::StatusCode::kFailedPrecondition));
+    EXPECT_TRUE(vm_operations_.last_loaded_snapshot.empty());
+
+    // Listing and deleting keep working.
+    ListSnapshotsRequest list_req;
+    ListSnapshotsResponse list_resp;
+    ServerContext list_ctx;
+    ASSERT_TRUE(hypervisor_service_->ListSnapshots(&list_ctx, &list_req, &list_resp).ok());
+    EXPECT_EQ(list_resp.snapshots_size(), 1);
+
+    DeleteSnapshotRequest delete_req;
+    delete_req.set_snapshot_id("existing");
+    DeleteSnapshotResponse delete_resp;
+    ServerContext delete_ctx;
+    EXPECT_TRUE(hypervisor_service_->DeleteSnapshot(&delete_ctx, &delete_req, &delete_resp).ok());
+    EXPECT_TRUE(vm_operations_.entries.empty());
 }
 
 TEST_F(HypervisorServiceTest, SetAndClearQuickbootTarget) {
