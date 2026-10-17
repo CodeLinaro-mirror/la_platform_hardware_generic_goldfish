@@ -1,0 +1,46 @@
+load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_test")
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+
+# Layout and lifecycle of the per-snapshot metadata kept outside the qcow2
+# image (<avd>/snapshots/<name>/), shared by the launcher (-loadvm/-savevm
+# decisions) and the runtime snapshot operations (gRPC / telnet).
+#
+# Must stay free of gfxstream dependencies: it is linked into the QEMU plugin,
+# and @gfxstream//host:gfxstream_backend_headers carries linkopts
+# (-Wl,--warn-backrefs -Wl,--fatal-warnings) that the plugin cannot satisfy.
+cc_library(
+    name = "snapshot_store",
+    srcs = ["snapshot_store.cc"],
+    hdrs = ["include/goldfish/snapshot/snapshot_store.h"],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//emulator/libs/file",
+        "//emulator/libs/status_macros",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+    ],
+)
+
+cc_test(
+    name = "snapshot_store_test",
+    size = "small",
+    srcs = ["snapshot_store_test.cc"],
+    deps = [
+        ":snapshot_store",
+        "//emulator/libs/file",
+        "//emulator/libs/status_macros:status_matcher_macros",
+        "//emulator/libs/system:test-headers",
+        "//emulator/libs/test:googletest_main",
+        "@abseil-cpp//absl/status:status_matchers",
+    ],
+)
+
+clang_tidy_test(
+    name = "tidy",
+    targets = [
+        ":snapshot_store",
+    ],
+    tidy_config_file = "//:clang_tidy_config",
+)

@@ -14,35 +14,30 @@
 
 #include "snapshot_device.h"
 
-#include <fstream>
-
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 
-#include "goldfish/file/file.h"
+#include "goldfish/snapshot/snapshot_store.h"
 
 namespace android::goldfish {
 
+using ::goldfish::snapshot::FileSnapshotStore;
+
 absl::Status SnapshotDevice::initialize(const EmulatorConfig& emulator) {
     snapshot_name_ = get_snapshot_name(emulator);
+    // A malformed -snapshot name is a user error: report it as such instead of
+    // letting it surface later as a confusing "version missing" cold boot.
+    if (auto s = ::goldfish::snapshot::ValidateSnapshotName(snapshot_name_); !s.ok()) {
+        return s;
+    }
     strict_snapshot_load_ = emulator.opts().strict_snapshot_load;
 
-    const fs::path snapshot_dir = emulator.avd().GetContentPath() / "snapshots" / snapshot_name_;
-    const fs::path version_file = snapshot_dir / "version.txt";
+    FileSnapshotStore store(emulator.avd().GetContentPath(), kSnapshotVersion);
 
     std::string skip_load_reason;
     if (should_load_snapshot(emulator, skip_load_reason, &load_status_)) {
-        bool version_matches = false;
-        if (base::file::exists(version_file)) {
-            std::ifstream ifs(version_file);
-            int version = 0;
-            if (ifs >> version && version == kSnapshotVersion) {
-                version_matches = true;
-            }
-        }
-
-        if (version_matches) {
+        if (store.IsCompatible(snapshot_name_)) {
             LOG(INFO) << "Loading '" << snapshot_name_ << "' ...";
         } else {
             if (strict_snapshot_load_) {
@@ -63,10 +58,11 @@ absl::Status SnapshotDevice::initialize(const EmulatorConfig& emulator) {
 
     std::string skip_save_reason;
     if (should_save_snapshot(emulator, skip_save_reason, &save_status_)) {
-        if (auto s = base::file::mkdir_recursive(snapshot_dir, 0755); s.ok()) {
-            std::ofstream ofs(version_file);
-            ofs << kSnapshotVersion;
-        } else {
+        // Only create the directory here. version.txt is written once a save
+        // actually completes (see QemuVmOperations), so that a crash before the
+        // exit-time save cannot leave a version file next to stale or missing
+        // qcow2 state.
+        if (auto s = store.Prepare(snapshot_name_); !s.ok()) {
             LOG(WARNING) << "Failed to create snapshot directory: " << s
                          << ", and snapshot save is disabled.";
             save_status_ = SaveStatus::kDirectoryError;
@@ -167,7 +163,7 @@ bool SnapshotDevice::should_save_snapshot(const EmulatorConfig& emulator, std::s
 
 std::string_view SnapshotDevice::get_snapshot_name(const EmulatorConfig& emulator) {
     const auto& o = emulator.opts();
-    return (o.snapshot && o.snapshot[0] != '\0') ? o.snapshot : "default_boot";
+    return (o.snapshot && o.snapshot[0] != '\0') ? o.snapshot : kDefaultSnapshotName;
 }
 
 }  // namespace android::goldfish

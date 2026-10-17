@@ -30,6 +30,7 @@
 namespace android::goldfish::test {
 
 using ::android::base::TestTempDir;
+using ::absl_testing::StatusIs;
 using ::testing::ElementsAre;
 using ::testing::Eq;
 using ::testing::IsEmpty;
@@ -196,6 +197,53 @@ TEST_F(SnapshotDeviceTest, ColdBootWhenGfxstreamSnapshotVersionMismatches) {
     EXPECT_TRUE(dev.is_enabled());
     EXPECT_THAT(dev.getQemuParameters(emu.config()),
                 ElementsAre(Eq("-savevm"), Eq("default_boot")));
+}
+
+TEST_F(SnapshotDeviceTest, InitializeCreatesDirectoryButDoesNotWriteVersionUpFront) {
+    FakeEmulator emu;
+    EXPECT_CALL(emu.mock_avd(), GetContentPath()).WillRepeatedly(Return(temp_dir_.Path()));
+    EXPECT_CALL(emu.mock_avd(), Hw()).WillRepeatedly(ReturnRef(hw_));
+
+    SnapshotDevice dev;
+    EXPECT_OK(dev.initialize(emu.config()));
+    EXPECT_EQ(dev.save_status(), SnapshotDevice::SaveStatus::kSaving);
+    const fs::path snapshot_dir = temp_dir_.Path() / "snapshots" / "default_boot";
+    EXPECT_TRUE(base::file::is_dir(snapshot_dir));
+    // version.txt is only written when a save completes; a crash before the exit-time save must
+    // not leave a version file claiming compatibility next to stale or missing qcow2 state.
+    EXPECT_FALSE(base::file::exists(snapshot_dir / "version.txt"));
+}
+
+TEST_F(SnapshotDeviceTest, InitializeLeavesStaleVersionAloneUntilNextSave) {
+    WriteSnapshotVersion(1);
+
+    FakeEmulator emu;
+    EXPECT_CALL(emu.mock_avd(), GetContentPath()).WillRepeatedly(Return(temp_dir_.Path()));
+    EXPECT_CALL(emu.mock_avd(), Hw()).WillRepeatedly(ReturnRef(hw_));
+
+    SnapshotDevice dev;
+    EXPECT_OK(dev.initialize(emu.config()));
+    EXPECT_EQ(dev.load_status(), SnapshotDevice::LoadStatus::kSkippedOldSnapshot);
+    std::ifstream ifs(temp_dir_.Path() / "snapshots" / "default_boot" / "version.txt");
+    int version = 0;
+    ASSERT_TRUE(ifs >> version);
+    EXPECT_EQ(version, 1) << "a cold boot must not rewrite version.txt before the save";
+}
+
+TEST_F(SnapshotDeviceTest, InvalidSnapshotNameIsRejectedUpFront) {
+    for (const char* name : {"a/b", "my..snap", "."}) {
+        SCOPED_TRACE(name);
+        AndroidOptions opts{};
+        opts.snapshot = const_cast<char*>(name);
+        FakeEmulator emu(opts);
+        EXPECT_CALL(emu.mock_avd(), GetContentPath()).WillRepeatedly(Return(temp_dir_.Path()));
+        EXPECT_CALL(emu.mock_avd(), Hw()).WillRepeatedly(ReturnRef(hw_));
+
+        SnapshotDevice dev;
+        EXPECT_THAT(dev.initialize(emu.config()),
+                    StatusIs(absl::StatusCode::kInvalidArgument,
+                             ::testing::HasSubstr("Invalid snapshot name")));
+    }
 }
 
 TEST_F(SnapshotDeviceTest, DirectoryErrorWhenSnapshotDirCreationFails) {
