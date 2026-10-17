@@ -13,6 +13,8 @@
 // limitations under the License.
 #include "android/emulation/control/incubating/modem_service.h"
 
+#include "absl/strings/str_cat.h"
+
 #include "android/emulation/control/absl_status_translate.h"
 #include "goldfish/parsing/hexbin.h"
 
@@ -399,13 +401,32 @@ ModemServiceImpl::ModemServiceImpl(
     } else if (request->has_encodedmessage()) {
         auto binary = HexToBin(request->encodedmessage());
         if (!binary) {
-            return ::grpc::Status(::grpc::StatusCode::INVALID_ARGUMENT,
-                                  "Can't parse `encodedmessage`");
+            const size_t encoded_len = request->encodedmessage().size();
+            if (encoded_len % 2U != 0U) {
+                return ::grpc::Status(
+                        ::grpc::StatusCode::INVALID_ARGUMENT,
+                        absl::StrCat("Failed to parse 'encodedMessage' in receiveSms: length ",
+                                     encoded_len,
+                                     " is odd, but hex-encoded SMS PDUs require an even number of "
+                                     "hexadecimal digits (2 per byte). Provide a valid hex-encoded "
+                                     "SMS PDU in 'encodedMessage', or set 'text' instead."));
+            }
+            return ::grpc::Status(
+                    ::grpc::StatusCode::INVALID_ARGUMENT,
+                    absl::StrCat("Failed to parse 'encodedMessage' in receiveSms: value of length ",
+                                 encoded_len,
+                                 " contains non-hexadecimal characters (expected only 0-9, a-f, or "
+                                 "A-F). Provide a valid hex-encoded SMS PDU in 'encodedMessage', "
+                                 "or set 'text' instead."));
         }
 
         result = client_->ReceiveSmsEncoded(*std::move(binary));
     } else {
-        return ::grpc::Status(::grpc::StatusCode::INVALID_ARGUMENT, "No message to deliver");
+        return ::grpc::Status(
+                ::grpc::StatusCode::INVALID_ARGUMENT,
+                "Failed to deliver SMS in receiveSms: neither 'text' nor 'encodedMessage' is set "
+                "in SmsMessage. Set 'text' (UTF-8 message body) or 'encodedMessage' (hex-encoded "
+                "SMS PDU).");
     }
 
     return AbslStatusToGrpcStatus(result);
@@ -420,7 +441,9 @@ ModemServiceImpl::ModemServiceImpl(
 ::grpc::Status ModemServiceImpl::receivePhoneEvents(::grpc::ServerContext* /*context*/,
                                                     const ::google::protobuf::Empty* /*request*/,
                                                     ::grpc::ServerWriter<PhoneEvent>* /*writer*/) {
-    return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "Not implemented yet");
+    return ::grpc::Status(
+            ::grpc::StatusCode::UNIMPLEMENTED,
+            "receivePhoneEvents is not implemented yet. Poll active calls with listCalls instead.");
 }
 
 }  // namespace incubating
