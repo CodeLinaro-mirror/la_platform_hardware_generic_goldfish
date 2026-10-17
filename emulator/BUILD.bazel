@@ -22,6 +22,10 @@ load(
     "source_properties",
 )
 load(
+    "//emulator/tools:sbom.bzl",
+    "generate_sbom_file",
+)
+load(
     "//emulator/tools:transitions.bzl",
     "internal_release",
 )
@@ -90,9 +94,11 @@ exports_files(["LICENSE"])
 
 license(
     name = "license",
+    package_name = "emulator",
     license_kinds = [
         ":SPDX-license-identifier-Apache-2.0",
     ],
+    package_url = "https://android.googlesource.com/platform/hardware/generic/goldfish/",
     visibility = [":__subpackages__"],
 )
 
@@ -311,6 +317,27 @@ generate_notice_file(
 pkg_files(
     name = "emulator_notice_md",
     srcs = [":emulator_notice_markdown"],
+)
+
+generate_sbom_file(
+    name = "emulator_sbom_spdx",
+    out = "sbom.spdx.json",
+    package_variables = "//emulator/tools:aemu_version_info",
+    deps = all_binaries,
+)
+
+pkg_files(
+    name = "emulator_sbom_json",
+    srcs = [":emulator_sbom_spdx"],
+)
+
+generate_sbom_file(
+    name = "sbom",
+    out = "emulator_sbom.spdx.json",
+    package_file_name = "sdk-repo-{platform}-{product_name}-sbom-{build_id}.spdx.json",
+    package_variables = "//emulator/tools:aemu_version_info",
+    tags = ["manual"],
+    deps = all_binaries,
 )
 
 stripped_binaries(
@@ -632,6 +659,7 @@ pkg_filegroup(
         ":data_virtualscene",
         ":emulator-access",
         ":emulator_notice_md",
+        ":emulator_sbom_json",
         ":fishtank_binary",
         ":fishtank_dir",
         ":glib_dlls_stripped",
@@ -665,6 +693,7 @@ pkg_filegroup(
         ":data_virtualscene",
         ":emulator-access",
         ":emulator_notice_md",
+        ":emulator_sbom_json",
         ":glib_dlls",
         ":launcher",
         ":plugins",
