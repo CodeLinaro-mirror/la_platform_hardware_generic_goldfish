@@ -81,6 +81,7 @@ class NvencVideoEncoder : public webrtc::VideoEncoder {
     EncoderInfo GetEncoderInfo() const override;
 
   private:
+    NV_ENC_INITIALIZE_PARAMS BuildInitializeParamsLocked() ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
     absl::Status InitializeSessionLocked() ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
     void DestroySessionLocked() ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
 
