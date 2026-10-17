@@ -17,6 +17,7 @@
 #include <cstdint>
 #include <cstring>
 #include <memory>
+#include <optional>
 #include <utility>
 #include <vector>
 
@@ -252,42 +253,94 @@ std::vector<uint8_t> BuildAnnexBPpsNalu(VAProfile profile,
     return bw.BuildAnnexBNalu(0x68);  // nal_ref_idc=3, nal_unit_type=8 (PPS)
 }
 
+struct AnnexBStartCode {
+    size_t start_idx;
+    size_t header_idx;
+};
+
+std::optional<AnnexBStartCode> FindNextAnnexBStartCode(const std::vector<uint8_t>& bitstream,
+                                                       size_t offset) {
+    for (size_t i = offset; i + 3 < bitstream.size(); ++i) {
+        if (bitstream[i] != 0x00 || bitstream[i + 1] != 0x00) {
+            continue;
+        }
+        if (bitstream[i + 2] == 0x01) {
+            return AnnexBStartCode{i, i + 3};
+        }
+        if (i + 4 < bitstream.size() && bitstream[i + 2] == 0x00 && bitstream[i + 3] == 0x01) {
+            return AnnexBStartCode{i, i + 4};
+        }
+    }
+    return std::nullopt;
+}
+
 bool HasMatchingSpsNalu(const std::vector<uint8_t>& bitstream, uint8_t expected_profile_idc) {
-    for (size_t i = 0; i + 5 < bitstream.size(); ++i) {
-        if (bitstream[i] == 0x00 && bitstream[i + 1] == 0x00) {
-            size_t hdr_idx = 0;
-            if (bitstream[i + 2] == 0x01) {
-                hdr_idx = i + 3;
-            } else if (bitstream[i + 2] == 0x00 && bitstream[i + 3] == 0x01) {
-                hdr_idx = i + 4;
-            }
-            if (hdr_idx > 0 && hdr_idx + 1 < bitstream.size() && (bitstream[hdr_idx] & 0x1F) == 7) {
-                return bitstream[hdr_idx + 1] == expected_profile_idc;
-            }
+    for (size_t pos = 0; auto sc = FindNextAnnexBStartCode(bitstream, pos);
+         pos = sc->start_idx + 1) {
+        if (sc->header_idx + 1 < bitstream.size() && (bitstream[sc->header_idx] & 0x1F) == 7) {
+            return bitstream[sc->header_idx + 1] == expected_profile_idc;
         }
     }
     return false;
 }
 
 std::vector<uint8_t> StripLeadingSpsPps(const std::vector<uint8_t>& bitstream) {
-    for (size_t i = 0; i + 4 < bitstream.size(); ++i) {
-        if (bitstream[i] == 0x00 && bitstream[i + 1] == 0x00) {
-            size_t hdr_idx = 0;
-            if (bitstream[i + 2] == 0x01) {
-                hdr_idx = i + 3;
-            } else if (bitstream[i + 2] == 0x00 && bitstream[i + 3] == 0x01) {
-                hdr_idx = i + 4;
-            }
-            if (hdr_idx > 0 && hdr_idx < bitstream.size()) {
-                uint8_t nal_type = bitstream[hdr_idx] & 0x1F;
-                if (nal_type != 7 && nal_type != 8) {
-                    return std::vector<uint8_t>(bitstream.begin() + static_cast<ptrdiff_t>(i),
-                                                bitstream.end());
-                }
+    for (size_t pos = 0; auto sc = FindNextAnnexBStartCode(bitstream, pos);
+         pos = sc->start_idx + 1) {
+        if (sc->header_idx < bitstream.size()) {
+            uint8_t nal_type = bitstream[sc->header_idx] & 0x1F;
+            if (nal_type != 7 && nal_type != 8) {
+                return std::vector<uint8_t>(
+                        bitstream.begin() + static_cast<ptrdiff_t>(sc->start_idx), bitstream.end());
             }
         }
     }
     return bitstream;
+}
+
+template <size_t N>
+void ResetH264PictureList(VAPictureH264 (&pictures)[N]) {
+    for (auto& ref : pictures) {
+        ref.picture_id = VA_INVALID_SURFACE;
+        ref.flags = VA_PICTURE_H264_INVALID;
+    }
+}
+
+bool AppendVaBuffer(VADisplay dpy, const VaapiFunctionList& api, VAContextID context_id,
+                    VABufferType type, const void* data, unsigned int size,
+                    std::vector<VABufferID>& render_buffers, const char* label = nullptr) {
+    VABufferID buf_id = VA_INVALID_ID;
+    VAStatus status =
+            api.vaCreateBuffer(dpy, context_id, type, size, 1, const_cast<void*>(data), &buf_id);
+    if (status != VA_STATUS_SUCCESS || buf_id == VA_INVALID_ID) {
+        if (label != nullptr) {
+            RTC_LOG(LS_ERROR) << "vaCreateBuffer for " << label
+                              << " failed: " << VaapiStatusToString(status);
+        }
+        return false;
+    }
+    render_buffers.push_back(buf_id);
+    return true;
+}
+
+void AppendPackedHeaderBuffers(VADisplay dpy, const VaapiFunctionList& api, VAContextID context_id,
+                               VAEncPackedHeaderType header_type, const std::vector<uint8_t>& nalu,
+                               std::vector<VABufferID>& render_buffers) {
+    VAEncPackedHeaderParameterBuffer packed_param{};
+    packed_param.type = header_type;
+    packed_param.bit_length = static_cast<uint32_t>(nalu.size() * 8);
+    packed_param.has_emulation_bytes = 1;
+
+    VABufferID param_id = VA_INVALID_ID;
+    VABufferID data_id = VA_INVALID_ID;
+    if (api.vaCreateBuffer(dpy, context_id, VAEncPackedHeaderParameterBufferType,
+                           sizeof(packed_param), 1, &packed_param, &param_id) == VA_STATUS_SUCCESS &&
+        api.vaCreateBuffer(dpy, context_id, VAEncPackedHeaderDataBufferType,
+                           static_cast<unsigned int>(nalu.size()), 1,
+                           const_cast<uint8_t*>(nalu.data()), &data_id) == VA_STATUS_SUCCESS) {
+        render_buffers.push_back(param_id);
+        render_buffers.push_back(data_id);
+    }
 }
 
 /**
@@ -644,16 +697,10 @@ int32_t VaapiVideoEncoder::Encode(const webrtc::VideoFrame& frame,
             }
         });
 
-        VABufferID seq_buf_id = VA_INVALID_ID;
-        VAStatus status =
-                loader_->api().vaCreateBuffer(dpy, context_id_, VAEncSequenceParameterBufferType,
-                                              sizeof(seq_param), 1, &seq_param, &seq_buf_id);
-        if (status != VA_STATUS_SUCCESS || seq_buf_id == VA_INVALID_ID) {
-            RTC_LOG(LS_ERROR) << "vaCreateBuffer for sequence parameter failed: "
-                              << VaapiStatusToString(status);
+        if (!AppendVaBuffer(dpy, loader_->api(), context_id_, VAEncSequenceParameterBufferType,
+                            &seq_param, sizeof(seq_param), render_buffers, "sequence parameter")) {
             return WEBRTC_VIDEO_CODEC_ERROR;
         }
-        render_buffers.push_back(seq_buf_id);
 
         // 3. Picture Parameter Buffer
         const bool use_cabac = (profile_ == VAProfileH264Main || profile_ == VAProfileH264High);
@@ -663,10 +710,7 @@ int32_t VaapiVideoEncoder::Encode(const webrtc::VideoFrame& frame,
         pic_param.CurrPic.flags = VA_PICTURE_H264_SHORT_TERM_REFERENCE;
         pic_param.CurrPic.TopFieldOrderCnt = curr_poc;
         pic_param.CurrPic.BottomFieldOrderCnt = curr_poc;
-        for (auto& ref : pic_param.ReferenceFrames) {
-            ref.picture_id = VA_INVALID_SURFACE;
-            ref.flags = VA_PICTURE_H264_INVALID;
-        }
+        ResetH264PictureList(pic_param.ReferenceFrames);
         if (!force_idr) {
             pic_param.ReferenceFrames[0].picture_id = recon_surface_ids_[prev_recon_idx];
             pic_param.ReferenceFrames[0].frame_num = prev_frame_num;
@@ -689,58 +733,23 @@ int32_t VaapiVideoEncoder::Encode(const webrtc::VideoFrame& frame,
         pic_param.pic_fields.bits.entropy_coding_mode_flag = use_cabac ? 1 : 0;
         pic_param.pic_fields.bits.deblocking_filter_control_present_flag = 1;
 
-        VABufferID pic_buf_id = VA_INVALID_ID;
-        status = loader_->api().vaCreateBuffer(dpy, context_id_, VAEncPictureParameterBufferType,
-                                               sizeof(pic_param), 1, &pic_param, &pic_buf_id);
-        if (status != VA_STATUS_SUCCESS || pic_buf_id == VA_INVALID_ID) {
-            RTC_LOG(LS_ERROR) << "vaCreateBuffer for picture parameter failed: "
-                              << VaapiStatusToString(status);
+        if (!AppendVaBuffer(dpy, loader_->api(), context_id_, VAEncPictureParameterBufferType,
+                            &pic_param, sizeof(pic_param), render_buffers, "picture parameter")) {
             return WEBRTC_VIDEO_CODEC_ERROR;
         }
-        render_buffers.push_back(pic_buf_id);
 
         // Build matching Annex-B SPS and PPS NAL units
         const std::vector<uint8_t> sps_nalu = BuildAnnexBSpsNalu(profile_, seq_param);
         const std::vector<uint8_t> pps_nalu = BuildAnnexBPpsNalu(profile_, pic_param);
 
         if (force_idr && (packed_headers_attrib_ & VA_ENC_PACKED_HEADER_SEQUENCE)) {
-            VAEncPackedHeaderParameterBuffer packed_seq{};
-            packed_seq.type = VAEncPackedHeaderSequence;
-            packed_seq.bit_length = static_cast<uint32_t>(sps_nalu.size() * 8);
-            packed_seq.has_emulation_bytes = 1;
-
-            VABufferID packed_seq_param_id = VA_INVALID_ID;
-            VABufferID packed_seq_data_id = VA_INVALID_ID;
-            if (loader_->api().vaCreateBuffer(
-                        dpy, context_id_, VAEncPackedHeaderParameterBufferType, sizeof(packed_seq),
-                        1, &packed_seq, &packed_seq_param_id) == VA_STATUS_SUCCESS &&
-                loader_->api().vaCreateBuffer(dpy, context_id_, VAEncPackedHeaderDataBufferType,
-                                              static_cast<unsigned int>(sps_nalu.size()), 1,
-                                              const_cast<uint8_t*>(sps_nalu.data()),
-                                              &packed_seq_data_id) == VA_STATUS_SUCCESS) {
-                render_buffers.push_back(packed_seq_param_id);
-                render_buffers.push_back(packed_seq_data_id);
-            }
+            AppendPackedHeaderBuffers(dpy, loader_->api(), context_id_, VAEncPackedHeaderSequence,
+                                      sps_nalu, render_buffers);
         }
 
         if (force_idr && (packed_headers_attrib_ & VA_ENC_PACKED_HEADER_PICTURE)) {
-            VAEncPackedHeaderParameterBuffer packed_pic{};
-            packed_pic.type = VAEncPackedHeaderPicture;
-            packed_pic.bit_length = static_cast<uint32_t>(pps_nalu.size() * 8);
-            packed_pic.has_emulation_bytes = 1;
-
-            VABufferID packed_pic_param_id = VA_INVALID_ID;
-            VABufferID packed_pic_data_id = VA_INVALID_ID;
-            if (loader_->api().vaCreateBuffer(
-                        dpy, context_id_, VAEncPackedHeaderParameterBufferType, sizeof(packed_pic),
-                        1, &packed_pic, &packed_pic_param_id) == VA_STATUS_SUCCESS &&
-                loader_->api().vaCreateBuffer(dpy, context_id_, VAEncPackedHeaderDataBufferType,
-                                              static_cast<unsigned int>(pps_nalu.size()), 1,
-                                              const_cast<uint8_t*>(pps_nalu.data()),
-                                              &packed_pic_data_id) == VA_STATUS_SUCCESS) {
-                render_buffers.push_back(packed_pic_param_id);
-                render_buffers.push_back(packed_pic_data_id);
-            }
+            AppendPackedHeaderBuffers(dpy, loader_->api(), context_id_, VAEncPackedHeaderPicture,
+                                      pps_nalu, render_buffers);
         }
 
         // 4. Slice Parameter Buffer
@@ -752,27 +761,16 @@ int32_t VaapiVideoEncoder::Encode(const webrtc::VideoFrame& frame,
         slice_param.pic_parameter_set_id = 0;
         slice_param.idr_pic_id = static_cast<uint16_t>(idr_pic_id_ & 0xFFFFU);
         slice_param.pic_order_cnt_lsb = static_cast<uint16_t>(curr_poc);
-        for (auto& ref : slice_param.RefPicList0) {
-            ref.picture_id = VA_INVALID_SURFACE;
-            ref.flags = VA_PICTURE_H264_INVALID;
-        }
-        for (auto& ref : slice_param.RefPicList1) {
-            ref.picture_id = VA_INVALID_SURFACE;
-            ref.flags = VA_PICTURE_H264_INVALID;
-        }
+        ResetH264PictureList(slice_param.RefPicList0);
+        ResetH264PictureList(slice_param.RefPicList1);
         if (!force_idr) {
             slice_param.RefPicList0[0] = pic_param.ReferenceFrames[0];
         }
 
-        VABufferID slice_buf_id = VA_INVALID_ID;
-        status = loader_->api().vaCreateBuffer(dpy, context_id_, VAEncSliceParameterBufferType,
-                                               sizeof(slice_param), 1, &slice_param, &slice_buf_id);
-        if (status != VA_STATUS_SUCCESS || slice_buf_id == VA_INVALID_ID) {
-            RTC_LOG(LS_ERROR) << "vaCreateBuffer for slice parameter failed: "
-                              << VaapiStatusToString(status);
+        if (!AppendVaBuffer(dpy, loader_->api(), context_id_, VAEncSliceParameterBufferType,
+                            &slice_param, sizeof(slice_param), render_buffers, "slice parameter")) {
             return WEBRTC_VIDEO_CODEC_ERROR;
         }
-        render_buffers.push_back(slice_buf_id);
 
         // 5. Rate Control, FrameRate, and HRD Misc Buffers
         struct {
@@ -787,15 +785,10 @@ int32_t VaapiVideoEncoder::Encode(const webrtc::VideoFrame& frame,
         rc_buf.rc.min_qp = 10;
         rc_buf.rc.max_qp = 51;
 
-        VABufferID rc_buf_id = VA_INVALID_ID;
-        status = loader_->api().vaCreateBuffer(dpy, context_id_, VAEncMiscParameterBufferType,
-                                               sizeof(rc_buf), 1, &rc_buf, &rc_buf_id);
-        if (status != VA_STATUS_SUCCESS || rc_buf_id == VA_INVALID_ID) {
-            RTC_LOG(LS_ERROR) << "vaCreateBuffer for rate control misc failed: "
-                              << VaapiStatusToString(status);
+        if (!AppendVaBuffer(dpy, loader_->api(), context_id_, VAEncMiscParameterBufferType, &rc_buf,
+                            sizeof(rc_buf), render_buffers, "rate control misc")) {
             return WEBRTC_VIDEO_CODEC_ERROR;
         }
-        render_buffers.push_back(rc_buf_id);
 
         struct {
             VAEncMiscParameterBuffer misc;
@@ -803,14 +796,8 @@ int32_t VaapiVideoEncoder::Encode(const webrtc::VideoFrame& frame,
         } fr_buf{};
         fr_buf.misc.type = VAEncMiscParameterTypeFrameRate;
         fr_buf.fr.framerate = max_framerate_fps_;
-
-        VABufferID fr_buf_id = VA_INVALID_ID;
-        if (loader_->api().vaCreateBuffer(dpy, context_id_, VAEncMiscParameterBufferType,
-                                          sizeof(fr_buf), 1, &fr_buf,
-                                          &fr_buf_id) == VA_STATUS_SUCCESS &&
-            fr_buf_id != VA_INVALID_ID) {
-            render_buffers.push_back(fr_buf_id);
-        }
+        AppendVaBuffer(dpy, loader_->api(), context_id_, VAEncMiscParameterBufferType, &fr_buf,
+                       sizeof(fr_buf), render_buffers);
 
         struct {
             VAEncMiscParameterBuffer misc;
@@ -819,16 +806,10 @@ int32_t VaapiVideoEncoder::Encode(const webrtc::VideoFrame& frame,
         hrd_buf.misc.type = VAEncMiscParameterTypeHRD;
         hrd_buf.hrd.buffer_size = target_bitrate_bps_;
         hrd_buf.hrd.initial_buffer_fullness = target_bitrate_bps_ / 2;
+        AppendVaBuffer(dpy, loader_->api(), context_id_, VAEncMiscParameterBufferType, &hrd_buf,
+                       sizeof(hrd_buf), render_buffers);
 
-        VABufferID hrd_buf_id = VA_INVALID_ID;
-        if (loader_->api().vaCreateBuffer(dpy, context_id_, VAEncMiscParameterBufferType,
-                                          sizeof(hrd_buf), 1, &hrd_buf,
-                                          &hrd_buf_id) == VA_STATUS_SUCCESS &&
-            hrd_buf_id != VA_INVALID_ID) {
-            render_buffers.push_back(hrd_buf_id);
-        }
-
-        status = loader_->api().vaBeginPicture(dpy, context_id_, surface_id_);
+        VAStatus status = loader_->api().vaBeginPicture(dpy, context_id_, surface_id_);
         if (status != VA_STATUS_SUCCESS) {
             RTC_LOG(LS_ERROR) << "vaBeginPicture failed: " << VaapiStatusToString(status);
             return WEBRTC_VIDEO_CODEC_ERROR;
