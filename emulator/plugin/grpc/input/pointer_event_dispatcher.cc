@@ -38,19 +38,24 @@ uint32_t ScaleAxis(uint32_t value, uint32_t min_in, uint32_t max_in) {
     }
     return ((value - min_in) * kRangeOut / range_in) + kMinOut;
 }
+
+void PopulateTouchFromProto(const ::android::emulation::control::Touch& proto_touch,
+                            uint32_t identifier, Touch& touch) {
+    touch.x = proto_touch.x();
+    touch.y = proto_touch.y();
+    touch.identifier = identifier;
+    touch.pressure = proto_touch.pressure();
+    touch.touch_major = proto_touch.touch_major();
+    touch.touch_minor = proto_touch.touch_minor();
+    touch.orientation = proto_touch.orientation();
+}
 }  // namespace
 
 MultiTouchEvent MultiTouchEvent::FromProto(const ::android::emulation::control::TouchEvent& proto) {
     MultiTouchEvent event;
     for (const auto& proto_touch : proto.touches()) {
         Touch touch;
-        touch.x = proto_touch.x();
-        touch.y = proto_touch.y();
-        touch.identifier = proto_touch.identifier();
-        touch.pressure = proto_touch.pressure();
-        touch.touch_major = proto_touch.touch_major();
-        touch.touch_minor = proto_touch.touch_minor();
-        touch.orientation = proto_touch.orientation();
+        PopulateTouchFromProto(proto_touch, proto_touch.identifier(), touch);
         event.touches.push_back(touch);
     }
     return event;
@@ -64,13 +69,7 @@ PenTouchEvent PenTouchEvent::FromProto(const ::android::emulation::control::PenE
         Pen pen;
         pen.button_pressed = proto_pen.button_pressed();
         pen.rubber_pointer = proto_pen.rubber_pointer();
-        pen.x = proto_pen.location().x();
-        pen.y = proto_pen.location().y();
-        pen.identifier = kPenId;
-        pen.pressure = proto_pen.location().pressure();
-        pen.touch_major = proto_pen.location().touch_major();
-        pen.touch_minor = proto_pen.location().touch_minor();
-        pen.orientation = proto_pen.location().orientation();
+        PopulateTouchFromProto(proto_pen.location(), kPenId, pen);
         event.touches.push_back(pen);
     }
     return event;
@@ -151,40 +150,31 @@ EvDevEvents Touch::ToEvDevEvents(uint32_t w, uint32_t h, SlotRegistry* registry)
 
 }  // namespace internal
 
-void PointerEventDispatcher::SendEvents(IDisplay& display, const internal::MultiTouchEvent& event) {
-    auto dims = display.GetDimensions();
-    const uint32_t w = dims.width;
-    const uint32_t h = dims.height;
+namespace {
 
-    for (const auto& touch : event.touches) {
-        for (auto& evdev : touch.ToEvDevEvents(w, h, &registry_)) {
+template <typename TouchItem>
+void SendTouchItems(IDisplay& display, const std::vector<TouchItem>& touches,
+                    SlotRegistry& registry) {
+    const auto dims = display.GetDimensions();
+    for (const auto& touch : touches) {
+        for (const auto& evdev : touch.ToEvDevEvents(dims.width, dims.height, &registry)) {
             display.SendEvDevEvent(evdev.type, evdev.code, evdev.value);
         }
     }
-
-    for (auto& ev : registry_.ExpireOldSlots()) {
+    for (const auto& ev : registry.ExpireOldSlots()) {
         display.SendEvDevEvent(ev.type, ev.code, ev.value);
     }
-
     display.SendEvDevEvent(EV_SYN, SYN_REPORT, 0);
 }
 
+}  // namespace
+
+void PointerEventDispatcher::SendEvents(IDisplay& display, const internal::MultiTouchEvent& event) {
+    SendTouchItems(display, event.touches, registry_);
+}
+
 void PointerEventDispatcher::SendEvents(IDisplay& display, const internal::PenTouchEvent& event) {
-    auto dims = display.GetDimensions();
-    const uint32_t w = dims.width;
-    const uint32_t h = dims.height;
-
-    for (const auto& touch : event.touches) {
-        for (auto& evdev : touch.ToEvDevEvents(w, h, &registry_)) {
-            display.SendEvDevEvent(evdev.type, evdev.code, evdev.value);
-        }
-    }
-
-    for (auto& ev : registry_.ExpireOldSlots()) {
-        display.SendEvDevEvent(ev.type, ev.code, ev.value);
-    }
-
-    display.SendEvDevEvent(EV_SYN, SYN_REPORT, 0);
+    SendTouchItems(display, event.touches, registry_);
 }
 
 }  // namespace android::emulation::control
