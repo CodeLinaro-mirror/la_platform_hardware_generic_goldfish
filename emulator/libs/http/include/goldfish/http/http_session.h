@@ -153,6 +153,7 @@ class HttpSession : public std::enable_shared_from_this<HttpSession> {
 
     void DispatchRequest();
     void SendUnaryResponse(const HttpResponse& resp);
+    int AppendHeaderBytes(std::string& target, const char* at, size_t length);
     void CommitCurrentHeader();
     void SendHttpError(int status_code, std::string_view reason);
     void EmitAccessLog(HttpMethod method, std::string_view path, int status_code, size_t bytes_sent,
