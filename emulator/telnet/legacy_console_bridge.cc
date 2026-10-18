@@ -223,6 +223,56 @@ absl::StatusOr<android::emulation::control::BatteryState> GetBatteryStateOrDefau
     }
     return state;
 }
+
+template <typename EnumType>
+struct BatteryEnumMapping {
+    EnumType value;
+    std::string_view command_name;
+    const char* display_name;
+};
+
+constexpr BatteryEnumMapping<android::emulation::control::BatteryState::BatteryStatus>
+        kBatteryStatuses[] = {
+                {android::emulation::control::BatteryState::UNKNOWN, "unknown", "Unknown"},
+                {android::emulation::control::BatteryState::CHARGING, "charging", "Charging"},
+                {android::emulation::control::BatteryState::DISCHARGING, "discharging",
+                 "Discharging"},
+                {android::emulation::control::BatteryState::NOT_CHARGING, "not-charging",
+                 "Not charging"},
+                {android::emulation::control::BatteryState::FULL, "full", "Full"},
+};
+
+constexpr BatteryEnumMapping<android::emulation::control::BatteryState::BatteryHealth>
+        kBatteryHealths[] = {
+                {android::emulation::control::BatteryState::GOOD, "good", "Good"},
+                {android::emulation::control::BatteryState::OVERHEATED, "overheat", "Overheat"},
+                {android::emulation::control::BatteryState::DEAD, "dead", "Dead"},
+                {android::emulation::control::BatteryState::OVERVOLTAGE, "overvoltage",
+                 "Overvoltage"},
+                {android::emulation::control::BatteryState::FAILED, "failure",
+                 "Unspecified failure"},
+};
+
+template <typename EnumType, size_t count>
+const char* BatteryEnumToString(const BatteryEnumMapping<EnumType> (&table)[count], EnumType value) {
+    for (const auto& entry : table) {
+        if (entry.value == value) {
+            return entry.display_name;
+        }
+    }
+    return "Unknown";
+}
+
+template <typename EnumType, size_t count>
+absl::StatusOr<EnumType> ParseBatteryEnum(const BatteryEnumMapping<EnumType> (&table)[count],
+                                          std::string_view input, std::string_view error_message) {
+    for (const auto& entry : table) {
+        if (absl::EqualsIgnoreCase(input, entry.command_name)) {
+            return entry.value;
+        }
+    }
+    return absl::InvalidArgumentError(error_message);
+}
 }  // namespace
 
 LegacyConsoleBridge::LegacyConsoleBridge(int port, std::filesystem::path token_path,
@@ -726,48 +776,8 @@ LegacyConsoleBridge::LegacyConsoleBridge(int port, std::filesystem::path token_p
                         (state.charger() == android::emulation::control::BatteryState::AC)
                                 ? "online"
                                 : "offline";
-
-                const char* status_str = "Unknown";
-                switch (state.status()) {
-                case android::emulation::control::BatteryState::CHARGING:
-                    status_str = "Charging";
-                    break;
-                case android::emulation::control::BatteryState::DISCHARGING:
-                    status_str = "Discharging";
-                    break;
-                case android::emulation::control::BatteryState::NOT_CHARGING:
-                    status_str = "Not charging";
-                    break;
-                case android::emulation::control::BatteryState::FULL:
-                    status_str = "Full";
-                    break;
-                default:
-                    status_str = "Unknown";
-                    break;
-                }
-
-                const char* health_str = "Unknown";
-                switch (state.health()) {
-                case android::emulation::control::BatteryState::GOOD:
-                    health_str = "Good";
-                    break;
-                case android::emulation::control::BatteryState::OVERHEATED:
-                    health_str = "Overheat";
-                    break;
-                case android::emulation::control::BatteryState::DEAD:
-                    health_str = "Dead";
-                    break;
-                case android::emulation::control::BatteryState::OVERVOLTAGE:
-                    health_str = "Overvoltage";
-                    break;
-                case android::emulation::control::BatteryState::FAILED:
-                    health_str = "Unspecified failure";
-                    break;
-                default:
-                    health_str = "Unknown";
-                    break;
-                }
-
+                const char* status_str = BatteryEnumToString(kBatteryStatuses, state.status());
+                const char* health_str = BatteryEnumToString(kBatteryHealths, state.health());
                 const char* present_str = state.ispresent() ? "true" : "false";
 
                 return absl::StrFormat(
@@ -793,25 +803,14 @@ LegacyConsoleBridge::LegacyConsoleBridge(int port, std::filesystem::path token_p
 
     power.On("status" /* do_battery_status */, "set battery status",
              [update_battery](ConsoleContext& ctx, const std::string& state) -> absl::Status {
-                 android::emulation::control::BatteryState::BatteryStatus status_val;
-                 if (absl::EqualsIgnoreCase(state, "unknown")) {
-                     status_val = android::emulation::control::BatteryState::UNKNOWN;
-                 } else if (absl::EqualsIgnoreCase(state, "charging")) {
-                     status_val = android::emulation::control::BatteryState::CHARGING;
-                 } else if (absl::EqualsIgnoreCase(state, "discharging")) {
-                     status_val = android::emulation::control::BatteryState::DISCHARGING;
-                 } else if (absl::EqualsIgnoreCase(state, "not-charging")) {
-                     status_val = android::emulation::control::BatteryState::NOT_CHARGING;
-                 } else if (absl::EqualsIgnoreCase(state, "full")) {
-                     status_val = android::emulation::control::BatteryState::FULL;
-                 } else {
-                     return absl::InvalidArgumentError("invalid battery status");
-                 }
-                 return update_battery(ctx,
-                                       [status_val](android::emulation::control::BatteryState& b) {
-                                           b.set_status(status_val);
-                                           return absl::OkStatus();
-                                       });
+                 ASSIGN_OR_RETURN(
+                         auto battery_status,
+                         ParseBatteryEnum(kBatteryStatuses, state, "invalid battery status"));
+                 return update_battery(
+                         ctx, [battery_status](android::emulation::control::BatteryState& b) {
+                             b.set_status(battery_status);
+                             return absl::OkStatus();
+                         });
              });
 
     power.On("present" /* do_battery_present */, "set battery present state",
@@ -833,25 +832,14 @@ LegacyConsoleBridge::LegacyConsoleBridge(int port, std::filesystem::path token_p
 
     power.On("health" /* do_battery_health */, "set battery health state",
              [update_battery](ConsoleContext& ctx, const std::string& state) -> absl::Status {
-                 android::emulation::control::BatteryState::BatteryHealth health_val;
-                 if (absl::EqualsIgnoreCase(state, "good")) {
-                     health_val = android::emulation::control::BatteryState::GOOD;
-                 } else if (absl::EqualsIgnoreCase(state, "overheat")) {
-                     health_val = android::emulation::control::BatteryState::OVERHEATED;
-                 } else if (absl::EqualsIgnoreCase(state, "dead")) {
-                     health_val = android::emulation::control::BatteryState::DEAD;
-                 } else if (absl::EqualsIgnoreCase(state, "overvoltage")) {
-                     health_val = android::emulation::control::BatteryState::OVERVOLTAGE;
-                 } else if (absl::EqualsIgnoreCase(state, "failure")) {
-                     health_val = android::emulation::control::BatteryState::FAILED;
-                 } else {
-                     return absl::InvalidArgumentError("invalid battery health");
-                 }
-                 return update_battery(ctx,
-                                       [health_val](android::emulation::control::BatteryState& b) {
-                                           b.set_health(health_val);
-                                           return absl::OkStatus();
-                                       });
+                 ASSIGN_OR_RETURN(
+                         auto battery_health,
+                         ParseBatteryEnum(kBatteryHealths, state, "invalid battery health"));
+                 return update_battery(
+                         ctx, [battery_health](android::emulation::control::BatteryState& b) {
+                             b.set_health(battery_health);
+                             return absl::OkStatus();
+                         });
              });
 
     power.On("capacity" /* do_battery_capacity */, "set battery capacity percentage",
