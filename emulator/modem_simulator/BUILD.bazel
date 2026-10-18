@@ -138,3 +138,16 @@ cc_library(
         "@abseil-cpp//absl/synchronization",
     ],
 )
+
+cc_test(
+    name = "modem_simulator_client_test",
+    size = "small",
+    srcs = ["modem_simulator_client_test.cc"],
+    tags = ["no-tidy"],
+    deps = [
+        ":modem_simulator_client",
+        "//emulator/libs/test:googletest_main",
+        "//emulator/modem_simulator/deps",
+        "@abseil-cpp//absl/status",
+    ],
+)

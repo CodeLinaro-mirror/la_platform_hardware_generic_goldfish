@@ -16,6 +16,7 @@
 #include "goldfish/modem_simulator/modem_simulator_client.h"
 
 #include <sys/types.h>
+
 #include <thread>
 
 #include "absl/log/check.h"
@@ -152,15 +153,21 @@ IModemSimulatorClient::CallState ToCallState(const ModemSimulatorClient::ModemCa
     return IModemSimulatorClient::CallState::UNSPECIFIED;
 }
 
+std::string_view ExtractModemCommandName(const std::string_view req) {
+    const size_t end = req.find_first_of(":=\r");
+    return end == std::string_view::npos ? req : req.substr(0, end);
+}
+
 absl::Status SendModemRequest(SharedFD& socket, const std::string_view req) {
     VLOG(2) << "Sending modem request:" << req;
-    if (WriteAll(socket, req) != req.size()) {
-        using namespace std::literals::string_view_literals;
+    const ssize_t bytes_written = WriteAll(socket, req);
+    if (bytes_written != static_cast<ssize_t>(req.size())) {
         return absl::InternalError(
-                absl::StrCat("Failed to send `"sv, req, "` to the modem simulator"sv));
-    } else {
-        return absl::OkStatus();
+                absl::StrCat("Failed to send '", ExtractModemCommandName(req), "' command (",
+                             req.size(), " bytes) to the modem simulator (wrote ", bytes_written,
+                             " bytes). Verify that the modem simulator connection is still open."));
     }
+    return absl::OkStatus();
 }
 
 void FlushModemSocket(SharedFD&) {
@@ -170,8 +177,10 @@ void FlushModemSocket(SharedFD&) {
 absl::StatusOr<SharedFD> ConnectToSimulator(const int serverPort) {
     SharedFD socket = SharedFD::SocketLocalClient(serverPort);
     if (!socket) {
-        return absl::UnavailableError(absl::StrCat("Failed to connect to modem simulator on port ",
-                                                   serverPort, " (tried IPv4 and IPv6)"));
+        return absl::UnavailableError(absl::StrCat(
+                "Failed to connect to modem simulator on port ", serverPort,
+                " over IPv4 or IPv6. Verify that the modem simulator service is running and "
+                "listening on that port."));
     }
 
     using namespace std::literals::string_view_literals;
@@ -340,7 +349,9 @@ absl::StatusOr<CellInfo> ModemSimulatorClient::SetCellInfo(const CellInfo& ci) {
 }
 
 absl::StatusOr<CellInfo> ModemSimulatorClient::GetCellInfo() {
-    return absl::UnimplementedError("`GetCellInfo` is not yet implemented.");
+    return absl::UnimplementedError(
+            "Failed to get cell info: GetCellInfo is not implemented by the modem simulator "
+            "client.");
 }
 
 absl::StatusOr<Call> ModemSimulatorClient::CreateCall(const Call& call) {
@@ -350,8 +361,10 @@ absl::StatusOr<Call> ModemSimulatorClient::CreateCall(const Call& call) {
     const absl::MutexLock lock(mtx_);
     const auto [where, inserted] = calls_.try_emplace(call.number);
     if (!inserted) {
-        return absl::InternalError(
-                absl::StrCat("A call with '", call.number, "' is already in progress."));
+        return absl::AlreadyExistsError(absl::StrCat(
+                "Failed to create incoming call for '", call.number,
+                "': an active call with this caller is already in progress. Use updateCall to "
+                "change its state or deleteCall to end it first."));
     }
 
     where->second = std::make_unique<ModemCall>(std::move(activeCall));
@@ -363,7 +376,10 @@ absl::StatusOr<Call> ModemSimulatorClient::CreateCall(const Call& call) {
 
 absl::StatusOr<Call> ModemSimulatorClient::UpdateCall(const Call& call) {
     if (call.state == CallState::UNSPECIFIED) {
-        return absl::InvalidArgumentError("CallState::UNSPECIFIED");
+        return absl::InvalidArgumentError(
+                "Failed to update call: call state is CallState::UNSPECIFIED (0). Specify an "
+                "active call state such as ACTIVE, HELD, DIALING, ALERTING, INCOMING, or "
+                "WAITING.");
     }
 
     const ModemCallState mcs = ToModemCallState(call.state);
@@ -373,7 +389,10 @@ absl::StatusOr<Call> ModemSimulatorClient::UpdateCall(const Call& call) {
     const absl::MutexLock lock(mtx_);
     const auto i = calls_.find(call.number);
     if (i == calls_.end()) {
-        return absl::InternalError(absl::StrCat("The '", call.number, "' is not found."));
+        return absl::NotFoundError(absl::StrCat(
+                "Failed to update call for '", call.number,
+                "': no active call found for this caller. Use createCall to start a call first "
+                "or listCalls to inspect active calls."));
     }
 
     i->second->UpdateState(mcs);
@@ -386,11 +405,13 @@ absl::Status ModemSimulatorClient::DeleteCall(const Call& call) {
     FlushModemSocket(socket);
 
     const absl::MutexLock lock(mtx_);
-    if (calls_.erase(call.number) > 0) {
-        return absl::OkStatus();
-    } else {
-        return absl::InvalidArgumentError(absl::StrCat("The '", call.number, "' is not found."));
+    if (calls_.erase(call.number) == 0) {
+        return absl::NotFoundError(absl::StrCat(
+                "Failed to delete call for '", call.number,
+                "': no active call found for this caller. Use listCalls to inspect active "
+                "calls."));
     }
+    return absl::OkStatus();
 }
 
 absl::StatusOr<std::vector<Call>> ModemSimulatorClient::ListCalls() {
