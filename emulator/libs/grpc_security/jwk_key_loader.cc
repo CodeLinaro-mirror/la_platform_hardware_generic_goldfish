@@ -60,46 +60,60 @@ int JwkKeyLoader::Size() const {
 namespace {
 // Reads a file into a string.
 absl::StatusOr<std::string> ReadFile(const JwkKeyLoader::Path& fname) {
+    const std::string path_str = fname.string();
     if (!base::file::is_file(fname)) {
-        return absl::NotFoundError(absl::StrCat("The path: ", fname.string(), " does not exist."));
+        return absl::NotFoundError(absl::StrCat(
+                "Failed to read JWK file '", path_str,
+                "': path does not exist or is not a regular file. Verify the file path and ensure "
+                "the JWK file exists."));
     }
 
     if (!base::file::can_read(fname)) {
-        return absl::NotFoundError(absl::StrCat("The path: ", fname.string(), " is not readable."));
+        return absl::PermissionDeniedError(
+                absl::StrCat("Failed to read JWK file '", path_str,
+                             "': permission denied. Grant read access to the file and try again."));
     }
 
     // Open stream at the end so we can learn the size.
+    errno = 0;
     std::ifstream fstream(fname, std::ios::binary | std::ios::ate);
-    const std::streampos file_size = fstream.tellg();
-
-    if (file_size == 0) {
-        auto message = absl::StrFormat("%s is empty", fname);
-        return absl::UnavailableError(message);
+    if (fstream.fail()) {
+        const int err = errno;
+        return absl::UnavailableError(absl::StrFormat(
+                "Failed to open JWK file '%s': %s. Retry if the file is still being written.",
+                path_str, err != 0 ? std::strerror(err) : "stream open failed"));
     }
 
-    if (fstream.fail()) {
-        auto message = absl::StrFormat("%s failed to open.", fname);
-        return absl::UnavailableError(message);
+    const std::streampos file_size = fstream.tellg();
+    if (file_size == 0) {
+        return absl::UnavailableError(absl::StrFormat(
+                "Failed to read JWK file '%s': file is empty (0 bytes). Retry once the JWK set "
+                "has been written.",
+                path_str));
     }
 
     // Usually a jkw file is around 300 bytes... so...
     constexpr int kMaxJwkSize = 8 * 1024;
     if (file_size > kMaxJwkSize) {
-        auto message =
-                absl::StrFormat("Refusing to read %s of size %d, which is over our max of %d.",
-                                fname, static_cast<int>(file_size), kMaxJwkSize);
-        return absl::PermissionDeniedError(message);
+        return absl::InvalidArgumentError(absl::StrFormat(
+                "Failed to read JWK file '%s': file size (%d bytes) exceeds maximum allowed size "
+                "of %d bytes. Provide a JWK file of at most %d bytes.",
+                path_str, static_cast<int>(file_size), kMaxJwkSize, kMaxJwkSize));
     }
 
     // Allocate the string with the required size and read it.
     std::string contents(file_size, ' ');
+    errno = 0;
     fstream.seekg(0, std::ios::beg);
     fstream.read(contents.data(), file_size);
 
-    if (fstream.bad()) {
-        auto message =
-                absl::StrFormat("Failure reading %s due to: %s", fname, std::strerror(errno));
-        return absl::InternalError(message);
+    if (fstream.bad() || fstream.fail()) {
+        const int err = errno;
+        return absl::InternalError(absl::StrFormat(
+                "Failed to read %d bytes from JWK file '%s': %s. Check file permissions and disk "
+                "health.",
+                static_cast<int>(file_size), path_str,
+                err != 0 ? std::strerror(err) : "short or failed read"));
     }
 
     return contents;
@@ -126,8 +140,10 @@ absl::Status JwkKeyLoader::Add(const Path& to_add) {
     if (!json_string.ok()) return json_string.status();
 
     if (!json::accept(*json_string)) {
-        return absl::InternalError(
-                absl::StrFormat("%s contains: %s, an invalid json object.", to_add, *json_string));
+        return absl::InvalidArgumentError(absl::StrFormat(
+                "Failed to load JWK file '%s': file content (%d bytes) is not valid JSON. "
+                "Provide a valid RFC 7517 JSON Web Key Set.",
+                to_add.string(), static_cast<int>(json_string->size())));
     }
 
     return Add(to_add, *json_string);
@@ -136,14 +152,18 @@ absl::Status JwkKeyLoader::Add(const Path& to_add) {
 absl::Status JwkKeyLoader::Add(const Path& to_add, const std::string& json_string) {
     auto handle = crypto::tink::JwkSetToPublicKeysetHandle(json_string);
     if (!handle.ok()) {
-        LOG(INFO) << to_add << " contains " << json_string << ", which is invalid.";
-        return absl::InternalError(absl::StrFormat("%s does not contain a valid jwk", to_add));
+        LOG(INFO) << "Rejected invalid JWK set in '" << to_add.string()
+                  << "': " << handle.status().message();
+        return absl::InvalidArgumentError(absl::StrFormat(
+                "Failed to parse JWK set from '%s': %s. Provide a valid RFC 7517 public JWK set.",
+                to_add.string(), handle.status().message()));
     }
 
     auto json_snippet = crypto::tink::JwkSetFromPublicKeysetHandle(**handle);
     if (!json_snippet.ok()) {
-        return absl::InternalError(
-                absl::StrFormat("Unable to convert key handle to json for file: %s", to_add));
+        return absl::InternalError(absl::StrFormat(
+                "Failed to serialize public keyset handle to JWK JSON for '%s': %s.",
+                to_add.string(), json_snippet.status().message()));
     }
 
     json object = json::parse(*json_snippet);
@@ -172,8 +192,10 @@ absl::Status JwkKeyLoader::Add(const Path& to_add, const std::string& json_strin
 absl::Status JwkKeyLoader::Remove(const Path& to_remove) {
     const std::lock_guard guard(keylock_);
     if (!public_keys_.contains(to_remove)) {
-        return absl::NotFoundError(
-                absl::StrFormat("Public key with path %s, does not exist", to_remove));
+        return absl::NotFoundError(absl::StrFormat(
+                "Failed to remove JWK file '%s': no loaded public keyset is registered for this "
+                "path.",
+                to_remove.string()));
     }
 
     public_keys_.erase(to_remove);
@@ -203,10 +225,17 @@ std::string JwkKeyLoader::ActiveKeysetAsString() const {
 }
 
 absl::StatusOr<JwkKeyLoader::Keyset> JwkKeyLoader::ActiveKeySet() const {
+    if (Empty()) {
+        return absl::FailedPreconditionError(
+                "Failed to build active JWK keyset: no JWK files are loaded (keys list is empty). "
+                "Load at least one valid JWK file before requesting the active keyset.");
+    }
     auto json_keys = ActiveKeysetAsString();
     auto key_handle = crypto::tink::JwkSetToPublicKeysetHandle(json_keys);
     if (!key_handle.ok()) {
-        return absl::InternalError(key_handle.status().message());
+        return absl::InternalError(
+                absl::StrFormat("Failed to build active JWK keyset from %d loaded JWK file(s): %s.",
+                                Size(), key_handle.status().message()));
     }
 
     return {std::move(key_handle.value())};

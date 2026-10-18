@@ -126,7 +126,8 @@ TEST_F(JwkKeyLoaderTest, refuses_large_files) {
     WriteSnippet("foo", std::string(static_cast<size_t>(8196 * 2), 'x'));
     auto status = loader.Add((temp_dir_->Path() / "foo").string());
     EXPECT_FALSE(status.ok());
-    ASSERT_THAT(status.message(), ContainsSubstr("which is over our max of"));
+    EXPECT_EQ(status.code(), absl::StatusCode::kInvalidArgument);
+    ASSERT_THAT(status.message(), ContainsSubstr("exceeds maximum allowed size of 8192 bytes"));
 }
 
 TEST_F(JwkKeyLoaderTest, will_bail_on_retries_with_empty) {
@@ -142,6 +143,7 @@ TEST_F(JwkKeyLoaderTest, will_bail_on_retries_with_empty) {
             std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
     EXPECT_FALSE(status.ok());
     ASSERT_EQ(status.code(), absl::StatusCode::kUnavailable);
+    EXPECT_THAT(status.message(), ContainsSubstr("file is empty (0 bytes)"));
 
     // We expect around 80ms, but use a looser threshold of 50ms to account for timer precision.
     EXPECT_GE(waited, 50ms) << "We should have waited at least 50ms, not: " << waited.count()
@@ -314,7 +316,22 @@ TEST_F(JwkKeyLoaderTest, gracefully_rejects_broken_json) {
 
     auto status = loader.Add("test", borked);
     EXPECT_FALSE(status.ok());
-    EXPECT_THAT(status.message(), ContainsSubstr("test does not contain a valid jwk"))
+    EXPECT_EQ(status.code(), absl::StatusCode::kInvalidArgument);
+    EXPECT_THAT(status.message(), ContainsSubstr("Failed to parse JWK set from 'test'"))
+            << status.message();
+    EXPECT_THAT(status.message(), ContainsSubstr("Provide a valid RFC 7517 public JWK set"));
+    EXPECT_TRUE(loader.Empty());
+}
+
+TEST_F(JwkKeyLoaderTest, rejects_broken_json_file_without_echoing_content) {
+    JwkKeyLoader loader;
+    WriteSnippet("broken.jwk", std::string("not_json_secret_payload"));
+
+    auto status = loader.Add((temp_dir_->Path() / "broken.jwk").string());
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code(), absl::StatusCode::kInvalidArgument);
+    EXPECT_THAT(status.message(), ContainsSubstr("is not valid JSON"));
+    EXPECT_EQ(status.message().find("not_json_secret_payload"), absl::string_view::npos)
             << status.message();
     EXPECT_TRUE(loader.Empty());
 }
@@ -341,7 +358,9 @@ TEST_F(JwkKeyLoaderTest, gracefully_rejects_broken_jwk) {
 
     auto status = loader.Add("test", missing_y_field);
     EXPECT_FALSE(status.ok());
-    EXPECT_EQ(status.message(), "test does not contain a valid jwk");
+    EXPECT_EQ(status.code(), absl::StatusCode::kInvalidArgument);
+    EXPECT_THAT(status.message(), ContainsSubstr("Failed to parse JWK set from 'test'"));
+    EXPECT_THAT(status.message(), ContainsSubstr("Provide a valid RFC 7517 public JWK set"));
     EXPECT_TRUE(loader.Empty());
 }
 
@@ -350,8 +369,20 @@ TEST_F(JwkKeyLoaderTest, gracefully_rejects_missing_file) {
     auto status = loader.Add("this_path_does_not_exist");
 
     EXPECT_FALSE(status.ok());
-    EXPECT_THAT(status.message(), ContainsSubstr("this_path_does_not_exist does not exist."));
+    EXPECT_EQ(status.code(), absl::StatusCode::kNotFound);
+    EXPECT_THAT(status.message(),
+                ContainsSubstr("Failed to read JWK file 'this_path_does_not_exist'"));
+    EXPECT_THAT(status.message(), ContainsSubstr("does not exist or is not a regular file"));
     EXPECT_TRUE(loader.Empty());
+}
+
+TEST_F(JwkKeyLoaderTest, remove_unknown_key_returns_not_found) {
+    JwkKeyLoader loader;
+    auto status = loader.Remove("missing.jwk");
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code(), absl::StatusCode::kNotFound);
+    EXPECT_THAT(status.message(), ContainsSubstr("Failed to remove JWK file 'missing.jwk'"));
 }
 
 TEST_F(JwkKeyLoaderTest, can_remove_key) {
@@ -384,7 +415,8 @@ TEST_F(JwkKeyLoaderTest, can_remove_key) {
 
     auto keyset = loader.ActiveKeySet();
     EXPECT_FALSE(keyset.ok());
-    EXPECT_EQ(keyset.status().message(), "keys list is empty");
+    EXPECT_EQ(keyset.status().code(), absl::StatusCode::kFailedPrecondition);
+    EXPECT_THAT(keyset.status().message(), ContainsSubstr("keys list is empty"));
 }
 
 TEST_F(JwkKeyLoaderTest, no_keys) {
@@ -403,7 +435,8 @@ TEST_F(JwkKeyLoaderTest, no_keys) {
 
     auto keyset = loader.ActiveKeySet();
     EXPECT_FALSE(keyset.ok());
-    EXPECT_EQ(keyset.status().message(), "keys list is empty");
+    EXPECT_EQ(keyset.status().code(), absl::StatusCode::kFailedPrecondition);
+    EXPECT_THAT(keyset.status().message(), ContainsSubstr("keys list is empty"));
 }
 
 TEST_F(JwkKeyLoaderTest, missing_key_id) {
