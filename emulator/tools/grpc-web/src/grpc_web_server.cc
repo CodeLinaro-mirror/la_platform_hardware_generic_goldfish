@@ -210,15 +210,7 @@ class GrpcWebReactor : public grpc::ClientBidiReactor<grpc::ByteBuffer, grpc::By
                 context_->TryCancel();
                 return;
             }
-            {
-                const absl::MutexLock lock(&response_mutex_);
-                MaybeSendHeaders();
-                std::string chunk_to_send = is_text_response_ ? b64_encoder_.EncodeChunk(data_frame)
-                                                              : std::move(data_frame);
-                if (!chunk_to_send.empty()) {
-                    writer_->SendChunk(chunk_to_send);
-                }
-            }
+            SendFrame(std::move(data_frame), /*is_final=*/false);
             StartRead(&read_bb_);
         }
     }
@@ -233,16 +225,7 @@ class GrpcWebReactor : public grpc::ClientBidiReactor<grpc::ByteBuffer, grpc::By
         std::string trailers =
                 Protocol::FormatTrailers(status, context_->GetServerTrailingMetadata());
         std::string trailer_frame = Protocol::PackFrame(kFrameTrailer, trailers);
-        {
-            const absl::MutexLock lock(&response_mutex_);
-            MaybeSendHeaders();
-            std::string trailer_chunk = is_text_response_ ? b64_encoder_.Finalize(trailer_frame)
-                                                          : std::move(trailer_frame);
-            if (!trailer_chunk.empty()) {
-                writer_->SendChunk(trailer_chunk);
-            }
-            writer_->Finish();
-        }
+        SendFrame(std::move(trailer_frame), /*is_final=*/true);
         auto tracker = std::move(tracker_);
         delete this;
         if (tracker) {
@@ -251,6 +234,20 @@ class GrpcWebReactor : public grpc::ClientBidiReactor<grpc::ByteBuffer, grpc::By
     }
 
   private:
+    void SendFrame(std::string frame, bool is_final) {
+        const absl::MutexLock lock(&response_mutex_);
+        MaybeSendHeaders();
+        std::string chunk = is_text_response_ ? (is_final ? b64_encoder_.Finalize(frame)
+                                                          : b64_encoder_.EncodeChunk(frame))
+                                              : std::move(frame);
+        if (!chunk.empty()) {
+            writer_->SendChunk(chunk);
+        }
+        if (is_final) {
+            writer_->Finish();
+        }
+    }
+
     void MaybeSendHeaders() ABSL_EXCLUSIVE_LOCKS_REQUIRED(response_mutex_) {
         if (!headers_sent_) {
             headers_sent_ = true;
