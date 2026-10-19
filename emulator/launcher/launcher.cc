@@ -86,26 +86,10 @@ using WhenAllChardevEndpoints = std::shared_ptr<WhenAll<ChardevEndpoints>>;
 
 using ::goldfish::modem_simulator::ModemSimulatorService;
 
-// Returns the timezone reported to the guest: the -timezone value if it is a
-// zoneinfo name, otherwise the host timezone.
-std::optional<std::string> DetermineGuestTimezone(const AndroidOptions& opts) {
-    if (opts.timezone != nullptr && !::goldfish::timezone::IsZoneinfoName(opts.timezone)) {
-        LOG(WARNING) << "Ignoring -timezone '" << opts.timezone
-                     << "': must be a zoneinfo name such as Europe/Paris (see -help-timezone). "
-                        "Falling back to the host timezone.";
-    }
-    std::optional<std::string> timezone = ::goldfish::timezone::GetGuestTimezone(
-            opts.timezone, ::goldfish::timezone::GetHostTimezone());
-    if (!timezone) {
-        LOG(WARNING) << "Could not determine the host timezone, so it is not reported to the "
-                        "guest (see -help-timezone)";
-    }
-    return timezone;
-}
-
 class Launcher {
   public:
-    Launcher(LauncherConfig config) : config_(std::move(config)) {
+    Launcher(LauncherConfig config)
+            : config_(std::move(config)), host_timezone_(::goldfish::timezone::GetHostTimezone()) {
         config_.signal_handlers->SetCallback(
                 [this](int signal) { forwarding_signal_handler(signal); });
         config_.event_loop
@@ -238,9 +222,10 @@ class Launcher {
             icc_profile_override = std::filesystem::path(icc_profile);
         }
 
-        const std::optional<std::string> timezone = DetermineGuestTimezone(config_.opts);
-        modem_simulator_service_ = ModemSimulatorService::Create(*config_.avd, icc_profile_override,
-                                                                 timezone.value_or(""));
+        modem_simulator_service_ = ModemSimulatorService::Create(
+                *config_.avd, icc_profile_override,
+                ::goldfish::timezone::GetGuestTimezone(config_.opts.timezone, host_timezone_)
+                        .value_or(""));
         if (modem_simulator_service_) {
             chardevs->MutableResults().modem_simulator =
                     modem_simulator_service_->ChardevEndpoint();
@@ -419,7 +404,8 @@ class Launcher {
                                            config_.user_paths,
                                            config_.emulator_paths,
                                            *config_.avd,
-                                           config_.opts}};
+                                           config_.opts,
+                                           host_timezone_}};
 
         if (auto emulator_config = emulator.launch_config(); emulator_config.ok()) {
             if (auto s = config_.process_launcher->Launch(
@@ -507,6 +493,8 @@ class Launcher {
     }
 
     const LauncherConfig config_;
+    // The zoneinfo name of the host timezone, or std::nullopt if it is unknown.
+    const std::optional<std::string> host_timezone_;
 
     EmulatorPorts ports_;
     std::unique_ptr<::goldfish::telnet::LegacyConsoleController> console_controller_;

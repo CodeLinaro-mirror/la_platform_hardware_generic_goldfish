@@ -75,6 +75,7 @@ cc_library(
         "//emulator/plugin/hal/vehicle",
         "//emulator/plugin/vminterface:vm_ops",
         "//emulator/tools:aemu_version",
+        "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/strings",
