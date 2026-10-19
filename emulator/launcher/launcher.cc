@@ -362,7 +362,7 @@ class Launcher {
 
             ASSIGN_OR_RETURN(auto netsim_config,
                              netsim::netsimd_launch_config(config_.emulator_paths.netsim_binary,
-                                                           config_.opts));
+                                                           config_.opts, config_.feature_flags));
             ASSIGN_OR_RETURN(auto proc, config_.process_launcher->Launch(
                                                 netsim_config, [this](int64_t status, int signal) {
                                                     netsimd_exit(status, signal);

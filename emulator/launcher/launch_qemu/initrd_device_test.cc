@@ -488,4 +488,75 @@ TEST(Initrd, DoesNotWarnWhenChangedOnColdBoot) {
                         "Initrd configuration has changed while loading snapshot"))));
 }
 
+TEST(BootProperties, GuestAngleFeatureFlag) {
+    using S = android_studio::EmulatorFeatureFlagState;
+    base::TestSystem sys("");
+
+    // Default FakeEmulator has GuestAngle enabled.
+    {
+        FakeEmulator emu;
+        auto hw = HardwareConfig();
+        EXPECT_CALL(emu.mock_avd(), Hw()).WillRepeatedly(testing::ReturnRef(hw));
+        EXPECT_CALL(emu.mock_avd(), Name()).WillRepeatedly(testing::Return("mock_avd"));
+        EXPECT_CALL(emu.mock_avd(), Arch())
+                .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
+
+        const auto props = getBootProperties(emu.config(), "lavapipe");
+        EXPECT_THAT(props, testing::Contains(std::pair{"androidboot.hardwareegl", "angle"}));
+    }
+
+    // Disabling GuestAngle omits the androidboot.hardwareegl boot property.
+    {
+        FakeEmulator emu;
+        emu.feature_flags().SetEnabledOverride(S::GUEST_ANGLE, false);
+        auto hw = HardwareConfig();
+        EXPECT_CALL(emu.mock_avd(), Hw()).WillRepeatedly(testing::ReturnRef(hw));
+        EXPECT_CALL(emu.mock_avd(), Name()).WillRepeatedly(testing::Return("mock_avd"));
+        EXPECT_CALL(emu.mock_avd(), Arch())
+                .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
+
+        const auto props = getBootProperties(emu.config(), "lavapipe");
+        EXPECT_THAT(props, testing::Not(testing::Contains(
+                                   testing::Pair("androidboot.hardwareegl", testing::_))));
+    }
+}
+
+TEST(Initrd, FailsWhenMinigbmDisabled) {
+    using S = android_studio::EmulatorFeatureFlagState;
+    base::TestSystem sys("");
+    FakeEmulator emu;
+    emu.feature_flags().SetEnabledOverride(S::MINIGBM, false);
+
+    auto hw = HardwareConfig();
+    EXPECT_CALL(emu.mock_avd(), Hw()).WillRepeatedly(testing::ReturnRef(hw));
+
+    SnapshotDevice snapshot_dev;
+    GpuDevice gpu_dev("gpu0", snapshot_dev);
+    EXPECT_OK(gpu_dev.initialize(emu.config()));
+
+    InitrdDevice dev(gpu_dev, snapshot_dev);
+    auto status = dev.initialize(emu.config());
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code(), absl::StatusCode::kInvalidArgument);
+}
+
+TEST(Initrd, FailsWhenDynamicPartitionDisabled) {
+    using S = android_studio::EmulatorFeatureFlagState;
+    base::TestSystem sys("");
+    FakeEmulator emu;
+    emu.feature_flags().SetEnabledOverride(S::DYNAMIC_PARTITION, false);
+
+    auto hw = HardwareConfig();
+    EXPECT_CALL(emu.mock_avd(), Hw()).WillRepeatedly(testing::ReturnRef(hw));
+
+    SnapshotDevice snapshot_dev;
+    GpuDevice gpu_dev("gpu0", snapshot_dev);
+    EXPECT_OK(gpu_dev.initialize(emu.config()));
+
+    InitrdDevice dev(gpu_dev, snapshot_dev);
+    auto status = dev.initialize(emu.config());
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code(), absl::StatusCode::kInvalidArgument);
+}
+
 }  // namespace android::goldfish::test

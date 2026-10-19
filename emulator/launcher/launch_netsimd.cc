@@ -90,9 +90,11 @@ absl::StatusOr<NetsimConnection_ptr> NetsimConnector::ConnectToNetsim(
 }
 
 absl::StatusOr<::goldfish::async::LaunchConfig> netsimd_launch_config(
-        const std::filesystem::path& netsim_binary, const AndroidOptions& opts) {
-    bool no_cli_ui = false;  //! feature_is_enabled(kFeature_NetsimCliUi),
-    bool no_web_ui = true;   //! feature_is_enabled(kFeature_NetsimWebUi),
+        const std::filesystem::path& netsim_binary, const AndroidOptions& opts,
+        const FeatureFlags& feature_flags) {
+    using S = android_studio::EmulatorFeatureFlagState;
+    const bool no_cli_ui = !feature_flags.IsEnabled(S::NETSIMCLIUI);
+    const bool no_web_ui = !feature_flags.IsEnabled(S::NETSIMWEBUI);
     std::string host_dns = opts.dns_server ? opts.dns_server : "";
     if (host_dns.empty()) {
         if (auto al = ::goldfish::network::GetSystemDnsServers(); al.ok()) {

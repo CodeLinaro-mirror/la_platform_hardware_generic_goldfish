@@ -21,10 +21,12 @@
 #include "absl/status/status.h"
 
 #include "android/goldfish/avd.h"
+#include "android/goldfish/feature_flags.h"
 
 namespace android::goldfish {
 
-bool ShouldTrampolineToQemu2(const absl::StatusOr<std::unique_ptr<android::goldfish::Avd>>& avd);
+bool ShouldTrampolineToQemu2(const absl::StatusOr<std::unique_ptr<android::goldfish::Avd>>& avd,
+                             const absl::StatusOr<FeatureFlags>& feature_flags);
 
 absl::Status TrampolineToQemu2(const fs::path& launcher_directory, std::vector<std::string> args);
 
