@@ -202,15 +202,6 @@ class JniRtcReceiver : public webrtc::PeerConnectionObserver,
 
   private:
     /**
-     * @brief Attaches the current native thread to the JVM if needed and returns the JNIEnv
-     * pointer.
-     * @param[out] out_attached Set to true if the thread was attached by this call and must be
-     * detached later.
-     * @return Pointer to JNIEnv, or nullptr on failure.
-     */
-    JNIEnv* GetJniEnv(bool* out_attached);
-
-    /**
      * @brief Dispatches an outbound JSEP JSON message to the Java JSEP message listener.
      * @param json_msg JSON object representing the outbound JSEP message.
      */
@@ -253,8 +244,6 @@ class JniLogSink : public webrtc::LogSink {
                       const char* tag) override;
 
   private:
-    static JNIEnv* GetJniEnv(JavaVM* jvm, bool* out_attached);
-
     JavaVM* jvm_ = nullptr;
     absl::Mutex mutex_;
     jobject listener_ref_ ABSL_GUARDED_BY(mutex_) = nullptr;
