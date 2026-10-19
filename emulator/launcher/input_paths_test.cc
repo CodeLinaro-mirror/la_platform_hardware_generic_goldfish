@@ -257,6 +257,7 @@ TEST_F(InputPathsTest, ResolveEmulatorPaths) {
     WriteToFile(launcher_dir / "bin" / ("qemu-system-aarch64" + suffix), "");
     WriteToFile(launcher_dir / "bin" / ("netsimd" + suffix), "");
     WriteToFile(launcher_dir / "bin" / ("crashpad_handler" + suffix), "");
+    WriteToFile(launcher_dir / "lib" / "advancedFeatures.ini", "");
 
     sys_->SetEnvironmentVariable("ANDROID_EMULATOR_LAUNCHER_DIR", launcher_dir.string());
 
@@ -266,8 +267,34 @@ TEST_F(InputPathsTest, ResolveEmulatorPaths) {
 
     EXPECT_EQ(paths.launcher_directory, launcher_dir);
     EXPECT_EQ(paths.binary_directory, launcher_dir / "bin");
+    EXPECT_EQ(paths.advanced_features, launcher_dir / "lib" / "advancedFeatures.ini");
     EXPECT_EQ(paths.qemu_system_x86_binary, launcher_dir / "bin" / ("qemu-system-x86_64" + suffix));
     EXPECT_FALSE(paths.HasFishtank());
+}
+
+TEST_F(InputPathsTest, ResolveEmulatorPathsFailsWithoutAdvancedFeatures) {
+    tmp_->MakeSubDir("launcher");
+    tmp_->MakeSubDir("launcher/bin");
+    tmp_->MakeSubDir("launcher/lib/qemu");
+    tmp_->MakeSubDir("launcher/lib64");
+    tmp_->MakeSubDir("launcher/share/qemu");
+
+    fs::path launcher_dir = tmp_->Path() / "launcher";
+    ASSERT_OK_AND_ASSIGN(auto canon, android::base::file::make_canonical(launcher_dir));
+    launcher_dir = canon;
+
+    std::string suffix = "";
+#ifdef _WIN32
+    suffix = ".exe";
+#endif
+
+    WriteToFile(launcher_dir / "bin" / ("qemu-system-x86_64" + suffix), "");
+    WriteToFile(launcher_dir / "bin" / ("netsimd" + suffix), "");
+    WriteToFile(launcher_dir / "bin" / ("crashpad_handler" + suffix), "");
+
+    sys_->SetEnvironmentVariable("ANDROID_EMULATOR_LAUNCHER_DIR", launcher_dir.string());
+
+    EXPECT_EQ(ResolveEmulatorPaths(false).status().code(), absl::StatusCode::kNotFound);
 }
 
 TEST_F(InputPathsTest, ResolveEmulatorPathsWithOnlyOneQemuSystemBinary) {
@@ -291,6 +318,7 @@ TEST_F(InputPathsTest, ResolveEmulatorPathsWithOnlyOneQemuSystemBinary) {
     WriteToFile(launcher_dir / "bin" / ("qemu-img" + suffix), "");
     WriteToFile(launcher_dir / "bin" / ("netsimd" + suffix), "");
     WriteToFile(launcher_dir / "bin" / ("crashpad_handler" + suffix), "");
+    WriteToFile(launcher_dir / "lib" / "advancedFeatures.ini", "");
 
     sys_->SetEnvironmentVariable("ANDROID_EMULATOR_LAUNCHER_DIR", launcher_dir.string());
 
@@ -320,6 +348,7 @@ TEST_F(InputPathsTest, ResolveEmulatorPathsFailsWithoutQemuSystemBinary) {
     WriteToFile(launcher_dir / "bin" / ("qemu-img" + suffix), "");
     WriteToFile(launcher_dir / "bin" / ("netsimd" + suffix), "");
     WriteToFile(launcher_dir / "bin" / ("crashpad_handler" + suffix), "");
+    WriteToFile(launcher_dir / "lib" / "advancedFeatures.ini", "");
 
     sys_->SetEnvironmentVariable("ANDROID_EMULATOR_LAUNCHER_DIR", launcher_dir.string());
 
@@ -347,6 +376,7 @@ TEST_F(InputPathsTest, ResolveEmulatorPathsWithFishtank) {
     WriteToFile(launcher_dir / "bin" / ("qemu-system-aarch64" + suffix), "");
     WriteToFile(launcher_dir / "bin" / ("netsimd" + suffix), "");
     WriteToFile(launcher_dir / "bin" / ("crashpad_handler" + suffix), "");
+    WriteToFile(launcher_dir / "lib" / "advancedFeatures.ini", "");
     WriteToFile(launcher_dir / "fishtank" / ("fishtank" + suffix), "mock_executable_bytes");
 
     sys_->SetEnvironmentVariable("ANDROID_EMULATOR_LAUNCHER_DIR", launcher_dir.string());
@@ -378,6 +408,7 @@ TEST_F(InputPathsTest, ResolveEmulatorPathsWithZeroByteFishtank) {
     WriteToFile(launcher_dir / "bin" / ("qemu-system-aarch64" + suffix), "");
     WriteToFile(launcher_dir / "bin" / ("netsimd" + suffix), "");
     WriteToFile(launcher_dir / "bin" / ("crashpad_handler" + suffix), "");
+    WriteToFile(launcher_dir / "lib" / "advancedFeatures.ini", "");
     // Zero-byte placeholder as created by AOSP empty.zip
     WriteToFile(launcher_dir / "fishtank" / ("fishtank" + suffix), "");
 
@@ -408,6 +439,7 @@ TEST_F(InputPathsTest, ResolveEmulatorPathsWithNonAsciiDirectory) {
     WriteToFile(launcher_dir / "bin" / ("qemu-system-aarch64" + suffix), "");
     WriteToFile(launcher_dir / "bin" / ("netsimd" + suffix), "");
     WriteToFile(launcher_dir / "bin" / ("crashpad_handler" + suffix), "");
+    WriteToFile(launcher_dir / "lib" / "advancedFeatures.ini", "");
 
     sys_->SetEnvironmentVariable("ANDROID_EMULATOR_LAUNCHER_DIR", launcher_dir.string());
 

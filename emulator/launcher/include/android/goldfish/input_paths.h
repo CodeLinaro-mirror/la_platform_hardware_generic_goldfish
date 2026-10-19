@@ -34,6 +34,7 @@ struct EmulatorPaths {
     fs::path library_directory;
     fs::path lib64_directory;
     fs::path bios_directory;
+    fs::path advanced_features;
 
     fs::path qemu_system_x86_binary;
     fs::path qemu_system_arm_binary;
