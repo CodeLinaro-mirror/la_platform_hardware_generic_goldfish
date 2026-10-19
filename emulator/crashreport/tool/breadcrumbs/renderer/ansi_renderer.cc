@@ -167,17 +167,20 @@ struct RenderState {
     std::string_view Color(std::string_view code) const { return use_color ? code : ""sv; }
 };
 
+void RenderThreadLaneLabels(const RenderState& state, std::stringstream& ss) {
+    for (uint64_t tid : state.sorted_tids) {
+        const std::string label =
+                (tid == state.trace.crashing_thread_id) ? "*" : std::to_string(tid);
+        ss << std::setw(state.tid_width) << label;
+    }
+}
+
 // 2. Forensic Header
 void RenderHeader(const RenderState& state, std::stringstream& ss) {
     ss << state.Color(kGray) << "(* : Crashing Thread, numbers are Breakpad thread IDs)\n"
        << state.Color(kReset);
     ss << state.Color(kBold) << std::left << std::setw(state.time_width) << "REL. TIME" << "  ";
-    for (size_t i = 0; i < state.sorted_tids.size(); ++i) {
-        const std::string label = (state.sorted_tids[i] == state.trace.crashing_thread_id)
-                                          ? "*"
-                                          : std::to_string(state.sorted_tids[i]);
-        ss << std::setw(state.tid_width) << label;
-    }
+    RenderThreadLaneLabels(state, ss);
     ss << "  FORENSIC TIMELINE" << state.Color(kReset) << "\n";
     ss << std::string(state.time_width + 2 + (state.sorted_tids.size() * state.tid_width) + 26, '-')
        << "\n";
@@ -185,14 +188,8 @@ void RenderHeader(const RenderState& state, std::stringstream& ss) {
 
 // 2b. Compact Forensic Header for repetition
 void RenderCompactHeader(const RenderState& state, std::stringstream& ss) {
-    ss << state.Color(kGray);
-    ss << std::string(state.time_width, ' ') << "  ";
-    for (size_t i = 0; i < state.sorted_tids.size(); ++i) {
-        const std::string label = (state.sorted_tids[i] == state.trace.crashing_thread_id)
-                                          ? "*"
-                                          : std::to_string(state.sorted_tids[i]);
-        ss << std::setw(state.tid_width) << label;
-    }
+    ss << state.Color(kGray) << std::string(state.time_width, ' ') << "  ";
+    RenderThreadLaneLabels(state, ss);
     ss << state.Color(kReset) << "\n";
 }
 
@@ -226,13 +223,15 @@ void RenderForensicSpine(RenderState& state, const RenderEvent& re, std::strings
 
         // Character 0: The Symbol
         if (i == current_lane) {
+            const std::string_view migration_symbol =
+                    prev_lane < current_lane ? Symbols::kSend : Symbols::kRecv;
             ss << c_color;
             if (proto.has_grpc()) {
                 const auto& grpc = proto.grpc();
                 if (grpc.grpc_phase() == android::control::breadcrumbs::GrpcPayload::END_OF_CALL) {
                     ss << GetStatusSymbol(grpc.status_code());
                 } else if (has_migration) {
-                    ss << (prev_lane < current_lane ? Symbols::kSend : Symbols::kRecv);
+                    ss << migration_symbol;
                 } else if (grpc.grpc_phase() !=
                                    android::control::breadcrumbs::GrpcPayload::PHASE_UNKNOWN &&
                            grpc.grpc_phase() != android::control::breadcrumbs::GrpcPayload::START) {
@@ -244,26 +243,20 @@ void RenderForensicSpine(RenderState& state, const RenderEvent& re, std::strings
                 if (proto.phase() == Breadcrumb::FLOW_END) {
                     ss << Symbols::kEndOk;
                 } else if (has_migration) {
-                    ss << (prev_lane < current_lane ? Symbols::kSend : Symbols::kRecv);
+                    ss << migration_symbol;
                 } else if (proto.phase() == Breadcrumb::FLOW_STEP) {
                     ss << "●"sv;
                 } else {
                     ss << Symbols::kStart;
                 }
             } else if (proto.has_looper()) {
-                const auto& looper = proto.looper();
-                if (looper.event() == android::control::breadcrumbs::LooperPayload::EXECUTE) {
-                    if (has_migration) {
-                        ss << (prev_lane < current_lane ? Symbols::kSend : Symbols::kRecv);
-                    } else {
-                        ss << Symbols::kEndOk;
-                    }
+                if (has_migration) {
+                    ss << migration_symbol;
+                } else if (proto.looper().event() ==
+                           android::control::breadcrumbs::LooperPayload::EXECUTE) {
+                    ss << Symbols::kEndOk;
                 } else {
-                    if (has_migration) {
-                        ss << (prev_lane < current_lane ? Symbols::kSend : Symbols::kRecv);
-                    } else {
-                        ss << Symbols::kStart;
-                    }
+                    ss << Symbols::kStart;
                 }
             } else {
                 ss << " "sv;
