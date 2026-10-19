@@ -17,6 +17,7 @@
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wthread-safety-reference-return"
 #pragma clang diagnostic ignored "-Wnullability-completeness"
+#include <algorithm>
 #include <iostream>
 
 #include "api/scoped_refptr.h"
@@ -52,6 +53,27 @@
     } while (0)
 
 namespace goldfish::videobridge {
+namespace {
+
+HRESULT CreateVideoMediaType(const GUID& subtype, int width, int height, int framerate,
+                             ComPtr<IMFMediaType>& out_type) {
+    RETURN_IF_FAILED(MFCreateMediaType(&out_type));
+    RETURN_IF_FAILED(out_type->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Video));
+    RETURN_IF_FAILED(out_type->SetGUID(MF_MT_SUBTYPE, subtype));
+    RETURN_IF_FAILED(MFSetAttributeSize(out_type.Get(), MF_MT_FRAME_SIZE, width, height));
+    RETURN_IF_FAILED(MFSetAttributeRatio(out_type.Get(), MF_MT_FRAME_RATE, framerate, 1));
+    RETURN_IF_FAILED(out_type->SetUINT32(MF_MT_INTERLACE_MODE, MFVideoInterlace_Progressive));
+    return MFSetAttributeRatio(out_type.Get(), MF_MT_PIXEL_ASPECT_RATIO, 1, 1);
+}
+
+HRESULT AllocateSampleBuffer(DWORD buffer_size, ComPtr<IMFSample>& out_sample,
+                             ComPtr<IMFMediaBuffer>& out_buffer) {
+    RETURN_IF_FAILED(MFCreateSample(&out_sample));
+    RETURN_IF_FAILED(MFCreateMemoryBuffer(buffer_size, &out_buffer));
+    return out_sample->AddBuffer(out_buffer.Get());
+}
+
+}  // namespace
 
 MFVideoEncoderH264::MFVideoEncoderH264(webrtc::SdpVideoFormat format)
         : format_(std::move(format))
@@ -344,14 +366,9 @@ HRESULT MFVideoEncoderH264::ConfigureMFT() {
 
 HRESULT MFVideoEncoderH264::ConfigureInputOutputTypes(int width, int height, int framerate) {
     // 1. Configure Output Type (H.264)
-    RETURN_IF_FAILED(MFCreateMediaType(&output_type_));
-    RETURN_IF_FAILED(output_type_->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Video));
-    RETURN_IF_FAILED(output_type_->SetGUID(MF_MT_SUBTYPE, MFVideoFormat_H264));
+    RETURN_IF_FAILED(
+            CreateVideoMediaType(MFVideoFormat_H264, width, height, framerate, output_type_));
     RETURN_IF_FAILED(output_type_->SetUINT32(MF_MT_AVG_BITRATE, target_bitrate_bps_));
-    RETURN_IF_FAILED(MFSetAttributeSize(output_type_.Get(), MF_MT_FRAME_SIZE, width, height));
-    RETURN_IF_FAILED(MFSetAttributeRatio(output_type_.Get(), MF_MT_FRAME_RATE, framerate, 1));
-    RETURN_IF_FAILED(output_type_->SetUINT32(MF_MT_INTERLACE_MODE, MFVideoInterlace_Progressive));
-    RETURN_IF_FAILED(MFSetAttributeRatio(output_type_.Get(), MF_MT_PIXEL_ASPECT_RATIO, 1, 1));
 
     // Configure profile (Baseline, Main, High / Constrained High)
     UINT32 profile = eAVEncH264VProfile_Base;
@@ -369,13 +386,8 @@ HRESULT MFVideoEncoderH264::ConfigureInputOutputTypes(int width, int height, int
     RETURN_IF_FAILED(encoder_mft_->SetOutputType(output_stream_id_, output_type_.Get(), 0));
 
     // 2. Configure Input Type (NV12)
-    RETURN_IF_FAILED(MFCreateMediaType(&input_type_));
-    RETURN_IF_FAILED(input_type_->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Video));
-    RETURN_IF_FAILED(input_type_->SetGUID(MF_MT_SUBTYPE, MFVideoFormat_NV12));
-    RETURN_IF_FAILED(MFSetAttributeSize(input_type_.Get(), MF_MT_FRAME_SIZE, width, height));
-    RETURN_IF_FAILED(MFSetAttributeRatio(input_type_.Get(), MF_MT_FRAME_RATE, framerate, 1));
-    RETURN_IF_FAILED(input_type_->SetUINT32(MF_MT_INTERLACE_MODE, MFVideoInterlace_Progressive));
-    RETURN_IF_FAILED(MFSetAttributeRatio(input_type_.Get(), MF_MT_PIXEL_ASPECT_RATIO, 1, 1));
+    RETURN_IF_FAILED(
+            CreateVideoMediaType(MFVideoFormat_NV12, width, height, framerate, input_type_));
     RETURN_IF_FAILED(input_type_->SetUINT32(MF_MT_ALL_SAMPLES_INDEPENDENT, TRUE));
 
     RETURN_IF_FAILED(encoder_mft_->SetInputType(input_stream_id_, input_type_.Get(), 0));
@@ -413,32 +425,23 @@ HRESULT MFVideoEncoderH264::SetBitrateAndRateControl(uint32_t bitrate_bps) {
     codec_api->SetValue(&CODECAPI_AVEncCommonLowLatency, &var_ll);
 
     // Disable B-frames for zero-latency interactive streaming
-    VARIANT var_bf = {};
-    var_bf.vt = VT_UI4;
-    var_bf.ulVal = 0;
-    codec_api->SetValue(&CODECAPI_AVEncMPVDefaultBPictureCount, &var_bf);
+    var.ulVal = 0;
+    codec_api->SetValue(&CODECAPI_AVEncMPVDefaultBPictureCount, &var);
 
     return S_OK;
 }
 
 HRESULT MFVideoEncoderH264::AllocateInputBuffers(int width, int height) {
-    RETURN_IF_FAILED(MFCreateSample(&input_sample_));
-    DWORD buffer_size = width * height * 3 / 2;  // NV12 size
-    RETURN_IF_FAILED(MFCreateMemoryBuffer(buffer_size, &input_buffer_));
-    return input_sample_->AddBuffer(input_buffer_.Get());
+    return AllocateSampleBuffer(width * height * 3 / 2, input_sample_, input_buffer_);
 }
 
 HRESULT MFVideoEncoderH264::AllocateOutputBuffers() {
     DWORD buffer_size = output_stream_info_.cbSize;
     if (buffer_size == 0) {
-        buffer_size = codec_settings_.width * codec_settings_.height * 3 / 2;
-        if (buffer_size < 1048576) {
-            buffer_size = 1048576;
-        }
+        const DWORD nv12_size = codec_settings_.width * codec_settings_.height * 3 / 2;
+        buffer_size = (std::max)(nv12_size, DWORD{1048576});
     }
-    RETURN_IF_FAILED(MFCreateSample(&output_sample_));
-    RETURN_IF_FAILED(MFCreateMemoryBuffer(buffer_size, &output_buffer_));
-    return output_sample_->AddBuffer(output_buffer_.Get());
+    return AllocateSampleBuffer(buffer_size, output_sample_, output_buffer_);
 }
 
 HRESULT MFVideoEncoderH264::ProcessInputFrame(const webrtc::VideoFrame& frame,
@@ -451,10 +454,8 @@ HRESULT MFVideoEncoderH264::ProcessInputFrame(const webrtc::VideoFrame& frame,
     DWORD buffer_size = width * height * 3 / 2;
 
     ComPtr<IMFSample> sample;
-    RETURN_IF_FAILED(MFCreateSample(&sample));
-
     ComPtr<IMFMediaBuffer> media_buffer;
-    RETURN_IF_FAILED(MFCreateMemoryBuffer(buffer_size, &media_buffer));
+    RETURN_IF_FAILED(AllocateSampleBuffer(buffer_size, sample, media_buffer));
 
     BYTE* buffer_data = nullptr;
     DWORD max_length = 0;
@@ -473,7 +474,6 @@ HRESULT MFVideoEncoderH264::ProcessInputFrame(const webrtc::VideoFrame& frame,
 
     media_buffer->Unlock();
     RETURN_IF_FAILED(media_buffer->SetCurrentLength(buffer_size));
-    RETURN_IF_FAILED(sample->AddBuffer(media_buffer.Get()));
 
     if (force_keyframe) {
         RETURN_IF_FAILED(sample->SetUINT32(MFSampleExtension_CleanPoint, 1));
@@ -623,20 +623,16 @@ HRESULT MFVideoEncoderH264::DrainEncodedFrames(uint32_t rtp_timestamp, int64_t c
         // Inspect bitstream for IDR or SPS NAL units to ensure keyframe classification is accurate
         if (data && current_length >= 4) {
             for (DWORD i = 0; i + 4 <= current_length; ++i) {
-                if (data[i] == 0 && data[i + 1] == 0) {
-                    if (data[i + 2] == 1) {
-                        uint8_t nal_type = data[i + 3] & 0x1F;
-                        if (nal_type == 5 || nal_type == 7) {
-                            is_keyframe = 1;
-                            break;
-                        }
-                    } else if (i + 4 < current_length && data[i + 2] == 0 && data[i + 3] == 1) {
-                        uint8_t nal_type = data[i + 4] & 0x1F;
-                        if (nal_type == 5 || nal_type == 7) {
-                            is_keyframe = 1;
-                            break;
-                        }
-                    }
+                if (data[i] != 0 || data[i + 1] != 0) continue;
+                const DWORD nalu_idx = (data[i + 2] == 1) ? i + 3
+                                       : (i + 4 < current_length && data[i + 2] == 0 &&
+                                          data[i + 3] == 1)
+                                               ? i + 4
+                                               : 0;
+                const uint8_t nal_type = nalu_idx ? (data[nalu_idx] & 0x1F) : 0;
+                if (nal_type == 5 || nal_type == 7) {
+                    is_keyframe = 1;
+                    break;
                 }
             }
         }
