@@ -16,6 +16,7 @@
 
 #include <glm/trigonometric.hpp>
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstdint>
@@ -70,6 +71,48 @@ glm::vec3 ToVec3(const Vector3f& src) {
 bool IsFiniteVec3(const Vector3f& src) {
     return std::isfinite(src.x()) && std::isfinite(src.y()) && std::isfinite(src.z());
 }
+
+bool IsFiniteNonNegative(float val) {
+    return std::isfinite(val) && val >= 0.0F;
+}
+
+bool IsFiniteInRange(float val, float min_val, float max_val) {
+    return std::isfinite(val) && val >= min_val && val <= max_val;
+}
+
+::grpc::Status FoldableUnsupportedStatus() {
+    return {::grpc::StatusCode::FAILED_PRECONDITION,
+            "Device does not support foldable or rollable postures."};
+}
+
+bool IsNonChangingStateEvent(const PhysicalModelChangeEvent& event) {
+    return event.type != PhysicalModelChangeEvent::Type::kPhysicalStateChanging;
+}
+
+using ParamGetter = float (PhysicalModel::*)(::ParameterValueType) const;
+using ParamSetter = void (PhysicalModel::*)(float, ::PhysicalInterpolation);
+
+constexpr std::array<ParamGetter, ::goldfish::sensors::kMaxHinges> kHingeGetters = {
+    &PhysicalModel::GetParameterHingeAngle0,
+    &PhysicalModel::GetParameterHingeAngle1,
+    &PhysicalModel::GetParameterHingeAngle2,
+};
+
+constexpr std::array<ParamSetter, ::goldfish::sensors::kMaxHinges> kHingeSetters = {
+    &PhysicalModel::SetTargetHingeAngle0,
+    &PhysicalModel::SetTargetHingeAngle1,
+    &PhysicalModel::SetTargetHingeAngle2,
+};
+
+constexpr std::array<ParamGetter, ::goldfish::sensors::kMaxRolls> kRollableGetters = {
+    &PhysicalModel::GetParameterRollable0,
+    &PhysicalModel::GetParameterRollable1,
+};
+
+constexpr std::array<ParamSetter, ::goldfish::sensors::kMaxRolls> kRollableSetters = {
+    &PhysicalModel::SetTargetRollable0,
+    &PhysicalModel::SetTargetRollable1,
+};
 
 ::PhysicalInterpolation ToPhysicalInterpolation(TransitionMode mode) {
     switch (mode) {
@@ -199,38 +242,22 @@ PostureState SensorsServiceImpl::BuildPostureState() const {
     state.set_posture(FromFoldablePosture(physical_model_.GetFoldablePosture()));
 
     const auto* config = physical_model_.GetFoldableConfig();
-    const unsigned num_hinges = config != nullptr ? config->num_hinges : 1;
-    if (num_hinges >= 1) {
-        auto* h0 = state.add_hinges();
-        h0->set_hinge_id(0);
-        h0->set_angle_degrees(
-                physical_model_.GetParameterHingeAngle0(::ParameterValueType::kCurrent));
-    }
-    if (num_hinges >= 2) {
-        auto* h1 = state.add_hinges();
-        h1->set_hinge_id(1);
-        h1->set_angle_degrees(
-                physical_model_.GetParameterHingeAngle1(::ParameterValueType::kCurrent));
-    }
-    if (num_hinges >= 3) {
-        auto* h2 = state.add_hinges();
-        h2->set_hinge_id(2);
-        h2->set_angle_degrees(
-                physical_model_.GetParameterHingeAngle2(::ParameterValueType::kCurrent));
+    const unsigned num_hinges = std::min<unsigned>(config != nullptr ? config->num_hinges : 1,
+                                                   static_cast<unsigned>(kHingeGetters.size()));
+    for (unsigned id = 0; id < num_hinges; ++id) {
+        auto* hinge = state.add_hinges();
+        hinge->set_hinge_id(id);
+        hinge->set_angle_degrees(
+                (physical_model_.*kHingeGetters[id])(::ParameterValueType::kCurrent));
     }
 
-    const unsigned num_rolls = config != nullptr ? config->num_rolls : 0;
-    if (num_rolls >= 1) {
-        auto* r0 = state.add_rollables();
-        r0->set_rollable_id(0);
-        r0->set_extension_percent(
-                physical_model_.GetParameterRollable0(::ParameterValueType::kCurrent));
-    }
-    if (num_rolls >= 2) {
-        auto* r1 = state.add_rollables();
-        r1->set_rollable_id(1);
-        r1->set_extension_percent(
-                physical_model_.GetParameterRollable1(::ParameterValueType::kCurrent));
+    const unsigned num_rolls = std::min<unsigned>(config != nullptr ? config->num_rolls : 0,
+                                                  static_cast<unsigned>(kRollableGetters.size()));
+    for (unsigned id = 0; id < num_rolls; ++id) {
+        auto* rollable = state.add_rollables();
+        rollable->set_rollable_id(id);
+        rollable->set_extension_percent(
+                (physical_model_.*kRollableGetters[id])(::ParameterValueType::kCurrent));
     }
 
     return state;
@@ -250,51 +277,44 @@ absl::Status SensorsServiceImpl::ApplySensorsUpdate(const UpdateSensorsStateRequ
             !IsFiniteVec3(pose.velocity_meters_per_second())) {
             return absl::InvalidArgumentError("velocity_meters_per_second must be finite.");
         }
-        if (pose.has_ambient_motion() &&
-            (!std::isfinite(pose.ambient_motion()) || pose.ambient_motion() < 0.0F)) {
+        if (pose.has_ambient_motion() && !IsFiniteNonNegative(pose.ambient_motion())) {
             return absl::InvalidArgumentError("ambient_motion must be finite and >= 0.0.");
         }
     }
     if (request.has_environment()) {
         const auto& env = request.environment();
-        if (env.has_light_lux() && (!std::isfinite(env.light_lux()) || env.light_lux() < 0.0F)) {
+        if (env.has_light_lux() && !IsFiniteNonNegative(env.light_lux())) {
             return absl::InvalidArgumentError("light_lux must be finite and >= 0.0.");
         }
         if (env.has_rgbc_light()) {
             const auto& c = env.rgbc_light();
-            if (!std::isfinite(c.red()) || c.red() < 0.0F || !std::isfinite(c.green()) ||
-                c.green() < 0.0F || !std::isfinite(c.blue()) || c.blue() < 0.0F ||
-                !std::isfinite(c.clear()) || c.clear() < 0.0F) {
+            if (!IsFiniteNonNegative(c.red()) || !IsFiniteNonNegative(c.green()) ||
+                !IsFiniteNonNegative(c.blue()) || !IsFiniteNonNegative(c.clear())) {
                 return absl::InvalidArgumentError("rgbc_light channels must be finite and >= 0.0.");
             }
         }
-        if (env.has_proximity_centimeters() &&
-            (!std::isfinite(env.proximity_centimeters()) || env.proximity_centimeters() < 0.0F)) {
+        if (env.has_proximity_centimeters() && !IsFiniteNonNegative(env.proximity_centimeters())) {
             return absl::InvalidArgumentError("proximity_centimeters must be finite and >= 0.0.");
         }
         if (env.has_ambient_temperature_celsius() &&
             !std::isfinite(env.ambient_temperature_celsius())) {
             return absl::InvalidArgumentError("ambient_temperature_celsius must be finite.");
         }
-        if (env.has_pressure_hpa() &&
-            (!std::isfinite(env.pressure_hpa()) || env.pressure_hpa() < 0.0F)) {
+        if (env.has_pressure_hpa() && !IsFiniteNonNegative(env.pressure_hpa())) {
             return absl::InvalidArgumentError("pressure_hpa must be finite and >= 0.0.");
         }
         if (env.has_relative_humidity_percent() &&
-            (!std::isfinite(env.relative_humidity_percent()) ||
-             env.relative_humidity_percent() < 0.0F || env.relative_humidity_percent() > 100.0F)) {
+            !IsFiniteInRange(env.relative_humidity_percent(), 0.0F, 100.0F)) {
             return absl::InvalidArgumentError(
                     "relative_humidity_percent must be finite and within [0.0, 100.0].");
         }
         if (env.has_magnetic_field_ut() && !IsFiniteVec3(env.magnetic_field_ut())) {
             return absl::InvalidArgumentError("magnetic_field_ut must be finite.");
         }
-        if (env.has_heart_rate_bpm() &&
-            (!std::isfinite(env.heart_rate_bpm()) || env.heart_rate_bpm() < 0.0F)) {
+        if (env.has_heart_rate_bpm() && !IsFiniteNonNegative(env.heart_rate_bpm())) {
             return absl::InvalidArgumentError("heart_rate_bpm must be finite and >= 0.0.");
         }
-        if (env.has_wrist_tilt() && (!std::isfinite(env.wrist_tilt()) || env.wrist_tilt() < 0.0F ||
-                                     env.wrist_tilt() > 1.0F)) {
+        if (env.has_wrist_tilt() && !IsFiniteInRange(env.wrist_tilt(), 0.0F, 1.0F)) {
             return absl::InvalidArgumentError("wrist_tilt must be finite and within [0.0, 1.0].");
         }
     }
@@ -410,9 +430,7 @@ absl::Status SensorsServiceImpl::ApplySensorsUpdate(const UpdateSensorsStateRequ
     return new ::android::emulation::control::StateStreamWriter<SensorsState,
                                                                 PhysicalModelChangeEvent>(
             &physical_model_, [this](SensorsState* state) { *state = BuildSensorsState(); },
-            [](const PhysicalModelChangeEvent& event) {
-                return event.type != PhysicalModelChangeEvent::Type::kPhysicalStateChanging;
-            });
+            IsNonChangingStateEvent);
 }
 
 ::grpc::Status SensorsServiceImpl::UpdateSensorsState(::grpc::ServerContext* /*context*/,
@@ -440,8 +458,7 @@ absl::Status SensorsServiceImpl::ApplySensorsUpdate(const UpdateSensorsStateRequ
                                                    const GetPostureStateRequest* /*request*/,
                                                    PostureState* response) {
     if (!physical_model_.HasFoldableModel()) {
-        return {::grpc::StatusCode::FAILED_PRECONDITION,
-                "Device does not support foldable or rollable postures."};
+        return FoldableUnsupportedStatus();
     }
     *response = BuildPostureState();
     return ::grpc::Status::OK;
@@ -450,24 +467,19 @@ absl::Status SensorsServiceImpl::ApplySensorsUpdate(const UpdateSensorsStateRequ
 ::grpc::ServerWriteReactor<PostureState>* SensorsServiceImpl::StreamPostureState(
         ::grpc::CallbackServerContext* /*context*/, const StreamPostureStateRequest* /*request*/) {
     if (!physical_model_.HasFoldableModel()) {
-        return new ::ErrorServerWriter<PostureState>(
-                {::grpc::StatusCode::FAILED_PRECONDITION,
-                 "Device does not support foldable or rollable postures."});
+        return new ::ErrorServerWriter<PostureState>(FoldableUnsupportedStatus());
     }
     return new ::android::emulation::control::StateStreamWriter<PostureState,
                                                                 PhysicalModelChangeEvent>(
             &physical_model_, [this](PostureState* state) { *state = BuildPostureState(); },
-            [](const PhysicalModelChangeEvent& event) {
-                return event.type != PhysicalModelChangeEvent::Type::kPhysicalStateChanging;
-            });
+            IsNonChangingStateEvent);
 }
 
 ::grpc::Status SensorsServiceImpl::UpdatePostureState(::grpc::ServerContext* /*context*/,
                                                       const UpdatePostureStateRequest* request,
                                                       PostureState* response) {
     if (!physical_model_.HasFoldableModel()) {
-        return {::grpc::StatusCode::FAILED_PRECONDITION,
-                "Device does not support foldable or rollable postures."};
+        return FoldableUnsupportedStatus();
     }
 
     const auto* config = physical_model_.GetFoldableConfig();
@@ -485,24 +497,22 @@ absl::Status SensorsServiceImpl::ApplySensorsUpdate(const UpdateSensorsStateRequ
     }
 
     for (const auto& hinge : request->hinges()) {
-        if (!std::isfinite(hinge.angle_degrees()) || hinge.angle_degrees() < 0.0F ||
-            hinge.angle_degrees() > 360.0F) {
+        if (!IsFiniteInRange(hinge.angle_degrees(), 0.0F, 360.0F)) {
             return {::grpc::StatusCode::INVALID_ARGUMENT,
                     "Hinge angle_degrees must be finite and within [0.0, 360.0]."};
         }
-        if (hinge.hinge_id() >= num_hinges || hinge.hinge_id() >= ::goldfish::sensors::kMaxHinges) {
+        if (hinge.hinge_id() >= num_hinges || hinge.hinge_id() >= kHingeSetters.size()) {
             return {::grpc::StatusCode::INVALID_ARGUMENT, "Unsupported hinge_id."};
         }
     }
 
     for (const auto& rollable : request->rollables()) {
-        if (!std::isfinite(rollable.extension_percent()) || rollable.extension_percent() < 0.0F ||
-            rollable.extension_percent() > 100.0F) {
+        if (!IsFiniteInRange(rollable.extension_percent(), 0.0F, 100.0F)) {
             return {::grpc::StatusCode::INVALID_ARGUMENT,
                     "Rollable extension_percent must be finite and within [0.0, 100.0]."};
         }
         if (rollable.rollable_id() >= num_rolls ||
-            rollable.rollable_id() >= ::goldfish::sensors::kMaxRolls) {
+            rollable.rollable_id() >= kRollableSetters.size()) {
             return {::grpc::StatusCode::INVALID_ARGUMENT, "Unsupported rollable_id."};
         }
     }
@@ -514,32 +524,12 @@ absl::Status SensorsServiceImpl::ApplySensorsUpdate(const UpdateSensorsStateRequ
     }
 
     for (const auto& hinge : request->hinges()) {
-        switch (hinge.hinge_id()) {
-        case 0:
-            physical_model_.SetTargetHingeAngle0(hinge.angle_degrees(), mode);
-            break;
-        case 1:
-            physical_model_.SetTargetHingeAngle1(hinge.angle_degrees(), mode);
-            break;
-        case 2:
-            physical_model_.SetTargetHingeAngle2(hinge.angle_degrees(), mode);
-            break;
-        default:
-            break;
-        }
+        (physical_model_.*kHingeSetters[hinge.hinge_id()])(hinge.angle_degrees(), mode);
     }
 
     for (const auto& rollable : request->rollables()) {
-        switch (rollable.rollable_id()) {
-        case 0:
-            physical_model_.SetTargetRollable0(rollable.extension_percent(), mode);
-            break;
-        case 1:
-            physical_model_.SetTargetRollable1(rollable.extension_percent(), mode);
-            break;
-        default:
-            break;
-        }
+        (physical_model_.*kRollableSetters[rollable.rollable_id()])(rollable.extension_percent(),
+                                                                    mode);
     }
 
     *response = BuildPostureState();
