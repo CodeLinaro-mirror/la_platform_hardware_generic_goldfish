@@ -826,6 +826,7 @@ py_test(
 
 py_binary(
     name = "launch_emulator",
+    testonly = True,
     srcs = ["tools/launch_emulator.py"],
     data = [
         ":android-device-hub",

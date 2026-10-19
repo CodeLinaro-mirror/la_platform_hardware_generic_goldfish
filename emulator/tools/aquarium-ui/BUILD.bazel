@@ -21,6 +21,7 @@ package(default_visibility = ["//visibility:public"])
 
 cc_library(
     name = "aquarium_ui_server",
+    testonly = True,
     srcs = ["src/aquarium_ui_server.cc"],
     hdrs = ["include/goldfish/aquarium/aquarium_ui_server.h"],
     includes = ["include"],
@@ -46,6 +47,7 @@ cc_test(
 
 cc_binary_with_manifest(
     name = "aquarium-ui",
+    testonly = True,
     srcs = ["src/main.cc"],
     data = select({
         "@platforms//os:windows": [],
@@ -81,6 +83,7 @@ cc_binary_with_manifest(
 
 py_binary(
     name = "clownfish",
+    testonly = True,
     srcs = ["@aemu//tools/clownfish:src/clownfish/__main__.py"],
     data = [
         ":aquarium-ui",

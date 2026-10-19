@@ -118,6 +118,7 @@ cc_library(
 
 cc_library(
     name = "bazel_info",
+    testonly = True,
     srcs = ["bazel_info.cc"],
     hdrs = ["include/android/base/bazel_info.h"],
     implementation_deps = [":system"],
