@@ -318,6 +318,14 @@ TEST(CreateQcow2OverlayTest, CreatesValidOverlayFromQcow2BackingFile) {
     EXPECT_EQ(ReadBe32(data.data() + 112), 0xE2792ACAU);
     EXPECT_EQ(ReadBe32(data.data() + 116), 5U);
     EXPECT_EQ(std::string_view(reinterpret_cast<const char*>(data.data() + 120), 5), "qcow2");
+    EXPECT_THAT(ReadBackingFileFromQcow2(overlay2), IsOkAndHolds(overlay1.string()));
+}
+
+TEST(ReadBackingFileFromQcow2Test, ReturnsEmptyStringWhenNoBackingFile) {
+    TestTempDir temp_dir("qcow2_test");
+    const fs::path overlay = temp_dir.Path() / "overlay.qcow2";
+    ASSERT_THAT(CreateQcow2Overlay(overlay, 1024 * 1024), IsOk());
+    EXPECT_THAT(ReadBackingFileFromQcow2(overlay), IsOkAndHolds(""));
 }
 
 void WriteBytesFile(const fs::path& path, const std::vector<uint8_t>& bytes) {
