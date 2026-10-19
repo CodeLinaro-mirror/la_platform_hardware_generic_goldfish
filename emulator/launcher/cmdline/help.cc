@@ -1656,7 +1656,7 @@ static void help_vmodule(stralloc_t* out) {
 #define help_nfc NULL                     // NOLINT(readability-identifier-naming)
 #define help_no_grpc NULL                 // NOLINT(readability-identifier-naming)
 #define help_no_netsim NULL               // NOLINT(readability-identifier-naming)
-#define help_netsim_cellular NULL         // NOLINT(readability-identifier-naming)
+#define help_no_netsim_modem NULL         // NOLINT(readability-identifier-naming)
 #define help_netsim_stdout NULL           // NOLINT(readability-identifier-naming)
 #define help_netsim_startup_timeout NULL  // NOLINT(readability-identifier-naming)
 #define help_fishtank_stdout NULL         // NOLINT(readability-identifier-naming)

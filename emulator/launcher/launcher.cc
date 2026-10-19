@@ -144,7 +144,7 @@ class Launcher {
                             }
                         });
                     }
-                    if (!config_.opts.netsim_cellular) {
+                    if (config_.opts.no_netsim || config_.opts.no_netsim_modem) {
                         config_.event_loop
                                 .Post([this, chardevs]() { init_modem_simulator(chardevs); })
                                 .IgnoreError();

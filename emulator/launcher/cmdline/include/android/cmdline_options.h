@@ -439,7 +439,7 @@ OPT_FLAG(no_grpc, "disable grpc device")
 OPT_FLAG(no_netsim,
          "disable launching netsimd and configuring any devices that depend on it e.g. wifi, bt, "
          "uwb, nfc")
-OPT_FLAG(netsim_cellular, "enable netsim cellular")
+OPT_FLAG(no_netsim_modem, "disable netsim cellular modem and fall back to modem simulator")
 OPT_FLAG(netsim_stdout, "send netsim output to stdout")
 OPT_PARAM(netsim_startup_timeout, "<timeout>",
           "set the netsimd startup timeout (e.g. 30s or 30000ms)")

@@ -168,7 +168,7 @@ absl::Status LaunchQemu::addDevices() {
 
         addDevice<ParameterList>(std::move(radio_params));
 
-        if (o.netsim_cellular) {
+        if (!o.no_netsim_modem) {
             netsim_cellular = true;
             addDevice<ParameterList>(std::initializer_list<std::string>{
                 "-chardev",

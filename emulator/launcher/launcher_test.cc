@@ -39,6 +39,7 @@
 #include "goldfish/metrics/metrics_reporter.h"
 #include "goldfish/metrics/metrics_writer.h"
 #include "goldfish/network/endpoint.h"
+#include "launch_qemu/launch_qemu.h"
 #include "mock_avd.h"
 #include "uv.h"
 
@@ -847,6 +848,67 @@ TEST_F(LauncherTest, ReturnsErrorStatusWhenEmulatorLaunchFails) {
     absl::StatusOr<int> status = RunLauncherStatus(std::move(avd));
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.status().code(), absl::StatusCode::kInternal);
+}
+
+TEST_F(LauncherTest, DefaultConfigUsesNetsimModem) {
+    auto avd = CreateMockAvd();
+    opts.no_netsim = false;
+    opts.no_netsim_modem = false;
+    EmulatorPorts ports{.serial_number = 5554, .adb_port = 5555};
+    ChardevEndpoints chardev_endpoints{.netsim = "localhost:1234"};
+    LaunchQemu emulator{
+        EmulatorConfig{ports, chardev_endpoints, {}, user_paths, emulator_paths, *avd, opts}};
+
+    auto launch_config = emulator.launch_config();
+    ASSERT_TRUE(launch_config.ok()) << launch_config.status();
+    EXPECT_THAT(launch_config->args, testing::Contains("netsim-cellular,id=modem"));
+    EXPECT_THAT(launch_config->args, testing::Contains("netsim-netdev,id=eth0,mode=cellular"));
+    EXPECT_THAT(launch_config->args,
+                testing::Not(testing::Contains(testing::HasSubstr("socket,id=modem"))));
+}
+
+TEST_F(LauncherTest, FallbackConfigUsesModemSimulatorWhenNoNetsimModem) {
+    auto avd = CreateMockAvd();
+    opts.no_netsim = false;
+    opts.no_netsim_modem = true;
+    EmulatorPorts ports{.serial_number = 5554, .adb_port = 5555};
+    ChardevEndpoints chardev_endpoints{.netsim = "localhost:1234",
+                                       .modem_simulator = "localhost:5678"};
+    LaunchQemu emulator{
+        EmulatorConfig{ports, chardev_endpoints, {}, user_paths, emulator_paths, *avd, opts}};
+
+    auto launch_config = emulator.launch_config();
+    ASSERT_TRUE(launch_config.ok()) << launch_config.status();
+    EXPECT_THAT(
+            launch_config->args,
+            testing::Contains(testing::HasSubstr("socket,id=modem,nodelay=on,reconnect-ms=100,")));
+    EXPECT_THAT(launch_config->args, testing::Contains(testing::HasSubstr("user,id=eth0")));
+    EXPECT_THAT(launch_config->args, testing::Not(testing::Contains("netsim-cellular,id=modem")));
+}
+
+TEST_F(LauncherTest, EndToEndNoNetsimFallsBackToModemSimulator) {
+    auto avd = CreateMockAvd();
+    opts.no_netsim = true;
+
+    absl::Notification launched;
+    ::goldfish::async::ProcessLauncher::ExitCallback emulator_exit_cb;
+
+    auto config_matcher = testing::AllOf(
+            testing::Field(&::goldfish::async::LaunchConfig::exe_path, ExpectedQemuBinary()),
+            testing::Field(
+                    &::goldfish::async::LaunchConfig::args,
+                    testing::AllOf(testing::Contains(testing::HasSubstr(
+                                           "socket,id=modem,nodelay=on,reconnect-ms=100,")),
+                                   testing::Contains(testing::HasSubstr("user,id=eth0")),
+                                   testing::Not(testing::Contains("netsim-cellular,id=modem")))));
+
+    ExpectEmulatorLaunch(launched, emulator_exit_cb, nullptr, config_matcher);
+
+    std::thread trigger = TriggerEmulatorExit(launched, emulator_exit_cb);
+
+    int status = RunLauncher(std::move(avd));
+    trigger.join();
+    EXPECT_EQ(status, 0);
 }
 
 }  // namespace

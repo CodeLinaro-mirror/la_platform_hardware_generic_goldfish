@@ -627,6 +627,7 @@ cc_test(
     deps = [
         ":launcher_lib",
         ":mock_avd",
+        "//emulator/launcher/launch_qemu",
         "//emulator/libs/async:async_testing",
         "//emulator/libs/cpu",
         "//emulator/libs/test:googletest_main",
