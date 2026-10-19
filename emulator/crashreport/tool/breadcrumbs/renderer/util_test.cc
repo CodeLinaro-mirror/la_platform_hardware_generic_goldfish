@@ -37,4 +37,17 @@ TEST(UtilTest, FormatEventTimeZeroOffset) {
     EXPECT_EQ(result, expected);
 }
 
+TEST(UtilTest, FormatEventPhaseLabel) {
+    using android::control::breadcrumbs::GrpcPayload;
+    using android::control::breadcrumbs::LooperPayload;
+    Breadcrumb b;
+    EXPECT_EQ(FormatEventPhaseLabel(b), "UNKNOWN");
+    b.mutable_grpc()->set_grpc_phase(GrpcPayload::POST_RECV_MESSAGE);
+    EXPECT_EQ(FormatEventPhaseLabel(b), "RECV_MSG");
+    b.mutable_adb();
+    EXPECT_EQ(FormatEventPhaseLabel(b), "ADB");
+    b.mutable_looper()->set_event(LooperPayload::EXECUTE);
+    EXPECT_EQ(FormatEventPhaseLabel(b), "EXEC");
+}
+
 }  // namespace android::crashreport::breadcrumbs
