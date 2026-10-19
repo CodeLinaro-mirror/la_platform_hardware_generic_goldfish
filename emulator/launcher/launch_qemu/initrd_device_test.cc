@@ -83,6 +83,130 @@ TEST(BootProperties, Logcat) {
             testing::IsSupersetOf(std::vector{std::pair{"androidboot.logcat", "*:S,Zygote:E"}}));
 }
 
+TEST(BootProperties, VerifiedBootParams) {
+    base::TestSystem sys("");
+    auto temp_path = sys.GetTempRoot()->Path();
+    auto params_path = temp_path / "VerifiedBootParams.textproto";
+    {
+        std::ofstream out(params_path);
+        out << "# Verified boot params\n"
+            << "major_version: 2\n"
+            << "param: \"androidboot.vbmeta.size=6720\"\n"
+            << "param: \"androidboot.vbmeta.hash_alg=sha256\"\n"
+            << "param: \"androidboot.vbmeta.digest=abc123\"\n";
+    }
+
+    FakeEmulator emu;
+    emu.system_image_paths().verified_boot_params = params_path;
+
+    auto hw = HardwareConfig();
+    EXPECT_CALL(emu.mock_avd(), Hw()).WillRepeatedly(testing::ReturnRef(hw));
+    EXPECT_CALL(emu.mock_avd(), Name()).Times(1).WillRepeatedly(testing::Return("mock_avd"));
+    EXPECT_CALL(emu.mock_avd(), Arch())
+            .Times(1)
+            .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
+
+    auto props = getBootProperties(emu.config(), "lavapipe");
+    EXPECT_THAT(props, testing::IsSupersetOf(std::vector{
+                           std::pair{"androidboot.vbmeta.size", "6720"},
+                           std::pair{"androidboot.vbmeta.hash_alg", "sha256"},
+                           std::pair{"androidboot.vbmeta.digest", "abc123"},
+                       }));
+    EXPECT_THAT(
+            props,
+            testing::Not(testing::Contains(std::pair{"androidboot.verifiedbootstate", "orange"})));
+}
+
+TEST(BootProperties, WritableSystemSetsOrangeState) {
+    base::TestSystem sys("");
+
+    AndroidOptions opts{.writable_system = true};
+    FakeEmulator emu(std::move(opts));
+
+    auto hw = HardwareConfig();
+    EXPECT_CALL(emu.mock_avd(), Hw()).WillRepeatedly(testing::ReturnRef(hw));
+    EXPECT_CALL(emu.mock_avd(), Name()).Times(1).WillRepeatedly(testing::Return("mock_avd"));
+    EXPECT_CALL(emu.mock_avd(), Arch())
+            .Times(1)
+            .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
+
+    EXPECT_THAT(getBootProperties(emu.config(), "lavapipe"),
+                testing::IsSupersetOf(
+                        std::vector{std::pair{"androidboot.verifiedbootstate", "orange"}}));
+}
+
+TEST(BootProperties, EmptyVerifiedBootParams) {
+    base::TestSystem sys("");
+    auto temp_path = sys.GetTempRoot()->Path();
+    auto params_path = temp_path / "VerifiedBootParams.textproto";
+    std::ofstream{params_path};
+
+    FakeEmulator emu;
+    emu.system_image_paths().verified_boot_params = params_path;
+
+    auto hw = HardwareConfig();
+    EXPECT_CALL(emu.mock_avd(), Hw()).WillRepeatedly(testing::ReturnRef(hw));
+    EXPECT_CALL(emu.mock_avd(), Name()).Times(1).WillRepeatedly(testing::Return("mock_avd"));
+    EXPECT_CALL(emu.mock_avd(), Arch())
+            .Times(1)
+            .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
+
+    auto props = getBootProperties(emu.config(), "lavapipe");
+    EXPECT_THAT(props, testing::Not(testing::Contains(
+                               testing::Key(testing::StartsWith("androidboot.vbmeta")))));
+}
+
+TEST(BootProperties, VerifiedBootParamsAllowsUnknownFields) {
+    base::TestSystem sys("");
+    auto temp_path = sys.GetTempRoot()->Path();
+    auto params_path = temp_path / "VerifiedBootParams.textproto";
+    {
+        std::ofstream out(params_path);
+        out << "major_version: 2\n"
+            << "future_metadata_field: \"some_value\"\n"
+            << "param: \"androidboot.vbmeta.size=6720\"\n";
+    }
+
+    FakeEmulator emu;
+    emu.system_image_paths().verified_boot_params = params_path;
+
+    auto hw = HardwareConfig();
+    EXPECT_CALL(emu.mock_avd(), Hw()).WillRepeatedly(testing::ReturnRef(hw));
+    EXPECT_CALL(emu.mock_avd(), Name()).Times(1).WillRepeatedly(testing::Return("mock_avd"));
+    EXPECT_CALL(emu.mock_avd(), Arch())
+            .Times(1)
+            .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
+
+    auto props = getBootProperties(emu.config(), "lavapipe");
+    EXPECT_THAT(props,
+                testing::IsSupersetOf(std::vector{std::pair{"androidboot.vbmeta.size", "6720"}}));
+}
+
+TEST(BootProperties, UnsupportedVerifiedBootMajorVersion) {
+    base::TestSystem sys("");
+    auto temp_path = sys.GetTempRoot()->Path();
+    auto params_path = temp_path / "VerifiedBootParams.textproto";
+    {
+        std::ofstream out(params_path);
+        out << "major_version: 3\n"
+            << "param: \"androidboot.vbmeta.size=6720\"\n";
+    }
+
+    FakeEmulator emu;
+    emu.system_image_paths().verified_boot_params = params_path;
+
+    auto hw = HardwareConfig();
+    EXPECT_CALL(emu.mock_avd(), Hw()).WillRepeatedly(testing::ReturnRef(hw));
+    EXPECT_CALL(emu.mock_avd(), Name()).Times(1).WillRepeatedly(testing::Return("mock_avd"));
+    EXPECT_CALL(emu.mock_avd(), Arch())
+            .Times(1)
+            .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
+
+    auto props = getBootProperties(emu.config(), "lavapipe");
+    EXPECT_THAT(props,
+                testing::Not(testing::Contains(std::pair{"androidboot.vbmeta.size", "6720"})));
+}
+
 TEST(Initrd, Basic) {
     base::TestSystem sys("");
     auto launcher_path = sys.GetTempRoot()->Path();
