@@ -393,7 +393,6 @@ collect_plugins(
         "@platforms//os:linux": [
             "@goldfish_prebuilts_common//vulkan:icds_linux_x86_64",
             "@goldfish_prebuilts_common//vulkan:lib_linux_x86_64",
-            "@llvm-project//llvm:libLLVM.so",
             "@mesa3d//:vulkan_lvp",
             "@mesa3d//:generate_lvp_icd",
         ],
@@ -448,7 +447,12 @@ collect_plugins(
         ],
         "@goldfish_build//platforms:is_linux_aarch64": [],
         "@platforms//os:linux": [
-            "@goldfish_prebuilts_common//swiftshader:lib_linux_x86_64",
+            "@libxcb//:libxcb-aemu.so",
+            "@llvm-project//llvm:libLLVM.so",
+            "@mesa3d//:EGL",
+            "@mesa3d//:GLESv1_CM",
+            "@mesa3d//:GLESv2",
+            "@mesa3d//:gallium_dri",
         ],
         ":windows_aarch64": [
             "@goldfish_prebuilts_common//ANGLE:lib_windows_aarch64",
