@@ -477,9 +477,7 @@ CpuAccelerator GetCurrentCpuAccelerator() {
     AndroidCpuAcceleration status_code = ANDROID_CPU_ACCELERATION_ERROR;
 
 #if !HAVE_KVM
-#if APPLE_SILICON
-    // don't check
-#else
+#if defined(__x86_64__) || defined(__i386__) || defined(_M_X64) || defined(_M_IX86)
     if (!android::hasModernX86VirtualizationFeatures()) {
         // TODO: Support snapshots when UG is not supported.
         LOG(WARNING) << "Quick Boot / Snapshots not supported on this "
@@ -540,7 +538,7 @@ CpuAccelerator GetCurrentCpuAccelerator() {
 #endif
     } else {
 
-#ifndef APPLE_SILICON
+#if defined(__x86_64__) || defined(__i386__) || defined(_M_X64) || defined(_M_IX86)
         char vendor_id[16];
         CpuVendorIdType vid_type;
 
