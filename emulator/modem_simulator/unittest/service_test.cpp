@@ -31,6 +31,7 @@
 #include "common/libs/utils/files.h"
 #include "host/commands/modem_simulator/channel_monitor.h"
 #include "host/commands/modem_simulator/device_config.h"
+#include "host/commands/modem_simulator/misc_service.h"
 #include "host/commands/modem_simulator/modem_simulator.h"
 
 namespace fs = std::filesystem;
@@ -206,6 +207,12 @@ android::base::TestTempDir ModemServiceTest::tmp_config_dir_{"modem_simulator"};
 ModemSimulator* ModemServiceTest::modem_simulator_ = nullptr;
 Client* ModemServiceTest::ril_side_ = nullptr;
 Client* ModemServiceTest::modem_side_ = nullptr;
+
+TEST(MiscServiceTest, FixTimeZoneEscapesEverySlash) {
+  std::string timezone = "America/Argentina/Buenos_Aires";
+  MiscService::FixTimeZone(timezone);
+  EXPECT_EQ(timezone, "America!Argentina!Buenos_Aires");
+}
 
 /* Sim Service Test */
 TEST_F(ModemServiceTest, GetIccCardStatus) {

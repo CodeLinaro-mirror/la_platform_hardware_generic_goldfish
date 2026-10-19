@@ -48,6 +48,7 @@
 #include "goldfish/metrics/snapshot_metrics.h"
 #include "goldfish/modem_simulator/modem_simulator_service.h"
 #include "goldfish/network/endpoint.h"
+#include "goldfish/timezone/host_timezone.h"
 #include "host_info.h"
 #include "launch_fishtank.h"
 #include "launch_netsimd.h"
@@ -84,6 +85,23 @@ using ::goldfish::async::WhenAll;
 using WhenAllChardevEndpoints = std::shared_ptr<WhenAll<ChardevEndpoints>>;
 
 using ::goldfish::modem_simulator::ModemSimulatorService;
+
+// Returns the timezone reported to the guest: the -timezone value if it is a
+// zoneinfo name, otherwise the host timezone.
+std::optional<std::string> DetermineGuestTimezone(const AndroidOptions& opts) {
+    if (opts.timezone != nullptr && !::goldfish::timezone::IsZoneinfoName(opts.timezone)) {
+        LOG(WARNING) << "Ignoring -timezone '" << opts.timezone
+                     << "': must be a zoneinfo name such as Europe/Paris (see -help-timezone). "
+                        "Falling back to the host timezone.";
+    }
+    std::optional<std::string> timezone = ::goldfish::timezone::GetGuestTimezone(
+            opts.timezone, ::goldfish::timezone::GetHostTimezone());
+    if (!timezone) {
+        LOG(WARNING) << "Could not determine the host timezone, so it is not reported to the "
+                        "guest (see -help-timezone)";
+    }
+    return timezone;
+}
 
 class Launcher {
   public:
@@ -220,8 +238,9 @@ class Launcher {
             icc_profile_override = std::filesystem::path(icc_profile);
         }
 
-        modem_simulator_service_ =
-                ModemSimulatorService::Create(*config_.avd, icc_profile_override);
+        const std::optional<std::string> timezone = DetermineGuestTimezone(config_.opts);
+        modem_simulator_service_ = ModemSimulatorService::Create(*config_.avd, icc_profile_override,
+                                                                 timezone.value_or(""));
         if (modem_simulator_service_) {
             chardevs->MutableResults().modem_simulator =
                     modem_simulator_service_->ChardevEndpoint();

@@ -1,0 +1,39 @@
+load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_test")
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+
+cc_library(
+    name = "timezone",
+    srcs = ["host_timezone.cc"],
+    hdrs = ["include/goldfish/timezone/host_timezone.h"],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//emulator/libs/file",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+    ] + select({
+        "@platforms//os:windows": ["//emulator/libs/windows:win32_utils"],
+        "//conditions:default": ["//emulator/libs/system"],
+    }),
+)
+
+cc_test(
+    name = "host_timezone_test",
+    size = "small",
+    srcs = ["host_timezone_test.cc"],
+    deps = [
+        ":timezone",
+        "//emulator/libs/system:test-headers",
+        "//emulator/libs/test:googletest_main",
+    ],
+)
+
+clang_tidy_test(
+    name = "tidy",
+    targets = [
+        ":timezone",
+        ":host_timezone_test",
+    ],
+    tidy_config_file = "//:clang_tidy_config",
+)

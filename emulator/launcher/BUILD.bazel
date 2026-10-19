@@ -609,6 +609,7 @@ cc_library(
         "//emulator/libs/metrics:configure_metrics_writer",
         "//emulator/libs/metrics:snapshot_metrics",
         "//emulator/libs/system",
+        "//emulator/libs/timezone",
         "//emulator/modem_simulator",
         "//emulator/telnet:legacy_console_controller",
         "//emulator/tools:aemu_version",

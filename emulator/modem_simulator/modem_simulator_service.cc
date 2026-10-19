@@ -176,7 +176,8 @@ void CheckModemSimulatorAvdDir(const fs::path& modem_avd_dir, const fs::path& si
 }
 
 absl::StatusOr<std::shared_ptr<ModemSimulatorService>> CreateImpl(
-        const Avd& avd, const std::optional<std::filesystem::path>& icc_profile_override) {
+        const Avd& avd, const std::optional<std::filesystem::path>& icc_profile_override,
+        std::string timezone) {
     constexpr size_t kNumModems = 1;
     constexpr int kModemId = 0;
 
@@ -206,7 +207,7 @@ absl::StatusOr<std::shared_ptr<ModemSimulatorService>> CreateImpl(
     DeviceConfig::SetBasePath(std::move(modem_simulator_avd_dir));
     DeviceConfig::SetHostId(host_id);
     DeviceConfig::SetUseIpv6(false);
-    DeviceConfig::SetTimezone("America/Los_Angeles");  // TODO: do not hardcode
+    DeviceConfig::SetTimezone(std::move(timezone));
 
     NvramConfig::InitNvramConfigService(kNumModems, icc_profile_override);
 
@@ -221,9 +222,9 @@ absl::StatusOr<std::shared_ptr<ModemSimulatorService>> CreateImpl(
 }  // namespace
 
 std::shared_ptr<ModemSimulatorService> ModemSimulatorService::Create(
-        const Avd& avd,
-        const std::optional<std::filesystem::path>& icc_profile_override) {
-    auto service = CreateImpl(avd, icc_profile_override);
+        const Avd& avd, const std::optional<std::filesystem::path>& icc_profile_override,
+        std::string timezone) {
+    auto service = CreateImpl(avd, icc_profile_override, std::move(timezone));
     if (!service.ok()) {
         LOG(ERROR) << "Modem simulator: " << service.status() <<
                       ". Cellular features (e.g. text messages and phone calls) will "
