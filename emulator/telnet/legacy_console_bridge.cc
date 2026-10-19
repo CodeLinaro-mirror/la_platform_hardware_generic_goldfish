@@ -87,6 +87,32 @@ struct EventSequence {
     std::vector<LinuxEvent> events;
 };
 
+struct EventAlias {
+    std::string_view name;
+    int value;
+};
+
+constexpr EventAlias kEventTypes[] = {
+        {"EV_SYN", 0}, {"EV_KEY", 1}, {"EV_REL", 2}, {"EV_ABS", 3}};
+
+constexpr EventAlias kEventKeyCodes[] = {
+        {"KEY_ESC", 1},    {"KEY_BACKSPACE", 14}, {"KEY_ENTER", 28}, {"KEY_SPACE", 57},
+        {"KEY_HOME", 102}, {"KEY_POWER", 116},    {"KEY_BACK", 158}};
+
+template <size_t count>
+bool ParseEventIntOrAlias(std::string_view input, const EventAlias (&aliases)[count], int* out) {
+    if (absl::SimpleAtoi(input, out)) {
+        return true;
+    }
+    for (const auto& alias : aliases) {
+        if (input == alias.name) {
+            *out = alias.value;
+            return true;
+        }
+    }
+    return false;
+}
+
 template <>
 struct ArgExtractor<EventSequence> {
     static absl::StatusOr<EventSequence> Extract(ArgStream& args) {
@@ -104,15 +130,7 @@ struct ArgExtractor<EventSequence> {
             }
 
             int type = 0;
-            if (parts[0] == "EV_KEY" || parts[0] == "1") {
-                type = 1;
-            } else if (parts[0] == "EV_SYN" || parts[0] == "0") {
-                type = 0;
-            } else if (parts[0] == "EV_REL" || parts[0] == "2") {
-                type = 2;
-            } else if (parts[0] == "EV_ABS" || parts[0] == "3") {
-                type = 3;
-            } else if (!absl::SimpleAtoi(parts[0], &type)) {
+            if (!ParseEventIntOrAlias(parts[0], kEventTypes, &type)) {
                 return absl::InvalidArgumentError(
                         absl::StrFormat("invalid event type in '%s', try 'event list "
                                         "types' for valid values",
@@ -120,27 +138,11 @@ struct ArgExtractor<EventSequence> {
             }
 
             int code = 0;
-            if (!absl::SimpleAtoi(parts[1], &code)) {
-                if (parts[1] == "KEY_ENTER")
-                    code = 28;
-                else if (parts[1] == "KEY_ESC")
-                    code = 1;
-                else if (parts[1] == "KEY_BACKSPACE")
-                    code = 14;
-                else if (parts[1] == "KEY_SPACE")
-                    code = 57;
-                else if (parts[1] == "KEY_HOME")
-                    code = 102;
-                else if (parts[1] == "KEY_BACK")
-                    code = 158;
-                else if (parts[1] == "KEY_POWER")
-                    code = 116;
-                else {
-                    return absl::InvalidArgumentError(
-                            absl::StrFormat("invalid event code in '%s', try 'event list "
-                                            "codes <type>' for valid values",
-                                            token));
-                }
+            if (!ParseEventIntOrAlias(parts[1], kEventKeyCodes, &code)) {
+                return absl::InvalidArgumentError(
+                        absl::StrFormat("invalid event code in '%s', try 'event list "
+                                        "codes <type>' for valid values",
+                                        token));
             }
 
             int value = 0;
@@ -753,12 +755,12 @@ LegacyConsoleBridge::LegacyConsoleBridge(int port, std::filesystem::path token_p
     // --- Power Commands ---
     auto update_battery =
             [](ConsoleContext& ctx,
-               std::function<absl::Status(android::emulation::control::BatteryState&)> mutator)
+               std::function<void(android::emulation::control::BatteryState&)> mutator)
             -> absl::Status {
         ASSIGN_OR_RETURN(auto stub, ctx.EmulatorControllerStub());
         ASSIGN_OR_RETURN(auto state, GetBatteryStateOrDefault(ctx, stub.get()));
 
-        RETURN_IF_ERROR(mutator(state));
+        mutator(state);
 
         ASSIGN_OR_RETURN(auto context_set, ctx.NewContext());
         google::protobuf::Empty empty_res;
@@ -787,18 +789,14 @@ LegacyConsoleBridge::LegacyConsoleBridge(int port, std::filesystem::path token_p
 
     power.On("ac" /* do_ac_state */, "set AC charging state",
              [update_battery](ConsoleContext& ctx, const std::string& state) -> absl::Status {
-                 if (absl::EqualsIgnoreCase(state, "on")) {
-                     return update_battery(ctx, [](android::emulation::control::BatteryState& b) {
-                         b.set_charger(android::emulation::control::BatteryState::AC);
-                         return absl::OkStatus();
-                     });
-                 } else if (absl::EqualsIgnoreCase(state, "off")) {
-                     return update_battery(ctx, [](android::emulation::control::BatteryState& b) {
-                         b.set_charger(android::emulation::control::BatteryState::NONE);
-                         return absl::OkStatus();
-                     });
+                 if (!absl::EqualsIgnoreCase(state, "on") &&
+                     !absl::EqualsIgnoreCase(state, "off")) {
+                     return absl::InvalidArgumentError("Usage: \"ac on\" or \"ac off\"");
                  }
-                 return absl::InvalidArgumentError("Usage: \"ac on\" or \"ac off\"");
+                 const auto charger = absl::EqualsIgnoreCase(state, "on")
+                                              ? android::emulation::control::BatteryState::AC
+                                              : android::emulation::control::BatteryState::NONE;
+                 return update_battery(ctx, [charger](auto& b) { b.set_charger(charger); });
              });
 
     power.On("status" /* do_battery_status */, "set battery status",
@@ -807,27 +805,17 @@ LegacyConsoleBridge::LegacyConsoleBridge(int port, std::filesystem::path token_p
                          auto battery_status,
                          ParseBatteryEnum(kBatteryStatuses, state, "invalid battery status"));
                  return update_battery(
-                         ctx, [battery_status](android::emulation::control::BatteryState& b) {
-                             b.set_status(battery_status);
-                             return absl::OkStatus();
-                         });
+                         ctx, [battery_status](auto& b) { b.set_status(battery_status); });
              });
 
     power.On("present" /* do_battery_present */, "set battery present state",
              [update_battery](ConsoleContext& ctx, const std::string& state) -> absl::Status {
-                 bool present = false;
-                 if (absl::EqualsIgnoreCase(state, "true")) {
-                     present = true;
-                 } else if (absl::EqualsIgnoreCase(state, "false")) {
-                     present = false;
-                 } else {
+                 if (!absl::EqualsIgnoreCase(state, "true") &&
+                     !absl::EqualsIgnoreCase(state, "false")) {
                      return absl::InvalidArgumentError("invalid argument, use true or false");
                  }
-                 return update_battery(ctx,
-                                       [present](android::emulation::control::BatteryState& b) {
-                                           b.set_ispresent(present);
-                                           return absl::OkStatus();
-                                       });
+                 const bool present = absl::EqualsIgnoreCase(state, "true");
+                 return update_battery(ctx, [present](auto& b) { b.set_ispresent(present); });
              });
 
     power.On("health" /* do_battery_health */, "set battery health state",
@@ -836,10 +824,7 @@ LegacyConsoleBridge::LegacyConsoleBridge(int port, std::filesystem::path token_p
                          auto battery_health,
                          ParseBatteryEnum(kBatteryHealths, state, "invalid battery health"));
                  return update_battery(
-                         ctx, [battery_health](android::emulation::control::BatteryState& b) {
-                             b.set_health(battery_health);
-                             return absl::OkStatus();
-                         });
+                         ctx, [battery_health](auto& b) { b.set_health(battery_health); });
              });
 
     power.On("capacity" /* do_battery_capacity */, "set battery capacity percentage",
@@ -847,11 +832,7 @@ LegacyConsoleBridge::LegacyConsoleBridge(int port, std::filesystem::path token_p
                  if (capacity < 0 || capacity > 100) {
                      return absl::InvalidArgumentError("invalid capacity percentage");
                  }
-                 return update_battery(ctx,
-                                       [capacity](android::emulation::control::BatteryState& b) {
-                                           b.set_chargelevel(capacity);
-                                           return absl::OkStatus();
-                                       });
+                 return update_battery(ctx, [capacity](auto& b) { b.set_chargelevel(capacity); });
              });
 
     // --- Redir Commands ---
