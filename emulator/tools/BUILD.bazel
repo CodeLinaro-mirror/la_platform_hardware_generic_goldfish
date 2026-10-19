@@ -47,6 +47,20 @@ py_binary(
     srcs = ["generate_notice.py"],
 )
 
+py_binary(
+    name = "generate_sbom",
+    srcs = ["generate_sbom.py"],
+)
+
+py_test(
+    name = "generate_sbom_test",
+    size = "small",
+    srcs = ["generate_sbom_test.py"],
+    deps = [
+        ":generate_sbom",
+    ],
+)
+
 aemu_naming(
     name = "aemu_header_version_info",
     description = "Android Emulator (Preview)",
@@ -57,7 +71,7 @@ aemu_naming(
         "//conditions:default": "unknown",
     }),
     product_name = select({
-        "//conditions:default": "",
+        "//conditions:default": "emulator",
         ":dbg": "emulator-debug",
         ":opt": "emulator",
     }),
@@ -76,7 +90,7 @@ aemu_naming(
         "//conditions:default": "unknown",
     }),
     product_name = select({
-        "//conditions:default": "",
+        "//conditions:default": "emulator",
         ":dbg": "emulator-debug",
         ":opt": "emulator",
     }),
