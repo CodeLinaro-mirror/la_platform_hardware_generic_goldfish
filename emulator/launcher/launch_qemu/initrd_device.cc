@@ -31,6 +31,7 @@
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_replace.h"
 #include "absl/strings/str_split.h"
+#include "google/protobuf/text_format.h"
 
 #include "android/base/system.h"
 #include "android/goldfish/avd.h"
@@ -40,6 +41,7 @@
 #include "goldfish/adb/adbkey.h"
 #include "goldfish/file/file.h"
 #include "goldfish/parsing/resizable_display_config.h"
+#include "verified_boot_config.pb.h"
 
 namespace android::goldfish {
 namespace {
@@ -374,34 +376,42 @@ std::string getDynamicPartitionBootDevice(const EmulatorConfig& emulator) {
     }
 }
 
+constexpr int kMaxVerifiedBootMajorVersion = 2;
+
 std::vector<std::string> getVerifiedBootparams(const EmulatorConfig& emulator) {
-    // Get verified boot kernel parameters, if they exist.
-    // If this is not a playstore image, then -writable_system will
-    // disable verified boot
-
-    //   auto avd = emulator.avd();
     std::vector<std::string> verified_boot_params;
-    //   //   if (feature_is_enabled(kFeature_PlayStoreImage) ||
-    //   //       !android_op_writable_system ||
-    //   //       feature_is_enabled(kFeature_DynamicPartition)) {
-    //   auto verifiedBootParamsPath =
-    //       avd.getImagePath(Avd::ImageType::VERIFIEDBOOTPARAMS);
-    //   if (verifiedBootParamsPath.ok()) {
-    //     android::verifiedboot::getParametersFromFile(
-    //         verifiedBootParamsPath.get(), // NULL here is OK
-    //         &verified_boot_params);
-    //   }
-    //   //   if (feature_is_enabled(kFeature_DynamicPartition)) {
-    std::string boot_dev =
-            absl::StrCat("androidboot.boot_devices=", getDynamicPartitionBootDevice(emulator));
-    verified_boot_params.push_back(boot_dev);
-    // }
-    // if (android_op_writable_system) {
-    // unlocked state
 
-    // if (emulator.opts().writable_system) {
-    verified_boot_params.push_back("androidboot.verifiedbootstate=orange");
-    // }
+    const fs::path& params_path = emulator.avd().GetSystemImagePaths().verified_boot_params;
+    if (!params_path.empty()) {
+        absl::StatusOr<std::string> contents =
+                base::file::read_whole_file(params_path, /*binary=*/false);
+        if (!contents.ok()) {
+            LOG(WARNING) << "Failed to read verified boot params from " << params_path << ": "
+                         << contents.status();
+        } else {
+            android::verifiedboot::VerifiedBootConfig config;
+            google::protobuf::TextFormat::Parser parser;
+            parser.AllowUnknownField(true);
+            if (!parser.ParseFromString(*contents, &config)) {
+                LOG(WARNING) << "Failed to parse verified boot params from " << params_path;
+            } else if (config.has_major_version() &&
+                       config.major_version() > kMaxVerifiedBootMajorVersion) {
+                LOG(WARNING) << "Unsupported verified boot params major_version "
+                             << config.major_version() << " in " << params_path;
+            } else {
+                for (const std::string& param : config.param()) {
+                    verified_boot_params.push_back(param);
+                }
+            }
+        }
+    }
+
+    verified_boot_params.push_back(
+            absl::StrCat("androidboot.boot_devices=", getDynamicPartitionBootDevice(emulator)));
+
+    if (emulator.opts().writable_system) {
+        verified_boot_params.push_back("androidboot.verifiedbootstate=orange");
+    }
     return verified_boot_params;
 }
 
