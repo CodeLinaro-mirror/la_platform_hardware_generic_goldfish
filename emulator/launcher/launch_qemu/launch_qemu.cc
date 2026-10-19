@@ -199,7 +199,7 @@ absl::Status LaunchQemu::addDevices() {
 
     std::string gpu_name = "gpu0";
     const auto& gpu_device = addDevice<GpuDevice>(gpu_name, snapshot_device);
-    addDevice<InitrdDevice>(gpu_device);
+    addDevice<InitrdDevice>(gpu_device, snapshot_device);
 
     // Also includes input devices for the display.
     addDevice<DisplayDevice>(gpu_name);

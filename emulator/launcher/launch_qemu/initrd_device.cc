@@ -14,11 +14,16 @@
 
 #include "initrd_device.h"
 
+#include <openssl/sha.h>
 #include <stddef.h>
 
 #include <algorithm>
+#include <array>
 #include <cctype>
+#include <cstdint>
 #include <cstring>
+#include <fstream>
+#include <optional>
 #include <string>
 #include <string_view>
 
@@ -415,6 +420,42 @@ std::vector<std::string> getVerifiedBootparams(const EmulatorConfig& emulator) {
     return verified_boot_params;
 }
 
+struct FileHash {
+    uint64_t size = 0;
+    std::array<uint8_t, SHA_DIGEST_LENGTH> sha1 = {};
+
+    bool operator==(const FileHash& other) const = default;
+};
+
+absl::StatusOr<FileHash> hashFile(const fs::path& path) {
+    std::ifstream in(path, std::ios::binary);
+    if (!in) {
+        return absl::InternalError(
+                absl::StrCat("Failed to open file for hashing: ", path.string()));
+    }
+
+    SHA_CTX ctx;
+    SHA1_Init(&ctx);
+
+    FileHash result;
+    std::array<char, 8192> buffer;
+    while (in) {
+        in.read(buffer.data(), buffer.size());
+        const auto bytes_read = static_cast<size_t>(in.gcount());
+        if (bytes_read > 0) {
+            SHA1_Update(&ctx, buffer.data(), bytes_read);
+            result.size += bytes_read;
+        }
+    }
+    if (in.bad()) {
+        return absl::InternalError(
+                absl::StrCat("Failed to read file for hashing: ", path.string()));
+    }
+
+    SHA1_Final(result.sha1.data(), &ctx);
+    return result;
+}
+
 }  // namespace
 
 std::vector<std::pair<std::string, std::string>> getBootProperties(const EmulatorConfig& emulator,
@@ -440,15 +481,43 @@ absl::Status InitrdDevice::initialize(const EmulatorConfig& emulator) {
 
     fs::path system_ramdisk = avd.GetSystemImagePaths().ramdisk_image;
 
-    // Why doesn't it use Avd::getImageFilename(Avd::ImageType::USERRAMDISK) ?
     mUserRamdisk = avd.GetContentPath() / "initrd";
-    // TODO(whollins): if mUserRamdisk exists then don't overwrite it (but then boot properties
-    // aren't updated)?
 
-    // Ok.. let's create it
+    // QEMU loads -initrd into host memory (fw_cfg on x86, ROM list on ARM) at launch.
+    // When resuming a snapshot (-loadvm), the guest has already unpacked initramfs and parsed
+    // /proc/bootconfig from its original cold boot, so any changes written to mUserRamdisk here
+    // are only picked up on a cold boot, an in-session guest reboot (e.g. `adb reboot`), or if
+    // -loadvm fails and falls back to a cold boot.
+    std::optional<FileHash> previous_initrd_hash;
+    if (mSnapshotDevice.load_status() == SnapshotDevice::LoadStatus::kLoading &&
+        base::file::exists(mUserRamdisk)) {
+        if (auto hash = hashFile(mUserRamdisk); hash.ok()) {
+            previous_initrd_hash = *hash;
+        } else {
+            LOG(WARNING) << "Failed to hash existing initrd " << mUserRamdisk << ": "
+                         << hash.status();
+        }
+    }
+
     LOG(INFO) << "Creating initrd from " << system_ramdisk << " -> " << mUserRamdisk;
-    return ::goldfish::bootconfig::createRamdiskWithBootconfig(system_ramdisk, mUserRamdisk,
-                                                               properties);
+    RETURN_IF_ERROR(::goldfish::bootconfig::createRamdiskWithBootconfig(system_ramdisk,
+                                                                        mUserRamdisk, properties));
+
+    // If the initrd changed while loading a snapshot, warn that the new bootconfig fields
+    // are not active in the resumed guest. In the future, we may choose to force a cold boot
+    // when the initrd changes.
+    if (previous_initrd_hash.has_value()) {
+        if (auto new_hash = hashFile(mUserRamdisk); !new_hash.ok()) {
+            LOG(WARNING) << "Failed to hash new initrd " << mUserRamdisk << ": "
+                         << new_hash.status();
+        } else if (*new_hash != *previous_initrd_hash) {
+            LOG(WARNING) << "Initrd configuration has changed while loading snapshot '"
+                         << SnapshotDevice::get_snapshot_name(emulator)
+                         << "'. Changes will not take effect until a cold boot or guest reboot.";
+        }
+    }
+
+    return absl::OkStatus();
 }
 
 // TODO(jansene) add Initrd versioning magic to add/subtract parameters,
