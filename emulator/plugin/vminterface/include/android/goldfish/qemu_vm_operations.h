@@ -18,9 +18,32 @@
 #include "android/base/clock.h"
 #include "android/goldfish/vm_interface.h"
 #include "goldfish/async/event_loop.h"
+#include "goldfish/snapshot/snapshot_store.h"
 
 namespace android {
 namespace goldfish {
+
+/**
+ * @brief Snapshot configuration of the QEMU-backed VmOperations.
+ */
+struct QemuSnapshotConfig {
+    /**
+     * Owns the per-snapshot metadata under <avd>/snapshots/<name>/. Snapshot
+     * operations consult it off the QEMU main thread: `SaveSnapshot` records the
+     * snapshot version after QEMU saved the VM state, `LoadSnapshot` refuses
+     * snapshots whose version does not match, `DeleteSnapshot` removes it and
+     * `ListSnapshots` reports compatibility from it.
+     */
+    std::unique_ptr<::goldfish::snapshot::SnapshotStore> store;
+
+    /**
+     * Whether snapshots can be saved and loaded in this session. False when the
+     * emulator was started with -no-snapshot: `SaveSnapshot` and `LoadSnapshot`
+     * then fail with FailedPrecondition without touching QEMU, while
+     * `ListSnapshots` and `DeleteSnapshot` keep working.
+     */
+    bool enabled = true;
+};
 
 /**
  * @brief Creates the VmOperations implementation that controls the QEMU VM.
@@ -37,17 +60,25 @@ namespace goldfish {
  * `GetRunState`, `GetConfiguration`, `GetSnapshotProgress`) execute directly
  * without posting to `qemu_loop` and may be called from any thread.
  *
+ * Only the QEMU calls themselves (`save_snapshot`, `load_snapshot`,
+ * `delete_snapshot`, `bdrv_snapshot_list`, `vm_stop`) run on `qemu_loop`; the
+ * `SnapshotStore` file system work happens on the calling thread before and
+ * after, so no extra I/O is done under the BQL.
+ *
  * @param event_loop The loop that runs the `RunStateEvents()` and
  *        `SnapshotEvents()` callbacks. Must be distinct from `qemu_loop` and
  *        outlive the returned instance.
  * @param qemu_loop The QEMU main event loop used to execute VM operations. Must
  *        outlive the returned instance.
+ * @param snapshot_config Snapshot store and policy, see `QemuSnapshotConfig`.
+ *        `store` must not be null.
  * @param clock Clock source used for snapshot progress throttling. Must outlive
  *        the returned instance. Defaults to `::android::base::IClock::Get()`.
  * @return The QEMU-backed VmOperations.
  */
 std::unique_ptr<VmOperations> CreateQemuVmOperations(
         ::goldfish::async::EventLoop* event_loop, ::goldfish::async::EventLoop* qemu_loop,
+        QemuSnapshotConfig snapshot_config,
         ::android::base::IClock* clock = &::android::base::IClock::Get());
 
 }  // namespace goldfish

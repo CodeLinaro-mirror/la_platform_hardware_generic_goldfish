@@ -18,34 +18,21 @@
 
 #include "device.h"
 #include "goldfish/metrics/snapshot_metrics.h"
+#include "goldfish/snapshot/snapshot_store.h"
 #include "render-utils/snapshot_operations.h"
 
 namespace android::goldfish {
 
-// Snapshot version stored in <snapshot_dir>/version.txt and checked in
-// SnapshotDevice::initialize() before launching QEMU (to decide whether to
-// pass -loadvm). Layout of the 32-bit value:
-//
-//   [30..16]  gfxstream framebuffer snapshot version
-//             (gfxstream::kFramebufferSnapshotVersion, 15 bits; bit 31 is
-//             left clear so the value is a positive int32)
-//   [15.. 0]  kSnapshotVersionBase, the emulator's own format version (16 bits)
-//
-// Folding the gfxstream version in here means that whenever gfxstream changes
-// its framebuffer stream format, snapshots written with the previous format
-// are rejected up front and the emulator falls back to a cold boot instead of
-// failing inside FrameBuffer::onLoad() after guest RAM and device state have
-// already been restored.
-//
-// Bump kSnapshotVersionBase for incompatible changes on the goldfish side
-// (e.g. VMState or hardware-properties.ini layout changes).
-// History:
-//   1 -> 2: hardware-properties.ini retired cachePartition/useQcow2 fields
-//           (b/573413085) and folded gfxstream::kFramebufferSnapshotVersion
-//           into bits [30..16].
-inline constexpr int kSnapshotVersionBase = 2;
-static_assert(kSnapshotVersionBase > 0 && kSnapshotVersionBase < (1 << 16),
-              "Base snapshot version does not fit in 16 bits.");
+// The snapshot version this emulator writes and accepts; see
+// goldfish/snapshot/snapshot_store.h for the layout and history. The launcher
+// composes it here (it is the only goldfish binary that depends on gfxstream
+// headers) and passes it to the QEMU plugin through the avdstart device.
+using ::goldfish::snapshot::kSnapshotVersionBase;
+
+// Name of the Quickboot snapshot, loaded at boot and saved at exit when no
+// -snapshot <name> is given. Only the launcher knows this name: QEMU and the
+// emulator plugin treat every snapshot alike.
+inline constexpr std::string_view kDefaultSnapshotName = "default_boot";
 
 inline constexpr int kGfxstreamSnapshotVersion =
         static_cast<int>(gfxstream::kFramebufferSnapshotVersion);
@@ -53,7 +40,7 @@ static_assert(kGfxstreamSnapshotVersion > 0 && kGfxstreamSnapshotVersion < (1 <<
               "gfxstream framebuffer snapshot version does not fit in 15 bits.");
 
 inline constexpr int kSnapshotVersion =
-        (kGfxstreamSnapshotVersion << 16) | kSnapshotVersionBase;
+        ::goldfish::snapshot::MakeSnapshotVersion(kGfxstreamSnapshotVersion);
 static_assert(kSnapshotVersion > 0, "Snapshot version must be a positive int32.");
 
 // Handles QEMU snapshot command line parameters
@@ -69,11 +56,17 @@ class SnapshotDevice : public Device {
 
     LoadStatus load_status() const { return load_status_; }
     SaveStatus save_status() const { return save_status_; }
+    // Whether the launch-time Quickboot snapshot is loaded at boot or saved at exit.
     bool is_enabled() const {
         return load_status_ == LoadStatus::kLoading || save_status_ == SaveStatus::kSaving;
     }
+    // Whether any snapshot may be saved or loaded in this session, at launch
+    // or at runtime (gRPC, console). Only -no-snapshot turns this off;
+    // -no-snapshot-load / -no-snapshot-save only affect the Quickboot snapshot.
+    bool snapshots_enabled() const { return snapshots_enabled_; }
 
     static std::string_view get_snapshot_name(const EmulatorConfig& emulator);
+    static bool are_snapshots_enabled(const EmulatorConfig& emulator);
 
   private:
     static bool should_load_snapshot(const EmulatorConfig& emulator, std::string& reason,
@@ -83,6 +76,7 @@ class SnapshotDevice : public Device {
 
     std::string snapshot_name_;
     bool strict_snapshot_load_ = false;
+    bool snapshots_enabled_ = true;
     LoadStatus load_status_ = LoadStatus::kSkippedOldSnapshot;
     SaveStatus save_status_ = SaveStatus::kDisabledCmdline;
 };

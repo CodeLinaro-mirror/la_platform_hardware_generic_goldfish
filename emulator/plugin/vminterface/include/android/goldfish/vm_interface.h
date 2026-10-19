@@ -481,14 +481,46 @@ class VmOperations {
     struct SnapshotEntry {
         std::string name;
         absl::Time timestamp;
+        // Whether this emulator can load the snapshot: its recorded snapshot
+        // version matches the emulator's (see goldfish/snapshot/snapshot_store.h).
+        bool compatible = true;
     };
 
     using SnapshotEntrySink = absl::FunctionRef<void(SnapshotEntry)>;
 
+    /**
+     * @brief Saves the VM state as the internal snapshot `name`, together with
+     * the per-snapshot metadata kept under <avd>/snapshots/<name>/.
+     *
+     * @return OK on success; InvalidArgument for an invalid name;
+     *   FailedPrecondition when snapshots are disabled for this session
+     *   (-no-snapshot), or a snapshot/migration is already in progress, or the
+     *   VM is shutting down; Internal when QEMU fails to save.
+     */
     virtual absl::Status SaveSnapshot(std::string name, bool overwrite) = 0;
+
+    /**
+     * @brief Restores the VM from the internal snapshot `id_or_name`.
+     *
+     * @return OK on success; InvalidArgument for an invalid name;
+     *   FailedPrecondition when snapshots are disabled for this session, the
+     *   snapshot's recorded version does not match this emulator (the VM keeps
+     *   running), a snapshot/migration is already in progress, or the VM is
+     *   shutting down; Internal when QEMU fails to load.
+     */
     virtual absl::Status LoadSnapshot(std::string id_or_name, bool and_resume) = 0;
     virtual void LoadSnapshotResume(EmuRunState state) = 0;
+
+    /**
+     * @brief Deletes the internal snapshot `id_or_name` and its per-snapshot
+     * metadata. Available even when snapshots are disabled for this session.
+     */
     virtual absl::Status DeleteSnapshot(std::string id_or_name) = 0;
+
+    /**
+     * @brief Lists the internal snapshots. Available even when snapshots are
+     * disabled for this session.
+     */
     virtual absl::Status ListSnapshots(SnapshotEntrySink sink) = 0;
 
     /**

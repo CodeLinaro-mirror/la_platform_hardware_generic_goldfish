@@ -35,6 +35,7 @@
 #include "goldfish/avd/gralloc_impl.h"
 #include "goldfish/devices/vehicle/vehicle_device.h"
 #include "goldfish/display/abstract_multi_display.h"
+#include "goldfish/snapshot/snapshot_store.h"
 #include "goldfish/tools/aemu_version.h"
 #include "goldfish/vsock/clear.h"
 
@@ -135,7 +136,12 @@ absl::Status AvdExtendedUniverse::Initialize() {
     auto& qemu_loop = avd_universe.qemu_event_loop;
 
     avd_universe.vm_operations = android::goldfish::CreateQemuVmOperations(
-            /*event_loop=*/client_loop, /*qemu_loop=*/qemu_loop.get());
+            /*event_loop=*/client_loop, /*qemu_loop=*/qemu_loop.get(),
+            android::goldfish::QemuSnapshotConfig{
+                .store = std::make_unique<::goldfish::snapshot::FileSnapshotStore>(
+                        avd_props.avd_content_path, avd_props.snapshot_version),
+                .enabled = avd_props.snapshots_enabled,
+            });
     auto is_active = [vm = avd_universe.vm_operations.get()]() { return vm->IsRunning(); };
 
     android::crashreport::CrashReporter::GetCrashingHangDetector().AddWatchedLooper(
