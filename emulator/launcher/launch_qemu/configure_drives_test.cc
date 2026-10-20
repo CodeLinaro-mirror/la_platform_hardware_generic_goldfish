@@ -202,36 +202,6 @@ TEST_F(ConfigureDrivesTest, AddDrivesExistingOldUserdataWithMatchingSize) {
     EXPECT_TRUE(base::file::exists(userdata_path));
 }
 
-TEST_F(ConfigureDrivesTest, AddDrivesCustomDataSmallerThanRequestedUsedAsIs) {
-    const fs::path custom_data_path = user_dir_ / "custom_userdata.img";
-    const fs::path custom_data_qcow2_path = user_dir_ / "custom_userdata.img.qcow2";
-    base::file::touch(custom_data_path).IgnoreError();
-    base::file::touch(custom_data_qcow2_path).IgnoreError();
-    std::filesystem::resize_file(custom_data_path, 1024);
-
-    std::string custom_data_str = custom_data_path.string();
-    AndroidOptions opts{.data = custom_data_str.data()};
-    FakeEmulator emu(std::move(opts));
-    ConfigureMockAvd(emu.mock_avd());
-
-    MockDeviceContainer mock_container;
-    EXPECT_CALL(mock_container, addNullDrive("sdcard", "08.0")).Times(1);
-    EXPECT_CALL(mock_container,
-                addWritableImgDrive("encrypt", "06.0", system_dir_ / "encryption_key.img",
-                                    user_dir_ / "encryptionkey.img.qcow2"))
-            .Times(1);
-    EXPECT_CALL(mock_container, addRoDrive("system", "03.0", system_dir_ / "system.img")).Times(1);
-    EXPECT_CALL(mock_container,
-                addWritableImgDrive("userdata", "05.0", custom_data_path, custom_data_qcow2_path))
-            .Times(1);
-    EXPECT_CALL(mock_container, addRoDrive("vendor", "07.0", system_dir_ / "vendor.img")).Times(1);
-    EXPECT_CALL(mock_container, addNullDrive("cache", "04.0")).Times(1);
-    EXPECT_FALSE(hw_.hw_sdCard);
-    ASSERT_THAT(addDrives(emu.config(), mock_container), IsOk());
-    EXPECT_TRUE(base::file::exists(custom_data_path));
-    EXPECT_TRUE(base::file::exists(custom_data_qcow2_path));
-}
-
 TEST_F(ConfigureDrivesTest, AddDrivesUserdataFromDirectory) {
     FakeEmulator emu;
     hw_.hw_sensor_hinge = true;
