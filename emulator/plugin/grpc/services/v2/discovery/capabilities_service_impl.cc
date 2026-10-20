@@ -172,6 +172,8 @@ void PopulateInputCapabilities(const HardwareConfig& hw, InputCapabilities* inpu
     input_caps->add_supported_features(InputFeature::INPUT_FEATURE_TOUCH);
     input_caps->add_supported_features(InputFeature::INPUT_FEATURE_MULTI_TOUCH);
     input_caps->set_max_touch_point_count(10);
+    input_caps->set_supports_input_activity_observation(true);
+    input_caps->set_max_batch_duration_ms(30000);
     if (hw.hw_keyboard) {
         input_caps->add_supported_features(InputFeature::INPUT_FEATURE_KEYBOARD);
     }
