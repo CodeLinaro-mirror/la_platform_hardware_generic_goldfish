@@ -64,6 +64,7 @@ cc_binary(
         # buildifier: keep - JNI headers must precede videobridge_codecs to avoid collision with ffmpeg/jni.h
         "@bazel_tools//tools/jdk:jni",
         ":frame_buffer_pool",
+        "//emulator/libs/base",
         "//emulator/videobridge:videobridge_codecs",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/synchronization",
