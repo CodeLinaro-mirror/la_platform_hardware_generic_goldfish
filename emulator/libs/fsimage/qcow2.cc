@@ -161,7 +161,8 @@ absl::Status ReadQcow2Header(const fs::path& qcow2_path, std::ifstream* ifs, Qco
     static_assert(kQcow2V2HeaderSize == 72);
     if (!ifs->read(reinterpret_cast<char*>(header), kQcow2V2HeaderSize)) {
         return absl::DataLossError(
-                absl::StrFormat("Truncated qcow2 header in '%s'", qcow2_path.string()));
+                absl::StrFormat("Truncated qcow2 header in '%s' (read %d of %zu bytes)",
+                                qcow2_path.string(), ifs->gcount(), kQcow2V2HeaderSize));
     }
 
     const uint32_t version = BeToHost32(header->version);
@@ -193,7 +194,8 @@ absl::StatusOr<std::optional<uint64_t>> ReadQcow2VirtualSize(const fs::path& qco
     ifs.seekg(offsetof(Qcow2Header, size));
     if (!ifs.read(reinterpret_cast<char*>(&size_be), sizeof(size_be))) {
         return absl::DataLossError(
-                absl::StrFormat("Truncated qcow2 header in '%s'", qcow2_path.string()));
+                absl::StrFormat("Truncated qcow2 header in '%s' (read %d of %zu bytes)",
+                                qcow2_path.string(), ifs.gcount(), sizeof(size_be)));
     }
     return BeToHost64(size_be);
 }
@@ -409,7 +411,8 @@ absl::StatusOr<std::vector<Qcow2Snapshot>> ListQcow2Snapshots(const fs::path& qc
         Qcow2SnapshotHeader snap_hdr = {};
         if (!ifs.read(reinterpret_cast<char*>(&snap_hdr), sizeof(snap_hdr))) {
             return absl::DataLossError(absl::StrFormat(
-                    "Truncated snapshot header at index %u in '%s'", i, qcow2_path.string()));
+                    "Truncated snapshot header at index %u in '%s' (read %d of %zu bytes)", i,
+                    qcow2_path.string(), ifs.gcount(), sizeof(snap_hdr)));
         }
 
         const uint16_t id_str_size = BeToHost16(snap_hdr.id_str_size);
@@ -434,9 +437,9 @@ absl::StatusOr<std::vector<Qcow2Snapshot>> ListQcow2Snapshots(const fs::path& qc
             const size_t known_extra_size = std::min<size_t>(sizeof(extra), extra_data_size);
             if (!ifs.read(reinterpret_cast<char*>(&extra),
                           static_cast<std::streamsize>(known_extra_size))) {
-                return absl::DataLossError(
-                        absl::StrFormat("Truncated snapshot extra data at index %u in '%s'", i,
-                                        qcow2_path.string()));
+                return absl::DataLossError(absl::StrFormat(
+                        "Truncated snapshot extra data at index %u in '%s' (read %d of %zu bytes)",
+                        i, qcow2_path.string(), ifs.gcount(), known_extra_size));
             }
             if (extra_data_size >= offsetof(Qcow2SnapshotExtraData, vm_state_size_large) +
                                            sizeof(extra.vm_state_size_large)) {
@@ -457,23 +460,26 @@ absl::StatusOr<std::vector<Qcow2Snapshot>> ListQcow2Snapshots(const fs::path& qc
                 const auto unknown_size =
                         static_cast<std::streamsize>(extra_data_size - known_extra_size);
                 if (!ifs.ignore(unknown_size) || ifs.gcount() != unknown_size) {
-                    return absl::DataLossError(
-                            absl::StrFormat("Truncated snapshot extra data at index %u in '%s'", i,
-                                            qcow2_path.string()));
+                    return absl::DataLossError(absl::StrFormat(
+                            "Truncated snapshot extra data at index %u in '%s' (skipped %d of %d "
+                            "bytes)",
+                            i, qcow2_path.string(), ifs.gcount(), unknown_size));
                 }
             }
         }
 
         std::string id(id_str_size, '\0');
         if (id_str_size > 0 && !ifs.read(id.data(), id_str_size)) {
-            return absl::DataLossError(absl::StrFormat("Truncated snapshot ID at index %u in '%s'",
-                                                       i, qcow2_path.string()));
+            return absl::DataLossError(absl::StrFormat(
+                    "Truncated snapshot ID at index %u in '%s' (read %d of %u bytes)", i,
+                    qcow2_path.string(), ifs.gcount(), id_str_size));
         }
 
         std::string name(name_size, '\0');
         if (name_size > 0 && !ifs.read(name.data(), name_size)) {
             return absl::DataLossError(absl::StrFormat(
-                    "Truncated snapshot name at index %u in '%s'", i, qcow2_path.string()));
+                    "Truncated snapshot name at index %u in '%s' (read %d of %u bytes)", i,
+                    qcow2_path.string(), ifs.gcount(), name_size));
         }
 
         const size_t entry_size = sizeof(snap_hdr) + extra_data_size + id_str_size + name_size;
