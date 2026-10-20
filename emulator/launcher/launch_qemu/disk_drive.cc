@@ -84,8 +84,15 @@ std::vector<std::string> Qcow2Drive::getQemuParameters(const EmulatorConfig& emu
                 ",overlap-check=none,cache.direct=off,cache.no-flush=on,l2-cache-size=1048576")};
 }
 
-absl::Status Qcow2Drive::MakeQcow2() const {
-    if (!base::file::exists(qcow2_image_)) {
+absl::Status Qcow2Drive::MakeQcow2(const bool wipe) const {
+    if (wipe && base::file::exists(qcow2_image_)) {
+        LOG(WARNING) << "Deleting a qcow2 file on '" << id() << "': " << qcow2_image_;
+        base::file::rm(qcow2_image_).IgnoreError();
+    }
+
+    if (wipe || !::goldfish::fsimage::IsValidQcow2Image(qcow2_image_)) {
+        LOG(INFO) << "Creating a qcow2 file on '" << id() << "': " << qcow2_image_ << " for "
+                  << backing_image_;
         return ::goldfish::fsimage::CreateQcow2Overlay(qcow2_image_, backing_image_);
     }
 
@@ -93,33 +100,35 @@ absl::Status Qcow2Drive::MakeQcow2() const {
 }
 
 absl::Status WritableImgDrive::initialize(const EmulatorConfig& emulator) {
-    return MakeQcow2();
+    return MakeQcow2(/*wipe=*/false);
 }
 
 absl::Status BlankWritableDrive::initialize(const EmulatorConfig& emulator) {
-    if (base::file::exists(backing_image_)) {
-        LOG(INFO) << backing_image_ << " already exists for " << id();
-    } else {
-        LOG(INFO) << "Preparing empty drive: " << backing_image_;
-        base::file::rm(qcow2_image_).IgnoreError();
+    if (::goldfish::fsimage::IsValidQcow2Image(qcow2_image_)) {
+        return absl::OkStatus();
+    }
+
+    if (!base::file::exists(backing_image_)) {
+        LOG(INFO) << "Preparing empty drive '" << id() << "': " << backing_image_;
         RETURN_IF_ERROR(::goldfish::fsimage::CreateEmptyExt4Image(backing_image_, size_, id()));
     }
 
-    return MakeQcow2();
+    return MakeQcow2(/*wipe=*/true);
 }
 
 absl::Status WritableDirectoryDrive::initialize(const EmulatorConfig& emulator) {
-    if (base::file::exists(backing_image_)) {
-        LOG(INFO) << backing_image_ << " already exists for " << id();
-    } else {
-        LOG(INFO) << "Preparing non empty drive: " << backing_image_ << " from src directory "
-                  << src_directory_;
-        base::file::rm(qcow2_image_).IgnoreError();
+    if (::goldfish::fsimage::IsValidQcow2Image(qcow2_image_)) {
+        return absl::OkStatus();
+    }
+
+    if (!base::file::exists(backing_image_)) {
+        LOG(INFO) << "Preparing non empty drive '" << id() << "': " << backing_image_
+                  << " from src directory " << src_directory_;
         RETURN_IF_ERROR(::goldfish::fsimage::CreateExt4ImageFromDir(backing_image_, src_directory_,
                                                                     size_, id()));
     }
 
-    return MakeQcow2();
+    return MakeQcow2(/*wipe=*/true);
 }
 
 }  // namespace android::goldfish

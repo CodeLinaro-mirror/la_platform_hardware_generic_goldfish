@@ -26,8 +26,10 @@
 #include "android/status/status_matcher_macros.h"
 #include "fake_emulator.h"
 #include "goldfish/file/file.h"
+#include "goldfish/fsimage/qcow2.h"
 
 using ::absl_testing::IsOk;
+using ::absl_testing::IsOkAndHolds;
 using ::absl_testing::StatusIs;
 
 namespace android::goldfish::test {
@@ -149,7 +151,7 @@ TEST(WritableImgDrive, Basic_x86) {
     auto userData = launcher_path / "userdata.img";
     auto qcow2Image = launcher_path / "userdata.img.qcow2";
     std::ofstream(userData).close();
-    std::ofstream(qcow2Image).close();
+    ASSERT_OK(::goldfish::fsimage::CreateQcow2Overlay(qcow2Image, userData));
 
     FakeEmulator emu;
     EXPECT_CALL(emu.mock_avd(), Arch()).WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
@@ -173,7 +175,7 @@ TEST(WritableImgDrive, Basic_arm) {
     auto userData = launcher_path / "userdata.img";
     auto qcow2Image = launcher_path / "userdata.img.qcow2";
     std::ofstream(userData).close();
-    std::ofstream(qcow2Image).close();
+    ASSERT_OK(::goldfish::fsimage::CreateQcow2Overlay(qcow2Image, userData));
 
     FakeEmulator emu;
     EXPECT_CALL(emu.mock_avd(), Arch()).WillRepeatedly(testing::Return(Avd::CpuArchitecture::kArm));
@@ -200,7 +202,39 @@ TEST(WritableImgDrive, CreatesQcow2OverlayWhenMissing) {
     FakeEmulator emu;
     WritableImgDrive dev("userdata", "04.0", userData, qcow2Image);
     EXPECT_OK(dev.initialize(emu.config()));
-    EXPECT_TRUE(base::file::exists(qcow2Image));
+    EXPECT_TRUE(::goldfish::fsimage::IsValidQcow2Image(qcow2Image));
+    EXPECT_THAT(::goldfish::fsimage::ReadQcow2BackingPath(qcow2Image), IsOkAndHolds(userData));
+}
+
+TEST(WritableImgDrive, RecreatesQcow2OverlayWhenInvalid) {
+    base::TestSystem sys("");
+    auto launcher_path = sys.GetTempRoot()->Path();
+    auto userData = launcher_path / "userdata.img";
+    auto qcow2Image = launcher_path / "userdata.img.qcow2";
+    std::ofstream(userData).close();
+    std::ofstream(qcow2Image).close();
+
+    FakeEmulator emu;
+    WritableImgDrive dev("userdata", "04.0", userData, qcow2Image);
+    EXPECT_OK(dev.initialize(emu.config()));
+    EXPECT_TRUE(::goldfish::fsimage::IsValidQcow2Image(qcow2Image));
+    EXPECT_THAT(::goldfish::fsimage::ReadQcow2BackingPath(qcow2Image), IsOkAndHolds(userData));
+}
+
+TEST(WritableImgDrive, UsesExistingValidQcow2WhenBackingImageMissing) {
+    base::TestSystem sys("");
+    auto launcher_path = sys.GetTempRoot()->Path();
+    auto otherBacking = launcher_path / "other.img";
+    auto userData = launcher_path / "userdata.img";
+    auto qcow2Image = launcher_path / "userdata.img.qcow2";
+    std::ofstream(otherBacking).close();
+    ASSERT_OK(::goldfish::fsimage::CreateQcow2Overlay(qcow2Image, otherBacking));
+
+    FakeEmulator emu;
+    WritableImgDrive dev("userdata", "04.0", userData, qcow2Image);
+    EXPECT_OK(dev.initialize(emu.config()));
+    EXPECT_FALSE(base::file::exists(userData));
+    EXPECT_THAT(::goldfish::fsimage::ReadQcow2BackingPath(qcow2Image), IsOkAndHolds(otherBacking));
 }
 
 TEST(WritableImgDrive, EscapesCommasInQcow2ImagePath) {
@@ -210,7 +244,7 @@ TEST(WritableImgDrive, EscapesCommasInQcow2ImagePath) {
     auto userData = image_dir / "userdata,base.img";
     auto qcow2Image = image_dir / "userdata,overlay.img.qcow2";
     ASSERT_OK(base::file::touch(userData));
-    ASSERT_OK(base::file::touch(qcow2Image));
+    ASSERT_OK(::goldfish::fsimage::CreateQcow2Overlay(qcow2Image, userData));
 
     FakeEmulator emu;
     EXPECT_CALL(emu.mock_avd(), Arch()).WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
@@ -234,7 +268,7 @@ TEST(BlankWritableDrive, Basic_x86) {
     auto userData = launcher_path / "userdata.img";
     auto qcow2Image = launcher_path / "userdata.img.qcow2";
     std::ofstream(userData).close();
-    std::ofstream(qcow2Image).close();
+    ASSERT_OK(::goldfish::fsimage::CreateQcow2Overlay(qcow2Image, userData));
 
     FakeEmulator emu;
     EXPECT_CALL(emu.mock_avd(), Arch()).WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
@@ -258,7 +292,7 @@ TEST(BlankWritableDrive, Basic_arm) {
     auto userData = launcher_path / "userdata.img";
     auto qcow2Image = launcher_path / "userdata.img.qcow2";
     std::ofstream(userData).close();
-    std::ofstream(qcow2Image).close();
+    ASSERT_OK(::goldfish::fsimage::CreateQcow2Overlay(qcow2Image, userData));
 
     FakeEmulator emu;
     EXPECT_CALL(emu.mock_avd(), Arch()).WillRepeatedly(testing::Return(Avd::CpuArchitecture::kArm));
@@ -275,6 +309,51 @@ TEST(BlankWritableDrive, Basic_arm) {
                                  "cache-size=1048576")));
 }
 
+TEST(BlankWritableDrive, UsesExistingValidQcow2WhenBackingImageMissing) {
+    base::TestSystem sys("");
+    auto launcher_path = sys.GetTempRoot()->Path();
+    auto otherBacking = launcher_path / "other.img";
+    auto userData = launcher_path / "userdata.img";
+    auto qcow2Image = launcher_path / "userdata.img.qcow2";
+    std::ofstream(otherBacking).close();
+    ASSERT_OK(::goldfish::fsimage::CreateQcow2Overlay(qcow2Image, otherBacking));
+
+    FakeEmulator emu;
+    BlankWritableDrive dev("userdata", "04.0", userData, qcow2Image, 1024);
+    EXPECT_OK(dev.initialize(emu.config()));
+    EXPECT_FALSE(base::file::exists(userData));
+    EXPECT_THAT(::goldfish::fsimage::ReadQcow2BackingPath(qcow2Image), IsOkAndHolds(otherBacking));
+}
+
+TEST(BlankWritableDrive, RecreatesQcow2WhenInvalidAndBackingImageExists) {
+    base::TestSystem sys("");
+    auto launcher_path = sys.GetTempRoot()->Path();
+    auto userData = launcher_path / "userdata.img";
+    auto qcow2Image = launcher_path / "userdata.img.qcow2";
+    std::ofstream(userData).close();
+    std::ofstream(qcow2Image).close();
+
+    FakeEmulator emu;
+    BlankWritableDrive dev("userdata", "04.0", userData, qcow2Image, 1024);
+    EXPECT_OK(dev.initialize(emu.config()));
+    EXPECT_TRUE(::goldfish::fsimage::IsValidQcow2Image(qcow2Image));
+    EXPECT_THAT(::goldfish::fsimage::ReadQcow2BackingPath(qcow2Image), IsOkAndHolds(userData));
+}
+
+TEST(BlankWritableDrive, CreatesBackingAndQcow2ImagesWhenBothMissing) {
+    base::TestSystem sys("");
+    auto launcher_path = sys.GetTempRoot()->Path();
+    auto userData = launcher_path / "userdata.img";
+    auto qcow2Image = launcher_path / "userdata.img.qcow2";
+
+    FakeEmulator emu;
+    BlankWritableDrive dev("userdata", "04.0", userData, qcow2Image, 8 * 1024 * 1024);
+    EXPECT_OK(dev.initialize(emu.config()));
+    EXPECT_TRUE(base::file::exists(userData));
+    EXPECT_TRUE(::goldfish::fsimage::IsValidQcow2Image(qcow2Image));
+    EXPECT_THAT(::goldfish::fsimage::ReadQcow2BackingPath(qcow2Image), IsOkAndHolds(userData));
+}
+
 TEST(WritableDirectoryDrive, Basic_x86) {
     base::TestSystem sys("");
     auto launcher_path = sys.GetTempRoot()->Path();
@@ -282,7 +361,7 @@ TEST(WritableDirectoryDrive, Basic_x86) {
     auto qcow2Image = launcher_path / "userdata.img.qcow2";
     auto srcDir = launcher_path / "data";
     std::ofstream(userData).close();
-    std::ofstream(qcow2Image).close();
+    ASSERT_OK(::goldfish::fsimage::CreateQcow2Overlay(qcow2Image, userData));
 
     FakeEmulator emu;
     EXPECT_CALL(emu.mock_avd(), Arch()).WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
@@ -307,7 +386,7 @@ TEST(WritableDirectoryDrive, Basic_arm) {
     auto qcow2Image = launcher_path / "userdata.img.qcow2";
     auto srcDir = launcher_path / "data";
     std::ofstream(userData).close();
-    std::ofstream(qcow2Image).close();
+    ASSERT_OK(::goldfish::fsimage::CreateQcow2Overlay(qcow2Image, userData));
 
     FakeEmulator emu;
     EXPECT_CALL(emu.mock_avd(), Arch()).WillRepeatedly(testing::Return(Avd::CpuArchitecture::kArm));
@@ -322,6 +401,55 @@ TEST(WritableDirectoryDrive, Basic_arm) {
                                  qcow2Image.string(),
                                  ",overlap-check=none,cache.direct=off,cache.no-flush=on,l2-"
                                  "cache-size=1048576")));
+}
+
+TEST(WritableDirectoryDrive, UsesExistingValidQcow2WhenBackingImageMissing) {
+    base::TestSystem sys("");
+    auto launcher_path = sys.GetTempRoot()->Path();
+    auto otherBacking = launcher_path / "other.img";
+    auto userData = launcher_path / "userdata.img";
+    auto qcow2Image = launcher_path / "userdata.img.qcow2";
+    auto srcDir = launcher_path / "data";
+    std::ofstream(otherBacking).close();
+    ASSERT_OK(::goldfish::fsimage::CreateQcow2Overlay(qcow2Image, otherBacking));
+
+    FakeEmulator emu;
+    WritableDirectoryDrive dev("userdata", "04.0", userData, qcow2Image, srcDir, 1024);
+    EXPECT_OK(dev.initialize(emu.config()));
+    EXPECT_FALSE(base::file::exists(userData));
+    EXPECT_THAT(::goldfish::fsimage::ReadQcow2BackingPath(qcow2Image), IsOkAndHolds(otherBacking));
+}
+
+TEST(WritableDirectoryDrive, RecreatesQcow2WhenInvalidAndBackingImageExists) {
+    base::TestSystem sys("");
+    auto launcher_path = sys.GetTempRoot()->Path();
+    auto userData = launcher_path / "userdata.img";
+    auto qcow2Image = launcher_path / "userdata.img.qcow2";
+    auto srcDir = launcher_path / "data";
+    std::ofstream(userData).close();
+    std::ofstream(qcow2Image).close();
+
+    FakeEmulator emu;
+    WritableDirectoryDrive dev("userdata", "04.0", userData, qcow2Image, srcDir, 1024);
+    EXPECT_OK(dev.initialize(emu.config()));
+    EXPECT_TRUE(::goldfish::fsimage::IsValidQcow2Image(qcow2Image));
+    EXPECT_THAT(::goldfish::fsimage::ReadQcow2BackingPath(qcow2Image), IsOkAndHolds(userData));
+}
+
+TEST(WritableDirectoryDrive, CreatesBackingAndQcow2ImagesWhenBothMissing) {
+    base::TestSystem sys("");
+    auto launcher_path = sys.GetTempRoot()->Path();
+    auto userData = launcher_path / "userdata.img";
+    auto qcow2Image = launcher_path / "userdata.img.qcow2";
+    auto srcDir = launcher_path / "data";
+    ASSERT_OK(base::file::mkdir_recursive(srcDir, 0755));
+
+    FakeEmulator emu;
+    WritableDirectoryDrive dev("userdata", "04.0", userData, qcow2Image, srcDir, 8 * 1024 * 1024);
+    EXPECT_OK(dev.initialize(emu.config()));
+    EXPECT_TRUE(base::file::exists(userData));
+    EXPECT_TRUE(::goldfish::fsimage::IsValidQcow2Image(qcow2Image));
+    EXPECT_THAT(::goldfish::fsimage::ReadQcow2BackingPath(qcow2Image), IsOkAndHolds(userData));
 }
 
 }  // namespace android::goldfish::test

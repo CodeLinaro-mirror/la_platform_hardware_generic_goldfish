@@ -69,7 +69,7 @@ class Qcow2Drive : public PciDevice {
             , backing_image_(std::move(backing_image))
             , qcow2_image_(std::move(qcow2_image)) {}
 
-    absl::Status MakeQcow2() const;
+    absl::Status MakeQcow2(bool wipe) const;
 
     const fs::path backing_image_;
     const fs::path qcow2_image_;

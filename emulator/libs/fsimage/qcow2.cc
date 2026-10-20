@@ -326,9 +326,45 @@ absl::Status CreateQcow2Overlay(const fs::path& qcow2_image, std::string_view ba
 
 }  // namespace internal
 
-bool IsQcow2Path(const fs::path& path) {
-    const auto size_or = internal::ReadQcow2VirtualSize(path);
-    return size_or.ok() && size_or->has_value();
+absl::StatusOr<fs::path> ReadQcow2BackingPath(const fs::path& qcow2_path) {
+    std::ifstream ifs;
+    Qcow2Header header = {};
+    RETURN_IF_ERROR(ReadQcow2Header(qcow2_path, &ifs, &header));
+
+    const uint64_t backing_file_offset = BeToHost64(header.backing_file_offset);
+    const uint32_t backing_file_size = BeToHost32(header.backing_file_size);
+    if (backing_file_offset == 0 || backing_file_size == 0) {
+        return fs::path{};
+    }
+    if (backing_file_size > kMaxBackingFileLength) {
+        return absl::DataLossError(
+                absl::StrFormat("Backing file size (%u) exceeds maximum (%u) in '%s'",
+                                backing_file_size, kMaxBackingFileLength, qcow2_path.string()));
+    }
+
+    ifs.seekg(static_cast<std::streamoff>(backing_file_offset));
+    std::string backing_file(backing_file_size, '\0');
+    if (!ifs.read(backing_file.data(), static_cast<std::streamsize>(backing_file_size))) {
+        return absl::DataLossError(
+                absl::StrFormat("Truncated backing file path in '%s' (read %d of %u bytes)",
+                                qcow2_path.string(), ifs.gcount(), backing_file_size));
+    }
+    return fs::path(std::move(backing_file));
+}
+
+bool IsValidQcow2Image(const fs::path& path, const bool allow_empty_backing_path) {
+    const auto backing_path = ReadQcow2BackingPath(path);
+    if (!backing_path.ok()) {
+        return false;
+    }
+
+    if (backing_path->empty()) {
+        return allow_empty_backing_path;
+    }
+
+    const fs::path resolved_backing =
+            backing_path->is_relative() ? (path.parent_path() / *backing_path) : *backing_path;
+    return android::base::file::exists(resolved_backing);
 }
 
 absl::Status CreateQcow2Overlay(const fs::path& qcow2_image, const fs::path& backing_image) {
@@ -355,31 +391,6 @@ absl::Status CreateQcow2Overlay(const fs::path& qcow2_image,
                                 const android::base::StorageCapacity raw_size) {
     using std::string_view_literals::operator""sv;
     return internal::CreateQcow2Overlay(qcow2_image, ""sv, ""sv, raw_size.Bytes());
-}
-
-absl::StatusOr<std::string> ReadBackingFileFromQcow2(const fs::path& qcow2_path) {
-    std::ifstream ifs;
-    Qcow2Header header = {};
-    RETURN_IF_ERROR(ReadQcow2Header(qcow2_path, &ifs, &header));
-
-    const uint64_t backing_file_offset = BeToHost64(header.backing_file_offset);
-    const uint32_t backing_file_size = BeToHost32(header.backing_file_size);
-    if (backing_file_offset == 0 || backing_file_size == 0) {
-        return std::string{};
-    }
-    if (backing_file_size > kMaxBackingFileLength) {
-        return absl::DataLossError(
-                absl::StrFormat("Backing file size (%u) exceeds maximum (%u) in '%s'",
-                                backing_file_size, kMaxBackingFileLength, qcow2_path.string()));
-    }
-
-    ifs.seekg(static_cast<std::streamoff>(backing_file_offset));
-    std::string backing_file(backing_file_size, '\0');
-    if (!ifs.read(backing_file.data(), static_cast<std::streamsize>(backing_file_size))) {
-        return absl::DataLossError(
-                absl::StrFormat("Truncated backing file path in '%s'", qcow2_path.string()));
-    }
-    return backing_file;
 }
 
 absl::StatusOr<std::vector<Qcow2Snapshot>> ListQcow2Snapshots(const fs::path& qcow2_path) {
