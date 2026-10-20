@@ -20,7 +20,7 @@
 
 namespace goldfish::videobridge {
 
-constexpr int32_t kSampleRateHz = 44100;
+constexpr int32_t kSampleRateHz = 48000;
 constexpr int32_t kChannels = 2;
 constexpr int32_t kBytesPerSample = 2;
 
@@ -72,6 +72,8 @@ void GrpcAudioSource::OnStop() {
 }
 
 void GrpcAudioSource::CaptureLoop() {
+    partial_frame_.clear();
+
     AudioFormat request_format;
     request_format.set_format(AudioFormat::AUD_FMT_S16);
     request_format.set_channels(AudioFormat::Stereo);

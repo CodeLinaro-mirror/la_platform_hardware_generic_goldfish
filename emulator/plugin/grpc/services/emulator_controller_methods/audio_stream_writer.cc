@@ -14,6 +14,7 @@
 
 #include "audio_stream_writer.h"
 
+#include <limits>
 #include <memory>
 #include <string>
 #include <utility>
@@ -47,8 +48,17 @@ AudioStreamWriter::AudioStreamWriter(const AudioFormat& request, AudioBackend* a
                         "AUD_FMT_S16.";
     }
 
-    uint32_t sample_rate =
-            request.samplingrate() > 0 ? static_cast<uint32_t>(request.samplingrate()) : 44100;
+    if (request.samplingrate() == 0 ||
+        request.samplingrate() > std::numeric_limits<uint32_t>::max()) {
+        std::string error_msg = absl::StrFormat(
+                "Invalid samplingRate value %u in AudioFormat. Must be between 1 and %u Hz.",
+                request.samplingrate(), std::numeric_limits<uint32_t>::max());
+        LOG(WARNING) << "streamAudio: " << error_msg;
+        Finish(grpc::Status(grpc::StatusCode::INVALID_ARGUMENT, error_msg));
+        return;
+    }
+
+    uint32_t sample_rate = static_cast<uint32_t>(request.samplingrate());
     uint32_t channels = (request.channels() == AudioFormat::Mono) ? 1 : 2;
 
     format_ = request;

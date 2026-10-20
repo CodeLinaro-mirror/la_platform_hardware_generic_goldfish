@@ -42,7 +42,7 @@ namespace goldfish::videobridge {
  */
 class InProcessAudioSource : public ManagedAudioTrackSource {
   public:
-    explicit InProcessAudioSource(uint32_t sample_rate = 44100, uint32_t channels = 2);
+    InProcessAudioSource(uint32_t sample_rate, uint32_t channels);
     ~InProcessAudioSource() override;
 
     uint32_t sample_rate() const { return sample_rate_; }
