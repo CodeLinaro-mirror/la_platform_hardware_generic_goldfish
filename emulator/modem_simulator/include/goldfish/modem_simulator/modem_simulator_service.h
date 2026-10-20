@@ -32,8 +32,11 @@ struct ModemSimulatorService {
     virtual std::string ChardevEndpoint() const = 0;
     virtual int HostId() const = 0;
 
+    // |timezone| is the zoneinfo name (e.g. "Europe/Paris") sent to the guest in
+    // NITZ updates. It is left out of them when empty.
     static std::shared_ptr<ModemSimulatorService> Create(
-            const Avd& avd, const std::optional<std::filesystem::path>& icc_profile_override);
+            const Avd& avd, const std::optional<std::filesystem::path>& icc_profile_override,
+            std::string timezone);
 };
 
 }  // namespace goldfish::modem_simulator

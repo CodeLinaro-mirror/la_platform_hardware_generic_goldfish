@@ -17,6 +17,7 @@
 | **logging** | Structured logging primitives and level management. | [Architecture](logging/ARCHITECTURE.md) |
 | **cpp** | C++ meta-programming helpers (`Overloaded`). | [Architecture](cpp/ARCHITECTURE.md) |
 | **status_macros** | Abseil status macros and status conversion helpers. | [Architecture](status_macros/ARCHITECTURE.md) |
+| **timezone** | Host timezone detection (zoneinfo names) for the guest. | [Architecture](timezone/ARCHITECTURE.md) |
 
 ### Async, I/O & Communication
 | Library | Description | Documentation |
