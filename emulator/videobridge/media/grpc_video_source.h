@@ -24,6 +24,7 @@
 #include "api/scoped_refptr.h"
 #include "api/video/i420_buffer.h"
 #include "api/video/nv12_buffer.h"
+#include "common_video/include/video_frame_buffer_pool.h"
 #pragma clang diagnostic pop
 
 #include <atomic>
@@ -78,6 +79,7 @@ class VideoFormatPipeline {
     virtual std::optional<::webrtc::VideoFrame> Convert(const uint8_t* raw_data, size_t raw_size,
                                                         uint32_t width, uint32_t height,
                                                         int64_t timestamp_us) = 0;
+    virtual void Release() {}
 };
 
 /**
@@ -90,6 +92,11 @@ class RgbaToNv12Pipeline : public VideoFormatPipeline {
     std::optional<::webrtc::VideoFrame> Convert(const uint8_t* raw_data, size_t raw_size,
                                                 uint32_t width, uint32_t height,
                                                 int64_t timestamp_us) override;
+    void Release() override;
+
+  private:
+    ::webrtc::VideoFrameBufferPool buffer_pool_{/*zero_initialize=*/false,
+                                                /*max_number_of_buffers=*/8};
 };
 
 /**
@@ -102,6 +109,11 @@ class RgbaToI420Pipeline : public VideoFormatPipeline {
     std::optional<::webrtc::VideoFrame> Convert(const uint8_t* raw_data, size_t raw_size,
                                                 uint32_t width, uint32_t height,
                                                 int64_t timestamp_us) override;
+    void Release() override;
+
+  private:
+    ::webrtc::VideoFrameBufferPool buffer_pool_{/*zero_initialize=*/false,
+                                                /*max_number_of_buffers=*/8};
 };
 
 /**

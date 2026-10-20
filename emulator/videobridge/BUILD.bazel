@@ -878,6 +878,7 @@ cc_library(
         "@libyuv",
         "@webrtc//api:audio_options_api",
         "@webrtc//api:peer_connection_interface",
+        "@webrtc//common_video",
         "@webrtc//media:adapted_video_track_source",
         "@webrtc//media:video_broadcaster",
         "@webrtc//rtc_base:timeutils",
