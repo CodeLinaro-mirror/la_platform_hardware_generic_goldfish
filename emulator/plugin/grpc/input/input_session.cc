@@ -28,6 +28,7 @@ namespace {
 
 using ::android::emulation::control::KeyboardEvent;
 using ::android::emulation::control::kMtsPointerUp;
+using ::android::emulation::control::kMtsPressureMax;
 using ::android::emulation::v2::AxisType;
 using ::android::emulation::v2::ButtonMask;
 using ::android::emulation::v2::KeyAction;
@@ -57,13 +58,15 @@ constexpr uint32_t ToEvdevValue(float value) {
 }
 
 /**
- * @brief Normalizes a normalized float coordinate [0.0, 1.0] to Linux evdev ABS range [0, 0x7FFF].
+ * @brief Normalizes a normalized float value [0.0, 1.0] to Linux evdev ABS range [0, range_max].
+ *
+ * @param range_max The maximum value the guest device advertises for the axis.
  */
-constexpr uint32_t NormalizeToEvAbs(float value) {
+constexpr uint32_t NormalizeToEvAbs(float value, uint32_t range_max = kEvAbsMax) {
     if (std::isnan(value)) {
         return 0;
     }
-    return static_cast<uint32_t>(std::clamp(value, 0.0F, 1.0F) * kEvAbsMax);
+    return static_cast<uint32_t>(std::clamp(value, 0.0F, 1.0F) * static_cast<float>(range_max));
 }
 
 constexpr float kRadToDeg = 180.0F / 3.14159265358979323846F;
@@ -298,7 +301,7 @@ void AppendPointerDownOrMove(const PointerEvent::Pointer& p, PointerAction actio
                            action == PointerAction::POINTER_ACTION_HOVER_ENTER);
     const float pressure =
             is_hover ? 0.0F : ((p.has_pressure() && p.pressure() > 0.0F) ? p.pressure() : 1.0F);
-    events.push_back({EV_ABS, ABS_MT_PRESSURE, NormalizeToEvAbs(pressure)});
+    events.push_back({EV_ABS, ABS_MT_PRESSURE, NormalizeToEvAbs(pressure, kMtsPressureMax)});
 
     const uint32_t touch_major = p.size() > 0.0F ? NormalizeToEvAbs(p.size()) : kDefaultTouchMajor;
     events.push_back({EV_ABS, ABS_MT_TOUCH_MAJOR, touch_major});

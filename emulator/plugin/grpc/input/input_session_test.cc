@@ -333,8 +333,7 @@ TEST_F(InputSessionTestFixture, MultiTouch_SingleFingerDownTracking) {
         if (ev.type == EV_ABS && ev.code == ABS_MT_POSITION_Y &&
             ev.value == static_cast<uint32_t>(0.50F * 0x7FFF))
             found_pos_y = true;
-        if (ev.type == EV_ABS && ev.code == ABS_MT_PRESSURE &&
-            ev.value == static_cast<uint32_t>(0.75F * 0x7FFF))
+        if (ev.type == EV_ABS && ev.code == ABS_MT_PRESSURE && ev.value == 0x300)
             found_pressure = true;
     }
 
@@ -1349,7 +1348,7 @@ TEST_F(InputSessionTestFixture, Libevdev_MultiTouchProtocolB_CoordinateClampingM
             found_clamped_x = true;
         if (ev.type == EV_ABS && ev.code == ABS_MT_POSITION_Y && ev.value == 0x7FFF)
             found_clamped_y = true;
-        if (ev.type == EV_ABS && ev.code == ABS_MT_PRESSURE && ev.value == 0x7FFF)
+        if (ev.type == EV_ABS && ev.code == ABS_MT_PRESSURE && ev.value == 0x400)
             found_clamped_pressure = true;
     }
 
@@ -1820,7 +1819,29 @@ TEST_F(InputSessionTestFixture, DownWithDefaultZeroPressureAllocatesSlotAndEmits
     // Verify slot was allocated, tracking ID was assigned, and default contact pressure was emitted
     EXPECT_TRUE(HasEvent(display->evdevs, EV_ABS, ABS_MT_SLOT, 0));
     EXPECT_TRUE(HasEvent(display->evdevs, EV_ABS, ABS_MT_TRACKING_ID, 0));
-    EXPECT_TRUE(HasEvent(display->evdevs, EV_ABS, ABS_MT_PRESSURE, 0x7FFF));
+    EXPECT_TRUE(HasEvent(display->evdevs, EV_ABS, ABS_MT_PRESSURE, 0x400));
+}
+
+TEST_F(InputSessionTestFixture, DownPressureIsScaledToDevicePressureRange) {
+    auto* display = GetDisplay(0);
+    ASSERT_NE(display, nullptr);
+    InputSession session(*multi_display_, key_sender_, false);
+
+    InputEvent event;
+    auto* ptr = event.mutable_pointer();
+    ptr->set_display_id(0);
+    ptr->set_action(PointerAction::POINTER_ACTION_DOWN);
+    auto* p = ptr->add_pointers();
+    p->set_pointer_id(7);
+    p->set_x(0.5F);
+    p->set_y(0.5F);
+    p->set_pressure(0.5F);
+
+    display->evdevs.clear();
+    EXPECT_TRUE(session.DispatchInputEvent(event).ok());
+
+    // virtio-input-android advertises ABS_MT_PRESSURE in [0, 0x400].
+    EXPECT_TRUE(HasEvent(display->evdevs, EV_ABS, ABS_MT_PRESSURE, 0x200));
 }
 
 TEST_F(InputSessionTestFixture, HoverMoveEmitsZeroPressure) {
@@ -1891,7 +1912,7 @@ TEST_F(InputSessionTestFixture, PointerMoveWithOmittedPressureDefaultsToFullPres
         EXPECT_TRUE(session.DispatchInputEvent(move_event).ok());
 
         EXPECT_FALSE(HasEvent(display->evdevs, EV_ABS, ABS_MT_TRACKING_ID, kMtsPointerUp));
-        EXPECT_TRUE(HasEvent(display->evdevs, EV_ABS, ABS_MT_PRESSURE, 0x7FFF));
+        EXPECT_TRUE(HasEvent(display->evdevs, EV_ABS, ABS_MT_PRESSURE, 0x400));
     }
 }
 

@@ -36,6 +36,13 @@ constexpr uint32_t kMtsPointersNum = 10;
 constexpr uint32_t kMtsPointerUp = -1;
 
 /**
+ * @brief Maximum ABS_MT_PRESSURE value (full contact pressure).
+ *
+ * Must match MTS_PRESSURE_RANGE_MAX advertised by virtio-input-android.
+ */
+constexpr uint32_t kMtsPressureMax = 0x400;
+
+/**
  * @brief Manages the allocation and deallocation of touch slots for multi-touch events.
  *
  * This class is responsible for mapping external touch identifiers to internal
