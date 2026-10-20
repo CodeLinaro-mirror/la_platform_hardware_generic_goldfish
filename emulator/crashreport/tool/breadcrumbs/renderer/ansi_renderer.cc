@@ -81,31 +81,6 @@ struct RenderEvent {
     bool is_crashing_thread;
 };
 
-std::string_view PhaseToLabel(android::control::breadcrumbs::GrpcPayload::GrpcPhase phase) {
-    using android::control::breadcrumbs::GrpcPayload;
-    switch (phase) {
-    case GrpcPayload::START:
-        return "START"sv;
-    case GrpcPayload::PRE_SEND_INITIAL_METADATA:
-        return "SEND_META"sv;
-    case GrpcPayload::PRE_SEND_MESSAGE:
-        return "SEND_MSG"sv;
-    case GrpcPayload::PRE_SEND_STATUS:
-        return "SEND_STAT"sv;
-    case GrpcPayload::PRE_RECV_INITIAL_METADATA:
-        return "RECV_META"sv;
-    case GrpcPayload::PRE_RECV_MESSAGE:
-    case GrpcPayload::POST_RECV_MESSAGE:
-        return "RECV_MSG"sv;
-    case GrpcPayload::PRE_RECV_STATUS:
-        return "RECV_STAT"sv;
-    case GrpcPayload::END_OF_CALL:
-        return "END"sv;
-    default:
-        return "UNKNOWN"sv;
-    }
-}
-
 std::string_view GetCallColor(const DiagnosticTrace& trace, uint64_t call_id, bool use_color) {
     if (!use_color) return ""sv;
     auto it = trace.calls.find(call_id);
@@ -372,28 +347,9 @@ std::string AnsiRenderer::Render(const DiagnosticTrace& trace) const {
 
         // Call Narrative (Right side text).
         // Format: [ID] PHASE: Method     { Payload }   [STATUS]
-        std::string_view label = "UNKNOWN";
-        uint64_t call_id = proto.flow_id();
-        if (proto.has_grpc()) {
-            label = PhaseToLabel(proto.grpc().grpc_phase());
-        } else if (proto.has_adb()) {
-            label = "ADB";
-        } else if (proto.has_looper()) {
-            switch (proto.looper().event()) {
-            case android::control::breadcrumbs::LooperPayload::POST:
-                label = "POST";
-                break;
-            case android::control::breadcrumbs::LooperPayload::EXECUTE:
-                label = "EXEC";
-                break;
-            default:
-                label = "LOOPER";
-                break;
-            }
-        }
-
         const std::string call_info =
-                absl::StrFormat("[%v] %s: %s (T%v)", call_id, label, b.method_name, re.thread_id);
+                absl::StrFormat("[%v] %s: %s (T%v)", proto.flow_id(), FormatEventPhaseLabel(proto),
+                                b.method_name, re.thread_id);
         ss << "  " << c_color << std::left << std::setw(35) << call_info;
 
         if (!b.resolved_payload.empty()) {

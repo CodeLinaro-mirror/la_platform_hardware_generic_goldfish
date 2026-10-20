@@ -36,30 +36,6 @@ std::string EscapeMermaid(std::string_view text) {
                                {{"\"", "'"}, {"\n", " "}, {"\r", ""}, {"{", "("}, {"}", ")"}});
 }
 
-std::string PhaseToLabel(android::control::breadcrumbs::GrpcPayload::GrpcPhase phase) {
-    using android::control::breadcrumbs::GrpcPayload;
-    switch (phase) {
-    case GrpcPayload::START:
-        return "START";
-    case GrpcPayload::PRE_SEND_INITIAL_METADATA:
-        return "SEND_META";
-    case GrpcPayload::PRE_SEND_MESSAGE:
-        return "SEND_MSG";
-    case GrpcPayload::PRE_SEND_STATUS:
-        return "SEND_STAT";
-    case GrpcPayload::PRE_RECV_INITIAL_METADATA:
-        return "RECV_META";
-    case GrpcPayload::PRE_RECV_MESSAGE:
-        return "RECV_MSG";
-    case GrpcPayload::PRE_RECV_STATUS:
-        return "RECV_STAT";
-    case GrpcPayload::END_OF_CALL:
-        return "END";
-    default:
-        return "UNKNOWN";
-    }
-}
-
 }  // namespace
 
 std::string MermaidRenderer::Render(const DiagnosticTrace& trace) const {
@@ -121,28 +97,9 @@ std::string MermaidRenderer::Render(const DiagnosticTrace& trace) const {
         const uint64_t ts_ns = proto.timestamp_ns();
         const std::string time_str = FormatEventTime(ts_ns, start_time_ns);
 
-        // Format base label
-        std::string label_phase = "UNKNOWN";
-        if (proto.has_grpc()) {
-            label_phase = PhaseToLabel(proto.grpc().grpc_phase());
-        } else if (proto.has_adb()) {
-            label_phase = "ADB";
-        } else if (proto.has_looper()) {
-            switch (proto.looper().event()) {
-            case android::control::breadcrumbs::LooperPayload::POST:
-                label_phase = "POST";
-                break;
-            case android::control::breadcrumbs::LooperPayload::EXECUTE:
-                label_phase = "EXEC";
-                break;
-            default:
-                label_phase = "LOOPER";
-                break;
-            }
-        }
-
-        const std::string label = absl::StrFormat("%s | [%v] %s: %s", time_str, cid, label_phase,
-                                                  EscapeMermaid(b.method_name));
+        const std::string label =
+                absl::StrFormat("%s | [%v] %s: %s", time_str, cid, FormatEventPhaseLabel(proto),
+                                EscapeMermaid(b.method_name));
 
         const bool is_new_call = (call_to_last_tid.find(cid) == call_to_last_tid.end());
         const std::string source = is_new_call ? target : tid_to_alias[call_to_last_tid.at(cid)];
