@@ -1034,5 +1034,170 @@ TEST_F(InputDispatcherTest, DestructorDeliversQueuedActivity) {
     EXPECT_THAT(described, ElementsAre("src1 text 1", "src1 text 2", "src1 text 3"));
 }
 
+// Records how often an operation completed, and its last status and thread.
+struct Completion {
+    InputDispatcher::DispatchCallback Callback() {
+        return [this](absl::Status result) {
+            ++calls;
+            status = std::move(result);
+            thread = std::this_thread::get_id();
+        };
+    }
+
+    int calls = 0;
+    absl::Status status;
+    std::thread::id thread;
+};
+
+TEST_F(InputDispatcherTest, ShutdownCompletesPendingOperationsOnceWithUnavailable) {
+    const InputSessionId a = Agent();
+    loop_->RunAll();
+    std::array<Completion, 3> pending;
+    dispatcher_.DispatchPointer(a, Touch(kDown, {{0}}), pending[0].Callback());
+    dispatcher_.DispatchKey(a, Key(kKeyDown, KEY_A), pending[1].Callback());
+    dispatcher_.DispatchText(a, "x", pending[2].Callback());
+
+    dispatcher_.Shutdown();
+
+    for (const Completion& completion : pending) {
+        EXPECT_EQ(completion.calls, 1);
+        EXPECT_THAT(completion.status, StatusIs(absl::StatusCode::kUnavailable));
+        EXPECT_EQ(completion.thread, std::this_thread::get_id());
+    }
+    // The loop didn't stop, so the operations still run, but they apply
+    // nothing and don't complete again.
+    loop_->RunAll();
+    for (const Completion& completion : pending) {
+        EXPECT_EQ(completion.calls, 1);
+    }
+    EXPECT_THAT(inner_.reports, IsEmpty());
+    EXPECT_THAT(log_.writes, IsEmpty());
+}
+
+TEST_F(InputDispatcherTest, AfterShutdownNothingIsPostedAndDispatchIsUnavailable) {
+    const InputSessionId a = Agent();
+    loop_->RunAll();
+    dispatcher_.Shutdown();
+
+    EXPECT_GT(Agent(), a);
+    dispatcher_.CloseSession(a);
+    std::array<Completion, 3> rejected;
+    dispatcher_.DispatchPointer(a, Touch(kDown, {{0}}), rejected[0].Callback());
+    dispatcher_.DispatchKey(a, Key(kKeyDown, KEY_A), rejected[1].Callback());
+    dispatcher_.DispatchText(a, "x", rejected[2].Callback());
+
+    EXPECT_EQ(loop_->TaskCount(), 0);
+    for (const Completion& completion : rejected) {
+        EXPECT_EQ(completion.calls, 1);
+        EXPECT_THAT(completion.status, StatusIs(absl::StatusCode::kUnavailable));
+        EXPECT_EQ(completion.thread, std::this_thread::get_id());
+    }
+}
+
+TEST_F(InputDispatcherTest, ShutdownIsIdempotentAndCallableFromAnyThread) {
+    const InputSessionId a = Agent();
+    loop_->RunAll();
+    Completion pending;
+    dispatcher_.DispatchText(a, "x", pending.Callback());
+
+    std::thread other([this] { dispatcher_.Shutdown(); });
+    dispatcher_.Shutdown();
+    other.join();
+    dispatcher_.Shutdown();
+
+    EXPECT_EQ(pending.calls, 1);
+    EXPECT_THAT(pending.status, StatusIs(absl::StatusCode::kUnavailable));
+}
+
+TEST_F(InputDispatcherTest, ShutdownDeliversQueuedActivityAndJoins) {
+    absl::Notification first_arrived;
+    absl::Notification release_first;
+    std::vector<std::string> delivered;
+    dispatcher_.activity().AddCallback([&](const InputActivity& activity) {
+        delivered.push_back(activity.event().text().text());
+        if (!first_arrived.HasBeenNotified()) {
+            first_arrived.Notify();
+            release_first.WaitForNotification();
+        }
+    });
+    const InputSessionId a = Agent();
+    ASSERT_THAT(Type(a, "1"), IsOk());
+    first_arrived.WaitForNotification();
+    // Delivery is blocked in the first callback, so these stay queued.
+    ASSERT_THAT(Type(a, "2"), IsOk());
+    ASSERT_THAT(Type(a, "3"), IsOk());
+    release_first.Notify();
+
+    dispatcher_.Shutdown();
+
+    // Joined, so reading what the delivery thread wrote is safe.
+    EXPECT_THAT(delivered, ElementsAre("1", "2", "3"));
+}
+
+TEST_F(InputDispatcherTest, DestructorShutsDownAfterLoopStopped) {
+    Completion pending;
+    auto dispatcher = std::make_unique<InputDispatcher>(*loop_, devices_, keyboard_,
+                                                        ResolveEvdevOnly, &clock_);
+    const InputSessionId a = dispatcher->OpenSession({});
+    loop_->RunAll();
+    dispatcher->DispatchText(a, "x", pending.Callback());
+
+    // The emulator exits: the loop stops with the operation still queued.
+    ASSERT_THAT(loop_->ShutdownAndWait(), IsOk());
+    dispatcher.reset();
+
+    EXPECT_EQ(pending.calls, 1);
+    EXPECT_THAT(pending.status, StatusIs(absl::StatusCode::kUnavailable));
+    EXPECT_THAT(log_.writes, IsEmpty());
+}
+
+TEST_F(InputDispatcherTest, SessionAtCapIsRejectedOnCallingThreadWhileOthersPost) {
+    std::array<Completion, 4> done;
+    Completion again;
+    InputDispatcher capped(*loop_, devices_, keyboard_, ResolveEvdevOnly, &clock_,
+                           /*max_pending_per_session=*/2);
+    const InputSessionId a = capped.OpenSession({});
+    const InputSessionId b = capped.OpenSession({});
+    loop_->RunAll();
+
+    capped.DispatchText(a, "a1", done[0].Callback());
+    capped.DispatchText(a, "a2", done[1].Callback());
+    capped.DispatchText(a, "a3", done[2].Callback());
+    capped.DispatchText(b, "b1", done[3].Callback());
+
+    EXPECT_EQ(done[2].calls, 1);
+    EXPECT_THAT(done[2].status, StatusIs(absl::StatusCode::kResourceExhausted));
+    EXPECT_EQ(done[2].thread, std::this_thread::get_id());
+    EXPECT_EQ(done[0].calls + done[1].calls + done[3].calls, 0);
+
+    loop_->RunAll();
+    EXPECT_THAT(log_.writes, ElementsAre("text a1", "text a2", "text b1"));
+    for (int i : {0, 1, 3}) {
+        EXPECT_EQ(done[i].calls, 1);
+        EXPECT_THAT(done[i].status, IsOk());
+    }
+    EXPECT_EQ(done[2].calls, 1);
+
+    // The operations ran, so the session may post again.
+    capped.DispatchText(a, "a4", again.Callback());
+    loop_->RunAll();
+    EXPECT_EQ(again.calls, 1);
+    EXPECT_THAT(again.status, IsOk());
+}
+
+TEST_F(InputDispatcherTest, CloseSessionRunsWhenSessionIsAtCap) {
+    InputDispatcher capped(*loop_, devices_, keyboard_, ResolveEvdevOnly, &clock_,
+                           /*max_pending_per_session=*/1);
+    const InputSessionId a = capped.OpenSession({});
+    loop_->RunAll();
+    capped.DispatchPointer(a, Touch(kDown, {{0}}));
+
+    capped.CloseSession(a);
+    loop_->RunAll();
+
+    EXPECT_THAT(inner_.reports, SizeIs(2));
+    EXPECT_THAT(inner_.guest.Active(), IsEmpty());
+}
+
 }  // namespace
 }  // namespace goldfish::grpc::v2

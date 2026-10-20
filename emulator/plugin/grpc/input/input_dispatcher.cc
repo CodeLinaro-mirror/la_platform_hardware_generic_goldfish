@@ -14,7 +14,6 @@
 #include "input_dispatcher.h"
 
 #include <algorithm>
-#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -22,6 +21,7 @@
 #include <vector>
 
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/strings/str_cat.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/time/time.h"
@@ -104,15 +104,39 @@ InputEvent CancelEvent(int32_t source_id, int32_t display_id) {
 
 InputDispatcher::InputDispatcher(::goldfish::async::EventLoop& loop, TouchDevices& devices,
                                  KeyboardSink& keyboard, KeyCodeResolver resolve_key_code,
-                                 ::android::base::IClock* clock)
+                                 ::android::base::IClock* clock, size_t max_pending_per_session)
         : loop_(loop)
         , devices_(devices)
         , keyboard_(keyboard)
         , resolve_key_code_(std::move(resolve_key_code))
         , clock_(clock)
-        , delivery_thread_([this] { DeliverActivity(); }) {}
+        , max_pending_per_session_(max_pending_per_session)
+        , delivery_thread_([this] { DeliverActivity(); }) {
+    DCHECK_GT(max_pending_per_session_, 0U);
+}
 
 InputDispatcher::~InputDispatcher() {
+    Shutdown();
+}
+
+void InputDispatcher::Shutdown() {
+    // Concurrent callers wait until the first one is done.
+    absl::call_once(shutdown_once_, &InputDispatcher::ShutdownOnce, this);
+}
+
+void InputDispatcher::ShutdownOnce() {
+    absl::flat_hash_map<OperationId, PendingOperation> pending;
+    {
+        absl::MutexLock pending_lock(pending_mutex_);
+        shut_down_ = true;
+        pending.swap(pending_);
+        in_flight_.clear();
+    }
+    for (auto& [id, operation] : pending) {
+        Complete(operation.done,
+                 absl::UnavailableError("The input dispatcher shut down before the event was "
+                                        "applied; the event was dropped."));
+    }
     {
         absl::MutexLock outbox_lock(outbox_mutex_);
         stopping_ = true;
@@ -120,45 +144,108 @@ InputDispatcher::~InputDispatcher() {
     delivery_thread_.join();
 }
 
+bool InputDispatcher::IsShutDown() const {
+    absl::MutexLock pending_lock(pending_mutex_);
+    return shut_down_;
+}
+
 InputSessionId InputDispatcher::OpenSession(SessionOptions options) {
     const InputSessionId session = next_session_.fetch_add(1, std::memory_order_relaxed);
     // If the loop is gone, later operations of this session fail to post too.
-    loop_.Post([this, session, options] { sessions_.emplace(session, options); }).IgnoreError();
+    PostUnlessShutDown([this, session, options] { sessions_.emplace(session, options); });
     return session;
 }
 
 void InputDispatcher::CloseSession(InputSessionId session) {
-    loop_.Post([this, session] { ReleaseSession(session); }).IgnoreError();
+    PostUnlessShutDown([this, session] { ReleaseSession(session); });
+}
+
+void InputDispatcher::PostUnlessShutDown(absl::AnyInvocable<void() &&> task) {
+    if (IsShutDown()) {
+        return;
+    }
+    loop_.Post([this, task = std::move(task)]() mutable {
+             if (!IsShutDown()) {
+                 std::move(task)();
+             }
+         }).IgnoreError();
 }
 
 void InputDispatcher::DispatchPointer(InputSessionId session, PointerEvent event,
                                       DispatchCallback done) {
     PostOperation(
+            session,
             [this, session, event = std::move(event)] { return ApplyPointer(session, event); },
             std::move(done));
 }
 
 void InputDispatcher::DispatchKey(InputSessionId session, KeyEvent event, DispatchCallback done) {
-    PostOperation([this, session, event = std::move(event)] { return ApplyKey(session, event); },
-                  std::move(done));
+    PostOperation(
+            session, [this, session, event = std::move(event)] { return ApplyKey(session, event); },
+            std::move(done));
 }
 
 void InputDispatcher::DispatchText(InputSessionId session, std::string utf8,
                                    DispatchCallback done) {
-    PostOperation([this, session, utf8 = std::move(utf8)] { return ApplyText(session, utf8); },
-                  std::move(done));
+    PostOperation(
+            session, [this, session, utf8 = std::move(utf8)] { return ApplyText(session, utf8); },
+            std::move(done));
 }
 
-void InputDispatcher::PostOperation(absl::AnyInvocable<absl::Status() &&> apply,
+void InputDispatcher::PostOperation(InputSessionId session,
+                                    absl::AnyInvocable<absl::Status() &&> apply,
                                     DispatchCallback done) {
-    // Shared so that `done` survives a rejected Post, which destroys the task.
-    auto completion = std::make_shared<DispatchCallback>(std::move(done));
-    absl::Status posted = loop_.Post([apply = std::move(apply), completion]() mutable {
-        Complete(*completion, std::move(apply)());
+    absl::StatusOr<OperationId> id = AddPending(session, done);
+    if (!id.ok()) {
+        Complete(done, id.status());
+        return;
+    }
+    // `done` stays in `pending_` until the task or Shutdown() claims it, so it
+    // survives a rejected Post, which destroys the task.
+    absl::Status posted = loop_.Post([this, id = *id, apply = std::move(apply)]() mutable {
+        if (std::optional<DispatchCallback> claimed = ClaimPending(id)) {
+            Complete(*claimed, std::move(apply)());
+        }
     });
     if (!posted.ok()) {
-        Complete(*completion, std::move(posted));
+        if (std::optional<DispatchCallback> claimed = ClaimPending(*id)) {
+            Complete(*claimed, std::move(posted));
+        }
     }
+}
+
+absl::StatusOr<InputDispatcher::OperationId> InputDispatcher::AddPending(InputSessionId session,
+                                                                         DispatchCallback& done) {
+    absl::MutexLock pending_lock(pending_mutex_);
+    if (shut_down_) {
+        return absl::UnavailableError("The input dispatcher is shut down; the event was dropped.");
+    }
+    size_t& in_flight = in_flight_[session];
+    if (in_flight >= max_pending_per_session_) {
+        absl::Status exhausted = absl::ResourceExhaustedError(absl::StrCat(
+                "Input session ", session, " has ", in_flight,
+                " events waiting for the emulator to apply them; the event was dropped."));
+        VLOG(1) << exhausted;
+        return exhausted;
+    }
+    ++in_flight;
+    const OperationId id = next_operation_++;
+    pending_.emplace(id, PendingOperation{session, std::move(done)});
+    return id;
+}
+
+std::optional<InputDispatcher::DispatchCallback> InputDispatcher::ClaimPending(OperationId id) {
+    absl::MutexLock pending_lock(pending_mutex_);
+    auto operation = pending_.extract(id);
+    if (operation.empty()) {
+        return std::nullopt;
+    }
+    auto in_flight = in_flight_.find(operation.mapped().session);
+    DCHECK(in_flight != in_flight_.end());
+    if (--in_flight->second == 0) {
+        in_flight_.erase(in_flight);
+    }
+    return std::move(operation.mapped().done);
 }
 
 absl::StatusOr<InputDispatcher::SessionOptions> InputDispatcher::FindSession(

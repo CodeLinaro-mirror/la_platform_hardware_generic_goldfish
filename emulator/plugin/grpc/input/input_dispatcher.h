@@ -14,12 +14,15 @@
 #pragma once
 
 #include <atomic>
+#include <cstddef>
 #include <cstdint>
 #include <deque>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <thread>
 
+#include "absl/base/call_once.h"
 #include "absl/base/thread_annotations.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
@@ -61,17 +64,22 @@ namespace goldfish::grpc::v2 {
  *   last write of that key to the keyboard was a press.
  * - `outbox_` holds the undelivered activities in sequence order, ending just
  *   before `next_sequence_`.
+ * - Each operation in `pending_` is posted, or being posted, and hasn't run,
+ *   and its `done` is called once: by its loop task or by `Shutdown()`,
+ *   whichever removes it from `pending_`. `in_flight_` counts each session's
+ *   operations in `pending_`, never more than the cap, and holds no zero.
  *
  * ### Thread Safety:
  * Public methods are thread-safe and post to the loop; all other state is
- * touched only on the loop, except the outbox, which is guarded by
- * `outbox_mutex_`. Lock order: `outbox_mutex_` is a leaf; nothing holds it
- * while writing to a sink or firing activity.
+ * touched only on the loop, except the pending operations, guarded by
+ * `pending_mutex_`, and the outbox, guarded by `outbox_mutex_`. Lock order:
+ * both are leaves; nothing holds both, and nothing holds either while calling
+ * `done`, writing to a sink, or firing activity.
  *
  * ### Ownership:
- * `loop`, `devices`, `keyboard`, and `clock` must outlive the dispatcher. The
- * owner must stop posting, and let posted operations run, before destroying
- * it. Destruction delivers the queued activity, then joins the delivery thread.
+ * `loop`, `devices`, `keyboard`, and `clock` must outlive the dispatcher.
+ * Destroy it only once the loop will run none of its tasks: they have run or
+ * the loop has stopped. Destruction calls `Shutdown()`.
  */
 class InputDispatcher {
   public:
@@ -85,7 +93,7 @@ class InputDispatcher {
     using ActivityEventSource =
             ::android::base::eventing::CallbackEventSource<::android::emulation::v2::InputActivity>;
 
-    /** @brief Runs on the loop with OK or the first error of the operation. */
+    /** @brief Called once with the result of the operation; see `DispatchPointer()`. */
     using DispatchCallback = absl::AnyInvocable<void(absl::Status) &&>;
 
     /**
@@ -95,10 +103,19 @@ class InputDispatcher {
     using KeyCodeResolver =
             absl::AnyInvocable<uint32_t(const ::android::emulation::v2::KeyEvent&) const>;
 
-    /** @param clock Stamps `dispatched_at_nanos` from its realtime clock. */
+    static constexpr size_t kDefaultMaxPendingPerSession = 256;
+
+    /**
+     * @param clock Stamps `dispatched_at_nanos` from its realtime clock.
+     * @param max_pending_per_session The operations a session may have posted
+     *     but not yet run; `Dispatch*()` rejects more. Bounds the loop's queue
+     *     while it is stalled, for example by a snapshot save.
+     */
     InputDispatcher(::goldfish::async::EventLoop& loop, TouchDevices& devices,
                     KeyboardSink& keyboard, KeyCodeResolver resolve_key_code,
-                    ::android::base::IClock* clock = &::android::base::IClock::Get());
+                    ::android::base::IClock* clock = &::android::base::IClock::Get(),
+                    size_t max_pending_per_session = kDefaultMaxPendingPerSession);
+    /** @brief Calls `Shutdown()`. */
     ~InputDispatcher();
 
     InputDispatcher(const InputDispatcher&) = delete;
@@ -125,13 +142,30 @@ class InputDispatcher {
      */
     ActivityEventSource& activity() { return activity_events_; }
 
+    /**
+     * @brief Stops the dispatcher, for emulator exit, when the loop may never
+     * run what is posted.
+     *
+     * Completes every pending operation with `UNAVAILABLE` on the calling
+     * thread, delivers the queued activity, and joins the delivery thread. From
+     * then on every public method is a no-op that posts nothing: `OpenSession()`
+     * still returns an ID and `Dispatch*()` completes with `UNAVAILABLE` on the
+     * calling thread. A pending operation the loop runs later applies nothing
+     * and isn't completed again.
+     *
+     * Idempotent and callable from any thread, also after the loop stopped; it
+     * touches no loop-only state, and doesn't wait for an operation that is
+     * already running.
+     */
+    void Shutdown() ABSL_LOCKS_EXCLUDED(pending_mutex_, outbox_mutex_);
+
     /** @return A new session ID; IDs start at 1. */
     InputSessionId OpenSession(SessionOptions options);
 
     /**
      * @brief Releases all contacts of `session`, writing one report per active
      * device, releases the keys only it holds in ascending code order, and
-     * forgets it.
+     * forgets it. Never rejected for backpressure.
      */
     void CloseSession(InputSessionId session);
 
@@ -153,8 +187,12 @@ class InputDispatcher {
      * either way nothing is written or changed. An unknown session completes
      * with `FAILED_PRECONDITION`.
      *
-     * @param done Runs on the loop with the result, or on the calling thread
-     *     with the posting error if the loop rejects the operation.
+     * @param done Runs once: on the loop with the result; on the calling thread
+     *     with `RESOURCE_EXHAUSTED` if `session` already has
+     *     `max_pending_per_session` operations pending, with `UNAVAILABLE`
+     *     after `Shutdown()`, or with the posting error if the loop rejects the
+     *     operation; or with `UNAVAILABLE` on the thread calling `Shutdown()`
+     *     if the operation is still pending then.
      */
     void DispatchPointer(InputSessionId session, ::android::emulation::v2::PointerEvent event,
                          DispatchCallback done = nullptr);
@@ -190,9 +228,28 @@ class InputDispatcher {
         uint64_t sequence;
         ::android::emulation::v2::InputActivity activity;
     };
+    using OperationId = uint64_t;
+    struct PendingOperation {
+        InputSessionId session;
+        DispatchCallback done;
+    };
 
-    // Posts `apply` and completes `done` with its result.
-    void PostOperation(absl::AnyInvocable<absl::Status() &&> apply, DispatchCallback done);
+    void ShutdownOnce() ABSL_LOCKS_EXCLUDED(pending_mutex_, outbox_mutex_);
+    bool IsShutDown() const ABSL_LOCKS_EXCLUDED(pending_mutex_);
+    // Posts `task` unless shut down. The task does nothing if it runs after
+    // Shutdown().
+    void PostUnlessShutDown(absl::AnyInvocable<void() &&> task) ABSL_LOCKS_EXCLUDED(pending_mutex_);
+    // Posts `apply` for `session` and completes `done` with its result.
+    void PostOperation(InputSessionId session, absl::AnyInvocable<absl::Status() &&> apply,
+                       DispatchCallback done) ABSL_LOCKS_EXCLUDED(pending_mutex_);
+    // Adds `done` to the pending operations of `session`. @return Its ID, or
+    // why the operation can't be posted, leaving `done` unchanged.
+    absl::StatusOr<OperationId> AddPending(InputSessionId session, DispatchCallback& done)
+            ABSL_LOCKS_EXCLUDED(pending_mutex_);
+    // Removes operation `id` from the pending ones. @return Its `done`, or
+    // nothing if Shutdown() already completed it.
+    std::optional<DispatchCallback> ClaimPending(OperationId id)
+            ABSL_LOCKS_EXCLUDED(pending_mutex_);
     absl::StatusOr<SessionOptions> FindSession(InputSessionId session) const;
     absl::Status ApplyPointer(InputSessionId session,
                               const ::android::emulation::v2::PointerEvent& event);
@@ -217,7 +274,15 @@ class InputDispatcher {
     KeyboardSink& keyboard_;
     const KeyCodeResolver resolve_key_code_;
     ::android::base::IClock* const clock_;
+    const size_t max_pending_per_session_;
     std::atomic<InputSessionId> next_session_{1};
+    absl::once_flag shutdown_once_;
+
+    mutable absl::Mutex pending_mutex_;
+    bool shut_down_ ABSL_GUARDED_BY(pending_mutex_) = false;
+    OperationId next_operation_ ABSL_GUARDED_BY(pending_mutex_) = 0;
+    absl::flat_hash_map<OperationId, PendingOperation> pending_ ABSL_GUARDED_BY(pending_mutex_);
+    absl::flat_hash_map<InputSessionId, size_t> in_flight_ ABSL_GUARDED_BY(pending_mutex_);
 
     // Loop-only state.
     ContactTable contacts_;
