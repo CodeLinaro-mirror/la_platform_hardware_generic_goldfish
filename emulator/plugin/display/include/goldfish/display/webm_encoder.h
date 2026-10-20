@@ -20,6 +20,7 @@
 #include <iostream>
 #include <queue>
 #include <string>
+#include <string_view>
 #include <thread>
 #include <vector>
 
@@ -56,8 +57,10 @@ class WebMEncoder {
     uint64_t FramesEncoded() const { return frames_encoded_.load(); }
 
   private:
+    bool FailInit(std::string_view reason, int av_err = 0);
     void EncodeLoop();
     void ProcessFrame(const std::vector<uint8_t>& raw_data, int64_t frame_index);
+    void DrainPackets();
     void Cleanup();
     bool IsFrameAvailable() const ABSL_EXCLUSIVE_LOCKS_REQUIRED(queue_mutex_);
 
