@@ -26,6 +26,7 @@
 #include <vector>
 
 #include "absl/base/log_severity.h"
+#include "absl/functional/any_invocable.h"
 #include "absl/log/scoped_mock_log.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
@@ -54,6 +55,8 @@ void SetTestRegisterDclHook(void (*hook)(DisplayChangeListener*));
 void SetTestGraphicHwUpdateHook(void (*hook)(QemuConsole*));
 void SetTestFindVirtioDeviceResult(int result);
 void SetTestVirtioInputSendHook(void (*hook)(uint16_t type, uint16_t code, uint32_t value));
+void SetTestFindVirtioDeviceNullVhid(bool null_vhid);
+void SetTestVirtioInputActive(bool active);
 }
 
 using goldfish::async::testing::TestEventLoop;
@@ -62,7 +65,10 @@ using goldfish::display::DisplayTestPeer;
 using goldfish::display::EvDevEvent;
 using goldfish::display::EvDevEvents;
 using goldfish::display::FrameEvent;
+using goldfish::display::IDisplay;
+using goldfish::display::VirtualDisplay;
 using ::testing::ElementsAre;
+using ::testing::IsEmpty;
 // Avoid ambiguity with the global QemuDisplay typedef from QEMU's console.h
 using EmulatorDisplay = goldfish::display::QemuDisplay;
 
@@ -92,6 +98,8 @@ class QemuDisplayConcurrencyTest : public ::testing::Test {
   protected:
     void SetUp() override {
         SetTestFindVirtioDeviceResult(1);
+        SetTestFindVirtioDeviceNullVhid(false);
+        SetTestVirtioInputActive(false);
         main_loop_ = TestEventLoop::Create("main");
         qemu_loop_ = TestEventLoop::Create("qemu");
 
@@ -108,10 +116,27 @@ class QemuDisplayConcurrencyTest : public ::testing::Test {
     }
 
     void TearDown() override {
+        SetTestFindVirtioDeviceNullVhid(false);
+        SetTestVirtioInputActive(false);
         if (surface_->image) {
             pixman_image_unref(surface_->image);
         }
         delete surface_;
+    }
+
+    // Runs `task` on the QEMU loop thread and waits for it.
+    void RunOnQemuLoop(absl::AnyInvocable<void()> task) {
+        ASSERT_OK(qemu_loop_->Post(std::move(task)));
+        qemu_loop_->RunAll();
+    }
+
+    // A virtual display, which has its own input device.
+    std::shared_ptr<VirtualDisplay> CreateVirtualDisplay() {
+        auto display =
+                VirtualDisplay::Create(main_loop_.get(), qemu_loop_.get(), 1, 800, 600, 320, 0);
+        EXPECT_OK(display);
+        qemu_loop_->RunAll();
+        return display.ok() ? *std::move(display) : nullptr;
     }
 
     std::unique_ptr<TestEventLoop> main_loop_;
@@ -308,6 +333,69 @@ TEST_F(QemuDisplayConcurrencyTest, VirtualDisplayEvDevReport_PostedAsOneTask) {
     qemu_loop_->RunAll();
     EXPECT_THAT(device.events,
                 ElementsAre(report[0], report[1], EvDevEvent{EV_SYN, SYN_REPORT, 0}));
+}
+
+// The input dispatcher writes on the QEMU loop. A posted report would queue
+// behind later loop work and could reorder touches relative to keys.
+TEST_F(QemuDisplayConcurrencyTest, WriteEvDevReportOnLoop_WritesBeforeReturning) {
+    const std::shared_ptr<VirtualDisplay> virtual_display = CreateVirtualDisplay();
+    ASSERT_NE(virtual_display, nullptr);
+    ScopedDeviceEventCapture device;
+    const EvDevEvent report[] = {{EV_ABS, ABS_MT_SLOT, 0}, {EV_ABS, ABS_MT_TRACKING_ID, 0}};
+    const EvDevEvent syn{EV_SYN, SYN_REPORT, 0};
+
+    for (IDisplay* display :
+         {static_cast<IDisplay*>(display_.get()), static_cast<IDisplay*>(virtual_display.get())}) {
+        device.events.clear();
+        std::vector<EvDevEvent> written_on_return;
+        RunOnQemuLoop([&] {
+            display->WriteEvDevReportOnLoop(report);
+            written_on_return = device.events;
+        });
+        EXPECT_THAT(written_on_return, ElementsAre(report[0], report[1], syn));
+        EXPECT_THAT(device.events, ElementsAre(report[0], report[1], syn));
+        EXPECT_EQ(qemu_loop_->TaskCount(), 0);
+    }
+}
+
+TEST_F(QemuDisplayConcurrencyTest, IsInputActive_FollowsGuestDriver) {
+    const std::shared_ptr<VirtualDisplay> virtual_display = CreateVirtualDisplay();
+    ASSERT_NE(virtual_display, nullptr);
+
+    for (IDisplay* display :
+         {static_cast<IDisplay*>(display_.get()), static_cast<IDisplay*>(virtual_display.get())}) {
+        bool active = true;
+        SetTestVirtioInputActive(false);
+        RunOnQemuLoop([&] { active = display->IsInputActive(); });
+        EXPECT_FALSE(active);
+
+        SetTestVirtioInputActive(true);
+        RunOnQemuLoop([&] { active = display->IsInputActive(); });
+        EXPECT_TRUE(active);
+    }
+}
+
+TEST_F(QemuDisplayConcurrencyTest, NoInputDevice_WritesNothingAndIsInactive) {
+    SetTestFindVirtioDeviceNullVhid(true);
+    SetTestVirtioInputActive(true);
+    ASSERT_OK_AND_ASSIGN(
+            auto qemu_display,
+            EmulatorDisplay::Create(main_loop_.get(), qemu_loop_.get(), console_, surface_, 0));
+    const std::shared_ptr<VirtualDisplay> virtual_display = CreateVirtualDisplay();
+    ASSERT_NE(virtual_display, nullptr);
+    ScopedDeviceEventCapture device;
+    const EvDevEvent report[] = {{EV_ABS, ABS_MT_SLOT, 0}};
+
+    for (IDisplay* display : {static_cast<IDisplay*>(qemu_display.get()),
+                              static_cast<IDisplay*>(virtual_display.get())}) {
+        bool active = true;
+        RunOnQemuLoop([&] {
+            display->WriteEvDevReportOnLoop(report);
+            active = display->IsInputActive();
+        });
+        EXPECT_FALSE(active);
+    }
+    EXPECT_THAT(device.events, IsEmpty());
 }
 
 TEST_F(QemuDisplayConcurrencyTest, FrameListener_DrivesLifecycleAndReceivesFrames) {

@@ -26,6 +26,7 @@
 #include "absl/synchronization/mutex.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
+#include "absl/types/span.h"
 
 #include "goldfish/async/event_loop.h"
 #include "goldfish/display/display_frames.h"
@@ -236,6 +237,28 @@ class IDisplay : public std::enable_shared_from_this<IDisplay> {
      *        empty, only the sync is sent.
      */
     virtual void SendEvDevReport(EvDevEvents events) = 0;
+
+    /**
+     * @brief Writes one evdev report, `events` followed by EV_SYN/SYN_REPORT,
+     * synchronously.
+     *
+     * Unlike SendEvDevReport, nothing is posted: the report reaches the device
+     * before this returns, in order with everything else the caller writes
+     * from the loop. Must be called on the QEMU event loop thread.
+     *
+     * @param events The report's events, without the trailing SYN_REPORT. If
+     *        empty, only the sync is written.
+     */
+    virtual void WriteEvDevReportOnLoop(absl::Span<const EvDevEvent> events) = 0;
+
+    /**
+     * @brief Whether the guest driver of this display's input device is active,
+     * so a written report would reach it. The device discards events while its
+     * driver is inactive.
+     *
+     * Must be called on the QEMU event loop thread.
+     */
+    virtual bool IsInputActive() const = 0;
 
     virtual QemuConsole* GetConsole() const { return nullptr; }
 

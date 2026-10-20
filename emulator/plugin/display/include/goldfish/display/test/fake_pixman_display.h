@@ -165,6 +165,16 @@ struct FakePixmanDisplay : public PixmanDisplay {
      * @param events The report's events, without the trailing SYN_REPORT.
      */
     void SendEvDevReport(EvDevEvents events) override;
+    /**
+     * @brief Records a simulated evdev report exactly as SendEvDevReport does.
+     *
+     * @param events The report's events, without the trailing SYN_REPORT.
+     */
+    void WriteEvDevReportOnLoop(absl::Span<const EvDevEvent> events) override;
+    /**
+     * @brief Returns `input_active`.
+     */
+    bool IsInputActive() const override { return input_active; }
 
     /**
      * @brief Updates the source image of the display, triggering a new frame event
@@ -201,6 +211,8 @@ struct FakePixmanDisplay : public PixmanDisplay {
             multi_touch_events;  ///< A list of simulated multi-touch events.
     /// Each simulated evdev report, ending with SYN_REPORT.
     std::vector<std::vector<FakeEvDevEvent>> evdev_reports;
+    /// Whether the simulated guest input driver is active.
+    bool input_active = true;
 
   private:
     absl::Mutex hook_mutex_;

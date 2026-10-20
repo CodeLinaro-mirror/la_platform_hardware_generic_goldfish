@@ -17,6 +17,7 @@
 #include <cstdint>
 #include <utility>
 
+#include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
@@ -346,6 +347,16 @@ void QemuDisplay::SendEvDevReport(EvDevEvents events) {
                 InputHandler::SendEvDevReport(vhid, report);
             })
             .IgnoreError();
+}
+
+void QemuDisplay::WriteEvDevReportOnLoop(absl::Span<const EvDevEvent> events) {
+    DCHECK(qemu_loop_->IsOnLoopThread());
+    InputHandler::SendEvDevReport(vhid_, events);
+}
+
+bool QemuDisplay::IsInputActive() const {
+    DCHECK(qemu_loop_->IsOnLoopThread());
+    return virtio_input_hid_is_active(vhid_);
 }
 
 void QemuDisplay::SetOwnedSurface(DisplaySurface* surface) {
