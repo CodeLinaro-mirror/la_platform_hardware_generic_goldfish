@@ -16,7 +16,9 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
+#include <array>
 #include <chrono>
+#include <memory>
 #include <ostream>
 #include <thread>
 
@@ -33,11 +35,14 @@ using android::base::TestClock;
 using android::emulation::control::EvDevEvent;
 using ::goldfish::async::testing::TestEventLoop;
 using ::testing::_;
+using ::testing::AllOf;
 using ::testing::ElementsAre;
 using ::testing::Eq;
 using ::testing::Field;
 using ::testing::InSequence;
 using ::testing::Mock;
+using ::testing::NiceMock;
+using ::testing::UnorderedElementsAre;
 
 namespace android {
 namespace emulation {
@@ -71,11 +76,11 @@ TEST(PenTouchEventTest, EvDevEventsConversion) {
     event.touches.push_back(pen);
     EvDevEvents events = event.touches[0].ToEvDevEvents(1024, 768, &registry);
     // Expected events.
-    EvDevEvents expected_events = {{EV_ABS, ABS_MT_TOOL_TYPE, MT_TOOL_MAX},
-                                   {EV_KEY, BTN_TOOL_RUBBER, 1},
+    EvDevEvents expected_events = {{EV_KEY, BTN_TOOL_RUBBER, 1},
                                    {EV_KEY, BTN_STYLUS, 1},
-                                   {EV_ABS, ABS_MT_TRACKING_ID, 0},
                                    {EV_ABS, ABS_MT_SLOT, 0},
+                                   {EV_ABS, ABS_MT_TRACKING_ID, 0},
+                                   {EV_ABS, ABS_MT_TOOL_TYPE, MT_TOOL_MAX},
                                    {EV_ABS, ABS_MT_ORIENTATION, 45},
                                    {EV_ABS, ABS_MT_PRESSURE, 50},
                                    {EV_ABS, ABS_MT_POSITION_X, 31},
@@ -110,11 +115,11 @@ TEST(PenTouchEventTest, SendEvents) {
     // Expect calls to SendEvDevEvent on the mock display.
     {
         InSequence seq;
-        EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_TOOL_TYPE, MT_TOOL_MAX));
         EXPECT_CALL(display, SendEvDevEvent(EV_KEY, BTN_TOOL_RUBBER, 1));
         EXPECT_CALL(display, SendEvDevEvent(EV_KEY, BTN_STYLUS, 1));
-        EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_TRACKING_ID, 0));
         EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_SLOT, 0));
+        EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_TRACKING_ID, 0));
+        EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_TOOL_TYPE, MT_TOOL_MAX));
         EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_TOUCH_MAJOR, 10));
         EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_TOUCH_MINOR, 5));
         EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_ORIENTATION, 45));
@@ -190,7 +195,7 @@ TEST(TouchEvDevTest, toEvDevEventsPress) {
 
     // Expected events for a touch press.
     EvDevEvents expected_events = {
-        {EV_ABS, ABS_MT_TRACKING_ID, 0},   {EV_ABS, ABS_MT_SLOT, 0},
+        {EV_ABS, ABS_MT_SLOT, 0},          {EV_ABS, ABS_MT_TRACKING_ID, 0},
         {EV_ABS, ABS_MT_TOUCH_MAJOR, 10},  {EV_ABS, ABS_MT_TOUCH_MINOR, 5},
         {EV_ABS, ABS_MT_ORIENTATION, 45},  {EV_ABS, ABS_MT_PRESSURE, 50},
         {EV_ABS, ABS_MT_POSITION_X, 3199}, {EV_ABS, ABS_MT_POSITION_Y, 8533}};
@@ -297,8 +302,8 @@ TEST(MultiTouchEventTest, SendEventsPress) {
     // Expect calls to SendEvDevEvent on the mock display.
     {
         InSequence seq;
-        EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_TRACKING_ID, 0));
         EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_SLOT, 0));
+        EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_TRACKING_ID, 0));
         EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_TOUCH_MAJOR, 10));
         EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_TOUCH_MINOR, 5));
         EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_ORIENTATION, 45));
@@ -387,8 +392,8 @@ TEST(MultiTouchEventTest, SendEventsMultipleTouch) {
     {
         InSequence seq;
         // First touch events.
-        EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_TRACKING_ID, 0));
         EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_SLOT, 0));
+        EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_TRACKING_ID, 0));
         EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_TOUCH_MAJOR, 10));
         EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_TOUCH_MINOR, 5));
         EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_ORIENTATION, 45));
@@ -396,8 +401,8 @@ TEST(MultiTouchEventTest, SendEventsMultipleTouch) {
         EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_POSITION_X, _));
         EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_POSITION_Y, _));
         // Second touch events.
-        EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_TRACKING_ID, 1));
         EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_SLOT, 1));
+        EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_TRACKING_ID, 1));
         EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_TOUCH_MAJOR, 12));
         EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_TOUCH_MINOR, 6));
         EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_ORIENTATION, 90));
@@ -410,6 +415,180 @@ TEST(MultiTouchEventTest, SendEventsMultipleTouch) {
 
     // Call SendEvents.
     dispatcher.SendEvents(display, touch_event);
+}
+
+// A multi-touch contact as the guest kernel sees it after a SYN_REPORT.
+struct GuestContact {
+    uint32_t slot;
+    int32_t tracking_id;
+    uint32_t x;
+    uint32_t y;
+    uint32_t tool_type;
+};
+
+void PrintTo(const GuestContact& contact, std::ostream* os) {
+    *os << "{slot: " << contact.slot << ", tracking_id: " << contact.tracking_id
+        << ", x: " << contact.x << ", y: " << contact.y << ", tool_type: " << contact.tool_type
+        << "}";
+}
+
+// Interprets an evdev stream the way the Linux input core applies multi-touch
+// protocol B: ABS_MT_SLOT selects a slot, every following ABS_MT_* value
+// updates the selected slot, and SYN_REPORT publishes the frame. A slot holds
+// an active contact while its tracking ID is not -1.
+class GuestMultiTouchState {
+  public:
+    void Apply(uint16_t type, uint16_t code, uint32_t value) {
+        if (type == EV_SYN && code == SYN_REPORT) {
+            reported_slots_ = slots_;
+            return;
+        }
+        if (type != EV_ABS) {
+            return;
+        }
+        if (code == ABS_MT_SLOT) {
+            selected_slot_ = value;
+            return;
+        }
+        ASSERT_LT(selected_slot_, slots_.size()) << "ABS_MT_* value written to an invalid slot";
+        GuestContact& slot = slots_[selected_slot_];
+        switch (code) {
+        case ABS_MT_TRACKING_ID:
+            slot.tracking_id = static_cast<int32_t>(value);
+            break;
+        case ABS_MT_POSITION_X:
+            slot.x = value;
+            break;
+        case ABS_MT_POSITION_Y:
+            slot.y = value;
+            break;
+        case ABS_MT_TOOL_TYPE:
+            slot.tool_type = value;
+            break;
+        default:
+            break;
+        }
+    }
+
+    // Returns the active contacts of the last reported frame.
+    std::vector<GuestContact> ActiveContacts() const {
+        std::vector<GuestContact> active;
+        for (const auto& slot : reported_slots_) {
+            if (slot.tracking_id != -1) {
+                active.push_back(slot);
+            }
+        }
+        return active;
+    }
+
+  private:
+    static std::array<GuestContact, kMtsPointersNum> InitialSlots() {
+        std::array<GuestContact, kMtsPointersNum> slots{};
+        for (uint32_t i = 0; i < slots.size(); ++i) {
+            slots[i] = {.slot = i, .tracking_id = -1, .x = 0, .y = 0, .tool_type = MT_TOOL_FINGER};
+        }
+        return slots;
+    }
+
+    uint32_t selected_slot_ = 0;
+    std::array<GuestContact, kMtsPointersNum> slots_ = InitialSlots();
+    std::array<GuestContact, kMtsPointersNum> reported_slots_ = InitialSlots();
+};
+
+auto IsContactAt(uint32_t x, uint32_t y, uint32_t tool_type = MT_TOOL_FINGER) {
+    return AllOf(Field("x", &GuestContact::x, x), Field("y", &GuestContact::y, y),
+                 Field("tool_type", &GuestContact::tool_type, tool_type));
+}
+
+class GuestMultiTouchTest : public ::testing::Test {
+  protected:
+    static constexpr uint32_t kWidth = 1080;
+    static constexpr uint32_t kHeight = 1920;
+    static constexpr uint32_t kStudioPressure = 0x400;
+
+    void SetUp() override {
+        ON_CALL(display_, SendEvDevEvent(_, _, _))
+                .WillByDefault([this](uint16_t type, uint16_t code, uint32_t value) {
+                    guest_.Apply(type, code, value);
+                });
+    }
+
+    static void AddTouch(TouchEvent& event, int32_t identifier, int32_t x, int32_t y,
+                         int32_t pressure) {
+        auto* touch = event.add_touches();
+        touch->set_identifier(identifier);
+        touch->set_x(x);
+        touch->set_y(y);
+        touch->set_pressure(pressure);
+    }
+
+    static PenEvent MakePenEvent(int32_t x, int32_t y, int32_t pressure) {
+        PenEvent event;
+        auto* location = event.add_events()->mutable_location();
+        location->set_x(x);
+        location->set_y(y);
+        location->set_pressure(pressure);
+        return event;
+    }
+
+    std::unique_ptr<TestEventLoop> evloop_ = TestEventLoop::Create();
+    NiceMock<MockDisplay> display_{evloop_.get(), 0, kWidth, kHeight};
+    PointerEventDispatcher dispatcher_;
+    GuestMultiTouchState guest_;
+};
+
+// Mirrors the TouchEvent sequence Android Studio sends in its Ctrl two-finger
+// mode: both fingers travel together in a single TouchEvent.
+TEST_F(GuestMultiTouchTest, StudioTwoFingerGestureReportsBothContacts) {
+    TouchEvent press;
+    AddTouch(press, 0, 300, 800, kStudioPressure);
+    AddTouch(press, 1, 700, 1100, kStudioPressure);
+    dispatcher_.SendEvents(display_, MultiTouchEvent::FromProto(press));
+
+    const auto pressed = guest_.ActiveContacts();
+    EXPECT_THAT(pressed, UnorderedElementsAre(IsContactAt(9101, 13652), IsContactAt(21237, 18772)));
+    ASSERT_EQ(pressed.size(), 2);
+    EXPECT_NE(pressed[0].tracking_id, pressed[1].tracking_id);
+
+    TouchEvent move;
+    AddTouch(move, 0, 350, 850, kStudioPressure);
+    AddTouch(move, 1, 750, 1150, kStudioPressure);
+    dispatcher_.SendEvents(display_, MultiTouchEvent::FromProto(move));
+
+    EXPECT_THAT(guest_.ActiveContacts(),
+                UnorderedElementsAre(IsContactAt(10618, 14506), IsContactAt(22754, 19626)));
+
+    TouchEvent release;
+    AddTouch(release, 0, 350, 850, 0);
+    AddTouch(release, 1, 750, 1150, 0);
+    dispatcher_.SendEvents(display_, MultiTouchEvent::FromProto(release));
+
+    EXPECT_THAT(guest_.ActiveContacts(), ::testing::IsEmpty());
+}
+
+TEST_F(GuestMultiTouchTest, PenDownWhileFingerIsDownReportsBothContacts) {
+    TouchEvent finger_press;
+    AddTouch(finger_press, 0, 300, 800, kStudioPressure);
+    dispatcher_.SendEvents(display_, MultiTouchEvent::FromProto(finger_press));
+
+    dispatcher_.SendEvents(display_, PenTouchEvent::FromProto(MakePenEvent(540, 960, 50)));
+
+    const auto pressed = guest_.ActiveContacts();
+    EXPECT_THAT(pressed, UnorderedElementsAre(IsContactAt(9101, 13652, MT_TOOL_FINGER),
+                                              IsContactAt(16383, 16383, MT_TOOL_PEN)));
+    ASSERT_EQ(pressed.size(), 2);
+    EXPECT_NE(pressed[0].tracking_id, pressed[1].tracking_id);
+
+    dispatcher_.SendEvents(display_, PenTouchEvent::FromProto(MakePenEvent(540, 960, 0)));
+
+    EXPECT_THAT(guest_.ActiveContacts(),
+                UnorderedElementsAre(IsContactAt(9101, 13652, MT_TOOL_FINGER)));
+
+    TouchEvent finger_release;
+    AddTouch(finger_release, 0, 300, 800, 0);
+    dispatcher_.SendEvents(display_, MultiTouchEvent::FromProto(finger_release));
+
+    EXPECT_THAT(guest_.ActiveContacts(), ::testing::IsEmpty());
 }
 
 }  // namespace internal

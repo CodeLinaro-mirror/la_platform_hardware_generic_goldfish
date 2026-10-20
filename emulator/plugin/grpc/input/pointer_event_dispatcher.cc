@@ -16,6 +16,7 @@
 #include <vector>
 
 #include "absl/log/log.h"
+#include "absl/types/span.h"
 
 #include "standard-headers/linux/input-event-codes.h"
 #include "standard-headers/linux/input.h"
@@ -80,20 +81,25 @@ EvDevEvents Pen::ToEvDevEvents(uint32_t w, uint32_t h, SlotRegistry* registry) c
     EvDevEvents events;
     const uint32_t ev_dev_pressed = this->button_pressed ? 1 : 0;
     if (this->rubber_pointer) {
-        events.push_back({EV_ABS, ABS_MT_TOOL_TYPE, MT_TOOL_MAX});
         events.push_back({EV_KEY, BTN_TOOL_RUBBER, ev_dev_pressed});
-    } else {
-        events.push_back({EV_ABS, ABS_MT_TOOL_TYPE, MT_TOOL_PEN});
     }
 
     events.push_back({EV_KEY, BTN_STYLUS, ev_dev_pressed});
 
-    auto touches = Touch::ToEvDevEvents(w, h, registry);
+    // The tool type is a per-slot value, so it must follow the slot selection.
+    const uint32_t tool = this->rubber_pointer ? MT_TOOL_MAX : MT_TOOL_PEN;
+    const EvDevEvent tool_type = {EV_ABS, ABS_MT_TOOL_TYPE, tool};
+    auto touches = ToSlotEvDevEvents(w, h, registry, {tool_type});
     events.insert(events.end(), touches.begin(), touches.end());
     return events;
 }
 
 EvDevEvents Touch::ToEvDevEvents(uint32_t w, uint32_t h, SlotRegistry* registry) const {
+    return ToSlotEvDevEvents(w, h, registry, {});
+}
+
+EvDevEvents Touch::ToSlotEvDevEvents(uint32_t w, uint32_t h, SlotRegistry* registry,
+                                     absl::Span<const EvDevEvent> slot_properties) const {
     EvDevEvents events;
 
     const bool is_registered = registry->IsIdentifierRegistered(this->identifier);
@@ -111,12 +117,15 @@ EvDevEvents Touch::ToEvDevEvents(uint32_t w, uint32_t h, SlotRegistry* registry)
 
     const auto u_slot = static_cast<uint32_t>(slot);
 
+    // Select the slot first: every following ABS_MT_* value applies to it.
+    events.push_back({EV_ABS, ABS_MT_SLOT, u_slot});
+
     // Only register slot in guest if it as not yet registered.
     if (!is_registered) {
         events.push_back({EV_ABS, ABS_MT_TRACKING_ID, u_slot});
     }
 
-    events.push_back({EV_ABS, ABS_MT_SLOT, u_slot});
+    events.insert(events.end(), slot_properties.begin(), slot_properties.end());
 
     // Scale to proper evdev values.
     const uint32_t dx = ScaleAxis(this->x, 0, w);

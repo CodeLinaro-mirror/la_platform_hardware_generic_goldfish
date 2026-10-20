@@ -33,6 +33,7 @@ cc_library(
         ":slot_registry",
         "//emulator/plugin/display",
         "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/types:span",
         "@aemu//protos/services/emulator-controller:emulator_controller_cc_grpc",
         "@qemu//:qemu-headers-exported",
     ],
