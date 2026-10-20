@@ -327,6 +327,15 @@ Call ToProto(const client_type::Call& client) {
     return proto;
 }
 
+template <typename ClientT, typename ProtoT>
+::grpc::Status ToGrpcResponse(const absl::StatusOr<ClientT>& result, ProtoT* response) {
+    if (!result.ok()) {
+        return AbslStatusToGrpcStatus(result.status());
+    }
+    *response = ToProto(*result);
+    return ::grpc::Status::OK;
+}
+
 }  // namespace
 
 ModemServiceImpl::ModemServiceImpl(
@@ -335,43 +344,23 @@ ModemServiceImpl::ModemServiceImpl(
 
 ::grpc::Status ModemServiceImpl::setCellInfo(::grpc::ServerContext* /*context*/,
                                              const CellInfo* request, CellInfo* response) {
-    auto result = client_->SetCellInfo(ToClient(*request));
-    if (result.ok()) {
-        *response = ToProto(*result);
-        return ::grpc::Status::OK;
-    }
-    return AbslStatusToGrpcStatus(result.status());
+    return ToGrpcResponse(client_->SetCellInfo(ToClient(*request)), response);
 }
 
 ::grpc::Status ModemServiceImpl::getCellInfo(::grpc::ServerContext* /*context*/,
                                              const ::google::protobuf::Empty* /*request*/,
                                              CellInfo* response) {
-    auto result = client_->GetCellInfo();
-    if (result.ok()) {
-        *response = ToProto(*result);
-        return ::grpc::Status::OK;
-    }
-    return AbslStatusToGrpcStatus(result.status());
+    return ToGrpcResponse(client_->GetCellInfo(), response);
 }
 
 ::grpc::Status ModemServiceImpl::createCall(::grpc::ServerContext* /*context*/, const Call* request,
                                             Call* response) {
-    auto result = client_->CreateCall(ToClient(*request));
-    if (result.ok()) {
-        *response = ToProto(*result);
-        return ::grpc::Status::OK;
-    }
-    return AbslStatusToGrpcStatus(result.status());
+    return ToGrpcResponse(client_->CreateCall(ToClient(*request)), response);
 }
 
 ::grpc::Status ModemServiceImpl::updateCall(::grpc::ServerContext* /*context*/, const Call* request,
                                             Call* response) {
-    auto result = client_->UpdateCall(ToClient(*request));
-    if (result.ok()) {
-        *response = ToProto(*result);
-        return ::grpc::Status::OK;
-    }
-    return AbslStatusToGrpcStatus(result.status());
+    return ToGrpcResponse(client_->UpdateCall(ToClient(*request)), response);
 }
 
 ::grpc::Status ModemServiceImpl::deleteCall(::grpc::ServerContext* /*context*/, const Call* request,
