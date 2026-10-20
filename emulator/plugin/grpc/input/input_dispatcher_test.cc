@@ -20,6 +20,8 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <string>
+#include <string_view>
 #include <thread>
 #include <utility>
 #include <vector>
@@ -27,9 +29,11 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
+#include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
 
 #include "goldfish/async/testing/test_event_loop.h"
+#include "keyboard_sink.h"
 #include "standard-headers/linux/input-event-codes.h"
 
 namespace goldfish::grpc::v2 {
@@ -38,11 +42,14 @@ namespace {
 using ::absl_testing::IsOk;
 using ::absl_testing::StatusIs;
 using ::android::emulation::control::EvDevEvent;
+using ::android::emulation::v2::KeyAction;
+using ::android::emulation::v2::KeyEvent;
 using ::android::emulation::v2::PointerAction;
 using ::android::emulation::v2::PointerEvent;
 using ::goldfish::async::EventLoop;
 using ::goldfish::async::testing::TestEventLoop;
 using ::testing::Contains;
+using ::testing::Each;
 using ::testing::ElementsAre;
 using ::testing::Field;
 using ::testing::IsEmpty;
@@ -114,14 +121,28 @@ class GuestTouchState {
     std::array<Slot, kTouchDeviceSlots> slots_{};
 };
 
+// Every write to a touch or keyboard sink, in the order it happened, with
+// whether it ran on the loop thread.
+struct SinkLog {
+    void Record(const EventLoop& loop, std::string write) {
+        writes.push_back(std::move(write));
+        on_loop_thread.push_back(loop.IsOnLoopThread());
+    }
+
+    std::vector<std::string> writes;
+    std::vector<bool> on_loop_thread;
+};
+
 class FakeSink : public TouchDeviceSink {
   public:
-    explicit FakeSink(const EventLoop& loop) : loop_(loop) {}
+    FakeSink(const EventLoop& loop, std::string name, SinkLog& log)
+            : loop_(loop), name_(std::move(name)), log_(log) {}
 
     bool IsActive() const override { return active; }
     void WriteReport(absl::Span<const EvDevEvent> events) override {
         reports.emplace_back(events.begin(), events.end());
         on_loop_thread.push_back(loop_.IsOnLoopThread());
+        log_.Record(loop_, absl::StrCat("touch ", name_));
         guest.ApplyReport(events);
         frames.push_back(guest.Active());
     }
@@ -135,11 +156,14 @@ class FakeSink : public TouchDeviceSink {
 
   private:
     const EventLoop& loop_;
+    std::string name_;
+    SinkLog& log_;
 };
 
 class FakeTouchDevices : public TouchDevices {
   public:
-    explicit FakeTouchDevices(const EventLoop& loop) : inner(loop), outer(loop) {}
+    FakeTouchDevices(const EventLoop& loop, SinkLog& log)
+            : inner(loop, "inner", log), outer(loop, "outer", log) {}
 
     absl::StatusOr<TouchDeviceId> Resolve(int32_t display_id) override {
         if (!resolve_status.ok()) {
@@ -161,6 +185,41 @@ class FakeTouchDevices : public TouchDevices {
     absl::flat_hash_map<int32_t, TouchDeviceId> remap;
     absl::Status resolve_status;
 };
+
+// Logs each key as "down <code>" or "up <code>", and text as "text <utf8>".
+class FakeKeyboard : public KeyboardSink {
+  public:
+    FakeKeyboard(const EventLoop& loop, SinkLog& log) : loop_(loop), log_(log) {}
+
+    void WriteKey(uint32_t evdev_code, bool down) override {
+        log_.Record(loop_, absl::StrCat(down ? "down " : "up ", evdev_code));
+    }
+    void TypeText(std::string_view utf8) override {
+        log_.Record(loop_, absl::StrCat("text ", utf8));
+    }
+
+  private:
+    const EventLoop& loop_;
+    SinkLog& log_;
+};
+
+// Maps only `evdev_code`; every other key is unmapped.
+uint32_t ResolveEvdevOnly(const KeyEvent& event) {
+    return event.key_identifier_case() == KeyEvent::kEvdevCode
+                   ? static_cast<uint32_t>(event.evdev_code())
+                   : 0;
+}
+
+KeyEvent Key(KeyAction action, uint32_t evdev_code) {
+    KeyEvent event;
+    event.set_action(action);
+    event.set_evdev_code(static_cast<int32_t>(evdev_code));
+    return event;
+}
+
+constexpr KeyAction kKeyDown = KeyAction::KEY_ACTION_DOWN;
+constexpr KeyAction kKeyUp = KeyAction::KEY_ACTION_UP;
+constexpr KeyAction kKeyPress = KeyAction::KEY_ACTION_PRESS;
 
 struct P {
     int32_t id;
@@ -203,14 +262,32 @@ class InputDispatcherTest : public ::testing::Test {
         return *result;
     }
 
+    absl::Status Dispatch(InputSessionId session, KeyEvent event) {
+        std::optional<absl::Status> result;
+        dispatcher_.DispatchKey(session, std::move(event),
+                                [&result](absl::Status status) { result = status; });
+        loop_->RunAll();
+        return result.value_or(absl::InternalError("done was not called"));
+    }
+
+    absl::Status Type(InputSessionId session, std::string text) {
+        std::optional<absl::Status> result;
+        dispatcher_.DispatchText(session, std::move(text),
+                                 [&result](absl::Status status) { result = status; });
+        loop_->RunAll();
+        return result.value_or(absl::InternalError("done was not called"));
+    }
+
     InputSessionId Agent() { return dispatcher_.OpenSession({}); }
     InputSessionId Human() { return dispatcher_.OpenSession({.human = true}); }
 
     std::unique_ptr<TestEventLoop> loop_ = TestEventLoop::Create();
-    FakeTouchDevices devices_{*loop_};
+    SinkLog log_;
+    FakeTouchDevices devices_{*loop_, log_};
     FakeSink& inner_ = devices_.inner;
     FakeSink& outer_ = devices_.outer;
-    InputDispatcher dispatcher_{*loop_, devices_};
+    FakeKeyboard keyboard_{*loop_, log_};
+    InputDispatcher dispatcher_{*loop_, devices_, keyboard_, ResolveEvdevOnly};
 };
 
 TEST_F(InputDispatcherTest, SessionIdsStartAtOneAndAreUnique) {
@@ -460,6 +537,142 @@ TEST_F(InputDispatcherTest, RejectedPostCompletesOnCallingThread) {
     EXPECT_THAT(result, Optional(StatusIs(absl::StatusCode::kUnavailable)));
     EXPECT_EQ(done_thread, std::this_thread::get_id());
     EXPECT_THAT(inner_.reports, IsEmpty());
+}
+
+std::string Down(uint32_t evdev_code) {
+    return absl::StrCat("down ", evdev_code);
+}
+
+std::string Up(uint32_t evdev_code) {
+    return absl::StrCat("up ", evdev_code);
+}
+
+TEST_F(InputDispatcherTest, KeyDownAndUpReachGuest) {
+    const InputSessionId a = Agent();
+    ASSERT_THAT(Dispatch(a, Key(kKeyDown, KEY_A)), IsOk());
+    ASSERT_THAT(Dispatch(a, Key(kKeyUp, KEY_A)), IsOk());
+    EXPECT_THAT(log_.writes, ElementsAre(Down(KEY_A), Up(KEY_A)));
+}
+
+TEST_F(InputDispatcherTest, AutorepeatForwardsEveryDownAndOneUp) {
+    const InputSessionId a = Agent();
+    for (int i = 0; i < 3; ++i) {
+        ASSERT_THAT(Dispatch(a, Key(kKeyDown, KEY_A)), IsOk());
+    }
+    ASSERT_THAT(Dispatch(a, Key(kKeyUp, KEY_A)), IsOk());
+    ASSERT_THAT(Dispatch(a, Key(kKeyUp, KEY_A)), IsOk());
+
+    EXPECT_THAT(log_.writes, ElementsAre(Down(KEY_A), Down(KEY_A), Down(KEY_A), Up(KEY_A)));
+}
+
+TEST_F(InputDispatcherTest, KeyIsReleasedWhenLastHolderReleases) {
+    const InputSessionId a = Agent();
+    const InputSessionId b = Human();
+    ASSERT_THAT(Dispatch(a, Key(kKeyDown, KEY_LEFTSHIFT)), IsOk());
+    ASSERT_THAT(Dispatch(b, Key(kKeyDown, KEY_LEFTSHIFT)), IsOk());
+
+    ASSERT_THAT(Dispatch(a, Key(kKeyUp, KEY_LEFTSHIFT)), IsOk());
+    EXPECT_THAT(log_.writes, ElementsAre(Down(KEY_LEFTSHIFT), Down(KEY_LEFTSHIFT)));
+
+    ASSERT_THAT(Dispatch(b, Key(kKeyUp, KEY_LEFTSHIFT)), IsOk());
+    EXPECT_THAT(log_.writes,
+                ElementsAre(Down(KEY_LEFTSHIFT), Down(KEY_LEFTSHIFT), Up(KEY_LEFTSHIFT)));
+}
+
+TEST_F(InputDispatcherTest, StrayUpFromNonHolderWritesNothing) {
+    const InputSessionId a = Agent();
+    const InputSessionId b = Agent();
+    ASSERT_THAT(Dispatch(b, Key(kKeyUp, KEY_A)), IsOk());
+    EXPECT_THAT(log_.writes, IsEmpty());
+
+    ASSERT_THAT(Dispatch(a, Key(kKeyDown, KEY_A)), IsOk());
+    ASSERT_THAT(Dispatch(b, Key(kKeyUp, KEY_A)), IsOk());
+    EXPECT_THAT(log_.writes, ElementsAre(Down(KEY_A)));
+
+    // `a` still holds the key.
+    ASSERT_THAT(Dispatch(a, Key(kKeyUp, KEY_A)), IsOk());
+    EXPECT_THAT(log_.writes, ElementsAre(Down(KEY_A), Up(KEY_A)));
+}
+
+TEST_F(InputDispatcherTest, PressWithoutOtherHolderIsDownThenUp) {
+    const InputSessionId a = Agent();
+    ASSERT_THAT(Dispatch(a, Key(kKeyPress, KEY_A)), IsOk());
+    ASSERT_THAT(Dispatch(a, Key(KeyAction::KEY_ACTION_UNSPECIFIED, KEY_B)), IsOk());
+    EXPECT_THAT(log_.writes, ElementsAre(Down(KEY_A), Up(KEY_A), Down(KEY_B), Up(KEY_B)));
+}
+
+TEST_F(InputDispatcherTest, PressWhileAnotherSessionHoldsKeyIsDownOnly) {
+    const InputSessionId a = Agent();
+    const InputSessionId b = Agent();
+    ASSERT_THAT(Dispatch(a, Key(kKeyDown, KEY_LEFTSHIFT)), IsOk());
+    ASSERT_THAT(Dispatch(b, Key(kKeyPress, KEY_LEFTSHIFT)), IsOk());
+    EXPECT_THAT(log_.writes, ElementsAre(Down(KEY_LEFTSHIFT), Down(KEY_LEFTSHIFT)));
+
+    ASSERT_THAT(Dispatch(a, Key(kKeyUp, KEY_LEFTSHIFT)), IsOk());
+    EXPECT_THAT(log_.writes,
+                ElementsAre(Down(KEY_LEFTSHIFT), Down(KEY_LEFTSHIFT), Up(KEY_LEFTSHIFT)));
+}
+
+TEST_F(InputDispatcherTest, UnmappedKeyIsInvalidAndWritesNothing) {
+    const InputSessionId a = Agent();
+    KeyEvent event;
+    event.set_action(kKeyDown);
+    event.set_dom_code("KeyA");
+    EXPECT_THAT(Dispatch(a, event), StatusIs(absl::StatusCode::kInvalidArgument));
+    EXPECT_THAT(Dispatch(a, KeyEvent()), StatusIs(absl::StatusCode::kInvalidArgument));
+    EXPECT_THAT(log_.writes, IsEmpty());
+}
+
+TEST_F(InputDispatcherTest, KeyOrTextFromUnknownSessionFails) {
+    EXPECT_THAT(Dispatch(7, Key(kKeyDown, KEY_A)), StatusIs(absl::StatusCode::kFailedPrecondition));
+    EXPECT_THAT(Type(7, "hi"), StatusIs(absl::StatusCode::kFailedPrecondition));
+    EXPECT_THAT(log_.writes, IsEmpty());
+}
+
+TEST_F(InputDispatcherTest, CloseSessionReleasesUnsharedKeysInAscendingOrder) {
+    const InputSessionId a = Agent();
+    const InputSessionId b = Agent();
+    for (uint32_t code : {KEY_B, KEY_LEFTSHIFT, KEY_A, KEY_LEFTCTRL}) {
+        ASSERT_THAT(Dispatch(a, Key(kKeyDown, code)), IsOk());
+    }
+    ASSERT_THAT(Dispatch(b, Key(kKeyDown, KEY_LEFTSHIFT)), IsOk());
+    log_.writes.clear();
+
+    dispatcher_.CloseSession(a);
+    loop_->RunAll();
+
+    static_assert(KEY_LEFTCTRL < KEY_A && KEY_A < KEY_B);
+    EXPECT_THAT(log_.writes, ElementsAre(Up(KEY_LEFTCTRL), Up(KEY_A), Up(KEY_B)));
+    ASSERT_THAT(Dispatch(b, Key(kKeyUp, KEY_LEFTSHIFT)), IsOk());
+    EXPECT_THAT(log_.writes,
+                ElementsAre(Up(KEY_LEFTCTRL), Up(KEY_A), Up(KEY_B), Up(KEY_LEFTSHIFT)));
+}
+
+TEST_F(InputDispatcherTest, TextIsTypedAndEmptyTextWritesNothing) {
+    const InputSessionId a = Agent();
+    ASSERT_THAT(Type(a, ""), IsOk());
+    ASSERT_THAT(Type(a, "こんにちは"), IsOk());
+    EXPECT_THAT(log_.writes, ElementsAre("text こんにちは"));
+}
+
+TEST_F(InputDispatcherTest, KeysTextAndTouchesAreWrittenInPostingOrderOnLoop) {
+    const InputSessionId a = Agent();
+    const InputSessionId b = Agent();
+    loop_->RunAll();
+
+    dispatcher_.DispatchKey(a, Key(kKeyDown, KEY_LEFTSHIFT));
+    dispatcher_.DispatchPointer(b, Touch(kDown, {{0}}));
+    dispatcher_.DispatchText(b, "x");
+    dispatcher_.DispatchPointer(a, Touch(kDown, {{0}}, 1));
+    dispatcher_.DispatchKey(a, Key(kKeyUp, KEY_LEFTSHIFT));
+    dispatcher_.DispatchKey(b, Key(kKeyPress, KEY_A));
+    dispatcher_.CloseSession(b);
+    loop_->RunAll();
+
+    EXPECT_THAT(log_.writes,
+                ElementsAre(Down(KEY_LEFTSHIFT), "touch inner", "text x", "touch outer",
+                            Up(KEY_LEFTSHIFT), Down(KEY_A), Up(KEY_A), "touch inner"));
+    EXPECT_THAT(log_.on_loop_thread, Each(true));
 }
 
 }  // namespace

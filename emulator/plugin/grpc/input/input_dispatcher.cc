@@ -16,6 +16,8 @@
 #include <algorithm>
 #include <memory>
 #include <optional>
+#include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -30,6 +32,8 @@ namespace goldfish::grpc::v2 {
 namespace {
 
 using ::android::emulation::control::EvDevEvents;
+using ::android::emulation::v2::KeyAction;
+using ::android::emulation::v2::KeyEvent;
 using ::android::emulation::v2::PointerAction;
 using ::android::emulation::v2::PointerEvent;
 
@@ -84,8 +88,12 @@ void Complete(InputDispatcher::DispatchCallback& done, absl::Status status) {
 
 }  // namespace
 
-InputDispatcher::InputDispatcher(::goldfish::async::EventLoop& loop, TouchDevices& devices)
-        : loop_(loop), devices_(devices) {}
+InputDispatcher::InputDispatcher(::goldfish::async::EventLoop& loop, TouchDevices& devices,
+                                 KeyboardSink& keyboard, KeyCodeResolver resolve_key_code)
+        : loop_(loop)
+        , devices_(devices)
+        , keyboard_(keyboard)
+        , resolve_key_code_(std::move(resolve_key_code)) {}
 
 InputSessionId InputDispatcher::OpenSession(SessionOptions options) {
     const InputSessionId session = next_session_.fetch_add(1, std::memory_order_relaxed);
@@ -100,14 +108,40 @@ void InputDispatcher::CloseSession(InputSessionId session) {
 
 void InputDispatcher::DispatchPointer(InputSessionId session, PointerEvent event,
                                       DispatchCallback done) {
+    PostOperation(
+            [this, session, event = std::move(event)] { return ApplyPointer(session, event); },
+            std::move(done));
+}
+
+void InputDispatcher::DispatchKey(InputSessionId session, KeyEvent event, DispatchCallback done) {
+    PostOperation([this, session, event = std::move(event)] { return ApplyKey(session, event); },
+                  std::move(done));
+}
+
+void InputDispatcher::DispatchText(InputSessionId session, std::string utf8,
+                                   DispatchCallback done) {
+    PostOperation([this, session, utf8 = std::move(utf8)] { return ApplyText(session, utf8); },
+                  std::move(done));
+}
+
+void InputDispatcher::PostOperation(absl::AnyInvocable<absl::Status() &&> apply,
+                                    DispatchCallback done) {
     // Shared so that `done` survives a rejected Post, which destroys the task.
     auto completion = std::make_shared<DispatchCallback>(std::move(done));
-    absl::Status posted = loop_.Post([this, session, event = std::move(event), completion] {
-        Complete(*completion, ApplyPointer(session, event));
+    absl::Status posted = loop_.Post([apply = std::move(apply), completion]() mutable {
+        Complete(*completion, std::move(apply)());
     });
     if (!posted.ok()) {
         Complete(*completion, std::move(posted));
     }
+}
+
+absl::Status InputDispatcher::CheckOpen(InputSessionId session) const {
+    if (!sessions_.contains(session)) {
+        return absl::FailedPreconditionError(
+                absl::StrCat("Input session ", session, " is not open."));
+    }
+    return absl::OkStatus();
 }
 
 absl::Status InputDispatcher::ApplyPointer(InputSessionId session, const PointerEvent& event) {
@@ -178,6 +212,51 @@ absl::Status InputDispatcher::CancelOnDisplay(InputSessionId session, int32_t di
     return absl::OkStatus();
 }
 
+absl::Status InputDispatcher::ApplyKey(InputSessionId session, const KeyEvent& event) {
+    RETURN_IF_ERROR(CheckOpen(session));
+    const uint32_t code = resolve_key_code_(event);
+    if (code == 0) {
+        return absl::InvalidArgumentError("The key has no evdev code; the event was dropped.");
+    }
+    switch (event.action()) {
+    case KeyAction::KEY_ACTION_DOWN:
+        HoldKey(session, code);
+        break;
+    case KeyAction::KEY_ACTION_UP:
+        ReleaseKey(session, code);
+        break;
+    default:
+        HoldKey(session, code);
+        ReleaseKey(session, code);
+        break;
+    }
+    return absl::OkStatus();
+}
+
+void InputDispatcher::HoldKey(InputSessionId session, uint32_t code) {
+    key_holders_[code].insert(session);
+    keyboard_.WriteKey(code, /*down=*/true);
+}
+
+void InputDispatcher::ReleaseKey(InputSessionId session, uint32_t code) {
+    auto holders = key_holders_.find(code);
+    if (holders == key_holders_.end() || holders->second.erase(session) == 0) {
+        return;
+    }
+    if (holders->second.empty()) {
+        key_holders_.erase(holders);
+        keyboard_.WriteKey(code, /*down=*/false);
+    }
+}
+
+absl::Status InputDispatcher::ApplyText(InputSessionId session, std::string_view utf8) {
+    RETURN_IF_ERROR(CheckOpen(session));
+    if (!utf8.empty()) {
+        keyboard_.TypeText(utf8);
+    }
+    return absl::OkStatus();
+}
+
 void InputDispatcher::ReleaseSession(InputSessionId session) {
     sessions_.erase(session);
     // Contacts on inactive devices are forgotten without a report.
@@ -188,6 +267,17 @@ void InputDispatcher::ReleaseSession(InputSessionId session) {
         }
     }
     WriteReports(loop_, reports);
+
+    std::vector<uint32_t> held;
+    for (const auto& [code, holders] : key_holders_) {
+        if (holders.contains(session)) {
+            held.push_back(code);
+        }
+    }
+    std::ranges::sort(held);
+    for (uint32_t code : held) {
+        ReleaseKey(session, code);
+    }
 }
 
 }  // namespace goldfish::grpc::v2
