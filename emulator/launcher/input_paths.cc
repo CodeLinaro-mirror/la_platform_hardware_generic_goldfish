@@ -14,6 +14,8 @@
 
 #include "android/goldfish/input_paths.h"
 
+#include <algorithm>
+
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -211,11 +213,21 @@ absl::StatusOr<UserPaths> ResolveUserPaths(const fs::path& launcher_dir, bool ve
 }
 
 namespace {
+// Returns true if |path| only contains "." components (e.g., ".", "./", "./."),
+// where a trailing slash produces an empty component. Unlike lexically_normal(),
+// this does not collapse "non-existing/.." to ".".
+bool IsCurrentDirPath(const fs::path& path) {
+    return !path.empty() && std::all_of(path.begin(), path.end(), [](const fs::path& part) {
+        return part == "." || part.empty();
+    });
+}
+
 absl::StatusOr<fs::path> Search(const std::vector<fs::path>& search_paths,
                                 std::string_view filename, std::string_view description) {
     VLOG(1) << "Searching for system image file: " << filename;
-    for (const auto& sys_path : search_paths) {
-        if (auto path = CheckExists(sys_path / filename, description); path.ok()) {
+    for (const auto& sp : search_paths) {
+        const fs::path candidate = IsCurrentDirPath(sp) ? fs::path(filename) : sp / filename;
+        if (auto path = CheckExists(candidate, description); path.ok()) {
             return path;
         } else {
             VLOG(1) << "Not found in system dir: " << path.status();
