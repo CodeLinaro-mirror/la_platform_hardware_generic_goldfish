@@ -14,11 +14,9 @@
 #pragma once
 
 #include <memory>
-#include <vector>
 
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
-#include "absl/types/span.h"
 
 #include "android/emulation/control/ev_dev_event.h"
 #include "android/emulation/control/keyboard/key_event_sender.h"
@@ -29,6 +27,7 @@
 namespace goldfish::grpc::v2 {
 
 using ::android::emulation::control::EvDevEvent;
+using ::android::emulation::control::EvDevEvents;
 using ::android::emulation::control::SlotRegistry;
 using ::android::emulation::control::keyboard::IKeyEventSender;
 using ::android::emulation::v2::AxisEvent;
@@ -148,14 +147,13 @@ class InputSession {
      * @param pointer The incoming PointerEvent proto.
      * @param slot_registry The session's SlotRegistry managing MT tracking IDs and slots.
      * @param last_button_mask In/out parameter tracking previously pressed button bitmask.
-     * @return std::vector<EvDevEvent> Sequence of raw evdev events (excluding trailing EV_SYN).
+     * @return EvDevEvents Sequence of raw evdev events (excluding trailing EV_SYN).
      */
-    static std::vector<EvDevEvent> ToEvDevEvents(const PointerEvent& pointer,
-                                                 SlotRegistry& slot_registry,
-                                                 uint32_t& last_button_mask);
+    static EvDevEvents ToEvDevEvents(const PointerEvent& pointer, SlotRegistry& slot_registry,
+                                     uint32_t& last_button_mask);
 
   private:
-    absl::Status SendEventsToDisplay(uint32_t display_id, absl::Span<const EvDevEvent> events);
+    absl::Status SendEventsToDisplay(uint32_t display_id, EvDevEvents events);
 
     IMultiDisplay* multi_display_{nullptr};  ///< Multi-display manager for evdev routing.
     std::shared_ptr<IKeyEventSender>

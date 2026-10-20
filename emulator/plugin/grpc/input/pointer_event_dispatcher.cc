@@ -13,6 +13,7 @@
 // limitations under the License.
 #include "pointer_event_dispatcher.h"
 
+#include <utility>
 #include <vector>
 
 #include "absl/log/log.h"
@@ -165,15 +166,17 @@ template <typename TouchItem>
 void SendTouchItems(IDisplay& display, const std::vector<TouchItem>& touches,
                     SlotRegistry& registry) {
     const auto dims = display.GetDimensions();
+    internal::EvDevEvents report;
     for (const auto& touch : touches) {
-        for (const auto& evdev : touch.ToEvDevEvents(dims.width, dims.height, &registry)) {
-            display.SendEvDevEvent(evdev.type, evdev.code, evdev.value);
-        }
+        auto touch_events = touch.ToEvDevEvents(dims.width, dims.height, &registry);
+        report.insert(report.end(), touch_events.begin(), touch_events.end());
     }
-    for (const auto& ev : registry.ExpireOldSlots()) {
-        display.SendEvDevEvent(ev.type, ev.code, ev.value);
+    auto expired = registry.ExpireOldSlots();
+    report.insert(report.end(), expired.begin(), expired.end());
+    if (report.empty()) {
+        return;
     }
-    display.SendEvDevEvent(EV_SYN, SYN_REPORT, 0);
+    display.SendEvDevReport(std::move(report));
 }
 
 }  // namespace

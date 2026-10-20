@@ -23,6 +23,7 @@
 #include <thread>
 
 #include "absl/time/time.h"
+#include "absl/types/span.h"
 
 #include "android/base/testing/test_clock.h"
 #include "goldfish/async/testing/test_event_loop.h"
@@ -37,27 +38,38 @@ using ::goldfish::async::testing::TestEventLoop;
 using ::testing::_;
 using ::testing::AllOf;
 using ::testing::ElementsAre;
+using ::testing::ElementsAreArray;
 using ::testing::Eq;
 using ::testing::Field;
-using ::testing::InSequence;
 using ::testing::Mock;
 using ::testing::NiceMock;
 using ::testing::UnorderedElementsAre;
 
-namespace android {
-namespace emulation {
-namespace control {
+namespace goldfish::display {
 
 // Helper function to print EvDevEvent objects in case of assertion failure.
+// Defined in the namespace of the aliased type so that gtest finds it.
 void PrintTo(const android::emulation::control::EvDevEvent& event, std::ostream* os) {
     *os << "{type: " << std::hex << event.type << ", code: " << event.code
         << ", value: " << event.value << std::dec << "}";
 }
 
+}  // namespace goldfish::display
+
+namespace android {
+namespace emulation {
+namespace control {
+
 namespace internal {
 
 using ::goldfish::display::test::MockDisplay;
 using namespace std::chrono_literals;
+
+// Matches an EvDevEvent with the given type and code whose value matches `value`.
+auto IsEvDev(uint16_t type, uint16_t code, ::testing::Matcher<uint32_t> value) {
+    return AllOf(Field(&EvDevEvent::type, type), Field(&EvDevEvent::code, code),
+                 Field(&EvDevEvent::value, value));
+}
 
 TEST(PenTouchEventTest, EvDevEventsConversion) {
     SlotRegistry registry;
@@ -112,22 +124,16 @@ TEST(PenTouchEventTest, SendEvents) {
     pen.orientation = 45;
     pen_event.touches.push_back(pen);
 
-    // Expect calls to SendEvDevEvent on the mock display.
-    {
-        InSequence seq;
-        EXPECT_CALL(display, SendEvDevEvent(EV_KEY, BTN_TOOL_RUBBER, 1));
-        EXPECT_CALL(display, SendEvDevEvent(EV_KEY, BTN_STYLUS, 1));
-        EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_SLOT, 0));
-        EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_TRACKING_ID, 0));
-        EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_TOOL_TYPE, MT_TOOL_MAX));
-        EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_TOUCH_MAJOR, 10));
-        EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_TOUCH_MINOR, 5));
-        EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_ORIENTATION, 45));
-        EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_PRESSURE, 50));
-        EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_POSITION_X, _));
-        EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_POSITION_Y, _));
-        EXPECT_CALL(display, SendEvDevEvent(EV_SYN, SYN_REPORT, 0));
-    }
+    // Expect the whole report in one call on the mock display.
+    EXPECT_CALL(
+            display,
+            SendEvDevReport(ElementsAre(
+                    IsEvDev(EV_KEY, BTN_TOOL_RUBBER, 1), IsEvDev(EV_KEY, BTN_STYLUS, 1),
+                    IsEvDev(EV_ABS, ABS_MT_SLOT, 0), IsEvDev(EV_ABS, ABS_MT_TRACKING_ID, 0),
+                    IsEvDev(EV_ABS, ABS_MT_TOOL_TYPE, MT_TOOL_MAX),
+                    IsEvDev(EV_ABS, ABS_MT_TOUCH_MAJOR, 10), IsEvDev(EV_ABS, ABS_MT_TOUCH_MINOR, 5),
+                    IsEvDev(EV_ABS, ABS_MT_ORIENTATION, 45), IsEvDev(EV_ABS, ABS_MT_PRESSURE, 50),
+                    IsEvDev(EV_ABS, ABS_MT_POSITION_X, _), IsEvDev(EV_ABS, ABS_MT_POSITION_Y, _))));
 
     // Call SendEvents.
     dispatcher.SendEvents(display, pen_event);
@@ -168,13 +174,10 @@ TEST(PenTouchEventTest, SendEventsWithOldSlots) {
     dispatcher.SendEvents(display, pen_event);
     clock.Advance(absl::Milliseconds(500));
 
-    // Expect calls to SendEvDevEvent on the mock display.
-    {
-        InSequence seq;
-        EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_SLOT, _));
-        EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_TRACKING_ID, kMtsPointerUp));
-        EXPECT_CALL(display, SendEvDevEvent(EV_SYN, SYN_REPORT, 0));
-    }
+    // Expect the release of the expired slot as one report on the mock display.
+    EXPECT_CALL(display,
+                SendEvDevReport(ElementsAre(IsEvDev(EV_ABS, ABS_MT_SLOT, _),
+                                            IsEvDev(EV_ABS, ABS_MT_TRACKING_ID, kMtsPointerUp))));
     // Call SendEvents with no events, which will cleanup the old ones.
     PenTouchEvent pen_empty;
     dispatcher.SendEvents(display, pen_empty);
@@ -299,19 +302,14 @@ TEST(MultiTouchEventTest, SendEventsPress) {
     touch.orientation = 45;
     touch_event.touches.push_back(touch);
 
-    // Expect calls to SendEvDevEvent on the mock display.
-    {
-        InSequence seq;
-        EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_SLOT, 0));
-        EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_TRACKING_ID, 0));
-        EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_TOUCH_MAJOR, 10));
-        EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_TOUCH_MINOR, 5));
-        EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_ORIENTATION, 45));
-        EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_PRESSURE, 50));
-        EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_POSITION_X, _));
-        EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_POSITION_Y, _));
-        EXPECT_CALL(display, SendEvDevEvent(EV_SYN, SYN_REPORT, 0));
-    }
+    // Expect the whole report in one call on the mock display.
+    EXPECT_CALL(
+            display,
+            SendEvDevReport(ElementsAre(
+                    IsEvDev(EV_ABS, ABS_MT_SLOT, 0), IsEvDev(EV_ABS, ABS_MT_TRACKING_ID, 0),
+                    IsEvDev(EV_ABS, ABS_MT_TOUCH_MAJOR, 10), IsEvDev(EV_ABS, ABS_MT_TOUCH_MINOR, 5),
+                    IsEvDev(EV_ABS, ABS_MT_ORIENTATION, 45), IsEvDev(EV_ABS, ABS_MT_PRESSURE, 50),
+                    IsEvDev(EV_ABS, ABS_MT_POSITION_X, _), IsEvDev(EV_ABS, ABS_MT_POSITION_Y, _))));
 
     // Call SendEvents.
     dispatcher.SendEvents(display, touch_event);
@@ -345,13 +343,10 @@ TEST(MultiTouchEventTest, SendEventsWithOldSlots) {
     dispatcher.SendEvents(display, touch_event);
     clock.Advance(absl::Milliseconds(500));
 
-    // Expect calls to SendEvDevEvent on the mock display.
-    {
-        InSequence seq;
-        EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_SLOT, _));
-        EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_TRACKING_ID, kMtsPointerUp));
-        EXPECT_CALL(display, SendEvDevEvent(EV_SYN, SYN_REPORT, 0));
-    }
+    // Expect the release of the expired slot as one report on the mock display.
+    EXPECT_CALL(display,
+                SendEvDevReport(ElementsAre(IsEvDev(EV_ABS, ABS_MT_SLOT, _),
+                                            IsEvDev(EV_ABS, ABS_MT_TRACKING_ID, kMtsPointerUp))));
 
     // Call SendEvents with no events, which will cleanup the old ones.
     MultiTouchEvent touch_empty;
@@ -388,32 +383,58 @@ TEST(MultiTouchEventTest, SendEventsMultipleTouch) {
     touch2.orientation = 90;
     touch_event.touches.push_back(touch2);
 
-    // Expect calls to SendEvDevEvent on the mock display.
-    {
-        InSequence seq;
-        // First touch events.
-        EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_SLOT, 0));
-        EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_TRACKING_ID, 0));
-        EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_TOUCH_MAJOR, 10));
-        EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_TOUCH_MINOR, 5));
-        EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_ORIENTATION, 45));
-        EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_PRESSURE, 50));
-        EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_POSITION_X, _));
-        EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_POSITION_Y, _));
-        // Second touch events.
-        EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_SLOT, 1));
-        EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_TRACKING_ID, 1));
-        EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_TOUCH_MAJOR, 12));
-        EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_TOUCH_MINOR, 6));
-        EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_ORIENTATION, 90));
-        EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_PRESSURE, 50));
-        EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_POSITION_X, _));
-        EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_POSITION_Y, _));
-        // syn
-        EXPECT_CALL(display, SendEvDevEvent(EV_SYN, SYN_REPORT, 0));
-    }
+    // Expect both touches in one report on the mock display.
+    EXPECT_CALL(
+            display,
+            SendEvDevReport(ElementsAre(
+                    // First touch events.
+                    IsEvDev(EV_ABS, ABS_MT_SLOT, 0), IsEvDev(EV_ABS, ABS_MT_TRACKING_ID, 0),
+                    IsEvDev(EV_ABS, ABS_MT_TOUCH_MAJOR, 10), IsEvDev(EV_ABS, ABS_MT_TOUCH_MINOR, 5),
+                    IsEvDev(EV_ABS, ABS_MT_ORIENTATION, 45), IsEvDev(EV_ABS, ABS_MT_PRESSURE, 50),
+                    IsEvDev(EV_ABS, ABS_MT_POSITION_X, _), IsEvDev(EV_ABS, ABS_MT_POSITION_Y, _),
+                    // Second touch events.
+                    IsEvDev(EV_ABS, ABS_MT_SLOT, 1), IsEvDev(EV_ABS, ABS_MT_TRACKING_ID, 1),
+                    IsEvDev(EV_ABS, ABS_MT_TOUCH_MAJOR, 12), IsEvDev(EV_ABS, ABS_MT_TOUCH_MINOR, 6),
+                    IsEvDev(EV_ABS, ABS_MT_ORIENTATION, 90), IsEvDev(EV_ABS, ABS_MT_PRESSURE, 50),
+                    IsEvDev(EV_ABS, ABS_MT_POSITION_X, _), IsEvDev(EV_ABS, ABS_MT_POSITION_Y, _))));
 
     // Call SendEvents.
+    dispatcher.SendEvents(display, touch_event);
+}
+
+// Each finger's events must not interleave with another sender's, so the whole
+// multi-pointer report goes to the display in a single call.
+TEST(MultiTouchEventTest, SendEventsSendsMultiPointerReportInOneCall) {
+    auto evloop = TestEventLoop::Create();
+    MockDisplay display(evloop.get(), 0, 1024, 768);
+    PointerEventDispatcher dispatcher;
+
+    MultiTouchEvent touch_event;
+    Touch touch1;
+    touch1.x = 100;
+    touch1.y = 200;
+    touch1.identifier = 1;
+    touch1.pressure = 50;
+    touch1.touch_major = 0;
+    touch1.touch_minor = 0;
+    touch1.orientation = 0;
+    touch_event.touches.push_back(touch1);
+    Touch touch2 = touch1;
+    touch2.x = 300;
+    touch2.y = 400;
+    touch2.identifier = 2;
+    touch_event.touches.push_back(touch2);
+
+    const EvDevEvents expected = {
+        {EV_ABS, ABS_MT_SLOT, 0},          {EV_ABS, ABS_MT_TRACKING_ID, 0},
+        {EV_ABS, ABS_MT_PRESSURE, 50},     {EV_ABS, ABS_MT_POSITION_X, 3199},
+        {EV_ABS, ABS_MT_POSITION_Y, 8533}, {EV_ABS, ABS_MT_SLOT, 1},
+        {EV_ABS, ABS_MT_TRACKING_ID, 1},   {EV_ABS, ABS_MT_PRESSURE, 50},
+        {EV_ABS, ABS_MT_POSITION_X, 9599}, {EV_ABS, ABS_MT_POSITION_Y, 17066},
+    };
+    EXPECT_CALL(display, SendEvDevEvent).Times(0);
+    EXPECT_CALL(display, SendEvDevReport(ElementsAreArray(expected)));
+
     dispatcher.SendEvents(display, touch_event);
 }
 
@@ -507,10 +528,12 @@ class GuestMultiTouchTest : public ::testing::Test {
     static constexpr uint32_t kStudioPressure = 0x400;
 
     void SetUp() override {
-        ON_CALL(display_, SendEvDevEvent(_, _, _))
-                .WillByDefault([this](uint16_t type, uint16_t code, uint32_t value) {
-                    guest_.Apply(type, code, value);
-                });
+        ON_CALL(display_, SendEvDevReport(_)).WillByDefault([this](const EvDevEvents& events) {
+            for (const EvDevEvent& ev : events) {
+                guest_.Apply(ev.type, ev.code, ev.value);
+            }
+            guest_.Apply(EV_SYN, SYN_REPORT, 0);
+        });
     }
 
     static void AddTouch(TouchEvent& event, int32_t identifier, int32_t x, int32_t y,

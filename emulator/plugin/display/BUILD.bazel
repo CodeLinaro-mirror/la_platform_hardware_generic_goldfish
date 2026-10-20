@@ -13,6 +13,16 @@ cc_library(
 )
 
 cc_library(
+    name = "ev_dev_event",
+    hdrs = ["include/goldfish/display/ev_dev_event.h"],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "@abseil-cpp//absl/container:inlined_vector",
+    ],
+)
+
+cc_library(
     name = "base",
     srcs = [
         "display.cc",
@@ -23,6 +33,7 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
+        ":ev_dev_event",
         ":write_png",
         "//emulator/libs/async:async_api",
         "//emulator/libs/base",
@@ -32,7 +43,6 @@ cc_library(
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/time",
-        "@abseil-cpp//absl/types:span",
     ],
 )
 
@@ -70,6 +80,7 @@ cc_library(
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/time",
+        "@abseil-cpp//absl/types:span",
         "@libpng//:png",
         "@pixman//:pixman-1",
         "@pixman//:pixman_simd",

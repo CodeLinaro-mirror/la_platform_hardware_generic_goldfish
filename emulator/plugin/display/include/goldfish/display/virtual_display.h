@@ -59,6 +59,7 @@ class VirtualDisplay : public IDisplay {
     void SendMultiTouchEvent(uint8_t slot, int x, int y, MultiTouchType type) override;
     void SendMouseEvent(int x, int y, int button_mask) override;
     void SendEvDevEvent(uint16_t type, uint16_t code, uint32_t value) override;
+    void SendEvDevReport(EvDevEvents events) override;
 
     void Disconnect() override;
 

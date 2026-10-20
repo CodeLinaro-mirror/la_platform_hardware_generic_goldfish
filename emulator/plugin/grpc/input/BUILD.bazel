@@ -7,6 +7,7 @@ cc_library(
     name = "ev_dev_event",
     hdrs = ["include/android/emulation/control/ev_dev_event.h"],
     includes = ["include"],
+    deps = ["//emulator/plugin/display:ev_dev_event"],
 )
 
 cc_library(
