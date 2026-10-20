@@ -204,3 +204,12 @@ TEST(CmdLineOptions, noSnapstorageIsStillParsed) {
     EXPECT_EQ(1, opts.no_snapstorage);
     EXPECT_EQ(0, remaining);
 }
+
+TEST(CmdLineOptions, noNetsimModemIsParsed) {
+    AndroidOptions opts;
+    int remaining = -1;
+
+    EXPECT_EQ(0, parseOptions({"-no-netsim-modem"}, &opts, &remaining));
+    EXPECT_EQ(1, opts.no_netsim_modem);
+    EXPECT_EQ(0, remaining);
+}
