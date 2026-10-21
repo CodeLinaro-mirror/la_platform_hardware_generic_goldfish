@@ -338,6 +338,15 @@ class QemuVmOperations : public VmOperations {
     // back on the calling thread. QEMU's save_snapshot()/load_snapshot() drive
     // the migration state machine and the device save/load hooks, so they must
     // never run anywhere else; the file system work does not need the BQL.
+    //
+    // `vmstate` is deliberately nullptr in every call below: the launcher
+    // names the VM-state node once with -vmstate-node (<avd>/snapshots.qcow2,
+    // see SnapshotDevice) and QEMU resolves nullptr to it. The exit-time
+    // -savevm, the boot-time -loadvm and HMP savevm/loadvm go through the same
+    // default, so all paths agree on the node by construction instead of this
+    // plugin carrying a second copy of its name. If the node is missing QEMU
+    // reports "vmstate block device ... does not exist" rather than falling
+    // back to a disk image.
 
     absl::Status SaveSnapshot(std::string name, const bool overwrite) override {
         RETURN_IF_ERROR(CheckSnapshotName(name));
@@ -474,7 +483,9 @@ class QemuVmOperations : public VmOperations {
                         absl::StatusCode::kFailedPrecondition,
                         /*prefix=*/
                         "Cannot list snapshots: no block device supports VM state snapshots", &errp,
-                        /*remediation=*/"Ensure the AVD is configured with a qcow2 disk image.");
+                        /*remediation=*/
+                        "Ensure snapshots are enabled: with -no-snapshot the VM-state image "
+                        "snapshots.qcow2 is only attached when it already exists.");
             }
 
             ::QEMUSnapshotInfo* qsi = nullptr;

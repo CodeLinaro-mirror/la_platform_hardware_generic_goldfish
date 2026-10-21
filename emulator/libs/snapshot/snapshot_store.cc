@@ -30,6 +30,7 @@ namespace goldfish::snapshot {
 namespace {
 
 constexpr std::string_view kSnapshotsDirName = "snapshots";
+constexpr std::string_view kVmStateImageName = "snapshots.qcow2";
 constexpr std::string_view kVersionFileName = "version.txt";
 // Path separators and characters reserved in filenames on Windows.
 constexpr std::string_view kInvalidSnapshotNameChars = "/\\:*?\"<>|";
@@ -54,12 +55,20 @@ absl::Status ValidateSnapshotName(std::string_view name) {
 }
 
 FileSnapshotStore::FileSnapshotStore(std::filesystem::path avd_content_dir, int snapshot_version)
-        : root_(std::move(avd_content_dir) / kSnapshotsDirName), version_(snapshot_version) {}
+        : avd_content_dir_(std::move(avd_content_dir))
+        , snapshots_dir_(avd_content_dir_ / kSnapshotsDirName)
+        , version_(snapshot_version) {}
 
-std::filesystem::path FileSnapshotStore::Root() const { return root_; }
+std::filesystem::path FileSnapshotStore::Root() const {
+    return snapshots_dir_;
+}
 
 std::filesystem::path FileSnapshotStore::Dir(std::string_view name) const {
-    return root_ / name;
+    return snapshots_dir_ / name;
+}
+
+std::filesystem::path FileSnapshotStore::VmStateImage() const {
+    return avd_content_dir_ / kVmStateImageName;
 }
 
 std::filesystem::path FileSnapshotStore::VersionFile(std::string_view name) const {

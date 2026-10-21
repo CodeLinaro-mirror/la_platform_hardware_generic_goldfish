@@ -516,7 +516,7 @@ TEST_F(QemuVmOperationsTest, ListSnapshotsExecutesOnQemuLoopAndPropagatesErrors)
     EXPECT_THAT(vm_ops_->ListSnapshots([](VmOperations::SnapshotEntry) {}),
                 StatusIs(absl::StatusCode::kFailedPrecondition,
                          AllOf(HasSubstr("no block device supports VM state snapshots"),
-                               HasSubstr("qcow2 disk image"))));
+                               HasSubstr("snapshots.qcow2"))));
     EXPECT_EQ(qemu_loop_->WaitUntilIdle(), tasks + 1);
     EXPECT_EQ(test_vm_lock_->lock_count_, 0);
 

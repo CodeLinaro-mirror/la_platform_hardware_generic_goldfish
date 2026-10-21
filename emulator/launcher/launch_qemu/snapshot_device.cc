@@ -16,13 +16,18 @@
 
 #include "absl/log/log.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 
+#include "android/status/status_macros.h"
+#include "goldfish/file/file.h"
+#include "goldfish/fsimage/qcow2.h"
 #include "goldfish/snapshot/snapshot_store.h"
 
 namespace android::goldfish {
 
 using ::goldfish::snapshot::FileSnapshotStore;
+using ::goldfish::snapshot::SnapshotStore;
 
 absl::Status SnapshotDevice::initialize(const EmulatorConfig& emulator) {
     snapshot_name_ = get_snapshot_name(emulator);
@@ -35,10 +40,21 @@ absl::Status SnapshotDevice::initialize(const EmulatorConfig& emulator) {
     snapshots_enabled_ = are_snapshots_enabled(emulator);
 
     FileSnapshotStore store(emulator.avd().GetContentPath(), kSnapshotVersion);
+    ASSIGN_OR_RETURN(const bool vmstate_recreated, prepare_vmstate_image(store));
 
     std::string skip_load_reason;
     if (should_load_snapshot(emulator, skip_load_reason, &load_status_)) {
-        if (store.IsCompatible(snapshot_name_)) {
+        if (vmstate_recreated) {
+            // version.txt still claims compatibility, but the VM state it
+            // described is gone with the image that held it; -loadvm would
+            // make QEMU fail to start instead of cold booting.
+            if (strict_snapshot_load_) {
+                return absl::FailedPreconditionError(
+                        "Unable to load snapshot: the VM-state image was recreated");
+            }
+            LOG(WARNING) << "VM-state image was recreated, performing cold boot.";
+            load_status_ = LoadStatus::kSkippedOldSnapshot;
+        } else if (store.IsCompatible(snapshot_name_)) {
             LOG(INFO) << "Loading '" << snapshot_name_ << "' ...";
         } else {
             if (strict_snapshot_load_) {
@@ -75,9 +91,55 @@ absl::Status SnapshotDevice::initialize(const EmulatorConfig& emulator) {
     return absl::OkStatus();
 }
 
+absl::StatusOr<bool> SnapshotDevice::prepare_vmstate_image(const SnapshotStore& store) {
+    const std::filesystem::path image = store.VmStateImage();
+    const bool exists = base::file::exists(image);
+    // snapshots.qcow2 has no backing file by design, so allow an empty backing
+    // path; the default would reject (and delete) a perfectly good image on
+    // every boot.
+    if (exists && ::goldfish::fsimage::IsValidQcow2Image(image, /*allow_empty_backing_path=*/true)) {
+        vmstate_image_ = image;
+        return false;
+    }
+    if (!snapshots_enabled_) {
+        // With -no-snapshot nothing may be saved or loaded, but ListSnapshots
+        // and DeleteSnapshot stay available, which is why an existing image is
+        // attached above: without the node QEMU would resolve the VM state to
+        // the first writable disk image and a delete would leave the VM state
+        // behind in snapshots.qcow2. Never create or replace the image in such
+        // a session, though.
+        return false;
+    }
+    if (exists) {
+        // Whatever is there cannot hold snapshots; the snapshots that referred
+        // to it are lost either way, so start over rather than fail to boot.
+        LOG(WARNING) << image
+                     << " is not a qcow2 image, recreating it; existing snapshots "
+                        "of this AVD will cold boot.";
+        RETURN_IF_ERROR(base::file::rm(image));
+    }
+    // The VM state is written past the end of the virtual disk, so the image
+    // needs no virtual size at all; it only has to be a valid qcow2.
+    RETURN_IF_ERROR(::goldfish::fsimage::CreateQcow2Overlay(image, /*raw_size=*/0));
+    vmstate_image_ = image;
+    return exists;
+}
+
 std::vector<std::string> SnapshotDevice::getQemuParameters(
         const EmulatorConfig& /*emulator*/) const {
     std::vector<std::string> params;
+    if (!vmstate_image_.empty()) {
+        // No -device: the node is owned by the monitor and only used for
+        // snapshots. Cache settings match Qcow2Drive; the snapshot is as
+        // durable as the disk images it belongs with.
+        params.push_back("-blockdev");
+        params.push_back(absl::StrCat(
+                "driver=qcow2,node-name=", kVmStateNodeName,
+                ",file.driver=file,file.filename=", EscapeQemuOptionValue(vmstate_image_.string()),
+                ",overlap-check=none,cache.direct=off,cache.no-flush=on"));
+        params.push_back("-vmstate-node");
+        params.push_back(std::string(kVmStateNodeName));
+    }
     if (load_status_ == LoadStatus::kLoading) {
         params.push_back("-loadvm");
         params.push_back(snapshot_name_);

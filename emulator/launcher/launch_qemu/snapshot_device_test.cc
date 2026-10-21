@@ -19,6 +19,7 @@
 #include <fstream>
 
 #include "absl/status/status_matchers.h"
+#include "absl/strings/str_cat.h"
 #include "gmock/gmock.h"
 
 #include "android/base/testing/test_temp_dir.h"
@@ -26,12 +27,14 @@
 #include "android/status/status_matcher_macros.h"
 #include "fake_emulator.h"
 #include "goldfish/file/file.h"
+#include "goldfish/fsimage/qcow2.h"
 
 namespace android::goldfish::test {
 
-using ::android::base::TestTempDir;
 using ::absl_testing::StatusIs;
+using ::android::base::TestTempDir;
 using ::testing::ElementsAre;
+using ::testing::ElementsAreArray;
 using ::testing::Eq;
 using ::testing::IsEmpty;
 using ::testing::Return;
@@ -46,8 +49,30 @@ class SnapshotDeviceTest : public ::testing::Test {
         ofs << version;
     }
 
+    // The AVD content directory; tests may point it at a sub-directory.
+    fs::path content() const { return content_.empty() ? temp_dir_.Path() : content_; }
+    fs::path vmstate_image() const { return content() / "snapshots.qcow2"; }
+
+    // The -blockdev/-vmstate-node pair every session with snapshots enabled
+    // emits, followed by `tail`.
+    std::vector<std::string> WithVmState(std::vector<std::string> tail) const {
+        std::vector<std::string> params = {
+            "-blockdev",
+            absl::StrCat("driver=qcow2,node-name=snapshots,file.driver=file,file.filename=",
+                         Device::EscapeQemuOptionValue(vmstate_image().string()),
+                         ",overlap-check=none,cache.direct=off,cache.no-flush=on"),
+            "-vmstate-node", "snapshots"};
+        params.insert(params.end(), tail.begin(), tail.end());
+        return params;
+    }
+
+    static bool IsVmStateImage(const fs::path& p) {
+        return ::goldfish::fsimage::IsValidQcow2Image(p, /*allow_empty_backing_path=*/true);
+    }
+
     TestTempDir temp_dir_{"snapshot_device_test"};
     HardwareConfig hw_{};
+    fs::path content_;
 };
 
 TEST_F(SnapshotDeviceTest, ColdBootWhenSnapshotVersionMissing) {
@@ -61,7 +86,7 @@ TEST_F(SnapshotDeviceTest, ColdBootWhenSnapshotVersionMissing) {
     EXPECT_EQ(dev.save_status(), SnapshotDevice::SaveStatus::kSaving);
     EXPECT_TRUE(dev.is_enabled());
     EXPECT_THAT(dev.getQemuParameters(emu.config()),
-                ElementsAre(Eq("-savevm"), Eq("default_boot")));
+                ElementsAreArray(WithVmState({"-savevm", "default_boot"})));
 }
 
 TEST_F(SnapshotDeviceTest, WarmBootWhenSnapshotVersionMatches) {
@@ -76,8 +101,9 @@ TEST_F(SnapshotDeviceTest, WarmBootWhenSnapshotVersionMatches) {
     EXPECT_EQ(dev.load_status(), SnapshotDevice::LoadStatus::kLoading);
     EXPECT_EQ(dev.save_status(), SnapshotDevice::SaveStatus::kSaving);
     EXPECT_TRUE(dev.is_enabled());
-    EXPECT_THAT(dev.getQemuParameters(emu.config()),
-                ElementsAre(Eq("-loadvm"), Eq("default_boot"), Eq("-savevm"), Eq("default_boot")));
+    EXPECT_THAT(
+            dev.getQemuParameters(emu.config()),
+            ElementsAreArray(WithVmState({"-loadvm", "default_boot", "-savevm", "default_boot"})));
 }
 
 TEST_F(SnapshotDeviceTest, NoSnapshotDisablesLoadAndSaveViaCmdline) {
@@ -115,7 +141,7 @@ TEST_F(SnapshotDeviceTest, NoSnapshotLoadSkipsLoadViaCmdline) {
     EXPECT_TRUE(dev.is_enabled());
     EXPECT_TRUE(dev.snapshots_enabled());
     EXPECT_THAT(dev.getQemuParameters(emu.config()),
-                ElementsAre(Eq("-savevm"), Eq("default_boot")));
+                ElementsAreArray(WithVmState({"-savevm", "default_boot"})));
 }
 
 TEST_F(SnapshotDeviceTest, NoSnapstorageSkipsLoadViaCmdline) {
@@ -133,7 +159,7 @@ TEST_F(SnapshotDeviceTest, NoSnapstorageSkipsLoadViaCmdline) {
     EXPECT_EQ(dev.save_status(), SnapshotDevice::SaveStatus::kSaving);
     EXPECT_TRUE(dev.is_enabled());
     EXPECT_THAT(dev.getQemuParameters(emu.config()),
-                ElementsAre(Eq("-savevm"), Eq("default_boot")));
+                ElementsAreArray(WithVmState({"-savevm", "default_boot"})));
 }
 
 TEST_F(SnapshotDeviceTest, NoSnapshotSaveDisablesSaveViaCmdline) {
@@ -152,7 +178,7 @@ TEST_F(SnapshotDeviceTest, NoSnapshotSaveDisablesSaveViaCmdline) {
     EXPECT_TRUE(dev.is_enabled());
     EXPECT_TRUE(dev.snapshots_enabled());
     EXPECT_THAT(dev.getQemuParameters(emu.config()),
-                ElementsAre(Eq("-loadvm"), Eq("default_boot")));
+                ElementsAreArray(WithVmState({"-loadvm", "default_boot"})));
 }
 
 TEST_F(SnapshotDeviceTest, ForceColdBootSkipsLoadAndSaveViaAvd) {
@@ -170,7 +196,7 @@ TEST_F(SnapshotDeviceTest, ForceColdBootSkipsLoadAndSaveViaAvd) {
     EXPECT_FALSE(dev.is_enabled());
     // fastboot.forceColdBoot only governs the Quickboot snapshot.
     EXPECT_TRUE(dev.snapshots_enabled());
-    EXPECT_THAT(dev.getQemuParameters(emu.config()), IsEmpty());
+    EXPECT_THAT(dev.getQemuParameters(emu.config()), ElementsAreArray(WithVmState({})));
 }
 
 TEST_F(SnapshotDeviceTest, ColdBootWhenSnapshotVersionMismatches) {
@@ -186,7 +212,7 @@ TEST_F(SnapshotDeviceTest, ColdBootWhenSnapshotVersionMismatches) {
     EXPECT_EQ(dev.save_status(), SnapshotDevice::SaveStatus::kSaving);
     EXPECT_TRUE(dev.is_enabled());
     EXPECT_THAT(dev.getQemuParameters(emu.config()),
-                ElementsAre(Eq("-savevm"), Eq("default_boot")));
+                ElementsAreArray(WithVmState({"-savevm", "default_boot"})));
 }
 
 TEST_F(SnapshotDeviceTest, ColdBootWhenGfxstreamSnapshotVersionMismatches) {
@@ -202,7 +228,7 @@ TEST_F(SnapshotDeviceTest, ColdBootWhenGfxstreamSnapshotVersionMismatches) {
     EXPECT_EQ(dev.save_status(), SnapshotDevice::SaveStatus::kSaving);
     EXPECT_TRUE(dev.is_enabled());
     EXPECT_THAT(dev.getQemuParameters(emu.config()),
-                ElementsAre(Eq("-savevm"), Eq("default_boot")));
+                ElementsAreArray(WithVmState({"-savevm", "default_boot"})));
 }
 
 TEST_F(SnapshotDeviceTest, InitializeCreatesDirectoryButDoesNotWriteVersionUpFront) {
@@ -264,7 +290,176 @@ TEST_F(SnapshotDeviceTest, DirectoryErrorWhenSnapshotDirCreationFails) {
     EXPECT_EQ(dev.load_status(), SnapshotDevice::LoadStatus::kSkippedOldSnapshot);
     EXPECT_EQ(dev.save_status(), SnapshotDevice::SaveStatus::kDirectoryError);
     EXPECT_FALSE(dev.is_enabled());
+    EXPECT_THAT(dev.getQemuParameters(emu.config()), ElementsAreArray(WithVmState({})));
+}
+
+// VM-state image (<avd>/snapshots.qcow2, b/576262656).
+
+TEST_F(SnapshotDeviceTest, CreatesVmStateImageAndNamesTheNode) {
+    FakeEmulator emu;
+    EXPECT_CALL(emu.mock_avd(), GetContentPath()).WillRepeatedly(Return(temp_dir_.Path()));
+    EXPECT_CALL(emu.mock_avd(), Hw()).WillRepeatedly(ReturnRef(hw_));
+
+    SnapshotDevice dev;
+    EXPECT_OK(dev.initialize(emu.config()));
+    EXPECT_EQ(dev.vmstate_image(), vmstate_image());
+    EXPECT_TRUE(IsVmStateImage(vmstate_image()));
+    EXPECT_EQ(::goldfish::fsimage::ReadQcow2BackingPath(vmstate_image()).value_or("x"), fs::path());
+}
+
+TEST_F(SnapshotDeviceTest, KeepsExistingVmStateImage) {
+    FakeEmulator emu;
+    EXPECT_CALL(emu.mock_avd(), GetContentPath()).WillRepeatedly(Return(temp_dir_.Path()));
+    EXPECT_CALL(emu.mock_avd(), Hw()).WillRepeatedly(ReturnRef(hw_));
+
+    SnapshotDevice first;
+    ASSERT_OK(first.initialize(emu.config()));
+    const auto mtime = base::file::last_write_time(vmstate_image());
+    ASSERT_OK(mtime);
+
+    SnapshotDevice second;
+    EXPECT_OK(second.initialize(emu.config()));
+    EXPECT_EQ(base::file::last_write_time(vmstate_image()).value(), *mtime)
+            << "an existing snapshots.qcow2 must not be recreated";
+}
+
+TEST_F(SnapshotDeviceTest, ReplacesVmStateFileThatIsNotQcow2) {
+    FakeEmulator emu;
+    EXPECT_CALL(emu.mock_avd(), GetContentPath()).WillRepeatedly(Return(temp_dir_.Path()));
+    EXPECT_CALL(emu.mock_avd(), Hw()).WillRepeatedly(ReturnRef(hw_));
+    std::ofstream(vmstate_image()) << "not a qcow2";
+
+    SnapshotDevice dev;
+    EXPECT_OK(dev.initialize(emu.config()));
+    EXPECT_TRUE(IsVmStateImage(vmstate_image()));
+}
+
+TEST_F(SnapshotDeviceTest, ColdBootWhenVmStateImageWasRecreated) {
+    // version.txt says the snapshot is compatible, but the image that held its
+    // VM state is being replaced: -loadvm would make QEMU fail to start.
+    WriteSnapshotVersion(kSnapshotVersion);
+    std::ofstream(vmstate_image()) << "not a qcow2";
+
+    FakeEmulator emu;
+    EXPECT_CALL(emu.mock_avd(), GetContentPath()).WillRepeatedly(Return(temp_dir_.Path()));
+    EXPECT_CALL(emu.mock_avd(), Hw()).WillRepeatedly(ReturnRef(hw_));
+
+    SnapshotDevice dev;
+    EXPECT_OK(dev.initialize(emu.config()));
+    EXPECT_TRUE(IsVmStateImage(vmstate_image()));
+    EXPECT_EQ(dev.load_status(), SnapshotDevice::LoadStatus::kSkippedOldSnapshot);
+    EXPECT_EQ(dev.save_status(), SnapshotDevice::SaveStatus::kSaving);
+    EXPECT_THAT(dev.getQemuParameters(emu.config()),
+                ElementsAreArray(WithVmState({"-savevm", "default_boot"})));
+}
+
+TEST_F(SnapshotDeviceTest, StrictLoadFailsWhenVmStateImageWasRecreated) {
+    WriteSnapshotVersion(kSnapshotVersion);
+    std::ofstream(vmstate_image()) << "not a qcow2";
+
+    AndroidOptions opts{};
+    opts.strict_snapshot_load = true;
+    FakeEmulator emu(opts);
+    EXPECT_CALL(emu.mock_avd(), GetContentPath()).WillRepeatedly(Return(temp_dir_.Path()));
+    EXPECT_CALL(emu.mock_avd(), Hw()).WillRepeatedly(ReturnRef(hw_));
+
+    SnapshotDevice dev;
+    EXPECT_THAT(dev.initialize(emu.config()),
+                StatusIs(absl::StatusCode::kFailedPrecondition,
+                         ::testing::HasSubstr("VM-state image was recreated")));
+}
+
+TEST_F(SnapshotDeviceTest, NoVmStateImageWhenSnapshotsAreDisabled) {
+    AndroidOptions opts{};
+    opts.no_snapshot = true;
+    FakeEmulator emu(opts);
+    EXPECT_CALL(emu.mock_avd(), GetContentPath()).WillRepeatedly(Return(temp_dir_.Path()));
+    EXPECT_CALL(emu.mock_avd(), Hw()).WillRepeatedly(ReturnRef(hw_));
+
+    SnapshotDevice dev;
+    EXPECT_OK(dev.initialize(emu.config()));
+    EXPECT_FALSE(base::file::exists(vmstate_image()));
+    EXPECT_TRUE(dev.vmstate_image().empty());
     EXPECT_THAT(dev.getQemuParameters(emu.config()), IsEmpty());
+}
+
+TEST_F(SnapshotDeviceTest, NoSnapshotStillAttachesExistingVmStateImage) {
+    // ListSnapshots/DeleteSnapshot stay available under -no-snapshot; without
+    // the node QEMU would look for the VM state in the first writable disk
+    // image and a delete would leave it behind in snapshots.qcow2.
+    WriteSnapshotVersion(kSnapshotVersion);
+    {
+        // A previous session with snapshots enabled created the image.
+        FakeEmulator enabled;
+        EXPECT_CALL(enabled.mock_avd(), GetContentPath())
+                .WillRepeatedly(Return(temp_dir_.Path()));
+        EXPECT_CALL(enabled.mock_avd(), Hw()).WillRepeatedly(ReturnRef(hw_));
+        SnapshotDevice creator;
+        ASSERT_OK(creator.initialize(enabled.config()));
+    }
+    ASSERT_TRUE(IsVmStateImage(vmstate_image()));
+    const auto mtime = base::file::last_write_time(vmstate_image());
+    ASSERT_OK(mtime);
+
+    AndroidOptions opts{};
+    opts.no_snapshot = true;
+    FakeEmulator emu(opts);
+    EXPECT_CALL(emu.mock_avd(), GetContentPath()).WillRepeatedly(Return(temp_dir_.Path()));
+    EXPECT_CALL(emu.mock_avd(), Hw()).WillRepeatedly(ReturnRef(hw_));
+
+    SnapshotDevice dev;
+    EXPECT_OK(dev.initialize(emu.config()));
+    EXPECT_FALSE(dev.snapshots_enabled());
+    EXPECT_EQ(dev.load_status(), SnapshotDevice::LoadStatus::kSkippedCmdline);
+    EXPECT_EQ(dev.save_status(), SnapshotDevice::SaveStatus::kDisabledCmdline);
+    EXPECT_EQ(dev.vmstate_image(), vmstate_image());
+    EXPECT_EQ(base::file::last_write_time(vmstate_image()).value(), *mtime);
+    // The node is attached, but no -loadvm/-savevm.
+    EXPECT_THAT(dev.getQemuParameters(emu.config()), ElementsAreArray(WithVmState({})));
+}
+
+TEST_F(SnapshotDeviceTest, NoSnapshotLeavesInvalidVmStateFileAlone) {
+    std::ofstream(vmstate_image()) << "not a qcow2";
+
+    AndroidOptions opts{};
+    opts.no_snapshot = true;
+    FakeEmulator emu(opts);
+    EXPECT_CALL(emu.mock_avd(), GetContentPath()).WillRepeatedly(Return(temp_dir_.Path()));
+    EXPECT_CALL(emu.mock_avd(), Hw()).WillRepeatedly(ReturnRef(hw_));
+
+    SnapshotDevice dev;
+    EXPECT_OK(dev.initialize(emu.config()));
+    EXPECT_FALSE(IsVmStateImage(vmstate_image())) << "must not be replaced under -no-snapshot";
+    EXPECT_TRUE(dev.vmstate_image().empty());
+    EXPECT_THAT(dev.getQemuParameters(emu.config()), IsEmpty());
+}
+
+TEST_F(SnapshotDeviceTest, EscapesCommaAndKeepsUtf8InContentPath) {
+    // Non-ASCII covers Windows UTF-8 path handling in the qcow2 helpers; the
+    // comma must come out as ",," in the -blockdev option string.
+    content_ = temp_dir_.Path() / "avd_\u6d4b\u8bd5_\U0001F680_\u00e9,1";
+    ASSERT_OK(base::file::mkdir_recursive(content_, 0755));
+
+    FakeEmulator emu;
+    EXPECT_CALL(emu.mock_avd(), GetContentPath()).WillRepeatedly(Return(content_));
+    EXPECT_CALL(emu.mock_avd(), Hw()).WillRepeatedly(ReturnRef(hw_));
+
+    SnapshotDevice dev;
+    EXPECT_OK(dev.initialize(emu.config()));
+    EXPECT_TRUE(IsVmStateImage(vmstate_image()));
+
+    const auto params = dev.getQemuParameters(emu.config());
+    EXPECT_THAT(params, ElementsAreArray(WithVmState({"-savevm", "default_boot"})));
+    ASSERT_GE(params.size(), 2u);
+    // Build the expected fragment with path operators so the separator is the
+    // native one (/ on POSIX, \ on Windows), as path::string() produces it.
+    const std::string escaped_file =
+            absl::StrCat((fs::path(",,1") / "snapshots.qcow2").string(), ",overlap-check");
+    EXPECT_THAT(params[1], testing::HasSubstr(escaped_file))
+            << "comma in the AVD path must be escaped as ,,";
+    // The non-ASCII part is covered by ElementsAreArray() above, which compares
+    // against the same path::string() encoding the device used; a UTF-8 literal
+    // would not match on a Windows host whose narrow strings are not UTF-8.
 }
 
 }  // namespace android::goldfish::test

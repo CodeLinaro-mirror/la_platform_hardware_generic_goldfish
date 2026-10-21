@@ -49,7 +49,12 @@ namespace goldfish::snapshot {
 //   2 -> 3: the renderer (gfxstream/rutabaga) state moved from
 //           <avd>/renderersave/default_boot/ to <avd>/snapshots/<name>/renderer/
 //           (b/574891578); older snapshots cannot find their renderer state.
-inline constexpr int kSnapshotVersionBase = 3;
+//   3 -> 4: the VM state (guest RAM + device state) moved from the first
+//           writable disk image QEMU happened to find (encryptionkey.img.qcow2,
+//           or sdcard*.qcow2 when an sdcard is attached) to the dedicated
+//           <avd>/snapshots.qcow2 (b/576262656); older snapshots are not
+//           looked for in the old place.
+inline constexpr int kSnapshotVersionBase = 4;
 static_assert(kSnapshotVersionBase > 0 && kSnapshotVersionBase < (1 << 16),
               "Base snapshot version does not fit in 16 bits.");
 
@@ -98,6 +103,11 @@ class SnapshotStore {
     virtual std::filesystem::path Root() const = 0;
     // <avd>/snapshots/<name>
     virtual std::filesystem::path Dir(std::string_view name) const = 0;
+    // <avd>/snapshots.qcow2: the qcow2 image that holds the VM state of every
+    // snapshot of this AVD (one internal qcow2 snapshot per name). It is
+    // attached to QEMU as a block node without a guest device and named with
+    // -vmstate-node, so the VM state never lands in a disk image.
+    virtual std::filesystem::path VmStateImage() const = 0;
 
     // Whether <avd>/snapshots/<name>/ exists.
     virtual bool Exists(std::string_view name) const = 0;
@@ -131,6 +141,7 @@ class FileSnapshotStore : public SnapshotStore {
     int Version() const override { return version_; }
     std::filesystem::path Root() const override;
     std::filesystem::path Dir(std::string_view name) const override;
+    std::filesystem::path VmStateImage() const override;
     bool Exists(std::string_view name) const override;
     absl::StatusOr<int> ReadVersion(std::string_view name) const override;
     bool IsCompatible(std::string_view name) const override;
@@ -141,7 +152,8 @@ class FileSnapshotStore : public SnapshotStore {
   private:
     std::filesystem::path VersionFile(std::string_view name) const;
 
-    const std::filesystem::path root_;
+    const std::filesystem::path avd_content_dir_;
+    const std::filesystem::path snapshots_dir_;
     const int version_;
 };
 
