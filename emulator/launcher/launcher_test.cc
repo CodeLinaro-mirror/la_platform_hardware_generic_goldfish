@@ -231,7 +231,7 @@ class LauncherTest : public testing::Test {
         EXPECT_CALL(*avd, Name()).WillRepeatedly(Return("test_avd"));
         EXPECT_CALL(*avd, GetContentPath()).WillRepeatedly(Return(avd_dir));
         EXPECT_CALL(*avd, Details(_)).WillRepeatedly(Return("test_details"));
-#if defined(__arm64__)
+#if defined(__aarch64__) || defined(_M_ARM64) || defined(__arm64__)
         EXPECT_CALL(*avd, Arch()).WillRepeatedly(Return(Avd::CpuArchitecture::kArm));
         EXPECT_CALL(*avd, Abi()).WillRepeatedly(Return("arm64-v8a"));
 #else
@@ -273,7 +273,7 @@ class LauncherTest : public testing::Test {
     }
 
     fs::path ExpectedQemuBinary() {
-#if defined(__arm64__)
+#if defined(__aarch64__) || defined(_M_ARM64) || defined(__arm64__)
         return emulator_paths.qemu_system_arm_binary;
 #else
         return emulator_paths.qemu_system_x86_binary;
