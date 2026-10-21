@@ -80,6 +80,12 @@ ReleasedContacts ContactTable::ReleaseSession(InputSessionId session) {
             [session](const ContactKey& key, const Contact&) { return key.session == session; });
 }
 
+ReleasedContacts ContactTable::ReleaseSessionOn(InputSessionId session, TouchDeviceId device) {
+    return ReleaseIf([session, device](const ContactKey& key, const Contact& contact) {
+        return key.session == session && contact.device == device;
+    });
+}
+
 ReleasedContacts ContactTable::ClearDevice(TouchDeviceId device) {
     return ReleaseIf([device](const ContactKey&, const Contact& contact) {
         return contact.device == device;

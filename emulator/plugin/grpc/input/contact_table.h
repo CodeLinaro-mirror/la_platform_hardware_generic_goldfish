@@ -115,6 +115,12 @@ class ContactTable {
     ReleasedContacts ReleaseSession(InputSessionId session);
 
     /**
+     * @brief Frees the contacts of `session` on `device`.
+     * @return The released contacts, sorted by `slot`.
+     */
+    ReleasedContacts ReleaseSessionOn(InputSessionId session, TouchDeviceId device);
+
+    /**
      * @brief Frees all contacts on `device`.
      * @return The released contacts, sorted by `slot`.
      */

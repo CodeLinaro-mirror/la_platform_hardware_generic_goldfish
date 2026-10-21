@@ -155,6 +155,22 @@ TEST(ContactTableTest, ReleaseSessionFreesOnlyThatSessionSorted) {
     EXPECT_THAT(table.Acquire({kHuman, 0}, kDisplay0, kIsHuman), IsOkAndHolds(1));
 }
 
+TEST(ContactTableTest, ReleaseSessionOnFreesOnlyThatSessionOnThatDevice) {
+    ContactTable table;
+    ASSERT_THAT(table.Acquire({kAgent, 5}, kDisplay0, kNotHuman), IsOkAndHolds(0));
+    ASSERT_THAT(table.Acquire({kOtherAgent, 0}, kDisplay0, kNotHuman), IsOkAndHolds(1));
+    ASSERT_THAT(table.Acquire({kAgent, 1}, kDisplay1, kNotHuman), IsOkAndHolds(0));
+    ASSERT_THAT(table.Acquire({kAgent, 2}, kDisplay0, kNotHuman), IsOkAndHolds(2));
+
+    EXPECT_THAT(table.ReleaseSessionOn(kAgent, kDisplay0),
+                ElementsAre(Pair(Eq(ContactKey{kAgent, 5}), Contact{kDisplay0, 0}),
+                            Pair(Eq(ContactKey{kAgent, 2}), Contact{kDisplay0, 2})));
+
+    EXPECT_TRUE(table.IsHeld({kOtherAgent, 0}));
+    EXPECT_TRUE(table.IsHeld({kAgent, 1}));
+    EXPECT_THAT(table.ReleaseSessionOn(kAgent, kDisplay0), ElementsAre());
+}
+
 TEST(ContactTableTest, ClearDeviceClearsOnlyThatDeviceSorted) {
     ContactTable table;
     ASSERT_THAT(table.Acquire({kAgent, 0}, kDisplay0, kNotHuman), IsOkAndHolds(0));

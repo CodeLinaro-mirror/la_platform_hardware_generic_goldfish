@@ -149,4 +149,20 @@ void AppendContactUp(int slot, ::android::emulation::control::EvDevEvents& event
     events.push_back({EV_ABS, ABS_MT_TRACKING_ID, static_cast<uint32_t>(kMtsPointerUp)});
 }
 
+bool IsContactReleased(PointerAction action, const PointerEvent::Pointer& p) {
+    if (action == PointerAction::POINTER_ACTION_CANCEL ||
+        action == PointerAction::POINTER_ACTION_HOVER_EXIT) {
+        return true;
+    }
+    if (action == PointerAction::POINTER_ACTION_UP) {
+        return !(p.has_pressure() && p.pressure() > 0.0F);
+    }
+    if (action == PointerAction::POINTER_ACTION_DOWN ||
+        action == PointerAction::POINTER_ACTION_HOVER_ENTER ||
+        action == PointerAction::POINTER_ACTION_HOVER_MOVE) {
+        return false;
+    }
+    return p.has_pressure() && p.pressure() <= 0.0F;
+}
+
 }  // namespace goldfish::grpc::v2

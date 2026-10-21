@@ -346,6 +346,7 @@ cc_library(
         "//emulator/plugin/display:base",
         "//emulator/plugin/grpc/input:input_session",
         "//emulator/plugin/grpc/input:slot_registry",
+        "//emulator/plugin/grpc/input:touch_encoding",
         "//emulator/plugin/grpc/keyboard",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/container:flat_hash_map",

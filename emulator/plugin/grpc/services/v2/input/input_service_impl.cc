@@ -32,6 +32,7 @@
 
 #include "android/emulation/control/absl_status_translate.h"
 #include "android/emulation/control/simple_async_grpc.h"
+#include "emulator/plugin/grpc/input/touch_encoding.h"
 
 namespace goldfish::grpc::v2 {
 
@@ -342,7 +343,7 @@ void InputServiceImpl::TrackPointerEventLocked(int32_t source_id, PointerEvent& 
                action != PointerAction::POINTER_ACTION_SCROLL) {
         for (const auto& p : pointer.pointers()) {
             const auto id = static_cast<size_t>(p.pointer_id());
-            if (InputSession::IsPointerUp(action, p)) {
+            if (IsContactReleased(action, p)) {
                 display.active_pointer_ids.reset(id);
             } else {
                 display.active_pointer_ids.set(id);
