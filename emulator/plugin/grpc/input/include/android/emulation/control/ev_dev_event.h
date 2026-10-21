@@ -13,15 +13,11 @@
 // limitations under the License.
 #pragma once
 
+#include "goldfish/display/ev_dev_event.h"
+
 namespace android::emulation::control {
 
-struct EvDevEvent {
-    uint16_t type;
-    uint16_t code;
-    uint32_t value;
+using EvDevEvent = ::goldfish::display::EvDevEvent;
+using EvDevEvents = ::goldfish::display::EvDevEvents;
 
-    bool operator==(const EvDevEvent& other) const {
-        return type == other.type && code == other.code && value == other.value;
-    }
-};
 }  // namespace android::emulation::control

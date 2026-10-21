@@ -337,6 +337,17 @@ void QemuDisplay::SendEvDevEvent(uint16_t type, uint16_t code, uint32_t value) {
             .IgnoreError();
 }
 
+void QemuDisplay::SendEvDevReport(EvDevEvents events) {
+    const absl::MutexLock lock(send_lock_);
+    if (!vhid_) return;
+    VLOG(2) << *this << ", SendEvDevReport(" << events.size() << " events)";
+    qemu_loop_
+            ->Post([vhid = vhid_, report = std::move(events)] {
+                InputHandler::SendEvDevReport(vhid, report);
+            })
+            .IgnoreError();
+}
+
 void QemuDisplay::SetOwnedSurface(DisplaySurface* surface) {
     if (owned_surface_) {
         qemu_free_displaysurface(owned_surface_);

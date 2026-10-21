@@ -16,6 +16,8 @@
 
 #include <algorithm>
 
+#include "absl/types/span.h"
+
 // clang-format off
 // IWYU pragma: begin_keep
 extern "C" {
@@ -124,6 +126,14 @@ void InputHandler::SendMouseEvent(VirtIOInputHID* vhid, int x, int y, int button
         virtio_input_send_evdev(vhid, kEvAbs, kAbsMtTrackingId, -1);
         virtio_input_send_evdev(vhid, kEvSyn, kSynReport, 0);
     }
+}
+
+void InputHandler::SendEvDevReport(VirtIOInputHID* vhid, absl::Span<const EvDevEvent> events) {
+    if (!vhid) return;
+    for (const EvDevEvent& ev : events) {
+        virtio_input_send_evdev(vhid, ev.type, ev.code, ev.value);
+    }
+    virtio_input_send_evdev(vhid, kEvSyn, kSynReport, 0);
 }
 
 }  // namespace goldfish::display

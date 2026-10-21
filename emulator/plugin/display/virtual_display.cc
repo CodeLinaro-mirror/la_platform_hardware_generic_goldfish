@@ -233,6 +233,16 @@ void VirtualDisplay::SendEvDevEvent(uint16_t type, uint16_t code, uint32_t value
             .IgnoreError();
 }
 
+void VirtualDisplay::SendEvDevReport(EvDevEvents events) {
+    const absl::MutexLock lock(&send_lock_);
+    if (!vhid_) return;
+    qemu_loop_
+            ->Post([vhid = vhid_, report = std::move(events)] {
+                InputHandler::SendEvDevReport(vhid, report);
+            })
+            .IgnoreError();
+}
+
 void VirtualDisplay::SimulateGuestFrameUpdate() {
     OnFrameRequested();
 }

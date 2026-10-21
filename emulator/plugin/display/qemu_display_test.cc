@@ -42,6 +42,7 @@
 #include "goldfish/display/frame.h"
 #include "goldfish/display/test/display_test_peer.h"
 #include "goldfish/display/virtual_display.h"
+#include "standard-headers/linux/input-event-codes.h"
 
 extern "C" {
 #include "ui/console.h"
@@ -52,14 +53,40 @@ extern "C" {
 void SetTestRegisterDclHook(void (*hook)(DisplayChangeListener*));
 void SetTestGraphicHwUpdateHook(void (*hook)(QemuConsole*));
 void SetTestFindVirtioDeviceResult(int result);
+void SetTestVirtioInputSendHook(void (*hook)(uint16_t type, uint16_t code, uint32_t value));
 }
 
 using goldfish::async::testing::TestEventLoop;
 using goldfish::display::DisplayFrames;
 using goldfish::display::DisplayTestPeer;
+using goldfish::display::EvDevEvent;
+using goldfish::display::EvDevEvents;
 using goldfish::display::FrameEvent;
+using ::testing::ElementsAre;
 // Avoid ambiguity with the global QemuDisplay typedef from QEMU's console.h
 using EmulatorDisplay = goldfish::display::QemuDisplay;
+
+// Records the events the displays write to the virtio input device.
+class ScopedDeviceEventCapture {
+  public:
+    ScopedDeviceEventCapture() {
+        capture_events_ = &events;
+        SetTestVirtioInputSendHook(&Record);
+    }
+    ~ScopedDeviceEventCapture() {
+        SetTestVirtioInputSendHook(nullptr);
+        capture_events_ = nullptr;
+    }
+
+    std::vector<EvDevEvent> events;
+
+  private:
+    static void Record(uint16_t type, uint16_t code, uint32_t value) {
+        capture_events_->push_back({type, code, value});
+    }
+
+    static inline std::vector<EvDevEvent>* capture_events_ = nullptr;
+};
 
 class QemuDisplayConcurrencyTest : public ::testing::Test {
   protected:
@@ -250,6 +277,37 @@ TEST_F(QemuDisplayConcurrencyTest, InputEvents_DispatchedToQemuLoop) {
 
     qemu_loop_->RunAll();
     EXPECT_EQ(qemu_loop_->TaskCount(), 0);
+}
+
+// The guest device applies events up to each SYN_REPORT, so another sender's
+// task must not run between a report's events: the report is one loop task.
+TEST_F(QemuDisplayConcurrencyTest, EvDevReport_PostedAsOneTask) {
+    ScopedDeviceEventCapture device;
+    const EvDevEvents report = {
+        {EV_ABS, ABS_MT_SLOT, 0}, {EV_ABS, ABS_MT_TRACKING_ID, 0}, {EV_ABS, ABS_MT_SLOT, 1}};
+
+    display_->SendEvDevReport(report);
+    EXPECT_EQ(qemu_loop_->TaskCount(), 1);
+
+    qemu_loop_->RunAll();
+    EXPECT_THAT(device.events,
+                ElementsAre(report[0], report[1], report[2], EvDevEvent{EV_SYN, SYN_REPORT, 0}));
+}
+
+TEST_F(QemuDisplayConcurrencyTest, VirtualDisplayEvDevReport_PostedAsOneTask) {
+    ASSERT_OK_AND_ASSIGN(auto display,
+                         goldfish::display::VirtualDisplay::Create(
+                                 main_loop_.get(), qemu_loop_.get(), 1, 800, 600, 320, 0));
+    qemu_loop_->RunAll();
+    ScopedDeviceEventCapture device;
+    const EvDevEvents report = {{EV_ABS, ABS_MT_SLOT, 0}, {EV_ABS, ABS_MT_TRACKING_ID, 0}};
+
+    display->SendEvDevReport(report);
+    EXPECT_EQ(qemu_loop_->TaskCount(), 1);
+
+    qemu_loop_->RunAll();
+    EXPECT_THAT(device.events,
+                ElementsAre(report[0], report[1], EvDevEvent{EV_SYN, SYN_REPORT, 0}));
 }
 
 TEST_F(QemuDisplayConcurrencyTest, FrameListener_DrivesLifecycleAndReceivesFrames) {

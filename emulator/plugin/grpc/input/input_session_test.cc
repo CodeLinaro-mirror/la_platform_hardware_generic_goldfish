@@ -398,6 +398,44 @@ TEST_F(InputSessionTestFixture, MultiTouch_TwoFingersSimultaneousTracking) {
     }
 }
 
+// Each finger's events must not interleave with another sender's, so the whole
+// multi-pointer report goes to the display in a single call.
+TEST_F(InputSessionTestFixture, MultiTouch_TwoFingerEventSentAsOneReport) {
+    auto* display = GetDisplay(0);
+    ASSERT_NE(display, nullptr);
+
+    InputSession session(*multi_display_, key_sender_, false);
+
+    InputEvent event;
+    auto* ptr = event.mutable_pointer();
+    ptr->set_display_id(0);
+    ptr->set_action(PointerAction::POINTER_ACTION_DOWN);
+    auto* p1 = ptr->add_pointers();
+    p1->set_pointer_id(100);
+    p1->set_x(0.25F);
+    p1->set_y(0.50F);
+    p1->set_pressure(0.75F);
+    auto* p2 = ptr->add_pointers();
+    p2->set_pointer_id(200);
+    p2->set_x(0.75F);
+    p2->set_y(0.80F);
+    p2->set_pressure(0.90F);
+
+    display->evdevs.clear();
+    display->evdev_reports.clear();
+    EXPECT_TRUE(session.DispatchInputEvent(event).ok());
+
+    // Every event, including the trailing SYN_REPORT, arrived in one report.
+    ASSERT_EQ(display->evdev_reports.size(), 1U);
+    const auto& report = display->evdev_reports[0];
+    EXPECT_EQ(report, display->evdevs);
+    EXPECT_TRUE(HasEvent(report, EV_ABS, ABS_MT_SLOT, 0));
+    EXPECT_TRUE(HasEvent(report, EV_ABS, ABS_MT_SLOT, 1));
+    ASSERT_FALSE(report.empty());
+    EXPECT_EQ(report.back().type, EV_SYN);
+    EXPECT_EQ(report.back().code, SYN_REPORT);
+}
+
 TEST_F(InputSessionTestFixture, MultiTouch_SingleFingerReleaseMaintainsRemainingTouch) {
     auto* display = GetDisplay(0);
     ASSERT_NE(display, nullptr);

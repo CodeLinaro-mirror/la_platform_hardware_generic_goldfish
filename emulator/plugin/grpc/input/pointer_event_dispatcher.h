@@ -26,7 +26,7 @@
 namespace android::emulation::control {
 namespace internal {
 
-using EvDevEvents = std::vector<EvDevEvent>;
+using ::android::emulation::control::EvDevEvents;
 
 /**
  * @brief Internal representation of a protobuf Touch.

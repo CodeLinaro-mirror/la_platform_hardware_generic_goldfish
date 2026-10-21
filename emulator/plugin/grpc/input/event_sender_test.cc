@@ -130,9 +130,8 @@ TEST_F(InputEventSenderTest, SendTouchEvent) {
     touch->set_pressure(50);
 
     EXPECT_CALL(*mock_multidisplay_, GetDisplay(0)).WillOnce(Return(mock_display_));
-    // PointerEventDispatcher will call SendEvDevEvent multiple times.
-    // We just verify that it doesn't crash and returns OK.
-    EXPECT_CALL(*mock_display_, SendEvDevEvent(_, _, _)).Times(::testing::AtLeast(1));
+    // PointerEventDispatcher sends the touch as a single evdev report.
+    EXPECT_CALL(*mock_display_, SendEvDevReport(_));
 
     EXPECT_TRUE(sender_->Send(event).ok());
 }
@@ -148,7 +147,7 @@ TEST_F(InputEventSenderTest, SendPenEvent) {
     touch->set_pressure(50);
 
     EXPECT_CALL(*mock_multidisplay_, GetDisplay(0)).WillOnce(Return(mock_display_));
-    EXPECT_CALL(*mock_display_, SendEvDevEvent(_, _, _)).Times(::testing::AtLeast(1));
+    EXPECT_CALL(*mock_display_, SendEvDevReport(_));
 
     EXPECT_TRUE(sender_->Send(event).ok());
 }

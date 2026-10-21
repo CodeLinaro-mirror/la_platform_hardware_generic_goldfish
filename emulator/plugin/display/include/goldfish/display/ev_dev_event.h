@@ -1,0 +1,33 @@
+// Copyright (C) 2025 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+#pragma once
+
+#include <cstdint>
+
+#include "absl/container/inlined_vector.h"
+
+namespace goldfish::display {
+
+// A raw Linux evdev input event, as written to a display's virtio input device.
+struct EvDevEvent {
+    uint16_t type;
+    uint16_t code;
+    uint32_t value;
+
+    bool operator==(const EvDevEvent& other) const = default;
+};
+
+using EvDevEvents = absl::InlinedVector<EvDevEvent, 16>;
+
+}  // namespace goldfish::display
