@@ -65,6 +65,20 @@ bool ShouldSkipAnnotation(std::string_view name) {
     return false;
 }
 
+template <typename Fn>
+void ForEachAnnotationObject(crashpad::FileReader* reader, Fn&& fn) {
+    crashpad::ProcessSnapshotMinidump snapshot;
+    if (!snapshot.Initialize(reader)) {
+        LOG(ERROR) << "Failed to initialize annotation parser";
+        return;
+    }
+    for (const crashpad::ModuleSnapshot* module : snapshot.Modules()) {
+        for (const crashpad::AnnotationSnapshot& annotation : module->AnnotationObjects()) {
+            if (!fn(annotation)) return;
+        }
+    }
+}
+
 }  // namespace
 
 nlohmann::json AnnotationExtractor::Extract(crashpad::FileReader* reader) {
@@ -118,38 +132,26 @@ nlohmann::json AnnotationExtractor::Extract(crashpad::FileReader* reader) {
 
 std::vector<uint8_t> AnnotationExtractor::ExtractAnnotationBytes(crashpad::FileReader* reader,
                                                                  const std::string& name) {
-    crashpad::ProcessSnapshotMinidump snapshot;
-    if (!snapshot.Initialize(reader)) {
-        LOG(ERROR) << "Failed to initialize annotation parser";
-        return {};
-    }
-
-    for (const crashpad::ModuleSnapshot* module : snapshot.Modules()) {
-        for (const crashpad::AnnotationSnapshot& annotation : module->AnnotationObjects()) {
-            if (annotation.name == name) {
-                return annotation.value;
-            }
+    std::vector<uint8_t> result;
+    ForEachAnnotationObject(reader, [&](const crashpad::AnnotationSnapshot& annotation) {
+        if (annotation.name == name) {
+            result = annotation.value;
+            return false;
         }
-    }
-    return {};
+        return true;
+    });
+    return result;
 }
 
 std::vector<ExtractedAnnotation> AnnotationExtractor::ExtractAnnotationsWithPrefix(
         crashpad::FileReader* reader, const std::string& prefix) {
-    crashpad::ProcessSnapshotMinidump snapshot;
-    if (!snapshot.Initialize(reader)) {
-        LOG(ERROR) << "Failed to initialize annotation parser";
-        return {};
-    }
-
     std::vector<ExtractedAnnotation> result;
-    for (const crashpad::ModuleSnapshot* module : snapshot.Modules()) {
-        for (const crashpad::AnnotationSnapshot& annotation : module->AnnotationObjects()) {
-            if (annotation.name.starts_with(prefix)) {
-                result.push_back({annotation.name, annotation.value});
-            }
+    ForEachAnnotationObject(reader, [&](const crashpad::AnnotationSnapshot& annotation) {
+        if (annotation.name.starts_with(prefix)) {
+            result.push_back({annotation.name, annotation.value});
         }
-    }
+        return true;
+    });
     return result;
 }
 
