@@ -99,7 +99,7 @@ void PopulateDisplayCapabilities(const HardwareConfig& hw, DisplayCapabilities* 
     primary->set_height(hw.hw_lcd_height > 0 ? hw.hw_lcd_height : 2400);
     primary->set_density_dpi(hw.hw_lcd_density > 0 ? hw.hw_lcd_density : 420);
     primary->set_circular(hw.hw_lcd_circular);
-    primary->set_refresh_rate_hz(60.0f);
+    primary->set_refresh_rate_hz(60.0F);
     primary->set_supports_dynamic_resizing(true);
 
     PopulateScreenCaptureCapabilities(display_caps->mutable_screen_capture());
