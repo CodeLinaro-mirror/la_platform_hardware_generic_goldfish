@@ -118,9 +118,9 @@ TEST(AvdShallowCopyTest, ShallowCopiesIniAndAvdDirectory) {
                         (src_avd / "snapshots" / "default_boot" / "ram.img").string())));
 
     // Verify .qcow2 files point to the source .qcow2 file
-    EXPECT_TRUE(goldfish::fsimage::IsQcow2Path(dst_avd / "userdata.img.qcow2"));
-    EXPECT_THAT(goldfish::fsimage::ReadBackingFileFromQcow2(dst_avd / "userdata.img.qcow2"),
-                IsOkAndHolds((src_avd / "userdata.img.qcow2").string()));
+    EXPECT_TRUE(goldfish::fsimage::IsValidQcow2Image(dst_avd / "userdata.img.qcow2"));
+    EXPECT_THAT(goldfish::fsimage::ReadQcow2BackingPath(dst_avd / "userdata.img.qcow2"),
+                IsOkAndHolds(src_avd / "userdata.img.qcow2"));
 }
 
 TEST(AvdShallowCopyTest, FailsWhenSourceConfigIniDoesNotExist) {

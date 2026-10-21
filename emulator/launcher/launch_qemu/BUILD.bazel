@@ -563,6 +563,7 @@ cc_test(
         ":disk_drive",
         ":fake_emulator",
         "//emulator/libs/file",
+        "//emulator/libs/fsimage:qcow2",
         "//emulator/libs/status_macros:status_matcher_macros",
         "//emulator/libs/system:test-headers",
         "//emulator/libs/test:googletest_main",

@@ -88,44 +88,138 @@ std::vector<uint8_t> ReadFileBytes(const fs::path& path) {
     return buf;
 }
 
-TEST(IsQcow2PathTest, MissingFile) {
+TEST(IsValidQcow2ImageTest, MissingFile) {
     TestTempDir temp_dir("qcow2_test");
-    EXPECT_FALSE(IsQcow2Path(temp_dir.Path() / "nonexistent.qcow2"));
+    EXPECT_FALSE(IsValidQcow2Image(temp_dir.Path() / "nonexistent.qcow2"));
 }
 
-TEST(IsQcow2PathTest, EmptyFile) {
+TEST(IsValidQcow2ImageTest, EmptyFile) {
     TestTempDir temp_dir("qcow2_test");
     const fs::path path = temp_dir.Path() / "empty.qcow2";
     WriteFile(path, "");
-    EXPECT_FALSE(IsQcow2Path(path));
+    EXPECT_FALSE(IsValidQcow2Image(path));
 }
 
-TEST(IsQcow2PathTest, TooShort) {
+TEST(IsValidQcow2ImageTest, TooShort) {
     TestTempDir temp_dir("qcow2_test");
     const fs::path path = temp_dir.Path() / "short.qcow2";
     WriteFile(path, "QFI");
-    EXPECT_FALSE(IsQcow2Path(path));
+    EXPECT_FALSE(IsValidQcow2Image(path));
 }
 
-TEST(IsQcow2PathTest, WrongMagic) {
+TEST(IsValidQcow2ImageTest, WrongMagic) {
     TestTempDir temp_dir("qcow2_test");
     const fs::path path = temp_dir.Path() / "wrong_magic.img";
     WriteFile(path, "QFI\xFA\x00\x00\x00\x03");
-    EXPECT_FALSE(IsQcow2Path(path));
+    EXPECT_FALSE(IsValidQcow2Image(path));
 }
 
-TEST(IsQcow2PathTest, TruncatedQcow2Header) {
+TEST(IsValidQcow2ImageTest, TruncatedQcow2Header) {
     TestTempDir temp_dir("qcow2_test");
     const fs::path path = temp_dir.Path() / "magic_only.qcow2";
     WriteFile(path, "QFI\xFB");
-    EXPECT_FALSE(IsQcow2Path(path));
+    EXPECT_FALSE(IsValidQcow2Image(path));
 }
 
-TEST(IsQcow2PathTest, ValidQcow2Overlay) {
+TEST(IsValidQcow2ImageTest, MissingBackingFile) {
     TestTempDir temp_dir("qcow2_test");
+    const fs::path path = temp_dir.Path() / "missing_backing.qcow2";
+    ASSERT_THAT(internal::CreateQcow2Overlay(path, (temp_dir.Path() / "missing.img").string(),
+                                             "raw", 1024 * 1024),
+                IsOk());
+    EXPECT_FALSE(IsValidQcow2Image(path));
+    EXPECT_FALSE(IsValidQcow2Image(path, /*allow_empty_backing_path=*/true));
+}
+
+TEST(IsValidQcow2ImageTest, EmptyBackingPath) {
+    TestTempDir temp_dir("qcow2_test");
+    const fs::path path = temp_dir.Path() / "empty_backing.qcow2";
+    ASSERT_THAT(CreateQcow2Overlay(path, 1024 * 1024), IsOk());
+    EXPECT_FALSE(IsValidQcow2Image(path));
+    EXPECT_FALSE(IsValidQcow2Image(path, /*allow_empty_backing_path=*/false));
+    EXPECT_TRUE(IsValidQcow2Image(path, /*allow_empty_backing_path=*/true));
+}
+
+TEST(IsValidQcow2ImageTest, ValidQcow2Overlay) {
+    TestTempDir temp_dir("qcow2_test");
+    const fs::path backing = temp_dir.Path() / "backing.img";
+    WriteFile(backing, std::string(4096, '\0'));
     const fs::path path = temp_dir.Path() / "valid.qcow2";
+    ASSERT_THAT(CreateQcow2Overlay(path, backing), IsOk());
+    EXPECT_TRUE(IsValidQcow2Image(path));
+    EXPECT_TRUE(IsValidQcow2Image(path, /*allow_empty_backing_path=*/true));
+}
+
+TEST(IsValidQcow2ImageTest, RelativeBackingPath) {
+    TestTempDir temp_dir("qcow2_test");
+    const fs::path path = temp_dir.Path() / "relative_backing.qcow2";
     ASSERT_THAT(internal::CreateQcow2Overlay(path, "backing.img", "raw", 1024 * 1024), IsOk());
-    EXPECT_TRUE(IsQcow2Path(path));
+    EXPECT_FALSE(IsValidQcow2Image(path));
+
+    WriteFile(temp_dir.Path() / "backing.img", std::string(4096, '\0'));
+    EXPECT_TRUE(IsValidQcow2Image(path));
+}
+
+TEST(ReadQcow2BackingPathTest, MissingFileReturnsNotFound) {
+    TestTempDir temp_dir("qcow2_test");
+    EXPECT_THAT(ReadQcow2BackingPath(temp_dir.Path() / "nonexistent.qcow2"),
+                StatusIs(absl::StatusCode::kNotFound));
+}
+
+TEST(ReadQcow2BackingPathTest, NonQcow2FileReturnsInvalidArgument) {
+    TestTempDir temp_dir("qcow2_test");
+    const fs::path raw_path = temp_dir.Path() / "raw.img";
+    WriteFile(raw_path, "raw image contents");
+    EXPECT_THAT(ReadQcow2BackingPath(raw_path), StatusIs(absl::StatusCode::kInvalidArgument));
+}
+
+TEST(ReadQcow2BackingPathTest, TruncatedHeaderReturnsDataLoss) {
+    TestTempDir temp_dir("qcow2_test");
+    const fs::path truncated_path = temp_dir.Path() / "truncated.qcow2";
+    WriteFile(truncated_path, "QFI\xFB");
+    EXPECT_THAT(ReadQcow2BackingPath(truncated_path), StatusIs(absl::StatusCode::kDataLoss));
+}
+
+TEST(ReadQcow2BackingPathTest, OverlayWithoutBackingFileReturnsEmptyPath) {
+    TestTempDir temp_dir("qcow2_test");
+    const fs::path overlay = temp_dir.Path() / "overlay.qcow2";
+    ASSERT_THAT(CreateQcow2Overlay(overlay, 1024 * 1024), IsOk());
+    EXPECT_THAT(ReadQcow2BackingPath(overlay), IsOkAndHolds(fs::path{}));
+}
+
+TEST(ReadQcow2BackingPathTest, ValidOverlayWithBackingFileReturnsBackingPath) {
+    TestTempDir temp_dir("qcow2_test");
+    const fs::path overlay = temp_dir.Path() / "overlay.qcow2";
+    const fs::path backing = temp_dir.Path() / "backing.img";
+    ASSERT_THAT(internal::CreateQcow2Overlay(overlay, backing.string(), "raw", 1024 * 1024),
+                IsOk());
+    EXPECT_THAT(ReadQcow2BackingPath(overlay), IsOkAndHolds(backing));
+}
+
+TEST(ReadQcow2BackingPathTest, BackingFileSizeTooLargeReturnsDataLoss) {
+    TestTempDir temp_dir("qcow2_test");
+    const fs::path overlay = temp_dir.Path() / "overlay.qcow2";
+    ASSERT_THAT(CreateQcow2Overlay(overlay, 1024 * 1024), IsOk());
+
+    std::vector<uint8_t> data = ReadFileBytes(overlay);
+    WriteBe64(data.data() + 8, 136ULL);  // backing_file_offset
+    WriteBe32(data.data() + 16, 1024U);  // backing_file_size > kMaxBackingFileLength (1023)
+    WriteFile(overlay, std::string_view(reinterpret_cast<const char*>(data.data()), data.size()));
+
+    EXPECT_THAT(ReadQcow2BackingPath(overlay), StatusIs(absl::StatusCode::kDataLoss));
+}
+
+TEST(ReadQcow2BackingPathTest, TruncatedBackingFilePathReturnsDataLoss) {
+    TestTempDir temp_dir("qcow2_test");
+    const fs::path overlay = temp_dir.Path() / "overlay.qcow2";
+    ASSERT_THAT(CreateQcow2Overlay(overlay, 1024 * 1024), IsOk());
+
+    std::vector<uint8_t> data = ReadFileBytes(overlay);
+    WriteBe64(data.data() + 8, data.size());  // backing_file_offset at EOF
+    WriteBe32(data.data() + 16, 10U);         // backing_file_size = 10
+    WriteFile(overlay, std::string_view(reinterpret_cast<const char*>(data.data()), data.size()));
+
+    EXPECT_THAT(ReadQcow2BackingPath(overlay), StatusIs(absl::StatusCode::kDataLoss));
 }
 
 TEST(ReadQcow2VirtualSizeTest, MissingFileReturnsError) {
@@ -206,7 +300,8 @@ TEST(CreateQcow2OverlayImplTest, WritesExpectedHeaderAndTables) {
     constexpr uint64_t kBackingSize = 1024 * 1024;  // 1 MiB
 
     ASSERT_THAT(internal::CreateQcow2Overlay(overlay, kBackingPath, "raw", kBackingSize), IsOk());
-    EXPECT_TRUE(IsQcow2Path(overlay));
+    EXPECT_FALSE(IsValidQcow2Image(overlay));
+    EXPECT_THAT(ReadQcow2BackingPath(overlay), IsOkAndHolds(fs::path(kBackingPath)));
     EXPECT_THAT(internal::ReadQcow2VirtualSize(overlay),
                 IsOkAndHolds(std::optional<uint64_t>(kBackingSize)));
 
@@ -270,7 +365,8 @@ TEST(CreateQcow2OverlayTest, CreatesValidOverlayWithoutBackingFile) {
     constexpr uint64_t kVirtualSize = 504ULL * 1024 * 1024;  // 504 MiB
 
     ASSERT_THAT(CreateQcow2Overlay(overlay, kVirtualSize), IsOk());
-    EXPECT_TRUE(IsQcow2Path(overlay));
+    EXPECT_FALSE(IsValidQcow2Image(overlay));
+    EXPECT_TRUE(IsValidQcow2Image(overlay, /*allow_empty_backing_path=*/true));
     EXPECT_THAT(internal::ReadQcow2VirtualSize(overlay),
                 IsOkAndHolds(std::optional<uint64_t>(kVirtualSize)));
 
@@ -318,14 +414,7 @@ TEST(CreateQcow2OverlayTest, CreatesValidOverlayFromQcow2BackingFile) {
     EXPECT_EQ(ReadBe32(data.data() + 112), 0xE2792ACAU);
     EXPECT_EQ(ReadBe32(data.data() + 116), 5U);
     EXPECT_EQ(std::string_view(reinterpret_cast<const char*>(data.data() + 120), 5), "qcow2");
-    EXPECT_THAT(ReadBackingFileFromQcow2(overlay2), IsOkAndHolds(overlay1.string()));
-}
-
-TEST(ReadBackingFileFromQcow2Test, ReturnsEmptyStringWhenNoBackingFile) {
-    TestTempDir temp_dir("qcow2_test");
-    const fs::path overlay = temp_dir.Path() / "overlay.qcow2";
-    ASSERT_THAT(CreateQcow2Overlay(overlay, 1024 * 1024), IsOk());
-    EXPECT_THAT(ReadBackingFileFromQcow2(overlay), IsOkAndHolds(""));
+    EXPECT_THAT(ReadQcow2BackingPath(overlay2), IsOkAndHolds(overlay1));
 }
 
 void WriteBytesFile(const fs::path& path, const std::vector<uint8_t>& bytes) {
