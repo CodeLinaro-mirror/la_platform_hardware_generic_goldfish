@@ -340,6 +340,15 @@ TEST_F(StudioFileMetricsWriterTest, LockFileManagement) {
 
         // 1. Check creation
         EXPECT_TRUE(fs::exists(lock_path));
+        // Backdate the lock file's write time before advancing the simulated
+        // event-loop clock. Because AdvanceClock() does not advance the OS wall
+        // clock, both the initial creation and the refresh touch() can otherwise
+        // fall within the same OS filesystem timestamp tick on fast machines.
+        std::error_code ec;
+        std::filesystem::last_write_time(
+                lock_path, std::filesystem::file_time_type::clock::now() - std::chrono::seconds(10),
+                ec);
+        EXPECT_FALSE(ec) << ec.message();
         auto initial_time = android::base::file::last_write_time(lock_path).value();
 
         // 2. Check refresh
