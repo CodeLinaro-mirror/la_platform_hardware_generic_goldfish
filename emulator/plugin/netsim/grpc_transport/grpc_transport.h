@@ -69,9 +69,11 @@ class NetsimTransport : public PacketTransport,
     bool mWriteDone{false};
 
     ::netsim::packet::PacketResponse mReadBuffer;
+    Packet mReadPacket;
     std::mutex mReadlock;
     bool mReadDone{false};
     bool mReading{false};
+    bool mResumeRequested{false};
 
     absl::Notification mDone;
 };

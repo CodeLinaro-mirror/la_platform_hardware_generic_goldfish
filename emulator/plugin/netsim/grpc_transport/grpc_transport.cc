@@ -172,8 +172,11 @@ void NetsimTransport::NextWrite_locked() {
 
 void NetsimTransport::next_recv() {
     std::lock_guard<std::mutex> lock(mReadlock);
-    if (mReadDone || mReading) {
-        // Can't read anymore or read already in progress
+    if (mReadDone) {
+        return;
+    }
+    if (mReading) {
+        mResumeRequested = true;
         return;
     }
     mReading = true;
@@ -182,32 +185,34 @@ void NetsimTransport::next_recv() {
 
 void NetsimTransport::OnReadDone(bool ok) {
     if (ok) {
-        Packet packet;
         bool valid = false;
         {
             std::lock_guard<std::mutex> lock(mReadlock);
+            mReadPacket.clear();
             if (mKind == ChipKind::kBluetooth && mReadBuffer.has_hci_packet()) {
-                packet.reserve(1 + mReadBuffer.hci_packet().packet().size());
-                packet.push_back(static_cast<uint8_t>(mReadBuffer.hci_packet().packet_type()));
-                packet.insert(packet.end(), mReadBuffer.hci_packet().packet().begin(),
-                              mReadBuffer.hci_packet().packet().end());
+                mReadPacket.reserve(1 + mReadBuffer.hci_packet().packet().size());
+                mReadPacket.push_back(static_cast<uint8_t>(mReadBuffer.hci_packet().packet_type()));
+                mReadPacket.insert(mReadPacket.end(), mReadBuffer.hci_packet().packet().begin(),
+                                   mReadBuffer.hci_packet().packet().end());
                 valid = true;
             } else if (mReadBuffer.has_packet()) {
-                packet.assign(mReadBuffer.packet().begin(), mReadBuffer.packet().end());
+                mReadPacket.assign(mReadBuffer.packet().begin(), mReadBuffer.packet().end());
                 valid = true;
             } else {
                 LOG(WARNING) << "Unexpected packet " << mReadBuffer.DebugString();
             }
-            mReading = false;
+            mResumeRequested = false;
         }
 
-        bool continue_read = !valid || mRecvCb(packet);
+        bool continue_read = !valid || mRecvCb(mReadPacket);
 
-        if (continue_read) {
+        {
             std::lock_guard<std::mutex> lock(mReadlock);
-            if (!mReadDone && !mReading) {
-                mReading = true;
+            if (!mReadDone && (continue_read || mResumeRequested)) {
+                mResumeRequested = false;
                 StartRead(&mReadBuffer);
+            } else {
+                mReading = false;
             }
         }
     } else {
