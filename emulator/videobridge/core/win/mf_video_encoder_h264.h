@@ -32,6 +32,15 @@
 
 namespace goldfish::videobridge {
 
+struct H264BitstreamInfo {
+    bool has_sps = false;
+    bool has_vcl_nal = false;
+    bool is_keyframe = false;
+};
+
+H264BitstreamInfo InspectH264Bitstream(const uint8_t* data, DWORD length);
+uint32_t CalculateNV12BufferSize(int width, int height);
+
 template <typename T>
 class ComPtr {
   public:
@@ -106,6 +115,7 @@ class MFVideoEncoderH264 : public webrtc::VideoEncoder {
   public:
     static constexpr uint32_t kDefaultTargetBitrateBps = 3000000;  // 3 Mbps
     static constexpr uint32_t kDefaultTargetFps = 60;
+    static constexpr size_t kMaxPendingHeaderBytes = 64 * 1024;
 
     explicit MFVideoEncoderH264(webrtc::SdpVideoFormat format = webrtc::SdpVideoFormat("H264"));
     ~MFVideoEncoderH264() override;
@@ -133,14 +143,33 @@ class MFVideoEncoderH264 : public webrtc::VideoEncoder {
     EncoderInfo GetEncoderInfo() const override;
 
   private:
+    friend class MFVideoEncoderH264Test;
+
     int32_t ReleaseUnlocked() ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
     HRESULT InitializeMFT();
-    HRESULT ConfigureMFT();
-    HRESULT ConfigureInputOutputTypes(int width, int height, int framerate);
-    HRESULT SetBitrateAndRateControl(uint32_t bitrate_bps);
-    HRESULT AllocateInputBuffers(int width, int height);
-    HRESULT AllocateOutputBuffers();
-    HRESULT ProcessInputFrame(const webrtc::VideoFrame& frame, bool force_keyframe);
+    HRESULT ConfigureMFT() ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
+    HRESULT ConfigureInputOutputTypes(int width, int height, int framerate)
+            ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
+    HRESULT SetBitrateAndRateControl(uint32_t bitrate_bps)
+            ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
+    HRESULT AllocateInputBuffers(int width, int height)
+            ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
+    HRESULT AllocateOutputBuffers() ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
+    void RequestKeyFrame() ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
+    HRESULT PollNextAsyncEvent(int max_wait_attempts, MediaEventType* out_event_type)
+            ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
+    bool WaitForAsyncOutputEvent(bool drained_any) ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
+    HRESULT HandleOutputStreamChange(bool* mft_provides_samples)
+            ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
+    void CachePendingHeaderData(const uint8_t* data, DWORD length)
+            ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
+    webrtc::scoped_refptr<webrtc::EncodedImageBuffer> BuildEncodedBuffer(const uint8_t* data,
+                                                                         DWORD length,
+                                                                         bool is_keyframe,
+                                                                         bool has_sps)
+            ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
+    HRESULT ProcessInputFrame(const webrtc::VideoFrame& frame, bool force_keyframe)
+            ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
     HRESULT DrainEncodedFrames(uint32_t rtp_timestamp, int64_t capture_time_ms,
                                webrtc::EncodedImageCallback* callback)
             ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
@@ -161,6 +190,7 @@ class MFVideoEncoderH264 : public webrtc::VideoEncoder {
     // MFT Stream IDs and info
     DWORD input_stream_id_ = 0;
     DWORD output_stream_id_ = 0;
+    MFT_INPUT_STREAM_INFO input_stream_info_ = {};
     MFT_OUTPUT_STREAM_INFO output_stream_info_ = {};
 
     // Allocator for input buffers
@@ -173,7 +203,10 @@ class MFVideoEncoderH264 : public webrtc::VideoEncoder {
 
     bool com_initialized_ = false;
     bool is_async_mft_ = false;
-    uint32_t pending_input_count_ = 0;
+    uint32_t pending_input_count_ ABSL_GUARDED_BY(mutex_) = 0;
+    uint32_t pending_output_count_ ABSL_GUARDED_BY(mutex_) = 0;
+    LONGLONG last_sample_time_hns_ ABSL_GUARDED_BY(mutex_) = -1;
+    std::vector<uint8_t> pending_header_data_ ABSL_GUARDED_BY(mutex_);
 
     uint32_t target_bitrate_bps_ ABSL_GUARDED_BY(mutex_);
     uint32_t target_fps_ ABSL_GUARDED_BY(mutex_);
