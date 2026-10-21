@@ -39,37 +39,42 @@ WebMEncoder::~WebMEncoder() {
     Cleanup();
 }
 
+bool WebMEncoder::FailInit(std::string_view reason, int av_err) {
+    char err_buf[AV_ERROR_MAX_STRING_SIZE] = {};
+    if (av_err < 0) {
+        av_strerror(av_err, err_buf, sizeof(err_buf));
+    }
+    LOG(WARNING) << "[Encoder] " << reason << " for '" << filename_ << "' (" << width_ << "x"
+                 << height_ << ")" << (av_err < 0 ? ": " : "") << err_buf;
+    Cleanup();
+    return false;
+}
+
 bool WebMEncoder::Init() {
     // 1. Alloc Output Context
-    avformat_alloc_output_context2(&fmt_ctx_, nullptr, "webm", filename_.c_str());
-    if (!fmt_ctx_) {
-        LOG(WARNING) << "[Encoder] Failed to create output context";
-        return false;
+    if (const int err =
+                avformat_alloc_output_context2(&fmt_ctx_, nullptr, "webm", filename_.c_str());
+        err < 0 || !fmt_ctx_) {
+        return FailInit("Failed to create output context", err);
     }
 
     // 2. Find Encoder (VP9)
     const AVCodec* codec = avcodec_find_encoder(AV_CODEC_ID_VP9);
     if (!codec) {
-        LOG(WARNING) << "[Encoder] VP9 Codec not found";
-        Cleanup();
-        return false;
+        return FailInit("VP9 Codec not found");
     }
 
     // 3. Add Stream
     stream_ = avformat_new_stream(fmt_ctx_, codec);
     if (!stream_) {
-        LOG(WARNING) << "[Encoder] Failed to allocate stream";
-        Cleanup();
-        return false;
+        return FailInit("Failed to allocate stream");
     }
     stream_->id = static_cast<int>(fmt_ctx_->nb_streams - 1);
 
     // 4. Alloc Codec Context
     codec_ctx_ = avcodec_alloc_context3(codec);
     if (!codec_ctx_) {
-        LOG(WARNING) << "[Encoder] Failed to alloc codec context";
-        Cleanup();
-        return false;
+        return FailInit("Failed to alloc codec context");
     }
 
     // 5. Set Parameters
@@ -90,52 +95,40 @@ bool WebMEncoder::Init() {
     av_opt_set(codec_ctx_->priv_data, "cpu-used", "4", 0);
 
     // 6. Open Codec
-    if (avcodec_open2(codec_ctx_, codec, nullptr) < 0) {
-        LOG(WARNING) << "[Encoder] Failed to open codec";
-        Cleanup();
-        return false;
+    if (const int err = avcodec_open2(codec_ctx_, codec, nullptr); err < 0) {
+        return FailInit("Failed to open codec", err);
     }
     avcodec_parameters_from_context(stream_->codecpar, codec_ctx_);
 
     // 7. Open Output File
-    if (avio_open(&fmt_ctx_->pb, filename_.c_str(), AVIO_FLAG_WRITE) < 0) {
-        LOG(WARNING) << "[Encoder] Failed to open output file: " << filename_;
-        Cleanup();
-        return false;
+    if (const int err = avio_open(&fmt_ctx_->pb, filename_.c_str(), AVIO_FLAG_WRITE); err < 0) {
+        return FailInit("Failed to open output file", err);
     }
 
     // 8. Write Header
-    if (avformat_write_header(fmt_ctx_, nullptr) < 0) {
-        LOG(WARNING) << "[Encoder] Failed to write header";
-        Cleanup();
-        return false;
+    if (const int err = avformat_write_header(fmt_ctx_, nullptr); err < 0) {
+        return FailInit("Failed to write header", err);
     }
 
     // 9. Allocate Frames & Packet
     frame_ = av_frame_alloc();
     pkt_ = av_packet_alloc();
     if (!frame_ || !pkt_) {
-        LOG(WARNING) << "[Encoder] Failed to alloc frame/packet";
-        Cleanup();
-        return false;
+        return FailInit("Failed to alloc frame/packet");
     }
 
     frame_->format = codec_ctx_->pix_fmt;
     frame_->width = width_;
     frame_->height = height_;
-    if (av_frame_get_buffer(frame_, 32) < 0) {
-        LOG(WARNING) << "[Encoder] Failed to alloc frame buffer";
-        Cleanup();
-        return false;
+    if (const int err = av_frame_get_buffer(frame_, 32); err < 0) {
+        return FailInit("Failed to alloc frame buffer", err);
     }
 
     // 10. Init SwsContext (RGB -> YUV)
     sws_ctx_ = sws_getContext(width_, height_, AV_PIX_FMT_RGB24, width_ / 2, height_ / 2,
                               AV_PIX_FMT_YUV420P, SWS_BILINEAR, nullptr, nullptr, nullptr);
     if (!sws_ctx_) {
-        LOG(WARNING) << "[Encoder] Failed to init sws_ctx";
-        Cleanup();
-        return false;
+        return FailInit("Failed to init sws_ctx");
     }
 
     // 11. Start Thread
@@ -215,21 +208,7 @@ void WebMEncoder::EncodeLoop() {
     // Flush
     VLOG(2) << "send null frame to end encoder";
     avcodec_send_frame(codec_ctx_, nullptr);
-    while (true) {
-        VLOG(2) << "wait for package ";
-        const int ret = avcodec_receive_packet(codec_ctx_, pkt_);
-        if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) {
-            VLOG(2) << "no more package ";
-            break;
-        }
-
-        VLOG(2) << "got package ";
-
-        av_packet_rescale_ts(pkt_, codec_ctx_->time_base, stream_->time_base);
-        pkt_->stream_index = stream_->index;
-        av_interleaved_write_frame(fmt_ctx_, pkt_);
-        av_packet_unref(pkt_);
-    }
+    DrainPackets();
 
     av_write_trailer(fmt_ctx_);
 
@@ -261,9 +240,20 @@ void WebMEncoder::ProcessFrame(const std::vector<uint8_t>& raw_data, int64_t fra
     }
     frames_encoded_.fetch_add(1);
 
+    DrainPackets();
+}
+
+void WebMEncoder::DrainPackets() {
     while (true) {
         const int ret = avcodec_receive_packet(codec_ctx_, pkt_);
         if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) break;
+        if (ret < 0) {
+            char err_buf[AV_ERROR_MAX_STRING_SIZE] = {};
+            av_strerror(ret, err_buf, sizeof(err_buf));
+            LOG(WARNING) << "[Encoder] Failed to receive encoded packet for '" << filename_
+                         << "': " << err_buf << " (" << ret << ")";
+            break;
+        }
 
         av_packet_rescale_ts(pkt_, codec_ctx_->time_base, stream_->time_base);
         pkt_->stream_index = stream_->index;
@@ -273,18 +263,9 @@ void WebMEncoder::ProcessFrame(const std::vector<uint8_t>& raw_data, int64_t fra
 }
 
 void WebMEncoder::Cleanup() {
-    if (frame_) {
-        av_frame_free(&frame_);
-        frame_ = nullptr;
-    }
-    if (pkt_) {
-        av_packet_free(&pkt_);
-        pkt_ = nullptr;
-    }
-    if (codec_ctx_) {
-        avcodec_free_context(&codec_ctx_);
-        codec_ctx_ = nullptr;
-    }
+    av_frame_free(&frame_);
+    av_packet_free(&pkt_);
+    avcodec_free_context(&codec_ctx_);
     if (fmt_ctx_) {
         avformat_free_context(fmt_ctx_);
         fmt_ctx_ = nullptr;
