@@ -22,6 +22,7 @@
 
 #include "android/status/status_macros.h"
 #include "goldfish/fsimage/exfat.h"
+#include "goldfish/fsimage/qcow2.h"
 #include "user_data_drive.h"
 
 namespace android::goldfish::internal {
@@ -187,3 +188,12 @@ absl::StatusOr<std::vector<std::unique_ptr<PciDevice>>> getDiskConfigs(const Avd
 }
 
 }  // namespace android::goldfish::internal
+
+namespace android::goldfish {
+
+bool IsUserdataNew(const Avd& avd) {
+    return !::goldfish::fsimage::IsValidQcow2Image(
+            internal::to_qcow2(internal::getUserdataImgPath(avd)));
+}
+
+}  // namespace android::goldfish

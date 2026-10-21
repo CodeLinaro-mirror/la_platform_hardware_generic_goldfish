@@ -14,7 +14,9 @@
 
 #pragma once
 
+#include <optional>
 #include <string>
+#include <utility>
 
 #include "android/cmdline_option.h"
 #include "android/goldfish/avd.h"
@@ -43,14 +45,16 @@ class EmulatorConfig {
   public:
     EmulatorConfig(const EmulatorPorts& ports, const ChardevEndpoints& chardev_endpoints,
                    MetricsConfig metrics_config, const UserPaths& user_paths,
-                   const EmulatorPaths& emulator_paths, const Avd& avd, const AndroidOptions& opts)
+                   const EmulatorPaths& emulator_paths, const Avd& avd, const AndroidOptions& opts,
+                   std::optional<std::string> host_timezone = std::nullopt)
             : mPorts(ports)
             , mChardevEndpoints(chardev_endpoints)
             , mMetricsConfig(std::move(metrics_config))
             , mUserPaths(user_paths)
             , mEmulatorPaths(emulator_paths)
             , mAvd(avd)
-            , mOpts(opts) {}
+            , mOpts(opts)
+            , host_timezone_(std::move(host_timezone)) {}
 
     const UserPaths& user_paths() const { return mUserPaths; }
 
@@ -70,6 +74,10 @@ class EmulatorConfig {
     int serial_number() const { return mPorts.serial_number; }
     int adb_port() const { return mPorts.adb_port; }
 
+    // The zoneinfo name of the host timezone (e.g. "Europe/Paris"), or std::nullopt if it is
+    // unknown.
+    const std::optional<std::string>& host_timezone() const { return host_timezone_; }
+
   private:
     const EmulatorPorts& mPorts;
     const ChardevEndpoints& mChardevEndpoints;
@@ -79,6 +87,7 @@ class EmulatorConfig {
     const EmulatorPaths& mEmulatorPaths;
     const Avd& mAvd;
     const AndroidOptions& mOpts;
+    const std::optional<std::string> host_timezone_;
 };
 
 }  // namespace android::goldfish

@@ -63,6 +63,9 @@ absl::Status LaunchQemu::addDevices() {
     // -device A -device B ...
     const auto& o = config_.opts();
     const auto& a = config_.avd();
+    // Checked before adding any device, since devices can change the AVD: e.g. the drives create a
+    // new userdata qcow2 overlay when it is missing or invalid.
+    const bool factory_boot = IsUserdataNew(a);
 
     addDevice<EnvPassthroughDevice>();
     addDevice<PluginInit>();
@@ -128,7 +131,7 @@ absl::Status LaunchQemu::addDevices() {
     addDevice<ParameterList>(
             std::initializer_list<std::string>{"-serial", o.show_kernel ? "stdio" : "null"});
 
-    addDevice<AvdInfoDevice>();
+    addDevice<AvdInfoDevice>(factory_boot);
 
     bool netsim_cellular = false;
     if (!o.no_netsim) {

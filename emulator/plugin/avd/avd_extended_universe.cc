@@ -15,8 +15,10 @@
 #include "avd_extended_universe.h"
 
 #include <chrono>
+#include <string>
 #include <thread>
 
+#include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/time/clock.h"
@@ -208,12 +210,17 @@ absl::Status AvdExtendedUniverse::Initialize() {
                                  avd_props.avd_content_path, []() { return GetGrallocImpl(); });
 
     using namespace std::string_literals;
-    auto props = devices::boot::IBootPropertiesDevice::MakeProperties({
+    absl::flat_hash_map<std::string, std::string> boot_properties = {
         {"qemu.sf.fake_camera"s, emulatedCameraProp},
         {"qemu.sf.lcd_density"s, absl::StrCat(avd_props.hw_config.hw_lcd_density)},
         // This is the same value that is passed to the virtio-wifi module.
         {"net.wifi_mac_prefix"s, absl::StrCat(avd_props.serial_number)},
-    });
+    };
+    if (!avd_props.timezone.empty()) {
+        // The guest copies it into persist.sys.timezone.
+        boot_properties.emplace("qemu.timezone"s, avd_props.timezone);
+    }
+    auto props = devices::boot::IBootPropertiesDevice::MakeProperties(boot_properties);
     if (!props.ok()) {
         return props.status();
     }

@@ -146,6 +146,7 @@ cc_library(
     deps = [
         ":device",
         ":snapshot_device",
+        "//emulator/libs/timezone",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/strings",
     ],
@@ -581,6 +582,7 @@ cc_library(
         ":disk_drive",
         ":user_data_drive",
         "//emulator/libs/fsimage:exfat",
+        "//emulator/libs/fsimage:qcow2",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
     ],
@@ -595,6 +597,7 @@ cc_test(
         ":fake_emulator",
         "//emulator/launcher:mock_avd",
         "//emulator/libs/fsimage:exfat",
+        "//emulator/libs/fsimage:qcow2",
         "//emulator/libs/system:test-headers",
         "//emulator/libs/test:googletest_main",
         "@abseil-cpp//absl/status:status_matchers",
