@@ -161,10 +161,7 @@ class MultiDisplayImpl : public IMultiDisplay {
     bool IsActive(DisplayId display_id) const override {
         const absl::MutexLock lock(display_access_);
         auto it = active_states_.find(display_id);
-        if (it != active_states_.end()) {
-            return it->second;
-        }
-        return false;
+        return it != active_states_.end() && it->second;
     }
 
     absl::Status SetActive(DisplayId display_id, bool active) override {
@@ -179,42 +176,24 @@ class MultiDisplayImpl : public IMultiDisplay {
 
     absl::StatusOr<WeakVirtualDisplayImpl> GetVirtualDisplayWeak(DisplayId display_id) const {
         const absl::MutexLock lock(display_access_);
-        auto it = virtual_displays_.find(display_id);
-        if (it == virtual_displays_.end()) {
-            return absl::NotFoundError(absl::StrFormat("Invalid display: %d", display_id));
-        }
-        return it->second;
+        return FindDisplayWeak(virtual_displays_, display_id);
     }
 
     absl::StatusOr<WeakDisplayImpl> GetDisplayWeak(DisplayId display_id) const {
         const absl::MutexLock lock(display_access_);
-        auto it = qemu_displays_.find(display_id);
-        if (it == qemu_displays_.end()) {
-            return absl::NotFoundError(absl::StrFormat("Invalid display: %d", display_id));
-        }
-        return it->second;
+        return FindDisplayWeak(qemu_displays_, display_id);
     }
 
     absl::Status EraseDisplay(DisplayId display_id) override {
         auto result = EraseQemuDisplay(display_id);
-        if (!result.ok()) {
-            result = EraseVirtualDisplay(display_id);
-        }
-        return result;
+        return result.ok() ? result : EraseVirtualDisplay(display_id);
     }
 
     absl::Status EraseQemuDisplay(DisplayId display_id) {
         SharedDisplayImpl display;
         {
             const absl::MutexLock lock(display_access_);
-            auto it = qemu_displays_.find(display_id);
-            if (it == qemu_displays_.end()) {
-                return absl::NotFoundError(absl::StrFormat(
-                        "Display: %d does not exist (already removed?).", display_id));
-            }
-            display = std::move(it->second);
-            qemu_displays_.erase(it);
-            active_states_.erase(display_id);
+            ASSIGN_OR_RETURN(display, TakeDisplay(qemu_displays_, display_id));
         }
         NotifyDisplayRemoved(std::move(display), display_id);
         return absl::OkStatus();
@@ -224,14 +203,7 @@ class MultiDisplayImpl : public IMultiDisplay {
         SharedVirtualDisplayImpl display;
         {
             const absl::MutexLock lock(display_access_);
-            auto it = virtual_displays_.find(display_id);
-            if (it == virtual_displays_.end()) {
-                return absl::NotFoundError(absl::StrFormat(
-                        "Display: %d does not exist (already removed?).", display_id));
-            }
-            display = std::move(it->second);
-            virtual_displays_.erase(it);
-            active_states_.erase(display_id);
+            ASSIGN_OR_RETURN(display, TakeDisplay(virtual_displays_, display_id));
         }
         display->Disconnect();
         NotifyDisplayRemoved(std::move(display), display_id);
@@ -243,19 +215,8 @@ class MultiDisplayImpl : public IMultiDisplay {
     std::vector<DisplayPtr> Displays() const override {
         const absl::MutexLock lock(display_access_);
         std::vector<DisplayPtr> displays;
-        for (const auto& pair : qemu_displays_) {
-            const auto it = active_states_.find(pair.first);
-            if (it != active_states_.end() && it->second) {
-                displays.push_back(pair.second);
-            }
-        }
-        for (const auto& pair : virtual_displays_) {
-            const auto it = active_states_.find(pair.first);
-            if (it != active_states_.end() && it->second) {
-                displays.push_back(pair.second);
-            }
-        }
-
+        AppendActiveDisplays(qemu_displays_, displays);
+        AppendActiveDisplays(virtual_displays_, displays);
         return displays;
     }
 
@@ -485,6 +446,41 @@ class MultiDisplayImpl : public IMultiDisplay {
     }
 
   private:
+    template <typename Map>
+    absl::StatusOr<std::weak_ptr<typename Map::mapped_type::element_type>> FindDisplayWeak(
+            const Map& map, DisplayId display_id) const
+            ABSL_EXCLUSIVE_LOCKS_REQUIRED(display_access_) {
+        auto it = map.find(display_id);
+        if (it == map.end()) {
+            return absl::NotFoundError(absl::StrFormat("Invalid display: %d", display_id));
+        }
+        return it->second;
+    }
+
+    template <typename Map>
+    absl::StatusOr<typename Map::mapped_type> TakeDisplay(Map& map, DisplayId display_id)
+            ABSL_EXCLUSIVE_LOCKS_REQUIRED(display_access_) {
+        auto it = map.find(display_id);
+        if (it == map.end()) {
+            return absl::NotFoundError(
+                    absl::StrFormat("Display: %d does not exist (already removed?).", display_id));
+        }
+        auto display = std::move(it->second);
+        map.erase(it);
+        active_states_.erase(display_id);
+        return display;
+    }
+
+    template <typename Map>
+    void AppendActiveDisplays(const Map& map, std::vector<DisplayPtr>& displays) const
+            ABSL_EXCLUSIVE_LOCKS_REQUIRED(display_access_) {
+        for (const auto& [id, display] : map) {
+            if (auto it = active_states_.find(id); it != active_states_.end() && it->second) {
+                displays.push_back(display);
+            }
+        }
+    }
+
     std::vector<SharedDisplayImpl> SnapshotQemuDisplays() const {
         const absl::MutexLock lock(display_access_);
         std::vector<SharedDisplayImpl> list;
