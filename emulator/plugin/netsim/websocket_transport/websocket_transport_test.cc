@@ -165,6 +165,33 @@ TEST(WebSocketCodecTest, ValidatesHandshakeAndRejectsMalformedFrames) {
                          .ok());
 }
 
+TEST(WebSocketCodecTest, ApplyMaskMatchesByteByByteAcrossTailLengthsAndZeroMask) {
+    const MaskKey mask{{0x37, 0xFA, 0x21, 0x3D}};
+    const MaskKey zero_mask{{0x00, 0x00, 0x00, 0x00}};
+    for (size_t offset = 0; offset < 8; ++offset) {
+        for (size_t len = 0; len <= 40; ++len) {
+            const std::vector<uint8_t> original = Bytes(offset + len, 0x5A);
+            std::vector<uint8_t> buffer = original;
+            std::span<uint8_t> actual = std::span(buffer).subspan(offset, len);
+            websocket::ApplyMask(actual, mask);
+
+            std::vector<uint8_t> expected(original.begin() + offset,
+                                          original.begin() + offset + len);
+            for (size_t i = 0; i < len; ++i) {
+                expected[i] ^= mask.bytes[i % 4];
+            }
+            EXPECT_EQ(std::vector<uint8_t>(actual.begin(), actual.end()), expected)
+                    << "offset=" << offset << " len=" << len;
+
+            websocket::ApplyMask(actual, mask);
+            EXPECT_EQ(buffer, original) << "offset=" << offset << " len=" << len;
+
+            websocket::ApplyMask(actual, zero_mask);
+            EXPECT_EQ(buffer, original) << "offset=" << offset << " len=" << len;
+        }
+    }
+}
+
 TEST(StreamParserTest, ReassemblesFragmentsAndHandlesInterleavedControlFrames) {
     StreamParser parser;
     std::string key = "dGhlIHNhbXBsZSBub25jZQ==";

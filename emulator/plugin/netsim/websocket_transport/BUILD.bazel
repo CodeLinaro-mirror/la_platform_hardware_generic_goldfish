@@ -1,4 +1,5 @@
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+load("//emulator/tools:cc_binary_with_manifest.bzl", "cc_binary_with_manifest")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -75,5 +76,15 @@ cc_test(
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/synchronization",
+    ],
+)
+
+cc_binary_with_manifest(
+    name = "websocket_perf",
+    srcs = ["websocket_perf.cc"],
+    tags = ["benchmark"],
+    deps = [
+        ":websocket",
+        "@google_benchmark//:benchmark",
     ],
 )
