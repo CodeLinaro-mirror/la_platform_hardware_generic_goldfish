@@ -669,12 +669,6 @@ cc_binary_with_manifest(
     },
     linkopts = select({
         "@platforms//os:macos": ["-undefined error"],
-        "@platforms//os:windows": [
-            "-defaultlib:wbemuuid.lib",
-            "-defaultlib:oleaut32.lib",
-            "-defaultlib:comsuppw.lib",
-            "-defaultlib:ole32.lib",
-        ],
         "//conditions:default": [],
     }),
     visibility = ["//visibility:public"],
