@@ -139,6 +139,7 @@ cc_library(
         ":service_forwarder",
         "//emulator/libs/grpc_client",
         "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/strings",
         "@aemu//protos/services/emulator-controller:emulator_controller_cc_proto",
         "@aemu//protos/services/forwarder:service_forwarder_cc_grpc",
         "@aemu//protos/services/ui-controller:ui_controller_service_cc_grpc",
