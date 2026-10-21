@@ -285,6 +285,25 @@ LegacyConsoleBridge::LegacyConsoleBridge(int port, std::filesystem::path token_p
                 RecordCommand(top_level_name, canonical_path);
             });
 
+    auto unimplemented_no_args = [](ConsoleContext& /*ctx*/) {
+        return absl::UnimplementedError("not implemented");
+    };
+    auto unimplemented_str_arg = [](ConsoleContext& /*ctx*/, const std::string& /*arg*/) {
+        return absl::UnimplementedError("not implemented");
+    };
+    auto noop_str_arg = [](ConsoleContext& /*ctx*/, const std::string& /*arg*/) {
+        return absl::OkStatus();
+    };
+    auto discover_current_emulator = [](ConsoleContext& ctx) {
+        return ctx.DiscoverEmulatorWithProperties({{"port.serial", std::to_string(ctx.Port())}});
+    };
+    auto trigger_crash = [](ConsoleContext& ctx,
+                            const char* message) -> absl::StatusOr<std::string> {
+        ASSIGN_OR_RETURN(auto stub, ctx.EmulatorControllerStub());
+        ctx.TriggerCrash();
+        return message;
+    };
+
     // --- Safe Root Commands ---
 
     builder.On("ping" /* do_ping */, "check if the emulator is alive",
@@ -356,7 +375,7 @@ LegacyConsoleBridge::LegacyConsoleBridge(int port, std::filesystem::path token_p
                return absl::StrCat("heartbeat: ", response.heartbeat());
            });
     avd.On("rewindaudio" /* do_avd_rewind_audio */, "rewind the input audio to the beginning",
-           [](ConsoleContext& /*ctx*/) { return absl::UnimplementedError("not implemented"); });
+           unimplemented_no_args);
     avd.On("pause" /* do_avd_pause */, "pause the virtual device",
            [](ConsoleContext& ctx) -> absl::Status {
                return SetVmRunState(ctx, android::emulation::control::VmRunState::PAUSED);
@@ -366,24 +385,22 @@ LegacyConsoleBridge::LegacyConsoleBridge(int port, std::filesystem::path token_p
                return SetVmRunState(ctx, android::emulation::control::VmRunState::RUNNING);
            });
     avd.On("hostmicon" /* do_avd_hostmicon */, "activate the host audio input device",
-           [](ConsoleContext& /*ctx*/) { return absl::UnimplementedError("not implemented"); });
+           unimplemented_no_args);
     avd.On("hostmicoff" /* do_avd_hostmicoff */, "deactivate the host audio input device",
-           [](ConsoleContext& /*ctx*/) { return absl::UnimplementedError("not implemented"); });
+           unimplemented_no_args);
     avd.On("bugreport" /* do_avd_bugreport */, "generate bug report info.",
-           [](ConsoleContext& /*ctx*/) { return absl::UnimplementedError("not implemented"); });
+           unimplemented_no_args);
     avd.On("id" /* do_avd_id */, "query virtual device ID",
            [](ConsoleContext& ctx) { return GetPlatformConfigProperty(ctx, "avd.id"); });
     avd.On("windowtype" /* do_avd_windowtype */, "query virtual device headless or qtwindow",
-           [](ConsoleContext& /*ctx*/) { return absl::UnimplementedError("not implemented"); });
+           unimplemented_no_args);
 
     avd.On("path" /* do_avd_path */, "query AVD path",
            [](ConsoleContext& ctx) { return GetPlatformConfigProperty(ctx, "avd.content_path"); });
 
     avd.On("discoverypath" /* do_avd_discoverypath */, "query AVD discovery path",
-           [](ConsoleContext& ctx) -> absl::StatusOr<std::string> {
-               ASSIGN_OR_RETURN(auto discovery,
-                                ctx.DiscoverEmulatorWithProperties(
-                                        {{"port.serial", std::to_string(ctx.Port())}}));
+           [discover_current_emulator](ConsoleContext& ctx) -> absl::StatusOr<std::string> {
+               ASSIGN_OR_RETURN(auto discovery, discover_current_emulator(ctx));
                return discovery.discovery_file.string();
            });
     avd.On("snapshotspath" /* do_snapshotspath */, "query AVD snapshots path",
@@ -406,10 +423,8 @@ LegacyConsoleBridge::LegacyConsoleBridge(int port, std::filesystem::path token_p
     avd.Sub("name", "").Safe();
 
     avd.On("grpc" /* do_avd_grpc_port */, "query the grpc port",
-           [](ConsoleContext& ctx) -> absl::StatusOr<std::string> {
-               ASSIGN_OR_RETURN(auto discovery,
-                                ctx.DiscoverEmulatorWithProperties(
-                                        {{"port.serial", std::to_string(ctx.Port())}}));
+           [discover_current_emulator](ConsoleContext& ctx) -> absl::StatusOr<std::string> {
+               ASSIGN_OR_RETURN(auto discovery, discover_current_emulator(ctx));
                if (auto it = discovery.properties.find("grpc.port");
                    it != discovery.properties.end()) {
                    return it->second;
@@ -426,19 +441,12 @@ LegacyConsoleBridge::LegacyConsoleBridge(int port, std::filesystem::path token_p
     // --- Automation Commands ---
     auto automation = builder.Command("automation", "manage emulator automation");
     automation.On("record" /* do_automation_record */, "start recording a macro.",
-                  [](ConsoleContext& /*ctx*/, const std::string& /*filename*/) {
-                      return absl::UnimplementedError("not implemented");
-                  });
-    automation.On(
-            "stop-record" /* do_automation_stop_recording */, "stop recording a macro.",
-            [](ConsoleContext& /*ctx*/) { return absl::UnimplementedError("not implemented"); });
-    automation.On("play" /* do_automation_play */, "playback macro.",
-                  [](ConsoleContext& /*ctx*/, const std::string& /*filename*/) {
-                      return absl::UnimplementedError("not implemented");
-                  });
-    automation.On(
-            "stop-play" /* do_automation_stop_playback */, "stop playing macro.",
-            [](ConsoleContext& /*ctx*/) { return absl::UnimplementedError("not implemented"); });
+                  unimplemented_str_arg);
+    automation.On("stop-record" /* do_automation_stop_recording */, "stop recording a macro.",
+                  unimplemented_no_args);
+    automation.On("play" /* do_automation_play */, "playback macro.", unimplemented_str_arg);
+    automation.On("stop-play" /* do_automation_stop_playback */, "stop playing macro.",
+                  unimplemented_no_args);
 
     // --- Event Commands ---
     auto event = builder.Command("event", "simulate hardware events");
@@ -609,10 +617,7 @@ LegacyConsoleBridge::LegacyConsoleBridge(int port, std::filesystem::path token_p
            "if it came from an emulated GPS modem. <sentence> must begin with "
            "'$GP'. Only\r\n"
            "'$GPGGA' and '$GPRMC' sentences are supported at the moment.\r\n",
-           [](ConsoleContext& /*ctx*/, const std::string& /*sentence*/) {
-               /* parse NMEA sentence (rest of line) */
-               return absl::UnimplementedError("not implemented");
-           });
+           unimplemented_str_arg);
     geo.On("fix" /* do_geo_fix */, "send a simple GPS fix",
            "'geo fix <longitude> <latitude> [<altitude> [<satellites> "
            "[<velocity> [<heading>]]]]'\r\n"
@@ -675,10 +680,7 @@ LegacyConsoleBridge::LegacyConsoleBridge(int port, std::filesystem::path token_p
            "TimeNanos,FullBiasNanos,BiasNanos,BiasUncertaintyNanos,\r\n"
            "DriftNanosPerSecond,DriftUncertaintyNanosPerSecond,"
            "HardwareClockDiscontinuityCount,\r\n",
-           [](ConsoleContext& /*ctx*/, const std::string& /*sentence*/) {
-               /* parse GNSS sentence (rest of line) */
-               return absl::UnimplementedError("not implemented");
-           });
+           unimplemented_str_arg);
 
     // --- GSM Commands ---
     auto gsm = builder.Command("gsm", "GSM related commands");
@@ -711,15 +713,8 @@ LegacyConsoleBridge::LegacyConsoleBridge(int port, std::filesystem::path token_p
                           "  maximum latency:  0 ms";
                });
 
-    network.On("speed" /* do_network_speed */, "change network speed",
-               [](ConsoleContext& /*ctx*/, const std::string& /*speed*/) -> absl::Status {
-                   return absl::OkStatus();
-               });
-
-    network.On("delay" /* do_network_delay */, "change network latency",
-               [](ConsoleContext& /*ctx*/, const std::string& /*delay*/) -> absl::Status {
-                   return absl::OkStatus();
-               });
+    network.On("speed" /* do_network_speed */, "change network speed", noop_str_arg);
+    network.On("delay" /* do_network_delay */, "change network latency", noop_str_arg);
 
     auto capture = network.Sub("capture", "dump network packets to file");
     capture.On("start" /* do_network_capture_start */, "start network capture",
@@ -738,15 +733,8 @@ LegacyConsoleBridge::LegacyConsoleBridge(int port, std::filesystem::path token_p
                 return absl::OkStatus();
             });
 
-    wifi.On("block" /* do_wifi_block */, "block network access on SSID",
-            [](ConsoleContext& /*ctx*/, const std::string& /*ssid*/) -> absl::Status {
-                return absl::OkStatus();
-            });
-
-    wifi.On("unblock" /* do_wifi_unblock */, "unblock network access on SSID",
-            [](ConsoleContext& /*ctx*/, const std::string& /*ssid*/) -> absl::Status {
-                return absl::OkStatus();
-            });
+    wifi.On("block" /* do_wifi_block */, "block network access on SSID", noop_str_arg);
+    wifi.On("unblock" /* do_wifi_unblock */, "unblock network access on SSID", noop_str_arg);
 
     // --- Power Commands ---
     auto update_battery =
@@ -835,20 +823,10 @@ LegacyConsoleBridge::LegacyConsoleBridge(int port, std::filesystem::path token_p
     auto redir = builder.Command("redir", "manage port redirections");
     redir.On("list" /* do_redir_list */, "list current redirections",
              [](ConsoleContext& /*ctx*/) -> std::string { return "no active redirections"; });
-    redir.On("add" /* do_redir_add_ipv4 */, "add new ipv4 redirection",
-             [](ConsoleContext& /*ctx*/, const std::string& /*protocol_host_guest*/)
-                     -> absl::Status { return absl::OkStatus(); });
-    redir.On("del" /* do_redir_del_ipv4 */, "remove existing ipv4 redirection",
-             [](ConsoleContext& /*ctx*/, const std::string& /*protocol_host*/) -> absl::Status {
-                 return absl::OkStatus();
-             });
-    redir.On("add-ipv6" /* do_redir_add_ipv6 */, "add new ipv6 redirection",
-             [](ConsoleContext& /*ctx*/, const std::string& /*protocol_host_guest*/)
-                     -> absl::Status { return absl::OkStatus(); });
-    redir.On("del-ipv6" /* do_redir_del_ipv6 */, "remove existing ipv6 redirection",
-             [](ConsoleContext& /*ctx*/, const std::string& /*protocol_host*/) -> absl::Status {
-                 return absl::OkStatus();
-             });
+    redir.On("add" /* do_redir_add_ipv4 */, "add new ipv4 redirection", noop_str_arg);
+    redir.On("del" /* do_redir_del_ipv4 */, "remove existing ipv4 redirection", noop_str_arg);
+    redir.On("add-ipv6" /* do_redir_add_ipv6 */, "add new ipv6 redirection", noop_str_arg);
+    redir.On("del-ipv6" /* do_redir_del_ipv6 */, "remove existing ipv6 redirection", noop_str_arg);
     // --- SMS Commands ---
     auto sms = builder.Command("sms", "SMS related commands");
     sms.On("send" /* do_sms_send */, "send inbound SMS text message",
@@ -995,11 +973,8 @@ LegacyConsoleBridge::LegacyConsoleBridge(int port, std::filesystem::path token_p
     auto physics = builder.Command("physics", "manage physical model");
     physics.On("record-gt" /* do_physics_record_ground_truth */,
                "start recording ground truth of the physical model's 6dof poses",
-               [](ConsoleContext& /*ctx*/, const std::string& /*filename*/) {
-                   return absl::UnimplementedError("not implemented");
-               });
-    physics.On("stop" /* do_physics_stop */, "stop recording ground truth",
-               [](ConsoleContext& /*ctx*/) { return absl::UnimplementedError("not implemented"); });
+               unimplemented_str_arg);
+    physics.On("stop" /* do_physics_stop */, "stop recording ground truth", unimplemented_no_args);
 
     // --- Finger Commands ---
     auto send_fingerprint = [](ConsoleContext& ctx, bool is_touching,
@@ -1090,26 +1065,18 @@ LegacyConsoleBridge::LegacyConsoleBridge(int port, std::filesystem::path token_p
             });
     // --- Proxy Commands ---
     auto proxy = builder.Command("proxy", "manage network proxy server settings");
-    proxy.On("set" /* do_proxy_set */, "set the proxy server to use",
-             [](ConsoleContext& /*ctx*/, const std::string& /*url*/) {
-                 return absl::UnimplementedError("not implemented");
-             });
-    proxy.On("clear" /* do_proxy_clear */, "clear proxy server setting",
-             [](ConsoleContext& /*ctx*/) { return absl::UnimplementedError("not implemented"); });
+    proxy.On("set" /* do_proxy_set */, "set the proxy server to use", unimplemented_str_arg);
+    proxy.On("clear" /* do_proxy_clear */, "clear proxy server setting", unimplemented_no_args);
 
     // --- Other Terminal Root Commands ---
     builder.On("crash" /* do_crash */, "crash the emulator instance",
-               [](ConsoleContext& ctx) -> absl::StatusOr<std::string> {
-                   ASSIGN_OR_RETURN(auto stub, ctx.EmulatorControllerStub());
-                   ctx.TriggerCrash();
-                   return "crashing emulator, bye bye";
+               [trigger_crash](ConsoleContext& ctx) {
+                   return trigger_crash(ctx, "crashing emulator, bye bye");
                });
     builder.On("crash-on-exit" /* do_crash_on_exit */,
                "simulate crash on exit for the emulator instance",
-               [](ConsoleContext& ctx) -> absl::StatusOr<std::string> {
-                   ASSIGN_OR_RETURN(auto stub, ctx.EmulatorControllerStub());
-                   ctx.TriggerCrash();
-                   return "crashing emulator on exit, bye bye";
+               [trigger_crash](ConsoleContext& ctx) {
+                   return trigger_crash(ctx, "crashing emulator on exit, bye bye");
                });
     builder.On("kill" /* do_kill */, "kill the emulator instance",
                [](ConsoleContext& ctx) -> absl::Status {
@@ -1218,9 +1185,7 @@ LegacyConsoleBridge::LegacyConsoleBridge(int port, std::filesystem::path token_p
                 });
 
     builder.On("nodraw" /* do_no_draw */, "turn on/off NoDraw mode. (experimental)",
-               [](ConsoleContext& /*ctx*/, const std::string& /*state*/) {
-                   return absl::UnimplementedError("not implemented");
-               });
+               unimplemented_str_arg);
 
     builder.On("resize-display" /* do_resize_display */, "resize display 0 resolution",
                "Usage: resize-display <index>.\n"
@@ -1276,9 +1241,7 @@ LegacyConsoleBridge::LegacyConsoleBridge(int port, std::filesystem::path token_p
 
     // Monitor is a root group in console.cpp but it's under qemu group usually
     builder.Command("qemu", "QEMU-specific commands")
-            .On("monitor" /* do_qemu_monitor */, "enter QEMU monitor", [](ConsoleContext& /*ctx*/) {
-                return absl::UnimplementedError("not implemented");
-            });
+            .On("monitor" /* do_qemu_monitor */, "enter QEMU monitor", unimplemented_no_args);
 
     registry_ = builder.Build();
 }
