@@ -4,6 +4,9 @@
 **Location:** `hardware/generic/goldfish/emulator/plugin/hal`
 **Namespace:** `goldfish::devices`
 
+> [!IMPORTANT]
+> **Agent Playbook:** Before implementing or reviewing HAL devices, read [`AGENTS.md`](AGENTS.md) for `IConnectorRegistry` registration (`RegisterHalDevice` vs. `RegisterHalQemuDevice`), wire-framing rules, `client_loop` vs. `qemu_loop` threading invariants, `ObservableValue` lock-ordering, and `TestConnectorRegistry::Close()` teardown rules.
+
 ## Infrastructure
 The HALs communicate with the guest using a shared infrastructure stack:
 1.  **Connector (`emulator/plugin/hal/connector`):** The "Physical Layer" defining Plugs and Sockets.

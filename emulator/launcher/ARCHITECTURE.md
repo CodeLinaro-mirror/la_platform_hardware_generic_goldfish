@@ -3,6 +3,7 @@
 **Role:** The main entry point for the emulator. Coordinates the startup of QEMU, `netsimd`, and the crash reporting system.
 **Location:** `hardware/generic/goldfish/emulator/launcher`
 **Namespace:** `android::goldfish`
+**Agent Playbook:** [`AGENTS.md`](AGENTS.md)
 
 ## Integration Guide
 | Class / Script | Bazel Target | File Path | Description |

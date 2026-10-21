@@ -3,6 +3,7 @@
 **Role:** High-performance WebRTC streaming engine providing zero-copy video/audio streaming and low-latency input event injection for the Android Emulator.
 **Location:** `hardware/generic/goldfish/emulator/videobridge`
 **Namespace:** `goldfish::videobridge`
+**Agent Playbook:** [`AGENTS.md`](AGENTS.md)
 
 ## Integration Guide
 | Class / Interface | Bazel Target | Header / Source Files | Description |
@@ -13,7 +14,7 @@
 | `InProcessInputSender` | `@goldfish//emulator/videobridge:videobridge_core` | `include/goldfish/videobridge/in_process_input_sender.h`, `core/in_process_input_sender.cc` | Dispatches touch, keyboard, mouse, and `sensors_v2` events directly to emulator HALs (`@goldfish//emulator/videobridge:in_process_input_sender_test`). |
 | `Participant` & `EventForwarder` | `@goldfish//emulator/videobridge:videobridge_core` | `core/participant.h`, `core/participant.cc`, `core/event_forwarder.h`, `core/event_forwarder.cc` | Creates per-peer WebRTC SCTP `DataChannel` instances (e.g., `input`, `gps`, `sensors_v2`) and forwards incoming protobuf messages to `InputSender` / `InProcessInputSender`. |
 | `Switchboard` | `@goldfish//emulator/videobridge:videobridge_core` | `include/goldfish/videobridge/switchboard.h`, `core/switchboard.cc` | Manages WebRTC `PeerConnectionFactory`, ICE candidates, and connected `Participant` sessions. |
-| `MFVideoEncoderH264` | `@goldfish//emulator/videobridge:videobridge_win` | `core/win/mf_video_encoder_h264.h`, `core/win/mf_video_encoder_h264.cc` | Windows Media Foundation async H.264 hardware encoder (`InitEncode`, `Encode`, `Release`, `ProcessOutput`, `MF_E_NOTACCEPTING` handling). Tested in `core/win/test/mf_hardware_test.cc` (`@goldfish//emulator/videobridge:mf_hardware_test`) and `core/win/mf_video_encoder_h264_test.cc`. |
+| `MFVideoEncoderH264` | `@goldfish//emulator/videobridge:videobridge_codecs_win` | `core/win/mf_video_encoder_h264.h`, `core/win/mf_video_encoder_h264.cc` | Windows Media Foundation async H.264 hardware encoder (`InitEncode`, `Encode`, `Release`, `ProcessOutput`, `MF_E_NOTACCEPTING` handling). Tested in `core/win/test/mf_hardware_test.cc` (`@goldfish//emulator/videobridge:mf_hardware_test`) and `core/win/mf_video_encoder_h264_test.cc`. |
 
 ## Critical Infrastructure
 * **WebRTC DataChannel Vertical Slice (e.g., `sensors_v2`):**
