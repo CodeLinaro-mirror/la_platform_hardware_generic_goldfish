@@ -73,10 +73,6 @@ struct ArgExtractor<SensorValues> {
     }
 };
 
-}  // namespace goldfish::parsing
-
-namespace goldfish::parsing {
-
 struct LinuxEvent {
     int type;
     int code;
@@ -920,32 +916,33 @@ LegacyConsoleBridge::LegacyConsoleBridge(int port, std::filesystem::path token_p
                 "unknown sensor name: %s, run 'sensor status' to get available sensors.", name));
     };
 
+    auto make_sensor_request = [](int sensor_id) {
+        android::emulation::control::SensorValue request;
+        request.set_target(
+                static_cast<android::emulation::control::SensorValue::SensorType>(sensor_id));
+        return request;
+    };
+
     auto sensor = builder.Command("sensor", "manage emulator sensors");
     sensor.On("status" /* do_sensors_status */, "list available sensors and their status",
-              [](ConsoleContext& ctx) -> absl::StatusOr<std::string> {
+              [make_sensor_request](ConsoleContext& ctx) -> absl::StatusOr<std::string> {
                   ASSIGN_OR_RETURN(auto stub, ctx.EmulatorControllerStub());
 
                   std::string out;
                   for (const auto& def : kSupportedSensors) {
                       ASSIGN_OR_RETURN(auto context, ctx.NewContext());
-                      android::emulation::control::SensorValue request;
-                      request.set_target(
-                              static_cast<android::emulation::control::SensorValue::SensorType>(
-                                      def.sensor_id));
+                      auto request = make_sensor_request(def.sensor_id);
                       android::emulation::control::SensorValue reply;
                       auto status = stub->getSensor(context.get(), request, &reply);
-                      if (status.ok()) {
-                          absl::StrAppendFormat(&out, "%s: enabled.\r\n", def.name);
-                      } else {
-                          absl::StrAppendFormat(&out, "%s: disabled.\r\n", def.name);
-                      }
+                      absl::StrAppendFormat(&out, "%s: %s.\r\n", def.name,
+                                            status.ok() ? "enabled" : "disabled");
                   }
                   return out;
               });
 
     sensor.On("get" /* do_sensors_get */, "get sensor values",
               "'get <sensorname>' get the values of a given sensor.\r\n",
-              [find_sensor_or_error](
+              [find_sensor_or_error, make_sensor_request](
                       ConsoleContext& ctx,
                       std::optional<std::string> sensor_name) -> absl::StatusOr<std::string> {
                   if (!sensor_name || sensor_name->empty()) {
@@ -954,10 +951,7 @@ LegacyConsoleBridge::LegacyConsoleBridge(int port, std::filesystem::path token_p
                   ASSIGN_OR_RETURN(const auto* def, find_sensor_or_error(*sensor_name));
                   ASSIGN_OR_RETURN(auto stub, ctx.EmulatorControllerStub());
                   ASSIGN_OR_RETURN(auto context, ctx.NewContext());
-                  android::emulation::control::SensorValue request;
-                  request.set_target(
-                          static_cast<android::emulation::control::SensorValue::SensorType>(
-                                  def->sensor_id));
+                  auto request = make_sensor_request(def->sensor_id);
                   android::emulation::control::SensorValue reply;
                   RETURN_IF_ERROR(
                           GrpcStatusToAbslStatus(stub->getSensor(context.get(), request, &reply)));
@@ -976,7 +970,7 @@ LegacyConsoleBridge::LegacyConsoleBridge(int port, std::filesystem::path token_p
             "set" /* do_sensors_set */, "set sensor values",
             "'set <sensorname> <value-a>[:<value-b>[:<value-c>[...]]]' set the values of a given "
             "sensor.\r\n",
-            [find_sensor_or_error](
+            [find_sensor_or_error, make_sensor_request](
                     ConsoleContext& ctx, std::optional<std::string> sensor_name,
                     std::optional<goldfish::parsing::SensorValues> parsed_values) -> absl::Status {
                 if (!sensor_name || sensor_name->empty() || !parsed_values ||
@@ -989,11 +983,7 @@ LegacyConsoleBridge::LegacyConsoleBridge(int port, std::filesystem::path token_p
                 ASSIGN_OR_RETURN(auto stub, ctx.EmulatorControllerStub());
                 ASSIGN_OR_RETURN(auto context, ctx.NewContext());
 
-                android::emulation::control::SensorValue request;
-                request.set_target(
-                        static_cast<android::emulation::control::SensorValue::SensorType>(
-                                def->sensor_id));
-
+                auto request = make_sensor_request(def->sensor_id);
                 for (float v : parsed_values->data) {
                     request.mutable_value()->add_data(v);
                 }
@@ -1033,10 +1023,8 @@ LegacyConsoleBridge::LegacyConsoleBridge(int port, std::filesystem::path token_p
 
     // --- Multi-display Commands ---
     auto update_secondary_displays =
-            [](ConsoleContext& ctx,
-               std::function<absl::Status(
-                       const android::emulation::control::DisplayConfigurations&,
-                       android::emulation::control::DisplayConfigurations&)> mutator)
+            [](ConsoleContext& ctx, int id,
+               const android::emulation::control::DisplayConfiguration* replacement)
             -> absl::Status {
         ASSIGN_OR_RETURN(auto stub, ctx.EmulatorControllerStub());
         ASSIGN_OR_RETURN(auto context, ctx.NewContext());
@@ -1047,7 +1035,26 @@ LegacyConsoleBridge::LegacyConsoleBridge(int port, std::filesystem::path token_p
                 stub->getDisplayConfigurations(context.get(), empty_req, &current_configs)));
 
         android::emulation::control::DisplayConfigurations new_configs;
-        RETURN_IF_ERROR(mutator(current_configs, new_configs));
+        bool matched = false;
+        for (const auto& disp : current_configs.displays()) {
+            if (disp.display() == 0) {
+                continue;  // Display 0 is primary
+            }
+            if (disp.display() == static_cast<uint32_t>(id)) {
+                matched = true;
+                if (replacement != nullptr) {
+                    *new_configs.add_displays() = *replacement;
+                }
+            } else {
+                *new_configs.add_displays() = disp;
+            }
+        }
+        if (!matched) {
+            if (replacement == nullptr) {
+                return absl::InvalidArgumentError("invalid display id");
+            }
+            *new_configs.add_displays() = *replacement;
+        }
 
         ASSIGN_OR_RETURN(auto set_context, ctx.NewContext());
         android::emulation::control::DisplayConfigurations reply;
@@ -1064,33 +1071,13 @@ LegacyConsoleBridge::LegacyConsoleBridge(int port, std::filesystem::path token_p
                     return absl::InvalidArgumentError(
                             "invalid display id; valid ids are from 1 to 8 inclusive");
                 }
-                auto populate_display = [&](android::emulation::control::DisplayConfiguration* d) {
-                    d->set_display(id);
-                    d->set_width(width);
-                    d->set_height(height);
-                    d->set_dpi(dpi);
-                    d->set_flags(flag);
-                };
-                return update_secondary_displays(
-                        ctx, [&](const auto& current_configs, auto& new_configs) -> absl::Status {
-                            bool updated = false;
-                            for (const auto& disp : current_configs.displays()) {
-                                if (disp.display() == 0) {
-                                    continue;  // Display 0 is primary
-                                }
-                                auto* added = new_configs.add_displays();
-                                if (disp.display() == static_cast<uint32_t>(id)) {
-                                    populate_display(added);
-                                    updated = true;
-                                } else {
-                                    *added = disp;
-                                }
-                            }
-                            if (!updated) {
-                                populate_display(new_configs.add_displays());
-                            }
-                            return absl::OkStatus();
-                        });
+                android::emulation::control::DisplayConfiguration disp;
+                disp.set_display(id);
+                disp.set_width(width);
+                disp.set_height(height);
+                disp.set_dpi(dpi);
+                disp.set_flags(flag);
+                return update_secondary_displays(ctx, id, &disp);
             });
 
     multidisplay.On(
@@ -1099,24 +1086,7 @@ LegacyConsoleBridge::LegacyConsoleBridge(int port, std::filesystem::path token_p
                 if (id < 1 || id > 10) {
                     return absl::InvalidArgumentError("invalid display id");
                 }
-                return update_secondary_displays(
-                        ctx, [&](const auto& current_configs, auto& new_configs) -> absl::Status {
-                            bool found = false;
-                            for (const auto& disp : current_configs.displays()) {
-                                if (disp.display() == 0) {
-                                    continue;  // Display 0 is primary
-                                }
-                                if (disp.display() == static_cast<uint32_t>(id)) {
-                                    found = true;
-                                } else {
-                                    *new_configs.add_displays() = disp;
-                                }
-                            }
-                            if (!found) {
-                                return absl::InvalidArgumentError("invalid display id");
-                            }
-                            return absl::OkStatus();
-                        });
+                return update_secondary_displays(ctx, id, nullptr);
             });
     // --- Proxy Commands ---
     auto proxy = builder.Command("proxy", "manage network proxy server settings");
