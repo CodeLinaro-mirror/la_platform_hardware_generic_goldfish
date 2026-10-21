@@ -14,16 +14,25 @@
 
 #include "wav_writer.h"
 
+#include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
+#include <limits>
 #include <string>
 #include <vector>
 
+#include "absl/status/status.h"
+#include "absl/status/status_matchers.h"
+
 namespace android::emulation::tools {
 namespace {
+
+using ::absl_testing::StatusIs;
+using ::testing::AllOf;
+using ::testing::HasSubstr;
 
 #pragma pack(push, 1)
 struct TestWavHeader {
@@ -92,6 +101,42 @@ TEST_F(WavWriterTest, WritesValidWavHeaderAndData) {
     std::vector<int16_t> read_samples(samples.size());
     in.read(reinterpret_cast<char*>(read_samples.data()), read_samples.size() * sizeof(int16_t));
     EXPECT_EQ(read_samples, samples);
+}
+
+TEST_F(WavWriterTest, WriteBeforeOpenReturnsFailedPrecondition) {
+    WavWriter writer;
+    const int16_t sample = 42;
+    EXPECT_THAT(writer.Write(&sample, sizeof(sample)),
+                StatusIs(absl::StatusCode::kFailedPrecondition,
+                         HasSubstr("Call Open() before Write()")));
+}
+
+TEST_F(WavWriterTest, OpenInNonexistentDirectoryReturnsNotFound) {
+    WavWriter writer;
+    const auto missing_path =
+            std::filesystem::temp_directory_path() / "nonexistent_wav_writer_dir" / "out.wav";
+    EXPECT_THAT(writer.Open(missing_path, 48000, 2, 16),
+                StatusIs(absl::StatusCode::kNotFound,
+                         AllOf(HasSubstr("nonexistent_wav_writer_dir"),
+                               HasSubstr("Check that the parent directory exists"))));
+}
+
+TEST_F(WavWriterTest, WriteExceedingRiffLimitReturnsOutOfRange) {
+    WavWriter writer;
+    ASSERT_TRUE(writer.Open(test_file_, 48000, 2, 16).ok());
+
+    const std::vector<int16_t> samples = {100, -100};
+    const size_t initial_bytes = samples.size() * sizeof(int16_t);
+    ASSERT_TRUE(writer.Write(samples.data(), initial_bytes).ok());
+
+    constexpr size_t kMaxWavDataBytes = std::numeric_limits<uint32_t>::max() - 36;
+    const size_t remaining_capacity = kMaxWavDataBytes - initial_bytes;
+
+    EXPECT_THAT(writer.Write(samples.data(), remaining_capacity + 1),
+                StatusIs(absl::StatusCode::kOutOfRange, HasSubstr("RIFF container limit")));
+    EXPECT_THAT(writer.Write(samples.data(), std::numeric_limits<size_t>::max()),
+                StatusIs(absl::StatusCode::kOutOfRange, HasSubstr("RIFF container limit")));
+    EXPECT_EQ(writer.bytes_written(), initial_bytes);
 }
 
 }  // namespace

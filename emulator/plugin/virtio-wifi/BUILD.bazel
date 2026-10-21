@@ -9,9 +9,11 @@ package(
 
 license(
     name = "license",
+    package_name = "virtio-wifi",
     license_kinds = [
         ":SPDX-license-identifier-GPL-2.0-only",
     ],
+    package_url = "https://android.googlesource.com/platform/hardware/generic/goldfish/",
     visibility = [":__subpackages__"],
 )
 

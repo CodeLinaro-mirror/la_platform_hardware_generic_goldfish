@@ -48,6 +48,7 @@
 #include "goldfish/metrics/snapshot_metrics.h"
 #include "goldfish/modem_simulator/modem_simulator_service.h"
 #include "goldfish/network/endpoint.h"
+#include "goldfish/timezone/host_timezone.h"
 #include "host_info.h"
 #include "launch_fishtank.h"
 #include "launch_netsimd.h"
@@ -84,6 +85,23 @@ using ::goldfish::async::WhenAll;
 using WhenAllChardevEndpoints = std::shared_ptr<WhenAll<ChardevEndpoints>>;
 
 using ::goldfish::modem_simulator::ModemSimulatorService;
+
+// Returns the timezone reported to the guest: the -timezone value if it is a
+// zoneinfo name, otherwise the host timezone.
+std::optional<std::string> DetermineGuestTimezone(const AndroidOptions& opts) {
+    if (opts.timezone != nullptr && !::goldfish::timezone::IsZoneinfoName(opts.timezone)) {
+        LOG(WARNING) << "Ignoring -timezone '" << opts.timezone
+                     << "': must be a zoneinfo name such as Europe/Paris (see -help-timezone). "
+                        "Falling back to the host timezone.";
+    }
+    std::optional<std::string> timezone = ::goldfish::timezone::GetGuestTimezone(
+            opts.timezone, ::goldfish::timezone::GetHostTimezone());
+    if (!timezone) {
+        LOG(WARNING) << "Could not determine the host timezone, so it is not reported to the "
+                        "guest (see -help-timezone)";
+    }
+    return timezone;
+}
 
 class Launcher {
   public:
@@ -144,7 +162,7 @@ class Launcher {
                             }
                         });
                     }
-                    if (!config_.opts.netsim_cellular) {
+                    if (config_.opts.no_netsim || config_.opts.no_netsim_modem) {
                         config_.event_loop
                                 .Post([this, chardevs]() { init_modem_simulator(chardevs); })
                                 .IgnoreError();
@@ -220,8 +238,9 @@ class Launcher {
             icc_profile_override = std::filesystem::path(icc_profile);
         }
 
-        modem_simulator_service_ =
-                ModemSimulatorService::Create(*config_.avd, icc_profile_override);
+        const std::optional<std::string> timezone = DetermineGuestTimezone(config_.opts);
+        modem_simulator_service_ = ModemSimulatorService::Create(*config_.avd, icc_profile_override,
+                                                                 timezone.value_or(""));
         if (modem_simulator_service_) {
             chardevs->MutableResults().modem_simulator =
                     modem_simulator_service_->ChardevEndpoint();
@@ -433,17 +452,23 @@ class Launcher {
 
     void report_host_info_metrics(const LaunchQemu& emulator) {
         std::string vk_icd;
+        std::vector<VulkanGpuDeviceInfo> host_gpus;
+        std::optional<VulkanGpuDeviceInfo> selected_gpu;
         if (const auto* gpu = emulator.get<GpuDevice>("gpu0")) {
             vk_icd = gpu->getVulkanIcd();
+            host_gpus.assign(gpu->getHostGpus().begin(), gpu->getHostGpus().end());
+            selected_gpu = gpu->getSelectedGpu();
         }
-        config_.metrics_reporter->Report(
-                [this, vk_icd = std::move(vk_icd)](android_studio::AndroidStudioEvent& event) {
-                    android::goldfish::FillEmulatorHostEvent(
-                            event, *config_.avd,
-                            /*launcher_pid=*/android::base::System::GetCurrentProcessPid(),
-                            /*qemu_pid=*/emulator_process_->GetPid(),
-                            config_.opts.metrics_collection, config_.opts.fuchsia, vk_icd);
-                });
+        config_.metrics_reporter->Report([this, vk_icd = std::move(vk_icd),
+                                          host_gpus = std::move(host_gpus),
+                                          selected_gpu = std::move(selected_gpu)](
+                                                 android_studio::AndroidStudioEvent& event) {
+            android::goldfish::FillEmulatorHostEvent(
+                    event, *config_.avd,
+                    /*launcher_pid=*/android::base::System::GetCurrentProcessPid(),
+                    /*qemu_pid=*/emulator_process_->GetPid(), config_.opts.metrics_collection,
+                    config_.opts.fuchsia, vk_icd, host_gpus, selected_gpu);
+        });
     }
 
     void shutdown() {

@@ -28,8 +28,10 @@
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
 #include "absl/time/time.h"
 
+#include "android/emulation/control/absl_status_translate.h"
 #include "android/emulation/control/emulator_grpc_client.h"
 #include "emulator_controller.grpc.pb.h"
 #include "wav_writer.h"
@@ -41,7 +43,7 @@ ABSL_FLAG(std::string, grpc_address, "",
           "Direct address and port of the emulator gRPC service (e.g. localhost:8554).");
 ABSL_FLAG(std::string, grpc_token, "", "Authentication token for the emulator gRPC service.");
 ABSL_FLAG(std::string, output, "capture.wav", "Output path for the captured WAV audio file.");
-ABSL_FLAG(uint32_t, sample_rate, 44100, "Audio sample rate in Hz (default: 44100).");
+ABSL_FLAG(uint32_t, sample_rate, 48000, "Audio sample rate in Hz (default: 48000).");
 ABSL_FLAG(std::string, channels, "stereo", "Audio channel configuration ('mono' or 'stereo').");
 ABSL_FLAG(double, duration_sec, 10.0,
           "Duration in seconds to record (default: 10.0s). Set to 0 to record until Ctrl+C.");
@@ -53,7 +55,7 @@ using ::android::emulation::control::AudioPacket;
 using ::android::emulation::control::BlockingEmulatorGrpcClient;
 using ::android::emulation::control::EmulatorController;
 using ::android::emulation::control::EmulatorGrpcClientBuilder;
-using ::android::emulation::remote::Endpoint;
+using ::android::emulation::control::GrpcStatusToAbslStatus;
 using ::android::emulation::tools::WavWriter;
 
 std::atomic<bool> g_stop{false};
@@ -64,24 +66,9 @@ void HandleSignal(int /*signal*/) {
 
 absl::StatusOr<std::unique_ptr<BlockingEmulatorGrpcClient>> CreateClient(
         const std::string& address, const std::string& token, const std::string& discovery_file) {
-    EmulatorGrpcClientBuilder builder;
-
-    if (!address.empty()) {
-        Endpoint endpoint;
-        endpoint.set_target(address);
-        if (!token.empty()) {
-            auto* header = endpoint.add_required_headers();
-            header->set_key("authorization");
-            header->set_value("Bearer " + token);
-        }
-        builder.WithEndpoint(endpoint);
-    } else if (!discovery_file.empty()) {
-        builder.WithDiscoveryFile(discovery_file);
-    } else {
-        builder.ForDiscoveredEmulator({});
-    }
-
-    auto client = builder.BuildBlocking();
+    auto client = EmulatorGrpcClientBuilder()
+                          .WithTargetOrDiscovery(address, token, discovery_file)
+                          .BuildBlocking();
     if (!client.ok()) {
         return client.status();
     }
@@ -96,6 +83,20 @@ absl::StatusOr<std::unique_ptr<BlockingEmulatorGrpcClient>> CreateClient(
 
 absl::Status CaptureAudio(BlockingEmulatorGrpcClient& client, const std::string& output_path,
                           uint32_t sample_rate, const std::string& channels, double duration_sec) {
+    if (sample_rate == 0) {
+        return absl::InvalidArgumentError(
+                "Invalid --sample_rate value 0; must be greater than 0 Hz (e.g. 44100 or 48000).");
+    }
+    if (channels != "mono" && channels != "stereo") {
+        return absl::InvalidArgumentError(absl::StrFormat(
+                "Invalid --channels value '%s'; must be 'mono' or 'stereo'.", channels));
+    }
+    if (duration_sec < 0.0) {
+        return absl::InvalidArgumentError(absl::StrFormat(
+                "Invalid --duration_sec value %g; must be >= 0 (use 0 to record until Ctrl+C).",
+                duration_sec));
+    }
+
     auto stub = client.Stub<EmulatorController>();
     if (!stub.ok()) {
         return stub.status();
@@ -129,7 +130,10 @@ absl::Status CaptureAudio(BlockingEmulatorGrpcClient& client, const std::string&
 
     auto reader = (*stub)->streamAudio((*context).get(), request);
     if (!reader) {
-        return absl::InternalError("Failed to initiate streamAudio RPC");
+        return absl::UnavailableError(absl::StrFormat(
+                "Failed to start streamAudio RPC to '%s' (%u Hz, %s). Check that the emulator "
+                "gRPC service is running and supports EmulatorController.streamAudio.",
+                client.GetEndpoint().target(), sample_rate, channels));
     }
 
     if (duration_sec > 0.0) {
@@ -142,6 +146,7 @@ absl::Status CaptureAudio(BlockingEmulatorGrpcClient& client, const std::string&
     const absl::Time start_time = absl::Now();
     const absl::Duration target_duration = absl::Seconds(duration_sec);
     size_t packet_count = 0;
+    absl::Status write_status = absl::OkStatus();
 
     AudioPacket packet;
     while (!g_stop && reader->Read(&packet)) {
@@ -155,9 +160,10 @@ absl::Status CaptureAudio(BlockingEmulatorGrpcClient& client, const std::string&
         }
 
         if (!packet.audio().empty()) {
-            if (auto status = wav_writer.Write(packet.audio().data(), packet.audio().size());
-                !status.ok()) {
-                LOG(ERROR) << "Error writing WAV packet: " << status;
+            write_status = wav_writer.Write(packet.audio().data(), packet.audio().size());
+            if (!write_status.ok()) {
+                LOG(ERROR) << "Failed to write audio packet #" << packet_count << ": "
+                           << write_status;
                 break;
             }
         }
@@ -181,8 +187,12 @@ absl::Status CaptureAudio(BlockingEmulatorGrpcClient& client, const std::string&
 
     auto finish_status = reader->Finish();
     if (!finish_status.ok() && finish_status.error_code() != grpc::StatusCode::CANCELLED) {
-        LOG(WARNING) << "streamAudio finished with error: [" << finish_status.error_code() << "] "
-                     << finish_status.error_message();
+        LOG(WARNING) << "streamAudio RPC to '" << client.GetEndpoint().target()
+                     << "' ended with error: " << GrpcStatusToAbslStatus(finish_status);
+    }
+
+    if (!write_status.ok()) {
+        return write_status;
     }
 
     if (packet_count == 0) {

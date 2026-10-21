@@ -13,6 +13,7 @@
 #include <gtest/gtest.h>
 
 #include <cstdint>
+#include <limits>
 #include <string>
 
 #include "absl/status/status_matchers.h"
@@ -79,6 +80,12 @@ TEST(archive, compact_BOOL) {
         EXPECT_EQ(archive.storage.size(), 1);
         EXPECT_THAT(ReadOneValue<bool>(archive), IsOkAndHolds(x));
     }
+
+    for (const uint8_t invalid_bool : {uint8_t{2}, uint8_t{127}, uint8_t{255}}) {
+        DequeArchive archive;
+        archive << invalid_bool;
+        EXPECT_THAT(ReadOneValue<bool>(archive), Not(IsOk()));
+    }
 }
 
 TEST(archive, compact_CHAR) {
@@ -112,6 +119,70 @@ TEST(archive, length_variable) {
     EXPECT_EQ(archive.Size(), 1 + 2 + 3 + 4);
     archive << kUnsignedNumber10;
     EXPECT_EQ(archive.Size(), 1 + 2 + 3 + 4 + 10);
+
+    EXPECT_THAT(ReadOneValue<uint32_t>(archive), IsOkAndHolds(kUnsignedNumber1));
+    EXPECT_THAT(ReadOneValue<uint32_t>(archive), IsOkAndHolds(kUnsignedNumber2));
+    EXPECT_THAT(ReadOneValue<uint32_t>(archive), IsOkAndHolds(kUnsignedNumber3));
+    EXPECT_THAT(ReadOneValue<uint32_t>(archive), IsOkAndHolds(kUnsignedNumber4));
+    EXPECT_THAT(ReadOneValue<uint64_t>(archive), IsOkAndHolds(kUnsignedNumber10));
+}
+
+TEST(archive, varint_overflow) {
+    // 10th byte has continuation bit set (more than 64 bits)
+    {
+        DequeArchive archive;
+        for (int i = 0; i < 10; ++i) {
+            archive << uint8_t{0xFF};
+        }
+        archive << uint8_t{0x01};
+        EXPECT_THAT(ReadOneValue<size_t>(archive), Not(IsOk()));
+    }
+
+    // 10th byte has payload bits > 1 (exceeds 64-bit size_t)
+    {
+        DequeArchive archive;
+        for (int i = 0; i < 9; ++i) {
+            archive << uint8_t{0xFF};
+        }
+        archive << uint8_t{0x02};
+        EXPECT_THAT(ReadOneValue<size_t>(archive), Not(IsOk()));
+    }
+
+    // Value exceeds uint32_t when reading uint32_t
+    {
+        DequeArchive archive;
+        archive << (static_cast<uint64_t>(std::numeric_limits<uint32_t>::max()) + 1ULL);
+        EXPECT_THAT(ReadOneValue<uint32_t>(archive), Not(IsOk()));
+    }
+}
+
+TEST(archive, floating_point) {
+    {
+        DequeArchive archive;
+        const float inf_f = std::numeric_limits<float>::infinity();
+        const double inf_d = std::numeric_limits<double>::infinity();
+        archive << 1.5F << inf_f << -inf_f << -42.25 << inf_d << -inf_d;
+        EXPECT_THAT(ReadOneValue<float>(archive), IsOkAndHolds(1.5F));
+        EXPECT_THAT(ReadOneValue<float>(archive), IsOkAndHolds(inf_f));
+        EXPECT_THAT(ReadOneValue<float>(archive), IsOkAndHolds(-inf_f));
+        EXPECT_THAT(ReadOneValue<double>(archive), IsOkAndHolds(-42.25));
+        EXPECT_THAT(ReadOneValue<double>(archive), IsOkAndHolds(inf_d));
+        EXPECT_THAT(ReadOneValue<double>(archive), IsOkAndHolds(-inf_d));
+    }
+
+    for (const float bad_f :
+         {std::numeric_limits<float>::quiet_NaN(), std::numeric_limits<float>::signaling_NaN()}) {
+        DequeArchive archive;
+        archive << bad_f;
+        EXPECT_THAT(ReadOneValue<float>(archive), Not(IsOk()));
+    }
+
+    for (const double bad_d :
+         {std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::signaling_NaN()}) {
+        DequeArchive archive;
+        archive << bad_d;
+        EXPECT_THAT(ReadOneValue<double>(archive), Not(IsOk()));
+    }
 }
 
 TEST(archive, length_fixed) {

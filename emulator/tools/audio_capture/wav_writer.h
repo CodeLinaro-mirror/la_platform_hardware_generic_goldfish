@@ -56,22 +56,22 @@ class WavWriter {
      * populated with the supplied audio format parameters, and prepares the writer for data.
      *
      * @param filepath The output filesystem path where the .wav file should be created.
-     * @param sample_rate Sampling rate in Hz (e.g. 44100, 48000, 16000). Defaults to 44100.
-     * @param num_channels Number of audio channels (1 for Mono, 2 for Stereo). Defaults to 2.
-     * @param bits_per_sample Bit depth per PCM sample (e.g. 16 for S16). Defaults to 16.
+     * @param sample_rate Sampling rate in Hz (e.g. 48000, 44100, 16000).
+     * @param num_channels Number of audio channels (1 for Mono, 2 for Stereo).
+     * @param bits_per_sample Bit depth per PCM sample (e.g. 16 for S16).
      * @return absl::OkStatus() on success, or an error status if the file could not be created or
      * written.
      */
-    absl::Status Open(const std::filesystem::path& filepath, uint32_t sample_rate = 44100,
-                      uint16_t num_channels = 2, uint16_t bits_per_sample = 16);
+    absl::Status Open(const std::filesystem::path& filepath, uint32_t sample_rate,
+                      uint16_t num_channels, uint16_t bits_per_sample);
 
     /**
      * @brief Appends raw PCM audio data to the open WAV file.
      *
      * @param data Pointer to the raw PCM byte buffer.
      * @param size_bytes Total number of bytes to write.
-     * @return absl::OkStatus() on success, or an error status if the file is not open or the write
-     * failed.
+     * @return absl::OkStatus() on success, or an error status if the file is not open, the payload
+     * would exceed the 4 GiB RIFF WAVE container limit, or the write failed.
      */
     absl::Status Write(const void* data, size_t size_bytes);
 
@@ -107,9 +107,9 @@ class WavWriter {
   private:
     std::ofstream file_;
     std::filesystem::path filepath_;
-    uint32_t sample_rate_{44100};
-    uint16_t num_channels_{2};
-    uint16_t bits_per_sample_{16};
+    uint32_t sample_rate_{0};
+    uint16_t num_channels_{0};
+    uint16_t bits_per_sample_{0};
     size_t bytes_written_{0};
 };
 

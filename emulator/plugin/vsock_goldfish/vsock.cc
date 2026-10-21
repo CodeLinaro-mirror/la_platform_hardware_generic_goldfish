@@ -722,11 +722,30 @@ struct GoldfishVirtioVsockDevice {
 
         if (!ReadValue(reader, mTickCounter, mReturnedHostPorts, mSrcPortAllocator, mOrphanPackets)
                      .ok()) {
+            clearLocked();
             return 1;
         }
 
+        if (mTickCounter >= kTicksPerHostPort ||
+            mReturnedHostPorts.size() > kMaxReturnedHostPortsSize ||
+            mSrcPortAllocator.LastId() >= kDynamicPortsStart) {
+            clearLocked();
+            return 1;
+        }
+
+        std::set<uint32_t> seenDynamicPorts;
+        for (const uint32_t port : mReturnedHostPorts) {
+            if (port < kDynamicPortsStart || !mSrcPortAllocator.CanPut(port - kDynamicPortsStart) ||
+                !seenDynamicPorts.insert(port).second) {
+                clearLocked();
+                return 1;
+            }
+        }
+
+        constexpr size_t kMaxSnapshotStreams = 65536;
         size_t n = 0;
-        if (!ReadValue(reader, n).ok()) {
+        if (!ReadValue(reader, n).ok() || n > kMaxSnapshotStreams) {
+            clearLocked();
             return 1;
         }
 
@@ -738,35 +757,50 @@ struct GoldfishVirtioVsockDevice {
             bool supportsLoading;
 
             if (!ReadValue(reader, guestPort, hostPort, hostFwdCnt, supportsLoading).ok()) {
+                clearLocked();
                 return 1;
             }
 
             if (supportsLoading) {
+                if (hostPort >= kDynamicPortsStart &&
+                    (!mSrcPortAllocator.CanPut(hostPort - kDynamicPortsStart) ||
+                     !seenDynamicPorts.insert(hostPort).second)) {
+                    clearLocked();
+                    return 1;
+                }
+
+                uint32_t guestBufAlloc = 0;
+                uint32_t guestFwdCnt = 0;
+                uint32_t hostSentCnt = 0;
+                uint8_t flags = 0;
+                if (!ReadValue(reader, guestBufAlloc, guestFwdCnt, hostSentCnt, flags).ok() ||
+                    !is_host_ahead(hostSentCnt, guestFwdCnt)) {
+                    clearLocked();
+                    return 1;
+                }
+
                 const auto [streamI, inserted] = mStreams.emplace(*this, guestPort, hostPort);
                 if (!inserted) {
+                    clearLocked();
                     return 1;
                 }
 
                 VsockStream& stream = const_cast<VsockStream&>(*streamI);
                 stream.hostFwdCnt = hostFwdCnt;
-
-                uint8_t flags;
-                if (!ReadValue(reader, stream.guestBufAlloc, stream.guestFwdCnt, stream.hostSentCnt,
-                               flags)
-                             .ok()) {
-                    return 1;
-                }
-
+                stream.guestBufAlloc = guestBufAlloc;
+                stream.guestFwdCnt = guestFwdCnt;
+                stream.hostSentCnt = hostSentCnt;
                 stream.isConnected = (flags & 1U) != 0;
                 stream.sendOpMask = flags & ~1U;
-                stream.hostToGuestBuf.LoadFromSnapshot(reader);
+                if (stream.hostToGuestBuf.LoadFromSnapshot(reader) != 0) {
+                    clearLocked();
+                    return 1;
+                }
                 stream.producerEnabled = true;
 
-                if (std::visit(PlugOrSocketVisitor(stream),
-                               LoadPlugFromSnapshot(SocketPtr(&stream), reader))) {
-                    return true;
-                } else {
-                    mStreams.erase(streamI);
+                if (!std::visit(PlugOrSocketVisitor(stream),
+                                LoadPlugFromSnapshot(SocketPtr(&stream), reader))) {
+                    clearLocked();
                     return 1;
                 }
             } else {

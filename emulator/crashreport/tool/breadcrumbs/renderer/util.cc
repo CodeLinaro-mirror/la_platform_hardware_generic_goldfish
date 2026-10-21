@@ -28,4 +28,46 @@ std::string FormatEventTime(uint64_t ts_ns, uint64_t start_time_ns) {
     return absl::StrFormat("%s (%s)", abs_str, rel_str);
 }
 
+std::string_view FormatEventPhaseLabel(const Breadcrumb& proto) {
+    using namespace std::string_view_literals;
+    if (proto.has_grpc()) {
+        using android::control::breadcrumbs::GrpcPayload;
+        switch (proto.grpc().grpc_phase()) {
+        case GrpcPayload::START:
+            return "START"sv;
+        case GrpcPayload::PRE_SEND_INITIAL_METADATA:
+            return "SEND_META"sv;
+        case GrpcPayload::PRE_SEND_MESSAGE:
+            return "SEND_MSG"sv;
+        case GrpcPayload::PRE_SEND_STATUS:
+            return "SEND_STAT"sv;
+        case GrpcPayload::PRE_RECV_INITIAL_METADATA:
+            return "RECV_META"sv;
+        case GrpcPayload::PRE_RECV_MESSAGE:
+        case GrpcPayload::POST_RECV_MESSAGE:
+            return "RECV_MSG"sv;
+        case GrpcPayload::PRE_RECV_STATUS:
+            return "RECV_STAT"sv;
+        case GrpcPayload::END_OF_CALL:
+            return "END"sv;
+        default:
+            return "UNKNOWN"sv;
+        }
+    }
+    if (proto.has_adb()) {
+        return "ADB"sv;
+    }
+    if (proto.has_looper()) {
+        switch (proto.looper().event()) {
+        case android::control::breadcrumbs::LooperPayload::POST:
+            return "POST"sv;
+        case android::control::breadcrumbs::LooperPayload::EXECUTE:
+            return "EXEC"sv;
+        default:
+            return "LOOPER"sv;
+        }
+    }
+    return "UNKNOWN"sv;
+}
+
 }  // namespace android::crashreport::breadcrumbs

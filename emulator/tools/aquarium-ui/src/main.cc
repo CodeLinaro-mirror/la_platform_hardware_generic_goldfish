@@ -28,6 +28,7 @@
 #include "absl/synchronization/notification.h"
 
 #include "android/base/bazel_info.h"
+#include "android/emulation/control/emulator_grpc_client.h"
 #include "goldfish/aquarium/aquarium_ui_server.h"
 #include "goldfish/async/libuv_event_loop.h"
 #include "goldfish/async/libuv_socket_factory.h"
@@ -85,13 +86,15 @@ int main(int argc, char** argv) {
     const std::filesystem::path static_dir =
             goldfish::aquarium::LocateStaticDir(absl::GetFlag(FLAGS_static_dir));
 
-    auto target_and_channel_or = goldfish::aquarium::ResolveGrpcTargetAndChannel(
-            grpc_target, grpc_token, discovery_file);
-    if (!target_and_channel_or.ok()) {
-        LOG(ERROR) << "Failed to resolve upstream gRPC target: " << target_and_channel_or.status();
+    auto target_and_channel =
+            android::emulation::control::EmulatorGrpcClientBuilder()
+                    .WithTargetOrDiscovery(grpc_target, grpc_token, discovery_file)
+                    .BuildTargetAndChannel();
+    if (!target_and_channel.ok()) {
+        LOG(ERROR) << "Failed to resolve upstream gRPC target: " << target_and_channel.status();
         return 1;
     }
-    auto [resolved_target, channel] = std::move(*target_and_channel_or);
+    auto [resolved_target, channel] = *std::move(target_and_channel);
 
     LOG(INFO) << "🐠 Starting Aquarium UI Server...";
     LOG(INFO) << "  Static UI Dir:        " << static_dir;

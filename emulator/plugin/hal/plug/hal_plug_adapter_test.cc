@@ -19,8 +19,6 @@
 
 #include <chrono>
 #include <filesystem>
-#include <fstream>
-#include <iterator>
 #include <memory>
 #include <string>
 #include <thread>
@@ -36,6 +34,7 @@
 #include "goldfish/devices/hal_plug_to_i_plug_adapter.h"
 #include "goldfish/devices/marshalling_hal_socket.h"
 #include "goldfish/devices/test/hal_plug_testing_friend.h"
+#include "goldfish/file/file.h"
 #include "goldfish/perfetto/perfetto.h"
 
 using namespace goldfish::devices;
@@ -386,13 +385,8 @@ TEST_F(HalPlugAdapterTest, ReusesSendBufferAcrossFlushes) {
 
 #if defined(CONFIG_TRACE_GOLDFISH)
 bool TraceFileContains(const std::filesystem::path& path, std::string_view needle) {
-    std::ifstream in(path, std::ios::binary);
-    if (!in.is_open()) {
-        return false;
-    }
-    const std::string content((std::istreambuf_iterator<char>(in)),
-                              std::istreambuf_iterator<char>());
-    return content.find(needle) != std::string::npos;
+    auto content = android::base::file::read_whole_file(path, /*binary=*/true);
+    return content.ok() && content->find(needle) != std::string::npos;
 }
 
 TEST_F(HalPlugAdapterTest, EmitsPerfettoTraceEventsForSendAndReceive) {

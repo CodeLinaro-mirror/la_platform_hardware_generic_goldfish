@@ -24,6 +24,7 @@ namespace control {
 namespace incubating {
 
 using ::testing::_;
+using ::testing::HasSubstr;
 using ::testing::Return;
 
 class MockModemSimulatorClient : public goldfish::modem_simulator::IModemSimulatorClient {
@@ -176,6 +177,65 @@ TEST_F(ModemServiceTest, ReceiveSmsEncoded) {
     auto status = service_->receiveSms(&context, &request, &response);
 
     EXPECT_TRUE(status.ok());
+}
+
+TEST_F(ModemServiceTest, ReceiveSmsRejectsOddLengthEncodedMessage) {
+    ::grpc::ServerContext context;
+    SmsMessage request;
+    request.set_number("123");
+    request.set_encodedmessage("012");
+    ::google::protobuf::Empty response;
+
+    EXPECT_CALL(*client_, ReceiveSmsEncoded(_)).Times(0);
+
+    const auto status = service_->receiveSms(&context, &request, &response);
+
+    EXPECT_EQ(status.error_code(), ::grpc::StatusCode::INVALID_ARGUMENT);
+    EXPECT_THAT(status.error_message(), HasSubstr("length 3 is odd"));
+    EXPECT_THAT(status.error_message(), HasSubstr("encodedMessage"));
+}
+
+TEST_F(ModemServiceTest, ReceiveSmsRejectsNonHexEncodedMessage) {
+    ::grpc::ServerContext context;
+    SmsMessage request;
+    request.set_number("123");
+    request.set_encodedmessage("01zz");
+    ::google::protobuf::Empty response;
+
+    EXPECT_CALL(*client_, ReceiveSmsEncoded(_)).Times(0);
+
+    const auto status = service_->receiveSms(&context, &request, &response);
+
+    EXPECT_EQ(status.error_code(), ::grpc::StatusCode::INVALID_ARGUMENT);
+    EXPECT_THAT(status.error_message(), HasSubstr("length 4"));
+    EXPECT_THAT(status.error_message(), HasSubstr("non-hexadecimal characters"));
+    EXPECT_THAT(status.error_message(), HasSubstr("0-9, a-f, or A-F"));
+}
+
+TEST_F(ModemServiceTest, ReceiveSmsRejectsMissingPayload) {
+    ::grpc::ServerContext context;
+    SmsMessage request;
+    request.set_number("123");
+    ::google::protobuf::Empty response;
+
+    EXPECT_CALL(*client_, ReceiveSmsUtf8(_, _)).Times(0);
+    EXPECT_CALL(*client_, ReceiveSmsEncoded(_)).Times(0);
+
+    const auto status = service_->receiveSms(&context, &request, &response);
+
+    EXPECT_EQ(status.error_code(), ::grpc::StatusCode::INVALID_ARGUMENT);
+    EXPECT_THAT(status.error_message(), HasSubstr("neither 'text' nor 'encodedMessage' is set"));
+}
+
+TEST_F(ModemServiceTest, ReceivePhoneEventsReturnsUnimplemented) {
+    ::grpc::ServerContext context;
+    ::google::protobuf::Empty request;
+
+    const auto status = service_->receivePhoneEvents(&context, &request, /*writer=*/nullptr);
+
+    EXPECT_EQ(status.error_code(), ::grpc::StatusCode::UNIMPLEMENTED);
+    EXPECT_THAT(status.error_message(), HasSubstr("receivePhoneEvents is not implemented yet"));
+    EXPECT_THAT(status.error_message(), HasSubstr("listCalls"));
 }
 
 TEST_F(ModemServiceTest, UpdateClock) {

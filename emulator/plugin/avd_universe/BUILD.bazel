@@ -1,4 +1,5 @@
-load("@rules_cc//cc:defs.bzl", "cc_library")
+load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_test")
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 
 cc_library(
     name = "clipboard",
@@ -48,6 +49,9 @@ cc_library(
         ":grpc_notification",
         "//emulator/libs/archive:time",
         "//emulator/libs/metrics",
+        "//emulator/libs/status_macros",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/time",
     ],
 )
@@ -58,7 +62,12 @@ cc_library(
     hdrs = ["include/goldfish/avd_universe/gps/location.h"],
     includes = ["include"],
     visibility = ["//visibility:public"],
-    deps = ["//emulator/libs/eventing"],
+    deps = [
+        "//emulator/libs/eventing",
+        "//emulator/libs/status_macros",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/strings",
+    ],
 )
 
 cc_library(
@@ -73,6 +82,8 @@ cc_library(
         "//emulator/libs/archive",
         "//emulator/libs/eventing",
         "//emulator/libs/status_macros",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",
     ],
 )
@@ -90,4 +101,30 @@ cc_library(
         ":location",
         ":vehicle",
     ],
+)
+
+cc_test(
+    name = "avd_universe_unittests",
+    size = "small",
+    srcs = ["avd_universe_tests.cc"],
+    deps = [
+        ":battery",
+        ":guest_status",
+        ":location",
+        "//emulator/libs/archive:DequeArchive",
+        "//emulator/libs/test:googletest_main",
+        "@abseil-cpp//absl/status:status_matchers",
+        "@abseil-cpp//absl/time",
+    ],
+)
+
+clang_tidy_test(
+    name = "tidy",
+    targets = [
+        ":guest_status",
+        ":location",
+        ":battery",
+        ":avd_universe_unittests",
+    ],
+    tidy_config_file = "//:clang_tidy_config",
 )

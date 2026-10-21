@@ -52,13 +52,13 @@ class QemuAudioCapture {
      *
      * @param callback Callback invoked synchronously on the QEMU audio thread for each chunk of PCM
      * samples.
-     * @param sample_rate_hz Sample rate in Hz (default: 48000).
-     * @param channels Channel count (default: 2).
+     * @param sample_rate_hz Sample rate in Hz.
+     * @param channels Channel count.
      * @param audio_backend Optional custom QEMU AudioBackend. When omitted or nullptr, the active
      * backend (default or "mainaudiodev") is resolved automatically during construction.
      */
-    explicit QemuAudioCapture(AudioCallback callback, uint32_t sample_rate_hz = 48000,
-                              uint32_t channels = 2, AudioBackend* audio_backend = nullptr);
+    QemuAudioCapture(AudioCallback callback, uint32_t sample_rate_hz, uint32_t channels,
+                     AudioBackend* audio_backend = nullptr);
 
     ~QemuAudioCapture();
 

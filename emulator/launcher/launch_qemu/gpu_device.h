@@ -12,12 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 #pragma once
+
+#include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
 
 #include "device.h"
+#include "goldfish/gvk/i_meta_loader.h"
 #include "snapshot_device.h"
+#include "vulkan_gpu_device_info.h"
 
 namespace android::goldfish {
 
@@ -34,11 +39,17 @@ class GpuDevice : public PciDevice {
             const EmulatorConfig& emulator) const override;
 
     std::string_view getVulkanIcd() const { return mVulkanIcd; }
+    std::span<const VulkanGpuDeviceInfo> getHostGpus() const { return mHostGpus; }
+    const std::optional<VulkanGpuDeviceInfo>& getSelectedGpu() const { return mSelectedGpu; }
+
+    static void setVulkanLoader_TestOnly(::goldfish::gvk::IMetaLoader::Ptr loader);
 
   private:
     const SnapshotDevice& mSnapshotDevice;
     std::string mEmuRenderer;
     std::string mVulkanIcd;
+    std::vector<VulkanGpuDeviceInfo> mHostGpus;
+    std::optional<VulkanGpuDeviceInfo> mSelectedGpu;
 };
 
 }  // namespace android::goldfish

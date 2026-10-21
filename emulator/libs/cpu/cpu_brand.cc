@@ -226,6 +226,53 @@ int getCpuBrandNameProcfs(char* name) {
     trimWhitespace(model_name);
     strcpy(name, model_name);
 #elif defined(__aarch64__)
+    struct id_part {
+        int id;
+        const char* name;
+    };
+
+    static const struct id_part arm_part[] = {
+        {0x00f, "ARM11MPCore"},  {0xd03, "Cortex-A53"},
+        {0xd04, "Cortex-A35"},   {0xd05, "Cortex-A55"},
+        {0xd07, "Cortex-A57"},   {0xd08, "Cortex-A72"},
+        {0xd09, "Cortex-A73"},   {0xd0a, "Cortex-A75"},
+        {0xd0b, "Cortex-A76"},   {0xd0c, "Neoverse-N1"},
+        {0xd0d, "Cortex-A77"},   {0xd0e, "Cortex-A76AE"},
+        {0xd40, "Neoverse-V1"},  {0xd41, "Cortex-A78"},
+        {0xd42, "Cortex-A78AE"}, {0xd44, "Cortex-X1"},
+        {0xd46, "Cortex-A510"},  {0xd47, "Cortex-A710"},
+        {0xd48, "Cortex-X2"},    {0xd49, "Neoverse-N2"},
+        {0xd4b, "Cortex-A78C"},  {0xd4c, "Cortex-X1C"},
+        {0xd4d, "Cortex-A715"},  {0xd4e, "Cortex-X3"},
+        {0xd4f, "Neoverse-V2"},  {-1, NULL},
+    };
+
+    static const struct id_part qcom_part[] = {
+        {0x800, "Falkor-V1/Kryo"},
+        {0x801, "Kryo-V2"},
+        {0x802, "Kryo-3XX-Gold"},
+        {0x803, "Kryo-3XX-Silver"},
+        {0x804, "Kryo-4XX-Gold"},
+        {0x805, "Kryo-4XX-Silver"},
+        {-1, NULL},
+    };
+
+    static const struct id_part apple_part[] = {
+        {0x022, "IceStorm"}, {0x023, "FireStorm"}, {0x024, "Blizzard"}, {0x025, "Avalanche"},
+        {0x028, "Sawtooth"}, {0x029, "Everest"},   {-1, NULL},
+    };
+
+    static const struct {
+        int id;
+        const struct id_part* parts;
+        const char* name;
+    } hw_implementer[] = {
+        {0x41, arm_part, "ARM"},       {0x42, NULL, "Broadcom"}, {0x43, NULL, "Cavium"},
+        {0x44, NULL, "DEC"},           {0x4e, NULL, "NVIDIA"},   {0x50, NULL, "APM"},
+        {0x51, qcom_part, "Qualcomm"}, {0x53, NULL, "Samsung"},  {0x61, apple_part, "Apple"},
+        {0xc0, NULL, "Ampere"},        {-1, NULL, NULL},
+    };
+
     char* cpu_impl = NULL;
     char* cpu_part = NULL;
     uint32_t cpu_impl_id = 0;

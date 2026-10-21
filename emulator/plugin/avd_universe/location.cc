@@ -14,6 +14,11 @@
 
 #include "goldfish/avd_universe/gps/location.h"
 
+#include "absl/status/status.h"
+#include "absl/strings/str_cat.h"
+
+#include "android/status/status_macros.h"
+
 namespace goldfish::avd_universe::gps {
 
 archive::IWriter& operator<<(archive::IWriter& w, const Location& val) {
@@ -24,8 +29,16 @@ archive::IWriter& operator<<(archive::IWriter& w, const Location& val) {
 }
 
 absl::Status ReadValue(archive::IReader& r, Location& val) {
-    return ReadValue(r, val.latitude, val.longitude, val.speed, val.bearing, val.altitude,
-                     val.satellites);
+    Location loaded;
+    RETURN_IF_ERROR(ReadValue(r, loaded.latitude, loaded.longitude, loaded.speed, loaded.bearing,
+                              loaded.altitude, loaded.satellites));
+    if (loaded.satellites < 0) {
+        return absl::InvalidArgumentError(absl::StrCat(
+                "Negative satellite count (", loaded.satellites,
+                ", expected >= 0) in Location snapshot"));
+    }
+    val = loaded;
+    return absl::OkStatus();
 }
 
 }  // namespace goldfish::avd_universe::gps

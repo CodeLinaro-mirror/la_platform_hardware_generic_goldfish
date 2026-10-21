@@ -17,7 +17,9 @@ cc_library(
     deps = [
         "//emulator/libs/archive",
         "//emulator/libs/archive:collections",
+        "//emulator/libs/status_macros",
         "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/strings",
     ],
 )
 

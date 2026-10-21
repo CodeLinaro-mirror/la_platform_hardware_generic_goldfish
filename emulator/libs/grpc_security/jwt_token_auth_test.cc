@@ -15,7 +15,6 @@
 
 #include <gtest/gtest.h>
 
-#include <fstream>
 #include <initializer_list>
 #include <memory>
 #include <string>
@@ -154,11 +153,8 @@ class JwkTokenAuthTest : public ::testing::Test {
 
 // Reads a file into a string.
 static std::string ReadFile(fs::path fname) {
-    std::ifstream fstream(fname);
-    std::string contents((std::istreambuf_iterator<char>(fstream)),
-                         std::istreambuf_iterator<char>());
-    fstream.close();
-    return contents;
+    auto contents = base::file::read_whole_file(fname, /*binary=*/false);
+    return contents.ok() ? *std::move(contents) : "";
 }
 
 TEST_F(JwkTokenAuthTest, writes_a_discovery_file) {

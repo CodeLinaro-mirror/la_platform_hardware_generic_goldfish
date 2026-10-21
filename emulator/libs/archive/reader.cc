@@ -26,16 +26,24 @@ absl::Status ReadValue(archive::IReader& r, size_t& dst) {
             return s;
         }
 
+        const unsigned remaining_bits = kResultNumBits - shift;
+        if (remaining_bits < 7) {
+            const auto max_payload = static_cast<uint8_t>((1U << remaining_bits) - 1U);
+            if ((b & 0x80) != 0 || (b & 0x7F) > max_payload) {
+                return absl::OutOfRangeError("Varint overflows size_t");
+            }
+        }
+
         result |= (static_cast<size_t>(b & 0x7F) << shift);
         if (b >> 7) {
             shift += 7;
         } else {
-            break;
+            dst = result;
+            return absl::OkStatus();
         }
     }
 
-    dst = result;
-    return absl::OkStatus();
+    return absl::OutOfRangeError("Varint overflows size_t");
 }
 
 }  // namespace goldfish::archive

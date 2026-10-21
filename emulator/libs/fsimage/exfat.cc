@@ -28,6 +28,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
+#include "absl/time/time.h"
 
 #include "android/status/status_macros.h"
 #include "goldfish/file/file.h"
@@ -48,7 +49,6 @@ constexpr uint64_t kMaxExfatClusters = 0xFFFFFFF5ULL;
 constexpr uint16_t kBootSignature = 0xAA55U;
 constexpr uint32_t kExBootSignature = 0xAA550000U;
 constexpr uint16_t kExfatRevision100 = 0x0100U;
-constexpr uint32_t kDefaultVolumeSerial = 0x12345678U;
 constexpr uint8_t kDriveSelect = 0x80U;
 
 constexpr uint32_t kFatMediaDescriptor = 0xFFFFFFF8U;
@@ -64,7 +64,11 @@ constexpr uint8_t kDentryTypeFileName = 0xC1U;
 constexpr uint8_t kFlagAllocationPossible = 0x01U;
 constexpr uint16_t kAttrDirectory = 0x0010U;
 constexpr uint16_t kAttrArchive = 0x0020U;
-constexpr uint32_t kDefaultDosTimestamp = (1U << 21U) | (1U << 16U);  // 1980-01-01 00:00:00
+
+constexpr int kExfatMinYear = 1980;
+constexpr int kExfatMaxYear = 2107;
+constexpr uint8_t kExfatUtcOffsetValid = 0x80U;
+constexpr int64_t kMaxTenMsIncrement = 199;
 
 constexpr size_t kMaxVolumeLabelLength = 11U;
 constexpr size_t kMaxFileNameLength = 255U;
@@ -635,10 +639,10 @@ struct ExfatTreeNode {
 
 absl::Status ScanDirectoryRecursive(const fs::path& dir_path, ExfatTreeNode* dir_node) {
     std::error_code ec;
-    std::vector<fs::directory_entry> entries;
+    std::vector<std::pair<fs::directory_entry, std::u8string>> entries;
     for (fs::directory_iterator it(dir_path, ec); !ec && it != fs::directory_iterator();
          it.increment(ec)) {
-        entries.push_back(*it);
+        entries.emplace_back(*it, it->path().filename().u8string());
     }
     if (ec) {
         return absl::InternalError(absl::StrFormat("Failed to iterate directory '%s': %s",
@@ -646,15 +650,17 @@ absl::Status ScanDirectoryRecursive(const fs::path& dir_path, ExfatTreeNode* dir
     }
 
     std::sort(entries.begin(), entries.end(),
-              [](const fs::directory_entry& a, const fs::directory_entry& b) {
-                  return a.path().filename().string() < b.path().filename().string();
-              });
+              [](const auto& a, const auto& b) { return a.second < b.second; });
+    for (auto& entry : entries) {
+        entry.second.clear();
+        entry.second.shrink_to_fit();
+    }
 
     absl::flat_hash_set<std::vector<uint16_t>> seen_upcase_names;
     dir_node->children.reserve(entries.size());
 
-    for (const fs::directory_entry& entry : entries) {
-        const fs::path& child_path = entry.path();
+    for (const auto& entry : entries) {
+        const fs::path& child_path = entry.first.path();
         const fs::file_status st = fs::symlink_status(child_path, ec);
         if (ec) {
             return absl::InternalError(
@@ -750,8 +756,39 @@ absl::Status AssignClustersRecursive(ExfatTreeNode* node, bool is_root, uint64_t
     return absl::OkStatus();
 }
 
+struct ExfatEncodedTimestamp {
+    uint32_t dos_timestamp = 0;
+    uint8_t ten_ms_increment = 0;
+    uint8_t utc_offset = 0;
+};
+
+absl::StatusOr<ExfatEncodedTimestamp> EncodeExfatTimestamp(absl::Time time) {
+    const absl::TimeZone::CivilInfo ci = absl::UTCTimeZone().At(time);
+    if (ci.cs.year() < kExfatMinYear || ci.cs.year() > kExfatMaxYear) {
+        return absl::InvalidArgumentError(absl::StrFormat(
+                "exFAT timestamp '%s' (year %d) is outside the supported range [%d, %d]",
+                absl::FormatTime(time, absl::UTCTimeZone()), ci.cs.year(), kExfatMinYear,
+                kExfatMaxYear));
+    }
+    const uint32_t dos_timestamp = (static_cast<uint32_t>(ci.cs.year() - kExfatMinYear) << 25U) |
+                                   (static_cast<uint32_t>(ci.cs.month()) << 21U) |
+                                   (static_cast<uint32_t>(ci.cs.day()) << 16U) |
+                                   (static_cast<uint32_t>(ci.cs.hour()) << 11U) |
+                                   (static_cast<uint32_t>(ci.cs.minute()) << 5U) |
+                                   (static_cast<uint32_t>(ci.cs.second()) / 2U);
+    const int64_t odd_sec_10ms = static_cast<int64_t>(ci.cs.second() % 2) * 100;
+    const int64_t subsec_10ms = absl::ToInt64Milliseconds(ci.subsecond) / 10;
+    const uint8_t ten_ms_increment = static_cast<uint8_t>(
+            std::clamp<int64_t>(odd_sec_10ms + subsec_10ms, 0, kMaxTenMsIncrement));
+    return ExfatEncodedTimestamp{
+        .dos_timestamp = dos_timestamp,
+        .ten_ms_increment = ten_ms_increment,
+        .utc_offset = kExfatUtcOffsetValid,
+    };
+}
+
 void AppendChildEntrySet(const ExfatTreeNode& child, uint64_t cluster_size,
-                         std::vector<ExfatDentry>* out) {
+                         const ExfatEncodedTimestamp& timestamp, std::vector<ExfatDentry>* out) {
     const size_t name_entries =
             (child.utf16_name.size() + kCharsPerFileNameDentry - 1U) / kCharsPerFileNameDentry;
     const size_t set_entries = 2U + name_entries;
@@ -764,14 +801,14 @@ void AppendChildEntrySet(const ExfatTreeNode& child, uint64_t cluster_size,
             .set_checksum = 0U,
             .file_attributes = HostToLe16(child.is_directory ? kAttrDirectory : kAttrArchive),
             .reserved1 = 0U,
-            .create_timestamp = HostToLe32(kDefaultDosTimestamp),
-            .last_modified_timestamp = HostToLe32(kDefaultDosTimestamp),
-            .last_accessed_timestamp = HostToLe32(kDefaultDosTimestamp),
-            .create_10ms_increment = 0U,
-            .last_modified_10ms_increment = 0U,
-            .create_utc_offset = 0U,
-            .last_modified_utc_offset = 0U,
-            .last_accessed_utc_offset = 0U,
+            .create_timestamp = HostToLe32(timestamp.dos_timestamp),
+            .last_modified_timestamp = HostToLe32(timestamp.dos_timestamp),
+            .last_accessed_timestamp = HostToLe32(timestamp.dos_timestamp),
+            .create_10ms_increment = timestamp.ten_ms_increment,
+            .last_modified_10ms_increment = timestamp.ten_ms_increment,
+            .create_utc_offset = timestamp.utc_offset,
+            .last_modified_utc_offset = timestamp.utc_offset,
+            .last_accessed_utc_offset = timestamp.utc_offset,
             .reserved2 = {0},
         }});
 
@@ -811,15 +848,16 @@ void AppendChildEntrySet(const ExfatTreeNode& child, uint64_t cluster_size,
     (*out)[start_index].file.set_checksum = HostToLe16(set_chksum);
 }
 
-void BuildDirectoryTablesRecursive(ExfatTreeNode* node, uint64_t cluster_size) {
+void BuildDirectoryTablesRecursive(ExfatTreeNode* node, uint64_t cluster_size,
+                                   const ExfatEncodedTimestamp& timestamp) {
     if (!node->is_directory) {
         return;
     }
     for (const ExfatTreeNode& child : node->children) {
-        AppendChildEntrySet(child, cluster_size, &node->dir_entries);
+        AppendChildEntrySet(child, cluster_size, timestamp, &node->dir_entries);
     }
     for (ExfatTreeNode& child : node->children) {
-        BuildDirectoryTablesRecursive(&child, cluster_size);
+        BuildDirectoryTablesRecursive(&child, cluster_size, timestamp);
     }
 }
 
@@ -887,22 +925,79 @@ absl::Status WriteTreeDataRecursive(const ExfatTreeNode& node, uint64_t clu_offs
     return absl::OkStatus();
 }
 
-absl::Status CreateExFATImageImpl(const fs::path& image, const fs::path* source_directory,
-                                  StorageCapacity size, std::string_view volume_label) {
-    if (volume_label.size() > kMaxVolumeLabelLength) {
-        return absl::InvalidArgumentError(
-                absl::StrFormat("exFAT volume label '%s' exceeds maximum length (%u characters)",
-                                volume_label, kMaxVolumeLabelLength));
-    }
-    for (const char ch : volume_label) {
-        if (!IsValidVolumeLabelChar(ch)) {
-            return absl::InvalidArgumentError(absl::StrFormat(
-                    "exFAT volume label '%s' contains invalid character", volume_label));
+absl::StatusOr<uint64_t> ComputeMinVolumeBytes(ExfatTreeNode* root_node) {
+    constexpr uint64_t kMax256MiB = 256ULL * 1024 * 1024;
+    constexpr uint64_t kMax32GiB = 32ULL * 1024 * 1024 * 1024;
+    constexpr std::array<uint8_t, 3> kClusterShifts = {3U, 6U, 8U};
+
+    for (const uint8_t shift : kClusterShifts) {
+        const uint64_t sect_per_clus = 1ULL << shift;
+        const uint64_t cluster_size = sect_per_clus * kSectorSize;
+
+        uint32_t tree_next_cluster = kFirstDataCluster;
+        RETURN_IF_ERROR(AssignClustersRecursive(root_node, /*is_root=*/true, cluster_size,
+                                                &tree_next_cluster));
+        const uint64_t tree_clusters = tree_next_cluster - kFirstDataCluster;
+        const uint64_t upcase_bytes = kDefaultUpcaseTable.size() * sizeof(uint16_t);
+        const uint64_t upcase_clusters = (upcase_bytes + cluster_size - 1ULL) / cluster_size;
+
+        uint64_t bitmap_clusters = 1ULL;
+        while (true) {
+            const uint64_t clu_count = bitmap_clusters + upcase_clusters + tree_clusters;
+            const uint64_t bitmap_bytes = (clu_count + 7ULL) / 8ULL;
+            const uint64_t needed_bitmap_clusters =
+                    (bitmap_bytes + cluster_size - 1ULL) / cluster_size;
+            if (needed_bitmap_clusters == bitmap_clusters) {
+                break;
+            }
+            bitmap_clusters = needed_bitmap_clusters;
+        }
+
+        const uint64_t clu_count = bitmap_clusters + upcase_clusters + tree_clusters;
+        if (clu_count > kMaxExfatClusters) {
+            return absl::OutOfRangeError(absl::StrFormat(
+                    "exFAT cluster count (%u) exceeds maximum (%u)", clu_count, kMaxExfatClusters));
+        }
+
+        const uint64_t fat_offset = RoundUp(kTotalBootSectors, sect_per_clus);
+        const uint64_t fat_length =
+                ((clu_count + kReservedClusters) * sizeof(uint32_t) + kSectorSize - 1ULL) /
+                kSectorSize;
+        const uint64_t clu_offset = RoundUp(fat_offset + fat_length, sect_per_clus);
+        const uint64_t vol_length = clu_offset + clu_count * sect_per_clus;
+        uint64_t total_bytes = vol_length * kSectorSize;
+
+        if (shift == 6U && total_bytes <= kMax256MiB) {
+            total_bytes = kMax256MiB + cluster_size;
+        } else if (shift == 8U && total_bytes <= kMax32GiB) {
+            total_bytes = kMax32GiB + cluster_size;
+        }
+
+        if (ChooseSectorsPerClusterShift(total_bytes) == shift) {
+            return total_bytes;
         }
     }
+    return absl::InternalError("Failed to determine minimum exFAT volume size");
+}
 
-    const uint64_t total_bytes = size.Bytes();
-    if (total_bytes == 0 || (total_bytes % kSectorSize) != 0) {
+absl::Status CreateExFATImageImpl(const fs::path& image, const fs::path* source_directory,
+                                  StorageCapacity size, const ExfatVolumeAttributes& attrs) {
+    if (attrs.label.size() > kMaxVolumeLabelLength) {
+        return absl::InvalidArgumentError(
+                absl::StrFormat("exFAT volume label '%s' exceeds maximum length (%u characters)",
+                                attrs.label, kMaxVolumeLabelLength));
+    }
+    for (const char ch : attrs.label) {
+        if (!IsValidVolumeLabelChar(ch)) {
+            return absl::InvalidArgumentError(absl::StrFormat(
+                    "exFAT volume label '%s' contains invalid character", attrs.label));
+        }
+    }
+    ASSIGN_OR_RETURN(const ExfatEncodedTimestamp encoded_timestamp,
+                     EncodeExfatTimestamp(attrs.timestamp));
+
+    uint64_t total_bytes = size.Bytes();
+    if ((total_bytes == 0 && source_directory == nullptr) || (total_bytes % kSectorSize) != 0) {
         return absl::InvalidArgumentError(
                 absl::StrFormat("exFAT image size (%u bytes) must be a non-zero multiple of %u",
                                 total_bytes, kSectorSize));
@@ -921,6 +1016,9 @@ absl::Status CreateExFATImageImpl(const fs::path& image, const fs::path* source_
         }
         root_node.host_path = *source_directory;
         RETURN_IF_ERROR(ScanDirectoryRecursive(*source_directory, &root_node));
+        if (total_bytes == 0) {
+            ASSIGN_OR_RETURN(total_bytes, ComputeMinVolumeBytes(&root_node));
+        }
     }
 
     const uint64_t vol_length = total_bytes / kSectorSize;
@@ -998,7 +1096,7 @@ absl::Status CreateExFATImageImpl(const fs::path& image, const fs::path* source_
         .clu_offset = HostToLe32(static_cast<uint32_t>(clu_offset)),
         .clu_count = HostToLe32(static_cast<uint32_t>(clu_count)),
         .root_cluster = HostToLe32(root_first_cluster),
-        .vol_serial = HostToLe32(kDefaultVolumeSerial),
+        .vol_serial = HostToLe32(attrs.serial_number),
         .fs_revision = HostToLe16(kExfatRevision100),
         .vol_flags = HostToLe16(0U),
         .sect_size_bits = static_cast<uint8_t>(kSectorSizeBits),
@@ -1061,12 +1159,12 @@ absl::Status CreateExFATImageImpl(const fs::path& image, const fs::path* source_
     // 5. Build Root Directory entries (Volume Label, Allocation Bitmap, Up-case Table + children).
     ExfatVolumeLabelDentry label_dentry = {
         .type = kDentryTypeVolumeLabel,
-        .char_count = static_cast<uint8_t>(volume_label.size()),
+        .char_count = static_cast<uint8_t>(attrs.label.size()),
         .volume_label = {0},
         .reserved = {0},
     };
-    for (size_t i = 0; i < volume_label.size(); ++i) {
-        label_dentry.volume_label[i] = HostToLe16(static_cast<uint8_t>(volume_label[i]));
+    for (size_t i = 0; i < attrs.label.size(); ++i) {
+        label_dentry.volume_label[i] = HostToLe16(static_cast<uint8_t>(attrs.label[i]));
     }
     root_node.dir_entries.push_back(ExfatDentry{.volume_label = label_dentry});
     root_node.dir_entries.push_back(ExfatDentry{.bitmap = {
@@ -1084,7 +1182,7 @@ absl::Status CreateExFATImageImpl(const fs::path& image, const fs::path* source_
                                                     .start_clu = HostToLe32(upcase_first_cluster),
                                                     .size = HostToLe64(upcase_bytes),
                                                 }});
-    BuildDirectoryTablesRecursive(&root_node, cluster_size);
+    BuildDirectoryTablesRecursive(&root_node, cluster_size, encoded_timestamp);
 
     // Write image atomically via a temporary file.
     fs::path tmp_image = image;
@@ -1167,13 +1265,14 @@ bool IsExFatFileImage(const fs::path& path) {
 }
 
 absl::Status CreateEmptyExFATImage(const fs::path& image, StorageCapacity size,
-                                   std::string_view volume_label) {
-    return CreateExFATImageImpl(image, /*source_directory=*/nullptr, size, volume_label);
+                                   const ExfatVolumeAttributes& attrs) {
+    return CreateExFATImageImpl(image, /*source_directory=*/nullptr, size, attrs);
 }
 
 absl::Status CreateExFATImageFromDirectory(const fs::path& image, const fs::path& source_directory,
-                                           StorageCapacity size, std::string_view volume_label) {
-    return CreateExFATImageImpl(image, &source_directory, size, volume_label);
+                                           StorageCapacity size,
+                                           const ExfatVolumeAttributes& attrs) {
+    return CreateExFATImageImpl(image, &source_directory, size, attrs);
 }
 
 }  // namespace goldfish::fsimage

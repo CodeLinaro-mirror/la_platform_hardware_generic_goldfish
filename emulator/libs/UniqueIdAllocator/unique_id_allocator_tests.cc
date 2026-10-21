@@ -20,6 +20,7 @@
 #include "goldfish/unique_id_allocator.h"
 
 using ::absl_testing::IsOk;
+using ::testing::Not;
 
 using goldfish::UniqueIdAllocator;
 using goldfish::archive::DequeArchive;
@@ -83,5 +84,25 @@ TEST(UniqueIdAllocator, snapshot) {
 
         EXPECT_EQ(allocator.Get(), 2);
         EXPECT_EQ(allocator.Get(), 6);
+    }
+}
+
+TEST(UniqueIdAllocator, snapshot_negative) {
+    // 1. Returned ID >= last_id_
+    {
+        DequeArchive archive;
+        archive << uint32_t{3} << size_t{1} << uint32_t{3};
+
+        UniqueIdAllocator allocator;
+        EXPECT_THAT(ReadValue(archive, allocator), Not(IsOk()));
+    }
+
+    // 2. Returned ID == kEmptyId (0)
+    {
+        DequeArchive archive;
+        archive << uint32_t{3} << size_t{1} << uint32_t{0};
+
+        UniqueIdAllocator allocator;
+        EXPECT_THAT(ReadValue(archive, allocator), Not(IsOk()));
     }
 }

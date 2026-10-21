@@ -38,6 +38,12 @@ struct AvdProperties {
     std::string build_fingerprint;
     std::string snapshot_name;
     bool snapshot_update_time{true};
+    // False when the emulator was started with -no-snapshot: no snapshot may
+    // be saved or loaded in this session.
+    bool snapshots_enabled{true};
+    // The snapshot version this emulator writes and accepts, composed by the
+    // launcher (see goldfish/snapshot/snapshot_store.h). 0 if not provided.
+    int32_t snapshot_version{0};
     int32_t quit_after_boot_timeout_seconds{0};
     ::goldfish::metrics::Uuid metrics_session_id{::goldfish::metrics::Uuid::Zero()};
     ::goldfish::metrics::MetricsWriterConfig metrics_writer_config;

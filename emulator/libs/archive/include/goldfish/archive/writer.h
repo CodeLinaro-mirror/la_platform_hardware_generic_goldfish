@@ -38,7 +38,8 @@ inline IWriter& operator<<(IWriter& w, T x) {
 }
 
 template <std::unsigned_integral T>
-    requires(!std::same_as<T, size_t> && !std::same_as<T, uint8_t> && !std::same_as<T, bool>)
+    requires(!std::same_as<T, size_t> && !std::same_as<T, uint8_t> && !std::same_as<T, bool> &&
+             !std::same_as<T, char>)
 inline IWriter& operator<<(IWriter& w, T x) {
     return (w << static_cast<size_t>(x));
 }

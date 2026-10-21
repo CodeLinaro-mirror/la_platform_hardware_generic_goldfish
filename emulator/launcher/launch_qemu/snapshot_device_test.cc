@@ -30,6 +30,7 @@
 namespace android::goldfish::test {
 
 using ::android::base::TestTempDir;
+using ::absl_testing::StatusIs;
 using ::testing::ElementsAre;
 using ::testing::Eq;
 using ::testing::IsEmpty;
@@ -64,7 +65,7 @@ TEST_F(SnapshotDeviceTest, ColdBootWhenSnapshotVersionMissing) {
 }
 
 TEST_F(SnapshotDeviceTest, WarmBootWhenSnapshotVersionMatches) {
-    WriteSnapshotVersion(1);
+    WriteSnapshotVersion(kSnapshotVersion);
 
     FakeEmulator emu;
     EXPECT_CALL(emu.mock_avd(), GetContentPath()).WillRepeatedly(Return(temp_dir_.Path()));
@@ -80,7 +81,7 @@ TEST_F(SnapshotDeviceTest, WarmBootWhenSnapshotVersionMatches) {
 }
 
 TEST_F(SnapshotDeviceTest, NoSnapshotDisablesLoadAndSaveViaCmdline) {
-    WriteSnapshotVersion(1);
+    WriteSnapshotVersion(kSnapshotVersion);
 
     AndroidOptions opts{};
     opts.no_snapshot = true;
@@ -93,11 +94,13 @@ TEST_F(SnapshotDeviceTest, NoSnapshotDisablesLoadAndSaveViaCmdline) {
     EXPECT_EQ(dev.load_status(), SnapshotDevice::LoadStatus::kSkippedCmdline);
     EXPECT_EQ(dev.save_status(), SnapshotDevice::SaveStatus::kDisabledCmdline);
     EXPECT_FALSE(dev.is_enabled());
+    EXPECT_FALSE(dev.snapshots_enabled());
+    EXPECT_FALSE(SnapshotDevice::are_snapshots_enabled(emu.config()));
     EXPECT_THAT(dev.getQemuParameters(emu.config()), IsEmpty());
 }
 
 TEST_F(SnapshotDeviceTest, NoSnapshotLoadSkipsLoadViaCmdline) {
-    WriteSnapshotVersion(1);
+    WriteSnapshotVersion(kSnapshotVersion);
 
     AndroidOptions opts{};
     opts.no_snapshot_load = true;
@@ -110,12 +113,13 @@ TEST_F(SnapshotDeviceTest, NoSnapshotLoadSkipsLoadViaCmdline) {
     EXPECT_EQ(dev.load_status(), SnapshotDevice::LoadStatus::kSkippedCmdline);
     EXPECT_EQ(dev.save_status(), SnapshotDevice::SaveStatus::kSaving);
     EXPECT_TRUE(dev.is_enabled());
+    EXPECT_TRUE(dev.snapshots_enabled());
     EXPECT_THAT(dev.getQemuParameters(emu.config()),
                 ElementsAre(Eq("-savevm"), Eq("default_boot")));
 }
 
 TEST_F(SnapshotDeviceTest, NoSnapstorageSkipsLoadViaCmdline) {
-    WriteSnapshotVersion(1);
+    WriteSnapshotVersion(kSnapshotVersion);
 
     AndroidOptions opts{};
     opts.no_snapstorage = true;
@@ -133,7 +137,7 @@ TEST_F(SnapshotDeviceTest, NoSnapstorageSkipsLoadViaCmdline) {
 }
 
 TEST_F(SnapshotDeviceTest, NoSnapshotSaveDisablesSaveViaCmdline) {
-    WriteSnapshotVersion(1);
+    WriteSnapshotVersion(kSnapshotVersion);
 
     AndroidOptions opts{};
     opts.no_snapshot_save = true;
@@ -146,12 +150,13 @@ TEST_F(SnapshotDeviceTest, NoSnapshotSaveDisablesSaveViaCmdline) {
     EXPECT_EQ(dev.load_status(), SnapshotDevice::LoadStatus::kLoading);
     EXPECT_EQ(dev.save_status(), SnapshotDevice::SaveStatus::kDisabledCmdline);
     EXPECT_TRUE(dev.is_enabled());
+    EXPECT_TRUE(dev.snapshots_enabled());
     EXPECT_THAT(dev.getQemuParameters(emu.config()),
                 ElementsAre(Eq("-loadvm"), Eq("default_boot")));
 }
 
 TEST_F(SnapshotDeviceTest, ForceColdBootSkipsLoadAndSaveViaAvd) {
-    WriteSnapshotVersion(1);
+    WriteSnapshotVersion(kSnapshotVersion);
     hw_.fastboot_forceColdBoot = true;
 
     FakeEmulator emu;
@@ -163,11 +168,13 @@ TEST_F(SnapshotDeviceTest, ForceColdBootSkipsLoadAndSaveViaAvd) {
     EXPECT_EQ(dev.load_status(), SnapshotDevice::LoadStatus::kSkippedAvd);
     EXPECT_EQ(dev.save_status(), SnapshotDevice::SaveStatus::kDisabledAvd);
     EXPECT_FALSE(dev.is_enabled());
+    // fastboot.forceColdBoot only governs the Quickboot snapshot.
+    EXPECT_TRUE(dev.snapshots_enabled());
     EXPECT_THAT(dev.getQemuParameters(emu.config()), IsEmpty());
 }
 
 TEST_F(SnapshotDeviceTest, ColdBootWhenSnapshotVersionMismatches) {
-    WriteSnapshotVersion(0);
+    WriteSnapshotVersion(1);
 
     FakeEmulator emu;
     EXPECT_CALL(emu.mock_avd(), GetContentPath()).WillRepeatedly(Return(temp_dir_.Path()));
@@ -180,6 +187,69 @@ TEST_F(SnapshotDeviceTest, ColdBootWhenSnapshotVersionMismatches) {
     EXPECT_TRUE(dev.is_enabled());
     EXPECT_THAT(dev.getQemuParameters(emu.config()),
                 ElementsAre(Eq("-savevm"), Eq("default_boot")));
+}
+
+TEST_F(SnapshotDeviceTest, ColdBootWhenGfxstreamSnapshotVersionMismatches) {
+    WriteSnapshotVersion(((kGfxstreamSnapshotVersion - 1) << 16) | kSnapshotVersionBase);
+
+    FakeEmulator emu;
+    EXPECT_CALL(emu.mock_avd(), GetContentPath()).WillRepeatedly(Return(temp_dir_.Path()));
+    EXPECT_CALL(emu.mock_avd(), Hw()).WillRepeatedly(ReturnRef(hw_));
+
+    SnapshotDevice dev;
+    EXPECT_OK(dev.initialize(emu.config()));
+    EXPECT_EQ(dev.load_status(), SnapshotDevice::LoadStatus::kSkippedOldSnapshot);
+    EXPECT_EQ(dev.save_status(), SnapshotDevice::SaveStatus::kSaving);
+    EXPECT_TRUE(dev.is_enabled());
+    EXPECT_THAT(dev.getQemuParameters(emu.config()),
+                ElementsAre(Eq("-savevm"), Eq("default_boot")));
+}
+
+TEST_F(SnapshotDeviceTest, InitializeCreatesDirectoryButDoesNotWriteVersionUpFront) {
+    FakeEmulator emu;
+    EXPECT_CALL(emu.mock_avd(), GetContentPath()).WillRepeatedly(Return(temp_dir_.Path()));
+    EXPECT_CALL(emu.mock_avd(), Hw()).WillRepeatedly(ReturnRef(hw_));
+
+    SnapshotDevice dev;
+    EXPECT_OK(dev.initialize(emu.config()));
+    EXPECT_EQ(dev.save_status(), SnapshotDevice::SaveStatus::kSaving);
+    const fs::path snapshot_dir = temp_dir_.Path() / "snapshots" / "default_boot";
+    EXPECT_TRUE(base::file::is_dir(snapshot_dir));
+    // version.txt is only written when a save completes; a crash before the exit-time save must
+    // not leave a version file claiming compatibility next to stale or missing qcow2 state.
+    EXPECT_FALSE(base::file::exists(snapshot_dir / "version.txt"));
+}
+
+TEST_F(SnapshotDeviceTest, InitializeLeavesStaleVersionAloneUntilNextSave) {
+    WriteSnapshotVersion(1);
+
+    FakeEmulator emu;
+    EXPECT_CALL(emu.mock_avd(), GetContentPath()).WillRepeatedly(Return(temp_dir_.Path()));
+    EXPECT_CALL(emu.mock_avd(), Hw()).WillRepeatedly(ReturnRef(hw_));
+
+    SnapshotDevice dev;
+    EXPECT_OK(dev.initialize(emu.config()));
+    EXPECT_EQ(dev.load_status(), SnapshotDevice::LoadStatus::kSkippedOldSnapshot);
+    std::ifstream ifs(temp_dir_.Path() / "snapshots" / "default_boot" / "version.txt");
+    int version = 0;
+    ASSERT_TRUE(ifs >> version);
+    EXPECT_EQ(version, 1) << "a cold boot must not rewrite version.txt before the save";
+}
+
+TEST_F(SnapshotDeviceTest, InvalidSnapshotNameIsRejectedUpFront) {
+    for (const char* name : {"a/b", "my..snap", "."}) {
+        SCOPED_TRACE(name);
+        AndroidOptions opts{};
+        opts.snapshot = const_cast<char*>(name);
+        FakeEmulator emu(opts);
+        EXPECT_CALL(emu.mock_avd(), GetContentPath()).WillRepeatedly(Return(temp_dir_.Path()));
+        EXPECT_CALL(emu.mock_avd(), Hw()).WillRepeatedly(ReturnRef(hw_));
+
+        SnapshotDevice dev;
+        EXPECT_THAT(dev.initialize(emu.config()),
+                    StatusIs(absl::StatusCode::kInvalidArgument,
+                             ::testing::HasSubstr("Invalid snapshot name")));
+    }
 }
 
 TEST_F(SnapshotDeviceTest, DirectoryErrorWhenSnapshotDirCreationFails) {

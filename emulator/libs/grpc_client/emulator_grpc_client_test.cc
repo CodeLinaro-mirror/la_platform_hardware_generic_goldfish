@@ -14,6 +14,7 @@
 
 #include "android/emulation/control/emulator_grpc_client.h"
 
+#include <gmock/gmock.h>
 #include <grpcpp/grpcpp.h>
 #include <gtest/gtest.h>
 #include <unistd.h>
@@ -40,6 +41,7 @@
 #include "goldfish/file/file_atomic.h"
 
 using absl_testing::IsOk;
+using absl_testing::StatusIs;
 using android::emulation::control::BlockingEmulatorGrpcClient;
 using android::emulation::control::CallbackEmulatorGrpcClient;
 using android::emulation::control::ConnectionState;
@@ -48,6 +50,8 @@ using android::emulation::control::EmulatorGrpcClientBuilder;
 using android::emulation::control::EmulatorStatus;
 using android::emulation::control::Endpoint;
 using ::google::protobuf::Empty;
+using ::testing::AllOf;
+using ::testing::HasSubstr;
 
 namespace {
 
@@ -148,10 +152,67 @@ TEST_F(EmulatorGrpcClientTest, Builder_ValidDiscoveryFile_Succeeds) {
     EXPECT_EQ(client->GetEndpoint().target(), "localhost:8554");
 }
 
+TEST_F(EmulatorGrpcClientTest, Builder_WithTargetOrDiscovery_UsesTargetAndToken) {
+    auto clientOrStatus = EmulatorGrpcClientBuilder()
+                                  .WithTargetOrDiscovery("localhost:9999", "secret-token", "")
+                                  .BuildBlocking();
+    ASSERT_THAT(clientOrStatus, IsOk());
+    const auto& endpoint = (*clientOrStatus)->GetEndpoint();
+    EXPECT_EQ(endpoint.target(), "localhost:9999");
+    ASSERT_EQ(endpoint.required_headers_size(), 1);
+    EXPECT_EQ(endpoint.required_headers(0).key(), "authorization");
+    EXPECT_EQ(endpoint.required_headers(0).value(), "Bearer secret-token");
+}
+
+TEST_F(EmulatorGrpcClientTest, Builder_WithTargetOrDiscovery_FallsBackToDiscoveryFile) {
+    TmpDiscoveryFile tmpFile("grpc.port = 8556");
+    auto clientOrStatus = EmulatorGrpcClientBuilder()
+                                  .WithTargetOrDiscovery("", "", tmpFile.path())
+                                  .BuildBlocking();
+    ASSERT_THAT(clientOrStatus, IsOk());
+    EXPECT_EQ((*clientOrStatus)->GetEndpoint().target(), "localhost:8556");
+}
+
+TEST_F(EmulatorGrpcClientTest, Builder_BuildTargetAndChannel_ReturnsTargetAndChannel) {
+    auto target_and_channel = EmulatorGrpcClientBuilder()
+                                      .WithTargetOrDiscovery("localhost:9999", "secret-token", "")
+                                      .BuildTargetAndChannel();
+    ASSERT_THAT(target_and_channel, IsOk());
+    EXPECT_EQ(target_and_channel->first, "localhost:9999");
+    EXPECT_NE(target_and_channel->second, nullptr);
+}
+
+TEST_F(EmulatorGrpcClientTest, Builder_BuildTargetAndChannel_PropagatesError) {
+    auto target_and_channel = EmulatorGrpcClientBuilder()
+                                      .WithDiscoveryFile("/no/such/file.ini")
+                                      .BuildTargetAndChannel();
+    EXPECT_THAT(target_and_channel,
+                StatusIs(absl::StatusCode::kNotFound, HasSubstr("/no/such/file.ini")));
+}
+
+TEST_F(EmulatorGrpcClientTest,
+       Builder_BuildTargetAndChannel_NonLocalWithoutTls_FailsWithInvalidArgument) {
+    auto target_and_channel = EmulatorGrpcClientBuilder()
+                                      .WithTargetOrDiscovery("8.8.8.8:12345")
+                                      .BuildTargetAndChannel();
+    EXPECT_THAT(target_and_channel,
+                StatusIs(absl::StatusCode::kInvalidArgument,
+                         AllOf(HasSubstr("8.8.8.8:12345"), HasSubstr("TLS credentials"))));
+}
+
 TEST_F(EmulatorGrpcClientTest, Builder_NonExistentDiscoveryFile_Fails) {
-    auto clientOrStatus =
+    auto client =
             EmulatorGrpcClientBuilder().WithDiscoveryFile("/no/such/file.ini").BuildBlocking();
-    ASSERT_FALSE(clientOrStatus.ok());
+    EXPECT_THAT(client, StatusIs(absl::StatusCode::kNotFound,
+                                 AllOf(HasSubstr("/no/such/file.ini"), HasSubstr("not found"))));
+}
+
+TEST_F(EmulatorGrpcClientTest, Builder_DiscoveryFileMissingGrpcPort_FailsWithInvalidArgument) {
+    TmpDiscoveryFile tmp_file("port.serial = 5554\n");
+    auto client = EmulatorGrpcClientBuilder().WithDiscoveryFile(tmp_file.path()).BuildBlocking();
+    EXPECT_THAT(client,
+                StatusIs(absl::StatusCode::kInvalidArgument,
+                         AllOf(HasSubstr(tmp_file.path().string()), HasSubstr("grpc.port"))));
 }
 
 TEST_F(EmulatorGrpcClientTest, Builder_ForDiscoveredEmulator_Succeeds) {
@@ -223,8 +284,19 @@ TEST_F(BlockingClientTest, Connect_WithLiveServer_Succeeds) {
 TEST_F(BlockingClientTest, Connect_WithNoServer_Fails) {
     auto client = CreateClient("localhost:12345");
     absl::Status status = client->Connect(absl::Milliseconds(100));
-    EXPECT_EQ(status.code(), absl::StatusCode::kDeadlineExceeded);
+    EXPECT_THAT(status, StatusIs(absl::StatusCode::kDeadlineExceeded,
+                                 AllOf(HasSubstr("localhost:12345"), HasSubstr("100ms"))));
     EXPECT_EQ(client->GetConnectionState(), ConnectionState::kDisconnected);
+}
+
+TEST_F(BlockingClientTest, StubAndNewContext_WhenDisconnected_IncludeTargetInError) {
+    auto client = CreateClient("localhost:12345");
+    EXPECT_THAT(client->Stub<EmulatorController>(),
+                StatusIs(absl::StatusCode::kFailedPrecondition,
+                         AllOf(HasSubstr("localhost:12345"), HasSubstr("Connect()"))));
+    EXPECT_THAT(client->NewContext(),
+                StatusIs(absl::StatusCode::kFailedPrecondition,
+                         AllOf(HasSubstr("localhost:12345"), HasSubstr("Connect()"))));
 }
 
 TEST_F(BlockingClientTest, Rpc_WithValidStub_Succeeds) {
@@ -247,7 +319,8 @@ TEST_F(BlockingClientTest, Rpc_WithValidStub_Succeeds) {
 TEST_F(BlockingClientTest, Connect_WithNonLocalAndNoTls_FailsWithInvalidArgument) {
     auto client = CreateClient("8.8.8.8:12345");
     absl::Status status = client->Connect(absl::Milliseconds(100));
-    EXPECT_EQ(status.code(), absl::StatusCode::kInvalidArgument);
+    EXPECT_THAT(status, StatusIs(absl::StatusCode::kInvalidArgument,
+                                 AllOf(HasSubstr("8.8.8.8:12345"), HasSubstr("TLS credentials"))));
 }
 
 TEST_F(BlockingClientTest, Connect_WithFullTlsContent_Succeeds) {

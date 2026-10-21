@@ -13,7 +13,6 @@
 // limitations under the License.
 #include "core/linux/nvenc_loader.h"
 
-#include <cstdlib>
 #include <cstring>
 #include <utility>
 #include <vector>
@@ -22,6 +21,8 @@
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
+
+#include "android/base/system.h"
 
 namespace goldfish::videobridge {
 
@@ -98,9 +99,9 @@ absl::StatusOr<std::unique_ptr<NvencLoader>> NvencLoader::Create(
     if (!custom_library_path.empty()) {
         candidate_paths.push_back(custom_library_path);
     } else {
-        const char* env_path = std::getenv("NVENC_LIB_PATH");
-        if (env_path && *env_path) {
-            candidate_paths.push_back(env_path);
+        if (std::string env_path = android::base::System::Get()->EnvGet("NVENC_LIB_PATH");
+            !env_path.empty()) {
+            candidate_paths.push_back(std::move(env_path));
         }
 
         // Standard library names and container mount fallback locations
@@ -115,9 +116,9 @@ absl::StatusOr<std::unique_ptr<NvencLoader>> NvencLoader::Create(
     }
 
     std::vector<std::string> cuda_paths;
-    const char* cuda_env_path = std::getenv("CUDA_LIB_PATH");
-    if (cuda_env_path && *cuda_env_path) {
-        cuda_paths.push_back(cuda_env_path);
+    if (std::string cuda_env_path = android::base::System::Get()->EnvGet("CUDA_LIB_PATH");
+        !cuda_env_path.empty()) {
+        cuda_paths.push_back(std::move(cuda_env_path));
     }
     cuda_paths.insert(cuda_paths.end(), {
                                             "libcuda.so.1",

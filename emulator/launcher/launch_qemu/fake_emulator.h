@@ -17,6 +17,8 @@ class FakeEmulator {
                                                            .make_preferred(),
                                                           }
             , mMockAvd(std::make_unique<MockAvd>()) {
+        ON_CALL(*mMockAvd, GetSystemImagePaths())
+                .WillByDefault(testing::ReturnRef(mSystemImagePaths));
         mEmulatorConfig =
                 std::make_unique<EmulatorConfig>(mPorts, mChardevEndpoints, mMetricsConfig,
                                                  mUserPaths, mEmulatorPaths, *mMockAvd, mOpts);
@@ -30,6 +32,10 @@ class FakeEmulator {
 
     EmulatorPaths& emulator_paths() { return mEmulatorPaths; }
 
+    UserPaths& user_paths() { return mUserPaths; }
+
+    SystemImagePaths& system_image_paths() { return mSystemImagePaths; }
+
     const EmulatorConfig& config() { return *mEmulatorConfig; }
 
   private:
@@ -40,6 +46,7 @@ class FakeEmulator {
 
     EmulatorPaths mEmulatorPaths;
     UserPaths mUserPaths;
+    SystemImagePaths mSystemImagePaths;
     std::unique_ptr<MockAvd> mMockAvd;
 
     std::unique_ptr<EmulatorConfig> mEmulatorConfig;

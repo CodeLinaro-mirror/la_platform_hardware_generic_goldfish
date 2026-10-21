@@ -14,8 +14,12 @@
 
 #pragma once
 
+#include <atomic>
+#include <functional>
 #include <memory>
 #include <string>
+#include <string_view>
+#include <utility>
 
 #include "absl/base/thread_annotations.h"
 #include "absl/container/flat_hash_map.h"
@@ -54,7 +58,7 @@ class HypervisorServiceImpl final : public HypervisorServiceBase {
 
     HypervisorServiceImpl(::android::goldfish::VmOperations& vm_operations,
                           std::shared_ptr<OperationsServiceImpl> operations_service);
-    ~HypervisorServiceImpl() override = default;
+    ~HypervisorServiceImpl() override;
 
     HypervisorServiceImpl(const HypervisorServiceImpl&) = delete;
     HypervisorServiceImpl& operator=(const HypervisorServiceImpl&) = delete;
@@ -134,18 +138,49 @@ class HypervisorServiceImpl final : public HypervisorServiceBase {
             ABSL_LOCKS_EXCLUDED(state_mutex_);
 
   private:
+    using SnapshotOperationKey =
+            std::pair<::android::goldfish::VmOperations::SnapshotOperationType, std::string>;
+
+    struct TrackedSnapshotOperation {
+        std::string lro_name;
+        std::string snapshot_id;
+        bool is_rpc = false;
+    };
+
     void PopulateVmState(::android::emulation::v2::VmState* state) const;
+    ::grpc::Status ResetVmInternal(::android::emulation::v2::VmState* response);
+    ::grpc::Status FindSnapshotEntry(std::string_view snapshot_id,
+                                     ::android::goldfish::VmOperations::SnapshotEntry* out_entry) const;
+    void BuildVmState(::android::goldfish::EmuRunState run_state,
+                      const ::android::goldfish::VmOperations::SnapshotProgress& snap_progress,
+                      ::android::emulation::v2::VmState* state) const;
     void PopulateSnapshotProto(const ::android::goldfish::VmOperations::SnapshotEntry& entry,
                                ::android::emulation::v2::Snapshot* out) const
+            ABSL_LOCKS_EXCLUDED(state_mutex_);
+    ::grpc::Status RunSnapshotRpc(
+            ::android::goldfish::VmOperations::SnapshotOperationType op_type,
+            std::string_view snapshot_id,
+            const std::function<::android::goldfish::VmOperations::SnapshotEntry()>& on_success,
+            ::google::longrunning::Operation* response) ABSL_LOCKS_EXCLUDED(state_mutex_);
+    void RefreshOperationMetadata(::google::longrunning::Operation* op) const;
+    void OnRunStateChanged(::android::goldfish::EmuRunState state);
+    void OnSnapshotStateChanged(const ::android::goldfish::VmOperations::SnapshotProgress& progress)
             ABSL_LOCKS_EXCLUDED(state_mutex_);
 
     ::android::goldfish::VmOperations& vm_operations_;
     std::shared_ptr<OperationsServiceImpl> operations_service_;
+    mutable ::android::base::eventing::CallbackEventSource<::android::emulation::v2::VmState>
+            vm_state_events_;
+    mutable std::atomic<bool> shutting_down_{false};
 
     mutable absl::Mutex state_mutex_;
     std::string quickboot_target_id_ ABSL_GUARDED_BY(state_mutex_);
     absl::flat_hash_map<std::string, UserSnapshotMetadata> user_metadata_
             ABSL_GUARDED_BY(state_mutex_);
+    absl::flat_hash_map<SnapshotOperationKey, TrackedSnapshotOperation> snapshot_operations_
+            ABSL_GUARDED_BY(state_mutex_);
+    ::android::goldfish::VmOperations::RunStateSource::CallbackId run_state_callback_id_{};
+    ::android::goldfish::VmOperations::SnapshotSource::CallbackId snapshot_callback_id_{};
 };
 
 }  // namespace goldfish::grpc::v2

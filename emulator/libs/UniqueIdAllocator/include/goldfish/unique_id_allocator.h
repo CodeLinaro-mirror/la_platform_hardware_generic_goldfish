@@ -35,6 +35,10 @@ struct UniqueIdAllocator {
 
     uint32_t Get();
     void Put(uint32_t id);
+    uint32_t LastId() const { return last_id_; }
+    bool CanPut(uint32_t id) const {
+        return id > kEmptyId && id <= last_id_ && !returned_ids_.contains(id);
+    }
     void Reset();
 
     friend archive::IWriter& operator<<(archive::IWriter& writer, const UniqueIdAllocator&);

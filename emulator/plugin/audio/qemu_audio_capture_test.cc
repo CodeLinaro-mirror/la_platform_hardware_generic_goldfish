@@ -54,7 +54,7 @@ class QemuAudioCaptureTest : public ::testing::Test {
 };
 
 TEST_F(QemuAudioCaptureTest, StartAndStopLifecycle) {
-    QemuAudioCapture capture([](const int16_t*, size_t) {});
+    QemuAudioCapture capture([](const int16_t*, size_t) {}, 48000, 2);
 
     EXPECT_EQ(capture.sample_rate_hz(), 48000U);
     EXPECT_EQ(capture.channels(), 2U);
@@ -68,9 +68,11 @@ TEST_F(QemuAudioCaptureTest, StartAndStopLifecycle) {
 
 TEST_F(QemuAudioCaptureTest, PushesSamplesToCallback) {
     std::vector<int16_t> captured_samples;
-    QemuAudioCapture capture([&captured_samples](const int16_t* pcm_data, size_t num_samples) {
-        captured_samples.insert(captured_samples.end(), pcm_data, pcm_data + num_samples);
-    });
+    QemuAudioCapture capture(
+            [&captured_samples](const int16_t* pcm_data, size_t num_samples) {
+                captured_samples.insert(captured_samples.end(), pcm_data, pcm_data + num_samples);
+            },
+            48000, 2);
 
     ASSERT_TRUE(capture.Start().ok());
 
@@ -110,7 +112,7 @@ TEST_F(QemuAudioCaptureTest, PushesSamplesToInProcessAudioSource) {
 TEST_F(QemuAudioCaptureTest, HandlesBackendFailureGracefully) {
     test_set_fail_add_capture(1);
 
-    QemuAudioCapture capture([](const int16_t*, size_t) {});
+    QemuAudioCapture capture([](const int16_t*, size_t) {}, 48000, 2);
 
     auto status = capture.Start();
     EXPECT_FALSE(status.ok());
@@ -119,7 +121,7 @@ TEST_F(QemuAudioCaptureTest, HandlesBackendFailureGracefully) {
 }
 
 TEST_F(QemuAudioCaptureTest, HandlesNotifyWithoutCrashing) {
-    QemuAudioCapture capture([](const int16_t*, size_t) {});
+    QemuAudioCapture capture([](const int16_t*, size_t) {}, 48000, 2);
 
     ASSERT_TRUE(capture.Start().ok());
     test_simulate_qemu_notify(0);  // AUD_CNOTIFY_ENABLE
@@ -129,7 +131,7 @@ TEST_F(QemuAudioCaptureTest, HandlesNotifyWithoutCrashing) {
 }
 
 TEST_F(QemuAudioCaptureTest, IdempotentStartAndStop) {
-    QemuAudioCapture capture([](const int16_t*, size_t) {});
+    QemuAudioCapture capture([](const int16_t*, size_t) {}, 48000, 2);
 
     EXPECT_TRUE(capture.Start().ok());
     EXPECT_TRUE(capture.Start().ok());
@@ -141,7 +143,7 @@ TEST_F(QemuAudioCaptureTest, IdempotentStartAndStop) {
 }
 
 TEST_F(QemuAudioCaptureTest, ConcurrentStartCallsOnlyActivateOnce) {
-    QemuAudioCapture capture([](const int16_t*, size_t) {});
+    QemuAudioCapture capture([](const int16_t*, size_t) {}, 48000, 2);
 
     constexpr int kNumThreads = 10;
     std::vector<std::thread> threads;
@@ -176,7 +178,7 @@ TEST_F(QemuAudioCaptureTest, ConcurrentStartCallsOnlyActivateOnce) {
 }
 
 TEST_F(QemuAudioCaptureTest, ConcurrentStopCallsFromMultipleThreads) {
-    QemuAudioCapture capture([](const int16_t*, size_t) {});
+    QemuAudioCapture capture([](const int16_t*, size_t) {}, 48000, 2);
 
     ASSERT_TRUE(capture.Start().ok());
     EXPECT_TRUE(capture.IsRunning());
@@ -207,9 +209,11 @@ TEST_F(QemuAudioCaptureTest, ConcurrentStopCallsFromMultipleThreads) {
 
 TEST_F(QemuAudioCaptureTest, ConcurrentStopWhileReceivingAudio) {
     std::atomic<size_t> samples_received{0};
-    QemuAudioCapture capture([&samples_received](const int16_t*, size_t num_samples) {
-        samples_received.fetch_add(num_samples, std::memory_order_relaxed);
-    });
+    QemuAudioCapture capture(
+            [&samples_received](const int16_t*, size_t num_samples) {
+                samples_received.fetch_add(num_samples, std::memory_order_relaxed);
+            },
+            48000, 2);
 
     ASSERT_TRUE(capture.Start().ok());
 

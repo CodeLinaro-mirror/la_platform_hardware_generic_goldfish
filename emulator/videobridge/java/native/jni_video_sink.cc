@@ -28,38 +28,14 @@ JniVideoSink::JniVideoSink(JavaVM* jvm, PixelFormat format, std::shared_ptr<Fram
 
 JniVideoSink::~JniVideoSink() {
     if (listener_global_ref_ != nullptr) {
-        bool attached = false;
-        JNIEnv* env = GetJniEnv(&attached);
+        ScopedJniEnv env(jvm_);
         if (env) {
             env->DeleteGlobalRef(listener_global_ref_);
             if (video_frame_cls_) {
                 env->DeleteGlobalRef(video_frame_cls_);
             }
         }
-        if (attached && jvm_) {
-            jvm_->DetachCurrentThread();
-        }
     }
-}
-
-JNIEnv* JniVideoSink::GetJniEnv(bool* out_attached) {
-    *out_attached = false;
-    if (!jvm_) return nullptr;
-
-    JNIEnv* env = nullptr;
-    jint res = jvm_->GetEnv(reinterpret_cast<void**>(&env), JNI_VERSION_1_8);
-    if (res == JNI_EDETACHED) {
-#if defined(__ANDROID__)
-        if (jvm_->AttachCurrentThread(&env, nullptr) == JNI_OK) {
-            *out_attached = true;
-        }
-#else
-        if (jvm_->AttachCurrentThreadAsDaemon(reinterpret_cast<void**>(&env), nullptr) == JNI_OK) {
-            *out_attached = true;
-        }
-#endif
-    }
-    return env;
 }
 
 void JniVideoSink::SetListener(JNIEnv* env, jobject listener) {
@@ -91,8 +67,7 @@ void JniVideoSink::SetListener(JNIEnv* env, jobject listener) {
 }
 
 void JniVideoSink::OnFrame(const webrtc::VideoFrame& frame) {
-    bool attached = false;
-    JNIEnv* env = GetJniEnv(&attached);
+    ScopedJniEnv env(jvm_);
     if (!env) return;
 
     jobject listener_ref = nullptr;
@@ -103,7 +78,6 @@ void JniVideoSink::OnFrame(const webrtc::VideoFrame& frame) {
     {
         absl::MutexLock lock(&listener_mutex_);
         if (!listener_global_ref_ || !video_frame_cls_) {
-            if (attached && jvm_) jvm_->DetachCurrentThread();
             return;
         }
         listener_ref = listener_global_ref_;
@@ -169,10 +143,6 @@ void JniVideoSink::OnFrame(const webrtc::VideoFrame& frame) {
     if (enum_obj) env->DeleteLocalRef(enum_obj);
     if (pixel_format_cls) env->DeleteLocalRef(pixel_format_cls);
     if (direct_buffer) env->DeleteLocalRef(direct_buffer);
-
-    if (attached && jvm_) {
-        jvm_->DetachCurrentThread();
-    }
 }
 
 }  // namespace goldfish::videobridge::java

@@ -42,7 +42,7 @@ Avd::CpuArchitecture getHostArch() {
         return the_forced_arch;
     }
 
-#if defined(__arm64__)
+#if defined(__aarch64__) || defined(_M_ARM64) || defined(__arm64__)
     return Avd::CpuArchitecture::kArm;
 #elif defined(__x86_64__)
     return Avd::CpuArchitecture::kX86;

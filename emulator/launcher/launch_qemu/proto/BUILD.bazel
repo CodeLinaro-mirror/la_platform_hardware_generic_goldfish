@@ -1,0 +1,17 @@
+load("@protobuf//bazel:cc_proto_library.bzl", "cc_proto_library")
+load("@protobuf//bazel:proto_library.bzl", "proto_library")
+
+# Needed when compiling cc_proto_library on Windows (-Winvalid-offsetof).
+package(features = ["-warnings_as_errors"])
+
+proto_library(
+    name = "verified_boot_config_proto",
+    srcs = ["verified_boot_config.proto"],
+    strip_import_prefix = "",
+)
+
+cc_proto_library(
+    name = "verified_boot_config_cc_proto",
+    visibility = ["//emulator/launcher/launch_qemu:__pkg__"],
+    deps = [":verified_boot_config_proto"],
+)

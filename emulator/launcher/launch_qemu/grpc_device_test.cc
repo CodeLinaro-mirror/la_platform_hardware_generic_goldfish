@@ -115,4 +115,36 @@ TEST(Grpc, CustomAllowlist) {
                                  testing::HasSubstr(std::string("allowlist=") + allowlist_path)));
 }
 
+TEST(Grpc, EscapesCommasInPaths) {
+    android::base::TestTempDir tmp_dir("Grpc_EscapesCommasInPaths");
+    EXPECT_TRUE(tmp_dir.MakeSubDir("dir,with,comma"));
+    EXPECT_TRUE(tmp_dir.MakeSubFile("dir,with,comma/allow,list.json"));
+    std::string allowlist_path = (tmp_dir.Path() / "dir,with,comma" / "allow,list.json").string();
+    std::vector<char> allowlist_vec(allowlist_path.begin(), allowlist_path.end());
+    allowlist_vec.push_back('\0');
+
+    AndroidOptions opts{.grpc_allowlist = allowlist_vec.data()};
+    FakeEmulator emu(std::move(opts));
+    emu.user_paths().discovery_directory = "/home/Doe, Jane/.android/avd/running";
+    emu.emulator_paths().launcher_directory = "/opt/Android, SDK/emulator";
+
+    GrpcDevice dev;
+    EXPECT_OK(dev.initialize(emu.config()));
+    EXPECT_THAT(
+            dev.getQemuParameters(emu.config()),
+            testing::ElementsAre(
+                    testing::Eq("-device"),
+                    testing::AllOf(
+                            testing::HasSubstr("allowlist=" +
+                                               Device::EscapeQemuOptionValue(allowlist_path)),
+                            testing::HasSubstr(
+                                    "discovery_dir=" +
+                                    Device::EscapeQemuOptionValue(
+                                            emu.user_paths().discovery_directory.string())),
+                            testing::HasSubstr(
+                                    "launcher_dir=" +
+                                    Device::EscapeQemuOptionValue(
+                                            emu.emulator_paths().launcher_directory.string())))));
+}
+
 }  // namespace android::goldfish::test

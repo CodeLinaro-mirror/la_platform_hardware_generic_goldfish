@@ -105,6 +105,48 @@ TEST(TrampolineTest, shouldTrampolineIfRequiredFeatureIsMissing) {
     EXPECT_TRUE(ShouldTrampolineToQemu2(std::move(avd_high)));
 }
 
+// A required feature that is listed but not "on" (explicitly off, or an unrecognized value)
+// must not count as supported. Previously only the key's presence was checked.
+TEST(TrampolineTest, shouldTrampolineIfRequiredFeatureIsNotOn) {
+    for (const char* value : {"off", "OFF", "foo", "1", "yes"}) {
+        TestSystem sys("bin", "myhome");
+        sys.EnvSet("AEMU_NO_TRAMPOLINE", "");
+
+        fs::path feature_file = sys.GetTempRoot()->Path() / "advancedFeatures.ini";
+        std::ofstream(feature_file) << "mac80211hwsimUserspaceManaged = " << value << "\n";
+        android::goldfish::SystemImagePaths paths;
+        paths.advanced_features = feature_file;
+
+        auto avd = std::make_unique<MockAvd>();
+        EXPECT_CALL(*avd, ApiLevel()).WillRepeatedly(Return(37));
+        EXPECT_CALL(*avd, GetSystemImagePaths()).WillRepeatedly(ReturnRef(paths));
+
+        EXPECT_TRUE(ShouldTrampolineToQemu2(std::move(avd))) << "value=" << value;
+    }
+}
+
+TEST(TrampolineTest, shouldNotTrampolineIfRequiredFeatureIsOnInAnyCase) {
+    for (const char* value : {"on", "ON", "On"}) {
+        TestSystem sys("bin", "myhome");
+        sys.EnvSet("AEMU_NO_TRAMPOLINE", "");
+
+        fs::path feature_file = sys.GetTempRoot()->Path() / "advancedFeatures.ini";
+        std::ofstream(feature_file) << "Mac80211hwsimUserspaceManaged = " << value << "\n";
+        android::goldfish::SystemImagePaths paths;
+        paths.advanced_features = feature_file;
+
+        auto avd = std::make_unique<MockAvd>();
+        EXPECT_CALL(*avd, ForcedTrampolineVersion()).WillRepeatedly(Return(0));
+        EXPECT_CALL(*avd, GetLastRunQemuVersion()).WillRepeatedly(Return(std::optional<int>(1)));
+        EXPECT_CALL(*avd, GetDeviceType())
+                .WillRepeatedly(Return(android::goldfish::DeviceType::kPhone));
+        EXPECT_CALL(*avd, ApiLevel()).WillRepeatedly(Return(37));
+        EXPECT_CALL(*avd, GetSystemImagePaths()).WillRepeatedly(ReturnRef(paths));
+
+        EXPECT_FALSE(ShouldTrampolineToQemu2(std::move(avd))) << "value=" << value;
+    }
+}
+
 TEST(TrampolineTest, shouldNotTrampolineIfEnvVarIsSet) {
     TestSystem sys("bin", "myhome");
     sys.EnvSet("AEMU_NO_TRAMPOLINE", "1");
@@ -277,9 +319,8 @@ TEST(TrampolineTest, trampolineToQemu2BinaryNotExists) {
 
     auto status = android::goldfish::TrampolineToQemu2(launcher_dir, {});
     EXPECT_TRUE(absl::IsNotFound(status)) << status;
-    EXPECT_THAT(
-            status.message(),
-            ::testing::HasSubstr("Trying to trampoline but legacy emulator binary does not exist"));
+    EXPECT_THAT(status.message(), ::testing::HasSubstr("Legacy emulator binary not found at"));
+    EXPECT_THAT(status.message(), ::testing::HasSubstr("sdkmanager --install emulator"));
 }
 
 #ifndef _WIN32
@@ -298,8 +339,7 @@ TEST(TrampolineTest, trampolineToQemu2BinaryNotExecutable) {
 
     auto status = android::goldfish::TrampolineToQemu2(launcher_dir, {});
     EXPECT_TRUE(absl::IsPermissionDenied(status)) << status;
-    EXPECT_THAT(
-            status.message(),
-            ::testing::HasSubstr("Trying to trampoline but cannot execute legacy emulator binary"));
+    EXPECT_THAT(status.message(), ::testing::HasSubstr("Cannot execute legacy emulator binary at"));
+    EXPECT_THAT(status.message(), ::testing::HasSubstr("sdkmanager --install emulator"));
 }
 #endif

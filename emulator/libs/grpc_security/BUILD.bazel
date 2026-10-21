@@ -64,6 +64,7 @@ cc_test(
     visibility = ["//visibility:public"],
     deps = [
         ":grpc_security",
+        "//emulator/libs/file",
         "//emulator/libs/system",
         "//emulator/libs/system:test-headers",
         "//emulator/libs/test:googletest_main",

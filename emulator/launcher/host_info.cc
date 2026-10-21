@@ -2,8 +2,11 @@
 
 #include <algorithm>
 #include <array>
+#include <cstdint>
+#include <cstring>
 
 #include "absl/log/log.h"
+#include "absl/strings/str_format.h"
 
 #include "android/base/system.h"
 #include "android/cpu/cpu_accelerator.h"
@@ -11,6 +14,8 @@
 #include "android/goldfish/avd.h"
 #include "android/goldfish/hardware_config.h"
 #include "goldfish/file/file.h"
+#include "goldfish/metrics/studio_config.h"
+#include "vulkan/vulkan.h"
 
 namespace android::goldfish {
 
@@ -292,7 +297,8 @@ android_studio::EmulatorDetails::VulkanIcd GetVulkanIcd(std::string_view vk_icd)
 
 void FillDetails(android_studio::EmulatorDetails& details, const Avd& avd, long launcher_pid,
                  long qemu_pid, bool metrics_collection_opt, bool fuchsia_opt, bool openglAlive,
-                 std::string_view vk_icd) {
+                 std::string_view vk_icd, std::span<const VulkanGpuDeviceInfo> host_gpus,
+                 const std::optional<VulkanGpuDeviceInfo>& selected_gpu) {
     FillAvdInfo(*details.mutable_avd_info(), avd);
     FillFeatureFlagState(*details.mutable_feature_flag_state());
 
@@ -320,16 +326,49 @@ void FillDetails(android_studio::EmulatorDetails& details, const Avd& avd, long 
 
     details.set_vulkan_icd(GetVulkanIcd(vk_icd));
 
-    // TODO Set available GPU info.
-    /*for (const GpuInfo& gpu : globalGpuInfoList().infos) {
-        auto hostGpu = details.add_host_gpu();
-        hostGpu->set_device_id(gpu.device_id);
-        hostGpu->set_make(gpu.make);
-        hostGpu->set_model(gpu.model);
-        hostGpu->set_renderer(gpu.renderer);
-        hostGpu->set_revision_id(gpu.revision_id);
-        hostGpu->set_version(gpu.version);
-    }*/
+    int i = 0;
+    for (const auto& gpu : host_gpus) {
+        const auto& props = gpu.properties;
+        const std::string_view device_name(props.deviceName,
+                                           strnlen(props.deviceName, sizeof(props.deviceName)));
+        VLOG(1) << absl::StrFormat(
+                "Found Vulkan device: %d: name: '%s', apiVersion: %d.%d.%d, vendorID: 0x%x, "
+                "deviceID: 0x%x, driverVersion: 0x%x",
+                i++, device_name, VK_API_VERSION_MAJOR(props.apiVersion),
+                VK_API_VERSION_MINOR(props.apiVersion), VK_API_VERSION_PATCH(props.apiVersion),
+                props.vendorID, props.deviceID, props.driverVersion);
+
+        auto* hostGpu = details.add_host_gpu();
+        hostGpu->set_device_id(absl::StrFormat("0x%04x", props.deviceID));
+        hostGpu->set_make(absl::StrFormat("0x%04x", props.vendorID));
+        hostGpu->set_model(std::string(device_name));
+        hostGpu->set_renderer(std::string(device_name));
+        hostGpu->set_revision_id(absl::StrFormat("0x%x", props.driverVersion));
+        hostGpu->set_version(absl::StrFormat("%d.%d.%d", VK_API_VERSION_MAJOR(props.apiVersion),
+                                             VK_API_VERSION_MINOR(props.apiVersion),
+                                             VK_API_VERSION_PATCH(props.apiVersion)));
+    }
+
+    if (selected_gpu.has_value()) {
+        const auto& props = selected_gpu->properties;
+        const std::string_view device_name(props.deviceName,
+                                           strnlen(props.deviceName, sizeof(props.deviceName)));
+        auto* vkGpu = details.mutable_active_vulkan_host_gpu();
+        vkGpu->set_vendor_id(static_cast<int32_t>(props.vendorID));
+        vkGpu->set_device_id(static_cast<int32_t>(props.deviceID));
+        const int32_t proto_device_type = static_cast<int32_t>(props.deviceType) + 1;
+        if (android_studio::EmulatorGpuVkInfo::PhysicalDeviceType_IsValid(proto_device_type)) {
+            vkGpu->set_device_type(
+                    static_cast<android_studio::EmulatorGpuVkInfo::PhysicalDeviceType>(
+                            proto_device_type));
+        } else {
+            vkGpu->set_device_type(android_studio::EmulatorGpuVkInfo::UNKNOWN_PHYSICAL_DEVICE_TYPE);
+        }
+        vkGpu->set_api_version(static_cast<int32_t>(props.apiVersion));
+        vkGpu->set_driver_version(static_cast<int32_t>(props.driverVersion));
+        vkGpu->set_gpu_memory(static_cast<int64_t>(selected_gpu->device_local_memory_bytes));
+        vkGpu->set_device_name(std::string(device_name));
+    }
 
     // Check for container environment
     bool isContainer = IsRunningInContainer();
@@ -348,16 +387,36 @@ void FillDetails(android_studio::EmulatorDetails& details, const Avd& avd, long 
     details.set_has_elevated_privileges(
             android::base::System::CurrentProcessHasElevatedPrivileges());
 }
+
+android_studio::ProductDetails::SoftwareLifeCycleChannel ToProductChannel(
+        ::goldfish::metrics::studio::UpdateChannel channel) {
+    using android_studio::ProductDetails;
+    using ::goldfish::metrics::studio::UpdateChannel;
+    switch (channel) {
+    case UpdateChannel::kStable:
+        return ProductDetails::STABLE;
+    case UpdateChannel::kBeta:
+        return ProductDetails::BETA;
+    case UpdateChannel::kDev:
+        return ProductDetails::DEV;
+    case UpdateChannel::kCanary:
+        return ProductDetails::CANARY;
+    case UpdateChannel::kUnknown:
+        break;
+    }
+    return ProductDetails::UNKNOWN_LIFE_CYCLE_CHANNEL;
+}
 }  // namespace
 
 void FillEmulatorHostEvent(android_studio::AndroidStudioEvent& event, const Avd& avd,
                            long launcher_pid, long qemu_pid, bool metrics_collection_opt,
-                           bool fuchsia_opt, std::string_view vk_icd) {
+                           bool fuchsia_opt, std::string_view vk_icd,
+                           std::span<const VulkanGpuDeviceInfo> host_gpus,
+                           const std::optional<VulkanGpuDeviceInfo>& selected_gpu) {
     event.set_kind(android_studio::AndroidStudioEvent::EMULATOR_HOST);
 
     auto& product = *event.mutable_product_details();
-    // TODO set product channel
-    product.set_channel(android_studio::ProductDetails::UNKNOWN_LIFE_CYCLE_CHANNEL);
+    product.set_channel(ToProductChannel(::goldfish::metrics::studio::GetUpdateChannel()));
 
 #ifdef __aarch64__
     product.set_os_architecture(android_studio::ProductDetails::ARM);
@@ -367,7 +426,7 @@ void FillEmulatorHostEvent(android_studio::AndroidStudioEvent& event, const Avd&
 
     FillHost(*event.mutable_emulator_host());
     FillDetails(*event.mutable_emulator_details(), avd, launcher_pid, qemu_pid,
-                metrics_collection_opt, fuchsia_opt, false, vk_icd);
+                metrics_collection_opt, fuchsia_opt, false, vk_icd, host_gpus, selected_gpu);
 }
 
 }  // namespace android::goldfish

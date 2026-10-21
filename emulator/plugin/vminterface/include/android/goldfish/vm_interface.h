@@ -13,6 +13,10 @@
 // limitations under the License.
 #pragma once
 
+#include <algorithm>
+#include <cstdint>
+#include <string>
+
 #include "absl/functional/function_ref.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_format.h"
@@ -238,10 +242,11 @@ void AbslStringify(Sink& sink, EmuRunState e) {
  *   from the callback `EventLoop` passed to the constructor (to prevent
  *   re-entrant callbacks and cross-loop deadlocks) or from the QEMU main event
  *   loop.
- * - Read-only queries (`IsRunning`, `GetRunState`, `GetConfiguration`) and
- *   atomic requests (`SystemShutdownRequest`) do not block or trigger
- *   callbacks synchronously and may be called from any thread, including
- *   `qemu_loop`, `RunStateEvents()` callbacks, and hang detector predicates.
+ * - Read-only queries (`IsRunning`, `GetRunState`, `GetConfiguration`,
+ *   `GetSnapshotProgress`) and atomic requests (`SystemShutdownRequest`) do
+ *   not block or trigger callbacks synchronously and may be called from any
+ *   thread, including `qemu_loop`, `RunStateEvents()` and `SnapshotEvents()`
+ *   callbacks, and hang detector predicates.
  */
 class VmOperations {
   public:
@@ -249,11 +254,115 @@ class VmOperations {
     using RunStateSource = ::goldfish::async::LoopBoundCallbackSource<EmuRunState>;
 
     /**
-     * @brief Creates the interface with run state changes delivered on |loop|.
-     *
-     * @param loop The loop that runs the run state callbacks. Must outlive this object.
+     * @brief Type of snapshot operation tracked by `SnapshotProgress`.
      */
-    explicit VmOperations(::goldfish::async::EventLoop* loop) : run_state_events_(loop) {}
+    enum class SnapshotOperationType {
+        Idle = 0,  ///< No snapshot operation has started yet.
+        Save = 1,  ///< Saving VM state and disk snapshot (`save_snapshot`).
+        Load = 2,  ///< Restoring VM state and disk snapshot (`load_snapshot`).
+    };
+
+    /**
+     * @brief Lifecycle phase of a snapshot save or load operation.
+     */
+    enum class SnapshotPhase {
+        None = 0,          ///< No snapshot phase has been recorded yet.
+        Preparing = 1,     ///< Validating block devices, pausing the VM, and preparing metadata.
+        Transferring = 2,  ///< Streaming RAM pages and device state sections to or from storage.
+        Completed = 3,     ///< Terminal phase indicating the snapshot operation succeeded.
+        Failed = 4,        ///< Terminal phase indicating the snapshot operation aborted.
+    };
+
+    /**
+     * @brief Snapshot operation progress report.
+     *
+     * `GetSnapshotProgress()` retains the most recent `SnapshotProgress` (including terminal
+     * `Completed` or `Failed` states) after an operation finishes until the next snapshot
+     * operation enters `SnapshotPhase::Preparing`.
+     */
+    struct SnapshotProgress {
+        /// Weight applied to byte transfer progress when both byte and device counts are known.
+        static constexpr double kByteProgressWeight = 0.85;
+        /// Weight applied to device section progress when both byte and device counts are known.
+        static constexpr double kDeviceProgressWeight = 0.15;
+        /// Maximum progress percentage reported before `SnapshotPhase::Completed`.
+        static constexpr int32_t kMaxInProgressPercent = 99;
+        /// Progress percentage reported when `SnapshotPhase::Completed` is reached.
+        static constexpr int32_t kCompletedProgressPercent = 100;
+
+        /// Type of the active or most recently completed snapshot operation.
+        SnapshotOperationType operation = SnapshotOperationType::Idle;
+        /// Current lifecycle phase of `operation`.
+        SnapshotPhase phase = SnapshotPhase::None;
+        /// QEMU snapshot tag name being saved or loaded (e.g. `"default_boot"`).
+        std::string snapshot_id;
+        /// VM state section or device currently being saved or restored (e.g. `"ram"`), or the
+        /// component that was active when a failure occurred.
+        std::string active_component;
+        /// Cumulative VM state bytes written (`Save`) or read (`Load`) so far.
+        int64_t transferred_bytes = 0;
+        /// Total VM state bytes expected: guest RAM bytes (transferred plus remaining) during
+        /// `Save`, or the stored `vm_state_size` from the snapshot header during `Load`.
+        int64_t total_bytes = 0;
+        /// Size in bytes of the VM state stream stored on the qcow2 block device.
+        int64_t disk_bytes = 0;
+        /// Number of non-iterable device/subsystem VM state sections saved or loaded so far.
+        int32_t completed_devices = 0;
+        /// Total number of non-iterable VM state sections (`Save`) or upper bound on expected
+        /// sections (`Load`).
+        int32_t total_devices = 0;
+        /// Human-readable failure reason populated when `phase == SnapshotPhase::Failed`; empty
+        /// in non-failure phases.
+        std::string error_message;
+
+        /**
+         * @brief Computes an overall completion percentage in the range [0, 100].
+         *
+         * Returns 100 only when `phase == SnapshotPhase::Completed`, and 0 while
+         * `phase == SnapshotPhase::None` or `phase == SnapshotPhase::Preparing`.
+         * During `Transferring` (or `Failed`), combines byte and device ratios
+         * (weighted 85% / 15% when both totals are positive) and caps the result
+         * at `kMaxInProgressPercent` (99) so 100% is reserved for `Completed`.
+         */
+        int32_t ProgressPercent() const {
+            if (phase == SnapshotPhase::Completed) {
+                return kCompletedProgressPercent;
+            }
+            if (phase == SnapshotPhase::None || phase == SnapshotPhase::Preparing) {
+                return 0;
+            }
+            double ratio = 0.0;
+            if (total_bytes > 0) {
+                const double byte_ratio = std::clamp(
+                        static_cast<double>(transferred_bytes) / static_cast<double>(total_bytes),
+                        0.0, 1.0);
+                if (total_devices > 0) {
+                    const double dev_ratio = std::clamp(static_cast<double>(completed_devices) /
+                                                                static_cast<double>(total_devices),
+                                                        0.0, 1.0);
+                    ratio = kByteProgressWeight * byte_ratio + kDeviceProgressWeight * dev_ratio;
+                } else {
+                    ratio = byte_ratio;
+                }
+            } else if (total_devices > 0) {
+                ratio = std::clamp(
+                        static_cast<double>(completed_devices) / static_cast<double>(total_devices),
+                        0.0, 1.0);
+            }
+            return std::clamp(static_cast<int32_t>(ratio * 100.0), 0, kMaxInProgressPercent);
+        }
+    };
+
+    /** @brief Source of snapshot progress updates, delivered on an event loop. */
+    using SnapshotSource = ::goldfish::async::LoopBoundCallbackSource<SnapshotProgress>;
+
+    /**
+     * @brief Creates the interface with run state and snapshot events delivered on |loop|.
+     *
+     * @param loop The loop that runs the callbacks. Must outlive this object.
+     */
+    explicit VmOperations(::goldfish::async::EventLoop* loop)
+            : run_state_events_(loop), snapshot_events_(loop) {}
 
     /**
      * @brief Virtual destructor for the VmOperations interface.
@@ -269,6 +378,25 @@ class VmOperations {
      * or snapshot methods on `VmOperations` from inside a callback.
      */
     RunStateSource& RunStateEvents() { return run_state_events_; }
+
+    /**
+     * @brief Snapshot progress events.
+     *
+     * Callbacks run on the loop passed to the constructor, never on the thread performing the
+     * snapshot operation, which holds the BQL. Every operation that begins in QEMU reports
+     * `SnapshotPhase::Preparing` once, optional `SnapshotPhase::Transferring` updates (throttled
+     * to at most 4 Hz with a trailing flush of the latest suppressed update), and finally
+     * `SnapshotPhase::Completed` or `SnapshotPhase::Failed` once. Calls that fail before QEMU
+     * starts the snapshot operation (such as `FAILED_PRECONDITION` run-state checks) emit no
+     * events.
+     *
+     * Events still queued when a callback is removed, or when this object is destroyed, are
+     * dropped. `RemoveCallback` (and `ScopedSubscription` destruction) synchronously waits for any
+     * in-flight callback invocation to finish, so subscribers must not remove their own callback
+     * from inside the callback. Subscribers must not invoke mutating or snapshot methods on
+     * `VmOperations` from inside a callback.
+     */
+    SnapshotSource& SnapshotEvents() { return snapshot_events_; }
 
     /**
      * @brief Stops the virtual machine.
@@ -353,18 +481,61 @@ class VmOperations {
     struct SnapshotEntry {
         std::string name;
         absl::Time timestamp;
+        // Whether this emulator can load the snapshot: its recorded snapshot
+        // version matches the emulator's (see goldfish/snapshot/snapshot_store.h).
+        bool compatible = true;
     };
 
     using SnapshotEntrySink = absl::FunctionRef<void(SnapshotEntry)>;
 
+    /**
+     * @brief Saves the VM state as the internal snapshot `name`, together with
+     * the per-snapshot metadata kept under <avd>/snapshots/<name>/.
+     *
+     * @return OK on success; InvalidArgument for an invalid name;
+     *   FailedPrecondition when snapshots are disabled for this session
+     *   (-no-snapshot), or a snapshot/migration is already in progress, or the
+     *   VM is shutting down; Internal when QEMU fails to save.
+     */
     virtual absl::Status SaveSnapshot(std::string name, bool overwrite) = 0;
+
+    /**
+     * @brief Restores the VM from the internal snapshot `id_or_name`.
+     *
+     * @return OK on success; InvalidArgument for an invalid name;
+     *   FailedPrecondition when snapshots are disabled for this session, the
+     *   snapshot's recorded version does not match this emulator (the VM keeps
+     *   running), a snapshot/migration is already in progress, or the VM is
+     *   shutting down; Internal when QEMU fails to load.
+     */
     virtual absl::Status LoadSnapshot(std::string id_or_name, bool and_resume) = 0;
     virtual void LoadSnapshotResume(EmuRunState state) = 0;
+
+    /**
+     * @brief Deletes the internal snapshot `id_or_name` and its per-snapshot
+     * metadata. Available even when snapshots are disabled for this session.
+     */
     virtual absl::Status DeleteSnapshot(std::string id_or_name) = 0;
+
+    /**
+     * @brief Lists the internal snapshots. Available even when snapshots are
+     * disabled for this session.
+     */
     virtual absl::Status ListSnapshots(SnapshotEntrySink sink) = 0;
+
+    /**
+     * @brief Queries the latest snapshot progress without acquiring the BQL.
+     *
+     * Returns a default-constructed `SnapshotProgress` (`operation == Idle`, `phase == None`)
+     * before any snapshot operation has started. Once an operation runs, retains the most recent
+     * progress report (including terminal `Completed` or `Failed` states) until the next snapshot
+     * operation enters `SnapshotPhase::Preparing`.
+     */
+    virtual SnapshotProgress GetSnapshotProgress() const { return {}; }
 
   private:
     RunStateSource run_state_events_;
+    SnapshotSource snapshot_events_;
 };
 
 }  // namespace goldfish

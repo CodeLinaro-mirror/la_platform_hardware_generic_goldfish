@@ -18,8 +18,30 @@
 
 #include "device.h"
 #include "goldfish/metrics/snapshot_metrics.h"
+#include "goldfish/snapshot/snapshot_store.h"
+#include "render-utils/snapshot_operations.h"
 
 namespace android::goldfish {
+
+// The snapshot version this emulator writes and accepts; see
+// goldfish/snapshot/snapshot_store.h for the layout and history. The launcher
+// composes it here (it is the only goldfish binary that depends on gfxstream
+// headers) and passes it to the QEMU plugin through the avdstart device.
+using ::goldfish::snapshot::kSnapshotVersionBase;
+
+// Name of the Quickboot snapshot, loaded at boot and saved at exit when no
+// -snapshot <name> is given. Only the launcher knows this name: QEMU and the
+// emulator plugin treat every snapshot alike.
+inline constexpr std::string_view kDefaultSnapshotName = "default_boot";
+
+inline constexpr int kGfxstreamSnapshotVersion =
+        static_cast<int>(gfxstream::kFramebufferSnapshotVersion);
+static_assert(kGfxstreamSnapshotVersion > 0 && kGfxstreamSnapshotVersion < (1 << 15),
+              "gfxstream framebuffer snapshot version does not fit in 15 bits.");
+
+inline constexpr int kSnapshotVersion =
+        ::goldfish::snapshot::MakeSnapshotVersion(kGfxstreamSnapshotVersion);
+static_assert(kSnapshotVersion > 0, "Snapshot version must be a positive int32.");
 
 // Handles QEMU snapshot command line parameters
 class SnapshotDevice : public Device {
@@ -34,11 +56,17 @@ class SnapshotDevice : public Device {
 
     LoadStatus load_status() const { return load_status_; }
     SaveStatus save_status() const { return save_status_; }
+    // Whether the launch-time Quickboot snapshot is loaded at boot or saved at exit.
     bool is_enabled() const {
         return load_status_ == LoadStatus::kLoading || save_status_ == SaveStatus::kSaving;
     }
+    // Whether any snapshot may be saved or loaded in this session, at launch
+    // or at runtime (gRPC, console). Only -no-snapshot turns this off;
+    // -no-snapshot-load / -no-snapshot-save only affect the Quickboot snapshot.
+    bool snapshots_enabled() const { return snapshots_enabled_; }
 
     static std::string_view get_snapshot_name(const EmulatorConfig& emulator);
+    static bool are_snapshots_enabled(const EmulatorConfig& emulator);
 
   private:
     static bool should_load_snapshot(const EmulatorConfig& emulator, std::string& reason,
@@ -48,6 +76,7 @@ class SnapshotDevice : public Device {
 
     std::string snapshot_name_;
     bool strict_snapshot_load_ = false;
+    bool snapshots_enabled_ = true;
     LoadStatus load_status_ = LoadStatus::kSkippedOldSnapshot;
     SaveStatus save_status_ = SaveStatus::kDisabledCmdline;
 };

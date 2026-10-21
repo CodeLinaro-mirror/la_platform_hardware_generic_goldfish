@@ -15,7 +15,6 @@
 
 #include <cstdio>
 #include <filesystem>
-#include <fstream>
 #include <string>
 #include <string_view>
 #include <thread>
@@ -136,25 +135,17 @@ absl::StatusOr<TelnetAuth::Token> TelnetAuth::ReadToken(const fs::path& token_pa
     }
 
     // Read existing file with a size limit.
-    std::ifstream ifs(token_path, std::ios::binary);
-    if (!ifs) {
-        VLOG(1) << "Failed to open token file at " << token_path;
+    auto content_or = android::base::file::read_whole_file(token_path, /*binary=*/true);
+    if (!content_or.ok()) {
+        VLOG(1) << "Failed to open token file at " << token_path << ": " << content_or.status();
         return absl::InternalError(
                 absl::StrCat("Failed to open the emulator console authentication token file at '",
                              token_path.string(),
                              "'. Ensure the file is readable and has correct permissions."));
     }
 
-    std::string content;
-    content.resize(kMaxTokenFileSize);
-    ifs.read(content.data(), kMaxTokenFileSize);
-    if (ifs.fail() && !ifs.eof()) {
-        return absl::InternalError("Failed to read token data.");
-    }
-    content.resize(ifs.gcount());
-
     // Trim whitespace (newlines, spaces) which might be added by editors or echo.
-    content = std::string(absl::StripAsciiWhitespace(content));
+    std::string content(absl::StripAsciiWhitespace(*content_or));
 
     VLOG(2) << "Successfully read and trimmed " << content.size() << " bytes from token file.";
     return TelnetAuth::Token(content);

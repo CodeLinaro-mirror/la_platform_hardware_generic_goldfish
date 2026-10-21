@@ -21,10 +21,10 @@
 #define OPT_FLAG_HIDDEN OPT_FLAG
 #endif
 #ifndef OPT_FLAG_OBSOLETE
-#define OPT_FLAG_OBSOLETE(name) OPT_FLAG(name, "obsolete, ignored")
+#define OPT_FLAG_OBSOLETE(name)
 #endif
 #ifndef OPT_PARAM_OBSOLETE
-#define OPT_PARAM_OBSOLETE(name, tmpl) OPT_PARAM(name, tmpl, "obsolete, ignored")
+#define OPT_PARAM_OBSOLETE(name, tmpl)
 #endif
 
 /* Some options acts like flags, while others must be followed by a parameter
@@ -89,7 +89,7 @@ CFG_PARAM(kernel, "<file>", "use specific emulated kernel")
 CFG_PARAM(ramdisk, "<file>", "ramdisk image (default <system>/ramdisk.img")
 CFG_PARAM(image, "<file>", "obsolete, use -system <file> instead")
 CFG_PARAM(initdata, "<file>", "initial user data image (default <system>/userdata.img)")
-CFG_PARAM(data, "<file>", "data image (default <datadir>/userdata.img")
+OPT_PARAM_OBSOLETE(data, "<file>")
 CFG_PARAM(encryption_key, "<file>", "read initial encryption key image from <file>")
 CFG_PARAM(logcat_output, "<file>", "output file of logcat(default none)")
 CFG_PARAM(partition_size, "<size>", "system/data partition size in MBs")
@@ -439,8 +439,10 @@ OPT_FLAG(no_grpc, "disable grpc device")
 OPT_FLAG(no_netsim,
          "disable launching netsimd and configuring any devices that depend on it e.g. wifi, bt, "
          "uwb, nfc")
-OPT_FLAG(netsim_cellular, "enable netsim cellular")
+OPT_FLAG(no_netsim_modem, "disable netsim cellular modem and fall back to modem simulator")
 OPT_FLAG(netsim_stdout, "send netsim output to stdout")
+OPT_PARAM(netsim_startup_timeout, "<timeout>",
+          "set the netsimd startup timeout (e.g. 30s or 30000ms)")
 OPT_FLAG(fishtank_stdout, "send fishtank output to stdout")
 OPT_FLAG(verbose_grpc, "verbose grpc logging")
 OPT_FLAG(strict_snapshot_load, "fail if snapshot loading fails")

@@ -29,6 +29,7 @@
 
 #include "goldfish/async/event_loop.h"
 #include "goldfish/display/display_frames.h"
+#include "goldfish/display/ev_dev_event.h"
 #include "goldfish/display/frame.h"
 #include "goldfish/display/geometry.h"
 #include "goldfish/perfetto/perfetto_categories.h"
@@ -222,6 +223,19 @@ class IDisplay : public std::enable_shared_from_this<IDisplay> {
      * Sends a raw evdev event to the proper display.
      */
     virtual void SendEvDevEvent(uint16_t type, uint16_t code, uint32_t value) = 0;
+
+    /**
+     * @brief Sends one evdev report: `events` followed by EV_SYN/SYN_REPORT.
+     *
+     * The guest's virtio input device accumulates events until SYN_REPORT, so a
+     * report must reach it whole. The display posts the report as a single task
+     * to the event loop that writes to the device: `events` in order, then the
+     * sync. Events from other senders cannot land inside the report.
+     *
+     * @param events The report's events, without the trailing SYN_REPORT. If
+     *        empty, only the sync is sent.
+     */
+    virtual void SendEvDevReport(EvDevEvents events) = 0;
 
     virtual QemuConsole* GetConsole() const { return nullptr; }
 

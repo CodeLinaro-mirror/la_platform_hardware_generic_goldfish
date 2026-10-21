@@ -93,6 +93,7 @@ class DisplayServiceImpl : public EmulatorController::Service {
     Status getScreenshot(ServerContext* context, const ImageFormat* request, Image* reply,
                          MemoryAllocator& allocator);
 
+    void ApplyResizableConfig(const ::goldfish::parsing::ResizableDisplayConfig& config);
     void fireDisplayConfigurationsChanged();
 
     ::goldfish::display::IMultiDisplay& mMultiDisplay;

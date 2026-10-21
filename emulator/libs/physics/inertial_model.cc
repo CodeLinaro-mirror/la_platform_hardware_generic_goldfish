@@ -16,6 +16,8 @@
 
 #include "goldfish/physics/inertial_model.h"
 
+#include <limits>
+
 #include <glm/gtc/quaternion.hpp>
 
 #include "goldfish/archive/glm.h"
@@ -654,6 +656,9 @@ glm::quat InertialModel::GetRotation(ParameterValueType parameter_value_type) co
 
     const glm::vec4 rotation_vector = CalculateRotationalState(
             rotation_quintic_, rotation_cubic_, rotation_after_end_cubic_, parameter_value_type);
+    if (glm::length(rotation_vector) <= std::numeric_limits<float>::epsilon()) {
+        return glm::quat(1.F, 0.F, 0.F, 0.F);
+    }
 
     const glm::quat rotation(rotation_vector.w, rotation_vector.x, rotation_vector.y,
                              rotation_vector.z);

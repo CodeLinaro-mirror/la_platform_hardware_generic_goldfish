@@ -26,6 +26,8 @@
 
 #include "absl/log/log.h"
 
+#include "android/base/system.h"
+
 #include "goldfish/camera_image_providers/virtualscene/virtualscene.h"
 #include "goldfish/devices/cable/error_plug.h"
 #include "goldfish/devices/camera/camera_device.h"
@@ -134,8 +136,9 @@ err:
 void RegisterDevice(const sensors::PhysicalModel* physicalModel, IConnectorRegistry* registry,
                     std::string* emulatedCameraProp, const android::goldfish::HardwareConfig& hw,
                     const std::filesystem::path& avdContentPath, GrallocProvider grallocProvider) {
-    if (const char* launcherDir = std::getenv("ANDROID_EMULATOR_LAUNCHER_DIR");
-        launcherDir && launcherDir[0] != '\0') {
+    if (const std::string launcherDir =
+                android::base::System::Get()->EnvGet("ANDROID_EMULATOR_LAUNCHER_DIR");
+        !launcherDir.empty()) {
         const std::filesystem::path baseDir(launcherDir);
 
         // Local path resources will be searched in the given order.

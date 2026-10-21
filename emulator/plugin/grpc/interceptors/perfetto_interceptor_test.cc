@@ -18,11 +18,11 @@
 #include <gtest/gtest.h>
 
 #include <filesystem>
-#include <fstream>
+#include <memory>
 #include <string>
-#include <vector>
 
 #include "android/base/testing/test_temp_dir.h"
+#include "goldfish/file/file.h"
 #include "goldfish/perfetto/perfetto.h"
 #include "goldfish/perfetto/perfetto_categories.h"
 
@@ -33,14 +33,8 @@ using namespace testing;
 using namespace grpc::experimental;
 
 bool TraceContainsEvent(const std::filesystem::path& trace_file, const std::string& event_name) {
-    std::ifstream input(trace_file, std::ios::binary);
-    if (!input.is_open()) return false;
-
-    std::vector<char> buffer((std::istreambuf_iterator<char>(input)),
-                             std::istreambuf_iterator<char>());
-
-    std::string data(buffer.begin(), buffer.end());
-    return data.find(event_name) != std::string::npos;
+    auto data = android::base::file::read_whole_file(trace_file, /*binary=*/true);
+    return data.ok() && data->find(event_name) != std::string::npos;
 }
 
 class MockInterceptorBatchMethods : public InterceptorBatchMethods {

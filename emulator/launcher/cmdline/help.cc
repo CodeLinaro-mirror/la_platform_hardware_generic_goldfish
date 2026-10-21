@@ -119,8 +119,7 @@ static void HelpBuildImages(stralloc_t* out) {
            "  If the kernel image is not found in the out directory, then it is searched\n"
            "  in <build-root>/prebuilts/qemu-kernel/.\n\n"
 
-           "  You can use the -sysdir, -system, -vendor -kernel, -ramdisk, -datadir, -data "
-           "options\n"
+           "  You can use the -sysdir, -system, -vendor -kernel, -ramdisk, -datadir options\n"
            "  to specify different search directories or specific image files. You can\n"
            "  also use the -sdcard option to indicate the SD Card image file.\n\n"
 
@@ -163,7 +162,7 @@ static void HelpDiskImages(stralloc_t* out) {
            "  If you're neither using the SDK or the Android build system, you\n"
            "  can still run the emulator by explicitly providing the paths to\n"
            "  *all* required disk images through a combination of the following\n"
-           "  options: -sysdir, -datadir, -kernel, -ramdisk, -system, -data\n"
+           "  options: -sysdir, -datadir, -kernel, -ramdisk, -system\n"
            "  and -sdcard.\n\n"
 
            "  The actual logic being that the emulator should be able to find all\n"
@@ -344,12 +343,6 @@ static void help_encryption_key(stralloc_t* out) {
 static void help_image(stralloc_t* out) {
     PRINTF("  This option is obsolete, you should use '-system <file>' instead to point\n"
            "  to the initial system image.\n\n"
-
-           "  see '-help-disk-images' for more information about disk image files\n\n");
-}
-
-static void help_data(stralloc_t* out) {
-    PRINTF("  use '-data <file>' to specify a different /data partition image file.\n\n"
 
            "  see '-help-disk-images' for more information about disk image files\n\n");
 }
@@ -1647,21 +1640,22 @@ static void help_vmodule(stralloc_t* out) {
 #define help_no_nested_warnings NULL    // NOLINT(readability-identifier-naming)
 #define help_dump_audio NULL            // NOLINT(readability-identifier-naming)
 
-#define help_qemu_telnet NULL           // NOLINT(readability-identifier-naming)
-#define help_no_vnc NULL                // NOLINT(readability-identifier-naming)
-#define help_enable_vnc NULL            // NOLINT(readability-identifier-naming)
-#define help_qemu NULL                  // NOLINT(readability-identifier-naming)
-#define help_append NULL                // NOLINT(readability-identifier-naming)
-#define help_no_wifi NULL               // NOLINT(readability-identifier-naming)
-#define help_nfc NULL                   // NOLINT(readability-identifier-naming)
-#define help_no_grpc NULL               // NOLINT(readability-identifier-naming)
-#define help_no_netsim NULL             // NOLINT(readability-identifier-naming)
-#define help_netsim_cellular NULL       // NOLINT(readability-identifier-naming)
-#define help_netsim_stdout NULL         // NOLINT(readability-identifier-naming)
-#define help_fishtank_stdout NULL       // NOLINT(readability-identifier-naming)
-#define help_verbose_grpc NULL          // NOLINT(readability-identifier-naming)
-#define help_strict_snapshot_load NULL  // NOLINT(readability-identifier-naming)
-#define help_V NULL                     // NOLINT(readability-identifier-naming)
+#define help_qemu_telnet NULL             // NOLINT(readability-identifier-naming)
+#define help_no_vnc NULL                  // NOLINT(readability-identifier-naming)
+#define help_enable_vnc NULL              // NOLINT(readability-identifier-naming)
+#define help_qemu NULL                    // NOLINT(readability-identifier-naming)
+#define help_append NULL                  // NOLINT(readability-identifier-naming)
+#define help_no_wifi NULL                 // NOLINT(readability-identifier-naming)
+#define help_nfc NULL                     // NOLINT(readability-identifier-naming)
+#define help_no_grpc NULL                 // NOLINT(readability-identifier-naming)
+#define help_no_netsim NULL               // NOLINT(readability-identifier-naming)
+#define help_no_netsim_modem NULL         // NOLINT(readability-identifier-naming)
+#define help_netsim_stdout NULL           // NOLINT(readability-identifier-naming)
+#define help_netsim_startup_timeout NULL  // NOLINT(readability-identifier-naming)
+#define help_fishtank_stdout NULL         // NOLINT(readability-identifier-naming)
+#define help_verbose_grpc NULL            // NOLINT(readability-identifier-naming)
+#define help_strict_snapshot_load NULL    // NOLINT(readability-identifier-naming)
+#define help_V NULL                       // NOLINT(readability-identifier-naming)
 
 typedef struct {
     const char* name;

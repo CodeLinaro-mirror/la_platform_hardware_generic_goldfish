@@ -14,9 +14,33 @@
 
 #include "goldfish/avd_universe/battery/battery_state.h"
 
+#include <cstdint>
+#include <string_view>
+
+#include "absl/status/status.h"
+#include "absl/strings/str_cat.h"
+
 #include "android/status/status_macros.h"
 
 namespace goldfish::avd_universe::battery {
+namespace {
+
+template <typename EnumT>
+absl::Status ReadBatteryEnum(archive::IReader& r, EnumT min_val, EnumT max_val,
+                             std::string_view name, EnumT& val) {
+    int8_t loaded = 0;
+    RETURN_IF_ERROR(ReadValue(r, loaded));
+    if (loaded < static_cast<int8_t>(min_val) || loaded > static_cast<int8_t>(max_val)) {
+        return absl::InvalidArgumentError(
+                absl::StrCat("Invalid ", name, " value ", static_cast<int>(loaded),
+                             " in snapshot (expected ", static_cast<int>(min_val), "..",
+                             static_cast<int>(max_val), ")"));
+    }
+    val = static_cast<EnumT>(loaded);
+    return absl::OkStatus();
+}
+
+}  // namespace
 
 archive::IWriter& operator<<(archive::IWriter& w, const Battery::Status val) {
     w << static_cast<int8_t>(val);
@@ -40,29 +64,31 @@ archive::IWriter& operator<<(archive::IWriter& w, const Battery& val) {
 }
 
 absl::Status ReadValue(archive::IReader& r, Battery::Status& val) {
-    int8_t loaded = 0;
-    RETURN_IF_ERROR(ReadValue(r, loaded));
-    val = static_cast<Battery::Status>(loaded);
-    return absl::OkStatus();
+    return ReadBatteryEnum(r, Battery::Status::kUnknown, Battery::Status::kFull, "Battery::Status",
+                           val);
 }
 
 absl::Status ReadValue(archive::IReader& r, Battery::Charger& val) {
-    int8_t loaded = 0;
-    RETURN_IF_ERROR(ReadValue(r, loaded));
-    val = static_cast<Battery::Charger>(loaded);
-    return absl::OkStatus();
+    return ReadBatteryEnum(r, Battery::Charger::kNone, Battery::Charger::kWireless,
+                           "Battery::Charger", val);
 }
 
 absl::Status ReadValue(archive::IReader& r, Battery::Health& val) {
-    int8_t loaded = 0;
-    RETURN_IF_ERROR(ReadValue(r, loaded));
-    val = static_cast<Battery::Health>(loaded);
-    return absl::OkStatus();
+    return ReadBatteryEnum(r, Battery::Health::kGood, Battery::Health::kOverheated,
+                           "Battery::Health", val);
 }
 
 absl::Status ReadValue(archive::IReader& r, Battery& val) {
-    return ReadValue(r, val.has_battery, val.is_present, val.charger, val.charge_level, val.health,
-                     val.status);
+    Battery loaded;
+    RETURN_IF_ERROR(ReadValue(r, loaded.has_battery, loaded.is_present, loaded.charger,
+                              loaded.charge_level, loaded.health, loaded.status));
+    if (loaded.charge_level < 0 || loaded.charge_level > 100) {
+        return absl::InvalidArgumentError(absl::StrCat(
+                "Invalid Battery::charge_level value ", loaded.charge_level,
+                " in snapshot (expected 0..100)"));
+    }
+    val = loaded;
+    return absl::OkStatus();
 }
 
 }  // namespace goldfish::avd_universe::battery

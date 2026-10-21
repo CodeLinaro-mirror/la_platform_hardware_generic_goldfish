@@ -22,6 +22,10 @@ load(
     "source_properties",
 )
 load(
+    "//emulator/tools:sbom.bzl",
+    "generate_sbom_file",
+)
+load(
     "//emulator/tools:transitions.bzl",
     "internal_release",
 )
@@ -70,13 +74,31 @@ selects.config_setting_group(
     ],
 )
 
+selects.config_setting_group(
+    name = "windows_aarch64",
+    match_all = [
+        "@platforms//os:windows",
+        "@platforms//cpu:aarch64",
+    ],
+)
+
+selects.config_setting_group(
+    name = "windows_x86_64",
+    match_all = [
+        "@platforms//os:windows",
+        "@platforms//cpu:x86_64",
+    ],
+)
+
 exports_files(["LICENSE"])
 
 license(
     name = "license",
+    package_name = "emulator",
     license_kinds = [
         ":SPDX-license-identifier-Apache-2.0",
     ],
+    package_url = "https://android.googlesource.com/platform/hardware/generic/goldfish/",
     visibility = [":__subpackages__"],
 )
 
@@ -145,7 +167,16 @@ filegroup(
         "@crashpad//handler:crashpad_handler",
         #"@netsim//:netsimd",
     ] + select({
-        "@platforms//os:windows": [
+        ":windows_aarch64": [
+            # Netsim does not yet provide native Windows ARM64 prebuilts.
+            # Packaging the x86_64 binaries is intended, as netsim runs in a
+            # separate process and is translated by Windows on ARM. Update to
+            # native ARM64 prebuilts once available.
+            "@goldfish_prebuilts_common//netsim:netsim_cli_windows_x86_64",
+            "@goldfish_prebuilts_common//netsim:netsim_windows_x86_64",
+            "@qemu//:qemu-system-aarch64",
+        ],
+        ":windows_x86_64": [
             "@goldfish_prebuilts_common//netsim:netsim_cli_windows_x86_64",
             "@goldfish_prebuilts_common//netsim:netsim_windows_x86_64",
             "@qemu//:qemu-system-x86_64",
@@ -154,6 +185,9 @@ filegroup(
             "@goldfish_prebuilts_common//netsim:netsim_cli_darwin_aarch64",
             "@goldfish_prebuilts_common//netsim:netsim_darwin_aarch64",
             "@qemu//:qemu-system-aarch64_signed",
+        ],
+        "@goldfish_build//platforms:is_linux_aarch64": [
+            "@qemu//:qemu-system-aarch64",
         ],
         "@platforms//os:linux": [
             "@goldfish_prebuilts_common//netsim:netsim_cli_linux_x86_64",
@@ -176,10 +210,16 @@ filegroup(
             "@mesa3d//:vulkan_kosmickrisp",
             "@mesa3d//:vulkan_lvp",
         ],
+        "@goldfish_build//platforms:is_linux_aarch64": [],
         "@platforms//os:linux": [
             "@goldfish_prebuilts_common//swiftshader:lib_linux_x86_64",
         ],
-        "@platforms//os:windows": [
+        ":windows_aarch64": [
+            "@goldfish_prebuilts_common//ANGLE:lib_windows_aarch64",
+            "@goldfish_prebuilts_common//vulkan:icds_windows_aarch64",
+            "@goldfish_prebuilts_common//vulkan:lib_windows_aarch64",
+        ],
+        ":windows_x86_64": [
             "@goldfish_prebuilts_common//ANGLE:lib_windows_x86_64",
             "@goldfish_prebuilts_common//vulkan:icds_windows_x86_64",
             "@goldfish_prebuilts_common//vulkan:lib_windows_x86_64",
@@ -201,6 +241,7 @@ filegroup(
             "@mesa3d//:vulkan_kosmickrisp",
             "@mesa3d//:vulkan_lvp",
         ],
+        "@goldfish_build//platforms:is_linux_aarch64": [],
         "@platforms//os:linux": [
             "@goldfish_prebuilts_common//vulkan:icds_linux_x86_64",
             "@goldfish_prebuilts_common//vulkan:lib_linux_x86_64",
@@ -208,7 +249,11 @@ filegroup(
             "@mesa3d//:generate_lvp_icd",
             "@mesa3d//:vulkan_lvp",
         ],
-        "@platforms//os:windows": [
+        ":windows_aarch64": [
+            "@goldfish_prebuilts_common//vulkan:icds_windows_aarch64",
+            "@goldfish_prebuilts_common//vulkan:lib_windows_aarch64",
+        ],
+        ":windows_x86_64": [
             "@goldfish_prebuilts_common//vulkan:icds_windows_x86_64",
             "@goldfish_prebuilts_common//vulkan:lib_windows_x86_64",
             "@mesa3d//:generate_lvp_icd",
@@ -223,10 +268,16 @@ filegroup(
     srcs = [
         "@rutabaga_gfx//:rutabaga_ffi",
     ] + select({
-        "@platforms//os:windows": [
+        ":windows_aarch64": [
+            "//emulator/plugin:goldfish_aarch64",
+        ],
+        ":windows_x86_64": [
             "//emulator/plugin:goldfish_x86_64",
         ],
         "@platforms//os:macos": [
+            "//emulator/plugin:goldfish_aarch64",
+        ],
+        "@goldfish_build//platforms:is_linux_aarch64": [
             "//emulator/plugin:goldfish_aarch64",
         ],
         "@platforms//os:linux": [
@@ -248,10 +299,14 @@ all_binaries = [
     ":launcher_binaries",
     ":qemu_binaries",
     ":plugin_binaries",
-    ":egl_binaries",
-    ":vulkan_binaries",
     ":glib_binaries",
-]
+] + select({
+    "@goldfish_build//platforms:is_linux_aarch64": [],
+    "//conditions:default": [
+        ":egl_binaries",
+        ":vulkan_binaries",
+    ],
+})
 
 generate_notice_file(
     name = "emulator_notice_markdown",
@@ -262,6 +317,27 @@ generate_notice_file(
 pkg_files(
     name = "emulator_notice_md",
     srcs = [":emulator_notice_markdown"],
+)
+
+generate_sbom_file(
+    name = "emulator_sbom_spdx",
+    out = "sbom.spdx.json",
+    package_variables = "//emulator/tools:aemu_version_info",
+    deps = all_binaries,
+)
+
+pkg_files(
+    name = "emulator_sbom_json",
+    srcs = [":emulator_sbom_spdx"],
+)
+
+generate_sbom_file(
+    name = "sbom",
+    out = "emulator_sbom.spdx.json",
+    package_file_name = "sdk-repo-{platform}-{product_name}-sbom-{build_id}.spdx.json",
+    package_variables = "//emulator/tools:aemu_version_info",
+    tags = ["manual"],
+    deps = all_binaries,
 )
 
 stripped_binaries(
@@ -294,7 +370,14 @@ pkg_files(
     # Where it should be in the final package
     prefix = "bin",
     renames = select({
-        "@platforms//os:windows": {
+        ":windows_aarch64": {
+            "@qemu//:qemu-system-aarch64": "qemu-system-aarch64.exe",
+            # Netsim runs as a separate process under Windows on ARM x86_64
+            # emulation until native Windows ARM64 prebuilts are available.
+            "@goldfish_prebuilts_common//netsim:netsim_windows_x86_64": "netsimd.exe",
+            "@goldfish_prebuilts_common//netsim:netsim_cli_windows_x86_64": "netsim.exe",
+        },
+        ":windows_x86_64": {
             "@qemu//:qemu-system-x86_64": "qemu-system-x86_64.exe",
             "@goldfish_prebuilts_common//netsim:netsim_windows_x86_64": "netsimd.exe",
             "@goldfish_prebuilts_common//netsim:netsim_cli_windows_x86_64": "netsim.exe",
@@ -306,6 +389,9 @@ pkg_files(
             "@qemu//:qemu-system-aarch64_signed": "qemu-system-aarch64",
             "@goldfish_prebuilts_common//netsim:netsim_darwin_aarch64": "netsimd",
             "@goldfish_prebuilts_common//netsim:netsim_cli_darwin_aarch64": "netsim",
+        },
+        "@goldfish_build//platforms:is_linux_aarch64": {
+            "@qemu//:qemu-system-aarch64": "qemu-system-aarch64",
         },
         "@platforms//os:linux": {
             "@qemu//:qemu-system-x86_64": "qemu-system-x86_64",
@@ -413,23 +499,41 @@ pkg_files(
 msvc_dlls_needed = [
     "msvcp140.dll",
     "vcruntime140.dll",
-    "vcruntime140_1.dll",
 ]
 
 [
     select_file(
         name = "msvc_" + dll,
-        srcs = "@toolchain_hub//cc/windows_clang:msvc_dlls_x64",
+        srcs = select({
+            "@platforms//cpu:aarch64": "@toolchain_hub//cc/windows_clang:msvc_dlls_aarch64",
+            "//conditions:default": "@toolchain_hub//cc/windows_clang:msvc_dlls_x64",
+        }),
         subpath = dll,
         target_compatible_with = ["@platforms//os:windows"],
     )
     for dll in msvc_dlls_needed
 ]
 
+select_file(
+    name = "msvc_vcruntime140_1.dll",
+    srcs = "@toolchain_hub//cc/windows_clang:msvc_dlls_x64",
+    subpath = "vcruntime140_1.dll",
+    target_compatible_with = [
+        "@platforms//os:windows",
+        "@platforms//cpu:x86_64",
+    ],
+)
+
 pkg_files(
     # Note no prefix. These must go in the same dir as emulator.exe.
     name = "win-dlls",
-    srcs = ["msvc_" + dll for dll in msvc_dlls_needed],
+    srcs = [
+        ":msvc_msvcp140.dll",
+        ":msvc_vcruntime140.dll",
+    ] + select({
+        ":windows_aarch64": [],
+        "//conditions:default": [":msvc_vcruntime140_1.dll"],
+    }),
     target_compatible_with = ["@platforms//os:windows"],
 )
 
@@ -553,9 +657,9 @@ pkg_filegroup(
     srcs = [
         ":advanced_features",
         ":data_virtualscene",
-        ":egl_stripped",
         ":emulator-access",
         ":emulator_notice_md",
+        ":emulator_sbom_json",
         ":fishtank_binary",
         ":fishtank_dir",
         ":glib_dlls_stripped",
@@ -565,8 +669,13 @@ pkg_filegroup(
         ":qemu-roms",
         ":qemu_stripped",
         ":source_properties_pkg",
-        ":vulkan_stripped",
     ] + select({
+        "@goldfish_build//platforms:is_linux_aarch64": [],
+        "//conditions:default": [
+            ":egl_stripped",
+            ":vulkan_stripped",
+        ],
+    }) + select({
         ":use_linux_internal_fishtank": [],
         "//conditions:default": [":qtwebengine_binary"],
     }) + select({
@@ -582,9 +691,9 @@ pkg_filegroup(
     name = "emulator-dir-unstripped",
     srcs = [
         ":data_virtualscene",
-        ":egl",
         ":emulator-access",
         ":emulator_notice_md",
+        ":emulator_sbom_json",
         ":glib_dlls",
         ":launcher",
         ":plugins",
@@ -592,8 +701,13 @@ pkg_filegroup(
         ":qemu-keymaps",
         ":qemu-roms",
         ":source_properties_pkg",
-        ":vulkan",
     ] + select({
+        "@goldfish_build//platforms:is_linux_aarch64": [],
+        "//conditions:default": [
+            ":egl",
+            ":vulkan",
+        ],
+    }) + select({
         "@platforms//os:windows": [
             ":win-dlls",
         ],
@@ -648,10 +762,21 @@ breakpad_symbols_pkg(
         ":is_developer_build": 0,
         "//conditions:default": 1,
     }),
-    ignore_paths_with_suffix = [
-        "goldfish_prebuilts_common+/vulkan/windows-x86_64/vulkan-1.dll",
-        "goldfish_prebuilts_common+/vulkan/windows-x86_64/icds/vk_swiftshader.dll",
-    ],
+    ignore_paths_with_suffix = select({
+        ":windows_aarch64": [
+            "goldfish_prebuilts_common+/ANGLE/windows-aarch64/lib/d3dcompiler_47.dll",
+            "goldfish_prebuilts_common+/ANGLE/windows-aarch64/lib/libEGL.dll",
+            "goldfish_prebuilts_common+/ANGLE/windows-aarch64/lib/libGLESv2.dll",
+            "goldfish_prebuilts_common+/vulkan/windows-aarch64/vulkan-1.dll",
+            "goldfish_prebuilts_common+/vulkan/windows-aarch64/icds/libvulkan_lvp.dll",
+            "goldfish_prebuilts_common+/vulkan/windows-aarch64/icds/vk_swiftshader.dll",
+        ],
+        ":windows_x86_64": [
+            "goldfish_prebuilts_common+/vulkan/windows-x86_64/vulkan-1.dll",
+            "goldfish_prebuilts_common+/vulkan/windows-x86_64/icds/vk_swiftshader.dll",
+        ],
+        "//conditions:default": [],
+    }),
     package_file_name = "sdk-repo-{platform}-{product_name}-breakpad-symbols-{build_id}.zip",
     package_variables = "//emulator/tools:aemu_version_info",
 )

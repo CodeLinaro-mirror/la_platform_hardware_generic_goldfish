@@ -333,8 +333,7 @@ TEST_F(InputSessionTestFixture, MultiTouch_SingleFingerDownTracking) {
         if (ev.type == EV_ABS && ev.code == ABS_MT_POSITION_Y &&
             ev.value == static_cast<uint32_t>(0.50F * 0x7FFF))
             found_pos_y = true;
-        if (ev.type == EV_ABS && ev.code == ABS_MT_PRESSURE &&
-            ev.value == static_cast<uint32_t>(0.75F * 0x7FFF))
+        if (ev.type == EV_ABS && ev.code == ABS_MT_PRESSURE && ev.value == 0x300)
             found_pressure = true;
     }
 
@@ -397,6 +396,44 @@ TEST_F(InputSessionTestFixture, MultiTouch_TwoFingersSimultaneousTracking) {
         EXPECT_TRUE(found_slot_1);
         EXPECT_TRUE(found_tracking_1);
     }
+}
+
+// Each finger's events must not interleave with another sender's, so the whole
+// multi-pointer report goes to the display in a single call.
+TEST_F(InputSessionTestFixture, MultiTouch_TwoFingerEventSentAsOneReport) {
+    auto* display = GetDisplay(0);
+    ASSERT_NE(display, nullptr);
+
+    InputSession session(*multi_display_, key_sender_, false);
+
+    InputEvent event;
+    auto* ptr = event.mutable_pointer();
+    ptr->set_display_id(0);
+    ptr->set_action(PointerAction::POINTER_ACTION_DOWN);
+    auto* p1 = ptr->add_pointers();
+    p1->set_pointer_id(100);
+    p1->set_x(0.25F);
+    p1->set_y(0.50F);
+    p1->set_pressure(0.75F);
+    auto* p2 = ptr->add_pointers();
+    p2->set_pointer_id(200);
+    p2->set_x(0.75F);
+    p2->set_y(0.80F);
+    p2->set_pressure(0.90F);
+
+    display->evdevs.clear();
+    display->evdev_reports.clear();
+    EXPECT_TRUE(session.DispatchInputEvent(event).ok());
+
+    // Every event, including the trailing SYN_REPORT, arrived in one report.
+    ASSERT_EQ(display->evdev_reports.size(), 1U);
+    const auto& report = display->evdev_reports[0];
+    EXPECT_EQ(report, display->evdevs);
+    EXPECT_TRUE(HasEvent(report, EV_ABS, ABS_MT_SLOT, 0));
+    EXPECT_TRUE(HasEvent(report, EV_ABS, ABS_MT_SLOT, 1));
+    ASSERT_FALSE(report.empty());
+    EXPECT_EQ(report.back().type, EV_SYN);
+    EXPECT_EQ(report.back().code, SYN_REPORT);
 }
 
 TEST_F(InputSessionTestFixture, MultiTouch_SingleFingerReleaseMaintainsRemainingTouch) {
@@ -1349,7 +1386,7 @@ TEST_F(InputSessionTestFixture, Libevdev_MultiTouchProtocolB_CoordinateClampingM
             found_clamped_x = true;
         if (ev.type == EV_ABS && ev.code == ABS_MT_POSITION_Y && ev.value == 0x7FFF)
             found_clamped_y = true;
-        if (ev.type == EV_ABS && ev.code == ABS_MT_PRESSURE && ev.value == 0x7FFF)
+        if (ev.type == EV_ABS && ev.code == ABS_MT_PRESSURE && ev.value == 0x400)
             found_clamped_pressure = true;
     }
 
@@ -1820,7 +1857,29 @@ TEST_F(InputSessionTestFixture, DownWithDefaultZeroPressureAllocatesSlotAndEmits
     // Verify slot was allocated, tracking ID was assigned, and default contact pressure was emitted
     EXPECT_TRUE(HasEvent(display->evdevs, EV_ABS, ABS_MT_SLOT, 0));
     EXPECT_TRUE(HasEvent(display->evdevs, EV_ABS, ABS_MT_TRACKING_ID, 0));
-    EXPECT_TRUE(HasEvent(display->evdevs, EV_ABS, ABS_MT_PRESSURE, 0x7FFF));
+    EXPECT_TRUE(HasEvent(display->evdevs, EV_ABS, ABS_MT_PRESSURE, 0x400));
+}
+
+TEST_F(InputSessionTestFixture, DownPressureIsScaledToDevicePressureRange) {
+    auto* display = GetDisplay(0);
+    ASSERT_NE(display, nullptr);
+    InputSession session(*multi_display_, key_sender_, false);
+
+    InputEvent event;
+    auto* ptr = event.mutable_pointer();
+    ptr->set_display_id(0);
+    ptr->set_action(PointerAction::POINTER_ACTION_DOWN);
+    auto* p = ptr->add_pointers();
+    p->set_pointer_id(7);
+    p->set_x(0.5F);
+    p->set_y(0.5F);
+    p->set_pressure(0.5F);
+
+    display->evdevs.clear();
+    EXPECT_TRUE(session.DispatchInputEvent(event).ok());
+
+    // virtio-input-android advertises ABS_MT_PRESSURE in [0, 0x400].
+    EXPECT_TRUE(HasEvent(display->evdevs, EV_ABS, ABS_MT_PRESSURE, 0x200));
 }
 
 TEST_F(InputSessionTestFixture, HoverMoveEmitsZeroPressure) {
@@ -1891,7 +1950,7 @@ TEST_F(InputSessionTestFixture, PointerMoveWithOmittedPressureDefaultsToFullPres
         EXPECT_TRUE(session.DispatchInputEvent(move_event).ok());
 
         EXPECT_FALSE(HasEvent(display->evdevs, EV_ABS, ABS_MT_TRACKING_ID, kMtsPointerUp));
-        EXPECT_TRUE(HasEvent(display->evdevs, EV_ABS, ABS_MT_PRESSURE, 0x7FFF));
+        EXPECT_TRUE(HasEvent(display->evdevs, EV_ABS, ABS_MT_PRESSURE, 0x400));
     }
 }
 

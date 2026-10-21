@@ -21,17 +21,16 @@ package(default_visibility = ["//visibility:public"])
 
 cc_library(
     name = "aquarium_ui_server",
+    testonly = True,
     srcs = ["src/aquarium_ui_server.cc"],
     hdrs = ["include/goldfish/aquarium/aquarium_ui_server.h"],
     includes = ["include"],
     deps = [
-        "//emulator/libs/grpc_client",
+        "//emulator/libs/file",
         "//emulator/libs/http:http_messages",
-        "//emulator/libs/network",
+        "//emulator/libs/system",
         "//emulator/libs/system:bazel_info",
-        "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
-        "@grpc//:grpc++",
     ],
 )
 
@@ -48,6 +47,7 @@ cc_test(
 
 cc_binary_with_manifest(
     name = "aquarium-ui",
+    testonly = True,
     srcs = ["src/main.cc"],
     data = select({
         "@platforms//os:windows": [],
@@ -83,6 +83,7 @@ cc_binary_with_manifest(
 
 py_binary(
     name = "clownfish",
+    testonly = True,
     srcs = ["@aemu//tools/clownfish:src/clownfish/__main__.py"],
     data = [
         ":aquarium-ui",

@@ -34,12 +34,15 @@
 #include "absl/time/time.h"
 
 #include "android/status/status_matcher_macros.h"
+#include "goldfish/archive/deque_archive.h"
 #include "goldfish/async/testing/test_event_loop.h"
+#include "goldfish/display/abstract_multi_display.h"
 #include "goldfish/display/display.h"
 #include "goldfish/display/display_frames.h"
 #include "goldfish/display/frame.h"
 #include "goldfish/display/test/display_test_peer.h"
 #include "goldfish/display/virtual_display.h"
+#include "standard-headers/linux/input-event-codes.h"
 
 extern "C" {
 #include "ui/console.h"
@@ -50,14 +53,40 @@ extern "C" {
 void SetTestRegisterDclHook(void (*hook)(DisplayChangeListener*));
 void SetTestGraphicHwUpdateHook(void (*hook)(QemuConsole*));
 void SetTestFindVirtioDeviceResult(int result);
+void SetTestVirtioInputSendHook(void (*hook)(uint16_t type, uint16_t code, uint32_t value));
 }
 
 using goldfish::async::testing::TestEventLoop;
 using goldfish::display::DisplayFrames;
 using goldfish::display::DisplayTestPeer;
+using goldfish::display::EvDevEvent;
+using goldfish::display::EvDevEvents;
 using goldfish::display::FrameEvent;
+using ::testing::ElementsAre;
 // Avoid ambiguity with the global QemuDisplay typedef from QEMU's console.h
 using EmulatorDisplay = goldfish::display::QemuDisplay;
+
+// Records the events the displays write to the virtio input device.
+class ScopedDeviceEventCapture {
+  public:
+    ScopedDeviceEventCapture() {
+        capture_events_ = &events;
+        SetTestVirtioInputSendHook(&Record);
+    }
+    ~ScopedDeviceEventCapture() {
+        SetTestVirtioInputSendHook(nullptr);
+        capture_events_ = nullptr;
+    }
+
+    std::vector<EvDevEvent> events;
+
+  private:
+    static void Record(uint16_t type, uint16_t code, uint32_t value) {
+        capture_events_->push_back({type, code, value});
+    }
+
+    static inline std::vector<EvDevEvent>* capture_events_ = nullptr;
+};
 
 class QemuDisplayConcurrencyTest : public ::testing::Test {
   protected:
@@ -250,6 +279,37 @@ TEST_F(QemuDisplayConcurrencyTest, InputEvents_DispatchedToQemuLoop) {
     EXPECT_EQ(qemu_loop_->TaskCount(), 0);
 }
 
+// The guest device applies events up to each SYN_REPORT, so another sender's
+// task must not run between a report's events: the report is one loop task.
+TEST_F(QemuDisplayConcurrencyTest, EvDevReport_PostedAsOneTask) {
+    ScopedDeviceEventCapture device;
+    const EvDevEvents report = {
+        {EV_ABS, ABS_MT_SLOT, 0}, {EV_ABS, ABS_MT_TRACKING_ID, 0}, {EV_ABS, ABS_MT_SLOT, 1}};
+
+    display_->SendEvDevReport(report);
+    EXPECT_EQ(qemu_loop_->TaskCount(), 1);
+
+    qemu_loop_->RunAll();
+    EXPECT_THAT(device.events,
+                ElementsAre(report[0], report[1], report[2], EvDevEvent{EV_SYN, SYN_REPORT, 0}));
+}
+
+TEST_F(QemuDisplayConcurrencyTest, VirtualDisplayEvDevReport_PostedAsOneTask) {
+    ASSERT_OK_AND_ASSIGN(auto display,
+                         goldfish::display::VirtualDisplay::Create(
+                                 main_loop_.get(), qemu_loop_.get(), 1, 800, 600, 320, 0));
+    qemu_loop_->RunAll();
+    ScopedDeviceEventCapture device;
+    const EvDevEvents report = {{EV_ABS, ABS_MT_SLOT, 0}, {EV_ABS, ABS_MT_TRACKING_ID, 0}};
+
+    display->SendEvDevReport(report);
+    EXPECT_EQ(qemu_loop_->TaskCount(), 1);
+
+    qemu_loop_->RunAll();
+    EXPECT_THAT(device.events,
+                ElementsAre(report[0], report[1], EvDevEvent{EV_SYN, SYN_REPORT, 0}));
+}
+
 TEST_F(QemuDisplayConcurrencyTest, FrameListener_DrivesLifecycleAndReceivesFrames) {
     EXPECT_FALSE(display_->IsActive());
     EXPECT_EQ(qemu_loop_->TaskCount(), 0);
@@ -427,4 +487,54 @@ TEST_F(QemuDisplayConcurrencyTest, VirtualDisplayCreate_VirtioDeviceNotFoundFail
     EXPECT_THAT(goldfish::display::VirtualDisplay::Create(main_loop_.get(), qemu_loop_.get(), 1,
                                                           800, 600, 320, 0),
                 absl_testing::StatusIs(absl::StatusCode::kNotFound));
+}
+
+TEST_F(QemuDisplayConcurrencyTest, VirtualDisplayCreate_InvalidIdOrDimensionsFails) {
+    EXPECT_THAT(goldfish::display::VirtualDisplay::Create(main_loop_.get(), qemu_loop_.get(), 0,
+                                                          800, 600, 320, 0),
+                absl_testing::StatusIs(absl::StatusCode::kInvalidArgument));
+    EXPECT_THAT(goldfish::display::VirtualDisplay::Create(
+                        main_loop_.get(), qemu_loop_.get(),
+                        static_cast<uint8_t>(goldfish::display::IMultiDisplay::kMaxDisplays), 800,
+                        600, 320, 0),
+                absl_testing::StatusIs(absl::StatusCode::kInvalidArgument));
+    EXPECT_THAT(goldfish::display::VirtualDisplay::Create(main_loop_.get(), qemu_loop_.get(), 1, 0,
+                                                          600, 320, 0),
+                absl_testing::StatusIs(absl::StatusCode::kInvalidArgument));
+    EXPECT_THAT(goldfish::display::VirtualDisplay::Create(
+                        main_loop_.get(), qemu_loop_.get(), 1,
+                        goldfish::display::IMultiDisplay::kMaxDisplayDimension + 1, 600, 320, 0),
+                absl_testing::StatusIs(absl::StatusCode::kInvalidArgument));
+}
+
+TEST_F(QemuDisplayConcurrencyTest, MultiDisplayLoad_RejectsCorruptedSnapshot) {
+    auto multi_display =
+            goldfish::display::IMultiDisplay::Create(main_loop_.get(), qemu_loop_.get(), nullptr);
+
+    // 1. Too many virtual displays
+    {
+        goldfish::archive::DequeArchive archive;
+        archive << static_cast<uint32_t>(goldfish::display::IMultiDisplay::kMaxDisplays);
+        EXPECT_THAT(multi_display->Load(archive),
+                    absl_testing::StatusIs(absl::StatusCode::kInvalidArgument));
+    }
+
+    // 2. Oversized virtual display dimensions
+    {
+        goldfish::archive::DequeArchive archive;
+        archive << uint32_t{1} << uint32_t{1}
+                << (goldfish::display::IMultiDisplay::kMaxDisplayDimension + 1) << uint32_t{600}
+                << uint32_t{320} << uint32_t{0};
+        EXPECT_THAT(multi_display->Load(archive),
+                    absl_testing::StatusIs(absl::StatusCode::kInvalidArgument));
+    }
+
+    // 3. Invalid active_states display ID
+    {
+        goldfish::archive::DequeArchive archive;
+        archive << uint32_t{0} << uint32_t{1}
+                << static_cast<uint32_t>(goldfish::display::IMultiDisplay::kMaxDisplays) << true;
+        EXPECT_THAT(multi_display->Load(archive),
+                    absl_testing::StatusIs(absl::StatusCode::kInvalidArgument));
+    }
 }

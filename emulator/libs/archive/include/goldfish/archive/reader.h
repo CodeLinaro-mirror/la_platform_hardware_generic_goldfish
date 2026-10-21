@@ -11,12 +11,15 @@
  */
 
 #pragma once
+#include <cmath>
 #include <concepts>
 #include <cstddef>
+#include <cstdint>
 #include <string>
 #include <utility>
 
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 
 #include "goldfish/archive/zigzag/zigzag.h"
 
@@ -31,14 +34,41 @@ struct IReader {
 absl::Status ReadValue(IReader& r, size_t&);
 
 template <typename T>
-    requires(std::same_as<T, uint8_t> || std::same_as<T, int8_t> || std::same_as<T, bool> ||
-             std::same_as<T, char> || std::same_as<T, float> || std::same_as<T, double>)
+    requires(std::same_as<T, uint8_t> || std::same_as<T, int8_t> || std::same_as<T, char>)
 absl::Status ReadValue(IReader& r, T& dst) {
     return r.Read(&dst, sizeof(dst));
 }
 
+inline absl::Status ReadValue(IReader& r, bool& dst) {
+    uint8_t raw = 0;
+    if (const absl::Status s = r.Read(&raw, sizeof(raw)); !s.ok()) {
+        return s;
+    }
+    if (raw > 1) {
+        return absl::InvalidArgumentError(
+                absl::StrCat("Invalid boolean value in archive: ", raw, " (expected 0 or 1)"));
+    }
+    dst = (raw != 0);
+    return absl::OkStatus();
+}
+
+template <typename T>
+    requires(std::same_as<T, float> || std::same_as<T, double>)
+absl::Status ReadValue(IReader& r, T& dst) {
+    T raw = 0;
+    if (const absl::Status s = r.Read(&raw, sizeof(raw)); !s.ok()) {
+        return s;
+    }
+    if (std::isnan(raw)) {
+        return absl::InvalidArgumentError("NaN floating point value in archive");
+    }
+    dst = raw;
+    return absl::OkStatus();
+}
+
 template <std::unsigned_integral T>
-    requires(!std::same_as<T, size_t> && !std::same_as<T, uint8_t> && !std::same_as<T, bool>)
+    requires(!std::same_as<T, size_t> && !std::same_as<T, uint8_t> && !std::same_as<T, bool> &&
+             !std::same_as<T, char>)
 absl::Status ReadValue(IReader& r, T& dst) {
     size_t val;
     if (const absl::Status s = ReadValue(r, val); !s.ok()) {

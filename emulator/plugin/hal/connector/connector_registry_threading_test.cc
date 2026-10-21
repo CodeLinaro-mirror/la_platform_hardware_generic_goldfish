@@ -139,9 +139,6 @@ TEST_F(ConnectorRegistryThreadingTest, HalDeviceCallbacksAreOnClientThread) {
     AsyncAssertion closeAssertion;
     AsyncAssertion sendAsyncAssertion;
 
-    // The HAL device receives an empty message upon connection, a leftover
-    // from the vsock protocol.
-    EXPECT_CALL(*mockHalPlug, OnReceive(""));
     EXPECT_CALL(*mockHalPlug, OnConnect()).WillOnce(Invoke([&]() { connectAssertion.notify(); }));
 
     EXPECT_CALL(*mockHalPlug, OnReceive(kHelloFromQemu)).WillOnce(Invoke([&](std::string_view) {
@@ -181,9 +178,7 @@ TEST_F(ConnectorRegistryThreadingTest, HalDeviceCallbacksAreOnClientThread) {
     // --- Test connection ---
     {
         // Act: Simulate a connection request from the QEMU side.
-        // it contains the protocol, device name, and possible args for our device.
-        // In our case we have no arguments. So the first call our DevicePlug will
-        // get is the empty string.
+        // It contains the protocol, device name, and possible args for our device.
         auto connectionString = absl::StrFormat("pipe:%s:args\0", kDeviceName);
         connectorPlug->OnReceive(connectionString.data(), connectionString.size() + 1);
 

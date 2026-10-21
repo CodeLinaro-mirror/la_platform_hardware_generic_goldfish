@@ -44,7 +44,7 @@ cc_test(
     ],
     deps = [
         ":eventing",
-        "@googletest//:gtest_main",
+        "//emulator/libs/test:googletest_main",
     ],
 )
 

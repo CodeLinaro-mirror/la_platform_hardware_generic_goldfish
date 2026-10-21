@@ -48,11 +48,13 @@ struct Qcow2Snapshot {
     bool operator==(const Qcow2Snapshot&) const = default;
 };
 
-bool IsQcow2Path(const fs::path&);
+bool IsValidQcow2Image(const fs::path& path, bool allow_empty_backing_path = false);
 
 absl::Status CreateQcow2Overlay(const fs::path& qcow2_image, const fs::path& backing_image);
 absl::Status CreateQcow2Overlay(const fs::path& qcow2_image,
                                 android::base::StorageCapacity raw_size);
+
+absl::StatusOr<fs::path> ReadQcow2BackingPath(const fs::path& qcow2_path);
 
 absl::StatusOr<std::vector<Qcow2Snapshot>> ListQcow2Snapshots(const fs::path& qcow2_path);
 

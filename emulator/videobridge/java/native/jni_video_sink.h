@@ -30,6 +30,7 @@
 #pragma clang diagnostic pop
 
 #include "frame_buffer_pool.h"
+#include "goldfish/base/unique_handle.h"
 
 /**
  * @file jni_video_sink.h
@@ -38,6 +39,55 @@
  */
 
 namespace goldfish::videobridge::java {
+
+/**
+ * @struct JniEnvDeleter
+ * @brief Deleter for `goldfish::base::UniqueHandle` that detaches the current thread from the JVM
+ * when `jvm_` is non-null (indicating `ScopedJniEnv` attached the thread).
+ */
+struct JniEnvDeleter {
+    struct Empty {};
+    JniEnvDeleter() = default;
+    explicit JniEnvDeleter(Empty) {}
+    explicit JniEnvDeleter(JavaVM* jvm) : jvm_(jvm) {}
+    void operator()(JNIEnv* /*env*/) const {
+        if (jvm_) {
+            jvm_->DetachCurrentThread();
+        }
+    }
+    JavaVM* jvm_ = nullptr;
+};
+
+/**
+ * @class ScopedJniEnv
+ * @brief RAII helper built on `goldfish::base::UniqueHandle` that attaches the current native
+ * thread to the JVM if needed and detaches on destruction.
+ */
+class ScopedJniEnv : public goldfish::base::UniqueHandle<JNIEnv*, nullptr, JniEnvDeleter> {
+  public:
+    explicit ScopedJniEnv(JavaVM* jvm, jint version = JNI_VERSION_1_8)
+            : UniqueHandle(Acquire(jvm, version)) {}
+
+    JNIEnv* operator->() const { return get(); }
+
+  private:
+    static UniqueHandle Acquire(JavaVM* jvm, jint version) {
+        if (!jvm) return {};
+        JNIEnv* env = nullptr;
+        if (jvm->GetEnv(reinterpret_cast<void**>(&env), version) != JNI_EDETACHED) {
+            return UniqueHandle(env);
+        }
+#if defined(__ANDROID__)
+        bool attached = (jvm->AttachCurrentThread(&env, nullptr) == JNI_OK);
+#else
+        bool attached =
+                (jvm->AttachCurrentThreadAsDaemon(reinterpret_cast<void**>(&env), nullptr) ==
+                 JNI_OK);
+#endif
+        return UniqueHandle(env,
+                            goldfish::videobridge::java::JniEnvDeleter(attached ? jvm : nullptr));
+    }
+};
 
 /**
  * @enum PixelFormat
@@ -95,13 +145,6 @@ class JniVideoSink : public webrtc::VideoSinkInterface<webrtc::VideoFrame> {
     void OnFrame(const webrtc::VideoFrame& frame) override;
 
   private:
-    /**
-     * @brief Attaches current thread to JVM if needed and retrieves JNIEnv pointer.
-     * @param[out] out_attached Set to true if current thread was attached by this call.
-     * @return Pointer to JNIEnv, or nullptr on failure.
-     */
-    JNIEnv* GetJniEnv(bool* out_attached);
-
     JavaVM* jvm_;
     PixelFormat target_format_;
     std::shared_ptr<FrameBufferPool> pool_;

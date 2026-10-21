@@ -57,6 +57,18 @@ Frames Single(OutFrame frame) {
     return frames;
 }
 
+void ResetSocketCallbacks(goldfish::async::AsyncSocket& socket) {
+    socket.SetOnCloseCallback([] {});
+    socket.SetOnConnectedCallback([](goldfish::async::AsyncSocket&, absl::Status) {});
+    socket.SetOnReadCallbackNoFlowControl([](std::string_view, absl::Status) {});
+}
+
+void ResetAndCloseSocket(std::shared_ptr<goldfish::async::AsyncSocket> socket) {
+    if (!socket) return;
+    ResetSocketCallbacks(*socket);
+    socket->Close();
+}
+
 std::string UrlEscape(std::string_view value) {
     std::string out;
     for (unsigned char c : value) {
@@ -254,11 +266,7 @@ class Session : public std::enable_shared_from_this<Session> {
                     status.code(),
                     absl::StrFormat("Failed to initiate TCP connect to endpoint '%s': %s",
                                     current_endpoint_, status.message()));
-            socket_.reset();
-            socket->SetOnCloseCallback([] {});
-            socket->SetOnConnectedCallback([](goldfish::async::AsyncSocket&, absl::Status) {});
-            socket->SetOnReadCallbackNoFlowControl([](std::string_view, absl::Status) {});
-            socket->Close();
+            ResetAndCloseSocket(std::move(socket_));
         }
         absl::Status base_error = last_error_.ok()
                                           ? goldfish::async::UvErrToAbslStatus(UV_ECONNREFUSED)
@@ -277,11 +285,7 @@ class Session : public std::enable_shared_from_this<Session> {
             last_error_ = absl::Status(status.code(),
                                        absl::StrFormat("TCP connection to endpoint '%s' failed: %s",
                                                        current_endpoint_, status.message()));
-            if (auto failed = std::move(socket_)) {
-                failed->SetOnCloseCallback([] {});
-                failed->SetOnReadCallbackNoFlowControl([](std::string_view, absl::Status) {});
-                failed->Close();
-            }
+            ResetAndCloseSocket(std::move(socket_));
             TryNextEndpoint();
             return;
         }
@@ -306,8 +310,7 @@ class Session : public std::enable_shared_from_this<Session> {
 
     void OnClose() {
         if (auto sock = std::move(socket_)) {
-            sock->SetOnReadCallbackNoFlowControl([](std::string_view, absl::Status) {});
-            sock->SetOnConnectedCallback([](goldfish::async::AsyncSocket&, absl::Status) {});
+            ResetSocketCallbacks(*sock);
         }
         if (!closing_) {
             closing_ = true;
@@ -507,33 +510,29 @@ class WebSocketPacketTransport : public PacketTransport {
             , recv_cb_(std::move(recv_cb)) {}
 
     ~WebSocketPacketTransport() override {
-        std::shared_ptr<Session> session;
-        {
-            std::lock_guard<std::mutex> lock(mu_);
-            session = std::move(session_);
-        }
-        if (session) session->Shutdown();
+        if (auto session = TakeSession()) session->Shutdown();
     }
 
     absl::Status initialize(const ChipConfig& chip) override {
+        const std::string_view kind_name = WebSocketKindName(chip.kind);
         if (!loop_) {
             return absl::InvalidArgumentError(absl::StrFormat(
                     "WebSocketPacketTransport::initialize requires a non-null EventLoop "
                     "(chip='%s')",
-                    WebSocketKindName(chip.kind)));
+                    kind_name));
         }
         if (!recv_cb_) {
             return absl::InvalidArgumentError(absl::StrFormat(
                     "WebSocketPacketTransport::initialize requires a non-empty RecvCallback "
                     "(chip='%s')",
-                    WebSocketKindName(chip.kind)));
+                    kind_name));
         }
         if (chip.sim_profile) {
             return absl::UnimplementedError(absl::StrFormat(
                     "WebSocketPacketTransport does not support ChipConfig::sim_profile "
                     "(chip='%s'); use CreatePacketTransport (gRPC) for cellular SIM profile "
                     "initialization or omit sim_profile",
-                    WebSocketKindName(chip.kind)));
+                    kind_name));
         }
         {
             std::lock_guard<std::mutex> lock(mu_);
@@ -541,7 +540,7 @@ class WebSocketPacketTransport : public PacketTransport {
                 return absl::FailedPreconditionError(absl::StrFormat(
                         "WebSocketPacketTransport for chip '%s' is already initialized; create a "
                         "separate PacketTransport instance per chip",
-                        WebSocketKindName(chip.kind)));
+                        kind_name));
             }
             initialized_ = true;
         }
@@ -557,24 +556,24 @@ class WebSocketPacketTransport : public PacketTransport {
     }
 
     void send(Packet packet) override {
-        std::shared_ptr<Session> session;
-        {
-            std::lock_guard<std::mutex> lock(mu_);
-            session = session_;
-        }
-        if (session) session->Send(std::move(packet));
+        if (auto session = GetSession()) session->Send(std::move(packet));
     }
 
     void next_recv() override {
-        std::shared_ptr<Session> session;
-        {
-            std::lock_guard<std::mutex> lock(mu_);
-            session = session_;
-        }
-        if (session) session->NextRecv();
+        if (auto session = GetSession()) session->NextRecv();
     }
 
   private:
+    std::shared_ptr<Session> GetSession() {
+        std::lock_guard<std::mutex> lock(mu_);
+        return session_;
+    }
+
+    std::shared_ptr<Session> TakeSession() {
+        std::lock_guard<std::mutex> lock(mu_);
+        return std::move(session_);
+    }
+
     goldfish::async::EventLoop* const loop_;
     goldfish::async::LibuvAsyncSocketFactory default_socket_factory_;
     goldfish::async::AsyncSocketFactory* const socket_factory_;

@@ -33,7 +33,6 @@
 #include "absl/synchronization/notification.h"
 
 #include "android/emulation/control/emulator_grpc_client.h"
-#include "android/emulation/control/grpc_channel_factory.h"
 #include "goldfish/async/libuv_event_loop.h"
 #include "goldfish/async/libuv_socket_factory.h"
 #include "goldfish/async/threaded_event_loop.h"
@@ -60,41 +59,6 @@ ABSL_FLAG(int, verbosity, 0,
 namespace {
 
 using ::android::emulation::control::EmulatorGrpcClientBuilder;
-using ::android::emulation::control::GrpcChannelFactory;
-using ::android::emulation::remote::Endpoint;
-
-absl::StatusOr<std::pair<std::string, std::shared_ptr<grpc::Channel>>> ResolveGrpcTargetAndChannel(
-        const std::string& target, const std::string& token, const std::string& discovery_file) {
-    EmulatorGrpcClientBuilder builder;
-    if (!target.empty()) {
-        Endpoint endpoint;
-        endpoint.set_target(target);
-        if (!token.empty()) {
-            auto* header = endpoint.add_required_headers();
-            header->set_key("authorization");
-            header->set_value("Bearer " + token);
-        }
-        builder.WithEndpoint(endpoint);
-    } else if (!discovery_file.empty()) {
-        builder.WithDiscoveryFile(discovery_file);
-    } else {
-        builder.ForDiscoveredEmulator({});
-    }
-
-    auto client = builder.BuildBlocking();
-    if (!client.ok()) {
-        return client.status();
-    }
-
-    const auto& endpoint = (*client)->GetEndpoint();
-    std::string resolved_target = endpoint.target();
-    GrpcChannelFactory factory(endpoint, {});
-    auto channel = factory.CreateChannel();
-    if (!channel) {
-        return absl::InternalError("Failed to create gRPC channel for target: " + resolved_target);
-    }
-    return std::make_pair(std::move(resolved_target), std::move(channel));
-}
 
 absl::Notification g_shutdown;
 
@@ -131,13 +95,15 @@ int main(int argc, char** argv) {
     const std::string grpc_token = absl::GetFlag(FLAGS_grpc_token);
     const std::string allow_origin = absl::GetFlag(FLAGS_allow_origin);
 
-    auto target_and_channel_or =
-            ResolveGrpcTargetAndChannel(grpc_target, grpc_token, discovery_file);
-    if (!target_and_channel_or.ok()) {
-        LOG(ERROR) << "Failed to resolve upstream gRPC target: " << target_and_channel_or.status();
+    auto target_and_channel =
+            EmulatorGrpcClientBuilder()
+                    .WithTargetOrDiscovery(grpc_target, grpc_token, discovery_file)
+                    .BuildTargetAndChannel();
+    if (!target_and_channel.ok()) {
+        LOG(ERROR) << "Failed to resolve upstream gRPC target: " << target_and_channel.status();
         return 1;
     }
-    auto [resolved_target, channel] = std::move(*target_and_channel_or);
+    auto [resolved_target, channel] = *std::move(target_and_channel);
 
     LOG(INFO) << "Starting gRPC-Web proxy...";
     LOG(INFO) << "  Upstream gRPC target: " << resolved_target;

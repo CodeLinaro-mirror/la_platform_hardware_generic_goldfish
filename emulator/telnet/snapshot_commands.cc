@@ -15,6 +15,7 @@
 
 #include <chrono>
 #include <string>
+#include <string_view>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -28,6 +29,32 @@
 namespace goldfish::telnet {
 
 using android::emulation::control::GrpcStatusToAbslStatus;
+
+namespace {
+
+using SnapshotPackageRpc =
+        grpc::Status (android::emulation::control::SnapshotService::StubInterface::*)(
+                grpc::ClientContext*, const android::emulation::control::SnapshotPackage&,
+                android::emulation::control::SnapshotPackage*);
+
+absl::Status RunSnapshotPackageRpc(ConsoleContext& ctx, const std::string& name,
+                                   std::string_view command_name, SnapshotPackageRpc rpc) {
+    if (name.empty()) {
+        return absl::InvalidArgumentError(
+                absl::StrCat("Argument missing, try 'avd snapshot ", command_name, " <name>'"));
+    }
+    ASSIGN_OR_RETURN(auto stub, ctx.SnapshotStub());
+    ASSIGN_OR_RETURN(auto context,
+                     ctx.NewContext(std::chrono::system_clock::now() + std::chrono::seconds(30)));
+
+    android::emulation::control::SnapshotPackage request;
+    request.set_snapshot_id(name);
+    android::emulation::control::SnapshotPackage response;
+
+    return GrpcStatusToAbslStatus(((*stub).*rpc)(context.get(), request, &response));
+}
+
+}  // namespace
 
 void RegisterSnapshotCommands(CommandRegistryBuilder::NodeBuilder& snapshot) {
     snapshot.On("list" /* do_snapshot_list */, "list available state snapshots",
@@ -55,56 +82,25 @@ void RegisterSnapshotCommands(CommandRegistryBuilder::NodeBuilder& snapshot) {
                     }
                     return out;
                 });
-    snapshot.On("save" /* do_snapshot_save */, "save state snapshot",
-                [](ConsoleContext& ctx, const std::string& name) -> absl::Status {
-                    if (name.empty()) {
-                        return absl::InvalidArgumentError(
-                                "Argument missing, try 'avd snapshot save <name>'");
-                    }
-                    ASSIGN_OR_RETURN(auto stub, ctx.SnapshotStub());
-                    ASSIGN_OR_RETURN(auto context, ctx.NewContext(std::chrono::system_clock::now() +
-                                                                  std::chrono::seconds(30)));
-
-                    android::emulation::control::SnapshotPackage request;
-                    request.set_snapshot_id(name);
-                    android::emulation::control::SnapshotPackage response;
-
-                    return GrpcStatusToAbslStatus(
-                            stub->SaveSnapshot(context.get(), request, &response));
-                });
-    snapshot.On("load" /* do_snapshot_load */, "load state snapshot",
-                [](ConsoleContext& ctx, const std::string& name) -> absl::Status {
-                    if (name.empty()) {
-                        return absl::InvalidArgumentError(
-                                "Argument missing, try 'avd snapshot load <name>'");
-                    }
-                    ASSIGN_OR_RETURN(auto stub, ctx.SnapshotStub());
-                    ASSIGN_OR_RETURN(auto context, ctx.NewContext(std::chrono::system_clock::now() +
-                                                                  std::chrono::seconds(30)));
-
-                    android::emulation::control::SnapshotPackage request;
-                    request.set_snapshot_id(name);
-                    android::emulation::control::SnapshotPackage response;
-
-                    return GrpcStatusToAbslStatus(
-                            stub->LoadSnapshot(context.get(), request, &response));
-                });
+    snapshot.On(
+            "save" /* do_snapshot_save */, "save state snapshot",
+            [](ConsoleContext& ctx, const std::string& name) -> absl::Status {
+                return RunSnapshotPackageRpc(
+                        ctx, name, "save",
+                        &android::emulation::control::SnapshotService::StubInterface::SaveSnapshot);
+            });
+    snapshot.On(
+            "load" /* do_snapshot_load */, "load state snapshot",
+            [](ConsoleContext& ctx, const std::string& name) -> absl::Status {
+                return RunSnapshotPackageRpc(
+                        ctx, name, "load",
+                        &android::emulation::control::SnapshotService::StubInterface::LoadSnapshot);
+            });
     snapshot.On("del|delete" /* do_snapshot_del */, "delete state snapshot",
                 [](ConsoleContext& ctx, const std::string& name) -> absl::Status {
-                    if (name.empty()) {
-                        return absl::InvalidArgumentError(
-                                "Argument missing, try 'avd snapshot del <name>'");
-                    }
-                    ASSIGN_OR_RETURN(auto stub, ctx.SnapshotStub());
-                    ASSIGN_OR_RETURN(auto context, ctx.NewContext(std::chrono::system_clock::now() +
-                                                                  std::chrono::seconds(30)));
-
-                    android::emulation::control::SnapshotPackage request;
-                    request.set_snapshot_id(name);
-                    android::emulation::control::SnapshotPackage response;
-
-                    return GrpcStatusToAbslStatus(
-                            stub->DeleteSnapshot(context.get(), request, &response));
+                    return RunSnapshotPackageRpc(ctx, name, "del",
+                                                 &android::emulation::control::SnapshotService::
+                                                         StubInterface::DeleteSnapshot);
                 });
     snapshot.On("remap" /* do_snapshot_remap */, "remap current snapshot RAM",
                 "'avd snapshot remap <auto-save>' will activate or shut off Quickboot "

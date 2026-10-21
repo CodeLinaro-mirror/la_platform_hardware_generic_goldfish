@@ -19,9 +19,13 @@
 #include <filesystem>
 #include <future>
 #include <memory>
+#include <string>
+#include <string_view>
+#include <utility>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "absl/time/time.h"
 #include "grpc_endpoint_description.pb.h"
 
@@ -91,8 +95,9 @@ class EmulatorGrpcClientBase {
     absl::StatusOr<std::unique_ptr<typename T::Stub>> Stub() {
         if (GetConnectionState() != ConnectionState::kConnected) {
             return absl::FailedPreconditionError(
-                    "Client is not connected. Call Connect() or ConnectAsync() "
-                    "first.");
+                    absl::StrCat("gRPC client for '", GetEndpoint().target(),
+                                 "' is not connected. Call Connect() or ConnectAsync() "
+                                 "before creating a service stub."));
         }
         return T::NewStub(GetChannel());
     }
@@ -323,6 +328,25 @@ class EmulatorGrpcClientBuilder {
      * @endcode
      */
     EmulatorGrpcClientBuilder& WithEndpoint(const Endpoint& endpoint);
+
+    /**
+     * @brief Configures the client from an explicit target address (with optional
+     * bearer token), falling back to a discovery file or auto-discovered emulator.
+     *
+     * Resolution order:
+     * 1. If @p target is non-empty, connects to @p target (attaching @p token as
+     *    a Bearer authorization header when non-empty).
+     * 2. Otherwise, if @p discovery_file is non-empty, loads @p discovery_file.
+     * 3. Otherwise, discovers the first running emulator via `ForDiscoveredEmulator({})`.
+     *
+     * @param target Optional gRPC target address (e.g., "localhost:8554").
+     * @param token Optional authentication token attached as a Bearer header.
+     * @param discovery_file Optional path to an emulator discovery `.ini` file.
+     * @return A reference to the builder for chaining.
+     */
+    EmulatorGrpcClientBuilder& WithTargetOrDiscovery(
+            std::string_view target, std::string_view token = "",
+            const std::filesystem::path& discovery_file = {});
     /**
      * @brief Adds a gRPC interceptor to the client.
      *
@@ -374,6 +398,18 @@ class EmulatorGrpcClientBuilder {
      *         if the configuration was invalid.
      */
     absl::StatusOr<std::unique_ptr<CallbackEmulatorGrpcClient>> BuildCallback();
+
+    /**
+     * @brief Builds a raw gRPC channel and returns the resolved target address.
+     *
+     * Useful for proxy servers (such as gRPC-Web or Aquarium UI) that forward
+     * raw frames over a channel without wrapping it in a Blocking or Callback
+     * client.
+     *
+     * @return A `StatusOr` containing the resolved target address and channel,
+     *         or an error if endpoint resolution or channel creation failed.
+     */
+    absl::StatusOr<std::pair<std::string, std::shared_ptr<grpc::Channel>>> BuildTargetAndChannel();
 
   private:
     absl::Status status_{absl::OkStatus()};

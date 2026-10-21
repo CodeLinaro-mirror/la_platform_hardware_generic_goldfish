@@ -16,6 +16,7 @@
 
 #include <atomic>
 #include <cstdint>
+#include <functional>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -24,19 +25,21 @@
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
-#include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/time/time.h"
 #include "google/protobuf/timestamp.pb.h"
 
+#include "android/crashreport/crash_reporter.h"
 #include "android/emulation/control/absl_status_translate.h"
 #include "android/emulation/control/grpc_event_stream_support.h"
+#include "android/process/process.h"
+#include "goldfish/snapshot/snapshot_store.h"
 
 namespace goldfish::grpc::v2 {
 
 using ::android::emulation::control::AbslStatusToGrpcStatus;
-using ::android::emulation::control::StateStreamWriter;
+using ::android::emulation::control::UniqueEventStreamWriter;
 using ::android::emulation::v2::CompatibilityFingerprint;
 using ::android::emulation::v2::CreateSnapshotRequest;
 using ::android::emulation::v2::DeleteSnapshotRequest;
@@ -71,9 +74,14 @@ using ::grpc::StatusCode;
 
 namespace {
 
-bool ContainsInvalidPathChars(std::string_view snapshot_id) {
-    return absl::StrContains(snapshot_id, "/") || absl::StrContains(snapshot_id, "\\") ||
-           absl::StrContains(snapshot_id, "..");
+// A snapshot id is a qcow2 snapshot tag and a directory name, see
+// goldfish::snapshot::ValidateSnapshotName. RPCs that accept an omitted id
+// pass allow_empty; the shared message spells out the rules to the caller.
+Status ValidateSnapshotId(std::string_view snapshot_id, bool allow_empty) {
+    if (allow_empty && snapshot_id.empty()) {
+        return Status::OK;
+    }
+    return AbslStatusToGrpcStatus(::goldfish::snapshot::ValidateSnapshotName(snapshot_id));
 }
 
 std::string GenerateSnapshotId() {
@@ -85,44 +93,251 @@ std::string GenerateSnapshotId() {
 
 SnapshotOperationMetadata MakeOperationMetadata(std::string_view snapshot_id,
                                                 SnapshotOperationMetadata::Phase phase,
-                                                int32_t progress_percent) {
+                                                int32_t progress_percent,
+                                                int64_t transferred_bytes = 0,
+                                                int64_t total_bytes = 0) {
     SnapshotOperationMetadata metadata;
     metadata.set_snapshot_id(std::string(snapshot_id));
     metadata.set_phase(phase);
     metadata.set_progress_percent(progress_percent);
+    metadata.set_transferred_bytes(transferred_bytes);
+    metadata.set_total_bytes(total_bytes);
     return metadata;
+}
+
+SnapshotOperationMetadata MakeOperationMetadataFromProgress(
+        std::string_view snapshot_id, const VmOperations::SnapshotProgress& progress, bool done) {
+    const auto phase = (progress.phase == VmOperations::SnapshotPhase::Preparing && !done)
+                               ? SnapshotOperationMetadata::PREPARING
+                               : SnapshotOperationMetadata::TRANSFERRING;
+    const int32_t percent = done ? 100 : progress.ProgressPercent();
+    const int64_t total = progress.total_bytes;
+    const int64_t transferred = (done && total > 0) ? total : progress.transferred_bytes;
+    SnapshotOperationMetadata metadata =
+            MakeOperationMetadata(snapshot_id, phase, /*progress_percent=*/percent,
+                                  /*transferred_bytes=*/transferred, /*total_bytes=*/total);
+    if (!done && !progress.active_component.empty()) {
+        metadata.set_active_component(progress.active_component);
+    }
+    metadata.set_completed_devices((done && progress.total_devices > 0)
+                                           ? progress.total_devices
+                                           : progress.completed_devices);
+    metadata.set_total_devices(progress.total_devices);
+    return metadata;
+}
+
+std::string_view SnapshotOperationPrefix(VmOperations::SnapshotOperationType op_type) {
+    return op_type == VmOperations::SnapshotOperationType::Save ? "snapshot/create"
+                                                                : "snapshot/restore";
 }
 
 }  // namespace
 
 HypervisorServiceImpl::HypervisorServiceImpl(
         VmOperations& vm_operations, std::shared_ptr<OperationsServiceImpl> operations_service)
-        : vm_operations_(vm_operations), operations_service_(std::move(operations_service)) {
+        : vm_operations_(vm_operations)
+        , operations_service_(std::move(operations_service))
+        , run_state_callback_id_(vm_operations_.RunStateEvents().AddCallback(
+                  [this](EmuRunState state) { OnRunStateChanged(state); }))
+        , snapshot_callback_id_(vm_operations_.SnapshotEvents().AddCallback(
+                  [this](const VmOperations::SnapshotProgress& progress) {
+                      OnSnapshotStateChanged(progress);
+                  })) {
     DCHECK(operations_service_ != nullptr) << "OperationsServiceImpl cannot be null.";
+    operations_service_->SetMetadataRefresher(
+            [this](Operation* op) { RefreshOperationMetadata(op); });
+}
+
+HypervisorServiceImpl::~HypervisorServiceImpl() {
+    vm_operations_.SnapshotEvents().RemoveCallback(snapshot_callback_id_);
+    vm_operations_.RunStateEvents().RemoveCallback(run_state_callback_id_);
+    if (operations_service_ != nullptr) {
+        operations_service_->SetMetadataRefresher(nullptr);
+    }
+}
+
+void HypervisorServiceImpl::OnRunStateChanged(EmuRunState state) {
+    if (state == EmuRunState::Shutdown) {
+        shutting_down_.store(true, std::memory_order_release);
+    }
+    if (state == EmuRunState::SaveVm || state == EmuRunState::RestoreVm) {
+        return;
+    }
+    VmState vm_state;
+    BuildVmState(state, /*snap_progress=*/VmOperations::SnapshotProgress{}, &vm_state);
+    vm_state_events_.FireEvent(vm_state);
+}
+
+void HypervisorServiceImpl::RefreshOperationMetadata(Operation* op) const {
+    if (op == nullptr || op->done()) {
+        return;
+    }
+    SnapshotOperationMetadata meta;
+    if (!op->metadata().UnpackTo(&meta)) {
+        return;
+    }
+    const auto progress = vm_operations_.GetSnapshotProgress();
+    if (progress.operation == VmOperations::SnapshotOperationType::Idle ||
+        progress.phase == VmOperations::SnapshotPhase::Completed ||
+        progress.phase == VmOperations::SnapshotPhase::Failed) {
+        return;
+    }
+    if (!progress.snapshot_id.empty() && !meta.snapshot_id().empty() &&
+        progress.snapshot_id != meta.snapshot_id()) {
+        return;
+    }
+    const std::string snapshot_id =
+            meta.snapshot_id().empty() ? progress.snapshot_id : meta.snapshot_id();
+    const SnapshotOperationMetadata updated =
+            MakeOperationMetadataFromProgress(snapshot_id, progress, /*done=*/false);
+    (void)op->mutable_metadata()->PackFrom(updated);
+}
+
+void HypervisorServiceImpl::OnSnapshotStateChanged(const VmOperations::SnapshotProgress& progress) {
+    if (progress.operation == VmOperations::SnapshotOperationType::Idle ||
+        progress.phase == VmOperations::SnapshotPhase::None) {
+        return;
+    }
+
+    VmState vm_state;
+    BuildVmState(vm_operations_.GetRunState(), progress, &vm_state);
+    vm_state_events_.FireEvent(vm_state);
+
+    // QEMU reports the name of every internal snapshot operation (save_snapshot /
+    // load_snapshot always have one); the plugin never assumes a default name.
+    const std::string& snapshot_id = progress.snapshot_id;
+    const SnapshotOperationKey op_key{progress.operation, snapshot_id};
+
+    if (progress.phase == VmOperations::SnapshotPhase::Preparing ||
+        progress.phase == VmOperations::SnapshotPhase::Transferring) {
+        std::string existing_lro_name;
+        {
+            absl::MutexLock state_lock(&state_mutex_);
+            if (auto it = snapshot_operations_.find(op_key); it != snapshot_operations_.end()) {
+                existing_lro_name = it->second.lro_name;
+            }
+        }
+        const SnapshotOperationMetadata meta =
+                MakeOperationMetadataFromProgress(snapshot_id, progress, /*done=*/false);
+        if (!existing_lro_name.empty()) {
+            operations_service_->UpdateOperationMetadata(existing_lro_name, meta);
+            return;
+        }
+
+        const Operation started = operations_service_->StartOperation(
+                SnapshotOperationPrefix(progress.operation), meta);
+
+        absl::MutexLock state_lock(&state_mutex_);
+        snapshot_operations_[op_key] = TrackedSnapshotOperation{
+            .lro_name = started.name(),
+            .snapshot_id = snapshot_id,
+            .is_rpc = false,
+        };
+        return;
+    }
+
+    TrackedSnapshotOperation tracked;
+    {
+        absl::MutexLock state_lock(&state_mutex_);
+        auto it = snapshot_operations_.find(op_key);
+        if (it == snapshot_operations_.end()) {
+            return;
+        }
+        tracked = std::move(it->second);
+        snapshot_operations_.erase(it);
+    }
+
+    if (tracked.is_rpc) {
+        return;
+    }
+
+    const std::string& active_id = tracked.snapshot_id.empty() ? snapshot_id : tracked.snapshot_id;
+    if (progress.phase == VmOperations::SnapshotPhase::Failed) {
+        const SnapshotOperationMetadata fail_meta =
+                MakeOperationMetadataFromProgress(active_id, progress, /*done=*/false);
+        const std::string fallback_error = absl::StrCat(
+                "Cannot ",
+                progress.operation == VmOperations::SnapshotOperationType::Load ? "load" : "save",
+                " snapshot '", active_id, "': QEMU reported an unspecified snapshot failure");
+        const absl::Status err = absl::InternalError(
+                progress.error_message.empty() ? fallback_error : progress.error_message);
+        (void)operations_service_->FailOperation(tracked.lro_name, err, &fail_meta);
+        return;
+    }
+
+    Snapshot snapshot_proto;
+    PopulateSnapshotProto(
+            VmOperations::SnapshotEntry{
+                .name = active_id,
+                .timestamp = absl::Now(),
+            },
+            &snapshot_proto);
+    if (progress.disk_bytes > 0) {
+        snapshot_proto.set_size_bytes(progress.disk_bytes);
+    }
+    const SnapshotOperationMetadata final_meta =
+            MakeOperationMetadataFromProgress(active_id, progress, /*done=*/true);
+    (void)operations_service_->CompleteOperation(tracked.lro_name, snapshot_proto, &final_meta);
 }
 
 void HypervisorServiceImpl::PopulateVmState(VmState* state) const {
-    const EmuRunState run_state = vm_operations_.GetRunState();
-    switch (run_state) {
-    case EmuRunState::Running:
-        state->set_state(VmState::RUNNING);
-        break;
-    case EmuRunState::Paused:
-    case EmuRunState::Suspended:
-        state->set_state(VmState::PAUSED);
-        break;
-    case EmuRunState::Shutdown:
-        state->set_state(VmState::SHUTTING_DOWN);
-        break;
-    case EmuRunState::SaveVm:
-        state->set_state(VmState::SAVING_SNAPSHOT);
-        break;
-    case EmuRunState::RestoreVm:
-        state->set_state(VmState::RESTORING_SNAPSHOT);
-        break;
-    default:
-        state->set_state(vm_operations_.IsRunning() ? VmState::RUNNING : VmState::STOPPED);
-        break;
+    BuildVmState(vm_operations_.GetRunState(), vm_operations_.GetSnapshotProgress(), state);
+}
+
+void HypervisorServiceImpl::BuildVmState(EmuRunState run_state,
+                                         const VmOperations::SnapshotProgress& snap_progress,
+                                         VmState* state) const {
+    if (run_state == EmuRunState::Shutdown) {
+        shutting_down_.store(true, std::memory_order_release);
+    }
+    const bool is_shutting_down =
+            shutting_down_.load(std::memory_order_acquire) || (run_state == EmuRunState::Shutdown);
+    const bool snapshot_in_progress =
+            snap_progress.phase == VmOperations::SnapshotPhase::Preparing ||
+            snap_progress.phase == VmOperations::SnapshotPhase::Transferring;
+
+    if ((snap_progress.phase == VmOperations::SnapshotPhase::Completed ||
+         snap_progress.phase == VmOperations::SnapshotPhase::Failed) &&
+        (run_state == EmuRunState::SaveVm || run_state == EmuRunState::RestoreVm)) {
+        run_state = EmuRunState::Running;
+    }
+
+    if (snapshot_in_progress &&
+        (snap_progress.operation == VmOperations::SnapshotOperationType::Save ||
+         snap_progress.operation == VmOperations::SnapshotOperationType::Load)) {
+        const bool is_save = snap_progress.operation == VmOperations::SnapshotOperationType::Save;
+        state->set_state(is_save ? (is_shutting_down ? VmState::SHUTTING_DOWN
+                                                     : VmState::SAVING_SNAPSHOT)
+                                 : VmState::RESTORING_SNAPSHOT);
+        *state->mutable_snapshot_progress() = MakeOperationMetadataFromProgress(
+                snap_progress.snapshot_id, snap_progress, /*done=*/false);
+    } else {
+        state->clear_snapshot_progress();
+        if (is_shutting_down) {
+            state->set_state(VmState::SHUTTING_DOWN);
+        } else {
+            switch (run_state) {
+            case EmuRunState::Running:
+                state->set_state(VmState::RUNNING);
+                break;
+            case EmuRunState::Paused:
+            case EmuRunState::Suspended:
+                state->set_state(VmState::PAUSED);
+                break;
+            case EmuRunState::Shutdown:
+                state->set_state(VmState::SHUTTING_DOWN);
+                break;
+            case EmuRunState::SaveVm:
+                state->set_state(VmState::SAVING_SNAPSHOT);
+                break;
+            case EmuRunState::RestoreVm:
+                state->set_state(VmState::RESTORING_SNAPSHOT);
+                break;
+            default:
+                state->set_state(vm_operations_.IsRunning() ? VmState::RUNNING : VmState::STOPPED);
+                break;
+            }
+        }
     }
 
     const auto config = vm_operations_.GetConfiguration();
@@ -138,11 +353,11 @@ Status HypervisorServiceImpl::GetVmState(ServerContext* /*context*/,
 
 ServerWriteReactor<VmState>* HypervisorServiceImpl::StreamVmState(
         CallbackServerContext* /*context*/, const StreamVmStateRequest* /*request*/) {
-    // The writer keeps a raw pointer to the source. That is safe because the main-loop exit hook
-    // destroys the gRPC server, and with it every writer, before qemu_cleanup() destroys the AVD
-    // universe that owns VmOperations.
-    return new StateStreamWriter<VmState, EmuRunState, VmOperations::RunStateSource>(
-            &vm_operations_.RunStateEvents(), [this](VmState* state) { PopulateVmState(state); });
+    // The writer keeps a raw pointer to vm_state_events_. That is safe because the
+    // main-loop exit hook destroys the gRPC server, and with it every writer, before
+    // qemu_cleanup() destroys the service and the AVD universe that owns VmOperations.
+    return new UniqueEventStreamWriter<VmState>(&vm_state_events_,
+                                                [this](VmState* state) { PopulateVmState(state); });
 }
 
 Status HypervisorServiceImpl::PauseVm(ServerContext* /*context*/, const PauseVmRequest* /*request*/,
@@ -163,36 +378,67 @@ Status HypervisorServiceImpl::ResumeVm(ServerContext* /*context*/,
     return Status::OK;
 }
 
-Status HypervisorServiceImpl::ResetVm(ServerContext* /*context*/, const ResetVmRequest* /*request*/,
-                                      VmState* response) {
+Status HypervisorServiceImpl::ResetVmInternal(VmState* response) {
     if (const absl::Status status = vm_operations_.Reset(); !status.ok()) {
         return AbslStatusToGrpcStatus(status);
     }
+    shutting_down_.store(false, std::memory_order_release);
     PopulateVmState(response);
     return Status::OK;
+}
+
+Status HypervisorServiceImpl::ResetVm(ServerContext* /*context*/, const ResetVmRequest* /*request*/,
+                                      VmState* response) {
+    return ResetVmInternal(response);
 }
 
 Status HypervisorServiceImpl::HardResetVm(ServerContext* /*context*/,
                                           const HardResetVmRequest* /*request*/,
                                           VmState* response) {
-    if (const absl::Status status = vm_operations_.Reset(); !status.ok()) {
-        return AbslStatusToGrpcStatus(status);
-    }
-    PopulateVmState(response);
-    return Status::OK;
+    return ResetVmInternal(response);
 }
 
 Status HypervisorServiceImpl::StopVm(ServerContext* /*context*/, const StopVmRequest* request,
                                      VmState* response) {
-    if (request != nullptr && request->save_quickboot_snapshot()) {
-        LOG(WARNING) << "save_quickboot_snapshot is currently unimplemented; relying on "
-                        "QEMU default shutdown lifecycle.";
+    const StopVmRequest::Mode mode =
+            request != nullptr ? request->mode() : StopVmRequest::MODE_UNSPECIFIED;
+    const std::string_view reason =
+            request != nullptr ? std::string_view(request->reason()) : std::string_view{};
+
+    switch (mode) {
+    case StopVmRequest::MODE_UNSPECIFIED:
+    case StopVmRequest::GRACEFUL:
+        if (request != nullptr && request->save_quickboot_snapshot()) {
+            LOG(WARNING) << "save_quickboot_snapshot is currently unimplemented; relying on "
+                            "QEMU default shutdown lifecycle.";
+        }
+        if (const absl::Status status = vm_operations_.Shutdown(); !status.ok()) {
+            return AbslStatusToGrpcStatus(status);
+        }
+        shutting_down_.store(true, std::memory_order_release);
+        PopulateVmState(response);
+        vm_state_events_.FireEvent(*response);
+        return Status::OK;
+
+    case StopVmRequest::TERMINATE:
+        LOG(ERROR) << "Received request to terminate the emulator process immediately"
+                   << (reason.empty() ? "" : absl::StrCat(" (reason: ", reason, ")"))
+                   << ". No cleanup will be performed.";
+        ::android::base::Process::Me()->Terminate();
+        return Status::OK;
+
+    case StopVmRequest::CRASH: {
+        const std::string_view crash_reason =
+                reason.empty() ? "Crash requested via HypervisorService.StopVm" : reason;
+        LOG(ERROR) << "Received request to crash the emulator process: " << crash_reason;
+        ::android::crashreport::CrashReporter::Get().Die(crash_reason);
+        return Status::OK;
     }
-    if (const absl::Status status = vm_operations_.Shutdown(); !status.ok()) {
-        return AbslStatusToGrpcStatus(status);
+
+    default:
+        return {StatusCode::INVALID_ARGUMENT,
+                absl::StrCat("Unsupported StopVmRequest.Mode: ", static_cast<int>(mode))};
     }
-    PopulateVmState(response);
-    return Status::OK;
 }
 
 void HypervisorServiceImpl::PopulateSnapshotProto(const VmOperations::SnapshotEntry& entry,
@@ -223,7 +469,7 @@ void HypervisorServiceImpl::PopulateSnapshotProto(const VmOperations::SnapshotEn
             absl::ToInt64Nanoseconds(entry.timestamp - absl::FromUnixSeconds(seconds))));
 
     CompatibilityFingerprint* compat = out->mutable_compatibility();
-    compat->set_host_compatible(true);
+    compat->set_host_compatible(entry.compatible);
 }
 
 Status HypervisorServiceImpl::ListSnapshots(ServerContext* /*context*/,
@@ -241,16 +487,16 @@ Status HypervisorServiceImpl::ListSnapshots(ServerContext* /*context*/,
     return AbslStatusToGrpcStatus(status);
 }
 
-Status HypervisorServiceImpl::GetSnapshot(ServerContext* /*context*/,
-                                          const GetSnapshotRequest* request, Snapshot* response) {
-    if (request->snapshot_id().empty()) {
+Status HypervisorServiceImpl::FindSnapshotEntry(
+        std::string_view snapshot_id, VmOperations::SnapshotEntry* out_entry) const {
+    if (snapshot_id.empty()) {
         return {StatusCode::INVALID_ARGUMENT, "snapshot_id cannot be empty."};
     }
 
     std::optional<VmOperations::SnapshotEntry> found;
     const absl::Status status =
             vm_operations_.ListSnapshots([&](VmOperations::SnapshotEntry entry) {
-                if (entry.name == request->snapshot_id()) {
+                if (entry.name == snapshot_id) {
                     found = std::move(entry);
                 }
             });
@@ -258,34 +504,31 @@ Status HypervisorServiceImpl::GetSnapshot(ServerContext* /*context*/,
         return AbslStatusToGrpcStatus(status);
     }
     if (!found.has_value()) {
-        return {StatusCode::NOT_FOUND,
-                absl::StrCat("Snapshot not found: ", request->snapshot_id())};
+        return {StatusCode::NOT_FOUND, absl::StrCat("Snapshot not found: ", snapshot_id)};
+    }
+    if (out_entry != nullptr) {
+        *out_entry = std::move(*found);
+    }
+    return Status::OK;
+}
+
+Status HypervisorServiceImpl::GetSnapshot(ServerContext* /*context*/,
+                                          const GetSnapshotRequest* request, Snapshot* response) {
+    VmOperations::SnapshotEntry found;
+    if (const Status status = FindSnapshotEntry(request->snapshot_id(), &found); !status.ok()) {
+        return status;
     }
 
-    PopulateSnapshotProto(*found, response);
+    PopulateSnapshotProto(found, response);
     return Status::OK;
 }
 
 Status HypervisorServiceImpl::UpdateSnapshot(ServerContext* /*context*/,
                                              const UpdateSnapshotRequest* request,
                                              Snapshot* response) {
-    if (request->snapshot_id().empty()) {
-        return {StatusCode::INVALID_ARGUMENT, "snapshot_id cannot be empty."};
-    }
-
-    std::optional<VmOperations::SnapshotEntry> found;
-    const absl::Status status =
-            vm_operations_.ListSnapshots([&](VmOperations::SnapshotEntry entry) {
-                if (entry.name == request->snapshot_id()) {
-                    found = std::move(entry);
-                }
-            });
-    if (!status.ok()) {
-        return AbslStatusToGrpcStatus(status);
-    }
-    if (!found.has_value()) {
-        return {StatusCode::NOT_FOUND,
-                absl::StrCat("Snapshot not found: ", request->snapshot_id())};
+    VmOperations::SnapshotEntry found;
+    if (const Status status = FindSnapshotEntry(request->snapshot_id(), &found); !status.ok()) {
+        return status;
     }
 
     {
@@ -299,116 +542,124 @@ Status HypervisorServiceImpl::UpdateSnapshot(ServerContext* /*context*/,
         }
     }
 
-    PopulateSnapshotProto(*found, response);
+    PopulateSnapshotProto(found, response);
+    return Status::OK;
+}
+
+Status HypervisorServiceImpl::RunSnapshotRpc(
+        VmOperations::SnapshotOperationType op_type, std::string_view snapshot_id,
+        const std::function<VmOperations::SnapshotEntry()>& on_success, Operation* response) {
+    const std::string id_str(snapshot_id);
+    const SnapshotOperationMetadata initial_meta =
+            MakeOperationMetadata(id_str, SnapshotOperationMetadata::PREPARING, 0);
+    const Operation started_op =
+            operations_service_->StartOperation(SnapshotOperationPrefix(op_type), initial_meta);
+    const SnapshotOperationKey op_key{op_type, id_str};
+    {
+        absl::MutexLock state_lock(&state_mutex_);
+        snapshot_operations_[op_key] = TrackedSnapshotOperation{
+            .lro_name = started_op.name(),
+            .snapshot_id = id_str,
+            .is_rpc = true,
+        };
+    }
+
+    const absl::Status op_status =
+            (op_type == VmOperations::SnapshotOperationType::Save)
+                    ? vm_operations_.SaveSnapshot(id_str, /*overwrite=*/true)
+                    : vm_operations_.LoadSnapshot(id_str, /*and_resume=*/true);
+    const auto progress = vm_operations_.GetSnapshotProgress();
+    const auto expected_phase = op_status.ok() ? VmOperations::SnapshotPhase::Completed
+                                               : VmOperations::SnapshotPhase::Failed;
+    const bool matches_progress = progress.operation == op_type &&
+                                  progress.phase == expected_phase &&
+                                  progress.snapshot_id == id_str;
+    if (!matches_progress) {
+        absl::MutexLock state_lock(&state_mutex_);
+        snapshot_operations_.erase(op_key);
+    }
+    if (!op_status.ok()) {
+        const SnapshotOperationMetadata fail_meta =
+                matches_progress
+                        ? MakeOperationMetadataFromProgress(id_str, progress, /*done=*/false)
+                        : initial_meta;
+        // The operation is registered, so report the failure through the Operation
+        // (AIP-151). A non-OK gRPC status would cause the response to be discarded.
+        *response = operations_service_->FailOperation(started_op.name(), op_status, &fail_meta);
+        return Status::OK;
+    }
+
+    Snapshot snapshot_proto;
+    PopulateSnapshotProto(on_success(), &snapshot_proto);
+    if (op_type == VmOperations::SnapshotOperationType::Save && matches_progress &&
+        progress.disk_bytes > 0) {
+        snapshot_proto.set_size_bytes(progress.disk_bytes);
+    }
+
+    const SnapshotOperationMetadata final_meta = MakeOperationMetadataFromProgress(
+            id_str, matches_progress ? progress : VmOperations::SnapshotProgress{},
+            /*done=*/true);
+    *response =
+            operations_service_->CompleteOperation(started_op.name(), snapshot_proto, &final_meta);
     return Status::OK;
 }
 
 Status HypervisorServiceImpl::CreateSnapshot(ServerContext* /*context*/,
                                              const CreateSnapshotRequest* request,
                                              Operation* response) {
-    if (ContainsInvalidPathChars(request->snapshot_id())) {
-        return {StatusCode::INVALID_ARGUMENT,
-                "snapshot_id must not contain path separators or '..'."};
+    if (const Status status = ValidateSnapshotId(request->snapshot_id(), /*allow_empty=*/true);
+        !status.ok()) {
+        return status;
     }
 
     const std::string snapshot_id =
             request->snapshot_id().empty() ? GenerateSnapshotId() : request->snapshot_id();
-
-    const SnapshotOperationMetadata initial_meta =
-            MakeOperationMetadata(snapshot_id, SnapshotOperationMetadata::PREPARING, 0);
-    const Operation started_op =
-            operations_service_->StartOperation("snapshot/create", initial_meta);
-
-    const absl::Status save_status = vm_operations_.SaveSnapshot(snapshot_id, /*overwrite=*/true);
-    if (!save_status.ok()) {
-        // The operation is registered, so report the failure through the Operation
-        // (AIP-151). A non-OK gRPC status would cause the response to be discarded.
-        *response =
-                operations_service_->FailOperation(started_op.name(), save_status, &initial_meta);
-        return Status::OK;
-    }
-
-    {
-        absl::MutexLock state_lock(&state_mutex_);
-        user_metadata_[snapshot_id] = UserSnapshotMetadata{
-            .display_name = request->display_name(),
-            .description = request->description(),
-        };
-    }
-
-    VmOperations::SnapshotEntry entry{
-        .name = snapshot_id,
-        .timestamp = absl::Now(),
-    };
-    vm_operations_
-            .ListSnapshots([&](VmOperations::SnapshotEntry listed) {
-                if (listed.name == snapshot_id) {
-                    entry = std::move(listed);
+    return RunSnapshotRpc(
+            VmOperations::SnapshotOperationType::Save, snapshot_id,
+            [&]() {
+                {
+                    absl::MutexLock state_lock(&state_mutex_);
+                    user_metadata_[snapshot_id] = UserSnapshotMetadata{
+                        .display_name = request->display_name(),
+                        .description = request->description(),
+                    };
                 }
-            })
-            .IgnoreError();
-
-    Snapshot snapshot_proto;
-    PopulateSnapshotProto(entry, &snapshot_proto);
-
-    const SnapshotOperationMetadata final_meta =
-            MakeOperationMetadata(snapshot_id, SnapshotOperationMetadata::TRANSFERRING, 100);
-    *response =
-            operations_service_->CompleteOperation(started_op.name(), snapshot_proto, &final_meta);
-    return Status::OK;
+                VmOperations::SnapshotEntry entry{
+                    .name = snapshot_id,
+                    .timestamp = absl::Now(),
+                };
+                vm_operations_
+                        .ListSnapshots([&](VmOperations::SnapshotEntry listed) {
+                            if (listed.name == snapshot_id) {
+                                entry = std::move(listed);
+                            }
+                        })
+                        .IgnoreError();
+                return entry;
+            },
+            response);
 }
 
 Status HypervisorServiceImpl::RestoreSnapshot(ServerContext* /*context*/,
                                               const RestoreSnapshotRequest* request,
                                               Operation* response) {
-    if (request->snapshot_id().empty()) {
-        return {StatusCode::INVALID_ARGUMENT, "snapshot_id cannot be empty."};
+    VmOperations::SnapshotEntry target_entry;
+    if (const Status status = FindSnapshotEntry(request->snapshot_id(), &target_entry);
+        !status.ok()) {
+        return status;
     }
 
-    std::optional<VmOperations::SnapshotEntry> target_entry;
-    const absl::Status list_status =
-            vm_operations_.ListSnapshots([&](VmOperations::SnapshotEntry entry) {
-                if (entry.name == request->snapshot_id()) {
-                    target_entry = std::move(entry);
-                }
-            });
-    if (!list_status.ok()) {
-        return AbslStatusToGrpcStatus(list_status);
-    }
-    if (!target_entry.has_value()) {
-        return {StatusCode::NOT_FOUND,
-                absl::StrCat("Snapshot not found: ", request->snapshot_id())};
-    }
-
-    const SnapshotOperationMetadata initial_meta =
-            MakeOperationMetadata(request->snapshot_id(), SnapshotOperationMetadata::PREPARING, 0);
-    const Operation started_op =
-            operations_service_->StartOperation("snapshot/restore", initial_meta);
-
-    const absl::Status load_status =
-            vm_operations_.LoadSnapshot(request->snapshot_id(), /*and_resume=*/true);
-    if (!load_status.ok()) {
-        *response =
-                operations_service_->FailOperation(started_op.name(), load_status, &initial_meta);
-        return Status::OK;
-    }
-
-    Snapshot snapshot_proto;
-    PopulateSnapshotProto(*target_entry, &snapshot_proto);
-
-    const SnapshotOperationMetadata final_meta = MakeOperationMetadata(
-            request->snapshot_id(), SnapshotOperationMetadata::TRANSFERRING, 100);
-    *response =
-            operations_service_->CompleteOperation(started_op.name(), snapshot_proto, &final_meta);
-    return Status::OK;
+    return RunSnapshotRpc(
+            VmOperations::SnapshotOperationType::Load, request->snapshot_id(),
+            [&]() { return target_entry; }, response);
 }
 
 Status HypervisorServiceImpl::DeleteSnapshot(ServerContext* /*context*/,
                                              const DeleteSnapshotRequest* request,
                                              DeleteSnapshotResponse* /*response*/) {
-    if (request->snapshot_id().empty() || ContainsInvalidPathChars(request->snapshot_id())) {
-        return {StatusCode::INVALID_ARGUMENT,
-                "snapshot_id must not be empty or contain path separators or '..'."};
+    if (const Status status = ValidateSnapshotId(request->snapshot_id(), /*allow_empty=*/false);
+        !status.ok()) {
+        return status;
     }
 
     const absl::Status status = vm_operations_.DeleteSnapshot(request->snapshot_id());
@@ -433,19 +684,8 @@ Status HypervisorServiceImpl::SetQuickbootTarget(ServerContext* /*context*/,
         return Status::OK;
     }
 
-    bool exists = false;
-    const absl::Status status =
-            vm_operations_.ListSnapshots([&](VmOperations::SnapshotEntry entry) {
-                if (entry.name == request->snapshot_id()) {
-                    exists = true;
-                }
-            });
-    if (!status.ok()) {
-        return AbslStatusToGrpcStatus(status);
-    }
-    if (!exists) {
-        return {StatusCode::NOT_FOUND,
-                absl::StrCat("Snapshot not found: ", request->snapshot_id())};
+    if (const Status status = FindSnapshotEntry(request->snapshot_id(), nullptr); !status.ok()) {
+        return status;
     }
 
     absl::MutexLock state_lock(&state_mutex_);
@@ -469,11 +709,13 @@ Status HypervisorServiceImpl::ExportSnapshot(ServerContext* /*context*/,
 Status HypervisorServiceImpl::ImportSnapshot(ServerContext* /*context*/,
                                              const ImportSnapshotRequest* request,
                                              Operation* /*response*/) {
-    if (ContainsInvalidPathChars(request->snapshot_id()) ||
-        request->source_case() == ImportSnapshotRequest::SOURCE_NOT_SET) {
+    if (const Status status = ValidateSnapshotId(request->snapshot_id(), /*allow_empty=*/true);
+        !status.ok()) {
+        return status;
+    }
+    if (request->source_case() == ImportSnapshotRequest::SOURCE_NOT_SET) {
         return {StatusCode::INVALID_ARGUMENT,
-                "source (storage_uri or presigned_download_url) is required and snapshot_id must "
-                "not contain path separators or '..'."};
+                "source (storage_uri or presigned_download_url) is required."};
     }
     return {StatusCode::FAILED_PRECONDITION,
             "Cloud snapshot import is not supported on this emulator instance."};
