@@ -128,6 +128,21 @@ TEST(GrpcWebProtocolTest, ByteBufferConversion) {
     grpc::ByteBuffer bb = Protocol::StringToByteBuffer(original);
     std::string converted = Protocol::ByteBufferToString(bb);
     EXPECT_EQ(original, converted);
+
+    std::string packed_from_bb = Protocol::PackFrame(kFrameData, bb);
+    std::string packed_from_str = Protocol::PackFrame(kFrameData, original);
+    EXPECT_EQ(packed_from_bb, packed_from_str);
+
+    // Multi-slice ByteBuffer fallback
+    grpc::Slice slices[2] = {grpc::Slice("Multi-slice "), grpc::Slice("payload")};
+    grpc::ByteBuffer multi_bb(slices, 2);
+    EXPECT_EQ(Protocol::ByteBufferToString(multi_bb), "Multi-slice payload");
+    EXPECT_EQ(Protocol::PackFrame(kFrameData, multi_bb),
+              Protocol::PackFrame(kFrameData, "Multi-slice payload"));
+
+    grpc::ByteBuffer empty_bb;
+    EXPECT_EQ(Protocol::ByteBufferToString(empty_bb), "");
+    EXPECT_EQ(Protocol::PackFrame(kFrameData, empty_bb), Protocol::PackFrame(kFrameData, ""));
 }
 
 TEST(GrpcWebProtocolTest, UnpackFrameValueObject) {
@@ -197,6 +212,29 @@ TEST(GrpcWebProtocolTest, StreamingBase64EncoderSingleByteFeeds) {
     std::string decoded;
     ASSERT_TRUE(absl::Base64Unescape(stream, &decoded));
     EXPECT_EQ(decoded, original);
+}
+
+TEST(GrpcWebProtocolTest, StreamingBase64EncoderAlignedAndUnalignedLargeChunks) {
+    std::string original(8192, '\0');
+    for (size_t i = 0; i < original.size(); ++i) {
+        original[i] = static_cast<char>((i * 131 + 17) & 0xFF);
+    }
+
+    for (size_t chunk_size : {size_t{2}, size_t{3}, size_t{5}, size_t{64}, size_t{1024}, size_t{4097}}) {
+        StreamingBase64Encoder encoder;
+        std::string encoded;
+        size_t offset = 0;
+        while (offset < original.size()) {
+            const size_t n = std::min(chunk_size, original.size() - offset);
+            std::string chunk = encoder.EncodeChunk(std::string_view(original.data() + offset, n));
+            EXPECT_FALSE(absl::StrContains(chunk, "="));
+            encoded.append(chunk);
+            offset += n;
+        }
+        encoded.append(encoder.Finalize());
+        EXPECT_EQ(encoder.RemainderSize(), 0U);
+        EXPECT_EQ(encoded, absl::Base64Escape(original));
+    }
 }
 
 }  // namespace goldfish::grpcweb
