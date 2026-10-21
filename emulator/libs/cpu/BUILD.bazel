@@ -11,6 +11,7 @@ cc_test(
     name = "x86_cpuid_test",
     size = "small",
     srcs = ["x86_cpuid_test.cc"],
+    target_compatible_with = ["@platforms//cpu:x86_64"],
     deps = [
         ":x86_cpuid",
         "//emulator/libs/test:googletest_main",
