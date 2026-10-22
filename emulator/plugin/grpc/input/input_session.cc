@@ -13,7 +13,6 @@
 // limitations under the License.
 #include "input_session.h"
 
-#include <algorithm>
 #include <cmath>
 #include <utility>
 
@@ -21,23 +20,17 @@
 
 #include "standard-headers/linux/input-event-codes.h"
 #include "standard-headers/linux/input.h"
+#include "touch_encoding.h"
 
 namespace goldfish::grpc::v2 {
 
 namespace {
 
 using ::android::emulation::control::KeyboardEvent;
-using ::android::emulation::control::kMtsPointerUp;
-using ::android::emulation::control::kMtsPressureMax;
 using ::android::emulation::v2::AxisType;
 using ::android::emulation::v2::ButtonMask;
 using ::android::emulation::v2::KeyAction;
 using ::android::emulation::v2::PointerAction;
-using ::android::emulation::v2::ToolType;
-
-constexpr uint32_t kEvAbsMax = 0x7FFF;
-// Default touch contact radius (~4% of normalized range [0, 32767]).
-constexpr uint32_t kDefaultTouchMajor = 0x0500;
 
 /**
  * @brief Safely converts a floating-point delta/scroll value to a Linux evdev __s32 integer value.
@@ -55,73 +48,6 @@ constexpr uint32_t ToEvdevValue(float value) {
         return 0;
     }
     return static_cast<uint32_t>(static_cast<int32_t>(value));
-}
-
-/**
- * @brief Normalizes a normalized float value [0.0, 1.0] to Linux evdev ABS range [0, range_max].
- *
- * @param range_max The maximum value the guest device advertises for the axis.
- */
-constexpr uint32_t NormalizeToEvAbs(float value, uint32_t range_max = kEvAbsMax) {
-    if (std::isnan(value)) {
-        return 0;
-    }
-    return static_cast<uint32_t>(std::clamp(value, 0.0F, 1.0F) * static_cast<float>(range_max));
-}
-
-constexpr float kRadToDeg = 180.0F / 3.14159265358979323846F;
-
-/**
- * @brief Converts orientation radians [-π/2, π/2] to Linux evdev ABS_MT_ORIENTATION degrees [-90,
- * 90].
- *
- * Android's MotionEvent and W3C Pointer Events L3 define orientation in radians [-π/2, π/2].
- * The Linux evdev multi-touch driver (virtio-input-android with MTS_ORIENTATION_RANGE_MAX = 90)
- * expects integer degrees in the range [-90, 90].
- */
-constexpr uint32_t RadiansToEvdevOrientation(float orientation_radians) {
-    if (std::isnan(orientation_radians)) {
-        return 0;
-    }
-    const float degrees = orientation_radians * kRadToDeg;
-    const int32_t clamped_degrees = std::clamp(static_cast<int32_t>(std::round(degrees)), -90, 90);
-    return static_cast<uint32_t>(clamped_degrees);
-}
-
-struct EvdevTilt {
-    uint32_t tilt_x;
-    uint32_t tilt_y;
-};
-
-/**
- * @brief Converts stylus tilt radians [0, π/2] and orientation radians [-π/2, π/2] to Linux evdev
- * ABS_TILT_X and ABS_TILT_Y degrees [-90, 90].
- */
-inline EvdevTilt RadiansToEvdevTilt(float tilt_radians, float orientation_radians) {
-    if (std::isnan(tilt_radians) || std::isnan(orientation_radians)) {
-        return {0, 0};
-    }
-    const float tilt_degrees = tilt_radians * kRadToDeg;
-    const float tilt_x = std::sin(orientation_radians) * tilt_degrees;
-    const float tilt_y = -std::cos(orientation_radians) * tilt_degrees;
-    const int32_t clamped_x = std::clamp(static_cast<int32_t>(std::round(tilt_x)), -90, 90);
-    const int32_t clamped_y = std::clamp(static_cast<int32_t>(std::round(tilt_y)), -90, 90);
-    return {static_cast<uint32_t>(clamped_x), static_cast<uint32_t>(clamped_y)};
-}
-
-uint32_t MapToolType(ToolType tool_type) {
-    switch (tool_type) {
-    case ToolType::TOOL_TYPE_STYLUS:
-    case ToolType::TOOL_TYPE_ERASER:
-        return MT_TOOL_PEN;
-    case ToolType::TOOL_TYPE_PALM:
-        return MT_TOOL_PALM;
-    case ToolType::TOOL_TYPE_FINGER:
-    case ToolType::TOOL_TYPE_MOUSE:
-    case ToolType::TOOL_TYPE_UNSPECIFIED:
-    default:
-        return MT_TOOL_FINGER;
-    }
 }
 
 struct ButtonMapping {
@@ -216,8 +142,7 @@ void AppendPointerUp(int32_t pointer_id, SlotRegistry& slot_registry, EvDevEvent
     }
     const int slot = slot_registry.AcquireSlot(pointer_id);
     if (slot >= 0) {
-        events.push_back({EV_ABS, ABS_MT_SLOT, static_cast<uint32_t>(slot)});
-        events.push_back({EV_ABS, ABS_MT_TRACKING_ID, static_cast<uint32_t>(kMtsPointerUp)});
+        AppendContactUp(slot, events);
     }
     slot_registry.ReleaseSlot(pointer_id);
 }
@@ -235,39 +160,7 @@ void AppendPointerDownOrMove(const PointerEvent::Pointer& p, PointerAction actio
     if (slot < 0) {
         return;
     }
-
-    events.push_back({EV_ABS, ABS_MT_SLOT, static_cast<uint32_t>(slot)});
-    if (is_new_touch) {
-        events.push_back({EV_ABS, ABS_MT_TRACKING_ID, static_cast<uint32_t>(slot)});
-    }
-    events.push_back({EV_ABS, ABS_MT_POSITION_X, NormalizeToEvAbs(p.x())});
-    events.push_back({EV_ABS, ABS_MT_POSITION_Y, NormalizeToEvAbs(p.y())});
-    events.push_back({EV_ABS, ABS_MT_TOOL_TYPE, MapToolType(p.tool_type())});
-
-    const bool is_hover = (action == PointerAction::POINTER_ACTION_HOVER_MOVE ||
-                           action == PointerAction::POINTER_ACTION_HOVER_ENTER);
-    const float pressure =
-            is_hover ? 0.0F : ((p.has_pressure() && p.pressure() > 0.0F) ? p.pressure() : 1.0F);
-    events.push_back({EV_ABS, ABS_MT_PRESSURE, NormalizeToEvAbs(pressure, kMtsPressureMax)});
-
-    const uint32_t touch_major = p.size() > 0.0F ? NormalizeToEvAbs(p.size()) : kDefaultTouchMajor;
-    events.push_back({EV_ABS, ABS_MT_TOUCH_MAJOR, touch_major});
-    events.push_back({EV_ABS, ABS_MT_TOUCH_MINOR, touch_major});
-
-    if (p.orientation_radians() != 0.0F) {
-        events.push_back(
-                {EV_ABS, ABS_MT_ORIENTATION, RadiansToEvdevOrientation(p.orientation_radians())});
-    }
-    // Linux evdev ABS_TILT_X/Y are global (non-slotted) digitizer tablet axes rather
-    // than per-slot Multi-Touch Protocol B properties. We only emit tilt when the
-    // transducer is an active pen (stylus/eraser) physically tilted relative to the
-    // screen normal, decomposing 3D spherical tilt into 2D planar X/Y degrees.
-    if (p.tilt_radians() > 0.0F && (p.tool_type() == ToolType::TOOL_TYPE_STYLUS ||
-                                    p.tool_type() == ToolType::TOOL_TYPE_ERASER)) {
-        const auto tilt = RadiansToEvdevTilt(p.tilt_radians(), p.orientation_radians());
-        events.push_back({EV_ABS, ABS_TILT_X, tilt.tilt_x});
-        events.push_back({EV_ABS, ABS_TILT_Y, tilt.tilt_y});
-    }
+    AppendContactDownOrMove(p, action, slot, is_new_touch, events);
 }
 
 /**

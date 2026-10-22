@@ -112,6 +112,7 @@ cc_library(
     deps = [
         ":ev_dev_event",
         ":slot_registry",
+        ":touch_encoding",
         "//emulator/plugin/display",
         "//emulator/plugin/grpc/keyboard",
         "@abseil-cpp//absl/container:flat_hash_set",
@@ -163,12 +164,38 @@ cc_test(
     ],
 )
 
+cc_library(
+    name = "touch_encoding",
+    srcs = ["touch_encoding.cc"],
+    hdrs = ["touch_encoding.h"],
+    deps = [
+        ":ev_dev_event",
+        ":slot_registry",
+        "@aemu//protos/services_v2:input_service_cc_proto",
+        "@qemu//:qemu-headers-exported",
+    ],
+)
+
+cc_test(
+    name = "touch_encoding_test",
+    size = "small",
+    srcs = ["touch_encoding_test.cc"],
+    deps = [
+        ":slot_registry",
+        ":touch_encoding",
+        "//emulator/libs/test:googletest_main",
+        "@googletest//:gtest",
+        "@qemu//:qemu-headers-exported",
+    ],
+)
+
 clang_tidy_test(
     name = "tidy",
     targets = [
         ":contact_table",
         ":event_sender",
         ":input_session",
+        ":touch_encoding",
     ],
     tidy_config_file = "//:clang_tidy_config",
 )
