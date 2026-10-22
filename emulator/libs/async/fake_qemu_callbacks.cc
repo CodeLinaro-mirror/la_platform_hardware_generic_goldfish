@@ -34,6 +34,7 @@ extern "C" {
 // clang-format off
 // IWYU pragma: begin_keep
 #include "qemu/osdep.h"
+#include "migration/snapshot.h"
 #include "qemu/main-loop.h"
 #include "qemu/timer.h"
 
@@ -70,6 +71,11 @@ struct QEMUBH {
     bool scheduled;  // True if the BH is currently scheduled to run.
 };
 
+struct QemuSnapshotProgressEntry {
+    QemuSnapshotProgressHandler* cb;
+    void* opaque;
+};
+
 namespace {
 
 // A recursive mutex to protect all access to the global fake QEMU state.
@@ -85,6 +91,8 @@ std::list<QEMUTimer*> sTimers;
 std::list<QEMUBH*> sBottomHalves;
 // A vector of BHs that are scheduled to run in the current event loop tick.
 std::vector<QEMUBH*> sScheduledBHs;
+// Registered snapshot progress handlers.
+std::list<QemuSnapshotProgressEntry*> sSnapshotProgressHandlers;
 
 // --- I/O Loop State ---
 struct FdHandler {
@@ -198,6 +206,19 @@ void fake_qemu_advance_ms(int64_t ms) {
     }
 }
 
+void fake_qemu_fire_snapshot_progress(const QemuSnapshotProgress* progress) {
+    std::list<QemuSnapshotProgressEntry*> handlers;
+    {
+        std::lock_guard<std::recursive_mutex> lock(sMutex);
+        handlers = sSnapshotProgressHandlers;
+    }
+    for (auto* entry : handlers) {
+        if (entry && entry->cb) {
+            entry->cb(entry->opaque, progress);
+        }
+    }
+}
+
 void fake_qemu_reset() {
     std::lock_guard<std::recursive_mutex> lock(sMutex);
     fake_qemu_advance_ms(1);
@@ -214,6 +235,10 @@ void fake_qemu_reset() {
     sBottomHalves.clear();
     sScheduledBHs.clear();
     sFdHandlers.clear();
+    for (auto* entry : sSnapshotProgressHandlers) {
+        delete entry;
+    }
+    sSnapshotProgressHandlers.clear();
 }
 
 // --- Fake QEMU API Implementations ---
@@ -296,5 +321,22 @@ bool bql_locked() {
 void bql_lock_impl(const char* file, int line) {}
 
 void bql_unlock() {}
+
+QemuSnapshotProgressEntry* add_snapshot_progress_handler(QemuSnapshotProgressHandler* cb,
+                                                         void* opaque) {
+    std::lock_guard<std::recursive_mutex> lock(sMutex);
+    auto* entry = new QemuSnapshotProgressEntry{cb, opaque};
+    sSnapshotProgressHandlers.push_back(entry);
+    return entry;
+}
+
+void del_snapshot_progress_handler(QemuSnapshotProgressEntry* entry) {
+    std::lock_guard<std::recursive_mutex> lock(sMutex);
+    if (!entry) {
+        return;
+    }
+    sSnapshotProgressHandlers.remove(entry);
+    delete entry;
+}
 
 }  // extern "C"

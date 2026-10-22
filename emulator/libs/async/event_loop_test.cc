@@ -52,6 +52,7 @@ class EventLoopTest : public ::testing::TestWithParam<std::string> {
     void shutdown() {
         if (loop) {
             if (loop->GetState() == LooperStatusEvent::State::kRunning ||
+                loop->GetState() == LooperStatusEvent::State::kPaused ||
                 (mLoopType == "qemu" &&
                  loop->GetState() == LooperStatusEvent::State::kNotStarted)) {
                 auto f = loop->Shutdown();
@@ -1259,6 +1260,93 @@ TEST_P(EventLoopTest, CancelTimerOnLoopThreadBeforeDrainDoesNotFire) {
     }
 
     EXPECT_FALSE(task_executed.load());
+}
+
+TEST_P(EventLoopTest, QemuSnapshotProgressPausesAndResumesRunningLoop) {
+    if (mLoopType != "qemu") {
+        GTEST_SKIP() << "This test is specific to QemuEventLoop.";
+    }
+    std::vector<LooperStatusEvent::State> states;
+    auto subscription = android::base::eventing::MakeScopedCallback(
+            *loop, [&](const LooperStatusEvent& event) { states.push_back(event.state); });
+
+    EXPECT_EQ(loop->GetState(), LooperStatusEvent::State::kNotStarted);
+
+    // Drain the initial BH so the loop transitions to kRunning.
+    fake_qemu_advance_ms(1);
+    EXPECT_EQ(loop->GetState(), LooperStatusEvent::State::kRunning);
+
+    QemuSnapshotProgress progress{};
+    progress.operation = QEMU_SNAPSHOT_OP_SAVE;
+    progress.phase = QEMU_SNAPSHOT_PHASE_PREPARING;
+    fake_qemu_fire_snapshot_progress(&progress);
+    EXPECT_EQ(loop->GetState(), LooperStatusEvent::State::kPaused);
+
+    progress.phase = QEMU_SNAPSHOT_PHASE_TRANSFERRING;
+    fake_qemu_fire_snapshot_progress(&progress);
+    EXPECT_EQ(loop->GetState(), LooperStatusEvent::State::kPaused);
+
+    progress.phase = QEMU_SNAPSHOT_PHASE_COMPLETED;
+    fake_qemu_fire_snapshot_progress(&progress);
+    EXPECT_EQ(loop->GetState(), LooperStatusEvent::State::kRunning);
+
+    // Failed snapshots must also resume the loop back to kRunning.
+    progress.operation = QEMU_SNAPSHOT_OP_LOAD;
+    progress.phase = QEMU_SNAPSHOT_PHASE_PREPARING;
+    fake_qemu_fire_snapshot_progress(&progress);
+    EXPECT_EQ(loop->GetState(), LooperStatusEvent::State::kPaused);
+
+    progress.phase = QEMU_SNAPSHOT_PHASE_FAILED;
+    fake_qemu_fire_snapshot_progress(&progress);
+    EXPECT_EQ(loop->GetState(), LooperStatusEvent::State::kRunning);
+
+    EXPECT_THAT(states, ::testing::ElementsAre(LooperStatusEvent::State::kRunning,
+                                               LooperStatusEvent::State::kPaused,
+                                               LooperStatusEvent::State::kRunning,
+                                               LooperStatusEvent::State::kPaused,
+                                               LooperStatusEvent::State::kRunning));
+}
+
+TEST_P(EventLoopTest, QemuSnapshotBeforeInitialDrainPreservesNotStartedAndPausedStates) {
+    if (mLoopType != "qemu") {
+        GTEST_SKIP() << "This test is specific to QemuEventLoop.";
+    }
+    EXPECT_EQ(loop->GetState(), LooperStatusEvent::State::kNotStarted);
+
+    // A startup -loadvm that starts and finishes before the main loop ever drains BHs
+    // must keep the loop in kNotStarted until the first BH actually drains.
+    QemuSnapshotProgress progress{};
+    progress.operation = QEMU_SNAPSHOT_OP_LOAD;
+    progress.phase = QEMU_SNAPSHOT_PHASE_PREPARING;
+    fake_qemu_fire_snapshot_progress(&progress);
+    EXPECT_EQ(loop->GetState(), LooperStatusEvent::State::kNotStarted);
+
+    progress.phase = QEMU_SNAPSHOT_PHASE_COMPLETED;
+    fake_qemu_fire_snapshot_progress(&progress);
+    EXPECT_EQ(loop->GetState(), LooperStatusEvent::State::kNotStarted);
+
+    // If another snapshot begins before the first BH drain and a BH drains mid-snapshot,
+    // the initial drain transitions to kPaused (not kRunning) until the snapshot finishes.
+    progress.phase = QEMU_SNAPSHOT_PHASE_PREPARING;
+    fake_qemu_fire_snapshot_progress(&progress);
+    EXPECT_EQ(loop->GetState(), LooperStatusEvent::State::kNotStarted);
+
+    fake_qemu_advance_ms(1);
+    EXPECT_EQ(loop->GetState(), LooperStatusEvent::State::kPaused);
+
+    // Cancelling a timer while in kPaused must not deadlock.
+    std::atomic<bool> timer_executed = false;
+    auto timer = loop->CreateTimer([&]() {
+        timer_executed = true;
+        return true;
+    });
+    timer->Schedule(absl::Milliseconds(10), absl::ZeroDuration());
+    timer->Cancel();
+
+    progress.phase = QEMU_SNAPSHOT_PHASE_COMPLETED;
+    fake_qemu_fire_snapshot_progress(&progress);
+    EXPECT_EQ(loop->GetState(), LooperStatusEvent::State::kRunning);
+    EXPECT_FALSE(timer_executed.load());
 }
 
 }  // namespace goldfish::async
