@@ -14,6 +14,7 @@
 #include "disk_drive.h"
 #include "fake_emulator.h"
 #include "goldfish/file/file.h"
+#include "goldfish/file/storage_capacity.h"
 #include "goldfish/fsimage/exfat.h"
 #include "goldfish/fsimage/qcow2.h"
 #include "mock_avd.h"
@@ -24,6 +25,7 @@ namespace {
 
 using ::absl_testing::IsOk;
 using ::absl_testing::StatusIs;
+using base::operator""_MiB;
 using ::testing::_;
 using ::testing::IsFalse;
 using ::testing::IsTrue;
@@ -233,7 +235,7 @@ TEST_F(ConfigureDrivesTest, AddDrivesUserdataFromDirectory) {
 TEST_F(ConfigureDrivesTest, AddDrivesSdCardCreatesEmuImageWhenMissing) {
     FakeEmulator emu;
     hw_.hw_sdCard = true;
-    hw_.hw_sd_card_size = 64_MiB;
+    hw_.sdcard_size = 64_MiB;
     ConfigureMockAvd(emu.mock_avd());
 
     const fs::path sdcard_emu_path = user_dir_ / "sdcard.emu.img";
@@ -323,7 +325,7 @@ TEST_F(ConfigureDrivesTest, AddDrivesSdCardExternalPath) {
 
     FakeEmulator emu;
     hw_.hw_sdCard = true;
-    hw_.hw_sdCard_path = external_sdcard_path.string();
+    hw_.sdcard_path = external_sdcard_path.string();
     ConfigureMockAvd(emu.mock_avd());
 
     MockDeviceContainer mock_container;
@@ -348,7 +350,7 @@ TEST_F(ConfigureDrivesTest, AddDrivesSdCardExternalPath) {
 TEST_F(ConfigureDrivesTest, AddDrivesSdCardExternalPathMissingReturnsNotFound) {
     FakeEmulator emu;
     hw_.hw_sdCard = true;
-    hw_.hw_sdCard_path = (launcher_path_ / "nonexistent_sdcard.img").string();
+    hw_.sdcard_path = (launcher_path_ / "nonexistent_sdcard.img").string();
     ConfigureMockAvd(emu.mock_avd());
 
     MockDeviceContainer mock_container;
