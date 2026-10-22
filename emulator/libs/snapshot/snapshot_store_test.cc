@@ -56,8 +56,9 @@ TEST(MakeSnapshotVersionTest, LayoutAndHistory) {
     EXPECT_EQ(MakeSnapshotVersion(1) >> 16, 1);
     EXPECT_GT(MakeSnapshotVersion(1), 0);
     EXPECT_GT(MakeSnapshotVersion((1 << 15) - 1), 0) << "bit 31 must stay clear";
-    // History: 2 -> 3 for the snapshots/<name>/renderer layout (b/574891578).
-    EXPECT_EQ(kSnapshotVersionBase, 3);
+    // History: 2 -> 3 for the snapshots/<name>/renderer layout (b/574891578),
+    // 3 -> 4 for the VM state moving to snapshots.qcow2 (b/576262656).
+    EXPECT_EQ(kSnapshotVersionBase, 4);
 }
 
 TEST(IsValidSnapshotNameTest, AcceptsPlainNames) {
@@ -100,6 +101,10 @@ TEST(ValidateSnapshotNameTest, ExplainsTheRules) {
 TEST_F(SnapshotStoreTest, PathsAreNestedUnderSnapshotsRoot) {
     EXPECT_EQ(store_.Root(), temp_dir_.Path() / "snapshots");
     EXPECT_EQ(store_.Dir("foo"), temp_dir_.Path() / "snapshots" / "foo");
+}
+
+TEST_F(SnapshotStoreTest, VmStateImageIsNextToSnapshotsRoot) {
+    EXPECT_EQ(store_.VmStateImage(), temp_dir_.Path() / "snapshots.qcow2");
 }
 
 TEST_F(SnapshotStoreTest, ReadVersionNotFoundWithoutVersionFile) {
