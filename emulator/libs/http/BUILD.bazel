@@ -14,6 +14,7 @@
 
 load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_test")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+load("//emulator/tools:cc_binary_with_manifest.bzl", "cc_binary_with_manifest")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -163,10 +164,24 @@ cc_test(
     ],
 )
 
+cc_binary_with_manifest(
+    name = "http_perf",
+    srcs = ["test/http_perf.cc"],
+    tags = ["benchmark"],
+    deps = [
+        ":http_messages",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/hash",
+        "@abseil-cpp//absl/strings",
+        "@google_benchmark//:benchmark",
+    ],
+)
+
 clang_tidy_test(
     name = "tidy",
     targets = [
         ":http_messages",
+        ":http_perf",
         ":http_router",
         ":http_session",
         ":web_server",

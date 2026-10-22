@@ -285,4 +285,46 @@ TEST(HttpMessageTest, HeterogeneousHeaderLookup) {
     EXPECT_EQ(req.GetHeader(ct_upper), "application/json");
 }
 
+TEST(HttpMessageTest, LongHeaderNameChunkedCaseInsensitiveHashing) {
+    const std::string lower_key =
+            "x-custom-very-long-extension-header-name-exceeding-sixty-four-bytes-for-chunk-hash-"
+            "testing";
+    const std::string mixed_key =
+            "X-Custom-Very-Long-Extension-Header-Name-Exceeding-Sixty-Four-Bytes-For-Chunk-Hash-"
+            "Testing";
+    ASSERT_GT(lower_key.size(), 64u);
+
+    HttpRequest req;
+    HttpRequestTestPeer::SetRequest(&req, HttpMethod::kGet, "/test",
+                                    {{"a", "len1"},
+                                     {"ab", "len2"},
+                                     {"abc", "len3"},
+                                     {"host", "len4"},
+                                     {"range", "len5"},
+                                     {"origin", "len6"},
+                                     {"referer", "len7"},
+                                     {"location", "len8"},
+                                     {lower_key, "chunk_ok"}},
+                                    "", true);
+
+    EXPECT_EQ(req.GetHeader("A"), "len1");
+    EXPECT_EQ(req.GetHeader("aB"), "len2");
+    EXPECT_EQ(req.GetHeader("AbC"), "len3");
+    EXPECT_EQ(req.GetHeader("HoSt"), "len4");
+    EXPECT_EQ(req.GetHeader("RaNgE"), "len5");
+    EXPECT_EQ(req.GetHeader("OrIgIn"), "len6");
+    EXPECT_EQ(req.GetHeader("ReFeReR"), "len7");
+    EXPECT_EQ(req.GetHeader("LoCaTiOn"), "len8");
+    EXPECT_TRUE(req.HasHeader(lower_key));
+    EXPECT_TRUE(req.HasHeader(mixed_key));
+    EXPECT_EQ(req.GetHeader(mixed_key), "chunk_ok");
+
+    // Verify ASCII boundary symbols ('@'=0x40, '['=0x5B) are not conflated with '`'=0x60 or '{'=0x7B
+    CaseInsensitiveStringHash hasher;
+    CaseInsensitiveStringEq eq;
+    EXPECT_FALSE(eq("a@b[c", "a`b{c"));
+    EXPECT_TRUE(eq("Az09@[_", "aZ09@[_"));
+    EXPECT_EQ(hasher("Az09@[_"), hasher("aZ09@[_"));
+}
+
 }  // namespace goldfish::http
