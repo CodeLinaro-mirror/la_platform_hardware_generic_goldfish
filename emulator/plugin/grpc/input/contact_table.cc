@@ -28,7 +28,8 @@ constexpr int kNonHumanSlotLimit = kTouchDeviceSlots - kReservedHumanSlots;
 
 }  // namespace
 
-absl::StatusOr<int> ContactTable::Acquire(ContactKey key, TouchDeviceId device, bool human) {
+absl::StatusOr<int> ContactTable::Acquire(ContactKey key, TouchDeviceId device, int32_t display_id,
+                                          bool human) {
     if (auto it = contacts_.find(key); it != contacts_.end()) {
         return it->second.contact.slot;
     }
@@ -57,7 +58,7 @@ absl::StatusOr<int> ContactTable::Acquire(ContactKey key, TouchDeviceId device, 
     if (!human) {
         ++slots.non_human;
     }
-    contacts_.emplace(key, HeldContact{{device, slot}, human});
+    contacts_.emplace(key, HeldContact{{device, slot, display_id}, human});
     return slot;
 }
 

@@ -60,6 +60,12 @@ struct ContactKey {
 struct Contact {
     TouchDeviceId device;
     int slot;
+    /**
+     * @brief The display the client requested when the contact was created,
+     * which can differ from the device it resolved to (a foldable may route
+     * display 0 to another device).
+     */
+    int32_t display_id;
 
     friend bool operator==(const Contact&, const Contact&) = default;
 };
@@ -74,7 +80,8 @@ using ReleasedContacts = absl::InlinedVector<std::pair<ContactKey, Contact>, kTo
  * released; callers use the slot number as the evdev tracking ID.
  *
  * ### Invariants:
- * - Each held `ContactKey` maps to exactly one `(device, slot)`.
+ * - Each held `ContactKey` maps to exactly one `(device, slot)` and keeps the
+ *   display it was acquired for.
  * - Each `(device, slot)` has at most one owner.
  * - Contacts of non-human sessions on a device never exceed
  *   `kTouchDeviceSlots - kReservedHumanSlots`.
@@ -92,12 +99,15 @@ class ContactTable {
      * @param key The session pointer that wants a slot.
      * @param device Device to allocate on; ignored if `key` already holds a
      *     contact, which stays on the device it was first acquired on.
+     * @param display_id The display the client requested, which `device` was
+     *     resolved from; ignored, like `device`, if `key` holds a contact.
      * @param human Whether the session is driven by a human; only human
      *     sessions may use the reserved slots.
      * @return The slot, or `ResourceExhaustedError` (with no state change) if
      *     no slot is available to the caller.
      */
-    absl::StatusOr<int> Acquire(ContactKey key, TouchDeviceId device, bool human);
+    absl::StatusOr<int> Acquire(ContactKey key, TouchDeviceId device, int32_t display_id,
+                                bool human);
 
     std::optional<Contact> Find(const ContactKey& key) const;
     bool IsHeld(const ContactKey& key) const { return contacts_.contains(key); }

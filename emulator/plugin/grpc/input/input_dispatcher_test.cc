@@ -16,8 +16,11 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <array>
+#include <atomic>
 #include <cstdint>
+#include <iterator>
 #include <memory>
 #include <optional>
 #include <string>
@@ -26,12 +29,17 @@
 #include <utility>
 #include <vector>
 
+#include "absl/base/thread_annotations.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/strings/str_cat.h"
+#include "absl/synchronization/mutex.h"
+#include "absl/synchronization/notification.h"
+#include "absl/time/time.h"
 #include "absl/types/span.h"
 
+#include "android/base/clock.h"
 #include "goldfish/async/testing/test_event_loop.h"
 #include "keyboard_sink.h"
 #include "standard-headers/linux/input-event-codes.h"
@@ -41,7 +49,10 @@ namespace {
 
 using ::absl_testing::IsOk;
 using ::absl_testing::StatusIs;
+using ::android::base::ClockType;
 using ::android::emulation::control::EvDevEvent;
+using ::android::emulation::v2::InputActivity;
+using ::android::emulation::v2::InputEvent;
 using ::android::emulation::v2::KeyAction;
 using ::android::emulation::v2::KeyEvent;
 using ::android::emulation::v2::PointerAction;
@@ -248,8 +259,109 @@ constexpr PointerAction kDown = PointerAction::POINTER_ACTION_DOWN;
 constexpr PointerAction kMove = PointerAction::POINTER_ACTION_MOVE;
 constexpr PointerAction kUp = PointerAction::POINTER_ACTION_UP;
 
+// Advances one microsecond on every read, so each activity gets a distinct
+// timestamp.
+class TickingClock : public ::android::base::IClock {
+  public:
+    absl::Time Now(ClockType type) const override {
+        EXPECT_EQ(type, ClockType::kRealtime);
+        return absl::UnixEpoch() + absl::Microseconds(ticks_.fetch_add(1) + 1);
+    }
+
+  private:
+    mutable std::atomic<int64_t> ticks_{0};
+};
+
+// The text the tests type to mark the end of the activities they expect.
+constexpr std::string_view kSentinel = "<sentinel>";
+
+bool IsSentinel(const InputActivity& activity) {
+    return activity.event().has_text() && activity.event().text().text() == kSentinel;
+}
+
+struct ObservedActivity {
+    InputActivity activity;
+    std::thread::id thread;
+    bool on_loop_thread;
+};
+
+// Records each activity a subscriber receives and the thread it arrived on.
+class ActivityRecorder {
+  public:
+    explicit ActivityRecorder(const EventLoop& loop) : loop_(loop) {}
+
+    void Record(const InputActivity& activity) {
+        absl::MutexLock observed_lock(observed_mutex_);
+        observed_.push_back({activity, std::this_thread::get_id(), loop_.IsOnLoopThread()});
+    }
+
+    // Waits for the sentinel. @return The activities before it, which are
+    // forgotten together with the sentinel.
+    std::vector<ObservedActivity> TakeUntilSentinel() {
+        absl::MutexLock observed_lock(observed_mutex_);
+        observed_mutex_.Await(absl::Condition(this, &ActivityRecorder::HasSentinel));
+        auto sentinel = std::ranges::find_if(observed_, [](const ObservedActivity& observed) {
+            return IsSentinel(observed.activity);
+        });
+        std::vector<ObservedActivity> before(std::make_move_iterator(observed_.begin()),
+                                             std::make_move_iterator(sentinel));
+        observed_.erase(observed_.begin(), sentinel + 1);
+        return before;
+    }
+
+    // @return Everything recorded so far, without waiting.
+    std::vector<ObservedActivity> Observed() const {
+        absl::MutexLock observed_lock(observed_mutex_);
+        return observed_;
+    }
+
+  private:
+    bool HasSentinel() const ABSL_EXCLUSIVE_LOCKS_REQUIRED(observed_mutex_) {
+        return std::ranges::any_of(observed_, [](const ObservedActivity& observed) {
+            return IsSentinel(observed.activity);
+        });
+    }
+
+    const EventLoop& loop_;
+    mutable absl::Mutex observed_mutex_;
+    std::vector<ObservedActivity> observed_ ABSL_GUARDED_BY(observed_mutex_);
+};
+
+// Describes an activity as "src<id> [synthesized ]<event>".
+std::string Describe(const InputActivity& activity) {
+    const InputEvent& event = activity.event();
+    std::string text = absl::StrCat("src", event.input_source_id(),
+                                    activity.synthesized() ? " synthesized " : " ");
+    switch (event.event_case()) {
+    case InputEvent::kPointer:
+        absl::StrAppend(&text, PointerAction_Name(event.pointer().action()), " display ",
+                        event.pointer().display_id(), " ids");
+        for (const PointerEvent::Pointer& pointer : event.pointer().pointers()) {
+            absl::StrAppend(&text, " ", pointer.pointer_id());
+        }
+        break;
+    case InputEvent::kKey:
+        absl::StrAppend(&text, KeyAction_Name(event.key().action()), " ", event.key().evdev_code());
+        break;
+    case InputEvent::kText:
+        absl::StrAppend(&text, "text ", event.text().text());
+        break;
+    case InputEvent::kAxis:
+    case InputEvent::EVENT_NOT_SET:
+        absl::StrAppend(&text, "unexpected event");
+        break;
+    }
+    return text;
+}
+
 class InputDispatcherTest : public ::testing::Test {
   protected:
+    InputDispatcherTest() {
+        // Never removed: the dispatcher's event source drops it on destruction.
+        dispatcher_.activity().AddCallback(
+                [this](const InputActivity& activity) { recorder_.Record(activity); });
+    }
+
     // Dispatches `event` and runs the loop. @return The completion status.
     absl::Status Dispatch(InputSessionId session, PointerEvent event) {
         std::optional<absl::Status> result;
@@ -280,6 +392,28 @@ class InputDispatcherTest : public ::testing::Test {
 
     InputSessionId Agent() { return dispatcher_.OpenSession({}); }
     InputSessionId Human() { return dispatcher_.OpenSession({.human = true}); }
+    InputSessionId Source(int32_t source_id) {
+        return dispatcher_.OpenSession({.source_id = source_id});
+    }
+
+    // Runs everything posted so far, then waits until its activity is
+    // delivered. @return The activities delivered since the last call.
+    std::vector<ObservedActivity> TakeActivities() {
+        const InputSessionId sentinel = dispatcher_.OpenSession({});
+        dispatcher_.DispatchText(sentinel, std::string(kSentinel));
+        dispatcher_.CloseSession(sentinel);
+        loop_->RunAll();
+        return recorder_.TakeUntilSentinel();
+    }
+
+    // As TakeActivities(), but described.
+    std::vector<std::string> Activities() {
+        std::vector<std::string> described;
+        for (const ObservedActivity& observed : TakeActivities()) {
+            described.push_back(Describe(observed.activity));
+        }
+        return described;
+    }
 
     std::unique_ptr<TestEventLoop> loop_ = TestEventLoop::Create();
     SinkLog log_;
@@ -287,7 +421,9 @@ class InputDispatcherTest : public ::testing::Test {
     FakeSink& inner_ = devices_.inner;
     FakeSink& outer_ = devices_.outer;
     FakeKeyboard keyboard_{*loop_, log_};
-    InputDispatcher dispatcher_{*loop_, devices_, keyboard_, ResolveEvdevOnly};
+    TickingClock clock_;
+    ActivityRecorder recorder_{*loop_};
+    InputDispatcher dispatcher_{*loop_, devices_, keyboard_, ResolveEvdevOnly, &clock_};
 };
 
 TEST_F(InputDispatcherTest, SessionIdsStartAtOneAndAreUnique) {
@@ -673,6 +809,229 @@ TEST_F(InputDispatcherTest, KeysTextAndTouchesAreWrittenInPostingOrderOnLoop) {
                 ElementsAre(Down(KEY_LEFTSHIFT), "touch inner", "text x", "touch outer",
                             Up(KEY_LEFTSHIFT), Down(KEY_A), Up(KEY_A), "touch inner"));
     EXPECT_THAT(log_.on_loop_thread, Each(true));
+}
+
+TEST_F(InputDispatcherTest, PointerActivityHasSourceIdAndRequestedDisplay) {
+    const InputSessionId a = Source(7);
+    devices_.remap[0] = kOuter;  // A foldable routes display 0 to the outer device.
+    ASSERT_THAT(Dispatch(a, Touch(kDown, {{0, 0.25F, 0.25F}, {1}})), IsOk());
+    ASSERT_THAT(Dispatch(a, Touch(kMove, {{0}, {1}})), IsOk());
+    ASSERT_THAT(Dispatch(a, Touch(kUp, {{0}})), IsOk());
+    ASSERT_THAT(Dispatch(a, Touch(kUp, {{1}})), IsOk());
+    ASSERT_THAT(outer_.reports, SizeIs(4));
+
+    const std::vector<ObservedActivity> observed = TakeActivities();
+    ASSERT_THAT(observed, SizeIs(4));
+    EXPECT_EQ(observed[0].activity.event().pointer().pointers(0).x(), 0.25F);
+    std::vector<std::string> described;
+    for (const ObservedActivity& o : observed) {
+        described.push_back(Describe(o.activity));
+    }
+    EXPECT_THAT(described, ElementsAre("src7 POINTER_ACTION_DOWN display 0 ids 0 1",
+                                       "src7 POINTER_ACTION_MOVE display 0 ids 0 1",
+                                       "src7 POINTER_ACTION_UP display 0 ids 0",
+                                       "src7 POINTER_ACTION_UP display 0 ids 1"));
+}
+
+TEST_F(InputDispatcherTest, ActivityListsOnlyPointersThatTookEffect) {
+    const InputSessionId a = Source(1);
+    std::vector<P> pointers;
+    for (int i = 0; i < kTouchDeviceSlots - kReservedHumanSlots - 1; ++i) {
+        pointers.push_back({i});
+    }
+    ASSERT_THAT(Dispatch(a, Touch(kDown, pointers)), IsOk());
+    Activities();
+
+    // Pointer 0 moves, 8 takes the last slot, 9 is exhausted and 10 is unheld.
+    EXPECT_THAT(Dispatch(a, Touch(kDown, {{0}, {8}, {9}})),
+                StatusIs(absl::StatusCode::kResourceExhausted));
+    ASSERT_THAT(Dispatch(a, Touch(kMove, {{0}, {10}})), IsOk());
+    // Nothing takes effect.
+    EXPECT_THAT(Dispatch(Source(2), Touch(kDown, {{0}})),
+                StatusIs(absl::StatusCode::kResourceExhausted));
+    ASSERT_THAT(Dispatch(a, Touch(kMove, {{10}})), IsOk());
+    ASSERT_THAT(Dispatch(a, Touch(kUp, {{11}})), IsOk());
+
+    EXPECT_THAT(Activities(), ElementsAre("src1 POINTER_ACTION_DOWN display 0 ids 0 8",
+                                          "src1 POINTER_ACTION_MOVE display 0 ids 0"));
+}
+
+TEST_F(InputDispatcherTest, PointerlessReleaseIsReportedAsCancelOfReleasedIds) {
+    const InputSessionId a = Source(3);
+    ASSERT_THAT(Dispatch(a, Touch(kDown, {{0}, {1}})), IsOk());
+    ASSERT_THAT(Dispatch(a, Touch(kDown, {{2}}, 1)), IsOk());
+    Activities();
+
+    ASSERT_THAT(Dispatch(a, Touch(PointerAction::POINTER_ACTION_HOVER_EXIT, {})), IsOk());
+    ASSERT_THAT(Dispatch(a, Touch(PointerAction::POINTER_ACTION_CANCEL, {})), IsOk());
+
+    EXPECT_THAT(Activities(), ElementsAre("src3 POINTER_ACTION_CANCEL display 0 ids 0 1"));
+}
+
+TEST_F(InputDispatcherTest, EverySessionsKeyDownAndUpIsReported) {
+    const InputSessionId a = Source(1);
+    const InputSessionId b = Source(2);
+    ASSERT_THAT(Dispatch(a, Key(kKeyDown, KEY_LEFTSHIFT)), IsOk());
+    ASSERT_THAT(Dispatch(b, Key(kKeyDown, KEY_LEFTSHIFT)), IsOk());
+    // The guest gets no UP: `b` still holds the key.
+    ASSERT_THAT(Dispatch(a, Key(kKeyUp, KEY_LEFTSHIFT)), IsOk());
+    ASSERT_THAT(Dispatch(b, Key(kKeyUp, KEY_LEFTSHIFT)), IsOk());
+    ASSERT_THAT(Dispatch(a, Key(kKeyPress, KEY_A)), IsOk());
+
+    EXPECT_THAT(log_.writes, ElementsAre(Down(KEY_LEFTSHIFT), Down(KEY_LEFTSHIFT),
+                                         Up(KEY_LEFTSHIFT), Down(KEY_A), Up(KEY_A)));
+    EXPECT_THAT(Activities(), ElementsAre(absl::StrCat("src1 KEY_ACTION_DOWN ", KEY_LEFTSHIFT),
+                                          absl::StrCat("src2 KEY_ACTION_DOWN ", KEY_LEFTSHIFT),
+                                          absl::StrCat("src1 KEY_ACTION_UP ", KEY_LEFTSHIFT),
+                                          absl::StrCat("src2 KEY_ACTION_UP ", KEY_LEFTSHIFT),
+                                          absl::StrCat("src1 KEY_ACTION_PRESS ", KEY_A)));
+}
+
+TEST_F(InputDispatcherTest, StrayUpAndRejectedEventsAreNotReported) {
+    const InputSessionId a = Source(1);
+    ASSERT_THAT(Dispatch(a, Key(kKeyUp, KEY_A)), IsOk());
+    EXPECT_THAT(Dispatch(a, KeyEvent()), StatusIs(absl::StatusCode::kInvalidArgument));
+    EXPECT_THAT(Dispatch(99, Key(kKeyDown, KEY_A)),
+                StatusIs(absl::StatusCode::kFailedPrecondition));
+    EXPECT_THAT(Dispatch(99, Touch(kDown, {{0}})), StatusIs(absl::StatusCode::kFailedPrecondition));
+    ASSERT_THAT(Type(a, ""), IsOk());
+
+    EXPECT_THAT(Activities(), IsEmpty());
+}
+
+TEST_F(InputDispatcherTest, TextIsReported) {
+    ASSERT_THAT(Type(Source(5), "こんにちは"), IsOk());
+    EXPECT_THAT(Activities(), ElementsAre("src5 text こんにちは"));
+}
+
+TEST_F(InputDispatcherTest, CloseSessionReportsSynthesizedReleases) {
+    const InputSessionId a = Source(4);
+    const InputSessionId b = Source(5);
+    ASSERT_THAT(Dispatch(a, Touch(kDown, {{0}, {1}})), IsOk());
+    ASSERT_THAT(Dispatch(a, Touch(kDown, {{2}}, 1)), IsOk());
+    ASSERT_THAT(Dispatch(a, Key(kKeyDown, KEY_B)), IsOk());
+    ASSERT_THAT(Dispatch(a, Key(kKeyDown, KEY_A)), IsOk());
+    ASSERT_THAT(Dispatch(b, Key(kKeyDown, KEY_A)), IsOk());
+    Activities();
+
+    dispatcher_.CloseSession(a);
+
+    static_assert(KEY_A < KEY_B);
+    EXPECT_THAT(Activities(),
+                ElementsAre("src4 synthesized POINTER_ACTION_CANCEL display 0 ids 0 1",
+                            "src4 synthesized POINTER_ACTION_CANCEL display 1 ids 2",
+                            absl::StrCat("src4 synthesized KEY_ACTION_UP ", KEY_A),
+                            absl::StrCat("src4 synthesized KEY_ACTION_UP ", KEY_B)));
+}
+
+TEST_F(InputDispatcherTest, SynthesizedCancelReportsRequestedDisplay) {
+    const InputSessionId a = Source(6);
+    devices_.remap[0] = kOuter;  // A foldable routes display 0 to the outer device.
+    ASSERT_THAT(Dispatch(a, Touch(kDown, {{0}})), IsOk());
+    Activities();
+
+    dispatcher_.CloseSession(a);
+
+    EXPECT_THAT(Activities(),
+                ElementsAre("src6 synthesized POINTER_ACTION_CANCEL display 0 ids 0"));
+    EXPECT_THAT(outer_.guest.Active(), IsEmpty());
+}
+
+TEST_F(InputDispatcherTest, SynthesizedCancelGroupsContactsByRequestedDisplay) {
+    const InputSessionId a = Source(6);
+    ASSERT_THAT(Dispatch(a, Touch(kDown, {{0}})), IsOk());
+    devices_.remap[0] = kOuter;  // The foldable folds mid-gesture.
+    ASSERT_THAT(Dispatch(a, Touch(kDown, {{1}})), IsOk());
+    Activities();
+    inner_.reports.clear();
+    outer_.reports.clear();
+
+    dispatcher_.CloseSession(a);
+
+    // One report per device, but one CANCEL for the display both went down on.
+    EXPECT_THAT(Activities(),
+                ElementsAre("src6 synthesized POINTER_ACTION_CANCEL display 0 ids 0 1"));
+    EXPECT_THAT(inner_.reports, SizeIs(1));
+    EXPECT_THAT(outer_.reports, SizeIs(1));
+}
+
+TEST_F(InputDispatcherTest, InterleavedSessionsAreReportedInLoopOrderWithRisingTimestamps) {
+    const InputSessionId a = Source(1);
+    const InputSessionId b = Source(2);
+    loop_->RunAll();
+
+    dispatcher_.DispatchKey(a, Key(kKeyDown, KEY_LEFTSHIFT));
+    dispatcher_.DispatchPointer(b, Touch(kDown, {{0}}));
+    dispatcher_.DispatchText(b, "x");
+    dispatcher_.DispatchPointer(a, Touch(kDown, {{0}}, 1));
+    dispatcher_.DispatchKey(a, Key(kKeyUp, KEY_LEFTSHIFT));
+    dispatcher_.DispatchKey(b, Key(kKeyPress, KEY_A));
+    dispatcher_.CloseSession(b);
+
+    const std::vector<ObservedActivity> observed = TakeActivities();
+    std::vector<std::string> described;
+    for (size_t i = 0; i < observed.size(); ++i) {
+        described.push_back(Describe(observed[i].activity));
+        if (i > 0) {
+            EXPECT_GT(observed[i].activity.dispatched_at_nanos(),
+                      observed[i - 1].activity.dispatched_at_nanos());
+        }
+    }
+    EXPECT_THAT(described, ElementsAre(absl::StrCat("src1 KEY_ACTION_DOWN ", KEY_LEFTSHIFT),
+                                       "src2 POINTER_ACTION_DOWN display 0 ids 0", "src2 text x",
+                                       "src1 POINTER_ACTION_DOWN display 1 ids 0",
+                                       absl::StrCat("src1 KEY_ACTION_UP ", KEY_LEFTSHIFT),
+                                       absl::StrCat("src2 KEY_ACTION_PRESS ", KEY_A),
+                                       "src2 synthesized POINTER_ACTION_CANCEL display 0 ids 0"));
+    ASSERT_THAT(observed, Not(IsEmpty()));
+    EXPECT_GT(observed[0].activity.dispatched_at_nanos(), 0);
+}
+
+TEST_F(InputDispatcherTest, CallbacksRunOnDeliveryThread) {
+    const InputSessionId a = Source(1);
+    ASSERT_THAT(Type(a, "x"), IsOk());
+    ASSERT_THAT(Dispatch(a, Key(kKeyPress, KEY_A)), IsOk());
+
+    const std::vector<ObservedActivity> observed = TakeActivities();
+    ASSERT_THAT(observed, SizeIs(2));
+    for (const ObservedActivity& o : observed) {
+        EXPECT_FALSE(o.on_loop_thread);
+        EXPECT_NE(o.thread, std::this_thread::get_id());
+        EXPECT_EQ(o.thread, observed[0].thread);
+    }
+}
+
+TEST_F(InputDispatcherTest, DestructorDeliversQueuedActivity) {
+    auto dispatcher = std::make_unique<InputDispatcher>(*loop_, devices_, keyboard_,
+                                                        ResolveEvdevOnly, &clock_);
+    ActivityRecorder recorder(*loop_);
+    absl::Notification first_arrived;
+    absl::Notification release_first;
+    // Never removed: the dispatcher's event source drops it on destruction.
+    dispatcher->activity().AddCallback([&](const InputActivity& activity) {
+        recorder.Record(activity);
+        if (!first_arrived.HasBeenNotified()) {
+            first_arrived.Notify();
+            release_first.WaitForNotification();
+        }
+    });
+    const InputSessionId a = dispatcher->OpenSession({.source_id = 1});
+    dispatcher->DispatchText(a, "1");
+    loop_->RunAll();
+    first_arrived.WaitForNotification();
+
+    // Delivery is blocked in the first callback, so these stay queued.
+    dispatcher->DispatchText(a, "2");
+    dispatcher->DispatchText(a, "3");
+    loop_->RunAll();
+    release_first.Notify();
+    dispatcher.reset();
+
+    std::vector<std::string> described;
+    for (const ObservedActivity& o : recorder.Observed()) {
+        described.push_back(Describe(o.activity));
+    }
+    EXPECT_THAT(described, ElementsAre("src1 text 1", "src1 text 2", "src1 text 3"));
 }
 
 }  // namespace
