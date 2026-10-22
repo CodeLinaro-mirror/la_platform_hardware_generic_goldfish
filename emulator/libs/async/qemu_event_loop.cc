@@ -47,6 +47,7 @@ extern "C" {
 // clang-format off
 // IWYU pragma: begin_keep
 #include "qemu/osdep.h"
+#include "migration/snapshot.h"
 #include "qemu/main-loop.h"
 #include "qemu/timer.h"
 
@@ -103,7 +104,8 @@ class QemuEventLoopImpl : public goldfish::async::QemuEventLoop {
                 DoCancel(false);
                 return;
             }
-            if (event_loop_->GetState() == LooperStatusEvent::State::kNotStarted) {
+            if (event_loop_->GetState() == LooperStatusEvent::State::kNotStarted ||
+                !event_loop_->HasStartedDraining()) {
                 return;
             }
             bool under_bql = false;
@@ -216,19 +218,47 @@ class QemuEventLoopImpl : public goldfish::async::QemuEventLoop {
     };
 
     explicit QemuEventLoopImpl(std::string name)
-            : QemuEventLoop(std::move(name)), drainer_bh_(MakeQemuBh([&] { DrainQueue(); })) {}
+            : QemuEventLoop(std::move(name)), drainer_bh_(MakeQemuBh([&] { DrainQueue(); })) {
+        const bool lock_bql = !bql_locked();
+        if (lock_bql) {
+            bql_lock();
+        }
+        snapshot_progress_entry_ = add_snapshot_progress_handler(&OnSnapshotProgress, this);
+        if (lock_bql) {
+            bql_unlock();
+        }
+    }
 
     // TODO(whollins): Clean-up usages and make this FATAL.
     ~QemuEventLoopImpl() override {
+        if (snapshot_progress_entry_) {
+            const bool lock_bql = !bql_locked();
+            if (lock_bql) {
+                bql_lock();
+            }
+            del_snapshot_progress_handler(snapshot_progress_entry_);
+            snapshot_progress_entry_ = nullptr;
+            if (lock_bql) {
+                bql_unlock();
+            }
+        }
         LOG_IF(ERROR, !is_shutting_down_) << "Qemu loop has not been shutdown prior to destruction";
         DCHECK(active_timers_.empty());
     };
+
+    void OnInitialDrain() {
+        if (GetState() == LooperStatusEvent::State::kNotStarted) {
+            SetState(snapshot_in_progress_.load() ? LooperStatusEvent::State::kPaused
+                                                  : LooperStatusEvent::State::kRunning);
+        }
+    }
 
     void ShutdownTimers() override;
     size_t WaitUntilIdle() override;
     std::future<absl::Status> Shutdown() override;
 
     bool IsOnLoopThread() const override;
+    bool HasStartedDraining() const { return qemu_thread_id_.load() != std::thread::id{}; }
 
     std::shared_ptr<EventLoop::Timer> CreateTimer(RepeatingTask task) override;
 
@@ -297,7 +327,37 @@ class QemuEventLoopImpl : public goldfish::async::QemuEventLoop {
         active_timers_.clear();
     }
 
+    static void OnSnapshotProgress(void* opaque, const QemuSnapshotProgress* progress) {
+        if (!progress) {
+            return;
+        }
+        auto* self = static_cast<QemuEventLoopImpl*>(opaque);
+        self->HandleSnapshotProgress(*progress);
+    }
+
+    void HandleSnapshotProgress(const QemuSnapshotProgress& progress) {
+        switch (progress.phase) {
+        case QEMU_SNAPSHOT_PHASE_PREPARING:
+        case QEMU_SNAPSHOT_PHASE_TRANSFERRING:
+            snapshot_in_progress_.store(true);
+            if (GetState() == LooperStatusEvent::State::kRunning) {
+                SetState(LooperStatusEvent::State::kPaused);
+            }
+            break;
+        case QEMU_SNAPSHOT_PHASE_COMPLETED:
+        case QEMU_SNAPSHOT_PHASE_FAILED:
+        case QEMU_SNAPSHOT_PHASE_NONE:
+            snapshot_in_progress_.store(false);
+            if (GetState() == LooperStatusEvent::State::kPaused) {
+                SetState(LooperStatusEvent::State::kRunning);
+            }
+            break;
+        }
+    }
+
     const QEMUBHPtr drainer_bh_;
+    QemuSnapshotProgressEntry* snapshot_progress_entry_{nullptr};
+    std::atomic<bool> snapshot_in_progress_{false};
     std::promise<absl::Status> shutdown_complete_promise_;
 
     std::atomic<std::thread::id> qemu_thread_id_{std::thread::id{}};
@@ -409,9 +469,7 @@ std::shared_ptr<EventLoop::Timer> QemuEventLoopImpl::CreateTimer(RepeatingTask t
 // --- Factory Function ---
 std::unique_ptr<QemuEventLoop> QemuEventLoop::Create(std::string name) {
     auto loop = std::make_unique<QemuEventLoopImpl>(std::move(name));
-    loop->Post([loop_ptr = loop.get()] {
-            loop_ptr->SetState(LooperStatusEvent::State::kRunning);
-        }).IgnoreError();
+    loop->Post([loop_ptr = loop.get()] { loop_ptr->OnInitialDrain(); }).IgnoreError();
 
     return loop;
 }
