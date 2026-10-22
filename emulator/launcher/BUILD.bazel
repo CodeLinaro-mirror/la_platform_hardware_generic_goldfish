@@ -399,6 +399,8 @@ collect_plugins(
         ":windows_aarch64": [
             "@goldfish_prebuilts_common//vulkan:icds_windows_aarch64",
             "@goldfish_prebuilts_common//vulkan:lib_windows_aarch64",
+            "@mesa3d//:generate_lvp_icd",
+            "@mesa3d//:vulkan_lvp",
         ],
         ":windows_x86_64": [
             "@goldfish_prebuilts_common//vulkan:icds_windows_x86_64",
@@ -458,6 +460,8 @@ collect_plugins(
             "@goldfish_prebuilts_common//ANGLE:lib_windows_aarch64",
             "@goldfish_prebuilts_common//vulkan:lib_windows_aarch64",
             "@goldfish_prebuilts_common//vulkan:icds_windows_aarch64",
+            "@mesa3d//:generate_lvp_icd",
+            "@mesa3d//:vulkan_lvp",
         ],
         ":windows_x86_64": [
             "@goldfish_prebuilts_common//ANGLE:lib_windows_x86_64",
