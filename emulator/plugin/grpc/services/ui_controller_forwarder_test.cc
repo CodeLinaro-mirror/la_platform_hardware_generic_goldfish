@@ -36,6 +36,8 @@ using ::grpc::ServerContext;
 using ::grpc::Status;
 using ::grpc::StatusCode;
 using ::testing::_;
+using ::testing::HasSubstr;
+using ::testing::Not;
 using ::testing::Return;
 
 // Mock Backend Service
@@ -162,6 +164,29 @@ TEST_F(UiControllerForwarderTest, NoEndpointRegistered_ReturnsUnimplemented) {
 
     Status status = ui_forwarder_->showExtendedControls(nullptr, &request, &response);
     EXPECT_EQ(status.error_code(), StatusCode::UNIMPLEMENTED);
+    EXPECT_THAT(status.error_message(), HasSubstr("android.emulation.control.UiController"));
+    EXPECT_THAT(status.error_message(), HasSubstr("ServiceForwarder.registerForwarder"));
+}
+
+TEST_F(UiControllerForwarderTest, NonLocalInsecureEndpoint_ReturnsFailedPrecondition) {
+    ForwardingRule rule;
+    rule.set_service_uri("android.emulation.control.UiController");
+    rule.mutable_endpoint()->set_target("remote-होटल.example.com:50051");
+    auto* header = rule.mutable_endpoint()->add_required_headers();
+    header->set_key("authorization");
+    header->set_value("Bearer secret-token-12345");
+    service_forwarder_->registerForwarder(nullptr, &rule, nullptr);
+
+    PaneEntry request;
+    ExtendedControlsStatus response;
+
+    Status status = ui_forwarder_->showExtendedControls(nullptr, &request, &response);
+    EXPECT_EQ(status.error_code(), StatusCode::FAILED_PRECONDITION);
+    EXPECT_THAT(status.error_message(), HasSubstr("android.emulation.control.UiController"));
+    EXPECT_THAT(status.error_message(), HasSubstr("remote-होटल.example.com:50051"));
+    EXPECT_THAT(status.error_message(), HasSubstr("TLS credentials"));
+    EXPECT_THAT(status.error_message(), HasSubstr("ServiceForwarder.registerForwarder"));
+    EXPECT_THAT(status.error_message(), Not(HasSubstr("secret-token-12345")));
 }
 
 }  // namespace android::emulation::forwarding
