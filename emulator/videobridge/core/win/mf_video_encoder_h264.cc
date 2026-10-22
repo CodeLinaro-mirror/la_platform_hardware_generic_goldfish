@@ -55,6 +55,14 @@
 namespace goldfish::videobridge {
 namespace {
 
+constexpr LONGLONG kHnsPerUs = 10LL;
+constexpr UINT64 kHnsPerSec = 10000000ULL;
+
+constexpr uint8_t kNaluTypeMask = 0x1F;
+constexpr uint8_t kNaluSlice = 1;
+constexpr uint8_t kNaluIdr = 5;
+constexpr uint8_t kNaluSps = 7;
+
 HRESULT CreateVideoMediaType(const GUID& subtype, int width, int height, int framerate,
                              ComPtr<IMFMediaType>& out_type) {
     RETURN_IF_FAILED(MFCreateMediaType(&out_type));
@@ -74,6 +82,41 @@ HRESULT AllocateSampleBuffer(DWORD buffer_size, ComPtr<IMFSample>& out_sample,
 }
 
 }  // namespace
+
+H264BitstreamInfo InspectH264Bitstream(const uint8_t* data, DWORD length) {
+    H264BitstreamInfo info;
+    if (!data || length < 4) {
+        return info;
+    }
+    for (DWORD i = 0; i + 4 <= length; ++i) {
+        if (data[i] != 0 || data[i + 1] != 0) {
+            continue;
+        }
+        const DWORD nalu_idx = (data[i + 2] == 1) ? i + 3
+                               : (i + 4 < length && data[i + 2] == 0 && data[i + 3] == 1) ? i + 4
+                                                                                          : 0;
+        const uint8_t nal_type = nalu_idx ? (data[nalu_idx] & kNaluTypeMask) : 0;
+        if (nal_type >= kNaluSlice && nal_type <= kNaluIdr) {
+            info.has_vcl_nal = true;
+        }
+        if (nal_type == kNaluSps) {
+            info.has_sps = true;
+            info.is_keyframe = true;
+        } else if (nal_type == kNaluIdr) {
+            info.is_keyframe = true;
+        }
+    }
+    return info;
+}
+
+uint32_t CalculateNV12BufferSize(int width, int height) {
+    if (width <= 0 || height <= 0) {
+        return 0;
+    }
+    const uint32_t w = static_cast<uint32_t>(width);
+    const uint32_t h = static_cast<uint32_t>(height);
+    return w * h + w * ((h + 1) / 2);
+}
 
 MFVideoEncoderH264::MFVideoEncoderH264(webrtc::SdpVideoFormat format)
         : format_(std::move(format))
@@ -181,6 +224,9 @@ int32_t MFVideoEncoderH264::ReleaseUnlocked() {
     encoder_mft_.Reset();
     is_async_mft_ = false;
     pending_input_count_ = 0;
+    pending_output_count_ = 0;
+    last_sample_time_hns_ = -1;
+    pending_header_data_.clear();
 
     initialized_ = false;
     return WEBRTC_VIDEO_CODEC_OK;
@@ -200,16 +246,6 @@ int32_t MFVideoEncoderH264::Encode(const webrtc::VideoFrame& frame,
                 force_keyframe = true;
                 break;
             }
-        }
-    }
-
-    if (force_keyframe && encoder_mft_) {
-        ComPtr<ICodecAPI> codec_api;
-        if (SUCCEEDED(encoder_mft_->QueryInterface(IID_PPV_ARGS(&codec_api)))) {
-            VARIANT var = {};
-            var.vt = VT_UI4;
-            var.ulVal = 1;
-            codec_api->SetValue(&CODECAPI_AVEncVideoForceKeyFrame, &var);
         }
     }
 
@@ -297,7 +333,7 @@ HRESULT MFVideoEncoderH264::ConfigureMFT() {
             continue;
         }
 
-        // Unlock asynchronous MFT if required (e.g. Intel Quick Sync Video MFT)
+        // Unlock asynchronous MFT if required (e.g. Intel Quick Sync Video / Qualcomm MFT)
         ComPtr<IMFAttributes> attributes;
         is_async_mft_ = false;
         if (SUCCEEDED(encoder_mft_->GetAttributes(&attributes))) {
@@ -308,6 +344,7 @@ HRESULT MFVideoEncoderH264::ConfigureMFT() {
                 attributes->SetUINT32(MF_TRANSFORM_ASYNC_UNLOCK, TRUE);
                 is_async_mft_ = true;
             }
+            attributes->SetUINT32(MF_LOW_LATENCY, TRUE);
         }
 
         if (is_async_mft_) {
@@ -334,6 +371,11 @@ HRESULT MFVideoEncoderH264::ConfigureMFT() {
             output_stream_id_ = output_ids[0];
         }
 
+        // Apply low-latency and rate-control properties before media type negotiation as well,
+        // since hardware MFTs such as Qualcomm's H.264 encoder require low-latency and B-frame
+        // settings prior to SetOutputType/SetInputType.
+        SetBitrateAndRateControl(target_bitrate_bps_);
+
         config_hr = ConfigureInputOutputTypes(codec_settings_.width, codec_settings_.height,
                                               target_fps_);
         if (SUCCEEDED(config_hr)) {
@@ -358,6 +400,8 @@ HRESULT MFVideoEncoderH264::ConfigureMFT() {
     SetBitrateAndRateControl(target_bitrate_bps_);
 
     pending_input_count_ = 0;
+    pending_output_count_ = 0;
+    last_sample_time_hns_ = -1;
     encoder_mft_->ProcessMessage(MFT_MESSAGE_NOTIFY_BEGIN_STREAMING, 0);
     encoder_mft_->ProcessMessage(MFT_MESSAGE_NOTIFY_START_OF_STREAM, 0);
 
@@ -369,6 +413,7 @@ HRESULT MFVideoEncoderH264::ConfigureInputOutputTypes(int width, int height, int
     RETURN_IF_FAILED(
             CreateVideoMediaType(MFVideoFormat_H264, width, height, framerate, output_type_));
     RETURN_IF_FAILED(output_type_->SetUINT32(MF_MT_AVG_BITRATE, target_bitrate_bps_));
+    output_type_->SetUINT32(MF_LOW_LATENCY, TRUE);
 
     // Configure profile (Baseline, Main, High / Constrained High)
     UINT32 profile = eAVEncH264VProfile_Base;
@@ -391,6 +436,9 @@ HRESULT MFVideoEncoderH264::ConfigureInputOutputTypes(int width, int height, int
     RETURN_IF_FAILED(input_type_->SetUINT32(MF_MT_ALL_SAMPLES_INDEPENDENT, TRUE));
 
     RETURN_IF_FAILED(encoder_mft_->SetInputType(input_stream_id_, input_type_.Get(), 0));
+
+    input_stream_info_ = {};
+    RETURN_IF_FAILED(encoder_mft_->GetInputStreamInfo(input_stream_id_, &input_stream_info_));
 
     // Query output stream info (e.g. required buffer size)
     RETURN_IF_FAILED(encoder_mft_->GetOutputStreamInfo(output_stream_id_, &output_stream_info_));
@@ -432,14 +480,16 @@ HRESULT MFVideoEncoderH264::SetBitrateAndRateControl(uint32_t bitrate_bps) {
 }
 
 HRESULT MFVideoEncoderH264::AllocateInputBuffers(int width, int height) {
-    return AllocateSampleBuffer(width * height * 3 / 2, input_sample_, input_buffer_);
+    return AllocateSampleBuffer(CalculateNV12BufferSize(width, height), input_sample_,
+                                input_buffer_);
 }
 
 HRESULT MFVideoEncoderH264::AllocateOutputBuffers() {
-    DWORD buffer_size = output_stream_info_.cbSize;
+    uint32_t buffer_size = output_stream_info_.cbSize;
     if (buffer_size == 0) {
-        const DWORD nv12_size = codec_settings_.width * codec_settings_.height * 3 / 2;
-        buffer_size = (std::max)(nv12_size, DWORD{1048576});
+        const uint32_t nv12_size =
+                CalculateNV12BufferSize(codec_settings_.width, codec_settings_.height);
+        buffer_size = (std::max)(nv12_size, uint32_t{1048576});
     }
     return AllocateSampleBuffer(buffer_size, output_sample_, output_buffer_);
 }
@@ -451,11 +501,13 @@ HRESULT MFVideoEncoderH264::ProcessInputFrame(const webrtc::VideoFrame& frame,
 
     int width = i420_buffer->width();
     int height = i420_buffer->height();
-    DWORD buffer_size = width * height * 3 / 2;
+    uint32_t buffer_size = CalculateNV12BufferSize(width, height);
+    uint32_t alloc_size =
+            (std::max)(buffer_size, static_cast<uint32_t>(input_stream_info_.cbSize));
 
     ComPtr<IMFSample> sample;
     ComPtr<IMFMediaBuffer> media_buffer;
-    RETURN_IF_FAILED(AllocateSampleBuffer(buffer_size, sample, media_buffer));
+    RETURN_IF_FAILED(AllocateSampleBuffer(alloc_size, sample, media_buffer));
 
     BYTE* buffer_data = nullptr;
     DWORD max_length = 0;
@@ -479,41 +531,217 @@ HRESULT MFVideoEncoderH264::ProcessInputFrame(const webrtc::VideoFrame& frame,
         RETURN_IF_FAILED(sample->SetUINT32(MFSampleExtension_CleanPoint, 1));
     }
 
-    // Set timestamp and duration on the sample (in 100-nanosecond units)
-    RETURN_IF_FAILED(sample->SetSampleTime(frame.timestamp_us() * 10));
-    UINT64 duration = 10000000ULL / (target_fps_ ? target_fps_ : 30);
+    // Set monotonically increasing timestamp and duration on the sample (in 100-nanosecond units)
+    UINT64 duration = kHnsPerSec / (target_fps_ ? target_fps_ : kDefaultTargetFps);
+    LONGLONG sample_time_hns = static_cast<LONGLONG>(frame.timestamp_us()) * kHnsPerUs;
+    if (sample_time_hns <= last_sample_time_hns_) {
+        sample_time_hns = (last_sample_time_hns_ < 0)
+                                  ? 0
+                                  : (last_sample_time_hns_ + static_cast<LONGLONG>(duration));
+    }
+    last_sample_time_hns_ = sample_time_hns;
+    RETURN_IF_FAILED(sample->SetSampleTime(sample_time_hns));
     RETURN_IF_FAILED(sample->SetSampleDuration(duration));
 
     // If this is an asynchronous MFT, we must follow the IMFMediaEventGenerator event loop:
     // Wait for METransformNeedInput before calling ProcessInput, and drain on
     // METransformHaveOutput.
     if (is_async_mft_ && event_generator_) {
+        constexpr int kMaxInputWaitAttempts = 500;
         while (pending_input_count_ == 0) {
-            ComPtr<IMFMediaEvent> event;
-            HRESULT ev_hr = event_generator_->GetEvent(0, &event);
+            MediaEventType event_type = MEUnknown;
+            HRESULT ev_hr = PollNextAsyncEvent(kMaxInputWaitAttempts, &event_type);
             if (FAILED(ev_hr)) {
                 return ev_hr;
             }
-            MediaEventType event_type = MEUnknown;
-            event->GetType(&event_type);
-            if (event_type == METransformNeedInput) {
-                pending_input_count_++;
-            } else if (event_type == METransformHaveOutput) {
+            if (pending_output_count_ > 0) {
                 RETURN_IF_FAILED(DrainEncodedFrames(frame.rtp_timestamp(), frame.render_time_ms(),
                                                     callback_));
             }
+        }
+        if (!initialized_ || !encoder_mft_) {
+            return MF_E_SHUTDOWN;
+        }
+        if (force_keyframe) {
+            RequestKeyFrame();
         }
         pending_input_count_--;
         return encoder_mft_->ProcessInput(input_stream_id_, sample.Get(), 0);
     }
 
     // Synchronous MFT path
+    if (force_keyframe) {
+        RequestKeyFrame();
+    }
     HRESULT hr = encoder_mft_->ProcessInput(input_stream_id_, sample.Get(), 0);
     if (hr == MF_E_NOTACCEPTING) {
         DrainEncodedFrames(frame.rtp_timestamp(), frame.render_time_ms(), callback_);
+        if (force_keyframe) {
+            RequestKeyFrame();
+        }
         hr = encoder_mft_->ProcessInput(input_stream_id_, sample.Get(), 0);
     }
     return hr;
+}
+
+void MFVideoEncoderH264::RequestKeyFrame() {
+    if (!encoder_mft_) {
+        return;
+    }
+    ComPtr<ICodecAPI> codec_api;
+    if (SUCCEEDED(encoder_mft_->QueryInterface(IID_PPV_ARGS(&codec_api)))) {
+        VARIANT var = {};
+        var.vt = VT_UI4;
+        var.ulVal = 1;
+        codec_api->SetValue(&CODECAPI_AVEncVideoForceKeyFrame, &var);
+    }
+}
+
+HRESULT MFVideoEncoderH264::PollNextAsyncEvent(int max_wait_attempts,
+                                               MediaEventType* out_event_type) {
+    constexpr absl::Duration kPollInterval = absl::Milliseconds(1);
+    const auto is_uninitialized = +[](const bool* init) { return !*init; };
+    int wait_attempts = 0;
+
+    while (initialized_ && event_generator_) {
+        ComPtr<IMFMediaEvent> event;
+        HRESULT ev_hr = event_generator_->GetEvent(MF_EVENT_FLAG_NO_WAIT, &event);
+        if (ev_hr == MF_E_NO_EVENTS_AVAILABLE) {
+            if (wait_attempts >= max_wait_attempts) {
+                return MF_E_NO_EVENTS_AVAILABLE;
+            }
+            ++wait_attempts;
+            mutex_.AwaitWithTimeout(absl::Condition(is_uninitialized, &initialized_),
+                                    kPollInterval);
+            continue;
+        }
+        if (FAILED(ev_hr)) {
+            return ev_hr;
+        }
+        MediaEventType event_type = MEUnknown;
+        RETURN_IF_FAILED(event->GetType(&event_type));
+        if (event_type == METransformNeedInput) {
+            pending_input_count_++;
+        } else if (event_type == METransformHaveOutput) {
+            pending_output_count_++;
+        }
+        if (out_event_type) {
+            *out_event_type = event_type;
+        }
+        return S_OK;
+    }
+    return MF_E_SHUTDOWN;
+}
+
+bool MFVideoEncoderH264::WaitForAsyncOutputEvent(bool drained_any) {
+    // Hardware async MFTs (such as Qualcomm's H.264 encoder) signal
+    // METransformNeedInput immediately upon accepting a sample while the VPU is
+    // still encoding the frame asynchronously, posting METransformHaveOutput a
+    // few milliseconds later. Poll non-blockingly and, if no VCL frame has been
+    // drained yet, wait with a bounded timeout via AwaitWithTimeout (which
+    // releases mutex_ while waiting) so concurrent Release()/SetRates() calls
+    // are not blocked and the encoder cannot deadlock if an MFT requires
+    // additional input before emitting output.
+    constexpr int kMaxOutputWaitAttempts = 50;
+    const int max_wait_attempts = drained_any ? 0 : kMaxOutputWaitAttempts;
+
+    while (pending_output_count_ == 0) {
+        MediaEventType event_type = MEUnknown;
+        if (FAILED(PollNextAsyncEvent(max_wait_attempts, &event_type))) {
+            return false;
+        }
+    }
+    --pending_output_count_;
+    return true;
+}
+
+HRESULT MFVideoEncoderH264::HandleOutputStreamChange(bool* mft_provides_samples) {
+    bool type_set = false;
+    for (DWORD type_idx = 0;; ++type_idx) {
+        ComPtr<IMFMediaType> new_output_type;
+        HRESULT type_hr =
+                encoder_mft_->GetOutputAvailableType(output_stream_id_, type_idx, &new_output_type);
+        if (FAILED(type_hr)) {
+            break;
+        }
+        GUID subtype = GUID_NULL;
+        new_output_type->GetGUID(MF_MT_SUBTYPE, &subtype);
+        if (subtype == MFVideoFormat_H264 || subtype == MFVideoFormat_H264_ES) {
+            if (SUCCEEDED(
+                        encoder_mft_->SetOutputType(output_stream_id_, new_output_type.Get(), 0))) {
+                output_type_ = new_output_type;
+                type_set = true;
+                break;
+            }
+        }
+    }
+    if (!type_set) {
+        RTC_LOG(LS_ERROR) << "Failed to renegotiate MFT output media type on stream change.";
+        return MF_E_INVALIDMEDIATYPE;
+    }
+    RETURN_IF_FAILED(encoder_mft_->GetOutputStreamInfo(output_stream_id_, &output_stream_info_));
+    *mft_provides_samples =
+            (output_stream_info_.dwFlags &
+             (MFT_OUTPUT_STREAM_PROVIDES_SAMPLES | MFT_OUTPUT_STREAM_CAN_PROVIDE_SAMPLES)) != 0;
+    if (!*mft_provides_samples) {
+        RETURN_IF_FAILED(AllocateOutputBuffers());
+    }
+    return S_OK;
+}
+
+void MFVideoEncoderH264::CachePendingHeaderData(const uint8_t* data, DWORD length) {
+    if (!data || length == 0) {
+        return;
+    }
+    if (pending_header_data_.size() + length > kMaxPendingHeaderBytes) {
+        RTC_LOG(LS_WARNING) << "Pending H.264 header data exceeded " << kMaxPendingHeaderBytes
+                            << " bytes; resetting cache.";
+        pending_header_data_.clear();
+    }
+    if (length <= kMaxPendingHeaderBytes) {
+        pending_header_data_.insert(pending_header_data_.end(), data, data + length);
+    }
+}
+
+webrtc::scoped_refptr<webrtc::EncodedImageBuffer> MFVideoEncoderH264::BuildEncodedBuffer(
+        const uint8_t* data, DWORD length, bool is_keyframe, bool has_sps) {
+    if (!pending_header_data_.empty()) {
+        has_sps = true;
+    }
+
+    std::vector<uint8_t> out_of_band_header;
+    if (is_keyframe && !has_sps && output_type_) {
+        UINT32 seq_header_size = 0;
+        if (SUCCEEDED(output_type_->GetBlobSize(MF_MT_MPEG_SEQUENCE_HEADER, &seq_header_size)) &&
+            seq_header_size > 0) {
+            out_of_band_header.resize(seq_header_size);
+            if (FAILED(output_type_->GetBlob(MF_MT_MPEG_SEQUENCE_HEADER, out_of_band_header.data(),
+                                             seq_header_size, &seq_header_size))) {
+                out_of_band_header.clear();
+            }
+        }
+    }
+
+    const size_t prefix_size = pending_header_data_.size() + out_of_band_header.size();
+    if (prefix_size == 0) {
+        return webrtc::EncodedImageBuffer::Create(data, length);
+    }
+
+    auto encoded_buffer = webrtc::EncodedImageBuffer::Create(prefix_size + length);
+    uint8_t* dst = encoded_buffer->data();
+    if (!pending_header_data_.empty()) {
+        memcpy(dst, pending_header_data_.data(), pending_header_data_.size());
+        dst += pending_header_data_.size();
+        pending_header_data_.clear();
+    }
+    if (!out_of_band_header.empty()) {
+        memcpy(dst, out_of_band_header.data(), out_of_band_header.size());
+        dst += out_of_band_header.size();
+    }
+    if (data && length > 0) {
+        memcpy(dst, data, length);
+    }
+    return encoded_buffer;
 }
 
 HRESULT MFVideoEncoderH264::DrainEncodedFrames(uint32_t rtp_timestamp, int64_t capture_time_ms,
@@ -525,31 +753,7 @@ HRESULT MFVideoEncoderH264::DrainEncodedFrames(uint32_t rtp_timestamp, int64_t c
     bool drained_any = false;
     while (true) {
         if (is_async_mft_ && event_generator_) {
-            bool have_output = false;
-            while (true) {
-                ComPtr<IMFMediaEvent> event;
-                // Wait blocking for the first output event; once at least one output frame has been
-                // drained (or if the MFT asks for more input), poll non-blocking for any remaining
-                // events.
-                DWORD flags = drained_any ? MF_EVENT_FLAG_NO_WAIT : 0;
-                HRESULT ev_hr = event_generator_->GetEvent(flags, &event);
-                if (ev_hr == MF_E_NO_EVENTS_AVAILABLE || FAILED(ev_hr)) {
-                    break;
-                }
-                MediaEventType event_type = MEUnknown;
-                event->GetType(&event_type);
-                if (event_type == METransformNeedInput) {
-                    pending_input_count_++;
-                    // Once the MFT signals NeedInput, switch to non-blocking check to see if
-                    // an output event was also queued; if not, return so Encode() can finish.
-                    drained_any = true;
-                } else if (event_type == METransformHaveOutput) {
-                    have_output = true;
-                    drained_any = true;
-                    break;
-                }
-            }
-            if (!have_output) {
+            if (!WaitForAsyncOutputEvent(drained_any)) {
                 break;
             }
         }
@@ -573,15 +777,7 @@ HRESULT MFVideoEncoderH264::DrainEncodedFrames(uint32_t rtp_timestamp, int64_t c
             break;
         }
         if (hr == MF_E_TRANSFORM_STREAM_CHANGE) {
-            ComPtr<IMFMediaType> new_output_type;
-            if (SUCCEEDED(encoder_mft_->GetOutputAvailableType(output_stream_id_, 0,
-                                                               &new_output_type))) {
-                encoder_mft_->SetOutputType(output_stream_id_, new_output_type.Get(), 0);
-                encoder_mft_->GetOutputStreamInfo(output_stream_id_, &output_stream_info_);
-                mft_provides_samples = (output_stream_info_.dwFlags &
-                                        (MFT_OUTPUT_STREAM_PROVIDES_SAMPLES |
-                                         MFT_OUTPUT_STREAM_CAN_PROVIDE_SAMPLES)) != 0;
-            }
+            RETURN_IF_FAILED(HandleOutputStreamChange(&mft_provides_samples));
             continue;
         }
 
@@ -617,29 +813,29 @@ HRESULT MFVideoEncoderH264::DrainEncodedFrames(uint32_t rtp_timestamp, int64_t c
         }
 
         // Check if this is a keyframe (look for H.264 SPS/PPS or Keyframe attribute)
-        UINT32 is_keyframe = 0;
-        result_sample->GetUINT32(MFSampleExtension_CleanPoint, &is_keyframe);
+        UINT32 clean_point = 0;
+        result_sample->GetUINT32(MFSampleExtension_CleanPoint, &clean_point);
+        const H264BitstreamInfo bitstream_info = InspectH264Bitstream(data, current_length);
+        const bool is_keyframe = (clean_point != 0) || bitstream_info.is_keyframe;
 
-        // Inspect bitstream for IDR or SPS NAL units to ensure keyframe classification is accurate
-        if (data && current_length >= 4) {
-            for (DWORD i = 0; i + 4 <= current_length; ++i) {
-                if (data[i] != 0 || data[i + 1] != 0) continue;
-                const DWORD nalu_idx = (data[i + 2] == 1) ? i + 3
-                                       : (i + 4 < current_length && data[i + 2] == 0 &&
-                                          data[i + 3] == 1)
-                                               ? i + 4
-                                               : 0;
-                const uint8_t nal_type = nalu_idx ? (data[nalu_idx] & 0x1F) : 0;
-                if (nal_type == 5 || nal_type == 7) {
-                    is_keyframe = 1;
-                    break;
-                }
+        // If the MFT emitted a standalone parameter-set/header sample (no VCL slice),
+        // cache it and prepend it to the next VCL sample so each OnEncodedImage callback
+        // receives a complete access unit.
+        if (data && current_length > 0 && !bitstream_info.has_vcl_nal) {
+            CachePendingHeaderData(data, current_length);
+            result_buffer->Unlock();
+            if (mft_provides_samples && output_data.pSample) {
+                output_data.pSample->Release();
             }
+            continue;
         }
+
+        webrtc::scoped_refptr<webrtc::EncodedImageBuffer> encoded_buffer =
+                BuildEncodedBuffer(data, current_length, is_keyframe, bitstream_info.has_sps);
 
         // Wrap the payload in webrtc::EncodedImage
         webrtc::EncodedImage encoded_image;
-        encoded_image.SetEncodedData(webrtc::EncodedImageBuffer::Create(data, current_length));
+        encoded_image.SetEncodedData(encoded_buffer);
         encoded_image._encodedWidth = codec_settings_.width;
         encoded_image._encodedHeight = codec_settings_.height;
         encoded_image.SetRtpTimestamp(rtp_timestamp);
@@ -656,6 +852,8 @@ HRESULT MFVideoEncoderH264::DrainEncodedFrames(uint32_t rtp_timestamp, int64_t c
         if (mft_provides_samples && output_data.pSample) {
             output_data.pSample->Release();
         }
+
+        drained_any = true;
 
         // Deliver the encoded image
         if (callback) {
