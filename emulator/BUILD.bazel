@@ -223,6 +223,8 @@ filegroup(
             "@goldfish_prebuilts_common//ANGLE:lib_windows_aarch64",
             "@goldfish_prebuilts_common//vulkan:icds_windows_aarch64",
             "@goldfish_prebuilts_common//vulkan:lib_windows_aarch64",
+            "@mesa3d//:generate_lvp_icd",
+            "@mesa3d//:vulkan_lvp",
         ],
         ":windows_x86_64": [
             "@goldfish_prebuilts_common//ANGLE:lib_windows_x86_64",
@@ -256,6 +258,8 @@ filegroup(
         ":windows_aarch64": [
             "@goldfish_prebuilts_common//vulkan:icds_windows_aarch64",
             "@goldfish_prebuilts_common//vulkan:lib_windows_aarch64",
+            "@mesa3d//:generate_lvp_icd",
+            "@mesa3d//:vulkan_lvp",
         ],
         ":windows_x86_64": [
             "@goldfish_prebuilts_common//vulkan:icds_windows_x86_64",
@@ -772,7 +776,6 @@ breakpad_symbols_pkg(
             "goldfish_prebuilts_common+/ANGLE/windows-aarch64/lib/libEGL.dll",
             "goldfish_prebuilts_common+/ANGLE/windows-aarch64/lib/libGLESv2.dll",
             "goldfish_prebuilts_common+/vulkan/windows-aarch64/vulkan-1.dll",
-            "goldfish_prebuilts_common+/vulkan/windows-aarch64/icds/libvulkan_lvp.dll",
             "goldfish_prebuilts_common+/vulkan/windows-aarch64/icds/vk_swiftshader.dll",
         ],
         ":windows_x86_64": [
