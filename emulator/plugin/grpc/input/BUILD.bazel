@@ -138,9 +138,35 @@ cc_test(
     ],
 )
 
+cc_library(
+    name = "contact_table",
+    srcs = ["contact_table.cc"],
+    hdrs = ["contact_table.h"],
+    deps = [
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/container:inlined_vector",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+    ],
+)
+
+cc_test(
+    name = "contact_table_test",
+    size = "small",
+    srcs = ["contact_table_test.cc"],
+    deps = [
+        ":contact_table",
+        "//emulator/libs/test:googletest_main",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:status_matchers",
+    ],
+)
+
 clang_tidy_test(
     name = "tidy",
     targets = [
+        ":contact_table",
         ":event_sender",
         ":input_session",
     ],

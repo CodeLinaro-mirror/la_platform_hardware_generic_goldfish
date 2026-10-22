@@ -109,31 +109,6 @@ inline EvdevTilt RadiansToEvdevTilt(float tilt_radians, float orientation_radian
     return {static_cast<uint32_t>(clamped_x), static_cast<uint32_t>(clamped_y)};
 }
 
-uint32_t AndroidKeycodeToEvdev(int32_t keycode) {
-    switch (keycode) {
-    case 3:  // AKEYCODE_HOME
-        return KEY_HOMEPAGE;
-    case 4:  // AKEYCODE_BACK
-        return KEY_BACK;
-    case 24:  // AKEYCODE_VOLUME_UP
-        return KEY_VOLUMEUP;
-    case 25:  // AKEYCODE_VOLUME_DOWN
-        return KEY_VOLUMEDOWN;
-    case 26:  // AKEYCODE_POWER
-        return KEY_POWER;
-    case 27:  // AKEYCODE_CAMERA
-        return KEY_CAMERA;
-    case 82:  // AKEYCODE_MENU
-        return KEY_MENU;
-    case 84:  // AKEYCODE_SEARCH
-        return KEY_SEARCH;
-    case 187:  // AKEYCODE_APP_SWITCH
-        return KEY_APPSELECT;
-    default:
-        return 0;
-    }
-}
-
 uint32_t MapToolType(ToolType tool_type) {
     switch (tool_type) {
     case ToolType::TOOL_TYPE_STYLUS:
@@ -233,32 +208,6 @@ void AppendRelativeMotionEvents(const PointerEvent& pointer, EvDevEvents& events
 }
 
 /**
- * @brief Determines if a pointer action or pressure indicator signifies a touch release / cancel.
- *
- * - On CANCEL or HOVER_EXIT, all pointers in the event are released.
- * - On POINTER_ACTION_UP, pointers lift unless they explicitly report positive contact pressure
- *   (`p.has_pressure() && p.pressure() > 0.0F`), supporting multi-touch partial finger lifts.
- * - On POINTER_ACTION_DOWN, HOVER_ENTER, and HOVER_MOVE, contacts remain active.
- * - On POINTER_ACTION_MOVE, contacts remain active when `pressure` is omitted (`!p.has_pressure()`,
- *   which defaults to 1.0) and only lift if `pressure` is explicitly set to `<= 0.0F`.
- */
-bool IsPointerUp(PointerAction action, const PointerEvent::Pointer& p) {
-    if (action == PointerAction::POINTER_ACTION_CANCEL ||
-        action == PointerAction::POINTER_ACTION_HOVER_EXIT) {
-        return true;
-    }
-    if (action == PointerAction::POINTER_ACTION_UP) {
-        return !(p.has_pressure() && p.pressure() > 0.0F);
-    }
-    if (action == PointerAction::POINTER_ACTION_DOWN ||
-        action == PointerAction::POINTER_ACTION_HOVER_ENTER ||
-        action == PointerAction::POINTER_ACTION_HOVER_MOVE) {
-        return false;
-    }
-    return p.has_pressure() && p.pressure() <= 0.0F;
-}
-
-/**
  * @brief Appends Multi-Touch Protocol B pointer release / lift events (kMtsPointerUp).
  */
 void AppendPointerUp(int32_t pointer_id, SlotRegistry& slot_registry, EvDevEvents& events) {
@@ -340,7 +289,7 @@ void AppendTouchTrackingEvents(const PointerEvent& pointer, SlotRegistry& slot_r
     }
 
     for (const auto& p : pointer.pointers()) {
-        if (IsPointerUp(pointer.action(), p)) {
+        if (InputSession::IsPointerUp(pointer.action(), p)) {
             AppendPointerUp(p.pointer_id(), slot_registry, events);
         } else {
             AppendPointerDownOrMove(p, pointer.action(), slot_registry, events);
@@ -537,6 +486,47 @@ EvDevEvents InputSession::ToEvDevEvents(const PointerEvent& pointer, SlotRegistr
     AppendTouchTrackingEvents(pointer, slot_registry, events);
 
     return events;
+}
+
+bool InputSession::IsPointerUp(PointerAction action, const PointerEvent::Pointer& p) {
+    if (action == PointerAction::POINTER_ACTION_CANCEL ||
+        action == PointerAction::POINTER_ACTION_HOVER_EXIT) {
+        return true;
+    }
+    if (action == PointerAction::POINTER_ACTION_UP) {
+        return !(p.has_pressure() && p.pressure() > 0.0F);
+    }
+    if (action == PointerAction::POINTER_ACTION_DOWN ||
+        action == PointerAction::POINTER_ACTION_HOVER_ENTER ||
+        action == PointerAction::POINTER_ACTION_HOVER_MOVE) {
+        return false;
+    }
+    return p.has_pressure() && p.pressure() <= 0.0F;
+}
+
+uint32_t InputSession::AndroidKeycodeToEvdev(int32_t keycode) {
+    switch (keycode) {
+    case 3:  // AKEYCODE_HOME
+        return KEY_HOMEPAGE;
+    case 4:  // AKEYCODE_BACK
+        return KEY_BACK;
+    case 24:  // AKEYCODE_VOLUME_UP
+        return KEY_VOLUMEUP;
+    case 25:  // AKEYCODE_VOLUME_DOWN
+        return KEY_VOLUMEDOWN;
+    case 26:  // AKEYCODE_POWER
+        return KEY_POWER;
+    case 27:  // AKEYCODE_CAMERA
+        return KEY_CAMERA;
+    case 82:  // AKEYCODE_MENU
+        return KEY_MENU;
+    case 84:  // AKEYCODE_SEARCH
+        return KEY_SEARCH;
+    case 187:  // AKEYCODE_APP_SWITCH
+        return KEY_APPSELECT;
+    default:
+        return 0;
+    }
 }
 
 }  // namespace goldfish::grpc::v2

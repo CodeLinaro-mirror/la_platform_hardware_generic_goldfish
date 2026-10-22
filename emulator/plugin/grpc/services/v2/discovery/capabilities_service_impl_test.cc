@@ -169,6 +169,8 @@ TEST_F(CapabilitiesServiceTest, ReturnsSubsystemsCapabilities) {
     // Input
     ASSERT_TRUE(reply.has_input());
     EXPECT_EQ(reply.input().max_touch_point_count(), 10);
+    EXPECT_TRUE(reply.input().supports_input_activity_observation());
+    EXPECT_EQ(reply.input().max_batch_duration_ms(), 30000);
     EXPECT_THAT(reply.input().supported_features(), Contains(InputFeature::INPUT_FEATURE_KEYBOARD));
     EXPECT_THAT(reply.input().supported_features(),
                 Not(Contains(InputFeature::INPUT_FEATURE_MOUSE_POINTER)));
