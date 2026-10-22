@@ -97,11 +97,23 @@ cc_binary_with_manifest(
     ],
 )
 
+cc_binary_with_manifest(
+    name = "grpc_web_protocol_perf",
+    srcs = ["test/grpc_web_protocol_perf.cc"],
+    tags = ["benchmark"],
+    deps = [
+        ":grpc_web_protocol",
+        "@abseil-cpp//absl/strings",
+        "@google_benchmark//:benchmark",
+    ],
+)
+
 clang_tidy_test(
     name = "tidy",
     targets = [
         ":grpc-web-proxy",
         ":grpc_web_protocol",
+        ":grpc_web_protocol_perf",
         ":grpc_web_server",
     ],
     tidy_config_file = "//:clang_tidy_config",
