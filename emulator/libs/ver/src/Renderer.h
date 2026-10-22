@@ -202,8 +202,13 @@ class Renderer {
     // loads.
     virtual bool isTextureLoaded(Texture texture) = 0;
 
-    // Get the dimensions of a texture.
-    virtual void getTextureInfo(Texture texture, uint32_t* outWidth, uint32_t* outHeight) = 0;
+    // Get the dimensions of a texture and the generation of its contents. The
+    // generation is unique for each upload of texture contents, so it changes
+    // when an asynchronously loaded texture replaces its placeholder.
+    //
+    // Returns false if the texture could not be found.
+    virtual bool getTextureInfo(Texture texture, uint32_t* outWidth, uint32_t* outHeight,
+                                uint64_t* outGeneration) = 0;
 
     // Release a texture. If this is the last reference, the texture resources
     // will be released.

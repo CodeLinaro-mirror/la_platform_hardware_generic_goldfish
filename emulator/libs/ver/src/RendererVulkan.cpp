@@ -753,16 +753,21 @@ bool RendererVulkan::isTextureLoaded(Texture texture) {
     return it->second.mState == TextureState::Loaded;
 }
 
-void RendererVulkan::getTextureInfo(Texture texture, uint32_t* outWidth, uint32_t* outHeight) {
+bool RendererVulkan::getTextureInfo(Texture texture, uint32_t* outWidth, uint32_t* outHeight,
+                                    uint64_t* outGeneration) {
     std::lock_guard<std::mutex> lock(mResourceLock);
     auto it = mTextures.find(texture.id);
-    if (it != mTextures.end()) {
-        *outWidth = it->second.mWidth;
-        *outHeight = it->second.mHeight;
-    } else {
-        *outWidth = 0;
-        *outHeight = 0;
+    const bool found = (it != mTextures.end());
+    if (outWidth) {
+        *outWidth = found ? it->second.mWidth : 0;
     }
+    if (outHeight) {
+        *outHeight = found ? it->second.mHeight : 0;
+    }
+    if (outGeneration) {
+        *outGeneration = found ? it->second.mGeneration : 0;
+    }
+    return found;
 }
 
 void RendererVulkan::releaseTexture(Texture texture) {
@@ -780,7 +785,10 @@ void RendererVulkan::releaseTexture(Texture texture) {
         it->second.mRefCount--;
         if (it->second.mRefCount == 0) {
             if (!it->second.mFilename.empty()) {
-                mTextureCache.erase(it->second.mFilename);
+                auto cacheIt = mTextureCache.find(it->second.mFilename);
+                if (cacheIt != mTextureCache.end() && cacheIt->second == texture.id) {
+                    mTextureCache.erase(cacheIt);
+                }
             }
             if (it->second.mDescriptorSet) {
                 mVkDevice->freeDescriptorSets(mDescriptorPool.get(), 1, &it->second.mDescriptorSet);
@@ -958,6 +966,7 @@ Texture RendererVulkan::createEmptyTexture(uint32_t width, uint32_t height) {
     data.mState = TextureState::Loaded;
     data.mWidth = width;
     data.mHeight = height;
+    data.mGeneration = mNextTextureGeneration++;
 
     if (!createVulkanImage(width, height, VK_FORMAT_R8G8B8A8_UNORM,
                            VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
@@ -1005,31 +1014,63 @@ bool RendererVulkan::isStandardMaterial(Material material) {
     return false;
 }
 
-Texture RendererVulkan::tryGetCachedTexture(const char* filename) {
-    if (!filename) return Texture{-1};
-    std::lock_guard<std::mutex> lock(mResourceLock);
-    auto it = mTextureCache.find(filename);
-    if (it != mTextureCache.end()) {
-        mTextures[it->second].mRefCount++;
-        return Texture{it->second};
+RendererVulkan::FileStamp RendererVulkan::getFileStamp(const std::string& filename) {
+    FileStamp stamp;
+    std::error_code ec;
+    stamp.lastWriteTime = std::filesystem::last_write_time(filename, ec);
+    if (ec) {
+        return FileStamp();
     }
-    return Texture{-1};
+    stamp.size = std::filesystem::file_size(filename, ec);
+    if (ec) {
+        return FileStamp();
+    }
+    stamp.valid = true;
+    return stamp;
 }
 
-void RendererVulkan::uploadTextureImage(TextureData& texData, const TextureUtils::Result& data) {
-    texData.mImageView.reset();
-    texData.mImage.reset();
-    texData.mImageMemory.reset();
+Texture RendererVulkan::tryGetCachedTexture(const std::string& filename,
+                                            const FileStamp& fileStamp) {
+    std::lock_guard<std::mutex> lock(mResourceLock);
+    auto it = mTextureCache.find(filename);
+    if (it == mTextureCache.end()) {
+        return Texture{-1};
+    }
+
+    auto texIt = mTextures.find(it->second);
+    if (texIt == mTextures.end() || texIt->second.mFileStamp != fileStamp) {
+        // The file has been modified since it was loaded. Detach the stale
+        // texture from the cache so that the caller loads the new contents,
+        // existing users keep the old texture until they release it.
+        mTextureCache.erase(it);
+        return Texture{-1};
+    }
+
+    texIt->second.mRefCount++;
+    return Texture{texIt->first};
+}
+
+bool RendererVulkan::uploadTextureImage(TextureData& texData, const TextureUtils::Result& data) {
+    // Create the new image before releasing the current one, so the texture
+    // stays usable if the new image cannot be created.
+    goldfish::gvk::Image newImage;
+    goldfish::gvk::DeviceMemory newImageMemory;
+    goldfish::gvk::ImageView newImageView;
+    if (!createVulkanImage(data.mWidth, data.mHeight, VK_FORMAT_R8G8B8A8_UNORM,
+                           VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+                           VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, newImage, newImageMemory,
+                           newImageView)) {
+        derror("%s: Failed to create a %ux%u texture image", __FUNCTION__, data.mWidth,
+               data.mHeight);
+        return false;
+    }
+
+    texData.mImageView = std::move(newImageView);
+    texData.mImage = std::move(newImage);
+    texData.mImageMemory = std::move(newImageMemory);
 
     texData.mWidth = data.mWidth;
     texData.mHeight = data.mHeight;
-
-    if (!createVulkanImage(data.mWidth, data.mHeight, VK_FORMAT_R8G8B8A8_UNORM,
-                           VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
-                           VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, texData.mImage,
-                           texData.mImageMemory, texData.mImageView)) {
-        return;
-    }
 
     const uint8_t* pixelData = nullptr;
     size_t dataSize = 0;
@@ -1104,7 +1145,7 @@ void RendererVulkan::uploadTextureImage(TextureData& texData, const TextureUtils
         VkDescriptorSetLayout dsl = mDescriptorSetLayout.get();
         if (!mVkDevice->allocateDescriptorSets(mDescriptorPool.get(), 1, &dsl,
                                                &texData.mDescriptorSet)) {
-            return;
+            return false;
         }
     }
 
@@ -1122,9 +1163,11 @@ void RendererVulkan::uploadTextureImage(TextureData& texData, const TextureUtils
     write.pImageInfo = &imageInfo;
 
     mVkDevice->updateDescriptorSets(1, &write, 0, nullptr);
+    return true;
 }
 
 Texture RendererVulkan::createTextureInternal(TextureState state, const char* filename,
+                                              const FileStamp& fileStamp,
                                               const TextureUtils::Result& data) {
     std::lock_guard<std::mutex> lock(mResourceLock);
     int id = mNextResourceId++;
@@ -1132,7 +1175,11 @@ Texture RendererVulkan::createTextureInternal(TextureState state, const char* fi
     TextureData texData;
     texData.mRefCount = 1;
     texData.mState = state;
-    if (filename) texData.mFilename = filename;
+    texData.mGeneration = mNextTextureGeneration++;
+    if (filename) {
+        texData.mFilename = filename;
+        texData.mFileStamp = fileStamp;
+    }
 
     uploadTextureImage(texData, data);
 
@@ -1178,7 +1225,8 @@ Texture RendererVulkan::loadTexture(const char* filename) {
         path = filename;
     }
 
-    Texture cached = tryGetCachedTexture(path.c_str());
+    const FileStamp fileStamp = getFileStamp(path);
+    Texture cached = tryGetCachedTexture(path, fileStamp);
     if (cached.isValid()) return cached;
 
     auto resOpt = TextureUtils::load(path.c_str());
@@ -1186,7 +1234,8 @@ Texture RendererVulkan::loadTexture(const char* filename) {
 
     const uint64_t loadEndUs = System::Get()->GetHighResTimeUs();
 
-    Texture texture = createTextureInternal(TextureState::Loaded, path.c_str(), resOpt.value());
+    Texture texture =
+            createTextureInternal(TextureState::Loaded, path.c_str(), fileStamp, resOpt.value());
 
     const uint64_t importEndUs = System::Get()->GetHighResTimeUs();
     dinfo("%s: Sync load texture %d in %" PRIu64 "ms, [read: %" PRIu64 "ms, import: %" PRIu64 "ms]",
@@ -1206,11 +1255,15 @@ Texture RendererVulkan::loadTextureAsync(const char* filename) {
         path = filename;
     }
 
-    Texture cached = tryGetCachedTexture(path.c_str());
+    // Stamp the file before it is read on the loader thread, so any later
+    // modification is detected by the next load request.
+    const FileStamp fileStamp = getFileStamp(path);
+    Texture cached = tryGetCachedTexture(path, fileStamp);
     if (cached.isValid()) return cached;
 
     TextureUtils::Result placeholder = TextureUtils::createPlaceholder();
-    Texture texture = createTextureInternal(TextureState::Placeholder, path.c_str(), placeholder);
+    Texture texture =
+            createTextureInternal(TextureState::Placeholder, path.c_str(), fileStamp, placeholder);
 
     enqueueLoaderCommand(LoaderCommand(LoaderCommandType::LoadTexture, texture.id));
     return texture;
@@ -1238,8 +1291,13 @@ bool RendererVulkan::replaceTextureInternal(Texture texture, const TextureUtils:
     auto it = mTextures.find(texture.id);
     if (it == mTextures.end()) return false;
 
-    uploadTextureImage(it->second, data);
+    if (!uploadTextureImage(it->second, data)) {
+        derror("%s: Failed to replace texture %d with '%s'", __FUNCTION__, texture.id,
+               it->second.mFilename.c_str());
+        return false;
+    }
     it->second.mState = TextureState::Loaded;
+    it->second.mGeneration = mNextTextureGeneration++;
     return true;
 }
 
@@ -1253,7 +1311,7 @@ Texture RendererVulkan::createTextureRGBA(const uint8_t* rgba, uint32_t width, u
     result.mFormat = TextureUtils::Format::RGBA32;
     result.mBuffer.assign(rgba, rgba + (static_cast<size_t>(width) * height * 4));
 
-    return createTextureInternal(TextureState::Loaded, nullptr, result);
+    return createTextureInternal(TextureState::Loaded, nullptr, FileStamp(), result);
 }
 
 Texture RendererVulkan::duplicateTexture(Texture texture) {

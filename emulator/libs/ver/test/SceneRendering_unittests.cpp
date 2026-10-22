@@ -16,10 +16,13 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <limits>
 #include <string>
 #include <thread>
 #include <vector>
@@ -315,5 +318,205 @@ TEST_P(PosterSideBySideTest, PosterSideBySide) {
     ver_destroy_scene(scene);
 }
 INSTANTIATE_TEST_SUITE_P(PosterSideBySide, PosterSideBySideTest, ::testing::Values("vulkan"));
+
+struct Rgb {
+    uint8_t r;
+    uint8_t g;
+    uint8_t b;
+};
+
+constexpr Rgb kRed{255, 0, 0};
+constexpr Rgb kGreen{0, 255, 0};
+
+// Bounding box of the pixels matching a color in an RGBA image.
+struct ColorRegion {
+    int pixelCount = 0;
+    int minX = std::numeric_limits<int>::max();
+    int minY = std::numeric_limits<int>::max();
+    int maxX = -1;
+    int maxY = -1;
+
+    int width() const { return pixelCount ? maxX - minX + 1 : 0; }
+    int height() const { return pixelCount ? maxY - minY + 1 : 0; }
+};
+
+ColorRegion findColorRegion(const uint8_t* rgba, int width, int height, Rgb color) {
+    constexpr int kTolerance = 48;
+    ColorRegion region;
+    for (int y = 0; y < height; ++y) {
+        for (int x = 0; x < width; ++x) {
+            const uint8_t* pixel = rgba + (static_cast<size_t>(y) * width + x) * 4;
+            if (std::abs(pixel[0] - color.r) <= kTolerance &&
+                std::abs(pixel[1] - color.g) <= kTolerance &&
+                std::abs(pixel[2] - color.b) <= kTolerance) {
+                region.pixelCount++;
+                region.minX = std::min(region.minX, x);
+                region.minY = std::min(region.minY, y);
+                region.maxX = std::max(region.maxX, x);
+                region.maxY = std::max(region.maxY, y);
+            }
+        }
+    }
+    return region;
+}
+
+bool writeSolidColorPng(const std::filesystem::path& path, int width, int height, Rgb color) {
+    std::vector<uint8_t> rgba(static_cast<size_t>(width) * height * 4);
+    for (size_t i = 0; i < rgba.size(); i += 4) {
+        rgba[i + 0] = color.r;
+        rgba[i + 1] = color.g;
+        rgba[i + 2] = color.b;
+        rgba[i + 3] = 0xFF;
+    }
+    return saveRgbaPng(path.string().c_str(), width, height, rgba.data());
+}
+
+class PosterUpdateTest : public ::testing::Test {
+  protected:
+    static constexpr int kWidth = 640;
+    static constexpr int kHeight = 480;
+    static constexpr int kMinPosterPixels = 1000;
+    static constexpr const char* kPosterName = "poster_left";
+
+    void SetUp() override {
+        setupTestLibraryPaths();
+        System::Get()->EnvSet("VER_RENDERER_BACKEND", "vulkan");
+
+        const std::filesystem::path testProgDir(getTestProgramDirectory());
+        const std::filesystem::path testdataDir = testProgDir / "testdata";
+        ASSERT_TRUE(ver_initialize({testProgDir / "resources", testdataDir},
+                                   testProgDir / "lib64" / "vulkan"));
+
+        mTempDir = System::Get()->GetTempDir() /
+                   (std::string("ver_poster_update_") +
+                    ::testing::UnitTest::GetInstance()->current_test_info()->name());
+        std::filesystem::create_directories(mTempDir);
+
+        mScene = ver_create_scene(VerSceneConfig(VerSceneConfig::Mode::Mesh3D, "poster_test.obj"));
+        ASSERT_NE(mScene, (VerSceneHandle)VER_INVALID_HANDLE);
+
+        bool posterCreated = false;
+        ver_scene_load_user_resources(mScene, [&]() {
+            PosterInfo info;
+            info.name = kPosterName;
+            info.size = glm::vec2(0.6f, 0.6f);
+            info.position = glm::vec3(-0.5f, 0.0f, -2.0f);
+            info.rotation = glm::angleAxis(0.0f, glm::vec3(1.0f, 0.0f, 0.0f));
+            posterCreated = ver_scene_create_poster_location(mScene, info);
+        });
+        ASSERT_TRUE(posterCreated);
+
+        // Pause the scene time, as done when the scene animations are disabled,
+        // so that only scene changes can invalidate the cached view contents.
+        ver_scene_set_frame_time_us(mScene, 0);
+
+        mView = ver_create_render_view();
+        ASSERT_NE(mView, (VerRenderViewHandle)VER_INVALID_HANDLE);
+        ASSERT_TRUE(ver_render_view_set_dimensions(mView, kWidth, kHeight));
+
+        const float viewProj[16] = {1.500f,  0.000f,  0.000f,  0.000f,   //
+                                    0.000f,  -1.993f, -0.083f, -0.083f,  //
+                                    -0.000f, 0.166f,  -0.999f, -0.997f,  //
+                                    -0.090f, -0.060f, -0.202f, -0.002f};
+        ver_render_view_set_view_projection(mView, viewProj);
+    }
+
+    void TearDown() override {
+        if (mView != VER_INVALID_HANDLE) {
+            ver_destroy_render_view(mView);
+        }
+        if (mScene != VER_INVALID_HANDLE) {
+            ver_destroy_scene(mScene);
+        }
+        ver_cleanup();
+        System::Get()->EnvSet("VER_RENDERER_BACKEND", "");
+
+        std::error_code ec;
+        std::filesystem::remove_all(mTempDir, ec);
+    }
+
+    // Updates and renders the scene without advancing the scene time, until
+    // |predicate| accepts the rendered frame or the timeout expires.
+    template <typename Predicate>
+    bool renderUntil(Predicate predicate) {
+        const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+        do {
+            ver_scene_update(mScene, false);
+            if (!ver_render_view(mScene, mView, []() {}, nullptr)) {
+                ADD_FAILURE() << "ver_render_view failed";
+                return false;
+            }
+
+            const uint8_t* fbData = nullptr;
+            uint64_t fbSize = 0;
+            ver_render_view_get_framebuffer(mView, &fbData, &fbSize);
+            if (fbData && fbSize == static_cast<uint64_t>(kWidth) * kHeight * 4 &&
+                predicate(fbData)) {
+                return true;
+            }
+
+            std::this_thread::sleep_for(std::chrono::milliseconds(5));
+        } while (std::chrono::steady_clock::now() < deadline);
+        return false;
+    }
+
+    static ColorRegion findColor(const uint8_t* fbData, Rgb color) {
+        return findColorRegion(fbData, kWidth, kHeight, color);
+    }
+
+    std::filesystem::path mTempDir;
+    VerSceneHandle mScene = VER_INVALID_HANDLE;
+    VerRenderViewHandle mView = VER_INVALID_HANDLE;
+};
+
+// Poster images are loaded asynchronously, the new image has to be rendered
+// once it is available even if the scene time is paused.
+TEST_F(PosterUpdateTest, PosterChangeIsRenderedWhileTimeIsPaused) {
+    const std::filesystem::path redPath = mTempDir / "red.png";
+    const std::filesystem::path greenPath = mTempDir / "green_wide.png";
+    ASSERT_TRUE(writeSolidColorPng(redPath, 64, 64, kRed));
+    ASSERT_TRUE(writeSolidColorPng(greenPath, 256, 64, kGreen));
+
+    ver_scene_load_poster(mScene, kPosterName, redPath.string().c_str(), 1.0f);
+    ASSERT_TRUE(renderUntil([](const uint8_t* fbData) {
+        return findColor(fbData, kRed).pixelCount > kMinPosterPixels;
+    })) << "Poster image is not rendered after loading it";
+
+    ver_scene_load_poster(mScene, kPosterName, greenPath.string().c_str(), 1.0f);
+    ColorRegion green;
+    ASSERT_TRUE(renderUntil([&green](const uint8_t* fbData) {
+        green = findColor(fbData, kGreen);
+        return green.pixelCount > kMinPosterPixels && findColor(fbData, kRed).pixelCount == 0;
+    })) << "Changed poster image is not rendered";
+
+    // The poster should be resized to match the 4:1 aspect ratio of the new
+    // image, instead of keeping the size of the previous one.
+    ASSERT_GT(green.height(), 0);
+    EXPECT_NEAR(static_cast<float>(green.width()) / green.height(), 4.0f, 0.5f);
+}
+
+// Loading a poster again from the same path has to pick up the changes made to
+// the image file since it was previously loaded.
+TEST_F(PosterUpdateTest, PosterReloadPicksUpModifiedImageFile) {
+    const std::filesystem::path posterPath = mTempDir / "poster.png";
+    ASSERT_TRUE(writeSolidColorPng(posterPath, 64, 64, kRed));
+
+    ver_scene_load_poster(mScene, kPosterName, posterPath.string().c_str(), 1.0f);
+    ASSERT_TRUE(renderUntil([](const uint8_t* fbData) {
+        return findColor(fbData, kRed).pixelCount > kMinPosterPixels;
+    })) << "Poster image is not rendered after loading it";
+
+    // Also move the modification time forward, in case the file system
+    // timestamps are too coarse to tell the two writes apart.
+    const auto previousWriteTime = std::filesystem::last_write_time(posterPath);
+    ASSERT_TRUE(writeSolidColorPng(posterPath, 32, 32, kGreen));
+    std::filesystem::last_write_time(posterPath, previousWriteTime + std::chrono::seconds(2));
+
+    ver_scene_load_poster(mScene, kPosterName, posterPath.string().c_str(), 1.0f);
+    ASSERT_TRUE(renderUntil([](const uint8_t* fbData) {
+        return findColor(fbData, kGreen).pixelCount > kMinPosterPixels &&
+               findColor(fbData, kRed).pixelCount == 0;
+    })) << "Modified poster image is not reloaded";
+}
 
 }  // namespace
