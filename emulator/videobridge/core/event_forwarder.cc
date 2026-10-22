@@ -14,11 +14,28 @@
 
 #include "event_forwarder.h"
 
+#include <string_view>
+
 #include "absl/log/log.h"
 
 #include "participant.h"
 
 namespace goldfish::videobridge {
+namespace {
+
+template <typename Proto, typename ForwardFn>
+void ParseAndForward(const ::webrtc::DataBuffer& buffer, DataChannelLabel label,
+                     std::string_view type_name, ForwardFn&& forward_fn) {
+    Proto msg;
+    if (!msg.ParseFromArray(buffer.data.data(), static_cast<int>(buffer.size()))) {
+        LOG(ERROR) << "Failed to deserialize " << type_name << " protobuf from data channel '"
+                   << AsString(label) << "'";
+        return;
+    }
+    forward_fn(msg);
+}
+
+}  // namespace
 
 using ::android::emulation::control::InputEvent;
 using ::android::emulation::control::KeyboardEvent;
@@ -61,37 +78,20 @@ void EventForwarder::OnMessage(const ::webrtc::DataBuffer& buffer) {
         return;
     }
     if (label_ == DataChannelLabel::kInput) {
-        InputEvent input_event;
-        if (!input_event.ParseFromArray(buffer.data.data(), static_cast<int>(buffer.size()))) {
-            LOG(ERROR) << "Failed to deserialize legacy v1 InputEvent protobuf from data channel '"
-                       << AsString(label_) << "'";
-            return;
-        }
-        sender_->SendEvent(input_event);
+        ParseAndForward<InputEvent>(buffer, label_, "legacy v1 InputEvent",
+                                    [this](const InputEvent& e) { sender_->SendEvent(e); });
     } else if (label_ == DataChannelLabel::kInputV2) {
-        V2InputEvent v2_event;
-        if (!v2_event.ParseFromArray(buffer.data.data(), static_cast<int>(buffer.size()))) {
-            LOG(ERROR) << "Failed to deserialize v2 InputEvent protobuf from data channel '"
-                       << AsString(label_) << "'";
-            return;
-        }
-        sender_->SendV2Event(v2_event);
+        ParseAndForward<V2InputEvent>(buffer, label_, "v2 InputEvent",
+                                      [this](const V2InputEvent& e) { sender_->SendV2Event(e); });
     } else if (label_ == DataChannelLabel::kSensorsV2) {
-        V2SensorsUpdateRequest sensors_update;
-        if (!sensors_update.ParseFromArray(buffer.data.data(), static_cast<int>(buffer.size()))) {
-            LOG(ERROR) << "Failed to deserialize v2 UpdateSensorsStateRequest protobuf from data "
-                          "channel '"
-                       << AsString(label_) << "'";
-            return;
-        }
-        sender_->SendV2SensorsUpdate(sensors_update);
+        ParseAndForward<V2SensorsUpdateRequest>(
+                buffer, label_, "v2 UpdateSensorsStateRequest",
+                [this](const V2SensorsUpdateRequest& r) { sender_->SendV2SensorsUpdate(r); });
     } else if (label_ == DataChannelLabel::kAdb) {
         LOG(WARNING) << "Received ADB command over WebRTC data channel for '" << AsString(label_)
                      << "', but ADB over WebRTC data channels is deprecated.";
-        return;
     } else {
         LOG(WARNING) << "Ignoring message received on unhandled/unsupported data channel type.";
-        return;
     }
 }
 
