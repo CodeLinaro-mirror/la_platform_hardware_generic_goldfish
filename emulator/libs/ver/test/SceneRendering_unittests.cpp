@@ -24,6 +24,7 @@
 #include <fstream>
 #include <limits>
 #include <string>
+#include <system_error>
 #include <thread>
 #include <vector>
 
@@ -390,7 +391,9 @@ class PosterUpdateTest : public ::testing::Test {
         mTempDir = System::Get()->GetTempDir() /
                    (std::string("ver_poster_update_") +
                     ::testing::UnitTest::GetInstance()->current_test_info()->name());
-        std::filesystem::create_directories(mTempDir);
+        std::error_code ec;
+        std::filesystem::create_directories(mTempDir, ec);
+        ASSERT_FALSE(ec) << ec.message();
 
         mScene = ver_create_scene(VerSceneConfig(VerSceneConfig::Mode::Mesh3D, "poster_test.obj"));
         ASSERT_NE(mScene, (VerSceneHandle)VER_INVALID_HANDLE);
@@ -508,9 +511,12 @@ TEST_F(PosterUpdateTest, PosterReloadPicksUpModifiedImageFile) {
 
     // Also move the modification time forward, in case the file system
     // timestamps are too coarse to tell the two writes apart.
-    const auto previousWriteTime = std::filesystem::last_write_time(posterPath);
+    std::error_code ec;
+    const auto previousWriteTime = std::filesystem::last_write_time(posterPath, ec);
+    ASSERT_FALSE(ec) << ec.message();
     ASSERT_TRUE(writeSolidColorPng(posterPath, 32, 32, kGreen));
-    std::filesystem::last_write_time(posterPath, previousWriteTime + std::chrono::seconds(2));
+    std::filesystem::last_write_time(posterPath, previousWriteTime + std::chrono::seconds(2), ec);
+    ASSERT_FALSE(ec) << ec.message();
 
     ver_scene_load_poster(mScene, kPosterName, posterPath.string().c_str(), 1.0f);
     ASSERT_TRUE(renderUntil([](const uint8_t* fbData) {
