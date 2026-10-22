@@ -22,7 +22,7 @@ encoding. **Location:** `hardware/generic/goldfish/emulator/libs/archive` **Name
 
 ## Dependencies
 
-- **Internal:** `//emulator/libs:QEMUFile_h` (for QEMU-specific adapters).
+- **Internal:** `//emulator/libs/archive:QEMUFileArchive` (for QEMU-specific adapters).
 
 ## Threading Model
 

@@ -2,6 +2,7 @@
 
 **Role:** Provides platform-independent asynchronous I/O primitives (Sockets, Timers, EventLoops)
 backed by libuv or QEMU. **Location:** `emulator/libs/async/` **Namespace:** `goldfish::async`
+**Agent Playbook:** [`AGENTS.md`](AGENTS.md)
 
 ## Integration Guide
 

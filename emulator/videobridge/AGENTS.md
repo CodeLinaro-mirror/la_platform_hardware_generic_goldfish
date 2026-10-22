@@ -1,0 +1,43 @@
+# WebRTC VideoBridge (`//emulator/videobridge/...`) — Agent Playbook
+
+**Namespace:** `goldfish::videobridge`
+
+WebRTC streaming of display, audio, and input, deployed two ways: in-process inside the emulator (`CreateInProcessRtcServices()`, `//emulator/plugin/grpc/services:in_process_rtc_service`) and as the standalone `:videobridge` binary (`GrpcVideoSource` / `GrpcAudioSource` / `GrpcInputSender`).
+
+---
+
+## 1. Key Targets & Files
+
+| Component | Bazel Target | Files | Responsibility |
+| :--- | :--- | :--- | :--- |
+| `Switchboard`, `Participant`, `RtcConnection` | `//emulator/videobridge:videobridge_core` | [switchboard.h](include/goldfish/videobridge/switchboard.h), [participant.h](core/participant.h), [participant.cc](core/participant.cc) | Sessions and per-peer `PeerConnection`s (the participant is always the answerer). `RtcConnection` owns the `PeerConnectionFactory` and the `Sw-Signaling` / `Sw-Worker` / `Sw-Network` threads. Data channels: `input`, `input_v2`, `sensors_v2` (`DataChannelLabel` in `input_sender.h`); a remote-opened `adb` channel is accepted but its messages are dropped. |
+| `EventForwarder`, `InProcessInputSender` | `//emulator/videobridge:videobridge_core` | [event_forwarder.h](core/event_forwarder.h), [in_process_input_sender.h](include/goldfish/videobridge/in_process_input_sender.h) | `EventForwarder` (one `DataChannelObserver` per channel) parses the channel's proto, calls `InputSender::SendEvent` / `SendV2Event` / `SendV2SensorsUpdate`, and calls `Start()` / `Stop()` on open/close. `InProcessInputSender` forwards parsed events to dispatcher callbacks (wired by `CreateInProcessInputSenderFactory()`) and drops events until `Start()`. |
+| `InProcessVideoSource`, `InProcessAudioSource` | `//emulator/videobridge:in_process_video_source`, `//emulator/videobridge:in_process_audio_source` | [in_process_video_source.h](include/goldfish/videobridge/in_process_video_source.h), [in_process_video_source.cc](media/in_process_video_source.cc), [in_process_audio_source.h](include/goldfish/videobridge/in_process_audio_source.h) | `explicit InProcessVideoSource(::goldfish::display::IMultiDisplay& multidisplay, uint32_t display_id = 0)` (create it with `webrtc::make_ref_counted<InProcessVideoSource>(…)`) pulls frames through `LatestFramePump` and reads NV12 into pooled `webrtc::NV12Buffer`s (no libyuv). Audio is push-based (`OnAudioData()` → 10 ms frames); production uses the subclass `goldfish::audio::QemuAudioSource`. |
+| `RtcService` | `//emulator/videobridge:rtc_service` | [rtc_service.h](include/goldfish/videobridge/rtc_service.h), [rtc_service.cc](signaling/rtc_service.cc) | gRPC signaling for `android.emulation.control.v2.Rtc`. Both deployments (`CreateInProcessRtcServices()` and `videobridge.cpp`) register it next to the separate `goldfish::grpc::v2::RtcServiceImpl` (`//emulator/plugin/grpc/services/v2:rtc_service`); both share one `Switchboard`. |
+| Hardware H.264 encoders | `//emulator/videobridge:videobridge_codecs`, `//emulator/videobridge:nvenc_video_encoder`, `//emulator/videobridge:vaapi_video_encoder`, `//emulator/videobridge:videobridge_codecs_win`, `//emulator/videobridge:videobridge_codecs_objc` | [codec_factories.h](include/goldfish/videobridge/codec_factories.h), [codec_factories_linux.cc](core/linux/codec_factories_linux.cc), [mf_video_encoder_h264.cc](core/win/mf_video_encoder_h264.cc), [codec_factories_mac.mm](core/mac/codec_factories_mac.mm) | NVENC and VA-API (Linux), Media Foundation `MFVideoEncoderH264` (Windows), VideoToolbox (macOS). |
+
+---
+
+## 2. Threading, Build & Codec Rules
+
+1. **RTTI:** keep goldfish WebRTC code RTTI-free (`@webrtc` is built with `-fno-rtti` on macOS and Windows). Add `copts = WEBRTC_COPTS` (defined locally in [BUILD.bazel](BUILD.bazel): `/GR-` on Windows, `-fno-rtti -Wno-nullability-completeness` elsewhere) to every new target that includes WebRTC headers. It can't be `load()`ed, so packages outside this one copy the `select` (see `emulator/plugin/audio/BUILD.bazel`). No `dynamic_cast` or `typeid`.
+2. **Signaling thread:** `Participant` (`PeerConnectionObserver`) and `EventForwarder` (`DataChannelObserver`) callbacks, the `InputSenderFactory`, and every `InputSender` dispatcher run on `Sw-Signaling` (`RtcConnection::SignalingThread()`), never on `qemu_loop` or `goldfish::avd::globalEventLoop()`. Keep them non-blocking.
+3. **Switchboard locks:** `Participant::Initialize()`, `IncomingMessage()`, and `Close()` hop onto the signaling thread with `BlockingCall`, and `Switchboard::Connect()` holds `connections_mutex_` across `Initialize()`. So code running on the signaling thread (observer callbacks, `RtcConnection::Send` / `RtcConnectionClosed` / `CreateInputSender`, the `InputSenderFactory`) must never take `connections_mutex_` or call `Switchboard::Connect` / `Disconnect` / `HasSession` / `AcceptJsepMessage`. Follow `AcceptJsepMessage()` / `Disconnect()`: take the `std::shared_ptr<Participant>` out of `connections_` under the lock (copy, or move and erase), release the lock, then call the participant.
+4. **`Participant` ownership:** always create it with `std::make_shared` (it calls `shared_from_this()`), and `Close()` it before the last reference is dropped off the signaling thread; otherwise it aborts with `std::bad_weak_ptr` or hits `LOG(DFATAL)`.
+5. **Frames:** the `IDisplay::AddFrameListener` callback only calls `LatestFramePump::OnEvent()`. `ProcessFrame()` runs on the source's own `ThreadedEventLoop` and reads with `SurfaceFrame::ReadInto`. Never call `ReadInto` on the QEMU main loop or the display loop, and don't keep `FramePtr`s (dropping the last one returns the slot to the producer).
+6. **Linking:** `//emulator/videobridge:videobridge_core` exports the in-process source headers without their implementations. Depend on `//emulator/videobridge:in_process_video_source` / `//emulator/videobridge:in_process_audio_source`, or linking fails with undefined `InProcessVideoSource` / `InProcessAudioSource` symbols.
+7. **Hardware encoders (Linux):** never link `libcuda`, `libnvidia-encode`, or `libva` at build time; load them through `NvencLoader::Create()` / `VaapiLoader::Create()` (build deps are headers only). Goldfish adds no encoder-level fallback: `CompositeVideoEncoderFactory::Create()` falls through NVENC → VA-API → software only when a hardware `Create()` returns null, and a registered NVENC / VA-API factory always returns an H.264 encoder. If `InitEncode()` fails or `Encode()` returns a negative code, WebRTC's `VideoStreamEncoder` calls `RequestEncoderSwitch()` and the send channel switches to the next negotiated codec (e.g. software VP8), or does nothing if only one codec was negotiated. Force a backend with `ANDROID_EMU_VIDEO_ENCODER=nvenc|vaapi|software` (macOS honours only `software`; Windows ignores it), and override library paths with `NVENC_LIB_PATH`, `CUDA_LIB_PATH`, `LIBVA_PATH`. `VaapiLoader::Create()` mutates the process-wide `LIBVA_DRIVER_NAME`.
+
+---
+
+## 3. Testing
+
+- **Signaling (SDP answer and ICE gathering):** use `VirtualSwitchboard` (default constructor only: no media provider or `InputSenderFactory`), or a test subclass of `RtcConnection` whose constructor passes `VirtualSwitchboard::MakeVirtualSubstrate()` (see `RecordingConnection` in `participant_test.cc`), with `kDataChannelOffer`, `kFakeInterface`, and `AwaitMessage()` from [virtual_network_fixture.h](core/virtual_network_fixture.h). The header is not a library: list it (and the private `core/participant.h`, if you include it) in the test's `srcs` and add `@webrtc//rtc_base:rtc_base_tests_utils`, as `:virtual_network_test` and `:participant_test` do. There is no second peer, so data channels never open. `:switchboard_test` uses a plain `Switchboard` on the host network.
+- **Linux encoders:** `FakeVaapiDriver` (`:fake_vaapi_driver`) → `VaapiLoader::CreateForTest(driver.CreateFunctionList(), driver.display())`; `FakeNvencDriver` (`:fake_nvenc_driver`) → `NvencLoader::CreateForTest(driver.CreateFunctionList())`. Each fake registers itself in a static, so only one can be live at a time. These tests are Linux-only, and Bazel errors if you request them explicitly on macOS or Windows.
+
+```bash
+bazel test --test_output=errors @goldfish//emulator/videobridge:switchboard_test \
+  @goldfish//emulator/videobridge:participant_test \
+  @goldfish//emulator/videobridge:in_process_video_source_test \
+  @goldfish//emulator/videobridge:in_process_input_sender_test
+```

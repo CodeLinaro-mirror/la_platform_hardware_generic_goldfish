@@ -3,6 +3,7 @@
 **Role:** Provides a C++ abstraction (`VmOperations`) for controlling the QEMU Virtual Machine (Start, Stop, Reset, Query).
 **Location:** `hardware/generic/goldfish/emulator/plugin/vminterface`
 **Namespace:** `android::goldfish`
+**Agent Playbook:** [`AGENTS.md`](AGENTS.md)
 
 ## Integration Guide
 | Class / Interface | Bazel Target | Header Path | Description |
