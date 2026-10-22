@@ -54,4 +54,19 @@ void AppendContactDownOrMove(const ::android::emulation::v2::PointerEvent::Point
  */
 void AppendContactUp(int slot, ::android::emulation::control::EvDevEvents& events);
 
+/**
+ * @brief Determines if a pointer action or pressure indicator signifies a touch release /
+ * cancel.
+ *
+ * - On CANCEL or HOVER_EXIT, all pointers in the event are released.
+ * - On POINTER_ACTION_UP, pointers lift unless they explicitly report positive contact pressure
+ *   (`p.has_pressure() && p.pressure() > 0.0F`), supporting multi-touch partial finger lifts.
+ * - On POINTER_ACTION_DOWN, HOVER_ENTER, and HOVER_MOVE, contacts remain active.
+ * - On POINTER_ACTION_MOVE, contacts remain active when `pressure` is omitted
+ *   (`!p.has_pressure()`, which defaults to 1.0) and only lift if `pressure` is explicitly set
+ *   to `<= 0.0F`.
+ */
+bool IsContactReleased(::android::emulation::v2::PointerAction action,
+                       const ::android::emulation::v2::PointerEvent::Pointer& p);
+
 }  // namespace goldfish::grpc::v2

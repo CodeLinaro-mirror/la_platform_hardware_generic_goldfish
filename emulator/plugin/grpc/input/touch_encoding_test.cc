@@ -163,5 +163,22 @@ TEST(TouchEncodingTest, ContactUpSelectsSlotAndClearsTrackingId) {
                                     EvDevEvent{EV_ABS, ABS_MT_TRACKING_ID, kMtsPointerUp}));
 }
 
+TEST(TouchEncodingTest, IsContactReleasedFollowsActionAndPressure) {
+    const auto pointer = MakePointer();
+    auto lifted = MakePointer();
+    lifted.set_pressure(0.0F);
+    auto pressed = MakePointer();
+    pressed.set_pressure(0.5F);
+
+    EXPECT_TRUE(IsContactReleased(PointerAction::POINTER_ACTION_CANCEL, pressed));
+    EXPECT_TRUE(IsContactReleased(PointerAction::POINTER_ACTION_HOVER_EXIT, pointer));
+    EXPECT_TRUE(IsContactReleased(PointerAction::POINTER_ACTION_UP, pointer));
+    EXPECT_FALSE(IsContactReleased(PointerAction::POINTER_ACTION_UP, pressed));
+    EXPECT_FALSE(IsContactReleased(PointerAction::POINTER_ACTION_DOWN, lifted));
+    EXPECT_FALSE(IsContactReleased(PointerAction::POINTER_ACTION_HOVER_MOVE, lifted));
+    EXPECT_FALSE(IsContactReleased(PointerAction::POINTER_ACTION_MOVE, pointer));
+    EXPECT_TRUE(IsContactReleased(PointerAction::POINTER_ACTION_MOVE, lifted));
+}
+
 }  // namespace
 }  // namespace goldfish::grpc::v2

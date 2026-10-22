@@ -182,7 +182,7 @@ void AppendTouchTrackingEvents(const PointerEvent& pointer, SlotRegistry& slot_r
     }
 
     for (const auto& p : pointer.pointers()) {
-        if (InputSession::IsPointerUp(pointer.action(), p)) {
+        if (IsContactReleased(pointer.action(), p)) {
             AppendPointerUp(p.pointer_id(), slot_registry, events);
         } else {
             AppendPointerDownOrMove(p, pointer.action(), slot_registry, events);
@@ -379,22 +379,6 @@ EvDevEvents InputSession::ToEvDevEvents(const PointerEvent& pointer, SlotRegistr
     AppendTouchTrackingEvents(pointer, slot_registry, events);
 
     return events;
-}
-
-bool InputSession::IsPointerUp(PointerAction action, const PointerEvent::Pointer& p) {
-    if (action == PointerAction::POINTER_ACTION_CANCEL ||
-        action == PointerAction::POINTER_ACTION_HOVER_EXIT) {
-        return true;
-    }
-    if (action == PointerAction::POINTER_ACTION_UP) {
-        return !(p.has_pressure() && p.pressure() > 0.0F);
-    }
-    if (action == PointerAction::POINTER_ACTION_DOWN ||
-        action == PointerAction::POINTER_ACTION_HOVER_ENTER ||
-        action == PointerAction::POINTER_ACTION_HOVER_MOVE) {
-        return false;
-    }
-    return p.has_pressure() && p.pressure() <= 0.0F;
 }
 
 uint32_t InputSession::AndroidKeycodeToEvdev(int32_t keycode) {

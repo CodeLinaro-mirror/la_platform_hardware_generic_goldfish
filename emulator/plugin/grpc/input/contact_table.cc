@@ -28,7 +28,8 @@ constexpr int kNonHumanSlotLimit = kTouchDeviceSlots - kReservedHumanSlots;
 
 }  // namespace
 
-absl::StatusOr<int> ContactTable::Acquire(ContactKey key, TouchDeviceId device, bool human) {
+absl::StatusOr<int> ContactTable::Acquire(ContactKey key, TouchDeviceId device, int32_t display_id,
+                                          bool human) {
     if (auto it = contacts_.find(key); it != contacts_.end()) {
         return it->second.contact.slot;
     }
@@ -57,7 +58,7 @@ absl::StatusOr<int> ContactTable::Acquire(ContactKey key, TouchDeviceId device, 
     if (!human) {
         ++slots.non_human;
     }
-    contacts_.emplace(key, HeldContact{{device, slot}, human});
+    contacts_.emplace(key, HeldContact{{device, slot, display_id}, human});
     return slot;
 }
 
@@ -78,6 +79,12 @@ std::optional<Contact> ContactTable::Release(const ContactKey& key) {
 ReleasedContacts ContactTable::ReleaseSession(InputSessionId session) {
     return ReleaseIf(
             [session](const ContactKey& key, const Contact&) { return key.session == session; });
+}
+
+ReleasedContacts ContactTable::ReleaseSessionOn(InputSessionId session, TouchDeviceId device) {
+    return ReleaseIf([session, device](const ContactKey& key, const Contact& contact) {
+        return key.session == session && contact.device == device;
+    });
 }
 
 ReleasedContacts ContactTable::ClearDevice(TouchDeviceId device) {
