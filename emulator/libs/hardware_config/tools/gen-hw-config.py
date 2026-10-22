@@ -27,6 +27,32 @@ def quoteStringForC(str):
     """quote a string so it can be used in C"""
     return '\\"'.join('"'+p+'"' for p in str.split('"'))
 
+def formatBoolForCpp(val, propName):
+    """convert an ini boolean value into a C++ bool literal"""
+    v = val.strip().lower()
+    if v in ['yes', 'true', '1']:
+        return 'true'
+    if v in ['no', 'false', '0']:
+        return 'false'
+    sys.stderr.write("Property '%s': Invalid boolean default '%s'\n" % (propName, val))
+    sys.exit(1)
+
+def formatDiskSizeForCpp(val, propName):
+    """convert an ini diskSize value into a StorageCapacity literal"""
+    m = re.match(r'^(\d+)\s*([bBkKmMgGtT]?)$', val.strip())
+    if not m:
+        sys.stderr.write("Property '%s': Invalid diskSize default '%s'\n" % (propName, val))
+        sys.exit(1)
+    unitMap = {
+        '': '_B',
+        'B': '_B',
+        'K': '_KiB',
+        'M': '_MiB',
+        'G': '_GiB',
+        'T': '_TiB',
+    }
+    return m.group(1) + unitMap[m.group(2).upper()]
+
 # a dictionary that maps item types as they appear in the .ini
 # file into macro names in the generated C header
 #
@@ -160,9 +186,13 @@ for item in items:
     varAbstract = quoteStringForC(item.abstract)
     varDesc     = quoteStringForC(item.description)
 
-    if item.type in [ 'string', 'boolean', 'diskSize' ]:
+    if item.type == 'string':
         # quote default value for strings
         varDefault = quoteStringForC(varDefault)
+    elif item.type == 'boolean':
+        varDefault = formatBoolForCpp(varDefault, item.name)
+    elif item.type == 'diskSize':
+        varDefault = formatDiskSizeForCpp(varDefault, item.name)
 
     out.write("%s(\n  %s,\n  %s,\n  %s,\n  %s,\n  %s)\n\n" % \
             (varMacro,varName,varNameStr,varDefault,varAbstract,varDesc))

@@ -21,12 +21,18 @@
 
 namespace android::goldfish {
 
+using base::operator""_B;
+using base::operator""_KiB;
+using base::operator""_MiB;
+using base::operator""_GiB;
+using base::operator""_TiB;
+
 HardwareConfig::HardwareConfig() {
-#define HWCFG_BOOL(n, s, d, a, t) n = 0;
-#define HWCFG_INT(n, s, d, a, t) n = 0;
-#define HWCFG_STRING(n, s, d, a, t) n.clear();
-#define HWCFG_DOUBLE(n, s, d, a, t) n = 0.0;
-#define HWCFG_DISKSIZE(n, s, d, a, t) n = 0;
+#define HWCFG_BOOL(n, s, d, a, t) n = d;
+#define HWCFG_INT(n, s, d, a, t) n = d;
+#define HWCFG_STRING(n, s, d, a, t) n = d;
+#define HWCFG_DOUBLE(n, s, d, a, t) n = d;
+#define HWCFG_DISKSIZE(n, s, d, a, t) n = d;
 
 #include "avd/hw-config-defs.h"
 }
