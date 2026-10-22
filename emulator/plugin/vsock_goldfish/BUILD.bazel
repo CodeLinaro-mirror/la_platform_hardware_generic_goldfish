@@ -1,6 +1,6 @@
-load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
+load("//emulator/tools:cc_binary_with_manifest.bzl", "cc_binary_with_manifest")
 
 cc_library(
     name = "goldfish_vsock_hdrs",
@@ -33,6 +33,7 @@ cc_library(
         "//emulator/libs/archive:QEMUFileArchive",
         "//emulator/libs/archive:collections",
         "//emulator/libs/debug",
+        "//emulator/libs/perfetto:init",
         "//emulator/libs/synchronization",
         "//emulator/plugin/hal/connector:cable",
         "@abseil-cpp//absl/log",
@@ -97,7 +98,7 @@ cc_test(
     ],
 )
 
-cc_binary(
+cc_binary_with_manifest(
     name = "vsock_perf",
     srcs = [
         "vsock_perf.cc",

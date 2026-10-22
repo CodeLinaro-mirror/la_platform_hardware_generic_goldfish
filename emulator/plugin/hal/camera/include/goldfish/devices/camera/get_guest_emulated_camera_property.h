@@ -17,10 +17,8 @@
 
 #include <string>
 
-#include "goldfish/devices/camera/camera_image_source.h"
-
 namespace goldfish::devices::camera {
 
-std::string getGuestEmulatedCameraProperty(CameraImageSource front, CameraImageSource back);
+std::string getGuestEmulatedCameraProperty(bool frontCameraEmulated, bool backCameraEmulated);
 
 }  // namespace goldfish::devices::camera

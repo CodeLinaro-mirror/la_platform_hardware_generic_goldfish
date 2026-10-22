@@ -38,6 +38,28 @@ namespace goldfish::proto_data_store {
  */
 constexpr size_t kStackSerializationThreshold = 512;
 
+namespace internal {
+
+template <typename T>
+absl::Status PushMessage(RawCircularLog& engine, const T& message) {
+    const size_t payload_len = message.ByteSizeLong();
+    const auto serialize_to = [&](void* dest) {
+        const bool success = message.SerializeToArray(dest, static_cast<int>(payload_len));
+        ABSL_CHECK(success) << "Failed to serialize message of type " << message.GetTypeName();
+    };
+
+    if (payload_len <= kStackSerializationThreshold) {
+        char stack_buf[kStackSerializationThreshold];
+        serialize_to(stack_buf);
+        return engine.Push(static_cast<uint32_t>(payload_len), [&](void* data_ptr) {
+            std::memcpy(data_ptr, stack_buf, payload_len);
+        });
+    }
+    return engine.Push(static_cast<uint32_t>(payload_len), serialize_to);
+}
+
+}  // namespace internal
+
 /**
  * @brief A high-performance, type-safe circular log for Protobuf messages.
  *
@@ -118,23 +140,7 @@ class ProtoCircularLog {
      * @param message The message to store.
      * @return OkStatus, or ResourceExhausted if the message is larger than Capacity.
      */
-    absl::Status Push(const T& message) {
-        const size_t payload_len = message.ByteSizeLong();
-        if (payload_len <= kStackSerializationThreshold) {
-            char stack_buf[kStackSerializationThreshold];
-            bool success = message.SerializeToArray(stack_buf, static_cast<int>(payload_len));
-            ABSL_CHECK(success) << "Failed to serialize message of type " << message.GetTypeName();
-            return engine_.Push(static_cast<uint32_t>(payload_len), [&](void* data_ptr) {
-                std::memcpy(data_ptr, stack_buf, payload_len);
-            });
-        } else {
-            return engine_.Push(static_cast<uint32_t>(payload_len), [&](void* data_ptr) {
-                bool success = message.SerializeToArray(data_ptr, static_cast<int>(payload_len));
-                ABSL_CHECK(success)
-                        << "Failed to serialize message of type " << message.GetTypeName();
-            });
-        }
-    }
+    absl::Status Push(const T& message) { return internal::PushMessage(engine_, message); }
 
     /**
      * @brief Traverses valid messages from oldest to newest.

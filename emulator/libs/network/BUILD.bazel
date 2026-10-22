@@ -48,6 +48,41 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "http_client",
+    srcs = ["http_client.cc"],
+    hdrs = ["include/goldfish/network/http_client.h"],
+    implementation_deps = ["@curl"],
+    includes = ["include"],
+    # static is necessary for curl to link properly.
+    linkstatic = True,
+    visibility = ["//visibility:public"],
+    deps = [
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:vlog_is_on",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/time",
+        "@abseil-cpp//absl/types:span",
+    ],
+)
+
+cc_test(
+    name = "http_client_test",
+    size = "small",
+    srcs = ["http_client_test.cc"],
+    deps = [
+        ":http_client",
+        "//emulator/libs/http:web_server",
+        "//emulator/libs/test:googletest_main",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:status_matchers",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/time",
+    ],
+)
+
 cc_test(
     name = "network_unittests",
     size = "small",
@@ -71,6 +106,7 @@ cc_test(
 clang_tidy_test(
     name = "tidy",
     targets = [
+        ":http_client",
         ":network",
     ],
     tidy_config_file = "//:clang_tidy_config",

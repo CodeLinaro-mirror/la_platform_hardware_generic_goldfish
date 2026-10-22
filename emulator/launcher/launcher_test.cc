@@ -107,40 +107,12 @@ class LauncherTest : public testing::Test {
         fs::create_directories(temp_dir / "lib64");
         fs::create_directories(temp_dir / "share" / "qemu");
 
-        // Setup dummy qemu-img
-#ifdef _WIN32
-        fs::path qemu_img = temp_dir / "bin" / "qemu-img.cmd";
-        std::ofstream qemu_img_file(qemu_img);
-        qemu_img_file << "@echo off\n"
-                      << "for %%a in (%*) do (\n"
-                      << "  set \"arg=%%~a\"\n"
-                      << "  if \"%%~xa\"==\".qcow2\" (\n"
-                      << "    powershell -Command \"[IO.File]::WriteAllBytes('%%~a', "
-                         "[byte[]](0x51, 0x46, 0x49, 0xFB))\"\n"
-                      << "  )\n"
-                      << ")\n"
-                      << "exit /b 0\n";
-#else
-        fs::path qemu_img = temp_dir / "bin" / "qemu-img";
-        std::ofstream qemu_img_file(qemu_img);
-        qemu_img_file << "#!/bin/sh\n"
-                      << "for arg in \"$@\"; do\n"
-                      << "  case \"$arg\" in\n"
-                      << "    *.qcow2) printf \"QFI\\373\" > \"$arg\" ;;\n"
-                      << "  esac\n"
-                      << "done\n"
-                      << "exit 0\n";
-#endif
-        qemu_img_file.close();
-        fs::permissions(qemu_img, fs::perms::owner_exec | fs::perms::owner_all);
-
         emulator_paths.launcher_binary = temp_dir / "emulator";
         emulator_paths.launcher_directory = temp_dir;
         emulator_paths.binary_directory = temp_dir / "bin";
         emulator_paths.library_directory = temp_dir / "lib";
         emulator_paths.lib64_directory = temp_dir / "lib64";
         emulator_paths.bios_directory = temp_dir / "share" / "qemu";
-        emulator_paths.qemu_img_binary = qemu_img;
         // No need to have .exe for Windows on these binaries as they aren't executed.
         emulator_paths.qemu_system_x86_binary = temp_dir / "bin" / "qemu-system-x86_64";
         emulator_paths.qemu_system_arm_binary = temp_dir / "bin" / "qemu-system-aarch64";
@@ -355,7 +327,16 @@ TEST_F(LauncherTest, CanLaunchEmulator) {
     ::goldfish::async::ProcessLauncher::ExitCallback emulator_exit_cb;
     absl::Notification launched;
 
-    ExpectEmulatorLaunch(launched, emulator_exit_cb);
+    ExpectEmulatorLaunch(
+            launched, emulator_exit_cb, nullptr,
+            testing::AllOf(
+                    testing::Field(&::goldfish::async::LaunchConfig::exe_path,
+                                   ExpectedQemuBinary()),
+                    testing::Field(
+                            &::goldfish::async::LaunchConfig::environment,
+                            testing::AllOf(testing::Contains(testing::Pair("AEMU_LOG_LEVEL", "1")),
+                                           testing::Not(testing::Contains(
+                                                   testing::Key("AEMU_VLOG_LEVEL")))))));
 
     EXPECT_CALL(*mock_signal_handlers, SetCallback(_)).Times(1);
 
@@ -363,13 +344,22 @@ TEST_F(LauncherTest, CanLaunchEmulator) {
 
     auto reporter = std::make_unique<::goldfish::metrics::MetricsReporter>();
     auto mock_writer = std::make_unique<MockMetricsWriter>();
-    EXPECT_CALL(*mock_writer, Write(_)).Times(testing::AtLeast(1));
+    bool saw_vulkan_icd_metric = false;
+    EXPECT_CALL(*mock_writer, Write(_))
+            .Times(testing::AtLeast(1))
+            .WillRepeatedly([&](::goldfish::metrics::MetricsEvent event) {
+                if (event.as_event.emulator_details().vulkan_icd() ==
+                    android_studio::EmulatorDetails::LAVAPIPE_VK) {
+                    saw_vulkan_icd_metric = true;
+                }
+            });
     reporter->SetWriter(std::move(mock_writer));
 
     int status = RunLauncher(std::move(avd), std::move(reporter));
 
     trigger.join();
     EXPECT_EQ(status, 0);
+    EXPECT_TRUE(saw_vulkan_icd_metric);
 }
 
 TEST_F(LauncherTest, ForwardsSignalToEmulator) {

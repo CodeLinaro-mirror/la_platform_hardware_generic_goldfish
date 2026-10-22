@@ -25,6 +25,7 @@
 #include "android/base/testing/test_temp_dir.h"
 #include "goldfish/perfetto/perfetto.h"
 #include "goldfish/perfetto/perfetto_categories.h"
+#include "goldfish/perfetto/qemu_trace_bridge.h"
 
 namespace goldfish::perfetto {
 namespace {
@@ -104,6 +105,54 @@ TEST_F(PerfettoConfigTest, CanTraceAsyncEvent) {
 
     EXPECT_TRUE(std::filesystem::exists(trace_file));
     EXPECT_TRUE(TraceContainsEvent(trace_file, "AsyncOperation"));
+}
+
+TEST_F(PerfettoConfigTest, BridgesQemuTraceEventsAndArgumentsToPerfetto) {
+    android::base::TestTempDir tmp_dir("perfetto_qemu_bridge_test");
+    ASSERT_FALSE(tmp_dir.Path().empty());
+    std::filesystem::path trace_file = tmp_dir.MakeSubPath("qemu_bridge.pftrace");
+
+    {
+        EmulatorTracingSession session(trace_file, "qemu");
+
+        // 1. Scoped _begin / _end pair (e.g. aio_bh_call_begin / aio_bh_call_end)
+        GoldfishTraceData start_begin{.type = GOLDFISH_TRACE_EVENT_START,
+                                      .name = "aio_bh_call_begin"};
+        GoldfishTraceData bh_name_arg{.type = GOLDFISH_TRACE_ARG_STRING, .name = "bh_name"};
+        bh_name_arg.value.s = "qemu_event_loop_bh_cb";
+        GoldfishTraceData end_begin{.type = GOLDFISH_TRACE_EVENT_END, .name = "aio_bh_call_begin"};
+        OnQemuGoldfishTrace(&start_begin);
+        OnQemuGoldfishTrace(&bh_name_arg);
+        OnQemuGoldfishTrace(&end_begin);
+
+        // 2. Nested instant event with arguments (e.g. virtqueue_fill)
+        GoldfishTraceData vq_start{.type = GOLDFISH_TRACE_EVENT_START, .name = "virtqueue_fill"};
+        GoldfishTraceData vq_len{.type = GOLDFISH_TRACE_ARG_UINT64, .name = "elem_len"};
+        vq_len.value.u = 4096;
+        GoldfishTraceData vq_end{.type = GOLDFISH_TRACE_EVENT_END, .name = "virtqueue_fill"};
+        OnQemuGoldfishTrace(&vq_start);
+        OnQemuGoldfishTrace(&vq_len);
+        OnQemuGoldfishTrace(&vq_end);
+
+        // Close the scoped aio_bh_call slice
+        GoldfishTraceData start_end{.type = GOLDFISH_TRACE_EVENT_START, .name = "aio_bh_call_end"};
+        GoldfishTraceData end_end{.type = GOLDFISH_TRACE_EVENT_END, .name = "aio_bh_call_end"};
+        OnQemuGoldfishTrace(&start_end);
+        OnQemuGoldfishTrace(&end_end);
+    }
+
+    EXPECT_TRUE(std::filesystem::exists(trace_file));
+    EXPECT_TRUE(TraceContainsEvent(trace_file, "aio_bh_call"));
+    EXPECT_TRUE(TraceContainsEvent(trace_file, "qemu_event_loop_bh_cb"));
+    EXPECT_TRUE(TraceContainsEvent(trace_file, "virtqueue_fill"));
+    EXPECT_TRUE(TraceContainsEvent(trace_file, "elem_len"));
+}
+
+TEST_F(PerfettoConfigTest, TraceNonceGeneratesUniqueMonotonicIds) {
+    const uint64_t first = TRACE_NONCE();
+    const uint64_t second = TRACE_NONCE();
+    EXPECT_GT(first, 0U);
+    EXPECT_EQ(second, first + 1);
 }
 
 }  // namespace

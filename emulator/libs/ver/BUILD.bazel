@@ -234,8 +234,7 @@ collect_plugins(
     name = "test_resources",
     output_dir = "resources",
     plugins = [
-        "@goldfish_prebuilts_common//virtualscene/Toren1BD",
-        "@ver_testdata//:virtualscene_default",
+        "@goldfish_prebuilts_common//virtualscene",
     ],
 )
 

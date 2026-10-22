@@ -29,6 +29,7 @@
 #endif
 
 #include "absl/log/log.h"
+#include "absl/strings/str_cat.h"
 
 #include "android/base/fd_util.h"
 #include "goldfish/async/launch_config.h"
@@ -237,6 +238,18 @@ absl::StatusOr<std::unique_ptr<ManagedProcess>> UvProcessLauncher::Launch(
     }
     args.push_back(nullptr);
 
+    std::vector<std::string> env_strings;
+    std::vector<char*> env;
+    if (!config.environment.empty()) {
+        env_strings.reserve(config.environment.size());
+        env.reserve(config.environment.size() + 1);
+        for (const auto& [k, v] : config.environment) {
+            env_strings.push_back(absl::StrCat(k, "=", v));
+            env.push_back(env_strings.back().data());
+        }
+        env.push_back(nullptr);
+    }
+
     unsigned int flags = 0;
     if (config.daemon || config.new_process_group) {
         flags |= UV_PROCESS_DETACHED;
@@ -244,10 +257,10 @@ absl::StatusOr<std::unique_ptr<ManagedProcess>> UvProcessLauncher::Launch(
 
     const uv_process_options_t options{
         // const char* cwd;
-        // TODO char** env;
         .exit_cb = UvInternalExitCb,
         .file = exe.c_str(),
         .args = args.data(),
+        .env = env.empty() ? nullptr : env.data(),
         .flags = flags,
         .stdio_count = 3,
         .stdio = stdio,

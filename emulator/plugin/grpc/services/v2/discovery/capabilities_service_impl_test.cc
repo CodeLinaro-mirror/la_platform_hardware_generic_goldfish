@@ -58,6 +58,10 @@ class TestUniverse : public AvdUniverse {
         LOG(FATAL) << "GetMetricsReporter not implemented in test";
     }
 
+    android::goldfish::VmOperations& GetVmOperations() override {
+        LOG(FATAL) << "GetVmOperations not implemented in test";
+    }
+
     display::IMultiDisplay& GetMultiDisplay() const override {
         LOG(FATAL) << "GetMultiDisplay not implemented in test";
     }

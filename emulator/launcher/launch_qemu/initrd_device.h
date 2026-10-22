@@ -14,14 +14,17 @@
 #pragma once
 #include <filesystem>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "device.h"
+#include "gpu_device.h"
 
 namespace android::goldfish {
 
 // Exposed for testing.
-std::vector<std::pair<std::string, std::string>> getBootProperties(const EmulatorConfig& emulator);
+std::vector<std::pair<std::string, std::string>> getBootProperties(const EmulatorConfig& emulator,
+                                                                   std::string_view vk_icd);
 
 /**
  * @brief Represents the initial RAM disk (initrd) used by the kernel.
@@ -31,12 +34,13 @@ std::vector<std::pair<std::string, std::string>> getBootProperties(const Emulato
  */
 class InitrdDevice : public Device {
   public:
-    explicit InitrdDevice() : Device("initrd") {}
+    explicit InitrdDevice(const GpuDevice& gpu_device) : Device("initrd"), mGpuDevice(gpu_device) {}
 
     absl::Status initialize(const EmulatorConfig& emulator) override;
     std::vector<std::string> getQemuParameters(const EmulatorConfig& emulator) const override;
 
   private:
+    const GpuDevice& mGpuDevice;
     fs::path mUserRamdisk;
 };
 

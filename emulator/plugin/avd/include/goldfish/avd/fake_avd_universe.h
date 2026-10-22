@@ -30,6 +30,7 @@ class FakeAvdUniverse : public AvdUniverse {
 
     async::EventLoop& GetQemuEventLoop() override;
     metrics::MetricsReporter& GetMetricsReporter() override;
+    android::goldfish::VmOperations& GetVmOperations() override;
     display::IMultiDisplay& GetMultiDisplay() const override;
 
     absl::Status OnSave(archive::IWriter&) const override;

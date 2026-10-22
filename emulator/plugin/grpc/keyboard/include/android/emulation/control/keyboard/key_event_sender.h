@@ -16,7 +16,7 @@
 #pragma once
 #include <memory>
 
-#include "emulator_controller.grpc.pb.h"
+#include "emulator_controller.pb.h"
 #include "goldfish/async/event_loop.h"
 
 // Necessary on Windows.

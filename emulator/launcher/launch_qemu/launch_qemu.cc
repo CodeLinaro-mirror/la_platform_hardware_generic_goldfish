@@ -27,13 +27,13 @@
 #include "absl/log/absl_log.h"
 #include "absl/status/status.h"
 #include "absl/strings/numbers.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
 #include "grpc_device.h"
 
 #include "adb_device.h"
-#include "android/base/system.h"
 #include "android/goldfish/avd.h"
 #include "android/process/command.h"
 #include "android/status/status_macros.h"
@@ -42,7 +42,7 @@
 #include "configure_drives.h"
 #include "cpu_device.h"
 #include "display_device.h"
-#include "goldfish/metrics/metrics_reporter.h"
+#include "env_passthrough_device.h"
 #include "gpu_device.h"
 #include "hugepage_device.h"
 #include "initrd_device.h"
@@ -51,12 +51,11 @@
 #include "memory_device.h"
 #include "network_device.h"
 #include "parameter_list.h"
+#include "plugin_init.h"
 #include "snapshot_device.h"
 #include "wifi_device.h"
 
 namespace android::goldfish {
-
-using android::base::System;
 
 absl::Status LaunchQemu::addDevices() {
     // Device are initialized in order of appearance
@@ -65,41 +64,8 @@ absl::Status LaunchQemu::addDevices() {
     const auto& o = config_.opts();
     const auto& a = config_.avd();
 
-    bool enableInfoLevel = o.verbose || o.V || o.vmodule || o.debug_metrics;
-    int pluginLogLevel = static_cast<int>(enableInfoLevel ? absl::LogSeverityAtLeast::kInfo
-                                                          : absl::LogSeverityAtLeast::kWarning);
-
-    std::string vmodules = System::Get()->GetEnvironmentVariable("AEMU_VMODULE");
-    if (o.vmodule && *o.vmodule != '\0') {
-        if (!vmodules.empty()) {
-            vmodules += ",";
-        }
-        vmodules += o.vmodule;
-    }
-    if (o.debug_metrics) {
-        if (!vmodules.empty()) {
-            vmodules += ",";
-        }
-        absl::StrAppend(&vmodules,
-                        "metrics_reporter=", ::goldfish::metrics::kMetricsWriterDebugVlogLevel);
-    }
-
-    if (System::Get()->GetEnvironmentVariable("AEMU_LOG_LEVEL").empty() || enableInfoLevel) {
-        VLOG(1) << "Setting AEMU_LOG_LEVEL to " << pluginLogLevel;
-        System::Get()->SetEnvironmentVariable("AEMU_LOG_LEVEL", absl::StrCat(pluginLogLevel));
-    }
-    if (System::Get()->GetEnvironmentVariable("AEMU_VLOG_LEVEL").empty()) {
-        VLOG(1) << "Setting AEMU_VLOG_LEVEL to " << o.V;
-        System::Get()->SetEnvironmentVariable("AEMU_VLOG_LEVEL", absl::StrCat(o.V ? o.V : ""));
-    }
-    if (!vmodules.empty()) {
-        VLOG(1) << "Setting AEMU_VMODULE to " << vmodules;
-        System::Get()->SetEnvironmentVariable("AEMU_VMODULE", vmodules);
-    }
-    if (System::Get()->GetEnvironmentVariable("AEMU_LOG_DETAILED").empty()) {
-        VLOG(1) << "Setting AEMU_LOG_DETAILED to " << (o.verbose ? "true" : "false");
-        System::Get()->SetEnvironmentVariable("AEMU_LOG_DETAILED", o.verbose ? "true" : "false");
-    }
+    addDevice<EnvPassthroughDevice>();
+    addDevice<PluginInit>();
 
     addDevice<ParameterList>(std::initializer_list<std::string>{
         "-nodefaults",
@@ -121,7 +87,6 @@ absl::Status LaunchQemu::addDevices() {
     addDevice<MemoryDevice>();
     addDevice<HugePageDevice>();
     addDevice<KernelDevice>();
-    addDevice<InitrdDevice>();
 
     RETURN_IF_ERROR(addDrives(config_, *this));
 
@@ -233,7 +198,8 @@ absl::Status LaunchQemu::addDevices() {
     const auto& snapshot_device = addDevice<SnapshotDevice>();
 
     std::string gpu_name = "gpu0";
-    addDevice<GpuDevice>(gpu_name, snapshot_device);
+    const auto& gpu_device = addDevice<GpuDevice>(gpu_name, snapshot_device);
+    addDevice<InitrdDevice>(gpu_device);
 
     // Also includes input devices for the display.
     addDevice<DisplayDevice>(gpu_name);
@@ -325,13 +291,23 @@ std::vector<std::string> LaunchQemu::getCmdline() const {
     return params;
 }
 
+absl::flat_hash_map<std::string, std::string> LaunchQemu::getEnv() const {
+    absl::flat_hash_map<std::string, std::string> env;
+
+    for (const auto& device : mDevices) {
+        for (auto& [k, v] : device->getQemuEnv(config_)) {
+            if (v.empty()) {
+                env.erase(k);
+            } else {
+                env.insert_or_assign(k, std::move(v));
+            }
+        }
+    }
+
+    return env;
+}
+
 absl::StatusOr<::goldfish::async::LaunchConfig> LaunchQemu::launch_config() {
-    const auto& o = config_.opts();
-
-    // we need the gpu variable setup early
-    // before initialize
-    setupGpuVariables();
-
     auto status = initialize();
     if (!status.ok()) {
         VLOG(1) << "Failed to prepare emulator: " << status.message();
@@ -339,6 +315,12 @@ absl::StatusOr<::goldfish::async::LaunchConfig> LaunchQemu::launch_config() {
     }
 
     fs::path exe_path = qemu_exe_path();
+    if (exe_path.empty()) {
+        return absl::FailedPreconditionError(absl::StrCat(
+                "This emulator does not include a qemu-system binary for the AVD's "
+                "ABI (",
+                config_.avd().Abi(), "). Only the host-native guest architecture is supported."));
+    }
     std::vector<std::string> args = getCmdline();
     {
         std::vector<std::string> printableArgs;
@@ -358,69 +340,13 @@ absl::StatusOr<::goldfish::async::LaunchConfig> LaunchQemu::launch_config() {
         ABSL_LOG(INFO) << "Emulator launch command: " << absl::StrJoin(printableArgs, " ");
     }
 
-    if (o.wait_for_debugger) {
-        // This is used to wait for the debugger at qemu process start.
-        System::Get()->SetEnvironmentVariable("ANDROID_EMU_WAIT_FOR_DEBUGGER", "1");
-    }
-
     return ::goldfish::async::LaunchConfig{
         .exe_path = std::move(exe_path),
         .args = std::move(args),
+        .environment = getEnv(),
         .new_process_group = true,
         .stdio_mode = ::goldfish::async::LaunchConfig::StdioMode::kInherit,
     };
-}
-
-static bool isHostGpuDenyListed() {
-    // TODO(b/520445586) Check server side gpu list and determine if host is denylisted for GPU
-    // Using software rendering by default for now.
-    return true;
-}
-
-void LaunchQemu::setupGpuVariables() {
-    const auto& o = config_.opts();
-    const auto& a = config_.avd();
-
-    // Check command line and AVD options, use host by default
-    const std::string userGpuMode = o.gpu ? std::string(o.gpu) : "";
-    const std::string avdGpuMode = a.Hw().hw_gpu_mode;
-    const std::string chosenGpuMode =
-            (!userGpuMode.empty() ? userGpuMode : (!avdGpuMode.empty() ? avdGpuMode : "auto"));
-    ABSL_LOG(INFO) << "Selected GPU mode: " << chosenGpuMode;
-
-    const bool useHostGpu =
-            (chosenGpuMode == "host") || (chosenGpuMode == "auto" && !isHostGpuDenyListed());
-
-    std::string chosenEmuRenderer;
-    std::string chosenVulkanICD;
-    if (useHostGpu) {
-        chosenEmuRenderer = "host";
-#if defined(__APPLE__)
-        // Use KosmicKrisp as the default Vulkan ICD on macOS, allow changing to MoltenVK with an
-        // environment variable
-        if (System::Get()->GetEnvironmentVariable("ANDROID_EMU_VK_SELECT_ICD") == "moltenvk") {
-            chosenVulkanICD = "moltenvk";
-        } else {
-            chosenVulkanICD = "kosmickrisp";
-        }
-#else
-        // Use system defaults
-        chosenVulkanICD = "";
-#endif
-    } else {
-        // Use lavapipe for software or invalid modes
-        chosenEmuRenderer = "lavapipe";
-        chosenVulkanICD = "lavapipe";
-    }
-
-    ABSL_LOG(INFO) << "Using Vulkan ICD: "
-                   << (chosenVulkanICD.empty() ? "System Default" : chosenVulkanICD);
-
-    // TODO(b/418838762): Move these to the gpu device once devices can supply env vars to set.
-    System::Get()->SetEnvironmentVariable("ANDROID_EMU_RENDERER", chosenEmuRenderer);
-    System::Get()->SetEnvironmentVariable("ANDROID_EMU_VK_ICD", chosenVulkanICD);
-    System::Get()->SetEnvironmentVariable("ANDROID_EGL_ON_EGL", "1");
-    System::Get()->SetEnvironmentVariable("ANGLE_DEFAULT_PLATFORM", "vulkan");
 }
 
 }  // namespace android::goldfish

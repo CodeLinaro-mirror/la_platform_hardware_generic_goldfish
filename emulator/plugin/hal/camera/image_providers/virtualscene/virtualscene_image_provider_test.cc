@@ -24,6 +24,9 @@
 #include <vector>
 
 #include "android/base/bazel_info.h"
+#include "android/goldfish/fake_hardware_config.h"
+#include "goldfish/camera_image_providers/virtualscene/virtualscene.h"
+#include "goldfish/sensors/physical_model.h"
 
 namespace goldfish::camera_image_providers::virtualscene {
 
@@ -131,7 +134,15 @@ TEST(VirtualsceneImageProvider, CreateStartCaptureStopMultiStream) {
             ::android::base::Bazel::RunfilesPath("goldfish+/emulator/libs/ver/lib64/vulkan");
     ASSERT_TRUE(ver_initialize({tempRoot}, vulkanDir));
 
-    CameraImageProviderInfo info = {};
+    sensors::PhysicalModel physicalModel(android::goldfish::FakeHardwareConfig::GetHwConfig());
+    VirtualsceneImageProvider::CreateArgs createArgs{
+        .sceneConfig = VerSceneConfig(VerSceneConfig::Mode::Mesh3D, ""),
+        .physicalModel = &physicalModel,
+    };
+    CameraImageProviderInfo info = {
+        .createArg = &createArgs,
+        .isBackFacing = 1,
+    };
     std::unique_ptr<VirtualsceneImageProvider> provider(
             static_cast<VirtualsceneImageProvider*>(VirtualsceneImageProvider::create(info)));
     if (!provider) {
@@ -139,6 +150,8 @@ TEST(VirtualsceneImageProvider, CreateStartCaptureStopMultiStream) {
         fs::remove_all(tempRoot);
         GTEST_SKIP() << "Vulkan renderer unavailable in test environment";
     }
+
+    EXPECT_FALSE(physicalModel.GetVirtualSceneCamera().IsConnected());
 
     const CameraImageProviderStreamConfig streams[] = {
         {
@@ -159,6 +172,11 @@ TEST(VirtualsceneImageProvider, CreateStartCaptureStopMultiStream) {
     };
 
     ASSERT_EQ(provider->start(streams, std::size(streams)), 0);
+    EXPECT_TRUE(physicalModel.GetVirtualSceneCamera().IsConnected());
+
+    // Reconfiguring streams while active should keep scene controls active without dropping to 0.
+    ASSERT_EQ(provider->start(streams, std::size(streams)), 0);
+    EXPECT_TRUE(physicalModel.GetVirtualSceneCamera().IsConnected());
 
     const CameraImageProviderStreamCaptureInfo captureInfos[] = {
         {.cfg = &streams[0]},
@@ -193,6 +211,7 @@ TEST(VirtualsceneImageProvider, CreateStartCaptureStopMultiStream) {
                             [](uint8_t b) { return b != 0; }));
 
     provider->stop();
+    EXPECT_FALSE(physicalModel.GetVirtualSceneCamera().IsConnected());
     provider.reset();
     ver_cleanup();
     fs::remove_all(tempRoot);
@@ -246,6 +265,210 @@ TEST(VirtualsceneImageProvider, ComputeViewProjectionMatrix_FrontFacingFlipsView
     EXPECT_NEAR(frontViewProj[1][0], backViewProj[1][0], 0.001f);
     EXPECT_NEAR(frontViewProj[2][2], -backViewProj[2][2], 0.001f);
     EXPECT_NEAR(frontViewProj[2][3], -backViewProj[2][3], 0.001f);
+}
+
+TEST(VirtualsceneImageProvider, GetImageProviderInfo_BundlesSceneConfigAndPhysicalModel) {
+    auto* fakePhysicalModel = reinterpret_cast<sensors::PhysicalModel*>(0x1234);
+
+    const VerSceneConfig configs[] = {
+        VerSceneConfig(VerSceneConfig::Mode::Mesh3D, "scene.obj"),
+        VerSceneConfig(VerSceneConfig::Mode::VideoFile, "clip.mp4"),
+        VerSceneConfig(VerSceneConfig::Mode::ImageFile, "photo.png"),
+        VerSceneConfig(VerSceneConfig::Mode::Webcam, "0"),
+    };
+
+    for (const auto& expectedConfig : configs) {
+        CameraImageProviderInfo info = {};
+        ASSERT_TRUE(getImageProviderInfo(&info, /*isBackFacing=*/true, fakePhysicalModel,
+                                         expectedConfig));
+        ASSERT_NE(info.vtbl, nullptr);
+        ASSERT_NE(info.vtbl->createArgDctor, nullptr);
+        ASSERT_NE(info.createArg, nullptr);
+        EXPECT_EQ(info.isBackFacing, 1u);
+
+        const auto* args =
+                static_cast<const VirtualsceneImageProvider::CreateArgs*>(info.createArg);
+        EXPECT_EQ(args->sceneConfig, expectedConfig);
+        EXPECT_EQ(args->physicalModel, fakePhysicalModel);
+
+        (info.vtbl->createArgDctor)(const_cast<void*>(info.createArg));
+    }
+}
+
+TEST(VirtualsceneImageProvider, Create_2DModeLoadsWithoutRenderer) {
+    CameraImageProviderInfo info = {};
+    ASSERT_TRUE(getImageProviderInfo(&info, /*isBackFacing=*/false, /*physicalModel=*/nullptr,
+                                     VerSceneConfig(VerSceneConfig::Mode::Color, "")));
+
+    const CameraImageProviderVtbl* vtbl = nullptr;
+    void* provider = (info.vtbl->create)(&info, &vtbl);
+    (info.vtbl->createArgDctor)(const_cast<void*>(info.createArg));
+
+    ASSERT_NE(provider, nullptr);
+    ASSERT_NE(vtbl, nullptr);
+    EXPECT_STREQ((vtbl->getId)(provider), "color:#000000");
+
+    (vtbl->dctor)(provider);
+}
+
+TEST(VirtualsceneImageProvider, ComputePostRenderRotation_3DModesReturnZero) {
+    const VerSceneConfig::Mode modes3d[] = {
+        VerSceneConfig::Mode::Mesh3D,
+        VerSceneConfig::Mode::Image360,
+        VerSceneConfig::Mode::StreetView,
+        VerSceneConfig::Mode::Video360,
+    };
+    const glm::vec3 portraitAccel(0.0f, 9.81f, 0.0f);
+    for (const auto mode : modes3d) {
+        EXPECT_EQ(VirtualsceneImageProvider::computePostRenderRotation(mode, 90, portraitAccel,
+                                                                       /*isBackFacing=*/true),
+                  0);
+        EXPECT_EQ(VirtualsceneImageProvider::computePostRenderRotation(mode, 90, portraitAccel,
+                                                                       /*isBackFacing=*/false),
+                  0);
+    }
+}
+
+TEST(VirtualsceneImageProvider, ComputePostRenderRotation_2DModesMatchDeviceAndSceneRotation) {
+    const glm::vec3 portraitAccel(0.0f, 9.81f, 0.0f);
+    const glm::vec3 reverseLandscapeAccel(-9.81f, 0.0f, 0.0f);
+    const glm::vec3 reversePortraitAccel(0.0f, -9.81f, 0.0f);
+    const glm::vec3 landscapeAccel(9.81f, 0.0f, 0.0f);
+
+    const VerSceneConfig::Mode modes2d[] = {
+        VerSceneConfig::Mode::ImageFile,
+        VerSceneConfig::Mode::VideoFile,
+        VerSceneConfig::Mode::Webcam,
+        VerSceneConfig::Mode::Color,
+    };
+
+    for (const auto mode : modes2d) {
+        // Portrait (coarseOrientation = 0), baseRotation = 0 -> 270 deg CW for both back & front
+        EXPECT_EQ(VirtualsceneImageProvider::computePostRenderRotation(mode, 0, portraitAccel,
+                                                                       /*isBackFacing=*/true),
+                  270);
+        EXPECT_EQ(VirtualsceneImageProvider::computePostRenderRotation(mode, 0, portraitAccel,
+                                                                       /*isBackFacing=*/false),
+                  270);
+
+        // Landscape (coarseOrientation = 3), baseRotation = 0 -> 0 deg back, 180 deg front
+        EXPECT_EQ(VirtualsceneImageProvider::computePostRenderRotation(mode, 0, landscapeAccel,
+                                                                       /*isBackFacing=*/true),
+                  0);
+        EXPECT_EQ(VirtualsceneImageProvider::computePostRenderRotation(mode, 0, landscapeAccel,
+                                                                       /*isBackFacing=*/false),
+                  180);
+
+        // Reverse Portrait (coarseOrientation = 2), baseRotation = 0 -> 90 deg for both
+        EXPECT_EQ(VirtualsceneImageProvider::computePostRenderRotation(
+                          mode, 0, reversePortraitAccel, /*isBackFacing=*/true),
+                  90);
+        EXPECT_EQ(VirtualsceneImageProvider::computePostRenderRotation(
+                          mode, 0, reversePortraitAccel, /*isBackFacing=*/false),
+                  90);
+
+        // Reverse Landscape (coarseOrientation = 1), baseRotation = 0 -> 180 deg back, 0 deg front
+        EXPECT_EQ(VirtualsceneImageProvider::computePostRenderRotation(
+                          mode, 0, reverseLandscapeAccel, /*isBackFacing=*/true),
+                  180);
+        EXPECT_EQ(VirtualsceneImageProvider::computePostRenderRotation(
+                          mode, 0, reverseLandscapeAccel, /*isBackFacing=*/false),
+                  0);
+    }
+
+    // Scene base rotation (e.g. rotated video stream metadata) in Portrait:
+    EXPECT_EQ(VirtualsceneImageProvider::computePostRenderRotation(
+                      VerSceneConfig::Mode::VideoFile, 90, portraitAccel, /*isBackFacing=*/true),
+              180);
+    EXPECT_EQ(VirtualsceneImageProvider::computePostRenderRotation(
+                      VerSceneConfig::Mode::VideoFile, 90, portraitAccel, /*isBackFacing=*/false),
+              180);
+    EXPECT_EQ(VirtualsceneImageProvider::computePostRenderRotation(
+                      VerSceneConfig::Mode::VideoFile, 180, portraitAccel, /*isBackFacing=*/true),
+              90);
+    EXPECT_EQ(VirtualsceneImageProvider::computePostRenderRotation(
+                      VerSceneConfig::Mode::VideoFile, 270, portraitAccel, /*isBackFacing=*/true),
+              0);
+    EXPECT_EQ(VirtualsceneImageProvider::computePostRenderRotation(
+                      VerSceneConfig::Mode::VideoFile, -90, portraitAccel, /*isBackFacing=*/true),
+              0);
+}
+
+TEST(VirtualsceneImageProvider, Capture2DImageFile_RotatesAccordingToDeviceOrientation) {
+    namespace fs = std::filesystem;
+
+    const fs::path posterRunfile = ::android::base::Bazel::RunfilesPath(
+            "goldfish_prebuilts_common+/virtualscene/Toren1BD/poster.png");
+    ASSERT_TRUE(fs::exists(posterRunfile));
+    ASSERT_TRUE(ver_initialize({posterRunfile.parent_path()}));
+
+    sensors::PhysicalModel physicalModel(android::goldfish::FakeHardwareConfig::GetHwConfig());
+    VirtualsceneImageProvider::CreateArgs createArgs{
+        .sceneConfig = VerSceneConfig(VerSceneConfig::Mode::ImageFile, posterRunfile.string()),
+        .physicalModel = &physicalModel,
+    };
+    CameraImageProviderInfo info = {
+        .createArg = &createArgs,
+        .isBackFacing = 1,
+    };
+    std::unique_ptr<VirtualsceneImageProvider> provider(
+            static_cast<VirtualsceneImageProvider*>(VirtualsceneImageProvider::create(info)));
+    ASSERT_NE(provider, nullptr);
+
+    constexpr uint16_t kSize = 64;
+    const CameraImageProviderStreamConfig stream = {
+        .size = {kSize, kSize},
+        .id = 1,
+        .format = imaging::ImageFormat::kRgba8888,
+    };
+    const CameraImageProviderStreamCaptureInfo captureInfo = {.cfg = &stream};
+    const CameraImageProviderCaptureOpts opts = {};
+
+    std::vector<uint8_t> capturedFrame;
+    auto sink = [](void* opaque, const CameraImageProviderStreamCaptureInfo*, const void* frameBits,
+                   size_t frameByteSize) -> int {
+        auto* vec = static_cast<std::vector<uint8_t>*>(opaque);
+        const auto* bytes = static_cast<const uint8_t*>(frameBits);
+        vec->assign(bytes, bytes + frameByteSize);
+        return 0;
+    };
+
+    // 1. Capture in Landscape (accelerometer +X -> 0 deg post-render rotation for back camera).
+    physicalModel.OverrideAccelerometer(glm::vec3(9.81f, 0.0f, 0.0f));
+    ASSERT_EQ(provider->start(&stream, 1), 0);
+    ASSERT_EQ(provider->capture(opts, sink, &capturedFrame, &captureInfo, 1), 0);
+    const std::vector<uint8_t> landscapeFrame = capturedFrame;
+    ASSERT_EQ(landscapeFrame.size(), static_cast<size_t>(kSize) * kSize * 4);
+
+    // 2. Capture in Portrait (accelerometer +Y -> 270 deg CW post-render rotation for back camera).
+    physicalModel.OverrideAccelerometer(glm::vec3(0.0f, 9.81f, 0.0f));
+    ASSERT_EQ(provider->capture(opts, sink, &capturedFrame, &captureInfo, 1), 0);
+    const std::vector<uint8_t> portraitFrame = capturedFrame;
+    ASSERT_EQ(portraitFrame.size(), landscapeFrame.size());
+
+    // Verify that portraitFrame is landscapeFrame rotated 270 degrees clockwise:
+    // source pixel (x, y) maps to destination pixel (y, kSize - 1 - x).
+    bool hasDifferenceWithoutRotation = false;
+    for (uint16_t y = 0; y < kSize; ++y) {
+        for (uint16_t x = 0; x < kSize; ++x) {
+            const size_t srcIdx = (static_cast<size_t>(y) * kSize + x) * 4;
+            const uint16_t dstX = y;
+            const uint16_t dstY = kSize - 1 - x;
+            const size_t dstIdx = (static_cast<size_t>(dstY) * kSize + dstX) * 4;
+            for (size_t c = 0; c < 4; ++c) {
+                EXPECT_EQ(portraitFrame[dstIdx + c], landscapeFrame[srcIdx + c])
+                        << "Mismatch at (" << x << ", " << y << ") channel " << c;
+                if (portraitFrame[srcIdx + c] != landscapeFrame[srcIdx + c]) {
+                    hasDifferenceWithoutRotation = true;
+                }
+            }
+        }
+    }
+    EXPECT_TRUE(hasDifferenceWithoutRotation);
+
+    provider->stop();
+    provider.reset();
+    ver_cleanup();
 }
 
 }  // namespace goldfish::camera_image_providers::virtualscene

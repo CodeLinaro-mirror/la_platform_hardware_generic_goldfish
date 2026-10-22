@@ -54,6 +54,7 @@ cc_library(
         "//emulator/plugin/vminterface:vm_lock",
         "//emulator/plugin/webrtc",
         "//emulator/tools:aemu_version",
+        "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/time",

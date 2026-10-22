@@ -1,5 +1,6 @@
 load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_test")
-load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_test")
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+load("//emulator/tools:cc_binary_with_manifest.bzl", "cc_binary_with_manifest")
 load("//emulator/tools:plugins.bzl", "collect_plugins")
 
 config_setting(
@@ -66,6 +67,7 @@ cc_test(
         "//emulator/libs/async:threaded_event_loop",
         "//emulator/libs/system:test-headers",
         "//emulator/libs/test:googletest_main",
+        "@abseil-cpp//absl/cleanup",
         "@abseil-cpp//absl/status:status_matchers",
         "@abseil-cpp//absl/strings",
         "@glib//glib:glib_import",
@@ -237,7 +239,7 @@ cc_test(
     ],
 )
 
-cc_binary(
+cc_binary_with_manifest(
     name = "crash-me",
     srcs = ["main_test_crasher.cc"],
     data = ["@crashpad//handler:crashpad_handler"],
@@ -258,7 +260,7 @@ cc_binary(
     ],
 )
 
-cc_binary(
+cc_binary_with_manifest(
     name = "breadcrumb_benchmark",
     srcs = ["breadcrumb_benchmark.cc"],
     deps = [

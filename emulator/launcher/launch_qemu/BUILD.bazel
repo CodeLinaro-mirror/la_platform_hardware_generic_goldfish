@@ -26,7 +26,64 @@ cc_library(
 cc_library(
     name = "device",
     hdrs = ["device.h"],
-    deps = [":emulator_config"],
+    deps = [
+        ":emulator_config",
+        "@abseil-cpp//absl/container:flat_hash_map",
+    ],
+)
+
+cc_library(
+    name = "env_passthrough_device",
+    srcs = ["env_passthrough_device.cc"],
+    hdrs = ["env_passthrough_device.h"],
+    deps = [
+        ":device",
+        "//emulator/libs/system",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/status",
+    ],
+)
+
+cc_test(
+    name = "env_passthrough_device_test",
+    srcs = ["env_passthrough_device_test.cc"],
+    deps = [
+        ":device",
+        ":env_passthrough_device",
+        ":fake_emulator",
+        "//emulator/libs/status_macros:status_matcher_macros",
+        "//emulator/libs/system:test-headers",
+        "//emulator/libs/test:googletest_main",
+    ],
+)
+
+cc_library(
+    name = "plugin_init",
+    srcs = ["plugin_init.cc"],
+    hdrs = ["plugin_init.h"],
+    deps = [
+        ":device",
+        "//emulator/libs/metrics:metrics_reporter",
+        "//emulator/libs/system",
+        "@abseil-cpp//absl/base:log_severity",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/strings",
+    ],
+)
+
+cc_test(
+    name = "plugin_init_test",
+    srcs = ["plugin_init_test.cc"],
+    deps = [
+        ":device",
+        ":fake_emulator",
+        ":plugin_init",
+        "//emulator/libs/status_macros:status_matcher_macros",
+        "//emulator/libs/system:test-headers",
+        "//emulator/libs/test:googletest_main",
+    ],
 )
 
 cc_library(
@@ -36,6 +93,7 @@ cc_library(
     deps = [
         ":device",
         "//emulator/libs/base",
+        "//emulator/libs/system",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
     ],
@@ -47,6 +105,8 @@ cc_library(
     hdrs = ["adb_device.h"],
     deps = [
         ":device",
+        "//emulator/libs/system",
+        "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/strings",
     ],
@@ -155,12 +215,28 @@ cc_library(
     name = "gpu_device",
     srcs = ["gpu_device.cc"],
     hdrs = ["gpu_device.h"],
+    visibility = ["//visibility:public"],
     deps = [
         ":device",
         ":snapshot_device",
         "//emulator/libs/parsing:resizable_display_config",
+        "//emulator/libs/system",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
+    ],
+)
+
+cc_test(
+    name = "gpu_device_test",
+    srcs = ["gpu_device_test.cc"],
+    deps = [
+        ":device",
+        ":fake_emulator",
+        ":gpu_device",
+        ":snapshot_device",
+        "//emulator/libs/status_macros:status_matcher_macros",
+        "//emulator/libs/system:test-headers",
+        "//emulator/libs/test:googletest_main",
     ],
 )
 
@@ -218,8 +294,10 @@ cc_library(
         ":bootconfig",
         ":device",
         ":disk_drive",
+        ":gpu_device",
         "//emulator/libs/adbkey",
         "//emulator/libs/parsing:resizable_display_config",
+        "//emulator/libs/system",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
     ],
@@ -232,6 +310,7 @@ cc_test(
     deps = [
         ":device",
         ":fake_emulator",
+        ":gpu_device",
         ":initrd_device",
         "//emulator/libs/status_macros:status_matcher_macros",
         "//emulator/libs/system:test-headers",
@@ -394,7 +473,8 @@ cc_library(
     hdrs = ["user_data_drive.h"],
     deps = [
         ":device",
-        "//emulator/libs/fsimage",
+        "//emulator/libs/file",
+        "//emulator/libs/status_macros",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
     ],
@@ -421,10 +501,13 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":device",
-        "//emulator/libs/fsimage",
-        "//emulator/libs/process",
+        "//emulator/libs/file",
+        "//emulator/libs/fsimage:ext4",
+        "//emulator/libs/fsimage:qcow2",
+        "//emulator/libs/status_macros",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/time",
     ],
 )
 
@@ -451,6 +534,7 @@ cc_library(
         ":device",
         ":disk_drive",
         ":user_data_drive",
+        "//emulator/libs/fsimage:exfat",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
     ],
@@ -464,6 +548,7 @@ cc_test(
         ":configure_drives",
         ":fake_emulator",
         "//emulator/launcher:mock_avd",
+        "//emulator/libs/fsimage:exfat",
         "//emulator/libs/system:test-headers",
         "//emulator/libs/test:googletest_main",
         "@abseil-cpp//absl/status:status_matchers",
@@ -516,6 +601,7 @@ cc_library(
         ":cpu_device",
         ":display_device",
         ":emulator_config",
+        ":env_passthrough_device",
         ":gpu_device",
         ":grpc_device",
         ":hugepage_device",
@@ -525,6 +611,7 @@ cc_library(
         ":memory_device",
         ":network_device",
         ":parameter_list",
+        ":plugin_init",
         ":snapshot_device",
         ":wifi_device",
         "//emulator/launcher:avd",

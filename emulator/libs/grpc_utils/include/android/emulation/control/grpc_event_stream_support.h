@@ -17,7 +17,10 @@
 #include <functional>
 #include <mutex>
 #include <unordered_set>
+#include <utility>
+#include <vector>
 
+#include "absl/base/thread_annotations.h"
 #include "absl/functional/any_invocable.h"
 #include "absl/log/check.h"
 #include "absl/synchronization/mutex.h"
@@ -221,44 +224,109 @@ class GenericEventStreamWriter
 
 /**
  * @class UniqueEventStreamWriter
- * @brief A gRPC server event stream writer that filters out duplicate consecutive events.
+ * @brief A gRPC server event stream writer that filters out consecutive duplicate events and
+ * optionally sends an immediate initial state snapshot upon connection.
  *
- * @details This class inherits from `GenericEventStreamWriter` and is designed for event sources
- * that produce spurious duplicate notifications. For example, if the raw event source emits `A, A,
- * B, B, B, C, C`, this writer ensures only `A, B, C` are delivered to the gRPC client.
+ * @details Designed for event sources that produce `T` messages directly and may emit spurious
+ * consecutive duplicates (e.g., `A, A, B, B, B, C, C` -> `A, B, C`). If `populate_fn` is provided,
+ * it is invoked synchronously during construction to deliver the initial state snapshot before
+ * subscribing to `source`. When an event of type `T` arrives and passes the optional `filter_fn`,
+ * it is compared against the previously forwarded message using `MessageDifferencer::Equals` and
+ * written only when it differs.
  *
- * @tparam T The type of events and gRPC messages to be written to the stream.
+ * Because deduplication retains a copy of the last written `T` and runs
+ * `MessageDifferencer::Equals`, prefer `UniqueEventStreamWriter` for compact control-plane
+ * messages (such as `VmState` or `GrpcNotification`) and `StateStreamWriter` for large payload
+ * streams (such as `ImageFrame` screenshots).
+ *
+ * @tparam T The gRPC Protobuf message type to write to the stream.
+ * @tparam Source The event source type (defaults to `CallbackEventSource<T>`).
+ * @tparam max_queue_size The maximum number of items to keep in the write queue (0 = unbounded).
+ * @tparam recycle_size The maximum number of items to keep in the recycle pool (0 = disabled).
+ * @tparam Reactor The underlying gRPC write reactor type.
  */
-template <class T, size_t max_queue_size = 0, size_t recycle_size = 0>
-class UniqueEventStreamWriter : public GenericEventStreamWriter<T, max_queue_size, recycle_size> {
-    using ChangeSupport = CallbackEventSource<T>;
-
+template <class T, class Source = CallbackEventSource<T>, size_t max_queue_size = 0,
+          size_t recycle_size = 0, class Reactor = ::grpc::ServerWriteReactor<T>>
+class UniqueEventStreamWriter final
+        : public BaseEventStreamWriter<T, T, Source, max_queue_size, recycle_size, Reactor> {
   public:
-    /**
-     * @brief Constructs a `UniqueEventStreamWriter` subscribed to the specified event source.
-     *
-     * @param listener Pointer to the `CallbackEventSource` instance.
-     */
-    UniqueEventStreamWriter(ChangeSupport* listener)
-            : GenericEventStreamWriter<T, max_queue_size, recycle_size>(listener) {}
-    virtual ~UniqueEventStreamWriter() = default;
+    using ChangeSupport = Source;
+    using PopulateStateFn = absl::AnyInvocable<void(T*)>;
+    using FilterPredicate = absl::AnyInvocable<bool(const typename EventParam<T>::type&) const>;
 
     /**
-     * @brief Invoked when an event arrives. Compares the new event against the last forwarded event
-     * using `MessageDifferencer`.
+     * @brief Constructs a `UniqueEventStreamWriter`, optionally writes an initial state snapshot,
+     * and subscribes to the event source.
+     *
+     * @param source The event source to subscribe to.
+     * @param populate_fn Optional function invoked once during construction to populate the initial
+     *                    Protobuf message `T`.
+     * @param filter_fn Optional predicate to filter incoming events before deduplication.
+     */
+    explicit UniqueEventStreamWriter(ChangeSupport* source, PopulateStateFn populate_fn = nullptr,
+                                     FilterPredicate filter_fn = nullptr)
+            : BaseEventStreamWriter<T, T, Source, max_queue_size, recycle_size, Reactor>(source)
+            , filter_fn_(std::move(filter_fn)) {
+        if (populate_fn) {
+            T initial_state = this->AcquireMessage();
+            populate_fn(&initial_state);
+            WriteIfChanged(std::move(initial_state));
+        }
+        this->Subscribe();
+    }
+
+    /**
+     * @brief Constructs a `UniqueEventStreamWriter`, writes a sequence of initial messages before
+     * subscribing, and subscribes to the event source.
+     *
+     * @param source The event source to subscribe to.
+     * @param initial_events Initial messages to write prior to subscribing.
+     * @param filter_fn Optional predicate to filter incoming events before deduplication.
+     */
+    UniqueEventStreamWriter(ChangeSupport* source, std::vector<T> initial_events,
+                            FilterPredicate filter_fn = nullptr)
+            : BaseEventStreamWriter<T, T, Source, max_queue_size, recycle_size, Reactor>(source)
+            , filter_fn_(std::move(filter_fn)) {
+        for (auto& event : initial_events) {
+            WriteIfChanged(std::move(event));
+        }
+        this->Subscribe();
+    }
+
+    ~UniqueEventStreamWriter() override { this->Unsubscribe(); }
+
+    /**
+     * @brief Invoked when an event arrives. Evaluates `filter_fn` and forwards the event only if
+     * it differs from the previously written message.
      *
      * @param event The event of type `T` that has arrived.
      */
     void EventArrived(typename EventParam<T>::type event) override {
-        const std::lock_guard<std::mutex> lock(event_lock_);
-        if (!google::protobuf::util::MessageDifferencer::Equals(event, last_event_)) {
-            last_event_ = event;
-            this->Write(event);
+        DD_EVT("Handling %p, %s", this, event.ShortDebugString().c_str());
+        if (filter_fn_ && !filter_fn_(event)) {
+            return;
         }
-    };
+        WriteIfChanged(event);
+    }
 
-    T last_event_;
-    std::mutex event_lock_;
+  private:
+    void WriteIfChanged(T state) {
+        {
+            absl::MutexLock lock(&state_lock_);
+            if (has_last_state_ &&
+                google::protobuf::util::MessageDifferencer::Equals(state, last_state_)) {
+                return;
+            }
+            last_state_ = state;
+            has_last_state_ = true;
+        }
+        this->Write(std::move(state));
+    }
+
+    FilterPredicate filter_fn_;
+    absl::Mutex state_lock_;
+    bool has_last_state_ ABSL_GUARDED_BY(state_lock_) = false;
+    T last_state_ ABSL_GUARDED_BY(state_lock_);
 };
 
 /**

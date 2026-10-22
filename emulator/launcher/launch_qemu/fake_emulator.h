@@ -28,6 +28,8 @@ class FakeEmulator {
 
     MockAvd& mock_avd() { return *mMockAvd; }
 
+    EmulatorPaths& emulator_paths() { return mEmulatorPaths; }
+
     const EmulatorConfig& config() { return *mEmulatorConfig; }
 
   private:

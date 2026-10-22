@@ -20,6 +20,13 @@
  */
 #pragma once
 
+#include <cstddef>
+#include <memory>
+#include <string>
+
+#include "absl/base/thread_annotations.h"
+#include "absl/synchronization/mutex.h"
+
 #include "goldfish/async/event_loop.h"
 #include "goldfish/devices/cable/cable.h"
 #include "goldfish/devices/internal/hal_plug.h"
@@ -41,7 +48,7 @@ class HalPlugToIPlugAdapter : public cable::IPlug,
      * @brief Constructs a new HalPlugToIPlugAdapter.
      * @param client_loop The event loop on which the HalPlug's methods should be
      * invoked.
-     * @param halPlug The real HalPlug instance to which calls will be
+     * @param hal_plug The real HalPlug instance to which calls will be
      * forwarded.
      */
     HalPlugToIPlugAdapter(async::EventLoop* client_loop, std::shared_ptr<HalPlug> hal_plug);
@@ -57,8 +64,9 @@ class HalPlugToIPlugAdapter : public cable::IPlug,
     /**
      * @brief Called on the QEMU thread when data is received from the guest.
      *
-     * This method is part of the IPlug interface. It marshals the call to the
-     * HalPlug's onReceive method on the client event loop.
+     * This method is part of the IPlug interface. It coalesces incoming guest
+     * chunks into a pre-reserved buffer and marshals delivery to the HalPlug's
+     * OnReceive method on the client event loop.
      * @param data A pointer to the received data.
      * @param size The size of the received data.
      * @return Always returns true, as the actual processing is asynchronous.
@@ -82,8 +90,16 @@ class HalPlugToIPlugAdapter : public cable::IPlug,
     }
 
   private:
+    // Default socket buffer size
+    static constexpr size_t kInitialBufferSize = 64 * 1024;
+
     async::EventLoop* client_loop_;
     const std::shared_ptr<HalPlug> hal_plug_;
+
+    absl::Mutex receive_buffer_mutex_;
+    std::string receive_buffer_ ABSL_GUARDED_BY(receive_buffer_mutex_);
+    bool has_pending_receive_ ABSL_GUARDED_BY(receive_buffer_mutex_) = false;
+    std::string deliver_buffer_;
 };
 
 }  // namespace goldfish::devices

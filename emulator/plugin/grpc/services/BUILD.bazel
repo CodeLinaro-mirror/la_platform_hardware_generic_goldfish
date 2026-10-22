@@ -87,6 +87,7 @@ cc_test(
         ":sensor_service_incubating",
         "//emulator/libs/hardware_config:fake_hardware_config",
         "//emulator/libs/test:googletest_main",
+        "@abseil-cpp//absl/time",
     ],
 )
 

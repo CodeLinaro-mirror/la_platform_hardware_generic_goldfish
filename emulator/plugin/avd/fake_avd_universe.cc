@@ -41,6 +41,10 @@ metrics::MetricsReporter& FakeAvdUniverse::GetMetricsReporter() {
     return metrics_reporter_;
 }
 
+android::goldfish::VmOperations& FakeAvdUniverse::GetVmOperations() {
+    LOG(FATAL) << "GetVmOperations not implemented";
+}
+
 display::IMultiDisplay& FakeAvdUniverse::GetMultiDisplay() const {
     LOG(FATAL) << "GetMultiDisplay not implemented";
 }

@@ -86,7 +86,7 @@ class MockEmulatorControllerService
 
     ::grpc::ServerWriteReactor<Notification>* streamNotification(
             ::grpc::CallbackServerContext* /*context*/, const Empty* /*request*/) override {
-        return new NotificationStreamWriter(mSource, mStore);
+        return CreateNotificationStreamWriter(mSource, mStore);
     }
 
   private:

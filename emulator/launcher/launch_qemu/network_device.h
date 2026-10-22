@@ -25,11 +25,14 @@ class NetworkDevice : public PciDevice {
 
     absl::Status initialize(const EmulatorConfig& emulator) override;
     std::vector<std::string> getQemuParameters(const EmulatorConfig& emulator) const override;
+    absl::flat_hash_map<std::string, std::string> getQemuEnv(
+            const EmulatorConfig& emulator) const override;
 
   private:
     bool cellular_;
     bool netsim_backend_;
     std::string mac_address_;
+    std::string host_dns_;
 };
 
 }  // namespace android::goldfish

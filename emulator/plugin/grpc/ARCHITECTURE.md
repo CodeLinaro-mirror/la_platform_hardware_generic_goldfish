@@ -40,3 +40,12 @@ device. **Location:** `hardware/generic/goldfish/emulator/plugin/grpc` **Namespa
 - **gRPC Thread Pool:** The gRPC server runs on its own thread pool.
 - **Main Loop Interaction:** Interactions with QEMU core (VM operations, display) are marshalled to
   the main loop via `QemuEventLoop` or `GlobalEventLoop`.
+
+## Lifecycle
+
+- **Shutdown request:** Removes the discovery file so that no new clients find the emulator.
+  Connected clients are still served while the exit snapshot (`-savevm`) is saved.
+- **Main loop exit:** After the exit snapshot, a `qemu_register_main_loop_exit_notifier` callback
+  stops the server (100 ms grace, BQL released) and destroys the services. Some, like the WebRTC
+  switchboard, outlive their RPC streams and release QEMU resources such as audio capture, so this
+  must happen before `qemu_cleanup()` tears down those subsystems.

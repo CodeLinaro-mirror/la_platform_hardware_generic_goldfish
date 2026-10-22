@@ -498,7 +498,7 @@ class FileBackedAvd : public Avd {
                 auto files_in_snap = android::base::file::scan_dir(snap_path, /*fullPath=*/true);
                 for (const auto& f : files_in_snap) {
                     std::string ext = f.extension().string();
-                    if (ext == ".qcow2" || ext == ".img") {
+                    if (ext == ".qcow2") {
                         std::string img_info = inspector(f);
                         if (!img_info.empty()) {
                             absl::StrAppend(&img_info_accum, "   Image [", f.filename().string(),
@@ -886,21 +886,18 @@ absl::StatusOr<std::unique_ptr<Avd>> Avd::FromSysDirs(
 
     // TODO also load skin hardware.ini if present?
 
-    // TODO this probably needs to be updated when snapshots are supported.
-    // #define CORE_HARDWARE_INI "hardware-qemu.ini"
-    auto hw_path = content_path / CORE_HARDWARE_INI;
-    if (base::file::exists(hw_path) && base::file::can_read(hw_path)) {
-        auto hw_config = std::make_unique<IniFile>(hw_path);
-        if (hw_config->Read()) {
-            // TODO load without defaults.
-            hw_cfg.Load(*hw_config);
-        }
+    if (opts.camera_back && *opts.camera_back) {
+        hw_cfg.hw_camera_back = opts.camera_back;
+    }
+    if (opts.camera_front && *opts.camera_front) {
+        hw_cfg.hw_camera_front = opts.camera_front;
     }
 
     hw_cfg.ApplyDefaults(user_paths.sdk_directory, user_paths.avd_directory);
     RETURN_IF_ERROR(MemoryConfig::FinalizeRamAndHeapSize(hw_cfg, build_wrapper.ApiLevel()));
 
     // save to CORE_HARDWARE_INI as well, embedded ui needs it
+    auto hw_path = content_path / CORE_HARDWARE_INI;
     auto hw_config = std::make_unique<IniFile>(hw_path);
     hw_cfg.Write(hw_config.get());
     hw_config->WriteDiscardingEmpty();

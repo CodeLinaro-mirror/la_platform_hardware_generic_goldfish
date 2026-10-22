@@ -39,7 +39,7 @@ using grpc::Status;
  */
 class VmServiceImpl {
   public:
-    VmServiceImpl(VmOperations* vm) : mVm(vm) {}
+    explicit VmServiceImpl(VmOperations* vm) : vm_(vm) {}
 
     /**
      * @brief Gets the current state of the virtual machine.
@@ -64,7 +64,7 @@ class VmServiceImpl {
     Status setVmState(const VmRunState& request);
 
   private:
-    VmOperations* mVm;  ///< The VmOperations instance used to control the VM.
+    VmOperations* vm_;  ///< The VmOperations instance used to control the VM.
 };
 
 }  // namespace control

@@ -28,7 +28,7 @@ grpc::Status SnapshotServiceImpl::ListSnapshots(grpc::ServerContext* context,
     return AbslStatusToGrpcStatus(vm_operations_.ListSnapshots([reply](SnapshotEntry se) {
         SnapshotDetails* details = reply->mutable_snapshots()->Add();
 
-        details->set_snapshot_id(std::move(se.id));
+        details->set_snapshot_id(se.name);
 
         emulator_snapshot::Snapshot* details2 = details->mutable_details();
         details2->set_logical_name(std::move(se.name));
@@ -39,8 +39,8 @@ grpc::Status SnapshotServiceImpl::ListSnapshots(grpc::ServerContext* context,
 grpc::Status SnapshotServiceImpl::LoadSnapshot(grpc::ServerContext* context,
                                                const SnapshotPackage* request,
                                                SnapshotPackage* reply) {
-    const absl::Status s = vm_operations_.LoadSnapshot(request->snapshot_id().c_str(),
-                                                       /*andResume=*/true);
+    const absl::Status s = vm_operations_.LoadSnapshot(request->snapshot_id(),
+                                                       /*and_resume=*/true);
     reply->set_success(s.ok());
     reply->set_snapshot_id(request->snapshot_id());
     return AbslStatusToGrpcStatus(s);
@@ -49,7 +49,7 @@ grpc::Status SnapshotServiceImpl::LoadSnapshot(grpc::ServerContext* context,
 grpc::Status SnapshotServiceImpl::SaveSnapshot(grpc::ServerContext* context,
                                                const SnapshotPackage* request,
                                                SnapshotPackage* reply) {
-    const absl::Status s = vm_operations_.SaveSnapshot(request->snapshot_id().c_str(),
+    const absl::Status s = vm_operations_.SaveSnapshot(request->snapshot_id(),
                                                        /*overwrite=*/true);
     reply->set_success(s.ok());
     reply->set_snapshot_id(request->snapshot_id());
@@ -59,7 +59,7 @@ grpc::Status SnapshotServiceImpl::SaveSnapshot(grpc::ServerContext* context,
 grpc::Status SnapshotServiceImpl::DeleteSnapshot(grpc::ServerContext* context,
                                                  const SnapshotPackage* request,
                                                  SnapshotPackage* reply) {
-    const absl::Status s = vm_operations_.DeleteSnapshot(request->snapshot_id().c_str());
+    const absl::Status s = vm_operations_.DeleteSnapshot(request->snapshot_id());
     reply->set_success(s.ok());
     reply->set_snapshot_id(request->snapshot_id());
     return AbslStatusToGrpcStatus(s);

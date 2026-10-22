@@ -4,8 +4,6 @@ emulator/bin/crashreport
 emulator/bin/img2simg
 emulator/bin/netsim
 emulator/bin/netsimd
-emulator/bin/qemu-img
-emulator/bin/qemu-system-aarch64
 emulator/bin/qemu-system-x86_64
 emulator/data/
 emulator/data/virtualscene/
@@ -16,6 +14,11 @@ emulator/data/virtualscene/Toren1BD/Toren1BD.posters
 emulator/data/virtualscene/Toren1BD/Toren1BD_Decor.png
 emulator/data/virtualscene/Toren1BD/Toren1BD_Main.png
 emulator/data/virtualscene/Toren1BD/poster.png
+emulator/data/virtualscene/default/
+emulator/data/virtualscene/default/default.jpg
+emulator/data/virtualscene/default/default.mp4
+emulator/data/virtualscene/default/default360.jpg
+emulator/data/virtualscene/default/default360.mp4
 emulator/emulator
 emulator/emulator-check
 emulator/mksdcard
@@ -233,7 +236,6 @@ emulator/lib/
 emulator/lib/advancedFeatures.ini
 emulator/lib/emulator_access.json
 emulator/lib/qemu/
-emulator/lib/qemu/libgoldfish_aarch64.so
 emulator/lib/qemu/libgoldfish_x86_64.so
 emulator/lib/qemu/librutabaga_ffi.so
 emulator/lib64/

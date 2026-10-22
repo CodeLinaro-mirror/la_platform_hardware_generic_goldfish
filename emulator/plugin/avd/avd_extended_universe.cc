@@ -24,6 +24,7 @@
 
 #include "android/base/system.h"
 #include "android/crashreport/crash_reporter.h"
+#include "android/goldfish/qemu_vm_operations.h"
 #include "android/goldfish/vm_interface.h"
 #include "goldfish/adb/adb_host_server.h"
 #include "goldfish/archive/collections/string.h"
@@ -130,13 +131,13 @@ absl::Status AvdExtendedUniverse::Initialize() {
             absl::ZeroDuration(), absl::Seconds(300));
     avd_universe.GetGuestStatus().SetMetricsReporter(avd_universe.metrics_reporter.get());
 
-    auto is_active = []() {
-        auto* vm = android::goldfish::VmOperations::qemuVmOperations();
-        return vm && vm->isRunning();
-    };
-
     avd_universe.qemu_event_loop = goldfish::async::QemuEventLoop::Create();
     auto& qemu_loop = avd_universe.qemu_event_loop;
+
+    avd_universe.vm_operations = android::goldfish::CreateQemuVmOperations(
+            /*event_loop=*/client_loop, /*qemu_loop=*/qemu_loop.get());
+    auto is_active = [vm = avd_universe.vm_operations.get()]() { return vm->IsRunning(); };
+
     android::crashreport::CrashReporter::GetCrashingHangDetector().AddWatchedLooper(
             "QemuEventLoop", *qemu_loop, absl::Seconds(15), is_active);
 
@@ -180,8 +181,11 @@ absl::Status AvdExtendedUniverse::Initialize() {
                                                   client_loop, qemu_loop.get());
     DEVS::guest_status::IGuestStatusDevice::RegisterDevice(
             &avd_universe.GetGuestStatus(), registry,
-            {qemu_register_reset, BqlSafeUnregisterEmulatorReset}, client_loop, qemu_loop.get(),
-            avd_props.quit_after_boot_timeout_seconds);
+            {qemu_register_reset, BqlSafeUnregisterEmulatorReset},
+            [vm = avd_universe.vm_operations.get()] {
+                vm->SystemShutdownRequest(android::goldfish::QemuShutdownCause::GuestShutdown);
+            },
+            client_loop, qemu_loop.get(), avd_props.quit_after_boot_timeout_seconds);
     DEVS::fingerprint::IFingerprintDevice::RegisterDevice(&avd_universe.GetFingerprintSensor(),
                                                           registry, client_loop, qemu_loop.get());
     DEVS::gps::IGpsDevice::RegisterDevice(&avd_universe.GetLocation(), registry, client_loop,
@@ -196,7 +200,7 @@ absl::Status AvdExtendedUniverse::Initialize() {
     std::string emulatedCameraProp;
     DEVS::camera::RegisterDevice(&avd_universe.GetSensorsPhysicalModel(), registry,
                                  &emulatedCameraProp, avd_props.hw_config,
-                                 []() { return GetGrallocImpl(); });
+                                 avd_props.avd_content_path, []() { return GetGrallocImpl(); });
 
     using namespace std::string_literals;
     auto props = devices::boot::IBootPropertiesDevice::MakeProperties({
@@ -296,6 +300,10 @@ async::EventLoop& AvdExtendedUniverse::GetQemuEventLoop() {
 
 goldfish::metrics::MetricsReporter& AvdExtendedUniverse::GetMetricsReporter() {
     return *metrics_reporter;
+}
+
+android::goldfish::VmOperations& AvdExtendedUniverse::GetVmOperations() {
+    return *vm_operations;
 }
 
 display::IMultiDisplay& AvdExtendedUniverse::GetMultiDisplay() const {

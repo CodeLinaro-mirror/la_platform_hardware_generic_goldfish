@@ -14,7 +14,9 @@
 #include "vm_service.h"
 
 #include "absl/log/log.h"
+#include "absl/strings/str_cat.h"
 
+#include "android/emulation/control/absl_status_translate.h"
 #include "android/process/process.h"
 
 namespace android {
@@ -25,33 +27,30 @@ Status VmServiceImpl::setVmState(const VmRunState& request) {
     auto state = request.state();
     switch (state) {
     case VmRunState::RESET:
-        mVm->reset();
-        break;
+        return AbslStatusToGrpcStatus(vm_->Reset());
     case VmRunState::SHUTDOWN:
-        mVm->Shutdown();
-        break;
+        return AbslStatusToGrpcStatus(vm_->Shutdown());
     case VmRunState::TERMINATE: {
         LOG(ERROR) << "Received request to terminate the emulator process immediately. No "
                       "cleanup will be performed.";
         android::base::Process::Me()->Terminate();
     }; break;
     case VmRunState::PAUSED:
-        mVm->pause();
-        break;
+        return AbslStatusToGrpcStatus(vm_->Pause());
     case VmRunState::RUNNING:
-        mVm->resume();
-        break;
+        return AbslStatusToGrpcStatus(vm_->Resume());
     case VmRunState::RESTART:
-        mVm->reset();
-        break;
+        return AbslStatusToGrpcStatus(vm_->Reset());
     case VmRunState::START:
-        mVm->start();
-        break;
+        return AbslStatusToGrpcStatus(vm_->Start());
     case VmRunState::STOP:
-        mVm->stop();
-        break;
+        return AbslStatusToGrpcStatus(vm_->Stop());
     default:
-        break;
+        return Status(grpc::StatusCode::INVALID_ARGUMENT,
+                      absl::StrCat("Cannot set VM state to ", VmRunState::RunState_Name(state),
+                                   " (", static_cast<int>(state),
+                                   "): expected START, STOP, PAUSED, RUNNING, "
+                                   "RESET, RESTART, SHUTDOWN, or TERMINATE."));
     };
 
     return Status::OK;
@@ -60,7 +59,7 @@ Status VmServiceImpl::setVmState(const VmRunState& request) {
 Status VmServiceImpl::getVmState(VmRunState* reply) {
     using ::android::goldfish::EmuRunState;
 
-    auto state = mVm->getRunState();
+    auto state = vm_->GetRunState();
     VLOG(1) << "Current emulator run state: " << static_cast<int>(state) << " (" << state << ")";
     switch (state) {
     case EmuRunState::Paused:

@@ -13,21 +13,50 @@
 // limitations under the License.
 #include "sensor_service.h"
 
+#include <glm/vec3.hpp>
+
+#include <cmath>
+#include <vector>
+
 #include "android/emulation/control/absl_status_translate.h"
 
 namespace android {
 namespace emulation {
 namespace control {
 
+using ::android::base::eventing::MakeScopedCallback;
 using GoldfishSensor = ::goldfish::sensors::AndroidSensor;
 using GoldfishSensorData = ::goldfish::sensors::SensorData;
 using GoldfishSensorValue = ::goldfish::sensors::SensorValue;
 
+SensorServiceImpl::SensorServiceImpl(
+        ::goldfish::sensors::PhysicalModel& pm,
+        ::goldfish::avd_universe::grpc::GrpcNotificationEventSource* notification_channel)
+        : mPhysicalModel(pm), mNotificationChannel(notification_channel) {
+    if (mNotificationChannel != nullptr) {
+        mCameraActiveSubscription =
+                MakeScopedCallback(mPhysicalModel.GetVirtualSceneCamera().GetActiveListener(),
+                                   [this](const bool& active) { fireCameraNotification(active); });
+        fireCameraNotification(mPhysicalModel.GetVirtualSceneCamera().IsConnected());
+    }
+}
+
+void SensorServiceImpl::fireCameraNotification(const bool active) {
+    if (mNotificationChannel == nullptr) {
+        return;
+    }
+    Notification event;
+    auto* camera_notification = event.mutable_cameranotification();
+    camera_notification->set_display(0);
+    camera_notification->set_active(active);
+    mNotificationChannel->FireEvent(event);
+}
+
 grpc::Status SensorServiceImpl::setSensor(const SensorValue& request) {
     const GoldfishSensor sensor = static_cast<GoldfishSensor>(request.target());
-    const auto& requestData = request.value().data();
+    const auto& request_data = request.value().data();
     mPhysicalModel.SetSensorValue(sensor,
-                                  GoldfishSensorValue(requestData.begin(), requestData.end()));
+                                  GoldfishSensorValue(request_data.begin(), request_data.end()));
     return Status::OK;
 }
 
@@ -64,6 +93,24 @@ grpc::Status SensorServiceImpl::getPhysicalModel(const PhysicalModelValue& reque
     reply->set_target(request.target());
     reply->set_status(PhysicalModelValue::OK);
     *reply->mutable_value()->mutable_data() = {data.begin(), data.end()};
+    return Status::OK;
+}
+
+grpc::Status SensorServiceImpl::rotateVirtualSceneCamera(const RotationRadian& request) {
+    if (!std::isfinite(request.x()) || !std::isfinite(request.y()) || !std::isfinite(request.z())) {
+        return Status(grpc::StatusCode::INVALID_ARGUMENT,
+                      "Rotation coordinates must be finite values.");
+    }
+    mPhysicalModel.GetVirtualSceneCamera().Rotate({request.x(), request.y(), request.z()});
+    return Status::OK;
+}
+
+grpc::Status SensorServiceImpl::setVirtualSceneCameraVelocity(const Velocity& request) {
+    if (!std::isfinite(request.x()) || !std::isfinite(request.y()) || !std::isfinite(request.z())) {
+        return Status(grpc::StatusCode::INVALID_ARGUMENT,
+                      "Velocity coordinates must be finite values.");
+    }
+    mPhysicalModel.GetVirtualSceneCamera().SetVelocity({request.x(), request.y(), request.z()});
     return Status::OK;
 }
 

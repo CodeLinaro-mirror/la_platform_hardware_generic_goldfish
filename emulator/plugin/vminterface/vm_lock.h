@@ -77,7 +77,7 @@ class VmLock {
 // Convenience class to perform scoped VM locking.
 class ScopedVmLock {
   public:
-    ScopedVmLock(VmLock* vm_lock = VmLock::Get()) : vm_lock_(vm_lock) { vm_lock_->Lock(); }
+    explicit ScopedVmLock(VmLock* vm_lock = VmLock::Get()) : vm_lock_(vm_lock) { vm_lock_->Lock(); }
 
     ~ScopedVmLock() { vm_lock_->Unlock(); }
 
@@ -89,7 +89,7 @@ class ScopedVmLock {
 // to lock twice).
 class RecursiveScopedVmLock {
   public:
-    RecursiveScopedVmLock(VmLock* vm_lock = VmLock::Get()) {
+    explicit RecursiveScopedVmLock(VmLock* vm_lock = VmLock::Get()) {
         if (vm_lock->IsLockedBySelf()) {
             vm_lock_ = nullptr;
         } else {
@@ -139,7 +139,7 @@ class RecursiveScopedVmLockIfInstance {
 // but needs to ensure that some part of it runs without a VmLock.
 class ScopedVmUnlock {
   public:
-    ScopedVmUnlock(VmLock* vm_lock = VmLock::Get()) {
+    explicit ScopedVmUnlock(VmLock* vm_lock = VmLock::Get()) {
         if (vm_lock->IsLockedBySelf()) {
             vm_lock_ = vm_lock;
             vm_lock_->Unlock();
