@@ -14,7 +14,8 @@
 
 #pragma once
 
-#include <mutex>
+#include "absl/base/thread_annotations.h"
+#include "absl/synchronization/mutex.h"
 
 #include "goldfish/archive/reader.h"
 #include "goldfish/archive/writer.h"
@@ -51,38 +52,40 @@ struct ObservableValue : public android::base::eventing::CallbackEventSource<T> 
     ObservableValue& operator=(const ObservableValue&) = default;
     ObservableValue& operator=(ObservableValue&&) = default;
 
-    void SetValue(T new_val, const bool force_trigger = false) {
-        const std::lock_guard<std::mutex> lock(mutex_);
+    void SetValue(T new_val, const bool force_trigger = false) ABSL_LOCKS_EXCLUDED(mutex_) {
+        const absl::MutexLock lock(mutex_);
         if (force_trigger || TRIGGER::Updated(value_, new_val)) {
             value_ = std::move(new_val);
             this->FireEvent(value_);
         }
     }
 
-    T GetValue() const {
-        std::lock_guard<std::mutex> lock(mutex_);
+    T GetValue() const ABSL_LOCKS_EXCLUDED(mutex_) {
+        const absl::MutexLock lock(mutex_);
         return value_;
     }
 
-    friend archive::IWriter& operator<<(archive::IWriter& w, const ObservableValue& val) {
-        std::lock_guard<std::mutex> lock(val.mutex_);
+    friend archive::IWriter& operator<<(archive::IWriter& w, const ObservableValue& val)
+            ABSL_LOCKS_EXCLUDED(val.mutex_) {
+        const absl::MutexLock lock(val.mutex_);
         w << val.value_;
         return w;
     }
 
-    friend absl::Status ReadValue(archive::IReader& r, ObservableValue& val) {
-        std::lock_guard<std::mutex> lock(val.mutex_);
+    friend absl::Status ReadValue(archive::IReader& r, ObservableValue& val)
+            ABSL_LOCKS_EXCLUDED(val.mutex_) {
+        const absl::MutexLock lock(val.mutex_);
         return ReadValue(r, val.value_);
     }
 
-    void OnPostLoad() {
-        std::lock_guard<std::mutex> lock(mutex_);
+    void OnPostLoad() ABSL_LOCKS_EXCLUDED(mutex_) {
+        const absl::MutexLock lock(mutex_);
         this->FireEvent(value_);
     }
 
   private:
-    T value_;
-    mutable std::mutex mutex_;
+    T value_ ABSL_GUARDED_BY(mutex_);
+    mutable absl::Mutex mutex_;
 };
 
 }  // namespace goldfish::eventing
