@@ -19,6 +19,16 @@
 #include "android/emulation/control/absl_status_translate.h"
 
 namespace android::emulation::control {
+namespace {
+
+grpc::Status FinishSnapshotPackageRpc(const SnapshotPackage* request, const absl::Status& status,
+                                      SnapshotPackage* reply) {
+    reply->set_success(status.ok());
+    reply->set_snapshot_id(request->snapshot_id());
+    return AbslStatusToGrpcStatus(status);
+}
+
+}  // namespace
 
 grpc::Status SnapshotServiceImpl::ListSnapshots(grpc::ServerContext* context,
                                                 const SnapshotFilter* request,
@@ -39,30 +49,24 @@ grpc::Status SnapshotServiceImpl::ListSnapshots(grpc::ServerContext* context,
 grpc::Status SnapshotServiceImpl::LoadSnapshot(grpc::ServerContext* context,
                                                const SnapshotPackage* request,
                                                SnapshotPackage* reply) {
-    const absl::Status s = vm_operations_.LoadSnapshot(request->snapshot_id(),
-                                                       /*and_resume=*/true);
-    reply->set_success(s.ok());
-    reply->set_snapshot_id(request->snapshot_id());
-    return AbslStatusToGrpcStatus(s);
+    return FinishSnapshotPackageRpc(
+            request, vm_operations_.LoadSnapshot(request->snapshot_id(), /*and_resume=*/true),
+            reply);
 }
 
 grpc::Status SnapshotServiceImpl::SaveSnapshot(grpc::ServerContext* context,
                                                const SnapshotPackage* request,
                                                SnapshotPackage* reply) {
-    const absl::Status s = vm_operations_.SaveSnapshot(request->snapshot_id(),
-                                                       /*overwrite=*/true);
-    reply->set_success(s.ok());
-    reply->set_snapshot_id(request->snapshot_id());
-    return AbslStatusToGrpcStatus(s);
+    return FinishSnapshotPackageRpc(
+            request, vm_operations_.SaveSnapshot(request->snapshot_id(), /*overwrite=*/true),
+            reply);
 }
 
 grpc::Status SnapshotServiceImpl::DeleteSnapshot(grpc::ServerContext* context,
                                                  const SnapshotPackage* request,
                                                  SnapshotPackage* reply) {
-    const absl::Status s = vm_operations_.DeleteSnapshot(request->snapshot_id());
-    reply->set_success(s.ok());
-    reply->set_snapshot_id(request->snapshot_id());
-    return AbslStatusToGrpcStatus(s);
+    return FinishSnapshotPackageRpc(request, vm_operations_.DeleteSnapshot(request->snapshot_id()),
+                                    reply);
 }
 
 grpc::Status SnapshotServiceImpl::UpdateSnapshot(grpc::ServerContext* context,
