@@ -143,7 +143,8 @@ absl::Status AvdExtendedUniverse::Initialize() {
                 .store = std::make_unique<::goldfish::snapshot::FileSnapshotStore>(
                         avd_props.avd_content_path, avd_props.snapshot_version),
                 .enabled = avd_props.snapshots_enabled,
-            });
+            },
+            /*hang_detector=*/&android::crashreport::CrashReporter::GetCrashingHangDetector());
     auto is_active = [vm = avd_universe.vm_operations.get()]() { return vm->IsRunning(); };
 
     android::crashreport::CrashReporter::GetCrashingHangDetector().AddWatchedLooper(
