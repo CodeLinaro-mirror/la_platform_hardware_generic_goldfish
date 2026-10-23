@@ -19,6 +19,7 @@
 #include <vulkan/vulkan.h>
 
 #include <condition_variable>
+#include <cstdint>
 #include <deque>
 #include <filesystem>
 #include <functional>
@@ -29,6 +30,8 @@
 #include <thread>
 #include <unordered_map>
 #include <vector>
+
+#include "absl/time/time.h"
 
 #include "Renderer.h"
 #include "TextureUtils.h"
@@ -105,13 +108,10 @@ class RendererVulkan : public Renderer {
     // texture is stale because its source file has been modified.
     struct FileStamp {
         bool valid = false;
-        std::filesystem::file_time_type lastWriteTime;
-        std::uintmax_t size = 0;
+        absl::Time lastWriteTime;
+        uint64_t size = 0;
 
-        bool operator==(const FileStamp& rhs) const {
-            return valid == rhs.valid && lastWriteTime == rhs.lastWriteTime && size == rhs.size;
-        }
-        bool operator!=(const FileStamp& rhs) const { return !(*this == rhs); }
+        bool operator==(const FileStamp& rhs) const = default;
     };
 
     struct TextureData {
@@ -142,7 +142,7 @@ class RendererVulkan : public Renderer {
 
     void releaseMaterialInternal(Material material);
     bool isStandardMaterial(Material material);
-    static FileStamp getFileStamp(const std::string& filename);
+    static FileStamp getFileStamp(const std::filesystem::path& path);
     Texture tryGetCachedTexture(const std::string& filename, const FileStamp& fileStamp);
     Texture createEmptyTexture(uint32_t width, uint32_t height);
     Texture createTextureInternal(TextureState state, const char* filename,
