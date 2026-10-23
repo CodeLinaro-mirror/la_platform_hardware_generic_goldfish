@@ -405,8 +405,7 @@ void HttpSession::DispatchRequest() {
     std::string_view match_path =
             (cut == std::string_view::npos) ? raw_path : raw_path.substr(0, cut);
 
-    auto match = router_->Match(current_request_.Method(), match_path);
-    if (match.has_value()) {
+    if (const RouteHandler* match = router_->MatchHandler(current_request_.Method(), match_path)) {
         switch (match->kind) {
         case RouteHandler::Kind::kUnary:
             SendUnaryResponse(match->unary_handler(current_request_));
@@ -417,7 +416,7 @@ void HttpSession::DispatchRequest() {
                     shared_from_this(), current_request_.Method(),
                     std::string(current_request_.Path()), request_start_time_,
                     current_request_.KeepAlive());
-            match->streaming_handler(current_request_, writer);
+            match->streaming_handler(current_request_, std::move(writer));
             return;
         }
         }
