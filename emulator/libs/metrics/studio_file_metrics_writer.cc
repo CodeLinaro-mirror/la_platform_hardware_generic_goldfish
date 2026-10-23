@@ -15,6 +15,7 @@
 
 #include "goldfish/metrics/studio_file_metrics_writer.h"
 
+#include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/strings/str_format.h"
@@ -207,6 +208,7 @@ void StudioFileMetricsWriter::FinalizeCurrentFile() ABSL_EXCLUSIVE_LOCKS_REQUIRE
 std::vector<std::string> StudioFileMetricsWriter::FinalizeAbandonedSessionFiles(
         const fs::path& spool_dir) {
     std::vector<std::string> abandoned_sessions;
+    absl::flat_hash_set<std::string> seen_sessions;
     for (const auto& path : android::base::file::scan_dir(spool_dir, /*fullPath=*/true)) {
         const std::string path_as_string = path.filename().string();
         std::string_view session_id;
@@ -220,7 +222,7 @@ std::vector<std::string> StudioFileMetricsWriter::FinalizeAbandonedSessionFiles(
                 continue;
             }
         }
-        if (FinalizeFile(path)) {
+        if (FinalizeFile(path) && seen_sessions.emplace(session_id).second) {
             abandoned_sessions.emplace_back(session_id);
         }
     }

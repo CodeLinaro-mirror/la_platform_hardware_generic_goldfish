@@ -66,8 +66,6 @@ namespace fs = std::filesystem;
 
 constexpr int EMULATOR_COMPATIBLE_QEMU_VERSION = 10;
 
-constexpr int kMetricsCrashesAbandoned = 1;
-
 constexpr std::string_view kUpdateRepositoryUrl =
         "https://dl.google.com/android/repository/repository2-3.xml";
 constexpr std::string_view kEmulatorPreviewPackagePrefix = "emulators;";
