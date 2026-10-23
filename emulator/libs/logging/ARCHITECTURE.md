@@ -8,6 +8,7 @@ code. **Location:** `emulator/libs/logging/` **Namespace:** `android::base`
 | Class / Interface | Bazel Target      | Header Path               | Description                                                         |
 | :---------------- | :---------------- | :------------------------ | :------------------------------------------------------------------ |
 | `ColorLogSink`    | `:color_log_sink` | `.../color_log_sink.h`    | An `absl::LogSink` that outputs ANSI-colored logs to stderr/stdout. |
+| `StudioLogSink`   | `:studio_log_sink`| `.../studio_log_sink.h`   | Formats `USER_MESSAGE(...)` and `FATAL` console lines for Studio.   |
 | `ALOG...`         | `:absl_c_bridge`  | `.../abseil_log_bridge.h` | Macros (`ALOGI`, `ALOGE`) bridging C-style logging to Abseil.       |
 
 ## Critical Infrastructure
