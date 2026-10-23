@@ -60,7 +60,7 @@ TEST(HardwareConfigTest, DefaultConstructorPopulatesHardwarePropertiesDefaults) 
     EXPECT_EQ(hw.disk_systemPartition_size, 0_B);
     EXPECT_EQ(hw.disk_vendorPartition_size, 0_B);
     EXPECT_EQ(hw.disk_dataPartition_size, 0_B);
-    EXPECT_EQ(hw.hw_sd_card_size, 512_MiB);
+    EXPECT_EQ(hw.sdcard_size, 512_MiB);
 }
 
 TEST(HardwareConfigTest, LoadEmptyIniRetainsDefaults) {
