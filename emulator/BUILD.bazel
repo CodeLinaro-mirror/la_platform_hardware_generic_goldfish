@@ -661,6 +661,17 @@ pkg_files(
 )
 
 pkg_filegroup(
+    name = "fishtank",
+    srcs = [
+        ":fishtank_binary",
+        ":fishtank_dir",
+    ] + select({
+        ":use_linux_internal_fishtank": [],
+        "//conditions:default": [":qtwebengine_binary"],
+    }),
+)
+
+pkg_filegroup(
     name = "emulator-dir",
     srcs = [
         ":advanced_features",
@@ -668,8 +679,6 @@ pkg_filegroup(
         ":emulator-access",
         ":emulator_notice_md",
         ":emulator_sbom_json",
-        ":fishtank_binary",
-        ":fishtank_dir",
         ":glib_dlls_stripped",
         ":launcher_stripped",
         ":plugins_stripped",
@@ -681,11 +690,9 @@ pkg_filegroup(
         "@goldfish_build//platforms:is_linux_aarch64": [],
         "//conditions:default": [
             ":egl_stripped",
+            ":fishtank",
             ":vulkan_stripped",
         ],
-    }) + select({
-        ":use_linux_internal_fishtank": [],
-        "//conditions:default": [":qtwebengine_binary"],
     }) + select({
         "@platforms//os:windows": [
             ":win-dlls",
