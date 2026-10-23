@@ -37,18 +37,15 @@ bool HasMustHaveGuestFeatures(const android::goldfish::Avd& avd) {
         android_studio::EmulatorFeatureFlagState::MAC80211HWSIM_USERSPACE_MANAGED,
     };
 
-    auto sys_img_features =
-            android::goldfish::ParseFeatureFile(avd.GetSystemImagePaths().advanced_features);
+    auto sys_img_features = android::goldfish::FeatureFlags::Create(
+            {.guest_ini_path = avd.GetSystemImagePaths().advanced_features});
     if (!sys_img_features.ok()) {
         LOG(ERROR) << "Failed to parse system image features file: " << sys_img_features.status();
         return false;
     }
 
     for (auto must_have : kMustHaveFeatures) {
-        // The key must be present *and* on. ParseFeatureFile() records "off" as Off and
-        // unrecognized values (e.g. "foo") as Missing; neither means the image supports it.
-        auto it = sys_img_features->find(must_have);
-        if (it == sys_img_features->end() || it->second != FeatureStatus::On) {
+        if (!sys_img_features->IsEnabledByGuest(must_have)) {
             VLOG(1) << "Sysimg does not enable must have feature: "
                     << android_studio::EmulatorFeatureFlagState::EmulatorFeatureFlag_Name(
                                must_have);
