@@ -115,6 +115,7 @@ cc_library(
         ":touch_encoding",
         "//emulator/plugin/display",
         "//emulator/plugin/grpc/keyboard",
+        "//emulator/plugin/grpc/keyboard:keyconversion",
         "@abseil-cpp//absl/container:flat_hash_set",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/status",
