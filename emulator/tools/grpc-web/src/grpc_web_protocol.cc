@@ -33,65 +33,50 @@
 
 namespace goldfish::grpcweb {
 
-std::string Protocol::PackFrame(uint8_t flag, std::string_view payload) {
-    if (payload.size() > kMaxFramePayloadSize) {
-        LOG(ERROR) << "Payload size " << payload.size() << " exceeds maximum frame limit "
-                   << kMaxFramePayloadSize;
-        return "";
-    }
+namespace {
 
-    std::string frame;
-    frame.reserve(kFrameHeaderSize + payload.size());
-    frame.push_back(static_cast<char>(flag));
-
-    uint32_t net_len = htonl(static_cast<uint32_t>(payload.size()));
-    const char* len_bytes = reinterpret_cast<const char*>(&net_len);
-    frame.append(len_bytes, sizeof(net_len));
-    frame.append(payload);
-    return frame;
-}
-
-std::string Protocol::PackFrame(uint8_t flag, const grpc::ByteBuffer& payload) {
-    const size_t payload_size = payload.Length();
+bool InitFrameHeader(uint8_t flag, size_t payload_size, std::string* frame) {
     if (payload_size > kMaxFramePayloadSize) {
         LOG(ERROR) << "Failed to pack gRPC-Web frame: payload size (" << payload_size
                    << " bytes) exceeds maximum allowed limit (" << kMaxFramePayloadSize
                    << " bytes)";
-        return "";
+        return false;
     }
 
-    std::string frame;
-    frame.reserve(kFrameHeaderSize + payload_size);
-    frame.push_back(static_cast<char>(flag));
+    frame->clear();
+    frame->reserve(kFrameHeaderSize + payload_size);
+    frame->push_back(static_cast<char>(flag));
 
     const uint32_t net_len = htonl(static_cast<uint32_t>(payload_size));
-    const char* len_bytes = reinterpret_cast<const char*>(&net_len);
-    frame.append(len_bytes, sizeof(net_len));
-    if (payload_size == 0) {
-        return frame;
+    frame->append(reinterpret_cast<const char*>(&net_len), sizeof(net_len));
+    return true;
+}
+
+bool AppendByteBuffer(const grpc::ByteBuffer& buffer, std::string* out) {
+    const size_t length = buffer.Length();
+    if (length == 0) {
+        return true;
     }
 
     grpc::Slice single_slice;
-    if (payload.TrySingleSlice(&single_slice).ok()) {
-        frame.append(reinterpret_cast<const char*>(single_slice.begin()), single_slice.size());
-        return frame;
+    if (buffer.TrySingleSlice(&single_slice).ok()) {
+        out->append(reinterpret_cast<const char*>(single_slice.begin()), single_slice.size());
+        return true;
     }
 
     std::vector<grpc::Slice> slices;
-    grpc::Status status = payload.Dump(&slices);
+    const grpc::Status status = buffer.Dump(&slices);
     if (!status.ok()) {
-        LOG(ERROR) << "Failed to dump gRPC ByteBuffer slices (size=" << payload_size
+        LOG(ERROR) << "Failed to dump gRPC ByteBuffer slices (size=" << length
                    << " bytes): " << status.error_message() << " (code=" << status.error_code()
                    << ")";
-        return "";
+        return false;
     }
     for (const auto& slice : slices) {
-        frame.append(reinterpret_cast<const char*>(slice.begin()), slice.size());
+        out->append(reinterpret_cast<const char*>(slice.begin()), slice.size());
     }
-    return frame;
+    return true;
 }
-
-namespace {
 
 inline bool IsReservedTrailerHeader(std::string_view key) {
     return absl::EqualsIgnoreCase(key, http::headers::kGrpcStatus) ||
@@ -146,6 +131,23 @@ std::optional<absl::Duration> ParseTimeoutUnit(char unit, uint64_t val) {
 }
 
 }  // namespace
+
+std::string Protocol::PackFrame(uint8_t flag, std::string_view payload) {
+    std::string frame;
+    if (!InitFrameHeader(flag, payload.size(), &frame)) {
+        return "";
+    }
+    frame.append(payload);
+    return frame;
+}
+
+std::string Protocol::PackFrame(uint8_t flag, const grpc::ByteBuffer& payload) {
+    std::string frame;
+    if (!InitFrameHeader(flag, payload.Length(), &frame) || !AppendByteBuffer(payload, &frame)) {
+        return "";
+    }
+    return frame;
+}
 
 std::optional<FrameView> Protocol::UnpackFrame(std::string_view data, size_t* bytes_consumed) {
     if (data.size() < kFrameHeaderSize) {
@@ -247,23 +249,10 @@ absl::Time Protocol::ParseGrpcTimeout(std::string_view timeout_str) {
 }
 
 std::string Protocol::ByteBufferToString(const grpc::ByteBuffer& buffer) {
-    if (buffer.Length() == 0) {
-        return "";
-    }
-    grpc::Slice single_slice;
-    if (buffer.TrySingleSlice(&single_slice).ok()) {
-        return std::string(reinterpret_cast<const char*>(single_slice.begin()),
-                           single_slice.size());
-    }
-    std::vector<grpc::Slice> slices;
-    grpc::Status status = buffer.Dump(&slices);
-    if (!status.ok()) {
-        return "";
-    }
     std::string result;
     result.reserve(buffer.Length());
-    for (const auto& slice : slices) {
-        result.append(reinterpret_cast<const char*>(slice.begin()), slice.size());
+    if (!AppendByteBuffer(buffer, &result)) {
+        return "";
     }
     return result;
 }
