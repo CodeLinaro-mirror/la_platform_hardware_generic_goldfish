@@ -41,6 +41,34 @@ cc_library(
 )
 
 cc_library(
+    name = "qemu_keyboard_sink",
+    srcs = ["qemu_keyboard_sink.cc"],
+    hdrs = ["include/android/emulation/control/keyboard/qemu_keyboard_sink.h"],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":keyboard",
+        ":keyconversion",
+        "//emulator/libs/async:async_api",
+        "//emulator/plugin/grpc/input:keyboard_sink",
+        "@abseil-cpp//absl/log:check",
+        "@qemu//:qemu-headers-exported",
+    ],
+)
+
+cc_library(
+    name = "key_code_resolver",
+    srcs = ["key_code_resolver.cc"],
+    hdrs = ["include/android/emulation/control/keyboard/key_code_resolver.h"],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":keyconversion",
+        "@aemu//protos/services_v2:input_service_cc_proto",
+    ],
+)
+
+cc_library(
     name = "test_qemu_input_stub",
     testonly = True,
     srcs = ["qemu_input_stub.c"],
@@ -76,6 +104,35 @@ cc_test(
     ],
 )
 
+# Defines its own recording QEMU input stubs, so it must not link :test_qemu_input_stub.
+cc_test(
+    name = "qemu_keyboard_sink_unittests",
+    size = "small",
+    srcs = ["qemu_keyboard_sink_test.cc"],
+    deps = [
+        ":keyboard",
+        ":keyconversion",
+        ":qemu_keyboard_sink",
+        "//emulator/libs/async:async_testing",
+        "//emulator/libs/test:googletest_main",
+        "@aemu//protos/services/emulator-controller:emulator_controller_cc_proto",
+        "@qemu//:qemu-headers-exported",
+    ],
+)
+
+cc_test(
+    name = "key_code_resolver_unittests",
+    size = "small",
+    srcs = ["key_code_resolver_test.cc"],
+    deps = [
+        ":key_code_resolver",
+        ":test_qemu_input_stub",
+        "//emulator/libs/test:googletest_main",
+        "@aemu//protos/services_v2:input_service_cc_proto",
+        "@qemu//:qemu-headers-exported",
+    ],
+)
+
 clang_tidy_test(
     name = "tidy",
     targets = [
@@ -84,6 +141,10 @@ clang_tidy_test(
         ":test_qemu_input_stub",
         ":keyboard_unittests",
         ":key_event_sender_unittests",
+        ":qemu_keyboard_sink",
+        ":qemu_keyboard_sink_unittests",
+        ":key_code_resolver",
+        ":key_code_resolver_unittests",
     ],
     tidy_config_file = "//:clang_tidy_config",
 )
