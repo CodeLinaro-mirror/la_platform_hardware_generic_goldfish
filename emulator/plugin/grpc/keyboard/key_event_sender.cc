@@ -23,6 +23,7 @@
 #include "dom_key.h"
 #include "emulator_controller.pb.h"
 #include "goldfish/async/event_loop.h"
+#include "key_event_emitter.h"
 
 extern "C" {
 // clang-format off
@@ -235,33 +236,24 @@ const struct NonPrintableCodeEntry {
 const size_t kDomKeyMapEntries = std::size(dom_key_map);
 const size_t kNonPrintableCodeEntries = std::size(kNonPrintableCodeMap);
 
-class KeyEventSenderImpl : public IKeyEventSender {
-  public:
-    KeyEventSenderImpl(QemuConsole* con, EventLoop* qemu_loop) : qemu_loop_(qemu_loop) {
-        keyboard_state_ = qkbd_state_init(con);
-    }
-    // Queued key events capture keyboard_state_, so it is freed on the loop after them. If the loop
-    // no longer accepts tasks, it is leaked rather than freed under a pending event.
-    ~KeyEventSenderImpl() {
-        qemu_loop_->Post([kbd = keyboard_state_] { qkbd_state_free(kbd); }).IgnoreError();
-    }
+namespace {
 
-    void send(const KeyboardEvent request) override { DispatchKeyboardEvent(request); }
+// Translates keyboard requests into QEMU key events, handing each to `emit`.
+// Lives only for the duration of one EmitKeyboardEvent() or EmitUtf8String().
+class KeyEventConverter {
+  public:
+    explicit KeyEventConverter(QemuKeyEmitter emit) : emit_(emit) {}
 
   private:
-    void PostKeyEvent(QemuKeyEvent event) {
-        qemu_loop_->Post([event, kbd = keyboard_state_] { event.send(kbd); }).IgnoreError();
-    }
-
-    void PostAsciiEvents(unsigned short character, KeyboardEvent::KeyEventType event_type) {
+    void EmitAsciiEvents(unsigned short character, KeyboardEvent::KeyEventType event_type) {
         if (event_type == KeyboardEvent::keydown || event_type == KeyboardEvent::keypress) {
             for (const auto& event : ascii_to_qcode(character, /*down=*/true)) {
-                PostKeyEvent(event);
+                emit_(event);
             }
         }
         if (event_type == KeyboardEvent::keyup || event_type == KeyboardEvent::keypress) {
             for (const auto& event : ascii_to_qcode(character, /*down=*/false)) {
-                PostKeyEvent(event);
+                emit_(event);
             }
         }
     }
@@ -274,14 +266,15 @@ class KeyEventSenderImpl : public IKeyEventSender {
             LOG(QFATAL) << "Invalid QKeyCode - too big: " << qcode;
         }
         if (event_type == KeyboardEvent::keydown || event_type == KeyboardEvent::keypress) {
-            PostKeyEvent({qcode, /*down=*/true});
+            emit_({qcode, /*down=*/true});
         }
         if (event_type == KeyboardEvent::keyup || event_type == KeyboardEvent::keypress) {
-            PostKeyEvent({qcode, /*down=*/false});
+            emit_({qcode, /*down=*/false});
         }
     }
 
-    void DispatchKeyboardEvent(const KeyboardEvent request) {
+  public:
+    void DispatchKeyboardEvent(const KeyboardEvent& request) {
         VLOG(1) << "Handling " << request.ShortDebugString();
         if (request.key().size() > 0) {
             keyboard::DomKey domkey = BrowserKeyToDomKey(request.key());
@@ -297,7 +290,7 @@ class KeyEventSenderImpl : public IKeyEventSender {
                                 << domkey.ToUtf8();
                         return;
                     }
-                    PostAsciiEvents(character, request.eventtype());
+                    EmitAsciiEvents(character, request.eventtype());
                 } else {
                     // Nope we have to send the domcode..
                     SendKeyCode(dom_to_evdev(code), KeyboardEvent::Evdev, request.eventtype());
@@ -355,12 +348,13 @@ class KeyEventSenderImpl : public IKeyEventSender {
                     LOG(ERROR) << "The utf-8 char: " << std::string_view(start, len)
                                << " will not be translated.";
                 }
-                PostAsciiEvents(*start, KeyboardEvent::keypress);
+                EmitAsciiEvents(*start, KeyboardEvent::keypress);
                 start = end;
             }
         }
     }
 
+  private:
     DomCode DomKeyAsNonPrintableDomCode(DomKey key) {
         for (size_t i = 0; i < kNonPrintableCodeEntries; ++i) {
             if (kNonPrintableCodeMap[i].dom_key == key) {
@@ -398,6 +392,39 @@ class KeyEventSenderImpl : public IKeyEventSender {
         }
 
         return DomKey::NONE;
+    }
+
+    QemuKeyEmitter emit_;
+};
+
+}  // namespace
+
+void EmitKeyboardEvent(const KeyboardEvent& request, QemuKeyEmitter emit) {
+    KeyEventConverter(emit).DispatchKeyboardEvent(request);
+}
+
+void EmitUtf8String(const std::string& utf8, QemuKeyEmitter emit) {
+    KeyEventConverter(emit).SendUtf8String(utf8);
+}
+
+class KeyEventSenderImpl : public IKeyEventSender {
+  public:
+    KeyEventSenderImpl(QemuConsole* con, EventLoop* qemu_loop) : qemu_loop_(qemu_loop) {
+        keyboard_state_ = qkbd_state_init(con);
+    }
+    // Queued key events capture keyboard_state_, so it is freed on the loop after them. If the loop
+    // no longer accepts tasks, it is leaked rather than freed under a pending event.
+    ~KeyEventSenderImpl() {
+        qemu_loop_->Post([kbd = keyboard_state_] { qkbd_state_free(kbd); }).IgnoreError();
+    }
+
+    void send(const KeyboardEvent request) override {
+        EmitKeyboardEvent(request, [this](QemuKeyEvent event) { PostKeyEvent(event); });
+    }
+
+  private:
+    void PostKeyEvent(QemuKeyEvent event) {
+        qemu_loop_->Post([event, kbd = keyboard_state_] { event.send(kbd); }).IgnoreError();
     }
 
     EventLoop* qemu_loop_;

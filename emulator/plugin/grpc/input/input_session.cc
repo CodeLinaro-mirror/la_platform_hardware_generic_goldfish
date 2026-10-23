@@ -18,6 +18,7 @@
 
 #include "absl/log/log.h"
 
+#include "android/emulation/control/keyboard/key_conversion.h"
 #include "standard-headers/linux/input-event-codes.h"
 #include "standard-headers/linux/input.h"
 #include "touch_encoding.h"
@@ -382,28 +383,7 @@ EvDevEvents InputSession::ToEvDevEvents(const PointerEvent& pointer, SlotRegistr
 }
 
 uint32_t InputSession::AndroidKeycodeToEvdev(int32_t keycode) {
-    switch (keycode) {
-    case 3:  // AKEYCODE_HOME
-        return KEY_HOMEPAGE;
-    case 4:  // AKEYCODE_BACK
-        return KEY_BACK;
-    case 24:  // AKEYCODE_VOLUME_UP
-        return KEY_VOLUMEUP;
-    case 25:  // AKEYCODE_VOLUME_DOWN
-        return KEY_VOLUMEDOWN;
-    case 26:  // AKEYCODE_POWER
-        return KEY_POWER;
-    case 27:  // AKEYCODE_CAMERA
-        return KEY_CAMERA;
-    case 82:  // AKEYCODE_MENU
-        return KEY_MENU;
-    case 84:  // AKEYCODE_SEARCH
-        return KEY_SEARCH;
-    case 187:  // AKEYCODE_APP_SWITCH
-        return KEY_APPSELECT;
-    default:
-        return 0;
-    }
+    return ::android::emulation::control::keyboard::android_keycode_to_evdev(keycode);
 }
 
 }  // namespace goldfish::grpc::v2
