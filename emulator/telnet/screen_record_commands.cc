@@ -24,6 +24,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_split.h"
+#include "absl/strings/strip.h"
 #include "absl/time/time.h"
 
 #include "android/emulation/control/absl_status_translate.h"
@@ -73,19 +74,13 @@ absl::Status ParseRecordingInfo(ArgStream& args, RecordingInfo* request) {
                 request->set_height(height);
             } else if (token == "--bit-rate") {
                 std::string rate_str = args.Next();
+                std::string_view rate_view(rate_str);
+                const uint32_t multiplier = absl::ConsumeSuffix(&rate_view, "M") ? 1000000U : 1U;
                 uint32_t bit_rate;
-                if (absl::EndsWith(rate_str, "M")) {
-                    std::string_view num_str =
-                            std::string_view(rate_str).substr(0, rate_str.size() - 1);
-                    if (!absl::SimpleAtoi(num_str, &bit_rate)) {
-                        return absl::InvalidArgumentError("Invalid bit-rate value.");
-                    }
-                    bit_rate *= 1000000;
-                } else {
-                    if (!absl::SimpleAtoi(rate_str, &bit_rate)) {
-                        return absl::InvalidArgumentError("Invalid bit-rate value.");
-                    }
+                if (!absl::SimpleAtoi(rate_view, &bit_rate)) {
+                    return absl::InvalidArgumentError("Invalid bit-rate value.");
                 }
+                bit_rate *= multiplier;
                 if (bit_rate < kMinVideoBitrate || bit_rate > kMaxVideoBitrate) {
                     return absl::InvalidArgumentError(
                             absl::StrCat("Bit rate ", bit_rate, "bps outside acceptable range [",
@@ -167,6 +162,11 @@ absl::Status ParseScreenshotArgs(ArgStream& args, uint32_t* display, std::filesy
     }
     return absl::OkStatus();
 }
+
+absl::StatusOr<std::unique_ptr<grpc::ClientContext>> NewRecordingContext(
+        LegacyConsoleBridge::ConsoleContext& ctx) {
+    return ctx.NewContext(std::chrono::system_clock::now() + std::chrono::seconds(10));
+}
 }  // namespace
 
 void RegisterScreenRecordCommands(CommandRegistryBuilder::NodeBuilder& screenrecord) {
@@ -176,9 +176,7 @@ void RegisterScreenRecordCommands(CommandRegistryBuilder::NodeBuilder& screenrec
                         RETURN_IF_ERROR(ParseRecordingInfo(args, &request));
 
                         ASSIGN_OR_RETURN(auto stub, ctx.ScreenRecordingStub());
-                        ASSIGN_OR_RETURN(auto context,
-                                         ctx.NewContext(std::chrono::system_clock::now() +
-                                                        std::chrono::seconds(10)));
+                        ASSIGN_OR_RETURN(auto context, NewRecordingContext(ctx));
 
                         RecordingInfo response;
                         auto status = stub->StartRecording(context.get(), request, &response);
@@ -195,9 +193,7 @@ void RegisterScreenRecordCommands(CommandRegistryBuilder::NodeBuilder& screenrec
                 ASSIGN_OR_RETURN(auto stub, ctx.ScreenRecordingStub());
 
                 // List recordings
-                ASSIGN_OR_RETURN(auto context_list,
-                                 ctx.NewContext(std::chrono::system_clock::now() +
-                                                std::chrono::seconds(10)));
+                ASSIGN_OR_RETURN(auto context_list, NewRecordingContext(ctx));
                 RecordingInfo list_request;
                 android::emulation::control::incubating::RecordingInfoList list_response;
                 auto status =
@@ -210,9 +206,7 @@ void RegisterScreenRecordCommands(CommandRegistryBuilder::NodeBuilder& screenrec
                 for (const auto& info : list_response.recordings()) {
                     if (info.state() == android::emulation::control::incubating::RecordingInfo::
                                                 RECORDER_STATE_RECORDING) {
-                        ASSIGN_OR_RETURN(auto context_stop,
-                                         ctx.NewContext(std::chrono::system_clock::now() +
-                                                        std::chrono::seconds(10)));
+                        ASSIGN_OR_RETURN(auto context_stop, NewRecordingContext(ctx));
                         RecordingInfo stop_response;
                         auto status_stop =
                                 stub->StopRecording(context_stop.get(), info, &stop_response);
