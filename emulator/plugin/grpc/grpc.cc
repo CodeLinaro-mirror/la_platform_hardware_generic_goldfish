@@ -167,8 +167,7 @@ std::vector<std::shared_ptr<::grpc::Service>> CreateServices(avd::AvdUniverse& a
     }
 
     // Register AEMU v2 services
-    auto v2_services = ::goldfish::grpc::v2::CreateV2Services(avd_universe, vm_operations,
-                                                              &avd_universe.GetQemuEventLoop());
+    auto v2_services = ::goldfish::grpc::v2::CreateV2Services(avd_universe, vm_operations);
     services.insert(services.end(), v2_services.begin(), v2_services.end());
 
     return services;

@@ -418,7 +418,6 @@ cc_library(
         ":operations_service",
         ":sensors_service",
         ":system_service",
-        "//emulator/libs/async:async_api",
         "//emulator/plugin/avd:avd_properties",
         "//emulator/plugin/avd:avd_universe",
         "//emulator/plugin/avd:global_event_loop",
