@@ -237,7 +237,7 @@ def main() -> int:
             rel_name = f.as_posix()
 
         check_file_flags.append(
-            f"--@goldfish_build//:clang_tidy_check_files={rel_name}"
+            f"--@aemu//tools/clang_tidy:clang_tidy_check_files={rel_name}"
         )
 
         # Look up diff line ranges for this file
@@ -259,13 +259,13 @@ def main() -> int:
             pass
 
     tidy_build_options = [
-        "--@goldfish_build//:clang_tidy_enabled=true",
+        "--@aemu//tools/clang_tidy:clang_tidy_enabled=true",
     ] + check_file_flags
 
     if filters:
         line_filter_json = json.dumps(filters)
         tidy_build_options.append(
-            f"--@goldfish_build//:clang_tidy_line_filter={line_filter_json}"
+            f"--@aemu//tools/clang_tidy:clang_tidy_line_filter={line_filter_json}"
         )
 
     with build_environment.create_bazel_environment(args) as env:

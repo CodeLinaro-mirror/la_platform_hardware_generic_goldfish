@@ -1,4 +1,4 @@
-load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_test")
+load("@aemu//tools/clang_tidy:defs.bzl", "clang_tidy_test")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 load("//emulator/tools:cc_binary_with_manifest.bzl", "cc_binary_with_manifest")
 load("//emulator/tools:plugins.bzl", "collect_plugins")

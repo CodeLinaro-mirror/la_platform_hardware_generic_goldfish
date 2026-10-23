@@ -1,5 +1,5 @@
 # Copyright 2026 The Android Open Source Project
-load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_test")
+load("@aemu//tools/clang_tidy:defs.bzl", "clang_tidy_test")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 load("@rules_python//python:defs.bzl", "py_binary", "py_test")
 
@@ -36,6 +36,7 @@ filegroup(
 )
 
 # Rule to generate the metadata code.
+# buildifier: disable=make-location
 genrule(
     name = "generate_breadcrumb_metadata",
     srcs = [

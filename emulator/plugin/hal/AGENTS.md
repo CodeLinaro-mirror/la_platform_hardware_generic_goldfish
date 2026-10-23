@@ -116,7 +116,7 @@ class MyQemudDevice : public IMyQemudDevice, public std::enable_shared_from_this
 2. **HAL package** `emulator/plugin/hal/<device>/`: the only public header, `include/goldfish/devices/<domain>/<name>_device.h`, declares `class I<Name>Device : public HalPlug` with `static constexpr std::string_view kServiceName` and `static void RegisterDevice(...)`, which calls `registry->RegisterHalDevice` or `RegisterHalQemuDevice`. The concrete class stays private in `<name>_device.cc`.
 3. **Startup:** call `I<Name>Device::RegisterDevice(...)` in `AvdExtendedUniverse::Initialize()` ([avd_extended_universe.cc](../avd/avd_extended_universe.cc)) and add `//emulator/plugin/hal/<device>` to the deps of `//emulator/plugin/avd:avd_extended_universe` in [avd/BUILD.bazel](../avd/BUILD.bazel).
 
-**`BUILD.bazel` pattern** (model: [clipboard/BUILD.bazel](clipboard/BUILD.bazel); load `cc_library` / `cc_test` from `@rules_cc//cc:defs.bzl` and `clang_tidy_test` from `@goldfish_build//rules:clang_tidy.bzl`):
+**`BUILD.bazel` pattern** (model: [clipboard/BUILD.bazel](clipboard/BUILD.bazel); load `cc_library` / `cc_test` from `@rules_cc//cc:defs.bzl` and `clang_tidy_test` from `@aemu//tools/clang_tidy:defs.bzl`):
 - `cc_library`: `alwayslink = True`, `includes = ["include"]`, deps `//emulator/plugin/avd_universe:<channel>`, `//emulator/plugin/hal/connector:connector_registry`, plus `//emulator/plugin/hal/connector:qemud` (QEMUD HALs), `//emulator/plugin/hal/common:emulator_reset` (reset hooks), `//emulator/libs/async:async_api` (timers or posting), and the Abseil libraries you use.
 - `cc_test`: deps `:<lib>`, `//emulator/plugin/hal/connector:test-helpers`, `//emulator/plugin/hal/plug:fake_vsock`, `//emulator/libs/test:googletest_main`, plus `//emulator/libs/async:async_testing` when the test uses `TestEventLoop`.
 - `clang_tidy_test(name = "tidy", targets = [":<lib>"], tidy_config_file = "//:clang_tidy_config")`.
@@ -162,5 +162,5 @@ class MyHalDeviceTest : public ::testing::Test {
 bazel test --test_output=errors @goldfish//emulator/plugin/hal/clipboard:clipboard_unittests  # one HAL
 bazel test --test_output=errors @goldfish//emulator/plugin/hal/...                            # all HALs
 bazel test --config=tsan --test_output=errors @goldfish//emulator/plugin/hal/...              # concurrency or framing changes; also --config=asan
-bazel test --config=tidy --@goldfish_build//:clang_tidy_check_files=plugin/hal/ @goldfish//emulator/plugin/hal/...
+bazel test --config=tidy --@aemu//tools/clang_tidy:clang_tidy_check_files=plugin/hal/ @goldfish//emulator/plugin/hal/...
 ```
