@@ -44,7 +44,11 @@ class LoopWatcher {
             , timer_(event_loop.CreateTimer([this]() {
                 TaskComplete();
                 return true;
-            })) {}
+            }))
+            , state_subscription_(android::base::eventing::MakeScopedCallback(
+                      event_loop, [this](const ::goldfish::async::LooperStatusEvent& event) {
+                          OnLooperStateChanged(event);
+                      })) {}
 
     ~LoopWatcher() { CancelHangCheck(); }
 
@@ -64,12 +68,17 @@ class LoopWatcher {
 
     void CancelHangCheck() {
         std::shared_ptr<::goldfish::async::EventLoop::Timer> timer;
+        std::unique_ptr<android::base::eventing::ScopedEventCallback<
+                ::goldfish::async::EventLoop, ::goldfish::async::LooperStatusEvent>>
+                state_subscription;
         {
             const absl::MutexLock l(&mutex_);
             timer = std::move(timer_);
+            state_subscription = std::move(state_subscription_);
             is_task_running_ = false;
         }
 
+        state_subscription.reset();
         if (timer) {
             timer->Cancel();
         }
@@ -85,6 +94,7 @@ class LoopWatcher {
         if (android::base::IsDebuggerAttached() || !IsActive()) {
             is_task_running_ = false;
             hang_count_ = 0;
+            last_check_time_ = absl::InfinitePast();
             return;
         }
 
@@ -119,7 +129,19 @@ class LoopWatcher {
     }
 
   private:
-    bool IsActive() const { return !is_active_ || is_active_(); }
+    bool IsActive() const {
+        return event_loop_.GetState() == ::goldfish::async::LooperStatusEvent::State::kRunning &&
+               (!is_active_ || is_active_());
+    }
+
+    void OnLooperStateChanged(const ::goldfish::async::LooperStatusEvent& event) {
+        if (event.state != ::goldfish::async::LooperStatusEvent::State::kRunning) {
+            const absl::MutexLock l(&mutex_);
+            is_task_running_ = false;
+            hang_count_ = 0;
+            last_check_time_ = absl::InfinitePast();
+        }
+    }
 
     void ScheduleHangCheckLocked() ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_) {
         is_task_running_ = true;
@@ -144,8 +166,11 @@ class LoopWatcher {
     absl::Mutex mutex_;
     ::goldfish::async::EventLoop& event_loop_;
     std::shared_ptr<::goldfish::async::EventLoop::Timer> timer_ ABSL_GUARDED_BY(mutex_);
+    std::unique_ptr<android::base::eventing::ScopedEventCallback<
+            ::goldfish::async::EventLoop, ::goldfish::async::LooperStatusEvent>>
+            state_subscription_ ABSL_GUARDED_BY(mutex_);
     bool is_task_running_ ABSL_GUARDED_BY(mutex_) = false;
-    absl::Time last_check_time_ ABSL_GUARDED_BY(mutex_);
+    absl::Time last_check_time_ ABSL_GUARDED_BY(mutex_) = absl::InfinitePast();
     int hang_count_ ABSL_GUARDED_BY(mutex_) = 0;
 
     static constexpr int kMaxHangCount = 2;
