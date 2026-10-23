@@ -42,13 +42,17 @@ using ::android::emulation::v2::KeyEvent;
 using ::android::emulation::v2::PointerAction;
 using ::android::emulation::v2::PointerEvent;
 
-// The events an operation writes to one device.
-struct Report {
+// The events an operation writes to one device. Palm cancellations populate
+// both `events` (setting MT_TOOL_PALM while tracking IDs are still active) and
+// `follow_up` (clearing tracking IDs to -1) so each arrives in its own
+// SYN_REPORT frame.
+struct DeviceReport {
     TouchDeviceId device;
     TouchDeviceSink* sink;
     EvDevEvents events;
+    EvDevEvents follow_up;
 };
-using Reports = std::vector<Report>;
+using Reports = std::vector<DeviceReport>;
 
 bool CreatesContact(PointerAction action) {
     return action == PointerAction::POINTER_ACTION_DOWN ||
@@ -56,15 +60,15 @@ bool CreatesContact(PointerAction action) {
            action == PointerAction::POINTER_ACTION_HOVER_MOVE;
 }
 
-EvDevEvents& EventsFor(Reports& reports, TouchDeviceId device) {
-    auto it = std::ranges::find(reports, device, &Report::device);
+DeviceReport& ReportFor(Reports& reports, TouchDeviceId device) {
+    auto it = std::ranges::find(reports, device, &DeviceReport::device);
     CHECK(it != reports.end()) << "Touch device " << device << " is not a target";
-    return it->events;
+    return *it;
 }
 
 // Makes `device` a target of the operation. Fails if it can't take a report.
 absl::Status AddTarget(TouchDevices& devices, TouchDeviceId device, Reports& reports) {
-    if (std::ranges::find(reports, device, &Report::device) != reports.end()) {
+    if (std::ranges::find(reports, device, &DeviceReport::device) != reports.end()) {
         return absl::OkStatus();
     }
     TouchDeviceSink* sink = devices.Find(device);
@@ -72,15 +76,18 @@ absl::Status AddTarget(TouchDevices& devices, TouchDeviceId device, Reports& rep
         return absl::UnavailableError(
                 absl::StrCat("Touch device ", device, " is not active; the event was dropped."));
     }
-    reports.push_back({device, sink, {}});
+    reports.push_back({device, sink, {}, {}});
     return absl::OkStatus();
 }
 
 void WriteReports(const ::goldfish::async::EventLoop& loop, const Reports& reports) {
     DCHECK(loop.IsOnLoopThread());
-    for (const Report& report : reports) {
+    for (const DeviceReport& report : reports) {
         if (!report.events.empty()) {
             report.sink->WriteReport(report.events);
+        }
+        if (!report.follow_up.empty()) {
+            report.sink->WriteReport(report.follow_up);
         }
     }
 }
@@ -88,6 +95,17 @@ void WriteReports(const ::goldfish::async::EventLoop& loop, const Reports& repor
 void Complete(InputDispatcher::DispatchCallback& done, InputDispatcher::DispatchResult result) {
     if (done) {
         std::move(done)(std::move(result));
+    }
+}
+
+// Lifts the contact in `slot`; a CANCEL marks it as a palm in `report.events`
+// and lifts it in `report.follow_up` so the guest cancels its gesture instead
+// of firing a click or drop.
+void AppendLift(PointerAction action, int slot, DeviceReport& report) {
+    if (action == PointerAction::POINTER_ACTION_CANCEL) {
+        AppendContactCancel(slot, report.events, report.follow_up);
+    } else {
+        AppendContactUp(slot, report.events);
     }
 }
 
@@ -277,7 +295,7 @@ absl::Status InputDispatcher::ApplyPointer(InputSessionId session, const Pointer
     }
     if (event.pointers().empty() && (action == PointerAction::POINTER_ACTION_CANCEL ||
                                      action == PointerAction::POINTER_ACTION_HOVER_EXIT)) {
-        return CancelOnDisplay(session, options.source_id, event.display_id());
+        return CancelOnDisplay(session, options.source_id, event.display_id(), action);
     }
 
     // Find every target device before changing anything, so a rejected event
@@ -306,12 +324,13 @@ absl::Status InputDispatcher::ApplyPointer(InputSessionId session, const Pointer
     for (const PointerEvent::Pointer& pointer : event.pointers()) {
         const ContactKey key{session, pointer.pointer_id()};
         if (std::optional<Contact> held = contacts_.Find(key)) {
-            EvDevEvents& events = EventsFor(reports, held->device);
+            DeviceReport& report = ReportFor(reports, held->device);
             if (IsContactReleased(action, pointer)) {
                 contacts_.Release(key);
-                AppendContactUp(held->slot, events);
+                AppendLift(action, held->slot, report);
             } else {
-                AppendContactDownOrMove(pointer, action, held->slot, /*new_contact=*/false, events);
+                AppendContactDownOrMove(pointer, action, held->slot, /*new_contact=*/false,
+                                        report.events);
             }
             *reported.add_pointers() = pointer;
         } else if (CreatesContact(action)) {
@@ -322,7 +341,7 @@ absl::Status InputDispatcher::ApplyPointer(InputSessionId session, const Pointer
                 continue;
             }
             AppendContactDownOrMove(pointer, action, *slot, /*new_contact=*/true,
-                                    EventsFor(reports, *resolved));
+                                    ReportFor(reports, *resolved).events);
             *reported.add_pointers() = pointer;
         }
     }
@@ -334,13 +353,13 @@ absl::Status InputDispatcher::ApplyPointer(InputSessionId session, const Pointer
 }
 
 absl::Status InputDispatcher::CancelOnDisplay(InputSessionId session, int32_t source_id,
-                                              int32_t display_id) {
+                                              int32_t display_id, PointerAction action) {
     ASSIGN_OR_RETURN(TouchDeviceId device, devices_.Resolve(display_id));
     Reports reports;
     RETURN_IF_ERROR(AddTarget(devices_, device, reports));
     InputEvent cancel = CancelEvent(source_id, display_id);
     for (const auto& [key, contact] : contacts_.ReleaseSessionOn(session, device)) {
-        AppendContactUp(contact.slot, reports.front().events);
+        AppendLift(action, contact.slot, reports.front());
         cancel.mutable_pointer()->add_pointers()->set_pointer_id(key.pointer_id);
     }
     WriteReports(loop_, reports);
@@ -434,7 +453,8 @@ void InputDispatcher::ReleaseSession(InputSessionId session) {
         if (!AddTarget(devices_, contact.device, reports).ok()) {
             continue;
         }
-        AppendContactUp(contact.slot, EventsFor(reports, contact.device));
+        DeviceReport& report = ReportFor(reports, contact.device);
+        AppendContactCancel(contact.slot, report.events, report.follow_up);
         auto cancel = std::ranges::find(cancels, contact.display_id, [](const InputEvent& event) {
             return event.pointer().display_id();
         });

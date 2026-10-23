@@ -114,9 +114,10 @@ class IInputDispatcher {
     virtual InputSessionId OpenSession(SessionOptions options) = 0;
 
     /**
-     * @brief Releases all contacts of `session`, writing one report per active
-     * device, releases the keys only it holds in ascending code order, and
-     * forgets it. Never rejected for backpressure.
+     * @brief Releases all contacts of `session` as cancelled (writing a palm
+     * report followed by a lift report per active device), releases the keys
+     * only it holds in ascending code order, and forgets it. Never rejected for
+     * backpressure.
      */
     virtual void CloseSession(InputSessionId session) = 0;
 
@@ -132,6 +133,11 @@ class IInputDispatcher {
      *   resolves to if the action is `DOWN`, `HOVER_ENTER`, or `HOVER_MOVE`,
      *   and is ignored otherwise. If no slot is free it is skipped and the
      *   event completes with `RESOURCE_EXHAUSTED`; other pointers still apply.
+     *
+     * A contact released by `CANCEL` turns into a palm in one report and lifts
+     * in an immediate follow-up report, so the guest observes `MT_TOOL_PALM`
+     * before the slot clears and cancels its gesture rather than firing a click
+     * or drop.
      *
      * If a target device is missing or inactive the event completes with
      * `UNAVAILABLE`, and if `display_id` doesn't resolve with that error;

@@ -19,7 +19,6 @@
 #include <cstdint>
 #include <limits>
 #include <ostream>
-#include <vector>
 
 #include "slot_registry.h"
 #include "standard-headers/linux/input-event-codes.h"
@@ -208,6 +207,16 @@ TEST(TouchEncodingTest, ContactUpSelectsSlotAndClearsTrackingId) {
     AppendContactUp(7, events);
     EXPECT_THAT(events, ElementsAre(EvDevEvent{EV_ABS, ABS_MT_SLOT, 7},
                                     EvDevEvent{EV_ABS, ABS_MT_TRACKING_ID, kMtsPointerUp}));
+}
+
+TEST(TouchEncodingTest, ContactCancelTurnsToPalmBeforeLifting) {
+    EvDevEvents palm_events;
+    EvDevEvents lift_events;
+    AppendContactCancel(7, palm_events, lift_events);
+    EXPECT_THAT(palm_events, ElementsAre(EvDevEvent{EV_ABS, ABS_MT_SLOT, 7},
+                                         EvDevEvent{EV_ABS, ABS_MT_TOOL_TYPE, MT_TOOL_PALM}));
+    EXPECT_THAT(lift_events, ElementsAre(EvDevEvent{EV_ABS, ABS_MT_SLOT, 7},
+                                         EvDevEvent{EV_ABS, ABS_MT_TRACKING_ID, kMtsPointerUp}));
 }
 
 TEST(TouchEncodingTest, IsContactReleasedFollowsActionAndPressure) {

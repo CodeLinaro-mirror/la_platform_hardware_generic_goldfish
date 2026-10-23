@@ -55,6 +55,26 @@ void AppendContactDownOrMove(const ::android::emulation::v2::PointerEvent::Point
 void AppendContactUp(int slot, ::android::emulation::control::EvDevEvents& events);
 
 /**
+ * @brief Appends the two-report event sequence cancelling the contact in
+ * `slot`.
+ *
+ * Appends `ABS_MT_SLOT slot` and `ABS_MT_TOOL_TYPE MT_TOOL_PALM` to
+ * `palm_events`, and `ABS_MT_SLOT slot` and `ABS_MT_TRACKING_ID
+ * kMtsPointerUp` (-1) to `lift_events`. The caller must flush `palm_events`
+ * (`SYN_REPORT`) before `lift_events`: Android's
+ * `MultiTouchMotionAccumulator` clears a slot immediately upon
+ * `ABS_MT_TRACKING_ID = -1` before `SYN_REPORT` syncs `TouchInputMapper`, so
+ * `MT_TOOL_PALM` and the lift must arrive in separate frames for the guest to
+ * dispatch a cancelled `MotionEvent` (`FLAG_CANCELED`).
+ *
+ * @param slot The multi-touch slot of the contact to cancel; must be >= 0.
+ * @param palm_events First frame: marks `slot` as `MT_TOOL_PALM`.
+ * @param lift_events Second frame: lifts `slot` (`ABS_MT_TRACKING_ID = -1`).
+ */
+void AppendContactCancel(int slot, ::android::emulation::control::EvDevEvents& palm_events,
+                         ::android::emulation::control::EvDevEvents& lift_events);
+
+/**
  * @brief Determines if a pointer action or pressure indicator signifies a touch release /
  * cancel.
  *
