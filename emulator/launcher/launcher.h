@@ -33,7 +33,9 @@ namespace android::goldfish {
 
 constexpr int kMetricsCrashesNone = 0;
 constexpr int kMetricsCrashesAbandoned = 1;
-constexpr int kMetricsCrashesUncleanExit = 2;
+// TODO(b/476380758): Temporarily disabled because reporting crashes = 2 confuses metrics
+// dashboards that sum `crashes` as a crash count.
+// constexpr int kMetricsCrashesUncleanExit = 2;
 
 struct LauncherConfig {
     // Owns every member except event_loop.

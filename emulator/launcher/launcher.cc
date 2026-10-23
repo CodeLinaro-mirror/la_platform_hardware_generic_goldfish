@@ -381,12 +381,20 @@ class Launcher {
         emulator_process_.reset();
 
         // Send a final ping with the crash status.
-        config_.metrics_reporter->Report([exit_status,
-                                          term_signal](android_studio::AndroidStudioEvent& event) {
-            event.mutable_emulator_details()->set_crashes(exit_status == 0 && term_signal == 0
-                                                                  ? kMetricsCrashesNone
-                                                                  : kMetricsCrashesUncleanExit);
-        });
+        if (exit_status == 0 && term_signal == 0) {
+            config_.metrics_reporter->Report([](android_studio::AndroidStudioEvent& event) {
+                event.mutable_emulator_details()->set_crashes(kMetricsCrashesNone);
+            });
+        }
+        // TODO(b/476380758): Temporarily disable reporting crashes = 2 (kMetricsCrashesUncleanExit)
+        // on unclean QEMU exit to stop misleading crash counts on dashboards (which sum `crashes`
+        // and conflate real crashes with kills/error exits). Follow up with accurate crash
+        // reporting.
+        // else {
+        //     config_.metrics_reporter->Report([](android_studio::AndroidStudioEvent& event) {
+        //         event.mutable_emulator_details()->set_crashes(kMetricsCrashesUncleanExit);
+        //     });
+        // }
 
         shutdown();
     }

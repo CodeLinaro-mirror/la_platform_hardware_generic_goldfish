@@ -346,12 +346,17 @@ TEST_F(LauncherTest, CanLaunchEmulator) {
     auto reporter = std::make_unique<::goldfish::metrics::MetricsReporter>();
     auto mock_writer = std::make_unique<MockMetricsWriter>();
     bool saw_vulkan_icd_metric = false;
+    bool saw_clean_exit_crashes_metric = false;
     EXPECT_CALL(*mock_writer, Write(_))
             .Times(testing::AtLeast(1))
             .WillRepeatedly([&](::goldfish::metrics::MetricsEvent event) {
                 if (event.as_event.emulator_details().vulkan_icd() ==
                     android_studio::EmulatorDetails::LAVAPIPE_VK) {
                     saw_vulkan_icd_metric = true;
+                }
+                if (event.as_event.emulator_details().has_crashes() &&
+                    event.as_event.emulator_details().crashes() == kMetricsCrashesNone) {
+                    saw_clean_exit_crashes_metric = true;
                 }
             });
     reporter->SetWriter(std::move(mock_writer));
@@ -361,6 +366,7 @@ TEST_F(LauncherTest, CanLaunchEmulator) {
     trigger.join();
     EXPECT_EQ(status, 0);
     EXPECT_TRUE(saw_vulkan_icd_metric);
+    EXPECT_TRUE(saw_clean_exit_crashes_metric);
 }
 
 TEST_F(LauncherTest, ForwardsSignalToEmulator) {
@@ -474,10 +480,23 @@ TEST_F(LauncherTest, HandlesEmulatorExitFailure) {
 
     std::thread trigger = TriggerEmulatorExit(launched, emulator_exit_cb, 1);
 
-    int status = RunLauncher(std::move(avd));
+    auto reporter = std::make_unique<::goldfish::metrics::MetricsReporter>();
+    auto mock_writer = std::make_unique<MockMetricsWriter>();
+    bool saw_crashes_metric = false;
+    EXPECT_CALL(*mock_writer, Write(_))
+            .Times(testing::AtLeast(1))
+            .WillRepeatedly([&](::goldfish::metrics::MetricsEvent event) {
+                if (event.as_event.emulator_details().has_crashes()) {
+                    saw_crashes_metric = true;
+                }
+            });
+    reporter->SetWriter(std::move(mock_writer));
+
+    int status = RunLauncher(std::move(avd), std::move(reporter));
 
     trigger.join();
     EXPECT_EQ(status, 1);
+    EXPECT_FALSE(saw_crashes_metric);
 }
 
 TEST_F(LauncherTest, ForwardsMultipleSignalsToEmulator) {

@@ -15,6 +15,7 @@
 
 #include "goldfish/metrics/studio_file_metrics_writer.h"
 
+#include <gmock/gmock.h>
 #include <google/protobuf/io/coded_stream.h>
 #include <google/protobuf/io/zero_copy_stream_impl.h>
 #include <gtest/gtest.h>
@@ -286,6 +287,26 @@ TEST_F(StudioFileMetricsWriterTest, FinalizeAbandonedFilesWithExpiredLock) {
     EXPECT_EQ(abandoned[0], "expired-session");
     EXPECT_TRUE(fs::exists(temp_path() / "emulator-metrics2-expired-session-1234-0.trk"));
     EXPECT_FALSE(fs::exists(expired_lock));
+}
+
+TEST_F(StudioFileMetricsWriterTest, FinalizeAbandonedFilesDeduplicatesSessionIds) {
+    // Both launcher and QEMU write .open files under the same session ID with different PIDs.
+    fs::path launcher_open_0 = temp_path() / "emulator-metrics2-shared-session-999998-0.open";
+    fs::path launcher_open_1 = temp_path() / "emulator-metrics2-shared-session-999998-1.open";
+    fs::path qemu_open_0 = temp_path() / "emulator-metrics2-shared-session-999999-0.open";
+    fs::path other_open_0 = temp_path() / "emulator-metrics2-other-session-999997-0.open";
+    std::ofstream{launcher_open_0};
+    std::ofstream{launcher_open_1};
+    std::ofstream{qemu_open_0};
+    std::ofstream{other_open_0};
+
+    auto abandoned = StudioFileMetricsWriter::FinalizeAbandonedSessionFiles(temp_path());
+
+    EXPECT_THAT(abandoned, testing::ElementsAre("other-session", "shared-session"));
+    EXPECT_TRUE(fs::exists(temp_path() / "emulator-metrics2-shared-session-999998-0.trk"));
+    EXPECT_TRUE(fs::exists(temp_path() / "emulator-metrics2-shared-session-999998-1.trk"));
+    EXPECT_TRUE(fs::exists(temp_path() / "emulator-metrics2-shared-session-999999-0.trk"));
+    EXPECT_TRUE(fs::exists(temp_path() / "emulator-metrics2-other-session-999997-0.trk"));
 }
 
 TEST_F(StudioFileMetricsWriterTest, FilenameFormatAndCounter) {
