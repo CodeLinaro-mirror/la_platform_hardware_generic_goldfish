@@ -224,8 +224,8 @@ void NetsimTransport::OnReadDone(bool ok) {
     }
 }
 
-void NetsimTransport::OnDone(const grpc::Status& s) {
-    if (s.error_code() == grpc::StatusCode::CANCELLED) {
+void NetsimTransport::OnDone(const ::grpc::Status& s) {
+    if (s.error_code() == ::grpc::StatusCode::CANCELLED) {
         LOG(INFO) << "Netsim Transport: " << mKindName << " - connection to "
                   << mStreamPacketsContext->peer() << " was cancelled";
     } else {

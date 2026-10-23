@@ -44,3 +44,7 @@ environment, configures hardware, and starts all HAL services. **Location:**
   Teardown order: the main-loop exit hook destroys the gRPC server and its services (the run-state
   subscribers) before `qemu_cleanup()` destroys the universe and its `VmOperations`, and
   `GF_SHUTDOWN_FUNC` shuts down the global event loop after `qemu_cleanup()`.
+- **Input dispatcher:** `GetInputDispatcher()` returns the dispatcher built in `realize`, before
+  QEMU has created any console. `avdend` (`UniverseBuildComplete()`) gives it the keyboard on
+  console 0, after the display devices exist. The main-loop exit hook shuts it down before it
+  destroys the gRPC server.
