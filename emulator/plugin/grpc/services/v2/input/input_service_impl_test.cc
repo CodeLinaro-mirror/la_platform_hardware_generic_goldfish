@@ -18,27 +18,39 @@
 #include <grpcpp/grpcpp.h>
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <atomic>
+#include <cstddef>
 #include <cstdint>
 #include <future>
 #include <memory>
+#include <optional>
 #include <string>
+#include <string_view>
 #include <thread>
 #include <utility>
 #include <vector>
 
+#include "absl/base/thread_annotations.h"
 #include "absl/status/status.h"
+#include "absl/strings/str_cat.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 
-#include "android/emulation/control/keyboard/key_event_sender.h"
+#include "android/base/clock.h"
+#include "android/emulation/control/keyboard/key_code_resolver.h"
+#include "emulator/plugin/grpc/input/contact_table.h"
+#include "emulator/plugin/grpc/input/dispatcher_session.h"
+#include "emulator/plugin/grpc/input/input_dispatcher.h"
+#include "emulator/plugin/grpc/input/keyboard_sink.h"
+#include "emulator/plugin/grpc/input/multi_display_touch_devices.h"
+#include "emulator/plugin/grpc/input/slot_registry.h"
 #include "goldfish/async/libuv_event_loop.h"
 #include "goldfish/async/threaded_event_loop.h"
 #include "goldfish/display/test/fake_multi_display.h"
 #include "goldfish/display/test/fake_pixman_display.h"
 #include "standard-headers/linux/input-event-codes.h"
-#include "test/grpc_v2_service_test.h"
 
 // Necessary on Windows where winsock/windows headers define send as a macro.
 #undef send
@@ -46,15 +58,16 @@
 namespace goldfish::grpc::v2 {
 namespace {
 
-using ::android::emulation::control::KeyboardEvent;
+using ::android::base::ClockType;
 using ::android::emulation::control::kMtsPointerUp;
-using ::android::emulation::control::keyboard::IKeyEventSender;
+using ::android::emulation::control::keyboard::ResolveEvdevKeyCode;
 using ::android::emulation::v2::AxisType;
 using ::android::emulation::v2::InputActivity;
 using ::android::emulation::v2::InputEvent;
 using ::android::emulation::v2::InputService;
 using ::android::emulation::v2::KeyAction;
 using ::android::emulation::v2::PointerAction;
+using ::android::emulation::v2::PointerEvent;
 using ::android::emulation::v2::SendInputEventsRequest;
 using ::android::emulation::v2::SendInputEventsResponse;
 using ::android::emulation::v2::StreamInputActivityRequest;
@@ -70,57 +83,88 @@ using ::testing::Contains;
 using ::testing::ElementsAre;
 using ::testing::FieldsAre;
 using ::testing::HasSubstr;
+using ::testing::IsEmpty;
 
-class RecordingKeyEventSender : public IKeyEventSender {
+// The text the tests type to mark the end of the activity they expect.
+constexpr std::string_view kSentinel = "<sentinel>";
+constexpr int32_t kSentinelSource = 999;
+
+bool IsSentinel(const InputActivity& activity) {
+    return activity.event().has_text() && activity.event().text().text() == kSentinel;
+}
+
+// Logs each key as "down <code>" or "up <code>", and text as "text <utf8>".
+// Skips the sentinel.
+class RecordingKeyboard : public KeyboardSink {
   public:
-    void send(const KeyboardEvent request) override {
-        absl::MutexLock lock(&events_mutex_);
-        events_.push_back(request);
+    void WriteKey(uint32_t evdev_code, bool down) override {
+        Record(absl::StrCat(down ? "down " : "up ", evdev_code));
     }
 
-    std::vector<KeyboardEvent> Events() const {
-        absl::MutexLock lock(&events_mutex_);
-        return events_;
+    void TypeText(std::string_view utf8) override {
+        if (utf8 != kSentinel) {
+            Record(absl::StrCat("text ", utf8));
+        }
     }
 
-    void AwaitEventCount(size_t expected_count) const {
-        const auto has_count = [this, expected_count]() ABSL_SHARED_LOCKS_REQUIRED(events_mutex_) {
-            return events_.size() >= expected_count;
+    std::vector<std::string> Writes() const {
+        absl::MutexLock writes_lock(writes_mutex_);
+        return writes_;
+    }
+
+    // Waits until `write` was written.
+    void AwaitWrite(std::string_view write) const {
+        const auto written = [this, write]() ABSL_EXCLUSIVE_LOCKS_REQUIRED(writes_mutex_) {
+            return std::ranges::find(writes_, write) != writes_.end();
         };
-        absl::MutexLock lock(&events_mutex_);
-        events_mutex_.Await(absl::Condition(&has_count));
+        absl::MutexLock writes_lock(writes_mutex_);
+        writes_mutex_.Await(absl::Condition(&written));
     }
 
   private:
-    mutable absl::Mutex events_mutex_;
-    std::vector<KeyboardEvent> events_ ABSL_GUARDED_BY(events_mutex_);
+    void Record(std::string write) {
+        absl::MutexLock writes_lock(writes_mutex_);
+        writes_.push_back(std::move(write));
+    }
+
+    mutable absl::Mutex writes_mutex_;
+    std::vector<std::string> writes_ ABSL_GUARDED_BY(writes_mutex_);
 };
 
-class FakePacingClock {
+// The dispatcher's clock too, so dispatch times follow the paced time.
+class FakePacingClock : public ::android::base::IClock {
   public:
     explicit FakePacingClock(absl::Time initial = absl::FromUnixNanos(1'000'000'000LL))
             : current_time_(initial) {}
 
-    absl::Time Now() const {
-        absl::MutexLock lock(&clock_mutex_);
-        return current_time_;
+    absl::Time Now(ClockType /*type*/) const override {
+        absl::MutexLock time_lock(time_mutex_);
+        const absl::Time now = current_time_;
+        current_time_ += auto_advance_;
+        return now;
     }
 
     void Sleep(absl::Duration d) {
-        absl::MutexLock lock(&clock_mutex_);
+        absl::MutexLock time_lock(time_mutex_);
         sleep_calls_.push_back(d);
         current_time_ += d;
     }
 
+    void SetAutoAdvance(absl::Duration step) {
+        absl::MutexLock time_lock(time_mutex_);
+        auto_advance_ = step;
+    }
+
     std::vector<absl::Duration> SleepCalls() const {
-        absl::MutexLock lock(&clock_mutex_);
+        absl::MutexLock time_lock(time_mutex_);
         return sleep_calls_;
     }
 
   private:
-    mutable absl::Mutex clock_mutex_;
-    absl::Time current_time_ ABSL_GUARDED_BY(clock_mutex_);
-    std::vector<absl::Duration> sleep_calls_ ABSL_GUARDED_BY(clock_mutex_);
+    mutable absl::Mutex time_mutex_;
+    mutable absl::Time current_time_ ABSL_GUARDED_BY(time_mutex_);
+    absl::Duration auto_advance_ ABSL_GUARDED_BY(time_mutex_) = absl::ZeroDuration();
+    std::vector<absl::Duration> sleep_calls_ ABSL_GUARDED_BY(time_mutex_);
 };
 
 class PacingEventLoop final : public EventLoop {
@@ -142,6 +186,9 @@ class PacingEventLoop final : public EventLoop {
         return inner_->Post(std::move(task));
     }
     absl::Status PostDelayed(Task task, absl::Duration delay, FlowId /*flow_id*/) override {
+        if (!inner_->IsOnLoopThread()) {
+            inner_->WaitUntilIdle();
+        }
         clock_.Sleep(delay);
         return inner_->Post(std::move(task));
     }
@@ -153,6 +200,9 @@ class PacingEventLoop final : public EventLoop {
                 : loop_(loop), clock_(clock), task_(std::move(task)) {}
 
         void Schedule(absl::Duration initial_delay, absl::Duration /*interval*/) override {
+            if (!loop_.IsOnLoopThread()) {
+                loop_.WaitUntilIdle();
+            }
             clock_.Sleep(initial_delay);
             loop_.Post([self = shared_from_this()]() {
                      if (!self->cancelled_.load(std::memory_order_acquire)) {
@@ -174,23 +224,161 @@ class PacingEventLoop final : public EventLoop {
     FakePacingClock& clock_;
 };
 
+// Records every activity the dispatcher delivers, on its delivery thread.
+class ActivityRecorder {
+  public:
+    void Record(const InputActivity& activity) {
+        absl::MutexLock observed_lock(observed_mutex_);
+        observed_.push_back(activity);
+    }
+
+    void AwaitCount(size_t count) {
+        const auto has_count = [this, count]() ABSL_EXCLUSIVE_LOCKS_REQUIRED(observed_mutex_) {
+            return observed_.size() >= count;
+        };
+        absl::MutexLock observed_lock(observed_mutex_);
+        observed_mutex_.Await(absl::Condition(&has_count));
+    }
+
+    // Waits for the sentinel. @return The activities before it, which are
+    // forgotten together with the sentinel.
+    std::vector<InputActivity> TakeUntilSentinel() {
+        absl::MutexLock observed_lock(observed_mutex_);
+        observed_mutex_.Await(absl::Condition(this, &ActivityRecorder::HasSentinel));
+        auto sentinel = std::ranges::find_if(observed_, IsSentinel);
+        std::vector<InputActivity> before(observed_.begin(), sentinel);
+        observed_.erase(observed_.begin(), sentinel + 1);
+        return before;
+    }
+
+  private:
+    bool HasSentinel() const ABSL_EXCLUSIVE_LOCKS_REQUIRED(observed_mutex_) {
+        return std::ranges::any_of(observed_, IsSentinel);
+    }
+
+    absl::Mutex observed_mutex_;
+    std::vector<InputActivity> observed_ ABSL_GUARDED_BY(observed_mutex_);
+};
+
+// An in-memory reactor whose writes, which arrive on the dispatcher's
+// delivery thread, the test can wait for.
+template <typename W>
+class AwaitableWriteReactor {
+  public:
+    virtual ~AwaitableWriteReactor() = default;
+    virtual void OnWriteDone(bool /*ok*/) {}
+    virtual void OnDone() {}
+    virtual void OnCancel() {}
+
+    void StartWrite(const W* message) {
+        absl::MutexLock reactor_lock(reactor_mutex_);
+        written_.push_back(*message);
+    }
+
+    void Finish(::grpc::Status status) {
+        absl::MutexLock reactor_lock(reactor_mutex_);
+        finish_status_ = std::move(status);
+    }
+
+    // Waits until at least `count` messages were written. @return Them all.
+    std::vector<W> AwaitWritten(size_t count) const {
+        const auto written = [this, count]() ABSL_EXCLUSIVE_LOCKS_REQUIRED(reactor_mutex_) {
+            return written_.size() >= count;
+        };
+        absl::MutexLock reactor_lock(reactor_mutex_);
+        reactor_mutex_.Await(absl::Condition(&written));
+        return written_;
+    }
+
+  private:
+    mutable absl::Mutex reactor_mutex_;
+    std::vector<W> written_ ABSL_GUARDED_BY(reactor_mutex_);
+    std::optional<::grpc::Status> finish_status_ ABSL_GUARDED_BY(reactor_mutex_);
+};
+
+InputEvent Touch(PointerAction action, std::vector<int32_t> pointer_ids, float x = 0.5F,
+                 float y = 0.5F) {
+    InputEvent event;
+    PointerEvent* pointer = event.mutable_pointer();
+    pointer->set_display_id(0);
+    pointer->set_action(action);
+    for (int32_t id : pointer_ids) {
+        PointerEvent::Pointer* p = pointer->add_pointers();
+        p->set_pointer_id(id);
+        p->set_x(x);
+        p->set_y(y);
+    }
+    return event;
+}
+
+InputEvent Text(std::string text, int32_t source_id = 0) {
+    InputEvent event;
+    event.set_input_source_id(source_id);
+    event.mutable_text()->set_text(std::move(text));
+    return event;
+}
+
+std::vector<int32_t> AgentPointerIds() {
+    std::vector<int32_t> ids;
+    for (int32_t id = 0; id < kTouchDeviceSlots - kReservedHumanSlots; ++id) {
+        ids.push_back(id);
+    }
+    return ids;
+}
+
+// Describes an activity as "src<id> [synthesized ]<event>".
+std::string Describe(const InputActivity& activity) {
+    const InputEvent& event = activity.event();
+    std::string text = absl::StrCat("src", event.input_source_id(),
+                                    activity.synthesized() ? " synthesized " : " ");
+    switch (event.event_case()) {
+    case InputEvent::kPointer:
+        absl::StrAppend(&text, PointerAction_Name(event.pointer().action()), " ids");
+        for (const PointerEvent::Pointer& pointer : event.pointer().pointers()) {
+            absl::StrAppend(&text, " ", pointer.pointer_id());
+        }
+        break;
+    case InputEvent::kKey:
+        absl::StrAppend(&text, KeyAction_Name(event.key().action()), " ",
+                        event.key().has_dom_code() ? event.key().dom_code()
+                                                   : absl::StrCat(event.key().evdev_code()));
+        break;
+    case InputEvent::kText:
+        absl::StrAppend(&text, "text ", event.text().text());
+        break;
+    case InputEvent::kAxis:
+    case InputEvent::EVENT_NOT_SET:
+        absl::StrAppend(&text, "unexpected event");
+        break;
+    }
+    return text;
+}
+
 class InputServiceImplTest : public ::testing::Test {
   protected:
     void SetUp() override {
         loop_ = std::make_unique<PacingEventLoop>(
                 ThreadedEventLoop::Create(LibuvEventLoop::Create()), clock_);
         multi_display_ = std::make_unique<FakeMultiDisplay>(loop_.get());
-        key_sender_ = std::make_shared<RecordingKeyEventSender>();
+        touch_devices_ =
+                std::make_unique<MultiDisplayTouchDevices>(*multi_display_, /*has_hinge=*/false);
+        dispatcher_ = std::make_shared<InputDispatcher>(*loop_, *touch_devices_, &keyboard_,
+                                                        ResolveEvdevKeyCode, &clock_);
+        // Never removed: the dispatcher's event source drops it on destruction.
+        dispatcher_->activity().AddCallback(
+                [this](const InputActivity& activity) { recorder_.Record(activity); });
         StartServer(DefaultOptions());
     }
 
     void TearDown() override {
         StopServer();
-        if (multi_display_) {
-            for (auto display_weak : multi_display_->Displays()) {
-                if (auto display = display_weak.lock()) {
-                    static_cast<ActiveFakePixmanDisplay*>(display.get())->Stop();
-                }
+        // Runs the session closes posted so far before the dispatcher goes.
+        loop_->WaitUntilIdle();
+        dispatcher_->Shutdown();
+        dispatcher_.reset();
+        for (auto display_weak : multi_display_->Displays()) {
+            if (auto display = display_weak.lock()) {
+                static_cast<ActiveFakePixmanDisplay*>(display.get())->Stop();
             }
         }
     }
@@ -198,15 +386,20 @@ class InputServiceImplTest : public ::testing::Test {
     InputServiceImpl::Options DefaultOptions() {
         InputServiceImpl::Options opts;
         opts.event_loop = loop_.get();
-        opts.now_fn = [this]() { return clock_.Now(); };
-        opts.sleep_fn = [this](absl::Duration d) { clock_.Sleep(d); };
+        opts.now_fn = [this]() { return clock_.Now(ClockType::kRealtime); };
+        // Lets the dispatcher apply what was posted before time moves on, so
+        // dispatch times are deterministic.
+        opts.sleep_fn = [this](absl::Duration d) {
+            loop_->WaitUntilIdle();
+            clock_.Sleep(d);
+        };
         return opts;
     }
 
     void StartServer(InputServiceImpl::Options opts) {
         StopServer();
         service_ =
-                std::make_unique<InputServiceImpl>(*multi_display_, key_sender_, std::move(opts));
+                std::make_unique<InputServiceImpl>(dispatcher_, *multi_display_, std::move(opts));
         ::grpc::ServerBuilder builder;
         builder.RegisterService(service_.get());
         server_ = builder.BuildAndStart();
@@ -234,20 +427,60 @@ class InputServiceImplTest : public ::testing::Test {
         return static_cast<FakePixmanDisplay*>(res.value().get());
     }
 
-    // Acknowledges in-flight writes until every queued activity reaches `written_messages`.
+    ::grpc::Status Send(std::vector<InputEvent> events, SendInputEventsResponse* resp = nullptr) {
+        ::grpc::ServerContext ctx;
+        SendInputEventsRequest req;
+        for (InputEvent& event : events) {
+            *req.add_events() = std::move(event);
+        }
+        SendInputEventsResponse unused;
+        return service_->SendInputEvents(&ctx, &req, resp != nullptr ? resp : &unused);
+    }
+
+    // Types the sentinel through a session of its own, from `source_id`.
+    void DispatchSentinel(int32_t source_id = kSentinelSource) {
+        DispatcherSession sentinel(dispatcher_, {.source_id = source_id});
+        sentinel.Dispatch(Text(std::string(kSentinel)));
+    }
+
+    // Waits until everything dispatched so far was delivered. @return The
+    // activities delivered since the last call.
+    std::vector<InputActivity> TakeActivities() {
+        DispatchSentinel();
+        return recorder_.TakeUntilSentinel();
+    }
+
+    std::vector<std::string> Activities() {
+        std::vector<std::string> described;
+        for (const InputActivity& activity : TakeActivities()) {
+            described.push_back(Describe(activity));
+        }
+        return described;
+    }
+
+    // Dispatches a sentinel from `source_id`, then acknowledges the writes of
+    // `writer` until it wrote the sentinel. @return The activities before it.
     template <typename Writer>
-    static void DrainActivity(Writer* writer) {
-        size_t written = 0;
-        while (written != writer->written_messages.size()) {
-            written = writer->written_messages.size();
+    std::vector<InputActivity> DrainUntilSentinel(Writer* writer,
+                                                  int32_t source_id = kSentinelSource) {
+        DispatchSentinel(source_id);
+        for (size_t acknowledged = 0;; ++acknowledged) {
+            std::vector<InputActivity> written = writer->AwaitWritten(acknowledged + 1);
+            if (IsSentinel(written.back())) {
+                written.pop_back();
+                return written;
+            }
             writer->OnWriteDone(true);
         }
     }
 
     FakePacingClock clock_;
+    RecordingKeyboard keyboard_;
+    ActivityRecorder recorder_;
     std::unique_ptr<EventLoop> loop_;
     std::unique_ptr<FakeMultiDisplay> multi_display_;
-    std::shared_ptr<RecordingKeyEventSender> key_sender_;
+    std::unique_ptr<MultiDisplayTouchDevices> touch_devices_;
+    std::shared_ptr<InputDispatcher> dispatcher_;
     std::unique_ptr<InputServiceImpl> service_;
     std::unique_ptr<::grpc::Server> server_;
     std::shared_ptr<::grpc::Channel> channel_;
@@ -268,42 +501,16 @@ TEST_F(InputServiceImplTest, SendInputEventsEmptyBatchIsNoOp) {
 }
 
 TEST_F(InputServiceImplTest, SendInputEventsPacesEventsAccordingToTimestamps) {
-    ::grpc::ServerContext ctx;
-    SendInputEventsRequest req;
-
     // 3-step gesture at t=100ms, t=115ms (+15ms), t=140ms (+25ms from previous, +40ms from start).
-    auto* ev1 = req.add_events();
-    ev1->set_timestamp_nanos(100'000'000LL);
-    auto* ptr1 = ev1->mutable_pointer();
-    ptr1->set_display_id(0);
-    ptr1->set_action(PointerAction::POINTER_ACTION_DOWN);
-    auto* p1 = ptr1->add_pointers();
-    p1->set_pointer_id(0);
-    p1->set_x(0.5F);
-    p1->set_y(0.5F);
-
-    auto* ev2 = req.add_events();
-    ev2->set_timestamp_nanos(115'000'000LL);
-    auto* ptr2 = ev2->mutable_pointer();
-    ptr2->set_display_id(0);
-    ptr2->set_action(PointerAction::POINTER_ACTION_MOVE);
-    auto* p2 = ptr2->add_pointers();
-    p2->set_pointer_id(0);
-    p2->set_x(0.6F);
-    p2->set_y(0.6F);
-
-    auto* ev3 = req.add_events();
-    ev3->set_timestamp_nanos(140'000'000LL);
-    auto* ptr3 = ev3->mutable_pointer();
-    ptr3->set_display_id(0);
-    ptr3->set_action(PointerAction::POINTER_ACTION_UP);
-    auto* p3 = ptr3->add_pointers();
-    p3->set_pointer_id(0);
-    p3->set_x(0.6F);
-    p3->set_y(0.6F);
+    InputEvent down = Touch(PointerAction::POINTER_ACTION_DOWN, {0}, 0.5F, 0.5F);
+    down.set_timestamp_nanos(100'000'000LL);
+    InputEvent move = Touch(PointerAction::POINTER_ACTION_MOVE, {0}, 0.6F, 0.6F);
+    move.set_timestamp_nanos(115'000'000LL);
+    InputEvent up = Touch(PointerAction::POINTER_ACTION_UP, {0}, 0.6F, 0.6F);
+    up.set_timestamp_nanos(140'000'000LL);
 
     SendInputEventsResponse resp;
-    const auto status = service_->SendInputEvents(&ctx, &req, &resp);
+    const auto status = Send({down, move, up}, &resp);
     ASSERT_TRUE(status.ok()) << status.error_message();
 
     EXPECT_EQ(resp.events_dispatched(), 3);
@@ -316,55 +523,62 @@ TEST_F(InputServiceImplTest, SendInputEventsPacesEventsAccordingToTimestamps) {
     EXPECT_EQ(sleeps[1], absl::Milliseconds(25));
 }
 
+TEST_F(InputServiceImplTest, SendInputEventsReportsDispatchTimesOfItsActivity) {
+    // Neither the first event nor the last reaches the guest: nothing holds
+    // pointer 3, and the text is empty.
+    InputEvent unheld_move = Touch(PointerAction::POINTER_ACTION_MOVE, {3});
+    InputEvent first = Text("first");
+    first.set_timestamp_nanos(0);
+    InputEvent last = Text("last");
+    last.set_timestamp_nanos(20'000'000LL);
+    InputEvent empty = Text("");
+
+    SendInputEventsResponse resp;
+    ASSERT_TRUE(Send({unheld_move, first, last, empty}, &resp).ok());
+
+    const std::vector<InputActivity> activities = TakeActivities();
+    ASSERT_EQ(activities.size(), 2);
+    EXPECT_EQ(resp.events_dispatched(), 4);
+    EXPECT_EQ(resp.first_event_dispatched_at_nanos(), activities[0].dispatched_at_nanos());
+    EXPECT_EQ(resp.last_event_dispatched_at_nanos(), activities[1].dispatched_at_nanos());
+    EXPECT_EQ(resp.last_event_dispatched_at_nanos() - resp.first_event_dispatched_at_nanos(),
+              20'000'000LL);
+}
+
 TEST_F(InputServiceImplTest, SendInputEventsValidatesBoundsUpFront) {
     // Decreasing timestamp_nanos must fail with INVALID_ARGUMENT without dispatching.
     {
-        ::grpc::ServerContext ctx;
-        SendInputEventsRequest req;
-        auto* ev1 = req.add_events();
-        ev1->set_timestamp_nanos(200'000'000LL);
-        ev1->mutable_text()->set_text("a");
-        auto* ev2 = req.add_events();
-        ev2->set_timestamp_nanos(100'000'000LL);
-        ev2->mutable_text()->set_text("b");
+        InputEvent ev1 = Text("a");
+        ev1.set_timestamp_nanos(200'000'000LL);
+        InputEvent ev2 = Text("b");
+        ev2.set_timestamp_nanos(100'000'000LL);
 
-        SendInputEventsResponse resp;
-        const auto status = service_->SendInputEvents(&ctx, &req, &resp);
+        const auto status = Send({ev1, ev2});
         EXPECT_EQ(status.error_code(), ::grpc::StatusCode::INVALID_ARGUMENT);
         EXPECT_THAT(status.error_message(), HasSubstr("events[1]"));
         EXPECT_THAT(status.error_message(), HasSubstr("'100000000'"));
         EXPECT_THAT(status.error_message(), HasSubstr("'200000000'"));
-        EXPECT_TRUE(key_sender_->Events().empty());
+        EXPECT_THAT(keyboard_.Writes(), IsEmpty());
     }
 
     // Gesture exceeding max_batch_duration (default 30s) must fail with INVALID_ARGUMENT.
     {
-        ::grpc::ServerContext ctx;
-        SendInputEventsRequest req;
-        auto* ev1 = req.add_events();
-        ev1->set_timestamp_nanos(0);
-        ev1->mutable_text()->set_text("a");
-        auto* ev2 = req.add_events();
-        ev2->set_timestamp_nanos(31'000'000'000LL);  // 31 seconds > 30s max
-        ev2->mutable_text()->set_text("b");
+        InputEvent ev1 = Text("a");
+        ev1.set_timestamp_nanos(0);
+        InputEvent ev2 = Text("b");
+        ev2.set_timestamp_nanos(31'000'000'000LL);  // 31 seconds > 30s max
 
-        SendInputEventsResponse resp;
-        const auto status = service_->SendInputEvents(&ctx, &req, &resp);
+        const auto status = Send({ev1, ev2});
         EXPECT_EQ(status.error_code(), ::grpc::StatusCode::INVALID_ARGUMENT);
         EXPECT_THAT(status.error_message(), HasSubstr("'31s'"));
         EXPECT_THAT(status.error_message(), HasSubstr("'30s'"));
         EXPECT_THAT(status.error_message(), HasSubstr("StreamInputEvents"));
-        EXPECT_TRUE(key_sender_->Events().empty());
+        EXPECT_THAT(keyboard_.Writes(), IsEmpty());
     }
 
     // Missing event oneof payload must fail with INVALID_ARGUMENT.
     {
-        ::grpc::ServerContext ctx;
-        SendInputEventsRequest req;
-        req.add_events();  // EVENT_NOT_SET
-
-        SendInputEventsResponse resp;
-        const auto status = service_->SendInputEvents(&ctx, &req, &resp);
+        const auto status = Send({InputEvent()});
         EXPECT_EQ(status.error_code(), ::grpc::StatusCode::INVALID_ARGUMENT);
         EXPECT_THAT(status.error_message(), HasSubstr("'pointer', 'key', 'axis', or 'text'"));
     }
@@ -372,14 +586,11 @@ TEST_F(InputServiceImplTest, SendInputEventsValidatesBoundsUpFront) {
     // Unknown display_id must fail with INVALID_ARGUMENT and include quoted display_id and
     // underlying cause.
     {
-        ::grpc::ServerContext ctx;
-        SendInputEventsRequest req;
-        auto* ev = req.add_events();
-        ev->mutable_pointer()->set_display_id(42);
-        ev->mutable_pointer()->set_action(PointerAction::POINTER_ACTION_DOWN);
+        InputEvent ev;
+        ev.mutable_pointer()->set_display_id(42);
+        ev.mutable_pointer()->set_action(PointerAction::POINTER_ACTION_DOWN);
 
-        SendInputEventsResponse resp;
-        const auto status = service_->SendInputEvents(&ctx, &req, &resp);
+        const auto status = Send({ev});
         EXPECT_EQ(status.error_code(), ::grpc::StatusCode::INVALID_ARGUMENT);
         EXPECT_THAT(status.error_message(), HasSubstr("display_id '42'"));
         EXPECT_THAT(status.error_message(), HasSubstr("CapabilitiesService"));
@@ -387,18 +598,68 @@ TEST_F(InputServiceImplTest, SendInputEventsValidatesBoundsUpFront) {
 
     // Unsupported Android keycode must fail with INVALID_ARGUMENT and list allowed keycodes.
     {
-        ::grpc::ServerContext ctx;
-        SendInputEventsRequest req;
-        auto* ev = req.add_events();
-        ev->mutable_key()->set_action(KeyAction::KEY_ACTION_PRESS);
-        ev->mutable_key()->set_android_keycode(999);
+        InputEvent ev;
+        ev.mutable_key()->set_action(KeyAction::KEY_ACTION_PRESS);
+        ev.mutable_key()->set_android_keycode(999);
 
-        SendInputEventsResponse resp;
-        const auto status = service_->SendInputEvents(&ctx, &req, &resp);
+        const auto status = Send({ev});
         EXPECT_EQ(status.error_code(), ::grpc::StatusCode::INVALID_ARGUMENT);
         EXPECT_THAT(status.error_message(), HasSubstr("android_keycode '999'"));
         EXPECT_THAT(status.error_message(), HasSubstr("3=HOME"));
     }
+}
+
+TEST_F(InputServiceImplTest, SendInputEventsStopsAtSlotExhaustionWithEventIndex) {
+    // Source 7 takes every slot agents may use, then one more.
+    InputEvent fill = Touch(PointerAction::POINTER_ACTION_DOWN, AgentPointerIds());
+    fill.set_input_source_id(7);
+    fill.set_timestamp_nanos(0);
+    InputEvent exhausted = Touch(PointerAction::POINTER_ACTION_DOWN, {9});
+    exhausted.set_input_source_id(7);
+    exhausted.set_timestamp_nanos(1'000'000LL);
+    InputEvent after = Text("after", 7);
+    after.set_timestamp_nanos(2'000'000LL);
+
+    const auto status = Send({fill, exhausted, after});
+
+    EXPECT_EQ(status.error_code(), ::grpc::StatusCode::RESOURCE_EXHAUSTED);
+    EXPECT_THAT(status.error_message(), HasSubstr("SendInputEvents failed at events[1]"));
+    EXPECT_THAT(status.error_message(), HasSubstr("input_source_id '7'"));
+    // The event after the failure isn't posted.
+    EXPECT_THAT(Activities(), ElementsAre("src7 POINTER_ACTION_DOWN ids 0 1 2 3 4 5 6 7 8"));
+    EXPECT_THAT(keyboard_.Writes(), IsEmpty());
+}
+
+TEST_F(InputServiceImplTest, SendInputEventsKeepsTouchHeldAcrossCallsFromSameSource) {
+    InputEvent down = Touch(PointerAction::POINTER_ACTION_DOWN, {0}, 0.2F, 0.2F);
+    down.set_input_source_id(7);
+    ASSERT_TRUE(Send({down}).ok());
+
+    // A move only applies to a held pointer.
+    InputEvent move = Touch(PointerAction::POINTER_ACTION_MOVE, {0}, 0.4F, 0.4F);
+    move.set_input_source_id(7);
+    InputEvent up = Touch(PointerAction::POINTER_ACTION_UP, {0}, 0.4F, 0.4F);
+    up.set_input_source_id(7);
+    SendInputEventsResponse resp;
+    ASSERT_TRUE(Send({move}, &resp).ok());
+    EXPECT_NE(resp.first_event_dispatched_at_nanos(), 0);
+    ASSERT_TRUE(Send({up}).ok());
+
+    EXPECT_THAT(Activities(),
+                ElementsAre("src7 POINTER_ACTION_DOWN ids 0", "src7 POINTER_ACTION_MOVE ids 0",
+                            "src7 POINTER_ACTION_UP ids 0"));
+}
+
+TEST_F(InputServiceImplTest, SendInputEventsFailsForKeyThatIsNotAW3cCode) {
+    InputEvent key;
+    key.mutable_key()->set_action(KeyAction::KEY_ACTION_PRESS);
+    key.mutable_key()->set_dom_code("a");
+
+    const auto status = Send({Text("before"), key});
+
+    EXPECT_EQ(status.error_code(), ::grpc::StatusCode::INVALID_ARGUMENT);
+    EXPECT_THAT(status.error_message(), HasSubstr("events[1]"));
+    EXPECT_THAT(keyboard_.Writes(), ElementsAre("text before"));
 }
 
 TEST_F(InputServiceImplTest, RejectsUnsupportedPeripheralsWithFailedPrecondition) {
@@ -408,25 +669,19 @@ TEST_F(InputServiceImplTest, RejectsUnsupportedPeripheralsWithFailedPrecondition
     StartServer(std::move(opts));
 
     {
-        ::grpc::ServerContext ctx;
-        SendInputEventsRequest req;
-        auto* ev = req.add_events();
-        ev->mutable_key()->set_action(KeyAction::KEY_ACTION_PRESS);
-        ev->mutable_key()->set_dom_code("KeyA");
-        SendInputEventsResponse resp;
-        const auto status = service_->SendInputEvents(&ctx, &req, &resp);
+        InputEvent ev;
+        ev.mutable_key()->set_action(KeyAction::KEY_ACTION_PRESS);
+        ev.mutable_key()->set_dom_code("KeyA");
+        const auto status = Send({ev});
         EXPECT_EQ(status.error_code(), ::grpc::StatusCode::FAILED_PRECONDITION);
         EXPECT_THAT(status.error_message(), HasSubstr("hw.keyboard"));
     }
 
     {
-        ::grpc::ServerContext ctx;
-        SendInputEventsRequest req;
-        auto* ev = req.add_events();
-        ev->mutable_axis()->set_axis(AxisType::AXIS_TYPE_ROTARY_ENCODER);
-        ev->mutable_axis()->set_value(1.0F);
-        SendInputEventsResponse resp;
-        const auto status = service_->SendInputEvents(&ctx, &req, &resp);
+        InputEvent ev;
+        ev.mutable_axis()->set_axis(AxisType::AXIS_TYPE_ROTARY_ENCODER);
+        ev.mutable_axis()->set_value(1.0F);
+        const auto status = Send({ev});
         EXPECT_EQ(status.error_code(), ::grpc::StatusCode::FAILED_PRECONDITION);
         EXPECT_THAT(status.error_message(), HasSubstr("hw.rotaryInput"));
     }
@@ -437,10 +692,7 @@ TEST_F(InputServiceImplTest, ReadOnlyModeRejectsWriteRpcsWithPermissionDenied) {
     opts.read_only = true;
     StartServer(std::move(opts));
 
-    ::grpc::ServerContext ctx;
-    SendInputEventsRequest req;
-    SendInputEventsResponse resp;
-    const auto send_status = service_->SendInputEvents(&ctx, &req, &resp);
+    const auto send_status = Send({});
     EXPECT_EQ(send_status.error_code(), ::grpc::StatusCode::PERMISSION_DENIED);
     EXPECT_THAT(send_status.error_message(), HasSubstr("SendInputEvents"));
 
@@ -453,13 +705,27 @@ TEST_F(InputServiceImplTest, ReadOnlyModeRejectsWriteRpcsWithPermissionDenied) {
     EXPECT_THAT(stream_status.error_message(), HasSubstr("StreamInputEvents"));
 }
 
-TEST_F(InputServiceImplTest, ConcurrentSourcesWithSamePointerIdUseDistinctSlotsAndIsolateCleanup) {
-    // Open an activity observer to capture all client and synthesized cleanup events.
-    StreamInputActivityRequest activity_req;
-    auto* activity_writer =
-            service_->CreateInputActivityWriter<test::FakeWriteReactor<InputActivity>>(
-                    activity_req);
+// The slots that got a contact, and those released, in order.
+struct SlotChanges {
+    std::vector<uint32_t> pressed;
+    std::vector<uint32_t> released;
+};
 
+SlotChanges SlotChangesOf(const FakePixmanDisplay& display) {
+    SlotChanges changes;
+    uint32_t current_slot = 0;
+    for (const auto& ev : display.evdevs) {
+        if (ev.type == EV_ABS && ev.code == ABS_MT_SLOT) {
+            current_slot = ev.value;
+        } else if (ev.type == EV_ABS && ev.code == ABS_MT_TRACKING_ID) {
+            (ev.value == kMtsPointerUp ? changes.released : changes.pressed)
+                    .push_back(current_slot);
+        }
+    }
+    return changes;
+}
+
+TEST_F(InputServiceImplTest, ConcurrentSourcesWithSamePointerIdUseDistinctSlotsAndIsolateCleanup) {
     // Stream 1 uses x-client-id "agent-1" with input_source_id=0 (auto-derived non-zero ID).
     ::grpc::ClientContext ctx1;
     ctx1.AddMetadata("x-client-id", "agent-1");
@@ -479,125 +745,59 @@ TEST_F(InputServiceImplTest, ConcurrentSourcesWithSamePointerIdUseDistinctSlotsA
     ASSERT_NE(expected_source1, expected_source2);
 
     // Agent 1 touches down with pointer_id = 0 and holds down KeyA.
-    InputEvent down1;
-    down1.mutable_pointer()->set_display_id(0);
-    down1.mutable_pointer()->set_action(PointerAction::POINTER_ACTION_DOWN);
-    auto* p1 = down1.mutable_pointer()->add_pointers();
-    p1->set_pointer_id(0);
-    p1->set_x(0.2F);
-    p1->set_y(0.2F);
-    ASSERT_TRUE(writer1->Write(down1));
-
+    ASSERT_TRUE(writer1->Write(Touch(PointerAction::POINTER_ACTION_DOWN, {0}, 0.2F, 0.2F)));
     InputEvent key_down1;
     key_down1.mutable_key()->set_action(KeyAction::KEY_ACTION_DOWN);
     key_down1.mutable_key()->set_dom_code("KeyA");
     ASSERT_TRUE(writer1->Write(key_down1));
-    key_sender_->AwaitEventCount(1);
+    keyboard_.AwaitWrite(absl::StrCat("down ", KEY_A));
 
     // Agent 2 simultaneously touches down with pointer_id = 0 and sends a text marker.
-    InputEvent down2;
-    down2.mutable_pointer()->set_display_id(0);
-    down2.mutable_pointer()->set_action(PointerAction::POINTER_ACTION_DOWN);
-    auto* p2 = down2.mutable_pointer()->add_pointers();
-    p2->set_pointer_id(0);
-    p2->set_x(0.8F);
-    p2->set_y(0.8F);
-    ASSERT_TRUE(writer2->Write(down2));
-
-    InputEvent text2;
-    text2.mutable_text()->set_text("ready");
-    ASSERT_TRUE(writer2->Write(text2));
-    key_sender_->AwaitEventCount(2);
+    ASSERT_TRUE(writer2->Write(Touch(PointerAction::POINTER_ACTION_DOWN, {0}, 0.8F, 0.8F)));
+    ASSERT_TRUE(writer2->Write(Text("ready")));
+    keyboard_.AwaitWrite("text ready");
 
     // Close Stream 1 while its pointer 0 and KeyA are still depressed.
     ASSERT_TRUE(writer1->WritesDone());
     ASSERT_TRUE(writer1->Finish().ok());
     EXPECT_EQ(resp1.events_dispatched(), 2);
 
-    DrainActivity(activity_writer);
+    // Agent 1's input, agent 2's input, then the release of agent 1's input.
+    const std::vector<InputActivity> activities = TakeActivities();
+    const std::string src1 = absl::StrCat("src", expected_source1);
+    const std::string src2 = absl::StrCat("src", expected_source2);
+    std::vector<std::string> described;
+    for (const InputActivity& activity : activities) {
+        described.push_back(Describe(activity));
+    }
+    EXPECT_THAT(described,
+                ElementsAre(src1 + " POINTER_ACTION_DOWN ids 0", src1 + " KEY_ACTION_DOWN KeyA",
+                            src2 + " POINTER_ACTION_DOWN ids 0", src2 + " text ready",
+                            src1 + " synthesized POINTER_ACTION_CANCEL ids 0",
+                            absl::StrCat(src1, " synthesized KEY_ACTION_UP ", KEY_A)));
+    EXPECT_THAT(keyboard_.Writes(), ElementsAre(absl::StrCat("down ", KEY_A), "text ready",
+                                                absl::StrCat("up ", KEY_A)));
 
-    // Verify we observed:
-    // 0. Agent 1 pointer DOWN (synthesized = false, source = expected_source1)
-    // 1. Agent 1 KeyA DOWN (synthesized = false, source = expected_source1)
-    // 2. Agent 2 pointer DOWN (synthesized = false, source = expected_source2)
-    // 3. Agent 2 text "ready" (synthesized = false, source = expected_source2)
-    // 4. Agent 1 synthesized POINTER_ACTION_CANCEL (synthesized = true, source = expected_source1)
-    // 5. Agent 1 synthesized KEY_ACTION_UP (synthesized = true, source = expected_source1)
-    ASSERT_EQ(activity_writer->written_messages.size(), 6);
-    EXPECT_EQ(activity_writer->written_messages[0].event().input_source_id(), expected_source1);
-    EXPECT_FALSE(activity_writer->written_messages[0].synthesized());
-    EXPECT_EQ(activity_writer->written_messages[1].event().input_source_id(), expected_source1);
-    EXPECT_FALSE(activity_writer->written_messages[1].synthesized());
-    EXPECT_EQ(activity_writer->written_messages[2].event().input_source_id(), expected_source2);
-    EXPECT_FALSE(activity_writer->written_messages[2].synthesized());
-    EXPECT_EQ(activity_writer->written_messages[3].event().input_source_id(), expected_source2);
-    EXPECT_FALSE(activity_writer->written_messages[3].synthesized());
-
-    EXPECT_EQ(activity_writer->written_messages[4].event().input_source_id(), expected_source1);
-    EXPECT_TRUE(activity_writer->written_messages[4].synthesized());
-    EXPECT_EQ(activity_writer->written_messages[4].event().pointer().action(),
-              PointerAction::POINTER_ACTION_CANCEL);
-    ASSERT_EQ(activity_writer->written_messages[4].event().pointer().pointers_size(), 1);
-    EXPECT_EQ(activity_writer->written_messages[4].event().pointer().pointers(0).pointer_id(), 0);
-
-    EXPECT_EQ(activity_writer->written_messages[5].event().input_source_id(), expected_source1);
-    EXPECT_TRUE(activity_writer->written_messages[5].synthesized());
-    EXPECT_EQ(activity_writer->written_messages[5].event().key().action(),
-              KeyAction::KEY_ACTION_UP);
-    EXPECT_EQ(activity_writer->written_messages[5].event().key().dom_code(), "KeyA");
-
-    // Verify Agent 1 and Agent 2 were assigned distinct guest multi-touch slots (0 and 1),
-    // and only slot 0 was released when Agent 1 disconnected!
+    // Agent 1 and Agent 2 got distinct guest multi-touch slots, and only agent 1's slot was
+    // released when it disconnected.
     auto* display = GetDisplay(0);
     ASSERT_NE(display, nullptr);
-    const auto& evdev = display->evdevs;
-    int slot0_releases = 0;
-    int slot1_releases = 0;
-    bool slot1_allocated = false;
-    uint32_t current_slot = 999;
-    for (const auto& ev : evdev) {
-        if (ev.type == EV_ABS && ev.code == ABS_MT_SLOT) {
-            current_slot = ev.value;
-        } else if (ev.type == EV_ABS && ev.code == ABS_MT_TRACKING_ID) {
-            if (current_slot == 1 && ev.value == 1U) {
-                slot1_allocated = true;
-            }
-            if (ev.value == static_cast<uint32_t>(kMtsPointerUp)) {
-                if (current_slot == 0) {
-                    ++slot0_releases;
-                } else if (current_slot == 1) {
-                    ++slot1_releases;
-                }
-            }
-        }
-    }
-    EXPECT_TRUE(slot1_allocated);
-    EXPECT_EQ(slot0_releases, 1);
-    EXPECT_EQ(slot1_releases, 0);
+    const SlotChanges changes = SlotChangesOf(*display);
+    ASSERT_EQ(changes.pressed.size(), 2);
+    EXPECT_NE(changes.pressed[0], changes.pressed[1]);
+    EXPECT_THAT(changes.released, ElementsAre(changes.pressed[0]));
 
-    // Now finish Stream 2; its held pointer on slot 1 should be released on exit.
+    // Now finish Stream 2; its held pointer should be released on exit.
     ASSERT_TRUE(writer2->WritesDone());
     ASSERT_TRUE(writer2->Finish().ok());
     EXPECT_EQ(resp2.events_dispatched(), 2);
-
-    activity_writer->OnDone();
+    EXPECT_THAT(Activities(), ElementsAre(src2 + " synthesized POINTER_ACTION_CANCEL ids 0"));
 }
 
 TEST_F(InputServiceImplTest, StreamDisconnectOnlyReleasesSourcesUsedByTheStream) {
-    StreamInputActivityRequest activity_req;
-    auto* activity_writer =
-            service_->CreateInputActivityWriter<test::FakeWriteReactor<InputActivity>>(
-                    activity_req);
-
     // The human operator (source 0) holds a touch down.
-    InputEvent touch_down;
-    touch_down.mutable_pointer()->set_action(PointerAction::POINTER_ACTION_DOWN);
-    touch_down.mutable_pointer()->add_pointers()->set_pointer_id(0);
-    ::grpc::ServerContext send_ctx;
-    SendInputEventsRequest send_req;
-    *send_req.add_events() = touch_down;
-    SendInputEventsResponse send_resp;
-    ASSERT_TRUE(service_->SendInputEvents(&send_ctx, &send_req, &send_resp).ok());
+    InputEvent touch_down = Touch(PointerAction::POINTER_ACTION_DOWN, {0});
+    ASSERT_TRUE(Send({touch_down}).ok());
 
     // A stream without x-client-id touches down as source 7, then disconnects.
     ::grpc::ClientContext stream_ctx;
@@ -609,26 +809,89 @@ TEST_F(InputServiceImplTest, StreamDisconnectOnlyReleasesSourcesUsedByTheStream)
     ASSERT_TRUE(writer->Finish().ok());
 
     // Only the stream's own contact is cancelled; the human's touch stays down.
-    DrainActivity(activity_writer);
     std::vector<int32_t> synthesized_sources;
-    for (const InputActivity& activity : activity_writer->written_messages) {
+    for (const InputActivity& activity : TakeActivities()) {
         if (activity.synthesized()) {
             synthesized_sources.push_back(activity.event().input_source_id());
         }
     }
     EXPECT_THAT(synthesized_sources, ElementsAre(7));
-    activity_writer->OnDone();
+}
+
+TEST_F(InputServiceImplTest, StreamInputEventsFinishesWithFirstDispatchError) {
+    ::grpc::ClientContext stream_ctx;
+    StreamInputEventsResponse resp;
+    auto writer = stub_->StreamInputEvents(&stream_ctx, &resp);
+    InputEvent fill = Touch(PointerAction::POINTER_ACTION_DOWN, AgentPointerIds());
+    fill.set_input_source_id(7);
+    InputEvent exhausted = Touch(PointerAction::POINTER_ACTION_DOWN, {9});
+    exhausted.set_input_source_id(7);
+    ASSERT_TRUE(writer->Write(fill));
+    ASSERT_TRUE(writer->Write(exhausted));
+    writer->WritesDone();
+
+    const ::grpc::Status status = writer->Finish();
+
+    EXPECT_EQ(status.error_code(), ::grpc::StatusCode::RESOURCE_EXHAUSTED);
+    EXPECT_THAT(status.error_message(), HasSubstr("StreamInputEvents failed at event #1"));
+    EXPECT_THAT(status.error_message(), HasSubstr("input_source_id '7'"));
+}
+
+TEST_F(InputServiceImplTest, StreamInputEventsFinishesOnDispatchFailureWhileClientIsIdle) {
+    // The failure completes on the dispatcher's loop after the read returned.
+    // The client sends nothing more and never half-closes, so only the server
+    // ending the stream on its own lets Finish() return before the deadline.
+    ::grpc::ClientContext stream_ctx;
+    stream_ctx.set_deadline(absl::ToChronoTime(absl::Now() + absl::Seconds(10)));
+    StreamInputEventsResponse resp;
+    auto writer = stub_->StreamInputEvents(&stream_ctx, &resp);
+    InputEvent fill = Touch(PointerAction::POINTER_ACTION_DOWN, AgentPointerIds());
+    fill.set_input_source_id(7);
+    InputEvent exhausted = Touch(PointerAction::POINTER_ACTION_DOWN, {9});
+    exhausted.set_input_source_id(7);
+    ASSERT_TRUE(writer->Write(fill));
+    ASSERT_TRUE(writer->Write(exhausted));
+
+    const ::grpc::Status status = writer->Finish();
+
+    EXPECT_EQ(status.error_code(), ::grpc::StatusCode::RESOURCE_EXHAUSTED);
+    EXPECT_THAT(status.error_message(), HasSubstr("StreamInputEvents failed at event #1"));
+    EXPECT_THAT(status.error_message(), HasSubstr("input_source_id '7'"));
+}
+
+TEST_F(InputServiceImplTest, StreamInputEventsFinishesOnDispatchFailureWhilePacing) {
+    // The failing event is followed by one that waits on a pacing timer, so the
+    // failure completes while the stream is between reads. The stream must end
+    // with the failure, and the timer must neither dispatch nor read again.
+    ::grpc::ClientContext stream_ctx;
+    stream_ctx.set_deadline(absl::ToChronoTime(absl::Now() + absl::Seconds(10)));
+    StreamInputEventsResponse resp;
+    auto writer = stub_->StreamInputEvents(&stream_ctx, &resp);
+    InputEvent fill = Touch(PointerAction::POINTER_ACTION_DOWN, AgentPointerIds());
+    fill.set_input_source_id(7);
+    fill.set_timestamp_nanos(0);
+    InputEvent exhausted = Touch(PointerAction::POINTER_ACTION_DOWN, {9});
+    exhausted.set_input_source_id(7);
+    exhausted.set_timestamp_nanos(0);
+    InputEvent later = Text("later", 7);
+    later.set_timestamp_nanos(500'000'000LL);
+    ASSERT_TRUE(writer->Write(fill));
+    ASSERT_TRUE(writer->Write(exhausted));
+    // May fail: the failure can end the stream before this write arrives.
+    // Either way the stream must finish with the failure below.
+    writer->Write(later);
+
+    const ::grpc::Status status = writer->Finish();
+
+    EXPECT_EQ(status.error_code(), ::grpc::StatusCode::RESOURCE_EXHAUSTED);
+    EXPECT_THAT(status.error_message(), HasSubstr("StreamInputEvents failed at event #1"));
+    EXPECT_THAT(keyboard_.Writes(), IsEmpty());
 }
 
 TEST_F(InputServiceImplTest, PointerlessHoverExitReleasesHoveringContacts) {
-    ::grpc::ServerContext ctx;
-    SendInputEventsRequest req;
-    auto* hover = req.add_events()->mutable_pointer();
-    hover->set_action(PointerAction::POINTER_ACTION_HOVER_MOVE);
-    hover->add_pointers()->set_pointer_id(0);
-    req.add_events()->mutable_pointer()->set_action(PointerAction::POINTER_ACTION_HOVER_EXIT);
-    SendInputEventsResponse resp;
-    ASSERT_TRUE(service_->SendInputEvents(&ctx, &req, &resp).ok());
+    InputEvent hover_exit;
+    hover_exit.mutable_pointer()->set_action(PointerAction::POINTER_ACTION_HOVER_EXIT);
+    ASSERT_TRUE(Send({Touch(PointerAction::POINTER_ACTION_HOVER_MOVE, {0}), hover_exit}).ok());
 
     auto* display = GetDisplay(0);
     ASSERT_NE(display, nullptr);
@@ -640,25 +903,15 @@ TEST_F(InputServiceImplTest, StreamInputActivityFiltersBySourceAndEnforcesObserv
     StreamInputActivityRequest filter_req;
     filter_req.set_input_source_id(0);
     auto* human_observer =
-            service_->CreateInputActivityWriter<test::FakeWriteReactor<InputActivity>>(filter_req);
+            service_->CreateInputActivityWriter<AwaitableWriteReactor<InputActivity>>(filter_req);
 
     // Send an agent event (source = 7) followed by a human event (source = 0).
-    ::grpc::ServerContext ctx;
-    SendInputEventsRequest req;
-    auto* agent_ev = req.add_events();
-    agent_ev->set_input_source_id(7);
-    agent_ev->mutable_text()->set_text("agent");
+    ASSERT_TRUE(Send({Text("agent", 7), Text("human", 0)}).ok());
 
-    auto* human_ev = req.add_events();
-    human_ev->set_input_source_id(0);
-    human_ev->mutable_text()->set_text("human");
-
-    SendInputEventsResponse resp;
-    ASSERT_TRUE(service_->SendInputEvents(&ctx, &req, &resp).ok());
-
-    ASSERT_EQ(human_observer->written_messages.size(), 1);
-    EXPECT_EQ(human_observer->written_messages[0].event().input_source_id(), 0);
-    EXPECT_EQ(human_observer->written_messages[0].event().text().text(), "human");
+    const std::vector<InputActivity> observed = DrainUntilSentinel(human_observer, /*source_id=*/0);
+    ASSERT_EQ(observed.size(), 1);
+    EXPECT_EQ(observed[0].event().input_source_id(), 0);
+    EXPECT_EQ(observed[0].event().text().text(), "human");
     human_observer->OnDone();
 
     // When supports_input_activity_observation is false, subscribing must fail with
@@ -676,27 +929,43 @@ TEST_F(InputServiceImplTest, StreamInputActivityFiltersBySourceAndEnforcesObserv
     EXPECT_THAT(denied_status.error_message(), HasSubstr("supports_input_activity_observation"));
 }
 
+TEST_F(InputServiceImplTest, StreamInputActivitySeesInputOfOtherDispatcherSessions) {
+    auto* observer = service_->CreateInputActivityWriter<AwaitableWriteReactor<InputActivity>>(
+            StreamInputActivityRequest());
+
+    // Another client of the dispatcher, such as a WebRTC v2 channel.
+    {
+        DispatcherSession web_rtc(dispatcher_, {.human = true, .source_id = 0});
+        web_rtc.Dispatch(Touch(PointerAction::POINTER_ACTION_DOWN, {0}));
+    }
+
+    std::vector<std::string> described;
+    for (const InputActivity& activity : DrainUntilSentinel(observer)) {
+        described.push_back(Describe(activity));
+    }
+    EXPECT_THAT(described, ElementsAre("src0 POINTER_ACTION_DOWN ids 0",
+                                       "src0 synthesized POINTER_ACTION_CANCEL ids 0"));
+    observer->OnDone();
+}
+
 TEST_F(InputServiceImplTest, StreamInputEventsPacesAndCapsStaleInterBurstDeltas) {
     ::grpc::ClientContext stream_ctx;
     StreamInputEventsResponse resp;
     auto writer = stub_->StreamInputEvents(&stream_ctx, &resp);
 
     // Event 1 at t=10ms.
-    InputEvent ev1;
+    InputEvent ev1 = Text("1");
     ev1.set_timestamp_nanos(10'000'000LL);
-    ev1.mutable_text()->set_text("1");
     ASSERT_TRUE(writer->Write(ev1));
 
     // Event 2 at t=30ms (+20ms delta -> sleeps 20ms).
-    InputEvent ev2;
+    InputEvent ev2 = Text("2");
     ev2.set_timestamp_nanos(30'000'000LL);
-    ev2.mutable_text()->set_text("2");
     ASSERT_TRUE(writer->Write(ev2));
 
     // Event 3 at t=10,030ms (+10s delta -> capped at max_stream_step_duration = 1s).
-    InputEvent ev3;
+    InputEvent ev3 = Text("3");
     ev3.set_timestamp_nanos(10'030'000'000LL);
-    ev3.mutable_text()->set_text("3");
     ASSERT_TRUE(writer->Write(ev3));
 
     ASSERT_TRUE(writer->WritesDone());
@@ -709,52 +978,81 @@ TEST_F(InputServiceImplTest, StreamInputEventsPacesAndCapsStaleInterBurstDeltas)
     EXPECT_EQ(sleeps[1], absl::Seconds(1));
 }
 
+TEST_F(InputServiceImplTest, StreamInputEventsCancellationReleasesHeldContactsCleanly) {
+    EXPECT_NE(InputServiceImpl::DeriveSourceIdFromClientId("测试_🚀_é"), 0);
+
+    ::grpc::ClientContext stream_ctx;
+    stream_ctx.AddMetadata("x-client-id", "cancelled-client");
+    StreamInputEventsResponse resp;
+    auto writer = stub_->StreamInputEvents(&stream_ctx, &resp);
+
+    const int32_t expected_source =
+            InputServiceImpl::DeriveSourceIdFromClientId("cancelled-client");
+    InputEvent down = Touch(PointerAction::POINTER_ACTION_DOWN, {0});
+    down.set_timestamp_nanos(10'000'000LL);
+    ASSERT_TRUE(writer->Write(down));
+
+    InputEvent marker = Text("测试_🚀_é");
+    marker.set_timestamp_nanos(20'000'000LL);
+    ASSERT_TRUE(writer->Write(marker));
+    keyboard_.AwaitWrite("text 测试_🚀_é");
+
+    stream_ctx.TryCancel();
+    const ::grpc::Status status = writer->Finish();
+    EXPECT_EQ(status.error_code(), ::grpc::StatusCode::CANCELLED);
+
+    // Client-side Finish() on a cancelled stream can return before the server's
+    // async OnCancel()/OnDone() callback runs; wait for the synthesized cancel.
+    recorder_.AwaitCount(3);
+    const std::string src = absl::StrCat("src", expected_source);
+    EXPECT_THAT(Activities(),
+                ElementsAre(src + " POINTER_ACTION_DOWN ids 0", src + " text 测试_🚀_é",
+                            src + " synthesized POINTER_ACTION_CANCEL ids 0"));
+}
+
 TEST_F(InputServiceImplTest,
        ConcurrentDispatchesPreserveStrictActivityOrderAndMonotonicTimestamps) {
-    auto opts = DefaultOptions();
-    opts.now_fn = [this]() {
-        clock_.Sleep(absl::Nanoseconds(1));
-        return clock_.Now();
-    };
-    StartServer(std::move(opts));
+    clock_.SetAutoAdvance(absl::Nanoseconds(1));
 
     auto* activity_writer =
-            service_->CreateInputActivityWriter<test::FakeWriteReactor<InputActivity>>(
+            service_->CreateInputActivityWriter<AwaitableWriteReactor<InputActivity>>(
                     StreamInputActivityRequest());
 
     constexpr int kNumThreads = 4;
     constexpr int kEventsPerThread = 25;
+    std::atomic<bool> start_barrier{false};
     std::vector<std::thread> workers;
     workers.reserve(kNumThreads);
     for (int t = 0; t < kNumThreads; ++t) {
-        workers.emplace_back([this, t]() {
-            const std::string payload(1, static_cast<char>('a' + t));
+        workers.emplace_back([this, t, &start_barrier]() {
+            while (!start_barrier.load(std::memory_order_acquire)) {
+                std::this_thread::yield();
+            }
             for (int i = 0; i < kEventsPerThread; ++i) {
                 ::grpc::ServerContext ctx;
                 SendInputEventsRequest req;
                 auto* ev = req.add_events();
                 ev->set_input_source_id(t + 1);
-                ev->mutable_text()->set_text(payload);
+                ev->mutable_text()->set_text(absl::StrCat("测试_🚀_é_", t, "_", i));
                 SendInputEventsResponse resp;
                 EXPECT_TRUE(service_->SendInputEvents(&ctx, &req, &resp).ok());
             }
         });
     }
+    start_barrier.store(true, std::memory_order_release);
     for (auto& worker : workers) {
         worker.join();
     }
 
-    DrainActivity(activity_writer);
-
-    const auto hw_events = key_sender_->Events();
-    ASSERT_EQ(hw_events.size(), kNumThreads * kEventsPerThread);
-    ASSERT_EQ(activity_writer->written_messages.size(), hw_events.size());
-    for (size_t i = 0; i < hw_events.size(); ++i) {
-        EXPECT_EQ(activity_writer->written_messages[i].event().text().text(), hw_events[i].text())
+    const std::vector<InputActivity> observed = DrainUntilSentinel(activity_writer);
+    const std::vector<std::string> hw_writes = keyboard_.Writes();
+    ASSERT_EQ(hw_writes.size(), kNumThreads * kEventsPerThread);
+    ASSERT_EQ(observed.size(), hw_writes.size());
+    for (size_t i = 0; i < hw_writes.size(); ++i) {
+        EXPECT_EQ(absl::StrCat("text ", observed[i].event().text().text()), hw_writes[i])
                 << "Activity order diverged from hardware dispatch order at index " << i;
         if (i > 0) {
-            EXPECT_GT(activity_writer->written_messages[i].dispatched_at_nanos(),
-                      activity_writer->written_messages[i - 1].dispatched_at_nanos())
+            EXPECT_GT(observed[i].dispatched_at_nanos(), observed[i - 1].dispatched_at_nanos())
                     << "Non-monotonic dispatched_at_nanos at index " << i;
         }
     }

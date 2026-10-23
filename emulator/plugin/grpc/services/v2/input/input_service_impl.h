@@ -16,31 +16,25 @@
 
 #include <grpcpp/grpcpp.h>
 
-#include <array>
-#include <bitset>
 #include <cstdint>
 #include <functional>
 #include <memory>
 #include <utility>
-#include <vector>
 
 #include "absl/base/thread_annotations.h"
 #include "absl/container/flat_hash_map.h"
-#include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
-#include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 
 #include "android/emulation/control/grpc_event_stream_support.h"
-#include "android/emulation/control/keyboard/key_event_sender.h"
-#include "emulator/plugin/grpc/input/input_session.h"
+#include "emulator/plugin/grpc/input/dispatcher_session.h"
+#include "emulator/plugin/grpc/input/input_dispatcher_interface.h"
 #include "emulator/plugin/grpc/input/slot_registry.h"
 #include "goldfish/async/event_loop.h"
 #include "goldfish/display/abstract_multi_display.h"
-#include "goldfish/eventing/event_sources.h"
 #include "input_service.grpc.pb.h"
 
 namespace goldfish::grpc::v2 {
@@ -53,8 +47,9 @@ using InputServiceBase =
 /**
  * @brief Implements the AEMU v2 InputService.
  *
- * Injects touch, mouse, stylus, keyboard, rotary axis, and IME text events into
- * the guest OS, and broadcasts dispatched input activity to observers.
+ * Validates touch, mouse, stylus, keyboard, rotary axis, and IME text events,
+ * dispatches them to the guest through the shared `IInputDispatcher`, and streams
+ * the dispatcher's input activity to observers.
  *
  * ### Pacing & Timelines:
  * - `SendInputEvents` validates batch monotonicity and duration bounds up front,
@@ -64,22 +59,25 @@ using InputServiceBase =
  *   clock, caps stale inter-burst gaps to prevent artificial lag, and schedules
  *   delayed dispatches asynchronously on the `EventLoop`.
  *
- * ### Per-Source Isolation & Disconnect Cleanup:
- * - Active pointer slots, mouse button masks, and depressed keys are tracked
- *   independently per resolved `input_source_id`.
- * - When `input_source_id` is `0` and the caller provides a non-empty
- *   `x-client-id` gRPC metadata header, a deterministic non-zero source ID is
- *   derived automatically.
- * - When a `StreamInputEvents` stream closes or is cancelled, any pointers or
- *   keys still held by that stream's sources are automatically released via
- *   synthesized `POINTER_ACTION_CANCEL` and `KEY_ACTION_UP` events, which are
- *   also reported on `StreamInputActivity` with `synthesized = true`.
+ * ### Sources & Sessions:
+ * - An event's source is its `input_source_id`, else a deterministic non-zero ID
+ *   derived from a non-empty `x-client-id` metadata header, else `0`, the human
+ *   operator. Each source holds its own contacts and keys in its own
+ *   `DispatcherSession`.
+ * - A `StreamInputEvents` stream closes its sessions when it ends, which reports
+ *   the release of what they held as synthesized `POINTER_ACTION_CANCEL` and
+ *   `KEY_ACTION_UP` activity. `SendInputEvents` calls share one session per
+ *   source, so input one call leaves held is still held in the next.
+ * - The first event that fails to dispatch, for example with
+ *   `RESOURCE_EXHAUSTED` when no touch slot is free, ends the call with its
+ *   index; later events aren't dispatched.
  *
  * ### Thread Safety:
- * - Thread-safe across concurrent `SendInputEvents`, `StreamInputEvents`, and
- *   `StreamInputActivity` RPC invocations. Hardware dispatch, per-source state
- *   mutations, and activity notifications are serialized under `dispatch_mutex_`
- *   so observers receive events in exact dispatch order.
+ * Thread-safe across concurrent `SendInputEvents`, `StreamInputEvents`, and
+ * `StreamInputActivity` RPC invocations.
+ *
+ * ### Ownership:
+ * Shares ownership of the dispatcher. `multi_display` must outlive the service.
  */
 class InputServiceImpl final : public InputServiceBase {
   public:
@@ -89,18 +87,16 @@ class InputServiceImpl final : public InputServiceBase {
             static_cast<int32_t>(::android::emulation::control::kMtsPointersNum);
 
     using IMultiDisplay = ::goldfish::display::IMultiDisplay;
-    using IKeyEventSender = ::android::emulation::control::keyboard::IKeyEventSender;
 
     using InputEvent = ::android::emulation::v2::InputEvent;
     using PointerEvent = ::android::emulation::v2::PointerEvent;
-    using KeyEvent = ::android::emulation::v2::KeyEvent;
     using SendInputEventsRequest = ::android::emulation::v2::SendInputEventsRequest;
     using SendInputEventsResponse = ::android::emulation::v2::SendInputEventsResponse;
     using StreamInputEventsResponse = ::android::emulation::v2::StreamInputEventsResponse;
     using StreamInputActivityRequest = ::android::emulation::v2::StreamInputActivityRequest;
     using InputActivity = ::android::emulation::v2::InputActivity;
 
-    using ActivityEventSource = ::android::base::eventing::CallbackEventSource<InputActivity>;
+    using ActivityEventSource = IInputDispatcher::ActivityEventSource;
     using NowFn = std::function<absl::Time()>;
     using SleepFn = std::function<void(absl::Duration)>;
 
@@ -122,8 +118,12 @@ class InputServiceImpl final : public InputServiceBase {
         SleepFn sleep_fn{[](absl::Duration d) { absl::SleepFor(d); }};
     };
 
-    InputServiceImpl(IMultiDisplay& multi_display,
-                     std::shared_ptr<IKeyEventSender> key_event_sender, Options options);
+    /**
+     * @param dispatcher Applies the events; must not be null.
+     * @param multi_display Validates the display IDs of pointer events.
+     */
+    InputServiceImpl(std::shared_ptr<IInputDispatcher> dispatcher, IMultiDisplay& multi_display,
+                     Options options);
 
     ::grpc::Status SendInputEvents(::grpc::ServerContext* context,
                                    const SendInputEventsRequest* request,
@@ -145,7 +145,7 @@ class InputServiceImpl final : public InputServiceBase {
                 return activity.event().input_source_id() == source_id;
             };
         }
-        return new InputActivityWriter<Reactor>(&activity_events_, /*populate_fn=*/nullptr,
+        return new InputActivityWriter<Reactor>(&dispatcher_->activity(), /*populate_fn=*/nullptr,
                                                 std::move(filter));
     }
 
@@ -165,47 +165,26 @@ class InputServiceImpl final : public InputServiceBase {
   private:
     class StreamInputReader;
 
-    struct DisplayPointerState {
-        std::bitset<::android::emulation::control::kMtsPointersNum> active_pointer_ids;
-        int32_t button_mask{0};
-    };
-
-    struct SourceState {
-        std::array<DisplayPointerState, IMultiDisplay::kMaxDisplays> displays;
-        std::vector<KeyEvent> held_keys;
-    };
+    // The session of each source, opened when the source first dispatches.
+    using SourceSessions = absl::flat_hash_map<int32_t, std::unique_ptr<DispatcherSession>>;
 
     absl::Status ValidateInputEvent(const InputEvent& event) const;
     absl::Status ValidatePointerEvent(const PointerEvent& pointer) const;
     absl::Status ValidateBatchRequest(const SendInputEventsRequest& request) const;
-    absl::StatusOr<int64_t> DispatchSingleEvent(InputEvent event, int32_t source_id,
-                                                bool synthesized)
-            ABSL_LOCKS_EXCLUDED(dispatch_mutex_);
-
-    /**
-     * @brief Records the source's contacts and buttons from `pointer`, then rewrites it for the
-     * shared `InputSession`.
-     *
-     * A pointer-less CANCEL or HOVER_EXIT is expanded to every contact the source holds on the
-     * display, pointer IDs are mapped into the source's own slot namespace, and the first pointer
-     * carries the union of all sources' buttons on the display.
-     */
-    void TrackPointerEventLocked(int32_t source_id, PointerEvent& pointer)
-            ABSL_EXCLUSIVE_LOCKS_REQUIRED(dispatch_mutex_);
-    void CleanupSources(const absl::flat_hash_set<int32_t>& source_ids)
-            ABSL_LOCKS_EXCLUDED(dispatch_mutex_);
-    int32_t ComputeAggregateButtonsLocked(int32_t display_id) const
-            ABSL_EXCLUSIVE_LOCKS_REQUIRED(dispatch_mutex_);
+    std::unique_ptr<DispatcherSession> OpenSession(int32_t source_id) const;
+    // @return The session that the SendInputEvents calls of `source_id` share,
+    //     which stays open as long as the service.
+    DispatcherSession& BatchSession(int32_t source_id) ABSL_LOCKS_EXCLUDED(batch_sessions_mutex_);
     void SleepUntil(absl::Time target) const;
 
+    const std::shared_ptr<IInputDispatcher> dispatcher_;
     IMultiDisplay& multi_display_;
     const Options options_;
 
-    absl::Mutex dispatch_mutex_;
-    InputSession input_session_ ABSL_GUARDED_BY(dispatch_mutex_);
-    absl::flat_hash_map<int32_t, SourceState> source_states_ ABSL_GUARDED_BY(dispatch_mutex_);
-
-    ActivityEventSource activity_events_;
+    absl::Mutex batch_sessions_mutex_;
+    // TODO(b/554875313): "persistent sessions for identified SendInputEvents
+    // sources" expires idle sessions and gives anonymous calls their own.
+    SourceSessions batch_sessions_ ABSL_GUARDED_BY(batch_sessions_mutex_);
 };
 
 }  // namespace goldfish::grpc::v2

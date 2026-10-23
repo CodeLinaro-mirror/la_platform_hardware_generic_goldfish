@@ -15,28 +15,19 @@
 #include "goldfish/grpc/v2/v2_services.h"
 
 #include <memory>
-#include <utility>
 #include <vector>
 
-#include "android/emulation/control/keyboard/key_event_sender.h"
 #include "discovery/capabilities_service_impl.h"
 #include "environment/sensors_service_impl.h"
 #include "goldfish/avd/avd_properties.h"
+#include "goldfish/avd/global_event_loop.h"
 #include "hypervisor/hypervisor_service_impl.h"
 #include "input/input_service_impl.h"
 #include "operations/operations_service_impl.h"
 #include "system/system_service_impl.h"
 
-extern "C" {
-typedef struct QemuConsole QemuConsole;
-// NOLINTNEXTLINE(readability-identifier-naming)
-QemuConsole* qemu_console_lookup_by_index(unsigned int index);
-}
-
 namespace goldfish::grpc::v2 {
 
-using ::android::emulation::control::keyboard::createKeyEventSender;
-using ::android::emulation::control::keyboard::IKeyEventSender;
 using ::android::goldfish::VmOperations;
 using ::goldfish::async::EventLoop;
 using ::goldfish::avd::AvdUniverse;
@@ -44,7 +35,7 @@ using ::grpc::Service;
 
 std::vector<std::shared_ptr<Service>> CreateV2Services(AvdUniverse& avd_universe,
                                                        VmOperations* vm_operations,
-                                                       EventLoop* event_loop) {
+                                                       EventLoop* /*event_loop*/) {
     std::vector<std::shared_ptr<Service>> services;
 
     services.emplace_back(std::make_shared<CapabilitiesServiceImpl>(avd_universe));
@@ -55,17 +46,13 @@ std::vector<std::shared_ptr<Service>> CreateV2Services(AvdUniverse& avd_universe
             vm_operations, &avd_universe.GetClipboardChannel(),
             &avd_universe.GetFingerprintSensor()));
 
-    std::shared_ptr<IKeyEventSender> key_event_sender;
-    if (event_loop != nullptr) {
-        key_event_sender = createKeyEventSender(qemu_console_lookup_by_index(0), event_loop);
-    }
     const auto& hw = avd_universe.Props().hw_config;
     services.emplace_back(std::make_shared<InputServiceImpl>(
-            avd_universe.GetMultiDisplay(), std::move(key_event_sender),
+            avd_universe.GetInputDispatcher(), avd_universe.GetMultiDisplay(),
             InputServiceImpl::Options{.hw_sensor_hinge = hw.hw_sensor_hinge,
                                       .hw_keyboard = hw.hw_keyboard,
                                       .hw_rotary_input = hw.hw_rotaryInput,
-                                      .event_loop = event_loop}));
+                                      .event_loop = ::goldfish::avd::globalEventLoop()}));
 
     if (vm_operations != nullptr) {
         auto operations_service = std::make_shared<OperationsServiceImpl>();
