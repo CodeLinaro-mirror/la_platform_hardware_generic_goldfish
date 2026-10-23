@@ -104,11 +104,43 @@ TEST(TouchEncodingTest, PressureScalesToDeviceRange) {
                 Contains(EvDevEvent{EV_ABS, ABS_MT_PRESSURE, kMtsPressureMax / 2}));
 }
 
+TEST(TouchEncodingTest, DownWithZeroPressureEncodesFullPressure) {
+    auto pointer = MakePointer();
+    pointer.set_pressure(0.0F);
+    EXPECT_THAT(DownOrMove(pointer, PointerAction::POINTER_ACTION_DOWN, true),
+                Contains(EvDevEvent{EV_ABS, ABS_MT_PRESSURE, kMtsPressureMax}));
+}
+
+TEST(TouchEncodingTest, PositionAndPressureClampToDeviceRange) {
+    auto pointer = MakePointer();
+    pointer.set_x(-0.5F);
+    pointer.set_y(1.5F);
+    pointer.set_pressure(2.0F);
+    const auto events = DownOrMove(pointer, PointerAction::POINTER_ACTION_DOWN, true);
+    EXPECT_THAT(events, Contains(EvDevEvent{EV_ABS, ABS_MT_POSITION_X, 0}));
+    EXPECT_THAT(events, Contains(EvDevEvent{EV_ABS, ABS_MT_POSITION_Y, 0x7FFF}));
+    EXPECT_THAT(events, Contains(EvDevEvent{EV_ABS, ABS_MT_PRESSURE, kMtsPressureMax}));
+}
+
 TEST(TouchEncodingTest, SizeScalesToAbsRange) {
     auto pointer = MakePointer();
     pointer.set_size(0.5F);
     EXPECT_THAT(DownOrMove(pointer, PointerAction::POINTER_ACTION_MOVE, false),
                 Contains(EvDevEvent{EV_ABS, ABS_MT_TOUCH_MAJOR, 0x3FFF}));
+}
+
+TEST(TouchEncodingTest, OrientationIsDegreesClampedToNinety) {
+    const auto encode = [](float orientation_radians) {
+        auto pointer = MakePointer();
+        pointer.set_orientation_radians(orientation_radians);
+        return DownOrMove(pointer, PointerAction::POINTER_ACTION_MOVE, false);
+    };
+    EXPECT_THAT(encode(0.785398F), Contains(EvDevEvent{EV_ABS, ABS_MT_ORIENTATION, 45}));
+    EXPECT_THAT(encode(-0.785398F),
+                Contains(EvDevEvent{EV_ABS, ABS_MT_ORIENTATION, static_cast<uint32_t>(-45)}));
+    EXPECT_THAT(encode(3.14159F), Contains(EvDevEvent{EV_ABS, ABS_MT_ORIENTATION, 90}));
+    EXPECT_THAT(encode(-3.14159F),
+                Contains(EvDevEvent{EV_ABS, ABS_MT_ORIENTATION, static_cast<uint32_t>(-90)}));
 }
 
 TEST(TouchEncodingTest, OrientationClampsToDegreeBoundsAndOmitsZeroOrNan) {
@@ -126,6 +158,21 @@ TEST(TouchEncodingTest, OrientationClampsToDegreeBoundsAndOmitsZeroOrNan) {
     neg_large_pointer.set_orientation_radians(-1e20F);
     EXPECT_THAT(DownOrMove(neg_large_pointer, PointerAction::POINTER_ACTION_MOVE, false),
                 Contains(EvDevEvent{EV_ABS, ABS_MT_ORIENTATION, static_cast<uint32_t>(-90)}));
+}
+
+TEST(TouchEncodingTest, PalmEmitsPalmTool) {
+    EXPECT_THAT(DownOrMove(MakePointer(ToolType::TOOL_TYPE_PALM),
+                           PointerAction::POINTER_ACTION_DOWN, true),
+                Contains(EvDevEvent{EV_ABS, ABS_MT_TOOL_TYPE, MT_TOOL_PALM}));
+}
+
+TEST(TouchEncodingTest, StylusTiltIsSplitAlongOrientation) {
+    auto pointer = MakePointer(ToolType::TOOL_TYPE_STYLUS);
+    pointer.set_orientation_radians(0.785398F);  // 45 degrees.
+    pointer.set_tilt_radians(0.523599F);         // 30 degrees.
+    const auto events = DownOrMove(pointer, PointerAction::POINTER_ACTION_MOVE, false);
+    EXPECT_THAT(events, Contains(EvDevEvent{EV_ABS, ABS_TILT_X, 21}));
+    EXPECT_THAT(events, Contains(EvDevEvent{EV_ABS, ABS_TILT_Y, static_cast<uint32_t>(-21)}));
 }
 
 TEST(TouchEncodingTest, TiltedStylusAndEraserEmitTilt) {

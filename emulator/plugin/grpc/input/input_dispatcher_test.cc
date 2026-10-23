@@ -625,6 +625,20 @@ TEST_F(InputDispatcherTest, MultiPointerEventWritesOneReportPerDevice) {
     EXPECT_THAT(inner_.guest.Active(), ElementsAre(ContactAt(0.4F, 0.4F)));
 }
 
+TEST_F(InputDispatcherTest, MoveWithZeroPressureLiftsOnlyThatPointer) {
+    const InputSessionId a = Agent();
+    ASSERT_THAT(Dispatch(a, Touch(kDown, {{0, 0.1F, 0.1F}, {1, 0.2F, 0.2F}, {2, 0.3F, 0.3F}})),
+                IsOk());
+
+    ASSERT_THAT(Dispatch(a, Touch(kMove,
+                                  {{0, 0.15F, 0.15F}, {1, 0.2F, 0.2F, 0.0F}, {2, 0.35F, 0.35F}})),
+                IsOk());
+
+    EXPECT_THAT(inner_.reports, SizeIs(2));
+    EXPECT_THAT(inner_.guest.Active(),
+                ElementsAre(ContactAt(0.15F, 0.15F), ContactAt(0.35F, 0.35F)));
+}
+
 TEST_F(InputDispatcherTest, BackToBackEventsApplyInOrder) {
     const InputSessionId a = Agent();
     std::vector<int> completed;
