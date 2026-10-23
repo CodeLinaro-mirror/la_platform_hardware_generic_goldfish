@@ -306,7 +306,7 @@ bool IsValidUcs2(const uint32_t unicode) {
 
 int32_t CalculateGsm7SizeSeptets(const std::string_view utf8str) {
     parsing::Utf8Iterator utf8i(utf8str);
-    int32_t numSeptets = 0;
+    int32_t num_septets = 0;
 
     for (int32_t unicode; (unicode = utf8i()) >= 0;) {
         const int32_t gsm7 = UnicodeToGsm7(unicode);
@@ -314,25 +314,25 @@ int32_t CalculateGsm7SizeSeptets(const std::string_view utf8str) {
             return -1;
         }
 
-        numSeptets += (gsm7 & kGsm7ExtendedBit) ? 2 : 1;
+        num_septets += (gsm7 & kGsm7ExtendedBit) ? 2 : 1;
     }
 
-    return numSeptets;
+    return num_septets;
 }
 
 int32_t CalculateUcs2SizeSymbols(const std::string_view utf8str) {
     parsing::Utf8Iterator utf8i(utf8str);
-    int32_t numSymbols = 0;
+    int32_t num_symbols = 0;
 
     for (int32_t unicode; (unicode = utf8i()) >= 0;) {
         if (!IsValidUcs2(unicode)) {
             return -1;
         }
 
-        ++numSymbols;
+        ++num_symbols;
     }
 
-    return numSymbols;
+    return num_symbols;
 }
 
 }  // namespace goldfish::gsm
