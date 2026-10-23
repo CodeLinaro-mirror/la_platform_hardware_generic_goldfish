@@ -1,5 +1,6 @@
 load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_test")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+load("//emulator/tools:cc_binary_with_manifest.bzl", "cc_binary_with_manifest")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -32,6 +33,8 @@ cc_library(
     deps = [
         "//emulator/libs/async:async_api",
         "//emulator/libs/cpu",
+        "//emulator/libs/display_pipeline:core",
+        "//emulator/libs/display_pipeline:cpu_pipeline",
         "//emulator/libs/fps_calculator",
         "//emulator/libs/grpc_utils:absl_translate",
         "//emulator/libs/grpc_utils:async",
@@ -79,6 +82,7 @@ cc_test(
         "//emulator/libs/async:libuv_event_loop",
         "//emulator/libs/async:threaded_event_loop",
         "//emulator/libs/cpu",
+        "//emulator/libs/display_pipeline:cpu_pipeline",
         "//emulator/libs/hardware_config:fake_hardware_config",
         "//emulator/libs/process",
         "//emulator/libs/test:googletest_main",
@@ -93,11 +97,23 @@ cc_test(
     ],
 )
 
+cc_binary_with_manifest(
+    name = "display_service_perf",
+    srcs = ["display_service_perf.cc"],
+    tags = ["benchmark"],
+    deps = [
+        "//emulator/libs/display_pipeline:cpu_pipeline",
+        "@aemu//protos/services/emulator-controller:emulator_controller_cc_grpc",
+        "@google_benchmark//:benchmark",
+    ],
+)
+
 clang_tidy_test(
     name = "tidy",
     targets = [
         ":emulator_controller_methods",
         ":emulator_controller_methods_test",
+        ":display_service_perf",
     ],
     tidy_config_file = "//:clang_tidy_config",
 )
