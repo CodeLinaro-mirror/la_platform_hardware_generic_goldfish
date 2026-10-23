@@ -30,7 +30,7 @@ std::shared_ptr<IInputDispatcher> RequireDispatcher(std::shared_ptr<IInputDispat
 
 void Reject(IInputDispatcher::DispatchCallback done, absl::Status status) {
     if (done) {
-        std::move(done)(std::move(status));
+        std::move(done)({std::move(status)});
     }
 }
 

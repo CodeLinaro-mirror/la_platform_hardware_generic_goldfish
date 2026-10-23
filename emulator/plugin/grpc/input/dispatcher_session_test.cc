@@ -22,6 +22,7 @@
 #include <utility>
 
 #include "absl/status/status.h"
+#include "absl/time/time.h"
 
 #include "emulator/plugin/grpc/input/input_dispatcher_interface.h"
 #include "emulator/plugin/grpc/input/recording_input_dispatcher.h"
@@ -34,17 +35,18 @@ using ::android::emulation::v2::InputEvent;
 using ::goldfish::grpc::v2::testing::RecordingInputDispatcher;
 using ::testing::ElementsAre;
 using ::testing::IsEmpty;
+using DispatchResult = IInputDispatcher::DispatchResult;
 
 class DispatcherSessionTest : public ::testing::Test {
   protected:
-    // Dispatches `event` on a new session and returns the status it completed
+    // Dispatches `event` on a new session and returns the result it completed
     // with on the calling thread, if it did.
-    std::optional<absl::Status> DispatchAndWait(const InputEvent& event) {
+    std::optional<DispatchResult> DispatchAndWait(const InputEvent& event) {
         DispatcherSession session(dispatcher_, {.human = true, .source_id = 0});
-        std::optional<absl::Status> result;
-        session.Dispatch(event, [&result, caller = std::this_thread::get_id()](absl::Status s) {
+        std::optional<DispatchResult> result;
+        session.Dispatch(event, [&result, caller = std::this_thread::get_id()](DispatchResult r) {
             EXPECT_EQ(std::this_thread::get_id(), caller);
-            result = std::move(s);
+            result = std::move(r);
         });
         return result;
     }
@@ -87,25 +89,31 @@ TEST_F(DispatcherSessionTest, ForwardsTheCompletion) {
     InputEvent pointer;
     pointer.mutable_pointer();
 
-    EXPECT_EQ(DispatchAndWait(pointer), absl::OkStatus());
+    std::optional<DispatchResult> result = DispatchAndWait(pointer);
+
+    ASSERT_TRUE(result.has_value());
+    EXPECT_EQ(result->status, absl::OkStatus());
+    EXPECT_EQ(result->dispatched_at, RecordingInputDispatcher::kDispatchedAt);
 }
 
 TEST_F(DispatcherSessionTest, AxisIsUnimplementedWithoutReachingTheDispatcher) {
     InputEvent axis;
     axis.mutable_axis();
 
-    std::optional<absl::Status> result = DispatchAndWait(axis);
+    std::optional<DispatchResult> result = DispatchAndWait(axis);
 
     ASSERT_TRUE(result.has_value());
-    EXPECT_EQ(result->code(), absl::StatusCode::kUnimplemented);
+    EXPECT_EQ(result->status.code(), absl::StatusCode::kUnimplemented);
+    EXPECT_EQ(result->dispatched_at, std::nullopt);
     EXPECT_THAT(dispatcher_->calls, ElementsAre("close 7"));
 }
 
 TEST_F(DispatcherSessionTest, UnsetEventIsInvalidArgument) {
-    std::optional<absl::Status> result = DispatchAndWait(InputEvent());
+    std::optional<DispatchResult> result = DispatchAndWait(InputEvent());
 
     ASSERT_TRUE(result.has_value());
-    EXPECT_EQ(result->code(), absl::StatusCode::kInvalidArgument);
+    EXPECT_EQ(result->status.code(), absl::StatusCode::kInvalidArgument);
+    EXPECT_EQ(result->dispatched_at, std::nullopt);
     EXPECT_THAT(dispatcher_->calls, ElementsAre("close 7"));
 }
 

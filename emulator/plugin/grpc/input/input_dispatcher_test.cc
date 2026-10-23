@@ -68,6 +68,7 @@ using ::testing::Not;
 using ::testing::Optional;
 using ::testing::SizeIs;
 using ::testing::UnorderedElementsAre;
+using DispatchResult = InputDispatcher::DispatchResult;
 
 constexpr TouchDeviceId kInner = 0;
 constexpr TouchDeviceId kOuter = 1;
@@ -365,8 +366,9 @@ class InputDispatcherTest : public ::testing::Test {
     // Dispatches `event` and runs the loop. @return The completion status.
     absl::Status Dispatch(InputSessionId session, PointerEvent event) {
         std::optional<absl::Status> result;
-        dispatcher_.DispatchPointer(session, std::move(event),
-                                    [&result](absl::Status status) { result = status; });
+        dispatcher_.DispatchPointer(session, std::move(event), [&result](DispatchResult done) {
+            result = std::move(done.status);
+        });
         loop_->RunAll();
         if (!result) {
             return absl::InternalError("done was not called");
@@ -376,16 +378,18 @@ class InputDispatcherTest : public ::testing::Test {
 
     absl::Status Dispatch(InputSessionId session, KeyEvent event) {
         std::optional<absl::Status> result;
-        dispatcher_.DispatchKey(session, std::move(event),
-                                [&result](absl::Status status) { result = status; });
+        dispatcher_.DispatchKey(session, std::move(event), [&result](DispatchResult done) {
+            result = std::move(done.status);
+        });
         loop_->RunAll();
         return result.value_or(absl::InternalError("done was not called"));
     }
 
     absl::Status Type(InputSessionId session, std::string text) {
         std::optional<absl::Status> result;
-        dispatcher_.DispatchText(session, std::move(text),
-                                 [&result](absl::Status status) { result = status; });
+        dispatcher_.DispatchText(session, std::move(text), [&result](DispatchResult done) {
+            result = std::move(done.status);
+        });
         loop_->RunAll();
         return result.value_or(absl::InternalError("done was not called"));
     }
@@ -628,8 +632,8 @@ TEST_F(InputDispatcherTest, BackToBackEventsApplyInOrder) {
         Touch(kDown, {{0, 0.1F, 0.1F}}), Touch(kMove, {{0, 0.2F, 0.2F}}),
         Touch(kMove, {{0, 0.3F, 0.3F}}), Touch(kUp, {{0, 0.3F, 0.3F}})};
     for (int i = 0; i < static_cast<int>(events.size()); ++i) {
-        dispatcher_.DispatchPointer(a, events[i], [&completed, i](absl::Status status) {
-            EXPECT_THAT(status, IsOk());
+        dispatcher_.DispatchPointer(a, events[i], [&completed, i](DispatchResult done) {
+            EXPECT_THAT(done.status, IsOk());
             completed.push_back(i);
         });
     }
@@ -647,7 +651,7 @@ TEST_F(InputDispatcherTest, ReportsAndCompletionsRunOnLoopThread) {
     const InputSessionId a = Agent();
     std::optional<bool> done_on_loop;
     dispatcher_.DispatchPointer(a, Touch(kDown, {{0}, {1}}),
-                                [&](absl::Status) { done_on_loop = loop_->IsOnLoopThread(); });
+                                [&](DispatchResult) { done_on_loop = loop_->IsOnLoopThread(); });
     loop_->RunAll();
     ASSERT_THAT(Dispatch(a, Touch(kDown, {{2}}, 1)), IsOk());
     dispatcher_.CloseSession(a);
@@ -665,8 +669,8 @@ TEST_F(InputDispatcherTest, RejectedPostCompletesOnCallingThread) {
 
     std::optional<absl::Status> result;
     std::thread::id done_thread;
-    dispatcher_.DispatchPointer(a, Touch(kDown, {{0}}), [&](absl::Status status) {
-        result = status;
+    dispatcher_.DispatchPointer(a, Touch(kDown, {{0}}), [&](DispatchResult done) {
+        result = std::move(done.status);
         done_thread = std::this_thread::get_id();
     });
 
@@ -987,6 +991,54 @@ TEST_F(InputDispatcherTest, InterleavedSessionsAreReportedInLoopOrderWithRisingT
     EXPECT_GT(observed[0].activity.dispatched_at_nanos(), 0);
 }
 
+TEST_F(InputDispatcherTest, CompletionCarriesTheTimeOfItsActivity) {
+    const InputSessionId a = Source(1);
+    std::vector<DispatchResult> results;
+    const auto record = [&results](DispatchResult result) { results.push_back(std::move(result)); };
+    dispatcher_.DispatchPointer(a, Touch(kDown, {{0}}), record);
+    dispatcher_.DispatchKey(a, Key(kKeyPress, KEY_A), record);
+    dispatcher_.DispatchText(a, "x", record);
+    dispatcher_.DispatchPointer(a, Touch(PointerAction::POINTER_ACTION_CANCEL, {}), record);
+    // Nothing reaches the guest: an unheld pointer, a stray UP, empty text and
+    // a rejected key.
+    dispatcher_.DispatchPointer(a, Touch(kMove, {{5}}), record);
+    dispatcher_.DispatchKey(a, Key(kKeyUp, KEY_B), record);
+    dispatcher_.DispatchText(a, "", record);
+    dispatcher_.DispatchKey(a, KeyEvent(), record);
+
+    const std::vector<ObservedActivity> observed = TakeActivities();
+    ASSERT_THAT(observed, SizeIs(4));
+    ASSERT_THAT(results, SizeIs(8));
+    for (size_t i = 0; i < observed.size(); ++i) {
+        EXPECT_THAT(results[i].status, IsOk());
+        ASSERT_TRUE(results[i].dispatched_at.has_value()) << i;
+        EXPECT_EQ(absl::ToUnixNanos(*results[i].dispatched_at),
+                  observed[i].activity.dispatched_at_nanos());
+    }
+    for (size_t i = observed.size(); i < results.size(); ++i) {
+        EXPECT_EQ(results[i].dispatched_at, std::nullopt) << i;
+    }
+    EXPECT_THAT(results.back().status, StatusIs(absl::StatusCode::kInvalidArgument));
+}
+
+TEST_F(InputDispatcherTest, PartlyAppliedEventCompletesWithErrorAndTime) {
+    std::vector<P> pointers;
+    for (int i = 0; i <= kTouchDeviceSlots - kReservedHumanSlots; ++i) {
+        pointers.push_back({i});
+    }
+    std::optional<DispatchResult> result;
+    dispatcher_.DispatchPointer(Source(1), Touch(kDown, pointers),
+                                [&result](DispatchResult done) { result = std::move(done); });
+
+    const std::vector<ObservedActivity> observed = TakeActivities();
+    ASSERT_THAT(observed, SizeIs(1));
+    ASSERT_TRUE(result.has_value());
+    EXPECT_THAT(result->status, StatusIs(absl::StatusCode::kResourceExhausted));
+    ASSERT_TRUE(result->dispatched_at.has_value());
+    EXPECT_EQ(absl::ToUnixNanos(*result->dispatched_at),
+              observed[0].activity.dispatched_at_nanos());
+}
+
 TEST_F(InputDispatcherTest, CallbacksRunOnDeliveryThread) {
     const InputSessionId a = Source(1);
     ASSERT_THAT(Type(a, "x"), IsOk());
@@ -1037,9 +1089,9 @@ TEST_F(InputDispatcherTest, DestructorDeliversQueuedActivity) {
 // Records how often an operation completed, and its last status and thread.
 struct Completion {
     InputDispatcher::DispatchCallback Callback() {
-        return [this](absl::Status result) {
+        return [this](DispatchResult result) {
             ++calls;
-            status = std::move(result);
+            status = std::move(result.status);
             thread = std::this_thread::get_id();
         };
     }

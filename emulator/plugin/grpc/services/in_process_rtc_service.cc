@@ -101,9 +101,9 @@ absl::Status DispatchInProcessInputEvent(const InputEvent& request,
 }
 
 // WebRTC has no way to report a rejected event to the client.
-void LogRejectedV2InputEvent(absl::Status status) {
-    if (!status.ok()) {
-        VLOG(1) << "Dropped WebRTC v2 input event: " << status;
+void LogRejectedV2InputEvent(IInputDispatcher::DispatchResult result) {
+    if (!result.status.ok()) {
+        VLOG(1) << "Dropped WebRTC v2 input event: " << result.status;
     }
 }
 

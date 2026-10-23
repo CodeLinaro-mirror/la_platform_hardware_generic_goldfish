@@ -43,7 +43,9 @@ class FakeAvdUniverseTest : public ::testing::Test {
     template <typename Dispatch>
     std::optional<absl::Status> Complete(Dispatch dispatch) {
         std::optional<absl::Status> result;
-        dispatch([&result](absl::Status status) { result = status; });
+        dispatch([&result](IInputDispatcher::DispatchResult done) {
+            result = std::move(done.status);
+        });
         universe_.input_loop().RunAll();
         return result;
     }
@@ -94,7 +96,9 @@ TEST(FakeAvdUniverseLifetimeTest, DispatcherHeldPastTheUniverseIsShutDown) {
     }
 
     std::optional<absl::Status> result;
-    dispatcher->DispatchText(session, "late", [&result](absl::Status status) { result = status; });
+    dispatcher->DispatchText(session, "late", [&result](IInputDispatcher::DispatchResult done) {
+        result = std::move(done.status);
+    });
     dispatcher->CloseSession(session);
 
     EXPECT_THAT(result, testing::Optional(StatusIs(absl::StatusCode::kUnavailable)));
