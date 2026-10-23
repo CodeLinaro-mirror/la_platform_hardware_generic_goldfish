@@ -15,8 +15,10 @@
 
 #include <functional>
 #include <memory>
+#include <string>
 #include <string_view>
 
+#include "absl/status/status.h"
 #include "absl/time/time.h"
 
 #include "android/base/clock.h"
@@ -60,6 +62,8 @@ class HangDetector {
 
     using HangCallback = std::function<void(std::string_view message)>;
     using ActivePredicate = std::function<bool()>;
+    // Returns absl::OkStatus() if healthy, or an error status if hanging.
+    using HangPredicate = std::function<absl::Status()>;
 
     HangDetector() = default;
     virtual ~HangDetector() = default;
@@ -72,6 +76,10 @@ class HangDetector {
                                   absl::Duration task_timeout, ActivePredicate is_active) = 0;
 
     virtual void RemoveWatchedLooper(::goldfish::async::EventLoop& event_loop) = 0;
+
+    virtual void AddPredicate(std::string name, HangPredicate check) = 0;
+
+    virtual void RemovePredicate(std::string_view name) = 0;
 
     virtual void Stop() = 0;
 
