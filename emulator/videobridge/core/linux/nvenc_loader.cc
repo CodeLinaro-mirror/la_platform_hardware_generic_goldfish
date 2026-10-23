@@ -13,7 +13,7 @@
 // limitations under the License.
 #include "core/linux/nvenc_loader.h"
 
-#include <cstring>
+#include <initializer_list>
 #include <utility>
 #include <vector>
 
@@ -32,6 +32,25 @@ using CuInitFunc = int (*)(unsigned int);
 using CuDeviceGetFunc = int (*)(int*, int);
 using CuCtxCreateFunc = int (*)(void**, unsigned int, int);
 constexpr int kCudaSuccess = 0;
+
+std::vector<std::string> BuildCandidatePaths(const char* env_var,
+                                             std::initializer_list<const char*> defaults) {
+    std::vector<std::string> paths;
+    if (std::string env_path = android::base::System::Get()->EnvGet(env_var); !env_path.empty()) {
+        paths.push_back(std::move(env_path));
+    }
+    paths.insert(paths.end(), defaults.begin(), defaults.end());
+    return paths;
+}
+
+template <typename Fn>
+Fn LoadSymbol(const goldfish::os::DynamicLibrary& lib, const char* primary,
+              const char* fallback = nullptr) {
+    if (void* sym = lib[primary]) {
+        return reinterpret_cast<Fn>(sym);
+    }
+    return fallback ? reinterpret_cast<Fn>(lib[fallback]) : nullptr;
+}
 }  // namespace
 
 std::string NvencStatusToString(NVENCSTATUS status) {
@@ -95,38 +114,26 @@ std::string NvencStatusToString(NVENCSTATUS status) {
 
 absl::StatusOr<std::unique_ptr<NvencLoader>> NvencLoader::Create(
         const std::string& custom_library_path) {
-    std::vector<std::string> candidate_paths;
-    if (!custom_library_path.empty()) {
-        candidate_paths.push_back(custom_library_path);
-    } else {
-        if (std::string env_path = android::base::System::Get()->EnvGet("NVENC_LIB_PATH");
-            !env_path.empty()) {
-            candidate_paths.push_back(std::move(env_path));
-        }
+    const std::vector<std::string> candidate_paths =
+            !custom_library_path.empty()
+                    ? std::vector<std::string>{custom_library_path}
+                    : BuildCandidatePaths("NVENC_LIB_PATH",
+                                          {
+                                              "libnvidia-encode.so.1",
+                                              "libnvidia-encode.so",
+                                              "/usr/local/nvidia/lib64/libnvidia-encode.so.1",
+                                              "/usr/lib/x86_64-linux-gnu/libnvidia-encode.so.1",
+                                              "/usr/lib64/libnvidia-encode.so.1",
+                                          });
 
-        // Standard library names and container mount fallback locations
-        candidate_paths.insert(candidate_paths.end(),
-                               {
-                                   "libnvidia-encode.so.1",
-                                   "libnvidia-encode.so",
-                                   "/usr/local/nvidia/lib64/libnvidia-encode.so.1",
-                                   "/usr/lib/x86_64-linux-gnu/libnvidia-encode.so.1",
-                                   "/usr/lib64/libnvidia-encode.so.1",
-                               });
-    }
-
-    std::vector<std::string> cuda_paths;
-    if (std::string cuda_env_path = android::base::System::Get()->EnvGet("CUDA_LIB_PATH");
-        !cuda_env_path.empty()) {
-        cuda_paths.push_back(std::move(cuda_env_path));
-    }
-    cuda_paths.insert(cuda_paths.end(), {
-                                            "libcuda.so.1",
-                                            "libcuda.so",
-                                            "/usr/local/nvidia/lib64/libcuda.so.1",
-                                            "/usr/lib/x86_64-linux-gnu/libcuda.so.1",
-                                            "/usr/lib64/libcuda.so.1",
-                                        });
+    const std::vector<std::string> cuda_paths =
+            BuildCandidatePaths("CUDA_LIB_PATH", {
+                                                     "libcuda.so.1",
+                                                     "libcuda.so",
+                                                     "/usr/local/nvidia/lib64/libcuda.so.1",
+                                                     "/usr/lib/x86_64-linux-gnu/libcuda.so.1",
+                                                     "/usr/lib64/libcuda.so.1",
+                                                 });
 
     for (const auto& path : candidate_paths) {
         goldfish::os::DynamicLibrary lib_nvenc(path);
@@ -134,8 +141,8 @@ absl::StatusOr<std::unique_ptr<NvencLoader>> NvencLoader::Create(
             continue;
         }
 
-        auto create_instance = reinterpret_cast<NvEncodeAPICreateInstanceFunc>(
-                lib_nvenc["NvEncodeAPICreateInstance"]);
+        auto create_instance =
+                LoadSymbol<NvEncodeAPICreateInstanceFunc>(lib_nvenc, "NvEncodeAPICreateInstance");
         if (!create_instance) {
             continue;
         }
@@ -155,16 +162,12 @@ absl::StatusOr<std::unique_ptr<NvencLoader>> NvencLoader::Create(
                 continue;
             }
 
-            auto cu_init = reinterpret_cast<CuInitFunc>(lib_cuda["cuInit"]);
-            auto cu_device_get = reinterpret_cast<CuDeviceGetFunc>(lib_cuda["cuDeviceGet"]);
-            auto cu_ctx_create = reinterpret_cast<CuCtxCreateFunc>(lib_cuda["cuCtxCreate_v2"]);
-            if (!cu_ctx_create) {
-                cu_ctx_create = reinterpret_cast<CuCtxCreateFunc>(lib_cuda["cuCtxCreate"]);
-            }
-            auto cu_ctx_destroy = reinterpret_cast<CuCtxDestroyFunc>(lib_cuda["cuCtxDestroy_v2"]);
-            if (!cu_ctx_destroy) {
-                cu_ctx_destroy = reinterpret_cast<CuCtxDestroyFunc>(lib_cuda["cuCtxDestroy"]);
-            }
+            auto cu_init = LoadSymbol<CuInitFunc>(lib_cuda, "cuInit");
+            auto cu_device_get = LoadSymbol<CuDeviceGetFunc>(lib_cuda, "cuDeviceGet");
+            auto cu_ctx_create =
+                    LoadSymbol<CuCtxCreateFunc>(lib_cuda, "cuCtxCreate_v2", "cuCtxCreate");
+            auto cu_ctx_destroy =
+                    LoadSymbol<CuCtxDestroyFunc>(lib_cuda, "cuCtxDestroy_v2", "cuCtxDestroy");
 
             if (!cu_init || !cu_device_get || !cu_ctx_create || !cu_ctx_destroy) {
                 continue;
@@ -216,37 +219,34 @@ NvencLoader::NvencLoader(const NV_ENCODE_API_FUNCTION_LIST& fn_list, void* cuda_
         : cuda_context_(cuda_context), fn_list_(fn_list) {}
 
 NvencLoader::~NvencLoader() {
-    if (cuda_context_ && cu_ctx_destroy_) {
-        cu_ctx_destroy_(cuda_context_);
-        cuda_context_ = nullptr;
-    }
+    Close();
 }
 
 NvencLoader::NvencLoader(NvencLoader&& other) noexcept
         : lib_cuda_(std::move(other.lib_cuda_))
         , lib_nvenc_(std::move(other.lib_nvenc_))
-        , cuda_context_(other.cuda_context_)
-        , cu_ctx_destroy_(other.cu_ctx_destroy_)
-        , fn_list_(other.fn_list_) {
-    other.cuda_context_ = nullptr;
-    other.cu_ctx_destroy_ = nullptr;
-}
+        , cuda_context_(std::exchange(other.cuda_context_, nullptr))
+        , cu_ctx_destroy_(std::exchange(other.cu_ctx_destroy_, nullptr))
+        , fn_list_(other.fn_list_) {}
 
 NvencLoader& NvencLoader::operator=(NvencLoader&& other) noexcept {
     if (this != &other) {
-        if (cuda_context_ && cu_ctx_destroy_) {
-            cu_ctx_destroy_(cuda_context_);
-        }
+        Close();
         lib_cuda_ = std::move(other.lib_cuda_);
         lib_nvenc_ = std::move(other.lib_nvenc_);
-        cuda_context_ = other.cuda_context_;
-        cu_ctx_destroy_ = other.cu_ctx_destroy_;
+        cuda_context_ = std::exchange(other.cuda_context_, nullptr);
+        cu_ctx_destroy_ = std::exchange(other.cu_ctx_destroy_, nullptr);
         fn_list_ = other.fn_list_;
-
-        other.cuda_context_ = nullptr;
-        other.cu_ctx_destroy_ = nullptr;
     }
     return *this;
+}
+
+void NvencLoader::Close() {
+    if (cuda_context_ && cu_ctx_destroy_) {
+        cu_ctx_destroy_(cuda_context_);
+    }
+    cuda_context_ = nullptr;
+    cu_ctx_destroy_ = nullptr;
 }
 
 }  // namespace goldfish::videobridge
