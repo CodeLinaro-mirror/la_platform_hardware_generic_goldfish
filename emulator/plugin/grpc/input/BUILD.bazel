@@ -141,10 +141,28 @@ cc_test(
 )
 
 cc_library(
+    name = "input_session_id",
+    hdrs = ["input_session_id.h"],
+)
+
+cc_library(
+    name = "input_dispatcher_interface",
+    hdrs = ["input_dispatcher_interface.h"],
+    deps = [
+        ":input_session_id",
+        "//emulator/libs/eventing",
+        "@abseil-cpp//absl/functional:any_invocable",
+        "@abseil-cpp//absl/status",
+        "@aemu//protos/services_v2:input_service_cc_proto",
+    ],
+)
+
+cc_library(
     name = "contact_table",
     srcs = ["contact_table.cc"],
     hdrs = ["contact_table.h"],
     deps = [
+        ":input_session_id",
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/container:inlined_vector",
         "@abseil-cpp//absl/status",
@@ -252,6 +270,7 @@ cc_library(
     deps = [
         ":contact_table",
         ":ev_dev_event",
+        ":input_dispatcher_interface",
         ":keyboard_sink",
         ":touch_device",
         ":touch_encoding",
@@ -304,7 +323,9 @@ clang_tidy_test(
         ":contact_table",
         ":event_sender",
         ":input_dispatcher",
+        ":input_dispatcher_interface",
         ":input_session",
+        ":input_session_id",
         ":keyboard_sink",
         ":multi_display_touch_devices",
         ":multi_display_touch_devices_test",

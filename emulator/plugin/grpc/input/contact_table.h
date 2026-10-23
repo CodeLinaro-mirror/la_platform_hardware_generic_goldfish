@@ -22,9 +22,9 @@
 #include "absl/container/inlined_vector.h"
 #include "absl/status/statusor.h"
 
-namespace goldfish::grpc::v2 {
+#include "input_session_id.h"
 
-using InputSessionId = uint64_t;
+namespace goldfish::grpc::v2 {
 
 /** @brief The resolved physical touch device (display) a contact is on. */
 using TouchDeviceId = uint32_t;
