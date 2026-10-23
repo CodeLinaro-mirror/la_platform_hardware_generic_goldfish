@@ -52,6 +52,12 @@ class IInputDispatcher {
         bool human = false;
         /** @brief The `input_source_id` stamped on every activity of the session. */
         int32_t source_id = 0;
+        /**
+         * @brief Whether `DOWN` for a pointer the session already holds is a
+         * client error rather than a move. Set by APIs whose clients must lift
+         * a pointer before pressing it again (v2); others may resend presses.
+         */
+        bool reject_down_on_held = false;
     };
 
     using ActivityEventSource =
@@ -128,7 +134,10 @@ class IInputDispatcher {
      * - `CANCEL` or `HOVER_EXIT` without pointers releases the session's
      *   contacts on the device `display_id` resolves to.
      * - A listed pointer the session holds moves on its bound device, or is
-     *   lifted if `IsContactReleased()`; `DOWN` for a held pointer is a move.
+     *   lifted if `IsContactReleased()`. `DOWN` for a held pointer is a move,
+     *   unless the session has `reject_down_on_held`: then that pointer is
+     *   skipped, its contact is left as it was, and the event completes with
+     *   `FAILED_PRECONDITION`; other pointers still apply.
      * - An unheld pointer becomes a new contact on the device `display_id`
      *   resolves to if the action is `DOWN`, `HOVER_ENTER`, or `HOVER_MOVE`,
      *   and is ignored otherwise. If no slot is free it is skipped and the

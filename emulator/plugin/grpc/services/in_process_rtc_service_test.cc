@@ -172,6 +172,7 @@ TEST(InProcessRtcServiceTest, InputSenderV2DispatchesToAHumanSessionClosedWithTh
     ASSERT_TRUE(dispatcher->opened_with.has_value());
     EXPECT_TRUE(dispatcher->opened_with->human);
     EXPECT_EQ(dispatcher->opened_with->source_id, 0);
+    EXPECT_TRUE(dispatcher->opened_with->reject_down_on_held);
 
     ::android::emulation::v2::InputEvent v2_event;
     auto* pointer = v2_event.mutable_pointer();

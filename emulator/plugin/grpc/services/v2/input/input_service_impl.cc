@@ -472,7 +472,8 @@ absl::Status InputServiceImpl::ValidateBatchRequest(const SendInputEventsRequest
 std::unique_ptr<DispatcherSession> InputServiceImpl::OpenSession(int32_t source_id) const {
     return std::make_unique<DispatcherSession>(
             dispatcher_,
-            IInputDispatcher::SessionOptions{.human = source_id == 0, .source_id = source_id});
+            IInputDispatcher::SessionOptions{
+                .human = source_id == 0, .source_id = source_id, .reject_down_on_held = true});
 }
 
 DispatcherSession& InputServiceImpl::BatchSession(int32_t source_id) {

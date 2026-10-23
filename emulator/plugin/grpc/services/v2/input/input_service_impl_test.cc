@@ -630,6 +630,20 @@ TEST_F(InputServiceImplTest, SendInputEventsStopsAtSlotExhaustionWithEventIndex)
     EXPECT_THAT(keyboard_.Writes(), IsEmpty());
 }
 
+TEST_F(InputServiceImplTest, SendInputEventsRejectsDownForHeldPointerWithEventIndex) {
+    InputEvent down = Touch(PointerAction::POINTER_ACTION_DOWN, {0}, 0.2F, 0.2F);
+    down.set_input_source_id(7);
+    InputEvent again = Touch(PointerAction::POINTER_ACTION_DOWN, {0}, 0.4F, 0.4F);
+    again.set_input_source_id(7);
+
+    const auto status = Send({down, again});
+
+    EXPECT_EQ(status.error_code(), ::grpc::StatusCode::FAILED_PRECONDITION);
+    EXPECT_THAT(status.error_message(), HasSubstr("SendInputEvents failed at events[1]"));
+    EXPECT_THAT(status.error_message(), HasSubstr("Pointer 0"));
+    EXPECT_THAT(Activities(), ElementsAre("src7 POINTER_ACTION_DOWN ids 0"));
+}
+
 TEST_F(InputServiceImplTest, SendInputEventsKeepsTouchHeldAcrossCallsFromSameSource) {
     InputEvent down = Touch(PointerAction::POINTER_ACTION_DOWN, {0}, 0.2F, 0.2F);
     down.set_input_source_id(7);

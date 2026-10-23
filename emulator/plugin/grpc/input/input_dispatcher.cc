@@ -301,11 +301,15 @@ absl::Status InputDispatcher::ApplyPointer(InputSessionId session, const Pointer
     // Find every target device before changing anything, so a rejected event
     // leaves no trace. Pointers of one event share the action, so an event
     // either creates contacts or releases them, never both.
+    const bool reject_held =
+            action == PointerAction::POINTER_ACTION_DOWN && options.reject_down_on_held;
     Reports reports;
     std::optional<TouchDeviceId> resolved;
     for (const PointerEvent::Pointer& pointer : event.pointers()) {
         if (std::optional<Contact> held = contacts_.Find({session, pointer.pointer_id()})) {
-            RETURN_IF_ERROR(AddTarget(devices_, held->device, reports));
+            if (!reject_held) {
+                RETURN_IF_ERROR(AddTarget(devices_, held->device, reports));
+            }
         } else if (CreatesContact(action)) {
             if (!resolved) {
                 ASSIGN_OR_RETURN(resolved, devices_.Resolve(event.display_id()));
@@ -324,6 +328,14 @@ absl::Status InputDispatcher::ApplyPointer(InputSessionId session, const Pointer
     for (const PointerEvent::Pointer& pointer : event.pointers()) {
         const ContactKey key{session, pointer.pointer_id()};
         if (std::optional<Contact> held = contacts_.Find(key)) {
+            if (reject_held) {
+                result.Update(absl::FailedPreconditionError(absl::StrCat(
+                        "Cannot apply POINTER_ACTION_DOWN because Pointer ", pointer.pointer_id(),
+                        " is already held by session ", session,
+                        "; send POINTER_ACTION_UP or POINTER_ACTION_CANCEL before pressing it "
+                        "again.")));
+                continue;
+            }
             DeviceReport& report = ReportFor(reports, held->device);
             if (IsContactReleased(action, pointer)) {
                 contacts_.Release(key);

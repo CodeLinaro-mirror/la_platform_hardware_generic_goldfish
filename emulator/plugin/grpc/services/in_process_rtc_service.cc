@@ -108,12 +108,14 @@ void LogRejectedV2InputEvent(IInputDispatcher::DispatchResult result) {
 }
 
 // One WebRTC v2 input channel: a human session on `input_dispatcher` that
-// lives as long as the sender, so closing the channel releases its input.
+// lives as long as the sender, so closing the channel releases its input. As
+// for every v2 client, DOWN for a pointer it holds is rejected.
 std::unique_ptr<InputSender> CreateV2InputSender(
         std::shared_ptr<IInputDispatcher> input_dispatcher) {
     auto session = std::make_shared<DispatcherSession>(
             std::move(input_dispatcher),
-            IInputDispatcher::SessionOptions{.human = true, .source_id = 0});
+            IInputDispatcher::SessionOptions{
+                .human = true, .source_id = 0, .reject_down_on_held = true});
     return std::make_unique<InProcessInputSender>(
             /*dispatcher=*/nullptr, [session](const ::android::emulation::v2::InputEvent& event) {
                 session->Dispatch(event, LogRejectedV2InputEvent);

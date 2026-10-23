@@ -64,6 +64,7 @@ using ::testing::Contains;
 using ::testing::Each;
 using ::testing::ElementsAre;
 using ::testing::Field;
+using ::testing::HasSubstr;
 using ::testing::IsEmpty;
 using ::testing::Not;
 using ::testing::Optional;
@@ -566,6 +567,26 @@ TEST_F(InputDispatcherTest, DownForHeldPointerMovesIt) {
     ASSERT_THAT(inner_.reports, SizeIs(2));
     EXPECT_THAT(inner_.reports[1], Not(Contains(Field(&EvDevEvent::code, ABS_MT_TRACKING_ID))));
     EXPECT_THAT(inner_.guest.Active(), ElementsAre(ContactAt(0.5F, 0.5F)));
+}
+
+TEST_F(InputDispatcherTest, DownForHeldPointerIsRejectedWhileOthersApply) {
+    const InputSessionId a = dispatcher_.OpenSession({.source_id = 1, .reject_down_on_held = true});
+    ASSERT_THAT(Dispatch(a, Touch(kDown, {{0, 0.25F, 0.25F}})), IsOk());
+    Activities();
+
+    const absl::Status status = Dispatch(a, Touch(kDown, {{0, 0.5F, 0.5F}, {1, 0.75F, 0.75F}}));
+
+    EXPECT_THAT(status, StatusIs(absl::StatusCode::kFailedPrecondition, HasSubstr("Pointer 0")));
+    ASSERT_THAT(inner_.reports, SizeIs(2));
+    EXPECT_THAT(inner_.reports[1], Not(Contains(EvDevEvent{EV_ABS, ABS_MT_SLOT, 0})));
+    EXPECT_THAT(inner_.guest.Active(),
+                ElementsAre(ContactAt(0.25F, 0.25F), ContactAt(0.75F, 0.75F)));
+    EXPECT_THAT(Activities(), ElementsAre("src1 POINTER_ACTION_DOWN display 0 ids 1"));
+
+    // The contact is intact: it still moves and lifts.
+    ASSERT_THAT(Dispatch(a, Touch(kMove, {{0, 0.3F, 0.3F}})), IsOk());
+    ASSERT_THAT(Dispatch(a, Touch(kUp, {{0}})), IsOk());
+    EXPECT_THAT(inner_.guest.Active(), ElementsAre(ContactAt(0.75F, 0.75F)));
 }
 
 TEST_F(InputDispatcherTest, RelativeMoveAndScrollChangeNothing) {
