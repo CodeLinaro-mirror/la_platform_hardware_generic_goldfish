@@ -6,19 +6,20 @@
 #include <atomic>
 #include <cstdint>
 #include <memory>
-#include <mutex>
 #include <span>
 #include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
 
+#include "absl/base/thread_annotations.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "absl/synchronization/mutex.h"
 #include "absl/synchronization/notification.h"
 
 #include "emulator/plugin/netsim/websocket_transport/netsim_discovery.h"
@@ -90,7 +91,7 @@ class Session : public std::enable_shared_from_this<Session> {
             , options_(std::move(options))
             , recv_cb_(std::move(recv_cb)) {}
 
-    void Shutdown() {
+    void Shutdown() ABSL_LOCKS_EXCLUDED(mu_) {
         if (!loop_) return;
         if (loop_->IsOnLoopThread()) {
             ShutdownOnLoop();
@@ -146,11 +147,11 @@ class Session : public std::enable_shared_from_this<Session> {
         return absl::OkStatus();
     }
 
-    void Send(Packet packet) {
+    void Send(Packet packet) ABSL_LOCKS_EXCLUDED(mu_) {
         OutFrame frame = MakeFrame(Opcode::kBinary, std::move(packet));
         bool post = false;
         {
-            std::lock_guard<std::mutex> lock(mu_);
+            absl::MutexLock lock(mu_);
             if (!open_) return;
             pending_.push_back(std::move(frame));
             if (!flush_posted_) {
@@ -163,10 +164,10 @@ class Session : public std::enable_shared_from_this<Session> {
         }
     }
 
-    void NextRecv() {
+    void NextRecv() ABSL_LOCKS_EXCLUDED(mu_) {
         bool post = false;
         {
-            std::lock_guard<std::mutex> lock(mu_);
+            absl::MutexLock lock(mu_);
             if (in_callback_) {
                 resume_requested_ = true;
                 return;
@@ -199,7 +200,7 @@ class Session : public std::enable_shared_from_this<Session> {
                                 kind_name_, options_.instance, server_address, status.message()));
     }
 
-    void ShutdownOnLoop() {
+    void ShutdownOnLoop() ABSL_LOCKS_EXCLUDED(mu_) {
         if (closing_) return;
         StopAccepting();
         if (!socket_ || !handshake_done_ || !socket_->Connected()) {
@@ -226,12 +227,12 @@ class Session : public std::enable_shared_from_this<Session> {
         }
     }
 
-    bool IsPaused() {
-        std::lock_guard<std::mutex> lock(mu_);
+    bool IsPaused() ABSL_LOCKS_EXCLUDED(mu_) {
+        absl::MutexLock lock(mu_);
         return paused_;
     }
 
-    void TryNextEndpoint() {
+    void TryNextEndpoint() ABSL_LOCKS_EXCLUDED(mu_) {
         if (closing_) {
             if (!socket_) NotifyClosed();
             return;
@@ -279,7 +280,7 @@ class Session : public std::enable_shared_from_this<Session> {
                                 base_error.message())));
     }
 
-    void OnConnect(absl::Status status) {
+    void OnConnect(absl::Status status) ABSL_LOCKS_EXCLUDED(mu_) {
         if (closing_) return;
         if (!status.ok()) {
             last_error_ = absl::Status(status.code(),
@@ -292,7 +293,7 @@ class Session : public std::enable_shared_from_this<Session> {
         SendBytes(request_);
     }
 
-    void OnRead(std::string_view data, absl::Status status) {
+    void OnRead(std::string_view data, absl::Status status) ABSL_LOCKS_EXCLUDED(mu_) {
         if (closing_) return;
         if (!status.ok()) {
             Fail(status);
@@ -308,7 +309,7 @@ class Session : public std::enable_shared_from_this<Session> {
         }
     }
 
-    void OnClose() {
+    void OnClose() ABSL_LOCKS_EXCLUDED(mu_) {
         if (auto sock = std::move(socket_)) {
             ResetSocketCallbacks(*sock);
         }
@@ -326,7 +327,7 @@ class Session : public std::enable_shared_from_this<Session> {
         NotifyClosed();
     }
 
-    void ProcessHandshake() {
+    void ProcessHandshake() ABSL_LOCKS_EXCLUDED(mu_) {
         absl::StatusOr<bool> completed = parser_.ConsumeHandshake(key_);
         if (!completed.ok()) {
             Fail(completed.status());
@@ -336,14 +337,14 @@ class Session : public std::enable_shared_from_this<Session> {
         handshake_done_ = true;
         reading_ = true;
         {
-            std::lock_guard<std::mutex> lock(mu_);
+            absl::MutexLock lock(mu_);
             open_ = true;
         }
         NotifyStarted(absl::OkStatus());
         Deliver();
     }
 
-    void Resume() {
+    void Resume() ABSL_LOCKS_EXCLUDED(mu_) {
         if (closing_) return;
         Deliver();
         if (!IsPaused() && reading_ && socket_) {
@@ -351,17 +352,17 @@ class Session : public std::enable_shared_from_this<Session> {
         }
     }
 
-    void FlushPending() {
+    void FlushPending() ABSL_LOCKS_EXCLUDED(mu_) {
         Frames frames;
         {
-            std::lock_guard<std::mutex> lock(mu_);
+            absl::MutexLock lock(mu_);
             frames.swap(pending_);
             flush_posted_ = false;
         }
         if (!frames.empty()) Write(std::move(frames));
     }
 
-    void Write(Frames frames, bool close_after = false) {
+    void Write(Frames frames, bool close_after = false) ABSL_LOCKS_EXCLUDED(mu_) {
         if (closing_ || !socket_) return;
         size_t total_size = 0;
         for (const OutFrame& frame : frames) {
@@ -377,7 +378,8 @@ class Session : public std::enable_shared_from_this<Session> {
         SendBytes(bytes, close_after);
     }
 
-    void SendBytes(std::span<const uint8_t> bytes, bool close_after = false) {
+    void SendBytes(std::span<const uint8_t> bytes, bool close_after = false)
+            ABSL_LOCKS_EXCLUDED(mu_) {
         if (closing_ || !socket_) return;
         absl::Status status =
                 socket_->Send(reinterpret_cast<const char*>(bytes.data()), bytes.size(),
@@ -399,7 +401,7 @@ class Session : public std::enable_shared_from_this<Session> {
         }
     }
 
-    void Deliver() {
+    void Deliver() ABSL_LOCKS_EXCLUDED(mu_) {
         std::shared_ptr<Session> keep_alive = shared_from_this();
         while (true) {
             if (IsPaused()) {
@@ -425,26 +427,26 @@ class Session : public std::enable_shared_from_this<Session> {
 
             Packet packet = std::move((*event)->payload);
             {
-                std::lock_guard<std::mutex> lock(mu_);
+                absl::MutexLock lock(mu_);
                 in_callback_ = true;
                 resume_requested_ = false;
             }
             bool more = recv_cb_(packet);
-            std::lock_guard<std::mutex> lock(mu_);
+            absl::MutexLock lock(mu_);
             in_callback_ = false;
             paused_ = !more && !resume_requested_;
         }
     }
 
-    void StopAccepting() {
+    void StopAccepting() ABSL_LOCKS_EXCLUDED(mu_) {
         {
-            std::lock_guard<std::mutex> lock(mu_);
+            absl::MutexLock lock(mu_);
             open_ = false;
         }
         reading_ = false;
     }
 
-    void Fail(const absl::Status& status) {
+    void Fail(const absl::Status& status) ABSL_LOCKS_EXCLUDED(mu_) {
         if (closing_) return;
         LOG(WARNING) << "Netsim WebSocket transport: " << kind_name_ << " - " << status;
         parser_.Reset();
@@ -484,13 +486,13 @@ class Session : public std::enable_shared_from_this<Session> {
     absl::Notification closed_;
     std::atomic<bool> closed_notified_{false};
 
-    std::mutex mu_;
-    bool open_ = false;
-    Frames pending_;
-    bool flush_posted_ = false;
-    bool paused_ = false;
-    bool in_callback_ = false;
-    bool resume_requested_ = false;
+    absl::Mutex mu_;
+    bool open_ ABSL_GUARDED_BY(mu_) = false;
+    Frames pending_ ABSL_GUARDED_BY(mu_);
+    bool flush_posted_ ABSL_GUARDED_BY(mu_) = false;
+    bool paused_ ABSL_GUARDED_BY(mu_) = false;
+    bool in_callback_ ABSL_GUARDED_BY(mu_) = false;
+    bool resume_requested_ ABSL_GUARDED_BY(mu_) = false;
 
     Packet request_;
     websocket::StreamParser parser_;
@@ -513,7 +515,7 @@ class WebSocketPacketTransport : public PacketTransport {
         if (auto session = TakeSession()) session->Shutdown();
     }
 
-    absl::Status initialize(const ChipConfig& chip) override {
+    absl::Status initialize(const ChipConfig& chip) override ABSL_LOCKS_EXCLUDED(mu_) {
         const std::string_view kind_name = WebSocketKindName(chip.kind);
         if (!loop_) {
             return absl::InvalidArgumentError(absl::StrFormat(
@@ -535,7 +537,7 @@ class WebSocketPacketTransport : public PacketTransport {
                     kind_name));
         }
         {
-            std::lock_guard<std::mutex> lock(mu_);
+            absl::MutexLock lock(mu_);
             if (initialized_) {
                 return absl::FailedPreconditionError(absl::StrFormat(
                         "WebSocketPacketTransport for chip '%s' is already initialized; create a "
@@ -546,7 +548,7 @@ class WebSocketPacketTransport : public PacketTransport {
         }
         auto session = std::make_shared<Session>(loop_, socket_factory_, options_, recv_cb_);
         absl::Status status = session->Initialize(chip);
-        std::lock_guard<std::mutex> lock(mu_);
+        absl::MutexLock lock(mu_);
         if (!status.ok()) {
             initialized_ = false;
             return status;
@@ -555,22 +557,22 @@ class WebSocketPacketTransport : public PacketTransport {
         return absl::OkStatus();
     }
 
-    void send(Packet packet) override {
+    void send(Packet packet) override ABSL_LOCKS_EXCLUDED(mu_) {
         if (auto session = GetSession()) session->Send(std::move(packet));
     }
 
-    void next_recv() override {
+    void next_recv() override ABSL_LOCKS_EXCLUDED(mu_) {
         if (auto session = GetSession()) session->NextRecv();
     }
 
   private:
-    std::shared_ptr<Session> GetSession() {
-        std::lock_guard<std::mutex> lock(mu_);
+    std::shared_ptr<Session> GetSession() ABSL_LOCKS_EXCLUDED(mu_) {
+        absl::MutexLock lock(mu_);
         return session_;
     }
 
-    std::shared_ptr<Session> TakeSession() {
-        std::lock_guard<std::mutex> lock(mu_);
+    std::shared_ptr<Session> TakeSession() ABSL_LOCKS_EXCLUDED(mu_) {
+        absl::MutexLock lock(mu_);
         return std::move(session_);
     }
 
@@ -579,9 +581,9 @@ class WebSocketPacketTransport : public PacketTransport {
     goldfish::async::AsyncSocketFactory* const socket_factory_;
     const TransportOptions options_;
     const RecvCallback recv_cb_;
-    std::mutex mu_;
-    bool initialized_ = false;
-    std::shared_ptr<Session> session_;
+    absl::Mutex mu_;
+    bool initialized_ ABSL_GUARDED_BY(mu_) = false;
+    std::shared_ptr<Session> session_ ABSL_GUARDED_BY(mu_);
 };
 
 void AppendParam(std::string& path, char& sep, std::string_view key, std::string_view value) {
