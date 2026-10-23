@@ -429,7 +429,7 @@ OPT_FLAG(qemu_telnet, "enable qemu telnet monitor")
 // This flag is ignored now - remove once no one supplies it.
 OPT_FLAG(no_vnc, "disable qemu vnc")
 
-OPT_FLAG(enable_vnc, "enable vnc debug display")
+OPT_FLAG_OBSOLETE(enable_vnc)
 
 OPT_PARAM(qemu, "<qemu>", "flags to pass directly to Qemu")
 

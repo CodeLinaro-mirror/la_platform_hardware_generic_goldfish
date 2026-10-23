@@ -205,7 +205,7 @@ cc_library(
     hdrs = ["display_device.h"],
     deps = [
         ":device",
-        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/strings",
     ],
 )

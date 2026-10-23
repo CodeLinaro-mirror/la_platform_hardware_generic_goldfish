@@ -1642,7 +1642,6 @@ static void help_vmodule(stralloc_t* out) {
 
 #define help_qemu_telnet NULL             // NOLINT(readability-identifier-naming)
 #define help_no_vnc NULL                  // NOLINT(readability-identifier-naming)
-#define help_enable_vnc NULL              // NOLINT(readability-identifier-naming)
 #define help_qemu NULL                    // NOLINT(readability-identifier-naming)
 #define help_append NULL                  // NOLINT(readability-identifier-naming)
 #define help_no_wifi NULL                 // NOLINT(readability-identifier-naming)
