@@ -50,6 +50,8 @@ class QemuDisplay : public PixmanDisplay {
     void SendMouseEvent(int x, int y, int button_mask) override;
     void SendEvDevEvent(uint16_t type, uint16_t code, uint32_t value) override;
     void SendEvDevReport(EvDevEvents events) override;
+    void WriteEvDevReportOnLoop(absl::Span<const EvDevEvent> events) override;
+    bool IsInputActive() const override;
 
     void SetOwnedSurface(DisplaySurface* surface);
 

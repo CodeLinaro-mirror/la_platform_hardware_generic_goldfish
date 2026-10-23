@@ -93,9 +93,20 @@ static VirtIOInputHID s_fake_vhid = {
 };
 
 static int g_find_virtio_device_result = 1;
+static bool g_find_virtio_device_null_vhid = false;
 
 void SetTestFindVirtioDeviceResult(int result) {
     g_find_virtio_device_result = result;
+}
+
+// Makes a successful device lookup report no device, as a display without one.
+void SetTestFindVirtioDeviceNullVhid(bool null_vhid) {
+    g_find_virtio_device_null_vhid = null_vhid;
+}
+
+// Sets whether the guest driver of the fake virtio input device is active.
+void SetTestVirtioInputActive(bool active) {
+    s_fake_vhid.parent_obj.active = active;
 }
 
 int object_child_foreach_recursive(Object* obj, int (*fn)(Object* child, void* opaque),
@@ -104,7 +115,7 @@ int object_child_foreach_recursive(Object* obj, int (*fn)(Object* child, void* o
     (void)fn;
     if (g_find_virtio_device_result && opaque) {
         VirtioDeviceInfo* info = (VirtioDeviceInfo*)opaque;
-        info->vhid = &s_fake_vhid;
+        info->vhid = g_find_virtio_device_null_vhid ? NULL : &s_fake_vhid;
     }
     return g_find_virtio_device_result;
 }

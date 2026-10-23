@@ -74,6 +74,16 @@ int find_virtio_device(Object* obj, void* opaque);
 void virtio_input_send_evdev(VirtIOInputHID* vhid, uint16_t type, uint16_t code, uint32_t value);
 
 /**
+ * @brief Returns whether the guest driver of a virtio input device is active.
+ *
+ * The device discards events sent while its driver is inactive.
+ *
+ * @param vhid The virtio input device, or NULL.
+ * @return true if `vhid` is non-null and its guest driver is active.
+ */
+bool virtio_input_hid_is_active(const VirtIOInputHID* vhid);
+
+/**
  * @brief Dumps detailed information about a VirtIOInputHID device into a buffer.
  *
  * This function populates the provided buffer with a string representation
