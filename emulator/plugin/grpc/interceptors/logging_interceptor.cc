@@ -67,26 +67,29 @@ void PrintLog(const InvocationRecord& loginfo) {
               << ", " << status_msg << " " << loginfo.status.error_message() << ", "
               << loginfo.method << "(" << loginfo.incoming << ") -> [" << loginfo.response << "]";
 }
+
+template <typename RpcType>
+CallType ToCallType(RpcType type) {
+    switch (type) {
+    case RpcType::UNARY:
+        return CallType::kUnary;
+    case RpcType::CLIENT_STREAMING:
+        return CallType::kClientStreaming;
+    case RpcType::SERVER_STREAMING:
+        return CallType::kServerStreaming;
+    case RpcType::BIDI_STREAMING:
+        return CallType::kBidiStreaming;
+    default:
+        return CallType::kUnknown;
+    }
+}
 }  // namespace
 
 LoggingInterceptor::LoggingInterceptor(ServerRpcInfo* info, ReportingFunction reporter)
         : reporter_(std::move(reporter)) {
     if (info) {
         loginfo_.method = std::string(info->method()).substr(0, kMaxStringLen);
-        switch (info->type()) {
-        case ServerRpcInfo::Type::UNARY:
-            loginfo_.type = CallType::kUnary;
-            break;
-        case ServerRpcInfo::Type::CLIENT_STREAMING:
-            loginfo_.type = CallType::kClientStreaming;
-            break;
-        case ServerRpcInfo::Type::SERVER_STREAMING:
-            loginfo_.type = CallType::kServerStreaming;
-            break;
-        case ServerRpcInfo::Type::BIDI_STREAMING:
-            loginfo_.type = CallType::kBidiStreaming;
-            break;
-        }
+        loginfo_.type = ToCallType(info->type());
         loginfo_.direction = Direction::kIncoming;
     }
     loginfo_.timestamps[InvocationRecord::kStartTimeIdx] = absl::ToUnixMicros(IClock::HostNow());
@@ -96,23 +99,7 @@ LoggingInterceptor::LoggingInterceptor(ClientRpcInfo* info, ReportingFunction re
         : reporter_(std::move(reporter)) {
     if (info) {
         loginfo_.method = std::string(info->method()).substr(0, kMaxStringLen);
-        switch (info->type()) {
-        case ClientRpcInfo::Type::UNARY:
-            loginfo_.type = CallType::kUnary;
-            break;
-        case ClientRpcInfo::Type::CLIENT_STREAMING:
-            loginfo_.type = CallType::kClientStreaming;
-            break;
-        case ClientRpcInfo::Type::SERVER_STREAMING:
-            loginfo_.type = CallType::kServerStreaming;
-            break;
-        case ClientRpcInfo::Type::BIDI_STREAMING:
-            loginfo_.type = CallType::kBidiStreaming;
-            break;
-        case ClientRpcInfo::Type::UNKNOWN:
-            loginfo_.type = CallType::kUnknown;
-            break;
-        }
+        loginfo_.type = ToCallType(info->type());
         loginfo_.direction = Direction::kOutgoing;
         loginfo_.peer = info->client_context()->peer();
     }
