@@ -28,7 +28,8 @@
 
 #include "android/emulation/control/event_sender.h"
 #include "api/make_ref_counted.h"
-#include "emulator/plugin/grpc/input/input_session.h"
+#include "emulator/plugin/grpc/input/dispatcher_session.h"
+#include "emulator/plugin/grpc/input/input_dispatcher_interface.h"
 #include "emulator/plugin/grpc/services/v2/environment/sensors_service_impl.h"
 #include "emulator/plugin/grpc/services/v2/webrtc/rtc_service_impl.h"
 #include "goldfish/audio/qemu_audio_source.h"
@@ -52,6 +53,8 @@ namespace android::emulation::control {
 using ::goldfish::audio::QemuAudioSource;
 using ::goldfish::avd::AvdUniverse;
 using ::goldfish::display::IMultiDisplay;
+using ::goldfish::grpc::v2::DispatcherSession;
+using ::goldfish::grpc::v2::IInputDispatcher;
 using ::goldfish::videobridge::DataChannelLabel;
 using ::goldfish::videobridge::InProcessInputSender;
 using ::goldfish::videobridge::InProcessVideoSource;
@@ -97,11 +100,33 @@ absl::Status DispatchInProcessInputEvent(const InputEvent& request,
     }
 }
 
+// WebRTC has no way to report a rejected event to the client.
+void LogRejectedV2InputEvent(absl::Status status) {
+    if (!status.ok()) {
+        VLOG(1) << "Dropped WebRTC v2 input event: " << status;
+    }
+}
+
+// One WebRTC v2 input channel: a human session on `input_dispatcher` that
+// lives as long as the sender, so closing the channel releases its input.
+std::unique_ptr<InputSender> CreateV2InputSender(
+        std::shared_ptr<IInputDispatcher> input_dispatcher) {
+    auto session = std::make_shared<DispatcherSession>(
+            std::move(input_dispatcher),
+            IInputDispatcher::SessionOptions{.human = true, .source_id = 0});
+    return std::make_unique<InProcessInputSender>(
+            /*dispatcher=*/nullptr, [session](const ::android::emulation::v2::InputEvent& event) {
+                session->Dispatch(event, LogRejectedV2InputEvent);
+                return absl::OkStatus();
+            });
+}
+
 }  // namespace
 
 InputSenderFactory CreateInProcessInputSenderFactory(
         IMultiDisplay& multidisplay, std::shared_ptr<IKeyEventSender> key_event_sender,
-        bool hw_sensor_hinge, ::goldfish::sensors::PhysicalModel* physical_model) {
+        std::shared_ptr<IInputDispatcher> input_dispatcher,
+        ::goldfish::sensors::PhysicalModel* physical_model) {
     CHECK_NE(key_event_sender, nullptr) << "key_event_sender must not be null";
     auto input_event_sender = std::make_shared<InputEventSender>(&multidisplay);
     std::shared_ptr<::goldfish::grpc::v2::SensorsServiceImpl> sensors_service;
@@ -110,17 +135,11 @@ InputSenderFactory CreateInProcessInputSenderFactory(
                 std::make_shared<::goldfish::grpc::v2::SensorsServiceImpl>(*physical_model);
     }
 
-    return [&multidisplay, input_event_sender, key_event_sender = std::move(key_event_sender),
-            hw_sensor_hinge,
+    return [input_event_sender, key_event_sender = std::move(key_event_sender),
+            input_dispatcher = std::move(input_dispatcher),
             sensors_service](DataChannelLabel label) -> std::unique_ptr<InputSender> {
-        if (label == DataChannelLabel::kInputV2) {
-            auto input_session = std::make_shared<::goldfish::grpc::v2::InputSession>(
-                    multidisplay, key_event_sender, hw_sensor_hinge);
-            return std::make_unique<InProcessInputSender>(
-                    /*dispatcher=*/nullptr,
-                    [input_session](const ::android::emulation::v2::InputEvent& request) {
-                        return input_session->DispatchInputEvent(request);
-                    });
+        if (label == DataChannelLabel::kInputV2 && input_dispatcher != nullptr) {
+            return CreateV2InputSender(input_dispatcher);
         }
         if (label == DataChannelLabel::kSensorsV2 && sensors_service != nullptr) {
             return std::make_unique<InProcessInputSender>(
@@ -164,8 +183,7 @@ static std::shared_ptr<Switchboard> CreateInProcessSwitchboard(AvdUniverse& avd_
             keyboard::createKeyEventSender(console, &avd_universe.GetQemuEventLoop());
     auto input_sender_factory = CreateInProcessInputSenderFactory(
             avd_universe.GetMultiDisplay(), std::move(key_event_sender),
-            avd_universe.Props().hw_config.hw_sensor_hinge,
-            &avd_universe.GetSensorsPhysicalModel());
+            avd_universe.GetInputDispatcher(), &avd_universe.GetSensorsPhysicalModel());
     return std::make_shared<Switchboard>(media_provider, input_sender_factory);
 }
 

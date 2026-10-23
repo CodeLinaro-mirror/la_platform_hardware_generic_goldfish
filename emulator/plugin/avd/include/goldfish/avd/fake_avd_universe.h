@@ -49,7 +49,7 @@ class FakeAvdUniverse : public AvdUniverse {
     metrics::MetricsReporter& GetMetricsReporter() override;
     android::goldfish::VmOperations& GetVmOperations() override;
     display::IMultiDisplay& GetMultiDisplay() const override;
-    grpc::v2::IInputDispatcher& GetInputDispatcher() override;
+    std::shared_ptr<grpc::v2::IInputDispatcher> GetInputDispatcher() override;
 
     /** @brief Returns the test event loop driving `GetInputDispatcher()`. */
     async::testing::TestEventLoop& input_loop() { return *input_loop_; }
@@ -59,11 +59,12 @@ class FakeAvdUniverse : public AvdUniverse {
 
   private:
     metrics::MetricsReporter metrics_reporter_;
-    // In this order, so the dispatcher is destroyed first.
+    // In this order, so the dispatcher is released first; the destructor
+    // shuts it down before, for holders that outlive the universe.
     std::unique_ptr<async::testing::TestEventLoop> input_loop_;
     std::unique_ptr<grpc::v2::TouchDevices> touch_devices_;
     std::unique_ptr<grpc::v2::KeyboardSink> keyboard_;
-    std::unique_ptr<grpc::v2::IInputDispatcher> input_dispatcher_;
+    std::shared_ptr<grpc::v2::IInputDispatcher> input_dispatcher_;
 };
 
 }  // namespace goldfish::avd

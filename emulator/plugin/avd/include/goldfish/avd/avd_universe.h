@@ -88,10 +88,12 @@ struct AvdUniverse : public snapshottable::Snapshottable {
 
     /**
      * @brief Applies the input of every input session to the guest.
-     * @return A thread-safe dispatcher that lives as long as the universe. It
-     *     is shut down when the gRPC server stops at emulator exit.
+     * @return A thread-safe dispatcher, shared with input clients that may
+     *     outlive the universe, such as WebRTC channels. It is shut down when
+     *     the gRPC server stops at emulator exit, or at the latest when the
+     *     universe is destroyed.
      */
-    virtual ::goldfish::grpc::v2::IInputDispatcher& GetInputDispatcher() = 0;
+    virtual std::shared_ptr<::goldfish::grpc::v2::IInputDispatcher> GetInputDispatcher() = 0;
 
     void SetGenericSnapshotInProgress(bool in_progress) {
         generic_snapshot_in_progress_ = in_progress;

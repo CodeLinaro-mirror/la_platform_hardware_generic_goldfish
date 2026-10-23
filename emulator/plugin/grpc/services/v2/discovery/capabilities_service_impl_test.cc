@@ -66,7 +66,7 @@ class TestUniverse : public AvdUniverse {
         LOG(FATAL) << "GetMultiDisplay not implemented in test";
     }
 
-    IInputDispatcher& GetInputDispatcher() override {
+    std::shared_ptr<IInputDispatcher> GetInputDispatcher() override {
         LOG(FATAL) << "GetInputDispatcher not implemented in test";
     }
 

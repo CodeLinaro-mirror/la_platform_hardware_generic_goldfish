@@ -68,12 +68,13 @@ FakeAvdUniverse::FakeAvdUniverse()
         , input_loop_(async::testing::TestEventLoop::Create("FakeAvdUniverseInput"))
         , touch_devices_(std::make_unique<NoTouchDevices>())
         , keyboard_(std::make_unique<NoOpKeyboard>())
-        , input_dispatcher_(std::make_unique<grpc::v2::InputDispatcher>(
+        , input_dispatcher_(std::make_shared<grpc::v2::InputDispatcher>(
                   *input_loop_, *touch_devices_, keyboard_.get(), ResolveEvdevCode)) {
     SetGlobalAvdUniverse(this);
 }
 
 FakeAvdUniverse::~FakeAvdUniverse() {
+    input_dispatcher_->Shutdown();
     SetGlobalAvdUniverse(nullptr);
 }
 
@@ -93,8 +94,8 @@ display::IMultiDisplay& FakeAvdUniverse::GetMultiDisplay() const {
     LOG(FATAL) << "GetMultiDisplay not implemented";
 }
 
-grpc::v2::IInputDispatcher& FakeAvdUniverse::GetInputDispatcher() {
-    return *input_dispatcher_;
+std::shared_ptr<grpc::v2::IInputDispatcher> FakeAvdUniverse::GetInputDispatcher() {
+    return input_dispatcher_;
 }
 
 absl::Status FakeAvdUniverse::OnSave(archive::IWriter&) const {
