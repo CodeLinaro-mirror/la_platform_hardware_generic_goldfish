@@ -85,9 +85,9 @@ void WriteReports(const ::goldfish::async::EventLoop& loop, const Reports& repor
     }
 }
 
-void Complete(InputDispatcher::DispatchCallback& done, absl::Status status) {
+void Complete(InputDispatcher::DispatchCallback& done, InputDispatcher::DispatchResult result) {
     if (done) {
-        std::move(done)(std::move(status));
+        std::move(done)(std::move(result));
     }
 }
 
@@ -134,8 +134,9 @@ void InputDispatcher::ShutdownOnce() {
     }
     for (auto& [id, operation] : pending) {
         Complete(operation.done,
-                 absl::UnavailableError("The input dispatcher shut down before the event was "
-                                        "applied; the event was dropped."));
+                 {absl::UnavailableError(
+                         "Cannot apply input event because the input dispatcher shut down before "
+                         "the event ran; reconnect to a running emulator instance.")});
     }
     {
         absl::MutexLock outbox_lock(outbox_mutex_);
@@ -204,19 +205,21 @@ void InputDispatcher::PostOperation(InputSessionId session,
                                     DispatchCallback done) {
     absl::StatusOr<OperationId> id = AddPending(session, done);
     if (!id.ok()) {
-        Complete(done, id.status());
+        Complete(done, {id.status()});
         return;
     }
     // `done` stays in `pending_` until the task or Shutdown() claims it, so it
     // survives a rejected Post, which destroys the task.
     absl::Status posted = loop_.Post([this, id = *id, apply = std::move(apply)]() mutable {
         if (std::optional<DispatchCallback> claimed = ClaimPending(id)) {
-            Complete(*claimed, std::move(apply)());
+            reported_at_.reset();
+            absl::Status status = std::move(apply)();
+            Complete(*claimed, {std::move(status), reported_at_});
         }
     });
     if (!posted.ok()) {
         if (std::optional<DispatchCallback> claimed = ClaimPending(*id)) {
-            Complete(*claimed, std::move(posted));
+            Complete(*claimed, {std::move(posted)});
         }
     }
 }
@@ -464,9 +467,10 @@ void InputDispatcher::ReleaseSession(InputSessionId session) {
 
 void InputDispatcher::Report(InputEvent event, bool synthesized) {
     DCHECK(loop_.IsOnLoopThread());
+    reported_at_ = clock_->Now(ClockType::kRealtime);
     InputActivity activity;
     *activity.mutable_event() = std::move(event);
-    activity.set_dispatched_at_nanos(absl::ToUnixNanos(clock_->Now(ClockType::kRealtime)));
+    activity.set_dispatched_at_nanos(absl::ToUnixNanos(*reported_at_));
     activity.set_synthesized(synthesized);
     absl::MutexLock outbox_lock(outbox_mutex_);
     outbox_.push_back({next_sequence_++, std::move(activity)});

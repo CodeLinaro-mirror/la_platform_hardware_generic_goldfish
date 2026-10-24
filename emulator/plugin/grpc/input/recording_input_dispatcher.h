@@ -19,6 +19,7 @@
 #include <vector>
 
 #include "absl/status/status.h"
+#include "absl/time/time.h"
 
 #include "emulator/plugin/grpc/input/input_dispatcher_interface.h"
 #include "input_service.pb.h"
@@ -27,7 +28,7 @@ namespace goldfish::grpc::v2::testing {
 
 /**
  * @brief An `IInputDispatcher` test double that records every call and
- * completes each dispatch with OK on the calling thread.
+ * completes each dispatch with OK at `kDispatchedAt` on the calling thread.
  *
  * Calls are recorded in `calls` as `"<method> <session> <payload>"`:
  * `"pointer <session> display <id>"`, `"key <session> <dom_code>"`,
@@ -41,6 +42,7 @@ namespace goldfish::grpc::v2::testing {
 class RecordingInputDispatcher : public IInputDispatcher {
   public:
     static constexpr InputSessionId kSessionId = 7;
+    static constexpr absl::Time kDispatchedAt = absl::FromUnixNanos(1234);
 
     ActivityEventSource& activity() override { return activity_; }
     void Shutdown() override { calls.emplace_back("shutdown"); }
@@ -78,7 +80,7 @@ class RecordingInputDispatcher : public IInputDispatcher {
   private:
     static void Complete(DispatchCallback done) {
         if (done) {
-            std::move(done)(absl::OkStatus());
+            std::move(done)({absl::OkStatus(), kDispatchedAt});
         }
     }
 

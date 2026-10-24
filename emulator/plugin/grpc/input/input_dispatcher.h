@@ -30,6 +30,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/synchronization/mutex.h"
+#include "absl/time/time.h"
 
 #include "android/base/clock.h"
 #include "contact_table.h"
@@ -205,7 +206,7 @@ class InputDispatcher final : public IInputDispatcher {
     void ReleaseSession(InputSessionId session);
 
     // Stamps `event` and queues it for delivery. Called on the loop right
-    // after the write it reports.
+    // after the write it reports; records the stamp in `reported_at_`.
     void Report(::android::emulation::v2::InputEvent event, bool synthesized = false)
             ABSL_LOCKS_EXCLUDED(outbox_mutex_);
     // The delivery thread: fires the outbox in order until stopped and empty.
@@ -232,6 +233,9 @@ class InputDispatcher final : public IInputDispatcher {
     absl::flat_hash_map<InputSessionId, SessionOptions> sessions_;
     // The sessions holding each pressed evdev code.
     absl::flat_hash_map<uint32_t, absl::flat_hash_set<InputSessionId>> key_holders_;
+    // When the activity of the running Dispatch*() operation, which reports
+    // at most one, was stamped; unset until it reports it.
+    std::optional<absl::Time> reported_at_;
 
     ActivityEventSource activity_events_;
     absl::Mutex outbox_mutex_;

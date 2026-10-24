@@ -14,11 +14,13 @@
 #pragma once
 
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <utility>
 
 #include "absl/functional/any_invocable.h"
 #include "absl/status/status.h"
+#include "absl/time/time.h"
 
 #include "goldfish/eventing/event_sources.h"
 #include "input_service.pb.h"
@@ -55,8 +57,19 @@ class IInputDispatcher {
     using ActivityEventSource =
             ::android::base::eventing::CallbackEventSource<::android::emulation::v2::InputActivity>;
 
+    /** @brief The result of one `Dispatch*()` operation. */
+    struct DispatchResult {
+        absl::Status status;
+        /**
+         * @brief When the operation reached the guest: the `dispatched_at_nanos`
+         * of its activity. Unset if it reported none, such as when it was
+         * rejected or changed nothing.
+         */
+        std::optional<absl::Time> dispatched_at;
+    };
+
     /** @brief Called once with the result of the operation; see `DispatchPointer()`. */
-    using DispatchCallback = absl::AnyInvocable<void(absl::Status) &&>;
+    using DispatchCallback = absl::AnyInvocable<void(DispatchResult) &&>;
 
     virtual ~IInputDispatcher() = default;
 
