@@ -120,6 +120,7 @@ class LauncherTest : public testing::Test {
         emulator_paths.netsim_binary = temp_dir / "bin" / "netsimd";
         emulator_paths.crashpad_handler_binary = temp_dir / "bin" / "crashpad_handler";
         emulator_paths.fishtank_binary = temp_dir / "fishtank" / "fishtank";
+        emulator_paths.advanced_features = temp_dir / "lib" / "advancedFeatures.ini";
 
         user_paths.user_directory = temp_dir / "user";
         user_paths.avd_directory = temp_dir / "avd";
@@ -130,6 +131,19 @@ class LauncherTest : public testing::Test {
         opts.no_window = true;
         opts.no_netsim = true;
         opts.avd = "test_avd";
+
+        using S = android_studio::EmulatorFeatureFlagState;
+        feature_flags = FeatureFlags::CreateForTesting({
+            S::MINIGBM,
+            S::GUEST_ANGLE,
+            S::DYNAMIC_PARTITION,
+            S::MAC80211HWSIM_USERSPACE_MANAGED,
+            S::VULKAN_SNAPSHOTS,
+            S::VULKAN_VIRTUAL_QUEUE,
+            S::VULKAN_USE_DEDICATED_AHB_MEMORY_TYPE,
+            S::NETSIMCLIUI,
+            S::NETSIMWEBUI,
+        });
 #ifdef _WIN32
         // Windows VMs don't support nested virt, mock WHPX availability.
         SetCurrentCpuAcceleratorForTesting(CpuAccelerator::CPU_ACCELERATOR_WHPX,
@@ -184,6 +198,7 @@ class LauncherTest : public testing::Test {
             .emulator_paths = std::move(emulator_paths),
             .avd = std::move(avd),
             .opts = std::move(opts),
+            .feature_flags = std::move(feature_flags),
             .qemu_shutdown_timeout = qemu_shutdown_timeout,
         });
     }
@@ -311,6 +326,7 @@ class LauncherTest : public testing::Test {
     EmulatorPaths emulator_paths;
     SystemImagePaths system_image_paths;
     AndroidOptions opts;
+    FeatureFlags feature_flags;
     HardwareConfig hw;
     absl::Duration qemu_shutdown_timeout = absl::Seconds(60);
     std::unique_ptr<::goldfish::async::LibuvEventLoop> event_loop;
@@ -324,6 +340,8 @@ class LauncherTest : public testing::Test {
 
 TEST_F(LauncherTest, CanLaunchEmulator) {
     auto avd = CreateMockAvd();
+    feature_flags.SetEnabledOverride(android_studio::EmulatorFeatureFlagState::FORCE_SWIFTSHADER,
+                                     true);
 
     ::goldfish::async::ProcessLauncher::ExitCallback emulator_exit_cb;
     absl::Notification launched;
@@ -347,6 +365,7 @@ TEST_F(LauncherTest, CanLaunchEmulator) {
     auto mock_writer = std::make_unique<MockMetricsWriter>();
     bool saw_vulkan_icd_metric = false;
     bool saw_clean_exit_crashes_metric = false;
+    bool saw_feature_flag_metric = false;
     EXPECT_CALL(*mock_writer, Write(_))
             .Times(testing::AtLeast(1))
             .WillRepeatedly([&](::goldfish::metrics::MetricsEvent event) {
@@ -358,6 +377,12 @@ TEST_F(LauncherTest, CanLaunchEmulator) {
                     event.as_event.emulator_details().crashes() == kMetricsCrashesNone) {
                     saw_clean_exit_crashes_metric = true;
                 }
+                const auto& ff_state = event.as_event.emulator_details().feature_flag_state();
+                if (ff_state.user_overridden_enabled_features_size() == 1 &&
+                    ff_state.user_overridden_enabled_features(0) ==
+                            android_studio::EmulatorFeatureFlagState::FORCE_SWIFTSHADER) {
+                    saw_feature_flag_metric = true;
+                }
             });
     reporter->SetWriter(std::move(mock_writer));
 
@@ -367,6 +392,7 @@ TEST_F(LauncherTest, CanLaunchEmulator) {
     EXPECT_EQ(status, 0);
     EXPECT_TRUE(saw_vulkan_icd_metric);
     EXPECT_TRUE(saw_clean_exit_crashes_metric);
+    EXPECT_TRUE(saw_feature_flag_metric);
 }
 
 TEST_F(LauncherTest, ForwardsSignalToEmulator) {
@@ -875,8 +901,8 @@ TEST_F(LauncherTest, DefaultConfigUsesNetsimModem) {
     opts.no_netsim_modem = false;
     EmulatorPorts ports{.serial_number = 5554, .adb_port = 5555};
     ChardevEndpoints chardev_endpoints{.netsim = "localhost:1234"};
-    LaunchQemu emulator{
-        EmulatorConfig{ports, chardev_endpoints, {}, user_paths, emulator_paths, *avd, opts}};
+    LaunchQemu emulator{EmulatorConfig{
+        ports, chardev_endpoints, {}, user_paths, emulator_paths, *avd, opts, feature_flags}};
 
     auto launch_config = emulator.launch_config();
     ASSERT_TRUE(launch_config.ok()) << launch_config.status();
@@ -893,8 +919,8 @@ TEST_F(LauncherTest, FallbackConfigUsesModemSimulatorWhenNoNetsimModem) {
     EmulatorPorts ports{.serial_number = 5554, .adb_port = 5555};
     ChardevEndpoints chardev_endpoints{.netsim = "localhost:1234",
                                        .modem_simulator = "localhost:5678"};
-    LaunchQemu emulator{
-        EmulatorConfig{ports, chardev_endpoints, {}, user_paths, emulator_paths, *avd, opts}};
+    LaunchQemu emulator{EmulatorConfig{
+        ports, chardev_endpoints, {}, user_paths, emulator_paths, *avd, opts, feature_flags}};
 
     auto launch_config = emulator.launch_config();
     ASSERT_TRUE(launch_config.ok()) << launch_config.status();

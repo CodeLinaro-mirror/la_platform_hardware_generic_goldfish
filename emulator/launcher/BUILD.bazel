@@ -231,6 +231,7 @@ cc_library(
     hdrs = ["host_info.h"],
     deps = [
         ":avd",
+        ":feature_flags",
         "//emulator/launcher/launch_qemu:vulkan_gpu_device_info",
         "//emulator/libs/cpu",
         "//emulator/libs/cpu:cpu_brand",
@@ -252,6 +253,7 @@ cc_test(
     size = "small",
     srcs = ["host_info_test.cc"],
     deps = [
+        ":feature_flags",
         ":host_info",
         ":mock_avd",
         "//emulator/launcher/launch_qemu:vulkan_gpu_device_info",
@@ -605,6 +607,7 @@ cc_library(
     srcs = ["launcher.cc"],
     hdrs = ["launcher.h"],
     deps = [
+        ":feature_flags",
         ":host_info",
         ":input_paths",
         ":launch_fishtank",
@@ -638,6 +641,7 @@ cc_test(
     size = "medium",
     srcs = ["launcher_test.cc"],
     deps = [
+        ":feature_flags",
         ":launcher_lib",
         ":mock_avd",
         "//emulator/launcher/launch_qemu",
@@ -685,6 +689,7 @@ cc_binary_with_manifest(
     }),
     visibility = ["//visibility:public"],
     deps = [
+        ":feature_flags",
         ":host_info",
         ":launcher_lib",
         ":trampoline",

@@ -413,6 +413,7 @@ class Launcher {
                                            config_.emulator_paths,
                                            *config_.avd,
                                            config_.opts,
+                                           config_.feature_flags,
                                            host_timezone_}};
 
         if (auto emulator_config = emulator.launch_config(); emulator_config.ok()) {
@@ -458,7 +459,7 @@ class Launcher {
                                           selected_gpu = std::move(selected_gpu)](
                                                  android_studio::AndroidStudioEvent& event) {
             android::goldfish::FillEmulatorHostEvent(
-                    event, *config_.avd,
+                    event, *config_.avd, config_.feature_flags,
                     /*launcher_pid=*/android::base::System::GetCurrentProcessPid(),
                     /*qemu_pid=*/emulator_process_->GetPid(), config_.opts.metrics_collection,
                     config_.opts.fuchsia, vk_icd, host_gpus, selected_gpu);

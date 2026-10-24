@@ -20,6 +20,7 @@
 
 #include "android/cmdline_option.h"
 #include "android/goldfish/avd.h"
+#include "android/goldfish/feature_flags.h"
 #include "android/goldfish/input_paths.h"
 #include "goldfish/metrics/configure_metrics_writer.h"
 
@@ -46,6 +47,7 @@ class EmulatorConfig {
     EmulatorConfig(const EmulatorPorts& ports, const ChardevEndpoints& chardev_endpoints,
                    MetricsConfig metrics_config, const UserPaths& user_paths,
                    const EmulatorPaths& emulator_paths, const Avd& avd, const AndroidOptions& opts,
+                   const FeatureFlags& feature_flags,
                    std::optional<std::string> host_timezone = std::nullopt)
             : mPorts(ports)
             , mChardevEndpoints(chardev_endpoints)
@@ -54,6 +56,7 @@ class EmulatorConfig {
             , mEmulatorPaths(emulator_paths)
             , mAvd(avd)
             , mOpts(opts)
+            , mFeatureFlags(feature_flags)
             , host_timezone_(std::move(host_timezone)) {}
 
     const UserPaths& user_paths() const { return mUserPaths; }
@@ -66,6 +69,9 @@ class EmulatorConfig {
 
     // The android options used to configure this emulator
     const AndroidOptions& opts() const { return mOpts; }
+
+    // The evaluated feature flags for this emulator run
+    const FeatureFlags& feature_flags() const { return mFeatureFlags; }
 
     const ChardevEndpoints& chardev_endpoints() const { return mChardevEndpoints; }
 
@@ -87,6 +93,7 @@ class EmulatorConfig {
     const EmulatorPaths& mEmulatorPaths;
     const Avd& mAvd;
     const AndroidOptions& mOpts;
+    const FeatureFlags& mFeatureFlags;
     const std::optional<std::string> host_timezone_;
 };
 
