@@ -1023,6 +1023,26 @@ cc_test(
     ],
 )
 
+cc_binary_with_manifest(
+    name = "grpc_audio_source_perf",
+    srcs = [
+        "media/grpc_audio_source.h",
+        "media/grpc_audio_source_perf.cc",
+    ],
+    copts = WEBRTC_COPTS,
+    includes = ["media"],
+    tags = ["benchmark"],
+    deps = [
+        ":emulator_client",
+        ":grpc_media_providers",
+        "@abseil-cpp//absl/synchronization",
+        "@aemu//protos/services/emulator-controller:emulator_controller_cc_grpc",
+        "@google_benchmark//:benchmark",
+        "@webrtc//api:media_stream_interface",
+        "@webrtc//api:scoped_refptr",
+    ],
+)
+
 clang_tidy_test(
     name = "videobridge_tidy",
     targets = [
@@ -1039,6 +1059,7 @@ clang_tidy_test(
         ":in_process_video_source_test",
         ":grpc_video_source_test",
         ":grpc_audio_source_test",
+        ":grpc_audio_source_perf",
         ":grpc_input_sender_test",
         ":nvenc_loader",
         ":nvenc_loader_test",
