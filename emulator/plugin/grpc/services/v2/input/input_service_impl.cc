@@ -20,69 +20,41 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <thread>
 #include <utility>
 #include <vector>
 
+#include "absl/cleanup/cleanup.h"
+#include "absl/functional/any_invocable.h"
 #include "absl/hash/hash.h"
+#include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/string_view.h"
+#include "absl/synchronization/mutex.h"
 #include "absl/time/time.h"
 
 #include "android/emulation/control/absl_status_translate.h"
+#include "android/emulation/control/keyboard/key_conversion.h"
 #include "android/emulation/control/simple_async_grpc.h"
-#include "emulator/plugin/grpc/input/touch_encoding.h"
 
 namespace goldfish::grpc::v2 {
 
 namespace {
 
 using ::android::emulation::control::AbslStatusToGrpcStatus;
+using ::android::emulation::control::keyboard::android_keycode_to_evdev;
 using ::android::emulation::v2::AxisType;
-using ::android::emulation::v2::KeyAction;
+using ::android::emulation::v2::InputEvent;
 using ::android::emulation::v2::KeyEvent;
-using ::android::emulation::v2::PointerAction;
 using ::android::emulation::v2::PointerEvent;
+using ::android::emulation::v2::SendInputEventsResponse;
+using DispatchResult = IInputDispatcher::DispatchResult;
 
 constexpr char kClientIdMetadataKey[] = "x-client-id";
-// Reserves [0, kReservedPrimaryPointerIds) for the primary input source (source_id == 0) so
-// hashed pointer IDs for secondary sources never collide with primary pointer IDs.
-constexpr int32_t kReservedPrimaryPointerIds = 64;
-
-int32_t ScopedPointerId(int32_t source_id, int32_t pointer_id) {
-    if (source_id == 0) {
-        return pointer_id;
-    }
-    const size_t combined = absl::HashOf(source_id, pointer_id);
-    const int32_t positive = static_cast<int32_t>(combined & 0x7fffffffU);
-    return positive < kReservedPrimaryPointerIds ? positive + kReservedPrimaryPointerIds : positive;
-}
-
-bool SameKeyIdentifier(const KeyEvent& a, const KeyEvent& b) {
-    if (a.key_identifier_case() != b.key_identifier_case()) {
-        return false;
-    }
-    switch (a.key_identifier_case()) {
-    case KeyEvent::kDomCode:
-        return a.dom_code() == b.dom_code();
-    case KeyEvent::kAndroidKeycode:
-        return a.android_keycode() == b.android_keycode();
-    case KeyEvent::kEvdevCode:
-        return a.evdev_code() == b.evdev_code();
-    case KeyEvent::KEY_IDENTIFIER_NOT_SET:
-        return true;
-    }
-    return false;
-}
-
-// Keeps `held_keys` equal to the keys that remain pressed in the guest after `key`.
-void TrackHeldKey(const KeyEvent& key, std::vector<KeyEvent>& held_keys) {
-    std::erase_if(held_keys, [&key](const KeyEvent& held) { return SameKeyIdentifier(held, key); });
-    if (key.action() == KeyAction::KEY_ACTION_DOWN) {
-        held_keys.push_back(key);
-    }
-}
+// How often a call waiting for its events checks whether it was cancelled.
+constexpr absl::Duration kCancellationCheckInterval = absl::Milliseconds(100);
 
 // Returns the source ID derived from the caller's `x-client-id` header, or 0 (the human
 // operator) when the header is absent.
@@ -97,9 +69,197 @@ int32_t ClientSourceId(const ::grpc::ServerContextBase& context) {
             absl::string_view(it->second.data(), it->second.length()));
 }
 
+int32_t SourceOf(const InputEvent& event, int32_t client_source_id) {
+    return event.input_source_id() != 0 ? event.input_source_id() : client_source_id;
+}
+
 absl::Status WithContext(const absl::Status& status, absl::string_view context) {
     return {status.code(), absl::StrCat(context, ": ", status.message())};
 }
+
+// Coordinates asynchronous callbacks (event-loop timers and dispatch
+// completions) that capture a raw reactor pointer with `OnDone()`.
+class CallbackGate {
+  public:
+    template <typename Fn>
+    void RunIfOpen(Fn&& fn) ABSL_LOCKS_EXCLUDED(gate_mutex_) {
+        const std::thread::id tid = std::this_thread::get_id();
+        {
+            absl::MutexLock gate_lock(gate_mutex_);
+            if (closed_) {
+                return;
+            }
+            active_threads_.push_back(tid);
+        }
+        absl::Cleanup leave = [this, tid]() ABSL_LOCKS_EXCLUDED(gate_mutex_) {
+            absl::MutexLock gate_lock(gate_mutex_);
+            if (auto it = std::ranges::find(active_threads_, tid); it != active_threads_.end()) {
+                active_threads_.erase(it);
+            }
+        };
+        std::forward<Fn>(fn)();
+    }
+
+    // Prevents new callbacks from starting and waits for any in-flight callback
+    // on another thread to return before the caller deletes the reactor.
+    void CloseAndWait() ABSL_LOCKS_EXCLUDED(gate_mutex_) {
+        const std::thread::id caller = std::this_thread::get_id();
+        const auto no_other_threads = [this, caller]() ABSL_EXCLUSIVE_LOCKS_REQUIRED(gate_mutex_) {
+            return std::ranges::all_of(active_threads_,
+                                       [caller](std::thread::id id) { return id == caller; });
+        };
+        absl::MutexLock gate_lock(gate_mutex_);
+        closed_ = true;
+        gate_mutex_.Await(absl::Condition(&no_other_threads));
+    }
+
+  private:
+    absl::Mutex gate_mutex_;
+    bool closed_ ABSL_GUARDED_BY(gate_mutex_) = false;
+    std::vector<std::thread::id> active_threads_ ABSL_GUARDED_BY(gate_mutex_);
+};
+
+// The results of the events one call dispatched, which their completions
+// record on the dispatcher's thread.
+//
+// Thread safety: all methods are thread-safe.
+class DispatchedEvents : public std::enable_shared_from_this<DispatchedEvents> {
+  public:
+    struct Failure {
+        int index;
+        int32_t source_id;
+        absl::Status status;
+    };
+
+    // @return The completion of event `index` from `source_id`. Call it before
+    //     dispatching the event.
+    IInputDispatcher::DispatchCallback Track(int index, int32_t source_id)
+            ABSL_LOCKS_EXCLUDED(results_mutex_) {
+        absl::MutexLock results_lock(results_mutex_);
+        ++pending_;
+        return [self = shared_from_this(), index, source_id](DispatchResult result) {
+            self->Record(index, source_id, std::move(result));
+        };
+    }
+
+    // Waits until every tracked event completed. @return false if `context`
+    // was cancelled first.
+    bool AwaitAll(const ::grpc::ServerContext& context) const ABSL_LOCKS_EXCLUDED(results_mutex_) {
+        while (true) {
+            {
+                absl::MutexLock results_lock(results_mutex_);
+                if (results_mutex_.AwaitWithTimeout(
+                            absl::Condition(this, &DispatchedEvents::AllCompleted),
+                            kCancellationCheckInterval)) {
+                    return true;
+                }
+            }
+            if (context.IsCancelled()) {
+                return false;
+            }
+        }
+    }
+
+    // Runs `on_all_completed` once every event tracked so far has completed:
+    // synchronously if none are pending, else on the thread completing the last.
+    void NotifyWhenAllCompleted(absl::AnyInvocable<void() &&> on_all_completed)
+            ABSL_LOCKS_EXCLUDED(results_mutex_) {
+        {
+            absl::MutexLock results_lock(results_mutex_);
+            if (pending_ > 0) {
+                DCHECK(!on_all_completed_);
+                on_all_completed_ = std::move(on_all_completed);
+                return;
+            }
+        }
+        std::move(on_all_completed)();
+    }
+
+    // Runs `on_first_failure` on the thread completing the first event that
+    // fails, if one does. Set it before tracking any event; it runs at most
+    // once, and never if a failure was already recorded.
+    void NotifyOnFirstFailure(absl::AnyInvocable<void() &&> on_first_failure)
+            ABSL_LOCKS_EXCLUDED(results_mutex_) {
+        absl::MutexLock results_lock(results_mutex_);
+        DCHECK(!first_failure_);
+        on_first_failure_ = std::move(on_first_failure);
+    }
+
+    // @return The failure of the first event that failed, if any did.
+    std::optional<Failure> FirstFailure() const ABSL_LOCKS_EXCLUDED(results_mutex_) {
+        absl::MutexLock results_lock(results_mutex_);
+        return first_failure_;
+    }
+
+    // Sets when the first and last events that reached the guest were
+    // dispatched, if any did.
+    void SetDispatchTimes(SendInputEventsResponse& response) const
+            ABSL_LOCKS_EXCLUDED(results_mutex_) {
+        absl::MutexLock results_lock(results_mutex_);
+        if (first_dispatched_.has_value()) {
+            response.set_first_event_dispatched_at_nanos(absl::ToUnixNanos(first_dispatched_->at));
+            response.set_last_event_dispatched_at_nanos(absl::ToUnixNanos(last_dispatched_->at));
+        }
+    }
+
+  private:
+    struct Dispatched {
+        int index;
+        absl::Time at;
+    };
+
+    void Record(int index, int32_t source_id, DispatchResult result)
+            ABSL_LOCKS_EXCLUDED(results_mutex_) {
+        absl::AnyInvocable<void() &&> on_first_failure;
+        absl::AnyInvocable<void() &&> on_all_completed;
+        {
+            absl::MutexLock results_lock(results_mutex_);
+            --pending_;
+            if (!result.status.ok()) {
+                if (!first_failure_) {
+                    on_first_failure = std::move(on_first_failure_);
+                }
+                if (!first_failure_ || index < first_failure_->index) {
+                    first_failure_ = Failure{index, source_id, std::move(result.status)};
+                }
+            }
+            if (result.dispatched_at.has_value()) {
+                const Dispatched dispatched{index, *result.dispatched_at};
+                if (!first_dispatched_ || index < first_dispatched_->index) {
+                    first_dispatched_ = dispatched;
+                }
+                if (!last_dispatched_ || index > last_dispatched_->index) {
+                    last_dispatched_ = dispatched;
+                }
+            }
+            if (pending_ == 0) {
+                on_all_completed = std::move(on_all_completed_);
+            }
+        }
+        // The failure first, so a reactor idle in a read learns of it and
+        // starts awaiting the rest; then the completion of the rest, if this
+        // was it.
+        if (on_first_failure) {
+            std::move(on_first_failure)();
+        }
+        if (on_all_completed) {
+            std::move(on_all_completed)();
+        }
+    }
+
+    bool AllCompleted() const ABSL_EXCLUSIVE_LOCKS_REQUIRED(results_mutex_) {
+        return pending_ == 0;
+    }
+
+    mutable absl::Mutex results_mutex_;
+    // Events tracked but not yet completed.
+    size_t pending_ ABSL_GUARDED_BY(results_mutex_) = 0;
+    std::optional<Failure> first_failure_ ABSL_GUARDED_BY(results_mutex_);
+    std::optional<Dispatched> first_dispatched_ ABSL_GUARDED_BY(results_mutex_);
+    std::optional<Dispatched> last_dispatched_ ABSL_GUARDED_BY(results_mutex_);
+    absl::AnyInvocable<void() &&> on_first_failure_ ABSL_GUARDED_BY(results_mutex_);
+    absl::AnyInvocable<void() &&> on_all_completed_ ABSL_GUARDED_BY(results_mutex_);
+};
 
 ::grpc::Status ReadOnlyError(absl::string_view rpc) {
     return {::grpc::StatusCode::PERMISSION_DENIED,
@@ -119,7 +279,7 @@ absl::Status ValidateKeyIdentifier(const KeyEvent& key) {
         }
         return absl::OkStatus();
     case KeyEvent::kAndroidKeycode:
-        if (InputSession::AndroidKeycodeToEvdev(key.android_keycode()) == 0) {
+        if (android_keycode_to_evdev(key.android_keycode()) == 0) {
             return absl::InvalidArgumentError(absl::StrFormat(
                     "Invalid KeyEvent.android_keycode '%d': must be a supported Android "
                     "system keycode (3=HOME, 4=BACK, 24=VOLUME_UP, 25=VOLUME_DOWN, 26=POWER, "
@@ -146,12 +306,13 @@ absl::Status ValidateKeyIdentifier(const KeyEvent& key) {
 
 }  // namespace
 
-InputServiceImpl::InputServiceImpl(IMultiDisplay& multi_display,
-                                   std::shared_ptr<IKeyEventSender> key_event_sender,
-                                   Options options)
-        : multi_display_(multi_display)
-        , options_(std::move(options))
-        , input_session_(multi_display_, std::move(key_event_sender), options_.hw_sensor_hinge) {}
+InputServiceImpl::InputServiceImpl(std::shared_ptr<IInputDispatcher> dispatcher,
+                                   IMultiDisplay& multi_display, Options options)
+        : dispatcher_(std::move(dispatcher))
+        , multi_display_(multi_display)
+        , options_(std::move(options)) {
+    DCHECK(dispatcher_ != nullptr);
+}
 
 int32_t InputServiceImpl::DeriveSourceIdFromClientId(absl::string_view client_id) {
     const size_t hash = absl::HashOf(client_id);
@@ -308,139 +469,24 @@ absl::Status InputServiceImpl::ValidateBatchRequest(const SendInputEventsRequest
     return absl::OkStatus();
 }
 
-int32_t InputServiceImpl::ComputeAggregateButtonsLocked(int32_t display_id) const {
-    if (display_id < 0 || static_cast<size_t>(display_id) >= IMultiDisplay::kMaxDisplays) {
-        return 0;
-    }
-    int32_t aggregate = 0;
-    for (const auto& [source_id, source_state] : source_states_) {
-        aggregate |= source_state.displays[static_cast<size_t>(display_id)].button_mask;
-    }
-    return aggregate;
+std::unique_ptr<DispatcherSession> InputServiceImpl::OpenSession(int32_t source_id) const {
+    return std::make_unique<DispatcherSession>(
+            dispatcher_,
+            IInputDispatcher::SessionOptions{.human = source_id == 0, .source_id = source_id});
 }
 
-void InputServiceImpl::TrackPointerEventLocked(int32_t source_id, PointerEvent& pointer) {
-    const PointerAction action = pointer.action();
-    DisplayPointerState& display =
-            source_states_[source_id].displays[static_cast<size_t>(pointer.display_id())];
-
-    display.button_mask = 0;
-    if (action != PointerAction::POINTER_ACTION_CANCEL) {
-        for (const auto& p : pointer.pointers()) {
-            display.button_mask |= p.button_mask();
-        }
-    }
-
-    if (pointer.pointers().empty() && (action == PointerAction::POINTER_ACTION_CANCEL ||
-                                       action == PointerAction::POINTER_ACTION_HOVER_EXIT)) {
-        for (size_t id = 0; id < display.active_pointer_ids.size(); ++id) {
-            if (display.active_pointer_ids.test(id)) {
-                pointer.add_pointers()->set_pointer_id(static_cast<int32_t>(id));
-            }
-        }
-        display.active_pointer_ids.reset();
-    } else if (action != PointerAction::POINTER_ACTION_RELATIVE_MOVE &&
-               action != PointerAction::POINTER_ACTION_SCROLL) {
-        for (const auto& p : pointer.pointers()) {
-            const auto id = static_cast<size_t>(p.pointer_id());
-            if (IsContactReleased(action, p)) {
-                display.active_pointer_ids.reset(id);
-            } else {
-                display.active_pointer_ids.set(id);
-            }
-        }
-    }
-
-    const int32_t aggregate_buttons = ComputeAggregateButtonsLocked(pointer.display_id());
-    for (int i = 0; i < pointer.pointers_size(); ++i) {
-        PointerEvent::Pointer* p = pointer.mutable_pointers(i);
-        p->set_pointer_id(ScopedPointerId(source_id, p->pointer_id()));
-        p->set_button_mask(i == 0 ? aggregate_buttons : 0);
-    }
-}
-
-absl::StatusOr<int64_t> InputServiceImpl::DispatchSingleEvent(InputEvent event, int32_t source_id,
-                                                              bool synthesized) {
-    event.set_input_source_id(source_id);
-
-    absl::MutexLock dispatch_lock(&dispatch_mutex_);
-    InputEvent session_event = event;
-    switch (event.event_case()) {
-    case InputEvent::kPointer:
-        TrackPointerEventLocked(source_id, *session_event.mutable_pointer());
-        break;
-    case InputEvent::kKey:
-        TrackHeldKey(event.key(), source_states_[source_id].held_keys);
-        break;
-    case InputEvent::kAxis:
-    case InputEvent::kText:
-    case InputEvent::EVENT_NOT_SET:
-        break;
-    }
-
-    if (absl::Status status = input_session_.DispatchInputEvent(session_event); !status.ok()) {
-        return WithContext(status, absl::StrFormat("Failed to dispatch InputEvent for "
-                                                   "input_source_id '%d'",
-                                                   source_id));
-    }
-    const int64_t dispatched_at_nanos = absl::ToUnixNanos(options_.now_fn());
-
-    InputActivity activity;
-    *activity.mutable_event() = std::move(event);
-    activity.set_dispatched_at_nanos(dispatched_at_nanos);
-    activity.set_synthesized(synthesized);
-    activity_events_.FireEvent(activity);
-
-    return dispatched_at_nanos;
-}
-
-void InputServiceImpl::CleanupSources(const absl::flat_hash_set<int32_t>& source_ids) {
-    std::vector<std::pair<int32_t, InputEvent>> releases;
+DispatcherSession& InputServiceImpl::BatchSession(int32_t source_id) {
     {
-        absl::MutexLock dispatch_lock(&dispatch_mutex_);
-        for (int32_t source_id : source_ids) {
-            const auto it = source_states_.find(source_id);
-            if (it == source_states_.end()) {
-                continue;
-            }
-            for (size_t display_id = 0; display_id < it->second.displays.size(); ++display_id) {
-                const DisplayPointerState& display = it->second.displays[display_id];
-                if (display.active_pointer_ids.none() && display.button_mask == 0) {
-                    continue;
-                }
-                InputEvent cancel;
-                PointerEvent* pointer = cancel.mutable_pointer();
-                pointer->set_display_id(static_cast<int32_t>(display_id));
-                pointer->set_action(PointerAction::POINTER_ACTION_CANCEL);
-                for (size_t id = 0; id < display.active_pointer_ids.size(); ++id) {
-                    if (display.active_pointer_ids.test(id)) {
-                        pointer->add_pointers()->set_pointer_id(static_cast<int32_t>(id));
-                    }
-                }
-                if (pointer->pointers().empty()) {
-                    // Without any contacts, a placeholder pointer carries the button release.
-                    pointer->add_pointers();
-                }
-                releases.emplace_back(source_id, std::move(cancel));
-            }
-            for (const KeyEvent& held_key : it->second.held_keys) {
-                InputEvent key_up;
-                *key_up.mutable_key() = held_key;
-                key_up.mutable_key()->set_action(KeyAction::KEY_ACTION_UP);
-                releases.emplace_back(source_id, std::move(key_up));
-            }
+        absl::MutexLock batch_sessions_lock(batch_sessions_mutex_);
+        if (auto it = batch_sessions_.find(source_id); it != batch_sessions_.end()) {
+            return *it->second;
         }
     }
-
-    for (auto& [source_id, release] : releases) {
-        const absl::StatusOr<int64_t> dispatched =
-                DispatchSingleEvent(std::move(release), source_id, /*synthesized=*/true);
-        if (!dispatched.ok()) {
-            LOG(WARNING) << "InputService::StreamInputEvents: failed to dispatch synthesized "
-                            "disconnect cleanup event for input_source_id '"
-                         << source_id << "': " << dispatched.status();
-        }
-    }
+    // Opened outside the lock, as opening calls into the dispatcher. Sessions
+    // are never removed, so the reference stays valid after unlocking.
+    std::unique_ptr<DispatcherSession> opened = OpenSession(source_id);
+    absl::MutexLock batch_sessions_lock(batch_sessions_mutex_);
+    return *batch_sessions_.try_emplace(source_id, std::move(opened)).first->second;
 }
 
 void InputServiceImpl::SleepUntil(absl::Time target) const {
@@ -462,6 +508,7 @@ void InputServiceImpl::SleepUntil(absl::Time target) const {
     }
 
     const int32_t client_source_id = ClientSourceId(*context);
+    auto dispatched = std::make_shared<DispatchedEvents>();
     // Host time corresponding to client timestamp 0, anchored at the first timed event.
     std::optional<absl::Time> client_epoch;
     for (int i = 0; i < request->events_size(); ++i) {
@@ -476,22 +523,24 @@ void InputServiceImpl::SleepUntil(absl::Time target) const {
         if (context->IsCancelled()) {
             return ::grpc::Status::CANCELLED;
         }
-
-        const int32_t source_id =
-                event.input_source_id() != 0 ? event.input_source_id() : client_source_id;
-        const absl::StatusOr<int64_t> dispatched_at =
-                DispatchSingleEvent(event, source_id, /*synthesized=*/false);
-        if (!dispatched_at.ok()) {
-            return AbslStatusToGrpcStatus(
-                    WithContext(dispatched_at.status(),
-                                absl::StrFormat("SendInputEvents failed at events[%d]", i)));
+        if (dispatched->FirstFailure().has_value()) {
+            break;
         }
-        if (i == 0) {
-            response->set_first_event_dispatched_at_nanos(*dispatched_at);
-        }
-        response->set_last_event_dispatched_at_nanos(*dispatched_at);
-        response->set_events_dispatched(i + 1);
+        const int32_t source_id = SourceOf(event, client_source_id);
+        BatchSession(source_id).Dispatch(event, dispatched->Track(i, source_id));
     }
+
+    if (!dispatched->AwaitAll(*context)) {
+        return ::grpc::Status::CANCELLED;
+    }
+    if (std::optional<DispatchedEvents::Failure> failure = dispatched->FirstFailure()) {
+        return AbslStatusToGrpcStatus(
+                WithContext(failure->status, absl::StrFormat("SendInputEvents failed at events[%d] "
+                                                             "(input_source_id '%d')",
+                                                             failure->index, failure->source_id)));
+    }
+    dispatched->SetDispatchTimes(*response);
+    response->set_events_dispatched(request->events_size());
     return ::grpc::Status::OK;
 }
 
@@ -506,57 +555,56 @@ class ErrorServerReader final : public ::grpc::ServerReadReactor<InputServiceImp
 /**
  * @brief Asynchronous gRPC `ServerReadReactor` for `StreamInputEvents` with event-loop pacing.
  *
- * ### Read-Pacing State Machine
+ * ### Read-Pacing & Completion State Machine
  * `::SimpleServerReader<InputEvent>` (`WithSimpleReader`) starts the first `StartRead()` upon
  * construction and automatically issues the next `StartRead()` whenever `Read()` returns `true`:
  * - **Immediate dispatch (`delay == 0`):** `Read()` validates and dispatches the event immediately
- *   and returns `true` so gRPC pulls the next message from the stream without delay.
+ *   and returns `true` (unless an earlier event already failed), pulling the next message.
  * - **Delayed dispatch (`delay > 0`):** Instead of sleeping on a gRPC callback thread, `Read()`
  *   schedules a one-shot timer on `options_.event_loop` (`ScheduleDelayed`) and returns `false`,
  *   pausing further gRPC reads. When the timer fires on the event-loop thread,
  *   `OnScheduledDispatch()` dispatches the event and explicitly calls `this->StartRead()` to
  *   resume reading the stream.
+ * - **Half-close or dispatch failure:** Instead of blocking on `AwaitAll()`,
+ *   `AwaitDispatchesAndFinish()` transitions `state_` to `kAwaitingDispatches` and registers a
+ *   non-blocking `DispatchedEvents::NotifyWhenAllCompleted` callback so all tracked dispatches
+ *   finish before sessions are closed and `ServerReadReactor::Finish()` is invoked. Dispatches
+ *   complete on the dispatcher's loop after `Read()` returned, so the first failure also reaches
+ *   the reactor through `DispatchedEvents::NotifyOnFirstFailure`; otherwise a client idle
+ *   between events would not see the stream end until it sent another.
  *
- * Because `StartRead()` is withheld while a timer is pending, **at most one gRPC read OR one
- * scheduled timer is ever active at a time**. This preserves gRPC flow-control backpressure
- * without buffering an unbounded queue of future events in memory, and guarantees that
- * `prev_client_ts_`, `prev_target_time_`, and `dispatched_count_` are accessed sequentially
- * across reads and timer callbacks.
- *
- * ### Cancellation & Lock-Ordering Invariants
- * - `state_` (`kReading`, `kWaitingForTimer`, `kDispatchingTimer`, `kFinished`) and `cancelled_`
- *   ensure that at most one thread ever claims ownership of calling `FinishStream()`.
- * - If the client cancels in `kReading`, gRPC completes the in-flight read with `ok = false` and
- *   drives teardown via `OnReadDone(false)` / `OnDone()`.
- * - If the client cancels in `kWaitingForTimer`, no gRPC read is in flight, so `OnCancel()` cancels
- *   `pending_timer_` and calls `FinishStream(Status::CANCELLED)`. If `OnScheduledDispatch()` had
- *   already begun on the event-loop thread, it either sees `cancelled_ == true` and returns without
- *   finishing, or had already transitioned `state_` to `kDispatchingTimer` so `OnScheduledDispatch`
- *   itself finishes the stream after `DispatchSingleEvent` completes.
- * - `EventLoop::Timer::Cancel()` may block on the event-loop thread (`PostAndWait`), while
- *   `OnScheduledDispatch()` runs on the event-loop thread and acquires `this->reactor_lock_`. To
- *   prevent deadlock, `pending_timer_` is always moved into a local variable under
- *   `this->reactor_lock_` and `Cancel()` is called **outside** the lock.
- *
- * ### Per-Stream Source Cleanup
- * Every `input_source_id` touched by the stream is tracked in `stream_sources_`. `FinishStream()`
- * (and `OnDone()` as a fallback) drains `stream_sources_` and calls `service_.CleanupSources()`
- * *before* `ServerReadReactor::Finish()`, ensuring any depressed touch slots or held keys are
- * released before the client observes RPC completion.
+ * ### Cancellation & Lifetime Safety
+ * - `CallbackGate` guards all asynchronous timer and completion callbacks against `OnDone()`,
+ *   preventing use-after-free if cancellation triggers `OnDone()` while a callback is in flight.
+ * - `EventLoop::Timer::Cancel()` and `DispatcherSession` destruction are always executed outside
+ *   `this->reactor_lock_`.
  */
 class InputServiceImpl::StreamInputReader final : public ::SimpleServerReader<InputEvent> {
   public:
     StreamInputReader(InputServiceImpl& service, ::grpc::CallbackServerContext* context,
                       StreamInputEventsResponse* response)
-            : service_(service), client_source_id_(ClientSourceId(*context)), response_(response) {}
+            : service_(service)
+            , context_(context)
+            , client_source_id_(ClientSourceId(*context))
+            , response_(response) {
+        // A failure may complete while no read is in progress; end the stream
+        // from there rather than waiting for the client's next event.
+        dispatched_->NotifyOnFirstFailure([this, gate = gate_]() {
+            gate->RunIfOpen([this]() { AwaitDispatchesAndFinish(); });
+        });
+    }
 
     bool Read(const InputEvent* event) override {
-        const int32_t source_id =
-                event->input_source_id() != 0 ? event->input_source_id() : client_source_id_;
+        if (dispatched_->FirstFailure().has_value()) {
+            AwaitDispatchesAndFinish();
+            return false;
+        }
+
+        const int32_t source_id = SourceOf(*event, client_source_id_);
         if (absl::Status status = service_.ValidateInputEvent(*event); !status.ok()) {
             int32_t failed_index = 0;
             {
-                absl::MutexLock lock(&this->reactor_lock_);
+                absl::MutexLock lock(this->reactor_lock_);
                 failed_index = dispatched_count_;
             }
             status = WithContext(status,
@@ -600,7 +648,7 @@ class InputServiceImpl::StreamInputReader final : public ::SimpleServerReader<In
 
     void OnReadDone(bool ok) override {
         if (!ok) {
-            FinishStream(::grpc::Status::OK);
+            AwaitDispatchesAndFinish();
             return;
         }
         ::SimpleServerReader<InputEvent>::OnReadDone(true);
@@ -610,9 +658,9 @@ class InputServiceImpl::StreamInputReader final : public ::SimpleServerReader<In
         std::shared_ptr<::goldfish::async::EventLoop::Timer> timer_to_cancel;
         bool should_finish = false;
         {
-            absl::MutexLock lock(&this->reactor_lock_);
+            absl::MutexLock lock(this->reactor_lock_);
             cancelled_ = true;
-            if (state_ == State::kWaitingForTimer) {
+            if (state_ == State::kWaitingForTimer || state_ == State::kAwaitingDispatches) {
                 timer_to_cancel = std::move(pending_timer_);
                 should_finish = true;
             }
@@ -627,119 +675,215 @@ class InputServiceImpl::StreamInputReader final : public ::SimpleServerReader<In
 
     void OnDone() override {
         std::shared_ptr<::goldfish::async::EventLoop::Timer> timer_to_cancel;
-        absl::flat_hash_set<int32_t> sources_to_clean;
         {
-            absl::MutexLock lock(&this->reactor_lock_);
+            absl::MutexLock lock(this->reactor_lock_);
             timer_to_cancel = std::move(pending_timer_);
-            sources_to_clean = std::move(stream_sources_);
-            stream_sources_.clear();
         }
         if (timer_to_cancel != nullptr) {
             timer_to_cancel->Cancel();
         }
-        if (!sources_to_clean.empty()) {
-            service_.CleanupSources(sources_to_clean);
+        gate_->CloseAndWait();
+
+        StreamSessions sessions_to_close;
+        {
+            absl::MutexLock lock(this->reactor_lock_);
+            sessions_to_close = std::move(sessions_);
+            sessions_.clear();
         }
+        sessions_to_close.clear();
         delete this;
     }
 
   private:
+    using StreamSessions = absl::flat_hash_map<int32_t, std::shared_ptr<DispatcherSession>>;
+
     enum class State {
         kReading,
         kWaitingForTimer,
         kDispatchingTimer,
+        kAwaitingDispatches,
         kFinished,
     };
 
+    // Whether the stream takes no more events: it is finished, or only waits
+    // for the dispatches it made before finishing. A dispatch that fails on
+    // the dispatcher's loop can move it there at any time; from then on, no
+    // slot is claimed, no timer scheduled, and no read started.
+    bool IsEnding() const ABSL_EXCLUSIVE_LOCKS_REQUIRED(this->reactor_lock_) {
+        return state_ == State::kFinished || state_ == State::kAwaitingDispatches;
+    }
+
     void FinishStream(::grpc::Status status) {
-        absl::flat_hash_set<int32_t> sources_to_clean;
+        StreamSessions sessions_to_close;
         {
-            absl::MutexLock lock(&this->reactor_lock_);
+            absl::MutexLock lock(this->reactor_lock_);
             if (state_ == State::kFinished) {
                 return;
             }
             state_ = State::kFinished;
             response_->set_events_dispatched(dispatched_count_);
-            sources_to_clean = std::move(stream_sources_);
-            stream_sources_.clear();
+            sessions_to_close = std::move(sessions_);
+            sessions_.clear();
         }
-        if (!sources_to_clean.empty()) {
-            service_.CleanupSources(sources_to_clean);
-        }
+        sessions_to_close.clear();
         ::grpc::ServerReadReactor<InputEvent>::Finish(std::move(status));
     }
 
-    bool DispatchAndRecord(InputEvent event, int32_t source_id) {
-        bool should_finish_cancelled = false;
+    void AwaitDispatchesAndFinish() {
+        bool cancelled = false;
         {
-            absl::MutexLock lock(&this->reactor_lock_);
-            if (state_ == State::kFinished) {
-                return false;
+            absl::MutexLock lock(this->reactor_lock_);
+            if (IsEnding()) {
+                return;
             }
-            if (cancelled_) {
-                should_finish_cancelled = true;
-            } else {
-                stream_sources_.insert(source_id);
+            cancelled = cancelled_ || context_->IsCancelled();
+            if (!cancelled) {
+                state_ = State::kAwaitingDispatches;
             }
         }
-        if (should_finish_cancelled) {
+        if (cancelled) {
             FinishStream(::grpc::Status::CANCELLED);
+            return;
+        }
+        dispatched_->NotifyWhenAllCompleted(
+                [this, gate = gate_]() { gate->RunIfOpen([this]() { FinishAfterDispatches(); }); });
+    }
+
+    void FinishAfterDispatches() {
+        if (std::optional<DispatchedEvents::Failure> failure = dispatched_->FirstFailure()) {
+            FinishStream(AbslStatusToGrpcStatus(WithContext(
+                    failure->status, absl::StrFormat("StreamInputEvents failed at event #%d "
+                                                     "(input_source_id '%d')",
+                                                     failure->index, failure->source_id))));
+            return;
+        }
+        FinishStream(::grpc::Status::OK);
+    }
+
+    // The session an event dispatches on and the index it dispatches as. No
+    // session when the stream finished or, with `cancelled`, was cancelled.
+    struct DispatchSlot {
+        std::shared_ptr<DispatcherSession> session;
+        int32_t index = 0;
+        bool cancelled = false;
+    };
+
+    // Claims the next dispatch index on the session of `source_id`, opening
+    // the session on first use. Opens outside `reactor_lock_`, as opening
+    // calls into the dispatcher.
+    DispatchSlot ClaimDispatchSlot(int32_t source_id) {
+        {
+            absl::MutexLock lock(this->reactor_lock_);
+            if (IsEnding()) {
+                return {};
+            }
+            if (cancelled_) {
+                return {.cancelled = true};
+            }
+            if (auto it = sessions_.find(source_id); it != sessions_.end()) {
+                return {.session = it->second, .index = dispatched_count_++};
+            }
+        }
+
+        auto opened = std::shared_ptr<DispatcherSession>(service_.OpenSession(source_id));
+        DispatchSlot slot;
+        {
+            absl::MutexLock lock(this->reactor_lock_);
+            if (!IsEnding()) {
+                if (cancelled_) {
+                    slot.cancelled = true;
+                } else {
+                    slot.session =
+                            sessions_.try_emplace(source_id, std::move(opened)).first->second;
+                    slot.index = dispatched_count_++;
+                }
+            }
+        }
+        // Any unused `opened` session is destroyed here outside `reactor_lock_`.
+        return slot;
+    }
+
+    bool DispatchAndRecord(InputEvent event, int32_t source_id) {
+        if (dispatched_->FirstFailure().has_value()) {
+            AwaitDispatchesAndFinish();
             return false;
         }
 
-        const absl::StatusOr<int64_t> dispatched =
-                service_.DispatchSingleEvent(std::move(event), source_id, /*synthesized=*/false);
-        int32_t failed_index = 0;
-        {
-            absl::MutexLock lock(&this->reactor_lock_);
-            if (dispatched.ok()) {
-                ++dispatched_count_;
-                return true;
+        const DispatchSlot slot = ClaimDispatchSlot(source_id);
+        if (slot.session == nullptr) {
+            if (slot.cancelled) {
+                FinishStream(::grpc::Status::CANCELLED);
             }
-            failed_index = dispatched_count_;
+            return false;
         }
-        FinishStream(AbslStatusToGrpcStatus(WithContext(
-                dispatched.status(),
-                absl::StrFormat("StreamInputEvents failed at event #%d", failed_index))));
-        return false;
+
+        slot.session->Dispatch(event, dispatched_->Track(slot.index, source_id));
+        if (dispatched_->FirstFailure().has_value()) {
+            AwaitDispatchesAndFinish();
+            return false;
+        }
+        return true;
     }
 
     bool ScheduleDelayedDispatch(InputEvent event, int32_t source_id, absl::Duration delay) {
+        bool cancelled = false;
         {
-            absl::MutexLock lock(&this->reactor_lock_);
-            if (state_ == State::kFinished) {
+            absl::MutexLock lock(this->reactor_lock_);
+            if (IsEnding()) {
                 return false;
             }
-            if (!cancelled_) {
+            cancelled = cancelled_;
+            if (!cancelled) {
                 state_ = State::kWaitingForTimer;
-                pending_timer_ = service_.options_.event_loop->ScheduleDelayed(
-                        [this, event = std::move(event), source_id]() mutable {
-                            OnScheduledDispatch(std::move(event), source_id);
-                        },
-                        delay);
-                return false;
             }
         }
-        FinishStream(::grpc::Status::CANCELLED);
+        if (cancelled) {
+            FinishStream(::grpc::Status::CANCELLED);
+            return false;
+        }
+        // Scheduled outside `reactor_lock_`: the loop may run the timer, or
+        // report a failure, before this returns, and both take the lock.
+        std::shared_ptr<::goldfish::async::EventLoop::Timer> timer =
+                service_.options_.event_loop->ScheduleDelayed(
+                        [this, gate = gate_, event = std::move(event), source_id]() mutable {
+                            gate->RunIfOpen([this, event = std::move(event), source_id]() mutable {
+                                OnScheduledDispatch(std::move(event), source_id);
+                            });
+                        },
+                        delay);
+        {
+            absl::MutexLock lock(this->reactor_lock_);
+            if (state_ == State::kWaitingForTimer) {
+                pending_timer_ = std::move(timer);
+            }
+        }
+        if (timer != nullptr) {
+            // The stream moved on meanwhile: the timer fired, or must not.
+            timer->Cancel();
+        }
         return false;
     }
 
     void OnScheduledDispatch(InputEvent event, int32_t source_id) {
+        std::shared_ptr<::goldfish::async::EventLoop::Timer> expired_timer;
         {
-            absl::MutexLock lock(&this->reactor_lock_);
+            absl::MutexLock lock(this->reactor_lock_);
             if (cancelled_ || state_ != State::kWaitingForTimer) {
                 return;
             }
             state_ = State::kDispatchingTimer;
-            pending_timer_.reset();
+            expired_timer = std::move(pending_timer_);
         }
+        expired_timer.reset();
         if (!DispatchAndRecord(std::move(event), source_id)) {
             return;
         }
         bool should_finish_cancelled = false;
         {
-            absl::MutexLock lock(&this->reactor_lock_);
-            if (state_ == State::kFinished) {
+            absl::MutexLock lock(this->reactor_lock_);
+            // An earlier dispatch may have failed meanwhile; the stream is then
+            // ending and must not read again.
+            if (IsEnding()) {
                 return;
             }
             if (cancelled_) {
@@ -756,14 +900,17 @@ class InputServiceImpl::StreamInputReader final : public ::SimpleServerReader<In
     }
 
     InputServiceImpl& service_;
+    ::grpc::CallbackServerContext* const context_;
     const int32_t client_source_id_;
     StreamInputEventsResponse* const response_;
+    const std::shared_ptr<DispatchedEvents> dispatched_ = std::make_shared<DispatchedEvents>();
+    const std::shared_ptr<CallbackGate> gate_ = std::make_shared<CallbackGate>();
 
     std::optional<int64_t> prev_client_ts_;
     absl::Time prev_target_time_;
 
     int32_t dispatched_count_ ABSL_GUARDED_BY(this->reactor_lock_){0};
-    absl::flat_hash_set<int32_t> stream_sources_ ABSL_GUARDED_BY(this->reactor_lock_);
+    StreamSessions sessions_ ABSL_GUARDED_BY(this->reactor_lock_);
     std::shared_ptr<::goldfish::async::EventLoop::Timer> pending_timer_
             ABSL_GUARDED_BY(this->reactor_lock_);
     State state_ ABSL_GUARDED_BY(this->reactor_lock_){State::kReading};
