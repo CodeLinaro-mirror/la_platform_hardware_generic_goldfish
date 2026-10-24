@@ -17,7 +17,7 @@
 #include <cstdint>
 #include <cstring>
 #include <memory>
-#include <optional>
+#include <span>
 #include <utility>
 #include <vector>
 
@@ -25,7 +25,10 @@
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/synchronization/mutex.h"
+#include "absl/types/span.h"
 
+#include "api/scoped_refptr.h"
+#include "api/video/encoded_image.h"
 #include "api/video/i420_buffer.h"
 #include "api/video/nv12_buffer.h"
 #include "api/video/video_frame.h"
@@ -33,6 +36,7 @@
 #include "api/video_codecs/sdp_video_format.h"
 #include "api/video_codecs/video_codec.h"
 #include "api/video_codecs/video_encoder.h"
+#include "common_video/h264/h264_common.h"
 #include "core/linux/frame_nv12_converter.h"
 #include "core/linux/h264_format_utils.h"
 #include "libyuv/convert.h"
@@ -48,6 +52,9 @@ constexpr uint32_t kDefaultTargetBitrateBps = 2000000;  // 2 Mbps
 constexpr uint32_t kDefaultMaxFramerateFps = 30;
 constexpr size_t kMaxCodedBufferSize = 4ULL * 1024ULL * 1024ULL;  // 4 MB
 constexpr uint32_t kMaxSupportedDimension = 4096;
+constexpr size_t kFallbackIdrBitstreamBytes = 31U;
+constexpr size_t kFallbackDeltaBitstreamBytes = 11U;
+constexpr size_t kMinSpsPayloadBytesForProfile = 2U;
 
 /**
  * @class BitWriter
@@ -253,49 +260,103 @@ std::vector<uint8_t> BuildAnnexBPpsNalu(VAProfile profile,
     return bw.BuildAnnexBNalu(0x68);  // nal_ref_idc=3, nal_unit_type=8 (PPS)
 }
 
-struct AnnexBStartCode {
-    size_t start_idx;
-    size_t header_idx;
-};
+size_t SumCodedSegmentsSize(const VACodedBufferSegment* head) {
+    size_t total_bytes = 0U;
+    for (const auto* seg = head; seg != nullptr;
+         seg = static_cast<const VACodedBufferSegment*>(seg->next)) {
+        if (seg->buf != nullptr && seg->size > 0U) {
+            total_bytes += seg->size;
+        }
+    }
+    return total_bytes;
+}
 
-std::optional<AnnexBStartCode> FindNextAnnexBStartCode(const std::vector<uint8_t>& bitstream,
-                                                       size_t offset) {
-    for (size_t i = offset; i + 3 < bitstream.size(); ++i) {
-        if (bitstream[i] != 0x00 || bitstream[i + 1] != 0x00) {
+void FlattenCodedSegments(const void* coded_data, bool force_idr,
+                          std::vector<uint8_t>& scratch_bitstream) {
+    const auto* head = static_cast<const VACodedBufferSegment*>(coded_data);
+    const size_t total_segment_bytes = SumCodedSegmentsSize(head);
+    scratch_bitstream.clear();
+
+    if (total_segment_bytes == 0U) {
+        const size_t fallback_size =
+                force_idr ? kFallbackIdrBitstreamBytes : kFallbackDeltaBitstreamBytes;
+        const auto* bytes = static_cast<const uint8_t*>(coded_data);
+        scratch_bitstream.assign(bytes, bytes + fallback_size);
+        return;
+    }
+
+    if (scratch_bitstream.capacity() < total_segment_bytes) {
+        scratch_bitstream.reserve(total_segment_bytes);
+    }
+    for (const auto* seg = head; seg != nullptr;
+         seg = static_cast<const VACodedBufferSegment*>(seg->next)) {
+        if (seg->buf == nullptr || seg->size == 0U) {
             continue;
         }
-        if (bitstream[i + 2] == 0x01) {
-            return AnnexBStartCode{i, i + 3};
-        }
-        if (i + 4 < bitstream.size() && bitstream[i + 2] == 0x00 && bitstream[i + 3] == 0x01) {
-            return AnnexBStartCode{i, i + 4};
-        }
+        const auto* bytes = static_cast<const uint8_t*>(seg->buf);
+        scratch_bitstream.insert(scratch_bitstream.end(), bytes, bytes + seg->size);
     }
-    return std::nullopt;
 }
 
-bool HasMatchingSpsNalu(const std::vector<uint8_t>& bitstream, uint8_t expected_profile_idc) {
-    for (size_t pos = 0; auto sc = FindNextAnnexBStartCode(bitstream, pos);
-         pos = sc->start_idx + 1) {
-        if (sc->header_idx + 1 < bitstream.size() && (bitstream[sc->header_idx] & 0x1F) == 7) {
-            return bitstream[sc->header_idx + 1] == expected_profile_idc;
+struct IdrBitstreamInspection {
+    bool has_matching_sps = false;
+    size_t slice_offset = 0U;
+};
+
+IdrBitstreamInspection InspectIdrBitstream(absl::Span<const uint8_t> bitstream,
+                                           uint8_t expected_profile_idc) {
+    const std::vector<webrtc::H264::NaluIndex> nalu_indices = webrtc::H264::FindNaluIndices(
+            std::span<const uint8_t>(bitstream.data(), bitstream.size()));
+    bool sps_checked = false;
+    bool has_matching_sps = false;
+    bool found_non_param_nalu = false;
+    size_t slice_offset = 0U;
+
+    for (const webrtc::H264::NaluIndex& index : nalu_indices) {
+        if (index.payload_size == 0U) {
+            continue;
+        }
+        const webrtc::H264::NaluType nal_type =
+                webrtc::H264::ParseNaluType(bitstream[index.payload_start_offset]);
+        if (!sps_checked && nal_type == webrtc::H264::NaluType::kSps) {
+            sps_checked = true;
+            has_matching_sps = (index.payload_size >= kMinSpsPayloadBytesForProfile &&
+                                bitstream[index.payload_start_offset + 1U] == expected_profile_idc);
+        }
+        if (!found_non_param_nalu && nal_type != webrtc::H264::NaluType::kSps &&
+            nal_type != webrtc::H264::NaluType::kPps) {
+            found_non_param_nalu = true;
+            slice_offset = index.start_offset;
+        }
+        if (sps_checked && (has_matching_sps || found_non_param_nalu)) {
+            break;
         }
     }
-    return false;
+
+    return IdrBitstreamInspection{
+        .has_matching_sps = has_matching_sps,
+        .slice_offset = slice_offset,
+    };
 }
 
-std::vector<uint8_t> StripLeadingSpsPps(const std::vector<uint8_t>& bitstream) {
-    for (size_t pos = 0; auto sc = FindNextAnnexBStartCode(bitstream, pos);
-         pos = sc->start_idx + 1) {
-        if (sc->header_idx < bitstream.size()) {
-            uint8_t nal_type = bitstream[sc->header_idx] & 0x1F;
-            if (nal_type != 7 && nal_type != 8) {
-                return std::vector<uint8_t>(
-                        bitstream.begin() + static_cast<ptrdiff_t>(sc->start_idx), bitstream.end());
-            }
-        }
+webrtc::scoped_refptr<webrtc::EncodedImageBuffer> BuildIdrBufferWithHeaders(
+        absl::Span<const uint8_t> sps_nalu, absl::Span<const uint8_t> pps_nalu,
+        absl::Span<const uint8_t> slice_payload) {
+    const size_t total_bytes = sps_nalu.size() + pps_nalu.size() + slice_payload.size();
+    auto buffer = webrtc::EncodedImageBuffer::Create(total_bytes);
+    uint8_t* cursor = buffer->data();
+    if (!sps_nalu.empty()) {
+        std::memcpy(cursor, sps_nalu.data(), sps_nalu.size());
+        cursor += sps_nalu.size();
     }
-    return bitstream;
+    if (!pps_nalu.empty()) {
+        std::memcpy(cursor, pps_nalu.data(), pps_nalu.size());
+        cursor += pps_nalu.size();
+    }
+    if (!slice_payload.empty()) {
+        std::memcpy(cursor, slice_payload.data(), slice_payload.size());
+    }
+    return buffer;
 }
 
 template <size_t N>
@@ -334,7 +395,8 @@ void AppendPackedHeaderBuffers(VADisplay dpy, const VaapiFunctionList& api, VACo
     VABufferID param_id = VA_INVALID_ID;
     VABufferID data_id = VA_INVALID_ID;
     if (api.vaCreateBuffer(dpy, context_id, VAEncPackedHeaderParameterBufferType,
-                           sizeof(packed_param), 1, &packed_param, &param_id) == VA_STATUS_SUCCESS &&
+                           sizeof(packed_param), 1, &packed_param,
+                           &param_id) == VA_STATUS_SUCCESS &&
         api.vaCreateBuffer(dpy, context_id, VAEncPackedHeaderDataBufferType,
                            static_cast<unsigned int>(nalu.size()), 1,
                            const_cast<uint8_t*>(nalu.data()), &data_id) == VA_STATUS_SUCCESS) {
@@ -576,6 +638,8 @@ void VaapiVideoEncoder::DestroySessionLocked() {
             config_id_ = VA_INVALID_ID;
         }
     }
+    scratch_bitstream_.clear();
+    scratch_bitstream_.shrink_to_fit();
     initialized_ = false;
 }
 
@@ -845,34 +909,8 @@ int32_t VaapiVideoEncoder::Encode(const webrtc::VideoFrame& frame,
         auto coded_unlocker = absl::MakeCleanup(
                 [this, dpy, coded_buf]() { loader_->api().vaUnmapBuffer(dpy, coded_buf); });
 
-        std::vector<uint8_t> bitstream;
-        const auto* segment = static_cast<const VACodedBufferSegment*>(coded_data);
-        while (segment != nullptr) {
-            if (segment->buf && segment->size > 0) {
-                const auto* bytes = static_cast<const uint8_t*>(segment->buf);
-                bitstream.insert(bitstream.end(), bytes, bytes + segment->size);
-            }
-            segment = static_cast<const VACodedBufferSegment*>(segment->next);
-        }
-
-        if (bitstream.empty()) {
-            size_t fallback_size = force_idr ? 31 : 11;
-            const auto* bytes = static_cast<const uint8_t*>(coded_data);
-            bitstream.assign(bytes, bytes + fallback_size);
-        }
-
-        if (force_idr && !HasMatchingSpsNalu(bitstream, VaapiProfileToIdc(profile_))) {
-            std::vector<uint8_t> slice_only = StripLeadingSpsPps(bitstream);
-            std::vector<uint8_t> full_idr;
-            full_idr.reserve(sps_nalu.size() + pps_nalu.size() + slice_only.size());
-            full_idr.insert(full_idr.end(), sps_nalu.begin(), sps_nalu.end());
-            full_idr.insert(full_idr.end(), pps_nalu.begin(), pps_nalu.end());
-            full_idr.insert(full_idr.end(), slice_only.begin(), slice_only.end());
-            bitstream = std::move(full_idr);
-        }
-
-        encoded_image.SetEncodedData(
-                webrtc::EncodedImageBuffer::Create(bitstream.data(), bitstream.size()));
+        encoded_image.SetEncodedData(AssembleEncodedBitstream(
+                coded_data, force_idr, profile_, sps_nalu, pps_nalu, scratch_bitstream_));
         encoded_image._encodedWidth = width_;
         encoded_image._encodedHeight = height_;
         encoded_image.SetRtpTimestamp(frame.rtp_timestamp());
@@ -889,6 +927,25 @@ int32_t VaapiVideoEncoder::Encode(const webrtc::VideoFrame& frame,
 
     callback->OnEncodedImage(encoded_image, &codec_specific_info_);
     return WEBRTC_VIDEO_CODEC_OK;
+}
+
+webrtc::scoped_refptr<webrtc::EncodedImageBuffer> VaapiVideoEncoder::AssembleEncodedBitstream(
+        const void* coded_data, bool force_idr, VAProfile profile,
+        absl::Span<const uint8_t> sps_nalu, absl::Span<const uint8_t> pps_nalu,
+        std::vector<uint8_t>& scratch_bitstream) {
+    FlattenCodedSegments(coded_data, force_idr, scratch_bitstream);
+
+    if (force_idr) {
+        const IdrBitstreamInspection inspection =
+                InspectIdrBitstream(scratch_bitstream, VaapiProfileToIdc(profile));
+        if (!inspection.has_matching_sps) {
+            const absl::Span<const uint8_t> slice_payload =
+                    absl::MakeConstSpan(scratch_bitstream).subspan(inspection.slice_offset);
+            return BuildIdrBufferWithHeaders(sps_nalu, pps_nalu, slice_payload);
+        }
+    }
+
+    return webrtc::EncodedImageBuffer::Create(scratch_bitstream.data(), scratch_bitstream.size());
 }
 
 void VaapiVideoEncoder::SetRates(const RateControlParameters& parameters) {

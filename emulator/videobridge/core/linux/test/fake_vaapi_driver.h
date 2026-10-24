@@ -44,6 +44,7 @@ class FakeVaapiDriver {
     VAProfile last_profile() const { return last_profile_; }
     bool session_active() const { return session_active_; }
 
+    void SetCodedSegments(std::vector<std::vector<uint8_t>> segments);
     void Reset();
 
   private:
@@ -101,6 +102,8 @@ class FakeVaapiDriver {
     std::vector<uint8_t> coded_buffer_data_;
     std::vector<uint8_t> surface_pixel_data_;
     VACodedBufferSegment mock_coded_segment_{};
+    std::vector<std::vector<uint8_t>> custom_coded_segments_;
+    std::vector<VACodedBufferSegment> custom_segment_nodes_;
 };
 
 }  // namespace goldfish::videobridge
