@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <llhttp.h>
+
 #include <algorithm>
 #include <array>
 #include <cstddef>
@@ -22,6 +24,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/base/attributes.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/hash/hash.h"
@@ -32,6 +35,7 @@
 #include "goldfish/http/http_headers.h"
 #include "goldfish/http/http_request.h"
 #include "goldfish/http/http_router.h"
+#include "http_session_internal.h"
 
 namespace goldfish::http {
 namespace {
@@ -350,6 +354,140 @@ void BmHttpRouterGetAllowedMethods(benchmark::State& state) {
     }
 }
 BENCHMARK(BmHttpRouterGetAllowedMethods);
+
+ABSL_ATTRIBUTE_NOINLINE std::optional<HttpMethod> LegacyStringToHttpMethod(
+        std::string_view method) {
+    if (absl::EqualsIgnoreCase(method, methods::kGet)) {
+        return HttpMethod::kGet;
+    }
+    if (absl::EqualsIgnoreCase(method, methods::kPost)) {
+        return HttpMethod::kPost;
+    }
+    if (absl::EqualsIgnoreCase(method, methods::kPut)) {
+        return HttpMethod::kPut;
+    }
+    if (absl::EqualsIgnoreCase(method, methods::kDelete)) {
+        return HttpMethod::kDelete;
+    }
+    if (absl::EqualsIgnoreCase(method, methods::kOptions)) {
+        return HttpMethod::kOptions;
+    }
+    if (absl::EqualsIgnoreCase(method, methods::kHead)) {
+        return HttpMethod::kHead;
+    }
+    if (absl::EqualsIgnoreCase(method, methods::kPatch)) {
+        return HttpMethod::kPatch;
+    }
+    if (method == methods::kAny) {
+        return HttpMethod::kAny;
+    }
+    return std::nullopt;
+}
+
+constexpr std::array<std::string_view, 8> kMethodStringInputs = {{
+    "POST",
+    "OPTIONS",
+    "GET",
+    "DELETE",
+    "PATCH",
+    "HEAD",
+    "post",
+    "CONNECT",
+}};
+
+constexpr std::array<llhttp_method_t, 8> kLlhttpMethodInputs = {{
+    HTTP_POST,
+    HTTP_OPTIONS,
+    HTTP_GET,
+    HTTP_POST,
+    HTTP_OPTIONS,
+    HTTP_DELETE,
+    HTTP_HEAD,
+    HTTP_PATCH,
+}};
+
+void BmStringToHttpMethodBaseline(benchmark::State& state) {
+    size_t idx = 0;
+    for (auto _ : state) {
+        std::string_view input = kMethodStringInputs[idx & 7];
+        benchmark::DoNotOptimize(input);
+        auto parsed = LegacyStringToHttpMethod(input);
+        benchmark::DoNotOptimize(parsed);
+        ++idx;
+    }
+}
+BENCHMARK(BmStringToHttpMethodBaseline);
+
+void BmStringToHttpMethod(benchmark::State& state) {
+    size_t idx = 0;
+    for (auto _ : state) {
+        std::string_view input = kMethodStringInputs[idx & 7];
+        benchmark::DoNotOptimize(input);
+        auto parsed = StringToHttpMethod(input);
+        benchmark::DoNotOptimize(parsed);
+        ++idx;
+    }
+}
+BENCHMARK(BmStringToHttpMethod);
+
+constexpr std::optional<HttpMethod> SwitchLlhttpMethodToHttpMethod(
+        llhttp_method_t method) noexcept {
+    switch (method) {
+    case HTTP_GET:
+        return HttpMethod::kGet;
+    case HTTP_POST:
+        return HttpMethod::kPost;
+    case HTTP_PUT:
+        return HttpMethod::kPut;
+    case HTTP_DELETE:
+        return HttpMethod::kDelete;
+    case HTTP_OPTIONS:
+        return HttpMethod::kOptions;
+    case HTTP_HEAD:
+        return HttpMethod::kHead;
+    case HTTP_PATCH:
+        return HttpMethod::kPatch;
+    default:
+        return std::nullopt;
+    }
+}
+
+void BmLlhttpMethodParseBaseline(benchmark::State& state) {
+    size_t idx = 0;
+    for (auto _ : state) {
+        llhttp_method_t input = kLlhttpMethodInputs[idx & 7];
+        benchmark::DoNotOptimize(input);
+        HttpMethod method =
+                LegacyStringToHttpMethod(llhttp_method_name(input)).value_or(HttpMethod::kGet);
+        benchmark::DoNotOptimize(method);
+        ++idx;
+    }
+}
+BENCHMARK(BmLlhttpMethodParseBaseline);
+
+void BmLlhttpMethodParseSwitch(benchmark::State& state) {
+    size_t idx = 0;
+    for (auto _ : state) {
+        llhttp_method_t input = kLlhttpMethodInputs[idx & 7];
+        benchmark::DoNotOptimize(input);
+        HttpMethod method = SwitchLlhttpMethodToHttpMethod(input).value_or(HttpMethod::kGet);
+        benchmark::DoNotOptimize(method);
+        ++idx;
+    }
+}
+BENCHMARK(BmLlhttpMethodParseSwitch);
+
+void BmLlhttpMethodParse(benchmark::State& state) {
+    size_t idx = 0;
+    for (auto _ : state) {
+        llhttp_method_t input = kLlhttpMethodInputs[idx & 7];
+        benchmark::DoNotOptimize(input);
+        HttpMethod method = internal::LlhttpMethodToHttpMethod(input).value_or(HttpMethod::kGet);
+        benchmark::DoNotOptimize(method);
+        ++idx;
+    }
+}
+BENCHMARK(BmLlhttpMethodParse);
 
 }  // namespace
 }  // namespace goldfish::http

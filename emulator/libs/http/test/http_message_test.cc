@@ -113,15 +113,49 @@ TEST(HttpMessageTest, MethodConversions) {
     EXPECT_EQ(StringToHttpMethod("get"), HttpMethod::kGet);
     EXPECT_EQ(StringToHttpMethod("gEt"), HttpMethod::kGet);
     EXPECT_EQ(StringToHttpMethod("POST"), HttpMethod::kPost);
+    EXPECT_EQ(StringToHttpMethod("post"), HttpMethod::kPost);
     EXPECT_EQ(StringToHttpMethod("pOsT"), HttpMethod::kPost);
+    EXPECT_EQ(StringToHttpMethod("PUT"), HttpMethod::kPut);
+    EXPECT_EQ(StringToHttpMethod("put"), HttpMethod::kPut);
+    EXPECT_EQ(StringToHttpMethod("pUt"), HttpMethod::kPut);
     EXPECT_EQ(StringToHttpMethod("OPTIONS"), HttpMethod::kOptions);
+    EXPECT_EQ(StringToHttpMethod("options"), HttpMethod::kOptions);
+    EXPECT_EQ(StringToHttpMethod("oPtIoNs"), HttpMethod::kOptions);
     EXPECT_EQ(StringToHttpMethod("DELETE"), HttpMethod::kDelete);
+    EXPECT_EQ(StringToHttpMethod("delete"), HttpMethod::kDelete);
+    EXPECT_EQ(StringToHttpMethod("dElEtE"), HttpMethod::kDelete);
     EXPECT_EQ(StringToHttpMethod("HEAD"), HttpMethod::kHead);
+    EXPECT_EQ(StringToHttpMethod("head"), HttpMethod::kHead);
+    EXPECT_EQ(StringToHttpMethod("hEaD"), HttpMethod::kHead);
     EXPECT_EQ(StringToHttpMethod("PATCH"), HttpMethod::kPatch);
+    EXPECT_EQ(StringToHttpMethod("patch"), HttpMethod::kPatch);
+    EXPECT_EQ(StringToHttpMethod("pAtCh"), HttpMethod::kPatch);
     EXPECT_EQ(StringToHttpMethod("*"), HttpMethod::kAny);
+
+    // Reject empty, unsupported lengths, and unknown verbs of matching lengths.
     EXPECT_FALSE(StringToHttpMethod("").has_value());
+    EXPECT_FALSE(StringToHttpMethod("?").has_value());
+    EXPECT_FALSE(StringToHttpMethod("GO").has_value());
+    EXPECT_FALSE(StringToHttpMethod("PRI").has_value());
+    EXPECT_FALSE(StringToHttpMethod("LOCK").has_value());
+    EXPECT_FALSE(StringToHttpMethod("TRACE").has_value());
+    EXPECT_FALSE(StringToHttpMethod("UNLINK").has_value());
     EXPECT_FALSE(StringToHttpMethod("INVALID").has_value());
     EXPECT_FALSE(StringToHttpMethod("CONNECT").has_value());
+    EXPECT_FALSE(StringToHttpMethod("PROPFIND").has_value());
+
+    // Reject ASCII boundary bytes ('@'=0x40, '['=0x5B, '`'=0x60, '{'=0x7B), embedded NULs,
+    // and non-ASCII UTF-8 sequences of matching byte lengths.
+    EXPECT_FALSE(StringToHttpMethod("G@T").has_value());
+    EXPECT_FALSE(StringToHttpMethod("G[T").has_value());
+    EXPECT_FALSE(StringToHttpMethod("G`T").has_value());
+    EXPECT_FALSE(StringToHttpMethod("G{T").has_value());
+    EXPECT_FALSE(StringToHttpMethod(std::string_view("G\0T", 3)).has_value());
+    EXPECT_FALSE(StringToHttpMethod(std::string_view("GET\0", 4)).has_value());
+    EXPECT_FALSE(StringToHttpMethod("\xE2\x82\xAC").has_value());   // 3-byte UTF-8 '€'
+    EXPECT_FALSE(StringToHttpMethod("G\xC3\x89T").has_value());     // 4-byte UTF-8 "GÉT"
+    EXPECT_FALSE(StringToHttpMethod("P\xC3\x96ST").has_value());    // 5-byte UTF-8 "PÖST"
+    EXPECT_FALSE(StringToHttpMethod("D\xC3\x89LETE").has_value());  // 7-byte UTF-8 "DÉLETE"
 }
 
 TEST(HttpMessageTest, HttpRequestCaseInsensitiveHeaders) {
@@ -319,7 +353,8 @@ TEST(HttpMessageTest, LongHeaderNameChunkedCaseInsensitiveHashing) {
     EXPECT_TRUE(req.HasHeader(mixed_key));
     EXPECT_EQ(req.GetHeader(mixed_key), "chunk_ok");
 
-    // Verify ASCII boundary symbols ('@'=0x40, '['=0x5B) are not conflated with '`'=0x60 or '{'=0x7B
+    // Verify ASCII boundary symbols ('@'=0x40, '['=0x5B) are not conflated with '`'=0x60 or
+    // '{'=0x7B
     CaseInsensitiveStringHash hasher;
     CaseInsensitiveStringEq eq;
     EXPECT_FALSE(eq("a@b[c", "a`b{c"));
