@@ -56,9 +56,6 @@ cc_library(
     includes = ["include"],
     deps = [
         ":http_messages",
-        "@abseil-cpp//absl/container:flat_hash_map",
-        "@abseil-cpp//absl/container:flat_hash_set",
-        "@abseil-cpp//absl/hash",
         "@abseil-cpp//absl/strings",
     ],
 )
@@ -170,7 +167,9 @@ cc_binary_with_manifest(
     tags = ["benchmark"],
     deps = [
         ":http_messages",
+        ":http_router",
         "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/container:flat_hash_set",
         "@abseil-cpp//absl/hash",
         "@abseil-cpp//absl/strings",
         "@google_benchmark//:benchmark",

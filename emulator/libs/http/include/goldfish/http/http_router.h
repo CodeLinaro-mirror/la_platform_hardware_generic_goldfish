@@ -13,6 +13,7 @@
 // limitations under the License.
 #pragma once
 
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <optional>
@@ -20,9 +21,6 @@
 #include <string_view>
 #include <utility>
 #include <vector>
-
-#include "absl/container/flat_hash_map.h"
-#include "absl/container/flat_hash_set.h"
 
 #include "goldfish/http/http_headers.h"
 #include "goldfish/http/http_request.h"
@@ -96,6 +94,18 @@ class HttpRouter {
     void AddStreamingRoute(HttpMethod method, std::string path, AsyncHttpHandler handler);
 
     /**
+     * @brief Matches an incoming HTTP method and path without copying the RouteHandler.
+     *
+     * The returned pointer remains valid as long as no routes are added to or modified on this
+     * HttpRouter instance.
+     *
+     * @param method The HTTP method verb.
+     * @param path The request path to match (without query parameters).
+     * @return Pointer to the registered RouteHandler if matched, nullptr otherwise.
+     */
+    const RouteHandler* MatchHandler(HttpMethod method, std::string_view path) const;
+
+    /**
      * @brief Matches an incoming HTTP method and path against registered routes.
      * @param method The HTTP method verb.
      * @param path The request path to match (without query parameters).
@@ -114,6 +124,16 @@ class HttpRouter {
     std::vector<std::string> GetAllowedMethods(std::string_view path) const;
 
   private:
+    struct ExactRouteEntry {
+        RouteHandler primary_handler;
+        std::vector<std::pair<HttpMethod, RouteHandler>> extra_handlers;
+        HttpMethod primary_method = HttpMethod::kGet;
+        uint8_t method_mask = 0;
+        bool has_primary = false;
+
+        const RouteHandler* Find(HttpMethod method) const noexcept;
+    };
+
     struct WildcardRoute {
         HttpMethod method;
         std::string prefix;
@@ -122,9 +142,8 @@ class HttpRouter {
 
     void AddRouteHandler(HttpMethod method, std::string path, RouteHandler rh);
 
-    TransparentStringMap<absl::flat_hash_map<HttpMethod, RouteHandler>> exact_routes_;
+    TransparentStringMap<ExactRouteEntry> exact_routes_;
     std::vector<WildcardRoute> wildcard_routes_;
-    TransparentStringMap<absl::flat_hash_set<HttpMethod>> methods_by_exact_path_;
 };
 
 }  // namespace goldfish::http

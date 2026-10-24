@@ -16,6 +16,10 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
+#include <array>
+#include <cstdint>
+#include <memory>
+#include <string>
 #include <thread>
 #include <vector>
 
@@ -227,6 +231,119 @@ TEST(HttpRouterTest, HeterogeneousStringViewLookup) {
 
     auto allowed = router.GetAllowedMethods(path_slice);
     EXPECT_THAT(allowed, ElementsAre("GET"));
+}
+
+namespace {
+
+struct LargeCapturedHandler {
+    std::shared_ptr<int> copy_counter;
+    std::array<uint64_t, 8> payload{};
+    std::string response_body;
+
+    LargeCapturedHandler(std::shared_ptr<int> counter, std::string body)
+            : copy_counter(std::move(counter)), response_body(std::move(body)) {}
+
+    LargeCapturedHandler(const LargeCapturedHandler& other)
+            : copy_counter(other.copy_counter)
+            , payload(other.payload)
+            , response_body(other.response_body) {
+        if (copy_counter) {
+            ++(*copy_counter);
+        }
+    }
+
+    LargeCapturedHandler(LargeCapturedHandler&&) noexcept = default;
+    LargeCapturedHandler& operator=(const LargeCapturedHandler&) = default;
+    LargeCapturedHandler& operator=(LargeCapturedHandler&&) noexcept = default;
+
+    HttpResponse operator()(const HttpRequest&) const {
+        return HttpResponse::String(response_body);
+    }
+};
+
+}  // namespace
+
+TEST(HttpRouterTest, MatchHandlerAvoidsCopyingLargeHandlerClosure) {
+    HttpRouter router;
+    auto copy_count = std::make_shared<int>(0);
+    router.AddRoute(HttpMethod::kGet, "/api/v1/heavy",
+                    LargeCapturedHandler(copy_count, "PrimaryGET"));
+    router.AddRoute(HttpMethod::kPost, "/api/v1/heavy",
+                    LargeCapturedHandler(copy_count, "SecondaryPOST"));
+    router.AddRoute(HttpMethod::kAny, "/api/v1/fallback",
+                    LargeCapturedHandler(copy_count, "FallbackANY"));
+    router.AddRoute(HttpMethod::kPost, "/grpc/*", LargeCapturedHandler(copy_count, "WildcardPOST"));
+
+    *copy_count = 0;
+
+    const RouteHandler* get_handler = router.MatchHandler(HttpMethod::kGet, "/api/v1/heavy");
+    ASSERT_NE(get_handler, nullptr);
+    EXPECT_EQ(get_handler->unary_handler(HttpRequest()).Body(), "PrimaryGET");
+
+    const RouteHandler* post_handler = router.MatchHandler(HttpMethod::kPost, "/api/v1/heavy");
+    ASSERT_NE(post_handler, nullptr);
+    EXPECT_EQ(post_handler->unary_handler(HttpRequest()).Body(), "SecondaryPOST");
+
+    const RouteHandler* any_handler = router.MatchHandler(HttpMethod::kPatch, "/api/v1/fallback");
+    ASSERT_NE(any_handler, nullptr);
+    EXPECT_EQ(any_handler->unary_handler(HttpRequest()).Body(), "FallbackANY");
+
+    const RouteHandler* wildcard_handler =
+            router.MatchHandler(HttpMethod::kPost, "/grpc/android.emulation.control.Rtc/request");
+    ASSERT_NE(wildcard_handler, nullptr);
+    EXPECT_EQ(wildcard_handler->unary_handler(HttpRequest()).Body(), "WildcardPOST");
+
+    EXPECT_EQ(router.MatchHandler(HttpMethod::kDelete, "/api/v1/heavy"), nullptr);
+    EXPECT_EQ(router.MatchHandler(HttpMethod::kGet, "/missing"), nullptr);
+    EXPECT_EQ(*copy_count, 0);
+}
+
+TEST(HttpRouterTest, OverwritingExactRoutesUpdatesPrimaryAndExtraHandlers) {
+    HttpRouter router;
+    router.AddRoute(HttpMethod::kGet, "/items",
+                    [](const HttpRequest&) { return HttpResponse::String("v1-get"); });
+    router.AddRoute(HttpMethod::kPost, "/items",
+                    [](const HttpRequest&) { return HttpResponse::String("v1-post"); });
+    router.AddRoute(HttpMethod::kPut, "/items",
+                    [](const HttpRequest&) { return HttpResponse::String("v1-put"); });
+
+    // Overwrite both primary (GET) and secondary (PUT) handlers.
+    router.AddRoute(HttpMethod::kGet, "/items",
+                    [](const HttpRequest&) { return HttpResponse::String("v2-get"); });
+    router.AddRoute(HttpMethod::kPut, "/items",
+                    [](const HttpRequest&) { return HttpResponse::String("v2-put"); });
+
+    const RouteHandler* get_match = router.MatchHandler(HttpMethod::kGet, "/items");
+    ASSERT_NE(get_match, nullptr);
+    EXPECT_EQ(get_match->unary_handler(HttpRequest()).Body(), "v2-get");
+
+    const RouteHandler* post_match = router.MatchHandler(HttpMethod::kPost, "/items");
+    ASSERT_NE(post_match, nullptr);
+    EXPECT_EQ(post_match->unary_handler(HttpRequest()).Body(), "v1-post");
+
+    const RouteHandler* put_match = router.MatchHandler(HttpMethod::kPut, "/items");
+    ASSERT_NE(put_match, nullptr);
+    EXPECT_EQ(put_match->unary_handler(HttpRequest()).Body(), "v2-put");
+
+    EXPECT_THAT(router.GetAllowedMethods("/items"), ElementsAre("GET", "POST", "PUT"));
+}
+
+TEST(HttpRouterTest, NonAsciiUtf8PathsRouteAndReportAllowedMethods) {
+    HttpRouter router;
+    router.AddRoute(HttpMethod::kGet, "/api/प्रोफ़ाइल/🚀",
+                    [](const HttpRequest&) { return HttpResponse::String("ExactUtf8"); });
+    router.AddRoute(HttpMethod::kOptions, "/api/प्रोफ़ाइल/*",
+                    [](const HttpRequest&) { return HttpResponse::Empty(204); });
+
+    const RouteHandler* exact = router.MatchHandler(HttpMethod::kGet, "/api/प्रोफ़ाइल/🚀");
+    ASSERT_NE(exact, nullptr);
+    EXPECT_EQ(exact->unary_handler(HttpRequest()).Body(), "ExactUtf8");
+
+    const RouteHandler* prefix = router.MatchHandler(HttpMethod::kOptions, "/api/प्रोफ़ाइल/अन्य");
+    ASSERT_NE(prefix, nullptr);
+    EXPECT_EQ(prefix->unary_handler(HttpRequest()).Status(), HttpStatus::kNoContent);
+
+    EXPECT_THAT(router.GetAllowedMethods("/api/प्रोफ़ाइल/🚀"), ElementsAre("GET", "OPTIONS"));
 }
 
 }  // namespace goldfish::http
