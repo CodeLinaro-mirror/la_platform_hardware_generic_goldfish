@@ -41,6 +41,7 @@ cc_library(
         "//emulator/plugin/avd:avd_info",
         "//emulator/plugin/avd:global_event_loop",
         "//emulator/plugin/display",
+        "//emulator/plugin/grpc/input:input_dispatcher_interface",
         "//emulator/plugin/grpc/interceptors",
         "//emulator/plugin/grpc/services:emulator_controller",
         "//emulator/plugin/grpc/services:in_process_rtc_service",

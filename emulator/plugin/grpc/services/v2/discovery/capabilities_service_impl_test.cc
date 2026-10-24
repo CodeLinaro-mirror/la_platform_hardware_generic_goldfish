@@ -66,6 +66,10 @@ class TestUniverse : public AvdUniverse {
         LOG(FATAL) << "GetMultiDisplay not implemented in test";
     }
 
+    IInputDispatcher& GetInputDispatcher() override {
+        LOG(FATAL) << "GetInputDispatcher not implemented in test";
+    }
+
     absl::Status OnSave(archive::IWriter&) const override { return absl::OkStatus(); }
     absl::Status OnLoad(archive::IReader&) override { return absl::OkStatus(); }
 };

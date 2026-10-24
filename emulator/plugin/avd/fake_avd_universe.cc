@@ -14,18 +14,62 @@
 
 #include "goldfish/avd/fake_avd_universe.h"
 
+#include <cstdint>
 #include <memory>
+#include <string_view>
 
 #include "absl/log/log.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 
+#include "emulator/plugin/grpc/input/contact_table.h"
+#include "emulator/plugin/grpc/input/input_dispatcher.h"
+#include "emulator/plugin/grpc/input/keyboard_sink.h"
+#include "emulator/plugin/grpc/input/touch_device.h"
 #include "goldfish/avd/avd_info.h"
 #include "goldfish/avd/avd_properties.h"
 #include "goldfish/metrics/metrics_reporter.h"
+#include "input_service.pb.h"
 
 namespace goldfish::avd {
 
-FakeAvdUniverse::FakeAvdUniverse() : AvdUniverse(std::make_unique<AvdProperties>()) {
+namespace {
+
+class NoTouchDevices : public grpc::v2::TouchDevices {
+  public:
+    absl::StatusOr<grpc::v2::TouchDeviceId> Resolve(int32_t display_id) override {
+        return absl::UnavailableError(absl::StrCat(
+                "Cannot resolve touch display ", display_id,
+                " because FakeAvdUniverse has no displays; configure a touch-capable universe "
+                "for touch tests."));
+    }
+    grpc::v2::TouchDeviceSink* Find(grpc::v2::TouchDeviceId /*device*/) override { return nullptr; }
+};
+
+class NoOpKeyboard : public grpc::v2::KeyboardSink {
+  public:
+    void WriteKey(uint32_t /*evdev_code*/, bool /*down*/) override {}
+    void TypeText(std::string_view /*utf8*/) override {}
+};
+
+// Maps only `evdev_code`, without the QEMU key tables.
+uint32_t ResolveEvdevCode(const ::android::emulation::v2::KeyEvent& key) {
+    return key.key_identifier_case() == ::android::emulation::v2::KeyEvent::kEvdevCode &&
+                           key.evdev_code() > 0
+                   ? static_cast<uint32_t>(key.evdev_code())
+                   : 0U;
+}
+
+}  // namespace
+
+FakeAvdUniverse::FakeAvdUniverse()
+        : AvdUniverse(std::make_unique<AvdProperties>())
+        , input_loop_(async::testing::TestEventLoop::Create("FakeAvdUniverseInput"))
+        , touch_devices_(std::make_unique<NoTouchDevices>())
+        , keyboard_(std::make_unique<NoOpKeyboard>())
+        , input_dispatcher_(std::make_unique<grpc::v2::InputDispatcher>(
+                  *input_loop_, *touch_devices_, keyboard_.get(), ResolveEvdevCode)) {
     SetGlobalAvdUniverse(this);
 }
 
@@ -47,6 +91,10 @@ android::goldfish::VmOperations& FakeAvdUniverse::GetVmOperations() {
 
 display::IMultiDisplay& FakeAvdUniverse::GetMultiDisplay() const {
     LOG(FATAL) << "GetMultiDisplay not implemented";
+}
+
+grpc::v2::IInputDispatcher& FakeAvdUniverse::GetInputDispatcher() {
+    return *input_dispatcher_;
 }
 
 absl::Status FakeAvdUniverse::OnSave(archive::IWriter&) const {

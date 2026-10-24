@@ -80,6 +80,8 @@ void UniverseBuildComplete() {
     DCHECK(u);
     u->connector_registry.Listen(5000);
     u->test_tools_connector_registry.Listen(5002);
+    // `avdend` is realized after the display devices, so console 0 exists.
+    u->InstallKeyboard();
 }
 
 namespace {

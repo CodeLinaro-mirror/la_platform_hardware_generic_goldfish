@@ -423,7 +423,7 @@ class InputDispatcherTest : public ::testing::Test {
     FakeKeyboard keyboard_{*loop_, log_};
     TickingClock clock_;
     ActivityRecorder recorder_{*loop_};
-    InputDispatcher dispatcher_{*loop_, devices_, keyboard_, ResolveEvdevOnly, &clock_};
+    InputDispatcher dispatcher_{*loop_, devices_, &keyboard_, ResolveEvdevOnly, &clock_};
 };
 
 TEST_F(InputDispatcherTest, SessionIdsStartAtOneAndAreUnique) {
@@ -1002,7 +1002,7 @@ TEST_F(InputDispatcherTest, CallbacksRunOnDeliveryThread) {
 }
 
 TEST_F(InputDispatcherTest, DestructorDeliversQueuedActivity) {
-    auto dispatcher = std::make_unique<InputDispatcher>(*loop_, devices_, keyboard_,
+    auto dispatcher = std::make_unique<InputDispatcher>(*loop_, devices_, &keyboard_,
                                                         ResolveEvdevOnly, &clock_);
     ActivityRecorder recorder(*loop_);
     absl::Notification first_arrived;
@@ -1136,7 +1136,7 @@ TEST_F(InputDispatcherTest, ShutdownDeliversQueuedActivityAndJoins) {
 
 TEST_F(InputDispatcherTest, DestructorShutsDownAfterLoopStopped) {
     Completion pending;
-    auto dispatcher = std::make_unique<InputDispatcher>(*loop_, devices_, keyboard_,
+    auto dispatcher = std::make_unique<InputDispatcher>(*loop_, devices_, &keyboard_,
                                                         ResolveEvdevOnly, &clock_);
     const InputSessionId a = dispatcher->OpenSession({});
     loop_->RunAll();
@@ -1154,7 +1154,7 @@ TEST_F(InputDispatcherTest, DestructorShutsDownAfterLoopStopped) {
 TEST_F(InputDispatcherTest, SessionAtCapIsRejectedOnCallingThreadWhileOthersPost) {
     std::array<Completion, 4> done;
     Completion again;
-    InputDispatcher capped(*loop_, devices_, keyboard_, ResolveEvdevOnly, &clock_,
+    InputDispatcher capped(*loop_, devices_, &keyboard_, ResolveEvdevOnly, &clock_,
                            /*max_pending_per_session=*/2);
     const InputSessionId a = capped.OpenSession({});
     const InputSessionId b = capped.OpenSession({});
@@ -1186,7 +1186,7 @@ TEST_F(InputDispatcherTest, SessionAtCapIsRejectedOnCallingThreadWhileOthersPost
 }
 
 TEST_F(InputDispatcherTest, CloseSessionRunsWhenSessionIsAtCap) {
-    InputDispatcher capped(*loop_, devices_, keyboard_, ResolveEvdevOnly, &clock_,
+    InputDispatcher capped(*loop_, devices_, &keyboard_, ResolveEvdevOnly, &clock_,
                            /*max_pending_per_session=*/1);
     const InputSessionId a = capped.OpenSession({});
     loop_->RunAll();
@@ -1197,6 +1197,25 @@ TEST_F(InputDispatcherTest, CloseSessionRunsWhenSessionIsAtCap) {
 
     EXPECT_THAT(inner_.reports, SizeIs(2));
     EXPECT_THAT(inner_.guest.Active(), IsEmpty());
+}
+
+TEST_F(InputDispatcherTest, KeysWaitForInstalledKeyboard) {
+    InputDispatcher late(*loop_, devices_, /*keyboard=*/nullptr, ResolveEvdevOnly, &clock_);
+    const InputSessionId a = late.OpenSession({});
+    std::array<Completion, 4> done;
+    late.DispatchKey(a, Key(kKeyPress, KEY_A), done[0].Callback());
+    late.DispatchText(a, "x", done[1].Callback());
+
+    late.InstallKeyboardSink(keyboard_);
+    late.DispatchKey(a, Key(kKeyPress, KEY_B), done[2].Callback());
+    late.DispatchText(a, "y", done[3].Callback());
+    loop_->RunAll();
+
+    EXPECT_THAT(done[0].status, StatusIs(absl::StatusCode::kUnavailable));
+    EXPECT_THAT(done[1].status, StatusIs(absl::StatusCode::kUnavailable));
+    EXPECT_THAT(done[2].status, IsOk());
+    EXPECT_THAT(done[3].status, IsOk());
+    EXPECT_THAT(log_.writes, ElementsAre(Down(KEY_B), Up(KEY_B), "text y"));
 }
 
 }  // namespace

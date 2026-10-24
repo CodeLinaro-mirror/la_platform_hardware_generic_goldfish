@@ -85,13 +85,14 @@ class InputDispatcher final : public IInputDispatcher {
 
     /**
      * @brief Constructs an `InputDispatcher` running on `loop`.
+     * @param keyboard Receives keys and text; null until `InstallKeyboardSink()`.
      * @param clock Stamps `dispatched_at_nanos` from its realtime clock.
      * @param max_pending_per_session The operations a session may have posted
      *     but not yet run; `Dispatch*()` rejects more. Bounds the loop's queue
      *     while it is stalled, for example by a snapshot save.
      */
     InputDispatcher(::goldfish::async::EventLoop& loop, TouchDevices& devices,
-                    KeyboardSink& keyboard, KeyCodeResolver resolve_key_code,
+                    KeyboardSink* keyboard, KeyCodeResolver resolve_key_code,
                     ::android::base::IClock* clock = &::android::base::IClock::Get(),
                     size_t max_pending_per_session = kDefaultMaxPendingPerSession);
     /** @brief Calls `Shutdown()`. */
@@ -99,6 +100,18 @@ class InputDispatcher final : public IInputDispatcher {
 
     InputDispatcher(const InputDispatcher&) = delete;
     InputDispatcher& operator=(const InputDispatcher&) = delete;
+
+    /**
+     * @brief Installs the keyboard, for an owner that builds the dispatcher
+     * before the guest keyboard exists.
+     *
+     * Takes effect on the loop, after the operations posted before it; until
+     * then keys and text complete with `UNAVAILABLE`.
+     *
+     * @param keyboard Must outlive the dispatcher. Install it only if the
+     *     dispatcher was built without one, and only once.
+     */
+    void InstallKeyboardSink(KeyboardSink& keyboard);
 
     /** @brief Callbacks run on the delivery thread. */
     ActivityEventSource& activity() override { return activity_events_; }
@@ -184,6 +197,8 @@ class InputDispatcher final : public IInputDispatcher {
     // @return Whether `session` held the key.
     bool ReleaseKey(InputSessionId session, uint32_t code);
     absl::Status ApplyText(InputSessionId session, std::string_view utf8);
+    // @return UNAVAILABLE if no keyboard is installed.
+    absl::Status CheckKeyboard() const;
     absl::Status CancelOnDisplay(InputSessionId session, int32_t source_id, int32_t display_id);
     void ReleaseSession(InputSessionId session);
 
@@ -197,7 +212,6 @@ class InputDispatcher final : public IInputDispatcher {
 
     ::goldfish::async::EventLoop& loop_;
     TouchDevices& devices_;
-    KeyboardSink& keyboard_;
     const KeyCodeResolver resolve_key_code_;
     ::android::base::IClock* const clock_;
     const size_t max_pending_per_session_;
@@ -211,6 +225,7 @@ class InputDispatcher final : public IInputDispatcher {
     absl::flat_hash_map<InputSessionId, size_t> in_flight_ ABSL_GUARDED_BY(pending_mutex_);
 
     // Loop-only state.
+    KeyboardSink* keyboard_;
     ContactTable contacts_;
     absl::flat_hash_map<InputSessionId, SessionOptions> sessions_;
     // The sessions holding each pressed evdev code.

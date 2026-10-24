@@ -63,6 +63,9 @@ class TestAvdUniverse : public ::goldfish::avd::AvdUniverse {
         LOG(FATAL) << "GetVmOperations not implemented in tests";
     }
     ::goldfish::display::IMultiDisplay& GetMultiDisplay() const override { return *multi_display_; }
+    ::goldfish::grpc::v2::IInputDispatcher& GetInputDispatcher() override {
+        LOG(FATAL) << "GetInputDispatcher not implemented in tests";
+    }
 
     absl::Status OnSave(::goldfish::archive::IWriter&) const override { return absl::OkStatus(); }
     absl::Status OnLoad(::goldfish::archive::IReader&) override { return absl::OkStatus(); }

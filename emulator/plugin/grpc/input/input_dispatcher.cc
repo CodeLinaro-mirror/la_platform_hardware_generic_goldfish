@@ -103,14 +103,14 @@ InputEvent CancelEvent(int32_t source_id, int32_t display_id) {
 }  // namespace
 
 InputDispatcher::InputDispatcher(::goldfish::async::EventLoop& loop, TouchDevices& devices,
-                                 KeyboardSink& keyboard, KeyCodeResolver resolve_key_code,
+                                 KeyboardSink* keyboard, KeyCodeResolver resolve_key_code,
                                  ::android::base::IClock* clock, size_t max_pending_per_session)
         : loop_(loop)
         , devices_(devices)
-        , keyboard_(keyboard)
         , resolve_key_code_(std::move(resolve_key_code))
         , clock_(clock)
         , max_pending_per_session_(max_pending_per_session)
+        , keyboard_(keyboard)
         , delivery_thread_([this] { DeliverActivity(); }) {
     DCHECK_GT(max_pending_per_session_, 0U);
 }
@@ -158,6 +158,13 @@ InputSessionId InputDispatcher::OpenSession(SessionOptions options) {
 
 void InputDispatcher::CloseSession(InputSessionId session) {
     PostUnlessShutDown([this, session] { ReleaseSession(session); });
+}
+
+void InputDispatcher::InstallKeyboardSink(KeyboardSink& keyboard) {
+    PostUnlessShutDown([this, &keyboard] {
+        DCHECK(keyboard_ == nullptr) << "The keyboard is already installed";
+        keyboard_ = &keyboard;
+    });
 }
 
 void InputDispatcher::PostUnlessShutDown(absl::AnyInvocable<void() &&> task) {
@@ -346,6 +353,7 @@ absl::Status InputDispatcher::ApplyKey(InputSessionId session, const KeyEvent& e
     if (code == 0) {
         return absl::InvalidArgumentError("The key has no evdev code; the event was dropped.");
     }
+    RETURN_IF_ERROR(CheckKeyboard());
     switch (event.action()) {
     case KeyAction::KEY_ACTION_DOWN:
         HoldKey(session, code);
@@ -369,7 +377,7 @@ absl::Status InputDispatcher::ApplyKey(InputSessionId session, const KeyEvent& e
 
 void InputDispatcher::HoldKey(InputSessionId session, uint32_t code) {
     key_holders_[code].insert(session);
-    keyboard_.WriteKey(code, /*down=*/true);
+    keyboard_->WriteKey(code, /*down=*/true);
 }
 
 bool InputDispatcher::ReleaseKey(InputSessionId session, uint32_t code) {
@@ -379,7 +387,7 @@ bool InputDispatcher::ReleaseKey(InputSessionId session, uint32_t code) {
     }
     if (holders->second.empty()) {
         key_holders_.erase(holders);
-        keyboard_.WriteKey(code, /*down=*/false);
+        keyboard_->WriteKey(code, /*down=*/false);
     }
     return true;
 }
@@ -389,11 +397,21 @@ absl::Status InputDispatcher::ApplyText(InputSessionId session, std::string_view
     if (utf8.empty()) {
         return absl::OkStatus();
     }
-    keyboard_.TypeText(utf8);
+    RETURN_IF_ERROR(CheckKeyboard());
+    keyboard_->TypeText(utf8);
     InputEvent typed;
     typed.set_input_source_id(options.source_id);
     typed.mutable_text()->set_text(std::string(utf8));
     Report(std::move(typed));
+    return absl::OkStatus();
+}
+
+absl::Status InputDispatcher::CheckKeyboard() const {
+    if (keyboard_ == nullptr) {
+        return absl::UnavailableError(
+                "Cannot dispatch keyboard input because the guest keyboard is not installed yet; "
+                "wait for VM display initialization to complete and retry.");
+    }
     return absl::OkStatus();
 }
 
