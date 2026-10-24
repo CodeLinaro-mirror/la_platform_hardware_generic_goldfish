@@ -59,7 +59,7 @@ struct AvdExtendedUniverse : public AvdUniverse {
     metrics::MetricsReporter& GetMetricsReporter() override;
     android::goldfish::VmOperations& GetVmOperations() override;
     display::IMultiDisplay& GetMultiDisplay() const override;
-    ::goldfish::grpc::v2::IInputDispatcher& GetInputDispatcher() override;
+    std::shared_ptr<::goldfish::grpc::v2::IInputDispatcher> GetInputDispatcher() override;
 
     /**
      * @brief Gives the input dispatcher the guest keyboard.
@@ -109,12 +109,13 @@ struct AvdExtendedUniverse : public AvdUniverse {
     metrics::QuickbootMetricsState quickboot_metrics_;
 
     // Declared after the QEMU loop and the multi-display they use, and in
-    // this order, so the dispatcher is destroyed first. The universe is
+    // this order, so the dispatcher is released first. The universe is
     // destroyed in qemu_cleanup(), after the main loop, and its destructor
-    // stops the QEMU loop before any of them is destroyed.
+    // stops the QEMU loop and then the dispatcher before any of them is
+    // destroyed. Input clients may still hold the stopped dispatcher.
     std::unique_ptr<::goldfish::grpc::v2::MultiDisplayTouchDevices> touch_devices_;
     std::unique_ptr<::android::emulation::control::keyboard::QemuKeyboardSink> keyboard_sink_;
-    std::unique_ptr<::goldfish::grpc::v2::InputDispatcher> input_dispatcher_;
+    std::shared_ptr<::goldfish::grpc::v2::InputDispatcher> input_dispatcher_;
 };
 
 }  // namespace goldfish::avd

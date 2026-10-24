@@ -68,9 +68,11 @@ namespace goldfish::grpc::v2 {
  * `done`, writing to a sink, or firing activity.
  *
  * ### Ownership:
- * `loop`, `devices`, `keyboard`, and `clock` must outlive the dispatcher.
- * Destroy it only once the loop will run none of its tasks: they have run or
- * the loop has stopped. Destruction calls `Shutdown()`.
+ * `loop`, `devices`, `keyboard`, and `clock` must outlive `Shutdown()` and any
+ * in-flight loop tasks; once `Shutdown()` returns and the loop has stopped (or
+ * drained all posted tasks), the dispatcher never accesses them, so clients
+ * may safely hold a stopped dispatcher past its owner. Destruction calls
+ * `Shutdown()`.
  */
 class InputDispatcher final : public IInputDispatcher {
   public:

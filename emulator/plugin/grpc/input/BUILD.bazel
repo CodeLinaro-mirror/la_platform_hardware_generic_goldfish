@@ -158,6 +158,45 @@ cc_library(
 )
 
 cc_library(
+    name = "dispatcher_session",
+    srcs = ["dispatcher_session.cc"],
+    hdrs = ["dispatcher_session.h"],
+    deps = [
+        ":input_dispatcher_interface",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/status",
+        "@aemu//protos/services_v2:input_service_cc_proto",
+    ],
+)
+
+cc_library(
+    name = "recording_input_dispatcher",
+    testonly = True,
+    hdrs = ["recording_input_dispatcher.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":input_dispatcher_interface",
+        "@abseil-cpp//absl/status",
+        "@aemu//protos/services_v2:input_service_cc_proto",
+    ],
+)
+
+cc_test(
+    name = "dispatcher_session_test",
+    size = "small",
+    srcs = ["dispatcher_session_test.cc"],
+    deps = [
+        ":dispatcher_session",
+        ":input_dispatcher_interface",
+        ":recording_input_dispatcher",
+        "//emulator/libs/test:googletest_main",
+        "@abseil-cpp//absl/status",
+        "@aemu//protos/services_v2:input_service_cc_proto",
+        "@googletest//:gtest",
+    ],
+)
+
+cc_library(
     name = "contact_table",
     srcs = ["contact_table.cc"],
     hdrs = ["contact_table.h"],
@@ -321,6 +360,9 @@ clang_tidy_test(
     name = "tidy",
     targets = [
         ":contact_table",
+        ":dispatcher_session",
+        ":dispatcher_session_test",
+        ":recording_input_dispatcher",
         ":event_sender",
         ":input_dispatcher",
         ":input_dispatcher_interface",

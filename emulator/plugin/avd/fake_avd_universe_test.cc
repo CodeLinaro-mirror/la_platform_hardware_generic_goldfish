@@ -17,6 +17,7 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
+#include <memory>
 #include <optional>
 #include <utility>
 
@@ -48,7 +49,7 @@ class FakeAvdUniverseTest : public ::testing::Test {
     }
 
     FakeAvdUniverse universe_;
-    IInputDispatcher& dispatcher_ = universe_.GetInputDispatcher();
+    IInputDispatcher& dispatcher_ = *universe_.GetInputDispatcher();
 };
 
 TEST_F(FakeAvdUniverseTest, TextReachesNoKeyboardAndCompletesOk) {
@@ -81,6 +82,22 @@ TEST_F(FakeAvdUniverseTest, ShutdownIsIdempotentAndRejectsLaterEvents) {
                     dispatcher_.DispatchText(session, "late", std::move(done));
                 }),
                 testing::Optional(StatusIs(absl::StatusCode::kUnavailable)));
+}
+
+TEST(FakeAvdUniverseLifetimeTest, DispatcherHeldPastTheUniverseIsShutDown) {
+    std::shared_ptr<IInputDispatcher> dispatcher;
+    InputSessionId session = 0;
+    {
+        FakeAvdUniverse universe;
+        dispatcher = universe.GetInputDispatcher();
+        session = dispatcher->OpenSession({});
+    }
+
+    std::optional<absl::Status> result;
+    dispatcher->DispatchText(session, "late", [&result](absl::Status status) { result = status; });
+    dispatcher->CloseSession(session);
+
+    EXPECT_THAT(result, testing::Optional(StatusIs(absl::StatusCode::kUnavailable)));
 }
 
 }  // namespace

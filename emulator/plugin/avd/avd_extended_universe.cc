@@ -242,7 +242,7 @@ absl::Status AvdExtendedUniverse::Initialize() {
     // Without a keyboard until InstallKeyboard(): QEMU has no consoles yet.
     avd_universe.touch_devices_ = std::make_unique<::goldfish::grpc::v2::MultiDisplayTouchDevices>(
             *avd_universe.multi_display, avd_props.hw_config.hw_sensor_hinge);
-    avd_universe.input_dispatcher_ = std::make_unique<::goldfish::grpc::v2::InputDispatcher>(
+    avd_universe.input_dispatcher_ = std::make_shared<::goldfish::grpc::v2::InputDispatcher>(
             *qemu_loop, *avd_universe.touch_devices_, /*keyboard=*/nullptr,
             android::emulation::control::keyboard::ResolveEvdevKeyCode);
 
@@ -278,6 +278,11 @@ AvdExtendedUniverse::~AvdExtendedUniverse() {
     if (qemu_event_loop) {
         WaitUntilEventLoopsIdle();
         ShutdownQemuLoop();
+    }
+
+    // Input clients that outlive the universe may still hold the dispatcher.
+    if (input_dispatcher_) {
+        input_dispatcher_->Shutdown();
     }
 }
 
@@ -332,8 +337,8 @@ display::IMultiDisplay& AvdExtendedUniverse::GetMultiDisplay() const {
     return *multi_display;
 }
 
-::goldfish::grpc::v2::IInputDispatcher& AvdExtendedUniverse::GetInputDispatcher() {
-    return *input_dispatcher_;
+std::shared_ptr<::goldfish::grpc::v2::IInputDispatcher> AvdExtendedUniverse::GetInputDispatcher() {
+    return input_dispatcher_;
 }
 
 void AvdExtendedUniverse::InstallKeyboard() {

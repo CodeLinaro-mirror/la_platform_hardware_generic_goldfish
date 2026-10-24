@@ -47,4 +47,6 @@ environment, configures hardware, and starts all HAL services. **Location:**
 - **Input dispatcher:** `GetInputDispatcher()` returns the dispatcher built in `realize`, before
   QEMU has created any console. `avdend` (`UniverseBuildComplete()`) gives it the keyboard on
   console 0, after the display devices exist. The main-loop exit hook shuts it down before it
-  destroys the gRPC server.
+  destroys the gRPC server. It is shared: WebRTC channels, which a static vector keeps alive past
+  `qemu_cleanup()`, hold it, so the universe's destructor shuts it down again before destroying the
+  loop, touch devices and keyboard it uses.

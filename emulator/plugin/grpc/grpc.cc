@@ -435,7 +435,7 @@ void grpc_main_loop_exit_notify(Notifier* notifier, void* data) {
     // own, because QEMU runs those in reverse registration order. The QEMU
     // loop has stopped, so pending input completes with UNAVAILABLE now
     // instead of waiting for a loop that won't run it.
-    goldfish::avd::GetAvd().GetInputDispatcher().Shutdown();
+    goldfish::avd::GetAvd().GetInputDispatcher()->Shutdown();
     goldfish::avd::globalEventLoop()->WaitUntilIdle();
     auto deadline = std::chrono::system_clock::now() + std::chrono::milliseconds(100);
     config->grpc_server->Shutdown(deadline);
