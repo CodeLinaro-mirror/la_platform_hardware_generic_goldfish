@@ -106,6 +106,8 @@ class VaapiLoader {
     VADisplay display() const { return display_; }
 
   private:
+    void Close();
+
     goldfish::os::DynamicLibrary lib_va_;
     goldfish::os::DynamicLibrary lib_va_drm_;
     int drm_fd_{-1};
