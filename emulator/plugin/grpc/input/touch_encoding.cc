@@ -149,6 +149,13 @@ void AppendContactUp(int slot, ::android::emulation::control::EvDevEvents& event
     events.push_back({EV_ABS, ABS_MT_TRACKING_ID, static_cast<uint32_t>(kMtsPointerUp)});
 }
 
+void AppendContactCancel(int slot, ::android::emulation::control::EvDevEvents& palm_events,
+                         ::android::emulation::control::EvDevEvents& lift_events) {
+    palm_events.push_back({EV_ABS, ABS_MT_SLOT, static_cast<uint32_t>(slot)});
+    palm_events.push_back({EV_ABS, ABS_MT_TOOL_TYPE, MT_TOOL_PALM});
+    AppendContactUp(slot, lift_events);
+}
+
 bool IsContactReleased(PointerAction action, const PointerEvent::Pointer& p) {
     if (action == PointerAction::POINTER_ACTION_CANCEL ||
         action == PointerAction::POINTER_ACTION_HOVER_EXIT) {

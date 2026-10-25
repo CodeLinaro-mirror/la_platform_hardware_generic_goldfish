@@ -43,6 +43,7 @@
 #include "goldfish/async/testing/test_event_loop.h"
 #include "keyboard_sink.h"
 #include "standard-headers/linux/input-event-codes.h"
+#include "standard-headers/linux/input.h"
 
 namespace goldfish::grpc::v2 {
 namespace {
@@ -63,6 +64,7 @@ using ::testing::Contains;
 using ::testing::Each;
 using ::testing::ElementsAre;
 using ::testing::Field;
+using ::testing::HasSubstr;
 using ::testing::IsEmpty;
 using ::testing::Not;
 using ::testing::Optional;
@@ -72,6 +74,8 @@ using DispatchResult = InputDispatcher::DispatchResult;
 
 constexpr TouchDeviceId kInner = 0;
 constexpr TouchDeviceId kOuter = 1;
+// ABS_MT_TRACKING_ID -1: the slot's contact lifted.
+constexpr auto kTrackingIdUp = static_cast<uint32_t>(-1);
 
 // Converts a normalized coordinate to the evdev value the guest receives.
 constexpr uint32_t Abs(float v) {
@@ -83,15 +87,17 @@ struct GuestContact {
     int32_t tracking_id;
     uint32_t x;
     uint32_t y;
+    uint32_t tool_type = 0;
 };
 
 auto ContactAt(float x, float y) {
     return ::testing::AllOf(Field(&GuestContact::x, Abs(x)), Field(&GuestContact::y, Abs(y)));
 }
 
-// Minimal model of the guest's Linux multi-touch protocol B state: ABS_MT_SLOT
-// selects a slot, later ABS_MT_* values update it, and a slot holds a contact
-// while its tracking ID is not -1. Each WriteReport() call is one frame.
+// Minimal model of Android's MultiTouchMotionAccumulator over Linux multi-touch
+// protocol B: ABS_MT_SLOT selects a slot, later ABS_MT_* values update it, and
+// ABS_MT_TRACKING_ID < 0 immediately clears the slot before SYN_REPORT syncs
+// TouchInputMapper. Each WriteReport() call is one SYN_REPORT frame.
 class GuestTouchState {
   public:
     void ApplyReport(absl::Span<const EvDevEvent> events) {
@@ -104,11 +110,18 @@ class GuestTouchState {
             }
             Slot& slot = slots_[selected_];
             if (event.code == ABS_MT_TRACKING_ID) {
-                slot.tracking_id = static_cast<int32_t>(event.value);
+                const int32_t id = static_cast<int32_t>(event.value);
+                if (id < 0) {
+                    slot = Slot{};
+                } else {
+                    slot.tracking_id = id;
+                }
             } else if (event.code == ABS_MT_POSITION_X) {
                 slot.x = event.value;
             } else if (event.code == ABS_MT_POSITION_Y) {
                 slot.y = event.value;
+            } else if (event.code == ABS_MT_TOOL_TYPE) {
+                slot.tool_type = event.value;
             }
         }
     }
@@ -117,7 +130,8 @@ class GuestTouchState {
         std::vector<GuestContact> active;
         for (int i = 0; i < kTouchDeviceSlots; ++i) {
             if (slots_[i].tracking_id != -1) {
-                active.push_back({i, slots_[i].tracking_id, slots_[i].x, slots_[i].y});
+                active.push_back(
+                        {i, slots_[i].tracking_id, slots_[i].x, slots_[i].y, slots_[i].tool_type});
             }
         }
         return active;
@@ -128,6 +142,7 @@ class GuestTouchState {
         int32_t tracking_id = -1;
         uint32_t x = 0;
         uint32_t y = 0;
+        uint32_t tool_type = 0;
     };
     int selected_ = 0;
     std::array<Slot, kTouchDeviceSlots> slots_{};
@@ -554,6 +569,26 @@ TEST_F(InputDispatcherTest, DownForHeldPointerMovesIt) {
     EXPECT_THAT(inner_.guest.Active(), ElementsAre(ContactAt(0.5F, 0.5F)));
 }
 
+TEST_F(InputDispatcherTest, DownForHeldPointerIsRejectedWhileOthersApply) {
+    const InputSessionId a = dispatcher_.OpenSession({.source_id = 1, .reject_down_on_held = true});
+    ASSERT_THAT(Dispatch(a, Touch(kDown, {{0, 0.25F, 0.25F}})), IsOk());
+    Activities();
+
+    const absl::Status status = Dispatch(a, Touch(kDown, {{0, 0.5F, 0.5F}, {1, 0.75F, 0.75F}}));
+
+    EXPECT_THAT(status, StatusIs(absl::StatusCode::kFailedPrecondition, HasSubstr("Pointer 0")));
+    ASSERT_THAT(inner_.reports, SizeIs(2));
+    EXPECT_THAT(inner_.reports[1], Not(Contains(EvDevEvent{EV_ABS, ABS_MT_SLOT, 0})));
+    EXPECT_THAT(inner_.guest.Active(),
+                ElementsAre(ContactAt(0.25F, 0.25F), ContactAt(0.75F, 0.75F)));
+    EXPECT_THAT(Activities(), ElementsAre("src1 POINTER_ACTION_DOWN display 0 ids 1"));
+
+    // The contact is intact: it still moves and lifts.
+    ASSERT_THAT(Dispatch(a, Touch(kMove, {{0, 0.3F, 0.3F}})), IsOk());
+    ASSERT_THAT(Dispatch(a, Touch(kUp, {{0}})), IsOk());
+    EXPECT_THAT(inner_.guest.Active(), ElementsAre(ContactAt(0.75F, 0.75F)));
+}
+
 TEST_F(InputDispatcherTest, RelativeMoveAndScrollChangeNothing) {
     const InputSessionId a = Agent();
     ASSERT_THAT(Dispatch(a, Touch(kDown, {{0, 0.25F, 0.25F}})), IsOk());
@@ -585,12 +620,82 @@ TEST_F(InputDispatcherTest, PointerlessCancelReleasesSessionContactsOnDisplay) {
 
     ASSERT_THAT(Dispatch(a, Touch(PointerAction::POINTER_ACTION_CANCEL, {})), IsOk());
 
-    EXPECT_THAT(inner_.reports, SizeIs(3));
+    EXPECT_THAT(inner_.reports, SizeIs(4));
     EXPECT_THAT(inner_.guest.Active(), ElementsAre(ContactAt(0.75F, 0.75F)));
     EXPECT_THAT(outer_.guest.Active(), SizeIs(1));
 }
 
-TEST_F(InputDispatcherTest, CloseSessionReleasesOnlyItsContactsOneReportPerDevice) {
+// The events turning `slot` into a palm or lifting it.
+std::vector<EvDevEvent> Palm(uint32_t slot) {
+    return {{EV_ABS, ABS_MT_SLOT, slot}, {EV_ABS, ABS_MT_TOOL_TYPE, MT_TOOL_PALM}};
+}
+
+std::vector<EvDevEvent> Lift(uint32_t slot) {
+    return {{EV_ABS, ABS_MT_SLOT, slot}, {EV_ABS, ABS_MT_TRACKING_ID, kTrackingIdUp}};
+}
+
+TEST_F(InputDispatcherTest, CancelLiftsAsPalmButUpAndHoverExitLiftNormally) {
+    const InputSessionId a = Agent();
+    ASSERT_THAT(Dispatch(a, Touch(kDown, {{0}, {1}, {2}})), IsOk());
+    inner_.reports.clear();
+    inner_.frames.clear();
+
+    ASSERT_THAT(Dispatch(a, Touch(PointerAction::POINTER_ACTION_CANCEL, {{0}})), IsOk());
+    ASSERT_THAT(inner_.reports, ElementsAre(Palm(0), Lift(0)));
+    // Frame 0 observes slot 0 as MT_TOOL_PALM while still active; frame 1 lifts it.
+    EXPECT_THAT(inner_.frames[0],
+                ElementsAre(::testing::AllOf(Field(&GuestContact::slot, 0),
+                                             Field(&GuestContact::tool_type, MT_TOOL_PALM)),
+                            Field(&GuestContact::slot, 1), Field(&GuestContact::slot, 2)));
+    EXPECT_THAT(inner_.frames[1],
+                ElementsAre(Field(&GuestContact::slot, 1), Field(&GuestContact::slot, 2)));
+
+    ASSERT_THAT(Dispatch(a, Touch(kUp, {{1}})), IsOk());
+    EXPECT_EQ(inner_.reports.back(), Lift(1));
+    ASSERT_THAT(Dispatch(a, Touch(kMove, {{2, 0.5F, 0.5F, 0.0F}})), IsOk());
+    EXPECT_EQ(inner_.reports.back(), Lift(2));
+
+    ASSERT_THAT(Dispatch(a, Touch(PointerAction::POINTER_ACTION_HOVER_ENTER, {{3}})), IsOk());
+    ASSERT_THAT(Dispatch(a, Touch(PointerAction::POINTER_ACTION_HOVER_EXIT, {{3}})), IsOk());
+    EXPECT_EQ(inner_.reports.back(), Lift(0));
+    EXPECT_THAT(inner_.guest.Active(), IsEmpty());
+}
+
+TEST_F(InputDispatcherTest, PointerlessCancelLiftsAsPalmButHoverExitLiftsNormally) {
+    const InputSessionId a = Agent();
+    ASSERT_THAT(Dispatch(a, Touch(kDown, {{0}})), IsOk());
+    inner_.reports.clear();
+    inner_.frames.clear();
+    ASSERT_THAT(Dispatch(a, Touch(PointerAction::POINTER_ACTION_CANCEL, {})), IsOk());
+    EXPECT_THAT(inner_.reports, ElementsAre(Palm(0), Lift(0)));
+    EXPECT_THAT(inner_.frames[0], ElementsAre(Field(&GuestContact::tool_type, MT_TOOL_PALM)));
+    EXPECT_THAT(inner_.frames[1], IsEmpty());
+
+    ASSERT_THAT(Dispatch(a, Touch(PointerAction::POINTER_ACTION_HOVER_ENTER, {{0}})), IsOk());
+    ASSERT_THAT(Dispatch(a, Touch(PointerAction::POINTER_ACTION_HOVER_EXIT, {})), IsOk());
+    EXPECT_EQ(inner_.reports.back(), Lift(0));
+}
+
+TEST_F(InputDispatcherTest, CloseSessionLiftsContactsAsPalm) {
+    const InputSessionId a = Agent();
+    ASSERT_THAT(Dispatch(a, Touch(kDown, {{0}, {1}})), IsOk());
+    inner_.reports.clear();
+    inner_.frames.clear();
+
+    dispatcher_.CloseSession(a);
+    loop_->RunAll();
+
+    std::vector<EvDevEvent> expected_palm = Palm(0);
+    std::ranges::copy(Palm(1), std::back_inserter(expected_palm));
+    std::vector<EvDevEvent> expected_lift = Lift(0);
+    std::ranges::copy(Lift(1), std::back_inserter(expected_lift));
+    EXPECT_THAT(inner_.reports, ElementsAre(expected_palm, expected_lift));
+    EXPECT_THAT(inner_.frames[0], ElementsAre(Field(&GuestContact::tool_type, MT_TOOL_PALM),
+                                              Field(&GuestContact::tool_type, MT_TOOL_PALM)));
+    EXPECT_THAT(inner_.frames[1], IsEmpty());
+}
+
+TEST_F(InputDispatcherTest, CloseSessionReleasesOnlyItsContactsBatchingSlotsPerDevice) {
     const InputSessionId a = Agent();
     const InputSessionId b = Human();
     ASSERT_THAT(Dispatch(a, Touch(kDown, {{0}, {1}})), IsOk());
@@ -602,14 +707,14 @@ TEST_F(InputDispatcherTest, CloseSessionReleasesOnlyItsContactsOneReportPerDevic
     dispatcher_.CloseSession(a);
     loop_->RunAll();
 
-    EXPECT_THAT(inner_.reports, SizeIs(1));
-    EXPECT_THAT(outer_.reports, SizeIs(1));
+    EXPECT_THAT(inner_.reports, SizeIs(2));
+    EXPECT_THAT(outer_.reports, SizeIs(2));
     EXPECT_THAT(inner_.guest.Active(), ElementsAre(ContactAt(0.75F, 0.75F)));
     EXPECT_THAT(outer_.guest.Active(), IsEmpty());
 
     // The closed session's events no longer create contacts.
     EXPECT_THAT(Dispatch(a, Touch(kDown, {{0}})), StatusIs(absl::StatusCode::kFailedPrecondition));
-    EXPECT_THAT(inner_.reports, SizeIs(1));
+    EXPECT_THAT(inner_.reports, SizeIs(2));
 }
 
 TEST_F(InputDispatcherTest, MultiPointerEventWritesOneReportPerDevice) {
@@ -623,6 +728,20 @@ TEST_F(InputDispatcherTest, MultiPointerEventWritesOneReportPerDevice) {
     ASSERT_THAT(Dispatch(a, Touch(kUp, {{0}, {1, 0.4F, 0.4F, 1.0F}, {2}})), IsOk());
     EXPECT_THAT(inner_.reports, SizeIs(2));
     EXPECT_THAT(inner_.guest.Active(), ElementsAre(ContactAt(0.4F, 0.4F)));
+}
+
+TEST_F(InputDispatcherTest, MoveWithZeroPressureLiftsOnlyThatPointer) {
+    const InputSessionId a = Agent();
+    ASSERT_THAT(Dispatch(a, Touch(kDown, {{0, 0.1F, 0.1F}, {1, 0.2F, 0.2F}, {2, 0.3F, 0.3F}})),
+                IsOk());
+
+    ASSERT_THAT(Dispatch(a, Touch(kMove,
+                                  {{0, 0.15F, 0.15F}, {1, 0.2F, 0.2F, 0.0F}, {2, 0.35F, 0.35F}})),
+                IsOk());
+
+    EXPECT_THAT(inner_.reports, SizeIs(2));
+    EXPECT_THAT(inner_.guest.Active(),
+                ElementsAre(ContactAt(0.15F, 0.15F), ContactAt(0.35F, 0.35F)));
 }
 
 TEST_F(InputDispatcherTest, BackToBackEventsApplyInOrder) {
@@ -658,8 +777,8 @@ TEST_F(InputDispatcherTest, ReportsAndCompletionsRunOnLoopThread) {
     loop_->RunAll();
 
     EXPECT_EQ(done_on_loop, true);
-    EXPECT_THAT(inner_.on_loop_thread, ElementsAre(true, true));
-    EXPECT_THAT(outer_.on_loop_thread, ElementsAre(true, true));
+    EXPECT_THAT(inner_.on_loop_thread, ElementsAre(true, true, true));
+    EXPECT_THAT(outer_.on_loop_thread, ElementsAre(true, true, true));
 }
 
 TEST_F(InputDispatcherTest, RejectedPostCompletesOnCallingThread) {
@@ -809,9 +928,9 @@ TEST_F(InputDispatcherTest, KeysTextAndTouchesAreWrittenInPostingOrderOnLoop) {
     dispatcher_.CloseSession(b);
     loop_->RunAll();
 
-    EXPECT_THAT(log_.writes,
-                ElementsAre(Down(KEY_LEFTSHIFT), "touch inner", "text x", "touch outer",
-                            Up(KEY_LEFTSHIFT), Down(KEY_A), Up(KEY_A), "touch inner"));
+    EXPECT_THAT(log_.writes, ElementsAre(Down(KEY_LEFTSHIFT), "touch inner", "text x",
+                                         "touch outer", Up(KEY_LEFTSHIFT), Down(KEY_A), Up(KEY_A),
+                                         "touch inner", "touch inner"));
     EXPECT_THAT(log_.on_loop_thread, Each(true));
 }
 
@@ -952,11 +1071,11 @@ TEST_F(InputDispatcherTest, SynthesizedCancelGroupsContactsByRequestedDisplay) {
 
     dispatcher_.CloseSession(a);
 
-    // One report per device, but one CANCEL for the display both went down on.
+    // Palm + lift reports per device, and one CANCEL for the display both went down on.
     EXPECT_THAT(Activities(),
                 ElementsAre("src6 synthesized POINTER_ACTION_CANCEL display 0 ids 0 1"));
-    EXPECT_THAT(inner_.reports, SizeIs(1));
-    EXPECT_THAT(outer_.reports, SizeIs(1));
+    EXPECT_THAT(inner_.reports, SizeIs(2));
+    EXPECT_THAT(outer_.reports, SizeIs(2));
 }
 
 TEST_F(InputDispatcherTest, InterleavedSessionsAreReportedInLoopOrderWithRisingTimestamps) {
@@ -1247,7 +1366,7 @@ TEST_F(InputDispatcherTest, CloseSessionRunsWhenSessionIsAtCap) {
     capped.CloseSession(a);
     loop_->RunAll();
 
-    EXPECT_THAT(inner_.reports, SizeIs(2));
+    EXPECT_THAT(inner_.reports, SizeIs(3));
     EXPECT_THAT(inner_.guest.Active(), IsEmpty());
 }
 

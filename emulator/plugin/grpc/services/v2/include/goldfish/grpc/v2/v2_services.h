@@ -20,7 +20,6 @@
 #include <vector>
 
 #include "android/goldfish/vm_interface.h"
-#include "goldfish/async/event_loop.h"
 #include "goldfish/avd/avd_universe.h"
 
 namespace goldfish::grpc::v2 {
@@ -30,7 +29,6 @@ namespace goldfish::grpc::v2 {
  */
 std::vector<std::shared_ptr<::grpc::Service>> CreateV2Services(
         ::goldfish::avd::AvdUniverse& avd_universe,
-        ::android::goldfish::VmOperations* vm_operations = nullptr,
-        ::goldfish::async::EventLoop* event_loop = nullptr);
+        ::android::goldfish::VmOperations* vm_operations = nullptr);
 
 }  // namespace goldfish::grpc::v2

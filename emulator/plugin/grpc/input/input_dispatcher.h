@@ -202,7 +202,10 @@ class InputDispatcher final : public IInputDispatcher {
     absl::Status ApplyText(InputSessionId session, std::string_view utf8);
     // @return UNAVAILABLE if no keyboard is installed.
     absl::Status CheckKeyboard() const;
-    absl::Status CancelOnDisplay(InputSessionId session, int32_t source_id, int32_t display_id);
+    // Releases the contacts of `session` on the device `display_id` resolves
+    // to, lifting them as `action` (CANCEL or HOVER_EXIT) does.
+    absl::Status CancelOnDisplay(InputSessionId session, int32_t source_id, int32_t display_id,
+                                 ::android::emulation::v2::PointerAction action);
     void ReleaseSession(InputSessionId session);
 
     // Stamps `event` and queues it for delivery. Called on the loop right

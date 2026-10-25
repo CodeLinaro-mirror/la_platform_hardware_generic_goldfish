@@ -52,6 +52,12 @@ class IInputDispatcher {
         bool human = false;
         /** @brief The `input_source_id` stamped on every activity of the session. */
         int32_t source_id = 0;
+        /**
+         * @brief Whether `DOWN` for a pointer the session already holds is a
+         * client error rather than a move. Set by APIs whose clients must lift
+         * a pointer before pressing it again (v2); others may resend presses.
+         */
+        bool reject_down_on_held = false;
     };
 
     using ActivityEventSource =
@@ -114,9 +120,10 @@ class IInputDispatcher {
     virtual InputSessionId OpenSession(SessionOptions options) = 0;
 
     /**
-     * @brief Releases all contacts of `session`, writing one report per active
-     * device, releases the keys only it holds in ascending code order, and
-     * forgets it. Never rejected for backpressure.
+     * @brief Releases all contacts of `session` as cancelled (writing a palm
+     * report followed by a lift report per active device), releases the keys
+     * only it holds in ascending code order, and forgets it. Never rejected for
+     * backpressure.
      */
     virtual void CloseSession(InputSessionId session) = 0;
 
@@ -127,11 +134,19 @@ class IInputDispatcher {
      * - `CANCEL` or `HOVER_EXIT` without pointers releases the session's
      *   contacts on the device `display_id` resolves to.
      * - A listed pointer the session holds moves on its bound device, or is
-     *   lifted if `IsContactReleased()`; `DOWN` for a held pointer is a move.
+     *   lifted if `IsContactReleased()`. `DOWN` for a held pointer is a move,
+     *   unless the session has `reject_down_on_held`: then that pointer is
+     *   skipped, its contact is left as it was, and the event completes with
+     *   `FAILED_PRECONDITION`; other pointers still apply.
      * - An unheld pointer becomes a new contact on the device `display_id`
      *   resolves to if the action is `DOWN`, `HOVER_ENTER`, or `HOVER_MOVE`,
      *   and is ignored otherwise. If no slot is free it is skipped and the
      *   event completes with `RESOURCE_EXHAUSTED`; other pointers still apply.
+     *
+     * A contact released by `CANCEL` turns into a palm in one report and lifts
+     * in an immediate follow-up report, so the guest observes `MT_TOOL_PALM`
+     * before the slot clears and cancels its gesture rather than firing a click
+     * or drop.
      *
      * If a target device is missing or inactive the event completes with
      * `UNAVAILABLE`, and if `display_id` doesn't resolve with that error;

@@ -106,41 +106,6 @@ cc_test(
 )
 
 cc_library(
-    name = "input_session",
-    srcs = ["input_session.cc"],
-    hdrs = ["input_session.h"],
-    deps = [
-        ":ev_dev_event",
-        ":slot_registry",
-        ":touch_encoding",
-        "//emulator/plugin/display",
-        "//emulator/plugin/grpc/keyboard",
-        "//emulator/plugin/grpc/keyboard:keyconversion",
-        "@abseil-cpp//absl/container:flat_hash_set",
-        "@abseil-cpp//absl/log",
-        "@abseil-cpp//absl/status",
-        "@abseil-cpp//absl/types:span",
-        "@aemu//protos/services_v2:input_service_cc_proto",
-    ],
-)
-
-cc_test(
-    name = "input_session_test",
-    size = "small",
-    srcs = ["input_session_test.cc"],
-    deps = [
-        ":input_session",
-        "//emulator/libs/async:libuv_event_loop",
-        "//emulator/libs/async:threaded_event_loop",
-        "//emulator/libs/test:googletest_main",
-        "//emulator/plugin/display:test-display",
-        "//emulator/plugin/grpc/keyboard:test_qemu_input_stub",
-        "@googletest//:gtest",
-        "@grpc",
-    ],
-)
-
-cc_library(
     name = "input_session_id",
     hdrs = ["input_session_id.h"],
 )
@@ -369,7 +334,6 @@ clang_tidy_test(
         ":event_sender",
         ":input_dispatcher",
         ":input_dispatcher_interface",
-        ":input_session",
         ":input_session_id",
         ":keyboard_sink",
         ":multi_display_touch_devices",

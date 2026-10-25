@@ -29,13 +29,11 @@
 namespace goldfish::grpc::v2 {
 
 using ::android::goldfish::VmOperations;
-using ::goldfish::async::EventLoop;
 using ::goldfish::avd::AvdUniverse;
 using ::grpc::Service;
 
 std::vector<std::shared_ptr<Service>> CreateV2Services(AvdUniverse& avd_universe,
-                                                       VmOperations* vm_operations,
-                                                       EventLoop* /*event_loop*/) {
+                                                       VmOperations* vm_operations) {
     std::vector<std::shared_ptr<Service>> services;
 
     services.emplace_back(std::make_shared<CapabilitiesServiceImpl>(avd_universe));
