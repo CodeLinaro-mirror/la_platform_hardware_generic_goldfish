@@ -1,7 +1,18 @@
 load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_test")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+load("//emulator/tools:plugins.bzl", "collect_plugins")
 
 package(default_visibility = ["//visibility:public"])
+
+collect_plugins(
+    name = "binplace",
+    output_dir = ".",
+    plugins = [
+        "@glib//glib:glib_shared",
+        "@glib//gmodule:gmodule_shared",
+    ],
+    visibility = ["//visibility:private"],
+)
 
 cc_library(
     name = "ev_dev_event",
@@ -94,6 +105,11 @@ cc_test(
     name = "event_sender_test",
     size = "small",
     srcs = ["event_sender_test.cc"],
+    data = [":binplace"],
+    dynamic_deps = [
+        "@glib//glib:glib_shared",
+        "@glib//gmodule:gmodule_shared",
+    ],
     visibility = ["//visibility:public"],
     deps = [
         ":event_sender",
@@ -250,6 +266,11 @@ cc_test(
     name = "multi_display_touch_devices_test",
     size = "small",
     srcs = ["multi_display_touch_devices_test.cc"],
+    data = [":binplace"],
+    dynamic_deps = [
+        "@glib//glib:glib_shared",
+        "@glib//gmodule:gmodule_shared",
+    ],
     deps = [
         ":ev_dev_event",
         ":multi_display_touch_devices",

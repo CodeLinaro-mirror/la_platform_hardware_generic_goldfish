@@ -454,7 +454,8 @@ class QemuVmOperations : public VmOperations {
     absl::Status SaveSnapshot(std::string name, const bool overwrite) override {
         RETURN_IF_ERROR(CheckSnapshotName(name));
         RETURN_IF_ERROR(CheckSnapshotsEnabled("save"));
-        // QEMU's device hooks (virtio-gpu-rutabaga) write below this directory.
+        // The virtio-gpu device (virtio-gpu-rutabaga / virtio-gpu-gfxstream) writes below this
+        // directory.
         const bool existed_before = snapshot_store_->Exists(name);
         RETURN_IF_ERROR(snapshot_store_->Prepare(name));
 

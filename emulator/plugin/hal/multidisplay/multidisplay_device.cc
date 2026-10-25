@@ -21,14 +21,15 @@
 #include "absl/synchronization/mutex.h"
 
 extern "C" {
-#include "goldfish/avd/rutabaga_glue.h"
+#include "goldfish/devices/virtio_gpu_gfxstream/virtio_gpu_glue.h"
 }  // extern "C"
 
 namespace goldfish::devices::multidisplay {
 
 // --- Device Implementation ---
 
-MultiDisplayDevice::MultiDisplayDevice(async::EventLoop* client_loop) : client_loop_(client_loop) {
+MultiDisplayDevice::MultiDisplayDevice(async::EventLoop* client_loop, async::EventLoop* qemu_loop)
+        : client_loop_(client_loop), qemu_loop_(qemu_loop) {
     VLOG(1) << "MultiDisplayDevice created";
 }
 
@@ -148,30 +149,88 @@ void MultiDisplayDevice::OnReceive(std::string_view data) {
             }
             case kCmdBind: {
                 if (payload_size >= 1 + 2 * sizeof(uint32_t)) {
-                    // Cast the data directly from the byte array
-                    const auto* bind_data = reinterpret_cast<const uint32_t*>(payload_data + 1);
-                    const uint32_t display_id = bind_data[0];
-                    const uint32_t cb_handle = bind_data[1];
+                    uint32_t display_id = 0;
+                    uint32_t cb_handle = 0;
+                    std::memcpy(&display_id, payload_data + 1, sizeof(uint32_t));
+                    std::memcpy(&cb_handle, payload_data + 1 + sizeof(uint32_t), sizeof(uint32_t));
                     VLOG(1) << "Guest bound display " << display_id << " to handle " << cb_handle;
-                    // --- STORE IN MAP ---
-                    const absl::MutexLock lock(&color_buffer_mutex_);
+
+                    uint32_t width = 0;
+                    uint32_t height = 0;
+                    bool should_readback = false;
                     {
-                        uint32_t width = 1080;
-                        uint32_t height = 1920;
+                        const absl::MutexLock lock(&color_buffer_mutex_);
                         auto it = display_buffers_.find(display_id);
                         if (it != display_buffers_.end()) {
+                            const uint32_t prev_cb = it->second.cb_handle;
+                            if (prev_cb != 0 && prev_cb != cb_handle) {
+                                bool still_referenced = false;
+                                for (const auto& [other_id, other_info] : display_buffers_) {
+                                    if (other_id != display_id && other_info.cb_handle == prev_cb) {
+                                        still_referenced = true;
+                                        break;
+                                    }
+                                }
+                                if (!still_referenced) {
+                                    frame_buffers_.erase(prev_cb);
+                                }
+                            }
                             width = it->second.width;
                             height = it->second.height;
                             it->second.cb_handle = cb_handle;
-                            auto& fb = frame_buffers_[cb_handle];
-                            fb.resize(static_cast<size_t>(width) * height * 4);
-                            struct rutabaga* vr = rutabagaGetInstance();
-                            const int stride = static_cast<int>(width * 4);
-                            rutabagaImageRead(vr, cb_handle, width, height, stride,
-                                              static_cast<void*>(fb.data()), fb.size());
+                            if (cb_handle != 0) {
+                                auto& fb = frame_buffers_[cb_handle];
+                                fb.resize(static_cast<size_t>(width) * height * 4);
+                                should_readback = (width > 0 && height > 0);
+                            }
                         } else {
                             LOG(WARNING) << "BIND received for unknown display " << display_id
                                          << ", ignored";
+                        }
+                    }
+
+                    // virtioGpuGlueGetInstance() / virtioGpuGlueImageRead() touch QOM
+                    // and the virtio-gpu renderer resource table, which require the
+                    // QEMU main thread (BQL). Dispatch onto qemu_loop_ without
+                    // blocking client_loop_ on bql_lock() during shutdown.
+                    if (should_readback) {
+                        auto perform_readback = [weak_self = weak_from_this(), display_id,
+                                                 cb_handle, width, height]() {
+                            auto self = weak_self.lock();
+                            if (!self) {
+                                return;
+                            }
+                            const size_t fb_bytes = static_cast<size_t>(width) * height * 4;
+                            std::vector<uint8_t> pixels(fb_bytes);
+                            struct VirtioGpuGlue* gpu = virtioGpuGlueGetInstance();
+                            if (!gpu) {
+                                return;
+                            }
+                            const uint32_t stride = width * 4;
+                            if (virtioGpuGlueImageRead(gpu, cb_handle, width, height, stride,
+                                                       pixels.data(),
+                                                       static_cast<uint32_t>(pixels.size())) != 0) {
+                                return;
+                            }
+                            const absl::MutexLock lock(&self->color_buffer_mutex_);
+                            auto disp_it = self->display_buffers_.find(display_id);
+                            if (disp_it != self->display_buffers_.end() &&
+                                disp_it->second.cb_handle == cb_handle &&
+                                disp_it->second.width == width &&
+                                disp_it->second.height == height) {
+                                self->frame_buffers_[cb_handle] = std::move(pixels);
+                            }
+                        };
+                        async::EventLoop* qemu_loop = qemu_loop_.load(std::memory_order_acquire);
+                        if (qemu_loop != nullptr) {
+                            if (qemu_loop->IsOnLoopThread()) {
+                                perform_readback();
+                            } else {
+                                qemu_loop->Post(std::move(perform_readback)).IgnoreError();
+                            }
+                        } else {
+                            LOG(WARNING) << "Skipping virtio-gpu readback for display "
+                                         << display_id << ": qemu_loop is not configured";
                         }
                     }
                 } else {
@@ -233,6 +292,9 @@ void MultiDisplayDevice::SendFramed(std::string msg) {
 void MultiDisplayDevice::RegisterDevice(const std::shared_ptr<MultiDisplayDevice>& device,
                                         IConnectorRegistry* registry, async::EventLoop* client_loop,
                                         async::EventLoop* qemu_loop) {
+    if (device) {
+        device->qemu_loop_.store(qemu_loop, std::memory_order_release);
+    }
     registry->RegisterHalDevice("multidisplay", client_loop, qemu_loop,
                                 [device](std::string_view /*args*/) { return device; });
 }

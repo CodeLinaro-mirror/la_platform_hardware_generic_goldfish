@@ -22,11 +22,13 @@
 #include "device.h"
 #include "goldfish/gvk/i_meta_loader.h"
 #include "snapshot_device.h"
+#include "virtio_gpu_selection.h"
 #include "vulkan_gpu_device_info.h"
 
 namespace android::goldfish {
 
-// Configures the rutabaga gfxstream based graphics card.
+// Configures the gfxstream based virtio-gpu graphics card (virtio-gpu-rutabaga
+// or virtio-gpu-gfxstream, see virtio_gpu_selection.h).
 // The gpu card lives in the first pci slot (01.0)
 class GpuDevice : public PciDevice {
   public:
@@ -39,6 +41,8 @@ class GpuDevice : public PciDevice {
             const EmulatorConfig& emulator) const override;
 
     std::string_view getVulkanIcd() const { return mVulkanIcd; }
+    // The device selected by -virtio-gpu-device (valid after initialize()).
+    VirtioGpuDevice virtio_gpu_device() const { return mVirtioGpuDevice; }
     std::span<const VulkanGpuDeviceInfo> getHostGpus() const { return mHostGpus; }
     const std::optional<VulkanGpuDeviceInfo>& getSelectedGpu() const { return mSelectedGpu; }
 
@@ -46,6 +50,7 @@ class GpuDevice : public PciDevice {
 
   private:
     const SnapshotDevice& mSnapshotDevice;
+    VirtioGpuDevice mVirtioGpuDevice = kDefaultVirtioGpuDevice;
     std::string mEmuRenderer;
     std::string mVulkanIcd;
     std::vector<VulkanGpuDeviceInfo> mHostGpus;

@@ -1,5 +1,6 @@
 load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_test")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+load("//emulator/tools:plugins.bzl", "collect_plugins")
 
 cc_library(
     name = "write_png",
@@ -201,6 +202,15 @@ cc_library(
     ],
 )
 
+collect_plugins(
+    name = "binplace",
+    output_dir = ".",
+    plugins = [
+        "@glib//glib:glib_shared",
+        "@glib//gmodule:gmodule_shared",
+    ],
+)
+
 cc_test(
     name = "display_unittests",
     size = "small",
@@ -213,6 +223,11 @@ cc_test(
         "pixman_display_concurrency_test.cc",
         "pixman_image_generator_test.cc",
         "qemu_display_test.cc",
+    ],
+    data = [":binplace"],
+    dynamic_deps = [
+        "@glib//glib:glib_shared",
+        "@glib//gmodule:gmodule_shared",
     ],
     visibility = ["//visibility:public"],
     deps = [

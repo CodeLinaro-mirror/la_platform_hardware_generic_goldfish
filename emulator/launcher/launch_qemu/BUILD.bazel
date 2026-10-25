@@ -242,6 +242,7 @@ cc_library(
     deps = [
         ":device",
         ":snapshot_device",
+        ":virtio_gpu_selection",
         ":vulkan_gpu_device_info",
         "//emulator/libs/file",
         "//emulator/libs/gvk",
@@ -267,11 +268,13 @@ cc_test(
         ":fake_emulator",
         ":gpu_device",
         ":snapshot_device",
+        ":virtio_gpu_selection",
         "//emulator/libs/file",
         "//emulator/libs/gvk",
         "//emulator/libs/status_macros:status_matcher_macros",
         "//emulator/libs/system:test-headers",
         "//emulator/libs/test:googletest_main",
+        "@abseil-cpp//absl/status:status_matchers",
         "@abseil-cpp//absl/strings",
     ],
 )
@@ -607,12 +610,43 @@ cc_test(
 )
 
 cc_library(
+    name = "virtio_gpu_selection",
+    srcs = ["virtio_gpu_selection.cc"],
+    hdrs = ["virtio_gpu_selection.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//emulator/launcher/cmdline",
+        "//emulator/libs/snapshot:snapshot_store",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+    ],
+)
+
+cc_test(
+    name = "virtio_gpu_selection_test",
+    size = "small",
+    srcs = ["virtio_gpu_selection_test.cc"],
+    deps = [
+        ":virtio_gpu_selection",
+        "//emulator/launcher/cmdline",
+        "//emulator/libs/snapshot:snapshot_store",
+        "//emulator/libs/status_macros:status_matcher_macros",
+        "//emulator/libs/test:googletest_main",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:status_matchers",
+        "@googletest//:gtest",
+    ],
+)
+
+cc_library(
     name = "snapshot_device",
     srcs = ["snapshot_device.cc"],
     hdrs = ["snapshot_device.h"],
     visibility = ["//visibility:public"],
     deps = [
         ":device",
+        ":virtio_gpu_selection",
         "//emulator/libs/file",
         "//emulator/libs/fsimage:qcow2",
         "//emulator/libs/metrics:snapshot_metrics",
@@ -634,6 +668,7 @@ cc_test(
         ":device",
         ":fake_emulator",
         ":snapshot_device",
+        ":virtio_gpu_selection",
         "//emulator/libs/file",
         "//emulator/libs/fsimage:qcow2",
         "//emulator/libs/status_macros:status_matcher_macros",

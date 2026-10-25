@@ -4,6 +4,7 @@
 
 #include <optional>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -75,7 +76,40 @@ TEST(AvdInfoDeviceTest, SnapshotsEnabledByDefaultAndVersionPassedToPlugin) {
                         ::testing::AllOf(::testing::HasSubstr("avdstart,"),
                                          ::testing::HasSubstr("snapshots_enabled=true"),
                                          ::testing::HasSubstr(absl::StrCat(
-                                                 "snapshot_version=", kSnapshotVersion)))));
+                                                 "snapshot_version=",
+                                                 SnapshotVersionFor(kDefaultVirtioGpuDevice))))));
+}
+
+TEST(AvdInfoDeviceTest, SnapshotVersionEncodesSelectedVirtioGpuDevice) {
+    for (const char* const name : {"gfxstream", "rutabaga"}) {
+        AndroidOptions opts{};
+        opts.virtio_gpu_device = const_cast<char*>(name);
+        FakeEmulator emu(opts);
+        const VirtioGpuDevice device = std::string_view(name) == "gfxstream"
+                                               ? VirtioGpuDevice::kGfxstream
+                                               : VirtioGpuDevice::kRutabaga;
+
+        AvdInfoDevice dev(/*factory_boot=*/false);
+        EXPECT_THAT(dev.initialize(emu.config()), absl_testing::IsOk());
+        EXPECT_THAT(
+                dev.getQemuParameters(emu.config()),
+                ::testing::ElementsAre(
+                        Eq("-device"),
+                        ::testing::AllOf(
+                                ::testing::HasSubstr("avdstart,"),
+                                ::testing::HasSubstr(absl::StrCat(
+                                        "snapshot_version=", SnapshotVersionFor(device), ",")))))
+                << name;
+    }
+    // The two values differ only in the device bits.
+    EXPECT_NE(SnapshotVersionFor(VirtioGpuDevice::kGfxstream),
+              SnapshotVersionFor(VirtioGpuDevice::kRutabaga));
+    EXPECT_EQ(::goldfish::snapshot::SnapshotVersionGpuDevice(
+                      SnapshotVersionFor(VirtioGpuDevice::kGfxstream)),
+              ::goldfish::snapshot::SnapshotGpuDevice::kGfxstream);
+    EXPECT_EQ(::goldfish::snapshot::SnapshotVersionGpuDevice(
+                      SnapshotVersionFor(VirtioGpuDevice::kRutabaga)),
+              ::goldfish::snapshot::SnapshotGpuDevice::kRutabaga);
 }
 
 TEST(AvdInfoDeviceTest, NoSnapshotDisablesSnapshots) {
