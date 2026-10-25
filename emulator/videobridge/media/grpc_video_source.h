@@ -74,12 +74,16 @@ class VideoFormatPipeline {
   public:
     virtual ~VideoFormatPipeline() = default;
 
-    virtual android::emulation::control::ImageFormat_ImgFormat GetGrpcFormat() const = 0;
-    virtual size_t GetRequiredSharedMemorySize(uint32_t width, uint32_t height) const = 0;
+    virtual android::emulation::control::ImageFormat_ImgFormat GetGrpcFormat() const;
+    virtual size_t GetRequiredSharedMemorySize(uint32_t width, uint32_t height) const;
     virtual std::optional<::webrtc::VideoFrame> Convert(const uint8_t* raw_data, size_t raw_size,
                                                         uint32_t width, uint32_t height,
                                                         int64_t timestamp_us) = 0;
-    virtual void Release() {}
+    virtual void Release();
+
+  protected:
+    ::webrtc::VideoFrameBufferPool buffer_pool_{/*zero_initialize=*/false,
+                                                /*max_number_of_buffers=*/8};
 };
 
 /**
@@ -87,16 +91,9 @@ class VideoFormatPipeline {
  */
 class RgbaToNv12Pipeline : public VideoFormatPipeline {
   public:
-    android::emulation::control::ImageFormat_ImgFormat GetGrpcFormat() const override;
-    size_t GetRequiredSharedMemorySize(uint32_t width, uint32_t height) const override;
     std::optional<::webrtc::VideoFrame> Convert(const uint8_t* raw_data, size_t raw_size,
                                                 uint32_t width, uint32_t height,
                                                 int64_t timestamp_us) override;
-    void Release() override;
-
-  private:
-    ::webrtc::VideoFrameBufferPool buffer_pool_{/*zero_initialize=*/false,
-                                                /*max_number_of_buffers=*/8};
 };
 
 /**
@@ -104,16 +101,9 @@ class RgbaToNv12Pipeline : public VideoFormatPipeline {
  */
 class RgbaToI420Pipeline : public VideoFormatPipeline {
   public:
-    android::emulation::control::ImageFormat_ImgFormat GetGrpcFormat() const override;
-    size_t GetRequiredSharedMemorySize(uint32_t width, uint32_t height) const override;
     std::optional<::webrtc::VideoFrame> Convert(const uint8_t* raw_data, size_t raw_size,
                                                 uint32_t width, uint32_t height,
                                                 int64_t timestamp_us) override;
-    void Release() override;
-
-  private:
-    ::webrtc::VideoFrameBufferPool buffer_pool_{/*zero_initialize=*/false,
-                                                /*max_number_of_buffers=*/8};
 };
 
 /**
