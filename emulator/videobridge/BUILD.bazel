@@ -351,6 +351,7 @@ cc_library(
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/synchronization",
+        "@abseil-cpp//absl/types:span",
         "@libyuv",
         "@webrtc//api:scoped_refptr",
         "@webrtc//api/video:video_frame",
@@ -360,6 +361,25 @@ cc_library(
         "@webrtc//modules/video_coding:video_codec_interface",
         "@webrtc//rtc_base:checks",
         "@webrtc//rtc_base:logging",
+    ],
+)
+
+cc_library(
+    name = "vaapi_bitstream_test_utils",
+    hdrs = ["core/linux/test/vaapi_bitstream_test_utils.h"],
+    copts = WEBRTC_COPTS,
+    includes = ["."],
+    target_compatible_with = select({
+        "@platforms//os:linux": [],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
+    deps = [
+        ":vaapi_video_encoder",
+        "@abseil-cpp//absl/synchronization",
+        "@abseil-cpp//absl/types:span",
+        "@webrtc//api:scoped_refptr",
+        "@webrtc//api/video:video_frame",
+        "@webrtc//common_video",
     ],
 )
 
@@ -375,11 +395,31 @@ cc_test(
     }),
     deps = [
         ":fake_vaapi_driver",
+        ":vaapi_bitstream_test_utils",
         ":vaapi_video_encoder",
         "//emulator/libs/test:googletest_main",
         "@abseil-cpp//absl/synchronization",
+        "@webrtc//api:scoped_refptr",
         "@webrtc//api/video:video_frame",
         "@webrtc//api/video_codecs:video_codecs_api",
+    ],
+)
+
+cc_binary_with_manifest(
+    name = "vaapi_video_encoder_perf",
+    srcs = ["core/linux/vaapi_video_encoder_perf.cc"],
+    copts = WEBRTC_COPTS,
+    includes = ["."],
+    tags = ["benchmark"],
+    target_compatible_with = select({
+        "@platforms//os:linux": [],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
+    deps = [
+        ":vaapi_bitstream_test_utils",
+        ":vaapi_video_encoder",
+        "@abseil-cpp//absl/types:span",
+        "@google_benchmark//:benchmark",
     ],
 )
 
@@ -1068,8 +1108,10 @@ clang_tidy_test(
         ":nvenc_hardware_test",
         ":vaapi_loader",
         ":vaapi_loader_test",
+        ":vaapi_bitstream_test_utils",
         ":vaapi_video_encoder",
         ":vaapi_video_encoder_test",
+        ":vaapi_video_encoder_perf",
         ":vaapi_hardware_test",
         ":videobridge_codecs",
         ":codec_factories_linux_test",

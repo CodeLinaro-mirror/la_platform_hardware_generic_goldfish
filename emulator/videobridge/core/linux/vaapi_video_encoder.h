@@ -23,7 +23,10 @@
 #include "absl/base/thread_annotations.h"
 #include "absl/status/status.h"
 #include "absl/synchronization/mutex.h"
+#include "absl/types/span.h"
 
+#include "api/scoped_refptr.h"
+#include "api/video/encoded_image.h"
 #include "api/video/video_frame.h"
 #include "api/video_codecs/h264_profile_level_id.h"
 #include "api/video_codecs/sdp_video_format.h"
@@ -89,6 +92,13 @@ class VaapiVideoEncoder : public webrtc::VideoEncoder {
     EncoderInfo GetEncoderInfo() const override;
 
   private:
+    friend class VaapiVideoEncoderTestPeer;
+
+    static webrtc::scoped_refptr<webrtc::EncodedImageBuffer> AssembleEncodedBitstream(
+            const void* coded_data, bool force_idr, VAProfile profile,
+            absl::Span<const uint8_t> sps_nalu, absl::Span<const uint8_t> pps_nalu,
+            std::vector<uint8_t>& scratch_bitstream);
+
     absl::Status InitializeSessionLocked() ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
     void DestroySessionLocked() ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
 
@@ -116,6 +126,7 @@ class VaapiVideoEncoder : public webrtc::VideoEncoder {
     uint32_t idr_pic_id_ ABSL_GUARDED_BY(mutex_){0};
     uint32_t recon_slot_ ABSL_GUARDED_BY(mutex_){0};
 
+    std::vector<uint8_t> scratch_bitstream_ ABSL_GUARDED_BY(mutex_);
     webrtc::EncodedImageCallback* callback_ ABSL_GUARDED_BY(mutex_){nullptr};
 };
 
