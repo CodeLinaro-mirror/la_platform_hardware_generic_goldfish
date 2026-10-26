@@ -24,23 +24,32 @@
 namespace android::goldfish {
 
 namespace {
-absl::StatusOr<std::string> machine(const Avd& avd) {
+absl::StatusOr<std::string> machine(const EmulatorConfig& emulator) {
+    const Avd& avd = emulator.avd();
+    std::string machine_arg;
+
     switch (auto a = avd.Arch(); a) {
-    case Avd::CpuArchitecture::kArm: {
-        return "goldfish-arm";
-    }
+    case Avd::CpuArchitecture::kArm:
+        machine_arg = "goldfish-arm";
+        break;
     case Avd::CpuArchitecture::kX86:
-        return "goldfish";
-    case Avd::CpuArchitecture::kRiscV:
+        machine_arg = "goldfish";
+        break;
     default:
         return absl::UnimplementedError(absl::StrCat("Machine type not supported: ", a));
     }
+
+    if (avd.ApiLevel() < 37) {
+        absl::StrAppend(&machine_arg, ",goldfish-pipe=on");
+        absl::StrAppend(&machine_arg, ",goldfish-sync=on");
+    }
+
+    return machine_arg;
 }
 }  // namespace
 
 absl::Status Machine::initialize(const EmulatorConfig& emulator) {
-    const Avd& avd = emulator.avd();
-    if (auto m = machine(avd); m.ok()) {
+    if (auto m = machine(emulator); m.ok()) {
         mMachine = *m;
         return absl::OkStatus();
     } else {

@@ -53,9 +53,8 @@ TEST(Machine, Basic_x86) {
 
     Machine dev;
     EXPECT_OK(dev.initialize(emu.config()));
-    EXPECT_THAT(
-            dev.getQemuParameters(emu.config()),
-            testing::ElementsAre(testing::StartsWith("-machine"), testing::StartsWith("goldfish")));
+    EXPECT_THAT(dev.getQemuParameters(emu.config()),
+                testing::ElementsAre(testing::Eq("-machine"), testing::Eq("goldfish")));
 }
 
 TEST(Machine, Basic_arm64) {
@@ -71,8 +70,24 @@ TEST(Machine, Basic_arm64) {
     Machine dev;
     EXPECT_OK(dev.initialize(emu.config()));
     EXPECT_THAT(dev.getQemuParameters(emu.config()),
-                testing::ElementsAre(testing::StartsWith("-machine"),
-                                     testing::StartsWith("goldfish-arm")));
+                testing::ElementsAre(testing::Eq("-machine"), testing::Eq("goldfish-arm")));
+}
+
+TEST(Machine, LegacyGoldfishDevicesBelowApi37) {
+    auto launcher_path = std::filesystem::temp_directory_path();
+    base::TestSystem sys(launcher_path);
+
+    FakeEmulator emu;
+    EXPECT_CALL(emu.mock_avd(), Arch())
+            .Times(1)
+            .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
+    EXPECT_CALL(emu.mock_avd(), ApiLevel()).WillRepeatedly(testing::Return(36));
+
+    Machine dev;
+    EXPECT_OK(dev.initialize(emu.config()));
+    EXPECT_THAT(dev.getQemuParameters(emu.config()),
+                testing::ElementsAre(testing::Eq("-machine"),
+                                     testing::Eq("goldfish,goldfish-pipe=on,goldfish-sync=on")));
 }
 
 }  // namespace android::goldfish::test

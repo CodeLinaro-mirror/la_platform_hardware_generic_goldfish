@@ -1,0 +1,46 @@
+load("@rules_cc//cc:defs.bzl", "cc_library")
+
+package(default_visibility = ["//visibility:public"])
+
+cc_library(
+    name = "goldfish_sync",
+    srcs = [
+        "goldfish_sync.cc",
+    ],
+    hdrs = [
+        "goldfish_sync.h",
+    ],
+    deps = [
+        "//emulator/plugin/legacy/common",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:check",
+    ],
+    alwayslink = True,
+)
+
+cc_library(
+    name = "impl",
+    srcs = [
+        "goldfish_sync_low_level.c",
+    ],
+    hdrs = ["include/goldfish/legacy/goldfish_sync_low_level.h"],
+    includes = ["include"],
+    deps = [
+        ":goldfish_sync",
+        "//emulator/plugin/legacy/common:c_hdrs",
+        "@qemu//:aemu_func_defs",
+        "@qemu//:qemu-headers-exported",
+    ],
+    alwayslink = True,
+)
+
+[
+    alias(
+        name = "impl_" + arch,
+        actual = ":impl",
+    )
+    for arch in [
+        "aarch64",
+        "x86_64",
+    ]
+]

@@ -568,6 +568,10 @@ absl::flat_hash_map<std::string, std::string> GpuDevice::getQemuEnv(
 }
 
 std::vector<std::string> GpuDevice::getQemuParameters(const EmulatorConfig& emulator) const {
+    if (emulator.avd().ApiLevel() < 37) {
+        return {};
+    }
+
     using S = android_studio::EmulatorFeatureFlagState;
     const auto& hw = emulator.avd().Hw();
     const AndroidOptions& opts = emulator.opts();
