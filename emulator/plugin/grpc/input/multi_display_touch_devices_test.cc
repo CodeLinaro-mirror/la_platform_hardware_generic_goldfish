@@ -146,6 +146,55 @@ TEST_F(MultiDisplayTouchDevicesTest, IsActive_FollowsDisplayInputDriver) {
     EXPECT_TRUE(sink->IsActive());
 }
 
+TEST_F(MultiDisplayTouchDevicesTest, ActiveGeneration_FollowsDisplayInputDriver) {
+    AddDisplay(1);
+    MultiDisplayTouchDevices devices(multi_display_, /*has_hinge=*/false);
+    TouchDeviceSink* sink = devices.Find(1);
+    ASSERT_THAT(sink, NotNull());
+
+    Display(1)->input_active_generation = 5;
+    EXPECT_EQ(sink->ActiveGeneration(), 5U);
+
+    RemoveDisplay(1);
+    EXPECT_EQ(sink->ActiveGeneration(), 0U);
+}
+
+TEST_F(MultiDisplayTouchDevicesTest,
+       ActiveChangedListener_ForwardsBoundDisplayResetsAndRebindsCleanly) {
+    AddDisplay(1);
+    auto devices = std::make_unique<MultiDisplayTouchDevices>(multi_display_, /*has_hinge=*/false);
+    std::vector<TouchDeviceId> changed;
+    auto listener = devices->AddActiveChangedListener(
+            [&changed](TouchDeviceId device) { changed.push_back(device); });
+
+    // Unbound displays do not fire until Find() binds a sink to them.
+    Display(1)->AdvanceInputActiveGeneration();
+    EXPECT_THAT(changed, IsEmpty());
+
+    ASSERT_THAT(devices->Find(0), NotNull());
+    ASSERT_THAT(devices->Find(1), NotNull());
+    // Repeated Find() on the same display must not duplicate listeners.
+    ASSERT_THAT(devices->Find(1), NotNull());
+
+    EXPECT_EQ(Display(0)->AdvanceInputActiveGeneration(), 1U);
+    EXPECT_EQ(Display(1)->AdvanceInputActiveGeneration(), 2U);
+    EXPECT_THAT(changed, ElementsAre(TouchDeviceId{0}, TouchDeviceId{1}));
+
+    // Removing and recreating display 1 unsubscribes the old display and
+    // binds the new one on Find(1).
+    RemoveDisplay(1);
+    AddDisplay(1);
+    ASSERT_THAT(devices->Find(1), NotNull());
+    EXPECT_EQ(Display(1)->AdvanceInputActiveGeneration(), 1U);
+    EXPECT_THAT(changed, ElementsAre(TouchDeviceId{0}, TouchDeviceId{1}, TouchDeviceId{1}));
+
+    // Listener handle safely outlives TouchDevices.
+    devices.reset();
+    Display(0)->AdvanceInputActiveGeneration();
+    EXPECT_THAT(changed, ElementsAre(TouchDeviceId{0}, TouchDeviceId{1}, TouchDeviceId{1}));
+    listener.reset();
+}
+
 TEST_F(MultiDisplayTouchDevicesTest, RemovedDisplay_SinkIsInactiveAndWritesNothing) {
     AddDisplay(1);
     MultiDisplayTouchDevices devices(multi_display_, /*has_hinge=*/false);

@@ -92,6 +92,13 @@ class IInputDispatcher {
      * - `CloseSession()`: a synthesized `CANCEL` per display the released
      *   contacts were requested on, and a synthesized `KEY_ACTION_UP` (as
      *   `evdev_code`) per released key.
+     * - Driver reset: when a touch device's guest driver is reset or
+     *   re-probed, which makes the guest forget its contacts, an active-change
+     *   push posts an immediate resync onto the loop (and any pointer
+     *   operation or `CloseSession()` already ahead on the loop resyncs first)
+     *   so held contacts on that device are forgotten without writing to the
+     *   guest and a synthesized `CANCEL` is reported per session and requested
+     *   display.
      *
      * Rejected events report nothing.
      *

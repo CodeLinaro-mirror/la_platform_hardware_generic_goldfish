@@ -36,11 +36,34 @@ using ::goldfish::display::SharedDisplay;
 // removed display is inactive rather than kept alive.
 class MultiDisplayTouchDevices::DisplaySink final : public TouchDeviceSink {
   public:
-    void Bind(DisplayPtr display) { display_ = std::move(display); }
+    DisplaySink(TouchDeviceId device, std::weak_ptr<ActiveChangedEventSource> events)
+            : device_(device), events_(std::move(events)) {}
+
+    void Bind(DisplayPtr display) {
+        if (!display_.owner_before(display) && !display.owner_before(display_)) {
+            return;
+        }
+        active_subscription_.reset();
+        display_ = std::move(display);
+        if (const SharedDisplay locked = display_.lock()) {
+            const TouchDeviceId device = device_;
+            std::weak_ptr<ActiveChangedEventSource> events = events_;
+            active_subscription_ = locked->AddInputActiveListener([device, events](uint64_t) {
+                if (auto sink = events.lock()) {
+                    sink->FireEvent(device);
+                }
+            });
+        }
+    }
 
     bool IsActive() const override {
         const SharedDisplay display = display_.lock();
         return display != nullptr && display->IsInputActive();
+    }
+
+    uint64_t ActiveGeneration() const override {
+        const SharedDisplay display = display_.lock();
+        return display != nullptr ? display->InputActiveGeneration() : 0;
     }
 
     void WriteReport(absl::Span<const EvDevEvent> events) override {
@@ -50,7 +73,10 @@ class MultiDisplayTouchDevices::DisplaySink final : public TouchDeviceSink {
     }
 
   private:
+    const TouchDeviceId device_;
+    std::weak_ptr<ActiveChangedEventSource> events_;
     DisplayPtr display_;
+    ::goldfish::display::ScopedInputActiveListener active_subscription_;
 };
 
 MultiDisplayTouchDevices::MultiDisplayTouchDevices(IMultiDisplay& multi_display, bool has_hinge)
@@ -77,7 +103,7 @@ TouchDeviceSink* MultiDisplayTouchDevices::Find(TouchDeviceId device) {
     }
     std::unique_ptr<DisplaySink>& sink = sinks_[device];
     if (sink == nullptr) {
-        sink = std::make_unique<DisplaySink>();
+        sink = std::make_unique<DisplaySink>(device, active_changed_events());
     }
     sink->Bind(*std::move(display));
     return sink.get();

@@ -217,10 +217,13 @@ cc_test(
 
 cc_library(
     name = "touch_device",
+    srcs = ["touch_device.cc"],
     hdrs = ["touch_device.h"],
     deps = [
         ":contact_table",
         ":ev_dev_event",
+        "//emulator/libs/base",
+        "//emulator/libs/eventing",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/types:span",
     ],

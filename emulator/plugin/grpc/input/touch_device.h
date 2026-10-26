@@ -13,13 +13,18 @@
 // limitations under the License.
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
+#include <memory>
+#include <utility>
 
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 
 #include "android/emulation/control/ev_dev_event.h"
 #include "contact_table.h"
+#include "goldfish/base/unique_handle.h"
+#include "goldfish/eventing/event_sources.h"
 
 namespace goldfish::grpc::v2 {
 
@@ -37,6 +42,13 @@ class TouchDeviceSink {
     virtual bool IsActive() const = 0;
 
     /**
+     * @brief A counter that changes whenever the guest driver goes active or
+     * inactive: driver ready, driver or device reset, re-probe, snapshot load.
+     * A change means the guest forgot the device's contacts.
+     */
+    virtual uint64_t ActiveGeneration() const = 0;
+
+    /**
      * @brief Writes `events` followed by `SYN_REPORT` to the device,
      * synchronously and as one report.
      */
@@ -44,11 +56,39 @@ class TouchDeviceSink {
             absl::Span<const ::android::emulation::control::EvDevEvent> events) = 0;
 };
 
+using ActiveChangedEventSource =
+        ::android::base::eventing::WithCallbacks<::android::base::eventing::EventSource<
+                TouchDeviceId,
+                ::android::base::eventing::HybridStoragePolicy<
+                        TouchDeviceId, 16,
+                        std::shared_ptr<::android::base::eventing::EventListener<TouchDeviceId>>>>>;
+
+struct ActiveChangedListenerDeleter {
+    struct Empty {};
+    explicit ActiveChangedListenerDeleter(Empty = {}) noexcept {}
+    explicit ActiveChangedListenerDeleter(std::weak_ptr<ActiveChangedEventSource> source) noexcept
+            : source(std::move(source)) {}
+
+    void operator()(size_t id) const;
+
+    std::weak_ptr<ActiveChangedEventSource> source;
+};
+
+/**
+ * Move-only RAII subscription handle for a `TouchDevices` active-generation
+ * listener. Safe to destroy before or after `TouchDevices` is destroyed.
+ */
+using ScopedActiveChangedListener =
+        ::goldfish::base::UniqueHandle<size_t, 0, ActiveChangedListenerDeleter>;
+
 /**
  * @brief Maps displays to the touch devices that receive their input.
  *
  * ### Thread Safety:
- * Called only on the QEMU event loop.
+ * `Resolve()` and `Find()` are called only on the QEMU event loop.
+ * `AddActiveChangedListener()` is thread-safe, and registered callbacks may
+ * fire on a vCPU/QEMU thread when a bound touch device's active generation
+ * changes.
  *
  * ### Ownership:
  * A sink returned by `Find()` stays valid for as long as the caller uses it;
@@ -67,6 +107,27 @@ class TouchDevices {
 
     /** @return The sink of `device`, or `nullptr` if there is none. */
     virtual TouchDeviceSink* Find(TouchDeviceId device) = 0;
+
+    /**
+     * @brief Subscribes `listener` to push notifications fired whenever a bound
+     * touch device advances its active generation.
+     *
+     * Must be non-blocking and must not reset its own
+     * `ScopedActiveChangedListener` from inside `listener`. Thread-safe; the
+     * returned handle may outlive `TouchDevices`.
+     */
+    [[nodiscard]] ScopedActiveChangedListener AddActiveChangedListener(
+            ActiveChangedEventSource::EventCallback listener);
+
+  protected:
+    const std::shared_ptr<ActiveChangedEventSource>& active_changed_events() const {
+        return active_changed_events_;
+    }
+    void NotifyActiveChanged(TouchDeviceId device) { active_changed_events_->FireEvent(device); }
+
+  private:
+    std::shared_ptr<ActiveChangedEventSource> active_changed_events_ =
+            std::make_shared<ActiveChangedEventSource>();
 };
 
 }  // namespace goldfish::grpc::v2

@@ -17,6 +17,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <deque>
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -50,8 +51,11 @@ namespace goldfish::grpc::v2 {
  * delivery thread fires them, so observer work stays off the loop.
  *
  * ### Invariants:
- * - The `ContactTable` matches the contacts written to each active device.
- * - Each device receives at most one report per operation, written whole.
+ * - The `ContactTable` matches the contacts written to each active device,
+ *   except briefly between a device active-generation transition and the
+ *   queued `ResyncDevices()` task (or pre-operation check) that clears them.
+ * - Each device receives at most one report per operation (or two when palm
+ *   cancelling contacts), written whole.
  * - A key is in `key_holders_`, with a non-empty set of open sessions, iff the
  *   last write of that key to the keyboard was a press.
  * - `outbox_` holds the undelivered activities in sequence order, ending just
@@ -175,8 +179,17 @@ class InputDispatcher final : public IInputDispatcher {
         InputSessionId session;
         DispatchCallback done;
     };
+    // Shared with active-change resync tasks posted from TouchDevices push
+    // callbacks so tasks that run after Shutdown() or ~InputDispatcher() are
+    // safe no-ops.
+    struct ActiveGate {
+        explicit ActiveGate(InputDispatcher* owner) : dispatcher(owner) {}
+        absl::Mutex mutex;
+        InputDispatcher* dispatcher ABSL_GUARDED_BY(mutex);
+    };
 
     void ShutdownOnce() ABSL_LOCKS_EXCLUDED(pending_mutex_, outbox_mutex_);
+    void OnDeviceActiveChanged() ABSL_LOCKS_EXCLUDED(pending_mutex_);
     bool IsShutDown() const ABSL_LOCKS_EXCLUDED(pending_mutex_);
     // Posts `task` unless shut down. The task does nothing if it runs after
     // Shutdown().
@@ -207,9 +220,17 @@ class InputDispatcher final : public IInputDispatcher {
     absl::Status CancelOnDisplay(InputSessionId session, int32_t source_id, int32_t display_id,
                                  ::android::emulation::v2::PointerAction action);
     void ReleaseSession(InputSessionId session);
+    // Clears the contacts of each device whose guest driver went active or
+    // inactive since the dispatcher recorded its generation, as the guest
+    // forgot them, and reports their synthesized CANCELs. Writes nothing.
+    void ResyncDevices();
+    // Reports a synthesized CANCEL per session and requested display of
+    // `released`, whose sessions must be open.
+    void ReportCancels(const ReleasedContacts& released) ABSL_LOCKS_EXCLUDED(outbox_mutex_);
 
     // Stamps `event` and queues it for delivery. Called on the loop right
-    // after the write it reports; records the stamp in `reported_at_`.
+    // after the write it reports; records the stamp of an unsynthesized
+    // activity in `reported_at_`.
     void Report(::android::emulation::v2::InputEvent event, bool synthesized = false)
             ABSL_LOCKS_EXCLUDED(outbox_mutex_);
     // The delivery thread: fires the outbox in order until stopped and empty.
@@ -223,6 +244,8 @@ class InputDispatcher final : public IInputDispatcher {
     const size_t max_pending_per_session_;
     std::atomic<InputSessionId> next_session_{1};
     absl::once_flag shutdown_once_;
+    const std::shared_ptr<ActiveGate> active_gate_;
+    ScopedActiveChangedListener devices_active_subscription_;
 
     mutable absl::Mutex pending_mutex_;
     bool shut_down_ ABSL_GUARDED_BY(pending_mutex_) = false;
@@ -236,6 +259,9 @@ class InputDispatcher final : public IInputDispatcher {
     absl::flat_hash_map<InputSessionId, SessionOptions> sessions_;
     // The sessions holding each pressed evdev code.
     absl::flat_hash_map<uint32_t, absl::flat_hash_set<InputSessionId>> key_holders_;
+    // The active generation of each device written to, as of the first write
+    // or the last resync; see ResyncDevices().
+    absl::flat_hash_map<TouchDeviceId, uint64_t> active_generations_;
     // When the activity of the running Dispatch*() operation, which reports
     // at most one, was stamped; unset until it reports it.
     std::optional<absl::Time> reported_at_;
