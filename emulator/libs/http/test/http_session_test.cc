@@ -23,6 +23,7 @@
 #include "goldfish/http/http_headers.h"
 #include "goldfish/http/http_router.h"
 #include "goldfish/network/endpoint.h"
+#include "http_session_internal.h"
 
 namespace goldfish::http {
 
@@ -685,6 +686,50 @@ TEST_F(HttpSessionTest, SetOnCloseCallbackFiresImmediatelyWhenAlreadyDetached) {
     bool callback_fired = false;
     captured_writer->SetOnCloseCallback([&]() { callback_fired = true; });
     EXPECT_TRUE(callback_fired);
+}
+
+TEST_F(HttpSessionTest, LlhttpMethodToHttpMethodMatchesStringParsing) {
+    for (int m = HTTP_DELETE; m <= HTTP_QUERY; ++m) {
+        const auto method = static_cast<llhttp_method_t>(m);
+        const char* name = llhttp_method_name(method);
+        ASSERT_NE(name, nullptr);
+        EXPECT_EQ(internal::LlhttpMethodToHttpMethod(method), StringToHttpMethod(name))
+                << "llhttp_method=" << m << " (" << name << ")";
+    }
+    EXPECT_FALSE(internal::LlhttpMethodToHttpMethod(static_cast<llhttp_method_t>(HTTP_QUERY + 1))
+                         .has_value());
+    EXPECT_FALSE(internal::LlhttpMethodToHttpMethod(static_cast<llhttp_method_t>(HTTP_QUERY + 16))
+                         .has_value());
+}
+
+TEST_F(HttpSessionTest, DispatchesAllSupportedHttpMethods) {
+    struct MethodCase {
+        HttpMethod method;
+        std::string_view raw_request;
+    };
+    constexpr MethodCase kCases[] = {
+        {HttpMethod::kPut,
+         "PUT /resource HTTP/1.1\r\nHost: localhost\r\nContent-Length: 0\r\n\r\n"},
+        {HttpMethod::kDelete, "DELETE /resource HTTP/1.1\r\nHost: localhost\r\n\r\n"},
+        {HttpMethod::kOptions, "OPTIONS /resource HTTP/1.1\r\nHost: localhost\r\n\r\n"},
+        {HttpMethod::kPatch,
+         "PATCH /resource HTTP/1.1\r\nHost: localhost\r\nContent-Length: 0\r\n\r\n"},
+    };
+
+    for (const auto& tc : kCases) {
+        router_->AddRoute(tc.method, "/resource", [expected = tc.method](const HttpRequest& req) {
+            EXPECT_EQ(req.Method(), expected);
+            return HttpResponse::String(std::string(HttpMethodToString(req.Method())));
+        });
+    }
+
+    auto session = CreateSession();
+    for (const auto& tc : kCases) {
+        EXPECT_TRUE(session->OnDataReceived(tc.raw_request));
+        std::string sent = GetSentData();
+        EXPECT_TRUE(absl::StartsWith(sent, "HTTP/1.1 200 OK\r\n"));
+        EXPECT_TRUE(absl::EndsWith(sent, absl::StrCat("\r\n\r\n", HttpMethodToString(tc.method))));
+    }
 }
 
 }  // namespace goldfish::http

@@ -24,6 +24,8 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
 
+#include "http_session_internal.h"
+
 namespace goldfish::http {
 
 namespace {
@@ -481,9 +483,9 @@ int HttpSession::OnHeadersComplete(llhttp_t* parser) {
     auto* self = static_cast<HttpSession*>(parser->data);
     self->CommitCurrentHeader();
 
-    auto method_opt =
-            StringToHttpMethod(llhttp_method_name(static_cast<llhttp_method_t>(parser->method)));
-    self->current_request_.method_ = method_opt.value_or(HttpMethod::kGet);
+    const auto parsed_method = static_cast<llhttp_method_t>(parser->method);
+    self->current_request_.method_ =
+            internal::LlhttpMethodToHttpMethod(parsed_method).value_or(HttpMethod::kGet);
     self->current_request_.keep_alive_ = (llhttp_should_keep_alive(parser) != 0);
 
     if (parser->content_length > self->max_payload_size_) {
