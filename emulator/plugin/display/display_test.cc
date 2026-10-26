@@ -81,6 +81,7 @@ class TestDisplay : public IDisplay {
     void SendEvDevReport(EvDevEvents /*events*/) override {}
     void WriteEvDevReportOnLoop(absl::Span<const EvDevEvent> /*events*/) override {}
     bool IsInputActive() const override { return false; }
+    uint64_t InputActiveGeneration() const override { return 0; }
 
     void UpdateDimensions(uint32_t w, uint32_t h) { SetDimensions(w, h); }
 

@@ -57,6 +57,11 @@ void SetTestFindVirtioDeviceResult(int result);
 void SetTestVirtioInputSendHook(void (*hook)(uint16_t type, uint16_t code, uint32_t value));
 void SetTestFindVirtioDeviceNullVhid(bool null_vhid);
 void SetTestVirtioInputActive(bool active);
+void SetTestVirtioInputInitialActiveGeneration(uint64_t generation);
+void SetTestVirtioInputActiveGeneration(uint64_t generation);
+void NotifyTestUnrelatedVirtioInputActiveGeneration(uint64_t generation);
+void ResetTestObjectPropertyGetUintCalls(void);
+uint64_t GetTestObjectPropertyGetUintCalls(void);
 }
 
 using goldfish::async::testing::TestEventLoop;
@@ -100,6 +105,8 @@ class QemuDisplayConcurrencyTest : public ::testing::Test {
         SetTestFindVirtioDeviceResult(1);
         SetTestFindVirtioDeviceNullVhid(false);
         SetTestVirtioInputActive(false);
+        SetTestVirtioInputInitialActiveGeneration(0);
+        ResetTestObjectPropertyGetUintCalls();
         main_loop_ = TestEventLoop::Create("main");
         qemu_loop_ = TestEventLoop::Create("qemu");
 
@@ -118,6 +125,8 @@ class QemuDisplayConcurrencyTest : public ::testing::Test {
     void TearDown() override {
         SetTestFindVirtioDeviceNullVhid(false);
         SetTestVirtioInputActive(false);
+        SetTestVirtioInputInitialActiveGeneration(0);
+        ResetTestObjectPropertyGetUintCalls();
         if (surface_->image) {
             pixman_image_unref(surface_->image);
         }
@@ -375,6 +384,105 @@ TEST_F(QemuDisplayConcurrencyTest, IsInputActive_FollowsGuestDriver) {
     }
 }
 
+TEST_F(QemuDisplayConcurrencyTest, InputActiveGeneration_FollowsGuestDevice) {
+    const std::shared_ptr<VirtualDisplay> virtual_display = CreateVirtualDisplay();
+    ASSERT_NE(virtual_display, nullptr);
+
+    for (IDisplay* display :
+         {static_cast<IDisplay*>(display_.get()), static_cast<IDisplay*>(virtual_display.get())}) {
+        uint64_t generation = 0;
+        SetTestVirtioInputActiveGeneration(3);
+        RunOnQemuLoop([&] { generation = display->InputActiveGeneration(); });
+        EXPECT_EQ(generation, 3U);
+
+        SetTestVirtioInputActiveGeneration(4);
+        RunOnQemuLoop([&] { generation = display->InputActiveGeneration(); });
+        EXPECT_EQ(generation, 4U);
+    }
+    SetTestVirtioInputInitialActiveGeneration(0);
+}
+
+TEST_F(QemuDisplayConcurrencyTest,
+       InputActiveGeneration_SeedsOnceFromQomAndServesSubsequentReadsFromPushCache) {
+    SetTestVirtioInputInitialActiveGeneration(5);
+    ResetTestObjectPropertyGetUintCalls();
+
+    // Construction happens off the QEMU loop (e.g., gRPC VirtualDisplay::Create)
+    // and must not touch QOM without the BQL.
+    ASSERT_OK_AND_ASSIGN(
+            auto qemu_display,
+            EmulatorDisplay::Create(main_loop_.get(), qemu_loop_.get(), console_, surface_, 0));
+    const std::shared_ptr<VirtualDisplay> virtual_display = CreateVirtualDisplay();
+    ASSERT_NE(virtual_display, nullptr);
+    EXPECT_EQ(GetTestObjectPropertyGetUintCalls(), 0U);
+
+    // First read on qemu_loop_ seeds once from QOM; repeated reads hit the atomic cache.
+    uint64_t q_gen = 0;
+    uint64_t v_gen = 0;
+    RunOnQemuLoop([&] {
+        q_gen = qemu_display->InputActiveGeneration();
+        v_gen = virtual_display->InputActiveGeneration();
+    });
+    EXPECT_EQ(q_gen, 5U);
+    EXPECT_EQ(v_gen, 5U);
+    EXPECT_EQ(GetTestObjectPropertyGetUintCalls(), 2U);
+
+    RunOnQemuLoop([&] {
+        q_gen = qemu_display->InputActiveGeneration();
+        v_gen = virtual_display->InputActiveGeneration();
+    });
+    EXPECT_EQ(q_gen, 5U);
+    EXPECT_EQ(v_gen, 5U);
+    EXPECT_EQ(GetTestObjectPropertyGetUintCalls(), 2U);
+
+    // Push updates notify display listeners, ignore unrelated devices, and
+    // update the cached generation with zero QOM reads.
+    std::vector<uint64_t> q_pushed;
+    std::vector<uint64_t> v_pushed;
+    auto q_sub = qemu_display->AddInputActiveListener(
+            [&q_pushed](uint64_t g) { q_pushed.push_back(g); });
+    auto v_sub = virtual_display->AddInputActiveListener(
+            [&v_pushed](uint64_t g) { v_pushed.push_back(g); });
+
+    NotifyTestUnrelatedVirtioInputActiveGeneration(99);
+    EXPECT_THAT(q_pushed, IsEmpty());
+    EXPECT_THAT(v_pushed, IsEmpty());
+
+    SetTestVirtioInputActiveGeneration(6);
+    EXPECT_THAT(q_pushed, ElementsAre(6U));
+    EXPECT_THAT(v_pushed, ElementsAre(6U));
+    EXPECT_EQ(GetTestObjectPropertyGetUintCalls(), 2U);
+
+    RunOnQemuLoop([&] {
+        q_gen = qemu_display->InputActiveGeneration();
+        v_gen = virtual_display->InputActiveGeneration();
+    });
+    EXPECT_EQ(q_gen, 6U);
+    EXPECT_EQ(v_gen, 6U);
+    EXPECT_EQ(GetTestObjectPropertyGetUintCalls(), 2U);
+}
+
+TEST_F(QemuDisplayConcurrencyTest, InputActiveListener_SafeWhenHandleOutlivesDisplay) {
+    auto virtual_display = CreateVirtualDisplay();
+    ASSERT_NE(virtual_display, nullptr);
+
+    std::vector<uint64_t> pushed;
+    auto listener =
+            virtual_display->AddInputActiveListener([&pushed](uint64_t g) { pushed.push_back(g); });
+
+    SetTestVirtioInputActiveGeneration(2);
+    EXPECT_THAT(pushed, ElementsAre(2U));
+
+    // Destroy the display while `listener` is still alive, then fire another
+    // device event and finally destroy `listener`.
+    virtual_display.reset();
+    qemu_loop_->RunAll();
+
+    SetTestVirtioInputActiveGeneration(3);
+    EXPECT_THAT(pushed, ElementsAre(2U));
+    listener.reset();
+}
+
 TEST_F(QemuDisplayConcurrencyTest, NoInputDevice_WritesNothingAndIsInactive) {
     SetTestFindVirtioDeviceNullVhid(true);
     SetTestVirtioInputActive(true);
@@ -389,11 +497,14 @@ TEST_F(QemuDisplayConcurrencyTest, NoInputDevice_WritesNothingAndIsInactive) {
     for (IDisplay* display : {static_cast<IDisplay*>(qemu_display.get()),
                               static_cast<IDisplay*>(virtual_display.get())}) {
         bool active = true;
+        uint64_t generation = 1;
         RunOnQemuLoop([&] {
             display->WriteEvDevReportOnLoop(report);
             active = display->IsInputActive();
+            generation = display->InputActiveGeneration();
         });
         EXPECT_FALSE(active);
+        EXPECT_EQ(generation, 0U);
     }
     EXPECT_THAT(device.events, IsEmpty());
 }

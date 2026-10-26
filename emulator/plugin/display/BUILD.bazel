@@ -50,6 +50,7 @@ cc_library(
         "//emulator/libs/async:async_api",
         "//emulator/libs/base",
         "//emulator/libs/display_pipeline:core",
+        "//emulator/libs/eventing",
         "//emulator/libs/perfetto:init",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
@@ -69,6 +70,7 @@ cc_library(
         "qemu_display.h",
         "virtio_bridge.c",
         "virtio_bridge.h",
+        "virtio_input_tracker.cc",
     ],
     hdrs = [
         "include/goldfish/display/imaging.h",
@@ -76,6 +78,7 @@ cc_library(
         "include/goldfish/display/multi_display_callbacks.h",
         "include/goldfish/display/pixman_display.h",
         "include/goldfish/display/pixman_image_ptr.h",
+        "include/goldfish/display/virtio_input_tracker.h",
     ],
     includes = ["include"],
     visibility = ["//visibility:public"],
@@ -89,6 +92,7 @@ cc_library(
         "//emulator/libs/logging:absl_c_bridge",
         "//emulator/libs/perfetto:init",
         "//emulator/libs/physics",
+        "//emulator/plugin/virtio-input-android:api",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
@@ -139,6 +143,7 @@ cc_library(
         "//emulator/libs/status_macros",
         "//emulator/plugin/avd:avd_info",
         "//emulator/plugin/hal/multidisplay",
+        "//emulator/plugin/virtio-input-android:api",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
@@ -198,6 +203,7 @@ cc_library(
     deps = [
         ":abstract_multi_display",
         ":primary_display",
+        "//emulator/plugin/virtio-input-android:api",
     ],
 )
 

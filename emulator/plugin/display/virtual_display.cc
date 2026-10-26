@@ -93,7 +93,8 @@ VirtualDisplay::VirtualDisplay(Private, EventLoop* loop, EventLoop* qloop, uint8
                                                      }},
                   std::make_unique<CpuSlotStorage>()))
         , qemu_loop_(qloop)
-        , vhid_(vhid) {
+        , vhid_(vhid)
+        , input_active_tracker_(vhid, input_active_events()) {
     frame_producer_->SetSource(legacy_);
     legacy_->Resize({.width = width, .height = height});
 
@@ -142,6 +143,7 @@ VirtualDisplay::~VirtualDisplay() {
     // windows or background queues can cause this destructor to run asynchronously
     // on non-network threads or post-unrealize when the AVD universe is offline.
     // Intentional network teardown must execute explicitly via Disconnect() instead.
+    input_active_tracker_.Reset();
     StopProducerCalls();  // OnDemand uses poll_timer_.
     frame_producer_->Shutdown();
     if (poll_timer_) {
@@ -252,6 +254,11 @@ void VirtualDisplay::WriteEvDevReportOnLoop(absl::Span<const EvDevEvent> events)
 bool VirtualDisplay::IsInputActive() const {
     DCHECK(qemu_loop_->IsOnLoopThread());
     return virtio_input_hid_is_active(vhid_);
+}
+
+uint64_t VirtualDisplay::InputActiveGeneration() const {
+    DCHECK(qemu_loop_->IsOnLoopThread());
+    return input_active_tracker_.GenerationOnLoop();
 }
 
 void VirtualDisplay::SimulateGuestFrameUpdate() {

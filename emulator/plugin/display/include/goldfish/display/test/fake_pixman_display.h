@@ -175,6 +175,19 @@ struct FakePixmanDisplay : public PixmanDisplay {
      * @brief Returns `input_active`.
      */
     bool IsInputActive() const override { return input_active; }
+    /**
+     * @brief Returns `input_active_generation`.
+     */
+    uint64_t InputActiveGeneration() const override { return input_active_generation; }
+    /**
+     * @brief Advances `input_active_generation` and notifies active-generation
+     * listeners, simulating a guest input driver reset or re-probe.
+     */
+    uint64_t AdvanceInputActiveGeneration() {
+        const uint64_t generation = ++input_active_generation;
+        NotifyInputActiveChanged(generation);
+        return generation;
+    }
 
     /**
      * @brief Updates the source image of the display, triggering a new frame event
@@ -213,6 +226,8 @@ struct FakePixmanDisplay : public PixmanDisplay {
     std::vector<std::vector<FakeEvDevEvent>> evdev_reports;
     /// Whether the simulated guest input driver is active.
     bool input_active = true;
+    /// Bump to simulate a reset or re-probe of the guest input driver.
+    uint64_t input_active_generation = 0;
 
   private:
     absl::Mutex hook_mutex_;
