@@ -112,6 +112,17 @@ TEST(GuestStatusSnapshotTest, ValidRoundTripAndCorruptedTimestampsRejected) {
     }
 }
 
+TEST(LocationSnapshotTest, DefaultsToGoogleplex) {
+    const gps::Location defaults;
+    EXPECT_DOUBLE_EQ(defaults.latitude, gps::Location::kDefaultLatitude);
+    EXPECT_DOUBLE_EQ(defaults.longitude, gps::Location::kDefaultLongitude);
+    EXPECT_DOUBLE_EQ(defaults.speed, 0.0);
+    EXPECT_DOUBLE_EQ(defaults.bearing, 0.0);
+    EXPECT_DOUBLE_EQ(defaults.altitude, gps::Location::kDefaultAltitudeMeters);
+    EXPECT_DOUBLE_EQ(defaults.accuracy, 0.0);
+    EXPECT_EQ(defaults.satellites, gps::Location::kDefaultSatellites);
+}
+
 TEST(LocationSnapshotTest, ValidRoundTripAndCorruptedInputsRejected) {
     const gps::Location loc{
         .latitude = 37.422,
@@ -119,6 +130,7 @@ TEST(LocationSnapshotTest, ValidRoundTripAndCorruptedInputsRejected) {
         .speed = 1.5,
         .bearing = 90.0,
         .altitude = 10.0,
+        .accuracy = 4.5,
         .satellites = 8,
     };
 
@@ -129,23 +141,56 @@ TEST(LocationSnapshotTest, ValidRoundTripAndCorruptedInputsRejected) {
     ASSERT_THAT(ReadValue(archive, loaded), IsOk());
     EXPECT_DOUBLE_EQ(loaded.latitude, loc.latitude);
     EXPECT_DOUBLE_EQ(loaded.longitude, loc.longitude);
+    EXPECT_DOUBLE_EQ(loaded.speed, loc.speed);
+    EXPECT_DOUBLE_EQ(loaded.bearing, loc.bearing);
+    EXPECT_DOUBLE_EQ(loaded.altitude, loc.altitude);
+    EXPECT_DOUBLE_EQ(loaded.accuracy, loc.accuracy);
     EXPECT_EQ(loaded.satellites, loc.satellites);
 
     // Negative satellite count rejected
     {
         archive::DequeArchive bad_archive;
-        bad_archive << 37.422 << -122.084 << 1.5 << 90.0 << 10.0 << int32_t{-1};
+        bad_archive << 37.422 << -122.084 << 1.5 << 90.0 << 10.0 << 4.5 << int32_t{-1};
         gps::Location dst;
         EXPECT_THAT(ReadValue(bad_archive, dst), Not(IsOk()));
     }
 
-    // NaN coordinate rejected
+    // Negative accuracy rejected
+    {
+        archive::DequeArchive bad_archive;
+        bad_archive << 37.422 << -122.084 << 1.5 << 90.0 << 10.0 << -0.5 << int32_t{4};
+        gps::Location dst;
+        EXPECT_THAT(ReadValue(bad_archive, dst), Not(IsOk()));
+    }
+
+    // Out-of-bounds latitude / longitude rejected
+    {
+        archive::DequeArchive bad_lat;
+        bad_lat << 91.0 << -122.084 << 1.5 << 90.0 << 10.0 << 0.0 << int32_t{4};
+        gps::Location dst;
+        EXPECT_THAT(ReadValue(bad_lat, dst), Not(IsOk()));
+    }
+    {
+        archive::DequeArchive bad_lon;
+        bad_lon << 37.422 << -181.0 << 1.5 << 90.0 << 10.0 << 0.0 << int32_t{4};
+        gps::Location dst;
+        EXPECT_THAT(ReadValue(bad_lon, dst), Not(IsOk()));
+    }
+
+    // NaN / Inf coordinate rejected
     {
         archive::DequeArchive bad_archive;
         bad_archive << std::numeric_limits<double>::quiet_NaN() << -122.084 << 1.5 << 90.0 << 10.0
-                    << int32_t{4};
+                    << 0.0 << int32_t{4};
         gps::Location dst;
         EXPECT_THAT(ReadValue(bad_archive, dst), Not(IsOk()));
+    }
+    {
+        archive::DequeArchive bad_inf;
+        bad_inf << 37.422 << -122.084 << std::numeric_limits<double>::infinity() << 90.0 << 10.0
+                << 0.0 << int32_t{4};
+        gps::Location dst;
+        EXPECT_THAT(ReadValue(bad_inf, dst), Not(IsOk()));
     }
 }
 
