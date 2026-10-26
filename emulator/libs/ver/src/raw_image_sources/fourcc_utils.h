@@ -98,12 +98,11 @@ VerImageFormat FourccToVerImageFormat(uint32_t fourcc);
 uint32_t VerImageFormatToFourcc(VerImageFormat ver_image_format);
 RawImageBufferView RawImageBufferViewFourCCBridge(RawImageBufferViewFourCC* fourcc);
 
-// Converts the provided buffer to RGB32
-// If conversion is successful, buffer will be updated to point at
-// conversion_storage. conversion_storage and staging_buffer will
-// be resized if necessary.
-int ConvertBufferToRGB32(RawImageBufferViewFourCC& buffer, std::vector<uint8_t>& conversion_storage,
-                         std::vector<uint8_t>& staging_buffer);
+// Converts the provided buffer to V4L2_PIX_FMT_RGB32 (RGBA8 in memory).
+// If conversion succeeds, `buffer` is updated to reference `conversion_storage`,
+// resizing `conversion_storage` when needed without intermediate YUV staging.
+int ConvertBufferToRGB32(RawImageBufferViewFourCC& buffer,
+                         std::vector<uint8_t>& conversion_storage);
 
 }  // namespace ver
 }  // namespace android

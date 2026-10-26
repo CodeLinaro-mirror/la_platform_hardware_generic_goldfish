@@ -1,5 +1,6 @@
 load("@bazel_skylib//lib:selects.bzl", "selects")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test", "objc_library")
+load("//emulator/tools:cc_binary_with_manifest.bzl", "cc_binary_with_manifest")
 load("//emulator/tools:plugins.bzl", "collect_plugins")
 
 package(
@@ -297,5 +298,19 @@ cc_test(
         "@gfxstream//third_party/glm",
         "@libjpeg_turbo//:jpeg",
         "@libpng//:png",
+        "@libyuv",
+    ],
+)
+
+cc_binary_with_manifest(
+    name = "fourcc_utils_perf",
+    srcs = [
+        "test/fourcc_utils_perf.cc",
+    ],
+    tags = ["benchmark"],
+    deps = [
+        ":ver",
+        "@google_benchmark//:benchmark",
+        "@libyuv",
     ],
 )
