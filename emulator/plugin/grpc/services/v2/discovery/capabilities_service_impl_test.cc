@@ -33,6 +33,7 @@ namespace {
 
 using ::android::emulation::v2::AccessMode;
 using ::android::emulation::v2::CapabilitiesService;
+using ::android::emulation::v2::ChargerSource;
 using ::android::emulation::v2::DeviceCapabilities;
 using ::android::emulation::v2::Fidelity;
 using ::android::emulation::v2::FoldAxis;
@@ -45,6 +46,7 @@ using ::goldfish::avd::AvdUniverse;
 using ::grpc::ServerContext;
 using ::grpc::Status;
 using ::testing::Contains;
+using ::testing::ElementsAre;
 using ::testing::Not;
 
 class TestUniverse : public AvdUniverse {
@@ -152,7 +154,9 @@ TEST_F(CapabilitiesServiceTest, ReturnsSubsystemsCapabilities) {
     // Battery
     ASSERT_TRUE(reply.has_battery());
     EXPECT_EQ(reply.battery().access_mode(), AccessMode::ACCESS_MODE_READ_WRITE);
-    EXPECT_GT(reply.battery().supported_chargers_size(), 0);
+    EXPECT_EQ(reply.battery().fidelity(), Fidelity::FIDELITY_HARDWARE);
+    EXPECT_THAT(reply.battery().supported_chargers(),
+                ElementsAre(ChargerSource::CHARGER_SOURCE_AC));
 
     // Location
     ASSERT_TRUE(reply.has_location());
@@ -230,6 +234,23 @@ TEST_F(CapabilitiesServiceTest, OmitsLocationCapabilitiesWhenDisabled) {
     Status status = service.GetDeviceCapabilities(&server_context, &request, &reply);
     ASSERT_TRUE(status.ok());
     EXPECT_FALSE(reply.has_location());
+}
+
+TEST_F(CapabilitiesServiceTest, OmitsBatteryCapabilitiesWhenDisabled) {
+    auto props = std::make_unique<AvdProperties>();
+    props->hw_config = FakeHardwareConfig::GetHwConfig();
+    props->hw_config.hw_battery = false;
+
+    auto universe = std::make_unique<TestUniverse>(std::move(props));
+    CapabilitiesServiceImpl service(*universe);
+
+    GetDeviceCapabilitiesRequest request;
+    DeviceCapabilities reply;
+    ServerContext server_context;
+
+    Status status = service.GetDeviceCapabilities(&server_context, &request, &reply);
+    ASSERT_TRUE(status.ok());
+    EXPECT_FALSE(reply.has_battery());
 }
 
 }  // namespace

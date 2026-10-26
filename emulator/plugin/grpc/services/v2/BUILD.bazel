@@ -19,6 +19,55 @@ load("@rules_cc//cc:cc_test.bzl", "cc_test")
 package(default_visibility = ["//visibility:public"])
 
 cc_library(
+    name = "battery_service",
+    srcs = ["battery/battery_service_impl.cc"],
+    hdrs = ["battery/battery_service_impl.h"],
+    includes = ["."],
+    local_defines = select({
+        "@platforms//os:windows": ["NOGDI"],
+        "//conditions:default": [],
+    }),
+    deps = [
+        "//emulator/libs/eventing",
+        "//emulator/libs/grpc_utils:absl_translate",
+        "//emulator/libs/grpc_utils:async",
+        "//emulator/libs/grpc_utils:event-stream",
+        "//emulator/plugin/avd_universe:battery",
+        "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/strings:str_format",
+        "@abseil-cpp//absl/synchronization",
+        "@aemu//protos/services_v2:battery_service_cc_grpc",
+        "@grpc//:grpc++",
+    ],
+)
+
+cc_test(
+    name = "battery_service_test",
+    size = "small",
+    srcs = [
+        "battery/battery_service_impl_test.cc",
+        "test/grpc_v2_service_test.h",
+    ],
+    includes = ["."],
+    local_defines = select({
+        "@platforms//os:windows": ["NOGDI"],
+        "//conditions:default": [],
+    }),
+    deps = [
+        ":battery_service",
+        "//emulator/libs/test:googletest_main",
+        "//emulator/plugin/avd_universe:battery",
+        "@abseil-cpp//absl/time",
+        "@aemu//protos/services_v2:battery_service_cc_grpc",
+        "@googletest//:gtest",
+        "@grpc//:grpc++",
+    ],
+)
+
+cc_library(
     name = "capabilities_service",
     srcs = ["discovery/capabilities_service_impl.cc"],
     hdrs = ["discovery/capabilities_service_impl.h"],
@@ -470,6 +519,7 @@ cc_library(
         "//conditions:default": [],
     }),
     deps = [
+        ":battery_service",
         ":capabilities_service",
         ":hypervisor_service",
         ":input_service",
@@ -488,6 +538,8 @@ cc_library(
 clang_tidy_test(
     name = "tidy",
     targets = [
+        ":battery_service",
+        ":battery_service_test",
         ":capabilities_service",
         ":capabilities_service_test",
         ":rtc_service",
