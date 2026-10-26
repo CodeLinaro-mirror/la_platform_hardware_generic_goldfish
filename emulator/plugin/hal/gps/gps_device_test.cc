@@ -58,10 +58,11 @@ TEST_F(GpsDeviceTest, canSendLocation) {
     const Location kAmsterdam = {
         .latitude = 52.3676,
         .longitude = 4.9041,
-        .speed = 0.0,     // Default speed
-        .bearing = 0.0,   // Default bearing
-        .altitude = 0.0,  // Default altitude
-        .satellites = 0,  // Default satellites
+        .speed = 0.0,
+        .bearing = 0.0,
+        .altitude = 0.0,
+        .accuracy = 0.0,
+        .satellites = 4,
     };
 
     location.SetValue(kAmsterdam);
@@ -71,7 +72,75 @@ TEST_F(GpsDeviceTest, canSendLocation) {
     EXPECT_THAT(
             test_socket->storage,
             MatchesRegex(
-                    R"(0043\$GPGGA,.*,5222.0560,N,00454.2459,E,1,00,1.0,0.00,M,0.0,M,,.*\s*0044\$GPRMC,.*,A,5222.0560,N,00454.2459,E,0.00,0.00,.*,0.0,W.*\s*)"));
+                    R"(0043\$GPGGA,.*,5222.0560,N,00454.2459,E,1,04,1.0,0.00,M,0.0,M,,.*\s*0044\$GPRMC,.*,A,5222.0560,N,00454.2459,E,0.00,0.00,.*,0.0,W.*\s*)"));
+}
+
+TEST_F(GpsDeviceTest, zeroSatellitesReportsLossOfFix) {
+    const Location kTunnelNoFix = {
+        .latitude = 52.3676,
+        .longitude = 4.9041,
+        .speed = 0.0,
+        .bearing = 0.0,
+        .altitude = 0.0,
+        .accuracy = 0.0,
+        .satellites = 0,
+    };
+
+    location.SetValue(kTunnelNoFix);
+    mQemuLoop->RunAll();
+    EXPECT_THAT(
+            test_socket->storage,
+            MatchesRegex(
+                    R"(0043\$GPGGA,.*,5222.0560,N,00454.2459,E,0,00,1.0,0.00,M,0.0,M,,.*\s*0044\$GPRMC,.*,V,5222.0560,N,00454.2459,E,0.00,0.00,.*,0.0,W.*\s*)"));
+}
+
+TEST_F(GpsDeviceTest, accuracyMapsToGpggaHdopField) {
+    const Location kDegradedAccuracy = {
+        .latitude = 52.3676,
+        .longitude = 4.9041,
+        .speed = 0.0,
+        .bearing = 0.0,
+        .altitude = 0.0,
+        .accuracy = 25.5,
+        .satellites = 6,
+    };
+
+    location.SetValue(kDegradedAccuracy);
+    mQemuLoop->RunAll();
+    EXPECT_THAT(
+            test_socket->storage,
+            MatchesRegex(
+                    R"(0044\$GPGGA,.*,5222.0560,N,00454.2459,E,1,06,25.5,0.00,M,0.0,M,,.*\s*0044\$GPRMC,.*,A,5222.0560,N,00454.2459,E,0.00,0.00,.*,0.0,W.*\s*)"));
+}
+
+TEST_F(GpsDeviceTest, usesInitialObservableLocationOnConnect) {
+    ObservableLocation preset_location;
+    preset_location.SetValue(Location{
+        .latitude = 52.3676,
+        .longitude = 4.9041,
+        .speed = 0.0,
+        .bearing = 0.0,
+        .altitude = 0.0,
+        .accuracy = 3.5,
+        .satellites = 7,
+    });
+
+    TestConnectorRegistry preset_registry;
+    IGpsDevice::RegisterDevice(&preset_location, &preset_registry, mQemuLoop.get());
+    IGpsDevice* preset_device = preset_registry.ConstructHalDevice<IGpsDevice>();
+    TestHalSocket* preset_socket = preset_registry.HalSocket();
+
+    mQemuLoop->Post([preset_device] { preset_device->OnConnect(); }).IgnoreError();
+    mQemuLoop->RunAll();
+    mQemuLoop->AdvanceClock(absl::Seconds(1));
+
+    EXPECT_THAT(
+            preset_socket->storage,
+            MatchesRegex(
+                    R"(0043\$GPGGA,.*,5222.0560,N,00454.2459,E,1,07,3.5,0.00,M,0.0,M,,.*\s*0044\$GPRMC,.*,A,5222.0560,N,00454.2459,E,0.00,0.00,.*,0.0,W.*\s*)"));
+
+    mQemuLoop->Post([&preset_registry] { preset_registry.Close(); }).IgnoreError();
+    mQemuLoop->RunAll();
 }
 
 TEST_F(GpsDeviceTest, periodicTimerSendsLocationOnQemuLoopAndStopsOnClose) {

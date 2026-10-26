@@ -70,11 +70,12 @@ std::string FormatGPGGA(const Location& loc, absl::Time now) {
     const std::string lon_str = ToNmeaCoord(loc.longitude, false);
     const char lon_dir = (loc.longitude >= 0) ? 'E' : 'W';
 
-    const int fix_quality = 1;
+    const int fix_quality = loc.satellites > 0 ? 1 : 0;
+    const double hdop = loc.accuracy > 0.0 ? loc.accuracy : 1.0;
 
-    const std::string body =
-            absl::StrFormat("GPGGA,%s,%s,%c,%s,%c,%d,%02d,1.0,%.2f,M,0.0,M,,", time_str, lat_str,
-                            lat_dir, lon_str, lon_dir, fix_quality, loc.satellites, loc.altitude);
+    const std::string body = absl::StrFormat("GPGGA,%s,%s,%c,%s,%c,%d,%02d,%.1f,%.2f,M,0.0,M,,",
+                                             time_str, lat_str, lat_dir, lon_str, lon_dir,
+                                             fix_quality, loc.satellites, hdop, loc.altitude);
 
     return absl::StrFormat("$%s*%s\r\n", body, CalculateChecksum(body));
 }
@@ -89,21 +90,15 @@ std::string FormatGPRMC(const Location& loc, absl::Time now) {
     const std::string lon_str = ToNmeaCoord(loc.longitude, false);
     const char lon_dir = (loc.longitude >= 0) ? 'E' : 'W';
 
+    const char status = loc.satellites > 0 ? 'A' : 'V';
     const double speed_knots = loc.speed * 1.94384;
 
     const std::string body =
-            absl::StrFormat("GPRMC,%s,A,%s,%c,%s,%c,%.2f,%.2f,%s,0.0,W", time_str, lat_str, lat_dir,
-                            lon_str, lon_dir, speed_knots, loc.bearing, date_str);
+            absl::StrFormat("GPRMC,%s,%c,%s,%c,%s,%c,%.2f,%.2f,%s,0.0,W", time_str, status, lat_str,
+                            lat_dir, lon_str, lon_dir, speed_knots, loc.bearing, date_str);
 
     return absl::StrFormat("$%s*%s\r\n", body, CalculateChecksum(body));
 }
-
-constexpr Location kGoogleHqLocation{.latitude = 37.4220186,
-                                     .longitude = -122.0839727,
-                                     .speed = 0.0,
-                                     .bearing = 0.0,
-                                     .altitude = 10.0,
-                                     .satellites = 8};
 }  // namespace
 
 // Executes all HalPlug callbacks, location updates, and the 1 Hz virtual-clock
@@ -146,6 +141,8 @@ class GpsDevice : public IGpsDevice, public std::enable_shared_from_this<GpsDevi
         VLOG(1) << "The guest is (unexpectedly) sending data to the Gps device: " << data;
     }
 
+    void SetInitialLocation(const Location& location) { location_ = location; }
+
     void Send(const Location& location) {
         DCHECK(loop_->IsOnLoopThread());
         // Ignore location updates that were queued on `qemu_loop` before `OnClose()`.
@@ -180,7 +177,7 @@ class GpsDevice : public IGpsDevice, public std::enable_shared_from_this<GpsDevi
     LocationUpdateSubscription location_update_subscription_;
     EventLoop* const loop_;
     std::shared_ptr<EventLoop::Timer> one_second_timer_;
-    Location location_ = {kGoogleHqLocation};
+    Location location_{};
 };
 
 void IGpsDevice::RegisterDevice(ObservableLocation* observable_location,
@@ -209,6 +206,7 @@ void IGpsDevice::RegisterDevice(ObservableLocation* observable_location,
                                     .IgnoreError();
                         });
 
+                dev->SetInitialLocation(observable_location->GetValue());
                 dev->SetLocationUpdateSubscription(std::move(location_update_subscription));
 
                 return dev;
