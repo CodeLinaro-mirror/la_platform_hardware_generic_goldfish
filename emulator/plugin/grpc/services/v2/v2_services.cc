@@ -23,6 +23,7 @@
 #include "goldfish/avd/global_event_loop.h"
 #include "hypervisor/hypervisor_service_impl.h"
 #include "input/input_service_impl.h"
+#include "location/location_service_impl.h"
 #include "operations/operations_service_impl.h"
 #include "system/system_service_impl.h"
 
@@ -45,6 +46,10 @@ std::vector<std::shared_ptr<Service>> CreateV2Services(AvdUniverse& avd_universe
             &avd_universe.GetFingerprintSensor()));
 
     const auto& hw = avd_universe.Props().hw_config;
+    services.emplace_back(std::make_shared<LocationServiceImpl>(
+            avd_universe.GetLocation(),
+            LocationServiceImpl::Options{.has_gps = hw.hw_gps,
+                                         .event_loop = ::goldfish::avd::globalEventLoop()}));
     services.emplace_back(std::make_shared<InputServiceImpl>(
             avd_universe.GetInputDispatcher(), avd_universe.GetMultiDisplay(),
             InputServiceImpl::Options{.hw_sensor_hinge = hw.hw_sensor_hinge,
