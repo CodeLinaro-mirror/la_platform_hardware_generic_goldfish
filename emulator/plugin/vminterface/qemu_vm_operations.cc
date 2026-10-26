@@ -15,6 +15,7 @@
 
 #include <array>
 #include <memory>
+#include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
@@ -31,6 +32,7 @@
 #include "absl/time/time.h"
 
 #include "android/base/clock.h"
+#include "android/crashreport/hang_detector.h"
 #include "android/goldfish/vm_interface.h"
 #include "android/status/status_macros.h"
 #include "goldfish/async/event_loop.h"
@@ -60,6 +62,66 @@ namespace android {
 namespace goldfish {
 namespace {
 constexpr absl::Duration kMinTransferEventInterval = absl::Milliseconds(250);
+constexpr std::string_view kSnapshotWatchdogName = "SnapshotWatchdog";
+// HangDetector evaluates predicates every 15s (DefaultTiming().hang_check_timeout)
+// and crashes after 2 consecutive stalled checks (30s total without progress).
+constexpr absl::Duration kSnapshotStallTimeout = absl::Seconds(30);
+
+// Who registered the SnapshotWatchdog predicate, if anyone.
+enum class SnapshotWatchdogOwner {
+    kNone,
+    // SaveSnapshot() or LoadSnapshot(), for the duration of the call.
+    kVmOperations,
+    // OnSnapshotProgress(), for a snapshot QEMU runs without VmOperations: the
+    // exit-time -savevm and HMP savevm/loadvm.
+    kQemu,
+};
+
+std::string_view SnapshotPhaseName(VmOperations::SnapshotPhase phase) {
+    switch (phase) {
+    case VmOperations::SnapshotPhase::None:
+        return "NONE";
+    case VmOperations::SnapshotPhase::Preparing:
+        return "PREPARING";
+    case VmOperations::SnapshotPhase::Transferring:
+        return "TRANSFERRING";
+    case VmOperations::SnapshotPhase::Completed:
+        return "COMPLETED";
+    case VmOperations::SnapshotPhase::Failed:
+        return "FAILED";
+    default:
+        return "UNKNOWN";
+    }
+}
+
+bool HasSnapshotProgressAdvanced(const VmOperations::SnapshotProgress& previous,
+                                 const VmOperations::SnapshotProgress& current) {
+    return current.operation != previous.operation || current.phase != previous.phase ||
+           current.snapshot_id != previous.snapshot_id ||
+           current.transferred_bytes > previous.transferred_bytes ||
+           current.disk_bytes > previous.disk_bytes ||
+           current.completed_devices > previous.completed_devices ||
+           current.active_component != previous.active_component;
+}
+
+std::string FormatSnapshotStallMessage(const VmOperations::SnapshotProgress& progress,
+                                       absl::Duration stall_timeout) {
+    const std::string_view action =
+            progress.operation == VmOperations::SnapshotOperationType::Load ? "load" : "save";
+    const std::string_view name = progress.snapshot_id.empty()
+                                          ? std::string_view("<unnamed>")
+                                          : std::string_view(progress.snapshot_id);
+    const std::string_view component = progress.active_component.empty()
+                                               ? std::string_view("<none>")
+                                               : std::string_view(progress.active_component);
+    return absl::StrCat(
+            "Snapshot ", action, " '", name, "' stalled: no progress for ",
+            absl::FormatDuration(stall_timeout), " (phase=", SnapshotPhaseName(progress.phase),
+            ", progress=", progress.ProgressPercent(), "%, component='", component,
+            "', transferred_bytes=", progress.transferred_bytes, "/", progress.total_bytes,
+            ", disk_bytes=", progress.disk_bytes,
+            ", completed_devices=", progress.completed_devices, "/", progress.total_devices, ").");
+}
 
 absl::Status ToStatus(const absl::StatusCode code, std::string_view prefix, Error** errp,
                       std::string_view remediation) {
@@ -157,23 +219,53 @@ static_assert(static_cast<int>(VmOperations::SnapshotPhase::Failed) ==
  * from either `event_loop` or `qemu_loop`.
  */
 class QemuVmOperations : public VmOperations {
+  private:
+    // Defined before SaveSnapshot()/LoadSnapshot() because C++ requires a member
+    // function with a deduced return type to be defined before its call sites.
+    //
+    // The SnapshotWatchdog predicate is registered only while a snapshot is in flight.
+    // SaveSnapshot() and LoadSnapshot() register it before they call QEMU, so a stall
+    // before QEMU's first progress report (in vm_stop() or while draining the block
+    // layer) is caught as well. OnSnapshotProgress() registers it for the snapshots QEMU
+    // runs without VmOperations.
+    [[nodiscard]] auto BeginSnapshotWatchdog(SnapshotOperationType operation,
+                                             std::string_view snapshot_id) {
+        AssertOnQemuLoop();
+        {
+            absl::MutexLock lock(&progress_mutex_);
+            snapshot_watchdog_owner_ = SnapshotWatchdogOwner::kVmOperations;
+            snapshot_watchdog_saw_qemu_progress_ = false;
+            snapshot_watchdog_initial_progress_ = SnapshotProgress{
+                .operation = operation,
+                .phase = SnapshotPhase::Preparing,
+                .snapshot_id = std::string(snapshot_id),
+            };
+            snapshot_watchdog_last_progress_ = snapshot_watchdog_initial_progress_;
+        }
+        RegisterSnapshotWatchdog();
+        return absl::MakeCleanup([this] { EndSnapshotWatchdog(); });
+    }
+
   public:
     // RecursiveScopedVmLock allows registration/deregistration to run safely on
     // both the QEMU main thread as well as external threads during startup/teardown.
     QemuVmOperations(::goldfish::async::EventLoop* event_loop,
                      ::goldfish::async::EventLoop* qemu_loop, QemuSnapshotConfig snapshot_config,
+                     ::android::crashreport::HangDetector* hang_detector,
                      ::android::base::IClock* clock)
             : VmOperations(event_loop)
             , event_loop_(event_loop)
             , qemu_loop_(qemu_loop)
             , snapshot_store_(std::move(snapshot_config.store))
             , snapshots_enabled_(snapshot_config.enabled)
+            , hang_detector_(hang_detector)
             , clock_(clock != nullptr ? clock : &::android::base::IClock::Get()) {
         DCHECK(event_loop_ != nullptr);
         DCHECK(qemu_loop_ != nullptr);
         DCHECK(event_loop_ != qemu_loop_)
                 << "event_loop and qemu_loop must be distinct event loops.";
         DCHECK(snapshot_store_ != nullptr) << "QemuSnapshotConfig::store must not be null.";
+        DCHECK(hang_detector_ != nullptr);
         transfer_flush_timer_ = event_loop_->CreateTimer([this] {
             FlushPendingTransferProgress();
             return true;
@@ -191,6 +283,17 @@ class QemuVmOperations : public VmOperations {
             if (snapshot_progress_entry_) {
                 del_snapshot_progress_handler(snapshot_progress_entry_);
             }
+        }
+        // No progress report can register the watchdog any more. Drop one left by a
+        // snapshot that is still in flight: its predicate captures `this`.
+        bool watchdog_registered = false;
+        {
+            absl::MutexLock lock(&progress_mutex_);
+            watchdog_registered = snapshot_watchdog_owner_ != SnapshotWatchdogOwner::kNone;
+            snapshot_watchdog_owner_ = SnapshotWatchdogOwner::kNone;
+        }
+        if (watchdog_registered) {
+            hang_detector_->RemovePredicate(kSnapshotWatchdogName);
         }
         if (transfer_flush_timer_) {
             transfer_flush_timer_->Cancel();
@@ -359,6 +462,7 @@ class QemuVmOperations : public VmOperations {
             AssertOnQemuLoop();
             absl::Time start = absl::Now();
             RETURN_IF_ERROR(CheckCanExecuteAction("save snapshot for"));
+            auto watchdog_cleanup = BeginSnapshotWatchdog(SnapshotOperationType::Save, name);
             auto& avd = ::goldfish::avd::GetAvd();
             avd.SetGenericSnapshotInProgress(true);
             auto cleanup = absl::MakeCleanup([&avd] { avd.SetGenericSnapshotInProgress(false); });
@@ -407,6 +511,7 @@ class QemuVmOperations : public VmOperations {
             AssertOnQemuLoop();
             absl::Time start = absl::Now();
             RETURN_IF_ERROR(CheckCanExecuteAction("load snapshot into"));
+            auto watchdog_cleanup = BeginSnapshotWatchdog(SnapshotOperationType::Load, id_or_name);
             auto& avd = ::goldfish::avd::GetAvd();
             ::Error* errp = nullptr;
 
@@ -605,9 +710,12 @@ class QemuVmOperations : public VmOperations {
         bool should_forward = true;
         absl::Duration flush_delay = absl::ZeroDuration();
         bool should_schedule_flush = false;
+        bool register_watchdog = false;
+        bool unregister_watchdog = false;
         {
             absl::MutexLock lock(&self->progress_mutex_);
             self->cached_progress_ = progress;
+            self->snapshot_watchdog_saw_qemu_progress_ = true;
             if (progress.phase == SnapshotPhase::Preparing) {
                 self->last_forwarded_transfer_time_ = absl::InfinitePast();
                 self->transfer_flush_pending_ = false;
@@ -627,15 +735,71 @@ class QemuVmOperations : public VmOperations {
                 }
             } else {
                 self->transfer_flush_pending_ = false;
+                self->snapshot_watchdog_last_progress_ = {};
+            }
+
+            // A snapshot that QEMU runs without VmOperations (the exit-time -savevm,
+            // HMP savevm/loadvm) is watched from its first progress report to its last.
+            const bool in_flight = progress.phase == SnapshotPhase::Preparing ||
+                                   progress.phase == SnapshotPhase::Transferring;
+            if (in_flight && self->snapshot_watchdog_owner_ == SnapshotWatchdogOwner::kNone) {
+                self->snapshot_watchdog_owner_ = SnapshotWatchdogOwner::kQemu;
+                self->snapshot_watchdog_last_progress_ = progress;
+                register_watchdog = true;
+            } else if (!in_flight &&
+                       self->snapshot_watchdog_owner_ == SnapshotWatchdogOwner::kQemu) {
+                self->snapshot_watchdog_owner_ = SnapshotWatchdogOwner::kNone;
+                unregister_watchdog = true;
             }
         }
 
+        // Outside progress_mutex_: RemovePredicate() waits for a CheckSnapshotWatchdog()
+        // that is running, and that takes progress_mutex_.
+        if (register_watchdog) {
+            self->RegisterSnapshotWatchdog();
+        } else if (unregister_watchdog) {
+            self->hang_detector_->RemovePredicate(kSnapshotWatchdogName);
+        }
         if (should_schedule_flush && self->transfer_flush_timer_) {
             self->transfer_flush_timer_->Schedule(flush_delay);
         }
         if (should_forward) {
             self->SnapshotEvents().FireEvent(progress);
         }
+    }
+
+    void EndSnapshotWatchdog() {
+        AssertOnQemuLoop();
+        {
+            absl::MutexLock lock(&progress_mutex_);
+            snapshot_watchdog_owner_ = SnapshotWatchdogOwner::kNone;
+        }
+        hang_detector_->RemovePredicate(kSnapshotWatchdogName);
+    }
+
+    void RegisterSnapshotWatchdog() {
+        hang_detector_->AddPredicate(std::string(kSnapshotWatchdogName),
+                                     [this]() -> absl::Status { return CheckSnapshotWatchdog(); });
+    }
+
+    absl::Status CheckSnapshotWatchdog() {
+        SnapshotProgress current;
+        {
+            absl::MutexLock lock(&progress_mutex_);
+            current = snapshot_watchdog_saw_qemu_progress_ ? cached_progress_
+                                                           : snapshot_watchdog_initial_progress_;
+            if (current.phase != SnapshotPhase::Preparing &&
+                current.phase != SnapshotPhase::Transferring) {
+                snapshot_watchdog_last_progress_ = {};
+                return absl::OkStatus();
+            }
+            if (HasSnapshotProgressAdvanced(snapshot_watchdog_last_progress_, current)) {
+                snapshot_watchdog_last_progress_ = current;
+                return absl::OkStatus();
+            }
+        }
+        return absl::DeadlineExceededError(
+                FormatSnapshotStallMessage(current, kSnapshotStallTimeout));
     }
 
     // Records the snapshot version of every save QEMU completes: the runtime saves
@@ -691,23 +855,30 @@ class QemuVmOperations : public VmOperations {
     ::goldfish::async::EventLoop* const qemu_loop_;
     const std::unique_ptr<::goldfish::snapshot::SnapshotStore> snapshot_store_;
     const bool snapshots_enabled_;
+    ::android::crashreport::HangDetector* const hang_detector_;
     ::android::base::IClock* const clock_;
     std::shared_ptr<::goldfish::async::EventLoop::Timer> transfer_flush_timer_;
     VMChangeStateEntry* change_state_entry_{nullptr};
     QemuSnapshotProgressEntry* snapshot_progress_entry_{nullptr};
-    // Leaf mutex protecting cached_progress_ and transfer-throttle state for BQL-free reads.
+    // Leaf mutex protecting cached_progress_, transfer-throttle, and watchdog state for BQL-free
+    // reads.
     mutable absl::Mutex progress_mutex_;
     SnapshotProgress cached_progress_ ABSL_GUARDED_BY(progress_mutex_);
+    SnapshotProgress snapshot_watchdog_initial_progress_ ABSL_GUARDED_BY(progress_mutex_);
+    SnapshotProgress snapshot_watchdog_last_progress_ ABSL_GUARDED_BY(progress_mutex_);
+    bool snapshot_watchdog_saw_qemu_progress_ ABSL_GUARDED_BY(progress_mutex_){false};
+    SnapshotWatchdogOwner snapshot_watchdog_owner_ ABSL_GUARDED_BY(progress_mutex_){
+        SnapshotWatchdogOwner::kNone};
     absl::Time last_forwarded_transfer_time_ ABSL_GUARDED_BY(progress_mutex_){absl::InfinitePast()};
     bool transfer_flush_pending_ ABSL_GUARDED_BY(progress_mutex_){false};
 };
 
-std::unique_ptr<VmOperations> CreateQemuVmOperations(::goldfish::async::EventLoop* event_loop,
-                                                     ::goldfish::async::EventLoop* qemu_loop,
-                                                     QemuSnapshotConfig snapshot_config,
-                                                     ::android::base::IClock* clock) {
+std::unique_ptr<VmOperations> CreateQemuVmOperations(
+        ::goldfish::async::EventLoop* event_loop, ::goldfish::async::EventLoop* qemu_loop,
+        QemuSnapshotConfig snapshot_config, ::android::crashreport::HangDetector* hang_detector,
+        ::android::base::IClock* clock) {
     return std::make_unique<QemuVmOperations>(event_loop, qemu_loop, std::move(snapshot_config),
-                                              clock);
+                                              hang_detector, clock);
 }
 
 }  // namespace goldfish

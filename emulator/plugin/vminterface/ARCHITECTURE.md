@@ -9,7 +9,7 @@
 | Class / Interface | Bazel Target | Header Path | Description |
 | :--- | :--- | :--- | :--- |
 | `VmOperations` | `:vminterface` | `.../vm_interface.h` | Abstract interface for VM control. `RunStateEvents()` and `SnapshotEvents()` publish loop-bound events; `GetSnapshotProgress()` provides BQL-free progress reads. |
-| `CreateQemuVmOperations(event_loop, qemu_loop, snapshot_config, clock)` | `:vm_ops` | `.../qemu_vm_operations.h` | Creates the QEMU-backed `VmOperations`, delivering run state and snapshot events on `event_loop` and executing VM operations on `qemu_loop`. `QemuSnapshotConfig` carries the `SnapshotStore` for `<avd>/snapshots/<name>/` and whether snapshots are enabled (`-no-snapshot` turns them off). |
+| `CreateQemuVmOperations(event_loop, qemu_loop, snapshot_config, hang_detector, clock)` | `:vm_ops` | `.../qemu_vm_operations.h` | Creates the QEMU-backed `VmOperations`, delivering run state and snapshot events on `event_loop`, executing VM operations on `qemu_loop`, and registering a snapshot progress watchdog on `hang_detector` while a snapshot save or load is in flight: from the start of `SaveSnapshot`/`LoadSnapshot`, or from QEMU's first progress report for snapshots QEMU runs without `VmOperations` (the exit-time `-savevm`, HMP `savevm`/`loadvm`). `QemuSnapshotConfig` carries the `SnapshotStore` for `<avd>/snapshots/<name>/` and whether snapshots are enabled (`-no-snapshot` turns them off). |
 | `ScopedVmLock` | `:vm_lock` | `src/vm_lock.h` | RAII wrapper for the QEMU Big Lock (BQL). |
 
 ## Critical Infrastructure
