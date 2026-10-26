@@ -933,6 +933,37 @@ TEST_F(LauncherTest, FallbackConfigUsesModemSimulatorWhenNoNetsimModem) {
     EXPECT_THAT(launch_config->args, testing::Not(testing::Contains("netsim-cellular,id=modem")));
 }
 
+TEST_F(LauncherTest, EmptyNetsimEndpointLogsWarningAndSkipsNetsimDevices) {
+    auto avd = CreateMockAvd();
+    opts.no_netsim = false;
+    opts.no_netsim_modem = false;
+    EmulatorPorts ports{.serial_number = 5554, .adb_port = 5555};
+    ChardevEndpoints chardev_endpoints{.modem_simulator = "localhost:5678"};
+    LaunchQemu emulator{EmulatorConfig{
+        ports, chardev_endpoints, {}, user_paths, emulator_paths, *avd, opts, feature_flags}};
+
+    absl::ScopedMockLog mock_log(absl::MockLogDefault::kIgnoreUnexpected);
+    EXPECT_CALL(
+            mock_log,
+            Log(absl::LogSeverity::kWarning, _,
+                testing::AllOf(testing::HasSubstr("netsim is requested, but the endpoint is empty"),
+                               testing::HasSubstr("-no-netsim"))))
+            .Times(1);
+    mock_log.StartCapturingLogs();
+
+    auto launch_config = emulator.launch_config();
+    mock_log.StopCapturingLogs();
+
+    ASSERT_TRUE(launch_config.ok()) << launch_config.status();
+    EXPECT_THAT(launch_config->args,
+                testing::Not(testing::Contains(testing::HasSubstr("netsim-connection"))));
+    EXPECT_THAT(launch_config->args, testing::Not(testing::Contains("netsim-cellular,id=modem")));
+    EXPECT_THAT(launch_config->args, testing::Contains(testing::HasSubstr("user,id=eth0")));
+    EXPECT_THAT(
+            launch_config->args,
+            testing::Contains(testing::HasSubstr("socket,id=modem,nodelay=on,reconnect-ms=100,")));
+}
+
 TEST_F(LauncherTest, EndToEndNoNetsimFallsBackToModemSimulator) {
     auto avd = CreateMockAvd();
     opts.no_netsim = true;
@@ -987,6 +1018,9 @@ TEST_F(LauncherTest, EndToEndMissingNetsimBinaryFallsBackToModemSimulator) {
     ExpectEmulatorLaunch(launched, emulator_exit_cb, nullptr, config_matcher);
 
     absl::ScopedMockLog mock_log(absl::MockLogDefault::kIgnoreUnexpected);
+    EXPECT_CALL(mock_log, Log(absl::LogSeverity::kWarning, _,
+                              testing::HasSubstr("netsim is requested, but the endpoint is empty")))
+            .Times(0);
     EXPECT_CALL(mock_log, Log(absl::LogSeverity::kWarning, _,
                               testing::AllOf(testing::HasSubstr("netsimd binary not found"),
                                              testing::HasSubstr("Wi-Fi, Bluetooth, UWB, and NFC"),

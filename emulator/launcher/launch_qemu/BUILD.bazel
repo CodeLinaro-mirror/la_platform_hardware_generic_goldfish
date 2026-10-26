@@ -677,6 +677,7 @@ cc_library(
         "//emulator/launcher/cmdline",
         "//emulator/libs/async:launch_config",
         "//emulator/libs/system",
+        "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",

@@ -134,7 +134,12 @@ absl::Status LaunchQemu::addDevices() {
     addDevice<AvdInfoDevice>(factory_boot);
 
     bool netsim_cellular = false;
-    if (!o.no_netsim) {
+    if (!o.no_netsim && config_.chardev_endpoints().netsim.empty()) {
+        ABSL_LOG(WARNING)
+                << "netsim is requested, but the endpoint is empty; skipping netsim device "
+                   "configuration and falling back to QEMU SLIRP (eth0) and non-netsim "
+                   "telephony (pass '-no-netsim' if netsim is intentionally disabled).";
+    } else if (!o.no_netsim) {
         addDevice<ParameterList>(std::initializer_list<std::string>{
             "-device",
             absl::StrCat("netsim-connection,id=netsim,grpc_endpoint=",
