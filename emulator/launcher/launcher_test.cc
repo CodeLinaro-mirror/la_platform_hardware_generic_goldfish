@@ -20,6 +20,8 @@
 #include <thread>
 #include <vector>
 
+#include "absl/base/log_severity.h"
+#include "absl/log/scoped_mock_log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
@@ -949,10 +951,56 @@ TEST_F(LauncherTest, EndToEndNoNetsimFallsBackToModemSimulator) {
 
     ExpectEmulatorLaunch(launched, emulator_exit_cb, nullptr, config_matcher);
 
+    absl::ScopedMockLog mock_log(absl::MockLogDefault::kIgnoreUnexpected);
+    EXPECT_CALL(mock_log,
+                Log(absl::LogSeverity::kWarning, _, testing::HasSubstr("netsimd binary not found")))
+            .Times(0);
+    mock_log.StartCapturingLogs();
+
     std::thread trigger = TriggerEmulatorExit(launched, emulator_exit_cb);
 
     int status = RunLauncher(std::move(avd));
     trigger.join();
+    mock_log.StopCapturingLogs();
+    EXPECT_EQ(status, 0);
+}
+
+TEST_F(LauncherTest, EndToEndMissingNetsimBinaryFallsBackToModemSimulator) {
+    auto avd = CreateMockAvd();
+    opts.no_netsim = false;
+    emulator_paths.netsim_binary.clear();
+
+    absl::Notification launched;
+    ::goldfish::async::ProcessLauncher::ExitCallback emulator_exit_cb;
+
+    auto config_matcher = testing::AllOf(
+            testing::Field(&::goldfish::async::LaunchConfig::exe_path, ExpectedQemuBinary()),
+            testing::Field(
+                    &::goldfish::async::LaunchConfig::args,
+                    testing::AllOf(testing::Contains(testing::HasSubstr(
+                                           "socket,id=modem,nodelay=on,reconnect-ms=100,")),
+                                   testing::Contains(testing::HasSubstr("user,id=eth0")),
+                                   testing::Not(testing::Contains(
+                                           testing::HasSubstr("netsim-connection"))),
+                                   testing::Not(testing::Contains("netsim-cellular,id=modem")))));
+
+    ExpectEmulatorLaunch(launched, emulator_exit_cb, nullptr, config_matcher);
+
+    absl::ScopedMockLog mock_log(absl::MockLogDefault::kIgnoreUnexpected);
+    EXPECT_CALL(mock_log, Log(absl::LogSeverity::kWarning, _,
+                              testing::AllOf(testing::HasSubstr("netsimd binary not found"),
+                                             testing::HasSubstr("Wi-Fi, Bluetooth, UWB, and NFC"),
+                                             testing::HasSubstr("SLIRP (eth0)"),
+                                             testing::HasSubstr("-packet-streamer-endpoint"),
+                                             testing::HasSubstr("-no-netsim"))))
+            .Times(1);
+    mock_log.StartCapturingLogs();
+
+    std::thread trigger = TriggerEmulatorExit(launched, emulator_exit_cb);
+
+    int status = RunLauncher(std::move(avd));
+    trigger.join();
+    mock_log.StopCapturingLogs();
     EXPECT_EQ(status, 0);
 }
 

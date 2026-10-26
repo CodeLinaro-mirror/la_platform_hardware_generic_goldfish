@@ -14,12 +14,18 @@
 
 #include "android/goldfish/input_paths.h"
 
+#include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
 #include <filesystem>
 #include <fstream>
 
+#if defined(__aarch64__) && defined(__linux__)
+#include "absl/base/log_severity.h"
+#include "absl/log/scoped_mock_log.h"
+#endif
 #include "absl/log/log.h"
+#include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 
 #include "android/base/testing/test_system.h"
@@ -319,7 +325,53 @@ TEST_F(InputPathsTest, ResolveEmulatorPaths) {
     EXPECT_EQ(paths.binary_directory, launcher_dir / "bin");
     EXPECT_EQ(paths.advanced_features, launcher_dir / "lib" / "advancedFeatures.ini");
     EXPECT_EQ(paths.qemu_system_x86_binary, launcher_dir / "bin" / ("qemu-system-x86_64" + suffix));
+    EXPECT_TRUE(paths.HasNetsim());
+    EXPECT_EQ(paths.netsim_binary, launcher_dir / "bin" / ("netsimd" + suffix));
     EXPECT_FALSE(paths.HasFishtank());
+}
+
+TEST_F(InputPathsTest, ResolveEmulatorPathsWithoutNetsimd) {
+    tmp_->MakeSubDir("launcher");
+    tmp_->MakeSubDir("launcher/bin");
+    tmp_->MakeSubDir("launcher/lib/qemu");
+    tmp_->MakeSubDir("launcher/lib64");
+    tmp_->MakeSubDir("launcher/share/qemu");
+
+    fs::path launcher_dir = tmp_->Path() / "launcher";
+    ASSERT_OK_AND_ASSIGN(auto canon, android::base::file::make_canonical(launcher_dir));
+    launcher_dir = canon;
+
+    std::string suffix = "";
+#ifdef _WIN32
+    suffix = ".exe";
+#endif
+
+    WriteToFile(launcher_dir / "bin" / ("qemu-system-aarch64" + suffix), "");
+    WriteToFile(launcher_dir / "bin" / ("crashpad_handler" + suffix), "");
+    WriteToFile(launcher_dir / "lib" / "advancedFeatures.ini", "");
+
+    sys_->SetEnvironmentVariable("ANDROID_EMULATOR_LAUNCHER_DIR", launcher_dir.string());
+
+#if defined(__aarch64__) && defined(__linux__)
+    absl::ScopedMockLog mock_log(absl::MockLogDefault::kIgnoreUnexpected);
+    EXPECT_CALL(mock_log,
+                Log(absl::LogSeverity::kWarning, testing::_,
+                    testing::AllOf(testing::HasSubstr(
+                                           "Optional netsimd binary not available on Linux ARM64"),
+                                   testing::HasSubstr("netsimd"))))
+            .Times(1);
+    mock_log.StartCapturingLogs();
+
+    ASSERT_OK_AND_ASSIGN(auto paths, ResolveEmulatorPaths(false));
+    mock_log.StopCapturingLogs();
+
+    EXPECT_FALSE(paths.HasNetsim());
+    EXPECT_TRUE(paths.netsim_binary.empty());
+#else
+    // Main release platforms bundle netsimd and must fail fast on packaging omissions.
+    EXPECT_THAT(ResolveEmulatorPaths(false),
+                absl_testing::StatusIs(absl::StatusCode::kNotFound, testing::HasSubstr("netsimd")));
+#endif
 }
 
 TEST_F(InputPathsTest, ResolveEmulatorPathsFailsWithoutAdvancedFeatures) {

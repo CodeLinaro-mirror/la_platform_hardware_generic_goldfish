@@ -152,8 +152,20 @@ absl::StatusOr<EmulatorPaths> ResolveEmulatorPaths(bool verbose) {
                 absl::StrCat("No qemu-system binary found in: ", paths.binary_directory.string()));
     }
 
+#if defined(__aarch64__) && defined(__linux__)
+    // Linux AArch64 does not package a native netsimd binary yet (b/577211431).
+    if (auto netsim = CheckExists(paths.binary_directory / AddBinarySuffix("netsimd"), "netsimd");
+        netsim.ok()) {
+        paths.netsim_binary = *std::move(netsim);
+    } else {
+        LOG(WARNING) << "Optional netsimd binary not available on Linux ARM64 (" << netsim.status()
+                     << "); multi-radio simulation (Wi-Fi, Bluetooth, UWB, NFC) will be disabled "
+                        "unless '-packet-streamer-endpoint <uri>' is specified.";
+    }
+#else
     ASSIGN_OR_RETURN(paths.netsim_binary,
                      CheckExists(paths.binary_directory / AddBinarySuffix("netsimd"), "netsimd"));
+#endif
     ASSIGN_OR_RETURN(paths.crashpad_handler_binary,
                      CheckExists(paths.binary_directory / AddBinarySuffix("crashpad_handler"),
                                  "crashpad handler"));
