@@ -552,4 +552,39 @@ TEST_F(InputPathsTest, ResolveEmulatorPathsWithNonAsciiDirectory) {
     EXPECT_EQ(paths.qemu_system_x86_binary, launcher_dir / "bin" / ("qemu-system-x86_64" + suffix));
 }
 
+#ifndef _WIN32
+TEST_F(InputPathsTest, ResolveEmulatorPathsPreservesSymlinksOnPosix) {
+    tmp_->MakeSubDir("real_targets");
+    tmp_->MakeSubDir("launcher/bin");
+    tmp_->MakeSubDir("launcher/lib/qemu");
+    tmp_->MakeSubDir("launcher/lib64");
+    tmp_->MakeSubDir("launcher/share/qemu");
+
+    ASSERT_OK_AND_ASSIGN(auto target_dir,
+                         android::base::file::make_canonical(tmp_->Path() / "real_targets"));
+    ASSERT_OK_AND_ASSIGN(auto launcher_dir,
+                         android::base::file::make_canonical(tmp_->Path() / "launcher"));
+
+    for (std::string_view name :
+         {"qemu-system-x86_64", "qemu-system-aarch64", "netsimd", "crashpad_handler"}) {
+        WriteToFile(target_dir / name, "");
+        std::error_code ec;
+        fs::create_symlink(target_dir / name, launcher_dir / "bin" / name, ec);
+        ASSERT_FALSE(ec) << "Failed to symlink " << name << ": " << ec.message();
+    }
+    WriteToFile(launcher_dir / "lib" / "advancedFeatures.ini", "");
+
+    sys_->SetEnvironmentVariable("ANDROID_EMULATOR_LAUNCHER_DIR", launcher_dir.string());
+
+    ASSERT_OK_AND_ASSIGN(auto paths, ResolveEmulatorPaths(false));
+
+    EXPECT_EQ(paths.qemu_system_x86_binary, launcher_dir / "bin" / "qemu-system-x86_64");
+    EXPECT_EQ(paths.qemu_system_arm_binary, launcher_dir / "bin" / "qemu-system-aarch64");
+    EXPECT_EQ(paths.netsim_binary, launcher_dir / "bin" / "netsimd");
+    EXPECT_EQ(paths.crashpad_handler_binary, launcher_dir / "bin" / "crashpad_handler");
+    EXPECT_TRUE(android::base::file::is_link(paths.qemu_system_x86_binary));
+    EXPECT_TRUE(android::base::file::is_link(paths.netsim_binary));
+}
+#endif
+
 }  // namespace android::goldfish

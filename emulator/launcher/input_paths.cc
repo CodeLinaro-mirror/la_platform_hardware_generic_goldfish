@@ -63,12 +63,19 @@ absl::StatusOr<fs::path> CheckExists(fs::path path, std::string_view description
     return path;
 }
 
-absl::StatusOr<fs::path> Canonicalize(const fs::path& path) {
+// Resolves symlinks on Windows, which cannot execute symlinked binaries
+// directly. Returns `path` unchanged on Linux and macOS, where dereferencing
+// symlinks breaks Blaze and Bazel runfile trees.
+absl::StatusOr<fs::path> MaybeCanonicalize(fs::path path) {
+#ifdef _WIN32
     ASSIGN_OR_RETURN(auto canon, android::base::file::make_canonical(path));
     if (canon != path) {
         VLOG(1) << "binary is a symlink, replacing with real path: " << path << " -> " << canon;
     }
     return canon;
+#else
+    return path;
+#endif
 }
 
 std::string AddBinarySuffix(std::string binary) {
@@ -97,7 +104,7 @@ absl::StatusOr<EmulatorPaths> ResolveEmulatorPaths(bool verbose) {
             LOG(WARNING)
                     << "launcher does not appear to exist within overridden launcher directory: "
                     << launcher.string();
-        } else if (auto canon = Canonicalize(launcher); !canon.ok()) {
+        } else if (auto canon = android::base::file::make_canonical(launcher); !canon.ok()) {
             LOG(WARNING)
                     << "unable to canonicalize launcher binary in overridden launcher directory: "
                     << launcher.string();
@@ -136,14 +143,14 @@ absl::StatusOr<EmulatorPaths> ResolveEmulatorPaths(bool verbose) {
     if (auto x86 = CheckExists(paths.binary_directory / AddBinarySuffix("qemu-system-x86_64"),
                                "qemu-system-x86_64");
         x86.ok()) {
-        paths.qemu_system_x86_binary = *std::move(x86);
+        ASSIGN_OR_RETURN(paths.qemu_system_x86_binary, MaybeCanonicalize(*std::move(x86)));
     } else {
         VLOG(1) << "Optional binary not available: " << x86.status();
     }
     if (auto arm = CheckExists(paths.binary_directory / AddBinarySuffix("qemu-system-aarch64"),
                                "qemu-system-aarch64");
         arm.ok()) {
-        paths.qemu_system_arm_binary = *std::move(arm);
+        ASSIGN_OR_RETURN(paths.qemu_system_arm_binary, MaybeCanonicalize(*std::move(arm)));
     } else {
         VLOG(1) << "Optional binary not available: " << arm.status();
     }
@@ -156,19 +163,21 @@ absl::StatusOr<EmulatorPaths> ResolveEmulatorPaths(bool verbose) {
     // Linux AArch64 does not package a native netsimd binary yet (b/577211431).
     if (auto netsim = CheckExists(paths.binary_directory / AddBinarySuffix("netsimd"), "netsimd");
         netsim.ok()) {
-        paths.netsim_binary = *std::move(netsim);
+        ASSIGN_OR_RETURN(paths.netsim_binary, MaybeCanonicalize(*std::move(netsim)));
     } else {
         LOG(WARNING) << "Optional netsimd binary not available on Linux ARM64 (" << netsim.status()
                      << "); multi-radio simulation (Wi-Fi, Bluetooth, UWB, NFC) will be disabled "
                         "unless '-packet-streamer-endpoint <uri>' is specified.";
     }
 #else
-    ASSIGN_OR_RETURN(paths.netsim_binary,
+    ASSIGN_OR_RETURN(auto netsim,
                      CheckExists(paths.binary_directory / AddBinarySuffix("netsimd"), "netsimd"));
+    ASSIGN_OR_RETURN(paths.netsim_binary, MaybeCanonicalize(std::move(netsim)));
 #endif
-    ASSIGN_OR_RETURN(paths.crashpad_handler_binary,
+    ASSIGN_OR_RETURN(auto crashpad_handler,
                      CheckExists(paths.binary_directory / AddBinarySuffix("crashpad_handler"),
                                  "crashpad handler"));
+    ASSIGN_OR_RETURN(paths.crashpad_handler_binary, MaybeCanonicalize(std::move(crashpad_handler)));
     if (auto fishtank = CheckExists(
                 paths.launcher_directory / "fishtank" / AddBinarySuffix("fishtank"), "fishtank");
         fishtank.ok()) {
@@ -179,19 +188,6 @@ absl::StatusOr<EmulatorPaths> ResolveEmulatorPaths(bool verbose) {
                     << "; the external fishtank UI will be unavailable.";
         }
     }
-
-#ifdef _WIN32
-    // Canonicalize binaries as Windows cannot execute a symlink.
-    // Note that Forge seems to break if we do this for Linux.
-    if (!paths.qemu_system_x86_binary.empty()) {
-        ASSIGN_OR_RETURN(paths.qemu_system_x86_binary, Canonicalize(paths.qemu_system_x86_binary));
-    }
-    if (!paths.qemu_system_arm_binary.empty()) {
-        ASSIGN_OR_RETURN(paths.qemu_system_arm_binary, Canonicalize(paths.qemu_system_arm_binary));
-    }
-    ASSIGN_OR_RETURN(paths.netsim_binary, Canonicalize(paths.netsim_binary));
-    ASSIGN_OR_RETURN(paths.crashpad_handler_binary, Canonicalize(paths.crashpad_handler_binary));
-#endif
 
     return paths;
 }
