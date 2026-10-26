@@ -1,4 +1,19 @@
-load("@rules_cc//cc:defs.bzl", "cc_library")
+load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_test")
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+
+# The device's public property name and active-generation event bus, for code
+# that observes or queries the device without linking the QEMU device itself.
+cc_library(
+    name = "api",
+    srcs = ["virtio_input_android_events.cc"],
+    hdrs = ["include/goldfish/input/virtio_input_android.h"],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//emulator/libs/eventing",
+        "@abseil-cpp//absl/base:no_destructor",
+    ],
+)
 
 cc_library(
     name = "virtio-input-android",
@@ -6,14 +21,32 @@ cc_library(
         "virtio_input_android.c",
         "virtio_input_android_internal.h",
     ],
-    hdrs = ["include/goldfish/input/virtio_input_android.h"],
-    includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
+        ":api",
         "//emulator/libs/base:array_size",
         "//emulator/libs/logging:absl_c_bridge",
         "@pixman//:pixman-1",
         "@qemu//:qemu-headers-exported",
     ],
     alwayslink = True,
+)
+
+cc_test(
+    name = "virtio_input_android_test",
+    size = "small",
+    srcs = ["virtio_input_android_test.cc"],
+    deps = [
+        ":api",
+        "//emulator/libs/test:googletest_main",
+    ],
+)
+
+clang_tidy_test(
+    name = "tidy",
+    targets = [
+        ":api",
+        ":virtio_input_android_test",
+    ],
+    tidy_config_file = "//:clang_tidy_config",
 )

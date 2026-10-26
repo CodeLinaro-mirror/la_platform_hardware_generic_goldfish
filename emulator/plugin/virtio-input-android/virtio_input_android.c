@@ -657,6 +657,8 @@ static void virtio_android_init(Object* obj) {
     for (int i = 0; i < MTS_POINTERS_NUM; i++) {
         memset(&vahid->tracked_pointers[i], 0, sizeof(MTSPointerState));
     }
+    object_property_add_uint64_ptr(obj, VIRTIO_INPUT_ANDROID_ACTIVE_GENERATION,
+                                   &vahid->active_generation, OBJ_PROP_FLAG_READ);
 }
 
 static void virtio_android_fini(Object* obj) {
@@ -667,12 +669,38 @@ static void virtio_android_fini(Object* obj) {
     g_free((void*)vahid->virtio_input_android_device_config);
 }
 
+/* The change_active of VirtIOInputHID, which (de)activates the input handler. */
+static void (*virtio_android_parent_change_active)(VirtIOInput* vinput);
+
+/**
+ * @brief Advances the active generation, lets VirtIOInputHID handle the
+ * change, and notifies host active-generation listeners.
+ *
+ * Called on a vCPU thread, under the BQL, when the guest driver becomes
+ * ready, the driver or device resets, or the device loads from a snapshot.
+ */
+static void virtio_android_change_active(VirtIOInput* vinput) {
+    VirtIOInputAndroidHID* vahid = VIRTIO_INPUT_ANDROID_HID(vinput);
+
+    const uint64_t generation = ++vahid->active_generation;
+    virtio_android_parent_change_active(vinput);
+    virtio_input_android_notify_active_changed(VIRTIO_INPUT_HID(vinput), generation);
+}
+
+static void virtio_android_class_init(ObjectClass* klass, const void* data) {
+    VirtIOInputClass* vic = VIRTIO_INPUT_CLASS(klass);
+
+    virtio_android_parent_change_active = vic->change_active;
+    vic->change_active = virtio_android_change_active;
+}
+
 static const TypeInfo virtio_android_info = {
     .name = TYPE_VIRTIO_INPUT_ANDROID_HID,
     .parent = TYPE_VIRTIO_INPUT_HID,
     .instance_size = sizeof(VirtIOInputAndroidHID),
     .instance_init = virtio_android_init,
     .instance_finalize = virtio_android_fini,
+    .class_init = virtio_android_class_init,
 };
 
 /* ----------------------------------------------------------------- */

@@ -281,6 +281,16 @@ struct VirtIOInputAndroidHID {
      * The name that will be reported is virtio_input_multi_touch_%d, device_id
      */
     int device_id;
+
+    /**
+     * @brief Changes each time the guest driver goes active or inactive.
+     *
+     * Advanced in change_active, under the BQL, published via
+     * virtio_input_android_notify_active_changed(), and readable as the QOM
+     * property #VIRTIO_INPUT_ANDROID_ACTIVE_GENERATION. A change means the
+     * guest forgot its touch contacts.
+     */
+    uint64_t active_generation;
 };
 
 /**
