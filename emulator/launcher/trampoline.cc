@@ -31,21 +31,20 @@ bool LastRunQemuVersion2(const android::goldfish::Avd& avd) {
     return avd.GetLastRunQemuVersion().value_or(0) == 2;
 }
 
-bool HasMustHaveGuestFeatures(const android::goldfish::Avd& avd) {
-    // Emu Next does't support system images that don't have these features available.
-    constexpr std::array kMustHaveFeatures{
-        android_studio::EmulatorFeatureFlagState::MAC80211HWSIM_USERSPACE_MANAGED,
-    };
-
-    auto sys_img_features = android::goldfish::FeatureFlags::Create(
-            {.guest_ini_path = avd.GetSystemImagePaths().advanced_features});
-    if (!sys_img_features.ok()) {
-        LOG(ERROR) << "Failed to parse system image features file: " << sys_img_features.status();
+bool HasMustHaveGuestFeatures(const absl::StatusOr<FeatureFlags>& feature_flags) {
+    if (!feature_flags.ok()) {
+        LOG(ERROR) << "Failed to load feature flags: " << feature_flags.status();
         return false;
     }
 
+    // Emu Next does't support system images that don't have these features available.
+    constexpr std::array kMustHaveFeatures{
+        android_studio::EmulatorFeatureFlagState::MAC80211HWSIM_USERSPACE_MANAGED,
+        android_studio::EmulatorFeatureFlagState::DYNAMIC_PARTITION,
+    };
+
     for (auto must_have : kMustHaveFeatures) {
-        if (!sys_img_features->IsEnabledByGuest(must_have)) {
+        if (!feature_flags->IsEnabledByGuest(must_have)) {
             VLOG(1) << "Sysimg does not enable must have feature: "
                     << android_studio::EmulatorFeatureFlagState::EmulatorFeatureFlag_Name(
                                must_have);
@@ -64,7 +63,8 @@ bool DefinitelyNotPhone(const android::goldfish::Avd& avd) {
 
 }  // namespace
 
-bool ShouldTrampolineToQemu2(const absl::StatusOr<std::unique_ptr<android::goldfish::Avd>>& avd) {
+bool ShouldTrampolineToQemu2(const absl::StatusOr<std::unique_ptr<android::goldfish::Avd>>& avd,
+                             const absl::StatusOr<FeatureFlags>& feature_flags) {
     if (!android::base::System::Get()->EnvGet(kNoTrampolineEnvVar).empty()) {
         VLOG(1) << "Not trampolining as AEMU_NO_TRAMPOLINE is set";
         return false;
@@ -84,7 +84,7 @@ bool ShouldTrampolineToQemu2(const absl::StatusOr<std::unique_ptr<android::goldf
         return false;
     }
 
-    if (!HasMustHaveGuestFeatures(**avd)) {
+    if (!HasMustHaveGuestFeatures(feature_flags)) {
         VLOG(1) << "Trampolining as sysimg is missing required feature";
         return true;
     }

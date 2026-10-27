@@ -69,7 +69,8 @@ std::vector<std::pair<std::string, std::string>> getUserspaceBootProperties(
         std::string targetArch, std::string serialno, const int bootPropOpenglesVersion,
         const int apiLevel, std::string kernelSerialPrefix,
         const std::vector<std::string>& verifiedBootParameters, std::string_view vk_icd,
-        const Avd& avd, const AndroidOptions& opts, const UserPaths& paths) {
+        const Avd& avd, const AndroidOptions& opts, const UserPaths& paths,
+        const FeatureFlags& feature_flags) {
     const bool isX86ish = targetArch == "x86" || targetArch == "x86_64";
     const bool hasShellConsole = false;
     std::string androidbootVerityMode = "androidboot.veritymode";
@@ -136,7 +137,8 @@ std::vector<std::pair<std::string, std::string>> getUserspaceBootProperties(
     }
 
     // Use Guest ANGLE by default
-    if (!opts.no_guest_angle) {
+    if (!opts.no_guest_angle &&
+        feature_flags.IsEnabled(android_studio::EmulatorFeatureFlagState::GUEST_ANGLE)) {
         // Enable GuestAngle (ro.hardware.egl = angle).
         params.push_back({hwEglProp, "angle"});
 
@@ -471,10 +473,29 @@ std::vector<std::pair<std::string, std::string>> getBootProperties(const Emulato
     auto verifiedBootParameters = getVerifiedBootparams(emulator);
     return getUserspaceBootProperties(hw.hw_cpu_arch, avd.Name(), bootPropOpenglesVersion,
                                       api_level, real_console_tty_prefix, verifiedBootParameters,
-                                      vk_icd, avd, emulator.opts(), emulator.user_paths());
+                                      vk_icd, avd, emulator.opts(), emulator.user_paths(),
+                                      emulator.feature_flags());
 }
 
 absl::Status InitrdDevice::initialize(const EmulatorConfig& emulator) {
+    using S = android_studio::EmulatorFeatureFlagState;
+    const auto& ff = emulator.feature_flags();
+    if (!ff.IsEnabled(S::MINIGBM)) {
+        return absl::InvalidArgumentError(
+                ff.IsOverridden(S::MINIGBM)
+                        ? "Minigbm feature is required by this emulator and cannot be disabled."
+                        : "Minigbm feature is required by this emulator, but is not enabled by the "
+                          "system image or host advancedFeatures.ini.");
+    }
+    if (!ff.IsEnabled(S::DYNAMIC_PARTITION)) {
+        return absl::InvalidArgumentError(
+                ff.IsOverridden(S::DYNAMIC_PARTITION)
+                        ? "DynamicPartition feature is required by this emulator and cannot be "
+                          "disabled."
+                        : "DynamicPartition feature is required by this emulator, but is not "
+                          "enabled by the system image or host advancedFeatures.ini.");
+    }
+
     auto properties = getBootProperties(emulator, mGpuDevice.getVulkanIcd());
 
     const Avd& avd = emulator.avd();

@@ -674,4 +674,120 @@ TEST(GpuDeviceTest, RestoresVulkanEnvVarsAfterProbing) {
     base::System::SetEnvironmentVariable("VK_LOADER_DRIVERS_DISABLE", "");
 }
 
+TEST(GpuDeviceTest, ForceGpuModeFeatureFlags) {
+    using S = android_studio::EmulatorFeatureFlagState;
+    base::TestSystem sys("");
+    HardwareConfig hw;
+    SnapshotDevice snapshot_dev;
+
+    // ForceGpuHost overrides default auto (lavapipe) mode to host mode.
+    {
+        FakeEmulator emu;
+        emu.feature_flags().SetEnabledOverride(S::FORCE_GPU_HOST, true);
+        EXPECT_CALL(emu.mock_avd(), Hw()).WillRepeatedly(ReturnRef(hw));
+
+        GpuDevice dev("gpu0", snapshot_dev);
+        EXPECT_OK(dev.initialize(emu.config()));
+        EXPECT_THAT(dev.getQemuEnv(emu.config()),
+                    testing::Contains(Pair("ANDROID_EMU_RENDERER", "host")));
+    }
+
+    // ForceLavapipe / ForceSwiftshader / ForceGpuSoftware override -gpu host to lavapipe.
+    for (auto flag :
+         {S::FORCE_GPU_SOFTWARE, S::FORCE_LAVAPIPE, S::FORCE_SWIFTSHADER, S::FORCE_ANGLE}) {
+        char gpu_mode[] = "host";
+        AndroidOptions opts{.gpu = gpu_mode};
+        FakeEmulator emu(opts);
+        emu.feature_flags().SetEnabledOverride(flag, true);
+        EXPECT_CALL(emu.mock_avd(), Hw()).WillRepeatedly(ReturnRef(hw));
+
+        GpuDevice dev("gpu0", snapshot_dev);
+        EXPECT_OK(dev.initialize(emu.config()));
+        EXPECT_EQ(dev.getVulkanIcd(), "lavapipe");
+        EXPECT_THAT(dev.getQemuEnv(emu.config()),
+                    testing::Contains(Pair("ANDROID_EMU_RENDERER", "lavapipe")));
+    }
+}
+
+TEST(GpuDeviceTest, RendererFeaturesRespectFeatureFlags) {
+    using S = android_studio::EmulatorFeatureFlagState;
+    base::TestSystem sys("");
+    const fs::path avd_content = sys.GetTempRoot()->Path() / "avd";
+    ASSERT_OK(base::file::mkdir_recursive(avd_content, 0755));
+
+    HardwareConfig hw;
+    hw.hw_lcd_width = 1080;
+    hw.hw_lcd_height = 2400;
+
+    // Default flags: GuestVulkanOnly, VulkanNativeSwapchain, VulkanVirtualQueue,
+    // VulkanSnapshots, VulkanUseDedicatedAhbMemoryType enabled;
+    // VulkanBatchedDescriptorSetUpdate disabled.
+    {
+        FakeEmulator emu;
+        EXPECT_CALL(emu.mock_avd(), Hw()).WillRepeatedly(ReturnRef(hw));
+        EXPECT_CALL(emu.mock_avd(), GetContentPath()).WillRepeatedly(Return(avd_content));
+
+        SnapshotDevice snapshot_dev;
+        EXPECT_OK(snapshot_dev.initialize(emu.config()));
+        GpuDevice dev("gpu0", snapshot_dev);
+        EXPECT_OK(dev.initialize(emu.config()));
+
+        EXPECT_THAT(
+                dev.getQemuParameters(emu.config()),
+                ElementsAre(
+                        Eq("-device"),
+                        AllOf(HasSubstr("GuestVulkanOnly:enabled"),
+                              HasSubstr("VulkanNativeSwapchain:enabled"),
+                              HasSubstr("VulkanVirtualQueue:enabled"),
+                              HasSubstr("VulkanSnapshots:enabled"),
+                              HasSubstr("VulkanBatchedDescriptorSetUpdate:disabled"),
+                              HasSubstr("VulkanUseDedicatedAhbMemoryType:enabled"),
+                              testing::Not(HasSubstr("x-gfxstream-gles=on")))));
+    }
+
+    // Disabling GuestAngle, VulkanVirtualQueue, VulkanSnapshots, VulkanUseDedicatedAhbMemoryType
+    // and enabling VulkanBatchedDescriptorSetUpdate + optional Vulkan debug/memory flags.
+    {
+        FakeEmulator emu;
+        emu.feature_flags().SetEnabledOverride(S::GUEST_ANGLE, false);
+        emu.feature_flags().SetEnabledOverride(S::VULKAN_VIRTUAL_QUEUE, false);
+        emu.feature_flags().SetEnabledOverride(S::VULKAN_SNAPSHOTS, false);
+        emu.feature_flags().SetEnabledOverride(S::VULKAN_USE_DEDICATED_AHB_MEMORY_TYPE, false);
+        emu.feature_flags().SetEnabledOverride(S::VULKAN_BATCHED_DESCRIPTOR_SET_UPDATE, true);
+        emu.feature_flags().SetEnabledOverride(S::BYPASS_VULKAN_DEVICE_FEATURE_OVERRIDES, true);
+        emu.feature_flags().SetEnabledOverride(S::VULKAN_ALLOCATE_DEVICE_MEMORY_ONLY, true);
+        emu.feature_flags().SetEnabledOverride(S::VULKAN_ALLOCATE_HOST_MEMORY, true);
+        emu.feature_flags().SetEnabledOverride(S::VULKAN_DEBUG_UTILS, true);
+        emu.feature_flags().SetEnabledOverride(S::VULKAN_COMMAND_BUFFER_CHECKPOINTS, true);
+        emu.feature_flags().SetEnabledOverride(S::VULKAN_ROBUSTNESS, true);
+        emu.feature_flags().SetEnabledOverride(S::VULKAN_PROTECTED_MEMORY_EMULATION, true);
+        EXPECT_CALL(emu.mock_avd(), Hw()).WillRepeatedly(ReturnRef(hw));
+        EXPECT_CALL(emu.mock_avd(), GetContentPath()).WillRepeatedly(Return(avd_content));
+
+        SnapshotDevice snapshot_dev;
+        EXPECT_OK(snapshot_dev.initialize(emu.config()));
+        GpuDevice dev("gpu0", snapshot_dev);
+        EXPECT_OK(dev.initialize(emu.config()));
+
+        EXPECT_THAT(
+                dev.getQemuParameters(emu.config()),
+                ElementsAre(
+                        Eq("-device"),
+                        AllOf(testing::Not(HasSubstr("GuestVulkanOnly:enabled")),
+                              testing::Not(HasSubstr("VulkanNativeSwapchain:enabled")),
+                              testing::Not(HasSubstr("VulkanVirtualQueue:enabled")),
+                              testing::Not(HasSubstr("VulkanSnapshots:enabled")),
+                              testing::Not(HasSubstr("VulkanUseDedicatedAhbMemoryType:enabled")),
+                              HasSubstr("x-gfxstream-gles=on"),
+                              HasSubstr("renderer_features=VulkanBatchedDescriptorSetUpdate:enabled;"),
+                              HasSubstr("BypassVulkanDeviceFeatureOverrides:enabled"),
+                              HasSubstr("VulkanAllocateDeviceMemoryOnly:enabled"),
+                              HasSubstr("VulkanAllocateHostMemory:enabled"),
+                              HasSubstr("VulkanDebugUtils:enabled"),
+                              HasSubstr("VulkanCommandBufferCheckpoints:enabled"),
+                              HasSubstr("VulkanRobustness:enabled"),
+                              HasSubstr("VulkanProtectedMemoryEmulation:enabled"))));
+    }
+}
+
 }  // namespace android::goldfish::test

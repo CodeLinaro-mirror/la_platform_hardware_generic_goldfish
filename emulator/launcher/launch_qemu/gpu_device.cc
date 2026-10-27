@@ -392,9 +392,18 @@ GpuSelection selectGpu(const EmulatorConfig& emulator) {
     // Check command line and AVD options, use host by default
     const std::string user_gpu_mode = o.gpu ? std::string(o.gpu) : "";
     const std::string avd_gpu_mode = a.Hw().hw_gpu_mode;
-    const std::string chosen_gpu_mode =
+    std::string chosen_gpu_mode =
             (!user_gpu_mode.empty() ? user_gpu_mode
                                     : (!avd_gpu_mode.empty() ? avd_gpu_mode : "auto"));
+
+    using S = android_studio::EmulatorFeatureFlagState;
+    const auto& ff = emulator.feature_flags();
+    if (ff.IsEnabled(S::FORCE_GPU_HOST)) {
+        chosen_gpu_mode = "host";
+    } else if (ff.IsEnabled(S::FORCE_GPU_SOFTWARE) || ff.IsEnabled(S::FORCE_LAVAPIPE) ||
+               ff.IsEnabled(S::FORCE_SWIFTSHADER) || ff.IsEnabled(S::FORCE_ANGLE)) {
+        chosen_gpu_mode = "lavapipe";
+    }
 
     const bool use_host_gpu =
             (chosen_gpu_mode == "host") ||
@@ -553,20 +562,23 @@ absl::flat_hash_map<std::string, std::string> GpuDevice::getQemuEnv(
 }
 
 std::vector<std::string> GpuDevice::getQemuParameters(const EmulatorConfig& emulator) const {
+    using S = android_studio::EmulatorFeatureFlagState;
     const auto& hw = emulator.avd().Hw();
     const AndroidOptions& opts = emulator.opts();
+    const auto& ff = emulator.feature_flags();
 
-    std::string renderer_features = opts.renderer_features ? opts.renderer_features : "";
+    std::vector<std::string> renderer_features;
+    if (opts.renderer_features && *opts.renderer_features != '\0') {
+        renderer_features.emplace_back(opts.renderer_features);
+    }
+
     bool needs_gles = true;
-    if (!opts.no_guest_angle) {
-        if (!renderer_features.empty()) {
-            renderer_features.append(";");
-        }
-        renderer_features.append("GuestVulkanOnly:enabled");
+    if (!opts.no_guest_angle && ff.IsEnabled(S::GUEST_ANGLE)) {
+        renderer_features.push_back("GuestVulkanOnly:enabled");
 
         // VulkanNativeSwapchain composition should only be enabled with GuestVulkanOnly
         if (!opts.no_vulkan_composition) {
-            renderer_features.append(";VulkanNativeSwapchain:enabled");
+            renderer_features.push_back("VulkanNativeSwapchain:enabled");
             needs_gles = false;
         }
     }
@@ -576,41 +588,57 @@ std::vector<std::string> GpuDevice::getQemuParameters(const EmulatorConfig& emul
             opts.systemui_renderer ? opts.systemui_renderer : "skiavkthreaded";
 
     // Enable virtual queue with skiavk variants
-    if (systemui_renderer.starts_with("skiavk")) {
-        renderer_features.append(";VulkanVirtualQueue:enabled");
+    if (systemui_renderer.starts_with("skiavk") && ff.IsEnabled(S::VULKAN_VIRTUAL_QUEUE)) {
+        renderer_features.push_back("VulkanVirtualQueue:enabled");
     }
 
     // Snapshots can also be taken at runtime (gRPC, console), not only at exit.
-    if (mSnapshotDevice.snapshots_enabled()) {
-        renderer_features.append(";VulkanSnapshots:enabled");
+    if (mSnapshotDevice.snapshots_enabled() && ff.IsEnabled(S::VULKAN_SNAPSHOTS)) {
+        renderer_features.push_back("VulkanSnapshots:enabled");
     }
 
-    renderer_features.append(";VulkanBatchedDescriptorSetUpdate:disabled");
+    renderer_features.push_back(ff.IsEnabled(S::VULKAN_BATCHED_DESCRIPTOR_SET_UPDATE)
+                                        ? "VulkanBatchedDescriptorSetUpdate:enabled"
+                                        : "VulkanBatchedDescriptorSetUpdate:disabled");
 
     // Use a separate memory type for Ahb allocations, to avoid marking them
     // as host visible and coherent on lavapipe, which is not very well supported
     // in virtio-gpu path right now.
-    renderer_features.append(";VulkanUseDedicatedAhbMemoryType:enabled");
+    constexpr std::pair<EmulatorFeatureFlag, std::string_view> kOptionalRendererFeatures[] = {
+        {S::VULKAN_USE_DEDICATED_AHB_MEMORY_TYPE, "VulkanUseDedicatedAhbMemoryType"},
+        {S::BYPASS_VULKAN_DEVICE_FEATURE_OVERRIDES, "BypassVulkanDeviceFeatureOverrides"},
+        {S::VULKAN_ALLOCATE_DEVICE_MEMORY_ONLY, "VulkanAllocateDeviceMemoryOnly"},
+        {S::VULKAN_ALLOCATE_HOST_MEMORY, "VulkanAllocateHostMemory"},
+        {S::VULKAN_DEBUG_UTILS, "VulkanDebugUtils"},
+        {S::VULKAN_COMMAND_BUFFER_CHECKPOINTS, "VulkanCommandBufferCheckpoints"},
+        {S::VULKAN_ROBUSTNESS, "VulkanRobustness"},
+        {S::VULKAN_PROTECTED_MEMORY_EMULATION, "VulkanProtectedMemoryEmulation"},
+    };
+    for (const auto& [flag, name] : kOptionalRendererFeatures) {
+        if (ff.IsEnabled(flag)) {
+            renderer_features.push_back(absl::StrCat(name, ":enabled"));
+        }
+    }
 
     // Limit available GPU memory and hostmem to 4GB
-    renderer_features.append(";VulkanMaxSafeHeapSize:4294967296");
+    renderer_features.push_back("VulkanMaxSafeHeapSize:4294967296");
 
     // Temporarily limit guest to Vulkan 1.3, unless 1.4 is explicitly enabled via an env variable.
     std::string env_vk_enable_1_4 = System::Get()->EnvGet("ANDROID_EMU_VK_ENABLE_1_4");
     if (env_vk_enable_1_4.empty() || env_vk_enable_1_4[0] == '0') {
-        renderer_features.append(";GuestVulkanMaxApiVersion:1.3.0");
+        renderer_features.push_back("GuestVulkanMaxApiVersion:1.3.0");
     }
 
     if (opts.vulkan_validation) {
-        renderer_features.append(absl::StrCat(";VulkanValidation:", opts.vulkan_validation));
+        renderer_features.push_back(absl::StrCat("VulkanValidation:", opts.vulkan_validation));
     }
     if (opts.vulkan_validation_include_filter) {
-        renderer_features.append(absl::StrCat(";VulkanValidationIncludeFilter:",
-                                              opts.vulkan_validation_include_filter));
+        renderer_features.push_back(absl::StrCat("VulkanValidationIncludeFilter:",
+                                                 opts.vulkan_validation_include_filter));
     }
     if (opts.vulkan_validation_exclude_filter) {
-        renderer_features.append(absl::StrCat(";VulkanValidationExcludeFilter:",
-                                              opts.vulkan_validation_exclude_filter));
+        renderer_features.push_back(absl::StrCat("VulkanValidationExcludeFilter:",
+                                                 opts.vulkan_validation_exclude_filter));
     }
 
     std::string gfxstream_backends = "gfxstream-vulkan=on";
@@ -631,7 +659,8 @@ std::vector<std::string> GpuDevice::getQemuParameters(const EmulatorConfig& emul
     params.push_back("hostmem=4096M");
     params.push_back(gfxstream_backends);
     params.push_back("x-gfxstream-composer=on");
-    params.push_back(absl::StrCat("renderer_features=", EscapeQemuOptionValue(renderer_features)));
+    params.push_back(absl::StrCat("renderer_features=",
+                                  EscapeQemuOptionValue(absl::StrJoin(renderer_features, ";"))));
     if (mSnapshotDevice.snapshots_enabled()) {
         // virtio-gpu-rutabaga keeps the renderer state of each snapshot under
         // <snapshot_directory>/<snapshot name>/renderer/, next to the version.txt
