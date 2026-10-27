@@ -135,6 +135,8 @@ class NvencLoader {
     void* cuda_context() const { return cuda_context_; }
 
   private:
+    void Close();
+
     goldfish::os::DynamicLibrary lib_cuda_;
     goldfish::os::DynamicLibrary lib_nvenc_;
     void* cuda_context_{nullptr};
