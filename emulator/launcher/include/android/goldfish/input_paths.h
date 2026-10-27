@@ -43,6 +43,7 @@ struct EmulatorPaths {
     fs::path crashpad_handler_binary;
     fs::path fishtank_binary;
 
+    bool HasNetsim() const { return !netsim_binary.empty(); }
     bool HasFishtank() const { return !fishtank_binary.empty(); }
 };
 

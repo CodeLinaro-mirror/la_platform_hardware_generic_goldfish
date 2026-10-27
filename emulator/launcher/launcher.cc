@@ -86,10 +86,21 @@ using WhenAllChardevEndpoints = std::shared_ptr<WhenAll<ChardevEndpoints>>;
 
 using ::goldfish::modem_simulator::ModemSimulatorService;
 
+bool ShouldUseNetsim(const LauncherConfig& config) {
+    if (config.opts.no_netsim) {
+        return false;
+    }
+    const bool has_endpoint_override = config.opts.packet_streamer_endpoint != nullptr &&
+                                       *config.opts.packet_streamer_endpoint != '\0';
+    return has_endpoint_override || config.emulator_paths.HasNetsim();
+}
+
 class Launcher {
   public:
     Launcher(LauncherConfig config)
-            : config_(std::move(config)), host_timezone_(::goldfish::timezone::GetHostTimezone()) {
+            : config_(std::move(config))
+            , use_netsim_(ShouldUseNetsim(config_))
+            , host_timezone_(::goldfish::timezone::GetHostTimezone()) {
         config_.signal_handlers->SetCallback(
                 [this](int signal) { forwarding_signal_handler(signal); });
         config_.event_loop
@@ -108,7 +119,18 @@ class Launcher {
                             &config_.event_loop,
                             [this](ChardevEndpoints ce) { launch_emulator(ce); });
 
-                    if (!config_.opts.no_netsim) {
+                    if (!config_.opts.no_netsim && !use_netsim_) {
+                        LOG(WARNING)
+                                << "netsimd binary not found in '"
+                                << config_.emulator_paths.binary_directory.string()
+                                << "'; emulated Wi-Fi, Bluetooth, UWB, and NFC radios are "
+                                   "unavailable, and guest networking/telephony will fall back to "
+                                   "QEMU SLIRP (eth0) and the host modem simulator. Pass "
+                                   "'-packet-streamer-endpoint <uri>' to connect to an external "
+                                   "netsimd instance, or '-no-netsim' to suppress this warning.";
+                    }
+
+                    if (use_netsim_) {
                         netsimd_connector_thread_ = std::thread([this, chardevs]() {
                             std::optional<std::string> endpoint_override;
                             if (const char* ep = config_.opts.packet_streamer_endpoint; ep && *ep) {
@@ -146,7 +168,7 @@ class Launcher {
                             }
                         });
                     }
-                    if (config_.opts.no_netsim || config_.opts.no_netsim_modem) {
+                    if (!use_netsim_ || config_.opts.no_netsim_modem) {
                         config_.event_loop
                                 .Post([this, chardevs]() { init_modem_simulator(chardevs); })
                                 .IgnoreError();
@@ -403,6 +425,10 @@ class Launcher {
         if (shutting_down_) {
             return;
         }
+        AndroidOptions qemu_opts = config_.opts;
+        if (!use_netsim_) {
+            qemu_opts.no_netsim = true;
+        }
         LaunchQemu emulator{EmulatorConfig{ports_,
                                            chardev_endpoints,
                                            {
@@ -412,7 +438,7 @@ class Launcher {
                                            config_.user_paths,
                                            config_.emulator_paths,
                                            *config_.avd,
-                                           config_.opts,
+                                           qemu_opts,
                                            config_.feature_flags,
                                            host_timezone_}};
 
@@ -502,6 +528,7 @@ class Launcher {
     }
 
     const LauncherConfig config_;
+    const bool use_netsim_;
     // The zoneinfo name of the host timezone, or std::nullopt if it is unknown.
     const std::optional<std::string> host_timezone_;
 
