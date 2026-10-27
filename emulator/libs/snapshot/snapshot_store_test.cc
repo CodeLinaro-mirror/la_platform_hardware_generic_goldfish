@@ -57,8 +57,9 @@ TEST(MakeSnapshotVersionTest, LayoutAndHistory) {
     EXPECT_GT(MakeSnapshotVersion(1), 0);
     EXPECT_GT(MakeSnapshotVersion((1 << 15) - 1), 0) << "bit 31 must stay clear";
     // History: 2 -> 3 for the snapshots/<name>/renderer layout (b/574891578),
-    // 3 -> 4 for the VM state moving to snapshots.qcow2 (b/576262656).
-    EXPECT_EQ(kSnapshotVersionBase, 4);
+    // 3 -> 4 for the VM state moving to snapshots.qcow2 (b/576262656),
+    // 4 -> 5 for Location::accuracy in avd_info VMState.
+    EXPECT_EQ(kSnapshotVersionBase, 5);
 }
 
 TEST(IsValidSnapshotNameTest, AcceptsPlainNames) {

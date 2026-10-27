@@ -54,7 +54,9 @@ namespace goldfish::snapshot {
 //           or sdcard*.qcow2 when an sdcard is attached) to the dedicated
 //           <avd>/snapshots.qcow2 (b/576262656); older snapshots are not
 //           looked for in the old place.
-inline constexpr int kSnapshotVersionBase = 4;
+//   4 -> 5: avd_universe::gps::Location added an accuracy field (8-byte
+//           double), altering the avd_info VMState binary layout.
+inline constexpr int kSnapshotVersionBase = 5;
 static_assert(kSnapshotVersionBase > 0 && kSnapshotVersionBase < (1 << 16),
               "Base snapshot version does not fit in 16 bits.");
 
