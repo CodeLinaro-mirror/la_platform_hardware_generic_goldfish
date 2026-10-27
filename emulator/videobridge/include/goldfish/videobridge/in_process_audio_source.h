@@ -20,15 +20,18 @@
 #pragma clang diagnostic pop
 
 #include <atomic>
+#include <cstddef>
 #include <cstdint>
 #include <vector>
 
+#include "absl/base/thread_annotations.h"
 #include "absl/synchronization/mutex.h"
 
-#include "goldfish/socket_buffer.h"
 #include "goldfish/videobridge/managed_audio_track_source.h"
 
 namespace goldfish::videobridge {
+
+class InProcessAudioSourceTestPeer;
 
 /**
  * WebRTC AudioSourceInterface capturing PCM audio directly in-process.
@@ -42,6 +45,8 @@ namespace goldfish::videobridge {
  */
 class InProcessAudioSource : public ManagedAudioTrackSource {
   public:
+    static constexpr int kBitsPerSample = 16;
+
     InProcessAudioSource(uint32_t sample_rate, uint32_t channels);
     ~InProcessAudioSource() override;
 
@@ -53,22 +58,25 @@ class InProcessAudioSource : public ManagedAudioTrackSource {
      *
      * Ingests variable-sized chunks, slices them into 10ms frames, and dispatches to sinks.
      */
-    void OnAudioData(const int16_t* pcm_data, size_t num_samples);
+    void OnAudioData(const int16_t* pcm_data, size_t num_samples)
+            ABSL_LOCKS_EXCLUDED(buffer_mutex_);
 
   protected:
     void OnStart() override;
-    void OnStop() override;
+    void OnStop() override ABSL_LOCKS_EXCLUDED(buffer_mutex_);
 
   private:
+    friend class InProcessAudioSourceTestPeer;
+
     const uint32_t sample_rate_;
     const uint32_t channels_;
     const size_t samples_per_10ms_channel_;
     const size_t samples_per_10ms_total_;
 
     std::atomic<bool> running_{false};
-    absl::Mutex buffer_mutex_;
-    goldfish::SocketBuffer audio_buffer_ ABSL_GUARDED_BY(buffer_mutex_);
-    std::vector<int16_t> temp_frame_buffer_ ABSL_GUARDED_BY(buffer_mutex_);
+    mutable absl::Mutex buffer_mutex_;
+    std::vector<int16_t> partial_frame_ ABSL_GUARDED_BY(buffer_mutex_);
+    size_t partial_samples_ ABSL_GUARDED_BY(buffer_mutex_) = 0;
 };
 
 }  // namespace goldfish::videobridge

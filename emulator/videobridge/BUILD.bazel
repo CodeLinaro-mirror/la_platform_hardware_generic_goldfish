@@ -936,9 +936,10 @@ cc_library(
     strip_include_prefix = "include",
     deps = [
         ":videobridge_core",
-        "//emulator/libs/SocketBuffer",
+        "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/container:flat_hash_set",
-        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/synchronization",
         "@webrtc//api:peer_connection_interface",
         "@webrtc//rtc_base:timeutils",
     ],
@@ -1007,7 +1008,26 @@ cc_test(
         ":in_process_audio_source",
         ":videobridge_core",
         "//emulator/libs/test:googletest_main",
+        "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/synchronization",
         "@webrtc//api:media_stream_interface",
+    ],
+)
+
+cc_binary_with_manifest(
+    name = "in_process_audio_source_perf",
+    srcs = ["media/in_process_audio_source_perf.cc"],
+    copts = WEBRTC_COPTS,
+    tags = ["benchmark"],
+    deps = [
+        ":in_process_audio_source",
+        ":videobridge_core",
+        "//emulator/libs/SocketBuffer",
+        "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/synchronization",
+        "@google_benchmark//:benchmark",
+        "@webrtc//api:media_stream_interface",
+        "@webrtc//api:scoped_refptr",
     ],
 )
 
@@ -1096,6 +1116,7 @@ clang_tidy_test(
         ":in_process_media_providers",
         ":media_track_provider_test",
         ":in_process_audio_source_test",
+        ":in_process_audio_source_perf",
         ":in_process_video_source_test",
         ":grpc_video_source_test",
         ":grpc_audio_source_test",

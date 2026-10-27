@@ -14,8 +14,12 @@
 
 #include "goldfish/videobridge/in_process_audio_source.h"
 
+#include <cstddef>
+#include <cstdint>
+#include <cstring>
+
 #include "absl/log/check.h"
-#include "absl/log/log.h"
+#include "absl/synchronization/mutex.h"
 
 namespace goldfish::videobridge {
 
@@ -24,7 +28,7 @@ InProcessAudioSource::InProcessAudioSource(uint32_t sample_rate, uint32_t channe
         , channels_(channels)
         , samples_per_10ms_channel_(sample_rate / 100)
         , samples_per_10ms_total_(static_cast<size_t>(sample_rate / 100) * channels)
-        , temp_frame_buffer_(samples_per_10ms_total_) {
+        , partial_frame_(samples_per_10ms_total_) {
     DCHECK_GT(sample_rate, 0U) << "Audio sample rate must be greater than 0.";
     DCHECK_EQ(sample_rate % 100, 0U) << "Audio sample rate must be a multiple of 100 Hz.";
     DCHECK_GT(channels, 0U) << "Audio channels must be greater than 0.";
@@ -40,10 +44,10 @@ void InProcessAudioSource::OnStart() {
 
 void InProcessAudioSource::OnStop() {
     running_ = false;
-    absl::MutexLock lock(&buffer_mutex_);
+    const absl::MutexLock lock(&buffer_mutex_);
 
     // Make sure we don't get *crackles* on start/stop.
-    audio_buffer_.Clear(/*also_free_memory=*/true);
+    partial_samples_ = 0;
 }
 
 void InProcessAudioSource::OnAudioData(const int16_t* pcm_data, size_t num_samples) {
@@ -51,27 +55,35 @@ void InProcessAudioSource::OnAudioData(const int16_t* pcm_data, size_t num_sampl
         return;
     }
 
-    absl::MutexLock lock(&buffer_mutex_);
-    (void)audio_buffer_.Append(pcm_data, num_samples * sizeof(int16_t));
+    const absl::MutexLock lock(&buffer_mutex_);
 
-    const size_t bytes_per_10ms = samples_per_10ms_total_ * sizeof(int16_t);
-    while (audio_buffer_.Size() >= bytes_per_10ms) {
-        auto peek = audio_buffer_.Peek();
-        if (peek.second >= bytes_per_10ms) {
-            Dispatch10msFrame(peek.first, /*bits_per_sample=*/16, sample_rate_, channels_,
-                              samples_per_10ms_channel_);
-            (void)audio_buffer_.Consume(bytes_per_10ms);
-        } else {
-            // Handle ring buffer wrap-around: frame spans across the end of the buffer.
-            uint8_t* dst = reinterpret_cast<uint8_t*>(temp_frame_buffer_.data());
-            std::memcpy(dst, peek.first, peek.second);
-            (void)audio_buffer_.Consume(peek.second);
-            auto peek2 = audio_buffer_.Peek();
-            std::memcpy(dst + peek.second, peek2.first, bytes_per_10ms - peek.second);
-            Dispatch10msFrame(temp_frame_buffer_.data(), /*bits_per_sample=*/16, sample_rate_,
-                              channels_, samples_per_10ms_channel_);
-            (void)audio_buffer_.Consume(bytes_per_10ms - peek.second);
+    if (partial_samples_ > 0) {
+        const size_t samples_needed = samples_per_10ms_total_ - partial_samples_;
+        if (num_samples < samples_needed) {
+            std::memcpy(partial_frame_.data() + partial_samples_, pcm_data,
+                        num_samples * sizeof(int16_t));
+            partial_samples_ += num_samples;
+            return;
         }
+        std::memcpy(partial_frame_.data() + partial_samples_, pcm_data,
+                    samples_needed * sizeof(int16_t));
+        Dispatch10msFrame(partial_frame_.data(), kBitsPerSample, sample_rate_, channels_,
+                          samples_per_10ms_channel_);
+        partial_samples_ = 0;
+        pcm_data += samples_needed;
+        num_samples -= samples_needed;
+    }
+
+    while (num_samples >= samples_per_10ms_total_) {
+        Dispatch10msFrame(pcm_data, kBitsPerSample, sample_rate_, channels_,
+                          samples_per_10ms_channel_);
+        pcm_data += samples_per_10ms_total_;
+        num_samples -= samples_per_10ms_total_;
+    }
+
+    if (num_samples > 0) {
+        std::memcpy(partial_frame_.data(), pcm_data, num_samples * sizeof(int16_t));
+        partial_samples_ = num_samples;
     }
 }
 
