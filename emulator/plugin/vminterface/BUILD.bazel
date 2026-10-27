@@ -1,7 +1,8 @@
-load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_test")
+load("@aemu//tools/clang_tidy:defs.bzl", "clang_tidy_test")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 load("//emulator/tools:plugins.bzl", "collect_plugins")
 
+# buildifier: disable=no-hdrs-no-alwayslink
 cc_library(
     name = "vm_lock",
     srcs = [
@@ -15,6 +16,7 @@ cc_library(
     ],
 )
 
+# buildifier: disable=no-hdrs-no-alwayslink
 cc_library(
     name = "machine_info",
     srcs = [
@@ -25,6 +27,7 @@ cc_library(
     deps = ["@qemu//:qemu-headers-exported"],
 )
 
+# buildifier: disable=no-hdrs-no-alwayslink
 cc_library(
     name = "fake_machine_info",
     srcs = [
@@ -107,6 +110,7 @@ cc_library(
     ],
 )
 
+# buildifier: disable=no-hdrs-no-alwayslink
 cc_library(
     name = "vminterface-test",
     testonly = True,

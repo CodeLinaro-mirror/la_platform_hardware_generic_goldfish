@@ -1,5 +1,5 @@
 # Copyright 2026 The Android Open Source Project
-load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_test")
+load("@aemu//tools/clang_tidy:defs.bzl", "clang_tidy_test")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 
 package(default_visibility = ["//emulator/crashreport/tool/breadcrumbs:__subpackages__"])

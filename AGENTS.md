@@ -24,7 +24,7 @@ Before exploring source in one of these areas, read its playbook:
   ```bash
   bazel test --test_output=errors @goldfish//emulator/libs/async:all
   ```
-- Sanitizers: add `--config=tsan` or `--config=asan`. clang-tidy: add `--config=tidy`, optionally scoped with `--@goldfish_build//:clang_tidy_check_files=<path substring>`.
+- Sanitizers: add `--config=tsan` or `--config=asan`. clang-tidy: add `--config=tidy`, optionally scoped with `--@aemu//tools/clang_tidy:clang_tidy_check_files=<path substring>`.
 
 ## Rules for All Goldfish Code
 
