@@ -113,9 +113,8 @@ void PopulateBatteryCapabilities(const HardwareConfig& hw, BatteryCapabilities* 
     battery_caps->add_supported_chargers(ChargerSource::CHARGER_SOURCE_WIRELESS);
 }
 
-void PopulateLocationCapabilities(const HardwareConfig& hw, LocationCapabilities* loc_caps) {
-    loc_caps->set_access_mode(hw.hw_gps ? AccessMode::ACCESS_MODE_READ_WRITE
-                                        : AccessMode::ACCESS_MODE_UNSPECIFIED);
+void PopulateLocationCapabilities(LocationCapabilities* loc_caps) {
+    loc_caps->set_access_mode(AccessMode::ACCESS_MODE_READ_WRITE);
     // The emulated GNSS stack is a real HAL, not an Android framework override.
     loc_caps->set_fidelity(Fidelity::FIDELITY_HARDWARE);
 }
@@ -229,7 +228,9 @@ Status CapabilitiesServiceImpl::GetDeviceCapabilities(
     PopulateMetadata(props, hw, reply->mutable_metadata());
     PopulateDisplayCapabilities(hw, reply->mutable_display());
     PopulateBatteryCapabilities(hw, reply->mutable_battery());
-    PopulateLocationCapabilities(hw, reply->mutable_location());
+    if (hw.hw_gps) {
+        PopulateLocationCapabilities(reply->mutable_location());
+    }
     PopulateSensorsCapabilities(hw, reply->mutable_sensors());
     PopulateInputCapabilities(hw, reply->mutable_input());
     PopulateVmCapabilities(reply->mutable_vm());

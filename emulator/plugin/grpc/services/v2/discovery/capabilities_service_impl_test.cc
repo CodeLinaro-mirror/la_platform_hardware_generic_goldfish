@@ -34,6 +34,7 @@ namespace {
 using ::android::emulation::v2::AccessMode;
 using ::android::emulation::v2::CapabilitiesService;
 using ::android::emulation::v2::DeviceCapabilities;
+using ::android::emulation::v2::Fidelity;
 using ::android::emulation::v2::FoldAxis;
 using ::android::emulation::v2::GetDeviceCapabilitiesRequest;
 using ::android::emulation::v2::InputFeature;
@@ -156,6 +157,7 @@ TEST_F(CapabilitiesServiceTest, ReturnsSubsystemsCapabilities) {
     // Location
     ASSERT_TRUE(reply.has_location());
     EXPECT_EQ(reply.location().access_mode(), AccessMode::ACCESS_MODE_READ_WRITE);
+    EXPECT_EQ(reply.location().fidelity(), Fidelity::FIDELITY_HARDWARE);
 
     // System
     ASSERT_TRUE(reply.has_system());
@@ -211,6 +213,23 @@ TEST_F(CapabilitiesServiceTest, ReturnsPostureCapabilitiesWhenConfigured) {
     ASSERT_GE(posture.hinges_size(), 1);
     EXPECT_EQ(posture.hinges(0).hinge_id(), 0);
     EXPECT_EQ(posture.hinges(0).fold_axis(), FoldAxis::FOLD_AXIS_VERTICAL);
+}
+
+TEST_F(CapabilitiesServiceTest, OmitsLocationCapabilitiesWhenDisabled) {
+    auto props = std::make_unique<AvdProperties>();
+    props->hw_config = FakeHardwareConfig::GetHwConfig();
+    props->hw_config.hw_gps = false;
+
+    auto universe = std::make_unique<TestUniverse>(std::move(props));
+    CapabilitiesServiceImpl service(*universe);
+
+    GetDeviceCapabilitiesRequest request;
+    DeviceCapabilities reply;
+    ServerContext server_context;
+
+    Status status = service.GetDeviceCapabilities(&server_context, &request, &reply);
+    ASSERT_TRUE(status.ok());
+    EXPECT_FALSE(reply.has_location());
 }
 
 }  // namespace
