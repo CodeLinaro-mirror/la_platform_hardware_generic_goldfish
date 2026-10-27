@@ -203,7 +203,7 @@ absl::Status AvdExtendedUniverse::Initialize() {
     DEVS::gps::IGpsDevice::RegisterDevice(&avd_universe.GetLocation(), registry, qemu_loop.get());
 
     auto multi_display_device =
-            std::make_shared<DEVS::multidisplay::MultiDisplayDevice>(client_loop);
+            std::make_shared<DEVS::multidisplay::MultiDisplayDevice>(client_loop, qemu_loop.get());
     avd_universe.SetActiveMultiDisplayDevice(multi_display_device);
     DEVS::multidisplay::MultiDisplayDevice::RegisterDevice(multi_display_device, registry,
                                                            client_loop, qemu_loop.get());

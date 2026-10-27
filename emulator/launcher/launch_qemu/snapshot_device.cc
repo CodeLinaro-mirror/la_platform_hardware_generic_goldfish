@@ -39,7 +39,8 @@ absl::Status SnapshotDevice::initialize(const EmulatorConfig& emulator) {
     strict_snapshot_load_ = emulator.opts().strict_snapshot_load;
     snapshots_enabled_ = are_snapshots_enabled(emulator);
 
-    FileSnapshotStore store(emulator.avd().GetContentPath(), kSnapshotVersion);
+    ASSIGN_OR_RETURN(snapshot_version_, CurrentSnapshotVersion(emulator));
+    FileSnapshotStore store(emulator.avd().GetContentPath(), snapshot_version_);
     ASSIGN_OR_RETURN(const bool vmstate_recreated, prepare_vmstate_image(store));
 
     std::string skip_load_reason;
@@ -57,11 +58,13 @@ absl::Status SnapshotDevice::initialize(const EmulatorConfig& emulator) {
         } else if (store.IsCompatible(snapshot_name_)) {
             LOG(INFO) << "Loading '" << snapshot_name_ << "' ...";
         } else {
+            const std::string reason = describe_incompatibility(store, snapshot_name_);
             if (strict_snapshot_load_) {
                 return absl::FailedPreconditionError(
-                        "Unable to load snapshot: version missing or mismatch");
+                        absl::StrCat("Unable to load snapshot: ", reason));
             }
-            LOG(WARNING) << "Snapshot version missing or mismatch, performing cold boot.";
+            LOG(WARNING) << "Snapshot '" << snapshot_name_ << "' is not loadable (" << reason
+                         << "), performing cold boot.";
             load_status_ = LoadStatus::kSkippedOldSnapshot;
         }
     } else {
@@ -89,6 +92,17 @@ absl::Status SnapshotDevice::initialize(const EmulatorConfig& emulator) {
     }
 
     return absl::OkStatus();
+}
+
+std::string SnapshotDevice::describe_incompatibility(const SnapshotStore& store,
+                                                     std::string_view name) {
+    const absl::StatusOr<int> found = store.ReadVersion(name);
+    if (!found.ok()) {
+        return absl::StrCat("snapshot version missing: ", found.status().message());
+    }
+    return absl::StrCat(
+            "snapshot version ", *found, " != ", store.Version(), ": ",
+            ::goldfish::snapshot::DescribeSnapshotVersionMismatch(*found, store.Version()));
 }
 
 absl::StatusOr<bool> SnapshotDevice::prepare_vmstate_image(const SnapshotStore& store) {

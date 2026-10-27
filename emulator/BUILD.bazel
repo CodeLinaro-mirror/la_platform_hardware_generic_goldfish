@@ -28,6 +28,7 @@ load(
 load(
     "//emulator/tools:transitions.bzl",
     "internal_release",
+    "no_windows_export_all_symbols_binary",
 )
 
 package(
@@ -271,11 +272,28 @@ filegroup(
     }),
 )
 
+# In Windows debug builds, base.bazelrc enables --features=windows_export_all_symbols,
+# which causes @gfxstream//host:gfxstream_backend (~81k symbols) to exceed PE COFF's
+# 65,535 export limit. gfxstream_backend already marks its public stream_renderer_*
+# entry points with VG_EXPORT (__declspec(dllexport)), so disable export-all via transition.
+no_windows_export_all_symbols_binary(
+    name = "gfxstream_backend_windows",
+    srcs = "@gfxstream//host:gfxstream_backend",
+    target_compatible_with = ["@platforms//os:windows"],
+)
+
 filegroup(
     name = "plugin_binaries",
     srcs = [
+        # Both are loaded with dlopen() on first use, by the virtio-gpu
+        # device the launcher selects (see the -virtio-gpu-device launcher option, launcher/launch_qemu/virtio_gpu_selection.h):
+        # libgfxstream_backend by the plugin's virtio-gpu-gfxstream, librutabaga_ffi
+        # by QEMU's virtio-gpu-rutabaga.
         "@rutabaga_gfx//:rutabaga_ffi",
     ] + select({
+        "@platforms//os:windows": [":gfxstream_backend_windows"],
+        "//conditions:default": ["@gfxstream//host:gfxstream_backend"],
+    }) + select({
         ":windows_aarch64": [
             "//emulator/plugin:goldfish_aarch64",
         ],

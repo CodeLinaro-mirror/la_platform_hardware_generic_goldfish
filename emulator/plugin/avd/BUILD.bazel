@@ -195,15 +195,8 @@ cc_test(
 
 cc_library(
     name = "gralloc_impl",
-    srcs = [
-        "gralloc_impl.cc",
-        "rutabaga_glue.c",
-    ],
-    hdrs = [
-        "include/goldfish/avd/gralloc_impl.h",
-        "include/goldfish/avd/rutabaga_glue.h",
-    ],
-    copts = ["-Wno-extern-c-compat"],
+    srcs = ["gralloc_impl.cc"],
+    hdrs = ["include/goldfish/avd/gralloc_impl.h"],
     includes = ["include"],
     visibility = [
         "//visibility:public",
@@ -211,9 +204,7 @@ cc_library(
     deps = [
         "//emulator/libs/parsing",
         "//emulator/plugin/hal/camera:gralloc_details",
-        "@pixman//:pixman-1",
-        "@qemu//:qemu-headers-exported",
-        "@rutabaga_gfx//:rutabaga_c_ffi",
+        "//emulator/plugin/hal/virtio_gpu_gfxstream:virtio_gpu_glue",
     ],
 )
 

@@ -1,4 +1,6 @@
-load("@rules_cc//cc:defs.bzl", "cc_library")
+load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_test")
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+load("//emulator/tools:plugins.bzl", "collect_plugins")
 
 cc_library(
     name = "multidisplay",
@@ -19,11 +21,57 @@ cc_library(
         "//emulator/plugin/hal/connector:cable",
         "//emulator/plugin/hal/connector:connector_registry",
         "//emulator/plugin/hal/connector:qemud",
+        "//emulator/plugin/hal/virtio_gpu_gfxstream:virtio_gpu_glue",
         "//emulator/plugin/vminterface",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/numeric:bits",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/synchronization",
     ],
+)
+
+collect_plugins(
+    name = "binplace",
+    output_dir = ".",
+    plugins = [
+        "@glib//glib:glib_shared",
+        "@glib//gmodule:gmodule_shared",
+    ],
+)
+
+cc_test(
+    name = "multidisplay_unittests",
+    size = "small",
+    srcs = [
+        "multidisplay_device_test.cc",
+    ],
+    data = [":binplace"],
+    dynamic_deps = [
+        "@glib//glib:glib_shared",
+        "@glib//gmodule:gmodule_shared",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":multidisplay",
+        "//emulator/libs/async:async_testing",
+        "//emulator/libs/async:libuv_event_loop",
+        "//emulator/libs/async:threaded_event_loop",
+        "//emulator/libs/test:googletest_main",
+        "//emulator/plugin/hal/connector:test-helpers",
+        "//emulator/plugin/hal/plug:fake_vsock",
+        "@abseil-cpp//absl/synchronization",
+        "@glib//glib:glib_import",
+        "@glib//gmodule:gmodule_import",
+    ],
+)
+
+clang_tidy_test(
+    name = "tidy",
+    targets = [
+        ":multidisplay",
+        ":multidisplay_unittests",
+    ],
+    tidy_config_file = "//:clang_tidy_config",
 )

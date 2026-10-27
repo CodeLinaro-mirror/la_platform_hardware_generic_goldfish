@@ -209,6 +209,7 @@ emulator/lib/
 emulator/lib/advancedFeatures.ini
 emulator/lib/emulator_access.json
 emulator/lib/qemu/
+emulator/lib/qemu/libgfxstream_backend.dylib
 emulator/lib/qemu/libgoldfish_aarch64.dylib
 emulator/lib/qemu/librutabaga_ffi.dylib
 emulator/lib64/

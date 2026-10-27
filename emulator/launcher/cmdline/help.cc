@@ -1150,6 +1150,17 @@ static void help_gpu(stralloc_t* out) {
            "\n");
 }
 
+static void help_virtio_gpu_device(stralloc_t* out) {
+    PRINTF("  Use -virtio-gpu-device <device> to select which virtio-gpu device the\n"
+           "  emulator instantiates for the guest (API 37 and newer system images).\n"
+           "  Both render through gfxstream; they differ in how the renderer is reached:\n\n"
+           "     rutabaga (default)   -> QEMU's virtio-gpu-rutabaga, through librutabaga_ffi.\n"
+           "     gfxstream            -> the emulator plugin's virtio-gpu-gfxstream, which\n"
+           "                             calls libgfxstream_backend directly.\n\n"
+           "  Snapshots record the device they were saved with; starting with the other\n"
+           "  device performs a cold boot instead of loading them.\n\n");
+}
+
 static void help_vulkan_validation(stralloc_t* out) {
     PRINTF("  use '-vulkan-validation <mode>' to set Vulkan validation layer behavior.\n"
            "  Valid modes are:\n\n"

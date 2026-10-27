@@ -19,7 +19,7 @@
 #include "goldfish/parsing/from_chars.h"
 
 extern "C" {
-#include "goldfish/avd/rutabaga_glue.h"
+#include "goldfish/devices/virtio_gpu_gfxstream/virtio_gpu_glue.h"
 }  // extern "C"
 
 namespace goldfish::avd {
@@ -31,8 +31,8 @@ using ::goldfish::imaging::ImageRef;
 using ::goldfish::parsing::FromChars;
 
 namespace {
-struct RutabagaImpl : public IGrallocDetails {
-    explicit RutabagaImpl(struct rutabaga* r) : rutabaga(r) {}
+struct VirtioGpuImpl : public IGrallocDetails {
+    explicit VirtioGpuImpl(struct VirtioGpuGlue* g) : gpu(g) {}
 
     ImageFormat GetImageFormat(const AndroidPixelFormat apf) const override {
         switch (apf) {
@@ -57,22 +57,22 @@ struct RutabagaImpl : public IGrallocDetails {
 
         const auto img_size = img.GetSize();
         const auto img_data = img.GetData();
-        return rutabagaImageTransfer(rutabaga, maybe_resource_id.value(), img_size.width,
-                                     img_size.height, GetStride(img), img_data.first,
-                                     img_data.second);
+        return virtioGpuGlueImageTransfer(gpu, maybe_resource_id.value(), img_size.width,
+                                          img_size.height, GetStride(img), img_data.first,
+                                          img_data.second);
     }
 
-    struct rutabaga* rutabaga;
+    struct VirtioGpuGlue* gpu;
 };
 }  // namespace
 
 GrallocDetailsPtr GetGrallocImpl() {
-    struct rutabaga* r = rutabagaGetInstance();
-    if (!r) {
+    struct VirtioGpuGlue* g = virtioGpuGlueGetInstance();
+    if (!g) {
         return nullptr;
     }
 
-    return std::make_shared<RutabagaImpl>(r);
+    return std::make_shared<VirtioGpuImpl>(g);
 }
 
 }  // namespace goldfish::avd

@@ -39,11 +39,13 @@
 #include "android/base/system.h"
 #include "android/goldfish/avd.h"
 #include "android/goldfish/hardware_config.h"
+#include "android/status/status_macros.h"
 #include "goldfish/file/file.h"
 #include "goldfish/gvk/instance_dispatch.h"
 #include "goldfish/gvk/system_meta_loader.h"
 #include "goldfish/parsing/resizable_display_config.h"
 #include "goldfish/snapshot/snapshot_store.h"
+#include "virtio_gpu_selection.h"
 
 namespace android::goldfish {
 namespace {
@@ -450,6 +452,10 @@ void GpuDevice::setVulkanLoader_TestOnly(::goldfish::gvk::IMetaLoader::Ptr loade
 }
 
 absl::Status GpuDevice::initialize(const EmulatorConfig& emulator) {
+    // -virtio-gpu-device: validated here so that a typo is reported at startup.
+    ASSIGN_OR_RETURN(mVirtioGpuDevice, SelectedVirtioGpuDevice(emulator.opts()));
+    LOG(INFO) << "Using virtio-gpu device: " << VirtioGpuDeviceName(mVirtioGpuDevice);
+
     auto selection = selectGpu(emulator);
     LOG(INFO) << "Selected GPU mode: " << selection.chosen_gpu_mode;
     LOG(INFO) << "Using Vulkan ICD: "
@@ -646,7 +652,10 @@ std::vector<std::string> GpuDevice::getQemuParameters(const EmulatorConfig& emul
         gfxstream_backends.append(",x-gfxstream-gles=on");
     }
 
-    std::vector<std::string> params = {"virtio-gpu-rutabaga"};
+    // Exactly one of virtio-gpu-rutabaga (QEMU, via librutabaga_ffi) or
+    // virtio-gpu-gfxstream (goldfish plugin, via libgfxstream_backend); both
+    // take the same properties. See virtio_gpu_selection.h.
+    std::vector<std::string> params = {std::string(VirtioGpuDeviceName(mVirtioGpuDevice))};
     if (hw.hw_sensor_hinge) {
         params.push_back("edid=off");
         params.push_back("max_outputs=2");
@@ -662,12 +671,12 @@ std::vector<std::string> GpuDevice::getQemuParameters(const EmulatorConfig& emul
     params.push_back(absl::StrCat("renderer_features=",
                                   EscapeQemuOptionValue(absl::StrJoin(renderer_features, ";"))));
     if (mSnapshotDevice.snapshots_enabled()) {
-        // virtio-gpu-rutabaga keeps the renderer state of each snapshot under
+        // The virtio-gpu device keeps the renderer state of each snapshot under
         // <snapshot_directory>/<snapshot name>/renderer/, next to the version.txt
         // that SnapshotStore writes to <snapshot_directory>/<snapshot name>/.
         const fs::path snapshot_directory =
                 ::goldfish::snapshot::FileSnapshotStore(emulator.avd().GetContentPath(),
-                                                        kSnapshotVersion)
+                                                        SnapshotVersionFor(mVirtioGpuDevice))
                         .Root() /
                 "";
         params.push_back(absl::StrCat("snapshot_directory=",

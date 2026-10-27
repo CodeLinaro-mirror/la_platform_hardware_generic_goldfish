@@ -37,6 +37,43 @@ constexpr std::string_view kInvalidSnapshotNameChars = "/\\:*?\"<>|";
 
 }  // namespace
 
+std::string_view SnapshotGpuDeviceName(SnapshotGpuDevice device) {
+    switch (device) {
+    case SnapshotGpuDevice::kRutabaga:
+        return "virtio-gpu-rutabaga";
+    case SnapshotGpuDevice::kGfxstream:
+        return "virtio-gpu-gfxstream";
+    }
+    return "unknown";
+}
+
+std::string DescribeSnapshotVersionMismatch(int found, int expected) {
+    if (found == expected) {
+        return "";
+    }
+    std::string reason;
+    const auto append = [&reason](std::string part) {
+        if (!reason.empty()) {
+            reason += "; ";
+        }
+        reason += std::move(part);
+    };
+    if (SnapshotVersionGpuDevice(found) != SnapshotVersionGpuDevice(expected)) {
+        append(absl::StrCat("saved with ", SnapshotGpuDeviceName(SnapshotVersionGpuDevice(found)),
+                            " but this emulator uses ",
+                            SnapshotGpuDeviceName(SnapshotVersionGpuDevice(expected))));
+    }
+    if (SnapshotVersionBase(found) != SnapshotVersionBase(expected)) {
+        append(absl::StrCat("snapshot format version ", SnapshotVersionBase(found),
+                            " != ", SnapshotVersionBase(expected)));
+    }
+    if (SnapshotVersionGfxstream(found) != SnapshotVersionGfxstream(expected)) {
+        append(absl::StrCat("gfxstream snapshot version ", SnapshotVersionGfxstream(found),
+                            " != ", SnapshotVersionGfxstream(expected)));
+    }
+    return reason;
+}
+
 bool IsValidSnapshotName(std::string_view name) {
     // "." would name the snapshots root itself; ".." (and anything containing it) a parent.
     return !name.empty() && name != "." &&

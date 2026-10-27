@@ -38,6 +38,7 @@
 #include "goldfish/avd/avd_start.h"
 #include "goldfish/avd/global_event_loop.h"
 #include "goldfish/battery/goldfish_battery.h"
+#include "goldfish/devices/virtio_gpu_gfxstream/virtio_gpu_gfxstream.h"
 #include "goldfish/grpc/grpc.h"
 #include "goldfish/input/virtio_input_android.h"
 #include "goldfish/net/virtio_wifi.h"
@@ -208,6 +209,7 @@ extern "C" void GF_REGISTER_TYPES_FUNC(void) {
     goldfish::avd::avd_finalize_register_types();
     goldfish::adb_device::adb_device_register_types();
     virtio_input_android_register_types();
+    virtio_gpu_gfxstream_register_types();
     goldfish::grpc::grpc_register_types();
     goldfish::grpc::webrtc_register_types();
     virtio_wifi_register_types();

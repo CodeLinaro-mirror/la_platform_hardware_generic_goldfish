@@ -50,6 +50,7 @@ load("@rules_cc//cc:defs.bzl", "cc_binary")
             "//emulator/plugin/avd:global_event_loop",
             "//emulator/plugin/battery",
             "//emulator/plugin/grpc",
+            "//emulator/plugin/hal/virtio_gpu_gfxstream",
             "//emulator/plugin/netsim:netsim-chardev",
             "//emulator/plugin/netsim:netsim-netdev",
             "//emulator/plugin/netsim:netsim_connection",

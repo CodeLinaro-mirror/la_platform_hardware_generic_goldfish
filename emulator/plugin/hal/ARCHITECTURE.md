@@ -34,6 +34,7 @@ The HALs communicate with the guest using a shared infrastructure stack:
 | :--- | :--- | :--- | :--- |
 | **camera** | Webcams and virtual scenes. | Goldfish Camera | [Architecture](camera/ARCHITECTURE.md) |
 | **multidisplay** | Secondary and foldable displays. | QEMUD / Virtio | [Architecture](multidisplay/ARCHITECTURE.md) |
+| **virtio_gpu_gfxstream** | 3D graphics card (gfxstream renderer). | Virtio GPU | [Architecture](virtio_gpu_gfxstream/ARCHITECTURE.md) |
 | **vehicle** | Android Automotive Vehicle HAL (VHAL). | VSOCK / QEMUD | [Architecture](vehicle/ARCHITECTURE.md) |
 | **unix_pipe** | Proxy to Host UDS. | Raw Stream | [Architecture](unix_pipe/ARCHITECTURE.md) |
 
