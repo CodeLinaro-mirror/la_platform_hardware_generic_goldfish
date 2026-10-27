@@ -139,9 +139,19 @@ void console_handle_mouse_event(QemuConsole* dcl, int dx, int dy, int dz,  // NO
     (void)button_state;
 }
 
+typedef void (*VirtioInputSendHook)(uint16_t type, uint16_t code, uint32_t value);
+static VirtioInputSendHook g_virtio_input_send_hook = NULL;
+
+void SetTestVirtioInputSendHook(VirtioInputSendHook hook) {
+    g_virtio_input_send_hook = hook;
+}
+
 void virtio_input_send(VirtIOInput* vinput, virtio_input_event* event) {
     (void)vinput;
-    (void)event;
+    if (g_virtio_input_send_hook) {
+        g_virtio_input_send_hook(le16_to_cpu(event->type), le16_to_cpu(event->code),
+                                 le32_to_cpu(event->value));
+    }
 }
 void console_handle_touch_event(QemuConsole* con,
                                 struct touch_slot touch_slots[INPUT_EVENT_SLOTS_MAX],

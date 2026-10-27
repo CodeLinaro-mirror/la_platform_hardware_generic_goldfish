@@ -53,6 +53,8 @@ cc_binary_with_manifest(
         ":grpc_media_providers",
         ":rtc_service",
         ":videobridge_codecs",
+        ":videobridge_core",
+        "//emulator/libs/file",
         "//emulator/libs/grpc_security",
         "//emulator/plugin/grpc/services/v2:rtc_service",
         "@abseil-cpp//absl/flags:flag",
@@ -141,6 +143,7 @@ cc_library(
     }),
     deps = [
         "//emulator/libs/os",
+        "//emulator/libs/system",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings:str_format",
@@ -282,6 +285,7 @@ cc_library(
     }),
     deps = [
         "//emulator/libs/os",
+        "//emulator/libs/system",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",
@@ -421,6 +425,7 @@ cc_library(
         "@platforms//os:linux": [
             ":nvenc_video_encoder",
             ":vaapi_video_encoder",
+            "//emulator/libs/system",
             "@abseil-cpp//absl/strings",
             "@webrtc//api/video_codecs:builtin_video_decoder_factory",
             "@webrtc//api/video_codecs:builtin_video_encoder_factory",

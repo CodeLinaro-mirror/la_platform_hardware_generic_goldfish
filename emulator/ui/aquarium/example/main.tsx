@@ -23,18 +23,60 @@ import {
   useCapabilities,
   useLocation,
   useVm,
+  useSnapshots,
   RtcConnectionState,
   KeyAction,
   InputFeature,
   TransitionMode,
   PostureType,
+  VmState_State,
 } from '@android/web';
+import { SnapshotOperationMetadata_Phase } from '@android/emulator-services/hypervisor_service';
 
 interface LogEntry {
   id: number;
   time: string;
   type: 'info' | 'warn' | 'error' | 'success';
   message: string;
+}
+
+function formatBytes(bytes: number): string {
+  if (!bytes || bytes <= 0) return '0 B';
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+}
+
+function formatVmState(state?: VmState_State): string {
+  switch (state) {
+    case VmState_State.RUNNING:
+      return 'RUNNING';
+    case VmState_State.PAUSED:
+      return 'PAUSED';
+    case VmState_State.STOPPED:
+      return 'STOPPED';
+    case VmState_State.RESETTING:
+      return 'RESETTING';
+    case VmState_State.SHUTTING_DOWN:
+      return 'SHUTTING_DOWN';
+    case VmState_State.SAVING_SNAPSHOT:
+      return 'SAVING_SNAPSHOT';
+    case VmState_State.RESTORING_SNAPSHOT:
+      return 'RESTORING_SNAPSHOT';
+    default:
+      return 'UNKNOWN';
+  }
+}
+
+function formatSnapshotPhase(phase?: SnapshotOperationMetadata_Phase): string {
+  switch (phase) {
+    case SnapshotOperationMetadata_Phase.PREPARING:
+      return 'PREPARING';
+    case SnapshotOperationMetadata_Phase.TRANSFERRING:
+      return 'TRANSFERRING';
+    default:
+      return 'IN_PROGRESS';
+  }
 }
 
 /**
@@ -45,7 +87,7 @@ interface LogEntry {
  *   - useSensors: orientation, accelerometer, ambient light, temperature
  *   - useCapabilities: device display, hardware feature discovery
  *   - useLocation: geographic coordinates and GPS emulation
- *   - useVm: virtual machine lifecycle control
+ *   - useVm / useSnapshots: virtual machine lifecycle, snapshot progress, and snapshot management
  */
 function DeviceDemoApp({ onLog }: { onLog: (msg: string, type?: LogEntry['type']) => void }) {
   const { state, connect, disconnect, client } = useDevice();
@@ -66,7 +108,15 @@ function DeviceDemoApp({ onLog }: { onLog: (msg: string, type?: LogEntry['type']
   const { setHingeAngle, setDevicePosture } = usePosture();
   const { capabilities, fetchCapabilities, isLoading: isCapsLoading } = useCapabilities();
   const { setLocation, isUpdating: isLocUpdating } = useLocation();
-  const { pause, resume, isBusy: isVmBusy } = useVm();
+  const { vmState, pause, resume, isBusy: isVmBusy } = useVm();
+  const {
+    snapshots,
+    isLoading: isSnapshotsLoading,
+    fetchSnapshots,
+    createSnapshot,
+    restoreSnapshot,
+    deleteSnapshot,
+  } = useSnapshots();
 
   const [activeTab, setActiveTab] = useState<'controls' | 'sensors' | 'location' | 'capabilities' | 'vm'>('controls');
   const [pitchVal, setPitchVal] = useState<number>(0);
@@ -80,6 +130,9 @@ function DeviceDemoApp({ onLog }: { onLog: (msg: string, type?: LogEntry['type']
   const [tempVal, setTempVal] = useState<number>(22);
   const [latInput, setLatInput] = useState<string>('37.4220');
   const [lngInput, setLngInput] = useState<string>('-122.0841');
+  const [snapshotIdInput, setSnapshotIdInput] = useState<string>('quick_save_1');
+  const [snapshotNameInput, setSnapshotNameInput] = useState<string>('');
+  const [isVmActionRunning, setIsVmActionRunning] = useState<boolean>(false);
 
   // Track WebRTC connection transitions
   const prevStateRef = useRef<RtcConnectionState | null>(null);
@@ -89,6 +142,28 @@ function DeviceDemoApp({ onLog }: { onLog: (msg: string, type?: LogEntry['type']
       onLog(`WebRTC Connection State: ${state}`, state === RtcConnectionState.CONNECTED ? 'success' : 'info');
     }
   }, [state, onLog]);
+
+  // Track live StreamVmState transitions and snapshot progress telemetry
+  const prevVmSummaryRef = useRef<string>('');
+  useEffect(() => {
+    if (!vmState) return;
+    const stateLabel = formatVmState(vmState.state);
+    const prog = vmState.snapshotProgress;
+    const summary = prog
+      ? `${stateLabel} [${formatSnapshotPhase(prog.phase)} ${prog.snapshotId || 'default_boot'} ${prog.progressPercent}% (${formatBytes(prog.transferredBytes)}/${formatBytes(prog.totalBytes)}${prog.activeComponent ? ` • ${prog.activeComponent}` : ''}${prog.totalDevices > 0 ? ` • ${prog.completedDevices}/${prog.totalDevices} devs` : ''})]`
+      : stateLabel;
+    if (prevVmSummaryRef.current !== summary) {
+      prevVmSummaryRef.current = summary;
+      onLog(`StreamVmState: ${summary}`, prog ? 'info' : vmState.state === VmState_State.RUNNING ? 'success' : 'warn');
+    }
+  }, [vmState, onLog]);
+
+  // Fetch snapshots when opening the VM tab
+  useEffect(() => {
+    if (activeTab === 'vm') {
+      fetchSnapshots().catch((err) => onLog(`ListSnapshots failed: ${err.message}`, 'warn'));
+    }
+  }, [activeTab, fetchSnapshots, onLog]);
 
   // Automatically connect and reconnect whenever not connected or when the remote peer closes the DataChannel
   const connectedSinceRef = useRef<number>(0);
@@ -141,6 +216,39 @@ function DeviceDemoApp({ onLog }: { onLog: (msg: string, type?: LogEntry['type']
         </div>
 
         <div style={styles.headerRight}>
+          {vmState && (
+            <span
+              style={{
+                ...styles.statusBadge,
+                backgroundColor: vmState.snapshotProgress
+                  ? 'rgba(59, 130, 246, 0.15)'
+                  : vmState.state === VmState_State.RUNNING
+                  ? 'rgba(16, 185, 129, 0.15)'
+                  : 'rgba(245, 158, 11, 0.15)',
+                color: vmState.snapshotProgress
+                  ? '#93c5fd'
+                  : vmState.state === VmState_State.RUNNING
+                  ? '#34d399'
+                  : '#fbbf24',
+                border: `1px solid ${
+                  vmState.snapshotProgress
+                    ? '#3b82f6'
+                    : vmState.state === VmState_State.RUNNING
+                    ? '#10b981'
+                    : '#f59e0b'
+                }`,
+              }}
+            >
+              VM: {formatVmState(vmState.state)}
+              {vmState.snapshotProgress
+                ? ` (${vmState.snapshotProgress.progressPercent}%${
+                    vmState.snapshotProgress.activeComponent
+                      ? ` • ${vmState.snapshotProgress.activeComponent}`
+                      : ''
+                  })`
+                : ''}
+            </span>
+          )}
           <span
             style={{
               ...styles.statusBadge,
@@ -752,12 +860,120 @@ function DeviceDemoApp({ onLog }: { onLog: (msg: string, type?: LogEntry['type']
               </div>
             )}
 
-            {/* 5. VM Lifecycle Tab */}
+            {/* 5. VM Lifecycle & Snapshots Tab */}
             {activeTab === 'vm' && (
               <div style={styles.section}>
                 <h3 style={styles.sectionTitle}>Virtual Machine Lifecycle</h3>
-                <p style={styles.sectionDesc}>Pause or resume the guest OS using useVm().</p>
-                <div style={styles.btnRow}>
+                <p style={styles.sectionDesc}>
+                  Live hypervisor state and snapshot progress via StreamVmState / useVm().
+                </p>
+
+                {/* Live VmState & Snapshot Progress Telemetry */}
+                <div style={styles.codeBlock}>
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      marginBottom: '4px',
+                    }}
+                  >
+                    <span style={{ color: '#94a3b8' }}>Execution State:</span>
+                    <span
+                      style={{
+                        color:
+                          vmState?.state === VmState_State.RUNNING
+                            ? '#34d399'
+                            : vmState?.snapshotProgress
+                            ? '#60a5fa'
+                            : '#fbbf24',
+                        fontWeight: 600,
+                      }}
+                    >
+                      {vmState ? formatVmState(vmState.state) : 'CONNECTING...'}
+                    </span>
+                  </div>
+                  {vmState && (
+                    <div style={{ color: '#64748b', fontSize: '0.7rem' }}>
+                      Compute: {vmState.allocatedCpuCoreCount} vCPU(s) •{' '}
+                      {formatBytes(vmState.allocatedRamBytes)} RAM
+                    </div>
+                  )}
+
+                  {vmState?.snapshotProgress && (
+                    <div
+                      style={{
+                        marginTop: '8px',
+                        paddingTop: '8px',
+                        borderTop: '1px solid #1e293b',
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          color: '#93c5fd',
+                          fontWeight: 600,
+                          marginBottom: '4px',
+                        }}
+                      >
+                        <span>
+                          {formatSnapshotPhase(vmState.snapshotProgress.phase)}:{' '}
+                          {vmState.snapshotProgress.snapshotId || 'default_boot'}
+                        </span>
+                        <span>{vmState.snapshotProgress.progressPercent}%</span>
+                      </div>
+                      <div
+                        style={{
+                          width: '100%',
+                          height: '6px',
+                          backgroundColor: '#1e293b',
+                          borderRadius: '3px',
+                          overflow: 'hidden',
+                          marginBottom: '6px',
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: `${Math.min(
+                              100,
+                              Math.max(0, vmState.snapshotProgress.progressPercent)
+                            )}%`,
+                            height: '100%',
+                            backgroundColor: '#3b82f6',
+                            transition: 'width 150ms ease-out',
+                          }}
+                        />
+                      </div>
+                      <div style={{ color: '#94a3b8', fontSize: '0.7rem' }}>
+                        Bytes: {formatBytes(vmState.snapshotProgress.transferredBytes)} /{' '}
+                        {formatBytes(vmState.snapshotProgress.totalBytes)}
+                      </div>
+                      {vmState.snapshotProgress.totalDevices > 0 && (
+                        <div style={{ color: '#94a3b8', fontSize: '0.7rem' }}>
+                          Devices: {vmState.snapshotProgress.completedDevices} /{' '}
+                          {vmState.snapshotProgress.totalDevices}
+                        </div>
+                      )}
+                      {vmState.snapshotProgress.activeComponent && (
+                        <div
+                          style={{
+                            color: '#60a5fa',
+                            fontSize: '0.7rem',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          Active: {vmState.snapshotProgress.activeComponent}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* VM Execution Controls */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
                   <button
                     style={styles.btnSecondary}
                     onClick={() => {
@@ -766,7 +982,7 @@ function DeviceDemoApp({ onLog }: { onLog: (msg: string, type?: LogEntry['type']
                         .then(() => onLog('VM paused successfully', 'success'))
                         .catch((err) => onLog(`Pause failed: ${err.message}`, 'error'));
                     }}
-                    disabled={isVmBusy}
+                    disabled={isVmBusy || isVmActionRunning}
                   >
                     ⏸ Pause VM
                   </button>
@@ -778,11 +994,192 @@ function DeviceDemoApp({ onLog }: { onLog: (msg: string, type?: LogEntry['type']
                         .then(() => onLog('VM resumed successfully', 'success'))
                         .catch((err) => onLog(`Resume failed: ${err.message}`, 'error'));
                     }}
-                    disabled={isVmBusy}
+                    disabled={isVmBusy || isVmActionRunning}
                   >
                     ▶ Resume VM
                   </button>
+                  <button
+                    style={styles.btnSecondary}
+                    onClick={() => {
+                      setIsVmActionRunning(true);
+                      onLog('Triggering warm ACPI ResetVm...');
+                      client.vm
+                        .ResetVm()
+                        .then(() => onLog('VM reset requested', 'success'))
+                        .catch((err) => onLog(`Reset failed: ${err.message}`, 'error'))
+                        .finally(() => setIsVmActionRunning(false));
+                    }}
+                    disabled={isVmBusy || isVmActionRunning}
+                  >
+                    ↻ Reset VM
+                  </button>
+                  <button
+                    style={{
+                      ...styles.btnSecondary,
+                      borderColor: '#7f1d1d',
+                      color: '#fca5a5',
+                    }}
+                    onClick={() => {
+                      setIsVmActionRunning(true);
+                      onLog('Requesting StopVm (saveQuickbootSnapshot=true)...');
+                      client.vm
+                        .StopVm({ saveQuickbootSnapshot: true })
+                        .then(() => onLog('StopVm initiated; streaming exit-save progress...', 'warn'))
+                        .catch((err) => onLog(`StopVm failed: ${err.message}`, 'error'))
+                        .finally(() => setIsVmActionRunning(false));
+                    }}
+                    disabled={isVmBusy || isVmActionRunning}
+                  >
+                    ⏻ Stop & Save
+                  </button>
                 </div>
+
+                {/* Snapshots Section */}
+                <h3 style={{ ...styles.sectionTitle, marginTop: '12px' }}>VM Snapshots</h3>
+                <p style={styles.sectionDesc}>
+                  Create, restore, and delete snapshots via useSnapshots().
+                </p>
+
+                <div style={styles.controlRow}>
+                  <label style={styles.label}>Snapshot ID (optional):</label>
+                  <input
+                    type="text"
+                    placeholder="Auto-generate if empty..."
+                    style={styles.input}
+                    value={snapshotIdInput}
+                    onChange={(e) => setSnapshotIdInput(e.target.value)}
+                  />
+                </div>
+
+                <div style={styles.controlRow}>
+                  <label style={styles.label}>Display Name (optional):</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Clean Home Screen"
+                    style={styles.input}
+                    value={snapshotNameInput}
+                    onChange={(e) => setSnapshotNameInput(e.target.value)}
+                  />
+                </div>
+
+                <div style={styles.btnRow}>
+                  <button
+                    style={{ ...styles.btnPrimary, flex: 1 }}
+                    onClick={() => {
+                      const id = snapshotIdInput.trim();
+                      const label = snapshotNameInput.trim() || undefined;
+                      onLog(`Creating snapshot${id ? ` '${id}'` : ' (auto-generated ID)'}...`);
+                      createSnapshot(id, label)
+                        .then(() => onLog(`Snapshot created successfully`, 'success'))
+                        .catch((err) => onLog(`CreateSnapshot failed: ${err.message}`, 'error'));
+                    }}
+                    disabled={isSnapshotsLoading || Boolean(vmState?.snapshotProgress)}
+                  >
+                    {isSnapshotsLoading ? 'Working...' : '📸 Save Snapshot'}
+                  </button>
+                  <button
+                    style={styles.btnSecondary}
+                    onClick={() => {
+                      onLog('Listing local snapshots...');
+                      fetchSnapshots()
+                        .then((list) => onLog(`Loaded ${list.length} snapshot(s)`, 'info'))
+                        .catch((err) => onLog(`ListSnapshots failed: ${err.message}`, 'error'));
+                    }}
+                    disabled={isSnapshotsLoading}
+                  >
+                    🔄 Refresh
+                  </button>
+                </div>
+
+                {snapshots.length > 0 ? (
+                  <div
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '6px',
+                      marginTop: '6px',
+                    }}
+                  >
+                    {snapshots.map((snap) => (
+                      <div
+                        key={snap.snapshotId}
+                        style={{
+                          ...styles.codeBlock,
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '4px',
+                        }}
+                      >
+                        <div
+                          style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                          }}
+                        >
+                          <span style={{ color: '#e2e8f0', fontWeight: 600 }}>
+                            {snap.displayName || snap.snapshotId}
+                          </span>
+                          {snap.quickbootTarget && (
+                            <span
+                              style={{
+                                fontSize: '0.65rem',
+                                color: '#34d399',
+                                border: '1px solid #10b981',
+                                borderRadius: '8px',
+                                padding: '1px 6px',
+                              }}
+                            >
+                              Quickboot
+                            </span>
+                          )}
+                        </div>
+                        <div style={{ color: '#64748b', fontSize: '0.7rem' }}>
+                          ID: {snap.snapshotId}
+                          {snap.sizeBytes > 0 ? ` • ${formatBytes(snap.sizeBytes)}` : ''}
+                        </div>
+                        <div style={{ display: 'flex', gap: '6px', marginTop: '4px' }}>
+                          <button
+                            style={{ ...styles.btnSmall, color: '#60a5fa', borderColor: '#1d4ed8' }}
+                            onClick={() => {
+                              onLog(`Restoring snapshot '${snap.snapshotId}'...`);
+                              restoreSnapshot(snap.snapshotId)
+                                .then(() =>
+                                  onLog(`Restored snapshot '${snap.snapshotId}'`, 'success')
+                                )
+                                .catch((err) =>
+                                  onLog(`RestoreSnapshot failed: ${err.message}`, 'error')
+                                );
+                            }}
+                            disabled={isSnapshotsLoading || Boolean(vmState?.snapshotProgress)}
+                          >
+                            ⏪ Restore
+                          </button>
+                          <button
+                            style={{ ...styles.btnSmall, color: '#fca5a5', borderColor: '#7f1d1d' }}
+                            onClick={() => {
+                              onLog(`Deleting snapshot '${snap.snapshotId}'...`);
+                              deleteSnapshot(snap.snapshotId)
+                                .then(() =>
+                                  onLog(`Deleted snapshot '${snap.snapshotId}'`, 'info')
+                                )
+                                .catch((err) =>
+                                  onLog(`DeleteSnapshot failed: ${err.message}`, 'error')
+                                );
+                            }}
+                            disabled={isSnapshotsLoading || Boolean(vmState?.snapshotProgress)}
+                          >
+                            🗑 Delete
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div style={styles.emptyState}>
+                    {isSnapshotsLoading ? 'Loading snapshots...' : 'No snapshots found.'}
+                  </div>
+                )}
               </div>
             )}
           </div>

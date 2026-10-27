@@ -58,12 +58,7 @@ class HttpSession::ResponseWriterImpl : public HttpResponseWriter {
                 is_chunked_ = true;
             }
         }
-        std::shared_ptr<HttpSession> session;
-        {
-            const absl::MutexLock lock(&mutex_);
-            session = session_;
-        }
-        if (session) {
+        if (auto session = GetSession()) {
             std::string response;
             absl::StrAppend(&response, protocol::kHttp11, protocol::kSpace, status,
                             protocol::kSpace, HttpStatusToReason(status), protocol::kCrlf);
@@ -80,12 +75,7 @@ class HttpSession::ResponseWriterImpl : public HttpResponseWriter {
             return;
         }
         bytes_sent_ += chunk.size();
-        std::shared_ptr<HttpSession> session;
-        {
-            const absl::MutexLock lock(&mutex_);
-            session = session_;
-        }
-        if (session) {
+        if (auto session = GetSession()) {
             if (is_chunked_) {
                 session->PostOrSend(absl::StrCat(absl::Hex(chunk.size()), protocol::kCrlf, chunk,
                                                  protocol::kCrlf));
@@ -99,12 +89,7 @@ class HttpSession::ResponseWriterImpl : public HttpResponseWriter {
         if (finished_.exchange(true)) {
             return;
         }
-        std::shared_ptr<HttpSession> session;
-        {
-            const absl::MutexLock lock(&mutex_);
-            session = std::move(session_);
-        }
-        if (session) {
+        if (auto session = TakeSession()) {
             {
                 const absl::MutexLock lock(&session->close_cb_mutex_);
                 session->on_client_closed_ = nullptr;
@@ -128,12 +113,7 @@ class HttpSession::ResponseWriterImpl : public HttpResponseWriter {
     }
 
     void SetOnCloseCallback(std::function<void()> on_close) override {
-        std::shared_ptr<HttpSession> session;
-        {
-            const absl::MutexLock lock(&mutex_);
-            session = session_;
-        }
-        if (session) {
+        if (auto session = GetSession()) {
             bool call_immediately = false;
             {
                 const absl::MutexLock lock(&session->close_cb_mutex_);
@@ -152,6 +132,16 @@ class HttpSession::ResponseWriterImpl : public HttpResponseWriter {
     }
 
   private:
+    std::shared_ptr<HttpSession> GetSession() {
+        const absl::MutexLock lock(&mutex_);
+        return session_;
+    }
+
+    std::shared_ptr<HttpSession> TakeSession() {
+        const absl::MutexLock lock(&mutex_);
+        return std::move(session_);
+    }
+
     absl::Mutex mutex_;
     std::shared_ptr<HttpSession> session_ ABSL_GUARDED_BY(mutex_);
     HttpMethod method_ = HttpMethod::kGet;
@@ -458,34 +448,28 @@ int HttpSession::OnMessageBegin(llhttp_t* parser) {
     return 0;
 }
 
-int HttpSession::OnUrl(llhttp_t* parser, const char* at, size_t length) {
-    auto* self = static_cast<HttpSession*>(parser->data);
-    if (self->current_headers_bytes_ + length > kMaxHeaderSize) {
+int HttpSession::AppendHeaderBytes(std::string& target, const char* at, size_t length) {
+    if (current_headers_bytes_ + length > kMaxHeaderSize) {
         return HPE_USER;
     }
-    self->current_headers_bytes_ += length;
-    self->current_request_.path_.append(at, length);
+    current_headers_bytes_ += length;
+    target.append(at, length);
     return 0;
+}
+
+int HttpSession::OnUrl(llhttp_t* parser, const char* at, size_t length) {
+    auto* self = static_cast<HttpSession*>(parser->data);
+    return self->AppendHeaderBytes(self->current_request_.path_, at, length);
 }
 
 int HttpSession::OnHeaderField(llhttp_t* parser, const char* at, size_t length) {
     auto* self = static_cast<HttpSession*>(parser->data);
-    if (self->current_headers_bytes_ + length > kMaxHeaderSize) {
-        return HPE_USER;
-    }
-    self->current_headers_bytes_ += length;
-    self->current_header_field_.append(at, length);
-    return 0;
+    return self->AppendHeaderBytes(self->current_header_field_, at, length);
 }
 
 int HttpSession::OnHeaderValue(llhttp_t* parser, const char* at, size_t length) {
     auto* self = static_cast<HttpSession*>(parser->data);
-    if (self->current_headers_bytes_ + length > kMaxHeaderSize) {
-        return HPE_USER;
-    }
-    self->current_headers_bytes_ += length;
-    self->current_header_value_.append(at, length);
-    return 0;
+    return self->AppendHeaderBytes(self->current_header_value_, at, length);
 }
 
 int HttpSession::OnHeaderValueComplete(llhttp_t* parser) {

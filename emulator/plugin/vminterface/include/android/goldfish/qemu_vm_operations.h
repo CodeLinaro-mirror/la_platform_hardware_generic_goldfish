@@ -15,35 +15,71 @@
 
 #include <memory>
 
+#include "android/base/clock.h"
 #include "android/goldfish/vm_interface.h"
 #include "goldfish/async/event_loop.h"
+#include "goldfish/snapshot/snapshot_store.h"
 
 namespace android {
 namespace goldfish {
 
 /**
+ * @brief Snapshot configuration of the QEMU-backed VmOperations.
+ */
+struct QemuSnapshotConfig {
+    /**
+     * Owns the per-snapshot metadata under <avd>/snapshots/<name>/. Snapshot
+     * operations consult it off the QEMU main thread: `SaveSnapshot` records the
+     * snapshot version after QEMU saved the VM state, `LoadSnapshot` refuses
+     * snapshots whose version does not match, `DeleteSnapshot` removes it and
+     * `ListSnapshots` reports compatibility from it.
+     */
+    std::unique_ptr<::goldfish::snapshot::SnapshotStore> store;
+
+    /**
+     * Whether snapshots can be saved and loaded in this session. False when the
+     * emulator was started with -no-snapshot: `SaveSnapshot` and `LoadSnapshot`
+     * then fail with FailedPrecondition without touching QEMU, while
+     * `ListSnapshots` and `DeleteSnapshot` keep working.
+     */
+    bool enabled = true;
+};
+
+/**
  * @brief Creates the VmOperations implementation that controls the QEMU VM.
  *
- * The instance registers a QEMU run-state handler when constructed and
- * unregisters it when destroyed, both under the VM lock. Create it once the VM
- * lock is usable (for example while devices are realized) and keep it alive
- * for as long as consumers hold references to it.
+ * The instance registers QEMU run-state and snapshot-progress handlers when
+ * constructed and unregisters them when destroyed, both under the VM lock.
+ * Create it once the VM lock is usable (for example while devices are realized)
+ * and keep it alive for as long as consumers hold references to it.
  *
  * Mutating and snapshot operations are dispatched synchronously to `qemu_loop`
  * via `PostAndWait`. They are expected to be called from external threads
  * (such as gRPC server or worker threads) and will fatally abort if called
- * from either `event_loop` or `qemu_loop`. Read-only queries (`isRunning`,
- * `getRunState`, `getConfiguration`) execute directly without posting to
- * `qemu_loop` and may be called from any thread.
+ * from either `event_loop` or `qemu_loop`. Read-only queries (`IsRunning`,
+ * `GetRunState`, `GetConfiguration`, `GetSnapshotProgress`) execute directly
+ * without posting to `qemu_loop` and may be called from any thread.
  *
- * @param event_loop The loop that runs the `RunStateEvents()` callbacks. Must
- *        be distinct from `qemu_loop` and outlive the returned instance.
+ * Only the QEMU calls themselves (`save_snapshot`, `load_snapshot`,
+ * `delete_snapshot`, `bdrv_snapshot_list`, `vm_stop`) run on `qemu_loop`; the
+ * `SnapshotStore` file system work happens on the calling thread before and
+ * after, so no extra I/O is done under the BQL.
+ *
+ * @param event_loop The loop that runs the `RunStateEvents()` and
+ *        `SnapshotEvents()` callbacks. Must be distinct from `qemu_loop` and
+ *        outlive the returned instance.
  * @param qemu_loop The QEMU main event loop used to execute VM operations. Must
  *        outlive the returned instance.
+ * @param snapshot_config Snapshot store and policy, see `QemuSnapshotConfig`.
+ *        `store` must not be null.
+ * @param clock Clock source used for snapshot progress throttling. Must outlive
+ *        the returned instance. Defaults to `::android::base::IClock::Get()`.
  * @return The QEMU-backed VmOperations.
  */
-std::unique_ptr<VmOperations> CreateQemuVmOperations(::goldfish::async::EventLoop* event_loop,
-                                                     ::goldfish::async::EventLoop* qemu_loop);
+std::unique_ptr<VmOperations> CreateQemuVmOperations(
+        ::goldfish::async::EventLoop* event_loop, ::goldfish::async::EventLoop* qemu_loop,
+        QemuSnapshotConfig snapshot_config,
+        ::android::base::IClock* clock = &::android::base::IClock::Get());
 
 }  // namespace goldfish
 }  // namespace android

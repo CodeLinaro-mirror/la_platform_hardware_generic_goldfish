@@ -100,6 +100,21 @@ int32_t NvencVideoEncoder::InitEncode(const webrtc::VideoCodec* codec_settings,
     return WEBRTC_VIDEO_CODEC_OK;
 }
 
+NV_ENC_INITIALIZE_PARAMS NvencVideoEncoder::BuildInitializeParamsLocked() {
+    auto init_params = MakeNvencStruct<NV_ENC_INITIALIZE_PARAMS>();
+    init_params.encodeGUID = NV_ENC_CODEC_H264_GUID;
+    init_params.presetGUID = NV_ENC_PRESET_LOW_LATENCY_DEFAULT_GUID;
+    init_params.encodeWidth = width_;
+    init_params.encodeHeight = height_;
+    init_params.darWidth = width_;
+    init_params.darHeight = height_;
+    init_params.frameRateNum = max_framerate_fps_;
+    init_params.frameRateDen = 1;
+    init_params.enablePTD = 1;  // Picture Type Decision handled by GPU hardware
+    init_params.encodeConfig = &encode_config_;
+    return init_params;
+}
+
 absl::Status NvencVideoEncoder::InitializeSessionLocked() {
     auto session_params = MakeNvencStruct<NV_ENC_OPEN_ENCODE_SESSION_EX_PARAMS>();
     session_params.apiVersion = NVENCAPI_VERSION;
@@ -151,18 +166,7 @@ absl::Status NvencVideoEncoder::InitializeSessionLocked() {
     encode_config_.rcParams.maxBitRate = target_bitrate_bps_;
     encode_config_.rcParams.enableAQ = 1;
 
-    auto init_params = MakeNvencStruct<NV_ENC_INITIALIZE_PARAMS>();
-    init_params.encodeGUID = NV_ENC_CODEC_H264_GUID;
-    init_params.presetGUID = NV_ENC_PRESET_LOW_LATENCY_DEFAULT_GUID;
-    init_params.encodeWidth = width_;
-    init_params.encodeHeight = height_;
-    init_params.darWidth = width_;
-    init_params.darHeight = height_;
-    init_params.frameRateNum = max_framerate_fps_;
-    init_params.frameRateDen = 1;
-    init_params.enablePTD = 1;  // Picture Type Decision handled by GPU hardware
-    init_params.encodeConfig = &encode_config_;
-
+    auto init_params = BuildInitializeParamsLocked();
     status = loader_->api().nvEncInitializeEncoder(encoder_session_, &init_params);
     if (status != NV_ENC_SUCCESS) {
         return absl::InternalError(
@@ -339,17 +343,7 @@ void NvencVideoEncoder::SetRates(const RateControlParameters& parameters) {
     encode_config_.rcParams.maxBitRate = target_bitrate_bps_;
 
     auto reconfig_params = MakeNvencStruct<NV_ENC_RECONFIGURE_PARAMS>();
-    reconfig_params.reInitEncodeParams = MakeNvencStruct<NV_ENC_INITIALIZE_PARAMS>();
-    reconfig_params.reInitEncodeParams.encodeGUID = NV_ENC_CODEC_H264_GUID;
-    reconfig_params.reInitEncodeParams.presetGUID = NV_ENC_PRESET_LOW_LATENCY_DEFAULT_GUID;
-    reconfig_params.reInitEncodeParams.encodeWidth = width_;
-    reconfig_params.reInitEncodeParams.encodeHeight = height_;
-    reconfig_params.reInitEncodeParams.darWidth = width_;
-    reconfig_params.reInitEncodeParams.darHeight = height_;
-    reconfig_params.reInitEncodeParams.frameRateNum = max_framerate_fps_;
-    reconfig_params.reInitEncodeParams.frameRateDen = 1;
-    reconfig_params.reInitEncodeParams.enablePTD = 1;
-    reconfig_params.reInitEncodeParams.encodeConfig = &encode_config_;
+    reconfig_params.reInitEncodeParams = BuildInitializeParamsLocked();
 
     NVENCSTATUS status = loader_->api().nvEncReconfigureEncoder(encoder_session_, &reconfig_params);
     if (status != NV_ENC_SUCCESS) {

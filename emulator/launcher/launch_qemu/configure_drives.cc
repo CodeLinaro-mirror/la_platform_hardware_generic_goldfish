@@ -27,29 +27,16 @@
 namespace android::goldfish::internal {
 
 namespace {
-absl::StatusOr<fs::path> getOverrideFilePath(const char* path_str) {
-    fs::path path(path_str);
-    if (base::file::is_file(path)) {
-        return path;
-    } else {
-        return absl::NotFoundError(absl::StrCat("File not found: ", path_str));
-    }
-}
-
 fs::path getWritableImgPath(const Avd& avd, Avd::ImageType user_image_type) {
     return avd.GetContentPath() / Avd::GetImageFilename(user_image_type);
 }
 
-absl::StatusOr<fs::path> getUserdataImgPath(const Avd& avd, const char* override_path) {
-    if (override_path) {
-        return getOverrideFilePath(override_path);
-    } else {
-        fs::path path = getWritableImgPath(avd, Avd::ImageType::USERDATA_OLD);
-        if (!base::file::is_file(path)) {
-            path = getWritableImgPath(avd, Avd::ImageType::USERDATA);
-        }
-        return path;
+fs::path getUserdataImgPath(const Avd& avd) {
+    fs::path path = getWritableImgPath(avd, Avd::ImageType::USERDATA_OLD);
+    if (!base::file::is_file(path)) {
+        path = getWritableImgPath(avd, Avd::ImageType::USERDATA);
     }
+    return path;
 }
 
 fs::path to_qcow2(fs::path base) {
@@ -139,7 +126,7 @@ absl::StatusOr<std::vector<std::unique_ptr<PciDevice>>> getDiskConfigs(const Avd
                                                                        const AndroidOptions& opts) {
     const auto& sys_img_paths = avd.GetSystemImagePaths();
 
-    ASSIGN_OR_RETURN(const auto userdata_path, getUserdataImgPath(avd, opts.data));
+    const auto userdata_path = getUserdataImgPath(avd);
     uint64_t userdata_create_size = 0;
     std::optional<fs::path> userdata_src_dir;
     if (!base::file::is_file(userdata_path)) {
@@ -170,10 +157,9 @@ absl::StatusOr<std::vector<std::unique_ptr<PciDevice>>> getDiskConfigs(const Avd
         ASSIGN_OR_RETURN(auto sdcard_config, GetSdCardConfig(avd, opts));
         if (sdcard_config.backing_image_missing) {
             using ::goldfish::fsimage::CreateEmptyExFATImage;
-            using namespace std::literals::string_view_literals;
 
             RETURN_IF_ERROR(CreateEmptyExFATImage(sdcard_config.backing_image,
-                                                  avd.Hw().hw_sd_card_size, "EMULATOR"sv));
+                                                  avd.Hw().hw_sd_card_size, {.label = "EMULATOR"}));
 
             base::file::rm(sdcard_config.qcow2_image).IgnoreError();
         }

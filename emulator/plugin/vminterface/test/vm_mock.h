@@ -51,10 +51,28 @@ bool mock_has_vm_change_state_handler(void);
 // Setter for the return value of vm_stop()
 void mock_vm_stop_return_set(int ret);
 
+// Trigger registered snapshot progress handlers
+void mock_fire_snapshot_progress(const QemuSnapshotProgress* progress);
+
+// Whether a snapshot progress handler is currently registered
+bool mock_has_snapshot_progress_handler(void);
+
 // Configure save_snapshot / load_snapshot / delete_snapshot mock return value
 void mock_snapshot_op_ok_set(bool ok);
 
 // Configure bdrv_snapshot_list mock entries
 void mock_snapshot_list_set(const QEMUSnapshotInfo* entries, int count);
+
+// Number of save_snapshot / load_snapshot / delete_snapshot / bdrv_snapshot_list
+// calls since the last mock_snapshot_calls_reset(), and the thread that made the
+// most recent one (NULL if none). Lets tests check that QEMU snapshot calls are
+// only ever made on the QEMU main loop thread.
+int mock_snapshot_call_count(void);
+GThread* mock_snapshot_last_call_thread(void);
+void mock_snapshot_calls_reset(void);
+
+// Name passed to the most recent save_snapshot / load_snapshot / delete_snapshot
+// call, or "" if none since the last mock_snapshot_calls_reset().
+const char* mock_snapshot_last_call_name(void);
 
 __END_DECLS

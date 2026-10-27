@@ -14,7 +14,11 @@
 
 #include "goldfish/display/test/fake_pixman_display.h"
 
+#include <vector>
+
 #include "absl/log/log.h"
+
+#include "standard-headers/linux/input-event-codes.h"
 
 namespace goldfish::display::test {
 
@@ -72,6 +76,15 @@ void FakePixmanDisplay::SendMouseEvent(int x, int y, int button_mask) {
 
 void FakePixmanDisplay::SendEvDevEvent(uint16_t type, uint16_t code, uint32_t value) {
     evdevs.push_back({type, code, value});
+}
+
+void FakePixmanDisplay::SendEvDevReport(EvDevEvents events) {
+    std::vector<FakeEvDevEvent>& report = evdev_reports.emplace_back();
+    for (const EvDevEvent& ev : events) {
+        report.push_back({ev.type, ev.code, ev.value});
+    }
+    report.push_back({EV_SYN, SYN_REPORT, 0});
+    evdevs.insert(evdevs.end(), report.begin(), report.end());
 }
 
 ActiveFakePixmanDisplay::~ActiveFakePixmanDisplay() {

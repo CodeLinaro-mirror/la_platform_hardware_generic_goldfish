@@ -1,3 +1,4 @@
+load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_test")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 
 cc_library(
@@ -76,11 +77,21 @@ cc_test(
         "//emulator/libs/status_macros:status_matcher_macros",
         "//emulator/libs/system",
         "//emulator/libs/system:test-headers",
-        "@googletest//:gtest_main",
+        "//emulator/libs/test:googletest_main",
         "@nlohmann_json//:singleheader-json",
         "@tink_cc//tink/jwt:jwk_set_converter",
         "@tink_cc//tink/jwt:jwt_key_templates",
         "@tink_cc//tink/jwt:jwt_public_key_sign",
         "@tink_cc//tink/jwt:jwt_signature_config",
     ],
+)
+
+clang_tidy_test(
+    name = "tidy",
+    targets = [
+        ":grpc_key_utils",
+        ":grpc",
+        ":grpc_key_utils_test",
+    ],
+    tidy_config_file = "//:clang_tidy_config",
 )

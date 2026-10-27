@@ -11,10 +11,14 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+#include <algorithm>
 #include <cstdio>
+#include <initializer_list>
 #include <iostream>
 #include <map>
 #include <string>
+#include <string_view>
+#include <utility>
 #include <vector>
 
 #ifdef _WIN32
@@ -116,31 +120,20 @@ bool ProcessMinidump(const std::string& minidump_file, MinidumpProcessor& minidu
     }
 
     if (show_breadcrumbs) {
-        if (!reader.SeekSet(0)) {
-            LOG(ERROR) << "Failed to rewind minidump file for gRPC breadcrumbs";
-            return false;
-        }
-        std::vector<uint8_t> grpc_breadcrumbs =
-                annotation_extractor.ExtractAnnotationBytes(&reader, "grpc_breadcrumbs");
-
-        if (!reader.SeekSet(0)) {
-            LOG(ERROR) << "Failed to rewind minidump file for ADB breadcrumbs";
-            return false;
-        }
-        std::vector<uint8_t> adb_breadcrumbs =
-                annotation_extractor.ExtractAnnotationBytes(&reader, "adb_breadcrumbs");
-
         std::vector<std::vector<uint8_t>> all_breadcrumbs;
-        if (!grpc_breadcrumbs.empty()) all_breadcrumbs.push_back(std::move(grpc_breadcrumbs));
-        if (!adb_breadcrumbs.empty()) all_breadcrumbs.push_back(std::move(adb_breadcrumbs));
-
-        if (!reader.SeekSet(0)) {
-            LOG(ERROR) << "Failed to rewind minidump file for events breadcrumbs";
-            return false;
+        for (const auto& [key, label] : {std::pair{"grpc_breadcrumbs", "gRPC breadcrumbs"},
+                                         {"adb_breadcrumbs", "ADB breadcrumbs"},
+                                         {"events_breadcrumbs", "events breadcrumbs"}}) {
+            if (!reader.SeekSet(0)) {
+                LOG(ERROR) << "Failed to rewind minidump file '" << minidump_file << "' for "
+                           << label;
+                return false;
+            }
+            std::vector<uint8_t> bytes = annotation_extractor.ExtractAnnotationBytes(&reader, key);
+            if (!bytes.empty()) {
+                all_breadcrumbs.push_back(std::move(bytes));
+            }
         }
-        std::vector<uint8_t> events_breadcrumbs =
-                annotation_extractor.ExtractAnnotationBytes(&reader, "events_breadcrumbs");
-        if (!events_breadcrumbs.empty()) all_breadcrumbs.push_back(std::move(events_breadcrumbs));
 
         if (!reader.SeekSet(0)) {
             LOG(ERROR) << "Failed to rewind minidump file for looper registrations";
@@ -243,6 +236,22 @@ bool ProcessMinidump(const std::string& minidump_file, MinidumpProcessor& minidu
     return true;
 }
 
+bool ValidateMinidumpOptionFlag(std::string_view flag_name, std::string_view value,
+                                std::string_view default_value,
+                                std::initializer_list<std::string_view> allowed,
+                                std::string_view allowed_desc) {
+    if (std::find(allowed.begin(), allowed.end(), value) == allowed.end()) {
+        LOG(ERROR) << "Invalid --" << flag_name << " value '" << value << "': must be "
+                   << allowed_desc << ".";
+        return false;
+    }
+    if (absl::GetFlag(FLAGS_minidump).empty() && value != default_value) {
+        LOG(ERROR) << "--" << flag_name << " is only valid when used with --minidump <file|latest>.";
+        return false;
+    }
+    return true;
+}
+
 int main(int argc, char* argv[]) {
     absl::SetProgramUsageMessage(absl::StrFormat(
             "A tool to manage and analyze Android Emulator crash reports.\n\n"
@@ -270,34 +279,14 @@ int main(int argc, char* argv[]) {
             android::crashreport::CrashSystem::databaseDirectory()));
     absl::ParseCommandLine(argc, argv);
     absl::InitializeLog();
-    std::string format = absl::GetFlag(FLAGS_format);
-    if (format != "summary" && format != "stack" && format != "machine") {
-        LOG(ERROR) << "Invalid --format: " << format
-                   << ". Must be 'summary', 'stack', or 'machine'.";
-        return 1;
-    }
-    if (absl::GetFlag(FLAGS_minidump).empty() && format != "summary") {
-        LOG(ERROR) << "--format is only valid when used with --minidump.";
-        return 1;
-    }
-    std::string content = absl::GetFlag(FLAGS_content);
-    if (content != "stack" && content != "breadcrumbs" && content != "all") {
-        LOG(ERROR) << "Invalid --content: " << content
-                   << ". Must be 'stack', 'breadcrumbs', or 'all'.";
-        return 1;
-    }
-    if (absl::GetFlag(FLAGS_minidump).empty() && content != "all") {
-        LOG(ERROR) << "--content is only valid when used with --minidump.";
-        return 1;
-    }
-    std::string breadcrumb_format = absl::GetFlag(FLAGS_breadcrumb_format);
-    if (breadcrumb_format != "text" && breadcrumb_format != "mermaid") {
-        LOG(ERROR) << "Invalid --breadcrumb_format: " << breadcrumb_format
-                   << ". Must be 'text' or 'mermaid'.";
-        return 1;
-    }
-    if (absl::GetFlag(FLAGS_minidump).empty() && breadcrumb_format != "text") {
-        LOG(ERROR) << "--breadcrumb_format is only valid when used with --minidump.";
+    if (!ValidateMinidumpOptionFlag("format", absl::GetFlag(FLAGS_format), "summary",
+                                    {"summary", "stack", "machine"},
+                                    "'summary', 'stack', or 'machine'") ||
+        !ValidateMinidumpOptionFlag("content", absl::GetFlag(FLAGS_content), "all",
+                                    {"stack", "breadcrumbs", "all"},
+                                    "'stack', 'breadcrumbs', or 'all'") ||
+        !ValidateMinidumpOptionFlag("breadcrumb_format", absl::GetFlag(FLAGS_breadcrumb_format),
+                                    "text", {"text", "mermaid"}, "'text' or 'mermaid'")) {
         return 1;
     }
     bool standalone = absl::GetFlag(FLAGS_standalone);

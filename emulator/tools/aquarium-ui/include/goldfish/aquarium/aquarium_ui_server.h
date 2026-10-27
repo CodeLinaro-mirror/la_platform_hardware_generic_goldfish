@@ -13,15 +13,9 @@
 // limitations under the License.
 #pragma once
 
-#include <grpcpp/grpcpp.h>
-
 #include <filesystem>
-#include <memory>
 #include <string>
 #include <string_view>
-#include <utility>
-
-#include "absl/status/statusor.h"
 
 #include "goldfish/http/http_response.h"
 
@@ -37,9 +31,5 @@ std::filesystem::path LocateStaticDir(const std::string& custom_dir = "");
 // Serves a static file from base_dir or falls back to index.html for SPA routing.
 goldfish::http::HttpResponse ServeStaticFile(const std::filesystem::path& base_dir,
                                              std::string_view req_path);
-
-// Resolves upstream gRPC endpoint and creates an active gRPC channel.
-absl::StatusOr<std::pair<std::string, std::shared_ptr<grpc::Channel>>> ResolveGrpcTargetAndChannel(
-        const std::string& target, const std::string& token, const std::string& discovery_file);
 
 }  // namespace goldfish::aquarium

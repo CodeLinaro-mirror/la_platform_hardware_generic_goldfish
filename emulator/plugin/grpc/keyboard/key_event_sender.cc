@@ -249,6 +249,23 @@ class KeyEventSenderImpl : public IKeyEventSender {
     void send(const KeyboardEvent request) override { DispatchKeyboardEvent(request); }
 
   private:
+    void PostKeyEvent(QemuKeyEvent event) {
+        qemu_loop_->Post([event, kbd = keyboard_state_] { event.send(kbd); }).IgnoreError();
+    }
+
+    void PostAsciiEvents(unsigned short character, KeyboardEvent::KeyEventType event_type) {
+        if (event_type == KeyboardEvent::keydown || event_type == KeyboardEvent::keypress) {
+            for (const auto& event : ascii_to_qcode(character, /*down=*/true)) {
+                PostKeyEvent(event);
+            }
+        }
+        if (event_type == KeyboardEvent::keyup || event_type == KeyboardEvent::keypress) {
+            for (const auto& event : ascii_to_qcode(character, /*down=*/false)) {
+                PostKeyEvent(event);
+            }
+        }
+    }
+
     void SendKeyCode(int32_t code, const KeyboardEvent::KeyCodeType code_type,
                      const KeyboardEvent::KeyEventType event_type) {
         KeyCodeType type = static_cast<KeyCodeType>(code_type);
@@ -257,20 +274,10 @@ class KeyEventSenderImpl : public IKeyEventSender {
             LOG(QFATAL) << "Invalid QKeyCode - too big: " << qcode;
         }
         if (event_type == KeyboardEvent::keydown || event_type == KeyboardEvent::keypress) {
-            qemu_loop_
-                    ->Post([qcode, kbd = keyboard_state_] {
-                        QemuKeyEvent press_event{qcode, true};
-                        press_event.send(kbd);
-                    })
-                    .IgnoreError();
+            PostKeyEvent({qcode, /*down=*/true});
         }
         if (event_type == KeyboardEvent::keyup || event_type == KeyboardEvent::keypress) {
-            qemu_loop_
-                    ->Post([qcode, kbd = keyboard_state_] {
-                        QemuKeyEvent release_event{qcode, false};
-                        release_event.send(kbd);
-                    })
-                    .IgnoreError();
+            PostKeyEvent({qcode, /*down=*/false});
         }
     }
 
@@ -290,27 +297,7 @@ class KeyEventSenderImpl : public IKeyEventSender {
                                 << domkey.ToUtf8();
                         return;
                     }
-                    auto event_type = request.eventtype();
-                    if (event_type == KeyboardEvent::keydown ||
-                        event_type == KeyboardEvent::keypress) {
-                        for (auto keycode : ascii_to_qcode(character, true)) {
-                            qemu_loop_
-                                    ->Post([key = keycode, kbd = keyboard_state_] {
-                                        key.send(kbd);
-                                    })
-                                    .IgnoreError();
-                        }
-                    }
-                    if (event_type == KeyboardEvent::keyup ||
-                        event_type == KeyboardEvent::keypress) {
-                        for (auto keycode : ascii_to_qcode(character, false)) {
-                            qemu_loop_
-                                    ->Post([key = keycode, kbd = keyboard_state_] {
-                                        key.send(kbd);
-                                    })
-                                    .IgnoreError();
-                        }
-                    }
+                    PostAsciiEvents(character, request.eventtype());
                 } else {
                     // Nope we have to send the domcode..
                     SendKeyCode(dom_to_evdev(code), KeyboardEvent::Evdev, request.eventtype());
@@ -368,17 +355,7 @@ class KeyEventSenderImpl : public IKeyEventSender {
                     LOG(ERROR) << "The utf-8 char: " << std::string_view(start, len)
                                << " will not be translated.";
                 }
-                auto down = ascii_to_qcode(*start, true);
-                auto up = ascii_to_qcode(*start, false);
-
-                for (auto qcode : down) {
-                    qemu_loop_->Post([qcode, kbd = keyboard_state_] { qcode.send(kbd); })
-                            .IgnoreError();
-                }
-                for (auto qcode : up) {
-                    qemu_loop_->Post([qcode, kbd = keyboard_state_] { qcode.send(kbd); })
-                            .IgnoreError();
-                }
+                PostAsciiEvents(*start, KeyboardEvent::keypress);
                 start = end;
             }
         }

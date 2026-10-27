@@ -149,8 +149,6 @@ class System {
     // Retrieve the value of a given environment variable.
     // Equivalent to getenv() but returns a std::string instance.
     // If the variable is not defined, return an empty string.
-    // NOTE: On Windows, this uses _wgetenv() and returns the corresponding
-    // UTF-8 text string.
     virtual std::string EnvGet(std::string_view varname) const = 0;
 
     // Set the value of a given environment variable.
@@ -232,6 +230,7 @@ class System {
     // regardless of being TestSystem.
     static void SetEnvironmentVariable(std::string_view varname, std::string_view varvalue);
     static std::string GetEnvironmentVariable(std::string_view varname);
+    static bool IsUtf8CodePage();
     static WallDuration GetSystemTimeUs();
 
     // Return the path of a temporary directory appropriate for the system.

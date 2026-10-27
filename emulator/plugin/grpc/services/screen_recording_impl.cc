@@ -136,6 +136,23 @@ Status ScreenRecordingServiceImpl::StartRecording(ServerContext* context,
     struct FrameRepeatState {
         ::goldfish::display::FrameId last_frame_id = 0;
         std::vector<uint8_t> last_encoded;
+
+        void CopyLastOrClear(uint8_t* pixels, size_t dst_bytes) const {
+            if (last_encoded.size() == dst_bytes) {
+                std::memcpy(pixels, last_encoded.data(), dst_bytes);
+            } else {
+                std::memset(pixels, 0, dst_bytes);
+            }
+        }
+
+        void RecordFrame(::goldfish::display::FrameId frame_id, const uint8_t* pixels,
+                         size_t dst_bytes, int frame_index) {
+            last_frame_id = frame_id;
+            last_encoded.assign(pixels, pixels + dst_bytes);
+            TRACE_EVENT_INSTANT("display", "ScreenRecording::FrameGenerated",
+                                perfetto::Flow::ProcessScoped(frame_id), "seq", frame_id,
+                                "frame_index", frame_index);
+        }
     };
     auto repeat_state = std::make_shared<FrameRepeatState>();
 
@@ -149,11 +166,7 @@ Status ScreenRecordingServiceImpl::StartRecording(ServerContext* context,
         const size_t dst_bytes = static_cast<size_t>(w) * static_cast<size_t>(h) * 3;
         auto latest = display->AcquireLatestFrame();
         if (!latest.frame) {
-            if (repeat_state->last_encoded.size() == dst_bytes) {
-                std::memcpy(pixels, repeat_state->last_encoded.data(), dst_bytes);
-            } else {
-                std::memset(pixels, 0, dst_bytes);
-            }
+            repeat_state->CopyLastOrClear(pixels, dst_bytes);
             return;
         }
 
@@ -178,15 +191,9 @@ Status ScreenRecordingServiceImpl::StartRecording(ServerContext* context,
                         },
             };
             if (latest.frame->ReadInto(req, target).ok()) {
-                repeat_state->last_frame_id = frame_id;
-                repeat_state->last_encoded.assign(pixels, pixels + dst_bytes);
-                TRACE_EVENT_INSTANT("display", "ScreenRecording::FrameGenerated",
-                                    perfetto::Flow::ProcessScoped(frame_id), "seq", frame_id,
-                                    "frame_index", frameIndex);
-            } else if (repeat_state->last_encoded.size() == dst_bytes) {
-                std::memcpy(pixels, repeat_state->last_encoded.data(), dst_bytes);
+                repeat_state->RecordFrame(frame_id, pixels, dst_bytes, frameIndex);
             } else {
-                std::memset(pixels, 0, dst_bytes);
+                repeat_state->CopyLastOrClear(pixels, dst_bytes);
             }
             return;
         }
@@ -217,13 +224,9 @@ Status ScreenRecordingServiceImpl::StartRecording(ServerContext* context,
                                 tmp.data() + row * static_cast<size_t>(fit_w) * 3,
                                 static_cast<size_t>(fit_w) * 3);
                 }
-                repeat_state->last_frame_id = frame_id;
-                repeat_state->last_encoded.assign(pixels, pixels + dst_bytes);
-                TRACE_EVENT_INSTANT("display", "ScreenRecording::FrameGenerated",
-                                    perfetto::Flow::ProcessScoped(frame_id), "seq", frame_id,
-                                    "frame_index", frameIndex);
-            } else if (repeat_state->last_encoded.size() == dst_bytes) {
-                std::memcpy(pixels, repeat_state->last_encoded.data(), dst_bytes);
+                repeat_state->RecordFrame(frame_id, pixels, dst_bytes, frameIndex);
+            } else {
+                repeat_state->CopyLastOrClear(pixels, dst_bytes);
             }
         }
     };

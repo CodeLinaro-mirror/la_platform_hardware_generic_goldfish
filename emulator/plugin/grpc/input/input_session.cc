@@ -28,6 +28,7 @@ namespace {
 
 using ::android::emulation::control::KeyboardEvent;
 using ::android::emulation::control::kMtsPointerUp;
+using ::android::emulation::control::kMtsPressureMax;
 using ::android::emulation::v2::AxisType;
 using ::android::emulation::v2::ButtonMask;
 using ::android::emulation::v2::KeyAction;
@@ -57,13 +58,15 @@ constexpr uint32_t ToEvdevValue(float value) {
 }
 
 /**
- * @brief Normalizes a normalized float coordinate [0.0, 1.0] to Linux evdev ABS range [0, 0x7FFF].
+ * @brief Normalizes a normalized float value [0.0, 1.0] to Linux evdev ABS range [0, range_max].
+ *
+ * @param range_max The maximum value the guest device advertises for the axis.
  */
-constexpr uint32_t NormalizeToEvAbs(float value) {
+constexpr uint32_t NormalizeToEvAbs(float value, uint32_t range_max = kEvAbsMax) {
     if (std::isnan(value)) {
         return 0;
     }
-    return static_cast<uint32_t>(std::clamp(value, 0.0F, 1.0F) * kEvAbsMax);
+    return static_cast<uint32_t>(std::clamp(value, 0.0F, 1.0F) * static_cast<float>(range_max));
 }
 
 constexpr float kRadToDeg = 180.0F / 3.14159265358979323846F;
@@ -166,8 +169,7 @@ constexpr ButtonMapping kButtonMappings[] = {
  *
  * Compares current combined button bitmask with last_button_mask using XOR to identify transitions.
  */
-void AppendButtonEvents(uint32_t current_buttons, uint32_t& last_button_mask,
-                        std::vector<EvDevEvent>& events) {
+void AppendButtonEvents(uint32_t current_buttons, uint32_t& last_button_mask, EvDevEvents& events) {
     const uint32_t diff_buttons = current_buttons ^ last_button_mask;
     if (diff_buttons == 0) {
         return;
@@ -182,7 +184,7 @@ void AppendButtonEvents(uint32_t current_buttons, uint32_t& last_button_mask,
 }
 
 void AppendButtonEvents(const PointerEvent& pointer, uint32_t& last_button_mask,
-                        std::vector<EvDevEvent>& events) {
+                        EvDevEvents& events) {
     int32_t current_buttons = 0;
     for (const auto& p : pointer.pointers()) {
         current_buttons |= p.button_mask();
@@ -197,7 +199,7 @@ void AppendButtonEvents(const PointerEvent& pointer, uint32_t& last_button_mask,
  *   scroll_y = -3.0 (scroll wheel down)
  *   -> Emits {EV_REL, REL_WHEEL, -3}
  */
-void AppendScrollEvents(const PointerEvent& pointer, std::vector<EvDevEvent>& events) {
+void AppendScrollEvents(const PointerEvent& pointer, EvDevEvents& events) {
     if (pointer.has_scroll_x() && pointer.scroll_x() != 0.0F) {
         events.push_back({EV_REL, REL_HWHEEL, ToEvdevValue(pointer.scroll_x())});
     }
@@ -216,7 +218,7 @@ void AppendScrollEvents(const PointerEvent& pointer, std::vector<EvDevEvent>& ev
  *   delta_x = 10.0, delta_y = -4.0
  *   -> Emits {EV_REL, REL_X, 10}, {EV_REL, REL_Y, -4}
  */
-void AppendRelativeMotionEvents(const PointerEvent& pointer, std::vector<EvDevEvent>& events) {
+void AppendRelativeMotionEvents(const PointerEvent& pointer, EvDevEvents& events) {
     for (const auto& p : pointer.pointers()) {
         if (pointer.action() == PointerAction::POINTER_ACTION_RELATIVE_MOVE ||
             p.delta_x() != 0.0F || p.delta_y() != 0.0F) {
@@ -259,8 +261,7 @@ bool IsPointerUp(PointerAction action, const PointerEvent::Pointer& p) {
 /**
  * @brief Appends Multi-Touch Protocol B pointer release / lift events (kMtsPointerUp).
  */
-void AppendPointerUp(int32_t pointer_id, SlotRegistry& slot_registry,
-                     std::vector<EvDevEvent>& events) {
+void AppendPointerUp(int32_t pointer_id, SlotRegistry& slot_registry, EvDevEvents& events) {
     if (!slot_registry.IsIdentifierRegistered(pointer_id)) {
         return;
     }
@@ -276,7 +277,7 @@ void AppendPointerUp(int32_t pointer_id, SlotRegistry& slot_registry,
  * @brief Appends Multi-Touch Protocol B pointer down, move, or hover tracking events.
  */
 void AppendPointerDownOrMove(const PointerEvent::Pointer& p, PointerAction action,
-                             SlotRegistry& slot_registry, std::vector<EvDevEvent>& events) {
+                             SlotRegistry& slot_registry, EvDevEvents& events) {
     if (action == PointerAction::POINTER_ACTION_DOWN) {
         slot_registry.ReleaseSlot(p.pointer_id());
     }
@@ -298,7 +299,7 @@ void AppendPointerDownOrMove(const PointerEvent::Pointer& p, PointerAction actio
                            action == PointerAction::POINTER_ACTION_HOVER_ENTER);
     const float pressure =
             is_hover ? 0.0F : ((p.has_pressure() && p.pressure() > 0.0F) ? p.pressure() : 1.0F);
-    events.push_back({EV_ABS, ABS_MT_PRESSURE, NormalizeToEvAbs(pressure)});
+    events.push_back({EV_ABS, ABS_MT_PRESSURE, NormalizeToEvAbs(pressure, kMtsPressureMax)});
 
     const uint32_t touch_major = p.size() > 0.0F ? NormalizeToEvAbs(p.size()) : kDefaultTouchMajor;
     events.push_back({EV_ABS, ABS_MT_TOUCH_MAJOR, touch_major});
@@ -333,7 +334,7 @@ void AppendPointerDownOrMove(const PointerEvent::Pointer& p, PointerAction actio
  * Bypassed entirely when pointer.action() == POINTER_ACTION_RELATIVE_MOVE.
  */
 void AppendTouchTrackingEvents(const PointerEvent& pointer, SlotRegistry& slot_registry,
-                               std::vector<EvDevEvent>& events) {
+                               EvDevEvents& events) {
     if (pointer.action() == PointerAction::POINTER_ACTION_RELATIVE_MOVE) {
         return;
     }
@@ -381,8 +382,7 @@ InputSession& InputSession::operator=(InputSession&& other) noexcept {
     return *this;
 }
 
-absl::Status InputSession::SendEventsToDisplay(uint32_t display_id,
-                                               absl::Span<const EvDevEvent> events) {
+absl::Status InputSession::SendEventsToDisplay(uint32_t display_id, EvDevEvents events) {
     if (events.empty()) {
         return absl::OkStatus();
     }
@@ -403,9 +403,8 @@ absl::Status InputSession::SendEventsToDisplay(uint32_t display_id,
     for (const auto& ev : events) {
         VLOG(2) << "  EvDevEvent: type=" << ev.type << ", code=" << ev.code
                 << ", value=" << ev.value;
-        display->SendEvDevEvent(ev.type, ev.code, ev.value);
     }
-    display->SendEvDevEvent(EV_SYN, SYN_REPORT, 0);
+    display->SendEvDevReport(std::move(events));
     return absl::OkStatus();
 }
 
@@ -440,7 +439,7 @@ absl::Status InputSession::HandlePointerEvent(const PointerEvent& pointer) {
             << ", pointers=" << pointer.pointers_size() << " -> generated " << events.size()
             << " evdev events";
 
-    return SendEventsToDisplay(pointer.display_id(), events);
+    return SendEventsToDisplay(pointer.display_id(), std::move(events));
 }
 
 absl::Status InputSession::HandleKeyEvent(const KeyEvent& key) {
@@ -504,8 +503,7 @@ absl::Status InputSession::HandleAxisEvent(const AxisEvent& axis) {
     if (axis.axis() == AxisType::AXIS_TYPE_ROTARY_ENCODER) {
         const int32_t ticks = static_cast<int32_t>(std::round(axis.value()));
         if (ticks != 0) {
-            const EvDevEvent ev{EV_REL, REL_WHEEL, static_cast<uint32_t>(ticks)};
-            return SendEventsToDisplay(0, {&ev, 1});
+            return SendEventsToDisplay(0, {{EV_REL, REL_WHEEL, static_cast<uint32_t>(ticks)}});
         }
     }
     return absl::OkStatus();
@@ -516,7 +514,8 @@ void InputSession::Cleanup() {
         return;
     }
 
-    auto release_events = slot_registry_.ReleaseAllSlots();
+    auto released_slots = slot_registry_.ReleaseAllSlots();
+    EvDevEvents release_events(released_slots.begin(), released_slots.end());
     AppendButtonEvents(0, last_button_mask_, release_events);
 
     if (!release_events.empty()) {
@@ -527,10 +526,9 @@ void InputSession::Cleanup() {
     touched_displays_.clear();
 }
 
-std::vector<EvDevEvent> InputSession::ToEvDevEvents(const PointerEvent& pointer,
-                                                    SlotRegistry& slot_registry,
-                                                    uint32_t& last_button_mask) {
-    std::vector<EvDevEvent> events;
+EvDevEvents InputSession::ToEvDevEvents(const PointerEvent& pointer, SlotRegistry& slot_registry,
+                                        uint32_t& last_button_mask) {
+    EvDevEvents events;
     events.reserve(pointer.pointers_size() * 8 + 8);
 
     AppendButtonEvents(pointer, last_button_mask, events);

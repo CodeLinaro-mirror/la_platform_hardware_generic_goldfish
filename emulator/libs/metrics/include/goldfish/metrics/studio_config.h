@@ -40,6 +40,36 @@ enum class OptInState {
     kOptedOut,
 };
 
+/**
+ * The set of Android Studio update channels, ordered from most to least stable.
+ */
+enum class UpdateChannel {
+    kStable,
+    kBeta,
+    kDev,
+    kCanary,
+    kUnknown,
+};
+
+/**
+ * Returns the path to the latest Android Studio configuration directory, or an
+ * empty path if none is found. Exposed for testing.
+ */
+fs::path FindLatestAndroidStudioDir();
+
+/**
+ * Returns the user's selected update channel from the given Android Studio
+ * configuration directory (options/updates.xml), or UpdateChannel::kUnknown if
+ * not found. Exposed for testing.
+ */
+UpdateChannel GetUpdateChannel(const fs::path& studio_dir);
+
+/**
+ * Returns the user's selected update channel from the latest Android Studio
+ * configuration (options/updates.xml), or UpdateChannel::kUnknown if not found.
+ */
+UpdateChannel GetUpdateChannel();
+
 OptInState GetUserMetricsOptIn(const fs::path& user_directory);
 
 std::string GetMetricsUserId(const fs::path& user_directory);

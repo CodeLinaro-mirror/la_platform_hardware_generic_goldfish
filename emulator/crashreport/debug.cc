@@ -17,10 +17,10 @@
 #ifdef _WIN32
 #include <windows.h>
 #elif defined(__linux__)
-#include <fstream>
-#include <sstream>
 #include <string>
 #include <string_view>
+
+#include "goldfish/file/file.h"
 #elif defined(__APPLE__)
 #include <sys/sysctl.h>
 #include <sys/types.h>
@@ -31,27 +31,12 @@
 
 namespace android::base {
 
-namespace {
-#ifdef __linux__
-std::string ReadFile(const std::filesystem::path& path) {
-    const std::ifstream is(path);
-
-    if (!is) {
-        return {};
-    }
-
-    std::ostringstream ss;
-    ss << is.rdbuf();
-    return ss.str();
-}
-#endif
-}  // namespace
-
 bool IsDebuggerAttached() {
 #ifdef _WIN32
     return ::IsDebuggerPresent() != 0;
 #elif defined(__linux__)
-    const std::string proc_status = ReadFile("/proc/self/status");
+    const std::string proc_status =
+            file::read_whole_file("/proc/self/status").value_or(std::string());
 
     static constexpr std::string_view kTracerPidPrefix = "TracerPid:";
     const auto tracer_pid = proc_status.find(kTracerPidPrefix.data(), 0, kTracerPidPrefix.size());

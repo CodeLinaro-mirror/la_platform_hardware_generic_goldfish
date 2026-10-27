@@ -29,6 +29,17 @@ cc_library(
     deps = [
         ":emulator_config",
         "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/strings",
+    ],
+)
+
+cc_test(
+    name = "device_test",
+    size = "small",
+    srcs = ["device_test.cc"],
+    deps = [
+        ":device",
+        "//emulator/libs/test:googletest_main",
     ],
 )
 
@@ -147,7 +158,10 @@ cc_test(
     deps = [
         ":avd_info_device",
         ":device",
+        ":emulator_config",
         ":fake_emulator",
+        ":snapshot_device",
+        "//emulator/libs/metrics:configure_metrics_writer",
         "//emulator/libs/status_macros:status_matcher_macros",
         "//emulator/libs/system:test-headers",
         "//emulator/libs/test:googletest_main",
@@ -212,6 +226,13 @@ cc_test(
 )
 
 cc_library(
+    name = "vulkan_gpu_device_info",
+    hdrs = ["vulkan_gpu_device_info.h"],
+    visibility = ["//visibility:public"],
+    deps = ["@vulkan-headers//:vulkan_headers"],
+)
+
+cc_library(
     name = "gpu_device",
     srcs = ["gpu_device.cc"],
     hdrs = ["gpu_device.h"],
@@ -219,24 +240,37 @@ cc_library(
     deps = [
         ":device",
         ":snapshot_device",
+        ":vulkan_gpu_device_info",
+        "//emulator/libs/file",
+        "//emulator/libs/gvk",
         "//emulator/libs/parsing:resizable_display_config",
+        "//emulator/libs/snapshot:snapshot_store",
         "//emulator/libs/system",
+        "@abseil-cpp//absl/base:no_destructor",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/strings:str_format",
+        "@vulkan-headers//:vulkan_headers",
     ],
 )
 
 cc_test(
     name = "gpu_device_test",
+    size = "small",
     srcs = ["gpu_device_test.cc"],
     deps = [
         ":device",
         ":fake_emulator",
         ":gpu_device",
         ":snapshot_device",
+        "//emulator/libs/file",
+        "//emulator/libs/gvk",
         "//emulator/libs/status_macros:status_matcher_macros",
         "//emulator/libs/system:test-headers",
         "//emulator/libs/test:googletest_main",
+        "@abseil-cpp//absl/strings",
     ],
 )
 
@@ -295,11 +329,16 @@ cc_library(
         ":device",
         ":disk_drive",
         ":gpu_device",
+        ":snapshot_device",
+        "//emulator/launcher/launch_qemu/proto:verified_boot_config_cc_proto",
         "//emulator/libs/adbkey",
+        "//emulator/libs/file",
         "//emulator/libs/parsing:resizable_display_config",
         "//emulator/libs/system",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
+        "@boringssl//:crypto",
+        "@protobuf",
     ],
 )
 
@@ -312,9 +351,14 @@ cc_test(
         ":fake_emulator",
         ":gpu_device",
         ":initrd_device",
+        ":snapshot_device",
+        "//emulator/libs/file",
         "//emulator/libs/status_macros:status_matcher_macros",
         "//emulator/libs/system:test-headers",
         "//emulator/libs/test:googletest_main",
+        "@abseil-cpp//absl/base:log_severity",
+        "@abseil-cpp//absl/log:log_sink",
+        "@abseil-cpp//absl/log:log_sink_registry",
         "@abseil-cpp//absl/status:status_matchers",
         "@abseil-cpp//absl/strings",
     ],
@@ -518,6 +562,8 @@ cc_test(
     deps = [
         ":disk_drive",
         ":fake_emulator",
+        "//emulator/libs/file",
+        "//emulator/libs/fsimage:qcow2",
         "//emulator/libs/status_macros:status_matcher_macros",
         "//emulator/libs/system:test-headers",
         "//emulator/libs/test:googletest_main",
@@ -563,10 +609,12 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":device",
-        "//emulator/libs/file",
         "//emulator/libs/metrics:snapshot_metrics",
+        "//emulator/libs/snapshot:snapshot_store",
         "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/strings",
+        "@gfxstream//host:gfxstream_backend_headers",
     ],
 )
 

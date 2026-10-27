@@ -16,6 +16,8 @@
 #include <memory>
 #include <vector>
 
+#include "absl/types/span.h"
+
 #include "android/emulation/control/ev_dev_event.h"
 #include "emulator_controller.grpc.pb.h"
 #include "goldfish/display/display.h"
@@ -24,7 +26,7 @@
 namespace android::emulation::control {
 namespace internal {
 
-using EvDevEvents = std::vector<EvDevEvent>;
+using ::android::emulation::control::EvDevEvents;
 
 /**
  * @brief Internal representation of a protobuf Touch.
@@ -51,6 +53,25 @@ struct Touch {
      * @return A vector of EvDevEvents representing the touch.
      */
     virtual EvDevEvents ToEvDevEvents(uint32_t w, uint32_t h, SlotRegistry* registry) const;
+
+  protected:
+    /**
+     * @brief Converts the Touch data to EvDevEvents for its multi-touch slot.
+     *
+     * The slot is selected before anything else is written, so the tracking ID,
+     * the slot properties and the touch values all apply to this touch's slot.
+     *
+     * @param w The width of the display.
+     * @param h The height of the display.
+     * @param registry The SlotRegistry to use for managing touch slots.
+     * @param slot_properties Additional per-slot ABS_MT_* events (e.g.
+     *        ABS_MT_TOOL_TYPE), emitted right after the slot is selected and
+     *        its tracking ID is assigned.
+     * @return A vector of EvDevEvents representing the touch, empty if no slot
+     *         is available or the touch releases an unregistered identifier.
+     */
+    EvDevEvents ToSlotEvDevEvents(uint32_t w, uint32_t h, SlotRegistry* registry,
+                                  absl::Span<const EvDevEvent> slot_properties) const;
 };
 
 /**

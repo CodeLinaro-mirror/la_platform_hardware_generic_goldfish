@@ -12,7 +12,10 @@
 
 #include "goldfish/archive/collections/string.h"
 
+#include "absl/strings/str_cat.h"
+
 #include "android/status/status_macros.h"
+#include "goldfish/archive/collections/span.h"
 
 namespace goldfish::archive {
 
@@ -24,6 +27,11 @@ IWriter& operator<<(IWriter& w, const std::string_view x) {
 
 absl::Status ReadValue(archive::IReader& r, std::string& dst) {
     ASSIGN_OR_RETURN(const size_t new_size, ReadOneValue<size_t>(r));
+    if (new_size > kMaxArchiveAllocationBytes) {
+        return absl::InvalidArgumentError(
+                absl::StrCat("Archived string size (", new_size, " bytes) exceeds maximum limit (",
+                             kMaxArchiveAllocationBytes, " bytes)"));
+    }
 
     std::string result(new_size, '?');
     if (new_size > 0) {

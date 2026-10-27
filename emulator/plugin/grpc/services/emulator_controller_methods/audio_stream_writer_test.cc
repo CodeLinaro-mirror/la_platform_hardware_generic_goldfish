@@ -19,6 +19,7 @@
 #include <chrono>
 #include <cstring>
 #include <functional>
+#include <limits>
 #include <memory>
 #include <vector>
 
@@ -106,7 +107,8 @@ TEST_F(AudioStreamWriterTest, StreamsAudioPacketsToClient) {
 }
 
 TEST_F(AudioStreamWriterTest, DefaultFormatWhenUnspecified) {
-    AudioFormat request;  // Empty request, samplingRate defaults to 44100Hz, channels to Mono (0)
+    AudioFormat request;
+    request.set_samplingrate(48000);
 
     absl::Notification stream_started;
     mService->set_on_stream_started([&stream_started]() { stream_started.Notify(); });
@@ -121,7 +123,7 @@ TEST_F(AudioStreamWriterTest, DefaultFormatWhenUnspecified) {
 
     AudioPacket packet;
     ASSERT_TRUE(reader->Read(&packet));
-    EXPECT_EQ(packet.format().samplingrate(), 44100);
+    EXPECT_EQ(packet.format().samplingrate(), 48000);
     EXPECT_EQ(packet.format().channels(), AudioFormat::Mono);
     EXPECT_EQ(packet.format().format(), AudioFormat::AUD_FMT_S16);
 
@@ -136,6 +138,7 @@ TEST_F(AudioStreamWriterTest, ReturnsErrorIfCaptureStartFails) {
     test_set_fail_add_capture(1);
 
     AudioFormat request;
+    request.set_samplingrate(48000);
     auto context = getContextWithTimeout(std::chrono::seconds(5));
     auto reader = mStub->streamAudio(context.get(), request);
     ASSERT_NE(reader, nullptr);
@@ -147,6 +150,25 @@ TEST_F(AudioStreamWriterTest, ReturnsErrorIfCaptureStartFails) {
     EXPECT_EQ(status.error_code(), grpc::StatusCode::INTERNAL);
     EXPECT_NE(status.error_message().find("Failed to start guest audio capture"),
               std::string::npos);
+}
+
+TEST_F(AudioStreamWriterTest, ReturnsErrorForInvalidSamplingRate) {
+    for (uint64_t invalid_rate :
+         {uint64_t{0}, static_cast<uint64_t>(std::numeric_limits<uint32_t>::max()) + 1}) {
+        AudioFormat request;
+        request.set_samplingrate(invalid_rate);
+
+        auto context = getContextWithTimeout(std::chrono::seconds(5));
+        auto reader = mStub->streamAudio(context.get(), request);
+        ASSERT_NE(reader, nullptr);
+
+        AudioPacket packet;
+        EXPECT_FALSE(reader->Read(&packet));
+
+        grpc::Status status = reader->Finish();
+        EXPECT_EQ(status.error_code(), grpc::StatusCode::INVALID_ARGUMENT);
+        EXPECT_NE(status.error_message().find("Invalid samplingRate value"), std::string::npos);
+    }
 }
 
 TEST_F(AudioStreamWriterTest, ReturnsErrorForInvalidChannels) {
@@ -169,6 +191,7 @@ TEST_F(AudioStreamWriterTest, ReturnsErrorForInvalidChannels) {
 
 TEST_F(AudioStreamWriterTest, DropsIncomingPacketsWhenQueueIsFull) {
     AudioFormat request;
+    request.set_samplingrate(48000);
 
     absl::Notification stream_started;
     mService->set_on_stream_started([&stream_started]() { stream_started.Notify(); });
@@ -201,6 +224,7 @@ TEST_F(AudioStreamWriterTest, DropsIncomingPacketsWhenQueueIsFull) {
 
 TEST_F(AudioStreamWriterTest, DropsPacketsContinuouslyWithoutDisconnecting) {
     AudioFormat request;
+    request.set_samplingrate(48000);
 
     absl::Notification stream_started;
     mService->set_on_stream_started([&stream_started]() { stream_started.Notify(); });

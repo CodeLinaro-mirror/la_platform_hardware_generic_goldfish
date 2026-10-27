@@ -74,7 +74,6 @@ cc_library(
     name = "system",
     srcs = ["system.cc"],
     hdrs = [
-        "include/android/base/c_str_wrapper.h",
         "include/android/base/cpu_time.h",
         "include/android/base/memory.h",
         "include/android/base/no_sigalarm.h",
@@ -99,6 +98,7 @@ cc_library(
         "@abseil-cpp//absl/algorithm:container",
         "@abseil-cpp//absl/base",
         "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings:str_format",
         "@bazel_tools//tools/cpp/runfiles",
@@ -118,6 +118,7 @@ cc_library(
 
 cc_library(
     name = "bazel_info",
+    testonly = True,
     srcs = ["bazel_info.cc"],
     hdrs = ["include/android/base/bazel_info.h"],
     implementation_deps = [":system"],
@@ -201,6 +202,7 @@ cc_test(
     deps = [
         ":bazel_info",
         ":test-headers",
+        "//emulator/libs/file",
         "//emulator/libs/test:googletest_main",
         "@abseil-cpp//absl/status:status_matchers",
     ],

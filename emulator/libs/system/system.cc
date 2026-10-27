@@ -29,6 +29,7 @@
 #include <vector>
 
 #include "absl/base/no_destructor.h"
+#include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/match.h"
@@ -36,7 +37,6 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/strip.h"
 
-#include "android/base/c_str_wrapper.h"
 #include "android/process/command.h"
 #include "goldfish/file/storage_capacity.h"
 
@@ -626,14 +626,11 @@ class HostSystem : public System {
     }
 
     bool EnvTest(std::string_view varname) const override {
-#ifdef _WIN32
-        Win32UnicodeString varname_unicode(varname.data());
-        const wchar_t* value = _wgetenv(varname_unicode.c_str());
-        return value && value[0] != L'\0';
-#else
-        const char* value = getenv(c_str(varname));
+        if (varname.empty()) {
+            return false;
+        }
+        const char* value = getenv(std::string(varname).c_str());
         return value && value[0] != '\0';
-#endif
     }
 
     std::vector<std::string> EnvGetAll() const override {
@@ -974,35 +971,42 @@ System::FileSize System::GetFilePageSizeForPath(fs::path path) {
 
 // static
 void System::SetEnvironmentVariable(std::string_view varname, std::string_view varvalue) {
+    if (varname.empty()) {
+        return;
+    }
 #ifdef _WIN32
-    std::string envStr = absl::StrFormat("%s=%s", varname.data(), varvalue.data());
-    // Note: this leaks the result of release().
-    _wputenv(Win32UnicodeString(envStr).release());
+    // Note: Working with Unicode strings via narrow CRT functions (_putenv_s
+    // and getenv) on Windows requires the process active code page to be set to
+    // UTF-8 in the application manifest (<activeCodePage>UTF-8</activeCodePage>)
+    // and Windows 10 version 1903 (build 10.0.18362) or later.
+    _putenv_s(std::string(varname).c_str(), std::string(varvalue).c_str());
 #else
     if (varvalue.empty()) {
-        unsetenv(c_str(varname));
+        unsetenv(std::string(varname).c_str());
     } else {
-        setenv(c_str(varname), c_str(varvalue), 1);
+        setenv(std::string(varname).c_str(), std::string(varvalue).c_str(), 1);
     }
 #endif
 }
 
 // static
 std::string System::GetEnvironmentVariable(std::string_view varname) {
-#ifdef _WIN32
-    Win32UnicodeString varname_unicode(varname.data());
-    const wchar_t* value = _wgetenv(varname_unicode.c_str());
-    if (!value) {
-        return std::string();
-    } else {
-        return Win32UnicodeString::convertToUtf8(value);
+    if (varname.empty()) {
+        return "";
     }
-#else
-    const char* value = getenv(c_str(varname));
+    const char* value = getenv(std::string(varname).c_str());
     if (!value) {
         value = "";
     }
     return std::string(value);
+}
+
+// static
+bool System::IsUtf8CodePage() {
+#ifdef _WIN32
+    return ::GetACP() == CP_UTF8;
+#else
+    return true;
 #endif
 }
 
@@ -1033,6 +1037,18 @@ void cpuUsageCurrentThread_macImpl(uint64_t* user, uint64_t* sys);
 void System::DisableAppNap() {
 #ifdef __APPLE__
     disableAppNap_macImpl();
+#elif defined(_WIN32)
+    PROCESS_POWER_THROTTLING_STATE power_throttling = {};
+    power_throttling.Version = PROCESS_POWER_THROTTLING_CURRENT_VERSION;
+    power_throttling.ControlMask = PROCESS_POWER_THROTTLING_EXECUTION_SPEED;
+    power_throttling.StateMask = 0;
+
+    if (!SetProcessInformation(GetCurrentProcess(), ProcessPowerThrottling, &power_throttling,
+                               sizeof(power_throttling))) {
+        const DWORD err = GetLastError();
+        LOG(WARNING) << "Failed to disable power throttling: " << Win32Utils::getErrorString(err)
+                     << " (error " << err << ")";
+    }
 #endif
 }
 

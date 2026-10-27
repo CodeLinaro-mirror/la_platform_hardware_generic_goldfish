@@ -16,6 +16,7 @@
 #pragma once
 
 #include <filesystem>
+#include <optional>
 
 #include <json/json.h>
 

@@ -33,6 +33,7 @@
 
 using goldfish::async::EventLoop;
 using goldfish::display::Dimensions;
+using goldfish::display::EvDevEvents;
 using goldfish::display::FrameEvent;
 using goldfish::display::FrameId;
 using goldfish::display::IDisplay;
@@ -69,6 +70,7 @@ class TestDisplay : public IDisplay {
                              MultiTouchType /*type*/) override {}
     void SendMouseEvent(int /*x*/, int /*y*/, int /*button_mask*/) override {}
     void SendEvDevEvent(uint16_t /*type*/, uint16_t /*code*/, uint32_t /*value*/) override {}
+    void SendEvDevReport(EvDevEvents /*events*/) override {}
 
     void UpdateDimensions(uint32_t w, uint32_t h) { SetDimensions(w, h); }
 

@@ -229,7 +229,7 @@ TEST_F(VsockSnapshotFlagsTest, HighBitSendOpMaskDoesNotCorruptSnapshotStreamViaV
 
     vq_full_ = false;
     packets_.clear();
-    (void)goldfish_virtio_vsock_impl_load(impl_, &snapshot);
+    ASSERT_EQ(goldfish_virtio_vsock_impl_load(impl_, &snapshot), 0);
 
     ASSERT_EQ(SnapshottablePlug::RestoredPlugs().size(), 1U);
     ASSERT_TRUE(SnapshottablePlug::RestoredPlugs().count(101));
@@ -258,6 +258,43 @@ TEST_F(VsockSnapshotFlagsTest, HighBitSendOpMaskDoesNotCorruptSnapshotStreamViaV
         }
     }
     EXPECT_EQ(transmitted, kPayload);
+}
+
+TEST_F(VsockSnapshotFlagsTest, MultipleStreamsSavedAndRestored) {
+    auto plug1 = std::make_shared<SnapshottablePlug>(/*tag=*/201);
+    SocketPtr sock1 = Connect(kGuestPort, plug1);
+    (void)CompleteHandshake(kGuestPort, /*guest_buf_alloc=*/65536);
+    plug1->SetSocket(std::move(sock1));
+
+    auto plug2 = std::make_shared<SnapshottablePlug>(/*tag=*/202);
+    SocketPtr sock2 = Connect(kGuestPort + 1, plug2);
+    (void)CompleteHandshake(kGuestPort + 1, /*guest_buf_alloc=*/65536);
+    plug2->SetSocket(std::move(sock2));
+
+    QEMUFile snapshot;
+    ASSERT_EQ(goldfish_virtio_vsock_impl_save(impl_, &snapshot), 0);
+
+    ASSERT_EQ(goldfish_virtio_vsock_impl_load(impl_, &snapshot), 0);
+    EXPECT_EQ(SnapshottablePlug::RestoredPlugs().size(), 2U);
+    EXPECT_TRUE(SnapshottablePlug::RestoredPlugs().count(201));
+    EXPECT_TRUE(SnapshottablePlug::RestoredPlugs().count(202));
+}
+
+TEST_F(VsockSnapshotFlagsTest, CorruptedSnapshotRejectedGracefully) {
+    auto plug = std::make_shared<SnapshottablePlug>(/*tag=*/301);
+    SocketPtr sock = Connect(kGuestPort, plug);
+    (void)CompleteHandshake(kGuestPort, /*guest_buf_alloc=*/65536);
+    plug->SetSocket(std::move(sock));
+
+    QEMUFile valid_snapshot;
+    ASSERT_EQ(goldfish_virtio_vsock_impl_save(impl_, &valid_snapshot), 0);
+
+    // Truncated at every possible prefix length must fail cleanly without crashing.
+    for (size_t cut = 0; cut < valid_snapshot.buffer.size(); ++cut) {
+        QEMUFile truncated;
+        truncated.buffer = valid_snapshot.buffer.substr(0, cut);
+        EXPECT_NE(goldfish_virtio_vsock_impl_load(impl_, &truncated), 0) << "cut=" << cut;
+    }
 }
 
 class RecordingPlug : public IPlug {

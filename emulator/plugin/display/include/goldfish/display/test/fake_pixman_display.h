@@ -158,6 +158,13 @@ struct FakePixmanDisplay : public PixmanDisplay {
      * @param value The value of the evdev event.
      */
     void SendEvDevEvent(uint16_t type, uint16_t code, uint32_t value) override;
+    /**
+     * @brief Records a simulated evdev report in `evdev_reports`, and its
+     * events followed by EV_SYN/SYN_REPORT in `evdevs`.
+     *
+     * @param events The report's events, without the trailing SYN_REPORT.
+     */
+    void SendEvDevReport(EvDevEvents events) override;
 
     /**
      * @brief Updates the source image of the display, triggering a new frame event
@@ -192,6 +199,8 @@ struct FakePixmanDisplay : public PixmanDisplay {
     std::vector<FakeMouseEvent> mouse_events;  ///< A list of simulated mouse events.
     std::vector<FakeMultiTouchEvent>
             multi_touch_events;  ///< A list of simulated multi-touch events.
+    /// Each simulated evdev report, ending with SYN_REPORT.
+    std::vector<std::vector<FakeEvDevEvent>> evdev_reports;
 
   private:
     absl::Mutex hook_mutex_;

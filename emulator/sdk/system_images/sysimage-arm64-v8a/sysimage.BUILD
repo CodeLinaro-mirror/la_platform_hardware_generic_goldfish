@@ -10,3 +10,14 @@ sysroot(
     all_files = glob(["arm64-v8a/**"]),
     path = "",
 )
+
+sysroot(
+    name = "systemimg",
+    all_files = ["arm64-v8a/system.img"],
+    path = "",
+)
+
+filegroup(
+    name = "all_files",
+    srcs = glob(["**/*"]),
+)

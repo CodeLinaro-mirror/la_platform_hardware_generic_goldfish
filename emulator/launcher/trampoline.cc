@@ -45,8 +45,11 @@ bool HasMustHaveGuestFeatures(const android::goldfish::Avd& avd) {
     }
 
     for (auto must_have : kMustHaveFeatures) {
-        if (sys_img_features->find(must_have) == sys_img_features->end()) {
-            VLOG(1) << "Sysimg is missing must have feature: "
+        // The key must be present *and* on. ParseFeatureFile() records "off" as Off and
+        // unrecognized values (e.g. "foo") as Missing; neither means the image supports it.
+        auto it = sys_img_features->find(must_have);
+        if (it == sys_img_features->end() || it->second != FeatureStatus::On) {
+            VLOG(1) << "Sysimg does not enable must have feature: "
                     << android_studio::EmulatorFeatureFlagState::EmulatorFeatureFlag_Name(
                                must_have);
             return false;
@@ -122,13 +125,15 @@ absl::Status TrampolineToQemu2(const fs::path& launcher_directory, std::vector<s
     LOG(WARNING) << "Trampolining to legacy emulator: " << qemu2_binary_path.string();
     if (!android::base::file::exists(qemu2_binary_path)) {
         return absl::NotFoundError(
-                absl::StrCat("Trying to trampoline but legacy emulator binary does not exist: ",
-                             qemu2_binary_path.string()));
+                absl::StrCat("Legacy emulator binary not found at ", qemu2_binary_path.string(),
+                             ". Please install the 'emulator' package using sdkmanager: "
+                             "`sdkmanager --install emulator` or via Android Studio SDK Manager."));
     }
     if (!android::base::file::can_exec(qemu2_binary_path)) {
-        return absl::PermissionDeniedError(
-                absl::StrCat("Trying to trampoline but cannot execute legacy emulator binary: ",
-                             qemu2_binary_path.string()));
+        return absl::PermissionDeniedError(absl::StrCat(
+                "Cannot execute legacy emulator binary at ", qemu2_binary_path.string(),
+                ". Verify file permissions (e.g., `chmod +x`, on POSIX systems) or reinstall "
+                "the package via `sdkmanager --install emulator`."));
     }
 
     std::vector<std::string> qemu2_args;

@@ -19,6 +19,7 @@
 
 #include "device.h"
 #include "gpu_device.h"
+#include "snapshot_device.h"
 
 namespace android::goldfish {
 
@@ -34,13 +35,15 @@ std::vector<std::pair<std::string, std::string>> getBootProperties(const Emulato
  */
 class InitrdDevice : public Device {
   public:
-    explicit InitrdDevice(const GpuDevice& gpu_device) : Device("initrd"), mGpuDevice(gpu_device) {}
+    InitrdDevice(const GpuDevice& gpu_device, const SnapshotDevice& snapshot_device)
+            : Device("initrd"), mGpuDevice(gpu_device), mSnapshotDevice(snapshot_device) {}
 
     absl::Status initialize(const EmulatorConfig& emulator) override;
     std::vector<std::string> getQemuParameters(const EmulatorConfig& emulator) const override;
 
   private:
     const GpuDevice& mGpuDevice;
+    const SnapshotDevice& mSnapshotDevice;
     fs::path mUserRamdisk;
 };
 

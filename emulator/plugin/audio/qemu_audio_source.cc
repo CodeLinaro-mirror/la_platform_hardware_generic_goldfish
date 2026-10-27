@@ -30,7 +30,7 @@ QemuAudioSource::QemuAudioSource(AudioBackend* audio_backend, uint32_t sample_ra
                                                       "audio capture was stopped.";
                       OnAudioData(pcm_data, num_samples);
                   },
-                  static_cast<int>(sample_rate), static_cast<int>(channels), audio_backend) {}
+                  sample_rate, channels, audio_backend) {}
 
 QemuAudioSource::~QemuAudioSource() {
     // Synchronously unregisters capture under VM lock, guaranteeing no further callbacks arrive.

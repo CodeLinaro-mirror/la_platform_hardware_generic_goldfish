@@ -227,14 +227,19 @@ cc_library(
     hdrs = ["host_info.h"],
     deps = [
         ":avd",
+        "//emulator/launcher/launch_qemu:vulkan_gpu_device_info",
         "//emulator/libs/cpu",
         "//emulator/libs/cpu:cpu_brand",
         "//emulator/libs/file",
         "//emulator/libs/hardware_config",
+        "//emulator/libs/metrics:studio_config",
         "//emulator/libs/system",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/strings:str_format",
         "@studio_stats//:studio_stats_cc_proto",
+        "@vulkan-headers//:vulkan_headers",
     ],
 )
 
@@ -245,6 +250,7 @@ cc_test(
     deps = [
         ":host_info",
         ":mock_avd",
+        "//emulator/launcher/launch_qemu:vulkan_gpu_device_info",
         "//emulator/libs/system:test-headers",
         "//emulator/libs/test:googletest_main",
         "@studio_stats//:studio_stats_cc_proto",
@@ -340,6 +346,22 @@ selects.config_setting_group(
     ],
 )
 
+selects.config_setting_group(
+    name = "windows_aarch64",
+    match_all = [
+        "@platforms//os:windows",
+        "@platforms//cpu:aarch64",
+    ],
+)
+
+selects.config_setting_group(
+    name = "windows_x86_64",
+    match_all = [
+        "@platforms//os:windows",
+        "@platforms//cpu:x86_64",
+    ],
+)
+
 collect_plugins(
     name = "plugins",
     output_dir = "lib/qemu",
@@ -347,8 +369,10 @@ collect_plugins(
         "@rutabaga_gfx//:rutabaga_ffi",
     ] + select({
         "@platforms//os:macos": ["//emulator/plugin:goldfish_aarch64"],
+        "@goldfish_build//platforms:is_linux_aarch64": ["//emulator/plugin:goldfish_aarch64"],
         "@platforms//os:linux": ["//emulator/plugin:goldfish_x86_64"],
-        "@platforms//os:windows": ["//emulator/plugin:goldfish_x86_64"],
+        ":windows_aarch64": ["//emulator/plugin:goldfish_aarch64"],
+        ":windows_x86_64": ["//emulator/plugin:goldfish_x86_64"],
         "//conditions:default": [],
     }),
 )
@@ -365,6 +389,7 @@ collect_plugins(
             "@mesa3d//:vulkan_kosmickrisp",
             "@mesa3d//:vulkan_lvp",
         ],
+        "@goldfish_build//platforms:is_linux_aarch64": [],
         "@platforms//os:linux": [
             "@goldfish_prebuilts_common//vulkan:icds_linux_x86_64",
             "@goldfish_prebuilts_common//vulkan:lib_linux_x86_64",
@@ -372,7 +397,11 @@ collect_plugins(
             "@mesa3d//:vulkan_lvp",
             "@mesa3d//:generate_lvp_icd",
         ],
-        "@platforms//os:windows": [
+        ":windows_aarch64": [
+            "@goldfish_prebuilts_common//vulkan:icds_windows_aarch64",
+            "@goldfish_prebuilts_common//vulkan:lib_windows_aarch64",
+        ],
+        ":windows_x86_64": [
             "@goldfish_prebuilts_common//vulkan:icds_windows_x86_64",
             "@goldfish_prebuilts_common//vulkan:lib_windows_x86_64",
             "@mesa3d//:generate_lvp_icd",
@@ -389,10 +418,12 @@ collect_plugins(
         "darwin_aarch64": [
             "@goldfish_prebuilts_common//vulkan:layers_darwin_aarch64",
         ],
+        "@goldfish_build//platforms:is_linux_aarch64": [],
         "@platforms//os:linux": [
             "@goldfish_prebuilts_common//vulkan:layers_linux_x86_64",
         ],
-        "@platforms//os:windows": [
+        ":windows_aarch64": [],
+        ":windows_x86_64": [
             "@goldfish_prebuilts_common//vulkan:layers_windows_x86_64",
         ],
         "//conditions:default": [],
@@ -415,10 +446,16 @@ collect_plugins(
             "@mesa3d//:vulkan_kosmickrisp",
             "@mesa3d//:vulkan_lvp",
         ],
+        "@goldfish_build//platforms:is_linux_aarch64": [],
         "@platforms//os:linux": [
             "@goldfish_prebuilts_common//swiftshader:lib_linux_x86_64",
         ],
-        "@platforms//os:windows": [
+        ":windows_aarch64": [
+            "@goldfish_prebuilts_common//ANGLE:lib_windows_aarch64",
+            "@goldfish_prebuilts_common//vulkan:lib_windows_aarch64",
+            "@goldfish_prebuilts_common//vulkan:icds_windows_aarch64",
+        ],
+        ":windows_x86_64": [
             "@goldfish_prebuilts_common//ANGLE:lib_windows_x86_64",
             "@goldfish_prebuilts_common//vulkan:lib_windows_x86_64",
             "@goldfish_prebuilts_common//vulkan:icds_windows_x86_64",
@@ -438,7 +475,16 @@ collect_plugins(
         "@crashpad//handler:crashpad_handler",
         #"@netsim//:netsimd",
     ] + select({
-        "@platforms//os:windows": [
+        ":windows_aarch64": [
+            # Netsim does not yet provide native Windows ARM64 prebuilts.
+            # Packaging the x86_64 binaries is intended, as netsim runs in a
+            # separate process and is translated by Windows on ARM. Update to
+            # native ARM64 prebuilts once available.
+            "@goldfish_prebuilts_common//netsim:netsim_cli_windows_x86_64",
+            "@goldfish_prebuilts_common//netsim:netsim_windows_x86_64",
+            "@qemu//:qemu-system-aarch64",
+        ],
+        ":windows_x86_64": [
             "@goldfish_prebuilts_common//netsim:netsim_cli_windows_x86_64",
             "@goldfish_prebuilts_common//netsim:netsim_windows_x86_64",
             "@qemu//:qemu-system-x86_64",
@@ -447,6 +493,9 @@ collect_plugins(
             "@goldfish_prebuilts_common//netsim:netsim_darwin_aarch64",
             "@goldfish_prebuilts_common//netsim:netsim_cli_darwin_aarch64",
             "@qemu//:qemu-system-aarch64_signed",
+        ],
+        "@goldfish_build//platforms:is_linux_aarch64": [
+            "@qemu//:qemu-system-aarch64",
         ],
         "@platforms//os:linux": [
             "@goldfish_prebuilts_common//netsim:netsim_linux_x86_64",
@@ -461,9 +510,20 @@ collect_plugins(
             "@goldfish_prebuilts_common//netsim:netsim_darwin_aarch64": "netsimd",
             "@goldfish_prebuilts_common//netsim:netsim_cli_darwin_aarch64": "netsim",
         },
-        "@platforms//os:windows": {
+        ":windows_aarch64": {
+            "@qemu//:qemu-system-aarch64": "qemu-system-aarch64.exe",
+            # Netsim runs as a separate process under Windows on ARM x86_64
+            # emulation until native Windows ARM64 prebuilts are available.
             "@goldfish_prebuilts_common//netsim:netsim_windows_x86_64": "netsimd.exe",
             "@goldfish_prebuilts_common//netsim:netsim_cli_windows_x86_64": "netsim.exe",
+        },
+        ":windows_x86_64": {
+            "@qemu//:qemu-system-x86_64": "qemu-system-x86_64.exe",
+            "@goldfish_prebuilts_common//netsim:netsim_windows_x86_64": "netsimd.exe",
+            "@goldfish_prebuilts_common//netsim:netsim_cli_windows_x86_64": "netsim.exe",
+        },
+        "@goldfish_build//platforms:is_linux_aarch64": {
+            "@qemu//:qemu-system-aarch64": "qemu-system-aarch64",
         },
         "@platforms//os:linux": {
             "@goldfish_prebuilts_common//netsim:netsim_linux_x86_64": "netsimd",
@@ -549,6 +609,7 @@ cc_library(
         "//emulator/libs/metrics:configure_metrics_writer",
         "//emulator/libs/metrics:snapshot_metrics",
         "//emulator/libs/system",
+        "//emulator/libs/timezone",
         "//emulator/modem_simulator",
         "//emulator/telnet:legacy_console_controller",
         "//emulator/tools:aemu_version",
@@ -567,6 +628,7 @@ cc_test(
     deps = [
         ":launcher_lib",
         ":mock_avd",
+        "//emulator/launcher/launch_qemu",
         "//emulator/libs/async:async_testing",
         "//emulator/libs/cpu",
         "//emulator/libs/test:googletest_main",
@@ -607,6 +669,12 @@ cc_binary_with_manifest(
     },
     linkopts = select({
         "@platforms//os:macos": ["-undefined error"],
+        "@platforms//os:windows": [
+            "-defaultlib:wbemuuid.lib",
+            "-defaultlib:oleaut32.lib",
+            "-defaultlib:comsuppw.lib",
+            "-defaultlib:ole32.lib",
+        ],
         "//conditions:default": [],
     }),
     visibility = ["//visibility:public"],
@@ -621,6 +689,7 @@ cc_binary_with_manifest(
         "//emulator/libs/metrics:configure_metrics_writer",
         "//emulator/libs/metrics:studio_config",
         "//emulator/libs/system",
+        "//emulator/libs/update_check",
         "//emulator/telnet:legacy_console_controller",
         "//emulator/tools:aemu_version",
         "@abseil-cpp//absl/debugging:failure_signal_handler",
@@ -633,6 +702,7 @@ cc_binary_with_manifest(
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/time",
+        "@qemu//:qemu-version-header",
     ],
 )
 
@@ -653,6 +723,12 @@ create_launch_emulator_test(
     params = [
         "-show-kernel",
         "-no-boot-anim",
+        # Increase netsimd's initial device connection timeout from the 15s
+        # default so slower debug/ASAN builds (e.g. during software Vulkan ICD
+        # initialization on headless CI runners) do not time out before QEMU
+        # attaches to netsimd.
+        "-netsim-startup-timeout",
+        "30s",
     ],
     target_log_line = "'Boot completed in \\d+ ms'",
     timeout_seconds = 300,
@@ -729,23 +805,74 @@ py_test(
     ],
 )
 
+[
+    (
+        config_setting(
+            name = "linux_api_%d" % api,
+            constraint_values = ["@platforms//os:linux"],
+            values = {"define": "api_level=%d" % api},
+        ),
+        config_setting(
+            name = "macos_api_%d" % api,
+            constraint_values = ["@platforms//os:macos"],
+            values = {"define": "api_level=%d" % api},
+        ),
+        config_setting(
+            name = "windows_api_%d" % api,
+            constraint_values = ["@platforms//os:windows"],
+            values = {"define": "api_level=%d" % api},
+        ),
+    )
+    for api in range(29, 38)
+]
+
 py_binary(
     name = "launch_emulator",
+    testonly = True,
     srcs = ["tools/launch_emulator.py"],
     data = [
         ":android-device-hub",
         ":launcher",
         "//emulator/tools/aquarium-ui",
-    ] + select({
-        "@platforms//os:macos": [
-            "//emulator/sdk/system_images/minigbm-arm64-v8a:minigbm",
-            "@android16k-arm64-v8a//:system_image",
-        ],
-        "//conditions:default": [
-            "//emulator/sdk/system_images/minigbm-x86_64:minigbm",
-            "@android16k-x86_64//:system_image",
-        ],
-    }) + [
+    ] + select(
+        {
+            key: val
+            for d in [
+                {
+                    ":linux_api_%d" % api: [
+                        "//emulator/sdk/system_images/minigbm-x86_64:minigbm",
+                        "@sysimg-android-%d-x86_64//:system_image" % api,
+                    ]
+                    for api in range(29, 38)
+                },
+                {
+                    ":macos_api_%d" % api: [
+                        "//emulator/sdk/system_images/minigbm-arm64-v8a:minigbm",
+                        "@sysimg-android-%d-arm64-v8a//:system_image" % api,
+                    ]
+                    for api in range(29, 38)
+                },
+                {
+                    ":windows_api_%d" % api: [
+                        "//emulator/sdk/system_images/minigbm-x86_64:minigbm",
+                        "@sysimg-android-%d-x86_64//:system_image" % api,
+                    ]
+                    for api in range(29, 38)
+                },
+                {
+                    "@platforms//os:macos": [
+                        "//emulator/sdk/system_images/minigbm-arm64-v8a:minigbm",
+                        "@android16k-arm64-v8a//:system_image",
+                    ],
+                    "//conditions:default": [
+                        "//emulator/sdk/system_images/minigbm-x86_64:minigbm",
+                        "@android16k-x86_64//:system_image",
+                    ],
+                },
+            ]
+            for key, val in d.items()
+        },
+    ) + [
         "//emulator/sdk:sdk-marker-files",
     ],
     env = {

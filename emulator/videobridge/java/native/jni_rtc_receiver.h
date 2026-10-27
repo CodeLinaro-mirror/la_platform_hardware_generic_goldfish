@@ -18,6 +18,7 @@
 
 #include <memory>
 #include <string>
+#include <string_view>
 
 #include "absl/base/thread_annotations.h"
 #include "absl/synchronization/mutex.h"
@@ -40,6 +41,10 @@
  * @brief Native WebRTC PeerConnection receiver wrapper for JNI integration with Java/Kotlin
  * applications.
  */
+
+namespace android::emulation::control {
+class InputEvent;
+}  // namespace android::emulation::control
 
 namespace goldfish::videobridge::java {
 
@@ -197,19 +202,12 @@ class JniRtcReceiver : public webrtc::PeerConnectionObserver,
 
   private:
     /**
-     * @brief Attaches the current native thread to the JVM if needed and returns the JNIEnv
-     * pointer.
-     * @param[out] out_attached Set to true if the thread was attached by this call and must be
-     * detached later.
-     * @return Pointer to JNIEnv, or nullptr on failure.
-     */
-    JNIEnv* GetJniEnv(bool* out_attached);
-
-    /**
      * @brief Dispatches an outbound JSEP JSON message to the Java JSEP message listener.
      * @param json_msg JSON object representing the outbound JSEP message.
      */
     void DispatchOutboundJsep(const nlohmann::json& json_msg);
+    void SendInputEvent(const android::emulation::control::InputEvent& input_event,
+                        std::string_view caller, std::string_view event_type);
 
     JavaVM* jvm_;
     PixelFormat target_format_;
@@ -239,7 +237,6 @@ class JniLogSink : public webrtc::LogSink {
   public:
     void SetListener(JavaVM* jvm, JNIEnv* env, jobject listener,
                      webrtc::LoggingSeverity min_severity);
-    void Disable(JNIEnv* env);
 
     void OnLogMessage(const std::string& message) override;
     void OnLogMessage(const std::string& message, webrtc::LoggingSeverity severity) override;
@@ -247,8 +244,6 @@ class JniLogSink : public webrtc::LogSink {
                       const char* tag) override;
 
   private:
-    JNIEnv* GetJniEnv(bool* out_attached);
-
     JavaVM* jvm_ = nullptr;
     absl::Mutex mutex_;
     jobject listener_ref_ ABSL_GUARDED_BY(mutex_) = nullptr;

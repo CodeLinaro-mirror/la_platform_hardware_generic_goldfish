@@ -58,6 +58,7 @@ cc_library(
         ":image_provider_api",
         "//emulator/libs/hardware_config",
         "//emulator/libs/parsing",
+        "//emulator/libs/system",
         "//emulator/libs/ver",
         "//emulator/plugin/hal/camera/image_providers/virtualscene",
         "//emulator/plugin/hal/connector:PingTopic",

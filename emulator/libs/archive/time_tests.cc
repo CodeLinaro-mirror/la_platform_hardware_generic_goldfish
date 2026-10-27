@@ -13,6 +13,7 @@
 #include <gtest/gtest.h>
 
 #include <cstdint>
+#include <limits>
 
 #include "absl/status/status_matchers.h"
 
@@ -36,8 +37,16 @@ TEST(time, positive) {
 }
 
 TEST(time, negative) {
-    DequeArchive archive;
+    {
+        DequeArchive archive;
+        absl::Time loaded;
+        EXPECT_THAT(ReadValue(archive, loaded), Not(IsOk()));
+    }
 
-    absl::Time loaded;
-    EXPECT_THAT(ReadValue(archive, loaded), Not(IsOk()));
+    {
+        DequeArchive archive;
+        archive << (static_cast<size_t>(std::numeric_limits<int64_t>::max()) + 1ULL);
+        absl::Time loaded;
+        EXPECT_THAT(ReadValue(archive, loaded), Not(IsOk()));
+    }
 }

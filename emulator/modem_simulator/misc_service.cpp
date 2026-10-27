@@ -15,6 +15,7 @@
 
 #include "host/commands/modem_simulator/misc_service.h"
 
+#include <algorithm>
 #include <fstream>
 #include <iomanip>
 
@@ -36,12 +37,9 @@ void MiscService::ParseTimeZone() {
 }
 
 
-void MiscService::FixTimeZone(std::string& line) {
-  auto slashpos = line.find("/");
+void MiscService::FixTimeZone(std::string& timezone) {
   // "/" will be treated as separator, change it !
-  if (slashpos != std::string::npos) {
-    line.replace(slashpos, 1, "!");
-  }
+  std::replace(timezone.begin(), timezone.end(), '/', '!');
 }
 
 void MiscService::SetTimeZone(std::string timezone) {

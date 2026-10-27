@@ -16,7 +16,10 @@
 
 #include <cstdint>
 
+#include "absl/types/span.h"
+
 #include "goldfish/display/display.h"
+#include "goldfish/display/ev_dev_event.h"
 
 struct VirtIOInputHID;
 
@@ -54,6 +57,14 @@ class InputHandler {
      */
     static void SendMouseEvent(VirtIOInputHID* vhid, int x, int y, int button_mask,
                                const Dimensions& dims);
+
+    /**
+     * @brief Writes `events`, then EV_SYN/SYN_REPORT, to the device in order.
+     *
+     * @param vhid The virtio-input device handle.
+     * @param events The report's events, without the trailing SYN_REPORT.
+     */
+    static void SendEvDevReport(VirtIOInputHID* vhid, absl::Span<const EvDevEvent> events);
 };
 
 }  // namespace goldfish::display

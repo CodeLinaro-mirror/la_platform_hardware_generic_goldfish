@@ -16,3 +16,8 @@ sysroot(
     all_files = ["x86_64/system.img"],
     path = "",
 )
+
+filegroup(
+    name = "all_files",
+    srcs = glob(["**/*"]),
+)

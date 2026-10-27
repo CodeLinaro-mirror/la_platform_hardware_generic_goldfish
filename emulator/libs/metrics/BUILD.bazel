@@ -201,11 +201,18 @@ cc_library(
     name = "studio_config",
     srcs = ["studio_config.cc"],
     hdrs = ["include/goldfish/metrics/studio_config.h"],
+    implementation_deps = [
+        "@tinyxml2",
+    ],
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
         ":metrics_uuid",
         "//emulator/libs/file",
+        "//emulator/libs/system",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/time",
         "@protobuf",
         "@studio_stats//:analytics_settings_cc_proto",
     ],

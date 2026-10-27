@@ -30,15 +30,15 @@ namespace {
 
 std::string FeatureEnumToString(
         android_studio::EmulatorFeatureFlagState::EmulatorFeatureFlag feature) {
-    auto is_not_underscore = [](char c) { return c != '_'; };
-
-    auto to_lower = [](char c) {
-        return static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-    };
-
     auto feature_name = android_studio::EmulatorFeatureFlagState::EmulatorFeatureFlag_Name(feature);
-    return feature_name | std::views::filter(is_not_underscore) | std::views::transform(to_lower) |
-           std::ranges::to<std::string>();
+    std::string result;
+    result.reserve(feature_name.size());
+    for (char c : feature_name) {
+        if (c != '_') {
+            result.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(c))));
+        }
+    }
+    return result;
 }
 
 const absl::flat_hash_map<std::string,

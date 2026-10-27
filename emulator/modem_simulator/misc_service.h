@@ -37,10 +37,13 @@ class MiscService : public ModemService, public std::enable_shared_from_this<Mis
 
   void SetTimeZone(std::string timezone);
 
+  // Replaces every "/" in |timezone| with "!": the guest parses the NITZ
+  // string with "/" as a field separator.
+  static void FixTimeZone(std::string& timezone);
+
  private:
   void ParseTimeZone();
   long TimeZoneOffset(time_t* utctime); // in seconds.
-  void FixTimeZone(std::string& line);
   std::string timezone_;
   std::vector<CommandHandler> InitializeCommandHandlers();
 };

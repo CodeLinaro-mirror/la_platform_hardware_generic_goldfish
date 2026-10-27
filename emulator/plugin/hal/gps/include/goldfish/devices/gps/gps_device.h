@@ -23,30 +23,48 @@ namespace goldfish::devices::gps {
 
 using goldfish::async::EventLoop;
 using goldfish::avd_universe::gps::ObservableLocation;
-using namespace std::string_view_literals;
 
 /**
- * The guest HAL implementation resides in `device/generic/goldfish/hals/gnss`.
+ * @brief Host-side QEMUD GPS HAL device implementation.
+ *
+ * Streams NMEA 0183 location sentences (`$GPGGA` and `$GPRMC`) to the guest
+ * GNSS HAL (`device/generic/goldfish/hals/gnss`) over the `"gps"` QEMUD pipe.
+ *
+ * ### Data Flow
+ * - Broadcasts the current location at 1 Hz on a repeating `QemuTimer` bound to
+ *   `QEMU_CLOCK_VIRTUAL`, which pauses automatically when the guest VM is
+ *   paused or suspended.
+ * - Subscribes to `ObservableLocation` and transmits an immediate NMEA update
+ *   whenever the host location changes.
+ *
+ * ### Thread Safety
+ * - All `HalPlug` callbacks (`OnConnect`, `OnClose`, `OnReceive`), the 1 Hz
+ *   `QemuTimer`, and `ObservableLocation` update tasks execute on `qemu_loop`
+ *   (`QemuEventLoop`).
+ * - External `ObservableLocation` updates are posted to `qemu_loop` before
+ *   locking the device or accessing device state.
  */
-class IGpsDevice : public HalPlug, public std::enable_shared_from_this<IGpsDevice> {
+class IGpsDevice : public HalPlug {
   public:
     /**
      * @brief QEMU service name for the GPS device.
      */
-    static constexpr std::string_view kServiceName = "gps"sv;
+    static constexpr std::string_view kServiceName = "gps";
 
     /**
      * @brief Registers the GPS device with the connector registry.
      *
-     * This function registers the GPS device with the provided \p registry
-     * instance, making it available for connection through the qemud pipe.
+     * Registers the `"gps"` QEMUD service so that both `HalPlug` lifecycle
+     * callbacks and periodic 1 Hz NMEA timer ticks execute on \p qemu_loop.
      *
+     * @param observable_location Observable location state shared with host
+     *        controllers (UI, console, gRPC). Must outlive registered connections.
      * @param registry The connector registry instance.
-     * @param client_loop The event loop for client-side operations.
-     * @param qemu_loop The event loop for QEMU-side operations.
+     * @param qemu_loop The QEMU event loop (`QemuEventLoop`) used for both
+     *        `HalPlug` callbacks and the 1 Hz virtual-clock timer.
      */
-    static void RegisterDevice(ObservableLocation*, IConnectorRegistry* registry,
-                               EventLoop* client_loop, EventLoop* qemu_loop);
+    static void RegisterDevice(ObservableLocation* observable_location,
+                               IConnectorRegistry* registry, EventLoop* qemu_loop);
 };
 
 }  // namespace goldfish::devices::gps

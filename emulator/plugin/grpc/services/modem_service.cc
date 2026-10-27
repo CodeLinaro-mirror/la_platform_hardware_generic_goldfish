@@ -13,6 +13,8 @@
 // limitations under the License.
 #include "android/emulation/control/incubating/modem_service.h"
 
+#include "absl/strings/str_cat.h"
+
 #include "android/emulation/control/absl_status_translate.h"
 #include "goldfish/parsing/hexbin.h"
 
@@ -325,6 +327,15 @@ Call ToProto(const client_type::Call& client) {
     return proto;
 }
 
+template <typename ClientT, typename ProtoT>
+::grpc::Status ToGrpcResponse(const absl::StatusOr<ClientT>& result, ProtoT* response) {
+    if (!result.ok()) {
+        return AbslStatusToGrpcStatus(result.status());
+    }
+    *response = ToProto(*result);
+    return ::grpc::Status::OK;
+}
+
 }  // namespace
 
 ModemServiceImpl::ModemServiceImpl(
@@ -333,43 +344,23 @@ ModemServiceImpl::ModemServiceImpl(
 
 ::grpc::Status ModemServiceImpl::setCellInfo(::grpc::ServerContext* /*context*/,
                                              const CellInfo* request, CellInfo* response) {
-    auto result = client_->SetCellInfo(ToClient(*request));
-    if (result.ok()) {
-        *response = ToProto(*result);
-        return ::grpc::Status::OK;
-    }
-    return AbslStatusToGrpcStatus(result.status());
+    return ToGrpcResponse(client_->SetCellInfo(ToClient(*request)), response);
 }
 
 ::grpc::Status ModemServiceImpl::getCellInfo(::grpc::ServerContext* /*context*/,
                                              const ::google::protobuf::Empty* /*request*/,
                                              CellInfo* response) {
-    auto result = client_->GetCellInfo();
-    if (result.ok()) {
-        *response = ToProto(*result);
-        return ::grpc::Status::OK;
-    }
-    return AbslStatusToGrpcStatus(result.status());
+    return ToGrpcResponse(client_->GetCellInfo(), response);
 }
 
 ::grpc::Status ModemServiceImpl::createCall(::grpc::ServerContext* /*context*/, const Call* request,
                                             Call* response) {
-    auto result = client_->CreateCall(ToClient(*request));
-    if (result.ok()) {
-        *response = ToProto(*result);
-        return ::grpc::Status::OK;
-    }
-    return AbslStatusToGrpcStatus(result.status());
+    return ToGrpcResponse(client_->CreateCall(ToClient(*request)), response);
 }
 
 ::grpc::Status ModemServiceImpl::updateCall(::grpc::ServerContext* /*context*/, const Call* request,
                                             Call* response) {
-    auto result = client_->UpdateCall(ToClient(*request));
-    if (result.ok()) {
-        *response = ToProto(*result);
-        return ::grpc::Status::OK;
-    }
-    return AbslStatusToGrpcStatus(result.status());
+    return ToGrpcResponse(client_->UpdateCall(ToClient(*request)), response);
 }
 
 ::grpc::Status ModemServiceImpl::deleteCall(::grpc::ServerContext* /*context*/, const Call* request,
@@ -399,13 +390,32 @@ ModemServiceImpl::ModemServiceImpl(
     } else if (request->has_encodedmessage()) {
         auto binary = HexToBin(request->encodedmessage());
         if (!binary) {
-            return ::grpc::Status(::grpc::StatusCode::INVALID_ARGUMENT,
-                                  "Can't parse `encodedmessage`");
+            const size_t encoded_len = request->encodedmessage().size();
+            if (encoded_len % 2U != 0U) {
+                return ::grpc::Status(
+                        ::grpc::StatusCode::INVALID_ARGUMENT,
+                        absl::StrCat("Failed to parse 'encodedMessage' in receiveSms: length ",
+                                     encoded_len,
+                                     " is odd, but hex-encoded SMS PDUs require an even number of "
+                                     "hexadecimal digits (2 per byte). Provide a valid hex-encoded "
+                                     "SMS PDU in 'encodedMessage', or set 'text' instead."));
+            }
+            return ::grpc::Status(
+                    ::grpc::StatusCode::INVALID_ARGUMENT,
+                    absl::StrCat("Failed to parse 'encodedMessage' in receiveSms: value of length ",
+                                 encoded_len,
+                                 " contains non-hexadecimal characters (expected only 0-9, a-f, or "
+                                 "A-F). Provide a valid hex-encoded SMS PDU in 'encodedMessage', "
+                                 "or set 'text' instead."));
         }
 
         result = client_->ReceiveSmsEncoded(*std::move(binary));
     } else {
-        return ::grpc::Status(::grpc::StatusCode::INVALID_ARGUMENT, "No message to deliver");
+        return ::grpc::Status(
+                ::grpc::StatusCode::INVALID_ARGUMENT,
+                "Failed to deliver SMS in receiveSms: neither 'text' nor 'encodedMessage' is set "
+                "in SmsMessage. Set 'text' (UTF-8 message body) or 'encodedMessage' (hex-encoded "
+                "SMS PDU).");
     }
 
     return AbslStatusToGrpcStatus(result);
@@ -420,7 +430,9 @@ ModemServiceImpl::ModemServiceImpl(
 ::grpc::Status ModemServiceImpl::receivePhoneEvents(::grpc::ServerContext* /*context*/,
                                                     const ::google::protobuf::Empty* /*request*/,
                                                     ::grpc::ServerWriter<PhoneEvent>* /*writer*/) {
-    return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "Not implemented yet");
+    return ::grpc::Status(
+            ::grpc::StatusCode::UNIMPLEMENTED,
+            "receivePhoneEvents is not implemented yet. Poll active calls with listCalls instead.");
 }
 
 }  // namespace incubating

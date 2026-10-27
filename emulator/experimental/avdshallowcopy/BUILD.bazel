@@ -1,0 +1,44 @@
+load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_test")
+load("@rules_cc//cc:defs.bzl", "cc_test")
+load("//emulator/tools:cc_binary_with_manifest.bzl", "cc_binary_with_manifest")
+
+cc_binary_with_manifest(
+    name = "avdshallowcopy",
+    srcs = ["avdshallowcopy.cc"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//emulator/libs/file",
+        "//emulator/libs/fsimage:qcow2",
+        "//emulator/libs/ini_file",
+        "//emulator/libs/status_macros",
+        "@abseil-cpp//absl/cleanup",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/strings:str_format",
+    ],
+)
+
+cc_test(
+    name = "avdshallowcopy_test",
+    size = "small",
+    srcs = ["avdshallowcopy_test.cc"],
+    data = [":avdshallowcopy"],
+    deps = [
+        "//emulator/libs/file",
+        "//emulator/libs/fsimage:qcow2",
+        "//emulator/libs/process",
+        "//emulator/libs/system:bazel_info",
+        "//emulator/libs/system:test-headers",
+        "//emulator/libs/test:googletest_main",
+        "@abseil-cpp//absl/status:status_matchers",
+        "@abseil-cpp//absl/strings",
+    ],
+)
+
+clang_tidy_test(
+    name = "tidy",
+    targets = [
+        ":avdshallowcopy",
+    ],
+    tidy_config_file = "//:clang_tidy_config",
+)

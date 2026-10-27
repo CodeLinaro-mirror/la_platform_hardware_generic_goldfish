@@ -20,6 +20,8 @@
 #include <cstring>
 #include <memory>
 #include <mutex>
+#include <optional>
+#include <string>
 #include <string_view>
 
 #include "absl/log/check.h"
@@ -89,6 +91,42 @@ using goldfish::network::EndpointFormatter;
 // Sorts endpoints to prefer IPv4 over IPv6.
 static bool isIpv4(const Endpoint& a) {
     return std::holds_alternative<goldfish::network::Ipv4Endpoint>(a);
+}
+
+std::optional<Endpoint> ResolvePreferredEndpoint(const std::string& address, Error** errp) {
+    auto endpoints = goldfish::network::ResolveEndpoints(address);
+    if (!endpoints.ok()) {
+        error_setg(errp, "Failed to resolve vsock port forwarder address '%s': %s",
+                   address.c_str(), std::string(endpoints.status().message()).c_str());
+        return std::nullopt;
+    }
+    if (endpoints->empty()) {
+        error_setg(errp, "No network endpoints found for vsock port forwarder address '%s'",
+                   address.c_str());
+        return std::nullopt;
+    }
+
+    auto preferred = std::find_if(endpoints->begin(), endpoints->end(), isIpv4);
+    if (preferred == endpoints->end()) {
+        preferred = endpoints->begin();
+        LOG(WARNING) << "Vsock port forwarder address '" << address
+                     << "' does not resolve to an IPv4 endpoint (resolved: ["
+                     << absl::StrJoin(*endpoints, ", ", EndpointFormatter())
+                     << "]); falling back to IPv6 endpoint " << ToString(*preferred);
+    }
+    return *preferred;
+}
+
+void SetPortProperty(Visitor* v, const char* name, int* port, Error** errp) {
+    uint32_t value;
+    if (!visit_type_uint32(v, name, &value, errp)) {
+        return;
+    }
+    if (value > 65535) {
+        error_setg(errp, "Invalid %s %u: port number must be between 0 and 65535", name, value);
+        return;
+    }
+    *port = static_cast<int>(value);
 }
 
 /// @note all calls are on the clientEventloop, nothing is on the qemu event
@@ -356,22 +394,9 @@ static void vsock_fwd_realize(DeviceState* dev, Error** errp) {
     const char* host = vsock_fwd_device->address ? vsock_fwd_device->address : "localhost";
     auto serverAddress = absl::StrFormat("%s:%d", host, vsock_fwd_device->host_port);
 
-    auto status = goldfish::network::ResolveEndpoints(serverAddress);
-    if (!status.ok() || status.value().empty()) {
-        error_setg(errp, "Could not resolve address: %s",
-                   std::string(status.status().message()).c_str());
+    auto preferred = ResolvePreferredEndpoint(serverAddress, errp);
+    if (!preferred) {
         return;
-    }
-
-    auto endpoints = status.value();
-    auto preferred = std::find_if(endpoints.begin(), endpoints.end(), isIpv4);
-
-    if (preferred == endpoints.end()) {
-        preferred = endpoints.begin();
-        LOG(WARNING) << "The address for the vsock port forwarder: " << serverAddress
-                     << " does not resolve to an ipv4 address: "
-                     << absl::StrJoin(endpoints, ", ", EndpointFormatter())
-                     << " we will use: " << ToString(*preferred);
     }
 
     auto proxy = VSockProxyImpl::Create(*preferred, vsock_fwd_device, goldfish::avd::GetAvd());
@@ -401,57 +426,18 @@ static void vsock_fwd_unrealize(DeviceState* dev) {
 
 static void vsock_fwd_set_host_port(Object* obj, Visitor* v, const char* name, void* opaque,
                                     Error** errp) {
-    VSockFwdDev* vsock_fwd_device = VSOCK_FWD_DEV(obj);
-    uint32_t value;
-
-    if (!visit_type_uint32(v, name, &value, errp)) {
-        return;
-    }
-
-    // Check for invalid input or overflow
-    if (value > 65535) {
-        error_setg(errp, "Port number should be between 0 and 65535, not: %d", value);
-        return;
-    }
-
-    vsock_fwd_device->host_port = value;
+    SetPortProperty(v, name, &VSOCK_FWD_DEV(obj)->host_port, errp);
 }
 
 static void vsock_fwd_set_guest_port(Object* obj, Visitor* v, const char* name, void* opaque,
                                      Error** errp) {
-    VSockFwdDev* vsock_fwd_device = VSOCK_FWD_DEV(obj);
-    uint32_t value;
-
-    if (!visit_type_uint32(v, name, &value, errp)) {
-        return;
-    }
-
-    // Check for invalid input or overflow
-    if (value > 65535) {
-        error_setg(errp, "Port number should be between 0 and 65535, not: %d", value);
-        return;
-    }
-
-    vsock_fwd_device->guest_port = value;
+    SetPortProperty(v, name, &VSOCK_FWD_DEV(obj)->guest_port, errp);
 }
 
 static void vsock_fwd_set_address(Object* obj, const char* value, Error** errp) {
-    // Let's resolve this address..
-    auto status = goldfish::network::ResolveEndpoints(value);
-    if (!status.ok() || status.value().empty()) {
-        error_setg(errp, "Could not resolve address: %s",
-                   std::string(status.status().message()).c_str());
+    auto preferred = ResolvePreferredEndpoint(value, errp);
+    if (!preferred) {
         return;
-    }
-    auto endpoints = status.value();
-    auto preferred = std::find_if(endpoints.begin(), endpoints.end(), isIpv4);
-
-    if (preferred == endpoints.end()) {
-        preferred = endpoints.begin();
-        LOG(WARNING) << "The address for the vsock port forwarder: " << value
-                     << " does not resolve to an ipv4 address: "
-                     << absl::StrJoin(endpoints, ", ", EndpointFormatter())
-                     << " we will use: " << ToString(*preferred);
     }
     VSockFwdDev* vsock_fwd_device = VSOCK_FWD_DEV(obj);
 

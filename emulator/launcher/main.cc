@@ -53,9 +53,11 @@
 #include "goldfish/metrics/metrics_reporter.h"
 #include "goldfish/metrics/studio_config.h"
 #include "goldfish/tools/aemu_version.h"
+#include "goldfish/update_check/update_checker.h"
 #include "host_info.h"
 #include "launcher.h"
 #include "logging.h"
+#include "qemu-version.h"
 #include "trampoline.h"
 #include "uv.h"
 
@@ -65,6 +67,30 @@ namespace fs = std::filesystem;
 constexpr int EMULATOR_COMPATIBLE_QEMU_VERSION = 10;
 
 constexpr int kMetricsCrashesAbandoned = 1;
+
+constexpr std::string_view kUpdateRepositoryUrl =
+        "https://dl.google.com/android/repository/repository2-3.xml";
+constexpr std::string_view kEmulatorPreviewPackagePrefix = "emulators;";
+constexpr std::string_view kEmulatorPreviewDisplayName = "Android Emulator (Preview)";
+constexpr absl::Duration kUpdateCheckInterval = absl::Hours(4);
+constexpr absl::Duration kUpdateCheckHttpTimeout = absl::Seconds(20);
+
+goldfish::update_check::UpdateChannel ResolveUpdateCheckChannel(
+        goldfish::metrics::studio::UpdateChannel studio_channel) {
+    using goldfish::metrics::studio::UpdateChannel;
+    switch (studio_channel) {
+    case UpdateChannel::kBeta:
+        return goldfish::update_check::UpdateChannel::kBeta;
+    case UpdateChannel::kDev:
+        return goldfish::update_check::UpdateChannel::kDev;
+    case UpdateChannel::kCanary:
+        return goldfish::update_check::UpdateChannel::kCanary;
+    case UpdateChannel::kStable:
+    case UpdateChannel::kUnknown:
+        break;
+    }
+    return goldfish::update_check::UpdateChannel::kStable;
+}
 
 // clang-format off
 
@@ -132,27 +158,27 @@ std::string EmulatorMetricsUserId(const fs::path& user_directory) {
 ::goldfish::metrics::MetricsWriterConfig GetMetricsWriterConfig(const AndroidOptions& opts,
                                                                 const fs::path& user_dir) {
     using enum ::goldfish::metrics::MetricsWriterType;
+    auto user_id = ::goldfish::metrics::studio::GetMetricsUserId(user_dir);
+    if (user_id.empty()) {
+        // create our own one if there's no studio config
+        user_id = EmulatorMetricsUserId(user_dir);
+    }
     if (opts.no_metrics) {
         // do nothing
         LOG(WARNING) << "Metrics disabled by user";
-        return {.type = kNone};
+        return {.type = kNone, .user_id = user_id};
     } else if (opts.metrics_to_console) {
         LOG(INFO) << "Metrics will be written to console";
-        return {.type = kConsole};
+        return {.type = kConsole, .user_id = user_id};
     } else if (opts.metrics_collection) {
         LOG(INFO) << "Metrics will be uploaded directly by the emulator";
-        auto user_id = ::goldfish::metrics::studio::GetMetricsUserId(user_dir);
-        if (user_id.empty()) {
-            // create our own one if there's no studio config
-            user_id = EmulatorMetricsUserId(user_dir);
-        }
         return {.type = kPlaystore,
                 .playstore_url = "https://play.googleapis.com/log?format=raw",
                 .user_id = user_id,
                 .user_upload_consent = true};
     } else if (opts.metrics_to_file) {
         LOG(INFO) << "Metrics will be written to: " << opts.metrics_to_file;
-        return {.type = kFile, .file_path = opts.metrics_to_file};
+        return {.type = kFile, .file_path = opts.metrics_to_file, .user_id = user_id};
     } else {
         // No CLI overrides, use studio settings.
         switch (::goldfish::metrics::studio::GetUserMetricsOptIn(user_dir)) {
@@ -161,13 +187,14 @@ std::string EmulatorMetricsUserId(const fs::path& user_directory) {
             LOG(INFO) << "Metrics will be written to file and uploaded by Studio";
             return {.type = kStudio,
                     .studio_spool_dir = ::goldfish::metrics::studio::GetSpoolDirectory(user_dir),
+                    .user_id = user_id,
                     .user_upload_consent = true};
         case kOptedOut:
             LOG(INFO) << "Studio user opted out of metrics";
-            return {.type = kNone};
+            return {.type = kNone, .user_id = user_id};
         case kUnknown:
             WarnAboutNoMetricsConsentInput();
-            return {.type = kNone};
+            return {.type = kNone, .user_id = user_id};
         }
     }
 }
@@ -324,6 +351,12 @@ int main(int argc, char** argv) {
 
     configureLogging(opts);
     android_log_parse_warnings();
+
+    if (!android::base::System::IsUtf8CodePage()) {
+        LOG(ERROR) << "Active system code page is not UTF-8. The Android Emulator requires "
+                      "Windows 11 or later with UTF-8 code page manifest support; non-ASCII "
+                      "file paths and environment variables may not work correctly.";
+    }
 
 #if defined(__linux__) || defined(__APPLE__)
     constexpr std::string_view kXDG_RUNTIME_DIR_NAME = "XDG_RUNTIME_DIR";
@@ -524,6 +557,28 @@ int main(int argc, char** argv) {
     if (!avd.ok()) {
         LOG(ERROR) << "Bug: AVD loading failed: " << avd.status();
         return 1;
+    }
+
+    // Runs a one-shot update check on a background thread (throttled via
+    // emu-update-last-check.ini) and logs a notice if a newer version is available.
+    // If still in flight when main() exits, ScopedUpdateCheck cancels and joins the thread.
+    goldfish::update_check::ScopedUpdateCheck update_check;
+    if (android_build_out.empty()) {
+        update_check = goldfish::update_check::StartAsyncUpdateCheck({
+            .user_directory = user_paths->user_directory,
+            .base_url = std::string(kUpdateRepositoryUrl),
+            .package_prefix = std::string(kEmulatorPreviewPackagePrefix),
+            .package_display_name = std::string(kEmulatorPreviewDisplayName),
+            .emulator_version = std::string(goldfish::version::GetEmulatorVersion()),
+            .build_id = std::string(goldfish::version::GetEmulatorBuildId()),
+            .platform = std::string(goldfish::version::GetEmulatorPlatform()),
+            .target_cpu = std::string(goldfish::version::GetEmulatorTargetCpu()),
+            .core_version = QEMU_FULL_VERSION,
+            .user_id = metrics_writer_config.user_id,
+            .channel = ResolveUpdateCheckChannel(goldfish::metrics::studio::GetUpdateChannel()),
+            .interval = kUpdateCheckInterval,
+            .http_timeout = kUpdateCheckHttpTimeout,
+        });
     }
 
     bool set_qemu_version = true;

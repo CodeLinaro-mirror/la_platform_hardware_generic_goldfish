@@ -12,8 +12,13 @@
 
 #include "goldfish/unique_id_allocator.h"
 
-#include "absl/log/check.h"
+#include <utility>
 
+#include "absl/log/check.h"
+#include "absl/status/status.h"
+#include "absl/strings/str_cat.h"
+
+#include "android/status/status_macros.h"
 #include "goldfish/archive/collections/set.h"
 
 namespace goldfish {
@@ -58,7 +63,19 @@ archive::IWriter& operator<<(archive::IWriter& writer, const UniqueIdAllocator& 
 }
 
 absl::Status ReadValue(archive::IReader& reader, UniqueIdAllocator& x) {
-    return ReadValue(reader, x.last_id_, x.returned_ids_);
+    UniqueIdAllocator loaded;
+    RETURN_IF_ERROR(ReadValue(reader, loaded.last_id_, loaded.returned_ids_));
+    if (!loaded.returned_ids_.empty()) {
+        if (*loaded.returned_ids_.begin() >= loaded.last_id_ ||
+            *loaded.returned_ids_.rbegin() <= UniqueIdAllocator::kEmptyId) {
+            return absl::InvalidArgumentError(absl::StrCat(
+                    "Returned IDs [", *loaded.returned_ids_.rbegin(), "..",
+                    *loaded.returned_ids_.begin(), "] out of bounds (expected (",
+                    UniqueIdAllocator::kEmptyId, ", ", loaded.last_id_, ")) in UniqueIdAllocator"));
+        }
+    }
+    x = std::move(loaded);
+    return absl::OkStatus();
 }
 
 }  // namespace goldfish

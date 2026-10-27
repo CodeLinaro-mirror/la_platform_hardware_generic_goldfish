@@ -17,7 +17,7 @@
 namespace goldfish {
 namespace {
 size_t GetCapacity(const size_t size, const size_t current_capacity = 0) {
-    return std::max({SocketBuffer::kMinCapacity, current_capacity * 2U, size * 3U / 2U});
+    return std::max({SocketBuffer::kMinCapacity, current_capacity * 2U, size + (size / 2U)});
 }
 }  // namespace
 
@@ -137,7 +137,7 @@ void SocketBuffer::SaveToSnapshot(archive::IWriter& writer) const {
 
 int SocketBuffer::LoadFromSnapshot(archive::IReader& reader) {
     uint32_t new_size = 0;
-    if (!ReadValue(reader, new_size).ok()) {
+    if (!ReadValue(reader, new_size).ok() || new_size > kMaxSnapshotSize) {
         return 1;
     } else if (new_size == 0) {
         Clear(true);

@@ -46,6 +46,7 @@ typedef struct {
 } OptionInfo;
 
 #define OPTION(_name, _type, _config) {#_name, offsetof(AndroidOptions, _name), _type, _config},
+#define OBSOLETE_OPTION(_name, _type) {#_name, 0, _type, 0},
 
 static const OptionInfo kOptionKeys[] = {
 #define OPT_FLAG(_name, _descr) OPTION(_name, OPTION_IS_FLAG, 0)
@@ -53,8 +54,8 @@ static const OptionInfo kOptionKeys[] = {
 #define OPT_LIST(_name, _template, _descr) OPTION(_name, OPTION_IS_LIST, 0)
 #define CFG_FLAG(_name, _descr) OPTION(_name, OPTION_IS_FLAG, 1)
 #define CFG_PARAM(_name, _template, _descr) OPTION(_name, OPTION_IS_PARAM, 1)
-#define OPT_FLAG_OBSOLETE(_name) OPTION(_name, OPTION_IS_OBSOLETE_FLAG, 0)
-#define OPT_PARAM_OBSOLETE(_name, _template) OPTION(_name, OPTION_IS_OBSOLETE_PARAM, 0)
+#define OPT_FLAG_OBSOLETE(_name) OBSOLETE_OPTION(_name, OPTION_IS_OBSOLETE_FLAG)
+#define OPT_PARAM_OBSOLETE(_name, _template) OBSOLETE_OPTION(_name, OPTION_IS_OBSOLETE_PARAM)
 #include "android/cmdline_options.h"
     {nullptr, 0, 0, 0}};
 
@@ -132,8 +133,6 @@ int android_parse_options(int* pargc, char*** pargv, AndroidOptions* opt) {
 
             for (; oo->name; oo++) {
                 if (!strcmp(oo->name, arg2)) {
-                    void* field = reinterpret_cast<char*>(opt) + oo->var_offset;
-
                     if (oo->var_type == OPTION_IS_OBSOLETE_FLAG ||
                         oo->var_type == OPTION_IS_OBSOLETE_PARAM) {
                         // Accepted for backward compatibility, but ignored.
@@ -145,6 +144,8 @@ int android_parse_options(int* pargc, char*** pargv, AndroidOptions* opt) {
                         }
                         break;
                     }
+
+                    void* field = reinterpret_cast<char*>(opt) + oo->var_offset;
 
                     if (oo->var_type != OPTION_IS_FLAG) {
                         /* parameter/list option */

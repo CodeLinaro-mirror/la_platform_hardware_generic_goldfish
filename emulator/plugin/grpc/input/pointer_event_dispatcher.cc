@@ -13,9 +13,11 @@
 // limitations under the License.
 #include "pointer_event_dispatcher.h"
 
+#include <utility>
 #include <vector>
 
 #include "absl/log/log.h"
+#include "absl/types/span.h"
 
 #include "standard-headers/linux/input-event-codes.h"
 #include "standard-headers/linux/input.h"
@@ -38,19 +40,24 @@ uint32_t ScaleAxis(uint32_t value, uint32_t min_in, uint32_t max_in) {
     }
     return ((value - min_in) * kRangeOut / range_in) + kMinOut;
 }
+
+void PopulateTouchFromProto(const ::android::emulation::control::Touch& proto_touch,
+                            uint32_t identifier, Touch& touch) {
+    touch.x = proto_touch.x();
+    touch.y = proto_touch.y();
+    touch.identifier = identifier;
+    touch.pressure = proto_touch.pressure();
+    touch.touch_major = proto_touch.touch_major();
+    touch.touch_minor = proto_touch.touch_minor();
+    touch.orientation = proto_touch.orientation();
+}
 }  // namespace
 
 MultiTouchEvent MultiTouchEvent::FromProto(const ::android::emulation::control::TouchEvent& proto) {
     MultiTouchEvent event;
     for (const auto& proto_touch : proto.touches()) {
         Touch touch;
-        touch.x = proto_touch.x();
-        touch.y = proto_touch.y();
-        touch.identifier = proto_touch.identifier();
-        touch.pressure = proto_touch.pressure();
-        touch.touch_major = proto_touch.touch_major();
-        touch.touch_minor = proto_touch.touch_minor();
-        touch.orientation = proto_touch.orientation();
+        PopulateTouchFromProto(proto_touch, proto_touch.identifier(), touch);
         event.touches.push_back(touch);
     }
     return event;
@@ -64,13 +71,7 @@ PenTouchEvent PenTouchEvent::FromProto(const ::android::emulation::control::PenE
         Pen pen;
         pen.button_pressed = proto_pen.button_pressed();
         pen.rubber_pointer = proto_pen.rubber_pointer();
-        pen.x = proto_pen.location().x();
-        pen.y = proto_pen.location().y();
-        pen.identifier = kPenId;
-        pen.pressure = proto_pen.location().pressure();
-        pen.touch_major = proto_pen.location().touch_major();
-        pen.touch_minor = proto_pen.location().touch_minor();
-        pen.orientation = proto_pen.location().orientation();
+        PopulateTouchFromProto(proto_pen.location(), kPenId, pen);
         event.touches.push_back(pen);
     }
     return event;
@@ -81,20 +82,25 @@ EvDevEvents Pen::ToEvDevEvents(uint32_t w, uint32_t h, SlotRegistry* registry) c
     EvDevEvents events;
     const uint32_t ev_dev_pressed = this->button_pressed ? 1 : 0;
     if (this->rubber_pointer) {
-        events.push_back({EV_ABS, ABS_MT_TOOL_TYPE, MT_TOOL_MAX});
         events.push_back({EV_KEY, BTN_TOOL_RUBBER, ev_dev_pressed});
-    } else {
-        events.push_back({EV_ABS, ABS_MT_TOOL_TYPE, MT_TOOL_PEN});
     }
 
     events.push_back({EV_KEY, BTN_STYLUS, ev_dev_pressed});
 
-    auto touches = Touch::ToEvDevEvents(w, h, registry);
+    // The tool type is a per-slot value, so it must follow the slot selection.
+    const uint32_t tool = this->rubber_pointer ? MT_TOOL_MAX : MT_TOOL_PEN;
+    const EvDevEvent tool_type = {EV_ABS, ABS_MT_TOOL_TYPE, tool};
+    auto touches = ToSlotEvDevEvents(w, h, registry, {tool_type});
     events.insert(events.end(), touches.begin(), touches.end());
     return events;
 }
 
 EvDevEvents Touch::ToEvDevEvents(uint32_t w, uint32_t h, SlotRegistry* registry) const {
+    return ToSlotEvDevEvents(w, h, registry, {});
+}
+
+EvDevEvents Touch::ToSlotEvDevEvents(uint32_t w, uint32_t h, SlotRegistry* registry,
+                                     absl::Span<const EvDevEvent> slot_properties) const {
     EvDevEvents events;
 
     const bool is_registered = registry->IsIdentifierRegistered(this->identifier);
@@ -112,12 +118,15 @@ EvDevEvents Touch::ToEvDevEvents(uint32_t w, uint32_t h, SlotRegistry* registry)
 
     const auto u_slot = static_cast<uint32_t>(slot);
 
+    // Select the slot first: every following ABS_MT_* value applies to it.
+    events.push_back({EV_ABS, ABS_MT_SLOT, u_slot});
+
     // Only register slot in guest if it as not yet registered.
     if (!is_registered) {
         events.push_back({EV_ABS, ABS_MT_TRACKING_ID, u_slot});
     }
 
-    events.push_back({EV_ABS, ABS_MT_SLOT, u_slot});
+    events.insert(events.end(), slot_properties.begin(), slot_properties.end());
 
     // Scale to proper evdev values.
     const uint32_t dx = ScaleAxis(this->x, 0, w);
@@ -151,40 +160,33 @@ EvDevEvents Touch::ToEvDevEvents(uint32_t w, uint32_t h, SlotRegistry* registry)
 
 }  // namespace internal
 
+namespace {
+
+template <typename TouchItem>
+void SendTouchItems(IDisplay& display, const std::vector<TouchItem>& touches,
+                    SlotRegistry& registry) {
+    const auto dims = display.GetDimensions();
+    internal::EvDevEvents report;
+    for (const auto& touch : touches) {
+        auto touch_events = touch.ToEvDevEvents(dims.width, dims.height, &registry);
+        report.insert(report.end(), touch_events.begin(), touch_events.end());
+    }
+    auto expired = registry.ExpireOldSlots();
+    report.insert(report.end(), expired.begin(), expired.end());
+    if (report.empty()) {
+        return;
+    }
+    display.SendEvDevReport(std::move(report));
+}
+
+}  // namespace
+
 void PointerEventDispatcher::SendEvents(IDisplay& display, const internal::MultiTouchEvent& event) {
-    auto dims = display.GetDimensions();
-    const uint32_t w = dims.width;
-    const uint32_t h = dims.height;
-
-    for (const auto& touch : event.touches) {
-        for (auto& evdev : touch.ToEvDevEvents(w, h, &registry_)) {
-            display.SendEvDevEvent(evdev.type, evdev.code, evdev.value);
-        }
-    }
-
-    for (auto& ev : registry_.ExpireOldSlots()) {
-        display.SendEvDevEvent(ev.type, ev.code, ev.value);
-    }
-
-    display.SendEvDevEvent(EV_SYN, SYN_REPORT, 0);
+    SendTouchItems(display, event.touches, registry_);
 }
 
 void PointerEventDispatcher::SendEvents(IDisplay& display, const internal::PenTouchEvent& event) {
-    auto dims = display.GetDimensions();
-    const uint32_t w = dims.width;
-    const uint32_t h = dims.height;
-
-    for (const auto& touch : event.touches) {
-        for (auto& evdev : touch.ToEvDevEvents(w, h, &registry_)) {
-            display.SendEvDevEvent(evdev.type, evdev.code, evdev.value);
-        }
-    }
-
-    for (auto& ev : registry_.ExpireOldSlots()) {
-        display.SendEvDevEvent(ev.type, ev.code, ev.value);
-    }
-
-    display.SendEvDevEvent(EV_SYN, SYN_REPORT, 0);
+    SendTouchItems(display, event.touches, registry_);
 }
 
 }  // namespace android::emulation::control

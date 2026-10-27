@@ -15,6 +15,9 @@
 
 #include <cstdint>
 #include <string>
+#include <string_view>
+
+#include "android/crashreport/breadcrumbs/breadcrumb_trace.h"
 
 namespace android::crashreport::breadcrumbs {
 
@@ -28,5 +31,11 @@ namespace android::crashreport::breadcrumbs {
  * @return std::string The formatted time string.
  */
 std::string FormatEventTime(uint64_t ts_ns, uint64_t start_time_ns);
+
+/**
+ * @brief Returns the short phase or subsystem label for a breadcrumb event
+ * (e.g., "START", "SEND_MSG", "RECV_MSG", "ADB", "POST", "EXEC").
+ */
+std::string_view FormatEventPhaseLabel(const Breadcrumb& proto);
 
 }  // namespace android::crashreport::breadcrumbs

@@ -67,6 +67,45 @@ class CreateSdpObserver : public webrtc::CreateSessionDescriptionObserver {
     std::weak_ptr<JniRtcReceiver> receiver_;
 };
 
+const char* IceConnectionStateFieldName(webrtc::PeerConnectionInterface::IceConnectionState state) {
+    switch (state) {
+    case webrtc::PeerConnectionInterface::kIceConnectionNew:
+        return "NEW";
+    case webrtc::PeerConnectionInterface::kIceConnectionChecking:
+        return "CONNECTING";
+    case webrtc::PeerConnectionInterface::kIceConnectionConnected:
+    case webrtc::PeerConnectionInterface::kIceConnectionCompleted:
+        return "CONNECTED";
+    case webrtc::PeerConnectionInterface::kIceConnectionDisconnected:
+        return "DISCONNECTED";
+    case webrtc::PeerConnectionInterface::kIceConnectionFailed:
+        return "FAILED";
+    case webrtc::PeerConnectionInterface::kIceConnectionClosed:
+        return "CLOSED";
+    default:
+        return "CONNECTING";
+    }
+}
+
+JniRtcReceiver* GetReceiver(jlong handle) {
+    auto* ptr = reinterpret_cast<std::shared_ptr<JniRtcReceiver>*>(handle);
+    return (ptr && *ptr) ? ptr->get() : nullptr;
+}
+
+void UpdateJavaListener(JNIEnv* env, jobject listener, const char* class_name,
+                        const char* method_name, const char* method_sig, jobject* ref_out,
+                        jmethodID* mid_out) {
+    if (*ref_out) {
+        env->DeleteGlobalRef(*ref_out);
+        *ref_out = nullptr;
+    }
+    if (listener) {
+        *ref_out = env->NewGlobalRef(listener);
+        jclass cls = env->FindClass(class_name);
+        *mid_out = env->GetMethodID(cls, method_name, method_sig);
+    }
+}
+
 }  // namespace
 
 JniRtcReceiver::JniRtcReceiver(JavaVM* jvm, PixelFormat format)
@@ -87,10 +126,8 @@ JniRtcReceiver::~JniRtcReceiver() {
     if (network_thread_) network_thread_->Stop();
 
     if (jsep_listener_ref_) {
-        bool attached = false;
-        JNIEnv* env = GetJniEnv(&attached);
+        ScopedJniEnv env(jvm_);
         if (env) env->DeleteGlobalRef(jsep_listener_ref_);
-        if (attached && jvm_) jvm_->DetachCurrentThread();
     }
 }
 
@@ -137,63 +174,28 @@ bool JniRtcReceiver::Initialize() {
     return true;
 }
 
-JNIEnv* JniRtcReceiver::GetJniEnv(bool* out_attached) {
-    *out_attached = false;
-    if (!jvm_) return nullptr;
-
-    JNIEnv* env = nullptr;
-    jint res = jvm_->GetEnv(reinterpret_cast<void**>(&env), JNI_VERSION_1_8);
-    if (res == JNI_EDETACHED) {
-#if defined(__ANDROID__)
-        if (jvm_->AttachCurrentThread(&env, nullptr) == JNI_OK) {
-            *out_attached = true;
-        }
-#else
-        if (jvm_->AttachCurrentThreadAsDaemon(reinterpret_cast<void**>(&env), nullptr) == JNI_OK) {
-            *out_attached = true;
-        }
-#endif
-    }
-    return env;
-}
-
 void JniRtcReceiver::SetVideoFrameListener(JNIEnv* env, jobject listener) {
     video_sink_->SetListener(env, listener);
 }
 
 void JniRtcReceiver::SetJsepMessageListener(JNIEnv* env, jobject listener) {
     absl::MutexLock lock(&listeners_mutex_);
-    if (jsep_listener_ref_) {
-        env->DeleteGlobalRef(jsep_listener_ref_);
-        jsep_listener_ref_ = nullptr;
-    }
-    if (listener) {
-        jsep_listener_ref_ = env->NewGlobalRef(listener);
-        jclass cls = env->FindClass("com/android/emulator/webrtc/JsepMessageListener");
-        on_outbound_jsep_mid_ =
-                env->GetMethodID(cls, "onOutboundJsepMessage", "(Ljava/lang/String;)V");
-    }
+    UpdateJavaListener(env, listener, "com/android/emulator/webrtc/JsepMessageListener",
+                       "onOutboundJsepMessage", "(Ljava/lang/String;)V", &jsep_listener_ref_,
+                       &on_outbound_jsep_mid_);
 }
 
 void JniRtcReceiver::SetConnectionStateListener(JNIEnv* env, jobject listener) {
     absl::MutexLock lock(&listeners_mutex_);
-    if (state_listener_ref_) {
-        env->DeleteGlobalRef(state_listener_ref_);
-        state_listener_ref_ = nullptr;
-    }
-    if (listener) {
-        state_listener_ref_ = env->NewGlobalRef(listener);
-        jclass cls = env->FindClass("com/android/emulator/webrtc/ConnectionStateListener");
-        on_state_changed_mid_ =
-                env->GetMethodID(cls, "onConnectionStateChanged",
-                                 "(Lcom/android/emulator/webrtc/ConnectionState;)V");
-    }
+    UpdateJavaListener(env, listener, "com/android/emulator/webrtc/ConnectionStateListener",
+                       "onConnectionStateChanged",
+                       "(Lcom/android/emulator/webrtc/ConnectionState;)V", &state_listener_ref_,
+                       &on_state_changed_mid_);
 }
 
 void JniRtcReceiver::DispatchOutboundJsep(const nlohmann::json& json_msg) {
     LOG(INFO) << "DispatchOutboundJsep invoked: " << json_msg.dump();
-    bool attached = false;
-    JNIEnv* env = GetJniEnv(&attached);
+    ScopedJniEnv env(jvm_);
     if (!env) {
         LOG(ERROR) << "DispatchOutboundJsep: GetJniEnv returned null";
         return;
@@ -217,8 +219,6 @@ void JniRtcReceiver::DispatchOutboundJsep(const nlohmann::json& json_msg) {
         LOG(ERROR) << "DispatchOutboundJsep: listener ref or mid is null (ref=" << ref
                    << ", mid=" << mid << ")";
     }
-
-    if (attached && jvm_) jvm_->DetachCurrentThread();
 }
 
 void JniRtcReceiver::CreateOffer() {
@@ -300,15 +300,28 @@ void JniRtcReceiver::AcceptJsepMessage(JNIEnv* env, const std::string& jsep_json
     }
 }
 
-void JniRtcReceiver::SendTouchEvent(int id, int x, int y, int action_enum) {
+void JniRtcReceiver::SendInputEvent(const android::emulation::control::InputEvent& input_event,
+                                    std::string_view caller, std::string_view event_type) {
     if (!input_data_channel_ ||
         input_data_channel_->state() != webrtc::DataChannelInterface::kOpen) {
-        LOG(WARNING) << "SendTouchEvent dropped: input_data_channel_ is "
+        LOG(WARNING) << caller << " dropped: input_data_channel_ is "
                      << (input_data_channel_ ? std::to_string(input_data_channel_->state())
                                              : "null");
         return;
     }
 
+    std::string serialized;
+    if (!input_event.SerializeToString(&serialized)) {
+        LOG(ERROR) << "Failed to serialize InputEvent " << event_type;
+        return;
+    }
+
+    webrtc::DataBuffer buffer(webrtc::CopyOnWriteBuffer(serialized.data(), serialized.size()),
+                              /*binary=*/true);
+    input_data_channel_->Send(buffer);
+}
+
+void JniRtcReceiver::SendTouchEvent(int id, int x, int y, int action_enum) {
     android::emulation::control::InputEvent input_event;
     auto* touch_event = input_event.mutable_touch_event();
     touch_event->set_display(0);
@@ -320,26 +333,10 @@ void JniRtcReceiver::SendTouchEvent(int id, int x, int y, int action_enum) {
     touch->set_touch_major(10);
     touch->set_touch_minor(10);
 
-    std::string serialized;
-    if (!input_event.SerializeToString(&serialized)) {
-        LOG(ERROR) << "Failed to serialize InputEvent touch_event";
-        return;
-    }
-
-    webrtc::DataBuffer buffer(webrtc::CopyOnWriteBuffer(serialized.data(), serialized.size()),
-                              /*binary=*/true);
-    input_data_channel_->Send(buffer);
+    SendInputEvent(input_event, "SendTouchEvent", "touch_event");
 }
 
 void JniRtcReceiver::SendMouseEvent(int x, int y, int button_enum, int action_enum) {
-    if (!input_data_channel_ ||
-        input_data_channel_->state() != webrtc::DataChannelInterface::kOpen) {
-        LOG(WARNING) << "SendMouseEvent dropped: input_data_channel_ is "
-                     << (input_data_channel_ ? std::to_string(input_data_channel_->state())
-                                             : "null");
-        return;
-    }
-
     android::emulation::control::InputEvent input_event;
     auto* mouse_event = input_event.mutable_mouse_event();
     mouse_event->set_display(0);
@@ -347,41 +344,17 @@ void JniRtcReceiver::SendMouseEvent(int x, int y, int button_enum, int action_en
     mouse_event->set_y(y);
     mouse_event->set_buttons(button_enum);
 
-    std::string serialized;
-    if (!input_event.SerializeToString(&serialized)) {
-        LOG(ERROR) << "Failed to serialize InputEvent mouse_event";
-        return;
-    }
-
-    webrtc::DataBuffer buffer(webrtc::CopyOnWriteBuffer(serialized.data(), serialized.size()),
-                              /*binary=*/true);
-    input_data_channel_->Send(buffer);
+    SendInputEvent(input_event, "SendMouseEvent", "mouse_event");
 }
 
 void JniRtcReceiver::SendKeyEvent(const std::string& key, bool down) {
-    if (!input_data_channel_ ||
-        input_data_channel_->state() != webrtc::DataChannelInterface::kOpen) {
-        LOG(WARNING) << "SendKeyEvent dropped: input_data_channel_ is "
-                     << (input_data_channel_ ? std::to_string(input_data_channel_->state())
-                                             : "null");
-        return;
-    }
-
     android::emulation::control::InputEvent input_event;
     auto* key_event = input_event.mutable_key_event();
     key_event->set_key(key);
     key_event->set_eventtype(down ? android::emulation::control::KeyboardEvent::keydown
                                   : android::emulation::control::KeyboardEvent::keyup);
 
-    std::string serialized;
-    if (!input_event.SerializeToString(&serialized)) {
-        LOG(ERROR) << "Failed to serialize InputEvent key_event";
-        return;
-    }
-
-    webrtc::DataBuffer buffer(webrtc::CopyOnWriteBuffer(serialized.data(), serialized.size()),
-                              /*binary=*/true);
-    input_data_channel_->Send(buffer);
+    SendInputEvent(input_event, "SendKeyEvent", "key_event");
 }
 
 void JniRtcReceiver::OnSessionDescriptionCreated(webrtc::SessionDescriptionInterface* desc) {
@@ -431,8 +404,7 @@ void JniRtcReceiver::OnTrack(webrtc::scoped_refptr<webrtc::RtpTransceiverInterfa
 
 void JniRtcReceiver::OnIceConnectionChange(
         webrtc::PeerConnectionInterface::IceConnectionState new_state) {
-    bool attached = false;
-    JNIEnv* env = GetJniEnv(&attached);
+    ScopedJniEnv env(jvm_);
     if (!env) return;
 
     jobject listener_ref = nullptr;
@@ -441,7 +413,6 @@ void JniRtcReceiver::OnIceConnectionChange(
     {
         absl::MutexLock lock(&listeners_mutex_);
         if (!state_listener_ref_ || !on_state_changed_mid_) {
-            if (attached && jvm_) jvm_->DetachCurrentThread();
             return;
         }
         listener_ref = state_listener_ref_;
@@ -449,39 +420,8 @@ void JniRtcReceiver::OnIceConnectionChange(
     }
 
     jclass state_cls = env->FindClass("com/android/emulator/webrtc/ConnectionState");
-    jfieldID field_id = nullptr;
-
-    switch (new_state) {
-    case webrtc::PeerConnectionInterface::kIceConnectionNew:
-        field_id = env->GetStaticFieldID(state_cls, "NEW",
-                                         "Lcom/android/emulator/webrtc/ConnectionState;");
-        break;
-    case webrtc::PeerConnectionInterface::kIceConnectionChecking:
-        field_id = env->GetStaticFieldID(state_cls, "CONNECTING",
-                                         "Lcom/android/emulator/webrtc/ConnectionState;");
-        break;
-    case webrtc::PeerConnectionInterface::kIceConnectionConnected:
-    case webrtc::PeerConnectionInterface::kIceConnectionCompleted:
-        field_id = env->GetStaticFieldID(state_cls, "CONNECTED",
-                                         "Lcom/android/emulator/webrtc/ConnectionState;");
-        break;
-    case webrtc::PeerConnectionInterface::kIceConnectionDisconnected:
-        field_id = env->GetStaticFieldID(state_cls, "DISCONNECTED",
-                                         "Lcom/android/emulator/webrtc/ConnectionState;");
-        break;
-    case webrtc::PeerConnectionInterface::kIceConnectionFailed:
-        field_id = env->GetStaticFieldID(state_cls, "FAILED",
-                                         "Lcom/android/emulator/webrtc/ConnectionState;");
-        break;
-    case webrtc::PeerConnectionInterface::kIceConnectionClosed:
-        field_id = env->GetStaticFieldID(state_cls, "CLOSED",
-                                         "Lcom/android/emulator/webrtc/ConnectionState;");
-        break;
-    default:
-        field_id = env->GetStaticFieldID(state_cls, "CONNECTING",
-                                         "Lcom/android/emulator/webrtc/ConnectionState;");
-        break;
-    }
+    jfieldID field_id = env->GetStaticFieldID(state_cls, IceConnectionStateFieldName(new_state),
+                                              "Lcom/android/emulator/webrtc/ConnectionState;");
 
     if (field_id) {
         jobject enum_obj = env->GetStaticObjectField(state_cls, field_id);
@@ -491,10 +431,6 @@ void JniRtcReceiver::OnIceConnectionChange(
         }
     }
     if (state_cls) env->DeleteLocalRef(state_cls);
-
-    if (attached && jvm_) {
-        jvm_->DetachCurrentThread();
-    }
 }
 
 void JniLogSink::SetListener(JavaVM* jvm, JNIEnv* env, jobject listener,
@@ -542,22 +478,6 @@ void JniLogSink::SetListener(JavaVM* jvm, JNIEnv* env, jobject listener,
     }
 }
 
-JNIEnv* JniLogSink::GetJniEnv(bool* out_attached) {
-    *out_attached = false;
-    if (!jvm_) return nullptr;
-
-    JNIEnv* env = nullptr;
-    jint res = jvm_->GetEnv(reinterpret_cast<void**>(&env), JNI_VERSION_1_6);
-    if (res == JNI_EDETACHED) {
-        if (jvm_->AttachCurrentThread(reinterpret_cast<void**>(&env), nullptr) == JNI_OK) {
-            *out_attached = true;
-        } else {
-            return nullptr;
-        }
-    }
-    return env;
-}
-
 void JniLogSink::OnLogMessage(const std::string& message) {
     OnLogMessage(message, webrtc::LS_INFO);
 }
@@ -596,16 +516,7 @@ void JniLogSink::OnLogMessage(const std::string& message, webrtc::LoggingSeverit
 
     if (!jvm || !listener_ref) return;
 
-    bool attached = false;
-    JNIEnv* env = nullptr;
-    jint res = jvm->GetEnv(reinterpret_cast<void**>(&env), JNI_VERSION_1_6);
-    if (res == JNI_EDETACHED) {
-        if (jvm->AttachCurrentThread(reinterpret_cast<void**>(&env), nullptr) == JNI_OK) {
-            attached = true;
-        } else {
-            return;
-        }
-    }
+    ScopedJniEnv env(jvm, JNI_VERSION_1_6);
     if (!env) return;
 
     std::string_view sv = message;
@@ -623,16 +534,13 @@ void JniLogSink::OnLogMessage(const std::string& message, webrtc::LoggingSeverit
 
     if (severity_obj) env->DeleteLocalRef(severity_obj);
     if (msg_str) env->DeleteLocalRef(msg_str);
-
-    if (attached && jvm) {
-        jvm->DetachCurrentThread();
-    }
 }
 
 static JniLogSink g_jni_log_sink;
 
 }  // namespace goldfish::videobridge::java
 
+using goldfish::videobridge::java::GetReceiver;
 using goldfish::videobridge::java::JniRtcReceiver;
 using goldfish::videobridge::java::PixelFormat;
 
@@ -654,14 +562,12 @@ JNIEXPORT jlong JNICALL Java_com_android_emulator_webrtc_WebRtcClient_nativeCrea
 
 JNIEXPORT void JNICALL Java_com_android_emulator_webrtc_WebRtcClient_nativeSetVideoFrameListener(
         JNIEnv* env, jclass clazz, jlong handle, jobject listener) {
-    auto receiver_ptr = reinterpret_cast<std::shared_ptr<JniRtcReceiver>*>(handle);
-    if (receiver_ptr && *receiver_ptr) (*receiver_ptr)->SetVideoFrameListener(env, listener);
+    if (auto* receiver = GetReceiver(handle)) receiver->SetVideoFrameListener(env, listener);
 }
 
 JNIEXPORT void JNICALL Java_com_android_emulator_webrtc_WebRtcClient_nativeSetJsepMessageListener(
         JNIEnv* env, jclass clazz, jlong handle, jobject listener) {
-    auto receiver_ptr = reinterpret_cast<std::shared_ptr<JniRtcReceiver>*>(handle);
-    if (receiver_ptr && *receiver_ptr) (*receiver_ptr)->SetJsepMessageListener(env, listener);
+    if (auto* receiver = GetReceiver(handle)) receiver->SetJsepMessageListener(env, listener);
 }
 
 JNIEXPORT void JNICALL
@@ -669,49 +575,43 @@ Java_com_android_emulator_webrtc_WebRtcClient_nativeSetConnectionStateListener(J
                                                                                jclass clazz,
                                                                                jlong handle,
                                                                                jobject listener) {
-    auto receiver_ptr = reinterpret_cast<std::shared_ptr<JniRtcReceiver>*>(handle);
-    if (receiver_ptr && *receiver_ptr) (*receiver_ptr)->SetConnectionStateListener(env, listener);
+    if (auto* receiver = GetReceiver(handle)) receiver->SetConnectionStateListener(env, listener);
 }
 
 JNIEXPORT void JNICALL Java_com_android_emulator_webrtc_WebRtcClient_nativeCreateOffer(
         JNIEnv* env, jclass clazz, jlong handle) {
-    auto receiver_ptr = reinterpret_cast<std::shared_ptr<JniRtcReceiver>*>(handle);
-    if (receiver_ptr && *receiver_ptr) (*receiver_ptr)->CreateOffer();
+    if (auto* receiver = GetReceiver(handle)) receiver->CreateOffer();
 }
 
 JNIEXPORT void JNICALL Java_com_android_emulator_webrtc_WebRtcClient_nativeAcceptJsepMessage(
         JNIEnv* env, jclass clazz, jlong handle, jstring jsep_json) {
-    auto receiver_ptr = reinterpret_cast<std::shared_ptr<JniRtcReceiver>*>(handle);
-    if (receiver_ptr && *receiver_ptr && jsep_json) {
+    if (auto* receiver = GetReceiver(handle); receiver && jsep_json) {
         const char* str = env->GetStringUTFChars(jsep_json, nullptr);
-        (*receiver_ptr)->AcceptJsepMessage(env, str);
+        receiver->AcceptJsepMessage(env, str);
         env->ReleaseStringUTFChars(jsep_json, str);
     }
 }
 
 JNIEXPORT void JNICALL Java_com_android_emulator_webrtc_WebRtcClient_nativeSendTouchEvent(
         JNIEnv* env, jclass clazz, jlong handle, jint id, jint x, jint y, jint action_enum) {
-    auto receiver_ptr = reinterpret_cast<std::shared_ptr<JniRtcReceiver>*>(handle);
-    if (receiver_ptr && *receiver_ptr) {
-        (*receiver_ptr)->SendTouchEvent(id, x, y, action_enum);
+    if (auto* receiver = GetReceiver(handle)) {
+        receiver->SendTouchEvent(id, x, y, action_enum);
     }
 }
 
 JNIEXPORT void JNICALL Java_com_android_emulator_webrtc_WebRtcClient_nativeSendMouseEvent(
         JNIEnv* env, jclass clazz, jlong handle, jint x, jint y, jint button_enum,
         jint action_enum) {
-    auto receiver_ptr = reinterpret_cast<std::shared_ptr<JniRtcReceiver>*>(handle);
-    if (receiver_ptr && *receiver_ptr) {
-        (*receiver_ptr)->SendMouseEvent(x, y, button_enum, action_enum);
+    if (auto* receiver = GetReceiver(handle)) {
+        receiver->SendMouseEvent(x, y, button_enum, action_enum);
     }
 }
 
 JNIEXPORT void JNICALL Java_com_android_emulator_webrtc_WebRtcClient_nativeSendKeyEvent(
         JNIEnv* env, jclass clazz, jlong handle, jstring key, jboolean down) {
-    auto receiver_ptr = reinterpret_cast<std::shared_ptr<JniRtcReceiver>*>(handle);
-    if (receiver_ptr && *receiver_ptr && key) {
+    if (auto* receiver = GetReceiver(handle); receiver && key) {
         const char* str = env->GetStringUTFChars(key, nullptr);
-        (*receiver_ptr)->SendKeyEvent(str, down);
+        receiver->SendKeyEvent(str, down);
         env->ReleaseStringUTFChars(key, str);
     }
 }
