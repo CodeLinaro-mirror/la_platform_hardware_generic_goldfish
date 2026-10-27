@@ -22,8 +22,10 @@
 #include <utility>
 #include <vector>
 
+#include "absl/base/thread_annotations.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
+#include "absl/synchronization/mutex.h"
 #include "absl/time/time.h"
 
 #include "android/emulation/control/emulator_grpc_client.h"
@@ -128,7 +130,7 @@ absl::Status NetsimTransport::initialize(const ChipConfig& chip_config) {
 }
 
 void NetsimTransport::send_proto(::netsim::packet::PacketRequest msg) {
-    std::lock_guard<std::mutex> lock(mWritelock);
+    const absl::MutexLock lock(mWritelock);
     if (mWriteDone) {
         // Can't send anymore
         return;
@@ -152,7 +154,7 @@ void NetsimTransport::send(Packet packet) {
 }
 
 void NetsimTransport::OnWriteDone(bool ok) {
-    std::lock_guard<std::mutex> lock(mWritelock);
+    const absl::MutexLock lock(mWritelock);
     if (ok) {
         mWriteQueue.pop();
         mWriting = false;
@@ -171,7 +173,7 @@ void NetsimTransport::NextWrite_locked() {
 }
 
 void NetsimTransport::next_recv() {
-    std::lock_guard<std::mutex> lock(mReadlock);
+    const absl::MutexLock lock(mReadlock);
     if (mReadDone) {
         return;
     }
@@ -187,7 +189,7 @@ void NetsimTransport::OnReadDone(bool ok) {
     if (ok) {
         bool valid = false;
         {
-            std::lock_guard<std::mutex> lock(mReadlock);
+            const absl::MutexLock lock(mReadlock);
             mReadPacket.clear();
             if (mKind == ChipKind::kBluetooth && mReadBuffer.has_hci_packet()) {
                 mReadPacket.reserve(1 + mReadBuffer.hci_packet().packet().size());
@@ -207,7 +209,7 @@ void NetsimTransport::OnReadDone(bool ok) {
         bool continue_read = !valid || mRecvCb(mReadPacket);
 
         {
-            std::lock_guard<std::mutex> lock(mReadlock);
+            const absl::MutexLock lock(mReadlock);
             if (!mReadDone && (continue_read || mResumeRequested)) {
                 mResumeRequested = false;
                 StartRead(&mReadBuffer);
@@ -218,7 +220,7 @@ void NetsimTransport::OnReadDone(bool ok) {
     } else {
         // Reading finished
         VLOG(1) << "Netsim Transport: " << mKindName << " - reading terminated";
-        std::lock_guard<std::mutex> lock(mReadlock);
+        const absl::MutexLock lock(mReadlock);
         mReadDone = true;
         mReading = false;
     }

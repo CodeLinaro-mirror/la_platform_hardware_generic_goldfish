@@ -17,12 +17,13 @@
 #include <grpcpp/grpcpp.h>
 
 #include <memory>
-#include <mutex>
 #include <queue>
 #include <string>
 #include <vector>
 
+#include "absl/base/thread_annotations.h"
 #include "absl/status/status.h"
+#include "absl/synchronization/mutex.h"
 #include "absl/synchronization/notification.h"
 
 #include "emulator/plugin/netsim/packet_transport.h"
@@ -38,21 +39,22 @@ class NetsimTransport : public PacketTransport,
     explicit NetsimTransport(PacketTransport::RecvCallback recv_cb);
     ~NetsimTransport() override;
 
-    absl::Status initialize(const ChipConfig& chip) override;
+    absl::Status initialize(const ChipConfig& chip) override
+            ABSL_LOCKS_EXCLUDED(mWritelock, mReadlock);
 
-    void send(Packet packet) override;
+    void send(Packet packet) override ABSL_LOCKS_EXCLUDED(mWritelock);
 
-    void next_recv() override;
+    void next_recv() override ABSL_LOCKS_EXCLUDED(mReadlock);
 
   private:
     void cancel();
-    void send_proto(::netsim::packet::PacketRequest msg);
+    void send_proto(::netsim::packet::PacketRequest msg) ABSL_LOCKS_EXCLUDED(mWritelock);
     void OnDone(const grpc::Status& s) override;
 
-    void OnReadDone(bool ok) override;
+    void OnReadDone(bool ok) override ABSL_LOCKS_EXCLUDED(mReadlock);
 
-    void OnWriteDone(bool ok) override;
-    void NextWrite_locked();
+    void OnWriteDone(bool ok) override ABSL_LOCKS_EXCLUDED(mWritelock);
+    void NextWrite_locked() ABSL_EXCLUSIVE_LOCKS_REQUIRED(mWritelock);
 
     PacketTransport::RecvCallback mRecvCb;
 
@@ -63,19 +65,19 @@ class NetsimTransport : public PacketTransport,
 
     std::unique_ptr<grpc::ClientContext> mStreamPacketsContext;
 
-    std::mutex mWritelock;
-    std::queue<::netsim::packet::PacketRequest> mWriteQueue;
-    bool mWriting{false};
-    bool mWriteDone{false};
+    std::queue<::netsim::packet::PacketRequest> mWriteQueue ABSL_GUARDED_BY(mWritelock);
+    bool mWriting ABSL_GUARDED_BY(mWritelock){false};
+    bool mWriteDone ABSL_GUARDED_BY(mWritelock){false};
 
-    ::netsim::packet::PacketResponse mReadBuffer;
+    ::netsim::packet::PacketResponse mReadBuffer ABSL_GUARDED_BY(mReadlock);
     Packet mReadPacket;
-    std::mutex mReadlock;
-    bool mReadDone{false};
-    bool mReading{false};
-    bool mResumeRequested{false};
+    bool mReadDone ABSL_GUARDED_BY(mReadlock){false};
+    bool mReading ABSL_GUARDED_BY(mReadlock){false};
+    bool mResumeRequested ABSL_GUARDED_BY(mReadlock){false};
 
     absl::Notification mDone;
+    absl::Mutex mWritelock;
+    absl::Mutex mReadlock;
 };
 
 }  // namespace goldfish::netsim
