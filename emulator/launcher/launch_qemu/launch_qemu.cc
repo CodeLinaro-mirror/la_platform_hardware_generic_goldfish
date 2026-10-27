@@ -43,6 +43,7 @@
 #include "cpu_device.h"
 #include "display_device.h"
 #include "env_passthrough_device.h"
+#include "goldfish_address_space_device.h"
 #include "gpu_device.h"
 #include "hugepage_device.h"
 #include "initrd_device.h"
@@ -211,6 +212,10 @@ absl::Status LaunchQemu::addDevices() {
 
     // Also includes input devices for the display.
     addDevice<DisplayDevice>(gpu_name);
+
+    if (a.ApiLevel() < 37) {
+        addDevice<GoldfishAddressSpaceDevice>("1e.0");
+    }
 
     // Our virtio-vsock.
     addDevice<ParameterList>(std::initializer_list<std::string>{

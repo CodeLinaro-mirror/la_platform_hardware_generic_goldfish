@@ -861,4 +861,19 @@ TEST(GpuDeviceTest, RendererFeaturesRespectFeatureFlags) {
     }
 }
 
+TEST(GpuDeviceTest, DisabledBelowApi37) {
+    base::TestSystem sys("");
+    FakeEmulator emu;
+    HardwareConfig hw;
+    hw.hw_lcd_width = 1080;
+    hw.hw_lcd_height = 2400;
+    EXPECT_CALL(emu.mock_avd(), Hw()).WillRepeatedly(ReturnRef(hw));
+    EXPECT_CALL(emu.mock_avd(), ApiLevel()).WillRepeatedly(Return(36));
+
+    SnapshotDevice snapshot_dev;
+    GpuDevice dev("gpu0", snapshot_dev);
+    EXPECT_OK(dev.initialize(emu.config()));
+    EXPECT_TRUE(dev.getQemuParameters(emu.config()).empty());
+}
+
 }  // namespace android::goldfish::test

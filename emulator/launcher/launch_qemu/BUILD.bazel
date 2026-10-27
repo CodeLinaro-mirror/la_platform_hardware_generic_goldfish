@@ -259,6 +259,19 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "goldfish_address_space_device",
+    srcs = ["goldfish_address_space_device.cc"],
+    hdrs = ["goldfish_address_space_device.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":device",
+        ":emulator_config",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/strings",
+    ],
+)
+
 cc_test(
     name = "gpu_device_test",
     size = "small",
@@ -695,6 +708,7 @@ cc_library(
         ":display_device",
         ":emulator_config",
         ":env_passthrough_device",
+        ":goldfish_address_space_device",
         ":gpu_device",
         ":grpc_device",
         ":hugepage_device",

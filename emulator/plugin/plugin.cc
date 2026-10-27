@@ -41,6 +41,9 @@
 #include "goldfish/devices/virtio_gpu_gfxstream/virtio_gpu_gfxstream.h"
 #include "goldfish/grpc/grpc.h"
 #include "goldfish/input/virtio_input_android.h"
+#include "goldfish/legacy/goldfish_address_space_low_level.h"
+#include "goldfish/legacy/goldfish_pipe_low_level.h"
+#include "goldfish/legacy/goldfish_sync_low_level.h"
 #include "goldfish/net/virtio_wifi.h"
 #include "goldfish/netsim/netsim_chardev.h"
 #include "goldfish/netsim/netsim_connection.h"
@@ -216,6 +219,9 @@ extern "C" void GF_REGISTER_TYPES_FUNC(void) {
     goldfish::netsim::netsim_connection_register_types();
     goldfish::netsim::netsim_netdev_register_types();
     goldfish::netsim::netsim_chardev_register_types();
+    goldfish_pipe_register_types();
+    goldfish_sync_register_types();
+    goldfish_address_space_register_types();
     VLOG(1) << "Exit GF_REGISTER_TYPES";
 }
 

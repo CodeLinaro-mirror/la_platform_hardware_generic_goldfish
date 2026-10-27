@@ -19,6 +19,7 @@ class FakeEmulator {
             , mMockAvd(std::make_unique<MockAvd>()) {
         ON_CALL(*mMockAvd, GetSystemImagePaths())
                 .WillByDefault(testing::ReturnRef(mSystemImagePaths));
+        ON_CALL(*mMockAvd, ApiLevel()).WillByDefault(testing::Return(37));
         using S = android_studio::EmulatorFeatureFlagState;
         mFeatureFlags = FeatureFlags::CreateForTesting({
             S::MINIGBM,
