@@ -64,8 +64,9 @@ class UvManagedProcess : public ManagedProcess {
 };
 
 void UvInternalExitCb(uv_process_t* req, int64_t exit_status, int term_signal) {
-    auto* process = static_cast<UvManagedProcess*>(req->data);
-    process->OnExit(exit_status, term_signal);
+    if (auto* process = static_cast<UvManagedProcess*>(req->data)) {
+        process->OnExit(exit_status, term_signal);
+    }
 }
 }  // namespace
 
@@ -111,12 +112,15 @@ class ScopedDisableExceptionPorts {
 
 class UvProcessLauncher::UvPipe {
   public:
-    UvPipe(UvProcessLauncher* l, std::ostream& std_os, const std::filesystem::path& path)
-            : launcher_(l), read_buffer_(65535), output_(path.empty() ? std_os : output_file_) {
-        if (const int err = uv_pipe_init(l->uv_loop_, &pipe_, /*ipc=*/0)) {
+    UvPipe(UvProcessLauncher* launcher, std::ostream& std_os, const std::filesystem::path& path)
+            : launcher_(launcher)
+            , read_buffer_(kReadBufferSize)
+            , output_(path.empty() ? std_os : output_file_)
+            , pipe_(new uv_pipe_t{}) {
+        if (const int err = uv_pipe_init(launcher->uv_loop_, pipe_.get(), /*ipc=*/0)) {
             LOG(DFATAL) << "uv_pipe_init failed with: " << uv_strerror(err);
         }
-        pipe_.data = this;
+        pipe_->data = this;
 
         if (!path.empty()) {
             output_file_.open(path, std::ios::binary | std::ios::app);
@@ -124,22 +128,23 @@ class UvProcessLauncher::UvPipe {
     }
 
     ~UvPipe() {
+        if (!uv_is_closing(reinterpret_cast<uv_handle_t*>(pipe_.get()))) {
+            uv_read_stop(reinterpret_cast<uv_stream_t*>(pipe_.get()));
+        }
         output_file_.close();
-        uv_close(reinterpret_cast<uv_handle_t*>(&pipe_), [](uv_handle_t* handle) {
-            // Nothing to do.
-        });
+        pipe_.reset();
     }
 
     bool StartReading() {
         if (const int err =
-                    uv_read_start(reinterpret_cast<uv_stream_t*>(&pipe_), OnAlloc, OnRead)) {
+                    uv_read_start(reinterpret_cast<uv_stream_t*>(pipe_.get()), OnAlloc, OnRead)) {
             LOG(DFATAL) << "uv_read_start failed with: " << uv_strerror(err);
             return false;
         }
         return true;
     }
 
-    uv_pipe_t& GetPipe() { return pipe_; }
+    uv_pipe_t& GetPipe() { return *pipe_; }
 
     static std::unique_ptr<UvPipe> Create(UvProcessLauncher* launcher, std::ostream& std_os,
                                           const std::filesystem::path& path) {
@@ -147,14 +152,36 @@ class UvProcessLauncher::UvPipe {
     }
 
   private:
-    static void OnAlloc(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf) {
+    static constexpr size_t kReadBufferSize = 65535;
+
+    struct PipeHandleDeleter {
+        void operator()(uv_pipe_t* handle) const {
+            handle->data = nullptr;
+            if (!uv_is_closing(reinterpret_cast<uv_handle_t*>(handle))) {
+                uv_close(reinterpret_cast<uv_handle_t*>(handle),
+                         [](uv_handle_t* h) { delete reinterpret_cast<uv_pipe_t*>(h); });
+            } else {
+                delete handle;
+            }
+        }
+    };
+
+    static void OnAlloc(uv_handle_t* handle, size_t /*suggested_size*/, uv_buf_t* buf) {
         auto* uv_pipe = static_cast<UvPipe*>(handle->data);
+        if (uv_pipe == nullptr) {
+            buf->base = nullptr;
+            buf->len = 0;
+            return;
+        }
         buf->base = uv_pipe->read_buffer_.data();
         buf->len = uv_pipe->read_buffer_.size();
     }
 
     static void OnRead(uv_stream_t* stream, ssize_t nread, const uv_buf_t* buf) {
         auto* uv_pipe = static_cast<UvPipe*>(stream->data);
+        if (uv_pipe == nullptr) {
+            return;
+        }
         if (nread > 0) {
             uv_pipe->output_.write(buf->base, nread);
         } else if (nread < 0) {
@@ -169,7 +196,7 @@ class UvProcessLauncher::UvPipe {
     std::ofstream output_file_;
     std::ostream& output_;
 
-    uv_pipe_t pipe_;
+    std::unique_ptr<uv_pipe_t, PipeHandleDeleter> pipe_;
 };
 
 UvProcessLauncher::UvProcessLauncher(LibuvEventLoop& event_loop)

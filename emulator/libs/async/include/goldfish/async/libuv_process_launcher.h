@@ -30,8 +30,13 @@ class UvProcessLauncher : public ProcessLauncher {
   private:
     struct ProcessHandleDeleter {
         void operator()(uv_process_t* handle) const {
-            uv_close(reinterpret_cast<uv_handle_t*>(handle),
-                     [](uv_handle_t* handle) { delete handle; });
+            handle->data = nullptr;
+            if (!uv_is_closing(reinterpret_cast<uv_handle_t*>(handle))) {
+                uv_close(reinterpret_cast<uv_handle_t*>(handle),
+                         [](uv_handle_t* h) { delete reinterpret_cast<uv_process_t*>(h); });
+            } else {
+                delete handle;
+            }
         }
     };
 

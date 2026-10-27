@@ -12,7 +12,9 @@
 #include <thread>
 #include <vector>
 
+#include "absl/base/log_severity.h"
 #include "absl/log/log.h"
+#include "absl/log/scoped_mock_log.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "absl/synchronization/blocking_counter.h"
@@ -23,6 +25,7 @@
 #include "goldfish/async/qemu_event_loop.h"
 #include "goldfish/async/threaded_event_loop.h"
 #include "test/fake_qemu_callbacks.h"
+#include "uv.h"
 
 using namespace std::chrono_literals;
 
@@ -1347,6 +1350,73 @@ TEST_P(EventLoopTest, QemuSnapshotBeforeInitialDrainPreservesNotStartedAndPaused
     fake_qemu_fire_snapshot_progress(&progress);
     EXPECT_EQ(loop->GetState(), LooperStatusEvent::State::kRunning);
     EXPECT_FALSE(timer_executed.load());
+}
+
+TEST(LibuvEventLoopShutdownTest, DrainsHandlesClosedAfterShutdownWithoutWarning) {
+    using ::testing::_;
+    using ::testing::HasSubstr;
+
+    bool close_cb_ran = false;
+    auto local_loop = LibuvEventLoop::Create("ShutdownDrainTest");
+    std::thread runner([&]() { (void)local_loop->Run(); });
+
+    auto* handle = new uv_async_t{};
+    handle->data = &close_cb_ran;
+    ASSERT_THAT(local_loop->PostAndWait([&]() {
+        auto* raw_loop = static_cast<uv_loop_t*>(local_loop->GetRawLoop());
+        ASSERT_EQ(uv_async_init(raw_loop, handle, [](uv_async_t* /*h*/) {}), 0);
+        uv_unref(reinterpret_cast<uv_handle_t*>(handle));
+    }),
+                absl_testing::IsOk());
+
+    ASSERT_THAT(local_loop->ShutdownAndWait(), absl_testing::IsOk());
+    runner.join();
+
+    // Closing a handle after Run() has already exited leaves it pending in
+    // closing_handles until ~LibuvEventLoopImpl() drains the loop.
+    uv_close(reinterpret_cast<uv_handle_t*>(handle), [](uv_handle_t* h) {
+        *static_cast<bool*>(h->data) = true;
+        delete reinterpret_cast<uv_async_t*>(h);
+    });
+
+    absl::ScopedMockLog log(absl::MockLogDefault::kIgnoreUnexpected);
+    EXPECT_CALL(log, Log(absl::LogSeverity::kWarning, _, HasSubstr("Failed to close uv_loop")))
+            .Times(0);
+    log.StartCapturingLogs();
+
+    local_loop.reset();
+
+    log.StopCapturingLogs();
+    EXPECT_TRUE(close_cb_ran);
+}
+
+TEST(LibuvEventLoopShutdownTest, ClosesLingeringUnreferencedHandlesOnDestroyWithoutWarning) {
+    using ::testing::_;
+    using ::testing::HasSubstr;
+
+    uv_timer_t lingering_timer{};
+    auto local_loop = LibuvEventLoop::Create("LingeringHandleTest");
+    std::thread runner([&]() { (void)local_loop->Run(); });
+
+    ASSERT_THAT(local_loop->PostAndWait([&]() {
+        auto* raw_loop = static_cast<uv_loop_t*>(local_loop->GetRawLoop());
+        ASSERT_EQ(uv_timer_init(raw_loop, &lingering_timer), 0);
+        uv_unref(reinterpret_cast<uv_handle_t*>(&lingering_timer));
+    }),
+                absl_testing::IsOk());
+
+    ASSERT_THAT(local_loop->ShutdownAndWait(), absl_testing::IsOk());
+    runner.join();
+
+    absl::ScopedMockLog log(absl::MockLogDefault::kIgnoreUnexpected);
+    EXPECT_CALL(log, Log(absl::LogSeverity::kWarning, _, HasSubstr("Failed to close uv_loop")))
+            .Times(0);
+    log.StartCapturingLogs();
+
+    local_loop.reset();
+
+    log.StopCapturingLogs();
+    EXPECT_NE(uv_is_closing(reinterpret_cast<uv_handle_t*>(&lingering_timer)), 0);
 }
 
 }  // namespace goldfish::async

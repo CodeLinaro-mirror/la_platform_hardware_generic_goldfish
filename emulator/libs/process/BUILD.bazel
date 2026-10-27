@@ -52,6 +52,7 @@ cc_library(
 cc_binary_with_manifest(
     name = "sleep_emu",
     srcs = ["sleep.cc"],
+    visibility = ["//visibility:public"],
     deps = [
         "@abseil-cpp//absl/flags:flag",
         "@abseil-cpp//absl/flags:parse",
