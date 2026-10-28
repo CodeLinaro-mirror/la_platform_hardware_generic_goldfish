@@ -19,6 +19,7 @@
 #include "absl/synchronization/mutex.h"
 
 #include "android/goldfish/vm_interface.h"
+#include "emulator/plugin/grpc/input/input_dispatcher_interface.h"
 #include "goldfish/async/event_loop.h"
 #include "goldfish/avd/avd_properties.h"
 #include "goldfish/avd_universe/battery/battery_state.h"
@@ -84,6 +85,15 @@ struct AvdUniverse : public snapshottable::Snapshottable {
     std::string GetNetsimEndpoint() const ABSL_LOCKS_EXCLUDED(device_mutex_);
 
     virtual display::IMultiDisplay& GetMultiDisplay() const = 0;
+
+    /**
+     * @brief Applies the input of every input session to the guest.
+     * @return A thread-safe dispatcher, shared with input clients that may
+     *     outlive the universe, such as WebRTC channels. It is shut down when
+     *     the gRPC server stops at emulator exit, or at the latest when the
+     *     universe is destroyed.
+     */
+    virtual std::shared_ptr<::goldfish::grpc::v2::IInputDispatcher> GetInputDispatcher() = 0;
 
     void SetGenericSnapshotInProgress(bool in_progress) {
         generic_snapshot_in_progress_ = in_progress;

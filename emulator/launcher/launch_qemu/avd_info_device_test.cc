@@ -2,7 +2,9 @@
 
 #include <gtest/gtest.h>
 
+#include <optional>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -23,13 +25,15 @@ using ::testing::ElementsAre;
 using ::testing::EndsWith;
 using ::testing::Eq;
 using ::testing::HasSubstr;
+using ::testing::Not;
 using ::testing::Return;
 using ::testing::ReturnRef;
+using ::testing::StartsWith;
 
 TEST(AvdInfoDeviceTest, Basic) {
     FakeEmulator emu;
 
-    AvdInfoDevice dev;
+    AvdInfoDevice dev(/*factory_boot=*/false);
     EXPECT_THAT(dev.initialize(emu.config()), absl_testing::IsOk());
     EXPECT_THAT(dev.getQemuParameters(emu.config()),
                 ::testing::ElementsAre(Eq("-device"), ::testing::HasSubstr("avdstart,")));
@@ -38,7 +42,7 @@ TEST(AvdInfoDeviceTest, Basic) {
 TEST(AvdInfoDeviceTest, DefaultEnablesSnapshotUpdateTime) {
     FakeEmulator emu;
 
-    AvdInfoDevice dev;
+    AvdInfoDevice dev(/*factory_boot=*/false);
     EXPECT_THAT(dev.initialize(emu.config()), absl_testing::IsOk());
     EXPECT_THAT(dev.getQemuParameters(emu.config()),
                 ::testing::ElementsAre(
@@ -52,7 +56,7 @@ TEST(AvdInfoDeviceTest, NoSnapshotUpdateTimeDisablesSnapshotUpdateTime) {
     opts.no_snapshot_update_time = true;
     FakeEmulator emu(opts);
 
-    AvdInfoDevice dev;
+    AvdInfoDevice dev(/*factory_boot=*/false);
     EXPECT_THAT(dev.initialize(emu.config()), absl_testing::IsOk());
     EXPECT_THAT(dev.getQemuParameters(emu.config()),
                 ::testing::ElementsAre(
@@ -64,7 +68,7 @@ TEST(AvdInfoDeviceTest, NoSnapshotUpdateTimeDisablesSnapshotUpdateTime) {
 TEST(AvdInfoDeviceTest, SnapshotsEnabledByDefaultAndVersionPassedToPlugin) {
     FakeEmulator emu;
 
-    AvdInfoDevice dev;
+    AvdInfoDevice dev(/*factory_boot=*/false);
     EXPECT_THAT(dev.initialize(emu.config()), absl_testing::IsOk());
     EXPECT_THAT(dev.getQemuParameters(emu.config()),
                 ::testing::ElementsAre(
@@ -72,7 +76,40 @@ TEST(AvdInfoDeviceTest, SnapshotsEnabledByDefaultAndVersionPassedToPlugin) {
                         ::testing::AllOf(::testing::HasSubstr("avdstart,"),
                                          ::testing::HasSubstr("snapshots_enabled=true"),
                                          ::testing::HasSubstr(absl::StrCat(
-                                                 "snapshot_version=", kSnapshotVersion)))));
+                                                 "snapshot_version=",
+                                                 SnapshotVersionFor(kDefaultVirtioGpuDevice))))));
+}
+
+TEST(AvdInfoDeviceTest, SnapshotVersionEncodesSelectedVirtioGpuDevice) {
+    for (const char* const name : {"gfxstream", "rutabaga"}) {
+        AndroidOptions opts{};
+        opts.virtio_gpu_device = const_cast<char*>(name);
+        FakeEmulator emu(opts);
+        const VirtioGpuDevice device = std::string_view(name) == "gfxstream"
+                                               ? VirtioGpuDevice::kGfxstream
+                                               : VirtioGpuDevice::kRutabaga;
+
+        AvdInfoDevice dev(/*factory_boot=*/false);
+        EXPECT_THAT(dev.initialize(emu.config()), absl_testing::IsOk());
+        EXPECT_THAT(
+                dev.getQemuParameters(emu.config()),
+                ::testing::ElementsAre(
+                        Eq("-device"),
+                        ::testing::AllOf(
+                                ::testing::HasSubstr("avdstart,"),
+                                ::testing::HasSubstr(absl::StrCat(
+                                        "snapshot_version=", SnapshotVersionFor(device), ",")))))
+                << name;
+    }
+    // The two values differ only in the device bits.
+    EXPECT_NE(SnapshotVersionFor(VirtioGpuDevice::kGfxstream),
+              SnapshotVersionFor(VirtioGpuDevice::kRutabaga));
+    EXPECT_EQ(::goldfish::snapshot::SnapshotVersionGpuDevice(
+                      SnapshotVersionFor(VirtioGpuDevice::kGfxstream)),
+              ::goldfish::snapshot::SnapshotGpuDevice::kGfxstream);
+    EXPECT_EQ(::goldfish::snapshot::SnapshotVersionGpuDevice(
+                      SnapshotVersionFor(VirtioGpuDevice::kRutabaga)),
+              ::goldfish::snapshot::SnapshotGpuDevice::kRutabaga);
 }
 
 TEST(AvdInfoDeviceTest, NoSnapshotDisablesSnapshots) {
@@ -80,7 +117,7 @@ TEST(AvdInfoDeviceTest, NoSnapshotDisablesSnapshots) {
     opts.no_snapshot = true;
     FakeEmulator emu(opts);
 
-    AvdInfoDevice dev;
+    AvdInfoDevice dev(/*factory_boot=*/false);
     EXPECT_THAT(dev.initialize(emu.config()), absl_testing::IsOk());
     EXPECT_THAT(dev.getQemuParameters(emu.config()),
                 ::testing::ElementsAre(
@@ -99,7 +136,7 @@ TEST(AvdInfoDeviceTest, NoSnapshotLoadOrSaveKeepsSnapshotsEnabled) {
         }
         FakeEmulator emu(opts);
 
-        AvdInfoDevice dev;
+        AvdInfoDevice dev(/*factory_boot=*/false);
         EXPECT_THAT(dev.initialize(emu.config()), absl_testing::IsOk());
         EXPECT_THAT(dev.getQemuParameters(emu.config()),
                     ::testing::ElementsAre(
@@ -115,7 +152,7 @@ TEST(AvdInfoDeviceTest, SetsBuildFingerprint) {
             .WillRepeatedly(
                     Return("google/sdk_gphone64_arm64/emu64a:15/AP3A/12345:userdebug/dev-keys"));
 
-    AvdInfoDevice dev;
+    AvdInfoDevice dev(/*factory_boot=*/false);
     EXPECT_THAT(dev.initialize(emu.config()), absl_testing::IsOk());
     EXPECT_THAT(dev.getQemuParameters(emu.config()),
                 ::testing::ElementsAre(
@@ -132,7 +169,7 @@ TEST(AvdInfoDeviceTest, EscapesCommasInDisplayName) {
             .WillRepeatedly(Return("°º¤ø,¸¸,ø¤º°`°º¤ø, UTF-8 ¸,ø¤°º¤ø,¸¸,ø¤º°`°º¤ø,¸"));
     EXPECT_CALL(emu.mock_avd(), Id()).WillRepeatedly(Return("avd-3808973207"));
 
-    AvdInfoDevice dev;
+    AvdInfoDevice dev(/*factory_boot=*/false);
     EXPECT_THAT(dev.initialize(emu.config()), absl_testing::IsOk());
     EXPECT_THAT(dev.getQemuParameters(emu.config()),
                 ElementsAre(Eq("-device"),
@@ -145,7 +182,7 @@ TEST(AvdInfoDeviceTest, EscapesCommasInAvdDir) {
     EXPECT_CALL(emu.mock_avd(), GetContentPath())
             .WillRepeatedly(Return(fs::path("/home/Doe, Jane/.android/avd/test.avd")));
 
-    AvdInfoDevice dev;
+    AvdInfoDevice dev(/*factory_boot=*/false);
     EXPECT_THAT(dev.initialize(emu.config()), absl_testing::IsOk());
     EXPECT_THAT(dev.getQemuParameters(emu.config()),
                 ElementsAre(Eq("-device"),
@@ -166,9 +203,9 @@ std::vector<std::string> GetQemuParametersWithMetrics(MetricsConfig metrics_conf
     const UserPaths user_paths{};
     const AndroidOptions opts{};
     const EmulatorConfig config(ports, chardev_endpoints, std::move(metrics_config), user_paths,
-                                emu.emulator_paths(), emu.mock_avd(), opts);
+                                emu.emulator_paths(), emu.mock_avd(), opts, emu.feature_flags());
 
-    AvdInfoDevice dev;
+    AvdInfoDevice dev(/*factory_boot=*/false);
     EXPECT_THAT(dev.initialize(config), absl_testing::IsOk());
     return dev.getQemuParameters(config);
 }
@@ -201,6 +238,64 @@ TEST(AvdInfoDeviceTest, EscapesCommasInPlaystoreMetricsUrlAndUserId) {
                 ElementsAre(Eq("-device"),
                             EndsWith(",metrics_playstore_url=https://example.com/log?a=1,,2,"
                                      "metrics_user_id=user,,1")));
+}
+
+namespace {
+
+// Returns the avdstart properties that AvdInfoDevice generates for `opts` when the host timezone is
+// `host_timezone`.
+std::string GetAvdStartProperties(const AndroidOptions& opts,
+                                  std::optional<std::string> host_timezone, bool factory_boot) {
+    FakeEmulator emu;
+    const EmulatorPorts ports{};
+    const ChardevEndpoints chardev_endpoints{};
+    const UserPaths user_paths{};
+    const EmulatorConfig config(ports, chardev_endpoints, MetricsConfig{}, user_paths,
+                                emu.emulator_paths(), emu.mock_avd(), opts, emu.feature_flags(),
+                                std::move(host_timezone));
+
+    AvdInfoDevice dev(factory_boot);
+    EXPECT_THAT(dev.initialize(config), absl_testing::IsOk());
+    const std::vector<std::string> params = dev.getQemuParameters(config);
+    EXPECT_THAT(params, ElementsAre(Eq("-device"), StartsWith("avdstart,")));
+    return params.back();
+}
+
+}  // namespace
+
+TEST(AvdInfoDeviceTest, PassesHostTimezoneOnFactoryBoot) {
+    EXPECT_THAT(GetAvdStartProperties(AndroidOptions{}, "Asia/Tokyo", /*factory_boot=*/true),
+                HasSubstr(",timezone=Asia/Tokyo,"));
+}
+
+// The guest copies the timezone into persist.sys.timezone, which would replace the timezone
+// selected in the guest (b/532790747).
+TEST(AvdInfoDeviceTest, DoesNotPassHostTimezoneAfterFactoryBoot) {
+    EXPECT_THAT(GetAvdStartProperties(AndroidOptions{}, "Asia/Tokyo", /*factory_boot=*/false),
+                Not(HasSubstr(",timezone=")));
+}
+
+TEST(AvdInfoDeviceTest, PassesRequestedTimezoneOnEveryBoot) {
+    std::string timezone = "America/New_York";
+    const AndroidOptions opts{.timezone = timezone.data()};
+    EXPECT_THAT(GetAvdStartProperties(opts, "Asia/Tokyo", /*factory_boot=*/false),
+                HasSubstr(",timezone=America/New_York,"));
+    EXPECT_THAT(GetAvdStartProperties(opts, "Asia/Tokyo", /*factory_boot=*/true),
+                HasSubstr(",timezone=America/New_York,"));
+}
+
+TEST(AvdInfoDeviceTest, IgnoresRequestedTimezoneThatIsNotAZoneinfoName) {
+    std::string timezone = "JST";
+    const AndroidOptions opts{.timezone = timezone.data()};
+    EXPECT_THAT(GetAvdStartProperties(opts, "Asia/Tokyo", /*factory_boot=*/false),
+                Not(HasSubstr(",timezone=")));
+    EXPECT_THAT(GetAvdStartProperties(opts, "Asia/Tokyo", /*factory_boot=*/true),
+                HasSubstr(",timezone=Asia/Tokyo,"));
+}
+
+TEST(AvdInfoDeviceTest, OmitsUnknownHostTimezone) {
+    EXPECT_THAT(GetAvdStartProperties(AndroidOptions{}, std::nullopt, /*factory_boot=*/true),
+                Not(HasSubstr(",timezone=")));
 }
 
 }  // namespace android::goldfish::test

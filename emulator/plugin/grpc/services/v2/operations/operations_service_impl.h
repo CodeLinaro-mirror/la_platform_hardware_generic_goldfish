@@ -159,6 +159,12 @@ class OperationsServiceImpl final : public ::google::longrunning::Operations::Se
     void SetMetadataRefresher(MetadataRefresher refresher) ABSL_LOCKS_EXCLUDED(operations_mutex_);
 
   private:
+    using OperationMap = absl::flat_hash_map<std::string, ::google::longrunning::Operation>;
+
+    ::grpc::Status WithOperation(std::string_view name,
+                                 absl::FunctionRef<void(OperationMap::iterator)> fn)
+            ABSL_LOCKS_EXCLUDED(operations_mutex_);
+
     ::google::longrunning::Operation FinishOperation(
             std::string_view name, const ::google::protobuf::Message* final_metadata,
             absl::FunctionRef<void(::google::longrunning::Operation*)> populate_result)
@@ -173,8 +179,7 @@ class OperationsServiceImpl final : public ::google::longrunning::Operations::Se
     const size_t max_completed_operations_;
     mutable absl::Mutex operations_mutex_;
     uint64_t next_operation_id_ ABSL_GUARDED_BY(operations_mutex_) = 1;
-    absl::flat_hash_map<std::string, ::google::longrunning::Operation> operations_
-            ABSL_GUARDED_BY(operations_mutex_);
+    OperationMap operations_ ABSL_GUARDED_BY(operations_mutex_);
     std::deque<std::string> completed_operations_ ABSL_GUARDED_BY(operations_mutex_);
     MetadataRefresher metadata_refresher_ ABSL_GUARDED_BY(operations_mutex_);
 };

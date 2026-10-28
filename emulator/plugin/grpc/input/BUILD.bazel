@@ -1,7 +1,18 @@
-load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_test")
+load("@aemu//tools/clang_tidy:defs.bzl", "clang_tidy_test")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+load("//emulator/tools:plugins.bzl", "collect_plugins")
 
 package(default_visibility = ["//visibility:public"])
+
+collect_plugins(
+    name = "binplace",
+    output_dir = ".",
+    plugins = [
+        "@glib//glib:glib_shared",
+        "@glib//gmodule:gmodule_shared",
+    ],
+    visibility = ["//visibility:private"],
+)
 
 cc_library(
     name = "ev_dev_event",
@@ -94,6 +105,11 @@ cc_test(
     name = "event_sender_test",
     size = "small",
     srcs = ["event_sender_test.cc"],
+    data = [":binplace"],
+    dynamic_deps = [
+        "@glib//glib:glib_shared",
+        "@glib//gmodule:gmodule_shared",
+    ],
     visibility = ["//visibility:public"],
     deps = [
         ":event_sender",
@@ -106,43 +122,248 @@ cc_test(
 )
 
 cc_library(
-    name = "input_session",
-    srcs = ["input_session.cc"],
-    hdrs = ["input_session.h"],
+    name = "input_session_id",
+    hdrs = ["input_session_id.h"],
+)
+
+cc_library(
+    name = "input_dispatcher_interface",
+    hdrs = ["input_dispatcher_interface.h"],
     deps = [
-        ":ev_dev_event",
-        ":slot_registry",
-        "//emulator/plugin/display",
-        "//emulator/plugin/grpc/keyboard",
-        "@abseil-cpp//absl/container:flat_hash_set",
-        "@abseil-cpp//absl/log",
+        ":input_session_id",
+        "//emulator/libs/eventing",
+        "@abseil-cpp//absl/functional:any_invocable",
         "@abseil-cpp//absl/status",
-        "@abseil-cpp//absl/types:span",
+        "@abseil-cpp//absl/time",
+        "@aemu//protos/services_v2:input_service_cc_proto",
+    ],
+)
+
+cc_library(
+    name = "dispatcher_session",
+    srcs = ["dispatcher_session.cc"],
+    hdrs = ["dispatcher_session.h"],
+    deps = [
+        ":input_dispatcher_interface",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/status",
+        "@aemu//protos/services_v2:input_service_cc_proto",
+    ],
+)
+
+cc_library(
+    name = "recording_input_dispatcher",
+    testonly = True,
+    hdrs = ["recording_input_dispatcher.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":input_dispatcher_interface",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/time",
         "@aemu//protos/services_v2:input_service_cc_proto",
     ],
 )
 
 cc_test(
-    name = "input_session_test",
+    name = "dispatcher_session_test",
     size = "small",
-    srcs = ["input_session_test.cc"],
+    srcs = ["dispatcher_session_test.cc"],
     deps = [
-        ":input_session",
-        "//emulator/libs/async:libuv_event_loop",
-        "//emulator/libs/async:threaded_event_loop",
+        ":dispatcher_session",
+        ":input_dispatcher_interface",
+        ":recording_input_dispatcher",
         "//emulator/libs/test:googletest_main",
-        "//emulator/plugin/display:test-display",
-        "//emulator/plugin/grpc/keyboard:test_qemu_input_stub",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/time",
+        "@aemu//protos/services_v2:input_service_cc_proto",
         "@googletest//:gtest",
-        "@grpc",
+    ],
+)
+
+cc_library(
+    name = "contact_table",
+    srcs = ["contact_table.cc"],
+    hdrs = ["contact_table.h"],
+    deps = [
+        ":input_session_id",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/container:inlined_vector",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+    ],
+)
+
+cc_test(
+    name = "contact_table_test",
+    size = "small",
+    srcs = ["contact_table_test.cc"],
+    deps = [
+        ":contact_table",
+        "//emulator/libs/test:googletest_main",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:status_matchers",
+    ],
+)
+
+cc_library(
+    name = "touch_encoding",
+    srcs = ["touch_encoding.cc"],
+    hdrs = ["touch_encoding.h"],
+    deps = [
+        ":ev_dev_event",
+        ":slot_registry",
+        "@aemu//protos/services_v2:input_service_cc_proto",
+        "@qemu//:qemu-headers-exported",
+    ],
+)
+
+cc_test(
+    name = "touch_encoding_test",
+    size = "small",
+    srcs = ["touch_encoding_test.cc"],
+    deps = [
+        ":slot_registry",
+        ":touch_encoding",
+        "//emulator/libs/test:googletest_main",
+        "@googletest//:gtest",
+        "@qemu//:qemu-headers-exported",
+    ],
+)
+
+cc_library(
+    name = "touch_device",
+    srcs = ["touch_device.cc"],
+    hdrs = ["touch_device.h"],
+    deps = [
+        ":contact_table",
+        ":ev_dev_event",
+        "//emulator/libs/base",
+        "//emulator/libs/eventing",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/types:span",
+    ],
+)
+
+cc_library(
+    name = "multi_display_touch_devices",
+    srcs = ["multi_display_touch_devices.cc"],
+    hdrs = ["multi_display_touch_devices.h"],
+    deps = [
+        ":contact_table",
+        ":ev_dev_event",
+        ":touch_device",
+        "//emulator/libs/status_macros",
+        "//emulator/plugin/display",
+        "//emulator/plugin/display:abstract_multi_display",
+        "//emulator/plugin/display:base",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/types:span",
+    ],
+)
+
+cc_test(
+    name = "multi_display_touch_devices_test",
+    size = "small",
+    srcs = ["multi_display_touch_devices_test.cc"],
+    data = [":binplace"],
+    dynamic_deps = [
+        "@glib//glib:glib_shared",
+        "@glib//gmodule:gmodule_shared",
+    ],
+    deps = [
+        ":ev_dev_event",
+        ":multi_display_touch_devices",
+        ":touch_device",
+        "//emulator/libs/async:async_testing",
+        "//emulator/libs/test:googletest_main",
+        "//emulator/plugin/display:abstract_multi_display",
+        "//emulator/plugin/display:test-display",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:status_matchers",
+        "@googletest//:gtest",
+        "@qemu//:qemu-headers-exported",
+    ],
+)
+
+cc_library(
+    name = "keyboard_sink",
+    hdrs = ["keyboard_sink.h"],
+)
+
+cc_library(
+    name = "input_dispatcher",
+    srcs = ["input_dispatcher.cc"],
+    hdrs = ["input_dispatcher.h"],
+    deps = [
+        ":contact_table",
+        ":ev_dev_event",
+        ":input_dispatcher_interface",
+        ":keyboard_sink",
+        ":touch_device",
+        ":touch_encoding",
+        "//emulator/libs/async:async_api",
+        "//emulator/libs/eventing",
+        "//emulator/libs/status_macros",
+        "//emulator/libs/system:clock",
+        "@abseil-cpp//absl/base",
+        "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/container:flat_hash_set",
+        "@abseil-cpp//absl/functional:any_invocable",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/synchronization",
+        "@abseil-cpp//absl/time",
+        "@aemu//protos/services_v2:input_service_cc_proto",
+    ],
+)
+
+cc_test(
+    name = "input_dispatcher_test",
+    size = "small",
+    srcs = ["input_dispatcher_test.cc"],
+    deps = [
+        ":input_dispatcher",
+        ":keyboard_sink",
+        "//emulator/libs/async:async_testing",
+        "//emulator/libs/system:clock",
+        "//emulator/libs/test:googletest_main",
+        "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:status_matchers",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/synchronization",
+        "@abseil-cpp//absl/time",
+        "@abseil-cpp//absl/types:span",
+        "@googletest//:gtest",
+        "@qemu//:qemu-headers-exported",
     ],
 )
 
 clang_tidy_test(
     name = "tidy",
     targets = [
+        ":contact_table",
+        ":dispatcher_session",
+        ":dispatcher_session_test",
+        ":recording_input_dispatcher",
         ":event_sender",
-        ":input_session",
+        ":input_dispatcher",
+        ":input_dispatcher_interface",
+        ":input_session_id",
+        ":keyboard_sink",
+        ":multi_display_touch_devices",
+        ":multi_display_touch_devices_test",
+        ":touch_device",
+        ":touch_encoding",
     ],
     tidy_config_file = "//:clang_tidy_config",
 )

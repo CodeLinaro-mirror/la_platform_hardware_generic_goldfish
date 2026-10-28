@@ -20,6 +20,7 @@
 
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
+#include "absl/strings/str_cat.h"
 
 #include "android/base/testing/test_temp_dir.h"
 #include "android/status/status_matcher_macros.h"
@@ -34,7 +35,8 @@ using ::android::base::TestTempDir;
 using ::testing::Eq;
 
 // An arbitrary version for the store under test; the real value is composed
-// by the launcher from kSnapshotVersionBase and the gfxstream version.
+// by the launcher from kSnapshotVersionBase, the gfxstream version and the
+// selected virtio-gpu device.
 constexpr int kTestGfxstreamVersion = 7;
 constexpr int kTestVersion = MakeSnapshotVersion(kTestGfxstreamVersion);
 static_assert(kTestVersion == (7 << 16 | kSnapshotVersionBase));
@@ -52,12 +54,54 @@ class SnapshotStoreTest : public ::testing::Test {
 };
 
 TEST(MakeSnapshotVersionTest, LayoutAndHistory) {
-    EXPECT_EQ(MakeSnapshotVersion(1) & 0xFFFF, kSnapshotVersionBase);
+    EXPECT_EQ(MakeSnapshotVersion(1) & 0x3FFF, kSnapshotVersionBase);
     EXPECT_EQ(MakeSnapshotVersion(1) >> 16, 1);
     EXPECT_GT(MakeSnapshotVersion(1), 0);
     EXPECT_GT(MakeSnapshotVersion((1 << 15) - 1), 0) << "bit 31 must stay clear";
-    // History: 2 -> 3 for the snapshots/<name>/renderer layout (b/574891578).
-    EXPECT_EQ(kSnapshotVersionBase, 3);
+    // History: 2 -> 3 for the snapshots/<name>/renderer layout (b/574891578),
+    // 3 -> 4 for the VM state moving to snapshots.qcow2 (b/576262656),
+    // 4 -> 5 for Location::accuracy in avd_info VMState.
+    EXPECT_EQ(kSnapshotVersionBase, 5);
+}
+
+TEST(MakeSnapshotVersionTest, GpuDeviceField) {
+    // Snapshots written before the field existed read as virtio-gpu-rutabaga,
+    // which remains the default device: they stay loadable.
+    constexpr int kLegacy = (7 << 16) | kSnapshotVersionBase;
+    EXPECT_EQ(MakeSnapshotVersion(7), kLegacy);
+    EXPECT_EQ(MakeSnapshotVersion(7, SnapshotGpuDevice::kRutabaga), kLegacy);
+    EXPECT_EQ(SnapshotVersionGpuDevice(kLegacy), SnapshotGpuDevice::kRutabaga);
+
+    constexpr int kGfx = MakeSnapshotVersion(7, SnapshotGpuDevice::kGfxstream);
+    EXPECT_NE(kGfx, kLegacy);
+    EXPECT_EQ(SnapshotVersionGpuDevice(kGfx), SnapshotGpuDevice::kGfxstream);
+    EXPECT_EQ(SnapshotVersionBase(kGfx), kSnapshotVersionBase);
+    EXPECT_EQ(SnapshotVersionGfxstream(kGfx), 7);
+    EXPECT_EQ(kGfx & 0xC000, 0x4000) << "device lives in bits 15..14";
+    EXPECT_GT(MakeSnapshotVersion((1 << 15) - 1, SnapshotGpuDevice::kGfxstream), 0);
+
+    EXPECT_EQ(SnapshotGpuDeviceName(SnapshotGpuDevice::kRutabaga), "virtio-gpu-rutabaga");
+    EXPECT_EQ(SnapshotGpuDeviceName(SnapshotGpuDevice::kGfxstream), "virtio-gpu-gfxstream");
+}
+
+TEST(DescribeSnapshotVersionMismatchTest, NamesTheDifferingFields) {
+    constexpr int kRutabaga = MakeSnapshotVersion(7, SnapshotGpuDevice::kRutabaga);
+    constexpr int kGfx = MakeSnapshotVersion(7, SnapshotGpuDevice::kGfxstream);
+    EXPECT_EQ(DescribeSnapshotVersionMismatch(kGfx, kGfx), "");
+    EXPECT_EQ(DescribeSnapshotVersionMismatch(kGfx, kRutabaga),
+              "saved with virtio-gpu-gfxstream but this emulator uses virtio-gpu-rutabaga");
+    EXPECT_EQ(DescribeSnapshotVersionMismatch(kRutabaga, kGfx),
+              "saved with virtio-gpu-rutabaga but this emulator uses virtio-gpu-gfxstream");
+    EXPECT_EQ(DescribeSnapshotVersionMismatch(MakeSnapshotVersion(6), MakeSnapshotVersion(7)),
+              "gfxstream snapshot version 6 != 7");
+    EXPECT_EQ(DescribeSnapshotVersionMismatch((7 << 16) | (kSnapshotVersionBase - 1),
+                                              MakeSnapshotVersion(7)),
+              absl::StrCat("snapshot format version ", kSnapshotVersionBase - 1,
+                           " != ", kSnapshotVersionBase));
+    EXPECT_EQ(DescribeSnapshotVersionMismatch(MakeSnapshotVersion(6, SnapshotGpuDevice::kGfxstream),
+                                              MakeSnapshotVersion(7)),
+              "saved with virtio-gpu-gfxstream but this emulator uses virtio-gpu-rutabaga; "
+              "gfxstream snapshot version 6 != 7");
 }
 
 TEST(IsValidSnapshotNameTest, AcceptsPlainNames) {
@@ -100,6 +144,10 @@ TEST(ValidateSnapshotNameTest, ExplainsTheRules) {
 TEST_F(SnapshotStoreTest, PathsAreNestedUnderSnapshotsRoot) {
     EXPECT_EQ(store_.Root(), temp_dir_.Path() / "snapshots");
     EXPECT_EQ(store_.Dir("foo"), temp_dir_.Path() / "snapshots" / "foo");
+}
+
+TEST_F(SnapshotStoreTest, VmStateImageIsNextToSnapshotsRoot) {
+    EXPECT_EQ(store_.VmStateImage(), temp_dir_.Path() / "snapshots.qcow2");
 }
 
 TEST_F(SnapshotStoreTest, ReadVersionNotFoundWithoutVersionFile) {
@@ -158,6 +206,11 @@ TEST_F(SnapshotStoreTest, IncompatibleWhenBaseOrGfxstreamVersionDiffers) {
     WriteFile(store_.Dir("base") / "version.txt",
               std::to_string((kTestGfxstreamVersion << 16) | (kSnapshotVersionBase + 1)));
     EXPECT_FALSE(store_.IsCompatible("base"));
+
+    WriteFile(store_.Dir("gpu") / "version.txt",
+              std::to_string(
+                      MakeSnapshotVersion(kTestGfxstreamVersion, SnapshotGpuDevice::kGfxstream)));
+    EXPECT_FALSE(store_.IsCompatible("gpu"));
 
     WriteFile(store_.Dir("gfx") / "version.txt",
               std::to_string(MakeSnapshotVersion(kTestGfxstreamVersion - 1)));

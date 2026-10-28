@@ -4,6 +4,9 @@
 **Location:** `hardware/generic/goldfish`
 **Namespace:** `android::goldfish`
 
+> [!IMPORTANT]
+> **Agent Playbook & Routing Index:** Read [`AGENTS.md`](AGENTS.md) for the subsystem `AGENTS.md` playbook index (`emulator/plugin/hal`, `emulator/plugin/grpc`, `emulator/libs/grpc_utils`), library reuse rules, and `emu-dev-cli docs` commands.
+
 ## Documentation Index
 
 ### Top-Level Components

@@ -12,7 +12,9 @@
 #include <thread>
 #include <vector>
 
+#include "absl/base/log_severity.h"
 #include "absl/log/log.h"
+#include "absl/log/scoped_mock_log.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "absl/synchronization/blocking_counter.h"
@@ -23,6 +25,7 @@
 #include "goldfish/async/qemu_event_loop.h"
 #include "goldfish/async/threaded_event_loop.h"
 #include "test/fake_qemu_callbacks.h"
+#include "uv.h"
 
 using namespace std::chrono_literals;
 
@@ -52,6 +55,7 @@ class EventLoopTest : public ::testing::TestWithParam<std::string> {
     void shutdown() {
         if (loop) {
             if (loop->GetState() == LooperStatusEvent::State::kRunning ||
+                loop->GetState() == LooperStatusEvent::State::kPaused ||
                 (mLoopType == "qemu" &&
                  loop->GetState() == LooperStatusEvent::State::kNotStarted)) {
                 auto f = loop->Shutdown();
@@ -1259,6 +1263,160 @@ TEST_P(EventLoopTest, CancelTimerOnLoopThreadBeforeDrainDoesNotFire) {
     }
 
     EXPECT_FALSE(task_executed.load());
+}
+
+TEST_P(EventLoopTest, QemuSnapshotProgressPausesAndResumesRunningLoop) {
+    if (mLoopType != "qemu") {
+        GTEST_SKIP() << "This test is specific to QemuEventLoop.";
+    }
+    std::vector<LooperStatusEvent::State> states;
+    auto subscription = android::base::eventing::MakeScopedCallback(
+            *loop, [&](const LooperStatusEvent& event) { states.push_back(event.state); });
+
+    EXPECT_EQ(loop->GetState(), LooperStatusEvent::State::kNotStarted);
+
+    // Drain the initial BH so the loop transitions to kRunning.
+    fake_qemu_advance_ms(1);
+    EXPECT_EQ(loop->GetState(), LooperStatusEvent::State::kRunning);
+
+    QemuSnapshotProgress progress{};
+    progress.operation = QEMU_SNAPSHOT_OP_SAVE;
+    progress.phase = QEMU_SNAPSHOT_PHASE_PREPARING;
+    fake_qemu_fire_snapshot_progress(&progress);
+    EXPECT_EQ(loop->GetState(), LooperStatusEvent::State::kPaused);
+
+    progress.phase = QEMU_SNAPSHOT_PHASE_TRANSFERRING;
+    fake_qemu_fire_snapshot_progress(&progress);
+    EXPECT_EQ(loop->GetState(), LooperStatusEvent::State::kPaused);
+
+    progress.phase = QEMU_SNAPSHOT_PHASE_COMPLETED;
+    fake_qemu_fire_snapshot_progress(&progress);
+    EXPECT_EQ(loop->GetState(), LooperStatusEvent::State::kRunning);
+
+    // Failed snapshots must also resume the loop back to kRunning.
+    progress.operation = QEMU_SNAPSHOT_OP_LOAD;
+    progress.phase = QEMU_SNAPSHOT_PHASE_PREPARING;
+    fake_qemu_fire_snapshot_progress(&progress);
+    EXPECT_EQ(loop->GetState(), LooperStatusEvent::State::kPaused);
+
+    progress.phase = QEMU_SNAPSHOT_PHASE_FAILED;
+    fake_qemu_fire_snapshot_progress(&progress);
+    EXPECT_EQ(loop->GetState(), LooperStatusEvent::State::kRunning);
+
+    EXPECT_THAT(states, ::testing::ElementsAre(LooperStatusEvent::State::kRunning,
+                                               LooperStatusEvent::State::kPaused,
+                                               LooperStatusEvent::State::kRunning,
+                                               LooperStatusEvent::State::kPaused,
+                                               LooperStatusEvent::State::kRunning));
+}
+
+TEST_P(EventLoopTest, QemuSnapshotBeforeInitialDrainPreservesNotStartedAndPausedStates) {
+    if (mLoopType != "qemu") {
+        GTEST_SKIP() << "This test is specific to QemuEventLoop.";
+    }
+    EXPECT_EQ(loop->GetState(), LooperStatusEvent::State::kNotStarted);
+
+    // A startup -loadvm that starts and finishes before the main loop ever drains BHs
+    // must keep the loop in kNotStarted until the first BH actually drains.
+    QemuSnapshotProgress progress{};
+    progress.operation = QEMU_SNAPSHOT_OP_LOAD;
+    progress.phase = QEMU_SNAPSHOT_PHASE_PREPARING;
+    fake_qemu_fire_snapshot_progress(&progress);
+    EXPECT_EQ(loop->GetState(), LooperStatusEvent::State::kNotStarted);
+
+    progress.phase = QEMU_SNAPSHOT_PHASE_COMPLETED;
+    fake_qemu_fire_snapshot_progress(&progress);
+    EXPECT_EQ(loop->GetState(), LooperStatusEvent::State::kNotStarted);
+
+    // If another snapshot begins before the first BH drain and a BH drains mid-snapshot,
+    // the initial drain transitions to kPaused (not kRunning) until the snapshot finishes.
+    progress.phase = QEMU_SNAPSHOT_PHASE_PREPARING;
+    fake_qemu_fire_snapshot_progress(&progress);
+    EXPECT_EQ(loop->GetState(), LooperStatusEvent::State::kNotStarted);
+
+    fake_qemu_advance_ms(1);
+    EXPECT_EQ(loop->GetState(), LooperStatusEvent::State::kPaused);
+
+    // Cancelling a timer while in kPaused must not deadlock.
+    std::atomic<bool> timer_executed = false;
+    auto timer = loop->CreateTimer([&]() {
+        timer_executed = true;
+        return true;
+    });
+    timer->Schedule(absl::Milliseconds(10), absl::ZeroDuration());
+    timer->Cancel();
+
+    progress.phase = QEMU_SNAPSHOT_PHASE_COMPLETED;
+    fake_qemu_fire_snapshot_progress(&progress);
+    EXPECT_EQ(loop->GetState(), LooperStatusEvent::State::kRunning);
+    EXPECT_FALSE(timer_executed.load());
+}
+
+TEST(LibuvEventLoopShutdownTest, DrainsHandlesClosedAfterShutdownWithoutWarning) {
+    using ::testing::_;
+    using ::testing::HasSubstr;
+
+    bool close_cb_ran = false;
+    auto local_loop = LibuvEventLoop::Create("ShutdownDrainTest");
+    std::thread runner([&]() { (void)local_loop->Run(); });
+
+    auto* handle = new uv_async_t{};
+    handle->data = &close_cb_ran;
+    ASSERT_THAT(local_loop->PostAndWait([&]() {
+        auto* raw_loop = static_cast<uv_loop_t*>(local_loop->GetRawLoop());
+        ASSERT_EQ(uv_async_init(raw_loop, handle, [](uv_async_t* /*h*/) {}), 0);
+        uv_unref(reinterpret_cast<uv_handle_t*>(handle));
+    }),
+                absl_testing::IsOk());
+
+    ASSERT_THAT(local_loop->ShutdownAndWait(), absl_testing::IsOk());
+    runner.join();
+
+    // Closing a handle after Run() has already exited leaves it pending in
+    // closing_handles until ~LibuvEventLoopImpl() drains the loop.
+    uv_close(reinterpret_cast<uv_handle_t*>(handle), [](uv_handle_t* h) {
+        *static_cast<bool*>(h->data) = true;
+        delete reinterpret_cast<uv_async_t*>(h);
+    });
+
+    absl::ScopedMockLog log(absl::MockLogDefault::kIgnoreUnexpected);
+    EXPECT_CALL(log, Log(absl::LogSeverity::kWarning, _, HasSubstr("Failed to close uv_loop")))
+            .Times(0);
+    log.StartCapturingLogs();
+
+    local_loop.reset();
+
+    log.StopCapturingLogs();
+    EXPECT_TRUE(close_cb_ran);
+}
+
+TEST(LibuvEventLoopShutdownTest, ClosesLingeringUnreferencedHandlesOnDestroyWithoutWarning) {
+    using ::testing::_;
+    using ::testing::HasSubstr;
+
+    uv_timer_t lingering_timer{};
+    auto local_loop = LibuvEventLoop::Create("LingeringHandleTest");
+    std::thread runner([&]() { (void)local_loop->Run(); });
+
+    ASSERT_THAT(local_loop->PostAndWait([&]() {
+        auto* raw_loop = static_cast<uv_loop_t*>(local_loop->GetRawLoop());
+        ASSERT_EQ(uv_timer_init(raw_loop, &lingering_timer), 0);
+        uv_unref(reinterpret_cast<uv_handle_t*>(&lingering_timer));
+    }),
+                absl_testing::IsOk());
+
+    ASSERT_THAT(local_loop->ShutdownAndWait(), absl_testing::IsOk());
+    runner.join();
+
+    absl::ScopedMockLog log(absl::MockLogDefault::kIgnoreUnexpected);
+    EXPECT_CALL(log, Log(absl::LogSeverity::kWarning, _, HasSubstr("Failed to close uv_loop")))
+            .Times(0);
+    log.StartCapturingLogs();
+
+    local_loop.reset();
+
+    log.StopCapturingLogs();
+    EXPECT_NE(uv_is_closing(reinterpret_cast<uv_handle_t*>(&lingering_timer)), 0);
 }
 
 }  // namespace goldfish::async

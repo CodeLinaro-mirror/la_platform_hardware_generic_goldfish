@@ -1,8 +1,19 @@
-load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_test")
+load("@aemu//tools/clang_tidy:defs.bzl", "clang_tidy_test")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
+load("//emulator/tools:plugins.bzl", "collect_plugins")
 
 package(default_visibility = ["//visibility:public"])
+
+collect_plugins(
+    name = "binplace",
+    output_dir = ".",
+    plugins = [
+        "@glib//glib:glib_shared",
+        "@glib//gmodule:gmodule_shared",
+    ],
+    visibility = ["//visibility:private"],
+)
 
 cc_library(
     name = "emulator_controller",
@@ -139,6 +150,7 @@ cc_library(
         ":service_forwarder",
         "//emulator/libs/grpc_client",
         "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/strings",
         "@aemu//protos/services/emulator-controller:emulator_controller_cc_proto",
         "@aemu//protos/services/forwarder:service_forwarder_cc_grpc",
         "@aemu//protos/services/ui-controller:ui_controller_service_cc_grpc",
@@ -218,8 +230,9 @@ cc_library(
         "//emulator/plugin/audio:qemu_audio_source",
         "//emulator/plugin/avd:avd_universe",
         "//emulator/plugin/display:base",
+        "//emulator/plugin/grpc/input:dispatcher_session",
         "//emulator/plugin/grpc/input:event_sender",
-        "//emulator/plugin/grpc/input:input_session",
+        "//emulator/plugin/grpc/input:input_dispatcher_interface",
         "//emulator/plugin/grpc/keyboard",
         "//emulator/plugin/grpc/services/v2:rtc_service",
         "//emulator/plugin/grpc/services/v2:sensors_service",
@@ -242,6 +255,11 @@ cc_test(
         "@platforms//os:windows": ["/GR-"],
         "//conditions:default": ["-fno-rtti"],
     }),
+    data = [":binplace"],
+    dynamic_deps = [
+        "@glib//glib:glib_shared",
+        "@glib//gmodule:gmodule_shared",
+    ],
     linkopts = select({
         "@platforms//os:macos": [
             "-Wl,-ObjC",
@@ -269,8 +287,12 @@ cc_test(
         "//emulator/plugin/avd:avd_universe",
         "//emulator/plugin/avd:global_event_loop",
         "//emulator/plugin/display:test-display",
+        "//emulator/plugin/grpc/input:input_dispatcher_interface",
+        "//emulator/plugin/grpc/input:recording_input_dispatcher",
         "//emulator/plugin/grpc/keyboard:test_qemu_input_stub",
+        "@abseil-cpp//absl/status",
         "@aemu//protos/services_v2:input_service_cc_proto",
+        "@googletest//:gtest",
         "@grpc//:grpc++",
     ],
 )

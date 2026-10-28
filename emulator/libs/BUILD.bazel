@@ -1,4 +1,4 @@
-load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_test")
+load("@aemu//tools/clang_tidy:defs.bzl", "clang_tidy_test")
 
 clang_tidy_test(
     name = "tidy",

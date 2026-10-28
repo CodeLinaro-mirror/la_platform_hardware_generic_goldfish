@@ -504,7 +504,11 @@ bool Scene::releaseResources() {
 void Scene::update(bool updateTime) {
     // TODO(virtualscene-video): this should play the video in video mode
     for (auto& poster : mPosters) {
-        poster.second.sceneObject->update();
+        // Posters change when their textures finish loading asynchronously,
+        // which needs to invalidate the cached views even if time is paused.
+        if (poster.second.sceneObject && poster.second.sceneObject->update()) {
+            mObjectsVersion++;
+        }
     }
 
     if (updateTime) {
@@ -631,8 +635,10 @@ bool Scene::createPosterLocation(const PosterInfo& info) {
         storage.defaultTexture = mRenderer->loadTextureAsync(info.defaultFilename.c_str());
         storage.sceneObject->setTexture(0, storage.defaultTexture);
     }
+    storage.sceneObject->update();
 
     mPosters.insert(std::make_pair(info.name, std::move(storage)));
+    mObjectsVersion++;
     return true;
 }
 
@@ -661,6 +667,9 @@ bool Scene::loadPoster(const char* posterName, const char* filename, float scale
     poster.sceneObject->setScale(scale);
     poster.sceneObject->setTexture(
             0, poster.texture.isValid() ? poster.texture : poster.defaultTexture);
+    // Apply the size and visibility of the new texture right away, the rest is
+    // picked up by update() once an asynchronous load completes.
+    poster.sceneObject->update();
 
     mObjectsVersion++;
 

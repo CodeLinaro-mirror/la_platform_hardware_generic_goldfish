@@ -14,11 +14,31 @@
 
 #include "goldfish/videobridge/in_process_input_sender.h"
 
+#include <string_view>
 #include <utility>
 
 #include "absl/log/log.h"
 
 namespace goldfish::videobridge {
+namespace {
+
+template <typename Dispatcher, typename Event>
+void DispatchIfStarted(bool started, const Dispatcher& dispatcher, const Event& event,
+                       std::string_view label) {
+    if (!started) {
+        LOG(WARNING) << "Dropping WebRTC " << label << " (" << event.ShortDebugString()
+                     << "): delivery is not active.";
+        return;
+    }
+    if (dispatcher) {
+        if (auto status = dispatcher(event); !status.ok()) {
+            LOG(WARNING) << "Failed to dispatch WebRTC " << label << " ("
+                         << event.ShortDebugString() << "): " << status;
+        }
+    }
+}
+
+}  // namespace
 
 InProcessInputSender::InProcessInputSender(EventDispatcher dispatcher,
                                            V2EventDispatcher v2_dispatcher,
@@ -34,45 +54,15 @@ absl::Status InProcessInputSender::Start() {
 }
 
 void InProcessInputSender::SendEvent(const InputEvent& event) {
-    if (!started_) {
-        LOG(WARNING) << "Dropping WebRTC input event (" << event.ShortDebugString()
-                     << "): input delivery is not active.";
-        return;
-    }
-    if (dispatcher_) {
-        if (auto status = dispatcher_(event); !status.ok()) {
-            LOG(WARNING) << "Failed to dispatch WebRTC input event (" << event.ShortDebugString()
-                         << "): " << status;
-        }
-    }
+    DispatchIfStarted(started_, dispatcher_, event, "input event");
 }
 
 void InProcessInputSender::SendV2Event(const V2InputEvent& event) {
-    if (!started_) {
-        LOG(WARNING) << "Dropping WebRTC v2 input event (" << event.ShortDebugString()
-                     << "): input delivery is not active.";
-        return;
-    }
-    if (v2_dispatcher_) {
-        if (auto status = v2_dispatcher_(event); !status.ok()) {
-            LOG(WARNING) << "Failed to dispatch WebRTC v2 input event (" << event.ShortDebugString()
-                         << "): " << status;
-        }
-    }
+    DispatchIfStarted(started_, v2_dispatcher_, event, "v2 input event");
 }
 
 void InProcessInputSender::SendV2SensorsUpdate(const V2SensorsUpdateRequest& request) {
-    if (!started_) {
-        LOG(WARNING) << "Dropping WebRTC v2 sensors update (" << request.ShortDebugString()
-                     << "): delivery is not active.";
-        return;
-    }
-    if (v2_sensors_dispatcher_) {
-        if (auto status = v2_sensors_dispatcher_(request); !status.ok()) {
-            LOG(WARNING) << "Failed to dispatch WebRTC v2 sensors update ("
-                         << request.ShortDebugString() << "): " << status;
-        }
-    }
+    DispatchIfStarted(started_, v2_sensors_dispatcher_, request, "v2 sensors update");
 }
 
 void InProcessInputSender::Stop() {

@@ -29,6 +29,7 @@
 #include "goldfish/display/frame_producer.h"
 #include "goldfish/display/frame_source.h"
 #include "goldfish/display/legacy_surface_source.h"
+#include "goldfish/display/virtio_input_tracker.h"
 
 extern "C" {
 #include "pixman.h"
@@ -60,6 +61,9 @@ class VirtualDisplay : public IDisplay {
     void SendMouseEvent(int x, int y, int button_mask) override;
     void SendEvDevEvent(uint16_t type, uint16_t code, uint32_t value) override;
     void SendEvDevReport(EvDevEvents events) override;
+    void WriteEvDevReportOnLoop(absl::Span<const EvDevEvent> events) override;
+    bool IsInputActive() const override;
+    uint64_t InputActiveGeneration() const override;
 
     void Disconnect() override;
 
@@ -83,6 +87,7 @@ class VirtualDisplay : public IDisplay {
 
     EventLoop* qemu_loop_;
     ::VirtIOInputHID* vhid_;
+    VirtioInputActiveTracker input_active_tracker_;
     int last_bmask_ ABSL_GUARDED_BY(send_lock_) = 0;
     absl::Mutex send_lock_;
 };

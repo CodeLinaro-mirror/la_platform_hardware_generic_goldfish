@@ -103,8 +103,6 @@ class GrpcInputSender : public InputSender {
 
   private:
     void CloseWriter() ABSL_LOCKS_EXCLUDED(writer_mutex_);
-    void CloseV1StreamLocked() ABSL_EXCLUSIVE_LOCKS_REQUIRED(writer_mutex_);
-    void CloseV2StreamLocked() ABSL_EXCLUSIVE_LOCKS_REQUIRED(writer_mutex_);
 
     std::shared_ptr<EmulatorClient> client_;
     DataChannelLabel label_;

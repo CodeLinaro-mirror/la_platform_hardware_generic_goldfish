@@ -43,6 +43,7 @@
 #include "cpu_device.h"
 #include "display_device.h"
 #include "env_passthrough_device.h"
+#include "goldfish_address_space_device.h"
 #include "gpu_device.h"
 #include "hugepage_device.h"
 #include "initrd_device.h"
@@ -63,6 +64,9 @@ absl::Status LaunchQemu::addDevices() {
     // -device A -device B ...
     const auto& o = config_.opts();
     const auto& a = config_.avd();
+    // Checked before adding any device, since devices can change the AVD: e.g. the drives create a
+    // new userdata qcow2 overlay when it is missing or invalid.
+    const bool factory_boot = IsUserdataNew(a);
 
     addDevice<EnvPassthroughDevice>();
     addDevice<PluginInit>();
@@ -128,10 +132,15 @@ absl::Status LaunchQemu::addDevices() {
     addDevice<ParameterList>(
             std::initializer_list<std::string>{"-serial", o.show_kernel ? "stdio" : "null"});
 
-    addDevice<AvdInfoDevice>();
+    addDevice<AvdInfoDevice>(factory_boot);
 
     bool netsim_cellular = false;
-    if (!o.no_netsim) {
+    if (!o.no_netsim && config_.chardev_endpoints().netsim.empty()) {
+        ABSL_LOG(WARNING)
+                << "netsim is requested, but the endpoint is empty; skipping netsim device "
+                   "configuration and falling back to QEMU SLIRP (eth0) and non-netsim "
+                   "telephony (pass '-no-netsim' if netsim is intentionally disabled).";
+    } else if (!o.no_netsim) {
         addDevice<ParameterList>(std::initializer_list<std::string>{
             "-device",
             absl::StrCat("netsim-connection,id=netsim,grpc_endpoint=",
@@ -203,6 +212,10 @@ absl::Status LaunchQemu::addDevices() {
 
     // Also includes input devices for the display.
     addDevice<DisplayDevice>(gpu_name);
+
+    if (a.ApiLevel() < 37) {
+        addDevice<GoldfishAddressSpaceDevice>("1e.0");
+    }
 
     // Our virtio-vsock.
     addDevice<ParameterList>(std::initializer_list<std::string>{

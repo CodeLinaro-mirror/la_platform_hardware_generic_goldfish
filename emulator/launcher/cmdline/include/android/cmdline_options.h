@@ -229,6 +229,8 @@ OPT_PARAM(shared_net_id, "<number>", "join the shared network, using IP address 
 OPT_PARAM_OBSOLETE(nand_limits, "<nlimits>")
 
 OPT_PARAM(gpu, "<mode>", "set hardware OpenGLES emulation mode")
+OPT_PARAM(virtio_gpu_device, "<rutabaga|gfxstream>",
+          "select the virtio-gpu device that drives gfxstream (default: rutabaga)")
 OPT_PARAM(vulkan_validation, "<mode>", "Vulkan validation mode (off|print|fail|crash)")
 OPT_PARAM(vulkan_validation_include_filter, "<filters>",
           "Comma-separated list of app/engine filters to include for Vulkan validation")
@@ -429,7 +431,7 @@ OPT_FLAG(qemu_telnet, "enable qemu telnet monitor")
 // This flag is ignored now - remove once no one supplies it.
 OPT_FLAG(no_vnc, "disable qemu vnc")
 
-OPT_FLAG(enable_vnc, "enable vnc debug display")
+OPT_FLAG_OBSOLETE(enable_vnc)
 
 OPT_PARAM(qemu, "<qemu>", "flags to pass directly to Qemu")
 

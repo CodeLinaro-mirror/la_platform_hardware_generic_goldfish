@@ -25,6 +25,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/status/status_matchers.h"
 #include "absl/strings/str_cat.h"
 #include "gmock/gmock.h"
 
@@ -37,6 +38,7 @@
 #include "goldfish/file/file.h"
 #include "goldfish/gvk/i_meta_loader.h"
 #include "snapshot_device.h"
+#include "virtio_gpu_selection.h"
 
 namespace android::goldfish::test {
 
@@ -48,6 +50,7 @@ using ::testing::Not;
 using ::testing::Pair;
 using ::testing::Return;
 using ::testing::ReturnRef;
+using ::testing::StartsWith;
 using ::testing::UnorderedElementsAre;
 
 namespace {
@@ -303,6 +306,74 @@ TEST(GpuDeviceTest, DefaultSoftwareGpuEnv) {
                                      Pair("ANDROID_EGL_ON_EGL", "1"),
                                      Pair("ANGLE_DEFAULT_PLATFORM", "vulkan"),
                                      Pair("ANDROID_EMULATOR_LAUNCHER_DIR", "/default/launcher")));
+}
+
+// Exactly one virtio-gpu device goes on the command line; the properties are
+// the same for both, only the device name differs (-virtio-gpu-device).
+TEST(GpuDeviceTest, DefaultsToVirtioGpuRutabaga) {
+    base::TestSystem sys("");
+    FakeEmulator emu;
+    HardwareConfig hw;
+    EXPECT_CALL(emu.mock_avd(), Hw()).WillRepeatedly(ReturnRef(hw));
+
+    SnapshotDevice snapshot_dev;
+    GpuDevice dev("gpu0", snapshot_dev);
+    EXPECT_OK(dev.initialize(emu.config()));
+    EXPECT_EQ(dev.virtio_gpu_device(), VirtioGpuDevice::kRutabaga);
+    const std::vector<std::string> params = dev.getQemuParameters(emu.config());
+    ASSERT_THAT(params, ElementsAre(Eq("-device"), HasSubstr("gfxstream-vulkan=on")));
+    EXPECT_THAT(params[1],
+                AllOf(StartsWith("virtio-gpu-rutabaga,"), Not(HasSubstr("virtio-gpu-gfxstream"))));
+}
+
+TEST(GpuDeviceTest, VirtioGpuDeviceOptionSelectsGfxstream) {
+    base::TestSystem sys("");
+    AndroidOptions opts{};
+    opts.virtio_gpu_device = const_cast<char*>("gfxstream");
+    FakeEmulator emu(opts);
+    HardwareConfig hw;
+    EXPECT_CALL(emu.mock_avd(), Hw()).WillRepeatedly(ReturnRef(hw));
+
+    SnapshotDevice snapshot_dev;
+    GpuDevice dev("gpu0", snapshot_dev);
+    EXPECT_OK(dev.initialize(emu.config()));
+    EXPECT_EQ(dev.virtio_gpu_device(), VirtioGpuDevice::kGfxstream);
+    const std::vector<std::string> gfxstream_params = dev.getQemuParameters(emu.config());
+    ASSERT_THAT(gfxstream_params, ElementsAre(Eq("-device"), HasSubstr("gfxstream-vulkan=on")));
+    EXPECT_THAT(gfxstream_params[1],
+                AllOf(StartsWith("virtio-gpu-gfxstream,"), Not(HasSubstr("virtio-gpu-rutabaga"))));
+
+    // Same properties as the rutabaga device, just a different device name.
+    AndroidOptions rutabaga_opts{};
+    rutabaga_opts.virtio_gpu_device = const_cast<char*>("rutabaga");
+    FakeEmulator rutabaga_emu(rutabaga_opts);
+    EXPECT_CALL(rutabaga_emu.mock_avd(), Hw()).WillRepeatedly(ReturnRef(hw));
+    GpuDevice rutabaga_dev("gpu0", snapshot_dev);
+    EXPECT_OK(rutabaga_dev.initialize(rutabaga_emu.config()));
+    EXPECT_EQ(rutabaga_dev.virtio_gpu_device(), VirtioGpuDevice::kRutabaga);
+    const std::vector<std::string> rutabaga_params =
+            rutabaga_dev.getQemuParameters(rutabaga_emu.config());
+    ASSERT_EQ(rutabaga_params.size(), 2u);
+    EXPECT_EQ(rutabaga_params[1].substr(std::strlen("virtio-gpu-rutabaga")),
+              gfxstream_params[1].substr(std::strlen("virtio-gpu-gfxstream")));
+}
+
+TEST(GpuDeviceTest, InvalidVirtioGpuDeviceOptionIsRejected) {
+    base::TestSystem sys("");
+    AndroidOptions opts{};
+    opts.virtio_gpu_device = const_cast<char*>("virgl");
+    FakeEmulator emu(opts);
+    HardwareConfig hw;
+    EXPECT_CALL(emu.mock_avd(), Hw()).WillRepeatedly(ReturnRef(hw));
+
+    SnapshotDevice snapshot_dev;
+    GpuDevice dev("gpu0", snapshot_dev);
+    EXPECT_THAT(
+            dev.initialize(emu.config()),
+            ::absl_testing::StatusIs(
+                    absl::StatusCode::kInvalidArgument,
+                    HasSubstr(
+                            "Invalid -virtio-gpu-device 'virgl': expected rutabaga or gfxstream")));
 }
 
 TEST(GpuDeviceTest, EscapesCommasInSnapshotDirectoryAndRendererFeatures) {
@@ -672,6 +743,137 @@ TEST(GpuDeviceTest, RestoresVulkanEnvVarsAfterProbing) {
     base::System::SetEnvironmentVariable("VK_ICD_FILENAMES", "");
     base::System::SetEnvironmentVariable("VK_ADD_DRIVER_FILES", "");
     base::System::SetEnvironmentVariable("VK_LOADER_DRIVERS_DISABLE", "");
+}
+
+TEST(GpuDeviceTest, ForceGpuModeFeatureFlags) {
+    using S = android_studio::EmulatorFeatureFlagState;
+    base::TestSystem sys("");
+    HardwareConfig hw;
+    SnapshotDevice snapshot_dev;
+
+    // ForceGpuHost overrides default auto (lavapipe) mode to host mode.
+    {
+        FakeEmulator emu;
+        emu.feature_flags().SetEnabledOverride(S::FORCE_GPU_HOST, true);
+        EXPECT_CALL(emu.mock_avd(), Hw()).WillRepeatedly(ReturnRef(hw));
+
+        GpuDevice dev("gpu0", snapshot_dev);
+        EXPECT_OK(dev.initialize(emu.config()));
+        EXPECT_THAT(dev.getQemuEnv(emu.config()),
+                    testing::Contains(Pair("ANDROID_EMU_RENDERER", "host")));
+    }
+
+    // ForceLavapipe / ForceSwiftshader / ForceGpuSoftware override -gpu host to lavapipe.
+    for (auto flag :
+         {S::FORCE_GPU_SOFTWARE, S::FORCE_LAVAPIPE, S::FORCE_SWIFTSHADER, S::FORCE_ANGLE}) {
+        char gpu_mode[] = "host";
+        AndroidOptions opts{.gpu = gpu_mode};
+        FakeEmulator emu(opts);
+        emu.feature_flags().SetEnabledOverride(flag, true);
+        EXPECT_CALL(emu.mock_avd(), Hw()).WillRepeatedly(ReturnRef(hw));
+
+        GpuDevice dev("gpu0", snapshot_dev);
+        EXPECT_OK(dev.initialize(emu.config()));
+        EXPECT_EQ(dev.getVulkanIcd(), "lavapipe");
+        EXPECT_THAT(dev.getQemuEnv(emu.config()),
+                    testing::Contains(Pair("ANDROID_EMU_RENDERER", "lavapipe")));
+    }
+}
+
+TEST(GpuDeviceTest, RendererFeaturesRespectFeatureFlags) {
+    using S = android_studio::EmulatorFeatureFlagState;
+    base::TestSystem sys("");
+    const fs::path avd_content = sys.GetTempRoot()->Path() / "avd";
+    ASSERT_OK(base::file::mkdir_recursive(avd_content, 0755));
+
+    HardwareConfig hw;
+    hw.hw_lcd_width = 1080;
+    hw.hw_lcd_height = 2400;
+
+    // Default flags: GuestVulkanOnly, VulkanNativeSwapchain, VulkanVirtualQueue,
+    // VulkanSnapshots, VulkanUseDedicatedAhbMemoryType enabled;
+    // VulkanBatchedDescriptorSetUpdate disabled.
+    {
+        FakeEmulator emu;
+        EXPECT_CALL(emu.mock_avd(), Hw()).WillRepeatedly(ReturnRef(hw));
+        EXPECT_CALL(emu.mock_avd(), GetContentPath()).WillRepeatedly(Return(avd_content));
+
+        SnapshotDevice snapshot_dev;
+        EXPECT_OK(snapshot_dev.initialize(emu.config()));
+        GpuDevice dev("gpu0", snapshot_dev);
+        EXPECT_OK(dev.initialize(emu.config()));
+
+        EXPECT_THAT(
+                dev.getQemuParameters(emu.config()),
+                ElementsAre(
+                        Eq("-device"),
+                        AllOf(HasSubstr("GuestVulkanOnly:enabled"),
+                              HasSubstr("VulkanNativeSwapchain:enabled"),
+                              HasSubstr("VulkanVirtualQueue:enabled"),
+                              HasSubstr("VulkanSnapshots:enabled"),
+                              HasSubstr("VulkanBatchedDescriptorSetUpdate:disabled"),
+                              HasSubstr("VulkanUseDedicatedAhbMemoryType:enabled"),
+                              testing::Not(HasSubstr("x-gfxstream-gles=on")))));
+    }
+
+    // Disabling GuestAngle, VulkanVirtualQueue, VulkanSnapshots, VulkanUseDedicatedAhbMemoryType
+    // and enabling VulkanBatchedDescriptorSetUpdate + optional Vulkan debug/memory flags.
+    {
+        FakeEmulator emu;
+        emu.feature_flags().SetEnabledOverride(S::GUEST_ANGLE, false);
+        emu.feature_flags().SetEnabledOverride(S::VULKAN_VIRTUAL_QUEUE, false);
+        emu.feature_flags().SetEnabledOverride(S::VULKAN_SNAPSHOTS, false);
+        emu.feature_flags().SetEnabledOverride(S::VULKAN_USE_DEDICATED_AHB_MEMORY_TYPE, false);
+        emu.feature_flags().SetEnabledOverride(S::VULKAN_BATCHED_DESCRIPTOR_SET_UPDATE, true);
+        emu.feature_flags().SetEnabledOverride(S::BYPASS_VULKAN_DEVICE_FEATURE_OVERRIDES, true);
+        emu.feature_flags().SetEnabledOverride(S::VULKAN_ALLOCATE_DEVICE_MEMORY_ONLY, true);
+        emu.feature_flags().SetEnabledOverride(S::VULKAN_ALLOCATE_HOST_MEMORY, true);
+        emu.feature_flags().SetEnabledOverride(S::VULKAN_DEBUG_UTILS, true);
+        emu.feature_flags().SetEnabledOverride(S::VULKAN_COMMAND_BUFFER_CHECKPOINTS, true);
+        emu.feature_flags().SetEnabledOverride(S::VULKAN_ROBUSTNESS, true);
+        emu.feature_flags().SetEnabledOverride(S::VULKAN_PROTECTED_MEMORY_EMULATION, true);
+        EXPECT_CALL(emu.mock_avd(), Hw()).WillRepeatedly(ReturnRef(hw));
+        EXPECT_CALL(emu.mock_avd(), GetContentPath()).WillRepeatedly(Return(avd_content));
+
+        SnapshotDevice snapshot_dev;
+        EXPECT_OK(snapshot_dev.initialize(emu.config()));
+        GpuDevice dev("gpu0", snapshot_dev);
+        EXPECT_OK(dev.initialize(emu.config()));
+
+        EXPECT_THAT(
+                dev.getQemuParameters(emu.config()),
+                ElementsAre(
+                        Eq("-device"),
+                        AllOf(testing::Not(HasSubstr("GuestVulkanOnly:enabled")),
+                              testing::Not(HasSubstr("VulkanNativeSwapchain:enabled")),
+                              testing::Not(HasSubstr("VulkanVirtualQueue:enabled")),
+                              testing::Not(HasSubstr("VulkanSnapshots:enabled")),
+                              testing::Not(HasSubstr("VulkanUseDedicatedAhbMemoryType:enabled")),
+                              HasSubstr("x-gfxstream-gles=on"),
+                              HasSubstr("renderer_features=VulkanBatchedDescriptorSetUpdate:enabled;"),
+                              HasSubstr("BypassVulkanDeviceFeatureOverrides:enabled"),
+                              HasSubstr("VulkanAllocateDeviceMemoryOnly:enabled"),
+                              HasSubstr("VulkanAllocateHostMemory:enabled"),
+                              HasSubstr("VulkanDebugUtils:enabled"),
+                              HasSubstr("VulkanCommandBufferCheckpoints:enabled"),
+                              HasSubstr("VulkanRobustness:enabled"),
+                              HasSubstr("VulkanProtectedMemoryEmulation:enabled"))));
+    }
+}
+
+TEST(GpuDeviceTest, DisabledBelowApi37) {
+    base::TestSystem sys("");
+    FakeEmulator emu;
+    HardwareConfig hw;
+    hw.hw_lcd_width = 1080;
+    hw.hw_lcd_height = 2400;
+    EXPECT_CALL(emu.mock_avd(), Hw()).WillRepeatedly(ReturnRef(hw));
+    EXPECT_CALL(emu.mock_avd(), ApiLevel()).WillRepeatedly(Return(36));
+
+    SnapshotDevice snapshot_dev;
+    GpuDevice dev("gpu0", snapshot_dev);
+    EXPECT_OK(dev.initialize(emu.config()));
+    EXPECT_TRUE(dev.getQemuParameters(emu.config()).empty());
 }
 
 }  // namespace android::goldfish::test

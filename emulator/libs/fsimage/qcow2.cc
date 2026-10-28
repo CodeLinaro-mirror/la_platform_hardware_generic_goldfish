@@ -324,6 +324,27 @@ absl::Status CreateQcow2Overlay(const fs::path& qcow2_image, std::string_view ba
     return android::base::file::mv_file(tmp_image, qcow2_image, /*fallback_to_copy_rm=*/false);
 }
 
+fs::path BackingPathForOverlay(const fs::path& qcow2_image, const fs::path& backing_image) {
+    // QEMU resolves a relative backing file name against the directory of the
+    // overlay, not the current directory. Record the backing image relative to
+    // that directory when it lives inside it, so an overlay and its backing
+    // image can be moved together (e.g. an AVD directory that is archived and
+    // extracted somewhere else). Anything else is recorded as given. This is
+    // purely lexical: symlinks are deliberately not resolved.
+    const auto abs_overlay = android::base::file::make_absolute(qcow2_image);
+    const auto abs_backing = android::base::file::make_absolute(backing_image);
+    if (!abs_overlay.ok() || !abs_backing.ok()) {
+        return backing_image;
+    }
+    const fs::path overlay_dir = abs_overlay->parent_path().lexically_normal();
+    const fs::path backing = abs_backing->lexically_normal();
+    const fs::path relative = backing.lexically_relative(overlay_dir);
+    if (relative.empty() || *relative.begin() == "..") {
+        return backing_image;
+    }
+    return relative;
+}
+
 }  // namespace internal
 
 absl::StatusOr<fs::path> ReadQcow2BackingPath(const fs::path& qcow2_path) {
@@ -376,14 +397,16 @@ absl::Status CreateQcow2Overlay(const fs::path& qcow2_image, const fs::path& bac
     ASSIGN_OR_RETURN(const std::optional<uint64_t> qcow2_size,
                      internal::ReadQcow2VirtualSize(backing_image));
 
+    // generic_string() so a relative backing file uses '/' separators on every
+    // host; QEMU on POSIX would treat a backslash as part of the file name.
+    const std::string backing_path =
+            internal::BackingPathForOverlay(qcow2_image, backing_image).generic_string();
     using std::string_view_literals::operator""sv;
     if (qcow2_size.has_value()) {
-        return internal::CreateQcow2Overlay(qcow2_image, backing_image.string(), "qcow2"sv,
-                                            *qcow2_size);
+        return internal::CreateQcow2Overlay(qcow2_image, backing_path, "qcow2"sv, *qcow2_size);
     } else {
         ASSIGN_OR_RETURN(const auto file_size, android::base::file::file_size(backing_image));
-        return internal::CreateQcow2Overlay(qcow2_image, backing_image.string(), "raw"sv,
-                                            file_size.Bytes());
+        return internal::CreateQcow2Overlay(qcow2_image, backing_path, "raw"sv, file_size.Bytes());
     }
 }
 

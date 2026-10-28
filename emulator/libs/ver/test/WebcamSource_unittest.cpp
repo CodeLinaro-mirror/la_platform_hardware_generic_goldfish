@@ -13,7 +13,9 @@
 // limitations under the License.
 
 #include <gtest/gtest.h>
+#include <libyuv.h>
 
+#include <cmath>
 #include <cstdio>
 #include <filesystem>
 
@@ -350,14 +352,13 @@ TEST_F(WebcamSourceTest, ConvertBufferToRGB32_YUYV_to_RGB32) {
                                      height};
 
     std::vector<uint8_t> conversion_storage;
-    std::vector<uint8_t> staging_buffer;
 
-    int res = ConvertBufferToRGB32(view, conversion_storage, staging_buffer);
+    int res = ConvertBufferToRGB32(view, conversion_storage);
 
     ASSERT_EQ(res, 0);
     ASSERT_EQ(view.pixel_format, V4L2_PIX_FMT_RGB32);
     ASSERT_EQ(view.buffer, conversion_storage.data());
-    ASSERT_EQ(view.buffer_size, static_cast<size_t>(width * height * 4));
+    ASSERT_EQ(view.buffer_size, static_cast<size_t>(width) * static_cast<size_t>(height) * 4U);
 
     for (int i = 0; i < width * height; ++i) {
         int offset = i * 4;
@@ -386,14 +387,13 @@ TEST_F(WebcamSourceTest, ConvertBufferToRGB32_BGR32_to_RGB32) {
                                      width, height};
 
     std::vector<uint8_t> conversion_storage;
-    std::vector<uint8_t> staging_buffer;
 
-    int res = ConvertBufferToRGB32(view, conversion_storage, staging_buffer);
+    int res = ConvertBufferToRGB32(view, conversion_storage);
 
     ASSERT_EQ(res, 0);
     ASSERT_EQ(view.pixel_format, V4L2_PIX_FMT_RGB32);
     ASSERT_EQ(view.buffer, conversion_storage.data());
-    ASSERT_EQ(view.buffer_size, static_cast<size_t>(width * height * 4));
+    ASSERT_EQ(view.buffer_size, static_cast<size_t>(width) * static_cast<size_t>(height) * 4U);
 
     // We expect R and B channels to be swapped.
     // Pixel 0: Input BGR Blue [255, 0, 0, 255] -> Output RGB Blue [0, 0, 255, 255]
@@ -438,16 +438,15 @@ TEST_F(WebcamSourceTest, ConvertBufferToRGB32_MJPEG_to_RGB32) {
     RawImageBufferViewFourCC view = {buffer.data(), buffer.size(), V4L2_PIX_FMT_MJPEG, 32, 32};
 
     std::vector<uint8_t> conversion_storage;
-    std::vector<uint8_t> staging_buffer;
 
-    int res = ConvertBufferToRGB32(view, conversion_storage, staging_buffer);
+    int res = ConvertBufferToRGB32(view, conversion_storage);
 
     ASSERT_EQ(res, 0);
     ASSERT_EQ(view.pixel_format, V4L2_PIX_FMT_RGB32);
     ASSERT_EQ(view.buffer, conversion_storage.data());
     EXPECT_EQ(view.width, 31);
     EXPECT_EQ(view.height, 31);
-    EXPECT_EQ(view.buffer_size, 31u * 31u * 4u);
+    EXPECT_EQ(view.buffer_size, 31U * 31U * 4U);
 
     // Alpha channel for all pixels should be set to 255 (0xFF)
     for (int i = 0; i < view.width * view.height; ++i) {
@@ -471,18 +470,17 @@ TEST_F(WebcamSourceTest, ConvertBufferToRGB32_MJPEG_InvalidData) {
                                      V4L2_PIX_FMT_MJPEG, 640, 480};
 
     std::vector<uint8_t> conversion_storage;
-    std::vector<uint8_t> staging_buffer;
 
-    int res = ConvertBufferToRGB32(view, conversion_storage, staging_buffer);
+    int res = ConvertBufferToRGB32(view, conversion_storage);
     EXPECT_NE(res, 0);
+    EXPECT_TRUE(conversion_storage.empty());
 }
 
 TEST_F(WebcamSourceTest, ConvertBufferToRGB32_NullBuffer) {
     RawImageBufferViewFourCC view = {nullptr, 1024, V4L2_PIX_FMT_RGB32, 16, 16};
     std::vector<uint8_t> conversion_storage;
-    std::vector<uint8_t> staging_buffer;
 
-    int res = ConvertBufferToRGB32(view, conversion_storage, staging_buffer);
+    int res = ConvertBufferToRGB32(view, conversion_storage);
     EXPECT_NE(res, 0);
 }
 
@@ -490,10 +488,277 @@ TEST_F(WebcamSourceTest, ConvertBufferToRGB32_ZeroSize) {
     uint8_t dummy[4] = {0};
     RawImageBufferViewFourCC view = {dummy, 0, V4L2_PIX_FMT_RGB32, 16, 16};
     std::vector<uint8_t> conversion_storage;
-    std::vector<uint8_t> staging_buffer;
 
-    int res = ConvertBufferToRGB32(view, conversion_storage, staging_buffer);
+    int res = ConvertBufferToRGB32(view, conversion_storage);
     EXPECT_NE(res, 0);
+}
+
+namespace {
+
+std::vector<uint8_t> BuildQuadrantRgbaImage(int width, int height) {
+    std::vector<uint8_t> rgba(static_cast<size_t>(width) * static_cast<size_t>(height) * 4U);
+    for (int y = 0; y < height; ++y) {
+        for (int x = 0; x < width; ++x) {
+            const size_t offset =
+                    (static_cast<size_t>(y) * static_cast<size_t>(width) + static_cast<size_t>(x)) *
+                    4U;
+            const bool right = (x >= width / 2);
+            const bool bottom = (y >= height / 2);
+            if (!bottom && !right) {
+                rgba[offset + 0] = 220;
+                rgba[offset + 1] = 30;
+                rgba[offset + 2] = 40;
+            } else if (!bottom && right) {
+                rgba[offset + 0] = 25;
+                rgba[offset + 1] = 210;
+                rgba[offset + 2] = 45;
+            } else if (bottom && !right) {
+                rgba[offset + 0] = 35;
+                rgba[offset + 1] = 55;
+                rgba[offset + 2] = 225;
+            } else {
+                rgba[offset + 0] = 230;
+                rgba[offset + 1] = 215;
+                rgba[offset + 2] = 30;
+            }
+            rgba[offset + 3] = 255;
+        }
+    }
+    return rgba;
+}
+
+std::vector<uint8_t> ConvertViaReferenceTwoPassI420(const std::vector<uint8_t>& src,
+                                                    uint32_t fourcc, int width, int height) {
+    const int y_stride = (width + 15) & ~15;
+    const int u_stride = (y_stride / 2 + 15) & ~15;
+    const int half_height = (height + 1) / 2;
+    const size_t y_size = static_cast<size_t>(y_stride) * static_cast<size_t>(height);
+    const size_t u_size = static_cast<size_t>(u_stride) * static_cast<size_t>(half_height);
+    std::vector<uint8_t> staging(y_size + u_size * 2U);
+
+    uint32_t normalized_fourcc = fourcc;
+    if (fourcc == V4L2_PIX_FMT_YUY2 || fourcc == V4L2_PIX_FMT_YUNV || fourcc == V4L2_PIX_FMT_V422) {
+        normalized_fourcc = V4L2_PIX_FMT_YUYV;
+    }
+
+    uint8_t* y_ptr = staging.data();
+    uint8_t* u_ptr = y_ptr + y_size;
+    uint8_t* v_ptr = u_ptr + u_size;
+    EXPECT_EQ(libyuv::ConvertToI420(src.data(), src.size(), y_ptr, y_stride, u_ptr, u_stride, v_ptr,
+                                    u_stride, 0, 0, width, height, width, height, libyuv::kRotate0,
+                                    normalized_fourcc),
+              0);
+
+    std::vector<uint8_t> out(static_cast<size_t>(width) * static_cast<size_t>(height) * 4U);
+    EXPECT_EQ(libyuv::ConvertFromI420(y_ptr, y_stride, u_ptr, u_stride, v_ptr, u_stride, out.data(),
+                                      width * 4, width, height, libyuv::FOURCC_ABGR),
+              0);
+    return out;
+}
+
+}  // namespace
+
+TEST_F(WebcamSourceTest, ConvertBufferToRGB32_YuvFormatsMatchReferenceWithoutStaging) {
+    constexpr int kWidth = 32;
+    constexpr int kHeight = 24;
+    const std::vector<uint8_t> src_abgr = BuildQuadrantRgbaImage(kWidth, kHeight);
+
+    const size_t y_size = static_cast<size_t>(kWidth) * static_cast<size_t>(kHeight);
+    const size_t uv_plane_size = static_cast<size_t>(kWidth / 2) * static_cast<size_t>(kHeight / 2);
+    std::vector<uint8_t> i420_buf(y_size + uv_plane_size * 2U);
+    ASSERT_EQ(libyuv::ABGRToI420(src_abgr.data(), kWidth * 4, i420_buf.data(), kWidth,
+                                 i420_buf.data() + y_size, kWidth / 2,
+                                 i420_buf.data() + y_size + uv_plane_size, kWidth / 2, kWidth,
+                                 kHeight),
+              0);
+
+    std::vector<uint8_t> yv12_buf(y_size + uv_plane_size * 2U);
+    ASSERT_EQ(libyuv::ABGRToI420(src_abgr.data(), kWidth * 4, yv12_buf.data(), kWidth,
+                                 yv12_buf.data() + y_size + uv_plane_size, kWidth / 2,
+                                 yv12_buf.data() + y_size, kWidth / 2, kWidth, kHeight),
+              0);
+
+    std::vector<uint8_t> nv12_buf(y_size + uv_plane_size * 2U);
+    ASSERT_EQ(libyuv::ABGRToNV12(src_abgr.data(), kWidth * 4, nv12_buf.data(), kWidth,
+                                 nv12_buf.data() + y_size, kWidth, kWidth, kHeight),
+              0);
+
+    std::vector<uint8_t> nv21_buf(y_size + uv_plane_size * 2U);
+    ASSERT_EQ(libyuv::ABGRToNV21(src_abgr.data(), kWidth * 4, nv21_buf.data(), kWidth,
+                                 nv21_buf.data() + y_size, kWidth, kWidth, kHeight),
+              0);
+
+    std::vector<uint8_t> yuy2_buf(y_size * 2U);
+    ASSERT_EQ(libyuv::I420ToYUY2(i420_buf.data(), kWidth, i420_buf.data() + y_size, kWidth / 2,
+                                 i420_buf.data() + y_size + uv_plane_size, kWidth / 2,
+                                 yuy2_buf.data(), kWidth * 2, kWidth, kHeight),
+              0);
+
+    std::vector<uint8_t> uyvy_buf(y_size * 2U);
+    ASSERT_EQ(libyuv::I420ToUYVY(i420_buf.data(), kWidth, i420_buf.data() + y_size, kWidth / 2,
+                                 i420_buf.data() + y_size + uv_plane_size, kWidth / 2,
+                                 uyvy_buf.data(), kWidth * 2, kWidth, kHeight),
+              0);
+
+    struct FormatCase {
+        uint32_t fourcc;
+        const std::vector<uint8_t>* encoded;
+    };
+    const FormatCase cases[] = {
+        {V4L2_PIX_FMT_YUV420, &i420_buf}, {V4L2_PIX_FMT_YVU420, &yv12_buf},
+        {V4L2_PIX_FMT_NV12, &nv12_buf},   {V4L2_PIX_FMT_NV21, &nv21_buf},
+        {V4L2_PIX_FMT_YUYV, &yuy2_buf},   {V4L2_PIX_FMT_YUY2, &yuy2_buf},
+        {V4L2_PIX_FMT_YUNV, &yuy2_buf},   {V4L2_PIX_FMT_V422, &yuy2_buf},
+        {V4L2_PIX_FMT_UYVY, &uyvy_buf},
+    };
+
+    for (const auto& test_case : cases) {
+        SCOPED_TRACE(FourccToString(test_case.fourcc));
+        const std::vector<uint8_t> expected = ConvertViaReferenceTwoPassI420(
+                *test_case.encoded, test_case.fourcc, kWidth, kHeight);
+        RawImageBufferViewFourCC view = {test_case.encoded->data(), test_case.encoded->size(),
+                                         test_case.fourcc, kWidth, kHeight};
+        std::vector<uint8_t> conversion_storage;
+        ASSERT_EQ(ConvertBufferToRGB32(view, conversion_storage), 0);
+        ASSERT_EQ(view.pixel_format, V4L2_PIX_FMT_RGB32);
+        ASSERT_EQ(view.buffer, conversion_storage.data());
+        ASSERT_EQ(view.buffer_size, expected.size());
+        for (size_t i = 0; i < expected.size(); i += 4U) {
+            EXPECT_NEAR(view.buffer[i + 0], expected[i + 0], 2);
+            EXPECT_NEAR(view.buffer[i + 1], expected[i + 1], 2);
+            EXPECT_NEAR(view.buffer[i + 2], expected[i + 2], 2);
+            EXPECT_EQ(view.buffer[i + 3], 255);
+        }
+    }
+}
+
+TEST_F(WebcamSourceTest, ConvertBufferToRGB32_Rgb24Bgr24AndRgb32Lossless) {
+    constexpr int kWidth = 2;
+    constexpr int kHeight = 2;
+    const std::vector<uint8_t> expected_rgba = {
+        10,  20,  30,  255,  // Pixel 0
+        40,  50,  60,  255,  // Pixel 1
+        70,  80,  90,  255,  // Pixel 2
+        100, 150, 200, 255,  // Pixel 3
+    };
+    const std::vector<uint8_t> rgb24_data = {
+        10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 150, 200,
+    };
+    const std::vector<uint8_t> bgr24_data = {
+        30, 20, 10, 60, 50, 40, 90, 80, 70, 200, 150, 100,
+    };
+
+    {
+        RawImageBufferViewFourCC view = {rgb24_data.data(), rgb24_data.size(), V4L2_PIX_FMT_RGB24,
+                                         kWidth, kHeight};
+        std::vector<uint8_t> storage;
+        ASSERT_EQ(ConvertBufferToRGB32(view, storage), 0);
+        EXPECT_EQ(storage, expected_rgba);
+    }
+
+    {
+        RawImageBufferViewFourCC view = {bgr24_data.data(), bgr24_data.size(), V4L2_PIX_FMT_BGR24,
+                                         kWidth, kHeight};
+        std::vector<uint8_t> storage;
+        ASSERT_EQ(ConvertBufferToRGB32(view, storage), 0);
+        EXPECT_EQ(storage, expected_rgba);
+    }
+
+    {
+        std::vector<uint8_t> in_place_storage = expected_rgba;
+        const uint8_t* original_ptr = in_place_storage.data();
+        RawImageBufferViewFourCC view = {in_place_storage.data(), in_place_storage.size(),
+                                         V4L2_PIX_FMT_RGB32, kWidth, kHeight};
+        ASSERT_EQ(ConvertBufferToRGB32(view, in_place_storage), 0);
+        EXPECT_EQ(view.buffer, original_ptr);
+        EXPECT_EQ(in_place_storage, expected_rgba);
+    }
+}
+
+TEST_F(WebcamSourceTest, ConvertBufferToRGB32_OddDimensionsYuv420AndNv12) {
+    constexpr int kOddWidth = 31;
+    constexpr int kOddHeight = 31;
+    const std::vector<uint8_t> src_abgr = BuildQuadrantRgbaImage(kOddWidth, kOddHeight);
+    const int half_w = (kOddWidth + 1) / 2;
+    const int half_h = (kOddHeight + 1) / 2;
+    const size_t y_size = static_cast<size_t>(kOddWidth) * static_cast<size_t>(kOddHeight);
+    const size_t uv_size = static_cast<size_t>(half_w) * static_cast<size_t>(half_h);
+
+    std::vector<uint8_t> i420_buf(y_size + uv_size * 2U);
+    ASSERT_EQ(libyuv::ABGRToI420(src_abgr.data(), kOddWidth * 4, i420_buf.data(), kOddWidth,
+                                 i420_buf.data() + y_size, half_w,
+                                 i420_buf.data() + y_size + uv_size, half_w, kOddWidth, kOddHeight),
+              0);
+
+    std::vector<uint8_t> nv12_buf(y_size + uv_size * 2U);
+    ASSERT_EQ(libyuv::ABGRToNV12(src_abgr.data(), kOddWidth * 4, nv12_buf.data(), kOddWidth,
+                                 nv12_buf.data() + y_size, half_w * 2, kOddWidth, kOddHeight),
+              0);
+
+    for (uint32_t fourcc : {V4L2_PIX_FMT_YUV420, V4L2_PIX_FMT_NV12}) {
+        const std::vector<uint8_t>& encoded = (fourcc == V4L2_PIX_FMT_YUV420) ? i420_buf : nv12_buf;
+        RawImageBufferViewFourCC view = {encoded.data(), encoded.size(), fourcc, kOddWidth,
+                                         kOddHeight};
+        std::vector<uint8_t> storage;
+        ASSERT_EQ(ConvertBufferToRGB32(view, storage), 0);
+        ASSERT_EQ(view.buffer_size,
+                  static_cast<size_t>(kOddWidth) * static_cast<size_t>(kOddHeight) * 4U);
+        // Check last pixel (bottom-right yellow quadrant) to verify odd-row/col chroma bounds.
+        const size_t last_px = view.buffer_size - 4U;
+        EXPECT_GT(view.buffer[last_px + 0], 180);
+        EXPECT_GT(view.buffer[last_px + 1], 170);
+        EXPECT_LT(view.buffer[last_px + 2], 80);
+        EXPECT_EQ(view.buffer[last_px + 3], 255);
+    }
+}
+
+TEST_F(WebcamSourceTest, ConvertBufferToRGB32_RejectsTruncatedInvalidDimsAndUnknownFormat) {
+    std::vector<uint8_t> small_buf(64U, 0x80U);
+    std::vector<uint8_t> storage;
+
+    // Truncated NV12 buffer (16x16 requires 384 bytes).
+    RawImageBufferViewFourCC truncated_nv12 = {small_buf.data(), 383U, V4L2_PIX_FMT_NV12, 16, 16};
+    EXPECT_NE(ConvertBufferToRGB32(truncated_nv12, storage), 0);
+    EXPECT_TRUE(storage.empty());
+    EXPECT_EQ(truncated_nv12.pixel_format, V4L2_PIX_FMT_NV12);
+
+    // Negative / zero dimensions.
+    RawImageBufferViewFourCC bad_width = {small_buf.data(), small_buf.size(), V4L2_PIX_FMT_RGB32, 0,
+                                          4};
+    EXPECT_NE(ConvertBufferToRGB32(bad_width, storage), 0);
+    RawImageBufferViewFourCC bad_height = {small_buf.data(), small_buf.size(), V4L2_PIX_FMT_RGB32,
+                                           4, -2};
+    EXPECT_NE(ConvertBufferToRGB32(bad_height, storage), 0);
+    EXPECT_TRUE(storage.empty());
+
+    // Unsupported FourCC.
+    RawImageBufferViewFourCC unknown_fmt = {small_buf.data(), small_buf.size(), 0xDEADBEEFU, 2, 2};
+    EXPECT_NE(ConvertBufferToRGB32(unknown_fmt, storage), 0);
+    EXPECT_TRUE(storage.empty());
+}
+
+TEST_F(WebcamSourceTest, ConvertBufferToRGB32_1080pReusesSingleOutputBufferWithoutStaging) {
+    constexpr int kWidth = 1920;
+    constexpr int kHeight = 1080;
+    constexpr size_t kNv12Bytes =
+            static_cast<size_t>(kWidth) * static_cast<size_t>(kHeight) * 3U / 2U;
+    constexpr size_t kRgbaBytes = static_cast<size_t>(kWidth) * static_cast<size_t>(kHeight) * 4U;
+
+    std::vector<uint8_t> nv12_frame(kNv12Bytes, 128U);
+    std::vector<uint8_t> conversion_storage;
+
+    RawImageBufferViewFourCC first_view = {nv12_frame.data(), nv12_frame.size(), V4L2_PIX_FMT_NV12,
+                                           kWidth, kHeight};
+    ASSERT_EQ(ConvertBufferToRGB32(first_view, conversion_storage), 0);
+    ASSERT_EQ(conversion_storage.size(), kRgbaBytes);
+    const uint8_t* storage_ptr = conversion_storage.data();
+
+    RawImageBufferViewFourCC second_view = {nv12_frame.data(), nv12_frame.size(), V4L2_PIX_FMT_NV12,
+                                            kWidth, kHeight};
+    ASSERT_EQ(ConvertBufferToRGB32(second_view, conversion_storage), 0);
+    EXPECT_EQ(conversion_storage.size(), kRgbaBytes);
+    EXPECT_EQ(conversion_storage.data(), storage_ptr);
+    EXPECT_EQ(second_view.buffer, storage_ptr);
 }
 
 TEST_F(WebcamSourceTest, FormatSelection_MJPEG_Priority) {

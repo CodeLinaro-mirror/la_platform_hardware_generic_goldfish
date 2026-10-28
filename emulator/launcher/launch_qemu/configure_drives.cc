@@ -22,6 +22,7 @@
 
 #include "android/status/status_macros.h"
 #include "goldfish/fsimage/exfat.h"
+#include "goldfish/fsimage/qcow2.h"
 #include "user_data_drive.h"
 
 namespace android::goldfish::internal {
@@ -97,7 +98,7 @@ struct SdCardConfig {
 };
 
 absl::StatusOr<SdCardConfig> GetSdCardConfig(const Avd& avd, const AndroidOptions& opts) {
-    if (fs::path sdcard_path(opts.sdcard ? opts.sdcard : avd.Hw().hw_sdCard_path.c_str());
+    if (fs::path sdcard_path(opts.sdcard ? opts.sdcard : avd.Hw().sdcard_path.c_str());
         !sdcard_path.empty()) {
         if (!base::file::is_file(sdcard_path)) {
             return absl::NotFoundError(
@@ -158,8 +159,8 @@ absl::StatusOr<std::vector<std::unique_ptr<PciDevice>>> getDiskConfigs(const Avd
         if (sdcard_config.backing_image_missing) {
             using ::goldfish::fsimage::CreateEmptyExFATImage;
 
-            RETURN_IF_ERROR(CreateEmptyExFATImage(sdcard_config.backing_image,
-                                                  avd.Hw().hw_sd_card_size, {.label = "EMULATOR"}));
+            RETURN_IF_ERROR(CreateEmptyExFATImage(sdcard_config.backing_image, avd.Hw().sdcard_size,
+                                                  {.label = "EMULATOR"}));
 
             base::file::rm(sdcard_config.qcow2_image).IgnoreError();
         }
@@ -187,3 +188,12 @@ absl::StatusOr<std::vector<std::unique_ptr<PciDevice>>> getDiskConfigs(const Avd
 }
 
 }  // namespace android::goldfish::internal
+
+namespace android::goldfish {
+
+bool IsUserdataNew(const Avd& avd) {
+    return !::goldfish::fsimage::IsValidQcow2Image(
+            internal::to_qcow2(internal::getUserdataImgPath(avd)));
+}
+
+}  // namespace android::goldfish

@@ -60,6 +60,11 @@ bool mock_has_snapshot_progress_handler(void);
 // Configure save_snapshot / load_snapshot / delete_snapshot mock return value
 void mock_snapshot_op_ok_set(bool ok);
 
+// Optional synchronous hook invoked inside save_snapshot and load_snapshot while
+// the mock QEMU operation is in flight.
+typedef void (*MockSnapshotOpHook)(const char* name, void* opaque);
+void mock_snapshot_op_hook_set(MockSnapshotOpHook hook, void* opaque);
+
 // Configure bdrv_snapshot_list mock entries
 void mock_snapshot_list_set(const QEMUSnapshotInfo* entries, int count);
 

@@ -1,4 +1,4 @@
-load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_report")
+load("@aemu//tools/clang_tidy:defs.bzl", "clang_tidy_report")
 
 # You can update the tests (on macos) by running:
 # bazel query -k 'kind("cc_test", @goldfish//...)' |  grep -v 'win' | sed 's/.*/    "&",/' | pbcopy

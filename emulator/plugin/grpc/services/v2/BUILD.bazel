@@ -12,11 +12,71 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_test")
+load("@aemu//tools/clang_tidy:defs.bzl", "clang_tidy_test")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
+load("//emulator/tools:plugins.bzl", "collect_plugins")
 
 package(default_visibility = ["//visibility:public"])
+
+collect_plugins(
+    name = "binplace",
+    output_dir = ".",
+    plugins = [
+        "@glib//glib:glib_shared",
+        "@glib//gmodule:gmodule_shared",
+    ],
+    visibility = ["//visibility:private"],
+)
+
+cc_library(
+    name = "battery_service",
+    srcs = ["battery/battery_service_impl.cc"],
+    hdrs = ["battery/battery_service_impl.h"],
+    includes = ["."],
+    local_defines = select({
+        "@platforms//os:windows": ["NOGDI"],
+        "//conditions:default": [],
+    }),
+    deps = [
+        "//emulator/libs/eventing",
+        "//emulator/libs/grpc_utils:absl_translate",
+        "//emulator/libs/grpc_utils:async",
+        "//emulator/libs/grpc_utils:event-stream",
+        "//emulator/plugin/avd_universe:battery",
+        "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/strings:str_format",
+        "@abseil-cpp//absl/synchronization",
+        "@aemu//protos/services_v2:battery_service_cc_grpc",
+        "@grpc//:grpc++",
+    ],
+)
+
+cc_test(
+    name = "battery_service_test",
+    size = "small",
+    srcs = [
+        "battery/battery_service_impl_test.cc",
+        "test/grpc_v2_service_test.h",
+    ],
+    includes = ["."],
+    local_defines = select({
+        "@platforms//os:windows": ["NOGDI"],
+        "//conditions:default": [],
+    }),
+    deps = [
+        ":battery_service",
+        "//emulator/libs/test:googletest_main",
+        "//emulator/plugin/avd_universe:battery",
+        "@abseil-cpp//absl/time",
+        "@aemu//protos/services_v2:battery_service_cc_grpc",
+        "@googletest//:gtest",
+        "@grpc//:grpc++",
+    ],
+)
 
 cc_library(
     name = "capabilities_service",
@@ -329,6 +389,143 @@ cc_test(
 )
 
 cc_library(
+    name = "input_service",
+    srcs = ["input/input_service_impl.cc"],
+    hdrs = ["input/input_service_impl.h"],
+    includes = ["."],
+    local_defines = select({
+        "@platforms//os:windows": ["NOGDI"],
+        "//conditions:default": [],
+    }),
+    deps = [
+        "//emulator/libs/async:async_api",
+        "//emulator/libs/eventing",
+        "//emulator/libs/grpc_utils:absl_translate",
+        "//emulator/libs/grpc_utils:async",
+        "//emulator/libs/grpc_utils:event-stream",
+        "//emulator/plugin/display:abstract_multi_display",
+        "//emulator/plugin/grpc/input:dispatcher_session",
+        "//emulator/plugin/grpc/input:input_dispatcher_interface",
+        "//emulator/plugin/grpc/input:slot_registry",
+        "//emulator/plugin/grpc/keyboard:keyconversion",
+        "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/cleanup",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/functional:any_invocable",
+        "@abseil-cpp//absl/hash",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/strings:str_format",
+        "@abseil-cpp//absl/synchronization",
+        "@abseil-cpp//absl/time",
+        "@aemu//protos/services_v2:input_service_cc_grpc",
+        "@grpc//:grpc++",
+    ],
+)
+
+cc_test(
+    name = "input_service_test",
+    size = "small",
+    srcs = ["input/input_service_impl_test.cc"],
+    data = [":binplace"],
+    dynamic_deps = [
+        "@glib//glib:glib_shared",
+        "@glib//gmodule:gmodule_shared",
+    ],
+    includes = ["."],
+    local_defines = select({
+        "@platforms//os:windows": ["NOGDI"],
+        "//conditions:default": [],
+    }),
+    deps = [
+        ":input_service",
+        "//emulator/libs/async:async_api",
+        "//emulator/libs/async:libuv_event_loop",
+        "//emulator/libs/async:threaded_event_loop",
+        "//emulator/libs/system:clock",
+        "//emulator/libs/test:googletest_main",
+        "//emulator/plugin/display:test-display",
+        "//emulator/plugin/grpc/input:contact_table",
+        "//emulator/plugin/grpc/input:dispatcher_session",
+        "//emulator/plugin/grpc/input:input_dispatcher",
+        "//emulator/plugin/grpc/input:keyboard_sink",
+        "//emulator/plugin/grpc/input:multi_display_touch_devices",
+        "//emulator/plugin/grpc/input:slot_registry",
+        "//emulator/plugin/grpc/keyboard:key_code_resolver",
+        "//emulator/plugin/grpc/keyboard:test_qemu_input_stub",
+        "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/synchronization",
+        "@abseil-cpp//absl/time",
+        "@aemu//protos/services_v2:input_service_cc_grpc",
+        "@googletest//:gtest",
+        "@grpc//:grpc++",
+        "@qemu//:qemu-headers-exported",
+    ],
+)
+
+cc_library(
+    name = "location_service",
+    srcs = ["location/location_service_impl.cc"],
+    hdrs = ["location/location_service_impl.h"],
+    includes = ["."],
+    local_defines = select({
+        "@platforms//os:windows": ["NOGDI"],
+        "//conditions:default": [],
+    }),
+    deps = [
+        "//emulator/libs/async:async_api",
+        "//emulator/libs/eventing",
+        "//emulator/libs/grpc_utils:absl_translate",
+        "//emulator/libs/grpc_utils:async",
+        "//emulator/libs/grpc_utils:event-stream",
+        "//emulator/libs/system:clock",
+        "//emulator/plugin/avd_universe:location",
+        "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/cleanup",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/strings:str_format",
+        "@abseil-cpp//absl/synchronization",
+        "@abseil-cpp//absl/time",
+        "@aemu//protos/services_v2:location_service_cc_grpc",
+        "@grpc//:grpc++",
+    ],
+)
+
+cc_test(
+    name = "location_service_test",
+    size = "small",
+    srcs = [
+        "location/location_service_impl_test.cc",
+        "test/grpc_v2_service_test.h",
+    ],
+    includes = ["."],
+    local_defines = select({
+        "@platforms//os:windows": ["NOGDI"],
+        "//conditions:default": [],
+    }),
+    deps = [
+        ":location_service",
+        "//emulator/libs/async:async_testing",
+        "//emulator/libs/async:libuv_event_loop",
+        "//emulator/libs/async:threaded_event_loop",
+        "//emulator/libs/test:googletest_main",
+        "//emulator/plugin/avd_universe:location",
+        "@abseil-cpp//absl/synchronization",
+        "@abseil-cpp//absl/time",
+        "@aemu//protos/services_v2:location_service_cc_grpc",
+        "@googletest//:gtest",
+        "@grpc//:grpc++",
+    ],
+)
+
+cc_library(
     name = "v2_services",
     srcs = ["v2_services.cc"],
     hdrs = ["include/goldfish/grpc/v2/v2_services.h"],
@@ -338,13 +535,17 @@ cc_library(
         "//conditions:default": [],
     }),
     deps = [
+        ":battery_service",
         ":capabilities_service",
         ":hypervisor_service",
+        ":input_service",
+        ":location_service",
         ":operations_service",
         ":sensors_service",
         ":system_service",
-        "//emulator/libs/async:async_api",
+        "//emulator/plugin/avd:avd_properties",
         "//emulator/plugin/avd:avd_universe",
+        "//emulator/plugin/avd:global_event_loop",
         "//emulator/plugin/vminterface",
         "@grpc//:grpc++",
     ],
@@ -353,6 +554,8 @@ cc_library(
 clang_tidy_test(
     name = "tidy",
     targets = [
+        ":battery_service",
+        ":battery_service_test",
         ":capabilities_service",
         ":capabilities_service_test",
         ":rtc_service",
@@ -363,6 +566,10 @@ clang_tidy_test(
         ":operations_service_test",
         ":hypervisor_service",
         ":hypervisor_service_test",
+        ":input_service",
+        ":input_service_test",
+        ":location_service",
+        ":location_service_test",
         ":system_service",
         ":system_service_test",
         ":v2_services",

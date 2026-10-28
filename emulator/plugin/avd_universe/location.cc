@@ -14,6 +14,8 @@
 
 #include "goldfish/avd_universe/gps/location.h"
 
+#include <cmath>
+
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 
@@ -22,7 +24,7 @@
 namespace goldfish::avd_universe::gps {
 
 archive::IWriter& operator<<(archive::IWriter& w, const Location& val) {
-    w << val.latitude << val.longitude << val.speed << val.bearing << val.altitude
+    w << val.latitude << val.longitude << val.speed << val.bearing << val.altitude << val.accuracy
       << val.satellites;
 
     return w;
@@ -31,11 +33,33 @@ archive::IWriter& operator<<(archive::IWriter& w, const Location& val) {
 absl::Status ReadValue(archive::IReader& r, Location& val) {
     Location loaded;
     RETURN_IF_ERROR(ReadValue(r, loaded.latitude, loaded.longitude, loaded.speed, loaded.bearing,
-                              loaded.altitude, loaded.satellites));
-    if (loaded.satellites < 0) {
+                              loaded.altitude, loaded.accuracy, loaded.satellites));
+    if (!std::isfinite(loaded.latitude) || loaded.latitude < -90.0 || loaded.latitude > 90.0) {
         return absl::InvalidArgumentError(absl::StrCat(
-                "Negative satellite count (", loaded.satellites,
-                ", expected >= 0) in Location snapshot"));
+                "Failed to load Location from snapshot: latitude (", loaded.latitude,
+                ") is out of bounds; expected a finite value in [-90.0, 90.0] degrees."));
+    }
+    if (!std::isfinite(loaded.longitude) || loaded.longitude < -180.0 || loaded.longitude > 180.0) {
+        return absl::InvalidArgumentError(absl::StrCat(
+                "Failed to load Location from snapshot: longitude (", loaded.longitude,
+                ") is out of bounds; expected a finite value in [-180.0, 180.0] degrees."));
+    }
+    if (!std::isfinite(loaded.speed) || !std::isfinite(loaded.bearing) ||
+        !std::isfinite(loaded.altitude)) {
+        return absl::InvalidArgumentError(
+                absl::StrCat("Failed to load Location from snapshot: speed (", loaded.speed,
+                             "), bearing (", loaded.bearing, "), and altitude (", loaded.altitude,
+                             ") must all be finite floating-point values."));
+    }
+    if (!std::isfinite(loaded.accuracy) || loaded.accuracy < 0.0) {
+        return absl::InvalidArgumentError(
+                absl::StrCat("Failed to load Location from snapshot: accuracy (", loaded.accuracy,
+                             ") is invalid; expected a finite value >= 0.0 meters."));
+    }
+    if (loaded.satellites < 0) {
+        return absl::InvalidArgumentError(
+                absl::StrCat("Failed to load Location from snapshot: satellite count (",
+                             loaded.satellites, ") is negative; expected >= 0."));
     }
     val = loaded;
     return absl::OkStatus();

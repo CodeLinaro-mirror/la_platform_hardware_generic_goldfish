@@ -4,6 +4,9 @@
 device. **Location:** `hardware/generic/goldfish/emulator/plugin/grpc` **Namespace:**
 `goldfish::grpc` (C++), `TYPE_GRPC` (QOM)
 
+> [!IMPORTANT]
+> **Agent Playbook:** Before implementing or reviewing gRPC services or streaming reactors, read [`AGENTS.md`](AGENTS.md) for the reactor-first mandate (`//emulator/libs/grpc_utils`), lock-ordering invariants, `populate_fn` buffer-recycling rules, and multithreaded concurrency test requirements.
+
 ## Integration Guide
 
 | Class / Interface     | Bazel Target | Header Path  | Description             |

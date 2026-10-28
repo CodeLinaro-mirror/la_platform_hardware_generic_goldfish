@@ -51,7 +51,7 @@ class BootPropertiesDevice : public IBootPropertiesDevice {
             for (const auto& [name, value] : properties_) {
                 Send(absl::StrFormat("%s=%s", name, value));
             }
-            Send("\0");
+            Send("\0"sv);
         }
         return true;
     }

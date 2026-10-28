@@ -13,6 +13,7 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
+#include <future>
 #include <thread>
 
 #include "absl/status/status_matchers.h"
@@ -80,6 +81,18 @@ class UnixPipeTest : public ::testing::Test {
         ASSERT_EQ(future.wait_for(timeout), std::future_status::ready);
     }
 
+    // Waits until the device closes the guest connection.
+    bool WaitForClose(TestHalSocket* socket, absl::Duration timeout = absl::Seconds(1)) {
+        const absl::Time deadline = absl::Now() + timeout;
+        while (absl::Now() < deadline) {
+            if (PostAndWait([socket] { return socket->closed; })) {
+                return true;
+            }
+            absl::SleepFor(absl::Milliseconds(10));
+        }
+        return false;
+    }
+
   protected:
     std::unique_ptr<LibuvEventLoop> client_loop_;
     std::thread client_loop_thread_;
@@ -133,6 +146,7 @@ TEST_F(UnixPipeTest, echo_over_host_side) {
         return registry_.ConstructHalDevice<IUnixPipe>(ToString(endpoint));
     });
     ASSERT_NE(device, nullptr);
+    PostAndWait([device] { device->OnConnect(); });
     TestHalSocket* device_socket = registry_.HalSocket();
     ASSERT_NE(device_socket, nullptr);
 
@@ -206,6 +220,7 @@ TEST_F(UnixPipeTest, close_on_host) {
 
     IUnixPipe* device = registry_.ConstructHalDevice<IUnixPipe>(ToString(endpoint));
     ASSERT_NE(device, nullptr);
+    PostAndWait([device] { device->OnConnect(); });
     TestHalSocket* device_socket = registry_.HalSocket();
     ASSERT_NE(device_socket, nullptr);
 
@@ -244,21 +259,164 @@ TEST_F(UnixPipeTest, close_on_host) {
 
     client_loop_->PostAndWait([&]() { device->OnReceive(test_message); }).IgnoreError();
 
+    ASSERT_TRUE(WaitForClose(device_socket));
     {
         const absl::MutexLock lk(&device_updated);
-        ASSERT_TRUE(device_updated.AwaitWithTimeout(
+        EXPECT_TRUE(device_state.rx_buffer.empty());
+    }
+    device_socket->on_send = [](std::string_view) {};
+}
+
+// Captures the HAL device factory so a test can drive the real connection lifecycle instead of
+// the one TestConnectorRegistry::ConstructHalDevice() uses. In the emulator,
+// HalPlugFactory::WrapHalPlug() runs the factory on the QEMU thread, then calls
+// EstablishConnection(), and only then posts OnConnect() to the client loop.
+class LifecycleConnectorRegistry : public TestConnectorRegistry {
+  public:
+    void RegisterHalDevice(std::string name, async::EventLoop* client_loop,
+                           async::EventLoop* qemu_loop, HalDeviceFactory factory) override {
+        factory_ = factory;
+        TestConnectorRegistry::RegisterHalDevice(std::move(name), client_loop, qemu_loop,
+                                                 std::move(factory));
+    }
+
+    HalDeviceFactory factory_;
+};
+
+// The host side may write as soon as it accepts the AF_UNIX
+// connection, which can happen before the guest connection is established. That data must reach
+// the guest once OnConnect() is delivered instead of being written to the null socket.
+TEST_F(UnixPipeTest, host_data_sent_before_on_connect_reaches_guest) {
+#ifdef _WIN32
+    const std::string un_path(absl::StrFormat(
+            "\\\\.\\pipe\\UnixPipeTest_host_data_before_on_connect_%d", GetCurrentProcessId()));
+#else
+    android::base::TestTempDir tmpdir("UnixPipeTest");
+    const std::filesystem::path un_path = tmpdir.MakeSubPath("host_data_before_on_connect");
+#endif
+
+    const auto endpoint = Endpoint(*UnEndpoint::Create(un_path));
+
+    LifecycleConnectorRegistry registry;
+    IUnixPipe::RegisterDevice(&registry, client_loop_.get(), qemu_loop_.get());
+    ASSERT_TRUE(registry.factory_);
+
+    std::vector<ScopedAsyncSocket> clients;
+    std::mutex clients_mutex;
+    std::promise<void> greeted;
+    auto greeted_future = greeted.get_future();
+
+    // Greet immediately on accept, like a host that starts with a handshake.
+    auto on_connect = [&](std::shared_ptr<AsyncSocket> socket) -> bool {
+        socket->SetOnReadCallbackNoFlowControl([](std::string_view, absl::Status) {});
+        EXPECT_THAT(socket->Send("rdy", 3), IsOk());
+        {
+            std::lock_guard<std::mutex> lock(clients_mutex);
+            clients.emplace_back(std::move(socket));
+        }
+        greeted.set_value();
+        return true;
+    };
+
+    const ScopedAsyncServer server(PostAndWait([this, &endpoint, &on_connect] {
+        return socket_factory_.CreateServer(client_loop_.get(), endpoint, std::move(on_connect));
+    }));
+    ASSERT_NE(server, nullptr);
+
+    // The factory runs on the QEMU thread. The guest connection is not established yet.
+    std::shared_ptr<HalPlug> plug = registry.factory_(ToString(endpoint));
+    ASSERT_NE(plug, nullptr);
+
+    RunUntil(greeted_future);
+    // Let the client loop read the greeting while the plug still has the null socket.
+    std::this_thread::sleep_for(100ms);
+    PostAndWait([] {});
+
+    absl::Mutex device_updated;
+    DeviceState device_state;
+    auto hal_socket = std::make_shared<TestHalSocket>();
+    hal_socket->on_send = [&](std::string_view data) {
+        const absl::MutexLock lk(&device_updated);
+        if (data.empty()) {
+            device_state.disconnected = true;
+        } else {
+            device_state.rx_buffer.append(data);
+        }
+    };
+
+    HalPlugTesting::EstablishConnection(plug.get(), hal_socket);
+    client_loop_->Post([plug] { plug->OnConnect(); }).IgnoreError();
+
+    {
+        const absl::MutexLock lk(&device_updated);
+        EXPECT_TRUE(device_updated.AwaitWithTimeout(
                 absl::Condition(
                         +[](const void* ptr) {
                             return static_cast<const DeviceState*>(ptr)->ready();
                         },
                         &device_state),
                 absl::Seconds(1)));
-
-        EXPECT_TRUE(device_state.rx_buffer.empty());
-        EXPECT_TRUE(device_state.disconnected);
-
-        device_socket->on_send = [](std::string_view) {};
+        EXPECT_EQ(device_state.rx_buffer, "rdy");
     }
+
+    PostAndWait([&plug] { plug->OnClose(); });
+    hal_socket->on_send = [](std::string_view) {};
+}
+
+// If the host sends data and closes the AF_UNIX connection before OnConnect(), the guest must
+// still get the data and then have its connection closed.
+TEST_F(UnixPipeTest, host_close_before_on_connect_closes_guest) {
+#ifdef _WIN32
+    const std::string un_path(absl::StrFormat(
+            "\\\\.\\pipe\\UnixPipeTest_host_close_before_on_connect_%d", GetCurrentProcessId()));
+#else
+    android::base::TestTempDir tmpdir("UnixPipeTest");
+    const std::filesystem::path un_path = tmpdir.MakeSubPath("host_close_before_on_connect");
+#endif
+
+    const auto endpoint = Endpoint(*UnEndpoint::Create(un_path));
+
+    LifecycleConnectorRegistry registry;
+    IUnixPipe::RegisterDevice(&registry, client_loop_.get(), qemu_loop_.get());
+    ASSERT_TRUE(registry.factory_);
+
+    std::promise<void> closed;
+    auto closed_future = closed.get_future();
+
+    // Send a message and close right away.
+    auto on_connect = [&](std::shared_ptr<AsyncSocket> socket) -> bool {
+        socket->SetOnReadCallbackNoFlowControl([](std::string_view, absl::Status) {});
+        EXPECT_THAT(socket->Send("bye", 3), IsOk());
+        socket->Close();
+        closed.set_value();
+        return true;
+    };
+
+    const ScopedAsyncServer server(PostAndWait([this, &endpoint, &on_connect] {
+        return socket_factory_.CreateServer(client_loop_.get(), endpoint, std::move(on_connect));
+    }));
+    ASSERT_NE(server, nullptr);
+
+    std::shared_ptr<HalPlug> plug = registry.factory_(ToString(endpoint));
+    ASSERT_NE(plug, nullptr);
+
+    RunUntil(closed_future);
+    // Let the client loop see the data and the close while the plug still has the null socket.
+    std::this_thread::sleep_for(100ms);
+    PostAndWait([] {});
+
+    std::string rx_buffer;
+    auto hal_socket = std::make_shared<TestHalSocket>();
+    hal_socket->on_send = [&](std::string_view data) { rx_buffer.append(data); };
+
+    HalPlugTesting::EstablishConnection(plug.get(), hal_socket);
+    PostAndWait([plug] { plug->OnConnect(); });
+
+    ASSERT_TRUE(WaitForClose(hal_socket.get()));
+    EXPECT_EQ(PostAndWait([&rx_buffer] { return rx_buffer; }), "bye");
+
+    PostAndWait([&plug] { plug->OnClose(); });
+    hal_socket->on_send = [](std::string_view) {};
 }
 
 }  // namespace goldfish::devices::unix_pipe

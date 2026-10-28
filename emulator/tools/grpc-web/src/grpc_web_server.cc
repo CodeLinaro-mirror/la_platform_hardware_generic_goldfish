@@ -203,10 +203,12 @@ class GrpcWebReactor : public grpc::ClientBidiReactor<grpc::ByteBuffer, grpc::By
 
     void OnReadDone(bool ok) override {
         if (ok) {
-            std::string resp_data = Protocol::ByteBufferToString(read_bb_);
-            std::string data_frame = Protocol::PackFrame(kFrameData, resp_data);
-            if (data_frame.empty() && !resp_data.empty()) {
-                LOG(ERROR) << "gRPC payload exceeded maximum frame size: " << resp_data.size();
+            std::string data_frame = Protocol::PackFrame(kFrameData, read_bb_);
+            if (data_frame.empty()) {
+                LOG(ERROR) << "Failed to pack gRPC-Web response frame for method '" << method_
+                           << "': payload size (" << read_bb_.Length()
+                           << " bytes) exceeds maximum limit (" << kMaxFramePayloadSize
+                           << " bytes) or slice dump failed; cancelling call";
                 context_->TryCancel();
                 return;
             }

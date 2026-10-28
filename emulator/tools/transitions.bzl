@@ -47,3 +47,49 @@ internal_release = rule(
         ),
     },
 )
+
+def _no_windows_export_all_symbols_transition_impl(settings, _attr):
+    """Disables windows_export_all_symbols for targets exceeding PE COFF's 65535 export limit."""
+    features = [
+        f
+        for f in settings["//command_line_option:features"]
+        if f not in (
+            "windows_export_all_symbols",
+            "-windows_export_all_symbols",
+            "no_windows_export_all_symbols",
+            "-no_windows_export_all_symbols",
+        )
+    ]
+    return {
+        "//command_line_option:features": features + [
+            "-windows_export_all_symbols",
+            "no_windows_export_all_symbols",
+        ],
+    }
+
+no_windows_export_all_symbols_transition = transition(
+    implementation = _no_windows_export_all_symbols_transition_impl,
+    inputs = ["//command_line_option:features"],
+    outputs = ["//command_line_option:features"],
+)
+
+def _no_windows_export_all_symbols_binary_impl(ctx):
+    """Forwards DefaultInfo and OutputGroupInfo from the transitioned target."""
+    target = ctx.attr.srcs[0] if type(ctx.attr.srcs) == "list" else ctx.attr.srcs
+    providers = [DefaultInfo(files = target[DefaultInfo].files)]
+    if OutputGroupInfo in target:
+        providers.append(target[OutputGroupInfo])
+    return providers
+
+no_windows_export_all_symbols_binary = rule(
+    implementation = _no_windows_export_all_symbols_binary_impl,
+    attrs = {
+        "srcs": attr.label(
+            mandatory = True,
+            cfg = no_windows_export_all_symbols_transition,
+        ),
+        "_allowlist_function_transition": attr.label(
+            default = "@bazel_tools//tools/allowlists/function_transition_allowlist",
+        ),
+    },
+)

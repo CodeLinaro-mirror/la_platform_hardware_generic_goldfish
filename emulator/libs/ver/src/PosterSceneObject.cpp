@@ -63,18 +63,29 @@ void PosterSceneObject::setScale(float value) {
 }
 
 // Update the PosterSceneObject for the current frame.
-void PosterSceneObject::update() {
-    Texture texture = mRenderables[0].texture;
-    mVisible = texture.isValid();
+bool PosterSceneObject::update() {
+    const Texture texture = mRenderables[0].texture;
+
+    uint32_t width = 0;
+    uint32_t height = 0;
+    uint64_t generation = 0;
+    const bool visible =
+            texture.isValid() && mRenderer.getTextureInfo(texture, &width, &height, &generation);
+
+    // The poster only needs to be updated if a different texture is assigned,
+    // or if the contents of the current texture have been replaced, e.g. when
+    // an asynchronous load completes.
+    if (visible == mVisible && generation == mTextureGeneration) {
+        return false;
+    }
+
+    mVisible = visible;
+    mTextureGeneration = generation;
     if (!mVisible) {
-        return;
+        return true;
     }
 
     // Determine poster size.
-    uint32_t width = 0;
-    uint32_t height = 0;
-    mRenderer.getTextureInfo(texture, &width, &height);
-
     glm::vec2 aspectRatio = glm::vec2(static_cast<float>(width), static_cast<float>(height));
     const float aspectRatioMax = std::max(aspectRatio.x, aspectRatio.y);
     if (aspectRatioMax > 0.0f) {
@@ -97,6 +108,7 @@ void PosterSceneObject::update() {
     mPosterSizeTransform = glm::scale(glm::mat4(), scale);
     mMinScale = minScale;
     updateTransform();
+    return true;
 }
 
 void PosterSceneObject::updateTransform() {

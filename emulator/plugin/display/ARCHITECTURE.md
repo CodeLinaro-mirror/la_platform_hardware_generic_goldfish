@@ -3,6 +3,7 @@
 **Role:** Abstraction layer and reactive frame pipeline for emulator displays, screenshots,
 multi-display management, and WebM video recording. **Location:** `emulator/plugin/display/`
 **Namespace:** `goldfish::display`
+**Agent Playbook:** [`AGENTS.md`](AGENTS.md)
 
 ## Integration Guide
 

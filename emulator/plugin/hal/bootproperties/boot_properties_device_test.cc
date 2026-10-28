@@ -152,7 +152,7 @@ TEST_F(BootPropertiesDeviceTest, sendsBootProperties) {
     ASSERT_OK_AND_ASSIGN(auto props2, IBootPropertiesDevice::MakeProperties({{"foo", "bar"}}));
     registerWithProps(props2);
     receive("list");
-    EXPECT_EQ(test_socket->storage, "0007foo=bar0000");
+    EXPECT_EQ(test_socket->storage, "0007foo=bar0001\0"s);
 }
 
 }  // namespace goldfish::devices::boot

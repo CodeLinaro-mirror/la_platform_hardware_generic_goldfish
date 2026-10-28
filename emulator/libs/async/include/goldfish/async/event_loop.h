@@ -47,6 +47,7 @@ struct LooperStatusEvent {
     enum class State : uint8_t {
         kNotStarted,    // The loop has not yet been started.
         kRunning,       // The loop is actively processing events.
+        kPaused,        // The loop is temporarily paused and not processing events.
         kShuttingDown,  // A graceful shutdown has been initiated.
         kFinished,      // The loop has finished execution.
     };
@@ -62,6 +63,9 @@ void AbslStringify(Sink& sink, const LooperStatusEvent& event) {
         break;
     case LooperStatusEvent::State::kRunning:
         sink.Append("RUNNING");
+        break;
+    case LooperStatusEvent::State::kPaused:
+        sink.Append("PAUSED");
         break;
     case LooperStatusEvent::State::kShuttingDown:
         sink.Append("SHUTTING_DOWN");

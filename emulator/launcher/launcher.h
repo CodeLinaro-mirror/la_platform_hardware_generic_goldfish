@@ -21,6 +21,7 @@
 
 #include "android/cmdline_option.h"
 #include "android/goldfish/avd.h"
+#include "android/goldfish/feature_flags.h"
 #include "android/goldfish/input_paths.h"
 #include "goldfish/async/async_socket_factory.h"
 #include "goldfish/async/libuv_event_loop.h"
@@ -33,7 +34,9 @@ namespace android::goldfish {
 
 constexpr int kMetricsCrashesNone = 0;
 constexpr int kMetricsCrashesAbandoned = 1;
-constexpr int kMetricsCrashesUncleanExit = 2;
+// TODO(b/476380758): Temporarily disabled because reporting crashes = 2 confuses metrics
+// dashboards that sum `crashes` as a crash count.
+// constexpr int kMetricsCrashesUncleanExit = 2;
 
 struct LauncherConfig {
     // Owns every member except event_loop.
@@ -48,6 +51,7 @@ struct LauncherConfig {
     EmulatorPaths emulator_paths;
     std::unique_ptr<Avd> avd;
     AndroidOptions opts;
+    FeatureFlags feature_flags;
     ::goldfish::metrics::MetricsWriterConfig metrics_writer_config;
     absl::Duration qemu_shutdown_timeout = absl::Seconds(60);
 };

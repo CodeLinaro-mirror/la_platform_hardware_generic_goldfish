@@ -105,17 +105,18 @@ void PopulateDisplayCapabilities(const HardwareConfig& hw, DisplayCapabilities* 
     PopulateScreenCaptureCapabilities(display_caps->mutable_screen_capture());
 }
 
-void PopulateBatteryCapabilities(const HardwareConfig& hw, BatteryCapabilities* battery_caps) {
-    battery_caps->set_access_mode(hw.hw_battery ? AccessMode::ACCESS_MODE_READ_WRITE
-                                                : AccessMode::ACCESS_MODE_UNSPECIFIED);
+void PopulateBatteryCapabilities(BatteryCapabilities* battery_caps) {
+    battery_caps->set_access_mode(AccessMode::ACCESS_MODE_READ_WRITE);
+    // The emulated goldfish_battery driver exposes a kernel power_supply device,
+    // not an Android framework `dumpsys battery set` override.
+    battery_caps->set_fidelity(Fidelity::FIDELITY_HARDWARE);
+    // goldfish_battery only exposes an AC power_supply (BATTERY_AC_ONLINE);
+    // USB, wireless, and dock chargers are not wired in the guest driver.
     battery_caps->add_supported_chargers(ChargerSource::CHARGER_SOURCE_AC);
-    battery_caps->add_supported_chargers(ChargerSource::CHARGER_SOURCE_USB);
-    battery_caps->add_supported_chargers(ChargerSource::CHARGER_SOURCE_WIRELESS);
 }
 
-void PopulateLocationCapabilities(const HardwareConfig& hw, LocationCapabilities* loc_caps) {
-    loc_caps->set_access_mode(hw.hw_gps ? AccessMode::ACCESS_MODE_READ_WRITE
-                                        : AccessMode::ACCESS_MODE_UNSPECIFIED);
+void PopulateLocationCapabilities(LocationCapabilities* loc_caps) {
+    loc_caps->set_access_mode(AccessMode::ACCESS_MODE_READ_WRITE);
     // The emulated GNSS stack is a real HAL, not an Android framework override.
     loc_caps->set_fidelity(Fidelity::FIDELITY_HARDWARE);
 }
@@ -172,6 +173,8 @@ void PopulateInputCapabilities(const HardwareConfig& hw, InputCapabilities* inpu
     input_caps->add_supported_features(InputFeature::INPUT_FEATURE_TOUCH);
     input_caps->add_supported_features(InputFeature::INPUT_FEATURE_MULTI_TOUCH);
     input_caps->set_max_touch_point_count(10);
+    input_caps->set_supports_input_activity_observation(true);
+    input_caps->set_max_batch_duration_ms(30000);
     if (hw.hw_keyboard) {
         input_caps->add_supported_features(InputFeature::INPUT_FEATURE_KEYBOARD);
     }
@@ -226,8 +229,12 @@ Status CapabilitiesServiceImpl::GetDeviceCapabilities(
 
     PopulateMetadata(props, hw, reply->mutable_metadata());
     PopulateDisplayCapabilities(hw, reply->mutable_display());
-    PopulateBatteryCapabilities(hw, reply->mutable_battery());
-    PopulateLocationCapabilities(hw, reply->mutable_location());
+    if (hw.hw_battery) {
+        PopulateBatteryCapabilities(reply->mutable_battery());
+    }
+    if (hw.hw_gps) {
+        PopulateLocationCapabilities(reply->mutable_location());
+    }
     PopulateSensorsCapabilities(hw, reply->mutable_sensors());
     PopulateInputCapabilities(hw, reply->mutable_input());
     PopulateVmCapabilities(reply->mutable_vm());

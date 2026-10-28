@@ -16,6 +16,9 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstddef>
+#include <iterator>
+#include <span>
 #include <utility>
 
 #include "absl/log/log.h"
@@ -51,264 +54,176 @@ hwLcd_screenSize_t AndroidHwConfigGetScreenSize(const HardwareConfig& config) {
     return HwLcdGetScreenSize(config.hw_lcd_height, config.hw_lcd_width, config.hw_lcd_density);
 }
 
-int AndroidHwConfigGetMinVmHeapSize(const HardwareConfig& config, int api_level) {
-    int min_vm_heap_size = 16;
-    const hwLcd_screenSize_t screen_size = AndroidHwConfigGetScreenSize(config);
-    // Taken from requirements in CDD Documents on VM/Runtime Compatibility
-    // TODO: android wear minimums
-    if (api_level >= 23) {
-        if (screen_size >= LCD_SIZE_XLARGE) {
-            // TODO(zyy): emulator currently is unable to allocate a heap this
-            // big, so it gets reduced to 576 in main-common.c
-            if (config.hw_lcd_density >= LCD_DENSITY_XXXHDPI) {
-                min_vm_heap_size = 768;
-            } else if (config.hw_lcd_density >= LCD_DENSITY_560DPI) {
-                min_vm_heap_size = 576;
-            } else if (config.hw_lcd_density >= LCD_DENSITY_XXHDPI) {
-                min_vm_heap_size = 384;
-            } else if (config.hw_lcd_density >= LCD_DENSITY_420DPI) {
-                // Includes LCD_DENSITY_440DPI
-                min_vm_heap_size = 336;
-            } else if (config.hw_lcd_density >= LCD_DENSITY_400DPI) {
-                min_vm_heap_size = 288;
-            } else if (config.hw_lcd_density >= LCD_DENSITY_360DPI) {
-                min_vm_heap_size = 240;
-            } else if (config.hw_lcd_density >= LCD_DENSITY_XHDPI) {
-                min_vm_heap_size = 192;
-            } else if (config.hw_lcd_density >= LCD_DENSITY_280DPI) {
-                min_vm_heap_size = 144;
-            } else if (config.hw_lcd_density >= LCD_DENSITY_HDPI ||
-                       config.hw_lcd_density >= LCD_DENSITY_TVDPI) {
-                min_vm_heap_size = 96;
-            } else if (config.hw_lcd_density >= LCD_DENSITY_MDPI) {
-                min_vm_heap_size = 80;
-            } else {
-                min_vm_heap_size = 48;
-            }
-        } else if (screen_size >= LCD_SIZE_LARGE) {
-            if (config.hw_lcd_density >= LCD_DENSITY_XXXHDPI) {
-                min_vm_heap_size = 512;
-            } else if (config.hw_lcd_density >= LCD_DENSITY_560DPI) {
-                min_vm_heap_size = 384;
-            } else if (config.hw_lcd_density >= LCD_DENSITY_XXHDPI) {
-                min_vm_heap_size = 256;
-            } else if (config.hw_lcd_density >= LCD_DENSITY_420DPI) {
-                // Includes LCD_DENSITY_440DPI
-                min_vm_heap_size = 228;
-            } else if (config.hw_lcd_density >= LCD_DENSITY_400DPI) {
-                min_vm_heap_size = 192;
-            } else if (config.hw_lcd_density >= LCD_DENSITY_360DPI) {
-                min_vm_heap_size = 160;
-            } else if (config.hw_lcd_density >= LCD_DENSITY_XHDPI) {
-                min_vm_heap_size = 128;
-            } else if (config.hw_lcd_density >= LCD_DENSITY_280DPI) {
-                min_vm_heap_size = 96;
-            } else if (config.hw_lcd_density >= LCD_DENSITY_HDPI ||
-                       config.hw_lcd_density >= LCD_DENSITY_TVDPI) {
-                min_vm_heap_size = 80;
-            } else if (config.hw_lcd_density >= LCD_DENSITY_MDPI) {
-                min_vm_heap_size = 48;
-            } else {
-                min_vm_heap_size = 32;
-            }
-        } else {  // screen_size >= LCD_SIZE_SMALL
-            if (config.hw_lcd_density >= LCD_DENSITY_XXXHDPI) {
-                min_vm_heap_size = 256;
-            } else if (config.hw_lcd_density >= LCD_DENSITY_560DPI) {
-                min_vm_heap_size = 192;
-            } else if (config.hw_lcd_density >= LCD_DENSITY_XXHDPI) {
-                min_vm_heap_size = 128;
-            } else if (config.hw_lcd_density >= LCD_DENSITY_420DPI) {
-                // Includes LCD_DENSITY_440DPI
-                min_vm_heap_size = 112;
-            } else if (config.hw_lcd_density >= LCD_DENSITY_400DPI) {
-                min_vm_heap_size = 96;
-            } else if (config.hw_lcd_density >= LCD_DENSITY_360DPI ||
-                       config.hw_lcd_density >= LCD_DENSITY_XHDPI) {
-                min_vm_heap_size = 80;
-            } else if (config.hw_lcd_density >= LCD_DENSITY_280DPI ||
-                       config.hw_lcd_density >= LCD_DENSITY_HDPI ||
-                       config.hw_lcd_density >= LCD_DENSITY_TVDPI) {
-                min_vm_heap_size = 48;
-            } else {  // Includes LCD_DENSITY_MDPI
-                min_vm_heap_size = 32;
-            }
-        }
-    } else if (api_level >= 22) {
-        if (screen_size >= LCD_SIZE_XLARGE) {
-            if (config.hw_lcd_density >= LCD_DENSITY_XXXHDPI) {
-                min_vm_heap_size = 768;
-            } else if (config.hw_lcd_density >= LCD_DENSITY_560DPI) {
-                min_vm_heap_size = 576;
-            } else if (config.hw_lcd_density >= LCD_DENSITY_XXHDPI) {
-                min_vm_heap_size = 384;
-            } else if (config.hw_lcd_density >= LCD_DENSITY_400DPI) {
-                min_vm_heap_size = 288;
-            } else if (config.hw_lcd_density >= LCD_DENSITY_XHDPI) {
-                min_vm_heap_size = 192;
-            } else if (config.hw_lcd_density >= LCD_DENSITY_280DPI) {
-                min_vm_heap_size = 144;
-            } else if (config.hw_lcd_density >= LCD_DENSITY_HDPI ||
-                       config.hw_lcd_density >= LCD_DENSITY_TVDPI) {
-                min_vm_heap_size = 96;
-            } else if (config.hw_lcd_density >= LCD_DENSITY_MDPI) {
-                min_vm_heap_size = 80;
-            } else {
-                min_vm_heap_size = 48;
-            }
-        } else if (screen_size >= LCD_SIZE_LARGE) {
-            if (config.hw_lcd_density >= LCD_DENSITY_XXXHDPI) {
-                min_vm_heap_size = 512;
-            } else if (config.hw_lcd_density >= LCD_DENSITY_560DPI) {
-                min_vm_heap_size = 384;
-            } else if (config.hw_lcd_density >= LCD_DENSITY_XXHDPI) {
-                min_vm_heap_size = 256;
-            } else if (config.hw_lcd_density >= LCD_DENSITY_400DPI) {
-                min_vm_heap_size = 192;
-            } else if (config.hw_lcd_density >= LCD_DENSITY_XHDPI) {
-                min_vm_heap_size = 128;
-            } else if (config.hw_lcd_density >= LCD_DENSITY_280DPI) {
-                min_vm_heap_size = 96;
-            } else if (config.hw_lcd_density >= LCD_DENSITY_HDPI ||
-                       config.hw_lcd_density >= LCD_DENSITY_TVDPI) {
-                min_vm_heap_size = 80;
-            } else if (config.hw_lcd_density >= LCD_DENSITY_MDPI) {
-                min_vm_heap_size = 48;
-            } else {
-                min_vm_heap_size = 32;
-            }
-        } else {  // screen_size >= LCD_SIZE_SMALL
-            if (config.hw_lcd_density >= LCD_DENSITY_XXXHDPI) {
-                min_vm_heap_size = 256;
-            } else if (config.hw_lcd_density >= LCD_DENSITY_560DPI) {
-                min_vm_heap_size = 192;
-            } else if (config.hw_lcd_density >= LCD_DENSITY_XXHDPI) {
-                min_vm_heap_size = 128;
-            } else if (config.hw_lcd_density >= LCD_DENSITY_400DPI) {
-                min_vm_heap_size = 96;
-            } else if (config.hw_lcd_density >= LCD_DENSITY_XHDPI) {
-                min_vm_heap_size = 80;
-            } else if (config.hw_lcd_density >= LCD_DENSITY_280DPI ||
-                       config.hw_lcd_density >= LCD_DENSITY_HDPI ||
-                       config.hw_lcd_density >= LCD_DENSITY_TVDPI) {
-                min_vm_heap_size = 48;
-            } else {  // Includes LCD_DENSITY_MDPI
-                min_vm_heap_size = 32;
-            }
-        }
-    } else if (api_level >= 21) {
-        if (screen_size >= LCD_SIZE_XLARGE) {
-            if (config.hw_lcd_density >= LCD_DENSITY_XXXHDPI) {
-                min_vm_heap_size = 768;
-            } else if (config.hw_lcd_density >= LCD_DENSITY_560DPI) {
-                min_vm_heap_size = 576;
-            } else if (config.hw_lcd_density >= LCD_DENSITY_XXHDPI) {
-                min_vm_heap_size = 384;
-            } else if (config.hw_lcd_density >= LCD_DENSITY_400DPI) {
-                min_vm_heap_size = 288;
-            } else if (config.hw_lcd_density >= LCD_DENSITY_XHDPI) {
-                min_vm_heap_size = 192;
-            } else if (config.hw_lcd_density >= LCD_DENSITY_HDPI ||
-                       config.hw_lcd_density >= LCD_DENSITY_TVDPI) {
-                min_vm_heap_size = 96;
-            } else {
-                min_vm_heap_size = 64;
-            }
-        } else if (screen_size >= LCD_SIZE_LARGE) {
-            if (config.hw_lcd_density >= LCD_DENSITY_XXXHDPI) {
-                min_vm_heap_size = 512;
-            } else if (config.hw_lcd_density >= LCD_DENSITY_560DPI) {
-                min_vm_heap_size = 384;
-            } else if (config.hw_lcd_density >= LCD_DENSITY_XXHDPI) {
-                min_vm_heap_size = 256;
-            } else if (config.hw_lcd_density >= LCD_DENSITY_400DPI) {
-                min_vm_heap_size = 192;
-            } else if (config.hw_lcd_density >= LCD_DENSITY_XHDPI) {
-                min_vm_heap_size = 128;
-            } else if (config.hw_lcd_density >= LCD_DENSITY_HDPI ||
-                       config.hw_lcd_density >= LCD_DENSITY_TVDPI) {
-                min_vm_heap_size = 64;
-            } else if (config.hw_lcd_density >= LCD_DENSITY_MDPI) {
-                min_vm_heap_size = 32;
-            } else {
-                min_vm_heap_size = 16;
-            }
-        } else {  // screen_size >= LCD_SIZE_SMALL
-            if (config.hw_lcd_density >= LCD_DENSITY_XXXHDPI) {
-                min_vm_heap_size = 256;
-            } else if (config.hw_lcd_density >= LCD_DENSITY_560DPI) {
-                min_vm_heap_size = 192;
-            } else if (config.hw_lcd_density >= LCD_DENSITY_XXHDPI) {
-                min_vm_heap_size = 128;
-            } else if (config.hw_lcd_density >= LCD_DENSITY_400DPI) {
-                min_vm_heap_size = 96;
-            } else if (config.hw_lcd_density >= LCD_DENSITY_XHDPI) {
-                min_vm_heap_size = 64;
-            } else if (config.hw_lcd_density >= LCD_DENSITY_HDPI ||
-                       config.hw_lcd_density >= LCD_DENSITY_TVDPI) {
-                min_vm_heap_size = 32;
-            } else {  // Includes LCD_DENSITY_MDPI
-                min_vm_heap_size = 16;
-            }
-        }
-    } else if (api_level >= 19) {
-        if (screen_size >= LCD_SIZE_XLARGE) {
-            if (config.hw_lcd_density >= LCD_DENSITY_XXHDPI) {
-                min_vm_heap_size = 256;
-            } else if (config.hw_lcd_density >= LCD_DENSITY_400DPI) {
-                min_vm_heap_size = 192;
-            } else if (config.hw_lcd_density >= LCD_DENSITY_XHDPI) {
-                min_vm_heap_size = 128;
-            } else if (config.hw_lcd_density >= LCD_DENSITY_HDPI ||
-                       config.hw_lcd_density >= LCD_DENSITY_TVDPI) {
-                min_vm_heap_size = 64;
-            } else {
-                min_vm_heap_size = 32;
-            }
-        } else {  // screen_size >= LCD_SIZE_SMALL
-            if (config.hw_lcd_density >= LCD_DENSITY_XXHDPI) {
-                min_vm_heap_size = 128;
-            } else if (config.hw_lcd_density >= LCD_DENSITY_400DPI) {
-                min_vm_heap_size = 96;
-            } else if (config.hw_lcd_density >= LCD_DENSITY_XHDPI) {
-                min_vm_heap_size = 64;
-            } else if (config.hw_lcd_density >= LCD_DENSITY_HDPI ||
-                       config.hw_lcd_density >= LCD_DENSITY_TVDPI) {
-                min_vm_heap_size = 32;
-            } else {  // Includes LCD_DENSITY_MDPI
-                min_vm_heap_size = 16;
-            }
-        }
-    } else if (api_level >= 14) {
-        if (screen_size >= LCD_SIZE_XLARGE) {
-            if (config.hw_lcd_density >= LCD_DENSITY_XHDPI) {
-                min_vm_heap_size = 128;
-            } else if (config.hw_lcd_density >= LCD_DENSITY_HDPI ||
-                       config.hw_lcd_density >= LCD_DENSITY_TVDPI) {
-                min_vm_heap_size = 64;
-            } else {
-                min_vm_heap_size = 32;
-            }
-        } else {  // screen_size >= LCD_SIZE_SMALL
-            if (config.hw_lcd_density >= LCD_DENSITY_XHDPI) {
-                min_vm_heap_size = 64;
-            } else if (config.hw_lcd_density >= LCD_DENSITY_HDPI ||
-                       config.hw_lcd_density >= LCD_DENSITY_TVDPI) {
-                min_vm_heap_size = 32;
-            } else {  // Includes LCD_DENSITY_MDPI
-                min_vm_heap_size = 16;
-            }
-        }
-    } else if (api_level >= 7) {
-        if (config.hw_lcd_density >= 240) {
-            min_vm_heap_size = 24;
-        } else {
-            min_vm_heap_size = 16;
-        }
-    } else {
-        min_vm_heap_size = 16;
+/**
+ * @brief Minimum VM heap requirement (in MiB) for a display density tier.
+ *
+ * Each lookup table must be sorted in strictly descending `min_density` order
+ * and end with a `{0, fallback_mb}` entry, as `LookupMinHeapByDensity` returns
+ * the first entry satisfying `density >= min_density`.
+ */
+struct DensityHeapThreshold {
+    int min_density;
+    int min_heap_mb;
+};
+
+/**
+ * @brief Per-screen-size CDD minimum VM heap tables for an Android API tier.
+ *
+ * `kApiHeapConfigs` must be sorted in strictly descending `min_api_level` order
+ * so the first matching tier (`api_level >= min_api_level`) applies.
+ */
+struct ApiHeapConfig {
+    int min_api_level;
+    std::span<const DensityHeapThreshold> xlarge;
+    std::span<const DensityHeapThreshold> large;
+    std::span<const DensityHeapThreshold> normal;
+};
+
+constexpr bool IsSortedDescending(std::span<const DensityHeapThreshold> thresholds) {
+    if (thresholds.empty()) {
+        return false;
     }
-    return min_vm_heap_size;
+    for (size_t i = 1; i < thresholds.size(); ++i) {
+        if (thresholds[i - 1].min_density <= thresholds[i].min_density) {
+            return false;
+        }
+    }
+    return true;
+}
+
+constexpr bool AreApiHeapConfigsValid(std::span<const ApiHeapConfig> configs) {
+    if (configs.empty()) {
+        return false;
+    }
+    for (size_t i = 0; i < configs.size(); ++i) {
+        if (i > 0 && configs[i - 1].min_api_level <= configs[i].min_api_level) {
+            return false;
+        }
+        if (!IsSortedDescending(configs[i].xlarge) || !IsSortedDescending(configs[i].large) ||
+            !IsSortedDescending(configs[i].normal)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+int LookupMinHeapByDensity(std::span<const DensityHeapThreshold> thresholds, int density) {
+    for (const DensityHeapThreshold& entry : thresholds) {
+        if (density >= entry.min_density) {
+            return entry.min_heap_mb;
+        }
+    }
+    return thresholds.back().min_heap_mb;
+}
+
+/**
+ * @brief CDD Section 3.7 minimum VM heap tables by API level and screen size
+ * (sorted in strictly descending `min_density` order).
+ */
+constexpr DensityHeapThreshold kApi23XlargeHeap[] = {
+    {LCD_DENSITY_XXXHDPI, 768},
+    {LCD_DENSITY_560DPI, 576},
+    {LCD_DENSITY_XXHDPI, 384},
+    {LCD_DENSITY_420DPI, 336},
+    {LCD_DENSITY_400DPI, 288},
+    {LCD_DENSITY_360DPI, 240},
+    {LCD_DENSITY_XHDPI, 192},
+    {LCD_DENSITY_280DPI, 144},
+    {LCD_DENSITY_TVDPI, 96},
+    {LCD_DENSITY_MDPI, 80},
+    {0, 48},
+};
+constexpr DensityHeapThreshold kApi23LargeHeap[] = {
+    {LCD_DENSITY_XXXHDPI, 512},
+    {LCD_DENSITY_560DPI, 384},
+    {LCD_DENSITY_XXHDPI, 256},
+    {LCD_DENSITY_420DPI, 228},
+    {LCD_DENSITY_400DPI, 192},
+    {LCD_DENSITY_360DPI, 160},
+    {LCD_DENSITY_XHDPI, 128},
+    {LCD_DENSITY_280DPI, 96},
+    {LCD_DENSITY_TVDPI, 80},
+    {LCD_DENSITY_MDPI, 48},
+    {0, 32},
+};
+constexpr DensityHeapThreshold kApi23DefaultHeap[] = {
+    {LCD_DENSITY_XXXHDPI, 256}, {LCD_DENSITY_560DPI, 192},
+    {LCD_DENSITY_XXHDPI, 128},  {LCD_DENSITY_420DPI, 112},
+    {LCD_DENSITY_400DPI, 96},   {LCD_DENSITY_XHDPI, 80},
+    {LCD_DENSITY_TVDPI, 48},    {0, 32},
+};
+
+constexpr DensityHeapThreshold kApi22XlargeHeap[] = {
+    {LCD_DENSITY_XXXHDPI, 768}, {LCD_DENSITY_560DPI, 576}, {LCD_DENSITY_XXHDPI, 384},
+    {LCD_DENSITY_400DPI, 288},  {LCD_DENSITY_XHDPI, 192},  {LCD_DENSITY_280DPI, 144},
+    {LCD_DENSITY_TVDPI, 96},    {LCD_DENSITY_MDPI, 80},    {0, 48},
+};
+constexpr DensityHeapThreshold kApi22LargeHeap[] = {
+    {LCD_DENSITY_XXXHDPI, 512}, {LCD_DENSITY_560DPI, 384}, {LCD_DENSITY_XXHDPI, 256},
+    {LCD_DENSITY_400DPI, 192},  {LCD_DENSITY_XHDPI, 128},  {LCD_DENSITY_280DPI, 96},
+    {LCD_DENSITY_TVDPI, 80},    {LCD_DENSITY_MDPI, 48},    {0, 32},
+};
+constexpr DensityHeapThreshold kApi22DefaultHeap[] = {
+    {LCD_DENSITY_XXXHDPI, 256},
+    {LCD_DENSITY_560DPI, 192},
+    {LCD_DENSITY_XXHDPI, 128},
+    {LCD_DENSITY_400DPI, 96},
+    {LCD_DENSITY_XHDPI, 80},
+    {LCD_DENSITY_TVDPI, 48},
+    {0, 32},
+};
+
+constexpr DensityHeapThreshold kApi21XlargeHeap[] = {
+    {LCD_DENSITY_XXXHDPI, 768},
+    {LCD_DENSITY_560DPI, 576},
+    {LCD_DENSITY_XXHDPI, 384},
+    {LCD_DENSITY_400DPI, 288},
+    {LCD_DENSITY_XHDPI, 192},
+    {LCD_DENSITY_TVDPI, 96},
+    {0, 64},
+};
+constexpr DensityHeapThreshold kApi21LargeHeap[] = {
+    {LCD_DENSITY_XXXHDPI, 512}, {LCD_DENSITY_560DPI, 384},
+    {LCD_DENSITY_XXHDPI, 256},  {LCD_DENSITY_400DPI, 192},
+    {LCD_DENSITY_XHDPI, 128},   {LCD_DENSITY_TVDPI, 64},
+    {LCD_DENSITY_MDPI, 32},     {0, 16},
+};
+constexpr DensityHeapThreshold kApi21DefaultHeap[] = {
+    {LCD_DENSITY_XXXHDPI, 256},
+    {LCD_DENSITY_560DPI, 192},
+    {LCD_DENSITY_XXHDPI, 128},
+    {LCD_DENSITY_400DPI, 96},
+    {LCD_DENSITY_XHDPI, 64},
+    {LCD_DENSITY_TVDPI, 32},
+    {0, 16},
+};
+
+constexpr ApiHeapConfig kApiHeapConfigs[] = {
+    {23, kApi23XlargeHeap, kApi23LargeHeap, kApi23DefaultHeap},
+    {22, kApi22XlargeHeap, kApi22LargeHeap, kApi22DefaultHeap},
+    {21, kApi21XlargeHeap, kApi21LargeHeap, kApi21DefaultHeap},
+};
+static_assert(AreApiHeapConfigsValid(kApiHeapConfigs));
+
+int AndroidHwConfigGetMinVmHeapSize(const HardwareConfig& config, int api_level) {
+    // Taken from requirements in CDD Documents on VM/Runtime Compatibility.
+    // API levels < 21 are rejected earlier by CalculateMinimumRam.
+    // TODO: android wear minimums
+    const ApiHeapConfig* selected = &kApiHeapConfigs[std::size(kApiHeapConfigs) - 1];
+    for (const ApiHeapConfig& api_config : kApiHeapConfigs) {
+        if (api_level >= api_config.min_api_level) {
+            selected = &api_config;
+            break;
+        }
+    }
+    const hwLcd_screenSize_t screen_size = AndroidHwConfigGetScreenSize(config);
+    if (screen_size >= LCD_SIZE_XLARGE) {
+        return LookupMinHeapByDensity(selected->xlarge, config.hw_lcd_density);
+    }
+    if (screen_size >= LCD_SIZE_LARGE) {
+        return LookupMinHeapByDensity(selected->large, config.hw_lcd_density);
+    }
+    return LookupMinHeapByDensity(selected->normal, config.hw_lcd_density);
 }
 }  // namespace
 

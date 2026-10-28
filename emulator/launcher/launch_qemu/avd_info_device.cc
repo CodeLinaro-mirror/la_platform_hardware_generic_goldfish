@@ -14,6 +14,8 @@
 
 #include "avd_info_device.h"
 
+#include <optional>
+#include <string>
 #include <vector>
 
 #include "absl/log/log.h"
@@ -21,12 +23,35 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
 
+#include "android/status/status_macros.h"
 #include "goldfish/metrics/configure_metrics_writer.h"
+#include "goldfish/timezone/host_timezone.h"
 #include "snapshot_device.h"
 
 namespace android::goldfish {
 
 namespace {
+// Returns the timezone that the guest switches to on this boot: the -timezone value if it is a
+// zoneinfo name, otherwise the host timezone on a factory boot only, since it replaces the
+// timezone selected in the guest (b/532790747).
+std::optional<std::string> GetTimezoneToSet(const EmulatorConfig& emulator, bool factory_boot) {
+    if (const char* requested = emulator.opts().timezone; requested != nullptr) {
+        if (::goldfish::timezone::IsZoneinfoName(requested)) {
+            return requested;
+        }
+        LOG(WARNING) << "Ignoring -timezone '" << requested
+                     << "': must be a zoneinfo name such as Europe/Paris (see -help-timezone)";
+    }
+    if (!factory_boot) {
+        return std::nullopt;
+    }
+    if (!emulator.host_timezone().has_value()) {
+        LOG(WARNING) << "Could not determine the host timezone, so it is not reported to the "
+                        "guest (see -help-timezone)";
+    }
+    return emulator.host_timezone();
+}
+
 void AppendMetricsConfigString(std::string* s, const MetricsConfig& config) {
     absl::StrAppend(s, ",metrics_session=", Device::EscapeQemuOptionValue(config.session_id));
     absl::StrAppend(s, ",metrics_writer=", static_cast<uint32_t>(config.writer_config.type));
@@ -80,13 +105,20 @@ absl::Status AvdInfoDevice::initialize(const EmulatorConfig& emulator) {
         params.emplace_back("icc_profile", icc_profile);
     }
 
+    // The plugin sets it as the timezone of the guest.
+    if (const std::optional<std::string> timezone = GetTimezoneToSet(emulator, factory_boot_);
+        timezone.has_value()) {
+        params.emplace_back("timezone", *timezone);
+    }
+
     std::string_view snapshot_name = SnapshotDevice::get_snapshot_name(emulator);
     params.emplace_back("snapshot_name", snapshot_name);
     params.emplace_back("snapshot_update_time",
                         emulator.opts().no_snapshot_update_time ? "false" : "true");
     params.emplace_back("snapshots_enabled",
                         SnapshotDevice::are_snapshots_enabled(emulator) ? "true" : "false");
-    params.emplace_back("snapshot_version", absl::StrCat(kSnapshotVersion));
+    ASSIGN_OR_RETURN(const int snapshot_version, CurrentSnapshotVersion(emulator));
+    params.emplace_back("snapshot_version", absl::StrCat(snapshot_version));
 
     // QEMU splits -device options on single commas, so commas inside values (e.g. in the AVD
     // display name or a path) must be escaped to keep each value in its own property.

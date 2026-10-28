@@ -35,7 +35,7 @@ The Goldfish emulator is a modular system built on top of QEMU. It extends QEMU 
 The root `BUILD.bazel` file orchestrates the final assembly of the emulator package:
 
 *   **Binaries:** Collects `emulator` (launcher), `qemu-system-*` (from external repo), `crashpad_handler`, and `netsimd`.
-*   **Plugins:** Collects all dynamic libraries (`goldfish_*.so`, `rutabaga_ffi.so`) into `lib/qemu/`.
+*   **Plugins:** Collects all dynamic libraries (`goldfish_*.so`, `libgfxstream_backend.so`, `librutabaga_ffi.so`) into `lib/qemu/`.
 *   **Graphics:** Bundles host-specific Vulkan ICDs and EGL libraries (ANGLE, SwiftShader) into `lib64/`.
 *   **Resources:** Bundles QEMU ROMs, keymaps, and virtual scene data.
 *   **Packaging:** Creates the final release ZIP (`sdk-repo-{platform}-emulator-{build_id}.zip`) and symbol packages.

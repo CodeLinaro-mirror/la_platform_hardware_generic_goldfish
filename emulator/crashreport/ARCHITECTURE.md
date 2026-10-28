@@ -3,6 +3,7 @@
 **Role:** Manages out-of-process crash reporting (via Crashpad) and monitors for emulator hangs.
 **Location:** `hardware/generic/goldfish/emulator/crashreport`
 **Namespace:** `android::crashreport`
+**Agent Playbook:** [`AGENTS.md`](AGENTS.md)
 
 ## Integration Guide
 | Class / Interface | Bazel Target | Header Path | Description |

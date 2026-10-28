@@ -17,6 +17,7 @@
 #include <cstdint>
 #include <utility>
 
+#include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
@@ -114,6 +115,7 @@ QemuDisplay::QemuDisplay(Private, EventLoop* loop, EventLoop* qemu_loop, QemuCon
         , console_(con)
         , qemu_loop_(qemu_loop)
         , vhid_(vhid)
+        , input_active_tracker_(vhid, input_active_events())
         , dcl_(std::make_unique<DisplayChangeListener>(DisplayChangeListener{
               .ops = &kDclOps,
               .con = con,
@@ -132,6 +134,7 @@ QemuDisplay::QemuDisplay(Private, EventLoop* loop, EventLoop* qemu_loop, QemuCon
 }
 
 QemuDisplay::~QemuDisplay() {
+    input_active_tracker_.Reset();
     ShutdownProducer();  // Its hooks use our state.
     // Release ownership so we can unregister and delete on the QEMU event loop.
     auto cleanup = [dcl = std::move(dcl_)]() {
@@ -346,6 +349,21 @@ void QemuDisplay::SendEvDevReport(EvDevEvents events) {
                 InputHandler::SendEvDevReport(vhid, report);
             })
             .IgnoreError();
+}
+
+void QemuDisplay::WriteEvDevReportOnLoop(absl::Span<const EvDevEvent> events) {
+    DCHECK(qemu_loop_->IsOnLoopThread());
+    InputHandler::SendEvDevReport(vhid_, events);
+}
+
+bool QemuDisplay::IsInputActive() const {
+    DCHECK(qemu_loop_->IsOnLoopThread());
+    return virtio_input_hid_is_active(vhid_);
+}
+
+uint64_t QemuDisplay::InputActiveGeneration() const {
+    DCHECK(qemu_loop_->IsOnLoopThread());
+    return input_active_tracker_.GenerationOnLoop();
 }
 
 void QemuDisplay::SetOwnedSurface(DisplaySurface* surface) {

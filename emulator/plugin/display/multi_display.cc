@@ -70,7 +70,10 @@ absl::StatusOr<SharedDisplay> IMultiDisplay::GetActiveDisplay(DisplayId display_
     }
     auto display = screen->lock();
     if (!display) {
-        return absl::UnavailableError("Display is no longer active.");
+        return absl::UnavailableError(absl::StrFormat(
+                "Failed to acquire active display %u: display reference has expired. "
+                "Verify that display %u has not been removed or select an active display.",
+                display_id, display_id));
     }
 
     if (!IsActive(display_id) && display_id == 0 && has_hinge) {
@@ -81,8 +84,18 @@ absl::StatusOr<SharedDisplay> IMultiDisplay::GetActiveDisplay(DisplayId display_
         }
     }
 
-    if (!display || !IsActive(display_id)) {
-        return absl::UnavailableError("Display is no longer active.");
+    if (!display) {
+        return absl::UnavailableError(absl::StrFormat(
+                "Failed to acquire active display %u: display reference has expired. "
+                "Verify that display %u has not been removed or select an active display.",
+                display_id, display_id));
+    }
+    if (!IsActive(display_id)) {
+        return absl::UnavailableError(absl::StrFormat(
+                "Failed to acquire active display %u: display is currently inactive. "
+                "Activate the display via SetActive(%u, true) or unfold the device before "
+                "accessing it.",
+                display_id, display_id));
     }
 
     return display;
@@ -98,21 +111,28 @@ class MultiDisplayImpl : public IMultiDisplay {
                                              uint32_t dpi, uint32_t flags) override {
         if (display_id == 0 || display_id >= kMaxDisplays) {
             return absl::InvalidArgumentError(absl::StrFormat(
-                    "Invalid virtual display id: %u (expected 1..%u)", display_id,
-                    kMaxDisplays - 1));
+                    "Failed to create virtual display %u: display ID must be in [1, %u] "
+                    "(display 0 is reserved for the default display). Specify a valid virtual "
+                    "display ID.",
+                    display_id, kMaxDisplays - 1));
         }
         if (width == 0 || height == 0 || width > kMaxDisplayDimension ||
             height > kMaxDisplayDimension) {
             return absl::InvalidArgumentError(absl::StrFormat(
-                    "Invalid display dimensions: %ux%u (expected 1..%u)", width, height,
-                    kMaxDisplayDimension));
+                    "Failed to create virtual display %u: dimensions %ux%u are out of range "
+                    "(width and height must each be in [1, %u] pixels). Specify valid display "
+                    "dimensions.",
+                    display_id, width, height, kMaxDisplayDimension));
         }
         SharedVirtualDisplayImpl display;
         {
             const absl::MutexLock lock(display_access_);
             if (virtual_displays_.find(display_id) != virtual_displays_.end()) {
-                return absl::AlreadyExistsError(
-                        absl::StrFormat("Display with id %d already exists.", display_id));
+                return absl::AlreadyExistsError(absl::StrFormat(
+                        "Failed to create virtual display %u: a virtual display with ID %u "
+                        "already exists. Choose an unused display ID or call EraseDisplay(%u) "
+                        "first.",
+                        display_id, display_id, display_id));
             }
             ASSIGN_OR_RETURN(display, VirtualDisplay::Create(loop_, qemu_loop_, display_id, width,
                                                              height, dpi, flags));
@@ -132,8 +152,11 @@ class MultiDisplayImpl : public IMultiDisplay {
         {
             const absl::MutexLock lock(display_access_);
             if (qemu_displays_.find(id) != qemu_displays_.end()) {
-                return absl::AlreadyExistsError(
-                        absl::StrFormat("Display with id %d already exists.", id));
+                return absl::AlreadyExistsError(absl::StrFormat(
+                        "Failed to create QEMU display %u: a QEMU display with ID %u already "
+                        "exists. Remove the existing display with EraseQemuDisplay(%u) before "
+                        "recreating it.",
+                        id, id, id));
             }
             ASSIGN_OR_RETURN(display, QemuDisplay::Create(loop_, qemu_loop_, console, ds, id));
             display->SetRotation(GetRotation());
@@ -168,7 +191,10 @@ class MultiDisplayImpl : public IMultiDisplay {
         const absl::MutexLock lock(display_access_);
         if (qemu_displays_.find(display_id) == qemu_displays_.end() &&
             virtual_displays_.find(display_id) == virtual_displays_.end()) {
-            return absl::NotFoundError(absl::StrFormat("Display: %d does not exist.", display_id));
+            return absl::NotFoundError(absl::StrFormat(
+                    "Failed to set active state for display %u to %s: display %u does not exist. "
+                    "Create the display first or specify an existing display ID.",
+                    display_id, active ? "true" : "false", display_id));
         }
         active_states_[display_id] = active;
         return absl::OkStatus();
@@ -249,8 +275,10 @@ class MultiDisplayImpl : public IMultiDisplay {
         RETURN_IF_ERROR(ReadValue(reader, num_virtual));
         if (num_virtual >= kMaxDisplays) {
             return absl::InvalidArgumentError(absl::StrFormat(
-                    "Too many virtual displays in snapshot: %u (max %u)", num_virtual,
-                    kMaxDisplays - 1));
+                    "Failed to load multi-display snapshot: virtual display count %u exceeds "
+                    "maximum %u. Verify that the snapshot is not corrupted or cold-boot the "
+                    "AVD.",
+                    num_virtual, kMaxDisplays - 1));
         }
 
         for (uint32_t i = 0; i < num_virtual; ++i) {
@@ -259,15 +287,17 @@ class MultiDisplayImpl : public IMultiDisplay {
             if (id == 0 || id >= kMaxDisplays || width == 0 || height == 0 ||
                 width > kMaxDisplayDimension || height > kMaxDisplayDimension) {
                 return absl::InvalidArgumentError(absl::StrFormat(
-                        "Invalid virtual display %u (%ux%u) in snapshot (expected id 1..%u, dims "
-                        "1..%u)",
-                        id, width, height, kMaxDisplays - 1, kMaxDisplayDimension));
+                        "Failed to load multi-display snapshot: virtual display entry %u has "
+                        "out-of-range id=%u or dimensions=%ux%u (expected id in [1, %u] and "
+                        "dimensions in [1, %u]). Verify that the snapshot is not corrupted or "
+                        "cold-boot the AVD.",
+                        i, id, width, height, kMaxDisplays - 1, kMaxDisplayDimension));
             }
 
             auto disp = CreateDisplay(id, width, height, dpi, flags);
             if (!disp.ok()) {
-                LOG(WARNING) << "Failed to recreate virtual display " << id
-                             << " on load: " << disp.status();
+                LOG(WARNING) << "Failed to recreate virtual display " << id << " (" << width << "x"
+                             << height << ", dpi=" << dpi << ") from snapshot: " << disp.status();
             }
         }
 
@@ -275,8 +305,10 @@ class MultiDisplayImpl : public IMultiDisplay {
         RETURN_IF_ERROR(ReadValue(reader, num_active_states));
         if (num_active_states > kMaxDisplays) {
             return absl::InvalidArgumentError(absl::StrFormat(
-                    "Too many active display states in snapshot: %u (max %u)", num_active_states,
-                    kMaxDisplays));
+                    "Failed to load multi-display snapshot: active display state count %u "
+                    "exceeds maximum %u. Verify that the snapshot is not corrupted or cold-boot "
+                    "the AVD.",
+                    num_active_states, kMaxDisplays));
         }
 
         for (uint32_t i = 0; i < num_active_states; ++i) {
@@ -285,8 +317,10 @@ class MultiDisplayImpl : public IMultiDisplay {
             RETURN_IF_ERROR(ReadValue(reader, id, active));
             if (id >= kMaxDisplays) {
                 return absl::InvalidArgumentError(absl::StrFormat(
-                        "Invalid display id in active_states: %u (expected < %u)", id,
-                        kMaxDisplays));
+                        "Failed to load multi-display snapshot: active_states entry %u has "
+                        "out-of-range display ID %u (expected [0, %u]). Verify that the snapshot "
+                        "is not corrupted or cold-boot the AVD.",
+                        i, id, kMaxDisplays - 1));
             }
 
             const absl::MutexLock lock(display_access_);
@@ -392,13 +426,12 @@ class MultiDisplayImpl : public IMultiDisplay {
                 bool received_frame = false;
                 if (d0) {
                     while (absl::Now() < deadline) {
-                        auto frame_or = d0->WaitForFrame(deadline, after_id);
-                        if (!frame_or.ok()) {
+                        auto frame = d0->WaitForFrame(deadline, after_id);
+                        if (!frame.ok()) {
                             break;
                         }
-                        const auto& frame = *frame_or;
-                        after_id = frame->event().frame_id;
-                        if (!frame->event().blank) {
+                        after_id = (*frame)->event().frame_id;
+                        if (!(*frame)->event().blank) {
                             received_frame = true;
                             break;
                         }
@@ -434,7 +467,10 @@ class MultiDisplayImpl : public IMultiDisplay {
                 if (auto device = avd ? avd->GetActiveMultiDisplayDevice() : nullptr) {
                     device->SendSetDisplay(guest_mode_id, width, height, dpi, display->Flags());
                 } else {
-                    LOG(WARNING) << "Dropped multidisplay message: Guest not connected.";
+                    LOG(WARNING) << "Dropped multidisplay SetDisplay(mode=" << mode
+                                 << ", guest_mode_id=" << guest_mode_id << ", " << width << "x"
+                                 << height << ", dpi=" << dpi
+                                 << ") message: guest multidisplay device is not connected.";
                 }
             }
         }
@@ -452,7 +488,10 @@ class MultiDisplayImpl : public IMultiDisplay {
             ABSL_EXCLUSIVE_LOCKS_REQUIRED(display_access_) {
         auto it = map.find(display_id);
         if (it == map.end()) {
-            return absl::NotFoundError(absl::StrFormat("Invalid display: %d", display_id));
+            return absl::NotFoundError(
+                    absl::StrFormat("Failed to find display %u: display %u does not exist. "
+                                    "Create the display first or specify an existing display ID.",
+                                    display_id, display_id));
         }
         return it->second;
     }
@@ -462,8 +501,10 @@ class MultiDisplayImpl : public IMultiDisplay {
             ABSL_EXCLUSIVE_LOCKS_REQUIRED(display_access_) {
         auto it = map.find(display_id);
         if (it == map.end()) {
-            return absl::NotFoundError(
-                    absl::StrFormat("Display: %d does not exist (already removed?).", display_id));
+            return absl::NotFoundError(absl::StrFormat(
+                    "Failed to remove display %u: display %u does not exist or was already "
+                    "removed. Verify the display ID before calling EraseDisplay.",
+                    display_id, display_id));
         }
         auto display = std::move(it->second);
         map.erase(it);
@@ -530,7 +571,9 @@ extern "C" void grpc_dpy_gfx_update(struct DisplayChangeListener* dcl, int x, in
     }
     DisplaySurface* surface_of_console = qemu_console_surface(con);
     if (!surface_of_console) {
-        LOG(ERROR) << "Unable to find a display surface";
+        LOG(ERROR) << "Failed to update display graphics for region (" << x << ", " << y << ", "
+                   << w << "x" << h << "): QEMU console (" << con
+                   << ") has no active DisplaySurface.";
         return;
     }
 
@@ -542,7 +585,8 @@ extern "C" void grpc_dpy_gfx_update(struct DisplayChangeListener* dcl, int x, in
     auto index = qemu_console_get_index(con);
     auto device = multi_display.GetDisplayWeak(index);
     if (!device.ok()) {
-        LOG(ERROR) << "Unable to find a display to handle gfx changes: " << device.status();
+        LOG(ERROR) << "Failed to update display graphics for QEMU console index " << index << " ("
+                   << w << "x" << h << "): " << device.status();
         return;
     }
 
@@ -585,13 +629,13 @@ extern "C" void grpc_dpy_gfx_switch(struct DisplayChangeListener* dcl,
                 created_surface = true;
             }
         }
-        auto status = multi_display.CreateDisplayFromQemu(con, surface, index);
-        if (!status.ok()) {
-            LOG(QFATAL) << "Failed to create QEMU display " << static_cast<int>(index) << ": "
-                        << status.status();
+        auto display = multi_display.CreateDisplayFromQemu(con, surface, index);
+        if (!display.ok()) {
+            LOG(QFATAL) << "Failed to create QEMU display for console index "
+                        << static_cast<int>(index) << ": " << display.status();
         }
         if (created_surface) {
-            static_cast<QemuDisplay*>(status.value().lock().get())->SetOwnedSurface(surface);
+            static_cast<QemuDisplay*>(display->lock().get())->SetOwnedSurface(surface);
         }
         return;
     }

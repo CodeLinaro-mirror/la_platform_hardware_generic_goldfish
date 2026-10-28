@@ -89,7 +89,7 @@ void netsim_netdev_send_completed(NetClientState* nc, ssize_t len) {
     }
 }
 
-bool netsim_netdev_send(NetClientState* nc, std::unique_ptr<std::vector<uint8_t>> buf) {
+bool netsim_netdev_send(NetClientState* nc, Packet& packet) {
     // From netsim to guest.
     VLOG(2) << "NETSIM: send (netsim -> guest)";
 
@@ -100,10 +100,11 @@ bool netsim_netdev_send(NetClientState* nc, std::unique_ptr<std::vector<uint8_t>
         return false;
     }
 
-    if (qemu_send_packet_async(nc, buf->data(), buf->size(), netsim_netdev_send_completed) == 0) {
+    if (qemu_send_packet_async(nc, packet.data(), packet.size(), netsim_netdev_send_completed) ==
+        0) {
         VLOG(2) << "NETSIM: storing async_tx";
         // Keep the buffer alive until the send completes.
-        s->netsim->async_tx = std::move(buf);
+        s->netsim->async_tx = std::make_unique<Packet>(std::move(packet));
         return false;
     } else {
         return true;
@@ -218,8 +219,7 @@ void netsim_netdev_realize(DeviceState* dev, Error** errp) {
     s->netsim = new NetsimState;
     s->netsim->transport = CreatePacketTransport([nc](Packet& packet) {
         bql_lock();
-        auto vec = std::make_unique<std::vector<uint8_t>>(std::move(packet));
-        bool delivered = netsim_netdev_send(nc, std::move(vec));
+        bool delivered = netsim_netdev_send(nc, packet);
         bql_unlock();
         return delivered;
     });

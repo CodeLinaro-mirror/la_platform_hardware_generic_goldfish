@@ -36,6 +36,8 @@ class StudioFileMetricsWriter : public MetricsWriter {
 
     void Write(MetricsEvent event) override;
 
+    // Finalizes any abandoned .open files in `spool_dir` and returns the unique session IDs
+    // that had at least one abandoned file.
     static std::vector<std::string> FinalizeAbandonedSessionFiles(const fs::path& spool_dir);
 
   private:

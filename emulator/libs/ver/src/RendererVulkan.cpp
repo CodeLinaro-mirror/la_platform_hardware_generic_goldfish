@@ -32,6 +32,7 @@
 #include "ScenesManager.h"
 #include "VerLogging.h"
 #include "android/base/system.h"
+#include "goldfish/file/file.h"
 #include "goldfish/gvk/system_meta_loader.h"
 
 using namespace android::base;
@@ -753,16 +754,21 @@ bool RendererVulkan::isTextureLoaded(Texture texture) {
     return it->second.mState == TextureState::Loaded;
 }
 
-void RendererVulkan::getTextureInfo(Texture texture, uint32_t* outWidth, uint32_t* outHeight) {
+bool RendererVulkan::getTextureInfo(Texture texture, uint32_t* outWidth, uint32_t* outHeight,
+                                    uint64_t* outGeneration) {
     std::lock_guard<std::mutex> lock(mResourceLock);
     auto it = mTextures.find(texture.id);
-    if (it != mTextures.end()) {
-        *outWidth = it->second.mWidth;
-        *outHeight = it->second.mHeight;
-    } else {
-        *outWidth = 0;
-        *outHeight = 0;
+    const bool found = (it != mTextures.end());
+    if (outWidth) {
+        *outWidth = found ? it->second.mWidth : 0;
     }
+    if (outHeight) {
+        *outHeight = found ? it->second.mHeight : 0;
+    }
+    if (outGeneration) {
+        *outGeneration = found ? it->second.mGeneration : 0;
+    }
+    return found;
 }
 
 void RendererVulkan::releaseTexture(Texture texture) {
@@ -780,7 +786,10 @@ void RendererVulkan::releaseTexture(Texture texture) {
         it->second.mRefCount--;
         if (it->second.mRefCount == 0) {
             if (!it->second.mFilename.empty()) {
-                mTextureCache.erase(it->second.mFilename);
+                auto cacheIt = mTextureCache.find(it->second.mFilename);
+                if (cacheIt != mTextureCache.end() && cacheIt->second == texture.id) {
+                    mTextureCache.erase(cacheIt);
+                }
             }
             if (it->second.mDescriptorSet) {
                 mVkDevice->freeDescriptorSets(mDescriptorPool.get(), 1, &it->second.mDescriptorSet);
@@ -958,6 +967,7 @@ Texture RendererVulkan::createEmptyTexture(uint32_t width, uint32_t height) {
     data.mState = TextureState::Loaded;
     data.mWidth = width;
     data.mHeight = height;
+    data.mGeneration = mNextTextureGeneration++;
 
     if (!createVulkanImage(width, height, VK_FORMAT_R8G8B8A8_UNORM,
                            VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
@@ -1005,30 +1015,52 @@ bool RendererVulkan::isStandardMaterial(Material material) {
     return false;
 }
 
-Texture RendererVulkan::tryGetCachedTexture(const char* filename) {
-    if (!filename) return Texture{-1};
-    std::lock_guard<std::mutex> lock(mResourceLock);
-    auto it = mTextureCache.find(filename);
-    if (it != mTextureCache.end()) {
-        mTextures[it->second].mRefCount++;
-        return Texture{it->second};
+RendererVulkan::FileStamp RendererVulkan::getFileStamp(const std::filesystem::path& path) {
+    auto lastWriteTime = android::base::file::last_write_time(path);
+    if (!lastWriteTime.ok()) {
+        return FileStamp();
     }
-    return Texture{-1};
+    auto size = android::base::file::file_size(path);
+    if (!size.ok()) {
+        return FileStamp();
+    }
+    return FileStamp{.valid = true, .lastWriteTime = *lastWriteTime, .size = size->Bytes()};
 }
 
-void RendererVulkan::uploadTextureImage(TextureData& texData, const TextureUtils::Result& data) {
-    texData.mImageView.reset();
-    texData.mImage.reset();
-    texData.mImageMemory.reset();
+Texture RendererVulkan::tryGetCachedTexture(const std::string& filename,
+                                            const FileStamp& fileStamp) {
+    std::lock_guard<std::mutex> lock(mResourceLock);
+    auto it = mTextureCache.find(filename);
+    if (it == mTextureCache.end()) {
+        return Texture{-1};
+    }
 
-    texData.mWidth = data.mWidth;
-    texData.mHeight = data.mHeight;
+    auto texIt = mTextures.find(it->second);
+    if (texIt == mTextures.end() || texIt->second.mFileStamp != fileStamp) {
+        // The file has been modified since it was loaded. Detach the stale
+        // texture from the cache so that the caller loads the new contents,
+        // existing users keep the old texture until they release it.
+        mTextureCache.erase(it);
+        return Texture{-1};
+    }
 
+    texIt->second.mRefCount++;
+    return Texture{texIt->first};
+}
+
+bool RendererVulkan::uploadTextureImage(TextureData& texData, const TextureUtils::Result& data) {
+    // Create and fill the new image before releasing the current one, so the
+    // texture stays usable if any of the steps fail.
+    goldfish::gvk::Image newImage;
+    goldfish::gvk::DeviceMemory newImageMemory;
+    goldfish::gvk::ImageView newImageView;
     if (!createVulkanImage(data.mWidth, data.mHeight, VK_FORMAT_R8G8B8A8_UNORM,
                            VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
-                           VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, texData.mImage,
-                           texData.mImageMemory, texData.mImageView)) {
-        return;
+                           VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, newImage, newImageMemory,
+                           newImageView)) {
+        derror("%s: Failed to create a %ux%u texture image", __FUNCTION__, data.mWidth,
+               data.mHeight);
+        return false;
     }
 
     const uint8_t* pixelData = nullptr;
@@ -1055,45 +1087,50 @@ void RendererVulkan::uploadTextureImage(TextureData& texData, const TextureUtils
         dataSize = data.mBuffer.size();
     }
 
+    const VkImage image = newImage.get();
     if (pixelData && dataSize > 0) {
         goldfish::gvk::Buffer stagingBuf;
         goldfish::gvk::DeviceMemory stagingMem;
-        if (createVulkanBuffer(
+        if (!createVulkanBuffer(
                     dataSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
                     VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
                     stagingBuf, stagingMem)) {
-            void* mapped = mVkDevice->mapMemory(stagingMem.get(), dataSize, 0);
-            if (mapped) {
-                memcpy(mapped, pixelData, dataSize);
-                mVkDevice->unmapMemory(stagingMem.get());
-
-                executeSingleTimeCommands(mLoaderCommandBuffer, [this, &texData, &data,
-                                                                 &stagingBuf](VkCommandBuffer cmd) {
-                    transitionImageLayout(
-                            cmd, texData.mImage.get(), VK_IMAGE_LAYOUT_UNDEFINED,
-                            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 0, VK_ACCESS_TRANSFER_WRITE_BIT,
-                            VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
-
-                    VkBufferImageCopy region = {};
-                    region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-                    region.imageSubresource.layerCount = 1;
-                    region.imageExtent = {data.mWidth, data.mHeight, 1};
-
-                    mVkDevice->cmdCopyBufferToImage(cmd, stagingBuf.get(), texData.mImage.get(),
-                                                    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1,
-                                                    &region);
-
-                    transitionImageLayout(
-                            cmd, texData.mImage.get(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_ACCESS_TRANSFER_WRITE_BIT,
-                            VK_ACCESS_SHADER_READ_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
-                            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
-                });
-            }
+            derror("%s: Failed to create a %zu byte staging buffer", __FUNCTION__, dataSize);
+            return false;
         }
+
+        void* mapped = mVkDevice->mapMemory(stagingMem.get(), dataSize, 0);
+        if (!mapped) {
+            derror("%s: Failed to map the staging buffer", __FUNCTION__);
+            return false;
+        }
+        memcpy(mapped, pixelData, dataSize);
+        mVkDevice->unmapMemory(stagingMem.get());
+
+        executeSingleTimeCommands(mLoaderCommandBuffer, [this, image, &data,
+                                                         &stagingBuf](VkCommandBuffer cmd) {
+            transitionImageLayout(cmd, image, VK_IMAGE_LAYOUT_UNDEFINED,
+                                  VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 0,
+                                  VK_ACCESS_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                                  VK_PIPELINE_STAGE_TRANSFER_BIT);
+
+            VkBufferImageCopy region = {};
+            region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            region.imageSubresource.layerCount = 1;
+            region.imageExtent = {data.mWidth, data.mHeight, 1};
+
+            mVkDevice->cmdCopyBufferToImage(cmd, stagingBuf.get(), image,
+                                            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+
+            transitionImageLayout(cmd, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                                  VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                                  VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT,
+                                  VK_PIPELINE_STAGE_TRANSFER_BIT,
+                                  VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
+        });
     } else {
-        executeSingleTimeCommands(mLoaderCommandBuffer, [this, &texData](VkCommandBuffer cmd) {
-            transitionImageLayout(cmd, texData.mImage.get(), VK_IMAGE_LAYOUT_UNDEFINED,
+        executeSingleTimeCommands(mLoaderCommandBuffer, [this, image](VkCommandBuffer cmd) {
+            transitionImageLayout(cmd, image, VK_IMAGE_LAYOUT_UNDEFINED,
                                   VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, 0,
                                   VK_ACCESS_SHADER_READ_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
                                   VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
@@ -1104,13 +1141,15 @@ void RendererVulkan::uploadTextureImage(TextureData& texData, const TextureUtils
         VkDescriptorSetLayout dsl = mDescriptorSetLayout.get();
         if (!mVkDevice->allocateDescriptorSets(mDescriptorPool.get(), 1, &dsl,
                                                &texData.mDescriptorSet)) {
-            return;
+            derror("%s: Failed to allocate a texture descriptor set", __FUNCTION__);
+            return false;
         }
     }
 
+    // Point the descriptor set to the new image before releasing the current one.
     VkDescriptorImageInfo imageInfo = {};
     imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-    imageInfo.imageView = texData.mImageView.get();
+    imageInfo.imageView = newImageView.get();
     imageInfo.sampler = mSampler.get();
 
     VkWriteDescriptorSet write = {};
@@ -1122,20 +1161,36 @@ void RendererVulkan::uploadTextureImage(TextureData& texData, const TextureUtils
     write.pImageInfo = &imageInfo;
 
     mVkDevice->updateDescriptorSets(1, &write, 0, nullptr);
+
+    texData.mImageView = std::move(newImageView);
+    texData.mImage = std::move(newImage);
+    texData.mImageMemory = std::move(newImageMemory);
+    texData.mWidth = data.mWidth;
+    texData.mHeight = data.mHeight;
+    return true;
 }
 
 Texture RendererVulkan::createTextureInternal(TextureState state, const char* filename,
+                                              const FileStamp& fileStamp,
                                               const TextureUtils::Result& data) {
     std::lock_guard<std::mutex> lock(mResourceLock);
-    int id = mNextResourceId++;
 
     TextureData texData;
     texData.mRefCount = 1;
     texData.mState = state;
-    if (filename) texData.mFilename = filename;
+    if (!uploadTextureImage(texData, data)) {
+        derror("%s: Failed to create texture for '%s'", __FUNCTION__,
+               filename ? filename : "<memory>");
+        return Texture{-1};
+    }
 
-    uploadTextureImage(texData, data);
+    texData.mGeneration = mNextTextureGeneration++;
+    if (filename) {
+        texData.mFilename = filename;
+        texData.mFileStamp = fileStamp;
+    }
 
+    const int id = mNextResourceId++;
     mTextures.emplace(id, std::move(texData));
     if (filename) mTextureCache[filename] = id;
     return Texture{id};
@@ -1178,7 +1233,8 @@ Texture RendererVulkan::loadTexture(const char* filename) {
         path = filename;
     }
 
-    Texture cached = tryGetCachedTexture(path.c_str());
+    const FileStamp fileStamp = getFileStamp(path);
+    Texture cached = tryGetCachedTexture(path, fileStamp);
     if (cached.isValid()) return cached;
 
     auto resOpt = TextureUtils::load(path.c_str());
@@ -1186,7 +1242,8 @@ Texture RendererVulkan::loadTexture(const char* filename) {
 
     const uint64_t loadEndUs = System::Get()->GetHighResTimeUs();
 
-    Texture texture = createTextureInternal(TextureState::Loaded, path.c_str(), resOpt.value());
+    Texture texture =
+            createTextureInternal(TextureState::Loaded, path.c_str(), fileStamp, resOpt.value());
 
     const uint64_t importEndUs = System::Get()->GetHighResTimeUs();
     dinfo("%s: Sync load texture %d in %" PRIu64 "ms, [read: %" PRIu64 "ms, import: %" PRIu64 "ms]",
@@ -1206,11 +1263,18 @@ Texture RendererVulkan::loadTextureAsync(const char* filename) {
         path = filename;
     }
 
-    Texture cached = tryGetCachedTexture(path.c_str());
+    // Stamp the file before it is read on the loader thread, so any later
+    // modification is detected by the next load request.
+    const FileStamp fileStamp = getFileStamp(path);
+    Texture cached = tryGetCachedTexture(path, fileStamp);
     if (cached.isValid()) return cached;
 
     TextureUtils::Result placeholder = TextureUtils::createPlaceholder();
-    Texture texture = createTextureInternal(TextureState::Placeholder, path.c_str(), placeholder);
+    Texture texture =
+            createTextureInternal(TextureState::Placeholder, path.c_str(), fileStamp, placeholder);
+    if (!texture.isValid()) {
+        return texture;
+    }
 
     enqueueLoaderCommand(LoaderCommand(LoaderCommandType::LoadTexture, texture.id));
     return texture;
@@ -1238,8 +1302,13 @@ bool RendererVulkan::replaceTextureInternal(Texture texture, const TextureUtils:
     auto it = mTextures.find(texture.id);
     if (it == mTextures.end()) return false;
 
-    uploadTextureImage(it->second, data);
+    if (!uploadTextureImage(it->second, data)) {
+        derror("%s: Failed to replace texture %d with '%s'", __FUNCTION__, texture.id,
+               it->second.mFilename.c_str());
+        return false;
+    }
     it->second.mState = TextureState::Loaded;
+    it->second.mGeneration = mNextTextureGeneration++;
     return true;
 }
 
@@ -1253,7 +1322,7 @@ Texture RendererVulkan::createTextureRGBA(const uint8_t* rgba, uint32_t width, u
     result.mFormat = TextureUtils::Format::RGBA32;
     result.mBuffer.assign(rgba, rgba + (static_cast<size_t>(width) * height * 4));
 
-    return createTextureInternal(TextureState::Loaded, nullptr, result);
+    return createTextureInternal(TextureState::Loaded, nullptr, FileStamp(), result);
 }
 
 Texture RendererVulkan::duplicateTexture(Texture texture) {

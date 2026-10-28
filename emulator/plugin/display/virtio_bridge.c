@@ -25,6 +25,7 @@
 #include <stdio.h>
 
 #include "android/base/logging/abseil_log_bridge.h"
+#include "goldfish/input/virtio_input_android.h"
 
 int dump_virtio_input_hid(const VirtIOInputHID* vhid, char* buf, size_t len) {
     if (!vhid) {
@@ -61,4 +62,15 @@ void virtio_input_send_evdev(VirtIOInputHID* vhid, uint16_t type, uint16_t code,
           type, code, value, vhid->display ? vhid->display : "null", vhid->head,
           vinput ? vinput->active : -1, vinput ? vinput->evt : NULL);
     virtio_input_send(vinput, &event);
+}
+
+bool virtio_input_hid_is_active(const VirtIOInputHID* vhid) {
+    return vhid != NULL && vhid->parent_obj.active;
+}
+
+uint64_t virtio_input_hid_active_generation(const VirtIOInputHID* vhid) {
+    if (vhid == NULL) {
+        return 0;
+    }
+    return object_property_get_uint(OBJECT(vhid), VIRTIO_INPUT_ANDROID_ACTIVE_GENERATION, NULL);
 }

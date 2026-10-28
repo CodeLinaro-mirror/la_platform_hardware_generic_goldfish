@@ -1,7 +1,8 @@
-load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_test")
+load("@aemu//tools/clang_tidy:defs.bzl", "clang_tidy_test")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 load("//emulator/tools:plugins.bzl", "collect_plugins")
 
+# buildifier: disable=no-hdrs-no-alwayslink
 cc_library(
     name = "vm_lock",
     srcs = [
@@ -15,6 +16,7 @@ cc_library(
     ],
 )
 
+# buildifier: disable=no-hdrs-no-alwayslink
 cc_library(
     name = "machine_info",
     srcs = [
@@ -25,6 +27,7 @@ cc_library(
     deps = ["@qemu//:qemu-headers-exported"],
 )
 
+# buildifier: disable=no-hdrs-no-alwayslink
 cc_library(
     name = "fake_machine_info",
     srcs = [
@@ -56,6 +59,7 @@ cc_library(
         ":machine_info",
         ":vm_lock",
         ":vminterface",
+        "//emulator/crashreport:crash_reporter",
         "//emulator/libs/async:async_api",
         "//emulator/libs/metrics:snapshot_metrics",
         "//emulator/libs/snapshot:snapshot_store",
@@ -68,6 +72,7 @@ cc_library(
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/synchronization",
         "@abseil-cpp//absl/time",
         "@qemu//:qemu-headers-exported",
@@ -85,6 +90,7 @@ cc_library(
         ":fake_machine_info",
         ":vm_lock",
         ":vminterface",
+        "//emulator/crashreport:crash_reporter",
         "//emulator/libs/async:async_api",
         "//emulator/libs/metrics:snapshot_metrics",
         "//emulator/libs/snapshot:snapshot_store",
@@ -98,11 +104,13 @@ cc_library(
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/synchronization",
         "@abseil-cpp//absl/time",
     ],
 )
 
+# buildifier: disable=no-hdrs-no-alwayslink
 cc_library(
     name = "vminterface-test",
     testonly = True,
@@ -145,6 +153,7 @@ cc_test(
     visibility = ["//visibility:public"],
     deps = [
         ":vminterface-test",
+        "//emulator/crashreport:crash_reporter",
         "//emulator/libs/async:async_testing",
         "//emulator/libs/async:libuv_event_loop",
         "//emulator/libs/async:threaded_event_loop",
@@ -155,8 +164,12 @@ cc_test(
         "//emulator/libs/system:test-headers",
         "//emulator/libs/test:googletest_main",
         "//emulator/plugin/avd:fake_avd_universe",
+        "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:status_matchers",
         "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/synchronization",
         "@abseil-cpp//absl/time",
         "@glib//glib:glib_import",
         "@glib//gmodule:gmodule_import",

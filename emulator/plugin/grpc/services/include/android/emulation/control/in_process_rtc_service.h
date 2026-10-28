@@ -36,6 +36,10 @@ namespace goldfish::display {
 class IMultiDisplay;
 }
 
+namespace goldfish::grpc::v2 {
+class IInputDispatcher;
+}
+
 namespace goldfish::sensors {
 class PhysicalModel;
 }
@@ -50,17 +54,22 @@ using ::goldfish::videobridge::InputSenderFactory;
 using keyboard::IKeyEventSender;
 
 /**
- * Creates an InputSender factory configured for in-process event dispatching.
+ * @brief Creates an `InputSender` factory configured for in-process event dispatching.
  *
- * Directs WebRTC data-channel input events (touch, mouse, wheel) to the provided
- * IMultiDisplay instance, and keyboard events to the IKeyEventSender.
+ * Directs WebRTC v1 data-channel input events (touch, mouse, wheel) to the provided
+ * `IMultiDisplay` instance, and keyboard events to the `IKeyEventSender`. Each v2 input
+ * channel is its own human input session on `input_dispatcher`, which releases the
+ * channel's touches and keys when the channel closes.
  *
- * Thread Safety:
+ * @param input_dispatcher Receives v2 input; without one, v2 input is dropped.
+ *
+ * ### Thread Safety:
  * - The returned factory lambda is thread-safe and can be invoked on WebRTC signaling threads.
  */
 InputSenderFactory CreateInProcessInputSenderFactory(
         IMultiDisplay& multidisplay, std::shared_ptr<IKeyEventSender> key_event_sender,
-        bool hw_sensor_hinge = false, ::goldfish::sensors::PhysicalModel* physical_model = nullptr);
+        std::shared_ptr<::goldfish::grpc::v2::IInputDispatcher> input_dispatcher = nullptr,
+        ::goldfish::sensors::PhysicalModel* physical_model = nullptr);
 
 /**
  * Instantiates the in-process WebRTC RtcServices (v1 and v2) bound to AvdUniverse.

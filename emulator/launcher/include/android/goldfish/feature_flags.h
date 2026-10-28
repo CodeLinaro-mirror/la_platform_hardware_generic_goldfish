@@ -15,6 +15,11 @@
 #pragma once
 
 #include <filesystem>
+#include <initializer_list>
+#include <span>
+#include <string>
+#include <string_view>
+#include <vector>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
@@ -23,23 +28,53 @@
 
 namespace android::goldfish {
 
-enum class FeatureStatus {
-    Missing,
-    On,
-    Off,
+using EmulatorFeatureFlag = android_studio::EmulatorFeatureFlagState::EmulatorFeatureFlag;
+
+// Evaluates and stores emulator feature flags from host/guest INI files and overrides.
+class FeatureFlags {
+  public:
+    struct Options {
+        std::filesystem::path host_ini_path;
+        std::filesystem::path guest_ini_path;
+        std::filesystem::path user_ini_path;
+        int guest_api_level = 0;
+        std::string_view avd_feature_flags;
+        std::string_view env_feature_flags;
+        std::span<const std::string> cli_feature_flags;
+    };
+
+    static absl::StatusOr<FeatureFlags> Create(const Options& options);
+    static FeatureFlags CreateForTesting(
+            std::initializer_list<EmulatorFeatureFlag> baseline_enabled = {});
+
+    FeatureFlags();
+
+    bool IsEnabled(EmulatorFeatureFlag feature) const;
+    bool IsOverridden(EmulatorFeatureFlag feature) const;
+    bool IsEnabledByGuest(EmulatorFeatureFlag feature) const;
+
+    void SetEnabledOverride(EmulatorFeatureFlag feature, bool enabled);
+    void SetIfNotOverridden(EmulatorFeatureFlag feature, bool enabled);
+
+    std::vector<EmulatorFeatureFlag> GetEnabled() const;
+    std::vector<EmulatorFeatureFlag> GetEnabledNonOverride() const;
+    std::vector<EmulatorFeatureFlag> GetEnabledOverride() const;
+    std::vector<EmulatorFeatureFlag> GetDisabledOverride() const;
+
+  private:
+    struct FeatureState {
+        bool baseline_val = false;
+        bool current_val = false;
+        bool is_overridden = false;
+        bool is_enabled_by_guest = false;
+    };
+
+    void ApplyOverrides(std::string_view overrides, std::string_view source = "");
+
+    template <typename Predicate>
+    std::vector<EmulatorFeatureFlag> CollectFeatures(Predicate predicate) const;
+
+    absl::flat_hash_map<EmulatorFeatureFlag, FeatureState> features_;
 };
-
-using FeatureFlagMap =
-        absl::flat_hash_map<android_studio::EmulatorFeatureFlagState::EmulatorFeatureFlag,
-                            FeatureStatus>;
-
-/**
- * @brief Parses a feature file (usually advancedFeatures.ini) and maps the
- * contents to the EmulatorFeatureFlag enum.
- *
- * @param filepath The path to the feature file to parse.
- * @return A map of feature flags to their status, or an error status.
- */
-absl::StatusOr<FeatureFlagMap> ParseFeatureFile(const std::filesystem::path& filepath);
 
 }  // namespace android::goldfish

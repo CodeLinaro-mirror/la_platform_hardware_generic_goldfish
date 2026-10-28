@@ -1,12 +1,10 @@
 #include "display_device.h"
 
+#include <string>
 #include <vector>
 
-#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
-
-#include "android/cmdline_definitions.h"
 
 namespace android::goldfish {
 
@@ -15,25 +13,9 @@ absl::Status DisplayDevice::initialize(const EmulatorConfig& emulator) {
 }
 
 std::vector<std::string> DisplayDevice::getQemuParameters(const EmulatorConfig& emulator) const {
-    bool enable_vnc = false;
-#if defined(__linux__) || defined(__APPLE__)
-    enable_vnc = emulator.opts().enable_vnc;
-#endif
-
     std::vector<std::string> params;
     params.push_back("-display");
-    if (enable_vnc) {
-        // This ensures that only users on local box with read/write access to that path can access
-        // the VNC server. Ports can be forwarded with ssh.
-        params.push_back(absl::StrCat("vnc=unix:/tmp/.qemu-emu-vnc,display=", mGpuName, ",head=0"));
-        LOG(INFO) << "VNC will be available on /tmp/.qemu-emu-vnc";
-        LOG(INFO) << "Tunnel over ssh with: `ssh -L localhost:5901:/tmp/.qemu-emu-vnc "
-                     "<remote-host>``";
-        LOG(INFO) << "Or run `socat TCP-LISTEN:5901,fork,reuseaddr "
-                     "UNIX-CONNECT:/tmp/.qemu-emu-vnc` for buggy vnc viewers.";
-    } else {
-        params.push_back("android");
-    }
+    params.push_back("android");
 
     // Keyboard
     params.push_back("-device");

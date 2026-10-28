@@ -17,14 +17,15 @@
 
 namespace android::goldfish {
 
-using android::base::operator""_GiB;
-
 /**
  * @brief A fake implementation of the HardwareConfig class for testing purposes.
  */
 class FakeHardwareConfig {
   public:
     static HardwareConfig GetHwConfig() {
+        using android::base::operator""_MiB;
+        using android::base::operator""_GiB;
+
         // Initialize mHwCfg with values from the provided .ini file
         HardwareConfig hw;
         hw.hw_cpu_arch = "arm64";

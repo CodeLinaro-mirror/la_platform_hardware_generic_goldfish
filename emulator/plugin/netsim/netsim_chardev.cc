@@ -14,7 +14,6 @@
 
 #include <algorithm>
 #include <cstdint>
-#include <fstream>
 #include <string>
 
 #include "absl/base/internal/endian.h"
@@ -54,75 +53,100 @@ class Protocol {
     virtual void reset() = 0;
     virtual void reset_guest(Chardev* c) = 0;
 
-    virtual void netsim_to_guest_packet(Chardev* c, std::unique_ptr<Packet> packet) = 0;
+    virtual void netsim_to_guest_packet(Chardev* c, std::unique_ptr<Packet> packet) {
+        qemu_chr_be_write(c, packet->data(), packet->size());
+    }
 
     virtual uint64_t guest_to_netsim_parser_bytes_requested() = 0;
     virtual void guest_to_netsim_parser_consume(const uint8_t* buf, uint64_t len) = 0;
 };
 
-class UwbProtocol : public Protocol {
+class FramedProtocol : public Protocol {
   public:
-    explicit UwbProtocol(std::vector<Packet>* output_queue) : mPacketQueue(output_queue) {}
+    FramedProtocol(std::vector<Packet>* output_queue, size_t header_size, const char* name,
+                   const char* disconnect_message)
+            : header_size_(header_size)
+            , name_(name)
+            , disconnect_message_(disconnect_message)
+            , bytes_wanted_(header_size)
+            , packet_queue_(output_queue) {}
 
     void reset() override {
-        state_ = UCI_HEADER;
-        mBytesWanted = UCI_HEADER_SIZE;
-        mPacket.clear();
+        state_ = State::kHeader;
+        bytes_wanted_ = header_size_;
+        packet_.clear();
     }
 
-    void reset_guest(Chardev* c) override {
-        qemu_chr_be_write(c, reset_sequence, sizeof(reset_sequence));
-    }
-
-    void netsim_to_guest_packet(Chardev* c, std::unique_ptr<Packet> packet) override {
-        // From netsim -> guest
-        VLOG(2) << "NETSIM UWB: send (netsim -> guest)";
-        qemu_chr_be_write(c, packet->data(), packet->size());
-    }
-
-    uint64_t guest_to_netsim_parser_bytes_requested() override { return mBytesWanted; }
+    uint64_t guest_to_netsim_parser_bytes_requested() override { return bytes_wanted_; }
 
     void guest_to_netsim_parser_consume(const uint8_t* buf, uint64_t len) override {
         if (len <= 0) {
-            LOG(INFO) << "remote disconnected, or unhandled error?";
+            LOG(INFO) << disconnect_message_;
             return;
         }
-        size_t bytes_to_read = mBytesWanted;
-        if ((uint32_t)len > bytes_to_read) {
-            LOG(QFATAL) << "Uwb: More bytes read than expected";
+        if (len > bytes_wanted_) {
+            LOG(QFATAL) << name_ << ": More bytes read than expected";
         }
 
-        mPacket.insert(mPacket.end(), buf, buf + len);
-        mBytesWanted -= len;
+        packet_.insert(packet_.end(), buf, buf + len);
+        bytes_wanted_ -= len;
 
-        if (mBytesWanted == 0) {
+        if (bytes_wanted_ == 0) {
             switch (state_) {
-            case UCI_HEADER: {
-                uint8_t message_type =
-                        (mPacket[0] & UCI_MESSAGE_TYPE_MASK) >> UCI_MESSAGE_TYPE_SHIFT;
-                if (message_type == UCI_MESSAGE_TYPE_DATA) {
-                    mBytesWanted = absl::little_endian::Load16(&mPacket[2]);
-                } else {
-                    mBytesWanted = mPacket[UCI_PAYLOAD_LENGTH_FIELD];
-                }
-                state_ = UCI_PAYLOAD;
-                if (mBytesWanted > 0) {
+            case State::kHeader:
+                bytes_wanted_ = ParsePayloadLength(packet_);
+                state_ = State::kPayload;
+                if (bytes_wanted_ > 0) {
                     break;
                 }
                 // Fall through if entire packet is just a header
                 [[fallthrough]];
-            }
-            case UCI_PAYLOAD:
-                mPacketQueue->push_back(std::move(mPacket));
-                mPacket.clear();
-                mBytesWanted = UCI_HEADER_SIZE;
-                state_ = UCI_HEADER;
+            case State::kPayload:
+                packet_queue_->push_back(std::move(packet_));
+                packet_.clear();
+                bytes_wanted_ = header_size_;
+                state_ = State::kHeader;
                 break;
             }
         }
     }
 
+  protected:
+    virtual size_t ParsePayloadLength(const std::vector<uint8_t>& header) const = 0;
+
+  private:
+    enum class State { kHeader, kPayload };
+
+    size_t header_size_;
+    const char* name_;
+    const char* disconnect_message_;
+    State state_{State::kHeader};
+    size_t bytes_wanted_;
+    std::vector<uint8_t> packet_;
+    std::vector<Packet>* packet_queue_;
+};
+
+class UwbProtocol : public FramedProtocol {
+  public:
+    explicit UwbProtocol(std::vector<Packet>* output_queue)
+            : FramedProtocol(output_queue, UCI_HEADER_SIZE, "Uwb",
+                             "remote disconnected, or unhandled error?") {}
+
+    void reset_guest(Chardev* c) override {
+        qemu_chr_be_write(c, reset_sequence, sizeof(reset_sequence));
+    }
+
     ChipConfig chip_info() override { return ChipConfig{.kind = ChipKind::kUwb}; }
+
+  protected:
+    size_t ParsePayloadLength(const std::vector<uint8_t>& header) const override {
+        uint8_t message_type =
+                (header[0] & UCI_MESSAGE_TYPE_MASK) >> UCI_MESSAGE_TYPE_SHIFT;
+        if (message_type == UCI_MESSAGE_TYPE_DATA) {
+            return absl::little_endian::Load16(&header[2]);
+        }
+        return header[UCI_PAYLOAD_LENGTH_FIELD];
+    }
 
   private:
     // UCI CORE_DEVICE_STATUS_NTF (DEVICE_STATE_ERROR) to trigger guest UWB stack recovery.
@@ -133,71 +157,25 @@ class UwbProtocol : public Protocol {
     static constexpr uint8_t UCI_MESSAGE_TYPE_MASK = 0xE0;
     static constexpr uint8_t UCI_MESSAGE_TYPE_SHIFT = 5;
     static constexpr uint8_t UCI_MESSAGE_TYPE_DATA = 0;
-    enum State { UCI_HEADER, UCI_PAYLOAD };
-
-    State state_{UCI_HEADER};
-    size_t mBytesWanted{UCI_HEADER_SIZE};
-    std::vector<uint8_t> mPacket;
-    std::vector<Packet>* mPacketQueue;
 };
 
-class NfcProtocol : public Protocol {
+class NfcProtocol : public FramedProtocol {
   public:
-    explicit NfcProtocol(std::vector<Packet>* output_queue) : mPacketQueue(output_queue) {}
-
-    void reset() override {
-        state_ = NCI_HEADER;
-        mBytesWanted = NCI_HEADER_SIZE;
-        mPacket.clear();
-    }
+    explicit NfcProtocol(std::vector<Packet>* output_queue)
+            : FramedProtocol(output_queue, NCI_HEADER_SIZE, "NFC",
+                             "NFC remote disconnected gracefully (received 0 bytes); NFC emulation "
+                             "is disabled.") {}
 
     void reset_guest(Chardev* c) override {
         qemu_chr_be_write(c, reset_sequence, sizeof(reset_sequence));
     }
 
-    void netsim_to_guest_packet(Chardev* c, std::unique_ptr<Packet> packet) override {
-        // From netsim -> guest
-        VLOG(2) << "NETSIM NFC: send (netsim -> guest)";
-        qemu_chr_be_write(c, packet->data(), packet->size());
-    }
-
-    uint64_t guest_to_netsim_parser_bytes_requested() override { return mBytesWanted; }
-
-    void guest_to_netsim_parser_consume(const uint8_t* buf, uint64_t len) override {
-        if (len <= 0) {
-            LOG(INFO) << "NFC remote disconnected gracefully (received 0 bytes); NFC emulation is "
-                         "disabled.";
-            return;
-        }
-        if (len > mBytesWanted) {
-            LOG(QFATAL) << "NFC: More bytes read than expected";
-        }
-
-        mPacket.insert(mPacket.end(), buf, buf + len);
-        mBytesWanted -= len;
-
-        if (mBytesWanted == 0) {
-            switch (state_) {
-            case NCI_HEADER:
-                mBytesWanted = mPacket[NCI_PAYLOAD_LENGTH_FIELD];
-                state_ = NCI_PAYLOAD;
-                if (mBytesWanted > 0) {
-                    break;
-                }
-                // Fall through if entire packet is just a header (payload length is 0)
-                [[fallthrough]];
-            case NCI_PAYLOAD: {
-                mPacketQueue->push_back(std::move(mPacket));
-                mPacket.clear();
-                mBytesWanted = NCI_HEADER_SIZE;
-                state_ = NCI_HEADER;
-                break;
-            }
-            }
-        }
-    }
-
     ChipConfig chip_info() override { return ChipConfig{.kind = ChipKind::kNfc}; }
+
+  protected:
+    size_t ParsePayloadLength(const std::vector<uint8_t>& header) const override {
+        return header[NCI_PAYLOAD_LENGTH_FIELD];
+    }
 
   private:
     // NCI 2.0 CORE_RESET_NTF (UnrecoverableError) to trigger guest NFC stack recovery.
@@ -205,12 +183,6 @@ class NfcProtocol : public Protocol {
 
     static constexpr size_t NCI_HEADER_SIZE = 3;
     static constexpr size_t NCI_PAYLOAD_LENGTH_FIELD = 2;
-    enum State { NCI_HEADER, NCI_PAYLOAD };
-
-    State state_{NCI_HEADER};
-    size_t mBytesWanted{NCI_HEADER_SIZE};
-    std::vector<uint8_t> mPacket;
-    std::vector<Packet>* mPacketQueue;
 };
 
 class BtProtocol : public Protocol {
@@ -250,12 +222,6 @@ class BtProtocol : public Protocol {
         qemu_chr_be_write(c, (uint8_t*)reset_sequence, sizeof(reset_sequence));
     }
 
-    void netsim_to_guest_packet(Chardev* c, std::unique_ptr<Packet> packet) override {
-        // From netsim -> guest
-        VLOG(2) << "NETSIM BT: send (netsim -> guest)";
-        qemu_chr_be_write(c, packet->data(), packet->size());
-    }
-
     uint64_t guest_to_netsim_parser_bytes_requested() override {
         return h4_parser_->BytesRequested();
     }
@@ -277,7 +243,7 @@ class BtProtocol : public Protocol {
 
 class CellularProtocol : public Protocol {
   public:
-    explicit CellularProtocol(std::vector<Packet>& output_queue) : packet_queue_(output_queue) {}
+    explicit CellularProtocol(std::vector<Packet>* output_queue) : packet_queue_(*output_queue) {}
 
     void reset() override { buffer_.clear(); }
     void reset_guest(Chardev* c) override {
@@ -327,13 +293,13 @@ class CellularProtocol : public Protocol {
 
         auto& props = goldfish::avd::GetAvd().Props();
         if (!props.icc_profile.empty()) {
-            auto content_or = android::base::file::read_whole_file(props.icc_profile, false);
-            if (content_or.ok()) {
-                chip.sim_profile = *content_or;
+            if (auto content = android::base::file::read_whole_file(props.icc_profile, false);
+                content.ok()) {
+                chip.sim_profile = *std::move(content);
                 VLOG(1) << "NETSIM CELL: Loaded custom SIM profile from " << props.icc_profile;
             } else {
                 LOG(ERROR) << "NETSIM CELL: Failed to read custom SIM profile at "
-                           << props.icc_profile << ": " << content_or.status();
+                           << props.icc_profile << ": " << content.status();
             }
         }
         return chip;
@@ -483,33 +449,13 @@ bool netsim_chardev_open(Chardev* chr, ChardevBackend* backend, Error** errp) {
     return true;
 }
 
-void netsim_chardev_bt_instance_init(Object* obj) {
-    VLOG(1) << "NETSIM BT init";
+template <typename ProtocolT>
+void NetsimChardevInstanceInit(Object* obj) {
     NetsimChardev* nc = NETSIM_CHARDEV(obj);
     nc->state = new NetsimChardevState(
-            obj, [](auto& queue) { return std::make_unique<BtProtocol>(&queue); });
+            obj, [](auto& queue) { return std::make_unique<ProtocolT>(&queue); });
 }
 
-void netsim_chardev_uwb_instance_init(Object* obj) {
-    VLOG(1) << "NETSIM UWB init";
-    NetsimChardev* nc = NETSIM_CHARDEV(obj);
-    nc->state = new NetsimChardevState(
-            obj, [](auto& queue) { return std::make_unique<UwbProtocol>(&queue); });
-}
-
-void netsim_chardev_nfc_instance_init(Object* obj) {
-    VLOG(1) << "NETSIM NFC init";
-    NetsimChardev* nc = NETSIM_CHARDEV(obj);
-    nc->state = new NetsimChardevState(
-            obj, [](auto& queue) { return std::make_unique<NfcProtocol>(&queue); });
-}
-
-void netsim_chardev_cellular_instance_init(Object* obj) {
-    VLOG(1) << "NETSIM CELLULAR init";
-    NetsimChardev* nc = NETSIM_CHARDEV(obj);
-    nc->state = new NetsimChardevState(
-            obj, [](auto& queue) { return std::make_unique<CellularProtocol>(queue); });
-}
 void netsim_chardev_instance_finalize(Object* obj) {
     NetsimChardev* nc = NETSIM_CHARDEV(obj);
     delete nc->state;
@@ -534,28 +480,28 @@ const TypeInfo netsim_chardev_bt_type_info = {
     .name = TYPE_NETSIM_CHARDEV_BT,
     .parent = TYPE_NETSIM_CHARDEV,
     .instance_size = sizeof(NetsimChardev),
-    .instance_init = netsim_chardev_bt_instance_init,
+    .instance_init = NetsimChardevInstanceInit<BtProtocol>,
 };
 
 const TypeInfo netsim_chardev_uwb_type_info = {
     .name = TYPE_NETSIM_CHARDEV_UWB,
     .parent = TYPE_NETSIM_CHARDEV,
     .instance_size = sizeof(NetsimChardev),
-    .instance_init = netsim_chardev_uwb_instance_init,
+    .instance_init = NetsimChardevInstanceInit<UwbProtocol>,
 };
 
 const TypeInfo netsim_chardev_nfc_type_info = {
     .name = TYPE_NETSIM_CHARDEV_NFC,
     .parent = TYPE_NETSIM_CHARDEV,
     .instance_size = sizeof(NetsimChardev),
-    .instance_init = netsim_chardev_nfc_instance_init,
+    .instance_init = NetsimChardevInstanceInit<NfcProtocol>,
 };
 
 const TypeInfo netsim_chardev_cellular_type_info = {
     .name = TYPE_NETSIM_CHARDEV_CELLULAR,
     .parent = TYPE_NETSIM_CHARDEV,
     .instance_size = sizeof(NetsimChardev),
-    .instance_init = netsim_chardev_cellular_instance_init,
+    .instance_init = NetsimChardevInstanceInit<CellularProtocol>,
 };
 
 }  // namespace

@@ -17,19 +17,27 @@
 
 #include <array>
 #include <cerrno>
+#include <cstdint>
 #include <cstdio>
 #include <fstream>
+#include <functional>
 #include <memory>
+#include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
 
+#include "absl/base/thread_annotations.h"
+#include "absl/container/flat_hash_map.h"
+#include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/strings/str_cat.h"
+#include "absl/synchronization/mutex.h"
 #include "absl/time/time.h"
 
 #include "android/base/testing/test_clock.h"
 #include "android/base/testing/test_temp_dir.h"
+#include "android/crashreport/hang_detector.h"
 #include "android/goldfish/qemu_vm_operations.h"
 #include "android/goldfish/vm_interface.h"
 #include "android/status/status_matcher_macros.h"
@@ -63,6 +71,49 @@ using ::testing::ElementsAre;
 using ::testing::HasSubstr;
 using ::testing::IsEmpty;
 
+class TestHangDetector : public ::android::crashreport::HangDetector {
+  public:
+    void AddWatchedLooper(std::string /*loop_name*/, ::goldfish::async::EventLoop& /*event_loop*/,
+                          absl::Duration /*task_timeout*/, ActivePredicate /*is_active*/) override {
+    }
+    void RemoveWatchedLooper(::goldfish::async::EventLoop& /*event_loop*/) override {}
+    void AddPredicate(std::string name, HangPredicate check) override {
+        absl::MutexLock lock(&mutex_);
+        predicates_[std::move(name)] = std::move(check);
+    }
+    void RemovePredicate(std::string_view name) override {
+        absl::MutexLock lock(&mutex_);
+        predicates_.erase(name);
+    }
+    void Stop() override {
+        absl::MutexLock lock(&mutex_);
+        predicates_.clear();
+    }
+
+    bool HasPredicate(std::string_view name) const {
+        absl::MutexLock lock(&mutex_);
+        return predicates_.contains(name);
+    }
+
+    absl::Status EvaluatePredicate(std::string_view name) const {
+        HangPredicate check;
+        {
+            absl::MutexLock lock(&mutex_);
+            const auto it = predicates_.find(name);
+            if (it == predicates_.end()) {
+                return absl::NotFoundError(
+                        absl::StrCat("Predicate '", name, "' is not registered"));
+            }
+            check = it->second;
+        }
+        return check();
+    }
+
+  private:
+    mutable absl::Mutex mutex_;
+    absl::flat_hash_map<std::string, HangPredicate> predicates_ ABSL_GUARDED_BY(mutex_);
+};
+
 class QemuVmOperationsTest : public ::testing::Test {
   protected:
     void SetUp() override {
@@ -74,6 +125,8 @@ class QemuVmOperationsTest : public ::testing::Test {
         mock_iothread_locked_set(false);
         mock_vm_stop_return_set(0);
         mock_snapshot_op_ok_set(false);
+        mock_snapshot_op_hook_set(/*hook=*/nullptr, /*opaque=*/nullptr);
+        snapshot_op_hook_ = nullptr;
         mock_snapshot_list_set(/*entries=*/nullptr, /*count=*/-1);
         test_vm_lock_ = TestVmLock::GetInstance();
         test_vm_lock_->lock_count_ = 0;
@@ -98,11 +151,24 @@ class QemuVmOperationsTest : public ::testing::Test {
         vm_ops_ = CreateQemuVmOperations(
                 /*event_loop=*/loop_.get(), /*qemu_loop=*/qemu_loop_.get(),
                 QemuSnapshotConfig{.store = std::move(store), .enabled = snapshots_enabled},
-                /*clock=*/&clock_);
+                /*hang_detector=*/&hang_detector_, /*clock=*/&clock_);
     }
 
     // Marks `name` as a snapshot this emulator can load.
     void MakeCompatibleSnapshot(std::string_view name) { ASSERT_OK(store_->WriteVersion(name)); }
+
+    void SetSnapshotOpHook(std::function<void(std::string_view)> hook) {
+        snapshot_op_hook_ = std::move(hook);
+        mock_snapshot_op_hook_set(
+                /*hook=*/
+                [](const char* name, void* opaque) {
+                    auto* fn = static_cast<std::function<void(std::string_view)>*>(opaque);
+                    if (*fn) {
+                        (*fn)(name != nullptr ? std::string_view(name) : std::string_view());
+                    }
+                },
+                /*opaque=*/&snapshot_op_hook_);
+    }
 
     // The thread qemu_loop_ runs its tasks on.
     GThread* QemuLoopThread() {
@@ -120,10 +186,14 @@ class QemuVmOperationsTest : public ::testing::Test {
         mock_iothread_locked_set(false);
         mock_vm_stop_return_set(0);
         mock_snapshot_op_ok_set(false);
+        mock_snapshot_op_hook_set(/*hook=*/nullptr, /*opaque=*/nullptr);
+        snapshot_op_hook_ = nullptr;
         mock_snapshot_list_set(/*entries=*/nullptr, /*count=*/-1);
     }
 
     android::base::TestClock clock_;
+    TestHangDetector hang_detector_;
+    std::function<void(std::string_view)> snapshot_op_hook_;
     TestVmLock* test_vm_lock_ = nullptr;
     VmLock* old_lock_ = nullptr;
     TestTempDir temp_dir_{"vm_test"};
@@ -516,7 +586,7 @@ TEST_F(QemuVmOperationsTest, ListSnapshotsExecutesOnQemuLoopAndPropagatesErrors)
     EXPECT_THAT(vm_ops_->ListSnapshots([](VmOperations::SnapshotEntry) {}),
                 StatusIs(absl::StatusCode::kFailedPrecondition,
                          AllOf(HasSubstr("no block device supports VM state snapshots"),
-                               HasSubstr("qcow2 disk image"))));
+                               HasSubstr("snapshots.qcow2"))));
     EXPECT_EQ(qemu_loop_->WaitUntilIdle(), tasks + 1);
     EXPECT_EQ(test_vm_lock_->lock_count_, 0);
 
@@ -1073,6 +1143,293 @@ TEST_F(QemuVmOperationsTest, TrailingFlushDeliversLatestThrottledTransferringUpd
     loop_->AdvanceClock(absl::Milliseconds(300));
     loop_->RunAll();
     EXPECT_EQ(events.size(), 4U);
+}
+
+TEST_F(QemuVmOperationsTest, SnapshotWatchdogIsRegisteredOnlyDuringActiveSnapshotOperations) {
+    ::goldfish::avd::FakeAvdUniverse fake_avd;
+    constexpr std::string_view kWatchdogName = "SnapshotWatchdog";
+    EXPECT_FALSE(hang_detector_.HasPredicate(kWatchdogName));
+
+    // Non-snapshot VM operations and metadata-only snapshot operations do not register the
+    // watchdog.
+    mock_runstate_set(RUN_STATE_RUNNING);
+    ASSERT_OK(vm_ops_->Pause());
+    EXPECT_FALSE(hang_detector_.HasPredicate(kWatchdogName));
+    ASSERT_OK(vm_ops_->Resume());
+    EXPECT_FALSE(hang_detector_.HasPredicate(kWatchdogName));
+    mock_snapshot_list_set(/*entries=*/nullptr, /*count=*/0);
+    ASSERT_OK(vm_ops_->ListSnapshots([](const VmOperations::SnapshotEntry& /*entry*/) {}));
+    EXPECT_FALSE(hang_detector_.HasPredicate(kWatchdogName));
+    mock_snapshot_op_ok_set(true);
+    ASSERT_OK(vm_ops_->DeleteSnapshot("snap_del"));
+    EXPECT_FALSE(hang_detector_.HasPredicate(kWatchdogName));
+
+    // Pre-flight and runstate rejections never arm the watchdog.
+    EXPECT_THAT(vm_ops_->SaveSnapshot("../invalid", /*overwrite=*/true),
+                StatusIs(absl::StatusCode::kInvalidArgument));
+    EXPECT_FALSE(hang_detector_.HasPredicate(kWatchdogName));
+    EXPECT_THAT(vm_ops_->LoadSnapshot("missing_snap", /*and_resume=*/false),
+                StatusIs(absl::StatusCode::kFailedPrecondition));
+    EXPECT_FALSE(hang_detector_.HasPredicate(kWatchdogName));
+    mock_runstate_set(RUN_STATE_SHUTDOWN);
+    EXPECT_THAT(vm_ops_->SaveSnapshot("snap_shutdown", /*overwrite=*/true),
+                StatusIs(absl::StatusCode::kFailedPrecondition));
+    EXPECT_FALSE(hang_detector_.HasPredicate(kWatchdogName));
+    MakeCompatibleSnapshot("snap_shutdown_load");
+    EXPECT_THAT(vm_ops_->LoadSnapshot("snap_shutdown_load", /*and_resume=*/false),
+                StatusIs(absl::StatusCode::kFailedPrecondition));
+    EXPECT_FALSE(hang_detector_.HasPredicate(kWatchdogName));
+
+    // SaveSnapshot registers the watchdog while in flight (catching stalls even before QEMU emits
+    // its first progress callback) and unregisters it on completion.
+    mock_runstate_set(RUN_STATE_RUNNING);
+    mock_snapshot_op_ok_set(true);
+    int save_hook_calls = 0;
+    SetSnapshotOpHook([&](std::string_view name) {
+        ++save_hook_calls;
+        EXPECT_EQ(name, "snap_save_ok");
+        ASSERT_TRUE(hang_detector_.HasPredicate(kWatchdogName));
+        EXPECT_THAT(hang_detector_.EvaluatePredicate(kWatchdogName),
+                    StatusIs(absl::StatusCode::kDeadlineExceeded,
+                             AllOf(HasSubstr("Snapshot save 'snap_save_ok' stalled: no progress "
+                                             "for 30s"),
+                                   HasSubstr("phase=PREPARING"))));
+    });
+    ASSERT_OK(vm_ops_->SaveSnapshot("snap_save_ok", /*overwrite=*/true));
+    EXPECT_EQ(save_hook_calls, 1);
+    EXPECT_FALSE(hang_detector_.HasPredicate(kWatchdogName));
+
+    // Failed SaveSnapshot also unregisters the watchdog cleanly.
+    mock_snapshot_op_ok_set(false);
+    int failed_save_hook_calls = 0;
+    SetSnapshotOpHook([&](std::string_view /*name*/) {
+        ++failed_save_hook_calls;
+        EXPECT_TRUE(hang_detector_.HasPredicate(kWatchdogName));
+    });
+    EXPECT_THAT(vm_ops_->SaveSnapshot("snap_save_fail", /*overwrite=*/true),
+                StatusIs(absl::StatusCode::kInternal));
+    EXPECT_EQ(failed_save_hook_calls, 1);
+    EXPECT_FALSE(hang_detector_.HasPredicate(kWatchdogName));
+
+    // LoadSnapshot registers the watchdog while in flight (ignoring stale cached_progress_ from a
+    // prior completed save before QEMU reports progress) and unregisters it on both success and
+    // failure.
+    mock_snapshot_op_ok_set(true);
+    int load_hook_calls = 0;
+    SetSnapshotOpHook([&](std::string_view name) {
+        ++load_hook_calls;
+        EXPECT_EQ(name, "snap_save_ok");
+        ASSERT_TRUE(hang_detector_.HasPredicate(kWatchdogName));
+        EXPECT_THAT(hang_detector_.EvaluatePredicate(kWatchdogName),
+                    StatusIs(absl::StatusCode::kDeadlineExceeded,
+                             AllOf(HasSubstr("Snapshot load 'snap_save_ok' stalled: no progress "
+                                             "for 30s"),
+                                   HasSubstr("phase=PREPARING"))));
+    });
+    ASSERT_OK(vm_ops_->LoadSnapshot("snap_save_ok", /*and_resume=*/true));
+    EXPECT_EQ(load_hook_calls, 1);
+    EXPECT_FALSE(hang_detector_.HasPredicate(kWatchdogName));
+
+    mock_snapshot_op_ok_set(false);
+    int failed_load_hook_calls = 0;
+    SetSnapshotOpHook([&](std::string_view /*name*/) {
+        ++failed_load_hook_calls;
+        EXPECT_TRUE(hang_detector_.HasPredicate(kWatchdogName));
+    });
+    EXPECT_THAT(vm_ops_->LoadSnapshot("snap_save_ok", /*and_resume=*/false),
+                StatusIs(absl::StatusCode::kInternal));
+    EXPECT_EQ(failed_load_hook_calls, 1);
+    EXPECT_FALSE(hang_detector_.HasPredicate(kWatchdogName));
+}
+
+TEST_F(QemuVmOperationsTest, SnapshotWatchdogReturnsOkWhileProgressAdvances) {
+    ::goldfish::avd::FakeAvdUniverse fake_avd;
+    constexpr std::string_view kWatchdogName = "SnapshotWatchdog";
+    mock_runstate_set(RUN_STATE_RUNNING);
+    mock_snapshot_op_ok_set(true);
+
+    int hook_calls = 0;
+    SetSnapshotOpHook([&](std::string_view /*name*/) {
+        ++hook_calls;
+        ASSERT_TRUE(hang_detector_.HasPredicate(kWatchdogName));
+
+        QemuSnapshotProgress qprog{};
+        qprog.operation = QEMU_SNAPSHOT_OP_SAVE;
+        qprog.phase = QEMU_SNAPSHOT_PHASE_PREPARING;
+        qprog.name = "snap_advancing";
+        qprog.active_component = "prepare";
+        qprog.total_bytes = 10000;
+        qprog.total_devices = 10;
+        mock_fire_snapshot_progress(&qprog);
+        EXPECT_OK(hang_detector_.EvaluatePredicate(kWatchdogName));
+
+        // Phase transition PREPARING -> TRANSFERRING counts as progress.
+        qprog.phase = QEMU_SNAPSHOT_PHASE_TRANSFERRING;
+        qprog.active_component = nullptr;
+        mock_fire_snapshot_progress(&qprog);
+        EXPECT_OK(hang_detector_.EvaluatePredicate(kWatchdogName));
+
+        // Advancing transferred_bytes counts as progress.
+        for (int step = 1; step <= 4; ++step) {
+            qprog.transferred_bytes = static_cast<int64_t>(step) * 1000;
+            mock_fire_snapshot_progress(&qprog);
+            EXPECT_OK(hang_detector_.EvaluatePredicate(kWatchdogName));
+        }
+
+        // Advancing disk_bytes counts as progress even when transferred_bytes is unchanged.
+        qprog.disk_bytes = 2048;
+        mock_fire_snapshot_progress(&qprog);
+        EXPECT_OK(hang_detector_.EvaluatePredicate(kWatchdogName));
+
+        // Advancing completed_devices counts as progress.
+        qprog.completed_devices = 5;
+        mock_fire_snapshot_progress(&qprog);
+        EXPECT_OK(hang_detector_.EvaluatePredicate(kWatchdogName));
+
+        // Changing active_component counts as progress.
+        qprog.active_component = "0000:00:02.0/virtio-gpu-rutabaga";
+        mock_fire_snapshot_progress(&qprog);
+        EXPECT_OK(hang_detector_.EvaluatePredicate(kWatchdogName));
+
+        // Clearing active_component also counts as progress, even when no counter changes.
+        qprog.active_component = nullptr;
+        mock_fire_snapshot_progress(&qprog);
+        EXPECT_OK(hang_detector_.EvaluatePredicate(kWatchdogName));
+
+        // Terminal COMPLETED and FAILED phases always return OkStatus before unregistration.
+        qprog.phase = QEMU_SNAPSHOT_PHASE_COMPLETED;
+        mock_fire_snapshot_progress(&qprog);
+        EXPECT_OK(hang_detector_.EvaluatePredicate(kWatchdogName));
+        EXPECT_OK(hang_detector_.EvaluatePredicate(kWatchdogName));
+
+        qprog.phase = QEMU_SNAPSHOT_PHASE_FAILED;
+        qprog.error_message = "I/O error";
+        mock_fire_snapshot_progress(&qprog);
+        EXPECT_OK(hang_detector_.EvaluatePredicate(kWatchdogName));
+        EXPECT_OK(hang_detector_.EvaluatePredicate(kWatchdogName));
+    });
+
+    ASSERT_OK(vm_ops_->SaveSnapshot("snap_advancing", /*overwrite=*/true));
+    EXPECT_EQ(hook_calls, 1);
+    EXPECT_FALSE(hang_detector_.HasPredicate(kWatchdogName));
+}
+
+TEST_F(QemuVmOperationsTest, SnapshotWatchdogReturnsDeadlineExceededWithDiagnosticContextOnStall) {
+    ::goldfish::avd::FakeAvdUniverse fake_avd;
+    constexpr std::string_view kWatchdogName = "SnapshotWatchdog";
+    mock_runstate_set(RUN_STATE_RUNNING);
+    mock_snapshot_op_ok_set(true);
+
+    int hook_calls = 0;
+    SetSnapshotOpHook([&](std::string_view /*name*/) {
+        ++hook_calls;
+        ASSERT_TRUE(hang_detector_.HasPredicate(kWatchdogName));
+
+        QemuSnapshotProgress qprog{};
+        qprog.operation = QEMU_SNAPSHOT_OP_SAVE;
+        qprog.phase = QEMU_SNAPSHOT_PHASE_TRANSFERRING;
+        qprog.name = "snap_stall_日本語_🚀";
+        qprog.active_component = "0000:00:02.0/virtio-gpu-rutabaga";
+        qprog.transferred_bytes = 1024;
+        qprog.total_bytes = 4096;
+        qprog.disk_bytes = 512;
+        qprog.completed_devices = 3;
+        qprog.total_devices = 8;
+        mock_fire_snapshot_progress(&qprog);
+
+        // First evaluation observes the new snapshot progress and returns OkStatus.
+        EXPECT_OK(hang_detector_.EvaluatePredicate(kWatchdogName));
+
+        // Repeating an identical progress callback does not advance any progress counters.
+        mock_fire_snapshot_progress(&qprog);
+
+        // Subsequent evaluation with no forward progress returns DeadlineExceededError with
+        // diagnostic context.
+        EXPECT_THAT(
+                hang_detector_.EvaluatePredicate(kWatchdogName),
+                StatusIs(absl::StatusCode::kDeadlineExceeded,
+                         AllOf(HasSubstr("Snapshot save 'snap_stall_日本語_🚀' stalled: no "
+                                         "progress for 30s"),
+                               HasSubstr("phase=TRANSFERRING"), HasSubstr("progress=26%"),
+                               HasSubstr("component='0000:00:02.0/virtio-gpu-rutabaga'"),
+                               HasSubstr("transferred_bytes=1024/4096"),
+                               HasSubstr("disk_bytes=512"), HasSubstr("completed_devices=3/8"))));
+
+        // Once progress advances again, the predicate recovers and returns OkStatus.
+        qprog.transferred_bytes = 2048;
+        mock_fire_snapshot_progress(&qprog);
+        EXPECT_OK(hang_detector_.EvaluatePredicate(kWatchdogName));
+    });
+
+    ASSERT_OK(vm_ops_->SaveSnapshot("snap_stall_日本語_🚀", /*overwrite=*/true));
+    EXPECT_EQ(hook_calls, 1);
+    EXPECT_FALSE(hang_detector_.HasPredicate(kWatchdogName));
+}
+
+TEST_F(QemuVmOperationsTest, SnapshotWatchdogCoversSnapshotsQemuRunsWithoutVmOperations) {
+    // The launcher's exit-time -savevm and HMP savevm/loadvm call save_snapshot() and
+    // load_snapshot() directly. Only QEMU's progress reports show that they are running.
+    constexpr std::string_view kWatchdogName = "SnapshotWatchdog";
+    ASSERT_OK(store_->Prepare("default_boot"));
+    QemuSnapshotProgress qprog{};
+    auto fire = [&] {
+        return qemu_loop_->PostAndWait([&] { mock_fire_snapshot_progress(&qprog); });
+    };
+
+    qprog.operation = QEMU_SNAPSHOT_OP_SAVE;
+    qprog.phase = QEMU_SNAPSHOT_PHASE_PREPARING;
+    qprog.name = "default_boot";
+    qprog.total_bytes = 4096;
+    qprog.total_devices = 8;
+    ASSERT_OK(fire());
+    ASSERT_TRUE(hang_detector_.HasPredicate(kWatchdogName));
+    // No progress since the save started.
+    EXPECT_THAT(hang_detector_.EvaluatePredicate(kWatchdogName),
+                StatusIs(absl::StatusCode::kDeadlineExceeded,
+                         AllOf(HasSubstr("Snapshot save 'default_boot' stalled: no progress "
+                                         "for 30s"),
+                               HasSubstr("phase=PREPARING"))));
+
+    qprog.phase = QEMU_SNAPSHOT_PHASE_TRANSFERRING;
+    qprog.active_component = "0000:00:02.0/virtio-gpu-rutabaga";
+    ASSERT_OK(fire());
+    EXPECT_OK(hang_detector_.EvaluatePredicate(kWatchdogName));
+
+    // A device save handler that never returns (b/574046502) reports no further progress.
+    ASSERT_OK(fire());
+    EXPECT_THAT(hang_detector_.EvaluatePredicate(kWatchdogName),
+                StatusIs(absl::StatusCode::kDeadlineExceeded,
+                         AllOf(HasSubstr("phase=TRANSFERRING"),
+                               HasSubstr("component='0000:00:02.0/virtio-gpu-rutabaga'"))));
+
+    qprog.phase = QEMU_SNAPSHOT_PHASE_COMPLETED;
+    qprog.active_component = nullptr;
+    ASSERT_OK(fire());
+    EXPECT_FALSE(hang_detector_.HasPredicate(kWatchdogName));
+
+    // A load that QEMU runs on its own is watched the same way, and a failure ends it.
+    qprog.operation = QEMU_SNAPSHOT_OP_LOAD;
+    qprog.phase = QEMU_SNAPSHOT_PHASE_PREPARING;
+    ASSERT_OK(fire());
+    EXPECT_TRUE(hang_detector_.HasPredicate(kWatchdogName));
+    qprog.phase = QEMU_SNAPSHOT_PHASE_FAILED;
+    qprog.error_message = "I/O error";
+    ASSERT_OK(fire());
+    EXPECT_FALSE(hang_detector_.HasPredicate(kWatchdogName));
+}
+
+TEST_F(QemuVmOperationsTest, DestructorUnregistersWatchdogOfSnapshotStillInFlight) {
+    constexpr std::string_view kWatchdogName = "SnapshotWatchdog";
+    QemuSnapshotProgress qprog{};
+    qprog.operation = QEMU_SNAPSHOT_OP_SAVE;
+    qprog.phase = QEMU_SNAPSHOT_PHASE_TRANSFERRING;
+    qprog.name = "default_boot";
+    ASSERT_OK(qemu_loop_->PostAndWait([&] { mock_fire_snapshot_progress(&qprog); }));
+    ASSERT_TRUE(hang_detector_.HasPredicate(kWatchdogName));
+
+    vm_ops_.reset();
+
+    EXPECT_FALSE(hang_detector_.HasPredicate(kWatchdogName));
 }
 
 TEST_F(QemuVmOperationsDeathTest, SnapshotProgressOnTheLoopThreadDies) {

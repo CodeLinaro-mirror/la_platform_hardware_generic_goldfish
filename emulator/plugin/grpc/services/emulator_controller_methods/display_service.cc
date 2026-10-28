@@ -19,6 +19,7 @@
 #include <cstdint>
 #include <cstring>
 #include <memory>
+#include <optional>
 #include <utility>
 #include <vector>
 
@@ -40,6 +41,7 @@
 #include "android/goldfish/hardware_config.h"
 #include "goldfish/avd/avd_info.h"
 #include "goldfish/devices/multidisplay/multidisplay_device.h"
+#include "goldfish/display/cpu_read_pipeline.h"
 #include "goldfish/display/display_frames.h"
 #include "goldfish/display/frame.h"
 #include "goldfish/display/geometry.h"
@@ -189,13 +191,10 @@ ProtoRotation toProtobufRotation(const DeviceRotation& rotation) {
     return protoRotation;
 }
 
-static uint8_t* standard_allocator(Image* img, size_t size) {
-    if (img->image().size() != size) {
-        // Proto will release the existing object.
-        img->set_allocated_image(new std::string(size, 0));
-    }
-    auto* raw_data = img->mutable_image()->data();
-    return reinterpret_cast<uint8_t*>(raw_data);
+static uint8_t* StandardAllocator(Image* img, size_t size) {
+    std::string* image = img->mutable_image();
+    image->resize(size);
+    return reinterpret_cast<uint8_t*>(image->data());
 }
 
 // Scales `size` down, keeping its aspect ratio, until it fits in `bound`.
@@ -406,7 +405,7 @@ Status DisplayServiceImpl::getScreenshot(ServerContext* context, const ImageForm
 absl::StatusOr<DisplayServiceImpl::MemoryAllocator> DisplayServiceImpl::createAllocator(
         const ImageFormat& request, const IDisplay& display) {
     if (!request.has_transport() || request.transport().channel() != ImageTransport::MMAP) {
-        return standard_allocator;
+        return StandardAllocator;
     }
 
     // Reserve the upper bound of pixels we could ever need.
@@ -507,14 +506,16 @@ Status DisplayServiceImpl::getScreenshot(ServerContext* /*context*/, const Image
     ::goldfish::display::Dimensions out_dims{0, 0};
 
     if (format == PixelFormat::kPng) {
-        std::vector<uint8_t> rgba;
+        std::optional<::goldfish::display::ScratchBuffer> rgba;
         absl::StatusOr<::goldfish::display::Dimensions> dims;
         {
             TRACE_EVENT("display", "display->GetPixels");
             dims = frame->ReadInto(
                     req, [&](const ReadLayout& layout) -> absl::StatusOr<Rgba8888Target> {
-                        rgba.resize(layout.total_bytes);
-                        return Rgba8888Target{.plane = Plane{.data = absl::MakeSpan(rgba)}};
+                        rgba.emplace(::goldfish::display::AcquireScratchBuffer(layout.total_bytes));
+                        return Rgba8888Target{
+                                .plane = Plane{
+                                        .data = absl::MakeSpan(rgba->data(), layout.total_bytes)}};
                     });
         }
         if (!dims.ok()) {
@@ -522,8 +523,10 @@ Status DisplayServiceImpl::getScreenshot(ServerContext* /*context*/, const Image
         }
         out_dims = *dims;
         std::vector<uint8_t> png_bytes;
-        if (!::goldfish::display::write_png(4, out_dims.width, out_dims.height, rgba.data(),
-                                            png_bytes)) {
+        const bool png_ok = ::goldfish::display::write_png(4, out_dims.width, out_dims.height,
+                                                           rgba->data(), png_bytes);
+        rgba.reset();
+        if (!png_ok) {
             return Status(grpc::StatusCode::INTERNAL, "Failed to create PNG screenshot!");
         }
         auto allocated_pixels = allocator(reply, png_bytes.size());
@@ -531,9 +534,6 @@ Status DisplayServiceImpl::getScreenshot(ServerContext* /*context*/, const Image
             return AbslStatusToGrpcStatus(allocated_pixels.status());
         }
         std::memcpy(*allocated_pixels, png_bytes.data(), png_bytes.size());
-        if (!needs_side_channel && png_bytes.size() < reply->mutable_image()->size()) {
-            reply->mutable_image()->resize(png_bytes.size());
-        }
     } else {
         const ReadFormat read_fmt =
                 (format == PixelFormat::kRgb888) ? ReadFormat::kRgb888 : ReadFormat::kRgba8888;

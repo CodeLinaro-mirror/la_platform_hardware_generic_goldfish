@@ -36,6 +36,22 @@
 #include "emulator_controller.grpc.pb.h"
 
 namespace goldfish::videobridge {
+
+class GrpcAudioSourceTestPeer {
+  public:
+    static size_t PartialFrameCapacity(const GrpcAudioSource& source) {
+        return source.partial_frame_.capacity();
+    }
+
+    static size_t PartialFrameSize(const GrpcAudioSource& source) {
+        return source.partial_frame_.size();
+    }
+
+    static const uint8_t* PartialFrameData(const GrpcAudioSource& source) {
+        return source.partial_frame_.data();
+    }
+};
+
 namespace {
 
 class FakeAudioReader : public ::grpc::ClientReaderInterface<AudioPacket> {
@@ -271,6 +287,118 @@ TEST(GrpcAudioSourceTest, StopAndRestartClearsPartialFrameBuffer) {
     const std::vector<std::vector<uint8_t>> frames = sink.ReceivedFrames();
     ASSERT_EQ(frames.size(), 1U);
     EXPECT_EQ(frames[0], std::vector<uint8_t>(1920, 0x22));
+}
+
+TEST(GrpcAudioSourceTest, MultiFrameBurstPacketsKeepPartialBufferBoundedAtSingleFrameCapacity) {
+    constexpr size_t kBurstPacketBytes = 65536U;
+    constexpr size_t kBurstPacketCount = 4U;
+    constexpr size_t kTotalStreamBytes = kBurstPacketBytes * kBurstPacketCount;
+    constexpr size_t kExpectedFrames = kTotalStreamBytes / GrpcAudioSource::kBytesPerFrame;
+    constexpr size_t kExpectedRemainderBytes = kTotalStreamBytes % GrpcAudioSource::kBytesPerFrame;
+    constexpr uint8_t kFrameSeedStride = 37U;
+
+    std::vector<uint8_t> expected_stream(kTotalStreamBytes);
+    for (size_t i = 0; i < kTotalStreamBytes; ++i) {
+        const size_t frame_index = i / GrpcAudioSource::kBytesPerFrame;
+        expected_stream[i] = static_cast<uint8_t>((frame_index * kFrameSeedStride + i) & 0xFFU);
+    }
+
+    std::vector<AudioPacket> packets;
+    packets.reserve(kBurstPacketCount);
+    for (size_t p = 0; p < kBurstPacketCount; ++p) {
+        AudioPacket packet;
+        const size_t offset = p * kBurstPacketBytes;
+        packet.set_audio(reinterpret_cast<const char*>(expected_stream.data() + offset),
+                         kBurstPacketBytes);
+        packets.push_back(std::move(packet));
+    }
+
+    auto client = std::make_shared<FakeEmulatorClient>(/*is_connected=*/true);
+    client->SetPackets(std::move(packets));
+
+    auto source = ::webrtc::make_ref_counted<GrpcAudioSource>(client);
+    const size_t initial_capacity = GrpcAudioSourceTestPeer::PartialFrameCapacity(*source);
+    const uint8_t* const initial_buffer_ptr = GrpcAudioSourceTestPeer::PartialFrameData(*source);
+    ASSERT_EQ(initial_capacity, GrpcAudioSource::kBytesPerFrame);
+
+    TestAudioSink sink;
+    source->AddSink(&sink);
+
+    ASSERT_TRUE(sink.WaitForFrames(static_cast<int>(kExpectedFrames), absl::Seconds(5)));
+    ASSERT_TRUE(client->WaitForStreamsFinished(1, absl::Seconds(5)));
+
+    source->Stop();
+    source->RemoveSink(&sink);
+
+    // Verify zero heap reallocations and bounded 10ms (1,920-byte) buffer capacity even after
+    // ingesting 64 KiB multi-frame packets (97.1% smaller than a 64 KiB packet buffer).
+    EXPECT_EQ(GrpcAudioSourceTestPeer::PartialFrameCapacity(*source),
+              GrpcAudioSource::kBytesPerFrame);
+    EXPECT_EQ(GrpcAudioSourceTestPeer::PartialFrameData(*source), initial_buffer_ptr);
+    EXPECT_EQ(GrpcAudioSourceTestPeer::PartialFrameSize(*source), kExpectedRemainderBytes);
+
+    const std::vector<std::vector<uint8_t>> frames = sink.ReceivedFrames();
+    ASSERT_EQ(frames.size(), kExpectedFrames);
+    for (size_t f = 0; f < kExpectedFrames; ++f) {
+        const auto* frame_start = expected_stream.data() + (f * GrpcAudioSource::kBytesPerFrame);
+        const std::vector<uint8_t> expected_frame(frame_start,
+                                                  frame_start + GrpcAudioSource::kBytesPerFrame);
+        EXPECT_EQ(frames[f], expected_frame) << "Mismatch at 10ms frame index " << f;
+    }
+}
+
+TEST(GrpcAudioSourceTest, UnalignedPacketBoundariesPreserveExactByteOrderWithoutReallocating) {
+    // Packet sizes exercise: empty packet, multiple sub-frame appends (500 + 600 < 1920),
+    // multi-frame completion with exact zero remainder (820 + 2*1920 = 4660), and odd-byte
+    // split boundary (1001 + (919 + 2*1920 = 4759)) totaling 6 exact 10ms frames (11,520 bytes).
+    constexpr size_t kChunkSizes[] = {0U, 500U, 600U, 4660U, 1001U, 4759U};
+    constexpr size_t kExpectedFrames = 6U;
+    constexpr size_t kTotalBytes = kExpectedFrames * GrpcAudioSource::kBytesPerFrame;
+
+    std::vector<uint8_t> expected_stream(kTotalBytes);
+    for (size_t i = 0; i < kTotalBytes; ++i) {
+        expected_stream[i] = static_cast<uint8_t>((i * 13U + (i >> 8U)) & 0xFFU);
+    }
+
+    std::vector<AudioPacket> packets;
+    size_t offset = 0;
+    for (const size_t chunk_size : kChunkSizes) {
+        AudioPacket packet;
+        packet.set_audio(reinterpret_cast<const char*>(expected_stream.data() + offset),
+                         chunk_size);
+        packets.push_back(std::move(packet));
+        offset += chunk_size;
+    }
+    ASSERT_EQ(offset, kTotalBytes);
+
+    auto client = std::make_shared<FakeEmulatorClient>(/*is_connected=*/true);
+    client->SetPackets(std::move(packets));
+
+    auto source = ::webrtc::make_ref_counted<GrpcAudioSource>(client);
+    const uint8_t* const initial_buffer_ptr = GrpcAudioSourceTestPeer::PartialFrameData(*source);
+
+    TestAudioSink sink;
+    source->AddSink(&sink);
+
+    ASSERT_TRUE(sink.WaitForFrames(static_cast<int>(kExpectedFrames), absl::Seconds(5)));
+    ASSERT_TRUE(client->WaitForStreamsFinished(1, absl::Seconds(5)));
+
+    source->Stop();
+    source->RemoveSink(&sink);
+
+    EXPECT_EQ(GrpcAudioSourceTestPeer::PartialFrameCapacity(*source),
+              GrpcAudioSource::kBytesPerFrame);
+    EXPECT_EQ(GrpcAudioSourceTestPeer::PartialFrameData(*source), initial_buffer_ptr);
+    EXPECT_EQ(GrpcAudioSourceTestPeer::PartialFrameSize(*source), 0U);
+
+    const std::vector<std::vector<uint8_t>> frames = sink.ReceivedFrames();
+    ASSERT_EQ(frames.size(), kExpectedFrames);
+    for (size_t f = 0; f < kExpectedFrames; ++f) {
+        const auto* frame_start = expected_stream.data() + (f * GrpcAudioSource::kBytesPerFrame);
+        const std::vector<uint8_t> expected_frame(frame_start,
+                                                  frame_start + GrpcAudioSource::kBytesPerFrame);
+        EXPECT_EQ(frames[f], expected_frame) << "Mismatch at 10ms frame index " << f;
+    }
 }
 
 }  // namespace

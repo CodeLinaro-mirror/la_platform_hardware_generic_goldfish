@@ -75,5 +75,15 @@ class TestEventLoop : public EventLoop {
      * @param duration The amount of time to advance the clock.
      */
     virtual void AdvanceClock(absl::Duration duration) = 0;
+
+    /**
+     * @brief Pauses the loop, transitioning its state to `LooperStatusEvent::State::kPaused`.
+     */
+    virtual void Pause() = 0;
+
+    /**
+     * @brief Resumes the loop, transitioning its state to `LooperStatusEvent::State::kRunning`.
+     */
+    virtual void Resume() = 0;
 };
 }  // namespace goldfish::async::testing

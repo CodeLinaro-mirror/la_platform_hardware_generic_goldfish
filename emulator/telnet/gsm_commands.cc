@@ -13,17 +13,31 @@
 // limitations under the License.
 #include "gsm_commands.h"
 
+#include <initializer_list>
 #include <optional>
 #include <string>
+#include <string_view>
+#include <utility>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 
 #include "console_context.h"
 
 namespace goldfish::telnet {
 
 namespace {
+
+constexpr std::string_view kGsmStateValuesHelp =
+        "valid values for <state> are the following:\r\n\r\n"
+        "  unregistered    no network available\r\n"
+        "  home            on local network, non-roaming\r\n"
+        "  roaming         on roaming network\r\n"
+        "  searching       searching networks\r\n"
+        "  denied          emergency calls only\r\n"
+        "  off             same as 'unregistered'\r\n"
+        "  on              same as 'home'\r\n";
 
 absl::Status GsmDeprecatedError() {
     return absl::UnimplementedError(kGsmDeprecatedMessage);
@@ -32,49 +46,31 @@ absl::Status GsmDeprecatedError() {
 }  // namespace
 
 void RegisterGsmCommands(CommandRegistryBuilder::NodeBuilder& gsm) {
-    gsm.On("list" /* do_gsm_list */, "list current phone calls",
-           [](ConsoleContext& /*ctx*/) -> absl::StatusOr<std::string> {
-               return GsmDeprecatedError();
-           });
+    const auto deprecated_no_args = [](ConsoleContext& /*ctx*/) -> absl::StatusOr<std::string> {
+        return GsmDeprecatedError();
+    };
+    const auto deprecated_str_arg = [](ConsoleContext& /*ctx*/, const std::string& /*arg*/) {
+        return GsmDeprecatedError();
+    };
 
-    gsm.On("call" /* do_gsm_call */, "create inbound phone call",
-           [](ConsoleContext& /*ctx*/, const std::string& /*phonenumber*/) {
-               return GsmDeprecatedError();
-           });
+    gsm.On("list" /* do_gsm_list */, "list current phone calls", deprecated_no_args);
 
-    gsm.On("busy" /* do_gsm_busy */, "close waiting outbound call as busy",
-           [](ConsoleContext& /*ctx*/, const std::string& /*remote_number*/) {
-               return GsmDeprecatedError();
-           });
-
-    gsm.On("hold" /* do_gsm_hold */, "change the state of an active call to 'held'",
-           [](ConsoleContext& /*ctx*/, const std::string& /*remote_number*/) {
-               return GsmDeprecatedError();
-           });
-
-    gsm.On("accept" /* do_gsm_accept */, "change the state of an incoming or held call to 'active'",
-           [](ConsoleContext& /*ctx*/, const std::string& /*remote_number*/) {
-               return GsmDeprecatedError();
-           });
-
-    gsm.On("cancel" /* do_gsm_cancel */, "disconnect an inbound or outbound phone call",
-           [](ConsoleContext& /*ctx*/, const std::string& /*remote_number*/) {
-               return GsmDeprecatedError();
-           });
+    for (const auto& [cmd, abstract] : std::initializer_list<std::pair<const char*, const char*>>{
+                 {"call" /* do_gsm_call */, "create inbound phone call"},
+                 {"busy" /* do_gsm_busy */, "close waiting outbound call as busy"},
+                 {"hold" /* do_gsm_hold */, "change the state of an active call to 'held'"},
+                 {"accept" /* do_gsm_accept */,
+                  "change the state of an incoming or held call to 'active'"},
+                 {"cancel" /* do_gsm_cancel */, "disconnect an inbound or outbound phone call"},
+         }) {
+        gsm.On(cmd, abstract, deprecated_str_arg);
+    }
 
     gsm.On("data" /* do_gsm_data */, "modify data connection state",
-           "the 'gsm data <state>' allows you to change the state of your GPRS connection\r\n"
-           "valid values for <state> are the following:\r\n\r\n"
-           "  unregistered    no network available\r\n"
-           "  home            on local network, non-roaming\r\n"
-           "  roaming         on roaming network\r\n"
-           "  searching       searching networks\r\n"
-           "  denied          emergency calls only\r\n"
-           "  off             same as 'unregistered'\r\n"
-           "  on              same as 'home'\r\n",
-           [](ConsoleContext& /*ctx*/, const std::string& /*state*/) {
-               return GsmDeprecatedError();
-           });
+           absl::StrCat("the 'gsm data <state>' allows you to change the state of your GPRS "
+                        "connection\r\n",
+                        kGsmStateValuesHelp),
+           deprecated_str_arg);
 
     gsm.On("meter" /* do_gsm_meter */, "modify mobile data meterness",
            "the 'gsm meter <on|off>' allows you to change the meterness of your mobile data "
@@ -82,23 +78,12 @@ void RegisterGsmCommands(CommandRegistryBuilder::NodeBuilder& gsm) {
            [](ConsoleContext& /*ctx*/, bool /*metered*/) { return GsmDeprecatedError(); });
 
     gsm.On("voice" /* do_gsm_voice */, "modify voice connection state",
-           "the 'gsm voice <state>' allows you to change the state of your voice connection\r\n"
-           "valid values for <state> are the following:\r\n\r\n"
-           "  unregistered    no network available\r\n"
-           "  home            on local network, non-roaming\r\n"
-           "  roaming         on roaming network\r\n"
-           "  searching       searching networks\r\n"
-           "  denied          emergency calls only\r\n"
-           "  off             same as 'unregistered'\r\n"
-           "  on              same as 'home'\r\n",
-           [](ConsoleContext& /*ctx*/, const std::string& /*state*/) {
-               return GsmDeprecatedError();
-           });
+           absl::StrCat("the 'gsm voice <state>' allows you to change the state of your voice "
+                        "connection\r\n",
+                        kGsmStateValuesHelp),
+           deprecated_str_arg);
 
-    gsm.On("status" /* do_gsm_status */, "display GSM status",
-           [](ConsoleContext& /*ctx*/) -> absl::StatusOr<std::string> {
-               return GsmDeprecatedError();
-           });
+    gsm.On("status" /* do_gsm_status */, "display GSM status", deprecated_no_args);
 
     gsm.On("signal" /* do_gsm_signal */, "set the rssi and ber",
            [](ConsoleContext& /*ctx*/, int /*rssi*/, std::optional<int> /*ber*/) {

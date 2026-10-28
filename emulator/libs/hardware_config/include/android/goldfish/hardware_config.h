@@ -25,7 +25,6 @@ namespace android::goldfish {
 namespace fs = std::filesystem;
 
 using base::StorageCapacity;
-using base::operator""_MiB;
 
 class HardwareConfig {
   public:
@@ -47,7 +46,6 @@ class HardwareConfig {
 #define HWCFG_DOUBLE(n, s, d, a, t) visitor(#n, n);
 #define HWCFG_DISKSIZE(n, s, d, a, t) visitor(#n, n);
 #include "avd/hw-config-defs.h"
-        visitor("hw_sd_card_size", hw_sd_card_size);
     }
 
 #define HWCFG_BOOL(n, s, d, a, t) bool n;
@@ -57,7 +55,6 @@ class HardwareConfig {
 #define HWCFG_DISKSIZE(n, s, d, a, t) StorageCapacity n;
 
 #include "avd/hw-config-defs.h"
-    StorageCapacity hw_sd_card_size{512_MiB};
 };
 
 }  // namespace android::goldfish

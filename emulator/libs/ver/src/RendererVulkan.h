@@ -19,6 +19,7 @@
 #include <vulkan/vulkan.h>
 
 #include <condition_variable>
+#include <cstdint>
 #include <deque>
 #include <filesystem>
 #include <functional>
@@ -29,6 +30,8 @@
 #include <thread>
 #include <unordered_map>
 #include <vector>
+
+#include "absl/time/time.h"
 
 #include "Renderer.h"
 #include "TextureUtils.h"
@@ -55,7 +58,8 @@ class RendererVulkan : public Renderer {
     // Renderer public API.
     float getAspectRatio() override;
     bool isTextureLoaded(Texture texture) override;
-    void getTextureInfo(Texture texture, uint32_t* outWidth, uint32_t* outHeight) override;
+    bool getTextureInfo(Texture texture, uint32_t* outWidth, uint32_t* outHeight,
+                        uint64_t* outGeneration) override;
 
     void releaseTexture(Texture texture) override;
     void releaseMaterial(Material material) override;
@@ -100,6 +104,16 @@ class RendererVulkan : public Renderer {
 
     enum class TextureState { Placeholder, Loaded };
 
+    // Identifies the version of a file on disk, used to detect that a cached
+    // texture is stale because its source file has been modified.
+    struct FileStamp {
+        bool valid = false;
+        absl::Time lastWriteTime;
+        uint64_t size = 0;
+
+        bool operator==(const FileStamp& rhs) const = default;
+    };
+
     struct TextureData {
         size_t mRefCount = 0;
         TextureState mState = TextureState::Loaded;
@@ -108,8 +122,10 @@ class RendererVulkan : public Renderer {
         goldfish::gvk::ImageView mImageView;
         VkDescriptorSet mDescriptorSet = VK_NULL_HANDLE;
         std::string mFilename;
+        FileStamp mFileStamp;
         uint32_t mWidth = 0;
         uint32_t mHeight = 0;
+        uint64_t mGeneration = 0;
     };
 
     enum class LoaderCommandType { Shutdown, LoadTexture };
@@ -126,14 +142,15 @@ class RendererVulkan : public Renderer {
 
     void releaseMaterialInternal(Material material);
     bool isStandardMaterial(Material material);
-    Texture tryGetCachedTexture(const char* filename);
+    static FileStamp getFileStamp(const std::filesystem::path& path);
+    Texture tryGetCachedTexture(const std::string& filename, const FileStamp& fileStamp);
     Texture createEmptyTexture(uint32_t width, uint32_t height);
     Texture createTextureInternal(TextureState state, const char* filename,
-                                  const TextureUtils::Result& data);
+                                  const FileStamp& fileStamp, const TextureUtils::Result& data);
     void onLoaderLoadTexture(Texture texture);
     bool replaceTextureInternal(Texture texture, const TextureUtils::Result& data);
 
-    void uploadTextureImage(TextureData& texData, const TextureUtils::Result& data);
+    bool uploadTextureImage(TextureData& texData, const TextureUtils::Result& data);
 
     uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
 
@@ -215,6 +232,7 @@ class RendererVulkan : public Renderer {
 
     std::mutex mResourceLock;
     int mNextResourceId = 0;
+    uint64_t mNextTextureGeneration = 1;
     std::unordered_map<int, MaterialData> mMaterials;
     std::unordered_map<int, MeshData> mMeshes;
     std::unordered_map<int, TextureData> mTextures;

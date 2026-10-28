@@ -15,8 +15,11 @@
 #include "avd_extended_universe.h"
 
 #include <chrono>
+#include <string>
 #include <thread>
 
+#include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/time/clock.h"
@@ -24,6 +27,7 @@
 
 #include "android/base/system.h"
 #include "android/crashreport/crash_reporter.h"
+#include "android/emulation/control/keyboard/key_code_resolver.h"
 #include "android/goldfish/qemu_vm_operations.h"
 #include "android/goldfish/vm_interface.h"
 #include "goldfish/adb/adb_host_server.h"
@@ -46,6 +50,7 @@ extern "C" {
 #include "hw/core/qdev.h"
 #include "system/reset.h"
 #include "qemu/main-loop.h"
+#include "ui/console.h"
 }
 #undef listen
 #undef shutdown
@@ -141,7 +146,8 @@ absl::Status AvdExtendedUniverse::Initialize() {
                 .store = std::make_unique<::goldfish::snapshot::FileSnapshotStore>(
                         avd_props.avd_content_path, avd_props.snapshot_version),
                 .enabled = avd_props.snapshots_enabled,
-            });
+            },
+            /*hang_detector=*/&android::crashreport::CrashReporter::GetCrashingHangDetector());
     auto is_active = [vm = avd_universe.vm_operations.get()]() { return vm->IsRunning(); };
 
     android::crashreport::CrashReporter::GetCrashingHangDetector().AddWatchedLooper(
@@ -197,7 +203,7 @@ absl::Status AvdExtendedUniverse::Initialize() {
     DEVS::gps::IGpsDevice::RegisterDevice(&avd_universe.GetLocation(), registry, qemu_loop.get());
 
     auto multi_display_device =
-            std::make_shared<DEVS::multidisplay::MultiDisplayDevice>(client_loop);
+            std::make_shared<DEVS::multidisplay::MultiDisplayDevice>(client_loop, qemu_loop.get());
     avd_universe.SetActiveMultiDisplayDevice(multi_display_device);
     DEVS::multidisplay::MultiDisplayDevice::RegisterDevice(multi_display_device, registry,
                                                            client_loop, qemu_loop.get());
@@ -208,12 +214,17 @@ absl::Status AvdExtendedUniverse::Initialize() {
                                  avd_props.avd_content_path, []() { return GetGrallocImpl(); });
 
     using namespace std::string_literals;
-    auto props = devices::boot::IBootPropertiesDevice::MakeProperties({
+    absl::flat_hash_map<std::string, std::string> boot_properties = {
         {"qemu.sf.fake_camera"s, emulatedCameraProp},
         {"qemu.sf.lcd_density"s, absl::StrCat(avd_props.hw_config.hw_lcd_density)},
         // This is the same value that is passed to the virtio-wifi module.
         {"net.wifi_mac_prefix"s, absl::StrCat(avd_props.serial_number)},
-    });
+    };
+    if (!avd_props.timezone.empty()) {
+        // The guest copies it into persist.sys.timezone.
+        boot_properties.emplace("qemu.timezone"s, avd_props.timezone);
+    }
+    auto props = devices::boot::IBootPropertiesDevice::MakeProperties(boot_properties);
     if (!props.ok()) {
         return props.status();
     }
@@ -228,6 +239,13 @@ absl::Status AvdExtendedUniverse::Initialize() {
             avd_universe.GetSensorsPhysicalModel().GetFoldableConfig());
     avd_universe.display_rotation_subscription = avd_universe.multi_display->RegisterPhysicalModel(
             avd_universe.GetSensorsPhysicalModel());
+
+    // Without a keyboard until InstallKeyboard(): QEMU has no consoles yet.
+    avd_universe.touch_devices_ = std::make_unique<::goldfish::grpc::v2::MultiDisplayTouchDevices>(
+            *avd_universe.multi_display, avd_props.hw_config.hw_sensor_hinge);
+    avd_universe.input_dispatcher_ = std::make_shared<::goldfish::grpc::v2::InputDispatcher>(
+            *qemu_loop, *avd_universe.touch_devices_, /*keyboard=*/nullptr,
+            android::emulation::control::keyboard::ResolveEvdevKeyCode);
 
     // Initialize the battery to a default state and register it.
     avd_universe.battery_subscription = DEVS::battery::RegisterBattery(
@@ -261,6 +279,11 @@ AvdExtendedUniverse::~AvdExtendedUniverse() {
     if (qemu_event_loop) {
         WaitUntilEventLoopsIdle();
         ShutdownQemuLoop();
+    }
+
+    // Input clients that outlive the universe may still hold the dispatcher.
+    if (input_dispatcher_) {
+        input_dispatcher_->Shutdown();
     }
 }
 
@@ -313,6 +336,17 @@ android::goldfish::VmOperations& AvdExtendedUniverse::GetVmOperations() {
 
 display::IMultiDisplay& AvdExtendedUniverse::GetMultiDisplay() const {
     return *multi_display;
+}
+
+std::shared_ptr<::goldfish::grpc::v2::IInputDispatcher> AvdExtendedUniverse::GetInputDispatcher() {
+    return input_dispatcher_;
+}
+
+void AvdExtendedUniverse::InstallKeyboard() {
+    DCHECK(keyboard_sink_ == nullptr) << "Keyboard is already installed";
+    keyboard_sink_ = std::make_unique<android::emulation::control::keyboard::QemuKeyboardSink>(
+            qemu_console_lookup_by_index(0), *qemu_event_loop);
+    input_dispatcher_->InstallKeyboardSink(*keyboard_sink_);
 }
 
 void AvdExtendedUniverse::OnPreSave() {

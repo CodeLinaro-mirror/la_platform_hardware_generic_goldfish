@@ -4,6 +4,9 @@
 **Location:** `hardware/generic/goldfish/emulator/plugin/hal`
 **Namespace:** `goldfish::devices`
 
+> [!IMPORTANT]
+> **Agent Playbook:** Before implementing or reviewing HAL devices, read [`AGENTS.md`](AGENTS.md) for `IConnectorRegistry` registration (`RegisterHalDevice` vs. `RegisterHalQemuDevice`), wire-framing rules, `client_loop` vs. `qemu_loop` threading invariants, `ObservableValue` lock-ordering, and `TestConnectorRegistry::Close()` teardown rules.
+
 ## Infrastructure
 The HALs communicate with the guest using a shared infrastructure stack:
 1.  **Connector (`emulator/plugin/hal/connector`):** The "Physical Layer" defining Plugs and Sockets.
@@ -31,6 +34,7 @@ The HALs communicate with the guest using a shared infrastructure stack:
 | :--- | :--- | :--- | :--- |
 | **camera** | Webcams and virtual scenes. | Goldfish Camera | [Architecture](camera/ARCHITECTURE.md) |
 | **multidisplay** | Secondary and foldable displays. | QEMUD / Virtio | [Architecture](multidisplay/ARCHITECTURE.md) |
+| **virtio_gpu_gfxstream** | 3D graphics card (gfxstream renderer). | Virtio GPU | [Architecture](virtio_gpu_gfxstream/ARCHITECTURE.md) |
 | **vehicle** | Android Automotive Vehicle HAL (VHAL). | VSOCK / QEMUD | [Architecture](vehicle/ARCHITECTURE.md) |
 | **unix_pipe** | Proxy to Host UDS. | Raw Stream | [Architecture](unix_pipe/ARCHITECTURE.md) |
 

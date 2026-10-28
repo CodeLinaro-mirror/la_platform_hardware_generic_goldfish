@@ -354,15 +354,34 @@ LibuvEventLoopImpl::~LibuvEventLoopImpl() {
     // Last ditch effort to close the wakeup handle if the loop was never shut down.
     if (uv_async_t* async = TakeOwnershipAsync()) {
         uv_close(reinterpret_cast<uv_handle_t*>(async), nullptr);
-        // Process the close callback immediately.
-        uv_run(&uv_loop_handle_, UV_RUN_NOWAIT);
+    }
+
+    // Close any remaining handles and drain pending close callbacks so
+    // uv_loop_close() does not fail with UV_EBUSY when handles (such as
+    // subprocesses or stdio pipes) were unreferenced or closed after Run()
+    // exited.
+    constexpr int kMaxDrainIterations = 10;
+    for (int i = 0; i < kMaxDrainIterations; ++i) {
+        bool has_handles = false;
+        uv_walk(
+                &uv_loop_handle_,
+                [](uv_handle_t* handle, void* arg) {
+                    *static_cast<bool*>(arg) = true;
+                    if (!uv_is_closing(handle)) {
+                        uv_close(handle, nullptr);
+                    }
+                },
+                &has_handles);
+        if (!has_handles && uv_loop_alive(&uv_loop_handle_) == 0) {
+            break;
+        }
+        uv_run(&uv_loop_handle_, UV_RUN_DEFAULT);
     }
 
     const int res = uv_loop_close(&uv_loop_handle_);
     if (res != 0) {
         LOG(WARNING) << "Failed to close uv_loop: " << uv_strerror(res);
         if (VLOG_IS_ON(1)) {
-            // Note it is expected that the launcher will "leak" handles of any detached processes.
             LOG(WARNING) << "The following handles were leaked:";
             uv_print_all_handles(&uv_loop_handle_, stderr);
         }

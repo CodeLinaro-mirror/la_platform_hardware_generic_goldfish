@@ -15,6 +15,7 @@
 
 #include <cstddef>
 #include <cstring>
+#include <utility>
 
 namespace goldfish::videobridge {
 
@@ -45,6 +46,11 @@ FakeVaapiDriver::~FakeVaapiDriver() {
     }
 }
 
+void FakeVaapiDriver::SetCodedSegments(std::vector<std::vector<uint8_t>> segments) {
+    custom_coded_segments_ = std::move(segments);
+    custom_segment_nodes_.clear();
+}
+
 void FakeVaapiDriver::Reset() {
     session_active_ = false;
     encode_calls_ = 0;
@@ -54,6 +60,8 @@ void FakeVaapiDriver::Reset() {
     last_framerate_ = 0;
     last_profile_ = VAProfileNone;
     last_frame_was_idr_ = false;
+    custom_coded_segments_.clear();
+    custom_segment_nodes_.clear();
 }
 
 VaapiFunctionList FakeVaapiDriver::CreateFunctionList() {
@@ -234,6 +242,23 @@ VAStatus FakeVaapiDriver::MapBuffer(VADisplay dpy, VABufferID buf_id, void** pbu
     if (!pbuf || !self) return VA_STATUS_ERROR_INVALID_PARAMETER;
 
     if (buf_id == 0x4000 + static_cast<uint32_t>(VAEncCodedBufferType)) {
+        if (!self->custom_coded_segments_.empty()) {
+            const size_t num_segments = self->custom_coded_segments_.size();
+            self->custom_segment_nodes_.assign(num_segments, VACodedBufferSegment{});
+            for (size_t i = 0U; i < num_segments; ++i) {
+                auto& seg_bytes = self->custom_coded_segments_[i];
+                auto& node = self->custom_segment_nodes_[i];
+                node.size = static_cast<uint32_t>(seg_bytes.size());
+                node.bit_offset = 0U;
+                node.status = VA_STATUS_SUCCESS;
+                node.reserved = 0U;
+                node.buf = seg_bytes.empty() ? nullptr : seg_bytes.data();
+                node.next =
+                        (i + 1U < num_segments) ? &self->custom_segment_nodes_[i + 1U] : nullptr;
+            }
+            *pbuf = self->custom_segment_nodes_.data();
+            return VA_STATUS_SUCCESS;
+        }
         const auto& src = self->last_frame_was_idr_ ? self->idr_bitstream_payload_
                                                     : self->delta_bitstream_payload_;
         std::memcpy(self->coded_buffer_data_.data(), src.data(), src.size());

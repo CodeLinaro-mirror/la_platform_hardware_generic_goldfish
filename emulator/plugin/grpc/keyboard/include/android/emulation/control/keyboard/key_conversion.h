@@ -198,6 +198,14 @@ uint32_t dom_code_to_evdev(std::string_view code);
  */
 uint32_t keycode_to_evdev(uint32_t from, KeyCodeType source);
 
+/**
+ * @brief Maps a supported Android system keycode (e.g. 3 for HOME) to its Linux evdev code.
+ *
+ * @param keycode The Android AKEYCODE_* value.
+ * @return The evdev KEY_* code, or 0 if the keycode is not supported.
+ */
+uint32_t android_keycode_to_evdev(int32_t keycode);
+
 }  // namespace keyboard
 }  // namespace control
 }  // namespace emulation

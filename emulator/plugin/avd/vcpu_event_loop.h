@@ -72,11 +72,15 @@ class VCpuEventLoop : public ::goldfish::async::EventLoop {
 
     VCpuEventLoop(int cpuIndex)
             : ::goldfish::async::EventLoop(absl::StrCat("VCpuLoop:", cpuIndex))
-            , mCpuIndex(cpuIndex) {}
+            , mCpuIndex(cpuIndex) {
+        SetState(::goldfish::async::LooperStatusEvent::State::kRunning);
+    }
 
     ~VCpuEventLoop() = default;
     VCpuEventLoop(VCpuEventLoop&& other)
-            : ::goldfish::async::EventLoop(other.GetName()), mCpuIndex(other.mCpuIndex) {}
+            : ::goldfish::async::EventLoop(other.GetName()), mCpuIndex(other.mCpuIndex) {
+        SetState(other.GetState());
+    }
 
     int getCpuIndex() const { return mCpuIndex; }
 

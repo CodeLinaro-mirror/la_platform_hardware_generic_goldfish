@@ -6,6 +6,7 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         "//emulator/launcher:avd",
+        "//emulator/launcher:feature_flags",
         "//emulator/launcher:input_paths",
         "//emulator/launcher/cmdline",
         "//emulator/libs/metrics:configure_metrics_writer",
@@ -146,6 +147,7 @@ cc_library(
     deps = [
         ":device",
         ":snapshot_device",
+        "//emulator/libs/timezone",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/strings",
     ],
@@ -204,7 +206,7 @@ cc_library(
     hdrs = ["display_device.h"],
     deps = [
         ":device",
-        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/strings",
     ],
 )
@@ -240,6 +242,7 @@ cc_library(
     deps = [
         ":device",
         ":snapshot_device",
+        ":virtio_gpu_selection",
         ":vulkan_gpu_device_info",
         "//emulator/libs/file",
         "//emulator/libs/gvk",
@@ -256,6 +259,19 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "goldfish_address_space_device",
+    srcs = ["goldfish_address_space_device.cc"],
+    hdrs = ["goldfish_address_space_device.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":device",
+        ":emulator_config",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/strings",
+    ],
+)
+
 cc_test(
     name = "gpu_device_test",
     size = "small",
@@ -265,11 +281,13 @@ cc_test(
         ":fake_emulator",
         ":gpu_device",
         ":snapshot_device",
+        ":virtio_gpu_selection",
         "//emulator/libs/file",
         "//emulator/libs/gvk",
         "//emulator/libs/status_macros:status_matcher_macros",
         "//emulator/libs/system:test-headers",
         "//emulator/libs/test:googletest_main",
+        "@abseil-cpp//absl/status:status_matchers",
         "@abseil-cpp//absl/strings",
     ],
 )
@@ -581,6 +599,7 @@ cc_library(
         ":disk_drive",
         ":user_data_drive",
         "//emulator/libs/fsimage:exfat",
+        "//emulator/libs/fsimage:qcow2",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
     ],
@@ -595,10 +614,41 @@ cc_test(
         ":fake_emulator",
         "//emulator/launcher:mock_avd",
         "//emulator/libs/fsimage:exfat",
+        "//emulator/libs/fsimage:qcow2",
         "//emulator/libs/system:test-headers",
         "//emulator/libs/test:googletest_main",
         "@abseil-cpp//absl/status:status_matchers",
         "@abseil-cpp//absl/strings",
+    ],
+)
+
+cc_library(
+    name = "virtio_gpu_selection",
+    srcs = ["virtio_gpu_selection.cc"],
+    hdrs = ["virtio_gpu_selection.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//emulator/launcher/cmdline",
+        "//emulator/libs/snapshot:snapshot_store",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+    ],
+)
+
+cc_test(
+    name = "virtio_gpu_selection_test",
+    size = "small",
+    srcs = ["virtio_gpu_selection_test.cc"],
+    deps = [
+        ":virtio_gpu_selection",
+        "//emulator/launcher/cmdline",
+        "//emulator/libs/snapshot:snapshot_store",
+        "//emulator/libs/status_macros:status_matcher_macros",
+        "//emulator/libs/test:googletest_main",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:status_matchers",
+        "@googletest//:gtest",
     ],
 )
 
@@ -609,10 +659,15 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":device",
+        ":virtio_gpu_selection",
+        "//emulator/libs/file",
+        "//emulator/libs/fsimage:qcow2",
         "//emulator/libs/metrics:snapshot_metrics",
         "//emulator/libs/snapshot:snapshot_store",
+        "//emulator/libs/status_macros",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
         "@gfxstream//host:gfxstream_backend_headers",
     ],
@@ -626,11 +681,14 @@ cc_test(
         ":device",
         ":fake_emulator",
         ":snapshot_device",
+        ":virtio_gpu_selection",
         "//emulator/libs/file",
+        "//emulator/libs/fsimage:qcow2",
         "//emulator/libs/status_macros:status_matcher_macros",
         "//emulator/libs/system:test-headers",
         "//emulator/libs/test:googletest_main",
         "@abseil-cpp//absl/status:status_matchers",
+        "@abseil-cpp//absl/strings",
     ],
 )
 
@@ -650,6 +708,7 @@ cc_library(
         ":display_device",
         ":emulator_config",
         ":env_passthrough_device",
+        ":goldfish_address_space_device",
         ":gpu_device",
         ":grpc_device",
         ":hugepage_device",
@@ -667,6 +726,7 @@ cc_library(
         "//emulator/launcher/cmdline",
         "//emulator/libs/async:launch_config",
         "//emulator/libs/system",
+        "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",

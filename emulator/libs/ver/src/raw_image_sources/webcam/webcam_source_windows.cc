@@ -729,7 +729,7 @@ class WindowsImpl : public WebcamSource::Impl {
         RawImageBufferViewFourCC view = {data, static_cast<size_t>(len), mPixelFormat, mWidth,
                                          mHeight};
         if (view.pixel_format != V4L2_PIX_FMT_RGB32) {
-            if (ConvertBufferToRGB32(view, conversion_storage_, staging_buffer_) != 0) {
+            if (ConvertBufferToRGB32(view, conversion_storage_) != 0) {
                 buffer->Unlock();
                 return absl::InternalError("Format conversion failed");
             }
@@ -752,7 +752,6 @@ class WindowsImpl : public WebcamSource::Impl {
     int mWidth = 0;
     int mHeight = 0;
     std::vector<uint8_t> conversion_storage_;
-    std::vector<uint8_t> staging_buffer_;
 };
 
 std::unique_ptr<WebcamSource::Impl> CreatePlatformWebcamImpl(

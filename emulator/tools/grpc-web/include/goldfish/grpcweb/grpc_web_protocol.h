@@ -61,6 +61,12 @@ class Protocol {
     static std::string PackFrame(uint8_t flag, std::string_view payload);
 
     /**
+     * @brief Packs a grpc::ByteBuffer directly into a 5-byte length-prefixed gRPC-Web frame
+     *        without allocating an intermediate payload string.
+     */
+    static std::string PackFrame(uint8_t flag, const grpc::ByteBuffer& payload);
+
+    /**
      * @brief Unpacks the first 5-byte length-prefixed frame from a buffer.
      * @param data Buffer containing at least one gRPC-Web frame.
      * @param bytes_consumed Optional output pointer indicating total bytes parsed (header +

@@ -7,21 +7,22 @@
 #include <gtest/gtest.h>
 
 #include <chrono>
-#include <condition_variable>
 #include <cstdint>
 #include <deque>
 #include <filesystem>
 #include <memory>
-#include <mutex>
 #include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
 
+#include "absl/base/thread_annotations.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
+#include "absl/synchronization/mutex.h"
 #include "absl/synchronization/notification.h"
+#include "absl/time/time.h"
 
 #include "android/base/testing/needs_winsock.h"
 #include "android/base/testing/test_system.h"
@@ -48,28 +49,31 @@ using websocket::StreamParser;
 class PacketQueue {
   public:
     PacketTransport::RecvCallback Callback(bool more = true) {
-        return [this, more](Packet& packet) {
-            {
-                std::lock_guard<std::mutex> lock(mu_);
-                packets_.push_back(std::move(packet));
-            }
-            cv_.notify_all();
+        return [this, more](Packet& packet) ABSL_LOCKS_EXCLUDED(mu_) {
+            const absl::MutexLock lock(mu_);
+            packets_.push_back(std::move(packet));
             return more;
         };
     }
 
-    std::optional<Packet> Pop(std::chrono::milliseconds timeout = std::chrono::seconds(5)) {
-        std::unique_lock<std::mutex> lock(mu_);
-        if (!cv_.wait_for(lock, timeout, [this] { return !packets_.empty(); })) return std::nullopt;
+    std::optional<Packet> Pop(std::chrono::milliseconds timeout = std::chrono::seconds(5))
+            ABSL_LOCKS_EXCLUDED(mu_) {
+        const absl::MutexLock lock(mu_);
+        if (!mu_.AwaitWithTimeout(
+                    absl::Condition(
+                            +[](std::deque<Packet>* packets) { return !packets->empty(); },
+                            &packets_),
+                    absl::FromChrono(timeout))) {
+            return std::nullopt;
+        }
         Packet packet = std::move(packets_.front());
         packets_.pop_front();
         return packet;
     }
 
   private:
-    std::mutex mu_;
-    std::condition_variable cv_;
-    std::deque<Packet> packets_;
+    std::deque<Packet> packets_ ABSL_GUARDED_BY(mu_);
+    absl::Mutex mu_;
 };
 
 std::vector<uint8_t> Bytes(size_t len, uint8_t seed = 0x42) {
@@ -165,6 +169,33 @@ TEST(WebSocketCodecTest, ValidatesHandshakeAndRejectsMalformedFrames) {
                          .ok());
 }
 
+TEST(WebSocketCodecTest, ApplyMaskMatchesByteByByteAcrossTailLengthsAndZeroMask) {
+    const MaskKey mask{{0x37, 0xFA, 0x21, 0x3D}};
+    const MaskKey zero_mask{{0x00, 0x00, 0x00, 0x00}};
+    for (size_t offset = 0; offset < 8; ++offset) {
+        for (size_t len = 0; len <= 40; ++len) {
+            const std::vector<uint8_t> original = Bytes(offset + len, 0x5A);
+            std::vector<uint8_t> buffer = original;
+            std::span<uint8_t> actual = std::span(buffer).subspan(offset, len);
+            websocket::ApplyMask(actual, mask);
+
+            std::vector<uint8_t> expected(original.begin() + offset,
+                                          original.begin() + offset + len);
+            for (size_t i = 0; i < len; ++i) {
+                expected[i] ^= mask.bytes[i % 4];
+            }
+            EXPECT_EQ(std::vector<uint8_t>(actual.begin(), actual.end()), expected)
+                    << "offset=" << offset << " len=" << len;
+
+            websocket::ApplyMask(actual, mask);
+            EXPECT_EQ(buffer, original) << "offset=" << offset << " len=" << len;
+
+            websocket::ApplyMask(actual, zero_mask);
+            EXPECT_EQ(buffer, original) << "offset=" << offset << " len=" << len;
+        }
+    }
+}
+
 TEST(StreamParserTest, ReassemblesFragmentsAndHandlesInterleavedControlFrames) {
     StreamParser parser;
     std::string key = "dGhlIHNhbXBsZSBub25jZQ==";
@@ -243,30 +274,32 @@ class FakeWebSocketPeer {
 
         ON_CALL(socket_factory_, CreateSocket(testing::_, testing::_))
                 .WillByDefault(testing::Return(socket_));
-        ON_CALL(*socket_, Connected()).WillByDefault([this] {
-            std::lock_guard<std::mutex> lock(mu_);
+        ON_CALL(*socket_, Connected()).WillByDefault([this]() ABSL_LOCKS_EXCLUDED(mu_) {
+            const absl::MutexLock lock(mu_);
             return connected_;
         });
-        ON_CALL(*socket_, Connect()).WillByDefault([this] {
+        ON_CALL(*socket_, Connect()).WillByDefault([this]() ABSL_LOCKS_EXCLUDED(mu_) {
             {
-                std::lock_guard<std::mutex> lock(mu_);
+                const absl::MutexLock lock(mu_);
                 connected_ = true;
             }
             socket_->SimulateConnected(absl::OkStatus());
             return absl::OkStatus();
         });
-        ON_CALL(*socket_, Close()).WillByDefault([this] {
+        ON_CALL(*socket_, Close()).WillByDefault([this]() ABSL_LOCKS_EXCLUDED(mu_) {
             {
-                std::lock_guard<std::mutex> lock(mu_);
+                const absl::MutexLock lock(mu_);
                 connected_ = false;
             }
             socket_->SimulateClose();
         });
         ON_CALL(*socket_, Send(testing::_, testing::_, testing::_))
                 .WillByDefault([this](const char* buf, size_t size,
-                                      goldfish::async::AsyncSocket::OnSendCallback on_send) {
-                    return OnClientSend(std::string_view(buf, size), std::move(on_send));
-                });
+                                      goldfish::async::AsyncSocket::OnSendCallback on_send)
+                                       ABSL_LOCKS_EXCLUDED(mu_) {
+                                           return OnClientSend(std::string_view(buf, size),
+                                                               std::move(on_send));
+                                       });
     }
 
     ~FakeWebSocketPeer() { loop_.reset(); }
@@ -281,8 +314,8 @@ class FakeWebSocketPeer {
         return options;
     }
 
-    std::string HandshakeHead() const {
-        std::lock_guard<std::mutex> lock(mu_);
+    std::string HandshakeHead() const ABSL_LOCKS_EXCLUDED(mu_) {
+        const absl::MutexLock lock(mu_);
         return handshake_head_;
     }
 
@@ -295,9 +328,13 @@ class FakeWebSocketPeer {
                 std::string_view(reinterpret_cast<const char*>(bytes.data()), bytes.size()));
     }
 
-    std::optional<Frame> ReadFrame(std::chrono::milliseconds timeout = 5s) {
-        std::unique_lock<std::mutex> lock(mu_);
-        if (!cv_.wait_for(lock, timeout, [this] { return !frames_.empty(); })) {
+    std::optional<Frame> ReadFrame(std::chrono::milliseconds timeout = 5s)
+            ABSL_LOCKS_EXCLUDED(mu_) {
+        const absl::MutexLock lock(mu_);
+        if (!mu_.AwaitWithTimeout(
+                    absl::Condition(
+                            +[](std::deque<Frame>* frames) { return !frames->empty(); }, &frames_),
+                    absl::FromChrono(timeout))) {
             return std::nullopt;
         }
         Frame frame = std::move(frames_.front());
@@ -307,10 +344,11 @@ class FakeWebSocketPeer {
 
   private:
     absl::Status OnClientSend(std::string_view data,
-                              goldfish::async::AsyncSocket::OnSendCallback on_send) {
+                              goldfish::async::AsyncSocket::OnSendCallback on_send)
+            ABSL_LOCKS_EXCLUDED(mu_) {
         std::optional<std::string> handshake_reply;
         {
-            std::lock_guard<std::mutex> lock(mu_);
+            const absl::MutexLock lock(mu_);
             if (!handshake_done_) {
                 handshake_head_.append(data.data(), data.size());
                 if (handshake_head_.find("\r\n\r\n") != std::string::npos) {
@@ -335,7 +373,6 @@ class FakeWebSocketPeer {
                     if (!decoded.ok() || !decoded->has_value()) break;
                     raw_sent_.erase(raw_sent_.begin(), raw_sent_.begin() + consumed);
                     frames_.push_back(**std::move(decoded));
-                    cv_.notify_all();
                 }
             }
         }
@@ -354,13 +391,12 @@ class FakeWebSocketPeer {
     testing::NiceMock<goldfish::async::testing::MockAsyncSocketFactory> socket_factory_;
     std::shared_ptr<testing::NiceMock<goldfish::async::testing::FakeAsyncSocket>> socket_;
 
-    mutable std::mutex mu_;
-    std::condition_variable cv_;
-    bool connected_ = false;
-    bool handshake_done_ = false;
-    std::string handshake_head_;
-    std::vector<uint8_t> raw_sent_;
-    std::deque<Frame> frames_;
+    bool connected_ ABSL_GUARDED_BY(mu_) = false;
+    bool handshake_done_ ABSL_GUARDED_BY(mu_) = false;
+    std::string handshake_head_ ABSL_GUARDED_BY(mu_);
+    std::vector<uint8_t> raw_sent_ ABSL_GUARDED_BY(mu_);
+    std::deque<Frame> frames_ ABSL_GUARDED_BY(mu_);
+    mutable absl::Mutex mu_;
 };
 
 TEST(WebSocketTransportTest, SimProfileAndNullLoopValidation) {

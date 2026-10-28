@@ -12,8 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_test")
+load("@aemu//tools/clang_tidy:defs.bzl", "clang_tidy_test")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+load("//emulator/tools:cc_binary_with_manifest.bzl", "cc_binary_with_manifest")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -55,9 +56,6 @@ cc_library(
     includes = ["include"],
     deps = [
         ":http_messages",
-        "@abseil-cpp//absl/container:flat_hash_map",
-        "@abseil-cpp//absl/container:flat_hash_set",
-        "@abseil-cpp//absl/hash",
         "@abseil-cpp//absl/strings",
     ],
 )
@@ -73,9 +71,21 @@ cc_test(
 )
 
 cc_library(
+    name = "http_session_internal",
+    hdrs = ["src/http_session_internal.h"],
+    strip_include_prefix = "src",
+    visibility = ["//visibility:private"],
+    deps = [
+        ":http_messages",
+        "@llhttp",
+    ],
+)
+
+cc_library(
     name = "http_session",
     srcs = ["src/http_session.cc"],
     hdrs = ["include/goldfish/http/http_session.h"],
+    implementation_deps = [":http_session_internal"],
     includes = ["include"],
     deps = [
         ":http_messages",
@@ -98,10 +108,12 @@ cc_test(
     srcs = ["test/http_session_test.cc"],
     deps = [
         ":http_session",
+        ":http_session_internal",
         "//emulator/libs/async:async_testing",
         "//emulator/libs/network",
         "//emulator/libs/test:googletest_main",
         "@abseil-cpp//absl/strings",
+        "@llhttp",
     ],
 )
 
@@ -163,10 +175,29 @@ cc_test(
     ],
 )
 
+cc_binary_with_manifest(
+    name = "http_perf",
+    srcs = ["test/http_perf.cc"],
+    tags = ["benchmark"],
+    deps = [
+        ":http_messages",
+        ":http_router",
+        ":http_session_internal",
+        "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/container:flat_hash_set",
+        "@abseil-cpp//absl/hash",
+        "@abseil-cpp//absl/strings",
+        "@google_benchmark//:benchmark",
+        "@llhttp",
+    ],
+)
+
 clang_tidy_test(
     name = "tidy",
     targets = [
         ":http_messages",
+        ":http_perf",
         ":http_router",
         ":http_session",
         ":web_server",

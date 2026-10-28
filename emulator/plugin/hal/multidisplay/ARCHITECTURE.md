@@ -15,7 +15,7 @@
 
 ## Dependencies
 * **HAL Connector:** `//emulator/plugin/hal/connector:cable`, `//emulator/plugin/hal/connector:qemud`.
-* **AVD:** `//emulator/plugin/avd:gralloc_impl`.
+* **AVD:** `//emulator/plugin/avd:gralloc_impl` (read-back through `//emulator/plugin/hal/virtio_gpu_gfxstream:virtio_gpu_glue`).
 * **Async & VM:** `//emulator/libs/async:async_api`, `//emulator/plugin/vminterface`.
 
 ## Threading Model
