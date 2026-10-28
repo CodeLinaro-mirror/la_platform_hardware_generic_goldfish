@@ -20,6 +20,7 @@
 #include "absl/synchronization/mutex.h"
 
 #include "goldfish/display/pixman_display.h"
+#include "goldfish/display/virtio_input_tracker.h"
 
 extern "C" {
 #include "pixman.h"
@@ -52,6 +53,7 @@ class QemuDisplay : public PixmanDisplay {
     void SendEvDevReport(EvDevEvents events) override;
     void WriteEvDevReportOnLoop(absl::Span<const EvDevEvent> events) override;
     bool IsInputActive() const override;
+    uint64_t InputActiveGeneration() const override;
 
     void SetOwnedSurface(DisplaySurface* surface);
 
@@ -79,6 +81,7 @@ class QemuDisplay : public PixmanDisplay {
     QemuConsole* console_;
     EventLoop* qemu_loop_;
     ::VirtIOInputHID* vhid_ = nullptr;
+    VirtioInputActiveTracker input_active_tracker_;
     int last_bmask_ ABSL_GUARDED_BY(send_lock_) = 0;
     struct touch_slot touch_slots_[INPUT_EVENT_SLOTS_MAX];
     absl::Mutex send_lock_;

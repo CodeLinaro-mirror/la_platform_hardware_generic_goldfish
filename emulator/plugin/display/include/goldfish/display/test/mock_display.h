@@ -34,6 +34,7 @@ class MockDisplay : public IDisplay {
     MOCK_METHOD(void, SendEvDevReport, (EvDevEvents events), (override));
     MOCK_METHOD(void, WriteEvDevReportOnLoop, (absl::Span<const EvDevEvent> events), (override));
     MOCK_METHOD(bool, IsInputActive, (), (const, override));
+    MOCK_METHOD(uint64_t, InputActiveGeneration, (), (const, override));
     MOCK_METHOD(void, OnDemand, (bool has_consumers), (override));
     MOCK_METHOD(void, OnFrameRequested, (), (override));
 

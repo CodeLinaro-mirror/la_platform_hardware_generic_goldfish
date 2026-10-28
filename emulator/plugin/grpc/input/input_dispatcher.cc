@@ -80,11 +80,13 @@ absl::Status AddTarget(TouchDevices& devices, TouchDeviceId device, Reports& rep
     return absl::OkStatus();
 }
 
-void WriteReports(const ::goldfish::async::EventLoop& loop, const Reports& reports) {
+void WriteReports(const ::goldfish::async::EventLoop& loop, const Reports& reports,
+                  absl::flat_hash_map<TouchDeviceId, uint64_t>& active_generations) {
     DCHECK(loop.IsOnLoopThread());
     for (const DeviceReport& report : reports) {
         if (!report.events.empty()) {
             report.sink->WriteReport(report.events);
+            active_generations.try_emplace(report.device, report.sink->ActiveGeneration());
         }
         if (!report.follow_up.empty()) {
             report.sink->WriteReport(report.follow_up);
@@ -128,9 +130,12 @@ InputDispatcher::InputDispatcher(::goldfish::async::EventLoop& loop, TouchDevice
         , resolve_key_code_(std::move(resolve_key_code))
         , clock_(clock)
         , max_pending_per_session_(max_pending_per_session)
+        , active_gate_(std::make_shared<ActiveGate>(this))
         , keyboard_(keyboard)
         , delivery_thread_([this] { DeliverActivity(); }) {
     DCHECK_GT(max_pending_per_session_, 0U);
+    devices_active_subscription_ =
+            devices_.AddActiveChangedListener([this](TouchDeviceId) { OnDeviceActiveChanged(); });
 }
 
 InputDispatcher::~InputDispatcher() {
@@ -143,6 +148,11 @@ void InputDispatcher::Shutdown() {
 }
 
 void InputDispatcher::ShutdownOnce() {
+    devices_active_subscription_.reset();
+    {
+        absl::MutexLock gate_lock(active_gate_->mutex);
+        active_gate_->dispatcher = nullptr;
+    }
     absl::flat_hash_map<OperationId, PendingOperation> pending;
     {
         absl::MutexLock pending_lock(pending_mutex_);
@@ -166,6 +176,18 @@ void InputDispatcher::ShutdownOnce() {
 bool InputDispatcher::IsShutDown() const {
     absl::MutexLock pending_lock(pending_mutex_);
     return shut_down_;
+}
+
+void InputDispatcher::OnDeviceActiveChanged() {
+    if (IsShutDown()) {
+        return;
+    }
+    loop_.Post([gate = active_gate_] {
+             absl::MutexLock gate_lock(gate->mutex);
+             if (gate->dispatcher != nullptr && !gate->dispatcher->IsShutDown()) {
+                 gate->dispatcher->ResyncDevices();
+             }
+         }).IgnoreError();
 }
 
 InputSessionId InputDispatcher::OpenSession(SessionOptions options) {
@@ -288,6 +310,7 @@ absl::StatusOr<InputDispatcher::SessionOptions> InputDispatcher::FindSession(
 
 absl::Status InputDispatcher::ApplyPointer(InputSessionId session, const PointerEvent& event) {
     ASSIGN_OR_RETURN(SessionOptions options, FindSession(session));
+    ResyncDevices();
     const PointerAction action = event.action();
     if (action == PointerAction::POINTER_ACTION_RELATIVE_MOVE ||
         action == PointerAction::POINTER_ACTION_SCROLL) {
@@ -357,7 +380,7 @@ absl::Status InputDispatcher::ApplyPointer(InputSessionId session, const Pointer
             *reported.add_pointers() = pointer;
         }
     }
-    WriteReports(loop_, reports);
+    WriteReports(loop_, reports, active_generations_);
     if (!reported.pointers().empty()) {
         Report(std::move(applied));
     }
@@ -374,7 +397,7 @@ absl::Status InputDispatcher::CancelOnDisplay(InputSessionId session, int32_t so
         AppendLift(action, contact.slot, reports.front());
         cancel.mutable_pointer()->add_pointers()->set_pointer_id(key.pointer_id);
     }
-    WriteReports(loop_, reports);
+    WriteReports(loop_, reports, active_generations_);
     if (!cancel.pointer().pointers().empty()) {
         Report(std::move(cancel));
     }
@@ -455,30 +478,21 @@ void InputDispatcher::ReleaseSession(InputSessionId session) {
         return;  // Only open sessions hold contacts or keys.
     }
     const int32_t source_id = options->second.source_id;
-    sessions_.erase(options);
+    ResyncDevices();
     // Contacts on inactive devices are forgotten without a report.
     Reports reports;
-    // One CANCEL per display the contacts were requested on, as activity
-    // reports the requested display, not the device it resolved to.
-    std::vector<InputEvent> cancels;
+    ReleasedContacts written;
     for (const auto& [key, contact] : contacts_.ReleaseSession(session)) {
         if (!AddTarget(devices_, contact.device, reports).ok()) {
             continue;
         }
         DeviceReport& report = ReportFor(reports, contact.device);
         AppendContactCancel(contact.slot, report.events, report.follow_up);
-        auto cancel = std::ranges::find(cancels, contact.display_id, [](const InputEvent& event) {
-            return event.pointer().display_id();
-        });
-        if (cancel == cancels.end()) {
-            cancel = cancels.insert(cancel, CancelEvent(source_id, contact.display_id));
-        }
-        cancel->mutable_pointer()->add_pointers()->set_pointer_id(key.pointer_id);
+        written.emplace_back(key, contact);
     }
-    WriteReports(loop_, reports);
-    for (InputEvent& cancel : cancels) {
-        Report(std::move(cancel), /*synthesized=*/true);
-    }
+    WriteReports(loop_, reports, active_generations_);
+    ReportCancels(written);
+    sessions_.erase(session);
 
     std::vector<uint32_t> held;
     for (const auto& [code, holders] : key_holders_) {
@@ -497,12 +511,46 @@ void InputDispatcher::ReleaseSession(InputSessionId session) {
     }
 }
 
+void InputDispatcher::ResyncDevices() {
+    for (auto& [device, generation] : active_generations_) {
+        const TouchDeviceSink* sink = devices_.Find(device);
+        if (sink == nullptr || sink->ActiveGeneration() == generation) {
+            continue;
+        }
+        generation = sink->ActiveGeneration();
+        ReportCancels(contacts_.ClearDevice(device));
+    }
+}
+
+void InputDispatcher::ReportCancels(const ReleasedContacts& released) {
+    // Activity reports the requested display, not the device it resolved to.
+    std::vector<std::pair<InputSessionId, InputEvent>> cancels;
+    for (const auto& [key, contact] : released) {
+        auto cancel = std::ranges::find_if(cancels, [&](const auto& session_cancel) {
+            return session_cancel.first == key.session &&
+                   session_cancel.second.pointer().display_id() == contact.display_id;
+        });
+        if (cancel == cancels.end()) {
+            const int32_t source_id = sessions_.at(key.session).source_id;
+            cancel = cancels.emplace(cancels.end(), key.session,
+                                     CancelEvent(source_id, contact.display_id));
+        }
+        cancel->second.mutable_pointer()->add_pointers()->set_pointer_id(key.pointer_id);
+    }
+    for (auto& [session, cancel] : cancels) {
+        Report(std::move(cancel), /*synthesized=*/true);
+    }
+}
+
 void InputDispatcher::Report(InputEvent event, bool synthesized) {
     DCHECK(loop_.IsOnLoopThread());
-    reported_at_ = clock_->Now(ClockType::kRealtime);
+    const absl::Time now = clock_->Now(ClockType::kRealtime);
+    if (!synthesized) {
+        reported_at_ = now;
+    }
     InputActivity activity;
     *activity.mutable_event() = std::move(event);
-    activity.set_dispatched_at_nanos(absl::ToUnixNanos(*reported_at_));
+    activity.set_dispatched_at_nanos(absl::ToUnixNanos(now));
     activity.set_synthesized(synthesized);
     absl::MutexLock outbox_lock(outbox_mutex_);
     outbox_.push_back({next_sequence_++, std::move(activity)});

@@ -84,6 +84,15 @@ void virtio_input_send_evdev(VirtIOInputHID* vhid, uint16_t type, uint16_t code,
 bool virtio_input_hid_is_active(const VirtIOInputHID* vhid);
 
 /**
+ * @brief Returns the active generation of a virtio-input-android device: a
+ * counter that changes each time its guest driver goes active or inactive.
+ *
+ * @param vhid The virtio-input-android device, or NULL.
+ * @return Its VIRTIO_INPUT_ANDROID_ACTIVE_GENERATION, or 0 if `vhid` is NULL.
+ */
+uint64_t virtio_input_hid_active_generation(const VirtIOInputHID* vhid);
+
+/**
  * @brief Dumps detailed information about a VirtIOInputHID device into a buffer.
  *
  * This function populates the provided buffer with a string representation

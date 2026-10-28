@@ -33,6 +33,24 @@
 
 namespace goldfish::display {
 
+void InputActiveListenerDeleter::operator()(size_t id) const {
+    if (id == InputActiveEventSource::kInvalidCallbackId) {
+        return;
+    }
+    if (auto locked = source.lock()) {
+        locked->RemoveCallback(id);
+    }
+}
+
+ScopedInputActiveListener IDisplay::AddInputActiveListener(
+        InputActiveEventSource::EventCallback listener) {
+    if (!listener) {
+        return ScopedInputActiveListener{};
+    }
+    const size_t id = input_active_events_->AddCallback(std::move(listener));
+    return ScopedInputActiveListener(id, InputActiveListenerDeleter(input_active_events_));
+}
+
 Orientation IDisplay::GetOrientation(int w, int h) {
     if (w > h) return Orientation::kLandscape;
     if (h > w) return Orientation::kPortrait;

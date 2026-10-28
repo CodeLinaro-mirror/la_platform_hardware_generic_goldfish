@@ -166,6 +166,7 @@ class FakeSink : public TouchDeviceSink {
             : loop_(loop), name_(std::move(name)), log_(log) {}
 
     bool IsActive() const override { return active; }
+    uint64_t ActiveGeneration() const override { return active_generation; }
     void WriteReport(absl::Span<const EvDevEvent> events) override {
         reports.emplace_back(events.begin(), events.end());
         on_loop_thread.push_back(loop_.IsOnLoopThread());
@@ -175,6 +176,8 @@ class FakeSink : public TouchDeviceSink {
     }
 
     bool active = true;
+    // Bump to simulate a reset or re-probe of the guest driver.
+    uint64_t active_generation = 0;
     std::vector<std::vector<EvDevEvent>> reports;
     std::vector<bool> on_loop_thread;
     GuestTouchState guest;
@@ -205,6 +208,15 @@ class FakeTouchDevices : public TouchDevices {
             return &inner;
         }
         return device == kOuter ? &outer : nullptr;
+    }
+
+    // Simulates a guest driver reset or re-probe on `device`: advances its
+    // active generation and fires the push notification.
+    void ResetDriver(TouchDeviceId device) {
+        if (FakeSink* sink = device == kInner ? &inner : (device == kOuter ? &outer : nullptr)) {
+            ++sink->active_generation;
+            NotifyActiveChanged(device);
+        }
     }
 
     FakeSink inner;
@@ -536,6 +548,96 @@ TEST_F(InputDispatcherTest, InactiveDeviceRejectsEventAndKeepsState) {
     ASSERT_THAT(Dispatch(a, Touch(kMove, {{0, 0.5F, 0.5F}})), IsOk());
     EXPECT_THAT(inner_.reports, SizeIs(2));
     EXPECT_THAT(inner_.guest.Active(), ElementsAre(ContactAt(0.5F, 0.5F)));
+}
+
+TEST_F(InputDispatcherTest, DriverResetPushEagerlyCancelsContactsWithoutSubsequentInput) {
+    const InputSessionId a = Source(1);
+    const InputSessionId b = Source(2);
+    ASSERT_THAT(Dispatch(a, Touch(kDown, {{0}, {1}})), IsOk());
+    ASSERT_THAT(Dispatch(b, Touch(kDown, {{0}})), IsOk());
+    ASSERT_THAT(Dispatch(a, Touch(kDown, {{2, 0.25F, 0.25F}}, 1)), IsOk());
+    Activities();
+    const size_t written = inner_.reports.size();
+
+    // The guest driver of the inner device resets while fingers are down and no
+    // new client pointer RPC arrives: the push notification immediately posts a
+    // resync task onto the loop.
+    devices_.ResetDriver(kInner);
+    loop_->RunAll();
+
+    EXPECT_THAT(inner_.reports, SizeIs(written));
+    EXPECT_THAT(Activities(),
+                ElementsAre("src1 synthesized POINTER_ACTION_CANCEL display 0 ids 0 1",
+                            "src2 synthesized POINTER_ACTION_CANCEL display 0 ids 0"));
+
+    // Subsequent moves of the cleared pointer are ignored without duplicate
+    // cancels; a new DOWN gets a fresh slot; the outer contact is intact.
+    std::optional<DispatchResult> moved;
+    dispatcher_.DispatchPointer(a, Touch(kMove, {{0, 0.5F, 0.5F}}),
+                                [&moved](DispatchResult done) { moved = std::move(done); });
+    loop_->RunAll();
+    ASSERT_TRUE(moved.has_value());
+    EXPECT_THAT(moved->status, IsOk());
+    EXPECT_EQ(moved->dispatched_at, std::nullopt);
+    EXPECT_THAT(inner_.reports, SizeIs(written));
+    EXPECT_THAT(Activities(), IsEmpty());
+
+    ASSERT_THAT(Dispatch(a, Touch(kDown, {{0}})), IsOk());
+    ASSERT_THAT(inner_.reports.back(), SizeIs(::testing::Ge(2)));
+    EXPECT_EQ(inner_.reports.back()[0], (EvDevEvent{EV_ABS, ABS_MT_SLOT, 0}));
+    EXPECT_EQ(inner_.reports.back()[1], (EvDevEvent{EV_ABS, ABS_MT_TRACKING_ID, 0}));
+    ASSERT_THAT(Dispatch(a, Touch(kMove, {{2, 0.75F, 0.75F}})), IsOk());
+    EXPECT_THAT(outer_.guest.Active(), ElementsAre(ContactAt(0.75F, 0.75F)));
+}
+
+TEST_F(InputDispatcherTest, DriverResetBeforeQueuedOperationsResyncsOnceAndPreservesNewDown) {
+    const InputSessionId a = dispatcher_.OpenSession({.source_id = 1, .reject_down_on_held = true});
+    ASSERT_THAT(Dispatch(a, Touch(kDown, {{0, 0.1F, 0.1F}})), IsOk());
+    Activities();
+    const size_t written = inner_.reports.size();
+
+    // Queue a MOVE and a fresh DOWN on the loop before the vCPU push posts its
+    // resync task behind them: ApplyPointer()'s pre-operation ResyncDevices()
+    // fences the generation change ahead of MOVE, lets DOWN acquire slot 0 on
+    // the new generation, and makes the trailing push task a no-op.
+    dispatcher_.DispatchPointer(a, Touch(kMove, {{0, 0.5F, 0.5F}}));
+    dispatcher_.DispatchPointer(a, Touch(kDown, {{0, 0.8F, 0.8F}}));
+    devices_.ResetDriver(kInner);
+    loop_->RunAll();
+
+    EXPECT_THAT(inner_.reports, SizeIs(written + 1));
+    EXPECT_THAT(Activities(), ElementsAre("src1 synthesized POINTER_ACTION_CANCEL display 0 ids 0",
+                                          "src1 POINTER_ACTION_DOWN display 0 ids 0"));
+}
+
+TEST_F(InputDispatcherTest, CloseSessionAfterDriverResetWritesNoRelease) {
+    const InputSessionId a = Source(1);
+    ASSERT_THAT(Dispatch(a, Touch(kDown, {{0}})), IsOk());
+    Activities();
+    const size_t written = inner_.reports.size();
+
+    // Queue CloseSession ahead of the push resync task so CloseSession's
+    // pre-operation ResyncDevices() runs first.
+    dispatcher_.CloseSession(a);
+    devices_.ResetDriver(kInner);
+
+    EXPECT_THAT(Activities(),
+                ElementsAre("src1 synthesized POINTER_ACTION_CANCEL display 0 ids 0"));
+    EXPECT_THAT(inner_.reports, SizeIs(written));
+}
+
+TEST_F(InputDispatcherTest, DriverResetPushSafeWhenDispatcherDestroyedBeforeLoopDrains) {
+    auto dispatcher = std::make_unique<InputDispatcher>(*loop_, devices_, &keyboard_,
+                                                        ResolveEvdevOnly, &clock_);
+    const InputSessionId a = dispatcher->OpenSession({.source_id = 1});
+    dispatcher->DispatchPointer(a, Touch(kDown, {{0}}));
+    loop_->RunAll();
+
+    // Queue an active-change resync task on `loop_`, then destroy `dispatcher`
+    // before `loop_->RunAll()` drains it.
+    devices_.ResetDriver(kInner);
+    dispatcher.reset();
+    loop_->RunAll();
 }
 
 TEST_F(InputDispatcherTest, MissingDeviceIsUnavailable) {
