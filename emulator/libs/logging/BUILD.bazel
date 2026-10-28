@@ -33,6 +33,34 @@ cc_test(
 )
 
 cc_library(
+    name = "studio_log_sink",
+    srcs = ["studio_log_sink.cc"],
+    hdrs = ["include/android/base/studio_log_sink.h"],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":color_log_sink",
+        "@abseil-cpp//absl/base:no_destructor",
+        "@abseil-cpp//absl/log:absl_log",
+        "@abseil-cpp//absl/log:log_entry",
+    ],
+)
+
+cc_test(
+    name = "studio_log_sink_test",
+    size = "small",
+    srcs = ["studio_log_sink_test.cc"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":color_log_sink",
+        ":studio_log_sink",
+        "//emulator/libs/test:googletest_main",
+        "@abseil-cpp//absl/log:globals",
+        "@abseil-cpp//absl/log:log_sink_registry",
+    ],
+)
+
+cc_library(
     name = "absl_c_bridge",
     srcs = ["abseil_log_bridge.cc"],
     hdrs = ["include/android/base/logging/abseil_log_bridge.h"],
@@ -80,6 +108,7 @@ clang_tidy_test(
     name = "tidy",
     targets = [
         ":color_log_sink",
+        ":studio_log_sink",
         ":absl_c_bridge",
     ],
     tidy_config_file = "//:clang_tidy_config",

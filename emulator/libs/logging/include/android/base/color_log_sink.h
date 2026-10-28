@@ -66,7 +66,8 @@ class ColorLogSink : public absl::LogSink {
      */
     virtual std::string_view TranslateSeverity(const absl::LogEntry& entry) const;
 
-    void SetVerbosity(bool verbose) { verbose_ = verbose; };
+    void SetVerbosity(bool verbose) { verbose_ = verbose; }
+    void SetOutputStream(std::ostream* stream) { output_stream_ = stream; }
 
   private:
     std::ostream* output_stream_;
