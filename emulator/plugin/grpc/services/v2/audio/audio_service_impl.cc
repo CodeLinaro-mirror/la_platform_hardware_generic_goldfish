@@ -381,6 +381,18 @@ class ClipPullSource final {
 };
 
 /**
+ * Returns the chunk's `source_id` when it is non-empty and differs from `active_source_id`.
+ */
+std::optional<std::string_view> ResolveUpdatedSourceId(const AudioChunk& chunk,
+                                                       std::string_view active_source_id) {
+    if (chunk.has_source_id() && !chunk.source_id().empty() &&
+        chunk.source_id() != active_source_id) {
+        return chunk.source_id();
+    }
+    return std::nullopt;
+}
+
+/**
  * Bridges a client-streaming `StreamMicrophoneAudio` RPC into `Options::microphone_sink` while
  * tracking mixer channel ownership, `source_id`, mute, and gain in a fallback `AudioInputMux`.
  */
@@ -436,11 +448,8 @@ class SinkMicrophoneSession final {
             }
 
             const AudioStreamConfig chunk_config = ToAudioStreamConfig(chunk);
-            std::optional<std::string_view> new_source_id;
-            if (chunk.has_source_id() && !chunk.source_id().empty() &&
-                chunk.source_id() != active_source_id_) {
-                new_source_id = chunk.source_id();
-            }
+            const std::optional<std::string_view> new_source_id =
+                    ResolveUpdatedSourceId(chunk, active_source_id_);
 
             if (chunk_config != active_config_ || new_source_id.has_value()) {
                 android::goldfish::RecursiveScopedVmLock vmlock;
@@ -548,11 +557,8 @@ class QemuMicrophoneSession final {
         }
 
         const AudioStreamConfig chunk_config = ToAudioStreamConfig(chunk);
-        std::optional<std::string_view> new_source_id;
-        if (chunk.has_source_id() && !chunk.source_id().empty() &&
-            chunk.source_id() != active_source_id_) {
-            new_source_id = chunk.source_id();
-        }
+        const std::optional<std::string_view> new_source_id =
+                ResolveUpdatedSourceId(chunk, active_source_id_);
 
         if (chunk_config != active_config_ || new_source_id.has_value()) {
             if (Status reconfig_status = ReconfigureLocked(chunk_config, new_source_id);
@@ -1163,19 +1169,9 @@ Status AudioServiceImpl::InjectAudioClip(ServerContext* context, const AudioChun
 
 AudioServiceImpl::MicrophoneStreamStart AudioServiceImpl::StartSinkMicrophoneStream(
         absl::string_view client_source_id) const {
-    auto session = std::make_shared<SinkMicrophoneSession>(
+    return StartSessionMicrophoneStream(std::make_shared<SinkMicrophoneSession>(
             sink_mux_state_->mux, options_.microphone_sink, clock_,
-            std::string(client_source_id), &ValidateMicrophoneChunk);
-    if (Status start_status = session->StartInitial(); !start_status.ok()) {
-        return MicrophoneStreamStart{.status = std::move(start_status)};
-    }
-    return MicrophoneStreamStart{
-        .status = Status::OK,
-        .on_chunk = [session](const AudioChunk* chunk) -> Status {
-            return session->WriteChunk(*chunk);
-        },
-        .stop_stream = [session]() { session->Stop(); },
-    };
+            std::string(client_source_id), &ValidateMicrophoneChunk));
 }
 
 AudioServiceImpl::MicrophoneStreamStart AudioServiceImpl::StartMicrophoneStream(
@@ -1191,18 +1187,8 @@ AudioServiceImpl::MicrophoneStreamStart AudioServiceImpl::StartMicrophoneStream(
     }
 
     (void)BindActiveMux();
-    auto session = std::make_shared<QemuMicrophoneSession>(
-            options_.audio_backend, std::string(client_source_id), &ValidateMicrophoneChunk);
-    if (Status start_status = session->StartInitial(); !start_status.ok()) {
-        return MicrophoneStreamStart{.status = std::move(start_status)};
-    }
-    return MicrophoneStreamStart{
-        .status = Status::OK,
-        .on_chunk = [session](const AudioChunk* chunk) -> Status {
-            return session->WriteChunk(*chunk);
-        },
-        .stop_stream = [session]() { session->Stop(); },
-    };
+    return StartSessionMicrophoneStream(std::make_shared<QemuMicrophoneSession>(
+            options_.audio_backend, std::string(client_source_id), &ValidateMicrophoneChunk));
 }
 
 ServerReadReactor<AudioChunk>* AudioServiceImpl::StreamMicrophoneAudio(
