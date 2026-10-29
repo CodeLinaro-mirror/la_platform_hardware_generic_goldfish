@@ -128,6 +128,20 @@ void SetMessageDetail(Breadcrumb& event, const ::google::protobuf::Message* msg,
     grpc_payload->set_msg_size(size);
 }
 
+Breadcrumb MakeGrpcBreadcrumb(uint64_t call_id, uint32_t method_hash, Breadcrumb::Phase phase,
+                              android::control::breadcrumbs::GrpcPayload::GrpcPhase grpc_phase) {
+    Breadcrumb event;
+    event.set_flow_id(call_id);
+    event.set_timestamp_ns(GetTimestampNs());
+    event.set_thread_id(GetOsThreadId());
+    event.set_phase(phase);
+
+    auto* grpc_payload = event.mutable_grpc();
+    grpc_payload->set_method_hash(method_hash);
+    grpc_payload->set_grpc_phase(grpc_phase);
+    return event;
+}
+
 }  // namespace
 
 goldfish::proto_data_store::RawCircularLog* BreadcrumbInterceptor::GetLogForTesting() {
@@ -138,45 +152,21 @@ BreadcrumbInterceptor::BreadcrumbInterceptor(const ClientRpcInfo* info, bool cap
         : call_id_(android::crashreport::AllocateGlobalFlowId())
         , method_hash_(info ? GetMethodCrc(info->method()) : 0)
         , capture_payload_(capture_payload) {
-    Breadcrumb event;
-    event.set_flow_id(call_id_);
-    event.set_timestamp_ns(GetTimestampNs());
-    event.set_thread_id(GetOsThreadId());
-    event.set_phase(Breadcrumb::FLOW_BEGIN);
-
-    auto* grpc_payload = event.mutable_grpc();
-    grpc_payload->set_method_hash(method_hash_);
-    grpc_payload->set_grpc_phase(android::control::breadcrumbs::GrpcPayload::START);
-    LogEvent(event);
+    LogEvent(MakeGrpcBreadcrumb(call_id_, method_hash_, Breadcrumb::FLOW_BEGIN,
+                                android::control::breadcrumbs::GrpcPayload::START));
 }
 
 BreadcrumbInterceptor::BreadcrumbInterceptor(const ServerRpcInfo* info, bool capture_payload)
         : call_id_(android::crashreport::AllocateGlobalFlowId())
         , method_hash_(info ? GetMethodCrc(info->method()) : 0)
         , capture_payload_(capture_payload) {
-    Breadcrumb event;
-    event.set_flow_id(call_id_);
-    event.set_timestamp_ns(GetTimestampNs());
-    event.set_thread_id(GetOsThreadId());
-    event.set_phase(Breadcrumb::FLOW_BEGIN);
-
-    auto* grpc_payload = event.mutable_grpc();
-    grpc_payload->set_method_hash(method_hash_);
-    grpc_payload->set_grpc_phase(android::control::breadcrumbs::GrpcPayload::START);
-    LogEvent(event);
+    LogEvent(MakeGrpcBreadcrumb(call_id_, method_hash_, Breadcrumb::FLOW_BEGIN,
+                                android::control::breadcrumbs::GrpcPayload::START));
 }
 
 BreadcrumbInterceptor::~BreadcrumbInterceptor() {
-    Breadcrumb event;
-    event.set_flow_id(call_id_);
-    event.set_timestamp_ns(GetTimestampNs());
-    event.set_thread_id(GetOsThreadId());
-    event.set_phase(Breadcrumb::FLOW_END);
-
-    auto* grpc_payload = event.mutable_grpc();
-    grpc_payload->set_method_hash(method_hash_);
-    grpc_payload->set_grpc_phase(android::control::breadcrumbs::GrpcPayload::END_OF_CALL);
-    LogEvent(event);
+    LogEvent(MakeGrpcBreadcrumb(call_id_, method_hash_, Breadcrumb::FLOW_END,
+                                android::control::breadcrumbs::GrpcPayload::END_OF_CALL));
 
     uint64_t failed = s_failed_pushes.load(std::memory_order_relaxed);
     static std::atomic<uint64_t> s_last_logged_failed{0};
@@ -200,19 +190,13 @@ void BreadcrumbInterceptor::Intercept(InterceptorBatchMethods* methods) {
             continue;
         }
 
-        Breadcrumb event;
-        event.set_flow_id(call_id_);
-        event.set_timestamp_ns(GetTimestampNs());
-        event.set_thread_id(GetOsThreadId());
-        event.set_phase(Breadcrumb::FLOW_STEP);
-
+        Breadcrumb event = MakeGrpcBreadcrumb(
+                call_id_, method_hash_, Breadcrumb::FLOW_STEP,
+                android::control::breadcrumbs::GrpcPayload::PRE_SEND_INITIAL_METADATA);
         auto* grpc_payload = event.mutable_grpc();
-        grpc_payload->set_method_hash(method_hash_);
 
         switch (hook) {
         case InterceptionHookPoints::PRE_SEND_INITIAL_METADATA:
-            grpc_payload->set_grpc_phase(
-                    android::control::breadcrumbs::GrpcPayload::PRE_SEND_INITIAL_METADATA);
             break;
         case InterceptionHookPoints::PRE_SEND_MESSAGE:
             grpc_payload->set_grpc_phase(

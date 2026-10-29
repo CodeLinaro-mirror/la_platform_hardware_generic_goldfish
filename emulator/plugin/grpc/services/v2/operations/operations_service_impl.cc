@@ -145,59 +145,53 @@ Status OperationsServiceImpl::ListOperations(ServerContext* /*context*/,
     return Status::OK;
 }
 
-Status OperationsServiceImpl::GetOperation(ServerContext* /*context*/,
-                                           const GetOperationRequest* request,
-                                           Operation* response) {
-    if (request->name().empty()) {
+Status OperationsServiceImpl::WithOperation(
+        std::string_view name, absl::FunctionRef<void(OperationMap::iterator)> fn) {
+    if (name.empty()) {
         return {StatusCode::INVALID_ARGUMENT, "Operation name cannot be empty."};
     }
 
     absl::MutexLock operations_lock(&operations_mutex_);
-    auto it = operations_.find(request->name());
+    auto it = operations_.find(name);
     if (it == operations_.end()) {
-        return {StatusCode::NOT_FOUND, absl::StrCat("Operation not found: ", request->name())};
+        return {StatusCode::NOT_FOUND, absl::StrCat("Operation not found: ", name)};
     }
-    RefreshIfInFlight(&it->second);
-    *response = it->second;
+    fn(it);
     return Status::OK;
+}
+
+Status OperationsServiceImpl::GetOperation(ServerContext* /*context*/,
+                                           const GetOperationRequest* request,
+                                           Operation* response) {
+    return WithOperation(request->name(),
+                         [&](auto it) ABSL_EXCLUSIVE_LOCKS_REQUIRED(operations_mutex_) {
+                             RefreshIfInFlight(&it->second);
+                             *response = it->second;
+                         });
 }
 
 Status OperationsServiceImpl::DeleteOperation(ServerContext* /*context*/,
                                               const DeleteOperationRequest* request,
                                               Empty* /*response*/) {
-    if (request->name().empty()) {
-        return {StatusCode::INVALID_ARGUMENT, "Operation name cannot be empty."};
-    }
-
-    absl::MutexLock operations_lock(&operations_mutex_);
-    auto it = operations_.find(request->name());
-    if (it == operations_.end()) {
-        return {StatusCode::NOT_FOUND, absl::StrCat("Operation not found: ", request->name())};
-    }
-    operations_.erase(it);
-    return Status::OK;
+    return WithOperation(request->name(),
+                         [&](auto it) ABSL_EXCLUSIVE_LOCKS_REQUIRED(operations_mutex_) {
+                             operations_.erase(it);
+                         });
 }
 
 Status OperationsServiceImpl::CancelOperation(ServerContext* /*context*/,
                                               const CancelOperationRequest* request,
                                               Empty* /*response*/) {
-    if (request->name().empty()) {
-        return {StatusCode::INVALID_ARGUMENT, "Operation name cannot be empty."};
-    }
-
-    absl::MutexLock operations_lock(&operations_mutex_);
-    auto it = operations_.find(request->name());
-    if (it == operations_.end()) {
-        return {StatusCode::NOT_FOUND, absl::StrCat("Operation not found: ", request->name())};
-    }
-    if (!it->second.done()) {
-        auto* err = it->second.mutable_error();
-        err->set_code(static_cast<int>(absl::StatusCode::kCancelled));
-        err->set_message("Operation cancelled by client.");
-        it->second.set_done(true);
-        RecordCompletedOperation(request->name());
-    }
-    return Status::OK;
+    return WithOperation(request->name(),
+                         [&](auto it) ABSL_EXCLUSIVE_LOCKS_REQUIRED(operations_mutex_) {
+                             if (!it->second.done()) {
+                                 auto* err = it->second.mutable_error();
+                                 err->set_code(static_cast<int>(absl::StatusCode::kCancelled));
+                                 err->set_message("Operation cancelled by client.");
+                                 it->second.set_done(true);
+                                 RecordCompletedOperation(request->name());
+                             }
+                         });
 }
 
 absl::StatusOr<Operation> OperationsServiceImpl::WaitForOperation(

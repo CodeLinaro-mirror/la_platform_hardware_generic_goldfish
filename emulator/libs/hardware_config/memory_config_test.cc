@@ -154,6 +154,27 @@ TEST_F(MemoryConfigTest, HighDensityLargeHeap) {
     EXPECT_GE(hw.vm_heapSize, 256);
 }
 
+TEST_F(MemoryConfigTest, XlargeScreenMinHeapByApiLevel) {
+    hw.hw_lcd_width = 2000;
+    hw.hw_lcd_height = 3000;
+    hw.hw_lcd_density = 420;  // ~8.58" diagonal -> LCD_SIZE_XLARGE
+
+    hw.hw_ramSize = 1024;
+    hw.vm_heapSize = 64;
+    EXPECT_TRUE(MemoryConfig::FinalizeRamAndHeapSize(hw, 23).ok());
+    EXPECT_EQ(hw.vm_heapSize, 336);
+
+    hw.hw_ramSize = 1024;
+    hw.vm_heapSize = 64;
+    EXPECT_TRUE(MemoryConfig::FinalizeRamAndHeapSize(hw, 22).ok());
+    EXPECT_EQ(hw.vm_heapSize, 288);
+
+    hw.hw_ramSize = 1024;
+    hw.vm_heapSize = 64;
+    EXPECT_TRUE(MemoryConfig::FinalizeRamAndHeapSize(hw, 21).ok());
+    EXPECT_EQ(hw.vm_heapSize, 288);
+}
+
 TEST_F(MemoryConfigTest, CalculateMinimumRam_ApiLevels) {
     EXPECT_THAT(MemoryConfig::CalculateMinimumRam(hw, 21), IsOkAndHolds(1024));
     EXPECT_THAT(MemoryConfig::CalculateMinimumRam(hw, 26), IsOkAndHolds(1536));

@@ -79,6 +79,10 @@ void FakePixmanDisplay::SendEvDevEvent(uint16_t type, uint16_t code, uint32_t va
 }
 
 void FakePixmanDisplay::SendEvDevReport(EvDevEvents events) {
+    FakePixmanDisplay::WriteEvDevReportOnLoop(events);
+}
+
+void FakePixmanDisplay::WriteEvDevReportOnLoop(absl::Span<const EvDevEvent> events) {
     std::vector<FakeEvDevEvent>& report = evdev_reports.emplace_back();
     for (const EvDevEvent& ev : events) {
         report.push_back({ev.type, ev.code, ev.value});

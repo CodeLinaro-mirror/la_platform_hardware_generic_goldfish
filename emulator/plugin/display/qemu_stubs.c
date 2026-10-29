@@ -21,6 +21,7 @@
 #include "qapi/error.h"
 #include "hw/virtio/virtio-input.h"
 #include "virtio_bridge.h"
+#include "goldfish/input/virtio_input_android.h"
 // clang-format on
 
 // A set of stubs for qemu methods we do not have.
@@ -93,9 +94,64 @@ static VirtIOInputHID s_fake_vhid = {
 };
 
 static int g_find_virtio_device_result = 1;
+static bool g_find_virtio_device_null_vhid = false;
 
 void SetTestFindVirtioDeviceResult(int result) {
     g_find_virtio_device_result = result;
+}
+
+// Makes a successful device lookup report no device, as a display without one.
+void SetTestFindVirtioDeviceNullVhid(bool null_vhid) {
+    g_find_virtio_device_null_vhid = null_vhid;
+}
+
+// Sets whether the guest driver of the fake virtio input device is active.
+void SetTestVirtioInputActive(bool active) {
+    s_fake_vhid.parent_obj.active = active;
+}
+
+static uint64_t s_fake_active_generation = 0;
+static uint64_t s_object_property_get_uint_calls = 0;
+
+// Sets the fake virtio input device's QOM active-generation property without
+// firing a push event (e.g., to simulate state prior to display construction).
+void SetTestVirtioInputInitialActiveGeneration(uint64_t generation) {
+    s_fake_active_generation = generation;
+}
+
+// Simulates virtio_android_change_active: updates QOM active-generation and
+// fires the push notification.
+void SetTestVirtioInputActiveGeneration(uint64_t generation) {
+    s_fake_active_generation = generation;
+    virtio_input_android_notify_active_changed(&s_fake_vhid, generation);
+}
+
+// Fires an active-generation push notification for a distinct VirtIOInputHID
+// instance not bound to the display under test.
+void NotifyTestUnrelatedVirtioInputActiveGeneration(uint64_t generation) {
+    static VirtIOInputHID s_unrelated_vhid = {
+        .display = "gpu0",
+        .head = 99,
+    };
+    virtio_input_android_notify_active_changed(&s_unrelated_vhid, generation);
+}
+
+void ResetTestObjectPropertyGetUintCalls(void) {
+    s_object_property_get_uint_calls = 0;
+}
+
+uint64_t GetTestObjectPropertyGetUintCalls(void) {
+    return s_object_property_get_uint_calls;
+}
+
+// Reads only the fake device's active generation.
+uint64_t object_property_get_uint(Object* obj, const char* name, Error** errp) {
+    (void)errp;
+    ++s_object_property_get_uint_calls;
+    if (obj == OBJECT(&s_fake_vhid) && strcmp(name, VIRTIO_INPUT_ANDROID_ACTIVE_GENERATION) == 0) {
+        return s_fake_active_generation;
+    }
+    return 0;
 }
 
 int object_child_foreach_recursive(Object* obj, int (*fn)(Object* child, void* opaque),
@@ -104,7 +160,7 @@ int object_child_foreach_recursive(Object* obj, int (*fn)(Object* child, void* o
     (void)fn;
     if (g_find_virtio_device_result && opaque) {
         VirtioDeviceInfo* info = (VirtioDeviceInfo*)opaque;
-        info->vhid = &s_fake_vhid;
+        info->vhid = g_find_virtio_device_null_vhid ? NULL : &s_fake_vhid;
     }
     return g_find_virtio_device_result;
 }

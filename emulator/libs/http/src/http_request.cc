@@ -13,11 +13,10 @@
 // limitations under the License.
 #include "goldfish/http/http_request.h"
 
-#include <string>
+#include <optional>
 #include <string_view>
 
-#include "absl/strings/ascii.h"
-#include "absl/strings/match.h"
+#include "goldfish/http/http_headers.h"
 
 namespace goldfish::http {
 
@@ -39,36 +38,44 @@ std::string_view HttpMethodToString(HttpMethod method) {
         return methods::kPatch;
     case HttpMethod::kAny:
         return methods::kAny;
+    default:
+        return "UNKNOWN";
     }
-    return "UNKNOWN";
 }
 
 std::optional<HttpMethod> StringToHttpMethod(std::string_view method) {
-    if (absl::EqualsIgnoreCase(method, methods::kGet)) {
-        return HttpMethod::kGet;
+    static_assert(methods::kPut.size() == methods::kGet.size());
+    static_assert(methods::kHead.size() == methods::kPost.size());
+
+    const CaseInsensitiveStringEq eq;
+    switch (method.size()) {
+    case methods::kAny.size():
+        return method == methods::kAny ? std::optional(HttpMethod::kAny) : std::nullopt;
+    case methods::kGet.size():
+        if (eq(method, methods::kGet)) {
+            return HttpMethod::kGet;
+        }
+        if (eq(method, methods::kPut)) {
+            return HttpMethod::kPut;
+        }
+        return std::nullopt;
+    case methods::kPost.size():
+        if (eq(method, methods::kPost)) {
+            return HttpMethod::kPost;
+        }
+        if (eq(method, methods::kHead)) {
+            return HttpMethod::kHead;
+        }
+        return std::nullopt;
+    case methods::kPatch.size():
+        return eq(method, methods::kPatch) ? std::optional(HttpMethod::kPatch) : std::nullopt;
+    case methods::kDelete.size():
+        return eq(method, methods::kDelete) ? std::optional(HttpMethod::kDelete) : std::nullopt;
+    case methods::kOptions.size():
+        return eq(method, methods::kOptions) ? std::optional(HttpMethod::kOptions) : std::nullopt;
+    default:
+        return std::nullopt;
     }
-    if (absl::EqualsIgnoreCase(method, methods::kPost)) {
-        return HttpMethod::kPost;
-    }
-    if (absl::EqualsIgnoreCase(method, methods::kPut)) {
-        return HttpMethod::kPut;
-    }
-    if (absl::EqualsIgnoreCase(method, methods::kDelete)) {
-        return HttpMethod::kDelete;
-    }
-    if (absl::EqualsIgnoreCase(method, methods::kOptions)) {
-        return HttpMethod::kOptions;
-    }
-    if (absl::EqualsIgnoreCase(method, methods::kHead)) {
-        return HttpMethod::kHead;
-    }
-    if (absl::EqualsIgnoreCase(method, methods::kPatch)) {
-        return HttpMethod::kPatch;
-    }
-    if (method == methods::kAny) {
-        return HttpMethod::kAny;
-    }
-    return std::nullopt;
 }
 
 std::string_view HttpRequest::GetHeader(std::string_view name) const {

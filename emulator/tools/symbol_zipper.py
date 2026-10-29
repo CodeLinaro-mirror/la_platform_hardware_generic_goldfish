@@ -353,19 +353,19 @@ def main():
             <module_name>/<debug_id>/<module_name>.sym
 
         Where:
-            - <module_name>: The name of the executable or library (e.g., libhw-display-virtio-gpu-pci-rutabaga.dylib).
+            - <module_name>: The name of the executable or library (e.g., libgoldfish_aarch64.dylib).
             - <debug_id>: The unique debug identifier for the module (e.g., 4C4C444655553144A1925AF7C65861290).
             - <module_name>.sym: The symbol file itself, with the '.sym' extension.
 
         Example:
 
-            libhw-display-virtio-gpu-pci-rutabaga.dylib/
+            libgoldfish_aarch64.dylib/
                 4C4C444655553144A1925AF7C65861290/
-                libhw-display-virtio-gpu-pci-rutabaga.dylib.sym
+                libgoldfish_aarch64.dylib.sym
 
-            libhw-display-virtio-gpu-rutabaga.dylib/
+            libgfxstream_backend.dylib/
                 4C4C44B555553144A1544053FFE8D5430/
-                libhw-display-virtio-gpu-rutabaga.dylib.sym
+                libgfxstream_backend.dylib.sym
         """,
     )
     parser.add_argument(

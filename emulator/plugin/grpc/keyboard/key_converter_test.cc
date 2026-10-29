@@ -4,6 +4,7 @@
 
 #include "android/emulation/control/keyboard/key_conversion.h"
 #include "dom_key.h"
+#include "standard-headers/linux/input-event-codes.h"
 
 namespace android {
 namespace emulation {
@@ -177,6 +178,19 @@ TEST(KeyConversionTest, DomCodeToEvdevAliasesAndUnknown) {
     // Empty and unknown
     EXPECT_EQ(dom_code_to_evdev(""), 0U);
     EXPECT_EQ(dom_code_to_evdev("NonExistentKey"), 0U);
+}
+
+TEST(KeyConversionTest, AndroidKeycodeToEvdevSystemKeys) {
+    EXPECT_EQ(android_keycode_to_evdev(3), static_cast<uint32_t>(KEY_HOMEPAGE));     // HOME
+    EXPECT_EQ(android_keycode_to_evdev(4), static_cast<uint32_t>(KEY_BACK));         // BACK
+    EXPECT_EQ(android_keycode_to_evdev(26), static_cast<uint32_t>(KEY_POWER));       // POWER
+    EXPECT_EQ(android_keycode_to_evdev(187), static_cast<uint32_t>(KEY_APPSELECT));  // APP_SWITCH
+}
+
+TEST(KeyConversionTest, AndroidKeycodeToEvdevUnsupportedIsZero) {
+    EXPECT_EQ(android_keycode_to_evdev(0), 0U);
+    EXPECT_EQ(android_keycode_to_evdev(29), 0U);  // AKEYCODE_A
+    EXPECT_EQ(android_keycode_to_evdev(-1), 0U);
 }
 
 }  // namespace keyboard

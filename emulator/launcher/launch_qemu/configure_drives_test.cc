@@ -14,7 +14,9 @@
 #include "disk_drive.h"
 #include "fake_emulator.h"
 #include "goldfish/file/file.h"
+#include "goldfish/file/storage_capacity.h"
 #include "goldfish/fsimage/exfat.h"
+#include "goldfish/fsimage/qcow2.h"
 #include "mock_avd.h"
 
 namespace android::goldfish {
@@ -23,7 +25,10 @@ namespace {
 
 using ::absl_testing::IsOk;
 using ::absl_testing::StatusIs;
+using base::operator""_MiB;
 using ::testing::_;
+using ::testing::IsFalse;
+using ::testing::IsTrue;
 using ::testing::Return;
 using ::testing::ReturnRef;
 
@@ -230,7 +235,7 @@ TEST_F(ConfigureDrivesTest, AddDrivesUserdataFromDirectory) {
 TEST_F(ConfigureDrivesTest, AddDrivesSdCardCreatesEmuImageWhenMissing) {
     FakeEmulator emu;
     hw_.hw_sdCard = true;
-    hw_.hw_sd_card_size = 64_MiB;
+    hw_.sdcard_size = 64_MiB;
     ConfigureMockAvd(emu.mock_avd());
 
     const fs::path sdcard_emu_path = user_dir_ / "sdcard.emu.img";
@@ -320,7 +325,7 @@ TEST_F(ConfigureDrivesTest, AddDrivesSdCardExternalPath) {
 
     FakeEmulator emu;
     hw_.hw_sdCard = true;
-    hw_.hw_sdCard_path = external_sdcard_path.string();
+    hw_.sdcard_path = external_sdcard_path.string();
     ConfigureMockAvd(emu.mock_avd());
 
     MockDeviceContainer mock_container;
@@ -345,11 +350,71 @@ TEST_F(ConfigureDrivesTest, AddDrivesSdCardExternalPath) {
 TEST_F(ConfigureDrivesTest, AddDrivesSdCardExternalPathMissingReturnsNotFound) {
     FakeEmulator emu;
     hw_.hw_sdCard = true;
-    hw_.hw_sdCard_path = (launcher_path_ / "nonexistent_sdcard.img").string();
+    hw_.sdcard_path = (launcher_path_ / "nonexistent_sdcard.img").string();
     ConfigureMockAvd(emu.mock_avd());
 
     MockDeviceContainer mock_container;
     EXPECT_THAT(addDrives(emu.config(), mock_container), StatusIs(absl::StatusCode::kNotFound));
+}
+
+TEST_F(ConfigureDrivesTest, UserdataIsNewOnFirstBoot) {
+    FakeEmulator emu;
+    ConfigureMockAvd(emu.mock_avd());
+
+    EXPECT_THAT(IsUserdataNew(emu.config().avd()), IsTrue());
+}
+
+TEST_F(ConfigureDrivesTest, UserdataIsNotNewWithValidQcow2Overlay) {
+    FakeEmulator emu;
+    ConfigureMockAvd(emu.mock_avd());
+    ASSERT_THAT(base::file::touch(user_dir_ / "userdata.img"), IsOk());
+    ASSERT_THAT(::goldfish::fsimage::CreateQcow2Overlay(user_dir_ / "userdata.img.qcow2",
+                                                        user_dir_ / "userdata.img"),
+                IsOk());
+
+    EXPECT_THAT(IsUserdataNew(emu.config().avd()), IsFalse());
+}
+
+// Android Studio's Wipe Data deletes the qcow2 overlay but keeps userdata.img.
+TEST_F(ConfigureDrivesTest, UserdataIsNewWithoutQcow2Overlay) {
+    FakeEmulator emu;
+    ConfigureMockAvd(emu.mock_avd());
+    ASSERT_THAT(base::file::touch(user_dir_ / "userdata.img"), IsOk());
+
+    EXPECT_THAT(IsUserdataNew(emu.config().avd()), IsTrue());
+}
+
+// The userdata drive replaces an invalid qcow2 overlay with a new one.
+TEST_F(ConfigureDrivesTest, UserdataIsNewWithInvalidQcow2Overlay) {
+    FakeEmulator emu;
+    ConfigureMockAvd(emu.mock_avd());
+    ASSERT_THAT(base::file::touch(user_dir_ / "userdata.img"), IsOk());
+    ASSERT_THAT(base::file::touch(user_dir_ / "userdata.img.qcow2"), IsOk());
+
+    EXPECT_THAT(IsUserdataNew(emu.config().avd()), IsTrue());
+}
+
+// The qcow2 overlay of a shallow copy has the image of another AVD as its backing image.
+TEST_F(ConfigureDrivesTest, UserdataIsNotNewWithValidQcow2OverlayOfAnotherImage) {
+    FakeEmulator emu;
+    ConfigureMockAvd(emu.mock_avd());
+    ASSERT_THAT(base::file::touch(launcher_path_ / "other.img"), IsOk());
+    ASSERT_THAT(::goldfish::fsimage::CreateQcow2Overlay(user_dir_ / "userdata.img.qcow2",
+                                                        launcher_path_ / "other.img"),
+                IsOk());
+
+    EXPECT_THAT(IsUserdataNew(emu.config().avd()), IsFalse());
+}
+
+TEST_F(ConfigureDrivesTest, OldUserdataImageIsNotNewWithValidQcow2Overlay) {
+    FakeEmulator emu;
+    ConfigureMockAvd(emu.mock_avd());
+    ASSERT_THAT(base::file::touch(user_dir_ / "userdata-qemu.img"), IsOk());
+    ASSERT_THAT(::goldfish::fsimage::CreateQcow2Overlay(user_dir_ / "userdata-qemu.img.qcow2",
+                                                        user_dir_ / "userdata-qemu.img"),
+                IsOk());
+
+    EXPECT_THAT(IsUserdataNew(emu.config().avd()), IsFalse());
 }
 
 }  // namespace android::goldfish

@@ -13,10 +13,12 @@
 // limitations under the License.
 #pragma once
 
+#include <atomic>
 #include <memory>
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <vector>
 
 #include "absl/synchronization/mutex.h"
 
@@ -27,7 +29,8 @@ namespace goldfish::devices::multidisplay {
 
 class MultiDisplayDevice : public HalPlug, public std::enable_shared_from_this<MultiDisplayDevice> {
   public:
-    explicit MultiDisplayDevice(async::EventLoop* client_loop);
+    explicit MultiDisplayDevice(async::EventLoop* client_loop,
+                                async::EventLoop* qemu_loop = nullptr);
     ~MultiDisplayDevice() override;
 
     // HalPlug overrides
@@ -74,6 +77,7 @@ class MultiDisplayDevice : public HalPlug, public std::enable_shared_from_this<M
                             uint32_t flag);
 
     async::EventLoop* client_loop_;
+    std::atomic<async::EventLoop*> qemu_loop_{nullptr};
     std::vector<uint8_t> receive_buffer_;
 
     // Protects the map since OnReceive (IO thread) writes and GetDisplayColorBuffer (Render thread)

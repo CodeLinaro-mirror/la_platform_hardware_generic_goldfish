@@ -203,7 +203,8 @@ TEST(WritableImgDrive, CreatesQcow2OverlayWhenMissing) {
     WritableImgDrive dev("userdata", "04.0", userData, qcow2Image);
     EXPECT_OK(dev.initialize(emu.config()));
     EXPECT_TRUE(::goldfish::fsimage::IsValidQcow2Image(qcow2Image));
-    EXPECT_THAT(::goldfish::fsimage::ReadQcow2BackingPath(qcow2Image), IsOkAndHolds(userData));
+    EXPECT_THAT(::goldfish::fsimage::ReadQcow2BackingPath(qcow2Image),
+                IsOkAndHolds(std::filesystem::path("userdata.img")));
 }
 
 TEST(WritableImgDrive, RecreatesQcow2OverlayWhenInvalid) {
@@ -218,7 +219,8 @@ TEST(WritableImgDrive, RecreatesQcow2OverlayWhenInvalid) {
     WritableImgDrive dev("userdata", "04.0", userData, qcow2Image);
     EXPECT_OK(dev.initialize(emu.config()));
     EXPECT_TRUE(::goldfish::fsimage::IsValidQcow2Image(qcow2Image));
-    EXPECT_THAT(::goldfish::fsimage::ReadQcow2BackingPath(qcow2Image), IsOkAndHolds(userData));
+    EXPECT_THAT(::goldfish::fsimage::ReadQcow2BackingPath(qcow2Image),
+                IsOkAndHolds(std::filesystem::path("userdata.img")));
 }
 
 TEST(WritableImgDrive, UsesExistingValidQcow2WhenBackingImageMissing) {
@@ -234,7 +236,8 @@ TEST(WritableImgDrive, UsesExistingValidQcow2WhenBackingImageMissing) {
     WritableImgDrive dev("userdata", "04.0", userData, qcow2Image);
     EXPECT_OK(dev.initialize(emu.config()));
     EXPECT_FALSE(base::file::exists(userData));
-    EXPECT_THAT(::goldfish::fsimage::ReadQcow2BackingPath(qcow2Image), IsOkAndHolds(otherBacking));
+    EXPECT_THAT(::goldfish::fsimage::ReadQcow2BackingPath(qcow2Image),
+                IsOkAndHolds(std::filesystem::path("other.img")));
 }
 
 TEST(WritableImgDrive, EscapesCommasInQcow2ImagePath) {
@@ -322,7 +325,8 @@ TEST(BlankWritableDrive, UsesExistingValidQcow2WhenBackingImageMissing) {
     BlankWritableDrive dev("userdata", "04.0", userData, qcow2Image, 1024);
     EXPECT_OK(dev.initialize(emu.config()));
     EXPECT_FALSE(base::file::exists(userData));
-    EXPECT_THAT(::goldfish::fsimage::ReadQcow2BackingPath(qcow2Image), IsOkAndHolds(otherBacking));
+    EXPECT_THAT(::goldfish::fsimage::ReadQcow2BackingPath(qcow2Image),
+                IsOkAndHolds(std::filesystem::path("other.img")));
 }
 
 TEST(BlankWritableDrive, RecreatesQcow2WhenInvalidAndBackingImageExists) {
@@ -337,7 +341,8 @@ TEST(BlankWritableDrive, RecreatesQcow2WhenInvalidAndBackingImageExists) {
     BlankWritableDrive dev("userdata", "04.0", userData, qcow2Image, 1024);
     EXPECT_OK(dev.initialize(emu.config()));
     EXPECT_TRUE(::goldfish::fsimage::IsValidQcow2Image(qcow2Image));
-    EXPECT_THAT(::goldfish::fsimage::ReadQcow2BackingPath(qcow2Image), IsOkAndHolds(userData));
+    EXPECT_THAT(::goldfish::fsimage::ReadQcow2BackingPath(qcow2Image),
+                IsOkAndHolds(std::filesystem::path("userdata.img")));
 }
 
 TEST(BlankWritableDrive, CreatesBackingAndQcow2ImagesWhenBothMissing) {
@@ -351,7 +356,8 @@ TEST(BlankWritableDrive, CreatesBackingAndQcow2ImagesWhenBothMissing) {
     EXPECT_OK(dev.initialize(emu.config()));
     EXPECT_TRUE(base::file::exists(userData));
     EXPECT_TRUE(::goldfish::fsimage::IsValidQcow2Image(qcow2Image));
-    EXPECT_THAT(::goldfish::fsimage::ReadQcow2BackingPath(qcow2Image), IsOkAndHolds(userData));
+    EXPECT_THAT(::goldfish::fsimage::ReadQcow2BackingPath(qcow2Image),
+                IsOkAndHolds(std::filesystem::path("userdata.img")));
 }
 
 TEST(WritableDirectoryDrive, Basic_x86) {
@@ -417,7 +423,8 @@ TEST(WritableDirectoryDrive, UsesExistingValidQcow2WhenBackingImageMissing) {
     WritableDirectoryDrive dev("userdata", "04.0", userData, qcow2Image, srcDir, 1024);
     EXPECT_OK(dev.initialize(emu.config()));
     EXPECT_FALSE(base::file::exists(userData));
-    EXPECT_THAT(::goldfish::fsimage::ReadQcow2BackingPath(qcow2Image), IsOkAndHolds(otherBacking));
+    EXPECT_THAT(::goldfish::fsimage::ReadQcow2BackingPath(qcow2Image),
+                IsOkAndHolds(std::filesystem::path("other.img")));
 }
 
 TEST(WritableDirectoryDrive, RecreatesQcow2WhenInvalidAndBackingImageExists) {
@@ -433,7 +440,8 @@ TEST(WritableDirectoryDrive, RecreatesQcow2WhenInvalidAndBackingImageExists) {
     WritableDirectoryDrive dev("userdata", "04.0", userData, qcow2Image, srcDir, 1024);
     EXPECT_OK(dev.initialize(emu.config()));
     EXPECT_TRUE(::goldfish::fsimage::IsValidQcow2Image(qcow2Image));
-    EXPECT_THAT(::goldfish::fsimage::ReadQcow2BackingPath(qcow2Image), IsOkAndHolds(userData));
+    EXPECT_THAT(::goldfish::fsimage::ReadQcow2BackingPath(qcow2Image),
+                IsOkAndHolds(std::filesystem::path("userdata.img")));
 }
 
 TEST(WritableDirectoryDrive, CreatesBackingAndQcow2ImagesWhenBothMissing) {
@@ -449,7 +457,8 @@ TEST(WritableDirectoryDrive, CreatesBackingAndQcow2ImagesWhenBothMissing) {
     EXPECT_OK(dev.initialize(emu.config()));
     EXPECT_TRUE(base::file::exists(userData));
     EXPECT_TRUE(::goldfish::fsimage::IsValidQcow2Image(qcow2Image));
-    EXPECT_THAT(::goldfish::fsimage::ReadQcow2BackingPath(qcow2Image), IsOkAndHolds(userData));
+    EXPECT_THAT(::goldfish::fsimage::ReadQcow2BackingPath(qcow2Image),
+                IsOkAndHolds(std::filesystem::path("userdata.img")));
 }
 
 }  // namespace android::goldfish::test

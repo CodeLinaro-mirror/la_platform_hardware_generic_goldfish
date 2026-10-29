@@ -80,6 +80,8 @@ void UniverseBuildComplete() {
     DCHECK(u);
     u->connector_registry.Listen(5000);
     u->test_tools_connector_registry.Listen(5002);
+    // `avdend` is realized after the display devices, so console 0 exists.
+    u->InstallKeyboard();
 }
 
 namespace {
@@ -328,6 +330,10 @@ void avd_info_set_icc_profile(Object* obj, const char* value, Error** errp) {
     toMutableAvdProperties(obj).icc_profile = std::filesystem::path(value);
 }
 
+void avd_info_set_timezone(Object* obj, const char* value, Error** errp) {
+    toMutableAvdProperties(obj).timezone = value;
+}
+
 void avd_info_unrealize(DeviceState* dev) {
     VLOG(1) << "avd_info_unrealize";
     SetGlobalAvdUniverse(nullptr);
@@ -449,6 +455,7 @@ void avd_info_class_init(ObjectClass* oc, const void* data) {
     object_class_property_add_str(oc, "dump_perf_stat_path", nullptr,
                                   avd_info_set_dump_perf_stat_path);
     object_class_property_add_str(oc, "icc_profile", nullptr, avd_info_set_icc_profile);
+    object_class_property_add_str(oc, "timezone", nullptr, avd_info_set_timezone);
 
     DeviceClass* dc = DEVICE_CLASS(oc);
     dc->realize = avd_info_realize;

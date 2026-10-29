@@ -24,6 +24,8 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
 
+#include "http_session_internal.h"
+
 namespace goldfish::http {
 
 namespace {
@@ -405,8 +407,7 @@ void HttpSession::DispatchRequest() {
     std::string_view match_path =
             (cut == std::string_view::npos) ? raw_path : raw_path.substr(0, cut);
 
-    auto match = router_->Match(current_request_.Method(), match_path);
-    if (match.has_value()) {
+    if (const RouteHandler* match = router_->MatchHandler(current_request_.Method(), match_path)) {
         switch (match->kind) {
         case RouteHandler::Kind::kUnary:
             SendUnaryResponse(match->unary_handler(current_request_));
@@ -417,7 +418,7 @@ void HttpSession::DispatchRequest() {
                     shared_from_this(), current_request_.Method(),
                     std::string(current_request_.Path()), request_start_time_,
                     current_request_.KeepAlive());
-            match->streaming_handler(current_request_, writer);
+            match->streaming_handler(current_request_, std::move(writer));
             return;
         }
         }
@@ -482,9 +483,9 @@ int HttpSession::OnHeadersComplete(llhttp_t* parser) {
     auto* self = static_cast<HttpSession*>(parser->data);
     self->CommitCurrentHeader();
 
-    auto method_opt =
-            StringToHttpMethod(llhttp_method_name(static_cast<llhttp_method_t>(parser->method)));
-    self->current_request_.method_ = method_opt.value_or(HttpMethod::kGet);
+    const auto parsed_method = static_cast<llhttp_method_t>(parser->method);
+    self->current_request_.method_ =
+            internal::LlhttpMethodToHttpMethod(parsed_method).value_or(HttpMethod::kGet);
     self->current_request_.keep_alive_ = (llhttp_should_keep_alive(parser) != 0);
 
     if (parser->content_length > self->max_payload_size_) {

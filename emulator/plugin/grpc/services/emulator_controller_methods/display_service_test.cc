@@ -36,6 +36,7 @@
 #include "goldfish/async/threaded_event_loop.h"
 #include "goldfish/avd/avd_info.h"
 #include "goldfish/avd/fake_avd_universe.h"
+#include "goldfish/display/cpu_read_pipeline.h"
 #include "goldfish/display/test/fake_multi_display.h"
 #include "goldfish/display/test/fake_pixman_display.h"
 #include "goldfish/memory/shared_memory.h"
@@ -1041,6 +1042,106 @@ TEST_F(DisplayServiceTest, StreamSurvivesProducerReset) {
     context->TryCancel();
     while (reader->Read(&image)) {
     }
+}
+
+TEST_F(DisplayServiceTest, GetScreenshotPngReusesScratchPoolBufferAcrossCalls) {
+    constexpr uint32_t kWidth = 640;
+    constexpr uint32_t kHeight = 360;
+    constexpr size_t kRgbaBytes = size_t{kWidth} * kHeight * 4;
+    constexpr int kIterations = 20;
+
+    ASSERT_TRUE(mMultiDisplay->CreateDisplay(2, kWidth, kHeight, 320, 1).ok());
+
+    ImageFormat request;
+    request.set_display(2);
+    request.set_format(ImageFormat::PNG);
+
+    Image reply;
+    for (int i = 0; i < kIterations; ++i) {
+        ServerContext server_ctx;
+        ASSERT_GRPC_STATUS(mDisplayService->getScreenshot(&server_ctx, &request, &reply));
+        EXPECT_EQ(reply.format().width(), static_cast<int>(kWidth));
+        EXPECT_EQ(reply.format().height(), static_cast<int>(kHeight));
+        ASSERT_GE(reply.image().size(), 4U);
+        EXPECT_EQ(static_cast<uint8_t>(reply.image()[0]), 0x89);
+    }
+
+    const auto stats = ::goldfish::display::internal::GetScratchPoolStatsForTesting();
+    EXPECT_EQ(stats.on_loan, 0U);
+    EXPECT_EQ(stats.free_count, 1U);
+    EXPECT_GE(stats.free_bytes, kRgbaBytes);
+}
+
+TEST_F(DisplayServiceTest, GetScreenshotReusesReplyImageCapacityAcrossVariableSizeFrames) {
+    Image reply;
+
+    ImageFormat rgba_full;
+    rgba_full.set_display(1);
+    rgba_full.set_format(ImageFormat::RGBA8888);
+    {
+        ServerContext ctx;
+        ASSERT_GRPC_STATUS(mDisplayService->getScreenshot(&ctx, &rgba_full, &reply));
+    }
+    ASSERT_EQ(reply.image().size(), 100U * 50U * 4U);
+    const char* initial_data = reply.image().data();
+    const size_t initial_capacity = reply.image().capacity();
+
+    // Shrinking via scaled RGBA8888 (48x24 = 4,608 bytes) must reuse existing capacity.
+    ImageFormat rgba_scaled;
+    rgba_scaled.set_display(1);
+    rgba_scaled.set_format(ImageFormat::RGBA8888);
+    rgba_scaled.set_width(48);
+    rgba_scaled.set_height(24);
+    {
+        ServerContext ctx;
+        ASSERT_GRPC_STATUS(mDisplayService->getScreenshot(&ctx, &rgba_scaled, &reply));
+    }
+    EXPECT_EQ(reply.image().size(), 48U * 24U * 4U);
+    EXPECT_EQ(reply.image().data(), initial_data);
+    EXPECT_EQ(reply.image().capacity(), initial_capacity);
+
+    // Variable-size PNG frames (unscaled and scaled) must reuse existing capacity.
+    ImageFormat png_full;
+    png_full.set_display(1);
+    png_full.set_format(ImageFormat::PNG);
+    {
+        ServerContext ctx;
+        ASSERT_GRPC_STATUS(mDisplayService->getScreenshot(&ctx, &png_full, &reply));
+    }
+    EXPECT_LT(reply.image().size(), initial_capacity);
+    EXPECT_EQ(reply.image().data(), initial_data);
+    EXPECT_EQ(reply.image().capacity(), initial_capacity);
+
+    ImageFormat png_scaled = png_full;
+    png_scaled.set_width(48);
+    png_scaled.set_height(24);
+    {
+        ServerContext ctx;
+        ASSERT_GRPC_STATUS(mDisplayService->getScreenshot(&ctx, &png_scaled, &reply));
+    }
+    EXPECT_LT(reply.image().size(), initial_capacity);
+    EXPECT_EQ(reply.image().data(), initial_data);
+    EXPECT_EQ(reply.image().capacity(), initial_capacity);
+
+    // Growing back to 100x50 RGB888 (15,000 bytes) and RGBA8888 (20,000 bytes) reuses capacity.
+    ImageFormat rgb_full;
+    rgb_full.set_display(1);
+    rgb_full.set_format(ImageFormat::RGB888);
+    {
+        ServerContext ctx;
+        ASSERT_GRPC_STATUS(mDisplayService->getScreenshot(&ctx, &rgb_full, &reply));
+    }
+    EXPECT_EQ(reply.image().size(), 100U * 50U * 3U);
+    EXPECT_EQ(reply.image().data(), initial_data);
+    EXPECT_EQ(reply.image().capacity(), initial_capacity);
+
+    {
+        ServerContext ctx;
+        ASSERT_GRPC_STATUS(mDisplayService->getScreenshot(&ctx, &rgba_full, &reply));
+    }
+    EXPECT_EQ(reply.image().size(), 100U * 50U * 4U);
+    EXPECT_EQ(reply.image().data(), initial_data);
+    EXPECT_EQ(reply.image().capacity(), initial_capacity);
 }
 
 }  // namespace android::emulation::control

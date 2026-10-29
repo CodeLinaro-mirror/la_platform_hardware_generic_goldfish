@@ -38,14 +38,32 @@ using ::android::emulation::control::Image;
 using ::android::emulation::control::ImageFormat;
 using ::android::emulation::control::ImageTransport;
 
-android::emulation::control::ImageFormat_ImgFormat RgbaToNv12Pipeline::GetGrpcFormat() const {
+namespace {
+
+::webrtc::VideoFrame BuildVideoFrame(
+        ::webrtc::scoped_refptr<::webrtc::VideoFrameBuffer> buffer, int64_t timestamp_us) {
+    return ::webrtc::VideoFrame::Builder()
+            .set_video_frame_buffer(std::move(buffer))
+            .set_timestamp_rtp(0)
+            .set_timestamp_us(timestamp_us)
+            .set_rotation(::webrtc::kVideoRotation_0)
+            .build();
+}
+
+}  // namespace
+
+android::emulation::control::ImageFormat_ImgFormat VideoFormatPipeline::GetGrpcFormat() const {
     return android::emulation::control::ImageFormat::RGBA8888;
 }
 
-size_t RgbaToNv12Pipeline::GetRequiredSharedMemorySize(uint32_t width, uint32_t height) const {
+size_t VideoFormatPipeline::GetRequiredSharedMemorySize(uint32_t width, uint32_t height) const {
     const size_t w = (width > 0) ? width : 3840;
     const size_t h = (height > 0) ? height : 2160;
     return w * h * 4;
+}
+
+void VideoFormatPipeline::Release() {
+    buffer_pool_.Release();
 }
 
 std::optional<::webrtc::VideoFrame> RgbaToNv12Pipeline::Convert(const uint8_t* raw_data,
@@ -60,35 +78,23 @@ std::optional<::webrtc::VideoFrame> RgbaToNv12Pipeline::Convert(const uint8_t* r
         return std::nullopt;
     }
 
-    auto buffer = ::webrtc::NV12Buffer::Create(static_cast<int>(even_width),
-                                               static_cast<int>(even_height));
+    const int w = static_cast<int>(even_width);
+    const int h = static_cast<int>(even_height);
+    auto buffer = buffer_pool_.CreateNV12Buffer(w, h);
+    if (!buffer) {
+        buffer = ::webrtc::NV12Buffer::Create(w, h);
+    }
 
     const int stride_abgr = static_cast<int>(width * 4);
     const int status =
             libyuv::ABGRToNV12(raw_data, stride_abgr, buffer->MutableDataY(), buffer->StrideY(),
-                               buffer->MutableDataUV(), buffer->StrideUV(),
-                               static_cast<int>(even_width), static_cast<int>(even_height));
+                               buffer->MutableDataUV(), buffer->StrideUV(), w, h);
 
     if (status != 0) {
         return std::nullopt;
     }
 
-    return ::webrtc::VideoFrame::Builder()
-            .set_video_frame_buffer(buffer)
-            .set_timestamp_rtp(0)
-            .set_timestamp_us(timestamp_us)
-            .set_rotation(::webrtc::kVideoRotation_0)
-            .build();
-}
-
-android::emulation::control::ImageFormat_ImgFormat RgbaToI420Pipeline::GetGrpcFormat() const {
-    return android::emulation::control::ImageFormat::RGBA8888;
-}
-
-size_t RgbaToI420Pipeline::GetRequiredSharedMemorySize(uint32_t width, uint32_t height) const {
-    const size_t w = (width > 0) ? width : 3840;
-    const size_t h = (height > 0) ? height : 2160;
-    return w * h * 4;
+    return BuildVideoFrame(std::move(buffer), timestamp_us);
 }
 
 std::optional<::webrtc::VideoFrame> RgbaToI420Pipeline::Convert(const uint8_t* raw_data,
@@ -102,26 +108,24 @@ std::optional<::webrtc::VideoFrame> RgbaToI420Pipeline::Convert(const uint8_t* r
         return std::nullopt;
     }
 
-    auto buffer = ::webrtc::I420Buffer::Create(static_cast<int>(even_width),
-                                               static_cast<int>(even_height));
+    const int w = static_cast<int>(even_width);
+    const int h = static_cast<int>(even_height);
+    auto buffer = buffer_pool_.CreateI420Buffer(w, h);
+    if (!buffer) {
+        buffer = ::webrtc::I420Buffer::Create(w, h);
+    }
 
     const int status = libyuv::ConvertToI420(
             raw_data, raw_size, buffer->MutableDataY(), buffer->StrideY(), buffer->MutableDataU(),
             buffer->StrideU(), buffer->MutableDataV(), buffer->StrideV(),
-            /*crop_x=*/0, /*crop_y=*/0, static_cast<int>(width), static_cast<int>(height),
-            static_cast<int>(even_width), static_cast<int>(even_height), libyuv::kRotate0,
-            libyuv::FOURCC_ABGR);
+            /*crop_x=*/0, /*crop_y=*/0, static_cast<int>(width), static_cast<int>(height), w, h,
+            libyuv::kRotate0, libyuv::FOURCC_ABGR);
 
     if (status != 0) {
         return std::nullopt;
     }
 
-    return ::webrtc::VideoFrame::Builder()
-            .set_video_frame_buffer(buffer)
-            .set_timestamp_rtp(0)
-            .set_timestamp_us(timestamp_us)
-            .set_rotation(::webrtc::kVideoRotation_0)
-            .build();
+    return BuildVideoFrame(std::move(buffer), timestamp_us);
 }
 
 GrpcVideoSource::GrpcVideoSource(std::shared_ptr<EmulatorClient> client,
@@ -166,6 +170,9 @@ void GrpcVideoSource::OnStop() {
     }
     if (capture_thread_.joinable()) {
         capture_thread_.join();
+    }
+    if (pipeline_) {
+        pipeline_->Release();
     }
 }
 

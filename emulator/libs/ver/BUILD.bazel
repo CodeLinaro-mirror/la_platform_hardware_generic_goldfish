@@ -1,5 +1,6 @@
 load("@bazel_skylib//lib:selects.bzl", "selects")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test", "objc_library")
+load("//emulator/tools:cc_binary_with_manifest.bzl", "cc_binary_with_manifest")
 load("//emulator/tools:plugins.bzl", "collect_plugins")
 
 package(
@@ -180,6 +181,7 @@ cc_library(
     linkstatic = True,
     deps = [
         ":raw_video_file_source",
+        "//emulator/libs/file",
         "//emulator/libs/gvk",
         "//emulator/libs/system",
         "@abseil-cpp//absl/log",
@@ -188,6 +190,7 @@ cc_library(
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",
+        "@abseil-cpp//absl/time",
         "@abseil-cpp//absl/types:optional",
         "@aemu//base:aemu-base-headers",
         "@gfxstream//third_party/glm",
@@ -219,6 +222,7 @@ collect_plugins(
         "@platforms//os:linux": [
             "@goldfish_prebuilts_common//vulkan:icds_linux_x86_64",
             "@goldfish_prebuilts_common//vulkan:lib_linux_x86_64",
+            "@libxcb//:libxcb-aemu.so",
             "@llvm-project//llvm:libLLVM.so",
             "@mesa3d//:vulkan_lvp",
             "@mesa3d//:generate_lvp_icd",
@@ -294,5 +298,19 @@ cc_test(
         "@gfxstream//third_party/glm",
         "@libjpeg_turbo//:jpeg",
         "@libpng//:png",
+        "@libyuv",
+    ],
+)
+
+cc_binary_with_manifest(
+    name = "fourcc_utils_perf",
+    srcs = [
+        "test/fourcc_utils_perf.cc",
+    ],
+    tags = ["benchmark"],
+    deps = [
+        ":ver",
+        "@google_benchmark//:benchmark",
+        "@libyuv",
     ],
 )

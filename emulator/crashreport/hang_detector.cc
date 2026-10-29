@@ -15,10 +15,17 @@
 #include "android/crashreport/hang_detector.h"
 
 #include <memory>
+#include <string>
+#include <string_view>
+#include <thread>
+#include <utility>
+#include <vector>
 
 #include "absl/base/thread_annotations.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
+#include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/time/time.h"
@@ -30,6 +37,9 @@
 namespace android::crashreport {
 
 namespace {
+
+constexpr int kMaxHangCount = 2;
+
 class LoopWatcher {
   public:
     LoopWatcher(std::string loop_name, ::goldfish::async::EventLoop& event_loop,
@@ -44,7 +54,11 @@ class LoopWatcher {
             , timer_(event_loop.CreateTimer([this]() {
                 TaskComplete();
                 return true;
-            })) {}
+            }))
+            , state_subscription_(android::base::eventing::MakeScopedCallback(
+                      event_loop, [this](const ::goldfish::async::LooperStatusEvent& event) {
+                          OnLooperStateChanged(event);
+                      })) {}
 
     ~LoopWatcher() { CancelHangCheck(); }
 
@@ -64,12 +78,17 @@ class LoopWatcher {
 
     void CancelHangCheck() {
         std::shared_ptr<::goldfish::async::EventLoop::Timer> timer;
+        std::unique_ptr<android::base::eventing::ScopedEventCallback<
+                ::goldfish::async::EventLoop, ::goldfish::async::LooperStatusEvent>>
+                state_subscription;
         {
             const absl::MutexLock l(&mutex_);
             timer = std::move(timer_);
+            state_subscription = std::move(state_subscription_);
             is_task_running_ = false;
         }
 
+        state_subscription.reset();
         if (timer) {
             timer->Cancel();
         }
@@ -85,6 +104,7 @@ class LoopWatcher {
         if (android::base::IsDebuggerAttached() || !IsActive()) {
             is_task_running_ = false;
             hang_count_ = 0;
+            last_check_time_ = absl::InfinitePast();
             return;
         }
 
@@ -119,7 +139,19 @@ class LoopWatcher {
     }
 
   private:
-    bool IsActive() const { return !is_active_ || is_active_(); }
+    bool IsActive() const {
+        return event_loop_.GetState() == ::goldfish::async::LooperStatusEvent::State::kRunning &&
+               (!is_active_ || is_active_());
+    }
+
+    void OnLooperStateChanged(const ::goldfish::async::LooperStatusEvent& event) {
+        if (event.state != ::goldfish::async::LooperStatusEvent::State::kRunning) {
+            const absl::MutexLock l(&mutex_);
+            is_task_running_ = false;
+            hang_count_ = 0;
+            last_check_time_ = absl::InfinitePast();
+        }
+    }
 
     void ScheduleHangCheckLocked() ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_) {
         is_task_running_ = true;
@@ -144,11 +176,84 @@ class LoopWatcher {
     absl::Mutex mutex_;
     ::goldfish::async::EventLoop& event_loop_;
     std::shared_ptr<::goldfish::async::EventLoop::Timer> timer_ ABSL_GUARDED_BY(mutex_);
+    std::unique_ptr<android::base::eventing::ScopedEventCallback<
+            ::goldfish::async::EventLoop, ::goldfish::async::LooperStatusEvent>>
+            state_subscription_ ABSL_GUARDED_BY(mutex_);
     bool is_task_running_ ABSL_GUARDED_BY(mutex_) = false;
+    absl::Time last_check_time_ ABSL_GUARDED_BY(mutex_) = absl::InfinitePast();
+    int hang_count_ ABSL_GUARDED_BY(mutex_) = 0;
+};
+
+class PredicateWatcher {
+  public:
+    PredicateWatcher(std::string name, HangDetector::HangPredicate check,
+                     absl::Duration hang_check_timeout, const android::base::IClock* clock)
+            : name_(std::move(name))
+            , hang_check_timeout_(hang_check_timeout)
+            , clock_(clock)
+            , check_(std::move(check))
+            , last_check_time_(clock_->Now(base::ClockType::kRealtime)) {}
+
+    ~PredicateWatcher() { Cancel(); }
+
+    PredicateWatcher(PredicateWatcher&&) = delete;
+    PredicateWatcher& operator=(PredicateWatcher&&) = delete;
+    PredicateWatcher(const PredicateWatcher&) = delete;
+    PredicateWatcher& operator=(const PredicateWatcher&) = delete;
+
+    void Cancel() {
+        HangDetector::HangPredicate check;
+        {
+            const absl::MutexLock l(&mutex_);
+            check = std::move(check_);
+            hang_count_ = 0;
+        }
+    }
+
+    void Process(const HangDetector::HangCallback& hang_callback) {
+        absl::ReleasableMutexLock l(&mutex_);
+        if (!check_) {
+            // Cancelled: the predicate was removed, and its closure may capture state
+            // that the owner has already destroyed.
+            return;
+        }
+        if (android::base::IsDebuggerAttached()) {
+            hang_count_ = 0;
+            last_check_time_ = clock_->Now(base::ClockType::kRealtime);
+            return;
+        }
+
+        const absl::Time now = clock_->Now(base::ClockType::kRealtime);
+        if (now < last_check_time_ + hang_check_timeout_) {
+            return;
+        }
+        last_check_time_ = now;
+
+        const absl::Status status = check_();
+        if (status.ok()) {
+            hang_count_ = 0;
+            return;
+        }
+
+        ++hang_count_;
+        const std::string message =
+                absl::StrCat("detected a hanging predicate '", name_, "': ", status.message());
+        LOG(ERROR) << message;
+        if (hang_count_ >= kMaxHangCount && hang_callback) {
+            l.Release();
+            hang_callback(message);
+        }
+    }
+
+  private:
+    const std::string name_;
+    const absl::Duration hang_check_timeout_;
+    const android::base::IClock* const clock_;
+
+    absl::Mutex mutex_;
+    HangDetector::HangPredicate check_ ABSL_GUARDED_BY(mutex_);
     absl::Time last_check_time_ ABSL_GUARDED_BY(mutex_);
     int hang_count_ ABSL_GUARDED_BY(mutex_) = 0;
-
-    static constexpr int kMaxHangCount = 2;
 };
 
 class HangDetectorImpl : public HangDetector {
@@ -197,8 +302,50 @@ class HangDetectorImpl : public HangDetector {
         }
     }
 
+    void AddPredicate(std::string name, HangPredicate check) override {
+        if (!check) {
+            return;
+        }
+        std::shared_ptr<PredicateWatcher> replaced;
+        {
+            const absl::MutexLock l(&mutex_);
+            if (stopping_) {
+                return;
+            }
+            auto it = predicate_watchers_.find(name);
+            if (it != predicate_watchers_.end()) {
+                replaced = std::move(it->second);
+            }
+            predicate_watchers_[name] = std::make_shared<PredicateWatcher>(
+                    name, std::move(check), timing_.hang_check_timeout, clock_.get());
+        }
+
+        if (replaced) {
+            replaced->Cancel();
+        }
+    }
+
+    void RemovePredicate(std::string_view name) override {
+        std::shared_ptr<PredicateWatcher> to_remove;
+        {
+            const absl::MutexLock l(&mutex_);
+            if (stopping_) {
+                return;
+            }
+            auto node = predicate_watchers_.extract(name);
+            if (!node.empty()) {
+                to_remove = std::move(node.mapped());
+            }
+        }
+
+        if (to_remove) {
+            to_remove->Cancel();
+        }
+    }
+
     void Stop() override {
         std::vector<std::shared_ptr<LoopWatcher>> loop_watchers;
+        absl::flat_hash_map<std::string, std::shared_ptr<PredicateWatcher>> predicate_watchers;
         {
             const absl::MutexLock l(&mutex_);
             if (stopping_) {
@@ -206,10 +353,14 @@ class HangDetectorImpl : public HangDetector {
             }
             stopping_ = true;
             loop_watchers = std::move(loop_watchers_);
+            predicate_watchers = std::move(predicate_watchers_);
         }
 
         for (auto& lw : loop_watchers) {
             lw->CancelHangCheck();
+        }
+        for (auto& [name, pw] : predicate_watchers) {
+            pw->Cancel();
         }
 
         DCHECK(worker_thread_.joinable());
@@ -221,6 +372,7 @@ class HangDetectorImpl : public HangDetector {
         auto await = [this] ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_) { return stopping_; };
         for (;;) {
             std::vector<std::shared_ptr<LoopWatcher>> watchers;
+            std::vector<std::shared_ptr<PredicateWatcher>> predicates;
             {
                 const absl::MutexLock l(&mutex_);
                 if (mutex_.AwaitWithTimeout(absl::Condition(&await),
@@ -230,10 +382,17 @@ class HangDetectorImpl : public HangDetector {
                     }
                 }
                 watchers = loop_watchers_;
+                predicates.reserve(predicate_watchers_.size());
+                for (const auto& [name, pw] : predicate_watchers_) {
+                    predicates.push_back(pw);
+                }
             }
 
             for (auto&& lw : watchers) {
                 lw->Process(hang_callback_);
+            }
+            for (auto&& pw : predicates) {
+                pw->Process(hang_callback_);
             }
         }
     }
@@ -243,6 +402,8 @@ class HangDetectorImpl : public HangDetector {
     const std::unique_ptr<android::base::IClock> clock_;
 
     std::vector<std::shared_ptr<LoopWatcher>> loop_watchers_ ABSL_GUARDED_BY(mutex_);
+    absl::flat_hash_map<std::string, std::shared_ptr<PredicateWatcher>> predicate_watchers_
+            ABSL_GUARDED_BY(mutex_);
 
     absl::Mutex mutex_;
     bool stopping_ ABSL_GUARDED_BY(mutex_) = false;

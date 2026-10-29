@@ -26,6 +26,8 @@
 #pragma clang diagnostic pop
 
 #include <atomic>
+#include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <set>
 #include <string>
@@ -39,6 +41,8 @@
 
 namespace goldfish::videobridge {
 
+class GrpcAudioSourceTestPeer;
+
 /**
  * WebRTC AudioSourceInterface streaming emulator audio output via gRPC.
  *
@@ -46,6 +50,15 @@ namespace goldfish::videobridge {
  */
 class GrpcAudioSource : public ManagedAudioTrackSource {
   public:
+    static constexpr int32_t kSampleRateHz = 48000;
+    static constexpr int32_t kChannels = 2;
+    static constexpr int32_t kBitsPerSample = 16;
+    static constexpr int32_t kBytesPerSample = 2;
+    // WebRTC requires each audio packet to be exactly 10ms long.
+    static constexpr int32_t kSamplesPerFrame = kSampleRateHz / 100;
+    static constexpr size_t kBytesPerFrame =
+            static_cast<size_t>(kBytesPerSample) * kSamplesPerFrame * kChannels;
+
     explicit GrpcAudioSource(std::shared_ptr<EmulatorClient> client);
     ~GrpcAudioSource() override;
 
@@ -54,8 +67,11 @@ class GrpcAudioSource : public ManagedAudioTrackSource {
     void OnStop() override;
 
   private:
+    friend class GrpcAudioSourceTestPeer;
+
     void CaptureLoop();
     void ConsumeAudioPacket(const AudioPacket& audio_packet);
+    void DispatchFrame(const uint8_t* frame_data);
 
     std::shared_ptr<EmulatorClient> client_;
 

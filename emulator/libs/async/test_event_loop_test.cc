@@ -16,8 +16,10 @@
 
 #include <chrono>
 #include <future>
+#include <vector>
 
 #include "absl/status/status_matchers.h"
+#include "absl/strings/str_cat.h"
 #include "absl/time/time.h"
 #include "gtest/gtest.h"
 
@@ -282,4 +284,24 @@ TEST(TestEventLoop, RescheduleRepeatingTimer) {
     // Check that it fires again quickly.
     loop->AdvanceClock(absl::Milliseconds(15));
     ASSERT_EQ(counter, 3);
+}
+
+TEST(TestEventLoop, PauseAndResumeEmitsStateChanges) {
+    auto loop = TestEventLoop::Create();
+    ASSERT_EQ(loop->GetState(), LooperStatusEvent::State::kRunning);
+
+    std::vector<LooperStatusEvent::State> states;
+    auto subscription = android::base::eventing::MakeScopedCallback(
+            *loop, [&](const LooperStatusEvent& event) { states.push_back(event.state); });
+
+    loop->Pause();
+    EXPECT_EQ(loop->GetState(), LooperStatusEvent::State::kPaused);
+    EXPECT_EQ(absl::StrCat(LooperStatusEvent{.state = loop->GetState()}), "PAUSED");
+
+    loop->Resume();
+    EXPECT_EQ(loop->GetState(), LooperStatusEvent::State::kRunning);
+
+    ASSERT_EQ(states.size(), 2u);
+    EXPECT_EQ(states[0], LooperStatusEvent::State::kPaused);
+    EXPECT_EQ(states[1], LooperStatusEvent::State::kRunning);
 }

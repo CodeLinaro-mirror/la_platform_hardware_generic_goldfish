@@ -93,15 +93,9 @@ void IniFile::ParseStream(std::istream* in, bool keep_comments) {
         citer = Eat(citer, cend, IsSpaceChar);
 
         // Handle empty lines, comments.
-        if (citer == cend) {
-            VLOG(2) << "Line " << lineno << ": Skipped empty line.";
-            if (keep_comments) {
-                comments_.emplace_back(output_lineno, std::move(line));
-            }
-            continue;
-        }
-        if (*citer == '#' || *citer == ';') {
-            VLOG(2) << "Line " << lineno << ": Skipped comment line.";
+        if (citer == cend || *citer == '#' || *citer == ';') {
+            VLOG(2) << "Line " << lineno << ": Skipped " << (citer == cend ? "empty" : "comment")
+                    << " line.";
             if (keep_comments) {
                 comments_.emplace_back(output_lineno, std::move(line));
             }
@@ -420,13 +414,24 @@ StorageCapacity ParseDiskSize(std::string_view value_str, StorageCapacity defaul
     }
 }
 
+template <typename T, typename Parser>
+T ParseNumericValue(std::string_view value, std::string_view key, T default_value,
+                    std::string_view type_name, Parser parser) {
+    if (value.empty()) {
+        return default_value;
+    }
+    T res{};
+    if (!parser(value, &res)) {
+        VLOG(1) << "Malformed " << type_name << " value " << value << " for key " << key;
+        return default_value;
+    }
+    return res;
+}
+
 }  // namespace
 
 std::string IniFile::GetString(std::string_view key) const {
-    if (auto i = data_.find(key); i != data_.end()) {
-        return EnvSubst(i->second);
-    }
-    return {};
+    return GetString(key, {});
 }
 
 std::string IniFile::GetString(std::string_view key, std::string_view default_value) const {
@@ -436,43 +441,20 @@ std::string IniFile::GetString(std::string_view key, std::string_view default_va
 }
 
 int IniFile::GetInt(std::string_view key, int default_value) const {
-    auto value = GetString(key);
-    if (value.empty()) {
-        return default_value;
-    }
-
-    int res;
-    if (!absl::SimpleAtoi(value, &res)) {
-        VLOG(1) << "Malformed int value " << value << " for key " << key;
-        return default_value;
-    }
-    return res;
+    return ParseNumericValue(GetString(key), key, default_value, "int",
+                             [](std::string_view s, int* out) { return absl::SimpleAtoi(s, out); });
 }
 
 int64_t IniFile::GetInt64(std::string_view key, int64_t default_value) const {
-    auto value = GetString(key);
-    if (value.empty()) {
-        return default_value;
-    }
-    int64_t res;
-    if (!absl::SimpleAtoi(value, &res)) {
-        VLOG(1) << "Malformed int64 value " << value << " for key " << key;
-        return default_value;
-    }
-    return res;
+    return ParseNumericValue(
+            GetString(key), key, default_value, "int64",
+            [](std::string_view s, int64_t* out) { return absl::SimpleAtoi(s, out); });
 }
 
 double IniFile::GetDouble(std::string_view key, double default_value) const {
-    auto value = GetString(key);
-    if (value.empty()) {
-        return default_value;
-    }
-    double res;
-    if (!absl::SimpleAtod(value, &res)) {
-        VLOG(1) << "Malformed double value " << value << " for key " << key;
-        return default_value;
-    }
-    return res;
+    return ParseNumericValue(
+            GetString(key), key, default_value, "double",
+            [](std::string_view s, double* out) { return absl::SimpleAtod(s, out); });
 }
 
 bool IniFile::GetBool(std::string_view key, bool default_value) const {

@@ -21,12 +21,18 @@
 
 namespace android::goldfish {
 
+using base::operator""_B;
+using base::operator""_KiB;
+using base::operator""_MiB;
+using base::operator""_GiB;
+using base::operator""_TiB;
+
 HardwareConfig::HardwareConfig() {
-#define HWCFG_BOOL(n, s, d, a, t) n = 0;
-#define HWCFG_INT(n, s, d, a, t) n = 0;
-#define HWCFG_STRING(n, s, d, a, t) n.clear();
-#define HWCFG_DOUBLE(n, s, d, a, t) n = 0.0;
-#define HWCFG_DISKSIZE(n, s, d, a, t) n = 0;
+#define HWCFG_BOOL(n, s, d, a, t) n = d;
+#define HWCFG_INT(n, s, d, a, t) n = d;
+#define HWCFG_STRING(n, s, d, a, t) n = d;
+#define HWCFG_DOUBLE(n, s, d, a, t) n = d;
+#define HWCFG_DISKSIZE(n, s, d, a, t) n = d;
 
 #include "avd/hw-config-defs.h"
 }
@@ -40,9 +46,6 @@ void HardwareConfig::Load(const IniFile& ini) {
 #define HWCFG_DISKSIZE(n, s, d, a, t) (n) = ini.GetDiskSize(s, d);
 
 #include "avd/hw-config-defs.h"
-
-    hw_sdCard = ini.GetBool("hw.sdCard", false);
-    hw_sd_card_size = ini.GetDiskSize("sdcard.size", hw_sd_card_size.Bytes());
 }
 
 void HardwareConfig::ApplyDefaults(const fs::path& sdk_root_path, const fs::path& avd_home_path) {
@@ -77,8 +80,6 @@ void HardwareConfig::Write(IniFile* ini) const {
 #define HWCFG_DISKSIZE(n, s, d, a, t) ini->SetDiskSize(s, n);
 
 #include "avd/hw-config-defs.h"
-
-    ini->SetDiskSize("sdcard.size", hw_sd_card_size.Bytes());
 }
 
 }  // namespace android::goldfish

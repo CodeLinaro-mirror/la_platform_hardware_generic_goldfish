@@ -143,7 +143,7 @@ TEST(SmsPdusFromUtf8, one_pdu) {
 }
 
 TEST(SmsPdusFromUtf8, many_pdus) {
-    const std::string_view kLongMessage =
+    constexpr std::string_view kLongMessage =
             "Copyright 2026 The Android Open Source Project. "
             "Licensed under the Apache License, Version 2.0 (the \"License\"); "
             "you may not use this file except in compliance with the License."sv;

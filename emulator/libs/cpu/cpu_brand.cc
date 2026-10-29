@@ -23,7 +23,7 @@
 // IWYU pragma: end_keep
 // clang-format on
 #include <Wbemidl.h>
-#include <comutil.h>
+#include <comdef.h>
 
 #else
 #include <fcntl.h>

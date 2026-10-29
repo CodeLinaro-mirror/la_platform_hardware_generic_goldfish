@@ -58,7 +58,10 @@ class PosterSceneObject : public SceneObject {
     void setScale(float value);
 
     // Update the PosterSceneObject for the current frame.
-    void update();
+    //
+    // Returns true if the poster has changed, e.g. its texture finished
+    // loading, and needs to be rendered again.
+    bool update();
 
   private:
     // Make private, setScale should be used instead.
@@ -74,6 +77,7 @@ class PosterSceneObject : public SceneObject {
     // Updated each frame if the texture has changed.
     float mMinScale = 0.0f;
     glm::mat4 mPosterSizeTransform = glm::mat4();
+    uint64_t mTextureGeneration = 0;
 
     // Dynamically adjustable with setScale().
     float mScale = 1.0f;

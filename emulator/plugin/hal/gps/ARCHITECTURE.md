@@ -15,9 +15,12 @@
 - **Protocol:** Uses the legacy QEMUD GPS protocol (`$GPGGA` and `$GPRMC` NMEA 0183 sentences framed
   as QEMUD packets).
 - **State Management:** Subscribes to `avd_universe::gps::ObservableLocation` to receive location
-  updates from host controllers (UI, console, gRPC `GpsServiceImpl`).
+  updates from host controllers (UI, console, gRPC `GpsServiceImpl`, and V2 `LocationServiceImpl`),
+  seeding its initial fix from `ObservableLocation` upon connection.
 - **Behavior:** Broadcasts the current location at 1 Hz while connected and immediately transmits an
-  update whenever `ObservableLocation` changes.
+  update whenever `ObservableLocation` changes. Encodes `Location::accuracy` into the `$GPGGA`
+  HDOP/accuracy field (`1.0` when unset/`0.0`) and reports GNSS fix loss (`$GPGGA` fix quality `0`,
+  `$GPRMC` status `V`) when `Location::satellites == 0`.
 
 ## Dependencies
 

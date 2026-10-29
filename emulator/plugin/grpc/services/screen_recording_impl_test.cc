@@ -21,12 +21,16 @@
 #include <fstream>
 #include <string>
 
+#include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
+#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
 #include "goldfish/async/libuv_event_loop.h"
 #include "goldfish/async/threaded_event_loop.h"
 #include "goldfish/display/test/fake_multi_display.h"
 #include "goldfish/display/test/fake_pixman_display.h"
+#include "goldfish/file/file.h"
 
 // Undefine close macro on Windows to avoid conflict with std::ofstream::close()
 #ifdef _WIN32
@@ -38,6 +42,23 @@ namespace android::emulation::control::incubating {
 using ::goldfish::async::LibuvEventLoop;
 using ::goldfish::async::ThreadedEventLoop;
 using ::goldfish::display::test::FakeMultiDisplay;
+using ::testing::AllOf;
+using ::testing::HasSubstr;
+
+namespace {
+
+class ExpiredDisplayMultiDisplay : public FakeMultiDisplay {
+  public:
+    explicit ExpiredDisplayMultiDisplay(::goldfish::async::EventLoop* event_loop)
+            : FakeMultiDisplay(event_loop) {}
+
+    absl::StatusOr<::goldfish::display::DisplayPtr> GetDisplay(
+            ::goldfish::display::DisplayId /*display_id*/) const override {
+        return ::goldfish::display::DisplayPtr{};
+    }
+};
+
+}  // namespace
 
 class ScreenRecordingServiceImplTest : public ::testing::Test {
   protected:
@@ -165,7 +186,7 @@ TEST_F(ScreenRecordingServiceImplTest, DISABLED_StartRecording5Seconds) {
 }
 
 TEST_F(ScreenRecordingServiceImplTest, StartRecordingFailsForInvalidFileName) {
-    std::string test_file = (temp_dir_ / "test_invalid.mp4").string();
+    const std::string test_file = (temp_dir_ / "vidéo_中文.mp4").string();
 
     RecordingInfo request;
     request.set_file_name(test_file);
@@ -177,10 +198,14 @@ TEST_F(ScreenRecordingServiceImplTest, StartRecordingFailsForInvalidFileName) {
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.error_code(), grpc::StatusCode::INVALID_ARGUMENT);
+    EXPECT_THAT(status.error_message(),
+                AllOf(HasSubstr("Failed to start screen recording"), HasSubstr("vidéo_中文.mp4"),
+                      HasSubstr("must end with '.webm'"),
+                      HasSubstr("Specify a destination path with a '.webm' extension.")));
 }
 
 TEST_F(ScreenRecordingServiceImplTest, StartRecordingFailsForInvalidFps) {
-    std::string test_file = (temp_dir_ / "test_invalid_fps.webm").string();
+    const std::string test_file = (temp_dir_ / "test_invalid_fps.webm").string();
 
     RecordingInfo request;
     request.set_file_name(test_file);
@@ -193,10 +218,36 @@ TEST_F(ScreenRecordingServiceImplTest, StartRecordingFailsForInvalidFps) {
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.error_code(), grpc::StatusCode::INVALID_ARGUMENT);
+    EXPECT_THAT(status.error_message(),
+                AllOf(HasSubstr("test_invalid_fps.webm"),
+                      HasSubstr(absl::StrCat("FPS 100 is out of range [1, ", kMaxFPS, "]")),
+                      HasSubstr("Specify an FPS between 1 and")));
+}
+
+TEST_F(ScreenRecordingServiceImplTest, StartRecordingFailsForInvalidBitRate) {
+    const std::string test_file = (temp_dir_ / "test_invalid_bitrate.webm").string();
+
+    RecordingInfo request;
+    request.set_file_name(test_file);
+    request.set_bit_rate(kMinVideoBitrate - 1);
+
+    RecordingInfo response;
+    grpc::ServerContext context;
+
+    auto status = service->StartRecording(&context, &request, &response);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.error_code(), grpc::StatusCode::INVALID_ARGUMENT);
+    EXPECT_THAT(
+            status.error_message(),
+            AllOf(HasSubstr("test_invalid_bitrate.webm"),
+                  HasSubstr(absl::StrCat("bitrate ", kMinVideoBitrate - 1, " bps is out of range [",
+                                         kMinVideoBitrate, ", ", kMaxVideoBitrate, "]")),
+                  HasSubstr("Specify a bitrate between")));
 }
 
 TEST_F(ScreenRecordingServiceImplTest, StartRecordingFailsForExcessiveTimeLimit) {
-    std::string test_file = (temp_dir_ / "test_invalid_timelimit.webm").string();
+    const std::string test_file = (temp_dir_ / "test_invalid_timelimit.webm").string();
 
     RecordingInfo request;
     request.set_file_name(test_file);
@@ -209,8 +260,156 @@ TEST_F(ScreenRecordingServiceImplTest, StartRecordingFailsForExcessiveTimeLimit)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.error_code(), grpc::StatusCode::INVALID_ARGUMENT);
-    EXPECT_EQ(status.error_message(), absl::StrCat("Time limit must be between 1 and ",
-                                                   android::emulation::control::kMaxTimeLimit));
+    EXPECT_THAT(status.error_message(),
+                AllOf(HasSubstr("test_invalid_timelimit.webm"),
+                      HasSubstr(absl::StrCat("time limit ",
+                                             android::emulation::control::kMaxTimeLimit + 1,
+                                             "s is out of range [1, ",
+                                             android::emulation::control::kMaxTimeLimit, "]")),
+                      HasSubstr("Specify a time limit between 1 and")));
+}
+
+TEST_F(ScreenRecordingServiceImplTest, StartRecordingFailsWhenAlreadyInProgress) {
+    const std::string first_file = (temp_dir_ / "active_first.webm").string();
+    const std::string second_file = (temp_dir_ / "second_attempt.webm").string();
+
+    RecordingInfo first_request;
+    first_request.set_file_name(first_file);
+    RecordingInfo first_response;
+    grpc::ServerContext context1;
+
+    ASSERT_TRUE(service->StartRecording(&context1, &first_request, &first_response).ok());
+
+    RecordingInfo second_request;
+    second_request.set_file_name(second_file);
+    RecordingInfo second_response;
+    grpc::ServerContext context2;
+
+    auto status = service->StartRecording(&context2, &second_request, &second_response);
+    EXPECT_EQ(status.error_code(), grpc::StatusCode::ALREADY_EXISTS);
+    EXPECT_THAT(status.error_message(), AllOf(HasSubstr("second_attempt.webm"),
+                                              HasSubstr("screen recording is already in progress"),
+                                              HasSubstr("Call StopRecording")));
+
+    grpc::ServerContext stop_context;
+    EXPECT_TRUE(service->StopRecording(&stop_context, &first_request, &first_response).ok());
+    android::base::file::rm(first_file).IgnoreError();
+}
+
+TEST_F(ScreenRecordingServiceImplTest, StartRecordingFailsForMissingAndExpiredDisplay) {
+    const std::string test_file = (temp_dir_ / "test_missing_display.webm").string();
+
+    RecordingInfo request;
+    request.set_file_name(test_file);
+    request.set_display(99);
+
+    RecordingInfo response;
+    grpc::ServerContext context;
+
+    auto status = service->StartRecording(&context, &request, &response);
+    EXPECT_EQ(status.error_code(), grpc::StatusCode::NOT_FOUND);
+    EXPECT_THAT(status.error_message(),
+                AllOf(HasSubstr("test_missing_display.webm"), HasSubstr("on display 99"),
+                      HasSubstr("Display with id 99 not found"),
+                      HasSubstr("Verify that display 99 exists and is active")));
+
+    ExpiredDisplayMultiDisplay expired_display(loop.get());
+    ScreenRecordingServiceImpl expired_service(&expired_display);
+    request.set_display(7);
+    grpc::ServerContext expired_context;
+    status = expired_service.StartRecording(&expired_context, &request, &response);
+    EXPECT_EQ(status.error_code(), grpc::StatusCode::UNAVAILABLE);
+    EXPECT_THAT(status.error_message(),
+                AllOf(HasSubstr("test_missing_display.webm"), HasSubstr("on display 7"),
+                      HasSubstr("display 7 is no longer active"),
+                      HasSubstr("Verify that display 7 has not been removed")));
+}
+
+TEST_F(ScreenRecordingServiceImplTest, StartRecordingFailsWhenExistingPathCannotBeRemoved) {
+    const std::filesystem::path conflict_dir = temp_dir_ / "locked_dir.webm";
+    ASSERT_TRUE(android::base::file::mkdir_recursive(conflict_dir, 0700).ok());
+    ASSERT_TRUE(android::base::file::touch(conflict_dir / "keep").ok());
+
+    RecordingInfo request;
+    request.set_file_name(conflict_dir.string());
+    RecordingInfo response;
+    grpc::ServerContext context;
+
+    auto status = service->StartRecording(&context, &request, &response);
+    EXPECT_EQ(status.error_code(), grpc::StatusCode::INTERNAL);
+    EXPECT_THAT(status.error_message(),
+                AllOf(HasSubstr("unable to remove existing recording file"),
+                      HasSubstr("locked_dir.webm"), HasSubstr("write permissions")));
+
+    android::base::file::rm_recursive(conflict_dir).IgnoreError();
+}
+
+TEST_F(ScreenRecordingServiceImplTest, StartRecordingFailsForMissingParentDirWithUnicodePath) {
+    const std::string test_file = (temp_dir_ / "täst_中文_missing" / "vidéo.webm").string();
+
+    RecordingInfo request;
+    request.set_file_name(test_file);
+    RecordingInfo response;
+    grpc::ServerContext context;
+
+    auto status = service->StartRecording(&context, &request, &response);
+    EXPECT_EQ(status.error_code(), grpc::StatusCode::INTERNAL);
+    EXPECT_THAT(status.error_message(),
+                AllOf(HasSubstr("unable to create recording file"), HasSubstr("täst_中文_missing"),
+                      HasSubstr("vidéo.webm"), HasSubstr("Ensure the parent directory exists")));
+}
+
+TEST_F(ScreenRecordingServiceImplTest, StartRecordingFailsWhenEncoderInitFails) {
+    ASSERT_TRUE(fake_display->CreateDisplay(2, 1, 1, 440, 0).ok());
+    const std::string test_file = (temp_dir_ / "test_encoder_fail.webm").string();
+
+    RecordingInfo request;
+    request.set_file_name(test_file);
+    request.set_display(2);
+    RecordingInfo response;
+    grpc::ServerContext context;
+
+    auto status = service->StartRecording(&context, &request, &response);
+    EXPECT_EQ(status.error_code(), grpc::StatusCode::INTERNAL);
+    EXPECT_THAT(status.error_message(),
+                AllOf(HasSubstr("test_encoder_fail.webm"), HasSubstr("on display 2"),
+                      HasSubstr("unable to initialize WebM video encoder for 1x1"),
+                      HasSubstr("check emulator logs")));
+
+    android::base::file::rm(test_file).IgnoreError();
+}
+
+TEST_F(ScreenRecordingServiceImplTest, StopRecordingReportsActionableNotFoundErrors) {
+    const std::string inactive_file = (temp_dir_ / "inactive_vidéo.webm").string();
+    RecordingInfo stop_request;
+    stop_request.set_file_name(inactive_file);
+    RecordingInfo response;
+    grpc::ServerContext context1;
+
+    auto status = service->StopRecording(&context1, &stop_request, &response);
+    EXPECT_EQ(status.error_code(), grpc::StatusCode::NOT_FOUND);
+    EXPECT_THAT(status.error_message(), AllOf(HasSubstr("inactive_vidéo.webm"),
+                                              HasSubstr("no screen recording is currently active"),
+                                              HasSubstr("Call StartRecording")));
+
+    const std::string active_file = (temp_dir_ / "active_recording.webm").string();
+    RecordingInfo start_request;
+    start_request.set_file_name(active_file);
+    grpc::ServerContext start_context;
+    ASSERT_TRUE(service->StartRecording(&start_context, &start_request, &response).ok());
+
+    const std::string wrong_file = (temp_dir_ / "wrong_target.webm").string();
+    stop_request.set_file_name(wrong_file);
+    grpc::ServerContext wrong_context;
+    status = service->StopRecording(&wrong_context, &stop_request, &response);
+    EXPECT_EQ(status.error_code(), grpc::StatusCode::NOT_FOUND);
+    EXPECT_THAT(status.error_message(),
+                AllOf(HasSubstr("no recording found for"), HasSubstr("wrong_target.webm"),
+                      HasSubstr("ListRecordings")));
+
+    grpc::ServerContext valid_stop_context;
+    EXPECT_TRUE(service->StopRecording(&valid_stop_context, &start_request, &response).ok());
+    android::base::file::rm(active_file).IgnoreError();
 }
 
 TEST_F(ScreenRecordingServiceImplTest, StartRecordingOverwritesExistingFile) {

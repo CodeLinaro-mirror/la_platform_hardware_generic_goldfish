@@ -14,13 +14,18 @@
 
 #include "android/emulation/control/in_process_rtc_service.h"
 
+#include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
 #include <memory>
+#include <utility>
 #include <vector>
 
 #include "absl/log/log.h"
+#include "absl/status/status.h"
 
+#include "emulator/plugin/grpc/input/input_dispatcher_interface.h"
+#include "emulator/plugin/grpc/input/recording_input_dispatcher.h"
 #include "goldfish/audio/qemu_audio_capture.h"
 #include "goldfish/avd/avd_info.h"
 #include "goldfish/avd/avd_properties.h"
@@ -43,6 +48,9 @@ QemuConsole* qemu_console_lookup_by_index(int index) {
 namespace android::emulation::control {
 namespace {
 
+using ::goldfish::grpc::v2::IInputDispatcher;
+using ::goldfish::grpc::v2::testing::RecordingInputDispatcher;
+
 class TestAvdUniverse : public ::goldfish::avd::AvdUniverse {
   public:
     explicit TestAvdUniverse(::goldfish::display::IMultiDisplay* multi_display,
@@ -63,6 +71,7 @@ class TestAvdUniverse : public ::goldfish::avd::AvdUniverse {
         LOG(FATAL) << "GetVmOperations not implemented in tests";
     }
     ::goldfish::display::IMultiDisplay& GetMultiDisplay() const override { return *multi_display_; }
+    std::shared_ptr<IInputDispatcher> GetInputDispatcher() override { return input_dispatcher_; }
 
     absl::Status OnSave(::goldfish::archive::IWriter&) const override { return absl::OkStatus(); }
     absl::Status OnLoad(::goldfish::archive::IReader&) override { return absl::OkStatus(); }
@@ -70,6 +79,8 @@ class TestAvdUniverse : public ::goldfish::avd::AvdUniverse {
   private:
     ::goldfish::display::IMultiDisplay* multi_display_;
     ::goldfish::async::EventLoop& loop_;
+    std::shared_ptr<RecordingInputDispatcher> input_dispatcher_ =
+            std::make_shared<RecordingInputDispatcher>();
 };
 
 #undef send
@@ -147,15 +158,21 @@ TEST(InProcessRtcServiceTest, InputSenderDispatchesTouchAndMouseEvent) {
     EXPECT_EQ(display->mouse_events[0].y, 60);
 }
 
-TEST(InProcessRtcServiceTest, InputSenderV2DispatchesV2PointerEvent) {
+TEST(InProcessRtcServiceTest, InputSenderV2DispatchesToAHumanSessionClosedWithTheChannel) {
     ::goldfish::display::test::FakeMultiDisplay fake_multidisplay(
             ::goldfish::avd::globalEventLoop());
     TestAvdUniverse universe(&fake_multidisplay, *::goldfish::avd::globalEventLoop());
     auto key_event_sender = std::make_shared<FakeKeyEventSender>();
-    auto factory = CreateInProcessInputSenderFactory(fake_multidisplay, key_event_sender);
+    auto dispatcher = std::make_shared<RecordingInputDispatcher>();
+    auto factory =
+            CreateInProcessInputSenderFactory(fake_multidisplay, key_event_sender, dispatcher);
     auto sender = factory(DataChannelLabel::kInputV2);
     ASSERT_NE(sender, nullptr);
     EXPECT_TRUE(sender->Start().ok());
+    ASSERT_TRUE(dispatcher->opened_with.has_value());
+    EXPECT_TRUE(dispatcher->opened_with->human);
+    EXPECT_EQ(dispatcher->opened_with->source_id, 0);
+    EXPECT_TRUE(dispatcher->opened_with->reject_down_on_held);
 
     ::android::emulation::v2::InputEvent v2_event;
     auto* pointer = v2_event.mutable_pointer();
@@ -168,11 +185,16 @@ TEST(InProcessRtcServiceTest, InputSenderV2DispatchesV2PointerEvent) {
     ptr->set_pressure(1.0F);
 
     sender->SendV2Event(v2_event);
+    ::android::emulation::v2::InputEvent text_event;
+    text_event.mutable_text()->set_text("测试_🚀_é");
+    sender->SendV2Event(text_event);
+    EXPECT_THAT(dispatcher->calls,
+                ::testing::ElementsAre("pointer 7 display 0", "text 7 测试_🚀_é"));
 
-    auto display = fake_multidisplay.GetDisplay<::goldfish::display::test::ActiveFakePixmanDisplay>(
-            fake_multidisplay.GetDisplay(0));
-
-    EXPECT_GT(display->evdevs.size(), 0);
+    sender.reset();
+    EXPECT_THAT(dispatcher->calls,
+                ::testing::ElementsAre("pointer 7 display 0", "text 7 测试_🚀_é", "close 7"));
+    EXPECT_TRUE(key_event_sender->sent_events.empty());
 }
 
 }  // namespace

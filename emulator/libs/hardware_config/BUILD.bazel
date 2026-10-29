@@ -10,7 +10,7 @@ genrule(
     name = "hw-config-gen",
     srcs = ["data/hardware-properties.ini"],
     outs = ["include/avd/hw-config-defs.h"],
-    cmd = "$(location :gen-hw-config) $(location data/hardware-properties.ini) $(location include/avd/hw-config-defs.h)",
+    cmd = "$(execpath :gen-hw-config) $(execpath data/hardware-properties.ini) $(execpath include/avd/hw-config-defs.h)",
     tools = [":gen-hw-config"],
 )
 
@@ -53,6 +53,18 @@ cc_library(
     hdrs = ["include/android/goldfish/device_type.h"],
     includes = ["include"],
     visibility = ["//visibility:public"],
+)
+
+cc_test(
+    name = "hardware_config_test",
+    size = "small",
+    srcs = ["hardware_config_test.cc"],
+    deps = [
+        ":hardware_config",
+        "//emulator/libs/file",
+        "//emulator/libs/ini_file",
+        "//emulator/libs/test:googletest_main",
+    ],
 )
 
 cc_test(

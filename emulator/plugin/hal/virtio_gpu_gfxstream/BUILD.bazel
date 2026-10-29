@@ -1,0 +1,267 @@
+load("@aemu//tools/clang_tidy:defs.bzl", "clang_tidy_test")
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:cc_test.bzl", "cc_test")
+load("@rules_license//rules:license.bzl", "license")
+load("//emulator/tools:plugins.bzl", "collect_plugins")
+
+package(
+    default_applicable_licenses = ["//emulator:license"],
+    default_visibility = ["//visibility:public"],
+)
+
+license(
+    name = "license_gpl",
+    package_name = "virtio_gpu_gfxstream",
+    license_kinds = [
+        "@rules_license//licenses/spdx:GPL-2.0-or-later",
+    ],
+    license_text = "@qemu//:COPYING",
+    package_url = "https://android.googlesource.com/platform/hardware/generic/goldfish/",
+)
+
+# stream_renderer_* API of libgfxstream_backend, vendored from
+# hardware/google/gfxstream/host/include/gfxstream/ (see third_party/gfxstream/README.md).
+# @gfxstream//host:gfxstream_backend_headers cannot be used from the plugin:
+# it carries linkopts (-Wl,--fatal-warnings) the plugin does not satisfy.
+cc_library(
+    name = "gfxstream_renderer_headers",
+    hdrs = [
+        "third_party/gfxstream/include/gfxstream/virtio-gpu-gfxstream-renderer.h",
+        "third_party/gfxstream/include/gfxstream/virtio-gpu-gfxstream-renderer-unstable.h",
+    ],
+    strip_include_prefix = "third_party/gfxstream/include",
+    visibility = ["//visibility:private"],
+)
+
+# GModule loader of libgfxstream_backend and the stream_renderer_*
+# function table. Has no QEMU dependency so it can be unit tested.
+cc_library(
+    name = "gfxstream_backend_loader",
+    srcs = ["gfxstream_backend_loader.c"],
+    hdrs = ["gfxstream_backend_loader.h"],
+    linkopts = select({
+        "@platforms//os:linux": ["-ldl"],
+        "//conditions:default": [],
+    }),
+    linkstatic = True,
+    visibility = ["//visibility:private"],
+    deps = [
+        ":gfxstream_renderer_headers",
+        "@glib//glib:glib_import",
+        "@glib//gmodule:gmodule_import",
+    ],
+)
+
+# rutabaga_gfx-shaped C API (gfxstream_*) implemented on the stream_renderer_*
+# table, so virtio_gpu_gfxstream.c stays a near-verbatim copy of QEMU's
+# hw/display/virtio-gpu-rutabaga.c. No QEMU dependency.
+cc_library(
+    name = "gfxstream_renderer",
+    srcs = ["gfxstream_renderer.c"],
+    hdrs = ["gfxstream_renderer.h"],
+    linkstatic = True,
+    visibility = ["//visibility:private"],
+    deps = [
+        ":gfxstream_backend_loader",
+        ":gfxstream_renderer_headers",
+        "@glib//glib:glib_import",
+    ],
+)
+
+# The virtio-gpu-gfxstream QEMU device (VirtIOGPU subclass) and its PCI transport.
+cc_library(
+    name = "virtio_gpu_gfxstream",
+    srcs = [
+        "virtio_gpu_gfxstream.c",
+        "virtio_gpu_gfxstream_internal.h",
+        "virtio_gpu_gfxstream_pci.c",
+    ],
+    hdrs = ["include/goldfish/devices/virtio_gpu_gfxstream/virtio_gpu_gfxstream.h"],
+    applicable_licenses = [":license_gpl"],
+    includes = ["include"],
+    deps = [
+        ":gfxstream_renderer",
+        "@pixman//:pixman-1",
+        "@qemu//:qemu-headers-exported",
+    ],
+    alwayslink = True,
+)
+
+# Host-side image read/write on virtio-gpu resources for other plugin code,
+# dispatching to whichever of virtio-gpu-gfxstream / virtio-gpu-rutabaga is
+# instantiated. The rutabaga path goes through QEMU's lazy librutabaga_ffi
+# shim, so this does not link librutabaga_ffi either.
+cc_library(
+    name = "virtio_gpu_glue",
+    srcs = [
+        "virtio_gpu_gfxstream_internal.h",
+        "virtio_gpu_glue.c",
+    ],
+    hdrs = ["include/goldfish/devices/virtio_gpu_gfxstream/virtio_gpu_glue.h"],
+    applicable_licenses = [":license_gpl"],
+    includes = ["include"],
+    linkstatic = True,
+    deps = [
+        ":gfxstream_renderer",
+        "@pixman//:pixman-1",
+        "@qemu//:qemu-headers-exported",
+        "@qemu//google/rutabaga:rutabaga_ffi_lazy",
+    ],
+)
+
+# --- Tests -------------------------------------------------------------------
+#
+# A stand-in libgfxstream_backend exporting every stream_renderer_* symbol the
+# loader resolves (recording its calls in fake_gfxstream_state); the tests
+# point ANDROID_EMULATOR_LIBRARY_DIR at its directory. The file name must be
+# the one gfxstream_backend_loader.c looks for on the platform.
+cc_library(
+    name = "fake_gfxstream_backend_headers",
+    testonly = True,
+    hdrs = ["fake_gfxstream_backend.h"],
+    visibility = ["//visibility:private"],
+)
+
+[
+    cc_binary(
+        name = variant + "/" + lib_name,
+        testonly = True,
+        srcs = ["fake_gfxstream_backend.c"],
+        features = features,
+        linkshared = True,
+        local_defines = defines,
+        target_compatible_with = compatible_with,
+        visibility = ["//visibility:private"],
+        deps = [
+            ":fake_gfxstream_backend_headers",
+            ":gfxstream_renderer_headers",
+        ],
+    )
+    for variant, defines in [
+        ("fake_complete", []),
+        (
+            "fake_incomplete",
+            ["GFXSTREAM_FAKE_OMIT_REQUIRED_SYMBOL=1"],
+        ),
+    ]
+    for lib_name, compatible_with, features in [
+        (
+            "libgfxstream_backend.so",
+            ["@platforms//os:linux"],
+            [],
+        ),
+        (
+            "libgfxstream_backend.dylib",
+            ["@platforms//os:macos"],
+            [],
+        ),
+        (
+            "gfxstream_backend.dll",
+            ["@platforms//os:windows"],
+            [
+                "-windows_export_all_symbols",
+                "no_windows_export_all_symbols",
+            ],
+        ),
+    ]
+]
+
+_FAKE_COMPLETE_DATA = select({
+    "@platforms//os:macos": [":fake_complete/libgfxstream_backend.dylib"],
+    "@platforms//os:windows": [":fake_complete/gfxstream_backend.dll"],
+    "//conditions:default": [":fake_complete/libgfxstream_backend.so"],
+})
+
+_FAKE_COMPLETE_RLOCATION = select({
+    "@platforms//os:macos": {"GFXSTREAM_FAKE_BACKEND_RLOCATION": "$(rlocationpath :fake_complete/libgfxstream_backend.dylib)"},
+    "@platforms//os:windows": {"GFXSTREAM_FAKE_BACKEND_RLOCATION": "$(rlocationpath :fake_complete/gfxstream_backend.dll)"},
+    "//conditions:default": {"GFXSTREAM_FAKE_BACKEND_RLOCATION": "$(rlocationpath :fake_complete/libgfxstream_backend.so)"},
+})
+
+_FAKE_INCOMPLETE_DATA = select({
+    "@platforms//os:macos": [":fake_incomplete/libgfxstream_backend.dylib"],
+    "@platforms//os:windows": [":fake_incomplete/gfxstream_backend.dll"],
+    "//conditions:default": [":fake_incomplete/libgfxstream_backend.so"],
+})
+
+_FAKE_INCOMPLETE_RLOCATION = select({
+    "@platforms//os:macos": {"GFXSTREAM_FAKE_BACKEND_RLOCATION": "$(rlocationpath :fake_incomplete/libgfxstream_backend.dylib)"},
+    "@platforms//os:windows": {"GFXSTREAM_FAKE_BACKEND_RLOCATION": "$(rlocationpath :fake_incomplete/gfxstream_backend.dll)"},
+    "//conditions:default": {"GFXSTREAM_FAKE_BACKEND_RLOCATION": "$(rlocationpath :fake_incomplete/libgfxstream_backend.so)"},
+})
+
+collect_plugins(
+    name = "binplace",
+    output_dir = ".",
+    plugins = [
+        "@glib//glib:glib_shared",
+        "@glib//gmodule:gmodule_shared",
+    ],
+)
+
+[
+    cc_test(
+        name = "gfxstream_backend_loader_" + scenario + "_test",
+        size = "small",
+        srcs = ["gfxstream_backend_loader_test.cc"],
+        data = [":binplace"] + extra_data,
+        dynamic_deps = [
+            "@glib//glib:glib_shared",
+            "@glib//gmodule:gmodule_shared",
+        ],
+        env = {
+            "GFXSTREAM_LOADER_TEST_SCENARIO": scenario,
+            "ANDROID_EMULATOR_LIBRARY_DIR": "/nonexistent/测试_🚀_é",
+        } | extra_env,
+        deps = [
+            ":gfxstream_backend_loader",
+            "//emulator/libs/system:bazel_info",
+            "//emulator/libs/test:googletest_main",
+            "@glib//glib:glib_import",
+            "@glib//gmodule:gmodule_import",
+            "@googletest//:gtest",
+        ],
+    )
+    for scenario, extra_data, extra_env in [
+        ("fake", _FAKE_COMPLETE_DATA, _FAKE_COMPLETE_RLOCATION),
+        ("missing", [], {}),
+        ("corrupt", [], {}),
+        ("incomplete", _FAKE_INCOMPLETE_DATA, _FAKE_INCOMPLETE_RLOCATION),
+    ]
+]
+
+# The gfxstream_* compat layer against the fake backend.
+cc_test(
+    name = "gfxstream_renderer_test",
+    size = "small",
+    srcs = ["gfxstream_renderer_test.cc"],
+    data = [":binplace"] + _FAKE_COMPLETE_DATA,
+    dynamic_deps = [
+        "@glib//glib:glib_shared",
+        "@glib//gmodule:gmodule_shared",
+    ],
+    env = _FAKE_COMPLETE_RLOCATION,
+    deps = [
+        ":fake_gfxstream_backend_headers",
+        ":gfxstream_renderer",
+        ":gfxstream_renderer_headers",
+        "//emulator/libs/system:bazel_info",
+        "//emulator/libs/test:googletest_main",
+        "@glib//glib:glib_import",
+        "@glib//gmodule:gmodule_import",
+        "@googletest//:gtest",
+    ],
+)
+
+clang_tidy_test(
+    name = "tidy",
+    targets = [
+        ":gfxstream_backend_loader",
+        ":gfxstream_renderer",
+        ":virtio_gpu_glue",
+        ":gfxstream_backend_loader_fake_test",
+        ":gfxstream_renderer_test",
+    ],
+    tidy_config_file = "//:clang_tidy_config",
+)

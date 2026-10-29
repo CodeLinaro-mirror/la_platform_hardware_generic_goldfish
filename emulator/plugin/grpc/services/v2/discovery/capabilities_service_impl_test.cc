@@ -33,7 +33,9 @@ namespace {
 
 using ::android::emulation::v2::AccessMode;
 using ::android::emulation::v2::CapabilitiesService;
+using ::android::emulation::v2::ChargerSource;
 using ::android::emulation::v2::DeviceCapabilities;
+using ::android::emulation::v2::Fidelity;
 using ::android::emulation::v2::FoldAxis;
 using ::android::emulation::v2::GetDeviceCapabilitiesRequest;
 using ::android::emulation::v2::InputFeature;
@@ -44,6 +46,7 @@ using ::goldfish::avd::AvdUniverse;
 using ::grpc::ServerContext;
 using ::grpc::Status;
 using ::testing::Contains;
+using ::testing::ElementsAre;
 using ::testing::Not;
 
 class TestUniverse : public AvdUniverse {
@@ -64,6 +67,10 @@ class TestUniverse : public AvdUniverse {
 
     display::IMultiDisplay& GetMultiDisplay() const override {
         LOG(FATAL) << "GetMultiDisplay not implemented in test";
+    }
+
+    std::shared_ptr<IInputDispatcher> GetInputDispatcher() override {
+        LOG(FATAL) << "GetInputDispatcher not implemented in test";
     }
 
     absl::Status OnSave(archive::IWriter&) const override { return absl::OkStatus(); }
@@ -147,11 +154,14 @@ TEST_F(CapabilitiesServiceTest, ReturnsSubsystemsCapabilities) {
     // Battery
     ASSERT_TRUE(reply.has_battery());
     EXPECT_EQ(reply.battery().access_mode(), AccessMode::ACCESS_MODE_READ_WRITE);
-    EXPECT_GT(reply.battery().supported_chargers_size(), 0);
+    EXPECT_EQ(reply.battery().fidelity(), Fidelity::FIDELITY_HARDWARE);
+    EXPECT_THAT(reply.battery().supported_chargers(),
+                ElementsAre(ChargerSource::CHARGER_SOURCE_AC));
 
     // Location
     ASSERT_TRUE(reply.has_location());
     EXPECT_EQ(reply.location().access_mode(), AccessMode::ACCESS_MODE_READ_WRITE);
+    EXPECT_EQ(reply.location().fidelity(), Fidelity::FIDELITY_HARDWARE);
 
     // System
     ASSERT_TRUE(reply.has_system());
@@ -169,6 +179,8 @@ TEST_F(CapabilitiesServiceTest, ReturnsSubsystemsCapabilities) {
     // Input
     ASSERT_TRUE(reply.has_input());
     EXPECT_EQ(reply.input().max_touch_point_count(), 10);
+    EXPECT_TRUE(reply.input().supports_input_activity_observation());
+    EXPECT_EQ(reply.input().max_batch_duration_ms(), 30000);
     EXPECT_THAT(reply.input().supported_features(), Contains(InputFeature::INPUT_FEATURE_KEYBOARD));
     EXPECT_THAT(reply.input().supported_features(),
                 Not(Contains(InputFeature::INPUT_FEATURE_MOUSE_POINTER)));
@@ -205,6 +217,40 @@ TEST_F(CapabilitiesServiceTest, ReturnsPostureCapabilitiesWhenConfigured) {
     ASSERT_GE(posture.hinges_size(), 1);
     EXPECT_EQ(posture.hinges(0).hinge_id(), 0);
     EXPECT_EQ(posture.hinges(0).fold_axis(), FoldAxis::FOLD_AXIS_VERTICAL);
+}
+
+TEST_F(CapabilitiesServiceTest, OmitsLocationCapabilitiesWhenDisabled) {
+    auto props = std::make_unique<AvdProperties>();
+    props->hw_config = FakeHardwareConfig::GetHwConfig();
+    props->hw_config.hw_gps = false;
+
+    auto universe = std::make_unique<TestUniverse>(std::move(props));
+    CapabilitiesServiceImpl service(*universe);
+
+    GetDeviceCapabilitiesRequest request;
+    DeviceCapabilities reply;
+    ServerContext server_context;
+
+    Status status = service.GetDeviceCapabilities(&server_context, &request, &reply);
+    ASSERT_TRUE(status.ok());
+    EXPECT_FALSE(reply.has_location());
+}
+
+TEST_F(CapabilitiesServiceTest, OmitsBatteryCapabilitiesWhenDisabled) {
+    auto props = std::make_unique<AvdProperties>();
+    props->hw_config = FakeHardwareConfig::GetHwConfig();
+    props->hw_config.hw_battery = false;
+
+    auto universe = std::make_unique<TestUniverse>(std::move(props));
+    CapabilitiesServiceImpl service(*universe);
+
+    GetDeviceCapabilitiesRequest request;
+    DeviceCapabilities reply;
+    ServerContext server_context;
+
+    Status status = service.GetDeviceCapabilities(&server_context, &request, &reply);
+    ASSERT_TRUE(status.ok());
+    EXPECT_FALSE(reply.has_battery());
 }
 
 }  // namespace

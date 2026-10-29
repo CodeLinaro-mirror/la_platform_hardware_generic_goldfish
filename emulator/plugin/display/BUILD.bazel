@@ -1,5 +1,6 @@
-load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_test")
+load("@aemu//tools/clang_tidy:defs.bzl", "clang_tidy_test")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+load("//emulator/tools:plugins.bzl", "collect_plugins")
 
 cc_library(
     name = "write_png",
@@ -50,11 +51,13 @@ cc_library(
         "//emulator/libs/async:async_api",
         "//emulator/libs/base",
         "//emulator/libs/display_pipeline:core",
+        "//emulator/libs/eventing",
         "//emulator/libs/perfetto:init",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/time",
+        "@abseil-cpp//absl/types:span",
     ],
 )
 
@@ -68,6 +71,7 @@ cc_library(
         "qemu_display.h",
         "virtio_bridge.c",
         "virtio_bridge.h",
+        "virtio_input_tracker.cc",
     ],
     hdrs = [
         "include/goldfish/display/imaging.h",
@@ -75,6 +79,7 @@ cc_library(
         "include/goldfish/display/multi_display_callbacks.h",
         "include/goldfish/display/pixman_display.h",
         "include/goldfish/display/pixman_image_ptr.h",
+        "include/goldfish/display/virtio_input_tracker.h",
     ],
     includes = ["include"],
     visibility = ["//visibility:public"],
@@ -88,6 +93,8 @@ cc_library(
         "//emulator/libs/logging:absl_c_bridge",
         "//emulator/libs/perfetto:init",
         "//emulator/libs/physics",
+        "//emulator/plugin/virtio-input-android:api",
+        "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
@@ -137,6 +144,8 @@ cc_library(
         "//emulator/libs/status_macros",
         "//emulator/plugin/avd:avd_info",
         "//emulator/plugin/hal/multidisplay",
+        "//emulator/plugin/virtio-input-android:api",
+        "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
@@ -195,6 +204,16 @@ cc_library(
     deps = [
         ":abstract_multi_display",
         ":primary_display",
+        "//emulator/plugin/virtio-input-android:api",
+    ],
+)
+
+collect_plugins(
+    name = "binplace",
+    output_dir = ".",
+    plugins = [
+        "@glib//glib:glib_shared",
+        "@glib//gmodule:gmodule_shared",
     ],
 )
 
@@ -211,6 +230,11 @@ cc_test(
         "pixman_image_generator_test.cc",
         "qemu_display_test.cc",
     ],
+    data = [":binplace"],
+    dynamic_deps = [
+        "@glib//glib:glib_shared",
+        "@glib//gmodule:gmodule_shared",
+    ],
     visibility = ["//visibility:public"],
     deps = [
         ":display",
@@ -224,6 +248,7 @@ cc_test(
         "//emulator/libs/sensors:physical_model",
         "//emulator/libs/status_macros:status_matcher_macros",
         "//emulator/libs/test:googletest_main",
+        "@abseil-cpp//absl/functional:any_invocable",
         "@abseil-cpp//absl/log:scoped_mock_log",
         "@abseil-cpp//absl/status:status_matchers",
     ],

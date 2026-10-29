@@ -86,26 +86,21 @@ using WhenAllChardevEndpoints = std::shared_ptr<WhenAll<ChardevEndpoints>>;
 
 using ::goldfish::modem_simulator::ModemSimulatorService;
 
-// Returns the timezone reported to the guest: the -timezone value if it is a
-// zoneinfo name, otherwise the host timezone.
-std::optional<std::string> DetermineGuestTimezone(const AndroidOptions& opts) {
-    if (opts.timezone != nullptr && !::goldfish::timezone::IsZoneinfoName(opts.timezone)) {
-        LOG(WARNING) << "Ignoring -timezone '" << opts.timezone
-                     << "': must be a zoneinfo name such as Europe/Paris (see -help-timezone). "
-                        "Falling back to the host timezone.";
+bool ShouldUseNetsim(const LauncherConfig& config) {
+    if (config.opts.no_netsim) {
+        return false;
     }
-    std::optional<std::string> timezone = ::goldfish::timezone::GetGuestTimezone(
-            opts.timezone, ::goldfish::timezone::GetHostTimezone());
-    if (!timezone) {
-        LOG(WARNING) << "Could not determine the host timezone, so it is not reported to the "
-                        "guest (see -help-timezone)";
-    }
-    return timezone;
+    const bool has_endpoint_override = config.opts.packet_streamer_endpoint != nullptr &&
+                                       *config.opts.packet_streamer_endpoint != '\0';
+    return has_endpoint_override || config.emulator_paths.HasNetsim();
 }
 
 class Launcher {
   public:
-    Launcher(LauncherConfig config) : config_(std::move(config)) {
+    Launcher(LauncherConfig config)
+            : config_(std::move(config))
+            , use_netsim_(ShouldUseNetsim(config_))
+            , host_timezone_(::goldfish::timezone::GetHostTimezone()) {
         config_.signal_handlers->SetCallback(
                 [this](int signal) { forwarding_signal_handler(signal); });
         config_.event_loop
@@ -124,7 +119,18 @@ class Launcher {
                             &config_.event_loop,
                             [this](ChardevEndpoints ce) { launch_emulator(ce); });
 
-                    if (!config_.opts.no_netsim) {
+                    if (!config_.opts.no_netsim && !use_netsim_) {
+                        LOG(WARNING)
+                                << "netsimd binary not found in '"
+                                << config_.emulator_paths.binary_directory.string()
+                                << "'; emulated Wi-Fi, Bluetooth, UWB, and NFC radios are "
+                                   "unavailable, and guest networking/telephony will fall back to "
+                                   "QEMU SLIRP (eth0) and the host modem simulator. Pass "
+                                   "'-packet-streamer-endpoint <uri>' to connect to an external "
+                                   "netsimd instance, or '-no-netsim' to suppress this warning.";
+                    }
+
+                    if (use_netsim_) {
                         netsimd_connector_thread_ = std::thread([this, chardevs]() {
                             std::optional<std::string> endpoint_override;
                             if (const char* ep = config_.opts.packet_streamer_endpoint; ep && *ep) {
@@ -162,7 +168,7 @@ class Launcher {
                             }
                         });
                     }
-                    if (config_.opts.no_netsim || config_.opts.no_netsim_modem) {
+                    if (!use_netsim_ || config_.opts.no_netsim_modem) {
                         config_.event_loop
                                 .Post([this, chardevs]() { init_modem_simulator(chardevs); })
                                 .IgnoreError();
@@ -238,9 +244,10 @@ class Launcher {
             icc_profile_override = std::filesystem::path(icc_profile);
         }
 
-        const std::optional<std::string> timezone = DetermineGuestTimezone(config_.opts);
-        modem_simulator_service_ = ModemSimulatorService::Create(*config_.avd, icc_profile_override,
-                                                                 timezone.value_or(""));
+        modem_simulator_service_ = ModemSimulatorService::Create(
+                *config_.avd, icc_profile_override,
+                ::goldfish::timezone::GetGuestTimezone(config_.opts.timezone, host_timezone_)
+                        .value_or(""));
         if (modem_simulator_service_) {
             chardevs->MutableResults().modem_simulator =
                     modem_simulator_service_->ChardevEndpoint();
@@ -377,7 +384,7 @@ class Launcher {
 
             ASSIGN_OR_RETURN(auto netsim_config,
                              netsim::netsimd_launch_config(config_.emulator_paths.netsim_binary,
-                                                           config_.opts));
+                                                           config_.opts, config_.feature_flags));
             ASSIGN_OR_RETURN(auto proc, config_.process_launcher->Launch(
                                                 netsim_config, [this](int64_t status, int signal) {
                                                     netsimd_exit(status, signal);
@@ -396,12 +403,20 @@ class Launcher {
         emulator_process_.reset();
 
         // Send a final ping with the crash status.
-        config_.metrics_reporter->Report([exit_status,
-                                          term_signal](android_studio::AndroidStudioEvent& event) {
-            event.mutable_emulator_details()->set_crashes(exit_status == 0 && term_signal == 0
-                                                                  ? kMetricsCrashesNone
-                                                                  : kMetricsCrashesUncleanExit);
-        });
+        if (exit_status == 0 && term_signal == 0) {
+            config_.metrics_reporter->Report([](android_studio::AndroidStudioEvent& event) {
+                event.mutable_emulator_details()->set_crashes(kMetricsCrashesNone);
+            });
+        }
+        // TODO(b/476380758): Temporarily disable reporting crashes = 2 (kMetricsCrashesUncleanExit)
+        // on unclean QEMU exit to stop misleading crash counts on dashboards (which sum `crashes`
+        // and conflate real crashes with kills/error exits). Follow up with accurate crash
+        // reporting.
+        // else {
+        //     config_.metrics_reporter->Report([](android_studio::AndroidStudioEvent& event) {
+        //         event.mutable_emulator_details()->set_crashes(kMetricsCrashesUncleanExit);
+        //     });
+        // }
 
         shutdown();
     }
@@ -409,6 +424,10 @@ class Launcher {
     void launch_emulator(ChardevEndpoints chardev_endpoints) {
         if (shutting_down_) {
             return;
+        }
+        AndroidOptions qemu_opts = config_.opts;
+        if (!use_netsim_) {
+            qemu_opts.no_netsim = true;
         }
         LaunchQemu emulator{EmulatorConfig{ports_,
                                            chardev_endpoints,
@@ -419,7 +438,9 @@ class Launcher {
                                            config_.user_paths,
                                            config_.emulator_paths,
                                            *config_.avd,
-                                           config_.opts}};
+                                           qemu_opts,
+                                           config_.feature_flags,
+                                           host_timezone_}};
 
         if (auto emulator_config = emulator.launch_config(); emulator_config.ok()) {
             if (auto s = config_.process_launcher->Launch(
@@ -464,7 +485,7 @@ class Launcher {
                                           selected_gpu = std::move(selected_gpu)](
                                                  android_studio::AndroidStudioEvent& event) {
             android::goldfish::FillEmulatorHostEvent(
-                    event, *config_.avd,
+                    event, *config_.avd, config_.feature_flags,
                     /*launcher_pid=*/android::base::System::GetCurrentProcessPid(),
                     /*qemu_pid=*/emulator_process_->GetPid(), config_.opts.metrics_collection,
                     config_.opts.fuchsia, vk_icd, host_gpus, selected_gpu);
@@ -507,6 +528,9 @@ class Launcher {
     }
 
     const LauncherConfig config_;
+    const bool use_netsim_;
+    // The zoneinfo name of the host timezone, or std::nullopt if it is unknown.
+    const std::optional<std::string> host_timezone_;
 
     EmulatorPorts ports_;
     std::unique_ptr<::goldfish::telnet::LegacyConsoleController> console_controller_;

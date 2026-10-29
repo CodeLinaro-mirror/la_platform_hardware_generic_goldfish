@@ -28,6 +28,7 @@
 
 #include "android/cmdline_option.h"
 #include "android/emulation/control/emulator_grpc_client.h"
+#include "android/goldfish/feature_flags.h"
 #include "goldfish/async/launch_config.h"
 
 namespace android::goldfish::netsim {
@@ -36,7 +37,8 @@ using NetsimConnection_ptr =
         std::unique_ptr<android::emulation::control::BlockingEmulatorGrpcClient>;
 
 absl::StatusOr<::goldfish::async::LaunchConfig> netsimd_launch_config(
-        const std::filesystem::path& netsim_binary, const AndroidOptions& opts);
+        const std::filesystem::path& netsim_binary, const AndroidOptions& opts,
+        const FeatureFlags& feature_flags);
 
 class NetsimConnector {
   public:

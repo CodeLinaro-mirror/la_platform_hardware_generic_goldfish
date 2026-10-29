@@ -20,9 +20,27 @@
 // unit testing of the QemuEventLoop.
 
 extern "C" {
+// clang-format off
+// IWYU pragma: begin_keep
+#include "qemu/osdep.h"
+#include "migration/snapshot.h"
+
+#ifdef shutdown
+#undef shutdown
+#endif
+#ifdef close
+#undef close
+#endif
+// IWYU pragma: end_keep
+// clang-format on
+
 // Advances the fake clock and processes any events that occurred during that
 // time.
 void fake_qemu_advance_ms(int64_t ms);
+
+// Fires a snapshot progress event to all registered QEMU snapshot progress
+// handlers.
+void fake_qemu_fire_snapshot_progress(const QemuSnapshotProgress* progress);
 
 // Resets all fake QEMU state to its initial values.
 void fake_qemu_reset();

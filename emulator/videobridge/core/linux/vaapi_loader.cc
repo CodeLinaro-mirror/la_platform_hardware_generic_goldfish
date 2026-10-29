@@ -19,6 +19,7 @@
 #include <algorithm>
 #include <cstdlib>
 #include <cstring>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -170,59 +171,34 @@ absl::StatusOr<std::unique_ptr<VaapiLoader>> VaapiLoader::Create(
             if (!lib_va_drm.ok()) continue;
 
             VaapiFunctionList fn_list{};
-            fn_list.vaInitialize =
-                    reinterpret_cast<decltype(fn_list.vaInitialize)>(lib_va["vaInitialize"]);
-            fn_list.vaTerminate =
-                    reinterpret_cast<decltype(fn_list.vaTerminate)>(lib_va["vaTerminate"]);
-            fn_list.vaErrorStr =
-                    reinterpret_cast<decltype(fn_list.vaErrorStr)>(lib_va["vaErrorStr"]);
-            fn_list.vaMaxNumProfiles = reinterpret_cast<decltype(fn_list.vaMaxNumProfiles)>(
-                    lib_va["vaMaxNumProfiles"]);
-            fn_list.vaQueryConfigProfiles =
-                    reinterpret_cast<decltype(fn_list.vaQueryConfigProfiles)>(
-                            lib_va["vaQueryConfigProfiles"]);
-            fn_list.vaMaxNumEntrypoints = reinterpret_cast<decltype(fn_list.vaMaxNumEntrypoints)>(
-                    lib_va["vaMaxNumEntrypoints"]);
-            fn_list.vaQueryConfigEntrypoints =
-                    reinterpret_cast<decltype(fn_list.vaQueryConfigEntrypoints)>(
-                            lib_va["vaQueryConfigEntrypoints"]);
-            fn_list.vaGetConfigAttributes =
-                    reinterpret_cast<decltype(fn_list.vaGetConfigAttributes)>(
-                            lib_va["vaGetConfigAttributes"]);
-            fn_list.vaCreateConfig =
-                    reinterpret_cast<decltype(fn_list.vaCreateConfig)>(lib_va["vaCreateConfig"]);
-            fn_list.vaDestroyConfig =
-                    reinterpret_cast<decltype(fn_list.vaDestroyConfig)>(lib_va["vaDestroyConfig"]);
-            fn_list.vaCreateContext =
-                    reinterpret_cast<decltype(fn_list.vaCreateContext)>(lib_va["vaCreateContext"]);
-            fn_list.vaDestroyContext = reinterpret_cast<decltype(fn_list.vaDestroyContext)>(
-                    lib_va["vaDestroyContext"]);
-            fn_list.vaCreateSurfaces = reinterpret_cast<decltype(fn_list.vaCreateSurfaces)>(
-                    lib_va["vaCreateSurfaces"]);
-            fn_list.vaDestroySurfaces = reinterpret_cast<decltype(fn_list.vaDestroySurfaces)>(
-                    lib_va["vaDestroySurfaces"]);
-            fn_list.vaCreateBuffer =
-                    reinterpret_cast<decltype(fn_list.vaCreateBuffer)>(lib_va["vaCreateBuffer"]);
-            fn_list.vaDestroyBuffer =
-                    reinterpret_cast<decltype(fn_list.vaDestroyBuffer)>(lib_va["vaDestroyBuffer"]);
-            fn_list.vaMapBuffer =
-                    reinterpret_cast<decltype(fn_list.vaMapBuffer)>(lib_va["vaMapBuffer"]);
-            fn_list.vaUnmapBuffer =
-                    reinterpret_cast<decltype(fn_list.vaUnmapBuffer)>(lib_va["vaUnmapBuffer"]);
-            fn_list.vaBeginPicture =
-                    reinterpret_cast<decltype(fn_list.vaBeginPicture)>(lib_va["vaBeginPicture"]);
-            fn_list.vaRenderPicture =
-                    reinterpret_cast<decltype(fn_list.vaRenderPicture)>(lib_va["vaRenderPicture"]);
-            fn_list.vaEndPicture =
-                    reinterpret_cast<decltype(fn_list.vaEndPicture)>(lib_va["vaEndPicture"]);
-            fn_list.vaSyncSurface =
-                    reinterpret_cast<decltype(fn_list.vaSyncSurface)>(lib_va["vaSyncSurface"]);
-            fn_list.vaDeriveImage =
-                    reinterpret_cast<decltype(fn_list.vaDeriveImage)>(lib_va["vaDeriveImage"]);
-            fn_list.vaDestroyImage =
-                    reinterpret_cast<decltype(fn_list.vaDestroyImage)>(lib_va["vaDestroyImage"]);
-            fn_list.vaGetDisplayDRM = reinterpret_cast<decltype(fn_list.vaGetDisplayDRM)>(
-                    lib_va_drm["vaGetDisplayDRM"]);
+            auto load_sym = [](goldfish::os::DynamicLibrary& lib, auto& fn, const char* name) {
+                fn = reinterpret_cast<std::decay_t<decltype(fn)>>(lib[name]);
+            };
+            load_sym(lib_va, fn_list.vaInitialize, "vaInitialize");
+            load_sym(lib_va, fn_list.vaTerminate, "vaTerminate");
+            load_sym(lib_va, fn_list.vaErrorStr, "vaErrorStr");
+            load_sym(lib_va, fn_list.vaMaxNumProfiles, "vaMaxNumProfiles");
+            load_sym(lib_va, fn_list.vaQueryConfigProfiles, "vaQueryConfigProfiles");
+            load_sym(lib_va, fn_list.vaMaxNumEntrypoints, "vaMaxNumEntrypoints");
+            load_sym(lib_va, fn_list.vaQueryConfigEntrypoints, "vaQueryConfigEntrypoints");
+            load_sym(lib_va, fn_list.vaGetConfigAttributes, "vaGetConfigAttributes");
+            load_sym(lib_va, fn_list.vaCreateConfig, "vaCreateConfig");
+            load_sym(lib_va, fn_list.vaDestroyConfig, "vaDestroyConfig");
+            load_sym(lib_va, fn_list.vaCreateContext, "vaCreateContext");
+            load_sym(lib_va, fn_list.vaDestroyContext, "vaDestroyContext");
+            load_sym(lib_va, fn_list.vaCreateSurfaces, "vaCreateSurfaces");
+            load_sym(lib_va, fn_list.vaDestroySurfaces, "vaDestroySurfaces");
+            load_sym(lib_va, fn_list.vaCreateBuffer, "vaCreateBuffer");
+            load_sym(lib_va, fn_list.vaDestroyBuffer, "vaDestroyBuffer");
+            load_sym(lib_va, fn_list.vaMapBuffer, "vaMapBuffer");
+            load_sym(lib_va, fn_list.vaUnmapBuffer, "vaUnmapBuffer");
+            load_sym(lib_va, fn_list.vaBeginPicture, "vaBeginPicture");
+            load_sym(lib_va, fn_list.vaRenderPicture, "vaRenderPicture");
+            load_sym(lib_va, fn_list.vaEndPicture, "vaEndPicture");
+            load_sym(lib_va, fn_list.vaSyncSurface, "vaSyncSurface");
+            load_sym(lib_va, fn_list.vaDeriveImage, "vaDeriveImage");
+            load_sym(lib_va, fn_list.vaDestroyImage, "vaDestroyImage");
+            load_sym(lib_va_drm, fn_list.vaGetDisplayDRM, "vaGetDisplayDRM");
 
             if (!fn_list.vaInitialize || !fn_list.vaTerminate || !fn_list.vaGetDisplayDRM ||
                 !fn_list.vaCreateConfig || !fn_list.vaCreateContext || !fn_list.vaCreateSurfaces ||
@@ -252,13 +228,8 @@ absl::StatusOr<std::unique_ptr<VaapiLoader>> VaapiLoader::Create(
                     int major = 0;
                     int minor = 0;
                     VAStatus status = fn_list.vaInitialize(display, &major, &minor);
-                    if (status != VA_STATUS_SUCCESS) {
-                        fn_list.vaTerminate(display);
-                        close(fd);
-                        continue;
-                    }
-
-                    if (!SupportsH264EncodeEntrypoint(fn_list, display)) {
+                    if (status != VA_STATUS_SUCCESS ||
+                        !SupportsH264EncodeEntrypoint(fn_list, display)) {
                         fn_list.vaTerminate(display);
                         close(fd);
                         continue;
@@ -298,7 +269,28 @@ VaapiLoader::VaapiLoader(goldfish::os::DynamicLibrary lib_va,
 VaapiLoader::VaapiLoader(const VaapiFunctionList& fn_list, VADisplay display)
         : display_(display), fn_list_(fn_list) {}
 
-VaapiLoader::~VaapiLoader() {
+VaapiLoader::~VaapiLoader() { Close(); }
+
+VaapiLoader::VaapiLoader(VaapiLoader&& other) noexcept
+        : lib_va_(std::move(other.lib_va_))
+        , lib_va_drm_(std::move(other.lib_va_drm_))
+        , drm_fd_(std::exchange(other.drm_fd_, -1))
+        , display_(std::exchange(other.display_, nullptr))
+        , fn_list_(other.fn_list_) {}
+
+VaapiLoader& VaapiLoader::operator=(VaapiLoader&& other) noexcept {
+    if (this != &other) {
+        Close();
+        lib_va_ = std::move(other.lib_va_);
+        lib_va_drm_ = std::move(other.lib_va_drm_);
+        drm_fd_ = std::exchange(other.drm_fd_, -1);
+        display_ = std::exchange(other.display_, nullptr);
+        fn_list_ = other.fn_list_;
+    }
+    return *this;
+}
+
+void VaapiLoader::Close() {
     if (display_ && fn_list_.vaTerminate) {
         fn_list_.vaTerminate(display_);
         display_ = nullptr;
@@ -307,37 +299,6 @@ VaapiLoader::~VaapiLoader() {
         close(drm_fd_);
         drm_fd_ = -1;
     }
-}
-
-VaapiLoader::VaapiLoader(VaapiLoader&& other) noexcept
-        : lib_va_(std::move(other.lib_va_))
-        , lib_va_drm_(std::move(other.lib_va_drm_))
-        , drm_fd_(other.drm_fd_)
-        , display_(other.display_)
-        , fn_list_(other.fn_list_) {
-    other.drm_fd_ = -1;
-    other.display_ = nullptr;
-}
-
-VaapiLoader& VaapiLoader::operator=(VaapiLoader&& other) noexcept {
-    if (this != &other) {
-        if (display_ && fn_list_.vaTerminate) {
-            fn_list_.vaTerminate(display_);
-        }
-        if (drm_fd_ >= 0) {
-            close(drm_fd_);
-        }
-
-        lib_va_ = std::move(other.lib_va_);
-        lib_va_drm_ = std::move(other.lib_va_drm_);
-        drm_fd_ = other.drm_fd_;
-        display_ = other.display_;
-        fn_list_ = other.fn_list_;
-
-        other.drm_fd_ = -1;
-        other.display_ = nullptr;
-    }
-    return *this;
 }
 
 }  // namespace goldfish::videobridge

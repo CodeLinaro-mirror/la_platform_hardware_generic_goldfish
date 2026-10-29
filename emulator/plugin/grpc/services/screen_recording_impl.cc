@@ -15,18 +15,23 @@
 #include "android/emulation/control/incubating/screen_recording_impl.h"
 
 #include <algorithm>
+#include <cstdint>
 #include <cstring>
 #include <memory>
+#include <string>
+#include <string_view>
 #include <vector>
 
 #include "absl/hash/hash.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
+#include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "absl/types/span.h"
 
+#include "android/emulation/control/absl_status_translate.h"
 #include "goldfish/display/display_frames.h"
 #include "goldfish/display/frame.h"
 #include "goldfish/display/geometry.h"
@@ -39,6 +44,32 @@ namespace emulation {
 namespace control {
 namespace incubating {
 
+namespace {
+
+Status MakeGrpcStatusError(const absl::Status& cause, std::string_view context,
+                           std::string_view remediation) {
+    const std::string_view detail = cause.message();
+    if (detail.empty()) {
+        return Status(AbslStatusToGrpcStatus(cause).error_code(),
+                      absl::StrCat(context, ". ", remediation));
+    }
+    const std::string_view separator = absl::EndsWith(detail, ".") ? " " : ". ";
+    return Status(AbslStatusToGrpcStatus(cause).error_code(),
+                  absl::StrCat(context, ": ", detail, separator, remediation));
+}
+
+Status MakePathResolutionError(const absl::Status& cause, std::string_view action,
+                               std::string_view file_name) {
+    return MakeGrpcStatusError(
+            cause,
+            absl::StrCat("Failed to ", action,
+                         " screen recording: unable to resolve absolute path for '", file_name,
+                         "'"),
+            "Verify that the file path syntax is valid and the working directory is accessible.");
+}
+
+}  // namespace
+
 ScreenRecordingServiceImpl::ScreenRecordingServiceImpl(::goldfish::display::IMultiDisplay* display)
         : display_(*display) {}
 
@@ -48,7 +79,11 @@ Status ScreenRecordingServiceImpl::StartRecording(ServerContext* context,
     absl::MutexLock lock(mu_);
 
     if (recorder_) {
-        return Status(grpc::StatusCode::ALREADY_EXISTS, "Recording already in progress.");
+        return Status(
+                grpc::StatusCode::ALREADY_EXISTS,
+                absl::StrCat("Failed to start screen recording to '", request->file_name(),
+                             "': a screen recording is already in progress. Call StopRecording "
+                             "before starting a new recording."));
     }
 
     // 1. Prepare and apply defaults
@@ -64,32 +99,48 @@ Status ScreenRecordingServiceImpl::StartRecording(ServerContext* context,
     }
 
     // 2b. Resolve to absolute path to return the complete path in response.
-    auto abs_path_status = android::base::file::make_absolute(configured_request.file_name());
-    if (!abs_path_status.ok()) {
-        return Status(grpc::StatusCode::INTERNAL, "Failed to resolve absolute path.");
+    auto abs_path = android::base::file::make_absolute(configured_request.file_name());
+    if (!abs_path.ok()) {
+        return MakePathResolutionError(abs_path.status(), "start", configured_request.file_name());
     }
-    configured_request.set_file_name(abs_path_status->string());
+    configured_request.set_file_name(abs_path->string());
 
-    auto screen = display_.GetDisplay(configured_request.display());
+    const uint32_t display_id = configured_request.display();
+    auto screen = display_.GetDisplay(display_id);
     if (!screen.ok()) {
-        LOG(WARNING) << "Unable to retrieve display: " << screen.status();
-        return Status(grpc::StatusCode::UNAVAILABLE, "Display is no longer active.");
+        LOG(WARNING) << "Failed to start screen recording to '" << configured_request.file_name()
+                     << "' on display " << display_id << ": " << screen.status();
+        return MakeGrpcStatusError(
+                screen.status(),
+                absl::StrCat("Failed to start screen recording to '",
+                             configured_request.file_name(), "' on display ", display_id),
+                absl::StrCat("Verify that display ", display_id,
+                             " exists and is active, or use display 0 for the default display."));
     }
     auto display = screen->lock();
     if (!display) {
-        return Status(grpc::StatusCode::UNAVAILABLE, "Display is no longer active.");
+        LOG(WARNING) << "Failed to start screen recording to '" << configured_request.file_name()
+                     << "' on display " << display_id << ": display reference has expired.";
+        return Status(grpc::StatusCode::UNAVAILABLE,
+                      absl::StrCat("Failed to start screen recording to '",
+                                   configured_request.file_name(), "' on display ", display_id,
+                                   ": display ", display_id,
+                                   " is no longer active. Verify that display ", display_id,
+                                   " has not been removed, or use display 0 for the default "
+                                   "display."));
     }
 
     auto dims = display->GetDimensions();
 
     // 3. Check if already recording to this file
     auto it = recordings_.find(configured_request.file_name());
-    if (it != recordings_.end()) {
-        auto& existing = it->second;
-        if (existing.state() == RecordingInfo::RECORDER_STATE_RECORDING) {
-            return Status(grpc::StatusCode::ALREADY_EXISTS,
-                          "Recording already exists for this file.");
-        }
+    if (it != recordings_.end() && it->second.state() == RecordingInfo::RECORDER_STATE_RECORDING) {
+        return Status(grpc::StatusCode::ALREADY_EXISTS,
+                      absl::StrCat("Failed to start screen recording: an active recording already "
+                                   "exists for '",
+                                   configured_request.file_name(),
+                                   "'. Call StopRecording for this file or choose a different "
+                                   "output path."));
     }
 
     // If a previous recording file already exists on disk, remove it first so that
@@ -98,10 +149,16 @@ Status ScreenRecordingServiceImpl::StartRecording(ServerContext* context,
     if (android::base::file::exists(configured_request.file_name())) {
         auto rm_status = android::base::file::rm(configured_request.file_name());
         if (!rm_status.ok()) {
-            LOG(WARNING) << "Unable to remove existing recording file: " << rm_status;
-            return Status(grpc::StatusCode::INTERNAL,
-                          absl::StrCat("Unable to remove existing recording file: ",
-                                       rm_status.message()));
+            LOG(WARNING) << "Failed to start screen recording: unable to remove existing "
+                            "recording file '"
+                         << configured_request.file_name() << "': " << rm_status;
+            return MakeGrpcStatusError(
+                    rm_status,
+                    absl::StrCat("Failed to start screen recording: unable to remove existing "
+                                 "recording file '",
+                                 configured_request.file_name(), "'"),
+                    "Ensure the file is not open in another process and that the emulator has "
+                    "write permissions for its parent directory.");
         }
     }
 
@@ -109,12 +166,14 @@ Status ScreenRecordingServiceImpl::StartRecording(ServerContext* context,
     auto file_status =
             android::base::file::CreatePrivateFileExclusive(configured_request.file_name(), "");
     if (!file_status.ok()) {
-        if (file_status.code() == absl::StatusCode::kAlreadyExists) {
-            return Status(grpc::StatusCode::ALREADY_EXISTS, "File already exists on disk.");
-        }
-        LOG(ERROR) << "Failed to create file exclusively: " << file_status;
-        return Status(grpc::StatusCode::INTERNAL,
-                      absl::StrCat("Failed to create recording file: ", file_status.message()));
+        LOG(ERROR) << "Failed to start screen recording: unable to create recording file '"
+                   << configured_request.file_name() << "' exclusively: " << file_status;
+        return MakeGrpcStatusError(
+                file_status,
+                absl::StrCat("Failed to start screen recording: unable to create recording file '",
+                             configured_request.file_name(), "'"),
+                "Ensure the parent directory exists, the emulator has write permissions, and "
+                "sufficient disk space is available.");
     }
 
     // 4. Start the Recorder
@@ -233,8 +292,19 @@ Status ScreenRecordingServiceImpl::StartRecording(ServerContext* context,
     if (!recorder_->Start(kFileName, frame_generator)) {
         recorder_.reset();
         recording_listener_.reset();
-        return Status(grpc::StatusCode::INTERNAL,
-                      "Failed to initialize video encoder. Check emulator logs for details.");
+        LOG(ERROR) << "Failed to start screen recording to '" << configured_request.file_name()
+                   << "' on display " << display_id << " (" << width2 << "x" << height2 << " at "
+                   << configured_request.fps() << " FPS, " << configured_request.bit_rate()
+                   << " bps): video encoder initialization failed.";
+        return Status(
+                grpc::StatusCode::INTERNAL,
+                absl::StrCat("Failed to start screen recording to '",
+                             configured_request.file_name(), "' on display ", display_id,
+                             ": unable to initialize WebM video encoder for ", width2, "x", height2,
+                             " at ", configured_request.fps(), " FPS and ",
+                             configured_request.bit_rate(),
+                             " bps. Verify that display dimensions are valid and check emulator "
+                             "logs for encoder errors."));
     }
 
     // 5. Update State
@@ -259,16 +329,25 @@ Status ScreenRecordingServiceImpl::StopRecording(ServerContext* context,
     absl::MutexLock lock(mu_);
 
     if (!recorder_) {
-        return Status(grpc::StatusCode::NOT_FOUND, "Recording not started.");
+        return Status(
+                grpc::StatusCode::NOT_FOUND,
+                absl::StrCat("Failed to stop screen recording for '", request->file_name(),
+                             "': no screen recording is currently active. Call StartRecording "
+                             "before calling StopRecording."));
     }
 
-    auto abs_path_status = android::base::file::make_absolute(request->file_name());
-    if (!abs_path_status.ok()) {
-        return Status(grpc::StatusCode::INTERNAL, "Failed to resolve absolute path.");
+    auto abs_path = android::base::file::make_absolute(request->file_name());
+    if (!abs_path.ok()) {
+        return MakePathResolutionError(abs_path.status(), "stop", request->file_name());
     }
-    auto it = recordings_.find(abs_path_status->string());
+    const std::string resolved_path = abs_path->string();
+    auto it = recordings_.find(resolved_path);
     if (it == recordings_.end()) {
-        return Status(grpc::StatusCode::NOT_FOUND, "Recording not found.");
+        return Status(grpc::StatusCode::NOT_FOUND,
+                      absl::StrCat("Failed to stop screen recording: no recording found for '",
+                                   resolved_path,
+                                   "'. Verify the recording file path or call ListRecordings to "
+                                   "inspect active recordings."));
     }
 
     // Update state to STOPPED
@@ -279,7 +358,7 @@ Status ScreenRecordingServiceImpl::StopRecording(ServerContext* context,
     recorder_.reset();
     recording_listener_.reset();
 
-    LOG(INFO) << "Stopped screen recording for file: " << request->file_name();
+    LOG(INFO) << "Stopped screen recording for file: " << resolved_path;
     return Status::OK;
 }
 
@@ -309,7 +388,10 @@ Status ScreenRecordingServiceImpl::ReceiveRecordingEvents(ServerContext* context
         // Write to the stream
         if (!writer->Write(pair.second)) {
             // Stream closed or error
-            return Status::CANCELLED;
+            return Status(
+                    grpc::StatusCode::CANCELLED,
+                    absl::StrCat("Screen recording event stream closed while sending status for '",
+                                 pair.first, "'. Reconnect to ReceiveRecordingEvents to resume."));
         }
     }
 
@@ -324,28 +406,40 @@ uint64_t ScreenRecordingServiceImpl::FramesEncodedForTesting() {
 bool ScreenRecordingServiceImpl::ValidateRecordingParams(const RecordingInfo* info,
                                                          std::string& error_msg) {
     // Check file extension
-    std::string fname = info->file_name();
-    if (fname.length() < 5 || fname.substr(fname.length() - 5) != ".webm") {
-        error_msg = "File name must end with .webm";
+    const std::string& fname = info->file_name();
+    if (!absl::EndsWith(fname, ".webm")) {
+        error_msg = absl::StrCat(
+                "Failed to start screen recording: output file name '", fname,
+                "' must end with '.webm'. Specify a destination path with a '.webm' extension.");
         return false;
     }
 
     // Check FPS range
     if (info->fps() < 1 || info->fps() > kMaxFPS) {
-        error_msg = absl::StrCat("FPS must be between 1 and ", kMaxFPS);
+        error_msg =
+                absl::StrCat("Failed to start screen recording to '", fname, "': FPS ", info->fps(),
+                             " is out of range [1, ", kMaxFPS, "]. Specify an FPS between 1 and ",
+                             kMaxFPS, " (or 0 to use the default ", kFPS, " FPS).");
         return false;
     }
 
     // Check Bitrate (100k - 25M)
     if (info->bit_rate() < kMinVideoBitrate || info->bit_rate() > kMaxVideoBitrate) {
-        error_msg = absl::StrCat("Bitrate must be between ", kMinVideoBitrate, " and ",
-                                 kMaxVideoBitrate);
+        error_msg = absl::StrCat("Failed to start screen recording to '", fname, "': bitrate ",
+                                 info->bit_rate(), " bps is out of range [", kMinVideoBitrate, ", ",
+                                 kMaxVideoBitrate, "]. Specify a bitrate between ",
+                                 kMinVideoBitrate, " and ", kMaxVideoBitrate,
+                                 " bps (or 0 to use the default ", kDefaultVideoBitrate, " bps).");
         return false;
     }
 
     // Check Time Limit range
     if (info->time_limit() < 1 || info->time_limit() > kMaxTimeLimit) {
-        error_msg = absl::StrCat("Time limit must be between 1 and ", kMaxTimeLimit);
+        error_msg =
+                absl::StrCat("Failed to start screen recording to '", fname, "': time limit ",
+                             info->time_limit(), "s is out of range [1, ", kMaxTimeLimit,
+                             "]. Specify a time limit between 1 and ", kMaxTimeLimit,
+                             " seconds (or 0 to use the default ", kDefaultTimeLimit, " seconds).");
         return false;
     }
 

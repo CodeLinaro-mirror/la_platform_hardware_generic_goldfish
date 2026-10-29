@@ -16,12 +16,39 @@
 
 #include <gtest/gtest.h>
 
+#include <cstddef>
+#include <cstdint>
 #include <vector>
+
+#include "absl/base/thread_annotations.h"
+#include "absl/synchronization/mutex.h"
 
 #include "api/make_ref_counted.h"
 #include "api/media_stream_interface.h"
 
 namespace goldfish::videobridge {
+
+class InProcessAudioSourceTestPeer {
+  public:
+    static size_t PartialFrameCapacityBytes(const InProcessAudioSource& source)
+            ABSL_LOCKS_EXCLUDED(source.buffer_mutex_) {
+        const absl::MutexLock lock(&source.buffer_mutex_);
+        return source.partial_frame_.capacity() * sizeof(int16_t);
+    }
+
+    static size_t PartialFrameSizeSamples(const InProcessAudioSource& source)
+            ABSL_LOCKS_EXCLUDED(source.buffer_mutex_) {
+        const absl::MutexLock lock(&source.buffer_mutex_);
+        return source.partial_samples_;
+    }
+
+    static const int16_t* PartialFrameData(const InProcessAudioSource& source)
+            ABSL_LOCKS_EXCLUDED(source.buffer_mutex_) {
+        const absl::MutexLock lock(&source.buffer_mutex_);
+        return source.partial_frame_.data();
+    }
+};
+
 namespace {
 
 class DummyAudioSink : public ::webrtc::AudioTrackSinkInterface {
@@ -255,6 +282,103 @@ TEST(InProcessAudioSourceTest, OptionsDisableVoiceDSP) {
     EXPECT_FALSE(opts.auto_gain_control.value_or(true));
     EXPECT_FALSE(opts.noise_suppression.value_or(true));
     EXPECT_FALSE(opts.highpass_filter.value_or(true));
+}
+
+TEST(InProcessAudioSourceTest, MultiFrameBurstKeepsBufferBoundedAtSingleFrameCapacity) {
+    constexpr uint32_t kSampleRateHz = 48000U;
+    constexpr uint32_t kChannels = 2U;
+    constexpr size_t kSamplesPerFrame = static_cast<size_t>(kSampleRateHz / 100U) * kChannels;
+    constexpr size_t kBytesPerFrame = kSamplesPerFrame * sizeof(int16_t);
+    constexpr size_t kBurstChunkSamples = 32768U;
+    constexpr size_t kBurstChunkCount = 4U;
+    constexpr size_t kTotalStreamSamples = kBurstChunkSamples * kBurstChunkCount;
+    constexpr size_t kExpectedFrames = kTotalStreamSamples / kSamplesPerFrame;
+    constexpr size_t kExpectedRemainderSamples = kTotalStreamSamples % kSamplesPerFrame;
+
+    std::vector<int16_t> expected_stream(kTotalStreamSamples);
+    for (size_t i = 0; i < kTotalStreamSamples; ++i) {
+        const size_t frame_index = i / kSamplesPerFrame;
+        expected_stream[i] = static_cast<int16_t>((frame_index * 37U + i) & 0x7FFFU);
+    }
+
+    auto source = ::webrtc::make_ref_counted<InProcessAudioSource>(kSampleRateHz, kChannels);
+    const size_t initial_capacity_bytes =
+            InProcessAudioSourceTestPeer::PartialFrameCapacityBytes(*source);
+    const int16_t* const initial_buffer_ptr =
+            InProcessAudioSourceTestPeer::PartialFrameData(*source);
+    ASSERT_EQ(initial_capacity_bytes, kBytesPerFrame);
+
+    DummyAudioSink sink;
+    source->AddSink(&sink);
+
+    for (size_t c = 0; c < kBurstChunkCount; ++c) {
+        const size_t offset = c * kBurstChunkSamples;
+        source->OnAudioData(expected_stream.data() + offset, kBurstChunkSamples);
+    }
+
+    // Verify zero heap reallocations and bounded 10ms (1,920-byte) buffer capacity even after
+    // ingesting 64 KiB (32,768-sample) multi-frame bursts (97.2% smaller than the previous
+    // 67,456-byte SocketBuffer + temp_frame_buffer_ allocation).
+    EXPECT_EQ(InProcessAudioSourceTestPeer::PartialFrameCapacityBytes(*source), kBytesPerFrame);
+    EXPECT_EQ(InProcessAudioSourceTestPeer::PartialFrameData(*source), initial_buffer_ptr);
+    EXPECT_EQ(InProcessAudioSourceTestPeer::PartialFrameSizeSamples(*source),
+              kExpectedRemainderSamples);
+
+    EXPECT_EQ(static_cast<size_t>(sink.frame_count), kExpectedFrames);
+    ASSERT_EQ(sink.received_samples.size(), kExpectedFrames * kSamplesPerFrame);
+    for (size_t i = 0; i < sink.received_samples.size(); ++i) {
+        EXPECT_EQ(sink.received_samples[i], expected_stream[i]) << "Mismatch at sample index " << i;
+    }
+
+    source->Stop();
+    EXPECT_EQ(InProcessAudioSourceTestPeer::PartialFrameSizeSamples(*source), 0U);
+    EXPECT_EQ(InProcessAudioSourceTestPeer::PartialFrameCapacityBytes(*source), kBytesPerFrame);
+    EXPECT_EQ(InProcessAudioSourceTestPeer::PartialFrameData(*source), initial_buffer_ptr);
+    source->RemoveSink(&sink);
+}
+
+TEST(InProcessAudioSourceTest, UnalignedChunksPreserveExactSampleOrderWithoutReallocating) {
+    // 44.1 kHz stereo = 882 samples (1,764 bytes) per 10ms frame.
+    // Chunk sizes exercise: empty chunk, multiple sub-frame appends (250 + 300 < 882),
+    // multi-frame completion with exact zero remainder (332 + 2*882 = 2096), and odd-sample
+    // split boundary (501 + (381 + 2*882 = 2145)) totaling 6 exact 10ms frames (5,292 samples).
+    constexpr uint32_t kSampleRateHz = 44100U;
+    constexpr uint32_t kChannels = 2U;
+    constexpr size_t kSamplesPerFrame = static_cast<size_t>(kSampleRateHz / 100U) * kChannels;
+    constexpr size_t kBytesPerFrame = kSamplesPerFrame * sizeof(int16_t);
+    constexpr size_t kChunkSamples[] = {0U, 250U, 300U, 2096U, 501U, 2145U};
+    constexpr size_t kExpectedFrames = 6U;
+    constexpr size_t kTotalSamples = kExpectedFrames * kSamplesPerFrame;
+
+    std::vector<int16_t> expected_stream(kTotalSamples);
+    for (size_t i = 0; i < kTotalSamples; ++i) {
+        expected_stream[i] = static_cast<int16_t>((i * 19U + (i >> 7U)) & 0x7FFFU);
+    }
+
+    auto source = ::webrtc::make_ref_counted<InProcessAudioSource>(kSampleRateHz, kChannels);
+    const int16_t* const initial_buffer_ptr =
+            InProcessAudioSourceTestPeer::PartialFrameData(*source);
+    ASSERT_EQ(InProcessAudioSourceTestPeer::PartialFrameCapacityBytes(*source), kBytesPerFrame);
+
+    DummyAudioSink sink;
+    source->AddSink(&sink);
+
+    size_t offset = 0;
+    for (const size_t chunk_samples : kChunkSamples) {
+        source->OnAudioData(expected_stream.data() + offset, chunk_samples);
+        offset += chunk_samples;
+    }
+    ASSERT_EQ(offset, kTotalSamples);
+
+    EXPECT_EQ(InProcessAudioSourceTestPeer::PartialFrameCapacityBytes(*source), kBytesPerFrame);
+    EXPECT_EQ(InProcessAudioSourceTestPeer::PartialFrameData(*source), initial_buffer_ptr);
+    EXPECT_EQ(InProcessAudioSourceTestPeer::PartialFrameSizeSamples(*source), 0U);
+
+    EXPECT_EQ(static_cast<size_t>(sink.frame_count), kExpectedFrames);
+    EXPECT_EQ(sink.received_samples, expected_stream);
+
+    source->Stop();
+    source->RemoveSink(&sink);
 }
 
 }  // namespace

@@ -45,6 +45,7 @@
 #include "android/status/status_macros.h"
 #include "avd_keys.h"
 #include "goldfish/file/file.h"
+#include "goldfish/snapshot/snapshot_store.h"
 #include "host-common/constants.h"
 
 /* technical note on how all of this is supposed to work:
@@ -516,10 +517,15 @@ class FileBackedAvd : public Avd {
             result.push_back(std::move(info));
         }
 
-        // Inspect root AVD content directory for .qcow2 disk images (e.g., cache.img.qcow2,
-        // userdata.img.qcow2)
+        // Inspect root AVD content directory for .qcow2 images: the disk
+        // overlays (userdata.img.qcow2, ...) and the VM-state image
+        // snapshots.qcow2 that holds every snapshot's guest RAM and device
+        // state (b/576262656).
         if (inspector) {
             fs::path content_dir = GetContentPath();
+            const fs::path vmstate_image =
+                    ::goldfish::snapshot::FileSnapshotStore(content_dir, /*snapshot_version=*/0)
+                            .VmStateImage();
             if (android::base::file::is_dir(content_dir)) {
                 auto root_files = android::base::file::scan_dir(content_dir, /*fullPath=*/true);
                 for (const auto& f : root_files) {
@@ -527,7 +533,9 @@ class FileBackedAvd : public Avd {
                         std::string img_info = inspector(f);
                         if (!img_info.empty()) {
                             Avd::SnapshotInfo info;
-                            info.name = absl::StrCat("Disk Image: ", f.filename().string());
+                            info.name = absl::StrCat(
+                                    f == vmstate_image ? "VM State Image: " : "Disk Image: ",
+                                    f.filename().string());
                             info.path = f;
                             auto sz = android::base::file::file_size(f);
                             if (sz.ok()) {

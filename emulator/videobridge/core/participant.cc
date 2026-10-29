@@ -114,13 +114,13 @@ Participant::~Participant() {
     }
 }
 
+template <typename Fn>
+decltype(auto) Participant::RunOnSignalingThread(Fn&& fn) {
+    return connection_.SignalingThread()->BlockingCall(std::forward<Fn>(fn));
+}
+
 absl::Status Participant::Initialize() {
-    if (connection_.SignalingThread()->IsCurrent()) {
-        return DoInitialize();
-    }
-    absl::Status status;
-    connection_.SignalingThread()->BlockingCall([&] { status = DoInitialize(); });
-    return status;
+    return RunOnSignalingThread([&] { return DoInitialize(); });
 }
 
 absl::Status Participant::DoInitialize() {
@@ -129,14 +129,11 @@ absl::Status Participant::DoInitialize() {
         return s;
     }
 
-    if (auto s = AddDataChannel(DataChannelLabel::kInput); !s.ok()) {
-        return s;
-    }
-    if (auto s = AddDataChannel(DataChannelLabel::kInputV2); !s.ok()) {
-        return s;
-    }
-    if (auto s = AddDataChannel(DataChannelLabel::kSensorsV2); !s.ok()) {
-        return s;
+    for (DataChannelLabel label :
+         {DataChannelLabel::kInput, DataChannelLabel::kInputV2, DataChannelLabel::kSensorsV2}) {
+        if (auto s = AddDataChannel(label); !s.ok()) {
+            return s;
+        }
     }
 
     if (media_provider_) {
@@ -147,11 +144,7 @@ absl::Status Participant::DoInitialize() {
 }
 
 void Participant::IncomingMessage(const nlohmann::json& msg) {
-    if (connection_.SignalingThread()->IsCurrent()) {
-        DoIncomingMessage(msg);
-    } else {
-        connection_.SignalingThread()->BlockingCall([&] { DoIncomingMessage(msg); });
-    }
+    RunOnSignalingThread([&] { DoIncomingMessage(msg); });
 }
 
 void Participant::DoIncomingMessage(const nlohmann::json& msg) {
@@ -237,12 +230,19 @@ void Participant::DoClose() {
 }
 
 void Participant::Close() {
-    // Ensure DoClose is called on the signaling thread.
-    if (connection_.SignalingThread()->IsCurrent()) {
-        DoClose();
-    } else {
-        connection_.SignalingThread()->BlockingCall([&] { DoClose(); });
-    }
+    RunOnSignalingThread([&] { DoClose(); });
+}
+
+void Participant::SubmitIceCandidate(IceCandidatePtr candidate) {
+    std::weak_ptr<Participant> weak_self = shared_from_this();
+    peer_connection_->AddIceCandidate(
+            std::move(candidate), [weak_self](const ::webrtc::RTCError& err) {
+                if (auto self = weak_self.lock(); self && !err.ok()) {
+                    LOG(ERROR) << "Failed to add remote ICE candidate to PeerConnection for "
+                                  "participant "
+                               << self->peer_id_ << ": " << err.message();
+                }
+            });
 }
 
 void Participant::WaitForClose() {
@@ -281,17 +281,7 @@ void Participant::HandleCandidate(const nlohmann::json& msg) {
         return;
     }
 
-    std::weak_ptr<Participant> weak_self = shared_from_this();
-    peer_connection_->AddIceCandidate(std::move(candidate), [weak_self](
-                                                                    const ::webrtc::RTCError& err) {
-        if (auto self = weak_self.lock()) {
-            if (!err.ok()) {
-                LOG(ERROR)
-                        << "Failed to add remote ICE candidate to PeerConnection for participant "
-                        << self->peer_id_ << ": " << err.message();
-            }
-        }
-    });
+    SubmitIceCandidate(std::move(candidate));
 }
 
 void Participant::HandleOffer(const nlohmann::json& msg) {
@@ -391,14 +381,7 @@ void Participant::OnRemoteDescriptionSet() {
     LOG(INFO) << "Remote description set successfully. Draining " << queued_candidates_.size()
               << " queued remote ICE candidates for participant " << peer_id_;
     for (auto& candidate : queued_candidates_) {
-        peer_connection_->AddIceCandidate(std::move(candidate), [this](const ::webrtc::RTCError&
-                                                                               err) {
-            if (!err.ok()) {
-                LOG(ERROR)
-                        << "Failed to add remote ICE candidate to PeerConnection for participant "
-                        << peer_id_ << ": " << err.message();
-            }
-        });
+        SubmitIceCandidate(std::move(candidate));
     }
     queued_candidates_.clear();
 }

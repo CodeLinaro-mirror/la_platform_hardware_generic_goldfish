@@ -11,6 +11,7 @@ cc_test(
     name = "x86_cpuid_test",
     size = "small",
     srcs = ["x86_cpuid_test.cc"],
+    target_compatible_with = ["@platforms//cpu:x86_64"],
     deps = [
         ":x86_cpuid",
         "//emulator/libs/test:googletest_main",
@@ -22,6 +23,14 @@ cc_library(
     srcs = ["cpu_brand.cc"],
     hdrs = ["include/android/cpu/cpu_brand.h"],
     includes = ["include"],
+    linkopts = select({
+        "@platforms//os:windows": [
+            "-defaultlib:wbemuuid.lib",
+            "-defaultlib:oleaut32.lib",
+            "-defaultlib:ole32.lib",
+        ],
+        "//conditions:default": [],
+    }),
     visibility = ["//visibility:public"],
     deps = [":x86_cpuid"],
 )

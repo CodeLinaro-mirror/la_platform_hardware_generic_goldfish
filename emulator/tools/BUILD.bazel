@@ -65,6 +65,8 @@ aemu_naming(
     name = "aemu_header_version_info",
     description = "Android Emulator (Preview)",
     platform = select({
+        "@goldfish_build//platforms:is_linux_aarch64": "linux_aarch64",
+        "@goldfish_build//platforms:is_windows_aarch64": "windows_aarch64",
         "@platforms//os:windows": "windows",
         "@platforms//os:macos": "darwin_aarch64",
         "@platforms//os:linux": "linux",
@@ -76,7 +78,7 @@ aemu_naming(
         ":opt": "emulator",
     }),
     stage = "",
-    version = "37.1.6",
+    version = "37.1.7",
 )
 
 aemu_naming(
@@ -84,6 +86,8 @@ aemu_naming(
     build_id_dep = "//emulator:build_id",
     description = "Android Emulator (Preview)",
     platform = select({
+        "@goldfish_build//platforms:is_linux_aarch64": "linux_aarch64",
+        "@goldfish_build//platforms:is_windows_aarch64": "windows_aarch64",
         "@platforms//os:windows": "windows",
         "@platforms//os:macos": "darwin_aarch64",
         "@platforms//os:linux": "linux",
@@ -95,7 +99,7 @@ aemu_naming(
         ":opt": "emulator",
     }),
     stage = "",
-    version = "37.1.6",
+    version = "37.1.7",
 )
 
 version_info_header(

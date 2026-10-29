@@ -46,6 +46,7 @@
 #include "android/sockets/socket_utils.h"
 #include "android/status/status_macros.h"
 #include "emulator/plugin/grpc/grpc_display.h"
+#include "emulator/plugin/grpc/input/input_dispatcher_interface.h"
 #include "emulator/plugin/vminterface/vm_lock.h"
 #include "emulator/plugin/webrtc/webrtc_device.h"
 #include "goldfish/async/event_loop.h"
@@ -166,8 +167,7 @@ std::vector<std::shared_ptr<::grpc::Service>> CreateServices(avd::AvdUniverse& a
     }
 
     // Register AEMU v2 services
-    auto v2_services = ::goldfish::grpc::v2::CreateV2Services(avd_universe, vm_operations,
-                                                              &avd_universe.GetQemuEventLoop());
+    auto v2_services = ::goldfish::grpc::v2::CreateV2Services(avd_universe, vm_operations);
     services.insert(services.end(), v2_services.begin(), v2_services.end());
 
     return services;
@@ -429,6 +429,12 @@ void grpc_main_loop_exit_notify(Notifier* notifier, void* data) {
     // Flush the global event loop before shutting down the server so that terminal
     // exit-snapshot progress and run-state events reach active streams and LROs.
     android::goldfish::ScopedVmUnlock unlock;
+    // Shut down input before any service, without the BQL as it runs
+    // completion callbacks. Called here, and not from an exit notifier of its
+    // own, because QEMU runs those in reverse registration order. The QEMU
+    // loop has stopped, so pending input completes with UNAVAILABLE now
+    // instead of waiting for a loop that won't run it.
+    goldfish::avd::GetAvd().GetInputDispatcher()->Shutdown();
     goldfish::avd::globalEventLoop()->WaitUntilIdle();
     auto deadline = std::chrono::system_clock::now() + std::chrono::milliseconds(100);
     config->grpc_server->Shutdown(deadline);

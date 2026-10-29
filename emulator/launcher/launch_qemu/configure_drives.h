@@ -31,6 +31,12 @@ absl::StatusOr<std::vector<std::unique_ptr<PciDevice>>> getDiskConfigs(const Avd
                                                                        const AndroidOptions& opts);
 }  // namespace internal
 
+// Returns whether the userdata partition of the guest is new: the userdata drive creates a new
+// qcow2 overlay, which holds all the changes of the guest, when it is missing or invalid. This is
+// the case on the first boot of the AVD, and after -wipe-data or the Wipe Data action of Android
+// Studio, which deletes the overlay but keeps userdata.img.
+bool IsUserdataNew(const Avd& avd);
+
 // Templated for simplified testing.
 template <typename T>
 absl::Status addDrives(const EmulatorConfig& config, T& emulator) {

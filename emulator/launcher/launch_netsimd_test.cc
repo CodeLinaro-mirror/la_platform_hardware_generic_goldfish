@@ -275,50 +275,87 @@ TEST_F(NetsimConnectorTest, ShuttingDownAbortsCleanly) {
 
 TEST(NetsimdLaunchConfigTest, DefaultDoesNotIncludeStartupTimeout) {
     AndroidOptions opts{};
-    auto config = netsimd_launch_config("/path/to/netsimd", opts);
+    FeatureFlags flags;
+    auto config = netsimd_launch_config("/path/to/netsimd", opts, flags);
     ASSERT_TRUE(config.ok()) << config.status();
     EXPECT_THAT(config->args,
                 testing::Not(testing::Contains(testing::StartsWith("--startup-timeout"))));
 }
 
+TEST(NetsimdLaunchConfigTest, CliAndWebUiFeatureFlags) {
+    using S = android_studio::EmulatorFeatureFlagState;
+    AndroidOptions opts{};
+
+    // Both disabled in default-constructed FeatureFlags -> both --no-* flags emitted.
+    {
+        FeatureFlags flags;
+        auto config = netsimd_launch_config("/path/to/netsimd", opts, flags);
+        ASSERT_TRUE(config.ok()) << config.status();
+        EXPECT_THAT(config->args, testing::Contains("--no-cli-ui"));
+        EXPECT_THAT(config->args, testing::Contains("--no-web-ui"));
+    }
+
+    // Both enabled -> neither --no-* flag emitted.
+    {
+        auto flags = FeatureFlags::CreateForTesting({S::NETSIMCLIUI, S::NETSIMWEBUI});
+        auto config = netsimd_launch_config("/path/to/netsimd", opts, flags);
+        ASSERT_TRUE(config.ok()) << config.status();
+        EXPECT_THAT(config->args, testing::Not(testing::Contains("--no-cli-ui")));
+        EXPECT_THAT(config->args, testing::Not(testing::Contains("--no-web-ui")));
+    }
+
+    // Only CLI UI enabled -> only --no-web-ui emitted.
+    {
+        auto flags = FeatureFlags::CreateForTesting({S::NETSIMCLIUI});
+        auto config = netsimd_launch_config("/path/to/netsimd", opts, flags);
+        ASSERT_TRUE(config.ok()) << config.status();
+        EXPECT_THAT(config->args, testing::Not(testing::Contains("--no-cli-ui")));
+        EXPECT_THAT(config->args, testing::Contains("--no-web-ui"));
+    }
+}
+
 TEST(NetsimdLaunchConfigTest, StartupTimeoutDurationString) {
     AndroidOptions opts{};
+    FeatureFlags flags;
     char timeout_str[] = "30s";
     opts.netsim_startup_timeout = timeout_str;
-    auto config = netsimd_launch_config("/path/to/netsimd", opts);
+    auto config = netsimd_launch_config("/path/to/netsimd", opts, flags);
     ASSERT_TRUE(config.ok()) << config.status();
     EXPECT_THAT(config->args, testing::Contains("--startup-timeout=30000"));
 }
 
 TEST(NetsimdLaunchConfigTest, StartupTimeoutMillisecondsString) {
     AndroidOptions opts{};
+    FeatureFlags flags;
     char timeout_str[] = "45000ms";
     opts.netsim_startup_timeout = timeout_str;
-    auto config = netsimd_launch_config("/path/to/netsimd", opts);
+    auto config = netsimd_launch_config("/path/to/netsimd", opts, flags);
     ASSERT_TRUE(config.ok()) << config.status();
     EXPECT_THAT(config->args, testing::Contains("--startup-timeout=45000"));
 }
 
 TEST(NetsimdLaunchConfigTest, StartupTimeoutPlainSeconds) {
     AndroidOptions opts{};
+    FeatureFlags flags;
     char timeout_str[] = "30";
     opts.netsim_startup_timeout = timeout_str;
-    auto config = netsimd_launch_config("/path/to/netsimd", opts);
+    auto config = netsimd_launch_config("/path/to/netsimd", opts, flags);
     ASSERT_TRUE(config.ok()) << config.status();
     EXPECT_THAT(config->args, testing::Contains("--startup-timeout=30000"));
 }
 
 TEST(NetsimdLaunchConfigTest, StartupTimeoutInvalidReturnsError) {
     AndroidOptions opts{};
+    FeatureFlags flags;
     char invalid_str[] = "not_a_duration";
     opts.netsim_startup_timeout = invalid_str;
-    auto config = netsimd_launch_config("/path/to/netsimd", opts);
+    auto config = netsimd_launch_config("/path/to/netsimd", opts, flags);
     EXPECT_FALSE(config.ok());
     EXPECT_EQ(config.status().code(), absl::StatusCode::kInvalidArgument);
 
     char zero_str[] = "0s";
     opts.netsim_startup_timeout = zero_str;
-    config = netsimd_launch_config("/path/to/netsimd", opts);
+    config = netsimd_launch_config("/path/to/netsimd", opts, flags);
     EXPECT_FALSE(config.ok());
     EXPECT_EQ(config.status().code(), absl::StatusCode::kInvalidArgument);
 }

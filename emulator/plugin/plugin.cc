@@ -38,8 +38,12 @@
 #include "goldfish/avd/avd_start.h"
 #include "goldfish/avd/global_event_loop.h"
 #include "goldfish/battery/goldfish_battery.h"
+#include "goldfish/devices/virtio_gpu_gfxstream/virtio_gpu_gfxstream.h"
 #include "goldfish/grpc/grpc.h"
 #include "goldfish/input/virtio_input_android.h"
+#include "goldfish/legacy/goldfish_address_space_low_level.h"
+#include "goldfish/legacy/goldfish_pipe_low_level.h"
+#include "goldfish/legacy/goldfish_sync_low_level.h"
 #include "goldfish/net/virtio_wifi.h"
 #include "goldfish/netsim/netsim_chardev.h"
 #include "goldfish/netsim/netsim_connection.h"
@@ -208,12 +212,16 @@ extern "C" void GF_REGISTER_TYPES_FUNC(void) {
     goldfish::avd::avd_finalize_register_types();
     goldfish::adb_device::adb_device_register_types();
     virtio_input_android_register_types();
+    virtio_gpu_gfxstream_register_types();
     goldfish::grpc::grpc_register_types();
     goldfish::grpc::webrtc_register_types();
     virtio_wifi_register_types();
     goldfish::netsim::netsim_connection_register_types();
     goldfish::netsim::netsim_netdev_register_types();
     goldfish::netsim::netsim_chardev_register_types();
+    goldfish_pipe_register_types();
+    goldfish_sync_register_types();
+    goldfish_address_space_register_types();
     VLOG(1) << "Exit GF_REGISTER_TYPES";
 }
 

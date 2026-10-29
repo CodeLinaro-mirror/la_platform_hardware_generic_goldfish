@@ -13,21 +13,12 @@
 // limitations under the License.
 #include "grpc_audio_source.h"
 
-#include <algorithm>
+#include <cstdint>
 #include <utility>
 
 #include "absl/log/log.h"
 
 namespace goldfish::videobridge {
-
-constexpr int32_t kSampleRateHz = 48000;
-constexpr int32_t kChannels = 2;
-constexpr int32_t kBytesPerSample = 2;
-
-// WebRTC requires each audio packet to be exactly 10ms long.
-constexpr int32_t kSamplesPerFrame = kSampleRateHz / 100;  // (10ms / 1s)
-constexpr size_t kBytesPerFrame =
-        static_cast<size_t>(kBytesPerSample) * kSamplesPerFrame * kChannels;
 
 GrpcAudioSource::GrpcAudioSource(std::shared_ptr<EmulatorClient> client)
         : client_(std::move(client)) {
@@ -109,18 +100,46 @@ void GrpcAudioSource::CaptureLoop() {
 
 void GrpcAudioSource::ConsumeAudioPacket(const AudioPacket& audio_packet) {
     const std::string& audio_data = audio_packet.audio();
-    partial_frame_.insert(partial_frame_.end(), audio_data.begin(), audio_data.end());
-
-    size_t bytes_consumed = 0;
-    while (bytes_consumed + kBytesPerFrame <= partial_frame_.size()) {
-        Dispatch10msFrame(partial_frame_.data() + bytes_consumed, kBytesPerSample * 8,
-                          kSampleRateHz, kChannels, kSamplesPerFrame);
-        bytes_consumed += kBytesPerFrame;
+    if (audio_data.empty()) {
+        return;
     }
 
-    if (bytes_consumed > 0) {
-        partial_frame_.erase(partial_frame_.begin(), partial_frame_.begin() + bytes_consumed);
+    const auto* src = reinterpret_cast<const uint8_t*>(audio_data.data());
+    size_t remaining = audio_data.size();
+
+    if (!partial_frame_.empty()) {
+        const size_t bytes_needed = kBytesPerFrame - partial_frame_.size();
+        if (remaining < bytes_needed) {
+            partial_frame_.insert(partial_frame_.end(), src, src + remaining);
+            return;
+        }
+        partial_frame_.insert(partial_frame_.end(), src, src + bytes_needed);
+        DispatchFrame(partial_frame_.data());
+        partial_frame_.clear();
+        src += bytes_needed;
+        remaining -= bytes_needed;
     }
+
+    const bool is_sample_aligned = (reinterpret_cast<uintptr_t>(src) % alignof(int16_t)) == 0U;
+    while (remaining >= kBytesPerFrame) {
+        if (is_sample_aligned) {
+            DispatchFrame(src);
+        } else {
+            partial_frame_.assign(src, src + kBytesPerFrame);
+            DispatchFrame(partial_frame_.data());
+            partial_frame_.clear();
+        }
+        src += kBytesPerFrame;
+        remaining -= kBytesPerFrame;
+    }
+
+    if (remaining > 0U) {
+        partial_frame_.assign(src, src + remaining);
+    }
+}
+
+void GrpcAudioSource::DispatchFrame(const uint8_t* frame_data) {
+    Dispatch10msFrame(frame_data, kBitsPerSample, kSampleRateHz, kChannels, kSamplesPerFrame);
 }
 
 }  // namespace goldfish::videobridge

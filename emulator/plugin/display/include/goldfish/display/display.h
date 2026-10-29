@@ -26,12 +26,15 @@
 #include "absl/synchronization/mutex.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
+#include "absl/types/span.h"
 
 #include "goldfish/async/event_loop.h"
+#include "goldfish/base/unique_handle.h"
 #include "goldfish/display/display_frames.h"
 #include "goldfish/display/ev_dev_event.h"
 #include "goldfish/display/frame.h"
 #include "goldfish/display/geometry.h"
+#include "goldfish/eventing/event_sources.h"
 #include "goldfish/perfetto/perfetto_categories.h"
 
 extern "C" {
@@ -88,6 +91,31 @@ class IDisplay;
 using DisplayPtr = std::weak_ptr<IDisplay>;
 using SharedDisplay = std::shared_ptr<IDisplay>;
 
+using InputActiveEventSource =
+        ::android::base::eventing::WithCallbacks<::android::base::eventing::EventSource<
+                uint64_t,
+                ::android::base::eventing::HybridStoragePolicy<
+                        uint64_t, 16,
+                        std::shared_ptr<::android::base::eventing::EventListener<uint64_t>>>>>;
+
+struct InputActiveListenerDeleter {
+    struct Empty {};
+    explicit InputActiveListenerDeleter(Empty = {}) noexcept {}
+    explicit InputActiveListenerDeleter(std::weak_ptr<InputActiveEventSource> source) noexcept
+            : source(std::move(source)) {}
+
+    void operator()(size_t id) const;
+
+    std::weak_ptr<InputActiveEventSource> source;
+};
+
+/**
+ * Move-only RAII subscription handle for an input active-generation listener on
+ * `IDisplay`. Safe to destroy before or after the `IDisplay` is destroyed.
+ */
+using ScopedInputActiveListener =
+        ::goldfish::base::UniqueHandle<size_t, 0, InputActiveListenerDeleter>;
+
 /**
  * @class IDisplay
  * @brief Interface representing an Android display.
@@ -99,6 +127,7 @@ using SharedDisplay = std::shared_ptr<IDisplay>;
 class IDisplay : public std::enable_shared_from_this<IDisplay> {
   public:
     using ScopedFrameListener = ::goldfish::display::ScopedFrameListener;
+    using ScopedInputActiveListener = ::goldfish::display::ScopedInputActiveListener;
 
     explicit IDisplay(EventLoop* loop) : IDisplay(loop, 0, 0, 0) {}
     virtual ~IDisplay() { StopProducerCalls(); }
@@ -237,6 +266,50 @@ class IDisplay : public std::enable_shared_from_this<IDisplay> {
      */
     virtual void SendEvDevReport(EvDevEvents events) = 0;
 
+    /**
+     * @brief Writes one evdev report, `events` followed by EV_SYN/SYN_REPORT,
+     * synchronously.
+     *
+     * Unlike SendEvDevReport, nothing is posted: the report reaches the device
+     * before this returns, in order with everything else the caller writes
+     * from the loop. Must be called on the QEMU event loop thread.
+     *
+     * @param events The report's events, without the trailing SYN_REPORT. If
+     *        empty, only the sync is written.
+     */
+    virtual void WriteEvDevReportOnLoop(absl::Span<const EvDevEvent> events) = 0;
+
+    /**
+     * @brief Whether the guest driver of this display's input device is active,
+     * so a written report would reach it. The device discards events while its
+     * driver is inactive.
+     *
+     * Must be called on the QEMU event loop thread.
+     */
+    virtual bool IsInputActive() const = 0;
+
+    /**
+     * @brief A counter that changes whenever the guest driver of this
+     * display's input device goes active or inactive: driver ready, driver or
+     * device reset, re-probe, snapshot load. A change means the guest forgot
+     * the device's touch contacts. 0 if the display has no input device.
+     *
+     * Must be called on the QEMU event loop thread.
+     */
+    virtual uint64_t InputActiveGeneration() const = 0;
+
+    /**
+     * @brief Subscribes `listener` to push notifications fired whenever this
+     * display's input device advances its active generation (on a vCPU/QEMU
+     * thread under the BQL).
+     *
+     * Must be non-blocking and must not reset its own
+     * `ScopedInputActiveListener` from inside `listener`. Thread-safe; the
+     * returned handle may outlive the `IDisplay`.
+     */
+    [[nodiscard]] ScopedInputActiveListener AddInputActiveListener(
+            InputActiveEventSource::EventCallback listener);
+
     virtual QemuConsole* GetConsole() const { return nullptr; }
 
     void SetDimensions(Dimensions dim) {
@@ -304,6 +377,12 @@ class IDisplay : public std::enable_shared_from_this<IDisplay> {
     const std::shared_ptr<DisplayFrames>& frames() const { return frames_; }
     // Forwards IFrameProducer calls to OnDemand and OnFrameRequested.
     std::weak_ptr<IFrameProducer> weak_producer() const { return producer_; }
+    const std::shared_ptr<InputActiveEventSource>& input_active_events() const {
+        return input_active_events_;
+    }
+    void NotifyInputActiveChanged(uint64_t generation) {
+        input_active_events_->FireEvent(generation);
+    }
 
     // IFrameProducer::SetDemand and RequestFrame, as hooks. Called on the
     // threads IFrameProducer allows, never on a display being destroyed once
@@ -391,6 +470,8 @@ class IDisplay : public std::enable_shared_from_this<IDisplay> {
     mutable absl::Mutex dimension_mutex_;
     std::shared_ptr<DisplayFrames> frames_;
     std::shared_ptr<Producer> producer_;
+    std::shared_ptr<InputActiveEventSource> input_active_events_ =
+            std::make_shared<InputActiveEventSource>();
 };
 
 }  // namespace goldfish::display

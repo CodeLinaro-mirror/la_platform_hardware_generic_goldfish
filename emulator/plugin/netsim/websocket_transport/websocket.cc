@@ -72,15 +72,54 @@ FrameHeader EncodeHeader(Opcode opcode, uint64_t payload_size, std::optional<Mas
 }
 
 void ApplyMask(std::span<uint8_t> data, const MaskKey& mask) {
-    for (size_t i = 0; i < data.size(); ++i) data[i] ^= mask.bytes[i % 4];
+    if ((mask.bytes[0] | mask.bytes[1] | mask.bytes[2] | mask.bytes[3]) == 0U) return;
+
+    uint8_t* ptr = data.data();
+    const size_t size = data.size();
+    size_t i = 0;
+    while (i < size &&
+           (reinterpret_cast<uintptr_t>(ptr + i) & (alignof(uint64_t) - 1U)) != 0U) {
+        ptr[i] ^= mask.bytes[i & 3U];
+        ++i;
+    }
+
+    const uint8_t rotated[sizeof(uint64_t)] = {
+        mask.bytes[(i + 0U) & 3U], mask.bytes[(i + 1U) & 3U],
+        mask.bytes[(i + 2U) & 3U], mask.bytes[(i + 3U) & 3U],
+        mask.bytes[(i + 0U) & 3U], mask.bytes[(i + 1U) & 3U],
+        mask.bytes[(i + 2U) & 3U], mask.bytes[(i + 3U) & 3U],
+    };
+    uint64_t mask64 = 0;
+    std::memcpy(&mask64, rotated, sizeof(mask64));
+
+    auto* words = reinterpret_cast<uint64_t*>(ptr + i);
+    const size_t word_count = (size - i) / sizeof(uint64_t);
+    size_t w = 0;
+    for (; w + 4U <= word_count; w += 4U) {
+        words[w + 0U] ^= mask64;
+        words[w + 1U] ^= mask64;
+        words[w + 2U] ^= mask64;
+        words[w + 3U] ^= mask64;
+    }
+    for (; w < word_count; ++w) {
+        words[w] ^= mask64;
+    }
+    i += word_count * sizeof(uint64_t);
+
+    for (; i < size; ++i) {
+        ptr[i] ^= mask.bytes[i & 3U];
+    }
 }
 
 std::vector<uint8_t> EncodeFrame(Opcode opcode, std::span<const uint8_t> payload,
                                  std::optional<MaskKey> mask, bool fin) {
     FrameHeader header = EncodeHeader(opcode, payload.size(), mask, fin);
-    std::vector<uint8_t> out(header.span().begin(), header.span().end());
-    out.insert(out.end(), payload.begin(), payload.end());
-    if (mask) ApplyMask(std::span(out).subspan(header.size), *mask);
+    std::vector<uint8_t> out(header.size + payload.size());
+    std::memcpy(out.data(), header.bytes.data(), header.size);
+    if (!payload.empty()) {
+        std::memcpy(out.data() + header.size, payload.data(), payload.size());
+        if (mask) ApplyMask(std::span(out).subspan(header.size), *mask);
+    }
     return out;
 }
 

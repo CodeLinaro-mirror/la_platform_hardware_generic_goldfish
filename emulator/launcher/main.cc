@@ -41,6 +41,7 @@
 #include "android/cmdline_option.h"
 #include "android/crashreport/crash_system.h"
 #include "android/goldfish/avd.h"
+#include "android/goldfish/feature_flags.h"
 #include "android/goldfish/input_paths.h"
 #include "android/main_help.h"
 #include "android/status/status_macros.h"
@@ -65,8 +66,6 @@ namespace {
 namespace fs = std::filesystem;
 
 constexpr int EMULATOR_COMPATIBLE_QEMU_VERSION = 10;
-
-constexpr int kMetricsCrashesAbandoned = 1;
 
 constexpr std::string_view kUpdateRepositoryUrl =
         "https://dl.google.com/android/repository/repository2-3.xml";
@@ -546,7 +545,26 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    if (android::goldfish::ShouldTrampolineToQemu2(avd)) {
+    absl::StatusOr<android::goldfish::FeatureFlags> feature_flags;
+    if (avd.ok()) {
+        std::vector<std::string> cli_features;
+        for (const ParamList* f = opts.feature; f != nullptr; f = f->next) {
+            if (f->param != nullptr) {
+                cli_features.emplace_back(f->param);
+            }
+        }
+        feature_flags = android::goldfish::FeatureFlags::Create({
+            .host_ini_path = emulator_paths->advanced_features,
+            .guest_ini_path = (*avd)->GetSystemImagePaths().advanced_features,
+            .user_ini_path = user_paths->user_directory / "advancedFeatures.ini",
+            .guest_api_level = (*avd)->ApiLevel(),
+            .avd_feature_flags = (*avd)->Hw().hw_featureflags,
+            .env_feature_flags = android::base::System::Get()->EnvGet("ANDROID_EMULATOR_FEATURES"),
+            .cli_feature_flags = cli_features,
+        });
+    }
+
+    if (android::goldfish::ShouldTrampolineToQemu2(avd, feature_flags)) {
         auto s = android::goldfish::TrampolineToQemu2(emulator_paths->launcher_directory,
                                                       std::move(args_copy));
         LOG(ERROR) << s;
@@ -556,6 +574,10 @@ int main(int argc, char** argv) {
     // We currently expect AVD load failures to trigger trampoline and not reach this point.
     if (!avd.ok()) {
         LOG(ERROR) << "Bug: AVD loading failed: " << avd.status();
+        return 1;
+    }
+    if (!feature_flags.ok()) {
+        LOG(ERROR) << "Failed to load feature flags: " << feature_flags.status();
         return 1;
     }
 
@@ -620,6 +642,7 @@ int main(int argc, char** argv) {
         .emulator_paths = *std::move(emulator_paths),
         .avd = *std::move(avd),
         .opts = std::move(opts),
+        .feature_flags = *std::move(feature_flags),
         .metrics_writer_config = std::move(metrics_writer_config),
     });
     if (!exit_status.ok()) {

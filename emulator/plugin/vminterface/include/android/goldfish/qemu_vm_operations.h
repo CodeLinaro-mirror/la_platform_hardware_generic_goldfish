@@ -16,6 +16,7 @@
 #include <memory>
 
 #include "android/base/clock.h"
+#include "android/crashreport/hang_detector.h"
 #include "android/goldfish/vm_interface.h"
 #include "goldfish/async/event_loop.h"
 #include "goldfish/snapshot/snapshot_store.h"
@@ -72,13 +73,18 @@ struct QemuSnapshotConfig {
  *        outlive the returned instance.
  * @param snapshot_config Snapshot store and policy, see `QemuSnapshotConfig`.
  *        `store` must not be null.
+ * @param hang_detector Hang detector with which the snapshot progress watchdog
+ *        predicate is registered while a snapshot save or load is in flight,
+ *        including the ones QEMU runs without VmOperations (the exit-time
+ *        -savevm, HMP savevm/loadvm). Must not be null and must outlive the
+ *        returned instance.
  * @param clock Clock source used for snapshot progress throttling. Must outlive
  *        the returned instance. Defaults to `::android::base::IClock::Get()`.
  * @return The QEMU-backed VmOperations.
  */
 std::unique_ptr<VmOperations> CreateQemuVmOperations(
         ::goldfish::async::EventLoop* event_loop, ::goldfish::async::EventLoop* qemu_loop,
-        QemuSnapshotConfig snapshot_config,
+        QemuSnapshotConfig snapshot_config, ::android::crashreport::HangDetector* hang_detector,
         ::android::base::IClock* clock = &::android::base::IClock::Get());
 
 }  // namespace goldfish

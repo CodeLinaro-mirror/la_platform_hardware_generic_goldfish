@@ -14,15 +14,32 @@
 
 #pragma once
 
+#include <memory>
+
 #include "absl/status/status.h"
 
+#include "goldfish/async/testing/test_event_loop.h"
 #include "goldfish/avd/avd_universe.h"
 #include "goldfish/metrics/metrics_reporter.h"
 
+namespace goldfish::grpc::v2 {
+class KeyboardSink;
+class TouchDevices;
+}  // namespace goldfish::grpc::v2
+
 namespace goldfish::avd {
 
-// Minimal implementation of AvdUniverse for unit tests.
-// Registers itself as the global AvdUniverse on construction and clears it on destruction.
+/**
+ * @brief Minimal implementation of `AvdUniverse` for unit tests.
+ *
+ * Registers itself as the global `AvdUniverse` on construction and clears it on
+ * destruction.
+ *
+ * Its input dispatcher is real, but has no displays and drops keys and text:
+ * touches complete with `UNAVAILABLE`, keys and text with `OK`. Keys map only
+ * their `evdev_code`. It runs on `input_loop()`, which runs only when the test
+ * runs it.
+ */
 class FakeAvdUniverse : public AvdUniverse {
   public:
     FakeAvdUniverse();
@@ -32,12 +49,22 @@ class FakeAvdUniverse : public AvdUniverse {
     metrics::MetricsReporter& GetMetricsReporter() override;
     android::goldfish::VmOperations& GetVmOperations() override;
     display::IMultiDisplay& GetMultiDisplay() const override;
+    std::shared_ptr<grpc::v2::IInputDispatcher> GetInputDispatcher() override;
+
+    /** @brief Returns the test event loop driving `GetInputDispatcher()`. */
+    async::testing::TestEventLoop& input_loop() { return *input_loop_; }
 
     absl::Status OnSave(archive::IWriter&) const override;
     absl::Status OnLoad(archive::IReader&) override;
 
   private:
     metrics::MetricsReporter metrics_reporter_;
+    // In this order, so the dispatcher is released first; the destructor
+    // shuts it down before, for holders that outlive the universe.
+    std::unique_ptr<async::testing::TestEventLoop> input_loop_;
+    std::unique_ptr<grpc::v2::TouchDevices> touch_devices_;
+    std::unique_ptr<grpc::v2::KeyboardSink> keyboard_;
+    std::shared_ptr<grpc::v2::IInputDispatcher> input_dispatcher_;
 };
 
 }  // namespace goldfish::avd

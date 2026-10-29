@@ -49,6 +49,9 @@ struct AvdProperties {
     ::goldfish::metrics::MetricsWriterConfig metrics_writer_config;
     std::filesystem::path dump_perf_stat_path;
     std::filesystem::path icc_profile;
+    // The zoneinfo name of the timezone that the guest switches to when it boots (e.g.
+    // "Europe/Paris"), or empty to keep the timezone of the guest.
+    std::string timezone;
 
     android::goldfish::HardwareConfig hw_config;
 };

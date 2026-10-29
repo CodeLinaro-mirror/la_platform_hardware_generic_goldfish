@@ -28,6 +28,7 @@ load(
 load(
     "//emulator/tools:transitions.bzl",
     "internal_release",
+    "no_windows_export_all_symbols_binary",
 )
 
 package(
@@ -212,12 +213,19 @@ filegroup(
         ],
         "@goldfish_build//platforms:is_linux_aarch64": [],
         "@platforms//os:linux": [
-            "@goldfish_prebuilts_common//swiftshader:lib_linux_x86_64",
+            "@libxcb//:libxcb-aemu.so",
+            "@llvm-project//llvm:libLLVM.so",
+            "@mesa3d//:EGL",
+            "@mesa3d//:GLESv1_CM",
+            "@mesa3d//:GLESv2",
+            "@mesa3d//:gallium_dri",
         ],
         ":windows_aarch64": [
             "@goldfish_prebuilts_common//ANGLE:lib_windows_aarch64",
             "@goldfish_prebuilts_common//vulkan:icds_windows_aarch64",
             "@goldfish_prebuilts_common//vulkan:lib_windows_aarch64",
+            "@mesa3d//:generate_lvp_icd",
+            "@mesa3d//:vulkan_lvp",
         ],
         ":windows_x86_64": [
             "@goldfish_prebuilts_common//ANGLE:lib_windows_x86_64",
@@ -245,13 +253,14 @@ filegroup(
         "@platforms//os:linux": [
             "@goldfish_prebuilts_common//vulkan:icds_linux_x86_64",
             "@goldfish_prebuilts_common//vulkan:lib_linux_x86_64",
-            "@llvm-project//llvm:libLLVM.so",
             "@mesa3d//:generate_lvp_icd",
             "@mesa3d//:vulkan_lvp",
         ],
         ":windows_aarch64": [
             "@goldfish_prebuilts_common//vulkan:icds_windows_aarch64",
             "@goldfish_prebuilts_common//vulkan:lib_windows_aarch64",
+            "@mesa3d//:generate_lvp_icd",
+            "@mesa3d//:vulkan_lvp",
         ],
         ":windows_x86_64": [
             "@goldfish_prebuilts_common//vulkan:icds_windows_x86_64",
@@ -263,11 +272,28 @@ filegroup(
     }),
 )
 
+# In Windows debug builds, base.bazelrc enables --features=windows_export_all_symbols,
+# which causes @gfxstream//host:gfxstream_backend (~81k symbols) to exceed PE COFF's
+# 65,535 export limit. gfxstream_backend already marks its public stream_renderer_*
+# entry points with VG_EXPORT (__declspec(dllexport)), so disable export-all via transition.
+no_windows_export_all_symbols_binary(
+    name = "gfxstream_backend_windows",
+    srcs = "@gfxstream//host:gfxstream_backend",
+    target_compatible_with = ["@platforms//os:windows"],
+)
+
 filegroup(
     name = "plugin_binaries",
     srcs = [
+        # Both are loaded with dlopen() on first use, by the virtio-gpu
+        # device the launcher selects (see the -virtio-gpu-device launcher option, launcher/launch_qemu/virtio_gpu_selection.h):
+        # libgfxstream_backend by the plugin's virtio-gpu-gfxstream, librutabaga_ffi
+        # by QEMU's virtio-gpu-rutabaga.
         "@rutabaga_gfx//:rutabaga_ffi",
     ] + select({
+        "@platforms//os:windows": [":gfxstream_backend_windows"],
+        "//conditions:default": ["@gfxstream//host:gfxstream_backend"],
+    }) + select({
         ":windows_aarch64": [
             "//emulator/plugin:goldfish_aarch64",
         ],
@@ -653,6 +679,17 @@ pkg_files(
 )
 
 pkg_filegroup(
+    name = "fishtank",
+    srcs = [
+        ":fishtank_binary",
+        ":fishtank_dir",
+    ] + select({
+        ":use_linux_internal_fishtank": [],
+        "//conditions:default": [":qtwebengine_binary"],
+    }),
+)
+
+pkg_filegroup(
     name = "emulator-dir",
     srcs = [
         ":advanced_features",
@@ -660,8 +697,6 @@ pkg_filegroup(
         ":emulator-access",
         ":emulator_notice_md",
         ":emulator_sbom_json",
-        ":fishtank_binary",
-        ":fishtank_dir",
         ":glib_dlls_stripped",
         ":launcher_stripped",
         ":plugins_stripped",
@@ -673,11 +708,9 @@ pkg_filegroup(
         "@goldfish_build//platforms:is_linux_aarch64": [],
         "//conditions:default": [
             ":egl_stripped",
+            ":fishtank",
             ":vulkan_stripped",
         ],
-    }) + select({
-        ":use_linux_internal_fishtank": [],
-        "//conditions:default": [":qtwebengine_binary"],
     }) + select({
         "@platforms//os:windows": [
             ":win-dlls",
@@ -768,7 +801,6 @@ breakpad_symbols_pkg(
             "goldfish_prebuilts_common+/ANGLE/windows-aarch64/lib/libEGL.dll",
             "goldfish_prebuilts_common+/ANGLE/windows-aarch64/lib/libGLESv2.dll",
             "goldfish_prebuilts_common+/vulkan/windows-aarch64/vulkan-1.dll",
-            "goldfish_prebuilts_common+/vulkan/windows-aarch64/icds/libvulkan_lvp.dll",
             "goldfish_prebuilts_common+/vulkan/windows-aarch64/icds/vk_swiftshader.dll",
         ],
         ":windows_x86_64": [
@@ -804,6 +836,13 @@ build_test(
     name = "release_build_test",
     tags = ["manual"],
     targets = [":release"],
+)
+
+test_suite(
+    name = "qtest",
+    tests = [
+        "@qemu//:qtest",
+    ],
 )
 
 test_suite(

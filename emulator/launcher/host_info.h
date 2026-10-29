@@ -19,6 +19,7 @@
 #include <string_view>
 
 #include "android/goldfish/avd.h"
+#include "android/goldfish/feature_flags.h"
 #include "launch_qemu/vulkan_gpu_device_info.h"
 #include "studio_stats.pb.h"
 
@@ -29,8 +30,8 @@ bool IsAndroidCliDefined();
 bool IsRunningInContainer();
 
 void FillEmulatorHostEvent(android_studio::AndroidStudioEvent& event, const Avd& avd,
-                           long launcher_pid, long qemu_pid, bool metrics_collection_opt,
-                           bool fuchsia_opt, std::string_view vk_icd,
+                           const FeatureFlags& feature_flags, long launcher_pid, long qemu_pid,
+                           bool metrics_collection_opt, bool fuchsia_opt, std::string_view vk_icd,
                            std::span<const VulkanGpuDeviceInfo> host_gpus,
                            const std::optional<VulkanGpuDeviceInfo>& selected_gpu);
 

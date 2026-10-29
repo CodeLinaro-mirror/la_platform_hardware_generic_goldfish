@@ -14,8 +14,10 @@
 #pragma once
 
 #include <cstdint>
+#include <cstring>
 #include <string>
 #include <string_view>
+#include <utility>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/hash/hash.h"
@@ -23,6 +25,46 @@
 #include "absl/strings/match.h"
 
 namespace goldfish::http {
+
+namespace internal {
+
+inline uint64_t AsciiToLowerWord(uint64_t word) noexcept {
+    constexpr uint64_t kHighBits = 0x8080808080808080ULL;
+    constexpr uint64_t kAsciiA = 0x4141414141414141ULL;
+    constexpr uint64_t kAsciiZPlusOne = 0x5B5B5B5B5B5B5B5BULL;
+    const uint64_t is_ascii = ~word & kHighBits;
+    const uint64_t with_high = word | kHighBits;
+    const uint64_t ge_a = with_high - kAsciiA;
+    const uint64_t le_z = ~(with_high - kAsciiZPlusOne);
+    const uint64_t upper_mask = is_ascii & ge_a & le_z;
+    return word | (upper_mask >> 2U);
+}
+
+inline uint64_t LoadWord64(const char* ptr) noexcept {
+    uint64_t word = 0;
+    std::memcpy(&word, ptr, sizeof(uint64_t));
+    return word;
+}
+
+inline uint64_t LoadOverlapping32Pair(const char* ptr, size_t len) noexcept {
+    uint32_t lo = 0;
+    uint32_t hi = 0;
+    std::memcpy(&lo, ptr, sizeof(uint32_t));
+    std::memcpy(&hi, ptr + len - sizeof(uint32_t), sizeof(uint32_t));
+    return (static_cast<uint64_t>(hi) << 32U) | lo;
+}
+
+inline uint64_t LoadShortWord(const char* ptr, size_t len) noexcept {
+    return (static_cast<uint64_t>(static_cast<unsigned char>(ptr[0])) << 16U) |
+           (static_cast<uint64_t>(static_cast<unsigned char>(ptr[len >> 1U])) << 8U) |
+           static_cast<uint64_t>(static_cast<unsigned char>(ptr[len - 1]));
+}
+
+inline bool EqualAsciiCaseInsensitiveWord(uint64_t wa, uint64_t wb) noexcept {
+    return wa == wb || AsciiToLowerWord(wa) == AsciiToLowerWord(wb);
+}
+
+}  // namespace internal
 
 // Heterogeneous Lookup Helpers
 // See: https://abseil.io/tips/144 (Heterogeneous Lookup in Associative Containers)
@@ -86,10 +128,28 @@ struct CaseInsensitiveStringHash {
 
         template <typename H>
         friend H AbslHashValue(H h, Wrapper str) {
-            for (const char c : str.value) {
-                h = H::combine(std::move(h), static_cast<unsigned char>(absl::ascii_tolower(c)));
+            const char* ptr = str.value.data();
+            size_t len = str.value.size();
+            if (len >= sizeof(uint64_t)) {
+                while (len > sizeof(uint64_t)) {
+                    h = H::combine(std::move(h),
+                                   internal::AsciiToLowerWord(internal::LoadWord64(ptr)));
+                    ptr += sizeof(uint64_t);
+                    len -= sizeof(uint64_t);
+                }
+                const uint64_t last = internal::LoadWord64(str.value.data() + str.value.size() -
+                                                           sizeof(uint64_t));
+                return H::combine(std::move(h), internal::AsciiToLowerWord(last), str.value.size());
             }
-            return h;
+            if (len >= sizeof(uint32_t)) {
+                const uint64_t word = internal::LoadOverlapping32Pair(ptr, len);
+                return H::combine(std::move(h), internal::AsciiToLowerWord(word), len);
+            }
+            if (len > 0) {
+                const uint64_t word = internal::LoadShortWord(ptr, len);
+                return H::combine(std::move(h), internal::AsciiToLowerWord(word), len);
+            }
+            return H::combine(std::move(h), size_t{0});
         }
     };
 };
@@ -103,7 +163,37 @@ struct CaseInsensitiveStringHash {
 struct CaseInsensitiveStringEq {
     using is_transparent = void;
     bool operator()(std::string_view a, std::string_view b) const noexcept {
-        return absl::EqualsIgnoreCase(a, b);
+        const size_t len = a.size();
+        if (len != b.size()) {
+            return false;
+        }
+        const char* pa = a.data();
+        const char* pb = b.data();
+        if (len >= sizeof(uint64_t)) {
+            size_t rem = len;
+            while (rem > sizeof(uint64_t)) {
+                if (!internal::EqualAsciiCaseInsensitiveWord(internal::LoadWord64(pa),
+                                                             internal::LoadWord64(pb))) {
+                    return false;
+                }
+                pa += sizeof(uint64_t);
+                pb += sizeof(uint64_t);
+                rem -= sizeof(uint64_t);
+            }
+            return internal::EqualAsciiCaseInsensitiveWord(
+                    internal::LoadWord64(a.data() + len - sizeof(uint64_t)),
+                    internal::LoadWord64(b.data() + len - sizeof(uint64_t)));
+        }
+        if (len >= sizeof(uint32_t)) {
+            return internal::EqualAsciiCaseInsensitiveWord(
+                    internal::LoadOverlapping32Pair(pa, len),
+                    internal::LoadOverlapping32Pair(pb, len));
+        }
+        if (len > 0) {
+            return internal::EqualAsciiCaseInsensitiveWord(internal::LoadShortWord(pa, len),
+                                                           internal::LoadShortWord(pb, len));
+        }
+        return true;
     }
 };
 

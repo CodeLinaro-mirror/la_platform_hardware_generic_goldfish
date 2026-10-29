@@ -133,7 +133,8 @@ class TelnetAuth {
      *
      * @li Returns @ref AuthStatus::kDisabled if the file exists but is empty.
      * @li Returns @ref AuthStatus::kRequired if the file is missing or contains data.
-     * @li Returns @ref AuthStatus::kError if the file is too large (>1KB) or unreadable.
+     * @li Returns @ref AuthStatus::kError if the path is not a regular file, is unreadable, or
+     *     exceeds 1KB (1024 bytes).
      *
      * @note This method is read-only and will not modify the filesystem.
      *
@@ -150,7 +151,10 @@ class TelnetAuth {
      *
      * @return The trimmed token string on success.
      * @retval absl::NotFoundError if the token file does not exist.
-     * @retval absl::InternalError if the file is too large (>1KB) or cannot be opened.
+     * @retval absl::FailedPreconditionError if the path exists but is not a regular file.
+     * @retval absl::PermissionDeniedError if the token file lacks read permissions.
+     * @retval absl::ResourceExhaustedError if the file exceeds 1KB (1024 bytes).
+     * @retval absl::UnavailableError if the file cannot be opened or read (e.g. locked).
      */
     static absl::StatusOr<Token> ReadToken(
             const std::filesystem::path& token_path = GetTokenPath());
@@ -178,10 +182,11 @@ class TelnetAuth {
      * result of the final @ref ReadToken() attempt.
      *
      * @param entropy The number of bytes of entropy to use for new tokens.
-     *                Defaults to 16 bytes, which results in a 22-character
-     *                Web-Safe Base64 string.
+     *                Must be at least 1. Defaults to 16 bytes, which results in
+     *                a 22-character Web-Safe Base64 string.
      *
      * @return The existing or newly provisioned authentication token.
+     * @retval absl::InvalidArgumentError if @p entropy is 0 when generating a new token.
      * @retval absl::Status Any error encountered during generation or disk I/O.
      */
     static absl::StatusOr<Token> LoadOrCreateToken(

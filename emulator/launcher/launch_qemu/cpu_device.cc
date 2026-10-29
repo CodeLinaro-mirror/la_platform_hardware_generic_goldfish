@@ -93,12 +93,13 @@ absl::StatusOr<std::string> getAccelString(const EmulatorConfig& emulator,
     return CpuAcceleratorToString(supported);
 }
 
-absl::StatusOr<std::string> getCpuString(Avd::CpuArchitecture target_arch) {
+absl::StatusOr<std::string> getCpuString(Avd::CpuArchitecture target_arch,
+                                         std::string_view accelerator) {
     auto aehd_enable = System::Get()->GetEnvironmentVariable("ENABLE_AEHD_IN_QEMU");
 
     switch (target_arch) {
     case Avd::CpuArchitecture::kArm:
-        return "cortex-a53";
+        return accelerator == "tcg"sv ? "cortex-a53" : "max";
     case Avd::CpuArchitecture::kX86:
         // TODO(hshan): switch to better cpu model for linux/windows
         // Maybe "host"?
@@ -144,7 +145,7 @@ absl::Status CpuDevice::initialize(const EmulatorConfig& emulator) {
     } else {
         mAccelerator = "aehd";
     }
-    ASSIGN_OR_RETURN(mCpu, getCpuString(target_arch));
+    ASSIGN_OR_RETURN(mCpu, getCpuString(target_arch, mAccelerator));
     ASSIGN_OR_RETURN(mCores, getCores(emulator, avd.Hw()));
 
     return absl::OkStatus();

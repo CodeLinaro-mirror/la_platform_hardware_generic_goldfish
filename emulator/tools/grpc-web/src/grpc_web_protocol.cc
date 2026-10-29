@@ -33,25 +33,50 @@
 
 namespace goldfish::grpcweb {
 
-std::string Protocol::PackFrame(uint8_t flag, std::string_view payload) {
-    if (payload.size() > kMaxFramePayloadSize) {
-        LOG(ERROR) << "Payload size " << payload.size() << " exceeds maximum frame limit "
-                   << kMaxFramePayloadSize;
-        return "";
+namespace {
+
+bool InitFrameHeader(uint8_t flag, size_t payload_size, std::string* frame) {
+    if (payload_size > kMaxFramePayloadSize) {
+        LOG(ERROR) << "Failed to pack gRPC-Web frame: payload size (" << payload_size
+                   << " bytes) exceeds maximum allowed limit (" << kMaxFramePayloadSize
+                   << " bytes)";
+        return false;
     }
 
-    std::string frame;
-    frame.reserve(kFrameHeaderSize + payload.size());
-    frame.push_back(static_cast<char>(flag));
+    frame->clear();
+    frame->reserve(kFrameHeaderSize + payload_size);
+    frame->push_back(static_cast<char>(flag));
 
-    uint32_t net_len = htonl(static_cast<uint32_t>(payload.size()));
-    const char* len_bytes = reinterpret_cast<const char*>(&net_len);
-    frame.append(len_bytes, sizeof(net_len));
-    frame.append(payload);
-    return frame;
+    const uint32_t net_len = htonl(static_cast<uint32_t>(payload_size));
+    frame->append(reinterpret_cast<const char*>(&net_len), sizeof(net_len));
+    return true;
 }
 
-namespace {
+bool AppendByteBuffer(const grpc::ByteBuffer& buffer, std::string* out) {
+    const size_t length = buffer.Length();
+    if (length == 0) {
+        return true;
+    }
+
+    grpc::Slice single_slice;
+    if (buffer.TrySingleSlice(&single_slice).ok()) {
+        out->append(reinterpret_cast<const char*>(single_slice.begin()), single_slice.size());
+        return true;
+    }
+
+    std::vector<grpc::Slice> slices;
+    const grpc::Status status = buffer.Dump(&slices);
+    if (!status.ok()) {
+        LOG(ERROR) << "Failed to dump gRPC ByteBuffer slices (size=" << length
+                   << " bytes): " << status.error_message() << " (code=" << status.error_code()
+                   << ")";
+        return false;
+    }
+    for (const auto& slice : slices) {
+        out->append(reinterpret_cast<const char*>(slice.begin()), slice.size());
+    }
+    return true;
+}
 
 inline bool IsReservedTrailerHeader(std::string_view key) {
     return absl::EqualsIgnoreCase(key, http::headers::kGrpcStatus) ||
@@ -59,14 +84,24 @@ inline bool IsReservedTrailerHeader(std::string_view key) {
            absl::EqualsIgnoreCase(key, http::headers::kGrpcStatusDetailsBin);
 }
 
+inline bool IsUnreservedUriChar(unsigned char c) {
+    return absl::ascii_isalnum(c) || c == '-' || c == '_' || c == '.' || c == '~';
+}
+
 inline std::string StripCrlf(std::string_view input) {
+    size_t pos = input.find_first_of("\r\n");
+    if (pos == std::string_view::npos) {
+        return std::string(input);
+    }
     std::string out;
     out.reserve(input.size());
-    for (char c : input) {
-        if (c != '\r' && c != '\n') {
-            out.push_back(c);
-        }
-    }
+    size_t start = 0;
+    do {
+        out.append(input.data() + start, pos - start);
+        start = pos + 1;
+        pos = input.find_first_of("\r\n", start);
+    } while (pos != std::string_view::npos);
+    out.append(input.data() + start, input.size() - start);
     return out;
 }
 
@@ -97,6 +132,23 @@ std::optional<absl::Duration> ParseTimeoutUnit(char unit, uint64_t val) {
 
 }  // namespace
 
+std::string Protocol::PackFrame(uint8_t flag, std::string_view payload) {
+    std::string frame;
+    if (!InitFrameHeader(flag, payload.size(), &frame)) {
+        return "";
+    }
+    frame.append(payload);
+    return frame;
+}
+
+std::string Protocol::PackFrame(uint8_t flag, const grpc::ByteBuffer& payload) {
+    std::string frame;
+    if (!InitFrameHeader(flag, payload.Length(), &frame) || !AppendByteBuffer(payload, &frame)) {
+        return "";
+    }
+    return frame;
+}
+
 std::optional<FrameView> Protocol::UnpackFrame(std::string_view data, size_t* bytes_consumed) {
     if (data.size() < kFrameHeaderSize) {
         return std::nullopt;
@@ -126,14 +178,20 @@ std::string Protocol::PercentEncode(std::string_view input) {
     static constexpr char kHexDigits[] = "0123456789ABCDEF";
     std::string escaped;
     escaped.reserve(input.size());
-    for (unsigned char c : input) {
-        if (absl::ascii_isalnum(c) || c == '-' || c == '_' || c == '.' || c == '~') {
-            escaped.push_back(static_cast<char>(c));
-        } else {
-            escaped.push_back('%');
-            escaped.push_back(kHexDigits[(c >> 4) & 0x0F]);
-            escaped.push_back(kHexDigits[c & 0x0F]);
+    size_t span_start = 0;
+    for (size_t i = 0; i < input.size(); ++i) {
+        const auto c = static_cast<unsigned char>(input[i]);
+        if (!IsUnreservedUriChar(c)) {
+            if (i > span_start) {
+                escaped.append(input.data() + span_start, i - span_start);
+            }
+            const char pct[3] = {'%', kHexDigits[(c >> 4) & 0x0F], kHexDigits[c & 0x0F]};
+            escaped.append(pct, sizeof(pct));
+            span_start = i + 1;
         }
+    }
+    if (span_start < input.size()) {
+        escaped.append(input.data() + span_start, input.size() - span_start);
     }
     return escaped;
 }
@@ -157,7 +215,8 @@ std::string Protocol::FormatTrailers(
     for (const auto& [key_ref, val_ref] : trailing_metadata) {
         std::string_view raw_key(key_ref.data(), key_ref.size());
         if (!IsReservedTrailerHeader(raw_key)) {
-            std::string key = absl::AsciiStrToLower(StripCrlf(raw_key));
+            std::string key = StripCrlf(raw_key);
+            absl::AsciiStrToLower(&key);
             std::string_view raw_val(val_ref.data(), val_ref.size());
             std::string val =
                     absl::EndsWith(key, "-bin") ? absl::Base64Escape(raw_val) : StripCrlf(raw_val);
@@ -190,15 +249,10 @@ absl::Time Protocol::ParseGrpcTimeout(std::string_view timeout_str) {
 }
 
 std::string Protocol::ByteBufferToString(const grpc::ByteBuffer& buffer) {
-    std::vector<grpc::Slice> slices;
-    grpc::Status status = buffer.Dump(&slices);
-    if (!status.ok()) {
-        return "";
-    }
     std::string result;
     result.reserve(buffer.Length());
-    for (const auto& slice : slices) {
-        result.append(reinterpret_cast<const char*>(slice.begin()), slice.size());
+    if (!AppendByteBuffer(buffer, &result)) {
+        return "";
     }
     return result;
 }
@@ -212,38 +266,52 @@ std::string StreamingBase64Encoder::EncodeChunk(std::string_view data) {
     if (data.empty()) {
         return "";
     }
-    std::string input;
-    if (!remainder_.empty()) {
-        input.reserve(remainder_.size() + data.size());
-        input.append(remainder_);
-        input.append(data);
-        remainder_.clear();
-    } else {
-        input = std::string(data);
+    if (remainder_.empty()) {
+        const size_t complete_triplets_len = (data.size() / 3) * 3;
+        remainder_.assign(data.substr(complete_triplets_len));
+        if (complete_triplets_len == 0) {
+            return "";
+        }
+        return absl::Base64Escape(data.substr(0, complete_triplets_len));
     }
 
-    size_t complete_triplets_len = (input.size() / 3) * 3;
-    std::string output;
-    if (complete_triplets_len > 0) {
-        output = absl::Base64Escape(std::string_view(input.data(), complete_triplets_len));
+    const size_t total_len = remainder_.size() + data.size();
+    if (total_len < 3) {
+        remainder_.append(data);
+        return "";
     }
-    if (input.size() > complete_triplets_len) {
-        remainder_ = input.substr(complete_triplets_len);
+
+    const size_t complete_triplets_len = (total_len / 3) * 3;
+    const size_t data_triplets_len = complete_triplets_len - remainder_.size();
+    if (complete_triplets_len == 3) {
+        remainder_.append(data.data(), data_triplets_len);
+        std::string output = absl::Base64Escape(remainder_);
+        remainder_.assign(data.substr(data_triplets_len));
+        return output;
     }
-    return output;
+
+    std::string input;
+    input.reserve(complete_triplets_len);
+    input.append(remainder_);
+    input.append(data.data(), data_triplets_len);
+    remainder_.assign(data.substr(data_triplets_len));
+    return absl::Base64Escape(input);
 }
 
 std::string StreamingBase64Encoder::Finalize(std::string_view final_data) {
-    std::string input;
-    if (!remainder_.empty() || !final_data.empty()) {
-        input.reserve(remainder_.size() + final_data.size());
-        input.append(remainder_);
-        input.append(final_data);
+    if (remainder_.empty()) {
+        return final_data.empty() ? "" : absl::Base64Escape(final_data);
+    }
+    if (final_data.empty()) {
+        std::string output = absl::Base64Escape(remainder_);
         remainder_.clear();
+        return output;
     }
-    if (input.empty()) {
-        return "";
-    }
+    std::string input;
+    input.reserve(remainder_.size() + final_data.size());
+    input.append(remainder_);
+    input.append(final_data);
+    remainder_.clear();
     return absl::Base64Escape(input);
 }
 

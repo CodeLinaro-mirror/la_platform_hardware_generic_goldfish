@@ -19,9 +19,23 @@ class FakeEmulator {
             , mMockAvd(std::make_unique<MockAvd>()) {
         ON_CALL(*mMockAvd, GetSystemImagePaths())
                 .WillByDefault(testing::ReturnRef(mSystemImagePaths));
-        mEmulatorConfig =
-                std::make_unique<EmulatorConfig>(mPorts, mChardevEndpoints, mMetricsConfig,
-                                                 mUserPaths, mEmulatorPaths, *mMockAvd, mOpts);
+        ON_CALL(*mMockAvd, ApiLevel()).WillByDefault(testing::Return(37));
+        using S = android_studio::EmulatorFeatureFlagState;
+        mFeatureFlags = FeatureFlags::CreateForTesting({
+            S::MINIGBM,
+            S::GUEST_ANGLE,
+            S::DYNAMIC_PARTITION,
+            S::MAC80211HWSIM_USERSPACE_MANAGED,
+            S::VULKAN_SNAPSHOTS,
+            S::VULKAN_VIRTUAL_QUEUE,
+            S::VULKAN_USE_DEDICATED_AHB_MEMORY_TYPE,
+            S::NETSIMCLIUI,
+            S::NETSIMWEBUI,
+        });
+
+        mEmulatorConfig = std::make_unique<EmulatorConfig>(
+                mPorts, mChardevEndpoints, mMetricsConfig, mUserPaths, mEmulatorPaths, *mMockAvd,
+                mOpts, mFeatureFlags);
     }
 
     explicit FakeEmulator(AndroidOptions opts) : FakeEmulator(EmulatorPorts{}, std::move(opts)) {}
@@ -36,6 +50,8 @@ class FakeEmulator {
 
     SystemImagePaths& system_image_paths() { return mSystemImagePaths; }
 
+    FeatureFlags& feature_flags() { return mFeatureFlags; }
+
     const EmulatorConfig& config() { return *mEmulatorConfig; }
 
   private:
@@ -43,6 +59,7 @@ class FakeEmulator {
     AndroidOptions mOpts;
     ChardevEndpoints mChardevEndpoints;
     MetricsConfig mMetricsConfig;
+    FeatureFlags mFeatureFlags;
 
     EmulatorPaths mEmulatorPaths;
     UserPaths mUserPaths;

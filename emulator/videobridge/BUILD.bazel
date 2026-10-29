@@ -1,4 +1,4 @@
-load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_test")
+load("@aemu//tools/clang_tidy:defs.bzl", "clang_tidy_test")
 load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_test")
 load("@rules_cc//cc:objc_library.bzl", "objc_library")
 load("//emulator/tools:cc_binary_with_manifest.bzl", "cc_binary_with_manifest")
@@ -351,6 +351,7 @@ cc_library(
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/synchronization",
+        "@abseil-cpp//absl/types:span",
         "@libyuv",
         "@webrtc//api:scoped_refptr",
         "@webrtc//api/video:video_frame",
@@ -360,6 +361,25 @@ cc_library(
         "@webrtc//modules/video_coding:video_codec_interface",
         "@webrtc//rtc_base:checks",
         "@webrtc//rtc_base:logging",
+    ],
+)
+
+cc_library(
+    name = "vaapi_bitstream_test_utils",
+    hdrs = ["core/linux/test/vaapi_bitstream_test_utils.h"],
+    copts = WEBRTC_COPTS,
+    includes = ["."],
+    target_compatible_with = select({
+        "@platforms//os:linux": [],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
+    deps = [
+        ":vaapi_video_encoder",
+        "@abseil-cpp//absl/synchronization",
+        "@abseil-cpp//absl/types:span",
+        "@webrtc//api:scoped_refptr",
+        "@webrtc//api/video:video_frame",
+        "@webrtc//common_video",
     ],
 )
 
@@ -375,11 +395,31 @@ cc_test(
     }),
     deps = [
         ":fake_vaapi_driver",
+        ":vaapi_bitstream_test_utils",
         ":vaapi_video_encoder",
         "//emulator/libs/test:googletest_main",
         "@abseil-cpp//absl/synchronization",
+        "@webrtc//api:scoped_refptr",
         "@webrtc//api/video:video_frame",
         "@webrtc//api/video_codecs:video_codecs_api",
+    ],
+)
+
+cc_binary_with_manifest(
+    name = "vaapi_video_encoder_perf",
+    srcs = ["core/linux/vaapi_video_encoder_perf.cc"],
+    copts = WEBRTC_COPTS,
+    includes = ["."],
+    tags = ["benchmark"],
+    target_compatible_with = select({
+        "@platforms//os:linux": [],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
+    deps = [
+        ":vaapi_bitstream_test_utils",
+        ":vaapi_video_encoder",
+        "@abseil-cpp//absl/types:span",
+        "@google_benchmark//:benchmark",
     ],
 )
 
@@ -878,6 +918,7 @@ cc_library(
         "@libyuv",
         "@webrtc//api:audio_options_api",
         "@webrtc//api:peer_connection_interface",
+        "@webrtc//common_video",
         "@webrtc//media:adapted_video_track_source",
         "@webrtc//media:video_broadcaster",
         "@webrtc//rtc_base:timeutils",
@@ -895,9 +936,10 @@ cc_library(
     strip_include_prefix = "include",
     deps = [
         ":videobridge_core",
-        "//emulator/libs/SocketBuffer",
+        "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/container:flat_hash_set",
-        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/synchronization",
         "@webrtc//api:peer_connection_interface",
         "@webrtc//rtc_base:timeutils",
     ],
@@ -966,7 +1008,26 @@ cc_test(
         ":in_process_audio_source",
         ":videobridge_core",
         "//emulator/libs/test:googletest_main",
+        "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/synchronization",
         "@webrtc//api:media_stream_interface",
+    ],
+)
+
+cc_binary_with_manifest(
+    name = "in_process_audio_source_perf",
+    srcs = ["media/in_process_audio_source_perf.cc"],
+    copts = WEBRTC_COPTS,
+    tags = ["benchmark"],
+    deps = [
+        ":in_process_audio_source",
+        ":videobridge_core",
+        "//emulator/libs/SocketBuffer",
+        "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/synchronization",
+        "@google_benchmark//:benchmark",
+        "@webrtc//api:media_stream_interface",
+        "@webrtc//api:scoped_refptr",
     ],
 )
 
@@ -1022,6 +1083,26 @@ cc_test(
     ],
 )
 
+cc_binary_with_manifest(
+    name = "grpc_audio_source_perf",
+    srcs = [
+        "media/grpc_audio_source.h",
+        "media/grpc_audio_source_perf.cc",
+    ],
+    copts = WEBRTC_COPTS,
+    includes = ["media"],
+    tags = ["benchmark"],
+    deps = [
+        ":emulator_client",
+        ":grpc_media_providers",
+        "@abseil-cpp//absl/synchronization",
+        "@aemu//protos/services/emulator-controller:emulator_controller_cc_grpc",
+        "@google_benchmark//:benchmark",
+        "@webrtc//api:media_stream_interface",
+        "@webrtc//api:scoped_refptr",
+    ],
+)
+
 clang_tidy_test(
     name = "videobridge_tidy",
     targets = [
@@ -1035,9 +1116,11 @@ clang_tidy_test(
         ":in_process_media_providers",
         ":media_track_provider_test",
         ":in_process_audio_source_test",
+        ":in_process_audio_source_perf",
         ":in_process_video_source_test",
         ":grpc_video_source_test",
         ":grpc_audio_source_test",
+        ":grpc_audio_source_perf",
         ":grpc_input_sender_test",
         ":nvenc_loader",
         ":nvenc_loader_test",
@@ -1046,8 +1129,10 @@ clang_tidy_test(
         ":nvenc_hardware_test",
         ":vaapi_loader",
         ":vaapi_loader_test",
+        ":vaapi_bitstream_test_utils",
         ":vaapi_video_encoder",
         ":vaapi_video_encoder_test",
+        ":vaapi_video_encoder_perf",
         ":vaapi_hardware_test",
         ":videobridge_codecs",
         ":codec_factories_linux_test",

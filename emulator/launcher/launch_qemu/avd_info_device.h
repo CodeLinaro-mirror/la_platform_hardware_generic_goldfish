@@ -25,12 +25,14 @@ namespace android::goldfish {
 
 class AvdInfoDevice : public Device {
   public:
-    AvdInfoDevice() : Device("avd_info") {}
+    // |factory_boot| is true if the userdata partition of the guest is new, see IsUserdataNew().
+    explicit AvdInfoDevice(bool factory_boot) : Device("avd_info"), factory_boot_(factory_boot) {}
 
     absl::Status initialize(const EmulatorConfig& emulator) override;
     std::vector<std::string> getQemuParameters(const EmulatorConfig& emulator) const override;
 
   private:
+    const bool factory_boot_;
     std::string mAvdParams;
 };
 

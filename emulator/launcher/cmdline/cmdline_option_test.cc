@@ -178,7 +178,7 @@ TEST(CmdLineOptions, obsoleteOptionsAreIgnored) {
     free(opts.avd);
 
     EXPECT_EQ(0, parseOptions({"-nojni", "-no-jni", "-nand-limits", "x", "-snapstorage", "file",
-                               "-no-accel", "-avd", "foo"},
+                               "-no-accel", "-enable-vnc", "-avd", "foo"},
                               &opts, &remaining));
     ASSERT_NE(nullptr, opts.avd);
     EXPECT_STREQ("foo", opts.avd);

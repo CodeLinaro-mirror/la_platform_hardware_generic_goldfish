@@ -1,4 +1,4 @@
-load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_test")
+load("@aemu//tools/clang_tidy:defs.bzl", "clang_tidy_test")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 load("//emulator/tools:cc_binary_with_manifest.bzl", "cc_binary_with_manifest")
 
@@ -52,6 +52,7 @@ cc_library(
 cc_binary_with_manifest(
     name = "sleep_emu",
     srcs = ["sleep.cc"],
+    visibility = ["//visibility:public"],
     deps = [
         "@abseil-cpp//absl/flags:flag",
         "@abseil-cpp//absl/flags:parse",

@@ -335,7 +335,6 @@ class LinuxImpl : public WebcamSource::Impl {
         streaming_ = false;
 
         buffers_.clear();
-        staging_buffer_ = std::vector<uint8_t>();
 
         if (fd_.valid()) {
             fd_.close();
@@ -369,7 +368,7 @@ class LinuxImpl : public WebcamSource::Impl {
                                              static_cast<int>(actual_pixel_format_.width),
                                              static_cast<int>(actual_pixel_format_.height)};
             if (view.pixel_format != requested_pixel_format_) {
-                if (ConvertBufferToRGB32(view, conversion_storage_, staging_buffer_) != 0) {
+                if (ConvertBufferToRGB32(view, conversion_storage_) != 0) {
                     return absl::InternalError("Format conversion failed");
                 }
             }
@@ -411,7 +410,7 @@ class LinuxImpl : public WebcamSource::Impl {
             view.width = actual_pixel_format_.width;
             view.height = actual_pixel_format_.height;
             if (view.pixel_format != requested_pixel_format_) {
-                if (ConvertBufferToRGB32(view, conversion_storage_, staging_buffer_) != 0) {
+                if (ConvertBufferToRGB32(view, conversion_storage_) != 0) {
                     if (_xioctl(fd_.get(), VIDIOC_QBUF, &buf) < 0) {
                         dwarning("VIDIOC_QBUF failed: %s", strerror(errno));
                     }
@@ -546,9 +545,8 @@ class LinuxImpl : public WebcamSource::Impl {
     uint32_t requested_pixel_format_ = 0;
     bool streaming_ = false;
 
-    // Buffers to convert to RGB32
+    // Buffer to convert to RGB32
     std::vector<uint8_t> conversion_storage_;
-    std::vector<uint8_t> staging_buffer_;
 };
 
 std::unique_ptr<WebcamSource::Impl> CreatePlatformWebcamImpl(

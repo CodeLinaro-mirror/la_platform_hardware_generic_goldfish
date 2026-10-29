@@ -20,6 +20,8 @@
 #include <thread>
 #include <vector>
 
+#include "absl/base/log_severity.h"
+#include "absl/log/scoped_mock_log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
@@ -120,6 +122,7 @@ class LauncherTest : public testing::Test {
         emulator_paths.netsim_binary = temp_dir / "bin" / "netsimd";
         emulator_paths.crashpad_handler_binary = temp_dir / "bin" / "crashpad_handler";
         emulator_paths.fishtank_binary = temp_dir / "fishtank" / "fishtank";
+        emulator_paths.advanced_features = temp_dir / "lib" / "advancedFeatures.ini";
 
         user_paths.user_directory = temp_dir / "user";
         user_paths.avd_directory = temp_dir / "avd";
@@ -130,6 +133,19 @@ class LauncherTest : public testing::Test {
         opts.no_window = true;
         opts.no_netsim = true;
         opts.avd = "test_avd";
+
+        using S = android_studio::EmulatorFeatureFlagState;
+        feature_flags = FeatureFlags::CreateForTesting({
+            S::MINIGBM,
+            S::GUEST_ANGLE,
+            S::DYNAMIC_PARTITION,
+            S::MAC80211HWSIM_USERSPACE_MANAGED,
+            S::VULKAN_SNAPSHOTS,
+            S::VULKAN_VIRTUAL_QUEUE,
+            S::VULKAN_USE_DEDICATED_AHB_MEMORY_TYPE,
+            S::NETSIMCLIUI,
+            S::NETSIMWEBUI,
+        });
 #ifdef _WIN32
         // Windows VMs don't support nested virt, mock WHPX availability.
         SetCurrentCpuAcceleratorForTesting(CpuAccelerator::CPU_ACCELERATOR_WHPX,
@@ -184,6 +200,7 @@ class LauncherTest : public testing::Test {
             .emulator_paths = std::move(emulator_paths),
             .avd = std::move(avd),
             .opts = std::move(opts),
+            .feature_flags = std::move(feature_flags),
             .qemu_shutdown_timeout = qemu_shutdown_timeout,
         });
     }
@@ -231,7 +248,7 @@ class LauncherTest : public testing::Test {
         EXPECT_CALL(*avd, Name()).WillRepeatedly(Return("test_avd"));
         EXPECT_CALL(*avd, GetContentPath()).WillRepeatedly(Return(avd_dir));
         EXPECT_CALL(*avd, Details(_)).WillRepeatedly(Return("test_details"));
-#if defined(__arm64__)
+#if defined(__aarch64__) || defined(_M_ARM64) || defined(__arm64__)
         EXPECT_CALL(*avd, Arch()).WillRepeatedly(Return(Avd::CpuArchitecture::kArm));
         EXPECT_CALL(*avd, Abi()).WillRepeatedly(Return("arm64-v8a"));
 #else
@@ -273,7 +290,7 @@ class LauncherTest : public testing::Test {
     }
 
     fs::path ExpectedQemuBinary() {
-#if defined(__arm64__)
+#if defined(__aarch64__) || defined(_M_ARM64) || defined(__arm64__)
         return emulator_paths.qemu_system_arm_binary;
 #else
         return emulator_paths.qemu_system_x86_binary;
@@ -311,6 +328,7 @@ class LauncherTest : public testing::Test {
     EmulatorPaths emulator_paths;
     SystemImagePaths system_image_paths;
     AndroidOptions opts;
+    FeatureFlags feature_flags;
     HardwareConfig hw;
     absl::Duration qemu_shutdown_timeout = absl::Seconds(60);
     std::unique_ptr<::goldfish::async::LibuvEventLoop> event_loop;
@@ -324,6 +342,8 @@ class LauncherTest : public testing::Test {
 
 TEST_F(LauncherTest, CanLaunchEmulator) {
     auto avd = CreateMockAvd();
+    feature_flags.SetEnabledOverride(android_studio::EmulatorFeatureFlagState::FORCE_SWIFTSHADER,
+                                     true);
 
     ::goldfish::async::ProcessLauncher::ExitCallback emulator_exit_cb;
     absl::Notification launched;
@@ -346,12 +366,24 @@ TEST_F(LauncherTest, CanLaunchEmulator) {
     auto reporter = std::make_unique<::goldfish::metrics::MetricsReporter>();
     auto mock_writer = std::make_unique<MockMetricsWriter>();
     bool saw_vulkan_icd_metric = false;
+    bool saw_clean_exit_crashes_metric = false;
+    bool saw_feature_flag_metric = false;
     EXPECT_CALL(*mock_writer, Write(_))
             .Times(testing::AtLeast(1))
             .WillRepeatedly([&](::goldfish::metrics::MetricsEvent event) {
                 if (event.as_event.emulator_details().vulkan_icd() ==
                     android_studio::EmulatorDetails::LAVAPIPE_VK) {
                     saw_vulkan_icd_metric = true;
+                }
+                if (event.as_event.emulator_details().has_crashes() &&
+                    event.as_event.emulator_details().crashes() == kMetricsCrashesNone) {
+                    saw_clean_exit_crashes_metric = true;
+                }
+                const auto& ff_state = event.as_event.emulator_details().feature_flag_state();
+                if (ff_state.user_overridden_enabled_features_size() == 1 &&
+                    ff_state.user_overridden_enabled_features(0) ==
+                            android_studio::EmulatorFeatureFlagState::FORCE_SWIFTSHADER) {
+                    saw_feature_flag_metric = true;
                 }
             });
     reporter->SetWriter(std::move(mock_writer));
@@ -361,6 +393,8 @@ TEST_F(LauncherTest, CanLaunchEmulator) {
     trigger.join();
     EXPECT_EQ(status, 0);
     EXPECT_TRUE(saw_vulkan_icd_metric);
+    EXPECT_TRUE(saw_clean_exit_crashes_metric);
+    EXPECT_TRUE(saw_feature_flag_metric);
 }
 
 TEST_F(LauncherTest, ForwardsSignalToEmulator) {
@@ -474,10 +508,23 @@ TEST_F(LauncherTest, HandlesEmulatorExitFailure) {
 
     std::thread trigger = TriggerEmulatorExit(launched, emulator_exit_cb, 1);
 
-    int status = RunLauncher(std::move(avd));
+    auto reporter = std::make_unique<::goldfish::metrics::MetricsReporter>();
+    auto mock_writer = std::make_unique<MockMetricsWriter>();
+    bool saw_crashes_metric = false;
+    EXPECT_CALL(*mock_writer, Write(_))
+            .Times(testing::AtLeast(1))
+            .WillRepeatedly([&](::goldfish::metrics::MetricsEvent event) {
+                if (event.as_event.emulator_details().has_crashes()) {
+                    saw_crashes_metric = true;
+                }
+            });
+    reporter->SetWriter(std::move(mock_writer));
+
+    int status = RunLauncher(std::move(avd), std::move(reporter));
 
     trigger.join();
     EXPECT_EQ(status, 1);
+    EXPECT_FALSE(saw_crashes_metric);
 }
 
 TEST_F(LauncherTest, ForwardsMultipleSignalsToEmulator) {
@@ -856,8 +903,8 @@ TEST_F(LauncherTest, DefaultConfigUsesNetsimModem) {
     opts.no_netsim_modem = false;
     EmulatorPorts ports{.serial_number = 5554, .adb_port = 5555};
     ChardevEndpoints chardev_endpoints{.netsim = "localhost:1234"};
-    LaunchQemu emulator{
-        EmulatorConfig{ports, chardev_endpoints, {}, user_paths, emulator_paths, *avd, opts}};
+    LaunchQemu emulator{EmulatorConfig{
+        ports, chardev_endpoints, {}, user_paths, emulator_paths, *avd, opts, feature_flags}};
 
     auto launch_config = emulator.launch_config();
     ASSERT_TRUE(launch_config.ok()) << launch_config.status();
@@ -874,8 +921,8 @@ TEST_F(LauncherTest, FallbackConfigUsesModemSimulatorWhenNoNetsimModem) {
     EmulatorPorts ports{.serial_number = 5554, .adb_port = 5555};
     ChardevEndpoints chardev_endpoints{.netsim = "localhost:1234",
                                        .modem_simulator = "localhost:5678"};
-    LaunchQemu emulator{
-        EmulatorConfig{ports, chardev_endpoints, {}, user_paths, emulator_paths, *avd, opts}};
+    LaunchQemu emulator{EmulatorConfig{
+        ports, chardev_endpoints, {}, user_paths, emulator_paths, *avd, opts, feature_flags}};
 
     auto launch_config = emulator.launch_config();
     ASSERT_TRUE(launch_config.ok()) << launch_config.status();
@@ -884,6 +931,37 @@ TEST_F(LauncherTest, FallbackConfigUsesModemSimulatorWhenNoNetsimModem) {
             testing::Contains(testing::HasSubstr("socket,id=modem,nodelay=on,reconnect-ms=100,")));
     EXPECT_THAT(launch_config->args, testing::Contains(testing::HasSubstr("user,id=eth0")));
     EXPECT_THAT(launch_config->args, testing::Not(testing::Contains("netsim-cellular,id=modem")));
+}
+
+TEST_F(LauncherTest, EmptyNetsimEndpointLogsWarningAndSkipsNetsimDevices) {
+    auto avd = CreateMockAvd();
+    opts.no_netsim = false;
+    opts.no_netsim_modem = false;
+    EmulatorPorts ports{.serial_number = 5554, .adb_port = 5555};
+    ChardevEndpoints chardev_endpoints{.modem_simulator = "localhost:5678"};
+    LaunchQemu emulator{EmulatorConfig{
+        ports, chardev_endpoints, {}, user_paths, emulator_paths, *avd, opts, feature_flags}};
+
+    absl::ScopedMockLog mock_log(absl::MockLogDefault::kIgnoreUnexpected);
+    EXPECT_CALL(
+            mock_log,
+            Log(absl::LogSeverity::kWarning, _,
+                testing::AllOf(testing::HasSubstr("netsim is requested, but the endpoint is empty"),
+                               testing::HasSubstr("-no-netsim"))))
+            .Times(1);
+    mock_log.StartCapturingLogs();
+
+    auto launch_config = emulator.launch_config();
+    mock_log.StopCapturingLogs();
+
+    ASSERT_TRUE(launch_config.ok()) << launch_config.status();
+    EXPECT_THAT(launch_config->args,
+                testing::Not(testing::Contains(testing::HasSubstr("netsim-connection"))));
+    EXPECT_THAT(launch_config->args, testing::Not(testing::Contains("netsim-cellular,id=modem")));
+    EXPECT_THAT(launch_config->args, testing::Contains(testing::HasSubstr("user,id=eth0")));
+    EXPECT_THAT(
+            launch_config->args,
+            testing::Contains(testing::HasSubstr("socket,id=modem,nodelay=on,reconnect-ms=100,")));
 }
 
 TEST_F(LauncherTest, EndToEndNoNetsimFallsBackToModemSimulator) {
@@ -904,10 +982,59 @@ TEST_F(LauncherTest, EndToEndNoNetsimFallsBackToModemSimulator) {
 
     ExpectEmulatorLaunch(launched, emulator_exit_cb, nullptr, config_matcher);
 
+    absl::ScopedMockLog mock_log(absl::MockLogDefault::kIgnoreUnexpected);
+    EXPECT_CALL(mock_log,
+                Log(absl::LogSeverity::kWarning, _, testing::HasSubstr("netsimd binary not found")))
+            .Times(0);
+    mock_log.StartCapturingLogs();
+
     std::thread trigger = TriggerEmulatorExit(launched, emulator_exit_cb);
 
     int status = RunLauncher(std::move(avd));
     trigger.join();
+    mock_log.StopCapturingLogs();
+    EXPECT_EQ(status, 0);
+}
+
+TEST_F(LauncherTest, EndToEndMissingNetsimBinaryFallsBackToModemSimulator) {
+    auto avd = CreateMockAvd();
+    opts.no_netsim = false;
+    emulator_paths.netsim_binary.clear();
+
+    absl::Notification launched;
+    ::goldfish::async::ProcessLauncher::ExitCallback emulator_exit_cb;
+
+    auto config_matcher = testing::AllOf(
+            testing::Field(&::goldfish::async::LaunchConfig::exe_path, ExpectedQemuBinary()),
+            testing::Field(
+                    &::goldfish::async::LaunchConfig::args,
+                    testing::AllOf(testing::Contains(testing::HasSubstr(
+                                           "socket,id=modem,nodelay=on,reconnect-ms=100,")),
+                                   testing::Contains(testing::HasSubstr("user,id=eth0")),
+                                   testing::Not(testing::Contains(
+                                           testing::HasSubstr("netsim-connection"))),
+                                   testing::Not(testing::Contains("netsim-cellular,id=modem")))));
+
+    ExpectEmulatorLaunch(launched, emulator_exit_cb, nullptr, config_matcher);
+
+    absl::ScopedMockLog mock_log(absl::MockLogDefault::kIgnoreUnexpected);
+    EXPECT_CALL(mock_log, Log(absl::LogSeverity::kWarning, _,
+                              testing::HasSubstr("netsim is requested, but the endpoint is empty")))
+            .Times(0);
+    EXPECT_CALL(mock_log, Log(absl::LogSeverity::kWarning, _,
+                              testing::AllOf(testing::HasSubstr("netsimd binary not found"),
+                                             testing::HasSubstr("Wi-Fi, Bluetooth, UWB, and NFC"),
+                                             testing::HasSubstr("SLIRP (eth0)"),
+                                             testing::HasSubstr("-packet-streamer-endpoint"),
+                                             testing::HasSubstr("-no-netsim"))))
+            .Times(1);
+    mock_log.StartCapturingLogs();
+
+    std::thread trigger = TriggerEmulatorExit(launched, emulator_exit_cb);
+
+    int status = RunLauncher(std::move(avd));
+    trigger.join();
+    mock_log.StopCapturingLogs();
     EXPECT_EQ(status, 0);
 }
 

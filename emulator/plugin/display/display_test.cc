@@ -15,24 +15,32 @@
 #include "goldfish/display/display.h"
 
 #include <atomic>
+#include <cstdint>
 #include <memory>
 #include <thread>
 
+#include "absl/status/status.h"
+#include "absl/status/status_matchers.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/synchronization/notification.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
+#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
 #include "android/goldfish/fake_hardware_config.h"
+#include "goldfish/archive/deque_archive.h"
 #include "goldfish/async/libuv_event_loop.h"
+#include "goldfish/async/testing/test_event_loop.h"
 #include "goldfish/async/threaded_event_loop.h"
+#include "goldfish/display/abstract_multi_display.h"
 #include "goldfish/display/frame.h"
 #include "goldfish/display/test/fake_multi_display.h"
 #include "goldfish/sensors/physical_model.h"
 
 using goldfish::async::EventLoop;
 using goldfish::display::Dimensions;
+using goldfish::display::EvDevEvent;
 using goldfish::display::EvDevEvents;
 using goldfish::display::FrameEvent;
 using goldfish::display::FrameId;
@@ -71,6 +79,9 @@ class TestDisplay : public IDisplay {
     void SendMouseEvent(int /*x*/, int /*y*/, int /*button_mask*/) override {}
     void SendEvDevEvent(uint16_t /*type*/, uint16_t /*code*/, uint32_t /*value*/) override {}
     void SendEvDevReport(EvDevEvents /*events*/) override {}
+    void WriteEvDevReportOnLoop(absl::Span<const EvDevEvent> /*events*/) override {}
+    bool IsInputActive() const override { return false; }
+    uint64_t InputActiveGeneration() const override { return 0; }
 
     void UpdateDimensions(uint32_t w, uint32_t h) { SetDimensions(w, h); }
 
@@ -393,4 +404,147 @@ TEST_F(DisplayTest, MultiDisplayPropagatesPhysicalModelRotationToDisplays) {
     auto d1 = d1_res->lock();
     ASSERT_NE(d1, nullptr);
     EXPECT_EQ(d1->GetRotation(), ImageRotation::kRotation90);
+}
+
+TEST_F(DisplayTest, MultiDisplayImplCreateDisplayReportsActionableErrors) {
+    using ::absl_testing::StatusIs;
+    using ::goldfish::async::testing::TestEventLoop;
+    using ::goldfish::display::IMultiDisplay;
+    using ::testing::AllOf;
+    using ::testing::HasSubstr;
+
+    auto main_loop = TestEventLoop::Create("main");
+    auto qemu_loop = TestEventLoop::Create("qemu");
+    auto multi_display = IMultiDisplay::Create(main_loop.get(), qemu_loop.get(), nullptr);
+
+    EXPECT_THAT(multi_display->CreateDisplay(0, 800, 600, 320, 0),
+                StatusIs(absl::StatusCode::kInvalidArgument,
+                         AllOf(HasSubstr("Failed to create virtual display 0"),
+                               HasSubstr("display ID must be in [1, 10]"),
+                               HasSubstr("Specify a valid virtual display ID."))));
+
+    EXPECT_THAT(multi_display->CreateDisplay(IMultiDisplay::kMaxDisplays, 800, 600, 320, 0),
+                StatusIs(absl::StatusCode::kInvalidArgument,
+                         AllOf(HasSubstr("Failed to create virtual display 11"),
+                               HasSubstr("display ID must be in [1, 10]"),
+                               HasSubstr("Specify a valid virtual display ID."))));
+
+    EXPECT_THAT(multi_display->CreateDisplay(1, 0, 600, 320, 0),
+                StatusIs(absl::StatusCode::kInvalidArgument,
+                         AllOf(HasSubstr("Failed to create virtual display 1"),
+                               HasSubstr("dimensions 0x600 are out of range"),
+                               HasSubstr("[1, 8192]"))));
+
+    EXPECT_THAT(
+            multi_display->CreateDisplay(1, 800, IMultiDisplay::kMaxDisplayDimension + 1, 320, 0),
+            StatusIs(absl::StatusCode::kInvalidArgument,
+                     AllOf(HasSubstr("Failed to create virtual display 1"),
+                           HasSubstr("dimensions 800x8193 are out of range"),
+                           HasSubstr("[1, 8192]"))));
+
+    ASSERT_TRUE(multi_display->CreateDisplay(1, 800, 600, 320, 0).ok());
+    EXPECT_THAT(multi_display->CreateDisplay(1, 800, 600, 320, 0),
+                StatusIs(absl::StatusCode::kAlreadyExists,
+                         AllOf(HasSubstr("Failed to create virtual display 1"),
+                               HasSubstr("already exists"), HasSubstr("EraseDisplay(1)"))));
+    ASSERT_TRUE(multi_display->EraseDisplay(1).ok());
+    qemu_loop->RunAll();
+    main_loop->RunAll();
+}
+
+TEST_F(DisplayTest, MultiDisplayImplNotFoundAndInactiveErrorsIncludeDisplayIdAndNextStep) {
+    using ::absl_testing::StatusIs;
+    using ::goldfish::async::testing::TestEventLoop;
+    using ::goldfish::display::IMultiDisplay;
+    using ::testing::AllOf;
+    using ::testing::HasSubstr;
+
+    auto main_loop = TestEventLoop::Create("main");
+    auto qemu_loop = TestEventLoop::Create("qemu");
+    auto multi_display = IMultiDisplay::Create(main_loop.get(), qemu_loop.get(), nullptr);
+
+    EXPECT_THAT(
+            multi_display->GetDisplay(7),
+            StatusIs(absl::StatusCode::kNotFound, AllOf(HasSubstr("Failed to find display 7"),
+                                                        HasSubstr("display 7 does not exist"),
+                                                        HasSubstr("Create the display first"))));
+
+    EXPECT_THAT(multi_display->SetActive(7, true),
+                StatusIs(absl::StatusCode::kNotFound,
+                         AllOf(HasSubstr("Failed to set active state for display 7 to true"),
+                               HasSubstr("display 7 does not exist"),
+                               HasSubstr("Create the display first"))));
+
+    EXPECT_THAT(multi_display->EraseDisplay(7),
+                StatusIs(absl::StatusCode::kNotFound,
+                         AllOf(HasSubstr("Failed to remove display 7"),
+                               HasSubstr("display 7 does not exist or was already removed"),
+                               HasSubstr("Verify the display ID before calling EraseDisplay."))));
+
+    ASSERT_TRUE(multi_display->CreateDisplay(2, 800, 600, 320, 0).ok());
+    ASSERT_TRUE(multi_display->SetActive(2, false).ok());
+    EXPECT_THAT(multi_display->GetActiveDisplay(2, false),
+                StatusIs(absl::StatusCode::kUnavailable,
+                         AllOf(HasSubstr("Failed to acquire active display 2"),
+                               HasSubstr("display is currently inactive"),
+                               HasSubstr("SetActive(2, true)"))));
+    ASSERT_TRUE(multi_display->EraseDisplay(2).ok());
+    qemu_loop->RunAll();
+    main_loop->RunAll();
+}
+
+TEST_F(DisplayTest, MultiDisplayImplLoadReportsActionableSnapshotErrors) {
+    using ::absl_testing::StatusIs;
+    using ::goldfish::async::testing::TestEventLoop;
+    using ::goldfish::display::IMultiDisplay;
+    using ::testing::AllOf;
+    using ::testing::HasSubstr;
+
+    auto main_loop = TestEventLoop::Create("main");
+    auto qemu_loop = TestEventLoop::Create("qemu");
+    auto multi_display = IMultiDisplay::Create(main_loop.get(), qemu_loop.get(), nullptr);
+
+    {
+        goldfish::archive::DequeArchive archive;
+        archive << static_cast<uint32_t>(IMultiDisplay::kMaxDisplays);
+        EXPECT_THAT(multi_display->Load(archive),
+                    StatusIs(absl::StatusCode::kInvalidArgument,
+                             AllOf(HasSubstr("Failed to load multi-display snapshot"),
+                                   HasSubstr("virtual display count 11 exceeds maximum 10"),
+                                   HasSubstr("cold-boot the AVD"))));
+    }
+
+    {
+        goldfish::archive::DequeArchive archive;
+        archive << uint32_t{1} << uint32_t{1} << (IMultiDisplay::kMaxDisplayDimension + 1)
+                << uint32_t{600} << uint32_t{320} << uint32_t{0};
+        EXPECT_THAT(multi_display->Load(archive),
+                    StatusIs(absl::StatusCode::kInvalidArgument,
+                             AllOf(HasSubstr("Failed to load multi-display snapshot"),
+                                   HasSubstr("virtual display entry 0 has out-of-range id=1 or "
+                                             "dimensions=8193x600"),
+                                   HasSubstr("cold-boot the AVD"))));
+    }
+
+    {
+        goldfish::archive::DequeArchive archive;
+        archive << uint32_t{0} << static_cast<uint32_t>(IMultiDisplay::kMaxDisplays + 1);
+        EXPECT_THAT(multi_display->Load(archive),
+                    StatusIs(absl::StatusCode::kInvalidArgument,
+                             AllOf(HasSubstr("Failed to load multi-display snapshot"),
+                                   HasSubstr("active display state count 12 exceeds maximum 11"),
+                                   HasSubstr("cold-boot the AVD"))));
+    }
+
+    {
+        goldfish::archive::DequeArchive archive;
+        archive << uint32_t{0} << uint32_t{1} << static_cast<uint32_t>(IMultiDisplay::kMaxDisplays)
+                << true;
+        EXPECT_THAT(multi_display->Load(archive),
+                    StatusIs(absl::StatusCode::kInvalidArgument,
+                             AllOf(HasSubstr("Failed to load multi-display snapshot"),
+                                   HasSubstr("active_states entry 0 has out-of-range display ID "
+                                             "11 (expected [0, 10])"),
+                                   HasSubstr("cold-boot the AVD"))));
+    }
 }

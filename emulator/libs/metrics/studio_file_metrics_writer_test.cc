@@ -15,6 +15,7 @@
 
 #include "goldfish/metrics/studio_file_metrics_writer.h"
 
+#include <gmock/gmock.h>
 #include <google/protobuf/io/coded_stream.h>
 #include <google/protobuf/io/zero_copy_stream_impl.h>
 #include <gtest/gtest.h>
@@ -288,6 +289,26 @@ TEST_F(StudioFileMetricsWriterTest, FinalizeAbandonedFilesWithExpiredLock) {
     EXPECT_FALSE(fs::exists(expired_lock));
 }
 
+TEST_F(StudioFileMetricsWriterTest, FinalizeAbandonedFilesDeduplicatesSessionIds) {
+    // Both launcher and QEMU write .open files under the same session ID with different PIDs.
+    fs::path launcher_open_0 = temp_path() / "emulator-metrics2-shared-session-999998-0.open";
+    fs::path launcher_open_1 = temp_path() / "emulator-metrics2-shared-session-999998-1.open";
+    fs::path qemu_open_0 = temp_path() / "emulator-metrics2-shared-session-999999-0.open";
+    fs::path other_open_0 = temp_path() / "emulator-metrics2-other-session-999997-0.open";
+    std::ofstream{launcher_open_0};
+    std::ofstream{launcher_open_1};
+    std::ofstream{qemu_open_0};
+    std::ofstream{other_open_0};
+
+    auto abandoned = StudioFileMetricsWriter::FinalizeAbandonedSessionFiles(temp_path());
+
+    EXPECT_THAT(abandoned, testing::ElementsAre("other-session", "shared-session"));
+    EXPECT_TRUE(fs::exists(temp_path() / "emulator-metrics2-shared-session-999998-0.trk"));
+    EXPECT_TRUE(fs::exists(temp_path() / "emulator-metrics2-shared-session-999998-1.trk"));
+    EXPECT_TRUE(fs::exists(temp_path() / "emulator-metrics2-shared-session-999999-0.trk"));
+    EXPECT_TRUE(fs::exists(temp_path() / "emulator-metrics2-other-session-999997-0.trk"));
+}
+
 TEST_F(StudioFileMetricsWriterTest, FilenameFormatAndCounter) {
     std::string sessionId = "format-test";
     auto main_loop = TestEventLoop::Create();
@@ -340,6 +361,15 @@ TEST_F(StudioFileMetricsWriterTest, LockFileManagement) {
 
         // 1. Check creation
         EXPECT_TRUE(fs::exists(lock_path));
+        // Backdate the lock file's write time before advancing the simulated
+        // event-loop clock. Because AdvanceClock() does not advance the OS wall
+        // clock, both the initial creation and the refresh touch() can otherwise
+        // fall within the same OS filesystem timestamp tick on fast machines.
+        std::error_code ec;
+        std::filesystem::last_write_time(
+                lock_path, std::filesystem::file_time_type::clock::now() - std::chrono::seconds(10),
+                ec);
+        EXPECT_FALSE(ec) << ec.message();
         auto initial_time = android::base::file::last_write_time(lock_path).value();
 
         // 2. Check refresh

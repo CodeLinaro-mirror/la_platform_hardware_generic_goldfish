@@ -39,28 +39,17 @@ namespace {
 constexpr std::string_view kRepositoryXmlNamespace =
         "http://schemas.android.com/sdk/android/repo/repository2/03";
 
-std::string_view LocalTagName(const char* raw_name) {
+std::pair<std::string_view, std::string_view> SplitXmlTagName(const char* raw_name) {
     if (raw_name == nullptr) {
         return {};
     }
-    std::string_view name(raw_name);
-    const size_t colon = name.find(':');
-    if (colon == std::string_view::npos) {
-        return name;
-    }
-    return name.substr(colon + 1);
+    const std::vector<std::string_view> parts = absl::StrSplit(raw_name, absl::MaxSplits(':', 1));
+    return parts.size() == 2 ? std::make_pair(parts[0], parts[1])
+                             : std::make_pair(std::string_view{}, parts[0]);
 }
 
-std::string_view NamespacePrefix(const char* raw_name) {
-    if (raw_name == nullptr) {
-        return {};
-    }
-    std::string_view name(raw_name);
-    const size_t colon = name.find(':');
-    if (colon == std::string_view::npos) {
-        return {};
-    }
-    return name.substr(0, colon);
+std::string_view LocalTagName(const char* raw_name) {
+    return SplitXmlTagName(raw_name).second;
 }
 
 const tinyxml2::XMLElement* FindChildByLocalName(const tinyxml2::XMLElement* parent,
@@ -98,26 +87,40 @@ bool IsDigitsOnly(std::string_view s) {
     return true;
 }
 
-std::optional<int> ParseNonNegativeInt(std::string_view s) {
+template <typename IntType>
+std::optional<IntType> ParseAsciiUnsigned(std::string_view s, IntType min_value) {
     if (!IsDigitsOnly(s)) {
         return std::nullopt;
     }
-    int val = 0;
-    if (!absl::SimpleAtoi(s, &val) || val < 0) {
+    IntType val = 0;
+    if (!absl::SimpleAtoi(s, &val) || val < min_value) {
         return std::nullopt;
     }
     return val;
 }
 
+std::optional<int> ParseNonNegativeInt(std::string_view s) {
+    return ParseAsciiUnsigned<int>(s, 0);
+}
+
 std::optional<int64_t> ParsePositiveBuildId(std::string_view s) {
-    if (!IsDigitsOnly(s)) {
+    return ParseAsciiUnsigned<int64_t>(s, 1);
+}
+
+std::optional<SdkVersion> ParseSdkVersion(std::string_view major_str, std::string_view minor_str,
+                                          std::string_view micro_str, int64_t build_id) {
+    const auto major = ParseNonNegativeInt(major_str);
+    const auto minor = ParseNonNegativeInt(minor_str);
+    const auto micro = ParseNonNegativeInt(micro_str);
+    if (!major.has_value() || !minor.has_value() || !micro.has_value()) {
         return std::nullopt;
     }
-    int64_t val = 0;
-    if (!absl::SimpleAtoi(s, &val) || val <= 0) {
-        return std::nullopt;
-    }
-    return val;
+    return SdkVersion{
+        .major = *major,
+        .minor = *minor,
+        .micro = *micro,
+        .build_id = build_id,
+    };
 }
 
 absl::Status ValidateRootElement(const tinyxml2::XMLElement* root) {
@@ -125,12 +128,11 @@ absl::Status ValidateRootElement(const tinyxml2::XMLElement* root) {
         return absl::InvalidArgumentError(
                 "Repository XML is missing a root <sdk-repository> element");
     }
-    const std::string_view local_name = LocalTagName(root->Name());
+    const auto [prefix, local_name] = SplitXmlTagName(root->Name());
     if (local_name != "sdk-repository") {
         return absl::InvalidArgumentError(absl::StrCat(
                 "Repository XML root element must be <sdk-repository>, got <", root->Name(), ">"));
     }
-    const std::string_view prefix = NamespacePrefix(root->Name());
     const std::string attr_name = prefix.empty() ? "xmlns" : absl::StrCat("xmlns:", prefix);
     const char* ns = root->Attribute(attr_name.c_str());
     if (ns == nullptr || std::string_view(ns) != kRepositoryXmlNamespace) {
@@ -210,25 +212,14 @@ std::optional<SdkPackage> SdkPackage::Parse(std::string_view version, std::strin
         return std::nullopt;
     }
 
-    const auto major = ParseNonNegativeInt(parts[0]);
-    const auto minor = ParseNonNegativeInt(parts[1]);
-    const auto micro = ParseNonNegativeInt(parts[2]);
-    if (!major.has_value() || !minor.has_value() || !micro.has_value()) {
+    const auto parsed_version = ParseSdkVersion(parts[0], parts[1], parts[2], *parsed_build_id);
+    if (!parsed_version.has_value()) {
         return std::nullopt;
     }
     if (parts.size() == 4 && !ParseNonNegativeInt(parts[3]).has_value()) {
         return std::nullopt;
     }
-
-    return SdkPackage{
-        .version =
-            {
-                .major = *major,
-                .minor = *minor,
-                .micro = *micro,
-                .build_id = *parsed_build_id,
-            },
-    };
+    return SdkPackage{.version = *parsed_version};
 }
 
 std::string SdkPackage::VersionString() const {
@@ -237,8 +228,7 @@ std::string SdkPackage::VersionString() const {
 
 std::string SdkPackage::ToString() const {
     if (version.build_id > 0) {
-        return absl::StrFormat("%d.%d.%d (build %d)", version.major, version.minor, version.micro,
-                               version.build_id);
+        return absl::StrCat(VersionString(), " (build ", version.build_id, ")");
     }
     return VersionString();
 }
@@ -312,10 +302,8 @@ absl::StatusOr<std::optional<SdkPackage>> FindLatestPackage(std::string_view xml
         if (!major_str.has_value() || !minor_str.has_value() || !micro_str.has_value()) {
             continue;
         }
-        const auto major = ParseNonNegativeInt(*major_str);
-        const auto minor = ParseNonNegativeInt(*minor_str);
-        const auto micro = ParseNonNegativeInt(*micro_str);
-        if (!major.has_value() || !minor.has_value() || !micro.has_value()) {
+        const auto parsed_version = ParseSdkVersion(*major_str, *minor_str, *micro_str, *build_id);
+        if (!parsed_version.has_value()) {
             continue;
         }
 
@@ -337,13 +325,7 @@ absl::StatusOr<std::optional<SdkPackage>> FindLatestPackage(std::string_view xml
         }
 
         SdkPackage candidate{
-            .version =
-                {
-                    .major = *major,
-                    .minor = *minor,
-                    .micro = *micro,
-                    .build_id = *build_id,
-                },
+            .version = *parsed_version,
             .channel = channel,
         };
         if (!latest.has_value() || candidate > *latest) {

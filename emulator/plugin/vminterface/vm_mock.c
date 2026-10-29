@@ -21,6 +21,8 @@ static RunState runstate_get_value = RUN_STATE_DEBUG;
 static ShutdownCause mock_shutdown_cause = SHUTDOWN_CAUSE_NONE;
 static bool mock_iothread_locked = false;
 static bool mock_snapshot_op_ok = false;
+static MockSnapshotOpHook s_snapshot_op_hook = NULL;
+static void* s_snapshot_op_hook_opaque = NULL;
 
 // Bookkeeping of the QEMU snapshot entry points, see vm_mock.h.
 static int s_snapshot_call_count = 0;
@@ -92,6 +94,13 @@ void mock_snapshot_op_ok_set(bool ok) {
     mock_snapshot_op_ok = ok;
 }
 
+// NOLINTBEGIN(readability-identifier-naming)
+void mock_snapshot_op_hook_set(MockSnapshotOpHook hook, void* opaque) {
+    s_snapshot_op_hook = hook;
+    s_snapshot_op_hook_opaque = opaque;
+}
+// NOLINTEND(readability-identifier-naming)
+
 // Implementations of the mock functions
 
 static int mock_vm_stop_return = 0;
@@ -151,6 +160,9 @@ bool save_snapshot(const char* name, bool overwrite, const char* vmstate, bool h
     (void)has_devices;
     (void)devices;
     *errp = NULL;
+    if (s_snapshot_op_hook) {
+        s_snapshot_op_hook(name, s_snapshot_op_hook_opaque);
+    }
     /* Like QEMU, report the outcome to the progress handlers before returning. */
     QemuSnapshotProgress progress = {
         .operation = QEMU_SNAPSHOT_OP_SAVE,
@@ -168,6 +180,9 @@ bool load_snapshot(const char* name, const char* vmstate, bool has_devices, strL
     (void)has_devices;
     (void)devices;
     *errp = NULL;
+    if (s_snapshot_op_hook) {
+        s_snapshot_op_hook(name, s_snapshot_op_hook_opaque);
+    }
     return mock_snapshot_op_ok;
 }
 

@@ -28,6 +28,7 @@
 #include "absl/time/time.h"
 
 #include "android/base/testing/test_temp_dir.h"
+#include "goldfish/file/file.h"
 #include "qcow2_internal.h"
 
 namespace goldfish::fsimage {
@@ -396,6 +397,77 @@ TEST(CreateQcow2OverlayTest, CreatesValidOverlayFromRawBackingFile) {
                 IsOkAndHolds(std::optional<uint64_t>(kBackingSize)));
 }
 
+TEST(CreateQcow2OverlayTest, RecordsBackingFileInSameDirectoryAsRelativePath) {
+    TestTempDir temp_dir("qcow2_test");
+    const fs::path backing = temp_dir.Path() / "userdata.img";
+    const fs::path overlay = temp_dir.Path() / "userdata.img.qcow2";
+    WriteFile(backing, std::string(4096, '\0'));
+
+    ASSERT_THAT(CreateQcow2Overlay(overlay, backing), IsOk());
+    EXPECT_THAT(ReadQcow2BackingPath(overlay), IsOkAndHolds(fs::path("userdata.img")));
+    EXPECT_TRUE(IsValidQcow2Image(overlay));
+}
+
+TEST(CreateQcow2OverlayTest, OverlayStaysValidWhenMovedWithBackingFile) {
+    TestTempDir temp_dir("qcow2_test");
+    const fs::path src = temp_dir.Path() / "src";
+    const fs::path dst = temp_dir.Path() / "dst";
+    ASSERT_THAT(android::base::file::mkdir(src, 0755), IsOk());
+    WriteFile(src / "userdata.img", std::string(4096, '\0'));
+    ASSERT_THAT(CreateQcow2Overlay(src / "userdata.img.qcow2", src / "userdata.img"), IsOk());
+
+    ASSERT_THAT(android::base::file::mv_file(src, dst, /*fallback_to_copy_rm=*/false), IsOk());
+    EXPECT_TRUE(IsValidQcow2Image(dst / "userdata.img.qcow2"));
+}
+
+TEST(CreateQcow2OverlayTest, RecordsBackingFileOutsideOverlayDirectoryUnchanged) {
+    TestTempDir temp_dir("qcow2_test");
+    const fs::path avd = temp_dir.Path() / "avd";
+    ASSERT_THAT(android::base::file::mkdir(avd, 0755), IsOk());
+    const fs::path backing = temp_dir.Path() / "system.img";
+    WriteFile(backing, std::string(4096, '\0'));
+
+    ASSERT_THAT(CreateQcow2Overlay(avd / "system.img.qcow2", backing), IsOk());
+    EXPECT_THAT(ReadQcow2BackingPath(avd / "system.img.qcow2"), IsOkAndHolds(backing));
+}
+
+TEST(BackingPathForOverlayTest, SameDirectory) {
+    EXPECT_EQ(internal::BackingPathForOverlay("/avd/userdata.img.qcow2", "/avd/userdata.img"),
+              "userdata.img");
+}
+
+TEST(BackingPathForOverlayTest, Subdirectory) {
+    EXPECT_EQ(internal::BackingPathForOverlay("/avd/system.img.qcow2", "/avd/images/system.img"),
+              "images/system.img");
+}
+
+TEST(BackingPathForOverlayTest, NormalizesDotSegments) {
+    EXPECT_EQ(
+            internal::BackingPathForOverlay("/avd/./userdata.img.qcow2", "/avd/x/../userdata.img"),
+            "userdata.img");
+}
+
+TEST(BackingPathForOverlayTest, OtherDirectoryIsUnchanged) {
+    EXPECT_EQ(internal::BackingPathForOverlay("/dst/userdata.img.qcow2", "/src/userdata.img.qcow2"),
+              "/src/userdata.img.qcow2");
+    EXPECT_EQ(internal::BackingPathForOverlay("/avd/sub/system.img.qcow2", "/avd/system.img"),
+              "/avd/system.img");
+}
+
+TEST(BackingPathForOverlayTest, RelativeInputsResolveAgainstCurrentDirectory) {
+    // Both relative to the current directory, so the backing image is next to
+    // the overlay.
+    EXPECT_EQ(internal::BackingPathForOverlay("system.img.qcow2", "system.img"), "system.img");
+    EXPECT_EQ(internal::BackingPathForOverlay("avd/system.img.qcow2", "avd/system.img"),
+              "system.img");
+}
+
+TEST(BackingPathForOverlayTest, NonAsciiUtf8Paths) {
+    EXPECT_EQ(internal::BackingPathForOverlay("/avd/测试_🚀_é/userdata.img.qcow2",
+                                              "/avd/测试_🚀_é/images/userdata_测试.img"),
+              "images/userdata_测试.img");
+}
+
 TEST(CreateQcow2OverlayTest, CreatesValidOverlayFromQcow2BackingFile) {
     TestTempDir temp_dir("qcow2_test");
     const fs::path overlay1 = temp_dir.Path() / "overlay1.qcow2";
@@ -414,7 +486,8 @@ TEST(CreateQcow2OverlayTest, CreatesValidOverlayFromQcow2BackingFile) {
     EXPECT_EQ(ReadBe32(data.data() + 112), 0xE2792ACAU);
     EXPECT_EQ(ReadBe32(data.data() + 116), 5U);
     EXPECT_EQ(std::string_view(reinterpret_cast<const char*>(data.data() + 120), 5), "qcow2");
-    EXPECT_THAT(ReadQcow2BackingPath(overlay2), IsOkAndHolds(overlay1));
+    // overlay1 is next to overlay2, so it is recorded relative to overlay2's directory.
+    EXPECT_THAT(ReadQcow2BackingPath(overlay2), IsOkAndHolds(fs::path("overlay1.qcow2")));
 }
 
 void WriteBytesFile(const fs::path& path, const std::vector<uint8_t>& bytes) {

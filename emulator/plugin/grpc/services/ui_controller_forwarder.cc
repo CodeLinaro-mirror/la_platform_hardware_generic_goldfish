@@ -15,6 +15,8 @@
 #include "android/emulation/control/ui_controller_forwarder.h"
 
 #include "absl/log/log.h"
+#include "absl/strings/str_cat.h"
+#include "absl/strings/string_view.h"
 
 #include "android/emulation/control/grpc_channel_factory.h"
 
@@ -31,6 +33,12 @@ using ::grpc::ServerContext;
 using ::grpc::Status;
 using ::grpc::StatusCode;
 
+namespace {
+
+constexpr absl::string_view kUiControllerServiceUri = "android.emulation.control.UiController";
+
+}  // namespace
+
 UiControllerForwarder::UiControllerForwarder(std::shared_ptr<ServiceForwarderImpl> forwarder)
         : forwarder_(std::move(forwarder)) {}
 
@@ -38,19 +46,31 @@ template <typename Request, typename Response>
 Status UiControllerForwarder::ForwardCall(
         ServerContext* context, const Request* request, Response* reply,
         Status (UiController::Stub::*method)(ClientContext*, const Request&, Response*)) {
-    auto endpoint_opt = forwarder_->GetEndpoint("android.emulation.control.UiController");
-    if (!endpoint_opt) {
-        LOG(ERROR) << "No forwarding rule found for android.emulation.control.UiController";
-        return Status(StatusCode::UNIMPLEMENTED, "No forwarding rule registered");
+    auto endpoint = forwarder_->GetEndpoint(std::string(kUiControllerServiceUri));
+    if (!endpoint) {
+        const std::string error_msg = absl::StrCat(
+                "Cannot forward UiController RPC: no forwarding rule is registered for service "
+                "URI '",
+                kUiControllerServiceUri,
+                "'. Register a forwarding endpoint via ServiceForwarder.registerForwarder before "
+                "invoking UiController RPCs.");
+        LOG(ERROR) << error_msg;
+        return Status(StatusCode::UNIMPLEMENTED, error_msg);
     }
 
-    VLOG(1) << "Forwarding UiController call to " << endpoint_opt->ShortDebugString();
+    VLOG(1) << "Forwarding UiController call to target '" << endpoint->target() << "'";
     // TODO: We might want to cache the channel/stub if creating it every time is too expensive.
     // For infrequent UI calls, this is fine.
-    android::emulation::control::GrpcChannelFactory factory(*endpoint_opt, {});
+    android::emulation::control::GrpcChannelFactory factory(*endpoint, {});
     auto channel = factory.CreateChannel();
     if (!channel) {
-        return Status(StatusCode::INTERNAL, "Failed to create forward channel");
+        const std::string error_msg = absl::StrCat(
+                "Failed to create gRPC forwarding channel for service URI '",
+                kUiControllerServiceUri, "' to target '", endpoint->target(),
+                "': target must be a localhost/127.0.0.1 address or provide TLS credentials. "
+                "Register a valid endpoint via ServiceForwarder.registerForwarder.");
+        LOG(ERROR) << error_msg;
+        return Status(StatusCode::FAILED_PRECONDITION, error_msg);
     }
 
     auto stub = UiController::NewStub(channel);

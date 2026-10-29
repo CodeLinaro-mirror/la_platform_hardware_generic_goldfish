@@ -55,6 +55,8 @@ class TestEventLoopImpl : public TestEventLoop {
     size_t RunMany(size_t count) override;
     void AdvanceClock(absl::Duration duration) override;
     size_t TaskCount() const override;
+    void Pause() override;
+    void Resume() override;
 
     void Reschedule(std::shared_ptr<TestEventLoopImpl::TestTimer> timer, absl::Duration new_delay,
                     absl::Duration new_interval);
@@ -277,6 +279,19 @@ void TestEventLoopImpl::AdvanceClock(absl::Duration duration) {
     command_ = Command::kAdvanceTime;
     time_advance_ = duration;
     mutex_.Await(absl::Condition(this, &TestEventLoopImpl::IsCommandNone));
+}
+
+void TestEventLoopImpl::Pause() {
+    if (GetState() == LooperStatusEvent::State::kRunning) {
+        SetState(LooperStatusEvent::State::kPaused);
+    }
+}
+
+void TestEventLoopImpl::Resume() {
+    if (GetState() == LooperStatusEvent::State::kPaused ||
+        GetState() == LooperStatusEvent::State::kNotStarted) {
+        SetState(LooperStatusEvent::State::kRunning);
+    }
 }
 
 void TestEventLoopImpl::Loop() {

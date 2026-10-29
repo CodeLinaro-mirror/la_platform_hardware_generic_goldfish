@@ -1,10 +1,12 @@
 #include "telnet_auth.h"
 
+#include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
 #include <filesystem>
 #include <fstream>
 #include <future>
+#include <string>
 #include <thread>
 #include <vector>
 
@@ -17,8 +19,16 @@
 #include "android/base/testing/test_system.h"
 #include "android/base/testing/test_temp_dir.h"
 #include "goldfish/file/file.h"
+#include "goldfish/file/file_atomic.h"
 
 namespace goldfish::telnet {
+
+namespace {
+
+using ::testing::HasSubstr;
+using ::testing::Not;
+
+}  // namespace
 
 class TelnetAuthTest : public ::testing::Test {
   protected:
@@ -42,12 +52,15 @@ class TelnetAuthTest : public ::testing::Test {
 // --- Section 1: Read-only paths (No Side Effects) ---
 
 TEST_F(TelnetAuthTest, ReadToken_ReturnsNotFound_WhenFileMissing) {
-    auto result = TelnetAuth::ReadToken(token_path_);
-    EXPECT_FALSE(result.ok());
+    const absl::StatusOr<TelnetAuth::Token> result = TelnetAuth::ReadToken(token_path_);
+    ASSERT_FALSE(result.ok());
     EXPECT_TRUE(absl::IsNotFound(result.status()));
+    EXPECT_THAT(result.status().message(), HasSubstr(token_path_.string()));
+    EXPECT_THAT(result.status().message(), HasSubstr("file does not exist"));
+    EXPECT_THAT(result.status().message(), HasSubstr("Verify the token path"));
 
     // Side effect check: File must NOT have been created
-    EXPECT_FALSE(std::filesystem::exists(token_path_));
+    EXPECT_FALSE(android::base::file::exists(token_path_));
 }
 
 TEST_F(TelnetAuthTest, GetStatus_ReturnsRequired_WhenFileMissing) {
@@ -88,14 +101,30 @@ TEST_F(TelnetAuthTest, GetStatus_ReturnsRequired_WhenFileIsExactly1KB) {
 }
 
 TEST_F(TelnetAuthTest, ReadToken_ReturnsError_WhenFileTooLarge) {
-    {
-        std::ofstream ofs(token_path_);
-        std::string large_content(1025, 'A');
-        ofs << large_content;
-    }
-    auto result = TelnetAuth::ReadToken(token_path_);
-    EXPECT_FALSE(result.ok());
-    EXPECT_TRUE(absl::IsInternal(result.status()));
+    constexpr std::string_view kSecretMarker = "SECRET_MARKER_";
+    const std::string large_content =
+            std::string(kSecretMarker) + std::string(1025 - kSecretMarker.size(), 'A');
+    ASSERT_TRUE(android::base::file::CreatePrivateFileExclusive(token_path_, large_content).ok());
+
+    const absl::StatusOr<TelnetAuth::Token> result = TelnetAuth::ReadToken(token_path_);
+    ASSERT_FALSE(result.ok());
+    EXPECT_TRUE(absl::IsResourceExhausted(result.status()));
+    EXPECT_THAT(result.status().message(), HasSubstr(token_path_.string()));
+    EXPECT_THAT(result.status().message(), HasSubstr("1025 bytes"));
+    EXPECT_THAT(result.status().message(), HasSubstr("1024 bytes"));
+    EXPECT_THAT(result.status().message(), Not(HasSubstr(kSecretMarker)));
+}
+
+TEST_F(TelnetAuthTest, ReadToken_ReturnsFailedPrecondition_WhenPathIsDirectory) {
+    ASSERT_TRUE(android::base::file::mkdir(token_path_, 0700).ok());
+
+    EXPECT_EQ(TelnetAuth::GetStatus(token_path_), AuthStatus::kError);
+
+    const absl::StatusOr<TelnetAuth::Token> result = TelnetAuth::ReadToken(token_path_);
+    ASSERT_FALSE(result.ok());
+    EXPECT_TRUE(absl::IsFailedPrecondition(result.status()));
+    EXPECT_THAT(result.status().message(), HasSubstr(token_path_.string()));
+    EXPECT_THAT(result.status().message(), HasSubstr("not a regular file"));
 }
 
 TEST_F(TelnetAuthTest, ReadToken_Succeeds_WhenFileIsExactly1KB) {
@@ -126,19 +155,20 @@ TEST_F(TelnetAuthTest, GetStatus_ReturnsError_WhenFileUnreadable) {
 }
 
 TEST_F(TelnetAuthTest, ReadToken_ReturnsError_WhenFileUnreadable) {
-    {
-        std::ofstream ofs(token_path_);
-        ofs << "some-token";
-    }
-    // Make it unreadable
-    std::filesystem::permissions(token_path_, std::filesystem::perms::none);
+    constexpr std::string_view kSecretToken = "SECRET_UNREADABLE_TOKEN";
+    ASSERT_TRUE(android::base::file::CreatePrivateFileExclusive(token_path_, kSecretToken).ok());
+    ASSERT_TRUE(android::base::file::chmod(token_path_, 0000).ok());
 
-    auto result = TelnetAuth::ReadToken(token_path_);
-    EXPECT_FALSE(result.ok());
-    EXPECT_TRUE(absl::IsInternal(result.status()));
+    const absl::StatusOr<TelnetAuth::Token> result = TelnetAuth::ReadToken(token_path_);
+    ASSERT_FALSE(result.ok());
+    EXPECT_TRUE(absl::IsPermissionDenied(result.status()));
+    EXPECT_THAT(result.status().message(), HasSubstr(token_path_.string()));
+    EXPECT_THAT(result.status().message(), HasSubstr("insufficient permissions"));
+    EXPECT_THAT(result.status().message(), HasSubstr("Grant read permissions"));
+    EXPECT_THAT(result.status().message(), Not(HasSubstr(kSecretToken)));
 
     // Restore permissions so TearDown can delete it cleanly
-    std::filesystem::permissions(token_path_, std::filesystem::perms::owner_all);
+    EXPECT_TRUE(android::base::file::chmod(token_path_, 0700).ok());
 }
 #endif
 
@@ -289,6 +319,48 @@ TEST_F(TelnetAuthTest, LoadOrCreate_ConcurrentAccess) {
     auto read_back = TelnetAuth::ReadToken(token_path_);
     ASSERT_TRUE(read_back.ok());
     EXPECT_EQ(read_back->AsStringView(), first_token_str);
+}
+
+TEST_F(TelnetAuthTest, LoadOrCreate_ReturnsInvalidArgument_WhenEntropyIsZero) {
+    const absl::StatusOr<TelnetAuth::Token> result =
+            TelnetAuth::LoadOrCreateToken(/*entropy=*/0, token_path_);
+    ASSERT_FALSE(result.ok());
+    EXPECT_TRUE(absl::IsInvalidArgument(result.status()));
+    EXPECT_THAT(result.status().message(), HasSubstr("0 bytes"));
+    EXPECT_THAT(result.status().message(), HasSubstr("at least 1 byte"));
+    EXPECT_FALSE(android::base::file::exists(token_path_));
+}
+
+TEST_F(TelnetAuthTest, LoadOrCreate_SurfacesProvisionError_WhenParentDirectoryMissing) {
+    const std::filesystem::path missing_dir = test_home_ / "missing_parent_dir";
+    const std::filesystem::path missing_parent_token = missing_dir / "token";
+
+    const absl::StatusOr<TelnetAuth::Token> result =
+            TelnetAuth::LoadOrCreateToken(16, missing_parent_token);
+    ASSERT_FALSE(result.ok());
+    EXPECT_FALSE(absl::IsNotFound(result.status()));
+    EXPECT_THAT(result.status().message(), HasSubstr("Failed to provision"));
+    EXPECT_THAT(result.status().message(), HasSubstr("after 10 attempts"));
+    EXPECT_THAT(result.status().message(), HasSubstr(missing_dir.string()));
+}
+
+TEST_F(TelnetAuthTest, LoadOrCreateAndReadToken_SupportsUnicodeFilePath) {
+    const std::filesystem::path unicode_dir = test_home_ / "täst_中文";
+    ASSERT_TRUE(android::base::file::mkdir_recursive(unicode_dir, 0700).ok());
+    const std::filesystem::path unicode_token_path = unicode_dir / "tökën_文件";
+
+    const absl::StatusOr<TelnetAuth::Token> missing = TelnetAuth::ReadToken(unicode_token_path);
+    ASSERT_FALSE(missing.ok());
+    EXPECT_TRUE(absl::IsNotFound(missing.status()));
+    EXPECT_THAT(missing.status().message(), HasSubstr(unicode_token_path.string()));
+
+    const absl::StatusOr<TelnetAuth::Token> created =
+            TelnetAuth::LoadOrCreateToken(16, unicode_token_path);
+    ASSERT_TRUE(created.ok()) << created.status();
+
+    const absl::StatusOr<TelnetAuth::Token> loaded = TelnetAuth::ReadToken(unicode_token_path);
+    ASSERT_TRUE(loaded.ok()) << loaded.status();
+    EXPECT_EQ(loaded->AsStringView(), created->AsStringView());
 }
 
 }  // namespace goldfish::telnet

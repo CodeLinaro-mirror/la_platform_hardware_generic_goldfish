@@ -148,6 +148,9 @@ class Participant : public EmptyConnectionObserver,
   private:
     friend class SetRemoteDescriptionCallback;
 
+    template <typename Fn>
+    decltype(auto) RunOnSignalingThread(Fn&& fn);
+    void SubmitIceCandidate(IceCandidatePtr candidate);
     void DoClose();
     absl::Status DoInitialize();
     void SendMessage(const nlohmann::json& msg);

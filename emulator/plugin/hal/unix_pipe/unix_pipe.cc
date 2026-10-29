@@ -47,7 +47,19 @@ class UnixPipe : public IUnixPipe, public std::enable_shared_from_this<UnixPipe>
                 .IgnoreError();
     }
 
-    void OnConnect() override {}
+    void OnConnect() override {
+        // Socket() only becomes functional here. The AF_UNIX connection is made from Init(), so
+        // the host may already have sent data (e.g. a handshake it writes as soon as it accepts)
+        // or closed the connection. Deliver both now instead of losing them to the null socket.
+        guest_connected_ = true;
+        if (!to_guest_.empty()) {
+            Socket()->Send(to_guest_);
+            to_guest_.clear();
+        }
+        if (host_closed_) {
+            Socket()->Close();
+        }
+    }
 
     void OnClose() override { Close(); }
 
@@ -88,14 +100,18 @@ class UnixPipe : public IUnixPipe, public std::enable_shared_from_this<UnixPipe>
                 [weak_self](std::string_view data, const absl::Status& err) {
                     if (auto self = weak_self.lock()) {
                         if (err.ok()) {
-                            self->Socket()->Send(std::string(data));
+                            self->SendToGuest(data);
                         }
                     }
                 });
 
         un_socket->SetOnCloseCallback([weak_self]() {
             if (auto self = weak_self.lock()) {
-                self->Socket()->Send({});
+                if (self->guest_connected_) {
+                    self->Socket()->Close();
+                } else {
+                    self->host_closed_ = true;
+                }
                 self->CloseImpl();
             }
         });
@@ -120,6 +136,16 @@ class UnixPipe : public IUnixPipe, public std::enable_shared_from_this<UnixPipe>
 
     void CloseOnEventLoop() { CloseImpl(); }
 
+    // Forwards data from the host to the guest, holding it until OnConnect() if the guest
+    // connection is not established yet.
+    void SendToGuest(const std::string_view data) {
+        if (guest_connected_) {
+            Socket()->Send(data);
+        } else {
+            to_guest_.append(data);
+        }
+    }
+
     void OnReceiveImpl(const std::string_view data) {
         if (!un_socket_) {
             return;
@@ -143,6 +169,10 @@ class UnixPipe : public IUnixPipe, public std::enable_shared_from_this<UnixPipe>
     std::shared_ptr<async::AsyncSocket> un_socket_;
     std::string queued_;
     bool connected_ = false;
+    // Guest side (vsock) state. Only accessed on client_loop_.
+    std::string to_guest_;
+    bool guest_connected_ = false;
+    bool host_closed_ = false;
 };
 
 void IUnixPipe::RegisterDevice(IConnectorRegistry* registry, EventLoop* client_loop,
