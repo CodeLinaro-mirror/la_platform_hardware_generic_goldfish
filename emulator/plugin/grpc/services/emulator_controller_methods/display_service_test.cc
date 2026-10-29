@@ -956,7 +956,7 @@ TEST_F(DisplayServiceTest, StreamScreenshotEndsWithNotFoundOnDisplayRemoval) {
     request.set_display(2);
     request.set_format(ImageFormat::RGBA8888);
 
-    auto context = getContextWithTimeout(2s);
+    auto context = getContextWithTimeout();
     std::unique_ptr<grpc::ClientReader<Image>> reader(
             mStub->streamScreenshot(context.get(), request));
     Image image;
