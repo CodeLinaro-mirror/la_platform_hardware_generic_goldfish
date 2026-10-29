@@ -43,15 +43,10 @@ absl::Status RawCircularLog::ValidateWriter(void* buffer, size_t size) {
 }
 
 absl::Status RawCircularLog::ValidateReader(void* buffer, size_t size) {
-    if (!buffer) return absl::InvalidArgumentError("Buffer pointer is null.");
-
-    void* aligned_buffer = AlignPointer(buffer);
-    size_t padding = static_cast<char*>(aligned_buffer) - static_cast<char*>(buffer);
-
-    if (size <= padding + kHeaderSize) {
-        return absl::InvalidArgumentError("Buffer size is too small for header after alignment.");
+    if (absl::Status status = ValidateWriter(buffer, size); !status.ok()) {
+        return status;
     }
-    auto* h = reinterpret_cast<RawHeader*>(aligned_buffer);
+    auto* h = reinterpret_cast<RawHeader*>(AlignPointer(buffer));
     if (h->magic != kMagic) {
         return absl::NotFoundError(
                 absl::StrFormat("Cannot find magic header, %d != %d", h->magic, kMagic));
