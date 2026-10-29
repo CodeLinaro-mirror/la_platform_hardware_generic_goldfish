@@ -245,6 +245,14 @@ absl::StatusOr<std::unique_ptr<grpc::ClientContext>> NewRecordingContext(
         LegacyConsoleBridge::ConsoleContext& ctx) {
     return ctx.NewContext(std::chrono::system_clock::now() + std::chrono::seconds(10));
 }
+
+absl::Status WrapGrpcStatus(const grpc::Status& status, std::string_view prefix) {
+    if (status.ok()) {
+        return absl::OkStatus();
+    }
+    const absl::Status translated = GrpcStatusToAbslStatus(status);
+    return absl::Status(translated.code(), absl::StrCat(prefix, ": ", translated.message()));
+}
 }  // namespace
 
 void RegisterScreenRecordCommands(CommandRegistryBuilder::NodeBuilder& screenrecord) {
@@ -257,17 +265,10 @@ void RegisterScreenRecordCommands(CommandRegistryBuilder::NodeBuilder& screenrec
                         ASSIGN_OR_RETURN(auto context, NewRecordingContext(ctx));
 
                         RecordingInfo response;
-                        const grpc::Status status =
-                                stub->StartRecording(context.get(), request, &response);
-                        if (!status.ok()) {
-                            const absl::Status translated = GrpcStatusToAbslStatus(status);
-                            return absl::Status(
-                                    translated.code(),
-                                    absl::StrCat("Failed to start screen recording to '",
-                                                 request.file_name(), "': ", translated.message()));
-                        }
-
-                        return absl::OkStatus();
+                        return WrapGrpcStatus(
+                                stub->StartRecording(context.get(), request, &response),
+                                absl::StrCat("Failed to start screen recording to '",
+                                             request.file_name(), "'"));
                     });
 
     screenrecord.On(
@@ -279,14 +280,9 @@ void RegisterScreenRecordCommands(CommandRegistryBuilder::NodeBuilder& screenrec
                 ASSIGN_OR_RETURN(auto context_list, NewRecordingContext(ctx));
                 RecordingInfo list_request;
                 android::emulation::control::incubating::RecordingInfoList list_response;
-                const grpc::Status status =
-                        stub->ListRecordings(context_list.get(), list_request, &list_response);
-                if (!status.ok()) {
-                    const absl::Status translated = GrpcStatusToAbslStatus(status);
-                    return absl::Status(translated.code(),
-                                        absl::StrCat("Failed to list active screen recordings: ",
-                                                     translated.message()));
-                }
+                RETURN_IF_ERROR(WrapGrpcStatus(
+                        stub->ListRecordings(context_list.get(), list_request, &list_response),
+                        "Failed to list active screen recordings"));
 
                 // Stop each active recording
                 absl::Status first_error = absl::OkStatus();
@@ -295,18 +291,14 @@ void RegisterScreenRecordCommands(CommandRegistryBuilder::NodeBuilder& screenrec
                                                 RECORDER_STATE_RECORDING) {
                         ASSIGN_OR_RETURN(auto context_stop, NewRecordingContext(ctx));
                         RecordingInfo stop_response;
-                        const grpc::Status status_stop =
-                                stub->StopRecording(context_stop.get(), info, &stop_response);
-                        if (!status_stop.ok()) {
-                            const absl::Status translated = GrpcStatusToAbslStatus(status_stop);
-                            LOG(WARNING) << "Failed to stop screen recording '" << info.file_name()
-                                         << "' on display " << info.display() << ": " << translated;
+                        const absl::Status stop_err = WrapGrpcStatus(
+                                stub->StopRecording(context_stop.get(), info, &stop_response),
+                                absl::StrCat("Failed to stop screen recording '", info.file_name(),
+                                             "' on display ", info.display()));
+                        if (!stop_err.ok()) {
+                            LOG(WARNING) << stop_err;
                             if (first_error.ok()) {
-                                first_error = absl::Status(
-                                        translated.code(),
-                                        absl::StrCat("Failed to stop screen recording '",
-                                                     info.file_name(), "' on display ",
-                                                     info.display(), ": ", translated.message()));
+                                first_error = stop_err;
                             }
                         }
                     }
@@ -337,13 +329,9 @@ void RegisterScreenRecordCommands(CommandRegistryBuilder::NodeBuilder& screenrec
                 request.set_display(display);
 
                 android::emulation::control::Image response;
-                const grpc::Status status = stub->getScreenshot(context.get(), request, &response);
-                if (!status.ok()) {
-                    const absl::Status translated = GrpcStatusToAbslStatus(status);
-                    return absl::Status(translated.code(),
-                                        absl::StrCat("Failed to capture screenshot for display ",
-                                                     display, ": ", translated.message()));
-                }
+                RETURN_IF_ERROR(WrapGrpcStatus(
+                        stub->getScreenshot(context.get(), request, &response),
+                        absl::StrCat("Failed to capture screenshot for display ", display)));
 
                 errno = 0;
                 std::ofstream file(path, std::ios::binary);
