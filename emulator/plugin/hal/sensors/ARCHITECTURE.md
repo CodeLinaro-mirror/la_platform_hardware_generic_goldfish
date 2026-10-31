@@ -16,6 +16,10 @@
 - **Behavior:**
   - **List:** Enumerates enabled sensors based on `HardwareConfig`.
   - **Data:** Polls the `PhysicalModel` at the requested rate and pushes updates to the guest.
+  - **Snapshots:** The guest sensors HAL never reconnects, so `SensorDevice` opts in to `HalPlug`
+    snapshots: the enabled-sensor mask, report delay, guest time offset and partial qemud packet
+    are saved; `OnRestore()` re-creates the tick timer and ticks immediately when any sensor is
+    enabled.
 
 ## Dependencies
 

@@ -8,6 +8,7 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
+        "//emulator/libs/archive",
         "//emulator/libs/async:async_api",
         "//emulator/libs/eventing",
         "//emulator/libs/hardware_config",
@@ -38,10 +39,14 @@ cc_test(
     visibility = ["//visibility:public"],
     deps = [
         ":sensors",
+        "//emulator/libs/archive",
+        "//emulator/libs/archive:DequeArchive",
+        "//emulator/libs/archive:collections",
         "//emulator/libs/async:async_testing",
         "//emulator/libs/hardware_config:fake_hardware_config",
         "//emulator/libs/system:test-headers",
         "//emulator/libs/test:googletest_main",
+        "//emulator/plugin/hal/connector:qemud",
         "//emulator/plugin/hal/connector:test-helpers",
         "//emulator/plugin/hal/plug:fake_vsock",
         "@abseil-cpp//absl/strings:str_format",

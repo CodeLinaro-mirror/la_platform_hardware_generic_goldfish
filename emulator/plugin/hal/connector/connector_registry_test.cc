@@ -19,10 +19,14 @@
 #include <memory>
 
 #include "goldfish/archive/collections/string.h"
+#include "goldfish/archive/reader.h"
+#include "goldfish/archive/writer.h"
 #include "goldfish/async/libuv_event_loop.h"
 #include "goldfish/async/threaded_event_loop.h"
 #include "goldfish/devices/cable/cable.h"
 #include "goldfish/devices/connector_registry_impl.h"
+#include "goldfish/devices/hal_plug_snapshot.h"
+#include "goldfish/devices/hal_plug_to_i_plug_adapter.h"
 #include "goldfish/devices/test/fake_vsock.h"
 
 namespace goldfish {
@@ -331,6 +335,77 @@ TEST_F(ConnectorRegistryTest, RegisterHalQemuDevice) {
     EXPECT_TRUE(closed_future.get());
 
     // Cleanly exit loops before we destroy sockets etc.
+    mClientLoop->ShutdownAndWait(absl::Milliseconds(100)).IgnoreError();
+    mQemuLoop->ShutdownAndWait(absl::Milliseconds(100)).IgnoreError();
+}
+
+namespace {
+struct SnapshottableTestHalDevice : public TestHalDevice {
+    bool SupportsSnapshot() const override { return true; }
+    bool SaveToSnapshot(archive::IWriter& writer) const override {
+        writer << std::string_view("state");
+        return true;
+    }
+    bool LoadFromSnapshot(archive::IReader& reader) override {
+        std::string state;
+        return ReadValue(reader, state).ok();
+    }
+};
+}  // namespace
+
+// RegisterHalQemuDevice must (a) give the wrapped plug a snapshot identity so
+// vsock saves it instead of RST'ing it, and (b) publish the factory under the
+// same key ("q<name>") so the loader can find it again in a fresh process.
+TEST_F(ConnectorRegistryTest, RegisterHalQemuDeviceMakesOptedInPlugSnapshottable) {
+    using namespace std::literals;
+
+    auto device = std::make_shared<SnapshottableTestHalDevice>();
+    auto connected_future = device->connected();
+    auto closed_future = device->closed();
+    int factory_calls = 0;
+
+    {
+        ConnectorRegistry scoped_registry;
+        scoped_registry.RegisterHalQemuDevice("SnapshotHalDevice", mClientLoop.get(),
+                                              mQemuLoop.get(), [&](std::string_view /*args*/) {
+                                                  ++factory_calls;
+                                                  return device;
+                                              });
+        auto entry = HalPlugSnapshotRegistry::Get().Find("qSnapshotHalDevice");
+        ASSERT_TRUE(entry.has_value());
+        EXPECT_EQ(entry->client_loop, mClientLoop.get());
+        EXPECT_EQ(entry->qemu_loop, mQemuLoop.get());
+        EXPECT_EQ(entry->factory("x"), device);
+        EXPECT_EQ(factory_calls, 1);
+        EXPECT_FALSE(HalPlugSnapshotRegistry::Get().Find("-SnapshotHalDevice").has_value())
+                << "qemud and plain devices live under different keys";
+
+        scoped_registry.Listen([&](HostPortListener listener) {
+            gTestSocket = new TestSocket();
+            gTestSocket->plug = std::get<PlugPtr>(listener(SocketPtr(gTestSocket)));
+            return true;
+        });
+        EXPECT_TRUE(gTestSocket->send("pipe:qemud:SnapshotHalDevice:a=b\0"sv));
+        EXPECT_EQ(factory_calls, 2);
+        connected_future.wait_for(100ms);
+        EXPECT_TRUE(connected_future.get());
+
+        const IPlug& plug = *gTestSocket->plug;
+        EXPECT_TRUE(plug.SupportsLoadingFromSnapshot());
+        EXPECT_EQ(plug.GetSnapshotTypeId(), HalPlugToIPlugAdapter::kSnapshotTypeId);
+        const auto* adapter = dynamic_cast<const HalPlugToIPlugAdapter*>(&plug);
+        ASSERT_NE(adapter, nullptr);
+        ASSERT_TRUE(adapter->GetSnapshotIdentity().has_value());
+        EXPECT_EQ(adapter->GetSnapshotIdentity()->device, "qSnapshotHalDevice");
+        EXPECT_EQ(adapter->GetSnapshotIdentity()->args, "a=b");
+
+        gTestSocket->plug->OnUnplug();
+        closed_future.wait_for(100ms);
+        EXPECT_TRUE(closed_future.get());
+    }
+    // A destroyed registry takes its snapshot factories with it.
+    EXPECT_FALSE(HalPlugSnapshotRegistry::Get().Find("qSnapshotHalDevice").has_value());
+
     mClientLoop->ShutdownAndWait(absl::Milliseconds(100)).IgnoreError();
     mQemuLoop->ShutdownAndWait(absl::Milliseconds(100)).IgnoreError();
 }

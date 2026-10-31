@@ -24,6 +24,7 @@
 
 #include "goldfish/async/event_loop.h"
 #include "goldfish/devices/hal_plug_factory.h"
+#include "goldfish/devices/hal_plug_snapshot.h"
 #include "goldfish/vsock/listen.h"
 
 namespace goldfish::devices {
@@ -80,7 +81,7 @@ bool ConnectorRegistry::RegisterDeviceImpl(const std::string_view prefix,
 
 void ConnectorRegistry::RegisterHalDevice(std::string name, async::EventLoop* client_loop,
                                           async::EventLoop* qemu_loop, HalDeviceFactory factory) {
-    RegisterHalDeviceImpl(std::move(name), client_loop, qemu_loop, std::move(factory),
+    RegisterHalDeviceImpl(std::move(name), "-", client_loop, qemu_loop, std::move(factory),
                           [this](const std::string& name, DeviceFactory factory) {
                               return RegisterDevice(name, std::move(factory));
                           });
@@ -89,15 +90,20 @@ void ConnectorRegistry::RegisterHalDevice(std::string name, async::EventLoop* cl
 void ConnectorRegistry::RegisterHalQemuDevice(std::string name, async::EventLoop* client_loop,
                                               async::EventLoop* qemu_loop,
                                               HalDeviceFactory factory) {
-    RegisterHalDeviceImpl(std::move(name), client_loop, qemu_loop, std::move(factory),
+    RegisterHalDeviceImpl(std::move(name), "q", client_loop, qemu_loop, std::move(factory),
                           [this](const std::string& name, DeviceFactory factory) {
                               return RegisterQemuDevice(name, std::move(factory));
                           });
 }
-void ConnectorRegistry::RegisterHalDeviceImpl(std::string name, async::EventLoop* client_loop,
+void ConnectorRegistry::RegisterHalDeviceImpl(std::string name, std::string_view prefix,
+                                              async::EventLoop* client_loop,
                                               async::EventLoop* qemu_loop, HalDeviceFactory factory,
                                               const DeviceRegistration& register_fn) {
-    auto wrapper_factory = [name, qemu_loop, client_loop, user_factory = std::move(factory)](
+    // The key under which the device is found again when a snapshot is loaded
+    // (see HalPlugSnapshotRegistry); it matches DeviceEntry::qname.
+    const std::string qname = absl::StrCat(prefix, name);
+
+    auto wrapper_factory = [qname, qemu_loop, client_loop, user_factory = factory](
                                    SocketPtr qemu_socket,
                                    const std::shared_ptr<PingTopic>& /*ping_topic*/,
                                    std::string_view args) -> PlugPtr {
@@ -110,10 +116,25 @@ void ConnectorRegistry::RegisterHalDeviceImpl(std::string name, async::EventLoop
         // HAL plug are marshalled to the client thread and vice versa.
         return HalPlugFactory::WrapHalPlug(
                 std::move(qemu_socket), [real_hal_plug = real_hal_plug] { return real_hal_plug; },
-                client_loop, qemu_loop);
+                client_loop, qemu_loop,
+                HalPlugSnapshotIdentity{.device = qname, .args = std::string(args)});
     };
 
-    register_fn(std::move(name), std::move(wrapper_factory));
+    if (register_fn(std::move(name), std::move(wrapper_factory))) {
+        HalPlugSnapshotRegistry::Get().Register(qname, {.client_loop = client_loop,
+                                                        .qemu_loop = qemu_loop,
+                                                        .factory = factory,
+                                                        .owner = this});
+        const std::lock_guard<std::mutex> lock(entries_mutex_);
+        snapshot_devices_.push_back(qname);
+    }
+}
+
+ConnectorRegistry::~ConnectorRegistry() {
+    const std::lock_guard<std::mutex> lock(entries_mutex_);
+    for (const std::string& qname : snapshot_devices_) {
+        HalPlugSnapshotRegistry::Get().Unregister(qname, this);
+    }
 }
 
 }  // namespace goldfish::devices
