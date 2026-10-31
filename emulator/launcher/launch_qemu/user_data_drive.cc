@@ -70,6 +70,9 @@ absl::StatusOr<fs::path> prepareUserdataSrcDirImpl(fs::path scratch_dir,
 
 absl::StatusOr<std::optional<fs::path>> prepareUserdataSrcDir(const Avd& avd,
                                                               const fs::path& init_data) {
+    if (init_data.empty() && !avd.Hw().hw_sensor_hinge) {
+        return std::nullopt;
+    }
     if (!base::file::is_dir(init_data)) {
         return absl::InvalidArgumentError(absl::StrCat(
                 "data partition initialization path is not a directory: ", init_data.string()));

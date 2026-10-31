@@ -227,7 +227,11 @@ struct BuildProp {
     }
 
     int ApiLevel() const {
-        return build_ini.GetInt("ro.system.build.version.sdk", Avd::kUnknownApiLevel);
+        int level = build_ini.GetInt("ro.system.build.version.sdk", Avd::kUnknownApiLevel);
+        if (level == Avd::kUnknownApiLevel) {
+            level = build_ini.GetInt("ro.build.version.sdk", Avd::kUnknownApiLevel);
+        }
+        return level;
     }
 
     std::string Sdk() const { return build_ini.GetString("ro.build.version.sdk", "unknown"); }

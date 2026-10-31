@@ -84,6 +84,34 @@ class GuestStatusDevice : public IGuestStatusDevice,
         }
     }
 
+    bool SupportsSnapshot() const override { return true; }
+
+    bool SaveToSnapshot(archive::IWriter& writer) const override {
+        constexpr uint32_t kSnapshotVersion = 1;
+        writer << kSnapshotVersion << mReceiveData.size();
+        if (!mReceiveData.empty()) {
+            writer.Write(mReceiveData.data(), mReceiveData.size());
+        }
+        return true;
+    }
+
+    bool LoadFromSnapshot(archive::IReader& reader) override {
+        constexpr uint32_t kSnapshotVersion = 1;
+        constexpr size_t kMaxPendingBytes = 64 * 1024;
+        uint32_t version = 0;
+        size_t pending_size = 0;
+        if (!archive::ReadValue(reader, version, pending_size).ok() ||
+            version != kSnapshotVersion || pending_size > kMaxPendingBytes) {
+            return false;
+        }
+        mReceiveData.resize(pending_size);
+        if (pending_size > 0 && !reader.Read(mReceiveData.data(), pending_size).ok()) {
+            mReceiveData.clear();
+            return false;
+        }
+        return true;
+    }
+
   private:
     void send(std::string msg) {
         char sizeBuf[sizeof(uint32_t)];

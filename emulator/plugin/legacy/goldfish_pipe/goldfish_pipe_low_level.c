@@ -86,6 +86,7 @@ struct GoldfishPipeState {
     bool frame_dirty;      /**< True when a new frame is waiting for `present_bh`. */
     bool frame_mu_inited;  /**< True once `frame_mu` has been initialized. */
     bool graphics_active;  /**< True while `GoldfishGpuCoreStart` is active. */
+    bool deletable_registered; /**< True once registered with `add_deletable_object`. */
 };
 
 static struct GoldfishPipeState* g_active_graphics_pipe = NULL;
@@ -401,18 +402,17 @@ static void goldfish_pipe_realize(DeviceState* dev, Error** errp) {
     env.irq.set_level = goldfish_pipe_irq_set_level;
 
     s->core = GoldfishPipeCoreCreate(&env);
-    add_deletable_object(OBJECT(dev));
 }
 
 static void goldfish_pipe_unrealize(DeviceState* dev) {
     struct GoldfishPipeState* s = GOLDFISH_PIPE(dev);
+    // A sysbus device is only unrealized by QEMU's exit-time deletable_cleanup()
+    // (see add_deletable_object() in reset_hold), so this is the process-exit path.
+    goldfish_pipe_stop_graphics(s, /*for_process_exit=*/true);
     if (s->core.destroy != NULL) {
         s->core.destroy(s->core.core);
         memset(&s->core, 0, sizeof(s->core));
     }
-    // A sysbus device is only unrealized by QEMU's exit-time deletable_cleanup()
-    // (see add_deletable_object() in realize), so this is the process-exit path.
-    goldfish_pipe_stop_graphics(s, /*for_process_exit=*/true);
     if (s->irq_bh != NULL) {
         qemu_bh_delete(s->irq_bh);
         s->irq_bh = NULL;
@@ -426,6 +426,13 @@ static void goldfish_pipe_unrealize(DeviceState* dev) {
 static void goldfish_pipe_reset_hold(Object* obj, ResetType type) {
     (void)type;
     struct GoldfishPipeState* s = GOLDFISH_PIPE(obj);
+    if (!s->deletable_registered) {
+        // Register in reset_hold (after CLI -device creation) rather than
+        // realize (board init) so LIFO deletable_cleanup() tears down
+        // goldfish_pipe before goldfish-address-space and avdstart.
+        s->deletable_registered = true;
+        add_deletable_object(obj);
+    }
     assert(s->core.reset != NULL);
     s->core.reset(s->core.core);
 }

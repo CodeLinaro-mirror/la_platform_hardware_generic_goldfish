@@ -638,12 +638,17 @@ std::vector<std::string> GpuDevice::getQemuParameters(const EmulatorConfig& emul
                                         : "VulkanBatchedDescriptorSetUpdate:disabled");
 
     if (legacy_goldfish_gpu) {
+        const int api_level = emulator.avd().ApiLevel();
         // API <= 36 (goldfish_pipe) only supports GL for now.
         renderer_features.push_back("Vulkan:disabled");
         renderer_features.push_back("GlAsyncSwap:enabled");
-        renderer_features.push_back("GlDirectMem:enabled");
-        renderer_features.push_back("HasSharedSlotsHostMemoryAllocator:enabled");
-        renderer_features.push_back("RefCountPipe:enabled");
+        renderer_features.push_back((api_level >= 29) ? "GlDirectMem:enabled"
+                                                      : "GlDirectMem:disabled");
+        renderer_features.push_back((api_level >= 30)
+                                            ? "HasSharedSlotsHostMemoryAllocator:enabled"
+                                            : "HasSharedSlotsHostMemoryAllocator:disabled");
+        renderer_features.push_back((api_level >= 28) ? "RefCountPipe:enabled"
+                                                      : "RefCountPipe:disabled");
         renderer_features.push_back("YuvCache:enabled");
         renderer_features.push_back("HostComposition:disabled");
     } else if (ff.IsEnabled(S::VULKAN_USE_DEDICATED_AHB_MEMORY_TYPE)) {

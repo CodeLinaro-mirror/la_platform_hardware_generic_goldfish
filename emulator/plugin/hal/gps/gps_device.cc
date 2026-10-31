@@ -138,6 +138,20 @@ class GpsDevice : public IGpsDevice, public std::enable_shared_from_this<GpsDevi
         VLOG(1) << "The guest is (unexpectedly) sending data to the Gps device: " << data;
     }
 
+    bool SupportsSnapshot() const override { return true; }
+
+    bool SaveToSnapshot(archive::IWriter& writer) const override {
+        constexpr uint32_t kSnapshotVersion = 1;
+        writer << kSnapshotVersion;
+        return true;
+    }
+
+    bool LoadFromSnapshot(archive::IReader& reader) override {
+        constexpr uint32_t kSnapshotVersion = 1;
+        uint32_t version = 0;
+        return archive::ReadValue(reader, version).ok() && version == kSnapshotVersion;
+    }
+
     void SetInitialLocation(const Location& location) { location_ = location; }
 
     void Send(const Location& location) {

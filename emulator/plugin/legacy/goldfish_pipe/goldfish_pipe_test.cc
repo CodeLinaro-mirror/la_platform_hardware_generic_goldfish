@@ -31,6 +31,8 @@
 
 #include "android/status/status_matcher_macros.h"
 #include "goldfish/archive/deque_archive.h"
+#include "goldfish/devices/cable/cable.h"
+#include "goldfish/devices/connector_registry_impl.h"
 #include "goldfish/legacy/common/fake_guest_memory.h"
 #include "goldfish/legacy/goldfish_gpu/fake_goldfish_gpu.h"
 
@@ -1216,6 +1218,181 @@ TEST(GoldfishPipeTest, SnapshotLoadAndPostLoadRaiseIrqForSignalledAndWantedFlags
     const auto sig2 = mem2_ptr->Get<SignalledPipeEntry>(kSignalBufGpa);
     EXPECT_EQ(sig2.id, static_cast<uint32_t>(kPipeWanted));
     EXPECT_EQ(sig2.flags, static_cast<uint32_t>(kPipeWakeWrite));
+}
+
+class TestEchoHalPlug final : public devices::cable::IPlug {
+  public:
+    static constexpr const char* kSnapshotTypeId = "test.goldfish_pipe.echo_plug";
+
+    struct SharedObserver {
+        std::vector<bool> flow_events;
+        devices::cable::ISocket* last_socket = nullptr;
+    };
+
+    TestEchoHalPlug(devices::cable::SocketPtr socket, std::shared_ptr<SharedObserver> observer)
+            : socket_(std::move(socket)), observer_(std::move(observer)) {
+        if (observer_ != nullptr) {
+            observer_->last_socket = socket_.get();
+            std::weak_ptr<SharedObserver> weak_obs = observer_;
+            socket_->SetOnFlowControlEvent([weak_obs](bool enable_reading) {
+                if (auto obs = weak_obs.lock()) {
+                    obs->flow_events.push_back(enable_reading);
+                }
+            });
+        }
+    }
+
+    bool OnReceive(const void* data, size_t size) override {
+        socket_->SendAsync(data, size);
+        return true;
+    }
+
+    devices::cable::SocketPtr OnUnplug() override {
+        if (observer_ != nullptr && observer_->last_socket == socket_.get()) {
+            observer_->last_socket = nullptr;
+        }
+        return std::move(socket_);
+    }
+
+    bool SupportsLoadingFromSnapshot() const override { return true; }
+    TypeId GetSnapshotTypeId() const override { return kSnapshotTypeId; }
+    bool SaveStateToSnapshot(archive::IWriter& writer) const override {
+        writer << uint8_t{0x42};
+        return true;
+    }
+
+  private:
+    devices::cable::SocketPtr socket_;
+    std::shared_ptr<SharedObserver> observer_;
+};
+
+TEST(GoldfishPipeTest, HalPipeServiceHandshakeReadWriteFlowControlAndSnapshot) {
+    auto observer = std::make_shared<TestEchoHalPlug::SharedObserver>();
+    static std::weak_ptr<TestEchoHalPlug::SharedObserver> s_snapshot_observer;
+    s_snapshot_observer = observer;
+    static const bool kLoaderRegistered = devices::cable::RegisterPlugLoader(
+            TestEchoHalPlug::kSnapshotTypeId,
+            [](devices::cable::SocketPtr socket,
+               archive::IReader& reader) -> devices::cable::PlugOrSocket {
+                uint8_t tag = 0;
+                if (!archive::ReadValue(reader, tag).ok() || tag != 0x42) {
+                    return std::move(socket);
+                }
+                return std::make_shared<TestEchoHalPlug>(std::move(socket),
+                                                         s_snapshot_observer.lock());
+            });
+    ASSERT_TRUE(kLoaderRegistered);
+
+    devices::ConnectorRegistry registry;
+    ASSERT_TRUE(registry.RegisterDevice(
+            "echo", [observer](devices::cable::SocketPtr socket,
+                               const std::shared_ptr<devices::PingTopic>& /*ping*/,
+                               std::string_view /*args*/) {
+                return std::make_shared<TestEchoHalPlug>(std::move(socket), observer);
+            }));
+    ASSERT_TRUE(registry.Listen(5000));
+
+    // Allocate enough fake guest memory for multi-megabyte flow-control reads.
+    auto mem = std::make_unique<FakeGuestMemory>(0x600000);
+    FakeGuestMemory* mem_ptr = mem.get();
+    TestGoldfishGpu gpu;
+    bool irq = false;
+    GoldfishPipeDevice dev(std::move(mem), [&irq](bool high) { irq = high; }, gpu);
+
+    constexpr uint64_t kOpenBufGpa = 0x1000;
+    constexpr uint64_t kSignalBufGpa = 0x1800;
+    constexpr uint64_t kCmdBufGpa = 0x2000;
+    constexpr uint64_t kDataGpa = 0x3000;
+    constexpr uint64_t kLargeBufGpa = 0x100000;
+    constexpr uint32_t kMaxBufs = 4;
+    constexpr int32_t kPipeId = 77;
+
+    dev.Write(kPipeRegOpenBufferHigh, 0);
+    dev.Write(kPipeRegOpenBuffer, static_cast<uint32_t>(kOpenBufGpa));
+    dev.Write(kPipeRegSignalBufferHigh, 0);
+    dev.Write(kPipeRegSignalBuffer, static_cast<uint32_t>(kSignalBufGpa));
+    dev.Write(kPipeRegSignalBufferCount, 16);
+
+    ASSERT_NO_FATAL_FAILURE(OpenPipeWithHandshake(dev, mem_ptr, kOpenBufGpa, kCmdBufGpa, kMaxBufs,
+                                                  kPipeId, "pipe:echo", kDataGpa));
+    ASSERT_NE(observer->last_socket, nullptr);
+
+    // Guest writes 4 bytes -> echoed back by TestEchoHalPlug -> guest reads 4 bytes.
+    constexpr uint32_t kPing = 0xDEADBEEFU;
+    mem_ptr->Put(kDataGpa + 64, kPing);
+    mem_ptr->Put(kCmdBufGpa,
+                 PipeCommandHeader{.cmd = kPipeCmdWrite, .id = kPipeId, .buffers_count = 1});
+    SetupBuffers(mem_ptr, kCmdBufGpa, kMaxBufs, {{kDataGpa + 64, 4}}, 0);
+    dev.Write(kPipeRegCmd, kPipeId);
+    EXPECT_EQ(mem_ptr->Get<PipeCommandHeader>(kCmdBufGpa).consumed_size, 4U);
+
+    mem_ptr->Put(kCmdBufGpa,
+                 PipeCommandHeader{.cmd = kPipeCmdRead, .id = kPipeId, .buffers_count = 1});
+    SetupBuffers(mem_ptr, kCmdBufGpa, kMaxBufs, {{kDataGpa + 128, 4}}, 0);
+    dev.Write(kPipeRegCmd, kPipeId);
+    EXPECT_EQ(mem_ptr->Get<PipeCommandHeader>(kCmdBufGpa).consumed_size, 4U);
+    EXPECT_EQ(mem_ptr->Get<uint32_t>(kDataGpa + 128), kPing);
+
+    // Host sends 8 MiB (kBufferSizeHighWatermark) -> flow control disables reading (false).
+    const std::vector<uint8_t> chunk(size_t{1} << 20, 0x5A);
+    for (int i = 0; i < 8; ++i) {
+        observer->last_socket->SendAsync(chunk.data(), chunk.size());
+    }
+    ASSERT_EQ(observer->flow_events, std::vector<bool>{false});
+
+    // Guest reads 5 MiB (leaving 3 MiB < 4 MiB low watermark) -> flow control re-enables (true),
+    // and exercises the 64 KiB chunked DoRead path.
+    for (int i = 0; i < 5; ++i) {
+        mem_ptr->Put(kCmdBufGpa,
+                     PipeCommandHeader{.cmd = kPipeCmdRead, .id = kPipeId, .buffers_count = 1});
+        SetupBuffers(mem_ptr, kCmdBufGpa, kMaxBufs,
+                     {{kLargeBufGpa, static_cast<uint32_t>(chunk.size())}}, 0);
+        dev.Write(kPipeRegCmd, kPipeId);
+        EXPECT_EQ(mem_ptr->Get<PipeCommandHeader>(kCmdBufGpa).consumed_size, chunk.size());
+    }
+    EXPECT_EQ(observer->flow_events, (std::vector<bool>{false, true}));
+
+    // Drain the remaining 3 MiB, queue 4 bytes for snapshot save/restore, and verify restore.
+    for (int i = 0; i < 3; ++i) {
+        mem_ptr->Put(kCmdBufGpa,
+                     PipeCommandHeader{.cmd = kPipeCmdRead, .id = kPipeId, .buffers_count = 1});
+        SetupBuffers(mem_ptr, kCmdBufGpa, kMaxBufs,
+                     {{kLargeBufGpa, static_cast<uint32_t>(chunk.size())}}, 0);
+        dev.Write(kPipeRegCmd, kPipeId);
+        EXPECT_EQ(mem_ptr->Get<PipeCommandHeader>(kCmdBufGpa).consumed_size, chunk.size());
+    }
+
+    constexpr uint32_t kPreSnapWord = 0xCAFE1234U;
+    observer->last_socket->SendAsync(&kPreSnapWord, sizeof(kPreSnapWord));
+
+    archive::DequeArchive snap;
+    ASSERT_OK(dev.Save("snap", snap));
+    ASSERT_OK(dev.PreLoad("snap"));
+    ASSERT_OK(dev.Load("snap", snap));
+    ASSERT_OK(dev.PostLoad("snap"));
+
+    // Read the pre-snapshot queued word, then write+read a new word through the restored plug.
+    mem_ptr->Put(kCmdBufGpa,
+                 PipeCommandHeader{.cmd = kPipeCmdRead, .id = kPipeId, .buffers_count = 1});
+    SetupBuffers(mem_ptr, kCmdBufGpa, kMaxBufs, {{kDataGpa + 192, 4}}, 0);
+    dev.Write(kPipeRegCmd, kPipeId);
+    EXPECT_EQ(mem_ptr->Get<PipeCommandHeader>(kCmdBufGpa).consumed_size, 4U);
+    EXPECT_EQ(mem_ptr->Get<uint32_t>(kDataGpa + 192), kPreSnapWord);
+
+    constexpr uint32_t kPostSnapWord = 0x13572468U;
+    mem_ptr->Put(kDataGpa + 256, kPostSnapWord);
+    mem_ptr->Put(kCmdBufGpa,
+                 PipeCommandHeader{.cmd = kPipeCmdWrite, .id = kPipeId, .buffers_count = 1});
+    SetupBuffers(mem_ptr, kCmdBufGpa, kMaxBufs, {{kDataGpa + 256, 4}}, 0);
+    dev.Write(kPipeRegCmd, kPipeId);
+    EXPECT_EQ(mem_ptr->Get<PipeCommandHeader>(kCmdBufGpa).consumed_size, 4U);
+
+    mem_ptr->Put(kCmdBufGpa,
+                 PipeCommandHeader{.cmd = kPipeCmdRead, .id = kPipeId, .buffers_count = 1});
+    SetupBuffers(mem_ptr, kCmdBufGpa, kMaxBufs, {{kDataGpa + 320, 4}}, 0);
+    dev.Write(kPipeRegCmd, kPipeId);
+    EXPECT_EQ(mem_ptr->Get<PipeCommandHeader>(kCmdBufGpa).consumed_size, 4U);
+    EXPECT_EQ(mem_ptr->Get<uint32_t>(kDataGpa + 320), kPostSnapWord);
 }
 
 }  // namespace

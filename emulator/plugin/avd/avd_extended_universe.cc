@@ -189,7 +189,7 @@ absl::Status AvdExtendedUniverse::Initialize() {
             },
             /*initial_delay=*/absl::Seconds(60));
 
-    auto* registry = &avd_universe.connector_registry;
+    auto* registry = &avd_universe.GetConnectorRegistry();
 
     namespace DEVS = ::goldfish::devices;
 

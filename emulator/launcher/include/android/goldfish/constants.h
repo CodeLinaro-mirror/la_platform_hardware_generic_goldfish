@@ -15,7 +15,9 @@
 
 namespace android::goldfish {
 
-constexpr int kMinSupportedApiLevel = 31;
+// TODO(b/579556831): Finish end-to-end verification for API 25 quickboot
+// (`default_boot` snapshot save at exit) and API 24.
+constexpr int kMinSupportedApiLevel = 24;
 
 // Minimum Android API level where virtio-gpu (minigbm/gfxstream) and modern
 // virtio devices replace legacy goldfish_pipe, goldfish_sync, and

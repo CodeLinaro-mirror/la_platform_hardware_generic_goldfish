@@ -32,6 +32,9 @@
 #include "goldfish/archive/deque_archive.h"
 #include "goldfish/archive/qemu_file_reader.h"
 #include "goldfish/archive/qemu_file_writer.h"
+#include "goldfish/devices/cable/cable.h"
+#include "goldfish/devices/cable/saveload.h"
+#include "goldfish/devices/connector_registry_impl.h"
 #include "goldfish/legacy/common/adapters.h"
 #include "goldfish/socket_buffer.h"
 
@@ -590,6 +593,330 @@ class OpenglesPipeService final : public IPipeService {
     const std::shared_ptr<SharedState> state_;
     IGoldfishGpu& gpu_;
     const uint32_t stream_id_;
+};
+
+// ============================================================================
+// Pipe service: HAL/ADB/qemud services on API <= 30 (via ConnectorRegistry)
+// ============================================================================
+class HalPipeService final : public IPipeService {
+  public:
+    static constexpr size_t kBufferSizeHighWatermark = size_t{8} << 20;  // 8 MiB
+    static constexpr size_t kBufferSizeLowWatermark = kBufferSizeHighWatermark / 2;
+
+    static std::unique_ptr<HalPipeService> Create(std::string_view service_name,
+                                                  PipeWakeCallback signal_wake) {
+        static constexpr std::string_view kRegistries[] = {"vsock:5000", "vsock:5002"};
+        for (const std::string_view reg_id : kRegistries) {
+            auto state = std::make_shared<SharedState>(nullptr);
+            auto* raw_socket = new PipeCableSocket(state);
+            devices::cable::PlugPtr connector = devices::ConnectorRegistry::CreateConnector(
+                    devices::cable::SocketPtr(raw_socket), reg_id);
+            if (connector == nullptr) {
+                continue;
+            }
+            {
+                absl::MutexLock lock(&state->mu);
+                state->plug = connector;
+                state->signal_wake = signal_wake;
+            }
+            connector->OnConnect();
+            std::string handshake(service_name);
+            handshake.push_back('\0');
+            if (!connector->OnReceive(handshake.data(), handshake.size())) {
+                devices::cable::PlugPtr failed_plug;
+                {
+                    absl::MutexLock lock(&state->mu);
+                    failed_plug = std::move(state->plug);
+                    state->closed = true;
+                    state->signal_wake = nullptr;
+                }
+                if (failed_plug != nullptr) {
+                    (void)failed_plug->OnUnplug();
+                }
+                continue;
+            }
+            return std::unique_ptr<HalPipeService>(new HalPipeService(std::move(state)));
+        }
+        return nullptr;
+    }
+
+    static absl::StatusOr<std::unique_ptr<HalPipeService>> Restore(PipeWakeCallback signal_wake,
+                                                                   archive::IReader& in,
+                                                                   uint64_t* queued_budget) {
+        uint8_t closed = 0;
+        uint32_t q_size = 0;
+        absl::Status st = ReadField(in, closed, "hal pipe state");
+        if (st.ok()) st = ReadField(in, q_size, "hal pipe state");
+        if (!st.ok()) {
+            return st;
+        }
+        if (q_size > *queued_budget) {
+            return ExceedsError("hal pipe queued_bytes", q_size, *queued_budget);
+        }
+        auto state = std::make_shared<SharedState>(std::move(signal_wake));
+        {
+            absl::MutexLock lock(&state->mu);
+            st = ReadIntoSocketBuffer(in, q_size, &state->read_queue, "hal pipe queued bytes");
+            if (!st.ok()) {
+                return st;
+            }
+        }
+        *queued_budget -= q_size;
+
+        uint8_t has_plug = 0;
+        uint32_t plug_size = 0;
+        st = ReadField(in, has_plug, "hal pipe plug header");
+        if (st.ok()) st = ReadField(in, plug_size, "hal pipe plug header");
+        if (!st.ok()) {
+            return st;
+        }
+        if (plug_size > *queued_budget) {
+            return ExceedsError("hal pipe plug_bytes", plug_size, *queued_budget);
+        }
+        archive::DequeArchive plug_archive;
+        st = ReadIntoDequeArchive(in, plug_size, &plug_archive, "hal pipe plug bytes");
+        if (!st.ok()) {
+            return st;
+        }
+        *queued_budget -= plug_size;
+
+        if (closed == 0 && has_plug != 0) {
+            auto* raw_socket = new PipeCableSocket(state);
+            auto plug_or_socket = devices::cable::LoadPlugFromSnapshot(
+                    devices::cable::SocketPtr(raw_socket), plug_archive);
+            if (auto* loaded_plug = std::get_if<devices::cable::PlugPtr>(&plug_or_socket);
+                loaded_plug != nullptr && *loaded_plug != nullptr) {
+                absl::MutexLock lock(&state->mu);
+                state->plug = std::move(*loaded_plug);
+            } else {
+                LOG(WARNING) << "HalPipeService::Restore: failed to restore plug (" << plug_size
+                             << " bytes); marking pipe closed";
+                absl::MutexLock lock(&state->mu);
+                state->closed = true;
+            }
+        } else {
+            absl::MutexLock lock(&state->mu);
+            state->closed = true;
+        }
+        return std::unique_ptr<HalPipeService>(new HalPipeService(std::move(state)));
+    }
+
+    ~HalPipeService() override { OnClose(); }
+
+    int32_t OnWrite(const uint8_t* data, size_t size, size_t* consumed) override {
+        *consumed = 0;
+        if (size == 0) {
+            return kPipeStatusOk;
+        }
+        devices::cable::PlugPtr plug;
+        {
+            absl::MutexLock lock(&state_->mu);
+            if (state_->closed || state_->plug == nullptr) {
+                return kPipeErrorIo;
+            }
+            if (state_->data_sniffer != nullptr) {
+                state_->data_sniffer->ToPlug(data, size);
+            }
+            plug = state_->plug;
+        }
+        if (!plug->OnReceive(data, size)) {
+            devices::cable::PlugPtr failed_plug;
+            {
+                absl::MutexLock lock(&state_->mu);
+                if (!state_->closed) {
+                    state_->closed = true;
+                    failed_plug = std::move(state_->plug);
+                }
+            }
+            if (failed_plug != nullptr) {
+                (void)failed_plug->OnUnplug();
+            }
+            return kPipeErrorIo;
+        }
+        *consumed = size;
+        return kPipeStatusOk;
+    }
+
+    int32_t OnRead(uint8_t* data, size_t size, size_t* produced) override {
+        *produced = 0;
+        devices::cable::ISocket::OnFlowControlEvent flow_cb;
+        {
+            absl::MutexLock lock(&state_->mu);
+            if (state_->read_queue.Size() == 0) {
+                return state_->closed ? kPipeErrorIo : kPipeErrorAgain;
+            }
+            size_t total = 0;
+            while (total < size && state_->read_queue.Size() > 0) {
+                const auto [chunk, chunk_size] = state_->read_queue.Peek();
+                const size_t n = std::min(size - total, chunk_size);
+                std::memcpy(data + total, chunk, n);
+                (void)state_->read_queue.Consume(n);
+                total += n;
+            }
+            *produced = total;
+            if (state_->read_queue.Size() < kBufferSizeLowWatermark && !state_->producer_enabled) {
+                state_->producer_enabled = true;
+                flow_cb = state_->on_flow_control;
+            }
+        }
+        if (flow_cb != nullptr) {
+            flow_cb(true);
+        }
+        return kPipeStatusOk;
+    }
+
+    uint32_t OnPoll() const override {
+        absl::MutexLock lock(&state_->mu);
+        uint32_t flags = 0;
+        if (state_->read_queue.Size() > 0) {
+            flags |= kPipePollIn;
+        }
+        if (state_->closed) {
+            flags |= kPipePollHup;
+        } else {
+            flags |= kPipePollOut;
+        }
+        return flags;
+    }
+
+    void OnClose() override {
+        devices::cable::PlugPtr plug;
+        {
+            absl::MutexLock lock(&state_->mu);
+            state_->closed = true;
+            state_->signal_wake = nullptr;
+            state_->on_flow_control = nullptr;
+            state_->data_sniffer.reset();
+            state_->read_queue.Clear(true);
+            plug = std::move(state_->plug);
+        }
+        if (plug != nullptr) {
+            (void)plug->OnUnplug();
+        }
+    }
+
+    void Save(archive::IWriter& out, uint64_t* queued_bytes) const override {
+        archive::DequeArchive queue_archive;
+        devices::cable::PlugPtr plug;
+        bool closed = false;
+        size_t queued_size = 0;
+        {
+            absl::MutexLock lock(&state_->mu);
+            closed = state_->closed;
+            plug = state_->plug;
+            queued_size = state_->read_queue.Size();
+            state_->read_queue.SaveToSnapshot(queue_archive);
+        }
+        archive::DequeArchive plug_archive;
+        const bool has_plug_state = !closed && plug != nullptr &&
+                                    plug->SupportsLoadingFromSnapshot() &&
+                                    devices::cable::SavePlugToSnapshot(*plug, plug_archive);
+
+        *queued_bytes = queued_size + plug_archive.Size();
+        out << static_cast<uint8_t>((closed || !has_plug_state) ? 1 : 0);
+        WriteDequeArchive(out, queue_archive);
+        out << static_cast<uint8_t>(has_plug_state ? 1 : 0)
+            << static_cast<uint32_t>(plug_archive.Size());
+        WriteDequeArchive(out, plug_archive);
+    }
+
+    absl::Status Load(archive::IReader& /*in*/) override {
+        return absl::InternalError("hal pipes are restored through Restore()");
+    }
+
+  private:
+    struct SharedState {
+        explicit SharedState(PipeWakeCallback cb) : signal_wake(std::move(cb)) {}
+
+        SocketBuffer read_queue ABSL_GUARDED_BY(mu);
+        PipeWakeCallback signal_wake ABSL_GUARDED_BY(mu);
+        devices::cable::ISocket::OnFlowControlEvent on_flow_control ABSL_GUARDED_BY(mu);
+        std::unique_ptr<devices::cable::IDataSniffer> data_sniffer ABSL_GUARDED_BY(mu);
+        devices::cable::PlugPtr plug ABSL_GUARDED_BY(mu);
+        bool producer_enabled ABSL_GUARDED_BY(mu) = true;
+        bool closed ABSL_GUARDED_BY(mu) = false;
+        mutable absl::Mutex mu;
+    };
+
+    class PipeCableSocket final : public devices::cable::ISocket {
+      public:
+        explicit PipeCableSocket(std::shared_ptr<SharedState> state) : state_(std::move(state)) {}
+
+        void SetOnFlowControlEvent(OnFlowControlEvent fce) override {
+            absl::MutexLock lock(&state_->mu);
+            state_->on_flow_control = std::move(fce);
+        }
+
+        void SetDataSniffer(std::unique_ptr<devices::cable::IDataSniffer> sniffer) override {
+            absl::MutexLock lock(&state_->mu);
+            state_->data_sniffer = std::move(sniffer);
+        }
+
+        void SendAsync(const void* data, size_t size) override {
+            if (data == nullptr || size == 0) {
+                return;
+            }
+            PipeWakeCallback wake_cb;
+            OnFlowControlEvent flow_cb;
+            {
+                absl::MutexLock lock(&state_->mu);
+                if (state_->closed) {
+                    return;
+                }
+                if (state_->data_sniffer != nullptr) {
+                    state_->data_sniffer->ToSocket(data, size);
+                }
+                const size_t buffered = state_->read_queue.Append(data, size);
+                if (buffered >= kBufferSizeHighWatermark && state_->producer_enabled) {
+                    state_->producer_enabled = false;
+                    flow_cb = state_->on_flow_control;
+                }
+                wake_cb = state_->signal_wake;
+            }
+            if (flow_cb != nullptr) {
+                flow_cb(false);
+            }
+            if (wake_cb != nullptr) {
+                wake_cb(kPipeWakeRead);
+            }
+        }
+
+        devices::cable::PlugPtr SwitchPlug(devices::cable::PlugPtr new_plug) override {
+            absl::MutexLock lock(&state_->mu);
+            state_->plug.swap(new_plug);
+            return new_plug;
+        }
+
+      protected:
+        devices::cable::PlugPtr UnplugImpl() override {
+            devices::cable::PlugPtr old_plug;
+            PipeWakeCallback wake_cb;
+            {
+                absl::MutexLock lock(&state_->mu);
+                old_plug = std::move(state_->plug);
+                if (!state_->closed) {
+                    state_->closed = true;
+                    wake_cb = state_->signal_wake;
+                }
+            }
+            if (wake_cb != nullptr) {
+                wake_cb(kPipeWakeRead | kPipeWakeWrite);
+            }
+            delete this;
+            return old_plug;
+        }
+
+        void AbslStringifyImpl(absl::FormatSink& s) const override {
+            absl::Format(&s, "[PipeCableSocket]");
+        }
+
+      private:
+        std::shared_ptr<SharedState> state_;
+    };
+
+    explicit HalPipeService(std::shared_ptr<SharedState> state) : state_(std::move(state)) {}
+
+    const std::shared_ptr<SharedState> state_;
 };
 
 }  // namespace
@@ -1259,6 +1586,23 @@ std::shared_ptr<IPipeService> GoldfishPipeDevice::CreateServiceHandler(
         });
     }
 
+    {
+        std::weak_ptr<WakerState> weak_waker = waker_state_;
+        if (auto hal_svc = HalPipeService::Create(
+                    service_name,
+                    [weak_waker, pipe_id, generation](uint32_t flags) {
+                        if (auto waker = weak_waker.lock()) {
+                            absl::MutexLock lock(&waker->mu);
+                            if (waker->dev != nullptr) {
+                                waker->dev->SignalWakeWithGeneration(pipe_id, generation, flags);
+                            }
+                        }
+                    });
+            hal_svc != nullptr) {
+            return hal_svc;
+        }
+    }
+
     LOG(WARNING) << "goldfish_pipe: unsupported service '" << service_name << "'";
     return nullptr;
 }
@@ -1307,8 +1651,21 @@ absl::StatusOr<std::shared_ptr<IPipeService>> GoldfishPipeDevice::RestoreService
         }
         return std::shared_ptr<IPipeService>(std::move(*svc));
     }
-    return absl::DataLossError(
-            absl::StrCat("pipe ", pipe_id, " names unknown service '", service_name, "'"));
+    std::weak_ptr<WakerState> weak_waker = waker_state_;
+    absl::StatusOr<std::unique_ptr<HalPipeService>> hal_svc = HalPipeService::Restore(
+            [weak_waker, pipe_id, generation](uint32_t flags) {
+                if (auto waker = weak_waker.lock()) {
+                    absl::MutexLock lock(&waker->mu);
+                    if (waker->dev != nullptr) {
+                        waker->dev->SignalWakeWithGeneration(pipe_id, generation, flags);
+                    }
+                }
+            },
+            in, queued_budget);
+    if (!hal_svc.ok()) {
+        return hal_svc.status();
+    }
+    return std::shared_ptr<IPipeService>(std::move(*hal_svc));
 }
 
 absl::Status GoldfishPipeDevice::Save(std::string_view /*snapshot_name*/, archive::IWriter& out)
@@ -1348,11 +1705,14 @@ absl::Status GoldfishPipeDevice::Save(std::string_view /*snapshot_name*/, archiv
 absl::Status GoldfishPipeDevice::PreLoad(std::string_view /*snapshot_name*/)
         ABSL_LOCKS_EXCLUDED(mu_) {
     // The GoldfishGpu's PreLoad already ran from the "goldfish_gpu_begin" section and dropped
-    // every render channel, so the old handlers are simply forgotten here.
+    // every render channel; moving pipes_ out before clearing destroys non-GPU HalPipeService
+    // handlers outside mu_ so their plugs are cleanly unplugged.
+    std::map<int32_t, PipeSlot> old_pipes;
     {
         absl::MutexLock lock(&mu_);
-        pipes_.clear();
+        old_pipes = std::move(pipes_);
     }
+    old_pipes.clear();
     set_irq_(false);
     return absl::OkStatus();
 }

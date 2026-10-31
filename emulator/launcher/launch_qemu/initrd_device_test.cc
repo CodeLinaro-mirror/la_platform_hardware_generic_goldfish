@@ -648,18 +648,18 @@ TEST(BootProperties, SystemUiRendererGraphiteBelowApi37UsesPreviousDefaults) {
                         "androidboot.surface_flinger.renderengine_graphite_vulkan", testing::_))));
 }
 
-TEST(BootPropertiesDeathTest, FailsBelowApi31) {
+TEST(BootPropertiesDeathTest, FailsBelowMinSupportedApiLevel) {
     base::TestSystem sys("");
     FakeEmulator emu;
 
     auto hw = HardwareConfig();
     EXPECT_CALL(emu.mock_avd(), Hw()).WillRepeatedly(testing::ReturnRef(hw));
     EXPECT_CALL(emu.mock_avd(), Name()).WillRepeatedly(testing::Return("mock_avd"));
-    EXPECT_CALL(emu.mock_avd(), ApiLevel()).WillRepeatedly(testing::Return(30));
+    EXPECT_CALL(emu.mock_avd(), ApiLevel()).WillRepeatedly(testing::Return(23));
     EXPECT_CALL(emu.mock_avd(), Arch()).WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
 
     EXPECT_DEATH(getBootProperties(emu.config(), "lavapipe"),
-                 "API levels below 31 are not supported yet\\.");
+                 "API levels below 24 are not supported yet\\.");
 }
 
 TEST(Initrd, FailsWhenDynamicPartitionDisabled) {

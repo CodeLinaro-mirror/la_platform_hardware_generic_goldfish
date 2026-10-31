@@ -29,14 +29,29 @@
 #include "android/goldfish/avd.h"
 #include "android/status/status_macros.h"
 #include "goldfish/file/file.h"
+#include "initrd_device.h"
 
 namespace android::goldfish {
 
 namespace {
-absl::StatusOr<std::string> command_line(const Avd& avd, const AndroidOptions& opts) {
+absl::StatusOr<std::string> command_line(const EmulatorConfig& emulator) {
+    const Avd& avd = emulator.avd();
+    const AndroidOptions& opts = emulator.opts();
+    const int api_level = avd.ApiLevel();
+    const bool has_bootconfig = (api_level <= 0 || api_level >= 31);
+
     // btree to provide deterministic (sorted) order.
-    absl::btree_set<std::string> cl = {"bootconfig", "no_timer_check", "8250.nr_uarts=1",
-                                       "loop.max_part=7", "mac80211_hwsim.radios=0"};
+    absl::btree_set<std::string> cl = {"no_timer_check", "8250.nr_uarts=1", "loop.max_part=7"};
+    if (has_bootconfig) {
+        cl.insert("bootconfig");
+        cl.insert("mac80211_hwsim.radios=0");
+    } else if (api_level == 30) {
+        cl.insert("mac80211_hwsim.radios=1");
+    } else if (api_level >= 25) {
+        cl.insert("mac80211_hwsim.radios=2");
+        cl.insert("mac80211_hwsim.channels=2");
+    }
+
     // TODO add ramoops args?
     switch (auto a = avd.Arch(); a) {
     case Avd::CpuArchitecture::kArm:
@@ -46,6 +61,9 @@ absl::StatusOr<std::string> command_line(const Avd& avd, const AndroidOptions& o
     case Avd::CpuArchitecture::kX86:
         cl.merge(absl::btree_set<std::string>{"console=ttyS0,38400", "earlyprintk=ttyS0",
                                               "clocksource=pit", "memmap=0x10000$0xff018000"});
+        if (api_level > 0 && api_level < 26) {
+            cl.insert("no-kvmclock");
+        }
         break;
     case Avd::CpuArchitecture::kRiscV:
     default:
@@ -74,15 +92,24 @@ absl::StatusOr<std::string> command_line(const Avd& avd, const AndroidOptions& o
         cl.insert(a->param);
     }
 
-    return absl::StrJoin(cl, " ");
+    std::string result = absl::StrJoin(cl, " ");
+    if (!has_bootconfig) {
+        for (const auto& [key, val] : getBootProperties(emulator, /*vk_icd=*/"")) {
+            if (val.empty()) {
+                absl::StrAppend(&result, " ", key);
+            } else {
+                absl::StrAppend(&result, " ", key, "=", val);
+            }
+        }
+    }
+    return result;
 }
 }  // namespace
 
 absl::Status KernelDevice::initialize(const EmulatorConfig& emulator) {
     const Avd& avd = emulator.avd();
-    const AndroidOptions& opts = emulator.opts();
     mDiskImage = avd.GetSystemImagePaths().kernel_image.string();
-    ASSIGN_OR_RETURN(auto cl, command_line(avd, opts));
+    ASSIGN_OR_RETURN(auto cl, command_line(emulator));
     mCommandLine = std::move(cl);
     return absl::OkStatus();
 }
