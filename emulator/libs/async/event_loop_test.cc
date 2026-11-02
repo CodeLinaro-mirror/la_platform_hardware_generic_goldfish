@@ -2107,4 +2107,81 @@ TEST(LibuvEventLoopTest, WaitUntilIdleReturnsUnderSteadyTraffic) {
             << "WaitUntilIdle() never returned while tasks kept arriving on LibuvEventLoop";
 }
 
+TEST(LibuvEventLoopShutdownTest, ShutdownOfLoopThatNeverRanSucceeds) {
+    auto loop = LibuvEventLoop::Create("LibuvNeverRan");
+    std::vector<LooperStatusEvent::State> states;
+    auto subscription = android::base::eventing::MakeScopedCallback(
+            *loop, [&](const LooperStatusEvent& event) { states.push_back(event.state); });
+
+    EXPECT_THAT(loop->ShutdownAndWait(kPromptTimeout), absl_testing::IsOk());
+    EXPECT_EQ(loop->GetState(), LooperStatusEvent::State::kFinished);
+    EXPECT_THAT(states, ::testing::ElementsAre(LooperStatusEvent::State::kFinished));
+}
+
+TEST(LibuvEventLoopShutdownTest, TimerOperationsInsideStatusCallbackDoNotDeadlock) {
+    for (bool start_loop : {false, true}) {
+        auto loop = LibuvEventLoop::Create("LibuvStatusCallbackTimers");
+        absl::Mutex pre_timer_mutex;
+        auto pre_timer = loop->ScheduleDelayed([] {}, absl::Seconds(10));
+        auto subscription = android::base::eventing::MakeScopedCallback(
+                *loop, [&](const LooperStatusEvent& /*event*/) {
+                    auto cb_timer = loop->CreateTimer([] { return false; });
+                    cb_timer->Schedule(absl::Milliseconds(10));
+                    cb_timer.reset();
+                    const absl::MutexLock lock(pre_timer_mutex);
+                    pre_timer.reset();
+                });
+
+        std::thread runner;
+        if (start_loop) {
+            runner = std::thread([&] { (void)loop->Run(); });
+            while (loop->GetState() != LooperStatusEvent::State::kRunning) {
+                std::this_thread::sleep_for(1ms);
+            }
+        }
+
+        EXPECT_THAT(loop->ShutdownAndWait(kPromptTimeout), absl_testing::IsOk());
+        if (runner.joinable()) {
+            runner.join();
+        }
+    }
+}
+
+TEST(LibuvEventLoopShutdownTest, ShutdownBeforeRunCancelsPendingTimers) {
+    bool fired = false;
+    EventLoop::ScopedTimer outliving_timer;
+    {
+        auto loop = LibuvEventLoop::Create("LibuvNeverRan");
+        auto timer = loop->ScheduleDelayed([&fired] { fired = true; }, absl::ZeroDuration());
+        outliving_timer = loop->ScheduleDelayed([&fired] { fired = true; }, absl::ZeroDuration());
+
+        ASSERT_THAT(loop->ShutdownAndWait(kPromptTimeout), absl_testing::IsOk());
+        timer.reset();
+    }
+    outliving_timer.reset();
+
+    EXPECT_FALSE(fired);
+}
+
+TEST(LibuvEventLoopShutdownTest, RunAfterShutdownBeforeStartFailsAndStaysFinished) {
+    auto loop = LibuvEventLoop::Create("LibuvNeverRan");
+    ASSERT_THAT(loop->ShutdownAndWait(kPromptTimeout), absl_testing::IsOk());
+
+    EXPECT_THAT(loop->Run(), absl_testing::StatusIs(absl::StatusCode::kFailedPrecondition));
+    EXPECT_EQ(loop->GetState(), LooperStatusEvent::State::kFinished);
+}
+
+#if defined(GTEST_HAS_DEATH_TEST)
+TEST(LibuvEventLoopDeathTest, ShutdownFromLoopThreadDies) {
+    GTEST_FLAG_SET(death_test_style, "threadsafe");
+    EXPECT_DEATH(
+            {
+                auto loop = LibuvEventLoop::Create("LibuvSelfShutdown");
+                loop->Post([&loop] { (void)loop->Shutdown(); }).IgnoreError();
+                loop->Run().IgnoreError();
+            },
+            "must not be called on LibuvEventLoop 'LibuvSelfShutdown' from its own loop thread");
+}
+#endif
+
 }  // namespace goldfish::async
