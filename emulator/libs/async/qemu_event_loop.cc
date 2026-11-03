@@ -39,6 +39,8 @@
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/synchronization/mutex.h"
+#include "absl/time/clock.h"
+#include "absl/time/time.h"
 
 #include "goldfish/async/event_loop.h"
 #include "goldfish/perfetto/perfetto_categories.h"
@@ -245,7 +247,12 @@ class QemuEventLoopImpl : public goldfish::async::QemuEventLoop {
     };
 
     explicit QemuEventLoopImpl(std::string name)
-            : QemuEventLoop(std::move(name)), drainer_bh_(MakeQemuBh([&] { DrainQueue(); })) {
+            : QemuEventLoop(std::move(name)),
+              drainer_bh_(MakeQemuBh([&] {
+                  if (!DrainQueueOnce()) {
+                      qemu_bh_schedule(drainer_bh_.get());
+                  }
+              })) {
         const bool lock_bql = !bql_locked();
         if (lock_bql) {
             bql_lock();
@@ -298,16 +305,16 @@ class QemuEventLoopImpl : public goldfish::async::QemuEventLoop {
     absl::Status PostImmediately(Task task, FlowId flow_id) override;
     absl::Status PostDelayed(Task task, absl::Duration delay, FlowId flow_id) override;
 
-    size_t DrainQueue() {
+    bool DrainQueueOnce() {
         std::queue<QueuedTask> local_queue;
         {
             const absl::MutexLock lock(queue_mutex_);
+            drainer_scheduled_ = true;
             task_queue_.swap(local_queue);
-            drainer_scheduled_ = false;
         }
 
         const size_t num_tasks_to_process = local_queue.size();
-        TRACE_EVENT("async", "QemuEventLoop::DrainQueue", "batch_size", num_tasks_to_process);
+        TRACE_EVENT("async", "QemuEventLoop::DrainQueueOnce", "batch_size", num_tasks_to_process);
 
         while (!local_queue.empty()) {
             FlowId flow_id = local_queue.front().flow_id;
@@ -318,9 +325,28 @@ class QemuEventLoopImpl : public goldfish::async::QemuEventLoop {
             local_queue.pop();
         }
 
-        absl::MutexLock lock(queue_mutex_);
+        const absl::MutexLock lock(queue_mutex_);
         queue_is_idle_ = task_queue_.empty();
         tasks_processed_ += num_tasks_to_process;
+        drainer_scheduled_ = !queue_is_idle_;
+        return queue_is_idle_;
+    }
+
+    size_t DrainQueue() {
+        constexpr absl::Duration kWarnTimeout = absl::Seconds(3);
+        constexpr absl::Duration kCrashTimeout = absl::Seconds(15);
+        const absl::Time start = absl::Now();
+        absl::Time warn_deadline = start + kWarnTimeout;
+        const absl::Time crash_deadline = start + kCrashTimeout;
+        while (!DrainQueueOnce()) {
+            const absl::Time now = absl::Now();
+            LOG_IF(FATAL, now >= crash_deadline) << "Timed out waiting for queue to be idle";
+            if (now >= warn_deadline) {
+                LOG(WARNING) << "Still waiting for queue to be idle after " << kWarnTimeout;
+                warn_deadline = absl::InfiniteFuture();
+            }
+        }
+        const absl::MutexLock lock(queue_mutex_);
         return tasks_processed_;
     }
 

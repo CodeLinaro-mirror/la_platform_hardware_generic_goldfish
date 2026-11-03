@@ -1935,4 +1935,30 @@ TEST_P(EventLoopTest, TimerCancelRacesWithFiringCallbackWithoutUseAfterFree) {
     }
 }
 
+TEST_P(EventLoopTest, TaskPostedDuringSnapshotDoesNotRunInsideIt) {
+    if (mLoopType != "qemu") {
+        GTEST_SKIP() << "This test is specific to QemuEventLoop.";
+    }
+    fake_qemu_advance_ms(1);
+
+    std::vector<std::string> order;
+    const absl::Status posted = loop->Post([&] {
+        order.push_back("snapshot begins");
+        std::thread grpc([&] {
+            const absl::Status posted_during_snapshot =
+                    loop->Post([&] { order.push_back("task posted during the snapshot"); });
+            EXPECT_THAT(posted_during_snapshot, absl_testing::IsOk());
+        });
+        grpc.join();
+        // Models the nested aio_poll() in save_snapshot()'s vmstate I/O.
+        fake_qemu_advance_ms(1);
+        order.push_back("snapshot ends");
+    });
+    ASSERT_THAT(posted, absl_testing::IsOk());
+    fake_qemu_advance_ms(5);
+
+    EXPECT_THAT(order, ::testing::ElementsAre("snapshot begins", "snapshot ends",
+                                              "task posted during the snapshot"));
+}
+
 }  // namespace goldfish::async
