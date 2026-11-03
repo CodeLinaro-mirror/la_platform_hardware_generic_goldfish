@@ -106,7 +106,6 @@ emulator/lib/emulator_access.json
 emulator/lib/qemu/
 emulator/lib/qemu/libgfxstream_backend.so
 emulator/lib/qemu/libgoldfish_x86_64.so
-emulator/lib/qemu/librutabaga_ffi.so
 emulator/lib64/
 emulator/lib64/libEGL.so
 emulator/lib64/libgallium_dri.so

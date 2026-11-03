@@ -46,17 +46,11 @@
 #include "goldfish/gvk/system_meta_loader.h"
 #include "goldfish/parsing/resizable_display_config.h"
 #include "goldfish/snapshot/snapshot_store.h"
-#include "virtio_gpu_selection.h"
 
 namespace android::goldfish {
 namespace {
 
 using android::base::System;
-
-// Where users report problems with the virtio-gpu device switch
-// (b/576450291): the public Android Emulator issue tracker component.
-constexpr std::string_view kVirtioGpuBugReportUrl =
-        "https://issuetracker.google.com/issues/new?component=192727";
 
 ::goldfish::gvk::IMetaLoader::Ptr& VulkanLoaderOverride() {
     static absl::NoDestructor<::goldfish::gvk::IMetaLoader::Ptr> override_loader;
@@ -468,26 +462,7 @@ void GpuDevice::setVulkanLoader_TestOnly(::goldfish::gvk::IMetaLoader::Ptr loade
 }
 
 absl::Status GpuDevice::initialize(const EmulatorConfig& emulator) {
-    // -virtio-gpu-device: validated here so that a typo is reported at startup.
-    ASSIGN_OR_RETURN(mVirtioGpuDevice, SelectedVirtioGpuDevice(emulator.opts()));
-    LOG(INFO) << "Using virtio-gpu device: " << VirtioGpuDeviceName(mVirtioGpuDevice);
-    if (mVirtioGpuDevice == VirtioGpuDevice::kRutabaga) {
-        LOG(WARNING) << "virtio-gpu-rutabaga is deprecated and will be removed in a future "
-                        "release. Please switch to virtio-gpu-gfxstream (the default: drop "
-                        "'-virtio-gpu-device rutabaga'); if it does not work for you, please "
-                        "report the problem at "
-                     << kVirtioGpuBugReportUrl << " so it can be fixed before the removal.";
-    } else if (!emulator.opts().virtio_gpu_device &&
-               emulator.avd().ApiLevel() >= kVirtioReadyApiLevel) {
-        // Only when the user did not choose on a virtio-gpu AVD: an explicit
-        // -virtio-gpu-device gfxstream (or a legacy goldfish_pipe AVD) needs no
-        // nudge on every launch.
-        LOG(WARNING) << "virtio-gpu-gfxstream is now used by default. If you hit a problem, "
-                        "please report it at "
-                     << kVirtioGpuBugReportUrl
-                     << "; until it is fixed, '-virtio-gpu-device rutabaga' selects the "
-                        "deprecated virtio-gpu-rutabaga device.";
-    }
+    LOG(INFO) << "Using virtio-gpu device: virtio-gpu-gfxstream";
 
     auto selection = selectGpu(emulator);
     LOG(INFO) << "Selected GPU mode: " << selection.chosen_gpu_mode;
@@ -751,7 +726,7 @@ std::vector<std::string> GpuDevice::getQemuParameters(const EmulatorConfig& emul
     if (mSnapshotDevice.snapshots_enabled()) {
         snapshot_directory =
                 ::goldfish::snapshot::FileSnapshotStore(emulator.avd().GetContentPath(),
-                                                        SnapshotVersionFor(mVirtioGpuDevice))
+                                                        kSnapshotVersion)
                         .Root() /
                 "";
     }
@@ -780,10 +755,7 @@ std::vector<std::string> GpuDevice::getQemuParameters(const EmulatorConfig& emul
         gfxstream_backends.append(",x-gfxstream-gles=on");
     }
 
-    // Exactly one of virtio-gpu-rutabaga (QEMU, via librutabaga_ffi) or
-    // virtio-gpu-gfxstream (goldfish plugin, via libgfxstream_backend); both
-    // take the same properties. See virtio_gpu_selection.h.
-    std::vector<std::string> params = {std::string(VirtioGpuDeviceName(mVirtioGpuDevice))};
+    std::vector<std::string> params = {"virtio-gpu-gfxstream"};
     if (hw.hw_sensor_hinge) {
         params.push_back("edid=off");
         params.push_back("max_outputs=2");

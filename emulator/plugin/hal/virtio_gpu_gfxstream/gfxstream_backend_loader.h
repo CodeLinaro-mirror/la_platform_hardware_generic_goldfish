@@ -19,12 +19,10 @@
  * Neither qemu-system-* nor the goldfish plugin links libgfxstream_backend at
  * build time (no DT_NEEDED / LC_LOAD_DYLIB / import entry): loading it would
  * pull EGL, ANGLE and the Vulkan loader into every emulator process, including
- * ones that never instantiate a virtio-gpu-gfxstream device (-gpu off, or
- * -virtio-gpu-device rutabaga, whose librutabaga_ffi embeds its own copy of
- * gfxstream and must not coexist with this one in a process).  Instead
- * gfxstream_init() (gfxstream_renderer.c, from the device's realize() hook)
- * calls gfxstream_backend_load(), which opens the library once via GLib GModule
- * (G_MODULE_BIND_LOCAL, thread-safe via GOnce) and resolves every
+ * ones that never instantiate a virtio-gpu-gfxstream device (-gpu off).
+ * Instead gfxstream_init() (gfxstream_renderer.c, from the device's realize()
+ * hook) calls gfxstream_backend_load(), which opens the library once via GLib
+ * GModule (G_MODULE_BIND_LOCAL, thread-safe via GOnce) and resolves every
  * stream_renderer_* entry point into a function table.  The library is never
  * unloaded.
  *

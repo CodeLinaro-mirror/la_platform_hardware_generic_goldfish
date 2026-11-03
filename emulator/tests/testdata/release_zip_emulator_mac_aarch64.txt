@@ -212,7 +212,6 @@ emulator/lib/emulator_access.json
 emulator/lib/qemu/
 emulator/lib/qemu/libgfxstream_backend.dylib
 emulator/lib/qemu/libgoldfish_aarch64.dylib
-emulator/lib/qemu/librutabaga_ffi.dylib
 emulator/lib64/
 emulator/lib64/libEGL.dylib
 emulator/lib64/libGLESv1_CM.dylib

@@ -39,7 +39,9 @@ using ::testing::Eq;
 // selected virtio-gpu device.
 constexpr int kTestGfxstreamVersion = 7;
 constexpr int kTestVersion = MakeSnapshotVersion(kTestGfxstreamVersion);
-static_assert(kTestVersion == (7 << 16 | kSnapshotVersionBase));
+static_assert(kTestVersion ==
+              ((7 << 16) | (static_cast<int>(SnapshotGpuDevice::kGfxstream) << 14) |
+               kSnapshotVersionBase));
 
 class SnapshotStoreTest : public ::testing::Test {
   protected:
@@ -65,14 +67,14 @@ TEST(MakeSnapshotVersionTest, LayoutAndHistory) {
 }
 
 TEST(MakeSnapshotVersionTest, GpuDeviceField) {
-    // Snapshots written before the field existed read as virtio-gpu-rutabaga,
-    // which remains the default device: they stay loadable.
+    // Snapshots written before the field existed read as legacy virtio-gpu-rutabaga
+    // (device 0), while MakeSnapshotVersion defaults to virtio-gpu-gfxstream (device 1).
     constexpr int kLegacy = (7 << 16) | kSnapshotVersionBase;
-    EXPECT_EQ(MakeSnapshotVersion(7), kLegacy);
     EXPECT_EQ(MakeSnapshotVersion(7, SnapshotGpuDevice::kRutabaga), kLegacy);
     EXPECT_EQ(SnapshotVersionGpuDevice(kLegacy), SnapshotGpuDevice::kRutabaga);
 
-    constexpr int kGfx = MakeSnapshotVersion(7, SnapshotGpuDevice::kGfxstream);
+    constexpr int kGfx = MakeSnapshotVersion(7);
+    EXPECT_EQ(MakeSnapshotVersion(7, SnapshotGpuDevice::kGfxstream), kGfx);
     EXPECT_NE(kGfx, kLegacy);
     EXPECT_EQ(SnapshotVersionGpuDevice(kGfx), SnapshotGpuDevice::kGfxstream);
     EXPECT_EQ(SnapshotVersionBase(kGfx), kSnapshotVersionBase);
@@ -94,13 +96,12 @@ TEST(DescribeSnapshotVersionMismatchTest, NamesTheDifferingFields) {
               "saved with virtio-gpu-rutabaga but this emulator uses virtio-gpu-gfxstream");
     EXPECT_EQ(DescribeSnapshotVersionMismatch(MakeSnapshotVersion(6), MakeSnapshotVersion(7)),
               "gfxstream snapshot version 6 != 7");
-    EXPECT_EQ(DescribeSnapshotVersionMismatch((7 << 16) | (kSnapshotVersionBase - 1),
-                                              MakeSnapshotVersion(7)),
+    EXPECT_EQ(DescribeSnapshotVersionMismatch(MakeSnapshotVersion(7) - 1, MakeSnapshotVersion(7)),
               absl::StrCat("snapshot format version ", kSnapshotVersionBase - 1,
                            " != ", kSnapshotVersionBase));
-    EXPECT_EQ(DescribeSnapshotVersionMismatch(MakeSnapshotVersion(6, SnapshotGpuDevice::kGfxstream),
+    EXPECT_EQ(DescribeSnapshotVersionMismatch(MakeSnapshotVersion(6, SnapshotGpuDevice::kRutabaga),
                                               MakeSnapshotVersion(7)),
-              "saved with virtio-gpu-gfxstream but this emulator uses virtio-gpu-rutabaga; "
+              "saved with virtio-gpu-rutabaga but this emulator uses virtio-gpu-gfxstream; "
               "gfxstream snapshot version 6 != 7");
 }
 
@@ -203,13 +204,12 @@ TEST_F(SnapshotStoreTest, ReadVersionReportsUnparsableFile) {
 }
 
 TEST_F(SnapshotStoreTest, IncompatibleWhenBaseOrGfxstreamVersionDiffers) {
-    WriteFile(store_.Dir("base") / "version.txt",
-              std::to_string((kTestGfxstreamVersion << 16) | (kSnapshotVersionBase + 1)));
+    WriteFile(store_.Dir("base") / "version.txt", std::to_string(kTestVersion + 1));
     EXPECT_FALSE(store_.IsCompatible("base"));
 
     WriteFile(store_.Dir("gpu") / "version.txt",
               std::to_string(
-                      MakeSnapshotVersion(kTestGfxstreamVersion, SnapshotGpuDevice::kGfxstream)));
+                      MakeSnapshotVersion(kTestGfxstreamVersion, SnapshotGpuDevice::kRutabaga)));
     EXPECT_FALSE(store_.IsCompatible("gpu"));
 
     WriteFile(store_.Dir("gfx") / "version.txt",
@@ -221,7 +221,7 @@ TEST_F(SnapshotStoreTest, IncompatibleWhenBaseOrGfxstreamVersionDiffers) {
 TEST_F(SnapshotStoreTest, RemoveDeletesWholeSnapshotTreeAndOnlyThat) {
     ASSERT_OK(store_.WriteVersion("foo"));
     ASSERT_OK(store_.WriteVersion("bar"));
-    WriteFile(store_.Dir("foo") / "renderer" / "rutabaga-1" / "blob", "x");
+    WriteFile(store_.Dir("foo") / "renderer" / "gfxstream" / "blob", "x");
 
     ASSERT_OK(store_.Remove("foo"));
     EXPECT_FALSE(android::base::file::exists(store_.Dir("foo")));
