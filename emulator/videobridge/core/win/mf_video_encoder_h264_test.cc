@@ -13,14 +13,24 @@
 // limitations under the License.
 #include "core/win/mf_video_encoder_h264.h"
 
-#include <atomic>
-#include <thread>
-
 #include <gtest/gtest.h>
 #include <mferror.h>
 
+#include <atomic>
+#include <cstdint>
+#include <cstring>
+#include <thread>
+#include <vector>
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wthread-safety-reference-return"
+#pragma clang diagnostic ignored "-Wnullability-completeness"
+#include "api/scoped_refptr.h"
+#include "api/video/i420_buffer.h"
+#include "api/video/video_frame.h"
 #include "api/video_codecs/video_encoder.h"
 #include "modules/video_coding/include/video_error_codes.h"
+#pragma clang diagnostic pop
 
 namespace goldfish::videobridge {
 namespace {
@@ -130,6 +140,50 @@ class MFVideoEncoderH264Test : public ::testing::Test {
     uint32_t PendingOutputCount() {
         absl::MutexLock lock(&encoder_->mutex_);
         return encoder_->pending_output_count_;
+    }
+
+    HRESULT AllocateInput(int width, int height) {
+        absl::MutexLock lock(&encoder_->mutex_);
+        return encoder_->AllocateInputBuffers(width, height);
+    }
+
+    HRESULT PrepareInput(const webrtc::VideoFrame& frame, bool force_keyframe) {
+        absl::MutexLock lock(&encoder_->mutex_);
+        return encoder_->PrepareInputSample(frame, force_keyframe);
+    }
+
+    IMFSample* InputSample() {
+        absl::MutexLock lock(&encoder_->mutex_);
+        return encoder_->input_sample_.Get();
+    }
+
+    IMFMediaBuffer* InputBuffer() {
+        absl::MutexLock lock(&encoder_->mutex_);
+        return encoder_->input_buffer_.Get();
+    }
+
+    void SetInputStreamMinSize(DWORD min_size) {
+        absl::MutexLock lock(&encoder_->mutex_);
+        encoder_->input_stream_info_.cbSize = min_size;
+    }
+
+    static webrtc::VideoFrame CreateSolidI420Frame(int width, int height, uint8_t y_val,
+                                                   uint8_t u_val, uint8_t v_val,
+                                                   int64_t timestamp_us) {
+        webrtc::scoped_refptr<webrtc::I420Buffer> i420 = webrtc::I420Buffer::Create(width, height);
+        for (int r = 0; r < height; ++r) {
+            std::memset(i420->MutableDataY() + r * i420->StrideY(), y_val, width);
+        }
+        const int chroma_w = (width + 1) / 2;
+        const int chroma_h = (height + 1) / 2;
+        for (int r = 0; r < chroma_h; ++r) {
+            std::memset(i420->MutableDataU() + r * i420->StrideU(), u_val, chroma_w);
+            std::memset(i420->MutableDataV() + r * i420->StrideV(), v_val, chroma_w);
+        }
+        return webrtc::VideoFrame::Builder()
+                .set_video_frame_buffer(i420)
+                .set_timestamp_us(timestamp_us)
+                .build();
     }
 
     std::unique_ptr<MFVideoEncoderH264> encoder_;
@@ -262,6 +316,111 @@ TEST_F(MFVideoEncoderH264Test, PollNextAsyncEventYieldsMutexAndWakesOnConcurrent
     HRESULT hr = PollAsyncEvent(/*max_wait_attempts=*/500, &event_type);
     releaser.join();
     EXPECT_EQ(hr, MF_E_SHUTDOWN);
+}
+
+TEST_F(MFVideoEncoderH264Test, PrepareInputSampleReusesPreallocatedSampleAndBufferAcrossFrames) {
+    constexpr int kWidth = 1280;
+    constexpr int kHeight = 720;
+    constexpr int kFrameCount = 60;
+    const uint32_t expected_nv12_bytes = CalculateNV12BufferSize(kWidth, kHeight);
+    ASSERT_EQ(expected_nv12_bytes, 1382400U);
+
+    ASSERT_EQ(AllocateInput(kWidth, kHeight), S_OK);
+    IMFSample* const initial_sample = InputSample();
+    IMFMediaBuffer* const initial_buffer = InputBuffer();
+    ASSERT_NE(initial_sample, nullptr);
+    ASSERT_NE(initial_buffer, nullptr);
+
+    LONGLONG prev_sample_time = -1;
+    for (int i = 0; i < kFrameCount; ++i) {
+        const uint8_t y_val = static_cast<uint8_t>(16 + (i % 200));
+        const uint8_t u_val = static_cast<uint8_t>(64 + (i % 128));
+        const uint8_t v_val = static_cast<uint8_t>(128 + (i % 64));
+        const bool force_keyframe = (i % 15 == 0);
+        webrtc::VideoFrame frame =
+                CreateSolidI420Frame(kWidth, kHeight, y_val, u_val, v_val, i * 16667LL);
+
+        ASSERT_EQ(PrepareInput(frame, force_keyframe), S_OK);
+        EXPECT_EQ(InputSample(), initial_sample);
+        EXPECT_EQ(InputBuffer(), initial_buffer);
+
+        DWORD current_length = 0;
+        DWORD max_length = 0;
+        BYTE* data = nullptr;
+        ASSERT_EQ(initial_buffer->Lock(&data, &max_length, &current_length), S_OK);
+        EXPECT_GE(max_length, expected_nv12_bytes);
+        EXPECT_EQ(current_length, expected_nv12_bytes);
+        EXPECT_EQ(data[0], y_val);
+        EXPECT_EQ(data[kWidth * kHeight - 1], y_val);
+        EXPECT_EQ(data[kWidth * kHeight], u_val);
+        EXPECT_EQ(data[kWidth * kHeight + 1], v_val);
+        ASSERT_EQ(initial_buffer->Unlock(), S_OK);
+
+        UINT32 clean_point = 0;
+        const HRESULT clean_hr =
+                initial_sample->GetUINT32(MFSampleExtension_CleanPoint, &clean_point);
+        if (force_keyframe) {
+            EXPECT_EQ(clean_hr, S_OK);
+            EXPECT_EQ(clean_point, 1U);
+        } else {
+            EXPECT_EQ(clean_hr, MF_E_ATTRIBUTENOTFOUND);
+        }
+
+        LONGLONG sample_time = 0;
+        LONGLONG sample_duration = 0;
+        EXPECT_EQ(initial_sample->GetSampleTime(&sample_time), S_OK);
+        EXPECT_EQ(initial_sample->GetSampleDuration(&sample_duration), S_OK);
+        EXPECT_GT(sample_time, prev_sample_time);
+        EXPECT_GT(sample_duration, 0);
+        prev_sample_time = sample_time;
+    }
+}
+
+TEST_F(MFVideoEncoderH264Test, PrepareInputSampleReallocatesWhenResolutionGrowsOrBufferInUse) {
+    EXPECT_EQ(AllocateInput(0, 0), E_INVALIDARG);
+
+    webrtc::VideoFrame small_frame = CreateSolidI420Frame(640, 360, 40, 100, 150, 0);
+    ASSERT_EQ(PrepareInput(small_frame, /*force_keyframe=*/true), S_OK);
+    IMFMediaBuffer* const small_buffer = InputBuffer();
+    ASSERT_NE(small_buffer, nullptr);
+    DWORD max_length = 0;
+    ASSERT_EQ(small_buffer->GetMaxLength(&max_length), S_OK);
+    EXPECT_EQ(max_length, CalculateNV12BufferSize(640, 360));
+
+    // Larger frame triggers reallocation to fit 1280x720 NV12 payload.
+    webrtc::VideoFrame large_frame = CreateSolidI420Frame(1280, 720, 80, 110, 160, 16667);
+    ASSERT_EQ(PrepareInput(large_frame, /*force_keyframe=*/false), S_OK);
+    IMFMediaBuffer* const large_buffer = InputBuffer();
+    ASSERT_NE(large_buffer, nullptr);
+    ASSERT_EQ(large_buffer->GetMaxLength(&max_length), S_OK);
+    EXPECT_EQ(max_length, CalculateNV12BufferSize(1280, 720));
+
+    // Subsequent smaller frame reuses the existing larger capacity without reallocating.
+    ASSERT_EQ(PrepareInput(small_frame, /*force_keyframe=*/false), S_OK);
+    EXPECT_EQ(InputBuffer(), large_buffer);
+    DWORD current_length = 0;
+    ASSERT_EQ(InputBuffer()->GetCurrentLength(&current_length), S_OK);
+    EXPECT_EQ(current_length, CalculateNV12BufferSize(640, 360));
+
+    // When an async MFT still holds a COM reference to the input sample, PrepareInputSample
+    // allocates a fresh sample/buffer so the in-flight frame is not overwritten.
+    ComPtr<IMFSample> in_flight_sample(InputSample());
+    ComPtr<IMFMediaBuffer> in_flight_buffer(InputBuffer());
+    webrtc::VideoFrame next_frame = CreateSolidI420Frame(640, 360, 200, 90, 210, 33334);
+    ASSERT_EQ(PrepareInput(next_frame, /*force_keyframe=*/false), S_OK);
+    EXPECT_NE(InputSample(), in_flight_sample.Get());
+    EXPECT_NE(InputBuffer(), in_flight_buffer.Get());
+
+    BYTE* in_flight_data = nullptr;
+    ASSERT_EQ(in_flight_buffer->Lock(&in_flight_data, nullptr, &current_length), S_OK);
+    EXPECT_EQ(in_flight_data[0], 40);
+    ASSERT_EQ(in_flight_buffer->Unlock(), S_OK);
+
+    // Honors MFT minimum input buffer size (cbSize) when larger than tight NV12 size.
+    SetInputStreamMinSize(2097152U);
+    ASSERT_EQ(PrepareInput(next_frame, /*force_keyframe=*/false), S_OK);
+    ASSERT_EQ(InputBuffer()->GetMaxLength(&max_length), S_OK);
+    EXPECT_EQ(max_length, 2097152U);
 }
 
 }  // namespace goldfish::videobridge
