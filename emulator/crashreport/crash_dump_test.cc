@@ -67,6 +67,7 @@ class CrashTest : public ::testing::Test {
         mCrashdatabase.reset();
         mTempDir.reset();
         System::Get()->EnvSet(std::string(android::crashreport::kCrashDatabaseEnvVar), "");
+        System::Get()->EnvSet(std::string(android::crashreport::kMetricsSessionIdEnvVar), "");
     }
 
     std::vector<CrashReportDatabase::Report> getAllReports() {
@@ -145,4 +146,70 @@ TEST_F(CrashTest, crash_generates_minidump) {
 
     EXPECT_TRUE(waitForNewReportCount(before))
             << "The database should have recorded an additional crash!";
+}
+
+TEST_F(CrashTest, minidump_preserves_session_id_process_type_and_replaced_annotations) {
+    constexpr char kSessionId[] = "11111111-2222-3333-4444-555555555555";
+    System::Get()->EnvSet(std::string(android::crashreport::kMetricsSessionIdEnvVar), kSessionId);
+
+    const size_t before = getAllReports().size();
+    crash({"--process_type=qemu", "--attach_test_annotations"});
+    ASSERT_TRUE(waitForNewReportCount(before));
+
+    const auto by_session = CrashSystem::Get().GetReportsBySession();
+    const auto session_it = by_session.find(kSessionId);
+    ASSERT_NE(session_it, by_session.end());
+    EXPECT_FALSE(session_it->second.uuid.empty());
+    EXPECT_EQ(session_it->second.process_type, android::crashreport::ProcessType::kQemu);
+
+    const auto params = CrashSystem::ReadMinidumpAnnotations(session_it->second.minidump_path);
+    ASSERT_TRUE(params.ok()) << params.status();
+    EXPECT_EQ(params->at("session_id"), kSessionId);
+    EXPECT_EQ(params->at("process_type"), "qemu");
+    EXPECT_EQ(params->at("session_phase"), "RUNNING_GENERAL");
+    EXPECT_EQ(params->at("exit_started"), "true");
+}
+
+TEST_F(CrashTest, prefers_qemu_minidump_when_both_launcher_and_qemu_crash_in_same_session) {
+    constexpr char kSessionId[] = "22222222-3333-4444-5555-666666666666";
+    System::Get()->EnvSet(std::string(android::crashreport::kMetricsSessionIdEnvVar), kSessionId);
+
+    // Crash QEMU first, then Launcher later in the same session: GetReportsBySession()
+    // must still prefer QEMU's minidump over the newer Launcher minidump.
+    size_t count = getAllReports().size();
+    crash({"--process_type=qemu", "--attach_test_annotations"});
+    ASSERT_TRUE(waitForNewReportCount(count));
+
+    count = getAllReports().size();
+    crash({"--process_type=launcher"});
+    ASSERT_TRUE(waitForNewReportCount(count));
+
+    const auto by_session = CrashSystem::Get().GetReportsBySession();
+    const auto session_it = by_session.find(kSessionId);
+    ASSERT_NE(session_it, by_session.end());
+    EXPECT_EQ(session_it->second.process_type, android::crashreport::ProcessType::kQemu);
+}
+
+TEST_F(CrashTest, prefers_qemu_minidump_when_launcher_crashes_before_qemu_in_same_session) {
+    constexpr char kSessionId[] = "33333333-4444-5555-6666-777777777777";
+    System::Get()->EnvSet(std::string(android::crashreport::kMetricsSessionIdEnvVar), kSessionId);
+
+    // Crash Launcher first, then QEMU second in the same session: GetReportsBySession()
+    // must replace the existing Launcher entry with the intact QEMU CrashReportInfo.
+    size_t count = getAllReports().size();
+    crash({"--process_type=launcher"});
+    ASSERT_TRUE(waitForNewReportCount(count));
+
+    count = getAllReports().size();
+    crash({"--process_type=qemu", "--attach_test_annotations"});
+    ASSERT_TRUE(waitForNewReportCount(count));
+
+    const auto by_session = CrashSystem::Get().GetReportsBySession();
+    const auto session_it = by_session.find(kSessionId);
+    ASSERT_NE(session_it, by_session.end());
+    EXPECT_EQ(session_it->second.process_type, android::crashreport::ProcessType::kQemu);
+    const auto params = CrashSystem::ReadMinidumpAnnotations(session_it->second.minidump_path);
+    ASSERT_TRUE(params.ok()) << params.status();
+    EXPECT_EQ(params->at("session_phase"), "RUNNING_GENERAL");
+    EXPECT_EQ(params->at("exit_started"), "true");
 }

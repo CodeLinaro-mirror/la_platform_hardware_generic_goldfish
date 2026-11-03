@@ -8,7 +8,7 @@
 ## Integration Guide
 | Class / Interface | Bazel Target | Header Path | Description |
 | :--- | :--- | :--- | :--- |
-| `CrashSystem` | `:crash_system` | `include/android/crashreport/crash_system.h` | Initializes out-of-process Crashpad reporting (`Initialize(const Config&)` / `Config::FromEnv`) and manages consent-gated report uploads (`UploadEntries`). |
+| `CrashSystem` | `:crash_system` | `include/android/crashreport/crash_system.h` | Initializes out-of-process Crashpad reporting (`Initialize(const Config&)` / `Config::FromEnv`), inspects local reports (`GetReportsBySession`), and manages consent-gated report uploads (`UploadEntries`). |
 | `CrashReporter` | `:crash_reporter` | `include/android/crashreport/crash_reporter.h` | Singleton for adding or updating annotations (`SetAnnotation`, `AddMessage`) or triggering a crash (`Die`). |
 | `BreadcrumbTracker` | `:breadcrumb` | `include/android/crashreport/breadcrumb.h` | Tracker for leaving "breadcrumbs" in circular buffers within crash reports. |
 | `HangDetector` | `:hang_detector` | `include/android/crashreport/hang_detector.h` | Service to monitor event loops for hangs. |

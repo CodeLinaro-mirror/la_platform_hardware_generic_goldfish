@@ -25,6 +25,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -40,6 +41,9 @@
 #include "client/settings.h"
 #include "goldfish/file/file.h"
 #include "goldfish/tools/aemu_version.h"
+#include "handler/minidump_to_upload_parameters.h"
+#include "snapshot/minidump/process_snapshot_minidump.h"
+#include "util/file/file_reader.h"
 #include "util/misc/uuid.h"
 
 #ifdef _WIN32
@@ -58,6 +62,32 @@ namespace fs = std::filesystem;
 #endif
 constexpr char kCrashUrl[] = CRASHURL;
 
+namespace {
+
+std::string_view ProcessTypeToString(ProcessType process_type) {
+    switch (process_type) {
+    case ProcessType::kLauncher:
+        return "launcher";
+    case ProcessType::kQemu:
+        return "qemu";
+    case ProcessType::kUnknown:
+        return "";
+    }
+    return "";
+}
+
+ProcessType ParseProcessType(std::string_view value) {
+    if (value == "launcher") {
+        return ProcessType::kLauncher;
+    }
+    if (value == "qemu") {
+        return ProcessType::kQemu;
+    }
+    return ProcessType::kUnknown;
+}
+
+}  // namespace
+
 class CrashSystemImpl : public CrashSystem {
   public:
     CrashSystemImpl() : client_(std::make_unique<crashpad::CrashpadClient>()) {}
@@ -68,6 +98,7 @@ class CrashSystemImpl : public CrashSystem {
         if (initialized_) {
             return absl::FailedPreconditionError("Crash reporting is already initialized.");
         }
+        configured_database_directory_ = config.database_directory;
 
         if (!System::Get()->GetEnableCrashReporting()) {
             LOG(INFO) << "Crash reporting is disabled, not reporting crashes.";
@@ -91,6 +122,13 @@ class CrashSystemImpl : public CrashSystem {
         auto annotations = std::map<std::string, std::string>{
             {"prod", "AndroidEmulator"},
             {"ver", std::string(goldfish::version::GetEmulatorFullVersion())}};
+        if (const std::string_view process_type = ProcessTypeToString(config.process_type);
+            !process_type.empty()) {
+            annotations.emplace(std::string(kAnnotationProcessType), std::string(process_type));
+        }
+        if (!config.session_id.empty()) {
+            annotations.emplace(std::string(kAnnotationSessionId), config.session_id);
+        }
 
         VLOG(1) << "Starting crashpad-handler: " << config.handler_path;
         auto file_path = ::base::FilePath(database_path_.native());
@@ -136,7 +174,75 @@ class CrashSystemImpl : public CrashSystem {
         return absl::OkStatus();
     }
 
-    void UploadEntries(Consent consent) override {
+    // Retrieves crash reports from the database, deduplicated by session ID.
+    //
+    // If multiple crash reports exist for the same session ID, this method
+    // keeps only the most relevant one: it prioritizes crashes from the "qemu"
+    // process, and falls back to keeping the most recent crash if there is a tie.
+    // Reports without a valid session ID annotation are ignored.
+    absl::flat_hash_map<std::string, CrashReportInfo> GetReportsBySession() override {
+        CrashReportDatabase* db = database_.get();
+        std::unique_ptr<CrashReportDatabase> transient_db;
+        if (db == nullptr) {
+            const fs::path target_dir =
+                    !database_path_.empty()
+                            ? database_path_
+                            : (!configured_database_directory_.empty()
+                                       ? configured_database_directory_
+                                       : DatabaseDirectory());
+            auto db_dir = android::base::file::make_absolute(target_dir);
+            if (!db_dir.ok() || !android::base::file::is_dir(*db_dir)) {
+                return {};
+            }
+            transient_db = CrashReportDatabase::InitializeWithoutCreating(
+                    ::base::FilePath(db_dir->native()));
+            db = transient_db.get();
+            if (db == nullptr) {
+                return {};
+            }
+        }
+
+        // Rank reports to prioritize crashes from the "qemu" process.
+        // If there is a tie (both are "qemu" or both are not),
+        // fall back to keeping the most recently created report.
+        const auto rank = [](const CrashReportInfo& r) {
+            return std::pair{r.process_type == ProcessType::kQemu, r.creation_time};
+        };
+
+        absl::flat_hash_map<std::string, CrashReportInfo> by_session;
+        for (const auto& report : GetAllReports(*db)) {
+            const fs::path minidump_path(report.file_path.value());
+            auto params = ReadMinidumpAnnotations(minidump_path);
+            if (!params.ok()) {
+                LOG(WARNING) << "Skipping unreadable minidump: " << params.status();
+                continue;
+            }
+            const auto session_it = params->find(kAnnotationSessionId);
+            if (session_it == params->end() || session_it->second.empty()) {
+                continue;
+            }
+
+            std::string session_id = std::move(session_it->second);
+            CrashReportInfo info{
+                .uuid = report.uuid.ToString(),
+                .creation_time = report.creation_time,
+                .minidump_path = minidump_path,
+            };
+            if (const auto proc_it = params->find(kAnnotationProcessType);
+                proc_it != params->end()) {
+                info.process_type = ParseProcessType(proc_it->second);
+            }
+
+            const auto [where, inserted] = by_session.insert({std::move(session_id), {}});
+            if (inserted || (rank(info) >= rank(where->second))) {
+                where->second = std::move(info);
+            }
+        }
+        return by_session;
+    }
+
+    void UploadEntries(Consent consent,
+                       const absl::flat_hash_set<std::string>& retain_session_ids) override {
         if (!database_ || !initialized_) {
             LOG(INFO) << "Crash database unavailable, or not initialized, we will not report any "
                          "crashes.";
@@ -152,6 +258,18 @@ class CrashSystemImpl : public CrashSystem {
 
         std::vector<crashpad::UUID> to_remove;
         for (const auto& report : GetAllReports(*database_)) {
+            if (!retain_session_ids.empty()) {
+                const auto params = ReadMinidumpAnnotations(fs::path(report.file_path.value()));
+                if (params.ok()) {
+                    if (const auto it = params->find(kAnnotationSessionId);
+                        it != params->end() && retain_session_ids.contains(it->second)) {
+                        continue;
+                    }
+                } else {
+                    LOG(WARNING) << "Failed to read minidump annotations during upload check: "
+                                 << params.status();
+                }
+            }
             if (!report.uploaded) {
                 switch (consent) {
                 case Consent::ALWAYS: {
@@ -230,6 +348,7 @@ class CrashSystemImpl : public CrashSystem {
 
     std::unique_ptr<crashpad::CrashpadClient> client_;
     std::shared_ptr<CrashReportDatabase> database_;
+    fs::path configured_database_directory_;
     fs::path database_path_;
     bool initialized_{false};
 };
@@ -238,11 +357,13 @@ constexpr std::string_view kCrashpadDatabase = "emu-dev-crash-" VERSION ".db";
 // Owner-only, because minidumps contain process memory.
 constexpr unsigned kDatabaseDirectoryMode = 0700;
 
-CrashSystem::Config CrashSystem::Config::FromEnv() {
+CrashSystem::Config CrashSystem::Config::FromEnv(ProcessType process_type) {
     auto* sys = System::Get();
     return Config{
         .handler_path = sys->EnvGet(kCrashpadHandlerEnvVar),
         .database_directory = DatabaseDirectory(),
+        .process_type = process_type,
+        .session_id = sys->EnvGet(kMetricsSessionIdEnvVar),
     };
 }
 
@@ -280,6 +401,23 @@ absl::StatusOr<fs::path> CrashSystem::EnsureDatabaseDirectory(const fs::path& da
             absl::StrCat("Crash report database path '", absolute_path->string(),
                          "' exists but is not a directory. Remove it or set ",
                          kCrashDatabaseEnvVar, " to a directory."));
+}
+
+absl::StatusOr<absl::flat_hash_map<std::string, std::string>> CrashSystem::ReadMinidumpAnnotations(
+        const fs::path& minidump_path) {
+    crashpad::FileReader reader;
+    if (!reader.Open(::base::FilePath(minidump_path.native()))) {
+        return absl::NotFoundError(
+                absl::StrCat("Cannot open minidump file '", minidump_path.string(), "'."));
+    }
+    crashpad::ProcessSnapshotMinidump snapshot;
+    if (!snapshot.Initialize(&reader)) {
+        return absl::DataLossError(
+                absl::StrCat("Cannot parse minidump file '", minidump_path.string(), "'."));
+    }
+    auto params = crashpad::BreakpadHTTPFormParametersFromMinidump(&snapshot);
+    return absl::flat_hash_map<std::string, std::string>(std::make_move_iterator(params.begin()),
+                                                         std::make_move_iterator(params.end()));
 }
 
 std::unique_ptr<CrashSystem> CrashSystem::Create() {

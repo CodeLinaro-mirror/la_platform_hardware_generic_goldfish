@@ -24,6 +24,7 @@
 
 #include "android/base/bazel_info.h"
 #include "android/crashreport/breadcrumb.h"
+#include "android/crashreport/crash_reporter.h"
 #include "android/crashreport/crash_system.h"
 #ifdef _WIN32
 #include <windows.h>
@@ -41,9 +42,12 @@
 #include "absl/log/log.h"
 
 // Declare flags using ABSL_FLAG
-ABSL_FLAG(std::string, dll, "", "Path to the DLL to load.");  // Default: empty string
-ABSL_FLAG(bool, nocrash, false, "Disable crash handling.");   // Default: false
-ABSL_FLAG(int, delay_ms, 0, "Delay in milliseconds.");        // Default: 0
+ABSL_FLAG(std::string, dll, "", "Path to the DLL to load.");         // Default: empty string
+ABSL_FLAG(bool, nocrash, false, "Disable crash handling.");          // Default: false
+ABSL_FLAG(int, delay_ms, 0, "Delay in milliseconds.");               // Default: 0
+ABSL_FLAG(std::string, process_type, "", "Crashpad process_type.");  // Default: empty string
+ABSL_FLAG(bool, attach_test_annotations, false,
+          "Attach and replace test annotations before crashing.");
 
 using android::base::Bazel;
 
@@ -86,11 +90,30 @@ int main(int argc, char** argv) {
     std::string dll = absl::GetFlag(FLAGS_dll);
     bool nocrash = absl::GetFlag(FLAGS_nocrash);
     int delay_ms = absl::GetFlag(FLAGS_delay_ms);
+    std::string process_type = absl::GetFlag(FLAGS_process_type);
+    bool attach_test_annotations = absl::GetFlag(FLAGS_attach_test_annotations);
+
+    android::crashreport::ProcessType parsed_process_type =
+            android::crashreport::ProcessType::kUnknown;
+    if (process_type == "launcher") {
+        parsed_process_type = android::crashreport::ProcessType::kLauncher;
+    } else if (process_type == "qemu") {
+        parsed_process_type = android::crashreport::ProcessType::kQemu;
+    }
 
     if (auto status = android::crashreport::CrashSystem::Get().Initialize(
-                android::crashreport::CrashSystem::Config::FromEnv());
+                android::crashreport::CrashSystem::Config::FromEnv(parsed_process_type));
         !status.ok()) {
         LOG(WARNING) << "Failed to initialize crash reporting: " << status.message();
+    }
+
+    if (attach_test_annotations) {
+        auto& reporter = android::crashreport::CrashReporter::Get();
+        reporter.SetAnnotation("session_phase", "LAUNCHER");
+        reporter.SetAnnotation("session_phase", "INIT_GENERAL");
+        reporter.SetAnnotation("session_phase", "RUNNING_GENERAL");
+        reporter.SetAnnotation("exit_started", "false");
+        reporter.SetAnnotation("exit_started", "true");
     }
 
     TCRUMB() << "We are just getting started";

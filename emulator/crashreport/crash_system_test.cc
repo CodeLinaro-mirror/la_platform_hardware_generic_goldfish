@@ -41,6 +41,7 @@ using ::android::base::TestSystem;
 using ::android::base::TestTempDir;
 using ::testing::AllOf;
 using ::testing::HasSubstr;
+using ::testing::IsEmpty;
 
 class DisabledCrashReportingSystem : public TestSystem {
   public:
@@ -115,10 +116,13 @@ TEST(CrashSystemTest, ConfigFromEnvReadsChildProcessVariablesWithNonAsciiPaths) 
     const fs::path ascii_or_latin_db = fs::path("/tmp/Télévision/crash.db");
     sys.EnvSet(std::string(kCrashpadHandlerEnvVar), ascii_or_latin_handler.string());
     sys.EnvSet(std::string(kCrashDatabaseEnvVar), ascii_or_latin_db.string());
+    sys.EnvSet(std::string(kMetricsSessionIdEnvVar), "11111111-2222-3333-4444-555555555555");
 
-    CrashSystem::Config config = CrashSystem::Config::FromEnv();
+    CrashSystem::Config config = CrashSystem::Config::FromEnv(ProcessType::kQemu);
     EXPECT_EQ(config.handler_path, ascii_or_latin_handler);
     EXPECT_EQ(config.database_directory, ascii_or_latin_db);
+    EXPECT_EQ(config.process_type, ProcessType::kQemu);
+    EXPECT_EQ(config.session_id, "11111111-2222-3333-4444-555555555555");
 
     // Some Windows CI bots still run Windows Server 2019 (build 10.0.17763),
     // which ignores <activeCodePage>UTF-8</activeCodePage> and falls back to
@@ -131,7 +135,7 @@ TEST(CrashSystemTest, ConfigFromEnvReadsChildProcessVariablesWithNonAsciiPaths) 
         sys.EnvSet(std::string(kCrashpadHandlerEnvVar), utf8_handler.string());
         sys.EnvSet(std::string(kCrashDatabaseEnvVar), utf8_db.string());
 
-        config = CrashSystem::Config::FromEnv();
+        config = CrashSystem::Config::FromEnv(ProcessType::kQemu);
         EXPECT_EQ(config.handler_path, utf8_handler);
         EXPECT_EQ(config.database_directory, utf8_db);
     }
@@ -141,9 +145,21 @@ TEST(CrashSystemTest, InitializeReturnsNotFoundWhenHandlerPathIsEmpty) {
     TestSystem sys("");
     auto crash_system = CrashSystem::Create();
 
-    EXPECT_THAT(crash_system->Initialize({}),
+    EXPECT_THAT(crash_system->Initialize({.process_type = ProcessType::kLauncher}),
                 StatusIs(absl::StatusCode::kNotFound, HasSubstr(kCrashpadHandlerEnvVar)));
     EXPECT_FALSE(crash_system->Active());
+}
+
+TEST(CrashSystemTest, ReadMinidumpAnnotationsReturnsErrorOnMissingOrInvalidFile) {
+    TestTempDir temp_dir("crash_system_minidump_test");
+    const fs::path missing_file = temp_dir.Path() / "missing.dmp";
+    EXPECT_THAT(CrashSystem::ReadMinidumpAnnotations(missing_file),
+                StatusIs(absl::StatusCode::kNotFound, HasSubstr(missing_file.string())));
+
+    ASSERT_TRUE(temp_dir.MakeSubFile("corrupt.dmp"));
+    const fs::path corrupt_file = temp_dir.Path() / "corrupt.dmp";
+    EXPECT_THAT(CrashSystem::ReadMinidumpAnnotations(corrupt_file),
+                StatusIs(absl::StatusCode::kDataLoss, HasSubstr(corrupt_file.string())));
 }
 
 TEST(CrashSystemTest, InitializeSucceedsInactiveWhenCrashReportingDisabled) {
@@ -154,6 +170,7 @@ TEST(CrashSystemTest, InitializeSucceedsInactiveWhenCrashReportingDisabled) {
 
     EXPECT_THAT(crash_system->Initialize({.database_directory = missing_db}), IsOk());
     EXPECT_FALSE(crash_system->Active());
+    EXPECT_THAT(crash_system->GetReportsBySession(), IsEmpty());
 }
 
 }  // namespace
