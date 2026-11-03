@@ -272,7 +272,9 @@ extern "C" void GF_STARTUP_FUNC(int argc, char** argv) {
     VLOG(1) << "Goldfish plugin version: " << goldfish::version::GetEmulatorFullVersion();
     // The plugin crash system should never try to upload - that should only be
     // done by the launcher.
-    if (auto status = android::crashreport::CrashSystem::get().initialize(); !status.ok()) {
+    if (auto status = android::crashreport::CrashSystem::Get().Initialize(
+                android::crashreport::CrashSystem::Config::FromEnv());
+        !status.ok()) {
         LOG(WARNING) << "Failed to initialize crashreporting: " << status.message();
     }
 

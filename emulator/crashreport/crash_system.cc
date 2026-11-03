@@ -14,10 +14,15 @@
 
 #include "android/crashreport/crash_system.h"
 
+#include <chrono>
+#include <filesystem>
+#include <iterator>
 #include <map>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <thread>
+#include <utility>
 #include <vector>
 
 #include "absl/status/status.h"
@@ -46,6 +51,8 @@ using crashpad::CrashReportDatabase;
 
 namespace android::crashreport {
 
+namespace fs = std::filesystem;
+
 #ifndef CRASHURL
 #error "You must define CRASHURL to be the URL you want to upload crash reports to."
 #endif
@@ -53,11 +60,11 @@ constexpr char kCrashUrl[] = CRASHURL;
 
 class CrashSystemImpl : public CrashSystem {
   public:
-    CrashSystemImpl() : client_(new crashpad::CrashpadClient()) {}
+    CrashSystemImpl() : client_(std::make_unique<crashpad::CrashpadClient>()) {}
 
-    bool active() const override { return initialized_; }
+    bool Active() const override { return initialized_; }
 
-    absl::Status initialize() override {
+    absl::Status Initialize(const Config& config) override {
         if (initialized_) {
             return absl::FailedPreconditionError("Crash reporting is already initialized.");
         }
@@ -67,13 +74,15 @@ class CrashSystemImpl : public CrashSystem {
             return absl::OkStatus();
         }
 
-        auto handler_path = handlerExe();
-        if (handler_path.empty()) {
-            return absl::NotFoundError(
-                    "Crash handler not found. Set AEMU_CRASHPAD_HANDLER to the crashpad_handler "
-                    "executable.");
+        if (config.handler_path.empty()) {
+            return absl::NotFoundError(absl::StrCat(
+                    "Crash handler not found. Pass CrashSystem::Config::handler_path or set ",
+                    kCrashpadHandlerEnvVar, " to the crashpad_handler executable."));
         }
-        auto database_path = ensureDatabaseDirectory(databaseDirectory());
+        const fs::path raw_database_dir = config.database_directory.empty()
+                                                  ? DatabaseDirectory()
+                                                  : config.database_directory;
+        auto database_path = EnsureDatabaseDirectory(raw_database_dir);
         if (!database_path.ok()) {
             return database_path.status();
         }
@@ -83,7 +92,7 @@ class CrashSystemImpl : public CrashSystem {
             {"prod", "AndroidEmulator"},
             {"ver", std::string(goldfish::version::GetEmulatorFullVersion())}};
 
-        VLOG(1) << "Starting crashpad-handler: " << handler_path;
+        VLOG(1) << "Starting crashpad-handler: " << config.handler_path;
         auto file_path = ::base::FilePath(database_path_.native());
         std::vector<std::string> args = {"--no-rate-limit"};
 #ifdef __APPLE__
@@ -97,12 +106,13 @@ class CrashSystemImpl : public CrashSystem {
             crashpad_info->set_gather_indirectly_referenced_memory(crashpad::TriState::kDisabled,
                                                                    0);
         }
-        const bool active = client_->StartHandler(::base::FilePath(handler_path.native()),
+        const bool active = client_->StartHandler(::base::FilePath(config.handler_path.native()),
                                                   file_path, metrics_path, kCrashUrl, annotations,
                                                   std::move(args), true, false);
 
         VLOG(1) << "Status of handler: " << (active ? "active" : "inactive");
-        database_ = CrashReportDatabase::Initialize(file_path);
+        database_ =
+                std::shared_ptr<CrashReportDatabase>(CrashReportDatabase::Initialize(file_path));
         initialized_ = active && database_;
 
         if (database_ && database_->GetSettings()) {
@@ -113,7 +123,7 @@ class CrashSystemImpl : public CrashSystem {
         // StartHandler() and CrashReportDatabase::Initialize() do not say why they failed.
         if (!active) {
             return absl::UnknownError(absl::StrCat(
-                    "crashpad_handler '", handler_path.string(),
+                    "crashpad_handler '", config.handler_path.string(),
                     "' did not start for crash report database '", database_path_.string(),
                     "'. Verify that the executable exists, has execute permissions, and its "
                     "dependencies can be resolved."));
@@ -126,49 +136,40 @@ class CrashSystemImpl : public CrashSystem {
         return absl::OkStatus();
     }
 
-    void uploadEntries(const Consent consent) override {
+    void UploadEntries(Consent consent) override {
         if (!database_ || !initialized_) {
             LOG(INFO) << "Crash database unavailable, or not initialized, we will not report any "
                          "crashes.";
             return;
         }
 
-        const std::string message = database_path_.string();
-        LOG(INFO) << "Storing crashdata in: " << message << ", detection is "
+        LOG(INFO) << "Storing crashdata in: " << database_path_.string() << ", detection is "
                   << (initialized_ ? "enabled" : "disabled")
                   << " for process: " << base::Process::Me()->pid();
-
-        const bool are_uploads_enabled = (consent == Consent::ALWAYS);
-        if (database_ && are_uploads_enabled) {
-            LOG(INFO) << "Crash reports will be automatically uploaded to: " << kCrashUrl;
-            database_->GetSettings()->SetUploadsEnabled(are_uploads_enabled);
+        if (consent == Consent::ALWAYS) {
+            LOG(INFO) << "Crash reports will be uploaded to: " << kCrashUrl;
         }
 
-        // Get consent for any report that was not yet uploaded.
         std::vector<crashpad::UUID> to_remove;
-        std::vector<CrashReportDatabase::Report> reports;
-        std::vector<CrashReportDatabase::Report> pending_reports;
-        database_->GetCompletedReports(&reports);
-        database_->GetPendingReports(&pending_reports);
-        reports.insert(reports.end(), pending_reports.begin(), pending_reports.end());
-
-        auto status =
-                consent == Consent::ALWAYS ? ReportAction::UPLOAD_REMOVE : ReportAction::REMOVE;
-        for (const auto& report : reports) {
+        for (const auto& report : GetAllReports(*database_)) {
             if (!report.uploaded) {
-                switch (status) {
-                case ReportAction::UPLOAD_REMOVE: {
-                    std::thread upload([this, report]() { ProcessReport(report); });
+                switch (consent) {
+                case Consent::ALWAYS: {
+                    std::shared_ptr<CrashReportDatabase> db = database_;
+                    std::thread upload([db = std::move(db), report]() {
+                        ProcessReport(std::move(db), report);
+                    });
                     upload.detach();
                     break;
                 }
-                case ReportAction::REMOVE:
+                case Consent::NEVER:
                     LOG(INFO) << "No consent for crashreport " << report.uuid.ToString()
                               << ", deleting.";
                     to_remove.push_back(report.uuid);
                     break;
-                case ReportAction::UNDECIDED_KEEP:
-                    LOG(INFO) << "Failed to get consent, keeping " << report.id << " for now.";
+                case Consent::ASK:
+                    LOG(INFO) << "Deferring crashreport " << report.uuid.ToString()
+                              << " until upload consent is configured.";
                     break;
                 }
             } else {
@@ -182,32 +183,42 @@ class CrashSystemImpl : public CrashSystem {
     }
 
   private:
-    void ProcessReport(const CrashReportDatabase::Report& report) {
-        using namespace std::chrono_literals;
-        std::vector<std::chrono::seconds> backoff{0s, 2s, 4s, 8s, 16s, 32s, 64s, 128s, 256s};
-        auto status = UploadResult::kSuccess;
-        auto wait = backoff.begin();
+    static std::vector<CrashReportDatabase::Report> GetAllReports(CrashReportDatabase& db) {
+        std::vector<CrashReportDatabase::Report> reports;
+        std::vector<CrashReportDatabase::Report> pending_reports;
+        db.GetCompletedReports(&reports);
+        db.GetPendingReports(&pending_reports);
+        reports.insert(reports.end(), std::make_move_iterator(pending_reports.begin()),
+                       std::make_move_iterator(pending_reports.end()));
+        return reports;
+    }
 
-        database_->GetSettings()->SetUploadsEnabled(true);
-        database_->RequestUpload(report.uuid);
+    static void ProcessReport(std::shared_ptr<CrashReportDatabase> db,
+                              const CrashReportDatabase::Report& report) {
+        using namespace std::chrono_literals;
+        static constexpr std::chrono::seconds kBackoff[] = {0s,  2s,  4s,   8s,  16s,
+                                                            32s, 64s, 128s, 256s};
+        auto status = UploadResult::kSuccess;
         CrashReportDatabase::Report updated_report;
 
-        do {
-            std::this_thread::sleep_for(*wait);
-            database_->LookUpCrashReport(report.uuid, &updated_report);
+        for (const auto delay : kBackoff) {
+            std::this_thread::sleep_for(delay);
+            db->LookUpCrashReport(report.uuid, &updated_report);
             LOG(INFO) << "Attempting to send crashreport " << updated_report.uuid.ToString()
                       << " to " << kCrashUrl;
             if (!updated_report.uploaded) {
-                status = ProcessPendingReport(database_.get(), report);
+                db->RequestUpload(report.uuid);
+                status = ProcessPendingReport(db.get(), report);
             } else {
                 status = UploadResult::kSuccess;
             }
-            ++wait;
-        } while (status == UploadResult::kRetry && wait != backoff.end());
+            if (status != UploadResult::kRetry) {
+                break;
+            }
+        }
 
         if (status == UploadResult::kSuccess) {
-            // We should have a report id, fetch it!
-            if (database_->LookUpCrashReport(report.uuid, &updated_report) ==
+            if (db->LookUpCrashReport(report.uuid, &updated_report) ==
                 CrashReportDatabase::OperationStatus::kNoError) {
                 LOG(INFO) << "Report " << updated_report.uuid.ToString()
                           << " is available remotely as: " << updated_report.id;
@@ -218,25 +229,32 @@ class CrashSystemImpl : public CrashSystem {
     }
 
     std::unique_ptr<crashpad::CrashpadClient> client_;
-    std::unique_ptr<CrashReportDatabase> database_;
+    std::shared_ptr<CrashReportDatabase> database_;
     fs::path database_path_;
     bool initialized_{false};
 };
 
-const constexpr std::string_view kCrashpadDatabase = "emu-dev-crash-" VERSION ".db";
-constexpr char kDatabaseEnvVar[] = "ANDROID_EMU_CRASH_REPORTING_DATABASE";
+constexpr std::string_view kCrashpadDatabase = "emu-dev-crash-" VERSION ".db";
 // Owner-only, because minidumps contain process memory.
 constexpr unsigned kDatabaseDirectoryMode = 0700;
 
-fs::path CrashSystem::databaseDirectory() {
-    if (auto database_directory = System::Get()->EnvGet(kDatabaseEnvVar);
+CrashSystem::Config CrashSystem::Config::FromEnv() {
+    auto* sys = System::Get();
+    return Config{
+        .handler_path = sys->EnvGet(kCrashpadHandlerEnvVar),
+        .database_directory = DatabaseDirectory(),
+    };
+}
+
+fs::path CrashSystem::DatabaseDirectory() {
+    if (auto database_directory = System::Get()->EnvGet(kCrashDatabaseEnvVar);
         !database_directory.empty()) {
-        return {database_directory};
+        return database_directory;
     }
     return System::Get()->GetTempDir() / kCrashpadDatabase;
 }
 
-absl::StatusOr<fs::path> CrashSystem::ensureDatabaseDirectory(const fs::path& database_path) {
+absl::StatusOr<fs::path> CrashSystem::EnsureDatabaseDirectory(const fs::path& database_path) {
     namespace file = android::base::file;
     // mkdir_recursive() does not create the first component of a relative path.
     auto absolute_path = file::make_absolute(database_path);
@@ -255,24 +273,20 @@ absl::StatusOr<fs::path> CrashSystem::ensureDatabaseDirectory(const fs::path& da
         return absl::Status(created.code(),
                             absl::StrCat("Cannot create crash report database directory '",
                                          absolute_path->string(), "': ", created.message(),
-                                         ". Set ", kDatabaseEnvVar, " to a writable directory."));
+                                         ". Set ", kCrashDatabaseEnvVar,
+                                         " to a writable directory."));
     }
     return absl::FailedPreconditionError(
             absl::StrCat("Crash report database path '", absolute_path->string(),
-                         "' exists but is not a directory. Remove it or set ", kDatabaseEnvVar,
-                         " to a directory."));
+                         "' exists but is not a directory. Remove it or set ",
+                         kCrashDatabaseEnvVar, " to a directory."));
 }
 
-fs::path CrashSystem::handlerExe() {
-    auto from_env = System::GetEnvironmentVariable("AEMU_CRASHPAD_HANDLER");
-    if (from_env.empty()) {
-        LOG(ERROR) << "AEMU_CRASHPAD_HANDLER envvar is empty - unable to locate crashpad_handler";
-    }
-
-    return {from_env};
+std::unique_ptr<CrashSystem> CrashSystem::Create() {
+    return std::make_unique<CrashSystemImpl>();
 }
 
-CrashSystem& CrashSystem::get() {
+CrashSystem& CrashSystem::Get() {
     static CrashSystemImpl s_crash_system;
     return s_crash_system;
 }

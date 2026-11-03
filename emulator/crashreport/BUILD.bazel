@@ -471,6 +471,7 @@ clang_tidy_test(
         ":crash_reporter_test",
         ":crash_reporter_testing",
         ":crash_system",
+        ":crash_system_test",
         ":crash_uploader",
         ":debug",
         ":hang_detector",

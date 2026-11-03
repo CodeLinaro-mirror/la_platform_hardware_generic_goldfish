@@ -422,11 +422,10 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    // CrashSystem::get().initialize() reads AEMU_CRASHPAD_HANDLER from the
-    // launcher's own environment to locate the crashpad_handler executable.
-    android::base::System::SetEnvironmentVariable("AEMU_CRASHPAD_HANDLER",
-                                                  emulator_paths->crashpad_handler_binary.string());
-    if (auto status = android::crashreport::CrashSystem::get().initialize(); !status.ok()) {
+    if (auto status = android::crashreport::CrashSystem::Get().Initialize({
+                .handler_path = emulator_paths->crashpad_handler_binary,
+        });
+        !status.ok()) {
         LOG(WARNING) << "Failed to initialize crashreporting: " << status.message();
     }
 
@@ -472,7 +471,7 @@ int main(int argc, char** argv) {
     auto crash_consent = metrics_writer_config.user_upload_consent
                                  ? android::crashreport::Consent::ALWAYS
                                  : android::crashreport::Consent::NEVER;
-    android::crashreport::CrashSystem::get().uploadEntries(crash_consent);
+    android::crashreport::CrashSystem::Get().UploadEntries(crash_consent);
 
     // This is needed for gfxstream to be able to load GL libs.
     // TODO: consider moving this to gfxstream itself via the ANDROID_EMULATOR_LIBRARY_DIR env var.

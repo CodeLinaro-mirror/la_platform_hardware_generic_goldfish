@@ -13,7 +13,12 @@
 // limitations under the License.
 #include <gtest/gtest.h>
 
+#include <chrono>
 #include <filesystem>
+#include <memory>
+#include <sstream>
+#include <string>
+#include <vector>
 
 #include "absl/log/globals.h"
 #include "absl/log/log.h"
@@ -35,7 +40,6 @@ using android::base::TestTempDir;
 using crashpad::CrashReportDatabase;
 
 namespace fs = std::filesystem;
-const constexpr char kCrashpadDatabase[] = "emu-dev-test-crash.db";
 
 const std::string kCrashMe = "crash-me";
 using android::crashreport::CrashSystem;
@@ -43,11 +47,18 @@ using android::crashreport::CrashSystem;
 class CrashTest : public ::testing::Test {
   protected:
     void SetUp() override {
+#ifdef _WIN32
+        // TODO(whollins,b/449212254): Fix this.
+        GTEST_SKIP() << "crash report generation is currently broken on windows";
+#endif
         absl::SetVLogLevel("*", 1);
         mTempDir = std::make_unique<TestTempDir>("crash_test_db");
-        System::SetEnvironmentVariable("ANDROID_EMU_CRASH_REPORTING_DATABASE",
-                                       mTempDir->PathString());
+        mDbPath = mTempDir->Path() / "测试_🚀_é" / "db";
+        std::filesystem::create_directories(mDbPath);
+        System::Get()->EnvSet(std::string(android::crashreport::kCrashDatabaseEnvVar),
+                              mDbPath.string());
         mCrashdatabase = InitializeCrashDatabase();
+        ASSERT_NE(mCrashdatabase, nullptr);
         deleteReports();
     }
 
@@ -55,17 +66,23 @@ class CrashTest : public ::testing::Test {
         deleteReports();
         mCrashdatabase.reset();
         mTempDir.reset();
-        System::SetEnvironmentVariable("ANDROID_EMU_CRASH_REPORTING_DATABASE", "");
+        System::Get()->EnvSet(std::string(android::crashreport::kCrashDatabaseEnvVar), "");
     }
 
-    void deleteReports() {
-        std::vector<crashpad::CrashReportDatabase::Report> reports;
-        std::vector<crashpad::CrashReportDatabase::Report> pendingReports;
+    std::vector<CrashReportDatabase::Report> getAllReports() {
+        if (!mCrashdatabase) {
+            return {};
+        }
+        std::vector<CrashReportDatabase::Report> reports;
+        std::vector<CrashReportDatabase::Report> pendingReports;
         mCrashdatabase->GetCompletedReports(&reports);
         mCrashdatabase->GetPendingReports(&pendingReports);
         reports.insert(reports.end(), pendingReports.begin(), pendingReports.end());
+        return reports;
+    }
 
-        for (const auto& report : reports) {
+    void deleteReports() {
+        for (const auto& report : getAllReports()) {
             LOG(INFO) << "Deleting crash report: " << report.uuid.ToString();
             mCrashdatabase->DeleteReport(report.uuid);
         }
@@ -74,72 +91,58 @@ class CrashTest : public ::testing::Test {
     std::unique_ptr<CrashReportDatabase> InitializeCrashDatabase() {
         if (Bazel::InBazel()) {
             auto crashpad_handler = Bazel::RunfilesPath("crashpad+/handler/crashpad_handler");
-            LOG(INFO) << "Using AEMU_CRASHPAD_HANDLER:" << crashpad_handler;
-            System::SetEnvironmentVariable("AEMU_CRASHPAD_HANDLER", crashpad_handler);
+            LOG(INFO) << "Using " << android::crashreport::kCrashpadHandlerEnvVar << ":"
+                      << crashpad_handler;
+            System::Get()->EnvSet(std::string(android::crashreport::kCrashpadHandlerEnvVar),
+                                  crashpad_handler);
         }
 
-        auto handler_path = CrashSystem::handlerExe();
-        auto database_path = CrashSystem::databaseDirectory();
+        auto database_path = CrashSystem::DatabaseDirectory();
         auto crashDatabase =
                 crashpad::CrashReportDatabase::Initialize(base::FilePath(database_path));
-        crashDatabase->GetSettings()->SetUploadsEnabled(false);
+        if (crashDatabase && crashDatabase->GetSettings()) {
+            crashDatabase->GetSettings()->SetUploadsEnabled(false);
+        }
 
         return crashDatabase;
     }
 
-    void crash() {
+    void crash(const std::vector<std::string>& extra_args = {}) {
         fs::path executable = Bazel::RunfilesPath("goldfish+/emulator/crashreport/crash-me");
         if (!Bazel::InBazel()) {
             GTEST_SKIP() << "This test can only be run under Bazel";
         }
+        std::vector<std::string> args = {executable.string(), "--delay_ms", "0"};
+        args.insert(args.end(), extra_args.begin(), extra_args.end());
         std::basic_stringbuf<char> std_err;
-        auto proc = Command::Create({executable.string(), "--delay_ms", "0"})
-                            .Inherit()
-                            .RedirectStderrToUnsafe(&std_err)
-                            .Execute();
+        auto proc = Command::Create(args).Inherit().RedirectStderrToUnsafe(&std_err).Execute();
         proc->WaitFor(std::chrono::seconds(10));
         auto res = proc->Err()->AsString();
         if (!res.empty()) LOG(INFO) << "Crash results: " << res;
     }
 
+    bool waitForNewReportCount(size_t before) {
+        auto deadline = absl::Now() + absl::Seconds(15);
+        while (absl::Now() < deadline) {
+            absl::SleepFor(absl::Milliseconds(100));
+            const size_t after = getAllReports().size();
+            if (after > before) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     std::unique_ptr<TestTempDir> mTempDir;
+    fs::path mDbPath;
     std::unique_ptr<CrashReportDatabase> mCrashdatabase;
 };
 
 TEST_F(CrashTest, crash_generates_minidump) {
-#ifdef _WIN32
-    // TODO(whollins,b/449212254): Fix this.
-    GTEST_SKIP() << "crash report generation is currently broken on windows";
-#endif
-    std::vector<CrashReportDatabase::Report> reports;
-    std::vector<CrashReportDatabase::Report> pendingReports;
-    mCrashdatabase->GetCompletedReports(&reports);
-    mCrashdatabase->GetPendingReports(&pendingReports);
-
-    auto before = reports.size() + pendingReports.size();
-
+    const size_t before = getAllReports().size();
     LOG(INFO) << "Starting of with " << before << " crashes in the db";
     crash();
 
-    int after = 0;
-    auto deadline = absl::Now() + absl::Seconds(15);
-    while (absl::Now() < deadline) {
-        // Let's give the crash handler some time to write to the database.
-        absl::SleepFor(absl::Milliseconds(100));
-        std::vector<CrashReportDatabase::Report> newReports;
-        std::vector<CrashReportDatabase::Report> newPendingReports;
-        mCrashdatabase->GetCompletedReports(&newReports);
-        mCrashdatabase->GetPendingReports(&newPendingReports);
-        after = newReports.size() + newPendingReports.size();
-        LOG_EVERY_N_SEC(INFO, 1) << "Currently have " << after << " crashes in the db";
-        if (after > before) {
-            break;
-        }
-    }
-
-    EXPECT_GT(after, before) << "The database should have recorded an additional crash!";
-}
-
-TEST_F(CrashTest, minidump_is_usable) {
-    // TODO: This requires us to binplace all the .sym files ourselves.
+    EXPECT_TRUE(waitForNewReportCount(before))
+            << "The database should have recorded an additional crash!";
 }
