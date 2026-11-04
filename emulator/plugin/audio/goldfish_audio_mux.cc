@@ -144,30 +144,19 @@ class QemuHostAudioAdapter final : public HostAudioInputInterface {
         const char* voice_name =
                 (name != nullptr && name[0] != '\0') ? name : kDefaultInputVoiceName;
         const audsettings as = ToQemuAudSettings(config);
-        if (existing != nullptr) {
-            auto* ctx = static_cast<HostVoiceContext*>(existing);
-            ctx->on_host_data = std::move(on_host_data);
-            SWVoiceIn* reopened = hk->open_in(host_be_, ctx->host_sw, voice_name, ctx,
-                                              &HostVoiceContext::OnHostCallbackStatic, &as);
-            if (!reopened) {
-                // QEMU's audio_mixeng_backend_open_in closes the previous SWVoiceIn on every
-                // failure path before returning nullptr; calling hk->close_in here would
-                // double-free ctx->host_sw.
-                delete ctx;
-                return nullptr;
-            }
-            ctx->host_sw = reopened;
-            return ctx;
-        }
-
-        auto ctx = std::make_unique<HostVoiceContext>();
+        std::unique_ptr<HostVoiceContext> ctx(existing != nullptr
+                                                      ? static_cast<HostVoiceContext*>(existing)
+                                                      : new HostVoiceContext());
         ctx->on_host_data = std::move(on_host_data);
-        SWVoiceIn* created = hk->open_in(host_be_, nullptr, voice_name, ctx.get(),
-                                         &HostVoiceContext::OnHostCallbackStatic, &as);
-        if (!created) {
+        SWVoiceIn* opened = hk->open_in(host_be_, ctx->host_sw, voice_name, ctx.get(),
+                                        &HostVoiceContext::OnHostCallbackStatic, &as);
+        if (!opened) {
+            // QEMU's audio_mixeng_backend_open_in closes the previous SWVoiceIn on every
+            // failure path before returning nullptr; calling hk->close_in here would
+            // double-free ctx->host_sw.
             return nullptr;
         }
-        ctx->host_sw = created;
+        ctx->host_sw = opened;
         return ctx.release();
     }
 
