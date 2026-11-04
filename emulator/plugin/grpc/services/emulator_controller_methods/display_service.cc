@@ -78,7 +78,6 @@ using ::goldfish::sensors::PhysicalModel;
 using ::goldfish::sensors::PhysicalModelChangeEvent;
 
 using DeviceRotation = ::goldfish::physics::Rotation;
-using DeviceSkinRotation = ::goldfish::physics::SkinRotation;
 using ProtoRotation = android::emulation::control::Rotation;
 
 static void FirePostureNotification(FoldablePostures posture) {
@@ -167,28 +166,28 @@ PixelFormat PixelFormatFromProtobuf(const ImageFormat_ImgFormat format) {
     }
 }
 
-ProtoRotation toProtobufRotation(const DeviceRotation& rotation) {
-    ProtoRotation protoRotation;
-    switch (rotation.rotation) {
-    case DeviceSkinRotation::kPortrait:
-        protoRotation.set_rotation(ProtoRotation::PORTRAIT);
+ProtoRotation ToProtobufRotation(const DeviceRotation& rotation, ImageRotation image_rotation) {
+    ProtoRotation proto_rotation;
+    switch (image_rotation) {
+    case ImageRotation::kRotation0:
+        proto_rotation.set_rotation(ProtoRotation::PORTRAIT);
         break;
-    case DeviceSkinRotation::kLandscape:
-        protoRotation.set_rotation(ProtoRotation::LANDSCAPE);
+    case ImageRotation::kRotation90:
+        proto_rotation.set_rotation(ProtoRotation::LANDSCAPE);
         break;
-    case DeviceSkinRotation::kReversePortrait:
-        protoRotation.set_rotation(ProtoRotation::REVERSE_PORTRAIT);
+    case ImageRotation::kRotation180:
+        proto_rotation.set_rotation(ProtoRotation::REVERSE_PORTRAIT);
         break;
-    case DeviceSkinRotation::kReverseLandscape:
-        protoRotation.set_rotation(ProtoRotation::REVERSE_LANDSCAPE);
+    case ImageRotation::kRotation270:
+        proto_rotation.set_rotation(ProtoRotation::REVERSE_LANDSCAPE);
         break;
     }
 
-    protoRotation.set_xaxis(static_cast<double>(rotation.x_axis));
-    protoRotation.set_yaxis(static_cast<double>(rotation.y_axis));
-    protoRotation.set_zaxis(static_cast<double>(rotation.z_axis));
+    proto_rotation.set_xaxis(static_cast<double>(rotation.x_axis));
+    proto_rotation.set_yaxis(static_cast<double>(rotation.y_axis));
+    proto_rotation.set_zaxis(static_cast<double>(rotation.z_axis));
 
-    return protoRotation;
+    return proto_rotation;
 }
 
 static uint8_t* StandardAllocator(Image* img, size_t size) {
@@ -277,12 +276,11 @@ Status DisplayServiceImpl::streamScreenshot(ServerContext* context, const ImageF
     if (hw_sensor_hinge) {
         for (uint32_t id = 0; id < aux_listeners.size(); ++id) {
             if (auto screen = mMultiDisplay.GetDisplay(id); screen.ok()) {
-                if (auto aux_display = screen->lock();
-                    aux_display && aux_display != display) {
+                if (auto aux_display = screen->lock(); aux_display && aux_display != display) {
                     aux_listeners[id] = {
-                            .display = aux_display,
-                            .listener = aux_display->AddFrameListener(
-                                    [&bump_aux_seq](const FrameEvent&) { bump_aux_seq(); }),
+                        .display = aux_display,
+                        .listener = aux_display->AddFrameListener(
+                                [&bump_aux_seq](const FrameEvent&) { bump_aux_seq(); }),
                     };
                 }
             }
@@ -451,8 +449,6 @@ Status DisplayServiceImpl::getScreenshot(ServerContext* /*context*/, const Image
     }
     auto display = *res;
 
-    const DeviceRotation device_rotation = mPhysicalModel.GetDeviceRotation();
-
     FramePtr frame;
     {
         TRACE_EVENT("display", "WaitForFrameArrival");
@@ -514,8 +510,8 @@ Status DisplayServiceImpl::getScreenshot(ServerContext* /*context*/, const Image
                     req, [&](const ReadLayout& layout) -> absl::StatusOr<Rgba8888Target> {
                         rgba.emplace(::goldfish::display::AcquireScratchBuffer(layout.total_bytes));
                         return Rgba8888Target{
-                                .plane = Plane{
-                                        .data = absl::MakeSpan(rgba->data(), layout.total_bytes)}};
+                            .plane = Plane{
+                                .data = absl::MakeSpan(rgba->data(), layout.total_bytes)}};
                     });
         }
         if (!dims.ok()) {
@@ -561,7 +557,8 @@ Status DisplayServiceImpl::getScreenshot(ServerContext* /*context*/, const Image
     out_format->set_height(static_cast<int>(out_dims.height));
     out_format->set_format(request->format());
     out_format->set_display(display->Id());
-    *out_format->mutable_rotation() = toProtobufRotation(device_rotation);
+    const DeviceRotation device_rotation = mPhysicalModel.GetDeviceRotation();
+    *out_format->mutable_rotation() = ToProtobufRotation(device_rotation, rotation);
 
     const FrameEvent& ev = frame->event();
     const absl::Time ts = (ev.capture_time == absl::InfinitePast()) ? absl::Now() : ev.capture_time;
@@ -726,10 +723,9 @@ Status DisplayServiceImpl::setDisplayMode(ServerContext* context, const DisplayM
     }
 
     const uint32_t requested_mode_id = static_cast<uint32_t>(request->value());
-    const auto it = std::find_if(resizable_configs_.begin(), resizable_configs_.end(),
-                                 [requested_mode_id](const auto& rc) {
-                                     return rc.id == requested_mode_id;
-                                 });
+    const auto it = std::find_if(
+            resizable_configs_.begin(), resizable_configs_.end(),
+            [requested_mode_id](const auto& rc) { return rc.id == requested_mode_id; });
     if (it == resizable_configs_.end()) {
         return Status(grpc::StatusCode::INVALID_ARGUMENT, "Invalid display mode.");
     }
