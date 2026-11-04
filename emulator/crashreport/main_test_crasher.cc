@@ -19,6 +19,7 @@
 #include <chrono>
 #include <cstdlib>
 #include <cstring>
+#include <string>
 #include <thread>
 
 #include "android/base/bazel_info.h"
@@ -86,7 +87,9 @@ int main(int argc, char** argv) {
     bool nocrash = absl::GetFlag(FLAGS_nocrash);
     int delay_ms = absl::GetFlag(FLAGS_delay_ms);
 
-    if (auto status = android::crashreport::CrashSystem::get().initialize(); !status.ok()) {
+    if (auto status = android::crashreport::CrashSystem::Get().Initialize(
+                android::crashreport::CrashSystem::Config::FromEnv());
+        !status.ok()) {
         LOG(WARNING) << "Failed to initialize crash reporting: " << status.message();
     }
 

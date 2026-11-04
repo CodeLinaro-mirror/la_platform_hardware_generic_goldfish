@@ -30,8 +30,8 @@ namespace crashreport {
 bool CrashReportManager::Initialize() {
     if (mDb) return true;  // Already initialized
 
-    auto database_path = android::crashreport::CrashSystem::ensureDatabaseDirectory(
-            android::crashreport::CrashSystem::databaseDirectory());
+    auto database_path = android::crashreport::CrashSystem::EnsureDatabaseDirectory(
+            android::crashreport::CrashSystem::DatabaseDirectory());
     if (!database_path.ok()) {
         LOG(ERROR) << "Failed to prepare crash database directory: " << database_path.status();
         return false;
