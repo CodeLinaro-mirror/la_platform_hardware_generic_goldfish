@@ -312,8 +312,7 @@ android_studio::EmulatorDetails::VulkanIcd GetVulkanIcd(std::string_view vk_icd)
 void FillDetails(android_studio::EmulatorDetails& details, const Avd& avd,
                  const FeatureFlags& feature_flags, long launcher_pid, long qemu_pid,
                  bool metrics_collection_opt, bool fuchsia_opt, bool openglAlive,
-                 std::string_view vk_icd, std::span<const VulkanGpuDeviceInfo> host_gpus,
-                 const std::optional<VulkanGpuDeviceInfo>& selected_gpu) {
+                 const ::goldfish::gpu::GpuSelection& gpu_selection) {
     FillAvdInfo(*details.mutable_avd_info(), avd);
     FillFeatureFlagState(*details.mutable_feature_flag_state(), feature_flags);
 
@@ -339,13 +338,12 @@ void FillDetails(android_studio::EmulatorDetails& details, const Avd& avd,
         }
     }*/
 
-    details.set_vulkan_icd(GetVulkanIcd(vk_icd));
+    details.set_vulkan_icd(GetVulkanIcd(gpu_selection.vulkan_icd));
 
     int i = 0;
-    for (const auto& gpu : host_gpus) {
+    for (const auto& gpu : gpu_selection.host_gpus) {
         const auto& props = gpu.properties;
-        const std::string_view device_name(props.deviceName,
-                                           strnlen(props.deviceName, sizeof(props.deviceName)));
+        const std::string_view device_name = gpu.DeviceName();
         VLOG(1) << absl::StrFormat(
                 "Found Vulkan device: %d: name: '%s', apiVersion: %d.%d.%d, vendorID: 0x%x, "
                 "deviceID: 0x%x, driverVersion: 0x%x",
@@ -364,10 +362,9 @@ void FillDetails(android_studio::EmulatorDetails& details, const Avd& avd,
                                              VK_API_VERSION_PATCH(props.apiVersion)));
     }
 
-    if (selected_gpu.has_value()) {
-        const auto& props = selected_gpu->properties;
-        const std::string_view device_name(props.deviceName,
-                                           strnlen(props.deviceName, sizeof(props.deviceName)));
+    if (gpu_selection.selected_gpu.has_value()) {
+        const auto& props = gpu_selection.selected_gpu->properties;
+        const std::string_view device_name = gpu_selection.selected_gpu->DeviceName();
         auto* vkGpu = details.mutable_active_vulkan_host_gpu();
         vkGpu->set_vendor_id(static_cast<int32_t>(props.vendorID));
         vkGpu->set_device_id(static_cast<int32_t>(props.deviceID));
@@ -381,7 +378,8 @@ void FillDetails(android_studio::EmulatorDetails& details, const Avd& avd,
         }
         vkGpu->set_api_version(static_cast<int32_t>(props.apiVersion));
         vkGpu->set_driver_version(static_cast<int32_t>(props.driverVersion));
-        vkGpu->set_gpu_memory(static_cast<int64_t>(selected_gpu->device_local_memory_bytes));
+        vkGpu->set_gpu_memory(
+                static_cast<int64_t>(gpu_selection.selected_gpu->device_local_memory_bytes));
         vkGpu->set_device_name(std::string(device_name));
     }
 
@@ -425,9 +423,8 @@ android_studio::ProductDetails::SoftwareLifeCycleChannel ToProductChannel(
 
 void FillEmulatorHostEvent(android_studio::AndroidStudioEvent& event, const Avd& avd,
                            const FeatureFlags& feature_flags, long launcher_pid, long qemu_pid,
-                           bool metrics_collection_opt, bool fuchsia_opt, std::string_view vk_icd,
-                           std::span<const VulkanGpuDeviceInfo> host_gpus,
-                           const std::optional<VulkanGpuDeviceInfo>& selected_gpu) {
+                           bool metrics_collection_opt, bool fuchsia_opt,
+                           const ::goldfish::gpu::GpuSelection& gpu_selection) {
     event.set_kind(android_studio::AndroidStudioEvent::EMULATOR_HOST);
 
     auto& product = *event.mutable_product_details();
@@ -441,7 +438,7 @@ void FillEmulatorHostEvent(android_studio::AndroidStudioEvent& event, const Avd&
 
     FillHost(*event.mutable_emulator_host());
     FillDetails(*event.mutable_emulator_details(), avd, feature_flags, launcher_pid, qemu_pid,
-                metrics_collection_opt, fuchsia_opt, false, vk_icd, host_gpus, selected_gpu);
+                metrics_collection_opt, fuchsia_opt, false, gpu_selection);
 }
 
 }  // namespace android::goldfish

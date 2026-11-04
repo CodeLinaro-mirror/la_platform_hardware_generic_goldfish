@@ -7,6 +7,7 @@ cc_library(
     deps = [
         "//emulator/launcher:avd",
         "//emulator/launcher:feature_flags",
+        "//emulator/launcher:gpu_selection",
         "//emulator/launcher:input_paths",
         "//emulator/launcher/cmdline",
         "//emulator/libs/metrics:configure_metrics_writer",
@@ -251,13 +252,6 @@ cc_test(
 )
 
 cc_library(
-    name = "vulkan_gpu_device_info",
-    hdrs = ["vulkan_gpu_device_info.h"],
-    visibility = ["//visibility:public"],
-    deps = ["@vulkan-headers//:vulkan_headers"],
-)
-
-cc_library(
     name = "gpu_device",
     srcs = ["gpu_device.cc"],
     hdrs = ["gpu_device.h"],
@@ -265,20 +259,18 @@ cc_library(
     deps = [
         ":device",
         ":snapshot_device",
-        ":vulkan_gpu_device_info",
+        "//emulator/launcher:avd",
         "//emulator/launcher:constants",
         "//emulator/libs/file",
-        "//emulator/libs/gvk",
+        "//emulator/libs/hardware_config",
         "//emulator/libs/parsing:resizable_display_config",
         "//emulator/libs/snapshot:snapshot_store",
+        "//emulator/libs/status_macros",
         "//emulator/libs/system",
-        "@abseil-cpp//absl/base:no_destructor",
+        "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/status",
-        "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
-        "@abseil-cpp//absl/strings:str_format",
-        "@vulkan-headers//:vulkan_headers",
     ],
 )
 
@@ -304,8 +296,8 @@ cc_test(
         ":fake_emulator",
         ":gpu_device",
         ":snapshot_device",
+        "//emulator/launcher/cmdline",
         "//emulator/libs/file",
-        "//emulator/libs/gvk",
         "//emulator/libs/status_macros:status_matcher_macros",
         "//emulator/libs/system:test-headers",
         "//emulator/libs/test:googletest_main",

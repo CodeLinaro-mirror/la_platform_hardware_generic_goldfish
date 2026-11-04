@@ -57,6 +57,8 @@
 #include "goldfish/metrics/studio_config.h"
 #include "goldfish/tools/aemu_version.h"
 #include "goldfish/update_check/update_checker.h"
+#include "gpu_info.h"
+#include "gpu_selection.h"
 #include "host_info.h"
 #include "launcher.h"
 #include "logging.h"
@@ -570,9 +572,9 @@ int main(int argc, char** argv) {
     }
 
     if (android::goldfish::ShouldTrampolineToQemu2(avd, feature_flags)) {
-        auto s = android::goldfish::TrampolineToQemu2(
-                emulator_paths->launcher_directory, std::move(args_copy),
-                [&] { reporter->Shutdown(); });
+        auto s = android::goldfish::TrampolineToQemu2(emulator_paths->launcher_directory,
+                                                      std::move(args_copy),
+                                                      [&] { reporter->Shutdown(); });
         LOG(ERROR) << s;
         return 1;
     }
@@ -585,6 +587,16 @@ int main(int argc, char** argv) {
     if (!feature_flags.ok()) {
         LOG(ERROR) << "Failed to load feature flags: " << feature_flags.status();
         return 1;
+    }
+
+    const fs::path vulkan_libdir = emulator_paths->lib64_directory / "vulkan";
+    std::vector<goldfish::gpu::VulkanGpuDeviceInfo> host_gpus =
+            goldfish::gpu::ProbeVulkanGpuDevices(vulkan_libdir, goldfish::gpu::GetHostVulkanIcd());
+    goldfish::gpu::GpuSelection gpu_selection =
+            goldfish::gpu::SelectGpu(**avd, opts, *feature_flags, std::move(host_gpus));
+    if (gpu_selection.emu_renderer != "host") {
+        gpu_selection.selected_gpu = goldfish::gpu::SelectVulkanGpuDevice(
+                goldfish::gpu::ProbeVulkanGpuDevices(vulkan_libdir, gpu_selection.vulkan_icd));
     }
 
     // Runs a one-shot update check and server feature pattern refresh on background
@@ -658,6 +670,7 @@ int main(int argc, char** argv) {
         .avd = *std::move(avd),
         .opts = std::move(opts),
         .feature_flags = *std::move(feature_flags),
+        .gpu_selection = std::move(gpu_selection),
         .metrics_writer_config = std::move(metrics_writer_config),
     });
     if (!exit_status.ok()) {

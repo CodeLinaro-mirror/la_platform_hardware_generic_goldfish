@@ -221,6 +221,7 @@ class LauncherTest : public testing::Test {
             .avd = std::move(avd),
             .opts = std::move(opts),
             .feature_flags = std::move(feature_flags),
+            .gpu_selection = std::move(gpu_selection),
             .metrics_writer_config = metrics_writer_config,
             .qemu_shutdown_timeout = qemu_shutdown_timeout,
         });
@@ -350,6 +351,11 @@ class LauncherTest : public testing::Test {
     SystemImagePaths system_image_paths;
     AndroidOptions opts;
     FeatureFlags feature_flags;
+    ::goldfish::gpu::GpuSelection gpu_selection{
+        .chosen_gpu_mode = "auto",
+        .emu_renderer = "lavapipe",
+        .vulkan_icd = "lavapipe",
+    };
     HardwareConfig hw;
     ::goldfish::metrics::MetricsWriterConfig metrics_writer_config;
     absl::Duration qemu_shutdown_timeout = absl::Seconds(60);
@@ -950,8 +956,15 @@ TEST_F(LauncherTest, DefaultConfigUsesNetsimModem) {
     opts.no_netsim_modem = false;
     EmulatorPorts ports{.serial_number = 5554, .adb_port = 5555};
     ChardevEndpoints chardev_endpoints{.netsim = "localhost:1234"};
-    LaunchQemu emulator{EmulatorConfig{
-        ports, chardev_endpoints, {}, user_paths, emulator_paths, *avd, opts, feature_flags}};
+    LaunchQemu emulator{EmulatorConfig{ports,
+                                       chardev_endpoints,
+                                       {},
+                                       user_paths,
+                                       emulator_paths,
+                                       *avd,
+                                       opts,
+                                       feature_flags,
+                                       gpu_selection}};
 
     auto launch_config = emulator.launch_config();
     ASSERT_TRUE(launch_config.ok()) << launch_config.status();
@@ -973,8 +986,15 @@ TEST_F(LauncherTest, Api36UsesModemSimulatorEvenWithNetsim) {
     EmulatorPorts ports{.serial_number = 5554, .adb_port = 5555};
     ChardevEndpoints chardev_endpoints{.netsim = "localhost:1234",
                                        .modem_simulator = "localhost:5678"};
-    LaunchQemu emulator{EmulatorConfig{
-        ports, chardev_endpoints, {}, user_paths, emulator_paths, *avd, opts, feature_flags}};
+    LaunchQemu emulator{EmulatorConfig{ports,
+                                       chardev_endpoints,
+                                       {},
+                                       user_paths,
+                                       emulator_paths,
+                                       *avd,
+                                       opts,
+                                       feature_flags,
+                                       gpu_selection}};
 
     auto launch_config = emulator.launch_config();
     ASSERT_TRUE(launch_config.ok()) << launch_config.status();
@@ -1000,8 +1020,15 @@ TEST_F(LauncherTest, FallbackConfigUsesModemSimulatorWhenNoNetsimModem) {
     EmulatorPorts ports{.serial_number = 5554, .adb_port = 5555};
     ChardevEndpoints chardev_endpoints{.netsim = "localhost:1234",
                                        .modem_simulator = "localhost:5678"};
-    LaunchQemu emulator{EmulatorConfig{
-        ports, chardev_endpoints, {}, user_paths, emulator_paths, *avd, opts, feature_flags}};
+    LaunchQemu emulator{EmulatorConfig{ports,
+                                       chardev_endpoints,
+                                       {},
+                                       user_paths,
+                                       emulator_paths,
+                                       *avd,
+                                       opts,
+                                       feature_flags,
+                                       gpu_selection}};
 
     auto launch_config = emulator.launch_config();
     ASSERT_TRUE(launch_config.ok()) << launch_config.status();
@@ -1018,8 +1045,15 @@ TEST_F(LauncherTest, EmptyNetsimEndpointLogsWarningAndSkipsNetsimDevices) {
     opts.no_netsim_modem = false;
     EmulatorPorts ports{.serial_number = 5554, .adb_port = 5555};
     ChardevEndpoints chardev_endpoints{.modem_simulator = "localhost:5678"};
-    LaunchQemu emulator{EmulatorConfig{
-        ports, chardev_endpoints, {}, user_paths, emulator_paths, *avd, opts, feature_flags}};
+    LaunchQemu emulator{EmulatorConfig{ports,
+                                       chardev_endpoints,
+                                       {},
+                                       user_paths,
+                                       emulator_paths,
+                                       *avd,
+                                       opts,
+                                       feature_flags,
+                                       gpu_selection}};
 
     absl::ScopedMockLog mock_log(absl::MockLogDefault::kIgnoreUnexpected);
     EXPECT_CALL(

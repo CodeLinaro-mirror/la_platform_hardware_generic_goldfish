@@ -170,7 +170,8 @@ std::vector<std::string> GetQemuParametersWithMetrics(MetricsConfig metrics_conf
     const UserPaths user_paths{};
     const AndroidOptions opts{};
     const EmulatorConfig config(ports, chardev_endpoints, std::move(metrics_config), user_paths,
-                                emu.emulator_paths(), emu.mock_avd(), opts, emu.feature_flags());
+                                emu.emulator_paths(), emu.mock_avd(), opts, emu.feature_flags(),
+                                emu.gpu_selection());
 
     AvdInfoDevice dev(/*factory_boot=*/false);
     EXPECT_THAT(dev.initialize(config), absl_testing::IsOk());
@@ -219,7 +220,7 @@ std::string GetAvdStartProperties(const AndroidOptions& opts,
     const UserPaths user_paths{};
     const EmulatorConfig config(ports, chardev_endpoints, MetricsConfig{}, user_paths,
                                 emu.emulator_paths(), emu.mock_avd(), opts, emu.feature_flags(),
-                                std::move(host_timezone));
+                                emu.gpu_selection(), std::move(host_timezone));
 
     AvdInfoDevice dev(factory_boot);
     EXPECT_THAT(dev.initialize(config), absl_testing::IsOk());
