@@ -29,9 +29,11 @@
  *   - 64 KiB: 226.4 us  (276 MiB/s) -> 92.0 us  (680 MiB/s)  [2.46x]
  * - BmPercentEncode (span-based append vs char-by-char push_back):
  *   - 165 B:  1,049 ns  (151 MiB/s) -> 367 ns   (431 MiB/s)  [2.86x]
+ * - BmFormatTrailersOk (Status::OK with empty trailing metadata):
+ *   - 37.5 ns -> 9.33 ns [4.02x]
+ * - BmFormatTrailersMetadata (error status + 3 custom trailing metadata headers):
+ *   - 793 ns  -> 371 ns  [2.14x]
  */
-
-#include "goldfish/grpcweb/grpc_web_protocol.h"
 
 #include <benchmark/benchmark.h>
 
@@ -42,6 +44,10 @@
 
 #include "absl/strings/ascii.h"
 #include "absl/strings/escaping.h"
+#include "absl/strings/match.h"
+#include "absl/strings/str_cat.h"
+
+#include "goldfish/grpcweb/grpc_web_protocol.h"
 
 namespace goldfish::grpcweb {
 namespace {
@@ -221,6 +227,110 @@ void BmPercentEncode(benchmark::State& state) {
                             static_cast<int64_t>(kStatusMessage.size()));
 }
 
+#if defined(__GNUC__) || defined(__clang__)
+__attribute__((noinline))
+#endif
+std::string StripCrlfBaseline(std::string_view input) {
+    size_t pos = input.find_first_of("\r\n");
+    if (pos == std::string_view::npos) {
+        return std::string(input);
+    }
+    std::string out;
+    out.reserve(input.size());
+    size_t start = 0;
+    do {
+        out.append(input.data() + start, pos - start);
+        start = pos + 1U;
+        pos = input.find_first_of("\r\n", start);
+    } while (pos != std::string_view::npos);
+    out.append(input.data() + start, input.size() - start);
+    return out;
+}
+
+#if defined(__GNUC__) || defined(__clang__)
+__attribute__((noinline))
+#endif
+std::string FormatTrailersBaseline(
+        const grpc::Status& status,
+        const std::multimap<grpc::string_ref, grpc::string_ref>& trailing_metadata) {
+    std::string out;
+    absl::StrAppend(&out, http::headers::kGrpcStatus, http::protocol::kColon, status.error_code(),
+                    http::protocol::kCrlf);
+
+    if (!status.error_message().empty()) {
+        absl::StrAppend(&out, http::headers::kGrpcMessage, http::protocol::kColon,
+                        Protocol::PercentEncode(status.error_message()), http::protocol::kCrlf);
+    }
+    if (!status.error_details().empty()) {
+        absl::StrAppend(&out, http::headers::kGrpcStatusDetailsBin, http::protocol::kColon,
+                        absl::Base64Escape(status.error_details()), http::protocol::kCrlf);
+    }
+
+    for (const auto& [key_ref, val_ref] : trailing_metadata) {
+        std::string_view raw_key(key_ref.data(), key_ref.size());
+        if (!absl::EqualsIgnoreCase(raw_key, http::headers::kGrpcStatus) &&
+            !absl::EqualsIgnoreCase(raw_key, http::headers::kGrpcMessage) &&
+            !absl::EqualsIgnoreCase(raw_key, http::headers::kGrpcStatusDetailsBin)) {
+            std::string key = StripCrlfBaseline(raw_key);
+            absl::AsciiStrToLower(&key);
+            std::string_view raw_val(val_ref.data(), val_ref.size());
+            std::string val = absl::EndsWith(key, "-bin") ? absl::Base64Escape(raw_val)
+                                                          : StripCrlfBaseline(raw_val);
+            absl::StrAppend(&out, key, http::protocol::kColon, val, http::protocol::kCrlf);
+        }
+    }
+
+    return out;
+}
+
+void BmFormatTrailersOkBaseline(benchmark::State& state) {
+    const grpc::Status status = grpc::Status::OK;
+    const std::multimap<grpc::string_ref, grpc::string_ref> metadata;
+    for (auto _ : state) {
+        std::string out = FormatTrailersBaseline(status, metadata);
+        benchmark::DoNotOptimize(out.data());
+        benchmark::ClobberMemory();
+    }
+}
+
+void BmFormatTrailersOk(benchmark::State& state) {
+    const grpc::Status status = grpc::Status::OK;
+    const std::multimap<grpc::string_ref, grpc::string_ref> metadata;
+    for (auto _ : state) {
+        std::string out = Protocol::FormatTrailers(status, metadata);
+        benchmark::DoNotOptimize(out.data());
+        benchmark::ClobberMemory();
+    }
+}
+
+void BmFormatTrailersMetadataBaseline(benchmark::State& state) {
+    const grpc::Status status(grpc::StatusCode::UNAVAILABLE, "Upstream gRPC endpoint unavailable");
+    std::multimap<grpc::string_ref, grpc::string_ref> metadata;
+    metadata.emplace("X-Emulator-Request-Id", "req-9876543210-abcdef-123456");
+    metadata.emplace("X-Emulator-Backend-Host", "127.0.0.1:8554-emulator-controller");
+    metadata.emplace("X-Emulator-Trace-Context",
+                     "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01");
+    for (auto _ : state) {
+        std::string out = FormatTrailersBaseline(status, metadata);
+        benchmark::DoNotOptimize(out.data());
+        benchmark::ClobberMemory();
+    }
+}
+
+void BmFormatTrailersMetadata(benchmark::State& state) {
+    const grpc::Status status(grpc::StatusCode::UNAVAILABLE, "Upstream gRPC endpoint unavailable");
+    std::multimap<grpc::string_ref, grpc::string_ref> metadata;
+    metadata.emplace("X-Emulator-Request-Id", "req-9876543210-abcdef-123456");
+    metadata.emplace("X-Emulator-Backend-Host", "127.0.0.1:8554-emulator-controller");
+    metadata.emplace("X-Emulator-Trace-Context",
+                     "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01");
+    for (auto _ : state) {
+        std::string out = Protocol::FormatTrailers(status, metadata);
+        benchmark::DoNotOptimize(out.data());
+        benchmark::ClobberMemory();
+    }
+}
+
 BENCHMARK(BmStreamingBase64EncodeCopyBaseline)
         ->RangeMultiplier(kRangeMultiplier)
         ->Range(kMinPayloadBytes, kMaxPayloadBytes);
@@ -235,6 +345,10 @@ BENCHMARK(BmPackFrameAndEncode)
         ->Range(kMinPayloadBytes, kMaxPayloadBytes);
 BENCHMARK(BmPercentEncodeCharByCharBaseline);
 BENCHMARK(BmPercentEncode);
+BENCHMARK(BmFormatTrailersOkBaseline);
+BENCHMARK(BmFormatTrailersOk);
+BENCHMARK(BmFormatTrailersMetadataBaseline);
+BENCHMARK(BmFormatTrailersMetadata);
 
 }  // namespace
 }  // namespace goldfish::grpcweb
