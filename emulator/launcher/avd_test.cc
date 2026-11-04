@@ -683,4 +683,296 @@ TEST_F(AvdTest, ListSnapshotsWithInspector) {
                 ::testing::HasSubstr("mock image info for userdata.img.qcow2"));
 }
 
+TEST_F(AvdTest, SkinMatchesLcdSameSize) {
+    fs::path avd_dir = CreateTestAvd("skin_same_avd", "android-30", 30);
+    WriteToFile(avd_dir / "config.ini",
+                "target=android-30\nimage.sysdir.1=sysimg\n"
+                "skin.name=1440x3088\nskin.path=_no_skin\n"
+                "hw.lcd.width=1440\nhw.lcd.height=3088\n");
+
+    ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(opts_, paths_, "skin_same_avd", false, ""));
+    EXPECT_EQ(avd->Hw().hw_lcd_width, 1440);
+    EXPECT_EQ(avd->Hw().hw_lcd_height, 3088);
+}
+
+TEST_F(AvdTest, SkinMatchesLcdRotatedSize) {
+    fs::path avd_dir = CreateTestAvd("skin_rotated_avd", "android-30", 30);
+    WriteToFile(avd_dir / "config.ini",
+                "target=android-30\nimage.sysdir.1=sysimg\n"
+                "skin.name=3088x1440\nskin.path=_no_skin\n"
+                "hw.lcd.width=1440\nhw.lcd.height=3088\n");
+
+    ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(opts_, paths_, "skin_rotated_avd", false, ""));
+    EXPECT_EQ(avd->Hw().hw_lcd_width, 1440);
+    EXPECT_EQ(avd->Hw().hw_lcd_height, 3088);
+}
+
+TEST_F(AvdTest, SkinMatchesLcdSkinNameMismatch) {
+    fs::path avd_dir = CreateTestAvd("skin_mismatch_avd", "android-30", 30);
+    WriteToFile(avd_dir / "config.ini",
+                "target=android-30\nimage.sysdir.1=sysimg\n"
+                "skin.name=1080x2400\nskin.path=_no_skin\n"
+                "hw.lcd.width=1440\nhw.lcd.height=3088\n");
+
+    EXPECT_THAT(
+            Avd::FromName(opts_, paths_, "skin_mismatch_avd", false, ""),
+            StatusIs(absl::StatusCode::kInvalidArgument,
+                     ::testing::AllOf(
+                             ::testing::HasSubstr(
+                                     "skin.name=1080x2400 does not match hw.lcd.width=1440, "
+                                     "hw.lcd.height=3088"),
+                             ::testing::HasSubstr("To use 1440x3088, set skin.name and skin.path "
+                                                  "to 1440x3088 or delete both lines."),
+                             ::testing::HasSubstr("To use 1080x2400, set hw.lcd.width=1080 and "
+                                                  "hw.lcd.height=2400."))));
+}
+
+TEST_F(AvdTest, SkinMatchesLcdSkinPathMismatch) {
+    fs::path avd_dir = CreateTestAvd("skin_path_mismatch_avd", "android-30", 30);
+    WriteToFile(avd_dir / "config.ini",
+                "target=android-30\nimage.sysdir.1=sysimg\n"
+                "skin.path=1080x2400\n"
+                "hw.lcd.width=1440\nhw.lcd.height=3088\n");
+
+    EXPECT_THAT(
+            Avd::FromName(opts_, paths_, "skin_path_mismatch_avd", false, ""),
+            StatusIs(absl::StatusCode::kInvalidArgument,
+                     ::testing::HasSubstr("skin.path=1080x2400 does not match hw.lcd.width=1440, "
+                                          "hw.lcd.height=3088")));
+}
+
+TEST_F(AvdTest, SkinMatchesLcdSkinWithDepth) {
+    fs::path avd_dir = CreateTestAvd("skin_depth_avd", "android-30", 30);
+    WriteToFile(avd_dir / "config.ini",
+                "target=android-30\nimage.sysdir.1=sysimg\n"
+                "skin.name=1440x3088x32\nskin.path=_no_skin\n"
+                "hw.lcd.width=1440\nhw.lcd.height=3088\n");
+    ASSERT_OK(Avd::FromName(opts_, paths_, "skin_depth_avd", false, ""));
+
+    WriteToFile(avd_dir / "config.ini",
+                "target=android-30\nimage.sysdir.1=sysimg\n"
+                "skin.name=1080x2400x32\nskin.path=_no_skin\n"
+                "hw.lcd.width=1440\nhw.lcd.height=3088\n");
+    EXPECT_THAT(Avd::FromName(opts_, paths_, "skin_depth_avd", false, ""),
+                StatusIs(absl::StatusCode::kInvalidArgument,
+                         ::testing::HasSubstr("skin.name=1080x2400x32 does not match")));
+}
+
+TEST_F(AvdTest, SkinMatchesLcdCommandLineSkinIsNotChecked) {
+    fs::path avd_dir = CreateTestAvd("cli_skin_avd", "android-30", 30);
+    WriteToFile(avd_dir / "config.ini",
+                "target=android-30\nimage.sysdir.1=sysimg\n"
+                "skin.name=1080x2400\nskin.path=_no_skin\n"
+                "hw.lcd.width=1440\nhw.lcd.height=3088\n");
+
+    std::string cli_skin = "1080x2400";
+    opts_.skin = cli_skin.data();
+    ASSERT_OK(Avd::FromName(opts_, paths_, "cli_skin_avd", false, ""));
+}
+
+TEST_F(AvdTest, SkinMatchesLcdOnDiskSkinIsNotChecked) {
+    fs::path avd_dir = CreateTestAvd("ondisk_skin_avd", "android-30", 30);
+    fs::path skin_dir = paths_.sdk_directory / "skins" / "1080x2400";
+    // A directory named "layout" is not a valid skin layout file.
+    base::file::mkdir_recursive(skin_dir / "layout", 0755).IgnoreError();
+
+    WriteToFile(avd_dir / "config.ini",
+                absl::StrCat("target=android-30\nimage.sysdir.1=sysimg\n"
+                             "skin.name=1080x2400\nskin.path=",
+                             skin_dir.string(), "\nhw.lcd.width=1440\nhw.lcd.height=3088\n"));
+    EXPECT_THAT(Avd::FromName(opts_, paths_, "ondisk_skin_avd", false, ""),
+                StatusIs(absl::StatusCode::kInvalidArgument));
+
+    base::file::rm_recursive(skin_dir / "layout").IgnoreError();
+    WriteToFile(skin_dir / "layout", "parts {}\n");
+    ASSERT_OK(Avd::FromName(opts_, paths_, "ondisk_skin_avd", false, ""));
+
+    // Also resolves on-disk skin via system_image_paths.skins_dir when only skin.name is set.
+    WriteToFile(avd_dir / "config.ini",
+                "target=android-30\nimage.sysdir.1=sysimg\n"
+                "skin.name=1080x2400\n"
+                "hw.lcd.width=1440\nhw.lcd.height=3088\n");
+    ASSERT_OK(Avd::FromName(opts_, paths_, "ondisk_skin_avd", false, ""));
+}
+
+TEST_F(AvdTest, SkinMatchesLcdNoLcdSizeResolvesFromSkin) {
+    fs::path avd_dir = CreateTestAvd("no_lcd_avd", "android-30", 30);
+    WriteToFile(avd_dir / "config.ini",
+                "target=android-30\nimage.sysdir.1=sysimg\n"
+                "skin.name=1080x2400\nskin.path=_no_skin\n");
+
+    ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(opts_, paths_, "no_lcd_avd", false, ""));
+    EXPECT_EQ(avd->Hw().hw_lcd_width, 1080);
+    EXPECT_EQ(avd->Hw().hw_lcd_height, 2400);
+}
+
+TEST_F(AvdTest, SkinMatchesLcdNegativeSkinWidth) {
+    fs::path avd_dir = CreateTestAvd("neg_skin_w_avd", "android-30", 30);
+    WriteToFile(avd_dir / "config.ini",
+                "target=android-30\nimage.sysdir.1=sysimg\n"
+                "skin.name=-500x800\nskin.path=_no_skin\n");
+
+    EXPECT_THAT(
+            Avd::FromName(opts_, paths_, "neg_skin_w_avd", false, ""),
+            StatusIs(absl::StatusCode::kInvalidArgument,
+                     ::testing::HasSubstr("skin.name=-500x800. Both dimensions must be positive "
+                                          "integers.")));
+}
+
+TEST_F(AvdTest, SkinMatchesLcdNegativeSkinHeight) {
+    fs::path avd_dir = CreateTestAvd("neg_skin_h_avd", "android-30", 30);
+    WriteToFile(avd_dir / "config.ini",
+                "target=android-30\nimage.sysdir.1=sysimg\n"
+                "skin.name=500x-800\nskin.path=_no_skin\n");
+
+    EXPECT_THAT(
+            Avd::FromName(opts_, paths_, "neg_skin_h_avd", false, ""),
+            StatusIs(absl::StatusCode::kInvalidArgument,
+                     ::testing::HasSubstr("skin.name=500x-800. Both dimensions must be positive "
+                                          "integers.")));
+}
+
+TEST_F(AvdTest, SkinMatchesLcdZeroSkinSize) {
+    fs::path avd_dir = CreateTestAvd("zero_skin_avd", "android-30", 30);
+    WriteToFile(avd_dir / "config.ini",
+                "target=android-30\nimage.sysdir.1=sysimg\n"
+                "skin.name=0x800\nskin.path=_no_skin\n");
+
+    EXPECT_THAT(Avd::FromName(opts_, paths_, "zero_skin_avd", false, ""),
+                StatusIs(absl::StatusCode::kInvalidArgument,
+                         ::testing::HasSubstr(
+                                 "skin.name=0x800. Both dimensions must be positive integers.")));
+}
+
+TEST_F(AvdTest, SkinMatchesLcdNegativeLcdWidth) {
+    fs::path avd_dir = CreateTestAvd("neg_lcd_w_avd", "android-30", 30);
+    WriteToFile(avd_dir / "config.ini",
+                "target=android-30\nimage.sysdir.1=sysimg\n"
+                "hw.lcd.width=-1080\nhw.lcd.height=2400\n");
+
+    EXPECT_THAT(Avd::FromName(opts_, paths_, "neg_lcd_w_avd", false, ""),
+                StatusIs(absl::StatusCode::kInvalidArgument,
+                         ::testing::HasSubstr(
+                                 "hw.lcd.width=-1080, hw.lcd.height=2400. Both dimensions must "
+                                 "be positive integers.")));
+}
+
+TEST_F(AvdTest, SkinMatchesLcdNegativeLcdHeight) {
+    fs::path avd_dir = CreateTestAvd("neg_lcd_h_avd", "android-30", 30);
+    WriteToFile(avd_dir / "config.ini",
+                "target=android-30\nimage.sysdir.1=sysimg\n"
+                "hw.lcd.width=1080\nhw.lcd.height=-2400\n");
+
+    EXPECT_THAT(Avd::FromName(opts_, paths_, "neg_lcd_h_avd", false, ""),
+                StatusIs(absl::StatusCode::kInvalidArgument,
+                         ::testing::HasSubstr(
+                                 "hw.lcd.width=1080, hw.lcd.height=-2400. Both dimensions must "
+                                 "be positive integers.")));
+}
+
+TEST_F(AvdTest, SkinMatchesLcdZeroLcdSize) {
+    fs::path avd_dir = CreateTestAvd("zero_lcd_avd", "android-30", 30);
+    WriteToFile(avd_dir / "config.ini",
+                "target=android-30\nimage.sysdir.1=sysimg\n"
+                "hw.lcd.width=0\nhw.lcd.height=2400\n");
+
+    EXPECT_THAT(Avd::FromName(opts_, paths_, "zero_lcd_avd", false, ""),
+                StatusIs(absl::StatusCode::kInvalidArgument,
+                         ::testing::HasSubstr(
+                                 "hw.lcd.width=0, hw.lcd.height=2400. Both dimensions must be "
+                                 "positive integers.")));
+}
+
+TEST_F(AvdTest, SkinMatchesLcdWidthWithoutHeight) {
+    fs::path avd_dir = CreateTestAvd("partial_w_avd", "android-30", 30);
+    WriteToFile(avd_dir / "config.ini",
+                "target=android-30\nimage.sysdir.1=sysimg\n"
+                "hw.lcd.width=1440\n");
+
+    EXPECT_THAT(Avd::FromName(opts_, paths_, "partial_w_avd", false, ""),
+                StatusIs(absl::StatusCode::kInvalidArgument,
+                         ::testing::HasSubstr(
+                                 "hw.lcd.width=1440 is set but hw.lcd.height is missing. Set "
+                                 "both hw.lcd.width and hw.lcd.height.")));
+}
+
+TEST_F(AvdTest, SkinMatchesLcdHeightWithoutWidth) {
+    fs::path avd_dir = CreateTestAvd("partial_h_avd", "android-30", 30);
+    WriteToFile(avd_dir / "config.ini",
+                "target=android-30\nimage.sysdir.1=sysimg\n"
+                "hw.lcd.height=3088\n");
+
+    EXPECT_THAT(Avd::FromName(opts_, paths_, "partial_h_avd", false, ""),
+                StatusIs(absl::StatusCode::kInvalidArgument,
+                         ::testing::HasSubstr(
+                                 "hw.lcd.height=3088 is set but hw.lcd.width is missing. Set "
+                                 "both hw.lcd.width and hw.lcd.height.")));
+}
+
+TEST_F(AvdTest, SkinMatchesLcdPartialLcdSizeWithOnDiskSkin) {
+    fs::path avd_dir = CreateTestAvd("partial_ondisk_avd", "android-30", 30);
+    fs::path skin_dir = paths_.sdk_directory / "skins" / "pixel_6";
+    base::file::mkdir_recursive(skin_dir, 0755).IgnoreError();
+    WriteToFile(skin_dir / "layout", "parts {}\n");
+
+    WriteToFile(avd_dir / "config.ini", absl::StrCat("target=android-30\nimage.sysdir.1=sysimg\n"
+                                                     "skin.name=pixel_6\nskin.path=",
+                                                     skin_dir.string(), "\nhw.lcd.width=1440\n"));
+
+    EXPECT_THAT(Avd::FromName(opts_, paths_, "partial_ondisk_avd", false, ""),
+                StatusIs(absl::StatusCode::kInvalidArgument,
+                         ::testing::HasSubstr(
+                                 "hw.lcd.width=1440 is set but hw.lcd.height is missing.")));
+}
+
+TEST_F(AvdTest, SkinMatchesLcdPartialLcdSizeIsNotCheckedWithSkinOption) {
+    fs::path avd_dir = CreateTestAvd("partial_cli_skin_avd", "android-30", 30);
+    WriteToFile(avd_dir / "config.ini",
+                "target=android-30\nimage.sysdir.1=sysimg\n"
+                "hw.lcd.width=1440\n");
+
+    std::string cli_skin = "1080x2400";
+    opts_.skin = cli_skin.data();
+    ASSERT_OK(Avd::FromName(opts_, paths_, "partial_cli_skin_avd", false, ""));
+}
+
+TEST_F(AvdTest, SkinMatchesLcdDisplaylessIsNotChecked) {
+    fs::path avd_dir = CreateTestAvd("displayless_avd", "android-30", 30);
+    WriteToFile(avd_dir / "config.ini",
+                "target=android-30\nimage.sysdir.1=sysimg\n"
+                "hw.displayless=yes\n"
+                "skin.name=1080x2400\nskin.path=_no_skin\n"
+                "hw.lcd.width=1440\n");
+
+    ASSERT_OK(Avd::FromName(opts_, paths_, "displayless_avd", false, ""));
+}
+
+TEST_F(AvdTest, SkinMatchesLcdFoldRotatedGenericSkin) {
+    fs::path avd_dir = CreateTestAvd("fold_rotated_avd", "android-30", 30);
+    WriteToFile(avd_dir / "config.ini",
+                "target=android-30\nimage.sysdir.1=sysimg\n"
+                "hw.device.name=pixel_9_pro_fold\n"
+                "skin.name=2152x2076\nskin.path=_no_skin\n"
+                "hw.lcd.width=2076\nhw.lcd.height=2152\n"
+                "hw.sensor.hinge=yes\nhw.sensor.hinge.count=1\n");
+
+    ASSERT_OK(Avd::FromName(opts_, paths_, "fold_rotated_avd", false, ""));
+}
+
+TEST_F(AvdTest, SkinMatchesLcdFoldMismatchedNumericSkinFails) {
+    fs::path avd_dir = CreateTestAvd("fold_mismatch_avd", "android-30", 30);
+    WriteToFile(avd_dir / "config.ini",
+                "target=android-30\nimage.sysdir.1=sysimg\n"
+                "hw.device.name=pixel_fold\n"
+                "skin.name=1080x2400\nskin.path=_no_skin\n"
+                "hw.lcd.width=2208\nhw.lcd.height=1840\n"
+                "hw.sensor.hinge=yes\nhw.sensor.hinge.count=1\n");
+
+    EXPECT_THAT(
+            Avd::FromName(opts_, paths_, "fold_mismatch_avd", false, ""),
+            StatusIs(absl::StatusCode::kInvalidArgument,
+                     ::testing::HasSubstr("skin.name=1080x2400 does not match hw.lcd.width=2208, "
+                                          "hw.lcd.height=1840")));
+}
+
 }  // namespace android::goldfish::avd

@@ -138,7 +138,52 @@ TEST_F(InputPathsTest, ResolveSystemImagePaths) {
     EXPECT_EQ(paths.build_properties, sysimg_dir / "build.prop");
     EXPECT_EQ(paths.system_image, sysimg_dir / "system.img");
     EXPECT_EQ(paths.data_dir, sysimg_dir / "data");
+    EXPECT_TRUE(paths.skins_dir.empty());
     EXPECT_EQ(paths.kernel_cmdline, sysimg_dir / "kernel_cmdline.txt");
+}
+
+TEST_F(InputPathsTest, ResolveSystemImagePathsWithSkinsDir) {
+    fs::path sysimg_dir = tmp_->Path() / "sysimg";
+    tmp_->MakeSubDir("sysimg");
+    tmp_->MakeSubDir("sysimg/data");
+    tmp_->MakeSubDir("sysimg/skins");
+
+    WriteToFile(sysimg_dir / "build.prop", "");
+    WriteToFile(sysimg_dir / "advancedFeatures.ini", "");
+    WriteToFile(sysimg_dir / "VerifiedBootParams.textproto", "");
+    WriteToFile(sysimg_dir / "kernel_cmdline.txt", "");
+    WriteToFile(sysimg_dir / "kernel-ranchu", "");
+    WriteToFile(sysimg_dir / "ramdisk.img", "");
+    WriteToFile(sysimg_dir / "system.img", "");
+    WriteToFile(sysimg_dir / "vendor.img", "");
+    WriteToFile(sysimg_dir / "encryptionkey.img", "");
+
+    AndroidOptions opts = {};
+    ASSERT_OK_AND_ASSIGN(auto paths,
+                         ResolveSystemImagePaths({sysimg_dir}, opts, /*android_build=*/false));
+    EXPECT_EQ(paths.skins_dir, sysimg_dir / "skins");
+}
+
+TEST_F(InputPathsTest, ResolveSystemImagePathsWithParentSkinsDir) {
+    fs::path sdk_dir = tmp_->Path() / "sdk";
+    fs::path sysimg_dir = sdk_dir / "sysimg";
+    tmp_->MakeSubDir("sdk/sysimg/data");
+    tmp_->MakeSubDir("sdk/skins");
+
+    WriteToFile(sysimg_dir / "build.prop", "");
+    WriteToFile(sysimg_dir / "advancedFeatures.ini", "");
+    WriteToFile(sysimg_dir / "VerifiedBootParams.textproto", "");
+    WriteToFile(sysimg_dir / "kernel_cmdline.txt", "");
+    WriteToFile(sysimg_dir / "kernel-ranchu", "");
+    WriteToFile(sysimg_dir / "ramdisk.img", "");
+    WriteToFile(sysimg_dir / "system.img", "");
+    WriteToFile(sysimg_dir / "vendor.img", "");
+    WriteToFile(sysimg_dir / "encryptionkey.img", "");
+
+    AndroidOptions opts = {};
+    ASSERT_OK_AND_ASSIGN(auto paths,
+                         ResolveSystemImagePaths({sysimg_dir}, opts, /*android_build=*/false));
+    EXPECT_EQ(paths.skins_dir, sdk_dir / "skins");
 }
 
 TEST_F(InputPathsTest, ResolveSystemImagePathsWithDotSearchPathStripsPrefix) {
