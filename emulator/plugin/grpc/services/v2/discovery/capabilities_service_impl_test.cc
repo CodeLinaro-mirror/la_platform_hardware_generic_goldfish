@@ -148,6 +148,8 @@ TEST_F(CapabilitiesServiceTest, ReturnsDisplayCapabilities) {
     EXPECT_EQ(display.built_in_displays(0).width(), 1080);
     EXPECT_EQ(display.built_in_displays(0).height(), 2424);
     EXPECT_EQ(display.built_in_displays(0).density_dpi(), 428);
+    EXPECT_FALSE(display.built_in_displays(0).supports_dynamic_resizing());
+    EXPECT_TRUE(display.built_in_displays(0).supports_rotation());
     EXPECT_TRUE(display.supports_virtual_display_creation());
     EXPECT_TRUE(display.has_screen_capture());
 }
