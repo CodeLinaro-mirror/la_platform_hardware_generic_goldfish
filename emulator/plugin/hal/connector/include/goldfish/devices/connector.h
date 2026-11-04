@@ -13,6 +13,8 @@
 #pragma once
 #include <functional>
 #include <memory>
+#include <optional>
+#include <string>
 #include <string_view>
 #include <vector>
 
@@ -55,11 +57,51 @@ namespace goldfish::devices {
  * If the `Connector` cannot process a request (a parsing error or the device
  * name is not found in the list provided) it switches to `ErrorPlug` which
  * asks to disconnect.
+ *
+ * Snapshots: a `Connector` is saved as `kSnapshotTypeId`, the id of the
+ * registry it belongs to and the (possibly empty) partial request received
+ * so far, so a guest connection that was captured before it finished sending
+ * its pipe name resumes exactly where it stopped. `LoadFromSnapshot` is the
+ * matching loader; the `ConnectorRegistry` registers it with
+ * `cable::RegisterPlugLoader` and resolves the registry id back to a device
+ * table.
  */
 
 struct Connector : public cable::IPlug {
+    static constexpr std::string_view kSnapshotTypeId = "Connector";
+
+    /// Upper bound for the partial request restored from a snapshot. Pipe
+    /// names are a few dozen bytes; anything larger is a corrupt snapshot.
+    static constexpr size_t kMaxSnapshotBufferSize = 4096;
+
+    /// Where a restored Connector switches devices: the device table of the
+    /// registry identified by the snapshot's registry id.
+    struct Target {
+        std::shared_ptr<PingTopic> ping_topic;
+        const DeviceEntry* devices_entries = nullptr;
+        size_t devices_entries_size = 0;
+    };
+    using TargetResolver = std::function<std::optional<Target>(std::string_view registry_id)>;
+
+    /**
+     * @param registry_id Opaque id saved with the snapshot and handed to the
+     * `TargetResolver` on load (e.g. "vsock:5000"); several registries can
+     * listen at once and each restored Connector must find its own.
+     */
     Connector(cable::SocketPtr socket, std::shared_ptr<PingTopic> ping_topic,
-              const DeviceEntry* devices_entries, size_t devices_entries_size);
+              const DeviceEntry* devices_entries, size_t devices_entries_size,
+              std::string registry_id = {});
+
+    /**
+     * @brief Re-creates a `Connector` saved by `SaveStateToSnapshot`.
+     *
+     * Reads the registry id and partial request from `reader` (the type id
+     * has already been consumed by `cable::LoadPlugFromSnapshot`). Returns
+     * `socket` back if the record is unreadable, too large, contains a
+     * request terminator, or `resolve` does not know the registry id.
+     */
+    static cable::PlugOrSocket LoadFromSnapshot(cable::SocketPtr socket, archive::IReader& reader,
+                                                const TargetResolver& resolve);
 
     cable::SocketPtr OnUnplug() override;
     bool OnReceive(const void* data, size_t size) override;
@@ -71,6 +113,8 @@ struct Connector : public cable::IPlug {
   private:
     using Buffer = std::vector<char>;
 
+    Connector(cable::SocketPtr socket, Target target, std::string registry_id, Buffer buffer);
+
     std::pair<bool, cable::PlugPtr> ProcessRequest(std::string_view request, const void* unconsumed,
                                                    size_t unconsumed_size, const Buffer& buffer);
     std::pair<bool, cable::PlugPtr> SwitchTo(bool is_qemud, std::string_view device,
@@ -81,6 +125,7 @@ struct Connector : public cable::IPlug {
     const std::shared_ptr<PingTopic> ping_topic_;
     const DeviceEntry* const devices_entries_;
     const size_t devices_entries_size_;
+    const std::string registry_id_;
     Buffer buffer_;
 };
 
