@@ -111,9 +111,11 @@ cc_library(
         "//emulator/libs/display_pipeline:core",
         "//emulator/libs/eventing",
         "//emulator/libs/perfetto:init",
+        "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings:str_format",
+        "@abseil-cpp//absl/synchronization",
         "@abseil-cpp//absl/time",
         "@abseil-cpp//absl/types:span",
     ],
@@ -176,6 +178,8 @@ cc_library(
         ":base",
         "//emulator/libs/archive",
         "//emulator/libs/sensors:physical_model",
+        "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/synchronization",
     ],
 )
 
@@ -324,6 +328,7 @@ cc_test(
         "@abseil-cpp//absl/functional:any_invocable",
         "@abseil-cpp//absl/log:scoped_mock_log",
         "@abseil-cpp//absl/status:status_matchers",
+        "@abseil-cpp//absl/synchronization",
         "@glib//glib",
         "@glib//gmodule",
     ],

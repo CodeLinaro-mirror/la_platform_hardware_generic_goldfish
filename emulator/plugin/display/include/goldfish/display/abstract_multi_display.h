@@ -13,9 +13,11 @@
 // limitations under the License.
 #pragma once
 
-#include <atomic>
 #include <variant>
 #include <vector>
+
+#include "absl/base/thread_annotations.h"
+#include "absl/synchronization/mutex.h"
 
 #include "goldfish/archive/reader.h"
 #include "goldfish/archive/writer.h"
@@ -199,13 +201,18 @@ class IMultiDisplay : public LoopBoundCallbackSource<DisplayEvent> {
     /**
      * @brief Returns the current physical rotation configured across displays.
      */
-    ImageRotation GetRotation() const { return rotation_.load(std::memory_order_acquire); }
+    ImageRotation GetRotation() const ABSL_LOCKS_EXCLUDED(rotation_mutex_) {
+        const absl::MutexLock rotation_lock(rotation_mutex_);
+        return rotation_;
+    }
 
     /**
-     * @brief Updates the physical rotation across all managed displays.
+     * @brief Updates the physical rotation across all managed displays that have
+     *        auto-rotation enabled.
      */
-    void SetRotation(ImageRotation rotation) {
-        rotation_.store(rotation, std::memory_order_release);
+    void SetRotation(ImageRotation rotation) ABSL_LOCKS_EXCLUDED(rotation_mutex_) {
+        const absl::MutexLock rotation_lock(rotation_mutex_);
+        rotation_ = rotation;
         for (DisplayId id = 0; id < kMaxDisplays; ++id) {
             auto screen = GetDisplay(id);
             if (screen.ok()) {
@@ -239,8 +246,14 @@ class IMultiDisplay : public LoopBoundCallbackSource<DisplayEvent> {
                                                  const sensors::FoldableConfig* fc);
 
   protected:
+    void SyncDisplayRotation(IDisplay& display) const ABSL_LOCKS_EXCLUDED(rotation_mutex_) {
+        const absl::MutexLock rotation_lock(rotation_mutex_);
+        display.SetRotation(rotation_);
+    }
+
     EventLoop* loop_;
-    std::atomic<ImageRotation> rotation_{ImageRotation::kRotation0};
+    mutable absl::Mutex rotation_mutex_;
+    ImageRotation rotation_ ABSL_GUARDED_BY(rotation_mutex_) = ImageRotation::kRotation0;
 };
 
 }  // namespace goldfish::display
