@@ -6,6 +6,17 @@
 #include "goldfish/display/test/fake_pixman_display.h"
 
 namespace goldfish::display::test {
+namespace {
+
+void RemoveDisplayOnLoop(EventLoop* loop, SharedDisplay display) {
+    if (loop != nullptr && !loop->IsOnLoopThread()) {
+        loop->Post([display = std::move(display)]() { display->Remove(); }).IgnoreError();
+    } else {
+        display->Remove();
+    }
+}
+
+}  // namespace
 
 FakeMultiDisplay* FakeMultiDisplay::s_instance = nullptr;
 
@@ -70,7 +81,7 @@ absl::Status FakeMultiDisplay::EraseDisplay(DisplayId display_id) {
         display = std::move(it->second);
         displays_.erase(it);
     }
-    display->Remove();
+    RemoveDisplayOnLoop(loop_, std::move(display));
     FireEvent(DisplayEvent{DisplayEvent::DeletedEvent{display_id}});
     return absl::OkStatus();
 }
@@ -99,8 +110,8 @@ void FakeMultiDisplay::Clear() {
             }
         }
     }
-    for (const auto& display : removed) {
-        display->Remove();
+    for (auto& display : removed) {
+        RemoveDisplayOnLoop(loop_, std::move(display));
     }
 }
 

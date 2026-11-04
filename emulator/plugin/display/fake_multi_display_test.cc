@@ -3,11 +3,13 @@
 #include <gtest/gtest.h>
 
 #include <condition_variable>
+#include <memory>
 #include <mutex>
 #include <thread>
 #include <vector>
 
 #include "absl/synchronization/notification.h"
+#include "absl/time/clock.h"
 #include "absl/time/time.h"
 
 #include "goldfish/async/libuv_event_loop.h"
@@ -490,4 +492,50 @@ TEST_F(FakeMultiDisplayTest, GetOrientation) {
     EXPECT_EQ(IDisplay::GetOrientation(2400, 1080), Orientation::kLandscape);
     EXPECT_EQ(IDisplay::GetOrientation(1000, 1000), Orientation::kSquare);
     EXPECT_EQ(IDisplay::GetOrientation(0, 0), Orientation::kSquare);
+}
+
+TEST_F(FakeMultiDisplayTest, EraseActiveDisplayMarksDisplayRemovedOnEventLoop) {
+    auto created = fake_multi_display_->CreateDisplay(2, 100, 50, 320, 1);
+    ASSERT_TRUE(created.ok());
+    auto display = created->lock();
+    ASSERT_NE(display, nullptr);
+    ASSERT_TRUE(display->WaitForFreshFrame(absl::Now() + absl::Seconds(5)).ok());
+
+    absl::Notification deleted;
+    bool removed_before_deleted_event = false;
+    auto callback = android::base::eventing::MakeScopedCallback(
+            *fake_multi_display_, [&](const DisplayEvent& event) {
+                if (event.IsDeletedEvent() && event.DisplayId() == 2) {
+                    EXPECT_TRUE(loop_->IsOnLoopThread());
+                    removed_before_deleted_event = display->AcquireLatestFrame().removed;
+                    deleted.Notify();
+                }
+            });
+
+    ASSERT_TRUE(fake_multi_display_->EraseDisplay(2).ok());
+    ASSERT_TRUE(deleted.WaitForNotificationWithTimeout(absl::Seconds(5)));
+    EXPECT_TRUE(removed_before_deleted_event);
+}
+
+TEST_F(FakeMultiDisplayTest, ClearMarksActiveDisplaysRemovedOnEventLoop) {
+    auto created1 = fake_multi_display_->CreateDisplay(1, 100, 50, 320, 1);
+    auto created2 = fake_multi_display_->CreateDisplay(2, 100, 50, 320, 1);
+    ASSERT_TRUE(created1.ok());
+    ASSERT_TRUE(created2.ok());
+    auto display1 = created1->lock();
+    auto display2 = created2->lock();
+    ASSERT_NE(display1, nullptr);
+    ASSERT_NE(display2, nullptr);
+    ASSERT_TRUE(display1->WaitForFreshFrame(absl::Now() + absl::Seconds(5)).ok());
+    ASSERT_TRUE(display2->WaitForFreshFrame(absl::Now() + absl::Seconds(5)).ok());
+
+    fake_multi_display_->Clear();
+
+    auto synced = std::make_shared<absl::Notification>();
+    ASSERT_TRUE(loop_->Post([synced]() { synced->Notify(); }).ok());
+    ASSERT_TRUE(synced->WaitForNotificationWithTimeout(absl::Seconds(5)));
+
+    EXPECT_TRUE(display1->AcquireLatestFrame().removed);
+    EXPECT_TRUE(display2->AcquireLatestFrame().removed);
+    EXPECT_TRUE(fake_multi_display_->DefaultDisplay().ok());
 }

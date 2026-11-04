@@ -28,6 +28,7 @@
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
 #include "absl/synchronization/mutex.h"
@@ -80,6 +81,18 @@ using ::goldfish::sensors::PhysicalModelChangeEvent;
 using DeviceRotation = ::goldfish::physics::Rotation;
 using DeviceSkinRotation = ::goldfish::physics::SkinRotation;
 using ProtoRotation = android::emulation::control::Rotation;
+
+namespace {
+
+grpc::Status MakeStreamDisplayRemovedStatus(uint32_t display_id) {
+    return grpc::Status(grpc::StatusCode::NOT_FOUND,
+                        absl::StrCat("Failed to stream screenshots for display ", display_id,
+                                     ": display ", display_id,
+                                     " was removed. Query getDisplayConfigurations for active "
+                                     "displays before retrying."));
+}
+
+}  // namespace
 
 static void FirePostureNotification(FoldablePostures posture) {
     Notification event;
@@ -295,6 +308,10 @@ Status DisplayServiceImpl::streamScreenshot(ServerContext* context, const ImageF
     uint64_t total_dropped = 0;
     absl::Time last_frame_time = absl::Now();
     while (client_available && !context->IsCancelled()) {
+        if (display->AcquireLatestFrame().removed) {
+            return MakeStreamDisplayRemovedStatus(request->display());
+        }
+
         constexpr auto kTimeToWaitForFrame = absl::Milliseconds(125);
         const bool retrying = std::exchange(retry, false);
         bool frames_arrived = first_time;
@@ -312,7 +329,7 @@ Status DisplayServiceImpl::streamScreenshot(ServerContext* context, const ImageF
         }
 
         if (display->AcquireLatestFrame().removed) {
-            return Status(grpc::StatusCode::NOT_FOUND, "Display was removed.");
+            return MakeStreamDisplayRemovedStatus(request->display());
         }
 
         if ((frames_arrived || first_time || retrying) && !context->IsCancelled()) {
