@@ -513,6 +513,7 @@ cc_test(
         "//emulator/plugin/grpc/keyboard:key_code_resolver",
         "//emulator/plugin/grpc/keyboard:test_qemu_input_stub",
         "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/functional:any_invocable",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/synchronization",
