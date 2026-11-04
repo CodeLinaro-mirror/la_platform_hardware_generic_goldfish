@@ -172,30 +172,29 @@ class AudioServiceImpl final : public AudioServiceBase {
             }
         }
 
-        ~SpeakerAudioWriter() override {
-            if (capture_) {
-                capture_->Stop();
-            }
-        }
+        ~SpeakerAudioWriter() override { StopCapture(); }
 
         void OnCancel() override {
-            if (capture_) {
-                capture_->Stop();
-            }
+            StopCapture();
             if (this->SetCancelled()) {
                 this->Finish(::grpc::Status::CANCELLED);
             }
         }
 
         void OnDone() override {
-            if (capture_) {
-                capture_->Stop();
-            }
+            StopCapture();
             delete this;
         }
 
       private:
         static constexpr float kPcm16ToFloatScale = 1.0F / 32768.0F;
+
+        /** Stops the underlying QEMU speaker audio capture if active. */
+        void StopCapture() {
+            if (capture_) {
+                capture_->Stop();
+            }
+        }
 
         void OnAudioData(const int16_t* pcm_data, size_t num_samples) {
             if (pcm_data == nullptr || num_samples == 0 || this->IsFinished() ||
@@ -388,6 +387,23 @@ class AudioServiceImpl final : public AudioServiceBase {
                                                 const AudioChunk& request,
                                                 absl::string_view client_source_id,
                                                 InjectAudioClipResponse* reply) const;
+    /**
+     * Starts a microphone streaming session and binds its chunk/stop callbacks.
+     */
+    template <typename Session>
+    static MicrophoneStreamStart StartSessionMicrophoneStream(std::shared_ptr<Session> session) {
+        if (::grpc::Status start_status = session->StartInitial(); !start_status.ok()) {
+            return MicrophoneStreamStart{.status = std::move(start_status)};
+        }
+        return MicrophoneStreamStart{
+            .status = ::grpc::Status::OK,
+            .on_chunk = [session](const AudioChunk* chunk) -> ::grpc::Status {
+                return session->WriteChunk(*chunk);
+            },
+            .stop_stream = [session]() { session->Stop(); },
+        };
+    }
+
     MicrophoneStreamStart StartSinkMicrophoneStream(absl::string_view client_source_id) const;
     MicrophoneStreamStart StartMicrophoneStream(absl::string_view client_source_id) const;
     static absl::Status ValidateMicrophoneChunk(const AudioChunk& chunk,
