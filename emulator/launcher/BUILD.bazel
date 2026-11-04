@@ -445,18 +445,13 @@ selects.config_setting_group(
 collect_plugins(
     name = "plugins",
     output_dir = "lib/qemu",
-    plugins = select({
+    plugins = [
+        "//emulator/plugin:goldfish",
         # Loaded with dlopen() on first use by the plugin's virtio-gpu-gfxstream
         # device: neither qemu nor the plugin links it.
+    ] + select({
         "@platforms//os:windows": ["//emulator:gfxstream_backend_windows"],
         "//conditions:default": ["@gfxstream//host:gfxstream_backend"],
-    }) + select({
-        "@platforms//os:macos": ["//emulator/plugin:goldfish_aarch64"],
-        "@goldfish_build//platforms:is_linux_aarch64": ["//emulator/plugin:goldfish_aarch64"],
-        "@platforms//os:linux": ["//emulator/plugin:goldfish_x86_64"],
-        ":windows_aarch64": ["//emulator/plugin:goldfish_aarch64"],
-        ":windows_x86_64": ["//emulator/plugin:goldfish_x86_64"],
-        "//conditions:default": [],
     }),
 )
 

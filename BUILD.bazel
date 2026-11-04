@@ -38,29 +38,13 @@ QEMU = select({
 })
 
 # The binaries we ship!
-# We only pick one plugin, per platform to prevent confusing
-# clangd. Otherwise the same .cpp might show up with a different
-# set of defines, which might result in some non-determinism
 EMULATOR = [
     "//emulator/crashreport",
     "//emulator/crashreport/tool:crashreport",
     "//emulator/launcher",
+    "//emulator/plugin:goldfish",
     "//third_party/sparse:img2simg",
-] + select({
-    "@goldfish_build//platforms:is_linux_aarch64": [
-        "//emulator/plugin:goldfish_aarch64",
-    ],
-    "@platforms//os:linux": [
-        "//emulator/plugin:goldfish_x86_64",
-    ],
-    "@platforms//os:macos": [
-        "//emulator/plugin:goldfish_aarch64",
-    ],
-    "@platforms//os:windows": [
-        "//emulator/plugin:goldfish_x86_64",
-    ],
-    "//conditions:default": [],
-})
+]
 
 # This is the clang tidy configuration used by the goldfish project
 filegroup(

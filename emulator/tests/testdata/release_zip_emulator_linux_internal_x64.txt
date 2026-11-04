@@ -105,7 +105,7 @@ emulator/lib/emu-original-feature-flags.protobuf
 emulator/lib/emulator_access.json
 emulator/lib/qemu/
 emulator/lib/qemu/libgfxstream_backend.so
-emulator/lib/qemu/libgoldfish_x86_64.so
+emulator/lib/qemu/libgoldfish.so
 emulator/lib64/
 emulator/lib64/libEGL.so
 emulator/lib64/libgallium_dri.so

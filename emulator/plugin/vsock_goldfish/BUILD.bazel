@@ -62,16 +62,11 @@ cc_library(
     ],
 )
 
-[cc_library(
-    name = "vsock_impl_" + arch,
+cc_library(
+    name = "vsock_impl",
     srcs = [
         "vsock_low_level.c",
         "vsock_port_fwd.cc",
-    ],
-    defines = [
-        "COMPILING_PER_TARGET",
-        'CONFIG_TARGET=\\"' + arch + '-softmmu-config-target.h\\"',
-        'CONFIG_DEVICES=\\"' + arch + '-softmmu-config-devices.h\\"',
     ],
     visibility = ["//visibility:public"],
     deps = [
@@ -96,10 +91,7 @@ cc_library(
         "@qemu//:qemu-headers-exported",
     ],
     alwayslink = True,
-) for arch in [
-    "aarch64",
-    "x86_64",
-]]
+)
 
 cc_test(
     name = "vsock_unittests",
