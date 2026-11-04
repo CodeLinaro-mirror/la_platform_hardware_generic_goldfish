@@ -22,6 +22,7 @@
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <future>
 #include <memory>
 #include <optional>
@@ -32,9 +33,11 @@
 #include <vector>
 
 #include "absl/base/thread_annotations.h"
+#include "absl/functional/any_invocable.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/synchronization/mutex.h"
+#include "absl/synchronization/notification.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 
@@ -174,8 +177,20 @@ class FakePacingClock : public ::goldfish::system::SteadyClock {
 // its idle timeout doesn't fire the moment it is armed.
 class PacingEventLoop final : public EventLoop {
   public:
+    // Runs in Schedule() of the `index`-th timer created (from 0) and decides
+    // when that timer fires by when it calls `fire`. Schedule() returns when
+    // the hook does.
+    using ScheduleHook = std::function<void(int index, absl::AnyInvocable<void()> fire)>;
+
     PacingEventLoop(EventLoop& inner, FakePacingClock& clock)
             : EventLoop("PacingEventLoop"), inner_(inner), clock_(clock) {}
+
+    // Without a hook, a timer fires as soon as it is scheduled. Applies to the
+    // timers created after this call.
+    void SetScheduleHook(ScheduleHook hook) {
+        absl::MutexLock hook_lock(hook_mutex_);
+        schedule_hook_ = std::move(hook);
+    }
 
     void ShutdownTimers() override { inner_.ShutdownTimers(); }
     size_t WaitUntilIdle() override { return inner_.WaitUntilIdle(); }
@@ -183,7 +198,15 @@ class PacingEventLoop final : public EventLoop {
     bool IsOnLoopThread() const override { return inner_.IsOnLoopThread(); }
 
     ScopedTimer CreateTimer(RepeatingTask task) override {
-        auto timer = std::make_shared<PacingTimer>(inner_, clock_, std::move(task));
+        ScheduleHook hook;
+        int index = 0;
+        {
+            absl::MutexLock hook_lock(hook_mutex_);
+            hook = schedule_hook_;
+            index = timers_created_++;
+        }
+        auto timer = std::make_shared<PacingTimer>(inner_, clock_, std::move(task), std::move(hook),
+                                                   index);
         timer->PinCaller(timer);
         return ScopedTimer(timer.get());
     }
@@ -203,8 +226,13 @@ class PacingEventLoop final : public EventLoop {
   private:
     class PacingTimer final : public Timer, public std::enable_shared_from_this<PacingTimer> {
       public:
-        PacingTimer(EventLoop& loop, FakePacingClock& clock, RepeatingTask task)
-                : loop_(loop), clock_(clock), task_(std::move(task)) {}
+        PacingTimer(EventLoop& loop, FakePacingClock& clock, RepeatingTask task,
+                    ScheduleHook schedule_hook, int index)
+                : loop_(loop)
+                , clock_(clock)
+                , task_(std::move(task))
+                , schedule_hook_(std::move(schedule_hook))
+                , index_(index) {}
 
         void PinCaller(std::shared_ptr<PacingTimer> self) { caller_pin_ = std::move(self); }
 
@@ -213,11 +241,20 @@ class PacingEventLoop final : public EventLoop {
                 loop_.WaitUntilIdle();
             }
             clock_.Sleep(initial_delay);
-            loop_.Post([self = shared_from_this()]() {
-                     if (!self->cancelled_.load(std::memory_order_acquire)) {
-                         self->task_();
-                     }
-                 }).IgnoreError();
+            absl::AnyInvocable<void()> fire = [self = shared_from_this()]() {
+                self->loop_
+                        .Post([self]() {
+                            if (!self->cancelled_.load(std::memory_order_acquire)) {
+                                self->task_();
+                            }
+                        })
+                        .IgnoreError();
+            };
+            if (schedule_hook_) {
+                schedule_hook_(index_, std::move(fire));
+            } else {
+                fire();
+            }
         }
 
         void Cancel() override {
@@ -229,12 +266,17 @@ class PacingEventLoop final : public EventLoop {
         EventLoop& loop_;
         FakePacingClock& clock_;
         RepeatingTask task_;
+        const ScheduleHook schedule_hook_;
+        const int index_;
         std::atomic<bool> cancelled_{false};
         std::shared_ptr<PacingTimer> caller_pin_;
     };
 
     EventLoop& inner_;
     FakePacingClock& clock_;
+    absl::Mutex hook_mutex_;
+    ScheduleHook schedule_hook_ ABSL_GUARDED_BY(hook_mutex_);
+    int timers_created_ ABSL_GUARDED_BY(hook_mutex_) = 0;
 };
 
 // Records every activity the dispatcher delivers, on its delivery thread.
@@ -492,7 +534,7 @@ class InputServiceImplTest : public ::testing::Test {
     ActivityRecorder recorder_;
     // The dispatcher's loop, with real timers; `loop_` paces the service on it.
     std::unique_ptr<EventLoop> dispatcher_loop_;
-    std::unique_ptr<EventLoop> loop_;
+    std::unique_ptr<PacingEventLoop> loop_;
     std::unique_ptr<FakeMultiDisplay> multi_display_;
     std::unique_ptr<MultiDisplayTouchDevices> touch_devices_;
     std::shared_ptr<InputDispatcher> dispatcher_;
@@ -1059,6 +1101,61 @@ TEST_F(InputServiceImplTest, StreamInputEventsPacesAndCapsStaleInterBurstDeltas)
     ASSERT_EQ(sleeps.size(), 2);
     EXPECT_EQ(sleeps[0], absl::Milliseconds(20));
     EXPECT_EQ(sleeps[1], absl::Seconds(1));
+}
+
+// The loop can fire an event's timer before ScheduleDelayed() returns it to
+// the stream. By the time the stream stores that timer, it may already wait
+// on the next event's timer, which must stay armed (b/581739471).
+TEST_F(InputServiceImplTest, StreamInputEventsKeepsNextTimerWhenFiredTimerIsStoredLate) {
+    // Bounds every wait, so that a lost timer fails the test instead of hanging it.
+    constexpr absl::Duration kTimeout = absl::Seconds(10);
+    // Gives the stream time to store the second timer before the first one is
+    // stored late, and the late store time to land before the second timer
+    // fires. It only recreates the old failure; the result must not depend on it.
+    constexpr absl::Duration kSettle = absl::Milliseconds(100);
+
+    absl::Notification second_scheduled;
+    absl::Notification first_schedule_returning;
+    absl::AnyInvocable<void()> fire_second;
+    loop_->SetScheduleHook([&](int index, absl::AnyInvocable<void()> fire) {
+        if (index == 0) {
+            // The timer of "2" fires at once, so the stream dispatches "2" and
+            // schedules the timer of "3" before this Schedule() returns.
+            fire();
+            EXPECT_TRUE(second_scheduled.WaitForNotificationWithTimeout(kTimeout));
+            absl::SleepFor(kSettle);
+            first_schedule_returning.Notify();
+            return;
+        }
+        fire_second = std::move(fire);
+        second_scheduled.Notify();
+    });
+
+    ::grpc::ClientContext stream_ctx;
+    stream_ctx.set_deadline(absl::ToChronoTime(absl::Now() + kTimeout));
+    StreamInputEventsResponse resp;
+    auto writer = stub_->StreamInputEvents(&stream_ctx, &resp);
+    InputEvent ev1 = Text("1");
+    ev1.set_timestamp_nanos(10'000'000LL);
+    InputEvent ev2 = Text("2");
+    ev2.set_timestamp_nanos(30'000'000LL);
+    InputEvent ev3 = Text("3");
+    ev3.set_timestamp_nanos(40'000'000LL);
+    ASSERT_TRUE(writer->Write(ev1));
+    ASSERT_TRUE(writer->Write(ev2));
+    ASSERT_TRUE(writer->Write(ev3));
+    ASSERT_TRUE(writer->WritesDone());
+
+    ASSERT_TRUE(first_schedule_returning.WaitForNotificationWithTimeout(kTimeout));
+    ASSERT_TRUE(fire_second != nullptr);
+    absl::SleepFor(kSettle);
+    fire_second();
+
+    const ::grpc::Status status = writer->Finish();
+    ASSERT_TRUE(status.ok()) << "The stream lost the timer of event \"3\": "
+                             << status.error_message();
+    EXPECT_EQ(resp.events_dispatched(), 3);
+    EXPECT_THAT(keyboard_.Writes(), ElementsAre("text 1", "text 2", "text 3"));
 }
 
 TEST_F(InputServiceImplTest, StreamInputEventsCancellationReleasesHeldContactsCleanly) {

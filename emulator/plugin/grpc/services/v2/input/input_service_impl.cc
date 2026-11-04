@@ -693,8 +693,15 @@ class InputServiceImpl::StreamInputReader final : public ::SimpleServerReader<In
         return true;
     }
 
+    // Whether the stream still waits on the timer armed for `timer_wait`.
+    bool IsWaitingForTimer(uint64_t timer_wait) const
+            ABSL_EXCLUSIVE_LOCKS_REQUIRED(this->reactor_lock_) {
+        return state_ == State::kWaitingForTimer && timer_wait_ == timer_wait;
+    }
+
     bool ScheduleDelayedDispatch(InputEvent event, int32_t source_id, absl::Duration delay) {
         bool cancelled = false;
+        uint64_t timer_wait = 0;
         {
             absl::MutexLock lock(this->reactor_lock_);
             if (IsEnding()) {
@@ -703,6 +710,7 @@ class InputServiceImpl::StreamInputReader final : public ::SimpleServerReader<In
             cancelled = cancelled_;
             if (!cancelled) {
                 state_ = State::kWaitingForTimer;
+                timer_wait = ++timer_wait_;
             }
         }
         if (cancelled) {
@@ -713,28 +721,31 @@ class InputServiceImpl::StreamInputReader final : public ::SimpleServerReader<In
         // report a failure, before this returns, and both take the lock.
         ::goldfish::async::EventLoop::ScopedTimer timer =
                 service_.options_.event_loop->ScheduleDelayed(
-                        [this, gate = gate_, event = std::move(event), source_id]() mutable {
-                            gate->RunIfOpen([this, event = std::move(event), source_id]() mutable {
-                                OnScheduledDispatch(std::move(event), source_id);
+                        [this, gate = gate_, event = std::move(event), source_id,
+                         timer_wait]() mutable {
+                            gate->RunIfOpen([this, event = std::move(event), source_id,
+                                             timer_wait]() mutable {
+                                OnScheduledDispatch(std::move(event), source_id, timer_wait);
                             });
                         },
                         delay);
         {
             absl::MutexLock lock(this->reactor_lock_);
-            if (state_ == State::kWaitingForTimer) {
+            if (IsWaitingForTimer(timer_wait)) {
                 pending_timer_ = std::move(timer);
             }
         }
-        // If the stream moved on meanwhile, `timer` was not moved into
-        // `pending_timer_` and its destructor cancels it here.
+        // If the stream moved on meanwhile, even to the next event's timer,
+        // `timer` was not moved into `pending_timer_` and its destructor
+        // cancels it here.
         return false;
     }
 
-    void OnScheduledDispatch(InputEvent event, int32_t source_id) {
+    void OnScheduledDispatch(InputEvent event, int32_t source_id, uint64_t timer_wait) {
         {
             ::goldfish::async::EventLoop::ScopedTimer expired_timer;
             absl::MutexLock lock(this->reactor_lock_);
-            if (cancelled_ || state_ != State::kWaitingForTimer) {
+            if (cancelled_ || !IsWaitingForTimer(timer_wait)) {
                 return;
             }
             state_ = State::kDispatchingTimer;
@@ -777,6 +788,10 @@ class InputServiceImpl::StreamInputReader final : public ::SimpleServerReader<In
     int32_t dispatched_count_ ABSL_GUARDED_BY(this->reactor_lock_){0};
     StreamSessions sessions_ ABSL_GUARDED_BY(this->reactor_lock_);
     ::goldfish::async::EventLoop::ScopedTimer pending_timer_ ABSL_GUARDED_BY(this->reactor_lock_);
+    // Numbers each wait on a timer. A timer can fire before ScheduleDelayed()
+    // returns it, so by the time it is stored the stream may already wait on
+    // the next event's timer, which the stale one must not replace.
+    uint64_t timer_wait_ ABSL_GUARDED_BY(this->reactor_lock_){0};
     State state_ ABSL_GUARDED_BY(this->reactor_lock_){State::kReading};
     bool cancelled_ ABSL_GUARDED_BY(this->reactor_lock_){false};
 };
