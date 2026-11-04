@@ -64,8 +64,21 @@ cc_test(
         ":image_writer_test_utils",
         ":write_jpeg",
         "//emulator/libs/test:googletest_main",
-        "@abseil-cpp//absl/base:config",
-        "@abseil-cpp//absl/time",
+        "@libjpeg_turbo//:jpeg",
+    ],
+)
+
+cc_binary_with_manifest(
+    name = "write_jpeg_perf",
+    testonly = True,
+    srcs = ["write_jpeg_perf.cc"],
+    copts = _WINDOWS_CFG_COPTS,
+    tags = ["benchmark"],
+    deps = [
+        ":image_writer_test_utils",
+        ":write_jpeg",
+        "@google_benchmark//:benchmark",
+        "@google_benchmark//:benchmark_main",
         "@libjpeg_turbo//:jpeg",
     ],
 )
@@ -324,6 +337,7 @@ clang_tidy_test(
         ":webm_encoder_perf",
         ":webm_encoder_test",
         ":write_jpeg",
+        ":write_jpeg_perf",
         ":write_jpeg_test",
         ":write_png",
         ":write_png_test",

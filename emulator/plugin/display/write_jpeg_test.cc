@@ -16,21 +16,16 @@
 
 #include <gtest/gtest.h>
 
-#include <algorithm>
 #include <atomic>
 #include <csetjmp>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
-#include <cstdlib>
 #include <limits>
 #include <span>
 #include <string>
 #include <thread>
 #include <vector>
-
-#include "absl/base/config.h"
-#include "absl/time/time.h"
 
 #include "image_writer_test_utils.h"
 
@@ -41,7 +36,6 @@ extern "C" {
 namespace goldfish::display {
 namespace {
 
-using test_utils::CurrentThreadCpuTime;
 using test_utils::MakeSyntheticScreenshot;
 
 struct JpegTestErrorMgr {
@@ -101,114 +95,6 @@ bool DecodeJpegToRgb(std::span<const uint8_t> jpeg_bytes, unsigned int* out_widt
     jpeg_finish_decompress(&cinfo);
     jpeg_destroy_decompress(&cinfo);
     return true;
-}
-
-// Exact unoptimized RGBA path prior to optimization (per-call compressor init,
-// jpeg_mem_dest reallocations, default JDCT_ISLOW, and #ifdef JCS_EXT_RGBA checking an
-// enumerator rather than a macro and falling back to per-row RGB stripping).
-bool WriteJpegLegacyUnoptimized(unsigned int width, unsigned int height, const void* pixels,
-                                std::string* out_data, int quality) {
-    const auto* byte_pixels = static_cast<const uint8_t*>(pixels);
-    jpeg_compress_struct cinfo{};
-    JpegTestErrorMgr jerr{};
-    cinfo.err = jpeg_std_error(&jerr.pub);
-    jerr.pub.error_exit = OnJpegTestErrorExit;
-
-    unsigned char* mem_buffer = nullptr;
-    unsigned long mem_size = 0;
-
-    if (setjmp(jerr.setjmp_buffer)) {
-        jpeg_destroy_compress(&cinfo);
-        if (mem_buffer != nullptr) {
-            std::free(mem_buffer);
-        }
-        return false;
-    }
-
-    jpeg_create_compress(&cinfo);
-    jpeg_mem_dest(&cinfo, &mem_buffer, &mem_size);
-
-    cinfo.image_width = width;
-    cinfo.image_height = height;
-
-    std::vector<uint8_t> rgb_row(static_cast<size_t>(width) * 3U);
-    cinfo.input_components = 3;
-    cinfo.in_color_space = JCS_RGB;
-    jpeg_set_defaults(&cinfo);
-    jpeg_set_quality(&cinfo, quality, TRUE);
-    jpeg_start_compress(&cinfo, TRUE);
-
-    const size_t rgba_stride = static_cast<size_t>(width) * 4U;
-    while (cinfo.next_scanline < cinfo.image_height) {
-        const uint8_t* src = byte_pixels + (static_cast<size_t>(cinfo.next_scanline) * rgba_stride);
-        for (unsigned int x = 0; x < width; ++x) {
-            rgb_row[static_cast<size_t>(x) * 3U + 0U] = src[static_cast<size_t>(x) * 4U + 0U];
-            rgb_row[static_cast<size_t>(x) * 3U + 1U] = src[static_cast<size_t>(x) * 4U + 1U];
-            rgb_row[static_cast<size_t>(x) * 3U + 2U] = src[static_cast<size_t>(x) * 4U + 2U];
-        }
-        JSAMPROW row_pointer = rgb_row.data();
-        jpeg_write_scanlines(&cinfo, &row_pointer, 1);
-    }
-
-    jpeg_finish_compress(&cinfo);
-    jpeg_destroy_compress(&cinfo);
-
-    out_data->assign(reinterpret_cast<const char*>(mem_buffer), static_cast<size_t>(mem_size));
-    std::free(mem_buffer);
-    return true;
-}
-
-// Intermediate reference with JCS_EXT_RGBA SIMD enabled, but still using per-call
-// compressor init, jpeg_mem_dest, JDCT_ISLOW, and 1-row jpeg_write_scanlines.
-bool WriteJpegSimdMemDestUnbatched(unsigned int width, unsigned int height, const void* pixels,
-                                   std::string* out_data, int quality) {
-    const auto* byte_pixels = static_cast<const uint8_t*>(pixels);
-    jpeg_compress_struct cinfo{};
-    JpegTestErrorMgr jerr{};
-    cinfo.err = jpeg_std_error(&jerr.pub);
-    jerr.pub.error_exit = OnJpegTestErrorExit;
-
-    unsigned char* mem_buffer = nullptr;
-    unsigned long mem_size = 0;
-
-    if (setjmp(jerr.setjmp_buffer)) {
-        jpeg_destroy_compress(&cinfo);
-        if (mem_buffer != nullptr) {
-            std::free(mem_buffer);
-        }
-        return false;
-    }
-
-    jpeg_create_compress(&cinfo);
-    jpeg_mem_dest(&cinfo, &mem_buffer, &mem_size);
-
-    cinfo.image_width = width;
-    cinfo.image_height = height;
-    cinfo.input_components = 4;
-    cinfo.in_color_space = JCS_EXT_RGBA;
-    jpeg_set_defaults(&cinfo);
-    jpeg_set_quality(&cinfo, quality, TRUE);
-    jpeg_start_compress(&cinfo, TRUE);
-
-    const size_t stride = static_cast<size_t>(width) * 4U;
-    while (cinfo.next_scanline < cinfo.image_height) {
-        JSAMPROW row_pointer = const_cast<JSAMPROW>(
-                byte_pixels + (static_cast<size_t>(cinfo.next_scanline) * stride));
-        jpeg_write_scanlines(&cinfo, &row_pointer, 1);
-    }
-
-    jpeg_finish_compress(&cinfo);
-    jpeg_destroy_compress(&cinfo);
-
-    out_data->assign(reinterpret_cast<const char*>(mem_buffer), static_cast<size_t>(mem_size));
-    std::free(mem_buffer);
-    return true;
-}
-
-absl::Duration MedianDuration(std::vector<absl::Duration> samples) {
-    const size_t mid = samples.size() / 2U;
-    std::nth_element(samples.begin(), samples.begin() + static_cast<ptrdiff_t>(mid), samples.end());
-    return samples[mid];
 }
 
 std::vector<uint8_t> MakeSolidImage(unsigned int width, unsigned int height, unsigned int channels,
@@ -531,95 +417,23 @@ TEST(WriteJpegTest, ConcurrentThreadsEncodeIndependently) {
     EXPECT_EQ(failures.load(std::memory_order_relaxed), 0);
 }
 
-template <typename EncodeFn>
-bool RecordTimedSample(EncodeFn&& encode_fn, std::vector<absl::Duration>* samples) {
-    const absl::Duration start = CurrentThreadCpuTime();
-    if (!encode_fn()) {
-        return false;
-    }
-    samples->push_back(CurrentThreadCpuTime() - start);
-    return true;
-}
-
-void ReportBenchmarkMedians(absl::Duration legacy_median, absl::Duration simd_mem_dest_median,
-                            absl::Duration opt_median) {
-    const double baseline_ms = absl::ToDoubleMilliseconds(legacy_median);
-    const double simd_mem_dest_ms = absl::ToDoubleMilliseconds(simd_mem_dest_median);
-    const double opt_ms = absl::ToDoubleMilliseconds(opt_median);
-    const double speedup_vs_legacy = baseline_ms / opt_ms;
-    const double speedup_vs_simd_mem_dest = simd_mem_dest_ms / opt_ms;
-
-    ::testing::Test::RecordProperty("baseline_ms_per_frame", std::to_string(baseline_ms));
-    ::testing::Test::RecordProperty("simd_mem_dest_ms_per_frame", std::to_string(simd_mem_dest_ms));
-    ::testing::Test::RecordProperty("optimized_ms_per_frame", std::to_string(opt_ms));
-    ::testing::Test::RecordProperty("speedup_x", std::to_string(speedup_vs_legacy));
-    ::testing::Test::RecordProperty("speedup_vs_simd_mem_dest_x",
-                                    std::to_string(speedup_vs_simd_mem_dest));
-    GTEST_LOG_(INFO) << "1080x1920 RGBA WriteJpeg median: legacy_baseline=" << baseline_ms
-                     << " ms/frame, simd_mem_dest=" << simd_mem_dest_ms
-                     << " ms/frame, optimized=" << opt_ms << " ms/frame (" << speedup_vs_legacy
-                     << "x vs legacy, " << speedup_vs_simd_mem_dest << "x vs simd_mem_dest)";
-}
-
-TEST(WriteJpegTest, FasterThanUnoptimizedBaselineOn1080pFrame) {
+TEST(WriteJpegTest, Encodes1080pScreenshot) {
     constexpr unsigned int kWidth = 1080;
     constexpr unsigned int kHeight = 1920;
     constexpr unsigned int kChannels = 4;
-    constexpr size_t kIterations = 11;
 
     const std::vector<uint8_t> frame = MakeSyntheticScreenshot(kWidth, kHeight, kChannels);
-    std::string out_opt;
-    auto run_legacy = [&]() {
-        std::string out;
-        return WriteJpegLegacyUnoptimized(kWidth, kHeight, frame.data(), &out, kDefaultJpegQuality);
-    };
-    auto run_simd = [&]() {
-        std::string out;
-        return WriteJpegSimdMemDestUnbatched(kWidth, kHeight, frame.data(), &out,
-                                             kDefaultJpegQuality);
-    };
-    auto run_opt = [&]() {
-        return WriteJpeg(kChannels, kWidth, kHeight, frame.data(), &out_opt, kDefaultJpegQuality);
-    };
+    std::string jpeg;
+    ASSERT_TRUE(WriteJpeg(kChannels, kWidth, kHeight, frame.data(), &jpeg, kDefaultJpegQuality));
 
-    ASSERT_TRUE(run_legacy() && run_simd() && run_opt());
     unsigned int decoded_w = 0;
     unsigned int decoded_h = 0;
     std::vector<uint8_t> decoded;
     ASSERT_TRUE(DecodeJpegToRgb(
-            std::span<const uint8_t>(reinterpret_cast<const uint8_t*>(out_opt.data()),
-                                     out_opt.size()),
+            std::span<const uint8_t>(reinterpret_cast<const uint8_t*>(jpeg.data()), jpeg.size()),
             &decoded_w, &decoded_h, &decoded));
     EXPECT_EQ(decoded_w, kWidth);
     EXPECT_EQ(decoded_h, kHeight);
-
-    std::vector<absl::Duration> legacy_samples;
-    std::vector<absl::Duration> simd_mem_dest_samples;
-    std::vector<absl::Duration> opt_samples;
-    legacy_samples.reserve(kIterations);
-    simd_mem_dest_samples.reserve(kIterations);
-    opt_samples.reserve(kIterations);
-
-    for (size_t i = 0; i < kIterations; ++i) {
-        if ((i & 1U) == 0U) {
-            ASSERT_TRUE(RecordTimedSample(run_legacy, &legacy_samples));
-            ASSERT_TRUE(RecordTimedSample(run_simd, &simd_mem_dest_samples));
-            ASSERT_TRUE(RecordTimedSample(run_opt, &opt_samples));
-        } else {
-            ASSERT_TRUE(RecordTimedSample(run_opt, &opt_samples));
-            ASSERT_TRUE(RecordTimedSample(run_simd, &simd_mem_dest_samples));
-            ASSERT_TRUE(RecordTimedSample(run_legacy, &legacy_samples));
-        }
-    }
-
-    const absl::Duration legacy_median = MedianDuration(legacy_samples);
-    const absl::Duration simd_mem_dest_median = MedianDuration(simd_mem_dest_samples);
-    const absl::Duration opt_median = MedianDuration(opt_samples);
-    ReportBenchmarkMedians(legacy_median, simd_mem_dest_median, opt_median);
-
-#if !defined(ABSL_HAVE_THREAD_SANITIZER) && !defined(ABSL_HAVE_ADDRESS_SANITIZER)
-    EXPECT_LT(opt_median, legacy_median);
-#endif
 }
 
 }  // namespace
