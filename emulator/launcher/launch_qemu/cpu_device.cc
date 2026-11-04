@@ -104,6 +104,7 @@ absl::StatusOr<std::string> getCpuString(Avd::CpuArchitecture target_arch,
         // TODO(hshan): switch to better cpu model for linux/windows
         // Maybe "host"?
         if (!aehd_enable.empty() && !aehd_enable.compare("1")) return "SandyBridge,-rdtscp";
+        if (accelerator == "kvm"sv) return "host";
         return "SandyBridge";
     case Avd::CpuArchitecture::kRiscV:
     case Avd::CpuArchitecture::kUnknown:
