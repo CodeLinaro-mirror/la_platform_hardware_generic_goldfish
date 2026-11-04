@@ -19,11 +19,13 @@
 #include <memory>
 
 #include "goldfish/archive/collections/string.h"
+#include "goldfish/archive/deque_archive.h"
 #include "goldfish/archive/reader.h"
 #include "goldfish/archive/writer.h"
 #include "goldfish/async/libuv_event_loop.h"
 #include "goldfish/async/threaded_event_loop.h"
 #include "goldfish/devices/cable/cable.h"
+#include "goldfish/devices/cable/saveload.h"
 #include "goldfish/devices/connector_registry_impl.h"
 #include "goldfish/devices/hal_plug_snapshot.h"
 #include "goldfish/devices/hal_plug_to_i_plug_adapter.h"
@@ -408,6 +410,149 @@ TEST_F(ConnectorRegistryTest, RegisterHalQemuDeviceMakesOptedInPlugSnapshottable
 
     mClientLoop->ShutdownAndWait(absl::Milliseconds(100)).IgnoreError();
     mQemuLoop->ShutdownAndWait(absl::Milliseconds(100)).IgnoreError();
+}
+
+// A guest connection that is still in the Connector stage (it has not sent
+// its full "pipe:..." name yet) must survive a snapshot: Listen() installs the
+// Connector loader, and the restored Connector resumes over this registry's
+// device table.
+TEST_F(ConnectorRegistryTest, ConnectorStageStreamIsRestoredFromSnapshot) {
+    using namespace std::literals;
+
+    std::string created_args;
+    registry.RegisterQemuDevice(
+            "TestDevice", [&](cable::SocketPtr socket, const std::shared_ptr<PingTopic>& ping_topic,
+                              std::string_view args) {
+                created_args = std::string(args);
+                return std::make_shared<TestDevice>(std::move(socket), true, args);
+            });
+    ASSERT_TRUE(registry.Listen(1234));
+
+    archive::DequeArchive archive;
+    EXPECT_TRUE(gTestSocket->send("pipe:qemud:Test"sv));
+    EXPECT_TRUE(cable::SavePlugToSnapshot(*gTestSocket->plug, archive));
+    gTestSocket->plug->OnUnplug();
+
+    // The "guest" reconnects after the load with a fresh socket.
+    TestSocket restored_socket;
+    cable::PlugOrSocket loaded = cable::LoadPlugFromSnapshot(SocketPtr(&restored_socket), archive);
+    ASSERT_TRUE(std::holds_alternative<PlugPtr>(loaded));
+    restored_socket.plug = std::get<PlugPtr>(std::move(loaded));
+    EXPECT_TRUE(archive.Empty());
+
+    EXPECT_TRUE(restored_socket.send("Device:x=1\0rest"sv));
+    EXPECT_EQ(created_args, "x=1");
+    auto* device = dynamic_cast<TestDevice*>(restored_socket.plug.get());
+    ASSERT_NE(device, nullptr);
+    EXPECT_EQ(device->mData, "rest");
+    restored_socket.plug->OnUnplug();
+}
+
+// The emulator runs two registries at once (HAL devices on vsock:5000, test
+// tools on vsock:5002). A Connector saved on one must be restored over *that*
+// registry's device table, not over whichever registry listened last.
+TEST_F(ConnectorRegistryTest, ConnectorIsRestoredIntoItsOwnRegistry) {
+    using namespace std::literals;
+
+    bool hal_created = false;
+    registry.RegisterQemuDevice(
+            "TestDevice", [&](cable::SocketPtr socket, const std::shared_ptr<PingTopic>& ping_topic,
+                              std::string_view args) {
+                hal_created = true;
+                return std::make_shared<TestDevice>(std::move(socket), true, args);
+            });
+    ASSERT_TRUE(registry.Listen(5000));
+    TestSocket* hal_socket = gTestSocket;
+
+    bool tools_created = false;
+    ConnectorRegistry tools_registry;
+    tools_registry.RegisterDevice("OtherDevice", [&](cable::SocketPtr socket,
+                                                     const std::shared_ptr<PingTopic>& ping_topic,
+                                                     std::string_view args) {
+        tools_created = true;
+        return std::make_shared<TestDevice>(std::move(socket), false, args);
+    });
+    TestSocket* tools_socket = nullptr;
+    ASSERT_TRUE(tools_registry.Listen([&](HostPortListener listener) {
+        tools_socket = new TestSocket();
+        tools_socket->plug = std::get<PlugPtr>(listener(SocketPtr(tools_socket)));
+        return true;
+    }));
+    // tools_registry listened last; the HAL Connector must still find `registry`.
+
+    archive::DequeArchive archive;
+    EXPECT_TRUE(hal_socket->send("pipe:qemud:Test"sv));
+    EXPECT_TRUE(cable::SavePlugToSnapshot(*hal_socket->plug, archive));
+    hal_socket->plug->OnUnplug();
+
+    TestSocket restored_socket;
+    cable::PlugOrSocket loaded = cable::LoadPlugFromSnapshot(SocketPtr(&restored_socket), archive);
+    ASSERT_TRUE(std::holds_alternative<PlugPtr>(loaded));
+    restored_socket.plug = std::get<PlugPtr>(std::move(loaded));
+    EXPECT_TRUE(restored_socket.send("Device\0"sv));
+    EXPECT_TRUE(hal_created);
+    EXPECT_FALSE(tools_created);
+    restored_socket.plug->OnUnplug();
+
+    tools_socket->plug->OnUnplug();
+    delete tools_socket;
+}
+
+// With no registry listening under the saved id the loader must hand the
+// socket back instead of crashing.
+TEST_F(ConnectorRegistryTest, ConnectorLoaderWithoutListeningRegistryReturnsSocket) {
+    using namespace std::literals;
+
+    archive::DequeArchive archive;
+    {
+        ConnectorRegistry scoped_registry;
+        scoped_registry.Listen([&](HostPortListener listener) {
+            gTestSocket = new TestSocket();
+            gTestSocket->plug = std::get<PlugPtr>(listener(SocketPtr(gTestSocket)));
+            return true;
+        });
+        EXPECT_TRUE(gTestSocket->send("pipe:qemud:Te"sv));
+        EXPECT_TRUE(cable::SavePlugToSnapshot(*gTestSocket->plug, archive));
+        gTestSocket->plug->OnUnplug();
+    }
+    // `scoped_registry` was the listening registry and is gone now.
+
+    TestSocket restored_socket;
+    cable::PlugOrSocket loaded = cable::LoadPlugFromSnapshot(SocketPtr(&restored_socket), archive);
+    ASSERT_TRUE(std::holds_alternative<SocketPtr>(loaded));
+    EXPECT_EQ(std::get<SocketPtr>(loaded).get(), &restored_socket);
+}
+
+// Destroying a registry that never listened must not withdraw the id of the
+// one that did.
+TEST_F(ConnectorRegistryTest, DestroyingNonListeningRegistryKeepsConnectorLoader) {
+    using namespace std::literals;
+
+    bool created = false;
+    registry.RegisterDevice(
+            "TestDevice", [&](cable::SocketPtr socket, const std::shared_ptr<PingTopic>& ping_topic,
+                              std::string_view args) {
+                created = true;
+                return std::make_shared<TestDevice>(std::move(socket), false, args);
+            });
+    ASSERT_TRUE(registry.Listen(1234));
+
+    archive::DequeArchive archive;
+    EXPECT_TRUE(gTestSocket->send("pipe:Test"sv));
+    EXPECT_TRUE(cable::SavePlugToSnapshot(*gTestSocket->plug, archive));
+    gTestSocket->plug->OnUnplug();
+
+    {
+        ConnectorRegistry never_listened;
+    }
+
+    TestSocket restored_socket;
+    cable::PlugOrSocket loaded = cable::LoadPlugFromSnapshot(SocketPtr(&restored_socket), archive);
+    ASSERT_TRUE(std::holds_alternative<PlugPtr>(loaded));
+    restored_socket.plug = std::get<PlugPtr>(std::move(loaded));
+    EXPECT_TRUE(restored_socket.send("Device\0"sv));
+    EXPECT_TRUE(created);
+    restored_socket.plug->OnUnplug();
 }
 
 }  // namespace devices

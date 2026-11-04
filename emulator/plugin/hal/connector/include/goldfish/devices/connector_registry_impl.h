@@ -16,6 +16,7 @@
 #include <functional>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -46,6 +47,15 @@ using HostPortListener = std::function<devices::cable::PlugOrSocket(devices::cab
  * it will replace the previously registered device. Devices are typically
  * registered early in the boot process, but they can also be registered again
  * after a reboot.
+ *
+ * **Snapshots:** `Listen` publishes this registry under a snapshot id
+ * (`"vsock:<port>"` for `Listen(int)`, the empty id for `Listen(ListenFn)`)
+ * and installs the process-wide `Connector` plug loader
+ * (`cable::RegisterPlugLoader` keys loaders by type id and has no
+ * unregister). A guest connection captured before it finished sending its
+ * pipe name is saved with that id and restored as a `Connector` over the
+ * device table of the registry currently listening under it; the destructor
+ * withdraws the id again.
  *
  * @see goldfish/devices/Connector.h for details on the underlying protocol.
  */
@@ -99,6 +109,17 @@ class ConnectorRegistry : public IConnectorRegistry {
   private:
     bool RegisterDeviceImpl(std::string_view prefix, std::string_view name, DeviceFactory factory);
 
+    bool ListenImpl(std::string snapshot_id, const ListenFn& start_listening);
+
+    // The `cable::PlugLoader` for `Connector::kSnapshotTypeId`; resolves the
+    // saved registry id through the process-wide table `Listen` fills.
+    static cable::PlugOrSocket LoadConnectorFromSnapshot(cable::SocketPtr socket,
+                                                         archive::IReader& reader);
+    static void EnsureConnectorLoaderRegistered();
+    static std::optional<Connector::Target> FindSnapshotTarget(std::string_view snapshot_id);
+    void PublishSnapshotTarget();
+    void WithdrawSnapshotTarget();
+
     using DeviceRegistration = std::function<bool(std::string, DeviceFactory)>;
     // `prefix` is "q" for qemud devices and "-" otherwise (see DeviceEntry::qname).
     void RegisterHalDeviceImpl(
@@ -108,9 +129,13 @@ class ConnectorRegistry : public IConnectorRegistry {
 
     const std::shared_ptr<PingTopic> ping_topic_;
     bool accepting_registries_ = true;
+    bool snapshot_target_published_ = false;
     std::mutex entries_mutex_;
     absl::flat_hash_map<std::string, DeviceFactory> entries_;
     std::vector<DeviceEntry> devices_;
+    // Key under which `Listen` published this registry for Connector
+    // snapshots; see `PublishSnapshotTarget`.
+    std::string snapshot_id_;
     // HalPlug devices this registry added to HalPlugSnapshotRegistry; removed
     // again on destruction.
     std::vector<std::string> snapshot_devices_;

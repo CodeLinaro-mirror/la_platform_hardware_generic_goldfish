@@ -91,6 +91,8 @@ cc_library(
     deps = [
         ":connector_registry",
         ":qemud",
+        "//emulator/libs/archive",
+        "@abseil-cpp//absl/log",
     ],
     alwayslink = True,
 )
@@ -134,9 +136,12 @@ cc_library(
         "//emulator/plugin/hal/plug:hal_plug_to_i_plug_adapter",
         "//emulator/plugin/hal/plug:marshalling_hal_socket",
         "//emulator/plugin/vsock_goldfish:goldfish_vsock_hdrs",
+        "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/base:no_destructor",
         "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/synchronization",
     ],
 )
 
@@ -152,6 +157,7 @@ cc_test(
         ":cable",
         ":connector_registry_impl",
         "//emulator/libs/archive",
+        "//emulator/libs/archive:DequeArchive",
         "//emulator/libs/archive:collections",
         "//emulator/libs/async:libuv_event_loop",
         "//emulator/libs/async:threaded_event_loop",
