@@ -434,7 +434,7 @@ void grpc_main_loop_exit_notify(Notifier* notifier, void* data) {
     // Flush the global event loop before shutting down the server so that terminal
     // exit-snapshot progress and run-state events reach active streams and LROs.
     android::goldfish::ScopedVmUnlock unlock;
-    goldfish::avd::globalEventLoop()->WaitUntilIdle();
+    goldfish::avd::globalEventLoop()->Flush();
     auto deadline = std::chrono::system_clock::now() + std::chrono::milliseconds(100);
     config->grpc_server->Shutdown(deadline);
     config->grpc_server.reset();

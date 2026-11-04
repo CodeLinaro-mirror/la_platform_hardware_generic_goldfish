@@ -169,7 +169,7 @@ class NotifyingTestEventLoop final : public ::goldfish::async::EventLoop {
     }
 
     void ShutdownTimers() override { inner_->ShutdownTimers(); }
-    size_t WaitUntilIdle() override { return inner_->WaitUntilIdle(); }
+    size_t Flush() override { return inner_->Flush(); }
     std::future<absl::Status> Shutdown() override { return inner_->Shutdown(); }
     bool IsOnLoopThread() const override { return inner_->IsOnLoopThread(); }
     ScopedTimer CreateTimer(RepeatingTask task) override {

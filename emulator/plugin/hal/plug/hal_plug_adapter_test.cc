@@ -378,7 +378,7 @@ TEST_F(HalPlugAdapterTest, ReusesSendBufferAcrossFlushes) {
     // flush1Done fires from inside SendAsync(), while the flush task still has
     // to swap the (now empty) buffer back. Let it finish before the next Send,
     // otherwise payload2 may land in the other buffer and the pointers differ.
-    mQemuLoop->WaitUntilIdle();
+    mQemuLoop->Flush();
 
     socket->Send(payload2);
     ASSERT_TRUE(flush2Done.WaitForNotificationWithTimeout(absl::Milliseconds(500)));

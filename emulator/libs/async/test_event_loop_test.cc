@@ -362,7 +362,7 @@ TEST(TestEventLoop, PostWithDelayRunsOnceTheClockAdvances) {
     EXPECT_TRUE(ran) << "Post(fn, 1s) never ran, even after the clock advanced by 2s";
 }
 
-TEST(TestEventLoop, WaitUntilIdleWaitsForInFlightTaskWhenQueueIsEmpty) {
+TEST(TestEventLoop, FlushWaitsForInFlightTaskWhenQueueIsEmpty) {
     constexpr absl::Duration kInFlightProbeWindow = absl::Milliseconds(25);
     auto loop = TestEventLoop::Create();
     std::atomic<bool> task_finished = false;
@@ -374,7 +374,7 @@ TEST(TestEventLoop, WaitUntilIdleWaitsForInFlightTaskWhenQueueIsEmpty) {
     ASSERT_THAT(loop->Post([&] {
                     waiter = std::thread([&] {
                         waiter_entered.Notify();
-                        loop->WaitUntilIdle();
+                        loop->Flush();
                         saw_task_finished = task_finished.load(std::memory_order_acquire);
                         wait_returned.Notify();
                     });
@@ -391,7 +391,7 @@ TEST(TestEventLoop, WaitUntilIdleWaitsForInFlightTaskWhenQueueIsEmpty) {
     EXPECT_TRUE(saw_task_finished);
 }
 
-TEST(TestEventLoop, WaitUntilIdleReturnsUnderSteadyTraffic) {
+TEST(TestEventLoop, FlushReturnsUnderSteadyTraffic) {
     auto loop = TestEventLoop::Create();
     std::atomic<bool> stop_pumping = false;
     std::thread runner([&] {
@@ -422,7 +422,7 @@ TEST(TestEventLoop, WaitUntilIdleReturnsUnderSteadyTraffic) {
     absl::Notification wait_returned;
     std::thread waiter([&] {
         caller_entered.Notify();
-        loop->WaitUntilIdle();
+        loop->Flush();
         wait_returned.Notify();
     });
     caller_entered.WaitForNotification();
@@ -435,7 +435,7 @@ TEST(TestEventLoop, WaitUntilIdleReturnsUnderSteadyTraffic) {
     waiter.join();
 
     EXPECT_TRUE(returned_promptly)
-            << "WaitUntilIdle() never returned while tasks kept arriving on TestEventLoop";
+            << "Flush() never returned while tasks kept arriving on TestEventLoop";
 }
 
 TEST(TestEventLoop, StateIsFinishedAfterShutdownCompletes) {

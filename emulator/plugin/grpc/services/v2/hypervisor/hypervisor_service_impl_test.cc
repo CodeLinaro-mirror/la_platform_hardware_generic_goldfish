@@ -844,7 +844,7 @@ TEST_F(HypervisorServiceTest, StreamVmStateDeliversEverySnapshotPhaseFromEventPa
     EXPECT_FALSE(msg.has_snapshot_progress());
 
     // 3. Request StopVm and enqueue exit-save PREPARING, TRANSFERRING, COMPLETED, and a post-save
-    // Running notification before flushing the loop with WaitUntilIdle() (matching
+    // Running notification before flushing the loop with Flush() (matching
     // grpc_main_loop_exit_notify). StreamVmState must deliver SHUTTING_DOWN, each exit-save phase
     // under SHUTTING_DOWN, and the final SHUTTING_DOWN state with snapshot_progress cleared.
     StopVmRequest stop_req;

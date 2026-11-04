@@ -287,7 +287,7 @@ class QemuEventLoopImpl : public goldfish::async::QemuEventLoop {
     }
 
     void ShutdownTimers() override;
-    size_t WaitUntilIdle() override;
+    size_t Flush() override;
     std::future<absl::Status> Shutdown() override;
 
     bool IsOnLoopThread() const override;
@@ -459,7 +459,7 @@ void QemuEventLoopImpl::ShutdownTimers() {
     PostImmediately([this]() { ShutdownTimersInternal(); }, /*flow_id=*/0).IgnoreError();
 }
 
-size_t QemuEventLoopImpl::WaitUntilIdle() {
+size_t QemuEventLoopImpl::Flush() {
     if (IsOnLoopThread()) {
         return DrainQueue();
     } else {

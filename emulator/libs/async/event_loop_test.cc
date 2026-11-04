@@ -2006,7 +2006,7 @@ TEST_P(EventLoopTest, TaskPostedDuringSnapshotDoesNotRunInsideIt) {
                                               "task posted during the snapshot"));
 }
 
-TEST_P(EventLoopTest, WaitUntilIdleWaitsForInFlightTaskWhenQueueIsEmpty) {
+TEST_P(EventLoopTest, FlushWaitsForInFlightTaskWhenQueueIsEmpty) {
     constexpr absl::Duration kInFlightProbeWindow = absl::Milliseconds(25);
     runInThread();
 
@@ -2021,7 +2021,7 @@ TEST_P(EventLoopTest, WaitUntilIdleWaitsForInFlightTaskWhenQueueIsEmpty) {
                     // queue is empty while this task is still running.
                     waiter = std::thread([&] {
                         waiter_entered.Notify();
-                        loop->WaitUntilIdle();
+                        loop->Flush();
                         saw_task_finished = task_finished.load(std::memory_order_acquire);
                         wait_returned.Notify();
                     });
@@ -2053,7 +2053,7 @@ TEST(EventLoopCounterTest, HasProcessedTargetHandlesCounterWraparound) {
     EXPECT_TRUE(TaskCounterPeer::HasProcessedTarget(3, kMax - 1));
 }
 
-TEST_P(EventLoopTest, WaitUntilIdleReturnsUnderSteadyTraffic) {
+TEST_P(EventLoopTest, FlushReturnsUnderSteadyTraffic) {
     if (mLoopType != "qemu") {
         GTEST_SKIP() << "This test is specific to QemuEventLoop.";
     }
@@ -2064,7 +2064,7 @@ TEST_P(EventLoopTest, WaitUntilIdleReturnsUnderSteadyTraffic) {
     absl::Notification wait_returned;
     std::thread waiter([&] {
         caller_entered.Notify();
-        loop->WaitUntilIdle();
+        loop->Flush();
         wait_returned.Notify();
     });
     caller_entered.WaitForNotification();
@@ -2080,10 +2080,10 @@ TEST_P(EventLoopTest, WaitUntilIdleReturnsUnderSteadyTraffic) {
     fake_qemu_advance_ms(1);
 
     EXPECT_TRUE(returned_promptly)
-            << "WaitUntilIdle() never returned while tasks kept arriving on QemuEventLoop";
+            << "Flush() never returned while tasks kept arriving on QemuEventLoop";
 }
 
-TEST(LibuvEventLoopTest, WaitUntilIdleReturnsUnderSteadyTraffic) {
+TEST(LibuvEventLoopTest, FlushReturnsUnderSteadyTraffic) {
     auto loop = ThreadedEventLoop::Create(LibuvEventLoop::Create("LibuvSteadyTraffic"));
 
     SelfRepostingProducer producer(loop.get());
@@ -2093,7 +2093,7 @@ TEST(LibuvEventLoopTest, WaitUntilIdleReturnsUnderSteadyTraffic) {
     absl::Notification wait_returned;
     std::thread waiter([&] {
         caller_entered.Notify();
-        loop->WaitUntilIdle();
+        loop->Flush();
         wait_returned.Notify();
     });
     caller_entered.WaitForNotification();
@@ -2104,7 +2104,7 @@ TEST(LibuvEventLoopTest, WaitUntilIdleReturnsUnderSteadyTraffic) {
 
     EXPECT_THAT(loop->ShutdownAndWait(kCleanupTimeout), absl_testing::IsOk());
     EXPECT_TRUE(returned_promptly)
-            << "WaitUntilIdle() never returned while tasks kept arriving on LibuvEventLoop";
+            << "Flush() never returned while tasks kept arriving on LibuvEventLoop";
 }
 
 TEST(LibuvEventLoopShutdownTest, ShutdownOfLoopThatNeverRanSucceeds) {
