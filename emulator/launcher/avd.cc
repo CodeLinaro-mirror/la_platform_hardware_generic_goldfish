@@ -15,6 +15,7 @@
 #include "android/goldfish/avd.h"
 
 #include <cctype>
+#include <cstdio>
 #include <filesystem>
 #include <fstream>
 #include <memory>
@@ -791,6 +792,20 @@ absl::StatusOr<std::unique_ptr<Avd>> Avd::FromAndroidBuild(
 }
 
 namespace {
+constexpr std::string_view kLcdWidthKey = "hw.lcd.width";
+constexpr std::string_view kLcdHeightKey = "hw.lcd.height";
+constexpr std::string_view kDisplaylessKey = "hw.displayless";
+constexpr std::string_view kNoSkin = "_no_skin";
+constexpr std::string_view kLayoutFile = "layout";
+constexpr std::string_view kSkinsDir = "skins";
+
+struct NumericSkinSpec {
+    std::string_view key;
+    std::string value;
+    int width = 0;
+    int height = 0;
+};
+
 Avd::CpuArchitecture ParseArch(const IniFile& config_ini) {
     auto abi = config_ini.GetString("abi.type", "unknown");
     if (absl::StrContains(abi, "x86")) {
@@ -802,6 +817,136 @@ Avd::CpuArchitecture ParseArch(const IniFile& config_ini) {
     }
 
     return Avd::CpuArchitecture::kUnknown;
+}
+
+bool ParseSkinDimensions(const std::string& spec, int* width, int* height) {
+    return std::sscanf(spec.c_str(), "%dx%d", width, height) == 2;
+}
+
+bool HasSkinLayout(const fs::path& skin_dir, std::string_view skin_name) {
+    if (base::file::is_file(skin_dir / kLayoutFile)) {
+        return true;
+    }
+    return absl::StrContains(skin_name, "_fold") &&
+           base::file::is_file(skin_dir / kPixelFoldDefaultSkinName / kLayoutFile);
+}
+
+bool HasOnDiskSkinPath(const UserPaths& user_paths, const fs::path& skin_path,
+                       std::string_view skin_name) {
+    if (skin_path.is_absolute()) {
+        return HasSkinLayout(skin_path, skin_name);
+    }
+    return HasSkinLayout(user_paths.sdk_directory / skin_path, skin_name);
+}
+
+bool HasOnDiskSkinName(const fs::path& config_dir, const fs::path& content_path,
+                       const SystemImagePaths& system_image_paths, std::string_view skin_name) {
+    if (HasSkinLayout(config_dir / kSkinsDir / skin_name, skin_name) ||
+        HasSkinLayout(content_path / kSkinsDir / skin_name, skin_name)) {
+        return true;
+    }
+    return !system_image_paths.skins_dir.empty() &&
+           HasSkinLayout(system_image_paths.skins_dir / skin_name, skin_name);
+}
+
+std::optional<NumericSkinSpec> ResolveNumericSkinSpec(const UserPaths& user_paths,
+                                                      const fs::path& config_dir,
+                                                      const fs::path& content_path,
+                                                      const SystemImagePaths& system_image_paths,
+                                                      const IniFile& config_ini) {
+    const std::string skin_name = config_ini.GetString(kSkinName, "");
+    const std::string skin_path = config_ini.GetString(kSkinPath, "");
+    if (!skin_path.empty() && skin_path != kNoSkin) {
+        if (HasOnDiskSkinPath(user_paths, skin_path, skin_name)) {
+            return std::nullopt;
+        }
+        int width = 0;
+        int height = 0;
+        if (ParseSkinDimensions(skin_path, &width, &height)) {
+            return NumericSkinSpec{
+                .key = kSkinPath, .value = skin_path, .width = width, .height = height};
+        }
+    }
+    if (skin_name.empty() || skin_name == kNoSkin) {
+        return std::nullopt;
+    }
+    if (HasOnDiskSkinName(config_dir, content_path, system_image_paths, skin_name)) {
+        return std::nullopt;
+    }
+    int width = 0;
+    int height = 0;
+    if (ParseSkinDimensions(skin_name, &width, &height)) {
+        return NumericSkinSpec{
+            .key = kSkinName, .value = skin_name, .width = width, .height = height};
+    }
+    return std::nullopt;
+}
+
+absl::Status CheckSkinMatchesLcd(const AndroidOptions& opts, const UserPaths& user_paths,
+                                 const fs::path& content_path,
+                                 const SystemImagePaths& system_image_paths,
+                                 const IniFile& config_ini) {
+    if (opts.skin != nullptr || config_ini.GetBool(kDisplaylessKey, false)) {
+        return absl::OkStatus();
+    }
+
+    const fs::path config_path = !config_ini.GetBackingFile().empty()
+                                         ? config_ini.GetBackingFile()
+                                         : (content_path / "config.ini");
+    const bool has_lcd_width = config_ini.HasKey(kLcdWidthKey);
+    const bool has_lcd_height = config_ini.HasKey(kLcdHeightKey);
+    if (has_lcd_width != has_lcd_height) {
+        const std::string_view set_key = has_lcd_width ? kLcdWidthKey : kLcdHeightKey;
+        const std::string_view missing_key = has_lcd_width ? kLcdHeightKey : kLcdWidthKey;
+        return absl::InvalidArgumentError(absl::StrFormat(
+                "Incomplete display size in %s: %s=%s is set but %s is missing. "
+                "Set both hw.lcd.width and hw.lcd.height.",
+                config_path.string(), set_key, config_ini.GetString(set_key, ""), missing_key));
+    }
+
+    int lcd_width = 0;
+    int lcd_height = 0;
+    if (has_lcd_width) {
+        lcd_width = config_ini.GetInt(kLcdWidthKey, 0);
+        lcd_height = config_ini.GetInt(kLcdHeightKey, 0);
+        if (lcd_width <= 0 || lcd_height <= 0) {
+            return absl::InvalidArgumentError(absl::StrFormat(
+                    "Invalid display size in %s: hw.lcd.width=%s, hw.lcd.height=%s. "
+                    "Both dimensions must be positive integers.",
+                    config_path.string(), config_ini.GetString(kLcdWidthKey, ""),
+                    config_ini.GetString(kLcdHeightKey, "")));
+        }
+    }
+
+    const auto skin_spec = ResolveNumericSkinSpec(user_paths, config_path.parent_path(),
+                                                  content_path, system_image_paths, config_ini);
+    if (!skin_spec.has_value()) {
+        return absl::OkStatus();
+    }
+    if (skin_spec->width <= 0 || skin_spec->height <= 0) {
+        return absl::InvalidArgumentError(absl::StrFormat(
+                "Invalid display size in %s: %s=%s. Both dimensions must be positive integers.",
+                config_path.string(), skin_spec->key, skin_spec->value));
+    }
+    if (!has_lcd_width) {
+        return absl::OkStatus();
+    }
+
+    const bool same_orientation =
+            (skin_spec->width == lcd_width && skin_spec->height == lcd_height);
+    const bool rotated_orientation =
+            (skin_spec->width == lcd_height && skin_spec->height == lcd_width);
+    if (same_orientation || rotated_orientation) {
+        return absl::OkStatus();
+    }
+
+    return absl::InvalidArgumentError(absl::StrFormat(
+            "Inconsistent display size in %s: %s=%s does not match hw.lcd.width=%d, "
+            "hw.lcd.height=%d. To use %dx%d, set skin.name and skin.path to %dx%d or delete "
+            "both lines. To use %dx%d, set hw.lcd.width=%d and hw.lcd.height=%d.",
+            config_path.string(), skin_spec->key, skin_spec->value, lcd_width, lcd_height,
+            lcd_width, lcd_height, lcd_width, lcd_height, skin_spec->width, skin_spec->height,
+            skin_spec->width, skin_spec->height));
 }
 }  // namespace
 
@@ -867,28 +1012,25 @@ absl::StatusOr<std::unique_ptr<Avd>> Avd::FromSysDirs(
         }
     }
 
+    RETURN_IF_ERROR(
+            CheckSkinMatchesLcd(opts, user_paths, content_path, system_image_paths, config_ini));
+
     HardwareConfig hw_cfg;
     hw_cfg.Load(config_ini);
 
     // Resolution fallback: If dimensions are missing from config.ini,
-    // try to resolve them from a "magic" skin name (e.g., "1080x1920").
-    if (!config_ini.HasKey("hw.lcd.width") || !config_ini.HasKey("hw.lcd.height")) {
-        std::string skin_name = config_ini.GetString("skin.name", "");
-        if (!skin_name.empty() && std::isdigit(skin_name[0])) {
-            int width = 0;
-            int height = 0;
-            if (std::sscanf(skin_name.c_str(), "%dx%d", &width, &height) == 2) {
-                if (width > 0 && height > 0) {
-                    if (!config_ini.HasKey("hw.lcd.width")) {
-                        hw_cfg.hw_lcd_width = width;
-                    }
-                    if (!config_ini.HasKey("hw.lcd.height")) {
-                        hw_cfg.hw_lcd_height = height;
-                    }
-                    LOG(INFO) << "Launcher: Resolved missing hw.lcd.width/height from skin.name: "
-                              << width << "x" << height;
-                }
-            }
+    // try to resolve them from a "magic" skin (e.g., "1080x1920").
+    if (!config_ini.HasKey(kLcdWidthKey) && !config_ini.HasKey(kLcdHeightKey)) {
+        const fs::path config_dir = !config_ini.GetBackingFile().empty()
+                                            ? config_ini.GetBackingFile().parent_path()
+                                            : content_path;
+        if (const auto skin_spec = ResolveNumericSkinSpec(user_paths, config_dir, content_path,
+                                                          system_image_paths, config_ini);
+            skin_spec.has_value() && skin_spec->width > 0 && skin_spec->height > 0) {
+            hw_cfg.hw_lcd_width = skin_spec->width;
+            hw_cfg.hw_lcd_height = skin_spec->height;
+            LOG(INFO) << "Launcher: Resolved missing hw.lcd.width/height from " << skin_spec->key
+                      << ": " << skin_spec->width << "x" << skin_spec->height;
         }
     }
 

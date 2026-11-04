@@ -63,6 +63,7 @@ struct SystemImagePaths {
     fs::path verified_boot_params;
 
     fs::path data_dir;
+    fs::path skins_dir;
 
     fs::path kernel_cmdline;
     fs::path kernel_image;

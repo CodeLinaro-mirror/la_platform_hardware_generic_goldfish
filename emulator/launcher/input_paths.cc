@@ -220,6 +220,8 @@ absl::StatusOr<UserPaths> ResolveUserPaths(const fs::path& launcher_dir, bool ve
 }
 
 namespace {
+constexpr std::string_view kSkinsDir = "skins";
+
 // Returns true if |path| only contains "." components (e.g., ".", "./", "./."),
 // where a trailing slash produces an empty component. Unlike lexically_normal(),
 // this does not collapse "non-existing/.." to ".".
@@ -274,6 +276,25 @@ absl::StatusOr<SystemImagePaths> ResolveSystemImagePaths(const std::vector<fs::p
     if (!base::file::is_dir(paths.data_dir)) {
         return absl::InvalidArgumentError(
                 absl::StrCat("data directory is not a directory: ", paths.data_dir.string()));
+    }
+
+    if (auto skins_dir = Search(search_paths, kSkinsDir, "skins directory");
+        skins_dir.ok() && base::file::is_dir(*skins_dir)) {
+        paths.skins_dir = *std::move(skins_dir);
+    } else {
+        for (const auto& sp : search_paths) {
+            if (IsCurrentDirPath(sp)) {
+                continue;
+            }
+            const fs::path parent = sp.lexically_normal().parent_path();
+            if (!parent.empty()) {
+                if (auto parent_skins = CheckExists(parent / kSkinsDir, "skins directory");
+                    parent_skins.ok() && base::file::is_dir(*parent_skins)) {
+                    paths.skins_dir = *std::move(parent_skins);
+                    break;
+                }
+            }
+        }
     }
 
     if (auto kernel_cmdline = Search(search_paths, "kernel_cmdline.txt", "kernel cmdline");
