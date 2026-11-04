@@ -97,6 +97,14 @@ bool RendererVulkan::initialize() {
 #endif
 #if defined(__linux__) || defined(__APPLE__)
         if (std::filesystem::exists(lvpLib)) {
+#if defined(__APPLE__)
+            // Mesa's macOS fallback util_barrier_wait() returns true on every
+            // worker thread, which destroys the stack barrier in
+            // disk_cache_destroy() while sibling disk$ threads are still waking.
+            if (System::GetEnvironmentVariable("MESA_SHADER_CACHE_DISABLE").empty()) {
+                System::SetEnvironmentVariable("MESA_SHADER_CACHE_DISABLE", "true");
+            }
+#endif
             if (void* handle = ::dlopen(lvpLib.c_str(), RTLD_NOW | RTLD_LOCAL | RTLD_NODELETE)) {
                 ::dlclose(handle);
             }
