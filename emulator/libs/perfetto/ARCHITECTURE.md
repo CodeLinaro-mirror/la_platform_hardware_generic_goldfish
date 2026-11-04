@@ -21,6 +21,6 @@ By default, Perfetto tracing is compiled out for zero runtime overhead unless th
   - Unit tests (`@goldfish//emulator/libs/perfetto:init_test`) verifying trace session initialization and category gating.
 
 ## Cross-Component Integration
-- **QEMU Plugin Startup (`@goldfish//emulator/plugin:goldfish_x86_64` / `emulator/plugin/plugin.cc`)**: `start_tracing()` and `stop_tracing()` (guarded by `CONFIG_TRACE_GOLDFISH`) register `OnQemuGoldfishTrace` via `qemu_goldfish_set_trace_callback` to bridge QEMU trace events into the `"qemu"` category.
+- **QEMU Plugin Startup (`@goldfish//emulator/plugin:goldfish` / `emulator/plugin/plugin.cc`)**: `start_tracing()` and `stop_tracing()` (guarded by `CONFIG_TRACE_GOLDFISH`) register `OnQemuGoldfishTrace` via `qemu_goldfish_set_trace_callback` to bridge QEMU trace events into the `"qemu"` category.
 - **gRPC Interceptor (`@goldfish//emulator/plugin/grpc/interceptors:perfetto_interceptor`)**: `PerfettoInterceptor` and `PerfettoInterceptorFactory` (`emulator/plugin/grpc/interceptors/perfetto_interceptor.cc`) check `TRACE_EVENT_CATEGORY_ENABLED("grpc")` before instantiating per-RPC trace spans.
 - **Display & WebRTC (`@goldfish//emulator/plugin/display`, `@goldfish//emulator/videobridge`)**: Frame sequence drops (`dropped_frames`, `FrameDropped`, `webrtc_dropped_frames`, `WebRTCFrameDropped`) and `grpc_frame_interval_ms` are guarded by `TRACE_EVENT_CATEGORY_ENABLED("display")`.

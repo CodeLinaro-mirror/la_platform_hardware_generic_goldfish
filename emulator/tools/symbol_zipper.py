@@ -353,15 +353,15 @@ def main():
             <module_name>/<debug_id>/<module_name>.sym
 
         Where:
-            - <module_name>: The name of the executable or library (e.g., libgoldfish_aarch64.dylib).
+            - <module_name>: The name of the executable or library (e.g., libgoldfish.dylib).
             - <debug_id>: The unique debug identifier for the module (e.g., 4C4C444655553144A1925AF7C65861290).
             - <module_name>.sym: The symbol file itself, with the '.sym' extension.
 
         Example:
 
-            libgoldfish_aarch64.dylib/
+            libgoldfish.dylib/
                 4C4C444655553144A1925AF7C65861290/
-                libgoldfish_aarch64.dylib.sym
+                libgoldfish.dylib.sym
 
             libgfxstream_backend.dylib/
                 4C4C44B555553144A1544053FFE8D5430/

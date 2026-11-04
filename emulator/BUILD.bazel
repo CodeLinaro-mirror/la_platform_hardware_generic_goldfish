@@ -284,28 +284,13 @@ no_windows_export_all_symbols_binary(
 
 filegroup(
     name = "plugin_binaries",
-    srcs = select({
+    srcs = [
+        "//emulator/plugin:goldfish",
         # Loaded with dlopen() on first use by the plugin's virtio-gpu-gfxstream
         # device.
+    ] + select({
         "@platforms//os:windows": [":gfxstream_backend_windows"],
         "//conditions:default": ["@gfxstream//host:gfxstream_backend"],
-    }) + select({
-        ":windows_aarch64": [
-            "//emulator/plugin:goldfish_aarch64",
-        ],
-        ":windows_x86_64": [
-            "//emulator/plugin:goldfish_x86_64",
-        ],
-        "@platforms//os:macos": [
-            "//emulator/plugin:goldfish_aarch64",
-        ],
-        "@goldfish_build//platforms:is_linux_aarch64": [
-            "//emulator/plugin:goldfish_aarch64",
-        ],
-        "@platforms//os:linux": [
-            "//emulator/plugin:goldfish_x86_64",
-        ],
-        "//conditions:default": [],
     }),
 )
 

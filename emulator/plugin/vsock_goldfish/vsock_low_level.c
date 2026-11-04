@@ -24,7 +24,6 @@
 #include "qemu/osdep.h"
 #include "qapi/error.h"
 #include "hw/virtio/virtio.h"
-#include "hw/virtio/virtio-access.h"
 #include "hw/virtio/virtio-pci.h"
 #include "hw/core/qdev-properties.h"
 #include "standard-headers/linux/virtio_vsock.h"
