@@ -6,7 +6,7 @@ Crate Collections:
 - _ANDROID_CRATES: Standard crates mirroring `third_party/rust/android-crates-io/crates`.
 - _GOLDFISH_UNVERSIONED_CRATES: Legacy unversioned crates in Goldfish (e.g. `winapi`).
 - _GOLDFISH_VERSIONED_CRATES: Versioned crates in Goldfish (e.g. `aes-0.8.4`).
-- _CUSTOM_PATH_CRATES: Crates with non-standard paths (e.g. `rustutils` in `system`, `pica`).
+- _CUSTOM_PATH_CRATES: Crates with non-standard paths (e.g. `rustutils` in `system`).
 - _MANUAL_BUILD_CRATES: Legacy crates using build files in Goldfish root (`nix`, `bitflags`, etc.).
 """
 
@@ -50,7 +50,6 @@ def _lrc_impl(module_ctx):
     # 2. Custom Path Crates
     _CUSTOM_PATH_CRATES = [
         struct(name = "getrandom_v0_2", path = "external/rust/android-crates-io-pinned/crates/getrandom"),
-        struct(name = "pica", path = "third_party/rust/crates/pica"),
         struct(name = "protobuf-rust", path = "{}/protobuf".format(_ANDROID_CRATES_IO)),
         struct(name = "rustutils", path = "system/librustutils/rustutils"),
     ]
