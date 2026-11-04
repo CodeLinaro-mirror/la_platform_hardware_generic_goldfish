@@ -71,7 +71,12 @@ extern "C" const char* __tsan_default_suppressions() {
             // after pthread_barrier_wait() returns PTHREAD_BARRIER_SERIAL_THREAD
             // (b/573994192, b/579559759).
             "race:lp_fence_destroy\n"
+            "race:lvp_queue_submit\n"
             "race:util_queue_thread_func\n"
+            // libuv's uv__signal_lock() synchronizes via a pipe that TSAN
+            // cannot observe, misreporting handle->signum reads in
+            // uv__signal_handler() as a race with uv_signal_start().
+            "race:uv__signal_handler\n"
             "race:cuttlefish::NetworkService::isRadioOff\n";
 }
 #endif
