@@ -55,7 +55,6 @@
 #include "launch_fishtank.h"
 #include "launch_netsimd.h"
 #include "launch_qemu/emulator_config.h"
-#include "launch_qemu/gpu_device.h"
 #include "launch_qemu/launch_qemu.h"
 #include "launch_qemu/snapshot_device.h"
 #include "legacy_console_controller.h"
@@ -461,6 +460,7 @@ class Launcher {
                                            *config_.avd,
                                            qemu_opts,
                                            config_.feature_flags,
+                                           config_.gpu_selection,
                                            host_timezone_}};
 
         if (auto emulator_config = emulator.launch_config(); emulator_config.ok()) {
@@ -471,7 +471,7 @@ class Launcher {
                 emulator_process_ = *std::move(s);
                 qemu_pid_ = emulator_process_->GetPid();
                 LOG(INFO) << "Running emulator as pid: " << qemu_pid_;
-                report_host_info_metrics(emulator);
+                report_host_info_metrics();
                 report_quickboot_metrics(emulator);
             } else {
                 fail_startup(
@@ -493,24 +493,13 @@ class Launcher {
         }
     }
 
-    void report_host_info_metrics(const LaunchQemu& emulator) {
-        std::string vk_icd;
-        std::vector<VulkanGpuDeviceInfo> host_gpus;
-        std::optional<VulkanGpuDeviceInfo> selected_gpu;
-        if (const auto* gpu = emulator.get<GpuDevice>("gpu0")) {
-            vk_icd = gpu->getVulkanIcd();
-            host_gpus.assign(gpu->getHostGpus().begin(), gpu->getHostGpus().end());
-            selected_gpu = gpu->getSelectedGpu();
-        }
-        config_.metrics_reporter->Report([this, vk_icd = std::move(vk_icd),
-                                          host_gpus = std::move(host_gpus),
-                                          selected_gpu = std::move(selected_gpu)](
-                                                 android_studio::AndroidStudioEvent& event) {
+    void report_host_info_metrics() {
+        config_.metrics_reporter->Report([this](android_studio::AndroidStudioEvent& event) {
             android::goldfish::FillEmulatorHostEvent(
                     event, *config_.avd, config_.feature_flags,
                     /*launcher_pid=*/android::base::System::GetCurrentProcessPid(),
                     /*qemu_pid=*/emulator_process_->GetPid(), config_.opts.metrics_collection,
-                    config_.opts.fuchsia, vk_icd, host_gpus, selected_gpu);
+                    config_.opts.fuchsia, config_.gpu_selection);
         });
     }
 

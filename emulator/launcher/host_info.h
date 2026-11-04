@@ -14,13 +14,9 @@
 
 #pragma once
 
-#include <optional>
-#include <span>
-#include <string_view>
-
 #include "android/goldfish/avd.h"
 #include "android/goldfish/feature_flags.h"
-#include "launch_qemu/vulkan_gpu_device_info.h"
+#include "emulator/launcher/gpu_selection.h"
 #include "studio_stats.pb.h"
 
 namespace android::goldfish {
@@ -31,8 +27,7 @@ bool IsRunningInContainer();
 
 void FillEmulatorHostEvent(android_studio::AndroidStudioEvent& event, const Avd& avd,
                            const FeatureFlags& feature_flags, long launcher_pid, long qemu_pid,
-                           bool metrics_collection_opt, bool fuchsia_opt, std::string_view vk_icd,
-                           std::span<const VulkanGpuDeviceInfo> host_gpus,
-                           const std::optional<VulkanGpuDeviceInfo>& selected_gpu);
+                           bool metrics_collection_opt, bool fuchsia_opt,
+                           const ::goldfish::gpu::GpuSelection& gpu_selection);
 
 }  // namespace android::goldfish

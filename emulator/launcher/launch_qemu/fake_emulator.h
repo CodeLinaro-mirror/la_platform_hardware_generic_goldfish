@@ -36,7 +36,7 @@ class FakeEmulator {
 
         mEmulatorConfig = std::make_unique<EmulatorConfig>(
                 mPorts, mChardevEndpoints, mMetricsConfig, mUserPaths, mEmulatorPaths, *mMockAvd,
-                mOpts, mFeatureFlags);
+                mOpts, mFeatureFlags, mGpuSelection);
     }
 
     explicit FakeEmulator(AndroidOptions opts) : FakeEmulator(EmulatorPorts{}, std::move(opts)) {}
@@ -53,6 +53,8 @@ class FakeEmulator {
 
     FeatureFlags& feature_flags() { return mFeatureFlags; }
 
+    ::goldfish::gpu::GpuSelection& gpu_selection() { return mGpuSelection; }
+
     const EmulatorConfig& config() { return *mEmulatorConfig; }
 
   private:
@@ -61,6 +63,11 @@ class FakeEmulator {
     ChardevEndpoints mChardevEndpoints;
     MetricsConfig mMetricsConfig;
     FeatureFlags mFeatureFlags;
+    ::goldfish::gpu::GpuSelection mGpuSelection{
+        .chosen_gpu_mode = "auto",
+        .emu_renderer = "lavapipe",
+        .vulkan_icd = "lavapipe",
+    };
 
     EmulatorPaths mEmulatorPaths;
     UserPaths mUserPaths;
