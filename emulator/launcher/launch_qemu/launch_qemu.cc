@@ -148,7 +148,9 @@ absl::Status LaunchQemu::addDevices() {
                          config_.chardev_endpoints().netsim),
         });
 
-        if (!o.no_wifi) {
+        if (!o.no_wifi && (a.ApiLevel() >= 30 ||
+                           config_.feature_flags().IsEnabled(
+                                   android_studio::EmulatorFeatureFlagState::VIRTIO_WIFI))) {
             addDevice<WifiDevice>("0b.0");
         }
         // The name of these vport devices should be used by

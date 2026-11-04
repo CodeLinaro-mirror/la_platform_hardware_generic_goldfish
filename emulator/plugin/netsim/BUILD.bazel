@@ -52,6 +52,7 @@ cc_test(
         ":netsim-netdev",
         ":packet_transport",
         "//emulator/libs/test:googletest_main",
+        "//emulator/plugin/hal/plug:fake_vsock",
         "@abseil-cpp//absl/base:log_severity",
         "@abseil-cpp//absl/log:scoped_mock_log",
         "@abseil-cpp//absl/status",

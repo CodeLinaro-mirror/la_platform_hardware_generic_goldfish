@@ -268,14 +268,18 @@ absl::StatusOr<SystemImagePaths> ResolveSystemImagePaths(const std::vector<fs::p
     }
     ASSIGN_OR_RETURN(paths.advanced_features,
                      Search(search_paths, "advancedFeatures.ini", "advanced features"));
-    ASSIGN_OR_RETURN(
-            paths.verified_boot_params,
-            Search(search_paths, "VerifiedBootParams.textproto", "verified boot parameters"));
+    if (auto verified_boot =
+                Search(search_paths, "VerifiedBootParams.textproto", "verified boot parameters");
+        verified_boot.ok()) {
+        paths.verified_boot_params = *verified_boot;
+    }
 
-    ASSIGN_OR_RETURN(paths.data_dir, Search(search_paths, "data", "data directory"));
-    if (!base::file::is_dir(paths.data_dir)) {
-        return absl::InvalidArgumentError(
-                absl::StrCat("data directory is not a directory: ", paths.data_dir.string()));
+    if (auto data_dir = Search(search_paths, "data", "data directory"); data_dir.ok()) {
+        if (!base::file::is_dir(*data_dir)) {
+            return absl::InvalidArgumentError(
+                    absl::StrCat("data directory is not a directory: ", data_dir->string()));
+        }
+        paths.data_dir = *data_dir;
     }
 
     if (auto skins_dir = Search(search_paths, kSkinsDir, "skins directory");
@@ -325,17 +329,18 @@ absl::StatusOr<SystemImagePaths> ResolveSystemImagePaths(const std::vector<fs::p
     }
     if (opts.vendor) {
         ASSIGN_OR_RETURN(paths.vendor_image, CheckExists(opts.vendor, "override vendor image"));
-    } else {
-        ASSIGN_OR_RETURN(paths.vendor_image,
-                         Search(search_paths, android_build ? "vendor-qemu.img" : "vendor.img",
-                                "vendor image"));
+    } else if (auto vendor_img =
+                       Search(search_paths, android_build ? "vendor-qemu.img" : "vendor.img",
+                              "vendor image");
+               vendor_img.ok()) {
+        paths.vendor_image = *vendor_img;
     }
     if (opts.encryption_key) {
         ASSIGN_OR_RETURN(paths.encryption_key_image,
                          CheckExists(opts.encryption_key, "override encryption key image"));
-    } else {
-        ASSIGN_OR_RETURN(paths.encryption_key_image,
-                         Search(search_paths, "encryptionkey.img", "encryption key image"));
+    } else if (auto encrypt_img = Search(search_paths, "encryptionkey.img", "encryption key image");
+               encrypt_img.ok()) {
+        paths.encryption_key_image = *encrypt_img;
     }
 
     return paths;

@@ -39,6 +39,20 @@ class FingerprintDevice : public IFingerprintDevice {
         VLOG(1) << "The guest is (unexpectedly) Sending data to the fingerprint device: " << data;
     }
 
+    bool SupportsSnapshot() const override { return true; }
+
+    bool SaveToSnapshot(archive::IWriter& writer) const override {
+        constexpr uint32_t kSnapshotVersion = 1;
+        writer << kSnapshotVersion;
+        return true;
+    }
+
+    bool LoadFromSnapshot(archive::IReader& reader) override {
+        constexpr uint32_t kSnapshotVersion = 1;
+        uint32_t version = 0;
+        return archive::ReadValue(reader, version).ok() && version == kSnapshotVersion;
+    }
+
     void OnEvent(const TouchEventType x) {
         if (x == goldfish::avd_universe::fingerprint::kReleaseEvent) {
             Send("off");

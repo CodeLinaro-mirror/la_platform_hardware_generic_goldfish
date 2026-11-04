@@ -106,6 +106,13 @@ class ConnectorRegistry : public IConnectorRegistry {
             std::string name, async::EventLoop* client_loop, async::EventLoop* qemu_loop,
             HalDeviceFactory factory) override;  // NOLINT(performance-unnecessary-value-param)
 
+    /**
+     * @brief Creates a `Connector` bound to `socket` for the registry published
+     * under `snapshot_id` (e.g. `"vsock:5000"`), or returns `nullptr` if no
+     * registry is published under that id.
+     */
+    static cable::PlugPtr CreateConnector(cable::SocketPtr socket, std::string_view snapshot_id);
+
   private:
     bool RegisterDeviceImpl(std::string_view prefix, std::string_view name, DeviceFactory factory);
 

@@ -212,6 +212,18 @@ std::optional<Connector::Target> ConnectorRegistry::FindSnapshotTarget(
                              .devices_entries_size = registry.devices_.size()};
 }
 
+cable::PlugPtr ConnectorRegistry::CreateConnector(SocketPtr socket,
+                                                  const std::string_view snapshot_id) {
+    EnsureConnectorLoaderRegistered();
+    const std::optional<Connector::Target> target = FindSnapshotTarget(snapshot_id);
+    if (!target.has_value()) {
+        return nullptr;
+    }
+    return std::make_shared<Connector>(std::move(socket), target->ping_topic,
+                                       target->devices_entries, target->devices_entries_size,
+                                       std::string(snapshot_id));
+}
+
 cable::PlugOrSocket ConnectorRegistry::LoadConnectorFromSnapshot(SocketPtr socket,
                                                                  archive::IReader& reader) {
     return Connector::LoadFromSnapshot(std::move(socket), reader,

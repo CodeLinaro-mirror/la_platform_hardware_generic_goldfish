@@ -77,7 +77,7 @@ struct AvdInfoDev {
 void UniverseBuildComplete() {
     auto* u = static_cast<AvdExtendedUniverse*>(GetNullableAvd());
     DCHECK(u);
-    u->connector_registry.Listen(5000);
+    u->GetConnectorRegistry().Listen(5000);
     u->test_tools_connector_registry.Listen(5002);
     // `avdend` is realized after the display devices, so console 0 exists.
     u->InstallKeyboard();

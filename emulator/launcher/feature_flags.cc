@@ -71,7 +71,6 @@ bool IsIgnoredLegacy(EmulatorFeatureFlag feature) {
     case S::EMULATOR_FEATURE_FLAG_UNSPECIFIED:
     case S::GL_PIPE_CHECKSUM:
     case S::GRALLOC_SYNC:
-    case S::ENCRYPT_USER_DATA:
     case S::INTEL_PERFORMANCE_MONITORING_UNIT:
     case S::GL_ASYNC_SWAP:
     case S::GLDMA:
@@ -86,7 +85,6 @@ bool IsIgnoredLegacy(EmulatorFeatureFlag feature) {
     case S::FAST_SNAPSHOT_V1:
     case S::SCREEN_RECORDING:
     case S::VIRTUAL_SCENE:
-    case S::SYSTEM_AS_ROOT:
     case S::DEPRECATED_IGNORE_HOST_OPENGL_ERRORS:
     case S::GENERIC_SNAPSHOTS_UI:
     case S::ALLOW_SNAPSHOT_MIGRATION:

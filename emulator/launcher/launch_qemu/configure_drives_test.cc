@@ -417,4 +417,26 @@ TEST_F(ConfigureDrivesTest, OldUserdataImageIsNotNewWithValidQcow2Overlay) {
     EXPECT_THAT(IsUserdataNew(emu.config().avd()), IsFalse());
 }
 
+TEST_F(ConfigureDrivesTest, AddDrivesLegacyArmOrdersSystemLastAndOmitsMissingNullDrives) {
+    FakeEmulator emu;
+    system_image_paths_.vendor_image.clear();
+    system_image_paths_.encryption_key_image.clear();
+    ConfigureMockAvd(emu.mock_avd());
+    EXPECT_CALL(emu.mock_avd(), Arch()).WillRepeatedly(Return(Avd::CpuArchitecture::kArm));
+    EXPECT_CALL(emu.mock_avd(), ApiLevel()).WillRepeatedly(Return(24));
+
+    MockDeviceContainer mock_container;
+    ::testing::InSequence seq;
+    EXPECT_CALL(mock_container,
+                addBlankWritableDrive("userdata", "05.0", user_dir_ / "userdata.img",
+                                      user_dir_ / "userdata.img.qcow2"))
+            .Times(1);
+    EXPECT_CALL(mock_container, addBlankWritableDrive("cache", "04.0", user_dir_ / "cache.img",
+                                                      user_dir_ / "cache.img.qcow2"))
+            .Times(1);
+    EXPECT_CALL(mock_container, addRoDrive("system", "03.0", system_dir_ / "system.img")).Times(1);
+
+    ASSERT_THAT(addDrives(emu.config(), mock_container), IsOk());
+}
+
 }  // namespace android::goldfish

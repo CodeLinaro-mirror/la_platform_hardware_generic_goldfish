@@ -62,6 +62,7 @@ struct GoldfishSyncState {
     QEMUBH* irq_bh;     /**< Bottom half for delivering cross-thread IRQ updates under BQL. */
     struct GoldfishMmioCore core; /**< Opaque handle and dispatch table for C++ core logic. */
     int irq_level;                /**< Latest interrupt level (0 or 1), accessed atomically. */
+    bool deletable_registered;    /**< True once registered with `add_deletable_object`. */
 };
 
 static bool goldfish_sync_guest_mem_read(void* opaque, uint64_t gpa, void* dst, size_t size) {
@@ -200,7 +201,6 @@ static void goldfish_sync_realize(DeviceState* dev, Error** errp) {
     env.irq.set_level = goldfish_sync_irq_set_level;
 
     s->core = GoldfishSyncCoreCreate(&env);
-    add_deletable_object(OBJECT(dev));
 }
 
 static void goldfish_sync_unrealize(DeviceState* dev) {
@@ -217,6 +217,10 @@ static void goldfish_sync_unrealize(DeviceState* dev) {
 static void goldfish_sync_reset_hold(Object* obj, ResetType type) {
     (void)type;
     struct GoldfishSyncState* s = GOLDFISH_SYNC(obj);
+    if (!s->deletable_registered) {
+        s->deletable_registered = true;
+        add_deletable_object(obj);
+    }
     assert(s->core.reset != NULL);
     s->core.reset(s->core.core);
 }

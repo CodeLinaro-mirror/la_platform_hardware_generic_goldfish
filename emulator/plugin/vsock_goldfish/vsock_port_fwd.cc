@@ -18,6 +18,7 @@
 #include <chrono>
 #include <cstddef>
 #include <cstring>
+#include <deque>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -26,12 +27,16 @@
 #include <utility>
 #include <vector>
 
+#include "absl/base/no_destructor.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/numbers.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "absl/synchronization/mutex.h"
 
 #include "goldfish/async/async_socket.h"
 #include "goldfish/async/async_socket_factory.h"
@@ -45,6 +50,7 @@
 #include "goldfish/avd/global_event_loop.h"
 #include "goldfish/devices/cable/cable.h"
 #include "goldfish/devices/connection_awaiter.h"
+#include "goldfish/devices/connector_registry.h"
 #include "goldfish/devices/hal_plug_factory.h"
 #include "goldfish/network/dns_resolver.h"
 #include "goldfish/network/endpoint.h"
@@ -160,13 +166,20 @@ class HostToGuestConnection : public goldfish::devices::HalPlug,
     void onSocketCloseCallback() {
         VLOG(1) << "Host (" << *mHostSocket
                 << ") closed, closing vsock, ref: " << mSelf.use_count();
+        mHostClosed.store(true, std::memory_order_release);
         Socket()->Close();
 
         // Okay, we are ready to be deleted.
         mSelf.reset();
     }
 
+    bool IsHostClosed() const { return mHostClosed.load(std::memory_order_acquire); }
+
     void OnConnect() override {
+        if (mHostClosed.load(std::memory_order_acquire)) {
+            Socket()->Close();
+            return;
+        }
         VLOG(1) << "Guest (vsock) connected";
         mGuestConnected = true;
         if (!mHostBuffer.empty()) {
@@ -180,7 +193,9 @@ class HostToGuestConnection : public goldfish::devices::HalPlug,
 
     void OnReceive(std::string_view data) override {
         VLOG(VLOG_TRACE) << "Guest (vsock) forwarding: " << data << " to: " << *mHostSocket;
-        mHostSocket->Send(data.data(), data.size()).IgnoreError();
+        if (!mHostSocket->Send(data.data(), data.size()).ok()) {
+            Socket()->Close();
+        }
     }
 
     void OnClose() override {
@@ -201,8 +216,269 @@ class HostToGuestConnection : public goldfish::devices::HalPlug,
     std::shared_ptr<goldfish::async::AsyncSocket> mHostSocket;
     std::shared_ptr<HostToGuestConnection> mSelf;
     std::string mHostBuffer;
+    std::atomic<bool> mHostClosed{false};
     bool mGuestConnected{false};
 };
+
+class AdbPipePlug;
+
+// Coordinates legacy `pipe:qemud:adb:<port>` guest pipes (API <= 30) with
+// `VSockProxyImpl` host TCP listeners.
+class AdbPipeRegistry {
+  public:
+    struct PendingHostConnection {
+        std::shared_ptr<HostToGuestConnection> host_to_guest;
+        EventLoop* client_loop = nullptr;
+        EventLoop* qemu_loop = nullptr;
+        goldfish::devices::cable::ISocket::OnFlowControlEvent on_flow_control;
+        SnifferFactory sniffer_factory;
+    };
+
+    static AdbPipeRegistry& Get() {
+        static absl::NoDestructor<AdbPipeRegistry> instance;
+        return *instance;
+    }
+
+    void EnsureRegistered(goldfish::devices::IConnectorRegistry& registry);
+
+    void AddWaitingPipe(int guest_port, const std::shared_ptr<AdbPipePlug>& plug);
+
+    bool TryAcceptHostConnection(int guest_port, PendingHostConnection pending);
+
+    bool HasWaitingPipe(int guest_port) const {
+        absl::MutexLock lock(&mu_);
+        const auto it = ports_.find(guest_port);
+        if (it == ports_.end()) {
+            return false;
+        }
+        for (const auto& weak_plug : it->second.waiting_plugs) {
+            if (!weak_plug.expired()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+  private:
+    struct PortState {
+        std::deque<std::weak_ptr<AdbPipePlug>> waiting_plugs;
+        std::deque<PendingHostConnection> pending_hosts;
+        bool seen_adb_pipe = false;
+    };
+
+    mutable absl::Mutex mu_;
+    absl::flat_hash_map<int, PortState> ports_ ABSL_GUARDED_BY(mu_);
+};
+
+// Implements the guest-side `pipe:qemud:adb:<port>` protocol ("accept" -> "ok" -> "start").
+class AdbPipePlug final : public IPlug, public std::enable_shared_from_this<AdbPipePlug> {
+  public:
+    static constexpr std::string_view kSnapshotTypeId = "AdbPipePlug";
+    static constexpr size_t kAcceptLen = 6;  // "accept"
+    static constexpr size_t kStartLen = 5;   // "start"
+
+    enum class State : uint8_t {
+        kWaitingForAccept = 0,
+        kWaitingForHostConnection = 1,
+        kWaitingForStart = 2,
+    };
+
+    AdbPipePlug(SocketPtr socket, int guest_port, State state = State::kWaitingForAccept,
+                std::string buf = {})
+            : socket_(std::move(socket))
+            , guest_port_(guest_port)
+            , state_(state)
+            , buf_(std::move(buf)) {}
+
+    bool OnReceive(const void* data, size_t size) override {
+        const auto self = shared_from_this();
+        buf_.append(static_cast<const char*>(data), size);
+
+        if (state_ == State::kWaitingForAccept) {
+            if (buf_.size() < kAcceptLen) {
+                return true;
+            }
+            if (std::memcmp(buf_.data(), "accept", kAcceptLen) != 0) {
+                LOG(WARNING) << "AdbPipePlug: unexpected handshake on port " << guest_port_;
+                return false;
+            }
+            buf_.erase(0, kAcceptLen);
+            state_ = State::kWaitingForHostConnection;
+            AdbPipeRegistry::Get().AddWaitingPipe(guest_port_, self);
+            if (state_ != State::kWaitingForStart || buf_.empty()) {
+                return true;
+            }
+        }
+
+        if (state_ == State::kWaitingForStart) {
+            if (buf_.size() < kStartLen) {
+                return true;
+            }
+            if (std::memcmp(buf_.data(), "start", kStartLen) != 0) {
+                LOG(WARNING) << "AdbPipePlug: unexpected start token on port " << guest_port_;
+                return false;
+            }
+            const std::string trailing = buf_.substr(kStartLen);
+            buf_.clear();
+
+            socket_->SetOnFlowControlEvent(std::move(pending_.on_flow_control));
+            if (pending_.sniffer_factory) {
+                socket_->SetDataSniffer(pending_.sniffer_factory());
+            }
+            auto* raw_socket = socket_.get();
+            auto host_to_guest = std::move(pending_.host_to_guest);
+            EventLoop* client_loop = pending_.client_loop;
+            EventLoop* qemu_loop = pending_.qemu_loop;
+            pending_ = {};
+
+            auto adapter = HalPlugFactory::WrapHalPlug(
+                    std::move(socket_),
+                    [host_to_guest = std::move(host_to_guest)] { return host_to_guest; },
+                    client_loop, qemu_loop);
+            auto old_plug = raw_socket->SwitchPlug(adapter);
+            if (!trailing.empty()) {
+                return adapter->OnReceive(trailing.data(), trailing.size());
+            }
+            return true;
+        }
+
+        return true;
+    }
+
+    void AcceptHostConnection(AdbPipeRegistry::PendingHostConnection pending) {
+        pending_ = std::move(pending);
+        state_ = State::kWaitingForStart;
+        if (socket_) {
+            socket_->SendAsync("ok", 2);
+        }
+    }
+
+    SocketPtr OnUnplug() override {
+        if (pending_.host_to_guest && pending_.client_loop) {
+            pending_.client_loop
+                    ->Post([host_to_guest = std::move(pending_.host_to_guest)] {
+                        host_to_guest->OnClose();
+                    })
+                    .IgnoreError();
+        }
+        pending_ = {};
+        return std::move(socket_);
+    }
+
+    bool SupportsLoadingFromSnapshot() const override {
+        return state_ == State::kWaitingForAccept || state_ == State::kWaitingForHostConnection;
+    }
+
+    TypeId GetSnapshotTypeId() const override { return std::string(kSnapshotTypeId); }
+
+    bool SaveStateToSnapshot(goldfish::archive::IWriter& writer) const override {
+        if (!SupportsLoadingFromSnapshot()) {
+            return false;
+        }
+        constexpr uint32_t kVersion = 1;
+        writer << kVersion << guest_port_ << static_cast<uint8_t>(state_) << buf_.size();
+        if (!buf_.empty()) {
+            writer.Write(buf_.data(), buf_.size());
+        }
+        return true;
+    }
+
+    static goldfish::devices::cable::PlugOrSocket LoadFromSnapshot(
+            SocketPtr socket, goldfish::archive::IReader& reader) {
+        constexpr uint32_t kVersion = 1;
+        uint32_t version = 0;
+        int guest_port = 0;
+        uint8_t raw_state = 0;
+        size_t buf_size = 0;
+        if (!goldfish::archive::ReadValue(reader, version, guest_port, raw_state, buf_size).ok() ||
+            version != kVersion ||
+            raw_state > static_cast<uint8_t>(State::kWaitingForHostConnection) ||
+            buf_size > kAcceptLen) {
+            return socket;
+        }
+        std::string buf(buf_size, '\0');
+        if (buf_size > 0 && !reader.Read(buf.data(), buf_size).ok()) {
+            return socket;
+        }
+        const auto state = static_cast<State>(raw_state);
+        auto plug =
+                std::make_shared<AdbPipePlug>(std::move(socket), guest_port, state, std::move(buf));
+        if (state == State::kWaitingForHostConnection) {
+            AdbPipeRegistry::Get().AddWaitingPipe(guest_port, plug);
+        }
+        return goldfish::devices::cable::PlugPtr(std::move(plug));
+    }
+
+  private:
+    SocketPtr socket_;
+    int guest_port_ = 5555;
+    State state_ = State::kWaitingForAccept;
+    std::string buf_;
+    AdbPipeRegistry::PendingHostConnection pending_;
+};
+
+void AdbPipeRegistry::EnsureRegistered(goldfish::devices::IConnectorRegistry& registry) {
+    static const bool kLoaderRegistered = goldfish::devices::cable::RegisterPlugLoader(
+            std::string(AdbPipePlug::kSnapshotTypeId), &AdbPipePlug::LoadFromSnapshot);
+    (void)kLoaderRegistered;
+    registry.RegisterQemuDevice(
+            "adb",
+            [](SocketPtr socket, const std::shared_ptr<goldfish::devices::PingTopic>& /*ping*/,
+               std::string_view args) -> goldfish::devices::cable::PlugPtr {
+                int guest_port = 5555;
+                if (!args.empty()) {
+                    (void)absl::SimpleAtoi(args, &guest_port);
+                }
+                return std::make_shared<AdbPipePlug>(std::move(socket), guest_port);
+            });
+}
+
+void AdbPipeRegistry::AddWaitingPipe(int guest_port, const std::shared_ptr<AdbPipePlug>& plug) {
+    std::optional<PendingHostConnection> pending;
+    {
+        absl::MutexLock lock(&mu_);
+        PortState& state = ports_[guest_port];
+        state.seen_adb_pipe = true;
+        while (!state.pending_hosts.empty()) {
+            PendingHostConnection candidate = std::move(state.pending_hosts.front());
+            state.pending_hosts.pop_front();
+            if (candidate.host_to_guest != nullptr && !candidate.host_to_guest->IsHostClosed()) {
+                pending = std::move(candidate);
+                break;
+            }
+        }
+        if (!pending.has_value()) {
+            state.waiting_plugs.push_back(plug);
+        }
+    }
+    if (pending.has_value()) {
+        plug->AcceptHostConnection(std::move(*pending));
+    }
+}
+
+bool AdbPipeRegistry::TryAcceptHostConnection(int guest_port, PendingHostConnection pending) {
+    std::shared_ptr<AdbPipePlug> plug;
+    {
+        absl::MutexLock lock(&mu_);
+        auto it = ports_.find(guest_port);
+        if (it == ports_.end() || !it->second.seen_adb_pipe) {
+            return false;
+        }
+        while (!it->second.waiting_plugs.empty()) {
+            plug = it->second.waiting_plugs.front().lock();
+            it->second.waiting_plugs.pop_front();
+            if (plug != nullptr) {
+                break;
+            }
+        }
+        if (plug == nullptr) {
+            it->second.pending_hosts.push_back(std::move(pending));
+            return true;
+        }
+    }
+    plug->AcceptHostConnection(std::move(pending));
+    return true;
+}
 
 /**
  * @brief This class implements a proxy that forwards traffic between a TCP port
@@ -218,6 +494,7 @@ class VSockProxyImpl {
     static absl::StatusOr<std::unique_ptr<VSockProxyImpl>> Create(
             std::vector<Endpoint> hostEndpoints, VSockFwdDev* device,
             goldfish::avd::AvdUniverse& universe) {
+        AdbPipeRegistry::Get().EnsureRegistered(universe.GetConnectorRegistry());
         auto proxy = std::make_unique<VSockProxyImpl>(Private(), std::move(hostEndpoints), device,
                                                       universe);
         if (absl::Status status = proxy->startServer(); !status.ok()) {
@@ -308,7 +585,23 @@ class VSockProxyImpl {
         mConnectionAwaiter = ConnectionAwaiter::RetryUntilConnected(
                 &mQemuLoop,
                 [this, alive = std::weak_ptr<void>(mAlive)](auto plug) {
-                    if (alive.lock() && mGuestStatus.IsBootCompleted()) {
+                    if (!alive.lock()) {
+                        return SocketPtr{};
+                    }
+                    if (AdbPipeRegistry::Get().HasWaitingPipe(mDevice->guest_port)) {
+                        if (!mGuestConnected.load(std::memory_order_acquire)) {
+                            vsockAliveOnQemuThread();
+                            mQemuLoop
+                                    .Post([this, alive] {
+                                        if (alive.lock()) {
+                                            mConnectionAwaiter.reset();
+                                        }
+                                    })
+                                    .IgnoreError();
+                        }
+                        return SocketPtr{};
+                    }
+                    if (mGuestStatus.IsBootCompleted()) {
                         return goldfish::vsock::Connect(mDevice->guest_port, plug);
                     }
                     return SocketPtr{};
@@ -344,6 +637,18 @@ class VSockProxyImpl {
         };
 
         VLOG(1) << "Received an incoming connection socket connection!";
+        if (AdbPipeRegistry::Get().TryAcceptHostConnection(
+                    mDevice->guest_port, AdbPipeRegistry::PendingHostConnection{
+                                             .host_to_guest = hostToGuest,
+                                             .client_loop = mClientLoop,
+                                             .qemu_loop = &mQemuLoop,
+                                             .on_flow_control = onFlowControlEvent,
+                                             .sniffer_factory = mDevice->data_sniffer_factory,
+                                         })) {
+            VLOG(1) << "Accepted incoming connection via legacy adb goldfish_pipe on port "
+                    << mDevice->guest_port;
+            return true;
+        }
         auto adapter = HalPlugFactory::Connect(
                 mDevice->guest_port, [hostToGuest = std::move(hostToGuest)] { return hostToGuest; },
                 mClientLoop, &mQemuLoop, std::move(onFlowControlEvent),

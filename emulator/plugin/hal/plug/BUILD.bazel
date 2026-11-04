@@ -103,9 +103,13 @@ cc_library(
     ],
     includes = ["include"],
     visibility = [
+        "//emulator/plugin/avd:__subpackages__",
+        "//emulator/plugin/display:__subpackages__",
         "//emulator/plugin/grpc/services:__subpackages__",
         "//emulator/plugin/hal:__subpackages__",
         "//emulator/plugin/hal/connector:__subpackages__",
+        "//emulator/plugin/legacy:__subpackages__",
+        "//emulator/plugin/netsim:__subpackages__",
     ],
     deps = [
         "//emulator/plugin/hal/connector:cable",

@@ -405,6 +405,7 @@ cc_library(
     hdrs = ["kernel_device.h"],
     deps = [
         ":device",
+        ":initrd_device",
         "@abseil-cpp//absl/container:btree",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",

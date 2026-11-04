@@ -89,7 +89,6 @@ struct AvdExtendedUniverse : public AvdUniverse {
     std::unique_ptr<display::IMultiDisplay> multi_display;
     display::IMultiDisplay::ScopedRotationSubscription display_rotation_subscription;
 
-    devices::ConnectorRegistry connector_registry;
     devices::ConnectorRegistry test_tools_connector_registry;
     avd_universe::battery::ObservableBattery::ScopedCallbackHandle battery_subscription;
     std::unique_ptr<metrics::MetricsReporter> metrics_reporter;
