@@ -857,6 +857,172 @@ void BmCommitHeaders(benchmark::State& state) {
 }
 BENCHMARK(BmCommitHeaders);
 
+// ---------------------------------------------------------------------------
+// 9. HttpSession PostOrSend and raw streaming SendChunk on-loop fast-path
+// ---------------------------------------------------------------------------
+
+class BenchmarkAsyncSocket final : public async::AsyncSocket {
+  public:
+    void SetOnReadCallbackNoFlowControl(OnReadCallback) override {}
+    void OnFlowControlEvent(bool) override {}
+    void SetOnCloseCallback(OnCloseCallback) override {}
+    void SetOnConnectedCallback(OnConnectCallback) override {}
+    absl::Status Send(const char* buffer, size_t buffer_size, OnSendCallback on_send) override {
+        bytes_sent += buffer_size;
+        benchmark::DoNotOptimize(buffer);
+        on_send(absl::OkStatus());
+        return absl::OkStatus();
+    }
+    void Close() override {}
+    absl::Status Connect() override { return absl::OkStatus(); }
+    bool Connected() const override { return true; }
+    async::EventLoop* GetLoop() const override { return nullptr; }
+
+    size_t bytes_sent = 0;
+};
+
+struct LegacyPostOrSendState : public std::enable_shared_from_this<LegacyPostOrSendState> {
+    absl::Mutex socket_mutex;
+    std::shared_ptr<async::AsyncSocket> socket;
+    async::EventLoop* loop = nullptr;
+
+    explicit LegacyPostOrSendState(std::shared_ptr<async::AsyncSocket> s) : socket(std::move(s)) {}
+
+    std::shared_ptr<async::AsyncSocket> GetSocket() {
+        const absl::MutexLock lock(&socket_mutex);
+        return socket;
+    }
+
+    template <typename F>
+    void PostOrRun(F&& fn) {
+        if (loop != nullptr && !loop->IsOnLoopThread()) {
+            loop->Post(std::forward<F>(fn)).IgnoreError();
+        } else {
+            fn();
+        }
+    }
+
+    void SendRawBytesLegacy(std::string payload) {
+        if (auto sock = GetSocket()) {
+            auto status = sock->Send(payload.data(), payload.size(),
+                                     [self = shared_from_this()](absl::Status) {});
+            (void)status;
+        }
+    }
+
+    void SendRawBytesView(std::string_view payload) {
+        if (auto sock = GetSocket()) {
+            auto status = sock->Send(payload.data(), payload.size(),
+                                     [self = shared_from_this()](absl::Status) {});
+            (void)status;
+        }
+    }
+
+    ABSL_ATTRIBUTE_NOINLINE void PostOrSendBaseline(std::string data) {
+        PostOrRun([self = shared_from_this(), payload = std::move(data)]() {
+            self->SendRawBytesLegacy(std::move(payload));
+        });
+    }
+
+    ABSL_ATTRIBUTE_NOINLINE void PostOrSendFast(std::string data) {
+        if (loop != nullptr && !loop->IsOnLoopThread()) {
+            loop->Post([self = shared_from_this(), payload = std::move(data)]() {
+                    self->SendRawBytesView(payload);
+                }).IgnoreError();
+            return;
+        }
+        SendRawBytesView(data);
+    }
+};
+
+void BmPostOrSendBaseline(benchmark::State& state) {
+    auto sock = std::make_shared<BenchmarkAsyncSocket>();
+    auto sender = std::make_shared<LegacyPostOrSendState>(sock);
+    const std::string wire =
+            "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 45\r\n"
+            "Connection: "
+            "keep-alive\r\n\r\n{\"status\":\"ok\",\"emulator\":\"goldfish\",\"port\":8554}";
+    for (auto _ : state) {
+        sender->PostOrSendBaseline(wire);
+        benchmark::DoNotOptimize(sock->bytes_sent);
+    }
+}
+BENCHMARK(BmPostOrSendBaseline);
+
+void BmPostOrSend(benchmark::State& state) {
+    auto sock = std::make_shared<BenchmarkAsyncSocket>();
+    auto sender = std::make_shared<LegacyPostOrSendState>(sock);
+    const std::string wire =
+            "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 45\r\n"
+            "Connection: "
+            "keep-alive\r\n\r\n{\"status\":\"ok\",\"emulator\":\"goldfish\",\"port\":8554}";
+    for (auto _ : state) {
+        sender->PostOrSendFast(wire);
+        benchmark::DoNotOptimize(sock->bytes_sent);
+    }
+}
+BENCHMARK(BmPostOrSend);
+
+class LegacyRawChunkWriter {
+  public:
+    explicit LegacyRawChunkWriter(std::shared_ptr<LegacyPostOrSendState> session)
+            : session_(std::move(session)) {}
+
+    ABSL_ATTRIBUTE_NOINLINE void SendChunkBaseline(std::string_view chunk) {
+        if (chunk.empty()) {
+            return;
+        }
+        bytes_sent_ += chunk.size();
+        std::shared_ptr<LegacyPostOrSendState> session;
+        {
+            const absl::MutexLock lock(&mutex_);
+            session = session_;
+        }
+        if (session) {
+            session->PostOrSendBaseline(std::string(chunk));
+        }
+    }
+
+  private:
+    absl::Mutex mutex_;
+    std::shared_ptr<LegacyPostOrSendState> session_;
+    size_t bytes_sent_ = 0;
+};
+
+void BmSendRawStreamChunkBaseline(benchmark::State& state) {
+    auto sock = std::make_shared<BenchmarkAsyncSocket>();
+    auto sender = std::make_shared<LegacyPostOrSendState>(sock);
+    LegacyRawChunkWriter writer(sender);
+    const std::string chunk(4096, 'x');
+    for (auto _ : state) {
+        writer.SendChunkBaseline(chunk);
+        benchmark::DoNotOptimize(sock->bytes_sent);
+    }
+}
+BENCHMARK(BmSendRawStreamChunkBaseline);
+
+void BmSendRawStreamChunk(benchmark::State& state) {
+    auto sock = std::make_shared<BenchmarkAsyncSocket>();
+    HttpRouter router;
+    std::shared_ptr<HttpResponseWriter> captured_writer;
+    router.AddStreamingRoute(HttpMethod::kGet, "/stream",
+                             [&](const HttpRequest&, std::shared_ptr<HttpResponseWriter> writer) {
+                                 writer->SendHeaders({{"Content-Type", "application/octet-stream"}},
+                                                     200);
+                                 captured_writer = std::move(writer);
+                             });
+    auto session = HttpSession::Create(sock, /*loop=*/nullptr, &router);
+    session->OnDataReceived("GET /stream HTTP/1.1\r\nHost: localhost\r\n\r\n");
+
+    const std::string chunk(4096, 'x');
+    for (auto _ : state) {
+        captured_writer->SendChunk(chunk);
+        benchmark::DoNotOptimize(sock->bytes_sent);
+    }
+    captured_writer->Finish();
+}
+BENCHMARK(BmSendRawStreamChunk);
+
 }  // namespace
 }  // namespace goldfish::http
 

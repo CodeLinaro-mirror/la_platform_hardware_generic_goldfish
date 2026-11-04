@@ -845,4 +845,64 @@ TEST_F(HttpSessionTest, CommitCurrentHeaderInsertsUniqueAndAppendsCaseInsensitiv
     EXPECT_TRUE(handler_called);
 }
 
+TEST_F(HttpSessionTest, PostOrSendAndPostCloseFastPathOnLoopAndOffLoopThread) {
+    std::shared_ptr<HttpResponseWriter> raw_writer;
+    router_->AddRoute(HttpMethod::kGet, "/unary", [](const HttpRequest&) {
+        return HttpResponse::String("unary-ok", 200, "text/plain");
+    });
+    router_->AddStreamingRoute(HttpMethod::kGet, "/raw-stream",
+                               [&](const HttpRequest&, std::shared_ptr<HttpResponseWriter> writer) {
+                                   raw_writer = std::move(writer);
+                               });
+
+    auto loop = async::testing::TestEventLoop::Create("HttpSessionSendLoop");
+    auto session = HttpSession::Create(fake_socket_, loop.get(), router_.get());
+
+    // 1. On-loop unary request sends response directly without queuing an extra task.
+    bool unary_parsed = false;
+    ASSERT_TRUE(loop->Post([&]() {
+                        unary_parsed = session->OnDataReceived(
+                                "GET /unary HTTP/1.1\r\nHost: localhost\r\n\r\n");
+                    }).ok());
+    loop->RunAll();
+    EXPECT_TRUE(unary_parsed);
+    EXPECT_EQ(loop->TaskCount(), 0U);
+    std::string unary_sent = GetSentData();
+    EXPECT_TRUE(absl::StartsWith(unary_sent, "HTTP/1.1 200 OK\r\n"));
+    EXPECT_TRUE(absl::EndsWith(unary_sent, "\r\n\r\nunary-ok"));
+    EXPECT_FALSE(fake_socket_->is_closed);
+
+    // 2. Start raw (unchunked) stream on the loop thread and verify on-loop
+    // SendHeaders + SendChunk write directly without queuing loop tasks.
+    bool stream_parsed = false;
+    ASSERT_TRUE(loop->Post([&]() {
+                        stream_parsed = session->OnDataReceived(
+                                "GET /raw-stream HTTP/1.1\r\nHost: localhost\r\n\r\n");
+                        if (raw_writer != nullptr) {
+                            raw_writer->SendHeaders({{"Content-Type", "text/plain"}}, 200);
+                            raw_writer->SendChunk("on-loop-chunk");
+                        }
+                    }).ok());
+    loop->RunAll();
+    EXPECT_TRUE(stream_parsed);
+    ASSERT_NE(raw_writer, nullptr);
+    EXPECT_EQ(loop->TaskCount(), 0U);
+    std::string on_loop_stream = GetSentData();
+    EXPECT_TRUE(absl::StartsWith(on_loop_stream, "HTTP/1.1 200 OK\r\n"));
+    EXPECT_TRUE(absl::EndsWith(on_loop_stream, "\r\n\r\non-loop-chunk"));
+
+    // 3. Off-loop SendChunk(std::string_view) must post onto the EventLoop
+    // and deliver the payload when RunAll() executes.
+    raw_writer->SendChunk("off-loop-chunk");
+    EXPECT_EQ(loop->TaskCount(), 1U);
+    loop->RunAll();
+    EXPECT_EQ(loop->TaskCount(), 0U);
+    EXPECT_EQ(GetSentData(), "off-loop-chunk");
+
+    // 4. Finish() on the unchunked stream closes the socket.
+    raw_writer->Finish();
+    loop->RunAll();
+    EXPECT_TRUE(fake_socket_->is_closed);
+}
+
 }  // namespace goldfish::http
