@@ -335,6 +335,30 @@ class RemoteAudioTest : public ::testing::Test {
         return played;
     }
 
+    // Pulls 10 ms playout periods in real time until @p quiet_blocks consecutive periods are at
+    // least 30 dB below full tone power, or kBudget elapses.
+    bool PullUntilQuiet(int quiet_blocks) {
+        constexpr double kQuietAttenuation = 1000.0;
+        const double max_block_power = FullTonePower(kBlock) / kQuietAttenuation;
+        std::vector<int16_t> block(kBlock);
+        int consecutive_quiet = 0;
+        absl::Time next = absl::Now();
+        const absl::Time deadline = next + kBudget;
+        while (absl::Now() < deadline) {
+            EXPECT_EQ(audio_device_->PullPlayout(block), kBlock);
+            if (PowerAt(block, kToneHz) < max_block_power) {
+                if (++consecutive_quiet >= quiet_blocks) {
+                    return true;
+                }
+            } else {
+                consecutive_quiet = 0;
+            }
+            next += absl::Milliseconds(10);
+            absl::SleepFor(next - absl::Now());
+        }
+        return false;
+    }
+
     ::webrtc::scoped_refptr<GoldfishAudioDeviceModule> audio_device_ =
             GoldfishAudioDeviceModule::Create();
     PlayoutEvents playout_{*audio_device_};
@@ -376,14 +400,18 @@ TEST_F(RemoteAudioTest, MicrophoneToneComesOutOfPlayoutAfterReplaceTrack) {
 }
 
 TEST_F(RemoteAudioTest, RemovingTheTrackKeepsPlayoutUntilTheSessionCloses) {
+    constexpr int kSettledQuietBlocks = 5;
+    constexpr int kPostDetachBlocks = 30;
     {
         Client client(board_, RtpTransceiverDirection::kSendRecv);
         ASSERT_TRUE(client.Connect());
+        ASSERT_EQ(playout_.Await(1), std::vector<bool>({true}));
         client.SetMicrophone(true);
         Talk(client, /*tone_on=*/true, 20);
 
         client.SetMicrophone(false);
-        const std::vector<int16_t> played = Talk(client, /*tone_on=*/false, 50);
+        ASSERT_TRUE(PullUntilQuiet(kSettledQuietBlocks));
+        const std::vector<int16_t> played = Talk(client, /*tone_on=*/false, kPostDetachBlocks);
 
         EXPECT_EQ(playout_.After(absl::Milliseconds(100)), std::vector<bool>({true}));
         EXPECT_LT(PowerAt(played, kToneHz), FullTonePower(played.size()) / 1000);
