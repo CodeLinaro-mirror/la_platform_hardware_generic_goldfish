@@ -77,6 +77,15 @@ class MarshallingHalSocket : public HalSocket,
     friend class HalPlugToIPlugAdapter;
     cable::SocketPtr Release();
 
+    /**
+     * @brief Returns a copy of the bytes that were `Send()`-coalesced but whose
+     * flush task has not run on the QEMU loop yet.
+     *
+     * Used when snapshotting: the flush task cannot run while the QEMU thread
+     * is busy saving, so these bytes are saved and re-sent after restore.
+     */
+    std::string PendingSendBytes() ABSL_LOCKS_EXCLUDED(socket_mutex_);
+
     static constexpr size_t kInitialBufferSize = 64 * 1024;
 
     cable::SocketPtr socket_ ABSL_GUARDED_BY(socket_mutex_);
@@ -85,6 +94,8 @@ class MarshallingHalSocket : public HalSocket,
     std::atomic<bool> is_closed_{false};
 
     std::string send_buffer_ ABSL_GUARDED_BY(socket_mutex_);
+    // Bytes being handed to socket_ by the flush task; only touched on qemu_loop_.
+    std::string flush_buffer_;
 };
 
 }  // namespace goldfish::devices

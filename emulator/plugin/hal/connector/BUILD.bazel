@@ -130,6 +130,7 @@ cc_library(
         ":devices",
         "//emulator/libs/async:async_api",
         "//emulator/plugin/hal/plug:hal_plug_factory",
+        "//emulator/plugin/hal/plug:hal_plug_snapshot",
         "//emulator/plugin/hal/plug:hal_plug_to_i_plug_adapter",
         "//emulator/plugin/hal/plug:marshalling_hal_socket",
         "//emulator/plugin/vsock_goldfish:goldfish_vsock_hdrs",
@@ -148,11 +149,16 @@ cc_test(
     ],
     visibility = ["//visibility:public"],
     deps = [
+        ":cable",
         ":connector_registry_impl",
+        "//emulator/libs/archive",
+        "//emulator/libs/archive:collections",
         "//emulator/libs/async:libuv_event_loop",
         "//emulator/libs/async:threaded_event_loop",
         "//emulator/libs/test:googletest_main",
         "//emulator/plugin/hal/plug:fake_vsock",
+        "//emulator/plugin/hal/plug:hal_plug_snapshot",
+        "//emulator/plugin/hal/plug:hal_plug_to_i_plug_adapter",
     ],
 )
 

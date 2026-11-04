@@ -16,6 +16,8 @@
 #include <functional>
 #include <memory>
 #include <mutex>
+#include <string>
+#include <string_view>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
@@ -59,6 +61,7 @@ class ConnectorRegistry : public IConnectorRegistry {
 
     ConnectorRegistry();
     explicit ConnectorRegistry(std::shared_ptr<PingTopic> ping_topic);
+    ~ConnectorRegistry() override;
 
     /**
      * @brief Starts listening for connections on the specified vsock port.
@@ -97,9 +100,10 @@ class ConnectorRegistry : public IConnectorRegistry {
     bool RegisterDeviceImpl(std::string_view prefix, std::string_view name, DeviceFactory factory);
 
     using DeviceRegistration = std::function<bool(std::string, DeviceFactory)>;
-    static void RegisterHalDeviceImpl(
-            std::string name, async::EventLoop* client_loop, async::EventLoop* qemu_loop,
-            HalDeviceFactory factory,
+    // `prefix` is "q" for qemud devices and "-" otherwise (see DeviceEntry::qname).
+    void RegisterHalDeviceImpl(
+            std::string name, std::string_view prefix, async::EventLoop* client_loop,
+            async::EventLoop* qemu_loop, HalDeviceFactory factory,
             const DeviceRegistration& register_fn);  // NOLINT(performance-unnecessary-value-param)
 
     const std::shared_ptr<PingTopic> ping_topic_;
@@ -107,6 +111,9 @@ class ConnectorRegistry : public IConnectorRegistry {
     std::mutex entries_mutex_;
     absl::flat_hash_map<std::string, DeviceFactory> entries_;
     std::vector<DeviceEntry> devices_;
+    // HalPlug devices this registry added to HalPlugSnapshotRegistry; removed
+    // again on destruction.
+    std::vector<std::string> snapshot_devices_;
 };
 
 }  // namespace goldfish::devices

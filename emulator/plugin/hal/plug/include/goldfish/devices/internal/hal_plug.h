@@ -23,6 +23,9 @@
 #include "absl/log/check.h"
 #include "absl/strings/str_format.h"
 
+#include "goldfish/archive/reader.h"
+#include "goldfish/archive/writer.h"
+
 namespace goldfish::devices {
 
 class HalPlugFactory;
@@ -209,6 +212,78 @@ class HalPlug {
      * before you received the onClose callback.
      */
     virtual void OnClose() = 0;
+
+    /**
+     * @name Snapshot support (optional)
+     *
+     * A vsock stream whose plug does not support snapshots is **reset (RST)
+     * when a snapshot is loaded**: the guest sees the connection drop and has
+     * to reconnect. Guest HALs that never reconnect (e.g. the sensors HAL)
+     * silently stop working after `loadvm`. A `HalPlug` can opt in to
+     * surviving snapshots by overriding the four methods below.
+     *
+     * ### Threading contract
+     *
+     * - `SaveToSnapshot()` is called on the **QEMU thread** (BQL held, VM
+     *   stopped, host event loops still running). The framework guarantees it
+     *   never overlaps `OnConnect()`, `OnReceive()`, `OnClose()`,
+     *   `LoadFromSnapshot()` or `OnRestore()`, so state that is only written
+     *   from those callbacks needs no extra locking. State that is mutated
+     *   from elsewhere on the client loop (timers, observable callbacks) must
+     *   be guarded by the plug itself, or those paths must be read-only with
+     *   respect to the snapshotted state.
+     * - Because the QEMU thread blocks until the running callback returns, an
+     *   opted-in plug's callbacks must **never block on the QEMU thread**
+     *   (no `PostAndWait` to `qemu_loop`, no `ScopedVmLock`), or snapshot
+     *   saving deadlocks. `Socket()->Send()` is asynchronous and safe.
+     * - `LoadFromSnapshot()` and `OnRestore()` run on the **client loop**, in
+     *   that order, on a freshly constructed plug (created by the registered
+     *   `HalDeviceFactory` with the original connection `args`) before any
+     *   `OnReceive()` for the restored connection. `OnConnect()` is **not**
+     *   called for a restored connection; `OnRestore()` takes its place and
+     *   `Socket()` is valid from the start of `LoadFromSnapshot()`. During a
+     *   restore the factory runs on the QEMU thread with the vsock state lock
+     *   held, one more reason it must stay lightweight and never send.
+     * - Bytes the guest sent before the snapshot that had not yet been
+     *   delivered are delivered through `OnReceive()` after `OnRestore()`.
+     * @{
+     */
+
+    /**
+     * @brief Whether this plug can be saved to and restored from a snapshot.
+     *
+     * Must be a constant for the lifetime of the plug. Plugs returning `false`
+     * (the default) are reset on snapshot load as described above.
+     */
+    virtual bool SupportsSnapshot() const { return false; }
+
+    /**
+     * @brief Serializes the state needed to resume the connection.
+     *
+     * Called on the QEMU thread, see the threading contract above. Write a
+     * version tag first so `LoadFromSnapshot()` can reject older layouts.
+     * @return `false` to fail the snapshot save.
+     */
+    virtual bool SaveToSnapshot(archive::IWriter& /*writer*/) const { return false; }
+
+    /**
+     * @brief Restores the state written by `SaveToSnapshot()`.
+     *
+     * Called on the client loop on a freshly constructed plug. On failure the
+     * framework closes the connection (the guest sees a disconnect).
+     * @return `false` if the state is invalid.
+     */
+    virtual bool LoadFromSnapshot(archive::IReader& /*reader*/) { return false; }
+
+    /**
+     * @brief Called on the client loop after a successful `LoadFromSnapshot()`.
+     *
+     * This replaces `OnConnect()` for a restored connection: re-create timers
+     * and resume any periodic work here. The default forwards to
+     * `OnConnect()`.
+     */
+    virtual void OnRestore() { OnConnect(); }
+    /** @} */
 
   protected:
     /**
