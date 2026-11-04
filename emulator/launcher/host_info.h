@@ -24,6 +24,7 @@ namespace android::goldfish {
 bool IsRunningInCi();
 bool IsAndroidCliDefined();
 bool IsRunningInContainer();
+HostInfo QueryHostInfo();
 
 void FillEmulatorHostEvent(android_studio::AndroidStudioEvent& event, const Avd& avd,
                            const FeatureFlags& feature_flags, long launcher_pid, long qemu_pid,

@@ -549,4 +549,27 @@ TEST(GpuDeviceTest, Api36GlobalEscapesCommasInRendererFeaturesAndSnapshotDirecto
                                 Device::EscapeQemuOptionValue(expected_snapshot_dir.string())))));
 }
 
+TEST(GpuDeviceTest, CliRendererFeaturesAppendedAfterFeatureFlagEntries) {
+    base::TestSystem sys("");
+    char cli_renderer_features[] = "VulkanBatchedDescriptorSetUpdate:enabled";
+    AndroidOptions opts{.renderer_features = cli_renderer_features};
+    FakeEmulator emu(opts);
+    HardwareConfig hw;
+    hw.hw_lcd_width = 1080;
+    hw.hw_lcd_height = 2400;
+    EXPECT_CALL(emu.mock_avd(), Hw()).WillRepeatedly(ReturnRef(hw));
+
+    SnapshotDevice snapshot_dev;
+    GpuDevice dev("gpu0", snapshot_dev);
+    EXPECT_OK(dev.initialize(emu.config()));
+
+    const std::vector<std::string> params = dev.getQemuParameters(emu.config());
+    ASSERT_EQ(params.size(), 2U);
+    const size_t default_pos = params[1].find("VulkanBatchedDescriptorSetUpdate:disabled");
+    const size_t cli_pos = params[1].find("VulkanBatchedDescriptorSetUpdate:enabled");
+    ASSERT_NE(default_pos, std::string::npos);
+    ASSERT_NE(cli_pos, std::string::npos);
+    EXPECT_LT(default_pos, cli_pos);
+}
+
 }  // namespace android::goldfish::test
