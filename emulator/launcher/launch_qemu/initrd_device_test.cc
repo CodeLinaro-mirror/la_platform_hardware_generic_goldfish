@@ -339,7 +339,7 @@ TEST(Initrd, WarnsWhenChangedOnSnapshotLoad) {
     ASSERT_OK(android::base::file::mkdir_recursive(launcher_path / "system", 0755));
     {
         std::ofstream out(snapshot_dir / "version.txt");
-        out << SnapshotVersionFor(kDefaultVirtioGpuDevice);
+        out << kSnapshotVersion;
     }
 
     auto system_initrd = launcher_path / "system" / "ramdisk.img";
@@ -405,7 +405,7 @@ TEST(Initrd, DoesNotWarnWhenUnchangedOnSnapshotLoad) {
     ASSERT_OK(android::base::file::mkdir_recursive(launcher_path / "system", 0755));
     {
         std::ofstream out(snapshot_dir / "version.txt");
-        out << SnapshotVersionFor(kDefaultVirtioGpuDevice);
+        out << kSnapshotVersion;
     }
 
     auto system_initrd = launcher_path / "system" / "ramdisk.img";

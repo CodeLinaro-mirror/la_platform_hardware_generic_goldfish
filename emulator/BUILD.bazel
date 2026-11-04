@@ -284,13 +284,9 @@ no_windows_export_all_symbols_binary(
 
 filegroup(
     name = "plugin_binaries",
-    srcs = [
-        # Both are loaded with dlopen() on first use, by the virtio-gpu
-        # device the launcher selects (see the -virtio-gpu-device launcher option, launcher/launch_qemu/virtio_gpu_selection.h):
-        # libgfxstream_backend by the plugin's virtio-gpu-gfxstream, librutabaga_ffi
-        # by QEMU's virtio-gpu-rutabaga.
-        "@rutabaga_gfx//:rutabaga_ffi",
-    ] + select({
+    srcs = select({
+        # Loaded with dlopen() on first use by the plugin's virtio-gpu-gfxstream
+        # device.
         "@platforms//os:windows": [":gfxstream_backend_windows"],
         "//conditions:default": ["@gfxstream//host:gfxstream_backend"],
     }) + select({

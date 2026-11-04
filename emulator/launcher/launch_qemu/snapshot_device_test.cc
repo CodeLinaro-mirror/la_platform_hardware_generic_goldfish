@@ -97,7 +97,7 @@ TEST_F(SnapshotDeviceTest, ColdBootWhenSnapshotVersionMissing) {
 }
 
 TEST_F(SnapshotDeviceTest, WarmBootWhenSnapshotVersionMatches) {
-    WriteSnapshotVersion(SnapshotVersionFor(kDefaultVirtioGpuDevice));
+    WriteSnapshotVersion(kSnapshotVersion);
 
     FakeEmulator emu;
     EXPECT_CALL(emu.mock_avd(), GetContentPath()).WillRepeatedly(Return(temp_dir_.Path()));
@@ -114,7 +114,7 @@ TEST_F(SnapshotDeviceTest, WarmBootWhenSnapshotVersionMatches) {
 }
 
 TEST_F(SnapshotDeviceTest, NoSnapshotDisablesLoadAndSaveViaCmdline) {
-    WriteSnapshotVersion(SnapshotVersionFor(kDefaultVirtioGpuDevice));
+    WriteSnapshotVersion(kSnapshotVersion);
 
     AndroidOptions opts{};
     opts.no_snapshot = true;
@@ -133,7 +133,7 @@ TEST_F(SnapshotDeviceTest, NoSnapshotDisablesLoadAndSaveViaCmdline) {
 }
 
 TEST_F(SnapshotDeviceTest, NoSnapshotLoadSkipsLoadViaCmdline) {
-    WriteSnapshotVersion(SnapshotVersionFor(kDefaultVirtioGpuDevice));
+    WriteSnapshotVersion(kSnapshotVersion);
 
     AndroidOptions opts{};
     opts.no_snapshot_load = true;
@@ -152,7 +152,7 @@ TEST_F(SnapshotDeviceTest, NoSnapshotLoadSkipsLoadViaCmdline) {
 }
 
 TEST_F(SnapshotDeviceTest, NoSnapstorageSkipsLoadViaCmdline) {
-    WriteSnapshotVersion(SnapshotVersionFor(kDefaultVirtioGpuDevice));
+    WriteSnapshotVersion(kSnapshotVersion);
 
     AndroidOptions opts{};
     opts.no_snapstorage = true;
@@ -170,7 +170,7 @@ TEST_F(SnapshotDeviceTest, NoSnapstorageSkipsLoadViaCmdline) {
 }
 
 TEST_F(SnapshotDeviceTest, NoSnapshotSaveDisablesSaveViaCmdline) {
-    WriteSnapshotVersion(SnapshotVersionFor(kDefaultVirtioGpuDevice));
+    WriteSnapshotVersion(kSnapshotVersion);
 
     AndroidOptions opts{};
     opts.no_snapshot_save = true;
@@ -189,7 +189,7 @@ TEST_F(SnapshotDeviceTest, NoSnapshotSaveDisablesSaveViaCmdline) {
 }
 
 TEST_F(SnapshotDeviceTest, ForceColdBootSkipsLoadAndSaveViaAvd) {
-    WriteSnapshotVersion(SnapshotVersionFor(kDefaultVirtioGpuDevice));
+    WriteSnapshotVersion(kSnapshotVersion);
     hw_.fastboot_forceColdBoot = true;
 
     FakeEmulator emu;
@@ -343,7 +343,7 @@ TEST_F(SnapshotDeviceTest, AttachesUnwritableVmStateImageReadOnly) {
         GTEST_SKIP() << "file permissions are not enforced (running as root?)";
     }
 
-    WriteSnapshotVersion(SnapshotVersionFor(kDefaultVirtioGpuDevice));
+    WriteSnapshotVersion(kSnapshotVersion);
     SnapshotDevice dev;
     ASSERT_OK(dev.initialize(emu.config()));
     EXPECT_TRUE(dev.vmstate_read_only());
@@ -369,7 +369,7 @@ TEST_F(SnapshotDeviceTest, ReplacesVmStateFileThatIsNotQcow2) {
 TEST_F(SnapshotDeviceTest, ColdBootWhenVmStateImageWasRecreated) {
     // version.txt says the snapshot is compatible, but the image that held its
     // VM state is being replaced: -loadvm would make QEMU fail to start.
-    WriteSnapshotVersion(SnapshotVersionFor(kDefaultVirtioGpuDevice));
+    WriteSnapshotVersion(kSnapshotVersion);
     std::ofstream(vmstate_image()) << "not a qcow2";
 
     FakeEmulator emu;
@@ -385,9 +385,9 @@ TEST_F(SnapshotDeviceTest, ColdBootWhenVmStateImageWasRecreated) {
                 ElementsAreArray(WithVmState({"-savevm", "default_boot"})));
 }
 
-TEST_F(SnapshotDeviceTest, ColdBootWhenSnapshotWasSavedWithTheOtherVirtioGpuDevice) {
-    // No -virtio-gpu-device: virtio-gpu-gfxstream (default), so a snapshot saved
-    // under the previous default (virtio-gpu-rutabaga) cold-boots cleanly.
+TEST_F(SnapshotDeviceTest, ColdBootWhenSnapshotWasSavedWithRutabaga) {
+    // A snapshot saved under the legacy virtio-gpu-rutabaga device cold-boots
+    // cleanly with a clear reason.
     WriteSnapshotVersion(::goldfish::snapshot::MakeSnapshotVersion(
             kGfxstreamSnapshotVersion, ::goldfish::snapshot::SnapshotGpuDevice::kRutabaga));
 
@@ -397,12 +397,11 @@ TEST_F(SnapshotDeviceTest, ColdBootWhenSnapshotWasSavedWithTheOtherVirtioGpuDevi
 
     SnapshotDevice dev;
     {
-        // The cold-boot warning names the option that would load the snapshot.
         absl::ScopedMockLog log(absl::MockLogDefault::kIgnoreUnexpected);
         EXPECT_CALL(log, Log(absl::LogSeverity::kWarning, ::testing::_,
                              AllOf(HasSubstr("performing cold boot"),
-                                   HasSubstr("saved with virtio-gpu-rutabaga"),
-                                   HasSubstr("pass '-virtio-gpu-device rutabaga' to load it"))));
+                                   HasSubstr("saved with virtio-gpu-rutabaga but this emulator "
+                                             "uses virtio-gpu-gfxstream"))));
         log.StartCapturingLogs();
         EXPECT_OK(dev.initialize(emu.config()));
     }
@@ -425,98 +424,12 @@ TEST_F(SnapshotDeviceTest, StrictLoadNamesTheVirtioGpuDeviceMismatch) {
     SnapshotDevice dev;
     EXPECT_THAT(dev.initialize(emu.config()),
                 StatusIs(absl::StatusCode::kFailedPrecondition,
-                         AllOf(HasSubstr("saved with virtio-gpu-rutabaga but this emulator "
-                                         "uses virtio-gpu-gfxstream"),
-                               HasSubstr("pass '-virtio-gpu-device rutabaga' to load it"))));
-}
-
-TEST_F(SnapshotDeviceTest, StrictLoadHintsGfxstreamWhenSnapshotWasSavedWithIt) {
-    WriteSnapshotVersion(SnapshotVersionFor(VirtioGpuDevice::kGfxstream));
-
-    AndroidOptions opts{};
-    opts.strict_snapshot_load = true;
-    opts.virtio_gpu_device = const_cast<char*>("rutabaga");
-    FakeEmulator emu(opts);
-    EXPECT_CALL(emu.mock_avd(), GetContentPath()).WillRepeatedly(Return(temp_dir_.Path()));
-    EXPECT_CALL(emu.mock_avd(), Hw()).WillRepeatedly(ReturnRef(hw_));
-
-    SnapshotDevice dev;
-    EXPECT_THAT(dev.initialize(emu.config()),
-                StatusIs(absl::StatusCode::kFailedPrecondition,
-                         AllOf(HasSubstr("saved with virtio-gpu-gfxstream but this emulator "
-                                         "uses virtio-gpu-rutabaga"),
-                               HasSubstr("pass '-virtio-gpu-device gfxstream' to load it"))));
-}
-
-TEST_F(SnapshotDeviceTest, NoVirtioGpuDeviceHintWhenMoreThanTheDeviceDiffers) {
-    // Selecting the other device would not make this snapshot loadable.
-    WriteSnapshotVersion(::goldfish::snapshot::MakeSnapshotVersion(
-            kGfxstreamSnapshotVersion - 1, ::goldfish::snapshot::SnapshotGpuDevice::kRutabaga));
-
-    AndroidOptions opts{};
-    opts.strict_snapshot_load = true;
-    FakeEmulator emu(opts);
-    EXPECT_CALL(emu.mock_avd(), GetContentPath()).WillRepeatedly(Return(temp_dir_.Path()));
-    EXPECT_CALL(emu.mock_avd(), Hw()).WillRepeatedly(ReturnRef(hw_));
-
-    SnapshotDevice dev;
-    EXPECT_THAT(dev.initialize(emu.config()),
-                StatusIs(absl::StatusCode::kFailedPrecondition,
-                         AllOf(HasSubstr("saved with virtio-gpu-rutabaga"),
-                               Not(HasSubstr("-virtio-gpu-device")))));
-}
-
-TEST_F(SnapshotDeviceTest, WarmBootWhenRutabagaDeviceSelectedAndSnapshotMatches) {
-    WriteSnapshotVersion(SnapshotVersionFor(VirtioGpuDevice::kRutabaga));
-
-    AndroidOptions opts{};
-    opts.virtio_gpu_device = const_cast<char*>("rutabaga");
-    FakeEmulator emu(opts);
-    EXPECT_CALL(emu.mock_avd(), GetContentPath()).WillRepeatedly(Return(temp_dir_.Path()));
-    EXPECT_CALL(emu.mock_avd(), Hw()).WillRepeatedly(ReturnRef(hw_));
-
-    SnapshotDevice dev;
-    EXPECT_OK(dev.initialize(emu.config()));
-    EXPECT_EQ(dev.snapshot_version(), SnapshotVersionFor(VirtioGpuDevice::kRutabaga));
-    EXPECT_EQ(dev.load_status(), SnapshotDevice::LoadStatus::kLoading);
-    EXPECT_THAT(
-            dev.getQemuParameters(emu.config()),
-            ElementsAreArray(WithVmState({"-loadvm", "default_boot", "-savevm", "default_boot"})));
-}
-
-TEST_F(SnapshotDeviceTest, WarmBootWhenGfxstreamDeviceSelectedAndSnapshotMatches) {
-    WriteSnapshotVersion(SnapshotVersionFor(VirtioGpuDevice::kGfxstream));
-
-    AndroidOptions opts{};
-    opts.virtio_gpu_device = const_cast<char*>("gfxstream");
-    FakeEmulator emu(opts);
-    EXPECT_CALL(emu.mock_avd(), GetContentPath()).WillRepeatedly(Return(temp_dir_.Path()));
-    EXPECT_CALL(emu.mock_avd(), Hw()).WillRepeatedly(ReturnRef(hw_));
-
-    SnapshotDevice dev;
-    EXPECT_OK(dev.initialize(emu.config()));
-    EXPECT_EQ(dev.snapshot_version(), SnapshotVersionFor(VirtioGpuDevice::kGfxstream));
-    EXPECT_EQ(dev.load_status(), SnapshotDevice::LoadStatus::kLoading);
-    EXPECT_THAT(
-            dev.getQemuParameters(emu.config()),
-            ElementsAreArray(WithVmState({"-loadvm", "default_boot", "-savevm", "default_boot"})));
-}
-
-TEST_F(SnapshotDeviceTest, InvalidVirtioGpuDeviceOptionIsReported) {
-    AndroidOptions opts{};
-    opts.virtio_gpu_device = const_cast<char*>("virgl");
-    FakeEmulator emu(opts);
-    EXPECT_CALL(emu.mock_avd(), GetContentPath()).WillRepeatedly(Return(temp_dir_.Path()));
-    EXPECT_CALL(emu.mock_avd(), Hw()).WillRepeatedly(ReturnRef(hw_));
-
-    SnapshotDevice dev;
-    EXPECT_THAT(dev.initialize(emu.config()),
-                StatusIs(absl::StatusCode::kInvalidArgument,
-                         ::testing::HasSubstr("-virtio-gpu-device 'virgl'")));
+                         HasSubstr("saved with virtio-gpu-rutabaga but this emulator "
+                                   "uses virtio-gpu-gfxstream")));
 }
 
 TEST_F(SnapshotDeviceTest, StrictLoadFailsWhenVmStateImageWasRecreated) {
-    WriteSnapshotVersion(SnapshotVersionFor(kDefaultVirtioGpuDevice));
+    WriteSnapshotVersion(kSnapshotVersion);
     std::ofstream(vmstate_image()) << "not a qcow2";
 
     AndroidOptions opts{};
@@ -549,7 +462,7 @@ TEST_F(SnapshotDeviceTest, NoSnapshotStillAttachesExistingVmStateImage) {
     // ListSnapshots/DeleteSnapshot stay available under -no-snapshot; without
     // the node QEMU would look for the VM state in the first writable disk
     // image and a delete would leave it behind in snapshots.qcow2.
-    WriteSnapshotVersion(SnapshotVersionFor(kDefaultVirtioGpuDevice));
+    WriteSnapshotVersion(kSnapshotVersion);
     {
         // A previous session with snapshots enabled created the image.
         FakeEmulator enabled;

@@ -16,12 +16,8 @@
 // to read or fill a color buffer outside the virtio command path
 // (multi-display read-back, camera gralloc uploads).
 //
-// The emulator instantiates exactly one of two virtio-gpu devices
-// (b/576450291): QEMU's virtio-gpu-rutabaga (renderer reached through
-// librutabaga_ffi) or the plugin's virtio-gpu-gfxstream (libgfxstream_backend
-// called directly). virtioGpuGlueGetInstance() finds whichever exists through
-// QOM and the Image* helpers dispatch to the matching renderer API, so callers
-// never need to know which device is in use.
+// virtioGpuGlueGetInstance() resolves the realized virtio-gpu-gfxstream device
+// through QOM and the Image* helpers call into its gfxstream renderer API.
 //
 // Thread safety: these call straight into the renderer, whose resource table
 // is not locked against the device's command processing. Callers must hold
@@ -37,15 +33,15 @@ extern "C" {
 
 struct VirtioGpuGlue;
 
-// The realized virtio-gpu device whose renderer is initialized, or NULL when
-// the emulator runs without one (e.g. -gpu off). The pointer stays valid for
-// the lifetime of the process and tracks the device: the renderer handle is
-// looked up on every call, so a device reset or re-initialization does not
-// invalidate it.
+// The realized virtio-gpu-gfxstream device whose renderer is initialized, or
+// NULL when the emulator runs without one (e.g. -gpu off). The pointer stays
+// valid for the lifetime of the process and tracks the device: the renderer
+// handle is looked up on every call, so a device reset or re-initialization
+// does not invalidate it.
 struct VirtioGpuGlue* virtioGpuGlueGetInstance(void);
 
-// The QEMU device name behind `instance` ("virtio-gpu-rutabaga" or
-// "virtio-gpu-gfxstream"), for logs.
+// The QEMU device name behind `instance` ("virtio-gpu-gfxstream" or "none"),
+// for logs.
 const char* virtioGpuGlueDeviceName(const struct VirtioGpuGlue* instance);
 
 // Uploads a width x height image (stride bytes per row, framebuffer_size

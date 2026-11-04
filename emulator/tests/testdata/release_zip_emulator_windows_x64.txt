@@ -214,8 +214,6 @@ emulator/lib/emulator_access.json
 emulator/lib/qemu/
 emulator/lib/qemu/gfxstream_backend.dll
 emulator/lib/qemu/goldfish_x86_64.dll
-emulator/lib/qemu/rutabaga_ffi.dll
-emulator/lib/qemu/rutabaga_ffi.dll.lib
 emulator/lib64/
 emulator/lib64/d3dcompiler_47.dll
 emulator/lib64/libEGL.dll
