@@ -69,16 +69,30 @@ TEST(GrpcWebProtocolTest, PercentEncoding) {
     EXPECT_EQ(Protocol::PercentEncode("a/b?c=d&e"), "a%2Fb%3Fc%3Dd%26e");
 }
 
+TEST(GrpcWebProtocolTest, FormatTrailersFastPathOkStatus) {
+    std::multimap<grpc::string_ref, grpc::string_ref> metadata;
+    EXPECT_EQ(Protocol::FormatTrailers(grpc::Status::OK, metadata), "grpc-status:0\r\n");
+}
+
 TEST(GrpcWebProtocolTest, FormatTrailers) {
-    grpc::Status status(grpc::StatusCode::NOT_FOUND, "Entity not found");
+    grpc::Status status(grpc::StatusCode::NOT_FOUND, "Entity not found", "\x08\x05\x12\x03err");
     std::multimap<grpc::string_ref, grpc::string_ref> metadata;
     metadata.emplace("X-Custom-Header", "Value123");
+    metadata.emplace("Grpc-Status", "0");
+    metadata.emplace("GRPC-MESSAGE", "spoofed");
+    metadata.emplace("Grpc-Status-Details-Bin", "AAAA");
 
     std::string trailers = Protocol::FormatTrailers(status, metadata);
 
     EXPECT_NE(trailers.find("grpc-status:5\r\n"), std::string::npos);
     EXPECT_NE(trailers.find("grpc-message:Entity%20not%20found\r\n"), std::string::npos);
+    EXPECT_NE(trailers.find("grpc-status-details-bin:" + absl::Base64Escape("\x08\x05\x12\x03err") +
+                            "\r\n"),
+              std::string::npos);
     EXPECT_NE(trailers.find("x-custom-header:Value123\r\n"), std::string::npos);
+    EXPECT_EQ(trailers.find("grpc-status:0"), std::string::npos);
+    EXPECT_EQ(trailers.find("spoofed"), std::string::npos);
+    EXPECT_EQ(trailers.find("AAAA"), std::string::npos);
 }
 
 TEST(GrpcWebProtocolTest, FormatTrailersSanitizesCrlfAndEncodesBinMetadata) {
