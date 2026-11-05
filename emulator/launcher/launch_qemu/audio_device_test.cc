@@ -91,6 +91,23 @@ TEST(AudioDeviceTest, NoAudioFlagUsesNoneBackendWithMixingEngineOff) {
                             Eq("-device"), Eq("virtio-sound-pci,audiodev=mainaudiodev,addr=05.0")));
 }
 
+TEST(AudioDeviceTest, HyphenatedNoAudioFlagUsesNoneBackendWithMixingEngineOff) {
+    base::TestSystem sys("");
+    std::string audio_opt = "wav";
+    AndroidOptions opts{.no_audio = 1, .audio = audio_opt.data()};
+    FakeEmulator emu(std::move(opts));
+    EXPECT_CALL(emu.mock_avd(), Arch()).WillRepeatedly(Return(Avd::CpuArchitecture::kX86));
+
+    AudioDevice dev("05.0");
+    EXPECT_OK(dev.initialize(emu.config()));
+    EXPECT_EQ(AudioDevice::getAudioBackend(emu.config().opts()), "");
+    EXPECT_THAT(dev.getQemuParameters(emu.config()),
+                ElementsAre(Eq("-audiodev"),
+                            Eq("none,id=hostaudiodev,out.mixing-engine=off,in.mixing-engine=off"),
+                            Eq("-device"), Eq(kAudioMuxDeviceArg),
+                            Eq("-device"), Eq("virtio-sound-pci,audiodev=mainaudiodev,addr=05.0")));
+}
+
 TEST(AudioDeviceTest, HostMicrophoneStaysOffUnlessAllowHostAudioIsSet) {
     base::TestSystem sys("");
     AndroidOptions opts{.allow_host_audio = 1};

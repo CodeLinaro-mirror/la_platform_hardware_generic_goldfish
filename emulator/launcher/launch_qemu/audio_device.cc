@@ -42,7 +42,7 @@ std::vector<std::string> AudioDevice::getQemuParameters(const EmulatorConfig& em
 
     std::string audioBackend = getAudioBackend(emulator.opts());
     std::string_view audioSettings;
-    if (emulator.opts().noaudio) {
+    if (emulator.opts().no_audio || emulator.opts().noaudio) {
         audioBackend = "none"s;
         audioSettings = "out.mixing-engine=off,in.mixing-engine=off"sv;
     } else {
@@ -79,7 +79,7 @@ std::vector<std::string> AudioDevice::getQemuParameters(const EmulatorConfig& em
 }
 
 std::string AudioDevice::getAudioBackend(const AndroidOptions& opts) {
-    if (opts.noaudio) {
+    if (opts.no_audio || opts.noaudio) {
         return {};
     }
 
