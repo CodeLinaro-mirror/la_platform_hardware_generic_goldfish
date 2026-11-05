@@ -331,6 +331,38 @@ TEST(OpenglesPipeTableTest, RestoreBeforeLoadEntryAttachesCallbackAndDetectsUnma
     table.Reset();
 }
 
+// Restore() on a running channel swaps the read callback while the reader may
+// be in the middle of a batch (here: parked inside the old callback). Data
+// written after the swap must reach the new callback.
+TEST(OpenglesPipeTableTest, RestoreOnRunningChannelSendsLaterWritesToNewCallback) {
+    MockRenderer renderer;
+    OpenglesPipeTable table;
+    absl::Notification old_entered;
+    absl::Notification release_old;
+    std::atomic<int> old_reads{0};
+    ASSERT_OK_AND_ASSIGN(const uint32_t id, table.Create(
+                                                    &renderer,
+                                                    [&](const uint8_t*, size_t) {
+                                                        if (old_reads.fetch_add(1) == 0) {
+                                                            old_entered.Notify();
+                                                            release_old.WaitForNotification();
+                                                        }
+                                                    },
+                                                    /*on_writable=*/nullptr));
+    ASSERT_OK(table.Write(id, kPayload, sizeof(kPayload)));
+    ASSERT_TRUE(old_entered.WaitForNotificationWithTimeout(absl::Seconds(5)));
+
+    // Non-fatal checks until the reader is released, so it never stays parked.
+    absl::Notification new_read;
+    EXPECT_OK(table.Restore(id, [&](const uint8_t*, size_t) { new_read.Notify(); }, nullptr));
+    EXPECT_OK(table.Write(id, kPayload, sizeof(kPayload)));
+    release_old.Notify();
+
+    EXPECT_TRUE(new_read.WaitForNotificationWithTimeout(absl::Seconds(5)));
+    EXPECT_EQ(old_reads.load(), 1) << "data written after Restore() reached the old callback";
+    table.Close(id);
+}
+
 TEST(OpenglesPipeTableTest, StoppedChannelMakesWriteFailAndStopAllJoinsReaders) {
     MockRenderer renderer;
     OpenglesPipeTable table;
