@@ -402,6 +402,19 @@ TEST_F(DisplayTest, MultiDisplayPropagatesPhysicalModelRotationToDisplays) {
     auto d1 = d1_res->lock();
     ASSERT_NE(d1, nullptr);
     EXPECT_EQ(d1->GetRotation(), ImageRotation::kRotation90);
+
+    goldfish::archive::DequeArchive archive;
+    archive << physical_model;
+
+    physical_model.SetTargetRotation(goldfish::sensors::vec3(0.0F, 0.0F, 0.0F),
+                                     PhysicalInterpolation::kStep);
+    EXPECT_EQ(multi_display.GetRotation(), ImageRotation::kRotation0);
+    EXPECT_EQ(d0->GetRotation(), ImageRotation::kRotation0);
+
+    ASSERT_TRUE(ReadValue(archive, physical_model).ok());
+    EXPECT_EQ(multi_display.GetRotation(), ImageRotation::kRotation90);
+    EXPECT_EQ(d0->GetRotation(), ImageRotation::kRotation90);
+    EXPECT_EQ(d1->GetRotation(), ImageRotation::kRotation90);
 }
 
 TEST_F(DisplayTest, MultiDisplayImplCreateDisplayReportsActionableErrors) {

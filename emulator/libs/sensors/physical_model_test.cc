@@ -698,6 +698,34 @@ TEST_F(PhysicalModelTest, SnapshotSaveLoad) {
     model->SetCurrentTime(1000000000L);
     model->SetTargetRotation(vec3(15.0f, 30.0f, 45.0f), PhysicalInterpolation::kSmooth);
     model->SetTargetPosition(vec3(1.0f, 2.0f, 3.0f), PhysicalInterpolation::kSmooth);
+
+    // Save mid-transition (at +0.1s < kMaxStateChangeTimeSeconds = 0.5s) while
+    // is_physical_state_changing_ is true.
+    model->SetCurrentTime(1100000000L);
+    archive::DequeArchive mid_transition_archive;
+    mid_transition_archive << *model;
+
+    {
+        auto mid_loaded_model = std::make_unique<PhysicalModel>(
+                android::goldfish::FakeHardwareConfig::GetHwConfig(), virtual_clock_);
+        bool mid_target_state_changed = false;
+        bool mid_physical_state_changing = false;
+        auto mid_sub = android::base::eventing::MakeScopedCallback(
+                *mid_loaded_model, [&](const PhysicalModelChangeEvent& event) {
+                    if (event.type == PhysicalModelChangeEvent::Type::kTargetStateChanged) {
+                        mid_target_state_changed = true;
+                    } else if (event.type ==
+                               PhysicalModelChangeEvent::Type::kPhysicalStateChanging) {
+                        mid_physical_state_changing = true;
+                    }
+                });
+        ASSERT_TRUE(ReadValue(mid_transition_archive, *mid_loaded_model).ok());
+        EXPECT_TRUE(mid_transition_archive.Empty());
+        EXPECT_TRUE(mid_target_state_changed);
+        EXPECT_TRUE(mid_physical_state_changing);
+    }
+
+    // Advance past transition end (+1.0s > 0.5s) so is_physical_state_changing_ is false.
     model->SetCurrentTime(2000000000L);
 
     size_t measurement_id = 0;
@@ -709,8 +737,20 @@ TEST_F(PhysicalModelTest, SnapshotSaveLoad) {
 
     auto loaded_model = std::make_unique<PhysicalModel>(
             android::goldfish::FakeHardwareConfig::GetHwConfig(), virtual_clock_);
+    bool target_state_changed = false;
+    bool physical_state_changing = false;
+    auto sub = android::base::eventing::MakeScopedCallback(
+            *loaded_model, [&](const PhysicalModelChangeEvent& event) {
+                if (event.type == PhysicalModelChangeEvent::Type::kTargetStateChanged) {
+                    target_state_changed = true;
+                } else if (event.type == PhysicalModelChangeEvent::Type::kPhysicalStateChanging) {
+                    physical_state_changing = true;
+                }
+            });
     ASSERT_TRUE(ReadValue(archive, *loaded_model).ok());
     EXPECT_TRUE(archive.Empty());
+    EXPECT_TRUE(target_state_changed);
+    EXPECT_FALSE(physical_state_changing);
 
     EXPECT_VEC3_NEAR(expected_accel, loaded_model->GetAccelerometer(&measurement_id), 1e-5f);
     EXPECT_VEC3_NEAR(expected_gyro, loaded_model->GetGyroscope(&measurement_id), 1e-5f);
