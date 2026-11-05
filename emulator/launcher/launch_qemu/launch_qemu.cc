@@ -107,7 +107,7 @@ absl::Status LaunchQemu::addDevices() {
     // TODO old emulator also created a virtio-serial device, do we need to?
     addDevice<ParameterList>(std::initializer_list<std::string>{
         "-device",
-        "virtio-serial-pci,ioeventfd=off",
+        "virtio-serial-pci",
     });
 
     // virtio logcat consoles, note that order matters here!
