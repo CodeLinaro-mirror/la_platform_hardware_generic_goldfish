@@ -34,13 +34,16 @@
 #include "goldfish/legacy/goldfish_gpu/goldfish_gpu.h"
 #include "goldfish/legacy/goldfish_gpu/goldfish_gpu_c_api.h"
 
-extern "C" bool GoldfishGpuCoreStart(uint32_t width, uint32_t height, uint32_t guest_api_level,
+extern "C" bool GoldfishGpuCoreStart(uint32_t width, uint32_t height, uint32_t secondary_width,
+                                     uint32_t secondary_height, uint32_t guest_api_level,
                                      const char* renderer_features, const char* snapshot_directory,
                                      GoldfishGpuFrameCallback on_frame, void* opaque, char* err_buf,
                                      size_t err_buf_size) {
     goldfish::legacy::GoldfishGpuConfig cfg;
     cfg.width = width;
     cfg.height = height;
+    cfg.secondary_width = secondary_width;
+    cfg.secondary_height = secondary_height;
     cfg.guest_api_level = guest_api_level;
     if (renderer_features != nullptr) {
         cfg.renderer_features = renderer_features;
@@ -50,7 +53,10 @@ extern "C" bool GoldfishGpuCoreStart(uint32_t width, uint32_t height, uint32_t g
     }
     if (on_frame != nullptr) {
         cfg.on_post = [on_frame, opaque](uint32_t w, uint32_t h, const uint8_t* bgra) {
-            on_frame(opaque, w, h, bgra);
+            on_frame(opaque, /*head=*/0, w, h, bgra);
+        };
+        cfg.secondary_on_post = [on_frame, opaque](uint32_t w, uint32_t h, const uint8_t* bgra) {
+            on_frame(opaque, /*head=*/1, w, h, bgra);
         };
     }
 

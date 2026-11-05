@@ -24,6 +24,10 @@ constexpr int kMinSupportedApiLevel = 24;
 // goldfish-events ("qwerty2", ACPI GFSH0002) SysBus device.
 constexpr int kVirtioInputMinApiLevel = 29;
 
+// Minimum Android API level with dual-screen foldable support
+// (SupportPixelFold, HWC external foldable display, and misc/pixel_fold data).
+constexpr int kMinFoldableApiLevel = 34;
+
 // Minimum Android API level where virtio-gpu (minigbm/gfxstream) and modern
 // virtio devices replace legacy goldfish_pipe, goldfish_sync, and
 // goldfish_address_space.

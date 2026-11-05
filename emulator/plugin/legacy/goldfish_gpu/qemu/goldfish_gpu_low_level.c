@@ -107,12 +107,14 @@ static struct GoldfishGpuVmState g_goldfish_gpu_vmstate;
  *   hook               drops BQL   why
  *   vm_state_change    yes         Quiesce() waits for render threads to park
  *   begin.pre_save     yes         PreSave() quiesces if the VM was not stopped first
- *   end.put            NO          Save() only returns the blob cached by pre_save (no renderer call)
+ *   end.put            NO          Save() returns the blob cached by pre_save (no renderer call)
  *   end.post_save      yes         PostSave() drains retired ASG consumers (thread joins)
  *   begin.pre_load     yes         PreLoad() stops consumers/channels (thread joins)
  *   end.get            yes         Load() creates consumers that map rings via RunUnderBql
  *   end.post_load      yes         PostLoad() remaps rings and replays the last frame
  *   snapshot_finished  yes         OnSnapshotFinished() == resume path of post_save/post_load
+ *   flush timer        yes         GoldfishGpuCoreFlush() takes FrameBuffer m_lock, which render
+ *                                  threads hold while taking the BQL (goldfish_pipe_low_level.c)
  *
  * Consequence: while QEMU is walking `savevm_state.handlers`, other BQL users (gRPC/UI callbacks
  * via RunUnderBql, HAL plugs, audio) can run between an already-saved section and one not yet

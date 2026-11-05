@@ -78,7 +78,13 @@ struct GoldfishGpuConfig {
     // (<snapshot_directory>/<snapshot name>/renderer/); empty disables on-disk
     // renderer snapshots.
     std::filesystem::path snapshot_directory;
+    // Optional secondary foldable display dimensions (`head=1`, host display 6).
+    // When non-zero, pre-allocates a dedicated readback buffer on display 6 and
+    // delivers outer-display frames via `secondary_on_post`.
+    uint32_t secondary_width = 0;
+    uint32_t secondary_height = 0;
     GoldfishPostCallback on_post;
+    GoldfishPostCallback secondary_on_post;
     GoldfishGpuVerifyMode verify_mode = GoldfishGpuVerifyMode::kLog;
 };
 

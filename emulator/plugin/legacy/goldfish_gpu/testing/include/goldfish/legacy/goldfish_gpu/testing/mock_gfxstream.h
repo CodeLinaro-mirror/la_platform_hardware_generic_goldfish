@@ -325,6 +325,11 @@ class MockRenderer final : public gfxstream::Renderer {
         on_post_context = context;
         use_bgra_readback = bgra_readback;
         post_display_id = display_id;
+        if (post_cb != nullptr) {
+            post_callbacks[display_id] = {post_cb, context};
+        } else {
+            post_callbacks.erase(display_id);
+        }
     }
 
     void addListener(FrameBufferChangeEventListener*) override {}
@@ -342,7 +347,10 @@ class MockRenderer final : public gfxstream::Renderer {
     }
 
     FlushReadPixelPipeline getFlushReadPixelPipeline() override {
-        return [](int display_id) { last_flushed_display_id_ = display_id; };
+        return [](int display_id) {
+            last_flushed_display_id_ = display_id;
+            flushed_display_ids_.push_back(display_id);
+        };
     }
 
     bool showOpenGLSubwindow(FBNativeWindowType, int, int, int, int, int, int, float, float, bool,
@@ -418,17 +426,24 @@ class MockRenderer final : public gfxstream::Renderer {
     bool getShouldSkipDraw() const override { return false; }
 
     void SimulatePostFrame(int w, int h, unsigned char* pixels) {
-        if (on_post != nullptr) {
-            on_post(on_post_context, 0, w, h, -1, 0, 0, pixels);
+        SimulatePostFrameForDisplay(0, w, h, pixels);
+    }
+
+    void SimulatePostFrameForDisplay(uint32_t display_id, int w, int h, unsigned char* pixels) {
+        auto it = post_callbacks.find(display_id);
+        if (it != post_callbacks.end() && it->second.first != nullptr) {
+            it->second.first(it->second.second, display_id, w, h, -1, 0, 0, pixels);
         }
     }
 
     static inline int last_flushed_display_id_ = -1;
+    static inline std::vector<int> flushed_display_ids_;
     bool async_readback_supported = false;
     OnPostCallback on_post = nullptr;
     void* on_post_context = nullptr;
     bool use_bgra_readback = false;
     uint32_t post_display_id = 0;
+    std::map<uint32_t, std::pair<OnPostCallback, void*>> post_callbacks;
     bool stopped = false;
     bool paused_all = false;
     bool resumed_all = false;
@@ -477,7 +492,7 @@ class MockRenderLib final : public gfxstream::RenderLib {
         asg_ops = ops;
     }
     void setWindowOps(const gfxstream_window_ops&) override {}
-    void setDisplayOps(const gfxstream_multi_display_ops&) override {}
+    void setDisplayOps(const gfxstream_multi_display_ops& ops) override { display_ops = ops; }
     void setGrallocImplementation(GrallocImplementation g) override { gralloc = g; }
     bool getOpt(gfxstream::RenderOpt*) override { return false; }
 
@@ -516,6 +531,7 @@ class MockRenderLib final : public gfxstream::RenderLib {
     gfxstream_dma_ops dma_ops = {};
     gfxstream_vm_ops vm_ops = {};
     struct address_space_device_control_ops* asg_ops = nullptr;
+    gfxstream_multi_display_ops display_ops = {};
     gfxstream_sync_create_timeline_t sync_create_timeline = nullptr;
     gfxstream_sync_timeline_inc_t sync_timeline_inc = nullptr;
     gfxstream_sync_device_exists_t sync_device_exists = nullptr;

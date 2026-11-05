@@ -50,6 +50,7 @@ class UserDataDriveTest : public ::testing::Test {
 
         EXPECT_CALL(mock_avd_, Hw()).WillRepeatedly(ReturnRef(hw_));
         EXPECT_CALL(mock_avd_, GetContentPath()).WillRepeatedly(Return(user_dir_));
+        EXPECT_CALL(mock_avd_, ApiLevel()).WillRepeatedly(Return(35));
     }
 
     TestTempDir tmp_dir_{"user_data_drive_test"};
@@ -82,9 +83,12 @@ TEST_F(UserDataDriveTest, NoHingeAndNoMarkerReturnsNullopt) {
 TEST_F(UserDataDriveTest, HingeSensorMissingFoldDirReturnsInvalidArgument) {
     hw_.hw_sensor_hinge = true;
     const fs::path fold_src_dir = init_data_dir_ / "misc" / "pixel_9_pro_fold";
+    const fs::path fallback_src_dir = init_data_dir_ / "misc" / "pixel_fold";
 
     EXPECT_THAT(prepareUserdataSrcDir(mock_avd_, init_data_dir_),
-                StatusIs(absl::StatusCode::kInvalidArgument, HasSubstr(fold_src_dir.string())));
+                StatusIs(absl::StatusCode::kInvalidArgument,
+                         testing::AllOf(HasSubstr(fold_src_dir.string()),
+                                        HasSubstr(fallback_src_dir.string()))));
     EXPECT_FALSE(base::file::exists(user_dir_ / "data"));
 
     ASSERT_TRUE(tmp_dir_.MakeSubDir("user/data"));
@@ -123,6 +127,27 @@ TEST_F(UserDataDriveTest, HingeSensorCopiesFoldDataAndWipesStaleScratchDir) {
     std::ifstream ifs(copied_file);
     ifs >> content;
     EXPECT_EQ(content, "<display-settings/>");
+}
+
+TEST_F(UserDataDriveTest, Api34HingeSensorFallsBackToPixelFoldDirAndApi33SkipsFoldData) {
+    hw_.hw_sensor_hinge = true;
+    ASSERT_TRUE(tmp_dir_.MakeSubDir("init_data/misc/pixel_fold"));
+    {
+        std::ofstream ofs(tmp_dir_.MakeSubPath("init_data/misc/pixel_fold") /
+                          "display_settings.xml");
+        ofs << "<api34-fold/>";
+    }
+
+    EXPECT_CALL(mock_avd_, ApiLevel()).WillRepeatedly(Return(34));
+    const fs::path scratch_dir = tmp_dir_.MakeSubPath("user/data");
+    EXPECT_THAT(prepareUserdataSrcDir(mock_avd_, init_data_dir_),
+                IsOkAndHolds(std::optional<fs::path>(scratch_dir)));
+    EXPECT_TRUE(base::file::exists(scratch_dir / "system" / "display_settings.xml"));
+
+    // API <= 33 does not use pixel_fold dual-display userdata initialization.
+    EXPECT_CALL(mock_avd_, ApiLevel()).WillRepeatedly(Return(33));
+    ASSERT_TRUE(tmp_dir_.MakeSubFile("init_data/empty_data_disk"));
+    EXPECT_THAT(prepareUserdataSrcDir(mock_avd_, init_data_dir_), IsOkAndHolds(std::nullopt));
 }
 
 }  // namespace

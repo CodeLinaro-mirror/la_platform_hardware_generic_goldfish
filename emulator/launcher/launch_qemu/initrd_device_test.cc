@@ -739,4 +739,54 @@ TEST(Initrd, FailsWhenDynamicPartitionDisabled) {
     EXPECT_EQ(status.code(), absl::StatusCode::kInvalidArgument);
 }
 
+TEST(BootProperties, FoldableProperties) {
+    base::TestSystem sys("");
+    FakeEmulator emu;
+
+    auto hw = HardwareConfig();
+    hw.hw_sensor_hinge = true;
+    hw.hw_sensor_hinge_count = 1;
+    hw.hw_displayRegion_0_1_width = 1080;
+    hw.hw_displayRegion_0_1_height = 2092;
+    hw.hw_lcd_density = 420;
+    EXPECT_CALL(emu.mock_avd(), Hw()).WillRepeatedly(testing::ReturnRef(hw));
+    EXPECT_CALL(emu.mock_avd(), Name()).WillRepeatedly(testing::Return("mock_avd"));
+    EXPECT_CALL(emu.mock_avd(), ApiLevel()).WillRepeatedly(testing::Return(36));
+    EXPECT_CALL(emu.mock_avd(), Arch()).WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
+
+    const auto props = getBootProperties(emu.config(), "lavapipe");
+    EXPECT_THAT(props, testing::IsSupersetOf(std::vector{
+                           std::pair{"androidboot.qemu.external.displays", "1,1080,2092,420,0"},
+                           std::pair{"androidboot.qemu.autorotate", "1"},
+                       }));
+}
+
+TEST(BootProperties, FoldableWithoutSecondaryDisplayRegionOmitsExternalDisplays) {
+    base::TestSystem sys("");
+    FakeEmulator emu;
+
+    auto hw = HardwareConfig();
+    hw.hw_sensor_hinge = true;
+    hw.hw_sensor_hinge_count = 1;
+    hw.hw_displayRegion_0_1_width = 0;
+    hw.hw_displayRegion_0_1_height = 0;
+    EXPECT_CALL(emu.mock_avd(), Hw()).WillRepeatedly(testing::ReturnRef(hw));
+    EXPECT_CALL(emu.mock_avd(), Name()).WillRepeatedly(testing::Return("mock_avd"));
+    EXPECT_CALL(emu.mock_avd(), ApiLevel()).WillRepeatedly(testing::Return(36));
+    EXPECT_CALL(emu.mock_avd(), Arch()).WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
+
+    const auto props = getBootProperties(emu.config(), "lavapipe");
+    EXPECT_THAT(props, testing::Contains(std::pair{"androidboot.qemu.autorotate", "1"}));
+    EXPECT_THAT(props, testing::Not(testing::Contains(
+                               testing::Pair("androidboot.qemu.external.displays", testing::_))));
+
+    // API <= 33 also omits external foldable displays even when a region is present.
+    hw.hw_displayRegion_0_1_width = 1080;
+    hw.hw_displayRegion_0_1_height = 2092;
+    EXPECT_CALL(emu.mock_avd(), ApiLevel()).WillRepeatedly(testing::Return(33));
+    const auto api33_props = getBootProperties(emu.config(), "lavapipe");
+    EXPECT_THAT(api33_props, testing::Not(testing::Contains(testing::Pair(
+                                     "androidboot.qemu.external.displays", testing::_))));
+}
+
 }  // namespace android::goldfish::test

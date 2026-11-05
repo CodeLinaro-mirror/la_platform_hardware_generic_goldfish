@@ -24,6 +24,7 @@
 #include "absl/strings/str_cat.h"
 
 #include "android/goldfish/avd.h"
+#include "android/goldfish/constants.h"
 #include "android/status/status_macros.h"
 #include "goldfish/file/file.h"
 #include "goldfish/file/storage_capacity.h"
@@ -33,8 +34,12 @@ namespace android::goldfish {
 namespace fs = std::filesystem;
 
 namespace {
+bool hasFoldableUserdata(const Avd& avd) {
+    return avd.Hw().hw_sensor_hinge && avd.ApiLevel() >= kMinFoldableApiLevel;
+}
+
 std::optional<fs::path> getUserdataScratchDirectory(const Avd& avd) {
-    if (avd.Hw().hw_sensor_hinge) {
+    if (hasFoldableUserdata(avd)) {
         return avd.GetContentPath() / "data";
     } else {
         return std::nullopt;
@@ -45,10 +50,18 @@ absl::StatusOr<fs::path> prepareUserdataSrcDirImpl(fs::path scratch_dir,
                                                    const fs::path& init_data) {
     LOG(INFO) << __func__ << ": init_data=" << init_data << ", scratch_dir=" << scratch_dir;
 
-    const fs::path src_dir = init_data / "misc" / "pixel_9_pro_fold";
+    // API 35+ system images ship misc/pixel_9_pro_fold, while API 34 system
+    // images only ship misc/pixel_fold (identical layout configuration).
+    fs::path src_dir = init_data / "misc" / "pixel_9_pro_fold";
     if (!base::file::is_dir(src_dir)) {
-        return absl::InvalidArgumentError(absl::StrCat(
-                "data partition initialization path is not a directory: ", src_dir.string()));
+        const fs::path fallback_dir = init_data / "misc" / "pixel_fold";
+        if (base::file::is_dir(fallback_dir)) {
+            src_dir = fallback_dir;
+        } else {
+            return absl::InvalidArgumentError(absl::StrCat(
+                    "data partition initialization path is not a directory: tried ",
+                    src_dir.string(), " (API 35+) and ", fallback_dir.string(), " (API 34)"));
+        }
     }
 
     RETURN_IF_ERROR(base::file::rm_recursive(scratch_dir));
@@ -70,7 +83,7 @@ absl::StatusOr<fs::path> prepareUserdataSrcDirImpl(fs::path scratch_dir,
 
 absl::StatusOr<std::optional<fs::path>> prepareUserdataSrcDir(const Avd& avd,
                                                               const fs::path& init_data) {
-    if (init_data.empty() && !avd.Hw().hw_sensor_hinge) {
+    if (init_data.empty() && !hasFoldableUserdata(avd)) {
         return std::nullopt;
     }
     if (!base::file::is_dir(init_data)) {

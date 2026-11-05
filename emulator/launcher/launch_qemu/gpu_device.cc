@@ -317,6 +317,10 @@ std::vector<std::string> GpuDevice::getQemuParameters(const EmulatorConfig& emul
                 "";
     }
 
+    const bool has_external_foldable_display =
+            api_level >= kMinFoldableApiLevel && hw.hw_sensor_hinge &&
+            hw.hw_displayRegion_0_1_width > 0 && hw.hw_displayRegion_0_1_height > 0;
+
     if (legacy_goldfish_gpu) {
         std::vector<std::string> args;
         const auto global = [&args](std::string_view property, std::string_view value) {
@@ -333,6 +337,13 @@ std::vector<std::string> GpuDevice::getQemuParameters(const EmulatorConfig& emul
         if (snapshot_directory) {
             global("snapshot_directory", snapshot_directory->string());
         }
+        // Configure a second QemuConsole (head=1) on goldfish_pipe when an external
+        // foldable display region is present, matching API 37's max_outputs=2 and
+        // initrd_device's qemuExternalDisplays predicate.
+        if (has_external_foldable_display) {
+            global("secondary_xres", absl::StrCat(hw.hw_displayRegion_0_1_width));
+            global("secondary_yres", absl::StrCat(hw.hw_displayRegion_0_1_height));
+        }
         return args;
     }
 
@@ -342,7 +353,7 @@ std::vector<std::string> GpuDevice::getQemuParameters(const EmulatorConfig& emul
     }
 
     std::vector<std::string> params = {"virtio-gpu-gfxstream"};
-    if (hw.hw_sensor_hinge) {
+    if (has_external_foldable_display) {
         params.push_back("edid=off");
         params.push_back("max_outputs=2");
     }

@@ -423,22 +423,18 @@ std::vector<std::pair<std::string, std::string>> getUserspaceBootProperties(
     }
 
     if (hw.hw_sensor_hinge) {
-        int width{0}, height{0};
-        width = hw.hw_displayRegion_0_1_width;
-        height = hw.hw_displayRegion_0_1_height;
-        std::string display_list =
-                absl::StrFormat("1,%d,%d,%d,0", width, height, hw.hw_lcd_density);
-        LOG(INFO) << "sending guest external displays: " << display_list;
-        params.push_back({qemuExternalDisplays, display_list});
+        const int width = hw.hw_displayRegion_0_1_width;
+        const int height = hw.hw_displayRegion_0_1_height;
+        if (apiLevel >= kMinFoldableApiLevel && width > 0 && height > 0) {
+            std::string display_list =
+                    absl::StrFormat("1,%d,%d,%d,0", width, height, hw.hw_lcd_density);
+            LOG(INFO) << "sending guest external displays: " << display_list;
+            params.push_back({qemuExternalDisplays, display_list});
+        }
+        if (hw.hw_sensor_hinge_count > 0) {
+            params.push_back({autoRotateProp, "1"});
+        }
     }
-
-    //   if (resizableEnabled()) {
-    //     params.push_back({qemuDisplaySettingsXmlProp, "resizable"});
-    //   }
-
-    //   if (android_foldable_hinge_configured()) {
-    //     params.push_back({autoRotateProp, "1"});
-    //   }
 
     for (auto i = opts.append_userspace_opt; i; i = i->next) {
         const char* const val = i->param;

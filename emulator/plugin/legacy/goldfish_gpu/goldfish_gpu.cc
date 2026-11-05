@@ -204,10 +204,20 @@ class GoldfishGpu final : public IGoldfishGpu, public HostCallbacks {
     }
 
     absl::Status Start(GoldfishGpuConfig config) ABSL_LOCKS_EXCLUDED(mu_) override {
-        if (config.width == 0 || config.height == 0) {
+        if (config.width == 0 || config.height == 0 || config.width > kGpuSnapshotMaxFrameDim ||
+            config.height > kGpuSnapshotMaxFrameDim) {
+            return absl::InvalidArgumentError(absl::StrCat(
+                    "GoldfishGpu::Start requires primary dimensions in 1..",
+                    kGpuSnapshotMaxFrameDim, " (got ", config.width, "x", config.height, ")"));
+        }
+        if ((config.secondary_width == 0) != (config.secondary_height == 0) ||
+            config.secondary_width > kGpuSnapshotMaxFrameDim ||
+            config.secondary_height > kGpuSnapshotMaxFrameDim) {
             return absl::InvalidArgumentError(
-                    absl::StrCat("GoldfishGpu::Start requires non-zero dimensions (got ",
-                                 config.width, "x", config.height, ")"));
+                    absl::StrCat("GoldfishGpu::Start requires secondary dimensions to be both 0 or "
+                                 "in 1..",
+                                 kGpuSnapshotMaxFrameDim, " (got ", config.secondary_width, "x",
+                                 config.secondary_height, ")"));
         }
         if (config.guest_api_level == 0) {
             return absl::InvalidArgumentError(
@@ -250,9 +260,11 @@ class GoldfishGpu final : public IGoldfishGpu, public HostCallbacks {
             render_lib = *std::move(loaded);
         }
 
+        const bool has_secondary = config.secondary_width != 0 && config.secondary_height != 0;
         RenderLibBridge::Configure(
                 render_lib.get(), config.guest_api_level,
-                ParseRendererBackend(android::base::System::Get()->EnvGet("ANDROID_EMU_RENDERER")));
+                ParseRendererBackend(android::base::System::Get()->EnvGet("ANDROID_EMU_RENDERER")),
+                config.secondary_width, config.secondary_height);
 
         gfxstream::RendererPtr renderer = render_lib->initRenderer(
                 static_cast<int>(config.width), static_cast<int>(config.height), features,
@@ -274,8 +286,12 @@ class GoldfishGpu final : public IGoldfishGpu, public HostCallbacks {
                                                : nullptr;
             post_source_.before_readback = GlFlushBeforeReadback();
             post_source_.on_post = config_.on_post;
+            secondary_post_source_ = post_source_;
+            secondary_post_source_.on_post = config_.secondary_on_post;
             flush_read_pixels_ = renderer_->getFlushReadPixelPipeline();
             frame_cache_.Clear();
+            secondary_frame_cache_.Clear();
+            last_posted_display_id_.store(0, std::memory_order_relaxed);
             color_buffers_.clear();
             next_puid_.store(1, std::memory_order_relaxed);
             next_timeline_id_.store(1, std::memory_order_relaxed);
@@ -283,6 +299,11 @@ class GoldfishGpu final : public IGoldfishGpu, public HostCallbacks {
 
         renderer->setPostCallback(&GoldfishGpu::OnPostCallback, this,
                                   /*useBgraReadback=*/true, /*displayId=*/0);
+        if (has_secondary) {
+            renderer->setPostCallback(&GoldfishGpu::OnPostCallback, this,
+                                      /*useBgraReadback=*/true,
+                                      /*displayId=*/RenderLibBridge::kExternalFoldableDisplayId);
+        }
         return VerifyState(VerifyPhase::kSteady);
     }
 
@@ -305,18 +326,23 @@ class GoldfishGpu final : public IGoldfishGpu, public HostCallbacks {
         gfxstream::RenderLibPtr render_lib;
         gfxstream::RendererPtr renderer;
         bool quiesced = false;
+        bool had_secondary = false;
         const std::vector<std::shared_ptr<AsgConsumerEntry>> asgs = asgs_.Reset();
         {
             absl::MutexLock lock(&mu_);
             old_texture_loader = std::move(active_texture_loader_);
             quiesced = phase_.IsQuiescedForSave();
             phase_.Reset();
+            had_secondary = HasSecondaryDisplayLocked();
             renderer = std::move(renderer_);
             render_lib = std::move(render_lib_);
             on_last_color_buffer_ref_ = nullptr;
             post_source_ = PostedFrameCache::Source{};
+            secondary_post_source_ = PostedFrameCache::Source{};
             flush_read_pixels_ = nullptr;
             frame_cache_.Clear();
+            secondary_frame_cache_.Clear();
+            last_posted_display_id_.store(0, std::memory_order_relaxed);
             color_buffers_.clear();
             next_puid_.store(1, std::memory_order_relaxed);
             next_timeline_id_.store(1, std::memory_order_relaxed);
@@ -331,6 +357,11 @@ class GoldfishGpu final : public IGoldfishGpu, public HostCallbacks {
         }
 
         if (renderer) {
+            if (had_secondary) {
+                renderer->setPostCallback(
+                        nullptr, nullptr, /*useBgraReadback=*/false,
+                        /*displayId=*/RenderLibBridge::kExternalFoldableDisplayId);
+            }
             renderer->setPostCallback(nullptr, nullptr, /*useBgraReadback=*/false, /*displayId=*/0);
             // A render thread paused by Quiesce() (e.g. the VM was stopped
             // with RUN_STATE_SHUTDOWN and no exit snapshot was saved) parks in
@@ -360,14 +391,19 @@ class GoldfishGpu final : public IGoldfishGpu, public HostCallbacks {
     }
 
     void FlushReadPixelPipeline() ABSL_LOCKS_EXCLUDED(mu_) override {
+        gfxstream::RendererPtr renderer;
         gfxstream::Renderer::FlushReadPixelPipeline flush_fn = nullptr;
+        bool has_secondary = false;
         {
             absl::MutexLock lock(&mu_);
+            if (!renderer_ || !phase_.IsRunning()) {
+                return;
+            }
+            renderer = renderer_;
             flush_fn = flush_read_pixels_;
+            has_secondary = HasSecondaryDisplayLocked();
         }
-        if (flush_fn != nullptr) {
-            flush_fn(/*displayId=*/0);
-        }
+        FlushDisplayPipelines(flush_fn, has_secondary);
     }
 
     // Pauses the renderer, the ASG consumers and the opengles reader threads.
@@ -477,6 +513,8 @@ class GoldfishGpu final : public IGoldfishGpu, public HostCallbacks {
         RETURN_IF_ERROR(VerifyState(VerifyPhase::kPreSaveStream, snapshot_name));
 
         gfxstream::RendererPtr renderer;
+        gfxstream::Renderer::FlushReadPixelPipeline flush_fn = nullptr;
+        bool has_secondary = false;
         std::filesystem::path snapshot_dir;
         const uint32_t saved_next_asg_handle = asgs_.NextId();
         const uint32_t saved_next_pipe_id = pipes_.NextId();
@@ -488,8 +526,14 @@ class GoldfishGpu final : public IGoldfishGpu, public HostCallbacks {
                 return absl::OkStatus();
             }
             renderer = renderer_;
+            flush_fn = flush_read_pixels_;
+            has_secondary = HasSecondaryDisplayLocked();
             snapshot_dir = config_.snapshot_directory;
         }
+
+        // Render threads are already parked by Quiesce() and the BQL is dropped:
+        // drain any in-flight async PBO readbacks before snapshotting the caches.
+        FlushDisplayPipelines(flush_fn, has_secondary);
 
         if (absl::Status st = GpuSnapshotFiles(snapshot_dir).Save(snapshot_name, renderer.get());
             !st.ok()) {
@@ -499,7 +543,7 @@ class GoldfishGpu final : public IGoldfishGpu, public HostCallbacks {
 
         const std::vector<uint32_t> asg_handles = asgs_.SortedIds();
         const std::vector<uint32_t> pipe_ids = pipes_.SortedIds();
-        const GpuSnapshotFrame frame = frame_cache_.Last();
+        const GpuSnapshotFrame frame = LastPostedFrameCache().Last();
         const GpuSnapshotCounters counters{.next_asg_handle = saved_next_asg_handle,
                                            .next_pipe_id = saved_next_pipe_id,
                                            .next_puid = saved_next_puid,
@@ -614,6 +658,9 @@ class GoldfishGpu final : public IGoldfishGpu, public HostCallbacks {
                 return absl::OkStatus();
             }
             color_buffers_.clear();
+            frame_cache_.Clear();
+            secondary_frame_cache_.Clear();
+            last_posted_display_id_.store(0, std::memory_order_relaxed);
             old_texture_loader = std::move(active_texture_loader_);
             renderer = renderer_;
         }
@@ -699,6 +746,10 @@ class GoldfishGpu final : public IGoldfishGpu, public HostCallbacks {
                                                       : "snapshot has no name",
                                  "); the renderer cannot be restored"));
         }
+        // Must precede files.Load(): gfxstream's FrameBuffer::onLoad() recreates
+        // every saved display through the display ops table, so stale guest
+        // displays from the pre-load session are dropped first.
+        RenderLibBridge::ResetSecondaryDisplays();
         absl::StatusOr<gfxstream::ITextureLoaderPtr> texture_loader =
                 files.Load(snapshot_name, renderer.get());
         if (!texture_loader.ok()) {
@@ -729,13 +780,33 @@ class GoldfishGpu final : public IGoldfishGpu, public HostCallbacks {
             return tail.status();
         }
         RETURN_IF_ERROR(pipes_.VerifyNoPendingRestores());
+        uint32_t sec_w = 0;
+        uint32_t sec_h = 0;
+        uint32_t pri_w = 0;
+        uint32_t pri_h = 0;
         {
             absl::MutexLock lock(&mu_);
             ActivatePendingColorBuffersLocked();
+            pri_w = config_.width;
+            pri_h = config_.height;
+            sec_w = config_.secondary_width;
+            sec_h = config_.secondary_height;
         }
         asgs_.RaiseNextId(tail->counters.next_asg_handle);
         pipes_.RaiseNextId(tail->counters.next_pipe_id);
-        frame_cache_.Set(std::move(tail->frame));
+        frame_cache_.Clear();
+        secondary_frame_cache_.Clear();
+        const bool restore_to_secondary = sec_w != 0 && sec_h != 0 && tail->frame.width == sec_w &&
+                                          tail->frame.height == sec_h &&
+                                          (pri_w != sec_w || pri_h != sec_h);
+        if (restore_to_secondary) {
+            secondary_frame_cache_.Set(std::move(tail->frame));
+            last_posted_display_id_.store(RenderLibBridge::kExternalFoldableDisplayId,
+                                          std::memory_order_relaxed);
+        } else {
+            frame_cache_.Set(std::move(tail->frame));
+            last_posted_display_id_.store(0, std::memory_order_relaxed);
+        }
         RaiseAtomicTo(&next_puid_, tail->counters.next_puid);
         RaiseAtomicTo(&next_timeline_id_, tail->counters.next_timeline_id);
         return VerifyState(VerifyPhase::kPostLoadStream, snapshot_name);
@@ -751,11 +822,13 @@ class GoldfishGpu final : public IGoldfishGpu, public HostCallbacks {
     absl::Status PostLoad(std::string_view snapshot_name) ABSL_LOCKS_EXCLUDED(mu_) override {
         gfxstream::RendererPtr renderer;
         GoldfishPostCallback on_post;
+        GoldfishPostCallback secondary_on_post;
         {
             absl::MutexLock lock(&mu_);
             phase_.Enter(SnapshotPhase::kRunning, {SnapshotPhase::kPreLoaded});
             renderer = renderer_;
             on_post = config_.on_post;
+            secondary_on_post = config_.secondary_on_post;
         }
         if (!renderer) {
             asgs_.DrainRetired(nullptr);
@@ -771,6 +844,7 @@ class GoldfishGpu final : public IGoldfishGpu, public HostCallbacks {
         pipes_.ResumeAll();
 
         frame_cache_.Replay(on_post);
+        secondary_frame_cache_.Replay(secondary_on_post);
         return VerifyState(VerifyPhase::kPostLoad, snapshot_name);
     }
 
@@ -1009,12 +1083,21 @@ class GoldfishGpu final : public IGoldfishGpu, public HostCallbacks {
             return;
         }
         auto* self = static_cast<GoldfishGpu*>(context);
+        const bool secondary = display_id == RenderLibBridge::kExternalFoldableDisplayId;
+        PostedFrameCache& cache = secondary ? self->secondary_frame_cache_ : self->frame_cache_;
         PostedFrameCache::Source source;
         {
             absl::MutexLock lock(&self->mu_);
-            source = self->post_source_;
+            source = secondary ? self->secondary_post_source_ : self->post_source_;
         }
-        self->frame_cache_.OnPost(source, display_id, width, height, pixels);
+        // Only fresh posts (pixels != nullptr) advance last_posted_display_id_;
+        // flushReadPipeline() passes pixels == nullptr to drain trailing PBOs and
+        // must not overwrite a newer display's post across a posture switch.
+        if (pixels != nullptr) {
+            self->last_posted_display_id_.store(secondary ? display_id : 0,
+                                                std::memory_order_relaxed);
+        }
+        cache.OnPost(source, display_id, width, height, pixels);
     }
 
     void* ResolveDmaHostAddr(uint64_t gpa) ABSL_LOCKS_EXCLUDED(mu_) override {
@@ -1061,7 +1144,7 @@ class GoldfishGpu final : public IGoldfishGpu, public HostCallbacks {
         in.next_timeline_id = next_timeline_id_.load(std::memory_order_relaxed);
         in.asgs = asgs_.Snapshot();
         in.pipes = pipes_.Snapshot();
-        in.frame = frame_cache_.LastShape();
+        in.frame = LastPostedFrameCache().LastShape();
         in.snapshot_artifacts = GpuSnapshotFiles(snapshot_dir).ArtifactsPresent(snapshot_name);
         return VerifyGoldfishGpuState(in);
     }
@@ -1069,6 +1152,40 @@ class GoldfishGpu final : public IGoldfishGpu, public HostCallbacks {
     gfxstream::RendererPtr GetRenderer() const ABSL_LOCKS_EXCLUDED(mu_) {
         absl::MutexLock lock(&mu_);
         return renderer_;
+    }
+
+    // True when the AVD has an outer foldable display (host display 6).
+    bool HasSecondaryDisplayLocked() const ABSL_EXCLUSIVE_LOCKS_REQUIRED(mu_) {
+        return config_.secondary_width != 0 && config_.secondary_height != 0;
+    }
+
+    void FlushDisplayPipelines(const gfxstream::Renderer::FlushReadPixelPipeline& flush_fn,
+                               bool has_secondary) const {
+        if (flush_fn == nullptr) {
+            return;
+        }
+        if (!has_secondary) {
+            flush_fn(/*displayId=*/0);
+            return;
+        }
+        // Flush the non-active display first and `last_posted_display_id_` second
+        // so the active display's readback callback runs last.
+        const int active = (last_posted_display_id_.load(std::memory_order_relaxed) ==
+                            RenderLibBridge::kExternalFoldableDisplayId)
+                                   ? static_cast<int>(RenderLibBridge::kExternalFoldableDisplayId)
+                                   : 0;
+        const int other =
+                (active == 0) ? static_cast<int>(RenderLibBridge::kExternalFoldableDisplayId) : 0;
+        flush_fn(other);
+        flush_fn(active);
+    }
+
+    // Picks the frame cache of the display that posted most recently.
+    const PostedFrameCache& LastPostedFrameCache() const {
+        return last_posted_display_id_.load(std::memory_order_relaxed) ==
+                               RenderLibBridge::kExternalFoldableDisplayId
+                       ? secondary_frame_cache_
+                       : frame_cache_;
     }
 
     // Load succeeded: the ColorBuffers re-announced by the restored refcount
@@ -1096,6 +1213,7 @@ class GoldfishGpu final : public IGoldfishGpu, public HostCallbacks {
     gfxstream::OnLastColorBufferRef on_last_color_buffer_ref_ ABSL_GUARDED_BY(mu_);
     gfxstream::Renderer::FlushReadPixelPipeline flush_read_pixels_ ABSL_GUARDED_BY(mu_) = nullptr;
     PostedFrameCache::Source post_source_ ABSL_GUARDED_BY(mu_);
+    PostedFrameCache::Source secondary_post_source_ ABSL_GUARDED_BY(mu_);
 
     // Callbacks installed by the goldfish_address_space / goldfish_sync devices.
     MapUserMemoryCallback map_user_memory_cb_ ABSL_GUARDED_BY(mu_);
@@ -1113,11 +1231,13 @@ class GoldfishGpu final : public IGoldfishGpu, public HostCallbacks {
     std::unordered_map<uint32_t, bool> color_buffers_ ABSL_GUARDED_BY(mu_);
     std::atomic<uint64_t> next_puid_{1};
     std::atomic<uint64_t> next_timeline_id_{1};
+    std::atomic<uint32_t> last_posted_display_id_{0};
 
     // Components with their own locks (see the file comment).
     AsgBlobTable asgs_;
     OpenglesPipeTable pipes_;
     PostedFrameCache frame_cache_;
+    PostedFrameCache secondary_frame_cache_;
     ProcessCleanupQueue process_cleanup_;
 };
 

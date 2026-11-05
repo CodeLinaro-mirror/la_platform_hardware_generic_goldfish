@@ -474,6 +474,103 @@ TEST(GpuDeviceTest, Api36ConfiguresGoldfishPipeGlobalsAndSnapshotDirectory) {
     EXPECT_THAT(params, testing::Contains(Eq(absl::StrCat(
                                 "driver=goldfish_pipe,property=snapshot_directory,value=",
                                 Device::EscapeQemuOptionValue(expected_snapshot_dir.string())))));
+    // Plain phone AVD: no secondary foldable display console.
+    EXPECT_THAT(params, Not(testing::Contains(HasSubstr("property=secondary_xres"))));
+    EXPECT_THAT(params, Not(testing::Contains(HasSubstr("property=secondary_yres"))));
+}
+
+TEST(GpuDeviceTest, Api36GoldfishPipeConfiguresSecondaryDisplayForExternalFoldableRegion) {
+    using S = android_studio::EmulatorFeatureFlagState;
+    base::TestSystem sys("");
+    SnapshotDevice snapshot_dev;
+
+    const auto get_params = [&](const HardwareConfig& hw, int api_level = 36) {
+        FakeEmulator emu;
+        emu.feature_flags().SetEnabledOverride(S::MINIGBM, false);
+        EXPECT_CALL(emu.mock_avd(), Hw()).WillRepeatedly(ReturnRef(hw));
+        EXPECT_CALL(emu.mock_avd(), ApiLevel()).WillRepeatedly(Return(api_level));
+        GpuDevice dev("gpu0", snapshot_dev);
+        EXPECT_OK(dev.initialize(emu.config()));
+        return dev.getQemuParameters(emu.config());
+    };
+
+    HardwareConfig dual_screen_fold;
+    dual_screen_fold.hw_lcd_width = 2076;
+    dual_screen_fold.hw_lcd_height = 2152;
+    dual_screen_fold.hw_sensor_hinge = true;
+    dual_screen_fold.hw_displayRegion_0_1_width = 1080;
+    dual_screen_fold.hw_displayRegion_0_1_height = 2364;
+    const auto fold_params = get_params(dual_screen_fold);
+    EXPECT_THAT(fold_params,
+                testing::Contains(Eq("driver=goldfish_pipe,property=secondary_xres,value=1080")));
+    EXPECT_THAT(fold_params,
+                testing::Contains(Eq("driver=goldfish_pipe,property=secondary_yres,value=2364")));
+
+    // API 34 enables secondary foldable display; API <= 33 omits it.
+    EXPECT_THAT(get_params(dual_screen_fold, /*api_level=*/34),
+                testing::Contains(Eq("driver=goldfish_pipe,property=secondary_xres,value=1080")));
+    EXPECT_THAT(get_params(dual_screen_fold, /*api_level=*/33),
+                Not(testing::Contains(HasSubstr("property=secondary_xres"))));
+
+    HardwareConfig single_screen_flip;
+    single_screen_flip.hw_lcd_width = 1080;
+    single_screen_flip.hw_lcd_height = 2640;
+    single_screen_flip.hw_sensor_hinge = true;
+    single_screen_flip.hw_displayRegion_0_1_width = 0;
+    single_screen_flip.hw_displayRegion_0_1_height = 0;
+    const auto flip_params = get_params(single_screen_flip);
+    EXPECT_THAT(flip_params, Not(testing::Contains(HasSubstr("property=secondary_xres"))));
+    EXPECT_THAT(flip_params, Not(testing::Contains(HasSubstr("property=secondary_yres"))));
+
+    HardwareConfig hinge_disabled;
+    hinge_disabled.hw_lcd_width = 2076;
+    hinge_disabled.hw_lcd_height = 2152;
+    hinge_disabled.hw_sensor_hinge = false;
+    hinge_disabled.hw_displayRegion_0_1_width = 1080;
+    hinge_disabled.hw_displayRegion_0_1_height = 2364;
+    const auto hinge_disabled_params = get_params(hinge_disabled);
+    EXPECT_THAT(hinge_disabled_params,
+                Not(testing::Contains(HasSubstr("property=secondary_xres"))));
+    EXPECT_THAT(hinge_disabled_params,
+                Not(testing::Contains(HasSubstr("property=secondary_yres"))));
+
+    HardwareConfig phone;
+    phone.hw_lcd_width = 1080;
+    phone.hw_lcd_height = 2400;
+    phone.hw_device_name = "pixel_9";
+    const auto phone_params = get_params(phone);
+    EXPECT_THAT(phone_params, Not(testing::Contains(HasSubstr("property=secondary_xres"))));
+    EXPECT_THAT(phone_params, Not(testing::Contains(HasSubstr("property=secondary_yres"))));
+}
+
+TEST(GpuDeviceTest, Api37VirtioGpuMaxOutputsRequiresExternalFoldableDisplayRegion) {
+    base::TestSystem sys("");
+    SnapshotDevice snapshot_dev;
+
+    const auto get_params = [&](const HardwareConfig& hw) {
+        FakeEmulator emu;
+        EXPECT_CALL(emu.mock_avd(), Hw()).WillRepeatedly(ReturnRef(hw));
+        EXPECT_CALL(emu.mock_avd(), ApiLevel()).WillRepeatedly(Return(37));
+        GpuDevice dev("gpu0", snapshot_dev);
+        EXPECT_OK(dev.initialize(emu.config()));
+        return dev.getQemuParameters(emu.config());
+    };
+
+    HardwareConfig dual_screen_fold;
+    dual_screen_fold.hw_lcd_width = 2076;
+    dual_screen_fold.hw_lcd_height = 2152;
+    dual_screen_fold.hw_sensor_hinge = true;
+    dual_screen_fold.hw_displayRegion_0_1_width = 1080;
+    dual_screen_fold.hw_displayRegion_0_1_height = 2364;
+    EXPECT_THAT(get_params(dual_screen_fold), testing::Contains(HasSubstr("max_outputs=2")));
+
+    HardwareConfig single_screen_flip;
+    single_screen_flip.hw_lcd_width = 1080;
+    single_screen_flip.hw_lcd_height = 2640;
+    single_screen_flip.hw_sensor_hinge = true;
+    single_screen_flip.hw_displayRegion_0_1_width = 0;
+    single_screen_flip.hw_displayRegion_0_1_height = 0;
+    EXPECT_THAT(get_params(single_screen_flip), Not(testing::Contains(HasSubstr("max_outputs=2"))));
 }
 
 TEST(GpuDeviceTest, Api36WithMinigbmFeatureUsesVirtioGpuGfxstream) {
