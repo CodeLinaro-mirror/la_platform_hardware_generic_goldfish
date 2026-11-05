@@ -81,7 +81,7 @@ std::vector<std::string> Qcow2Drive::getQemuParameters(const EmulatorConfig& emu
         absl::StrCat(
                 "driver=qcow2,node-name=", id(),
                 ",file.driver=file,file.filename=", EscapeQemuOptionValue(qcow2_image_.string()),
-                ",overlap-check=none,cache.direct=off,cache.no-flush=on,l2-cache-size=1048576")};
+                ",overlap-check=none,cache.direct=off,cache.no-flush=on")};
 }
 
 absl::Status Qcow2Drive::MakeQcow2(const bool wipe) const {

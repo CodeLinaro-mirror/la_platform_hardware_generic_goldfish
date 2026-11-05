@@ -165,8 +165,7 @@ TEST(WritableImgDrive, Basic_x86) {
                     "-blockdev",
                     absl::StrCat("driver=qcow2,node-name=userdata,file.driver=file,file.filename=",
                                  qcow2Image.string(),
-                                 ",overlap-check=none,cache.direct=off,cache.no-flush=on,l2-"
-                                 "cache-size=1048576")));
+                                 ",overlap-check=none,cache.direct=off,cache.no-flush=on")));
 }
 
 TEST(WritableImgDrive, Basic_arm) {
@@ -188,8 +187,7 @@ TEST(WritableImgDrive, Basic_arm) {
                     "-device", "virtio-blk-device,drive=userdata,write-cache=on", "-blockdev",
                     absl::StrCat("driver=qcow2,node-name=userdata,file.driver=file,file.filename=",
                                  qcow2Image.string(),
-                                 ",overlap-check=none,cache.direct=off,cache.no-flush=on,l2-"
-                                 "cache-size=1048576")));
+                                 ",overlap-check=none,cache.direct=off,cache.no-flush=on")));
 }
 
 TEST(WritableImgDrive, CreatesQcow2OverlayWhenMissing) {
@@ -261,8 +259,7 @@ TEST(WritableImgDrive, EscapesCommasInQcow2ImagePath) {
                     "-blockdev",
                     absl::StrCat("driver=qcow2,node-name=userdata,file.driver=file,file.filename=",
                                  Device::EscapeQemuOptionValue(qcow2Image.string()),
-                                 ",overlap-check=none,cache.direct=off,cache.no-flush=on,l2-"
-                                 "cache-size=1048576")));
+                                 ",overlap-check=none,cache.direct=off,cache.no-flush=on")));
 }
 
 TEST(BlankWritableDrive, Basic_x86) {
@@ -285,8 +282,7 @@ TEST(BlankWritableDrive, Basic_x86) {
                     "-blockdev",
                     absl::StrCat("driver=qcow2,node-name=userdata,file.driver=file,file.filename=",
                                  qcow2Image.string(),
-                                 ",overlap-check=none,cache.direct=off,cache.no-flush=on,l2-"
-                                 "cache-size=1048576")));
+                                 ",overlap-check=none,cache.direct=off,cache.no-flush=on")));
 }
 
 TEST(BlankWritableDrive, Basic_arm) {
@@ -308,8 +304,7 @@ TEST(BlankWritableDrive, Basic_arm) {
                     "-device", "virtio-blk-device,drive=userdata,write-cache=on", "-blockdev",
                     absl::StrCat("driver=qcow2,node-name=userdata,file.driver=file,file.filename=",
                                  qcow2Image.string(),
-                                 ",overlap-check=none,cache.direct=off,cache.no-flush=on,l2-"
-                                 "cache-size=1048576")));
+                                 ",overlap-check=none,cache.direct=off,cache.no-flush=on")));
 }
 
 TEST(BlankWritableDrive, UsesExistingValidQcow2WhenBackingImageMissing) {
@@ -381,8 +376,7 @@ TEST(WritableDirectoryDrive, Basic_x86) {
                     "-blockdev",
                     absl::StrCat("driver=qcow2,node-name=userdata,file.driver=file,file.filename=",
                                  qcow2Image.string(),
-                                 ",overlap-check=none,cache.direct=off,cache.no-flush=on,l2-"
-                                 "cache-size=1048576")));
+                                 ",overlap-check=none,cache.direct=off,cache.no-flush=on")));
 }
 
 TEST(WritableDirectoryDrive, Basic_arm) {
@@ -405,8 +399,7 @@ TEST(WritableDirectoryDrive, Basic_arm) {
                     "-device", "virtio-blk-device,drive=userdata,write-cache=on", "-blockdev",
                     absl::StrCat("driver=qcow2,node-name=userdata,file.driver=file,file.filename=",
                                  qcow2Image.string(),
-                                 ",overlap-check=none,cache.direct=off,cache.no-flush=on,l2-"
-                                 "cache-size=1048576")));
+                                 ",overlap-check=none,cache.direct=off,cache.no-flush=on")));
 }
 
 TEST(WritableDirectoryDrive, UsesExistingValidQcow2WhenBackingImageMissing) {
