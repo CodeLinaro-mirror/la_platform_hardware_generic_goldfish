@@ -15,6 +15,7 @@
 #include "system_service_impl.h"
 
 #include <functional>
+#include <string_view>
 #include <utility>
 
 #include "absl/log/check.h"
@@ -55,6 +56,21 @@ using ::grpc::CallbackServerContext;
 using ::grpc::ServerContext;
 using ::grpc::ServerWriteReactor;
 using ::grpc::Status;
+
+namespace {
+
+void PopulateClipboardProto(std::string_view text, std::string_view mime_type,
+                            ClipboardState* state) {
+    state->Clear();
+    state->set_text(text);
+    if (!mime_type.empty()) {
+        state->set_mime_type(mime_type);
+    } else if (!text.empty()) {
+        state->set_mime_type("text/plain");
+    }
+}
+
+}  // namespace
 
 SystemServiceImpl::SystemServiceImpl(GuestStatus& guest_status,
                                      GrpcNotificationEventSource* notification_source,
@@ -112,11 +128,7 @@ void SystemServiceImpl::PopulateClipboardState(ClipboardState* state) {
 void SystemServiceImpl::OnGuestClipboardUpdated(const ClipboardData& clip) {
     {
         absl::MutexLock clipboard_lock(&clipboard_mutex_);
-        current_clipboard_.Clear();
-        current_clipboard_.set_text(clip.contents);
-        if (!clip.contents.empty()) {
-            current_clipboard_.set_mime_type("text/plain");
-        }
+        PopulateClipboardProto(clip.contents, /*mime_type=*/"", &current_clipboard_);
     }
     clipboard_events_.FireEvent(clip);
 }
@@ -159,13 +171,7 @@ Status SystemServiceImpl::UpdateClipboardState(ServerContext* /*context*/,
     DCHECK(clipboard_channel_);
     {
         absl::MutexLock clipboard_lock(&clipboard_mutex_);
-        current_clipboard_.Clear();
-        current_clipboard_.set_text(request->text());
-        if (!request->mime_type().empty()) {
-            current_clipboard_.set_mime_type(request->mime_type());
-        } else if (!request->text().empty()) {
-            current_clipboard_.set_mime_type("text/plain");
-        }
+        PopulateClipboardProto(request->text(), request->mime_type(), &current_clipboard_);
         if (request->has_binary_data()) {
             current_clipboard_.set_binary_data(request->binary_data());
         }
@@ -179,17 +185,14 @@ Status SystemServiceImpl::InjectFingerprint(ServerContext* /*context*/,
                                             const InjectFingerprintRequest* request,
                                             InjectFingerprintResponse* /*reply*/) {
     DCHECK(fingerprint_sensor_);
-    if (!request->has_touching()) {
+    if (request->has_touching()) {
+        fingerprint_sensor_->SetValue(request->touching() ? request->finger_id()
+                                                          : kReleaseEvent);
+    } else {
         fingerprint_sensor_->SetValue(request->finger_id());
         if (fingerprint_hold_duration_ > absl::ZeroDuration()) {
             absl::SleepFor(fingerprint_hold_duration_);
         }
-        fingerprint_sensor_->SetValue(kReleaseEvent);
-        return Status::OK;
-    }
-    if (request->touching()) {
-        fingerprint_sensor_->SetValue(request->finger_id());
-    } else {
         fingerprint_sensor_->SetValue(kReleaseEvent);
     }
     return Status::OK;
