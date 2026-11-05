@@ -478,6 +478,16 @@ class EventLoop : public CallbackEventSource<LooperStatusEvent> {
         return CompareAndSetState(kExpected, kDesired);
     }
 
+    /**
+     * @brief Wraparound-safe comparison for monotonic task counters.
+     *
+     * Returns true once `tasks_processed` has reached or passed `target`
+     * modulo 2^64 (assuming fewer than 2^63 tasks are concurrently pending).
+     */
+    static constexpr bool HasProcessedTarget(uint64_t tasks_processed, uint64_t target) {
+        return static_cast<int64_t>(tasks_processed - target) >= 0;
+    }
+
   private:
     std::string name_;
     std::atomic<LooperStatusEvent::State> state_{LooperStatusEvent::State::kNotStarted};

@@ -171,7 +171,8 @@ class LibuvEventLoopImpl : public LibuvEventLoop {
 
     /// Queue of tasks posted from external threads to be run on the loop.
     std::queue<QueuedTask> task_queue_ ABSL_GUARDED_BY(task_mutex_);
-    size_t tasks_processed_ ABSL_GUARDED_BY(task_mutex_){0};
+    uint64_t tasks_submitted_ ABSL_GUARDED_BY(task_mutex_){0};
+    uint64_t tasks_processed_ ABSL_GUARDED_BY(task_mutex_){0};
 
     std::promise<absl::Status> shutdown_complete_promise_;
 
@@ -179,7 +180,6 @@ class LibuvEventLoopImpl : public LibuvEventLoop {
     std::atomic<bool> async_handle_valid_{false};
     std::atomic<bool> is_shutting_down_{false};
     std::atomic<bool> promise_set_{false};
-    bool queue_is_idle_ ABSL_GUARDED_BY(task_mutex_){true};
 
     enum class LifecycleState {
         kNotStarted,
@@ -504,7 +504,7 @@ void LibuvEventLoopImpl::PostImmediatelyInternal(Task task, FlowId flow_id) {
     // We allow tasks to be queued before the loop has been started.
     {
         const absl::MutexLock lock(task_mutex_);
-        queue_is_idle_ = false;
+        ++tasks_submitted_;
         task_queue_.push(QueuedTask{std::move(task), flow_id});
     }
     if (uv_async_t* uv_async = GetAsync()) {
@@ -532,7 +532,6 @@ void LibuvEventLoopImpl::ProcessTasks() {
     }
 
     const absl::MutexLock lock(task_mutex_);
-    queue_is_idle_ = task_queue_.empty();
     tasks_processed_ += num_tasks_to_process;
 }
 
@@ -565,8 +564,12 @@ void LibuvEventLoopImpl::ShutdownTimers() {
 
 size_t LibuvEventLoopImpl::WaitUntilIdle() {
     const absl::MutexLock lock(task_mutex_);
-    task_mutex_.Await(absl::Condition(&queue_is_idle_));
-    return tasks_processed_;
+    const uint64_t target = tasks_submitted_;
+    auto reached_target = [this, target]() ABSL_EXCLUSIVE_LOCKS_REQUIRED(task_mutex_) {
+        return HasProcessedTarget(tasks_processed_, target);
+    };
+    task_mutex_.Await(absl::Condition(&reached_target));
+    return static_cast<size_t>(tasks_processed_);
 }
 
 std::future<absl::Status> LibuvEventLoopImpl::Shutdown() {
