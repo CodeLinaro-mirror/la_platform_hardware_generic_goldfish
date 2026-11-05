@@ -85,7 +85,7 @@ TEST(RoDrive, Basic_x86) {
                     testing::Eq("-blockdev"),
                     testing::Eq(absl::StrCat("driver=raw,node-name=system,read-only=on,"
                                              "file.driver=file,file.filename=",
-                                             image_file.string()))));
+                                             image_file.string(), ",file.locking=off"))));
 }
 
 TEST(RoDrive, Basic_arm64) {
@@ -109,7 +109,7 @@ TEST(RoDrive, Basic_arm64) {
                         testing::Eq("-blockdev"),
                         testing::Eq(absl::StrCat("driver=raw,node-name=system,read-only=on,"
                                                  "file.driver=file,file.filename=",
-                                                 image_file.string()))));
+                                                 image_file.string(), ",file.locking=off"))));
 }
 
 TEST(RoDrive, MissingImage) {
@@ -142,7 +142,8 @@ TEST(RoDrive, EscapesCommasInImagePath) {
                     testing::Eq("-blockdev"),
                     testing::Eq(absl::StrCat("driver=raw,node-name=system,read-only=on,"
                                              "file.driver=file,file.filename=",
-                                             Device::EscapeQemuOptionValue(image_file.string())))));
+                                             Device::EscapeQemuOptionValue(image_file.string()),
+                                             ",file.locking=off"))));
 }
 
 TEST(WritableImgDrive, Basic_x86) {

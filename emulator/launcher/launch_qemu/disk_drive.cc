@@ -71,7 +71,7 @@ std::vector<std::string> RoDrive::getQemuParameters(const EmulatorConfig& emulat
     return {
         "-device", getDeviceParam(avd, id(), addr()), "-blockdev",
         absl::StrCat("driver=raw,node-name=", id(), ",read-only=on,file.driver=file,file.filename=",
-                     EscapeQemuOptionValue(mImagePath.string()))};
+                     EscapeQemuOptionValue(mImagePath.string()), ",file.locking=off")};
 }
 
 std::vector<std::string> Qcow2Drive::getQemuParameters(const EmulatorConfig& emulator) const {
