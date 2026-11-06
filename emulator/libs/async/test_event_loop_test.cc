@@ -437,3 +437,10 @@ TEST(TestEventLoop, WaitUntilIdleReturnsUnderSteadyTraffic) {
     EXPECT_TRUE(returned_promptly)
             << "WaitUntilIdle() never returned while tasks kept arriving on TestEventLoop";
 }
+
+TEST(TestEventLoop, StateIsFinishedAfterShutdownCompletes) {
+    auto loop = TestEventLoop::Create();
+    ASSERT_THAT(loop->ShutdownAndWait(), absl_testing::IsOk());
+
+    EXPECT_EQ(loop->GetState(), LooperStatusEvent::State::kFinished);
+}

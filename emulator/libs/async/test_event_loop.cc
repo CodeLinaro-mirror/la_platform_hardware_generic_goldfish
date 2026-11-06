@@ -193,7 +193,8 @@ TestEventLoopImpl::TestEventLoopImpl(std::string name)
 }
 
 TestEventLoopImpl::~TestEventLoopImpl() {
-    if (GetState() != LooperStatusEvent::State::kShuttingDown) {
+    if (GetState() != LooperStatusEvent::State::kShuttingDown &&
+        GetState() != LooperStatusEvent::State::kFinished) {
         ShutdownAndWait().IgnoreError();
     }
     {
@@ -229,14 +230,17 @@ std::future<absl::Status> TestEventLoopImpl::Shutdown() {
     SetState(LooperStatusEvent::State::kShuttingDown);
     std::promise<absl::Status> promise;
     promise.set_value(absl::OkStatus());
-    absl::MutexLock lock(&mutex_);
-    tasks_.clear();
-    for (auto& task : scheduled_tasks_) {
-        if (auto handle = task.handle.lock()) {
-            handle->MarkCancelled();
+    {
+        absl::MutexLock lock(&mutex_);
+        tasks_.clear();
+        for (auto& task : scheduled_tasks_) {
+            if (auto handle = task.handle.lock()) {
+                handle->MarkCancelled();
+            }
         }
+        scheduled_tasks_.clear();
     }
-    scheduled_tasks_.clear();
+    SetState(LooperStatusEvent::State::kFinished);
 
     return promise.get_future();
 }
@@ -246,7 +250,8 @@ bool TestEventLoopImpl::IsOnLoopThread() const {
 }
 
 absl::Status TestEventLoopImpl::PostImmediately(Task task, FlowId flow_id) {
-    if (GetState() == LooperStatusEvent::State::kShuttingDown) {
+    if (GetState() == LooperStatusEvent::State::kShuttingDown ||
+        GetState() == LooperStatusEvent::State::kFinished) {
         LOG(ERROR) << "Loop is shutting down.";
         return absl::UnavailableError("test loop is shutting down");
     }
@@ -257,7 +262,8 @@ absl::Status TestEventLoopImpl::PostImmediately(Task task, FlowId flow_id) {
 }
 
 absl::Status TestEventLoopImpl::PostDelayed(Task task, absl::Duration delay, FlowId flow_id) {
-    if (GetState() == LooperStatusEvent::State::kShuttingDown) {
+    if (GetState() == LooperStatusEvent::State::kShuttingDown ||
+        GetState() == LooperStatusEvent::State::kFinished) {
         LOG(ERROR) << "Loop is shutting down.";
         return absl::UnavailableError("test loop is shutting down");
     }

@@ -448,9 +448,15 @@ class EventLoop : public CallbackEventSource<LooperStatusEvent> {
     virtual absl::Status PostImmediately(Task task, FlowId flow_id) = 0;
     virtual absl::Status PostDelayed(Task task, absl::Duration delay, FlowId flow_id) = 0;
 
+    // Updates `state_` without firing LooperStatusEvent, so subclasses that
+    // guard transitions with an internal mutex can fire the event after
+    // unlocking.
+    bool SetStateQuietly(LooperStatusEvent::State new_state) {
+        return state_.exchange(new_state) != new_state;
+    }
+
     void SetState(LooperStatusEvent::State new_state) {
-        const LooperStatusEvent::State old_state = state_.exchange(new_state);
-        if (old_state != new_state) {
+        if (SetStateQuietly(new_state)) {
             FireEvent({.state = new_state});
         }
     }

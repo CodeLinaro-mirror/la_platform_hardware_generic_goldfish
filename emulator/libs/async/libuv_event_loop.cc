@@ -63,8 +63,8 @@ class LibuvTimer;
  * > executed safely on the loop's own thread.
  *
  * @invariant **The Shutdown State Invariant**
- * The `mIsShuttingDown` atomic flag is monotonic: once `true`, it **will never**
- * revert to `false`. No new user tasks or timers will be accepted in this state.
+ * Once the loop transitions to `kShuttingDown` or `kFinished`, it **will never**
+ * revert to an active state. No new user tasks or timers will be accepted in these states.
  * > **Justification:** This ensures the loop has a well-defined terminal state,
  * > allowing it to wind down gracefully without accepting new work.
  *
@@ -135,10 +135,16 @@ class LibuvEventLoopImpl : public LibuvEventLoop {
         FlowId flow_id;
     };
 
+    bool IsShuttingDownOrFinished() const {
+        const LooperStatusEvent::State state = GetState();
+        return state == LooperStatusEvent::State::kShuttingDown ||
+               state == LooperStatusEvent::State::kFinished;
+    }
+
     absl::Status PostDelayed(Task task, absl::Duration delay, FlowId flow_id) override;
 
     absl::Status PostImmediately(Task task, FlowId flow_id) override {
-        if (is_shutting_down_) {
+        if (IsShuttingDownOrFinished()) {
             LOG(WARNING) << "LibuvEventLoopImpl is not available as it is shutting down";
             return absl::UnavailableError("LibuvEventLoopImpl is shutting down");
         }
@@ -178,15 +184,7 @@ class LibuvEventLoopImpl : public LibuvEventLoop {
 
     // Keep all bools together to minimize alignment gaps.
     std::atomic<bool> async_handle_valid_{false};
-    std::atomic<bool> is_shutting_down_{false};
     std::atomic<bool> promise_set_{false};
-
-    enum class LifecycleState {
-        kNotStarted,
-        kRunning,
-        kFinished,
-    };
-    LifecycleState lifecycle_state_ ABSL_GUARDED_BY(lifecycle_mutex_){LifecycleState::kNotStarted};
 
     // Mutexes placed at the very end.
     absl::Mutex task_mutex_;
@@ -220,16 +218,23 @@ class LibuvTimer : public EventLoop::Timer, public std::enable_shared_from_this<
         }
         {
             const absl::MutexLock lock(loop->lifecycle_mutex_);
-            if (loop->is_shutting_down_.load() ||
-                loop->lifecycle_state_ == LibuvEventLoopImpl::LifecycleState::kFinished) {
+            switch (loop->GetState()) {
+            case LooperStatusEvent::State::kShuttingDown:
+            case LooperStatusEvent::State::kFinished:
                 // If the loop is shutting down or finished, disarm the timer so it cannot
                 // execute or schedule work on a terminating loop.
                 timer->cancelled_.store(true);
                 return timer;
-            }
-            if (loop->lifecycle_state_ == LibuvEventLoopImpl::LifecycleState::kNotStarted) {
+
+            case LooperStatusEvent::State::kNotStarted:
+                // Run() has not started yet, so no loop thread exists (IsOnLoopThread() is
+                // false) and lifecycle_mutex_ serializes uv_loop_handle_ and active_timers_.
                 timer->InitOnLoop();
                 return timer;
+
+            case LooperStatusEvent::State::kRunning:
+            case LooperStatusEvent::State::kPaused:
+                break;
             }
         }
         if (loop->IsOnLoopThread()) {
@@ -237,7 +242,7 @@ class LibuvTimer : public EventLoop::Timer, public std::enable_shared_from_this<
             return timer;
         }
         const absl::Status status = loop->PostAndWait([&timer]() {
-            if (timer->event_loop_->is_shutting_down_.load()) {
+            if (timer->event_loop_->IsShuttingDownOrFinished()) {
                 timer->cancelled_.store(true);
                 return;
             }
@@ -281,7 +286,9 @@ class LibuvTimer : public EventLoop::Timer, public std::enable_shared_from_this<
         bool cancelled_while_not_running = false;
         {
             const absl::MutexLock lock(event_loop_->lifecycle_mutex_);
-            if (event_loop_->lifecycle_state_ != LibuvEventLoopImpl::LifecycleState::kRunning) {
+            const LooperStatusEvent::State state = event_loop_->GetState();
+            if (state == LooperStatusEvent::State::kNotStarted ||
+                state == LooperStatusEvent::State::kFinished) {
                 DoCancel(false);
                 cancelled_while_not_running = true;
             }
@@ -416,7 +423,8 @@ LibuvEventLoopImpl::LibuvEventLoopImpl(std::string name) : LibuvEventLoop(std::m
 
 LibuvEventLoopImpl::~LibuvEventLoopImpl() {
     // NOLINTNEXTLINE(readability-simplify-boolean-expr)
-    LOG_IF(FATAL, GetState() != LooperStatusEvent::State::kNotStarted && !is_shutting_down_)
+    LOG_IF(FATAL, GetState() != LooperStatusEvent::State::kNotStarted &&
+                          !IsShuttingDownOrFinished())
             << "Uv loop has not been shutdown prior to destruction";
     DCHECK(active_timers_.empty())
             << "All timers should have been cancelled and removed before the "
@@ -459,11 +467,10 @@ LibuvEventLoopImpl::~LibuvEventLoopImpl() {
     }
 }
 
+// Runs on the loop thread, or under lifecycle_mutex_ when the loop never started.
 void LibuvEventLoopImpl::ShutdownTimersInternal() {
-    LOG_IF(DFATAL, !IsOnLoopThread())
-            << "ShutdownTimersInternal must be called from the loop thread";
-    for (const auto& [unsafePtr, weakTimer] : active_timers_) {
-        if (const std::shared_ptr<LibuvTimer> timer = weakTimer.lock()) {
+    for (const auto& [unsafe_ptr, weak_timer] : active_timers_) {
+        if (const std::shared_ptr<LibuvTimer> timer = weak_timer.lock()) {
             timer->DoCancel(true);
         } else {
             // Note that we don't expect a timer to have been deleted without first calling
@@ -480,12 +487,12 @@ EventLoop::ScopedTimer LibuvEventLoopImpl::CreateTimer(RepeatingTask task) {
 }
 
 absl::Status LibuvEventLoopImpl::PostDelayed(Task task, absl::Duration delay, FlowId flow_id) {
-    if (is_shutting_down_) {
+    if (IsShuttingDownOrFinished()) {
         LOG(WARNING) << "LibuvEventLoopImpl is not available as it is shutting down";
         return absl::UnavailableError("LibuvEventLoopImpl is shutting down");
     }
     PostImmediatelyInternal([this, task = std::move(task), delay, flow_id]() mutable {
-        if (is_shutting_down_) {
+        if (IsShuttingDownOrFinished()) {
             return;
         }
         auto timer = LibuvTimer::Create(
@@ -536,20 +543,33 @@ void LibuvEventLoopImpl::ProcessTasks() {
 }
 
 absl::Status LibuvEventLoopImpl::Run() {
-    thread_id_ = std::this_thread::get_id();
-    android::base::ThreadUtils::SetCurrentThreadName(GetName());
+    bool notify_running = false;
     {
         const absl::MutexLock lock(lifecycle_mutex_);
-        lifecycle_state_ = LifecycleState::kRunning;
+        if (GetState() != LooperStatusEvent::State::kNotStarted) {
+            // Shutdown() may complete before the thread spawned to call Run() gets here.
+            // Return an error so that thread exits instead of reviving a finished loop.
+            return absl::FailedPreconditionError(
+                    "Cannot run event loop '" + GetName() +
+                    "': it has already been shut down or has finished running. Create a new loop.");
+        }
+        thread_id_ = std::this_thread::get_id();
+        notify_running = SetStateQuietly(LooperStatusEvent::State::kRunning);
+    }
+    android::base::ThreadUtils::SetCurrentThreadName(GetName());
+    if (notify_running) {
+        FireEvent({.state = LooperStatusEvent::State::kRunning});
     }
 
-    SetState(LooperStatusEvent::State::kRunning);
     const int err = uv_run(&uv_loop_handle_, UV_RUN_DEFAULT);
+    bool notify_finished = false;
     {
         const absl::MutexLock lock(lifecycle_mutex_);
-        lifecycle_state_ = LifecycleState::kFinished;
+        notify_finished = SetStateQuietly(LooperStatusEvent::State::kFinished);
     }
-    SetState(LooperStatusEvent::State::kFinished);
+    if (notify_finished) {
+        FireEvent({.state = LooperStatusEvent::State::kFinished});
+    }
 
     auto status = UvErrToAbslStatus(err);
     if (!promise_set_.exchange(true)) {
@@ -574,23 +594,38 @@ size_t LibuvEventLoopImpl::WaitUntilIdle() {
 
 std::future<absl::Status> LibuvEventLoopImpl::Shutdown() {
     std::promise<absl::Status> promise;
-    if (GetState() != LooperStatusEvent::State::kRunning) {
-        promise.set_value(
-                absl::InvalidArgumentError("You cannot shutdown a loop that is not running."));
-        return promise.get_future();
+    LooperStatusEvent::State next_state = LooperStatusEvent::State::kShuttingDown;
+    bool state_changed = false;
+    {
+        const absl::MutexLock lock(lifecycle_mutex_);
+        const LooperStatusEvent::State state = GetState();
+        if (state == LooperStatusEvent::State::kNotStarted) {
+            // No thread runs the loop, so lifecycle_mutex_ serializes cancelling any
+            // pre-Run() timers; ~LibuvEventLoopImpl() closes async_handle_.
+            next_state = LooperStatusEvent::State::kFinished;
+            state_changed = SetStateQuietly(next_state);
+            ShutdownTimersInternal();
+        } else {
+            if (state != LooperStatusEvent::State::kRunning) {
+                promise.set_value(absl::InvalidArgumentError(
+                        "You cannot shutdown a loop that is not running."));
+                return promise.get_future();
+            }
+            if (IsOnLoopThread()) {
+                LOG(FATAL) << "Shutdown() must not be called on LibuvEventLoop '" << GetName()
+                           << "' from its own loop thread; call Shutdown() from another thread.";
+            }
+            state_changed = SetStateQuietly(next_state);
+        }
     }
 
-    if (IsOnLoopThread()) {
-        promise.set_value(absl::InvalidArgumentError(
-                "You cannot shutdown an event loop from the loop thread."));
+    if (state_changed) {
+        FireEvent({.state = next_state});
+    }
+    if (next_state == LooperStatusEvent::State::kFinished) {
+        promise.set_value(absl::OkStatus());
         return promise.get_future();
     }
-
-    if (is_shutting_down_.exchange(true)) {
-        promise.set_value(absl::InvalidArgumentError("This loop has already been shutdown"));
-        return promise.get_future();
-    }
-    SetState(LooperStatusEvent::State::kShuttingDown);
 
     // Post the actual shutdown logic using the private postImmediately.
     PostImmediatelyInternal([this]() {
