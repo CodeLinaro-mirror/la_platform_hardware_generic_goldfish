@@ -471,7 +471,7 @@ class QemuVmOperations : public VmOperations {
         const absl::Status saved = RunOnQemuLoop([this, &name, overwrite] {
             AssertOnQemuLoop();
             absl::Time start = absl::Now();
-            RETURN_IF_ERROR(CheckCanExecuteAction("save snapshot for"));
+            RETURN_IF_ERROR(CheckCanSaveSnapshot(name));
             auto watchdog_cleanup = BeginSnapshotWatchdog(SnapshotOperationType::Save, name);
             auto& avd = ::goldfish::avd::GetAvd();
             avd.SetGenericSnapshotInProgress(true);
@@ -538,11 +538,11 @@ class QemuVmOperations : public VmOperations {
                     absl::MutexLock lock(&progress_mutex_);
                     loaded_snapshot_.clear();
                 }
-                // do_vm_stop(RUN_STATE_RESTORE_VM) only transitions from live states
-                // (Running/Suspended); non-live states (e.g., Paused) remain unchanged.
-                if (::runstate_get() == ::RUN_STATE_RESTORE_VM) {
-                    ::load_snapshot_resume(::RUN_STATE_PRELAUNCH);
-                }
+                // QEMU may have reset the guest or restored only part of it. PreLaunch keeps
+                // SaveSnapshot() and the exit-time save away from it until the VM is resumed
+                // or a snapshot loads. do_vm_stop() leaves non-live states such as Paused
+                // unchanged, so move every state, not only RestoreVm.
+                ::load_snapshot_resume(::RUN_STATE_PRELAUNCH);
                 return ToStatus(absl::StatusCode::kInternal,
                                 /*prefix=*/absl::StrCat("Cannot load snapshot '", id_or_name, "'"),
                                 &errp,
@@ -705,6 +705,27 @@ class QemuVmOperations : public VmOperations {
                     /*expected_states=*/"Running, Paused, Suspended, Debug, or fault state");
         default:
             return absl::OkStatus();
+        }
+    }
+
+    // Accepts the states that the exit-time save (exit_snapshot_allowed() in QEMU's
+    // system/vl.c) accepts.
+    absl::Status CheckCanSaveSnapshot(std::string_view name) {
+        switch (const EmuRunState state = GetRunState()) {
+        case EmuRunState::Running:
+        case EmuRunState::Paused:
+        case EmuRunState::Suspended:
+            return absl::OkStatus();
+        case EmuRunState::PreLaunch:
+            return absl::FailedPreconditionError(absl::StrCat(
+                    "Cannot save snapshot '", name,
+                    "': the VM has no running guest to save (current state: PreLaunch, e.g. "
+                    "after a failed snapshot load). Resume the VM or load a valid snapshot, then "
+                    "retry."));
+        default:
+            return MakeInvalidTransitionError(
+                    /*action=*/"save snapshot for", /*current_state=*/state,
+                    /*expected_states=*/"Running, Paused, or Suspended");
         }
     }
 

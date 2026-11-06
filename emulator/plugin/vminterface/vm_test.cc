@@ -979,6 +979,20 @@ TEST_F(QemuVmOperationsTest, SnapshotOperationsFailInConflictingStates) {
                     StatusIs(absl::StatusCode::kFailedPrecondition));
     }
 
+    for (RunState state : {RUN_STATE_DEBUG, RUN_STATE_POSTMIGRATE, RUN_STATE_INTERNAL_ERROR,
+                           RUN_STATE_IO_ERROR, RUN_STATE_WATCHDOG, RUN_STATE_GUEST_PANICKED}) {
+        mock_runstate_set(state);
+        EXPECT_THAT(vm_ops_->SaveSnapshot("snap", /*overwrite=*/true),
+                    StatusIs(absl::StatusCode::kFailedPrecondition,
+                             HasSubstr("Running, Paused, or Suspended")));
+    }
+
+    mock_runstate_set(RUN_STATE_PRELAUNCH);
+    EXPECT_THAT(vm_ops_->SaveSnapshot("snap", /*overwrite=*/true),
+                StatusIs(absl::StatusCode::kFailedPrecondition,
+                         AllOf(HasSubstr("Cannot save snapshot 'snap'"), HasSubstr("PreLaunch"),
+                               HasSubstr("Resume the VM"))));
+
     mock_runstate_set(RUN_STATE_SHUTDOWN);
     EXPECT_THAT(vm_ops_->SaveSnapshot("snap", /*overwrite=*/true),
                 StatusIs(absl::StatusCode::kFailedPrecondition,
@@ -1000,24 +1014,50 @@ TEST_F(QemuVmOperationsTest, LoadSnapshotLeavesVmStoppedInRecoverableStateOnFail
     mock_snapshot_op_ok_set(false);
     EXPECT_THAT(vm_ops_->LoadSnapshot("corrupt_snap", /*and_resume=*/true),
                 StatusIs(absl::StatusCode::kInternal));
-    // Must not resume RUNNING on a potentially half-restored VM, nor stay stuck in RestoreVm.
+    // Must not resume RUNNING on a potentially half-restored VM, nor stay stuck in RestoreVm,
+    // nor let it be saved.
     EXPECT_EQ(vm_ops_->GetRunState(), EmuRunState::PreLaunch);
+    mock_snapshot_op_ok_set(true);
+    EXPECT_THAT(vm_ops_->SaveSnapshot("good_snap", /*overwrite=*/true),
+                StatusIs(absl::StatusCode::kFailedPrecondition, HasSubstr("PreLaunch")));
     EXPECT_OK(vm_ops_->Reset());
 
     // Can also retry LoadSnapshot or resume from PreLaunch.
-    mock_snapshot_op_ok_set(true);
     EXPECT_OK(vm_ops_->LoadSnapshot("good_snap", /*and_resume=*/true));
     EXPECT_EQ(vm_ops_->GetRunState(), EmuRunState::Running);
+    EXPECT_OK(vm_ops_->SaveSnapshot("good_snap", /*overwrite=*/true));
 
-    // When already Paused before LoadSnapshot fails, remains Paused and recoverable.
+    // A VM that was already Paused moves to PreLaunch as well, since its guest may be half
+    // restored. Resuming it makes it saveable again.
     EXPECT_OK(vm_ops_->Pause());
     ASSERT_EQ(vm_ops_->GetRunState(), EmuRunState::Paused);
     mock_snapshot_op_ok_set(false);
     EXPECT_THAT(vm_ops_->LoadSnapshot("missing_snap", /*and_resume=*/true),
                 StatusIs(absl::StatusCode::kInternal));
-    EXPECT_EQ(vm_ops_->GetRunState(), EmuRunState::Paused);
+    EXPECT_EQ(vm_ops_->GetRunState(), EmuRunState::PreLaunch);
+    mock_snapshot_op_ok_set(true);
+    EXPECT_THAT(vm_ops_->SaveSnapshot("good_snap", /*overwrite=*/true),
+                StatusIs(absl::StatusCode::kFailedPrecondition, HasSubstr("PreLaunch")));
     EXPECT_OK(vm_ops_->Resume());
     EXPECT_EQ(vm_ops_->GetRunState(), EmuRunState::Running);
+    EXPECT_OK(vm_ops_->SaveSnapshot("good_snap", /*overwrite=*/true));
+}
+
+TEST_F(QemuVmOperationsTest, SaveSnapshotWorksOnceVmBootsAfterFailedStartupLoad) {
+    ::goldfish::avd::FakeAvdUniverse fake_avd;
+    // A failed -loadvm at startup falls back to a cold boot, which QEMU runs without
+    // VmOperations. Its failure report must not keep the booted VM from being saved.
+    QemuSnapshotProgress progress{};
+    progress.operation = QEMU_SNAPSHOT_OP_LOAD;
+    progress.name = "default_boot";
+    for (QemuSnapshotPhase phase : {QEMU_SNAPSHOT_PHASE_PREPARING, QEMU_SNAPSHOT_PHASE_FAILED}) {
+        progress.phase = phase;
+        ASSERT_OK(qemu_loop_->PostAndWait([&] { mock_fire_snapshot_progress(&progress); }));
+    }
+
+    mock_runstate_set(RUN_STATE_RUNNING);
+    mock_snapshot_op_ok_set(true);
+    EXPECT_OK(vm_ops_->SaveSnapshot("default_boot", /*overwrite=*/true));
 }
 
 TEST_F(QemuVmOperationsTest, DestructorUnregistersSnapshotProgressHandler) {
