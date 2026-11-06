@@ -100,6 +100,7 @@ cc_library(
     name = "videobridge_codecs_win",
     srcs = ["core/win/mf_video_encoder_h264.cc"],
     hdrs = [
+        "core/linux/frame_nv12_converter.h",
         "core/win/mf_video_encoder_h264.h",
         "include/goldfish/videobridge/codec_factories.h",
     ],
@@ -125,6 +126,7 @@ cc_library(
         "@abseil-cpp//absl/synchronization",
         "@libyuv",
         "@webrtc//api:scoped_refptr",
+        "@webrtc//api/video:video_frame",
         "@webrtc//api/video_codecs:video_codecs_api",
         "@webrtc//modules/video_coding:video_codec_interface",
         "@webrtc//rtc_base:checks",
@@ -769,6 +771,7 @@ cc_test(
     deps = [
         ":videobridge_codecs_win",
         "//emulator/libs/test:googletest_main",
+        "@webrtc//api:make_ref_counted",
         "@webrtc//api:scoped_refptr",
         "@webrtc//api/video:video_frame",
         "@webrtc//api/video_codecs:video_codecs_api",

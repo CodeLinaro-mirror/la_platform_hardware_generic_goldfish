@@ -25,9 +25,12 @@
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wthread-safety-reference-return"
 #pragma clang diagnostic ignored "-Wnullability-completeness"
+#include "api/make_ref_counted.h"
 #include "api/scoped_refptr.h"
 #include "api/video/i420_buffer.h"
+#include "api/video/nv12_buffer.h"
 #include "api/video/video_frame.h"
+#include "api/video/video_frame_buffer.h"
 #include "api/video_codecs/video_encoder.h"
 #include "modules/video_coding/include/video_error_codes.h"
 #pragma clang diagnostic pop
@@ -94,6 +97,36 @@ class FakeEventGenerator final : public IMFMediaEventGenerator {
     mutable absl::Mutex mu_;
     std::vector<MediaEventType> events_ ABSL_GUARDED_BY(mu_);
     int get_event_calls_ ABSL_GUARDED_BY(mu_) = 0;
+};
+
+class TrackingNv12Buffer : public webrtc::NV12Buffer {
+  public:
+    TrackingNv12Buffer(int width, int height, int stride_y, int stride_uv)
+            : webrtc::NV12Buffer(width, height, stride_y, stride_uv) {}
+
+    webrtc::scoped_refptr<webrtc::I420BufferInterface> ToI420() override {
+        ++to_i420_calls_;
+        return webrtc::NV12Buffer::ToI420();
+    }
+
+    int to_i420_calls() const { return to_i420_calls_; }
+
+  private:
+    int to_i420_calls_ = 0;
+};
+
+class NullI420VideoFrameBuffer : public webrtc::VideoFrameBuffer {
+  public:
+    NullI420VideoFrameBuffer(int width, int height) : width_(width), height_(height) {}
+
+    Type type() const override { return Type::kNative; }
+    int width() const override { return width_; }
+    int height() const override { return height_; }
+    webrtc::scoped_refptr<webrtc::I420BufferInterface> ToI420() override { return nullptr; }
+
+  private:
+    const int width_;
+    const int height_;
 };
 
 }  // namespace
@@ -182,6 +215,33 @@ class MFVideoEncoderH264Test : public ::testing::Test {
         }
         return webrtc::VideoFrame::Builder()
                 .set_video_frame_buffer(i420)
+                .set_timestamp_us(timestamp_us)
+                .build();
+    }
+
+    static webrtc::VideoFrame CreateSolidNv12Frame(
+            int width, int height, int stride_y, int stride_uv, uint8_t y_val, uint8_t u_val,
+            uint8_t v_val, int64_t timestamp_us,
+            webrtc::scoped_refptr<TrackingNv12Buffer>* out_buffer = nullptr) {
+        webrtc::scoped_refptr<TrackingNv12Buffer> nv12 =
+                webrtc::make_ref_counted<TrackingNv12Buffer>(width, height, stride_y, stride_uv);
+        for (int r = 0; r < height; ++r) {
+            std::memset(nv12->MutableDataY() + r * nv12->StrideY(), y_val, width);
+        }
+        const int chroma_w = (width + 1) / 2;
+        const int chroma_h = (height + 1) / 2;
+        for (int r = 0; r < chroma_h; ++r) {
+            uint8_t* row_uv = nv12->MutableDataUV() + r * nv12->StrideUV();
+            for (int c = 0; c < chroma_w; ++c) {
+                row_uv[2 * c] = u_val;
+                row_uv[2 * c + 1] = v_val;
+            }
+        }
+        if (out_buffer) {
+            *out_buffer = nv12;
+        }
+        return webrtc::VideoFrame::Builder()
+                .set_video_frame_buffer(nv12)
                 .set_timestamp_us(timestamp_us)
                 .build();
     }
@@ -421,6 +481,58 @@ TEST_F(MFVideoEncoderH264Test, PrepareInputSampleReallocatesWhenResolutionGrowsO
     ASSERT_EQ(PrepareInput(next_frame, /*force_keyframe=*/false), S_OK);
     ASSERT_EQ(InputBuffer()->GetMaxLength(&max_length), S_OK);
     EXPECT_EQ(max_length, 2097152U);
+}
+
+TEST_F(MFVideoEncoderH264Test, PrepareInputSampleCopiesNv12FramesDirectlyWithoutToI420Allocation) {
+    constexpr int kWidth = 1280;
+    constexpr int kHeight = 720;
+    constexpr int kFrameCount = 60;
+    const uint32_t expected_nv12_bytes = CalculateNV12BufferSize(kWidth, kHeight);
+    ASSERT_EQ(expected_nv12_bytes, 1382400U);
+
+    ASSERT_EQ(AllocateInput(kWidth, kHeight), S_OK);
+    IMFMediaBuffer* const initial_buffer = InputBuffer();
+    ASSERT_NE(initial_buffer, nullptr);
+
+    int total_to_i420_calls = 0;
+    for (int i = 0; i < kFrameCount; ++i) {
+        const uint8_t y_val = static_cast<uint8_t>(20 + (i % 180));
+        const uint8_t u_val = static_cast<uint8_t>(50 + (i % 140));
+        const uint8_t v_val = static_cast<uint8_t>(140 + (i % 90));
+        // Alternate between contiguous stride-matched NV12 buffers and padded-stride NV12 buffers.
+        const int stride_padding = (i % 2 == 0) ? 0 : 64;
+        webrtc::scoped_refptr<TrackingNv12Buffer> nv12_buf;
+        webrtc::VideoFrame frame = CreateSolidNv12Frame(kWidth, kHeight, kWidth + stride_padding,
+                                                        kWidth + stride_padding, y_val, u_val,
+                                                        v_val, i * 16667LL, &nv12_buf);
+
+        ASSERT_EQ(PrepareInput(frame, /*force_keyframe=*/(i == 0)), S_OK);
+        EXPECT_EQ(InputBuffer(), initial_buffer);
+        EXPECT_EQ(nv12_buf->to_i420_calls(), 0);
+        total_to_i420_calls += nv12_buf->to_i420_calls();
+
+        DWORD current_length = 0;
+        BYTE* data = nullptr;
+        ASSERT_EQ(initial_buffer->Lock(&data, nullptr, &current_length), S_OK);
+        EXPECT_EQ(current_length, expected_nv12_bytes);
+        EXPECT_EQ(data[0], y_val);
+        EXPECT_EQ(data[kWidth * kHeight - 1], y_val);
+        EXPECT_EQ(data[kWidth * kHeight], u_val);
+        EXPECT_EQ(data[kWidth * kHeight + 1], v_val);
+        EXPECT_EQ(data[expected_nv12_bytes - 2], u_val);
+        EXPECT_EQ(data[expected_nv12_bytes - 1], v_val);
+        ASSERT_EQ(initial_buffer->Unlock(), S_OK);
+    }
+    EXPECT_EQ(total_to_i420_calls, 0);
+
+    // Non-NV12 buffer whose ToI420() fails returns E_INVALIDARG after unlocking input_buffer_.
+    const webrtc::scoped_refptr<NullI420VideoFrameBuffer> unconvertible =
+            webrtc::make_ref_counted<NullI420VideoFrameBuffer>(kWidth, kHeight);
+    webrtc::VideoFrame bad_frame = webrtc::VideoFrame::Builder()
+                                           .set_video_frame_buffer(unconvertible)
+                                           .set_timestamp_us(1000000LL)
+                                           .build();
+    EXPECT_EQ(PrepareInput(bad_frame, /*force_keyframe=*/false), E_INVALIDARG);
 }
 
 }  // namespace goldfish::videobridge

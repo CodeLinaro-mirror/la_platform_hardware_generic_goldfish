@@ -22,6 +22,7 @@
 
 #include "api/scoped_refptr.h"
 #include "api/video_codecs/h264_profile_level_id.h"
+#include "core/linux/frame_nv12_converter.h"
 #include "modules/video_coding/include/video_codec_interface.h"
 #include "modules/video_coding/include/video_error_codes.h"
 #include "rtc_base/checks.h"
@@ -515,18 +516,14 @@ HRESULT MFVideoEncoderH264::AllocateOutputBuffers() {
 
 HRESULT MFVideoEncoderH264::PrepareInputSample(const webrtc::VideoFrame& frame,
                                                bool force_keyframe) {
-    if (!frame.video_frame_buffer()) {
-        return E_INVALIDARG;
-    }
-    webrtc::scoped_refptr<webrtc::I420BufferInterface> i420_buffer =
-            frame.video_frame_buffer()->ToI420();
-    if (!i420_buffer) {
+    const webrtc::scoped_refptr<webrtc::VideoFrameBuffer> frame_buffer = frame.video_frame_buffer();
+    if (!frame_buffer) {
         return E_INVALIDARG;
     }
 
-    int width = i420_buffer->width();
-    int height = i420_buffer->height();
-    uint32_t buffer_size = CalculateNV12BufferSize(width, height);
+    const size_t width = frame_buffer->width();
+    const size_t height = frame_buffer->height();
+    const uint32_t buffer_size = CalculateNV12BufferSize(width, height);
     if (buffer_size == 0) {
         return E_INVALIDARG;
     }
@@ -539,16 +536,16 @@ HRESULT MFVideoEncoderH264::PrepareInputSample(const webrtc::VideoFrame& frame,
     RETURN_IF_FAILED(input_buffer_->Lock(&buffer_data, &max_length, &current_length));
 
     uint8_t* dst_y = buffer_data;
-    int dst_stride_y = width;
+    const int dst_stride_y = width;
     uint8_t* dst_uv = buffer_data + (width * height);
-    int dst_stride_uv = width;
+    const int dst_stride_uv = width;
 
-    // Convert I420 -> NV12 using libyuv
-    libyuv::I420ToNV12(i420_buffer->DataY(), i420_buffer->StrideY(), i420_buffer->DataU(),
-                       i420_buffer->StrideU(), i420_buffer->DataV(), i420_buffer->StrideV(), dst_y,
-                       dst_stride_y, dst_uv, dst_stride_uv, width, height);
-
+    const bool converted = CopyOrConvertFrameToNv12(frame, dst_y, dst_stride_y, dst_uv,
+                                                    dst_stride_uv, width, height);
     input_buffer_->Unlock();
+    if (!converted) {
+        return E_INVALIDARG;
+    }
     RETURN_IF_FAILED(input_buffer_->SetCurrentLength(buffer_size));
 
     if (force_keyframe) {

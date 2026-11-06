@@ -104,9 +104,9 @@ class ComPtr {
  * @details
  * This class implements the @c webrtc::VideoEncoder interface using Windows Media Foundation
  * APIs. It negotiates and instantiates the hardware-accelerated H.264 Encoder MFT (Media Foundation
- * Transform), converts incoming WebRTC video frames (I420) to NV12 format, and feeds them to the
- * GPU for compression. The resulting H.264 bitstream is wrapped in @c webrtc::EncodedImage
- * and passed back via the registered callback.
+ * Transform), copies or converts incoming WebRTC video frames (NV12 or I420) to NV12 format, and
+ * feeds them to the GPU for compression. The resulting H.264 bitstream is wrapped in
+ * @c webrtc::EncodedImage and passed back via the registered callback.
  *
  * The Windows Media Foundation MFT operates synchronously. Calling @c ProcessInput() and
  * @c ProcessOutput() blocks WebRTC's dedicated encoder thread until compression is complete.

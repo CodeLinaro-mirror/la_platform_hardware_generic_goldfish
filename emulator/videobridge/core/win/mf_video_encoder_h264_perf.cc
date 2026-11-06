@@ -24,6 +24,7 @@
 #pragma clang diagnostic ignored "-Wnullability-completeness"
 #include "api/scoped_refptr.h"
 #include "api/video/i420_buffer.h"
+#include "api/video/nv12_buffer.h"
 #include "api/video/video_frame.h"
 #include "third_party/libyuv/include/libyuv.h"
 #pragma clang diagnostic pop
@@ -42,6 +43,11 @@ class MFVideoEncoderH264Test {
         absl::MutexLock lock(&encoder.mutex_);
         return encoder.PrepareInputSample(frame, force_keyframe);
     }
+
+    static IMFMediaBuffer* InputBuffer(MFVideoEncoderH264& encoder) {
+        absl::MutexLock lock(&encoder.mutex_);
+        return encoder.input_buffer_.Get();
+    }
 };
 
 namespace {
@@ -53,6 +59,14 @@ webrtc::VideoFrame CreateBenchmarkI420Frame(int width, int height) {
     std::memset(i420->MutableDataU(), 110, static_cast<size_t>(i420->StrideU()) * chroma_h);
     std::memset(i420->MutableDataV(), 150, static_cast<size_t>(i420->StrideV()) * chroma_h);
     return webrtc::VideoFrame::Builder().set_video_frame_buffer(i420).set_timestamp_us(0).build();
+}
+
+webrtc::VideoFrame CreateBenchmarkNv12Frame(int width, int height) {
+    webrtc::scoped_refptr<webrtc::NV12Buffer> nv12 = webrtc::NV12Buffer::Create(width, height);
+    std::memset(nv12->MutableDataY(), 80, static_cast<size_t>(nv12->StrideY()) * height);
+    const int chroma_h = (height + 1) / 2;
+    std::memset(nv12->MutableDataUV(), 110, static_cast<size_t>(nv12->StrideUV()) * chroma_h);
+    return webrtc::VideoFrame::Builder().set_video_frame_buffer(nv12).set_timestamp_us(0).build();
 }
 
 void BmPrepareInputSampleReused(benchmark::State& state) {
@@ -130,6 +144,81 @@ BENCHMARK(BmPrepareInputSampleReused)
         ->Unit(benchmark::kMicrosecond);
 
 BENCHMARK(BmPrepareInputSamplePerFrameAllocBaseline)
+        ->Args({1280, 720})
+        ->Args({1920, 1080})
+        ->Args({3840, 2160})
+        ->Unit(benchmark::kMicrosecond);
+
+void BmPrepareInputSampleNv12Direct(benchmark::State& state) {
+    const int width = static_cast<int>(state.range(0));
+    const int height = static_cast<int>(state.range(1));
+    const uint32_t nv12_bytes = CalculateNV12BufferSize(width, height);
+
+    MFVideoEncoderH264 encoder;
+    if (FAILED(MFVideoEncoderH264Test::AllocateInput(encoder, width, height))) {
+        state.SkipWithError("Failed to pre-allocate Media Foundation input sample/buffer");
+        return;
+    }
+    webrtc::VideoFrame frame = CreateBenchmarkNv12Frame(width, height);
+
+    for (auto _ : state) {
+        HRESULT hr = MFVideoEncoderH264Test::PrepareInput(encoder, frame, /*force_keyframe=*/false);
+        benchmark::DoNotOptimize(hr);
+    }
+
+    state.SetBytesProcessed(static_cast<int64_t>(state.iterations()) * nv12_bytes);
+    state.counters["peak_conversion_buf_bytes"] =
+            benchmark::Counter(static_cast<double>(nv12_bytes), benchmark::Counter::kDefaults,
+                               benchmark::Counter::OneK::kIs1024);
+    state.counters["intermediate_i420_bytes"] = benchmark::Counter(0.0);
+}
+
+void BmPrepareInputSampleNv12ViaToI420Baseline(benchmark::State& state) {
+    const int width = static_cast<int>(state.range(0));
+    const int height = static_cast<int>(state.range(1));
+    const uint32_t nv12_bytes = CalculateNV12BufferSize(width, height);
+
+    MFVideoEncoderH264 encoder;
+    if (FAILED(MFVideoEncoderH264Test::AllocateInput(encoder, width, height))) {
+        state.SkipWithError("Failed to pre-allocate Media Foundation input sample/buffer");
+        return;
+    }
+    IMFMediaBuffer* const media_buffer = MFVideoEncoderH264Test::InputBuffer(encoder);
+    webrtc::VideoFrame frame = CreateBenchmarkNv12Frame(width, height);
+
+    for (auto _ : state) {
+        webrtc::scoped_refptr<webrtc::I420BufferInterface> i420 =
+                frame.video_frame_buffer()->ToI420();
+        BYTE* buffer_data = nullptr;
+        DWORD max_length = 0;
+        DWORD current_length = 0;
+        if (i420 && SUCCEEDED(media_buffer->Lock(&buffer_data, &max_length, &current_length))) {
+            libyuv::I420ToNV12(i420->DataY(), i420->StrideY(), i420->DataU(), i420->StrideU(),
+                               i420->DataV(), i420->StrideV(), buffer_data, width,
+                               buffer_data + (static_cast<size_t>(width) * height), width, width,
+                               height);
+            media_buffer->Unlock();
+            media_buffer->SetCurrentLength(nv12_bytes);
+        }
+        benchmark::DoNotOptimize(i420.get());
+    }
+
+    state.SetBytesProcessed(static_cast<int64_t>(state.iterations()) * nv12_bytes);
+    state.counters["peak_conversion_buf_bytes"] =
+            benchmark::Counter(static_cast<double>(nv12_bytes) * 2.0, benchmark::Counter::kDefaults,
+                               benchmark::Counter::OneK::kIs1024);
+    state.counters["intermediate_i420_bytes"] =
+            benchmark::Counter(static_cast<double>(nv12_bytes), benchmark::Counter::kDefaults,
+                               benchmark::Counter::OneK::kIs1024);
+}
+
+BENCHMARK(BmPrepareInputSampleNv12Direct)
+        ->Args({1280, 720})
+        ->Args({1920, 1080})
+        ->Args({3840, 2160})
+        ->Unit(benchmark::kMicrosecond);
+
+BENCHMARK(BmPrepareInputSampleNv12ViaToI420Baseline)
         ->Args({1280, 720})
         ->Args({1920, 1080})
         ->Args({3840, 2160})
