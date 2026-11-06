@@ -17,6 +17,7 @@
 
 #include <chrono>
 #include <fstream>
+#include <sstream>
 #include <vector>
 
 #include "android/base/testing/test_file_util.h"
@@ -173,6 +174,147 @@ TEST(AllowListTest, can_parse_default_list) {
     for (const auto& is_green : allowed) {
         EXPECT_TRUE(list->IsAllowed("android-studio", is_green));
     }
+
+    // Unprotected endpoints in default emulator_access.json
+    EXPECT_FALSE(list->RequiresAuthentication("/grpc.health.v1.Health/Check"));
+    EXPECT_FALSE(list->RequiresAuthentication(
+            "/android.emulation.v2.CapabilitiesService/GetDeviceCapabilities"));
+    EXPECT_TRUE(list->RequiresAuthentication("/android.emulation.v2.SystemService/RebootDevice"));
+
+    // Studio V1 issuer must not match V2 endpoints (StaticTokenAuth is V1-only).
+    EXPECT_TRUE(
+            list->IsRed("android-studio", "/android.emulation.v2.SystemService/GetSystemState"));
+    EXPECT_TRUE(list->IsRed("android-studio", "/android.emulation.v2.RtcService/RequestRtcStream"));
+
+    // Gradle V1 allowed and protected endpoints must remain intact.
+    EXPECT_TRUE(list->IsAllowed("gradle-utp-emulator-control",
+                                "/android.emulation.control.EmulatorController/getSensor"));
+    EXPECT_TRUE(list->IsProtected("gradle-utp-emulator-control",
+                                  "/android.emulation.control.EmulatorController/getScreenshot"));
+
+    // V2 Role-Based Access Control (RBAC) mappings in default emulator_access.json.
+    EXPECT_TRUE(list->IsRoleAllowed("aemu.role.read",
+                                    "/android.emulation.v2.DisplayService/GetScreenshot"));
+    EXPECT_TRUE(
+            list->IsRoleAllowed("aemu.role.read", "/google.longrunning.Operations/GetOperation"));
+    EXPECT_FALSE(list->IsRoleAllowed("aemu.role.read",
+                                     "/google.longrunning.Operations/CancelOperation"));
+    // RtcService belongs to controller, not read, because it can inject key events.
+    EXPECT_FALSE(list->IsRoleAllowed("aemu.role.read",
+                                     "/android.emulation.v2.RtcService/RequestRtcStream"));
+    EXPECT_TRUE(list->IsRoleAllowed("aemu.role.controller",
+                                    "/android.emulation.v2.RtcService/RequestRtcStream"));
+    EXPECT_TRUE(list->IsRoleAllowed("aemu.role.controller",
+                                    "/android.emulation.v2.InputService/SendInputEvents"));
+    EXPECT_TRUE(list->IsRoleAllowed("aemu.role.snapshot",
+                                    "/android.emulation.v2.HypervisorService/CreateSnapshot"));
+    EXPECT_TRUE(list->IsRoleAllowed("aemu.role.snapshot",
+                                    "/google.longrunning.Operations/CancelOperation"));
+    EXPECT_TRUE(list->IsRoleAllowed("aemu.role.admin",
+                                    "/android.emulation.v2.SystemService/RebootDevice"));
+    EXPECT_TRUE(list->IsRoleAllowed("aemu.role.admin",
+                                    "/android.emulation.v2.HypervisorService/StopVm"));
+}
+
+TEST(AllowListTest, parses_roles_and_caches_results) {
+    auto list = AllowList::FromJson(R"#(
+    {
+        "roles": {
+            "aemu.role.read": [
+                "/android.emulation.v2.SystemService/GetSystemState",
+                "/android.emulation.v2.测试_🚀_é/Get.*"
+            ],
+            "aemu.role.admin": [
+                "/android.emulation.v2.SystemService/RebootDevice"
+            ]
+        }
+    })#");
+
+    EXPECT_TRUE(list->IsRoleAllowed("aemu.role.read",
+                                    "/android.emulation.v2.SystemService/GetSystemState"));
+    // Second lookup hits accept cache.
+    EXPECT_TRUE(list->IsRoleAllowed("aemu.role.read",
+                                    "/android.emulation.v2.SystemService/GetSystemState"));
+    EXPECT_TRUE(list->IsRoleAllowed("aemu.role.read", "/android.emulation.v2.测试_🚀_é/GetState"));
+
+    EXPECT_FALSE(list->IsRoleAllowed("aemu.role.read",
+                                     "/android.emulation.v2.SystemService/RebootDevice"));
+    // Second lookup hits rejection cache.
+    EXPECT_FALSE(list->IsRoleAllowed("aemu.role.read",
+                                     "/android.emulation.v2.SystemService/RebootDevice"));
+    EXPECT_FALSE(list->IsRoleAllowed("aemu.role.unknown",
+                                     "/android.emulation.v2.SystemService/GetSystemState"));
+
+    std::vector<std::string> combined_roles = {"aemu.role.read", "aemu.role.admin"};
+    EXPECT_TRUE(list->HasRolePermission(combined_roles,
+                                        "/android.emulation.v2.SystemService/RebootDevice"));
+}
+
+TEST(AllowListTest, handles_malformed_roles_entries_gracefully) {
+    auto list = AllowList::FromJson(R"#(
+    {
+        "roles": {
+            "bad_role": "not_an_array",
+            "good_role": ["/android.emulation.v2.InputService/.*"]
+        }
+    })#");
+    EXPECT_FALSE(list->IsRoleAllowed("bad_role", "/android.emulation.v2.InputService/Send"));
+    EXPECT_TRUE(list->IsRoleAllowed("good_role", "/android.emulation.v2.InputService/Send"));
+}
+
+TEST(AllowListTest, rejects_duplicate_role_entries_in_json) {
+    EXPECT_DEATH((void)AllowList::FromJson(R"#(
+    {
+        "unprotected": [
+            ".*/getGps"
+        ],
+        "roles": {
+            "aemu.role.read": [
+                "/android.emulation.v2.SystemService/GetSystemState"
+            ],
+            "aemu.role.admin": [
+                "/android.emulation.v2.SystemService/StopVm"
+            ],
+            "aemu.role.read": [
+                "/android.emulation.v2.SystemService/RebootDevice"
+            ]
+        }
+    })#"),
+                 "duplicate JSON key 'aemu.role.read'");
+}
+
+TEST(AllowListTest, rejects_duplicate_roles_in_stream_and_top_level_keys) {
+    EXPECT_DEATH(
+            {
+                std::istringstream stream(R"#(
+    {
+        "roles": {
+            "aemu.role.测试_🚀": [
+                "/android.emulation.v2.DisplayService/GetScreenshot"
+            ],
+            "aemu.role.测试_🚀": [
+                "/android.emulation.v2.SystemService/RebootDevice"
+            ]
+        }
+    })#");
+                (void)AllowList::FromStream(stream);
+            },
+            "duplicate JSON key");
+
+    EXPECT_DEATH((void)AllowList::FromJson(R"#(
+    {
+        "roles": {
+            "aemu.role.read": [
+                "/android.emulation.v2.SystemService/GetSystemState"
+            ]
+        },
+        "roles": {
+            "aemu.role.admin": [
+                "/android.emulation.v2.SystemService/RebootDevice"
+            ]
+        }
+    })#"),
+                 "duplicate JSON key 'roles'");
 }
 }  // namespace control
 }  // namespace emulation

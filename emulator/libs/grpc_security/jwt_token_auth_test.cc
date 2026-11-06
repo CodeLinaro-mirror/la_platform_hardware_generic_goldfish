@@ -395,6 +395,128 @@ TEST_F(JwkTokenAuthTest, deleted_jwks_is_rejected) {
 
     EXPECT_FALSE(jwt.IsTokenValid("c", "Bearer " + *token).ok());
 }
+
+TEST_F(JwkTokenAuthTest, v2_rbac_allows_matching_roles_array_claim_without_iss_or_aud) {
+    auto list = AllowList::FromJson(R"#(
+    {
+        "roles": {
+            "aemu.role.read": [
+                "/android.emulation.v2.SystemService/GetSystemState",
+                "/android.emulation.v2.测试_🚀_é/Get.*"
+            ],
+            "aemu.role.controller": [
+                "/android.emulation.v2.RtcService/.*"
+            ]
+        }
+    })#");
+    list->SetSource("/tmp/test_access.json");
+
+    absl::Time now = absl::Now();
+    auto private_handle = WriteEs512("valid.jwk");
+    auto sign = private_handle->GetPrimitive<tink::JwtPublicKeySign>();
+    ASSERT_THAT(sign, absl_testing::IsOk());
+
+    auto raw_jwt = tink::RawJwtBuilder()
+                           .AddJsonArrayClaim("roles", R"(["aemu.role.read"])")
+                           .SetExpiration(now + absl::Seconds(300))
+                           .SetIssuedAt(now)
+                           .Build();
+    ASSERT_THAT(raw_jwt, absl_testing::IsOk());
+    auto token = (*sign)->SignAndEncode(*raw_jwt);
+    ASSERT_THAT(token, absl_testing::IsOk());
+
+    JwtTokenAuth jwt(temp_dir_->Path().string(), "", list.get());
+    EXPECT_THAT(jwt.IsTokenValid("/android.emulation.v2.SystemService/GetSystemState",
+                                 "Bearer " + *token),
+                absl_testing::IsOk());
+    EXPECT_THAT(jwt.IsTokenValid("/android.emulation.v2.测试_🚀_é/GetState", "Bearer " + *token),
+                absl_testing::IsOk());
+
+    // RtcService requires aemu.role.controller, so aemu.role.read is rejected.
+    auto denied = jwt.IsTokenValid("/android.emulation.v2.RtcService/RequestRtcStream",
+                                   "Bearer " + *token);
+    EXPECT_EQ(denied.code(), absl::StatusCode::kPermissionDenied);
+}
+
+TEST_F(JwkTokenAuthTest, v2_rbac_allows_matching_scope_string_claim_and_lro_paths) {
+    auto list = AllowList::FromJson(R"#(
+    {
+        "roles": {
+            "aemu.role.controller": [
+                "/android.emulation.v2.RtcService/.*"
+            ],
+            "aemu.role.snapshot": [
+                "/google.longrunning.Operations/.*"
+            ]
+        }
+    })#");
+    list->SetSource("/tmp/test_access.json");
+
+    absl::Time now = absl::Now();
+    auto private_handle = WriteEs512("valid.jwk");
+    auto sign = private_handle->GetPrimitive<tink::JwtPublicKeySign>();
+    ASSERT_THAT(sign, absl_testing::IsOk());
+
+    auto raw_jwt = tink::RawJwtBuilder()
+                           .AddStringClaim("scope", "aemu.role.controller aemu.role.snapshot")
+                           .SetExpiration(now + absl::Seconds(300))
+                           .SetIssuedAt(now)
+                           .Build();
+    ASSERT_THAT(raw_jwt, absl_testing::IsOk());
+    auto token = (*sign)->SignAndEncode(*raw_jwt);
+    ASSERT_THAT(token, absl_testing::IsOk());
+
+    JwtTokenAuth jwt(temp_dir_->Path().string(), "", list.get());
+    EXPECT_THAT(jwt.IsTokenValid("/android.emulation.v2.RtcService/RequestRtcStream",
+                                 "Bearer " + *token),
+                absl_testing::IsOk());
+    EXPECT_THAT(
+            jwt.IsTokenValid("/google.longrunning.Operations/CancelOperation", "Bearer " + *token),
+            absl_testing::IsOk());
+}
+
+TEST_F(JwkTokenAuthTest, v2_rbac_rejects_jwt_without_roles_or_scope) {
+    auto list = AllowList::FromJson(R"#(
+    {
+        "roles": {
+            "aemu.role.read": [
+                "/android.emulation.v2.SystemService/GetSystemState"
+            ]
+        },
+        "allowlist": [
+            {
+                "iss": "android-studio",
+                "allowed": ["/android.emulation.control.EmulatorController/.*"]
+            }
+        ]
+    })#");
+    list->SetSource("/tmp/test_access.json");
+
+    absl::Time now = absl::Now();
+    auto private_handle = WriteEs512("valid.jwk");
+    auto sign = private_handle->GetPrimitive<tink::JwtPublicKeySign>();
+    ASSERT_THAT(sign, absl_testing::IsOk());
+
+    // A legacy V1 studio JWT with only iss (no roles/scope) must work on V1
+    // but be rejected on V2.
+    auto raw_jwt = tink::RawJwtBuilder()
+                           .SetIssuer("android-studio")
+                           .SetExpiration(now + absl::Seconds(300))
+                           .SetIssuedAt(now)
+                           .Build();
+    ASSERT_THAT(raw_jwt, absl_testing::IsOk());
+    auto token = (*sign)->SignAndEncode(*raw_jwt);
+    ASSERT_THAT(token, absl_testing::IsOk());
+
+    JwtTokenAuth jwt(temp_dir_->Path().string(), "", list.get());
+    EXPECT_THAT(jwt.IsTokenValid("/android.emulation.control.EmulatorController/getStatus",
+                                 "Bearer " + *token),
+                absl_testing::IsOk());
+
+    auto v2_status = jwt.IsTokenValid("/android.emulation.v2.SystemService/GetSystemState",
+                                      "Bearer " + *token);
+    EXPECT_EQ(v2_status.code(), absl::StatusCode::kPermissionDenied);
+}
 }  // namespace control
 }  // namespace emulation
 }  // namespace android

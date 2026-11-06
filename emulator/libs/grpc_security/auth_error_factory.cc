@@ -15,6 +15,7 @@
 #include "android/emulation/control/auth_error_factory.h"
 
 #include "absl/strings/str_format.h"
+#include "absl/strings/str_join.h"
 
 namespace android::emulation::control {
 
@@ -88,5 +89,23 @@ absl::Status AuthErrorFactory::AuthErrorNotOnAllowList(std::string_view iss, std
                             path, allow_list_origin, path, iss)
 
     );
+}
+
+absl::Status AuthErrorFactory::AuthErrorMissingRoles(std::string_view path) {
+    return absl::PermissionDeniedError(absl::StrFormat(
+            "Failed to authorize V2 gRPC endpoint '%s': the JWT does not contain any roles in "
+            "the 'roles' JSON array claim or 'scope' string claim. Include a role that grants "
+            "access to '%s' (for example, `\"roles\": [\"aemu.role.read\"]`) in the JWT.",
+            path, path));
+}
+
+absl::Status AuthErrorFactory::AuthErrorInsufficientRoles(absl::Span<const std::string> roles,
+                                                          std::string_view path,
+                                                          std::string_view allow_list_origin) {
+    return absl::PermissionDeniedError(absl::StrFormat(
+            "Failed to authorize V2 gRPC endpoint '%s': none of the JWT roles [%s] grant access "
+            "in the security specification loaded from '%s'. Include a role permitted for '%s' in "
+            "the JWT 'roles' or 'scope' claim, or add '%s' to a matching role in '%s'.",
+            path, absl::StrJoin(roles, ", "), allow_list_origin, path, path, allow_list_origin));
 }
 }  // namespace android::emulation::control
