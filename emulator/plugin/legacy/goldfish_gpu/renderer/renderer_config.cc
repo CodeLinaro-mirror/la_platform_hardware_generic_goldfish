@@ -54,18 +54,17 @@ SelectedRenderer ParseRendererBackend(std::string_view value) {
 }
 
 absl::Status BuildFeatureSet(std::string_view renderer_features, bool egl_on_egl,
-                             gfxstream::host::FeatureSet* features) {
+                             gfxstream::host::FeatureSet* features, uint32_t guest_api_level) {
+    const bool vulkan_supported = IsGoldfishGpuVulkanSupported(guest_api_level);
     features->EglOnEgl.setEnabled(egl_on_egl);
     features->GlesDynamicVersion.setEnabled(true);
     features->NoDelayCloseColorBuffer.setEnabled(true);
     features->Surfaceless.setEnabled(true);
-    // API <= 36 (goldfish_pipe) only supports GL for now. Keep VulkanSnapshots
-    // disabled alongside Vulkan because FrameBuffer::onSave/onLoad calls
-    // VkDecoderGlobalState::get() when VulkanSnapshots is enabled, which aborts
-    // when VkEmulation was not initialized.
-    features->Vulkan.setEnabled(false);
-    features->VulkanSnapshots.setEnabled(false);
-    features->GuestVulkanOnly.setEnabled(false);
+    // API 31..36 (goldfish_pipe) runs host GLES emulation alongside host Vulkan
+    // emulation (not GuestAngle), with HostComposition over renderControl.
+    // API <= 30 guests lack VulkanQueueSubmitWithCommands and keep Vulkan off.
+    // VulkanSnapshots remains disabled on goldfish_pipe (API <= 36).
+    features->Vulkan.setEnabled(vulkan_supported);
     features->VulkanBatchedDescriptorSetUpdate.setEnabled(true);
     features->VulkanIgnoredHandles.setEnabled(true);
     features->VulkanNullOptionalStrings.setEnabled(true);
@@ -74,7 +73,6 @@ absl::Status BuildFeatureSet(std::string_view renderer_features, bool egl_on_egl
     features->VulkanEnsureCachedCoherentMemoryAvailable.setEnabled(true);
     features->VulkanAstcEmulation.setEnabled(true);
     features->VulkanEtc2Emulation.setEnabled(true);
-    features->HostComposition.setEnabled(false);
 
     // GlDirectMem + HasSharedSlotsHostMemoryAllocator provide BAR 1 DMA via
     // goldfish_address_space. Keep GlDma/GlDma2 disabled because they advertise
@@ -83,12 +81,12 @@ absl::Status BuildFeatureSet(std::string_view renderer_features, bool egl_on_egl
     // GL2Encoder::s_glMapBufferRange/s_glUnmapBuffer to pass unmapped pipe
     // physical addresses to s_glUnmapBufferDMA.
     static constexpr const char* kGoldfishDefaultFeatures[] = {
-        "RefCountPipe:enabled",     "HasSharedSlotsHostMemoryAllocator:enabled",
-        "VirtioGpuNext:disabled",   "VirtioGpuNativeSync:disabled",
-        "GlDirectMem:enabled",      "GlDma:disabled",
-        "GlDma2:disabled",          "GlAsyncSwap:enabled",
-        "Vulkan:disabled",          "VulkanSnapshots:disabled",
-        "GuestVulkanOnly:disabled",
+        "RefCountPipe:enabled",           "HasSharedSlotsHostMemoryAllocator:enabled",
+        "VirtioGpuNext:disabled",         "VirtioGpuNativeSync:disabled",
+        "GlDirectMem:enabled",            "GlDma:disabled",
+        "GlDma2:disabled",                "GlAsyncSwap:enabled",
+        "HostComposition:enabled",        "VulkanSnapshots:disabled",
+        "GuestVulkanOnly:disabled",       "VulkanNativeSwapchain:disabled",
     };
     for (const char* feature : kGoldfishDefaultFeatures) {
         if (!features->processFeatureString(feature, "goldfish_pipe default")) {
@@ -107,17 +105,25 @@ absl::Status BuildFeatureSet(std::string_view renderer_features, bool egl_on_egl
         }
     }
 
-    // The Vulkan trio above is a hard requirement of this transport, not a
-    // default: FrameBuffer::onSave/onLoad abort when VulkanSnapshots is on
-    // without VkEmulation. Re-pin after the user overrides so a stray
-    // "Vulkan:enabled" in renderer_features cannot turn snapshots into a crash.
+    // API <= 36 guests decode GLES on the host over pipe:opengles / ASG and
+    // compose via CompositorGl, and do not enable VulkanSnapshots on
+    // goldfish_pipe, so VulkanSnapshots, GuestVulkanOnly (which disables
+    // EmulationGl), and VulkanNativeSwapchain cannot be used on this transport.
     for (gfxstream::host::BoolFeatureInfo* pinned :
-         {&features->Vulkan, &features->VulkanSnapshots, &features->GuestVulkanOnly}) {
+         {&features->VulkanSnapshots, &features->GuestVulkanOnly,
+          &features->VulkanNativeSwapchain}) {
         if (pinned->enabled()) {
             LOG(WARNING) << "goldfish_gpu: renderer_features enabled '" << pinned->getName()
                          << "', which the goldfish_pipe transport does not support; forcing it off";
             pinned->setEnabled(false);
         }
+    }
+
+    if (!vulkan_supported && features->Vulkan.enabled()) {
+        LOG(WARNING) << "goldfish_gpu: renderer_features enabled 'Vulkan' on guest API level "
+                     << guest_api_level << " (supported on API " << kMinGoldfishGpuVulkanApiLevel
+                     << ".." << kMaxGoldfishGpuVulkanApiLevel << " only); forcing 'Vulkan' off";
+        features->Vulkan.setEnabled(false);
     }
     return absl::OkStatus();
 }

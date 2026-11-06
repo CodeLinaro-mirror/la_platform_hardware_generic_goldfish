@@ -224,7 +224,18 @@ std::vector<std::pair<std::string, std::string>> getUserspaceBootProperties(
         }
     }
 
-    if (!is_legacy) {
+    bool vulkan_enabled = apiLevel >= 31;
+    if (vulkan_enabled && opts.renderer_features) {
+        for (std::string_view token :
+             absl::StrSplit(opts.renderer_features, absl::ByAnyChar(",;"), absl::SkipEmpty())) {
+            if (token == "Vulkan:disabled") {
+                vulkan_enabled = false;
+            } else if (token == "Vulkan:enabled") {
+                vulkan_enabled = true;
+            }
+        }
+    }
+    if (vulkan_enabled) {
         params.push_back({"androidboot.hardware.vulkan", "ranchu"});
     }
 

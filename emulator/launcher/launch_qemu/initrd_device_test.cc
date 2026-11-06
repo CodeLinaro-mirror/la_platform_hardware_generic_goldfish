@@ -594,16 +594,39 @@ TEST(BootProperties, LegacyGraphicsPropertiesBelowApi37) {
                            std::pair{"androidboot.hardware.gltransport", "asg"},
                            std::pair{"androidboot.qemu.gltransport.drawFlushInterval", "800"},
                            std::pair{"androidboot.opengles.version", "196608"},
+                           std::pair{"androidboot.hardware.vulkan", "ranchu"},
                            std::pair{"androidboot.debug.hwui.renderer", "skiagl"},
                            std::pair{"androidboot.debug.renderengine.backend", "skiaglthreaded"},
                        }));
     EXPECT_THAT(props, testing::Not(testing::Contains(
                                testing::Pair("androidboot.hardware.gralloc", testing::_))));
-    EXPECT_THAT(props, testing::Not(testing::Contains(
-                               testing::Pair("androidboot.hardware.vulkan", testing::_))));
     EXPECT_THAT(
             props,
             testing::Not(testing::Contains(testing::Pair("androidboot.hardwareegl", testing::_))));
+
+    // API 31 (minimum legacy Vulkan API level) still advertises ranchu Vulkan.
+    EXPECT_CALL(emu.mock_avd(), ApiLevel()).WillRepeatedly(testing::Return(31));
+    EXPECT_THAT(getBootProperties(emu.config(), "lavapipe"),
+                testing::Contains(std::pair{"androidboot.hardware.vulkan", "ranchu"}));
+
+    // API 30 and below do not enable Vulkan on goldfish_pipe.
+    EXPECT_CALL(emu.mock_avd(), ApiLevel()).WillRepeatedly(testing::Return(30));
+    EXPECT_THAT(getBootProperties(emu.config(), "lavapipe"),
+                testing::Not(testing::Contains(
+                        testing::Pair("androidboot.hardware.vulkan", testing::_))));
+
+    // Explicit -renderer-features Vulkan:disabled suppresses ranchu Vulkan on API 31..36.
+    char vk_disabled[] = "Vulkan:disabled";
+    AndroidOptions disabled_opts{.renderer_features = vk_disabled};
+    FakeEmulator disabled_emu(std::move(disabled_opts));
+    EXPECT_CALL(disabled_emu.mock_avd(), Hw()).WillRepeatedly(testing::ReturnRef(hw));
+    EXPECT_CALL(disabled_emu.mock_avd(), Name()).WillRepeatedly(testing::Return("mock_avd"));
+    EXPECT_CALL(disabled_emu.mock_avd(), ApiLevel()).WillRepeatedly(testing::Return(36));
+    EXPECT_CALL(disabled_emu.mock_avd(), Arch())
+            .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
+    EXPECT_THAT(getBootProperties(disabled_emu.config(), "lavapipe"),
+                testing::Not(testing::Contains(
+                        testing::Pair("androidboot.hardware.vulkan", testing::_))));
 }
 
 TEST(BootProperties, SystemUiRendererGraphiteOnApi37Plus) {

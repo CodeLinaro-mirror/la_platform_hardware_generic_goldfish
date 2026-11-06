@@ -123,7 +123,7 @@ TEST(GpuDeviceTest, EscapesCommasInSnapshotDirectoryAndRendererFeatures) {
     EXPECT_THAT(
             dev.getQemuParameters(emu.config()),
             ElementsAre(Eq("-device"),
-                        AllOf(HasSubstr("renderer_features=FeatureA:enabled,,FeatureB:disabled;"),
+                        AllOf(HasSubstr(";FeatureA:enabled,,FeatureB:disabled"),
                               HasSubstr(absl::StrCat("snapshot_directory=",
                                                      Device::EscapeQemuOptionValue(
                                                              expected_snapshot_dir.string()))))));
@@ -457,14 +457,14 @@ TEST(GpuDeviceTest, Api36ConfiguresGoldfishPipeGlobalsAndSnapshotDirectory) {
     EXPECT_THAT(params,
                 testing::Contains(StartsWith("driver=goldfish_pipe,property=renderer_features,"
                                              "value=")));
-    EXPECT_THAT(params, testing::Contains(HasSubstr("Vulkan:disabled")));
+    EXPECT_THAT(params, testing::Contains(HasSubstr("Vulkan:enabled")));
+    EXPECT_THAT(params, Not(testing::Contains(HasSubstr("VulkanSnapshots:enabled"))));
     EXPECT_THAT(params, testing::Contains(HasSubstr("GlAsyncSwap:enabled")));
     EXPECT_THAT(params, testing::Contains(HasSubstr("GlDirectMem:enabled")));
     EXPECT_THAT(params, testing::Contains(HasSubstr("HasSharedSlotsHostMemoryAllocator:enabled")));
     EXPECT_THAT(params, testing::Contains(HasSubstr("RefCountPipe:enabled")));
     EXPECT_THAT(params, testing::Contains(HasSubstr("YuvCache:enabled")));
-    EXPECT_THAT(params, testing::Contains(HasSubstr("HostComposition:disabled")));
-    EXPECT_THAT(params, Not(testing::Contains(HasSubstr("VulkanSnapshots:enabled"))));
+    EXPECT_THAT(params, testing::Contains(HasSubstr("HostComposition:enabled")));
     EXPECT_THAT(params, Not(testing::Contains(HasSubstr("VulkanVirtualQueue:enabled"))));
     EXPECT_THAT(params, Not(testing::Contains(HasSubstr("GuestVulkanOnly:enabled"))));
     EXPECT_THAT(params,
@@ -472,6 +472,51 @@ TEST(GpuDeviceTest, Api36ConfiguresGoldfishPipeGlobalsAndSnapshotDirectory) {
     EXPECT_THAT(params, testing::Contains(Eq(absl::StrCat(
                                 "driver=goldfish_pipe,property=snapshot_directory,value=",
                                 Device::EscapeQemuOptionValue(expected_snapshot_dir.string())))));
+}
+
+TEST(GpuDeviceTest, LegacyGoldfishPipeGatesVulkanBetweenApi31AndApi36) {
+    base::TestSystem sys("");
+    const fs::path avd_content = sys.GetTempRoot()->Path() / "avd";
+    ASSERT_OK(base::file::mkdir_recursive(avd_content, 0755));
+
+    HardwareConfig hw;
+    hw.hw_lcd_width = 1080;
+    hw.hw_lcd_height = 2400;
+
+    // API 31 enables Vulkan on goldfish_pipe while keeping VulkanSnapshots disabled.
+    {
+        FakeEmulator emu;
+        EXPECT_CALL(emu.mock_avd(), Hw()).WillRepeatedly(ReturnRef(hw));
+        EXPECT_CALL(emu.mock_avd(), GetContentPath()).WillRepeatedly(Return(avd_content));
+        EXPECT_CALL(emu.mock_avd(), ApiLevel()).WillRepeatedly(Return(31));
+
+        SnapshotDevice snapshot_dev;
+        ASSERT_OK(snapshot_dev.initialize(emu.config()));
+        GpuDevice dev("gpu0", snapshot_dev);
+        ASSERT_OK(dev.initialize(emu.config()));
+
+        const auto params = dev.getQemuParameters(emu.config());
+        EXPECT_THAT(params, testing::Contains(HasSubstr("Vulkan:enabled")));
+        EXPECT_THAT(params, Not(testing::Contains(HasSubstr("VulkanSnapshots:enabled"))));
+    }
+
+    // API 30 disables Vulkan and omits VulkanSnapshots on goldfish_pipe.
+    {
+        FakeEmulator emu;
+        EXPECT_CALL(emu.mock_avd(), Hw()).WillRepeatedly(ReturnRef(hw));
+        EXPECT_CALL(emu.mock_avd(), GetContentPath()).WillRepeatedly(Return(avd_content));
+        EXPECT_CALL(emu.mock_avd(), ApiLevel()).WillRepeatedly(Return(30));
+
+        SnapshotDevice snapshot_dev;
+        ASSERT_OK(snapshot_dev.initialize(emu.config()));
+        GpuDevice dev("gpu0", snapshot_dev);
+        ASSERT_OK(dev.initialize(emu.config()));
+
+        const auto params = dev.getQemuParameters(emu.config());
+        EXPECT_THAT(params, testing::Contains(HasSubstr("Vulkan:disabled")));
+        EXPECT_THAT(params, Not(testing::Contains(HasSubstr("Vulkan:enabled"))));
+        EXPECT_THAT(params, Not(testing::Contains(HasSubstr("VulkanSnapshots:enabled"))));
+    }
 }
 
 TEST(GpuDeviceTest, Api36GlobalEscapesCommasInRendererFeaturesAndSnapshotDirectory) {
@@ -496,7 +541,7 @@ TEST(GpuDeviceTest, Api36GlobalEscapesCommasInRendererFeaturesAndSnapshotDirecto
 
     const fs::path expected_snapshot_dir = avd_content / "snapshots" / "";
     const auto params = dev.getQemuParameters(emu.config());
-    EXPECT_THAT(params, testing::Contains(HasSubstr("value=Foo:enabled,,Bar:disabled")));
+    EXPECT_THAT(params, testing::Contains(HasSubstr(";Foo:enabled,,Bar:disabled")));
     EXPECT_THAT(params,
                 testing::Contains(Eq("driver=goldfish_pipe,property=guest_api_level,value=36")));
     EXPECT_THAT(params, testing::Contains(Eq(absl::StrCat(

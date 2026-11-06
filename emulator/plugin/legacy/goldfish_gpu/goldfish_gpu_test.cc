@@ -94,7 +94,7 @@ TEST_F(GoldfishGpuTest, StartConfiguresRenderLibAndFeatures) {
     cfg.width = 4;
     cfg.height = 2;
     cfg.guest_api_level = 36;
-    cfg.renderer_features = "Vulkan:enabled;GlAsyncSwap:disabled";
+    cfg.renderer_features = "VulkanSnapshots:enabled;GlAsyncSwap:disabled;GuestVulkanOnly:enabled";
     cfg.on_post = [&](uint32_t w, uint32_t h, const uint8_t* bgra) {
         posted_w = w;
         posted_h = h;
@@ -112,12 +112,14 @@ TEST_F(GoldfishGpuTest, StartConfiguresRenderLibAndFeatures) {
     EXPECT_TRUE(last_lib_->features.RefCountPipe.enabled());
     EXPECT_TRUE(last_lib_->features.VulkanAstcEmulation.enabled());
     EXPECT_TRUE(last_lib_->features.VulkanEtc2Emulation.enabled());
-    EXPECT_FALSE(last_lib_->features.HostComposition.enabled());
+    EXPECT_TRUE(last_lib_->features.HostComposition.enabled());
     EXPECT_FALSE(last_lib_->features.GlAsyncSwap.enabled());
-    // "Vulkan:enabled" from renderer_features is pinned back off: the
-    // goldfish_pipe transport cannot snapshot with VulkanSnapshots on.
-    EXPECT_FALSE(last_lib_->features.Vulkan.enabled());
+    EXPECT_TRUE(last_lib_->features.Vulkan.enabled());
+    // "VulkanSnapshots:enabled" and "GuestVulkanOnly:enabled" from
+    // renderer_features are pinned back off: the goldfish_pipe transport does
+    // not enable VulkanSnapshots and requires host GLES emulation.
     EXPECT_FALSE(last_lib_->features.VulkanSnapshots.enabled());
+    EXPECT_FALSE(last_lib_->features.GuestVulkanOnly.enabled());
     EXPECT_EQ(test_sys_.EnvGet("ANDROID_EMU_HEADLESS"), "1");
 
     std::vector<uint8_t> frame(4ULL * 2ULL * 4ULL, 0x12);
@@ -156,11 +158,23 @@ TEST_F(GoldfishGpuTest, GuestApiLevelIsRequiredAndForwardedToRenderLib) {
     ASSERT_OK(GetGoldfishGpu().Start(cfg));
     ASSERT_NE(last_lib_, nullptr);
     EXPECT_EQ(last_lib_->api_level, 34);
-    EXPECT_FALSE(last_lib_->features.Vulkan.enabled());
+    EXPECT_TRUE(last_lib_->features.Vulkan.enabled());
+    EXPECT_TRUE(last_lib_->features.HostComposition.enabled());
     EXPECT_FALSE(last_lib_->features.VulkanSnapshots.enabled());
     EXPECT_FALSE(last_lib_->features.GlDma.enabled());
     EXPECT_FALSE(last_lib_->features.GlDma2.enabled());
     EXPECT_TRUE(last_lib_->features.GlDirectMem.enabled());
+
+    // API 31 enables Vulkan; API 30 and API 37 disable Vulkan even if requested.
+    cfg.guest_api_level = 31;
+    ASSERT_OK(GetGoldfishGpu().Start(cfg));
+    EXPECT_TRUE(last_lib_->features.Vulkan.enabled());
+
+    cfg.guest_api_level = 30;
+    cfg.renderer_features = "Vulkan:enabled;VulkanSnapshots:enabled";
+    ASSERT_OK(GetGoldfishGpu().Start(cfg));
+    EXPECT_FALSE(last_lib_->features.Vulkan.enabled());
+    EXPECT_FALSE(last_lib_->features.VulkanSnapshots.enabled());
 }
 
 TEST_F(GoldfishGpuTest, SyncAndMemoryCallbacks) {

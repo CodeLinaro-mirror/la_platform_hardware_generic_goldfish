@@ -174,12 +174,11 @@ std::vector<std::string> GpuDevice::getQemuParameters(const EmulatorConfig& emul
     const auto& hw = emulator.avd().Hw();
     const AndroidOptions& opts = emulator.opts();
     const auto& ff = emulator.feature_flags();
-    const bool legacy_goldfish_gpu = emulator.avd().ApiLevel() < kVirtioReadyApiLevel;
+    const int api_level = emulator.avd().ApiLevel();
+    const bool legacy_goldfish_gpu = api_level < kVirtioReadyApiLevel;
+    const bool vulkan_enabled = api_level >= 31;
 
     std::vector<std::string> renderer_features;
-    if (opts.renderer_features && *opts.renderer_features != '\0') {
-        renderer_features.emplace_back(opts.renderer_features);
-    }
 
     bool needs_gles = true;
     if (!legacy_goldfish_gpu && !opts.no_guest_angle && ff.IsEnabled(S::GUEST_ANGLE)) {
@@ -204,9 +203,8 @@ std::vector<std::string> GpuDevice::getQemuParameters(const EmulatorConfig& emul
     }
 
     // Snapshots can also be taken at runtime (gRPC, console), not only at exit.
-    // On legacy GL-only (API <= 36), Vulkan is disabled so VkDecoderGlobalState
-    // is never initialized; enabling VulkanSnapshots would abort in
-    // FrameBuffer::onSave/onLoad when calling VkDecoderGlobalState::get().
+    // VulkanSnapshots is only enabled on virtio-gpu-gfxstream (API 37+); legacy
+    // goldfish_pipe (API <= 36) keeps VulkanSnapshots disabled.
     if (!legacy_goldfish_gpu && mSnapshotDevice.snapshots_enabled() &&
         ff.IsEnabled(S::VULKAN_SNAPSHOTS)) {
         renderer_features.push_back("VulkanSnapshots:enabled");
@@ -215,11 +213,9 @@ std::vector<std::string> GpuDevice::getQemuParameters(const EmulatorConfig& emul
     renderer_features.push_back(ff.IsEnabled(S::VULKAN_BATCHED_DESCRIPTOR_SET_UPDATE)
                                         ? "VulkanBatchedDescriptorSetUpdate:enabled"
                                         : "VulkanBatchedDescriptorSetUpdate:disabled");
+    renderer_features.push_back(vulkan_enabled ? "Vulkan:enabled" : "Vulkan:disabled");
 
     if (legacy_goldfish_gpu) {
-        const int api_level = emulator.avd().ApiLevel();
-        // API <= 36 (goldfish_pipe) only supports GL for now.
-        renderer_features.push_back("Vulkan:disabled");
         renderer_features.push_back("GlAsyncSwap:enabled");
         renderer_features.push_back((api_level >= 29) ? "GlDirectMem:enabled"
                                                       : "GlDirectMem:disabled");
@@ -229,7 +225,7 @@ std::vector<std::string> GpuDevice::getQemuParameters(const EmulatorConfig& emul
         renderer_features.push_back((api_level >= 28) ? "RefCountPipe:enabled"
                                                       : "RefCountPipe:disabled");
         renderer_features.push_back("YuvCache:enabled");
-        renderer_features.push_back("HostComposition:disabled");
+        renderer_features.push_back("HostComposition:enabled");
     } else if (ff.IsEnabled(S::VULKAN_USE_DEDICATED_AHB_MEMORY_TYPE)) {
         // Use a separate memory type for Ahb allocations, to avoid marking them
         // as host visible and coherent on lavapipe, which is not very well supported
@@ -271,6 +267,12 @@ std::vector<std::string> GpuDevice::getQemuParameters(const EmulatorConfig& emul
     if (opts.vulkan_validation_exclude_filter) {
         renderer_features.push_back(absl::StrCat("VulkanValidationExcludeFilter:",
                                                  opts.vulkan_validation_exclude_filter));
+    }
+
+    // Append user-supplied -renderer-features last so CLI overrides take
+    // precedence over the built-in defaults above.
+    if (opts.renderer_features && *opts.renderer_features != '\0') {
+        renderer_features.emplace_back(opts.renderer_features);
     }
 
     size_t width;
