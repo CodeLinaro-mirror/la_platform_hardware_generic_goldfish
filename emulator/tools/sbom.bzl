@@ -1,5 +1,6 @@
 """Generate SPDX 2.3 JSON SBOM File for Android Emulator."""
 
+load("@platforms//host:constraints.bzl", "HOST_CONSTRAINTS")
 load(
     "@rules_license//rules:gather_licenses_info.bzl",
     "gather_licenses_info",
@@ -21,6 +22,9 @@ load(
     "//emulator/tools:packaging.bzl",
     "substitute_package_variables",
 )
+
+# Exec group that resolves to an execution platform matching the host machine.
+_HOST_EXEC_GROUP = "host"
 
 def _package_dir(label):
     """Returns the execution-root-relative directory of the Bazel package of `label`, or None."""
@@ -166,6 +170,10 @@ def _generate_sbom_file_impl(ctx):
         # release builds) always regenerate the SBOM from the current tree. Incremental
         # builds re-run the action only when a declared input (a license() target, a license
         # file, or the generator) changes; run `bazel clean` to pick up other metadata edits.
+        # Because the action always runs locally, it uses the host exec group so that the
+        # generator is built for the host even when cross-compiling with a remote execution
+        # platform (e.g. Windows RBE), where it would otherwise be a non-runnable .exe.
+        exec_group = _HOST_EXEC_GROUP,
         execution_requirements = {
             "no-cache": "1",
             "no-remote": "1",
@@ -215,8 +223,11 @@ _generate_sbom_file = rule(
         "_generator": attr.label(
             default = Label("//emulator/tools:generate_sbom"),
             executable = True,
-            cfg = "exec",
+            cfg = config.exec(_HOST_EXEC_GROUP),
         ),
+    },
+    exec_groups = {
+        _HOST_EXEC_GROUP: exec_group(exec_compatible_with = HOST_CONSTRAINTS),
     },
 )
 
