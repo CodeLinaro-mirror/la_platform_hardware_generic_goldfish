@@ -1,6 +1,6 @@
-load("@rules_cc//cc:defs.bzl", "cc_binary")
+load("@qemu//:google/build/cc_interface_binary.bzl", "cc_exported_shared_library")
 
-cc_binary(
+cc_exported_shared_library(
     name = "goldfish",
     srcs = ["plugin.cc"],
     linkopts = select({
@@ -22,12 +22,8 @@ cc_binary(
         ],
         "//conditions:default": [],
     }),
-    linkshared = True,
     visibility = ["//visibility:public"],
-    win_def_file = select({
-        "@platforms//os:windows": "goldfish.def",
-        "//conditions:default": None,
-    }),
+    win_def_file = "goldfish.def",
     # AEMU compat headers must come before crashreport (which pulls in crashpad)
     # to ensure AEMU's getopt.h and sys/types.h are preferred over Crashpad's.
     # buildifier: leave-alone
