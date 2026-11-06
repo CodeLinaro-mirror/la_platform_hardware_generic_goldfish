@@ -1,4 +1,4 @@
-load("@qemu//:google/build/cc_interface_binary.bzl", "cc_exported_shared_library")
+load("@goldfish_build//rules:symbol_exports.bzl", "cc_exported_shared_library")
 
 cc_exported_shared_library(
     name = "goldfish",
