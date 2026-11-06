@@ -19,6 +19,7 @@
 #include "absl/log/check.h"
 
 #include "android/emulation/control/keyboard/key_conversion.h"
+#include "goldfish/legacy/goldfish_events.h"
 #include "key_event_emitter.h"
 
 // clang-format off
@@ -52,11 +53,24 @@ QemuKeyboardSink::~QemuKeyboardSink() {
 
 void QemuKeyboardSink::WriteKey(uint32_t evdev_code, bool down) {
     DCHECK(qemu_loop_.IsOnLoopThread());
+    if (goldfish_events_is_active()) {
+        goldfish_events_send(EV_KEY, static_cast<int>(evdev_code), down ? 1 : 0);
+        return;
+    }
     QemuKeyEvent{evdev_to_qcode(evdev_code), down}.send(keyboard_state_);
 }
 
 void QemuKeyboardSink::TypeText(std::string_view utf8) {
     DCHECK(qemu_loop_.IsOnLoopThread());
+    if (goldfish_events_is_active()) {
+        EmitUtf8String(utf8, [](QemuKeyEvent event) {
+            const uint32_t evdev_code = qcode_to_evdev(event.code);
+            if (evdev_code != 0) {
+                goldfish_events_send(EV_KEY, static_cast<int>(evdev_code), event.down ? 1 : 0);
+            }
+        });
+        return;
+    }
     EmitUtf8String(utf8, [this](QemuKeyEvent event) { event.send(keyboard_state_); });
 }
 
@@ -64,6 +78,16 @@ void QemuKeyboardSink::Reset() {
     DCHECK(qemu_loop_.IsOnLoopThread());
     qkbd_state_free(keyboard_state_);
     keyboard_state_ = qkbd_state_init(console_);
+
+    if (goldfish_events_is_active()) {
+        // Release any keys held in the legacy `goldfish-events` ("qwerty2")
+        // guest input device when the snapshot was saved; the guest kernel's
+        // `input_handle_key` ignores releases for keys that are already up.
+        for (unsigned int linux_code = 1; linux_code <= KEY_MAX; ++linux_code) {
+            goldfish_events_send(EV_KEY, static_cast<int>(linux_code), 0);
+        }
+        return;
+    }
 
     // QKbdState is host-only (not part of VMState), so keys held in the guest
     // when a snapshot was saved have 0 bits in `keyboard_state_->keys` after

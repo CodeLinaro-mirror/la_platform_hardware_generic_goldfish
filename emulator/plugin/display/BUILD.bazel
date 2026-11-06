@@ -153,6 +153,7 @@ cc_library(
         "//emulator/libs/logging:absl_c_bridge",
         "//emulator/libs/perfetto:init",
         "//emulator/libs/physics",
+        "//emulator/plugin/legacy/goldfish_events",
         "//emulator/plugin/virtio-input-android:api",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/status",
