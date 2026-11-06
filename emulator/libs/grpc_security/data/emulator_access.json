@@ -7,8 +7,14 @@
 //                no access token is presented. No security checks will
 //                be performed when these methods are invoked.
 //
-// - allowlist: A set of json objects that specificies for each token issuer,
-//              what is allowed and what requires an "aud" field.
+// - roles: A JSON object mapping role names (present in a JWT's "roles" JSON
+//          array claim or space-delimited "scope" string claim) to lists of
+//          regular expressions for V2 gRPC endpoints (/android.emulation.v2.*
+//          and /google.longrunning.Operations/*).
+//
+// - allowlist: A set of json objects that specifies for each legacy V1 token
+//              issuer (/android.emulation.control.*), what is allowed and what
+//              requires an "aud" field.
 //
 //             - "iss": The token issuer.
 //             - "allowed": List of methods which are allowed, even if no "aud" field
@@ -24,8 +30,49 @@
     "unprotected": [
         // ".*" // Matches every method, no authentication will be used **DANGER**
         // "/android.emulation.control.SnapshotService.*" // Everyone can make snapshots.
+        "/grpc.health.v1.Health/.*",
+        "/android.emulation.v2.CapabilitiesService/GetDeviceCapabilities"
     ],
-    // List of methods that require a token, these are the methods
+    // Role-Based Access Control (RBAC) mappings for V2 gRPC services.
+    // Access is granted if any role in the JWT's "roles" or "scope" claim matches
+    // the invoked V2 endpoint.
+    "roles": {
+        "aemu.role.read": [
+            "/android.emulation.v2.CapabilitiesService/.*",
+            "/android.emulation.v2.DisplayService/(GetDisplay|ListDisplays|StreamDisplays|GetScreenshot|StreamScreenshots)",
+            "/android.emulation.v2.SystemService/(GetSystemState|StreamSystemState|GetClipboardState|StreamClipboardState)",
+            "/android.emulation.v2.AudioService/(GetAudioState|StreamAudioState|StreamSpeakerAudio)",
+            "/android.emulation.v2.BatteryService/(GetBatteryState|StreamBatteryState)",
+            "/android.emulation.v2.CameraService/(GetCameraState|StreamCameraState|StreamCameraFrames)",
+            "/android.emulation.v2.LocationService/(GetLocationState|StreamLocationState)",
+            "/android.emulation.v2.SensorsService/(GetSensorsState|StreamSensorsState|StreamSensorsUpdates|GetPostureState|StreamPostureState)",
+            "/android.emulation.v2.TelephonyService/(GetTelephonyState|StreamTelephonyState)",
+            "/android.emulation.v2.HypervisorService/(GetVmState|StreamVmState|ListSnapshots|GetSnapshot)",
+            "/google.longrunning.Operations/(GetOperation|ListOperations|WaitOperation)"
+        ],
+        "aemu.role.controller": [
+            "/android.emulation.v2.InputService/.*",
+            // RtcService can establish data channels capable of injecting key/input events.
+            "/android.emulation.v2.RtcService/.*",
+            "/android.emulation.v2.DisplayService/(UpdateDisplay|CreateDisplay|DeleteDisplay)",
+            "/android.emulation.v2.SystemService/(UpdateClipboardState|InjectFingerprint)",
+            "/android.emulation.v2.AudioService/(UpdateAudioState|InjectAudioClip|StreamMicrophoneAudio)",
+            "/android.emulation.v2.BatteryService/UpdateBatteryState",
+            "/android.emulation.v2.CameraService/(InjectFrame|ResetCamera)",
+            "/android.emulation.v2.LocationService/(UpdateLocationState|PlayRoute)",
+            "/android.emulation.v2.SensorsService/(UpdateSensorsState|UpdatePostureState)",
+            "/android.emulation.v2.TelephonyService/(UpdateTelephonyState|SendSms|TransitionCall)"
+        ],
+        "aemu.role.snapshot": [
+            "/android.emulation.v2.HypervisorService/(CreateSnapshot|RestoreSnapshot|UpdateSnapshot|DeleteSnapshot|SetQuickbootTarget|ExportSnapshot|ImportSnapshot)",
+            "/google.longrunning.Operations/.*"
+        ],
+        "aemu.role.admin": [
+            "/android.emulation.v2.SystemService/RebootDevice",
+            "/android.emulation.v2.HypervisorService/(PauseVm|ResumeVm|ResetVm|HardResetVm|StopVm)"
+        ]
+    },
+    // List of legacy V1 methods that require a token, these are the methods
     // we will allow if you present a signed JWT token.
     "allowlist": [
         {

@@ -16,18 +16,23 @@
 #include <algorithm>
 #include <fstream>
 #include <functional>
+#include <string>
 #include <utility>
+#include <vector>
 
 #include "absl/log/log.h"
 #include "absl/strings/match.h"
+#include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
 
 #include "android/emulation/control/auth_error_factory.h"
+#include "nlohmann/json.hpp"
 #include "tink/config/tink_config.h"
 #include "tink/jwt/jwk_set_converter.h"
 #include "tink/jwt/jwt_public_key_verify.h"
 #include "tink/jwt/jwt_signature_config.h"
 #include "tink/jwt/jwt_validator.h"
+#include "tink/jwt/verified_jwt.h"
 #include "tink/util/status.h"
 #include "tink/util/statusor.h"
 
@@ -42,6 +47,106 @@
 namespace android::emulation::control {
 
 namespace tink = crypto::tink;
+using json = nlohmann::json;
+
+namespace {
+
+constexpr absl::string_view kV2ServicePrefix = "/android.emulation.v2.";
+constexpr absl::string_view kLongRunningOperationsPrefix = "/google.longrunning.Operations/";
+constexpr absl::string_view kRolesClaim = "roles";
+constexpr absl::string_view kScopeClaim = "scope";
+
+bool IsV2Endpoint(absl::string_view path) {
+    return absl::StartsWith(path, kV2ServicePrefix) ||
+           absl::StartsWith(path, kLongRunningOperationsPrefix);
+}
+
+void AppendRolesFromJsonArrayClaim(const tink::VerifiedJwt& verified_jwt,
+                                   std::vector<std::string>& roles) {
+    if (!verified_jwt.HasJsonArrayClaim(kRolesClaim)) {
+        return;
+    }
+    auto roles_json = verified_jwt.GetJsonArrayClaim(kRolesClaim);
+    if (!roles_json.ok()) {
+        return;
+    }
+    auto parsed = json::parse(*roles_json, nullptr, /*allow_exceptions=*/false);
+    if (!parsed.is_array()) {
+        return;
+    }
+    for (const auto& entry : parsed) {
+        if (entry.is_string()) {
+            roles.push_back(entry.get<std::string>());
+        }
+    }
+}
+
+void AppendRolesFromScopeClaim(const tink::VerifiedJwt& verified_jwt,
+                               std::vector<std::string>& roles) {
+    if (!verified_jwt.HasStringClaim(kScopeClaim)) {
+        return;
+    }
+    auto scope = verified_jwt.GetStringClaim(kScopeClaim);
+    if (!scope.ok()) {
+        return;
+    }
+    for (absl::string_view role : absl::StrSplit(*scope, ' ', absl::SkipEmpty())) {
+        roles.emplace_back(role);
+    }
+}
+
+std::vector<std::string> ExtractRoles(const tink::VerifiedJwt& verified_jwt) {
+    std::vector<std::string> roles;
+    AppendRolesFromJsonArrayClaim(verified_jwt, roles);
+    AppendRolesFromScopeClaim(verified_jwt, roles);
+    return roles;
+}
+
+absl::Status AuthorizeV2(const tink::VerifiedJwt& verified_jwt, std::string_view path,
+                         AllowList* allow_list) {
+    std::vector<std::string> roles = ExtractRoles(verified_jwt);
+    if (roles.empty()) {
+        return AuthErrorFactory::AuthErrorMissingRoles(path);
+    }
+    if (allow_list->HasRolePermission(roles, path)) {
+        return absl::OkStatus();
+    }
+    return AuthErrorFactory::AuthErrorInsufficientRoles(roles, path, allow_list->GetSource());
+}
+
+absl::Status AuthorizeV1(const tink::VerifiedJwt& verified_jwt, std::string_view path,
+                         AllowList* allow_list) {
+    auto iss = verified_jwt.GetIssuer();
+    if (!iss.ok()) {
+        return AuthErrorFactory::AuthErrorMissingIss(path);
+    }
+
+    // Green list, no need to validate aud..
+    if (allow_list->IsAllowed(*iss, path)) {
+        return absl::OkStatus();
+    }
+
+    // On the block list, go away!
+    if (allow_list->IsRed(*iss, path)) {
+        return AuthErrorFactory::AuthErrorNotOnAllowList(*iss, path, allow_list->GetSource());
+    }
+
+    auto audiences = verified_jwt.GetAudiences();
+    if (!audiences.ok()) {
+        DD("Token validator error: %s", audiences.status().error_message().c_str());
+        return AuthErrorFactory::AuthErrorMissingAud(*iss, path);
+    }
+
+    for (const auto& aud : *audiences) {
+        if (aud == path) {
+            return absl::OkStatus();
+        }
+    }
+
+    return AuthErrorFactory::AuthErrorMissingClaim(*iss, path);
+}
+
+}  // namespace
 
 JwtTokenAuth::JwtTokenAuth(const Path& jwks_path, Path jwks_loaded_path, AllowList* list)
         : BasicTokenAuth(kDefaultHeader, list), jwks_loaded_path_(std::move(jwks_loaded_path)) {
@@ -144,34 +249,10 @@ absl::Status JwtTokenAuth::IsTokenValid(std::string_view path, std::string_view 
         return verified_jwt.status();
     }
 
-    auto iss = verified_jwt->GetIssuer();
-    if (!iss.ok()) {
-        return AuthErrorFactory::AuthErrorMissingIss(path);
+    if (IsV2Endpoint(path)) {
+        return AuthorizeV2(*verified_jwt, path, GetAllowList());
     }
-
-    // Green list, no need to validate aud..
-    if (verified_jwt.ok() && GetAllowList()->IsAllowed(*iss, path)) {
-        return absl::OkStatus();
-    }
-
-    // On the block list, go away!
-    if (GetAllowList()->IsRed(*iss, path)) {
-        return AuthErrorFactory::AuthErrorNotOnAllowList(*iss, path, GetAllowList()->GetSource());
-    }
-
-    auto audiences = verified_jwt->GetAudiences();
-    if (!audiences.ok()) {
-        DD("Token validator error: %s", audiences.status().error_message().c_str());
-        return AuthErrorFactory::AuthErrorMissingAud(*iss, path);
-    }
-
-    for (const auto& aud : audiences.value()) {
-        if (aud == path) {
-            return absl::OkStatus();
-        }
-    }
-
-    return AuthErrorFactory::AuthErrorMissingClaim(*iss, path);
+    return AuthorizeV1(*verified_jwt, path, GetAllowList());
 }
 
 }  // namespace android::emulation::control
