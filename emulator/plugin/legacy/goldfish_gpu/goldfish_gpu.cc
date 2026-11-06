@@ -222,7 +222,8 @@ class GoldfishGpu final : public IGoldfishGpu, public HostCallbacks {
 
         gfxstream::host::FeatureSet features;
         const bool egl_on_egl = android::base::System::Get()->EnvGet("ANDROID_EGL_ON_EGL") == "1";
-        RETURN_IF_ERROR(BuildFeatureSet(config.renderer_features, egl_on_egl, &features));
+        RETURN_IF_ERROR(BuildFeatureSet(config.renderer_features, egl_on_egl, &features,
+                                        config.guest_api_level));
 
         android::base::System::Get()->EnvSet("ANDROID_EMU_HEADLESS", "1");
 

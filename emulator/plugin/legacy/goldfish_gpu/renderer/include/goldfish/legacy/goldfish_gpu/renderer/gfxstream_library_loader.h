@@ -53,7 +53,7 @@ std::vector<std::filesystem::path> GfxstreamLibraryCandidates(
 // software rasterizer unless the user already set them.
 //
 // On macOS and Windows the bundled libEGL is ANGLE-on-Vulkan
-// (ANGLE_DEFAULT_PLATFORM=vulkan). Because GoldfishGpu disables guest Vulkan
+// (ANGLE_DEFAULT_PLATFORM=vulkan). When guest Vulkan is disabled
 // (features.Vulkan = false), gfxstream's FrameBuffer::Impl::Create() skips
 // vk::vkDispatch() / initIcdPaths(), which would otherwise translate
 // ANDROID_EMU_VK_ICD=lavapipe into VK_DRIVER_FILES / VK_ICD_FILENAMES. Point

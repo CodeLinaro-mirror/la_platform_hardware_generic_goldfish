@@ -47,12 +47,14 @@ TEST(RendererConfigTest, RendererBackendAngleAndOff) {
     EXPECT_EQ(ParseRendererBackend("off"), SELECTED_RENDERER_OFF_DEPRECATED);
 }
 
-TEST(RendererConfigTest, FeatureSetDefaultsAreGlOnly) {
+TEST(RendererConfigTest, FeatureSetGoldfishDefaults) {
     gfxstream::host::FeatureSet features;
     ASSERT_OK(BuildFeatureSet("", /*egl_on_egl=*/false, &features));
-    EXPECT_FALSE(features.Vulkan.enabled());
+    EXPECT_TRUE(features.Vulkan.enabled());
+    EXPECT_TRUE(features.HostComposition.enabled());
     EXPECT_FALSE(features.VulkanSnapshots.enabled());
     EXPECT_FALSE(features.GuestVulkanOnly.enabled());
+    EXPECT_FALSE(features.VulkanNativeSwapchain.enabled());
     EXPECT_FALSE(features.GlDma.enabled());
     EXPECT_FALSE(features.GlDma2.enabled());
     EXPECT_TRUE(features.GlDirectMem.enabled());
@@ -65,20 +67,54 @@ TEST(RendererConfigTest, FeatureSetDefaultsAreGlOnly) {
 
 TEST(RendererConfigTest, FeatureSetAppliesOverridesAndEglOnEgl) {
     gfxstream::host::FeatureSet features;
-    ASSERT_OK(BuildFeatureSet("GlAsyncSwap:disabled;RefCountPipe:disabled", /*egl_on_egl=*/true,
-                              &features));
+    ASSERT_OK(BuildFeatureSet("GlAsyncSwap:disabled;RefCountPipe:disabled;YuvCache:enabled",
+                              /*egl_on_egl=*/true, &features));
     EXPECT_FALSE(features.GlAsyncSwap.enabled());
     EXPECT_FALSE(features.RefCountPipe.enabled());
+    EXPECT_TRUE(features.YuvCache.enabled());
+    EXPECT_TRUE(features.Vulkan.enabled());
+    EXPECT_FALSE(features.VulkanSnapshots.enabled());
     EXPECT_TRUE(features.EglOnEgl.enabled());
 }
 
-TEST(RendererConfigTest, FeatureSetPinsVulkanOffDespiteOverrides) {
+TEST(RendererConfigTest, FeatureSetPinsUnsupportedVulkanModesOff) {
     gfxstream::host::FeatureSet features;
-    ASSERT_OK(BuildFeatureSet("Vulkan:enabled,VulkanSnapshots:enabled;GuestVulkanOnly:enabled",
-                              /*egl_on_egl=*/false, &features));
-    EXPECT_FALSE(features.Vulkan.enabled());
+    ASSERT_OK(BuildFeatureSet(
+            "Vulkan:enabled,VulkanSnapshots:enabled;GuestVulkanOnly:enabled;"
+            "VulkanNativeSwapchain:enabled",
+            /*egl_on_egl=*/false, &features));
+    EXPECT_TRUE(features.Vulkan.enabled());
     EXPECT_FALSE(features.VulkanSnapshots.enabled());
     EXPECT_FALSE(features.GuestVulkanOnly.enabled());
+    EXPECT_FALSE(features.VulkanNativeSwapchain.enabled());
+
+    gfxstream::host::FeatureSet no_vk_features;
+    ASSERT_OK(BuildFeatureSet("Vulkan:disabled,VulkanSnapshots:enabled", /*egl_on_egl=*/false,
+                              &no_vk_features));
+    EXPECT_FALSE(no_vk_features.Vulkan.enabled());
+    EXPECT_FALSE(no_vk_features.VulkanSnapshots.enabled());
+}
+
+TEST(RendererConfigTest, FeatureSetGatesVulkanBetweenApi31AndApi36Inclusive) {
+    for (uint32_t api : {31U, 32U, 33U, 34U, 35U, 36U}) {
+        gfxstream::host::FeatureSet features;
+        ASSERT_OK(BuildFeatureSet("VulkanSnapshots:enabled", /*egl_on_egl=*/false, &features, api));
+        EXPECT_TRUE(features.Vulkan.enabled()) << "api=" << api;
+        EXPECT_FALSE(features.VulkanSnapshots.enabled()) << "api=" << api;
+    }
+
+    for (uint32_t api : {24U, 29U, 30U, 37U}) {
+        gfxstream::host::FeatureSet defaults;
+        ASSERT_OK(BuildFeatureSet("", /*egl_on_egl=*/false, &defaults, api));
+        EXPECT_FALSE(defaults.Vulkan.enabled()) << "api=" << api;
+        EXPECT_FALSE(defaults.VulkanSnapshots.enabled()) << "api=" << api;
+
+        gfxstream::host::FeatureSet overridden;
+        ASSERT_OK(BuildFeatureSet("Vulkan:enabled;VulkanSnapshots:enabled", /*egl_on_egl=*/false,
+                                  &overridden, api));
+        EXPECT_FALSE(overridden.Vulkan.enabled()) << "api=" << api;
+        EXPECT_FALSE(overridden.VulkanSnapshots.enabled()) << "api=" << api;
+    }
 }
 
 TEST(RendererConfigTest, FeatureSetRejectsMalformedEntry) {
