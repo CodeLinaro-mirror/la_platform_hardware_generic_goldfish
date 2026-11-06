@@ -114,6 +114,7 @@ cc_test(
         "//emulator/libs/system:test-headers",
         "//emulator/libs/test:googletest_main",
         "//emulator/plugin/hal/connector:cable",
+        "@abseil-cpp//absl/cleanup",
         "@abseil-cpp//absl/status",
         "@qemu//:qemu-headers-exported",
     ],

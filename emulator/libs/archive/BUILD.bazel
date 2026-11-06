@@ -34,6 +34,7 @@ cc_library(
     ],
     hdrs = [
         "include/goldfish/archive/reader.h",
+        "include/goldfish/archive/string_writer.h",
         "include/goldfish/archive/writer.h",
     ],
     includes = ["include"],
