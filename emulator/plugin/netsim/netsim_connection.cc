@@ -135,7 +135,7 @@ void netsim_connection_realize(DeviceState* dev, Error** errp) {
                 []() { return get_connected_netsim_grpc_client(); },
                 []() -> std::string {
                     auto avd = goldfish::avd::GetNullableAvd();
-                    return avd ? avd->Props().avd_name : "";
+                    return avd ? avd->Props().avd_display_name : "";
                 });
     }
 }

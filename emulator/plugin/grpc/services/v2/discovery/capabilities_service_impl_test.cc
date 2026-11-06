@@ -89,7 +89,7 @@ class CapabilitiesServiceTest : public ::testing::Test {
   protected:
     void SetUp() override {
         auto props = std::make_unique<AvdProperties>();
-        props->avd_name = "test-pixel-9";
+        props->avd_display_name = "test-pixel-9";
         props->avd_id = "pixel_9_api_35";
         props->avd_api = 35;
         props->avd_abi = "x86_64";
@@ -132,6 +132,39 @@ TEST_F(CapabilitiesServiceTest, ReturnsAccurateDeviceMetadata) {
     EXPECT_EQ(meta.manufacturer(), "Google");
     EXPECT_EQ(meta.brand(), "Google");
     EXPECT_GT(meta.total_storage_bytes(), 0);
+}
+
+TEST_F(CapabilitiesServiceTest, MetadataUsesAvdDisplayNameAndAvdId) {
+    {
+        auto props = std::make_unique<AvdProperties>();
+        props->avd_display_name = "Medium Phone (2) 测试_🚀_é";
+        props->avd_id = "Medium_Phone_2";
+        props->hw_config = FakeHardwareConfig::GetHwConfig();
+
+        TestUniverse universe(std::move(props));
+        CapabilitiesServiceImpl service(universe);
+
+        GetDeviceCapabilitiesRequest request;
+        DeviceCapabilities reply;
+        ServerContext server_context;
+        ASSERT_TRUE(service.GetDeviceCapabilities(&server_context, &request, &reply).ok());
+        EXPECT_EQ(reply.metadata().display_name(), "Medium Phone (2) 测试_🚀_é");
+        EXPECT_EQ(reply.metadata().model_id(), "Medium_Phone_2");
+    }
+    {
+        auto props = std::make_unique<AvdProperties>();
+        props->hw_config = FakeHardwareConfig::GetHwConfig();
+
+        TestUniverse universe(std::move(props));
+        CapabilitiesServiceImpl service(universe);
+
+        GetDeviceCapabilitiesRequest request;
+        DeviceCapabilities reply;
+        ServerContext server_context;
+        ASSERT_TRUE(service.GetDeviceCapabilities(&server_context, &request, &reply).ok());
+        EXPECT_EQ(reply.metadata().display_name(), "Android Emulator");
+        EXPECT_EQ(reply.metadata().model_id(), "emulator");
+    }
 }
 
 TEST_F(CapabilitiesServiceTest, ReturnsDisplayCapabilities) {

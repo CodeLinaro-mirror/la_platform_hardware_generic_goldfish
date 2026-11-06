@@ -140,8 +140,10 @@ TEST(AvdInfoDeviceTest, EscapesCommasInDisplayName) {
     EXPECT_THAT(dev.initialize(emu.config()), absl_testing::IsOk());
     EXPECT_THAT(dev.getQemuParameters(emu.config()),
                 ElementsAre(Eq("-device"),
-                            HasSubstr(",avd_name=°º¤ø,,¸¸,,ø¤º°`°º¤ø,, UTF-8 ¸,,ø¤°º¤ø,,¸¸,,"
-                                      "ø¤º°`°º¤ø,,¸,avd_id=avd-3808973207,")));
+                            ::testing::AllOf(
+                                    Not(HasSubstr("avd_name=")),
+                                    HasSubstr(",avd_display_name=°º¤ø,,¸¸,,ø¤º°`°º¤ø,, UTF-8 "
+                                              "¸,,ø¤°º¤ø,,¸¸,,ø¤º°`°º¤ø,,¸,avd_id=avd-3808973207,"))));
 }
 
 TEST(AvdInfoDeviceTest, EscapesCommasInAvdDir) {

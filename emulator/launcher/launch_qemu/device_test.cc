@@ -72,7 +72,7 @@ TEST(DeviceTest, QemuParsesEscapedValueBackToOriginal) {
     for (std::string_view value : kValues) {
         SCOPED_TRACE(value);
         // The escaped value is followed by the next option, as in
-        // "-device avdstart,avd_name=<value>,avd_id=...".
+        // "-device avdstart,avd_display_name=<value>,avd_id=...".
         const std::string option = Device::EscapeQemuOptionValue(value) + ",next=1";
         std::string_view rest;
         EXPECT_EQ(ParseQemuOptionValue(option, &rest), value);

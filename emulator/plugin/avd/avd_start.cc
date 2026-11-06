@@ -95,6 +95,10 @@ absl::Status ValidateAvdProps(AvdProperties& avd_props) {
                 "adb_port is unspecified (it must be > 0): %d", avd_props.adb_port));
     }
 
+    if (avd_props.avd_id.empty()) {
+        return absl::InvalidArgumentError("avd_id is unspecified");
+    }
+
     if (avd_props.metrics_session_id == ::goldfish::metrics::Uuid::Zero() &&
         avd_props.metrics_writer_config.type != goldfish::metrics::MetricsWriterType::kNone) {
         return absl::InvalidArgumentError(
@@ -117,6 +121,7 @@ absl::Status ValidateAvdProps(AvdProperties& avd_props) {
     }
 
     avd_props.hw_config.Load(*hw_ini);
+    avd_props.hw_config.avd_id = avd_props.avd_id;
     return absl::OkStatus();
 }
 
@@ -142,7 +147,8 @@ void avd_info_realize(DeviceState* dev, Error** errp) {
     AvdInfoDev* avd_info = AVD_INFO_DEV(dev);
     DCHECK(avd_info);
 
-    VLOG(1) << "Device configuration, AVD name: '" << avd_info->mutable_props->avd_name << "'";
+    VLOG(1) << "Device configuration, AVD ID: '" << avd_info->mutable_props->avd_id
+            << "', display name: '" << avd_info->mutable_props->avd_display_name << "'";
 
     if (auto s = ValidateAvdProps(*avd_info->mutable_props); !s.ok()) {
         error_setg(errp, "%s", s.ToString().c_str());
@@ -180,8 +186,8 @@ void avd_info_set_adb_port(Object* obj, Visitor* v, const char* name, void* opaq
     toMutableAvdProperties(obj).adb_port = value;
 }
 
-void avd_info_set_avd_name(Object* obj, const char* value, Error** errp) {
-    toMutableAvdProperties(obj).avd_name = value;
+void avd_info_set_avd_display_name(Object* obj, const char* value, Error** errp) {
+    toMutableAvdProperties(obj).avd_display_name = value;
 }
 
 void avd_info_set_avd_id(Object* obj, const char* value, Error** errp) {
@@ -415,7 +421,7 @@ void avd_info_class_init(ObjectClass* oc, const void* data) {
     object_class_property_add(oc, "adb_port", "int", nullptr, avd_info_set_adb_port, nullptr,
                               nullptr);
 
-    object_class_property_add_str(oc, "avd_name", nullptr, avd_info_set_avd_name);
+    object_class_property_add_str(oc, "avd_display_name", nullptr, avd_info_set_avd_display_name);
     object_class_property_add_str(oc, "avd_id", nullptr, avd_info_set_avd_id);
     object_class_property_add_str(oc, "avd_abi", nullptr, avd_info_set_avd_abi);
     object_class_property_add(oc, "avd_api", "int", nullptr, avd_info_set_avd_api, nullptr,

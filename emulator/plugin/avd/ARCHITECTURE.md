@@ -23,8 +23,8 @@ environment, configures hardware, and starts all HAL services. **Location:**
     `QemuEventLoop`, and registers all HALs (`sensors`, `clipboard`, `camera`, `gps`, etc.) with the
     connector registry.
   - **Unrealize:** Shuts down the event loop and cleans up resources.
-- **Property Parsing:** Exposes QOM properties (e.g., `avd_name`, `adb_port`) that are set by the
-  emulator launcher command line.
+- **Property Parsing:** Exposes QOM properties (e.g., `avd_id`, `avd_display_name`, `adb_port`) that
+  are set by the emulator launcher command line.
 - **Global State:** Holds the canonical "Truth" for the device configuration (`HardwareConfig`) and
   mutable state (`ObservableValue`s in `AvdUniverse`).
 

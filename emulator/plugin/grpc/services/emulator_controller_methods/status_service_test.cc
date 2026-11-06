@@ -57,9 +57,11 @@ class StatusServiceTest : public GrcpServiceTest {
 
         guest_status_.Reset(absl::UnixEpoch());
         avd_properties_.hw_config = android::goldfish::FakeHardwareConfig::GetHwConfig();
+        avd_properties_.hw_config.avd_name = "fake-avd";
+        avd_properties_.hw_config.avd_id = "fake-avd-id";
         avd_properties_.avd_api = 35;
         avd_properties_.avd_api_str = "15.0 (V) - API 35";
-        avd_properties_.avd_name = "fake-avd";
+        avd_properties_.avd_display_name = "Fake AVD";
         avd_properties_.avd_id = "fake-avd-id";
         status_service_ = std::make_unique<StatusServiceImpl>(guest_status_, avd_properties_);
         service_wrapper_ = std::make_unique<StatusServiceWrapper>(*status_service_);
@@ -251,6 +253,38 @@ TEST_F(StatusServiceTest, GetStatusWithBuildFingerprint) {
     auto guest_config = reply.guestconfig();
     EXPECT_EQ(guest_config["buildFingerprint"],
               "google/sdk_gphone64_x86_64/emu64x:15/AP3A/12345:userdebug/dev-keys");
+}
+
+TEST_F(StatusServiceTest, GetStatusReportsAvdNameNotDisplayNameAndHonorsAvdId) {
+    avd_properties_.hw_config.avd_name = "Medium_Phone_2";
+    avd_properties_.hw_config.avd_id = "custom-session-id";
+    avd_properties_.avd_display_name = "Medium Phone (2) 测试_🚀_é";
+    avd_properties_.avd_id = "custom-session-id";
+
+    Empty request;
+    EmulatorStatus reply;
+    auto context = getContextWithTimeout();
+    ASSERT_GRPC_STATUS(mStub->getStatus(context.get(), request, &reply));
+
+    const auto& platform = reply.platformconfig();
+    EXPECT_EQ(platform.at("avd.name"), "Medium_Phone_2");
+    EXPECT_EQ(platform.at("avd.id"), "custom-session-id");
+
+    std::string hw_avd_name;
+    std::string hw_avd_id;
+    for (const auto& entry : reply.hardwareconfig().entry()) {
+        if (entry.key() == "avd.name") {
+            hw_avd_name = entry.value();
+        } else if (entry.key() == "avd.id") {
+            hw_avd_id = entry.value();
+        }
+    }
+    EXPECT_EQ(hw_avd_name, "Medium_Phone_2");
+    EXPECT_EQ(hw_avd_id, "custom-session-id");
+
+    const std::string& details = reply.guestconfig().at("avdDetails");
+    EXPECT_NE(details.find("Name: Medium_Phone_2\n"), std::string::npos);
+    EXPECT_EQ(details.find("Medium Phone (2)"), std::string::npos);
 }
 
 }  // namespace android::emulation::control
