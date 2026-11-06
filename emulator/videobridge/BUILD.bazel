@@ -760,6 +760,8 @@ cc_test(
     name = "mf_video_encoder_h264_test",
     size = "small",
     srcs = ["core/win/mf_video_encoder_h264_test.cc"],
+    copts = WEBRTC_COPTS,
+    includes = ["."],
     target_compatible_with = select({
         "@platforms//os:windows": [],
         "//conditions:default": ["@platforms//:incompatible"],
@@ -767,6 +769,35 @@ cc_test(
     deps = [
         ":videobridge_codecs_win",
         "//emulator/libs/test:googletest_main",
+        "@webrtc//api:scoped_refptr",
+        "@webrtc//api/video:video_frame",
+        "@webrtc//api/video_codecs:video_codecs_api",
+    ],
+)
+
+cc_binary_with_manifest(
+    name = "mf_video_encoder_h264_perf",
+    srcs = ["core/win/mf_video_encoder_h264_perf.cc"],
+    copts = WEBRTC_COPTS,
+    includes = ["."],
+    linkopts = [
+        "-DEFAULTLIB:mfplat.lib",
+        "-DEFAULTLIB:mfuuid.lib",
+        "-DEFAULTLIB:ole32.lib",
+        "-DEFAULTLIB:strmiids.lib",
+        "-DEFAULTLIB:uuid.lib",
+    ],
+    tags = ["benchmark"],
+    target_compatible_with = select({
+        "@platforms//os:windows": [],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
+    deps = [
+        ":videobridge_codecs_win",
+        "@google_benchmark//:benchmark",
+        "@libyuv",
+        "@webrtc//api:scoped_refptr",
+        "@webrtc//api/video:video_frame",
         "@webrtc//api/video_codecs:video_codecs_api",
     ],
 )
