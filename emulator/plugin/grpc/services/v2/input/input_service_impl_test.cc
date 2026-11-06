@@ -193,7 +193,7 @@ class PacingEventLoop final : public EventLoop {
     }
 
     void ShutdownTimers() override { inner_.ShutdownTimers(); }
-    size_t WaitUntilIdle() override { return inner_.WaitUntilIdle(); }
+    size_t Flush() override { return inner_.Flush(); }
     std::future<absl::Status> Shutdown() override { return inner_.Shutdown(); }
     bool IsOnLoopThread() const override { return inner_.IsOnLoopThread(); }
 
@@ -217,7 +217,7 @@ class PacingEventLoop final : public EventLoop {
     }
     absl::Status PostDelayed(Task task, absl::Duration delay, FlowId /*flow_id*/) override {
         if (!inner_.IsOnLoopThread()) {
-            inner_.WaitUntilIdle();
+            inner_.Flush();
         }
         clock_.Sleep(delay);
         return inner_.Post(std::move(task));
@@ -238,7 +238,7 @@ class PacingEventLoop final : public EventLoop {
 
         void Schedule(absl::Duration initial_delay, absl::Duration /*interval*/) override {
             if (!loop_.IsOnLoopThread()) {
-                loop_.WaitUntilIdle();
+                loop_.Flush();
             }
             clock_.Sleep(initial_delay);
             absl::AnyInvocable<void()> fire = [self = shared_from_this()]() {
@@ -428,7 +428,7 @@ class InputServiceImplTest : public ::testing::Test {
     void TearDown() override {
         StopServer();
         // Runs the session closes posted so far before the dispatcher goes.
-        loop_->WaitUntilIdle();
+        loop_->Flush();
         dispatcher_->Shutdown();
         dispatcher_.reset();
         for (auto display_weak : multi_display_->Displays()) {
@@ -445,7 +445,7 @@ class InputServiceImplTest : public ::testing::Test {
         // Lets the dispatcher apply what was posted before time moves on, so
         // dispatch times are deterministic.
         opts.sleep_fn = [this](absl::Duration d) {
-            loop_->WaitUntilIdle();
+            loop_->Flush();
             clock_.Sleep(d);
         };
         return opts;

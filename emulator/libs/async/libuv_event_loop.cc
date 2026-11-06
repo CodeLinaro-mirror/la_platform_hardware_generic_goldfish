@@ -103,7 +103,7 @@ class LibuvEventLoopImpl : public LibuvEventLoop {
 
     // --- Base EventLoop Implementation ---
     void ShutdownTimers() override;
-    size_t WaitUntilIdle() override;
+    size_t Flush() override;
     std::future<absl::Status> Shutdown() override;
 
     bool IsOnLoopThread() const override { return std::this_thread::get_id() == thread_id_; }
@@ -582,7 +582,7 @@ void LibuvEventLoopImpl::ShutdownTimers() {
     PostAndWait([this]() { ShutdownTimersInternal(); }).IgnoreError();
 }
 
-size_t LibuvEventLoopImpl::WaitUntilIdle() {
+size_t LibuvEventLoopImpl::Flush() {
     const absl::MutexLock lock(task_mutex_);
     const uint64_t target = tasks_submitted_;
     auto reached_target = [this, target]() ABSL_EXCLUSIVE_LOCKS_REQUIRED(task_mutex_) {

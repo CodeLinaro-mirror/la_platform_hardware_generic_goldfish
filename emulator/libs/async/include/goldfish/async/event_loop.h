@@ -194,14 +194,14 @@ class EventLoop : public CallbackEventSource<LooperStatusEvent> {
     virtual void ShutdownTimers() = 0;
 
     /**
-     * @brief Blocks the calling thread until the event loop is idle.
+     * @brief Blocks the calling thread until currently queued tasks have run.
      *
      * This method waits until all tasks that were enqueued *before* this method
-     * was called have been processed. Tasks posted while `WaitUntilIdle` is
-     * executing will not be waited for by the current call.
+     * was called have been processed. Tasks posted while `Flush` is executing
+     * will not be waited for by the current call.
      * @return An opaque value which changes when a task is processed.
      */
-    virtual size_t WaitUntilIdle() = 0;
+    virtual size_t Flush() = 0;
 
     /**
      * @brief Initiates a graceful shutdown of the event loop.

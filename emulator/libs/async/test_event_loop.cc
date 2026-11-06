@@ -44,7 +44,7 @@ class TestEventLoopImpl : public TestEventLoop {
 
     // EventLoop Interface
     void ShutdownTimers() override;
-    size_t WaitUntilIdle() override;
+    size_t Flush() override;
     std::future<absl::Status> Shutdown() override;
     bool IsOnLoopThread() const override;
     absl::Status PostImmediately(Task task, FlowId flow_id) override;
@@ -216,7 +216,7 @@ void TestEventLoopImpl::ShutdownTimers() {
     scheduled_tasks_.clear();
 }
 
-size_t TestEventLoopImpl::WaitUntilIdle() {
+size_t TestEventLoopImpl::Flush() {
     absl::MutexLock lock(&mutex_);
     const uint64_t target = tasks_submitted_;
     auto reached_target = [this, target]() ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_) {

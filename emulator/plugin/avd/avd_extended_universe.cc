@@ -320,7 +320,7 @@ void AvdExtendedUniverse::WaitUntilEventLoopsIdle() {
     const auto wait_event_loops_idle = [](size_t n, size_t* c, EventLoop** l) -> bool {
         bool updated = false;
         for (; n > 0; --n, ++c, ++l) {
-            const size_t nc = (*l)->WaitUntilIdle();
+            const size_t nc = (*l)->Flush();
             if (nc != *c) {
                 *c = nc;
                 updated = true;
@@ -333,7 +333,7 @@ void AvdExtendedUniverse::WaitUntilEventLoopsIdle() {
     size_t counters[std::size(loops)];
     std::transform(std::begin(loops), std::end(loops), std::begin(counters), [](EventLoop* l) {
         l->ShutdownTimers();
-        return l->WaitUntilIdle();
+        return l->Flush();
     });
 
     while (wait_event_loops_idle(std::size(loops), counters, loops)) {
