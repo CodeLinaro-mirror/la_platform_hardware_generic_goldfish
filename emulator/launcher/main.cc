@@ -38,6 +38,7 @@
 #include "absl/strings/substitute.h"
 #include "absl/time/time.h"
 
+#include "android/base/studio_log_sink.h"
 #include "android/base/system.h"
 #include "android/cmdline_option.h"
 #include "android/crashreport/crash_system.h"
@@ -46,6 +47,7 @@
 #include "android/goldfish/input_paths.h"
 #include "android/main_help.h"
 #include "android/status/status_macros.h"
+#include "avd_session_lock.h"
 #include "feature_pattern_downloader.h"
 #include "goldfish/async/libuv_event_loop.h"
 #include "goldfish/async/libuv_process_launcher.h"
@@ -208,9 +210,11 @@ void ListAvds(const AndroidOptions& opts, const android::goldfish::UserPaths& us
     for (const auto& name : avds) {
         if (verbose) {
             // Only parse the AVD when -verbose is specified.
-            auto a = android::goldfish::Avd::FromName(opts, user_paths, name, /*wipe_data=*/false,
-                                                      /*content_override=*/{},
-                                                      /*sysdir_override=*/{});
+            auto a = android::goldfish::Avd::Load({
+                .opts = opts,
+                .user_paths = user_paths,
+                .name = name,
+            });
             if (a.ok()) {
                 std::cout << (*a)->Details(/*verbose=*/true) << '\n';
             } else {
@@ -264,8 +268,11 @@ void ListSnapshots(const AndroidOptions& opts, const android::goldfish::UserPath
     }
 
     for (const auto& name : avd_names) {
-        auto a = android::goldfish::Avd::FromName(opts, user_paths, name, /*wipe_data=*/false,
-                                                  /*content_override=*/{}, /*sysdir_override=*/{});
+        auto a = android::goldfish::Avd::Load({
+            .opts = opts,
+            .user_paths = user_paths,
+            .name = name,
+        });
         if (!a.ok()) {
             std::cout << "AVD " << name << " is not valid: " << a.status() << "\n";
             continue;
@@ -306,24 +313,12 @@ void ListSnapshots(const AndroidOptions& opts, const android::goldfish::UserPath
     }
 }
 
-}  // namespace
+struct MainResult {
+    int exit_code = 0;
+    std::string studio_fatal_message;
+};
 
-int main(int argc, char** argv) {
-#ifndef _WIN32
-    signal(SIGPIPE, SIG_IGN);
-    if (android::base::System::GetEnvironmentVariable("ANDROID_CLI") == "1") {
-        if (setsid() == -1 && errno != EPERM) {
-            std::cerr << "emulator-launcher: Warning: setsid() failed: " << strerror(errno) << ".\n"
-                      << "emulator-launcher: Failed to detach from parent Process Group (PGID).\n"
-                      << "emulator-launcher: If running inside a CLI tool like gemini-cli, the "
-                         "emulator may be terminated unexpectedly when the launcher exits.\n";
-        }
-    }
-#endif
-    absl::InitializeSymbolizer(argv[0]);
-
-    absl::InitializeLog();
-
+MainResult RunMain(int argc, char** argv) {
     // Take a copy of the args before the parser modifies them.
     std::vector<std::string> args_copy(argv + 1, argv + argc);
 
@@ -331,13 +326,13 @@ int main(int argc, char** argv) {
         const char* opt = argv[nn];
         int helpStatus = emulator_parseHelpOption(opt);
         if (helpStatus >= 0) {
-            return helpStatus;
+            return {.exit_code = helpStatus};
         }
     }
 
     AndroidOptions opts;
     if (android_parse_options(&argc, &argv, &opts) < 0) {
-        return 1;
+        return {.exit_code = 1};
     }
 
 #ifdef _WIN32
@@ -390,24 +385,24 @@ int main(int argc, char** argv) {
     auto emulator_paths = android::goldfish::ResolveEmulatorPaths(opts.verbose);
     if (!emulator_paths.ok()) {
         LOG(ERROR) << "Failed to resolve emulator paths: " << emulator_paths.status();
-        return 1;
+        return {.exit_code = 1};
     }
 
     auto user_paths =
             android::goldfish::ResolveUserPaths(emulator_paths->launcher_directory, opts.verbose);
     if (!user_paths.ok()) {
         LOG(ERROR) << "Failed to resolve user paths: " << user_paths.status();
-        return 1;
+        return {.exit_code = 1};
     }
 
     if (opts.list_avds) {
         ListAvds(opts, *user_paths, opts.verbose);
-        return 0;
+        return {.exit_code = 0};
     }
 
     if (opts.snapshot_list) {
         ListSnapshots(opts, *user_paths, opts.verbose);
-        return 0;
+        return {.exit_code = 0};
     }
 
     ShowBanner();
@@ -421,7 +416,7 @@ int main(int argc, char** argv) {
     if (android::goldfish::ShouldLaunchFishtank(opts) && !emulator_paths->HasFishtank()) {
         LOG(ERROR) << "Fishtank (UI) is not available in the AOSP build. "
                       "Please use the '-no-window' flag to run in headless mode.";
-        return 1;
+        return {.exit_code = 1};
     }
 
     if (auto status = android::crashreport::CrashSystem::Get().Initialize({
@@ -485,21 +480,18 @@ int main(int argc, char** argv) {
     if (opts.avd) {
         avd_name = opts.avd;
     } else {
-        // Root not used: auto android_build_root =
-        // android::base::System::GetEnvironmentVariable("ANDROID_BUILD_TOP"); e.g.
-        // <root>/out/target/product/emu64xa
-        auto out = android::base::System::GetEnvironmentVariable("ANDROID_PRODUCT_OUT");
+        auto out = android::base::System::Get()->EnvGet("ANDROID_PRODUCT_OUT");
         if (!out.empty()) {
             avd_name = "<build>";
             android_build_out = out;
             if (!android::base::file::exists(android_build_out)) {
                 LOG(ERROR) << "ANDROID_PRODUCT_OUT specified but does not exist: "
                            << android_build_out;
-                return 1;
+                return {.exit_code = 1};
             }
             if (!android::base::file::is_dir(android_build_out)) {
                 LOG(ERROR) << "ANDROID_PRODUCT_OUT is not a directory: " << android_build_out;
-                return 1;
+                return {.exit_code = 1};
             }
         }
         // TODO also support -sysdir without -avd
@@ -507,37 +499,30 @@ int main(int argc, char** argv) {
     if (avd_name.empty()) {
         LOG(ERROR) << "No AVD specified. Use '@foo' or '-avd foo' to launch a virtual device named "
                       "'foo'";
-        return 1;
+        return {.exit_code = 1};
     }
 
-    fs::path writable_content_override;
-    if (opts.read_only) {
-        writable_content_override = android::base::System::Get()->GetTempDir();
-        VLOG(1) << "Content path overridden to: " << writable_content_override;
-        android::base::file::mkdir_recursive(writable_content_override, 0755).IgnoreError();
-    } else if (opts.datadir) {
-        writable_content_override = fs::path(opts.datadir);
-        if (!android::base::file::exists(writable_content_override)) {
-            LOG(ERROR) << "-datadir specified does not exist: " << writable_content_override;
-            return 1;
+    fs::path content_override;
+    if (opts.datadir != nullptr) {
+        content_override = fs::path(opts.datadir);
+        if (!android::base::file::exists(content_override)) {
+            LOG(ERROR) << "-datadir specified does not exist: " << content_override;
+            return {.exit_code = 1};
         }
-        if (!android::base::file::is_dir(writable_content_override)) {
-            LOG(ERROR) << "-datadir specified is not a directory: " << writable_content_override;
-            return 1;
+        if (!android::base::file::is_dir(content_override)) {
+            LOG(ERROR) << "-datadir specified is not a directory: " << content_override;
+            return {.exit_code = 1};
         }
-        VLOG(1) << "Content path overridden to: " << writable_content_override;
+        VLOG(1) << "Content path overridden to: " << content_override;
     }
 
-    absl::StatusOr<std::unique_ptr<android::goldfish::Avd>> avd;
-    if (!android_build_out.empty()) {
-        avd = android::goldfish::Avd::FromAndroidBuild(opts, *user_paths, avd_name,
-                                                       android_build_out, opts.wipe_data,
-                                                       writable_content_override);
-    } else {
-        avd = android::goldfish::Avd::FromName(opts, *user_paths, avd_name, opts.wipe_data,
-                                               writable_content_override,
-                                               opts.sysdir ? opts.sysdir : fs::path());
-    }
+    auto avd = android::goldfish::Avd::Load({
+        .opts = opts,
+        .user_paths = *user_paths,
+        .name = avd_name,
+        .android_build_out = android_build_out,
+        .content_override = content_override,
+    });
 
     // Always error for missing AVDs, don't try to trampoline.
     if (absl::IsNotFound(avd.status())) {
@@ -545,7 +530,7 @@ int main(int argc, char** argv) {
         for (const auto line : absl::StrSplit(avd.status().message(), '\n')) {
             LOG(ERROR) << line;
         }
-        return 1;
+        return {.exit_code = 1};
     }
 
     absl::StatusOr<android::goldfish::FeatureFlags> feature_flags;
@@ -571,22 +556,77 @@ int main(int argc, char** argv) {
         });
     }
 
-    if (android::goldfish::ShouldTrampolineToQemu2(avd, feature_flags)) {
+    if (android::goldfish::ShouldTrampolineToQemu2(avd, feature_flags, opts.wipe_data != 0)) {
         auto s = android::goldfish::TrampolineToQemu2(emulator_paths->launcher_directory,
                                                       std::move(args_copy),
                                                       [&] { reporter->Shutdown(); });
         LOG(ERROR) << s;
-        return 1;
+        return {.exit_code = 1};
     }
 
     // We currently expect AVD load failures to trigger trampoline and not reach this point.
     if (!avd.ok()) {
         LOG(ERROR) << "Bug: AVD loading failed: " << avd.status();
-        return 1;
+        return {.exit_code = 1};
     }
     if (!feature_flags.ok()) {
         LOG(ERROR) << "Failed to load feature flags: " << feature_flags.status();
-        return 1;
+        return {.exit_code = 1};
+    }
+
+    if (opts.check_snapshot_loadable != nullptr) {
+        LOG(WARNING) << "-check-snapshot-loadable is deprecated and ignored; use "
+                        "-force-snapshot-load or SnapshotService gRPC instead.";
+        return {.exit_code = 0};
+    }
+
+    bool set_qemu_version = true;
+    if (!opts.wipe_data) {
+        auto last_run_qemu_version = (*avd)->GetLastRunQemuVersion();
+        if (!last_run_qemu_version.ok()) {
+            LOG(ERROR) << "Error reading last used QEMU version for AVD " << avd_name << " due to "
+                       << last_run_qemu_version.status().message();
+        } else if (std::optional<int> version = last_run_qemu_version.value()) {
+            if (version.value() != EMULATOR_COMPATIBLE_QEMU_VERSION) {
+                LOG(ERROR) << "AVD " << avd_name
+                           << " is not compatible with this emulator. Last run QEMU version: "
+                           << version.value()
+                           << ", compatible QEMU version: " << EMULATOR_COMPATIBLE_QEMU_VERSION
+                           << ". Use -wipe-data option to reset the AVD data and use this "
+                              "emulator.";
+                return {.exit_code = 1};
+            }
+            VLOG(1) << "AVD last run QEMU version is compatible.";
+            set_qemu_version = false;
+        }
+    }
+
+    auto avd_lock =
+            android::goldfish::AvdSessionLock::Acquire((*avd)->GetContentPath(), (*avd)->Name());
+    if (!avd_lock.ok()) {
+        if (absl::IsUnavailable(avd_lock.status())) {
+            return {
+                .exit_code = 1,
+                .studio_fatal_message = std::string(avd_lock.status().message()),
+            };
+        }
+        LOG(ERROR) << "Failed to acquire AVD session lock: " << avd_lock.status();
+        return {.exit_code = 1};
+    }
+
+    if (auto s = (*avd)->PrepareWritableState(android::goldfish::AvdWritableOptions::From(opts));
+        !s.ok()) {
+        LOG(ERROR) << s;
+        return {.exit_code = 1};
+    }
+
+    if (set_qemu_version) {
+        LOG(INFO) << "Setting AVD last run compatible QEMU version to "
+                  << EMULATOR_COMPATIBLE_QEMU_VERSION;
+        auto s = (*avd)->SetLastRunQemuVersion(EMULATOR_COMPATIBLE_QEMU_VERSION);
+        if (!s.ok()) {
+            LOG(ERROR) << "Could not save last run QEMU version, error: " << s;
+        }
     }
 
     feature_flags->ApplyHostFeaturePatterns(android::goldfish::QueryHostInfo());
@@ -604,7 +644,7 @@ int main(int argc, char** argv) {
 
     // Runs a one-shot update check and server feature pattern refresh on background
     // threads (throttled via emu-update-last-check.ini and emu-last-feature-flags.protobuf).
-    // If still in flight when main() exits, the scoped handles cancel and join their threads.
+    // If still in flight when RunMain() exits, the scoped handles cancel and join their threads.
     goldfish::update_check::ScopedUpdateCheck update_check;
     std::jthread feature_pattern_download;
     if (android_build_out.empty()) {
@@ -633,34 +673,6 @@ int main(int argc, char** argv) {
         }
     }
 
-    bool set_qemu_version = true;
-    auto last_run_qemu_version = (*avd)->GetLastRunQemuVersion();
-    if (!last_run_qemu_version.ok()) {
-        LOG(ERROR) << "Error reading last used QEMU version for AVD " << avd_name << " due to "
-                   << last_run_qemu_version.status().message();
-    } else if (std::optional<int> version = last_run_qemu_version.value()) {
-        if (version.value() != EMULATOR_COMPATIBLE_QEMU_VERSION) {
-            LOG(ERROR) << "AVD " << avd_name
-                       << " is not compatible with this emulator. Last run QEMU version: "
-                       << version.value()
-                       << ", compatible QEMU version: " << EMULATOR_COMPATIBLE_QEMU_VERSION
-                       << ". Use -wipe-data option to reset the AVD data and use this emulator.";
-            return 1;
-        } else {
-            VLOG(1) << "AVD last run QEMU version is compatible.";
-            set_qemu_version = false;
-        }
-    }
-
-    if (set_qemu_version) {
-        LOG(INFO) << "Setting AVD last run compatible QEMU version to "
-                  << EMULATOR_COMPATIBLE_QEMU_VERSION;
-        auto s = (*avd)->SetLastRunQemuVersion(EMULATOR_COMPATIBLE_QEMU_VERSION);
-        if (!s.ok()) {
-            LOG(ERROR) << "Could not save last run QEMU version, error: " << s;
-        }
-    }
-
     LOG(INFO) << "Launching AVD: " << (*avd)->Details(opts.verbose);
     auto exit_status = android::goldfish::RunLauncher({
         .event_loop = *event_loop,
@@ -670,6 +682,7 @@ int main(int argc, char** argv) {
         .socket_factory = std::make_unique<::goldfish::async::LibuvAsyncSocketFactory>(),
         .user_paths = *std::move(user_paths),
         .emulator_paths = *std::move(emulator_paths),
+        .avd_session_lock = *std::move(avd_lock),
         .avd = *std::move(avd),
         .opts = std::move(opts),
         .feature_flags = *std::move(feature_flags),
@@ -678,7 +691,32 @@ int main(int argc, char** argv) {
     });
     if (!exit_status.ok()) {
         LOG(ERROR) << exit_status.status();
-        return 1;
+        return {.exit_code = 1};
     }
-    return *exit_status;
+    return {.exit_code = *exit_status};
+}
+
+}  // namespace
+
+int main(int argc, char** argv) {
+#ifndef _WIN32
+    signal(SIGPIPE, SIG_IGN);
+    if (android::base::System::GetEnvironmentVariable("ANDROID_CLI") == "1") {
+        if (setsid() == -1 && errno != EPERM) {
+            std::cerr << "emulator-launcher: Warning: setsid() failed: " << strerror(errno) << ".\n"
+                      << "emulator-launcher: Failed to detach from parent Process Group (PGID).\n"
+                      << "emulator-launcher: If running inside a CLI tool like gemini-cli, the "
+                         "emulator may be terminated unexpectedly when the launcher exits.\n";
+        }
+    }
+#endif
+    absl::InitializeSymbolizer(argv[0]);
+
+    absl::InitializeLog();
+
+    const MainResult result = RunMain(argc, argv);
+    if (!result.studio_fatal_message.empty()) {
+        android::base::ExitWithStudioFatalMessage(result.studio_fatal_message);
+    }
+    return result.exit_code;
 }

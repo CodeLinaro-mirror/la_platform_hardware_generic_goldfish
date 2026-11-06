@@ -30,22 +30,26 @@ sequenceDiagram
     Crash-->>Launcher: (Starts crashpad_handler)
 
     Note over Launcher: 5. Load AVD
-    Launcher->>Config: Avd::FromName()
+    Launcher->>Config: Avd::Load()
     Config-->>Launcher: Avd Object (HW Config)
 
-    Note over Launcher: 6. Setup Networking (Netsim)
+    Note over Launcher: 6. Lock & Prepare Session
+    Launcher->>Launcher: AvdSessionLock::Acquire()
+    Launcher->>Config: Avd::PrepareWritableState()
+
+    Note over Launcher: 7. Setup Networking (Netsim)
     alt Netsim Enabled
         Launcher->>Netsim: Launch(netsimd)
         Launcher->>Launcher: Wait for gRPC Port
         Netsim-->>Launcher: Port Available
     end
 
-    Note over Launcher: 7. Configure QEMU
+    Note over Launcher: 8. Configure QEMU
     Launcher->>Launcher: Emulator::launch_config()
     Launcher->>Launcher: Add Devices (Virtio, GPU, gRPC)
     Launcher->>Launcher: Generate Cmdline
 
-    Note over Launcher: 8. Launch QEMU
+    Note over Launcher: 9. Launch QEMU
     Launcher->>QEMU: Launch(qemu-system-x86_64 ...)
 
     loop Monitoring

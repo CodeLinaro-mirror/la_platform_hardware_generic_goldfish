@@ -46,6 +46,7 @@
 #include "android/status/status_macros.h"
 #include "avd_keys.h"
 #include "goldfish/file/file.h"
+#include "goldfish/file/file_lock.h"
 #include "goldfish/snapshot/snapshot_store.h"
 #include "host-common/constants.h"
 
@@ -278,6 +279,19 @@ struct BuildProp {
     IniFile vendor_build_ini;
 };
 
+bool IsAvdSessionLockFile(const fs::path& filename) {
+    return filename ==
+                   base::file::ScopedFileLock::LockPathForTarget(CORE_HARDWARE_INI).filename() ||
+           filename == base::file::ScopedFileLock::LockPathForTarget(SNAPSHOT_LOCK).filename() ||
+           filename == MULTIINSTANCE_LOCK;
+}
+
+bool ShouldPreserveOnWipeData(const fs::path& filename) {
+    // sdcard.img is created by Android Studio, keep it.
+    constexpr std::string_view kSdCardImg = "sdcard.img";
+    return IsAvdSessionLockFile(filename) || filename == CORE_CONFIG_INI || filename == kSdCardImg;
+}
+
 }  // namespace
 
 class FileBackedAvd : public Avd {
@@ -296,8 +310,68 @@ class FileBackedAvd : public Avd {
 
     std::string Name() const override { return name_; }
     const SystemImagePaths& GetSystemImagePaths() const override { return system_image_paths_; }
-    fs::path GetContentPath() const override { return content_path_; };
+    fs::path GetContentPath() const override { return content_path_; }
     const HardwareConfig& Hw() const override { return hw_cfg_; }
+
+    absl::Status PrepareWritableState(const AvdWritableOptions& options) override {
+        if (!base::file::is_dir(content_path_)) {
+            if (!base::file::exists(content_path_)) {
+                if (auto s = base::file::mkdir_recursive(content_path_, 0755); !s.ok()) {
+                    return absl::InternalError(
+                            absl::StrCat("Could not create the avd path: ", content_path_.string(),
+                                         ", Status: ", s));
+                }
+            } else {
+                return absl::InvalidArgumentError(
+                        absl::StrCat("The AVD content directory exists but is not a directory: ",
+                                     content_path_.string()));
+            }
+        }
+
+        if (!base::file::can_read(content_path_)) {
+            return absl::PermissionDeniedError(
+                    absl::StrCat("The AVD content directory exists but is not readable: ",
+                                 content_path_.string()));
+        }
+
+        if (!base::file::can_write(content_path_)) {
+            return absl::PermissionDeniedError(
+                    absl::StrCat("The AVD content directory exists but is not writable: ",
+                                 content_path_.string()));
+        }
+
+        if (options.wipe_data) {
+            LOG(WARNING) << "Performing factory reset: clearing AVD for an initial cold boot";
+            for (const auto& entry : base::file::scan_dir(content_path_, /*fullPath=*/true)) {
+                if (ShouldPreserveOnWipeData(entry.filename())) {
+                    continue;
+                }
+                if (auto s = base::file::rm_recursive(entry); !s.ok()) {
+                    LOG(ERROR) << "Factory reset failed: unable to remove AVD file "
+                               << entry.string() << " - " << s;
+                    return absl::InternalError("AVD wipe data failed");
+                }
+            }
+        }
+
+        if (options.verbose) {
+            LOG(INFO) << "Listing avd content directory (" << content_path_ << "):";
+            for (const auto& path : base::file::scan_dir_recursive(content_path_)) {
+                LOG(INFO) << "    " << path.lexically_relative(content_path_).string();
+            }
+        }
+
+        // Save to CORE_HARDWARE_INI as well; embedded UI and tools expect it.
+        const fs::path hw_path = content_path_ / CORE_HARDWARE_INI;
+        IniFile hw_config(hw_path);
+        hw_cfg_.Write(&hw_config);
+        if (!hw_config.WriteDiscardingEmpty()) {
+            return absl::InternalError(
+                    absl::StrCat("Failed to write hardware config: ", hw_path.string()));
+        }
+
+        return absl::OkStatus();
+    }
 
     android_studio::EmulatorAvdInfo::EmulatorAvdImageKind ImageKind() const override {
         const std::string flavor = BuildFlavor();
@@ -632,11 +706,19 @@ std::vector<std::string> Avd::List(const fs::path& avd_directory) {
 }
 
 // static
-absl::StatusOr<std::unique_ptr<Avd>> Avd::FromName(const AndroidOptions& opts,
-                                                   const android::goldfish::UserPaths& user_paths,
-                                                   const std::string& name, bool wipe_data,
-                                                   fs::path content_override,
-                                                   fs::path sysdir_override) {
+absl::StatusOr<std::unique_ptr<Avd>> Avd::Load(const Options& options) {
+    if (!options.android_build_out.empty()) {
+        return FromAndroidBuild(options);
+    }
+    return FromName(options);
+}
+
+// static
+absl::StatusOr<std::unique_ptr<Avd>> Avd::FromName(const Options& options) {
+    const auto& opts = options.opts;
+    const auto& user_paths = options.user_paths;
+    const auto& name = options.name;
+
     auto ini_path = user_paths.avd_directory / (name + ".ini");
 
     if (!base::file::exists(ini_path) || !base::file::can_read(ini_path)) {
@@ -667,9 +749,6 @@ absl::StatusOr<std::unique_ptr<Avd>> Avd::FromName(const AndroidOptions& opts,
         return absl::InternalError(absl::StrCat("Unable to parse ini file: ", ini_path.string()));
     }
 
-    constexpr std::string_view kConfigIni = "config.ini";
-    constexpr std::string_view kSdCardImg = "sdcard.img";
-
     fs::path original_content_path;
     if (auto abs_content_path = fs::path(ini->Get<std::string>("path", ""));
         base::file::exists(abs_content_path)) {
@@ -696,25 +775,7 @@ absl::StatusOr<std::unique_ptr<Avd>> Avd::FromName(const AndroidOptions& opts,
                              original_content_path.string()));
     }
 
-    if (content_override.empty() && wipe_data) {
-        LOG(WARNING) << "Performing factory reset: clearing AVD for an initial cold boot";
-        for (auto& path : android::base::file::scan_dir(original_content_path, /*fullPath=*/true)) {
-            if (path.filename() == kConfigIni) {
-                continue;
-            }
-            // sdcard.img is created by the Android Studio, keep it.
-            if (path.filename() == kSdCardImg) {
-                continue;
-            }
-            if (auto s = android::base::file::rm_recursive(path); !s.ok()) {
-                LOG(ERROR) << "Factory reset failed: unable to remove AVD file " << path.string()
-                           << " - " << s;
-                return absl::InternalError("AVD wipe data failed");
-            }
-        }
-    }
-
-    auto config_ini_path = original_content_path / kConfigIni;
+    auto config_ini_path = original_content_path / CORE_CONFIG_INI;
     if (!base::file::exists(config_ini_path) || !base::file::can_read(config_ini_path)) {
         return absl::NotFoundError(absl::StrCat(
                 "Unable to parse ", name, ", no access to config: ", config_ini_path.string()));
@@ -726,9 +787,14 @@ absl::StatusOr<std::unique_ptr<Avd>> Avd::FromName(const AndroidOptions& opts,
                 absl::StrCat("Unable to parse config ini file: ", config_ini_path.string()));
     }
 
+    fs::path sysdir_override = options.sysdir_override;
+    if (sysdir_override.empty() && opts.sysdir != nullptr) {
+        sysdir_override = fs::path(opts.sysdir);
+    }
+
     std::vector<fs::path> sys_image_search_paths;
     if (!sysdir_override.empty()) {
-        sys_image_search_paths.push_back(sysdir_override);
+        sys_image_search_paths.push_back(std::move(sysdir_override));
     } else {
         for (int n = 0; n < kMaxSearchPaths; n++) {
             if (const std::string s = config_ini.GetString(absl::StrCat(kSearchPrefix, n), "");
@@ -742,42 +808,28 @@ absl::StatusOr<std::unique_ptr<Avd>> Avd::FromName(const AndroidOptions& opts,
                      ConvertSysImgStatus(ResolveSystemImagePaths(sys_image_search_paths, opts,
                                                                  /*android_build=*/false)));
 
-    return FromSysDirs(opts, user_paths, name, std::move(config_ini),
-                       !content_override.empty() ? std::move(content_override)
-                                                 : std::move(original_content_path),
+    fs::path content_path = !options.content_override.empty() ? options.content_override
+                                                              : std::move(original_content_path);
+    return FromSysDirs(opts, user_paths, name, std::move(config_ini), std::move(content_path),
                        std::move(system_image_paths));
 }
 
 // static
-absl::StatusOr<std::unique_ptr<Avd>> Avd::FromAndroidBuild(
-        const AndroidOptions& opts, const android::goldfish::UserPaths& user_paths,
-        const std::string& name, fs::path android_build_out, bool wipe_data,
-        fs::path writable_content_override) {
-    fs::path content_path;
-    if (!writable_content_override.empty()) {
-        content_path = std::move(writable_content_override);
-    } else {
-        content_path = android_build_out / "avd.tmp";
-        if (wipe_data) {
-            LOG(WARNING) << "Performing factory reset: clearing AVD for an initial cold boot";
-            if (auto s = android::base::file::rm_recursive(content_path); !s.ok()) {
-                LOG(ERROR) << "Could not remove AVD contents file for -wipe-data, you might have "
-                              "to manually remove the directory. Path: "
-                           << content_path << ", Status: " << s;
-            }
-        }
-        if (auto s = android::base::file::mkdir_recursive(content_path, 0755); !s.ok()) {
-            return absl::InternalError(absl::StrCat(
-                    "Could not create the avd path: ", content_path.string(), ", Status: ", s));
-        }
-    }
+absl::StatusOr<std::unique_ptr<Avd>> Avd::FromAndroidBuild(const Options& options) {
+    const auto& opts = options.opts;
+    const auto& user_paths = options.user_paths;
+    const auto& name = options.name;
+    const auto& android_build_out = options.android_build_out;
+
+    fs::path content_path = !options.content_override.empty() ? options.content_override
+                                                              : (android_build_out / "avd.tmp");
 
     std::vector<fs::path> sys_image_search_paths{
         android_build_out,
         // build.prop is under system dir.
         android_build_out / "system",
     };
-    auto config_ini_path = android_build_out / "config.ini";
+    auto config_ini_path = android_build_out / CORE_CONFIG_INI;
     android::goldfish::IniFile config_ini(config_ini_path);
     if (!config_ini.Read()) {
         // It's ok if it's missing.
@@ -993,29 +1045,6 @@ absl::StatusOr<std::unique_ptr<Avd>> Avd::FromSysDirs(
                 ". Please ensure the system image matches the AVD."));
     }
 
-    if (!base::file::can_read(content_path)) {
-        return absl::PermissionDeniedError(absl::StrCat(
-                "The AVD content directory exists but is not readable: ", content_path.string()));
-    }
-
-    if (!base::file::is_dir(content_path)) {
-        return absl::InvalidArgumentError(
-                absl::StrCat("The AVD content directory exists but is not a directory: ",
-                             content_path.string()));
-    }
-
-    if (!base::file::can_write(content_path)) {
-        return absl::PermissionDeniedError(absl::StrCat(
-                "The AVD content directory exists but is not writable: ", content_path.string()));
-    }
-
-    if (opts.verbose) {
-        LOG(INFO) << "Listing avd content directory (" << content_path << "):";
-        for (const auto& path : base::file::scan_dir_recursive(content_path)) {
-            LOG(INFO) << "    " << path.lexically_relative(content_path).string();
-        }
-    }
-
     RETURN_IF_ERROR(
             CheckSkinMatchesLcd(opts, user_paths, content_path, system_image_paths, config_ini));
 
@@ -1053,12 +1082,6 @@ absl::StatusOr<std::unique_ptr<Avd>> Avd::FromSysDirs(
 
     hw_cfg.ApplyDefaults(user_paths.sdk_directory, user_paths.avd_directory);
     RETURN_IF_ERROR(MemoryConfig::FinalizeRamAndHeapSize(hw_cfg, build_wrapper.ApiLevel()));
-
-    // save to CORE_HARDWARE_INI as well, embedded ui needs it
-    auto hw_path = content_path / CORE_HARDWARE_INI;
-    auto hw_config = std::make_unique<IniFile>(hw_path);
-    hw_cfg.Write(hw_config.get());
-    hw_config->WriteDiscardingEmpty();
 
     return std::make_unique<FileBackedAvd>(name, id, arch, std::move(system_image_paths),
                                            std::move(config_ini), std::move(build_wrapper),
