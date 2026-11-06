@@ -55,12 +55,11 @@ absl::StatusOr<std::string> command_line(const EmulatorConfig& emulator) {
     // TODO add ramoops args?
     switch (auto a = avd.Arch(); a) {
     case Avd::CpuArchitecture::kArm:
-        cl.merge(absl::btree_set<std::string>{"console=ttyAMA0,38400", "earlyprintk=ttyAMA0",
-                                              "keep_bootcon", "ndns=3"});
+        cl.merge(absl::btree_set<std::string>{"console=ttyAMA0,38400", "ndns=3"});
         break;
     case Avd::CpuArchitecture::kX86:
-        cl.merge(absl::btree_set<std::string>{"console=ttyS0,38400", "earlyprintk=ttyS0",
-                                              "clocksource=pit", "memmap=0x10000$0xff018000"});
+        cl.merge(absl::btree_set<std::string>{"console=ttyS0,38400", "clocksource=pit",
+                                              "memmap=0x10000$0xff018000"});
         if (api_level > 0 && api_level < 26) {
             cl.insert("no-kvmclock");
         }
@@ -70,8 +69,24 @@ absl::StatusOr<std::string> command_line(const EmulatorConfig& emulator) {
         return absl::UnimplementedError(absl::StrCat("Machine type not supported: ", a));
     }
 
-    if (opts.shell || opts.shell_serial || opts.show_kernel) {
+    // Unless kernel output was requested, the console UART is attached to -serial null;
+    // suppress earlyprintk and pass quiet to prevent synchronous per-character UART VM exits.
+    const bool verbose_kernel = opts.shell || opts.shell_serial || opts.show_kernel;
+    if (verbose_kernel) {
         cl.insert("printk.devkmsg=on");
+        switch (avd.Arch()) {
+        case Avd::CpuArchitecture::kArm:
+            cl.merge(absl::btree_set<std::string>{"earlyprintk=ttyAMA0", "keep_bootcon"});
+            break;
+        case Avd::CpuArchitecture::kX86:
+            cl.insert("earlyprintk=ttyS0");
+            break;
+        case Avd::CpuArchitecture::kRiscV:
+        default:
+            break;
+        }
+    } else {
+        cl.insert("quiet");
     }
 
     // Note that this is currently duplicating: 8250.nr_uarts=1 (arm and x86) clocksource=pit (x86
