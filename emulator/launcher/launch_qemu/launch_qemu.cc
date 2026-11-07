@@ -88,10 +88,10 @@ absl::Status LaunchQemu::addDevices() {
     addDevice<ParameterList>(std::initializer_list<std::string>{
         "-name", absl::StrFormat("%s,debug-threads=on", Device::EscapeQemuOptionValue(a.Name()))});
     addDevice<Machine>();
-    addDevice<CpuDevice>();
+    const auto& cpu_device = addDevice<CpuDevice>();
     addDevice<MemoryDevice>();
     addDevice<HugePageDevice>();
-    addDevice<KernelDevice>();
+    addDevice<KernelDevice>(cpu_device);
 
     RETURN_IF_ERROR(addDrives(config_, *this));
 

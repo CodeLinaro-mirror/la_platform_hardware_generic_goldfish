@@ -28,13 +28,15 @@
 #include "android/cmdline_definitions.h"
 #include "android/goldfish/avd.h"
 #include "android/status/status_macros.h"
+#include "cpu_device.h"
 #include "goldfish/file/file.h"
 #include "initrd_device.h"
 
 namespace android::goldfish {
 
 namespace {
-absl::StatusOr<std::string> command_line(const EmulatorConfig& emulator) {
+absl::StatusOr<std::string> command_line(const EmulatorConfig& emulator,
+                                         const CpuDevice& cpu_device) {
     const Avd& avd = emulator.avd();
     const AndroidOptions& opts = emulator.opts();
     const int api_level = avd.ApiLevel();
@@ -62,6 +64,9 @@ absl::StatusOr<std::string> command_line(const EmulatorConfig& emulator) {
                                               "memmap=0x10000$0xff018000"});
         if (api_level > 0 && api_level < 26) {
             cl.insert("no-kvmclock");
+        }
+        if (cpu_device.accelerator() == "kvm") {
+            cl.insert("tsc=reliable");
         }
         break;
     case Avd::CpuArchitecture::kRiscV:
@@ -124,7 +129,7 @@ absl::StatusOr<std::string> command_line(const EmulatorConfig& emulator) {
 absl::Status KernelDevice::initialize(const EmulatorConfig& emulator) {
     const Avd& avd = emulator.avd();
     mDiskImage = avd.GetSystemImagePaths().kernel_image.string();
-    ASSIGN_OR_RETURN(auto cl, command_line(emulator));
+    ASSIGN_OR_RETURN(auto cl, command_line(emulator, mCpuDevice));
     mCommandLine = std::move(cl);
     return absl::OkStatus();
 }

@@ -20,9 +20,12 @@
 #include "absl/status/status.h"
 #include "gmock/gmock.h"
 
+#include "android/base/system.h"
 #include "android/base/testing/test_system.h"
 #include "android/cmdline_definitions.h"
+#include "android/cpu/cpu_accelerator.h"
 #include "android/status/status_matcher_macros.h"
+#include "cpu_device.h"
 #include "fake_emulator.h"
 #include "goldfish/file/file.h"
 
@@ -39,7 +42,8 @@ TEST(Kernel, Basic_x86) {
             .Times(1)
             .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
 
-    KernelDevice dev;
+    CpuDevice cpu;
+    KernelDevice dev(cpu);
     EXPECT_OK(dev.initialize(emu.config()));
     EXPECT_THAT(dev.getQemuParameters(emu.config()),
                 testing::ElementsAre(testing::Eq("-kernel"), testing::Eq("some/path/kernel-ranchu"),
@@ -61,7 +65,8 @@ TEST(Kernel, Basic_arm64) {
             .Times(1)
             .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kArm));
 
-    KernelDevice dev;
+    CpuDevice cpu;
+    KernelDevice dev(cpu);
     EXPECT_OK(dev.initialize(emu.config()));
     EXPECT_THAT(dev.getQemuParameters(emu.config()),
                 testing::ElementsAre(testing::Eq("-kernel"), testing::Eq("some/path/kernel-ranchu"),
@@ -91,7 +96,8 @@ TEST(Kernel, AppendExtras) {
             .Times(1)
             .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
 
-    KernelDevice dev;
+    CpuDevice cpu;
+    KernelDevice dev(cpu);
     EXPECT_OK(dev.initialize(emu.config()));
     EXPECT_THAT(dev.getQemuParameters(emu.config()),
                 testing::ElementsAre(
@@ -111,7 +117,8 @@ TEST(Kernel, CommandLinePreservesEarlyprintkWhenShowKernel) {
     EXPECT_CALL(emu.mock_avd(), GetSystemImagePaths()).WillRepeatedly(testing::ReturnRef(paths));
     EXPECT_CALL(emu.mock_avd(), Arch()).WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
 
-    KernelDevice dev;
+    CpuDevice cpu;
+    KernelDevice dev(cpu);
     EXPECT_OK(dev.initialize(emu.config()));
     EXPECT_THAT(dev.getQemuParameters(emu.config()),
                 testing::ElementsAre(
@@ -131,7 +138,8 @@ TEST(Kernel, CommandLinePreservesEarlyprintkWhenShell) {
     EXPECT_CALL(emu.mock_avd(), GetSystemImagePaths()).WillRepeatedly(testing::ReturnRef(paths));
     EXPECT_CALL(emu.mock_avd(), Arch()).WillRepeatedly(testing::Return(Avd::CpuArchitecture::kArm));
 
-    KernelDevice dev;
+    CpuDevice cpu;
+    KernelDevice dev(cpu);
     EXPECT_OK(dev.initialize(emu.config()));
     EXPECT_THAT(dev.getQemuParameters(emu.config()),
                 testing::ElementsAre(
@@ -153,7 +161,8 @@ TEST(Kernel, CommandLinePreservesEarlyprintkWhenShellSerial) {
     EXPECT_CALL(emu.mock_avd(), GetSystemImagePaths()).WillRepeatedly(testing::ReturnRef(paths));
     EXPECT_CALL(emu.mock_avd(), Arch()).WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
 
-    KernelDevice dev;
+    CpuDevice cpu;
+    KernelDevice dev(cpu);
     EXPECT_OK(dev.initialize(emu.config()));
     EXPECT_THAT(dev.getQemuParameters(emu.config()),
                 testing::ElementsAre(
@@ -183,7 +192,8 @@ TEST(Kernel, CommandLineMergesKernelCmdlineFile) {
     EXPECT_CALL(emu.mock_avd(), GetSystemImagePaths()).WillRepeatedly(testing::ReturnRef(paths));
     EXPECT_CALL(emu.mock_avd(), Arch()).WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
 
-    KernelDevice dev;
+    CpuDevice cpu;
+    KernelDevice dev(cpu);
     EXPECT_OK(dev.initialize(emu.config()));
     EXPECT_THAT(dev.getQemuParameters(emu.config()),
                 testing::ElementsAre(
@@ -209,7 +219,8 @@ TEST(Kernel, CommandLinePreservesExplicitAppendEarlyprintk) {
     EXPECT_CALL(emu.mock_avd(), GetSystemImagePaths()).WillRepeatedly(testing::ReturnRef(paths));
     EXPECT_CALL(emu.mock_avd(), Arch()).WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
 
-    KernelDevice dev;
+    CpuDevice cpu;
+    KernelDevice dev(cpu);
     EXPECT_OK(dev.initialize(emu.config()));
     EXPECT_THAT(dev.getQemuParameters(emu.config()),
                 testing::ElementsAre(
@@ -217,6 +228,91 @@ TEST(Kernel, CommandLinePreservesExplicitAppendEarlyprintk) {
                         testing::Eq("-append"),
                         testing::AllOf(testing::HasSubstr("earlyprintk=custom"),
                                        testing::HasSubstr("quiet"))));
+}
+
+TEST(Kernel, X86WithKvmAddsTscReliable) {
+    FakeEmulator emu;
+
+    auto hw = HardwareConfig();
+    EXPECT_CALL(emu.mock_avd(), Hw()).WillRepeatedly(testing::ReturnRef(hw));
+
+    SystemImagePaths paths;
+    paths.kernel_image = "some/path/kernel-ranchu";
+    EXPECT_CALL(emu.mock_avd(), GetSystemImagePaths()).WillRepeatedly(testing::ReturnRef(paths));
+    EXPECT_CALL(emu.mock_avd(), Arch()).WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
+
+    SetCurrentCpuAcceleratorForTesting(CPU_ACCELERATOR_KVM, ANDROID_CPU_ACCELERATION_READY, "");
+    CpuDevice::forceHostArch_TestOnly(Avd::CpuArchitecture::kX86);
+
+    CpuDevice cpu;
+    EXPECT_OK(cpu.initialize(emu.config()));
+    EXPECT_EQ(cpu.accelerator(), "kvm");
+
+    KernelDevice dev(cpu);
+    EXPECT_OK(dev.initialize(emu.config()));
+    EXPECT_THAT(dev.getQemuParameters(emu.config()),
+                testing::ElementsAre(testing::Eq("-kernel"), testing::Eq("some/path/kernel-ranchu"),
+                                     testing::Eq("-append"),
+                                     testing::HasSubstr("tsc=reliable")));
+}
+
+TEST(Kernel, X86WithTcgOverrideOmitsTscReliable) {
+    android::base::System::SetEnvironmentVariable("ANDROID_I_WANT_MY_TCG", "yes");
+    AndroidOptions opts{.accel = "off"};
+    FakeEmulator emu(std::move(opts));
+
+    auto hw = HardwareConfig();
+    EXPECT_CALL(emu.mock_avd(), Hw()).WillRepeatedly(testing::ReturnRef(hw));
+
+    SystemImagePaths paths;
+    paths.kernel_image = "some/path/kernel-ranchu";
+    EXPECT_CALL(emu.mock_avd(), GetSystemImagePaths()).WillRepeatedly(testing::ReturnRef(paths));
+    EXPECT_CALL(emu.mock_avd(), Arch()).WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
+
+    SetCurrentCpuAcceleratorForTesting(CPU_ACCELERATOR_KVM, ANDROID_CPU_ACCELERATION_READY, "");
+    CpuDevice::forceHostArch_TestOnly(Avd::CpuArchitecture::kX86);
+
+    CpuDevice cpu;
+    EXPECT_OK(cpu.initialize(emu.config()));
+    EXPECT_EQ(cpu.accelerator(), "tcg");
+
+    KernelDevice dev(cpu);
+    EXPECT_OK(dev.initialize(emu.config()));
+    EXPECT_THAT(dev.getQemuParameters(emu.config()),
+                testing::ElementsAre(testing::Eq("-kernel"), testing::Eq("some/path/kernel-ranchu"),
+                                     testing::Eq("-append"),
+                                     testing::Not(testing::HasSubstr("tsc=reliable"))));
+
+    android::base::System::SetEnvironmentVariable("ANDROID_I_WANT_MY_TCG", "");
+}
+
+TEST(Kernel, X86WithAehdOverrideOmitsTscReliable) {
+    android::base::System::SetEnvironmentVariable("ENABLE_AEHD_IN_QEMU", "1");
+    FakeEmulator emu;
+
+    auto hw = HardwareConfig();
+    EXPECT_CALL(emu.mock_avd(), Hw()).WillRepeatedly(testing::ReturnRef(hw));
+
+    SystemImagePaths paths;
+    paths.kernel_image = "some/path/kernel-ranchu";
+    EXPECT_CALL(emu.mock_avd(), GetSystemImagePaths()).WillRepeatedly(testing::ReturnRef(paths));
+    EXPECT_CALL(emu.mock_avd(), Arch()).WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
+
+    SetCurrentCpuAcceleratorForTesting(CPU_ACCELERATOR_KVM, ANDROID_CPU_ACCELERATION_READY, "");
+    CpuDevice::forceHostArch_TestOnly(Avd::CpuArchitecture::kX86);
+
+    CpuDevice cpu;
+    EXPECT_OK(cpu.initialize(emu.config()));
+    EXPECT_EQ(cpu.accelerator(), "aehd");
+
+    KernelDevice dev(cpu);
+    EXPECT_OK(dev.initialize(emu.config()));
+    EXPECT_THAT(dev.getQemuParameters(emu.config()),
+                testing::ElementsAre(testing::Eq("-kernel"), testing::Eq("some/path/kernel-ranchu"),
+                                     testing::Eq("-append"),
+                                     testing::Not(testing::HasSubstr("tsc=reliable"))));
+
+    android::base::System::SetEnvironmentVariable("ENABLE_AEHD_IN_QEMU", "");
 }
 
 }  // namespace android::goldfish::test
