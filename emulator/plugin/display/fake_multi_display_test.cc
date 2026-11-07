@@ -828,15 +828,16 @@ TEST_F(FakeMultiDisplayTest, ConcurrentUpdateStateAndGetStateNeverTear) {
 }
 
 TEST_F(FakeMultiDisplayTest, ConcurrentCreateDisplayAndSetRotationLockOrderSafe) {
+    constexpr int kCycles = 200;
     std::atomic<bool> start{false};
     std::atomic<bool> done{false};
 
     std::thread lifecycle_thread([&] {
         while (!start.load(std::memory_order_acquire)) {
         }
-        constexpr int kCycles = 200;
         for (int i = 0; i < kCycles; ++i) {
-            auto created = fake_multi_display_->CreateDisplay(1, 800, 600, 320, 0x1U);
+            // Tiny displays keep each cycle cheap under TSAN: this test is about lock order.
+            auto created = fake_multi_display_->CreateDisplay(1, 16, 16, 320, 0x1U);
             ASSERT_TRUE(created.ok());
             ASSERT_TRUE(fake_multi_display_->EraseDisplay(1).ok());
         }
@@ -852,10 +853,12 @@ TEST_F(FakeMultiDisplayTest, ConcurrentCreateDisplayAndSetRotationLockOrderSafe)
             ImageRotation::kRotation180,
             ImageRotation::kRotation270,
         };
-        size_t idx = 0;
-        while (!done.load(std::memory_order_acquire)) {
-            fake_multi_display_->SetRotation(kRotations[idx % 4]);
-            ++idx;
+        // Bounded and yielding: retaking the rotation lock in a tight loop can starve
+        // CreateDisplay under TSAN until the test times out.
+        constexpr int kMaxRotations = 10 * kCycles;
+        for (int i = 0; i < kMaxRotations && !done.load(std::memory_order_acquire); ++i) {
+            fake_multi_display_->SetRotation(kRotations[i % 4]);
+            std::this_thread::yield();
         }
     });
 
