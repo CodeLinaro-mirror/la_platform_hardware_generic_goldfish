@@ -20,17 +20,23 @@
 #include <algorithm>
 #include <cstdint>
 #include <cstring>
+#include <filesystem>
+#include <fstream>
 #include <optional>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "absl/base/log_severity.h"
 #include "absl/log/scoped_mock_log.h"
 #include "android/base/testing/test_system.h"
+#include "android/base/testing/test_temp_dir.h"
 #include "android/cmdline_definitions.h"
+#include "android/cpu/cpu_accelerator.h"
 #include "android/goldfish/constants.h"
 #include "android/goldfish/hardware_config.h"
 #include "android/goldfish/mock_avd.h"
+#include "android/status/status_matcher_macros.h"
 #include "vulkan/vulkan.h"
 
 namespace goldfish::gpu::test {
@@ -276,6 +282,138 @@ TEST_F(GpuSelectionTest, Api36DefaultAndForcedHostGpuModesFallBackToLavapipe) {
         const GpuSelection selection = SelectGpu(avd_, opts, feature_flags_, {});
         EXPECT_EQ(selection.emu_renderer, "lavapipe");
         EXPECT_EQ(selection.vulkan_icd, "lavapipe");
+    }
+}
+
+TEST_F(GpuSelectionTest, VendorSpecificVulkanMemoryWorkaroundsAndGpuPatterns) {
+    using S = android_studio::EmulatorFeatureFlagState;
+
+    // 1. Linux + AMD GPU in host mode enables both VULKAN_ALLOCATE_DEVICE_MEMORY_ONLY and
+    // VULKAN_ALLOCATE_HOST_MEMORY when not overridden.
+    {
+        sys_.SetOsType(::android::base::OsType::kLinux);
+        std::vector<VulkanGpuDeviceInfo> host_gpus = {
+            MakeGpuDevice("AMD Radeon RX 6800", 0x1002, 0x73bf,
+                          VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU, VK_MAKE_API_VERSION(0, 1, 3, 0), 1,
+                          17179869184ULL),
+        };
+
+        char gpu_mode[] = "host";
+        AndroidOptions opts{.gpu = gpu_mode};
+        FeatureFlags flags;
+        EXPECT_FALSE(flags.IsEnabled(S::VULKAN_ALLOCATE_DEVICE_MEMORY_ONLY));
+        EXPECT_FALSE(flags.IsEnabled(S::VULKAN_ALLOCATE_HOST_MEMORY));
+
+        flags.ApplyGpuFeaturePatterns(ToHostGpuInfos(host_gpus));
+        const GpuSelection selection = SelectGpu(avd_, opts, flags, std::move(host_gpus));
+        ApplyVulkanMemoryWorkarounds(selection, flags);
+
+        EXPECT_TRUE(flags.IsEnabled(S::VULKAN_ALLOCATE_DEVICE_MEMORY_ONLY));
+        EXPECT_TRUE(flags.IsEnabled(S::VULKAN_ALLOCATE_HOST_MEMORY));
+    }
+
+    // 2. User override (-VulkanAllocateHostMemory) prevents the vendor workaround from enabling it.
+    {
+        sys_.SetOsType(::android::base::OsType::kLinux);
+        std::vector<VulkanGpuDeviceInfo> host_gpus = {
+            MakeGpuDevice("Intel(R) UHD Graphics", 0x8086, 0x3e92,
+                          VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU, VK_MAKE_API_VERSION(0, 1, 3, 0),
+                          1, 4294967296ULL),
+        };
+
+        char gpu_mode[] = "host";
+        AndroidOptions opts{.gpu = gpu_mode};
+        FeatureFlags flags;
+        flags.SetEnabledOverride(S::VULKAN_ALLOCATE_HOST_MEMORY, false);
+
+        flags.ApplyGpuFeaturePatterns(ToHostGpuInfos(host_gpus));
+        const GpuSelection selection = SelectGpu(avd_, opts, flags, std::move(host_gpus));
+        ApplyVulkanMemoryWorkarounds(selection, flags);
+
+        EXPECT_FALSE(flags.IsEnabled(S::VULKAN_ALLOCATE_DEVICE_MEMORY_ONLY));
+        EXPECT_FALSE(flags.IsEnabled(S::VULKAN_ALLOCATE_HOST_MEMORY));
+    }
+
+    // 3. Windows + NVIDIA enables VULKAN_ALLOCATE_HOST_MEMORY under AEHD, but not under WHPX.
+    {
+        sys_.SetOsType(::android::base::OsType::kWindows);
+        const std::vector<VulkanGpuDeviceInfo> host_gpus = {
+            MakeGpuDevice("NVIDIA GeForce RTX 4080", 0x10de, 0x2704,
+                          VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU, VK_MAKE_API_VERSION(0, 1, 3, 0), 1,
+                          17179869184ULL),
+        };
+        const auto prev_accel = ::android::GetCurrentCpuAccelerator();
+
+        // AEHD: workaround applies.
+        {
+            ::android::SetCurrentCpuAcceleratorForTesting(::android::CPU_ACCELERATOR_AEHD,
+                                                          ::android::ANDROID_CPU_ACCELERATION_READY,
+                                                          "AEHD");
+            char gpu_mode[] = "host";
+            AndroidOptions opts{.gpu = gpu_mode};
+            FeatureFlags flags;
+
+            flags.ApplyGpuFeaturePatterns(ToHostGpuInfos(host_gpus));
+            const GpuSelection selection = SelectGpu(avd_, opts, flags, host_gpus);
+            ApplyVulkanMemoryWorkarounds(selection, flags);
+
+            EXPECT_TRUE(flags.IsEnabled(S::VULKAN_ALLOCATE_HOST_MEMORY));
+        }
+
+        // WHPX: unaffected by b/382621412, so workaround must not apply.
+        {
+            ::android::SetCurrentCpuAcceleratorForTesting(::android::CPU_ACCELERATOR_WHPX,
+                                                          ::android::ANDROID_CPU_ACCELERATION_READY,
+                                                          "WHPX");
+            char gpu_mode[] = "host";
+            AndroidOptions opts{.gpu = gpu_mode};
+            FeatureFlags flags;
+
+            flags.ApplyGpuFeaturePatterns(ToHostGpuInfos(host_gpus));
+            const GpuSelection selection = SelectGpu(avd_, opts, flags, host_gpus);
+            ApplyVulkanMemoryWorkarounds(selection, flags);
+
+            EXPECT_FALSE(flags.IsEnabled(S::VULKAN_ALLOCATE_HOST_MEMORY));
+        }
+
+        ::android::ResetCurrentCpuAccelerator(prev_accel);
+    }
+
+    // 4. GPU-dependent server pattern enabling ForceSwiftshader forces software rendering, and
+    // host-GPU memory workarounds are not applied when software rendering is selected.
+    {
+        sys_.SetOsType(::android::base::OsType::kLinux);
+        ::android::base::TestTempDir temp_dir("gpu_selection_patterns");
+        const std::filesystem::path patterns_file = temp_dir.Path() / "gpu_patterns.protobuf";
+        {
+            std::ofstream out(patterns_file, std::ios::trunc);
+            out << R"pb(
+                pattern {
+                  hwconfig { hostgpuinfo { make: "0x8086" device_id: "0x0412" } }
+                  featureaction { feature: ForceSwiftshader enable: true }
+                })pb";
+        }
+        std::vector<VulkanGpuDeviceInfo> host_gpus = {
+            MakeGpuDevice("Intel HD Graphics 4600", 0x8086, 0x0412,
+                          VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU, VK_MAKE_API_VERSION(0, 1, 2, 0),
+                          1, 2147483648ULL),
+        };
+        ASSERT_OK_AND_ASSIGN(FeatureFlags flags,
+                             FeatureFlags::Create({.default_patterns_path = patterns_file}));
+        EXPECT_FALSE(flags.IsEnabled(S::FORCE_SWIFTSHADER));
+
+        char gpu_mode[] = "host";
+        AndroidOptions opts{.gpu = gpu_mode};
+
+        flags.ApplyGpuFeaturePatterns(ToHostGpuInfos(host_gpus));
+        const GpuSelection selection = SelectGpu(avd_, opts, flags, std::move(host_gpus));
+        ApplyVulkanMemoryWorkarounds(selection, flags);
+
+        EXPECT_TRUE(flags.IsEnabled(S::FORCE_SWIFTSHADER));
+        EXPECT_EQ(selection.chosen_gpu_mode, "lavapipe");
+        EXPECT_EQ(selection.emu_renderer, "lavapipe");
+        EXPECT_EQ(selection.vulkan_icd, "lavapipe");
+        EXPECT_FALSE(flags.IsEnabled(S::VULKAN_ALLOCATE_HOST_MEMORY));
     }
 }
 

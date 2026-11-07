@@ -208,6 +208,7 @@ cc_library(
         "@tinyxml2",
     ],
     includes = ["include"],
+    tags = ["no-tidy"],
     visibility = ["//visibility:public"],
     deps = [
         ":metrics_uuid",

@@ -589,15 +589,18 @@ int main(int argc, char** argv) {
         return 1;
     }
 
+    feature_flags->ApplyHostFeaturePatterns(android::goldfish::QueryHostInfo());
     const fs::path vulkan_libdir = emulator_paths->lib64_directory / "vulkan";
     std::vector<goldfish::gpu::VulkanGpuDeviceInfo> host_gpus =
             goldfish::gpu::ProbeVulkanGpuDevices(vulkan_libdir, goldfish::gpu::GetHostVulkanIcd());
+    feature_flags->ApplyGpuFeaturePatterns(goldfish::gpu::ToHostGpuInfos(host_gpus));
     goldfish::gpu::GpuSelection gpu_selection =
             goldfish::gpu::SelectGpu(**avd, opts, *feature_flags, std::move(host_gpus));
     if (gpu_selection.emu_renderer != "host") {
         gpu_selection.selected_gpu = goldfish::gpu::SelectVulkanGpuDevice(
                 goldfish::gpu::ProbeVulkanGpuDevices(vulkan_libdir, gpu_selection.vulkan_icd));
     }
+    goldfish::gpu::ApplyVulkanMemoryWorkarounds(gpu_selection, *feature_flags);
 
     // Runs a one-shot update check and server feature pattern refresh on background
     // threads (throttled via emu-update-last-check.ini and emu-last-feature-flags.protobuf).

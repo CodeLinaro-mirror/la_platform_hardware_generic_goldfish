@@ -417,10 +417,26 @@ std::optional<emulator_features::EmulatorFeaturePatterns> LoadPatternsWithFallba
     return std::nullopt;
 }
 
+std::string_view CpuManufacturerToString(HostInfo::CpuManufacturer manufacturer) {
+    switch (manufacturer) {
+        using enum HostInfo::CpuManufacturer;
+    case kIntel:
+        return "Intel";
+    case kAmd:
+        return "AMD";
+    case kApple:
+        return "Apple";
+    case kUnknown:
+    default:
+        return "Unknown";
+    }
+}
+
 bool MatchesHostInfo(const HostInfo& host, const emulator_features::EmulatorHost& pattern) {
     constexpr int64_t kSupportedOsBitCount = 64;
     if (pattern.has_cpu_manufacturer() &&
-        !absl::EqualsIgnoreCase(host.cpu_manufacturer, pattern.cpu_manufacturer())) {
+        !absl::EqualsIgnoreCase(CpuManufacturerToString(host.cpu_manufacturer),
+                                pattern.cpu_manufacturer())) {
         return false;
     }
     if (pattern.has_virt_support() && host.virt_support != pattern.virt_support()) {

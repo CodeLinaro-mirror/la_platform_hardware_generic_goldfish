@@ -261,6 +261,7 @@ cc_library(
         ":snapshot_device",
         "//emulator/launcher:avd",
         "//emulator/launcher:constants",
+        "//emulator/launcher:feature_flags",
         "//emulator/libs/file",
         "//emulator/libs/hardware_config",
         "//emulator/libs/parsing:resizable_display_config",

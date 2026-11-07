@@ -135,6 +135,24 @@ TEST(HostInfoTest, RunningInContainerWithK8s) {
 #endif
 }
 
+TEST(HostInfoTest, QueryHostInfoPopulatesPlatformAndCpuFields) {
+    TestSystem test_sys("/tmp", "/home", "");
+
+    test_sys.SetOsType(android::base::OsType::kLinux);
+    const HostInfo linux_info = QueryHostInfo();
+    EXPECT_EQ(linux_info.os_platform, "Linux");
+    EXPECT_THAT(linux_info.cpu_manufacturer,
+                ::testing::AnyOf(HostInfo::CpuManufacturer::kIntel, HostInfo::CpuManufacturer::kAmd,
+                                 HostInfo::CpuManufacturer::kApple,
+                                 HostInfo::CpuManufacturer::kUnknown));
+
+    test_sys.SetOsType(android::base::OsType::kMac);
+    EXPECT_EQ(QueryHostInfo().os_platform, "Mac");
+
+    test_sys.SetOsType(android::base::OsType::kWindows);
+    EXPECT_EQ(QueryHostInfo().os_platform, "Windows");
+}
+
 class HostInfoVulkanTest : public ::testing::Test {
   protected:
     static std::filesystem::path StudioPrefsDir() {
@@ -165,6 +183,29 @@ class HostInfoVulkanTest : public ::testing::Test {
     HardwareConfig hw_config_;
     FeatureFlags feature_flags_;
 };
+
+TEST_F(HostInfoVulkanTest, QueryHostInfoAndFillEmulatorHostEventShareConsistentCpuInfo) {
+    const HostInfo info = QueryHostInfo();
+    android_studio::AndroidStudioEvent event;
+    FillEmulatorHostEvent(event, avd_, feature_flags_, 1234, 5678, true, false, GpuSelection{});
+
+    const auto& host = event.emulator_host();
+    EXPECT_EQ(host.virt_support(), info.virt_support);
+    EXPECT_EQ(host.running_in_vm(), info.running_in_vm);
+    if (info.cpu_manufacturer == HostInfo::CpuManufacturer::kIntel) {
+        EXPECT_EQ(host.cpu_manufacturer(), "INTEL");
+    } else if (info.cpu_manufacturer == HostInfo::CpuManufacturer::kAmd) {
+        EXPECT_EQ(host.cpu_manufacturer(), "AMD");
+    } else {
+        EXPECT_EQ(host.cpu_manufacturer(), "OTHER");
+    }
+#if defined(__x86_64__)
+    const uint32_t packed_cpuid = host.cpuid_stepping() | (host.cpuid_model() << 4U) |
+                                  (host.cpuid_family() << 8U) | (host.cpuid_type() << 12U) |
+                                  (host.cpuid_extmodel() << 16U) | (host.cpuid_extfamily() << 20U);
+    EXPECT_EQ(info.cpu_model_name, packed_cpuid);
+#endif
+}
 
 TEST_F(HostInfoVulkanTest, setVulkanIcdHostDefault) {
     android_studio::AndroidStudioEvent event;
