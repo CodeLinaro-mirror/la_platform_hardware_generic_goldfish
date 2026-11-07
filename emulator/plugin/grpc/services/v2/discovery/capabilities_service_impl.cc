@@ -68,7 +68,8 @@ void PopulateMetadata(const AvdProperties& props, const HardwareConfig& hw, Devi
     // This service only ever runs inside the emulator; a physical device is
     // served by a different implementation reached over ADB.
     meta->set_device_kind(DeviceKind::DEVICE_KIND_EMULATED);
-    meta->set_display_name(props.avd_name.empty() ? "Android Emulator" : props.avd_name);
+    meta->set_display_name(props.avd_display_name.empty() ? "Android Emulator"
+                                                          : props.avd_display_name);
     meta->set_model_id(props.avd_id.empty() ? "emulator" : props.avd_id);
     meta->set_api_level(props.avd_api);
     meta->set_server_version("2.0.0");

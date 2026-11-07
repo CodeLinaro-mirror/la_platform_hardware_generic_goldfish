@@ -25,7 +25,7 @@ namespace goldfish::avd {
 struct AvdProperties {
     int32_t serial_number{0};
     int32_t adb_port{0};
-    std::string avd_name;
+    std::string avd_display_name;
     std::string avd_id;
     std::string avd_abi;
     int32_t avd_api{0};

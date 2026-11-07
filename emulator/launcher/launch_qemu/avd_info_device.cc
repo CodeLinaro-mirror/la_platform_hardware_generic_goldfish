@@ -83,7 +83,7 @@ absl::Status AvdInfoDevice::initialize(const EmulatorConfig& emulator) {
     std::vector<std::pair<std::string, std::string>> params{
         {"serial_number", absl::StrCat(emulator.serial_number())},
         {"adb_port", absl::StrCat(emulator.adb_port())},
-        {"avd_name", emulator.avd().DisplayName()},
+        {"avd_display_name", emulator.avd().DisplayName()},
         {"avd_id", emulator.avd().Id()},
         {"avd_abi", emulator.avd().Abi()},
         {"avd_api", absl::StrCat(emulator.avd().ApiLevel())},

@@ -342,12 +342,59 @@ TEST_F(AvdTest, CameraCommandLineOverride) {
 }
 
 TEST_F(AvdTest, DisplayName) {
-    auto avd_dir = CreateTestAvd("test_avd", "android-30", 30);
+    auto avd_dir = CreateTestAvd("Medium_Phone_2", "android-30", 30);
     WriteToFile(avd_dir / "config.ini",
-                "avd.ini.displayname=My Custom AVD\ntarget=android-30\nimage.sysdir.1=sysimg");
+                "avd.ini.displayname=Medium Phone (2) 测试_🚀_é\n"
+                "target=android-30\n"
+                "image.sysdir.1=sysimg");
 
-    ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(opts_, paths_, "test_avd", false, ""));
-    EXPECT_EQ(avd->DisplayName(), "My Custom AVD");
+    ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(opts_, paths_, "Medium_Phone_2", false, ""));
+    EXPECT_EQ(avd->Name(), "Medium_Phone_2");
+    EXPECT_EQ(avd->DisplayName(), "Medium Phone (2) 测试_🚀_é");
+    EXPECT_EQ(avd->Id(), "Medium_Phone_2");
+    EXPECT_EQ(avd->Hw().avd_name, "Medium_Phone_2");
+    EXPECT_EQ(avd->Hw().avd_id, "Medium_Phone_2");
+
+    IniFile hw_config(avd_dir / "hardware-qemu.ini");
+    ASSERT_TRUE(hw_config.Read());
+    EXPECT_EQ(hw_config.GetString("avd.name", ""), "Medium_Phone_2");
+    EXPECT_EQ(hw_config.GetString("avd.id", ""), "Medium_Phone_2");
+
+    WriteToFile(avd_dir / "config.ini", "target=android-30\nimage.sysdir.1=sysimg");
+    ASSERT_OK_AND_ASSIGN(auto avd_missing_display,
+                         Avd::FromName(opts_, paths_, "Medium_Phone_2", false, ""));
+    EXPECT_EQ(avd_missing_display->DisplayName(), "Medium_Phone_2");
+}
+
+TEST_F(AvdTest, IdOverrideHonorsCliFlagWhileKeepingAvdName) {
+    auto avd_dir = CreateTestAvd("Medium_Phone_2", "android-30", 30);
+    WriteToFile(avd_dir / "config.ini",
+                "avd.ini.displayname=Medium Phone (2)\ntarget=android-30\nimage.sysdir.1=sysimg");
+
+    {
+        std::string custom_id = "custom-session-id";
+        opts_.id = custom_id.data();
+        ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(opts_, paths_, "Medium_Phone_2", false, ""));
+        EXPECT_EQ(avd->Name(), "Medium_Phone_2");
+        EXPECT_EQ(avd->DisplayName(), "Medium Phone (2)");
+        EXPECT_EQ(avd->Id(), "custom-session-id");
+        EXPECT_EQ(avd->Hw().avd_name, "Medium_Phone_2");
+        EXPECT_EQ(avd->Hw().avd_id, "custom-session-id");
+
+        IniFile hw_config(avd_dir / "hardware-qemu.ini");
+        ASSERT_TRUE(hw_config.Read());
+        EXPECT_EQ(hw_config.GetString("avd.name", ""), "Medium_Phone_2");
+        EXPECT_EQ(hw_config.GetString("avd.id", ""), "custom-session-id");
+    }
+
+    {
+        std::string empty_id;
+        opts_.id = empty_id.data();
+        ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(opts_, paths_, "Medium_Phone_2", false, ""));
+        EXPECT_EQ(avd->Id(), "Medium_Phone_2");
+        EXPECT_EQ(avd->Hw().avd_id, "Medium_Phone_2");
+    }
+    opts_.id = nullptr;
 }
 
 TEST_F(AvdTest, SkinName) {

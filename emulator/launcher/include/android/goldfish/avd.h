@@ -81,12 +81,15 @@ class Avd {
     virtual std::string Details(bool verbose) const = 0;
 
     /**
-     * @brief Returns the human-readable name of the AVD. This name corresponds to
-     * the filename of the AVD's configuration file (without the ".ini"
-     * extension).
+     * @brief Returns the AVD's configuration name (the `<name>.ini` stem, or
+     * `-avd <name>`), reported by the `avd name` console command.
      */
     virtual std::string Name() const = 0;
 
+    /**
+     * @brief Returns the instance ID (`-id <id>` when specified, otherwise
+     * `Name()`), reported by the `avd id` console command.
+     */
     virtual std::string Id() const = 0;
     virtual CpuArchitecture Arch() const = 0;
     virtual std::string Abi() const = 0;

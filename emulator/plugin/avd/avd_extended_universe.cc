@@ -16,6 +16,7 @@
 
 #include <chrono>
 #include <string>
+#include <string_view>
 #include <thread>
 
 #include "absl/container/flat_hash_map.h"
@@ -652,6 +653,12 @@ absl::Status AvdExtendedUniverse::OnLoadProps(archive::IReader& reader) {
             if (!mStreamOk || IsExcludedProp(name)) return;
             std::string loaded;
             if (const absl::Status s = ReadValue(mReader, loaded); s.ok()) {
+                // Allow `-id` (`avd_id`) to vary across runs (e.g. Gradle Managed Devices
+                // restoring a shared snapshot under per-instance `-id` values) while still
+                // reading its serialized string so the snapshot stream layout is unchanged.
+                if (std::string_view(name) == "avd_id") {
+                    return;
+                }
                 if (loaded != val) {
                     LOG(WARNING) << "Property mismatch: " << name << " (loaded: " << loaded
                                  << ", expected: " << val << ")";

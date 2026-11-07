@@ -282,9 +282,11 @@ struct BuildProp {
 
 class FileBackedAvd : public Avd {
   public:
-    FileBackedAvd(std::string name, CpuArchitecture arch, SystemImagePaths system_image_paths,
-                  IniFile config_ini, BuildProp build, HardwareConfig hw_cfg, fs::path content_path)
+    FileBackedAvd(std::string name, std::string id, CpuArchitecture arch,
+                  SystemImagePaths system_image_paths, IniFile config_ini, BuildProp build,
+                  HardwareConfig hw_cfg, fs::path content_path)
             : name_(std::move(name))
+            , id_(std::move(id))
             , arch_(arch)
             , system_image_paths_(std::move(system_image_paths))
             , config_ini_(std::move(config_ini))
@@ -330,10 +332,7 @@ class FileBackedAvd : public Avd {
     int ForcedTrampolineVersion() const override {
         return config_ini_.GetInt("trampoline.force_version", 0);
     }
-    std::string Id() const override {
-        // TODO allow override with opts.id
-        return Name();
-    }
+    std::string Id() const override { return id_; }
 
     CpuArchitecture Arch() const override { return arch_; }
 
@@ -580,7 +579,8 @@ class FileBackedAvd : public Avd {
     }
 
   private:
-    std::string name_;
+    std::string name_;  // AVD config name (`-avd <name>` / `<name>.ini`), returned by `avd name`.
+    std::string id_;    // Per-launch instance ID (`-id <id>`, or `name_`), returned by `avd id`.
     CpuArchitecture arch_;
 
     SystemImagePaths system_image_paths_;
@@ -1047,6 +1047,10 @@ absl::StatusOr<std::unique_ptr<Avd>> Avd::FromSysDirs(
         hw_cfg.hw_camera_front = opts.camera_front;
     }
 
+    const std::string id = (opts.id != nullptr && *opts.id != '\0') ? opts.id : name;
+    hw_cfg.avd_name = name;
+    hw_cfg.avd_id = id;
+
     hw_cfg.ApplyDefaults(user_paths.sdk_directory, user_paths.avd_directory);
     RETURN_IF_ERROR(MemoryConfig::FinalizeRamAndHeapSize(hw_cfg, build_wrapper.ApiLevel()));
 
@@ -1056,7 +1060,7 @@ absl::StatusOr<std::unique_ptr<Avd>> Avd::FromSysDirs(
     hw_cfg.Write(hw_config.get());
     hw_config->WriteDiscardingEmpty();
 
-    return std::make_unique<FileBackedAvd>(name, arch, std::move(system_image_paths),
+    return std::make_unique<FileBackedAvd>(name, id, arch, std::move(system_image_paths),
                                            std::move(config_ini), std::move(build_wrapper),
                                            std::move(hw_cfg), std::move(content_path));
 }

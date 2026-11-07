@@ -357,7 +357,7 @@ EmulatorProperties CreateProps(const GrpcConfig* config, const avd::AvdUniverse&
         {"emulator.build", std::string(goldfish::version::GetEmulatorBuildId())},
         {"emulator.version", std::string(goldfish::version::GetEmulatorVersion())},
         {"port.adb", std::to_string(avdprops.adb_port)},
-        {"avd.name", avdprops.avd_name},
+        {"avd.name", avdprops.avd_display_name},
         {"avd.id", avdprops.avd_id},
         {"avd.dir", avdprops.avd_content_path.string()},
         {"launcher.dir", config->launcher_dir.string()},
