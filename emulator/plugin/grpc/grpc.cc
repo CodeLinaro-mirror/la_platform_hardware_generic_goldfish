@@ -293,17 +293,8 @@ absl::StatusOr<CredConf> GetCredConf(const GrpcConfig& config) {
     if (config.use_jwt || !config.custom_jwt_public_keys.empty()) {
         ASSIGN_OR_RETURN(fs::path jwk_dir,
                          config.advertiser->CreateJwkDirectory(generateToken(16)));
-
-        if (config.use_jwt) {
-            cred_conf.jwk_file = jwk_dir / "active.jwk";
-        }
-
-        if (!config.custom_jwt_public_keys.empty()) {
-            RETURN_IF_ERROR(ProcessCustomJwtKeys(config.custom_jwt_public_keys, jwk_dir));
-            if (cred_conf.jwk_file.empty()) {
-                cred_conf.jwk_file = jwk_dir / "custom_key_0.jwk";
-            }
-        }
+        ASSIGN_OR_RETURN(cred_conf.jwk_file,
+                         ConfigureJwtDirectory(jwk_dir, config.custom_jwt_public_keys));
     }
 
     return cred_conf;
