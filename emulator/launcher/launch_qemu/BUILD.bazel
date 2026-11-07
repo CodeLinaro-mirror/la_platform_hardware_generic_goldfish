@@ -405,6 +405,7 @@ cc_library(
     srcs = ["kernel_device.cc"],
     hdrs = ["kernel_device.h"],
     deps = [
+        ":cpu_device",
         ":device",
         ":initrd_device",
         "@abseil-cpp//absl/container:btree",
@@ -418,9 +419,11 @@ cc_test(
     size = "small",
     srcs = ["kernel_device_test.cc"],
     deps = [
+        ":cpu_device",
         ":device",
         ":fake_emulator",
         ":kernel_device",
+        "//emulator/libs/cpu",
         "//emulator/libs/file",
         "//emulator/libs/status_macros:status_matcher_macros",
         "//emulator/libs/system:test-headers",
