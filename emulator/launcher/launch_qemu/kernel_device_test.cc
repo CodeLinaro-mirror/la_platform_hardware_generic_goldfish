@@ -45,13 +45,15 @@ TEST(Kernel, Basic_x86) {
     CpuDevice cpu;
     KernelDevice dev(cpu);
     EXPECT_OK(dev.initialize(emu.config()));
-    EXPECT_THAT(dev.getQemuParameters(emu.config()),
-                testing::ElementsAre(testing::Eq("-kernel"), testing::Eq("some/path/kernel-ranchu"),
-                                     testing::Eq("-append"),
-                                     testing::AllOf(testing::HasSubstr("console=ttyS0,38400 "),
-                                                   testing::HasSubstr("clocksource=pit"),
-                                                   testing::HasSubstr("quiet"),
-                                                   testing::Not(testing::HasSubstr("earlyprintk")))));
+    EXPECT_THAT(
+            dev.getQemuParameters(emu.config()),
+            testing::ElementsAre(testing::Eq("-kernel"), testing::Eq("some/path/kernel-ranchu"),
+                                 testing::Eq("-append"),
+                                 testing::AllOf(testing::HasSubstr("console=ttyS0,38400 "),
+                                                testing::HasSubstr("clocksource=pit"),
+                                                testing::HasSubstr("module_blacklist=test_meminit"),
+                                                testing::HasSubstr("quiet"),
+                                                testing::Not(testing::HasSubstr("earlyprintk")))));
 }
 
 TEST(Kernel, Basic_arm64) {
@@ -68,13 +70,15 @@ TEST(Kernel, Basic_arm64) {
     CpuDevice cpu;
     KernelDevice dev(cpu);
     EXPECT_OK(dev.initialize(emu.config()));
-    EXPECT_THAT(dev.getQemuParameters(emu.config()),
-                testing::ElementsAre(testing::Eq("-kernel"), testing::Eq("some/path/kernel-ranchu"),
-                                     testing::Eq("-append"),
-                                     testing::AllOf(testing::HasSubstr("console=ttyAMA0,38400"),
-                                                   testing::HasSubstr("quiet"),
-                                                   testing::Not(testing::HasSubstr("earlyprintk")),
-                                                   testing::Not(testing::HasSubstr("keep_bootcon")))));
+    EXPECT_THAT(
+            dev.getQemuParameters(emu.config()),
+            testing::ElementsAre(testing::Eq("-kernel"), testing::Eq("some/path/kernel-ranchu"),
+                                 testing::Eq("-append"),
+                                 testing::AllOf(testing::HasSubstr("console=ttyAMA0,38400"),
+                                                testing::HasSubstr("module_blacklist=test_meminit"),
+                                                testing::HasSubstr("quiet"),
+                                                testing::Not(testing::HasSubstr("earlyprintk")),
+                                                testing::Not(testing::HasSubstr("keep_bootcon")))));
 }
 
 TEST(Kernel, AppendExtras) {
@@ -313,6 +317,28 @@ TEST(Kernel, X86WithAehdOverrideOmitsTscReliable) {
                                      testing::Not(testing::HasSubstr("tsc=reliable"))));
 
     android::base::System::SetEnvironmentVariable("ENABLE_AEHD_IN_QEMU", "");
+}
+
+TEST(Kernel, PrependsDefaultModuleBlacklistBeforeUserAppend) {
+    char append_val[] = "module_blacklist=aaa";
+    ParamList custom_append{.param = append_val, .next = nullptr};
+    AndroidOptions opts{.append = &custom_append};
+    FakeEmulator emu(std::move(opts));
+
+    SystemImagePaths paths;
+    paths.kernel_image = "some/path/kernel-ranchu";
+    EXPECT_CALL(emu.mock_avd(), GetSystemImagePaths()).WillRepeatedly(testing::ReturnRef(paths));
+    EXPECT_CALL(emu.mock_avd(), Arch()).WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
+
+    CpuDevice cpu;
+    KernelDevice dev(cpu);
+    EXPECT_OK(dev.initialize(emu.config()));
+    EXPECT_THAT(dev.getQemuParameters(emu.config()),
+                testing::ElementsAre(
+                        testing::Eq("-kernel"), testing::Eq("some/path/kernel-ranchu"),
+                        testing::Eq("-append"),
+                        testing::AllOf(testing::StartsWith("module_blacklist=test_meminit "),
+                                       testing::HasSubstr(" module_blacklist=aaa"))));
 }
 
 }  // namespace android::goldfish::test
