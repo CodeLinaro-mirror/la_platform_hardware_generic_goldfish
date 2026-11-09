@@ -19,6 +19,11 @@ namespace android::goldfish {
 // (`default_boot` snapshot save at exit) and API 24.
 constexpr int kMinSupportedApiLevel = 24;
 
+// Minimum Android API level whose guest kernel builds in CONFIG_VIRTIO_INPUT.
+// Earlier APIs (API 24-28) lack a virtio_input driver and require the legacy
+// goldfish-events ("qwerty2", ACPI GFSH0002) SysBus device.
+constexpr int kVirtioInputMinApiLevel = 29;
+
 // Minimum Android API level where virtio-gpu (minigbm/gfxstream) and modern
 // virtio devices replace legacy goldfish_pipe, goldfish_sync, and
 // goldfish_address_space.

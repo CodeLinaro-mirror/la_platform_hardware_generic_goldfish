@@ -1,0 +1,54 @@
+load("@aemu//tools/clang_tidy:defs.bzl", "clang_tidy_test")
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+
+package(default_visibility = ["//visibility:public"])
+
+clang_tidy_test(
+    name = "tidy",
+    targets = [
+        ":goldfish_events",
+        ":goldfish_events_test",
+    ],
+    tidy_config_file = "//:clang_tidy_config",
+)
+
+# QEMU-free state and dispatch hooks of the legacy `goldfish-events`
+# ("qwerty2") device, for the Display 0 touch and keyboard paths that fall back
+# to it on API 24-28 guests.
+cc_library(
+    name = "goldfish_events",
+    srcs = ["goldfish_events.cc"],
+    hdrs = ["include/goldfish/legacy/goldfish_events.h"],
+    includes = ["include"],
+    deps = [
+        "//emulator/plugin/virtio-input-android:api",
+    ],
+    alwayslink = True,
+)
+
+# The SysBus QOM device (ACPI `GFSH0002`).
+cc_library(
+    name = "impl",
+    srcs = ["goldfish_events_low_level.c"],
+    hdrs = ["include/goldfish/legacy/goldfish_events_low_level.h"],
+    includes = ["include"],
+    deps = [
+        ":goldfish_events",
+        "//emulator/libs/logging:absl_c_bridge",
+        "//emulator/plugin/virtio-input-android:config",
+        "@qemu//:qemu-headers-exported",
+    ],
+    alwayslink = True,
+)
+
+cc_test(
+    name = "goldfish_events_test",
+    size = "small",
+    srcs = ["goldfish_events_test.cc"],
+    deps = [
+        ":goldfish_events",
+        "//emulator/libs/test:googletest_main",
+        "//emulator/plugin/virtio-input-android:api",
+        "@qemu//:qemu-headers-exported",
+    ],
+)

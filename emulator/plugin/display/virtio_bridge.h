@@ -78,8 +78,14 @@ void virtio_input_send_evdev(VirtIOInputHID* vhid, uint16_t type, uint16_t code,
  *
  * The device discards events sent while its driver is inactive.
  *
+ * For Display 0's device (registered with
+ * `goldfish_events_set_primary_touch_device()`), this also returns true while
+ * the legacy `goldfish-events` ("qwerty2") device is active on API 24-28
+ * guests; `virtio_input_send_evdev()` then forwards to `goldfish_events_send()`.
+ *
  * @param vhid The virtio input device, or NULL.
- * @return true if `vhid` is non-null and its guest driver is active.
+ * @return true if `vhid` is non-null and its guest driver (or the legacy
+ *         fallback for Display 0) is active.
  */
 bool virtio_input_hid_is_active(const VirtIOInputHID* vhid);
 
@@ -87,8 +93,13 @@ bool virtio_input_hid_is_active(const VirtIOInputHID* vhid);
  * @brief Returns the active generation of a virtio-input-android device: a
  * counter that changes each time its guest driver goes active or inactive.
  *
+ * For Display 0's device, while its virtio driver is inactive and the legacy
+ * `goldfish-events` device has published a generation (API 24-28), the
+ * `goldfish-events` generation (bit 62 set) is returned instead.
+ *
  * @param vhid The virtio-input-android device, or NULL.
- * @return Its VIRTIO_INPUT_ANDROID_ACTIVE_GENERATION, or 0 if `vhid` is NULL.
+ * @return Its VIRTIO_INPUT_ANDROID_ACTIVE_GENERATION (or the goldfish-events
+ *         generation for Display 0), or 0 if `vhid` is NULL.
  */
 uint64_t virtio_input_hid_active_generation(const VirtIOInputHID* vhid);
 

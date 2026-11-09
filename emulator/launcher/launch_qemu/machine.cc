@@ -46,6 +46,9 @@ absl::StatusOr<std::string> machine(const EmulatorConfig& emulator) {
         absl::StrAppend(&machine_arg, ",goldfish-pipe=on");
         absl::StrAppend(&machine_arg, ",goldfish-sync=on");
     }
+    if (api_level > 0 && api_level < kVirtioInputMinApiLevel) {
+        absl::StrAppend(&machine_arg, ",goldfish-events=on");
+    }
 
     using S = android_studio::EmulatorFeatureFlagState;
     const auto& ff = emulator.feature_flags();

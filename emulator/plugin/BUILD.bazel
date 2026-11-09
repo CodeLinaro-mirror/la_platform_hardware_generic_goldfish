@@ -59,6 +59,7 @@ cc_exported_shared_library(
         "//emulator/plugin/grpc",
         "//emulator/plugin/hal/virtio_gpu_gfxstream",
         "//emulator/plugin/legacy/goldfish_address_space:impl",
+        "//emulator/plugin/legacy/goldfish_events:impl",
         "//emulator/plugin/legacy/goldfish_gpu:impl",
         "//emulator/plugin/legacy/goldfish_pipe:impl",
         "//emulator/plugin/legacy/goldfish_sync:impl",

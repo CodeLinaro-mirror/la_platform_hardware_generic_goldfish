@@ -14,6 +14,7 @@
 
 #include "goldfish/input/virtio_input_android.h"
 
+#include "goldfish/legacy/goldfish_events.h"
 #include "virtio_input_android_config.h"
 #include "virtio_input_android_internal.h"
 
@@ -163,11 +164,17 @@ static void virtio_android_init(Object* obj) {
 
     object_property_add_uint64_ptr(obj, VIRTIO_INPUT_ANDROID_ACTIVE_GENERATION,
                                    &vahid->active_generation, OBJ_PROP_FLAG_READ);
+    if (device_id == 1) {
+        goldfish_events_set_primary_touch_device(vhid);
+    }
 }
 
 static void virtio_android_fini(Object* obj) {
     VirtIOInputHID* vhid = VIRTIO_INPUT_HID(obj);
     VirtIOInputAndroidHID* vahid = VIRTIO_INPUT_ANDROID_HID(obj);
+    if (vahid->device_id == 1) {
+        goldfish_events_set_primary_touch_device(NULL);
+    }
     g_free((void*)vhid->handler->name);
     g_free((void*)vhid->handler);
     g_free((void*)vahid->virtio_input_android_device_config);
@@ -186,8 +193,17 @@ static void (*virtio_android_parent_change_active)(VirtIOInput* vinput);
 static void virtio_android_change_active(VirtIOInput* vinput) {
     VirtIOInputAndroidHID* vahid = VIRTIO_INPUT_ANDROID_HID(vinput);
 
-    const uint64_t generation = ++vahid->active_generation;
     virtio_android_parent_change_active(vinput);
+    // Once the legacy goldfish-events device has published a generation for
+    // Display 0 (API 24-28, where this virtio driver never probes), it owns that
+    // device's active generation for the rest of the process lifetime; skip the
+    // dormant virtio notifications (e.g. from snapshot post_load) so they do
+    // not clobber it.
+    if (!vinput->active && VIRTIO_INPUT_HID(vinput) == goldfish_events_get_primary_touch_device() &&
+        goldfish_events_get_active_generation() != 0) {
+        return;
+    }
+    const uint64_t generation = ++vahid->active_generation;
     virtio_input_android_notify_active_changed(VIRTIO_INPUT_HID(vinput), generation);
 }
 
