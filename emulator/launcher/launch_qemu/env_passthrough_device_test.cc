@@ -42,6 +42,7 @@ TEST(EnvPassthroughDeviceTest, PassesThroughAllowedVarsAndIgnoresDisallowedVars)
     base::TestSystem sys("");
     sys.EnvSet("PATH", "/usr/bin:/bin");
     sys.EnvSet("XDG_RUNTIME_DIR", "/run/user/1000");
+    sys.EnvSet("PULSE_RUNTIME_PATH", "/run/user/cat/audio");
     sys.EnvSet("HOME", "/home/user");
     sys.EnvSet("UNALLOWED_SECRET_VAR", "should_not_be_passed");
 
@@ -52,6 +53,7 @@ TEST(EnvPassthroughDeviceTest, PassesThroughAllowedVarsAndIgnoresDisallowedVars)
     EXPECT_THAT(dev.getQemuEnv(emu.config()),
                 UnorderedElementsAre(Pair("PATH", "/usr/bin:/bin"),
                                      Pair("XDG_RUNTIME_DIR", "/run/user/1000"),
+                                     Pair("PULSE_RUNTIME_PATH", "/run/user/cat/audio"),
                                      Pair("HOME", "/home/user")));
 }
 
