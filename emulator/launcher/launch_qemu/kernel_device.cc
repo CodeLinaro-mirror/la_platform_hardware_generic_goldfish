@@ -112,7 +112,9 @@ absl::StatusOr<std::string> command_line(const EmulatorConfig& emulator,
         cl.insert(a->param);
     }
 
-    std::string result = absl::StrJoin(cl, " ");
+    // b/582851647: Prepend the default first; kernel module_blacklist is last-wins so any user
+    // -append or kernel_cmdline.txt value overrides it.
+    std::string result = absl::StrCat("module_blacklist=test_meminit ", absl::StrJoin(cl, " "));
     if (!has_bootconfig) {
         for (const auto& [key, val] : getBootProperties(emulator, /*vk_icd=*/"")) {
             if (val.empty()) {
