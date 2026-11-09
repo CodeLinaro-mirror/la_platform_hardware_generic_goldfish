@@ -79,7 +79,7 @@ std::vector<std::pair<std::string, std::string>> getUserspaceBootProperties(
     }
     using S = android_studio::EmulatorFeatureFlagState;
     const bool isX86ish = targetArch == "x86" || targetArch == "x86_64";
-    const bool is_legacy = apiLevel < kVirtioReadyApiLevel;
+    const bool is_legacy = !UseVirtioGpu(apiLevel, feature_flags.IsEnabled(S::MINIGBM));
     const bool hasBootconfig = (apiLevel <= 0 || apiLevel >= 31) ||
                                feature_flags.IsEnabled(S::ANDROIDBOOT_PROPS) ||
                                feature_flags.IsEnabled(S::ANDROIDBOOT_PROPS2);
@@ -174,7 +174,7 @@ std::vector<std::pair<std::string, std::string>> getUserspaceBootProperties(
         params.push_back({"androidboot.serialno", serialno});
     }
 
-    // Use Guest ANGLE by default on API 37+. API <= 36 only supports GL for now.
+    // Use Guest ANGLE by default on virtio-gpu. Legacy goldfish_pipe only supports GL for now.
     if (!is_legacy && !opts.no_guest_angle &&
         feature_flags.IsEnabled(android_studio::EmulatorFeatureFlagState::GUEST_ANGLE)) {
         // Enable GuestAngle (ro.hardware.egl = angle).
@@ -224,7 +224,7 @@ std::vector<std::pair<std::string, std::string>> getUserspaceBootProperties(
         }
     }
 
-    bool vulkan_enabled = apiLevel >= 31;
+    bool vulkan_enabled = !is_legacy || apiLevel >= 31;
     if (vulkan_enabled && opts.renderer_features) {
         for (std::string_view token :
              absl::StrSplit(opts.renderer_features, absl::ByAnyChar(",;"), absl::SkipEmpty())) {
@@ -586,10 +586,11 @@ std::vector<std::pair<std::string, std::string>> getBootProperties(const Emulato
                                                                    std::string_view vk_icd) {
     const Avd& avd = emulator.avd();
     auto hw = avd.Hw();
+    using S = android_studio::EmulatorFeatureFlagState;
     const int api_level = (avd.ApiLevel() > 0 && avd.ApiLevel() != Avd::kUnknownApiLevel)
                                   ? avd.ApiLevel()
                                   : 202504;
-    const bool is_legacy = api_level < kVirtioReadyApiLevel;
+    const bool is_legacy = !UseVirtioGpu(api_level, emulator.feature_flags().IsEnabled(S::MINIGBM));
 
     int gles_major_version = 3;
     int gles_minor_version = is_legacy ? 0 : 2;

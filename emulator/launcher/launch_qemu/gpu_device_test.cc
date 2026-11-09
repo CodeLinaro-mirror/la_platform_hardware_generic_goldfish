@@ -420,11 +420,13 @@ TEST(GpuDeviceTest, RendererFeaturesRespectFeatureFlags) {
 }
 
 TEST(GpuDeviceTest, Api36ConfiguresGoldfishPipeGlobalsAndSnapshotDirectory) {
+    using S = android_studio::EmulatorFeatureFlagState;
     base::TestSystem sys("");
     const fs::path avd_content = sys.GetTempRoot()->Path() / "avd";
     ASSERT_OK(base::file::mkdir_recursive(avd_content, 0755));
 
     FakeEmulator emu;
+    emu.feature_flags().SetEnabledOverride(S::MINIGBM, false);
     HardwareConfig hw;
     hw.hw_lcd_width = 1080;
     hw.hw_lcd_height = 2400;
@@ -474,7 +476,44 @@ TEST(GpuDeviceTest, Api36ConfiguresGoldfishPipeGlobalsAndSnapshotDirectory) {
                                 Device::EscapeQemuOptionValue(expected_snapshot_dir.string())))));
 }
 
+TEST(GpuDeviceTest, Api36WithMinigbmFeatureUsesVirtioGpuGfxstream) {
+    using S = android_studio::EmulatorFeatureFlagState;
+    base::TestSystem sys("");
+    const fs::path avd_content = sys.GetTempRoot()->Path() / "avd";
+    ASSERT_OK(base::file::mkdir_recursive(avd_content, 0755));
+
+    FakeEmulator emu;
+    emu.feature_flags().SetEnabledOverride(S::MINIGBM, true);
+    emu.feature_flags().SetEnabledOverride(S::GUEST_ANGLE, false);
+    HardwareConfig hw;
+    hw.hw_lcd_width = 1080;
+    hw.hw_lcd_height = 2400;
+    EXPECT_CALL(emu.mock_avd(), Hw()).WillRepeatedly(ReturnRef(hw));
+    EXPECT_CALL(emu.mock_avd(), GetContentPath()).WillRepeatedly(Return(avd_content));
+    EXPECT_CALL(emu.mock_avd(), ApiLevel()).WillRepeatedly(Return(36));
+
+    SnapshotDevice snapshot_dev;
+    ASSERT_OK(snapshot_dev.initialize(emu.config()));
+    ASSERT_TRUE(snapshot_dev.snapshots_enabled());
+
+    GpuDevice dev("gpu0", snapshot_dev);
+    ASSERT_OK(dev.initialize(emu.config()));
+    const auto params = dev.getQemuParameters(emu.config());
+
+    EXPECT_THAT(params, Not(testing::Contains(Eq("-global"))));
+    EXPECT_THAT(params, ElementsAre(Eq("-device"), StartsWith("virtio-gpu-gfxstream,")));
+    EXPECT_THAT(params[1], HasSubstr("id=gpu0"));
+    EXPECT_THAT(params[1], HasSubstr("gfxstream-vulkan=on,x-gfxstream-gles=on"));
+    EXPECT_THAT(params[1], HasSubstr("x-gfxstream-composer=on"));
+    EXPECT_THAT(params[1], HasSubstr("Vulkan:enabled"));
+    EXPECT_THAT(params[1], HasSubstr("VulkanSnapshots:enabled"));
+    EXPECT_THAT(params[1], HasSubstr("VulkanVirtualQueue:enabled"));
+    EXPECT_THAT(params[1], HasSubstr("VulkanUseDedicatedAhbMemoryType:enabled"));
+    EXPECT_THAT(params[1], Not(HasSubstr("HostComposition:enabled")));
+}
+
 TEST(GpuDeviceTest, LegacyGoldfishPipeGatesVulkanBetweenApi31AndApi36) {
+    using S = android_studio::EmulatorFeatureFlagState;
     base::TestSystem sys("");
     const fs::path avd_content = sys.GetTempRoot()->Path() / "avd";
     ASSERT_OK(base::file::mkdir_recursive(avd_content, 0755));
@@ -486,6 +525,7 @@ TEST(GpuDeviceTest, LegacyGoldfishPipeGatesVulkanBetweenApi31AndApi36) {
     // API 31 enables Vulkan on goldfish_pipe while keeping VulkanSnapshots disabled.
     {
         FakeEmulator emu;
+        emu.feature_flags().SetEnabledOverride(S::MINIGBM, false);
         EXPECT_CALL(emu.mock_avd(), Hw()).WillRepeatedly(ReturnRef(hw));
         EXPECT_CALL(emu.mock_avd(), GetContentPath()).WillRepeatedly(Return(avd_content));
         EXPECT_CALL(emu.mock_avd(), ApiLevel()).WillRepeatedly(Return(31));
@@ -503,6 +543,7 @@ TEST(GpuDeviceTest, LegacyGoldfishPipeGatesVulkanBetweenApi31AndApi36) {
     // API 30 disables Vulkan and omits VulkanSnapshots on goldfish_pipe.
     {
         FakeEmulator emu;
+        emu.feature_flags().SetEnabledOverride(S::MINIGBM, false);
         EXPECT_CALL(emu.mock_avd(), Hw()).WillRepeatedly(ReturnRef(hw));
         EXPECT_CALL(emu.mock_avd(), GetContentPath()).WillRepeatedly(Return(avd_content));
         EXPECT_CALL(emu.mock_avd(), ApiLevel()).WillRepeatedly(Return(30));
@@ -520,6 +561,7 @@ TEST(GpuDeviceTest, LegacyGoldfishPipeGatesVulkanBetweenApi31AndApi36) {
 }
 
 TEST(GpuDeviceTest, Api36GlobalEscapesCommasInRendererFeaturesAndSnapshotDirectory) {
+    using S = android_studio::EmulatorFeatureFlagState;
     base::TestSystem sys("");
     const fs::path avd_content = sys.GetTempRoot()->Path() / "avd,with,comma";
     ASSERT_OK(base::file::mkdir_recursive(avd_content, 0755));
@@ -527,6 +569,7 @@ TEST(GpuDeviceTest, Api36GlobalEscapesCommasInRendererFeaturesAndSnapshotDirecto
     char renderer_features[] = "Foo:enabled,Bar:disabled";
     AndroidOptions opts{.renderer_features = renderer_features};
     FakeEmulator emu(opts);
+    emu.feature_flags().SetEnabledOverride(S::MINIGBM, false);
     HardwareConfig hw;
     hw.hw_lcd_width = 720;
     hw.hw_lcd_height = 1280;

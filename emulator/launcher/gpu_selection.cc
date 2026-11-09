@@ -214,15 +214,16 @@ GpuSelection SelectGpu(const ::android::goldfish::Avd& avd, const AndroidOptions
     bool use_host_gpu =
             (chosen_gpu_mode == "host") ||
             (chosen_gpu_mode == "auto" && !IsHostGpuDenyListed(host_gpus, selected_host_gpu));
-    if (use_host_gpu && avd.ApiLevel() < ::android::goldfish::kVirtioReadyApiLevel) {
-        // The goldfish_pipe (API < 37) path cannot drive the host GPU yet; every
+    if (use_host_gpu &&
+        !::android::goldfish::UseVirtioGpu(avd.ApiLevel(), feature_flags.IsEnabled(S::MINIGBM))) {
+        // The legacy goldfish_pipe path cannot drive the host GPU yet; every
         // software mode on this emulator resolves to lavapipe (SwiftShader is
         // being removed, b/570473107), so fall back to it instead of silently
         // picking a different renderer than the one that was asked for.
         LOG(WARNING) << "Host GPU rendering is not available below API "
-                     << ::android::goldfish::kVirtioReadyApiLevel << " yet (this AVD is API "
-                     << avd.ApiLevel() << "); requested GPU mode '" << chosen_gpu_mode
-                     << "' falls back to lavapipe.";
+                     << ::android::goldfish::kVirtioReadyApiLevel << " without Minigbm yet (this "
+                     << "AVD is API " << avd.ApiLevel() << "); requested GPU mode '"
+                     << chosen_gpu_mode << "' falls back to lavapipe.";
         use_host_gpu = false;
     }
 
