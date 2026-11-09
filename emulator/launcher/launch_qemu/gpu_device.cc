@@ -175,8 +175,8 @@ std::vector<std::string> GpuDevice::getQemuParameters(const EmulatorConfig& emul
     const AndroidOptions& opts = emulator.opts();
     const auto& ff = emulator.feature_flags();
     const int api_level = emulator.avd().ApiLevel();
-    const bool legacy_goldfish_gpu = api_level < kVirtioReadyApiLevel;
-    const bool vulkan_enabled = api_level >= 31;
+    const bool legacy_goldfish_gpu = !UseVirtioGpu(api_level, ff.IsEnabled(S::MINIGBM));
+    const bool vulkan_enabled = !legacy_goldfish_gpu || api_level >= 31;
 
     std::vector<std::string> renderer_features;
 
@@ -191,7 +191,7 @@ std::vector<std::string> GpuDevice::getQemuParameters(const EmulatorConfig& emul
         }
     }
 
-    // Use skiavkthreaded by default on API 37+, skiaglthreaded on legacy API < 37
+    // Use skiavkthreaded by default on virtio-gpu, skiaglthreaded on legacy goldfish_pipe.
     std::string systemui_renderer =
             opts.systemui_renderer ? opts.systemui_renderer
                                    : (legacy_goldfish_gpu ? "skiaglthreaded" : "skiavkthreaded");
@@ -203,8 +203,8 @@ std::vector<std::string> GpuDevice::getQemuParameters(const EmulatorConfig& emul
     }
 
     // Snapshots can also be taken at runtime (gRPC, console), not only at exit.
-    // VulkanSnapshots is only enabled on virtio-gpu-gfxstream (API 37+); legacy
-    // goldfish_pipe (API <= 36) keeps VulkanSnapshots disabled.
+    // VulkanSnapshots is only enabled on virtio-gpu-gfxstream; legacy
+    // goldfish_pipe keeps VulkanSnapshots disabled.
     if (!legacy_goldfish_gpu && mSnapshotDevice.snapshots_enabled() &&
         ff.IsEnabled(S::VULKAN_SNAPSHOTS)) {
         renderer_features.push_back("VulkanSnapshots:enabled");

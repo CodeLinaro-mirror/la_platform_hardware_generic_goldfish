@@ -578,8 +578,10 @@ TEST(Initrd, SucceedsBelowApi37WhenMinigbmDisabled) {
 }
 
 TEST(BootProperties, LegacyGraphicsPropertiesBelowApi37) {
+    using S = android_studio::EmulatorFeatureFlagState;
     base::TestSystem sys("");
     FakeEmulator emu;
+    emu.feature_flags().SetEnabledOverride(S::MINIGBM, false);
 
     auto hw = HardwareConfig();
     hw.hw_gltransport = "virtio-gpu-pipe";
@@ -619,6 +621,7 @@ TEST(BootProperties, LegacyGraphicsPropertiesBelowApi37) {
     char vk_disabled[] = "Vulkan:disabled";
     AndroidOptions disabled_opts{.renderer_features = vk_disabled};
     FakeEmulator disabled_emu(std::move(disabled_opts));
+    disabled_emu.feature_flags().SetEnabledOverride(S::MINIGBM, false);
     EXPECT_CALL(disabled_emu.mock_avd(), Hw()).WillRepeatedly(testing::ReturnRef(hw));
     EXPECT_CALL(disabled_emu.mock_avd(), Name()).WillRepeatedly(testing::Return("mock_avd"));
     EXPECT_CALL(disabled_emu.mock_avd(), ApiLevel()).WillRepeatedly(testing::Return(36));
@@ -627,6 +630,36 @@ TEST(BootProperties, LegacyGraphicsPropertiesBelowApi37) {
     EXPECT_THAT(getBootProperties(disabled_emu.config(), "lavapipe"),
                 testing::Not(testing::Contains(
                         testing::Pair("androidboot.hardware.vulkan", testing::_))));
+}
+
+TEST(BootProperties, ModernGraphicsPropertiesBelowApi37WithMinigbmFeature) {
+    using S = android_studio::EmulatorFeatureFlagState;
+    base::TestSystem sys("");
+    FakeEmulator emu;
+    emu.feature_flags().SetEnabledOverride(S::MINIGBM, true);
+    emu.feature_flags().SetEnabledOverride(S::GUEST_ANGLE, false);
+
+    auto hw = HardwareConfig();
+    hw.hw_gltransport = "virtio-gpu-pipe";
+    EXPECT_CALL(emu.mock_avd(), Hw()).WillRepeatedly(testing::ReturnRef(hw));
+    EXPECT_CALL(emu.mock_avd(), Name()).WillRepeatedly(testing::Return("mock_avd"));
+    EXPECT_CALL(emu.mock_avd(), ApiLevel()).WillRepeatedly(testing::Return(36));
+    EXPECT_CALL(emu.mock_avd(), Arch()).WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
+
+    const auto props = getBootProperties(emu.config(), "lavapipe");
+    EXPECT_THAT(props, testing::IsSupersetOf(std::vector{
+                           std::pair{"androidboot.hardware.gralloc", "minigbm"},
+                           std::pair{"androidboot.qemu.gltransport.name", "virtio-gpu-pipe"},
+                           std::pair{"androidboot.hardware.gltransport", "virtio-gpu-pipe"},
+                           std::pair{"androidboot.qemu.gltransport.drawFlushInterval", "800"},
+                           std::pair{"androidboot.opengles.version", "196610"},
+                           std::pair{"androidboot.hardware.vulkan", "ranchu"},
+                           std::pair{"androidboot.debug.hwui.renderer", "skiavk"},
+                           std::pair{"androidboot.debug.renderengine.backend", "skiavkthreaded"},
+                       }));
+    EXPECT_THAT(
+            props,
+            testing::Not(testing::Contains(testing::Pair("androidboot.hardwareegl", testing::_))));
 }
 
 TEST(BootProperties, SystemUiRendererGraphiteOnApi37Plus) {
@@ -650,10 +683,12 @@ TEST(BootProperties, SystemUiRendererGraphiteOnApi37Plus) {
 }
 
 TEST(BootProperties, SystemUiRendererGraphiteBelowApi37UsesPreviousDefaults) {
+    using S = android_studio::EmulatorFeatureFlagState;
     base::TestSystem sys("");
     char renderer[] = "graphite";
     AndroidOptions opts{.systemui_renderer = renderer};
     FakeEmulator emu(std::move(opts));
+    emu.feature_flags().SetEnabledOverride(S::MINIGBM, false);
 
     auto hw = HardwareConfig();
     EXPECT_CALL(emu.mock_avd(), Hw()).WillRepeatedly(testing::ReturnRef(hw));

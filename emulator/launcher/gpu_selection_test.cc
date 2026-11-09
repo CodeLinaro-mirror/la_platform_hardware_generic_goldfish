@@ -285,6 +285,21 @@ TEST_F(GpuSelectionTest, Api36DefaultAndForcedHostGpuModesFallBackToLavapipe) {
     }
 }
 
+TEST_F(GpuSelectionTest, Api36WithMinigbmFeatureAllowsHostGpu) {
+    using S = android_studio::EmulatorFeatureFlagState;
+    EXPECT_CALL(avd_, ApiLevel()).WillRepeatedly(Return(36));
+
+    FeatureFlags flags;
+    flags.SetEnabledOverride(S::MINIGBM, true);
+
+    char gpu_mode[] = "host";
+    AndroidOptions opts{.gpu = gpu_mode};
+    const GpuSelection selection = SelectGpu(avd_, opts, flags, {});
+    EXPECT_EQ(selection.chosen_gpu_mode, "host");
+    EXPECT_EQ(selection.emu_renderer, "host");
+    EXPECT_EQ(selection.vulkan_icd, GetHostVulkanIcd());
+}
+
 TEST_F(GpuSelectionTest, VendorSpecificVulkanMemoryWorkaroundsAndGpuPatterns) {
     using S = android_studio::EmulatorFeatureFlagState;
 

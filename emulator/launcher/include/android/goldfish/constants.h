@@ -24,6 +24,14 @@ constexpr int kMinSupportedApiLevel = 24;
 // goldfish_address_space.
 constexpr int kVirtioReadyApiLevel = 37;
 
+// Whether graphics use the modern virtio-gpu (minigbm/gfxstream) path rather
+// than the legacy goldfish_pipe GPU path. Enabled by default from
+// `kVirtioReadyApiLevel`, or on earlier API levels when the `Minigbm` feature
+// flag is enabled (e.g. via `-feature Minigbm`).
+constexpr bool UseVirtioGpu(int api_level, bool minigbm_enabled) {
+    return api_level >= kVirtioReadyApiLevel || minigbm_enabled;
+}
+
 // Minimum Android API level whose goldfish radio HAL
 // (android.hardware.radio-service.ranchu) works with netsimd's cellular modem.
 // Earlier images abort on the empty operator strings netsimd returns while
