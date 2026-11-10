@@ -74,6 +74,94 @@ TEST(AudioDeviceTest, ExplicitAudioOptionUsesFixed48kHzS16SettingsOnX86AndArm) {
                             Eq("-device"), Eq("virtio-sound-pci,audiodev=mainaudiodev,addr=06.0")));
 }
 
+TEST(AudioDeviceTest, GetAudioCardTypeSelectsCardByArchAndApiLevel) {
+    using AudioCardType = AudioDevice::AudioCardType;
+
+    // ARM: none (< 26), intel-hda (26..30), virtio-snd (>= 31).
+    EXPECT_EQ(AudioDevice::getAudioCardType(25, Avd::CpuArchitecture::kArm), AudioCardType::NONE);
+    EXPECT_EQ(AudioDevice::getAudioCardType(26, Avd::CpuArchitecture::kArm),
+              AudioCardType::INTEL_HDA);
+    EXPECT_EQ(AudioDevice::getAudioCardType(30, Avd::CpuArchitecture::kArm),
+              AudioCardType::INTEL_HDA);
+    EXPECT_EQ(AudioDevice::getAudioCardType(31, Avd::CpuArchitecture::kArm),
+              AudioCardType::VIRTIO_SND);
+    EXPECT_EQ(AudioDevice::getAudioCardType(37, Avd::CpuArchitecture::kArm),
+              AudioCardType::VIRTIO_SND);
+
+    // x86: none (< 22), intel-hda (22..30), virtio-snd (>= 31).
+    EXPECT_EQ(AudioDevice::getAudioCardType(21, Avd::CpuArchitecture::kX86), AudioCardType::NONE);
+    EXPECT_EQ(AudioDevice::getAudioCardType(22, Avd::CpuArchitecture::kX86),
+              AudioCardType::INTEL_HDA);
+    EXPECT_EQ(AudioDevice::getAudioCardType(30, Avd::CpuArchitecture::kX86),
+              AudioCardType::INTEL_HDA);
+    EXPECT_EQ(AudioDevice::getAudioCardType(31, Avd::CpuArchitecture::kX86),
+              AudioCardType::VIRTIO_SND);
+    EXPECT_EQ(AudioDevice::getAudioCardType(37, Avd::CpuArchitecture::kX86),
+              AudioCardType::VIRTIO_SND);
+
+    // Unsupported architectures always return NONE.
+    for (int api_level : {21, 22, 25, 26, 30, 31, 37}) {
+        EXPECT_EQ(AudioDevice::getAudioCardType(api_level, Avd::CpuArchitecture::kRiscV),
+                  AudioCardType::NONE);
+        EXPECT_EQ(AudioDevice::getAudioCardType(api_level, Avd::CpuArchitecture::kUnknown),
+                  AudioCardType::NONE);
+    }
+}
+
+TEST(AudioDeviceTest, IntelHda) {
+    base::TestSystem sys("");
+    std::string audio_opt = "wav";
+    AndroidOptions opts{.audio = audio_opt.data()};
+    FakeEmulator emu(std::move(opts));
+
+    AudioDevice dev("06.0");
+    EXPECT_OK(dev.initialize(emu.config()));
+
+    {
+        EXPECT_CALL(emu.mock_avd(), Arch()).WillOnce(Return(Avd::CpuArchitecture::kX86));
+        EXPECT_CALL(emu.mock_avd(), ApiLevel()).WillOnce(Return(30));
+        EXPECT_THAT(dev.getQemuParameters(emu.config()),
+                    ElementsAre(Eq("-audiodev"),
+                                Eq(absl::StrCat("wav,id=hostaudiodev,", kMixingEngineOnSettings)),
+                                Eq("-device"), Eq(kAudioMuxDeviceArg), Eq("-device"),
+                                Eq("intel-hda,addr=06.0"), Eq("-device"),
+                                Eq("hda-duplex,audiodev=mainaudiodev")));
+    }
+
+    {
+        EXPECT_CALL(emu.mock_avd(), Arch()).WillOnce(Return(Avd::CpuArchitecture::kArm));
+        EXPECT_CALL(emu.mock_avd(), ApiLevel()).WillOnce(Return(30));
+        EXPECT_THAT(dev.getQemuParameters(emu.config()),
+                    ElementsAre(Eq("-audiodev"),
+                                Eq(absl::StrCat("wav,id=hostaudiodev,", kMixingEngineOnSettings)),
+                                Eq("-device"), Eq(kAudioMuxDeviceArg), Eq("-device"),
+                                Eq("intel-hda,addr=06.0"), Eq("-device"),
+                                Eq("hda-duplex,audiodev=mainaudiodev")));
+    }
+}
+
+TEST(AudioDeviceTest, NoAudio) {
+    base::TestSystem sys("");
+    std::string audio_opt = "wav";
+    AndroidOptions opts{.audio = audio_opt.data()};
+    FakeEmulator emu(std::move(opts));
+
+    AudioDevice dev("06.0");
+    EXPECT_OK(dev.initialize(emu.config()));
+
+    {
+        EXPECT_CALL(emu.mock_avd(), Arch()).WillOnce(Return(Avd::CpuArchitecture::kX86));
+        EXPECT_CALL(emu.mock_avd(), ApiLevel()).WillRepeatedly(Return(21));
+        EXPECT_THAT(dev.getQemuParameters(emu.config()), IsEmpty());
+    }
+
+    {
+        EXPECT_CALL(emu.mock_avd(), Arch()).WillOnce(Return(Avd::CpuArchitecture::kArm));
+        EXPECT_CALL(emu.mock_avd(), ApiLevel()).WillRepeatedly(Return(25));
+        EXPECT_THAT(dev.getQemuParameters(emu.config()), IsEmpty());
+    }
+}
+
 TEST(AudioDeviceTest, NoAudioFlagUsesNoneBackendWithMixingEngineOff) {
     base::TestSystem sys("");
     std::string audio_opt = "wav";
