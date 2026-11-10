@@ -30,6 +30,7 @@
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
@@ -45,6 +46,7 @@
 #include "android/goldfish/hardware_config.h"
 #include "android/status/status_macros.h"
 #include "bootconfig.h"
+#include "goldfish/adb/adb_host_server.h"
 #include "goldfish/adb/adbkey.h"
 #include "goldfish/file/file.h"
 #include "goldfish/parsing/resizable_display_config.h"
@@ -65,6 +67,38 @@ constexpr std::string_view kSysfsAndroidDtDirDtb = "/proc/device-tree/firmware/a
 std::string getDeviceStateString(const HardwareConfig& hw) {
     // TODO(jansene): Foldable support.
     return "";
+}
+
+absl::StatusOr<std::string> ResolveHostAdbPublicKey(const UserPaths& paths) {
+    if (paths.user_directory.empty()) {
+        return absl::NotFoundError(
+                "Android user directory is not configured; set HOME or ANDROID_SDK_HOME");
+    }
+
+    ASSIGN_OR_RETURN(
+            const ::goldfish::adb::AdbKeyResult key_result,
+            ::goldfish::adb::EnsurePrivateAdbKey(paths.user_directory, paths.sdk_directory));
+
+    if (key_result.newly_created && paths.is_shared_user_directory) {
+        if (const absl::Status kill_status = ::goldfish::adb::AdbHostServer::killServer();
+            kill_status.ok()) {
+            LOG(WARNING) << "Generated new ADB key in " << paths.user_directory
+                         << "; stopped running host ADB server so it reloads the new key.";
+        } else if (!absl::IsUnavailable(kill_status)) {
+            LOG(WARNING) << "Generated new ADB key in " << paths.user_directory
+                         << ", but failed to stop running host ADB server: " << kill_status
+                         << "; run 'adb kill-server' so it reloads the new key.";
+        }
+    }
+
+    std::string key;
+    if (!::goldfish::adb::PubkeyFromPrivkey(key_result.private_key_path, &key)) {
+        return absl::InternalError(absl::StrCat("failed to derive ADB public key from ",
+                                                key_result.private_key_path.string(),
+                                                "; remove the corrupted key so it can be "
+                                                "recreated"));
+    }
+    return key;
 }
 
 std::vector<std::pair<std::string, std::string>> getUserspaceBootProperties(
@@ -328,13 +362,12 @@ std::vector<std::pair<std::string, std::string>> getUserspaceBootProperties(
 
     // Send adb public key to device
     if (hasBootconfig) {
-        auto privkey = ::goldfish::adb::GetPrivateAdbKeyPath(paths.user_directory);
-        std::string key;
-
-        if (!privkey.empty() && ::goldfish::adb::PubkeyFromPrivkey(privkey, &key)) {
-            params.push_back({adbKeyProp, key});
+        if (absl::StatusOr<std::string> key = ResolveHostAdbPublicKey(paths); key.ok()) {
+            params.push_back({adbKeyProp, *key});
         } else {
-            LOG(WARNING) << "No adb private key exists";
+            LOG(WARNING) << "No ADB public key available to pass to the guest (" << key.status()
+                         << "). Guest ADB connections may be unauthorized; resolve the issue above "
+                            "and restart the emulator.";
         }
     }
 

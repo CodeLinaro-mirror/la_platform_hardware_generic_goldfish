@@ -14,13 +14,15 @@
 - **Notification:** `AdbHostServer::notify` sends the `host:emulator:<port>` command to the ADB
   server (default port 5037). This tells ADB that a new emulator instance is running on
   `localhost:<port>`, causing it to show up in `adb devices`.
+- **Server Shutdown:** `AdbHostServer::killServer` sends `host:kill` to a running ADB server (used
+  when host ADB keys are regenerated so a stale daemon drops cached keys).
 - **Port Discovery:** `getClientPort` determines the ADB server port, checking environment variables
   (`ANDROID_ADB_SERVER_PORT`).
 
 ## Dependencies
 
-- **System:** `//emulator/libs/sockets` (Socket connection to ADB server).
-- **Base:** `@aemu//base:aemu-base`.
+- **System:** `//emulator/libs/sockets` (Socket connection to ADB server), `//emulator/libs/system`.
+- **Status:** `//emulator/libs/status_macros`, `@abseil-cpp//absl/status`.
 
 ## Threading Model
 

@@ -16,6 +16,7 @@
 | `DiskDrive` | `@goldfish//emulator/launcher/launch_qemu:disk_drive` | `disk_drive.h`, `disk_drive.cc` | `Device` implementation for individual virtio-blk / qcow2 / raw disk images. Tested in `disk_drive_test.cc` (`@goldfish//emulator/launcher/launch_qemu:disk_drive_test`). |
 | `EmulatorConfig` | `@goldfish//emulator/launcher/launch_qemu:emulator_config` | `emulator_config.h` | Consolidated view of command-line flags (`AndroidOptions`), `Avd` (`//emulator/launcher:avd`, `image_list.h`), `HardwareConfig`, and the host timezone. |
 | `GpuDevice` | `@goldfish//emulator/launcher/launch_qemu:gpu_device` | `gpu_device.h`, `gpu_device.cc` | Emits `-device virtio-gpu-gfxstream,...`, probes host Vulkan GPUs, and selects the Vulkan ICD and ANGLE/lavapipe host rendering backend. Tested in `gpu_device_test.cc`. |
+| `InitrdDevice` | `@goldfish//emulator/launcher/launch_qemu:initrd_device` | `initrd_device.h`, `initrd_device.cc` | Builds the composite `initrd` with bootconfig parameters (including `androidboot.qemu.adb.pubkey`, ensuring the host ADB key exists via `//emulator/libs/adbkey` and stopping any stale host ADB server via `//emulator/plugin/adb-vsock/host` when a missing default key is generated). Tested in `initrd_device_test.cc` (`@goldfish//emulator/launcher/launch_qemu:initrd_device_test`). |
 
 ## Critical Infrastructure
 * **Device Argument Generators (`LaunchQemu::addDevice`):**

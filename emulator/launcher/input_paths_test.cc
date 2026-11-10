@@ -82,6 +82,7 @@ TEST_F(InputPathsTest, ResolveUserPaths) {
     ASSERT_OK_AND_ASSIGN(auto paths, ResolveUserPaths(tmp_->Path(), false));
 
     EXPECT_EQ(paths.user_directory, user_dir);
+    EXPECT_FALSE(paths.is_shared_user_directory);
     EXPECT_EQ(paths.avd_directory, avd_root);
     EXPECT_EQ(paths.sdk_directory, sdk_root);
 #ifdef __linux__
@@ -108,6 +109,7 @@ TEST_F(InputPathsTest, ResolveUserPathsWithoutSdkRoot) {
     ASSERT_OK_AND_ASSIGN(auto paths, ResolveUserPaths(tmp_->Path(), false));
 
     EXPECT_EQ(paths.user_directory, user_dir);
+    EXPECT_FALSE(paths.is_shared_user_directory);
     EXPECT_EQ(paths.avd_directory, avd_root);
     EXPECT_EQ(paths.sdk_directory, fs::path());
 #ifdef __linux__
@@ -115,6 +117,23 @@ TEST_F(InputPathsTest, ResolveUserPathsWithoutSdkRoot) {
 #else
     EXPECT_EQ(paths.discovery_directory, user_dir / "avd" / "running");
 #endif
+}
+
+TEST_F(InputPathsTest, ResolveUserPathsMarksSharedUserDirectoryWhenNotOverridden) {
+    const fs::path home_dir = tmp_->Path() / "测试_🚀_é";
+    const fs::path shared_user_dir = home_dir / ".android";
+    const fs::path avd_root = shared_user_dir / "avd";
+    const fs::path runtime_dir = tmp_->Path() / "runtime";
+
+    ASSERT_OK(base::file::mkdir_recursive(avd_root, 0755));
+    ASSERT_OK(base::file::mkdir_recursive(runtime_dir, 0755));
+
+    sys_->SetHomeDirectory(home_dir);
+    sys_->EnvSet("XDG_RUNTIME_DIR", runtime_dir.string());
+
+    ASSERT_OK_AND_ASSIGN(const UserPaths paths, ResolveUserPaths(tmp_->Path(), false));
+    EXPECT_EQ(paths.user_directory, shared_user_dir);
+    EXPECT_TRUE(paths.is_shared_user_directory);
 }
 
 TEST_F(InputPathsTest, ResolveSystemImagePaths) {
@@ -133,7 +152,8 @@ TEST_F(InputPathsTest, ResolveSystemImagePaths) {
     WriteToFile(sysimg_dir / "encryptionkey.img", "");
 
     AndroidOptions opts = {};
-    ASSERT_OK_AND_ASSIGN(auto paths, ResolveSystemImagePaths({sysimg_dir}, opts, /*android_build=*/false));
+    ASSERT_OK_AND_ASSIGN(auto paths,
+                         ResolveSystemImagePaths({sysimg_dir}, opts, /*android_build=*/false));
 
     EXPECT_EQ(paths.build_properties, sysimg_dir / "build.prop");
     EXPECT_EQ(paths.system_image, sysimg_dir / "system.img");
@@ -277,7 +297,8 @@ TEST_F(InputPathsTest, ResolveSystemImagePathsAndroidBuild) {
     WriteToFile(sysimg_dir / "encryptionkey.img", "");
 
     AndroidOptions opts = {};
-    ASSERT_OK_AND_ASSIGN(auto paths, ResolveSystemImagePaths({sysimg_dir}, opts, /*android_build=*/true));
+    ASSERT_OK_AND_ASSIGN(auto paths,
+                         ResolveSystemImagePaths({sysimg_dir}, opts, /*android_build=*/true));
 
     EXPECT_EQ(paths.build_properties, sysimg_dir / "build.prop");
     EXPECT_EQ(paths.ramdisk_image, sysimg_dir / "ramdisk-qemu.img");
@@ -328,7 +349,8 @@ TEST_F(InputPathsTest, ResolveSystemImagePathsWithOverrides) {
     opts.vendor = const_cast<char*>(override_vendor_str.c_str());
     opts.encryption_key = const_cast<char*>(override_encryption_key_str.c_str());
 
-    ASSERT_OK_AND_ASSIGN(auto paths, ResolveSystemImagePaths({sysimg_dir}, opts, /*android_build=*/false));
+    ASSERT_OK_AND_ASSIGN(auto paths,
+                         ResolveSystemImagePaths({sysimg_dir}, opts, /*android_build=*/false));
 
     EXPECT_EQ(paths.kernel_image, override_kernel);
     EXPECT_EQ(paths.ramdisk_image, override_ramdisk);
@@ -370,8 +392,7 @@ TEST_F(InputPathsTest, ResolveEmulatorPaths) {
     EXPECT_EQ(paths.launcher_directory, launcher_dir);
     EXPECT_EQ(paths.binary_directory, launcher_dir / "bin");
     EXPECT_EQ(paths.advanced_features, launcher_dir / "lib" / "advancedFeatures.ini");
-    EXPECT_EQ(paths.feature_patterns,
-              launcher_dir / "lib" / "emu-original-feature-flags.protobuf");
+    EXPECT_EQ(paths.feature_patterns, launcher_dir / "lib" / "emu-original-feature-flags.protobuf");
 #if defined(__aarch64__) || defined(_M_ARM64) || defined(__arm64__)
     EXPECT_TRUE(paths.qemu_system_x86_binary.empty());
     EXPECT_EQ(paths.qemu_system_arm_binary,

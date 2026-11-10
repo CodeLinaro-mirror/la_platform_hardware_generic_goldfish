@@ -38,6 +38,17 @@ struct ConfigDirs {
     static fs::path GetUserDirectory();
 
     /**
+     * @brief Returns the user-specific Android configuration directory shared
+     *        across host tools (`adb`, Android Studio, `avdmanager`), ignoring
+     *        emulator-only overrides (`ANDROID_EMULATOR_HOME`).
+     *
+     * @details Checks `ANDROID_PREFS_ROOT`, `ANDROID_SDK_HOME`, and
+     *          `$HOME/.android`. Returns an empty path if none of these are
+     *          available.
+     */
+    static fs::path GetSharedUserDirectory();
+
+    /**
      * @brief Returns the root path containing all AVD sub-directories.
      *
      * @details This function follows a hierarchical search order:

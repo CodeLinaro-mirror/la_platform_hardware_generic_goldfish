@@ -62,6 +62,17 @@ struct AdbHostServer {
      * @return The ADB protocol version, or an error status if unavailable.
      */
     static absl::StatusOr<int> getProtocolVersion();
+
+    /**
+     * @brief Request the running host ADB server to terminate ("host:kill").
+     *
+     * @param adbClientPort The localhost TCP port the ADB server is listening on.
+     * @return absl::OkStatus() if a running server accepted the kill request,
+     *         absl::UnavailableError if no ADB server is listening on `adbClientPort`,
+     *         absl::InvalidArgumentError if `adbClientPort` is invalid,
+     *         or another error status if the request failed.
+     */
+    static absl::Status killServer(int adbClientPort = getClientPort());
 };
 
 }  // namespace goldfish::adb
