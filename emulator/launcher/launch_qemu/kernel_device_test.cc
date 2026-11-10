@@ -11,13 +11,14 @@
 
 #include "kernel_device.h"
 
+#include <gtest/gtest.h>
+
 #include <filesystem>
 #include <fstream>
 #include <utility>
 
-#include <gtest/gtest.h>
-
 #include "absl/status/status.h"
+#include "absl/strings/str_cat.h"
 #include "gmock/gmock.h"
 
 #include "android/base/system.h"
@@ -313,6 +314,72 @@ TEST(Kernel, X86WithAehdOverrideOmitsTscReliable) {
                                      testing::Not(testing::HasSubstr("tsc=reliable"))));
 
     android::base::System::SetEnvironmentVariable("ENABLE_AEHD_IN_QEMU", "");
+}
+
+namespace {
+
+std::string GetKernelAppend(int api_level, const std::string& cmdline_content = "",
+                            ParamList* append = nullptr) {
+    base::TestSystem sys("");
+    AndroidOptions opts{.append = append};
+    FakeEmulator emu(std::move(opts));
+
+    auto hw = HardwareConfig();
+    EXPECT_CALL(emu.mock_avd(), Hw()).WillRepeatedly(testing::ReturnRef(hw));
+    EXPECT_CALL(emu.mock_avd(), Name()).WillRepeatedly(testing::Return("mock_avd"));
+
+    SystemImagePaths paths;
+    paths.kernel_image = "some/path/kernel-ranchu";
+    std::filesystem::path cmdline_path;
+    if (!cmdline_content.empty()) {
+        cmdline_path = sys.GetTempRoot()->Path() / "kernel_cmdline.txt";
+        std::ofstream(cmdline_path) << cmdline_content;
+        paths.kernel_cmdline = cmdline_path;
+    }
+    EXPECT_CALL(emu.mock_avd(), GetSystemImagePaths()).WillRepeatedly(testing::ReturnRef(paths));
+    EXPECT_CALL(emu.mock_avd(), Arch()).WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
+    EXPECT_CALL(emu.mock_avd(), ApiLevel()).WillRepeatedly(testing::Return(api_level));
+
+    CpuDevice cpu;
+    KernelDevice dev(cpu);
+    EXPECT_OK(dev.initialize(emu.config()));
+    auto params = dev.getQemuParameters(emu.config());
+    for (size_t i = 0; i + 1 < params.size(); ++i) {
+        if (params[i] == "-append") {
+            return params[i + 1];
+        }
+    }
+    return "";
+}
+
+}  // namespace
+
+TEST(Kernel, ApiLevelsGateModuleBlacklist) {
+    for (int api_level : {0, 30, 33, 38, Avd::kUnknownApiLevel, 10000}) {
+        SCOPED_TRACE(absl::StrCat("api_level: ", api_level));
+        EXPECT_THAT(GetKernelAppend(api_level),
+                    testing::Not(testing::HasSubstr("module_blacklist=test_meminit")));
+    }
+    for (int api_level : {34, 37}) {
+        SCOPED_TRACE(absl::StrCat("api_level: ", api_level));
+        EXPECT_THAT(GetKernelAppend(api_level),
+                    testing::StartsWith("module_blacklist=test_meminit "));
+    }
+}
+
+TEST(Kernel, PrependsDefaultModuleBlacklistBeforeUserAppend) {
+    char append_val[] = "module_blacklist=aaa";
+    ParamList custom_append{.param = append_val, .next = nullptr};
+    EXPECT_THAT(GetKernelAppend(/*api_level=*/35, /*cmdline_content=*/"", &custom_append),
+                testing::AllOf(testing::StartsWith("module_blacklist=test_meminit "),
+                               testing::HasSubstr(" module_blacklist=aaa")));
+}
+
+TEST(Kernel, PrependsDefaultModuleBlacklistBeforeKernelCmdline) {
+    EXPECT_THAT(GetKernelAppend(/*api_level=*/35,
+                                /*cmdline_content=*/"module_blacklist=custom_mod"),
+                testing::AllOf(testing::StartsWith("module_blacklist=test_meminit "),
+                               testing::HasSubstr(" module_blacklist=custom_mod")));
 }
 
 }  // namespace android::goldfish::test
