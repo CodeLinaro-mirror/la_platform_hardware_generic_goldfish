@@ -398,4 +398,72 @@ TEST(AdbHostServer, getProtocolVersion_connectionFailure) {
     EXPECT_EQ(version.status().code(), absl::StatusCode::kUnavailable);
 }
 
+TEST(AdbHostServer, killServer_success) {
+    constexpr std::string_view kExpectedKillWire = "0009host:kill";
+    android::base::ScopedSocket listenSocket(android::base::socketTcp4LoopbackServer(0));
+    ASSERT_TRUE(listenSocket.valid());
+    const int port = android::base::socketGetPort(listenSocket.get());
+
+    std::string received;
+    std::thread serverThread([fd = listenSocket.get(), &received, kExpectedKillWire]() {
+        const int clientFd = android::base::socketAcceptAny(fd);
+        if (clientFd < 0) return;
+        received.resize(kExpectedKillWire.size());
+        if (android::base::socketRecvAll(clientFd, received.data(), received.size())) {
+            android::base::socketSendAll(clientFd, "OKAY", 4);
+        }
+        android::base::socketClose(clientFd);
+    });
+
+    const absl::Status status = AdbHostServer::killServer(port);
+    if (serverThread.joinable()) {
+        serverThread.join();
+    }
+
+    EXPECT_TRUE(status.ok()) << status;
+    EXPECT_EQ(kExpectedKillWire, received);
+}
+
+TEST(AdbHostServer, killServer_daemonFail) {
+    constexpr std::string_view kExpectedKillWire = "0009host:kill";
+    android::base::ScopedSocket listenSocket(android::base::socketTcp4LoopbackServer(0));
+    ASSERT_TRUE(listenSocket.valid());
+    const int port = android::base::socketGetPort(listenSocket.get());
+
+    std::thread serverThread([fd = listenSocket.get(), kExpectedKillWire]() {
+        const int clientFd = android::base::socketAcceptAny(fd);
+        if (clientFd < 0) return;
+        std::string req(kExpectedKillWire.size(), '\0');
+        android::base::socketRecvAll(clientFd, req.data(), req.size());
+        android::base::socketSendAll(clientFd, "FAIL", 4);
+        android::base::socketSendAll(clientFd, "000cdenied error", 16);
+        android::base::socketClose(clientFd);
+    });
+
+    const absl::Status status = AdbHostServer::killServer(port);
+    if (serverThread.joinable()) {
+        serverThread.join();
+    }
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code(), absl::StatusCode::kInternal);
+}
+
+TEST(AdbHostServer, killServer_notRunning) {
+    int closedPort = 0;
+    {
+        android::base::ScopedSocket listenSocket(android::base::socketTcp4LoopbackServer(0));
+        ASSERT_TRUE(listenSocket.valid());
+        closedPort = android::base::socketGetPort(listenSocket.get());
+    }
+
+    const absl::Status closedStatus = AdbHostServer::killServer(closedPort);
+    EXPECT_FALSE(closedStatus.ok());
+    EXPECT_EQ(closedStatus.code(), absl::StatusCode::kUnavailable);
+
+    const absl::Status invalidPortStatus = AdbHostServer::killServer(-1);
+    EXPECT_FALSE(invalidPortStatus.ok());
+    EXPECT_EQ(invalidPortStatus.code(), absl::StatusCode::kInvalidArgument);
+}
+
 }  // namespace goldfish::adb

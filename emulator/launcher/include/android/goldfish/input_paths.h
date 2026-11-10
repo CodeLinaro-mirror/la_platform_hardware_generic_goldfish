@@ -54,6 +54,10 @@ struct UserPaths {
     fs::path sdk_directory;
     fs::path discovery_directory;
     fs::path tmp_directory;
+    // True when `user_directory` resolves to the shared Android user directory
+    // (`$ANDROID_PREFS_ROOT`, `$ANDROID_SDK_HOME`, or `$HOME/.android`) rather
+    // than an emulator-only override such as `$ANDROID_EMULATOR_HOME`.
+    bool is_shared_user_directory = false;
 };
 
 struct SystemImagePaths {
@@ -89,6 +93,7 @@ struct SystemImagePaths {
 absl::StatusOr<EmulatorPaths> ResolveEmulatorPaths(bool verbose);
 absl::StatusOr<UserPaths> ResolveUserPaths(const fs::path& launcher_dir, bool verbose);
 absl::StatusOr<SystemImagePaths> ResolveSystemImagePaths(const std::vector<fs::path>& search_paths,
-                                                         const AndroidOptions& opts, bool android_build);
+                                                         const AndroidOptions& opts,
+                                                         bool android_build);
 
 }  // namespace android::goldfish

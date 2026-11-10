@@ -18,46 +18,44 @@
 #include <openssl/obj_mac.h>
 #include <openssl/rsa.h>
 
+#ifndef _WIN32
+#include <unistd.h>
+#endif
+
+#include <atomic>
+#include <chrono>
+#include <cstring>
+#include <filesystem>
 #include <fstream>
 #include <memory>
 #include <string>
+#include <thread>
 #include <vector>
+
+#include "absl/cleanup/cleanup.h"
+#include "absl/status/status.h"
+#include "absl/status/status_matchers.h"
+#include "absl/strings/match.h"
+#include "gmock/gmock.h"
 
 #include "android/base/testing/test_system.h"
 #include "android/base/testing/test_temp_dir.h"
+#include "android/process/process.h"
+#include "android/status/status_matcher_macros.h"
+#include "goldfish/adb/testing/adbkey_test_support.h"
+#include "goldfish/file/file.h"
 
 namespace goldfish::adb {
 
 namespace {
-// Private key that can be used to answer challenge token above.
-std::string privkey = R"##(-----BEGIN PRIVATE KEY-----
-MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQCxc0jUMYZ5fJSo
-7t0MEfGDV9GPhdvOfgKv3GRaqnPuTD04SCXPwu7iJ9y6rS/Rk1CsW9HI+LcQvu5h
-AsbpzDW88Sg5kSWfbEWP7EgPfdcfWdOfaRFZ/0J/sRejvCnekmnPF75irEYPI/sx
-jL2xIJ1kTOywOCBB3l/xkPPSLPt2159Lm3v+pMdinq6rp8RQ7XK9pj4dv4tb778+
-mLtp4p6FhOH6rU/q4848v4CM1/YVXZZaMKmos4PfvFLknzCmd3xN2o1MusP2OSxb
-NkXXpCTsJLufcb3ItBgLyEri/eOQcYzpV84vTHwqr121stDpjVAR3H4AaelHZqOF
-JKY5NVJTAgMBAAECggEASD7BdfK75xY7iBPH1zQu+eR1I1PCS+2ttl+qU+d1z50m
-h5WIH3Ajxduo2C/OeirZ+3JelM396klxz/lLdsB3WHdugxF/GcsA/zmZlQUM4my1
-5f7m25c7QbWeBEGFYmKFxZTLJG0zENL7YA8G4+h9a+qNqqkPKQIaWcVEH1vE/Xra
-hNwD6wYyj01aVAdSDKgu6EtIpmVDlgDFE33JQnHM9r3c6o6QdNQTlhGyQ+SX2rCx
-y3a0pW4MlGas1RtWDwOHt6XunSn2O6YUGuEXLhixFxv/rhr3+x5TSFcHB9Lg8/Rm
-OEvW9614/C0ePkDuoxcdGbauMz1JU4O0xkCQameJIQKBgQDYCjmQJ3s55G6nIrOe
-uE5R8m1QpbZhg2w/8J5dUirsidw7WG5Wo3bnd5RTciti59r7TUUD/XS7BkIUiRZk
-GKHvC+W2QJT3u7oCY2KGXhCAniwbckHLsVnfPMqKyN+LKU8SbXqos9pZUz7nAmvG
-G7FVrrd2lYnjDSgMMPr+8cO/CQKBgQDSRcp0jUifpoYOnyO3Lt50s94Y4J3SEDJW
-N/DXtck9WOjDuGA379KZV2BTkBVKoZQ3a3qamHjGBkClSg01/no0jhAuieMt8UTG
-NvKGx4Ec8pBOkJleeDwNkcaC62AFjlz2+aWe4FFpnSRp7S20R+dMOGTLc+YaD6xo
-JLvi2f2BewKBgBNSDsXSkhWiVTcDRncKWo6/lIEi4MWlwDeTqEYGRCp1RcnU5cE/
-yzF2I0C3NCQbQh05UtPBhf/31k8J14PKJClBsiBzdB8XndH622PS47zs6FroA/RY
-fwYU5LQ2tK84WYb3XYHa28sjQ7vbHpJQBbL49hVX2EYC9jLo6nmEW5IpAoGABAoZ
-MJICQiblzmQaQIui9GT8MEgoX/+1p9hdRReV7RrHJfNlzc1Ko219ST2sWwmtmj7z
-VQL21v8JwOMiS9Y+rMHJ58r4VUqcQp6NnC86+L5kLU4z1A/FP5F8WcmBx7mLaac0
-GlA+4COHro1C4oK7G8i9jvcEBZ4ldr616U68wv8CgYEAgH2P+jwmAOiEDGJIvTOP
-IPkwJ9Kz2z6z4JxfQxfo2sdM8aCrgsXvfFIFZpAWZ13HXzKFNjfdZ3tNlJOuiiEP
-Nw3rvNsjZXrpaIYpIKHL/QJmRM7MO1El4ebV3/qBZl0NU33fguD4P3FmqZmh2BvJ
-Uauxw86jrPSgjbiRB8FyvTo=
------END PRIVATE KEY-----)##";
+
+namespace fs = std::filesystem;
+
+using goldfish::adb::testing::CreateStubAdbExecutable;
+using goldfish::adb::testing::GenerateTestAdbPrivateKey;
+using goldfish::adb::testing::ScopedFakeAdbKeygen;
+using goldfish::adb::testing::ScopedTestProcessFactory;
+
 }  // namespace
 
 class AdbKeyTest : public ::testing::Test {
@@ -76,29 +74,328 @@ class AdbKeyTest : public ::testing::Test {
 };
 
 TEST_F(AdbKeyTest, KeyDoesNotExist) {
-    EXPECT_EQ("", GetPrivateAdbKeyPath(test_dir_->Path() / ".android"));
+    EXPECT_EQ(fs::path{}, GetPrivateAdbKeyPath(test_dir_->Path() / ".android"));
+}
+
+TEST_F(AdbKeyTest, EmptyUserDirReturnsEmpty) {
+    EXPECT_EQ(fs::path{}, GetPrivateAdbKeyPath(fs::path{}));
+    auto res = EnsurePrivateAdbKey(fs::path{});
+    EXPECT_THAT(res, absl_testing::StatusIs(absl::StatusCode::kInvalidArgument));
+}
+
+TEST_F(AdbKeyTest, EmptyHomeDirDoesNotFallbackToTempDir) {
+    test_system_.SetHomeDirectory("");
+    const fs::path temp_android = test_system_.GetTempDir() / ".android";
+    ASSERT_OK(android::base::file::mkdir_recursive(temp_android, 0750));
+    ASSERT_TRUE(GenerateTestAdbPrivateKey(temp_android / "adbkey"));
+
+    const fs::path custom_dir = test_dir_->Path() / "custom_user_dir";
+    EXPECT_EQ(fs::path{}, GetPrivateAdbKeyPath(custom_dir));
 }
 
 TEST_F(AdbKeyTest, FindKeysInDefaultPath) {
     test_dir_->MakeSubFile(".android/adbkey");
-    EXPECT_NE("", GetPrivateAdbKeyPath(test_dir_->Path() / ".android"));
+    EXPECT_EQ(test_dir_->Path() / ".android" / "adbkey",
+              GetPrivateAdbKeyPath(test_dir_->Path() / ".android"));
+}
+
+TEST_F(AdbKeyTest, CopiesDefaultKeyToCustomUserDir) {
+    const fs::path default_priv = test_dir_->Path() / ".android" / "adbkey";
+    ASSERT_TRUE(GenerateTestAdbPrivateKey(default_priv));
+    ASSERT_OK_AND_ASSIGN(const std::string expected_priv,
+                         android::base::file::read_whole_file(default_priv, /*binary=*/true));
+
+    const fs::path custom_dir = test_dir_->Path() / "custom_android_user";
+    EXPECT_EQ(custom_dir / "adbkey", GetPrivateAdbKeyPath(custom_dir));
+
+    ASSERT_OK_AND_ASSIGN(const std::string copied_priv,
+                         android::base::file::read_whole_file(custom_dir / "adbkey",
+                                                              /*binary=*/true));
+    EXPECT_EQ(copied_priv, expected_priv);
+
+#ifndef _WIN32
+    ASSERT_OK_AND_ASSIGN(const unsigned priv_mode,
+                         android::base::file::mode(custom_dir / "adbkey"));
+    EXPECT_EQ(priv_mode & 0777U, 0600U);
+#endif
 }
 
 TEST_F(AdbKeyTest, GenerateWritesAKey) {
-    const char* tst_key = "adbsamplekey";
-    auto key_file = test_dir_->Path() / ".android" / tst_key;
+    const fs::path key_file = test_dir_->Path() / ".android" / "adbsamplekey";
     EXPECT_FALSE(android::base::file::exists(key_file));
-    EXPECT_TRUE(internal::TestOnlyAdbAuthKeygen(key_file));
+    EXPECT_TRUE(GenerateTestAdbPrivateKey(key_file));
     EXPECT_TRUE(android::base::file::exists(key_file));
+#ifndef _WIN32
+    ASSERT_OK_AND_ASSIGN(const unsigned key_mode, android::base::file::mode(key_file));
+    EXPECT_EQ(key_mode & 0777U, 0600U);
+#endif
 }
 
 TEST_F(AdbKeyTest, CanCreatePubFromGeneratedPriv) {
-    const char* tst_key = "adbsamplekey2";
     std::string pubkey;
-    auto key_file = test_dir_->Path() / ".android" / tst_key;
-    EXPECT_TRUE(internal::TestOnlyAdbAuthKeygen(key_file));
+    const fs::path key_file = test_dir_->Path() / ".android" / "adbsamplekey2";
+    EXPECT_TRUE(GenerateTestAdbPrivateKey(key_file));
     EXPECT_TRUE(PubkeyFromPrivkey(key_file, &pubkey));
-    EXPECT_NE("", pubkey);
+    EXPECT_FALSE(pubkey.empty());
+}
+
+TEST_F(AdbKeyTest, PubkeyFromPrivkeyUsesTestSystemEnvAndFallback) {
+    const fs::path key_file = test_dir_->Path() / ".android" / "sample_priv";
+    ASSERT_TRUE(GenerateTestAdbPrivateKey(key_file));
+
+    test_system_.EnvSet("LOGNAME", "");
+    test_system_.EnvSet("USER", "");
+    test_system_.EnvSet("USERNAME", "");
+    test_system_.EnvSet("HOSTNAME", "");
+    test_system_.EnvSet("COMPUTERNAME", "");
+
+    std::string fallback_pubkey;
+    ASSERT_TRUE(PubkeyFromPrivkey(key_file, &fallback_pubkey));
+    EXPECT_TRUE(absl::EndsWith(fallback_pubkey, " unknown@unknown")) << fallback_pubkey;
+
+    test_system_.EnvSet("LOGNAME", "alice");
+    test_system_.EnvSet("HOSTNAME", "workstation");
+    std::string env_pubkey;
+    ASSERT_TRUE(PubkeyFromPrivkey(key_file, &env_pubkey));
+    EXPECT_TRUE(absl::EndsWith(env_pubkey, " alice@workstation")) << env_pubkey;
+}
+
+TEST_F(AdbKeyTest, EnsurePrivateAdbKeyReturnsExistingWithoutRunningAdb) {
+    const fs::path key_file = test_dir_->Path() / ".android" / "adbkey";
+    ASSERT_TRUE(GenerateTestAdbPrivateKey(key_file));
+
+    ScopedFakeAdbKeygen fake_keygen;
+    ASSERT_OK_AND_ASSIGN(const AdbKeyResult res,
+                         EnsurePrivateAdbKey(test_dir_->Path() / ".android"));
+    EXPECT_FALSE(res.newly_created);
+    EXPECT_EQ(res.private_key_path, key_file);
+    EXPECT_EQ(fake_keygen.invocations(), 0);
+}
+
+TEST_F(AdbKeyTest, EnsurePrivateAdbKeyGeneratesViaSdkPlatformTools) {
+    const fs::path sdk_dir = test_dir_->Path() / "sdk";
+    const fs::path adb_exe = CreateStubAdbExecutable(sdk_dir / "platform-tools");
+    const fs::path user_dir = test_dir_->Path() / ".android";
+
+    ScopedFakeAdbKeygen fake_keygen;
+    ASSERT_OK_AND_ASSIGN(const AdbKeyResult first, EnsurePrivateAdbKey(user_dir, sdk_dir));
+    EXPECT_TRUE(first.newly_created);
+    EXPECT_EQ(first.private_key_path, user_dir / "adbkey");
+    EXPECT_EQ(fake_keygen.invocations(), 1);
+
+    const android::base::CommandArguments captured_args = fake_keygen.last_args();
+    ASSERT_EQ(captured_args.size(), 3U);
+    EXPECT_EQ(fs::path(captured_args[0]), adb_exe);
+    EXPECT_EQ(captured_args[1], "keygen");
+    EXPECT_NE(fs::path(captured_args[2]), user_dir / "adbkey");
+
+    EXPECT_TRUE(android::base::file::is_file(user_dir / "adbkey"));
+    EXPECT_TRUE(android::base::file::is_file(user_dir / "adbkey.pub"));
+    for (const fs::path& entry : android::base::file::scan_dir(user_dir)) {
+        EXPECT_FALSE(absl::StrContains(entry.string(), ".tmp.")) << entry;
+    }
+
+    std::string derived_pub;
+    ASSERT_TRUE(PubkeyFromPrivkey(first.private_key_path, &derived_pub));
+    EXPECT_FALSE(derived_pub.empty());
+
+    // Subsequent calls see the existing key and do not invoke `adb keygen` again.
+    ASSERT_OK_AND_ASSIGN(const AdbKeyResult second, EnsurePrivateAdbKey(user_dir, sdk_dir));
+    EXPECT_FALSE(second.newly_created);
+    EXPECT_EQ(second.private_key_path, user_dir / "adbkey");
+    EXPECT_EQ(fake_keygen.invocations(), 1);
+}
+
+TEST_F(AdbKeyTest, EnsurePrivateAdbKeyFindsAdbOnPathAndSupportsNonAsciiDirectory) {
+    const fs::path bin_dir = test_dir_->Path() / "工具_bin";
+    const fs::path adb_exe = CreateStubAdbExecutable(bin_dir);
+    test_system_.EnvSet("PATH", "\"" + bin_dir.string() + "\"");
+
+    const fs::path non_ascii_user_dir = test_dir_->Path() / "测试_🚀_é" / ".android";
+
+    ScopedFakeAdbKeygen fake_keygen;
+    ASSERT_OK_AND_ASSIGN(const AdbKeyResult res, EnsurePrivateAdbKey(non_ascii_user_dir));
+    EXPECT_TRUE(res.newly_created);
+    EXPECT_EQ(res.private_key_path, non_ascii_user_dir / "adbkey");
+    EXPECT_TRUE(android::base::file::is_file(adb_exe));
+    EXPECT_EQ(fake_keygen.invocations(), 1);
+
+    std::string pubkey;
+    ASSERT_TRUE(PubkeyFromPrivkey(res.private_key_path, &pubkey));
+    EXPECT_FALSE(pubkey.empty());
+}
+
+TEST_F(AdbKeyTest, EnsurePrivateAdbKeyFailsWhenAdbNotFound) {
+    test_system_.EnvSet("PATH", "");
+
+    const auto no_sdk_res = EnsurePrivateAdbKey(test_dir_->Path() / ".android");
+    EXPECT_THAT(
+            no_sdk_res,
+            absl_testing::StatusIs(
+                    absl::StatusCode::kNotFound,
+                    ::testing::AllOf(::testing::HasSubstr("(no SDK directory)"),
+                                     ::testing::HasSubstr("install Android SDK Platform-Tools"))));
+
+    const fs::path sdk_dir = test_dir_->Path() / "missing_sdk";
+    const auto sdk_res = EnsurePrivateAdbKey(test_dir_->Path() / ".android", sdk_dir);
+    EXPECT_THAT(
+            sdk_res,
+            absl_testing::StatusIs(
+                    absl::StatusCode::kNotFound,
+                    ::testing::AllOf(::testing::HasSubstr((sdk_dir / "platform-tools").string()),
+                                     ::testing::HasSubstr("install Android SDK Platform-Tools"))));
+}
+
+TEST_F(AdbKeyTest, EnsurePrivateAdbKeyReplacesOrphanedStalePublicKey) {
+    const fs::path sdk_dir = test_dir_->Path() / "sdk";
+    CreateStubAdbExecutable(sdk_dir / "platform-tools");
+    const fs::path user_dir = test_dir_->Path() / ".android";
+    const fs::path pubkey_path = user_dir / "adbkey.pub";
+    {
+        std::ofstream out(pubkey_path, std::ios::binary | std::ios::trunc);
+        out << "stale-orphaned-public-key";
+    }
+
+    ScopedFakeAdbKeygen fake_keygen;
+    ASSERT_OK_AND_ASSIGN(const AdbKeyResult res, EnsurePrivateAdbKey(user_dir, sdk_dir));
+    EXPECT_TRUE(res.newly_created);
+    EXPECT_EQ(fake_keygen.invocations(), 1);
+
+    std::string expected_pub;
+    ASSERT_TRUE(PubkeyFromPrivkey(res.private_key_path, &expected_pub));
+    ASSERT_OK_AND_ASSIGN(const std::string actual_pub,
+                         android::base::file::read_whole_file(pubkey_path));
+    EXPECT_NE(actual_pub, "stale-orphaned-public-key");
+    EXPECT_THAT(actual_pub, ::testing::StartsWith(expected_pub));
+}
+
+TEST_F(AdbKeyTest, EnsurePrivateAdbKeyFailsWhenExistingKeyIsNotReadableFile) {
+    const fs::path sdk_dir = test_dir_->Path() / "sdk";
+    CreateStubAdbExecutable(sdk_dir / "platform-tools");
+    const fs::path user_dir = test_dir_->Path() / ".android";
+    ASSERT_OK(android::base::file::mkdir_recursive(user_dir / "adbkey", 0750));
+
+    ScopedFakeAdbKeygen fake_keygen;
+    const auto res = EnsurePrivateAdbKey(user_dir, sdk_dir);
+    EXPECT_THAT(res, absl_testing::StatusIs(absl::StatusCode::kPermissionDenied));
+    EXPECT_EQ(fake_keygen.invocations(), 0);
+}
+
+#ifndef _WIN32
+TEST_F(AdbKeyTest, UnreadableExistingKeyIsNotOverwritten) {
+    if (geteuid() == 0) {
+        GTEST_SKIP() << "Root bypasses mode 0000 read checks";
+    }
+
+    const fs::path sdk_dir = test_dir_->Path() / "sdk";
+    CreateStubAdbExecutable(sdk_dir / "platform-tools");
+
+    const fs::path default_priv = test_dir_->Path() / ".android" / "adbkey";
+    ASSERT_TRUE(GenerateTestAdbPrivateKey(default_priv));
+
+    const fs::path custom_dir = test_dir_->Path() / "custom_user";
+    ASSERT_OK(android::base::file::mkdir_recursive(custom_dir, 0750));
+    const fs::path unreadable_priv = custom_dir / "adbkey";
+    ASSERT_TRUE(GenerateTestAdbPrivateKey(unreadable_priv));
+    ASSERT_OK_AND_ASSIGN(const std::string original_bytes,
+                         android::base::file::read_whole_file(unreadable_priv, /*binary=*/true));
+
+    ASSERT_OK(android::base::file::chmod(unreadable_priv, 0000));
+    absl::Cleanup restore_perms = [&unreadable_priv]() {
+        android::base::file::chmod(unreadable_priv, 0600).IgnoreError();
+    };
+
+    EXPECT_EQ(fs::path{}, GetPrivateAdbKeyPath(custom_dir));
+
+    ScopedFakeAdbKeygen fake_keygen;
+    const auto res = EnsurePrivateAdbKey(custom_dir, sdk_dir);
+    EXPECT_THAT(res, absl_testing::StatusIs(absl::StatusCode::kPermissionDenied,
+                                            ::testing::HasSubstr("exists but is not readable")));
+    EXPECT_EQ(fake_keygen.invocations(), 0);
+
+    ASSERT_OK(android::base::file::chmod(unreadable_priv, 0600));
+    ASSERT_OK_AND_ASSIGN(const std::string preserved_bytes,
+                         android::base::file::read_whole_file(unreadable_priv, /*binary=*/true));
+    EXPECT_EQ(preserved_bytes, original_bytes);
+}
+#endif
+
+TEST_F(AdbKeyTest, EnsurePrivateAdbKeyFailsWhenAdbKeygenExitsNonZero) {
+    const fs::path sdk_dir = test_dir_->Path() / "sdk";
+    CreateStubAdbExecutable(sdk_dir / "platform-tools");
+    const fs::path user_dir = test_dir_->Path() / ".android";
+
+    ScopedTestProcessFactory factory([](const android::base::CommandArguments& args,
+                                        std::string* /*out*/,
+                                        std::string* err) -> android::base::ProcessExitCode {
+        if (args.size() == 3) {
+            // Simulate partial temp file left behind before failure.
+            std::ofstream(fs::path(args[2]), std::ios::trunc) << "partial";
+        }
+        *err = "adb keygen simulated failure";
+        return 2;
+    });
+
+    auto res = EnsurePrivateAdbKey(user_dir, sdk_dir);
+    EXPECT_THAT(res, absl_testing::StatusIs(absl::StatusCode::kInternal));
+    EXPECT_FALSE(android::base::file::exists(user_dir / "adbkey"));
+    for (const fs::path& entry : android::base::file::scan_dir(user_dir)) {
+        EXPECT_FALSE(absl::StrContains(entry.string(), ".tmp.")) << entry;
+    }
+}
+
+TEST_F(AdbKeyTest, ConcurrentEnsurePrivateAdbKeyGeneratesOnce) {
+    const fs::path sdk_dir = test_dir_->Path() / "sdk";
+    CreateStubAdbExecutable(sdk_dir / "platform-tools");
+    const fs::path user_dir = test_dir_->Path() / ".android";
+
+    ScopedFakeAdbKeygen fake_keygen(std::chrono::milliseconds(25));
+
+    constexpr int kNumThreads = 4;
+    std::atomic<int> ready_count{0};
+    std::atomic<bool> start{false};
+    std::vector<absl::StatusOr<AdbKeyResult>> results(kNumThreads);
+    std::vector<std::thread> threads;
+    threads.reserve(kNumThreads);
+
+    for (int i = 0; i < kNumThreads; ++i) {
+        threads.emplace_back([&, i]() {
+            ready_count.fetch_add(1, std::memory_order_acq_rel);
+            while (!start.load(std::memory_order_acquire)) {
+                std::this_thread::yield();
+            }
+            results[i] = EnsurePrivateAdbKey(user_dir, sdk_dir);
+        });
+    }
+
+    while (ready_count.load(std::memory_order_acquire) < kNumThreads) {
+        std::this_thread::yield();
+    }
+    start.store(true, std::memory_order_release);
+
+    for (auto& t : threads) {
+        t.join();
+    }
+
+    int newly_created_count = 0;
+    std::string expected_pubkey;
+    for (int i = 0; i < kNumThreads; ++i) {
+        ASSERT_OK(results[i].status());
+        EXPECT_EQ(results[i]->private_key_path, user_dir / "adbkey");
+        if (results[i]->newly_created) {
+            ++newly_created_count;
+        }
+        std::string pubkey;
+        ASSERT_TRUE(PubkeyFromPrivkey(results[i]->private_key_path, &pubkey));
+        if (expected_pubkey.empty()) {
+            expected_pubkey = pubkey;
+        } else {
+            EXPECT_EQ(pubkey, expected_pubkey);
+        }
+    }
+
+    EXPECT_EQ(fake_keygen.invocations(), 1);
+    EXPECT_EQ(newly_created_count, 1);
 }
 
 // Test digest to verify.
@@ -181,7 +478,6 @@ TEST_F(AndroidPubkeyTest, Decode) {
 }
 
 TEST_F(AndroidPubkeyTest, Encode) {
-    // uint8_t key_data[kAndroidPubkeyEncodedSize];
     uint8_t key_data[internal::kAndroidPubkeyEncodedSize];
     ASSERT_TRUE(internal::AndroidPubkeyEncode(key.get(), key_data, sizeof(key_data)));
     ASSERT_EQ(0, memcmp(kKey2048, key_data, sizeof(kKey2048)));

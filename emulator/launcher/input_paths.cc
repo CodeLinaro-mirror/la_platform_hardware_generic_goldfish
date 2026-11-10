@@ -196,6 +196,10 @@ absl::StatusOr<UserPaths> ResolveUserPaths(const fs::path& launcher_dir, bool ve
     ASSIGN_OR_RETURN(
             paths.user_directory,
             CheckExists(android::goldfish::ConfigDirs::GetUserDirectory(), "user directory"));
+    const fs::path shared_user_dir = android::goldfish::ConfigDirs::GetSharedUserDirectory();
+    paths.is_shared_user_directory =
+            !shared_user_dir.empty() &&
+            paths.user_directory.lexically_normal() == shared_user_dir.lexically_normal();
     ASSIGN_OR_RETURN(
             paths.avd_directory,
             CheckExists(android::goldfish::ConfigDirs::GetAvdRootDirectory(), "avd directory"));

@@ -45,14 +45,9 @@ bool IsReadableDir(const fs::path& path) {
 }  // namespace
 
 // static
-auto ConfigDirs::GetUserDirectory() -> fs::path {
-    fs::path home = System::Get()->EnvGet("ANDROID_EMULATOR_HOME");
-    if (!home.empty()) {
-        return home;
-    }
-
+auto ConfigDirs::GetSharedUserDirectory() -> fs::path {
     // New key: ANDROID_PREFS_ROOT
-    home = System::Get()->EnvGet("ANDROID_PREFS_ROOT");
+    fs::path home = System::Get()->EnvGet("ANDROID_PREFS_ROOT");
     if (!home.empty()) {
         // In v1.9 emulator was changed to use $ANDROID_SDK_HOME/.android
         // directory, but Android Studio has always been using $ANDROID_SDK_HOME
@@ -60,7 +55,8 @@ auto ConfigDirs::GetUserDirectory() -> fs::path {
         // preferring the one from AS.
         auto home_new_way = fs::path(home) / kAndroidSubDir;
         return base::file::is_dir(home_new_way) ? home_new_way : home;
-    }  // Old key that is deprecated (ANDROID_SDK_HOME)
+    }
+    // Old key that is deprecated (ANDROID_SDK_HOME)
     home = System::Get()->EnvGet("ANDROID_SDK_HOME");
     if (!home.empty()) {
         auto home_old_way = fs::path(home) / kAndroidSubDir;
@@ -69,9 +65,20 @@ auto ConfigDirs::GetUserDirectory() -> fs::path {
 
     home = android::base::System::Get()->GetHomeDirectory();
     if (home.empty()) {
-        return fs::temp_directory_path();
+        return {};
     }
     return home / kAndroidSubDir;
+}
+
+// static
+auto ConfigDirs::GetUserDirectory() -> fs::path {
+    if (fs::path home = System::Get()->EnvGet("ANDROID_EMULATOR_HOME"); !home.empty()) {
+        return home;
+    }
+    if (fs::path shared = GetSharedUserDirectory(); !shared.empty()) {
+        return shared;
+    }
+    return fs::temp_directory_path();
 }
 
 // static

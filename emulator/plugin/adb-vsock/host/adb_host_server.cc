@@ -11,6 +11,8 @@
 
 #include "goldfish/adb/adb_host_server.h"
 
+#include <cerrno>
+#include <chrono>
 #include <cstdlib>
 #include <cstring>
 #include <optional>
@@ -223,6 +225,41 @@ absl::Status AdbHostServer::runShellCommand(const std::string& shellCommand, int
     }
 
     return readAdbStatus(socket.get(), "shell command", serialNumber);
+}
+
+absl::Status AdbHostServer::killServer(int adbClientPort) {
+    if (adbClientPort <= 0) {
+        return absl::InvalidArgumentError(absl::StrCat("invalid adb daemon port: ", adbClientPort));
+    }
+
+    ScopedSocket socket = connectToAdbServer(adbClientPort);
+    if (!socket.valid()) {
+        VLOG(1) << "killServer: no ADB server listening on port " << adbClientPort;
+        return absl::UnavailableError(
+                absl::StrCat("unable to connect to adb daemon on port: ", adbClientPort));
+    }
+
+    if (!sendMessage(socket.get(), "host:kill")) {
+        return absl::InternalError("failed to send host:kill request");
+    }
+
+    RETURN_IF_ERROR(readAdbStatus(socket.get(), "host:kill request"));
+
+    // Wait briefly for the daemon to close its end of the socket on exit so
+    // the listening port is released before callers or external tools reconnect.
+    constexpr int kEofPollAttempts = 50;
+    constexpr auto kEofPollInterval = std::chrono::milliseconds(10);
+    android::base::socketSetNonBlocking(socket.get());
+    char ch = 0;
+    for (int i = 0; i < kEofPollAttempts; ++i) {
+        const ssize_t ret = android::base::socketRecv(socket.get(), &ch, 1);
+        if (ret == 0 || (ret < 0 && errno != EAGAIN && errno != EWOULDBLOCK)) {
+            break;
+        }
+        std::this_thread::sleep_for(kEofPollInterval);
+    }
+
+    return absl::OkStatus();
 }
 
 int AdbHostServer::getClientPort() {
