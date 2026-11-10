@@ -35,6 +35,14 @@
 namespace android::goldfish {
 
 namespace {
+
+// b/582851647: Gate module_blacklist=test_meminit on unpatched API 34-37 images.
+// API <= 33 loads test_meminit.ko synchronously in first-stage /init with strict=true where -EPERM
+// hits LOG(FATAL) and panics PID 1, while API 38+ images already blocklist test_meminit.ko in
+// vendor_dlkm modules.blocklist (ag/43603284).
+constexpr int kTestMeminitBlacklistMinApiLevel = 34;
+constexpr int kTestMeminitBlacklistMaxApiLevel = 37;
+
 absl::StatusOr<std::string> command_line(const EmulatorConfig& emulator,
                                          const CpuDevice& cpu_device) {
     const Avd& avd = emulator.avd();
@@ -112,7 +120,14 @@ absl::StatusOr<std::string> command_line(const EmulatorConfig& emulator,
         cl.insert(a->param);
     }
 
-    std::string result = absl::StrJoin(cl, " ");
+    // Linux module_blacklist (param_set_charp) replaces the entire parameter string rather than
+    // merging comma-separated entries. Prepending the default first ensures any kernel_cmdline.txt
+    // or user -append module_blacklist= entry overrides it via the kernel's last-wins rule.
+    std::string result =
+            (api_level >= kTestMeminitBlacklistMinApiLevel &&
+             api_level <= kTestMeminitBlacklistMaxApiLevel)
+                    ? absl::StrCat("module_blacklist=test_meminit ", absl::StrJoin(cl, " "))
+                    : absl::StrJoin(cl, " ");
     if (!has_bootconfig) {
         for (const auto& [key, val] : getBootProperties(emulator, /*vk_icd=*/"")) {
             if (val.empty()) {
