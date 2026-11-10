@@ -37,10 +37,10 @@ std::optional<std::vector<uint8_t>> HexToBin(const std::string_view hex) {
         return std::nullopt;
     }
 
-    const size_t numBytes = hex.size() / 2U;
-    std::vector<uint8_t> binary(numBytes);
+    const size_t num_bytes = hex.size() / 2U;
+    std::vector<uint8_t> binary(num_bytes);
 
-    for (size_t i = 0; i < numBytes; ++i) {
+    for (size_t i = 0; i < num_bytes; ++i) {
         const int high = ParseOne(hex[i + i]);
         if (high < 0) {
             return std::nullopt;

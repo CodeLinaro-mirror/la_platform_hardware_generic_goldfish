@@ -23,253 +23,259 @@ namespace emulation {
 namespace control {
 namespace incubating {
 
-using goldfish::parsing::HexToBin;
-using client_type = goldfish::modem_simulator::IModemSimulatorClient;
+using ::goldfish::parsing::HexToBin;
+using ClientType = ::goldfish::modem_simulator::IModemSimulatorClient;
 
 namespace {
 
-client_type::CellStandard ToClient(const CellInfo::CellStandard cellStandard) {
-    switch (cellStandard) {
+ClientType::CellStandard ToClient(const CellInfo::CellStandard cell_standard) {
+    switch (cell_standard) {
     case CellInfo::CELL_STANDARD_UNKNOWN:
-        return client_type::CellStandard::UNKNOWN;
+        return ClientType::CellStandard::UNKNOWN;
     case CellInfo::CELL_STANDARD_GSM:
-        return client_type::CellStandard::GSM;
+        return ClientType::CellStandard::GSM;
     case CellInfo::CELL_STANDARD_HSCSD:
-        return client_type::CellStandard::HSCSD;
+        return ClientType::CellStandard::HSCSD;
     case CellInfo::CELL_STANDARD_GPRS:
-        return client_type::CellStandard::GPRS;
+        return ClientType::CellStandard::GPRS;
     case CellInfo::CELL_STANDARD_EDGE:
-        return client_type::CellStandard::EDGE;
+        return ClientType::CellStandard::EDGE;
     case CellInfo::CELL_STANDARD_UMTS:
-        return client_type::CellStandard::UMTS;
+        return ClientType::CellStandard::UMTS;
     case CellInfo::CELL_STANDARD_HSDPA:
-        return client_type::CellStandard::HSDPA;
+        return ClientType::CellStandard::HSDPA;
     case CellInfo::CELL_STANDARD_LTE:
-        return client_type::CellStandard::LTE;
+        return ClientType::CellStandard::LTE;
     case CellInfo::CELL_STANDARD_FULL:
-        return client_type::CellStandard::FULL;
+        return ClientType::CellStandard::FULL;
     case CellInfo::CELL_STANDARD_5G:
-        return client_type::CellStandard::NR_5G;
+        return ClientType::CellStandard::NR_5G;
     default:
-        return client_type::CellStandard::UNKNOWN;
+        return ClientType::CellStandard::UNKNOWN;
     }
 }
 
-CellInfo::CellStandard ToProto(const client_type::CellStandard cellStandard) {
-    switch (cellStandard) {
-    case client_type::CellStandard::UNKNOWN:
+CellInfo::CellStandard ToProto(const ClientType::CellStandard cell_standard) {
+    switch (cell_standard) {
+    case ClientType::CellStandard::UNKNOWN:
         return CellInfo::CELL_STANDARD_UNKNOWN;
-    case client_type::CellStandard::GSM:
+    case ClientType::CellStandard::GSM:
         return CellInfo::CELL_STANDARD_GSM;
-    case client_type::CellStandard::HSCSD:
+    case ClientType::CellStandard::HSCSD:
         return CellInfo::CELL_STANDARD_HSCSD;
-    case client_type::CellStandard::GPRS:
+    case ClientType::CellStandard::GPRS:
         return CellInfo::CELL_STANDARD_GPRS;
-    case client_type::CellStandard::EDGE:
+    case ClientType::CellStandard::EDGE:
         return CellInfo::CELL_STANDARD_EDGE;
-    case client_type::CellStandard::UMTS:
+    case ClientType::CellStandard::UMTS:
         return CellInfo::CELL_STANDARD_UMTS;
-    case client_type::CellStandard::HSDPA:
+    case ClientType::CellStandard::HSDPA:
         return CellInfo::CELL_STANDARD_HSDPA;
-    case client_type::CellStandard::LTE:
+    case ClientType::CellStandard::LTE:
         return CellInfo::CELL_STANDARD_LTE;
-    case client_type::CellStandard::FULL:
+    case ClientType::CellStandard::FULL:
         return CellInfo::CELL_STANDARD_FULL;
-    case client_type::CellStandard::NR_5G:
+    case ClientType::CellStandard::NR_5G:
         return CellInfo::CELL_STANDARD_5G;
+    default:
+        return CellInfo::CELL_STANDARD_UNKNOWN;
     }
-
-    return CellInfo::CELL_STANDARD_UNKNOWN;
 }
 
-client_type::CellStatus ToClient(const CellInfo::CellStatus status) {
+ClientType::CellStatus ToClient(const CellInfo::CellStatus status) {
     switch (status) {
     case CellInfo::CELL_STATUS_UNKNOWN:
-        return client_type::CellStatus::UNKNOWN;
+        return ClientType::CellStatus::UNKNOWN;
     case CellInfo::CELL_STATUS_HOME:
-        return client_type::CellStatus::HOME;
+        return ClientType::CellStatus::HOME;
     case CellInfo::CELL_STATUS_ROAMING:
-        return client_type::CellStatus::ROAMING;
+        return ClientType::CellStatus::ROAMING;
     case CellInfo::CELL_STATUS_SEARCHING:
-        return client_type::CellStatus::SEARCHING;
+        return ClientType::CellStatus::SEARCHING;
     case CellInfo::CELL_STATUS_DENIED:
-        return client_type::CellStatus::DENIED;
+        return ClientType::CellStatus::DENIED;
     case CellInfo::CELL_STATUS_UNREGISTERED:
-        return client_type::CellStatus::UNREGISTERED;
+        return ClientType::CellStatus::UNREGISTERED;
     default:
-        return client_type::CellStatus::UNKNOWN;
+        return ClientType::CellStatus::UNKNOWN;
     }
 }
 
-CellInfo::CellStatus ToProto(const client_type::CellStatus status) {
+CellInfo::CellStatus ToProto(const ClientType::CellStatus status) {
     switch (status) {
-    case client_type::CellStatus::UNKNOWN:
+    case ClientType::CellStatus::UNKNOWN:
         return CellInfo::CELL_STATUS_UNKNOWN;
-    case client_type::CellStatus::HOME:
+    case ClientType::CellStatus::HOME:
         return CellInfo::CELL_STATUS_HOME;
-    case client_type::CellStatus::ROAMING:
+    case ClientType::CellStatus::ROAMING:
         return CellInfo::CELL_STATUS_ROAMING;
-    case client_type::CellStatus::SEARCHING:
+    case ClientType::CellStatus::SEARCHING:
         return CellInfo::CELL_STATUS_SEARCHING;
-    case client_type::CellStatus::DENIED:
+    case ClientType::CellStatus::DENIED:
         return CellInfo::CELL_STATUS_DENIED;
-    case client_type::CellStatus::UNREGISTERED:
+    case ClientType::CellStatus::UNREGISTERED:
         return CellInfo::CELL_STATUS_UNREGISTERED;
+    default:
+        return CellInfo::CELL_STATUS_UNKNOWN;
     }
-    return CellInfo::CELL_STATUS_UNKNOWN;
 }
 
-client_type::MeterStatus ToClient(const CellInfo::CellMeterStatus status) {
+ClientType::MeterStatus ToClient(const CellInfo::CellMeterStatus status) {
     switch (status) {
     case CellInfo::CELL_METER_STATUS_UNKNOWN:
-        return client_type::MeterStatus::UNKNOWN;
+        return ClientType::MeterStatus::UNKNOWN;
     case CellInfo::CELL_METER_STATUS_METERED:
-        return client_type::MeterStatus::METERED;
+        return ClientType::MeterStatus::METERED;
     case CellInfo::CELL_METER_STATUS_TEMPORARILY_NOT_METERED:
-        return client_type::MeterStatus::TEMPORARILY_NOT_METERED;
+        return ClientType::MeterStatus::TEMPORARILY_NOT_METERED;
     default:
-        return client_type::MeterStatus::UNKNOWN;
+        return ClientType::MeterStatus::UNKNOWN;
     }
 }
 
-CellInfo::CellMeterStatus ToProto(const client_type::MeterStatus status) {
+CellInfo::CellMeterStatus ToProto(const ClientType::MeterStatus status) {
     switch (status) {
-    case client_type::MeterStatus::UNKNOWN:
+    case ClientType::MeterStatus::UNKNOWN:
         return CellInfo::CELL_METER_STATUS_UNKNOWN;
-    case client_type::MeterStatus::METERED:
+    case ClientType::MeterStatus::METERED:
         return CellInfo::CELL_METER_STATUS_METERED;
-    case client_type::MeterStatus::TEMPORARILY_NOT_METERED:
+    case ClientType::MeterStatus::TEMPORARILY_NOT_METERED:
         return CellInfo::CELL_METER_STATUS_TEMPORARILY_NOT_METERED;
+    default:
+        return CellInfo::CELL_METER_STATUS_UNKNOWN;
     }
-    return CellInfo::CELL_METER_STATUS_UNKNOWN;
 }
 
-client_type::SimStatus ToClient(const CellInfo::CellSimStatus status) {
+ClientType::SimStatus ToClient(const CellInfo::CellSimStatus status) {
     switch (status) {
     case CellInfo::CELL_SIM_STATUS_UNKNOWN:
-        return client_type::SimStatus::UNKNOWN;
+        return ClientType::SimStatus::UNKNOWN;
     case CellInfo::CELL_SIM_STATUS_NOT_PRESENT:
-        return client_type::SimStatus::NOT_PRESENT;
+        return ClientType::SimStatus::NOT_PRESENT;
     case CellInfo::CELL_SIM_STATUS_PRESENT:
-        return client_type::SimStatus::PRESENT;
+        return ClientType::SimStatus::PRESENT;
     default:
-        return client_type::SimStatus::UNKNOWN;
+        return ClientType::SimStatus::UNKNOWN;
     }
 }
 
-CellInfo::CellSimStatus ToProto(const client_type::SimStatus status) {
+CellInfo::CellSimStatus ToProto(const ClientType::SimStatus status) {
     switch (status) {
-    case client_type::SimStatus::UNKNOWN:
+    case ClientType::SimStatus::UNKNOWN:
         return CellInfo::CELL_SIM_STATUS_UNKNOWN;
-    case client_type::SimStatus::NOT_PRESENT:
+    case ClientType::SimStatus::NOT_PRESENT:
         return CellInfo::CELL_SIM_STATUS_NOT_PRESENT;
-    case client_type::SimStatus::PRESENT:
+    case ClientType::SimStatus::PRESENT:
         return CellInfo::CELL_SIM_STATUS_PRESENT;
+    default:
+        return CellInfo::CELL_SIM_STATUS_UNKNOWN;
     }
-    return CellInfo::CELL_SIM_STATUS_UNKNOWN;
 }
 
-client_type::SignalStrength ToClient(const CellSignalStrength::CellSignalLevel level) {
+ClientType::SignalStrength ToClient(const CellSignalStrength::CellSignalLevel level) {
     switch (level) {
     case CellSignalStrength::SIGNAL_STRENGTH_NONE_OR_UNKNOWN:
-        return client_type::SignalStrength::NONE_OR_UNKNOWN;
+        return ClientType::SignalStrength::NONE_OR_UNKNOWN;
     case CellSignalStrength::SIGNAL_STRENGTH_POOR:
-        return client_type::SignalStrength::POOR;
+        return ClientType::SignalStrength::POOR;
     case CellSignalStrength::SIGNAL_STRENGTH_MODERATE:
-        return client_type::SignalStrength::MODERATE;
+        return ClientType::SignalStrength::MODERATE;
     case CellSignalStrength::SIGNAL_STRENGTH_GOOD:
-        return client_type::SignalStrength::GOOD;
+        return ClientType::SignalStrength::GOOD;
     case CellSignalStrength::SIGNAL_STRENGTH_GREAT:
-        return client_type::SignalStrength::GREAT;
+        return ClientType::SignalStrength::GREAT;
     default:
-        return client_type::SignalStrength::NONE_OR_UNKNOWN;
+        return ClientType::SignalStrength::NONE_OR_UNKNOWN;
     }
 }
 
-CellSignalStrength::CellSignalLevel ToProto(const client_type::SignalStrength level) {
+CellSignalStrength::CellSignalLevel ToProto(const ClientType::SignalStrength level) {
     switch (level) {
-    case client_type::SignalStrength::NONE_OR_UNKNOWN:
+    case ClientType::SignalStrength::NONE_OR_UNKNOWN:
         return CellSignalStrength::SIGNAL_STRENGTH_NONE_OR_UNKNOWN;
-    case client_type::SignalStrength::POOR:
+    case ClientType::SignalStrength::POOR:
         return CellSignalStrength::SIGNAL_STRENGTH_POOR;
-    case client_type::SignalStrength::MODERATE:
+    case ClientType::SignalStrength::MODERATE:
         return CellSignalStrength::SIGNAL_STRENGTH_MODERATE;
-    case client_type::SignalStrength::GOOD:
+    case ClientType::SignalStrength::GOOD:
         return CellSignalStrength::SIGNAL_STRENGTH_GOOD;
-    case client_type::SignalStrength::GREAT:
+    case ClientType::SignalStrength::GREAT:
         return CellSignalStrength::SIGNAL_STRENGTH_GREAT;
+    default:
+        return CellSignalStrength::SIGNAL_STRENGTH_NONE_OR_UNKNOWN;
     }
-    return CellSignalStrength::SIGNAL_STRENGTH_NONE_OR_UNKNOWN;
 }
 
-client_type::CallState ToClient(const Call::CallState state) {
+ClientType::CallState ToClient(const Call::CallState state) {
     switch (state) {
     case Call::CALL_STATE_UNSPECIFIED:
-        return client_type::CallState::UNSPECIFIED;
+        return ClientType::CallState::UNSPECIFIED;
     case Call::CALL_STATE_ACTIVE:
-        return client_type::CallState::ACTIVE;
+        return ClientType::CallState::ACTIVE;
     case Call::CALL_STATE_HELD:
-        return client_type::CallState::HELD;
+        return ClientType::CallState::HELD;
     case Call::CALL_STATE_DIALING:
-        return client_type::CallState::DIALING;
+        return ClientType::CallState::DIALING;
     case Call::CALL_STATE_ALERTING:
-        return client_type::CallState::ALERTING;
+        return ClientType::CallState::ALERTING;
     case Call::CALL_STATE_INCOMING:
-        return client_type::CallState::INCOMING;
+        return ClientType::CallState::INCOMING;
     case Call::CALL_STATE_WAITING:
-        return client_type::CallState::WAITING;
+        return ClientType::CallState::WAITING;
     default:
-        return client_type::CallState::UNSPECIFIED;
+        return ClientType::CallState::UNSPECIFIED;
     }
 }
 
-Call::CallState ToProto(const client_type::CallState state) {
+Call::CallState ToProto(const ClientType::CallState state) {
     switch (state) {
-    case client_type::CallState::UNSPECIFIED:
+    case ClientType::CallState::UNSPECIFIED:
         return Call::CALL_STATE_UNSPECIFIED;
-    case client_type::CallState::ACTIVE:
+    case ClientType::CallState::ACTIVE:
         return Call::CALL_STATE_ACTIVE;
-    case client_type::CallState::HELD:
+    case ClientType::CallState::HELD:
         return Call::CALL_STATE_HELD;
-    case client_type::CallState::DIALING:
+    case ClientType::CallState::DIALING:
         return Call::CALL_STATE_DIALING;
-    case client_type::CallState::ALERTING:
+    case ClientType::CallState::ALERTING:
         return Call::CALL_STATE_ALERTING;
-    case client_type::CallState::INCOMING:
+    case ClientType::CallState::INCOMING:
         return Call::CALL_STATE_INCOMING;
-    case client_type::CallState::WAITING:
+    case ClientType::CallState::WAITING:
         return Call::CALL_STATE_WAITING;
+    default:
+        return Call::CALL_STATE_UNSPECIFIED;
     }
-    return Call::CALL_STATE_UNSPECIFIED;
 }
 
-client_type::CallDirection ToClient(const Call::CallDirection direction) {
+ClientType::CallDirection ToClient(const Call::CallDirection direction) {
     switch (direction) {
     case Call::CALL_DIRECTION_UNSPECIFIED:
-        return client_type::CallDirection::UNSPECIFIED;
+        return ClientType::CallDirection::UNSPECIFIED;
     case Call::CALL_DIRECTION_OUTBOUND:
-        return client_type::CallDirection::OUTBOUND;
+        return ClientType::CallDirection::OUTBOUND;
     case Call::CALL_DIRECTION_INBOUND:
-        return client_type::CallDirection::INBOUND;
+        return ClientType::CallDirection::INBOUND;
     default:
-        return client_type::CallDirection::UNSPECIFIED;
+        return ClientType::CallDirection::UNSPECIFIED;
     }
 }
 
-Call::CallDirection ToProto(const client_type::CallDirection direction) {
+Call::CallDirection ToProto(const ClientType::CallDirection direction) {
     switch (direction) {
-    case client_type::CallDirection::UNSPECIFIED:
+    case ClientType::CallDirection::UNSPECIFIED:
         return Call::CALL_DIRECTION_UNSPECIFIED;
-    case client_type::CallDirection::OUTBOUND:
+    case ClientType::CallDirection::OUTBOUND:
         return Call::CALL_DIRECTION_OUTBOUND;
-    case client_type::CallDirection::INBOUND:
+    case ClientType::CallDirection::INBOUND:
         return Call::CALL_DIRECTION_INBOUND;
+    default:
+        return Call::CALL_DIRECTION_UNSPECIFIED;
     }
-    return Call::CALL_DIRECTION_UNSPECIFIED;
 }
 
-client_type::CellInfo ToClient(const CellInfo& proto) {
-    client_type::CellInfo client;
+ClientType::CellInfo ToClient(const CellInfo& proto) {
+    ClientType::CellInfo client;
     if (proto.has_cell_identity()) {
         if (proto.cell_identity().has_operatoralphalong()) {
             client.identity.operatorLong = proto.cell_identity().operatoralphalong().value();
@@ -292,7 +298,7 @@ client_type::CellInfo ToClient(const CellInfo& proto) {
     return client;
 }
 
-CellInfo ToProto(const client_type::CellInfo& client) {
+CellInfo ToProto(const ClientType::CellInfo& client) {
     CellInfo proto;
     if (!client.identity.operatorLong.empty()) {
         proto.mutable_cell_identity()->mutable_operatoralphalong()->set_value(
@@ -311,15 +317,15 @@ CellInfo ToProto(const client_type::CellInfo& client) {
     return proto;
 }
 
-client_type::Call ToClient(const Call& proto) {
-    client_type::Call client;
+ClientType::Call ToClient(const Call& proto) {
+    ClientType::Call client;
     client.number = proto.number();
     client.direction = ToClient(proto.direction());
     client.state = ToClient(proto.state());
     return client;
 }
 
-Call ToProto(const client_type::Call& client) {
+Call ToProto(const ClientType::Call& client) {
     Call proto;
     proto.set_number(client.number);
     proto.set_direction(ToProto(client.direction));
