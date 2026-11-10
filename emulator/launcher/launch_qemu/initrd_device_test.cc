@@ -673,7 +673,7 @@ TEST(BootProperties, LegacyGraphicsPropertiesBelowApi37) {
                            std::pair{"androidboot.qemu.gltransport.name", "asg"},
                            std::pair{"androidboot.hardware.gltransport", "asg"},
                            std::pair{"androidboot.qemu.gltransport.drawFlushInterval", "800"},
-                           std::pair{"androidboot.opengles.version", "196608"},
+                           std::pair{"androidboot.opengles.version", "196609"},
                            std::pair{"androidboot.hardware.vulkan", "ranchu"},
                            std::pair{"androidboot.debug.hwui.renderer", "skiagl"},
                            std::pair{"androidboot.debug.renderengine.backend", "skiaglthreaded"},

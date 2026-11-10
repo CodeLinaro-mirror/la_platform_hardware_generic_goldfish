@@ -622,7 +622,7 @@ std::vector<std::pair<std::string, std::string>> getBootProperties(const Emulato
     const bool is_legacy = !UseVirtioGpu(api_level, emulator.feature_flags().IsEnabled(S::MINIGBM));
 
     int gles_major_version = 3;
-    int gles_minor_version = is_legacy ? 0 : 2;
+    int gles_minor_version = is_legacy ? 1 : 2;
     int bootPropOpenglesVersion = gles_major_version << 16 | gles_minor_version;
     std::string real_console_tty_prefix = "hvc";
     auto verifiedBootParameters = getVerifiedBootparams(emulator);
