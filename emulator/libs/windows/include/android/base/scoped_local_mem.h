@@ -35,6 +35,6 @@ struct LocalDeleter {
  * @brief RAII wrapper for memory allocated via LocalAlloc or returned by
  *        Win32 APIs that require LocalFree (e.g., SIDs, ACLs).
  */
-using ScopedLocalMem = goldfish::base::UniqueHandle<void*, nullptr, LocalDeleter>;
+using ScopedLocalMem = ::goldfish::base::UniqueHandle<void*, nullptr, LocalDeleter>;
 
 }  // namespace android::base
