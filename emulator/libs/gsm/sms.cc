@@ -14,6 +14,11 @@
 #include "goldfish/gsm/sms.h"
 
 #include <algorithm>
+#include <cctype>
+#include <climits>
+#include <cstring>
+#include <utility>
+#include <vector>
 
 #include "absl/base/optimization.h"
 #include "absl/log/check.h"
@@ -28,13 +33,20 @@ namespace {
 
 constexpr size_t kMaxSeptetsPerPdu = 160;
 constexpr size_t kMaxBytesPerPdu = 140;
+constexpr size_t kMaxMultipartPdus = 255;
 
 /*
  * If a message does not fit onto one PDU, it is delivered
- * via several PDU but each one needs an extra  header.
+ * via several PDU but each one needs an extra header.
  */
 constexpr size_t kMaxSeptetsWithHeaderPerPdu = 153;
 constexpr size_t kMaxBytesWithHeaderPerPdu = 134;
+
+constexpr uint8_t kSmsSubmitSingleType = 0x01;
+constexpr uint8_t kSmsSubmitMultipartType = 0x41;
+constexpr uint8_t kDcsGsm7 = 0x00;
+constexpr uint8_t kDcsUtf16Be = 0x08;
+constexpr size_t kConcatUdhBytes = 6U;
 
 void EncodeSmsAddress(std::vector<uint8_t>& dst, const SmsAddress& sender) {
     dst.push_back(sender.size);
@@ -47,20 +59,20 @@ void EncodeSmsAddress(std::vector<uint8_t>& dst, const SmsAddress& sender) {
         const size_t bytes_to_copy = (sender.size + 1U) / 2U;
         DCHECK(bytes_to_copy <= std::size(sender.data));
         dst.insert(dst.end(), std::begin(sender.data), std::begin(sender.data) + bytes_to_copy);
-    }
         return;
     }
-
-    ABSL_UNREACHABLE();
+    default:
+        ABSL_UNREACHABLE();
+    }
 }
 
 void EncodeSmsHeader(std::vector<uint8_t>& dst, const uint8_t ref_number, const uint8_t pdu_count,
                      const uint8_t pdu_index) {
-    dst.push_back(0x05);           // total header length == 5 bytes
-    dst.push_back(0x00);           // element id: concatenated message reference number
-    dst.push_back(0x03);           // element len: 3 bytes
-    dst.push_back(ref_number);     // reference number
-    dst.push_back(pdu_count);      // max pdu index
+    dst.push_back(0x05);            // total header length == 5 bytes
+    dst.push_back(0x00);            // element id: concatenated message reference number
+    dst.push_back(0x03);            // element len: 3 bytes
+    dst.push_back(ref_number);      // reference number
+    dst.push_back(pdu_count);       // max pdu index
     dst.push_back(pdu_index + 1U);  // current pdu index
 }
 
@@ -69,17 +81,16 @@ std::pair<size_t, size_t> CutOnePduGsm7(Utf8Iterator utf8i, size_t remaining_sep
     size_t chars_in_this_pdu = 0;
 
     for (int32_t unicode; (unicode = utf8i()) >= 0;) {
-        const int32_t gsm7 = UnicodeToGsm7(unicode);
+        const int32_t gsm7 = UnicodeToGsm7(static_cast<uint32_t>(unicode));
         DCHECK(gsm7 >= 0);
-        const size_t num_septets = (gsm7 & kGsm7ExtendedBit) ? 2 : 1;
+        const size_t num_septets = (gsm7 & kGsm7ExtendedBit) ? 2U : 1U;
 
-        if (remaining_septets >= num_septets) {
-            remaining_septets -= num_septets;
-            septets_in_this_pdu += num_septets;
-            ++chars_in_this_pdu;
-        } else {
+        if (remaining_septets < num_septets) {
             break;
         }
+        remaining_septets -= num_septets;
+        septets_in_this_pdu += num_septets;
+        ++chars_in_this_pdu;
     }
 
     return {septets_in_this_pdu, chars_in_this_pdu};
@@ -113,7 +124,7 @@ Utf8Iterator PackGsm7Septets(std::vector<uint8_t>& dst, Utf8Iterator msgi,
 
     for (; msg_chars_in_this_pdu; --msg_chars_in_this_pdu) {
         const int32_t unicode = msgi();
-        int32_t gsm7 = UnicodeToGsm7(unicode);
+        int32_t gsm7 = UnicodeToGsm7(static_cast<uint32_t>(unicode));
         DCHECK(gsm7 >= 0);
 
         // Handle Extended Alphabet (Escape 0x1B + Index)
@@ -135,7 +146,9 @@ Utf8Iterator PackGsm7Septets(std::vector<uint8_t>& dst, Utf8Iterator msgi,
 }
 
 bool ParseSmsAddressNumeric(const std::string_view number, SmsAddress& dst) {
-    if (number.empty()) return false;
+    if (number.empty()) {
+        return false;
+    }
 
     size_t i = 0;
     // Skip any leading whitespace before checking for '+'
@@ -152,7 +165,7 @@ bool ParseSmsAddressNumeric(const std::string_view number, SmsAddress& dst) {
 
     size_t digit_count = 0;
     const size_t max_digits = dst.data.size() * 2U;
-    ::memset(dst.data.data(), 0, dst.data.size());
+    std::memset(dst.data.data(), 0, dst.data.size());
 
     for (; i < number.size(); ++i) {
         const char c = number[i];
@@ -161,15 +174,11 @@ bool ParseSmsAddressNumeric(const std::string_view number, SmsAddress& dst) {
             continue;
         }
 
-        if (c < '0' || c > '9') {
+        if (c < '0' || c > '9' || digit_count >= max_digits) {
             return false;
         }
 
-        if (digit_count >= max_digits) {
-            return false;
-        }
-
-        dst.data[digit_count / 2U] |= (c - '0') << ((digit_count % 2U) * 4U);
+        dst.data[digit_count / 2U] |= static_cast<uint8_t>((c - '0') << ((digit_count % 2U) * 4U));
         digit_count++;
     }
 
@@ -177,11 +186,11 @@ bool ParseSmsAddressNumeric(const std::string_view number, SmsAddress& dst) {
         return false;
     }
 
-    if (digit_count % 2) {
-        dst.data[digit_count / 2] |= 0xF0U;
+    if (digit_count % 2U) {
+        dst.data[digit_count / 2U] |= 0xF0U;
     }
 
-    dst.size = digit_count;
+    dst.size = static_cast<uint8_t>(digit_count);
     return true;
 }
 
@@ -194,10 +203,11 @@ bool ParseSmsAddressAlphabetic(const std::string_view number, SmsAddress& dst) {
     }
 
     DCHECK(!number.empty());
-    const auto [numSeptets, numChars] = CutOnePduGsm7(Utf8Iterator(number), total_septets);
+    const auto [num_septets, num_chars] =
+            CutOnePduGsm7(Utf8Iterator(number), static_cast<size_t>(total_septets));
 
     std::vector<uint8_t> buffer;
-    PackGsm7Septets(buffer, Utf8Iterator(number), numChars, 0);
+    PackGsm7Septets(buffer, Utf8Iterator(number), num_chars, 0);
     if (buffer.size() > dst.data.size()) {
         return false;
     }
@@ -206,29 +216,27 @@ bool ParseSmsAddressAlphabetic(const std::string_view number, SmsAddress& dst) {
     std::copy(buffer.begin(), buffer.end(), dst.data.begin());
 
     dst.toa = SmsAddress::TOA::ALPHANUMERIC;
-    dst.size = (numSeptets * 7U + 4U - 1U) / 4U;  // This is a multiple of nibbles
+    dst.size = static_cast<uint8_t>((num_septets * 7U + 4U - 1U) / 4U);  // Multiple of nibbles
     return true;
 }
 
 Utf8Iterator EncodeSmsPduGsm7(std::vector<uint8_t>& dst, Utf8Iterator msgi, const size_t num_pdus,
                               const size_t max_septets_per_pdu, const size_t pdu_index) {
-    auto [msgSeptetsInThisPdu, msgCharsInThisPdu] = CutOnePduGsm7(msgi, max_septets_per_pdu);
+    const auto [msg_septets_in_pdu, msg_chars_in_pdu] = CutOnePduGsm7(msgi, max_septets_per_pdu);
 
-    unsigned pad_bits;
+    unsigned pad_bits = 0;
     if (num_pdus > 1U) {
         // 6 bytes of UDH = 48 bits
-        constexpr size_t kHeaderBytes = 6U;
-        constexpr size_t kHeaderBits = kHeaderBytes * CHAR_BIT;
+        constexpr size_t kHeaderBits = kConcatUdhBytes * CHAR_BIT;
         constexpr size_t kHeaderSeptets = (kHeaderBits + 7U - 1U) / 7U;
-        pad_bits = kHeaderSeptets * 7U - kHeaderBits;
-        dst.push_back(kHeaderSeptets + msgSeptetsInThisPdu);
-        EncodeSmsHeader(dst, 0, num_pdus, pdu_index);
+        pad_bits = static_cast<unsigned>(kHeaderSeptets * 7U - kHeaderBits);
+        dst.push_back(static_cast<uint8_t>(kHeaderSeptets + msg_septets_in_pdu));
+        EncodeSmsHeader(dst, 0, static_cast<uint8_t>(num_pdus), static_cast<uint8_t>(pdu_index));
     } else {
-        pad_bits = 0;
-        dst.push_back(msgSeptetsInThisPdu);
+        dst.push_back(static_cast<uint8_t>(msg_septets_in_pdu));
     }
 
-    return PackGsm7Septets(dst, msgi, msgCharsInThisPdu, pad_bits);
+    return PackGsm7Septets(dst, msgi, msg_chars_in_pdu, pad_bits);
 }
 
 Utf8Iterator EncodeSmsPduUcs2(std::vector<uint8_t>& dst, Utf8Iterator msgi, const size_t num_pdus,
@@ -236,17 +244,16 @@ Utf8Iterator EncodeSmsPduUcs2(std::vector<uint8_t>& dst, Utf8Iterator msgi, cons
     size_t chars_in_this_pdu = CutOnePduUcs2(msgi, max_chars_per_pdu);
 
     if (num_pdus > 1U) {
-        constexpr size_t kHeaderBytes = 6U;
-        dst.push_back(kHeaderBytes + (chars_in_this_pdu * 2U));
-        EncodeSmsHeader(dst, 0, num_pdus, pdu_index);
+        dst.push_back(static_cast<uint8_t>(kConcatUdhBytes + (chars_in_this_pdu * 2U)));
+        EncodeSmsHeader(dst, 0, static_cast<uint8_t>(num_pdus), static_cast<uint8_t>(pdu_index));
     } else {
-        dst.push_back(chars_in_this_pdu * 2);
+        dst.push_back(static_cast<uint8_t>(chars_in_this_pdu * 2U));
     }
 
     for (; chars_in_this_pdu; --chars_in_this_pdu) {
-        int32_t unicode = msgi();
+        const int32_t unicode = msgi();
         DCHECK(unicode >= 0);
-        DCHECK(IsValidUcs2(unicode));
+        DCHECK(IsValidUcs2(static_cast<uint32_t>(unicode)));
 
         dst.push_back(static_cast<uint8_t>(unicode >> CHAR_BIT));
         dst.push_back(static_cast<uint8_t>(unicode));
@@ -259,36 +266,36 @@ Utf8Iterator EncodeSmsPdu(std::vector<uint8_t>& dst, const uint8_t message_refer
                           const SmsAddress& recipient, Utf8Iterator msgi, const size_t num_pdus,
                           const Encoding encoding, const size_t units_per_pdu,
                           const size_t pdu_index) {
-    // 1. SCA (Service Center Address): 00 means use default from SIM/Modem
-    dst.push_back(0);
+    // 1. SCA (Service Center Address): 00 means use default from SIM/Modem.
+    dst.push_back(0x00);
 
     // 2. PDU-Type: 0x01 is SMS-SUBMIT.
     // Bit 6 (0x40) is the UDHI (User Data Header Indicator) for multipart.
-    dst.push_back((num_pdus > 1) ? 0x41 : 0x01);
+    dst.push_back((num_pdus > 1U) ? kSmsSubmitMultipartType : kSmsSubmitSingleType);
 
-    // 3. MR (Message Reference): Typically an incrementing counter
+    // 3. MR (Message Reference): Typically an incrementing counter.
     dst.push_back(message_reference);
 
-    // 4. DA (Destination Address): Replaces OA/Sender
+    // 4. DA (Destination Address): Replaces OA/Sender.
     EncodeSmsAddress(dst, recipient);
 
-    // 5. PID (Protocol Identifier): 00 is standard
-    dst.push_back(0);
+    // 5. PID (Protocol Identifier): 00 is standard.
+    dst.push_back(0x00);
 
-    // 6. DCS (Data Coding Scheme): 00 for GSM7, 08 for UCS2
-    dst.push_back((encoding == Encoding::GSM7) ? 0x00 : 0x08);
+    // 6. DCS (Data Coding Scheme): 00 for GSM7, 08 for UCS2.
+    dst.push_back((encoding == Encoding::GSM7) ? kDcsGsm7 : kDcsUtf16Be);
 
     // Note: VP (Validity Period) is omitted here because PDU-Type bits 3-4 are 0.
 
-    // 7 & 8. UDL and UD (handled inside specific encoders)
+    // 7 & 8. UDL and UD (handled inside specific encoders).
     switch (encoding) {
     case Encoding::GSM7:
         return EncodeSmsPduGsm7(dst, msgi, num_pdus, units_per_pdu, pdu_index);
     case Encoding::UCS2:
         return EncodeSmsPduUcs2(dst, msgi, num_pdus, units_per_pdu, pdu_index);
+    default:
+        ABSL_UNREACHABLE();
     }
-
-    ABSL_UNREACHABLE();
 }
 
 absl::StatusOr<std::vector<SmsPdu>> SmsPdusFromUtf8(const uint8_t message_reference,
@@ -317,32 +324,32 @@ absl::StatusOr<SmsAddress> ParseSmsAddress(const std::string_view str) {
     SmsAddress address;
     if (ParseSmsAddressNumeric(str, address)) {
         return address;
-    } else if (ParseSmsAddressAlphabetic(str, address)) {
-        return address;
-    } else {
-        return absl::InvalidArgumentError(absl::StrCat("Invalid number: ", str));
     }
+    if (ParseSmsAddressAlphabetic(str, address)) {
+        return address;
+    }
+    return absl::InvalidArgumentError(absl::StrCat("Invalid number: ", str));
 }
 
 absl::StatusOr<std::vector<SmsPdu>> SmsPdusFromUtf8(const std::string_view sender,
                                                     const std::string_view message) {
     auto address = ParseSmsAddress(sender);
     if (!address.ok()) {
-        return std::move(address.status());
+        return address.status();
     }
 
-    size_t units_per_pdu;
-    size_t num_pdus;
-    Encoding encoding;
+    size_t units_per_pdu = 0;
+    size_t num_pdus = 0;
+    Encoding encoding = Encoding::GSM7;
 
     if (message.empty()) {
         units_per_pdu = kMaxSeptetsPerPdu;
-        num_pdus = 1;
+        num_pdus = 1U;
         encoding = Encoding::GSM7;
     } else if (const int32_t num_septets = CalculateGsm7SizeSeptets(message); num_septets > 0) {
-        if (num_septets <= kMaxSeptetsPerPdu) {
+        if (static_cast<size_t>(num_septets) <= kMaxSeptetsPerPdu) {
             units_per_pdu = kMaxSeptetsPerPdu;
-            num_pdus = 1;
+            num_pdus = 1U;
         } else {
             units_per_pdu = kMaxSeptetsWithHeaderPerPdu;
             num_pdus = CalculateGsm7NumPdus(message, units_per_pdu);
@@ -363,7 +370,7 @@ absl::StatusOr<std::vector<SmsPdu>> SmsPdusFromUtf8(const std::string_view sende
                 absl::StrCat("Message is not representable: '", message, "'"));
     }
 
-    if (num_pdus > 255U) {
+    if (num_pdus > kMaxMultipartPdus) {
         return absl::InvalidArgumentError("Message is too long");
     }
 
@@ -384,9 +391,9 @@ size_t CalculateGsm7NumPdus(const std::string_view message, const size_t septets
 
     Utf8Iterator utf8i(message);
     for (int32_t unicode; (unicode = utf8i()) >= 0;) {
-        const int32_t gsm7 = UnicodeToGsm7(unicode);
+        const int32_t gsm7 = UnicodeToGsm7(static_cast<uint32_t>(unicode));
         DCHECK(gsm7 >= 0);
-        const size_t num_septets = (gsm7 & kGsm7ExtendedBit) ? 2 : 1;
+        const size_t num_septets = (gsm7 & kGsm7ExtendedBit) ? 2U : 1U;
 
         if (remaining_septets >= num_septets) {
             remaining_septets -= num_septets;
