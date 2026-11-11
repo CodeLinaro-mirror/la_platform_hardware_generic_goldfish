@@ -318,7 +318,9 @@ absl::StatusOr<std::vector<SmsPdu>> SmsPdusFromUtf8(const uint8_t message_refere
 
 absl::StatusOr<SmsAddress> ParseSmsAddress(const std::string_view str) {
     if (str.empty()) {
-        return absl::InvalidArgumentError("The number is empty");
+        return absl::InvalidArgumentError(
+                "Failed to parse SMS address: sender number is empty. Provide a non-empty GSM "
+                "phone number or alphanumeric sender ID (up to 11 GSM-7 septets).");
     }
 
     SmsAddress address;
@@ -328,7 +330,10 @@ absl::StatusOr<SmsAddress> ParseSmsAddress(const std::string_view str) {
     if (ParseSmsAddressAlphabetic(str, address)) {
         return address;
     }
-    return absl::InvalidArgumentError(absl::StrCat("Invalid number: ", str));
+    return absl::InvalidArgumentError(absl::StrCat(
+            "Failed to parse SMS address '", str,
+            "': expected up to 20 digits (with optional leading '+') or an alphanumeric GSM-7 "
+            "sender ID of up to 11 septets."));
 }
 
 absl::StatusOr<std::vector<SmsPdu>> SmsPdusFromUtf8(const std::string_view sender,
@@ -367,11 +372,15 @@ absl::StatusOr<std::vector<SmsPdu>> SmsPdusFromUtf8(const std::string_view sende
         encoding = Encoding::UCS2;
     } else {
         return absl::InvalidArgumentError(
-                absl::StrCat("Message is not representable: '", message, "'"));
+                "Failed to encode SMS message: message contains invalid UTF-8 sequences or "
+                "unrepresentable characters. Provide valid UTF-8 text.");
     }
 
     if (num_pdus > kMaxMultipartPdus) {
-        return absl::InvalidArgumentError("Message is too long");
+        return absl::InvalidArgumentError(
+                absl::StrCat("Failed to encode SMS message: message requires ", num_pdus,
+                             " concatenated PDUs, exceeding the 3GPP maximum of ",
+                             kMaxMultipartPdus, ". Shorten the SMS message text."));
     }
 
     return SmsPdusFromUtf8(0, *address, message, num_pdus, encoding, units_per_pdu);
