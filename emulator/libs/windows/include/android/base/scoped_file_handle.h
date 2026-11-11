@@ -42,8 +42,8 @@ struct WinHandleDeleter {
  * providing move semantics and consistent 'if (handle)' checks.
  */
 class ScopedFileHandle
-        : public goldfish::base::UniqueHandle<HANDLE, nullptr, internal::WinHandleDeleter> {
-    using Super = goldfish::base::UniqueHandle<HANDLE, nullptr, internal::WinHandleDeleter>;
+        : public ::goldfish::base::UniqueHandle<HANDLE, nullptr, internal::WinHandleDeleter> {
+    using Super = ::goldfish::base::UniqueHandle<HANDLE, nullptr, internal::WinHandleDeleter>;
 
   public:
     ScopedFileHandle() : Super() {}
