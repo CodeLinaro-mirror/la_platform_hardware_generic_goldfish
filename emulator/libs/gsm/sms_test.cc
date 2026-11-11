@@ -22,9 +22,15 @@ namespace goldfish::gsm {
 using namespace std::literals::string_view_literals;
 
 TEST(ParseSmsAddress, invalid) {
-    EXPECT_FALSE(ParseSmsAddress(""sv).ok());
+    const auto empty = ParseSmsAddress(""sv);
+    ASSERT_FALSE(empty.ok());
+    EXPECT_THAT(empty.status().message(), ::testing::HasSubstr("sender number is empty"));
+
+    const auto bad = ParseSmsAddress("+012345678901234567890"sv);
+    ASSERT_FALSE(bad.ok());
+    EXPECT_THAT(bad.status().message(), ::testing::HasSubstr("Failed to parse SMS address"));
+
     EXPECT_FALSE(ParseSmsAddress("01234 56789 01234 56789 0"sv).ok());  // too long
-    EXPECT_FALSE(ParseSmsAddress("+012345678901234567890"sv).ok());     // too long
     EXPECT_FALSE(ParseSmsAddress("abcde1abcde1"sv).ok());               // too long
     EXPECT_FALSE(ParseSmsAddress("abc\xF0\x9F\x9A\x80"sv).ok());        // unrepresentable
 }
