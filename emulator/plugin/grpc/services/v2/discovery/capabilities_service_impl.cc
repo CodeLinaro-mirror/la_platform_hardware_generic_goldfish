@@ -21,6 +21,7 @@
 
 #include "capabilities_service.pb.h"
 #include "common.pb.h"
+#include "display/display_limits.h"
 #include "goldfish/audio/pcm_format.h"
 
 #ifdef DeviceCapabilities
@@ -68,7 +69,8 @@ void PopulateMetadata(const AvdProperties& props, const HardwareConfig& hw, Devi
     // This service only ever runs inside the emulator; a physical device is
     // served by a different implementation reached over ADB.
     meta->set_device_kind(DeviceKind::DEVICE_KIND_EMULATED);
-    meta->set_display_name(props.avd_name.empty() ? "Android Emulator" : props.avd_name);
+    meta->set_display_name(props.avd_display_name.empty() ? "Android Emulator"
+                                                          : props.avd_display_name);
     meta->set_model_id(props.avd_id.empty() ? "emulator" : props.avd_id);
     meta->set_api_level(props.avd_api);
     meta->set_server_version("2.0.0");
@@ -95,17 +97,18 @@ void PopulateScreenCaptureCapabilities(ScreenCaptureCapabilities* media_caps) {
 
 void PopulateDisplayCapabilities(const HardwareConfig& hw, DisplayCapabilities* display_caps) {
     display_caps->set_access_mode(AccessMode::ACCESS_MODE_READ_WRITE);
-    display_caps->set_supports_virtual_display_creation(true);
-    display_caps->set_max_supported_display_count(4);
+    display_caps->set_supports_virtual_display_creation(kSupportsVirtualDisplayCreation);
+    display_caps->set_max_supported_display_count(kMaxSupportedDisplayCount);
 
     auto* primary = display_caps->add_built_in_displays();
     primary->set_display_id(0);
     primary->set_width(hw.hw_lcd_width > 0 ? hw.hw_lcd_width : 1080);
     primary->set_height(hw.hw_lcd_height > 0 ? hw.hw_lcd_height : 2400);
-    primary->set_density_dpi(hw.hw_lcd_density > 0 ? hw.hw_lcd_density : 420);
+    primary->set_density_dpi(hw.hw_lcd_density > 0 ? hw.hw_lcd_density : kDefaultDensityDpi);
     primary->set_circular(hw.hw_lcd_circular);
     primary->set_refresh_rate_hz(60.0F);
-    primary->set_supports_dynamic_resizing(true);
+    primary->set_supports_dynamic_resizing(kSupportsDynamicResizing);
+    primary->set_supports_rotation(true);
 
     PopulateScreenCaptureCapabilities(display_caps->mutable_screen_capture());
 }

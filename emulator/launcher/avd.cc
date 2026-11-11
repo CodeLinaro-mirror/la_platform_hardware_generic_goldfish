@@ -15,6 +15,7 @@
 #include "android/goldfish/avd.h"
 
 #include <cctype>
+#include <cstdio>
 #include <filesystem>
 #include <fstream>
 #include <memory>
@@ -45,6 +46,7 @@
 #include "android/status/status_macros.h"
 #include "avd_keys.h"
 #include "goldfish/file/file.h"
+#include "goldfish/file/file_lock.h"
 #include "goldfish/snapshot/snapshot_store.h"
 #include "host-common/constants.h"
 
@@ -226,7 +228,11 @@ struct BuildProp {
     }
 
     int ApiLevel() const {
-        return build_ini.GetInt("ro.system.build.version.sdk", Avd::kUnknownApiLevel);
+        int level = build_ini.GetInt("ro.system.build.version.sdk", Avd::kUnknownApiLevel);
+        if (level == Avd::kUnknownApiLevel) {
+            level = build_ini.GetInt("ro.build.version.sdk", Avd::kUnknownApiLevel);
+        }
+        return level;
     }
 
     std::string Sdk() const { return build_ini.GetString("ro.build.version.sdk", "unknown"); }
@@ -273,13 +279,28 @@ struct BuildProp {
     IniFile vendor_build_ini;
 };
 
+bool IsAvdSessionLockFile(const fs::path& filename) {
+    return filename ==
+                   base::file::ScopedFileLock::LockPathForTarget(CORE_HARDWARE_INI).filename() ||
+           filename == base::file::ScopedFileLock::LockPathForTarget(SNAPSHOT_LOCK).filename() ||
+           filename == MULTIINSTANCE_LOCK;
+}
+
+bool ShouldPreserveOnWipeData(const fs::path& filename) {
+    // sdcard.img is created by Android Studio, keep it.
+    constexpr std::string_view kSdCardImg = "sdcard.img";
+    return IsAvdSessionLockFile(filename) || filename == CORE_CONFIG_INI || filename == kSdCardImg;
+}
+
 }  // namespace
 
 class FileBackedAvd : public Avd {
   public:
-    FileBackedAvd(std::string name, CpuArchitecture arch, SystemImagePaths system_image_paths,
-                  IniFile config_ini, BuildProp build, HardwareConfig hw_cfg, fs::path content_path)
+    FileBackedAvd(std::string name, std::string id, CpuArchitecture arch,
+                  SystemImagePaths system_image_paths, IniFile config_ini, BuildProp build,
+                  HardwareConfig hw_cfg, fs::path content_path)
             : name_(std::move(name))
+            , id_(std::move(id))
             , arch_(arch)
             , system_image_paths_(std::move(system_image_paths))
             , config_ini_(std::move(config_ini))
@@ -289,8 +310,68 @@ class FileBackedAvd : public Avd {
 
     std::string Name() const override { return name_; }
     const SystemImagePaths& GetSystemImagePaths() const override { return system_image_paths_; }
-    fs::path GetContentPath() const override { return content_path_; };
+    fs::path GetContentPath() const override { return content_path_; }
     const HardwareConfig& Hw() const override { return hw_cfg_; }
+
+    absl::Status PrepareWritableState(const AvdWritableOptions& options) override {
+        if (!base::file::is_dir(content_path_)) {
+            if (!base::file::exists(content_path_)) {
+                if (auto s = base::file::mkdir_recursive(content_path_, 0755); !s.ok()) {
+                    return absl::InternalError(
+                            absl::StrCat("Could not create the avd path: ", content_path_.string(),
+                                         ", Status: ", s));
+                }
+            } else {
+                return absl::InvalidArgumentError(
+                        absl::StrCat("The AVD content directory exists but is not a directory: ",
+                                     content_path_.string()));
+            }
+        }
+
+        if (!base::file::can_read(content_path_)) {
+            return absl::PermissionDeniedError(
+                    absl::StrCat("The AVD content directory exists but is not readable: ",
+                                 content_path_.string()));
+        }
+
+        if (!base::file::can_write(content_path_)) {
+            return absl::PermissionDeniedError(
+                    absl::StrCat("The AVD content directory exists but is not writable: ",
+                                 content_path_.string()));
+        }
+
+        if (options.wipe_data) {
+            LOG(WARNING) << "Performing factory reset: clearing AVD for an initial cold boot";
+            for (const auto& entry : base::file::scan_dir(content_path_, /*fullPath=*/true)) {
+                if (ShouldPreserveOnWipeData(entry.filename())) {
+                    continue;
+                }
+                if (auto s = base::file::rm_recursive(entry); !s.ok()) {
+                    LOG(ERROR) << "Factory reset failed: unable to remove AVD file "
+                               << entry.string() << " - " << s;
+                    return absl::InternalError("AVD wipe data failed");
+                }
+            }
+        }
+
+        if (options.verbose) {
+            LOG(INFO) << "Listing avd content directory (" << content_path_ << "):";
+            for (const auto& path : base::file::scan_dir_recursive(content_path_)) {
+                LOG(INFO) << "    " << path.lexically_relative(content_path_).string();
+            }
+        }
+
+        // Save to CORE_HARDWARE_INI as well; embedded UI and tools expect it.
+        const fs::path hw_path = content_path_ / CORE_HARDWARE_INI;
+        IniFile hw_config(hw_path);
+        hw_cfg_.Write(&hw_config);
+        if (!hw_config.WriteDiscardingEmpty()) {
+            return absl::InternalError(
+                    absl::StrCat("Failed to write hardware config: ", hw_path.string()));
+        }
+
+        return absl::OkStatus();
+    }
 
     android_studio::EmulatorAvdInfo::EmulatorAvdImageKind ImageKind() const override {
         const std::string flavor = BuildFlavor();
@@ -325,10 +406,7 @@ class FileBackedAvd : public Avd {
     int ForcedTrampolineVersion() const override {
         return config_ini_.GetInt("trampoline.force_version", 0);
     }
-    std::string Id() const override {
-        // TODO allow override with opts.id
-        return Name();
-    }
+    std::string Id() const override { return id_; }
 
     CpuArchitecture Arch() const override { return arch_; }
 
@@ -575,7 +653,8 @@ class FileBackedAvd : public Avd {
     }
 
   private:
-    std::string name_;
+    std::string name_;  // AVD config name (`-avd <name>` / `<name>.ini`), returned by `avd name`.
+    std::string id_;    // Per-launch instance ID (`-id <id>`, or `name_`), returned by `avd id`.
     CpuArchitecture arch_;
 
     SystemImagePaths system_image_paths_;
@@ -627,11 +706,19 @@ std::vector<std::string> Avd::List(const fs::path& avd_directory) {
 }
 
 // static
-absl::StatusOr<std::unique_ptr<Avd>> Avd::FromName(const AndroidOptions& opts,
-                                                   const android::goldfish::UserPaths& user_paths,
-                                                   const std::string& name, bool wipe_data,
-                                                   fs::path content_override,
-                                                   fs::path sysdir_override) {
+absl::StatusOr<std::unique_ptr<Avd>> Avd::Load(const Options& options) {
+    if (!options.android_build_out.empty()) {
+        return FromAndroidBuild(options);
+    }
+    return FromName(options);
+}
+
+// static
+absl::StatusOr<std::unique_ptr<Avd>> Avd::FromName(const Options& options) {
+    const auto& opts = options.opts;
+    const auto& user_paths = options.user_paths;
+    const auto& name = options.name;
+
     auto ini_path = user_paths.avd_directory / (name + ".ini");
 
     if (!base::file::exists(ini_path) || !base::file::can_read(ini_path)) {
@@ -662,9 +749,6 @@ absl::StatusOr<std::unique_ptr<Avd>> Avd::FromName(const AndroidOptions& opts,
         return absl::InternalError(absl::StrCat("Unable to parse ini file: ", ini_path.string()));
     }
 
-    constexpr std::string_view kConfigIni = "config.ini";
-    constexpr std::string_view kSdCardImg = "sdcard.img";
-
     fs::path original_content_path;
     if (auto abs_content_path = fs::path(ini->Get<std::string>("path", ""));
         base::file::exists(abs_content_path)) {
@@ -691,25 +775,7 @@ absl::StatusOr<std::unique_ptr<Avd>> Avd::FromName(const AndroidOptions& opts,
                              original_content_path.string()));
     }
 
-    if (content_override.empty() && wipe_data) {
-        LOG(WARNING) << "Performing factory reset: clearing AVD for an initial cold boot";
-        for (auto& path : android::base::file::scan_dir(original_content_path, /*fullPath=*/true)) {
-            if (path.filename() == kConfigIni) {
-                continue;
-            }
-            // sdcard.img is created by the Android Studio, keep it.
-            if (path.filename() == kSdCardImg) {
-                continue;
-            }
-            if (auto s = android::base::file::rm_recursive(path); !s.ok()) {
-                LOG(ERROR) << "Factory reset failed: unable to remove AVD file " << path.string()
-                           << " - " << s;
-                return absl::InternalError("AVD wipe data failed");
-            }
-        }
-    }
-
-    auto config_ini_path = original_content_path / kConfigIni;
+    auto config_ini_path = original_content_path / CORE_CONFIG_INI;
     if (!base::file::exists(config_ini_path) || !base::file::can_read(config_ini_path)) {
         return absl::NotFoundError(absl::StrCat(
                 "Unable to parse ", name, ", no access to config: ", config_ini_path.string()));
@@ -721,9 +787,14 @@ absl::StatusOr<std::unique_ptr<Avd>> Avd::FromName(const AndroidOptions& opts,
                 absl::StrCat("Unable to parse config ini file: ", config_ini_path.string()));
     }
 
+    fs::path sysdir_override = options.sysdir_override;
+    if (sysdir_override.empty() && opts.sysdir != nullptr) {
+        sysdir_override = fs::path(opts.sysdir);
+    }
+
     std::vector<fs::path> sys_image_search_paths;
     if (!sysdir_override.empty()) {
-        sys_image_search_paths.push_back(sysdir_override);
+        sys_image_search_paths.push_back(std::move(sysdir_override));
     } else {
         for (int n = 0; n < kMaxSearchPaths; n++) {
             if (const std::string s = config_ini.GetString(absl::StrCat(kSearchPrefix, n), "");
@@ -737,42 +808,28 @@ absl::StatusOr<std::unique_ptr<Avd>> Avd::FromName(const AndroidOptions& opts,
                      ConvertSysImgStatus(ResolveSystemImagePaths(sys_image_search_paths, opts,
                                                                  /*android_build=*/false)));
 
-    return FromSysDirs(opts, user_paths, name, std::move(config_ini),
-                       !content_override.empty() ? std::move(content_override)
-                                                 : std::move(original_content_path),
+    fs::path content_path = !options.content_override.empty() ? options.content_override
+                                                              : std::move(original_content_path);
+    return FromSysDirs(opts, user_paths, name, std::move(config_ini), std::move(content_path),
                        std::move(system_image_paths));
 }
 
 // static
-absl::StatusOr<std::unique_ptr<Avd>> Avd::FromAndroidBuild(
-        const AndroidOptions& opts, const android::goldfish::UserPaths& user_paths,
-        const std::string& name, fs::path android_build_out, bool wipe_data,
-        fs::path writable_content_override) {
-    fs::path content_path;
-    if (!writable_content_override.empty()) {
-        content_path = std::move(writable_content_override);
-    } else {
-        content_path = android_build_out / "avd.tmp";
-        if (wipe_data) {
-            LOG(WARNING) << "Performing factory reset: clearing AVD for an initial cold boot";
-            if (auto s = android::base::file::rm_recursive(content_path); !s.ok()) {
-                LOG(ERROR) << "Could not remove AVD contents file for -wipe-data, you might have "
-                              "to manually remove the directory. Path: "
-                           << content_path << ", Status: " << s;
-            }
-        }
-        if (auto s = android::base::file::mkdir_recursive(content_path, 0755); !s.ok()) {
-            return absl::InternalError(absl::StrCat(
-                    "Could not create the avd path: ", content_path.string(), ", Status: ", s));
-        }
-    }
+absl::StatusOr<std::unique_ptr<Avd>> Avd::FromAndroidBuild(const Options& options) {
+    const auto& opts = options.opts;
+    const auto& user_paths = options.user_paths;
+    const auto& name = options.name;
+    const auto& android_build_out = options.android_build_out;
+
+    fs::path content_path = !options.content_override.empty() ? options.content_override
+                                                              : (android_build_out / "avd.tmp");
 
     std::vector<fs::path> sys_image_search_paths{
         android_build_out,
         // build.prop is under system dir.
         android_build_out / "system",
     };
-    auto config_ini_path = android_build_out / "config.ini";
+    auto config_ini_path = android_build_out / CORE_CONFIG_INI;
     android::goldfish::IniFile config_ini(config_ini_path);
     if (!config_ini.Read()) {
         // It's ok if it's missing.
@@ -791,6 +848,20 @@ absl::StatusOr<std::unique_ptr<Avd>> Avd::FromAndroidBuild(
 }
 
 namespace {
+constexpr std::string_view kLcdWidthKey = "hw.lcd.width";
+constexpr std::string_view kLcdHeightKey = "hw.lcd.height";
+constexpr std::string_view kDisplaylessKey = "hw.displayless";
+constexpr std::string_view kNoSkin = "_no_skin";
+constexpr std::string_view kLayoutFile = "layout";
+constexpr std::string_view kSkinsDir = "skins";
+
+struct NumericSkinSpec {
+    std::string_view key;
+    std::string value;
+    int width = 0;
+    int height = 0;
+};
+
 Avd::CpuArchitecture ParseArch(const IniFile& config_ini) {
     auto abi = config_ini.GetString("abi.type", "unknown");
     if (absl::StrContains(abi, "x86")) {
@@ -802,6 +873,136 @@ Avd::CpuArchitecture ParseArch(const IniFile& config_ini) {
     }
 
     return Avd::CpuArchitecture::kUnknown;
+}
+
+bool ParseSkinDimensions(const std::string& spec, int* width, int* height) {
+    return std::sscanf(spec.c_str(), "%dx%d", width, height) == 2;
+}
+
+bool HasSkinLayout(const fs::path& skin_dir, std::string_view skin_name) {
+    if (base::file::is_file(skin_dir / kLayoutFile)) {
+        return true;
+    }
+    return absl::StrContains(skin_name, "_fold") &&
+           base::file::is_file(skin_dir / kPixelFoldDefaultSkinName / kLayoutFile);
+}
+
+bool HasOnDiskSkinPath(const UserPaths& user_paths, const fs::path& skin_path,
+                       std::string_view skin_name) {
+    if (skin_path.is_absolute()) {
+        return HasSkinLayout(skin_path, skin_name);
+    }
+    return HasSkinLayout(user_paths.sdk_directory / skin_path, skin_name);
+}
+
+bool HasOnDiskSkinName(const fs::path& config_dir, const fs::path& content_path,
+                       const SystemImagePaths& system_image_paths, std::string_view skin_name) {
+    if (HasSkinLayout(config_dir / kSkinsDir / skin_name, skin_name) ||
+        HasSkinLayout(content_path / kSkinsDir / skin_name, skin_name)) {
+        return true;
+    }
+    return !system_image_paths.skins_dir.empty() &&
+           HasSkinLayout(system_image_paths.skins_dir / skin_name, skin_name);
+}
+
+std::optional<NumericSkinSpec> ResolveNumericSkinSpec(const UserPaths& user_paths,
+                                                      const fs::path& config_dir,
+                                                      const fs::path& content_path,
+                                                      const SystemImagePaths& system_image_paths,
+                                                      const IniFile& config_ini) {
+    const std::string skin_name = config_ini.GetString(kSkinName, "");
+    const std::string skin_path = config_ini.GetString(kSkinPath, "");
+    if (!skin_path.empty() && skin_path != kNoSkin) {
+        if (HasOnDiskSkinPath(user_paths, skin_path, skin_name)) {
+            return std::nullopt;
+        }
+        int width = 0;
+        int height = 0;
+        if (ParseSkinDimensions(skin_path, &width, &height)) {
+            return NumericSkinSpec{
+                .key = kSkinPath, .value = skin_path, .width = width, .height = height};
+        }
+    }
+    if (skin_name.empty() || skin_name == kNoSkin) {
+        return std::nullopt;
+    }
+    if (HasOnDiskSkinName(config_dir, content_path, system_image_paths, skin_name)) {
+        return std::nullopt;
+    }
+    int width = 0;
+    int height = 0;
+    if (ParseSkinDimensions(skin_name, &width, &height)) {
+        return NumericSkinSpec{
+            .key = kSkinName, .value = skin_name, .width = width, .height = height};
+    }
+    return std::nullopt;
+}
+
+absl::Status CheckSkinMatchesLcd(const AndroidOptions& opts, const UserPaths& user_paths,
+                                 const fs::path& content_path,
+                                 const SystemImagePaths& system_image_paths,
+                                 const IniFile& config_ini) {
+    if (opts.skin != nullptr || config_ini.GetBool(kDisplaylessKey, false)) {
+        return absl::OkStatus();
+    }
+
+    const fs::path config_path = !config_ini.GetBackingFile().empty()
+                                         ? config_ini.GetBackingFile()
+                                         : (content_path / "config.ini");
+    const bool has_lcd_width = config_ini.HasKey(kLcdWidthKey);
+    const bool has_lcd_height = config_ini.HasKey(kLcdHeightKey);
+    if (has_lcd_width != has_lcd_height) {
+        const std::string_view set_key = has_lcd_width ? kLcdWidthKey : kLcdHeightKey;
+        const std::string_view missing_key = has_lcd_width ? kLcdHeightKey : kLcdWidthKey;
+        return absl::InvalidArgumentError(absl::StrFormat(
+                "Incomplete display size in %s: %s=%s is set but %s is missing. "
+                "Set both hw.lcd.width and hw.lcd.height.",
+                config_path.string(), set_key, config_ini.GetString(set_key, ""), missing_key));
+    }
+
+    int lcd_width = 0;
+    int lcd_height = 0;
+    if (has_lcd_width) {
+        lcd_width = config_ini.GetInt(kLcdWidthKey, 0);
+        lcd_height = config_ini.GetInt(kLcdHeightKey, 0);
+        if (lcd_width <= 0 || lcd_height <= 0) {
+            return absl::InvalidArgumentError(absl::StrFormat(
+                    "Invalid display size in %s: hw.lcd.width=%s, hw.lcd.height=%s. "
+                    "Both dimensions must be positive integers.",
+                    config_path.string(), config_ini.GetString(kLcdWidthKey, ""),
+                    config_ini.GetString(kLcdHeightKey, "")));
+        }
+    }
+
+    const auto skin_spec = ResolveNumericSkinSpec(user_paths, config_path.parent_path(),
+                                                  content_path, system_image_paths, config_ini);
+    if (!skin_spec.has_value()) {
+        return absl::OkStatus();
+    }
+    if (skin_spec->width <= 0 || skin_spec->height <= 0) {
+        return absl::InvalidArgumentError(absl::StrFormat(
+                "Invalid display size in %s: %s=%s. Both dimensions must be positive integers.",
+                config_path.string(), skin_spec->key, skin_spec->value));
+    }
+    if (!has_lcd_width) {
+        return absl::OkStatus();
+    }
+
+    const bool same_orientation =
+            (skin_spec->width == lcd_width && skin_spec->height == lcd_height);
+    const bool rotated_orientation =
+            (skin_spec->width == lcd_height && skin_spec->height == lcd_width);
+    if (same_orientation || rotated_orientation) {
+        return absl::OkStatus();
+    }
+
+    return absl::InvalidArgumentError(absl::StrFormat(
+            "Inconsistent display size in %s: %s=%s does not match hw.lcd.width=%d, "
+            "hw.lcd.height=%d. To use %dx%d, set skin.name and skin.path to %dx%d or delete "
+            "both lines. To use %dx%d, set hw.lcd.width=%d and hw.lcd.height=%d.",
+            config_path.string(), skin_spec->key, skin_spec->value, lcd_width, lcd_height,
+            lcd_width, lcd_height, lcd_width, lcd_height, skin_spec->width, skin_spec->height,
+            skin_spec->width, skin_spec->height));
 }
 }  // namespace
 
@@ -844,51 +1045,25 @@ absl::StatusOr<std::unique_ptr<Avd>> Avd::FromSysDirs(
                 ". Please ensure the system image matches the AVD."));
     }
 
-    if (!base::file::can_read(content_path)) {
-        return absl::PermissionDeniedError(absl::StrCat(
-                "The AVD content directory exists but is not readable: ", content_path.string()));
-    }
-
-    if (!base::file::is_dir(content_path)) {
-        return absl::InvalidArgumentError(
-                absl::StrCat("The AVD content directory exists but is not a directory: ",
-                             content_path.string()));
-    }
-
-    if (!base::file::can_write(content_path)) {
-        return absl::PermissionDeniedError(absl::StrCat(
-                "The AVD content directory exists but is not writable: ", content_path.string()));
-    }
-
-    if (opts.verbose) {
-        LOG(INFO) << "Listing avd content directory (" << content_path << "):";
-        for (const auto& path : base::file::scan_dir_recursive(content_path)) {
-            LOG(INFO) << "    " << path.lexically_relative(content_path).string();
-        }
-    }
+    RETURN_IF_ERROR(
+            CheckSkinMatchesLcd(opts, user_paths, content_path, system_image_paths, config_ini));
 
     HardwareConfig hw_cfg;
     hw_cfg.Load(config_ini);
 
     // Resolution fallback: If dimensions are missing from config.ini,
-    // try to resolve them from a "magic" skin name (e.g., "1080x1920").
-    if (!config_ini.HasKey("hw.lcd.width") || !config_ini.HasKey("hw.lcd.height")) {
-        std::string skin_name = config_ini.GetString("skin.name", "");
-        if (!skin_name.empty() && std::isdigit(skin_name[0])) {
-            int width = 0;
-            int height = 0;
-            if (std::sscanf(skin_name.c_str(), "%dx%d", &width, &height) == 2) {
-                if (width > 0 && height > 0) {
-                    if (!config_ini.HasKey("hw.lcd.width")) {
-                        hw_cfg.hw_lcd_width = width;
-                    }
-                    if (!config_ini.HasKey("hw.lcd.height")) {
-                        hw_cfg.hw_lcd_height = height;
-                    }
-                    LOG(INFO) << "Launcher: Resolved missing hw.lcd.width/height from skin.name: "
-                              << width << "x" << height;
-                }
-            }
+    // try to resolve them from a "magic" skin (e.g., "1080x1920").
+    if (!config_ini.HasKey(kLcdWidthKey) && !config_ini.HasKey(kLcdHeightKey)) {
+        const fs::path config_dir = !config_ini.GetBackingFile().empty()
+                                            ? config_ini.GetBackingFile().parent_path()
+                                            : content_path;
+        if (const auto skin_spec = ResolveNumericSkinSpec(user_paths, config_dir, content_path,
+                                                          system_image_paths, config_ini);
+            skin_spec.has_value() && skin_spec->width > 0 && skin_spec->height > 0) {
+            hw_cfg.hw_lcd_width = skin_spec->width;
+            hw_cfg.hw_lcd_height = skin_spec->height;
+            LOG(INFO) << "Launcher: Resolved missing hw.lcd.width/height from " << skin_spec->key
+                      << ": " << skin_spec->width << "x" << skin_spec->height;
         }
     }
 
@@ -901,16 +1076,14 @@ absl::StatusOr<std::unique_ptr<Avd>> Avd::FromSysDirs(
         hw_cfg.hw_camera_front = opts.camera_front;
     }
 
+    const std::string id = (opts.id != nullptr && *opts.id != '\0') ? opts.id : name;
+    hw_cfg.avd_name = name;
+    hw_cfg.avd_id = id;
+
     hw_cfg.ApplyDefaults(user_paths.sdk_directory, user_paths.avd_directory);
     RETURN_IF_ERROR(MemoryConfig::FinalizeRamAndHeapSize(hw_cfg, build_wrapper.ApiLevel()));
 
-    // save to CORE_HARDWARE_INI as well, embedded ui needs it
-    auto hw_path = content_path / CORE_HARDWARE_INI;
-    auto hw_config = std::make_unique<IniFile>(hw_path);
-    hw_cfg.Write(hw_config.get());
-    hw_config->WriteDiscardingEmpty();
-
-    return std::make_unique<FileBackedAvd>(name, arch, std::move(system_image_paths),
+    return std::make_unique<FileBackedAvd>(name, id, arch, std::move(system_image_paths),
                                            std::move(config_ini), std::move(build_wrapper),
                                            std::move(hw_cfg), std::move(content_path));
 }

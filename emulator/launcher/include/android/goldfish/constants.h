@@ -15,12 +15,31 @@
 
 namespace android::goldfish {
 
-constexpr int kMinSupportedApiLevel = 31;
+// TODO(b/579556831): Finish end-to-end verification for API 25 quickboot
+// (`default_boot` snapshot save at exit) and API 24.
+constexpr int kMinSupportedApiLevel = 24;
+
+// Minimum Android API level whose guest kernel builds in CONFIG_VIRTIO_INPUT.
+// Earlier APIs (API 24-28) lack a virtio_input driver and require the legacy
+// goldfish-events ("qwerty2", ACPI GFSH0002) SysBus device.
+constexpr int kVirtioInputMinApiLevel = 29;
+
+// Minimum Android API level with dual-screen foldable support
+// (SupportPixelFold, HWC external foldable display, and misc/pixel_fold data).
+constexpr int kMinFoldableApiLevel = 34;
 
 // Minimum Android API level where virtio-gpu (minigbm/gfxstream) and modern
 // virtio devices replace legacy goldfish_pipe, goldfish_sync, and
 // goldfish_address_space.
 constexpr int kVirtioReadyApiLevel = 37;
+
+// Whether graphics use the modern virtio-gpu (minigbm/gfxstream) path rather
+// than the legacy goldfish_pipe GPU path. Enabled by default from
+// `kVirtioReadyApiLevel`, or on earlier API levels when the `Minigbm` feature
+// flag is enabled (e.g. via `-feature Minigbm`).
+constexpr bool UseVirtioGpu(int api_level, bool minigbm_enabled) {
+    return api_level >= kVirtioReadyApiLevel || minigbm_enabled;
+}
 
 // Minimum Android API level whose goldfish radio HAL
 // (android.hardware.radio-service.ranchu) works with netsimd's cellular modem.

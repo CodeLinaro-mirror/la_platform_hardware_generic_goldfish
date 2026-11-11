@@ -2,16 +2,20 @@
 
 #include <gtest/gtest.h>
 
+#include <atomic>
 #include <condition_variable>
+#include <memory>
 #include <mutex>
 #include <thread>
 #include <vector>
 
 #include "absl/synchronization/notification.h"
+#include "absl/time/clock.h"
 #include "absl/time/time.h"
 
 #include "goldfish/async/libuv_event_loop.h"
 #include "goldfish/async/threaded_event_loop.h"
+#include "goldfish/display/test/display_test_peer.h"
 #include "goldfish/display/test/fake_pixman_display.h"
 #include "goldfish/display/test/image_generation_strategy.h"
 
@@ -21,6 +25,7 @@ using goldfish::async::EventLoop;
 using goldfish::display::DisplayEvent;
 using goldfish::display::DisplayId;
 using goldfish::display::DisplayPtr;
+using goldfish::display::DisplayTestPeer;
 using goldfish::display::IDisplay;
 using goldfish::display::ImageRotation;
 using goldfish::display::IMultiDisplay;
@@ -30,6 +35,16 @@ using goldfish::display::PixmanImagePtr;
 using goldfish::display::test::ChessboardStrategy;
 using goldfish::display::test::FakeMultiDisplay;
 using goldfish::display::test::FakePixmanDisplay;
+
+namespace {
+
+// Rotation of the frames that consumers receive. Locked displays must keep it even when
+// sensor updates change the device rotation.
+ImageRotation FrameRotation(const IDisplay& display) {
+    return DisplayTestPeer::frames(display)->GetRotation();
+}
+
+}  // namespace
 
 class FakeMultiDisplayTest : public ::testing::Test {
   protected:
@@ -490,4 +505,364 @@ TEST_F(FakeMultiDisplayTest, GetOrientation) {
     EXPECT_EQ(IDisplay::GetOrientation(2400, 1080), Orientation::kLandscape);
     EXPECT_EQ(IDisplay::GetOrientation(1000, 1000), Orientation::kSquare);
     EXPECT_EQ(IDisplay::GetOrientation(0, 0), Orientation::kSquare);
+}
+
+TEST_F(FakeMultiDisplayTest, EraseActiveDisplayMarksDisplayRemovedOnEventLoop) {
+    auto created = fake_multi_display_->CreateDisplay(2, 100, 50, 320, 1);
+    ASSERT_TRUE(created.ok());
+    auto display = created->lock();
+    ASSERT_NE(display, nullptr);
+    ASSERT_TRUE(display->WaitForFreshFrame(absl::Now() + absl::Seconds(5)).ok());
+
+    absl::Notification deleted;
+    bool removed_before_deleted_event = false;
+    auto callback = android::base::eventing::MakeScopedCallback(
+            *fake_multi_display_, [&](const DisplayEvent& event) {
+                if (event.IsDeletedEvent() && event.DisplayId() == 2) {
+                    EXPECT_TRUE(loop_->IsOnLoopThread());
+                    removed_before_deleted_event = display->AcquireLatestFrame().removed;
+                    deleted.Notify();
+                }
+            });
+
+    ASSERT_TRUE(fake_multi_display_->EraseDisplay(2).ok());
+    ASSERT_TRUE(deleted.WaitForNotificationWithTimeout(absl::Seconds(5)));
+    EXPECT_TRUE(removed_before_deleted_event);
+}
+
+TEST_F(FakeMultiDisplayTest, ClearMarksActiveDisplaysRemovedOnEventLoop) {
+    auto created1 = fake_multi_display_->CreateDisplay(1, 100, 50, 320, 1);
+    auto created2 = fake_multi_display_->CreateDisplay(2, 100, 50, 320, 1);
+    ASSERT_TRUE(created1.ok());
+    ASSERT_TRUE(created2.ok());
+    auto display1 = created1->lock();
+    auto display2 = created2->lock();
+    ASSERT_NE(display1, nullptr);
+    ASSERT_NE(display2, nullptr);
+    ASSERT_TRUE(display1->WaitForFreshFrame(absl::Now() + absl::Seconds(5)).ok());
+    ASSERT_TRUE(display2->WaitForFreshFrame(absl::Now() + absl::Seconds(5)).ok());
+
+    fake_multi_display_->Clear();
+
+    auto synced = std::make_shared<absl::Notification>();
+    ASSERT_TRUE(loop_->Post([synced]() { synced->Notify(); }).ok());
+    ASSERT_TRUE(synced->WaitForNotificationWithTimeout(absl::Seconds(5)));
+
+    EXPECT_TRUE(display1->AcquireLatestFrame().removed);
+    EXPECT_TRUE(display2->AcquireLatestFrame().removed);
+    EXPECT_TRUE(fake_multi_display_->DefaultDisplay().ok());
+}
+
+TEST_F(FakeMultiDisplayTest, DisplayStatePropertiesAndAutoRotationLock) {
+    auto d0 = fake_multi_display_->DefaultDisplay()->lock();
+    ASSERT_NE(d0, nullptr);
+    auto created = fake_multi_display_->CreateDisplay(1, 800, 600, 320, 0x1U);
+    ASSERT_TRUE(created.ok());
+    auto d1 = created->lock();
+    ASSERT_NE(d1, nullptr);
+
+    // Defaults and setters for brightness and rotation properties.
+    EXPECT_EQ(d1->Dpi(), 320U);
+    EXPECT_EQ(d1->Flags(), 0x1U);
+    EXPECT_FLOAT_EQ(d1->BrightnessPercent(), 100.0F);
+    EXPECT_FALSE(d1->AutoBrightnessEnabled());
+    EXPECT_TRUE(d1->AutoRotationEnabled());
+    EXPECT_EQ(d1->UserRotation(), ImageRotation::kRotation0);
+
+    d1->SetBrightnessPercent(42.5F);
+    d1->SetAutoBrightnessEnabled(true);
+    EXPECT_FLOAT_EQ(d1->BrightnessPercent(), 42.5F);
+    EXPECT_TRUE(d1->AutoBrightnessEnabled());
+
+    // Lock d0 to kRotation180 with auto-rotation disabled; leave d1 on auto-rotation.
+    d0->SetUserRotation(ImageRotation::kRotation180);
+    d0->SetAutoRotationEnabled(false);
+    EXPECT_EQ(d0->GetRotation(), ImageRotation::kRotation180);
+    EXPECT_EQ(FrameRotation(*d0), ImageRotation::kRotation180);
+
+    // Updating IMultiDisplay rotation rotates auto-rotating d1, while locked d0 stays at 180.
+    fake_multi_display_->SetRotation(ImageRotation::kRotation90);
+    EXPECT_EQ(d0->GetRotation(), ImageRotation::kRotation180);
+    EXPECT_EQ(FrameRotation(*d0), ImageRotation::kRotation180);
+    EXPECT_EQ(d1->GetRotation(), ImageRotation::kRotation90);
+    EXPECT_EQ(FrameRotation(*d1), ImageRotation::kRotation90);
+
+    // Re-enabling auto-rotation adopts the recorded device rotation (kRotation90) automatically.
+    d0->SetAutoRotationEnabled(true);
+    EXPECT_EQ(d0->GetRotation(), ImageRotation::kRotation90);
+    EXPECT_EQ(FrameRotation(*d0), ImageRotation::kRotation90);
+}
+
+namespace {
+
+// Reusable spin barrier for tight lockstep thread interleavings in unit tests.
+class SpinPhaseBarrier {
+  public:
+    explicit SpinPhaseBarrier(int parties) : parties_(parties) {}
+
+    void ArriveAndWait() {
+        const uint64_t current_phase = phase_.load(std::memory_order_acquire);
+        if (arrived_.fetch_add(1, std::memory_order_acq_rel) + 1 == parties_) {
+            arrived_.store(0, std::memory_order_relaxed);
+            phase_.fetch_add(1, std::memory_order_release);
+            return;
+        }
+        while (phase_.load(std::memory_order_acquire) == current_phase) {
+            std::this_thread::yield();
+        }
+    }
+
+  private:
+    const int parties_;
+    std::atomic<int> arrived_{0};
+    std::atomic<uint64_t> phase_{0};
+};
+
+}  // namespace
+
+TEST_F(FakeMultiDisplayTest, ConcurrentUserRotationAndAutoRotationLockPreserveInvariant) {
+    auto d0 = fake_multi_display_->DefaultDisplay()->lock();
+    ASSERT_NE(d0, nullptr);
+
+    constexpr int kIterations = 2000;
+    SpinPhaseBarrier start_barrier(3);
+    SpinPhaseBarrier end_barrier(3);
+
+    std::thread user_rot_thread([&] {
+        for (int i = 0; i < kIterations; ++i) {
+            start_barrier.ArriveAndWait();
+            d0->SetUserRotation(ImageRotation::kRotation90);
+            end_barrier.ArriveAndWait();
+        }
+    });
+
+    std::thread lock_thread([&] {
+        for (int i = 0; i < kIterations; ++i) {
+            start_barrier.ArriveAndWait();
+            d0->SetAutoRotationEnabled(false);
+            end_barrier.ArriveAndWait();
+        }
+    });
+
+    int mismatches = 0;
+    for (int i = 0; i < kIterations; ++i) {
+        fake_multi_display_->SetRotation(ImageRotation::kRotation180);
+        d0->SetUserRotation(ImageRotation::kRotation0);
+        d0->SetAutoRotationEnabled(true, ImageRotation::kRotation180);
+
+        start_barrier.ArriveAndWait();
+        end_barrier.ArriveAndWait();
+
+        if (d0->AutoRotationEnabled() || d0->UserRotation() != ImageRotation::kRotation90 ||
+            d0->GetRotation() != ImageRotation::kRotation90 ||
+            FrameRotation(*d0) != ImageRotation::kRotation90) {
+            ++mismatches;
+        }
+    }
+
+    user_rot_thread.join();
+    lock_thread.join();
+    EXPECT_EQ(mismatches, 0)
+            << "Invariant (!AutoRotationEnabled => state and frame rotation == UserRotation) "
+               "violated under concurrent SetUserRotation + SetAutoRotationEnabled(false)";
+}
+
+TEST_F(FakeMultiDisplayTest, ConcurrentDeviceRotationAndAutoRotationLockPreserveInvariant) {
+    auto d0 = fake_multi_display_->DefaultDisplay()->lock();
+    ASSERT_NE(d0, nullptr);
+
+    constexpr int kIterations = 2000;
+    SpinPhaseBarrier start_barrier(3);
+    SpinPhaseBarrier end_barrier(3);
+
+    std::thread sensor_thread([&] {
+        for (int i = 0; i < kIterations; ++i) {
+            start_barrier.ArriveAndWait();
+            fake_multi_display_->SetRotation(ImageRotation::kRotation270);
+            end_barrier.ArriveAndWait();
+        }
+    });
+
+    std::thread lock_thread([&] {
+        for (int i = 0; i < kIterations; ++i) {
+            start_barrier.ArriveAndWait();
+            d0->SetAutoRotationEnabled(false);
+            end_barrier.ArriveAndWait();
+        }
+    });
+
+    int mismatches = 0;
+    for (int i = 0; i < kIterations; ++i) {
+        fake_multi_display_->SetRotation(ImageRotation::kRotation0);
+        d0->SetUserRotation(ImageRotation::kRotation180);
+        d0->SetAutoRotationEnabled(true, ImageRotation::kRotation0);
+
+        start_barrier.ArriveAndWait();
+        end_barrier.ArriveAndWait();
+
+        if (d0->AutoRotationEnabled() || d0->UserRotation() != ImageRotation::kRotation180 ||
+            d0->GetRotation() != ImageRotation::kRotation180 ||
+            FrameRotation(*d0) != ImageRotation::kRotation180) {
+            ++mismatches;
+        }
+    }
+
+    sensor_thread.join();
+    lock_thread.join();
+    EXPECT_EQ(mismatches, 0) << "Sensor SetRotation overwrote locked display during concurrent "
+                                "SetAutoRotationEnabled(false)";
+}
+
+TEST_F(FakeMultiDisplayTest, ConcurrentMultiDisplaySetRotationPreservesDisplaySync) {
+    auto d0 = fake_multi_display_->DefaultDisplay()->lock();
+    ASSERT_NE(d0, nullptr);
+    d0->SetAutoRotationEnabled(true);
+
+    constexpr int kIterations = 2000;
+    SpinPhaseBarrier start_barrier(3);
+    SpinPhaseBarrier end_barrier(3);
+
+    std::thread rot90_thread([&] {
+        for (int i = 0; i < kIterations; ++i) {
+            start_barrier.ArriveAndWait();
+            fake_multi_display_->SetRotation(ImageRotation::kRotation90);
+            end_barrier.ArriveAndWait();
+        }
+    });
+
+    std::thread rot270_thread([&] {
+        for (int i = 0; i < kIterations; ++i) {
+            start_barrier.ArriveAndWait();
+            fake_multi_display_->SetRotation(ImageRotation::kRotation270);
+            end_barrier.ArriveAndWait();
+        }
+    });
+
+    int mismatches = 0;
+    for (int i = 0; i < kIterations; ++i) {
+        fake_multi_display_->SetRotation(ImageRotation::kRotation0);
+
+        start_barrier.ArriveAndWait();
+        end_barrier.ArriveAndWait();
+
+        const ImageRotation expected = fake_multi_display_->GetRotation();
+        if (d0->GetRotation() != expected || FrameRotation(*d0) != expected) {
+            ++mismatches;
+        }
+    }
+
+    rot90_thread.join();
+    rot270_thread.join();
+    EXPECT_EQ(mismatches, 0)
+            << "IMultiDisplay::GetRotation() diverged from the auto-rotating display's state or "
+               "frame rotation";
+}
+
+TEST_F(FakeMultiDisplayTest, ConcurrentUpdateStateAndGetStateNeverTear) {
+    auto d0 = fake_multi_display_->DefaultDisplay()->lock();
+    ASSERT_NE(d0, nullptr);
+
+    const IDisplay::StateUpdate profile_a{
+        .brightness_percent = 20.0F,
+        .auto_brightness_enabled = false,
+        .auto_rotation_enabled = false,
+        .user_rotation = ImageRotation::kRotation90,
+        .device_rotation = ImageRotation::kRotation0,
+    };
+    const IDisplay::StateUpdate profile_b{
+        .brightness_percent = 80.0F,
+        .auto_brightness_enabled = true,
+        .auto_rotation_enabled = true,
+        .user_rotation = ImageRotation::kRotation270,
+        .device_rotation = ImageRotation::kRotation180,
+    };
+    (void)d0->UpdateState(profile_a);
+
+    std::atomic<bool> start{false};
+    std::atomic<bool> done{false};
+    std::atomic<int> torn_snapshots{0};
+
+    std::thread writer([&] {
+        while (!start.load(std::memory_order_acquire)) {
+        }
+        constexpr int kUpdates = 5000;
+        for (int i = 0; i < kUpdates; ++i) {
+            (void)d0->UpdateState((i % 2 == 0) ? profile_b : profile_a);
+        }
+        done.store(true, std::memory_order_release);
+    });
+
+    constexpr int kReaders = 3;
+    std::vector<std::thread> readers;
+    readers.reserve(kReaders);
+    for (int r = 0; r < kReaders; ++r) {
+        readers.emplace_back([&] {
+            while (!start.load(std::memory_order_acquire)) {
+            }
+            while (!done.load(std::memory_order_acquire)) {
+                const IDisplay::State snap = d0->GetState();
+                const bool is_a = (snap.brightness_percent == 20.0F &&
+                                   !snap.auto_brightness_enabled && !snap.auto_rotation_enabled &&
+                                   snap.user_rotation == ImageRotation::kRotation90 &&
+                                   snap.device_rotation == ImageRotation::kRotation0 &&
+                                   snap.EffectiveRotation() == ImageRotation::kRotation90);
+                const bool is_b = (snap.brightness_percent == 80.0F &&
+                                   snap.auto_brightness_enabled && snap.auto_rotation_enabled &&
+                                   snap.user_rotation == ImageRotation::kRotation270 &&
+                                   snap.device_rotation == ImageRotation::kRotation180 &&
+                                   snap.EffectiveRotation() == ImageRotation::kRotation180);
+                if (!is_a && !is_b) {
+                    torn_snapshots.fetch_add(1, std::memory_order_relaxed);
+                }
+            }
+        });
+    }
+
+    start.store(true, std::memory_order_release);
+    writer.join();
+    for (auto& t : readers) {
+        t.join();
+    }
+    EXPECT_EQ(torn_snapshots.load(), 0)
+            << "IDisplay::GetState() observed a torn intermediate state during UpdateState()";
+}
+
+TEST_F(FakeMultiDisplayTest, ConcurrentCreateDisplayAndSetRotationLockOrderSafe) {
+    constexpr int kCycles = 200;
+    std::atomic<bool> start{false};
+    std::atomic<bool> done{false};
+
+    std::thread lifecycle_thread([&] {
+        while (!start.load(std::memory_order_acquire)) {
+        }
+        for (int i = 0; i < kCycles; ++i) {
+            // Tiny displays keep each cycle cheap under TSAN: this test is about lock order.
+            auto created = fake_multi_display_->CreateDisplay(1, 16, 16, 320, 0x1U);
+            ASSERT_TRUE(created.ok());
+            ASSERT_TRUE(fake_multi_display_->EraseDisplay(1).ok());
+        }
+        done.store(true, std::memory_order_release);
+    });
+
+    std::thread rotation_thread([&] {
+        while (!start.load(std::memory_order_acquire)) {
+        }
+        constexpr ImageRotation kRotations[] = {
+            ImageRotation::kRotation0,
+            ImageRotation::kRotation90,
+            ImageRotation::kRotation180,
+            ImageRotation::kRotation270,
+        };
+        // Bounded and yielding: retaking the rotation lock in a tight loop can starve
+        // CreateDisplay under TSAN until the test times out.
+        constexpr int kMaxRotations = 10 * kCycles;
+        for (int i = 0; i < kMaxRotations && !done.load(std::memory_order_acquire); ++i) {
+            fake_multi_display_->SetRotation(kRotations[i % 4]);
+            std::this_thread::yield();
+        }
+    });
+
+    start.store(true, std::memory_order_release);
+    lifecycle_thread.join();
+    rotation_thread.join();
 }

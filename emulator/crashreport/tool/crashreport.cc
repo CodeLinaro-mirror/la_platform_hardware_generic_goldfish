@@ -276,7 +276,7 @@ int main(int argc, char* argv[]) {
             "reports.\n\n"
             "The local crash database is located at:\n"
             "%v",
-            android::crashreport::CrashSystem::databaseDirectory()));
+            android::crashreport::CrashSystem::DatabaseDirectory()));
     absl::ParseCommandLine(argc, argv);
     absl::InitializeLog();
     if (!ValidateMinidumpOptionFlag("format", absl::GetFlag(FLAGS_format), "summary",

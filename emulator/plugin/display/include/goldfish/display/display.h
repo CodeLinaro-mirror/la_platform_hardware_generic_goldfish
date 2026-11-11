@@ -16,6 +16,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 #include <utility>
 
@@ -150,6 +151,82 @@ class IDisplay : public std::enable_shared_from_this<IDisplay> {
     uint32_t Dpi() const { return dpi_; }
 
     uint32_t Flags() const { return flags_; }
+
+    /**
+     * Cohesive snapshot of mutable display brightness and rotation state.
+     *
+     * Invariant: the display's active rotation equals `EffectiveRotation()`, i.e.
+     * `device_rotation` when `auto_rotation_enabled` is true and `user_rotation`
+     * when `auto_rotation_enabled` is false.
+     */
+    struct State {
+        float brightness_percent = 100.0F;
+        bool auto_brightness_enabled = false;
+        bool auto_rotation_enabled = true;
+        ImageRotation user_rotation = ImageRotation::kRotation0;
+        ImageRotation device_rotation = ImageRotation::kRotation0;
+
+        constexpr ImageRotation EffectiveRotation() const {
+            return auto_rotation_enabled ? device_rotation : user_rotation;
+        }
+    };
+
+    /**
+     * Partial mutation applied atomically to `IDisplay` state via `UpdateState()`.
+     */
+    struct StateUpdate {
+        std::optional<float> brightness_percent;
+        std::optional<bool> auto_brightness_enabled;
+        std::optional<bool> auto_rotation_enabled;
+        std::optional<ImageRotation> user_rotation;
+        std::optional<ImageRotation> device_rotation;
+    };
+
+    /**
+     * @return Coherent snapshot of this display's brightness and rotation state.
+     */
+    State GetState() const ABSL_LOCKS_EXCLUDED(state_mutex_);
+
+    /**
+     * Atomically applies all populated fields in `update`, synchronizes the
+     * active frame rotation to `EffectiveRotation()`, and returns the resulting
+     * `State` snapshot.
+     */
+    State UpdateState(const StateUpdate& update) ABSL_LOCKS_EXCLUDED(state_mutex_);
+
+    float BrightnessPercent() const ABSL_LOCKS_EXCLUDED(state_mutex_) {
+        return GetState().brightness_percent;
+    }
+
+    void SetBrightnessPercent(float percent) ABSL_LOCKS_EXCLUDED(state_mutex_) {
+        (void)UpdateState({.brightness_percent = percent});
+    }
+
+    bool AutoBrightnessEnabled() const ABSL_LOCKS_EXCLUDED(state_mutex_) {
+        return GetState().auto_brightness_enabled;
+    }
+
+    void SetAutoBrightnessEnabled(bool enabled) ABSL_LOCKS_EXCLUDED(state_mutex_) {
+        (void)UpdateState({.auto_brightness_enabled = enabled});
+    }
+
+    bool AutoRotationEnabled() const ABSL_LOCKS_EXCLUDED(state_mutex_) {
+        return GetState().auto_rotation_enabled;
+    }
+
+    void SetAutoRotationEnabled(bool enabled,
+                                std::optional<ImageRotation> device_rotation = std::nullopt)
+            ABSL_LOCKS_EXCLUDED(state_mutex_) {
+        (void)UpdateState({.auto_rotation_enabled = enabled, .device_rotation = device_rotation});
+    }
+
+    ImageRotation UserRotation() const ABSL_LOCKS_EXCLUDED(state_mutex_) {
+        return GetState().user_rotation;
+    }
+
+    void SetUserRotation(ImageRotation rotation) ABSL_LOCKS_EXCLUDED(state_mutex_) {
+        (void)UpdateState({.user_rotation = rotation});
+    }
 
     /**
      * @brief Actively disconnects the display from underlying network/looper endpoints.
@@ -309,19 +386,18 @@ class IDisplay : public std::enable_shared_from_this<IDisplay> {
     }
 
     /**
-     * @brief Updates the display's counter-clockwise rotation and notifies active frame listeners.
+     * @brief Updates the display's physical device rotation and notifies active frame listeners
+     *        when auto-rotation is enabled.
      */
-    void SetRotation(ImageRotation rotation) {
-        if (frames_) {
-            frames_->SetRotation(rotation);
-        }
+    void SetRotation(ImageRotation rotation) ABSL_LOCKS_EXCLUDED(state_mutex_) {
+        (void)UpdateState({.device_rotation = rotation});
     }
 
     /**
      * @brief Returns the current counter-clockwise rotation of the display.
      */
-    ImageRotation GetRotation() const {
-        return frames_ ? frames_->GetRotation() : ImageRotation::kRotation0;
+    ImageRotation GetRotation() const ABSL_LOCKS_EXCLUDED(state_mutex_) {
+        return GetState().EffectiveRotation();
     }
 
     template <typename Sink>
@@ -454,6 +530,8 @@ class IDisplay : public std::enable_shared_from_this<IDisplay> {
     std::shared_ptr<Producer> producer_;
     std::shared_ptr<InputActiveEventSource> input_active_events_ =
             std::make_shared<InputActiveEventSource>();
+    mutable absl::Mutex state_mutex_;
+    State state_ ABSL_GUARDED_BY(state_mutex_);
 };
 
 }  // namespace goldfish::display

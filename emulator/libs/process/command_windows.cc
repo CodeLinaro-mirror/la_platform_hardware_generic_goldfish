@@ -231,6 +231,19 @@ struct WindowsPipe {
         pending_io = false;
     }
 
+    /**
+     * Completes an overlapped read on the pipe, flushing any read bytes to `buffer` or closing the
+     * pipe on failure.
+     */
+    bool CompleteOverlappedRead() {
+        if (GetOverlappedResult(read.get(), &overlap, &cb_read, FALSE)) {
+            FlushToStreambuf();
+            return true;
+        }
+        Close();
+        return false;
+    }
+
     ScopedFileHandle overlap_event;
     OVERLAPPED overlap = {0};
     ScopedFileHandle read;
@@ -321,12 +334,7 @@ class WindowsOverseer : public ProcessOverseer {
                     // The read might still be pending.
                     if (success) {
                         // Read completed immediately.
-                        if (GetOverlappedResult(pipe->read.get(), &pipe->overlap, &pipe->cb_read,
-                                                FALSE)) {
-                            pipe->FlushToStreambuf();
-                        } else {
-                            pipe->Close();
-                        }
+                        pipe->CompleteOverlappedRead();
                     } else if (GetLastError() == ERROR_IO_PENDING) {
                         pipe->pending_io = TRUE;
                     } else {
@@ -349,22 +357,9 @@ class WindowsOverseer : public ProcessOverseer {
                 return;
             }
 
-            if (pipe->pending_io) {
-                DWORD byte_count = 0;
-                bool success = GetOverlappedResult(pipe->read.get(),  // handle to pipe
-                                                   &pipe->overlap,    // OVERLAPPED structure
-                                                   &byte_count,       // bytes transferred
-                                                   FALSE);            // do not wait
-
-                if (success) {
-                    pipe->cb_read = byte_count;
-                    pipe->FlushToStreambuf();
-                } else {
-                    // remove this pipe..
-                    DVLOG(1) << "Pipe " << pipe->read.get() << " broken or closed ("
-                             << FormatLastErr() << "). Closing.";
-                    pipe->Close();
-                }
+            if (pipe->pending_io && !pipe->CompleteOverlappedRead()) {
+                DVLOG(1) << "Pipe " << pipe->read.get() << " broken or closed (" << FormatLastErr()
+                         << "). Closing.";
             }
         }
 

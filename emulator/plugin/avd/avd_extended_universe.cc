@@ -16,6 +16,7 @@
 
 #include <chrono>
 #include <string>
+#include <string_view>
 #include <thread>
 
 #include "absl/container/flat_hash_map.h"
@@ -189,7 +190,7 @@ absl::Status AvdExtendedUniverse::Initialize() {
             },
             /*initial_delay=*/absl::Seconds(60));
 
-    auto* registry = &avd_universe.connector_registry;
+    auto* registry = &avd_universe.GetConnectorRegistry();
 
     namespace DEVS = ::goldfish::devices;
 
@@ -320,7 +321,7 @@ void AvdExtendedUniverse::WaitUntilEventLoopsIdle() {
     const auto wait_event_loops_idle = [](size_t n, size_t* c, EventLoop** l) -> bool {
         bool updated = false;
         for (; n > 0; --n, ++c, ++l) {
-            const size_t nc = (*l)->WaitUntilIdle();
+            const size_t nc = (*l)->Flush();
             if (nc != *c) {
                 *c = nc;
                 updated = true;
@@ -333,7 +334,7 @@ void AvdExtendedUniverse::WaitUntilEventLoopsIdle() {
     size_t counters[std::size(loops)];
     std::transform(std::begin(loops), std::end(loops), std::begin(counters), [](EventLoop* l) {
         l->ShutdownTimers();
-        return l->WaitUntilIdle();
+        return l->Flush();
     });
 
     while (wait_event_loops_idle(std::size(loops), counters, loops)) {
@@ -652,6 +653,12 @@ absl::Status AvdExtendedUniverse::OnLoadProps(archive::IReader& reader) {
             if (!mStreamOk || IsExcludedProp(name)) return;
             std::string loaded;
             if (const absl::Status s = ReadValue(mReader, loaded); s.ok()) {
+                // Allow `-id` (`avd_id`) to vary across runs (e.g. Gradle Managed Devices
+                // restoring a shared snapshot under per-instance `-id` values) while still
+                // reading its serialized string so the snapshot stream layout is unchanged.
+                if (std::string_view(name) == "avd_id") {
+                    return;
+                }
                 if (loaded != val) {
                     LOG(WARNING) << "Property mismatch: " << name << " (loaded: " << loaded
                                  << ", expected: " << val << ")";

@@ -79,30 +79,28 @@ bool AppendByteBuffer(const grpc::ByteBuffer& buffer, std::string* out) {
 }
 
 inline bool IsReservedTrailerHeader(std::string_view key) {
-    return absl::EqualsIgnoreCase(key, http::headers::kGrpcStatus) ||
-           absl::EqualsIgnoreCase(key, http::headers::kGrpcMessage) ||
-           absl::EqualsIgnoreCase(key, http::headers::kGrpcStatusDetailsBin);
+    constexpr http::CaseInsensitiveStringEq kEq;
+    return kEq(key, http::headers::kGrpcStatus) || kEq(key, http::headers::kGrpcMessage) ||
+           kEq(key, http::headers::kGrpcStatusDetailsBin);
 }
 
 inline bool IsUnreservedUriChar(unsigned char c) {
     return absl::ascii_isalnum(c) || c == '-' || c == '_' || c == '.' || c == '~';
 }
 
-inline std::string StripCrlf(std::string_view input) {
+inline void AppendStrippedCrlf(std::string_view input, std::string* out) {
     size_t pos = input.find_first_of("\r\n");
     if (pos == std::string_view::npos) {
-        return std::string(input);
+        out->append(input);
+        return;
     }
-    std::string out;
-    out.reserve(input.size());
     size_t start = 0;
     do {
-        out.append(input.data() + start, pos - start);
-        start = pos + 1;
+        out->append(input.data() + start, pos - start);
+        start = pos + 1U;
         pos = input.find_first_of("\r\n", start);
     } while (pos != std::string_view::npos);
-    out.append(input.data() + start, input.size() - start);
-    return out;
+    out->append(input.data() + start, input.size() - start);
 }
 
 // Maximum timeout clamped to 100 years to prevent int64_t nanosecond overflow
@@ -199,28 +197,58 @@ std::string Protocol::PercentEncode(std::string_view input) {
 std::string Protocol::FormatTrailers(
         const grpc::Status& status,
         const std::multimap<grpc::string_ref, grpc::string_ref>& trailing_metadata) {
+    if (status.ok() && trailing_metadata.empty() && status.error_message().empty() &&
+        status.error_details().empty()) {
+        return "grpc-status:0\r\n";
+    }
+
+    const std::string error_message = status.error_message();
+    const std::string error_details = status.error_details();
+
+    size_t reserved_bytes = http::headers::kGrpcStatus.size() + http::protocol::kColon.size() + 4U +
+                            http::protocol::kCrlf.size();
+    if (!error_message.empty()) {
+        reserved_bytes += http::headers::kGrpcMessage.size() + http::protocol::kColon.size() +
+                          error_message.size() + 16U + http::protocol::kCrlf.size();
+    }
+    if (!error_details.empty()) {
+        reserved_bytes += http::headers::kGrpcStatusDetailsBin.size() +
+                          http::protocol::kColon.size() + ((error_details.size() + 2U) / 3U) * 4U +
+                          http::protocol::kCrlf.size();
+    }
+    if (!trailing_metadata.empty()) {
+        reserved_bytes += trailing_metadata.size() * 64U;
+    }
+
     std::string out;
+    out.reserve(reserved_bytes);
     absl::StrAppend(&out, http::headers::kGrpcStatus, http::protocol::kColon, status.error_code(),
                     http::protocol::kCrlf);
 
-    if (!status.error_message().empty()) {
+    if (!error_message.empty()) {
         absl::StrAppend(&out, http::headers::kGrpcMessage, http::protocol::kColon,
-                        PercentEncode(status.error_message()), http::protocol::kCrlf);
+                        PercentEncode(error_message), http::protocol::kCrlf);
     }
-    if (!status.error_details().empty()) {
+    if (!error_details.empty()) {
         absl::StrAppend(&out, http::headers::kGrpcStatusDetailsBin, http::protocol::kColon,
-                        absl::Base64Escape(status.error_details()), http::protocol::kCrlf);
+                        absl::Base64Escape(error_details), http::protocol::kCrlf);
     }
 
     for (const auto& [key_ref, val_ref] : trailing_metadata) {
         std::string_view raw_key(key_ref.data(), key_ref.size());
         if (!IsReservedTrailerHeader(raw_key)) {
-            std::string key = StripCrlf(raw_key);
-            absl::AsciiStrToLower(&key);
+            const std::string lower_key = absl::AsciiStrToLower(raw_key);
+            const size_t key_offset = out.size();
+            AppendStrippedCrlf(lower_key, &out);
+            const bool is_bin = absl::EndsWith(std::string_view(out).substr(key_offset), "-bin");
+            out.append(http::protocol::kColon);
             std::string_view raw_val(val_ref.data(), val_ref.size());
-            std::string val =
-                    absl::EndsWith(key, "-bin") ? absl::Base64Escape(raw_val) : StripCrlf(raw_val);
-            absl::StrAppend(&out, key, http::protocol::kColon, val, http::protocol::kCrlf);
+            if (is_bin) {
+                out.append(absl::Base64Escape(raw_val));
+            } else {
+                AppendStrippedCrlf(raw_val, &out);
+            }
+            out.append(http::protocol::kCrlf);
         }
     }
 

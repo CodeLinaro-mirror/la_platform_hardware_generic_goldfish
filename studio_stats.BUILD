@@ -2,6 +2,11 @@ load("@protobuf//bazel:cc_proto_library.bzl", "cc_proto_library")
 load("@protobuf//bazel:proto_library.bzl", "proto_library")
 
 proto_library(
+    name = "android_cli_stats_proto",
+    srcs = ["android_cli_stats.proto"],
+)
+
+proto_library(
     name = "model_registry_proto",
     srcs = ["model_registry.proto"],
 )
@@ -9,7 +14,10 @@ proto_library(
 proto_library(
     name = "studio_stats_proto",
     srcs = ["studio_stats.proto"],
-    deps = [":model_registry_proto"],
+    deps = [
+        ":android_cli_stats_proto",
+        ":model_registry_proto",
+    ],
 )
 
 cc_proto_library(

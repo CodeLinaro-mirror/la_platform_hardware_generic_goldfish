@@ -35,6 +35,7 @@
 
 #include "android/goldfish/fake_hardware_config.h"
 #include "emulator_controller.grpc.pb.h"
+#include "goldfish/archive/deque_archive.h"
 #include "goldfish/async/libuv_event_loop.h"
 #include "goldfish/async/threaded_event_loop.h"
 #include "goldfish/avd/avd_info.h"
@@ -959,7 +960,7 @@ TEST_F(DisplayServiceTest, StreamScreenshotEndsWithNotFoundOnDisplayRemoval) {
     request.set_display(2);
     request.set_format(ImageFormat::RGBA8888);
 
-    auto context = getContextWithTimeout(2s);
+    auto context = getContextWithTimeout();
     std::unique_ptr<grpc::ClientReader<Image>> reader(
             mStub->streamScreenshot(context.get(), request));
     Image image;
@@ -1010,6 +1011,41 @@ TEST_F(DisplayServiceTest, GetScreenshotRotatedAndScaledSwapsDims) {
 
     EXPECT_EQ(reply.format().width(), 100);
     EXPECT_EQ(reply.format().height(), 200);
+    EXPECT_EQ(reply.format().rotation().rotation(), Rotation::LANDSCAPE);
+    EXPECT_EQ(reply.image().size(), 100U * 200U * 4U);
+}
+
+// b/476026968: after loading a rotated PhysicalModel snapshot on warm boot,
+// screenshot dimensions and reported rotation must both reflect the restored
+// 90-degree rotation.
+TEST_F(DisplayServiceTest, GetScreenshotAfterSnapshotLoadPreservesRotatedDimensionsAndRotation) {
+    auto created = mMultiDisplay->CreateDisplay(2, 400, 200, 320, 1);
+    ASSERT_TRUE(created.ok());
+
+    auto [gx, gy, gz] = mRotationMap[Rotation::LANDSCAPE];
+    mPhysicalModel->SetGravity(gx, gy, gz);
+
+    ::goldfish::archive::DequeArchive snapshot;
+    snapshot << *mPhysicalModel;
+
+    // Simulate cold initialization at 0 degrees before warm-boot snapshot load.
+    auto [px, py, pz] = mRotationMap[Rotation::PORTRAIT];
+    mPhysicalModel->SetGravity(px, py, pz);
+
+    ASSERT_TRUE(ReadValue(snapshot, *mPhysicalModel).ok());
+
+    ImageFormat request;
+    Image reply;
+    request.set_display(2);
+    request.set_format(ImageFormat::RGBA8888);
+    request.set_width(200);
+    request.set_height(100);
+    auto context = getContextWithTimeout();
+    ASSERT_GRPC_STATUS(mStub->getScreenshot(context.get(), request, &reply));
+
+    EXPECT_EQ(reply.format().width(), 100);
+    EXPECT_EQ(reply.format().height(), 200);
+    EXPECT_EQ(reply.format().rotation().rotation(), Rotation::LANDSCAPE);
     EXPECT_EQ(reply.image().size(), 100U * 200U * 4U);
 }
 

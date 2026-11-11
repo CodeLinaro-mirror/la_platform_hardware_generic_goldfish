@@ -7,94 +7,115 @@
 // http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS);
+// distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
 #pragma once
 
+#include <ctime>
 #include <filesystem>
+#include <memory>
+#include <string>
+#include <string_view>
 
+#include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 
 namespace android::crashreport {
 
-namespace fs = std::filesystem;
+inline constexpr std::string_view kCrashpadHandlerEnvVar = "AEMU_CRASHPAD_HANDLER";
+inline constexpr std::string_view kCrashDatabaseEnvVar = "ANDROID_EMU_CRASH_REPORTING_DATABASE";
+inline constexpr std::string_view kEnableCrashReportingEnvVar =
+        "ANDROID_EMU_ENABLE_CRASH_REPORTING";
+inline constexpr std::string_view kMetricsSessionIdEnvVar = "AEMU_METRICS_SESSION_ID";
+
+inline constexpr std::string_view kAnnotationProcessType = "process_type";
+inline constexpr std::string_view kAnnotationSessionId = "session_id";
 
 enum class Consent {
-    ASK,     ///< Ask for consent.
-    ALWAYS,  ///< Always grant consent.
-    NEVER    ///< Never grant consent.
+    ASK,     ///< Defer upload and retain unuploaded local reports.
+    ALWAYS,  ///< Upload local reports and remove uploaded entries.
+    NEVER    ///< Delete unuploaded local reports without uploading.
 };
 
-enum class ReportAction {
-    UNDECIDED_KEEP,  ///< Consent is undecided, keep the report.
-    UPLOAD_REMOVE,   ///< Upload the report and remove it from the database.
-    REMOVE           ///< Remove the report without uploading.
+enum class ProcessType {
+    kUnknown,
+    kLauncher,
+    kQemu,
+};
+
+struct CrashReportInfo {
+    std::string uuid;
+    time_t creation_time = 0;
+    ProcessType process_type = ProcessType::kUnknown;
+    std::filesystem::path minidump_path;
 };
 
 class CrashSystem {
   public:
+    struct Config {
+        // Path to the `crashpad_handler` executable. Required when crash
+        // reporting is enabled.
+        std::filesystem::path handler_path;
+        // Local Crashpad database directory. When empty, defaults to
+        // `DatabaseDirectory()`.
+        std::filesystem::path database_directory;
+        // Optional process role recorded as the `process_type` Crashpad
+        // annotation (`"launcher"` or `"qemu"`).
+        ProcessType process_type = ProcessType::kUnknown;
+        // Optional metrics session UUID recorded as the `session_id` Crashpad
+        // annotation.
+        std::string session_id;
+
+        // Builds a `Config` for child processes (such as QEMU or `:crash-me`)
+        // whose `handler_path`, `database_directory`, and `session_id` are
+        // passed via environment variables.
+        static Config FromEnv(ProcessType process_type = ProcessType::kUnknown);
+    };
+
     virtual ~CrashSystem() = default;
 
-    virtual bool active() const = 0;
+    virtual bool Active() const = 0;
 
     /**
-     * @brief Initializes the crash reporting system.
+     * @brief Initializes out-of-process Crashpad crash reporting.
      *
-     * This function sets up crash reporting for the emulator. It should be called
-     * only once at program startup. This function attempts to start the
-     * out-of-process Crashpad handler. If the handler is successfully started,
-     * crashes will be recorded in a local database and can be uploaded later. If
-     * the Crashpad handler cannot be started, crash reporting will be disabled, and
-     * the returned status says why.
+     * Starts `config.handler_path`, prepares `config.database_directory` (or
+     * `DatabaseDirectory()` when unset, creating missing parent directories via
+     * `EnsureDatabaseDirectory()`), and attaches `process_type` / `session_id`
+     * when present in `config`.
      *
-     * Internally, this function utilizes the `CrashpadClient::StartHandler()`
-     * method to establish communication with the Crashpad handler and configure
-     * exception handling. Refer to the documentation of `StartHandler()` for
-     * platform-specific details on how the handler is started and how exception
-     * ports or signal handlers are configured.
+     * Crash reporting is enabled by default unless
+     * `ANDROID_EMU_ENABLE_CRASH_REPORTING` is set to `"0"` or `"false"`.
      *
-     * Crash reporting is controlled by the `ANDROID_EMU_ENABLE_CRASH_REPORTING`
-     * environment variable. If this variable is not set or is set to "0", crash
-     * reporting will be disabled.
-     *
-     * @param argc The number of command line arguments. These are used to populate
-     *     the crash report if a crash occurs.
-     * @param argv An array of command line arguments. These are used to populate
-     *     the crash report if a crash occurs.
      * @return OK if crash reporting is active or intentionally disabled via
-     *     `ANDROID_EMU_ENABLE_CRASH_REPORTING`, otherwise an error saying why
-     *     initialization failed, for the caller to log (Crashpad's own logging
-     *     is not shown on Windows).
-     *
-     * @note If the Crashpad handler cannot be found, crash reporting will be
-     *     disabled. The handler location can be influenced by setting the
-     *     `AEMU_CRASHPAD_HANDLER` environment variable.
-     *
-     * @note The crash report database is stored in a platform-specific temporary
-     *     directory by default, and its name is based on the emulator version.
-     *     The location can be overridden by setting the
-     *     `ANDROID_EMU_CRASH_REPORTING_DATABASE` environment variable. Missing
-     *     parent directories are created (see `ensureDatabaseDirectory()`).
-     *
-     * @note On macOS every child process will be handled by this reporter, on every
-     *     other platform a reporter will need to be registered by the client.
+     *     `ANDROID_EMU_ENABLE_CRASH_REPORTING`, otherwise an error describing
+     *     why initialization failed, for the caller to log (Crashpad's own
+     *     logging is not shown on Windows).
      */
-    // Catch crashes in everything.
-    // This promises to not launch any threads...
-    virtual absl::Status initialize() = 0;
-
-    virtual void uploadEntries(const Consent consent) = 0;
+    virtual absl::Status Initialize(const Config& config) = 0;
 
     /**
-     * @brief Returns the path to the crash report database directory.
+     * @brief Inspects pending and completed local minidump reports and returns
+     *     metadata keyed by their `session_id` annotation.
      *
-     * @return The database directory as a FilePath.
+     * Call this before `UploadEntries()`, which deletes local reports when
+     * upload consent is `Consent::NEVER`.
      */
-    static fs::path databaseDirectory();
+    virtual absl::flat_hash_map<std::string, CrashReportInfo> GetReportsBySession() = 0;
+
+    virtual void UploadEntries(Consent consent,
+                               const absl::flat_hash_set<std::string>& retain_session_ids = {}) = 0;
+
+    /**
+     * @brief Returns the default local Crashpad database directory
+     *     (`ANDROID_EMU_CRASH_REPORTING_DATABASE`, or `<temp>/emu-dev-crash-<ver>.db`).
+     */
+    static std::filesystem::path DatabaseDirectory();
 
     /**
      * @brief Creates the crash report database directory if it is missing.
@@ -103,23 +124,21 @@ class CrashSystem {
      * missing parent directory (for example `C:\tmp` for `/tmp/crash-report.db`
      * on Windows) disables crash reporting. This creates the directory and any
      * missing parents, owner-only on POSIX.
-     *
-     * @param database_path The database directory, absolute or relative to the
-     *     current working directory.
-     * @return The absolute database directory, or an error naming the path
-     *     that could not be created and why.
      */
-    static absl::StatusOr<fs::path> ensureDatabaseDirectory(const fs::path& database_path);
+    static absl::StatusOr<std::filesystem::path> EnsureDatabaseDirectory(
+            const std::filesystem::path& database_path);
 
     /**
-     * @brief Returns the path to the crashpad handler executable.
-     *
-     * @return The handler executable path as a FilePath.
+     * @brief Reads key-value Crashpad annotations from a local minidump file.
      */
-    static fs::path handlerExe();
+    static absl::StatusOr<absl::flat_hash_map<std::string, std::string>> ReadMinidumpAnnotations(
+            const std::filesystem::path& minidump_path);
 
-    // Gets a handle to single instance of crash reporter
-    static CrashSystem& get();
+    // Creates an isolated `CrashSystem` instance (useful in unit tests).
+    static std::unique_ptr<CrashSystem> Create();
+
+    // Returns the process-wide `CrashSystem` singleton.
+    static CrashSystem& Get();
 };
 
 }  // namespace android::crashreport

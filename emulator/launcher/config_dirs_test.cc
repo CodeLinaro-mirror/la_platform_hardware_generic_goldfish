@@ -62,6 +62,13 @@ TEST(ConfigDirs, getUserDirectoryWithAndroidEmulatorHome) {
                "android"
                "home");
     EXPECT_THAT(ConfigDirs::GetUserDirectory().string(), testing::EndsWith("androidhome"));
+    EXPECT_THAT(ConfigDirs::GetSharedUserDirectory(), testing::Eq(fs::path("myhome") / ".android"));
+}
+
+TEST(ConfigDirs, getSharedUserDirectoryReturnsEmptyWithoutHome) {
+    TestSystem sys("bin", "");
+    EXPECT_TRUE(ConfigDirs::GetSharedUserDirectory().empty());
+    EXPECT_FALSE(ConfigDirs::GetUserDirectory().empty());
 }
 
 TEST(ConfigDirs, getSdkRootDirectory) {

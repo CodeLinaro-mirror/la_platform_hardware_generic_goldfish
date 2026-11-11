@@ -90,4 +90,35 @@ TEST(Machine, LegacyGoldfishDevicesBelowApi37) {
                                      testing::Eq("goldfish,goldfish-pipe=on,goldfish-sync=on")));
 }
 
+TEST(Machine, LegacyGoldfishEventsBelowApi29) {
+    auto launcher_path = std::filesystem::temp_directory_path();
+    base::TestSystem sys(launcher_path);
+
+    FakeEmulator emu28;
+    EXPECT_CALL(emu28.mock_avd(), Arch())
+            .Times(1)
+            .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
+    EXPECT_CALL(emu28.mock_avd(), ApiLevel()).WillRepeatedly(testing::Return(28));
+
+    Machine dev28;
+    EXPECT_OK(dev28.initialize(emu28.config()));
+    EXPECT_THAT(
+            dev28.getQemuParameters(emu28.config()),
+            testing::ElementsAre(
+                    testing::Eq("-machine"),
+                    testing::Eq("goldfish,goldfish-pipe=on,goldfish-sync=on,goldfish-events=on")));
+
+    FakeEmulator emu29;
+    EXPECT_CALL(emu29.mock_avd(), Arch())
+            .Times(1)
+            .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
+    EXPECT_CALL(emu29.mock_avd(), ApiLevel()).WillRepeatedly(testing::Return(29));
+
+    Machine dev29;
+    EXPECT_OK(dev29.initialize(emu29.config()));
+    EXPECT_THAT(dev29.getQemuParameters(emu29.config()),
+                testing::ElementsAre(testing::Eq("-machine"),
+                                     testing::Eq("goldfish,goldfish-pipe=on,goldfish-sync=on")));
+}
+
 }  // namespace android::goldfish::test

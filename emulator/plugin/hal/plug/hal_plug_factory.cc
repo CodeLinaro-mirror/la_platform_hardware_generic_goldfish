@@ -13,6 +13,10 @@
 // limitations under the License.
 #include "goldfish/devices/hal_plug_factory.h"
 
+#include <memory>
+#include <optional>
+#include <utility>
+
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 
@@ -24,7 +28,8 @@
 namespace goldfish::devices {
 
 PlugPtr HalPlugFactory::WrapHalPlug(SocketPtr qemu_socket, const HalDeviceFactory& hal_factory,
-                                    EventLoop* client_loop, EventLoop* qemu_loop) {
+                                    EventLoop* client_loop, EventLoop* qemu_loop,
+                                    std::optional<HalPlugSnapshotIdentity> identity) {
     // 1. Create the user's HAL plug on the QEMU thread. This has to be a
     // synchronous call as we must give our vsockstream a concrete PlugPtr.
     // Let's hope developers are not doing
@@ -39,17 +44,14 @@ PlugPtr HalPlugFactory::WrapHalPlug(SocketPtr qemu_socket, const HalDeviceFactor
     // 3. Set the socket on the HalPlug using the friend class.
     real_hal_plug->EstablishConnection(std::move(marshalling_socket));
 
-    // 4. Post the onConnect notification to the client thread.
+    // 4. Post the onConnect notification to the client thread, through the
+    // adapter so it is serialized with snapshot saving.
     VLOG(1) << "Scheduling on connect for real_hal_plug: " << *real_hal_plug
             << ", client_loop: " << client_loop;
-    client_loop
-            ->Post([real_hal_plug]() {
-                VLOG(1) << "Delivering OnConnect to real_hal_plug: " << *real_hal_plug;
-                real_hal_plug->OnConnect();
-            })
-            .IgnoreError();
-
-    return std::make_shared<HalPlugToIPlugAdapter>(client_loop, std::move(real_hal_plug));
+    auto adapter = std::make_shared<HalPlugToIPlugAdapter>(client_loop, std::move(real_hal_plug),
+                                                           std::move(identity));
+    adapter->PostOnConnect();
+    return adapter;
 }
 
 PlugPtr HalPlugFactory::Connect(int port, const HalDeviceFactory& hal_factory,

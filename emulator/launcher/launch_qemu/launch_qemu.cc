@@ -88,10 +88,10 @@ absl::Status LaunchQemu::addDevices() {
     addDevice<ParameterList>(std::initializer_list<std::string>{
         "-name", absl::StrFormat("%s,debug-threads=on", Device::EscapeQemuOptionValue(a.Name()))});
     addDevice<Machine>();
-    addDevice<CpuDevice>();
+    const auto& cpu_device = addDevice<CpuDevice>();
     addDevice<MemoryDevice>();
     addDevice<HugePageDevice>();
-    addDevice<KernelDevice>();
+    addDevice<KernelDevice>(cpu_device);
 
     RETURN_IF_ERROR(addDrives(config_, *this));
 
@@ -107,7 +107,7 @@ absl::Status LaunchQemu::addDevices() {
     // TODO old emulator also created a virtio-serial device, do we need to?
     addDevice<ParameterList>(std::initializer_list<std::string>{
         "-device",
-        "virtio-serial-pci,ioeventfd=off",
+        "virtio-serial-pci",
     });
 
     // virtio logcat consoles, note that order matters here!
@@ -148,7 +148,9 @@ absl::Status LaunchQemu::addDevices() {
                          config_.chardev_endpoints().netsim),
         });
 
-        if (!o.no_wifi) {
+        if (!o.no_wifi && (a.ApiLevel() >= 30 ||
+                           config_.feature_flags().IsEnabled(
+                                   android_studio::EmulatorFeatureFlagState::VIRTIO_WIFI))) {
             addDevice<WifiDevice>("0b.0");
         }
         // The name of these vport devices should be used by

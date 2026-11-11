@@ -71,7 +71,7 @@ std::vector<std::string> RoDrive::getQemuParameters(const EmulatorConfig& emulat
     return {
         "-device", getDeviceParam(avd, id(), addr()), "-blockdev",
         absl::StrCat("driver=raw,node-name=", id(), ",read-only=on,file.driver=file,file.filename=",
-                     EscapeQemuOptionValue(mImagePath.string()))};
+                     EscapeQemuOptionValue(mImagePath.string()), ",file.locking=off")};
 }
 
 std::vector<std::string> Qcow2Drive::getQemuParameters(const EmulatorConfig& emulator) const {
@@ -81,7 +81,7 @@ std::vector<std::string> Qcow2Drive::getQemuParameters(const EmulatorConfig& emu
         absl::StrCat(
                 "driver=qcow2,node-name=", id(),
                 ",file.driver=file,file.filename=", EscapeQemuOptionValue(qcow2_image_.string()),
-                ",overlap-check=none,cache.direct=off,cache.no-flush=on,l2-cache-size=1048576")};
+                ",overlap-check=none,cache.direct=off,cache.no-flush=on")};
 }
 
 absl::Status Qcow2Drive::MakeQcow2(const bool wipe) const {

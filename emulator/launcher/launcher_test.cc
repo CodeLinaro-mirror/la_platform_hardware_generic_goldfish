@@ -18,6 +18,7 @@
 #include <fstream>
 #include <future>
 #include <memory>
+#include <optional>
 #include <thread>
 #include <variant>
 #include <vector>
@@ -36,6 +37,8 @@
 #include "android/goldfish/avd.h"
 #include "android/goldfish/constants.h"
 #include "android/goldfish/input_paths.h"
+#include "android/status/status_matcher_macros.h"
+#include "avd_session_lock.h"
 #include "goldfish/async/async_socket_server.h"
 #include "goldfish/async/libuv_event_loop.h"
 #include "goldfish/async/libuv_socket_factory.h"
@@ -43,10 +46,12 @@
 #include "goldfish/async/signal_handlers.h"
 #include "goldfish/async/testing/fake_async_socket.h"
 #include "goldfish/file/file.h"
+#include "goldfish/file/file_lock.h"
 #include "goldfish/metrics/metrics_reporter.h"
 #include "goldfish/metrics/metrics_writer.h"
 #include "goldfish/metrics/studio_file_metrics_writer.h"
 #include "goldfish/network/endpoint.h"
+#include "host-common/constants.h"
 #include "launch_qemu/launch_qemu.h"
 #include "mock_avd.h"
 #include "uv.h"
@@ -206,9 +211,18 @@ class LauncherTest : public testing::Test {
 
     absl::StatusOr<int> RunLauncherStatus(
             std::unique_ptr<MockAvd> avd,
-            std::unique_ptr<::goldfish::metrics::MetricsReporter> reporter = nullptr) {
+            std::unique_ptr<::goldfish::metrics::MetricsReporter> reporter = nullptr,
+            std::optional<AvdSessionLock> avd_session_lock = std::nullopt) {
         if (!reporter) {
             reporter = std::make_unique<::goldfish::metrics::MetricsReporter>();
+        }
+        if (!avd_session_lock.has_value()) {
+            absl::StatusOr<AvdSessionLock> acquired =
+                    AvdSessionLock::Acquire(avd->GetContentPath(), avd->Name());
+            if (!acquired.ok()) {
+                return acquired.status();
+            }
+            avd_session_lock.emplace(*std::move(acquired));
         }
         return android::goldfish::RunLauncher({
             .event_loop = *event_loop,
@@ -218,17 +232,21 @@ class LauncherTest : public testing::Test {
             .socket_factory = std::move(owned_socket_factory),
             .user_paths = std::move(user_paths),
             .emulator_paths = std::move(emulator_paths),
+            .avd_session_lock = *std::move(avd_session_lock),
             .avd = std::move(avd),
             .opts = std::move(opts),
             .feature_flags = std::move(feature_flags),
+            .gpu_selection = std::move(gpu_selection),
             .metrics_writer_config = metrics_writer_config,
             .qemu_shutdown_timeout = qemu_shutdown_timeout,
         });
     }
 
     int RunLauncher(std::unique_ptr<MockAvd> avd,
-                    std::unique_ptr<::goldfish::metrics::MetricsReporter> reporter = nullptr) {
-        auto status = RunLauncherStatus(std::move(avd), std::move(reporter));
+                    std::unique_ptr<::goldfish::metrics::MetricsReporter> reporter = nullptr,
+                    std::optional<AvdSessionLock> avd_session_lock = std::nullopt) {
+        auto status =
+                RunLauncherStatus(std::move(avd), std::move(reporter), std::move(avd_session_lock));
         EXPECT_TRUE(status.ok()) << status.status();
         return status.value_or(1);
     }
@@ -350,6 +368,11 @@ class LauncherTest : public testing::Test {
     SystemImagePaths system_image_paths;
     AndroidOptions opts;
     FeatureFlags feature_flags;
+    ::goldfish::gpu::GpuSelection gpu_selection{
+        .chosen_gpu_mode = "auto",
+        .emu_renderer = "lavapipe",
+        .vulkan_icd = "lavapipe",
+    };
     HardwareConfig hw;
     ::goldfish::metrics::MetricsWriterConfig metrics_writer_config;
     absl::Duration qemu_shutdown_timeout = absl::Seconds(60);
@@ -950,8 +973,15 @@ TEST_F(LauncherTest, DefaultConfigUsesNetsimModem) {
     opts.no_netsim_modem = false;
     EmulatorPorts ports{.serial_number = 5554, .adb_port = 5555};
     ChardevEndpoints chardev_endpoints{.netsim = "localhost:1234"};
-    LaunchQemu emulator{EmulatorConfig{
-        ports, chardev_endpoints, {}, user_paths, emulator_paths, *avd, opts, feature_flags}};
+    LaunchQemu emulator{EmulatorConfig{ports,
+                                       chardev_endpoints,
+                                       {},
+                                       user_paths,
+                                       emulator_paths,
+                                       *avd,
+                                       opts,
+                                       feature_flags,
+                                       gpu_selection}};
 
     auto launch_config = emulator.launch_config();
     ASSERT_TRUE(launch_config.ok()) << launch_config.status();
@@ -973,8 +1003,15 @@ TEST_F(LauncherTest, Api36UsesModemSimulatorEvenWithNetsim) {
     EmulatorPorts ports{.serial_number = 5554, .adb_port = 5555};
     ChardevEndpoints chardev_endpoints{.netsim = "localhost:1234",
                                        .modem_simulator = "localhost:5678"};
-    LaunchQemu emulator{EmulatorConfig{
-        ports, chardev_endpoints, {}, user_paths, emulator_paths, *avd, opts, feature_flags}};
+    LaunchQemu emulator{EmulatorConfig{ports,
+                                       chardev_endpoints,
+                                       {},
+                                       user_paths,
+                                       emulator_paths,
+                                       *avd,
+                                       opts,
+                                       feature_flags,
+                                       gpu_selection}};
 
     auto launch_config = emulator.launch_config();
     ASSERT_TRUE(launch_config.ok()) << launch_config.status();
@@ -1000,8 +1037,15 @@ TEST_F(LauncherTest, FallbackConfigUsesModemSimulatorWhenNoNetsimModem) {
     EmulatorPorts ports{.serial_number = 5554, .adb_port = 5555};
     ChardevEndpoints chardev_endpoints{.netsim = "localhost:1234",
                                        .modem_simulator = "localhost:5678"};
-    LaunchQemu emulator{EmulatorConfig{
-        ports, chardev_endpoints, {}, user_paths, emulator_paths, *avd, opts, feature_flags}};
+    LaunchQemu emulator{EmulatorConfig{ports,
+                                       chardev_endpoints,
+                                       {},
+                                       user_paths,
+                                       emulator_paths,
+                                       *avd,
+                                       opts,
+                                       feature_flags,
+                                       gpu_selection}};
 
     auto launch_config = emulator.launch_config();
     ASSERT_TRUE(launch_config.ok()) << launch_config.status();
@@ -1018,8 +1062,15 @@ TEST_F(LauncherTest, EmptyNetsimEndpointLogsWarningAndSkipsNetsimDevices) {
     opts.no_netsim_modem = false;
     EmulatorPorts ports{.serial_number = 5554, .adb_port = 5555};
     ChardevEndpoints chardev_endpoints{.modem_simulator = "localhost:5678"};
-    LaunchQemu emulator{EmulatorConfig{
-        ports, chardev_endpoints, {}, user_paths, emulator_paths, *avd, opts, feature_flags}};
+    LaunchQemu emulator{EmulatorConfig{ports,
+                                       chardev_endpoints,
+                                       {},
+                                       user_paths,
+                                       emulator_paths,
+                                       *avd,
+                                       opts,
+                                       feature_flags,
+                                       gpu_selection}};
 
     absl::ScopedMockLog mock_log(absl::MockLogDefault::kIgnoreUnexpected);
     EXPECT_CALL(
@@ -1280,6 +1331,101 @@ TEST_F(LauncherTest, StartupFailureShutsDownMetricsBeforeClosingSignalHandlers) 
     absl::StatusOr<int> status = RunLauncherStatus(std::move(avd), std::move(reporter));
     EXPECT_FALSE(status.ok());
     EXPECT_TRUE(writer_destroyed_before_signal_close);
+}
+
+TEST_F(LauncherTest, AcquiresShutdownSnapshotLockOnGracefulQuickbootShutdown) {
+    auto avd = CreateMockAvd();
+    const fs::path avd_dir = avd->GetContentPath();
+    const fs::path snapshot_lock_dir =
+            android::base::file::ScopedFileLock::LockPathForTarget(avd_dir / SNAPSHOT_LOCK);
+    feature_flags.SetEnabledOverride(android_studio::EmulatorFeatureFlagState::FORCE_SWIFTSHADER,
+                                     true);
+
+    ::goldfish::async::ProcessLauncher::ExitCallback emulator_exit_cb;
+    ::goldfish::async::SignalHandlers::Callback launcher_signal_cb;
+    absl::Notification launched;
+    absl::Notification callback_set;
+    MockManagedProcess* mock_process_ptr = nullptr;
+
+    ExpectEmulatorLaunch(launched, emulator_exit_cb, &mock_process_ptr);
+    EXPECT_CALL(*mock_signal_handlers, SetCallback(_))
+            .WillOnce([&](::goldfish::async::SignalHandlers::Callback signal_cb) {
+                launcher_signal_cb = std::move(signal_cb);
+                callback_set.Notify();
+            });
+
+    ASSERT_OK_AND_ASSIGN(auto session_lock, AvdSessionLock::Acquire(avd_dir, "test_avd"));
+    EXPECT_FALSE(android::base::file::exists(snapshot_lock_dir));
+
+    absl::Notification signal_handled;
+    std::thread trigger = TriggerEmulatorScript(
+            launched,
+            [&]() {
+                EXPECT_CALL(*mock_process_ptr, Kill(SIGTERM)).Times(1);
+                event_loop
+                        ->Post([&]() {
+                            launcher_signal_cb(SIGTERM);
+                            signal_handled.Notify();
+                        })
+                        .IgnoreError();
+                signal_handled.WaitForNotification();
+                // Held while QEMU is saving its Quickboot snapshot on shutdown.
+                EXPECT_TRUE(android::base::file::exists(snapshot_lock_dir));
+                event_loop->Post([&]() { emulator_exit_cb(0, 0); }).IgnoreError();
+            },
+            &callback_set);
+
+    EXPECT_EQ(RunLauncher(std::move(avd), nullptr, std::move(session_lock)), 0);
+    trigger.join();
+
+    // Released once RunLauncher finishes tearing down the session.
+    EXPECT_FALSE(android::base::file::exists(snapshot_lock_dir));
+}
+
+TEST_F(LauncherTest, DoesNotAcquireShutdownSnapshotLockWhenNoSnapshotSaveSet) {
+    opts.no_snapshot_save = true;
+    auto avd = CreateMockAvd();
+    const fs::path avd_dir = avd->GetContentPath();
+    const fs::path snapshot_lock_dir =
+            android::base::file::ScopedFileLock::LockPathForTarget(avd_dir / SNAPSHOT_LOCK);
+    feature_flags.SetEnabledOverride(android_studio::EmulatorFeatureFlagState::FORCE_SWIFTSHADER,
+                                     true);
+
+    ::goldfish::async::ProcessLauncher::ExitCallback emulator_exit_cb;
+    ::goldfish::async::SignalHandlers::Callback launcher_signal_cb;
+    absl::Notification launched;
+    absl::Notification callback_set;
+    MockManagedProcess* mock_process_ptr = nullptr;
+
+    ExpectEmulatorLaunch(launched, emulator_exit_cb, &mock_process_ptr);
+    EXPECT_CALL(*mock_signal_handlers, SetCallback(_))
+            .WillOnce([&](::goldfish::async::SignalHandlers::Callback signal_cb) {
+                launcher_signal_cb = std::move(signal_cb);
+                callback_set.Notify();
+            });
+
+    ASSERT_OK_AND_ASSIGN(auto session_lock, AvdSessionLock::Acquire(avd_dir, "test_avd"));
+
+    absl::Notification signal_handled;
+    std::thread trigger = TriggerEmulatorScript(
+            launched,
+            [&]() {
+                EXPECT_CALL(*mock_process_ptr, Kill(SIGTERM)).Times(1);
+                event_loop
+                        ->Post([&]() {
+                            launcher_signal_cb(SIGTERM);
+                            signal_handled.Notify();
+                        })
+                        .IgnoreError();
+                signal_handled.WaitForNotification();
+                EXPECT_FALSE(android::base::file::exists(snapshot_lock_dir));
+                event_loop->Post([&]() { emulator_exit_cb(0, 0); }).IgnoreError();
+            },
+            &callback_set);
+
+    EXPECT_EQ(RunLauncher(std::move(avd), nullptr, std::move(session_lock)), 0);
+    trigger.join();
+    EXPECT_FALSE(android::base::file::exists(snapshot_lock_dir));
 }
 
 }  // namespace

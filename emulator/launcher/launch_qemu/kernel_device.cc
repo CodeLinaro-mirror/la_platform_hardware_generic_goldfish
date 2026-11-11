@@ -28,32 +28,78 @@
 #include "android/cmdline_definitions.h"
 #include "android/goldfish/avd.h"
 #include "android/status/status_macros.h"
+#include "cpu_device.h"
 #include "goldfish/file/file.h"
+#include "initrd_device.h"
 
 namespace android::goldfish {
 
 namespace {
-absl::StatusOr<std::string> command_line(const Avd& avd, const AndroidOptions& opts) {
+
+// b/582851647: Gate module_blacklist=test_meminit on unpatched API 34-37 images.
+// API <= 33 loads test_meminit.ko synchronously in first-stage /init with strict=true where -EPERM
+// hits LOG(FATAL) and panics PID 1, while API 38+ images already blocklist test_meminit.ko in
+// vendor_dlkm modules.blocklist (ag/43603284).
+constexpr int kTestMeminitBlacklistMinApiLevel = 34;
+constexpr int kTestMeminitBlacklistMaxApiLevel = 37;
+
+absl::StatusOr<std::string> command_line(const EmulatorConfig& emulator,
+                                         const CpuDevice& cpu_device) {
+    const Avd& avd = emulator.avd();
+    const AndroidOptions& opts = emulator.opts();
+    const int api_level = avd.ApiLevel();
+    const bool has_bootconfig = (api_level <= 0 || api_level >= 31);
+
     // btree to provide deterministic (sorted) order.
-    absl::btree_set<std::string> cl = {"bootconfig", "no_timer_check", "8250.nr_uarts=1",
-                                       "loop.max_part=7", "mac80211_hwsim.radios=0"};
+    absl::btree_set<std::string> cl = {"no_timer_check", "8250.nr_uarts=1", "loop.max_part=7"};
+    if (has_bootconfig) {
+        cl.insert("bootconfig");
+        cl.insert("mac80211_hwsim.radios=0");
+    } else if (api_level == 30) {
+        cl.insert("mac80211_hwsim.radios=1");
+    } else if (api_level >= 25) {
+        cl.insert("mac80211_hwsim.radios=2");
+        cl.insert("mac80211_hwsim.channels=2");
+    }
+
     // TODO add ramoops args?
     switch (auto a = avd.Arch(); a) {
     case Avd::CpuArchitecture::kArm:
-        cl.merge(absl::btree_set<std::string>{"console=ttyAMA0,38400", "earlyprintk=ttyAMA0",
-                                              "keep_bootcon", "ndns=3"});
+        cl.merge(absl::btree_set<std::string>{"console=ttyAMA0,38400", "ndns=3"});
         break;
     case Avd::CpuArchitecture::kX86:
-        cl.merge(absl::btree_set<std::string>{"console=ttyS0,38400", "earlyprintk=ttyS0",
-                                              "clocksource=pit", "memmap=0x10000$0xff018000"});
+        cl.merge(absl::btree_set<std::string>{"console=ttyS0,38400", "clocksource=pit",
+                                              "memmap=0x10000$0xff018000"});
+        if (api_level > 0 && api_level < 26) {
+            cl.insert("no-kvmclock");
+        }
+        if (cpu_device.accelerator() == "kvm") {
+            cl.insert("tsc=reliable");
+        }
         break;
     case Avd::CpuArchitecture::kRiscV:
     default:
         return absl::UnimplementedError(absl::StrCat("Machine type not supported: ", a));
     }
 
-    if (opts.shell || opts.shell_serial || opts.show_kernel) {
+    // Unless kernel output was requested, the console UART is attached to -serial null;
+    // suppress earlyprintk and pass quiet to prevent synchronous per-character UART VM exits.
+    const bool verbose_kernel = opts.shell || opts.shell_serial || opts.show_kernel;
+    if (verbose_kernel) {
         cl.insert("printk.devkmsg=on");
+        switch (avd.Arch()) {
+        case Avd::CpuArchitecture::kArm:
+            cl.merge(absl::btree_set<std::string>{"earlyprintk=ttyAMA0", "keep_bootcon"});
+            break;
+        case Avd::CpuArchitecture::kX86:
+            cl.insert("earlyprintk=ttyS0");
+            break;
+        case Avd::CpuArchitecture::kRiscV:
+        default:
+            break;
+        }
+    } else {
+        cl.insert("quiet");
     }
 
     // Note that this is currently duplicating: 8250.nr_uarts=1 (arm and x86) clocksource=pit (x86
@@ -74,15 +120,31 @@ absl::StatusOr<std::string> command_line(const Avd& avd, const AndroidOptions& o
         cl.insert(a->param);
     }
 
-    return absl::StrJoin(cl, " ");
+    // Linux module_blacklist (param_set_charp) replaces the entire parameter string rather than
+    // merging comma-separated entries. Prepending the default first ensures any kernel_cmdline.txt
+    // or user -append module_blacklist= entry overrides it via the kernel's last-wins rule.
+    std::string result =
+            (api_level >= kTestMeminitBlacklistMinApiLevel &&
+             api_level <= kTestMeminitBlacklistMaxApiLevel)
+                    ? absl::StrCat("module_blacklist=test_meminit ", absl::StrJoin(cl, " "))
+                    : absl::StrJoin(cl, " ");
+    if (!has_bootconfig) {
+        for (const auto& [key, val] : getBootProperties(emulator, /*vk_icd=*/"")) {
+            if (val.empty()) {
+                absl::StrAppend(&result, " ", key);
+            } else {
+                absl::StrAppend(&result, " ", key, "=", val);
+            }
+        }
+    }
+    return result;
 }
 }  // namespace
 
 absl::Status KernelDevice::initialize(const EmulatorConfig& emulator) {
     const Avd& avd = emulator.avd();
-    const AndroidOptions& opts = emulator.opts();
     mDiskImage = avd.GetSystemImagePaths().kernel_image.string();
-    ASSIGN_OR_RETURN(auto cl, command_line(avd, opts));
+    ASSIGN_OR_RETURN(auto cl, command_line(emulator, mCpuDevice));
     mCommandLine = std::move(cl);
     return absl::OkStatus();
 }

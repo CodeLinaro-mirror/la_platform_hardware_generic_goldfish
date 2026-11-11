@@ -68,6 +68,34 @@ class ClipboardDevice : public IClipboardDevice {
         }
     }
 
+    bool SupportsSnapshot() const override { return true; }
+
+    bool SaveToSnapshot(archive::IWriter& writer) const override {
+        constexpr uint32_t kSnapshotVersion = 1;
+        writer << kSnapshotVersion << receive_data_.size();
+        if (!receive_data_.empty()) {
+            writer.Write(receive_data_.data(), receive_data_.size());
+        }
+        return true;
+    }
+
+    bool LoadFromSnapshot(archive::IReader& reader) override {
+        constexpr uint32_t kSnapshotVersion = 1;
+        constexpr size_t kMaxPendingBytes = size_t{4} * 1024 * 1024;
+        uint32_t version = 0;
+        size_t pending_size = 0;
+        if (!archive::ReadValue(reader, version, pending_size).ok() ||
+            version != kSnapshotVersion || pending_size > kMaxPendingBytes) {
+            return false;
+        }
+        receive_data_.resize(pending_size);
+        if (pending_size > 0 && !reader.Read(receive_data_.data(), pending_size).ok()) {
+            receive_data_.clear();
+            return false;
+        }
+        return true;
+    }
+
     void SetContents(const ClipboardData& clip) {
         const uint32_t size = clip.contents.size();
         VLOG(1) << "Clipboard update from host to (" << size << "):" << clip.contents;

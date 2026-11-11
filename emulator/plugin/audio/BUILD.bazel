@@ -341,7 +341,7 @@ cc_test(
     copts = QTEST_COPTS,
     data = [
         ":qtest_audio_inject_plugin",
-        "@qemu//:goldfish_x86_64",
+        "@qemu//:goldfish",
         "@qemu//:qemu-img",
         "@qemu//:qemu-keymaps",
         "@qemu//:qemu-system-x86_64",
@@ -350,7 +350,7 @@ cc_test(
     env = {
         "ASAN_OPTIONS": "detect_leaks=0",
         "QTEST_GOLDFISH_EXTRA_PLUGIN": "$(rootpath :qtest_audio_inject_plugin)",
-        "QTEST_GOLDFISH_PLUGIN": "$(rootpath @qemu//:goldfish_x86_64)",
+        "QTEST_GOLDFISH_PLUGIN": "$(rootpath @qemu//:goldfish)",
         "QTEST_QEMU_BINARY": "$(rootpath @qemu//:qemu-system-x86_64)",
         "QTEST_QEMU_IMG": "$(rootpath @qemu//:qemu-img)",
     },

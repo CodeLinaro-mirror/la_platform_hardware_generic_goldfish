@@ -47,8 +47,89 @@ TEST(Cpu, Basic_x86) {
     EXPECT_OK(dev.initialize(emu.config()));
     EXPECT_THAT(dev.getQemuParameters(emu.config()),
                 testing::ElementsAre(testing::Eq("-smp"), testing::Eq("3"), testing::Eq("-cpu"),
-                                     testing::Eq("SandyBridge"), testing::Eq("-accel"),
+                                     testing::Eq("host"), testing::Eq("-accel"),
                                      testing::Eq("kvm")));
+}
+
+TEST(Cpu, Kvm_x86_BelowApi26_UsesSandyBridge) {
+    for (int api_level : {24, 25}) {
+        FakeEmulator emu;
+
+        auto hw = HardwareConfig();
+        hw.hw_cpu_ncore = 3;
+        EXPECT_CALL(emu.mock_avd(), Hw()).Times(1).WillRepeatedly(testing::ReturnRef(hw));
+        EXPECT_CALL(emu.mock_avd(), Arch())
+                .Times(1)
+                .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
+        EXPECT_CALL(emu.mock_avd(), ApiLevel()).WillRepeatedly(testing::Return(api_level));
+
+        SetCurrentCpuAcceleratorForTesting(CpuAccelerator::CPU_ACCELERATOR_KVM,
+                                           AndroidCpuAcceleration::ANDROID_CPU_ACCELERATION_READY,
+                                           "");
+        CpuDevice::forceHostArch_TestOnly(Avd::CpuArchitecture::kX86);
+
+        CpuDevice dev;
+        EXPECT_OK(dev.initialize(emu.config()));
+        EXPECT_THAT(dev.getQemuParameters(emu.config()),
+                    testing::ElementsAre(testing::Eq("-smp"), testing::Eq("3"), testing::Eq("-cpu"),
+                                         testing::Eq("SandyBridge"), testing::Eq("-accel"),
+                                         testing::Eq("kvm")))
+                << "api_level=" << api_level;
+    }
+}
+
+TEST(Cpu, Kvm_x86_Api26AndUnknown_UseHost) {
+    for (int api_level : {26, 28, 36, Avd::kUnknownApiLevel, 0}) {
+        FakeEmulator emu;
+
+        auto hw = HardwareConfig();
+        hw.hw_cpu_ncore = 3;
+        EXPECT_CALL(emu.mock_avd(), Hw()).Times(1).WillRepeatedly(testing::ReturnRef(hw));
+        EXPECT_CALL(emu.mock_avd(), Arch())
+                .Times(1)
+                .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
+        EXPECT_CALL(emu.mock_avd(), ApiLevel()).WillRepeatedly(testing::Return(api_level));
+
+        SetCurrentCpuAcceleratorForTesting(CpuAccelerator::CPU_ACCELERATOR_KVM,
+                                           AndroidCpuAcceleration::ANDROID_CPU_ACCELERATION_READY,
+                                           "");
+        CpuDevice::forceHostArch_TestOnly(Avd::CpuArchitecture::kX86);
+
+        CpuDevice dev;
+        EXPECT_OK(dev.initialize(emu.config()));
+        EXPECT_THAT(dev.getQemuParameters(emu.config()),
+                    testing::ElementsAre(testing::Eq("-smp"), testing::Eq("3"), testing::Eq("-cpu"),
+                                         testing::Eq("host"), testing::Eq("-accel"),
+                                         testing::Eq("kvm")))
+                << "api_level=" << api_level;
+    }
+}
+
+TEST(Cpu, NonKvm_x86_FallsBackToSandyBridge) {
+    android::base::System::SetEnvironmentVariable("ANDROID_I_WANT_MY_TCG", "yes");
+    AndroidOptions opts{.accel = "off"};
+    FakeEmulator emu(std::move(opts));
+
+    auto hw = HardwareConfig();
+    hw.hw_cpu_ncore = 3;
+    EXPECT_CALL(emu.mock_avd(), Hw()).Times(1).WillRepeatedly(testing::ReturnRef(hw));
+
+    EXPECT_CALL(emu.mock_avd(), Arch())
+            .Times(1)
+            .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
+
+    SetCurrentCpuAcceleratorForTesting(
+            CpuAccelerator::CPU_ACCELERATOR_NONE,
+            AndroidCpuAcceleration::ANDROID_CPU_ACCELERATION_ACCEL_NOT_INSTALLED, "");
+    CpuDevice::forceHostArch_TestOnly(Avd::CpuArchitecture::kX86);
+
+    CpuDevice dev;
+    EXPECT_OK(dev.initialize(emu.config()));
+    EXPECT_THAT(dev.getQemuParameters(emu.config()),
+                testing::ElementsAre(testing::Eq("-smp"), testing::Eq("3"), testing::Eq("-cpu"),
+                                     testing::Eq("SandyBridge"), testing::Eq("-accel"),
+                                     testing::Eq("tcg")));
+    android::base::System::SetEnvironmentVariable("ANDROID_I_WANT_MY_TCG", "");
 }
 
 TEST(Cpu, Basic_arm64) {
@@ -183,7 +264,7 @@ TEST(Cpu, CoresFlagOverride) {
     EXPECT_OK(dev.initialize(emu.config()));
     EXPECT_THAT(dev.getQemuParameters(emu.config()),
                 testing::ElementsAre(testing::Eq("-smp"), testing::Eq("5"), testing::Eq("-cpu"),
-                                     testing::Eq("SandyBridge"), testing::Eq("-accel"),
+                                     testing::Eq("host"), testing::Eq("-accel"),
                                      testing::Eq("kvm")));
 }
 

@@ -1,5 +1,0 @@
-LIBRARY goldfish_aarch64.dll
-EXPORTS
-    goldfish_register_types
-    goldfish_plugin_startup
-    goldfish_plugin_shutdown

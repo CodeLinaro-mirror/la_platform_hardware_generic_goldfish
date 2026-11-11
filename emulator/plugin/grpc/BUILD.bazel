@@ -75,10 +75,13 @@ cc_test(
     deps = [
         ":grpc_key_utils",
         "//emulator/libs/file",
+        "//emulator/libs/grpc_security",
         "//emulator/libs/status_macros:status_matcher_macros",
         "//emulator/libs/system",
         "//emulator/libs/system:test-headers",
         "//emulator/libs/test:googletest_main",
+        "@abseil-cpp//absl/status:status_matchers",
+        "@abseil-cpp//absl/time",
         "@nlohmann_json//:singleheader-json",
         "@tink_cc//tink/jwt:jwk_set_converter",
         "@tink_cc//tink/jwt:jwt_key_templates",

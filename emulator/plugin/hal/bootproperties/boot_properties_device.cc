@@ -46,6 +46,22 @@ class BootPropertiesDevice : public IBootPropertiesDevice {
         qemud_parser_.OnReceive(data.data(), data.size());
     }
 
+    bool SupportsSnapshot() const override { return true; }
+
+    bool SaveToSnapshot(archive::IWriter& writer) const override {
+        constexpr uint32_t kSnapshotVersion = 1;
+        writer << kSnapshotVersion;
+        qemud_parser_.SaveToSnapshot(writer);
+        return true;
+    }
+
+    bool LoadFromSnapshot(archive::IReader& reader) override {
+        constexpr uint32_t kSnapshotVersion = 1;
+        uint32_t version = 0;
+        return archive::ReadValue(reader, version).ok() && version == kSnapshotVersion &&
+               qemud_parser_.LoadFromSnapshot(reader);
+    }
+
     bool HandleMessage(std::string_view cmd) {
         if (cmd == "list") {
             for (const auto& [name, value] : properties_) {

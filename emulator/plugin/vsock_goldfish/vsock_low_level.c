@@ -24,7 +24,6 @@
 #include "qemu/osdep.h"
 #include "qapi/error.h"
 #include "hw/virtio/virtio.h"
-#include "hw/virtio/virtio-access.h"
 #include "hw/virtio/virtio-pci.h"
 #include "hw/core/qdev-properties.h"
 #include "standard-headers/linux/virtio_vsock.h"
@@ -62,9 +61,25 @@ static void virtqueue_consume_elem(VirtQueue* const vq, VirtQueueElement* const 
     g_free(e);
 }
 
+/*
+ * The virtqueues may only be touched while the VM is running and the guest
+ * has set the queue up. In particular, during a snapshot load virtio_load()
+ * calls our vmstate loader (and the plugin's event loops keep posting sends)
+ * before the ring addresses and region caches are restored; a virtqueue_pop()
+ * in that window bumps last_avail_idx without a ring behind it and the load
+ * then fails with "VQ 0 ... Guest index inconsistent with Host index". While
+ * not ready we report the queue as full so the payload stays buffered in the
+ * C++ layer, and virtio_vsock_set_status() flushes it once the VM resumes.
+ */
+static bool virtio_vsock_host_to_guest_ready(const VirtIOVSock* const s) {
+    return s->parent.vm_running && !s->parent.broken && virtio_queue_ready(s->host_to_guest_vq);
+}
+
 static void virtio_vsock_have_host_to_guest_packets(void* const s_raw) {
     VirtIOVSock* const s = (VirtIOVSock*)s_raw;
-    virtio_notify(&s->parent, s->host_to_guest_vq);
+    if (virtio_vsock_host_to_guest_ready(s)) {
+        virtio_notify(&s->parent, s->host_to_guest_vq);
+    }
 }
 
 static VirtIOVSockSendResult virtio_vsock_send_packet_host_to_guest(
@@ -77,6 +92,10 @@ static VirtIOVSockSendResult virtio_vsock_send_packet_host_to_guest(
     VirtQueue* const vq = s->host_to_guest_vq;
     const uint8_t* data8 = (const uint8_t*)data;
     size_t data8_size = hdr->len;
+
+    if (!virtio_vsock_host_to_guest_ready(s)) {
+        return MakeVirtIOVSockSendResult(/*is_vq_full=*/true, /*need_notify=*/false, 0);
+    }
 
     hdr->src_cid = VMADDR_CID_HOST;
     hdr->dst_cid = s->guest_cid;
@@ -316,7 +335,19 @@ static uint64_t virtio_vsock_device_get_features(VirtIODevice* const dev,
 /**********************************************************************/
 static int virtio_vsock_set_status(VirtIODevice* dev, uint8_t status) {
     DEBUG_MSG("dev=%p status=0x%02X", dev, status);
-    goldfish_virtio_vsock_set_status(VIRTIO_VSOCK(dev)->impl, status);
+    VirtIOVSock* const s = VIRTIO_VSOCK(dev);
+    goldfish_virtio_vsock_set_status(s->impl, status);
+
+    /*
+     * virtio_vmstate_change() re-applies the status when the VM resumes
+     * (after a snapshot load, or a plain `cont`). Anything the host queued
+     * while the queue was not ready (see virtio_vsock_host_to_guest_ready)
+     * is delivered now; a guest kick would do the same, but the guest has
+     * no reason to kick RX if it is only waiting for data.
+     */
+    if ((status & VIRTIO_CONFIG_S_DRIVER_OK) && virtio_vsock_host_to_guest_ready(s)) {
+        virtio_vsock_handle_host_to_guest(dev, s->host_to_guest_vq);
+    }
     return 0;
 }
 

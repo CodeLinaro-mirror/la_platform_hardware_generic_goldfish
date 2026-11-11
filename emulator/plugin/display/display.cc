@@ -57,6 +57,35 @@ Orientation IDisplay::GetOrientation(int w, int h) {
     return Orientation::kSquare;
 }
 
+IDisplay::State IDisplay::GetState() const {
+    const absl::MutexLock state_lock(state_mutex_);
+    return state_;
+}
+
+IDisplay::State IDisplay::UpdateState(const StateUpdate& update) {
+    const absl::MutexLock state_lock(state_mutex_);
+    if (update.brightness_percent.has_value()) {
+        state_.brightness_percent = *update.brightness_percent;
+    }
+    if (update.auto_brightness_enabled.has_value()) {
+        state_.auto_brightness_enabled = *update.auto_brightness_enabled;
+    }
+    if (update.auto_rotation_enabled.has_value()) {
+        state_.auto_rotation_enabled = *update.auto_rotation_enabled;
+    }
+    if (update.user_rotation.has_value()) {
+        state_.user_rotation = *update.user_rotation;
+    }
+    if (update.device_rotation.has_value()) {
+        state_.device_rotation = *update.device_rotation;
+    }
+    if (frames_ && (update.auto_rotation_enabled.has_value() || update.user_rotation.has_value() ||
+                    update.device_rotation.has_value())) {
+        frames_->SetRotation(state_.EffectiveRotation());
+    }
+    return state_;
+}
+
 IDisplay::LogicalFit IDisplay::CalculateLogicalFit(int desired_width, int desired_height) const {
     const Dimensions dims = GetDimensions();
     if (dims.width <= 0 || dims.height <= 0 || desired_width <= 0 || desired_height <= 0) {

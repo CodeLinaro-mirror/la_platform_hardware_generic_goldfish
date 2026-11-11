@@ -22,6 +22,14 @@ interface for data exchange (`cable`) and the registry for named services. **Loc
 - **Connector Registry:** The central lookup table where host services register themselves by name
   (e.g., "sensors", "clipboard"). When the guest connects to a specific port/service, the registry
   invokes the corresponding factory.
+- **Snapshots:** Every new guest connection starts as a `Connector` plug until the guest's
+  `pipe:<name>\0` request is complete. `Connector` saves its registry id and partial request (type
+  id `Connector::kSnapshotTypeId`) and `ConnectorRegistry::Listen` installs the matching
+  `cable::PlugLoader`, so a stream captured mid-handshake is restored and finishes the handshake
+  with the bytes that arrive after the load. The emulator runs several registries at once (HAL
+  devices on `vsock:5000`, test tools on `vsock:5002`), so the loader resolves the saved id through
+  a process-wide id → registry table that `Listen` fills and the destructor clears; an unknown id
+  hands the socket back to the transport loader.
 
 ## Threading Model
 

@@ -126,7 +126,7 @@ ObservableBattery::ScopedCallbackHandle RegisterBattery(ObservableBattery* obser
                 ApplyStateToQemu(Battery{
                     .has_battery = is_present,
                     .is_present = is_present,
-                    .charger = Battery::Charger::kNone,
+                    .charger = Battery::Charger::kAc,
                     .charge_level = 100,
                     .health = Battery::Health::kGood,
                     .status = Battery::Status::kCharging,

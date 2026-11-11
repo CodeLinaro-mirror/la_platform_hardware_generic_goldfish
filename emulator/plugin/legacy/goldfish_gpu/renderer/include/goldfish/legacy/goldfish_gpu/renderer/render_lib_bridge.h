@@ -18,6 +18,7 @@
 
 #include "render-utils/RenderLib.h"
 #include "render-utils/address_space_operations.h"
+#include "render-utils/display_operations.h"
 #include "render-utils/dma_device.h"
 #include "render-utils/renderer_enums.h"
 #include "render-utils/sync_device.h"
@@ -53,6 +54,9 @@ class HostCallbacks {
 
 class RenderLibBridge {
   public:
+    // Host display ID used by Ranchu HWC for the outer foldable screen (HWC 1).
+    static constexpr uint32_t kExternalFoldableDisplayId = 6;
+
     // Sets the target of every trampoline. With no target the memory
     // operations fail (and log), the DMA lookup returns null and the sync
     // operations are no-ops. Thread-safe; takes effect for subsequent calls.
@@ -60,13 +64,22 @@ class RenderLibBridge {
     static HostCallbacks* Current();
 
     // Applies the goldfish settings to `render_lib`: guest API level, goldfish
-    // gralloc, the trampolines below, and the selected backend.
+    // gralloc, the trampolines below, the selected backend, and the display
+    // ops. When `secondary_width` and `secondary_height` are non-zero, enables
+    // `is_pixel_fold` and pre-populates display 6 so `setPostCallback(..., 6)`
+    // can allocate a dedicated readback buffer at renderer startup.
     static void Configure(gfxstream::RenderLib* render_lib, uint32_t guest_api_level,
-                          SelectedRenderer renderer);
+                          SelectedRenderer renderer, uint32_t secondary_width = 0,
+                          uint32_t secondary_height = 0);
+
+    // Resets secondary displays (1..10) and transient state on display 0
+    // before a snapshot load recreates the saved display entries.
+    static void ResetSecondaryDisplays();
 
     // The op tables Configure() installs (also for tests).
     static gfxstream_dma_ops DmaOps();
     static gfxstream_vm_ops VmOps();
+    static gfxstream_multi_display_ops DisplayOps(bool pixel_fold);
     static address_space_device_control_ops* AddressSpaceOps();
 
     // The sync-device entry points Configure() installs.

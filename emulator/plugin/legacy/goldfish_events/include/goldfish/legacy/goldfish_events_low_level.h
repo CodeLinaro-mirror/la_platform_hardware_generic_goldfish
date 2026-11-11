@@ -1,4 +1,4 @@
-// Copyright 2026 The Android Open Source Project
+// Copyright (C) 2026 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -11,18 +11,20 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
 #pragma once
 
-#include <cstdint>
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-#include "vulkan/vulkan.h"
+/**
+ * Registers the legacy `goldfish-events` ("qwerty2") SysBus QOM device
+ * (ACPI `GFSH0002` / DT `google,goldfish-events-keypad`) used by API 24-28
+ * guests that lack `CONFIG_VIRTIO_INPUT`. Realized by
+ * `-machine goldfish,goldfish-events=on`.
+ */
+void goldfish_events_register_types(void);
 
-namespace android::goldfish {
-
-struct VulkanGpuDeviceInfo {
-    VkPhysicalDeviceProperties properties{};
-    uint64_t device_local_memory_bytes = 0;
-};
-
-}  // namespace android::goldfish
+#ifdef __cplusplus
+}
+#endif

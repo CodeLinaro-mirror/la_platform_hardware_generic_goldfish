@@ -176,3 +176,39 @@ While appealing for its simplicity and adherence to RAII, this model was rejecte
 -   **Handling of Pre-Connection Data:** As discovered, the underlying `cable` protocol can deliver an `onReceive` event with configuration data *before* the `onConnect` event. In the RAII model, the `HalPlug` object would not yet exist when this data arrives, forcing the framework to implement a complex and fragile buffering mechanism.
 
 **Conclusion:** The explicit, callback-based lifecycle (`onConnect`/`onClose`) of the current design, while less purely RAII, is a more robust and safer pattern for this specific concurrent environment. It correctly handles all known protocol edge cases and avoids the dangerous complexities of asynchronous destruction.
+
+## 8. Snapshots: Keeping a `HalPlug` Connection Across `loadvm`
+
+`vsock` snapshots every stream, but only restores streams whose `IPlug` returns
+`SupportsLoadingFromSnapshot()`; the others are RST'd on load. `HalPlugToIPlugAdapter` supports
+loading when it was given a `HalPlugSnapshotIdentity` (the registry key `q<name>`/`-<name>` plus the
+guest's connection `args`, supplied by `ConnectorRegistry`) **and** the wrapped `HalPlug` returns
+`SupportsSnapshot()`. Plugs created through `HalPlugFactory::Listen`/`Connect` have no identity and
+are never snapshotted.
+
+### What is saved
+
+`HalPlugToIPlugAdapter::SaveStateToSnapshot()` writes a version, the identity, the bytes
+`MarshallingHalSocket` has coalesced but not yet flushed to the QEMU loop (host→guest), the bytes the
+adapter has coalesced but not yet delivered to the client loop (guest→host), and the opaque blob
+produced by `HalPlug::SaveToSnapshot()`. One `cable::PlugLoader`, registered under
+`HalPlugToIPlugAdapter::kSnapshotTypeId`, restores every HalPlug-based stream: it looks the identity
+up in `HalPlugSnapshotRegistry`, runs the device's `HalDeviceFactory` on the QEMU thread (under the
+vsock state lock, like the factory contract already requires: lightweight, no sending), attaches a
+new `MarshallingHalSocket`, re-queues the pending host bytes, and posts
+`LoadFromSnapshot()` + `OnRestore()` followed by the pending guest bytes to the client loop.
+
+### Locking
+
+Saving happens on the QEMU thread, under the vsock state lock, while the client loop keeps running.
+The adapter's `callback_mutex_` is held on the client loop around every `HalPlug` callback
+(including the swap of the receive buffer into the delivery buffer) and on the QEMU thread for the
+whole `SaveStateToSnapshot()`. This gives `HalPlug` authors a simple rule: state written only from
+callbacks needs no lock of its own.
+
+The resulting lock order is `vsock state lock → callback_mutex_ → socket_mutex_`. Because `vsock`
+also takes its state lock inside `ISocket::SendAsync()`, the `MarshallingHalSocket` flush task must
+**not** hold `socket_mutex_` while calling `SendAsync()` (it swaps the buffer out first); otherwise
+`socket_mutex_ → vsock` closes a cycle that `absl::Mutex`'s deadlock detector aborts on
+(`HalPlugSnapshotLockOrderTest` pins this down). The same reasoning forbids an opted-in `HalPlug`
+from blocking on the QEMU thread inside a callback.

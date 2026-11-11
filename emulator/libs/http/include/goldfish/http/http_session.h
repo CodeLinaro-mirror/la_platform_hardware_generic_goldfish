@@ -164,8 +164,9 @@ class HttpSession : public std::enable_shared_from_this<HttpSession> {
     }
 
     void PostOrSend(std::string data);
+    void PostOrSend(std::string_view data);
     void PostClose();
-    void SendRawBytes(std::string payload);
+    void SendRawBytes(std::string_view payload);
     void CloseSocketDirect();
     void ResetDirect();
     void FinishStreaming();

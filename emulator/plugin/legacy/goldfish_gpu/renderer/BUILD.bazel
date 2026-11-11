@@ -75,7 +75,10 @@ cc_library(
     hdrs = ["include/goldfish/legacy/goldfish_gpu/renderer/render_lib_bridge.h"],
     includes = ["include"],
     deps = [
+        "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/base:no_destructor",
         "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/synchronization",
         "@gfxstream//host:gfxstream_backend_headers",
     ],
 )

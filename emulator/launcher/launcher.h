@@ -23,6 +23,8 @@
 #include "android/goldfish/avd.h"
 #include "android/goldfish/feature_flags.h"
 #include "android/goldfish/input_paths.h"
+#include "avd_session_lock.h"
+#include "emulator/launcher/gpu_selection.h"
 #include "goldfish/async/async_socket_factory.h"
 #include "goldfish/async/libuv_event_loop.h"
 #include "goldfish/async/process_launcher.h"
@@ -49,9 +51,13 @@ struct LauncherConfig {
 
     UserPaths user_paths;
     EmulatorPaths emulator_paths;
+    // Declared before `avd` so ~LauncherConfig() destroys `avd` before
+    // releasing the AVD session lock.
+    AvdSessionLock avd_session_lock;
     std::unique_ptr<Avd> avd;
     AndroidOptions opts;
     FeatureFlags feature_flags;
+    ::goldfish::gpu::GpuSelection gpu_selection;
     ::goldfish::metrics::MetricsWriterConfig metrics_writer_config;
     absl::Duration qemu_shutdown_timeout = absl::Seconds(60);
 };

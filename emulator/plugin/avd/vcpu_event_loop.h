@@ -102,7 +102,7 @@ class VCpuEventLoop : public ::goldfish::async::EventLoop {
     int getCpuIndex() const { return mCpuIndex; }
 
     void ShutdownTimers() override { /* do nothing */ }
-    size_t WaitUntilIdle() override { return 0; }
+    size_t Flush() override { return 0; }
     std::future<absl::Status> Shutdown() override {
         std::promise<absl::Status> p;
         p.set_value(absl::OkStatus());

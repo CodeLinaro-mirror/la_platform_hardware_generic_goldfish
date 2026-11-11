@@ -26,9 +26,9 @@
 #include "goldfish/legacy/goldfish_gpu/snapshot/gpu_snapshot_codec.h"
 #include "render-utils/Renderer.h"
 
-// Keeps the last frame gfxstream posted for display 0 as opaque BGRA, so that
-// it can be stored in a snapshot and replayed to the UI after a load (the
-// guest does not repaint until something changes on screen).
+// Keeps the last frame gfxstream posted for a physical display (0 or 6) as
+// opaque BGRA, so that it can be stored in a snapshot and replayed to the UI
+// after a load (the guest does not repaint until something changes on screen).
 //
 // Thread contract: OnPost() runs on a gfxstream render thread; the other
 // methods run on QEMU threads. OnPost() invokes `on_post` while holding
@@ -37,7 +37,7 @@
 // held across it. Replay() invokes `on_post` with no lock held and may run
 // concurrently with OnPost() (main thread right after a load vs. a render
 // thread that already resumed), so `on_post` has to be safe to call from two
-// threads at once — goldfish_pipe_on_frame() serializes on its own mutex.
+// threads at once — goldfish_gpu_on_frame_posted() serializes on its own mutex.
 
 namespace goldfish::legacy {
 

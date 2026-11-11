@@ -100,4 +100,18 @@ absl::Status ProcessCustomJwtKeys(const std::vector<std::string>& custom_keys,
     return absl::OkStatus();
 }
 
+absl::StatusOr<fs::path> ConfigureJwtDirectory(const fs::path& jwk_dir,
+                                               const std::vector<std::string>& custom_keys) {
+    if (!file::is_dir(jwk_dir)) {
+        return absl::FailedPreconditionError(
+                absl::StrCat("Failed to configure JWT directory because '", jwk_dir.string(),
+                             "' does not exist or is not a directory. Create the JWK directory "
+                             "before configuring JWT keys."));
+    }
+    if (!custom_keys.empty()) {
+        RETURN_IF_ERROR(ProcessCustomJwtKeys(custom_keys, jwk_dir));
+    }
+    return jwk_dir / "active.jwk";
+}
+
 }  // namespace goldfish::grpc

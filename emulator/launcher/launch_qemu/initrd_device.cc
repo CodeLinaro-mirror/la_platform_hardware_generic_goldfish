@@ -30,6 +30,7 @@
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
@@ -45,6 +46,7 @@
 #include "android/goldfish/hardware_config.h"
 #include "android/status/status_macros.h"
 #include "bootconfig.h"
+#include "goldfish/adb/adb_host_server.h"
 #include "goldfish/adb/adbkey.h"
 #include "goldfish/file/file.h"
 #include "goldfish/parsing/resizable_display_config.h"
@@ -67,6 +69,38 @@ std::string getDeviceStateString(const HardwareConfig& hw) {
     return "";
 }
 
+absl::StatusOr<std::string> ResolveHostAdbPublicKey(const UserPaths& paths) {
+    if (paths.user_directory.empty()) {
+        return absl::NotFoundError(
+                "Android user directory is not configured; set HOME or ANDROID_SDK_HOME");
+    }
+
+    ASSIGN_OR_RETURN(
+            const ::goldfish::adb::AdbKeyResult key_result,
+            ::goldfish::adb::EnsurePrivateAdbKey(paths.user_directory, paths.sdk_directory));
+
+    if (key_result.newly_created && paths.is_shared_user_directory) {
+        if (const absl::Status kill_status = ::goldfish::adb::AdbHostServer::killServer();
+            kill_status.ok()) {
+            LOG(WARNING) << "Generated new ADB key in " << paths.user_directory
+                         << "; stopped running host ADB server so it reloads the new key.";
+        } else if (!absl::IsUnavailable(kill_status)) {
+            LOG(WARNING) << "Generated new ADB key in " << paths.user_directory
+                         << ", but failed to stop running host ADB server: " << kill_status
+                         << "; run 'adb kill-server' so it reloads the new key.";
+        }
+    }
+
+    std::string key;
+    if (!::goldfish::adb::PubkeyFromPrivkey(key_result.private_key_path, &key)) {
+        return absl::InternalError(absl::StrCat("failed to derive ADB public key from ",
+                                                key_result.private_key_path.string(),
+                                                "; remove the corrupted key so it can be "
+                                                "recreated"));
+    }
+    return key;
+}
+
 std::vector<std::pair<std::string, std::string>> getUserspaceBootProperties(
         std::string targetArch, std::string serialno, const int bootPropOpenglesVersion,
         const int apiLevel, std::string kernelSerialPrefix,
@@ -77,8 +111,12 @@ std::vector<std::pair<std::string, std::string>> getUserspaceBootProperties(
         LOG(QFATAL) << absl::StrFormat("API levels below %d are not supported yet.",
                                        kMinSupportedApiLevel);
     }
+    using S = android_studio::EmulatorFeatureFlagState;
     const bool isX86ish = targetArch == "x86" || targetArch == "x86_64";
-    const bool is_legacy = apiLevel < kVirtioReadyApiLevel;
+    const bool is_legacy = !UseVirtioGpu(apiLevel, feature_flags.IsEnabled(S::MINIGBM));
+    const bool hasBootconfig = (apiLevel <= 0 || apiLevel >= 31) ||
+                               feature_flags.IsEnabled(S::ANDROIDBOOT_PROPS) ||
+                               feature_flags.IsEnabled(S::ANDROIDBOOT_PROPS2);
     const bool hasShellConsole = false;
     std::string androidbootVerityMode = "androidboot.veritymode";
     std::string androidbootHardwareGralloc = "androidboot.hardware.gralloc";
@@ -86,9 +124,12 @@ std::vector<std::pair<std::string, std::string>> getUserspaceBootProperties(
     std::string checkjniProp = "androidboot.dalvik.vm.checkjni";
     std::string bootanimProp = "androidboot.debug.sf.nobootanimation";
     std::string bootanimPropValue = "1";
-    std::string qemuScreenOffTimeoutProp = "androidboot.qemu.settings.system.screen_off_timeout";
-    std::string qemuVsyncProp = "androidboot.qemu.vsync";
-    std::string qemuGltransportNameProp = "androidboot.qemu.gltransport.name";
+    std::string qemuScreenOffTimeoutProp =
+            hasBootconfig ? "androidboot.qemu.settings.system.screen_off_timeout"
+                          : "qemu.settings.system.screen_off_timeout";
+    std::string qemuVsyncProp = hasBootconfig ? "androidboot.qemu.vsync" : "qemu.vsync";
+    std::string qemuGltransportNameProp =
+            hasBootconfig ? "androidboot.qemu.gltransport.name" : "qemu.gltransport";
     std::string hwGltransportNameProp = "androidboot.hardware.gltransport";
     std::string hwEglProp = "androidboot.hardwareegl";
     std::string aemuAngleOverridesDisabledProp =
@@ -97,37 +138,59 @@ std::vector<std::pair<std::string, std::string>> getUserspaceBootProperties(
             "androidboot.hardware.angle_feature_overrides_disabled";
     std::string angleFeatureOverridesEnabledProp =
             "androidboot.hardware.angle_feature_overrides_enabled";
-    std::string qemuDrawFlushIntervalProp = "androidboot.qemu.gltransport.drawFlushInterval";
-    std::string qemuOpenglesVersionProp = "androidboot.opengles.version";
-    std::string qemuUirendererProp = "androidboot.debug.hwui.renderer";
+    std::string qemuDrawFlushIntervalProp =
+            hasBootconfig ? "androidboot.qemu.gltransport.drawFlushInterval"
+                          : "qemu.gltransport.drawFlushInterval";
+    std::string qemuOpenglesVersionProp =
+            hasBootconfig ? "androidboot.opengles.version" : "qemu.opengles.version";
+    std::string qemuUirendererProp =
+            hasBootconfig ? "androidboot.debug.hwui.renderer" : "qemu.uirenderer";
     std::string qemuRenderengineProp = "androidboot.debug.renderengine.backend";
     std::string qemuRenderengineGraphiteProp =
             "androidboot.surface_flinger.renderengine_graphite_vulkan";
-    std::string dalvikVmHeapsizeProp = "androidboot.dalvik.vm.heapsize";
-    std::string qemuLegacyFakeCameraProp = "androidboot.qemu.legacy_fake_camera";
-    std::string qemuCameraProtocolVerProp = "androidboot.qemu.camera_protocol_ver";
-    std::string qemuCameraHqEdgeProp = "androidboot.qemu.camera_hq_edge_processing";
-    std::string qemuDisplaySettingsXmlProp = "androidboot.qemu.display.settings.xml";
-    std::string qemuVirtioWifiProp = "androidboot.qemu.virtiowifi";
-    std::string qemuWifiProp = "androidboot.qemu.wifi";
-    std::string qemuHwcodecAvcdecProp = "androidboot.qemu.hwcodec.avcdec";
-    std::string qemuHwcodecHevcdecProp = "androidboot.qemu.hwcodec.hevcdec";
-    std::string qemuHwcodecVpxdecProp = "androidboot.qemu.hwcodec.vpxdec";
-    std::string androidbootLogcatProp = "androidboot.logcat";
+    std::string dalvikVmHeapsizeProp =
+            hasBootconfig ? "androidboot.dalvik.vm.heapsize" : "qemu.dalvik.vm.heapsize";
+    std::string qemuLegacyFakeCameraProp =
+            hasBootconfig ? "androidboot.qemu.legacy_fake_camera" : "qemu.legacy_fake_camera";
+    std::string qemuCameraProtocolVerProp =
+            hasBootconfig ? "androidboot.qemu.camera_protocol_ver" : "qemu.camera_protocol_ver";
+    std::string qemuCameraHqEdgeProp = hasBootconfig ? "androidboot.qemu.camera_hq_edge_processing"
+                                                     : "qemu.camera_hq_edge_processing";
+    std::string qemuDisplaySettingsXmlProp =
+            hasBootconfig ? "androidboot.qemu.display.settings.xml" : "qemu.display.settings.xml";
+    std::string qemuVirtioWifiProp =
+            hasBootconfig ? "androidboot.qemu.virtiowifi" : "qemu.virtiowifi";
+    std::string qemuWifiProp = hasBootconfig ? "androidboot.qemu.wifi" : "qemu.wifi";
+    std::string qemuHwcodecAvcdecProp =
+            hasBootconfig ? "androidboot.qemu.hwcodec.avcdec" : "qemu.hwcodec.avcdec";
+    std::string qemuHwcodecHevcdecProp =
+            hasBootconfig ? "androidboot.qemu.hwcodec.hevcdec" : "qemu.hwcodec.hevcdec";
+    std::string qemuHwcodecVpxdecProp =
+            hasBootconfig ? "androidboot.qemu.hwcodec.vpxdec" : "qemu.hwcodec.vpxdec";
+    std::string androidbootLogcatProp = hasBootconfig ? "androidboot.logcat" : "qemu.logcat";
     std::string adbKeyProp = "androidboot.qemu.adb.pubkey";
-    std::string avdNameProp = "androidboot.qemu.avd_name";
-    std::string deviceStateProp = "androidboot.qemu.device_state";
-    std::string qemuCpuVulkanVersionProp = "androidboot.qemu.cpuvulkan.version";
-    std::string emulatorCircularProp = "androidboot.emulator.circular";
-    std::string autoRotateProp = "androidboot.qemu.autorotate";
-    std::string qemuExternalDisplays = "androidboot.qemu.external.displays";
+    std::string avdNameProp = hasBootconfig ? "androidboot.qemu.avd_name" : "qemu.avd_name";
+    std::string deviceStateProp =
+            hasBootconfig ? "androidboot.qemu.device_state" : "qemu.device_state";
+    std::string qemuCpuVulkanVersionProp =
+            hasBootconfig ? "androidboot.qemu.cpuvulkan.version" : "qemu.cpuvulkan.version";
+    std::string emulatorCircularProp =
+            hasBootconfig ? "androidboot.emulator.circular" : "ro.emulator.circular";
+    std::string autoRotateProp = hasBootconfig ? "androidboot.qemu.autorotate" : "qemu.autorotate";
+    std::string qemuExternalDisplays =
+            hasBootconfig ? "androidboot.qemu.external.displays" : "qemu.external.displays";
     std::string qemuDisplayConfigs0 = "androidboot.qemu.display.0.configs";
     std::string qemuRadioDataInterfaceName = "androidboot.qemu.radio.data_interface_name";
 
     std::vector<std::pair<std::string, std::string>> params;
 
-    params.push_back({"qemu.logcat_filter", "*:S"});
-    params.push_back({"androidboot.qemu", "1"});
+    if (hasBootconfig) {
+        params.push_back({"qemu.logcat_filter", "*:S"});
+        params.push_back({"androidboot.qemu", "1"});
+    } else {
+        params.push_back({"qemu", "1"});
+        params.push_back({"qemu.gles", "1"});
+    }
     params.push_back({"androidboot.hardware", "ranchu"});
 
     if (opts.no_boot_anim) {
@@ -145,7 +208,7 @@ std::vector<std::pair<std::string, std::string>> getUserspaceBootProperties(
         params.push_back({"androidboot.serialno", serialno});
     }
 
-    // Use Guest ANGLE by default on API 37+. API <= 36 only supports GL for now.
+    // Use Guest ANGLE by default on virtio-gpu. Legacy goldfish_pipe only supports GL for now.
     if (!is_legacy && !opts.no_guest_angle &&
         feature_flags.IsEnabled(android_studio::EmulatorFeatureFlagState::GUEST_ANGLE)) {
         // Enable GuestAngle (ro.hardware.egl = angle).
@@ -195,7 +258,18 @@ std::vector<std::pair<std::string, std::string>> getUserspaceBootProperties(
         }
     }
 
-    if (!is_legacy) {
+    bool vulkan_enabled = !is_legacy || apiLevel >= 31;
+    if (vulkan_enabled && opts.renderer_features) {
+        for (std::string_view token :
+             absl::StrSplit(opts.renderer_features, absl::ByAnyChar(",;"), absl::SkipEmpty())) {
+            if (token == "Vulkan:disabled") {
+                vulkan_enabled = false;
+            } else if (token == "Vulkan:enabled") {
+                vulkan_enabled = true;
+            }
+        }
+    }
+    if (vulkan_enabled) {
         params.push_back({"androidboot.hardware.vulkan", "ranchu"});
     }
 
@@ -233,15 +307,19 @@ std::vector<std::pair<std::string, std::string>> getUserspaceBootProperties(
     std::string gltransport = hw.hw_gltransport;
     uint32_t draw_flush_interval = hw.hw_gltransport_drawFlushInterval;
     if (is_legacy) {
-        if (gltransport.empty() || gltransport == "virtio-gpu-pipe" || gltransport == "pipe") {
-            gltransport = "asg";
+        const bool use_asg = apiLevel >= 29 || feature_flags.IsEnabled(S::GL_DIRECT_MEM);
+        if (gltransport.empty() || gltransport == "virtio-gpu-pipe" ||
+            (use_asg && gltransport == "pipe")) {
+            gltransport = use_asg ? "asg" : "pipe";
         }
         if (draw_flush_interval == 0) {
             draw_flush_interval = 10000;
         }
     }
     params.push_back({qemuGltransportNameProp, gltransport});
-    params.push_back({hwGltransportNameProp, gltransport});
+    if (hasBootconfig) {
+        params.push_back({hwGltransportNameProp, gltransport});
+    }
 
     params.push_back({qemuDrawFlushIntervalProp, absl::StrFormat("%u", draw_flush_interval)});
 
@@ -268,9 +346,13 @@ std::vector<std::pair<std::string, std::string>> getUserspaceBootProperties(
     }
 
     // HWUI only recognizes "skiagl" and "skiavk"; "threaded" variants are for RenderEngine.
-    params.push_back(
-            {qemuUirendererProp, std::string(absl::StripSuffix(systemui_renderer, "threaded"))});
-    params.push_back({qemuRenderengineProp, systemui_renderer});
+    if (apiLevel >= 27) {
+        params.push_back({qemuUirendererProp,
+                          std::string(absl::StripSuffix(systemui_renderer, "threaded"))});
+    }
+    if (hasBootconfig) {
+        params.push_back({qemuRenderengineProp, systemui_renderer});
+    }
     if (enable_graphite) {
         params.push_back({qemuRenderengineGraphiteProp, "true"});
     }
@@ -279,13 +361,14 @@ std::vector<std::pair<std::string, std::string>> getUserspaceBootProperties(
                       opts.logcat ? absl::StrReplaceAll(opts.logcat, {{" ", ","}}) : "*:V"});
 
     // Send adb public key to device
-    auto privkey = ::goldfish::adb::GetPrivateAdbKeyPath(paths.user_directory);
-    std::string key;
-
-    if (!privkey.empty() && ::goldfish::adb::PubkeyFromPrivkey(privkey, &key)) {
-        params.push_back({adbKeyProp, key});
-    } else {
-        LOG(WARNING) << "No adb private key exists";
+    if (hasBootconfig) {
+        if (absl::StatusOr<std::string> key = ResolveHostAdbPublicKey(paths); key.ok()) {
+            params.push_back({adbKeyProp, *key});
+        } else {
+            LOG(WARNING) << "No ADB public key available to pass to the guest (" << key.status()
+                         << "). Guest ADB connections may be unauthorized; resolve the issue above "
+                            "and restart the emulator.";
+        }
     }
 
     // if (opts->bootchart) {
@@ -312,11 +395,20 @@ std::vector<std::pair<std::string, std::string>> getUserspaceBootProperties(
 
     params.push_back({qemuCameraProtocolVerProp, "1"});
 
-    // Keyboard config.
-    params.push_back({"androidboot.qemu.keyboard_device", "QEMU Virtio Keyboard"});
+    if (!hasBootconfig) {
+        if (feature_flags.IsEnabled(S::ENCRYPT_USER_DATA)) {
+            params.push_back({"qemu.encrypt", "1"});
+        }
+        params.push_back({"android.qemud", "1"});
+    }
 
-    // Radio config
-    params.push_back({qemuRadioDataInterfaceName, "eth0"});
+    if (hasBootconfig) {
+        // Keyboard config.
+        params.push_back({"androidboot.qemu.keyboard_device", "QEMU Virtio Keyboard"});
+
+        // Radio config
+        params.push_back({qemuRadioDataInterfaceName, "eth0"});
+    }
 
     if (isX86ish) {
         // x86 and x86_64 platforms use an alternative Android DT directory that
@@ -338,7 +430,11 @@ std::vector<std::pair<std::string, std::string>> getUserspaceBootProperties(
         params.push_back({qemuDisplaySettingsXmlProp, hw.display_settings_xml});
     }
 
-    params.push_back({qemuVirtioWifiProp, "1"});
+    if (apiLevel >= 30 || feature_flags.IsEnabled(S::VIRTIO_WIFI)) {
+        params.push_back({qemuVirtioWifiProp, "1"});
+    } else if (apiLevel >= 25 || feature_flags.IsEnabled(S::WIFI)) {
+        params.push_back({qemuWifiProp, "1"});
+    }
 
     // Hardware decoder: disable for now
     // TODO: make it work b/449741788
@@ -350,7 +446,8 @@ std::vector<std::pair<std::string, std::string>> getUserspaceBootProperties(
         params.push_back({"androidboot.console", absl::StrFormat("%s0", kernelSerialPrefix)});
     }
 
-    params.push_back({avdNameProp, hw.avd_name});
+    params.push_back({avdNameProp, hasBootconfig ? hw.avd_name
+                                                 : absl::StrReplaceAll(hw.avd_name, {{" ", "_"}})});
 
     std::string deviceState = getDeviceStateString(hw);
     if (!deviceState.empty()) {
@@ -359,22 +456,18 @@ std::vector<std::pair<std::string, std::string>> getUserspaceBootProperties(
     }
 
     if (hw.hw_sensor_hinge) {
-        int width{0}, height{0};
-        width = hw.hw_displayRegion_0_1_width;
-        height = hw.hw_displayRegion_0_1_height;
-        std::string display_list =
-                absl::StrFormat("1,%d,%d,%d,0", width, height, hw.hw_lcd_density);
-        LOG(INFO) << "sending guest external displays: " << display_list;
-        params.push_back({qemuExternalDisplays, display_list});
+        const int width = hw.hw_displayRegion_0_1_width;
+        const int height = hw.hw_displayRegion_0_1_height;
+        if (apiLevel >= kMinFoldableApiLevel && width > 0 && height > 0) {
+            std::string display_list =
+                    absl::StrFormat("1,%d,%d,%d,0", width, height, hw.hw_lcd_density);
+            LOG(INFO) << "sending guest external displays: " << display_list;
+            params.push_back({qemuExternalDisplays, display_list});
+        }
+        if (hw.hw_sensor_hinge_count > 0) {
+            params.push_back({autoRotateProp, "1"});
+        }
     }
-
-    //   if (resizableEnabled()) {
-    //     params.push_back({qemuDisplaySettingsXmlProp, "resizable"});
-    //   }
-
-    //   if (android_foldable_hinge_configured()) {
-    //     params.push_back({autoRotateProp, "1"});
-    //   }
 
     for (auto i = opts.append_userspace_opt; i; i = i->next) {
         const char* const val = i->param;
@@ -426,7 +519,10 @@ std::string getDynamicPartitionBootDevice(const EmulatorConfig& emulator) {
 constexpr int kMaxVerifiedBootMajorVersion = 2;
 
 std::vector<std::string> getVerifiedBootparams(const EmulatorConfig& emulator) {
+    using S = android_studio::EmulatorFeatureFlagState;
+    const auto& ff = emulator.feature_flags();
     std::vector<std::string> verified_boot_params;
+    std::vector<std::string> dm_params;
 
     const fs::path& params_path = emulator.avd().GetSystemImagePaths().verified_boot_params;
     if (!params_path.empty()) {
@@ -446,6 +542,9 @@ std::vector<std::string> getVerifiedBootparams(const EmulatorConfig& emulator) {
                 LOG(WARNING) << "Unsupported verified boot params major_version "
                              << config.major_version() << " in " << params_path;
             } else {
+                for (const std::string& dm_param : config.dm_param()) {
+                    dm_params.push_back(dm_param);
+                }
                 for (const std::string& param : config.param()) {
                     verified_boot_params.push_back(param);
                 }
@@ -453,11 +552,23 @@ std::vector<std::string> getVerifiedBootparams(const EmulatorConfig& emulator) {
         }
     }
 
-    verified_boot_params.push_back(
-            absl::StrCat("androidboot.boot_devices=", getDynamicPartitionBootDevice(emulator)));
+    if (ff.IsEnabled(S::DYNAMIC_PARTITION)) {
+        verified_boot_params.push_back(
+                absl::StrCat("androidboot.boot_devices=", getDynamicPartitionBootDevice(emulator)));
 
-    if (emulator.opts().writable_system) {
-        verified_boot_params.push_back("androidboot.verifiedbootstate=orange");
+        if (emulator.opts().writable_system) {
+            verified_boot_params.push_back("androidboot.verifiedbootstate=orange");
+        }
+    } else if (ff.IsEnabled(S::SYSTEM_AS_ROOT)) {
+        std::vector<std::string> sar_params = {"skip_initramfs", "rootwait", "ro", "init=/init"};
+        if (emulator.opts().writable_system || dm_params.empty()) {
+            sar_params.push_back("root=/dev/vda1");
+        } else {
+            sar_params.push_back(absl::StrCat("dm=\"", absl::StrJoin(dm_params, " "), "\""));
+            sar_params.insert(sar_params.end(), verified_boot_params.begin(),
+                              verified_boot_params.end());
+        }
+        verified_boot_params = std::move(sar_params);
     }
     return verified_boot_params;
 }
@@ -504,13 +615,14 @@ std::vector<std::pair<std::string, std::string>> getBootProperties(const Emulato
                                                                    std::string_view vk_icd) {
     const Avd& avd = emulator.avd();
     auto hw = avd.Hw();
+    using S = android_studio::EmulatorFeatureFlagState;
     const int api_level = (avd.ApiLevel() > 0 && avd.ApiLevel() != Avd::kUnknownApiLevel)
                                   ? avd.ApiLevel()
                                   : 202504;
-    const bool is_legacy = api_level < kVirtioReadyApiLevel;
+    const bool is_legacy = !UseVirtioGpu(api_level, emulator.feature_flags().IsEnabled(S::MINIGBM));
 
     int gles_major_version = 3;
-    int gles_minor_version = is_legacy ? 0 : 2;
+    int gles_minor_version = is_legacy ? 1 : 2;
     int bootPropOpenglesVersion = gles_major_version << 16 | gles_minor_version;
     std::string real_console_tty_prefix = "hvc";
     auto verifiedBootParameters = getVerifiedBootparams(emulator);
@@ -530,7 +642,7 @@ absl::Status InitrdDevice::initialize(const EmulatorConfig& emulator) {
                         : "Minigbm feature is required by this emulator, but is not enabled by the "
                           "system image or host advancedFeatures.ini.");
     }
-    if (!ff.IsEnabled(S::DYNAMIC_PARTITION)) {
+    if (emulator.avd().ApiLevel() >= 29 && !ff.IsEnabled(S::DYNAMIC_PARTITION)) {
         return absl::InvalidArgumentError(
                 ff.IsOverridden(S::DYNAMIC_PARTITION)
                         ? "DynamicPartition feature is required by this emulator and cannot be "
@@ -539,11 +651,16 @@ absl::Status InitrdDevice::initialize(const EmulatorConfig& emulator) {
                           "enabled by the system image or host advancedFeatures.ini.");
     }
 
-    auto properties = getBootProperties(emulator, mGpuDevice.getVulkanIcd());
-
     const Avd& avd = emulator.avd();
-
     fs::path system_ramdisk = avd.GetSystemImagePaths().ramdisk_image;
+
+    const bool has_bootconfig = (avd.ApiLevel() <= 0 || avd.ApiLevel() >= 31);
+    if (!has_bootconfig) {
+        mUserRamdisk = std::move(system_ramdisk);
+        return absl::OkStatus();
+    }
+
+    auto properties = getBootProperties(emulator, mGpuDevice.getVulkanIcd());
 
     mUserRamdisk = avd.GetContentPath() / "initrd";
 

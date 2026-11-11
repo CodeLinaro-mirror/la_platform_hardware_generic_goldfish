@@ -27,10 +27,14 @@ namespace fs = std::filesystem;
 
 class MockAvd : public Avd {
   public:
+    using Avd::PrepareWritableState;
+
     MOCK_METHOD(std::string, Details, (bool verbose), (const, override));
     MOCK_METHOD(std::string, Name, (), (const, override));
     MOCK_METHOD(DeviceType, GetDeviceType, (), (const, override));
     MOCK_METHOD(fs::path, GetContentPath, (), (const, override));
+    MOCK_METHOD(absl::Status, PrepareWritableState, (const AvdWritableOptions& options),
+                (override));
     MOCK_METHOD(const SystemImagePaths&, GetSystemImagePaths, (), (const, override));
     MOCK_METHOD(CpuArchitecture, Arch, (), (const, override));
 

@@ -196,6 +196,10 @@ absl::StatusOr<UserPaths> ResolveUserPaths(const fs::path& launcher_dir, bool ve
     ASSIGN_OR_RETURN(
             paths.user_directory,
             CheckExists(android::goldfish::ConfigDirs::GetUserDirectory(), "user directory"));
+    const fs::path shared_user_dir = android::goldfish::ConfigDirs::GetSharedUserDirectory();
+    paths.is_shared_user_directory =
+            !shared_user_dir.empty() &&
+            paths.user_directory.lexically_normal() == shared_user_dir.lexically_normal();
     ASSIGN_OR_RETURN(
             paths.avd_directory,
             CheckExists(android::goldfish::ConfigDirs::GetAvdRootDirectory(), "avd directory"));
@@ -220,6 +224,8 @@ absl::StatusOr<UserPaths> ResolveUserPaths(const fs::path& launcher_dir, bool ve
 }
 
 namespace {
+constexpr std::string_view kSkinsDir = "skins";
+
 // Returns true if |path| only contains "." components (e.g., ".", "./", "./."),
 // where a trailing slash produces an empty component. Unlike lexically_normal(),
 // this does not collapse "non-existing/.." to ".".
@@ -266,14 +272,37 @@ absl::StatusOr<SystemImagePaths> ResolveSystemImagePaths(const std::vector<fs::p
     }
     ASSIGN_OR_RETURN(paths.advanced_features,
                      Search(search_paths, "advancedFeatures.ini", "advanced features"));
-    ASSIGN_OR_RETURN(
-            paths.verified_boot_params,
-            Search(search_paths, "VerifiedBootParams.textproto", "verified boot parameters"));
+    if (auto verified_boot =
+                Search(search_paths, "VerifiedBootParams.textproto", "verified boot parameters");
+        verified_boot.ok()) {
+        paths.verified_boot_params = *verified_boot;
+    }
 
-    ASSIGN_OR_RETURN(paths.data_dir, Search(search_paths, "data", "data directory"));
-    if (!base::file::is_dir(paths.data_dir)) {
-        return absl::InvalidArgumentError(
-                absl::StrCat("data directory is not a directory: ", paths.data_dir.string()));
+    if (auto data_dir = Search(search_paths, "data", "data directory"); data_dir.ok()) {
+        if (!base::file::is_dir(*data_dir)) {
+            return absl::InvalidArgumentError(
+                    absl::StrCat("data directory is not a directory: ", data_dir->string()));
+        }
+        paths.data_dir = *data_dir;
+    }
+
+    if (auto skins_dir = Search(search_paths, kSkinsDir, "skins directory");
+        skins_dir.ok() && base::file::is_dir(*skins_dir)) {
+        paths.skins_dir = *std::move(skins_dir);
+    } else {
+        for (const auto& sp : search_paths) {
+            if (IsCurrentDirPath(sp)) {
+                continue;
+            }
+            const fs::path parent = sp.lexically_normal().parent_path();
+            if (!parent.empty()) {
+                if (auto parent_skins = CheckExists(parent / kSkinsDir, "skins directory");
+                    parent_skins.ok() && base::file::is_dir(*parent_skins)) {
+                    paths.skins_dir = *std::move(parent_skins);
+                    break;
+                }
+            }
+        }
     }
 
     if (auto kernel_cmdline = Search(search_paths, "kernel_cmdline.txt", "kernel cmdline");
@@ -304,17 +333,18 @@ absl::StatusOr<SystemImagePaths> ResolveSystemImagePaths(const std::vector<fs::p
     }
     if (opts.vendor) {
         ASSIGN_OR_RETURN(paths.vendor_image, CheckExists(opts.vendor, "override vendor image"));
-    } else {
-        ASSIGN_OR_RETURN(paths.vendor_image,
-                         Search(search_paths, android_build ? "vendor-qemu.img" : "vendor.img",
-                                "vendor image"));
+    } else if (auto vendor_img =
+                       Search(search_paths, android_build ? "vendor-qemu.img" : "vendor.img",
+                              "vendor image");
+               vendor_img.ok()) {
+        paths.vendor_image = *vendor_img;
     }
     if (opts.encryption_key) {
         ASSIGN_OR_RETURN(paths.encryption_key_image,
                          CheckExists(opts.encryption_key, "override encryption key image"));
-    } else {
-        ASSIGN_OR_RETURN(paths.encryption_key_image,
-                         Search(search_paths, "encryptionkey.img", "encryption key image"));
+    } else if (auto encrypt_img = Search(search_paths, "encryptionkey.img", "encryption key image");
+               encrypt_img.ok()) {
+        paths.encryption_key_image = *encrypt_img;
     }
 
     return paths;

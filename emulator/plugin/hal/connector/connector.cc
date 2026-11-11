@@ -15,6 +15,10 @@
 #include <algorithm>
 #include <cstring>
 
+#include "absl/log/log.h"
+
+#include "goldfish/archive/collections/string.h"
+#include "goldfish/archive/reader.h"
 #include "goldfish/devices/cable/error_plug.h"
 
 namespace goldfish::devices {
@@ -29,11 +33,61 @@ bool QnameEquals(const char q, const std::string_view name, const std::string_vi
 }  // namespace
 
 Connector::Connector(SocketPtr socket, std::shared_ptr<PingTopic> ping_topic,
-                     const DeviceEntry* devices_entries, const size_t devices_entries_size)
+                     const DeviceEntry* devices_entries, const size_t devices_entries_size,
+                     std::string registry_id)
+        : Connector(std::move(socket),
+                    Target{.ping_topic = std::move(ping_topic),
+                           .devices_entries = devices_entries,
+                           .devices_entries_size = devices_entries_size},
+                    std::move(registry_id), Buffer()) {}
+
+Connector::Connector(SocketPtr socket, Target target, std::string registry_id, Buffer buffer)
         : socket_(std::move(socket))
-        , ping_topic_(std::move(ping_topic))
-        , devices_entries_(devices_entries)
-        , devices_entries_size_(devices_entries_size) {}
+        , ping_topic_(std::move(target.ping_topic))
+        , devices_entries_(target.devices_entries)
+        , devices_entries_size_(target.devices_entries_size)
+        , registry_id_(std::move(registry_id))
+        , buffer_(std::move(buffer)) {}
+
+cable::PlugOrSocket Connector::LoadFromSnapshot(SocketPtr socket, archive::IReader& reader,
+                                                const TargetResolver& resolve) {
+    // Same wire format as `SaveStateToSnapshot`: registry id, then size_t and
+    // the pending request bytes.
+    std::string registry_id;
+    size_t size = 0;
+    if (!ReadValue(reader, registry_id, size).ok()) {
+        LOG(WARNING) << "Connector snapshot: cannot read the registry id / request size";
+        return socket;
+    }
+    if (size > kMaxSnapshotBufferSize) {
+        LOG(WARNING) << "Connector snapshot: pending request too large (" << size << " bytes)";
+        return socket;
+    }
+
+    Buffer buffer(size);
+    if (size > 0 && !reader.Read(buffer.data(), size).ok()) {
+        LOG(WARNING) << "Connector snapshot: cannot read the pending request bytes";
+        return socket;
+    }
+    // A complete request is processed (and the Connector replaced) before a
+    // snapshot can be taken, so the pending bytes never hold a terminator.
+    if (std::find(buffer.begin(), buffer.end(), '\0') != buffer.end()) {
+        LOG(WARNING) << "Connector snapshot: pending request contains a terminator";
+        return socket;
+    }
+
+    std::optional<Target> target = resolve(registry_id);
+    if (!target.has_value()) {
+        LOG(WARNING) << "Connector snapshot: no listening registry with id '" << registry_id
+                     << "' to restore into";
+        return socket;
+    }
+
+    LOG(INFO) << "Connector snapshot: restored a connection to registry '" << registry_id
+              << "' with " << size << " pending request byte(s)";
+    return PlugPtr(new Connector(std::move(socket), *std::move(target), std::move(registry_id),
+                                 std::move(buffer)));
+}
 
 SocketPtr Connector::OnUnplug() {
     return std::move(socket_);
@@ -41,6 +95,8 @@ SocketPtr Connector::OnUnplug() {
 
 bool Connector::OnReceive(const void* data, const size_t size) {
     PlugPtr self;  // to keep `this` alive until exit from this function
+    VLOG(2) << "Connector::OnReceive size=" << size << " buffered=" << buffer_.size()
+            << " devices=" << devices_entries_size_;
 
     const char* const data8 = static_cast<const char*>(data);
     const char* const end8 = data8 + size;
@@ -61,14 +117,26 @@ bool Connector::OnReceive(const void* data, const size_t size) {
                                                     buffer_.size() - (request_size + 1), buffer_);
         }
 
+        VLOG(2) << "Connector request result=" << result;
         if (!result) {
             auto& socket = *socket_;
             self = socket.SwitchPlug(std::make_shared<ErrorPlug>(std::move(socket_)));
             // ~Connector is called here
         }
         return result;
-    }  // Append data to the internal buffer (up to null terminator or full data).
-    // Please note that requests are allowed to arrive in parts.
+    }
+    // No terminator yet: buffer the partial request (requests are allowed to
+    // arrive in parts). The live buffer is bounded by the same limit the
+    // snapshot loader enforces, otherwise a guest that sends > kMaxSnapshotBufferSize
+    // bytes without a terminator and idles would make every later snapshot
+    // unloadable. A legitimate request is a short "pipe:<device>:<args>" string.
+    if (buffer_.size() + size > kMaxSnapshotBufferSize) {
+        LOG(WARNING) << "Connector: request exceeds " << kMaxSnapshotBufferSize
+                     << " bytes without a terminator; dropping the connection";
+        auto& socket = *socket_;
+        self = socket.SwitchPlug(std::make_shared<ErrorPlug>(std::move(socket_)));
+        return false;
+    }
     buffer_.insert(buffer_.end(), data8, end8);
     return true;
 }
@@ -139,13 +207,14 @@ bool Connector::SupportsLoadingFromSnapshot() const {
 }
 
 cable::IPlug::TypeId Connector::GetSnapshotTypeId() const {
-    using namespace std::string_literals;
-    return "Connector"s;
+    return std::string(kSnapshotTypeId);
 }
 
 bool Connector::SaveStateToSnapshot(archive::IWriter& writer) const {
-    writer << buffer_.size();
-    writer.Write(buffer_.data(), buffer_.size());
+    writer << registry_id_ << buffer_.size();
+    if (!buffer_.empty()) {  // an empty vector's data() may be null
+        writer.Write(buffer_.data(), buffer_.size());
+    }
     return true;
 }
 

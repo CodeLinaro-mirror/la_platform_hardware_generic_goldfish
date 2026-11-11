@@ -65,7 +65,7 @@ bool DefinitelyNotPhone(const android::goldfish::Avd& avd) {
 }  // namespace
 
 bool ShouldTrampolineToQemu2(const absl::StatusOr<std::unique_ptr<android::goldfish::Avd>>& avd,
-                             const absl::StatusOr<FeatureFlags>& feature_flags) {
+                             const absl::StatusOr<FeatureFlags>& feature_flags, bool wipe_data) {
     if (!android::base::System::Get()->EnvGet(kNoTrampolineEnvVar).empty()) {
         VLOG(1) << "Not trampolining as AEMU_NO_TRAMPOLINE is set";
         return false;
@@ -100,7 +100,7 @@ bool ShouldTrampolineToQemu2(const absl::StatusOr<std::unique_ptr<android::goldf
         return true;
     }
 
-    if (LastRunQemuVersion2(**avd)) {
+    if (!wipe_data && LastRunQemuVersion2(**avd)) {
         LOG(WARNING)
                 << "This AVD was last used with the legacy emulator so will now try to switch. Use "
                    "-wipe-data option to reset the AVD data and use this emulator.";
@@ -115,12 +115,12 @@ bool ShouldTrampolineToQemu2(const absl::StatusOr<std::unique_ptr<android::goldf
 absl::Status TrampolineToQemu2(const fs::path& launcher_directory, std::vector<std::string> args,
                                absl::FunctionRef<void()> before_exec) {
 #ifdef _WIN32
-    constexpr std::string_view emulator_binary = "emulator.exe";
+    constexpr std::string_view kEmulatorBinary = "emulator.exe";
 #else
-    constexpr std::string_view emulator_binary = "emulator";
+    constexpr std::string_view kEmulatorBinary = "emulator";
 #endif
     const fs::path qemu2_binary_path =
-            launcher_directory.parent_path().parent_path() / "emulator" / emulator_binary;
+            launcher_directory.parent_path().parent_path() / "emulator" / kEmulatorBinary;
     LOG(WARNING) << "Trampolining to legacy emulator: " << qemu2_binary_path.string();
     if (!android::base::file::exists(qemu2_binary_path)) {
         return absl::NotFoundError(

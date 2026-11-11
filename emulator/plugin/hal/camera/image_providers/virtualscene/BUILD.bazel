@@ -39,6 +39,12 @@ cc_test(
         "//emulator/libs/ver:test_vulkan_icds",
         "@goldfish_prebuilts_common//virtualscene",
     ],
+    env = select({
+        "//emulator/tools:tsan": {
+            "LP_NUM_THREADS": "0",
+        },
+        "//conditions:default": {},
+    }),
     visibility = ["//visibility:public"],
     deps = [
         ":virtualscene",

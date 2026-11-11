@@ -5,7 +5,9 @@
 
 #include <atomic>
 #include <chrono>
+#include <cstdint>
 #include <future>
+#include <limits>
 #include <memory>
 #include <mutex>
 #include <numeric>
@@ -1841,6 +1843,49 @@ bool PumpFakeQemuUntil(const absl::Notification& done, absl::Duration timeout) {
     return true;
 }
 
+class SelfRepostingProducer {
+  public:
+    explicit SelfRepostingProducer(EventLoop* loop) : loop_(loop) {}
+
+    void StartOnBackgroundLoop(int chains) {
+        for (int i = 0; i < chains; ++i) {
+            PostOnce();
+        }
+        first_batch_ran_.WaitForNotification();
+    }
+
+    void StartOnQemuMainThread(int chains) {
+        for (int i = 0; i < chains; ++i) {
+            PostOnce();
+        }
+        while (!first_batch_ran_.HasBeenNotified()) {
+            fake_qemu_advance_ms(1);
+        }
+    }
+
+    void Stop() { running_.store(false, std::memory_order_release); }
+
+  private:
+    void PostOnce() {
+        (void)loop_->Post([this] {
+            if (!first_batch_ran_.HasBeenNotified()) {
+                first_batch_ran_.Notify();
+            }
+            if (running_.load(std::memory_order_acquire)) {
+                PostOnce();
+            }
+        });
+    }
+
+    EventLoop* const loop_;
+    std::atomic<bool> running_{true};
+    absl::Notification first_batch_ran_;
+};
+
+struct TaskCounterPeer : EventLoop {
+    using EventLoop::HasProcessedTarget;
+};
+
 }  // namespace
 
 TEST_P(EventLoopTest, TimerCancelKeepsCallerBqlHeld) {
@@ -1934,5 +1979,209 @@ TEST_P(EventLoopTest, TimerCancelRacesWithFiringCallbackWithoutUseAfterFree) {
         fake_qemu_advance_ms(2);
     }
 }
+
+TEST_P(EventLoopTest, TaskPostedDuringSnapshotDoesNotRunInsideIt) {
+    if (mLoopType != "qemu") {
+        GTEST_SKIP() << "This test is specific to QemuEventLoop.";
+    }
+    fake_qemu_advance_ms(1);
+
+    std::vector<std::string> order;
+    const absl::Status posted = loop->Post([&] {
+        order.push_back("snapshot begins");
+        std::thread grpc([&] {
+            const absl::Status posted_during_snapshot =
+                    loop->Post([&] { order.push_back("task posted during the snapshot"); });
+            EXPECT_THAT(posted_during_snapshot, absl_testing::IsOk());
+        });
+        grpc.join();
+        // Models the nested aio_poll() in save_snapshot()'s vmstate I/O.
+        fake_qemu_advance_ms(1);
+        order.push_back("snapshot ends");
+    });
+    ASSERT_THAT(posted, absl_testing::IsOk());
+    fake_qemu_advance_ms(5);
+
+    EXPECT_THAT(order, ::testing::ElementsAre("snapshot begins", "snapshot ends",
+                                              "task posted during the snapshot"));
+}
+
+TEST_P(EventLoopTest, FlushWaitsForInFlightTaskWhenQueueIsEmpty) {
+    constexpr absl::Duration kInFlightProbeWindow = absl::Milliseconds(25);
+    runInThread();
+
+    std::atomic<bool> task_finished = false;
+    bool saw_task_finished = false;
+    absl::Notification waiter_entered;
+    absl::Notification wait_returned;
+    std::thread waiter;
+
+    ASSERT_THAT(loop->Post([&] {
+                    // `task_queue_` has already been swapped into the local batch, so the
+                    // queue is empty while this task is still running.
+                    waiter = std::thread([&] {
+                        waiter_entered.Notify();
+                        loop->Flush();
+                        saw_task_finished = task_finished.load(std::memory_order_acquire);
+                        wait_returned.Notify();
+                    });
+                    waiter_entered.WaitForNotification();
+                    EXPECT_FALSE(
+                            wait_returned.WaitForNotificationWithTimeout(kInFlightProbeWindow));
+                    task_finished.store(true, std::memory_order_release);
+                }),
+                absl_testing::IsOk());
+
+    runUntil(wait_returned);
+    waiter.join();
+    EXPECT_TRUE(saw_task_finished);
+}
+
+TEST(EventLoopCounterTest, HasProcessedTargetHandlesCounterWraparound) {
+    constexpr uint64_t kMax = std::numeric_limits<uint64_t>::max();
+    EXPECT_TRUE(TaskCounterPeer::HasProcessedTarget(0, 0));
+    EXPECT_TRUE(TaskCounterPeer::HasProcessedTarget(5, 2));
+    EXPECT_FALSE(TaskCounterPeer::HasProcessedTarget(2, 5));
+
+    // Target wrapped past 0 while `tasks_processed` has not yet wrapped.
+    EXPECT_FALSE(TaskCounterPeer::HasProcessedTarget(kMax, 0));
+    EXPECT_FALSE(TaskCounterPeer::HasProcessedTarget(kMax - 2, 2));
+
+    // `tasks_processed` wrapped past 0 to reach or overtake `target`.
+    EXPECT_TRUE(TaskCounterPeer::HasProcessedTarget(0, kMax));
+    EXPECT_TRUE(TaskCounterPeer::HasProcessedTarget(2, 2));
+    EXPECT_TRUE(TaskCounterPeer::HasProcessedTarget(3, kMax - 1));
+}
+
+TEST_P(EventLoopTest, FlushReturnsUnderSteadyTraffic) {
+    if (mLoopType != "qemu") {
+        GTEST_SKIP() << "This test is specific to QemuEventLoop.";
+    }
+    SelfRepostingProducer producer(loop);
+    producer.StartOnQemuMainThread(/*chains=*/4);
+
+    absl::Notification caller_entered;
+    absl::Notification wait_returned;
+    std::thread waiter([&] {
+        caller_entered.Notify();
+        loop->Flush();
+        wait_returned.Notify();
+    });
+    caller_entered.WaitForNotification();
+
+    const bool returned_promptly = PumpFakeQemuUntil(wait_returned, kPromptTimeout);
+    producer.Stop();
+    while (!wait_returned.HasBeenNotified()) {
+        fake_qemu_advance_ms(1);
+        std::this_thread::yield();
+    }
+    waiter.join();
+    // Drain the final batch queued before Stop() while `producer` is still in scope.
+    fake_qemu_advance_ms(1);
+
+    EXPECT_TRUE(returned_promptly)
+            << "Flush() never returned while tasks kept arriving on QemuEventLoop";
+}
+
+TEST(LibuvEventLoopTest, FlushReturnsUnderSteadyTraffic) {
+    auto loop = ThreadedEventLoop::Create(LibuvEventLoop::Create("LibuvSteadyTraffic"));
+
+    SelfRepostingProducer producer(loop.get());
+    producer.StartOnBackgroundLoop(/*chains=*/4);
+
+    absl::Notification caller_entered;
+    absl::Notification wait_returned;
+    std::thread waiter([&] {
+        caller_entered.Notify();
+        loop->Flush();
+        wait_returned.Notify();
+    });
+    caller_entered.WaitForNotification();
+
+    const bool returned_promptly = wait_returned.WaitForNotificationWithTimeout(kPromptTimeout);
+    producer.Stop();
+    waiter.join();
+
+    EXPECT_THAT(loop->ShutdownAndWait(kCleanupTimeout), absl_testing::IsOk());
+    EXPECT_TRUE(returned_promptly)
+            << "Flush() never returned while tasks kept arriving on LibuvEventLoop";
+}
+
+TEST(LibuvEventLoopShutdownTest, ShutdownOfLoopThatNeverRanSucceeds) {
+    auto loop = LibuvEventLoop::Create("LibuvNeverRan");
+    std::vector<LooperStatusEvent::State> states;
+    auto subscription = android::base::eventing::MakeScopedCallback(
+            *loop, [&](const LooperStatusEvent& event) { states.push_back(event.state); });
+
+    EXPECT_THAT(loop->ShutdownAndWait(kPromptTimeout), absl_testing::IsOk());
+    EXPECT_EQ(loop->GetState(), LooperStatusEvent::State::kFinished);
+    EXPECT_THAT(states, ::testing::ElementsAre(LooperStatusEvent::State::kFinished));
+}
+
+TEST(LibuvEventLoopShutdownTest, TimerOperationsInsideStatusCallbackDoNotDeadlock) {
+    for (bool start_loop : {false, true}) {
+        auto loop = LibuvEventLoop::Create("LibuvStatusCallbackTimers");
+        absl::Mutex pre_timer_mutex;
+        auto pre_timer = loop->ScheduleDelayed([] {}, absl::Seconds(10));
+        auto subscription = android::base::eventing::MakeScopedCallback(
+                *loop, [&](const LooperStatusEvent& /*event*/) {
+                    auto cb_timer = loop->CreateTimer([] { return false; });
+                    cb_timer->Schedule(absl::Milliseconds(10));
+                    cb_timer.reset();
+                    const absl::MutexLock lock(pre_timer_mutex);
+                    pre_timer.reset();
+                });
+
+        std::thread runner;
+        if (start_loop) {
+            runner = std::thread([&] { (void)loop->Run(); });
+            while (loop->GetState() != LooperStatusEvent::State::kRunning) {
+                std::this_thread::sleep_for(1ms);
+            }
+        }
+
+        EXPECT_THAT(loop->ShutdownAndWait(kPromptTimeout), absl_testing::IsOk());
+        if (runner.joinable()) {
+            runner.join();
+        }
+    }
+}
+
+TEST(LibuvEventLoopShutdownTest, ShutdownBeforeRunCancelsPendingTimers) {
+    bool fired = false;
+    EventLoop::ScopedTimer outliving_timer;
+    {
+        auto loop = LibuvEventLoop::Create("LibuvNeverRan");
+        auto timer = loop->ScheduleDelayed([&fired] { fired = true; }, absl::ZeroDuration());
+        outliving_timer = loop->ScheduleDelayed([&fired] { fired = true; }, absl::ZeroDuration());
+
+        ASSERT_THAT(loop->ShutdownAndWait(kPromptTimeout), absl_testing::IsOk());
+        timer.reset();
+    }
+    outliving_timer.reset();
+
+    EXPECT_FALSE(fired);
+}
+
+TEST(LibuvEventLoopShutdownTest, RunAfterShutdownBeforeStartFailsAndStaysFinished) {
+    auto loop = LibuvEventLoop::Create("LibuvNeverRan");
+    ASSERT_THAT(loop->ShutdownAndWait(kPromptTimeout), absl_testing::IsOk());
+
+    EXPECT_THAT(loop->Run(), absl_testing::StatusIs(absl::StatusCode::kFailedPrecondition));
+    EXPECT_EQ(loop->GetState(), LooperStatusEvent::State::kFinished);
+}
+
+#if defined(GTEST_HAS_DEATH_TEST)
+TEST(LibuvEventLoopDeathTest, ShutdownFromLoopThreadDies) {
+    GTEST_FLAG_SET(death_test_style, "threadsafe");
+    EXPECT_DEATH(
+            {
+                auto loop = LibuvEventLoop::Create("LibuvSelfShutdown");
+                loop->Post([&loop] { (void)loop->Shutdown(); }).IgnoreError();
+                loop->Run().IgnoreError();
+            },
+            "must not be called on LibuvEventLoop 'LibuvSelfShutdown' from its own loop thread");
+}
+#endif
 
 }  // namespace goldfish::async

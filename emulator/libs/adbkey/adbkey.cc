@@ -12,76 +12,108 @@
 #include "goldfish/adb/adbkey.h"
 
 #include <openssl/base.h>
-#include <openssl/base64.h>  // for EVP_EncodeBlock, EVP_Encod...
+#include <openssl/base64.h>
+#include <openssl/bio.h>
 #include <openssl/bn.h>
-#include <openssl/evp.h>
-#include <openssl/nid.h>
 #include <openssl/pem.h>
 #include <openssl/rsa.h>
-#include <sys/types.h>
 
+#include <atomic>
 #include <cstdint>
-#include <cstdio>
 #include <cstring>
 #include <filesystem>
-#include <memory>
+#include <initializer_list>
 #include <string>
-#include <system_error>
+#include <string_view>
+#include <utility>
 
+#include "absl/cleanup/cleanup.h"
 #include "absl/log/log.h"
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
+#include "absl/strings/str_split.h"
+#include "absl/time/time.h"
 
 #include "android/base/system.h"
+#include "android/process/command.h"
+#include "android/status/status_macros.h"
 #include "goldfish/file/file.h"
+#include "goldfish/file/file_lock.h"
 
 namespace goldfish::adb {
 
-namespace internal {
+namespace fs = std::filesystem;
 
+namespace internal {
 namespace {
 
 using android::base::System;
 
-constexpr const char* kPrivateKeyFileName = "adbkey";
+constexpr std::string_view kPrivateKeyFileName = "adbkey";
+constexpr std::string_view kPublicKeyFileName = "adbkey.pub";
 
 // Better safe than sorry.
 static_assert(kAndroidPubkeyModulusSize % 4 == 0,
               "RSA modulus size must be multiple of the word size!");
 
 // Size of the RSA modulus in words.
-constexpr const int kAndroidPubkeyModulusSizeWords = kAndroidPubkeyModulusSize / 4;
+constexpr int kAndroidPubkeyModulusSizeWords = kAndroidPubkeyModulusSize / 4;
 
-std::string GetUserInfo() {
-    std::string hostname = android::base::System::GetEnvironmentVariable("HOSTNAME");
-    if (hostname.empty()) {
-        hostname = "unknown";
-    }
-
-    std::string username;
-    if (getenv("LOGNAME")) {
-        username = getenv("LOGNAME");
-    }
-    if (username.empty()) {
-        hostname = "unknown";
-    }
-    return " " + username + "@" + hostname;
+fs::path NextTempKeyPath(const fs::path& dir, std::string_view base_name) {
+    static std::atomic<uint64_t> seq{0};
+    return dir / absl::StrCat(".", base_name, ".tmp.", System::GetCurrentProcessPid(), ".",
+                              seq.fetch_add(1, std::memory_order_relaxed));
 }
 
-std::shared_ptr<RSA> ReadKeyFile(const fs::path& file) {
-    const std::unique_ptr<FILE, decltype(&fclose)> fp(std::fopen(file.string().c_str(), "r"),
-                                                      fclose);
-    if (!fp) {
-        LOG(ERROR) << "Failed to open rsa file: " << file;
+std::string FirstNonEmptyEnv(std::initializer_list<std::string_view> names,
+                             std::string_view fallback) {
+    auto* sys = System::Get();
+    for (std::string_view name : names) {
+        if (std::string val = sys->EnvGet(name); !val.empty()) {
+            return val;
+        }
+    }
+    return std::string(fallback);
+}
+
+std::string GetUserInfo() {
+    return absl::StrCat(" ", FirstNonEmptyEnv({"LOGNAME", "USER", "USERNAME"}, "unknown"), "@",
+                        FirstNonEmptyEnv({"HOSTNAME", "COMPUTERNAME"}, "unknown"));
+}
+
+std::string_view Unquote(std::string_view value) {
+    if (value.size() >= 2 && value.front() == '"' && value.back() == '"') {
+        return value.substr(1, value.size() - 2);
+    }
+    return value;
+}
+
+bssl::UniquePtr<RSA> ReadKeyFile(const fs::path& file) {
+    auto contents = android::base::file::read_whole_file(file, /*binary=*/true);
+    if (!contents.ok()) {
+        LOG(ERROR) << "Failed to open rsa file: " << file << ": " << contents.status();
+        return nullptr;
+    }
+    if (contents->empty()) {
+        LOG(ERROR) << "Empty rsa file: " << file;
         return nullptr;
     }
 
-    RSA* key = RSA_new();
-    if (!PEM_read_RSAPrivateKey(fp.get(), &key, nullptr, nullptr)) {
+    const bssl::UniquePtr<BIO> bio(
+            BIO_new_mem_buf(contents->data(), static_cast<int>(contents->size())));
+    if (!bio) {
+        LOG(ERROR) << "Failed to allocate BIO for rsa file: " << file;
+        return nullptr;
+    }
+
+    bssl::UniquePtr<RSA> key(PEM_read_bio_RSAPrivateKey(bio.get(), nullptr, nullptr, nullptr));
+    if (!key) {
         LOG(ERROR) << "Failed to read rsa key";
-        RSA_free(key);
         return nullptr;
     }
 
-    return {key, RSA_free};
+    return key;
 }
 
 // This file implements encoding and decoding logic for Android's custom RSA
@@ -89,7 +121,7 @@ std::shared_ptr<RSA> ReadKeyFile(const fs::path& file) {
 // little-endian 32 bit words. Note that Android only supports little-endian
 // processors, so we don't do any byte order conversions when parsing the binary
 // struct.
-using RSAPublicKey = struct RSAPublicKey {
+struct RSAPublicKey {
     // Modulus length. This must be kAndroidPubkeyModulusSize.
     uint32_t modulus_size_words;
 
@@ -114,7 +146,7 @@ bool CalculatePublicKey(std::string* out, RSA* private_key) {
         return false;
     }
 
-    size_t expected_length;
+    size_t expected_length = 0;
     if (!EVP_EncodedLength(&expected_length, sizeof(binary_key_data))) {
         LOG(ERROR) << "Public key too large to base64 encode";
         return false;
@@ -128,35 +160,43 @@ bool CalculatePublicKey(std::string* out, RSA* private_key) {
     return true;
 }
 
-// Get adbkey path, return "" if failed
-// adb_key_file_name could be "adbkey" or "adbkey.pub"
-fs::path GetAdbKeyPath(const fs::path& android_user_dir, const fs::path& adb_key_file_name) {
-    fs::path adb_key_path = android_user_dir / adb_key_file_name;
-    if (android::base::file::is_file(adb_key_path) && android::base::file::can_read(adb_key_path)) {
-        return adb_key_path;
-    }
-
-    auto home = System::Get()->GetHomeDirectory();
-    if (home.empty()) {
-        home = System::Get()->GetTempDir();
-        if (home.empty()) {
-            home = "/tmp";
+fs::path FindAdbExecutable(const fs::path& sdk_directory) {
+#ifdef _WIN32
+    constexpr std::string_view kAdbBinaryName = "adb.exe";
+    constexpr char kPathListSeparator = ';';
+#else
+    constexpr std::string_view kAdbBinaryName = "adb";
+    constexpr char kPathListSeparator = ':';
+#endif
+    auto is_executable_file = [](const fs::path& candidate) {
+        return !candidate.empty() && android::base::file::is_file(candidate) &&
+               android::base::file::can_exec(candidate);
+    };
+    if (!sdk_directory.empty()) {
+        if (fs::path candidate = sdk_directory / "platform-tools" / kAdbBinaryName;
+            is_executable_file(candidate)) {
+            return candidate;
         }
     }
 
-    auto guessed_src_adb_key_pub = home / ".android" / adb_key_file_name;
-    android::base::file::cp_file(adb_key_path, guessed_src_adb_key_pub).IgnoreError();
-
-    if (android::base::file::is_file(adb_key_path) && android::base::file::can_read(adb_key_path)) {
-        return adb_key_path;
+    const std::string path_env = System::Get()->EnvGet("PATH");
+    for (std::string_view entry : absl::StrSplit(path_env, kPathListSeparator, absl::SkipEmpty())) {
+        const std::string_view dir = Unquote(entry);
+        if (dir.empty()) {
+            continue;
+        }
+        if (fs::path candidate = fs::path(dir) / kAdbBinaryName; is_executable_file(candidate)) {
+            return candidate;
+        }
     }
-    return "";
+
+    return {};
 }
 
 }  // namespace
 
 bool AndroidPubkeyDecode(const uint8_t* key_buffer, size_t size, RSA** key) {
-    // Check |size| is large enough and the modulus size is correct.
+    // Check `size` is large enough and the modulus size is correct.
     if (size < sizeof(RSAPublicKey)) {
         LOG(ERROR) << "WARNING: adbkey decode failed.";
         return false;
@@ -233,52 +273,10 @@ bool AndroidPubkeyEncode(const RSA* key, uint8_t* key_buffer, size_t size) {
     return true;
 }
 
-bool TestOnlyAdbAuthKeygen(const fs::path& file) {
-    const std::unique_ptr<BIGNUM, decltype(&BN_free)> exponent(BN_new(), BN_free);
-    if (!exponent) {
-        LOG(WARNING) << "Failed to allocate key";
-        return false;
-    }
-    BN_set_word(exponent.get(), RSA_F4);
-
-    const std::unique_ptr<RSA, decltype(&RSA_free)> rsa(RSA_new(), RSA_free);
-    if (!rsa) {
-        LOG(WARNING) << "Failed to allocate key";
-        return false;
-    }
-    RSA_generate_key_ex(rsa.get(), 2048, exponent.get(), nullptr);
-
-    const std::unique_ptr<EVP_PKEY, decltype(&EVP_PKEY_free)> pkey(EVP_PKEY_new(), EVP_PKEY_free);
-    if (!pkey) {
-        LOG(WARNING) << "Failed to allocate key";
-        return false;
-    }
-    EVP_PKEY_set1_RSA(pkey.get(), rsa.get());
-
-    std::unique_ptr<FILE, decltype(&fclose)> fp(std::fopen(file.string().c_str(), "w"), fclose);
-    if (!fp) {
-        LOG(WARNING) << "Failed to open " << file.string();
-        return false;
-    }
-
-    if (!PEM_write_PrivateKey(fp.get(), pkey.get(), nullptr, nullptr, 0, nullptr, nullptr)) {
-        LOG(WARNING) << "Failed to write key";
-        return false;
-    }
-
-    fp.reset();
-    if (auto s = android::base::file::chmod(file, 0777); !s.ok()) {
-        LOG(WARNING) << "Failed to change key permissions: " << s;
-        return false;
-    }
-
-    return true;
-}
-
 }  // namespace internal
 
 bool PubkeyFromPrivkey(const fs::path& path, std::string* out) {
-    const std::shared_ptr<RSA> privkey = internal::ReadKeyFile(path);
+    const bssl::UniquePtr<RSA> privkey = internal::ReadKeyFile(path);
     if (!privkey) {
         return false;
     }
@@ -286,7 +284,127 @@ bool PubkeyFromPrivkey(const fs::path& path, std::string* out) {
 }
 
 fs::path GetPrivateAdbKeyPath(const fs::path& android_user_dir) {
-    return internal::GetAdbKeyPath(android_user_dir, internal::kPrivateKeyFileName);
+    if (android_user_dir.empty()) {
+        return {};
+    }
+
+    const fs::path privkey_path = android_user_dir / internal::kPrivateKeyFileName;
+    if (android::base::file::is_file(privkey_path) && android::base::file::can_read(privkey_path)) {
+        return privkey_path;
+    }
+    if (android::base::file::exists(privkey_path) || android::base::file::is_link(privkey_path)) {
+        return {};
+    }
+
+    const fs::path home = android::base::System::Get()->GetHomeDirectory();
+    if (home.empty()) {
+        return {};
+    }
+
+    const fs::path default_src = home / ".android" / internal::kPrivateKeyFileName;
+    // If `android_user_dir` already resolves to `~/.android`, `default_src` is
+    // the same missing file we just checked above, so there is no fallback key
+    // to copy from.
+    if (default_src.lexically_normal() == privkey_path.lexically_normal()) {
+        return {};
+    }
+
+    if (android::base::file::is_file(default_src) && android::base::file::can_read(default_src)) {
+        android::base::file::mkdir_recursive(android_user_dir, 0750).IgnoreError();
+        const fs::path tmp_dst =
+                internal::NextTempKeyPath(android_user_dir, internal::kPrivateKeyFileName);
+        absl::Cleanup cleanup_tmp = [&tmp_dst]() {
+            android::base::file::rm(tmp_dst).IgnoreError();
+        };
+        if (android::base::file::cp_file(default_src, tmp_dst, /*overwrite=*/true).ok()) {
+            android::base::file::chmod(tmp_dst, 0600).IgnoreError();
+            if (android::base::file::mv_file(tmp_dst, privkey_path,
+                                             /*fallback_to_copy_rm=*/false)
+                        .ok()) {
+                return privkey_path;
+            }
+        }
+    }
+    return {};
+}
+
+absl::StatusOr<AdbKeyResult> EnsurePrivateAdbKey(const fs::path& android_user_dir,
+                                                 const fs::path& sdk_directory) {
+    if (android_user_dir.empty()) {
+        return absl::InvalidArgumentError("android_user_dir must not be empty");
+    }
+
+    if (fs::path existing = GetPrivateAdbKeyPath(android_user_dir); !existing.empty()) {
+        return AdbKeyResult{.private_key_path = std::move(existing), .newly_created = false};
+    }
+
+    const fs::path privkey_path = android_user_dir / internal::kPrivateKeyFileName;
+    auto check_unreadable_existing_key = [&privkey_path]() -> absl::Status {
+        if (android::base::file::exists(privkey_path) ||
+            android::base::file::is_link(privkey_path)) {
+            return absl::PermissionDeniedError(absl::StrCat(
+                    privkey_path.string(),
+                    " exists but is not readable; fix its permissions or ownership instead of "
+                    "regenerating"));
+        }
+        return absl::OkStatus();
+    };
+    RETURN_IF_ERROR(check_unreadable_existing_key());
+
+    const fs::path adb_exe = internal::FindAdbExecutable(sdk_directory);
+    if (adb_exe.empty()) {
+        const std::string sdk_hint = sdk_directory.empty()
+                                             ? "(no SDK directory)"
+                                             : (sdk_directory / "platform-tools").string();
+        return absl::NotFoundError(
+                absl::StrCat("adb not found in ", sdk_hint,
+                             " or PATH; install Android SDK Platform-Tools ('adb') so the emulator "
+                             "can create adbkey"));
+    }
+
+    RETURN_IF_ERROR(android::base::file::mkdir_recursive(android_user_dir, 0750));
+
+    ASSIGN_OR_RETURN(auto lock,
+                     android::base::file::ScopedFileLock::Acquire(privkey_path, absl::Seconds(10)));
+
+    // Re-check under the lock in case another emulator instance generated the key
+    // while we were waiting.
+    if (fs::path existing = GetPrivateAdbKeyPath(android_user_dir); !existing.empty()) {
+        return AdbKeyResult{.private_key_path = std::move(existing), .newly_created = false};
+    }
+    RETURN_IF_ERROR(check_unreadable_existing_key());
+
+    const fs::path tmp_privkey =
+            internal::NextTempKeyPath(android_user_dir, internal::kPrivateKeyFileName);
+    fs::path tmp_pubkey = tmp_privkey;
+    tmp_pubkey += ".pub";
+
+    absl::Cleanup cleanup_tmp = [&tmp_privkey, &tmp_pubkey]() {
+        android::base::file::rm(tmp_privkey).IgnoreError();
+        android::base::file::rm(tmp_pubkey).IgnoreError();
+    };
+
+    RETURN_IF_ERROR(android::base::Command::LaunchAndCapture(
+                            adb_exe, {"keygen", tmp_privkey.string()}, absl::Seconds(10))
+                            .status());
+
+    if (!android::base::file::is_file(tmp_privkey) || !android::base::file::can_read(tmp_privkey)) {
+        return absl::InternalError(
+                absl::StrCat("adb keygen completed without creating readable private key: ",
+                             tmp_privkey.string()));
+    }
+
+    android::base::file::chmod(tmp_privkey, 0600).IgnoreError();
+
+    if (android::base::file::is_file(tmp_pubkey)) {
+        const fs::path pubkey_path = android_user_dir / internal::kPublicKeyFileName;
+        RETURN_IF_ERROR(android::base::file::mv_file(tmp_pubkey, pubkey_path,
+                                                     /*fallback_to_copy_rm=*/false));
+    }
+    RETURN_IF_ERROR(
+            android::base::file::mv_file(tmp_privkey, privkey_path, /*fallback_to_copy_rm=*/false));
+
+    return AdbKeyResult{.private_key_path = privkey_path, .newly_created = true};
 }
 
 }  // namespace goldfish::adb

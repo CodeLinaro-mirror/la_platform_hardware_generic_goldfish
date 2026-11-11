@@ -56,6 +56,20 @@
 #define GOLDFISH_PIPE(obj) OBJECT_CHECK(struct GoldfishPipeState, (obj), TYPE_GOLDFISH_PIPE)
 /** @brief QOM device ID adopted when `goldfish_pipe` owns the legacy graphics console. */
 #define GOLDFISH_LEGACY_GPU_ID "gpu0"
+/** @brief Maximum number of QEMU display consoles (`0` = primary/inner, `1` = secondary/outer). */
+#define GOLDFISH_PIPE_MAX_DISPLAYS 2U
+
+/**
+ * @brief Per-console surface and BGRA frame staging state.
+ */
+struct GoldfishPipeDisplaySlot {
+    QemuConsole* con;      /**< Display console (`head=0` primary, `head=1` secondary foldable). */
+    uint8_t* frame_bgra;   /**< Staging buffer for the most recent BGRA frame. */
+    size_t frame_bgra_cap; /**< Allocated byte capacity of `frame_bgra`. */
+    uint32_t frame_w;      /**< Width of the staged frame in pixels. */
+    uint32_t frame_h;      /**< Height of the staged frame in pixels. */
+    bool frame_dirty;      /**< True when a new frame is waiting for `present_bh`. */
+};
 
 /**
  * @brief QOM instance state for the `"goldfish_pipe"` `SysBusDevice`.
@@ -68,24 +82,22 @@ struct GoldfishPipeState {
     QEMUBH* irq_bh;     /**< Bottom half for delivering cross-thread IRQ updates under the BQL. */
     QEMUBH* present_bh; /**< Bottom half for copying posted BGRA frames to `QemuConsole`. */
     QEMUTimer* flush_timer;       /**< Periodic timer flushing async gfxstream pixel readback. */
-    QemuConsole* con;             /**< Display console when `xres > 0 && yres > 0`. */
     struct GoldfishMmioCore core; /**< Function-pointer table and instance for C++ pipe core. */
     int irq_level;                /**< Latest interrupt level (0 or 1), accessed atomically. */
 
-    uint32_t xres;            /**< Configured display width (`0` disables graphics). */
-    uint32_t yres;            /**< Configured display height (`0` disables graphics). */
+    uint32_t xres;            /**< Configured primary display width (`0` disables graphics). */
+    uint32_t yres;            /**< Configured primary display height (`0` disables graphics). */
+    uint32_t secondary_xres;  /**< Optional secondary foldable display width (`0` disables). */
+    uint32_t secondary_yres;  /**< Optional secondary foldable display height (`0` disables). */
     uint32_t guest_api_level; /**< Android API level of the guest image (required for graphics). */
     char* renderer_features;  /**< Semicolon-separated gfxstream feature overrides. */
     char* snapshot_directory; /**< Base directory for per-snapshot renderer streams. */
 
-    QemuMutex frame_mu;    /**< Protects `frame_bgra`, `frame_w`, `frame_h`, `frame_dirty`. */
-    uint8_t* frame_bgra;   /**< Staging buffer for the most recent BGRA frame. */
-    size_t frame_bgra_cap; /**< Allocated byte capacity of `frame_bgra`. */
-    uint32_t frame_w;      /**< Width of the staged frame in pixels. */
-    uint32_t frame_h;      /**< Height of the staged frame in pixels. */
-    bool frame_dirty;      /**< True when a new frame is waiting for `present_bh`. */
-    bool frame_mu_inited;  /**< True once `frame_mu` has been initialized. */
-    bool graphics_active;  /**< True while `GoldfishGpuCoreStart` is active. */
+    QemuMutex frame_mu; /**< Protects `displays[i]` staging buffers and dirty flags. */
+    struct GoldfishPipeDisplaySlot displays[GOLDFISH_PIPE_MAX_DISPLAYS];
+    bool frame_mu_inited;      /**< True once `frame_mu` has been initialized. */
+    bool graphics_active;      /**< True while `GoldfishGpuCoreStart` is active. */
+    bool deletable_registered; /**< True once registered with `add_deletable_object`. */
 };
 
 static struct GoldfishPipeState* g_active_graphics_pipe = NULL;
@@ -207,37 +219,52 @@ static const GraphicHwOps goldfish_pipe_gfx_ops = {
 
 static void goldfish_pipe_present_bh(void* opaque) {
     struct GoldfishPipeState* s = (struct GoldfishPipeState*)opaque;
-    if (!qatomic_read(&s->graphics_active) || s->con == NULL) {
+    if (!qatomic_read(&s->graphics_active) || s->displays[0].con == NULL) {
         return;
     }
 
-    qemu_mutex_lock(&s->frame_mu);
-    if (!s->frame_dirty || s->frame_bgra == NULL || s->frame_w == 0 || s->frame_h == 0) {
-        qemu_mutex_unlock(&s->frame_mu);
-        return;
-    }
-
-    DisplaySurface* ds = qemu_console_surface(s->con);
-    if (ds == NULL || surface_is_placeholder(ds) || surface_width(ds) != (int)s->frame_w ||
-        surface_height(ds) != (int)s->frame_h) {
-        ds = qemu_create_displaysurface((int)s->frame_w, (int)s->frame_h);
-        dpy_gfx_replace_surface(s->con, ds);
-    }
-
-    uint8_t* dst = (uint8_t*)surface_data(ds);
-    const int dst_stride = surface_stride(ds);
-    const size_t row_bytes = (size_t)s->frame_w * 4U;
-    if (dst != NULL && dst_stride >= (int)row_bytes) {
-        for (uint32_t y = 0; y < s->frame_h; ++y) {
-            memcpy(dst + (size_t)y * (size_t)dst_stride, s->frame_bgra + (size_t)y * row_bytes,
-                   row_bytes);
+    bool presented_any = false;
+    for (size_t i = 0; i < GOLDFISH_PIPE_MAX_DISPLAYS; ++i) {
+        struct GoldfishPipeDisplaySlot* slot = &s->displays[i];
+        if (slot->con == NULL) {
+            continue;
         }
-    }
-    s->frame_dirty = false;
-    qemu_mutex_unlock(&s->frame_mu);
 
-    dpy_gfx_update_full(s->con);
-    if (s->flush_timer != NULL) {
+        qemu_mutex_lock(&s->frame_mu);
+        if (!slot->frame_dirty || slot->frame_bgra == NULL || slot->frame_w == 0 ||
+            slot->frame_h == 0) {
+            qemu_mutex_unlock(&s->frame_mu);
+            continue;
+        }
+
+        DisplaySurface* ds = qemu_console_surface(slot->con);
+        const bool replace_surface = (ds == NULL || surface_is_placeholder(ds) ||
+                                      surface_width(ds) != (int)slot->frame_w ||
+                                      surface_height(ds) != (int)slot->frame_h);
+        if (replace_surface) {
+            ds = qemu_create_displaysurface((int)slot->frame_w, (int)slot->frame_h);
+        }
+
+        uint8_t* dst = (uint8_t*)surface_data(ds);
+        const int dst_stride = surface_stride(ds);
+        const size_t row_bytes = (size_t)slot->frame_w * 4U;
+        if (dst != NULL && dst_stride >= (int)row_bytes) {
+            for (uint32_t y = 0; y < slot->frame_h; ++y) {
+                memcpy(dst + (size_t)y * (size_t)dst_stride,
+                       slot->frame_bgra + (size_t)y * row_bytes, row_bytes);
+            }
+        }
+        slot->frame_dirty = false;
+        qemu_mutex_unlock(&s->frame_mu);
+
+        if (replace_surface) {
+            dpy_gfx_replace_surface(slot->con, ds);
+        }
+        dpy_gfx_update_full(slot->con);
+        presented_any = true;
+    }
+
+    if (presented_any && s->flush_timer != NULL) {
         timer_mod(s->flush_timer, qemu_clock_get_ms(QEMU_CLOCK_REALTIME) + 42);
     }
 }
@@ -247,31 +274,47 @@ static void goldfish_pipe_flush_timer_cb(void* opaque) {
     if (!qatomic_read(&s->graphics_active)) {
         return;
     }
+    // Release the BQL before entering FrameBuffer::flushReadPipeline (m_lock):
+    // gfxstream render threads acquire m_lock -> BQL when unmapping host-visible
+    // Vulkan ColorBuffers through GoldfishAddressSpaceDevice.
+    const bool unlock_bql = bql_locked();
+    if (unlock_bql) {
+        bql_unlock();
+    }
     GoldfishGpuCoreFlush();
+    if (unlock_bql) {
+        bql_lock();
+    }
 }
 
-static void goldfish_pipe_on_frame(void* opaque, uint32_t width, uint32_t height,
-                                   const uint8_t* bgra_pixels) {
+static void goldfish_gpu_on_frame_posted(void* opaque, uint32_t head, uint32_t width,
+                                         uint32_t height, const uint8_t* bgra_pixels) {
     struct GoldfishPipeState* s = (struct GoldfishPipeState*)opaque;
     // The GPU caps both edges at GOLDFISH_GPU_MAX_FRAME_DIM before calling; re-check here so this
     // sink stays safe on its own (the product below must not wrap and the display surface takes
     // `int` dimensions).
-    if (!qatomic_read(&s->graphics_active) || width == 0 || height == 0 || bgra_pixels == NULL ||
-        width > GOLDFISH_GPU_MAX_FRAME_DIM || height > GOLDFISH_GPU_MAX_FRAME_DIM) {
+    if (!qatomic_read(&s->graphics_active) || head >= GOLDFISH_PIPE_MAX_DISPLAYS || width == 0 ||
+        height == 0 || bgra_pixels == NULL || width > GOLDFISH_GPU_MAX_FRAME_DIM ||
+        height > GOLDFISH_GPU_MAX_FRAME_DIM) {
+        return;
+    }
+
+    struct GoldfishPipeDisplaySlot* slot = &s->displays[head];
+    if (slot->con == NULL) {
         return;
     }
 
     const size_t bytes = (size_t)width * (size_t)height * 4U;
     qemu_mutex_lock(&s->frame_mu);
     if (qatomic_read(&s->graphics_active)) {
-        if (bytes > s->frame_bgra_cap) {
-            s->frame_bgra = (uint8_t*)g_realloc(s->frame_bgra, bytes);
-            s->frame_bgra_cap = bytes;
+        if (bytes > slot->frame_bgra_cap) {
+            slot->frame_bgra = (uint8_t*)g_realloc(slot->frame_bgra, bytes);
+            slot->frame_bgra_cap = bytes;
         }
-        memcpy(s->frame_bgra, bgra_pixels, bytes);
-        s->frame_w = width;
-        s->frame_h = height;
-        s->frame_dirty = true;
+        memcpy(slot->frame_bgra, bgra_pixels, bytes);
+        slot->frame_w = width;
+        slot->frame_h = height;
+        slot->frame_dirty = true;
         if (s->present_bh != NULL) {
             qemu_bh_schedule(s->present_bh);
         }
@@ -326,10 +369,14 @@ static void goldfish_pipe_stop_graphics(struct GoldfishPipeState* s, bool for_pr
     }
     if (s->frame_mu_inited) {
         qemu_mutex_lock(&s->frame_mu);
-        g_free(s->frame_bgra);
-        s->frame_bgra = NULL;
-        s->frame_bgra_cap = 0;
-        s->frame_dirty = false;
+        for (size_t i = 0; i < GOLDFISH_PIPE_MAX_DISPLAYS; ++i) {
+            g_free(s->displays[i].frame_bgra);
+            s->displays[i].frame_bgra = NULL;
+            s->displays[i].frame_bgra_cap = 0;
+            s->displays[i].frame_w = 0;
+            s->displays[i].frame_h = 0;
+            s->displays[i].frame_dirty = false;
+        }
         qemu_mutex_unlock(&s->frame_mu);
         qemu_mutex_destroy(&s->frame_mu);
         s->frame_mu_inited = false;
@@ -340,10 +387,34 @@ static void goldfish_pipe_realize(DeviceState* dev, Error** errp) {
     SysBusDevice* sbdev = SYS_BUS_DEVICE(dev);
     struct GoldfishPipeState* s = GOLDFISH_PIPE(dev);
 
+    if ((s->secondary_xres == 0) != (s->secondary_yres == 0)) {
+        error_setg(errp,
+                   "goldfish_pipe: secondary display requires both secondary_xres and "
+                   "secondary_yres (got %ux%u)",
+                   s->secondary_xres, s->secondary_yres);
+        return;
+    }
+    if ((s->secondary_xres != 0 || s->secondary_yres != 0) && s->xres == 0 && s->yres == 0) {
+        error_setg(errp, "goldfish_pipe: secondary display (%ux%u) requires primary xres and yres",
+                   s->secondary_xres, s->secondary_yres);
+        return;
+    }
+
     if (s->xres != 0 || s->yres != 0) {
         if (s->xres == 0 || s->yres == 0) {
             error_setg(errp, "goldfish_pipe: graphics requires both xres and yres (got %ux%u)",
                        s->xres, s->yres);
+            return;
+        }
+        if (s->xres > GOLDFISH_GPU_MAX_FRAME_DIM || s->yres > GOLDFISH_GPU_MAX_FRAME_DIM) {
+            error_setg(errp, "goldfish_pipe: primary display %ux%u exceeds maximum dimension %u",
+                       s->xres, s->yres, GOLDFISH_GPU_MAX_FRAME_DIM);
+            return;
+        }
+        if (s->secondary_xres > GOLDFISH_GPU_MAX_FRAME_DIM ||
+            s->secondary_yres > GOLDFISH_GPU_MAX_FRAME_DIM) {
+            error_setg(errp, "goldfish_pipe: secondary display %ux%u exceeds maximum dimension %u",
+                       s->secondary_xres, s->secondary_yres, GOLDFISH_GPU_MAX_FRAME_DIM);
             return;
         }
         if (s->guest_api_level == 0) {
@@ -355,13 +426,26 @@ static void goldfish_pipe_realize(DeviceState* dev, Error** errp) {
         if (dev->id == NULL) {
             dev->id = g_strdup(GOLDFISH_LEGACY_GPU_ID);
         }
-        s->con = graphic_console_init(dev, 0, &goldfish_pipe_gfx_ops, s);
-        if (s->con == NULL) {
+        s->displays[0].con = graphic_console_init(dev, 0, &goldfish_pipe_gfx_ops, s);
+        if (s->displays[0].con == NULL) {
             error_setg(errp, "goldfish_pipe: failed to create display console");
             return;
         }
         DisplaySurface* ds = qemu_create_displaysurface((int)s->xres, (int)s->yres);
-        dpy_gfx_replace_surface(s->con, ds);
+        dpy_gfx_replace_surface(s->displays[0].con, ds);
+
+        const bool has_secondary = (s->secondary_xres != 0 && s->secondary_yres != 0);
+        if (has_secondary) {
+            // Keep QEMU's placeholder surface on head=1 until the first outer-display frame
+            // arrives: grpc_display / MultiDisplayImpl sizes QemuDisplay(1) from
+            // hw_displayRegion_0_1_{width,height} while reporting kNoContent until real
+            // pixels are presented, matching virtio-gpu-gfxstream with max_outputs=2.
+            s->displays[1].con = graphic_console_init(dev, 1, &goldfish_pipe_gfx_ops, s);
+            if (s->displays[1].con == NULL) {
+                error_setg(errp, "goldfish_pipe: failed to create secondary display console");
+                return;
+            }
+        }
 
         qemu_mutex_init(&s->frame_mu);
         s->frame_mu_inited = true;
@@ -371,9 +455,9 @@ static void goldfish_pipe_realize(DeviceState* dev, Error** errp) {
         g_active_graphics_pipe = s;
 
         char err_buf[512] = {0};
-        if (!GoldfishGpuCoreStart(s->xres, s->yres, s->guest_api_level, s->renderer_features,
-                                  s->snapshot_directory, goldfish_pipe_on_frame, s, err_buf,
-                                  sizeof(err_buf))) {
+        if (!GoldfishGpuCoreStart(s->xres, s->yres, s->secondary_xres, s->secondary_yres,
+                                  s->guest_api_level, s->renderer_features, s->snapshot_directory,
+                                  goldfish_gpu_on_frame_posted, s, err_buf, sizeof(err_buf))) {
             goldfish_pipe_stop_graphics(s, /*for_process_exit=*/false);
             error_setg(errp, "goldfish_pipe: failed to start graphics: %s", err_buf);
             return;
@@ -401,18 +485,17 @@ static void goldfish_pipe_realize(DeviceState* dev, Error** errp) {
     env.irq.set_level = goldfish_pipe_irq_set_level;
 
     s->core = GoldfishPipeCoreCreate(&env);
-    add_deletable_object(OBJECT(dev));
 }
 
 static void goldfish_pipe_unrealize(DeviceState* dev) {
     struct GoldfishPipeState* s = GOLDFISH_PIPE(dev);
+    // A sysbus device is only unrealized by QEMU's exit-time deletable_cleanup()
+    // (see add_deletable_object() in reset_hold), so this is the process-exit path.
+    goldfish_pipe_stop_graphics(s, /*for_process_exit=*/true);
     if (s->core.destroy != NULL) {
         s->core.destroy(s->core.core);
         memset(&s->core, 0, sizeof(s->core));
     }
-    // A sysbus device is only unrealized by QEMU's exit-time deletable_cleanup()
-    // (see add_deletable_object() in realize), so this is the process-exit path.
-    goldfish_pipe_stop_graphics(s, /*for_process_exit=*/true);
     if (s->irq_bh != NULL) {
         qemu_bh_delete(s->irq_bh);
         s->irq_bh = NULL;
@@ -423,15 +506,35 @@ static void goldfish_pipe_unrealize(DeviceState* dev) {
     s->snapshot_directory = NULL;
 }
 
+static void goldfish_pipe_clear_pending_frames(struct GoldfishPipeState* s) {
+    if (s == NULL || !s->frame_mu_inited) {
+        return;
+    }
+    qemu_mutex_lock(&s->frame_mu);
+    for (size_t i = 0; i < GOLDFISH_PIPE_MAX_DISPLAYS; ++i) {
+        s->displays[i].frame_dirty = false;
+    }
+    qemu_mutex_unlock(&s->frame_mu);
+}
+
 static void goldfish_pipe_reset_hold(Object* obj, ResetType type) {
     (void)type;
     struct GoldfishPipeState* s = GOLDFISH_PIPE(obj);
+    if (!s->deletable_registered) {
+        // Register in reset_hold (after CLI -device creation) rather than
+        // realize (board init) so LIFO deletable_cleanup() tears down
+        // goldfish_pipe before goldfish-address-space and avdstart.
+        s->deletable_registered = true;
+        add_deletable_object(obj);
+    }
+    goldfish_pipe_clear_pending_frames(s);
     assert(s->core.reset != NULL);
     s->core.reset(s->core.core);
 }
 
 static int goldfish_pipe_pre_load(void* opaque) {
     struct GoldfishPipeState* s = (struct GoldfishPipeState*)opaque;
+    goldfish_pipe_clear_pending_frames(s);
     const char* snap_name = qemu_snapshot_in_flight_name();
     return GoldfishPipeCorePreLoad(s->core.core, snap_name) ? 0 : -1;
 }
@@ -518,6 +621,36 @@ static void goldfish_pipe_set_yres(Object* obj, Visitor* v, const char* name, vo
     visit_type_uint32(v, name, &s->yres, errp);
 }
 
+static void goldfish_pipe_get_secondary_xres(Object* obj, Visitor* v, const char* name,
+                                             void* opaque, Error** errp) {
+    (void)opaque;
+    struct GoldfishPipeState* s = GOLDFISH_PIPE(obj);
+    uint32_t val = s->secondary_xres;
+    visit_type_uint32(v, name, &val, errp);
+}
+
+static void goldfish_pipe_set_secondary_xres(Object* obj, Visitor* v, const char* name,
+                                             void* opaque, Error** errp) {
+    (void)opaque;
+    struct GoldfishPipeState* s = GOLDFISH_PIPE(obj);
+    visit_type_uint32(v, name, &s->secondary_xres, errp);
+}
+
+static void goldfish_pipe_get_secondary_yres(Object* obj, Visitor* v, const char* name,
+                                             void* opaque, Error** errp) {
+    (void)opaque;
+    struct GoldfishPipeState* s = GOLDFISH_PIPE(obj);
+    uint32_t val = s->secondary_yres;
+    visit_type_uint32(v, name, &val, errp);
+}
+
+static void goldfish_pipe_set_secondary_yres(Object* obj, Visitor* v, const char* name,
+                                             void* opaque, Error** errp) {
+    (void)opaque;
+    struct GoldfishPipeState* s = GOLDFISH_PIPE(obj);
+    visit_type_uint32(v, name, &s->secondary_yres, errp);
+}
+
 static void goldfish_pipe_get_guest_api_level(Object* obj, Visitor* v, const char* name,
                                               void* opaque, Error** errp) {
     (void)opaque;
@@ -574,6 +707,10 @@ static void goldfish_pipe_class_init(ObjectClass* klass, const void* data) {
                               goldfish_pipe_set_xres, NULL, NULL);
     object_class_property_add(klass, "yres", "uint32", goldfish_pipe_get_yres,
                               goldfish_pipe_set_yres, NULL, NULL);
+    object_class_property_add(klass, "secondary_xres", "uint32", goldfish_pipe_get_secondary_xres,
+                              goldfish_pipe_set_secondary_xres, NULL, NULL);
+    object_class_property_add(klass, "secondary_yres", "uint32", goldfish_pipe_get_secondary_yres,
+                              goldfish_pipe_set_secondary_yres, NULL, NULL);
     object_class_property_add(klass, "guest_api_level", "uint32", goldfish_pipe_get_guest_api_level,
                               goldfish_pipe_set_guest_api_level, NULL, NULL);
     object_class_property_add_str(klass, "renderer_features", goldfish_pipe_get_renderer_features,

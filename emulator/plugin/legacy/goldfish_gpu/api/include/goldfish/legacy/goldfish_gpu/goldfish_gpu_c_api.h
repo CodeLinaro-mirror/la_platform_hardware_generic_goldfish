@@ -64,14 +64,17 @@
 extern "C" {
 #endif
 
-typedef void (*GoldfishGpuFrameCallback)(void* opaque, uint32_t width, uint32_t height,
-                                         const uint8_t* bgra_pixels);
+typedef void (*GoldfishGpuFrameCallback)(void* opaque, uint32_t head, uint32_t width,
+                                         uint32_t height, const uint8_t* bgra_pixels);
 
 /**
  * Starts the legacy GoldfishGpu renderer. `guest_api_level` is the AVD's Android API level and
- * must be non-zero.
+ * must be non-zero. When `secondary_width` and `secondary_height` are non-zero (foldable AVDs
+ * with a secondary outer console), gfxstream configures a second readback buffer for outer
+ * display 6 and delivers frames with `head = 1` (primary display 0 uses `head = 0`).
  */
-bool GoldfishGpuCoreStart(uint32_t width, uint32_t height, uint32_t guest_api_level,
+bool GoldfishGpuCoreStart(uint32_t width, uint32_t height, uint32_t secondary_width,
+                          uint32_t secondary_height, uint32_t guest_api_level,
                           const char* renderer_features, const char* snapshot_directory,
                           GoldfishGpuFrameCallback on_frame, void* opaque, char* err_buf,
                           size_t err_buf_size);
@@ -81,6 +84,12 @@ void GoldfishGpuCoreStop(void);
  * `IGoldfishGpu::StopForProcessExit`).
  */
 void GoldfishGpuCoreStopForProcessExit(void);
+/**
+ * Flushes the pending readback of every registered display so the latest
+ * posted frame reaches the post callbacks. Blocks on gfxstream's FrameBuffer
+ * lock, which render threads hold while they take the BQL, so callers must
+ * not hold the BQL. No-op while the renderer is quiesced for a snapshot.
+ */
 void GoldfishGpuCoreFlush(void);
 
 /**

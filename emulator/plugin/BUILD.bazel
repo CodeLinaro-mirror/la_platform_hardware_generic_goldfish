@@ -1,89 +1,82 @@
-load("@rules_cc//cc:defs.bzl", "cc_binary")
+load("@goldfish_build//rules:symbol_exports.bzl", "cc_exported_shared_library")
 
-[
-    cc_binary(
-        name = "goldfish_" + arch,
-        srcs = ["plugin.cc"],
-        linkopts = select({
-            "@platforms//os:macos": [
-                "-undefined dynamic_lookup",
-                "-Wl,-ObjC",
-                "-framework VideoToolbox",
-                "-framework CoreMedia",
-                "-framework AVFoundation",
-                "-framework CoreVideo",
-                "-framework Foundation",
-            ],
-            "@platforms//os:windows": [
-                "avrt.lib",
-                "strmiids.lib",
-                "uuid.lib",
-                "ole32.lib",
-                "oleaut32.lib",
-            ],
-            "//conditions:default": [],
-        }),
-        linkshared = True,
-        target_compatible_with = select({
-            # We only ship the plugin whose guest arch matches the target CPU arch.
-            "@platforms//cpu:aarch64": [] if arch == "aarch64" else ["@platforms//:incompatible"],
-            "@platforms//cpu:x86_64": [] if arch == "x86_64" else ["@platforms//:incompatible"],
-            "//conditions:default": ["@platforms//:incompatible"],
-        }),
-        visibility = ["//visibility:public"],
-        win_def_file = select({
-            "@platforms//os:windows": "goldfish_" + arch + ".def",
-            "//conditions:default": None,
-        }),
-        # AEMU compat headers must come before crashreport (which pulls in crashpad)
-        # to ensure AEMU's getopt.h and sys/types.h are preferred over Crashpad's.
-        # buildifier: leave-alone
-        deps = select({
-            "@platforms//os:windows": [
-                "@aemu//windows:compat-hdrs",
-                "//emulator/plugin/wasapi",
-                "@qemu//:qemu-system-" + arch + ".if",
-            ],
-            "//conditions:default": [],
-        }) + [
-            "//emulator/crashreport:breadcrumb",
-            "//emulator/crashreport:crash_reporter",
-            "//emulator/crashreport:crash_system",
-            "//emulator/crashreport:debug",
-            "//emulator/libs/logging:color_log_sink",
-            "//emulator/libs/perfetto:init",
-            "//emulator/libs/perfetto:qemu_trace_bridge",
-            "//emulator/plugin/adb-vsock",
-            "//emulator/plugin/audio:goldfish_audio_mux",
-            "//emulator/plugin/avd:avd_finalize",
-            "//emulator/plugin/avd:avd_start",
-            "//emulator/plugin/avd:global_event_loop",
-            "//emulator/plugin/battery",
-            "//emulator/plugin/grpc",
-            "//emulator/plugin/hal/virtio_gpu_gfxstream",
-            "//emulator/plugin/netsim:netsim-chardev",
-            "//emulator/plugin/netsim:netsim-netdev",
-            "//emulator/plugin/netsim:netsim_connection",
-            "//emulator/plugin/virtio-input-android",
-            "//emulator/plugin/virtio-wifi",
-            "//emulator/plugin/vminterface:vm_ops",
-            "//emulator/plugin/webrtc",
-            "//emulator/tools:aemu_version",
-            "@abseil-cpp//absl/debugging:failure_signal_handler",
-            "@abseil-cpp//absl/debugging:symbolize",
-            "@abseil-cpp//absl/log",
-            "@abseil-cpp//absl/log:structured",
-            "@qemu//:aemu_func_defs",
-            "@qemu//:qemu-headers-exported",
-            "//emulator/plugin/legacy/goldfish_address_space:impl_" + arch,
-            "//emulator/plugin/legacy/goldfish_gpu:impl_" + arch,
-            "//emulator/plugin/legacy/goldfish_pipe:impl_" + arch,
-            "//emulator/plugin/legacy/goldfish_sync:impl_" + arch,
-            "//emulator/plugin/vsock_goldfish:vsock_impl_" + arch,
+cc_exported_shared_library(
+    name = "goldfish",
+    srcs = ["plugin.cc"],
+    linkopts = select({
+        "@platforms//os:macos": [
+            "-undefined dynamic_lookup",
+            "-Wl,-ObjC",
+            "-framework VideoToolbox",
+            "-framework CoreMedia",
+            "-framework AVFoundation",
+            "-framework CoreVideo",
+            "-framework Foundation",
         ],
-    )
-    for arch in [
-        "aarch64",
-        "x86_64",
-    ]
-]
+        "@platforms//os:windows": [
+            "avrt.lib",
+            "strmiids.lib",
+            "uuid.lib",
+            "ole32.lib",
+            "oleaut32.lib",
+        ],
+        "//conditions:default": [],
+    }),
+    visibility = ["//visibility:public"],
+    win_def_file = "goldfish.def",
+    # AEMU compat headers must come before crashreport (which pulls in crashpad)
+    # to ensure AEMU's getopt.h and sys/types.h are preferred over Crashpad's.
+    # buildifier: leave-alone
+    deps = select({
+        "@platforms//os:windows": [
+            "@aemu//windows:compat-hdrs",
+            "//emulator/plugin/wasapi",
+        ],
+        "//conditions:default": [],
+    }) + select({
+        # PE DLL imports bind to the host-CPU qemu-system-<arch>.exe name.
+        "@goldfish_build//platforms:is_windows_aarch64": [
+            "@qemu//:qemu-system-aarch64.if",
+        ],
+        "@goldfish_build//platforms:is_windows_x64": [
+            "@qemu//:qemu-system-x86_64.if",
+        ],
+        "//conditions:default": [],
+    }) + [
+        "//emulator/crashreport:breadcrumb",
+        "//emulator/crashreport:crash_reporter",
+        "//emulator/crashreport:crash_system",
+        "//emulator/crashreport:debug",
+        "//emulator/libs/logging:color_log_sink",
+        "//emulator/libs/perfetto:init",
+        "//emulator/libs/perfetto:qemu_trace_bridge",
+        "//emulator/plugin/adb-vsock",
+        "//emulator/plugin/audio:goldfish_audio_mux",
+        "//emulator/plugin/avd:avd_finalize",
+        "//emulator/plugin/avd:avd_start",
+        "//emulator/plugin/avd:global_event_loop",
+        "//emulator/plugin/battery",
+        "//emulator/plugin/grpc",
+        "//emulator/plugin/hal/virtio_gpu_gfxstream",
+        "//emulator/plugin/legacy/goldfish_address_space:impl",
+        "//emulator/plugin/legacy/goldfish_events:impl",
+        "//emulator/plugin/legacy/goldfish_gpu:impl",
+        "//emulator/plugin/legacy/goldfish_pipe:impl",
+        "//emulator/plugin/legacy/goldfish_sync:impl",
+        "//emulator/plugin/netsim:netsim-chardev",
+        "//emulator/plugin/netsim:netsim-netdev",
+        "//emulator/plugin/netsim:netsim_connection",
+        "//emulator/plugin/virtio-input-android",
+        "//emulator/plugin/virtio-wifi",
+        "//emulator/plugin/vminterface:vm_ops",
+        "//emulator/plugin/vsock_goldfish:vsock_impl",
+        "//emulator/plugin/webrtc",
+        "//emulator/tools:aemu_version",
+        "@abseil-cpp//absl/debugging:failure_signal_handler",
+        "@abseil-cpp//absl/debugging:symbolize",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:structured",
+        "@qemu//:aemu_func_defs",
+        "@qemu//:qemu-headers-exported",
+    ],
+)

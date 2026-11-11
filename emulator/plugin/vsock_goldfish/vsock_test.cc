@@ -19,9 +19,13 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <functional>
 #include <memory>
 #include <string>
 #include <unordered_map>
+#include <utility>
+
+#include "absl/cleanup/cleanup.h"
 #include <vector>
 
 #include "absl/status/status.h"
@@ -45,6 +49,11 @@ struct QEMUFile {
     size_t read_offset = 0;
 };
 
+// Runs inside the qemu_put_buffer() stub. In QEMU a put can qemu_fflush() to the
+// block layer, which polls the AIO context on the calling thread and so runs
+// qemu_loop tasks (e.g. a MarshallingHalSocket flush) re-entrantly.
+std::function<void()> g_put_buffer_hook;
+
 // clang-format off
 // IWYU pragma: begin_keep
 extern "C" {
@@ -64,6 +73,9 @@ size_t qemu_get_buffer(QEMUFile* f, uint8_t* buf, size_t size) {
 void qemu_put_buffer(QEMUFile* f, const uint8_t* buf, size_t size) {
     if (f != nullptr && buf != nullptr && size > 0) {
         f->buffer.append(reinterpret_cast<const char*>(buf), size);
+    }
+    if (g_put_buffer_hook) {
+        g_put_buffer_hook();
     }
 }
 }
@@ -160,6 +172,7 @@ class VsockSnapshotFlagsTest : public ::testing::Test {
     }
 
     void TearDown() override {
+        g_put_buffer_hook = nullptr;
         SnapshottablePlug::RestoredPlugs().clear();
         clear();
         goldfish_virtio_vsock_impl_unrealize(impl_);
@@ -288,6 +301,38 @@ TEST_F(VsockSnapshotFlagsTest, MultipleStreamsSavedAndRestored) {
     EXPECT_EQ(SnapshottablePlug::RestoredPlugs().size(), 2U);
     EXPECT_TRUE(SnapshottablePlug::RestoredPlugs().count(201));
     EXPECT_TRUE(SnapshottablePlug::RestoredPlugs().count(202));
+}
+
+TEST_F(VsockSnapshotFlagsTest, SaveDoesNotHoldStateLockWhileWritingToQemuFile) {
+    // Regression test for the exit-time -savevm stall at
+    // '0000:00:12.0/virtio-goldfish-vsock-base': writing to the QEMUFile under
+    // the vsock state lock flushed to disk, which ran a qemu_loop task that
+    // called SendAsync() on a stream and so took the same lock again on the
+    // QEMU main thread.
+    auto plug = std::make_shared<SnapshottablePlug>(/*tag=*/401);
+    SocketPtr sock = Connect(kGuestPort, plug);
+    (void)CompleteHandshake(kGuestPort, /*guest_buf_alloc=*/65536);
+    plug->SetSocket(std::move(sock));
+
+    int reentrant_sends = 0;
+    const std::string kPayload = "ping";
+    g_put_buffer_hook = [&] {
+        ++reentrant_sends;
+        plug->socket()->SendAsync(kPayload.data(), kPayload.size());
+    };
+    absl::Cleanup clear_hook = [] { g_put_buffer_hook = nullptr; };
+    QEMUFile snapshot;
+    ASSERT_EQ(goldfish_virtio_vsock_impl_save(impl_, &snapshot), 0);
+    std::move(clear_hook).Invoke();
+
+    EXPECT_GE(reentrant_sends, 1);
+    // The re-entrant send went out to the guest rather than deadlocking.
+    EXPECT_TRUE(std::any_of(packets_.begin(), packets_.end(), [&](const CapturedPacket& pkt) {
+        return pkt.hdr.op == VIRTIO_VSOCK_OP_RW && pkt.payload == kPayload;
+    }));
+
+    ASSERT_EQ(goldfish_virtio_vsock_impl_load(impl_, &snapshot), 0);
+    EXPECT_TRUE(SnapshottablePlug::RestoredPlugs().count(401));
 }
 
 TEST_F(VsockSnapshotFlagsTest, CorruptedSnapshotRejectedGracefully) {

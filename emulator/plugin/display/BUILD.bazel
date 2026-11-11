@@ -64,8 +64,21 @@ cc_test(
         ":image_writer_test_utils",
         ":write_jpeg",
         "//emulator/libs/test:googletest_main",
-        "@abseil-cpp//absl/base:config",
-        "@abseil-cpp//absl/time",
+        "@libjpeg_turbo//:jpeg",
+    ],
+)
+
+cc_binary_with_manifest(
+    name = "write_jpeg_perf",
+    testonly = True,
+    srcs = ["write_jpeg_perf.cc"],
+    copts = _WINDOWS_CFG_COPTS,
+    tags = ["benchmark"],
+    deps = [
+        ":image_writer_test_utils",
+        ":write_jpeg",
+        "@google_benchmark//:benchmark",
+        "@google_benchmark//:benchmark_main",
         "@libjpeg_turbo//:jpeg",
     ],
 )
@@ -98,9 +111,11 @@ cc_library(
         "//emulator/libs/display_pipeline:core",
         "//emulator/libs/eventing",
         "//emulator/libs/perfetto:init",
+        "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings:str_format",
+        "@abseil-cpp//absl/synchronization",
         "@abseil-cpp//absl/time",
         "@abseil-cpp//absl/types:span",
     ],
@@ -138,6 +153,7 @@ cc_library(
         "//emulator/libs/logging:absl_c_bridge",
         "//emulator/libs/perfetto:init",
         "//emulator/libs/physics",
+        "//emulator/plugin/legacy/goldfish_events",
         "//emulator/plugin/virtio-input-android:api",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/status",
@@ -163,6 +179,8 @@ cc_library(
         ":base",
         "//emulator/libs/archive",
         "//emulator/libs/sensors:physical_model",
+        "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/synchronization",
     ],
 )
 
@@ -274,6 +292,7 @@ cc_library(
     deps = [
         ":abstract_multi_display",
         ":primary_display",
+        "//emulator/plugin/hal/plug:fake_vsock",
         "//emulator/plugin/virtio-input-android:api",
         "@glib//glib",
         "@glib//gmodule",
@@ -310,6 +329,7 @@ cc_test(
         "@abseil-cpp//absl/functional:any_invocable",
         "@abseil-cpp//absl/log:scoped_mock_log",
         "@abseil-cpp//absl/status:status_matchers",
+        "@abseil-cpp//absl/synchronization",
         "@glib//glib",
         "@glib//gmodule",
     ],
@@ -324,6 +344,7 @@ clang_tidy_test(
         ":webm_encoder_perf",
         ":webm_encoder_test",
         ":write_jpeg",
+        ":write_jpeg_perf",
         ":write_jpeg_test",
         ":write_png",
         ":write_png_test",

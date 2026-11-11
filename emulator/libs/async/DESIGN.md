@@ -25,7 +25,7 @@ classDiagram
         +CreateTimer(Task) ScopedTimer
         +ScheduleDelayed(Task, Duration) ScopedTimer
         +ScheduleRepeating(Task, Duration) ScopedTimer
-        +WaitUntilIdle(Duration) Status
+        +Flush() size_t
         +Shutdown() future~Status~
         +ShutdownTimers()
         +IsOnLoopThread() bool

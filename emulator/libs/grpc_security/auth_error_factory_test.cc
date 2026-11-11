@@ -11,6 +11,8 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+#include "android/emulation/control/auth_error_factory.h"
+
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
@@ -20,7 +22,9 @@
 #include <string>
 #include <thread>
 #include <utility>
+#include <vector>
 
+#include "absl/status/status.h"
 #include "absl/strings/string_view.h"
 
 #include "android/base/testing/test_temp_dir.h"
@@ -206,6 +210,24 @@ TEST_F(AuthErrorsTest, any_token_fatal_on_bad_token) {
                                "should not happen, please file a bug including this "
                                "information: Validation failure `validators: , "
                                "StaticTokenAuth`, `path: foo`, `token: Bearer bar`"));
+}
+
+TEST_F(AuthErrorsTest, v2_missing_and_insufficient_role_errors_are_actionable) {
+    auto missing = AuthErrorFactory::AuthErrorMissingRoles(
+            "/android.emulation.v2.SystemService/RebootDevice");
+    EXPECT_EQ(missing.code(), absl::StatusCode::kPermissionDenied);
+    EXPECT_THAT(std::string(missing.message()),
+                ContainsSubstr("/android.emulation.v2.SystemService/RebootDevice"));
+    EXPECT_THAT(std::string(missing.message()), ContainsSubstr("roles"));
+
+    std::vector<std::string> roles = {"aemu.role.read"};
+    auto insufficient = AuthErrorFactory::AuthErrorInsufficientRoles(
+            roles, "/android.emulation.v2.SystemService/RebootDevice", "/tmp/fake_source.json");
+    EXPECT_EQ(insufficient.code(), absl::StatusCode::kPermissionDenied);
+    EXPECT_THAT(std::string(insufficient.message()), ContainsSubstr("aemu.role.read"));
+    EXPECT_THAT(std::string(insufficient.message()),
+                ContainsSubstr("/android.emulation.v2.SystemService/RebootDevice"));
+    EXPECT_THAT(std::string(insufficient.message()), ContainsSubstr("/tmp/fake_source.json"));
 }
 
 }  // namespace control

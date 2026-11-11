@@ -32,6 +32,18 @@
 namespace android::goldfish {
 namespace fs = std::filesystem;
 
+struct AvdWritableOptions {
+    bool wipe_data = false;
+    bool verbose = false;
+
+    static AvdWritableOptions From(const AndroidOptions& opts) {
+        return {
+            .wipe_data = opts.wipe_data != 0,
+            .verbose = opts.verbose != 0,
+        };
+    }
+};
+
 /**
  * @brief Models an Android Virtual Device (AVD), providing a representation
  *        of its configuration, content, and hardware characteristics.
@@ -81,12 +93,15 @@ class Avd {
     virtual std::string Details(bool verbose) const = 0;
 
     /**
-     * @brief Returns the human-readable name of the AVD. This name corresponds to
-     * the filename of the AVD's configuration file (without the ".ini"
-     * extension).
+     * @brief Returns the AVD's configuration name (the `<name>.ini` stem, or
+     * `-avd <name>`), reported by the `avd name` console command.
      */
     virtual std::string Name() const = 0;
 
+    /**
+     * @brief Returns the instance ID (`-id <id>` when specified, otherwise
+     * `Name()`), reported by the `avd id` console command.
+     */
     virtual std::string Id() const = 0;
     virtual CpuArchitecture Arch() const = 0;
     virtual std::string Abi() const = 0;
@@ -105,10 +120,21 @@ class Avd {
     virtual DeviceType GetDeviceType() const = 0;
 
     /**
-     * @brief Returns the path to the AVD's content directory. This is typically
-     * ~/.android/avd/<name()>.
+     * @brief Returns the path to the AVD's content directory (typically
+     * `~/.android/avd/<name>.avd`, `<ANDROID_PRODUCT_OUT>/avd.tmp`, or
+     * `-datadir`).
      */
     virtual fs::path GetContentPath() const = 0;
+
+    /**
+     * @brief Performs post-lock writable preparation on the AVD content
+     * directory (creating `<ANDROID_PRODUCT_OUT>/avd.tmp` if needed, applying
+     * `-wipe-data` while preserving active lock files, and writing
+     * `hardware-qemu.ini`).
+     */
+    virtual absl::Status PrepareWritableState(const AvdWritableOptions& options) = 0;
+
+    absl::Status PrepareWritableState() { return PrepareWritableState(AvdWritableOptions{}); }
 
     /**
      * @brief Retrieves the file path of a system image associated with an Android
@@ -236,32 +262,30 @@ class Avd {
      */
     static std::vector<std::string> List(const fs::path& avd_directory);
 
-    /**
-     * @brief Constructs an AVD object from its name.
-     *
-     * @param name The name of the AVD.
-     * @param sysdir_override Optionally supply a path to override the system directory
-     *        search. Use empty string for default behavior.
-     * @param writable_content_override Optionally supply a path to override the content
-     *        directory. Use empty string for default behavior.
-     * @return An absl::StatusOr<Avd> object. On success, contains the
-     *         constructed AVD. On failure, contains an error status.
-     */
-    static absl::StatusOr<std::unique_ptr<Avd>> FromName(const AndroidOptions& opts,
-                                                         const android::goldfish::UserPaths& paths,
-                                                         const std::string& name, bool wipe_data,
-                                                         fs::path writable_content_override,
-                                                         fs::path sysdir_override = {});
+    struct Options {
+        const AndroidOptions& opts;
+        const UserPaths& user_paths;
+        std::string name;
+        fs::path android_build_out;
+        fs::path content_override;
+        fs::path sysdir_override;
+    };
 
-    static absl::StatusOr<std::unique_ptr<Avd>> FromAndroidBuild(
-            const AndroidOptions& opts, const android::goldfish::UserPaths& user_paths,
-            const std::string& name, fs::path android_build_out, bool wipe_data,
-            fs::path writable_content_override);
+    /**
+     * @brief Loads an AVD configuration from its `.ini` file (or from
+     * `options.android_build_out` when non-empty) without mutating the AVD
+     * directory on disk (no `-wipe-data` cleanup and no `hardware-qemu.ini`
+     * write). Call `PrepareWritableState()` after acquiring the AVD session
+     * lock to prepare the writable directory.
+     */
+    static absl::StatusOr<std::unique_ptr<Avd>> Load(const Options& options);
 
   private:
+    static absl::StatusOr<std::unique_ptr<Avd>> FromName(const Options& options);
+    static absl::StatusOr<std::unique_ptr<Avd>> FromAndroidBuild(const Options& options);
     static absl::StatusOr<std::unique_ptr<Avd>> FromSysDirs(
             const AndroidOptions& opts, const android::goldfish::UserPaths& user_paths,
-            const std::string& name, IniFile config_ini, fs::path content_dir,
+            const std::string& name, IniFile config_ini, fs::path content_path,
             SystemImagePaths system_image_paths);
 };
 

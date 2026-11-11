@@ -21,15 +21,19 @@
 
 namespace android::goldfish {
 
+class CpuDevice;
+
 // Configures the kernel for qemu.
 class KernelDevice : public Device {
   public:
-    explicit KernelDevice() : Device("kernel") {}
+    explicit KernelDevice(const CpuDevice& cpu_device)
+        : Device("kernel"), mCpuDevice(cpu_device) {}
 
     absl::Status initialize(const EmulatorConfig& emulator) override;
     std::vector<std::string> getQemuParameters(const EmulatorConfig& emulator) const override;
 
   private:
+    const CpuDevice& mCpuDevice;
     std::string mDiskImage;
     std::string mCommandLine;
 };

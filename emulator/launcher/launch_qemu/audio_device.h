@@ -21,6 +21,12 @@ namespace android::goldfish {
 
 class AudioDevice : public PciDevice {
   public:
+    enum class AudioCardType {
+        VIRTIO_SND,
+        INTEL_HDA,
+        NONE,
+    };
+
     explicit AudioDevice(std::string addr) : PciDevice("audio", addr) {}
 
     absl::Status initialize(const EmulatorConfig& emulator) override;
@@ -28,5 +34,6 @@ class AudioDevice : public PciDevice {
 
     static std::string getAudioBackend(const AndroidOptions& opts);
     static std::string detectHostAudioBackend();
+    static AudioCardType getAudioCardType(int api_level, Avd::CpuArchitecture arch);
 };
 }  // namespace android::goldfish

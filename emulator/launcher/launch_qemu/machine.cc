@@ -29,7 +29,8 @@ absl::StatusOr<std::string> machine(const EmulatorConfig& emulator) {
     const Avd& avd = emulator.avd();
     std::string machine_arg;
 
-    switch (auto a = avd.Arch(); a) {
+    const auto arch = avd.Arch();
+    switch (arch) {
     case Avd::CpuArchitecture::kArm:
         machine_arg = "goldfish-arm";
         break;
@@ -37,12 +38,30 @@ absl::StatusOr<std::string> machine(const EmulatorConfig& emulator) {
         machine_arg = "goldfish";
         break;
     default:
-        return absl::UnimplementedError(absl::StrCat("Machine type not supported: ", a));
+        return absl::UnimplementedError(absl::StrCat("Machine type not supported: ", arch));
     }
 
-    if (avd.ApiLevel() < kVirtioReadyApiLevel) {
+    const int api_level = avd.ApiLevel();
+    if (api_level < kVirtioReadyApiLevel) {
         absl::StrAppend(&machine_arg, ",goldfish-pipe=on");
         absl::StrAppend(&machine_arg, ",goldfish-sync=on");
+    }
+    if (api_level > 0 && api_level < kVirtioInputMinApiLevel) {
+        absl::StrAppend(&machine_arg, ",goldfish-events=on");
+    }
+
+    using S = android_studio::EmulatorFeatureFlagState;
+    const auto& ff = emulator.feature_flags();
+    if (arch == Avd::CpuArchitecture::kX86 && api_level > 0 && api_level < 29 &&
+        !ff.IsEnabled(S::DYNAMIC_PARTITION)) {
+        if (!avd.GetSystemImagePaths().vendor_image.empty()) {
+            absl::StrAppend(&machine_arg,
+                            ",vendor=/dev/block/pci/pci0000:00/0000:00:07.0/by-name/vendor");
+        }
+        if (!ff.IsEnabled(S::SYSTEM_AS_ROOT) && api_level >= 26) {
+            absl::StrAppend(&machine_arg,
+                            ",system=/dev/block/pci/pci0000:00/0000:00:03.0/by-name/system");
+        }
     }
 
     return machine_arg;

@@ -74,7 +74,7 @@ class HttpSession::ResponseWriterImpl : public HttpResponseWriter {
                 session->PostOrSend(absl::StrCat(absl::Hex(chunk.size()), protocol::kCrlf, chunk,
                                                  protocol::kCrlf));
             } else {
-                session->PostOrSend(std::string(chunk));
+                session->PostOrSend(chunk);
             }
         }
     }
@@ -200,7 +200,7 @@ std::shared_ptr<async::AsyncSocket> HttpSession::TakeSocket() {
     return std::move(socket_);
 }
 
-void HttpSession::SendRawBytes(std::string payload) {
+void HttpSession::SendRawBytes(std::string_view payload) {
     if (auto sock = GetSocket()) {
         auto status = sock->Send(payload.data(), payload.size(),
                                  [self = shared_from_this()](absl::Status err) {
@@ -353,13 +353,33 @@ bool HttpSession::OnDataReceived(std::string_view data) {
 }
 
 void HttpSession::PostOrSend(std::string data) {
-    PostOrRun([self = shared_from_this(), payload = std::move(data)]() {
-        self->SendRawBytes(std::move(payload));
-    });
+    if (loop_ != nullptr && !loop_->IsOnLoopThread()) {
+        if (loop_->GetState() == async::LooperStatusEvent::State::kRunning) {
+            loop_->Post([self = shared_from_this(), payload = std::move(data)]() {
+                     self->SendRawBytes(payload);
+                 }).IgnoreError();
+        }
+        return;
+    }
+    SendRawBytes(data);
+}
+
+void HttpSession::PostOrSend(std::string_view data) {
+    if (loop_ != nullptr && !loop_->IsOnLoopThread()) {
+        PostOrSend(std::string(data));
+        return;
+    }
+    SendRawBytes(data);
 }
 
 void HttpSession::PostClose() {
-    PostOrRun([self = shared_from_this()]() { self->CloseSocketDirect(); });
+    if (loop_ != nullptr && !loop_->IsOnLoopThread()) {
+        if (loop_->GetState() == async::LooperStatusEvent::State::kRunning) {
+            loop_->Post([self = shared_from_this()]() { self->CloseSocketDirect(); }).IgnoreError();
+        }
+        return;
+    }
+    CloseSocketDirect();
 }
 
 void HttpSession::EmitAccessLog(HttpMethod method, std::string_view path, int status_code,
