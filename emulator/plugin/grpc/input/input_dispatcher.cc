@@ -41,15 +41,49 @@ using ::android::emulation::v2::KeyEvent;
 using ::android::emulation::v2::PointerAction;
 using ::android::emulation::v2::PointerEvent;
 
+// Each SYN_REPORT frame consumes `events.size() + 1` descriptors on QEMU's
+// fixed 64-descriptor `virtio-input` event virtqueue (`virtio-input.c`). Cap
+// each frame and each synchronous loop turn at 48 descriptors (matching
+// `QemuKeyboardSink::Reset()`), pacing overflow frames across 1 ms ticks.
+constexpr size_t kVirtioBatchDescriptorBudget = 48;
+constexpr size_t kMaxEventsPerVirtioFrame = kVirtioBatchDescriptorBudget - 1;
+constexpr absl::Duration kVirtioBatchPaceDelay = absl::Milliseconds(1);
+
+// Packs per-contact event slices into frames of at most `kMaxEventsPerVirtioFrame`
+// events so no contact is ever split across `SYN_REPORT` boundaries.
+class FramePacker {
+  public:
+    template <typename Fn>
+    void AddUnit(Fn&& append_fn) {
+        unit_.clear();
+        std::forward<Fn>(append_fn)(unit_);
+        if (unit_.empty()) {
+            return;
+        }
+        DCHECK_LE(unit_.size(), kMaxEventsPerVirtioFrame);
+        if (frames_.empty() || frames_.back().size() + unit_.size() > kMaxEventsPerVirtioFrame) {
+            frames_.push_back(unit_);
+        } else {
+            frames_.back().insert(frames_.back().end(), unit_.begin(), unit_.end());
+        }
+    }
+
+    std::vector<EvDevEvents> Finish() && { return std::move(frames_); }
+
+  private:
+    std::vector<EvDevEvents> frames_;
+    EvDevEvents unit_;
+};
+
 // The events an operation writes to one device. Palm cancellations populate
 // both `events` (setting MT_TOOL_PALM while tracking IDs are still active) and
 // `follow_up` (clearing tracking IDs to -1) so each arrives in its own
-// SYN_REPORT frame.
+// SYN_REPORT frame(s).
 struct DeviceReport {
     TouchDeviceId device;
     TouchDeviceSink* sink;
-    EvDevEvents events;
-    EvDevEvents follow_up;
+    FramePacker events;
+    FramePacker follow_up;
 };
 using Reports = std::vector<DeviceReport>;
 
@@ -79,23 +113,6 @@ absl::Status AddTarget(TouchDevices& devices, TouchDeviceId device, Reports& rep
     return absl::OkStatus();
 }
 
-template <typename FlushFn>
-void WriteReports(const ::goldfish::async::EventLoop& loop, const Reports& reports,
-                  absl::flat_hash_map<TouchDeviceId, uint64_t>& active_generations,
-                  FlushFn&& flush_stale) {
-    DCHECK(loop.IsOnLoopThread());
-    for (const DeviceReport& report : reports) {
-        if (!report.events.empty()) {
-            flush_stale(report.device, *report.sink);
-            report.sink->WriteReport(report.events);
-            active_generations.try_emplace(report.device, report.sink->ActiveGeneration());
-        }
-        if (!report.follow_up.empty()) {
-            report.sink->WriteReport(report.follow_up);
-        }
-    }
-}
-
 void Complete(InputDispatcher::DispatchCallback& done, InputDispatcher::DispatchResult result) {
     if (done) {
         std::move(done)(std::move(result));
@@ -107,9 +124,15 @@ void Complete(InputDispatcher::DispatchCallback& done, InputDispatcher::Dispatch
 // of firing a click or drop.
 void AppendLift(PointerAction action, int slot, bool clear_stylus_keys, DeviceReport& report) {
     if (action == PointerAction::POINTER_ACTION_CANCEL) {
-        AppendContactCancel(slot, report.events, report.follow_up, clear_stylus_keys);
+        report.events.AddUnit([slot, clear_stylus_keys, &report](EvDevEvents& palm) {
+            report.follow_up.AddUnit([slot, clear_stylus_keys, &palm](EvDevEvents& lift) {
+                AppendContactCancel(slot, palm, lift, clear_stylus_keys);
+            });
+        });
     } else {
-        AppendContactUp(slot, report.events, clear_stylus_keys);
+        report.events.AddUnit([slot, clear_stylus_keys](EvDevEvents& up) {
+            AppendContactUp(slot, up, clear_stylus_keys);
+        });
     }
 }
 
@@ -241,6 +264,7 @@ void InputDispatcher::OnDisplayAdded(TouchDeviceId device) {
 
 void InputDispatcher::OnDisplayRemoved(TouchDeviceId device) {
     PostUnlessShutDown([this, device] {
+        ClearDeviceOutbox(device);
         const ReleasedContacts released = contacts_.ClearDevice(device);
         const bool had_stylus_keys = stylus_contacts_.erase(device) > 0;
         if (auto gen_it = active_generations_.find(device); gen_it != active_generations_.end()) {
@@ -422,8 +446,11 @@ absl::Status InputDispatcher::ApplyPointer(InputSessionId session, const Pointer
                 contacts_.Release(key);
                 AppendLift(action, held->slot, EraseStylusContact(held->device, key), report);
             } else {
-                RecordContactDownOrMove(held->device, key, pointer, action, held->slot,
-                                        /*new_contact=*/false, report.events);
+                report.events.AddUnit([this, dev = held->device, &key, &pointer, action,
+                                       slot = held->slot](EvDevEvents& out) {
+                    RecordContactDownOrMove(dev, key, pointer, action, slot, /*new_contact=*/false,
+                                            out);
+                });
             }
             *reported.add_pointers() = pointer;
         } else if (CreatesContact(action)) {
@@ -432,13 +459,19 @@ absl::Status InputDispatcher::ApplyPointer(InputSessionId session, const Pointer
                 result.Update(slot.status());
                 continue;
             }
-            RecordContactDownOrMove(*resolved, key, pointer, action, *slot, /*new_contact=*/true,
-                                    ReportFor(reports, *resolved).events);
+            ReportFor(reports, *resolved)
+                    .events.AddUnit([this, dev = *resolved, &key, &pointer, action,
+                                     acquired = *slot](EvDevEvents& out) {
+                        RecordContactDownOrMove(dev, key, pointer, action, acquired,
+                                                /*new_contact=*/true, out);
+                    });
             *reported.add_pointers() = pointer;
         }
     }
-    WriteReports(loop_, reports, active_generations_,
-                 [this](TouchDeviceId d, TouchDeviceSink& s) { FlushStaleSlots(d, s); });
+    for (DeviceReport& report : reports) {
+        FlushAndWriteDeviceReport(report.device, *report.sink, std::move(report.events).Finish(),
+                                  std::move(report.follow_up).Finish());
+    }
     if (!reported.pointers().empty()) {
         Report(std::move(applied));
     }
@@ -463,8 +496,10 @@ absl::Status InputDispatcher::CancelOnDisplay(InputSessionId session, int32_t so
                    ReportFor(reports, contact.device));
         cancel.mutable_pointer()->add_pointers()->set_pointer_id(key.pointer_id);
     }
-    WriteReports(loop_, reports, active_generations_,
-                 [this](TouchDeviceId d, TouchDeviceSink& s) { FlushStaleSlots(d, s); });
+    for (DeviceReport& report : reports) {
+        FlushAndWriteDeviceReport(report.device, *report.sink, std::move(report.events).Finish(),
+                                  std::move(report.follow_up).Finish());
+    }
     Report(std::move(cancel));
     return absl::OkStatus();
 }
@@ -637,11 +672,13 @@ void InputDispatcher::ReleaseSessionInput(InputSessionId session) {
             continue;
         }
         DeviceReport& report = ReportFor(reports, contact.device);
-        AppendContactCancel(contact.slot, report.events, report.follow_up, clear_stylus_keys);
+        AppendLift(PointerAction::POINTER_ACTION_CANCEL, contact.slot, clear_stylus_keys, report);
         written.emplace_back(key, contact);
     }
-    WriteReports(loop_, reports, active_generations_,
-                 [this](TouchDeviceId d, TouchDeviceSink& s) { FlushStaleSlots(d, s); });
+    for (DeviceReport& report : reports) {
+        FlushAndWriteDeviceReport(report.device, *report.sink, std::move(report.events).Finish(),
+                                  std::move(report.follow_up).Finish());
+    }
     ReportCancels(written);
 
     std::vector<uint32_t> held;
@@ -672,18 +709,26 @@ void InputDispatcher::ResetAfterSnapshotLoad() {
     DCHECK(loop_.IsOnLoopThread());
     stale_slots_.clear();
     stylus_contacts_.clear();
-    EvDevEvents palm_all;
-    EvDevEvents lift_all;
-    for (int slot = 0; slot < kTouchDeviceSlots; ++slot) {
-        AppendContactCancel(slot, palm_all, lift_all);
+    for (auto& [device, outbox] : device_outboxes_) {
+        outbox.pending_frames.clear();
     }
-    AppendStylusKeysReset(lift_all);
+    FramePacker palm_packer;
+    FramePacker lift_packer;
+    for (int slot = 0; slot < kTouchDeviceSlots; ++slot) {
+        palm_packer.AddUnit([slot, &lift_packer](EvDevEvents& palm) {
+            lift_packer.AddUnit(
+                    [slot, &palm](EvDevEvents& lift) { AppendContactCancel(slot, palm, lift); });
+        });
+    }
+    lift_packer.AddUnit([](EvDevEvents& lift) { AppendStylusKeysReset(lift); });
+    const std::vector<EvDevEvents> palm_frames = std::move(palm_packer).Finish();
+    const std::vector<EvDevEvents> lift_frames = std::move(lift_packer).Finish();
     for (TouchDeviceId device : devices_.Devices()) {
         TouchDeviceSink* sink = devices_.Find(device);
         if (sink != nullptr && sink->IsActive()) {
-            sink->WriteReport(palm_all);
-            sink->WriteReport(lift_all);
-            active_generations_[device] = sink->ActiveGeneration();
+            size_t budget_used = 0;
+            WriteDeviceFrames(device, *sink, palm_frames, budget_used);
+            WriteDeviceFrames(device, *sink, lift_frames, budget_used);
         } else {
             active_generations_.erase(device);
         }
@@ -722,7 +767,118 @@ void InputDispatcher::ResetAfterSnapshotLoad() {
     }
 }
 
+void InputDispatcher::FlushAndWriteDeviceReport(TouchDeviceId device, TouchDeviceSink& sink,
+                                                std::vector<EvDevEvents> events,
+                                                std::vector<EvDevEvents> follow_up) {
+    DCHECK(loop_.IsOnLoopThread());
+    if (events.empty() && follow_up.empty()) {
+        return;
+    }
+    size_t budget_used = 0;
+    FlushStaleSlots(device, sink, budget_used);
+    if (!events.empty()) {
+        WriteDeviceFrames(device, sink, std::move(events), budget_used);
+    }
+    if (!follow_up.empty()) {
+        WriteDeviceFrames(device, sink, std::move(follow_up), budget_used);
+    }
+}
+
+void InputDispatcher::WriteDeviceFrames(TouchDeviceId device, TouchDeviceSink& sink,
+                                        std::vector<EvDevEvents> frames, size_t& budget_used) {
+    DCHECK(loop_.IsOnLoopThread());
+    if (frames.empty()) {
+        return;
+    }
+    const uint64_t generation = sink.ActiveGeneration();
+    active_generations_[device] = generation;
+
+    auto outbox_it = device_outboxes_.find(device);
+    const bool has_queued =
+            outbox_it != device_outboxes_.end() && !outbox_it->second.pending_frames.empty();
+    size_t index = 0;
+    if (!has_queued) {
+        while (index < frames.size()) {
+            const size_t descriptors = frames[index].size() + 1;
+            if (budget_used + descriptors > kVirtioBatchDescriptorBudget) {
+                break;
+            }
+            sink.WriteReport(frames[index]);
+            budget_used += descriptors;
+            ++index;
+        }
+    }
+    if (index == frames.size()) {
+        return;
+    }
+
+    DeviceOutbox& outbox =
+            outbox_it != device_outboxes_.end() ? outbox_it->second : device_outboxes_[device];
+    const bool was_empty = outbox.pending_frames.empty();
+    outbox.generation = generation;
+    for (; index < frames.size(); ++index) {
+        outbox.pending_frames.push_back(std::move(frames[index]));
+    }
+    if (was_empty) {
+        ArmOutboxTimer(device, outbox);
+    }
+}
+
+void InputDispatcher::ArmOutboxTimer(TouchDeviceId device, DeviceOutbox& outbox) {
+    if (outbox.drain_timer == nullptr) {
+        outbox.drain_timer = loop_.CreateTimer([gate = timer_gate_, device] {
+            absl::MutexLock gate_lock(gate->mutex);
+            if (gate->dispatcher == nullptr) {
+                return false;
+            }
+            return gate->dispatcher->OnDeviceOutboxTimer(device);
+        });
+    }
+    if (outbox.drain_timer != nullptr) {
+        outbox.drain_timer->Schedule(kVirtioBatchPaceDelay, kVirtioBatchPaceDelay);
+    }
+}
+
+bool InputDispatcher::OnDeviceOutboxTimer(TouchDeviceId device) {
+    DCHECK(loop_.IsOnLoopThread());
+    auto it = device_outboxes_.find(device);
+    if (it == device_outboxes_.end() || it->second.pending_frames.empty()) {
+        return false;
+    }
+    DeviceOutbox& outbox = it->second;
+    TouchDeviceSink* sink = devices_.Find(device);
+    if (sink == nullptr || !sink->IsActive() || sink->ActiveGeneration() != outbox.generation) {
+        outbox.pending_frames.clear();
+        ResyncDevices();
+        return false;
+    }
+    size_t budget_used = 0;
+    while (!outbox.pending_frames.empty()) {
+        const size_t descriptors = outbox.pending_frames.front().size() + 1;
+        DCHECK_LE(descriptors, kVirtioBatchDescriptorBudget);
+        if (budget_used > 0 && budget_used + descriptors > kVirtioBatchDescriptorBudget) {
+            break;
+        }
+        sink->WriteReport(outbox.pending_frames.front());
+        outbox.pending_frames.pop_front();
+        budget_used += descriptors;
+    }
+    return !outbox.pending_frames.empty();
+}
+
+void InputDispatcher::ClearDeviceOutbox(TouchDeviceId device) {
+    if (auto it = device_outboxes_.find(device); it != device_outboxes_.end()) {
+        it->second.pending_frames.clear();
+    }
+}
+
 void InputDispatcher::FlushStaleSlots(TouchDeviceId device, TouchDeviceSink& sink) {
+    size_t budget_used = 0;
+    FlushStaleSlots(device, sink, budget_used);
+}
+
+void InputDispatcher::FlushStaleSlots(TouchDeviceId device, TouchDeviceSink& sink,
+                                      size_t& budget_used) {
     auto it = stale_slots_.find(device);
     if (it == stale_slots_.end()) {
         return;
@@ -734,25 +890,24 @@ void InputDispatcher::FlushStaleSlots(TouchDeviceId device, TouchDeviceSink& sin
     if (!sink.IsActive()) {
         return;
     }
-    EvDevEvents palm;
-    EvDevEvents lift;
+    FramePacker palm_packer;
+    FramePacker lift_packer;
     const bool reset_stylus_keys = it->second.has_stylus_keys;
     for (int slot = 0; slot < kTouchDeviceSlots; ++slot) {
         if (it->second.slots.test(static_cast<size_t>(slot))) {
-            AppendContactCancel(slot, palm, lift);
+            palm_packer.AddUnit([slot, &lift_packer](EvDevEvents& palm) {
+                lift_packer.AddUnit([slot, &palm](EvDevEvents& lift) {
+                    AppendContactCancel(slot, palm, lift);
+                });
+            });
         }
     }
     if (reset_stylus_keys) {
-        AppendStylusKeysReset(lift);
+        lift_packer.AddUnit([](EvDevEvents& lift) { AppendStylusKeysReset(lift); });
     }
     stale_slots_.erase(it);
-    if (!palm.empty() || !lift.empty()) {
-        if (!palm.empty()) {
-            sink.WriteReport(palm);
-        }
-        sink.WriteReport(lift);
-        active_generations_[device] = sink.ActiveGeneration();
-    }
+    WriteDeviceFrames(device, sink, std::move(palm_packer).Finish(), budget_used);
+    WriteDeviceFrames(device, sink, std::move(lift_packer).Finish(), budget_used);
 }
 
 void InputDispatcher::ResyncDevices() {
@@ -762,6 +917,7 @@ void InputDispatcher::ResyncDevices() {
             continue;
         }
         generation = sink->ActiveGeneration();
+        ClearDeviceOutbox(device);
         stylus_contacts_.erase(device);
         const ReleasedContacts released = contacts_.ClearDevice(device);
         RecordDisplayResets(released);

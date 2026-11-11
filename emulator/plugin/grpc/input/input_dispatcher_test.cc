@@ -42,8 +42,10 @@
 #include "goldfish/async/testing/test_event_loop.h"
 #include "goldfish/system/steady_clock.h"
 #include "keyboard_sink.h"
+#include "slot_registry.h"
 #include "standard-headers/linux/input-event-codes.h"
 #include "standard-headers/linux/input.h"
+#include "test_protocol_b_guest_state.h"
 
 namespace goldfish::grpc::v2 {
 namespace {
@@ -51,6 +53,8 @@ namespace {
 using ::absl_testing::IsOk;
 using ::absl_testing::StatusIs;
 using ::android::emulation::control::EvDevEvent;
+using ::android::emulation::control::kMtsPointerUp;
+using ::android::emulation::control::kMtsPressureMax;
 using ::android::emulation::v2::ButtonMask;
 using ::android::emulation::v2::InputActivity;
 using ::android::emulation::v2::InputEvent;
@@ -76,95 +80,32 @@ using DispatchResult = InputDispatcher::DispatchResult;
 constexpr TouchDeviceId kInner = 0;
 constexpr TouchDeviceId kOuter = 1;
 // ABS_MT_TRACKING_ID -1: the slot's contact lifted.
-constexpr auto kTrackingIdUp = static_cast<uint32_t>(-1);
+constexpr auto kTrackingIdUp = static_cast<uint32_t>(kMtsPointerUp);
+constexpr uint32_t kDefaultTouchMajor = 0x500U;
 
 // Converts a normalized coordinate to the evdev value the guest receives.
 constexpr uint32_t Abs(float v) {
     return static_cast<uint32_t>(v * 32767.0F);
 }
 
-struct GuestContact {
-    int slot;
-    int32_t tracking_id;
-    uint32_t x;
-    uint32_t y;
-    uint32_t tool_type = 0;
-};
+using GuestContact = test::GuestContact;
+using GuestTouchState = test::ProtocolBGuestState;
+using test::ClearedKernelSlot;
 
 auto ContactAt(float x, float y) {
     return ::testing::AllOf(Field(&GuestContact::x, Abs(x)), Field(&GuestContact::y, Abs(y)));
 }
 
-// Minimal model of Android's MultiTouchMotionAccumulator and
-// TouchButtonAccumulator over Linux multi-touch protocol B: ABS_MT_SLOT selects
-// a slot, later ABS_MT_* values update it, EV_KEY updates global stylus/eraser
-// button state, and ABS_MT_TRACKING_ID < 0 immediately clears the slot before
-// SYN_REPORT syncs TouchInputMapper. Each WriteReport() call is one SYN_REPORT
-// frame.
-class GuestTouchState {
-  public:
-    void ApplyReport(absl::Span<const EvDevEvent> events) {
-        for (const EvDevEvent& event : events) {
-            if (event.type == EV_KEY) {
-                if (event.code == BTN_TOOL_RUBBER) {
-                    btn_tool_rubber_ = event.value != 0;
-                } else if (event.code == BTN_STYLUS) {
-                    btn_stylus_ = event.value != 0;
-                } else {
-                    FAIL() << "unexpected EV_KEY code " << event.code;
-                }
-                continue;
-            }
-            ASSERT_EQ(event.type, EV_ABS) << "the sink, not the dispatcher, appends SYN_REPORT";
-            if (event.code == ABS_MT_SLOT) {
-                ASSERT_LT(event.value, slots_.size());
-                selected_ = static_cast<int>(event.value);
-                continue;
-            }
-            Slot& slot = slots_[selected_];
-            if (event.code == ABS_MT_TRACKING_ID) {
-                const int32_t id = static_cast<int32_t>(event.value);
-                if (id < 0) {
-                    slot = Slot{};
-                } else {
-                    slot.tracking_id = id;
-                }
-            } else if (event.code == ABS_MT_POSITION_X) {
-                slot.x = event.value;
-            } else if (event.code == ABS_MT_POSITION_Y) {
-                slot.y = event.value;
-            } else if (event.code == ABS_MT_TOOL_TYPE) {
-                slot.tool_type = event.value;
-            }
-        }
-    }
-
-    bool BtnToolRubber() const { return btn_tool_rubber_; }
-    bool BtnStylus() const { return btn_stylus_; }
-
-    std::vector<GuestContact> Active() const {
-        std::vector<GuestContact> active;
-        for (int i = 0; i < kTouchDeviceSlots; ++i) {
-            if (slots_[i].tracking_id != -1) {
-                active.push_back(
-                        {i, slots_[i].tracking_id, slots_[i].x, slots_[i].y, slots_[i].tool_type});
-            }
-        }
-        return active;
-    }
-
-  private:
-    struct Slot {
-        int32_t tracking_id = -1;
-        uint32_t x = 0;
-        uint32_t y = 0;
-        uint32_t tool_type = 0;
-    };
-    int selected_ = 0;
-    bool btn_tool_rubber_ = false;
-    bool btn_stylus_ = false;
-    std::array<Slot, kTouchDeviceSlots> slots_{};
-};
+auto PressedContactAt(float x, float y, uint32_t pressure, uint32_t tool_type = MT_TOOL_FINGER,
+                      uint32_t touch_major = kDefaultTouchMajor, int32_t orientation = 0) {
+    return ::testing::AllOf(Field(&GuestContact::x, Abs(x)), Field(&GuestContact::y, Abs(y)),
+                            Field(&GuestContact::pressure, pressure),
+                            Field(&GuestContact::tool_type, tool_type),
+                            Field(&GuestContact::touch_major, touch_major),
+                            Field(&GuestContact::touch_minor, touch_major),
+                            Field(&GuestContact::orientation, orientation),
+                            Field(&GuestContact::is_hovering, false));
+}
 
 // Every write to a touch or keyboard sink, in the order it happened, with
 // whether it ran on the loop thread.
@@ -189,7 +130,7 @@ class FakeSink : public TouchDeviceSink {
         reports.emplace_back(events.begin(), events.end());
         on_loop_thread.push_back(loop_.IsOnLoopThread());
         log_.Record(loop_, absl::StrCat("touch ", name_));
-        guest.ApplyReport(events);
+        guest.ApplyFrame(events);
         frames.push_back(guest.Active());
     }
 
@@ -484,6 +425,12 @@ class InputDispatcherTest : public ::testing::Test {
         return described;
     }
 
+    void AdvancePacedTicks(int ticks = 3) {
+        for (int i = 0; i < ticks; ++i) {
+            loop_->AdvanceClock(absl::Milliseconds(1));
+        }
+    }
+
     std::unique_ptr<TestEventLoop> loop_ = TestEventLoop::Create();
     SinkLog log_;
     FakeTouchDevices devices_{*loop_, log_};
@@ -565,7 +512,10 @@ TEST_F(InputDispatcherTest, ExhaustedPointerIsSkippedWhileOthersApply) {
     }
     EXPECT_THAT(Dispatch(a, Touch(kDown, pointers)),
                 StatusIs(absl::StatusCode::kResourceExhausted));
+    // 9 contacts (72 events) split at contact boundaries across two <=48-descriptor frames.
     EXPECT_THAT(inner_.reports, SizeIs(1));
+    AdvancePacedTicks(1);
+    EXPECT_THAT(inner_.reports, SizeIs(2));
     EXPECT_THAT(inner_.guest.Active(), SizeIs(kTouchDeviceSlots - kReservedHumanSlots));
 }
 
@@ -771,7 +721,15 @@ std::vector<EvDevEvent> Palm(uint32_t slot) {
 }
 
 std::vector<EvDevEvent> Lift(uint32_t slot) {
-    return {{EV_ABS, ABS_MT_SLOT, slot}, {EV_ABS, ABS_MT_TRACKING_ID, kTrackingIdUp}};
+    return {{EV_ABS, ABS_MT_SLOT, slot},
+            {EV_ABS, ABS_MT_POSITION_X, 0},
+            {EV_ABS, ABS_MT_POSITION_Y, 0},
+            {EV_ABS, ABS_MT_TOOL_TYPE, MT_TOOL_FINGER},
+            {EV_ABS, ABS_MT_PRESSURE, 0},
+            {EV_ABS, ABS_MT_TOUCH_MAJOR, 0},
+            {EV_ABS, ABS_MT_TOUCH_MINOR, 0},
+            {EV_ABS, ABS_MT_ORIENTATION, 0},
+            {EV_ABS, ABS_MT_TRACKING_ID, kTrackingIdUp}};
 }
 
 TEST_F(InputDispatcherTest, CancelLiftsAsPalmButUpAndHoverExitLiftNormally) {
@@ -1536,8 +1494,8 @@ TEST_F(InputDispatcherTest, SnapshotLoadReleasesAllGuestSlotsAndResetsKeyboardEv
                                       {EV_ABS, ABS_MT_SLOT, 7},
                                       {EV_ABS, ABS_MT_TRACKING_ID, 7}};
     const EvDevEvent ghost_outer[] = {{EV_ABS, ABS_MT_SLOT, 10}, {EV_ABS, ABS_MT_TRACKING_ID, 10}};
-    inner_.guest.ApplyReport(ghost_inner);
-    outer_.guest.ApplyReport(ghost_outer);
+    inner_.guest.ApplyFrame(ghost_inner);
+    outer_.guest.ApplyFrame(ghost_outer);
     ASSERT_THAT(inner_.guest.Active(), SizeIs(1));
     ASSERT_TRUE(inner_.guest.BtnToolRubber());
     ASSERT_TRUE(inner_.guest.BtnStylus());
@@ -1545,17 +1503,24 @@ TEST_F(InputDispatcherTest, SnapshotLoadReleasesAllGuestSlotsAndResetsKeyboardEv
 
     dispatcher_.OnSnapshotLoaded();
     loop_->RunAll();
+    AdvancePacedTicks(3);
 
     std::vector<EvDevEvent> expected_palm;
-    std::vector<EvDevEvent> expected_lift;
+    std::vector<EvDevEvent> expected_lift_0;
+    std::vector<EvDevEvent> expected_lift_1;
+    std::vector<EvDevEvent> expected_lift_2;
     for (uint32_t slot = 0; slot < static_cast<uint32_t>(kTouchDeviceSlots); ++slot) {
         std::ranges::copy(Palm(slot), std::back_inserter(expected_palm));
-        std::ranges::copy(Lift(slot), std::back_inserter(expected_lift));
+        std::vector<EvDevEvent>& bucket =
+                slot < 5 ? expected_lift_0 : (slot < 10 ? expected_lift_1 : expected_lift_2);
+        std::ranges::copy(Lift(slot), std::back_inserter(bucket));
     }
-    expected_lift.push_back({EV_KEY, BTN_TOOL_RUBBER, 0});
-    expected_lift.push_back({EV_KEY, BTN_STYLUS, 0});
-    EXPECT_THAT(inner_.reports, ElementsAre(expected_palm, expected_lift));
-    EXPECT_THAT(outer_.reports, ElementsAre(expected_palm, expected_lift));
+    expected_lift_2.push_back({EV_KEY, BTN_TOOL_RUBBER, 0});
+    expected_lift_2.push_back({EV_KEY, BTN_STYLUS, 0});
+    EXPECT_THAT(inner_.reports,
+                ElementsAre(expected_palm, expected_lift_0, expected_lift_1, expected_lift_2));
+    EXPECT_THAT(outer_.reports,
+                ElementsAre(expected_palm, expected_lift_0, expected_lift_1, expected_lift_2));
     EXPECT_THAT(inner_.frames[0],
                 ElementsAre(::testing::AllOf(Field(&GuestContact::slot, 7),
                                              Field(&GuestContact::tool_type, MT_TOOL_PALM))));
@@ -1567,7 +1532,8 @@ TEST_F(InputDispatcherTest, SnapshotLoadReleasesAllGuestSlotsAndResetsKeyboardEv
     EXPECT_FALSE(inner_.guest.BtnStylus());
     EXPECT_THAT(outer_.guest.Active(), IsEmpty());
     EXPECT_THAT(log_.writes,
-                ElementsAre("touch inner", "touch inner", "touch outer", "touch outer", "reset"));
+                ElementsAre("touch inner", "touch outer", "reset", "touch inner", "touch outer",
+                            "touch inner", "touch outer", "touch inner", "touch outer"));
     EXPECT_THAT(log_.on_loop_thread, Each(true));
     EXPECT_THAT(Activities(), IsEmpty());
 }
@@ -1588,15 +1554,17 @@ TEST_F(InputDispatcherTest, SnapshotLoadReleasesHeldContactsAndKeysAndReportsSyn
 
     dispatcher_.OnSnapshotLoaded();
     loop_->RunAll();
+    AdvancePacedTicks(3);
 
     static_assert(KEY_A < KEY_B);
-    EXPECT_THAT(inner_.reports, SizeIs(2));
-    EXPECT_THAT(outer_.reports, SizeIs(2));
+    EXPECT_THAT(inner_.reports, SizeIs(4));
+    EXPECT_THAT(outer_.reports, SizeIs(4));
     EXPECT_THAT(inner_.guest.Active(), IsEmpty());
     EXPECT_THAT(outer_.guest.Active(), IsEmpty());
     // The keyboard's Reset() releases the held keys; nothing is written first.
     EXPECT_THAT(log_.writes,
-                ElementsAre("touch inner", "touch inner", "touch outer", "touch outer", "reset"));
+                ElementsAre("touch inner", "touch outer", "reset", "touch inner", "touch outer",
+                            "touch inner", "touch outer", "touch inner", "touch outer"));
     EXPECT_THAT(Activities(),
                 ElementsAre("src1 synthesized POINTER_ACTION_CANCEL display 0 ids 0 1",
                             "src2 synthesized POINTER_ACTION_CANCEL display 0 ids 0",
@@ -1627,8 +1595,9 @@ TEST_F(InputDispatcherTest, SnapshotLoadSkipsInactiveDeviceWriteButClearsItsCont
 
     dispatcher_.OnSnapshotLoaded();
     loop_->RunAll();
+    AdvancePacedTicks(3);
 
-    EXPECT_THAT(inner_.reports, SizeIs(2));
+    EXPECT_THAT(inner_.reports, SizeIs(4));
     EXPECT_THAT(outer_.reports, IsEmpty());
     EXPECT_THAT(Activities(),
                 ElementsAre("src1 synthesized POINTER_ACTION_CANCEL display 0 ids 0",
@@ -1941,6 +1910,7 @@ TEST_F(InputDispatcherTest,
     // 4. Snapshot load records a full reset on every open session.
     dispatcher_.OnSnapshotLoaded();
     loop_->RunAll();
+    AdvancePacedTicks(3);
     EXPECT_EQ(tracker->Version(), 4U);
     snap = tracker->ReadSnapshot();
     EXPECT_EQ(snap.full_generation, 2U);
@@ -2043,6 +2013,182 @@ TEST_F(InputDispatcherTest, StylusKeysStaySetUntilLastStylusContactOnDeviceLifts
     ASSERT_THAT(Dispatch(a, PenTouch(kUp, /*id=*/10, ToolType::TOOL_TYPE_STYLUS)), IsOk());
     EXPECT_FALSE(inner_.guest.BtnStylus());
     EXPECT_FALSE(inner_.guest.BtnToolRubber());
+}
+
+enum class ReleaseMechanism {
+    kPointerUp,
+    kZeroPressureMove,
+    kPointerCancel,
+    kCloseSession,
+    kIdleTimeout,
+    kDisplayReAddFlushStaleSlots,
+};
+
+class InputDispatcherReleaseResetTest : public InputDispatcherTest,
+                                        public ::testing::WithParamInterface<ReleaseMechanism> {};
+
+TEST_P(InputDispatcherReleaseResetTest,
+       ReleaseClearsKernelSlotSoStationaryTapSurvivesUserspaceConfigReset) {
+    constexpr float kTapX = 0.2F;
+    constexpr float kTapY = 0.2F;
+
+    FakeSink secondary(*loop_, "secondary", log_);
+    const bool use_secondary = (GetParam() == ReleaseMechanism::kDisplayReAddFlushStaleSlots);
+    const int32_t display_id = use_secondary ? 2 : 0;
+    FakeSink& sink = use_secondary ? secondary : inner_;
+    if (use_secondary) {
+        devices_.extra[2] = &secondary;
+    }
+
+    const InputSessionId human = Human();
+    InputSessionId press_session = human;
+    if (GetParam() == ReleaseMechanism::kCloseSession) {
+        press_session = Human();
+    } else if (GetParam() == ReleaseMechanism::kIdleTimeout) {
+        press_session =
+                dispatcher_.OpenSession({.source_id = 9, .idle_timeout = absl::Seconds(60)});
+    }
+
+    ASSERT_THAT(Dispatch(press_session, Touch(kDown, {{0, kTapX, kTapY}}, display_id)), IsOk());
+    ASSERT_THAT(sink.guest.Active(), ElementsAre(PressedContactAt(kTapX, kTapY, kMtsPressureMax)));
+    sink.frames.clear();
+
+    switch (GetParam()) {
+    case ReleaseMechanism::kPointerUp:
+        // Single-frame lift: must not emit an intermediate 0-pressure hover frame.
+        ASSERT_THAT(Dispatch(press_session, Touch(kUp, {{0, kTapX, kTapY}}, display_id)), IsOk());
+        ASSERT_THAT(sink.frames, ElementsAre(IsEmpty()));
+        break;
+    case ReleaseMechanism::kZeroPressureMove:
+        ASSERT_THAT(Dispatch(press_session, Touch(kMove, {{0, kTapX, kTapY, 0.0F}}, display_id)),
+                    IsOk());
+        ASSERT_THAT(sink.frames, ElementsAre(IsEmpty()));
+        break;
+    case ReleaseMechanism::kPointerCancel:
+        ASSERT_THAT(Dispatch(press_session,
+                             Touch(PointerAction::POINTER_ACTION_CANCEL, {{0}}, display_id)),
+                    IsOk());
+        break;
+    case ReleaseMechanism::kCloseSession:
+        dispatcher_.CloseSession(press_session);
+        loop_->RunAll();
+        break;
+    case ReleaseMechanism::kIdleTimeout:
+        // Exercises InputDispatcher::OnIdleTimer without closing the session.
+        loop_->AdvanceClock(absl::Seconds(60));
+        break;
+    case ReleaseMechanism::kDisplayReAddFlushStaleSlots:
+        // Exercises InputDispatcher::OnDisplayRemoved + OnDisplayAdded (FlushStaleSlots).
+        devices_.extra.erase(2);
+        dispatcher_.OnDisplayRemoved(2);
+        loop_->RunAll();
+        devices_.extra[2] = &secondary;
+        dispatcher_.OnDisplayAdded(2);
+        loop_->RunAll();
+        break;
+    }
+
+    EXPECT_THAT(sink.guest.Active(), IsEmpty());
+    EXPECT_THAT(sink.guest.KernelSlot(0), ClearedKernelSlot(0));
+
+    // After InputReader zeros userspace mSlots without EVIOCGMTSLOTS, a stationary tap at the
+    // exact same coordinates must still deliver non-zero pressure, coordinates, and touch size.
+    sink.guest.ReconfigureUserspaceWithoutSlotSync();
+    ASSERT_THAT(Dispatch(human, Touch(kDown, {{0, kTapX, kTapY}}, display_id)), IsOk());
+    EXPECT_THAT(sink.guest.Active(), ElementsAre(PressedContactAt(kTapX, kTapY, kMtsPressureMax)));
+}
+
+INSTANTIATE_TEST_SUITE_P(AllReleasePaths, InputDispatcherReleaseResetTest,
+                         ::testing::Values(ReleaseMechanism::kPointerUp,
+                                           ReleaseMechanism::kZeroPressureMove,
+                                           ReleaseMechanism::kPointerCancel,
+                                           ReleaseMechanism::kCloseSession,
+                                           ReleaseMechanism::kIdleTimeout,
+                                           ReleaseMechanism::kDisplayReAddFlushStaleSlots));
+
+TEST_F(InputDispatcherTest, StylusAndOrientationResetAcrossUserspaceConfigResetAndSlotReuse) {
+    constexpr float kX = 0.45F;
+    constexpr float kY = 0.55F;
+    const InputSessionId human = Human();
+
+    // Press a tilted stylus contact with custom touch size and 45-degree orientation.
+    PointerEvent tilted_down = PenTouch(kDown, /*id=*/10, ToolType::TOOL_TYPE_STYLUS,
+                                        ButtonMask::BUTTON_MASK_STYLUS_PRIMARY, kX, kY);
+    tilted_down.mutable_pointers(0)->set_size(0.25F);
+    tilted_down.mutable_pointers(0)->set_orientation_radians(0.785398F);
+    ASSERT_THAT(Dispatch(human, std::move(tilted_down)), IsOk());
+    ASSERT_THAT(inner_.guest.Active(), ElementsAre(PressedContactAt(kX, kY, kMtsPressureMax,
+                                                                    MT_TOOL_PEN, Abs(0.25F), 45)));
+
+    ASSERT_THAT(Dispatch(human, PenTouch(kUp, /*id=*/10, ToolType::TOOL_TYPE_STYLUS, 0, kX, kY)),
+                IsOk());
+    EXPECT_THAT(inner_.guest.KernelSlot(0), ClearedKernelSlot(0));
+    EXPECT_FALSE(inner_.guest.BtnStylus());
+
+    // After userspace slot reset, a stationary stylus press with default 0 orientation and default
+    // size must preserve MT_TOOL_PEN rather than degrading to MT_TOOL_FINGER or keeping 45 degrees.
+    inner_.guest.ReconfigureUserspaceWithoutSlotSync();
+    ASSERT_THAT(Dispatch(human, PenTouch(kDown, /*id=*/10, ToolType::TOOL_TYPE_STYLUS, 0, kX, kY)),
+                IsOk());
+    EXPECT_THAT(inner_.guest.Active(),
+                ElementsAre(PressedContactAt(kX, kY, kMtsPressureMax, MT_TOOL_PEN,
+                                             kDefaultTouchMajor, 0)));
+}
+
+TEST_F(InputDispatcherTest, SnapshotLoadClearsStuckKernelSlotAxesBeforePostRestoreTap) {
+    constexpr float kStuckX = 0.65F;
+    constexpr float kStuckY = 0.35F;
+    const InputSessionId human = Human();
+
+    // Simulate restoring a pre-fix Quickboot snapshot where kernel evdev retained stale position,
+    // pressure, touch size, orientation, and pen tool type across both first and last slots.
+    for (int slot : {0, kTouchDeviceSlots - 1}) {
+        inner_.guest.SetStuckKernelSlot(slot, GuestContact{.slot = slot,
+                                                           .tracking_id = -1,
+                                                           .x = Abs(kStuckX),
+                                                           .y = Abs(kStuckY),
+                                                           .pressure = kMtsPressureMax,
+                                                           .touch_major = kDefaultTouchMajor,
+                                                           .touch_minor = kDefaultTouchMajor,
+                                                           .orientation = 30,
+                                                           .tool_type = MT_TOOL_PEN});
+    }
+    inner_.guest.ReconfigureUserspaceWithoutSlotSync();
+
+    dispatcher_.OnSnapshotLoaded();
+    loop_->RunAll();
+    AdvancePacedTicks(3);
+    EXPECT_THAT(inner_.guest.KernelSlot(0), ClearedKernelSlot(0));
+    EXPECT_THAT(inner_.guest.KernelSlot(kTouchDeviceSlots - 1),
+                ClearedKernelSlot(kTouchDeviceSlots - 1));
+
+    ASSERT_THAT(Dispatch(human, Touch(kDown, {{0, kStuckX, kStuckY}})), IsOk());
+    EXPECT_THAT(inner_.guest.Active(),
+                ElementsAre(PressedContactAt(kStuckX, kStuckY, kMtsPressureMax)));
+}
+
+TEST_F(InputDispatcherTest,
+       NewTouchDownQueuedDuringSnapshotLoadDrainPreservesFifoOrderAndVirtioBudget) {
+    constexpr float kTapX = 0.4F;
+    constexpr float kTapY = 0.6F;
+    const InputSessionId human = Human();
+
+    dispatcher_.OnSnapshotLoaded();
+    loop_->RunAll();
+    // Only the 23-descriptor palm frame ran at t=0; the 3 lift frames are queued in DeviceOutbox.
+    ASSERT_THAT(inner_.reports, SizeIs(1));
+
+    // A tap arriving before the 3 ms snapshot lift sweep finishes must queue behind the lift
+    // frames rather than jumping ahead and getting cancelled by them.
+    ASSERT_THAT(Dispatch(human, Touch(kDown, {{0, kTapX, kTapY}})), IsOk());
+    EXPECT_THAT(inner_.guest.Active(), IsEmpty());
+
+    AdvancePacedTicks(3);
+    for (const auto& report : inner_.reports) {
+        EXPECT_LE(report.size() + 1, 48U);
+    }
+    EXPECT_THAT(inner_.guest.Active(),
+                ElementsAre(PressedContactAt(kTapX, kTapY, kMtsPressureMax)));
 }
 
 }  // namespace

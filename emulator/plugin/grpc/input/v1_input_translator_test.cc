@@ -31,6 +31,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
+#include "absl/time/time.h"
 
 #include "emulator/plugin/grpc/input/dispatcher_session.h"
 #include "emulator/plugin/grpc/input/input_dispatcher.h"
@@ -39,6 +40,7 @@
 #include "emulator/plugin/grpc/input/keyboard_sink.h"
 #include "emulator/plugin/grpc/input/multi_display_touch_devices.h"
 #include "emulator/plugin/grpc/input/slot_registry.h"
+#include "emulator/plugin/grpc/input/test_protocol_b_guest_state.h"
 #include "emulator_controller.pb.h"
 #include "goldfish/async/testing/test_event_loop.h"
 #include "goldfish/display/abstract_multi_display.h"
@@ -1068,95 +1070,8 @@ TEST_F(V1InputTranslatorTest, TranslateInputEventDispatchesAllEnvelopeVariants) 
     EXPECT_EQ(Display(0)->evdev_reports.size(), 1U);
 }
 
-struct GuestContact {
-    uint32_t slot = 0;
-    int32_t tracking_id = -1;
-    uint32_t x = 0;
-    uint32_t y = 0;
-    uint32_t pressure = 0;
-    uint32_t touch_major = 0;
-    uint32_t touch_minor = 0;
-    int32_t orientation = 0;
-    uint32_t tool_type = MT_TOOL_FINGER;
-};
-
-class ProtocolBGuestState {
-  public:
-    void ApplyReport(const std::vector<FakeEvDevEvent>& report) {
-        for (const FakeEvDevEvent& ev : report) {
-            Apply(ev.type, ev.code, ev.value);
-        }
-    }
-
-    void Apply(uint16_t type, uint16_t code, uint32_t value) {
-        if (type == EV_SYN && code == SYN_REPORT) {
-            reported_slots_ = slots_;
-            return;
-        }
-        if (type != EV_ABS) {
-            return;
-        }
-        if (code == ABS_MT_SLOT) {
-            selected_slot_ = value;
-            return;
-        }
-        ASSERT_LT(selected_slot_, slots_.size());
-        GuestContact& slot = slots_[selected_slot_];
-        switch (code) {
-        case ABS_MT_TRACKING_ID:
-            slot.tracking_id = static_cast<int32_t>(value);
-            break;
-        case ABS_MT_POSITION_X:
-            slot.x = value;
-            break;
-        case ABS_MT_POSITION_Y:
-            slot.y = value;
-            break;
-        case ABS_MT_PRESSURE:
-            slot.pressure = value;
-            break;
-        case ABS_MT_TOUCH_MAJOR:
-            slot.touch_major = value;
-            break;
-        case ABS_MT_TOUCH_MINOR:
-            slot.touch_minor = value;
-            break;
-        case ABS_MT_ORIENTATION:
-            slot.orientation = static_cast<int32_t>(value);
-            break;
-        case ABS_MT_TOOL_TYPE:
-            slot.tool_type = value;
-            break;
-        default:
-            break;
-        }
-    }
-
-    std::vector<GuestContact> ActiveContacts() const {
-        std::vector<GuestContact> active;
-        for (const GuestContact& slot : reported_slots_) {
-            if (slot.tracking_id != -1) {
-                active.push_back(slot);
-            }
-        }
-        return active;
-    }
-
-    const GuestContact& Slot(uint32_t slot) const { return reported_slots_.at(slot); }
-
-  private:
-    static std::array<GuestContact, kTouchDeviceSlots> InitialSlots() {
-        std::array<GuestContact, kTouchDeviceSlots> slots{};
-        for (uint32_t i = 0; i < slots.size(); ++i) {
-            slots[i].slot = i;
-        }
-        return slots;
-    }
-
-    uint32_t selected_slot_ = 0;
-    std::array<GuestContact, kTouchDeviceSlots> slots_ = InitialSlots();
-    std::array<GuestContact, kTouchDeviceSlots> reported_slots_ = InitialSlots();
-};
+using GuestContact = test::GuestContact;
+using ProtocolBGuestState = test::ProtocolBGuestState;
 
 class StudioProtocolBGoldenTest : public V1InputTranslatorTest,
                                   public ::testing::WithParamInterface<int32_t> {
@@ -1294,6 +1209,7 @@ TEST_P(StudioProtocolBGoldenTest, PressDragReleaseProducesThreeReportsOnSlotZero
     SendMouse(300, 400, /*buttons=*/0);
     ASSERT_EQ(Reports().size(), 3U);
     EXPECT_EQ(guest_.Slot(0).tracking_id, -1);
+    EXPECT_EQ(guest_.Slot(0).pressure, 0U);
     EXPECT_THAT(guest_.ActiveContacts(), IsEmpty());
 }
 
@@ -1471,6 +1387,133 @@ TEST_P(StudioProtocolBGoldenTest, RightAndMiddleMouseButtonsProduceZeroReports) 
     EXPECT_THAT(guest_.ActiveContacts(), IsEmpty());
 }
 
+TEST_P(StudioProtocolBGoldenTest,
+       StationaryAndSingleAxisAlignedMouseClicksSurviveUserspaceSlotReset) {
+    SendMouse(540, 960, /*buttons=*/1);
+    ASSERT_EQ(guest_.ActiveContacts().size(), 1U);
+    EXPECT_EQ(guest_.Slot(0).x, ExpectedX(540));
+    EXPECT_EQ(guest_.Slot(0).y, ExpectedY(960));
+    EXPECT_EQ(guest_.Slot(0).pressure, static_cast<uint32_t>(kStudioPressure));
+    EXPECT_EQ(guest_.Slot(0).touch_major, kDefaultTouchMajor);
+    EXPECT_FALSE(guest_.Slot(0).is_hovering);
+
+    SendMouse(540, 960, /*buttons=*/0);
+    EXPECT_THAT(guest_.ActiveContacts(), IsEmpty());
+    EXPECT_THAT(guest_.KernelSlot(0), test::ClearedKernelSlot(0));
+
+    // Stationary click at the exact same (540, 960) cursor position after InputReader zeros
+    // userspace mSlots without EVIOCGMTSLOTS (e.g., VirtualDevice touchpad hotplug).
+    guest_.ReconfigureUserspaceWithoutSlotSync();
+    SendMouse(540, 960, /*buttons=*/1);
+    ASSERT_EQ(guest_.ActiveContacts().size(), 1U);
+    EXPECT_EQ(guest_.Slot(0).x, ExpectedX(540));
+    EXPECT_EQ(guest_.Slot(0).y, ExpectedY(960));
+    EXPECT_EQ(guest_.Slot(0).pressure, static_cast<uint32_t>(kStudioPressure));
+    EXPECT_EQ(guest_.Slot(0).touch_major, kDefaultTouchMajor);
+    EXPECT_EQ(guest_.Slot(0).tool_type, static_cast<uint32_t>(MT_TOOL_FINGER));
+    EXPECT_FALSE(guest_.Slot(0).is_hovering);
+    SendMouse(540, 960, /*buttons=*/0);
+
+    // Horizontal dock-row click sharing the exact same Y coordinate (y == 960).
+    guest_.ReconfigureUserspaceWithoutSlotSync();
+    SendMouse(157, 960, /*buttons=*/1);
+    ASSERT_EQ(guest_.ActiveContacts().size(), 1U);
+    EXPECT_EQ(guest_.Slot(0).x, ExpectedX(157));
+    EXPECT_EQ(guest_.Slot(0).y, ExpectedY(960));
+    EXPECT_EQ(guest_.Slot(0).pressure, static_cast<uint32_t>(kStudioPressure));
+    EXPECT_EQ(guest_.Slot(0).touch_major, kDefaultTouchMajor);
+    EXPECT_FALSE(guest_.Slot(0).is_hovering);
+    SendMouse(157, 960, /*buttons=*/0);
+}
+
+TEST_P(StudioProtocolBGoldenTest, TwoFingerPinchSurvivesUserspaceSlotResetAtStationaryCoordinates) {
+    SendTouch({MakeTouch(/*id=*/0, /*x=*/200, /*y=*/400, kStudioPressure),
+               MakeTouch(/*id=*/1, /*x=*/880, /*y=*/1520, kStudioPressure)});
+    SendTouch({MakeTouch(/*id=*/0, /*x=*/200, /*y=*/400, /*pressure=*/0),
+               MakeTouch(/*id=*/1, /*x=*/880, /*y=*/1520, /*pressure=*/0)});
+    EXPECT_THAT(guest_.KernelSlot(0), test::ClearedKernelSlot(0));
+    EXPECT_THAT(guest_.KernelSlot(1), test::ClearedKernelSlot(1));
+
+    guest_.ReconfigureUserspaceWithoutSlotSync();
+    SendTouch({MakeTouch(/*id=*/0, /*x=*/200, /*y=*/400, kStudioPressure),
+               MakeTouch(/*id=*/1, /*x=*/880, /*y=*/1520, kStudioPressure)});
+    ASSERT_EQ(guest_.ActiveContacts().size(), 2U);
+    EXPECT_EQ(guest_.Slot(0).x, ExpectedX(200));
+    EXPECT_EQ(guest_.Slot(0).y, ExpectedY(400));
+    EXPECT_EQ(guest_.Slot(0).pressure, static_cast<uint32_t>(kStudioPressure));
+    EXPECT_EQ(guest_.Slot(0).touch_major, kDefaultTouchMajor);
+    EXPECT_FALSE(guest_.Slot(0).is_hovering);
+    EXPECT_EQ(guest_.Slot(1).x, ExpectedX(880));
+    EXPECT_EQ(guest_.Slot(1).y, ExpectedY(1520));
+    EXPECT_EQ(guest_.Slot(1).pressure, static_cast<uint32_t>(kStudioPressure));
+    EXPECT_EQ(guest_.Slot(1).touch_major, kDefaultTouchMajor);
+    EXPECT_FALSE(guest_.Slot(1).is_hovering);
+    SendTouch({MakeTouch(/*id=*/0, /*x=*/200, /*y=*/400, /*pressure=*/0),
+               MakeTouch(/*id=*/1, /*x=*/880, /*y=*/1520, /*pressure=*/0)});
+}
+
+TEST_P(StudioProtocolBGoldenTest,
+       StylusStrokePreservesPenToolAndResetsOrientationAcrossUserspaceSlotReset) {
+    SendPen(300, 500, kStudioPressure, /*rubber=*/false, /*button_pressed=*/true,
+            /*orientation=*/-45);
+    ASSERT_EQ(guest_.ActiveContacts().size(), 1U);
+    EXPECT_EQ(guest_.Slot(0).tool_type, static_cast<uint32_t>(MT_TOOL_PEN));
+    EXPECT_EQ(guest_.Slot(0).orientation, -45);
+    EXPECT_TRUE(guest_.BtnStylus());
+
+    SendPen(300, 500, /*pressure=*/0, /*rubber=*/false, /*button_pressed=*/false);
+    EXPECT_THAT(guest_.KernelSlot(0), test::ClearedKernelSlot(0));
+    EXPECT_FALSE(guest_.BtnStylus());
+
+    guest_.ReconfigureUserspaceWithoutSlotSync();
+    SendPen(300, 500, kStudioPressure, /*rubber=*/false, /*button_pressed=*/false,
+            /*orientation=*/0);
+    ASSERT_EQ(guest_.ActiveContacts().size(), 1U);
+    EXPECT_EQ(guest_.Slot(0).x, ExpectedX(300));
+    EXPECT_EQ(guest_.Slot(0).y, ExpectedY(500));
+    EXPECT_EQ(guest_.Slot(0).tool_type, static_cast<uint32_t>(MT_TOOL_PEN));
+    EXPECT_EQ(guest_.Slot(0).orientation, 0);
+    EXPECT_EQ(guest_.Slot(0).pressure, static_cast<uint32_t>(kStudioPressure));
+    EXPECT_FALSE(guest_.Slot(0).is_hovering);
+    SendPen(300, 500, /*pressure=*/0, /*rubber=*/false, /*button_pressed=*/false);
+}
+
+TEST_P(StudioProtocolBGoldenTest,
+       SnapshotRestoreClearsStuckKernelSlotAxesBeforeStationaryMouseClick) {
+    for (int slot : {0, 10}) {
+        guest_.SetStuckKernelSlot(slot,
+                                  GuestContact{.slot = slot,
+                                               .tracking_id = -1,
+                                               .x = ExpectedX(540),
+                                               .y = ExpectedY(960),
+                                               .pressure = static_cast<uint32_t>(kStudioPressure),
+                                               .touch_major = kDefaultTouchMajor,
+                                               .touch_minor = kDefaultTouchMajor,
+                                               .orientation = 45,
+                                               .tool_type = MT_TOOL_PEN});
+    }
+    guest_.ReconfigureUserspaceWithoutSlotSync();
+    dispatcher_->OnSnapshotLoaded();
+    loop_->RunAll();
+    for (int i = 0; i < 3; ++i) {
+        loop_->AdvanceClock(absl::Milliseconds(1));
+    }
+    SyncReports();
+    EXPECT_THAT(guest_.KernelSlot(0), test::ClearedKernelSlot(0));
+    EXPECT_THAT(guest_.KernelSlot(10), test::ClearedKernelSlot(10));
+
+    SendMouse(540, 960, /*buttons=*/1);
+    ASSERT_EQ(guest_.ActiveContacts().size(), 1U);
+    EXPECT_EQ(guest_.Slot(0).x, ExpectedX(540));
+    EXPECT_EQ(guest_.Slot(0).y, ExpectedY(960));
+    EXPECT_EQ(guest_.Slot(0).pressure, static_cast<uint32_t>(kStudioPressure));
+    EXPECT_EQ(guest_.Slot(0).touch_major, kDefaultTouchMajor);
+    EXPECT_EQ(guest_.Slot(0).tool_type, static_cast<uint32_t>(MT_TOOL_FINGER));
+    EXPECT_EQ(guest_.Slot(0).orientation, 0);
+    EXPECT_FALSE(guest_.Slot(0).is_hovering);
+    SendMouse(540, 960, /*buttons=*/0);
+}
+
 INSTANTIATE_TEST_SUITE_P(PrimaryAndSecondaryDisplays, StudioProtocolBGoldenTest,
                          ::testing::Values(0, 1));
 
@@ -1554,6 +1597,9 @@ TEST_F(V1InputTranslatorTest, StudioSingleStreamMultiDisplaySimultaneousDragAndR
     // drag frame on Display 0 re-acquires a fresh DOWN contact instead of failing as unheld MOVE.
     dispatcher->OnSnapshotLoaded();
     loop_->RunAll();
+    for (int i = 0; i < 3; ++i) {
+        loop_->AdvanceClock(absl::Milliseconds(1));
+    }
     sync_guests();
     EXPECT_THAT(guest_0.ActiveContacts(), IsEmpty());
     EXPECT_THAT(guest_1.ActiveContacts(), IsEmpty());
