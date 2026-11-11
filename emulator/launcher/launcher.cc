@@ -45,6 +45,7 @@
 #include "goldfish/async/libuv_socket_factory.h"
 #include "goldfish/async/when_all.h"
 #include "goldfish/file/file.h"
+#include "goldfish/file/file_lock.h"
 #include "goldfish/metrics/metrics_reporter.h"
 #include "goldfish/metrics/snapshot_metrics.h"
 #include "goldfish/metrics/studio_file_metrics_writer.h"
@@ -217,6 +218,9 @@ class Launcher {
             }
             qemu_shutdown_requested_ = true;
             LOG(ERROR) << "Signal received, sending shutdown command to emulator: " << signum;
+            if (quickboot_save_enabled_ && !shutdown_snapshot_lock_.has_value()) {
+                shutdown_snapshot_lock_ = config_.avd_session_lock.AcquireShutdownSnapshotLock();
+            }
             if (auto s = send_emulator_grpc_shutdown(ports_.serial_number); !s.ok()) {
                 LOG(WARNING) << "Graceful gRPC shutdown failed; falling back to forceful kill with "
                                 "signal: "
@@ -464,6 +468,10 @@ class Launcher {
                                            host_timezone_}};
 
         if (auto emulator_config = emulator.launch_config(); emulator_config.ok()) {
+            if (const auto* snapshot = emulator.get<SnapshotDevice>("snapshot")) {
+                quickboot_save_enabled_ =
+                        (snapshot->save_status() == SnapshotDevice::SaveStatus::kSaving);
+            }
             if (auto s = config_.process_launcher->Launch(
                         *std::move(emulator_config),
                         [this](int64_t status, int signal) { emulator_exit(status, signal); });
@@ -542,6 +550,10 @@ class Launcher {
         });
     }
 
+    // Declared before `config_` so ~Launcher() releases the Quickboot shutdown
+    // snapshot lock last, after `config_.avd_session_lock` has already unlocked
+    // `multiinstance.lock` and `hardware-qemu.ini.lock`.
+    std::optional<android::base::file::ScopedFileLock> shutdown_snapshot_lock_;
     const LauncherConfig config_;
     const bool use_netsim_;
     // The zoneinfo name of the host timezone, or std::nullopt if it is unknown.
@@ -564,6 +576,7 @@ class Launcher {
 
     int emulator_exit_status_ = 0;
     int64_t qemu_pid_ = 0;
+    bool quickboot_save_enabled_ = false;
     absl::Status startup_status_ = absl::OkStatus();
 
     std::thread shutdown_thread_;

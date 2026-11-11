@@ -27,7 +27,7 @@
 namespace android::goldfish {
 
 bool ShouldTrampolineToQemu2(const absl::StatusOr<std::unique_ptr<android::goldfish::Avd>>& avd,
-                             const absl::StatusOr<FeatureFlags>& feature_flags);
+                             const absl::StatusOr<FeatureFlags>& feature_flags, bool wipe_data);
 
 absl::Status TrampolineToQemu2(
         const fs::path& launcher_directory, std::vector<std::string> args,

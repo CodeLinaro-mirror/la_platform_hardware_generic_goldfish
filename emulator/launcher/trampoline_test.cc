@@ -59,7 +59,7 @@ TEST(TrampolineTest, shouldTrampolineIfApiLevelIsLessThan37) {
     auto avd = std::make_unique<MockAvd>();
     EXPECT_CALL(*avd, ApiLevel()).WillRepeatedly(Return(35));
 
-    EXPECT_TRUE(ShouldTrampolineToQemu2(std::move(avd), flags));
+    EXPECT_TRUE(ShouldTrampolineToQemu2(std::move(avd), flags, /*wipe_data=*/false));
 }
 
 TEST(TrampolineTest, shouldNotTrampolineIfApiLevelIs37OrGreaterAndHasRequiredFeatures) {
@@ -71,12 +71,12 @@ TEST(TrampolineTest, shouldNotTrampolineIfApiLevelIs37OrGreaterAndHasRequiredFea
     auto avd = std::make_unique<MockAvd>();
     EXPECT_CALL(*avd, ApiLevel()).WillRepeatedly(Return(37));
 
-    EXPECT_FALSE(ShouldTrampolineToQemu2(std::move(avd), flags));
+    EXPECT_FALSE(ShouldTrampolineToQemu2(std::move(avd), flags, /*wipe_data=*/false));
 
     auto avd_high = std::make_unique<MockAvd>();
     EXPECT_CALL(*avd_high, ApiLevel()).WillRepeatedly(Return(38));
 
-    EXPECT_FALSE(ShouldTrampolineToQemu2(std::move(avd_high), flags));
+    EXPECT_FALSE(ShouldTrampolineToQemu2(std::move(avd_high), flags, /*wipe_data=*/false));
 }
 
 TEST(TrampolineTest, shouldTrampolineIfRequiredFeatureIsMissing) {
@@ -88,12 +88,12 @@ TEST(TrampolineTest, shouldTrampolineIfRequiredFeatureIsMissing) {
     auto avd = std::make_unique<MockAvd>();
     EXPECT_CALL(*avd, ApiLevel()).WillRepeatedly(Return(37));
 
-    EXPECT_TRUE(ShouldTrampolineToQemu2(std::move(avd), flags));
+    EXPECT_TRUE(ShouldTrampolineToQemu2(std::move(avd), flags, /*wipe_data=*/false));
 
     auto avd_high = std::make_unique<MockAvd>();
     EXPECT_CALL(*avd_high, ApiLevel()).WillRepeatedly(Return(38));
 
-    EXPECT_TRUE(ShouldTrampolineToQemu2(std::move(avd_high), flags));
+    EXPECT_TRUE(ShouldTrampolineToQemu2(std::move(avd_high), flags, /*wipe_data=*/false));
 }
 
 TEST(TrampolineTest, shouldTrampolineIfFeatureFlagsFailedToParse) {
@@ -108,7 +108,7 @@ TEST(TrampolineTest, shouldTrampolineIfFeatureFlagsFailedToParse) {
     auto avd = std::make_unique<MockAvd>();
     EXPECT_CALL(*avd, ApiLevel()).WillRepeatedly(Return(37));
 
-    EXPECT_TRUE(ShouldTrampolineToQemu2(std::move(avd), flags));
+    EXPECT_TRUE(ShouldTrampolineToQemu2(std::move(avd), flags, /*wipe_data=*/false));
 }
 
 // A required feature that is listed but not "on" (explicitly off, or an unrecognized value)
@@ -126,7 +126,8 @@ TEST(TrampolineTest, shouldTrampolineIfRequiredFeatureIsNotOn) {
         auto avd = std::make_unique<MockAvd>();
         EXPECT_CALL(*avd, ApiLevel()).WillRepeatedly(Return(37));
 
-        EXPECT_TRUE(ShouldTrampolineToQemu2(std::move(avd), flags)) << "value=" << value;
+        EXPECT_TRUE(ShouldTrampolineToQemu2(std::move(avd), flags, /*wipe_data=*/false))
+                << "value=" << value;
     }
 
     for (const char* value : {"off", "OFF", "foo", "1", "yes"}) {
@@ -141,7 +142,8 @@ TEST(TrampolineTest, shouldTrampolineIfRequiredFeatureIsNotOn) {
         auto avd = std::make_unique<MockAvd>();
         EXPECT_CALL(*avd, ApiLevel()).WillRepeatedly(Return(37));
 
-        EXPECT_TRUE(ShouldTrampolineToQemu2(std::move(avd), flags)) << "value=" << value;
+        EXPECT_TRUE(ShouldTrampolineToQemu2(std::move(avd), flags, /*wipe_data=*/false))
+                << "value=" << value;
     }
 }
 
@@ -162,7 +164,8 @@ TEST(TrampolineTest, shouldNotTrampolineIfRequiredFeatureIsOnInAnyCase) {
                 .WillRepeatedly(Return(android::goldfish::DeviceType::kPhone));
         EXPECT_CALL(*avd, ApiLevel()).WillRepeatedly(Return(37));
 
-        EXPECT_FALSE(ShouldTrampolineToQemu2(std::move(avd), flags)) << "value=" << value;
+        EXPECT_FALSE(ShouldTrampolineToQemu2(std::move(avd), flags, /*wipe_data=*/false))
+                << "value=" << value;
     }
 }
 
@@ -173,7 +176,7 @@ TEST(TrampolineTest, shouldNotTrampolineIfEnvVarIsSet) {
     auto avd = std::make_unique<MockAvd>();
     EXPECT_CALL(*avd, ApiLevel()).Times(0);
 
-    EXPECT_FALSE(ShouldTrampolineToQemu2(std::move(avd), FeatureFlags{}));
+    EXPECT_FALSE(ShouldTrampolineToQemu2(std::move(avd), FeatureFlags{}, /*wipe_data=*/false));
 }
 
 TEST(TrampolineTest, shouldTrampolineIfForcedVersionIs2) {
@@ -183,7 +186,7 @@ TEST(TrampolineTest, shouldTrampolineIfForcedVersionIs2) {
     auto avd = std::make_unique<MockAvd>();
     EXPECT_CALL(*avd, ForcedTrampolineVersion()).WillRepeatedly(Return(2));
 
-    EXPECT_TRUE(ShouldTrampolineToQemu2(std::move(avd), FeatureFlags{}));
+    EXPECT_TRUE(ShouldTrampolineToQemu2(std::move(avd), FeatureFlags{}, /*wipe_data=*/false));
 }
 
 TEST(TrampolineTest, shouldNotTrampolineIfForcedVersionIs10OrGreater) {
@@ -193,7 +196,7 @@ TEST(TrampolineTest, shouldNotTrampolineIfForcedVersionIs10OrGreater) {
     auto avd = std::make_unique<MockAvd>();
     EXPECT_CALL(*avd, ForcedTrampolineVersion()).WillRepeatedly(Return(10));
 
-    EXPECT_FALSE(ShouldTrampolineToQemu2(std::move(avd), FeatureFlags{}));
+    EXPECT_FALSE(ShouldTrampolineToQemu2(std::move(avd), FeatureFlags{}, /*wipe_data=*/false));
 }
 
 TEST(TrampolineTest, shouldTrampolineIfLastRunVersionIs2) {
@@ -209,7 +212,23 @@ TEST(TrampolineTest, shouldTrampolineIfLastRunVersionIs2) {
     EXPECT_CALL(*avd, ApiLevel()).WillRepeatedly(Return(37));
     EXPECT_CALL(*avd, GetLastRunQemuVersion()).WillRepeatedly(Return(std::optional<int>(2)));
 
-    EXPECT_TRUE(ShouldTrampolineToQemu2(std::move(avd), flags));
+    EXPECT_TRUE(ShouldTrampolineToQemu2(std::move(avd), flags, /*wipe_data=*/false));
+}
+
+TEST(TrampolineTest, shouldNotTrampolineIfLastRunVersionIs2WhenWipeDataIsTrue) {
+    TestSystem sys("bin", "myhome");
+    sys.EnvSet("AEMU_NO_TRAMPOLINE", "");
+
+    auto flags = CreateTestFeatureFlags(sys, /*has_required_features=*/true);
+
+    auto avd = std::make_unique<MockAvd>();
+    EXPECT_CALL(*avd, ForcedTrampolineVersion()).WillRepeatedly(Return(0));
+    EXPECT_CALL(*avd, GetDeviceType())
+            .WillRepeatedly(Return(android::goldfish::DeviceType::kPhone));
+    EXPECT_CALL(*avd, ApiLevel()).WillRepeatedly(Return(37));
+    EXPECT_CALL(*avd, GetLastRunQemuVersion()).WillRepeatedly(Return(std::optional<int>(2)));
+
+    EXPECT_FALSE(ShouldTrampolineToQemu2(std::move(avd), flags, /*wipe_data=*/true));
 }
 
 TEST(TrampolineTest, shouldTrampolineIfDeviceIsNotPhone) {
@@ -223,7 +242,7 @@ TEST(TrampolineTest, shouldTrampolineIfDeviceIsNotPhone) {
     EXPECT_CALL(*avd, GetLastRunQemuVersion()).WillRepeatedly(Return(std::optional<int>(1)));
     EXPECT_CALL(*avd, GetDeviceType()).WillRepeatedly(Return(android::goldfish::DeviceType::kTv));
 
-    EXPECT_TRUE(ShouldTrampolineToQemu2(std::move(avd), flags));
+    EXPECT_TRUE(ShouldTrampolineToQemu2(std::move(avd), flags, /*wipe_data=*/false));
 }
 
 TEST(TrampolineTest, shouldNotTrampolineIfDeviceIsPhoneAndApi37OrGreater) {
@@ -239,7 +258,7 @@ TEST(TrampolineTest, shouldNotTrampolineIfDeviceIsPhoneAndApi37OrGreater) {
             .WillRepeatedly(Return(android::goldfish::DeviceType::kPhone));
     EXPECT_CALL(*avd, ApiLevel()).WillRepeatedly(Return(37));
 
-    EXPECT_FALSE(ShouldTrampolineToQemu2(std::move(avd), flags));
+    EXPECT_FALSE(ShouldTrampolineToQemu2(std::move(avd), flags, /*wipe_data=*/false));
 }
 
 TEST(TrampolineTest, shouldNotTrampolineIfDeviceIsUnknownAndApi37OrGreater) {
@@ -255,7 +274,7 @@ TEST(TrampolineTest, shouldNotTrampolineIfDeviceIsUnknownAndApi37OrGreater) {
             .WillRepeatedly(Return(android::goldfish::DeviceType::kUnknown));
     EXPECT_CALL(*avd, ApiLevel()).WillRepeatedly(Return(37));
 
-    EXPECT_FALSE(ShouldTrampolineToQemu2(std::move(avd), flags));
+    EXPECT_FALSE(ShouldTrampolineToQemu2(std::move(avd), flags, /*wipe_data=*/false));
 }
 
 TEST(TrampolineTest, shouldTrampolineIfAvdFailedToLoad) {
@@ -263,7 +282,7 @@ TEST(TrampolineTest, shouldTrampolineIfAvdFailedToLoad) {
     sys.EnvSet("AEMU_NO_TRAMPOLINE", "");
 
     EXPECT_TRUE(ShouldTrampolineToQemu2(absl::InvalidArgumentError("Sysimg file error"),
-                                        FeatureFlags{}));
+                                        FeatureFlags{}, /*wipe_data=*/false));
 }
 
 TEST(TrampolineTest, shouldNotTrampolineIfAvdFailedToLoadAndEnvVarIsSet) {
@@ -271,7 +290,7 @@ TEST(TrampolineTest, shouldNotTrampolineIfAvdFailedToLoadAndEnvVarIsSet) {
     sys.EnvSet("AEMU_NO_TRAMPOLINE", "1");
 
     EXPECT_FALSE(ShouldTrampolineToQemu2(absl::InvalidArgumentError("Sysimg file error"),
-                                         FeatureFlags{}));
+                                         FeatureFlags{}, /*wipe_data=*/false));
 }
 
 #ifdef _WIN32
