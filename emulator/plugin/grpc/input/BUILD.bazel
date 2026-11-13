@@ -104,6 +104,17 @@ cc_test(
 )
 
 cc_library(
+    name = "test_protocol_b_guest_state",
+    testonly = True,
+    hdrs = ["test_protocol_b_guest_state.h"],
+    deps = [
+        ":contact_table",
+        "@googletest//:gtest",
+        "@qemu//:qemu-headers-exported",
+    ],
+)
+
+cc_library(
     name = "touch_encoding",
     srcs = ["touch_encoding.cc"],
     hdrs = ["touch_encoding.h"],
@@ -263,8 +274,11 @@ cc_test(
     size = "small",
     srcs = ["input_dispatcher_test.cc"],
     deps = [
+        ":contact_table",
         ":input_dispatcher",
         ":keyboard_sink",
+        ":slot_registry",
+        ":test_protocol_b_guest_state",
         "//emulator/libs/async:async_testing",
         "//emulator/libs/system:steady_clock",
         "//emulator/libs/test:googletest_main",
@@ -315,6 +329,7 @@ cc_test(
         ":keyboard_sink",
         ":multi_display_touch_devices",
         ":slot_registry",
+        ":test_protocol_b_guest_state",
         ":v1_input_translator",
         "//emulator/libs/async:async_testing",
         "//emulator/libs/test:googletest_main",
@@ -349,6 +364,7 @@ clang_tidy_test(
         ":multi_display_touch_devices",
         ":multi_display_touch_devices_test",
         ":recording_input_dispatcher",
+        ":test_protocol_b_guest_state",
         ":touch_device",
         ":touch_encoding",
         ":touch_encoding_test",

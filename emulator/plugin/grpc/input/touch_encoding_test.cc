@@ -243,15 +243,29 @@ TEST(TouchEncodingTest, TiltedFingerOmitsTilt) {
     EXPECT_THAT(events, Not(Contains(Field(&EvDevEvent::code, ABS_TILT_Y))));
 }
 
-TEST(TouchEncodingTest, ContactUpSelectsSlotAndClearsTrackingId) {
+TEST(TouchEncodingTest, ContactUpSelectsSlotResetsPerSlotAxesAndClearsTrackingId) {
     EvDevEvents events;
     AppendContactUp(7, events);
     EXPECT_THAT(events, ElementsAre(EvDevEvent{EV_ABS, ABS_MT_SLOT, 7},
+                                    EvDevEvent{EV_ABS, ABS_MT_POSITION_X, 0},
+                                    EvDevEvent{EV_ABS, ABS_MT_POSITION_Y, 0},
+                                    EvDevEvent{EV_ABS, ABS_MT_TOOL_TYPE, MT_TOOL_FINGER},
+                                    EvDevEvent{EV_ABS, ABS_MT_PRESSURE, 0},
+                                    EvDevEvent{EV_ABS, ABS_MT_TOUCH_MAJOR, 0},
+                                    EvDevEvent{EV_ABS, ABS_MT_TOUCH_MINOR, 0},
+                                    EvDevEvent{EV_ABS, ABS_MT_ORIENTATION, 0},
                                     EvDevEvent{EV_ABS, ABS_MT_TRACKING_ID, kMtsPointerUp}));
 
     EvDevEvents stylus_up_events;
     AppendContactUp(7, stylus_up_events, /*clear_stylus_keys=*/true);
     EXPECT_THAT(stylus_up_events, ElementsAre(EvDevEvent{EV_ABS, ABS_MT_SLOT, 7},
+                                              EvDevEvent{EV_ABS, ABS_MT_POSITION_X, 0},
+                                              EvDevEvent{EV_ABS, ABS_MT_POSITION_Y, 0},
+                                              EvDevEvent{EV_ABS, ABS_MT_TOOL_TYPE, MT_TOOL_FINGER},
+                                              EvDevEvent{EV_ABS, ABS_MT_PRESSURE, 0},
+                                              EvDevEvent{EV_ABS, ABS_MT_TOUCH_MAJOR, 0},
+                                              EvDevEvent{EV_ABS, ABS_MT_TOUCH_MINOR, 0},
+                                              EvDevEvent{EV_ABS, ABS_MT_ORIENTATION, 0},
                                               EvDevEvent{EV_ABS, ABS_MT_TRACKING_ID, kMtsPointerUp},
                                               EvDevEvent{EV_KEY, BTN_TOOL_RUBBER, 0},
                                               EvDevEvent{EV_KEY, BTN_STYLUS, 0}));
@@ -264,6 +278,13 @@ TEST(TouchEncodingTest, ContactCancelTurnsToPalmBeforeLifting) {
     EXPECT_THAT(palm_events, ElementsAre(EvDevEvent{EV_ABS, ABS_MT_SLOT, 7},
                                          EvDevEvent{EV_ABS, ABS_MT_TOOL_TYPE, MT_TOOL_PALM}));
     EXPECT_THAT(lift_events, ElementsAre(EvDevEvent{EV_ABS, ABS_MT_SLOT, 7},
+                                         EvDevEvent{EV_ABS, ABS_MT_POSITION_X, 0},
+                                         EvDevEvent{EV_ABS, ABS_MT_POSITION_Y, 0},
+                                         EvDevEvent{EV_ABS, ABS_MT_TOOL_TYPE, MT_TOOL_FINGER},
+                                         EvDevEvent{EV_ABS, ABS_MT_PRESSURE, 0},
+                                         EvDevEvent{EV_ABS, ABS_MT_TOUCH_MAJOR, 0},
+                                         EvDevEvent{EV_ABS, ABS_MT_TOUCH_MINOR, 0},
+                                         EvDevEvent{EV_ABS, ABS_MT_ORIENTATION, 0},
                                          EvDevEvent{EV_ABS, ABS_MT_TRACKING_ID, kMtsPointerUp}));
 
     EvDevEvents stylus_palm_events;
@@ -275,6 +296,13 @@ TEST(TouchEncodingTest, ContactCancelTurnsToPalmBeforeLifting) {
     EXPECT_THAT(
             stylus_lift_events,
             ElementsAre(EvDevEvent{EV_ABS, ABS_MT_SLOT, 7},
+                        EvDevEvent{EV_ABS, ABS_MT_POSITION_X, 0},
+                        EvDevEvent{EV_ABS, ABS_MT_POSITION_Y, 0},
+                        EvDevEvent{EV_ABS, ABS_MT_TOOL_TYPE, MT_TOOL_FINGER},
+                        EvDevEvent{EV_ABS, ABS_MT_PRESSURE, 0},
+                        EvDevEvent{EV_ABS, ABS_MT_TOUCH_MAJOR, 0},
+                        EvDevEvent{EV_ABS, ABS_MT_TOUCH_MINOR, 0},
+                        EvDevEvent{EV_ABS, ABS_MT_ORIENTATION, 0},
                         EvDevEvent{EV_ABS, ABS_MT_TRACKING_ID, kMtsPointerUp},
                         EvDevEvent{EV_KEY, BTN_TOOL_RUBBER, 0}, EvDevEvent{EV_KEY, BTN_STYLUS, 0}));
 }
