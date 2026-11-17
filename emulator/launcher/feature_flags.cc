@@ -71,7 +71,6 @@ bool IsIgnoredLegacy(EmulatorFeatureFlag feature) {
     case S::EMULATOR_FEATURE_FLAG_UNSPECIFIED:
     case S::GL_PIPE_CHECKSUM:
     case S::GRALLOC_SYNC:
-    case S::ENCRYPT_USER_DATA:
     case S::INTEL_PERFORMANCE_MONITORING_UNIT:
     case S::GL_ASYNC_SWAP:
     case S::GLDMA:
@@ -86,7 +85,6 @@ bool IsIgnoredLegacy(EmulatorFeatureFlag feature) {
     case S::FAST_SNAPSHOT_V1:
     case S::SCREEN_RECORDING:
     case S::VIRTUAL_SCENE:
-    case S::SYSTEM_AS_ROOT:
     case S::DEPRECATED_IGNORE_HOST_OPENGL_ERRORS:
     case S::GENERIC_SNAPSHOTS_UI:
     case S::ALLOW_SNAPSHOT_MIGRATION:
@@ -419,10 +417,26 @@ std::optional<emulator_features::EmulatorFeaturePatterns> LoadPatternsWithFallba
     return std::nullopt;
 }
 
+std::string_view CpuManufacturerToString(HostInfo::CpuManufacturer manufacturer) {
+    switch (manufacturer) {
+        using enum HostInfo::CpuManufacturer;
+    case kIntel:
+        return "Intel";
+    case kAmd:
+        return "AMD";
+    case kApple:
+        return "Apple";
+    case kUnknown:
+    default:
+        return "Unknown";
+    }
+}
+
 bool MatchesHostInfo(const HostInfo& host, const emulator_features::EmulatorHost& pattern) {
     constexpr int64_t kSupportedOsBitCount = 64;
     if (pattern.has_cpu_manufacturer() &&
-        !absl::EqualsIgnoreCase(host.cpu_manufacturer, pattern.cpu_manufacturer())) {
+        !absl::EqualsIgnoreCase(CpuManufacturerToString(host.cpu_manufacturer),
+                                pattern.cpu_manufacturer())) {
         return false;
     }
     if (pattern.has_virt_support() && host.virt_support != pattern.virt_support()) {

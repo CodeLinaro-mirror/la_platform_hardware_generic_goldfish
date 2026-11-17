@@ -24,6 +24,8 @@
 #include "android/base/testing/test_temp_dir.h"
 #include "android/goldfish/input_paths.h"
 #include "android/status/status_matcher_macros.h"
+#include "goldfish/file/file_lock.h"
+#include "host-common/constants.h"
 
 using ::absl_testing::IsOk;
 using ::absl_testing::IsOkAndHolds;
@@ -92,6 +94,10 @@ class AvdTest : public ::testing::Test {
         return avd_dir;
     }
 
+    absl::StatusOr<std::unique_ptr<Avd>> LoadAvd(std::string name) {
+        return Avd::Load({.opts = opts_, .user_paths = paths_, .name = std::move(name)});
+    }
+
     std::unique_ptr<TestSystem> sys_;
     TestTempDir* tmp_;
     UserPaths paths_;
@@ -100,62 +106,62 @@ class AvdTest : public ::testing::Test {
 
 TEST_F(AvdTest, ApiLevel) {
     CreateTestAvd("test_avd", "android-30", 30);
-    ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(opts_, paths_, "test_avd", false, ""));
+    ASSERT_OK_AND_ASSIGN(auto avd, LoadAvd("test_avd"));
     EXPECT_EQ(avd->ApiLevel(), 30);
 }
 
 TEST_F(AvdTest, Dessert) {
     CreateTestAvd("test_avd", "android-30", 30);
-    ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(opts_, paths_, "test_avd", false, ""));
+    ASSERT_OK_AND_ASSIGN(auto avd, LoadAvd("test_avd"));
     EXPECT_EQ(avd->Dessert(), "R");
 }
 
 TEST_F(AvdTest, ApiDescriptionDecimalVersions) {
     {
         CreateTestAvd("avd_35", "android-35", 35);
-        ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(opts_, paths_, "avd_35", false, ""));
+        ASSERT_OK_AND_ASSIGN(auto avd, LoadAvd("avd_35"));
         EXPECT_EQ(avd->ApiDescription(), "15.0 (V) - API 35");
     }
     {
         CreateTestAvd("avd_36_1", "android-36.1", 36);
-        ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(opts_, paths_, "avd_36_1", false, ""));
+        ASSERT_OK_AND_ASSIGN(auto avd, LoadAvd("avd_36_1"));
         EXPECT_EQ(avd->ApiDescription(), "16 (B) - API 36.1");
     }
     {
         CreateTestAvd("avd_37_0", "android-37.0", 37);
-        ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(opts_, paths_, "avd_37_0", false, ""));
+        ASSERT_OK_AND_ASSIGN(auto avd, LoadAvd("avd_37_0"));
         EXPECT_EQ(avd->ApiDescription(), "17 (C) - API 37.0");
     }
     {
         CreateTestAvd("avd_37_1", "android-37.1", 37);
-        ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(opts_, paths_, "avd_37_1", false, ""));
+        ASSERT_OK_AND_ASSIGN(auto avd, LoadAvd("avd_37_1"));
         EXPECT_EQ(avd->ApiDescription(), "17 (C) - API 37.1");
     }
     {
         CreateTestAvd("avd_37_2_beta1", "android-37.2-beta1", 37);
-        ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(opts_, paths_, "avd_37_2_beta1", false, ""));
+        ASSERT_OK_AND_ASSIGN(auto avd, LoadAvd("avd_37_2_beta1"));
         EXPECT_EQ(avd->ApiDescription(), "17 (C) - API 37.2-beta1");
     }
     {
         CreateTestAvd("avd_baklava", "android-Baklava", 36);
-        ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(opts_, paths_, "avd_baklava", false, ""));
+        ASSERT_OK_AND_ASSIGN(auto avd, LoadAvd("avd_baklava"));
         EXPECT_EQ(avd->ApiDescription(), "16 (B) - API Baklava");
     }
     {
         CreateTestAvd("avd_cinnamon", "android-CinnamonBun", 37);
-        ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(opts_, paths_, "avd_cinnamon", false, ""));
+        ASSERT_OK_AND_ASSIGN(auto avd, LoadAvd("avd_cinnamon"));
         EXPECT_EQ(avd->ApiDescription(), "17 (C) - API CinnamonBun");
     }
     {
         CreateTestAvd("avd_addon_37_1", "Google Inc.:Google APIs:37.1", 37);
-        ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(opts_, paths_, "avd_addon_37_1", false, ""));
+        ASSERT_OK_AND_ASSIGN(auto avd, LoadAvd("avd_addon_37_1"));
         EXPECT_EQ(avd->ApiDescription(), "17 (C) - API 37.1");
     }
 }
 
 TEST_F(AvdTest, UnknownApiLevel) {
     CreateTestAvd("test_avd", "android-1000", 1000);
-    ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(opts_, paths_, "test_avd", false, ""));
+    ASSERT_OK_AND_ASSIGN(auto avd, LoadAvd("test_avd"));
     EXPECT_EQ(avd->ApiLevel(), 1000);
     EXPECT_EQ(avd->Dessert(), "");
 }
@@ -166,14 +172,13 @@ TEST_F(AvdTest, InvalidTargetFormat) {
     WriteToFile(paths_.sdk_directory / "sysimg" / "build.prop",
                 "ro.system.build.version.sdk=foo\nro.product.cpu.abi=x86_64");
 
-    ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(opts_, paths_, "test_avd", false, ""));
+    ASSERT_OK_AND_ASSIGN(auto avd, LoadAvd("test_avd"));
     EXPECT_EQ(avd->ApiLevel(), Avd::kUnknownApiLevel);
     EXPECT_EQ(avd->Dessert(), "");
 }
 
 TEST_F(AvdTest, AvdNotFound) {
-    EXPECT_THAT(Avd::FromName(opts_, paths_, "non_existent", false, ""),
-                StatusIs(absl::StatusCode::kNotFound));
+    EXPECT_THAT(LoadAvd("non_existent"), StatusIs(absl::StatusCode::kNotFound));
 }
 
 TEST_F(AvdTest, MissingSysImgFileReturnsInvalidArgument) {
@@ -181,9 +186,8 @@ TEST_F(AvdTest, MissingSysImgFileReturnsInvalidArgument) {
     // Remove a required system image file to verify it does not return kNotFound.
     base::file::rm(paths_.sdk_directory / "sysimg" / "system.img").IgnoreError();
 
-    EXPECT_THAT(Avd::FromName(opts_, paths_, "test_avd", false, ""),
-                StatusIs(absl::StatusCode::kInvalidArgument,
-                         ::testing::HasSubstr("Sysimg file error:")));
+    EXPECT_THAT(LoadAvd("test_avd"), StatusIs(absl::StatusCode::kInvalidArgument,
+                                              ::testing::HasSubstr("Sysimg file error:")));
 }
 
 TEST_F(AvdTest, FromAndroidBuildMissingSysImgFileReturnsInvalidArgument) {
@@ -192,8 +196,10 @@ TEST_F(AvdTest, FromAndroidBuildMissingSysImgFileReturnsInvalidArgument) {
     tmp_->MakeSubDir("android_build_missing/system");
     tmp_->MakeSubDir("android_build_missing/data");
 
-    EXPECT_THAT(Avd::FromAndroidBuild(opts_, paths_, "android_build_avd", build_out,
-                                      /*wipe_data=*/false, ""),
+    EXPECT_THAT(Avd::Load({.opts = opts_,
+                           .user_paths = paths_,
+                           .name = "android_build_avd",
+                           .android_build_out = build_out}),
                 StatusIs(absl::StatusCode::kInvalidArgument,
                          ::testing::HasSubstr("Sysimg file error:")));
 }
@@ -215,7 +221,7 @@ TEST_F(AvdTest, GetSysImg) {
     CreateTestAvd("q", "android-30", 30);
 
     auto expectedPath = paths_.sdk_directory / "sysimg" / "system.img";
-    ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(opts_, paths_, "q", false, ""));
+    ASSERT_OK_AND_ASSIGN(auto avd, LoadAvd("q"));
     EXPECT_EQ(avd->GetSystemImagePaths().system_image, expectedPath);
 }
 
@@ -239,11 +245,20 @@ TEST_F(AvdTest, SysImgOverride) {
     WriteToFile(overridePath / "vendor.img", "");
     WriteToFile(overridePath / "encryptionkey.img", "");
 
-    auto p = overridePath.string();
-    opts_.sysdir = const_cast<char*>(p.c_str());
+    {
+        ASSERT_OK_AND_ASSIGN(auto avd, Avd::Load({.opts = opts_,
+                                                  .user_paths = paths_,
+                                                  .name = "q",
+                                                  .sysdir_override = overridePath}));
+        EXPECT_EQ(avd->GetSystemImagePaths().system_image, overridePath / "system.img");
+    }
 
-    ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(opts_, paths_, "q", false, "", p));
-    EXPECT_EQ(avd->GetSystemImagePaths().system_image, overridePath / "system.img");
+    std::string sysdir_str = overridePath.string();
+    opts_.sysdir = sysdir_str.data();
+    {
+        ASSERT_OK_AND_ASSIGN(auto avd, LoadAvd("q"));
+        EXPECT_EQ(avd->GetSystemImagePaths().system_image, overridePath / "system.img");
+    }
 }
 
 TEST_F(AvdTest, WipeData) {
@@ -257,8 +272,8 @@ TEST_F(AvdTest, WipeData) {
     base::file::touch(some_subdir_file).IgnoreError();
 
     {
-        ASSERT_OK_AND_ASSIGN(auto avd,
-                             Avd::FromName(opts_, paths_, "test_avd", /*wipe_data=*/false, ""));
+        ASSERT_OK_AND_ASSIGN(auto avd, LoadAvd("test_avd"));
+        ASSERT_OK(avd->PrepareWritableState({.wipe_data = false}));
         EXPECT_TRUE(base::file::exists(some_file));
         EXPECT_TRUE(base::file::exists(some_subdir));
         EXPECT_TRUE(base::file::exists(some_subdir_file));
@@ -266,8 +281,8 @@ TEST_F(AvdTest, WipeData) {
     }
 
     {
-        ASSERT_OK_AND_ASSIGN(auto avd,
-                             Avd::FromName(opts_, paths_, "test_avd", /*wipe_data=*/true, ""));
+        ASSERT_OK_AND_ASSIGN(auto avd, LoadAvd("test_avd"));
+        ASSERT_OK(avd->PrepareWritableState({.wipe_data = true}));
         EXPECT_FALSE(base::file::exists(some_file));
         EXPECT_FALSE(base::file::exists(some_subdir));
         EXPECT_FALSE(base::file::exists(some_subdir_file));
@@ -277,7 +292,8 @@ TEST_F(AvdTest, WipeData) {
 
 TEST_F(AvdTest, FinalizeSavesConfig) {
     auto avd_dir = CreateTestAvd("test_avd", "android-30", 30);
-    ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(opts_, paths_, "test_avd", false, ""));
+    ASSERT_OK_AND_ASSIGN(auto avd, LoadAvd("test_avd"));
+    ASSERT_OK(avd->PrepareWritableState());
 
     auto hw_path = avd_dir / "hardware-qemu.ini";
     EXPECT_TRUE(base::file::exists(hw_path));
@@ -300,7 +316,8 @@ TEST_F(AvdTest, CameraCommandLineOverride) {
     opts_.camera_front = camera_front.data();
 
     {
-        ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(opts_, paths_, "test_avd", false, ""));
+        ASSERT_OK_AND_ASSIGN(auto avd, LoadAvd("test_avd"));
+        ASSERT_OK(avd->PrepareWritableState());
         EXPECT_EQ(avd->Hw().hw_camera_back, "webcam0");
         EXPECT_EQ(avd->Hw().hw_camera_front, "none");
 
@@ -314,7 +331,8 @@ TEST_F(AvdTest, CameraCommandLineOverride) {
     opts_.camera_back = nullptr;
     opts_.camera_front = nullptr;
     {
-        ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(opts_, paths_, "test_avd", false, ""));
+        ASSERT_OK_AND_ASSIGN(auto avd, LoadAvd("test_avd"));
+        ASSERT_OK(avd->PrepareWritableState());
         EXPECT_EQ(avd->Hw().hw_camera_back, "virtualscene");
         EXPECT_EQ(avd->Hw().hw_camera_front, "emulated");
 
@@ -330,7 +348,8 @@ TEST_F(AvdTest, CameraCommandLineOverride) {
     opts_.camera_back = empty_back.data();
     opts_.camera_front = empty_front.data();
     {
-        ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(opts_, paths_, "test_avd", false, ""));
+        ASSERT_OK_AND_ASSIGN(auto avd, LoadAvd("test_avd"));
+        ASSERT_OK(avd->PrepareWritableState());
         EXPECT_EQ(avd->Hw().hw_camera_back, "virtualscene");
         EXPECT_EQ(avd->Hw().hw_camera_front, "emulated");
 
@@ -342,12 +361,60 @@ TEST_F(AvdTest, CameraCommandLineOverride) {
 }
 
 TEST_F(AvdTest, DisplayName) {
-    auto avd_dir = CreateTestAvd("test_avd", "android-30", 30);
+    auto avd_dir = CreateTestAvd("Medium_Phone_2", "android-30", 30);
     WriteToFile(avd_dir / "config.ini",
-                "avd.ini.displayname=My Custom AVD\ntarget=android-30\nimage.sysdir.1=sysimg");
+                "avd.ini.displayname=Medium Phone (2) 测试_🚀_é\n"
+                "target=android-30\n"
+                "image.sysdir.1=sysimg");
 
-    ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(opts_, paths_, "test_avd", false, ""));
-    EXPECT_EQ(avd->DisplayName(), "My Custom AVD");
+    ASSERT_OK_AND_ASSIGN(auto avd, LoadAvd("Medium_Phone_2"));
+    ASSERT_OK(avd->PrepareWritableState());
+    EXPECT_EQ(avd->Name(), "Medium_Phone_2");
+    EXPECT_EQ(avd->DisplayName(), "Medium Phone (2) 测试_🚀_é");
+    EXPECT_EQ(avd->Id(), "Medium_Phone_2");
+    EXPECT_EQ(avd->Hw().avd_name, "Medium_Phone_2");
+    EXPECT_EQ(avd->Hw().avd_id, "Medium_Phone_2");
+
+    IniFile hw_config(avd_dir / "hardware-qemu.ini");
+    ASSERT_TRUE(hw_config.Read());
+    EXPECT_EQ(hw_config.GetString("avd.name", ""), "Medium_Phone_2");
+    EXPECT_EQ(hw_config.GetString("avd.id", ""), "Medium_Phone_2");
+
+    WriteToFile(avd_dir / "config.ini", "target=android-30\nimage.sysdir.1=sysimg");
+    ASSERT_OK_AND_ASSIGN(auto avd_missing_display, LoadAvd("Medium_Phone_2"));
+    EXPECT_EQ(avd_missing_display->DisplayName(), "Medium_Phone_2");
+}
+
+TEST_F(AvdTest, IdOverrideHonorsCliFlagWhileKeepingAvdName) {
+    auto avd_dir = CreateTestAvd("Medium_Phone_2", "android-30", 30);
+    WriteToFile(avd_dir / "config.ini",
+                "avd.ini.displayname=Medium Phone (2)\ntarget=android-30\nimage.sysdir.1=sysimg");
+
+    {
+        std::string custom_id = "custom-session-id";
+        opts_.id = custom_id.data();
+        ASSERT_OK_AND_ASSIGN(auto avd, LoadAvd("Medium_Phone_2"));
+        ASSERT_OK(avd->PrepareWritableState());
+        EXPECT_EQ(avd->Name(), "Medium_Phone_2");
+        EXPECT_EQ(avd->DisplayName(), "Medium Phone (2)");
+        EXPECT_EQ(avd->Id(), "custom-session-id");
+        EXPECT_EQ(avd->Hw().avd_name, "Medium_Phone_2");
+        EXPECT_EQ(avd->Hw().avd_id, "custom-session-id");
+
+        IniFile hw_config(avd_dir / "hardware-qemu.ini");
+        ASSERT_TRUE(hw_config.Read());
+        EXPECT_EQ(hw_config.GetString("avd.name", ""), "Medium_Phone_2");
+        EXPECT_EQ(hw_config.GetString("avd.id", ""), "custom-session-id");
+    }
+
+    {
+        std::string empty_id;
+        opts_.id = empty_id.data();
+        ASSERT_OK_AND_ASSIGN(auto avd, LoadAvd("Medium_Phone_2"));
+        EXPECT_EQ(avd->Id(), "Medium_Phone_2");
+        EXPECT_EQ(avd->Hw().avd_id, "Medium_Phone_2");
+    }
+    opts_.id = nullptr;
 }
 
 TEST_F(AvdTest, SkinName) {
@@ -355,7 +422,7 @@ TEST_F(AvdTest, SkinName) {
     WriteToFile(avd_dir / "config.ini",
                 "skin.name=pixel_6\ntarget=android-30\nimage.sysdir.1=sysimg");
 
-    ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(opts_, paths_, "test_avd", false, ""));
+    ASSERT_OK_AND_ASSIGN(auto avd, LoadAvd("test_avd"));
     EXPECT_EQ(avd->SkinName(), "pixel_6");
 }
 
@@ -364,7 +431,7 @@ TEST_F(AvdTest, CpuArchitecture) {
     WriteToFile(avd_dir / "config.ini",
                 "abi.type=x86_64\ntarget=android-30\nimage.sysdir.1=sysimg");
     {
-        ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(opts_, paths_, "x86_avd", false, ""));
+        ASSERT_OK_AND_ASSIGN(auto avd, LoadAvd("x86_avd"));
         EXPECT_EQ(avd->Arch(), Avd::CpuArchitecture::kX86);
     }
 
@@ -374,7 +441,7 @@ TEST_F(AvdTest, CpuArchitecture) {
     WriteToFile(paths_.sdk_directory / "sysimg" / "build.prop",
                 "ro.system.build.version.sdk=30\nro.product.cpu.abi=arm64-v8a");
     {
-        ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(opts_, paths_, "arm_avd", false, ""));
+        ASSERT_OK_AND_ASSIGN(auto avd, LoadAvd("arm_avd"));
         EXPECT_EQ(avd->Arch(), Avd::CpuArchitecture::kArm);
     }
 
@@ -383,7 +450,7 @@ TEST_F(AvdTest, CpuArchitecture) {
                 "abi.type=mips\ntarget=android-30\nimage.sysdir.1=sysimg");
     WriteToFile(paths_.sdk_directory / "sysimg" / "build.prop",
                 "ro.system.build.version.sdk=30\nro.product.cpu.abi=mips");
-    EXPECT_THAT(Avd::FromName(opts_, paths_, "unknown_avd", false, ""),
+    EXPECT_THAT(LoadAvd("unknown_avd"),
                 StatusIs(absl::StatusCode::kInvalidArgument, "Unable to detect avd architecture"));
 }
 
@@ -393,7 +460,7 @@ TEST_F(AvdTest, DeviceType) {
                 "ro.product.name=sdk_gphone_x86_64\nro.system.build.version.sdk=30\nro.product.cpu."
                 "abi=x86_64");
     {
-        ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(opts_, paths_, "phone_avd", false, ""));
+        ASSERT_OK_AND_ASSIGN(auto avd, LoadAvd("phone_avd"));
         EXPECT_EQ(avd->GetDeviceType(), DeviceType::kPhone);
     }
 
@@ -402,7 +469,7 @@ TEST_F(AvdTest, DeviceType) {
                 "ro.product.name=sdk_atv_x86\nro.system.build.version.sdk=30\nro.product.cpu.abi="
                 "x86_64");
     {
-        ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(opts_, paths_, "tv_avd", false, ""));
+        ASSERT_OK_AND_ASSIGN(auto avd, LoadAvd("tv_avd"));
         EXPECT_EQ(avd->GetDeviceType(), DeviceType::kTv);
     }
 
@@ -411,7 +478,7 @@ TEST_F(AvdTest, DeviceType) {
                 "ro.product.name=sdk_wear_x86\nro.system.build.version.sdk=30\nro.product.cpu.abi="
                 "x86_64");
     {
-        ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(opts_, paths_, "wear_avd", false, ""));
+        ASSERT_OK_AND_ASSIGN(auto avd, LoadAvd("wear_avd"));
         EXPECT_EQ(avd->GetDeviceType(), DeviceType::kWear);
     }
 
@@ -426,7 +493,7 @@ TEST_F(AvdTest, DeviceType) {
                 "ro.build.flavor=generic_system_google-user\n"
                 "ro.system.build.version.sdk=37\nro.product.cpu.abi=x86_64");
     {
-        ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(opts_, paths_, "gsi_phone_avd", false, ""));
+        ASSERT_OK_AND_ASSIGN(auto avd, LoadAvd("gsi_phone_avd"));
         EXPECT_EQ(avd->GetDeviceType(), DeviceType::kPhone);
         EXPECT_THAT(avd->Details(/*verbose=*/true), ::testing::HasSubstr("📱"));
     }
@@ -439,7 +506,7 @@ TEST_F(AvdTest, DeviceType) {
                 "ro.build.flavor=gms_sdk_xr64_arm64-userdebug\n"
                 "ro.system.build.version.sdk=34\nro.product.cpu.abi=x86_64");
     {
-        ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(opts_, paths_, "xr_avd", false, ""));
+        ASSERT_OK_AND_ASSIGN(auto avd, LoadAvd("xr_avd"));
         EXPECT_EQ(avd->GetDeviceType(), DeviceType::kXr);
         EXPECT_THAT(avd->Details(/*verbose=*/true), ::testing::HasSubstr("🥽"));
     }
@@ -452,7 +519,7 @@ TEST_F(AvdTest, DeviceType) {
                 "ro.build.flavor=sdk_glasses_arm64-userdebug\n"
                 "ro.system.build.version.sdk=36\nro.product.cpu.abi=x86_64");
     {
-        ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(opts_, paths_, "glasses_avd", false, ""));
+        ASSERT_OK_AND_ASSIGN(auto avd, LoadAvd("glasses_avd"));
         EXPECT_EQ(avd->GetDeviceType(), DeviceType::kGlasses);
         EXPECT_THAT(avd->Details(/*verbose=*/true), ::testing::HasSubstr("👓"));
     }
@@ -460,7 +527,7 @@ TEST_F(AvdTest, DeviceType) {
 
 TEST_F(AvdTest, QemuVersion) {
     CreateTestAvd("test_avd", "android-30", 30);
-    ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(opts_, paths_, "test_avd", false, ""));
+    ASSERT_OK_AND_ASSIGN(auto avd, LoadAvd("test_avd"));
 
     // Initially no version
     EXPECT_THAT(avd->GetLastRunQemuVersion(), IsOkAndHolds(std::nullopt));
@@ -481,7 +548,7 @@ TEST_F(AvdTest, BuildFingerprint) {
                 "6903271:userdebug/"
                 "dev-keys\nro.system.build.version.sdk=30\nro.product.cpu.abi=x86_64");
 
-    ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(opts_, paths_, "test_avd", false, ""));
+    ASSERT_OK_AND_ASSIGN(auto avd, LoadAvd("test_avd"));
     EXPECT_EQ(avd->BuildFingerprint(),
               "google/sdk_gphone_x86_64/emulator:30/RSR1.201013.001/6903271:userdebug/dev-keys");
 }
@@ -494,7 +561,7 @@ TEST_F(AvdTest, Details) {
                 "ro.product.name=sdk_gphone_x86_64\nro.system.build.version.sdk=30\nro.product.cpu."
                 "abi=x86_64");
 
-    ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(opts_, paths_, "phone_avd", false, ""));
+    ASSERT_OK_AND_ASSIGN(auto avd, LoadAvd("phone_avd"));
 
     EXPECT_EQ(avd->Details(false), "phone_avd");
 
@@ -511,17 +578,25 @@ TEST_F(AvdTest, ContentOverride) {
     auto original_avd_dir = CreateTestAvd("override_test", "android-30", 30);
     WriteToFile(original_avd_dir / "config.ini",
                 "hw.ramSize=1024\ntarget=android-30\nimage.sysdir.1=sysimg");
+    WriteToFile(original_avd_dir / "userdata.img.qcow2", "original_userdata");
 
     // Create a content directory override in a different location.
     tmp_->MakeSubDir("unusual");
     fs::path override_path = tmp_->Path() / "unusual" / "my_avd.avd";
     base::file::mkdir_recursive(override_path, 0755).IgnoreError();
+    WriteToFile(override_path / "userdata.img.qcow2", "override_userdata");
 
-    ASSERT_OK_AND_ASSIGN(auto avd,
-                         Avd::FromName(opts_, paths_, "override_test", false, override_path));
+    ASSERT_OK_AND_ASSIGN(auto avd, Avd::Load({.opts = opts_,
+                                              .user_paths = paths_,
+                                              .name = "override_test",
+                                              .content_override = override_path}));
+    ASSERT_OK(avd->PrepareWritableState({.wipe_data = true}));
 
-    // The content path should be the override path.
+    // The content path should be the override path, and -wipe-data wipes the
+    // override directory while leaving the original AVD directory untouched.
     EXPECT_EQ(avd->GetContentPath(), override_path);
+    EXPECT_FALSE(base::file::exists(override_path / "userdata.img.qcow2"));
+    EXPECT_TRUE(base::file::exists(original_avd_dir / "userdata.img.qcow2"));
 
     // Writable files (like hardware-qemu.ini) should be in the override path.
     EXPECT_TRUE(base::file::exists(override_path / "hardware-qemu.ini"));
@@ -550,9 +625,11 @@ TEST_F(AvdTest, FromAndroidBuild) {
 
     WriteToFile(build_out / "config.ini", "abi.type=x86_64\ntarget=android-30");
 
-    ASSERT_OK_AND_ASSIGN(auto avd,
-                         Avd::FromAndroidBuild(opts_, paths_, "android_build_avd", build_out,
-                                               /*wipe_data=*/false, ""));
+    ASSERT_OK_AND_ASSIGN(auto avd, Avd::Load({.opts = opts_,
+                                              .user_paths = paths_,
+                                              .name = "android_build_avd",
+                                              .android_build_out = build_out}));
+    ASSERT_OK(avd->PrepareWritableState());
 
     EXPECT_EQ(avd->Name(), "android_build_avd");
     EXPECT_EQ(avd->Arch(), Avd::CpuArchitecture::kX86);
@@ -605,9 +682,11 @@ TEST_F(AvdTest, FromAndroidBuildWipeData) {
     EXPECT_TRUE(base::file::exists(cache));
     EXPECT_TRUE(base::file::exists(qemu_ver));
 
-    ASSERT_OK_AND_ASSIGN(auto avd,
-                         Avd::FromAndroidBuild(opts_, paths_, "android_build_avd", build_out,
-                                               /*wipe_data=*/true, ""));
+    ASSERT_OK_AND_ASSIGN(auto avd, Avd::Load({.opts = opts_,
+                                              .user_paths = paths_,
+                                              .name = "android_build_avd",
+                                              .android_build_out = build_out}));
+    ASSERT_OK(avd->PrepareWritableState({.wipe_data = true}));
 
     EXPECT_EQ(avd->GetContentPath(), avd_dir);
     EXPECT_FALSE(base::file::exists(qcow1));
@@ -625,7 +704,7 @@ TEST_F(AvdTest, ImageKindPlayStore) {
     WriteToFile(avd_dir / "config.ini",
                 "PlayStore.enabled=true\ntag.id=google_apis_playstore\nimage.sysdir.1=sysimg\n");
 
-    ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(opts_, paths_, "playstore_avd", false, {}, {}));
+    ASSERT_OK_AND_ASSIGN(auto avd, LoadAvd("playstore_avd"));
     EXPECT_EQ(avd->ImageKind(), android_studio::EmulatorAvdInfo::PLAY_STORE_KIND);
 }
 
@@ -636,7 +715,7 @@ TEST_F(AvdTest, VendorProperty) {
     WriteToFile(sysimg / "vendor-build.prop",
                 "ro.vendor.uwb.dev=/dev/uwb0\nro.vendor.test.key=test_val\n");
 
-    ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(opts_, paths_, "vendor_prop_avd", false, {}, {}));
+    ASSERT_OK_AND_ASSIGN(auto avd, LoadAvd("vendor_prop_avd"));
     EXPECT_EQ(avd->VendorProperty("ro.vendor.uwb.dev"), "/dev/uwb0");
     EXPECT_EQ(avd->VendorProperty("ro.vendor.test.key"), "test_val");
     EXPECT_EQ(avd->VendorProperty("non_existent_key", "default_val"), "default_val");
@@ -652,7 +731,7 @@ TEST_F(AvdTest, ListSnapshotsWithoutInspector) {
     // Root qcow2 should not be listed if no inspector is provided
     WriteToFile(avd_dir / "cache.img.qcow2", "dummy qcow");
 
-    ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(opts_, paths_, "snap_avd", false, {}, {}));
+    ASSERT_OK_AND_ASSIGN(auto avd, LoadAvd("snap_avd"));
     auto snaps = avd->ListSnapshots();
     ASSERT_EQ(snaps.size(), 1);
     EXPECT_EQ(snaps[0].name, "snap1");
@@ -669,7 +748,7 @@ TEST_F(AvdTest, ListSnapshotsWithInspector) {
     WriteToFile(snap1 / "ram.qcow2", "qcow ram");
     WriteToFile(avd_dir / "userdata.img.qcow2", "userdata qcow");
 
-    ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(opts_, paths_, "snap_avd2", false, {}, {}));
+    ASSERT_OK_AND_ASSIGN(auto avd, LoadAvd("snap_avd2"));
     auto mock_inspector = [](const fs::path& p) -> std::string {
         return "mock image info for " + p.filename().string();
     };
@@ -681,6 +760,366 @@ TEST_F(AvdTest, ListSnapshotsWithInspector) {
     EXPECT_EQ(snaps[1].name, "Disk Image: userdata.img.qcow2");
     EXPECT_THAT(snaps[1].image_info,
                 ::testing::HasSubstr("mock image info for userdata.img.qcow2"));
+}
+
+TEST_F(AvdTest, SkinMatchesLcdSameSize) {
+    fs::path avd_dir = CreateTestAvd("skin_same_avd", "android-30", 30);
+    WriteToFile(avd_dir / "config.ini",
+                "target=android-30\nimage.sysdir.1=sysimg\n"
+                "skin.name=1440x3088\nskin.path=_no_skin\n"
+                "hw.lcd.width=1440\nhw.lcd.height=3088\n");
+
+    ASSERT_OK_AND_ASSIGN(auto avd, LoadAvd("skin_same_avd"));
+    EXPECT_EQ(avd->Hw().hw_lcd_width, 1440);
+    EXPECT_EQ(avd->Hw().hw_lcd_height, 3088);
+}
+
+TEST_F(AvdTest, SkinMatchesLcdRotatedSize) {
+    fs::path avd_dir = CreateTestAvd("skin_rotated_avd", "android-30", 30);
+    WriteToFile(avd_dir / "config.ini",
+                "target=android-30\nimage.sysdir.1=sysimg\n"
+                "skin.name=3088x1440\nskin.path=_no_skin\n"
+                "hw.lcd.width=1440\nhw.lcd.height=3088\n");
+
+    ASSERT_OK_AND_ASSIGN(auto avd, LoadAvd("skin_rotated_avd"));
+    EXPECT_EQ(avd->Hw().hw_lcd_width, 1440);
+    EXPECT_EQ(avd->Hw().hw_lcd_height, 3088);
+}
+
+TEST_F(AvdTest, SkinMatchesLcdSkinNameMismatch) {
+    fs::path avd_dir = CreateTestAvd("skin_mismatch_avd", "android-30", 30);
+    WriteToFile(avd_dir / "config.ini",
+                "target=android-30\nimage.sysdir.1=sysimg\n"
+                "skin.name=1080x2400\nskin.path=_no_skin\n"
+                "hw.lcd.width=1440\nhw.lcd.height=3088\n");
+
+    EXPECT_THAT(
+            LoadAvd("skin_mismatch_avd"),
+            StatusIs(absl::StatusCode::kInvalidArgument,
+                     ::testing::AllOf(
+                             ::testing::HasSubstr(
+                                     "skin.name=1080x2400 does not match hw.lcd.width=1440, "
+                                     "hw.lcd.height=3088"),
+                             ::testing::HasSubstr("To use 1440x3088, set skin.name and skin.path "
+                                                  "to 1440x3088 or delete both lines."),
+                             ::testing::HasSubstr("To use 1080x2400, set hw.lcd.width=1080 and "
+                                                  "hw.lcd.height=2400."))));
+}
+
+TEST_F(AvdTest, SkinMatchesLcdSkinPathMismatch) {
+    fs::path avd_dir = CreateTestAvd("skin_path_mismatch_avd", "android-30", 30);
+    WriteToFile(avd_dir / "config.ini",
+                "target=android-30\nimage.sysdir.1=sysimg\n"
+                "skin.path=1080x2400\n"
+                "hw.lcd.width=1440\nhw.lcd.height=3088\n");
+
+    EXPECT_THAT(
+            LoadAvd("skin_path_mismatch_avd"),
+            StatusIs(absl::StatusCode::kInvalidArgument,
+                     ::testing::HasSubstr("skin.path=1080x2400 does not match hw.lcd.width=1440, "
+                                          "hw.lcd.height=3088")));
+}
+
+TEST_F(AvdTest, SkinMatchesLcdSkinWithDepth) {
+    fs::path avd_dir = CreateTestAvd("skin_depth_avd", "android-30", 30);
+    WriteToFile(avd_dir / "config.ini",
+                "target=android-30\nimage.sysdir.1=sysimg\n"
+                "skin.name=1440x3088x32\nskin.path=_no_skin\n"
+                "hw.lcd.width=1440\nhw.lcd.height=3088\n");
+    ASSERT_OK(LoadAvd("skin_depth_avd"));
+
+    WriteToFile(avd_dir / "config.ini",
+                "target=android-30\nimage.sysdir.1=sysimg\n"
+                "skin.name=1080x2400x32\nskin.path=_no_skin\n"
+                "hw.lcd.width=1440\nhw.lcd.height=3088\n");
+    EXPECT_THAT(LoadAvd("skin_depth_avd"),
+                StatusIs(absl::StatusCode::kInvalidArgument,
+                         ::testing::HasSubstr("skin.name=1080x2400x32 does not match")));
+}
+
+TEST_F(AvdTest, SkinMatchesLcdCommandLineSkinIsNotChecked) {
+    fs::path avd_dir = CreateTestAvd("cli_skin_avd", "android-30", 30);
+    WriteToFile(avd_dir / "config.ini",
+                "target=android-30\nimage.sysdir.1=sysimg\n"
+                "skin.name=1080x2400\nskin.path=_no_skin\n"
+                "hw.lcd.width=1440\nhw.lcd.height=3088\n");
+
+    std::string cli_skin = "1080x2400";
+    opts_.skin = cli_skin.data();
+    ASSERT_OK(LoadAvd("cli_skin_avd"));
+}
+
+TEST_F(AvdTest, SkinMatchesLcdOnDiskSkinIsNotChecked) {
+    fs::path avd_dir = CreateTestAvd("ondisk_skin_avd", "android-30", 30);
+    fs::path skin_dir = paths_.sdk_directory / "skins" / "1080x2400";
+    // A directory named "layout" is not a valid skin layout file.
+    base::file::mkdir_recursive(skin_dir / "layout", 0755).IgnoreError();
+
+    WriteToFile(avd_dir / "config.ini",
+                absl::StrCat("target=android-30\nimage.sysdir.1=sysimg\n"
+                             "skin.name=1080x2400\nskin.path=",
+                             skin_dir.string(), "\nhw.lcd.width=1440\nhw.lcd.height=3088\n"));
+    EXPECT_THAT(LoadAvd("ondisk_skin_avd"), StatusIs(absl::StatusCode::kInvalidArgument));
+
+    base::file::rm_recursive(skin_dir / "layout").IgnoreError();
+    WriteToFile(skin_dir / "layout", "parts {}\n");
+    ASSERT_OK(LoadAvd("ondisk_skin_avd"));
+
+    // Also resolves on-disk skin via system_image_paths.skins_dir when only skin.name is set.
+    WriteToFile(avd_dir / "config.ini",
+                "target=android-30\nimage.sysdir.1=sysimg\n"
+                "skin.name=1080x2400\n"
+                "hw.lcd.width=1440\nhw.lcd.height=3088\n");
+    ASSERT_OK(LoadAvd("ondisk_skin_avd"));
+}
+
+TEST_F(AvdTest, SkinMatchesLcdNoLcdSizeResolvesFromSkin) {
+    fs::path avd_dir = CreateTestAvd("no_lcd_avd", "android-30", 30);
+    WriteToFile(avd_dir / "config.ini",
+                "target=android-30\nimage.sysdir.1=sysimg\n"
+                "skin.name=1080x2400\nskin.path=_no_skin\n");
+
+    ASSERT_OK_AND_ASSIGN(auto avd, LoadAvd("no_lcd_avd"));
+    EXPECT_EQ(avd->Hw().hw_lcd_width, 1080);
+    EXPECT_EQ(avd->Hw().hw_lcd_height, 2400);
+}
+
+TEST_F(AvdTest, SkinMatchesLcdNegativeSkinWidth) {
+    fs::path avd_dir = CreateTestAvd("neg_skin_w_avd", "android-30", 30);
+    WriteToFile(avd_dir / "config.ini",
+                "target=android-30\nimage.sysdir.1=sysimg\n"
+                "skin.name=-500x800\nskin.path=_no_skin\n");
+
+    EXPECT_THAT(
+            LoadAvd("neg_skin_w_avd"),
+            StatusIs(absl::StatusCode::kInvalidArgument,
+                     ::testing::HasSubstr("skin.name=-500x800. Both dimensions must be positive "
+                                          "integers.")));
+}
+
+TEST_F(AvdTest, SkinMatchesLcdNegativeSkinHeight) {
+    fs::path avd_dir = CreateTestAvd("neg_skin_h_avd", "android-30", 30);
+    WriteToFile(avd_dir / "config.ini",
+                "target=android-30\nimage.sysdir.1=sysimg\n"
+                "skin.name=500x-800\nskin.path=_no_skin\n");
+
+    EXPECT_THAT(
+            LoadAvd("neg_skin_h_avd"),
+            StatusIs(absl::StatusCode::kInvalidArgument,
+                     ::testing::HasSubstr("skin.name=500x-800. Both dimensions must be positive "
+                                          "integers.")));
+}
+
+TEST_F(AvdTest, SkinMatchesLcdZeroSkinSize) {
+    fs::path avd_dir = CreateTestAvd("zero_skin_avd", "android-30", 30);
+    WriteToFile(avd_dir / "config.ini",
+                "target=android-30\nimage.sysdir.1=sysimg\n"
+                "skin.name=0x800\nskin.path=_no_skin\n");
+
+    EXPECT_THAT(LoadAvd("zero_skin_avd"),
+                StatusIs(absl::StatusCode::kInvalidArgument,
+                         ::testing::HasSubstr(
+                                 "skin.name=0x800. Both dimensions must be positive integers.")));
+}
+
+TEST_F(AvdTest, SkinMatchesLcdNegativeLcdWidth) {
+    fs::path avd_dir = CreateTestAvd("neg_lcd_w_avd", "android-30", 30);
+    WriteToFile(avd_dir / "config.ini",
+                "target=android-30\nimage.sysdir.1=sysimg\n"
+                "hw.lcd.width=-1080\nhw.lcd.height=2400\n");
+
+    EXPECT_THAT(LoadAvd("neg_lcd_w_avd"),
+                StatusIs(absl::StatusCode::kInvalidArgument,
+                         ::testing::HasSubstr(
+                                 "hw.lcd.width=-1080, hw.lcd.height=2400. Both dimensions must "
+                                 "be positive integers.")));
+}
+
+TEST_F(AvdTest, SkinMatchesLcdNegativeLcdHeight) {
+    fs::path avd_dir = CreateTestAvd("neg_lcd_h_avd", "android-30", 30);
+    WriteToFile(avd_dir / "config.ini",
+                "target=android-30\nimage.sysdir.1=sysimg\n"
+                "hw.lcd.width=1080\nhw.lcd.height=-2400\n");
+
+    EXPECT_THAT(LoadAvd("neg_lcd_h_avd"),
+                StatusIs(absl::StatusCode::kInvalidArgument,
+                         ::testing::HasSubstr(
+                                 "hw.lcd.width=1080, hw.lcd.height=-2400. Both dimensions must "
+                                 "be positive integers.")));
+}
+
+TEST_F(AvdTest, SkinMatchesLcdZeroLcdSize) {
+    fs::path avd_dir = CreateTestAvd("zero_lcd_avd", "android-30", 30);
+    WriteToFile(avd_dir / "config.ini",
+                "target=android-30\nimage.sysdir.1=sysimg\n"
+                "hw.lcd.width=0\nhw.lcd.height=2400\n");
+
+    EXPECT_THAT(LoadAvd("zero_lcd_avd"),
+                StatusIs(absl::StatusCode::kInvalidArgument,
+                         ::testing::HasSubstr(
+                                 "hw.lcd.width=0, hw.lcd.height=2400. Both dimensions must be "
+                                 "positive integers.")));
+}
+
+TEST_F(AvdTest, SkinMatchesLcdWidthWithoutHeight) {
+    fs::path avd_dir = CreateTestAvd("partial_w_avd", "android-30", 30);
+    WriteToFile(avd_dir / "config.ini",
+                "target=android-30\nimage.sysdir.1=sysimg\n"
+                "hw.lcd.width=1440\n");
+
+    EXPECT_THAT(LoadAvd("partial_w_avd"),
+                StatusIs(absl::StatusCode::kInvalidArgument,
+                         ::testing::HasSubstr(
+                                 "hw.lcd.width=1440 is set but hw.lcd.height is missing. Set "
+                                 "both hw.lcd.width and hw.lcd.height.")));
+}
+
+TEST_F(AvdTest, SkinMatchesLcdHeightWithoutWidth) {
+    fs::path avd_dir = CreateTestAvd("partial_h_avd", "android-30", 30);
+    WriteToFile(avd_dir / "config.ini",
+                "target=android-30\nimage.sysdir.1=sysimg\n"
+                "hw.lcd.height=3088\n");
+
+    EXPECT_THAT(LoadAvd("partial_h_avd"),
+                StatusIs(absl::StatusCode::kInvalidArgument,
+                         ::testing::HasSubstr(
+                                 "hw.lcd.height=3088 is set but hw.lcd.width is missing. Set "
+                                 "both hw.lcd.width and hw.lcd.height.")));
+}
+
+TEST_F(AvdTest, SkinMatchesLcdPartialLcdSizeWithOnDiskSkin) {
+    fs::path avd_dir = CreateTestAvd("partial_ondisk_avd", "android-30", 30);
+    fs::path skin_dir = paths_.sdk_directory / "skins" / "pixel_6";
+    base::file::mkdir_recursive(skin_dir, 0755).IgnoreError();
+    WriteToFile(skin_dir / "layout", "parts {}\n");
+
+    WriteToFile(avd_dir / "config.ini", absl::StrCat("target=android-30\nimage.sysdir.1=sysimg\n"
+                                                     "skin.name=pixel_6\nskin.path=",
+                                                     skin_dir.string(), "\nhw.lcd.width=1440\n"));
+
+    EXPECT_THAT(LoadAvd("partial_ondisk_avd"),
+                StatusIs(absl::StatusCode::kInvalidArgument,
+                         ::testing::HasSubstr(
+                                 "hw.lcd.width=1440 is set but hw.lcd.height is missing.")));
+}
+
+TEST_F(AvdTest, SkinMatchesLcdPartialLcdSizeIsNotCheckedWithSkinOption) {
+    fs::path avd_dir = CreateTestAvd("partial_cli_skin_avd", "android-30", 30);
+    WriteToFile(avd_dir / "config.ini",
+                "target=android-30\nimage.sysdir.1=sysimg\n"
+                "hw.lcd.width=1440\n");
+
+    std::string cli_skin = "1080x2400";
+    opts_.skin = cli_skin.data();
+    ASSERT_OK(LoadAvd("partial_cli_skin_avd"));
+}
+
+TEST_F(AvdTest, SkinMatchesLcdDisplaylessIsNotChecked) {
+    fs::path avd_dir = CreateTestAvd("displayless_avd", "android-30", 30);
+    WriteToFile(avd_dir / "config.ini",
+                "target=android-30\nimage.sysdir.1=sysimg\n"
+                "hw.displayless=yes\n"
+                "skin.name=1080x2400\nskin.path=_no_skin\n"
+                "hw.lcd.width=1440\n");
+
+    ASSERT_OK(LoadAvd("displayless_avd"));
+}
+
+TEST_F(AvdTest, SkinMatchesLcdFoldRotatedGenericSkin) {
+    fs::path avd_dir = CreateTestAvd("fold_rotated_avd", "android-30", 30);
+    WriteToFile(avd_dir / "config.ini",
+                "target=android-30\nimage.sysdir.1=sysimg\n"
+                "hw.device.name=pixel_9_pro_fold\n"
+                "skin.name=2152x2076\nskin.path=_no_skin\n"
+                "hw.lcd.width=2076\nhw.lcd.height=2152\n"
+                "hw.sensor.hinge=yes\nhw.sensor.hinge.count=1\n");
+
+    ASSERT_OK(LoadAvd("fold_rotated_avd"));
+}
+
+TEST_F(AvdTest, SkinMatchesLcdFoldMismatchedNumericSkinFails) {
+    fs::path avd_dir = CreateTestAvd("fold_mismatch_avd", "android-30", 30);
+    WriteToFile(avd_dir / "config.ini",
+                "target=android-30\nimage.sysdir.1=sysimg\n"
+                "hw.device.name=pixel_fold\n"
+                "skin.name=1080x2400\nskin.path=_no_skin\n"
+                "hw.lcd.width=2208\nhw.lcd.height=1840\n"
+                "hw.sensor.hinge=yes\nhw.sensor.hinge.count=1\n");
+
+    EXPECT_THAT(
+            LoadAvd("fold_mismatch_avd"),
+            StatusIs(absl::StatusCode::kInvalidArgument,
+                     ::testing::HasSubstr("skin.name=1080x2400 does not match hw.lcd.width=2208, "
+                                          "hw.lcd.height=1840")));
+}
+
+TEST_F(AvdTest, LoadIsReadOnlyUntilPrepareWritableState) {
+    fs::path avd_dir = CreateTestAvd("readonly_load_avd", "android-37", 37);
+    WriteToFile(avd_dir / "userdata.img.qcow2", "existing_userdata");
+
+    ASSERT_OK_AND_ASSIGN(auto avd, LoadAvd("readonly_load_avd"));
+    EXPECT_EQ(avd->GetContentPath(), avd_dir);
+    EXPECT_FALSE(base::file::exists(avd_dir / CORE_HARDWARE_INI));
+    EXPECT_TRUE(base::file::exists(avd_dir / "userdata.img.qcow2"));
+
+    ASSERT_OK(avd->PrepareWritableState());
+    EXPECT_TRUE(base::file::exists(avd_dir / CORE_HARDWARE_INI));
+}
+
+TEST_F(AvdTest, LoadFromAndroidBuildDoesNotCreateAvdTmpUntilPrepareWritableState) {
+    fs::path build_out = tmp_->Path() / "android_build_ro_load";
+    tmp_->MakeSubDir("android_build_ro_load");
+    tmp_->MakeSubDir("android_build_ro_load/system");
+    tmp_->MakeSubDir("android_build_ro_load/data");
+
+    WriteToFile(build_out / "system" / "build.prop",
+                "ro.system.build.version.sdk=37\nro.product.cpu.abi=x86_64");
+    WriteToFile(build_out / "advancedFeatures.ini", "");
+    WriteToFile(build_out / "VerifiedBootParams.textproto", "");
+    WriteToFile(build_out / "kernel_cmdline.txt", "");
+    WriteToFile(build_out / "kernel-ranchu", "");
+    WriteToFile(build_out / "ramdisk-qemu.img", "");
+    WriteToFile(build_out / "system-qemu.img", "");
+    WriteToFile(build_out / "vendor-qemu.img", "");
+    WriteToFile(build_out / "encryptionkey.img", "");
+    WriteToFile(build_out / "config.ini", "abi.type=x86_64\ntarget=android-37");
+
+    ASSERT_OK_AND_ASSIGN(auto avd, Avd::Load({.opts = opts_,
+                                              .user_paths = paths_,
+                                              .name = "<build>",
+                                              .android_build_out = build_out}));
+    EXPECT_EQ(avd->GetContentPath(), build_out / "avd.tmp");
+    EXPECT_FALSE(base::file::exists(build_out / "avd.tmp"));
+
+    ASSERT_OK(avd->PrepareWritableState());
+    EXPECT_TRUE(base::file::is_dir(build_out / "avd.tmp"));
+    EXPECT_TRUE(base::file::exists(build_out / "avd.tmp" / CORE_HARDWARE_INI));
+}
+
+TEST_F(AvdTest, PrepareWritableStateWipeDataPreservesActiveLocks) {
+    fs::path avd_dir = CreateTestAvd("wipe_locks_avd", "android-37", 37);
+    const fs::path hw_lock =
+            base::file::ScopedFileLock::LockPathForTarget(avd_dir / CORE_HARDWARE_INI);
+    const fs::path snap_lock =
+            base::file::ScopedFileLock::LockPathForTarget(avd_dir / SNAPSHOT_LOCK);
+    const fs::path multi_lock = avd_dir / MULTIINSTANCE_LOCK;
+    const fs::path userdata_qcow = avd_dir / "userdata.img.qcow2";
+
+    base::file::mkdir_recursive(hw_lock, 0755).IgnoreError();
+    WriteToFile(hw_lock / "pid", "1234");
+    base::file::mkdir_recursive(snap_lock, 0755).IgnoreError();
+    WriteToFile(snap_lock / "pid", "1234");
+    WriteToFile(multi_lock, "");
+    WriteToFile(userdata_qcow, "old_userdata");
+
+    ASSERT_OK_AND_ASSIGN(auto avd, LoadAvd("wipe_locks_avd"));
+    ASSERT_OK(avd->PrepareWritableState({.wipe_data = true}));
+
+    EXPECT_TRUE(base::file::exists(hw_lock));
+    EXPECT_TRUE(base::file::exists(snap_lock));
+    EXPECT_TRUE(base::file::exists(multi_lock));
+    EXPECT_TRUE(base::file::exists(avd_dir / CORE_CONFIG_INI));
+    EXPECT_FALSE(base::file::exists(userdata_qcow));
 }
 
 }  // namespace android::goldfish::avd

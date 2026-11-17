@@ -30,10 +30,11 @@ namespace goldfish::snapshot {
 //             (gfxstream::kFramebufferSnapshotVersion, 15 bits; bit 31 is
 //             left clear so the value is a positive int32)
 //   [15..14]  SnapshotGpuDevice: which virtio-gpu device wrote the VM state
-//             (0 = virtio-gpu-rutabaga, 1 = virtio-gpu-gfxstream). The two
-//             devices use differently named VMState sections, so a snapshot
-//             saved with one cannot be loaded by the other; encoding the
-//             device here turns that into an up-front cold boot.
+//             (0 = legacy virtio-gpu-rutabaga, 1 = virtio-gpu-gfxstream). The
+//             two devices use differently named VMState sections, so a snapshot
+//             saved with legacy virtio-gpu-rutabaga cannot be loaded by
+//             virtio-gpu-gfxstream; encoding the device here turns that into an
+//             up-front cold boot.
 //   [13.. 0]  kSnapshotVersionBase, the emulator's own format version
 //
 // Folding the gfxstream version in here means that whenever gfxstream changes
@@ -64,16 +65,15 @@ namespace goldfish::snapshot {
 //           double), altering the avd_info VMState binary layout.
 //   (5, b/576450291): bits [15..14] became the SnapshotGpuDevice field. Not a
 //           base bump: snapshots written before the field existed read as
-//           device 0 = rutabaga, so switching the default to
-//           virtio-gpu-gfxstream (device 1) cold-boots them cleanly while
-//           -virtio-gpu-device rutabaga continues to match device 0.
+//           device 0 = legacy rutabaga, so virtio-gpu-gfxstream (device 1)
+//           cold-boots them cleanly.
 inline constexpr int kSnapshotVersionBase = 5;
 static_assert(kSnapshotVersionBase > 0 && kSnapshotVersionBase < (1 << 14),
               "Base snapshot version does not fit in 14 bits.");
 
 // The virtio-gpu device that owns the renderer state of a snapshot.
 enum class SnapshotGpuDevice : int {
-    kRutabaga = 0,   // QEMU's virtio-gpu-rutabaga (VMState "virtio-gpu-rutabaga")
+    kRutabaga = 0,   // legacy QEMU virtio-gpu-rutabaga (VMState "virtio-gpu-rutabaga")
     kGfxstream = 1,  // goldfish plugin's virtio-gpu-gfxstream (VMState "virtio-gpu-gfxstream")
 };
 
@@ -83,7 +83,7 @@ inline constexpr int kSnapshotGpuDeviceMask = 0x3 << kSnapshotGpuDeviceShift;
 // The full snapshot version for the given gfxstream framebuffer snapshot
 // version (must fit in 15 bits) and virtio-gpu device.
 constexpr int MakeSnapshotVersion(int gfxstream_snapshot_version,
-                                  SnapshotGpuDevice gpu_device = SnapshotGpuDevice::kRutabaga) {
+                                  SnapshotGpuDevice gpu_device = SnapshotGpuDevice::kGfxstream) {
     return (gfxstream_snapshot_version << 16) |
            (static_cast<int>(gpu_device) << kSnapshotGpuDeviceShift) | kSnapshotVersionBase;
 }
@@ -128,11 +128,9 @@ absl::Status ValidateSnapshotName(std::string_view name);
 //
 //
 //   <avd>/snapshots/<name>/version.txt   Version() at save time
-//   <avd>/snapshots/<name>/renderer/     gfxstream/rutabaga renderer state,
-//                                        written and read by the virtio-gpu
-//                                        device (virtio-gpu-rutabaga or
-//                                        virtio-gpu-gfxstream, which is given
-//                                        snapshot_directory=Root())
+//   <avd>/snapshots/<name>/renderer/     gfxstream renderer state, written and
+//                                        read by virtio-gpu-gfxstream (which
+//                                        is given snapshot_directory=Root())
 //
 // The VM state itself is the qcow2 internal snapshot tagged <name>; this
 // class never touches it. All methods take the snapshot name, never a path,

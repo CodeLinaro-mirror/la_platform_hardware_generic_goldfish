@@ -28,6 +28,7 @@
 #include "emulator_controller.pb.h"
 #include "goldfish/async/event_loop.h"
 #include "goldfish/async/testing/test_event_loop.h"
+#include "goldfish/legacy/goldfish_events.h"
 #include "standard-headers/linux/input-event-codes.h"
 
 namespace {
@@ -48,6 +49,14 @@ std::vector<DirectEvent> g_direct_events;
 int g_lifts = 0;
 // The number of times QEMU's keyboard state was freed.
 int g_frees = 0;
+// Raw evdev tuples forwarded to `goldfish_events_send` when `goldfish-events` is active.
+struct GoldfishSentEvent {
+    int type = 0;
+    int code = 0;
+    int value = 0;
+    bool operator==(const GoldfishSentEvent&) const = default;
+};
+std::vector<GoldfishSentEvent> g_goldfish_events;
 
 QemuConsole* FakeConsole() {
     static int storage;
@@ -116,8 +125,11 @@ class QemuKeyboardSinkTest : public ::testing::Test {
     void SetUp() override {
         g_sent_keys.clear();
         g_direct_events.clear();
+        g_goldfish_events.clear();
         g_lifts = 0;
         g_frees = 0;
+        goldfish_events_set_send_handler(nullptr);
+        goldfish_events_notify_active_changed(false, 0);
         // Only KEY_A, which is enough to see that WriteKey() translates its code.
         g_linux_to_qcode = {{KEY_A, Q_KEY_CODE_A}};
         sink_ = std::make_unique<QemuKeyboardSink>(FakeConsole(), *loop_);
@@ -125,6 +137,8 @@ class QemuKeyboardSinkTest : public ::testing::Test {
 
     void TearDown() override {
         RunOnLoop([this] { sink_.reset(); });
+        goldfish_events_set_send_handler(nullptr);
+        goldfish_events_notify_active_changed(false, 0);
     }
 
     // Runs `task` on the loop thread and waits for it to finish.
@@ -243,6 +257,46 @@ TEST_F(QemuKeyboardSinkTest, DestructorFreesTheKeyboardState) {
     });
 
     EXPECT_EQ(frees_by_destructor, 1);
+}
+
+TEST_F(QemuKeyboardSinkTest, GoldfishEventsActiveRoutesWriteKeyTypeTextAndResetDirectly) {
+    goldfish_events_set_send_handler(+[](int type, int code, int value) {
+        g_goldfish_events.push_back({type, code, value});
+        return 0;
+    });
+    goldfish_events_notify_active_changed(true, 1);
+
+    RunOnLoop([&] {
+        // KEY_APPSELECT is unmapped in g_linux_to_qcode, proving raw evdev codes
+        // bypass QKeyCode translation when goldfish-events is active.
+        sink_->WriteKey(KEY_APPSELECT, /*down=*/true);
+        sink_->WriteKey(KEY_APPSELECT, /*down=*/false);
+    });
+    EXPECT_TRUE(g_sent_keys.empty());
+    EXPECT_THAT(g_goldfish_events, ElementsAre(GoldfishSentEvent{EV_KEY, KEY_APPSELECT, 1},
+                                               GoldfishSentEvent{EV_KEY, KEY_APPSELECT, 0}));
+
+    g_goldfish_events.clear();
+    RunOnLoop([&] { sink_->TypeText("aB"); });
+    EXPECT_TRUE(g_sent_keys.empty());
+    EXPECT_THAT(
+            g_goldfish_events,
+            ElementsAre(GoldfishSentEvent{EV_KEY, KEY_A, 1}, GoldfishSentEvent{EV_KEY, KEY_A, 0},
+                        GoldfishSentEvent{EV_KEY, KEY_LEFTSHIFT, 1},
+                        GoldfishSentEvent{EV_KEY, KEY_B, 1}, GoldfishSentEvent{EV_KEY, KEY_B, 0},
+                        GoldfishSentEvent{EV_KEY, KEY_LEFTSHIFT, 0}));
+
+    g_goldfish_events.clear();
+    int frees_by_reset = 0;
+    RunOnLoop([&] {
+        sink_->Reset();
+        frees_by_reset = g_frees;
+    });
+    EXPECT_EQ(frees_by_reset, 1);
+    EXPECT_TRUE(g_direct_events.empty());
+    ASSERT_EQ(g_goldfish_events.size(), static_cast<size_t>(KEY_MAX));
+    EXPECT_EQ(g_goldfish_events.front(), (GoldfishSentEvent{EV_KEY, 1, 0}));
+    EXPECT_EQ(g_goldfish_events.back(), (GoldfishSentEvent{EV_KEY, KEY_MAX, 0}));
 }
 
 }  // namespace

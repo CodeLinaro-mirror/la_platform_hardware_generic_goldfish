@@ -207,9 +207,13 @@ void PipeChannel::SetReading(bool reading) {
     reading_in_progress_ = reading;
 }
 
+OpenglesReadCallback PipeChannel::CurrentReadCallback() const {
+    absl::MutexLock lock(&mu_);
+    return on_read_;
+}
+
 void PipeChannel::ReaderLoop() {
     while (true) {
-        OpenglesReadCallback cb;
         {
             auto should_wake = [this]() ABSL_EXCLUSIVE_LOCKS_REQUIRED(mu_) {
                 return closing_ || (!paused_for_snapshot_ && has_event_);
@@ -220,14 +224,13 @@ void PipeChannel::ReaderLoop() {
                 return;
             }
             has_event_ = false;
-            cb = on_read_;
         }
-        while (ReadOne(cb)) {
+        while (ReadOne()) {
         }
     }
 }
 
-bool PipeChannel::ReadOne(const OpenglesReadCallback& cb) {
+bool PipeChannel::ReadOne() {
     {
         absl::MutexLock lock(&mu_);
         if (closing_ || paused_for_snapshot_) {
@@ -240,7 +243,9 @@ bool PipeChannel::ReadOne(const OpenglesReadCallback& cb) {
     const IoResult res = TryThenArmAndRetry(*channel_, State::CanRead,
                                             [&]() { return channel_->tryRead(&buf); });
     if (res == IoResult::Ok && !buf.empty()) {
-        if (cb) {
+        // Fetch the callback after the read, not before: data written after
+        // SetCallbacks() returned must reach the new callback.
+        if (const OpenglesReadCallback cb = CurrentReadCallback()) {
             cb(reinterpret_cast<const uint8_t*>(buf.data()), buf.size());
         }
         SetReading(false);

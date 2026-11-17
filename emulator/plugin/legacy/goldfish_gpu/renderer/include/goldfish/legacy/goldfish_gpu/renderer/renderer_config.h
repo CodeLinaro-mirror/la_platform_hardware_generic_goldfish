@@ -14,6 +14,7 @@
 
 #pragma once
 
+#include <cstdint>
 #include <string_view>
 
 #include "absl/status/status.h"
@@ -28,6 +29,18 @@
 
 namespace goldfish::legacy {
 
+// Guest system images on the legacy goldfish_pipe transport support gfxstream
+// host Vulkan emulation (including VulkanQueueSubmitWithCommands) on Android
+// API levels 31 through 36 inclusive. API <= 30 guests lack
+// VulkanQueueSubmitWithCommands, and API 37+ guests use virtio-gpu-gfxstream.
+inline constexpr uint32_t kMinGoldfishGpuVulkanApiLevel = 31;
+inline constexpr uint32_t kMaxGoldfishGpuVulkanApiLevel = 36;
+
+constexpr bool IsGoldfishGpuVulkanSupported(uint32_t guest_api_level) {
+    return guest_api_level >= kMinGoldfishGpuVulkanApiLevel &&
+           guest_api_level <= kMaxGoldfishGpuVulkanApiLevel;
+}
+
 // Maps the ANDROID_EMU_RENDERER value to the gfxstream backend. Every software
 // mode resolves to lavapipe (SwiftShader is being removed, b/570473107), and
 // host GPU is not wired up on the goldfish_pipe path below API 37 yet, so it
@@ -35,12 +48,14 @@ namespace goldfish::legacy {
 // An empty value selects lavapipe.
 SelectedRenderer ParseRendererBackend(std::string_view env_value);
 
-// Fills `features` with the goldfish_pipe defaults (GL only, no Vulkan, BAR 1
-// DMA through goldfish_address_space) and then applies `renderer_features`,
-// a ','/';'-separated list of "<FeatureName>:enabled|disabled" entries.
+// Fills `features` with the goldfish_pipe defaults (host GLES + host Vulkan on
+// API 31..36, HostComposition, BAR 1 DMA through goldfish_address_space) and
+// then applies `renderer_features`, a ','/';'-separated list of
+// "<FeatureName>:enabled|disabled" entries.
 // `egl_on_egl` is the ANDROID_EGL_ON_EGL=1 switch.
 absl::Status BuildFeatureSet(std::string_view renderer_features, bool egl_on_egl,
-                             gfxstream::host::FeatureSet* features);
+                             gfxstream::host::FeatureSet* features,
+                             uint32_t guest_api_level = kMaxGoldfishGpuVulkanApiLevel);
 
 // Parses the ANDROID_EMU_GOLDFISH_GPU_VERIFY override ("off", "log", "enforce",
 // "strict", or 0-3). An empty or unknown value keeps `default_mode`.

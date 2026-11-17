@@ -24,9 +24,16 @@
 
 namespace goldfish::legacy {
 
+namespace {
+// Host display ID of the outer foldable screen (RenderLibBridge::kExternalFoldableDisplayId;
+// not included here to keep the snapshot library independent of the renderer bridge).
+constexpr uint32_t kExternalFoldableDisplayId = 6;
+}  // namespace
+
 void PostedFrameCache::OnPost(const Source& source, uint32_t display_id, int width, int height,
                               const unsigned char* pixels) {
-    if (display_id != 0 || width <= 0 || height <= 0) {
+    if ((display_id != 0 && display_id != kExternalFoldableDisplayId) || width <= 0 ||
+        height <= 0) {
         return;
     }
     const auto w = static_cast<uint32_t>(width);
@@ -44,7 +51,7 @@ void PostedFrameCache::OnPost(const Source& source, uint32_t display_id, int wid
         if (source.before_readback && pixels != nullptr) {
             source.before_readback();
         }
-        source.read_pixels(bgra.data(), static_cast<uint32_t>(byte_size), /*displayId=*/0);
+        source.read_pixels(bgra.data(), static_cast<uint32_t>(byte_size), display_id);
     } else {
         if (pixels == nullptr) {
             return;

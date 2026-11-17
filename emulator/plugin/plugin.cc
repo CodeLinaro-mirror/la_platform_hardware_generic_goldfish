@@ -43,6 +43,7 @@
 #include "goldfish/grpc/grpc.h"
 #include "goldfish/input/virtio_input_android.h"
 #include "goldfish/legacy/goldfish_address_space_low_level.h"
+#include "goldfish/legacy/goldfish_events_low_level.h"
 #include "goldfish/legacy/goldfish_pipe_low_level.h"
 #include "goldfish/legacy/goldfish_sync_low_level.h"
 #include "goldfish/net/virtio_wifi.h"
@@ -217,6 +218,7 @@ extern "C" void GF_REGISTER_TYPES_FUNC(void) {
     goldfish::avd::avd_finalize_register_types();
     goldfish::adb_device::adb_device_register_types();
     virtio_input_android_register_types();
+    goldfish_events_register_types();
     virtio_gpu_gfxstream_register_types();
     goldfish::grpc::grpc_register_types();
     goldfish::grpc::webrtc_register_types();
@@ -272,7 +274,9 @@ extern "C" void GF_STARTUP_FUNC(int argc, char** argv) {
     VLOG(1) << "Goldfish plugin version: " << goldfish::version::GetEmulatorFullVersion();
     // The plugin crash system should never try to upload - that should only be
     // done by the launcher.
-    if (auto status = android::crashreport::CrashSystem::get().initialize(); !status.ok()) {
+    if (auto status = android::crashreport::CrashSystem::Get().Initialize(
+                android::crashreport::CrashSystem::Config::FromEnv());
+        !status.ok()) {
         LOG(WARNING) << "Failed to initialize crashreporting: " << status.message();
     }
 

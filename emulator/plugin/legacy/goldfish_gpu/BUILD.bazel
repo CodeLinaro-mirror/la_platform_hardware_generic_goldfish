@@ -14,7 +14,7 @@ load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 #   testing/    in-process gfxstream fakes shared by every test
 #
 # External consumers keep depending on the labels below (":goldfish_gpu", ":impl",
-# ":impl_<arch>", ":fake_goldfish_gpu", ":goldfish_gpu_interface").
+# ":fake_goldfish_gpu", ":goldfish_gpu_interface").
 
 package(
     default_applicable_licenses = ["//emulator:license"],
@@ -83,17 +83,6 @@ alias(
     name = "impl",
     actual = "//emulator/plugin/legacy/goldfish_gpu/qemu:impl",
 )
-
-[
-    alias(
-        name = "impl_" + arch,
-        actual = "//emulator/plugin/legacy/goldfish_gpu/qemu:impl",
-    )
-    for arch in [
-        "aarch64",
-        "x86_64",
-    ]
-]
 
 # Integration suite over IGoldfishGpu and the C ABI with the gfxstream fakes.
 cc_test(

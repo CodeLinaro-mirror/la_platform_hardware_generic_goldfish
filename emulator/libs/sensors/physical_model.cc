@@ -871,6 +871,7 @@ void PhysicalModel::NotifyTargetState(PhysicalModelChangeEvent::Type type) {
 static_assert(PhysicalModel::kNumSensors <= sizeof(unsigned long) * CHAR_BIT);
 
 archive::IWriter& operator<<(archive::IWriter& w, const PhysicalModel& pm) {
+    const std::lock_guard<std::recursive_mutex> lock(pm.mutex_);
     w << pm.inertial_model_ << pm.ambient_environment_ << pm.body_model_ << pm.model_time_ns_
       << pm.use_override_.to_ulong() << pm.is_physical_state_changing_;
 
@@ -892,35 +893,46 @@ archive::IWriter& operator<<(archive::IWriter& w, const PhysicalModel& pm) {
 }
 
 absl::Status ReadValue(archive::IReader& r, PhysicalModel& pm) {
-    unsigned long use_override_bits;
-    bool has_foldable_model;
+    bool is_changing = false;
+    {
+        const std::lock_guard<std::recursive_mutex> lock(pm.mutex_);
+        unsigned long use_override_bits;
+        bool has_foldable_model;
 
-    RETURN_IF_ERROR(ReadValue(r, pm.inertial_model_, pm.ambient_environment_, pm.body_model_,
-                              pm.model_time_ns_, use_override_bits, pm.is_physical_state_changing_,
-                              has_foldable_model));
+        RETURN_IF_ERROR(ReadValue(r, pm.inertial_model_, pm.ambient_environment_, pm.body_model_,
+                                  pm.model_time_ns_, use_override_bits,
+                                  pm.is_physical_state_changing_, has_foldable_model));
 
-    if constexpr (PhysicalModel::kNumSensors < sizeof(unsigned long) * CHAR_BIT) {
-        if ((use_override_bits >> PhysicalModel::kNumSensors) != 0) {
-            return absl::InvalidArgumentError(absl::StrCat(
-                    "Invalid sensor override bitmask 0x", absl::Hex(use_override_bits),
-                    " in PhysicalModel (kNumSensors=", PhysicalModel::kNumSensors, ")"));
+        if constexpr (PhysicalModel::kNumSensors < sizeof(unsigned long) * CHAR_BIT) {
+            if ((use_override_bits >> PhysicalModel::kNumSensors) != 0) {
+                return absl::InvalidArgumentError(absl::StrCat(
+                        "Invalid sensor override bitmask 0x", absl::Hex(use_override_bits),
+                        " in PhysicalModel (kNumSensors=", PhysicalModel::kNumSensors, ")"));
+            }
         }
-    }
-    pm.use_override_ = PhysicalModel::UseOverrideMask(use_override_bits);
+        pm.use_override_ = PhysicalModel::UseOverrideMask(use_override_bits);
 
-    if (has_foldable_model != static_cast<bool>(pm.foldable_model_)) {
-        return {absl::StatusCode::kInvalidArgument, "Mismatch on the foldable model configuration"};
-    } else if (has_foldable_model) {
-        RETURN_IF_ERROR(ReadValue(r, *pm.foldable_model_));
-    }
+        if (has_foldable_model != static_cast<bool>(pm.foldable_model_)) {
+            return {absl::StatusCode::kInvalidArgument,
+                    "Mismatch on the foldable model configuration"};
+        } else if (has_foldable_model) {
+            RETURN_IF_ERROR(ReadValue(r, *pm.foldable_model_));
+        }
 
-    for (size_t& measurement_id : pm.measurement_id_) {
-        RETURN_IF_ERROR(ReadValue(r, measurement_id));
-    }
+        for (size_t& measurement_id : pm.measurement_id_) {
+            RETURN_IF_ERROR(ReadValue(r, measurement_id));
+        }
 
 #define GOLDFISH_SENSOR_DEF(x, y, z, v, w) RETURN_IF_ERROR(ReadValue(r, pm.m##z##Override));
-    GOLDFISH_SENSORS_LIST
+        GOLDFISH_SENSORS_LIST
 #undef GOLDFISH_SENSOR_DEF
+        is_changing = pm.is_physical_state_changing_;
+    }
+
+    pm.NotifyTargetState(PhysicalModelChangeEvent::Type::kTargetStateChanged);
+    if (is_changing) {
+        pm.NotifyTargetState(PhysicalModelChangeEvent::Type::kPhysicalStateChanging);
+    }
 
     return absl::OkStatus();
 }

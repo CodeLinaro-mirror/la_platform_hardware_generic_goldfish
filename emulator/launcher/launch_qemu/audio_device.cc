@@ -40,9 +40,18 @@ std::vector<std::string> AudioDevice::getQemuParameters(const EmulatorConfig& em
     using namespace std::literals;
     const std::string_view kHostId = "id=hostaudiodev"sv;
 
+    const AudioCardType audioCardType =
+            getAudioCardType(emulator.avd().ApiLevel(), emulator.avd().Arch());
+    if (audioCardType == AudioCardType::NONE) {
+        LOG(WARNING) << "Audio is not supported on this system image (API"
+                     << emulator.avd().ApiLevel() << ", " << emulator.avd().Abi()
+                     << "). Please use a newer system image (API26+ on ARM or API22+ on x86).";
+        return {};
+    }
+
     std::string audioBackend = getAudioBackend(emulator.opts());
     std::string_view audioSettings;
-    if (emulator.opts().noaudio) {
+    if (emulator.opts().no_audio || emulator.opts().noaudio) {
         audioBackend = "none"s;
         audioSettings = "out.mixing-engine=off,in.mixing-engine=off"sv;
     } else {
@@ -61,25 +70,66 @@ std::vector<std::string> AudioDevice::getQemuParameters(const EmulatorConfig& em
             absl::StrCat("goldfish-audio-mux,host-audiodev=hostaudiodev,audiodev-id=mainaudiodev"sv,
                          emulator.opts().allow_host_audio ? ",allow-host-audio=on"sv : ""sv);
 
-    switch (emulator.avd().Arch()) {
+    std::vector<std::string> result = {
+        "-audiodev"s,
+        absl::StrFormat("%s,%s,%s", audioBackend, kHostId, audioSettings),
+        "-device"s,
+        muxDevice,
+    };
+
+    DCHECK(audioCardType != AudioCardType::NONE);
+    switch (audioCardType) {
+    case AudioCardType::VIRTIO_SND:
+        result.push_back("-device"s);
+        result.push_back(absl::StrCat("virtio-sound-pci,audiodev=mainaudiodev,addr="sv, addr()));
+        break;
+
+    case AudioCardType::INTEL_HDA:
+        result.push_back("-device"s);
+        result.push_back(absl::StrCat("intel-hda,addr="sv, addr()));
+        result.push_back("-device"s);
+        result.push_back("hda-duplex,audiodev=mainaudiodev"s);
+        break;
+
+    case AudioCardType::NONE:
+        break;
+    }
+
+    return result;
+}
+
+AudioDevice::AudioCardType AudioDevice::getAudioCardType(const int api_level,
+                                                         const Avd::CpuArchitecture arch) {
+    // We ship virtio-snd starting from android12-5.10 (API31), on API33+ we ship virtio-snd only.
+    switch (arch) {
     case Avd::CpuArchitecture::kArm:
+        if (api_level >= 31) {
+            return AudioCardType::VIRTIO_SND;
+        } else if (api_level >= 26) {
+            return AudioCardType::INTEL_HDA;
+        } else {
+            return AudioCardType::NONE;
+        }
+
     case Avd::CpuArchitecture::kX86:
-        return {
-            "-audiodev"s, absl::StrFormat("%s,%s,%s", audioBackend, kHostId, audioSettings),
-            "-device"s,   muxDevice,
-            "-device"s,   absl::StrCat("virtio-sound-pci,audiodev=mainaudiodev,addr="sv, addr()),
-        };
+        if (api_level >= 31) {
+            return AudioCardType::VIRTIO_SND;
+        } else if (api_level >= 22) {
+            return AudioCardType::INTEL_HDA;
+        } else {
+            return AudioCardType::NONE;
+        }
 
     case Avd::CpuArchitecture::kRiscV:
     case Avd::CpuArchitecture::kUnknown:
         break;
     }
 
-    return {};
+    return AudioCardType::NONE;
 }
 
 std::string AudioDevice::getAudioBackend(const AndroidOptions& opts) {
-    if (opts.noaudio) {
+    if (opts.no_audio || opts.noaudio) {
         return {};
     }
 

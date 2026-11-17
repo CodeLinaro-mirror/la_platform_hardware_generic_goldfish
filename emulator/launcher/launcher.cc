@@ -45,6 +45,7 @@
 #include "goldfish/async/libuv_socket_factory.h"
 #include "goldfish/async/when_all.h"
 #include "goldfish/file/file.h"
+#include "goldfish/file/file_lock.h"
 #include "goldfish/metrics/metrics_reporter.h"
 #include "goldfish/metrics/snapshot_metrics.h"
 #include "goldfish/metrics/studio_file_metrics_writer.h"
@@ -55,7 +56,6 @@
 #include "launch_fishtank.h"
 #include "launch_netsimd.h"
 #include "launch_qemu/emulator_config.h"
-#include "launch_qemu/gpu_device.h"
 #include "launch_qemu/launch_qemu.h"
 #include "launch_qemu/snapshot_device.h"
 #include "legacy_console_controller.h"
@@ -218,6 +218,9 @@ class Launcher {
             }
             qemu_shutdown_requested_ = true;
             LOG(ERROR) << "Signal received, sending shutdown command to emulator: " << signum;
+            if (quickboot_save_enabled_ && !shutdown_snapshot_lock_.has_value()) {
+                shutdown_snapshot_lock_ = config_.avd_session_lock.AcquireShutdownSnapshotLock();
+            }
             if (auto s = send_emulator_grpc_shutdown(ports_.serial_number); !s.ok()) {
                 LOG(WARNING) << "Graceful gRPC shutdown failed; falling back to forceful kill with "
                                 "signal: "
@@ -461,9 +464,14 @@ class Launcher {
                                            *config_.avd,
                                            qemu_opts,
                                            config_.feature_flags,
+                                           config_.gpu_selection,
                                            host_timezone_}};
 
         if (auto emulator_config = emulator.launch_config(); emulator_config.ok()) {
+            if (const auto* snapshot = emulator.get<SnapshotDevice>("snapshot")) {
+                quickboot_save_enabled_ =
+                        (snapshot->save_status() == SnapshotDevice::SaveStatus::kSaving);
+            }
             if (auto s = config_.process_launcher->Launch(
                         *std::move(emulator_config),
                         [this](int64_t status, int signal) { emulator_exit(status, signal); });
@@ -471,7 +479,7 @@ class Launcher {
                 emulator_process_ = *std::move(s);
                 qemu_pid_ = emulator_process_->GetPid();
                 LOG(INFO) << "Running emulator as pid: " << qemu_pid_;
-                report_host_info_metrics(emulator);
+                report_host_info_metrics();
                 report_quickboot_metrics(emulator);
             } else {
                 fail_startup(
@@ -493,24 +501,13 @@ class Launcher {
         }
     }
 
-    void report_host_info_metrics(const LaunchQemu& emulator) {
-        std::string vk_icd;
-        std::vector<VulkanGpuDeviceInfo> host_gpus;
-        std::optional<VulkanGpuDeviceInfo> selected_gpu;
-        if (const auto* gpu = emulator.get<GpuDevice>("gpu0")) {
-            vk_icd = gpu->getVulkanIcd();
-            host_gpus.assign(gpu->getHostGpus().begin(), gpu->getHostGpus().end());
-            selected_gpu = gpu->getSelectedGpu();
-        }
-        config_.metrics_reporter->Report([this, vk_icd = std::move(vk_icd),
-                                          host_gpus = std::move(host_gpus),
-                                          selected_gpu = std::move(selected_gpu)](
-                                                 android_studio::AndroidStudioEvent& event) {
+    void report_host_info_metrics() {
+        config_.metrics_reporter->Report([this](android_studio::AndroidStudioEvent& event) {
             android::goldfish::FillEmulatorHostEvent(
                     event, *config_.avd, config_.feature_flags,
                     /*launcher_pid=*/android::base::System::GetCurrentProcessPid(),
                     /*qemu_pid=*/emulator_process_->GetPid(), config_.opts.metrics_collection,
-                    config_.opts.fuchsia, vk_icd, host_gpus, selected_gpu);
+                    config_.opts.fuchsia, config_.gpu_selection);
         });
     }
 
@@ -553,6 +550,10 @@ class Launcher {
         });
     }
 
+    // Declared before `config_` so ~Launcher() releases the Quickboot shutdown
+    // snapshot lock last, after `config_.avd_session_lock` has already unlocked
+    // `multiinstance.lock` and `hardware-qemu.ini.lock`.
+    std::optional<android::base::file::ScopedFileLock> shutdown_snapshot_lock_;
     const LauncherConfig config_;
     const bool use_netsim_;
     // The zoneinfo name of the host timezone, or std::nullopt if it is unknown.
@@ -575,6 +576,7 @@ class Launcher {
 
     int emulator_exit_status_ = 0;
     int64_t qemu_pid_ = 0;
+    bool quickboot_save_enabled_ = false;
     absl::Status startup_status_ = absl::OkStatus();
 
     std::thread shutdown_thread_;

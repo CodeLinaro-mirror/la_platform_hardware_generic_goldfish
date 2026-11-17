@@ -389,6 +389,8 @@ clang_tidy_test(
         ":emulator_controller_input_test",
         ":in_process_rtc_service",
         ":in_process_rtc_service_test",
+        ":modem_service",
+        ":modem_service_test",
         ":screen_recorder",
         ":screen_recording_impl_test",
         ":screen_recording_perf",

@@ -29,6 +29,7 @@
 #include "goldfish/avd_universe/grpc/grpc_notification_channel.h"
 #include "goldfish/avd_universe/guest_status/guest_status.h"
 #include "goldfish/avd_universe/vehicle/vehicle_data.h"
+#include "goldfish/devices/connector_registry_impl.h"
 #include "goldfish/devices/multidisplay/multidisplay_device.h"
 #include "goldfish/display/abstract_multi_display.h"
 #include "goldfish/sensors/physical_model.h"
@@ -66,6 +67,7 @@ struct AvdUniverse : public snapshottable::Snapshottable {
     avd_universe::guest_status::GuestStatus& GetGuestStatus() { return guest_status_; }
     avd_universe::gps::ObservableLocation& GetLocation() { return location_; }
     sensors::PhysicalModel& GetSensorsPhysicalModel() { return sensors_physical_model_; }
+    devices::ConnectorRegistry& GetConnectorRegistry() { return connector_registry_; }
 
     virtual async::EventLoop& GetQemuEventLoop() = 0;
     virtual metrics::MetricsReporter& GetMetricsReporter() = 0;
@@ -137,6 +139,7 @@ struct AvdUniverse : public snapshottable::Snapshottable {
     avd_universe::guest_status::GuestStatus guest_status_;
     avd_universe::gps::ObservableLocation location_;
     sensors::PhysicalModel sensors_physical_model_;
+    devices::ConnectorRegistry connector_registry_;
 };
 
 }  // namespace goldfish::avd

@@ -15,9 +15,11 @@
  */
 #pragma once
 #include <memory>
+#include <optional>
 
 #include "goldfish/async/event_loop.h"
 #include "goldfish/devices/cable/cable.h"
+#include "goldfish/devices/hal_plug_to_i_plug_adapter.h"
 #include "goldfish/devices/internal/hal_plug.h"
 
 namespace goldfish::devices {
@@ -64,10 +66,15 @@ class HalPlugFactory {
      * @param hal_factory A function to create the user's HalPlug instance.
      * @param client_loop The event loop for the HalPlug's callbacks.
      * @param qemuLoop The event loop for QEMU-side I/O operations.
+     * @param identity How to re-create the HalPlug when a snapshot is loaded
+     * (see `HalPlugSnapshotRegistry`). Without it the connection is never
+     * snapshotted and is reset on snapshot load, even if the HalPlug returns
+     * `SupportsSnapshot()`.
      * @return A `PlugPtr` to be managed by the QEMU connection framework.
      */
     static PlugPtr WrapHalPlug(SocketPtr qemu_socket, const HalDeviceFactory& hal_factory,
-                               EventLoop* client_loop, EventLoop* qemu_loop);
+                               EventLoop* client_loop, EventLoop* qemu_loop,
+                               std::optional<HalPlugSnapshotIdentity> identity = std::nullopt);
 
     /**
      * @brief Establishes an outbound connection to a vsock service.

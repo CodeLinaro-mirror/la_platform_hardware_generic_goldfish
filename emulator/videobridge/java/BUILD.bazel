@@ -1,4 +1,5 @@
-load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_test")
+load("@goldfish_build//rules:symbol_exports.bzl", "cc_exported_shared_library")
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 load("@rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library", "kt_jvm_test")
 
 package(default_visibility = ["//visibility:public"])
@@ -58,7 +59,7 @@ cc_test(
     ],
 )
 
-cc_binary(
+cc_exported_shared_library(
     name = "libwebrtc_java_receiver",
     srcs = [
         "native/jni_rtc_receiver.cc",
@@ -71,11 +72,7 @@ cc_binary(
         "//conditions:default": ["-fno-rtti"],
     }),
     linkopts = JNI_LINKOPTS,
-    linkshared = True,
-    win_def_file = select({
-        "@platforms//os:windows": "libwebrtc_java_receiver.def",
-        "//conditions:default": None,
-    }),
+    win_def_file = "libwebrtc_java_receiver.def",
     deps = [
         # buildifier: keep - JNI headers must precede videobridge_codecs to avoid collision with ffmpeg/jni.h
         "@bazel_tools//tools/jdk:jni",

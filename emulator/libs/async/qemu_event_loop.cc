@@ -39,6 +39,8 @@
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/synchronization/mutex.h"
+#include "absl/time/clock.h"
+#include "absl/time/time.h"
 
 #include "goldfish/async/event_loop.h"
 #include "goldfish/perfetto/perfetto_categories.h"
@@ -245,7 +247,12 @@ class QemuEventLoopImpl : public goldfish::async::QemuEventLoop {
     };
 
     explicit QemuEventLoopImpl(std::string name)
-            : QemuEventLoop(std::move(name)), drainer_bh_(MakeQemuBh([&] { DrainQueue(); })) {
+            : QemuEventLoop(std::move(name)),
+              drainer_bh_(MakeQemuBh([&] {
+                  if (!DrainQueueOnce()) {
+                      qemu_bh_schedule(drainer_bh_.get());
+                  }
+              })) {
         const bool lock_bql = !bql_locked();
         if (lock_bql) {
             bql_lock();
@@ -280,7 +287,7 @@ class QemuEventLoopImpl : public goldfish::async::QemuEventLoop {
     }
 
     void ShutdownTimers() override;
-    size_t WaitUntilIdle() override;
+    size_t Flush() override;
     std::future<absl::Status> Shutdown() override;
 
     bool IsOnLoopThread() const override;
@@ -298,16 +305,16 @@ class QemuEventLoopImpl : public goldfish::async::QemuEventLoop {
     absl::Status PostImmediately(Task task, FlowId flow_id) override;
     absl::Status PostDelayed(Task task, absl::Duration delay, FlowId flow_id) override;
 
-    size_t DrainQueue() {
+    bool DrainQueueOnce() {
         std::queue<QueuedTask> local_queue;
         {
             const absl::MutexLock lock(queue_mutex_);
+            drainer_scheduled_ = true;
             task_queue_.swap(local_queue);
-            drainer_scheduled_ = false;
         }
 
         const size_t num_tasks_to_process = local_queue.size();
-        TRACE_EVENT("async", "QemuEventLoop::DrainQueue", "batch_size", num_tasks_to_process);
+        TRACE_EVENT("async", "QemuEventLoop::DrainQueueOnce", "batch_size", num_tasks_to_process);
 
         while (!local_queue.empty()) {
             FlowId flow_id = local_queue.front().flow_id;
@@ -318,10 +325,28 @@ class QemuEventLoopImpl : public goldfish::async::QemuEventLoop {
             local_queue.pop();
         }
 
-        absl::MutexLock lock(queue_mutex_);
-        queue_is_idle_ = task_queue_.empty();
+        const absl::MutexLock lock(queue_mutex_);
         tasks_processed_ += num_tasks_to_process;
-        return tasks_processed_;
+        drainer_scheduled_ = !task_queue_.empty();
+        return !drainer_scheduled_;
+    }
+
+    size_t DrainQueue() {
+        constexpr absl::Duration kWarnTimeout = absl::Seconds(3);
+        constexpr absl::Duration kCrashTimeout = absl::Seconds(15);
+        const absl::Time start = absl::Now();
+        absl::Time warn_deadline = start + kWarnTimeout;
+        const absl::Time crash_deadline = start + kCrashTimeout;
+        while (!DrainQueueOnce()) {
+            const absl::Time now = absl::Now();
+            LOG_IF(FATAL, now >= crash_deadline) << "Timed out waiting for queue to be idle";
+            if (now >= warn_deadline) {
+                LOG(WARNING) << "Still waiting for queue to be idle after " << kWarnTimeout;
+                warn_deadline = absl::InfiniteFuture();
+            }
+        }
+        const absl::MutexLock lock(queue_mutex_);
+        return static_cast<size_t>(tasks_processed_);
     }
 
     bool TryRegisterTimer(const std::shared_ptr<QemuTimer>& t) {
@@ -406,7 +431,8 @@ class QemuEventLoopImpl : public goldfish::async::QemuEventLoop {
     QemuSnapshotProgressEntry* snapshot_progress_entry_{nullptr};
     std::promise<absl::Status> shutdown_complete_promise_;
     const std::thread::id qemu_thread_id_{std::this_thread::get_id()};
-    size_t tasks_processed_ ABSL_GUARDED_BY(queue_mutex_) = 0;
+    uint64_t tasks_submitted_ ABSL_GUARDED_BY(queue_mutex_) = 0;
+    uint64_t tasks_processed_ ABSL_GUARDED_BY(queue_mutex_) = 0;
     std::queue<QueuedTask> task_queue_ ABSL_GUARDED_BY(queue_mutex_);
     // A map of raw pointers to their corresponding weak pointers for safe shutdown.
     absl::flat_hash_map<QemuTimer*, std::weak_ptr<QemuTimer>> active_timers_
@@ -416,7 +442,6 @@ class QemuEventLoopImpl : public goldfish::async::QemuEventLoop {
     std::atomic<bool> snapshot_in_progress_{false};
     std::atomic<bool> is_shutting_down_{false};
     bool drainer_scheduled_ ABSL_GUARDED_BY(queue_mutex_) = false;
-    bool queue_is_idle_ ABSL_GUARDED_BY(queue_mutex_) = true;
     bool timers_shut_down_ ABSL_GUARDED_BY(active_timers_mutex_) = false;
 
     // Mutexes placed at the very end.
@@ -434,15 +459,19 @@ void QemuEventLoopImpl::ShutdownTimers() {
     PostImmediately([this]() { ShutdownTimersInternal(); }, /*flow_id=*/0).IgnoreError();
 }
 
-size_t QemuEventLoopImpl::WaitUntilIdle() {
+size_t QemuEventLoopImpl::Flush() {
     if (IsOnLoopThread()) {
         return DrainQueue();
     } else {
         const absl::MutexLock lock(queue_mutex_);
-        if (!queue_mutex_.AwaitWithTimeout(absl::Condition(&queue_is_idle_), absl::Seconds(15))) {
+        const uint64_t target = tasks_submitted_;
+        auto reached_target = [this, target]() ABSL_EXCLUSIVE_LOCKS_REQUIRED(queue_mutex_) {
+            return HasProcessedTarget(tasks_processed_, target);
+        };
+        if (!queue_mutex_.AwaitWithTimeout(absl::Condition(&reached_target), absl::Seconds(15))) {
             LOG(FATAL) << "Timed out waiting for queue to be idle";
         }
-        return tasks_processed_;
+        return static_cast<size_t>(tasks_processed_);
     }
 }
 
@@ -481,7 +510,7 @@ bool QemuEventLoopImpl::IsOnLoopThread() const {
 }
 
 void QemuEventLoopImpl::PostImmediatelyLocked(Task task, FlowId flow_id) {
-    queue_is_idle_ = false;
+    ++tasks_submitted_;
     task_queue_.push(QueuedTask{std::move(task), flow_id});
 
     if (!drainer_scheduled_) {

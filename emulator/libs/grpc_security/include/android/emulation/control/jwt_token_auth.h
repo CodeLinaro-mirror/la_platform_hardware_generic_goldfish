@@ -39,12 +39,17 @@ using Path = std::filesystem::path;
 // JWT tokens will be validated on the basis of a set of JWK files that can
 // be found in the jkwsPath.
 //
-// Tokens must contain the following:
+// Legacy V1 API endpoints (/android.emulation.control.*) require:
+// - An 'iss' field on the allowlist.
+// - An 'aud' field matching the invoked method 'path' if 'path' is on the
+//   protected (yellow) list.
+// - An 'exp' field that has not expired.
 //
-// An 'iss' field, that must be on the allow list.
-// An 'aud' field matching the 'path' of the method invoked if
-// the 'path' is not on the green list.
-// The 'exp' field is not yet expired.
+// V2 API endpoints (/android.emulation.v2.* and /google.longrunning.Operations/*)
+// use Role-Based Access Control (RBAC) and require:
+// - A 'roles' JSON array claim or space-delimited 'scope' string claim containing
+//   at least one role that permits the invoked method 'path' in the "roles" map.
+// - An 'exp' field that has not expired.
 class JwtTokenAuth : public BasicTokenAuth {
   public:
     JwtTokenAuth(const Path& jwks_path, Path jwks_loaded_path, AllowList* list);

@@ -16,8 +16,10 @@
 
 #include <gtest/gtest.h>
 
+#include <atomic>
 #include <cstdint>
 #include <memory>
+#include <thread>
 #include <vector>
 
 #include "goldfish/legacy/goldfish_gpu/testing/mock_gfxstream.h"
@@ -122,6 +124,8 @@ TEST_F(RenderLibBridgeTest, ConfigureInstallsEverythingOnTheRenderLib) {
     EXPECT_EQ(lib.asg_ops, RenderLibBridge::AddressSpaceOps());
     EXPECT_NE(lib.dma_ops.get_host_addr, nullptr);
     EXPECT_NE(lib.vm_ops.map_user_memory, nullptr);
+    ASSERT_NE(lib.display_ops.is_pixel_fold, nullptr);
+    EXPECT_FALSE(lib.display_ops.is_pixel_fold());
     // setSyncDevice() registers the trigger-wait entry point immediately.
     EXPECT_EQ(host_.trigger_wait, &MockRenderLib::OnTriggerWait);
 
@@ -135,6 +139,117 @@ TEST_F(RenderLibBridgeTest, ConfigureInstallsEverythingOnTheRenderLib) {
     host_.device_exists = true;
     EXPECT_TRUE(lib.sync_device_exists());
     EXPECT_EQ(RenderLibBridge::SyncCreateFence(1, 1), 0);
+}
+
+TEST_F(RenderLibBridgeTest, ConfigureInstallsDisplayTableAndPrePopulatesFoldableDisplay6) {
+    RenderLibBridge::Install(&host_);
+    MockRenderLib lib(std::make_shared<MockRenderer>());
+
+    RenderLibBridge::Configure(&lib, 36, SELECTED_RENDERER_ANGLE_INDIRECT,
+                               /*secondary_width=*/1080, /*secondary_height=*/2364);
+    ASSERT_NE(lib.display_ops.is_pixel_fold, nullptr);
+    EXPECT_TRUE(lib.display_ops.is_pixel_fold());
+    ASSERT_NE(lib.display_ops.is_multi_display_enabled, nullptr);
+    EXPECT_TRUE(lib.display_ops.is_multi_display_enabled());
+
+    EXPECT_EQ(lib.display_ops.set_display_pose(0, 0, 0, 2076, 2152, 420), 0);
+    EXPECT_EQ(lib.display_ops.set_display_color_buffer(0, 11), 0);
+    bool enabled = false;
+    EXPECT_TRUE(lib.display_ops.get_display_info(0, nullptr, nullptr, nullptr, nullptr, nullptr,
+                                                 nullptr, &enabled));
+    EXPECT_TRUE(enabled);
+
+    // Pre-populated foldable display 6 is immediately queryable for setPostCallback(..., 6).
+    uint32_t w = 0;
+    uint32_t h = 0;
+    enabled = false;
+    EXPECT_TRUE(lib.display_ops.get_display_info(6, nullptr, nullptr, &w, &h, nullptr, nullptr,
+                                                 &enabled));
+    EXPECT_TRUE(enabled);
+    EXPECT_EQ(w, 1080U);
+    EXPECT_EQ(h, 2364U);
+
+    // Explicit create_display(&6) (e.g. FrameBuffer::onLoad before HWC boot) does
+    // not consume the foldable auto-claim slot, so guest HWC rcCreateDisplay
+    // (&0xFFFFFFAB) still gets 6 first, a second external display gets 7, and
+    // HWC restart (destroy_display(6) -> rcCreateDisplay) re-claims 6.
+    uint32_t onload_id = 6;
+    EXPECT_EQ(lib.display_ops.create_display(&onload_id), 0);
+    EXPECT_EQ(onload_id, 6U);
+    uint32_t auto_id = 0xFFFFFFAB;
+    EXPECT_EQ(lib.display_ops.create_display(&auto_id), 0);
+    EXPECT_EQ(auto_id, 6U);
+    uint32_t next_auto_id = 0xFFFFFFAB;
+    EXPECT_EQ(lib.display_ops.create_display(&next_auto_id), 0);
+    EXPECT_EQ(next_auto_id, 7U);
+    EXPECT_EQ(lib.display_ops.destroy_display(6), 0);
+    uint32_t restarted_auto_id = 0xFFFFFFAB;
+    EXPECT_EQ(lib.display_ops.create_display(&restarted_auto_id), 0);
+    EXPECT_EQ(restarted_auto_id, 6U);
+
+    uint32_t invalid_id = 99;
+    EXPECT_EQ(lib.display_ops.create_display(&invalid_id), -1);
+    EXPECT_EQ(lib.display_ops.set_display_color_buffer(6, 22), 0);
+
+    // Destroying display 0 resets transient bindings while preserving primary geometry.
+    EXPECT_EQ(lib.display_ops.destroy_display(0), 0);
+    uint32_t cb = 99;
+    EXPECT_EQ(lib.display_ops.get_display_color_buffer(0, &cb), 0);
+    EXPECT_EQ(cb, 0U);
+    EXPECT_EQ(lib.display_ops.get_display_pose(0, nullptr, nullptr, &w, &h), 0);
+    EXPECT_EQ(w, 2076U);
+    EXPECT_EQ(h, 2152U);
+
+    // Snapshot pre-load cleanup drops extra displays (7) while keeping primary 0 and foldable 6.
+    RenderLibBridge::ResetSecondaryDisplays();
+    EXPECT_FALSE(lib.display_ops.get_display_info(7, nullptr, nullptr, nullptr, nullptr, nullptr,
+                                                  nullptr, nullptr));
+    EXPECT_TRUE(lib.display_ops.get_display_info(6, nullptr, nullptr, &w, &h, nullptr, nullptr,
+                                                 nullptr));
+    EXPECT_EQ(w, 1080U);
+    EXPECT_EQ(h, 2364U);
+    EXPECT_EQ(lib.display_ops.get_display_pose(0, nullptr, nullptr, &w, &h), 0);
+    EXPECT_EQ(w, 2076U);
+    EXPECT_EQ(h, 2152U);
+
+    RenderLibBridge::Configure(&lib, 36, SELECTED_RENDERER_ANGLE_INDIRECT);
+    EXPECT_FALSE(lib.display_ops.is_pixel_fold());
+    EXPECT_FALSE(lib.display_ops.is_multi_display_enabled());
+}
+
+TEST_F(RenderLibBridgeTest, DisplayOpsAreThreadSafeUnderConcurrentAccess) {
+    MockRenderLib lib(std::make_shared<MockRenderer>());
+    RenderLibBridge::Configure(&lib, 36, SELECTED_RENDERER_ANGLE_INDIRECT, 1080, 2364);
+    gfxstream_multi_display_ops ops = lib.display_ops;
+
+    std::atomic<bool> start{false};
+    std::vector<std::thread> threads;
+    for (int t = 0; t < 4; ++t) {
+        threads.emplace_back([&, t]() {
+            while (!start.load(std::memory_order_acquire)) {
+            }
+            for (int i = 0; i < 100; ++i) {
+                uint32_t id = (t == 0) ? 0xFFFFFFABU : static_cast<uint32_t>(6 + (t % 3));
+                if (ops.create_display(&id) == 0) {
+                    ops.set_display_pose(id, 0, 0, 1080, 2364, 420);
+                    ops.set_display_color_buffer(id, static_cast<uint32_t>(i + 1));
+                    uint32_t cb = 0;
+                    ops.get_display_color_buffer(id, &cb);
+                }
+                uint32_t next_id = 0;
+                ops.get_next_display_info(-1, &next_id, nullptr, nullptr, nullptr, nullptr, nullptr,
+                                          nullptr, nullptr);
+                if (i % 7 == 0 && id < 11U) {
+                    ops.destroy_display(id);
+                }
+            }
+        });
+    }
+    start.store(true, std::memory_order_release);
+    for (std::thread& th : threads) {
+        th.join();
+    }
+    RenderLibBridge::ResetSecondaryDisplays();
 }
 
 }  // namespace

@@ -37,7 +37,14 @@ inline constexpr std::string_view kCachedFeaturePatternsFileName =
         "emu-last-feature-flags.protobuf";
 
 struct HostInfo {
-    std::string cpu_manufacturer;
+    enum class CpuManufacturer {
+        kUnknown,
+        kIntel,
+        kAmd,
+        kApple,
+    };
+
+    CpuManufacturer cpu_manufacturer = CpuManufacturer::kUnknown;
     std::string os_platform;
     uint32_t cpu_model_name = 0;
     bool virt_support = false;

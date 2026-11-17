@@ -16,11 +16,14 @@
 
 #include <atomic>
 #include <chrono>
+#include <functional>
 #include <future>
+#include <thread>
 #include <vector>
 
 #include "absl/status/status_matchers.h"
 #include "absl/strings/str_cat.h"
+#include "absl/synchronization/notification.h"
 #include "absl/time/time.h"
 #include "gtest/gtest.h"
 
@@ -357,4 +360,87 @@ TEST(TestEventLoop, PostWithDelayRunsOnceTheClockAdvances) {
     loop->RunAll();
 
     EXPECT_TRUE(ran) << "Post(fn, 1s) never ran, even after the clock advanced by 2s";
+}
+
+TEST(TestEventLoop, FlushWaitsForInFlightTaskWhenQueueIsEmpty) {
+    constexpr absl::Duration kInFlightProbeWindow = absl::Milliseconds(25);
+    auto loop = TestEventLoop::Create();
+    std::atomic<bool> task_finished = false;
+    bool saw_task_finished = false;
+    absl::Notification waiter_entered;
+    absl::Notification wait_returned;
+    std::thread waiter;
+
+    ASSERT_THAT(loop->Post([&] {
+                    waiter = std::thread([&] {
+                        waiter_entered.Notify();
+                        loop->Flush();
+                        saw_task_finished = task_finished.load(std::memory_order_acquire);
+                        wait_returned.Notify();
+                    });
+                    waiter_entered.WaitForNotification();
+                    EXPECT_FALSE(
+                            wait_returned.WaitForNotificationWithTimeout(kInFlightProbeWindow));
+                    task_finished.store(true, std::memory_order_release);
+                }),
+                absl_testing::IsOk());
+
+    EXPECT_TRUE(loop->RunOne());
+    wait_returned.WaitForNotification();
+    waiter.join();
+    EXPECT_TRUE(saw_task_finished);
+}
+
+TEST(TestEventLoop, FlushReturnsUnderSteadyTraffic) {
+    auto loop = TestEventLoop::Create();
+    std::atomic<bool> stop_pumping = false;
+    std::thread runner([&] {
+        while (!stop_pumping.load(std::memory_order_acquire)) {
+            loop->RunOne();
+            std::this_thread::yield();
+        }
+    });
+
+    std::atomic<bool> running = true;
+    absl::Notification first_batch_ran;
+    std::function<void()> post_once = [&] {
+        (void)loop->Post([&] {
+            if (!first_batch_ran.HasBeenNotified()) {
+                first_batch_ran.Notify();
+            }
+            if (running.load(std::memory_order_acquire)) {
+                post_once();
+            }
+        });
+    };
+    for (int i = 0; i < 4; ++i) {
+        post_once();
+    }
+    first_batch_ran.WaitForNotification();
+
+    absl::Notification caller_entered;
+    absl::Notification wait_returned;
+    std::thread waiter([&] {
+        caller_entered.Notify();
+        loop->Flush();
+        wait_returned.Notify();
+    });
+    caller_entered.WaitForNotification();
+
+    const bool returned_promptly = wait_returned.WaitForNotificationWithTimeout(absl::Seconds(1));
+    running.store(false, std::memory_order_release);
+    stop_pumping.store(true, std::memory_order_release);
+    runner.join();
+    loop->RunAll();
+    waiter.join();
+
+    EXPECT_TRUE(returned_promptly)
+            << "Flush() never returned while tasks kept arriving on TestEventLoop";
+}
+
+TEST(TestEventLoop, StateIsFinishedAfterShutdownCompletes) {
+    auto loop = TestEventLoop::Create();
+    ASSERT_THAT(loop->ShutdownAndWait(), absl_testing::IsOk());
+
+    EXPECT_EQ(loop->GetState(), LooperStatusEvent::State::kFinished);
 }

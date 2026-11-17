@@ -22,6 +22,7 @@
 #include "android/goldfish/avd.h"
 #include "android/goldfish/feature_flags.h"
 #include "android/goldfish/input_paths.h"
+#include "emulator/launcher/gpu_selection.h"
 #include "goldfish/metrics/configure_metrics_writer.h"
 
 namespace android::goldfish {
@@ -48,6 +49,7 @@ class EmulatorConfig {
                    MetricsConfig metrics_config, const UserPaths& user_paths,
                    const EmulatorPaths& emulator_paths, const Avd& avd, const AndroidOptions& opts,
                    const FeatureFlags& feature_flags,
+                   const ::goldfish::gpu::GpuSelection& gpu_selection,
                    std::optional<std::string> host_timezone = std::nullopt)
             : mPorts(ports)
             , mChardevEndpoints(chardev_endpoints)
@@ -57,6 +59,7 @@ class EmulatorConfig {
             , mAvd(avd)
             , mOpts(opts)
             , mFeatureFlags(feature_flags)
+            , mGpuSelection(gpu_selection)
             , host_timezone_(std::move(host_timezone)) {}
 
     const UserPaths& user_paths() const { return mUserPaths; }
@@ -72,6 +75,9 @@ class EmulatorConfig {
 
     // The evaluated feature flags for this emulator run
     const FeatureFlags& feature_flags() const { return mFeatureFlags; }
+
+    // The probed and selected GPU configuration for this emulator run
+    const ::goldfish::gpu::GpuSelection& gpu_selection() const { return mGpuSelection; }
 
     const ChardevEndpoints& chardev_endpoints() const { return mChardevEndpoints; }
 
@@ -94,6 +100,7 @@ class EmulatorConfig {
     const Avd& mAvd;
     const AndroidOptions& mOpts;
     const FeatureFlags& mFeatureFlags;
+    const ::goldfish::gpu::GpuSelection& mGpuSelection;
     const std::optional<std::string> host_timezone_;
 };
 

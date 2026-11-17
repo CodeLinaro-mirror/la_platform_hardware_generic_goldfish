@@ -62,22 +62,18 @@ cc_library(
     ],
 )
 
-[cc_library(
-    name = "vsock_impl_" + arch,
+cc_library(
+    name = "vsock_impl",
     srcs = [
         "vsock_low_level.c",
         "vsock_port_fwd.cc",
-    ],
-    defines = [
-        "COMPILING_PER_TARGET",
-        'CONFIG_TARGET=\\"' + arch + '-softmmu-config-target.h\\"',
-        'CONFIG_DEVICES=\\"' + arch + '-softmmu-config-devices.h\\"',
     ],
     visibility = ["//visibility:public"],
     deps = [
         ":goldfish_vsock_hdrs",
         ":vsock_core",
         ":vsock_port_fwd_internal",
+        "//emulator/libs/archive:DequeArchive",
         "//emulator/libs/async:libuv_event_loop",
         "//emulator/libs/async:libuv_sockets",
         "//emulator/libs/async:qemu_event_loop",
@@ -89,17 +85,19 @@ cc_library(
         "//emulator/plugin/avd:global_event_loop",
         "//emulator/plugin/hal/connector:cable",
         "//emulator/plugin/hal/connector:connection_awaiter",
+        "//emulator/plugin/hal/connector:connector_registry",
         "//emulator/plugin/hal/guest-status",
         "//emulator/plugin/hal/plug:hal_plug_factory",
+        "@abseil-cpp//absl/base:no_destructor",
+        "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/synchronization",
         "@qemu//:qemu-headers-exported",
     ],
     alwayslink = True,
-) for arch in [
-    "aarch64",
-    "x86_64",
-]]
+)
 
 cc_test(
     name = "vsock_unittests",
@@ -116,6 +114,7 @@ cc_test(
         "//emulator/libs/system:test-headers",
         "//emulator/libs/test:googletest_main",
         "//emulator/plugin/hal/connector:cable",
+        "@abseil-cpp//absl/cleanup",
         "@abseil-cpp//absl/status",
         "@qemu//:qemu-headers-exported",
     ],
@@ -131,6 +130,7 @@ cc_binary_with_manifest(
     deps = [
         ":goldfish_vsock_hdrs",
         ":vsock_core",
+        "//emulator/libs/archive:DequeArchive",
         "//emulator/libs/async:libuv_event_loop",
         "//emulator/libs/async:threaded_event_loop",
         "//emulator/plugin/adb-vsock/logger",

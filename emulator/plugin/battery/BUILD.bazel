@@ -1,4 +1,5 @@
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:cc_test.bzl", "cc_test")
 
 cc_library(
     name = "headers",
@@ -29,4 +30,24 @@ cc_library(
         "@qemu//:qemu-headers-exported",
     ],
     alwayslink = True,
+)
+
+cc_test(
+    name = "battery_test",
+    size = "small",
+    srcs = [
+        "battery.cc",
+        "battery_test.cc",
+    ],
+    deps = [
+        ":headers",
+        "//emulator/libs/async:async_api",
+        "//emulator/libs/async:async_testing",
+        "//emulator/libs/eventing",
+        "//emulator/libs/test:googletest_main",
+        "//emulator/plugin/avd_universe:battery",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:check",
+    ],
 )

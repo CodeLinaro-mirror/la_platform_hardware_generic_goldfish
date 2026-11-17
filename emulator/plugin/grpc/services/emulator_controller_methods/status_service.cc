@@ -77,12 +77,9 @@ grpc::Status StatusServiceImpl::getStatus(EmulatorStatus* reply) {
         response_entry->set_value(entry.second);
     };
 
-    // Override avd.id, and name from properties
-    VLOG(1) << "AVD ID: " << avd_properties_.avd_id;
-    VLOG(1) << "AVD Name: " << avd_properties_.avd_name;
+    VLOG(1) << "AVD ID: " << avd_properties_.hw_config.avd_id;
+    VLOG(1) << "AVD Name: " << avd_properties_.hw_config.avd_name;
     VLOG(1) << "AVD Content Path: " << avd_properties_.avd_content_path.string();
-    (*platform)["avd.id"] = avd_properties_.avd_id;
-    (*platform)["avd.name"] = avd_properties_.avd_name;
     (*platform)["avd.content_path"] = avd_properties_.avd_content_path.string();
 
     if (avd_universe_) {
@@ -118,7 +115,7 @@ grpc::Status StatusServiceImpl::getStatus(EmulatorStatus* reply) {
 
     // 4. Construct and Map complete AVD Details Configuration
     std::string avd_details;
-    absl::StrAppendFormat(&avd_details, "Name: %s\n", avd_properties_.avd_name);
+    absl::StrAppendFormat(&avd_details, "Name: %s\n", avd_properties_.hw_config.avd_name);
     absl::StrAppendFormat(&avd_details, "CPU/ABI: %s\n", avd_properties_.avd_abi);
     absl::StrAppendFormat(&avd_details, "Path: %s\n", avd_properties_.avd_content_path.string());
     absl::StrAppendFormat(&avd_details, "Target: %s\n", avd_properties_.avd_api_str);

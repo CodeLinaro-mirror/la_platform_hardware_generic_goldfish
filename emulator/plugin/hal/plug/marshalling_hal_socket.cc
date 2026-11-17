@@ -51,6 +51,7 @@ MarshallingHalSocket::MarshallingHalSocket(cable::SocketPtr socket, async::Event
         : socket_(std::move(socket)), qemu_loop_(qemu_loop) {
     DCHECK(socket_) << "socket_ is nullptr";
     send_buffer_.reserve(kInitialBufferSize);
+    flush_buffer_.reserve(kInitialBufferSize);
     VLOG(1) << "MarshallingHalSocket: " << socket_ << " created";
 }
 
@@ -101,19 +102,42 @@ void MarshallingHalSocket::Send(std::string_view data) {
     qemu_loop_
             ->Post(
                     [this, self = shared_from_this(), trace_flow_id]() {
-                        const absl::MutexLock lock(&socket_mutex_);
-                        if (send_buffer_.empty()) {
-                            return;
+                        // Take the coalesced bytes out under the lock, but call
+                        // SendAsync() without it: the transport (vsock) takes
+                        // its own state lock inside SendAsync() and also calls
+                        // IPlug::SaveStateToSnapshot() under that lock, which
+                        // in turn waits for HalPlug callbacks that Send() (and
+                        // so take socket_mutex_). Holding socket_mutex_ here
+                        // would close that cycle (see HalPlugSnapshotLockOrderTest).
+                        //
+                        // socket_ itself is only replaced by Release()/Close(),
+                        // which run on this same (QEMU) thread, so the raw
+                        // pointer stays valid after the unlock.
+                        cable::ISocket* target = nullptr;
+                        {
+                            const absl::MutexLock lock(&socket_mutex_);
+                            if (send_buffer_.empty()) {
+                                return;
+                            }
+                            flush_buffer_.swap(send_buffer_);
+                            target = socket_.get();
                         }
 
                         TRACE_EVENT("async", "MarshallingHalSocket::Flush",
                                     perfetto::Flow::ProcessScoped(trace_flow_id), "bytes",
-                                    send_buffer_.size());
-                        VLOG(2) << "Sending coalesced payload of " << send_buffer_.size()
+                                    flush_buffer_.size());
+                        VLOG(2) << "Sending coalesced payload of " << flush_buffer_.size()
                                 << " bytes";
                         // Bytes go either to the *real* or NullSocket..
-                        socket_->SendAsync(send_buffer_.data(), send_buffer_.size());
-                        send_buffer_.clear();
+                        target->SendAsync(flush_buffer_.data(), flush_buffer_.size());
+                        flush_buffer_.clear();
+
+                        // Hand the (pre-reserved) buffer back so steady-state
+                        // sends keep reusing one allocation.
+                        const absl::MutexLock lock(&socket_mutex_);
+                        if (send_buffer_.empty()) {
+                            send_buffer_.swap(flush_buffer_);
+                        }
                     },
                     absl::ZeroDuration(), {.caller_pc = calling_pc})
             .IgnoreError();
@@ -129,6 +153,11 @@ cable::SocketPtr MarshallingHalSocket::Release() {
     auto s = std::move(socket_);
     socket_ = cable::SocketPtr(&g_null_socket);
     return s;
+}
+
+std::string MarshallingHalSocket::PendingSendBytes() {
+    const absl::MutexLock lock(&socket_mutex_);
+    return send_buffer_;
 }
 
 void MarshallingHalSocket::Close() {

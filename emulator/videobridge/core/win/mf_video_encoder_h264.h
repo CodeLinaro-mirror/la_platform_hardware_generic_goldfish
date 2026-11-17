@@ -104,9 +104,9 @@ class ComPtr {
  * @details
  * This class implements the @c webrtc::VideoEncoder interface using Windows Media Foundation
  * APIs. It negotiates and instantiates the hardware-accelerated H.264 Encoder MFT (Media Foundation
- * Transform), converts incoming WebRTC video frames (I420) to NV12 format, and feeds them to the
- * GPU for compression. The resulting H.264 bitstream is wrapped in @c webrtc::EncodedImage
- * and passed back via the registered callback.
+ * Transform), copies or converts incoming WebRTC video frames (NV12 or I420) to NV12 format, and
+ * feeds them to the GPU for compression. The resulting H.264 bitstream is wrapped in
+ * @c webrtc::EncodedImage and passed back via the registered callback.
  *
  * The Windows Media Foundation MFT operates synchronously. Calling @c ProcessInput() and
  * @c ProcessOutput() blocks WebRTC's dedicated encoder thread until compression is complete.
@@ -152,11 +152,11 @@ class MFVideoEncoderH264 : public webrtc::VideoEncoder {
     HRESULT ConfigureMFT() ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
     HRESULT ConfigureInputOutputTypes(int width, int height, int framerate)
             ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
-    HRESULT SetBitrateAndRateControl(uint32_t bitrate_bps)
-            ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
-    HRESULT AllocateInputBuffers(int width, int height)
-            ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
+    HRESULT SetBitrateAndRateControl(uint32_t bitrate_bps) ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
+    HRESULT AllocateInputBuffers(int width, int height) ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
     HRESULT AllocateOutputBuffers() ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
+    HRESULT PrepareInputSample(const webrtc::VideoFrame& frame, bool force_keyframe)
+            ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
     void RequestKeyFrame() ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
     HRESULT PollNextAsyncEvent(int max_wait_attempts, MediaEventType* out_event_type)
             ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);

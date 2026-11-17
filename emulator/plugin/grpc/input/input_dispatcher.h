@@ -23,6 +23,7 @@
 #include <string>
 #include <string_view>
 #include <thread>
+#include <vector>
 
 #include "absl/base/call_once.h"
 #include "absl/base/thread_annotations.h"
@@ -34,6 +35,7 @@
 #include "absl/synchronization/mutex.h"
 #include "absl/time/time.h"
 
+#include "android/emulation/control/ev_dev_event.h"
 #include "contact_table.h"
 #include "goldfish/async/event_loop.h"
 #include "goldfish/system/steady_clock.h"
@@ -55,8 +57,10 @@ namespace goldfish::grpc::v2 {
  * - The `ContactTable` matches the contacts written to each active device,
  *   except briefly between a device active-generation transition and the
  *   queued `ResyncDevices()` task (or pre-operation check) that clears them.
- * - Each device receives at most one report per operation (or two when palm
- *   cancelling contacts), written whole.
+ * - Each device receives one report per operation (or a palm report followed by
+ *   lift report(s) when cancelling contacts); reports exceeding QEMU
+ *   virtio-input's 48-descriptor batch budget split at contact boundaries and
+ *   pace across 1 ms loop ticks.
  * - A key is in `key_holders_`, with a non-empty set of open sessions, iff the
  *   last write of that key to the keyboard was a press.
  * - `outbox_` holds the undelivered activities in sequence order, ending just
@@ -227,6 +231,11 @@ class InputDispatcher final : public IInputDispatcher {
         std::bitset<kTouchDeviceSlots> slots;
         bool has_stylus_keys = false;
     };
+    struct DeviceOutbox {
+        uint64_t generation = 0;
+        std::deque<::android::emulation::control::EvDevEvents> pending_frames;
+        ::goldfish::async::EventLoop::ScopedTimer drain_timer;
+    };
     struct Session {
         SessionOptions options;
         // Bumped by every operation of the session. The idle timer fires for
@@ -304,9 +313,20 @@ class InputDispatcher final : public IInputDispatcher {
     void ReleaseSessionInput(InputSessionId session);
     void ReleaseSession(InputSessionId session);
     void ResetAfterSnapshotLoad();
+    void FlushAndWriteDeviceReport(
+            TouchDeviceId device, TouchDeviceSink& sink,
+            std::vector<::android::emulation::control::EvDevEvents> events,
+            std::vector<::android::emulation::control::EvDevEvents> follow_up);
+    void WriteDeviceFrames(TouchDeviceId device, TouchDeviceSink& sink,
+                           std::vector<::android::emulation::control::EvDevEvents> frames,
+                           size_t& budget_used);
+    void ArmOutboxTimer(TouchDeviceId device, DeviceOutbox& outbox);
+    bool OnDeviceOutboxTimer(TouchDeviceId device);
+    void ClearDeviceOutbox(TouchDeviceId device);
     // Cancels slots left down on `device` by OnDisplayRemoved() if `sink` is
     // still on the same driver generation.
     void FlushStaleSlots(TouchDeviceId device, TouchDeviceSink& sink);
+    void FlushStaleSlots(TouchDeviceId device, TouchDeviceSink& sink, size_t& budget_used);
     // Clears the contacts of each device whose guest driver went active or
     // inactive since the dispatcher recorded its generation, as the guest
     // forgot them, and reports their synthesized CANCELs. Writes nothing.
@@ -358,6 +378,9 @@ class InputDispatcher final : public IInputDispatcher {
     // Slots held on a removed display's permanent virtio-input device, to be
     // cancelled if the display is recreated without a guest driver reset.
     absl::flat_hash_map<TouchDeviceId, StaleDeviceSlots> stale_slots_;
+    // Overflow evdev report frames paced across 1 ms ticks per device so bursts
+    // stay within QEMU virtio-input's 64-descriptor event virtqueue.
+    absl::flat_hash_map<TouchDeviceId, DeviceOutbox> device_outboxes_;
     // When the activity of the running Dispatch*() operation, which reports
     // at most one, was stamped; unset until it reports it.
     std::optional<absl::Duration> reported_at_;

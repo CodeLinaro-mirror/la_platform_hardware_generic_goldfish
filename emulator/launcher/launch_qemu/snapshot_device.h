@@ -19,12 +19,10 @@
 
 #include "absl/status/statusor.h"
 
-#include "android/status/status_macros.h"
 #include "device.h"
 #include "goldfish/metrics/snapshot_metrics.h"
 #include "goldfish/snapshot/snapshot_store.h"
 #include "render-utils/snapshot_operations.h"
-#include "virtio_gpu_selection.h"
 
 namespace android::goldfish {
 
@@ -44,26 +42,9 @@ inline constexpr int kGfxstreamSnapshotVersion =
 static_assert(kGfxstreamSnapshotVersion > 0 && kGfxstreamSnapshotVersion < (1 << 15),
               "gfxstream framebuffer snapshot version does not fit in 15 bits.");
 
-static_assert(::goldfish::snapshot::MakeSnapshotVersion(
-                      kGfxstreamSnapshotVersion,
-                      ::goldfish::snapshot::SnapshotGpuDevice::kGfxstream) > 0,
-              "Snapshot version must be a positive int32.");
-
-// The snapshot version this launch writes and accepts for the given
-// virtio-gpu device: the device is part of the version (see
-// snapshot_store.h), so a snapshot saved with the other device is cold-booted
-// instead of failing mid-load.
-constexpr int SnapshotVersionFor(VirtioGpuDevice device) {
-    return ::goldfish::snapshot::MakeSnapshotVersion(kGfxstreamSnapshotVersion,
-                                                     ToSnapshotGpuDevice(device));
-}
-
-// SnapshotVersionFor() the device selected by -virtio-gpu-device; an invalid
-// option value is reported as INVALID_ARGUMENT.
-inline absl::StatusOr<int> CurrentSnapshotVersion(const EmulatorConfig& emulator) {
-    ASSIGN_OR_RETURN(const VirtioGpuDevice device, SelectedVirtioGpuDevice(emulator.opts()));
-    return SnapshotVersionFor(device);
-}
+inline constexpr int kSnapshotVersion = ::goldfish::snapshot::MakeSnapshotVersion(
+        kGfxstreamSnapshotVersion, ::goldfish::snapshot::SnapshotGpuDevice::kGfxstream);
+static_assert(kSnapshotVersion > 0, "Snapshot version must be a positive int32.");
 
 // Handles QEMU snapshot command line parameters: -loadvm/-savevm for the
 // Quickboot snapshot, and the block node that holds every snapshot's VM
@@ -100,8 +81,6 @@ class SnapshotDevice : public Device {
     // or at runtime (gRPC, console). Only -no-snapshot turns this off;
     // -no-snapshot-load / -no-snapshot-save only affect the Quickboot snapshot.
     bool snapshots_enabled() const { return snapshots_enabled_; }
-    // The version written to / required in version.txt (valid after initialize()).
-    int snapshot_version() const { return snapshot_version_; }
     // <avd>/snapshots.qcow2, the image attached as the VM-state node. Empty
     // when snapshots are disabled (-no-snapshot) and no such image exists yet.
     const std::filesystem::path& vmstate_image() const { return vmstate_image_; }
@@ -134,7 +113,6 @@ class SnapshotDevice : public Device {
     bool strict_snapshot_load_ = false;
     bool vmstate_read_only_ = false;
     bool snapshots_enabled_ = true;
-    int snapshot_version_ = SnapshotVersionFor(kDefaultVirtioGpuDevice);
     LoadStatus load_status_ = LoadStatus::kSkippedOldSnapshot;
     SaveStatus save_status_ = SaveStatus::kDisabledCmdline;
 };

@@ -194,14 +194,14 @@ class EventLoop : public CallbackEventSource<LooperStatusEvent> {
     virtual void ShutdownTimers() = 0;
 
     /**
-     * @brief Blocks the calling thread until the event loop is idle.
+     * @brief Blocks the calling thread until currently queued tasks have run.
      *
      * This method waits until all tasks that were enqueued *before* this method
-     * was called have been processed. Tasks posted while `WaitUntilIdle` is
-     * executing will not be waited for by the current call.
+     * was called have been processed. Tasks posted while `Flush` is executing
+     * will not be waited for by the current call.
      * @return An opaque value which changes when a task is processed.
      */
-    virtual size_t WaitUntilIdle() = 0;
+    virtual size_t Flush() = 0;
 
     /**
      * @brief Initiates a graceful shutdown of the event loop.
@@ -448,9 +448,15 @@ class EventLoop : public CallbackEventSource<LooperStatusEvent> {
     virtual absl::Status PostImmediately(Task task, FlowId flow_id) = 0;
     virtual absl::Status PostDelayed(Task task, absl::Duration delay, FlowId flow_id) = 0;
 
+    // Updates `state_` without firing LooperStatusEvent, so subclasses that
+    // guard transitions with an internal mutex can fire the event after
+    // unlocking.
+    bool SetStateQuietly(LooperStatusEvent::State new_state) {
+        return state_.exchange(new_state) != new_state;
+    }
+
     void SetState(LooperStatusEvent::State new_state) {
-        const LooperStatusEvent::State old_state = state_.exchange(new_state);
-        if (old_state != new_state) {
+        if (SetStateQuietly(new_state)) {
             FireEvent({.state = new_state});
         }
     }
@@ -476,6 +482,16 @@ class EventLoop : public CallbackEventSource<LooperStatusEvent> {
     bool CompareAndSetState() {
         static_assert(kExpected != kDesired);
         return CompareAndSetState(kExpected, kDesired);
+    }
+
+    /**
+     * @brief Wraparound-safe comparison for monotonic task counters.
+     *
+     * Returns true once `tasks_processed` has reached or passed `target`
+     * modulo 2^64 (assuming fewer than 2^63 tasks are concurrently pending).
+     */
+    static constexpr bool HasProcessedTarget(uint64_t tasks_processed, uint64_t target) {
+        return static_cast<int64_t>(tasks_processed - target) >= 0;
     }
 
   private:

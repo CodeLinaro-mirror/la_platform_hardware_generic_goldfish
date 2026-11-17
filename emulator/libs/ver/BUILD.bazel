@@ -18,6 +18,22 @@ selects.config_setting_group(
     ],
 )
 
+selects.config_setting_group(
+    name = "windows_aarch64",
+    match_all = [
+        "@platforms//os:windows",
+        "@platforms//cpu:aarch64",
+    ],
+)
+
+selects.config_setting_group(
+    name = "windows_x86_64",
+    match_all = [
+        "@platforms//os:windows",
+        "@platforms//cpu:x86_64",
+    ],
+)
+
 objc_library(
     name = "webcam_source_darwin",
     srcs = [
@@ -211,6 +227,7 @@ cc_library(
 
 collect_plugins(
     name = "test_vulkan_icds",
+    testonly = True,
     output_dir = "lib64/vulkan",
     plugins = select({
         ":darwin_aarch64": [
@@ -228,12 +245,23 @@ collect_plugins(
             "@mesa3d//:vulkan_lvp",
             "@mesa3d//:generate_lvp_icd",
         ],
-        "@platforms//os:windows": [
+        ":windows_aarch64": [
+            "@goldfish_prebuilts_common//vulkan:icds_windows_aarch64",
+            "@goldfish_prebuilts_common//vulkan:lib_windows_aarch64",
+            "@mesa3d//:generate_lvp_icd",
+            "@mesa3d//:vulkan_lvp",
+        ],
+        ":windows_x86_64": [
             "@goldfish_prebuilts_common//vulkan:icds_windows_x86_64",
-            "@goldfish_prebuilts_common//vulkan:lib_windows_x86_64",
+            "@goldfish_prebuilts_common//vulkan:testlib_windows_x86_64",
+            "@mesa3d//:generate_lvp_icd",
+            "@mesa3d//:vulkan_lvp",
         ],
         "//conditions:default": [],
     }),
+    renames = {
+        "@goldfish_prebuilts_common//vulkan:testlib_windows_x86_64": "vulkan-1.dll",
+    },
 )
 
 collect_plugins(

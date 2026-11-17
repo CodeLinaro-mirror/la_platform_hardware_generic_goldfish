@@ -76,40 +76,7 @@ TEST(AvdInfoDeviceTest, SnapshotsEnabledByDefaultAndVersionPassedToPlugin) {
                         ::testing::AllOf(::testing::HasSubstr("avdstart,"),
                                          ::testing::HasSubstr("snapshots_enabled=true"),
                                          ::testing::HasSubstr(absl::StrCat(
-                                                 "snapshot_version=",
-                                                 SnapshotVersionFor(kDefaultVirtioGpuDevice))))));
-}
-
-TEST(AvdInfoDeviceTest, SnapshotVersionEncodesSelectedVirtioGpuDevice) {
-    for (const char* const name : {"gfxstream", "rutabaga"}) {
-        AndroidOptions opts{};
-        opts.virtio_gpu_device = const_cast<char*>(name);
-        FakeEmulator emu(opts);
-        const VirtioGpuDevice device = std::string_view(name) == "gfxstream"
-                                               ? VirtioGpuDevice::kGfxstream
-                                               : VirtioGpuDevice::kRutabaga;
-
-        AvdInfoDevice dev(/*factory_boot=*/false);
-        EXPECT_THAT(dev.initialize(emu.config()), absl_testing::IsOk());
-        EXPECT_THAT(
-                dev.getQemuParameters(emu.config()),
-                ::testing::ElementsAre(
-                        Eq("-device"),
-                        ::testing::AllOf(
-                                ::testing::HasSubstr("avdstart,"),
-                                ::testing::HasSubstr(absl::StrCat(
-                                        "snapshot_version=", SnapshotVersionFor(device), ",")))))
-                << name;
-    }
-    // The two values differ only in the device bits.
-    EXPECT_NE(SnapshotVersionFor(VirtioGpuDevice::kGfxstream),
-              SnapshotVersionFor(VirtioGpuDevice::kRutabaga));
-    EXPECT_EQ(::goldfish::snapshot::SnapshotVersionGpuDevice(
-                      SnapshotVersionFor(VirtioGpuDevice::kGfxstream)),
-              ::goldfish::snapshot::SnapshotGpuDevice::kGfxstream);
-    EXPECT_EQ(::goldfish::snapshot::SnapshotVersionGpuDevice(
-                      SnapshotVersionFor(VirtioGpuDevice::kRutabaga)),
-              ::goldfish::snapshot::SnapshotGpuDevice::kRutabaga);
+                                                 "snapshot_version=", kSnapshotVersion)))));
 }
 
 TEST(AvdInfoDeviceTest, NoSnapshotDisablesSnapshots) {
@@ -173,8 +140,10 @@ TEST(AvdInfoDeviceTest, EscapesCommasInDisplayName) {
     EXPECT_THAT(dev.initialize(emu.config()), absl_testing::IsOk());
     EXPECT_THAT(dev.getQemuParameters(emu.config()),
                 ElementsAre(Eq("-device"),
-                            HasSubstr(",avd_name=°º¤ø,,¸¸,,ø¤º°`°º¤ø,, UTF-8 ¸,,ø¤°º¤ø,,¸¸,,"
-                                      "ø¤º°`°º¤ø,,¸,avd_id=avd-3808973207,")));
+                            ::testing::AllOf(
+                                    Not(HasSubstr("avd_name=")),
+                                    HasSubstr(",avd_display_name=°º¤ø,,¸¸,,ø¤º°`°º¤ø,, UTF-8 "
+                                              "¸,,ø¤°º¤ø,,¸¸,,ø¤º°`°º¤ø,,¸,avd_id=avd-3808973207,"))));
 }
 
 TEST(AvdInfoDeviceTest, EscapesCommasInAvdDir) {
@@ -203,7 +172,8 @@ std::vector<std::string> GetQemuParametersWithMetrics(MetricsConfig metrics_conf
     const UserPaths user_paths{};
     const AndroidOptions opts{};
     const EmulatorConfig config(ports, chardev_endpoints, std::move(metrics_config), user_paths,
-                                emu.emulator_paths(), emu.mock_avd(), opts, emu.feature_flags());
+                                emu.emulator_paths(), emu.mock_avd(), opts, emu.feature_flags(),
+                                emu.gpu_selection());
 
     AvdInfoDevice dev(/*factory_boot=*/false);
     EXPECT_THAT(dev.initialize(config), absl_testing::IsOk());
@@ -252,7 +222,7 @@ std::string GetAvdStartProperties(const AndroidOptions& opts,
     const UserPaths user_paths{};
     const EmulatorConfig config(ports, chardev_endpoints, MetricsConfig{}, user_paths,
                                 emu.emulator_paths(), emu.mock_avd(), opts, emu.feature_flags(),
-                                std::move(host_timezone));
+                                emu.gpu_selection(), std::move(host_timezone));
 
     AvdInfoDevice dev(factory_boot);
     EXPECT_THAT(dev.initialize(config), absl_testing::IsOk());

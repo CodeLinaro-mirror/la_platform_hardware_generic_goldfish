@@ -17,10 +17,10 @@
 #include <ares.h>
 
 #include <cstring>
-#include <functional>
 #include <memory>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "absl/log/check.h"
@@ -79,13 +79,14 @@ using AresServerListPtr = std::unique_ptr<struct ares_addr_node, AresDataDeleter
 
 /**
  * @brief A helper that performs a DNS lookup, wraps the result in an
- * RAII-safe pointer, and processes the list with a lambda.
+ * RAII-safe pointer, and converts each resolved sockaddr into `T`.
  *
- * @return absl::OkStatus() on success, or a NotFoundError on DNS failure.
+ * @return The resolved items on success, or a NotFoundError on DNS failure.
  */
-absl::Status ProcessAddrInfo(const std::string& host, const std::string& port,
-                             const struct addrinfo* hints,
-                             const std::function<void(const struct addrinfo&)>& processor) {
+template <typename T>
+absl::StatusOr<std::vector<T>> ResolveAddrInfo(
+        const std::string& host, const std::string& port, const struct addrinfo* hints,
+        absl::StatusOr<T> (*converter)(const struct sockaddr&)) {
     struct addrinfo default_hints = {};
     if (!hints) {
         default_hints.ai_family = AF_UNSPEC;
@@ -106,12 +107,16 @@ absl::Status ProcessAddrInfo(const std::string& host, const std::string& port,
                                 (port.empty() ? "" : (":" + port)), gai_strerror(ret)));
     }
 
-    // Process the list using a simple, exception-safe loop
+    std::vector<T> resolved;
     for (auto* rp = result.get(); rp != nullptr; rp = rp->ai_next) {
-        processor(*rp);
+        if (rp->ai_addr) {
+            if (absl::StatusOr<T> item = converter(*rp->ai_addr); item.ok()) {
+                resolved.push_back(*std::move(item));
+            }
+        }
     }
 
-    return absl::OkStatus();
+    return resolved;
 }
 
 struct HostPort {
@@ -158,43 +163,12 @@ HostPort ParseHostPort(std::string_view address) {
 absl::StatusOr<std::vector<Endpoint>> ResolveEndpoints(const std::string& address,
                                                        const struct addrinfo* hints) {
     const HostPort hp = ParseHostPort(address);
-    std::vector<Endpoint> endpoints;
-
-    auto status = ProcessAddrInfo(hp.host, hp.port, hints, [&endpoints](const struct addrinfo& rp) {
-        if (rp.ai_addr) {
-            absl::StatusOr<Endpoint> endpoint = ToEndpoint(*rp.ai_addr);
-            if (endpoint.ok()) {
-                endpoints.push_back(*endpoint);
-            }
-        }
-    });
-
-    if (!status.ok()) {
-        return status;
-    }
-
-    return endpoints;
+    return ResolveAddrInfo<Endpoint>(hp.host, hp.port, hints, ToEndpoint);
 }
 
 absl::StatusOr<std::vector<IpAddress>> ResolveHostname(const std::string& hostname,
                                                        const struct addrinfo* hints) {
-    std::vector<IpAddress> addresses;
-
-    auto status =
-            ProcessAddrInfo(hostname, /*port=*/"", hints, [&addresses](const struct addrinfo& rp) {
-                if (rp.ai_addr) {
-                    absl::StatusOr<IpAddress> address = ToIpAddress(*rp.ai_addr);
-                    if (address.ok()) {
-                        addresses.push_back(*address);
-                    }
-                }
-            });
-
-    if (!status.ok()) {
-        return status;
-    }
-
-    return addresses;
+    return ResolveAddrInfo<IpAddress>(hostname, /*port=*/"", hints, ToIpAddress);
 }
 
 absl::StatusOr<std::vector<IpAddress>> GetSystemDnsServers() {

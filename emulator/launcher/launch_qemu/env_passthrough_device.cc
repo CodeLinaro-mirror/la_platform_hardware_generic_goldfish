@@ -56,8 +56,12 @@ constexpr std::string_view kAllowedEnvVars[] = {
     // Used by PulseAudio / PipeWire client libraries in QEMU's audio backend
     // on Linux to locate the user audio socket and authentication cookie.
     "XDG_RUNTIME_DIR",
+    "PULSE_RUNTIME_PATH",
     "PULSE_SERVER",
     "PULSE_COOKIE",
+    "PULSE_SINK",
+    "PULSE_SOURCE",
+    "PULSE_CLIENTCONFIG",
 };
 
 }  // namespace

@@ -20,7 +20,7 @@
 
 *   **`emulator/`**: Contains the business logic, launcher, QEMU plugins, and support libraries.
     *   **`launcher/`**: The `emulator` binary entry point.
-    *   **`plugin/`**: Dynamic libraries loaded by QEMU (`goldfish_*.so`), including virtual hardware devices, HALs, and the gRPC control service.
+    *   **`plugin/`**: Dynamic library loaded by QEMU (`libgoldfish`), including virtual hardware devices, HALs, and the gRPC control service.
     *   **`libs/`**: Cross-platform C++ support libraries (System, Process, Network, Logging, Async I/O) used across components.
 *   **`development/`**: Developer tools, build scripts, and editor configuration.
 *   **`third_party/`**: External code that isn't managed via Bazel external repositories.

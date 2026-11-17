@@ -20,6 +20,7 @@
 #include "audio/audio_service_impl.h"
 #include "battery/battery_service_impl.h"
 #include "discovery/capabilities_service_impl.h"
+#include "display/display_service_impl.h"
 #include "environment/sensors_service_impl.h"
 #include "goldfish/avd/avd_properties.h"
 #include "goldfish/avd/global_event_loop.h"
@@ -41,6 +42,7 @@ std::vector<std::shared_ptr<Service>> CreateV2Services(AvdUniverse& avd_universe
     std::vector<std::shared_ptr<Service>> services;
 
     services.emplace_back(std::make_shared<CapabilitiesServiceImpl>(avd_universe));
+    services.emplace_back(std::make_shared<DisplayServiceImpl>(avd_universe));
     services.emplace_back(
             std::make_shared<SensorsServiceImpl>(avd_universe.GetSensorsPhysicalModel()));
     services.emplace_back(std::make_shared<SystemServiceImpl>(

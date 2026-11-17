@@ -22,7 +22,10 @@ cc_library(
         "virtio_input_android_internal.h",
     ],
     hdrs = ["virtio_input_android_config.h"],
-    visibility = ["//visibility:private"],
+    visibility = [
+        "//emulator/plugin/legacy/goldfish_events:__pkg__",
+        "//emulator/plugin/virtio-input-android:__pkg__",
+    ],
     deps = [
         "//emulator/libs/base:array_size",
         "@pixman//:pixman-1",
@@ -42,6 +45,7 @@ cc_library(
         ":config",
         "//emulator/libs/base:array_size",
         "//emulator/libs/logging:absl_c_bridge",
+        "//emulator/plugin/legacy/goldfish_events",
         "@pixman//:pixman-1",
         "@qemu//:qemu-headers-exported",
     ],

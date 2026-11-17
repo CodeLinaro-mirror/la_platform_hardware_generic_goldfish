@@ -20,6 +20,8 @@
 #include <utility>
 #include <vector>
 
+#include "absl/types/span.h"
+
 namespace android::emulation::control {
 
 // An AllowList can be used to configure access to gRPC uris.
@@ -41,6 +43,20 @@ class AllowList {
     // "protected" section. This means it requires an explicit
     // "aud" field with the given path.
     virtual bool IsProtected(std::string_view sub, std::string_view path) = 0;
+
+    // Returns true if the given role grants permission to invoke `path` in the
+    // "roles" section of the security specification (used for V2 APIs).
+    virtual bool IsRoleAllowed(std::string_view role, std::string_view path) { return false; }
+
+    // Returns true if any role in `roles` grants permission to invoke `path`.
+    bool HasRolePermission(absl::Span<const std::string> roles, std::string_view path) {
+        for (const auto& role : roles) {
+            if (IsRoleAllowed(role, path)) {
+                return true;
+            }
+        }
+        return false;
+    }
 
     bool IsRed(std::string_view sub, std::string_view path) {
         return !IsAllowed(sub, path) && !IsProtected(sub, path);
@@ -70,6 +86,10 @@ class DisableAccess : public AllowList {
     bool IsAllowed(std::string_view /*sub*/, std::string_view /*path*/) override { return false; }
 
     bool IsProtected(std::string_view /*sub*/, std::string_view /*path*/) override { return false; }
+
+    bool IsRoleAllowed(std::string_view /*role*/, std::string_view /*path*/) override {
+        return false;
+    }
 };
 
 }  // namespace android::emulation::control

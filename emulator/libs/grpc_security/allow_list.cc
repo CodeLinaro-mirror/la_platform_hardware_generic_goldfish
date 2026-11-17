@@ -20,6 +20,7 @@
 #include <string_view>
 #include <unordered_map>
 #include <unordered_set>
+#include <utility>
 #include <vector>
 
 #include "absl/log/log.h"
@@ -33,6 +34,7 @@ enum class AllowGroup : uint8_t {
     kNone,    // No auth needed
     kGreen,   // Ok, if token present
     kYellow,  // Ok, if token present and proper aud claim.
+    kRole,    // Ok, if token contains a role that matches the v2 endpoint.
 };
 
 using regex = re2::RE2;
@@ -78,6 +80,10 @@ class CachingAllowList : public AllowList {
         return IsAllowed(AllowGroup::kYellow, sub, path);
     }
 
+    bool IsRoleAllowed(std::string_view role, std::string_view path) override {
+        return IsAllowed(AllowGroup::kRole, role, path);
+    }
+
   private:
     // Inserts an entry into the cache, expunging a random element
     // in case of overflow.
@@ -104,7 +110,15 @@ class CachingAllowList : public AllowList {
 
         const std::string sub = std::string(sub_view.data(), sub_view.length());
         if (!security_map_[color].contains(sub)) {
-            LOG(WARNING) << "Unknown subject " << sub << " is requesting access.";
+            if (color == AllowGroup::kRole) {
+                LOG(WARNING) << "Authorization check for endpoint '" << path_view
+                             << "' failed because role '" << sub
+                             << "' is not defined in the loaded gRPC security specification. "
+                             << "Use a defined role (such as 'aemu.role.read') or add '" << sub
+                             << "' to the 'roles' section of emulator_access.json.";
+            } else {
+                LOG(WARNING) << "Unknown subject " << sub << " is requesting access.";
+            }
             return false;
         }
 
@@ -142,6 +156,8 @@ class CachingAllowList : public AllowList {
             return "allowed";
         case AllowGroup::kYellow:
             return "protected";
+        case AllowGroup::kRole:
+            return "role";
         }
     }
 
@@ -167,6 +183,87 @@ AccessList ParseAccessList(const json& regex_list) {
     return access;
 }
 
+void RecordJsonEvent(json::parse_event_t event, const json& parsed,
+                     std::vector<AllowSet>& object_keys) {
+    switch (event) {
+    case json::parse_event_t::object_start:
+        object_keys.emplace_back();
+        return;
+    case json::parse_event_t::key: {
+        if (object_keys.empty()) {
+            LOG(QFATAL) << "Failed to parse gRPC security specification: encountered JSON key "
+                           "outside an object in emulator_access.json. Aborting startup because a "
+                           "malformed security configuration leaves active gRPC permissions "
+                           "ambiguous; fix the JSON object structure in emulator_access.json.";
+        }
+        const std::string& key = parsed.get_ref<const std::string&>();
+        if (!object_keys.back().insert(key).second) {
+            LOG(QFATAL) << "Failed to parse gRPC security specification: duplicate JSON key '"
+                        << key
+                        << "' encountered in emulator_access.json. Aborting startup because a "
+                           "malformed security configuration leaves active gRPC permissions "
+                           "ambiguous; merge or remove the duplicate key definition.";
+        }
+        return;
+    }
+    case json::parse_event_t::object_end:
+        if (object_keys.empty()) {
+            LOG(QFATAL) << "Failed to parse gRPC security specification: encountered unmatched "
+                           "JSON object_end in emulator_access.json. Aborting startup because a "
+                           "malformed security configuration leaves active gRPC permissions "
+                           "ambiguous; fix the JSON object structure in emulator_access.json.";
+        }
+        object_keys.pop_back();
+        return;
+    default:
+        return;
+    }
+}
+
+template <typename InputType>
+json ParseUniqueKeyJson(InputType&& input) {
+    std::vector<AllowSet> object_keys;
+    auto callback = [&object_keys](int /*depth*/, json::parse_event_t event, json& parsed) {
+        RecordJsonEvent(event, parsed, object_keys);
+        return true;
+    };
+
+    return json::parse(std::forward<InputType>(input), callback,
+                       /*allow_exceptions=*/false, /*ignore_comments=*/true);
+}
+
+void ParseRolesObject(const json& roles_object, SecurityMap& secure) {
+    if (!roles_object.is_object()) {
+        LOG(WARNING) << "Failed to parse 'roles' in gRPC security specification: expected a JSON "
+                        "object mapping role names to endpoint regex arrays, got "
+                     << roles_object.type_name()
+                     << ". Fix 'roles' in emulator_access.json to be a JSON object.";
+        return;
+    }
+
+    AllowMap& role_map = secure[AllowGroup::kRole];
+    for (const auto& [role, regex_list] : roles_object.items()) {
+        if (!regex_list.is_array()) {
+            LOG(WARNING) << "Failed to parse role '" << role
+                         << "' in gRPC security specification: expected a JSON array of endpoint "
+                            "regexes, got "
+                         << regex_list.type_name()
+                         << ". Update the role entry in emulator_access.json to map to a list of "
+                            "regular expressions.";
+            continue;
+        }
+        DD("Role list for role: %s", role.c_str());
+        if (!role_map.try_emplace(role, ParseAccessList(regex_list)).second) {
+            LOG(QFATAL) << "Failed to parse 'roles' in gRPC security specification: duplicate "
+                           "role '"
+                        << role
+                        << "' encountered in emulator_access.json. Aborting startup because a "
+                           "malformed security configuration leaves active gRPC permissions "
+                           "ambiguous; merge or remove the duplicate role definition.";
+        }
+    }
+}
+
 std::unique_ptr<AllowList> ParseJsonObject(const json& json_object) {
     if (json_object.is_discarded()) {
         LOG(ERROR) << "The json is invalid, access disabled!";
@@ -179,6 +276,10 @@ std::unique_ptr<AllowList> ParseJsonObject(const json& json_object) {
         DD("Open calls: ");
         secure[AllowGroup::kNone][CachingAllowList::kUnprotected] =
                 ParseAccessList(json_object["unprotected"]);
+    }
+
+    if (json_object.contains("roles")) {
+        ParseRolesObject(json_object["roles"], secure);
     }
 
     if (json_object.count("allowlist")) {
@@ -222,14 +323,14 @@ std::unique_ptr<AllowList> ParseJsonObject(const json& json_object) {
 }  // namespace
 
 std::unique_ptr<AllowList> AllowList::FromJson(std::string_view json_with_comments) {
-    return ParseJsonObject(json::parse(json_with_comments, nullptr, false, true));
+    return ParseJsonObject(ParseUniqueKeyJson(json_with_comments));
 }
 
 std::unique_ptr<AllowList> AllowList::FromStream(std::istream& json_with_comments) {
     if (!json_with_comments.good()) {
         LOG(WARNING) << "Unable to access file!";
     }
-    return ParseJsonObject(json::parse(json_with_comments, nullptr, false, true));
+    return ParseJsonObject(ParseUniqueKeyJson(json_with_comments));
 }
 
 }  // namespace android::emulation::control

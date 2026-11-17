@@ -349,32 +349,21 @@ union SockAddressStorage {
         if (!ResolveHostNameToList(hostname, resolve_options, &addresses)) {
             return false;
         }
-        const bool prefer_ipv6 = (resolve_options & kPreferIpv6);
-        const SockAddressStorage* addr6 = nullptr;
-        const SockAddressStorage* addr4 = nullptr;
+        const int preferred_family = (resolve_options & kPreferIpv6) ? AF_INET6 : AF_INET;
+        const SockAddressStorage* fallback = nullptr;
         for (const auto& addr : addresses) {
-            if (addr.Family() == AF_INET && !addr4) {
-                addr4 = &addr;
-                if (!prefer_ipv6) {
-                    break;
-                }
-            } else if (addr.Family() == AF_INET6 && !addr6) {
-                addr6 = &addr;
-                if (prefer_ipv6) {
-                    break;
-                }
+            if (addr.Family() == preferred_family) {
+                *this = addr;
+                return true;
+            }
+            if (!fallback && (addr.Family() == AF_INET || addr.Family() == AF_INET6)) {
+                fallback = &addr;
             }
         }
-        const SockAddressStorage* addr;
-        if (prefer_ipv6) {
-            addr = addr6 ? addr6 : addr4;
-        } else {
-            addr = addr4 ? addr4 : addr6;
-        }
-        if (!addr) {
+        if (!fallback) {
             return false;
         }
-        *this = *addr;
+        *this = *fallback;
         return true;
     }
 };
@@ -434,6 +423,29 @@ int SocketAccept(int socket) {
     return ret;
 }
 #endif  // _WIN32
+
+/** Configures `socket` in blocking (`true`) or non-blocking (`false`) mode. */
+void SocketSetBlockingMode(int socket, bool blocking) {
+#ifdef _WIN32
+    unsigned long opt = blocking ? 0 : 1;
+    ioctlsocket(socket, FIONBIO, &opt);
+#else
+    int flags = fcntl(socket, F_GETFL);
+    fcntl(socket, F_SETFL, blocking ? (flags & ~O_NONBLOCK) : (flags | O_NONBLOCK));
+#endif
+}
+
+/** Returns the port number resolved by `get_name_fn(socket, ...)`, or `-1` on error. */
+template <typename GetNameFn>
+int SocketGetEndpointPort(int socket, GetNameFn get_name_fn, const char* error_message) {
+    SockAddressStorage addr;
+    socklen_t addr_len = static_cast<socklen_t>(sizeof(addr));
+    if (get_name_fn(socket, &addr.generic, &addr_len) < 0) {
+        DLOG(ERROR) << error_message;
+        return -1;
+    }
+    return addr.GetPort();
+}
 
 }  // namespace
 
@@ -513,23 +525,11 @@ void socketShutdownReads(int socket) {
 }
 
 void socketSetNonBlocking(int socket) {
-#ifdef _WIN32
-    unsigned long opt = 1;
-    ioctlsocket(socket, FIONBIO, &opt);
-#else
-    int flags = fcntl(socket, F_GETFL);
-    fcntl(socket, F_SETFL, flags | O_NONBLOCK);
-#endif
+    SocketSetBlockingMode(socket, false);
 }
 
 void socketSetBlocking(int socket) {
-#ifdef _WIN32
-    unsigned long opt = 0;
-    ioctlsocket(socket, FIONBIO, &opt);
-#else
-    int flags = fcntl(socket, F_GETFL);
-    fcntl(socket, F_SETFL, flags & ~O_NONBLOCK);
-#endif
+    SocketSetBlockingMode(socket, true);
 }
 
 void socketSetNoDelay(int socket) {
@@ -789,23 +789,11 @@ int socketCreateTcp6() {
 }
 
 int socketGetPort(int socket) {
-    SockAddressStorage addr;
-    socklen_t addr_len = static_cast<socklen_t>(sizeof(addr));
-    if (getsockname(socket, &addr.generic, &addr_len) < 0) {
-        DLOG(ERROR) << "Could not get socket name!";
-        return -1;
-    }
-    return addr.GetPort();
+    return SocketGetEndpointPort(socket, ::getsockname, "Could not get socket name!");
 }
 
 int socketGetPeerPort(int socket) {
-    SockAddressStorage addr;
-    socklen_t addr_len = static_cast<socklen_t>(sizeof(addr));
-    if (getpeername(socket, &addr.generic, &addr_len) < 0) {
-        DLOG(ERROR) << "Could not get socket peer name!";
-        return -1;
-    }
-    return addr.GetPort();
+    return SocketGetEndpointPort(socket, ::getpeername, "Could not get socket peer name!");
 }
 
 }  // namespace base

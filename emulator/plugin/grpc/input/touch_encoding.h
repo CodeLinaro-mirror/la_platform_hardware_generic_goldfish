@@ -62,9 +62,18 @@ void AppendContactDownOrMove(const ::android::emulation::v2::PointerEvent::Point
 /**
  * @brief Appends the events lifting the contact in `slot`.
  *
- * Emits ABS_MT_SLOT `slot`, then ABS_MT_TRACKING_ID kMtsPointerUp (-1), and
- * optionally resets `BTN_TOOL_RUBBER` and `BTN_STYLUS` to 0 when lifting the
- * last stylus/eraser contact on the device.
+ * Emits `ABS_MT_SLOT slot`, resets per-slot axes (`ABS_MT_POSITION_X 0`,
+ * `ABS_MT_POSITION_Y 0`, `ABS_MT_TOOL_TYPE MT_TOOL_FINGER`, `ABS_MT_PRESSURE 0`,
+ * `ABS_MT_TOUCH_MAJOR 0`, `ABS_MT_TOUCH_MINOR 0`, `ABS_MT_ORIENTATION 0`), then
+ * emits `ABS_MT_TRACKING_ID kMtsPointerUp` (-1) in the same `SYN_REPORT` frame
+ * so the guest kernel `evdev` slot cache matches zero-initialized userspace
+ * `mSlots` on release. Because Android's `MultiTouchMotionAccumulator` clears
+ * `mInUse` upon `ABS_MT_TRACKING_ID = -1` before `SYN_REPORT` syncs
+ * `TouchInputMapper`, `ACTION_UP` still reports the prior `mLastCookedState`
+ * coordinates rather than `(0, 0)`, whereas splitting the resets into a
+ * separate frame would synthesize a `(0, 0)` hover burst. Optionally resets
+ * `BTN_TOOL_RUBBER` and `BTN_STYLUS` to 0 when lifting the last stylus/eraser
+ * contact on the device.
  *
  * @param slot The multi-touch slot of the contact to lift; must be >= 0.
  * @param events The event list to append to.
@@ -78,17 +87,18 @@ void AppendContactUp(int slot, ::android::emulation::control::EvDevEvents& event
  * `slot`.
  *
  * Appends `ABS_MT_SLOT slot` and `ABS_MT_TOOL_TYPE MT_TOOL_PALM` to
- * `palm_events`, and `ABS_MT_SLOT slot` and `ABS_MT_TRACKING_ID
- * kMtsPointerUp` (-1) (plus optional stylus key resets) to `lift_events`. The
- * caller must flush `palm_events` (`SYN_REPORT`) before `lift_events`:
- * Android's `MultiTouchMotionAccumulator` clears a slot immediately upon
- * `ABS_MT_TRACKING_ID = -1` before `SYN_REPORT` syncs `TouchInputMapper`, so
- * `MT_TOOL_PALM` and the lift must arrive in separate frames for the guest to
- * dispatch a cancelled `MotionEvent` (`FLAG_CANCELED`).
+ * `palm_events`, and delegates `lift_events` to `AppendContactUp` (resetting
+ * per-slot axes before `ABS_MT_TRACKING_ID kMtsPointerUp` (-1), plus optional
+ * stylus key resets). The caller must flush `palm_events` (`SYN_REPORT`) before
+ * `lift_events`: Android's `MultiTouchMotionAccumulator` clears a slot
+ * immediately upon `ABS_MT_TRACKING_ID = -1` before `SYN_REPORT` syncs
+ * `TouchInputMapper`, so `MT_TOOL_PALM` and the lift must arrive in separate
+ * frames for the guest to dispatch a cancelled `MotionEvent` (`FLAG_CANCELED`).
  *
  * @param slot The multi-touch slot of the contact to cancel; must be >= 0.
  * @param palm_events First frame: marks `slot` as `MT_TOOL_PALM`.
- * @param lift_events Second frame: lifts `slot` (`ABS_MT_TRACKING_ID = -1`).
+ * @param lift_events Second frame: resets per-slot axes and lifts `slot`
+ *     (`ABS_MT_TRACKING_ID = -1`).
  * @param clear_stylus_keys Whether to reset `BTN_TOOL_RUBBER` and `BTN_STYLUS`
  *     in `lift_events`.
  */

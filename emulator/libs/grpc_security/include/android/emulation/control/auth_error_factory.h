@@ -12,7 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 #pragma once
+
+#include <string>
+#include <string_view>
+
 #include "absl/status/status.h"
+#include "absl/types/span.h"
 
 namespace android::emulation::control {
 
@@ -101,6 +106,28 @@ class AuthErrorFactory {
      */
     static absl::Status AuthErrorNotOnAllowList(std::string_view iss, std::string_view path,
                                                 std::string_view allow_list_origin);
+
+    /**
+     * Produces a PermissionDeniedError when a user tries to access a V2 endpoint
+     * with a JWT that lacks any roles in its "roles" or "scope" claims.
+     *
+     * @param path The V2 gRPC endpoint path that the user tried to access.
+     * @return An absl::Status indicating failure of the operation.
+     */
+    static absl::Status AuthErrorMissingRoles(std::string_view path);
+
+    /**
+     * Produces a PermissionDeniedError when none of the roles presented in a JWT
+     * grant access to the requested V2 endpoint.
+     *
+     * @param roles The roles extracted from the JWT's "roles" and/or "scope" claims.
+     * @param path The V2 gRPC endpoint path that the user tried to access.
+     * @param allow_list_origin The location of the allowlist.
+     * @return An absl::Status indicating failure of the operation.
+     */
+    static absl::Status AuthErrorInsufficientRoles(absl::Span<const std::string> roles,
+                                                   std::string_view path,
+                                                   std::string_view allow_list_origin);
 };
 
 }  // namespace android::emulation::control

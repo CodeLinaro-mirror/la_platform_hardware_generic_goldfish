@@ -3,8 +3,13 @@
 #include <algorithm>
 #include <array>
 #include <cstdint>
-#include <cstring>
+#include <optional>
+#include <string>
+#include <string_view>
+#include <utility>
 
+#include "absl/base/no_destructor.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/log/log.h"
 #include "absl/strings/str_format.h"
 
@@ -31,7 +36,7 @@ template <typename T>
 void SetDeviceNameIfSupported(T& avd_info, const std::string& hw_device_name) {
     if constexpr (HasEmulatorDeviceName<T>) {
         using DeviceNameEnum = typename T::EmulatorDeviceName;
-        static const auto device_name_map = absl::flat_hash_map<std::string_view, DeviceNameEnum>({
+        static const auto kDeviceNameMap = absl::flat_hash_map<std::string_view, DeviceNameEnum>({
             {"resizable", T::RESIZABLE},
             {"7.6in Foldable", T::FOLDABLE_7_6_IN},
             {"foldable_4_3", T::FOLDABLE_4_3},
@@ -99,7 +104,7 @@ void SetDeviceNameIfSupported(T& avd_info, const std::string& hw_device_name) {
             {"ai_glasses_device", T::AI_GLASSES_DEVICE},
             {"ai_glasses_displayless", T::AI_GLASSES_AUDIO_DEVICE},
         });
-        if (auto i = device_name_map.find(hw_device_name); i != device_name_map.end()) {
+        if (auto i = kDeviceNameMap.find(hw_device_name); i != kDeviceNameMap.end()) {
             avd_info.set_device_name(i->second);
         } else {
             avd_info.set_device_name(T::UNKNOWN_EMULATOR_DEVICE_NAME);
@@ -107,17 +112,20 @@ void SetDeviceNameIfSupported(T& avd_info, const std::string& hw_device_name) {
     }
 }
 
-android_studio::EmulatorDetails::GuestCpuArchitecture toClearcutLogGuestArch(
+android_studio::EmulatorDetails::GuestCpuArchitecture ToClearcutLogGuestArch(
         const std::string& hw_cpu_arch) {
-    using namespace std::literals;
     using android_studio::EmulatorDetails;
-    constexpr auto map = std::array{
-        std::pair{"x86"sv, EmulatorDetails::X86},   std::pair{"x86_64"sv, EmulatorDetails::X86_64},
-        std::pair{"arm"sv, EmulatorDetails::ARM},   std::pair{"arm64"sv, EmulatorDetails::ARM_64},
-        std::pair{"mips"sv, EmulatorDetails::MIPS}, std::pair{"mips64"sv, EmulatorDetails::MIPS_64},
+    using std::string_view_literals::operator""sv;
+    constexpr auto kArchMap = std::array{
+        std::pair{"x86"sv, EmulatorDetails::X86},
+        std::pair{"x86_64"sv, EmulatorDetails::X86_64},
+        std::pair{"arm"sv, EmulatorDetails::ARM},
+        std::pair{"arm64"sv, EmulatorDetails::ARM_64},
+        std::pair{"mips"sv, EmulatorDetails::MIPS},
+        std::pair{"mips64"sv, EmulatorDetails::MIPS_64},
     };
 
-    for (const auto& [name, enu] : map) {
+    for (const auto& [name, enu] : kArchMap) {
         if (name == hw_cpu_arch) {
             return enu;
         }
@@ -125,7 +133,7 @@ android_studio::EmulatorDetails::GuestCpuArchitecture toClearcutLogGuestArch(
     return EmulatorDetails::UNKNOWN_GUEST_CPU_ARCHITECTURE;
 }
 
-android_studio::EmulatorAvdInfo::EmulatorAvdProperty toClearcutLogAvdProperty(DeviceType flavor) {
+android_studio::EmulatorAvdInfo::EmulatorAvdProperty ToClearcutLogAvdProperty(DeviceType flavor) {
     switch (flavor) {
         using enum DeviceType;
     case kPhone:
@@ -143,14 +151,14 @@ android_studio::EmulatorAvdInfo::EmulatorAvdProperty toClearcutLogAvdProperty(De
     case kGlasses:
         return android_studio::EmulatorAvdInfo::XR_GLASSES_AVD;
     case kUnknown:
+    default:
         return android_studio::EmulatorAvdInfo::UNKNOWN_EMULATOR_AVD_FLAG;
     }
-    return android_studio::EmulatorAvdInfo::UNKNOWN_EMULATOR_AVD_FLAG;
 }
 
 void FillAvdFileInfo(android_studio::EmulatorAvdFile& avd_file,
                      android_studio::EmulatorAvdFile::EmulatorAvdFileKind kind,
-                     const fs::path& path, bool is_custom) {
+                     const fs::path& /*path*/, bool is_custom) {
     avd_file.set_kind(kind);
     // TODO avd_file.set_size(size);
     // TODO avd_file.set_creation_timestamp(*creationTime / 1000000);
@@ -166,7 +174,7 @@ void FillAvdInfo(android_studio::EmulatorAvdInfo& avd_info, const Avd& avd) {
 
     avd_info.set_image_kind(avd.ImageKind());
 
-    avd_info.set_arch(toClearcutLogGuestArch(hw.hw_cpu_arch));
+    avd_info.set_arch(ToClearcutLogGuestArch(hw.hw_cpu_arch));
 
     // TODO if (inAndroidBuild()) return;
     // no real AVD, so no creation times or file infos.
@@ -184,21 +192,22 @@ void FillAvdInfo(android_studio::EmulatorAvdInfo& avd_info, const Avd& avd) {
 
     SetDeviceNameIfSupported(avd_info, hw.hw_device_name);
 
+    // TODO: populate is_custom based on whether kernel/ramdisk/system paths are overridden.
     FillAvdFileInfo(*avd_info.add_files(), android_studio::EmulatorAvdFile::KERNEL,
-                    /*path=*/hw.kernel_path, /*is_custom=TODO*/ false);
+                    /*path=*/hw.kernel_path, /*is_custom=*/false);
     FillAvdFileInfo(*avd_info.add_files(), android_studio::EmulatorAvdFile::RAMDISK,
-                    /*path=*/hw.disk_ramdisk_path, /*is_custom=TODO*/ false);
+                    /*path=*/hw.disk_ramdisk_path, /*is_custom=*/false);
     FillAvdFileInfo(*avd_info.add_files(), android_studio::EmulatorAvdFile::SYSTEM,
-                    /*path=*/hw.disk_systemPartition_path, /*is_custom=TODO*/ false);
+                    /*path=*/hw.disk_systemPartition_path, /*is_custom=*/false);
 
-    avd_info.add_properties(toClearcutLogAvdProperty(avd.GetDeviceType()));
+    avd_info.add_properties(ToClearcutLogAvdProperty(avd.GetDeviceType()));
 }
 
 }  // namespace
 
 bool IsRunningInCi() {
-    auto sys = android::base::System::Get();
-    auto isTruthy = [](std::string_view val) {
+    auto* sys = android::base::System::Get();
+    auto is_truthy = [](std::string_view val) {
         if (val.empty()) return false;
         if (val == "1") return true;
         if (val.size() == 4) {
@@ -207,16 +216,15 @@ bool IsRunningInCi() {
         }
         return false;
     };
-    if (isTruthy(sys->EnvGet("CI"))) return true;
-    if (isTruthy(sys->EnvGet("CONTINUOUS_INTEGRATION"))) return true;
+    if (is_truthy(sys->EnvGet("CI"))) return true;
+    if (is_truthy(sys->EnvGet("CONTINUOUS_INTEGRATION"))) return true;
 
     static constexpr std::array kCiEnvVars = {
         "GITHUB_ACTIONS", "GITLAB_CI", "JENKINS_URL",      "TF_BUILD",           "CIRCLECI",
         "TRAVIS",         "BUILDKITE", "TEAMCITY_VERSION", "CODEBUILD_BUILD_ID",
     };
 
-    return std::any_of(kCiEnvVars.begin(), kCiEnvVars.end(),
-                       [&](const char* var) { return sys->EnvTest(var); });
+    return std::ranges::any_of(kCiEnvVars, [&](const char* var) { return sys->EnvTest(var); });
 }
 
 bool IsAndroidCliDefined() {
@@ -241,19 +249,91 @@ bool IsRunningInContainer() {
 
 namespace {
 
+std::string OsTypeToString(android::base::OsType os_type) {
+    switch (os_type) {
+    case android::base::OsType::kWindows:
+        return "Windows";
+    case android::base::OsType::kMac:
+        return "Mac";
+    case android::base::OsType::kLinux:
+        return "Linux";
+    default:
+        return "Unknown";
+    }
+}
+
+struct ProbedCpuInfo {
+    android::AndroidCpuInfoFlags cpu_flags = android::ANDROID_CPU_INFO_FAILED;
+#if defined(__x86_64__)
+    android::X86Cpuid x86_cpuid{};
+#endif
+    std::optional<std::string> brand_name;
+};
+
+const ProbedCpuInfo& GetProbedCpuInfo() {
+    static const absl::NoDestructor<ProbedCpuInfo> kProbedCpu([] {
+        ProbedCpuInfo probed;
+        probed.cpu_flags = android::GetCpuInfo().first;
+#if defined(__x86_64__)
+        probed.x86_cpuid = android::GetX86Cpuid();
+#endif
+        // x86_64 CPU brand name returned by CPUID can at most have 48 bytes
+        // including the NULL terminator. But I don't see a definition on the
+        // ARM64 side. To get it safer, use a larger buffer to hold the name.
+        // So far, I have not seen a CPU whose name is 100 bytes long.
+        // TODO(b/496311138): Update the implementations to check that the buffer is big enough.
+        char cpu_brand_name[100] = {};
+        if (!android::cpu::GetCpuBrandName(cpu_brand_name)) {
+            probed.brand_name = cpu_brand_name;
+        }
+        return probed;
+    }());
+    return *kProbedCpu;
+}
+
+}  // namespace
+
+HostInfo QueryHostInfo() {
+    HostInfo info;
+    const auto& probed_cpu = GetProbedCpuInfo();
+    const android::AndroidCpuInfoFlags cpu_flags = probed_cpu.cpu_flags;
+    if ((cpu_flags & android::ANDROID_CPU_INFO_INTEL) != 0) {
+        info.cpu_manufacturer = HostInfo::CpuManufacturer::kIntel;
+    } else if ((cpu_flags & android::ANDROID_CPU_INFO_AMD) != 0) {
+        info.cpu_manufacturer = HostInfo::CpuManufacturer::kAmd;
+    } else if ((cpu_flags & android::ANDROID_CPU_INFO_APPLE) != 0) {
+        info.cpu_manufacturer = HostInfo::CpuManufacturer::kApple;
+    } else {
+        info.cpu_manufacturer = HostInfo::CpuManufacturer::kUnknown;
+    }
+    info.virt_support = (cpu_flags & android::ANDROID_CPU_INFO_VIRT_SUPPORTED) != 0;
+    info.running_in_vm = (cpu_flags & android::ANDROID_CPU_INFO_VM) != 0;
+#if defined(__x86_64__)
+    const auto& cpuid = probed_cpu.x86_cpuid;
+    info.cpu_model_name = cpuid.cpuid_stepping | (cpuid.cpuid_model << 4U) |
+                          (cpuid.cpuid_family << 8U) | (cpuid.cpuid_type << 12U) |
+                          (cpuid.cpuid_extmodel << 16U) | (cpuid.cpuid_extfamily << 20U);
+#endif
+    info.os_platform = OsTypeToString(android::base::System::Get()->GetOsType());
+    return info;
+}
+
+namespace {
+
 void FillHost(android_studio::EmulatorHost& host) {
     host.set_os_bit_count(64);
-    const android::AndroidCpuInfoFlags cpuFlags = android::GetCpuInfo().first;
-    host.set_virt_support(cpuFlags & ANDROID_CPU_INFO_VIRT_SUPPORTED);
-    host.set_running_in_vm(cpuFlags & ANDROID_CPU_INFO_VM);
+    const auto& probed_cpu = GetProbedCpuInfo();
+    const android::AndroidCpuInfoFlags cpu_flags = probed_cpu.cpu_flags;
+    host.set_virt_support((cpu_flags & ANDROID_CPU_INFO_VIRT_SUPPORTED) != 0);
+    host.set_running_in_vm((cpu_flags & ANDROID_CPU_INFO_VM) != 0);
     host.set_running_in_ci(IsRunningInCi());
     host.set_android_cli_defined(IsAndroidCliDefined());
-    host.set_cpu_manufacturer((cpuFlags & ANDROID_CPU_INFO_INTEL) ? "INTEL"
-                              : (cpuFlags & ANDROID_CPU_INFO_AMD) ? "AMD"
-                                                                  : "OTHER");
+    host.set_cpu_manufacturer((cpu_flags & ANDROID_CPU_INFO_INTEL) ? "INTEL"
+                              : (cpu_flags & ANDROID_CPU_INFO_AMD) ? "AMD"
+                                                                   : "OTHER");
 
 #if defined(__x86_64__)
-    auto x86_cpuid = android::GetX86Cpuid();
+    const auto& x86_cpuid = probed_cpu.x86_cpuid;
     host.set_cpuid_stepping(x86_cpuid.cpuid_stepping);
     host.set_cpuid_model(x86_cpuid.cpuid_model);
     host.set_cpuid_family(x86_cpuid.cpuid_family);
@@ -266,14 +346,8 @@ void FillHost(android_studio::EmulatorHost& host) {
     host.set_cpu_architecture("arm64");
 #endif
 
-    // x86_64 CPU brand name returned by CPUID can at most have 48 bytes
-    // including the NULL terminator. But I don't see a definition on the
-    // ARM64 side. To get it safer, use a larger buffer to hold the name.
-    // So far, I have not seen a CPU whose name is 100 bytes long.
-    // TODO(b/496311138): Update the implementations to check that the buffer is big enough.
-    char cpuBrandName[100];
-    if (!android::cpu::GetCpuBrandName(cpuBrandName)) {
-        host.set_cpu_brandname(cpuBrandName);
+    if (probed_cpu.brand_name.has_value()) {
+        host.set_cpu_brandname(*probed_cpu.brand_name);
     }
 }
 
@@ -294,34 +368,36 @@ void FillFeatureFlagState(android_studio::EmulatorFeatureFlagState& feature_flag
 }
 
 android_studio::EmulatorDetails::VulkanIcd GetVulkanIcd(std::string_view vk_icd) {
-    if (vk_icd == "") {  // Use hardware when vk_icd is null
+    if (vk_icd.empty()) {  // Use hardware when vk_icd is empty
         return android_studio::EmulatorDetails::HOST_DEFAULT_VK;
-    } else if (vk_icd == "swiftshader") {
-        return android_studio::EmulatorDetails::SWIFTSHADER_VK;
-    } else if (vk_icd == "lavapipe") {
-        return android_studio::EmulatorDetails::LAVAPIPE_VK;
-    } else if (vk_icd == "moltenvk") {
-        return android_studio::EmulatorDetails::MOLTEN_VK;
-    } else if (vk_icd == "kosmickrisp") {
-        return android_studio::EmulatorDetails::KOSMICKRISP_VK;
-    } else {
-        return android_studio::EmulatorDetails::UNKNOWN_VK;
     }
+    if (vk_icd == "swiftshader") {
+        return android_studio::EmulatorDetails::SWIFTSHADER_VK;
+    }
+    if (vk_icd == "lavapipe") {
+        return android_studio::EmulatorDetails::LAVAPIPE_VK;
+    }
+    if (vk_icd == "moltenvk") {
+        return android_studio::EmulatorDetails::MOLTEN_VK;
+    }
+    if (vk_icd == "kosmickrisp") {
+        return android_studio::EmulatorDetails::KOSMICKRISP_VK;
+    }
+    return android_studio::EmulatorDetails::UNKNOWN_VK;
 }
 
 void FillDetails(android_studio::EmulatorDetails& details, const Avd& avd,
                  const FeatureFlags& feature_flags, long launcher_pid, long qemu_pid,
-                 bool metrics_collection_opt, bool fuchsia_opt, bool openglAlive,
-                 std::string_view vk_icd, std::span<const VulkanGpuDeviceInfo> host_gpus,
-                 const std::optional<VulkanGpuDeviceInfo>& selected_gpu) {
+                 bool metrics_collection_opt, bool fuchsia_opt, bool opengl_alive,
+                 const ::goldfish::gpu::GpuSelection& gpu_selection) {
     FillAvdInfo(*details.mutable_avd_info(), avd);
     FillFeatureFlagState(*details.mutable_feature_flag_state(), feature_flags);
 
     const auto& hw = avd.Hw();
 
     details.set_session_phase(android_studio::EmulatorDetails::RUNNING_GENERAL);
-    details.set_is_opengl_alive(openglAlive);
-    details.set_guest_arch(toClearcutLogGuestArch(hw.hw_cpu_arch));
+    details.set_is_opengl_alive(opengl_alive);
+    details.set_guest_arch(ToClearcutLogGuestArch(hw.hw_cpu_arch));
     details.set_guest_api_level(avd.ApiLevel());
 
     // TODO: Check that CpuAccelerator enum +1 is the same
@@ -334,18 +410,17 @@ void FillDetails(android_studio::EmulatorDetails& details, const Avd& avd,
     /* details.set_renderer()
     if (hw.hw_gpu_enabled) {
         fillGuestGlMetrics(event);
-        if (openglAlive) {
+        if (opengl_alive) {
                 renderer->fillGLESUsages(details.mutable_gles_usages());
         }
     }*/
 
-    details.set_vulkan_icd(GetVulkanIcd(vk_icd));
+    details.set_vulkan_icd(GetVulkanIcd(gpu_selection.vulkan_icd));
 
     int i = 0;
-    for (const auto& gpu : host_gpus) {
+    for (const auto& gpu : gpu_selection.host_gpus) {
         const auto& props = gpu.properties;
-        const std::string_view device_name(props.deviceName,
-                                           strnlen(props.deviceName, sizeof(props.deviceName)));
+        const std::string_view device_name = gpu.DeviceName();
         VLOG(1) << absl::StrFormat(
                 "Found Vulkan device: %d: name: '%s', apiVersion: %d.%d.%d, vendorID: 0x%x, "
                 "deviceID: 0x%x, driverVersion: 0x%x",
@@ -353,42 +428,42 @@ void FillDetails(android_studio::EmulatorDetails& details, const Avd& avd,
                 VK_API_VERSION_MINOR(props.apiVersion), VK_API_VERSION_PATCH(props.apiVersion),
                 props.vendorID, props.deviceID, props.driverVersion);
 
-        auto* hostGpu = details.add_host_gpu();
-        hostGpu->set_device_id(absl::StrFormat("0x%04x", props.deviceID));
-        hostGpu->set_make(absl::StrFormat("0x%04x", props.vendorID));
-        hostGpu->set_model(std::string(device_name));
-        hostGpu->set_renderer(std::string(device_name));
-        hostGpu->set_revision_id(absl::StrFormat("0x%x", props.driverVersion));
-        hostGpu->set_version(absl::StrFormat("%d.%d.%d", VK_API_VERSION_MAJOR(props.apiVersion),
-                                             VK_API_VERSION_MINOR(props.apiVersion),
-                                             VK_API_VERSION_PATCH(props.apiVersion)));
+        const HostGpuInfo info = ::goldfish::gpu::ToHostGpuInfo(gpu);
+        auto* host_gpu = details.add_host_gpu();
+        host_gpu->set_device_id(info.device_id);
+        host_gpu->set_make(info.make);
+        host_gpu->set_model(info.model);
+        host_gpu->set_renderer(info.renderer);
+        host_gpu->set_revision_id(info.revision_id);
+        host_gpu->set_version(info.version);
     }
 
-    if (selected_gpu.has_value()) {
-        const auto& props = selected_gpu->properties;
-        const std::string_view device_name(props.deviceName,
-                                           strnlen(props.deviceName, sizeof(props.deviceName)));
-        auto* vkGpu = details.mutable_active_vulkan_host_gpu();
-        vkGpu->set_vendor_id(static_cast<int32_t>(props.vendorID));
-        vkGpu->set_device_id(static_cast<int32_t>(props.deviceID));
+    if (gpu_selection.selected_gpu.has_value()) {
+        const auto& props = gpu_selection.selected_gpu->properties;
+        const std::string_view device_name = gpu_selection.selected_gpu->DeviceName();
+        auto* vk_gpu = details.mutable_active_vulkan_host_gpu();
+        vk_gpu->set_vendor_id(static_cast<int32_t>(props.vendorID));
+        vk_gpu->set_device_id(static_cast<int32_t>(props.deviceID));
         const int32_t proto_device_type = static_cast<int32_t>(props.deviceType) + 1;
         if (android_studio::EmulatorGpuVkInfo::PhysicalDeviceType_IsValid(proto_device_type)) {
-            vkGpu->set_device_type(
+            vk_gpu->set_device_type(
                     static_cast<android_studio::EmulatorGpuVkInfo::PhysicalDeviceType>(
                             proto_device_type));
         } else {
-            vkGpu->set_device_type(android_studio::EmulatorGpuVkInfo::UNKNOWN_PHYSICAL_DEVICE_TYPE);
+            vk_gpu->set_device_type(
+                    android_studio::EmulatorGpuVkInfo::UNKNOWN_PHYSICAL_DEVICE_TYPE);
         }
-        vkGpu->set_api_version(static_cast<int32_t>(props.apiVersion));
-        vkGpu->set_driver_version(static_cast<int32_t>(props.driverVersion));
-        vkGpu->set_gpu_memory(static_cast<int64_t>(selected_gpu->device_local_memory_bytes));
-        vkGpu->set_device_name(std::string(device_name));
+        vk_gpu->set_api_version(static_cast<int32_t>(props.apiVersion));
+        vk_gpu->set_driver_version(static_cast<int32_t>(props.driverVersion));
+        vk_gpu->set_gpu_memory(
+                static_cast<int64_t>(gpu_selection.selected_gpu->device_local_memory_bytes));
+        vk_gpu->set_device_name(std::string(device_name));
     }
 
     // Check for container environment
-    bool isContainer = IsRunningInContainer();
+    const bool is_container = IsRunningInContainer();
 
-    if (isContainer && metrics_collection_opt) {
+    if (is_container && metrics_collection_opt) {
         details.mutable_used_features()->set_launch_type(
                 android_studio::EmulatorFeatures::CONTAINER);
     }
@@ -425,9 +500,8 @@ android_studio::ProductDetails::SoftwareLifeCycleChannel ToProductChannel(
 
 void FillEmulatorHostEvent(android_studio::AndroidStudioEvent& event, const Avd& avd,
                            const FeatureFlags& feature_flags, long launcher_pid, long qemu_pid,
-                           bool metrics_collection_opt, bool fuchsia_opt, std::string_view vk_icd,
-                           std::span<const VulkanGpuDeviceInfo> host_gpus,
-                           const std::optional<VulkanGpuDeviceInfo>& selected_gpu) {
+                           bool metrics_collection_opt, bool fuchsia_opt,
+                           const ::goldfish::gpu::GpuSelection& gpu_selection) {
     event.set_kind(android_studio::AndroidStudioEvent::EMULATOR_HOST);
 
     auto& product = *event.mutable_product_details();
@@ -441,7 +515,7 @@ void FillEmulatorHostEvent(android_studio::AndroidStudioEvent& event, const Avd&
 
     FillHost(*event.mutable_emulator_host());
     FillDetails(*event.mutable_emulator_details(), avd, feature_flags, launcher_pid, qemu_pid,
-                metrics_collection_opt, fuchsia_opt, false, vk_icd, host_gpus, selected_gpu);
+                metrics_collection_opt, fuchsia_opt, false, gpu_selection);
 }
 
 }  // namespace android::goldfish

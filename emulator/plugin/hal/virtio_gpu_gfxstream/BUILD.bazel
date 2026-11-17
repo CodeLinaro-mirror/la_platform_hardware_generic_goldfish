@@ -87,9 +87,7 @@ cc_library(
 )
 
 # Host-side image read/write on virtio-gpu resources for other plugin code,
-# dispatching to whichever of virtio-gpu-gfxstream / virtio-gpu-rutabaga is
-# instantiated. The rutabaga path goes through QEMU's lazy librutabaga_ffi
-# shim, so this does not link librutabaga_ffi either.
+# dispatching to the realized virtio-gpu-gfxstream device.
 cc_library(
     name = "virtio_gpu_glue",
     srcs = [
@@ -104,7 +102,6 @@ cc_library(
         ":gfxstream_renderer",
         "@pixman//:pixman-1",
         "@qemu//:qemu-headers-exported",
-        "@qemu//google/rutabaga:rutabaga_ffi_lazy",
     ],
 )
 

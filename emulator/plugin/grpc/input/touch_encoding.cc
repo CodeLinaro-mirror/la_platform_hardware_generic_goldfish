@@ -170,6 +170,20 @@ void AppendContactDownOrMove(const PointerEvent::Pointer& pointer, PointerAction
 void AppendContactUp(int slot, ::android::emulation::control::EvDevEvents& events,
                      bool clear_stylus_keys) {
     events.push_back({EV_ABS, ABS_MT_SLOT, static_cast<uint32_t>(slot)});
+    // Reset per-slot axes before deactivating the slot in the same SYN_REPORT
+    // frame so guest Linux evdev's input_handle_abs_event() cache matches
+    // zero-initialized userspace mSlots if InputReader reconfigures without
+    // EVIOCGMTSLOTS (b/584852107). Android's MultiTouchMotionAccumulator clears
+    // mInUse on ABS_MT_TRACKING_ID = -1 before syncTouch(), so TouchInputMapper
+    // dispatches ACTION_UP from mLastCookedState instead of (0, 0), whereas a
+    // two-frame reset would synthesize a spurious hover burst at (0, 0).
+    events.push_back({EV_ABS, ABS_MT_POSITION_X, 0});
+    events.push_back({EV_ABS, ABS_MT_POSITION_Y, 0});
+    events.push_back({EV_ABS, ABS_MT_TOOL_TYPE, MT_TOOL_FINGER});
+    events.push_back({EV_ABS, ABS_MT_PRESSURE, 0});
+    events.push_back({EV_ABS, ABS_MT_TOUCH_MAJOR, 0});
+    events.push_back({EV_ABS, ABS_MT_TOUCH_MINOR, 0});
+    events.push_back({EV_ABS, ABS_MT_ORIENTATION, 0});
     events.push_back({EV_ABS, ABS_MT_TRACKING_ID, static_cast<uint32_t>(kMtsPointerUp)});
     if (clear_stylus_keys) {
         AppendStylusKeysReset(events);

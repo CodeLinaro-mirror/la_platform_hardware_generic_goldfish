@@ -48,17 +48,6 @@ cc_library(
     alwayslink = True,
 )
 
-[
-    alias(
-        name = "impl_" + arch,
-        actual = ":impl",
-    )
-    for arch in [
-        "aarch64",
-        "x86_64",
-    ]
-]
-
 cc_test(
     name = "goldfish_address_space_test",
     srcs = ["goldfish_address_space_test.cc"],

@@ -293,17 +293,8 @@ absl::StatusOr<CredConf> GetCredConf(const GrpcConfig& config) {
     if (config.use_jwt || !config.custom_jwt_public_keys.empty()) {
         ASSIGN_OR_RETURN(fs::path jwk_dir,
                          config.advertiser->CreateJwkDirectory(generateToken(16)));
-
-        if (config.use_jwt) {
-            cred_conf.jwk_file = jwk_dir / "active.jwk";
-        }
-
-        if (!config.custom_jwt_public_keys.empty()) {
-            RETURN_IF_ERROR(ProcessCustomJwtKeys(config.custom_jwt_public_keys, jwk_dir));
-            if (cred_conf.jwk_file.empty()) {
-                cred_conf.jwk_file = jwk_dir / "custom_key_0.jwk";
-            }
-        }
+        ASSIGN_OR_RETURN(cred_conf.jwk_file,
+                         ConfigureJwtDirectory(jwk_dir, config.custom_jwt_public_keys));
     }
 
     return cred_conf;
@@ -357,7 +348,7 @@ EmulatorProperties CreateProps(const GrpcConfig* config, const avd::AvdUniverse&
         {"emulator.build", std::string(goldfish::version::GetEmulatorBuildId())},
         {"emulator.version", std::string(goldfish::version::GetEmulatorVersion())},
         {"port.adb", std::to_string(avdprops.adb_port)},
-        {"avd.name", avdprops.avd_name},
+        {"avd.name", avdprops.avd_display_name},
         {"avd.id", avdprops.avd_id},
         {"avd.dir", avdprops.avd_content_path.string()},
         {"launcher.dir", config->launcher_dir.string()},
@@ -434,7 +425,7 @@ void grpc_main_loop_exit_notify(Notifier* notifier, void* data) {
     // Flush the global event loop before shutting down the server so that terminal
     // exit-snapshot progress and run-state events reach active streams and LROs.
     android::goldfish::ScopedVmUnlock unlock;
-    goldfish::avd::globalEventLoop()->WaitUntilIdle();
+    goldfish::avd::globalEventLoop()->Flush();
     auto deadline = std::chrono::system_clock::now() + std::chrono::milliseconds(100);
     config->grpc_server->Shutdown(deadline);
     config->grpc_server.reset();

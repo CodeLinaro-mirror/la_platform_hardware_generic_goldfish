@@ -14,6 +14,7 @@
 
 #include <deque>
 #include <set>
+#include <string>
 #include <unordered_map>
 
 #include "absl/log/check.h"
@@ -24,6 +25,7 @@
 #include "goldfish/archive/collections/deque.h"
 #include "goldfish/archive/qemu_file_reader.h"
 #include "goldfish/archive/qemu_file_writer.h"
+#include "goldfish/archive/string_writer.h"
 #include "goldfish/debug.h"
 #include "goldfish/devices/cable/cable.h"
 #include "goldfish/devices/cable/saveload.h"
@@ -60,6 +62,7 @@ absl::Status ReadValue(goldfish::archive::IReader& r, struct virtio_vsock_hdr& x
 namespace {
 using goldfish::archive::IReader;
 using goldfish::archive::IWriter;
+using goldfish::archive::StringWriter;
 using goldfish::devices::cable::IDataSniffer;
 using goldfish::devices::cable::IPlug;
 using goldfish::devices::cable::PlugOrSocket;
@@ -678,7 +681,29 @@ struct GoldfishVirtioVsockDevice {
             }
         }
 
-        const absl::MutexLock lock(mStateMutex);
+        // Serialize under mStateMutex into memory, then write to `writer` after
+        // the lock is released. `writer` wraps a QEMUFile: qemu_put_buffer() can
+        // qemu_fflush() to the vmstate block device, and that synchronous I/O
+        // (bdrv_writev_vmstate -> bdrv_poll_co -> aio_poll) runs bottom halves on
+        // this thread, including the qemu_loop drain. A MarshallingHalSocket
+        // flush task queued there calls VsockStream::SendAsync(), which takes
+        // mStateMutex, so writing to the QEMUFile under the lock self-deadlocks
+        // the QEMU main thread (observed in the exit-time -savevm as a stall at
+        // '0000:00:12.0/virtio-goldfish-vsock-base').
+        std::string state;
+        {
+            StringWriter buffered(&state);
+            const absl::MutexLock lock(mStateMutex);
+            r = saveStateLocked(buffered);
+        }
+        if (r) {
+            return r;
+        }
+        writer.Write(state.data(), state.size());
+        return 0;
+    }
+
+    int saveStateLocked(IWriter& writer) const ABSL_EXCLUSIVE_LOCKS_REQUIRED(mStateMutex) {
         writer << mTickCounter << mReturnedHostPorts << mSrcPortAllocator << mOrphanPackets;
 
         writer << mStreams.size();

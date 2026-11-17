@@ -575,6 +575,18 @@ TEST(FeatureFlagsTest, ServerPatternHostGpuAndDisjunctionMatching) {
                 feature: ForceLavapipeForSoftwareRendering
                 enable: true
             }
+        }
+        # 7. Matches Apple CPU case-insensitively.
+        pattern {
+            hwconfig {
+                hostinfo {
+                    cpu_manufacturer: "apple"
+                }
+            }
+            featureaction {
+                feature: ForceLavapipeForSoftwareRendering
+                enable: true
+            }
         })pb");
 
     ASSERT_OK_AND_ASSIGN(FeatureFlags flags, FeatureFlags::Create({
@@ -590,8 +602,17 @@ TEST(FeatureFlagsTest, ServerPatternHostGpuAndDisjunctionMatching) {
     EXPECT_FALSE(flags.IsEnabled(S::FORCE_GPU_HOST));
     EXPECT_FALSE(flags.IsEnabled(S::FORCE_LAVAPIPE_FOR_SOFTWARE_RENDERING));
 
+    // Unknown CPU manufacturer does not match Intel/AMD/Apple patterns.
+    flags.ApplyHostFeaturePatterns(HostInfo{
+        .cpu_manufacturer = HostInfo::CpuManufacturer::kUnknown,
+        .os_platform = "Mac",
+        .virt_support = true,
+    });
+    EXPECT_FALSE(flags.IsEnabled(S::FORCE_GPU_HOST));
+    EXPECT_FALSE(flags.IsEnabled(S::FORCE_LAVAPIPE_FOR_SOFTWARE_RENDERING));
+
     const HostInfo host_info{
-        .cpu_manufacturer = "AMD",
+        .cpu_manufacturer = HostInfo::CpuManufacturer::kAmd,
         .os_platform = "Windows",
         .cpu_model_name = 10,
         .virt_support = true,
@@ -599,7 +620,8 @@ TEST(FeatureFlagsTest, ServerPatternHostGpuAndDisjunctionMatching) {
     };
     flags.ApplyHostFeaturePatterns(host_info);
 
-    // Before GPU probing: CPU-only patterns (1 and 5) match; GPU pattern (3) does not yet match.
+    // Before GPU probing: CPU-only patterns (1 and 5) match; GPU pattern (3) and Apple pattern (7)
+    // do not match.
     EXPECT_TRUE(flags.IsEnabled(S::FORCE_SWIFTSHADER));
     EXPECT_FALSE(flags.IsEnabled(S::FORCE_LAVAPIPE));
     EXPECT_FALSE(flags.IsEnabled(S::FORCE_ANGLE));
@@ -615,6 +637,14 @@ TEST(FeatureFlagsTest, ServerPatternHostGpuAndDisjunctionMatching) {
     flags.ApplyGpuFeaturePatterns(gpus);
     EXPECT_TRUE(flags.IsEnabled(S::FORCE_ANGLE));
     EXPECT_FALSE(flags.IsEnabled(S::FORCE_GPU_SOFTWARE));
+
+    // Apple CPU matches pattern 7.
+    flags.ApplyHostFeaturePatterns(HostInfo{
+        .cpu_manufacturer = HostInfo::CpuManufacturer::kApple,
+        .os_platform = "Mac",
+        .virt_support = true,
+    });
+    EXPECT_TRUE(flags.IsEnabled(S::FORCE_LAVAPIPE_FOR_SOFTWARE_RENDERING));
 }
 
 TEST(FeatureFlagsTest, VersionFilteringInFeaturePatterns) {
@@ -681,7 +711,7 @@ TEST(FeatureFlagsTest, OriginalFeatureFlagsProtobufLoadsAndAppliesPatterns) {
                              .emulator_version = "37.1.6",
                          }));
     flags.ApplyHostFeaturePatterns(HostInfo{
-        .cpu_manufacturer = "Intel",
+        .cpu_manufacturer = HostInfo::CpuManufacturer::kIntel,
         .os_platform = "Linux",
     });
     EXPECT_FALSE(flags.IsEnabled(S::FORCE_SWIFTSHADER));
@@ -855,7 +885,7 @@ TEST(FeatureFlagsTest, ServerPatternsRespectOverridesAndGuestSupport) {
             }));
 
     flags.ApplyHostFeaturePatterns(HostInfo{
-        .cpu_manufacturer = "Intel",
+        .cpu_manufacturer = HostInfo::CpuManufacturer::kIntel,
         .os_platform = "Linux",
     });
 

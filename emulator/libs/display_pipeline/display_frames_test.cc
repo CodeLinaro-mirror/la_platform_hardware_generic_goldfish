@@ -1086,11 +1086,14 @@ TEST_F(DisplayFramesTest, RotationDuringWarmUpNotDeliveredToColdSubscriber) {
 TEST_F(DisplayFramesTest, ManyThreadsUnsubscribeWhileDispatching) {
     constexpr int kThreads = 6;
     constexpr int kRounds = 200;
+    constexpr int kPublishBatchSize = 4;
+    constexpr int kMaxPendingBatches = 2;
     struct Subscription {
         std::atomic<int> calls{0};
         std::atomic<bool> unsubscribed{false};
     };
     std::atomic<int> late_calls{0};
+    std::atomic<int> pending_batches{0};
     std::atomic<bool> stop{false};
     absl::Notification start;
 
@@ -1103,9 +1106,21 @@ TEST_F(DisplayFramesTest, ManyThreadsUnsubscribeWhileDispatching) {
     });
     std::thread publisher([&] {
         start.WaitForNotification();
+        int batch_frames = 0;
         for (uint8_t tag = 0; !stop; ++tag) {
+            // Keep the frame queue bounded where sub-ms sleeps collapse to Sleep(0).
+            while (!stop && pending_batches.load(std::memory_order_acquire) >= kMaxPendingBatches) {
+                std::this_thread::yield();
+            }
+            if (stop) break;
             Publish(tag);
-            absl::SleepFor(absl::Microseconds(50));
+            if (++batch_frames == kPublishBatchSize) {
+                batch_frames = 0;
+                pending_batches.fetch_add(1, std::memory_order_acq_rel);
+                loop_->Post([&pending_batches] {
+                         pending_batches.fetch_sub(1, std::memory_order_release);
+                     }).IgnoreError();
+            }
         }
     });
     std::vector<std::thread> unsubscribers;

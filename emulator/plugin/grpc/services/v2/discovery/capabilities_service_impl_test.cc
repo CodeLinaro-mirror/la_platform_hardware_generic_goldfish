@@ -89,7 +89,7 @@ class CapabilitiesServiceTest : public ::testing::Test {
   protected:
     void SetUp() override {
         auto props = std::make_unique<AvdProperties>();
-        props->avd_name = "test-pixel-9";
+        props->avd_display_name = "test-pixel-9";
         props->avd_id = "pixel_9_api_35";
         props->avd_api = 35;
         props->avd_abi = "x86_64";
@@ -134,6 +134,39 @@ TEST_F(CapabilitiesServiceTest, ReturnsAccurateDeviceMetadata) {
     EXPECT_GT(meta.total_storage_bytes(), 0);
 }
 
+TEST_F(CapabilitiesServiceTest, MetadataUsesAvdDisplayNameAndAvdId) {
+    {
+        auto props = std::make_unique<AvdProperties>();
+        props->avd_display_name = "Medium Phone (2) 测试_🚀_é";
+        props->avd_id = "Medium_Phone_2";
+        props->hw_config = FakeHardwareConfig::GetHwConfig();
+
+        TestUniverse universe(std::move(props));
+        CapabilitiesServiceImpl service(universe);
+
+        GetDeviceCapabilitiesRequest request;
+        DeviceCapabilities reply;
+        ServerContext server_context;
+        ASSERT_TRUE(service.GetDeviceCapabilities(&server_context, &request, &reply).ok());
+        EXPECT_EQ(reply.metadata().display_name(), "Medium Phone (2) 测试_🚀_é");
+        EXPECT_EQ(reply.metadata().model_id(), "Medium_Phone_2");
+    }
+    {
+        auto props = std::make_unique<AvdProperties>();
+        props->hw_config = FakeHardwareConfig::GetHwConfig();
+
+        TestUniverse universe(std::move(props));
+        CapabilitiesServiceImpl service(universe);
+
+        GetDeviceCapabilitiesRequest request;
+        DeviceCapabilities reply;
+        ServerContext server_context;
+        ASSERT_TRUE(service.GetDeviceCapabilities(&server_context, &request, &reply).ok());
+        EXPECT_EQ(reply.metadata().display_name(), "Android Emulator");
+        EXPECT_EQ(reply.metadata().model_id(), "emulator");
+    }
+}
+
 TEST_F(CapabilitiesServiceTest, ReturnsDisplayCapabilities) {
     GetDeviceCapabilitiesRequest request;
     DeviceCapabilities reply;
@@ -148,6 +181,8 @@ TEST_F(CapabilitiesServiceTest, ReturnsDisplayCapabilities) {
     EXPECT_EQ(display.built_in_displays(0).width(), 1080);
     EXPECT_EQ(display.built_in_displays(0).height(), 2424);
     EXPECT_EQ(display.built_in_displays(0).density_dpi(), 428);
+    EXPECT_FALSE(display.built_in_displays(0).supports_dynamic_resizing());
+    EXPECT_TRUE(display.built_in_displays(0).supports_rotation());
     EXPECT_TRUE(display.supports_virtual_display_creation());
     EXPECT_TRUE(display.has_screen_capture());
 }

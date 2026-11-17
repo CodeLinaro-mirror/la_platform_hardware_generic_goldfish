@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cstdbool>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <memory>
@@ -34,6 +35,8 @@
 
 #include "android/goldfish/device_type.h"
 #include "android/goldfish/hardware_config.h"
+#include "goldfish/archive/reader.h"
+#include "goldfish/archive/writer.h"
 #include "goldfish/async/event_loop.h"
 #include "goldfish/devices/connector_registry.h"
 #include "goldfish/devices/qemud/qemud.h"
@@ -233,6 +236,7 @@ class SensorDevice : public ISensorDevice {
 
     void OnClose() override {
         VLOG(1) << "Bye bye! Sensors shutting down";
+        // A ScopedTimer; null if the connection never reached OnConnect()/OnRestore().
         timer_.reset();
 
         // Make sure we don't get destroyed while a timer is active.
@@ -252,6 +256,67 @@ class SensorDevice : public ISensorDevice {
             return true;
         });
     };
+
+    // --- Snapshot support -------------------------------------------------
+    //
+    // The guest sensors HAL keeps its qemud connection open forever and never
+    // reconnects, so the connection has to survive `loadvm`. Everything the
+    // guest negotiated (which sensors it enabled, the report delay, the guest
+    // time offset) plus a partially received qemud packet is saved here; the
+    // timer is re-created and re-armed in OnRestore().
+    //
+    // Threading: SaveToSnapshot() runs on the QEMU thread while Tick() may run
+    // on `loop_`. The adapter serializes it against OnReceive() (the only
+    // writer of the fields below); Tick() only reads them.
+    bool SupportsSnapshot() const override { return true; }
+
+    bool SaveToSnapshot(archive::IWriter& writer) const override {
+        writer << kSnapshotVersion << enabled_mask_ << absl::ToInt64Nanoseconds(delay_)
+               << absl::ToInt64Nanoseconds(time_offset_);
+        qemud_parser_.SaveToSnapshot(writer);
+        return true;
+    }
+
+    bool LoadFromSnapshot(archive::IReader& reader) override {
+        uint32_t version = 0;
+        uint32_t enabled_mask = 0;
+        int64_t delay_ns = 0;
+        int64_t time_offset_ns = 0;
+        if (!ReadValue(reader, version, enabled_mask, delay_ns, time_offset_ns).ok()) {
+            LOG(WARNING) << "Corrupt sensors snapshot.";
+            return false;
+        }
+        if (version != kSnapshotVersion) {
+            LOG(WARNING) << "Unsupported sensors snapshot version " << version;
+            return false;
+        }
+        if (!qemud_parser_.LoadFromSnapshot(reader)) {
+            LOG(WARNING) << "Corrupt qemud parser state in sensors snapshot.";
+            return false;
+        }
+        // Only sensors this AVD actually has can be enabled; the mask of
+        // configured sensors is what the constructor left in enabled_mask_.
+        enabled_mask_ = enabled_mask & enabled_mask_;
+        delay_ = ClampDelay(absl::Nanoseconds(delay_ns));
+        time_offset_ = absl::Nanoseconds(time_offset_ns);
+        return true;
+    }
+
+    void OnRestore() override {
+        VLOG(1) << "Resuming sensor ticks after snapshot load " << *this
+                << ", enabled_mask: " << enabled_mask_;
+        DCHECK(loop_->IsOnLoopThread()) << "OnRestore must be called from the event loop!";
+        this->self_ = shared_from_this();
+        timer_ = loop_->CreateTimer([this] {
+            Tick();
+            return true;
+        });
+        if (enabled_mask_ != 0) {
+            // The guest is still waiting for reports: send one right away,
+            // which also re-arms the timer.
+            Tick();
+        }
+    }
 
     void Send(std::string_view msg) {
         auto encoded = qemud::EncodeQemudPacket(msg);
@@ -331,7 +396,7 @@ class SensorDevice : public ISensorDevice {
         if (absl::ConsumePrefix(&msg, "set-delay:")) {
             int32_t delay_ms;
             if (absl::SimpleAtoi(msg, &delay_ms)) {
-                delay_ = absl::Milliseconds(delay_ms);
+                delay_ = ClampDelay(absl::Milliseconds(delay_ms));
                 if (enabled_mask_ != 0) {
                     // Trigger a Tick to apply the new delay immediately.
                     Tick();
@@ -446,18 +511,27 @@ class SensorDevice : public ISensorDevice {
         // Note: While there is some overhead in this code, it is signifcantly less
         //  than 1ms. Just delay by exactly (delay_ms) below to keep the actual rate
         //  as close to the desired rate as possible.
-        // Note2: Let's cap the minimal Tick interval to 10ms, to make sure:
+        // Note2: The minimal Tick interval is capped to 10ms (see ClampDelay),
+        // to make sure:
         // - We never overload the main QEMU loop.
         // - Some CTS hardware test cases require a limit on the maximum update
         // rate,
         //   which has been known to be in the low 100's of Hz.
-        delay_ = std::clamp(delay_, absl::Milliseconds(10), absl::Hours(1));
+        DCHECK(delay_ == ClampDelay(delay_)) << "delay_ must be clamped when it is set";
 
         DCHECK(self_) << "Self reference should have been set, otherwise we are scheduling a "
                          "callback where we can disappear from (i.e. Tick could be called with "
                          "this == nullptr)!";
         timer_->Schedule(delay_, delay_);
     }
+
+    // Keeps the report interval within [10ms, 1h]. Applied when the delay is
+    // set (not in Tick()) so that Tick() never writes snapshotted state.
+    static absl::Duration ClampDelay(absl::Duration delay) {
+        return std::clamp(delay, absl::Milliseconds(10), absl::Hours(1));
+    }
+
+    static constexpr uint32_t kSnapshotVersion = 1;
 
     PhysicalModel* const physical_model_;
     EventLoop* const loop_;

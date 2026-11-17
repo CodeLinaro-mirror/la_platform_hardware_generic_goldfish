@@ -94,7 +94,7 @@ TEST_F(GoldfishGpuTest, StartConfiguresRenderLibAndFeatures) {
     cfg.width = 4;
     cfg.height = 2;
     cfg.guest_api_level = 36;
-    cfg.renderer_features = "Vulkan:enabled;GlAsyncSwap:disabled";
+    cfg.renderer_features = "VulkanSnapshots:enabled;GlAsyncSwap:disabled;GuestVulkanOnly:enabled";
     cfg.on_post = [&](uint32_t w, uint32_t h, const uint8_t* bgra) {
         posted_w = w;
         posted_h = h;
@@ -112,12 +112,14 @@ TEST_F(GoldfishGpuTest, StartConfiguresRenderLibAndFeatures) {
     EXPECT_TRUE(last_lib_->features.RefCountPipe.enabled());
     EXPECT_TRUE(last_lib_->features.VulkanAstcEmulation.enabled());
     EXPECT_TRUE(last_lib_->features.VulkanEtc2Emulation.enabled());
-    EXPECT_FALSE(last_lib_->features.HostComposition.enabled());
+    EXPECT_TRUE(last_lib_->features.HostComposition.enabled());
     EXPECT_FALSE(last_lib_->features.GlAsyncSwap.enabled());
-    // "Vulkan:enabled" from renderer_features is pinned back off: the
-    // goldfish_pipe transport cannot snapshot with VulkanSnapshots on.
-    EXPECT_FALSE(last_lib_->features.Vulkan.enabled());
+    EXPECT_TRUE(last_lib_->features.Vulkan.enabled());
+    // "VulkanSnapshots:enabled" and "GuestVulkanOnly:enabled" from
+    // renderer_features are pinned back off: the goldfish_pipe transport does
+    // not enable VulkanSnapshots and requires host GLES emulation.
     EXPECT_FALSE(last_lib_->features.VulkanSnapshots.enabled());
+    EXPECT_FALSE(last_lib_->features.GuestVulkanOnly.enabled());
     EXPECT_EQ(test_sys_.EnvGet("ANDROID_EMU_HEADLESS"), "1");
 
     std::vector<uint8_t> frame(4ULL * 2ULL * 4ULL, 0x12);
@@ -156,11 +158,23 @@ TEST_F(GoldfishGpuTest, GuestApiLevelIsRequiredAndForwardedToRenderLib) {
     ASSERT_OK(GetGoldfishGpu().Start(cfg));
     ASSERT_NE(last_lib_, nullptr);
     EXPECT_EQ(last_lib_->api_level, 34);
-    EXPECT_FALSE(last_lib_->features.Vulkan.enabled());
+    EXPECT_TRUE(last_lib_->features.Vulkan.enabled());
+    EXPECT_TRUE(last_lib_->features.HostComposition.enabled());
     EXPECT_FALSE(last_lib_->features.VulkanSnapshots.enabled());
     EXPECT_FALSE(last_lib_->features.GlDma.enabled());
     EXPECT_FALSE(last_lib_->features.GlDma2.enabled());
     EXPECT_TRUE(last_lib_->features.GlDirectMem.enabled());
+
+    // API 31 enables Vulkan; API 30 and API 37 disable Vulkan even if requested.
+    cfg.guest_api_level = 31;
+    ASSERT_OK(GetGoldfishGpu().Start(cfg));
+    EXPECT_TRUE(last_lib_->features.Vulkan.enabled());
+
+    cfg.guest_api_level = 30;
+    cfg.renderer_features = "Vulkan:enabled;VulkanSnapshots:enabled";
+    ASSERT_OK(GetGoldfishGpu().Start(cfg));
+    EXPECT_FALSE(last_lib_->features.Vulkan.enabled());
+    EXPECT_FALSE(last_lib_->features.VulkanSnapshots.enabled());
 }
 
 TEST_F(GoldfishGpuTest, SyncAndMemoryCallbacks) {
@@ -650,34 +664,135 @@ TEST_F(GoldfishGpuTest, QuiesceBeforeSaveAndLoadAndPauseResume) {
 TEST_F(GoldfishGpuTest, CAbiLifecycleStartFlushAndStop) {
     char err_buf[128] = {0};
     // Guest API level 0 is rejected and populates err_buf.
-    EXPECT_FALSE(GoldfishGpuCoreStart(/*width=*/2, /*height=*/2, /*guest_api_level=*/0, nullptr,
+    EXPECT_FALSE(GoldfishGpuCoreStart(/*width=*/2, /*height=*/2, /*secondary_width=*/0,
+                                      /*secondary_height=*/0, /*guest_api_level=*/0, nullptr,
                                       nullptr, nullptr, nullptr, err_buf, sizeof(err_buf)));
     EXPECT_THAT(std::string_view(err_buf), HasSubstr("guest_api_level"));
 
-    uint32_t posted_w = 0;
-    uint32_t posted_h = 0;
-    auto on_frame = +[](void* opaque, uint32_t w, uint32_t h, const uint8_t* /*bgra*/) {
-        auto* dims = static_cast<uint32_t*>(opaque);
-        dims[0] = w;
-        dims[1] = h;
-    };
-    uint32_t dims[2] = {0, 0};
-    ASSERT_TRUE(GoldfishGpuCoreStart(/*width=*/4, /*height=*/2, /*guest_api_level=*/36,
-                                     "Vulkan:disabled", nullptr, on_frame, dims, err_buf,
+    struct Posted {
+        uint32_t head = 99;
+        uint32_t w = 0;
+        uint32_t h = 0;
+    } posted;
+    auto on_frame =
+            +[](void* opaque, uint32_t head, uint32_t w, uint32_t h, const uint8_t* /*bgra*/) {
+                auto* out = static_cast<Posted*>(opaque);
+                out->head = head;
+                out->w = w;
+                out->h = h;
+            };
+    ASSERT_TRUE(GoldfishGpuCoreStart(/*width=*/4, /*height=*/2, /*secondary_width=*/2,
+                                     /*secondary_height=*/3, /*guest_api_level=*/36,
+                                     "Vulkan:disabled", nullptr, on_frame, &posted, err_buf,
                                      sizeof(err_buf)));
-    std::vector<uint8_t> frame(4ULL * 2ULL * 4ULL, 0x11);
-    renderer_->SimulatePostFrame(4, 2, frame.data());
-    posted_w = dims[0];
-    posted_h = dims[1];
-    EXPECT_EQ(posted_w, 4U);
-    EXPECT_EQ(posted_h, 2U);
+    std::vector<uint8_t> inner_frame(4ULL * 2ULL * 4ULL, 0x11);
+    renderer_->SimulatePostFrameForDisplay(/*display_id=*/0, 4, 2, inner_frame.data());
+    EXPECT_EQ(posted.head, 0U);
+    EXPECT_EQ(posted.w, 4U);
+    EXPECT_EQ(posted.h, 2U);
 
-    MockRenderer::last_flushed_display_id_ = -1;
+    std::vector<uint8_t> outer_frame(2ULL * 3ULL * 4ULL, 0x22);
+    renderer_->SimulatePostFrameForDisplay(/*display_id=*/6, 2, 3, outer_frame.data());
+    EXPECT_EQ(posted.head, 1U);
+    EXPECT_EQ(posted.w, 2U);
+    EXPECT_EQ(posted.h, 3U);
+
+    MockRenderer::flushed_display_ids_.clear();
     GoldfishGpuCoreFlush();
-    EXPECT_EQ(MockRenderer::last_flushed_display_id_, 0);
+    EXPECT_THAT(MockRenderer::flushed_display_ids_, ::testing::ElementsAre(0, 6));
 
     GoldfishGpuCoreStopForProcessExit();
     GoldfishGpuCoreStop();
+}
+
+TEST_F(GoldfishGpuTest, FoldableSnapshotRestoresFrameToLastPostedDisplay) {
+    struct Posted {
+        int calls = 0;
+        uint32_t w = 0;
+        uint32_t h = 0;
+    };
+    Posted primary;
+    Posted secondary;
+    auto run_round_trip = [&](uint32_t width, uint32_t height, bool unfold_before_save,
+                              const char* name) {
+        GoldfishGpuConfig cfg;
+        cfg.width = width;
+        cfg.height = height;
+        cfg.secondary_width = 2;
+        cfg.secondary_height = 3;
+        cfg.guest_api_level = 36;
+        cfg.snapshot_directory = snap_dir_.path.string();
+        cfg.on_post = [&](uint32_t w, uint32_t h, const uint8_t*) {
+            ++primary.calls;
+            primary.w = w;
+            primary.h = h;
+        };
+        cfg.secondary_on_post = [&](uint32_t w, uint32_t h, const uint8_t*) {
+            ++secondary.calls;
+            secondary.w = w;
+            secondary.h = h;
+        };
+        ASSERT_OK(GetGoldfishGpu().Start(cfg));
+        primary = Posted{};
+        secondary = Posted{};
+
+        // Exercise both caches populated (0 -> 6, and optionally 6 -> 0 before save).
+        std::vector<uint8_t> inner_frame(static_cast<size_t>(width) * height * 4ULL, 0x11);
+        renderer_->SimulatePostFrameForDisplay(/*display_id=*/0, static_cast<int>(width),
+                                               static_cast<int>(height), inner_frame.data());
+        std::vector<uint8_t> outer_frame(2ULL * 3ULL * 4ULL, 0x22);
+        renderer_->SimulatePostFrameForDisplay(/*display_id=*/6, 2, 3, outer_frame.data());
+        if (unfold_before_save) {
+            renderer_->SimulatePostFrameForDisplay(/*display_id=*/0, static_cast<int>(width),
+                                                   static_cast<int>(height), inner_frame.data());
+        } else {
+            // A trailing async flush on display 0 (pixels == nullptr) must not overwrite
+            // last_posted_display_id_ after display 6 has already posted.
+            renderer_->SimulatePostFrameForDisplay(/*display_id=*/0, static_cast<int>(width),
+                                                   static_cast<int>(height), /*pixels=*/nullptr);
+        }
+
+        ASSERT_TRUE(GoldfishGpuCoreQuiesce(name));
+        // Runtime flush while quiesced is a no-op; PreSave explicitly drains both pipelines.
+        MockRenderer::flushed_display_ids_.clear();
+        GoldfishGpuCoreFlush();
+        EXPECT_TRUE(MockRenderer::flushed_display_ids_.empty());
+        ASSERT_TRUE(GoldfishGpuCorePreSave(name));
+        EXPECT_EQ(MockRenderer::flushed_display_ids_.size(), 2U);
+        uint8_t* meta = nullptr;
+        size_t meta_size = 0;
+        ASSERT_TRUE(GoldfishGpuCoreSave(name, &meta, &meta_size));
+        ASSERT_TRUE(GoldfishGpuCorePostSave(name));
+
+        primary = Posted{};
+        secondary = Posted{};
+        ASSERT_TRUE(GoldfishGpuCorePreLoad(name));
+        ASSERT_TRUE(GoldfishGpuCoreLoad(name, meta, meta_size));
+        ASSERT_TRUE(GoldfishGpuCorePostLoad(name));
+        GoldfishGpuCoreFreeBuffer(meta);
+        GetGoldfishGpu().Stop();
+    };
+
+    // 0 -> 6 with distinct geometry: restored frame is replayed on the outer display.
+    run_round_trip(/*width=*/4, /*height=*/2, /*unfold_before_save=*/false, "fold_snap");
+    EXPECT_EQ(secondary.calls, 1);
+    EXPECT_EQ(secondary.w, 2U);
+    EXPECT_EQ(secondary.h, 3U);
+    EXPECT_EQ(primary.calls, 0);
+
+    // 0 -> 6 -> 0 unfold before save: restored frame is replayed on the primary display.
+    run_round_trip(/*width=*/4, /*height=*/2, /*unfold_before_save=*/true, "unfold_snap");
+    EXPECT_EQ(primary.calls, 1);
+    EXPECT_EQ(primary.w, 4U);
+    EXPECT_EQ(primary.h, 2U);
+    EXPECT_EQ(secondary.calls, 0);
+
+    // Identical geometry is ambiguous; the restored frame falls back to the primary display.
+    run_round_trip(/*width=*/2, /*height=*/3, /*unfold_before_save=*/false, "fold_snap_tie");
+    EXPECT_EQ(primary.calls, 1);
+    EXPECT_EQ(primary.w, 2U);
+    EXPECT_EQ(primary.h, 3U);
+    EXPECT_EQ(secondary.calls, 0);
 }
 
 TEST_F(GoldfishGpuTest, VerifyModeConfigAndEnvOverride) {

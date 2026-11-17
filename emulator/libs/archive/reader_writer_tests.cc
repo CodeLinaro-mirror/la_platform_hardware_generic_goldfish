@@ -21,6 +21,7 @@
 #include "goldfish/archive/deque_archive.h"
 #include "goldfish/archive/deque_reader.h"
 #include "goldfish/archive/deque_writer.h"
+#include "goldfish/archive/string_writer.h"
 
 using ::absl_testing::IsOk;
 using ::absl_testing::IsOkAndHolds;
@@ -246,6 +247,21 @@ TEST(archive, variadic) {
     EXPECT_EQ(u, kUnsignedNumber);
     EXPECT_EQ(i1, kSignedNumber);
     EXPECT_EQ(i2, -kSignedNumber);
+}
+
+TEST(archive, string_writer) {
+    constexpr uint32_t kUnsignedNumber = 3000000000U;
+    constexpr int32_t kSignedNumber = -2000000000;
+
+    std::string bytes;
+    StringWriter writer(&bytes);
+    writer << kUnsignedNumber << kSignedNumber;
+
+    DequeArchive::Storage storage(bytes.begin(), bytes.end());
+    DequeReader reader(&storage);
+    EXPECT_THAT(ReadOneValue<uint32_t>(reader), IsOkAndHolds(kUnsignedNumber));
+    EXPECT_THAT(ReadOneValue<int32_t>(reader), IsOkAndHolds(kSignedNumber));
+    EXPECT_TRUE(storage.empty());
 }
 
 }  // namespace goldfish::archive

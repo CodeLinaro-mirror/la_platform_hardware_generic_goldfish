@@ -169,7 +169,7 @@ class NotifyingTestEventLoop final : public ::goldfish::async::EventLoop {
     }
 
     void ShutdownTimers() override { inner_->ShutdownTimers(); }
-    size_t WaitUntilIdle() override { return inner_->WaitUntilIdle(); }
+    size_t Flush() override { return inner_->Flush(); }
     std::future<absl::Status> Shutdown() override { return inner_->Shutdown(); }
     bool IsOnLoopThread() const override { return inner_->IsOnLoopThread(); }
     ScopedTimer CreateTimer(RepeatingTask task) override {
@@ -419,14 +419,21 @@ TEST_F(EmulatorControllerInputTest,
         ASSERT_TRUE(stub_->sendKey(&ctx, key, &reply).ok());
     }
     loop_->RunAll();
+    loop_->AdvanceClock(absl::Milliseconds(1));
     ASSERT_EQ(ActiveSlotCount(0), 1);
     ASSERT_EQ(ActiveSlotCount(1), 10);
     keyboard_sink_.Clear();
 
-    // Advance past the 60s unary session idle timeout: contacts and held keys are released,
-    // and SessionResetTracker records a full reset.
+    // Advance past the 60s unary session idle timeout: contacts and held keys are released
+    // (pacing the 10-slot lift across two 1 ms virtio-input batches), and SessionResetTracker
+    // records a full reset.
     loop_->AdvanceClock(absl::Seconds(60));
+    loop_->AdvanceClock(absl::Milliseconds(1));
+    loop_->AdvanceClock(absl::Milliseconds(1));
     loop_->RunAll();
+    for (const auto& report : Display(1)->evdev_reports) {
+        EXPECT_LE(report.size(), 64U);
+    }
     EXPECT_EQ(ActiveSlotCount(0), 0);
     EXPECT_EQ(ActiveSlotCount(1), 0);
     EXPECT_THAT(keyboard_sink_.Writes(), ElementsAre(absl::StrCat("up ", KEY_A)));

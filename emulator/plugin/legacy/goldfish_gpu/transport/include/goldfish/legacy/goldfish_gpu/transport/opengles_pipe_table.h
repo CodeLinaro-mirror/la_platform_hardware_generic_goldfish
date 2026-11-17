@@ -87,6 +87,8 @@ class PipeChannel {
     uint32_t id() const { return id_; }
     gfxstream::RenderChannel* channel() const { return channel_.get(); }
 
+    // Safe while the reader runs: it looks `on_read` up for every buffer it
+    // dequeues, so data written after this returns reaches the new callback.
     void SetCallbacks(OpenglesReadCallback on_read, OpenglesWritableCallback on_writable)
             ABSL_LOCKS_EXCLUDED(mu_);
 
@@ -127,9 +129,10 @@ class PipeChannel {
   private:
     void OnChannelEvent(gfxstream::RenderChannel::State state) ABSL_LOCKS_EXCLUDED(mu_);
     void ReaderLoop() ABSL_LOCKS_EXCLUDED(mu_);
-    // Reads one buffer; returns false when the reader should go back to
-    // waiting (nothing to read, paused, or the channel stopped).
-    bool ReadOne(const OpenglesReadCallback& cb) ABSL_LOCKS_EXCLUDED(mu_);
+    // Reads one buffer into `on_read`; returns false when the reader should go
+    // back to waiting (nothing to read, paused, or the channel stopped).
+    bool ReadOne() ABSL_LOCKS_EXCLUDED(mu_);
+    OpenglesReadCallback CurrentReadCallback() const ABSL_LOCKS_EXCLUDED(mu_);
     void SetReading(bool reading) ABSL_LOCKS_EXCLUDED(mu_);
 
     const uint32_t id_;

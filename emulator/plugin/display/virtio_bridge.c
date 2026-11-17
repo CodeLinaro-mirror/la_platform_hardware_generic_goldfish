@@ -26,6 +26,7 @@
 
 #include "android/base/logging/abseil_log_bridge.h"
 #include "goldfish/input/virtio_input_android.h"
+#include "goldfish/legacy/goldfish_events.h"
 
 int dump_virtio_input_hid(const VirtIOInputHID* vhid, char* buf, size_t len) {
     if (!vhid) {
@@ -33,6 +34,11 @@ int dump_virtio_input_hid(const VirtIOInputHID* vhid, char* buf, size_t len) {
     }
     return snprintf(buf, len, "{evt_queue: %p, active: %d}", vhid->parent_obj.evt,
                     vhid->parent_obj.active);
+}
+
+static bool ShouldRouteToGoldfishEvents(const VirtIOInputHID* vhid) {
+    return vhid != NULL && !vhid->parent_obj.active &&
+           vhid == goldfish_events_get_primary_touch_device() && goldfish_events_is_active();
 }
 
 int find_virtio_device(Object* obj, void* opaque) {
@@ -55,6 +61,10 @@ int find_virtio_device(Object* obj, void* opaque) {
 }
 
 void virtio_input_send_evdev(VirtIOInputHID* vhid, uint16_t type, uint16_t code, uint32_t value) {
+    if (ShouldRouteToGoldfishEvents(vhid)) {
+        goldfish_events_send(type, code, (int)value);
+        return;
+    }
     VirtIOInput* vinput = VIRTIO_INPUT(vhid);
     virtio_input_event event = {
         .type = cpu_to_le16(type), .code = cpu_to_le16(code), .value = cpu_to_le32(value)};
@@ -65,12 +75,18 @@ void virtio_input_send_evdev(VirtIOInputHID* vhid, uint16_t type, uint16_t code,
 }
 
 bool virtio_input_hid_is_active(const VirtIOInputHID* vhid) {
-    return vhid != NULL && vhid->parent_obj.active;
+    return (vhid != NULL && vhid->parent_obj.active) || ShouldRouteToGoldfishEvents(vhid);
 }
 
 uint64_t virtio_input_hid_active_generation(const VirtIOInputHID* vhid) {
     if (vhid == NULL) {
         return 0;
+    }
+    if (!vhid->parent_obj.active && vhid == goldfish_events_get_primary_touch_device()) {
+        const uint64_t legacy_gen = goldfish_events_get_active_generation();
+        if (legacy_gen != 0) {
+            return legacy_gen;
+        }
     }
     return object_property_get_uint(OBJECT(vhid), VIRTIO_INPUT_ANDROID_ACTIVE_GENERATION, NULL);
 }

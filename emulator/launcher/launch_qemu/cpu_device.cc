@@ -93,17 +93,24 @@ absl::StatusOr<std::string> getAccelString(const EmulatorConfig& emulator,
     return CpuAcceleratorToString(supported);
 }
 
+// First Android API level whose x86 guest kernel boots with `-cpu host` on
+// every supported KVM host. The API 24-25 Linux 3.10 kernels crash `init`
+// (SIGSEGV -> kernel panic) with the CPUID feature set exposed by `host` on
+// AMD Zen3 hosts (b/583283278), so they get a conservative model instead.
+constexpr int kHostCpuModelMinApiLevel = 26;
+
 absl::StatusOr<std::string> getCpuString(Avd::CpuArchitecture target_arch,
-                                         std::string_view accelerator) {
+                                         std::string_view accelerator, int api_level) {
     auto aehd_enable = System::Get()->GetEnvironmentVariable("ENABLE_AEHD_IN_QEMU");
 
     switch (target_arch) {
     case Avd::CpuArchitecture::kArm:
         return accelerator == "tcg"sv ? "cortex-a53" : "max";
     case Avd::CpuArchitecture::kX86:
-        // TODO(hshan): switch to better cpu model for linux/windows
-        // Maybe "host"?
         if (!aehd_enable.empty() && !aehd_enable.compare("1")) return "SandyBridge,-rdtscp";
+        if (accelerator == "kvm"sv && (api_level <= 0 || api_level >= kHostCpuModelMinApiLevel)) {
+            return "host";
+        }
         return "SandyBridge";
     case Avd::CpuArchitecture::kRiscV:
     case Avd::CpuArchitecture::kUnknown:
@@ -145,7 +152,7 @@ absl::Status CpuDevice::initialize(const EmulatorConfig& emulator) {
     } else {
         mAccelerator = "aehd";
     }
-    ASSIGN_OR_RETURN(mCpu, getCpuString(target_arch, mAccelerator));
+    ASSIGN_OR_RETURN(mCpu, getCpuString(target_arch, mAccelerator, avd.ApiLevel()));
     ASSIGN_OR_RETURN(mCores, getCores(emulator, avd.Hw()));
 
     return absl::OkStatus();

@@ -83,7 +83,7 @@ absl::Status AvdInfoDevice::initialize(const EmulatorConfig& emulator) {
     std::vector<std::pair<std::string, std::string>> params{
         {"serial_number", absl::StrCat(emulator.serial_number())},
         {"adb_port", absl::StrCat(emulator.adb_port())},
-        {"avd_name", emulator.avd().DisplayName()},
+        {"avd_display_name", emulator.avd().DisplayName()},
         {"avd_id", emulator.avd().Id()},
         {"avd_abi", emulator.avd().Abi()},
         {"avd_api", absl::StrCat(emulator.avd().ApiLevel())},
@@ -117,8 +117,7 @@ absl::Status AvdInfoDevice::initialize(const EmulatorConfig& emulator) {
                         emulator.opts().no_snapshot_update_time ? "false" : "true");
     params.emplace_back("snapshots_enabled",
                         SnapshotDevice::are_snapshots_enabled(emulator) ? "true" : "false");
-    ASSIGN_OR_RETURN(const int snapshot_version, CurrentSnapshotVersion(emulator));
-    params.emplace_back("snapshot_version", absl::StrCat(snapshot_version));
+    params.emplace_back("snapshot_version", absl::StrCat(kSnapshotVersion));
 
     // QEMU splits -device options on single commas, so commas inside values (e.g. in the AVD
     // display name or a path) must be escaped to keep each value in its own property.

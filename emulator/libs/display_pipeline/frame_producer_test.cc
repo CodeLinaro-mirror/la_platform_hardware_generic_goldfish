@@ -1134,7 +1134,7 @@ class FlakyLoop final : public async::EventLoop {
     FlakyLoop() : EventLoop("flaky") {}
     std::future<absl::Status> Shutdown() override { return inner_->Shutdown(); }
     void ShutdownTimers() override {}
-    size_t WaitUntilIdle() override { return 0; }
+    size_t Flush() override { return 0; }
     bool IsOnLoopThread() const override { return false; }
     ScopedTimer CreateTimer(RepeatingTask /*task*/) override { return nullptr; }
 

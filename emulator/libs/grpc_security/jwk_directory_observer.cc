@@ -72,6 +72,9 @@ void JwkDirectoryObserver::ScanJwkPath() {
     loaded_keys_.Clear();
     LOG(INFO) << "Scanning " << jwk_path_ << "for jwk keys.";
     for (const auto& path : base::file::scan_dir(jwk_path_, true)) {
+        if (!path_filter_(path)) {
+            continue;
+        }
         const std::string str_path = path.string();
         auto status = loaded_keys_.Add(str_path);
         if (!status.ok()) {

@@ -220,14 +220,17 @@ cc_library(
     deps = [
         ":input_paths",
         "//emulator/libs/file",
+        "//emulator/libs/file:file_lock",
         "//emulator/libs/hardware_config",
         "//emulator/libs/hardware_config:device_type",
         "//emulator/libs/host-common",
         "//emulator/libs/ini_file",
         "//emulator/libs/metrics:studio_stats_wrapper",
         "//emulator/libs/snapshot:snapshot_store",
+        "//emulator/libs/status_macros",
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/strings",
     ],
 )
 
@@ -237,11 +240,54 @@ cc_test(
     srcs = ["avd_test.cc"],
     deps = [
         ":avd",
+        "//emulator/libs/file:file_lock",
+        "//emulator/libs/host-common",
         "//emulator/libs/status_macros",
         "//emulator/libs/status_macros:status_matcher_macros",
         "//emulator/libs/system:test-headers",
         "//emulator/libs/test:googletest_main",
         "@abseil-cpp//absl/status:status_matchers",
+    ],
+)
+
+cc_library(
+    name = "avd_session_lock",
+    srcs = ["avd_session_lock.cc"],
+    hdrs = ["avd_session_lock.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//emulator/libs/file",
+        "//emulator/libs/file:file_lock",
+        "//emulator/libs/file:shared_file_lock",
+        "//emulator/libs/host-common",
+        "//emulator/libs/status_macros",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings:str_format",
+        "@abseil-cpp//absl/time",
+    ],
+)
+
+cc_test(
+    name = "avd_session_lock_test",
+    size = "small",
+    srcs = ["avd_session_lock_test.cc"],
+    deps = [
+        ":avd_session_lock",
+        "//emulator/libs/file",
+        "//emulator/libs/file:auto_advancing_clock",
+        "//emulator/libs/file:file_lock",
+        "//emulator/libs/file:shared_file_lock",
+        "//emulator/libs/host-common",
+        "//emulator/libs/status_macros:status_matcher_macros",
+        "//emulator/libs/system",
+        "//emulator/libs/system:test-headers",
+        "//emulator/libs/test:googletest_main",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:status_matchers",
+        "@abseil-cpp//absl/synchronization",
+        "@abseil-cpp//absl/time",
     ],
 )
 
@@ -298,21 +344,110 @@ cc_library(
 )
 
 cc_library(
+    name = "gpu_info",
+    srcs = ["gpu_info.cc"],
+    hdrs = ["gpu_info.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//emulator/libs/file",
+        "//emulator/libs/gvk",
+        "//emulator/libs/system",
+        "@abseil-cpp//absl/base:no_destructor",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/strings:str_format",
+        "@vulkan-headers//:vulkan_headers",
+    ],
+)
+
+cc_library(
+    name = "fake_vulkan_loader",
+    testonly = True,
+    hdrs = ["testing/fake_vulkan_loader.h"],
+    deps = [
+        "//emulator/libs/file",
+        "//emulator/libs/gvk",
+        "//emulator/libs/system",
+        "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/synchronization",
+        "@vulkan-headers//:vulkan_headers",
+    ],
+)
+
+cc_test(
+    name = "gpu_info_test",
+    size = "small",
+    srcs = ["gpu_info_test.cc"],
+    deps = [
+        ":fake_vulkan_loader",
+        ":gpu_info",
+        "//emulator/libs/status_macros:status_matcher_macros",
+        "//emulator/libs/system",
+        "//emulator/libs/system:test-headers",
+        "//emulator/libs/test:googletest_main",
+    ],
+)
+
+cc_library(
+    name = "gpu_selection",
+    srcs = ["gpu_selection.cc"],
+    hdrs = ["gpu_selection.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":avd",
+        ":constants",
+        ":feature_flags",
+        ":gpu_info",
+        "//emulator/launcher/cmdline",
+        "//emulator/libs/cpu",
+        "//emulator/libs/hardware_config",
+        "//emulator/libs/system",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/strings:str_format",
+        "@vulkan-headers//:vulkan_headers",
+    ],
+)
+
+cc_test(
+    name = "gpu_selection_test",
+    size = "small",
+    srcs = ["gpu_selection_test.cc"],
+    deps = [
+        ":constants",
+        ":gpu_info",
+        ":gpu_selection",
+        ":mock_avd",
+        "//emulator/launcher/cmdline",
+        "//emulator/libs/cpu",
+        "//emulator/libs/hardware_config",
+        "//emulator/libs/status_macros:status_matcher_macros",
+        "//emulator/libs/system:test-headers",
+        "//emulator/libs/test:googletest_main",
+        "@abseil-cpp//absl/base:log_severity",
+        "@abseil-cpp//absl/log:scoped_mock_log",
+        "@vulkan-headers//:vulkan_headers",
+    ],
+)
+
+cc_library(
     name = "host_info",
     srcs = ["host_info.cc"],
     hdrs = ["host_info.h"],
     deps = [
         ":avd",
         ":feature_flags",
-        "//emulator/launcher/launch_qemu:vulkan_gpu_device_info",
+        ":gpu_info",
+        ":gpu_selection",
         "//emulator/libs/cpu",
         "//emulator/libs/cpu:cpu_brand",
         "//emulator/libs/file",
         "//emulator/libs/hardware_config",
         "//emulator/libs/metrics:studio_config",
         "//emulator/libs/system",
+        "@abseil-cpp//absl/base:no_destructor",
+        "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/log",
-        "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",
         "@studio_stats//:studio_stats_cc_proto",
@@ -326,9 +461,10 @@ cc_test(
     srcs = ["host_info_test.cc"],
     deps = [
         ":feature_flags",
+        ":gpu_info",
+        ":gpu_selection",
         ":host_info",
         ":mock_avd",
-        "//emulator/launcher/launch_qemu:vulkan_gpu_device_info",
         "//emulator/libs/system:test-headers",
         "//emulator/libs/test:googletest_main",
         "@studio_stats//:studio_stats_cc_proto",
@@ -446,19 +582,12 @@ collect_plugins(
     name = "plugins",
     output_dir = "lib/qemu",
     plugins = [
-        # Both are loaded with dlopen() on first use by the selected virtio-gpu
-        # device (virtio_gpu_selection.h): neither qemu nor the plugin links them.
-        "@rutabaga_gfx//:rutabaga_ffi",
+        "//emulator/plugin:goldfish",
+        # Loaded with dlopen() on first use by the plugin's virtio-gpu-gfxstream
+        # device: neither qemu nor the plugin links it.
     ] + select({
         "@platforms//os:windows": ["//emulator:gfxstream_backend_windows"],
         "//conditions:default": ["@gfxstream//host:gfxstream_backend"],
-    }) + select({
-        "@platforms//os:macos": ["//emulator/plugin:goldfish_aarch64"],
-        "@goldfish_build//platforms:is_linux_aarch64": ["//emulator/plugin:goldfish_aarch64"],
-        "@platforms//os:linux": ["//emulator/plugin:goldfish_x86_64"],
-        ":windows_aarch64": ["//emulator/plugin:goldfish_aarch64"],
-        ":windows_x86_64": ["//emulator/plugin:goldfish_x86_64"],
-        "//conditions:default": [],
     }),
 )
 
@@ -692,8 +821,10 @@ cc_library(
     srcs = ["launcher.cc"],
     hdrs = ["launcher.h"],
     deps = [
+        ":avd_session_lock",
         ":constants",
         ":feature_flags",
+        ":gpu_selection",
         ":host_info",
         ":input_paths",
         ":launch_fishtank",
@@ -706,6 +837,7 @@ cc_library(
         "//emulator/libs/async:libuv_sockets",
         "//emulator/libs/cpu",
         "//emulator/libs/file",
+        "//emulator/libs/file:file_lock",
         "//emulator/libs/metrics",
         "//emulator/libs/metrics:configure_metrics_writer",
         "//emulator/libs/metrics:snapshot_metrics",
@@ -728,15 +860,20 @@ cc_test(
     size = "medium",
     srcs = ["launcher_test.cc"],
     deps = [
+        ":avd_session_lock",
         ":constants",
         ":feature_flags",
+        ":gpu_selection",
         ":launcher_lib",
         ":mock_avd",
         "//emulator/launcher/launch_qemu",
         "//emulator/libs/async:async_testing",
         "//emulator/libs/cpu",
         "//emulator/libs/file",
+        "//emulator/libs/file:file_lock",
+        "//emulator/libs/host-common",
         "//emulator/libs/metrics:studio_file_metrics_writer",
+        "//emulator/libs/status_macros:status_matcher_macros",
         "//emulator/libs/test:googletest_main",
         "@abseil-cpp//absl/base:log_severity",
         "@abseil-cpp//absl/log:scoped_mock_log",
@@ -753,10 +890,47 @@ alias(
     visibility = ["//visibility:public"],
 )
 
+cc_library(
+    name = "emulator_main",
+    srcs = ["main.cc"],
+    deps = [
+        ":avd_session_lock",
+        ":feature_flags",
+        ":feature_pattern_downloader",
+        ":gpu_info",
+        ":gpu_selection",
+        ":host_info",
+        ":launcher_lib",
+        ":trampoline",
+        "//emulator/crashreport:crash_system",
+        "//emulator/launcher/cmdline",
+        "//emulator/libs/async:libuv_event_loop",
+        "//emulator/libs/fsimage:qcow2",
+        "//emulator/libs/logging:studio_log_sink",
+        "//emulator/libs/metrics:configure_metrics_writer",
+        "//emulator/libs/metrics:studio_config",
+        "//emulator/libs/system",
+        "//emulator/libs/update_check",
+        "//emulator/telnet:legacy_console_controller",
+        "//emulator/tools:aemu_version",
+        "@abseil-cpp//absl/debugging:failure_signal_handler",
+        "@abseil-cpp//absl/debugging:symbolize",
+        "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/flags:parse",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:initialize",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/strings:str_format",
+        "@abseil-cpp//absl/time",
+        "@qemu//:qemu-version-header",
+    ],
+    alwayslink = True,
+)
+
 cc_binary_with_manifest(
     # This is the launcher binary but we want the name of the executable created to be "emulator" to match the legacy emulator release.
     name = "emulator",
-    srcs = ["main.cc"],
     data = [
         ":advanced_features",
         ":binaries",
@@ -781,34 +955,7 @@ cc_binary_with_manifest(
         "//conditions:default": [],
     }),
     visibility = ["//visibility:public"],
-    deps = [
-        ":feature_flags",
-        ":feature_pattern_downloader",
-        ":host_info",
-        ":launcher_lib",
-        ":trampoline",
-        "//emulator/crashreport:crash_system",
-        "//emulator/launcher/cmdline",
-        "//emulator/libs/async:libuv_event_loop",
-        "//emulator/libs/fsimage:qcow2",
-        "//emulator/libs/metrics:configure_metrics_writer",
-        "//emulator/libs/metrics:studio_config",
-        "//emulator/libs/system",
-        "//emulator/libs/update_check",
-        "//emulator/telnet:legacy_console_controller",
-        "//emulator/tools:aemu_version",
-        "@abseil-cpp//absl/debugging:failure_signal_handler",
-        "@abseil-cpp//absl/debugging:symbolize",
-        "@abseil-cpp//absl/flags:flag",
-        "@abseil-cpp//absl/flags:parse",
-        "@abseil-cpp//absl/log",
-        "@abseil-cpp//absl/log:initialize",
-        "@abseil-cpp//absl/status",
-        "@abseil-cpp//absl/strings",
-        "@abseil-cpp//absl/strings:str_format",
-        "@abseil-cpp//absl/time",
-        "@qemu//:qemu-version-header",
-    ],
+    deps = [":emulator_main"],
 )
 
 create_launch_emulator_test(
@@ -840,18 +987,15 @@ create_launch_emulator_test(
 )
 
 create_launch_emulator_test(
-    # Explicit -virtio-gpu-device gfxstream boot check (now also the default,
-    # b/576450291). x-verify-state=enforce is not passed because the launcher
-    # owns the -device string; the device's default "log" mode reports invariant
-    # violations in the emulator log.
+    # virtio-gpu-gfxstream boot check. x-verify-state=enforce is not passed
+    # because the launcher owns the -device string; the device's default "log"
+    # mode reports invariant violations in the emulator log.
     name = "can_boot_with_gfxstream_device",
     count_log_pattern = "'Using virtio-gpu device: virtio-gpu-gfxstream'",
     expected_occurrences = 1,
     params = [
         "-show-kernel",
         "-no-boot-anim",
-        "-virtio-gpu-device",
-        "gfxstream",
         "-netsim-startup-timeout",
         "30s",
     ],
@@ -859,24 +1003,6 @@ create_launch_emulator_test(
         "@platforms//os:macos": ["@platforms//:incompatible"],
         "//conditions:default": [],
     }),
-    target_log_line = "'Boot completed in \\d+ ms'",
-    timeout_seconds = 300,
-)
-
-create_launch_emulator_test(
-    # Same boot with QEMU's fallback virtio-gpu-rutabaga device instead of the
-    # default virtio-gpu-gfxstream (b/576450291).
-    name = "can_boot_with_rutabaga_device",
-    count_log_pattern = "'Using virtio-gpu device: virtio-gpu-rutabaga'",
-    expected_occurrences = 1,
-    params = [
-        "-show-kernel",
-        "-no-boot-anim",
-        "-virtio-gpu-device",
-        "rutabaga",
-        "-netsim-startup-timeout",
-        "30s",
-    ],
     target_log_line = "'Boot completed in \\d+ ms'",
     timeout_seconds = 300,
 )
@@ -909,7 +1035,6 @@ test_suite(
     tests = [
         ":can_boot_with_gfxstream_device",
         ":can_boot_with_minigbm",
-        ":can_boot_with_rutabaga_device",
     ],
 )
 
@@ -1039,10 +1164,16 @@ py_binary(
 clang_tidy_test(
     name = "tidy",
     targets = [
+        ":avd",
+        ":avd_session_lock",
         ":feature_flags",
         ":feature_pattern_downloader",
+        ":gpu_info",
+        ":gpu_selection",
+        ":host_info",
         ":input_paths",
-        ":avd",
+        ":trampoline",
+        "//emulator/launcher/launch_qemu:gpu_device",
     ],
     tidy_config_file = "//:clang_tidy_config",
 )

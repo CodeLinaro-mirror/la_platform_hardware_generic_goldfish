@@ -136,10 +136,10 @@ class MultiDisplayImpl : public IMultiDisplay {
             }
             ASSIGN_OR_RETURN(display, VirtualDisplay::Create(loop_, qemu_loop_, display_id, width,
                                                              height, dpi, flags));
-            display->SetRotation(GetRotation());
             virtual_displays_.emplace(display_id, display);
             active_states_[display_id] = true;
         }
+        SyncDisplayRotation(*display);
 
         VLOG(1) << "Created display: " << display_id;
         FireEvent(DisplayEvent{DisplayEvent::AddedEvent{display}});
@@ -159,7 +159,6 @@ class MultiDisplayImpl : public IMultiDisplay {
                         id, id, id));
             }
             ASSIGN_OR_RETURN(display, QemuDisplay::Create(loop_, qemu_loop_, console, ds, id));
-            display->SetRotation(GetRotation());
             qemu_displays_.emplace(id, display);
 
             VLOG(1) << "Created display: " << *display;
@@ -168,6 +167,7 @@ class MultiDisplayImpl : public IMultiDisplay {
                 active_states_[id] = (id == 0);
             }
         }
+        SyncDisplayRotation(*display);
 
         FireEvent(DisplayEvent{DisplayEvent::AddedEvent{display}});
         return display;

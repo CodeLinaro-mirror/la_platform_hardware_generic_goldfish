@@ -44,7 +44,7 @@ class TestEventLoopImpl : public TestEventLoop {
 
     // EventLoop Interface
     void ShutdownTimers() override;
-    size_t WaitUntilIdle() override;
+    size_t Flush() override;
     std::future<absl::Status> Shutdown() override;
     bool IsOnLoopThread() const override;
     absl::Status PostImmediately(Task task, FlowId flow_id) override;
@@ -153,7 +153,6 @@ class TestEventLoopImpl : public TestEventLoop {
     bool IsCommandNone() const ABSL_SHARED_LOCKS_REQUIRED(mutex_) {
         return command_ == Command::kNone;
     }
-    bool IsQueueIdle() const ABSL_SHARED_LOCKS_REQUIRED(mutex_) { return queue_is_idle_; }
 
     std::thread thread_;
     std::thread::id thread_id_;
@@ -170,8 +169,8 @@ class TestEventLoopImpl : public TestEventLoop {
     absl::Duration time_advance_ ABSL_GUARDED_BY(mutex_){absl::ZeroDuration()};
     size_t run_count_ ABSL_GUARDED_BY(mutex_) = 0;
     size_t tasks_actually_run_ ABSL_GUARDED_BY(mutex_) = 0;
-    size_t tasks_processed_ ABSL_GUARDED_BY(mutex_) = 0;
-    bool queue_is_idle_ ABSL_GUARDED_BY(mutex_) = true;
+    uint64_t tasks_submitted_ ABSL_GUARDED_BY(mutex_) = 0;
+    uint64_t tasks_processed_ ABSL_GUARDED_BY(mutex_) = 0;
 };
 
 // --- Factory Function ---
@@ -194,7 +193,8 @@ TestEventLoopImpl::TestEventLoopImpl(std::string name)
 }
 
 TestEventLoopImpl::~TestEventLoopImpl() {
-    if (GetState() != LooperStatusEvent::State::kShuttingDown) {
+    if (GetState() != LooperStatusEvent::State::kShuttingDown &&
+        GetState() != LooperStatusEvent::State::kFinished) {
         ShutdownAndWait().IgnoreError();
     }
     {
@@ -216,24 +216,31 @@ void TestEventLoopImpl::ShutdownTimers() {
     scheduled_tasks_.clear();
 }
 
-size_t TestEventLoopImpl::WaitUntilIdle() {
+size_t TestEventLoopImpl::Flush() {
     absl::MutexLock lock(&mutex_);
-    mutex_.Await(absl::Condition(this, &TestEventLoopImpl::IsQueueIdle));
-    return tasks_processed_;
+    const uint64_t target = tasks_submitted_;
+    auto reached_target = [this, target]() ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_) {
+        return HasProcessedTarget(tasks_processed_, target);
+    };
+    mutex_.Await(absl::Condition(&reached_target));
+    return static_cast<size_t>(tasks_processed_);
 }
 
 std::future<absl::Status> TestEventLoopImpl::Shutdown() {
     SetState(LooperStatusEvent::State::kShuttingDown);
     std::promise<absl::Status> promise;
     promise.set_value(absl::OkStatus());
-    absl::MutexLock lock(&mutex_);
-    tasks_.clear();
-    for (auto& task : scheduled_tasks_) {
-        if (auto handle = task.handle.lock()) {
-            handle->MarkCancelled();
+    {
+        absl::MutexLock lock(&mutex_);
+        tasks_.clear();
+        for (auto& task : scheduled_tasks_) {
+            if (auto handle = task.handle.lock()) {
+                handle->MarkCancelled();
+            }
         }
+        scheduled_tasks_.clear();
     }
-    scheduled_tasks_.clear();
+    SetState(LooperStatusEvent::State::kFinished);
 
     return promise.get_future();
 }
@@ -243,18 +250,20 @@ bool TestEventLoopImpl::IsOnLoopThread() const {
 }
 
 absl::Status TestEventLoopImpl::PostImmediately(Task task, FlowId flow_id) {
-    if (GetState() == LooperStatusEvent::State::kShuttingDown) {
+    if (GetState() == LooperStatusEvent::State::kShuttingDown ||
+        GetState() == LooperStatusEvent::State::kFinished) {
         LOG(ERROR) << "Loop is shutting down.";
         return absl::UnavailableError("test loop is shutting down");
     }
     absl::MutexLock lock(&mutex_);
-    queue_is_idle_ = false;
+    ++tasks_submitted_;
     tasks_.push_back(QueuedTask{std::move(task), flow_id});
     return absl::OkStatus();
 }
 
 absl::Status TestEventLoopImpl::PostDelayed(Task task, absl::Duration delay, FlowId flow_id) {
-    if (GetState() == LooperStatusEvent::State::kShuttingDown) {
+    if (GetState() == LooperStatusEvent::State::kShuttingDown ||
+        GetState() == LooperStatusEvent::State::kFinished) {
         LOG(ERROR) << "Loop is shutting down.";
         return absl::UnavailableError("test loop is shutting down");
     }
@@ -393,9 +402,6 @@ bool TestEventLoopImpl::RunOneUnlocked() ABSL_NO_THREAD_SAFETY_ANALYSIS {
     }
     mutex_.Lock();
     ++tasks_processed_;
-    if (tasks_.empty()) {
-        queue_is_idle_ = true;
-    }
     return true;
 }
 
